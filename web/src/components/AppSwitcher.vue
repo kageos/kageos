@@ -65,6 +65,7 @@
     <WorkspaceListDialog
       v-model="dialogVisible"
       :current-app="currentApp"
+      :force-select="workspaceListForceSelect"
       @switch-app="handleSwitchApp"
       @create-app="handleCreateApp"
       @update-app="handleUpdateApp"
@@ -81,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ArrowUp, FolderOpened, Setting } from '@element-plus/icons-vue'
 import type { App, ServiceTree } from '@/types'
 import { hasPermission } from '@/utils/permission'
@@ -108,6 +109,8 @@ const emit = defineEmits<Emits>()
 
 const dialogVisible = ref(false)
 const settingsDialogVisible = ref(false)
+/** 本次打开工作空间列表是否强制必须选择/创建（从 /workspace/:user 进入时为 true） */
+const workspaceListForceSelect = ref(false)
 
 // ⭐ 检查是否有 app:admin 权限
 // 方案：从服务树的根节点获取应用权限（如果根节点有 app:admin 权限，说明用户有应用管理员权限）
@@ -209,6 +212,23 @@ const handleSettingsSaved = () => {
   // 触发重新加载应用列表，以获取最新的管理员信息
   emit('load-apps')
 }
+
+// 供父组件（如 WorkspaceView）在进入 /workspace/:user 时打开选择工作空间弹窗
+// forceSelect: 为 true 时弹窗不可关闭，必须选择或创建一个工作空间
+function openWorkspaceListDialog(forceSelect = false) {
+  workspaceListForceSelect.value = forceSelect
+  dialogVisible.value = true
+  emit('load-apps')
+}
+
+// 弹窗关闭后重置强制选择状态，避免下次从侧边栏打开时仍不可关闭
+watch(dialogVisible, (val) => {
+  if (!val) workspaceListForceSelect.value = false
+})
+
+defineExpose({
+  openWorkspaceListDialog
+})
 </script>
 
 <style scoped>

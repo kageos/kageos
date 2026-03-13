@@ -279,15 +279,6 @@
               <el-icon><LinkIcon /></el-icon>
             </button>
           </el-tooltip>
-          <el-tooltip content="上传文件" placement="bottom">
-            <button
-              type="button"
-              @click="handleInsertFile"
-              class="toolbar-button"
-            >
-              <el-icon><Picture /></el-icon>
-            </button>
-          </el-tooltip>
           <el-tooltip content="表格" placement="bottom">
             <el-dropdown trigger="click" @command="handleTableCommand" placement="bottom-start">
               <button
@@ -403,10 +394,13 @@
           <p style="color: var(--el-text-color-placeholder);">暂无内容</p>
         </div>
       </div>
-      <!-- 字数统计 -->
+      <!-- 字数统计与上传说明 -->
       <div v-if="editor && !isPreviewMode" class="editor-footer">
         <span class="word-count">
           字数：{{ getWordCount() }} | 字符：{{ getCharCount() }}
+        </span>
+        <span class="upload-hint">
+          支持拖拽文件到编辑区上传，或粘贴剪贴板中的图片/文件上传
         </span>
       </div>
     </div>
@@ -509,7 +503,6 @@ import {
   Sort,
   ChatLineRound,
   Link as LinkIcon,
-  Picture,
   Grid,
   Minus,
   RefreshLeft,
@@ -697,7 +690,7 @@ const editor = useEditor({
       nested: true
     }),
     Placeholder.configure({
-      placeholder: '请输入内容...'
+      placeholder: '请输入内容，支持拖拽文件到此处或粘贴图片/文件上传'
     }),
     Dropcursor, // 单独添加
     Gapcursor, // 单独添加
@@ -743,7 +736,7 @@ const editor = useEditor({
     attributes: {
       class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none',
       style: `min-height: ${editorHeight.value}px; padding: 16px;`,
-      placeholder: '请输入内容...'
+      placeholder: '请输入内容，支持拖拽文件到此处或粘贴图片/文件上传'
     },
     // 优化粘贴处理：支持从 Word、网页、Markdown 等粘贴，自动清理格式
     // 特别处理：检测粘贴的文件（任意类型），自动上传而不是使用 base64
@@ -1526,7 +1519,10 @@ watch(
 
 .editor-footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   padding: 8px 16px;
   background-color: var(--el-fill-color-lighter);
   border-top: 1px solid var(--el-border-color);
@@ -1536,6 +1532,13 @@ watch(
 
 .word-count {
   user-select: none;
+}
+
+.upload-hint {
+  font-size: 11px;
+  color: var(--el-text-color-placeholder);
+  max-width: 320px;
+  text-align: right;
 }
 
 .preview-toggle {

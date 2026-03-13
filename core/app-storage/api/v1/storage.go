@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -75,6 +76,9 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 
 	// 将 gin.Context 转换为标准 context.Context
 	ctx := contextx.ToContext(c)
+	// 诊断预签名 Host：用于排查 403（签名 Host 需与浏览器 PUT 的 Host 一致）
+	presignHost := contextx.GetPresignHost(ctx)
+	logger.Infof(c, "[GetUploadToken] presign host for upload: X-Forwarded-Host=%q, Request.Host=%q => presignHost=%q", c.GetHeader("X-Forwarded-Host"), c.Request.Host, presignHost)
 
 	// 生成上传凭证
 	creds, key, expire, err := s.storageService.GenerateUploadToken(ctx, router, req.FileName, req.ContentType, req.FileSize, uploadSource)
@@ -101,6 +105,13 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 	// 构建响应
 	resp = buildUploadTokenResponse(creds, key, expire, cdnDomain, storageType, downloadURL, serverDownloadURL, username)
 	resp.Bucket = s.storageService.GetBucketName()
+
+	// 线上排查 403：确认返回的 URL 的 host 与浏览器 PUT 时的 Host 一致
+	if resp.URL != "" {
+		if u, e := url.Parse(resp.URL); e == nil {
+			logger.Infof(c, "[GetUploadToken] upload URL host=%q (browser PUT must use same Host)", u.Host)
+		}
+	}
 
 	response.OkWithData(c, resp)
 }

@@ -209,6 +209,14 @@ func copyFile(ctx context.Context, srcPath, dstPath string) error {
 	return nil
 }
 
+// DownloadOnly 直接下载到目标路径，不写入缓存（用于无 hash 的文件）
+func (fc *FileCache) DownloadOnly(ctx context.Context, downloadURL string, targetPath string) (string, error) {
+	if err := downloadFile(ctx, downloadURL, targetPath); err != nil {
+		return "", err
+	}
+	return targetPath, nil
+}
+
 // downloadFile 下载文件到指定路径
 func downloadFile(ctx context.Context, url string, filePath string) error {
 	// 创建HTTP请求

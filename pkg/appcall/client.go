@@ -103,6 +103,15 @@ func (c *Client) CreateServiceTree(ctx context.Context, hostId int64, req *dto.C
 	return &resp, nil
 }
 
+// DeleteServiceTree 删除服务目录（subject: app_server.app_runtime.delete_service_tree，删磁盘并从 main.go 移除 import）
+func (c *Client) DeleteServiceTree(ctx context.Context, hostId int64, req *dto.DeleteServiceTreeRuntimeReq) (*dto.DeleteServiceTreeRuntimeResp, error) {
+	var resp dto.DeleteServiceTreeRuntimeResp
+	if err := c.requestByHost(ctx, hostId, "app_server.app_runtime.delete_service_tree", req, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // ReadDirectoryFiles 读取目录文件（subject: app_server.app_runtime.read_directory_files）
 func (c *Client) ReadDirectoryFiles(ctx context.Context, hostId int64, req *dto.ReadDirectoryFilesRuntimeReq) (*dto.ReadDirectoryFilesRuntimeResp, error) {
 	var resp dto.ReadDirectoryFilesRuntimeResp

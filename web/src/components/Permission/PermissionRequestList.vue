@@ -1,5 +1,71 @@
 <template>
   <div class="permission-request-list" v-loading="loading">
+    <!-- 直接赋权（管理员在本 tab 内直接赋权，若审批人是自己会直接通过） -->
+    <div v-if="resourcePath" class="grant-section">
+      <el-collapse>
+        <el-collapse-item title="直接赋权" name="grant">
+          <el-form label-width="90px" class="grant-form">
+            <el-form-item label="资源路径">
+              <span class="grant-resource-path">{{ resourcePath }}</span>
+            </el-form-item>
+            <el-form-item label="角色" required>
+              <el-select
+                v-model="grantRoleId"
+                placeholder="请选择角色"
+                filterable
+                style="width: 100%"
+                @focus="loadRolesForGrant"
+              >
+                <el-option
+                  v-for="r in grantRoles"
+                  :key="r.id"
+                  :label="r.name || r.code"
+                  :value="r.id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="赋权对象">
+              <el-radio-group v-model="grantSubjectType">
+                <el-radio label="user">用户</el-radio>
+                <el-radio label="department">组织架构</el-radio>
+              </el-radio-group>
+            </el-form-item>
+            <el-form-item v-if="grantSubjectType === 'user'" label="选择用户">
+              <UsersWidget
+                v-model="grantUsersValue"
+                :field="grantUsersField"
+                mode="edit"
+                field-path="grant_user"
+              />
+            </el-form-item>
+            <el-form-item v-if="grantSubjectType === 'department'" label="选择部门">
+              <div>
+                <el-button type="primary" @click="showGrantDeptDialog = true" :icon="OfficeBuilding">
+                  {{ grantDepartmentPaths.length ? `已选 ${grantDepartmentPaths.length} 个部门` : '选择组织架构（可多选）' }}
+                </el-button>
+                <div v-if="grantDepartmentPaths.length" class="grant-dept-tags">
+                  <el-tag
+                    v-for="path in grantDepartmentPaths"
+                    :key="path"
+                    size="small"
+                    closable
+                    @close="removeGrantDepartment(path)"
+                  >
+                    {{ path }}
+                  </el-tag>
+                </div>
+              </div>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" @click="submitGrant" :loading="grantSubmitting">
+                提交赋权
+              </el-button>
+            </el-form-item>
+          </el-form>
+        </el-collapse-item>
+      </el-collapse>
+    </div>
+
     <!-- 筛选条件 -->
     <div class="filter-section">
       <el-form :inline="true" :model="filterForm" class="filter-form">
@@ -206,24 +272,37 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 直接赋权：选择部门（多选） -->
+    <DepartmentsSearchDialog
+      v-model="showGrantDeptDialog"
+      :initial-paths="grantDepartmentPaths.join(',')"
+      @confirm="onGrantDepartmentsSelected"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { OfficeBuilding } from '@element-plus/icons-vue'
 import { getPermissionRequests, approvePermissionRequest, rejectPermissionRequest } from '@/api/permission'
+import { applyPermission } from '@/api/permission'
+import { getRolesForPermissionRequest } from '@/api/role'
 import { useAuthStore } from '@/stores/auth'
 import UserDisplay from '@/architecture/presentation/widgets/UserDisplay.vue'
-import { getPermissionDisplayName } from '@/utils/permission'
 import UsersWidget from '@/architecture/presentation/widgets/UsersWidget.vue'
 import DepartmentsWidget from '@/architecture/presentation/widgets/DepartmentsWidget.vue'
+import DepartmentsSearchDialog from '@/architecture/presentation/widgets/DepartmentsSearchDialog.vue'
 import { WidgetType } from '@/core/constants/widget'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
+import type { Department } from '@/api/department'
+import type { Role } from '@/api/role'
 
 interface Props {
   resourcePath?: string  // 资源路径（可选，如果提供则只显示该资源的申请）
-  resourceType?: 'function' | 'directory' | 'app'  // 资源类型（可选）
+  resourceType?: 'function' | 'directory' | 'app'  // 资源类型（可选，用于加载角色列表）
+  templateType?: string  // 模板类型（function 时可选：table、form、chart）
   showMyRequests?: boolean  // 是否只显示我的申请
   autoLoad?: boolean  // 是否自动加载
 }
@@ -281,6 +360,103 @@ const rejectForm = ref({
   reason: ''
 })
 const currentRejectRequest = ref<PermissionRequest | null>(null)
+
+// 直接赋权
+const grantSubjectType = ref<'user' | 'department'>('user')
+const grantRoleId = ref<number | null>(null)
+const grantRoles = ref<Role[]>([])
+const grantUsersValue = ref<FieldValue>({ raw: '', display: '', meta: {} })
+const grantDepartmentPaths = ref<string[]>([])
+const showGrantDeptDialog = ref(false)
+const grantSubmitting = ref(false)
+
+const grantUsersField = computed<FieldConfig>(() => ({
+  code: 'grant_user',
+  name: '用户',
+  widget: { type: WidgetType.USERS, config: {} },
+  data: { type: 'string' }
+}))
+
+async function loadRolesForGrant() {
+  if (grantRoles.value.length > 0 || !props.resourcePath) return
+  try {
+    const nodeType = props.resourceType === 'function' ? 'function' : 'package'
+    const res = await getRolesForPermissionRequest({
+      node_type: nodeType,
+      template_type: props.templateType || undefined
+    })
+    grantRoles.value = res.roles || []
+  } catch (e) {
+    grantRoles.value = []
+  }
+}
+
+function onGrantDepartmentsSelected(departments: Department[]) {
+  grantDepartmentPaths.value = departments.map(d => d.full_code_path)
+  showGrantDeptDialog.value = false
+}
+
+function removeGrantDepartment(path: string) {
+  grantDepartmentPaths.value = grantDepartmentPaths.value.filter((p: string) => p !== path)
+}
+
+async function submitGrant() {
+  if (!props.resourcePath) {
+    ElMessage.warning('缺少资源路径')
+    return
+  }
+  if (!grantRoleId.value) {
+    ElMessage.warning('请选择角色')
+    return
+  }
+  if (grantSubjectType.value === 'user') {
+    const raw = grantUsersValue.value?.raw
+    const subject = raw != null ? String(raw).trim() : ''
+    if (!subject) {
+      ElMessage.warning('请选择要赋权的用户')
+      return
+    }
+    grantSubmitting.value = true
+    try {
+      await applyPermission({
+        resource_path: props.resourcePath,
+        role_id: grantRoleId.value,
+        subject_type: 'user',
+        subject
+      })
+      ElMessage.success('赋权成功')
+      loadRequests()
+    } catch (err: any) {
+      ElMessage.error('赋权失败: ' + (err?.message || '未知错误'))
+    } finally {
+      grantSubmitting.value = false
+    }
+    return
+  }
+  if (grantSubjectType.value === 'department') {
+    if (grantDepartmentPaths.value.length === 0) {
+      ElMessage.warning('请选择要赋权的部门')
+      return
+    }
+    grantSubmitting.value = true
+    try {
+      for (const path of grantDepartmentPaths.value) {
+        await applyPermission({
+          resource_path: props.resourcePath,
+          role_id: grantRoleId.value,
+          subject_type: 'department',
+          subject: path
+        })
+      }
+      ElMessage.success('赋权成功')
+      loadRequests()
+    } catch (err: any) {
+      ElMessage.error('赋权失败: ' + (err?.message || '未知错误'))
+    } finally {
+      grantSubmitting.value = false
+    }
+  }
+}
 
 // 获取当前用户
 const authStore = useAuthStore()
@@ -515,6 +691,27 @@ defineExpose({
 <style scoped lang="scss">
 .permission-request-list {
   padding: 16px;
+  
+  .grant-section {
+    margin-bottom: 16px;
+    
+    .grant-form {
+      max-width: 520px;
+    }
+    
+    .grant-resource-path {
+      font-size: 12px;
+      color: var(--el-text-color-secondary);
+      word-break: break-all;
+    }
+    
+    .grant-dept-tags {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+  }
   
   .filter-section {
     margin-bottom: 16px;

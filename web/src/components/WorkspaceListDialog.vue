@@ -1,12 +1,15 @@
 <template>
   <el-dialog
     v-model="visible"
-    title="工作空间列表"
+    :title="forceSelect ? '请选择工作空间' : '工作空间列表'"
     width="900px"
     :close-on-click-modal="false"
+    :show-close="!forceSelect"
+    :before-close="forceSelect ? handleBeforeClose : undefined"
     @close="handleClose"
   >
     <div class="workspace-list-dialog">
+      <p v-if="forceSelect" class="force-select-tip">请选择一个工作空间进入，或创建新工作空间。</p>
       <!-- 搜索栏 -->
       <div class="search-bar">
         <el-input
@@ -218,7 +221,7 @@
 
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="handleClose">关闭</el-button>
+        <el-button v-if="!forceSelect" @click="handleClose">关闭</el-button>
         <el-button type="primary" @click="$emit('create-app')">
           <el-icon><Plus /></el-icon>
           创建新工作空间
@@ -239,6 +242,8 @@ import UserDisplay from '@/architecture/presentation/widgets/UserDisplay.vue'
 interface Props {
   modelValue: boolean
   currentApp: App | null
+  /** 为 true 时不可关闭弹窗，必须选择或创建工作空间（如从 /workspace/:user 进入时） */
+  forceSelect?: boolean
 }
 
 interface Emits {
@@ -344,6 +349,11 @@ const handleClose = () => {
   searchKeyword.value = ''
 }
 
+// 强制选择模式下阻止关闭（ESC 等）：不调用 done() 弹窗不会关闭
+const handleBeforeClose = (_done: () => void) => {
+  // 不调用 done()，弹窗保持打开
+}
+
 // 监听弹窗显示状态
 watch(visible, (newVal: boolean) => {
   if (newVal) {
@@ -355,6 +365,15 @@ watch(visible, (newVal: boolean) => {
 <style scoped>
 .workspace-list-dialog {
   min-height: 400px;
+}
+
+.force-select-tip {
+  margin: 0 0 16px;
+  padding: 8px 12px;
+  background: var(--el-color-info-light-9);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
 }
 
 .search-bar {

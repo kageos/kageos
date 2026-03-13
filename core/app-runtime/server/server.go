@@ -16,6 +16,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/builder"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
 	"github.com/nats-io/nats.go"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -159,7 +160,7 @@ func (s *Server) closeDatabase(ctx context.Context) {
 func (s *Server) initNATS(ctx context.Context) error {
 
 	natsConfig := config.GetGlobalSharedConfig().Nats
-	conn, err := nats.Connect(natsConfig.URL)
+	conn, err := natsx.Connect(natsConfig.URL)
 	if err != nil {
 		return fmt.Errorf("failed to connect to NATS: %w", err)
 	}
@@ -227,6 +228,11 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.serviceTreeService = service.NewServiceTreeService(&s.cfg.AppManage)
 	// 设置依赖关系
 	s.serviceTreeService.SetAppManageService(s.appManageService)
+
+	// 启动基础设施看门狗（以 NATS 连接状态为探针，1 秒轮询，断开时触发恢复）
+	watchdog := service.NewInfraWatchdog(s.natsConn, s.containerService)
+	watchdog.SetOnRecovered(s.reconcileAppContainers)
+	go watchdog.Start(ctx)
 
 	return nil
 }
@@ -359,4 +365,56 @@ func (s *Server) GetDB() *gorm.DB {
 // GetServiceTreeService 获取服务目录管理服务
 func (s *Server) GetServiceTreeService() *service.ServiceTreeService {
 	return s.serviceTreeService
+}
+
+// reconcileAppContainers 对账应用容器
+// Podman 重启后，内存中标记为 running 的应用容器实际已停止。
+// 遍历内存中 running 的应用，检查容器是否真的在跑，没跑就拉起来。
+func (s *Server) reconcileAppContainers(ctx context.Context) {
+	runningApps := s.appDiscoveryService.GetRunningApps()
+	if len(runningApps) == 0 {
+		logger.Infof(ctx, "[Reconcile] 内存中无 running 应用，跳过对账")
+		return
+	}
+
+	logger.Infof(ctx, "[Reconcile] 开始对账应用容器 | 内存中 running 应用=%d", len(runningApps))
+
+	restarted := 0
+	alreadyRunning := 0
+	failed := 0
+
+	for appKey, appInfo := range runningApps {
+		for _, version := range appInfo.Versions {
+			containerName := service.BuildContainerName(appInfo.User, appInfo.App, version.Version)
+
+			running, err := s.containerService.IsContainerRunning(ctx, containerName)
+			if err != nil {
+				logger.Warnf(ctx, "[Reconcile] 无法检查容器 %s: %v", containerName, err)
+				failed++
+				continue
+			}
+
+			if running {
+				alreadyRunning++
+				continue
+			}
+
+			// 容器没在跑，拉起来
+			logger.Infof(ctx, "[Reconcile] 重启应用容器 | 应用=%s | 版本=%s | 容器=%s",
+				appKey, version.Version, containerName)
+			startTime := time.Now()
+
+			if err := s.containerService.StartContainer(ctx, containerName); err != nil {
+				logger.Warnf(ctx, "[Reconcile] ❌ 重启失败 | 容器=%s | 错误=%v", containerName, err)
+				failed++
+			} else {
+				logger.Infof(ctx, "[Reconcile] ✅ 重启成功 | 容器=%s | 耗时=%s",
+					containerName, time.Since(startTime).Round(time.Millisecond))
+				restarted++
+			}
+		}
+	}
+
+	logger.Infof(ctx, "[Reconcile] 应用容器对账完成 | 重启=%d | 已在运行=%d | 失败=%d",
+		restarted, alreadyRunning, failed)
 }

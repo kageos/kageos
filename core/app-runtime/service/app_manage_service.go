@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/robfig/cron/v3"
+
 	sharedDto "github.com/ai-agent-os/ai-agent-os/dto"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/model"
@@ -77,9 +79,17 @@ type AppManageService struct {
 	closeWaiters   map[string]chan *CloseNotification // key: user/app/version
 	closeWaitersMu sync.RWMutex
 
-	// 定时任务控制
-	cleanupTicker *time.Ticker
-	cleanupDone   chan struct{}
+	// 定时任务控制（进程级+容器级合并为一次完整清理，由 cron + 有变动时触发）
+	cleanupDone chan struct{}
+
+	// 容器级对账巡检控制（cron 低峰期执行 + 有变动时由 ticker 触发）
+	containerCleanupTicker *time.Ticker
+	containerCleanupDone   chan struct{}
+	containerCleanupCron   *cron.Cron // 每日定点执行，如 "0 4 * * *" 表示凌晨 4 点
+
+	// 有版本/容器变动时置为 true，ticker 检查到后执行一次巡检
+	containerCleanupMu     sync.Mutex
+	containerCleanupDirty   bool
 }
 
 // ============================================================================
@@ -168,7 +178,8 @@ func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageSe
 		createFunctionService: createFunctionService,
 		startupWaiters:        make(map[string]chan *StartupNotification),
 		closeWaiters:          make(map[string]chan *CloseNotification),
-		cleanupDone:           make(chan struct{}),
+		cleanupDone:          make(chan struct{}),
+		containerCleanupDone: make(chan struct{}),
 	}
 }
 
@@ -410,6 +421,7 @@ func (s *AppManageService) DeleteApp(ctx context.Context, user, app string) erro
 					logger.Infof(ctx, "[DeleteApp] Container %s removed successfully", containerName)
 				}
 			}
+			s.MarkContainerCleanupDirty() // 有容器被删，下次巡检周期会做对账
 		}
 	} else {
 		logger.Warnf(ctx, "[DeleteApp] Container operator is nil, skipping container deletion")
@@ -481,14 +493,10 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, crea
 		return nil, fmt.Errorf("app not found: %s/%s", user, app)
 	}
 
-	// 2. 查询应用状态，判断是否为未激活状态
-	appRecord, err := s.appRepo.GetApp(user, app)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get app record: %w", err)
+	// 2. 确保应用记录存在，若无则创建（便于 build_workspace 等对“仅目录存在”的场景）；失败仅打日志，不阻断编译部署
+	if err := s.appRepo.EnsureAppExists(user, app); err != nil {
+		logger.Warnf(ctx, "[UpdateApp] ensure app record failed (non-blocking): %v", err)
 	}
-
-	isInactive := appRecord.IsInactive()
-	logStr.WriteString(fmt.Sprintf("App status: %s\t", appRecord.Status))
 
 	// 3. 使用 VersionManager 获取当前版本
 	vm := appPkg.NewVersionManager(filepath.Join(s.config.AppDir.BasePath, user), app)
@@ -584,13 +592,11 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, crea
 		logStr.WriteString(fmt.Sprintf("Startup confirmed at %s\t", notification.StartTime.Format(time.DateTime)))
 		logger.Infof(ctx, "[UpdateApp] ✅ Startup confirmed: %s/%s/%s (first handshake completed)", user, app, newVersion)
 
-		// 如果应用之前是未激活状态，现在启动成功后更新为已激活
-		if isInactive {
-			if err := s.updateAppStatusToActive(ctx, user, app); err != nil {
-				logger.Warnf(ctx, "[UpdateApp] Failed to update app status to active: %v", err)
-			} else {
-				logger.Infof(ctx, "[UpdateApp] App status updated to active: %s/%s", user, app)
-			}
+		// 启动成功后统一将应用状态更新为已激活（幂等，已为 active 时多一次 UPDATE 无影响）
+		if err := s.updateAppStatusToActive(ctx, user, app); err != nil {
+			logger.Warnf(ctx, "[UpdateApp] Failed to update app status to active: %v", err)
+		} else {
+			logger.Infof(ctx, "[UpdateApp] App status updated to active: %s/%s", user, app)
 		}
 	case <-time.After(60 * time.Second):
 		logStr.WriteString("Startup timeout\t")
@@ -1052,6 +1058,7 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 	}
 
 	logger.Infof(ctx, "Container started successfully with ai-agent-os image")
+	s.MarkContainerCleanupDirty() // 有新容器，下次巡检周期会做对账
 	return nil
 }
 
@@ -1101,6 +1108,7 @@ func (s *AppManageService) stopOldVersionContainer(ctx context.Context, user, ap
 	}
 
 	logger.Infof(ctx, "[stopOldVersionContainer] Old container %s stopped successfully", containerName)
+	s.MarkContainerCleanupDirty() // 有容器被停，下次巡检周期会做对账
 	return nil
 }
 
@@ -1180,42 +1188,69 @@ func (s *AppManageService) ShutdownOldVersions(ctx context.Context, user, app st
 }
 
 // StartCleanupTask 启动定时清理任务
+// 进程级清理 + 容器级巡检合并为「一次完整清理」，在凌晨 4 点与有变动时执行（进程级在前、容器级在后）
 func (s *AppManageService) StartCleanupTask(ctx context.Context) {
+	const containerCleanupCronExpr = "0 4 * * *" // 每天凌晨 4 点（cron：分 时 日 月 周）
+	logger.Infof(ctx, "[CleanupTask] 启动定时清理 | 进程级+容器级=cron(%s)+有变动时 | 顺序=进程级→容器级 | 保留版本数=%d",
+		containerCleanupCronExpr, maxKeepVersions)
 
-	// 每30秒检查一次是否需要关闭旧版本
-	s.cleanupTicker = time.NewTicker(30 * time.Second)
+	// 凌晨 4 点：先进程级（按当前版本停非当前），再容器级（保留最近 3 版本并删除多余）
+	s.containerCleanupCron = cron.New(cron.WithLocation(time.Local))
+	_, err := s.containerCleanupCron.AddFunc(containerCleanupCronExpr, func() {
+		logger.Infof(ctx, "[CleanupTask] cron 触发 | 执行进程级清理 + 容器级巡检")
+		s.runAllCleanups(ctx)
+	})
+	if err != nil {
+		logger.Warnf(ctx, "[CleanupTask] cron 添加失败: %v，将仅依赖有变动时触发", err)
+	} else {
+		s.containerCleanupCron.Start()
+	}
+
+	// 每 1 分钟检查是否有“有变动”标记，有则执行一次完整清理（进程级+容器级）
+	s.containerCleanupTicker = time.NewTicker(1 * time.Minute)
 
 	go func() {
-		defer s.cleanupTicker.Stop()
-
+		defer s.containerCleanupTicker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
-				logger.Infof(ctx, "[AppManageService] Cleanup task stopped by context")
+				logger.Infof(ctx, "[CleanupTask] 清理任务已停止 (context canceled)")
 				return
-			case <-s.cleanupDone:
-				logger.Infof(ctx, "[AppManageService] Cleanup task stopped by signal")
+			case <-s.containerCleanupDone:
+				logger.Infof(ctx, "[CleanupTask] 清理任务已停止 (signal)")
 				return
-			case <-s.cleanupTicker.C:
-				s.performCleanup(ctx)
+			case <-s.containerCleanupTicker.C:
+				s.maybeRunContainerLevelCleanup(ctx)
 			}
 		}
 	}()
+}
 
+// runAllCleanups 执行一次完整清理：先进程级（按当前版本停非当前），再容器级（保留最近 3 版本并删除多余）
+func (s *AppManageService) runAllCleanups(ctx context.Context) {
+	s.performCleanup(ctx)       // 进程级：按 current_version 停掉非当前且无流量的版本
+	s.containerLevelCleanup(ctx) // 容器级：每应用保留最近 3 版本，其余 stop+remove
 }
 
 // StopCleanupTask 停止定时清理任务
 func (s *AppManageService) StopCleanupTask(ctx context.Context) {
-	if s.cleanupTicker != nil {
-		s.cleanupTicker.Stop()
+	if s.containerCleanupTicker != nil {
+		s.containerCleanupTicker.Stop()
+	}
+	if s.containerCleanupCron != nil {
+		s.containerCleanupCron.Stop()
 	}
 
 	select {
 	case s.cleanupDone <- struct{}{}:
 	default:
 	}
+	select {
+	case s.containerCleanupDone <- struct{}{}:
+	default:
+	}
 
-	logger.Infof(ctx, "[AppManageService] Cleanup task stopped")
+	logger.Infof(ctx, "[AppManageService] Cleanup tasks stopped")
 }
 
 // performCleanup 执行清理任务
@@ -1246,6 +1281,201 @@ func (s *AppManageService) performCleanup(ctx context.Context) {
 // getAllApps 获取所有应用
 func (s *AppManageService) getAllApps(ctx context.Context) ([]*model.App, error) {
 	return s.appRepo.GetAllApps()
+}
+
+// maxKeepVersions 每个应用保留的最大容器版本数
+const maxKeepVersions = 3
+
+// appContainerInfo 单个应用的容器信息（用于按版本排序清理）
+type appContainerInfo struct {
+	containerName string
+	version       string
+	versionNum    int // 从 "v1","v2"... 解析出的数字，用于排序
+	exited        bool
+}
+
+// maybeRunContainerLevelCleanup 仅在有变动时执行一次完整清理（进程级+容器级）
+func (s *AppManageService) maybeRunContainerLevelCleanup(ctx context.Context) {
+	s.containerCleanupMu.Lock()
+	dirty := s.containerCleanupDirty
+	s.containerCleanupMu.Unlock()
+
+	if !dirty {
+		return
+	}
+
+	logger.Infof(ctx, "[CleanupTask] 检测到版本/容器变动，执行一次完整清理（进程级→容器级）")
+	s.runAllCleanups(ctx)
+
+	s.containerCleanupMu.Lock()
+	s.containerCleanupDirty = false
+	s.containerCleanupMu.Unlock()
+}
+
+// MarkContainerCleanupDirty 标记“有容器/版本变动”，下次巡检周期会执行一次对账
+func (s *AppManageService) MarkContainerCleanupDirty() {
+	s.containerCleanupMu.Lock()
+	defer s.containerCleanupMu.Unlock()
+	s.containerCleanupDirty = true
+}
+
+// containerLevelCleanup 容器级对账巡检
+// 策略：每个应用保留最近 maxKeepVersions 个版本的容器，更老的全部清理。
+// 这样随着应用数量增长，容器总数可控，减轻 Podman 压力。
+func (s *AppManageService) containerLevelCleanup(ctx context.Context) {
+	if s.containerService == nil || !s.containerService.IsRunning() {
+		logger.Debugf(ctx, "[ContainerCleanup] 跳过巡检: containerService 不可用或未运行")
+		return
+	}
+
+	cleanupStart := time.Now()
+
+	allContainers, err := s.containerService.ListContainers(ctx)
+	if err != nil {
+		logger.Warnf(ctx, "[ContainerCleanup] 获取容器列表失败: %v", err)
+		return
+	}
+
+	// 按 "user/app" 分组收集应用容器
+	appContainers := make(map[string][]appContainerInfo) // key: "user/app"
+	infraCount := 0
+
+	for _, c := range allContainers {
+		if len(c.Names) == 0 {
+			continue
+		}
+		containerName := c.Names[0]
+
+		user, app, version, parseErr := parseContainerName(containerName)
+		if parseErr != nil {
+			infraCount++
+			continue
+		}
+
+		vNum := parseVersionNumber(version)
+		appKey := user + "/" + app
+		appContainers[appKey] = append(appContainers[appKey], appContainerInfo{
+			containerName: containerName,
+			version:       version,
+			versionNum:    vNum,
+			exited:        c.Exited,
+		})
+	}
+
+	totalAppContainers := 0
+	for _, cs := range appContainers {
+		totalAppContainers += len(cs)
+	}
+
+	logger.Infof(ctx, "[ContainerCleanup] 开始巡检 | 总容器=%d | 应用容器=%d（%d个应用）| 基础设施容器=%d | 保留策略=每应用最近%d版本",
+		len(allContainers), totalAppContainers, len(appContainers), infraCount, maxKeepVersions)
+
+	var cleanedExited, cleanedRunning, skippedTraffic, failedClean int
+
+	for appKey, containers := range appContainers {
+		if len(containers) <= maxKeepVersions {
+			continue
+		}
+
+		sortContainersByVersion(containers)
+
+		// 日志：列出该应用所有版本
+		kept := containers[:maxKeepVersions]
+		toRemove := containers[maxKeepVersions:]
+
+		keptVersions := make([]string, len(kept))
+		for i, c := range kept {
+			status := "运行中"
+			if c.exited {
+				status = "已停止"
+			}
+			keptVersions[i] = fmt.Sprintf("%s(%s)", c.version, status)
+		}
+		removeVersions := make([]string, len(toRemove))
+		for i, c := range toRemove {
+			status := "运行中"
+			if c.exited {
+				status = "已停止"
+			}
+			removeVersions[i] = fmt.Sprintf("%s(%s)", c.version, status)
+		}
+
+		logger.Infof(ctx, "[ContainerCleanup] 应用 %s | 共%d个版本 | 保留=%v | 待清理=%v",
+			appKey, len(containers), keptVersions, removeVersions)
+
+		parts := strings.SplitN(appKey, "/", 2)
+		user, app := parts[0], parts[1]
+
+		for _, info := range toRemove {
+			if info.exited {
+				removeStart := time.Now()
+				if rmErr := s.containerService.RemoveContainer(ctx, info.containerName); rmErr != nil {
+					logger.Warnf(ctx, "[ContainerCleanup] ❌ 删除已停止容器失败 | 容器=%s | 错误=%v", info.containerName, rmErr)
+					failedClean++
+				} else {
+					logger.Infof(ctx, "[ContainerCleanup] ✅ 已删除停止容器 | 容器=%s | 版本=%s | 耗时=%s",
+						info.containerName, info.version, time.Since(removeStart).Round(time.Millisecond))
+					cleanedExited++
+				}
+			} else {
+				if s.QPSTracker.IsSafeToShutdown(user, app, info.version) {
+					stopStart := time.Now()
+					logger.Infof(ctx, "[ContainerCleanup] 停止运行中的旧容器 | 容器=%s | 版本=%s（QPS=0，安全关闭）", info.containerName, info.version)
+					stopErr := s.containerService.StopContainer(ctx, info.containerName)
+					if stopErr != nil {
+						// 容器已不存在（可能已被外部删除或已退出），视为已清理，不记入失败
+						if strings.Contains(stopErr.Error(), "not found") {
+							logger.Infof(ctx, "[ContainerCleanup] 容器已不存在，视为已清理 | 容器=%s | 版本=%s", info.containerName, info.version)
+							_ = s.containerService.RemoveContainer(ctx, info.containerName) // 无则 no-op
+						} else {
+							logger.Warnf(ctx, "[ContainerCleanup] ❌ 停止容器失败 | 容器=%s | 错误=%v", info.containerName, stopErr)
+							failedClean++
+						}
+						continue
+					}
+					if rmErr := s.containerService.RemoveContainer(ctx, info.containerName); rmErr != nil {
+						logger.Warnf(ctx, "[ContainerCleanup] ❌ 删除容器失败 | 容器=%s | 错误=%v", info.containerName, rmErr)
+						failedClean++
+					} else {
+						logger.Infof(ctx, "[ContainerCleanup] ✅ 已停止并删除运行容器 | 容器=%s | 版本=%s | 耗时=%s",
+							info.containerName, info.version, time.Since(stopStart).Round(time.Millisecond))
+						cleanedRunning++
+					}
+				} else {
+					logger.Infof(ctx, "[ContainerCleanup] ⏭ 跳过运行中容器 | 容器=%s | 版本=%s | 原因=仍有流量（QPS>0）",
+						info.containerName, info.version)
+					skippedTraffic++
+				}
+			}
+		}
+	}
+
+	totalCleaned := cleanedExited + cleanedRunning
+	logger.Infof(ctx, "[ContainerCleanup] 巡检完成 | 耗时=%s | 清理=%d（已停止=%d + 运行中=%d）| 跳过=%d（有流量）| 失败=%d",
+		time.Since(cleanupStart).Round(time.Millisecond), totalCleaned, cleanedExited, cleanedRunning, skippedTraffic, failedClean)
+}
+
+// parseVersionNumber 从 "v1","v2","v10" 等版本字符串中提取数字部分
+func parseVersionNumber(version string) int {
+	v := strings.TrimPrefix(version, "v")
+	num := 0
+	for _, ch := range v {
+		if ch >= '0' && ch <= '9' {
+			num = num*10 + int(ch-'0')
+		} else {
+			break
+		}
+	}
+	return num
+}
+
+// sortContainersByVersion 按版本号降序排列（最新版本在前面）
+func sortContainersByVersion(containers []appContainerInfo) {
+	for i := 1; i < len(containers); i++ {
+		for j := i; j > 0 && containers[j].versionNum > containers[j-1].versionNum; j-- {
+			containers[j], containers[j-1] = containers[j-1], containers[j]
+		}
+	}
 }
 
 // CleanupNonCurrentVersions 清理非当前版本的无流量版本
@@ -1289,12 +1519,20 @@ func (s *AppManageService) CleanupNonCurrentVersions(ctx context.Context, user, 
 			continue
 		}
 
-		// 关闭该版本
-		//logger.Infof(ctx, "[CleanupNonCurrentVersions] Shutting down non-current version %s (no traffic)", version.Version)
-		if err := s.ShutdownAppVersion(ctx, user, app, version.Version); err != nil {
-			logger.Errorf(ctx, "[CleanupNonCurrentVersions] Failed to shutdown version %s: %v", version.Version, err)
-		} else {
-			logger.Infof(ctx, "[CleanupNonCurrentVersions] 停掉进程 成功  %s_%s_%s ", user, app, version.Version)
+		// 先发优雅关闭（NATS），再强制停容器，确保非当前版本一定会被停掉
+		_ = s.ShutdownAppVersion(ctx, user, app, version.Version)
+		containerName := buildContainerName(user, app, version.Version)
+		if s.containerService != nil {
+			if err := s.containerService.StopContainer(ctx, containerName); err != nil {
+				if strings.Contains(err.Error(), "not found") {
+					logger.Infof(ctx, "[CleanupNonCurrentVersions] 容器已不存在，跳过 | %s/%s/%s", user, app, version.Version)
+				} else {
+					logger.Warnf(ctx, "[CleanupNonCurrentVersions] 停止容器失败 | %s | 错误=%v", containerName, err)
+				}
+			} else {
+				logger.Infof(ctx, "[CleanupNonCurrentVersions] 已停止非当前版本容器 | %s/%s/%s", user, app, version.Version)
+				s.MarkContainerCleanupDirty() // 触发后续容器级巡检，可清理已退出的容器
+			}
 		}
 	}
 

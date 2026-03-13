@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -17,6 +18,7 @@ import (
 type MinIOStorage struct {
 	client         *minio.Client // 主客户端：连接 endpoint（服务自身直连 MinIO），用于实际读写操作
 	externalClient *minio.Client // 外部客户端：基于 cdn_domain 生成浏览器预签名 URL（无 cdn_domain 时 = client）
+	serverClient   *minio.Client // 容器内访问用客户端：基于 server_endpoint 生成预签名 GET（DownloadFiles 用，无则=nil）
 	cdnDomain      string        // CDN/代理域名（浏览器访问文件的公开地址，如 Nginx 反向代理域名）
 	endpoint       string        // MinIO endpoint（服务自身连接 MinIO 的地址）
 	useSSL         bool
@@ -61,10 +63,25 @@ func NewMinIOStorage(cfg Config) (*MinIOStorage, error) {
 	}
 
 	serverEndpoint := cfg.GetServerEndpoint()
+	// 容器内下载用客户端：用 server_endpoint 生成预签名 GET，桶保持私有
+	var serverClient *minio.Client
+	if serverEndpoint != "" && serverEndpoint != cfg.GetEndpoint() {
+		sc, err := minio.New(serverEndpoint, &minio.Options{
+			Creds:  credentials.NewStaticV4(cfg.GetAccessKey(), cfg.GetSecretKey(), ""),
+			Secure: cfg.GetUseSSL(),
+			Region: cfg.GetRegion(),
+		})
+		if err != nil {
+			logger.Warnf(context.Background(), "[MinIOStorage] Failed to create server client for %s: %v", serverEndpoint, err)
+		} else {
+			serverClient = sc
+		}
+	}
 
 	return &MinIOStorage{
 		client:         client,
 		externalClient: externalClient,
+		serverClient:   serverClient,
 		cdnDomain:      cfg.GetCDNDomain(),
 		endpoint:       cfg.GetEndpoint(),
 		useSSL:         cfg.GetUseSSL(),
@@ -114,14 +131,50 @@ func (s *MinIOStorage) GetUploadEndpoint(uploadSource string) string {
 }
 
 // GenerateUploadCredentials 生成上传凭证（统一接口）
-// 同时生成外部访问URL（前端使用）和内部访问URL（服务端使用）
-// uploadSource: 上传来源（browser 或 server），用于决定是否返回SDK配置
+// 浏览器上传时：优先用配置的 cdn_domain（固定域名，本地/线上各配各的），未配置时才用请求 Host，保证签名与 PUT 的 Host 一致
 func (s *MinIOStorage) GenerateUploadCredentials(ctx context.Context, bucket, key, contentType string, expire time.Duration, uploadSource string) (*UploadCredentials, error) {
-	// 1. 生成外部访问的URL（前端浏览器使用，用 externalClient 生成 → 域名指向 Nginx 代理）
-	externalURL, err := s.externalClient.PresignedPutObject(ctx, bucket, key, expire)
-	if err != nil {
-		logger.Errorf(ctx, "[MinIOStorage] Failed to generate external upload URL: %v", err)
-		return nil, fmt.Errorf("生成上传凭证失败: %w", err)
+	// 1. 生成外部访问的 URL（前端浏览器使用）
+	// 优先级：配置的 cdn_domain > 请求 Host（PresignHost）。配置后本地/线上都稳定，不依赖网关传 Host
+	var externalURL *url.URL
+	useConfigHost := s.cdnDomain != "" && uploadSource == UploadSourceBrowser
+	if useConfigHost {
+		// 用已根据 cdn_domain 建好的 externalClient 生成，签名与配置的域名一致
+		var err error
+		externalURL, err = s.externalClient.PresignedPutObject(ctx, bucket, key, expire)
+		if err != nil {
+			logger.Errorf(ctx, "[MinIOStorage] Failed to generate external upload URL (cdn_domain): %v", err)
+			return nil, fmt.Errorf("生成上传凭证失败: %w", err)
+		}
+		logger.Infof(ctx, "[MinIOStorage] GenerateUploadCredentials: using cdn_domain for presign (uploadSource=%s)", uploadSource)
+	}
+	if externalURL == nil {
+		presignHost := contextx.GetPresignHost(ctx)
+		logger.Infof(ctx, "[MinIOStorage] GenerateUploadCredentials: uploadSource=%s, presignHost=%q", uploadSource, presignHost)
+		if uploadSource == UploadSourceBrowser && presignHost != "" {
+			clientForHost, err := minio.New(presignHost, &minio.Options{
+				Creds:  credentials.NewStaticV4(s.accessKey, s.secretKey, ""),
+				Secure: s.useSSL,
+				Region: s.region,
+			})
+			if err != nil {
+				logger.Warnf(ctx, "[MinIOStorage] Failed to create presign client for host %s, fallback to externalClient: %v", presignHost, err)
+			} else {
+				u, err := clientForHost.PresignedPutObject(ctx, bucket, key, expire)
+				if err != nil {
+					logger.Warnf(ctx, "[MinIOStorage] PresignedPutObject with request host failed: %v", err)
+				} else {
+					externalURL = u
+				}
+			}
+		}
+	}
+	if externalURL == nil {
+		var err error
+		externalURL, err = s.externalClient.PresignedPutObject(ctx, bucket, key, expire)
+		if err != nil {
+			logger.Errorf(ctx, "[MinIOStorage] Failed to generate external upload URL: %v", err)
+			return nil, fmt.Errorf("生成上传凭证失败: %w", err)
+		}
 	}
 
 	// 2. 生成内部访问的URL（服务端/SDK使用，用 client 生成 → 直连 MinIO 容器）
@@ -229,8 +282,17 @@ func (s *MinIOStorage) GenerateDownloadURLs(ctx context.Context, bucket, key str
 		externalURL = fmt.Sprintf("/%s/%s", bucket, key)
 	}
 
-	// 内部访问URL（容器/SDK用，必须是绝对地址）
-	if s.serverEndpoint != "" && s.serverEndpoint != s.endpoint {
+	// 内部访问URL（容器/SDK 用，DownloadFiles 会 GET 此 URL）
+	// 使用预签名 GET，桶可保持私有，容器内无需带鉴权即可下载
+	if s.serverClient != nil {
+		u, err := s.serverClient.PresignedGetObject(ctx, bucket, key, expire, nil)
+		if err != nil {
+			logger.Warnf(ctx, "[MinIOStorage] PresignedGetObject for serverURL failed: %v, fallback to plain URL", err)
+			serverURL = fmt.Sprintf("%s://%s/%s/%s", scheme, s.serverEndpoint, bucket, key)
+		} else {
+			serverURL = u.String()
+		}
+	} else if s.serverEndpoint != "" && s.serverEndpoint != s.endpoint {
 		serverURL = fmt.Sprintf("%s://%s/%s/%s", scheme, s.serverEndpoint, bucket, key)
 	} else {
 		serverURL = fmt.Sprintf("%s://%s/%s/%s", scheme, s.endpoint, bucket, key)

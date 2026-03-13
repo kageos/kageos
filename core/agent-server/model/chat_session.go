@@ -20,8 +20,9 @@ type AgentChatSession struct {
 // 会话状态常量
 const (
 	ChatSessionStatusActive     = "active"     // 活跃状态，可以继续输入
-	ChatSessionStatusGenerating = "generating" // 生成中，锁定会话，不允许输入
+	ChatSessionStatusGenerating = "generating" // 生成中（后台执行），前端可轮询消息
 	ChatSessionStatusDone       = "done"       // 已完成，会话结束，不能再输入
+	ChatSessionStatusCancelled  = "cancelled"  // 已取消（用户手动停止）
 )
 
 // TableName 指定表名

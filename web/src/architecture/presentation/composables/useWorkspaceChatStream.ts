@@ -219,14 +219,21 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
       }
     }
     if (event === 'error') {
-      const errText = String(data.message || '请求失败')
-      const blocks = m.blocks ?? []
-      const last = blocks[blocks.length - 1]
-      const nextBlocks =
-        last && last.type === 'content'
-          ? [...blocks.slice(0, -1), { type: 'content' as const, text: last.text + (m.content ? '\n\n' : '') + errText }]
-          : [...blocks, { type: 'content' as const, text: errText }]
-      messages.value[lastIdx] = { ...m, content: m.content || errText, blocks: nextBlocks }
+      const rawErr = String(data.message || '请求失败')
+      const isCancelled = /context canceled|cancelled|abort/i.test(rawErr)
+      if (isCancelled) {
+        const hint = '⏹ 任务已停止'
+        const blocks = m.blocks ?? []
+        messages.value[lastIdx] = { ...m, blocks: [...blocks, { type: 'content' as const, text: hint }] }
+      } else {
+        const blocks = m.blocks ?? []
+        const last = blocks[blocks.length - 1]
+        const nextBlocks =
+          last && last.type === 'content'
+            ? [...blocks.slice(0, -1), { type: 'content' as const, text: last.text + (m.content ? '\n\n' : '') + rawErr }]
+            : [...blocks, { type: 'content' as const, text: rawErr }]
+        messages.value[lastIdx] = { ...m, content: m.content || rawErr, blocks: nextBlocks }
+      }
       sending.value = false
     }
   }
@@ -242,10 +249,13 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
       await streamFn(handleEvent)
     } catch (e: unknown) {
       const errMsg = e instanceof Error ? e.message : String(e)
-      const msg = messages.value[idx]
-      if (msg && msg.role === 'assistant') {
-        const text = msg.content || `请求失败：${errMsg}`
-        messages.value[idx] = { ...msg, content: text, blocks: [{ type: 'content', text }] }
+      const isCancelled = /context canceled|cancelled|abort/i.test(errMsg)
+      if (!isCancelled) {
+        const msg = messages.value[idx]
+        if (msg && msg.role === 'assistant') {
+          const text = msg.content || `请求失败：${errMsg}`
+          messages.value[idx] = { ...msg, content: text, blocks: [{ type: 'content', text }] }
+        }
       }
     } finally {
       sending.value = false

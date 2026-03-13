@@ -38,9 +38,11 @@ export interface WorkspaceChatReq {
 export interface WorkspaceSessionItem {
   session_id: string
   title: string
+  user?: string
   agent_id?: number | null
   agent_name?: string
-  status: string
+  status: string // active | generating | done | cancelled
+  full_code_path?: string
   created_at: string
   updated_at: string
 }
@@ -48,8 +50,6 @@ export interface WorkspaceSessionItem {
 /** 获取工作台会话列表请求 */
 export interface ListWorkspaceSessionsReq {
   full_code_path: string
-  page?: number
-  page_size?: number
 }
 
 /** 获取工作台会话列表响应 */
@@ -269,7 +269,7 @@ export async function workspaceChatStream(
  * 获取工作台会话列表
  */
 export async function getWorkspaceSessions(params: ListWorkspaceSessionsReq): Promise<ListWorkspaceSessionsResp> {
-  return axiosInstance.get<ListWorkspaceSessionsResp>('/agent/api/v1/workspace/sessions', { params })
+  return axiosInstance.get<ListWorkspaceSessionsResp>(`/agent/api/v1/workspace/sessions?full_code_path=${params.full_code_path}`)
 }
 
 /** 工作台消息信息 */
@@ -310,4 +310,19 @@ export interface WorkspaceChatToolCallSummary {
  */
 export async function getWorkspaceMessages(params: ListWorkspaceMessagesReq): Promise<ListWorkspaceMessagesResp> {
   return axiosInstance.get<ListWorkspaceMessagesResp>('/agent/api/v1/workspace/messages', { params })
+}
+
+/** 查询当前用户所有正在执行的工作台任务 */
+export async function getRunningSessions(): Promise<{ sessions: WorkspaceSessionItem[] }> {
+  return axiosInstance.get('/agent/api/v1/workspace/sessions/running')
+}
+
+/** 查询当前用户最近已结束的工作台任务 */
+export async function getFinishedSessions(limit = 20): Promise<{ sessions: WorkspaceSessionItem[] }> {
+  return axiosInstance.get('/agent/api/v1/workspace/sessions/finished', { params: { limit } })
+}
+
+/** 取消执行中的工作台任务 */
+export async function cancelWorkspaceChat(sessionId: string): Promise<void> {
+  return axiosInstance.post('/agent/api/v1/workspace/chat/cancel', { session_id: sessionId })
 }

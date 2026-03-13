@@ -10,15 +10,17 @@ export function register(data: RegisterRequest) {
 export function login(data: LoginRequest) {
   return post<{
     token: string
+    refresh_token: string
     user: UserInfo
   }>('/hr/api/v1/auth/login', data)
 }
 
-// 刷新token
-export function refreshToken() {
+// 刷新token（传入 refresh_token，返回新 token 与 refresh_token）
+export function refreshToken(refreshTokenValue: string) {
   return post<{
     token: string
-  }>('/hr/api/v1/auth/refresh')
+    refresh_token: string
+  }>('/hr/api/v1/auth/refresh', { refresh_token: refreshTokenValue })
 }
 
 // 用户登出
@@ -50,4 +52,9 @@ export function verifyEmail(email: string, code: string) {
 // 忘记密码（简化版：直接通过验证码重置密码）
 export function forgotPassword(data: { email: string; code: string; password: string }) {
   return post('/hr/api/v1/auth/forgot_password', data)
+}
+
+/** 超管一键创建用户（免邮箱验证，仅已登录的 system 用户可调用） */
+export function createUserBySecret(data: { username: string; password: string }) {
+  return post<{ user_id: number }>('/hr/api/v1/user/create_user_by_secret', data)
 }

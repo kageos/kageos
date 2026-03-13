@@ -8,6 +8,7 @@ import (
 
 	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
 	"github.com/nats-io/nats.go"
 )
 
@@ -38,7 +39,7 @@ func (s *Server) startNATSListener(ctx context.Context) error {
 		natsURL = "nats://127.0.0.1:4222" // 默认值
 	}
 
-	conn, err := nats.Connect(natsURL)
+	conn, err := natsx.Connect(natsURL)
 	if err != nil {
 		return fmt.Errorf("连接 NATS 失败: %w", err)
 	}

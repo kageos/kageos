@@ -20,7 +20,6 @@ namespace/
 #configs/*.yaml
 #configs/*.yml
 #configs/*.json
-
 temp/
 plan/
 /note
@@ -37,3 +36,4 @@ licenses/
 license.json
 license_enterprise_1year.json
 agent/
+data/app-runtime

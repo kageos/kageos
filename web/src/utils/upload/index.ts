@@ -396,18 +396,30 @@ export async function notifyBatchUploadComplete(
 }
 
 /**
- * 计算文件的 SHA256 hash
+ * 计算文件的 SHA256 hash（用于秒传与下载缓存去重）
+ * 优先使用 Web Crypto API；非 HTTPS 等无 crypto.subtle 时用 js-sha256 兜底，尽量保证有 hash
  * @param file 文件对象
  * @returns SHA256 hash 字符串（十六进制）
  */
 async function calculateSHA256(file: File): Promise<string> {
-  // crypto.subtle 仅在安全上下文（HTTPS 或 localhost）下可用
-  if (!crypto?.subtle?.digest) {
-    console.warn('[calculateSHA256] crypto.subtle not available (non-HTTPS context), skipping hash')
-    return ''
-  }
   const arrayBuffer = await file.arrayBuffer()
-  const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+  const bytes = new Uint8Array(arrayBuffer)
+
+  // 优先使用原生 Web Crypto（安全上下文：HTTPS / localhost）
+  if (crypto?.subtle?.digest) {
+    try {
+      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
+      return Array.from(new Uint8Array(hashBuffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('')
+    } catch (e) {
+      console.warn('[calculateSHA256] crypto.subtle.digest failed, fallback to js-sha256:', e)
+    }
+  } else {
+    console.warn('[calculateSHA256] crypto.subtle not available (e.g. non-HTTPS), using js-sha256 fallback')
+  }
+
+  // 兜底：纯 JS SHA256（非 HTTPS 或 digest 失败时）
+  const { sha256 } = await import('js-sha256')
+  return sha256(bytes)
 }

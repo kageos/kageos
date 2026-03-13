@@ -17,7 +17,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	v1 "github.com/ai-agent-os/ai-agent-os/core/api-gateway/api/v1"
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
+	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -196,7 +196,22 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 	// 我们只需要确保 TraceId 被正确传递即可
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
+		// 保存原始 Host；若上游已传 X-Forwarded-Host（如 Vite 代理传的浏览器 Host），保留不覆盖
+		originalHost := req.Host
+		existingForwardedHost := req.Header.Get("X-Forwarded-Host")
 		originalDirector(req)
+		if existingForwardedHost != "" {
+			// 上游（如 Vite）已传浏览器真实 Host，保留给 app-storage 做预签名
+			req.Header.Set("X-Forwarded-Host", existingForwardedHost)
+		} else if originalHost != "" && originalHost != target.Host {
+			req.Header.Set("X-Forwarded-Host", originalHost)
+			if idx := strings.Index(originalHost, ":"); idx >= 0 && idx < len(originalHost)-1 {
+				req.Header.Set("X-Forwarded-Port", originalHost[idx+1:])
+			}
+			if strings.Contains(req.URL.Path, "/storage/") {
+				logger.Infof(s.ctx, "[Proxy] X-Forwarded-Host set for presign: originalHost=%q, target.Host=%q, path=%s", originalHost, target.Host, req.URL.Path)
+			}
+		}
 		req.Host = target.Host
 
 		// ✨ 传递 TraceId 到后端服务
@@ -293,8 +308,7 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 			}
 
 			// 解析 token 获取 username 和组织架构信息
-			// ⭐ 使用全局配置的 JWTService（与 hr-server 保持一致，因为 token 是由 hr-server 生成的）
-			jwtService := service.NewJWTService()
+			jwtService := auth.NewJWTService()
 			claims, err := jwtService.ValidateToken(token)
 			if err == nil {
 				// 解析成功，直接覆盖 username 到 header（忽略请求中的 X-Request-User）

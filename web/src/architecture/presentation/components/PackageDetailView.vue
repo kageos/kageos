@@ -301,6 +301,25 @@
               />
             </div>
           </el-tab-pane>
+
+          <!-- 导入 Go 文件 tab（有写权限时显示） -->
+          <el-tab-pane v-if="canEdit && packageNode?.full_code_path" name="import">
+            <template #label>
+              <span>导入 Go 文件</span>
+            </template>
+            <div class="tab-content import-tab-content">
+              <div
+                class="import-go-drop-zone"
+                :class="{ 'import-go-drop-zone--dragover': isImportGoDragging }"
+                @dragover.prevent="isImportGoDragging = true"
+                @dragleave.prevent="isImportGoDragging = false"
+                @drop.prevent="onImportGoDrop"
+              >
+                <span>将 .go 文件拖到此处导入到「{{ packageNode?.name }}」</span>
+              </div>
+              <p class="import-tab-hint">支持多个 .go 文件，导入后可在工作台执行编译。</p>
+            </div>
+          </el-tab-pane>
           
           <!-- 权限申请 tab -->
           <el-tab-pane name="permissionRequest">
@@ -603,7 +622,7 @@ import UserWidget from '@/architecture/presentation/widgets/UserWidget.vue'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
 import { useAuthStore } from '@/stores/auth'
-import { updatePackage } from '@/api/service-tree'
+import { updatePackage, addFunctionsToDirectory } from '@/api/service-tree'
 import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
 import PermissionManageList from '@/components/Permission/PermissionManageList.vue'
 
@@ -624,6 +643,8 @@ const authStore = useAuthStore() // ⭐ 必须在 showPermissionRequestTab 之�
 // Tab 相关
 const activeTab = ref('info')
 const permissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> | null>(null)
+const isImportGoDragging = ref(false)
+const importGoLoading = ref(false)
 const permissionManageListRef = ref<InstanceType<typeof PermissionManageList> | null>(null)
 
 // ⭐ 判断是否显示权限申请 tab
@@ -908,6 +929,55 @@ async function handleCopyPath() {
   }
 }
 
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsText(file, 'utf-8')
+  })
+}
+
+async function onImportGoDrop(e: DragEvent) {
+  isImportGoDragging.value = false
+  const fullCodePath = props.packageNode?.full_code_path
+  if (!fullCodePath) return
+  const files = e.dataTransfer?.files
+  if (!files?.length) return
+  importGoLoading.value = true
+  let ok = 0
+  let fail = 0
+  try {
+    const fileArray = Array.from(files)
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i]
+      if (!file || !file.name.toLowerCase().endsWith('.go')) continue
+      const content = await readFileAsText(file)
+      const fileName = file.name.endsWith('.go') ? file.name : file.name + '.go'
+      try {
+        const res = await addFunctionsToDirectory({
+          full_code_path: fullCodePath,
+          file_name: fileName,
+          source_code: content,
+          skip_build: true
+        })
+        if (res?.success !== false) ok++
+        else { fail++; console.warn('add_functions failed:', res?.error) }
+      } catch (err: any) {
+        fail++
+        ElMessage.warning(`${file.name}: ${err?.message || err?.response?.data?.msg || '写入失败'}`)
+      }
+    }
+    if (ok > 0) {
+      ElMessage.success(`已导入 ${ok} 个 Go 文件，可在工作台执行编译以生效。`)
+      emit('refresh')
+    }
+    if (fail > 0 && ok === 0) ElMessage.error('导入失败')
+  } finally {
+    importGoLoading.value = false
+  }
+}
+
 // 获取模板类型标签类型
 function getTemplateTypeTag(templateType: string): string {
   const typeMap: Record<string, string> = {
@@ -1142,6 +1212,30 @@ function handleChildClick(child: ServiceTree): void {
   display: flex;
   flex-direction: column;
   background: var(--el-bg-color-page);
+
+  // 导入 Go 文件 tab 内
+  .import-tab-content {
+    padding: 24px 0;
+  }
+  .import-go-drop-zone {
+    padding: 24px 16px;
+    border: 1px dashed var(--el-border-color);
+    border-radius: 8px;
+    font-size: 14px;
+    color: var(--el-color-primary);
+    text-align: center;
+    transition: border-color 0.2s, background 0.2s;
+    background: var(--el-fill-color-lighter);
+  }
+  .import-go-drop-zone--dragover {
+    border-color: var(--el-color-primary);
+    background: var(--el-color-primary-light-9);
+  }
+  .import-tab-hint {
+    margin: 12px 0 0;
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+  }
 
   // 顶部横幅区域
   .hero-section {

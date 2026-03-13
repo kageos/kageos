@@ -7,8 +7,11 @@ export interface Doc {
   content: string
   format: string
   summary?: string
+  category?: string
   created_at: string
   updated_at: string
+  created_by?: string
+  updated_by?: string
 }
 
 /**
@@ -30,7 +33,9 @@ export function updateDoc(
   data: { content?: string; format?: string; summary?: string }
 ) {
   const path = fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`
-  return put<Doc>(`/workspace/api/v1/docs/info${path}`, data)
+  // 后端 UpdateDocReq 要求 body 中必传 full_code_path
+  const body = { full_code_path: path, ...data }
+  return put<Doc>(`/workspace/api/v1/docs/info${path}`, body)
 }
 
 /**

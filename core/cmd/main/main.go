@@ -17,6 +17,7 @@ import (
 	controlServiceRunner "github.com/ai-agent-os/ai-agent-os/core/control-service/runner"
 	hrServerRunner "github.com/ai-agent-os/ai-agent-os/core/hr-server/runner"
 
+	"github.com/ai-agent-os/ai-agent-os/pkg/infra"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
@@ -128,6 +129,18 @@ func main() {
 	}
 
 	logger.Infof(ctx, "统一日志系统初始化完成")
+
+	// ⭐ 启动预检：确保 Podman Machine + 基础设施容器（MySQL/NATS/MinIO）就绪
+	fmt.Println("\n[启动预检]")
+	fmt.Println("  检查 Podman 环境和基础设施容器...")
+	if err := infra.Preflight(ctx); err != nil {
+		fmt.Printf("\n  ⚠️  预检警告: %v\n", err)
+		fmt.Println("  部分基础设施可能不可用，服务启动后可能出现连接错误")
+		fmt.Println("  如需手动修复，请确保 Podman 已启动且基础设施容器存在")
+		logger.Warnf(ctx, "启动预检警告: %v", err)
+	} else {
+		fmt.Println("  ✅ 预检通过，Podman 环境就绪")
+	}
 
 	// 创建停止通道
 	stopCh := make(chan struct{})

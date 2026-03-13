@@ -190,7 +190,8 @@ func (s *Server) initNATS(ctx context.Context) error {
 		nats.Name("agent-server"),
 		nats.Timeout(10 * time.Second),
 		nats.ReconnectWait(2 * time.Second),
-		nats.MaxReconnects(5),
+		nats.MaxReconnects(-1),
+		nats.ReconnectBufSize(8 * 1024 * 1024),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
 			if err != nil {
 				logger.Warnf(ctx, "[Server] NATS disconnected: %v", err)
@@ -266,6 +267,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.llmRepo = repository.NewLLMRepository(s.db)
 	sessionRepo := repository.NewChatSessionRepository(s.db)
 	messageRepo := repository.NewChatMessageRepository(s.db)
+	workspaceEventRepo := repository.NewWorkspaceEventRepository(s.db)
 	s.sessionRepo = sessionRepo
 	s.messageRepo = messageRepo
 
@@ -273,7 +275,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.llmService = service.NewLLMService(s.llmRepo)
 
 	// 智能工作台 ToolRegistry、WorkspaceChatService（只认 LLM，单模式；已移除插件）
-	s.toolRegistry = service.NewToolRegistry()
+	s.toolRegistry = service.NewToolRegistry(workspaceEventRepo)
 	s.workspaceChatService = service.NewWorkspaceChatService(s.toolRegistry, sessionRepo, messageRepo, s.llmRepo)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")

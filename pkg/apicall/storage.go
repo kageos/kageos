@@ -81,6 +81,8 @@ func callAPI[T any](ctx context.Context, method, path string, reqBody interface{
 		req.Header.Set(contextx.TraceIdHeader, traceID)
 	}
 
+	// 不转发 X-Request-User，避免伪造。下游（如 Hub）应从 X-Token 解析 JWT 或从 X-Pub-Key 校验得到用户身份。
+
 	// 6. 发送请求
 	resp, err := httpClient.Do(req)
 	if err != nil {

@@ -43,6 +43,15 @@ const router = createRouter({
         requireAuth: false
       }
     },
+    {
+      path: '/create-test-user',
+      name: 'create-test-user',
+      component: () => import('../views/Auth/CreateTestUser.vue'),
+      meta: {
+        title: '创建测试用户',
+        requireAuth: true
+      }
+    },
 
     // 用户设置页面
     {
@@ -106,7 +115,7 @@ const router = createRouter({
       }
     },
 
-    // 首页 - 官网
+    // 根路径：不再显示一站式首页，在 beforeEach 中重定向到 /workspace/username 或 /login
     {
       path: '/',
       name: 'home',
@@ -135,6 +144,16 @@ const router = createRouter({
       component: () => import('../architecture/presentation/views/WorkstationView.vue'),
       meta: {
         title: '智能工作台管理',
+        requireAuth: true
+      }
+    },
+    // 仅 user、无 app：进入工作空间并弹出「选择工作空间」（须在 /workspace/:user/:app 前匹配）
+    {
+      path: '/workspace/:user',
+      name: 'workspace-user',
+      component: () => import('../architecture/presentation/views/WorkspaceView.vue'),
+      meta: {
+        title: '工作空间',
         requireAuth: true
       }
     },
@@ -194,9 +213,32 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  // 如果已登录用户访问登录/注册页面，重定向到工作空间
+  // 如果已登录用户访问登录/注册页面，重定向到 /workspace/自己的username（会弹出选择工作空间）
   if (authStore.isAuthenticated && (to.name === 'login' || to.name === 'register')) {
-    next({ name: 'workspace' })
+    const username = authStore.userName || 'me'
+    next({ path: `/workspace/${username}`, replace: true })
+    return
+  }
+
+  // 根路径 /：不再显示一站式首页，直接重定向到 /workspace/自己的username 并弹窗选择工作空间
+  if (to.path === '/') {
+    if (authStore.isAuthenticated) {
+      const username = authStore.userName || 'me'
+      next({ path: `/workspace/${username}`, replace: true })
+      return
+    }
+    next({ path: '/login', query: { redirect: to.fullPath }, replace: true })
+    return
+  }
+
+  // /workspace 无 user 时也重定向到 /workspace/自己的username
+  if (to.path === '/workspace' && to.name === 'workspace') {
+    if (authStore.isAuthenticated) {
+      const username = authStore.userName || 'me'
+      next({ path: `/workspace/${username}`, replace: true })
+      return
+    }
+    next()
     return
   }
 

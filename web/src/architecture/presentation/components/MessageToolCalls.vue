@@ -52,6 +52,11 @@
       :file-groups="fileGroups"
       class="message-output-files"
     />
+    <OutputDisplayFields
+      v-if="displayFields.length > 0"
+      :fields="displayFields"
+      class="message-output-display-fields"
+    />
   </div>
 </template>
 
@@ -59,13 +64,17 @@
 import { computed, ref, watch, nextTick } from 'vue'
 import { Loading, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
+import OutputDisplayFields from './OutputDisplayFields.vue'
 import type { WorkspaceChatToolCallSummary } from '@/api/workspace'
 import type { OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
+import { extractAllDisplayFields } from '@/architecture/presentation/composables/useOutputDisplayFields'
 
 const props = defineProps<{
   toolCalls: WorkspaceChatToolCallSummary[]
   fileGroups: OutputFileGroup[]
 }>()
+
+const displayFields = computed(() => extractAllDisplayFields(props.toolCalls))
 
 /** 每个工具一个 viewport，用数组存 DOM，滚动时滚最后一个 */
 const viewportRefs = ref<(HTMLElement | null)[]>([])
@@ -315,6 +324,10 @@ watch(hasRunning, (running) => {
 }
 
 .message-output-files {
+  margin-top: 10px;
+}
+
+.message-output-display-fields {
   margin-top: 10px;
 }
 </style>

@@ -2,28 +2,6 @@
   <div class="service-tree-panel" v-loading="loading">
     <div class="tree-header">
       <h3>服务目录</h3>
-      <div class="header-actions">
-        <el-link
-          v-if="!loading"
-          type="primary"
-          :underline="false"
-          @click="$emit('create-directory')"
-          class="header-link"
-        >
-          <el-icon><Plus /></el-icon>
-          创建目录
-        </el-link>
-        <el-link
-          v-if="!loading"
-          type="primary"
-          :underline="false"
-          @click="handleUpdateHistoryClick"
-          class="header-link"
-        >
-          <el-icon><Clock /></el-icon>
-          变更记录
-        </el-link>
-      </div>
     </div>
     
     <div class="tree-content">
@@ -42,7 +20,12 @@
         @node-click="handleNodeClick"
       >
         <template #default="{ node, data }">
-          <span class="tree-node">
+          <span
+            class="tree-node"
+            :class="{ 'tree-node-draggable': data.type === 'function' || data.type === 'package' }"
+            :draggable="data.type === 'function' || data.type === 'package'"
+            @dragstart="onTreeNodeDragStart($event, data)"
+          >
             <!-- 根节点：使用工作空间图标（package 类型且 parent_id=0） -->
             <img 
               v-if="data.type === 'package' && data.parent_id === 0" 
@@ -252,6 +235,15 @@
                   </el-dropdown-item>
                   
                   <!-- Hub 相关操作 -->
+                  <!-- 导入 Go 文件：选择本地 .go 文件写入当前目录（与 write_go_file 一致） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.write)" 
+                    command="import-go-files"
+                  >
+                    <el-icon><Download /></el-icon>
+                    导入 Go 文件
+                  </el-dropdown-item>
+                  
                   <el-dropdown-item 
                     v-if="data.type === 'package' && !data.hub_full_code_path && hasPermission(data, DirectoryPermissions.read)" 
                     command="publish-to-hub"
@@ -266,14 +258,6 @@
                   >
                     <el-icon><Upload /></el-icon>
                     推送到 Hub
-                  </el-dropdown-item>
-                  
-                  <!-- 变更记录 -->
-                  <el-dropdown-item 
-                    command="update-history"
-                  >
-                    <el-icon><Clock /></el-icon>
-                    变更记录
                   </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -344,6 +328,7 @@ interface Emits {
   (e: 'delete-directory', node: ServiceTree): void  // 删除目录（非根 package）
   (e: 'refresh-tree'): void  // 刷新树（复制粘贴后需要刷新）
   (e: 'update-history', node?: ServiceTree): void  // 显示变更记录（工作空间或目录）
+  (e: 'import-go-files', node: ServiceTree): void  // 导入 Go 文件到目录
   (e: 'publish-to-hub', node: ServiceTree): void  // 发布到 Hub
   (e: 'push-to-hub', node: ServiceTree): void  // 推送到 Hub
   (e: 'pull-from-hub'): void  // 从 Hub 拉取
@@ -866,6 +851,17 @@ const handleNoPermissionClick = (data: ServiceTree) => {
   router.push(finalUrl)
 }
 
+function onTreeNodeDragStart(e: DragEvent, data: ServiceTree) {
+  if (!e.dataTransfer || !data.full_code_path) return
+  e.dataTransfer.setData('application/x-workspace-node', JSON.stringify({
+    type: data.type,
+    full_code_path: data.full_code_path,
+    name: data.name || data.full_code_path?.split('/').pop() || '',
+    id: data.id,
+  }))
+  e.dataTransfer.effectAllowed = 'copy'
+}
+
 const handleNodeClick = (data: ServiceTree) => {
   // 直接触发 node-click 事件，让父组件处理路由跳转
   // ⭐ 下拉菜单的点击已经通过 @click.stop.prevent 阻止了事件冒泡，所以这里不需要额外检查
@@ -967,6 +963,8 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     emit('delete-board', data)
   } else if (command === 'delete-directory') {
     emit('delete-directory', data)
+  } else if (command === 'import-go-files') {
+    emit('import-go-files', data)
   } else if (command === 'publish-to-hub') {
     emit('publish-to-hub', data)
   } else if (command === 'push-to-hub') {
@@ -1007,12 +1005,6 @@ const handleKeyDown = (event: KeyboardEvent) => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
 })
-
-// 处理变更记录按钮点击
-const handleUpdateHistoryClick = () => {
-  // 显示工作空间变更记录
-  emit('update-history')
-}
 
 // 处理 Hub 标记点击 - 跳转到 Hub 目录详情页
 const handleHubBadgeClick = (data: ServiceTree) => {
@@ -1397,6 +1389,13 @@ defineExpose({
   flex: 1;
   width: 100%;
   min-width: 0; /* ⭐ 允许 flexbox 子元素正确收缩 */
+  
+  &.tree-node-draggable {
+    cursor: grab;
+    &:active {
+      cursor: grabbing;
+    }
+  }
   
   .node-icon {
     width: 16px;

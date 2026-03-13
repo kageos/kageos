@@ -574,13 +574,14 @@ func (s *PodmanService) getMacOSPodmanSocket() string {
 
 // 容器管理方法
 
-// ListContainers 列出所有容器
+// ListContainers 列出所有容器（包括已停止的）
 func (s *PodmanService) ListContainers(ctx context.Context) ([]entities.ListContainer, error) {
 	if !s.IsRunning() {
 		return nil, fmt.Errorf("container service is not running")
 	}
 
-	containers, err := containers.List(s.conn, &containers.ListOptions{All: new(bool)})
+	allTrue := true
+	containers, err := containers.List(s.conn, &containers.ListOptions{All: &allTrue})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
@@ -621,11 +622,18 @@ func (s *PodmanService) RunContainerWithMount(ctx context.Context, image, name, 
 		return fmt.Errorf("container service is not running")
 	}
 
+	// 宿主机在容器内的解析（与 RunContainerWithCommand 一致，便于容器内访问 MinIO/Gateway 等）
+	sdkConfig := appconfig.GetSDKConfig()
+	hostEntry := "host.containers.internal:host-gateway"
+	if sdkConfig.HostIPForContainer != "" {
+		hostEntry = "host.containers.internal:" + sdkConfig.HostIPForContainer
+	}
+
 	// 使用 podman 命令行工具运行容器并挂载目录
-	// podman run 会自动处理镜像拉取
 	logger.Infof(ctx, "Creating container with mount: %s", name)
 	cmd := exec.Command("podman", "run", "-d",
 		"--name", name,
+		"--add-host", hostEntry,
 		"-v", fmt.Sprintf("%s:%s", hostPath, containerPath),
 		"-e", "TZ=Asia/Shanghai", // 设置时区
 		image,
@@ -742,13 +750,16 @@ func (s *PodmanService) StartContainer(ctx context.Context, name string) error {
 }
 
 // StopContainer 停止容器
+// 若容器已不存在或已处于退出状态，视为成功（不报错）
 func (s *PodmanService) StopContainer(ctx context.Context, name string) error {
 	if !s.IsRunning() {
 		return fmt.Errorf("container service is not running")
 	}
 
-	// 查找容器
+	// 查找容器（包括已停止的，避免“列表里显示运行中、停止时报 not found”的对账问题）
+	all := true
 	containerList, err := containers.List(s.conn, &containers.ListOptions{
+		All: &all,
 		Filters: map[string][]string{
 			"name": {name},
 		},
@@ -759,6 +770,12 @@ func (s *PodmanService) StopContainer(ctx context.Context, name string) error {
 
 	if len(containerList) == 0 {
 		return fmt.Errorf("container %s not found", name)
+	}
+
+	// 已退出/已停止则无需再 stop，直接视为成功
+	if containerList[0].State != "running" {
+		logger.Infof(ctx, "Container %s already stopped (state=%s), skipping stop", name, containerList[0].State)
+		return nil
 	}
 
 	// 停止容器

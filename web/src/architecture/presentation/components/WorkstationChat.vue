@@ -7,6 +7,10 @@
   <div :class="['workstation-chat', { 'workstation-chat--embedded': embedded }]">
     <!-- 会话列表侧边栏 -->
     <div v-if="fullCodePath" class="session-sidebar" :class="{ collapsed: !sessionSidebarExpanded }">
+      <div v-if="dirName" class="sidebar-dir-name" :title="fullCodePath">
+        <el-icon :size="14"><FolderOpened /></el-icon>
+        <span>{{ dirName }}</span>
+      </div>
       <div class="sidebar-header">
         <h4>会话列表</h4>
         <div class="header-actions">
@@ -44,13 +48,18 @@
         <div
           v-for="session in sessionList"
           :key="session.session_id"
-          :class="['session-card', { active: session.session_id === sessionId }]"
+          :class="['session-card', { active: session.session_id === sessionId }, { generating: session.status === 'generating' }]"
           @click="handleSelectSession(session.session_id)"
         >
           <div class="session-card-header">
+            <el-icon v-if="session.status === 'generating'" class="is-loading session-generating-icon" :size="12"><Loading /></el-icon>
             <span class="session-card-title">{{ session.title || '未命名会话' }}</span>
           </div>
+          <div v-if="session.user" class="session-card-user">
+            <UserDisplay :username="session.user" mode="simple" size="small" />
+          </div>
           <div class="session-card-time">
+            <span v-if="session.status === 'generating'" class="session-status-text">执行中</span>
             <span>{{ formatRelativeTime(session.updated_at) }}</span>
           </div>
         </div>
@@ -61,38 +70,8 @@
     </div>
 
     <div class="workstation-chat-content">
-    <header class="workstation-chat-header">
-      <template v-if="embedded">
-        <span v-if="fullCodePath" class="path">当前目录：{{ fullCodePath }}</span>
-        <span v-else class="path empty">暂无目录</span>
-        <el-select
-          v-model="selectedLLMConfigId"
-          placeholder="选择 LLM（不选则用默认）"
-          clearable
-          class="llm-select"
-          :loading="llmLoading"
-          :disabled="!fullCodePath"
-        >
-          <el-option v-for="l in llmList" :key="l.id" :value="l.id" :label="l.name" />
-        </el-select>
-        <el-link type="primary" :underline="false" @click="handleBack" class="back">返回详情</el-link>
-      </template>
-      <template v-else>
-        <span class="title">工作台对话</span>
-        <span v-if="fullCodePath" class="path">当前目录：{{ fullCodePath }}</span>
-        <span v-else class="path empty">请先「返回工作空间」，在左侧服务目录对任意目录节点悬停点 ⋮ → 打开工作台</span>
-        <el-select
-          v-model="selectedLLMConfigId"
-          placeholder="选择 LLM（不选则用默认）"
-          clearable
-          class="llm-select"
-          :loading="llmLoading"
-          :disabled="!fullCodePath"
-        >
-          <el-option v-for="l in llmList" :key="l.id" :value="l.id" :label="l.name" />
-        </el-select>
-        <el-link type="primary" :underline="false" @click="handleBack" class="back">返回工作空间</el-link>
-      </template>
+    <header v-if="!embedded" class="workstation-chat-header workstation-chat-header--slim">
+      <el-link type="primary" :underline="false" @click="handleBack" class="back">← 返回工作空间</el-link>
     </header>
 
     <main class="workstation-chat-main">
@@ -214,17 +193,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick, toRaw } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRight, Plus, Paperclip } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Plus, Paperclip, FolderOpened, Loading } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import { workspaceChatStream, getWorkspaceSessions, getWorkspaceMessages, type WorkspaceSessionItem, type WorkspaceChatReq, type WorkspaceChatMessageFile } from '@/api/workspace'
 import { getLLMList, type LLMInfo } from '@/api/agent'
 import MessageToolCalls from './MessageToolCalls.vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
+import UserDisplay from '../widgets/UserDisplay.vue'
 import { extractFileGroupsFromResult, type OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { ElMessage } from 'element-plus'
 import { useWorkspaceChatStream, type ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
+import { eventBus } from '@/architecture/infrastructure/eventBus'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 import type { UploadProgress } from '@/utils/upload/types'
 import { useAuthStore } from '@/stores/auth'
@@ -241,16 +222,30 @@ const props = withDefaults(
   defineProps<{
     fullCodePath: string
     embedded?: boolean
+    dirName?: string
+    initialSessionId?: string
+    visible?: boolean
+    /** 从 mini 最大化时带过来的输入框文案 */
+    initialInputText?: string
+    /** 从 mini 最大化时带过来的附件 */
+    initialAttachedFiles?: WorkspaceChatMessageFile[]
   }>(),
-  { embedded: false }
+  { embedded: false, dirName: '', initialSessionId: '', visible: true, initialInputText: '', initialAttachedFiles: () => [] }
 )
-const emit = defineEmits<{ (e: 'back'): void; (e: 'tool-call-ok', payload: { name: string }): void; (e: 'update:sending', value: boolean): void }>()
+const emit = defineEmits<{
+  (e: 'back'): void
+  (e: 'tool-call-ok', payload: { name: string }): void
+  (e: 'update:sending', value: boolean): void
+  (e: 'update:sessionId', value: string | undefined): void
+  (e: 'clear-initial-input'): void
+}>()
 
 const router = useRouter()
 
 const { messages, sending, sessionId, send: sendMessage, handleEvent, setMessages } = useWorkspaceChatStream()
 const inputText = ref('')
 const messagesRef = ref<HTMLElement | null>(null)
+let generatingPollTimer: ReturnType<typeof setInterval> | null = null
 
 /** 消息内容变化时自动滚到底部，用 rAF 节流避免抖动 */
 let _scrollRafId = 0
@@ -428,11 +423,7 @@ async function loadSessions() {
   }
   loadingSessions.value = true
   try {
-    const res = await getWorkspaceSessions({
-      full_code_path: props.fullCodePath,
-      page: 1,
-      page_size: 50,
-    })
+    const res = await getWorkspaceSessions({ full_code_path: props.fullCodePath })
     sessionList.value = res.sessions || []
   } catch (e: any) {
     console.error('加载会话列表失败:', e)
@@ -511,17 +502,77 @@ async function loadSessionMessages(targetSessionId: string) {
   }
 }
 
+function startGeneratingPoll(sid: string) {
+  stopGeneratingPoll()
+  generatingPollTimer = setInterval(async () => {
+    if (sessionId.value !== sid) { stopGeneratingPoll(); return }
+    await loadSessionMessages(sid)
+    await loadSessions()
+    const session = sessionList.value.find(s => s.session_id === sid)
+    if (!session || session.status !== 'generating') {
+      stopGeneratingPoll()
+    }
+  }, 3000)
+}
+
+function stopGeneratingPoll() {
+  if (generatingPollTimer) {
+    clearInterval(generatingPollTimer)
+    generatingPollTimer = null
+  }
+}
+
+// ─── 监听 mini 工作台转发的 SSE 消息（最大化时 mini 仍持有活跃连接） ───
+let streamCleanup: (() => void) | null = null
+
+function startStreamListening(sid: string) {
+  stopStreamListening()
+
+  const handleUpdate = (payload: { session_id: string; messages: ChatMessage[] }) => {
+    if (payload.session_id === sid && sessionId.value === sid) {
+      stopGeneratingPoll()
+      setMessages(payload.messages)
+      nextTick(() => {
+        if (messagesRef.value) messagesRef.value.scrollTop = messagesRef.value.scrollHeight
+      })
+    }
+  }
+
+  const handleDone = (payload: { session_id: string }) => {
+    if (payload.session_id === sid) {
+      stopStreamListening()
+      loadSessionMessages(sid)
+      loadSessions()
+    }
+  }
+
+  const offUpdate = eventBus.on('workspace:stream-update', handleUpdate)
+  const offDone = eventBus.on('workspace:stream-done', handleDone)
+
+  streamCleanup = () => { offUpdate(); offDone() }
+}
+
+function stopStreamListening() {
+  if (streamCleanup) { streamCleanup(); streamCleanup = null }
+}
+
 // 新建会话
 function handleNewSession() {
+  stopGeneratingPoll()
+  stopStreamListening()
   sessionId.value = undefined
   setMessages([])
+  emit('update:sessionId', undefined)
   ElMessage.success('已创建新会话，发送第一条消息后将自动保存')
 }
 
 // 选择会话
 async function handleSelectSession(targetSessionId: string) {
   if (targetSessionId === sessionId.value) return
+  stopGeneratingPoll()
+  stopStreamListening()
   sessionId.value = targetSessionId
+  emit('update:sessionId', targetSessionId)
   await loadSessionMessages(targetSessionId)
 }
 
@@ -540,10 +591,41 @@ function formatRelativeTime(timeStr: string): string {
   return time.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadLLMs()
   if (props.fullCodePath) {
-    loadSessions()
+    await loadSessions()
+    if (props.initialSessionId) {
+      const found = sessionList.value.find(s => s.session_id === props.initialSessionId)
+      if (found) {
+        sessionId.value = props.initialSessionId
+        await loadSessionMessages(props.initialSessionId)
+        if (found.status === 'generating') {
+          startStreamListening(props.initialSessionId)
+          startGeneratingPoll(props.initialSessionId)
+        }
+      }
+    }
+  }
+})
+
+onUnmounted(() => {
+  stopGeneratingPoll()
+  stopStreamListening()
+})
+
+// ─── SSE 转发：全屏隐藏（最小化）时把消息实时转给 mini 工作台 ───
+watch(messages, (newMsgs) => {
+  if (!props.visible && sending.value && sessionId.value) {
+    eventBus.emit('workspace:stream-update', {
+      session_id: sessionId.value,
+      messages: JSON.parse(JSON.stringify(toRaw(newMsgs))),
+    })
+  }
+})
+watch(sending, (val, oldVal) => {
+  if (!props.visible && oldVal === true && val === false && sessionId.value) {
+    eventBus.emit('workspace:stream-done', { session_id: sessionId.value })
   }
 })
 
@@ -553,13 +635,52 @@ watch(
   (newPath) => {
     if (newPath) {
       loadSessions()
-      sessionId.value = undefined
-      setMessages([])
+      if (!props.initialSessionId) {
+        sessionId.value = undefined
+        setMessages([])
+      }
     } else {
       sessionList.value = []
       sessionId.value = undefined
       setMessages([])
     }
+  }
+)
+
+// 监听 initialSessionId 变化，定位到指定会话
+watch(
+  () => props.initialSessionId,
+  async (newSid) => {
+    if (!newSid || !props.fullCodePath) return
+    stopGeneratingPoll()
+    stopStreamListening()
+    await loadSessions()
+    sessionId.value = newSid
+    await loadSessionMessages(newSid)
+    emit('update:sessionId', newSid)
+    const found = sessionList.value.find(s => s.session_id === newSid)
+    if (found?.status === 'generating') {
+      startStreamListening(newSid)
+      startGeneratingPoll(newSid)
+    }
+    // 从 mini 最大化带过来的输入/附件：应用后通知父组件清空
+    if (props.initialInputText || (props.initialAttachedFiles && props.initialAttachedFiles.length > 0)) {
+      if (props.initialInputText) inputText.value = props.initialInputText
+      if (props.initialAttachedFiles?.length) attachedFiles.value = [...props.initialAttachedFiles]
+      nextTick(() => emit('clear-initial-input'))
+    }
+  }
+)
+
+// 无会话时最大化（mini 未发过消息）：有 initialInputText 时也要填入
+watch(
+  () => [props.visible, props.initialInputText] as const,
+  ([visible, text]) => {
+    if (!visible || !text || !props.fullCodePath) return
+    if (sessionId.value) return // 已有会话时由 initialSessionId 的 watch 处理
+    inputText.value = text
+    if (props.initialAttachedFiles?.length) attachedFiles.value = [...props.initialAttachedFiles]
+    nextTick(() => emit('clear-initial-input'))
   }
 )
 
@@ -630,6 +751,9 @@ async function send() {
   const streamFn = async (onEvent: (event: string, data: Record<string, unknown>) => void) => {
     await workspaceChatStream(payload, (event, data) => {
       onEvent(event, data as Record<string, unknown>)
+      if (event === 'session' && typeof data.session_id === 'string') {
+        emit('update:sessionId', data.session_id as string)
+      }
       if (event === 'done') loadSessions()
       if (event === 'error') ElMessage.error(String((data as { message?: string })?.message || '发送失败'))
       // 工具执行成功时通知父组件（用于刷新服务树：create_directory / write_doc / build_workspace / write_go_file）
@@ -676,11 +800,28 @@ async function send() {
 .session-sidebar.collapsed {
   width: 60px;
 }
+.sidebar-dir-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.session-sidebar.collapsed .sidebar-dir-name {
+  display: none;
+}
 .sidebar-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 6px 12px;
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
 .sidebar-header h4 {
@@ -754,9 +895,34 @@ async function send() {
   white-space: nowrap;
   flex: 1;
 }
+.session-card-user {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+.session-card-user :deep(.user-display-wrapper) {
+  display: inline-flex;
+}
 .session-card-time {
   font-size: 12px;
   color: var(--el-text-color-placeholder);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.session-card.generating {
+  border-left: 2px solid var(--el-color-primary);
+}
+.session-generating-icon {
+  color: var(--el-color-primary);
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+.session-status-text {
+  color: var(--el-color-primary);
+  font-size: 11px;
+  font-weight: 500;
 }
 .empty-sessions {
   padding: 24px;
@@ -771,18 +937,19 @@ async function send() {
   border-bottom: 1px solid var(--el-border-color-lighter);
   flex-shrink: 0;
 }
+.workstation-chat-header--slim {
+  padding: 6px 16px;
+}
 .workstation-chat-header .title { font-weight: 600; color: var(--el-text-color-primary); }
 .workstation-chat-header .path { color: var(--el-text-color-regular); font-size: 13px; }
 .workstation-chat-header .path.empty { color: var(--el-text-color-placeholder); }
-.workstation-chat-header .mode-select { min-width: 120px; margin-right: 8px; }
-.workstation-chat-header .agent-select { min-width: 180px; }
 .workstation-chat-header .back { margin-left: auto; }
 .workstation-chat-main {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 16px;
+  padding: 8px 16px 12px;
 }
 .messages {
   flex: 1;
