@@ -67,6 +67,7 @@
   --el-color-info: var(--color-info);
   
   --el-bg-color: var(--bg-primary);
+  --el-bg-color-rgb: 255, 255, 255;
   --el-bg-color-page: var(--bg-page);
   --el-bg-color-overlay: var(--bg-secondary);
   
@@ -127,6 +128,7 @@ html.dark {
 
   // Element Plus 变量 - 完整映射
   --el-bg-color: var(--bg-primary);
+  --el-bg-color-rgb: 15, 23, 42;
   --el-bg-color-page: var(--bg-page);
   --el-bg-color-overlay: var(--bg-secondary);
   
@@ -236,19 +238,10 @@ html.dark {
   }
   
   
-  // 按钮组件 - 完全照抄旧版本的hover效果
+  // 按钮组件 - 移除位移效果
   .el-button {
     transition: all 0.3s ease !important;
-    
-    &:hover {
-      transform: translateY(-1px);
-    }
-    
-    &.is-circle {
-      &:hover {
-        transform: translateY(-2px) scale(1.05);
-      }
-    }
+
     
     // 主要按钮
     &--primary {
@@ -271,7 +264,6 @@ html.dark {
       &:hover {
         color: var(--color-primary) !important;  // hover时变成主题色
         opacity: 1 !important;
-        transform: translateY(-1px);
         background-color: rgba(129, 140, 248, 0.1) !important;
       }
       
@@ -587,20 +579,11 @@ body {
   background-color: var(--el-bg-color) !important;
 }
 
-// 全局按钮样式增强 - 照抄旧版本
+// 全局按钮样式增强
 .el-button {
   transition: all 0.3s ease;
   border-radius: var(--border-radius-base);
-  
-  &:hover {
-    transform: translateY(-1px);
-  }
-  
-  &.is-circle {
-    &:hover {
-      transform: translateY(-2px) scale(1.05);
-    }
-  }
+
   
   // 主要按钮样式
   &--primary {

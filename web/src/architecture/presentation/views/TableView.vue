@@ -234,7 +234,7 @@
                 <ArrowDown v-else />
               </el-icon>
             </el-tag>
-            <span v-if="index < displaySorts.length - 1" class="sort-separator">></span>
+            <span v-if="Number(index) < displaySorts.length - 1" class="sort-separator">></span>
           </template>
         </div>
         <el-button
@@ -2346,7 +2346,7 @@ onUnmounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .table-view {
   padding: 20px;
   background: var(--el-bg-color);
@@ -2377,13 +2377,21 @@ onUnmounted(() => {
 
 /* 共用：带左边高亮条与微光的面板 */
 .sci-fi-panel {
+  background: rgba(var(--el-bg-color-rgb), 0.7) !important;
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   position: relative;
   border-radius: 8px;
   border: 1px solid var(--el-border-color-lighter);
-  background: var(--el-fill-color-light);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   overflow: hidden;
-  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  &:hover {
+    box-shadow: var(--box-shadow-base);
+    border-color: var(--el-color-primary-light-5);
+  }
 }
 
 
@@ -2441,7 +2449,6 @@ onUnmounted(() => {
 }
 
 .search-bar-collapsed:hover .sci-fi-icon {
-  transform: translateY(1px);
   color: rgb(0, 212, 255);
 }
 
@@ -2651,7 +2658,24 @@ onUnmounted(() => {
 }
 
 :deep(.el-table__body tr:hover > td) {
-  background-color: var(--el-fill-color-light) !important;
+  background-color: var(--el-fill-color-lighter) !important;
+  transition: background-color 0.2s ease;
+}
+
+/* 表格行 Hover 状态的左侧高亮指示条 */
+:deep(.el-table__body tr:hover > td:first-child) {
+  position: relative;
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background-color: var(--el-color-primary);
+    box-shadow: 2px 0 6px var(--el-color-primary-light-7);
+    z-index: 10;
+  }
 }
 
 :deep(.el-table__header th.el-table__cell) {

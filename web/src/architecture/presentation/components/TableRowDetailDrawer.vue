@@ -860,6 +860,10 @@ defineExpose({
 <!-- 🔥 不使用 scoped 的全局样式，由于 el-drawer 由于 teleport 无法被作用域限制 -->
 <style lang="scss">
 .detail-drawer .el-drawer__header {
+  background: rgba(var(--el-bg-color-rgb), 0.7) !important;
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   margin-bottom: 0;
   padding: 16px 20px;
   border-bottom: 1px solid var(--el-border-color-lighter);
@@ -869,6 +873,10 @@ defineExpose({
 }
 
 .detail-drawer .el-drawer__footer {
+  background: rgba(var(--el-bg-color-rgb), 0.7) !important;
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   padding: 16px 20px;
   border-top: 1px solid var(--el-border-color-lighter);
   box-shadow: 0 -1px 6px rgba(0, 0, 0, 0.05);
@@ -1087,7 +1095,6 @@ defineExpose({
 
 .status-field-card:hover {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  transform: translateY(-1px);
 }
 
 .status-label {

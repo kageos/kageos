@@ -1320,7 +1320,7 @@ watch(
 }
 
 .detail-value {
-  margin-bottom: 16px;
+  margin-bottom: 0;
   display: inline-flex;
   align-items: center;
 }

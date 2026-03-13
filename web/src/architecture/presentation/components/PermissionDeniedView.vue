@@ -88,6 +88,10 @@ const handleApplyPermission = () => {
 }
 
 .permission-error-card {
+  background: rgba(var(--el-bg-color-rgb), 0.7) !important;
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   max-width: 600px;
   width: 100%;
   border-radius: 16px;
@@ -97,7 +101,6 @@ const handleApplyPermission = () => {
 
   &:hover {
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
-    transform: translateY(-2px);
   }
 }
 
