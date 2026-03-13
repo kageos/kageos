@@ -2473,6 +2473,9 @@ onUnmounted(() => {
 .search-bar-inner {
   padding: 20px 20px 20px 24px;
 }
+.search-bar-inner .el-form .el-form-item {
+  margin-bottom:0px;
+}
 
 .search-bar {
   margin-bottom: 0;

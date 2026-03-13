@@ -40,7 +40,7 @@
             <el-button
               v-if="mode === 'edit'"
               size="small"
-              @click="handleToggleMode('read')"
+              @click="handleClose"
             >
               取消
             </el-button>
@@ -845,6 +845,9 @@ const handleSubmit = () => {
 }
 
 const handleClose = () => {
+  // 关闭抽屉时重置为只读模式，避免下次打开仍停留在编辑态
+  emit('update:mode', 'read')
+  emit('update:visible', false)
   emit('close')
 }
 
@@ -1270,6 +1273,4 @@ defineExpose({
   padding: 16px;
 }
 </style>
-
-
 
