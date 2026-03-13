@@ -1320,8 +1320,8 @@ func (s *AppManageService) MarkContainerCleanupDirty() {
 }
 
 // containerLevelCleanup 容器级对账巡检
-// 策略：每个应用保留最近 maxKeepVersions 个版本的容器，更老的全部清理。
-// 这样随着应用数量增长，容器总数可控，减轻 Podman 压力。
+// 策略：仅处理 app 表中已注册的应用（runtime 构建的），每个应用保留最近 maxKeepVersions 个版本，更老的全部清理。
+// 非 runtime 构建的容器（未在 app 表注册的）一律不碰，保证基础设施等安全。
 func (s *AppManageService) containerLevelCleanup(ctx context.Context) {
 	if s.containerService == nil || !s.containerService.IsRunning() {
 		logger.Debugf(ctx, "[ContainerCleanup] 跳过巡检: containerService 不可用或未运行")
@@ -1330,15 +1330,27 @@ func (s *AppManageService) containerLevelCleanup(ctx context.Context) {
 
 	cleanupStart := time.Now()
 
+	// 1. 获取 app 表中已注册的应用，只清理这些应用的多余容器
+	registeredApps, err := s.appRepo.GetAllApps()
+	if err != nil {
+		logger.Warnf(ctx, "[ContainerCleanup] 获取已注册应用列表失败: %v，跳过本次巡检", err)
+		return
+	}
+	registeredAppKeys := make(map[string]bool)
+	for _, a := range registeredApps {
+		registeredAppKeys[a.User+"/"+a.App] = true
+	}
+
 	allContainers, err := s.containerService.ListContainers(ctx)
 	if err != nil {
 		logger.Warnf(ctx, "[ContainerCleanup] 获取容器列表失败: %v", err)
 		return
 	}
 
-	// 按 "user/app" 分组收集应用容器
+	// 2. 按 "user/app" 分组收集应用容器，且仅收集在 app 表中已注册的应用
 	appContainers := make(map[string][]appContainerInfo) // key: "user/app"
 	infraCount := 0
+	unregisteredCount := 0
 
 	for _, c := range allContainers {
 		if len(c.Names) == 0 {
@@ -1352,8 +1364,13 @@ func (s *AppManageService) containerLevelCleanup(ctx context.Context) {
 			continue
 		}
 
-		vNum := parseVersionNumber(version)
 		appKey := user + "/" + app
+		if !registeredAppKeys[appKey] {
+			unregisteredCount++
+			continue
+		}
+
+		vNum := parseVersionNumber(version)
 		appContainers[appKey] = append(appContainers[appKey], appContainerInfo{
 			containerName: containerName,
 			version:       version,
@@ -1367,8 +1384,8 @@ func (s *AppManageService) containerLevelCleanup(ctx context.Context) {
 		totalAppContainers += len(cs)
 	}
 
-	logger.Infof(ctx, "[ContainerCleanup] 开始巡检 | 总容器=%d | 应用容器=%d（%d个应用）| 基础设施容器=%d | 保留策略=每应用最近%d版本",
-		len(allContainers), totalAppContainers, len(appContainers), infraCount, maxKeepVersions)
+	logger.Infof(ctx, "[ContainerCleanup] 开始巡检 | 总容器=%d | 已注册应用容器=%d（%d个应用）| 未注册/其他=%d | 基础设施=%d | 保留策略=每应用最近%d版本",
+		len(allContainers), totalAppContainers, len(appContainers), unregisteredCount, infraCount, maxKeepVersions)
 
 	var cleanedExited, cleanedRunning, skippedTraffic, failedClean int
 

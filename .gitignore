@@ -6,11 +6,14 @@
 # 临时文件
 *.log
 *.tmp
+logs/
+*.db
 
 # 构建文件
 *.exe
 dist/
 bin/
+/app
 
 # 运行时目录
 run/
