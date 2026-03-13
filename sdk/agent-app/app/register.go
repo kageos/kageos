@@ -58,6 +58,8 @@ func (p *PackageContext) register(method string, router string, handleFunc Handl
 	fullRouter := p.BuildFullRouter(router)
 	packagePath := strings.Trim(p.RouterGroup, "/") // 从 RouterGroup 提取 PackagePath
 
+	app.packageContexts[packagePath] = p
+
 	// 创建 options，设置 PackagePath（用于获取对应的数据库连接）
 	options := &RegisterOptions{
 		PackagePath: packagePath,

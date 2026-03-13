@@ -422,6 +422,13 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 		return fmt.Errorf("获取应用信息失败: %w", err)
 	}
 
+	// ⭐ 第一步：目录对账——SDK 返回全量 package 列表，先与数据库比对，缺失的统一创建
+	if len(diffData.Packages) > 0 {
+		if err := a.reconcilePackages(ctx, appID, diffData.Packages); err != nil {
+			return fmt.Errorf("目录对账失败: %w", err)
+		}
+	}
+
 	// 从 context 获取当前用户名
 	username := contextx.GetRequestUser(ctx)
 
@@ -532,9 +539,6 @@ func (a *AppService) convertApiInfoToFunctions(ctx context.Context, appID int64,
 
 // createServiceTreesForAPIs 为新增的API创建ServiceTree记录
 func (a *AppService) createServiceTreesForAPIs(ctx context.Context, appID int64, apis []*dto.ApiInfo, functions []*model.Function) error {
-	// 获取应用信息，用于预加载到ServiceTree
-
-	// 收集所有需要查询的父级路径
 	parentPaths := make(map[string]bool)
 	for _, api := range apis {
 		parentPath := api.GetParentFullCodePath()
@@ -543,7 +547,6 @@ func (a *AppService) createServiceTreesForAPIs(ctx context.Context, appID int64,
 		}
 	}
 
-	// 批量查询所有父级package节点
 	parentPathList := make([]string, 0, len(parentPaths))
 	for path := range parentPaths {
 		parentPathList = append(parentPathList, path)
@@ -554,14 +557,12 @@ func (a *AppService) createServiceTreesForAPIs(ctx context.Context, appID int64,
 		return fmt.Errorf("批量查询父级package节点失败: %w", err)
 	}
 
-	// 验证所有父级节点都是package类型
 	for path, node := range parentNodes {
 		if !node.IsPackage() {
 			return fmt.Errorf("路径 %s 已存在，但类型不是package，当前类型: %s", path, node.Type)
 		}
 	}
 
-	// 创建function节点
 	for i, api := range apis {
 		var parentID int64 = 0
 		parentPath := api.GetParentFullCodePath()
@@ -569,12 +570,11 @@ func (a *AppService) createServiceTreesForAPIs(ctx context.Context, appID int64,
 		if parentPath != "" {
 			parent, exists := parentNodes[parentPath]
 			if !exists {
-				return fmt.Errorf("父级package节点不存在: %s", parentPath)
+				return fmt.Errorf("父级package节点不存在: %s（目录对账可能未覆盖此路径）", parentPath)
 			}
 			parentID = parent.ID
 		}
 
-		// 获取父节点的 Admins（如果有父节点）
 		var parentAdmins string
 		if parentID > 0 {
 			if parent, exists := parentNodes[parentPath]; exists {
@@ -582,31 +582,94 @@ func (a *AppService) createServiceTreesForAPIs(ctx context.Context, appID int64,
 			}
 		}
 
-		// 创建function节点，使用Function的ID作为RefID
 		treeID, err := a.createFunctionNode(ctx, appID, parentID, api, functions[i].ID, parentAdmins)
 		if err != nil {
 			return fmt.Errorf("创建function节点失败: %w", err)
 		}
-		// 赋值TreeID，方便后续写快照时入库
 		api.TreeID = treeID
+	}
+	return nil
+}
 
-		// ⭐ 自动给创建者添加函数执行权限（使用角色系统）
-		// 资源路径：函数的 FullCodePath，权限：function:admin（所有权）
-		// 注意：函数权限分配暂时跳过，因为函数权限应该通过目录权限继承
-		// 如果需要单独给函数分配权限，可以后续添加
-		requestUser := contextx.GetRequestUser(ctx)
-		if requestUser != "" && api.FullCodePath != "" {
-			// 从 FullCodePath 解析 user 和 app
-			parts := strings.Split(strings.Trim(api.FullCodePath, "/"), "/")
-			if len(parts) >= 2 {
-				user := parts[0]
-				app := parts[1]
-				// 暂时跳过函数权限分配，因为函数权限应该通过目录权限继承
-				logger.Debugf(ctx, "[AppService] 函数权限通过目录权限继承，跳过单独分配: user=%s, app=%s, resource=%s",
-					user, app, api.FullCodePath)
-			}
+// reconcilePackages 目录对账：拿 SDK 返回的全量 package 列表与数据库比对，缺失的统一创建
+// SDK 每次 update 都会返回当前应用注册的全量 package（已按深度从浅到深排序），
+// 所以按顺序遍历即可保证父节点先于子节点被创建
+func (a *AppService) reconcilePackages(ctx context.Context, appID int64, packages []*dto.PackageInfo) error {
+	// 1. 提取所有 fullPath，批量查库看哪些已存在
+	allPaths := make([]string, 0, len(packages)+1)
+	for _, pkg := range packages {
+		allPaths = append(allPaths, pkg.FullPath)
+	}
+
+	// 获取 app 信息，用于补充根节点路径
+	appModel, err := a.appRepo.GetAppByID(appID)
+	if err != nil {
+		return fmt.Errorf("获取应用信息失败: %w", err)
+	}
+	rootPath := fmt.Sprintf("/%s/%s", appModel.User, appModel.Code)
+	allPaths = append(allPaths, rootPath)
+
+	existingNodes, err := a.serviceTreeRepo.GetServiceTreeByFullPaths(allPaths)
+	if err != nil {
+		return fmt.Errorf("批量查询package节点失败: %w", err)
+	}
+
+	// 2. 找出缺失的 package
+	var missing []*dto.PackageInfo
+	for _, pkg := range packages {
+		if _, exists := existingNodes[pkg.FullPath]; !exists {
+			missing = append(missing, pkg)
 		}
 	}
+
+	if len(missing) == 0 {
+		logger.Infof(ctx, "[reconcilePackages] 目录对账完成: %d 个 package 全部存在，无需创建", len(packages))
+		return nil
+	}
+
+	logger.Infof(ctx, "[reconcilePackages] 目录对账: 共 %d 个 package，其中 %d 个缺失，开始创建", len(packages), len(missing))
+
+	requestUser := contextx.GetRequestUser(ctx)
+
+	// 3. 按顺序创建缺失的 package（SDK 已按深度排序，父在前子在后）
+	for _, pkg := range missing {
+		parts := strings.Split(strings.Trim(pkg.FullPath, "/"), "/")
+		// parts 至少 3 段：user/app/pkg，parentPath = /user/app（即根节点）
+		if len(parts) < 3 {
+			logger.Warnf(ctx, "[reconcilePackages] 跳过非法路径: %s (深度不足)", pkg.FullPath)
+			continue
+		}
+		parentPath := "/" + strings.Join(parts[:len(parts)-1], "/")
+		parent, ok := existingNodes[parentPath]
+		if !ok {
+			return fmt.Errorf("[reconcilePackages] 父节点不存在: %s (package=%s)，请检查根节点或上级目录是否已创建", parentPath, pkg.FullPath)
+		}
+
+		node := &model.ServiceTree{
+			AppID:            appID,
+			ParentID:         parent.ID,
+			Type:             model.ServiceTreeTypePackage,
+			Code:             pkg.Code,
+			Name:             pkg.Name,
+			Description:      pkg.Desc,
+			FullCodePath:     pkg.FullPath,
+			AddVersionNum:    appModel.GetVersionNumber(),
+			UpdateVersionNum: 0,
+		}
+		if requestUser != "" {
+			node.CreatedBy = requestUser
+			node.Admins = requestUser
+		}
+
+		if err := a.serviceTreeRepo.Create(node); err != nil {
+			return fmt.Errorf("创建 package 节点失败 (%s): %w", pkg.FullPath, err)
+		}
+
+		existingNodes[pkg.FullPath] = node
+		logger.Infof(ctx, "[reconcilePackages] 创建 package: %s (code=%s, name=%s, parentID=%d)", pkg.FullPath, pkg.Code, pkg.Name, parent.ID)
+	}
+
+	logger.Infof(ctx, "[reconcilePackages] 目录对账完成: 成功创建 %d 个缺失的 package 节点", len(missing))
 	return nil
 }
 

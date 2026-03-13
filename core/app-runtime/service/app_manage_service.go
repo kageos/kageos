@@ -961,8 +961,13 @@ func (s *AppManageService) updateCurrentVersionFiles(user, app, version string) 
 	return nil
 }
 
-// createMainGoFile 创建 main.go 文件
+// createMainGoFile 创建 main.go 文件（已存在则复用，不覆盖）
 func (s *AppManageService) createMainGoFile(mainGoPath, user, app string) error {
+	if _, err := os.Stat(mainGoPath); err == nil {
+		logger.Infof(context.Background(), "[createMainGoFile] main.go already exists, skip: %s", mainGoPath)
+		return nil
+	}
+
 	content := []byte(`package main
 
 import (
