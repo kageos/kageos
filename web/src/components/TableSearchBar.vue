@@ -1,9 +1,9 @@
 <template>
-  <div class="search-bar">
-    <el-form :inline="true" :model="searchForm" class="search-form">
+  <div class="ui-filter-bar">
+    <el-form :model="searchForm" label-position="left" label-width="96px" class="ui-filter-form">
       <template v-for="field in searchableFields" :key="field.code">
         <!-- 🔥 通过 Widget 渲染搜索输入（组件自治） -->
-        <el-form-item :label="field.name">
+        <el-form-item :label="field.name" class="ui-filter-item">
           <SearchInput
             :field="field"
             :search-type="field.search"
@@ -21,7 +21,7 @@
         </el-form-item>
       </template>
 
-      <el-form-item>
+      <el-form-item class="ui-filter-item ui-filter-actions">
         <el-button type="primary" @click="handleSearch">
           <el-icon><Search /></el-icon>
           搜索
@@ -110,14 +110,4 @@ const handleReset = (): void => {
   emit('reset')
 }
 </script>
-
-<style scoped>
-.search-bar {
-  margin-bottom: 20px;
-  padding: 20px;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-}
-</style>
 

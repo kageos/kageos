@@ -67,17 +67,17 @@
     </div>
 
     <!-- 筛选条件 -->
-    <div class="filter-section">
-      <el-form :inline="true" :model="filterForm" class="filter-form">
-        <el-form-item label="状态">
-          <el-select v-model="filterForm.status" placeholder="全部" clearable @change="handleFilterChange" style="width: 150px">
+    <div class="ui-filter-bar">
+      <el-form :model="filterForm" label-position="left" label-width="96px" class="ui-filter-form">
+        <el-form-item label="状态" class="ui-filter-item">
+          <el-select v-model="filterForm.status" placeholder="全部" clearable @change="handleFilterChange">
             <el-option label="全部" value="" />
             <el-option label="待审批" value="pending" />
             <el-option label="已通过" value="approved" />
             <el-option label="已驳回" value="rejected" />
           </el-select>
         </el-form-item>
-        <el-form-item>
+        <el-form-item class="ui-filter-item ui-filter-actions">
           <el-button type="primary" @click="loadRequests">刷新</el-button>
         </el-form-item>
       </el-form>
@@ -713,12 +713,8 @@ defineExpose({
     }
   }
   
-  .filter-section {
+  .ui-filter-bar {
     margin-bottom: 16px;
-    
-    .filter-form {
-      margin: 0;
-    }
   }
   
   .request-list {

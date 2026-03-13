@@ -11,43 +11,40 @@
 <template>
   <div class="chart-renderer">
     <!-- 筛选表单 -->
-    <div v-if="requestFields.length > 0" class="chart-filters">
-      <el-card class="filter-card">
-        <template #header>
-          <span>筛选条件</span>
-        </template>
-        <el-form :inline="true" :model="filterForm" class="filter-form">
-          <el-form-item
-            v-for="field in requestFields"
-            :key="field.code"
-            :label="field.name"
-            :required="isFieldRequired(field)"
-          >
-            <div class="widget-wrapper">
-              <WidgetComponent
-                :field="field"
-                :value="getFieldValue(field.code)"
-                :model-value="getFieldValue(field.code)"
-                @update:model-value="(v) => handleFieldUpdate(field.code, v)"
-                :field-path="field.code"
-                :form-renderer="formRendererContext"
-                :function-method="props.functionDetail.method || 'GET'"
-                :function-router="props.functionDetail.router || ''"
-                mode="edit"
-              />
-            </div>
-          </el-form-item>
-          
-          <el-form-item>
-            <el-button type="primary" @click="handleSearch" :loading="loading" :icon="Search">
-              查询
-            </el-button>
-            <el-button @click="handleReset" :icon="Refresh">
-              重置
-            </el-button>
-          </el-form-item>
-        </el-form>
-      </el-card>
+    <div v-if="requestFields.length > 0" class="chart-filters ui-filter-bar">
+      <div class="ui-filter-title">筛选条件</div>
+      <el-form :model="filterForm" label-position="left" label-width="96px" class="ui-filter-form">
+        <el-form-item
+          v-for="field in requestFields"
+          :key="field.code"
+          :label="field.name"
+          :required="isFieldRequired(field)"
+          class="ui-filter-item"
+        >
+          <div class="widget-wrapper">
+            <WidgetComponent
+              :field="field"
+              :value="getFieldValue(field.code)"
+              :model-value="getFieldValue(field.code)"
+              @update:model-value="(v) => handleFieldUpdate(field.code, v)"
+              :field-path="field.code"
+              :form-renderer="formRendererContext"
+              :function-method="props.functionDetail.method || 'GET'"
+              :function-router="props.functionDetail.router || ''"
+              mode="edit"
+            />
+          </div>
+        </el-form-item>
+        
+        <el-form-item class="ui-filter-item ui-filter-actions">
+          <el-button type="primary" @click="handleSearch" :loading="loading" :icon="Search">
+            查询
+          </el-button>
+          <el-button @click="handleReset" :icon="Refresh">
+            重置
+          </el-button>
+        </el-form-item>
+      </el-form>
     </div>
     
     <!-- 图表容器 -->
@@ -966,7 +963,7 @@ watch(() => chartData.value, (newData) => {
   width: 100%;
   padding: 20px;
   
-  .filter-card {
+  .chart-filters {
     margin-bottom: 20px;
     
     .widget-wrapper {
@@ -979,9 +976,6 @@ watch(() => chartData.value, (newData) => {
       }
     }
     
-    .filter-form {
-      margin-top: 0;
-    }
   }
   
   .chart-card {
@@ -1054,4 +1048,3 @@ watch(() => chartData.value, (newData) => {
 }
 
 </style>
-

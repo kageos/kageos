@@ -6,6 +6,7 @@
     :close-on-click-modal="false"
     :append-to-body="true"
     @close="handleClose"
+    class="ui-dialog-custom"
   >
     <!-- 🔥 使用新的 FormView 替代所有渲染逻辑 -->
     <template v-if="dialogVisible">

@@ -259,7 +259,7 @@
               <!-- 原布局（网格布局） -->
               <div v-else class="detail-fields-grid">
                 <div
-                  v-for="field in fields.filter((f: FieldConfig) => f.widget?.type !== WidgetType.LINK)"
+                  v-for="field in fields.filter(f => f.widget?.type !== WidgetType.LINK)"
                   :key="field.code"
                   class="detail-field-row"
                 >
@@ -854,18 +854,32 @@ defineExpose({
 })
 </script>
 
-<style scoped lang="scss">
-.detail-drawer :deep(.el-drawer__header) {
+<!-- 🔥 不使用 scoped 的全局样式，由于 el-drawer 由于 teleport 无法被作用域限制 -->
+<style lang="scss">
+.detail-drawer .el-drawer__header {
   margin-bottom: 0;
   padding: 16px 20px;
   border-bottom: 1px solid var(--el-border-color-lighter);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
+  position: relative;
+  z-index: 10;
 }
 
-.detail-drawer :deep(.el-drawer__body) {
+.detail-drawer .el-drawer__footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  box-shadow: 0 -1px 6px rgba(0, 0, 0, 0.05);
+  position: relative;
+  z-index: 10;
+}
+
+.detail-drawer .el-drawer__body {
   padding: 20px;
   overflow: auto;
 }
+</style>
 
+<style scoped lang="scss">
 // ⭐ 无权限按钮样式优化
 .action-btn-no-permission {
   color: var(--el-text-color-secondary) !important;
@@ -903,6 +917,7 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 16px;
+  margin-right: 28px;
 }
 
 .drawer-mode-actions {
@@ -1008,7 +1023,7 @@ defineExpose({
 .drawer-footer {
   display: flex;
   justify-content: flex-end;
-  padding-top: 10px;
+  /* padding-top removed as the border padding is handled by .el-drawer__footer now */
 }
 
 .edit-form-wrapper {

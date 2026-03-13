@@ -1,46 +1,45 @@
 <template>
   <div class="permission-manage-list" v-loading="loading">
     <!-- 筛选条件 -->
-    <div class="filter-section">
-      <el-form :inline="true" :model="filterForm" class="filter-form">
-        <el-form-item label="范围筛选">
-          <el-select v-model="filterForm.scope" placeholder="选择范围" style="width: 150px" @change="handleFilterChange">
+    <div class="ui-filter-bar">
+      <el-form :model="filterForm" label-position="left" label-width="96px" class="ui-filter-form">
+        <el-form-item label="范围筛选" class="ui-filter-item">
+          <el-select v-model="filterForm.scope" placeholder="选择范围" @change="handleFilterChange">
             <el-option label="全部" value="all" />
             <el-option label="仅当前节点" value="current" />
             <el-option label="仅父目录" value="parent" />
           </el-select>
         </el-form-item>
-        <el-form-item label="用户搜索">
+        <el-form-item label="用户搜索" class="ui-filter-item">
           <el-input
             v-model="filterForm.userSearch"
             placeholder="搜索用户"
             clearable
-            style="width: 200px"
             @input="handleFilterChange"
           />
         </el-form-item>
-        <el-form-item label="组织架构搜索">
+        <el-form-item label="组织架构搜索" class="ui-filter-item">
           <el-input
             v-model="filterForm.departmentSearch"
             placeholder="搜索组织架构"
             clearable
-            style="width: 200px"
             @input="handleFilterChange"
           />
         </el-form-item>
-        <el-form-item>
+        <el-form-item class="ui-filter-item ui-filter-actions">
           <el-button type="primary" @click="loadPermissions">刷新</el-button>
         </el-form-item>
       </el-form>
     </div>
 
     <!-- 权限列表 -->
-    <div class="permission-list">
+    <div class="permission-list ui-table-wrap">
       <el-empty v-if="!loading && assignments.length === 0" description="暂无权限分配" />
       <el-table
         v-else
         :data="assignments"
         stripe
+        class="ui-table"
         style="width: 100%"
       >
         <el-table-column label="权限主体" min-width="200">
@@ -463,14 +462,10 @@ defineExpose({
 
 <style scoped lang="scss">
 .permission-manage-list {
-  padding: 20px;
+  padding: 16px;
 
-  .filter-section {
-    margin-bottom: 20px;
-
-    .filter-form {
-      margin: 0;
-    }
+  .ui-filter-bar {
+    margin-bottom: 16px;
   }
 
   .permission-list {

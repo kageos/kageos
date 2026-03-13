@@ -1221,7 +1221,7 @@ watch(
 /* 🔥 空心样式：使用边框和透明背景 */
 .select-tag-outline {
   background-color: transparent !important;
-  border: 2px solid currentColor !important;
+  border: 1px solid currentColor !important;
 }
 
 /* 标准颜色的空心标签 */

@@ -166,6 +166,7 @@
       :title="roleDialogTitle"
       width="800px"
       :close-on-click-modal="false"
+      class="ui-dialog-md"
     >
       <el-form
         ref="roleFormRef"
@@ -263,6 +264,7 @@
       title="分配角色"
       width="600px"
       :close-on-click-modal="false"
+      class="ui-dialog-sm"
     >
       <el-form
         ref="assignFormRef"

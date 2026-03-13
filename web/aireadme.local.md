@@ -102,3 +102,127 @@ src/
    - 视层级复杂度在 `stores-v2/extractors/` 加入值的提取策略。
 
 **牢记你的身份**：你是专业的**前端专家**，任务是在维护这个宏大的“领域驱动架构”正常运行的基础上，把它“打扮”成一个具备顶级互联网大厂质感、交互极度顺滑的专业化平台。
+
+---
+
+# UI 改版文档 v1
+
+## 改版目标
+
+- 筛选区对齐、统一节奏、紧凑但可读。
+- 弹窗统一规格与内嵌表单布局。
+- 表格与列表的密度、按钮间距、空态一致。
+- 全站支持暗黑模式：新增样式均用 CSS 变量。
+
+## 一、设计规范（最终定稿）
+
+### 1. 筛选区（Search/Filter Bar）
+
+- Label 宽度：96px（左对齐）。
+- 控件宽度：基础 220px，最小 200px，允许自适应 1fr。
+- 布局：grid，2~4 列响应式。
+- 间距：行距 12px，列距 12px（紧凑）。
+- 容器：
+  - padding: 12px 16px
+  - border-radius: 8px
+  - border: 1px solid var(--el-border-color-lighter)
+  - background: var(--el-bg-color)
+
+### 2. 弹窗（Dialog）
+
+- 宽度体系：sm=520、md=720、lg=920
+- header/body/footer 统一：
+  - header 16px 20px
+  - body 16px 20px
+  - footer 12px 20px
+- 弹窗内搜索区统一复用“筛选区规范”。
+
+### 3. 表格
+
+- 行高：48px
+- 表头背景：var(--el-fill-color-light)
+- 操作列按钮间距：8px
+- 表格外容器统一留白：padding 16px
+
+### 4. 字体与间距
+
+- 统一使用 src/styles/theme.scss 里的字体，不在 App.vue 再覆盖。
+- 统一 spacing：4 / 8 / 12 / 16 / 24 / 32
+
+### 暗黑模式约束
+
+- 禁止写死浅色背景、边框、阴影。
+- 所有颜色用 --el-* 或 --bg-* / --border-*。
+- 新增阴影用已有 --box-shadow-*。
+
+## 二、执行清单（工程落地）
+
+### 1. 新增统一样式模块
+
+建议新增 src/styles/ui-system.scss（或合并到已有主题），包含：
+
+- .ui-filter-bar：筛选区容器
+- .ui-filter-form：grid 布局
+- .ui-filter-item：label/控件对齐
+- .ui-dialog-sm/md/lg：弹窗宽度
+- .ui-table：表格行高、表头背景
+
+### 2. 统一筛选区组件
+
+重点改动文件：
+
+- src/components/TableSearchBar.vue
+- src/components/Permission/PermissionManageList.vue
+- src/components/Permission/PermissionRequestList.vue
+- src/components/ChartRenderer.vue
+
+改动方向：
+
+- 由 el-form inline 改为 grid
+- label 宽度统一为 96px
+- 控件宽度统一为 220px（最小 200px）
+- 统一容器样式（背景/边框/圆角/内边距）
+
+### 3. 弹窗统一规范
+
+重点文件：
+
+- src/components/UserSelectorDialog.vue
+- src/components/FunctionPathSelector.vue
+- src/components/DocsPathSelector.vue
+- src/components/LLMSelector.vue
+- src/components/DepartmentSelectorDialog.vue
+- src/views/Permission/RoleManagement.vue
+- src/components/FormDialog.vue（当前已打开，建议对齐新规范）
+
+改动方向：
+
+- 标准化 width（sm/md/lg）
+- header/body/footer padding 统一
+- 弹窗内搜索区/表单复用筛选区规范
+
+### 4. 表格规范
+
+涉及页面中 el-table：
+
+- src/components/Permission/PermissionManageList.vue
+- src/views/Agent/LLMManagement.vue 等
+
+改动方向：
+
+- row-height: 48px
+- header-bg: var(--el-fill-color-light)
+- 操作按钮间距 8px
+
+### 5. 全局字体一致性
+
+- src/App.vue：移除系统字体覆盖，使用主题字体
+- 统一字体引用到 theme.scss
+
+## 三、交付验收标准
+
+- 筛选区 label 对齐（左侧 96px），控件宽度一致。
+- 多个筛选区页面整体密度一致，看起来“规整”。
+- 所有弹窗视觉统一（宽度、padding、标题样式）。
+- 暗黑模式下无“亮底/灰底突兀”区域。
+- 表格行高一致，操作按钮排版整齐。

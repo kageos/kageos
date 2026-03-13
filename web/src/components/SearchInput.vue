@@ -236,7 +236,6 @@
         :max="inputConfig.props?.max"
         :clearable="true"
         :controls-position="'right'"
-        :style="{ width: SearchConfig.DEFAULT_NUMBER_RANGE_WIDTH }"
         @change="handleRangeChange"
       />
       <span class="range-separator">至</span>
@@ -249,7 +248,6 @@
         :max="inputConfig.props?.max"
         :clearable="true"
         :controls-position="'right'"
-        :style="{ width: SearchConfig.DEFAULT_NUMBER_RANGE_WIDTH }"
         @change="handleRangeChange"
       />
     </div>
@@ -277,7 +275,6 @@
         v-model="rangeValue.min"
         :placeholder="inputConfig.props?.minPlaceholder"
         clearable
-        :style="{ width: SearchConfig.DEFAULT_NUMBER_RANGE_WIDTH }"
         @input="handleRangeChange"
       />
       <span class="range-separator">至</span>
@@ -285,7 +282,6 @@
         v-model="rangeValue.max"
         :placeholder="inputConfig.props?.maxPlaceholder"
         clearable
-        :style="{ width: SearchConfig.DEFAULT_NUMBER_RANGE_WIDTH }"
         @input="handleRangeChange"
       />
     </div>
@@ -1121,8 +1117,14 @@ onMounted(() => {
 }
 
 .search-input {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  width: 100%;
+}
+
+.search-input > * {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .number-range,
@@ -1130,11 +1132,18 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
 }
 
 .range-separator {
   color: var(--el-text-color-secondary);
   font-size: 14px;
+}
+
+.number-range :deep(.el-input-number),
+.text-range :deep(.el-input) {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 /* 🔥 用户选择器选中后的标签样式（multiple 模式，使用 user-cell 样式） */
@@ -1222,7 +1231,7 @@ onMounted(() => {
 /* 🔥 单选组件标签样式：使用空心样式（outline） */
 .select-tag-outline {
   background-color: transparent !important;
-  border: 2px solid currentColor !important;
+  border: 1px solid currentColor !important;
 }
 
 /* 标准颜色的空心标签 */
@@ -1293,4 +1302,3 @@ onMounted(() => {
 }
 
 </style>
-

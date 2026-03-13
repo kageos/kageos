@@ -521,6 +521,12 @@ html.dark {
   }
 }
 
+html,
+body,
+#app {
+  font-family: var(--font-family-base);
+}
+
 // 主题工具类
 .bg-primary {
   background-color: var(--color-primary);

@@ -171,9 +171,14 @@
       <div v-else class="search-bar sci-fi-panel sci-fi-panel-expanded">
         <span class="sci-fi-accent-bar" />
         <div class="search-bar-inner">
-          <el-form :inline="true" :model="searchForm" class="search-form">
+          <el-form
+            :model="searchForm"
+            label-position="left"
+            label-width="96px"
+            class="ui-filter-form search-form"
+          >
             <template v-for="field in searchableFields" :key="field.code">
-              <el-form-item :label="field.name">
+              <el-form-item :label="field.name" class="ui-filter-item">
                 <SearchInput
                   :field="field"
                   :search-type="field.search || ''"
@@ -187,7 +192,7 @@
               </el-form-item>
             </template>
 
-            <el-form-item class="search-actions">
+            <el-form-item class="ui-filter-item ui-filter-actions search-actions">
               <el-button type="primary" @click="handleSearch" class="sci-fi-btn-primary">
                 <el-icon><Search /></el-icon>
                 搜索
@@ -311,7 +316,7 @@
         </template>
       </el-table-column>
 
-      <!-- 操作列：统一为「更多」下拉，所有操作（链接 / 更新 / 删除）均放入下拉 -->
+      <!-- 操作列：默认展示两个按钮，超出则显示第一个 + 更多下拉 -->
       <el-table-column 
         v-if="hasDeleteCallback || hasUpdateCallback || linkFields.length > 0" 
         label="操作" 
@@ -320,56 +325,73 @@
         class-name="action-column"
       >
         <template #default="{ row }">
-          <el-dropdown
-            trigger="click"
-            placement="bottom-end"
-            @command="(cmd: string) => handleActionCommand(cmd, row)"
-          >
-            <el-button link type="primary" size="small" class="action-more-btn">
-              <el-icon><More /></el-icon>
-              更多
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <!-- 链接项：1 个或多个都放下拉 -->
-                <el-dropdown-item
-                  v-for="linkField in linkFields"
-                  :key="linkField.code"
-                  :command="'link:' + linkField.code"
-                >
-                  <div class="dropdown-link-content">
-                    <el-icon v-if="linkField.widget?.config?.icon" class="link-icon">
-                      <component :is="linkField.widget.config.icon" />
-                    </el-icon>
-                    <el-icon v-else class="link-icon internal-icon"><Right /></el-icon>
-                    <span>{{ getLinkText(linkField, row[linkField.code]) }}</span>
-                  </div>
-                </el-dropdown-item>
-                <!-- 更新：需要 table:update 权限 -->
-                <el-dropdown-item
-                  v-if="hasUpdateCallback"
-                  :command="'update'"
-                  :divided="linkFields.length > 0"
-                >
-                  <span class="dropdown-action-item">
-                    <el-icon><component :is="canUpdate ? Edit : Lock" /></el-icon>
-                    {{ canUpdate ? '更新' : `更新（需${getPermissionShortName(FunctionPermission.update)}）` }}
-                  </span>
-                </el-dropdown-item>
-                <!-- 删除：需要 table:delete 权限 -->
-                <el-dropdown-item
-                  v-if="hasDeleteCallback"
-                  :command="'delete'"
-                  :divided="linkFields.length > 0 || hasUpdateCallback"
-                >
-                  <span class="dropdown-action-item delete-action-text">
-                    <el-icon><component :is="canDelete ? Delete : Lock" /></el-icon>
-                    {{ canDelete ? '删除' : `删除（需${getPermissionShortName(FunctionPermission.delete)}）` }}
-                  </span>
-                </el-dropdown-item>
-              </el-dropdown-menu>
+          <div class="action-buttons">
+            <template v-if="getRowActions(row).length <= 2">
+              <el-button
+                v-for="action in getRowActions(row)"
+                :key="action.key"
+                link
+                type="primary"
+                size="small"
+                class="action-inline-btn"
+                :class="{
+                  'action-delete-btn': action.isDelete,
+                  'action-btn-no-permission': action.noPermission
+                }"
+                @click.stop="handleActionCommand(action.command, row)"
+              >
+                <el-icon><component :is="action.icon" /></el-icon>
+                {{ action.label }}
+              </el-button>
             </template>
-          </el-dropdown>
+
+            <template v-else>
+              <el-button
+                v-for="action in getRowActions(row).slice(0, 1)"
+                :key="action.key"
+                link
+                type="primary"
+                size="small"
+                class="action-inline-btn"
+                :class="{
+                  'action-delete-btn': action.isDelete,
+                  'action-btn-no-permission': action.noPermission
+                }"
+                @click.stop="handleActionCommand(action.command, row)"
+              >
+                <el-icon><component :is="action.icon" /></el-icon>
+                {{ action.label }}
+              </el-button>
+
+              <el-dropdown
+                trigger="click"
+                placement="bottom-end"
+                @command="(cmd: string) => handleActionCommand(cmd, row)"
+              >
+                <el-button link type="primary" size="small" class="action-more-btn">
+                  <el-icon><More /></el-icon>
+                  更多
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item
+                      v-for="action in getRowActions(row).slice(1)"
+                      :key="action.key"
+                      :command="action.command"
+                    >
+                      <span
+                        class="dropdown-action-item"
+                        :class="{ 'delete-action-text': action.isDelete }"
+                      >
+                        <el-icon><component :is="action.icon" /></el-icon>
+                        {{ action.label }}
+                      </span>
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </template>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -560,6 +582,15 @@ import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 import { parseExcelFile } from '@/utils/excelImport'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
+
+type ActionItem = {
+  key: string
+  command: string
+  label: string
+  icon: any
+  isDelete?: boolean
+  noPermission?: boolean
+}
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -1590,10 +1621,54 @@ const getRowFieldValue = (row: TableRow, fieldCode: string): FieldValue => {
 }
 
 /**
- * 获取操作列宽度（统一「更多」下拉，固定宽度）
+ * 获取操作列宽度（两按钮优先，超出显示更多）
  */
 const getActionColumnWidth = (): number => {
-  return 90
+  const actionCount = linkFields.value.length
+    + (hasUpdateCallback.value ? 1 : 0)
+    + (hasDeleteCallback.value ? 1 : 0)
+  if (actionCount <= 1) return 100
+  if (actionCount === 2) return 160
+  return 150
+}
+
+/**
+ * 构建当前行的操作项（链接 / 更新 / 删除）
+ */
+const getRowActions = (row: TableRow): ActionItem[] => {
+  const actions: ActionItem[] = []
+
+  linkFields.value.forEach((linkField) => {
+    actions.push({
+      key: `link:${linkField.code}`,
+      command: `link:${linkField.code}`,
+      label: getLinkText(linkField, row[linkField.code]),
+      icon: linkField.widget?.config?.icon || Right
+    })
+  })
+
+  if (hasUpdateCallback.value) {
+    actions.push({
+      key: 'update',
+      command: 'update',
+      label: canUpdate.value ? '更新' : `更新（需${getPermissionShortName(FunctionPermission.update)}）`,
+      icon: canUpdate.value ? Edit : Lock,
+      noPermission: !canUpdate.value
+    })
+  }
+
+  if (hasDeleteCallback.value) {
+    actions.push({
+      key: 'delete',
+      command: 'delete',
+      label: canDelete.value ? '删除' : `删除（需${getPermissionShortName(FunctionPermission.delete)}）`,
+      icon: canDelete.value ? Delete : Lock,
+      isDelete: true,
+      noPermission: !canDelete.value
+    })
+  }
+
+  return actions
 }
 
 /**
@@ -2403,12 +2478,6 @@ onUnmounted(() => {
   margin-bottom: 0;
 }
 
-.search-bar .search-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
 .search-actions {
   display: flex;
   align-items: center;
@@ -2508,11 +2577,7 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.search-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-}
+/* 交由 ui-filter-form 控制布局 */
 
 /* 表格骨架屏（加载中） */
 .table-skeleton-wrap {
@@ -2593,9 +2658,28 @@ onUnmounted(() => {
   border-top: none;
 }
 
-:deep(.el-table td.el-table__cell),
+/* 🔥 固定列表头/固定列在无滚动时也保持背景色一致 */
+:deep(.el-table__fixed),
+:deep(.el-table__fixed-right) {
+  background-color: var(--el-bg-color);
+}
+
+:deep(.el-table__fixed-header-wrapper),
+:deep(.el-table__fixed-right-patch),
+:deep(.el-table__fixed-header-wrapper th.el-table__cell),
+:deep(.el-table__fixed-header-wrapper .el-table__header th.el-table__cell),
+:deep(.el-table__fixed .el-table__header-wrapper th.el-table__cell),
+:deep(.el-table__fixed-right .el-table__header-wrapper th.el-table__cell) {
+  background-color: var(--el-fill-color-light);
+}
+
+:deep(.el-table td.el-table__cell) {
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
 :deep(.el-table th.el-table__cell.is-leaf) {
   border-bottom: 1px solid var(--el-border-color-lighter);
+  background-color: var(--el-fill-color-light) !important;
 }
 
 .link-text {
@@ -2616,6 +2700,21 @@ onUnmounted(() => {
 .action-more-btn {
   margin: 0;
   padding: 0 4px;
+}
+
+.action-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.action-inline-btn {
+  margin: 0;
+  padding: 0 4px;
+}
+
+.action-delete-btn {
+  color: var(--el-color-danger);
 }
 
 .dropdown-link-content,
@@ -2692,4 +2791,3 @@ onUnmounted(() => {
   gap: 8px;
 }
 </style>
-

@@ -33,8 +33,8 @@ export const SearchComponent = {
  * 搜索配置常量
  */
 export const SearchConfig = {
-  DEFAULT_INPUT_WIDTH: '200px',
-  DEFAULT_RANGE_WIDTH: '400px',
+  DEFAULT_INPUT_WIDTH: '100%',
+  DEFAULT_RANGE_WIDTH: '100%',
   DEFAULT_NUMBER_RANGE_WIDTH: '160px', // 数字范围输入框宽度
   DEBOUNCE_DELAY: 300,        // 防抖延迟（毫秒）
   INTERNAL_UPDATE_DELAY: 350, // 内部更新延迟（防抖时间 + 缓冲）
@@ -63,4 +63,3 @@ export function hasAllSearchTypes(searchType: string | undefined | null, types: 
   if (!searchType) return false
   return types.every(type => searchType.includes(type))
 }
-

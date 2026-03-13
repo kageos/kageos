@@ -83,6 +83,7 @@
       width="800px"
       :close-on-click-modal="false"
       @close="handleDialogClose"
+      class="ui-dialog-md"
     >
       <el-form
         ref="formRef"
