@@ -37,7 +37,7 @@ cd ai-agent-os
 
 ### 3. 配置域名/IP
 
-编辑 `docker/configs/app-storage.yaml`，将 `cdn_domain` 改为你的服务器外网域名或 IP：
+编辑 `podman/configs/app-storage.yaml`，将 `cdn_domain` 改为你的服务器外网域名或 IP：
 
 ```yaml
 storage:
@@ -52,7 +52,7 @@ storage:
 ### 4. 一键部署
 
 ```bash
-bash docker/deploy.sh
+bash podman/deploy.sh
 ```
 
 这个脚本会依次：
@@ -116,7 +116,7 @@ bash docker/deploy.sh
 
 ### 配置覆盖机制
 
-Docker 环境使用 `docker/configs/` 下的配置文件覆盖默认配置：
+Docker 环境使用 `podman/configs/` 下的配置文件覆盖默认配置：
 
 | 配置文件 | 用途 | 关键变更 |
 |---|---|---|
@@ -130,7 +130,7 @@ Docker 环境使用 `docker/configs/` 下的配置文件覆盖默认配置：
 
 ### 关键配置：文件访问域名
 
-`docker/configs/app-storage.yaml` 中的 `cdn_domain` 是**唯一需要根据部署环境修改的配置**：
+`podman/configs/app-storage.yaml` 中的 `cdn_domain` 是**唯一需要根据部署环境修改的配置**：
 
 ```yaml
 storage:
@@ -144,7 +144,7 @@ storage:
 
 ### 系统账号
 
-初始系统账号密码在 `docker/configs/hr-server.yaml` 中配置：
+初始系统账号密码在 `podman/configs/hr-server.yaml` 中配置：
 
 ```yaml
 system_user:
@@ -153,7 +153,7 @@ system_user:
 
 ### 邮箱配置
 
-如需邮箱验证码功能，编辑 `docker/configs/app-server.yaml` 和 `docker/configs/hr-server.yaml` 中的 `email.smtp` 配置。
+如需邮箱验证码功能，编辑 `podman/configs/app-server.yaml` 和 `podman/configs/hr-server.yaml` 中的 `email.smtp` 配置。
 
 ## 五、常用命令
 
@@ -255,7 +255,7 @@ docker compose ps minio
 curl -v http://localhost/ai-agent-os/
 
 # 确认 endpoint 配置是否正确（应为浏览器可访问的域名/IP）
-cat docker/configs/app-storage.yaml | grep endpoint
+cat podman/configs/app-storage.yaml | grep endpoint
 ```
 
 ## 八、升级
@@ -269,6 +269,6 @@ docker compose up -d
 ## 九、安全注意事项
 
 1. **修改默认密码**：MySQL root 密码、MinIO 密码、系统账号密码
-2. **JWT 密钥**：修改 `docker/configs/global.yaml` 中的 `jwt.secret`
+2. **JWT 密钥**：修改 `podman/configs/global.yaml` 中的 `jwt.secret`
 3. **privileged 模式**：backend 容器运行在 privileged 模式（Podman 需要），自用服务器可接受，公网环境建议配合防火墙
 4. **端口暴露**：生产环境建议使用反向代理统一入口，MinIO 9000/9001 端口可不暴露（已通过 Nginx 代理）

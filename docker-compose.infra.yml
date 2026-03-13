@@ -1,13 +1,24 @@
-# AI Agent OS - 开发环境基础设施
-# 用法: docker compose -f docker-compose.dev.yml up -d
-# 停止: docker compose -f docker-compose.dev.yml down
-# 清除数据: docker compose -f docker-compose.dev.yml down -v
+# AI Agent OS - 基础设施（NATS / MySQL / MinIO）
+# 用于 Podman 本地开发：容器名必须为 mysql8、nats-server、minio，与 app-runtime InfraWatchdog 一致。
+#
+# 基础设施账号（与 configs 中各服务 db/storage 配置一致）:
+#   MySQL  端口 3306  root / root           数据库由 podman/init-db.sql 首次启动时自动创建
+#   MinIO  端口 9000  minioadmin / minioadmin123  控制台 http://localhost:9001
+#   NATS   端口 4222  无认证
+#
+# 用法（先确保 Podman Machine 已启动）:
+#   podman machine start
+#   podman compose -f docker-compose.infra.yml up -d
+# 停止:
+#   podman compose -f docker-compose.infra.yml down
+# 清除数据:
+#   podman compose -f docker-compose.infra.yml down -v
 
 services:
 
-  mysql:
+  mysql8:
     image: mysql:8.0
-    container_name: ai-agent-os-dev-mysql
+    container_name: mysql8
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root
@@ -15,7 +26,7 @@ services:
     ports:
       - "3306:3306"
     volumes:
-      - dev-mysql-data:/var/lib/mysql
+      - infra-mysql-data:/var/lib/mysql
       - ./podman/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     command: >
       --character-set-server=utf8mb4
@@ -29,9 +40,9 @@ services:
       retries: 10
       start_period: 30s
 
-  nats:
+  nats-server:
     image: nats:latest
-    container_name: ai-agent-os-dev-nats
+    container_name: nats-server
     restart: unless-stopped
     ports:
       - "4222:4222"
@@ -41,7 +52,7 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: ai-agent-os-dev-minio
+    container_name: minio
     restart: unless-stopped
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -51,11 +62,11 @@ services:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - dev-minio-data:/data
+      - infra-minio-data:/data
     command: server /data --console-address ":9001"
 
 volumes:
-  dev-mysql-data:
-    name: ai-agent-os-dev-mysql-data
-  dev-minio-data:
-    name: ai-agent-os-dev-minio-data
+  infra-mysql-data:
+    name: ai-agent-os-infra-mysql-data
+  infra-minio-data:
+    name: ai-agent-os-infra-minio-data
