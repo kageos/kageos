@@ -2,7 +2,7 @@
 set -e
 
 # AI Agent OS 一键部署脚本
-# 用法: bash docker/deploy.sh
+# 用法: bash podman/deploy.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -59,8 +59,8 @@ echo ""
 echo "  ⚠️  首次启动时后端会自动构建用户应用基础镜像（约 10-20 分钟）"
 echo "     可通过日志查看进度: docker compose logs -f backend"
 echo "  ⚠️  首次启动可能需要等待 MySQL 初始化完成（约 30 秒）"
-echo "  ⚠️  系统账号密码见 docker/configs/hr-server.yaml 中的 system_user.password"
+echo "  ⚠️  系统账号密码见 podman/configs/hr-server.yaml 中的 system_user.password"
 echo ""
-echo "  📋 重要：请确认 docker/configs/app-storage.yaml 中的 cdn_domain"
+echo "  📋 重要：请确认 podman/configs/app-storage.yaml 中的 cdn_domain"
 echo "     已配置为服务器的外网域名或 IP（如 http://your-domain.com）"
 echo "========================================="

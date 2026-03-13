@@ -185,6 +185,14 @@ npm run dev
 
 **只做前端开发、后端用线上？** 见 **[前端开发：本地与连线上](deploy/前端开发-本地与连线上.md)**：配 `VITE_PROXY_TARGET` 指向你的线上网关即可，无需本地起后端。
 
+**本地用 Podman 跑依赖（NATS / MySQL / MinIO）**：若 Podman Machine 重建或依赖容器没了，可依次执行：
+```bash
+podman machine start
+podman compose -f docker-compose.infra.yml up -d
+./scripts/build-app-base-image.sh   # 构建用户应用基础镜像 ai-agent-os:latest
+```
+详见 [docker-compose.infra.yml](docker-compose.infra.yml)。
+
 ### 创建第一个应用
 
 ```bash

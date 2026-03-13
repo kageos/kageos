@@ -1,6 +1,6 @@
 # AI Agent OS - Docker Compose 一键部署
 # 使用: docker compose up -d
-# 首次部署请先阅读 docker/DEPLOY.md
+# 首次部署请先阅读 podman/DEPLOY.md
 
 services:
 
@@ -17,7 +17,7 @@ services:
       - "3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
-      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./podman/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     command: >
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
@@ -39,7 +39,7 @@ services:
     ports:
       - "4222:4222"
     volumes:
-      - ./docker/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - ./podman/nats-server.conf:/etc/nats/nats-server.conf:ro
     command: ["-c", "/etc/nats/nats-server.conf"]
     networks:
       - ai-agent-os
@@ -66,7 +66,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: docker/Dockerfile.backend
+      dockerfile: podman/Dockerfile.backend
     image: ai-agent-os-backend:latest
     container_name: ai-agent-os-backend
     restart: always
@@ -82,16 +82,16 @@ services:
       - "9097:9097"
     volumes:
       # docker-compose 专用配置覆盖
-      - ./docker/configs/global.yaml:/app/configs/global.yaml:ro
-      - ./docker/configs/api-gateway.yaml:/app/configs/api-gateway.yaml:ro
-      - ./docker/configs/app-server.yaml:/app/configs/app-server.yaml:ro
-      - ./docker/configs/app-storage.yaml:/app/configs/app-storage.yaml:ro
-      - ./docker/configs/app-runtime.yaml:/app/configs/app-runtime.yaml:ro
-      - ./docker/configs/agent-server.yaml:/app/configs/agent-server.yaml:ro
-      - ./docker/configs/hr-server.yaml:/app/configs/hr-server.yaml:ro
-      - ./docker/configs/control-service.yaml:/app/configs/control-service.yaml:ro
+      - ./podman/configs/global.yaml:/app/configs/global.yaml:ro
+      - ./podman/configs/api-gateway.yaml:/app/configs/api-gateway.yaml:ro
+      - ./podman/configs/app-server.yaml:/app/configs/app-server.yaml:ro
+      - ./podman/configs/app-storage.yaml:/app/configs/app-storage.yaml:ro
+      - ./podman/configs/app-runtime.yaml:/app/configs/app-runtime.yaml:ro
+      - ./podman/configs/agent-server.yaml:/app/configs/agent-server.yaml:ro
+      - ./podman/configs/hr-server.yaml:/app/configs/hr-server.yaml:ro
+      - ./podman/configs/control-service.yaml:/app/configs/control-service.yaml:ro
       # Hub Server 配置（通过 /config/hub.yaml 软链接指向此处）
-      - ./docker/configs/hub.yaml:/app/hub-config/hub.yaml:ro
+      - ./podman/configs/hub.yaml:/app/hub-config/hub.yaml:ro
       # Podman 容器存储（持久化用户应用镜像和容器）
       - podman-storage:/var/lib/containers
       # 持久化数据
@@ -116,7 +116,7 @@ services:
   web:
     build:
       context: .
-      dockerfile: docker/Dockerfile.web
+      dockerfile: podman/Dockerfile.web
     image: ai-agent-os-web:latest
     container_name: ai-agent-os-web
     restart: always
@@ -132,7 +132,7 @@ services:
   hub-frontend:
     build:
       context: .
-      dockerfile: docker/Dockerfile.hub-frontend
+      dockerfile: podman/Dockerfile.hub-frontend
     image: ai-agent-os-hub-frontend:latest
     container_name: ai-agent-os-hub-frontend
     restart: always
