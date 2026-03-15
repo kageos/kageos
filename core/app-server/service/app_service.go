@@ -142,8 +142,7 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 	rootNode := &model.ServiceTree{
 		Name:         app.Name,
 		Code:         app.Code,
-		ParentID:     0,  // 根节点
-		Type:         model.ServiceTreeTypePackage,  // 统一为 package 类型
+		Type:         model.ServiceTreeTypePackage,
 		Admins:       app.Admins,
 		PendingCount: 0,
 		AppID:        app.ID,
@@ -640,14 +639,13 @@ func (a *AppService) reconcilePackages(ctx context.Context, appID int64, package
 			continue
 		}
 		parentPath := "/" + strings.Join(parts[:len(parts)-1], "/")
-		parent, ok := existingNodes[parentPath]
+		_, ok := existingNodes[parentPath]
 		if !ok {
 			return fmt.Errorf("[reconcilePackages] 父节点不存在: %s (package=%s)，请检查根节点或上级目录是否已创建", parentPath, pkg.FullPath)
 		}
 
 		node := &model.ServiceTree{
 			AppID:            appID,
-			ParentID:         parent.ID,
 			Type:             model.ServiceTreeTypePackage,
 			Code:             pkg.Code,
 			Name:             pkg.Name,
@@ -666,7 +664,7 @@ func (a *AppService) reconcilePackages(ctx context.Context, appID int64, package
 		}
 
 		existingNodes[pkg.FullPath] = node
-		logger.Infof(ctx, "[reconcilePackages] 创建 package: %s (code=%s, name=%s, parentID=%d)", pkg.FullPath, pkg.Code, pkg.Name, parent.ID)
+		logger.Infof(ctx, "[reconcilePackages] 创建 package: %s (code=%s, name=%s, parentPath=%s)", pkg.FullPath, pkg.Code, pkg.Name, parentPath)
 	}
 
 	logger.Infof(ctx, "[reconcilePackages] 目录对账完成: 成功创建 %d 个缺失的 package 节点", len(missing))
@@ -722,10 +720,9 @@ func (a *AppService) createFunctionNode(ctx context.Context, appID int64, parent
 		admins = requestUser
 	}
 
-	// 创建新的function节点，预加载完整的app对象
+	// 创建新的function节点
 	serviceTree := &model.ServiceTree{
 		AppID:            appID,
-		ParentID:         parentID,
 		Type:             model.ServiceTreeTypeFunction,
 		Code:             api.Code, // API的code作为ServiceTree的code
 		Name:             api.Name, // API的name作为ServiceTree的name

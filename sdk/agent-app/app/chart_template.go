@@ -1,6 +1,6 @@
 package app
 
-// 图表类型常量（与 types.Chart.ChartType、前端 ChartRenderer 约定一致）
+// 图表类型常量（与 chart 包图表类型、前端 ChartRenderer 约定一致）
 // 生成/手写图表代码时请使用以下常量，勿写死字符串
 const (
 	ChartTypeBar   = "bar"   // 柱状图

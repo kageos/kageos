@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/mitchellh/mapstructure"
@@ -202,18 +203,60 @@ func loadYAMLConfig(filename string, config interface{}) error {
 	return nil
 }
 
-// findConfigFile 查找配置文件
-func findConfigFile(filename string) string {
-	// 按优先级查找配置文件
-	searchPaths := []string{
-		filename,                                 // 当前目录
-		filepath.Join("configs", filename),       // configs 目录
-		filepath.Join("..", "configs", filename), // 上级目录的 configs
+// getConfigEnv 返回当前配置环境：仅 dev 为开发，其余（含未设）均为 prod
+// 本机开发时设置 APP_ENV=dev 用 configs/dev/；不设或 APP_ENV=prod 用 configs/prod/
+func getConfigEnv() string {
+	e := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	if e == "dev" {
+		return "dev"
 	}
+	return "prod" // 未设或任意其他值都当 prod
+}
 
-	for _, path := range searchPaths {
+// findProjectRoot 从 dir 向上查找包含 go.mod 或 configs 的目录作为项目根
+func findProjectRoot(dir string) string {
+	dir, _ = filepath.Abs(dir)
+	for {
+		if dir == "" || dir == "/" || len(dir) <= 1 {
+			return ""
+		}
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		if _, err := os.Stat(filepath.Join(dir, "configs")); err == nil {
+			return dir
+		}
+		dir = filepath.Dir(dir)
+	}
+}
+
+// findConfigFile 查找配置文件
+// 只从 configs/dev/ 或 configs/prod/ 读；先按 cwd 相对路径试，再按项目根（向上找 go.mod/configs）试
+func findConfigFile(filename string) string {
+	env := getConfigEnv()
+	baseName := filepath.Base(filename)
+	wantPath := filepath.Join("configs", env, baseName)
+
+	// 1. 相对 cwd 的常见层级
+	for _, rel := range []string{"", "..", "../..", "../../..", "../../../..", "../../../../.."} {
+		var path string
+		if rel == "" {
+			path = wantPath
+		} else {
+			path = filepath.Join(rel, wantPath)
+		}
 		if _, err := os.Stat(path); err == nil {
 			return path
+		}
+	}
+
+	// 2. 从 cwd 向上找到项目根，再找 configs/{env}/baseName
+	if cwd, _ := os.Getwd(); cwd != "" {
+		if root := findProjectRoot(cwd); root != "" {
+			path := filepath.Join(root, wantPath)
+			if _, err := os.Stat(path); err == nil {
+				return path
+			}
 		}
 	}
 

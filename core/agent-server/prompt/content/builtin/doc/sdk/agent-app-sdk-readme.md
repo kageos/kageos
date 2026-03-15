@@ -59,6 +59,8 @@ List 可在 **Build 前**对 `queryDB` 做 Where、Preload 等，**Build 后**�
 
 ### Form 模式（POST，无 Table）
 
+**Form 与 Chart 结构不可混用（必读）**：Form 的 Request/Response 必须是**普通表单/结果结构体**（input、select、table 子表、files、link 等），**禁止**在 Form 的 Request 或 Response 中使用 Chart 结构（如 `chart.LineChart`、`chart.BarChart`、`chart_type`、`series`、`x_axis` 等）。若需求是「按条件查询并展示图表」，应单独注册 **Chart 路由**（GET + ChartTemplate + `resp.Chart(chart).Build()`），不得在 Form 里返回图表数据；若需求是「用户提交数据后生成一张图」的一次性任务，仍用 Form，但 Response 应为普通结构体（如返回图片 URL、或 link 到前端页），不能把 Chart 结构体当作 Form 的 Response。
+
 1. **定义请求/响应结构体**：字段加 `widget`、`validate`；请求体可含 files、input、select、table 等。
 2. **写处理函数**：`ctx.ShouldBindValidate(&req)`，业务逻辑，`return resp.Form(&respStruct).Build()`；系统错误需加 `[系统错误]` 前缀并带详细参数（见第六节「系统错误」）。
 3. **配置 FormTemplate**：`BaseConfig`（Name、Request、Response）+ 可选 `OnSelectFuzzyMap` 等。
@@ -100,12 +102,14 @@ func init() {
 
 1. **定义请求结构体**：筛选条件加 `widget` 标签。
 2. **写统计函数**：`ctx.ShouldBind(&req)` → 查库聚合 → 构造具体图表类型（只填 Title、XAxis、Series、Metadata，**无需填 ChartType 或 Series[].Type**）→ `return resp.Chart(chart).Build()`。
-3. **配置 ChartTemplate**：`BaseConfig`（Name、Request、Response 填**与返回值一致的具体类型**，如 `Response: &types.LineChart{}`）。
+3. **配置 ChartTemplate**：`BaseConfig`（Name、Request、Response 填**与返回值一致的具体类型**，如 `Response: &chart.LineChart{}`）。图表类型请使用 **`sdk/agent-app/chart`** 包（`chart.LineChart`、`chart.BarChart` 等），勿使用 `types` 包下的图表类型。
 4. **注册**：`init()` 中 `packageContext.GET("路由名", ChartHandler, ChartTemplate)`。
 
 最小可用片段示例：
 
 ```go
+import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/chart"
+
 type SalesStatisticsReq struct {
     StartTime int64  `json:"start_time" form:"start_time" widget:"name:开始时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"`
     EndTime   int64  `json:"end_time" form:"end_time" widget:"name:结束时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"`
@@ -116,18 +120,18 @@ func SalesTrendChart(ctx *app.Context, resp response.Response) error {
     if err := ctx.ShouldBind(&req); err != nil { return err }
     db := ctx.GetGormDB()
     // 聚合查询得到 dateLabels、seriesData...
-    chart := &types.LineChart{
+    c := &chart.LineChart{
         Title:  "销售趋势",
         XAxis:  dateLabels,
-        Series: []types.ChartSeries{{Name: "销售额", Data: seriesData}},
+        Series: []chart.ChartSeries{{Name: "销售额", Data: seriesData}},
         Metadata: map[string]interface{}{"总销售额": total},
     }
-    return resp.Chart(chart).Build()
+    return resp.Chart(c).Build()
 }
 
 func init() {
     packageContext.GET("sales_trend_statistics.chart", SalesTrendChart, &app.ChartTemplate{
-        BaseConfig: app.BaseConfig{Name: "销售趋势", Request: &SalesStatisticsReq{}, Response: &types.LineChart{}},
+        BaseConfig: app.BaseConfig{Name: "销售趋势", Request: &SalesStatisticsReq{}, Response: &chart.LineChart{}},
     })
 }
 ```
@@ -196,15 +200,18 @@ Attachment *types.Files `gorm:"type:json" widget:"name:附件;type:files"`
 
 **files 类型约定**：使用 `type:files` 时字段类型必须为 `*types.Files`，需在文件顶部 **import** 包：`import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"`。否则会编译报错「undefined: types」。完整上传、下载与存储流程见第六节「文件上传、下载与存储」。
 
-#### link 组件（跳转链接）
+#### link 组件（跳转链接，多函数联动）
 
-用于在**列表**或**表单**中展示可点击链接，点击后跳转到另一个 GET（Table/Chart）、Form，或打开外链。字段通常**不落库**（`gorm:"-"`）、**只读**（`permission:"read"`），值由后端在 **List 函数 Build 之后**或 **Form 响应**里用 `ctx.BuildFunctionUrlWithText(target, params, linkText)` 赋值。
+用于在**列表**或**表单**中展示可点击链接，点击后**跳转到另一个函数**（Table 或 Form）或打开**外链**，实现多函数联动与带参跳转。字段通常**不落库**（`gorm:"-"`）、**只读**（`permission:"read"`），值由后端在 **List 函数 Build 之后**或 **Form 响应**里用 `ctx.BuildFunctionUrlWithText(target, params, linkText)` 赋值。
 
 - **widget 配置**：`type:link`；可选 `target:_blank`（新窗口）或 `_self`（当前窗口）；可选 `text`、`type`（样式 primary/success 等）、`icon`。
-- **赋值 API**：`ctx.BuildFunctionUrlWithText(target string, params interface{}, linkText string) (string, error)`  
-  - **target**：函数路径（如 `"meeting_room_list.table"`、`"vote_submit.form"`、`"vote_result.form"`），或带查询（如 `"hr_resume_list.table?_tab=OnTableAddRow"` 表示打开该列表并切到「新增」Tab），或**外链**（如 `"https://example.com"`）。路由名需带类型后缀（.table / .form / .chart），与注册约定一致。  
+- **赋值 API**：
+  - **推荐**：`ctx.BuildFunctionUrlWithText(target string, params interface{}, linkText string) (string, error)` —— 带链接展示文案。
+  - **无文案时**：`ctx.BuildFunctionUrl(target string, params interface{}) (string, error)` —— 返回的 url 会带参数，前端仍可展示目标页。
+- **返回值格式（必读）**：上述 API 返回的是** JSON 字符串**，形如 `{"type":"table","name":"查看会议室详情","url":"/user/app/xxx?eq=id:123"}`。前端会解析该字符串得到 `type`（table/form，外链为空）、`name`（展示文案）、`url`（path+query），点击后在工作空间内跳转到对应函数并应用 query（表格筛选、表单预填等）。业务侧只需把返回值赋给 link 字段即可，不要自行拼 JSON。
+- **target**：函数路径（如 `"meeting_room_list.table"`、`"vote_submit.form"`、`"bangla_level_distribution.chart"`），或带查询（如 `"hr_resume_list.table?_tab=OnTableAddRow"`），或**外链**（如 `"https://example.com"` 或 `"www.example.com"`，无协议时自动补 https）。支持 Table、Form、**Chart**（图表为 GET + query，params 用该 Chart 的 Request 结构体）。  
   - **params**：见下「params 类型约定」；外链时传 `nil`。  
-  - **linkText**：链接展示文本（如「查看会议室详情」「点击参与投票」「查看投票结果」）。
+  - **linkText**：链接展示文本（如「查看会议室详情」「查看统计」）。
 
 - **params 类型约定（必读，不可混用）**：  
   - **跳转到 Table（GET 列表）**：params 必须是**目标 Table 对应的列表 Model**，即该 GET 路由的 `AutoCrudTable` 指向的结构体。前端打开列表时会用 params 的字段（如 ID）做筛选/定位。  
@@ -213,8 +220,10 @@ Attachment *types.Files `gorm:"type:json" widget:"name:附件;type:files"`
   - **跳转到 Form（POST 表单）**：params 必须是**目标 Form 的请求结构体**，即该 POST 路由的 `Request` 结构体。前端打开表单时会预填 params 的字段。  
     - 例：target 为 `"vote_result.form"` 时，params 用 `VoteResultReq{TopicID: topicID}`，其中 **VoteResultReq** 是查看结果 Form 的 **请求结构体**，不能写成 VoteTopic（Model）。  
     - 例：target 为 `"vote_submit.form"` 时，params 用 `VoteSubmitReq{TopicID: topicID}`（提交投票 Form 的请求结构体）。  
+  - **跳转到 Chart（GET 图表）**：params 必须是**该 Chart 的 Request 结构体**，即该 GET 路由的 ChartTemplate 的 `Request` 结构体。前端打开图表时会用 params 转成 query（如 object_id=123）请求图表。  
+    - 例：target 为 `"bangla_level_distribution.chart"` 时，params 用 `BanglaLevelDistributionReq{ObjectID: objectID}`（等级分布图请求结构体）。  
   - **外链**：params 传 `nil`。  
-  - 总结：**跳 Table 用该表的 Model，跳 Form 用该 Form 的 Request 结构体**，二者不要搞混。
+  - 总结：**跳 Table 用该表的 Model，跳 Form 用该 Form 的 Request，跳 Chart 用该 Chart 的 Request**，不要混用。
 
 - **典型场景**：  
   1. **Table 列表「查看详情」列**：当前行关联另一张表，链接跳转到该表并带上当前行 ID（如预约列表的「会议室详情」→ 跳会议室列表，params 用 **MeetingRoom{ID: RoomID}**，MeetingRoom 是目标表的 Model）。  
@@ -870,8 +879,8 @@ Chart 用于**只读的统计/图表**（BI），GET 请求。ChartTemplate、�
    - **正确**：每张图一个 GET 路由。参考收银台：4 张图 = 4 个 `.chart` 路由、4 个函数。
 
 2. **手填 ChartType 或 Series[].Type**  
-   - **错误**：使用 `&types.Chart{ ChartType: "line", ... }` 或给 Series 填 `Type: "line"`。  
-   - **正确**：使用具体类型 `&types.LineChart{}`、`&types.BarChart{}` 等，只填 Title、XAxis、Series（Name、Data、可选 Config），不填 ChartType 和 Series[].Type；框架会在 `resp.Chart()` 时自动注入。
+   - **错误**：使用 `&chart.Chart{ ChartType: "line", ... }` 或给 Series 填 `Type: "line"`（chart 包无通用 Chart 结构体，只用具体类型）。
+   - **正确**：使用具体类型 `&chart.LineChart{}`、`&chart.BarChart{}` 等，只填 Title、XAxis、Series（Name、Data、可选 Config），不填 ChartType 和 Series[].Type；框架会在 `resp.Chart()` 时自动注入。
 
 3. **误用 sdk/agent-app 下的 query 包**  
    - **错误**：`import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/query"`，导致编译报错「包找不到」。  
@@ -884,36 +893,36 @@ Chart 用于**只读的统计/图表**（BI），GET 请求。ChartTemplate、�
 
 | 必须使用的类型 | 说明 | 典型场景 | XAxis | Series Data 格式 |
 |------|------|----------|-------|------------------|
-| `types.LineChart` | 折线图 | 时间趋势、多指标随时间的走势 | 必需，如日期列表 | `[]interface{}{y1, y2, ...}`，与 XAxis 一一对应 |
-| `types.BarChart` | 柱状图 | 分类对比、各维度数量/金额 | 必需，如分类名 | `[]interface{}{v1, v2, ...}`，与 XAxis 一一对应 |
-| `types.PieChart` | 饼图 | 占比分布、构成比例 | 不需要 | `[]interface{}{ map[string]interface{}{"name":"分类","value":数值}, ... }` |
-| `types.GaugeChart` | 仪表盘 | 单指标（完成率、平均值、达标值） | 不需要 | `[]interface{}{ 单值 }`，可选 Series.Config 的 min/max/detail |
+| `chart.LineChart` | 折线图 | 时间趋势、多指标随时间的走势 | 必需，如日期列表 | `[]interface{}{y1, y2, ...}`，与 XAxis 一一对应 |
+| `chart.BarChart` | 柱状图 | 分类对比、各维度数量/金额 | 必需，如分类名 | `[]interface{}{v1, v2, ...}`，与 XAxis 一一对应 |
+| `chart.PieChart` | 饼图 | 占比分布、构成比例 | 不需要 | `[]interface{}{ map[string]interface{}{"name":"分类","value":数值}, ... }` |
+| `chart.GaugeChart` | 仪表盘 | 单指标（完成率、平均值、达标值） | 不需要 | `[]interface{}{ 单值 }`，可选 Series.Config 的 min/max/detail |
 
 **LineChart（折线图）**：按时间或类别展示趋势，可多系列。XAxis 为刻度（如日期），每个 Series 的 Data 与 XAxis 长度一致。
 
 ```go
-chart := &types.LineChart{
+c := &chart.LineChart{
     Title:  "工单趋势统计",
     XAxis:  dateLabels,  // []string{"2025-01-01", "2025-01-02", ...}
-    Series: []types.ChartSeries{
+    Series: []chart.ChartSeries{
         {Name: "工单数量", Data: []interface{}{10, 25, 18, ...}},
         {Name: "已完成数", Data: []interface{}{5, 12, 10, ...}},
     },
     Metadata: map[string]interface{}{"总工单数": totalCount, "数据更新时间": time.Now().Format("2006-01-02 15:04:05")},
 }
-return resp.Chart(chart).Build()
+return resp.Chart(c).Build()
 ```
 
 **BarChart（柱状图）**：分类对比，XAxis 为分类名，Data 为对应数值。
 
 ```go
-chart := &types.BarChart{
+c := &chart.BarChart{
     Title:  "工单优先级分布统计",
     XAxis:  []string{"低", "中", "高"},
-    Series: []types.ChartSeries{{Name: "工单数量", Data: []interface{}{8, 20, 5}}},
+    Series: []chart.ChartSeries{{Name: "工单数量", Data: []interface{}{8, 20, 5}}},
     Metadata: map[string]interface{}{"总工单数": totalCount, "完成率": "66.67%", ...},
 }
-return resp.Chart(chart).Build()
+return resp.Chart(c).Build()
 ```
 
 **PieChart（饼图）**：展示占比，不需要 XAxis。Data 中每个元素为 `{"name": "分类名", "value": 数值}`。
@@ -923,20 +932,20 @@ pieData := make([]interface{}, 0)
 for _, stat := range statusStats {
     pieData = append(pieData, map[string]interface{}{"name": stat.Status, "value": stat.Count})
 }
-chart := &types.PieChart{
+c := &chart.PieChart{
     Title:   "工单状态分布",
-    Series:  []types.ChartSeries{{Name: "工单状态", Data: pieData}},
+    Series:  []chart.ChartSeries{{Name: "工单状态", Data: pieData}},
     Metadata: map[string]interface{}{"总工单数": totalCount, "待处理数": statusMap["待处理"], ...},
 }
-return resp.Chart(chart).Build()
+return resp.Chart(c).Build()
 ```
 
 **GaugeChart（仪表盘）**：单指标，Data 为单元素数组；可选 Config 指定 min、max、detail.formatter（如 `"¥{value}"`）。
 
 ```go
-chart := &types.GaugeChart{
+c := &chart.GaugeChart{
     Title: "工单完成率",
-    Series: []types.ChartSeries{
+    Series: []chart.ChartSeries{
         {
             Name:   "完成率",
             Data:   []interface{}{completionRate},
@@ -948,7 +957,7 @@ chart := &types.GaugeChart{
     },
     Metadata: map[string]interface{}{"总工单数": totalCount, "已完成数": completedCount, "完成率": "66.50%", ...},
 }
-return resp.Chart(chart).Build()
+return resp.Chart(c).Build()
 ```
 
 完整示例：收银台统计（LineChart/BarChart/PieChart/GaugeChart）read_doc `/builtin/doc/case_catalog/form_table_chart/cashier`。

@@ -148,6 +148,13 @@ func TableUpdate(ctx context.Context, fullCodePath string, body interface{}) (ma
 	return PutAPI[interface{}, map[string]interface{}](ctx, path, body)
 }
 
+// CallbackOnSelectFuzzy 调用工作区 OnSelectFuzzy 回调（POST callback/on_select_fuzzy/{full-code-path}）
+// 用于工作台测试带 OnSelectFuzzy 的表单/表格下拉回调查询。当前仅支持按关键词或空关键词：body 中 type=by_keyword，value=关键词（可为空）。不支持 by_value/by_values。fullCodePath 为配置了 OnSelectFuzzyMap 的 Form/Table 完整路径；body 含 code、type、value、request（可选）。
+func CallbackOnSelectFuzzy(ctx context.Context, fullCodePath string, body map[string]interface{}) (map[string]interface{}, error) {
+	path := "/workspace/api/v1/callback/on_select_fuzzy" + fullCodePath
+	return PostAPI[map[string]interface{}, map[string]interface{}](ctx, path, body)
+}
+
 // PublishDirectoryToHubViaWorkspace 通过 workspace API 发布目录到 Hub（agent-server -> app-server）
 // 首次将当前工作区目录或指定目录发布到应用市场
 func PublishDirectoryToHubViaWorkspace(ctx context.Context, req *dto.PublishDirectoryToHubReq) (*dto.PublishDirectoryToHubResp, error) {

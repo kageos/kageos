@@ -27,6 +27,7 @@ require (
 	github.com/yunhanshu-net/pkg v0.0.0-20251009115937-c97d64985fe6
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.43.0
+	golang.org/x/net v0.46.0
 	golang.org/x/sync v0.18.0
 	golang.org/x/text v0.31.0
 	golang.org/x/tools v0.38.0
@@ -211,7 +212,6 @@ require (
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
 	golang.org/x/image v0.25.0 // indirect
 	golang.org/x/mod v0.29.0 // indirect
-	golang.org/x/net v0.46.0 // indirect
 	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/term v0.36.0 // indirect
 	golang.org/x/time v0.12.0 // indirect

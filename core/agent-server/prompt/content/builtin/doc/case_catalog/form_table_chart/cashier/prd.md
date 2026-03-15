@@ -135,7 +135,7 @@
 | cashier_category_sales_statistics | pie 饼图 | 按商品分类汇总销售额占比（饮料/零食/日用品/其他）；Metadata：总销售额、总订单数 |
 | cashier_average_order_amount_statistics | gauge 仪表盘 | 平均订单金额仪表盘；Series.Config 含 min/max、detail.formatter（如 ¥{value}）；Metadata：总订单数、总销售额、平均/最高/最低订单金额 |
 
-**实现要点**：请求体用同一结构体（如 `CashierSalesStatisticsReq`）+ widget 标签；处理函数内按时间/状态筛选支付记录与明细，聚合后组装 `types.Chart`（ChartType、Title、XAxis、Series、Metadata），`resp.Chart(chart).Build()` 返回；多个图表用 `packageContext.GET(路由名.chart, Handler, ChartTemplate)` 注册。
+**实现要点**：请求体用同一结构体（如 `CashierSalesStatisticsReq`）+ widget 标签；处理函数内按时间/状态筛选支付记录与明细，聚合后组装 **`chart` 包**具体类型（如 `chart.LineChart`：Title、XAxis、Series、Metadata），`resp.Chart(c).Build()` 返回；多个图表用 `packageContext.GET(路由名.chart, Handler, ChartTemplate)` 注册。图表类型请使用 **`sdk/agent-app/chart`** 包。
 
 ---
 
@@ -1058,11 +1058,11 @@ func CashierSalesTrendStatistics(ctx *app.Context, resp response.Response) error
 		orderData = append(orderData, stat.Count)
 	}
 
-	chart := &types.LineChart{
+	c := &chart.LineChart{
 		Title: "销售额趋势统计",
 		XAxis: dateLabels,
 		// Series：数据系列，每项为一条折线，Name 为图例名，Data 与 XAxis 一一对应
-		Series: []types.ChartSeries{
+		Series: []chart.ChartSeries{
 			{Name: "销售额(元)", Data: salesData},
 			{Name: "订单数", Data: orderData},
 		},
@@ -1074,7 +1074,7 @@ func CashierSalesTrendStatistics(ctx *app.Context, resp response.Response) error
 			"数据更新时间": time.Now().Format("2006-01-02 15:04:05"),
 		},
 	}
-	return resp.Chart(chart).Build()
+	return resp.Chart(c).Build()
 }
 
 // CashierSalesBarStatistics 每日销售额柱状图统计
@@ -1135,11 +1135,11 @@ func CashierSalesBarStatistics(ctx *app.Context, resp response.Response) error {
 		totalCount += stat.Count
 	}
 
-	chart := &types.BarChart{
+	c := &chart.BarChart{
 		Title: "每日销售额柱状图",
 		XAxis: dateLabels,
 		// Series：数据系列，每项为一组柱子，Name 为图例名，Data 与 XAxis 一一对应
-		Series: []types.ChartSeries{
+		Series: []chart.ChartSeries{
 			{Name: "销售额(元)", Data: salesData},
 			{Name: "订单数", Data: orderData},
 		},
@@ -1151,7 +1151,7 @@ func CashierSalesBarStatistics(ctx *app.Context, resp response.Response) error {
 			"数据更新时间": time.Now().Format("2006-01-02 15:04:05"),
 		},
 	}
-	return resp.Chart(chart).Build()
+	return resp.Chart(c).Build()
 }
 
 // CashierCategorySalesStatistics 商品分类销售额统计（饼图）
@@ -1244,10 +1244,10 @@ func CashierCategorySalesStatistics(ctx *app.Context, resp response.Response) er
 		})
 	}
 
-	chart := &types.PieChart{
+	c := &chart.PieChart{
 		Title: "商品分类销售额统计",
 		// Series：饼图一般一条系列，Data 为 []{name, value} 表示各扇区
-		Series: []types.ChartSeries{
+		Series: []chart.ChartSeries{
 			{Name: "销售额", Data: pieData},
 		},
 		Metadata: map[string]interface{}{
@@ -1256,7 +1256,7 @@ func CashierCategorySalesStatistics(ctx *app.Context, resp response.Response) er
 			"数据更新时间": time.Now().Format("2006-01-02 15:04:05"),
 		},
 	}
-	return resp.Chart(chart).Build()
+	return resp.Chart(c).Build()
 }
 
 // CashierAverageOrderAmountStatistics 平均订单金额统计（仪表盘）
@@ -1308,10 +1308,10 @@ func CashierAverageOrderAmountStatistics(ctx *app.Context, resp response.Respons
 		maxValue = 100
 	}
 
-	chart := &types.GaugeChart{
+	c := &chart.GaugeChart{
 		Title: "平均订单金额统计",
 		// Series：仪表盘一般一条系列，Data 为单值，Config 可配 min/max/detail 等
-		Series: []types.ChartSeries{
+		Series: []chart.ChartSeries{
 			{
 				Name:   "平均订单金额",
 				Data:   []interface{}{avgAmount},
@@ -1339,7 +1339,7 @@ func CashierAverageOrderAmountStatistics(ctx *app.Context, resp response.Respons
 			"数据更新时间": time.Now().Format("2006-01-02 15:04:05"),
 		},
 	}
-	return resp.Chart(chart).Build()
+	return resp.Chart(c).Build()
 }
 
 // CashierSalesTrendStatisticsTemplate 销售额趋势统计图表模板
@@ -1349,7 +1349,7 @@ var CashierSalesTrendStatisticsTemplate = &app.ChartTemplate{
 		Tags:     []string{"BI", "销售分析"},
 		Desc:     "展示销售额和订单数的时间趋势（折线图）",
 		Request:  &CashierSalesStatisticsReq{},
-		Response: &types.LineChart{},
+		Response: &chart.LineChart{},
 	},
 	ChartType: app.ChartTypeLine,
 }
@@ -1361,7 +1361,7 @@ var CashierSalesBarStatisticsTemplate = &app.ChartTemplate{
 		Tags:     []string{"BI", "销售分析"},
 		Desc:     "按日期展示每日销售额和订单数（柱状图）",
 		Request:  &CashierSalesStatisticsReq{},
-		Response: &types.BarChart{},
+		Response: &chart.BarChart{},
 	},
 	ChartType: app.ChartTypeBar,
 }
@@ -1373,7 +1373,7 @@ var CashierCategorySalesStatisticsTemplate = &app.ChartTemplate{
 		Tags:     []string{"BI", "销售分析"},
 		Desc:     "展示各商品分类的销售额占比（饼图）",
 		Request:  &CashierSalesStatisticsReq{},
-		Response: &types.PieChart{},
+		Response: &chart.PieChart{},
 	},
 	ChartType: app.ChartTypePie,
 }
@@ -1385,7 +1385,7 @@ var CashierAverageOrderAmountStatisticsTemplate = &app.ChartTemplate{
 		Tags:     []string{"BI", "经营分析"},
 		Desc:     "展示平均订单金额、总销售额、最高/最低订单金额等关键指标（仪表盘）",
 		Request:  &CashierSalesStatisticsReq{},
-		Response: &types.GaugeChart{},
+		Response: &chart.GaugeChart{},
 	},
 	ChartType: app.ChartTypeGauge,
 }
