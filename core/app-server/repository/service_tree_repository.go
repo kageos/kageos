@@ -22,34 +22,27 @@ func (r *ServiceTreeRepository) Create(serviceTree *model.ServiceTree) error {
 	return r.db.Create(serviceTree).Error
 }
 
-// GetDocsNodesByParentID 根据父节点ID获取所有 docs 类型的子节点（递归）
+// GetDocsNodesByParentID 根据父节点ID获取所有 docs 类型的子节点
+// 已改为基于路径前缀查询，无需递归
 func (r *ServiceTreeRepository) GetDocsNodesByParentID(parentID int64) ([]*model.ServiceTree, error) {
-	var nodes []*model.ServiceTree
-
-	// 递归查询所有子节点中的 docs 类型节点
-	var findAllDocsNodes func(int64) error
-	findAllDocsNodes = func(pid int64) error {
-		var children []*model.ServiceTree
-		if err := r.db.Where("parent_id = ?", pid).Find(&children).Error; err != nil {
-			return err
-		}
-
-		for _, child := range children {
-			if child.Type == model.ServiceTreeTypeDocs {
-				nodes = append(nodes, child)
-			}
-			// 递归查询子节点的子节点
-			if err := findAllDocsNodes(child.ID); err != nil {
-				return err
-			}
-		}
-		return nil
+	parent, err := r.GetServiceTreeByID(parentID)
+	if err != nil {
+		return nil, fmt.Errorf("查询父节点失败: %w", err)
 	}
+	return r.GetDocsNodesByPathPrefix(parent.AppID, parent.FullCodePath)
+}
 
-	if err := findAllDocsNodes(parentID); err != nil {
+// GetDocsNodesByPathPrefix 根据路径前缀获取所有 docs 类型的后代节点
+func (r *ServiceTreeRepository) GetDocsNodesByPathPrefix(appID int64, parentPath string) ([]*model.ServiceTree, error) {
+	prefix := strings.TrimSuffix(parentPath, "/") + "/"
+	var nodes []*model.ServiceTree
+	err := r.db.Where("app_id = ? AND full_code_path LIKE ? AND type = ?",
+		appID, prefix+"%", model.ServiceTreeTypeDocs).
+		Order("created_at ASC").
+		Find(&nodes).Error
+	if err != nil {
 		return nil, err
 	}
-
 	return nodes, nil
 }
 
@@ -96,12 +89,10 @@ func (r *ServiceTreeRepository) GetServiceTreesByAppID(appID int64) ([]*model.Se
 }
 
 // GetRootNodeByAppID 获取应用的根节点
-// 根节点特征：parent_id = 0 AND ref_id = app_id
-// ⭐ 新架构：每个 app 在 service_tree 表中都有对应的根节点
-// ⭐ 迁移完成后，所有 app 都必须有根节点，如果不存在则返回错误
+// 根节点特征：ref_id = app_id（不再依赖 parent_id）
 func (r *ServiceTreeRepository) GetRootNodeByAppID(appID int64) (*model.ServiceTree, error) {
 	var root model.ServiceTree
-	err := r.db.Where("app_id = ? AND parent_id = 0 AND ref_id = ?", appID, appID).
+	err := r.db.Where("app_id = ? AND ref_id = ?", appID, appID).
 		Preload("App").
 		First(&root).Error
 	if err != nil {
@@ -124,12 +115,33 @@ func (r *ServiceTreeRepository) GetServiceTreesByAppIDAndType(appID int64, nodeT
 	return serviceTrees, nil
 }
 
-// GetServiceTreeChildren 获取子服务目录
+// GetServiceTreeChildren 获取直接子节点（基于路径前缀，只取下一层）
 func (r *ServiceTreeRepository) GetServiceTreeChildren(parentID int64) ([]*model.ServiceTree, error) {
-	var children []*model.ServiceTree
-	err := r.db.Where("parent_id = ?", parentID).Order("created_at ASC").Find(&children).Error
+	parent, err := r.GetServiceTreeByID(parentID)
+	if err != nil {
+		return nil, fmt.Errorf("查询父节点失败: %w", err)
+	}
+	return r.GetDirectChildrenByPath(parent.AppID, parent.FullCodePath)
+}
+
+// GetDirectChildrenByPath 根据路径获取直接子节点（只有下一层深度）
+func (r *ServiceTreeRepository) GetDirectChildrenByPath(appID int64, parentPath string) ([]*model.ServiceTree, error) {
+	prefix := strings.TrimSuffix(parentPath, "/") + "/"
+	var all []*model.ServiceTree
+	err := r.db.Where("app_id = ? AND full_code_path LIKE ?", appID, prefix+"%").
+		Order("created_at ASC").
+		Find(&all).Error
 	if err != nil {
 		return nil, err
+	}
+	// 过滤：只保留直接子节点（parentPath 段数 + 1）
+	parentDepth := len(strings.Split(strings.Trim(parentPath, "/"), "/"))
+	var children []*model.ServiceTree
+	for _, node := range all {
+		nodeDepth := len(strings.Split(strings.Trim(node.FullCodePath, "/"), "/"))
+		if nodeDepth == parentDepth+1 {
+			children = append(children, node)
+		}
 	}
 	return children, nil
 }
@@ -169,28 +181,23 @@ func (r *ServiceTreeRepository) BuildServiceTreeByVersion(appID int64, versionNu
 	return r.buildTreeFromNodes(allTrees), nil
 }
 
-// buildTreeFromNodes 从节点列表构建树形结构（内部方法）
+// buildTreeFromNodes 从节点列表构建树形结构（基于 FullCodePath）
 func (r *ServiceTreeRepository) buildTreeFromNodes(allTrees []*model.ServiceTree) []*model.ServiceTree {
-
-	// 构建树形结构
-	treeMap := make(map[int64]*model.ServiceTree)
+	pathMap := make(map[string]*model.ServiceTree, len(allTrees))
 	var rootNodes []*model.ServiceTree
 
-	// 先创建所有节点的映射
 	for _, tree := range allTrees {
-		treeMap[tree.ID] = tree
+		pathMap[tree.FullCodePath] = tree
 	}
 
-	// 构建父子关系
 	for _, tree := range allTrees {
-		if tree.ParentID == 0 {
-			// 根节点
+		parentPath := tree.GetParentFullPath()
+		if parentPath == "" {
 			rootNodes = append(rootNodes, tree)
+		} else if parent, exists := pathMap[parentPath]; exists {
+			parent.Children = append(parent.Children, tree)
 		} else {
-			// 子节点
-			if parent, exists := treeMap[tree.ParentID]; exists {
-				parent.Children = append(parent.Children, tree)
-			}
+			rootNodes = append(rootNodes, tree)
 		}
 	}
 
@@ -386,15 +393,28 @@ func (r *ServiceTreeRepository) GetServiceTreeByFullPaths(fullPaths []string) (m
 }
 
 // CheckNameExists 检查名称是否已存在（在同一父目录下和同一应用内）
+// parentID 参数保留签名兼容，内部先查 parent 再走路径逻辑
 func (r *ServiceTreeRepository) CheckNameExists(parentID int64, code string, appID int64) (bool, error) {
-	var count int64
-	query := r.db.Model(&model.ServiceTree{}).Where("parent_id = ? AND code = ? AND app_id = ?", parentID, code, appID)
+	if parentID == 0 {
+		return false, nil
+	}
+	parent, err := r.GetServiceTreeByID(parentID)
+	if err != nil {
+		return false, fmt.Errorf("查询父节点失败: %w", err)
+	}
+	return r.CheckNameExistsByPath(parent.FullCodePath, code, appID)
+}
 
-	err := query.Count(&count).Error
+// CheckNameExistsByPath 基于路径检查同级是否已存在同 code 节点
+func (r *ServiceTreeRepository) CheckNameExistsByPath(parentPath string, code string, appID int64) (bool, error) {
+	targetPath := strings.TrimSuffix(parentPath, "/") + "/" + code
+	var count int64
+	err := r.db.Model(&model.ServiceTree{}).
+		Where("full_code_path = ? AND app_id = ?", targetPath, appID).
+		Count(&count).Error
 	if err != nil {
 		return false, err
 	}
-
 	return count > 0, nil
 }
 

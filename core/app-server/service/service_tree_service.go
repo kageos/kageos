@@ -197,7 +197,11 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 	if parentTree != nil {
 		fullCodePath = parentTree.FullCodePath + "/" + req.Code
 	}
-	exists, err := s.serviceTreeRepo.CheckNameExists(req.ParentID, req.Code, app.ID)
+	parentPath := ""
+	if parentTree != nil {
+		parentPath = parentTree.FullCodePath
+	}
+	exists, err := s.serviceTreeRepo.CheckNameExistsByPath(parentPath, req.Code, app.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check name exists: %w", err)
 	}
@@ -215,7 +219,6 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 	serviceTree := &model.ServiceTree{
 		Name:             req.Name,
 		Code:             req.Code,
-		ParentID:         req.ParentID,
 		Type:             model.ServiceTreeTypePackage,
 		Description:      req.Description,
 		Tags:             req.Tags,
@@ -275,16 +278,20 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 		ID:           serviceTree.ID,
 		Name:         serviceTree.Name,
 		Code:         serviceTree.Code,
-		ParentID:     serviceTree.ParentID,
 		Type:         serviceTree.Type,
 		Description:  serviceTree.Description,
 		Tags:         serviceTree.Tags,
-		Admins:       serviceTree.Admins, // ⭐ 返回管理员列表
+		Admins:       serviceTree.Admins,
 		AppID:        serviceTree.AppID,
 		FullCodePath: serviceTree.FullCodePath,
 		Version:      serviceTree.Version,
 		VersionNum:   serviceTree.VersionNum,
 		Status:       "created",
+	}
+	if pp := serviceTree.GetParentFullPath(); pp != "" {
+		if parentNode, err := s.serviceTreeRepo.GetServiceTreeByFullPath(pp); err == nil {
+			resp.ParentID = parentNode.ID
+		}
 	}
 
 	return resp, nil
@@ -386,11 +393,10 @@ func (s *ServiceTreeService) CreateFunction(ctx context.Context, req *dto.Create
 	}
 
 	// 转换为专门的响应格式
-	return &dto.CreateFunctionResp{
+	fnResp := &dto.CreateFunctionResp{
 		ID:           functionTree.ID,
 		Name:         functionTree.Name,
 		Code:         functionTree.Code,
-		ParentID:     functionTree.ParentID,
 		Type:         functionTree.Type,
 		TemplateType: functionTree.TemplateType,
 		Description:  functionTree.Description,
@@ -400,7 +406,13 @@ func (s *ServiceTreeService) CreateFunction(ctx context.Context, req *dto.Create
 		FullCodePath: functionTree.FullCodePath,
 		Version:      functionTree.Version,
 		VersionNum:   functionTree.VersionNum,
-	}, nil
+	}
+	if pp := functionTree.GetParentFullPath(); pp != "" {
+		if parentNode, err := s.serviceTreeRepo.GetServiceTreeByFullPath(pp); err == nil {
+			fnResp.ParentID = parentNode.ID
+		}
+	}
+	return fnResp, nil
 }
 
 // CreateDocs 创建 docs 类型节点（专门的接口）
@@ -482,7 +494,11 @@ func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.Create
 	}
 
 	// 检查节点是否已存在
-	exists, err := s.serviceTreeRepo.CheckNameExists(req.ParentID, req.Code, app.ID)
+	docsParentPath := ""
+	if parentTree != nil {
+		docsParentPath = parentTree.FullCodePath
+	}
+	exists, err := s.serviceTreeRepo.CheckNameExistsByPath(docsParentPath, req.Code, app.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check name exists: %w", err)
 	}
@@ -500,8 +516,7 @@ func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.Create
 	serviceTree := &model.ServiceTree{
 		Name:             req.Name,
 		Code:             req.Code,
-		ParentID:         req.ParentID,
-		Type:             model.ServiceTreeTypeDocs, // ⭐ 固定为 docs 类型
+		Type:             model.ServiceTreeTypeDocs,
 		Description:      req.Description,
 		Tags:             req.Tags,
 		Admins:           req.Admins, // 设置管理员列表
@@ -583,7 +598,6 @@ func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.Create
 		ID:           serviceTree.ID,
 		Name:         serviceTree.Name,
 		Code:         serviceTree.Code,
-		ParentID:     serviceTree.ParentID,
 		Type:         serviceTree.Type,
 		Description:  serviceTree.Description,
 		Tags:         serviceTree.Tags,
@@ -592,6 +606,11 @@ func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.Create
 		Version:      serviceTree.Version,
 		VersionNum:   serviceTree.VersionNum,
 		Status:       "created",
+	}
+	if pp := serviceTree.GetParentFullPath(); pp != "" {
+		if parentNode, err := s.serviceTreeRepo.GetServiceTreeByFullPath(pp); err == nil {
+			resp.ParentID = parentNode.ID
+		}
 	}
 
 	return resp, nil
@@ -655,7 +674,11 @@ func (s *ServiceTreeService) CreateBoardNode(ctx context.Context, req *dto.Creat
 	if parentTree != nil {
 		fullCodePath = parentTree.FullCodePath + "/" + req.Code
 	}
-	exists, err := s.serviceTreeRepo.CheckNameExists(req.ParentID, req.Code, app.ID)
+	boardParentPath := ""
+	if parentTree != nil {
+		boardParentPath = parentTree.FullCodePath
+	}
+	exists, err := s.serviceTreeRepo.CheckNameExistsByPath(boardParentPath, req.Code, app.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check name exists: %w", err)
 	}
@@ -667,7 +690,6 @@ func (s *ServiceTreeService) CreateBoardNode(ctx context.Context, req *dto.Creat
 	serviceTree := &model.ServiceTree{
 		Name:             req.Name,
 		Code:             req.Code,
-		ParentID:         req.ParentID,
 		Type:             model.ServiceTreeTypeBoard,
 		Description:      req.Description,
 		Tags:             req.Tags,
@@ -702,11 +724,10 @@ func (s *ServiceTreeService) CreateBoardNode(ctx context.Context, req *dto.Creat
 			}
 		}
 	}
-	return &dto.CreateServiceTreeResp{
+	boardResp := &dto.CreateServiceTreeResp{
 		ID:           serviceTree.ID,
 		Name:         serviceTree.Name,
 		Code:         serviceTree.Code,
-		ParentID:     serviceTree.ParentID,
 		Type:         serviceTree.Type,
 		Description:  serviceTree.Description,
 		Tags:         serviceTree.Tags,
@@ -715,7 +736,13 @@ func (s *ServiceTreeService) CreateBoardNode(ctx context.Context, req *dto.Creat
 		Version:      serviceTree.Version,
 		VersionNum:   serviceTree.VersionNum,
 		Status:       "created",
-	}, nil
+	}
+	if pp := serviceTree.GetParentFullPath(); pp != "" {
+		if parentNode, err := s.serviceTreeRepo.GetServiceTreeByFullPath(pp); err == nil {
+			boardResp.ParentID = parentNode.ID
+		}
+	}
+	return boardResp, nil
 }
 
 // getServiceTreeByAppModel 根据 appModel 获取服务目录树（内部方法，避免重复获取 appModel）
@@ -740,8 +767,8 @@ func (s *ServiceTreeService) getServiceTreeByAppModel(ctx context.Context, appMo
 	}
 
 	// ⭐ 验证根节点有效性
-	if trees[0].ParentID != 0 || trees[0].RefID != appModel.ID {
-		return nil, fmt.Errorf("根节点无效，app_id=%d, parent_id=%d, ref_id=%d", appModel.ID, trees[0].ParentID, trees[0].RefID)
+	if !trees[0].IsRoot() || trees[0].RefID != appModel.ID {
+		return nil, fmt.Errorf("根节点无效，app_id=%d, full_code_path=%s, ref_id=%d", appModel.ID, trees[0].FullCodePath, trees[0].RefID)
 	}
 
 	rootNode := trees[0]
@@ -886,7 +913,6 @@ func (s *ServiceTreeService) GetServiceTreeDetail(ctx context.Context, req *dto.
 		ID:              tree.ID,
 		Name:            tree.Name,
 		Code:            tree.Code,
-		ParentID:        tree.ParentID,
 		Type:            tree.Type,
 		Description:     tree.Description,
 		Tags:            tree.Tags,
@@ -898,7 +924,12 @@ func (s *ServiceTreeService) GetServiceTreeDetail(ctx context.Context, req *dto.
 		VersionNum:      tree.VersionNum,
 		HubFullCodePath: tree.HubFullCodePath,
 		HubVersionNum:   tree.HubVersionNum,
-		RunCount:        tree.RunCount, // ⭐ 运行次数（仅 function 有意义）
+		RunCount:        tree.RunCount,
+	}
+	if pp := tree.GetParentFullPath(); pp != "" {
+		if parentNode, err := s.serviceTreeRepo.GetServiceTreeByFullPath(pp); err == nil {
+			resp.ParentID = parentNode.ID
+		}
 	}
 
 	// ⭐ 查询权限信息（企业版功能）
@@ -1192,7 +1223,8 @@ func (s *ServiceTreeService) UpdateServiceTreeMetadata(ctx context.Context, req 
 		newCode := *req.Code
 		// 如果修改了 code，检查新名称是否已存在
 		if newCode != serviceTree.Code && newCode != "" {
-			exists, err := s.serviceTreeRepo.CheckNameExists(serviceTree.ParentID, newCode, serviceTree.AppID)
+			renameParentPath := serviceTree.GetParentFullPath()
+			exists, err := s.serviceTreeRepo.CheckNameExistsByPath(renameParentPath, newCode, serviceTree.AppID)
 			if err != nil {
 				return fmt.Errorf("failed to check name exists: %w", err)
 			}
@@ -1527,7 +1559,7 @@ func (s *ServiceTreeService) DeleteServiceTree(ctx context.Context, id int64) er
 	}
 
 	// 仅对 package 类型且非根目录：调用 app-runtime 删除磁盘目录并从 main.go 移除 import
-	if serviceTree.Type == model.ServiceTreeTypePackage && serviceTree.ParentID != 0 && serviceTree.FullCodePath != "" {
+	if serviceTree.Type == model.ServiceTreeTypePackage && !serviceTree.IsRoot() && serviceTree.FullCodePath != "" {
 		appModel, errApp := s.appRepo.GetAppByID(serviceTree.AppID)
 		if errApp != nil {
 			logger.Warnf(ctx, "[ServiceTreeService] GetAppByID failed, skip runtime delete: %v", errApp)
@@ -1564,17 +1596,23 @@ func (s *ServiceTreeService) DeleteServiceTree(ctx context.Context, id int64) er
 // convertToGetServiceTreeResp 转换为响应格式（包含权限信息）
 // ⭐ 优化：在服务树中直接返回权限信息，一次性获取所有权限（只需要8ms）
 func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tree *model.ServiceTree, permissionsMap map[string]map[string]bool, isAdmin bool) *dto.GetServiceTreeResp {
+	var parentID int64
+	if pp := tree.GetParentFullPath(); pp != "" {
+		if parentNode, err := s.serviceTreeRepo.GetServiceTreeByFullPath(pp); err == nil {
+			parentID = parentNode.ID
+		}
+	}
 	resp := &dto.GetServiceTreeResp{
 		ID:              tree.ID,
 		Name:            tree.Name,
 		Code:            tree.Code,
-		ParentID:        tree.ParentID,
+		ParentID:        parentID,
 		RefID:           tree.RefID,
 		Type:            tree.Type,
 		Description:     tree.Description,
 		Tags:            tree.Tags,
 		Admins:          tree.Admins,
-		PendingCount:    tree.PendingCount, // ⭐ 待审批的权限申请数量
+		PendingCount:    tree.PendingCount,
 		Owner:           tree.CreatedBy,
 		AppID:           tree.AppID,
 		FullCodePath:    tree.FullCodePath,
@@ -1583,7 +1621,7 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 		VersionNum:      tree.VersionNum,
 		HubFullCodePath: tree.HubFullCodePath,
 		HubVersionNum:   tree.HubVersionNum,
-		RunCount:        tree.RunCount, // ⭐ 运行次数（仅 function 有意义），用于排序与展示
+		RunCount:        tree.RunCount,
 		IsAdmin:         isAdmin,       // ⭐ 是否是管理员（前端优先判断此字段）
 	}
 
@@ -1629,9 +1667,10 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 func (s *ServiceTreeService) calculateExpandedKeys(trees []*dto.GetServiceTreeResp) []int64 {
 	expandedKeysMap := make(map[int64]bool)
 
-	// ⭐ 默认展开根节点（package 类型且 parent_id=0）
+	// ⭐ 默认展开根节点（package 类型且路径段数==2 即 /{user}/{app}）
 	for _, tree := range trees {
-		if tree.Type == "package" && tree.ParentID == 0 {
+		segments := strings.Split(strings.Trim(tree.FullCodePath, "/"), "/")
+		if tree.Type == "package" && len(segments) == 2 {
 			expandedKeysMap[tree.ID] = true
 		}
 	}
@@ -1987,6 +2026,12 @@ func (s *ServiceTreeService) sendCreateServiceTreeMessage(ctx context.Context, u
 	}
 
 	// 构建消息
+	var runtimeParentID int64
+	if pp := serviceTree.GetParentFullPath(); pp != "" {
+		if parentNode, err := s.serviceTreeRepo.GetServiceTreeByFullPath(pp); err == nil {
+			runtimeParentID = parentNode.ID
+		}
+	}
 	req := dto.CreateServiceTreeRuntimeReq{
 		User: user,
 		App:  app,
@@ -1994,7 +2039,7 @@ func (s *ServiceTreeService) sendCreateServiceTreeMessage(ctx context.Context, u
 			ID:           serviceTree.ID,
 			Name:         serviceTree.Name,
 			Code:         serviceTree.Code,
-			ParentID:     serviceTree.ParentID,
+			ParentID:     runtimeParentID,
 			Type:         serviceTree.Type,
 			Description:  serviceTree.Description,
 			Tags:         serviceTree.Tags,
@@ -2630,14 +2675,12 @@ func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto
 		return nil, fmt.Errorf("查询函数节点失败: %w", err)
 	}
 
-	// 构建函数映射：ParentID -> []Function
+	// 构建函数映射：通过 FullCodePath 推导父路径 -> []Function
 	functionMap := make(map[int64][]*model.ServiceTree)
 	for _, fn := range allFunctions {
-		// 只包含属于当前目录树下的函数（路径前缀匹配）
 		if strings.HasPrefix(fn.FullCodePath, normalizedPath) || fn.FullCodePath == req.SourceDirectoryPath {
-			// 找到函数所属的目录节点（通过 ParentID 匹配）
-			if dirTree, exists := idToTree[fn.ParentID]; exists {
-				// 确保目录节点也在当前目录树下
+			fnParentPath := fn.GetParentFullPath()
+			if dirTree, exists := pathToTree[fnParentPath]; exists {
 				if strings.HasPrefix(dirTree.FullCodePath, normalizedPath) || dirTree.FullCodePath == req.SourceDirectoryPath {
 					functionMap[dirTree.ID] = append(functionMap[dirTree.ID], fn)
 				}
@@ -2758,8 +2801,10 @@ func (s *ServiceTreeService) PushDirectoryToHub(ctx context.Context, req *dto.Pu
 
 	// 构建路径到 ServiceTree 的映射，用于快速查找父目录
 	idToTree := make(map[int64]*model.ServiceTree)
+	pathToTreeLocal := make(map[string]*model.ServiceTree)
 	for _, tree := range allTrees {
 		idToTree[tree.ID] = tree
+		pathToTreeLocal[tree.FullCodePath] = tree
 	}
 
 	// 5. 从 runtime 实时读取所有目录的文件（不依赖快照表）
@@ -2780,14 +2825,12 @@ func (s *ServiceTreeService) PushDirectoryToHub(ctx context.Context, req *dto.Pu
 		return nil, fmt.Errorf("查询函数节点失败: %w", err)
 	}
 
-	// 构建函数映射：ParentID -> []Function
+	// 构建函数映射：通过 FullCodePath 推导父路径 -> []Function
 	functionMap := make(map[int64][]*model.ServiceTree)
 	for _, fn := range allFunctions {
-		// 只包含属于当前目录树下的函数（路径前缀匹配）
 		if strings.HasPrefix(fn.FullCodePath, normalizedPath) || fn.FullCodePath == req.SourceDirectoryPath {
-			// 找到函数所属的目录节点（通过 ParentID 匹配）
-			if dirTree, exists := idToTree[fn.ParentID]; exists {
-				// 确保目录节点也在当前目录树下
+			fnParentPath := fn.GetParentFullPath()
+			if dirTree, exists := pathToTreeLocal[fnParentPath]; exists {
 				if strings.HasPrefix(dirTree.FullCodePath, normalizedPath) || dirTree.FullCodePath == req.SourceDirectoryPath {
 					functionMap[dirTree.ID] = append(functionMap[dirTree.ID], fn)
 				}
@@ -2964,18 +3007,11 @@ func (s *ServiceTreeService) BatchCreateDirectoryTree(
 		}
 		dirCode := pathParts[len(pathParts)-1]
 
-		// 查找父目录
-		var parentID int64 = 0
+		// 确保父目录在映射中（供后续子目录路径查找使用）
 		parentPath := getParentPath(item.FullCodePath)
 		if parentPath != "" {
-			// 先从本次创建的目录中查找
-			if parentTree, exists := pathToTree[parentPath]; exists {
-				parentID = parentTree.ID
-			} else {
-				// 如果本次创建中没有，从数据库中查找（可能父目录已存在）
+			if _, exists := pathToTree[parentPath]; !exists {
 				if existingParent, err := s.serviceTreeRepo.GetServiceTreeByFullPath(parentPath); err == nil {
-					parentID = existingParent.ID
-					// 将已存在的父目录也加入映射，供后续子目录使用
 					pathToTree[parentPath] = existingParent
 				}
 			}
@@ -2985,7 +3021,6 @@ func (s *ServiceTreeService) BatchCreateDirectoryTree(
 		newTree := &model.ServiceTree{
 			Name:             item.Name,
 			Code:             dirCode,
-			ParentID:         parentID,
 			Type:             model.ServiceTreeTypePackage,
 			Description:      item.Description,
 			Tags:             item.Tags,
@@ -3315,11 +3350,12 @@ func (s *ServiceTreeService) buildDirectoryTreeNode(
 		}
 	}
 
-	// 查找所有直接子目录
+	// 查找所有直接子目录（通过 FullCodePath 前缀 + 深度判断直接子节点）
+	treePrefix := strings.TrimSuffix(tree.FullCodePath, "/") + "/"
+	treeDepth := tree.GetDepth()
 	subdirectories := make([]*dto.DirectoryTreeNode, 0)
 	for _, childTree := range allTrees {
-		if childTree.ParentID == tree.ID {
-			// 递归构建子目录节点
+		if strings.HasPrefix(childTree.FullCodePath, treePrefix) && childTree.GetDepth() == treeDepth+1 {
 			childNode := s.buildDirectoryTreeNode(childTree, allTrees, directoryFiles, idToTree, functionMap, refIDToFunction)
 			subdirectories = append(subdirectories, childNode)
 		}

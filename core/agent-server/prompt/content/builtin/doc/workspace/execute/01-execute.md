@@ -7,7 +7,7 @@
 ## 操作 SOP
 
 1. **确认路径**：环境信息中的「可执行函数」已列出 table/form/chart 的 full_code_path，可直接用。
-2. **选对工具**：查列表 → `run_table_search`；新增 → `run_table_create`；更新 → `run_table_update`；提交表单 → `run_form_submit`；查图表 → `run_chart_query`。
+2. **选对工具**：查列表 → `run_table_search`；新增 → `run_table_create`；更新 → `run_table_update`；提交表单 → `run_form_submit`；查图表 → `run_chart_query`；**测试下拉模糊搜索/回调查询** → `run_on_select_fuzzy`（仅支持按关键词或空关键词：传 full_code_path、code、可选 keyword；不支持 by_value/by_values，用于验证 OnSelectFuzzy 回调是否正常）。
 3. **传参**：full_code_path 须到**具体函数名**（如 `.../nps_questionnaire_list.table`），不能只填包路径。路由名带类型后缀：`.table` / `.form` / `.chart`。
 4. 调用即可。
 

@@ -96,6 +96,12 @@ func (ctx *Context) BuildFunctionUrlWithText(
 				if err != nil {
 					return "", fmt.Errorf("转换 Form 参数失败: %w", err)
 				}
+			case TemplateTypeChart:
+				// Chart 函数：GET 请求，参数格式与 Form 一致（k=v），使用 Chart 的 Request 结构体
+				newQueryString, err = StructToFormParams(params)
+				if err != nil {
+					return "", fmt.Errorf("转换 Chart 参数失败: %w", err)
+				}
 			default:
 				return "", fmt.Errorf("不支持的模板类型")
 			}

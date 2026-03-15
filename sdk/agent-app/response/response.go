@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/chart"
 	"gorm.io/gorm"
 )
 
@@ -148,7 +148,7 @@ type FormData struct {
 }
 
 type ChartData struct {
-	Chart types.Charter `json:"chart"` // Charter 实现体，resp.Chart() 时调用 SetChartType 注入 ChartType / Series.Type
+	Chart chart.Charter `json:"chart"` // Charter 实现体，resp.Chart() 时调用 SetChartType 注入 ChartType / Series.Type
 }
 
 type Builder interface {
@@ -159,7 +159,7 @@ type Response interface {
 	Form(data interface{}) Form
 	BizErrorf(format string, a ...any) Form
 	Table(resultList interface{}) Table
-	Chart(chart types.Charter) Chart
+	Chart(c chart.Charter) Chart
 }
 
 func (r *RunFunctionResp) Form(data interface{}) Form {
@@ -170,10 +170,10 @@ func (r *RunFunctionResp) Form(data interface{}) Form {
 	return r
 }
 
-// Chart 接收 Charter 接口；调用 SetChartType(GetChartType()) 注入 ChartType（及 Series.Type），无需反射
-func (r *RunFunctionResp) Chart(chart types.Charter) Chart {
+// Chart 接收 chart.Charter 接口；调用 SetChartType(GetChartType()) 注入 ChartType（及 Series.Type），无需反射
+func (r *RunFunctionResp) Chart(c chart.Charter) Chart {
 	r.Type = "chart"
-	chart.SetChartType(chart.GetChartType())
-	r.ChartData = &ChartData{Chart: chart}
+	c.SetChartType(c.GetChartType())
+	r.ChartData = &ChartData{Chart: c}
 	return r
 }

@@ -3,6 +3,7 @@ package v1
 import (
 	"fmt"
 
+	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -120,7 +121,14 @@ func (d *Directory) GetDirectoryList(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	host := c.Request.Host
+	// copy_url 使用主站 host:port：优先配置文件 public_host（主站地址），否则请求头
+	host := config.GetHubConfig().GetPublicHost()
+	if host == "" {
+		host = contextx.GetPresignHost(c)
+	}
+	if host == "" {
+		host = c.Request.Host
+	}
 	resp, err := d.directoryService.GetDirectoryList(ctx, req.Page, req.PageSize, req.Search, req.Category, publisherUsername, req.FeeType, req.OrderBy, host)
 	if err != nil {
 		logger.Errorf(ctx, "[Directory] 获取目录列表失败: %v", err)
@@ -157,7 +165,13 @@ func (d *Directory) GetDirectoryDetail(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	host := c.Request.Host
+	host := config.GetHubConfig().GetPublicHost()
+	if host == "" {
+		host = contextx.GetPresignHost(c)
+	}
+	if host == "" {
+		host = c.Request.Host
+	}
 	resp, err := d.directoryService.GetDirectoryDetail(ctx, req.HubDirectoryID, req.FullCodePath, req.Version, req.IncludeTree, host)
 	if err != nil {
 		logger.Errorf(ctx, "[Directory] 获取目录详情失败: %v", err)
@@ -191,9 +205,16 @@ func (d *Directory) GetDirectoryVersions(c *gin.Context) {
 		return
 	}
 	ctx := contextx.ToContext(c)
+	hubHost := config.GetHubConfig().GetPublicHost()
+	if hubHost == "" {
+		hubHost = contextx.GetPresignHost(c)
+	}
+	if hubHost == "" {
+		hubHost = c.Request.Host
+	}
 	hubDirectoryID := req.HubDirectoryID
 	if hubDirectoryID <= 0 && req.FullCodePath != "" {
-		dir, err := d.directoryService.GetDirectoryDetail(ctx, 0, req.FullCodePath, "", false, c.Request.Host)
+		dir, err := d.directoryService.GetDirectoryDetail(ctx, 0, req.FullCodePath, "", false, hubHost)
 		if err != nil || dir == nil {
 			response.FailWithMessage(c, "根据 full_code_path 获取目录失败")
 			return

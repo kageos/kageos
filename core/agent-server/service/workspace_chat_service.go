@@ -271,7 +271,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	var toolNames []string
 	var systemPromptFragment string
 	if modeProvider == nil {
-		toolNames = []string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "search_tools", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory", "publish_to_hub", "push_to_hub", "search_hub_directory", "copy_directory", "record_workspace_event", "run_table_search", "run_table_create", "run_table_update", "run_form_submit", "run_chart_query"}
+		toolNames = []string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "web_search", "fetch_url_content", "search_tools", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory", "publish_to_hub", "push_to_hub", "search_hub_directory", "copy_directory", "record_workspace_event", "run_table_search", "run_table_create", "run_table_update", "run_form_submit", "run_chart_query", "run_on_select_fuzzy"}
 		systemPromptFragment = "当前为开发模式，请协助用户生成新代码、新模块。"
 	}
 

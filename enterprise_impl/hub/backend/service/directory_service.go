@@ -257,7 +257,7 @@ func (s *HubDirectoryService) UpdateDirectory(ctx context.Context, req *dto.Upda
 	}, nil
 }
 
-// GetDirectoryList 获取目录列表；host 用于生成每条记录的 copy_url
+// GetDirectoryList 获取目录列表；host 为主站 host:port，用于生成 copy_url
 // feeType: 空=全部，free=免费，paid=收费；orderBy: 空或 latest=最新，hot=热门
 func (s *HubDirectoryService) GetDirectoryList(ctx context.Context, page, pageSize int, search, category, publisherUsername, feeType, orderBy string, host string) (*dto.HubDirectoryListResponse, error) {
 	directories, total, err := s.directoryRepo.GetList(ctx, page, pageSize, search, category, publisherUsername, feeType, orderBy)
@@ -280,7 +280,7 @@ func (s *HubDirectoryService) GetDirectoryList(ctx context.Context, page, pageSi
 }
 
 // GetDirectoryDetail 获取目录详情（支持通过 ID 或 full-code-path 查询，支持版本号）
-// host 用于生成 copy_url；includeTree: 是否包含目录树结构；当前用户从 ctx 获取（与 app-server 一致，网关已带 X-Request-User），有则填充 has_starred
+// host 为主站 host:port，用于生成 copy_url；includeTree 等同上
 func (s *HubDirectoryService) GetDirectoryDetail(ctx context.Context, hubDirectoryID int64, fullCodePath string, version string, includeTree bool, host string) (*dto.HubDirectoryDetailDTO, error) {
 	username := contextx.GetRequestUser(ctx)
 	// 1. 获取目录信息（优先使用 full-code-path，如果为空则使用 ID）
@@ -412,7 +412,7 @@ func (s *HubDirectoryService) ListDirectoryVersions(ctx context.Context, hubDire
 }
 
 // toDirectoryDTO 转换为目录 DTO
-// toDirectoryDTO 将模型转为 DTO；host 用于生成 copy_url（格式 hub://host/full_code_path@version），为空则不填 copy_url
+// toDirectoryDTO 将模型转为 DTO；host 为主站 host:port，生成 copy_url（hub://主站host/路径@版本）
 func (s *HubDirectoryService) toDirectoryDTO(dir *model.HubDirectory, host string) *dto.HubDirectoryDTO {
 	tags := []string{}
 	if dir.Tags != "" {

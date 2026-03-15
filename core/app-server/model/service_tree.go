@@ -20,7 +20,7 @@ type ServiceTree struct {
 	models.Base
 	Name         string `json:"name"`
 	Code         string `json:"code"`
-	ParentID     int64  `json:"parent_id" gorm:"default:0"`
+	ParentID     int64  `json:"parent_id" gorm:"-"` // 已废弃：层级由 FullCodePath 推导，观察期保留字段定义但不读写 DB
 	Type         string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), docs(文档), api(API接口), service(服务), module(模块)
 	Description  string `json:"description,omitempty"`
 	Tags         string `json:"tags"`
@@ -89,19 +89,19 @@ func (st *ServiceTree) SetRefID(refID int64) {
 	st.RefID = refID
 }
 
-// IsRoot 判断是否为根节点
+// IsRoot 判断是否为根节点（基于 FullCodePath 段数：/{user}/{app} = 2 段）
 func (st *ServiceTree) IsRoot() bool {
-	return st.ParentID == 0
+	segments := st.GetPathSegments()
+	return len(segments) == 2
 }
 
-// GetDepth 获取节点深度（基于ParentID，根节点深度为0）
+// GetDepth 获取节点深度（基于 FullCodePath 段数，根节点深度为 0）
 func (st *ServiceTree) GetDepth() int {
-	if st.IsRoot() {
+	segments := st.GetPathSegments()
+	if len(segments) <= 2 {
 		return 0
 	}
-	// 深度基于ParentID，如果需要精确深度，需要通过递归查询父节点
-	// 这里简化处理，根节点为0，非根节点为1（可根据实际需求调整）
-	return 1
+	return len(segments) - 2
 }
 
 // IsLeaf 判断是否为叶子节点（没有子节点）
@@ -111,15 +111,7 @@ func (st *ServiceTree) IsLeaf() bool {
 
 // GetParentPath 获取父节点路径
 func (st *ServiceTree) GetParentPath() string {
-	if st.IsRoot() {
-		return ""
-	}
-
-	pathParts := strings.Split(st.FullCodePath, "/")
-	if len(pathParts) > 1 {
-		return strings.Join(pathParts[:len(pathParts)-1], "/")
-	}
-	return ""
+	return st.GetParentFullPath()
 }
 
 // GetBreadcrumbs 获取面包屑路径
@@ -191,14 +183,9 @@ func (st *ServiceTree) GetNodeName() string {
 	return pathParts[len(pathParts)-1]
 }
 
-// GetLevel 获取节点层级（根节点为0，基于ParentID）
+// GetLevel 获取节点层级（根节点为 0，基于 FullCodePath 段数）
 func (st *ServiceTree) GetLevel() int {
-	if st.IsRoot() {
-		return 0
-	}
-	// 层级基于ParentID，如果需要精确层级，需要通过递归查询父节点
-	// 这里简化处理，根节点为0，非根节点为1（可根据实际需求调整）
-	return 1
+	return st.GetDepth()
 }
 
 // HasChildren 判断是否有子节点

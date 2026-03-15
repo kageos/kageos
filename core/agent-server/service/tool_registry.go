@@ -16,6 +16,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/timex"
+	"github.com/ai-agent-os/ai-agent-os/pkg/websearch"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 )
 
@@ -406,6 +407,51 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 			"required": []interface{}{"full_code_path", "body"},
 		},
 	})
+	// web_search：搜网络知识（自建爬虫 + Wikipedia 免费 API），不入参第三方付费 API，成本可控
+	out = append(out, dto.ToolDef{
+		Name:        "web_search",
+		Description: "在互联网上搜索知识、概念或资料。使用自建爬虫（DuckDuckGo 通用结果）与维基百科补充，不调用第三方付费 API，成本可控。当需要最新信息、概念解释、技术文档或事实查证时调用。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"keyword": map[string]interface{}{
+					"type":        "string",
+					"description": "搜索关键词（必填），如「Go 1.22 新特性」「REST API 设计规范」",
+				},
+				"limit": map[string]interface{}{
+					"type":        "integer",
+					"description": "最多返回条数（可选，默认 10，最大 20）",
+				},
+			},
+			"required": []interface{}{"keyword"},
+		},
+	})
+	// fetch_url_content：按 URL 拉取该页正文，支持单链接或多链接
+	out = append(out, dto.ToolDef{
+		Name:        "fetch_url_content",
+		Description: "根据指定 URL（或多个 URL）访问该网页并拉取页面正文。当 web_search 返回了某条结果的链接，需要查看该链接的完整内容时调用。支持传 url（单个）或 urls（多个，最多 5 个）。仅支持 HTTP/HTTPS 的 HTML 页面。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"url": map[string]interface{}{
+					"type":        "string",
+					"description": "要访问的单个网页 URL，与 urls 二选一",
+				},
+				"urls": map[string]interface{}{
+					"type":        "array",
+					"description": "要访问的多个网页 URL，与 url 二选一；最多 5 个，超出只取前 5 个",
+					"items": map[string]interface{}{
+						"type": "string",
+					},
+				},
+				"max_chars": map[string]interface{}{
+					"type":        "integer",
+					"description": "每条正文最多返回字数（可选，默认 3000，最大 20000）",
+				},
+			},
+			"required": []interface{}{},
+		},
+	})
 	out = append(out, dto.ToolDef{
 		Name:        "search_tools",
 		Description: "按关键词搜索可用工具：返回「内置工具」与「system 用户下已注册的表单/表格/图表函数」。keyword 可选：不传则按调用次数返回高频已注册函数；传则按关键词匹配。多关键词用竖线 | 分隔（OR 语义），如 折线图|chart|画图。template_type 建议杂活传 form。",
@@ -445,6 +491,34 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 				},
 			},
 			"required": []interface{}{"full_code_path", "body"},
+		},
+	})
+
+	// run_on_select_fuzzy：执行工作区内 OnSelectFuzzy 回调，用于测试带「下拉模糊搜索」的表单/表格（仅支持按关键词或空关键词，不支持 by_value/by_values）
+	out = append(out, dto.ToolDef{
+		Name:        "run_on_select_fuzzy",
+		Description: "执行工作区内 OnSelectFuzzy 回调，用于测试带「下拉模糊搜索/回调查询」的 Form 或 Table。**仅支持按关键词搜索**：type 固定为 by_keyword，value 为关键词字符串（可为空表示空搜索）。不支持 by_value、by_values。full_code_path 为配置了该回调的 Form 或 Table 的完整路径（如 .../cashier_desk.form）；code 为字段 code（如 product_id、member_id）；request 可选，为当前表单的 JSON（用于依赖其他字段时）。返回 items（选项列表）及可选 statistics、error_msg。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"full_code_path": map[string]interface{}{
+					"type":        "string",
+					"description": "配置了 OnSelectFuzzyMap 的 Form 或 Table 的完整路径，如 /luobei/myapp/plugins/cashier_desk.form",
+				},
+				"code": map[string]interface{}{
+					"type":        "string",
+					"description": "触发回调的字段 code，如 product_id、member_id（需与该 Form/Table 的 OnSelectFuzzyMap 键一致）",
+				},
+				"keyword": map[string]interface{}{
+					"type":        "string",
+					"description": "搜索关键词（可选）。不传或传空字符串表示空搜索，会返回默认/全部选项",
+				},
+				"request": map[string]interface{}{
+					"type":        "string",
+					"description": "可选。当前表单/行的 JSON 字符串，用于依赖其他字段的回调（如根据上级选择过滤下级选项）",
+				},
+			},
+			"required": []interface{}{"full_code_path", "code"},
 		},
 	})
 
@@ -643,6 +717,12 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, args map[strin
 		return r.callRunTableCreate(ctx, args, fullCodePath)
 	case "run_table_update":
 		return r.callRunTableUpdate(ctx, args, fullCodePath)
+	case "run_on_select_fuzzy":
+		return r.callRunOnSelectFuzzy(ctx, args, fullCodePath)
+	case "web_search":
+		return r.callWebSearch(ctx, args)
+	case "fetch_url_content":
+		return r.callFetchURLContent(ctx, args)
 	case "search_tools":
 		return r.callSearchTools(ctx, args, fullCodePath)
 	case "publish_to_hub":
@@ -1571,6 +1651,122 @@ func splitSearchKeywords(keyword string) []string {
 }
 
 // callSearchTools 按关键词搜索可用工具（内置工具 + system 用户下已注册 Form/Table/Chart）。keyword 为空时仅返回已注册函数并按调用次数降序（高频在前）
+// callWebSearch 调用 pkg/websearch 聚合搜索（DuckDuckGo 爬虫 + Wikipedia），返回格式化文本供模型使用
+func (r *ToolRegistry) callWebSearch(ctx context.Context, args map[string]interface{}) (string, bool) {
+	keyword := strings.TrimSpace(GetStringArg(args, "keyword"))
+	if keyword == "" {
+		return "web_search 必填 keyword（搜索关键词）。", true
+	}
+	limit := 10
+	if v, ok := args["limit"]; ok {
+		if n, ok := toInt(v); ok && n > 0 {
+			if n > 20 {
+				n = 20
+			}
+			limit = n
+		}
+	}
+	results, err := websearch.Search(ctx, keyword, limit)
+	if err != nil {
+		logger.Warnf(ctx, "[web_search] Search 失败: %v", err)
+		return "web_search 暂时不可用，请稍后再试。", false
+	}
+	if len(results) == 0 {
+		return "未找到与「" + keyword + "」相关的搜索结果。可尝试更换关键词。", false
+	}
+	const maxSnippetLen = 300
+	const maxBodyLen = 1500 // 单条正文给模型的最大长度，避免 token 爆炸
+	var b strings.Builder
+	b.WriteString("【网络搜索结果】关键词：「" + keyword + "」共 " + fmt.Sprintf("%d", len(results)) + " 条\n\n")
+	for i, r := range results {
+		b.WriteString(fmt.Sprintf("%d. %s\n", i+1, r.Title))
+		if r.URL != "" {
+			b.WriteString("   链接: " + r.URL + "\n")
+		}
+		if r.Snippet != "" {
+			snippet := r.Snippet
+			if len(snippet) > maxSnippetLen {
+				snippet = snippet[:maxSnippetLen] + "..."
+			}
+			b.WriteString("   摘要: " + snippet + "\n")
+		}
+		if r.Body != "" {
+			body := r.Body
+			if len(body) > maxBodyLen {
+				body = body[:maxBodyLen] + "..."
+			}
+			b.WriteString("   正文: " + body + "\n")
+		}
+		b.WriteString("\n")
+	}
+	return b.String(), false
+}
+
+const maxFetchURLContentCount = 5 // 一次最多拉取多少个链接
+
+// callFetchURLContent 按 URL（或 urls 数组）拉取页面正文，支持多链接
+func (r *ToolRegistry) callFetchURLContent(ctx context.Context, args map[string]interface{}) (string, bool) {
+	var urlList []string
+	if urlsRaw, ok := args["urls"]; ok && urlsRaw != nil {
+		if arr, ok := urlsRaw.([]interface{}); ok && len(arr) > 0 {
+			for _, v := range arr {
+				if s, ok := v.(string); ok {
+					s = strings.TrimSpace(s)
+					if s != "" {
+						urlList = append(urlList, s)
+					}
+				}
+			}
+			if len(urlList) > maxFetchURLContentCount {
+				urlList = urlList[:maxFetchURLContentCount]
+			}
+		}
+	}
+	if len(urlList) == 0 {
+		rawURL := strings.TrimSpace(GetStringArg(args, "url"))
+		if rawURL == "" {
+			return "fetch_url_content 需填 url（单个）或 urls（多个）。", true
+		}
+		urlList = []string{rawURL}
+	}
+	for i, u := range urlList {
+		if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
+			urlList[i] = "https://" + u
+		}
+	}
+
+	maxChars := 3000
+	if v, ok := args["max_chars"]; ok {
+		if n, ok := toInt(v); ok && n > 0 {
+			if n > 20000 {
+				n = 20000
+			}
+			maxChars = n
+		}
+	}
+
+	var b strings.Builder
+	for i, rawURL := range urlList {
+		title, body := websearch.FetchURLContent(ctx, rawURL, maxChars)
+		if i > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString(fmt.Sprintf("【第 %d 个链接】%s\n", i+1, rawURL))
+		if title != "" {
+			b.WriteString("标题: " + title + "\n\n")
+		}
+		if body != "" {
+			b.WriteString("正文: " + body)
+		} else {
+			b.WriteString("（无法访问或非 HTML 页面）")
+		}
+	}
+	if b.Len() == 0 {
+		return "所有链接均无法访问或非 HTML 网页。", false
+	}
+	return b.String(), false
+}
+
 func (r *ToolRegistry) callSearchTools(ctx context.Context, args map[string]interface{}, fullCodePath string) (string, bool) {
 	keywordRaw := strings.TrimSpace(GetStringArg(args, "keyword"))
 	keywords := splitSearchKeywords(keywordRaw)
@@ -2156,6 +2352,48 @@ func (r *ToolRegistry) callRunTableUpdate(ctx context.Context, args map[string]i
 		out["errors"] = errorsList
 	}
 	return formatJSONResult(out)
+}
+
+// callRunOnSelectFuzzy 执行 OnSelectFuzzy 回调（工作台测试用）；仅支持按关键词或空关键词，不支持 by_value/by_values
+func (r *ToolRegistry) callRunOnSelectFuzzy(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
+	fullCodePath := strings.TrimSpace(GetStringArg(args, "full_code_path"))
+	if fullCodePath == "" {
+		fullCodePath = currentFullCodePath
+	}
+	if fullCodePath != "" && !strings.HasPrefix(fullCodePath, "/") {
+		fullCodePath = "/" + fullCodePath
+	}
+	if fullCodePath == "" {
+		return "run_on_select_fuzzy 需传 full_code_path（配置了 OnSelectFuzzy 的 Form/Table 路径，如 .../cashier_desk.form）。", true
+	}
+	code := strings.TrimSpace(GetStringArg(args, "code"))
+	if code == "" {
+		return "run_on_select_fuzzy 需传 code（字段 code，与 OnSelectFuzzyMap 的键一致）。", true
+	}
+
+	keyword := strings.TrimSpace(GetStringArg(args, "keyword"))
+	body := map[string]interface{}{
+		"code":  code,
+		"type":  "by_keyword",
+		"value": keyword,
+	}
+	if s := GetStringArg(args, "request"); s != "" {
+		var reqObj interface{}
+		if err := json.Unmarshal([]byte(s), &reqObj); err != nil {
+			body["request"] = map[string]interface{}{}
+		} else {
+			body["request"] = reqObj
+		}
+	} else {
+		body["request"] = map[string]interface{}{}
+	}
+
+	result, err := apicall.CallbackOnSelectFuzzy(ctx, fullCodePath, body)
+	if err != nil {
+		logger.Errorf(ctx, "[RunOnSelectFuzzy] CallbackOnSelectFuzzy 失败: %v", err)
+		return "run_on_select_fuzzy 调用失败: " + err.Error(), true
+	}
+	return formatJSONResult(result)
 }
 
 // extractTableCreateRecord 从 table/create 的返回值中提取单条记录。

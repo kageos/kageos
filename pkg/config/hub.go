@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -30,8 +31,8 @@ func GetHubConfig() *HubConfig {
 		}
 
 		if err != nil {
-			// 配置文件不存在或加载失败，返回空配置
-			fmt.Printf("Failed to load hub config from any path, using defaults: %v\n", err)
+			// 配置文件不存在或加载失败，返回空配置；copy_url 会回退为请求 Host（如 localhost:9090）
+			fmt.Printf("Failed to load hub config from any path, using defaults: %v (set APP_ENV=dev and run from project root or ensure configs/dev/hub.yaml exists)\n", err)
 			cfg = &HubConfig{}
 		}
 		hubMu.Lock()
@@ -46,9 +47,10 @@ func GetHubConfig() *HubConfig {
 
 // HubConfig Hub 配置
 type HubConfig struct {
-	Server HubServerConfig `mapstructure:"server"`
-	DB     DBConfig        `mapstructure:"db"`
-	OS     OSConfig        `mapstructure:"os"`
+	Server     HubServerConfig `mapstructure:"server"`
+	DB         DBConfig        `mapstructure:"db"`
+	OS         OSConfig        `mapstructure:"os"`
+	PublicHost string          `mapstructure:"public_host"` // 主站（用户访问入口）的 host:port，用于生成 copy_url（hub://主站host/路径@版本）；不配则回退请求头
 }
 
 // HubServerConfig Hub 服务器配置
@@ -82,4 +84,9 @@ func (c *HubConfig) GetLogLevel() string {
 // IsDebug 是否调试模式
 func (c *HubConfig) IsDebug() bool {
 	return c.Server.Debug
+}
+
+// GetPublicHost 获取主站 host:port（用于 copy_url），返回配置的 public_host，可能为空
+func (c *HubConfig) GetPublicHost() string {
+	return strings.TrimSpace(c.PublicHost)
 }

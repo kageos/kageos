@@ -3,6 +3,10 @@ server:
   log_level: info
   debug: true
 
+# 对外访问的域名或 host:port，用于生成 copy_url；不配则回退 X-Forwarded-Host / Request.Host
+# public_host: "hub.example.com"
+# public_host: "125.122.96.207:8999"
+
 db:
   type: mysql
   host: 127.0.0.1
