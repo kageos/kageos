@@ -118,19 +118,24 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 	if req.IsPublic != nil {
 		isPublic = *req.IsPublic
 	}
+	showOnlyPermitted := false
+	if req.ShowOnlyPermitted != nil {
+		showOnlyPermitted = *req.ShowOnlyPermitted
+	}
 	app := model.App{
 		Base: models.Base{
 			CreatedBy: requestUser, // 记录实际请求用户（谁发起的请求）
 		},
-		Version:  "v1",
-		Code:     req.Code,
-		Name:     req.Name,   // 应用名称
-		User:     tenantUser, // 记录租户用户（应用所有者）
-		NatsID:   selectedHost.NatsID,
-		HostID:   selectedHost.ID,
-		Status:   "enabled",
-		IsPublic: isPublic,   // 是否公开
-		Admins:   req.Admins, // 管理员列表，逗号分隔的用户名
+		Version:           "v1",
+		Code:              req.Code,
+		Name:              req.Name,   // 应用名称
+		User:              tenantUser, // 记录租户用户（应用所有者）
+		NatsID:            selectedHost.NatsID,
+		HostID:            selectedHost.ID,
+		Status:            "enabled",
+		IsPublic:          isPublic,   // 是否公开
+		Admins:            req.Admins, // 管理员列表，逗号分隔的用户名
+		ShowOnlyPermitted: showOnlyPermitted,
 	}
 	err = a.appRepo.CreateApp(&app)
 	if err != nil {
@@ -961,19 +966,20 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 	appInfos := make([]*dto.AppInfo, len(apps))
 	for i, app := range apps {
 		appInfos[i] = &dto.AppInfo{
-			ID:        app.ID,
-			User:      app.User,
-			Code:      app.Code,
-			Name:      app.Name,
-			Status:    app.Status,
-			Version:   app.Version,
-			NatsID:    app.NatsID,
-			HostID:    app.HostID,
-			IsPublic:  app.IsPublic,
-			Admins:    app.Admins,
-			Type:      int(app.Type),
-			CreatedAt: time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
-			UpdatedAt: time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
+			ID:                 app.ID,
+			User:               app.User,
+			Code:               app.Code,
+			Name:               app.Name,
+			Status:             app.Status,
+			Version:            app.Version,
+			NatsID:             app.NatsID,
+			HostID:             app.HostID,
+			IsPublic:           app.IsPublic,
+			Admins:             app.Admins,
+			Type:               int(app.Type),
+			ShowOnlyPermitted:  app.ShowOnlyPermitted,
+			CreatedAt:          time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
+			UpdatedAt:          time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
 		}
 	}
 
@@ -1001,18 +1007,20 @@ func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq)
 	// 转换为响应格式
 	return &dto.GetAppDetailResp{
 		AppInfo: dto.AppInfo{
-			ID:        app.ID,
-			User:      app.User,
-			Code:      app.Code,
-			Name:      app.Name,
-			Status:    app.Status,
-			Version:   app.Version,
-			NatsID:    app.NatsID,
-			HostID:    app.HostID,
-			IsPublic:  app.IsPublic,
-			Admins:    app.Admins,
-			CreatedAt: time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
-			UpdatedAt: time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
+			ID:                 app.ID,
+			User:               app.User,
+			Code:               app.Code,
+			Name:               app.Name,
+			Status:             app.Status,
+			Version:            app.Version,
+			NatsID:             app.NatsID,
+			HostID:             app.HostID,
+			IsPublic:           app.IsPublic,
+			Admins:             app.Admins,
+			Type:               int(app.Type),
+			ShowOnlyPermitted:  app.ShowOnlyPermitted,
+			CreatedAt:          time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
+			UpdatedAt:          time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
 		},
 	}, nil
 }
@@ -1056,8 +1064,11 @@ func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspa
 		}
 	}
 
-	// 更新数据库中的管理员列表
+	// 更新数据库中的管理员列表和仅展示有权限开关
 	app.Admins = req.Admins
+	if req.ShowOnlyPermitted != nil {
+		app.ShowOnlyPermitted = *req.ShowOnlyPermitted
+	}
 	if err := a.appRepo.UpdateApp(app); err != nil {
 		return nil, fmt.Errorf("更新工作空间失败: %w", err)
 	}

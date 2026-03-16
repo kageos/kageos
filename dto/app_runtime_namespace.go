@@ -16,11 +16,12 @@ type NamespaceCreateResp struct {
 }
 
 type CreateAppReq struct {
-	User     string `json:"user" swaggerignore:"true"`                    // 租户用户名（应用所有者，决定应用的所有权）- 内部字段，不显示在文档中
-	Code     string `json:"code" binding:"required" example:"myapp"`      // 应用名
-	Name     string `json:"name" binding:"required" example:"腾讯oa系统"`     // 应用名
-	IsPublic *bool  `json:"is_public,omitempty" example:"true"`           // 是否公开，默认 true（公开）
-	Admins   string `json:"admins,omitempty" example:"user1,user2,user3"` // 管理员列表，逗号分隔的用户名
+	User               string `json:"user" swaggerignore:"true"`                    // 租户用户名（应用所有者，决定应用的所有权）- 内部字段，不显示在文档中
+	Code               string `json:"code" binding:"required" example:"myapp"`      // 应用名
+	Name               string `json:"name" binding:"required" example:"腾讯oa系统"`     // 应用名
+	IsPublic           *bool  `json:"is_public,omitempty" example:"true"`           // 是否公开，默认 true（公开）
+	Admins             string `json:"admins,omitempty" example:"user1,user2,user3"` // 管理员列表，逗号分隔的用户名
+	ShowOnlyPermitted  *bool  `json:"show_only_permitted,omitempty" example:"false"` // 仅展示有权限的空间：开启后非管理员只看到有权限的目录
 }
 
 type CreateAppResp struct {
@@ -280,19 +281,20 @@ type GetAppsResp struct {
 
 // AppInfo 应用信息
 type AppInfo struct {
-	ID        int64  `json:"id" example:"1"`                           // 应用ID
-	User      string `json:"user" example:"beiluo"`                    // 租户名
-	Code      string `json:"code" example:"myapp"`                     // 应用代码
-	Name      string `json:"name" example:"我的应用"`                      // 应用名称
-	Status    string `json:"status" example:"enabled"`                 // 状态: enabled(启用), disabled(禁用)
-	Version   string `json:"version" example:"v1"`                     // 版本
-	NatsID    int64  `json:"nats_id" example:"1"`                      // NATS ID
-	HostID    int64  `json:"host_id" example:"1"`                      // 主机ID
-	IsPublic  bool   `json:"is_public" example:"true"`                 // 是否公开
-	Admins    string `json:"admins,omitempty" example:"user1,user2"`   // 管理员列表，逗号分隔的用户名
-	Type      int    `json:"type" example:"0"`                         // 应用类型：0=用户空间，1=系统空间
-	CreatedAt string `json:"created_at" example:"2006-01-02 15:04:05"` // 创建时间
-	UpdatedAt string `json:"updated_at" example:"2006-01-02 15:04:05"` // 更新时间
+	ID                 int64  `json:"id" example:"1"`                           // 应用ID
+	User               string `json:"user" example:"beiluo"`                     // 租户名
+	Code               string `json:"code" example:"myapp"`                      // 应用代码
+	Name               string `json:"name" example:"我的应用"`                     // 应用名称
+	Status             string `json:"status" example:"enabled"`                 // 状态: enabled(启用), disabled(禁用)
+	Version            string `json:"version" example:"v1"`                      // 版本
+	NatsID             int64  `json:"nats_id" example:"1"`                       // NATS ID
+	HostID             int64  `json:"host_id" example:"1"`                       // 主机ID
+	IsPublic           bool   `json:"is_public" example:"true"`                  // 是否公开
+	Admins             string `json:"admins,omitempty" example:"user1,user2"`    // 管理员列表，逗号分隔的用户名
+	Type               int    `json:"type" example:"0"`                          // 应用类型：0=用户空间，1=系统空间
+	ShowOnlyPermitted  bool   `json:"show_only_permitted" example:"false"`       // 仅展示有权限的空间
+	CreatedAt          string `json:"created_at" example:"2006-01-02 15:04:05"` // 创建时间
+	UpdatedAt          string `json:"updated_at" example:"2006-01-02 15:04:05"` // 更新时间
 }
 
 // GetAppDetailReq 获取应用详情请求

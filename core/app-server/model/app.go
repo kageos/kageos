@@ -23,6 +23,9 @@ type App struct {
 	
 	// ⭐ app 级别的待审批权限申请数量
 	PendingCount int `json:"pending_count" gorm:"column:pending_count;default:0;comment:app级别待审批的权限申请数量"`
+
+	// ⭐ 仅展示有权限的空间：开启后，非管理员用户进入工作空间时，服务树只展示其有权限的目录（用于 SaaS 多租户场景）
+	ShowOnlyPermitted bool `json:"show_only_permitted" gorm:"column:show_only_permitted;type:tinyint(1);default:0;comment:仅展示有权限的空间(0:否,1:是)"`
 }
 
 func (App) TableName() string {

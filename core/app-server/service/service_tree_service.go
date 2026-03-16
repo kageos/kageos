@@ -811,11 +811,55 @@ func (s *ServiceTreeService) getServiceTreeByAppModel(ctx context.Context, appMo
 	// 所有节点（包括根节点）都使用相同的转换逻辑，无需特殊处理
 	rootResp := s.convertToGetServiceTreeResp(ctx, rootNode, permissionsMap, isAdmin)
 
+	// ⭐ Step 4: 若工作空间开启「仅展示有权限的空间」且当前用户非管理员，则按权限过滤树
+	if appModel.ShowOnlyPermitted && !isAdmin && permissionsMap != nil {
+		rootResp = s.filterTreeByPermission(rootResp)
+		logger.Debugf(ctx, "[ServiceTreeService] 已按权限过滤服务树: app_id=%d, username=%s", appModel.ID, username)
+	}
+
 	logger.Debugf(ctx, "[ServiceTreeService] 服务树转换完成: root_id=%d, children_count=%d",
 		rootNode.ID, len(rootResp.Children))
 
 	// ⭐ 返回包含根节点的数组（单元素数组）
 	return []*dto.GetServiceTreeResp{rootResp}, nil
+}
+
+// filterTreeByPermission 按权限过滤服务树：只保留有权限的节点，无权限的父节点不展示，有权限的深层节点提升到根下。
+// 根节点始终保留；其直接子节点 = 递归时「有权限则保留该节点并递归其子，无权限则丢弃该节点本身、将其下有权限的节点提升上来」。
+func (s *ServiceTreeService) filterTreeByPermission(rootResp *dto.GetServiceTreeResp) *dto.GetServiceTreeResp {
+	// 根节点（路径段数=2，即 /user/app）始终保留；其 Children 由 collectVisibleChildren 对每个子节点收集并合并
+	rootResp.Children = s.collectVisibleChildren(rootResp.Children)
+	return rootResp
+}
+
+// collectVisibleChildren 对一组子节点做过滤并提升：有权限的节点保留且递归其子；无权限的节点不保留，其下有权限的节点提升到当前层。
+// 返回应挂到父节点下的节点列表。
+func (s *ServiceTreeService) collectVisibleChildren(children []*dto.GetServiceTreeResp) []*dto.GetServiceTreeResp {
+	out := make([]*dto.GetServiceTreeResp, 0, len(children))
+	for _, child := range children {
+		out = append(out, s.collectVisibleFromNode(child)...)
+	}
+	return out
+}
+
+// collectVisibleFromNode 对单个节点：若有权限则返回 [该节点]（其 Children 已递归过滤并提升）；若无权限则返回其子树中所有可见节点（提升到当前层）。
+func (s *ServiceTreeService) collectVisibleFromNode(node *dto.GetServiceTreeResp) []*dto.GetServiceTreeResp {
+	hasAnyTrue := false
+	if node.Permissions != nil {
+		for _, v := range node.Permissions {
+			if v {
+				hasAnyTrue = true
+				break
+			}
+		}
+	}
+	if !hasAnyTrue {
+		// 无权限：不保留当前节点，把其子节点中可见的提升上来
+		return s.collectVisibleChildren(node.Children)
+	}
+	// 有权限：保留当前节点，其 Children 为子节点过滤并提升后的结果
+	node.Children = s.collectVisibleChildren(node.Children)
+	return []*dto.GetServiceTreeResp{node}
 }
 
 // calculateTotalPendingCount 递归计算节点及其所有子节点的 pending_count 总和
@@ -856,18 +900,20 @@ func (s *ServiceTreeService) GetAppWithServiceTree(ctx context.Context, req *dto
 
 	// 转换为 AppInfo 响应格式
 	appInfo := dto.AppInfo{
-		ID:        appModel.ID,
-		User:      appModel.User,
-		Code:      appModel.Code,
-		Name:      appModel.Name,
-		Status:    appModel.Status,
-		Version:   appModel.Version,
-		NatsID:    appModel.NatsID,
-		HostID:    appModel.HostID,
-		IsPublic:  appModel.IsPublic,
-		Admins:    appModel.Admins,
-		CreatedAt: time.Time(appModel.CreatedAt).Format("2006-01-02 15:04:05"),
-		UpdatedAt: time.Time(appModel.UpdatedAt).Format("2006-01-02 15:04:05"),
+		ID:                 appModel.ID,
+		User:               appModel.User,
+		Code:               appModel.Code,
+		Name:               appModel.Name,
+		Status:             appModel.Status,
+		Version:            appModel.Version,
+		NatsID:             appModel.NatsID,
+		HostID:             appModel.HostID,
+		IsPublic:           appModel.IsPublic,
+		Admins:             appModel.Admins,
+		Type:               int(appModel.Type),
+		ShowOnlyPermitted:  appModel.ShowOnlyPermitted,
+		CreatedAt:          time.Time(appModel.CreatedAt).Format("2006-01-02 15:04:05"),
+		UpdatedAt:          time.Time(appModel.UpdatedAt).Format("2006-01-02 15:04:05"),
 	}
 
 	// 使用内部方法获取服务目录树（复用 appModel，避免重复查询）

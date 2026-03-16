@@ -38,7 +38,8 @@ export function useWorkspaceApp(
     code: '',
     name: '',
     is_public: true, // 默认公开
-    admins: '' // 管理员列表，逗号分隔的用户名
+    admins: '', // 管理员列表，逗号分隔的用户名
+    show_only_permitted: false // 仅展示有权限的空间（SaaS 多租户场景）
   })
   
   // 管理员数组（用于 UserSearchInput 组件，多选模式返回数组）
@@ -147,7 +148,8 @@ export function useWorkspaceApp(
       code: '',
       name: '',
       is_public: true,
-      admins: ''
+      admins: '',
+      show_only_permitted: false
     }
     adminsArray.value = []
   }
