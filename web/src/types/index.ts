@@ -52,6 +52,7 @@ export interface App {
   version: string
   is_public: boolean
   admins?: string
+  show_only_permitted?: boolean  // 仅展示有权限的空间
   created_at: string
   updated_at: string
 }
@@ -61,6 +62,8 @@ export interface CreateAppRequest {
   name: string
   is_public?: boolean
   admins?: string
+  /** 仅展示有权限的空间：开启后非管理员只看到有权限的目录（SaaS 多租户） */
+  show_only_permitted?: boolean
 }
 
 // 创建应用响应（后端实际返回的结构）

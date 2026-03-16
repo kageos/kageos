@@ -174,11 +174,12 @@ type CallToolResp struct {
 
 // ----- 以下为 app-server 工作空间（user/app）更新接口使用 -----
 
-// UpdateWorkspaceReq 更新工作空间请求（只更新 MySQL 如 Admins；user/app 自路径参数填入）
+// UpdateWorkspaceReq 更新工作空间请求（只更新 MySQL 如 Admins、ShowOnlyPermitted；user/app 自路径参数填入）
 type UpdateWorkspaceReq struct {
-	User   string `json:"-"`      // 从路径 :user 填入，不绑定 body
-	App    string `json:"-"`      // 从路径 :app 填入，不绑定 body
-	Admins string `json:"admins"` // 管理员列表，逗号分隔
+	User               string `json:"-"`      // 从路径 :user 填入，不绑定 body
+	App                string `json:"-"`     // 从路径 :app 填入，不绑定 body
+	Admins             string `json:"admins"` // 管理员列表，逗号分隔
+	ShowOnlyPermitted  *bool  `json:"show_only_permitted,omitempty"` // 仅展示有权限的空间（nil 表示不更新）
 }
 
 // UpdateWorkspaceResp 更新工作空间响应

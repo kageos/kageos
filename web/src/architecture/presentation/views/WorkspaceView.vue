@@ -430,6 +430,17 @@
             公开的工作空间可以被其他用户搜索到，私有的工作空间只有您自己可以看到
           </div>
         </el-form-item>
+        <el-form-item label="仅展示有权限">
+          <el-switch
+            v-model="createAppForm.show_only_permitted"
+            active-text="开启"
+            inactive-text="关闭"
+          />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            开启后，非管理员用户进入该工作空间时，左侧目录只展示其有权限的节点（适合按区/街道/商户划分的 SaaS 场景）
+          </div>
+        </el-form-item>
         <el-form-item label="管理员">
           <UserSearchInput
             v-model="adminsArray"

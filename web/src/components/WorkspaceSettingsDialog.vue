@@ -15,6 +15,17 @@
           </div>
         </el-form-item>
         
+        <el-form-item label="仅展示有权限">
+          <el-switch
+            v-model="showOnlyPermitted"
+            active-text="开启"
+            inactive-text="关闭"
+          />
+          <div class="form-tip">
+            开启后，非管理员进入该工作空间时，左侧目录只展示其有权限的节点（适合 SaaS 多租户场景）
+          </div>
+        </el-form-item>
+
         <el-form-item label="管理员">
           <UsersWidget
             :value="adminsFieldValue"
@@ -69,6 +80,7 @@ const visible = computed({
 
 const saving = ref(false)
 const adminsArray = ref<string[]>([])
+const showOnlyPermitted = ref(false)
 
 // 管理员字段配置（用于 UsersWidget）
 const adminsField = computed<FieldConfig>(() => ({
@@ -111,8 +123,11 @@ function handleAdminsChange(value: FieldValue) {
 function initForm() {
   if (!props.currentApp) {
     adminsArray.value = []
+    showOnlyPermitted.value = false
     return
   }
+
+  showOnlyPermitted.value = !!props.currentApp?.show_only_permitted
 
   // 直接使用 currentApp 中的 admins 字段（tree 接口已经返回了）
   if (props.currentApp?.admins) {
@@ -145,7 +160,8 @@ async function handleSave() {
     const admins = adminsArray.value.length > 0 ? adminsArray.value.join(',') : ''
     
     await updateWorkspace(props.currentApp.user, props.currentApp.code, {
-      admins
+      admins,
+      show_only_permitted: showOnlyPermitted.value
     })
     
     ElNotification.success({
