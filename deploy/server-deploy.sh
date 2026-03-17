@@ -9,6 +9,7 @@ set -e
 #   仅重启:   bash deploy/server-deploy.sh restart
 #   停止服务: bash deploy/server-deploy.sh stop
 #   查看状态: bash deploy/server-deploy.sh status
+#   查看日志: bash deploy/server-deploy.sh logs [core-server|hub-server]
 # =============================================
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -288,7 +289,7 @@ status)
     ;;
 
 logs)
-    local service="${2:-core-server}"
+    service="${2:-core-server}"
     tail -f "$LOG_DIR/${service}.log"
     ;;
 
