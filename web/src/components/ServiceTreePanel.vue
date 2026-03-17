@@ -495,6 +495,7 @@ const handleCopy = (node: ServiceTree) => {
   const handlePaste = async (targetNode?: ServiceTree) => {
     // 首先检查剪贴板是否有 Hub 链接
     let hubLinkToPaste: string | null = null
+    let clipboardReadFailed = false
     try {
       const clipboardText = await navigator.clipboard.readText()
       if (clipboardText && clipboardText.trim().startsWith('hub://')) {
@@ -503,8 +504,9 @@ const handleCopy = (node: ServiceTree) => {
         saveCopiedHubLink(hubLinkToPaste)
         copiedHubLink.value = hubLinkToPaste
       }
-    } catch (error) {
-      // 剪贴板访问失败，忽略（可能是权限问题）
+    } catch {
+      // 剪贴板访问失败（如右键菜单、跨页无权限），不能假定用户要粘贴的是本地目录
+      clipboardReadFailed = true
     }
     
     // 如果剪贴板没有 Hub 链接，检查已保存的 Hub 链接
@@ -515,6 +517,12 @@ const handleCopy = (node: ServiceTree) => {
     // 如果有 Hub 链接，使用 Hub 链接粘贴
     if (hubLinkToPaste) {
       await handlePasteHubLink(hubLinkToPaste, targetNode)
+      return
+    }
+    
+    // 无法读取剪贴板时，不误用本地已复制的目录（用户可能刚复制了 Hub 链接）
+    if (clipboardReadFailed) {
+      ElMessage.warning('无法读取剪贴板。若要粘贴 Hub 链接，请使用 Ctrl+V 或点击「从应用中心安装」在输入框中粘贴。')
       return
     }
     
