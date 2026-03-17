@@ -215,6 +215,20 @@ func (s *PodmanService) detectLSMFromProbeContainer(ctx context.Context) string 
 	return LSMAppArmor
 }
 
+// isAppArmorProfileLoaded 检查宿主机上指定 AppArmor profile 是否已加载（读 /sys/kernel/security/apparmor/profiles）。
+// 若未加载或读失败则返回 false，起容器时不加 apparmor 选项，避免阻塞启动。
+func isAppArmorProfileLoaded(profile string) bool {
+	if profile == "" {
+		return false
+	}
+	const profilesPath = "/sys/kernel/security/apparmor/profiles"
+	data, err := os.ReadFile(profilesPath)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(data), profile)
+}
+
 // ExecCommand 在容器内执行命令
 func (s *PodmanService) ExecCommand(ctx context.Context, containerName string, command []string) (string, error) {
 	if s.conn == nil {
@@ -768,8 +782,13 @@ func (s *PodmanService) RunContainerWithCommand(ctx context.Context, image, name
 	switch s.GetDetectedLSM() {
 	case LSMAppArmor:
 		if profile := s.config.AppArmorProfile; profile != "" {
-			args = append(args, "--security-opt", "apparmor="+profile)
-			logger.Infof(ctx, "[LSM] AppArmor profile=%s 已应用到容器 %s", profile, name)
+			if isAppArmorProfileLoaded(profile) {
+				args = append(args, "--security-opt", "apparmor="+profile)
+				logger.Infof(ctx, "[LSM] AppArmor profile=%s 已应用到容器 %s", profile, name)
+			} else {
+				// profile 未加载时不加选项，避免 failed to start container: profile specified but not loaded；静默继续运行
+				logger.Infof(ctx, "[LSM] AppArmor profile=%s 未加载，跳过安全选项，容器 %s 正常启动", profile, name)
+			}
 		} else {
 			logger.Warnf(ctx, "[LSM] 检测到 AppArmor 但未配置 apparmor_profile，容器 %s 无内核级防删", name)
 		}
