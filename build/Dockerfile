@@ -28,9 +28,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certifi
     && apt-get remove -y wget && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 # 安装运行时依赖 + 字体（分层便于缓存：只改文档工具时只重建后面几层）
+# e2fsprogs 提供 chattr/lsattr，用于 start.sh 对 workplace 做 +a 保护（禁止容器内删除）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     file \
+    e2fsprogs \
     tzdata \
     ghostscript \
     poppler-utils \
@@ -120,8 +122,8 @@ RUN python3 -c "from importlib.metadata import distributions; packages = sorted(
 ENV PYTHON_PATH=/usr/bin/python3
 ENV PIP_PATH=/usr/bin/pip3
 
-# 复制启动脚本
-COPY scripts/start.sh /start.sh
+# 复制启动脚本（与 Dockerfile 同级）
+COPY build/start.sh /start.sh
 RUN chmod +x /start.sh
 
 # 使用 tini 作为 init 系统

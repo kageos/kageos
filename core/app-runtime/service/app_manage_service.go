@@ -1202,8 +1202,9 @@ func (s *AppManageService) StartCleanupTask(ctx context.Context) {
 	// 凌晨 4 点：先进程级（按当前版本停非当前），再容器级（保留最近 3 版本并删除多余）
 	s.containerCleanupCron = cron.New(cron.WithLocation(time.Local))
 	_, err := s.containerCleanupCron.AddFunc(containerCleanupCronExpr, func() {
-		logger.Infof(ctx, "[CleanupTask] cron 触发 | 执行进程级清理 + 容器级巡检")
+		logger.Infof(ctx, "[CleanupTask] cron 触发 | 执行进程级清理 + 容器级巡检 + workplace(file-cache/output)清空")
 		s.runAllCleanups(ctx)
+		s.runFileCacheCleanup(ctx)
 	})
 	if err != nil {
 		logger.Warnf(ctx, "[CleanupTask] cron 添加失败: %v，将仅依赖有变动时触发", err)
@@ -1235,6 +1236,37 @@ func (s *AppManageService) StartCleanupTask(ctx context.Context) {
 func (s *AppManageService) runAllCleanups(ctx context.Context) {
 	s.performCleanup(ctx)       // 进程级：按 current_version 停掉非当前且无流量的版本
 	s.containerLevelCleanup(ctx) // 容器级：每应用保留最近 3 版本，其余 stop+remove
+}
+
+// runFileCacheCleanup 清空各应用 workplace/file-cache 与 workplace/output 目录（全部删除，无需保留）
+func (s *AppManageService) runFileCacheCleanup(ctx context.Context) {
+	apps, err := s.getAllApps(ctx)
+	if err != nil {
+		logger.Errorf(ctx, "[WorkplaceCleanup] 获取应用列表失败: %v", err)
+		return
+	}
+	basePath := s.config.AppDir.BasePath
+	for _, app := range apps {
+		appBase := filepath.Join(basePath, app.User, app.App, "workplace")
+		for _, subdir := range []string{"file-cache", "output"} {
+			dir := filepath.Join(appBase, subdir)
+			if _, err := os.Stat(dir); err != nil {
+				if !os.IsNotExist(err) {
+					logger.Warnf(ctx, "[WorkplaceCleanup] 检查目录失败 %s: %v", dir, err)
+				}
+				continue
+			}
+			if err := os.RemoveAll(dir); err != nil {
+				logger.Warnf(ctx, "[WorkplaceCleanup] 清空失败 %s: %v", dir, err)
+				continue
+			}
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				logger.Warnf(ctx, "[WorkplaceCleanup] 重建目录失败 %s: %v", dir, err)
+				continue
+			}
+			logger.Infof(ctx, "[WorkplaceCleanup] 已清空: %s/%s workplace/%s", app.User, app.App, subdir)
+		}
+	}
 }
 
 // StopCleanupTask 停止定时清理任务

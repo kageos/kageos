@@ -1,0 +1,31 @@
+# SELinux 策略模块：禁止容器内进程删除受保护目录（code/workplace）
+# 背景：同 AppArmor，容器内跑的是 AI 生成代码和第三方包，需内核级防删。
+#
+# 原理：定义自定义文件类型 ai_agent_os_data_t，只授予 container_t 读/写/创建权限，
+#       不授予 unlink（删文件）和 remove_name/rmdir（删目录），内核直接拒绝删除。
+#       宿主机进程（unconfined_t 等）不受此限制，runtime 仍可正常删除。
+#
+# 安装：sudo bash install.sh <namespace_base_path>（同目录）
+
+policy_module(ai_agent_os_app, 1.0)
+
+require {
+    type container_t;
+}
+
+# 定义受保护文件类型
+type ai_agent_os_data_t;
+files_type(ai_agent_os_data_t)
+
+# container_t 对 ai_agent_os_data_t 文件：允许读写创建，不允许 unlink（删除）
+allow container_t ai_agent_os_data_t:file {
+    read write create open getattr setattr append lock ioctl map link rename
+};
+
+# container_t 对 ai_agent_os_data_t 目录：允许读写创建、添加条目，不允许 remove_name/rmdir（删除）
+allow container_t ai_agent_os_data_t:dir {
+    read write create open getattr setattr add_name search link rename reparent
+};
+
+# 符号链接只读
+allow container_t ai_agent_os_data_t:lnk_file { read getattr };

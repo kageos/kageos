@@ -30,7 +30,15 @@
           />
         </div>
       </div>
-      <div v-show="sessionSidebarExpanded" class="session-list" v-loading="loadingSessions">
+      <div v-show="sessionSidebarExpanded" class="session-list-wrap">
+        <el-input
+          v-model="sessionSearchKeyword"
+          class="session-search-input"
+          placeholder="搜索会话…"
+          clearable
+          :prefix-icon="Search"
+        />
+      <div class="session-list" v-loading="loadingSessions">
         <!-- 新建会话卡片 -->
         <div
           :class="['session-card', 'new-session-card', { active: !sessionId }]"
@@ -44,9 +52,9 @@
             <span>开始新的对话</span>
           </div>
         </div>
-        <!-- 会话列表 -->
+        <!-- 会话列表（按关键词过滤） -->
         <div
-          v-for="session in sessionList"
+          v-for="session in filteredSessionList"
           :key="session.session_id"
           :class="['session-card', { active: session.session_id === sessionId }, { generating: session.status === 'generating' }]"
           @click="handleSelectSession(session.session_id)"
@@ -63,9 +71,10 @@
             <span>{{ formatRelativeTime(session.updated_at) }}</span>
           </div>
         </div>
-        <div v-if="sessionList.length === 0 && !loadingSessions" class="empty-sessions">
-          <el-empty description="暂无会话" :image-size="60" />
+        <div v-if="filteredSessionList.length === 0 && !loadingSessions" class="empty-sessions">
+          <el-empty :description="sessionSearchKeyword ? '无匹配会话' : '暂无会话'" :image-size="60" />
         </div>
+      </div>
       </div>
     </div>
 
@@ -193,9 +202,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick, toRaw } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick, toRaw } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRight, Plus, Paperclip, FolderOpened, Loading } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Plus, Paperclip, FolderOpened, Loading, Search } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import { workspaceChatStream, getWorkspaceSessions, getWorkspaceMessages, type WorkspaceSessionItem, type WorkspaceChatReq, type WorkspaceChatMessageFile } from '@/api/workspace'
 import { getLLMList, type LLMInfo } from '@/api/agent'
@@ -393,6 +402,18 @@ const selectedLLMConfigId = ref<number | null>(null)
 const sessionList = ref<WorkspaceSessionItem[]>([])
 const loadingSessions = ref(false)
 const sessionSidebarExpanded = ref(true) // 默认展开
+const sessionSearchKeyword = ref('')
+
+/** 按关键词过滤会话列表：匹配标题、用户 */
+const filteredSessionList = computed(() => {
+  const k = sessionSearchKeyword.value.trim().toLowerCase()
+  if (!k) return sessionList.value
+  return sessionList.value.filter((s) => {
+    const title = (s.title || '').toLowerCase()
+    const user = (s.user || '').toLowerCase()
+    return title.includes(k) || user.includes(k)
+  })
+})
 
 function handleBack() {
   if (props.embedded) {
@@ -840,6 +861,20 @@ async function send() {
 }
 .session-sidebar.collapsed .header-actions {
   flex-direction: column;
+}
+.session-list-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.session-search-input {
+  flex-shrink: 0;
+  padding: 6px 8px 4px;
+}
+.session-search-input :deep(.el-input__wrapper) {
+  border-radius: 6px;
 }
 .session-list {
   flex: 1;

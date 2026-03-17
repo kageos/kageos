@@ -2,8 +2,15 @@
   <div class="service-tree-panel" v-loading="loading">
     <div class="tree-header">
       <h3>服务目录</h3>
+      <el-input
+        v-model="searchKeyword"
+        class="tree-search-input"
+        placeholder="搜索目录或名称…"
+        clearable
+        :prefix-icon="Search"
+      />
     </div>
-    
+
     <div class="tree-content">
       <el-tree
         v-if="groupedTreeData.length > 0"
@@ -17,6 +24,7 @@
         :expanded-keys="expandedKeysState"
         :expand-on-click-node="false"
         :highlight-current="true"
+        :filter-node-method="filterNodeMethod"
         @node-click="handleNodeClick"
       >
         <template #default="{ node, data }">
@@ -88,17 +96,6 @@
               :title="'该节点没有权限，点击申请权限'"
               @click.stop="handleNoPermissionClick(data)"
             />
-            
-            <!-- Hub 标记 - 已发布到 Hub 的根节点或目录显示 -->
-            <span
-              v-if="data.type === 'package' && data.hub_full_code_path"
-              class="hub-badge"
-              @click.stop="handleHubBadgeClick(data)"
-              :title="data.hub_version_num != null ? `已发布到应用中心 v${data.hub_version_num}` : '已发布到应用中心'"
-            >
-              <el-icon class="hub-icon"><Link /></el-icon>
-              <span v-if="data.hub_version_num != null" class="hub-version">v{{ data.hub_version_num }}</span>
-            </span>
             
             <!-- ⭐ 待审批数量 badge - 仅管理员可见（package 和 function 类型都显示） -->
             <el-badge
@@ -281,7 +278,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download, Delete, Key, User, DocumentChecked, Edit, ChatDotRound, ChatDotSquare } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, CopyDocument, Document, Clock, Upload, Download, Delete, Key, User, DocumentChecked, Edit, ChatDotRound, ChatDotSquare, Search } from '@element-plus/icons-vue'
 import ChartIcon from './icons/ChartIcon.vue'
 import TableIcon from './icons/TableIcon.vue'
 import FormIcon from './icons/FormIcon.vue'
@@ -296,7 +293,6 @@ import {
   expandPathAndSelect,
   expandPathOnly
 } from '@/utils/serviceTreeUtils'
-import { navigateToHubDirectoryDetail } from '@/utils/hub-navigation'
 import { 
   hasPermission, 
   hasAnyPermissionForNode, 
@@ -762,6 +758,56 @@ const groupedTreeData = computed(() => {
   return props.treeData
 })
 
+// ⭐ 服务目录搜索：匹配 name / code / full_code_path，保留匹配节点及其祖先
+const searchKeyword = ref('')
+
+/** 递归收集「自身匹配或任意子孙匹配」的节点 id 集合（用于过滤时显示这些节点及其祖先） */
+function collectVisibleNodeIds(nodes: ServiceTree[], keyword: string): Set<number> {
+  const visibleIds = new Set<number>()
+  if (!keyword || !nodes.length) return visibleIds
+  const k = keyword.trim().toLowerCase()
+  if (!k) return visibleIds
+
+  function match(node: ServiceTree): boolean {
+    const name = (node.name || '').toLowerCase()
+    const code = (node.code || '').toLowerCase()
+    const path = (node.full_code_path || '').toLowerCase()
+    return name.includes(k) || code.includes(k) || path.includes(k)
+  }
+
+  function walk(nodeList: ServiceTree[]): boolean {
+    let hasMatchInSubtree = false
+    for (const node of nodeList) {
+      const nodeId = Number(node.id)
+      const selfMatch = match(node)
+      const children = node.children || []
+      const childMatch = children.length > 0 ? walk(children) : false
+      if (selfMatch || childMatch) {
+        visibleIds.add(nodeId)
+        hasMatchInSubtree = true
+      }
+    }
+    return hasMatchInSubtree
+  }
+  walk(nodes)
+  return visibleIds
+}
+
+const visibleNodeIdsForFilter = computed(() =>
+  collectVisibleNodeIds(groupedTreeData.value, searchKeyword.value)
+)
+
+const filterNodeMethod = (value: string, data: ServiceTree) => {
+  if (!value || !value.trim()) return true
+  return visibleNodeIdsForFilter.value.has(Number(data.id))
+}
+
+watch(searchKeyword, () => {
+  nextTick(() => {
+    treeRef.value?.filter(searchKeyword.value)
+  })
+})
+
 // ⭐ 默认展开的节点（后端返回的 expandedKeys 中已包含 app 根节点）
 const defaultExpandedKeysWithWorkspace = computed(() => {
   // 直接使用后端返回的 expandedKeys
@@ -1005,13 +1051,6 @@ const handleKeyDown = (event: KeyboardEvent) => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
 })
-
-// 处理 Hub 标记点击 - 跳转到 Hub 目录详情页
-const handleHubBadgeClick = (data: ServiceTree) => {
-  if (data.hub_full_code_path) {
-    navigateToHubDirectoryDetail(data.hub_full_code_path)
-  }
-}
 
 // 处理从应用中心安装按钮点击
 const handlePullFromHubClick = () => {
@@ -1324,17 +1363,25 @@ defineExpose({
 }
 
 .tree-header {
-  padding: 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--el-border-color-light);
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  
+  flex-direction: column;
+  gap: 10px;
+
   h3 {
     margin: 0;
     font-size: 16px;
     font-weight: 600;
     color: var(--el-text-color-primary);
+  }
+
+  .tree-search-input {
+    flex-shrink: 0;
+  }
+
+  .tree-search-input :deep(.el-input__wrapper) {
+    border-radius: 6px;
   }
   
   .header-actions {
@@ -1505,36 +1552,6 @@ defineExpose({
     
     &:hover {
       opacity: 1;
-    }
-  }
-  
-  .hub-badge {
-    margin-left: 6px;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    transition: all 0.2s;
-    flex-shrink: 0;
-    padding: 2px 4px;
-    border-radius: 3px;
-    color: var(--el-color-primary);
-    
-    &:hover {
-      background-color: var(--el-color-primary-light-9);
-      color: var(--el-color-primary);
-    }
-    
-    .hub-icon {
-      font-size: 13px;
-      color: var(--el-color-primary);
-    }
-    
-    .hub-version {
-      font-size: 10px;
-      color: var(--el-text-color-secondary);
-      margin-left: 2px;
-      font-weight: 500;
     }
   }
   

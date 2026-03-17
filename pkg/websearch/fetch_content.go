@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	maxFetchContentChars = 2000  // 单页正文最多取字数
-	maxFetchContentResults = 2  // 只对前 N 条 DuckDuckGo 结果抓取正文
+	userAgent             = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	maxFetchContentChars   = 2000 // 单页正文最多取字数
+	maxFetchContentResults = 2    // 只对前 N 条搜索结果抓取正文
 )
 
 // FetchURLContent 对给定 URL 发 GET，解析 HTML 提取标题和正文，供「按 URL 访问页面」工具使用

@@ -37,18 +37,20 @@ type UpdateBoardReq struct {
 
 // CreatePostReq 发帖请求
 type CreatePostReq struct {
-	FullCodePath  string `json:"full_code_path" binding:"required"` // 版块完整路径
-	Title         string `json:"title" binding:"required"`
-	Cover         []string `json:"cover"`        // 封面图 URL 数组（可多图）
-	Content       string `json:"content"`        // 正文（富文本）
-	ContentFormat string `json:"content_format"` // markdown / html，默认 markdown
-	Status        string `json:"status"`         // draft / published，默认 published
+	FullCodePath  string   `json:"full_code_path" binding:"required"` // 版块完整路径
+	Title         string   `json:"title" binding:"required"`
+	Summary       string   `json:"summary"`        // 摘要，列表展示；可选，为空时从正文截取
+	Cover         []string `json:"cover"`           // 封面图 URL 数组（可多图）
+	Content       string   `json:"content"`        // 正文（富文本）
+	ContentFormat string   `json:"content_format"`  // markdown / html，默认 markdown
+	Status        string   `json:"status"`          // draft / published，默认 published
 }
 
 // UpdatePostReq 更新帖子请求
 type UpdatePostReq struct {
-	ID            int64  `json:"id" binding:"required"`
-	Title         string `json:"title"`
+	ID            int64    `json:"id" binding:"required"`
+	Title         string   `json:"title"`
+	Summary       string   `json:"summary"`
 	Cover         []string `json:"cover"`
 	Content       string   `json:"content"`
 	ContentFormat string   `json:"content_format"`
@@ -64,14 +66,15 @@ type ListPostsReq struct {
 
 // PostItem 帖子列表项
 type PostItem struct {
-	ID        int64  `json:"id"`
-	TreeID    int64  `json:"tree_id"`
-	Title     string `json:"title"`
-	Cover     []string `json:"cover"` // 封面图 URL 数组，列表展示
-	Author    string `json:"author"`
-	Status    string `json:"status"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	ID        int64    `json:"id"`
+	TreeID    int64    `json:"tree_id"`
+	Title     string   `json:"title"`
+	Summary   string   `json:"summary"` // 摘要，列表展示
+	Cover     []string `json:"cover"`   // 封面图 URL 数组，列表展示
+	Author    string   `json:"author"`
+	Status    string   `json:"status"`
+	CreatedAt string   `json:"created_at"`
+	UpdatedAt string   `json:"updated_at"`
 }
 
 // ListPostsResp 帖子列表响应
@@ -82,10 +85,11 @@ type ListPostsResp struct {
 
 // GetPostResp 帖子详情响应
 type GetPostResp struct {
-	ID            int64  `json:"id"`
-	TreeID        int64  `json:"tree_id"`
-	FullCodePath  string `json:"full_code_path"`
-	Title         string `json:"title"`
+	ID            int64    `json:"id"`
+	TreeID        int64    `json:"tree_id"`
+	FullCodePath  string   `json:"full_code_path"`
+	Title         string   `json:"title"`
+	Summary       string   `json:"summary"`
 	Cover         []string `json:"cover"`
 	Content       string   `json:"content"`
 	ContentFormat string   `json:"content_format"`

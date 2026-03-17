@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
@@ -35,6 +37,27 @@ func formatCover(urls []string) string {
 		return ""
 	}
 	return strings.Join(urls, ",")
+}
+
+// summaryFromContent 从正文截取纯文本摘要，最多 maxRunes 个字符
+func summaryFromContent(content string, maxRunes int) string {
+	s := content
+	// 简单去除 markdown 常见符号：标题 #、列表 - *、代码块 ```、链接 [text](url)、图片 ![]()
+	re := regexp.MustCompile(`(?m)^#+\s*|^[-*]\s*|^\d+\.\s*|\[([^\]]*)\]\([^)]*\)|!\[[^\]]*\]\([^)]*\)|` + "`[^`]*`" + `|[*_~]+`)
+	s = re.ReplaceAllString(s, "$1")
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.TrimSpace(s)
+	for len(s) > 0 && (s[0] == ' ' || s[0] == '\t') {
+		s = s[1:]
+	}
+	if utf8.RuneCountInString(s) <= maxRunes {
+		return s
+	}
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return string(runes)
+	}
+	return string(runes[:maxRunes]) + "…"
 }
 
 // BoardService 版块/帖子服务
@@ -88,10 +111,15 @@ func (s *BoardService) ListPosts(ctx context.Context, fullCodePath string, page,
 	}
 	items := make([]dto.PostItem, 0, len(list))
 	for _, p := range list {
+		summary := strings.TrimSpace(p.Summary)
+		if summary == "" && p.Content != "" {
+			summary = summaryFromContent(p.Content, 150)
+		}
 		items = append(items, dto.PostItem{
 			ID:        p.ID,
 			TreeID:    p.TreeID,
 			Title:     p.Title,
+			Summary:   summary,
 			Cover:     parseCover(p.Cover),
 			Author:    p.Author,
 			Status:    p.Status,
@@ -115,11 +143,16 @@ func (s *BoardService) GetPost(ctx context.Context, id int64) (*dto.GetPostResp,
 	if err != nil || tree == nil || !tree.IsBoard() {
 		return nil, fmt.Errorf("版块不存在或类型错误")
 	}
+	summary := strings.TrimSpace(post.Summary)
+	if summary == "" && post.Content != "" {
+		summary = summaryFromContent(post.Content, 150)
+	}
 	return &dto.GetPostResp{
 		ID:            post.ID,
 		TreeID:        post.TreeID,
 		FullCodePath:  post.FullCodePath,
 		Title:         post.Title,
+		Summary:       summary,
 		Cover:         parseCover(post.Cover),
 		Content:       post.Content,
 		ContentFormat: post.ContentFormat,
@@ -154,10 +187,15 @@ func (s *BoardService) CreatePost(ctx context.Context, req *dto.CreatePostReq) (
 	if contentFormat == "" {
 		contentFormat = "markdown"
 	}
+	summary := strings.TrimSpace(req.Summary)
+	if summary == "" && strings.TrimSpace(req.Content) != "" {
+		summary = summaryFromContent(req.Content, 150)
+	}
 	post := &model.BoardPost{
 		TreeID:        tree.ID,
 		FullCodePath:  req.FullCodePath,
 		Title:         req.Title,
+		Summary:       summary,
 		Cover:         formatCover(req.Cover),
 		Content:       req.Content,
 		ContentFormat: contentFormat,
@@ -181,6 +219,12 @@ func (s *BoardService) UpdatePost(ctx context.Context, req *dto.UpdatePostReq) (
 	}
 	if req.Title != "" {
 		post.Title = req.Title
+	}
+	// 摘要：有传则用，否则若改了正文则从正文重新截取
+	if req.Summary != "" {
+		post.Summary = strings.TrimSpace(req.Summary)
+	} else if req.Content != "" {
+		post.Summary = summaryFromContent(req.Content, 150)
 	}
 	if len(req.Cover) > 0 {
 		post.Cover = formatCover(req.Cover)

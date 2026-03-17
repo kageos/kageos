@@ -94,10 +94,16 @@ type GitConfig struct {
 
 // ContainerServiceConfig 容器服务配置
 type ContainerServiceConfig struct {
-	Runtime string      `mapstructure:"runtime"` // podman, docker
-	Socket  string      `mapstructure:"socket"`  // 容器运行时 socket 路径
-	Timeout int         `mapstructure:"timeout"` // 连接超时时间（秒）
-	Image   ImageConfig `mapstructure:"image"`
+	Runtime string `mapstructure:"runtime"` // podman, docker
+	Socket  string `mapstructure:"socket"`  // 容器运行时 socket 路径
+	Timeout int    `mapstructure:"timeout"` // 连接超时时间（秒）
+	// LSM 模式：为后续内核级安全（如防删 code/workplace）做准备。
+	// - auto: 启动时检测宿主机 LSM（同机读 /sys，Mac/Win 起临时容器探测），结果缓存，后续只启用匹配的一种。
+	// - apparmor / selinux: 强制使用该 LSM（不检测）。
+	// - none: 不使用 LSM 相关安全选项。
+	LSMMode         string `mapstructure:"lsm_mode"`          // auto / apparmor / selinux / none
+	AppArmorProfile string `mapstructure:"apparmor_profile"`  // AppArmor 环境下使用的 profile 名（如 ai-agent-os-app），空则不启用
+	Image           ImageConfig `mapstructure:"image"`
 }
 
 // ImageConfig 镜像配置
@@ -167,13 +173,16 @@ func (c *AppRuntimeConfig) GetContainerCleanupTimeout() int {
 	return c.Timeouts.ContainerCleanup
 }
 
-// loadYAMLConfig 加载 YAML 配置文件
+// loadYAMLConfig 加载 YAML 配置文件（仅从 configs/dev 或 configs/prod 解析，由 APP_ENV 决定）。
+// 加载成功时打印实际使用的配置路径，避免糊涂账。
 func loadYAMLConfig(filename string, config interface{}) error {
-	// 查找配置文件
 	configPath := findConfigFile(filename)
 	if configPath == "" {
 		return fmt.Errorf("config file not found: %s", filename)
 	}
+	absPath, _ := filepath.Abs(configPath)
+	env := getConfigEnv()
+	fmt.Printf("[Config] APP_ENV=%s  %s <- %s\n", env, filepath.Base(filename), absPath)
 
 	// 读取文件
 	data, err := os.ReadFile(configPath)

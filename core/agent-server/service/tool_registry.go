@@ -407,10 +407,10 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 			"required": []interface{}{"full_code_path", "body"},
 		},
 	})
-	// web_search：搜网络知识（自建爬虫 + Wikipedia 免费 API），不入参第三方付费 API，成本可控
+	// web_search：使用必应（cn.bing.com）搜索，国内可直接访问，无需翻墙
 	out = append(out, dto.ToolDef{
 		Name:        "web_search",
-		Description: "在互联网上搜索知识、概念或资料。使用自建爬虫（DuckDuckGo 通用结果）与维基百科补充，不调用第三方付费 API，成本可控。当需要最新信息、概念解释、技术文档或事实查证时调用。",
+		Description: "在互联网上搜索知识、概念或资料。使用必应（cn.bing.com）搜索，国内可直接访问，无需翻墙。不调用第三方付费 API。当需要最新信息、概念解释、技术文档或事实查证时调用。",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -1651,7 +1651,7 @@ func splitSearchKeywords(keyword string) []string {
 }
 
 // callSearchTools 按关键词搜索可用工具（内置工具 + system 用户下已注册 Form/Table/Chart）。keyword 为空时仅返回已注册函数并按调用次数降序（高频在前）
-// callWebSearch 调用 pkg/websearch 聚合搜索（DuckDuckGo 爬虫 + Wikipedia），返回格式化文本供模型使用
+// callWebSearch 调用 pkg/websearch（必应搜索），返回格式化文本供模型使用
 func (r *ToolRegistry) callWebSearch(ctx context.Context, args map[string]interface{}) (string, bool) {
 	keyword := strings.TrimSpace(GetStringArg(args, "keyword"))
 	if keyword == "" {
