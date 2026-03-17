@@ -169,6 +169,7 @@ const handlePaste = (event: ClipboardEvent) => {
   const pastedText = event.clipboardData?.getData('text')
   if (pastedText && pastedText.startsWith('hub://')) {
     form.value.hub_link = pastedText
+    event.preventDefault() // 避免默认粘贴再插一次，导致重复
   }
 }
 
