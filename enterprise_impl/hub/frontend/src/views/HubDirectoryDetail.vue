@@ -478,6 +478,7 @@ import {
   getHubDirectoryDetailByPath,
   getHubDirectoryVersions,
   getHubDirectoryVersionsByPath,
+  getHubConfig,
   starHubDirectory,
   unstarHubDirectory,
   type HubDirectoryDetail,
@@ -499,6 +500,8 @@ const versionList = ref<HubDirectoryVersionItem[]>([])
 const selectedVersion = ref<string>('') // 空表示当前查看的是「最新版本」
 const starLoading = ref(false)
 const localHasStarred = ref(false) // 本地加星状态（刷新后不持久，仅当次会话）
+// 主站前端地址（从 Hub 配置接口获取，用于「试用」跳转：主站前端 + /workspace + 目录路径；不是主站后端）
+const mainSiteUrl = ref('')
 
 // 详情对话框相关
 const detailDialogVisible = ref(false)
@@ -807,25 +810,23 @@ const DirectoryNodeWrapper = defineComponent({
   }
 })
 
-// 获取 OS 的 base URL（用于跳转到 OS 的工作空间）
+// 获取主站前端 base URL（试用跳转 = 主站前端 + /workspace + 目录路径；不是主站后端）
 function getOSBaseURL(): string {
-  // 从环境变量获取配置
+  // 优先使用 Hub 配置接口返回的主站前端地址
+  if (mainSiteUrl.value) {
+    return mainSiteUrl.value
+  }
+  // 其次环境变量
   const osBaseURL = import.meta.env.VITE_OS_BASE_URL
-  
   if (osBaseURL) {
     return osBaseURL
   }
-  
-  // 如果没有配置，从当前域名推断（Hub 和 OS 通常在同一域名下）
+  // 从当前域名推断
   const currentHost = window.location.host
   const currentProtocol = window.location.protocol
-  
-  // 如果是开发环境，默认使用 localhost:5173
   if (import.meta.env.DEV) {
     return `${currentProtocol}//${currentHost.replace(/:\d+$/, ':5173')}`
   }
-  
-  // 生产环境，使用当前域名
   return `${currentProtocol}//${currentHost}`
 }
 
@@ -1022,6 +1023,10 @@ const handleFileClick = (file: any) => {
 
 onMounted(() => {
   loadDirectoryDetail()
+  // 拉取 Hub 配置（主站前端地址），用于「试用」跳转
+  getHubConfig()
+    .then((r) => { mainSiteUrl.value = (r.main_site_url || '').replace(/\/+$/, '') })
+    .catch(() => {})
 })
 </script>
 

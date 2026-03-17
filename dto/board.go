@@ -2,14 +2,14 @@ package dto
 
 // CreateBoardReq 创建版块（board）节点请求
 type CreateBoardReq struct {
-	User        string `json:"user" binding:"required" example:"beiluo"`
-	App         string `json:"app" binding:"required" example:"myapp"`
-	Name        string `json:"name" binding:"required" example:"讨论区"`
-	Code        string `json:"code" binding:"required" example:"board1"`
-	ParentID    int64  `json:"parent_id" example:"0"`
-	Description string `json:"description"`
-	Tags        string `json:"tags"`
-	Admins      string `json:"admins"`
+	User               string `json:"user" binding:"required" example:"beiluo"`
+	App                string `json:"app" binding:"required" example:"myapp"`
+	Name               string `json:"name" binding:"required" example:"讨论区"`
+	Code               string `json:"code" binding:"required" example:"board1"`
+	ParentFullCodePath string `json:"parent_full_code_path" example:"/beiluo/myapp"` // 父目录完整路径
+	Description        string `json:"description"`
+	Tags               string `json:"tags"`
+	Admins             string `json:"admins"`
 }
 
 // CreateBoardResp 创建版块响应
@@ -17,12 +17,11 @@ type CreateBoardResp struct {
 	ID           int64  `json:"id"`
 	Name         string `json:"name"`
 	Code         string `json:"code"`
-	ParentID     int64  `json:"parent_id"`
-	Type         string `json:"type"` // "board"
+	Type         string `json:"type"`          // "board"
 	Description  string `json:"description"`
 	Tags         string `json:"tags"`
 	AppID        int64  `json:"app_id"`
-	FullCodePath string `json:"full_code_path"`
+	FullCodePath string `json:"full_code_path"` // 完整代码路径（父路径可由此推导）
 	Admins       string `json:"admins"`
 }
 

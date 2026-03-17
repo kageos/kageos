@@ -39,5 +39,7 @@ cp config/hub.yaml.example config/hub.yaml
 - `slow_threshold`: 慢查询阈值（毫秒）
 
 ### os
-- `base_url`: OS 平台基础 URL
+- `base_url`: **主站前端地址**（用户打开工作空间的页面地址），用于 Hub「试用」按钮跳转（跳转 = base_url + /workspace + 目录 full_code_path）。注意是前端地址，不是主站后端/API 地址。
+  - 开发环境示例：`http://localhost:5173`
+  - 线上环境示例：`http://125.122.96.207:8999`
 

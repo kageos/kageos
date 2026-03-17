@@ -7,6 +7,20 @@
 import { getHubBaseURL } from '@/config/hub'
 import { get, post, del } from '@/utils/request'
 
+/** Hub 前端配置（主站前端地址，用于「试用」跳转） */
+export interface HubConfigResp {
+  main_site_url: string  // 主站前端地址（如 http://localhost:5173 或 http://125.122.96.207:8999），不是后端 API
+}
+
+/**
+ * 获取 Hub 配置（主站前端地址）
+ * 用于点击「试用」时跳转：主站前端 + /workspace + 目录 full_code_path
+ */
+export function getHubConfig(): Promise<HubConfigResp> {
+  const baseURL = getHubBaseURL()
+  return get<HubConfigResp>(`${baseURL}/config`)
+}
+
 /**
  * Hub 目录信息
  */

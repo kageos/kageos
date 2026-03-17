@@ -185,11 +185,10 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 
 	var parentTree *model.ServiceTree
 
-	if req.ParentID != 0 {
-		// 检查名称是否已存在
-		parentTree, err = s.serviceTreeRepo.GetByID(req.ParentID)
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("failed to check name exists: %s", err)
+	if req.ParentFullCodePath != "" {
+		parentTree, err = s.serviceTreeRepo.GetServiceTreeByFullPath(req.ParentFullCodePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get parent node: %w", err)
 		}
 	}
 
@@ -288,11 +287,6 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 		VersionNum:   serviceTree.VersionNum,
 		Status:       "created",
 	}
-	if pp := serviceTree.GetParentFullPath(); pp != "" {
-		if parentNode, err := s.serviceTreeRepo.GetServiceTreeByFullPath(pp); err == nil {
-			resp.ParentID = parentNode.ID
-		}
-	}
 
 	return resp, nil
 }
@@ -301,15 +295,15 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 func (s *ServiceTreeService) CreatePackage(ctx context.Context, req *dto.CreatePackageReq) (*dto.CreatePackageResp, error) {
 	// 转换为通用请求格式
 	createReq := &dto.CreateServiceTreeReq{
-		User:        req.User,
-		App:         req.App,
-		Name:        req.Name,
-		Code:        req.Code,
-		ParentID:    req.ParentID,
-		Type:        model.ServiceTreeTypePackage,
-		Description: req.Description,
-		Tags:        req.Tags,
-		Admins:      req.Admins,
+		User:               req.User,
+		App:                req.App,
+		Name:               req.Name,
+		Code:               req.Code,
+		ParentFullCodePath: req.ParentFullCodePath,
+		Type:               model.ServiceTreeTypePackage,
+		Description:        req.Description,
+		Tags:               req.Tags,
+		Admins:             req.Admins,
 	}
 
 	// 调用通用创建方法
@@ -320,18 +314,17 @@ func (s *ServiceTreeService) CreatePackage(ctx context.Context, req *dto.CreateP
 
 	// 转换为专门的响应格式
 	return &dto.CreatePackageResp{
-		ID:           resp.ID,
-		Name:         resp.Name,
-		Code:         resp.Code,
-		ParentID:     resp.ParentID,
-		Type:         resp.Type,
-		Description:  resp.Description,
-		Tags:         resp.Tags,
-		AppID:        resp.AppID,
-		FullCodePath: resp.FullCodePath,
-		Version:      resp.Version,
-		VersionNum:   resp.VersionNum,
-		Admins:       resp.Admins,
+		ID:          resp.ID,
+		Name:        resp.Name,
+		Code:        resp.Code,
+		Type:        resp.Type,
+		Description: resp.Description,
+		Tags:        resp.Tags,
+		AppID:              resp.AppID,
+		FullCodePath:       resp.FullCodePath,
+		Version:            resp.Version,
+		VersionNum:         resp.VersionNum,
+		Admins:             resp.Admins,
 	}, nil
 }
 
@@ -380,15 +373,14 @@ func (s *ServiceTreeService) CreateFunction(ctx context.Context, req *dto.Create
 			ID:           0,
 			Name:         req.Name,
 			Code:         req.Code,
-			ParentID:     parentTree.ID,
 			Type:         model.ServiceTreeTypeFunction,
 			TemplateType: req.TemplateType,
 			Description:  req.Description,
 			Tags:         req.Tags,
 			AppID:        parentTree.AppID,
 			FullCodePath: expectedPath,
-			Version:      "v1",
-			VersionNum:   1,
+			Version:            "v1",
+			VersionNum:         1,
 		}, nil
 	}
 
@@ -404,13 +396,8 @@ func (s *ServiceTreeService) CreateFunction(ctx context.Context, req *dto.Create
 		AppID:        functionTree.AppID,
 		RefID:        functionTree.RefID,
 		FullCodePath: functionTree.FullCodePath,
-		Version:      functionTree.Version,
-		VersionNum:   functionTree.VersionNum,
-	}
-	if pp := functionTree.GetParentFullPath(); pp != "" {
-		if parentNode, err := s.serviceTreeRepo.GetServiceTreeByFullPath(pp); err == nil {
-			fnResp.ParentID = parentNode.ID
-		}
+		Version:            functionTree.Version,
+		VersionNum:         functionTree.VersionNum,
 	}
 	return fnResp, nil
 }
@@ -419,18 +406,18 @@ func (s *ServiceTreeService) CreateFunction(ctx context.Context, req *dto.Create
 func (s *ServiceTreeService) CreateDocs(ctx context.Context, req *dto.CreateDocsReq) (*dto.CreateDocsResp, error) {
 	// 转换为通用请求格式
 	createReq := &dto.CreateServiceTreeReq{
-		User:        req.User,
-		App:         req.App,
-		Name:        req.Name,
-		Code:        req.Code,
-		ParentID:    req.ParentID,
-		Type:        model.ServiceTreeTypeDocs,
-		Description: req.Description,
-		Tags:        req.Tags,
-		Admins:      req.Admins,
-		DocContent:  req.Content,
-		DocFormat:   req.Format,
-		DocSummary:  req.Summary,
+		User:               req.User,
+		App:                req.App,
+		Name:               req.Name,
+		Code:               req.Code,
+		ParentFullCodePath: req.ParentFullCodePath,
+		Type:               model.ServiceTreeTypeDocs,
+		Description:        req.Description,
+		Tags:               req.Tags,
+		Admins:             req.Admins,
+		DocContent:         req.Content,
+		DocFormat:          req.Format,
+		DocSummary:         req.Summary,
 	}
 
 	// 调用通用创建方法
@@ -447,7 +434,6 @@ func (s *ServiceTreeService) CreateDocs(ctx context.Context, req *dto.CreateDocs
 		ID:           resp.ID,
 		Name:         resp.Name,
 		Code:         resp.Code,
-		ParentID:     resp.ParentID,
 		Type:         resp.Type,
 		Description:  resp.Description,
 		Tags:         resp.Tags,
@@ -476,14 +462,10 @@ func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.Create
 
 	var parentTree *model.ServiceTree
 
-	if req.ParentID != 0 {
-		// 检查父节点是否存在
-		parentTree, err = s.serviceTreeRepo.GetByID(req.ParentID)
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	if req.ParentFullCodePath != "" {
+		parentTree, err = s.serviceTreeRepo.GetServiceTreeByFullPath(req.ParentFullCodePath)
+		if err != nil {
 			return nil, fmt.Errorf("failed to get parent node: %w", err)
-		}
-		if parentTree == nil {
-			return nil, fmt.Errorf("parent node not found: parent_id=%d", req.ParentID)
 		}
 	}
 
@@ -607,11 +589,6 @@ func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.Create
 		VersionNum:   serviceTree.VersionNum,
 		Status:       "created",
 	}
-	if pp := serviceTree.GetParentFullPath(); pp != "" {
-		if parentNode, err := s.serviceTreeRepo.GetServiceTreeByFullPath(pp); err == nil {
-			resp.ParentID = parentNode.ID
-		}
-	}
 
 	return resp, nil
 }
@@ -619,15 +596,15 @@ func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.Create
 // CreateBoard 创建版块（board）类型节点（专门接口）
 func (s *ServiceTreeService) CreateBoard(ctx context.Context, req *dto.CreateBoardReq) (*dto.CreateBoardResp, error) {
 	createReq := &dto.CreateServiceTreeReq{
-		User:        req.User,
-		App:         req.App,
-		Name:        req.Name,
-		Code:        req.Code,
-		ParentID:    req.ParentID,
-		Type:        model.ServiceTreeTypeBoard,
-		Description: req.Description,
-		Tags:        req.Tags,
-		Admins:      req.Admins,
+		User:               req.User,
+		App:                req.App,
+		Name:               req.Name,
+		Code:               req.Code,
+		ParentFullCodePath: req.ParentFullCodePath,
+		Type:               model.ServiceTreeTypeBoard,
+		Description:        req.Description,
+		Tags:               req.Tags,
+		Admins:             req.Admins,
 	}
 	resp, err := s.CreateBoardNode(ctx, createReq)
 	if err != nil {
@@ -637,7 +614,6 @@ func (s *ServiceTreeService) CreateBoard(ctx context.Context, req *dto.CreateBoa
 		ID:           resp.ID,
 		Name:         resp.Name,
 		Code:         resp.Code,
-		ParentID:     resp.ParentID,
 		Type:         resp.Type,
 		Description:  resp.Description,
 		Tags:         resp.Tags,
@@ -661,13 +637,10 @@ func (s *ServiceTreeService) CreateBoardNode(ctx context.Context, req *dto.Creat
 		return nil, fmt.Errorf("failed to get app: %w", err)
 	}
 	var parentTree *model.ServiceTree
-	if req.ParentID != 0 {
-		parentTree, err = s.serviceTreeRepo.GetByID(req.ParentID)
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	if req.ParentFullCodePath != "" {
+		parentTree, err = s.serviceTreeRepo.GetServiceTreeByFullPath(req.ParentFullCodePath)
+		if err != nil {
 			return nil, fmt.Errorf("failed to get parent node: %w", err)
-		}
-		if parentTree == nil {
-			return nil, fmt.Errorf("parent node not found: parent_id=%d", req.ParentID)
 		}
 	}
 	fullCodePath := fmt.Sprintf("/%s/%s/%s", app.User, app.Code, req.Code)
@@ -737,11 +710,6 @@ func (s *ServiceTreeService) CreateBoardNode(ctx context.Context, req *dto.Creat
 		VersionNum:   serviceTree.VersionNum,
 		Status:       "created",
 	}
-	if pp := serviceTree.GetParentFullPath(); pp != "" {
-		if parentNode, err := s.serviceTreeRepo.GetServiceTreeByFullPath(pp); err == nil {
-			boardResp.ParentID = parentNode.ID
-		}
-	}
 	return boardResp, nil
 }
 
@@ -749,7 +717,7 @@ func (s *ServiceTreeService) CreateBoardNode(ctx context.Context, req *dto.Creat
 // ⭐ 新架构：工作空间根节点也在 service_tree 表中，统一查询和权限处理
 func (s *ServiceTreeService) getServiceTreeByAppModel(ctx context.Context, appModel *model.App, nodeType string) ([]*dto.GetServiceTreeResp, error) {
 	// ⭐ Step 1: 构建树形结构（包含根节点和所有子节点）
-	// BuildServiceTree 会返回 parent_id=0 的节点（即根节点）及其所有子节点
+	// BuildServiceTree 基于 FullCodePath 构建树，返回根节点及其所有子节点
 	var trees []*model.ServiceTree
 	var err error
 	if nodeType != "" {
@@ -956,26 +924,21 @@ func (s *ServiceTreeService) GetServiceTreeDetail(ctx context.Context, req *dto.
 
 	// 转换为响应格式
 	resp := &dto.GetServiceTreeDetailResp{
-		ID:              tree.ID,
-		Name:            tree.Name,
-		Code:            tree.Code,
-		Type:            tree.Type,
-		Description:     tree.Description,
-		Tags:            tree.Tags,
-		AppID:           tree.AppID,
-		RefID:           tree.RefID,
-		FullCodePath:    tree.FullCodePath,
-		TemplateType:    tree.TemplateType,
-		Version:         tree.Version,
-		VersionNum:      tree.VersionNum,
-		HubFullCodePath: tree.HubFullCodePath,
-		HubVersionNum:   tree.HubVersionNum,
-		RunCount:        tree.RunCount,
-	}
-	if pp := tree.GetParentFullPath(); pp != "" {
-		if parentNode, err := s.serviceTreeRepo.GetServiceTreeByFullPath(pp); err == nil {
-			resp.ParentID = parentNode.ID
-		}
+		ID:          tree.ID,
+		Name:        tree.Name,
+		Code:        tree.Code,
+		Type:        tree.Type,
+		Description:        tree.Description,
+		Tags:               tree.Tags,
+		AppID:              tree.AppID,
+		RefID:              tree.RefID,
+		FullCodePath:       tree.FullCodePath,
+		TemplateType:       tree.TemplateType,
+		Version:            tree.Version,
+		VersionNum:         tree.VersionNum,
+		HubFullCodePath:    tree.HubFullCodePath,
+		HubVersionNum:      tree.HubVersionNum,
+		RunCount:           tree.RunCount,
 	}
 
 	// ⭐ 查询权限信息（企业版功能）
@@ -1641,19 +1604,13 @@ func (s *ServiceTreeService) DeleteServiceTree(ctx context.Context, id int64) er
 
 // convertToGetServiceTreeResp 转换为响应格式（包含权限信息）
 // ⭐ 优化：在服务树中直接返回权限信息，一次性获取所有权限（只需要8ms）
+// ⭐ 父子关系由 FullCodePath 推导，无需 ParentID
 func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tree *model.ServiceTree, permissionsMap map[string]map[string]bool, isAdmin bool) *dto.GetServiceTreeResp {
-	var parentID int64
-	if pp := tree.GetParentFullPath(); pp != "" {
-		if parentNode, err := s.serviceTreeRepo.GetServiceTreeByFullPath(pp); err == nil {
-			parentID = parentNode.ID
-		}
-	}
 	resp := &dto.GetServiceTreeResp{
-		ID:              tree.ID,
-		Name:            tree.Name,
-		Code:            tree.Code,
-		ParentID:        parentID,
-		RefID:           tree.RefID,
+		ID:    tree.ID,
+		Name:  tree.Name,
+		Code:  tree.Code,
+		RefID: tree.RefID,
 		Type:            tree.Type,
 		Description:     tree.Description,
 		Tags:            tree.Tags,
@@ -2072,12 +2029,6 @@ func (s *ServiceTreeService) sendCreateServiceTreeMessage(ctx context.Context, u
 	}
 
 	// 构建消息
-	var runtimeParentID int64
-	if pp := serviceTree.GetParentFullPath(); pp != "" {
-		if parentNode, err := s.serviceTreeRepo.GetServiceTreeByFullPath(pp); err == nil {
-			runtimeParentID = parentNode.ID
-		}
-	}
 	req := dto.CreateServiceTreeRuntimeReq{
 		User: user,
 		App:  app,
@@ -2085,7 +2036,6 @@ func (s *ServiceTreeService) sendCreateServiceTreeMessage(ctx context.Context, u
 			ID:           serviceTree.ID,
 			Name:         serviceTree.Name,
 			Code:         serviceTree.Code,
-			ParentID:     runtimeParentID,
 			Type:         serviceTree.Type,
 			Description:  serviceTree.Description,
 			Tags:         serviceTree.Tags,

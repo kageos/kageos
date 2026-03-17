@@ -78,7 +78,6 @@ export interface ServiceTree {
   id: number
   name: string
   code: string
-  parent_id: number
   type: 'package' | 'function' | 'docs' | 'board'
   description: string
   tags: string
@@ -107,7 +106,7 @@ export interface CreateServiceTreeRequest {
   app: string
   name: string
   code: string
-  parent_id?: number
+  parent_full_code_path?: string
   type?: string  // 节点类型: 'package' | 'docs' | 'function' | 'board'
   description?: string
   tags?: string

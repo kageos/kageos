@@ -5,6 +5,23 @@
 
 import type { ServiceTree } from '@/types'
 
+/**
+ * 判断是否为根节点：full_code_path 只有 2 段（/user/app）
+ */
+export function isRootNode(node: ServiceTree): boolean {
+  const parts = (node.full_code_path || '').split('/').filter(Boolean)
+  return parts.length <= 2
+}
+
+/**
+ * 从 full_code_path 获取父路径：截掉最后一段
+ */
+export function getParentPath(fullCodePath: string): string {
+  const parts = fullCodePath.split('/').filter(Boolean)
+  if (parts.length <= 2) return ''
+  return '/' + parts.slice(0, -1).join('/')
+}
+
 // 扩展 ServiceTree 类型，支持虚拟节点
 export interface ExtendedServiceTree extends ServiceTree {
   isGroup?: boolean
@@ -44,7 +61,6 @@ export function createGroupNode(
     id: groupId,
     name: groupName,
     code: `__group__${groupCode}`,
-    parent_id: parentNode.id,
     type: 'package',
     description: '',
     tags: '',

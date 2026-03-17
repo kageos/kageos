@@ -34,9 +34,9 @@
             :draggable="data.type === 'function' || data.type === 'package'"
             @dragstart="onTreeNodeDragStart($event, data)"
           >
-            <!-- 根节点：使用工作空间图标（package 类型且 parent_id=0） -->
+            <!-- 根节点：使用工作空间图标（package 类型且为根节点） -->
             <img 
-              v-if="data.type === 'package' && data.parent_id === 0" 
+              v-if="data.type === 'package' && isRootNode(data)" 
               src="/service-tree/custom-folder.svg" 
               alt="工作空间" 
               class="node-icon app-icon-img"
@@ -170,7 +170,7 @@
                   
                   <!-- 删除目录选项（仅对非根 package 类型，需要 directory:delete 权限） -->
                   <el-dropdown-item 
-                    v-if="data.type === 'package' && data.parent_id !== 0 && hasPermission(data, DirectoryPermissions.delete)" 
+                    v-if="data.type === 'package' && !isRootNode(data) && hasPermission(data, DirectoryPermissions.delete)" 
                     command="delete-directory"
                   >
                     <el-icon><Delete /></el-icon>
@@ -284,6 +284,7 @@ import TableIcon from './icons/TableIcon.vue'
 import FormIcon from './icons/FormIcon.vue'
 import { ElTag, ElLink, ElMessageBox, ElMessage, ElNotification } from 'element-plus'
 import type { ServiceTree } from '@/types'
+import { isRootNode } from '@/utils/tree-utils'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { copyDirectory, updatePackage, updateServiceTreeFunction, updateDocs } from '@/api/service-tree'
 import {

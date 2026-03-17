@@ -208,7 +208,7 @@ func (s *DocService) GetDocsByFullCodePath(ctx context.Context, fullCodePath str
 	}
 
 	// 2. 获取该节点及其所有子节点中的 docs 类型节点
-	docsNodes, err := s.serviceTreeRepo.GetDocsNodesByParentID(tree.ID)
+	docsNodes, err := s.serviceTreeRepo.GetDocsNodesByPathPrefix(tree.AppID, tree.FullCodePath)
 	if err != nil {
 		return nil, fmt.Errorf("获取 docs 节点失败: %w", err)
 	}

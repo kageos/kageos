@@ -84,13 +84,13 @@ func RunWriteDocTool(ctx context.Context, args map[string]interface{}, defaultFu
 	}
 
 	req := &dto.CreateDocsReq{
-		User:     user,
-		App:      app,
-		Name:     nodeName,
-		Code:     segmentCode,
-		ParentID: parent.ID,
-		Content:  docContent,
-		Format:   format,
+		User:               user,
+		App:                app,
+		Name:               nodeName,
+		Code:               segmentCode,
+		ParentFullCodePath: pathForAPI,
+		Content:            docContent,
+		Format:             format,
 	}
 	resp, err := apicall.CreateDocs(ctx, req)
 	if err != nil {
@@ -158,14 +158,14 @@ func RunCreateDirectoryTool(ctx context.Context, args map[string]interface{}, de
 	user, app := pathParts[0], pathParts[1]
 
 	req := &dto.CreatePackageReq{
-		User:        user,
-		App:         app,
-		Name:        name,
-		Code:        code,
-		ParentID:    parent.ID,
-		Description: description,
-		Tags:        tags,
-		Admins:      admins,
+		User:               user,
+		App:                app,
+		Name:               name,
+		Code:               code,
+		ParentFullCodePath: pathForAPI,
+		Description:        description,
+		Tags:               tags,
+		Admins:             admins,
 	}
 	resp, err := apicall.CreatePackage(ctx, req)
 	if err != nil {

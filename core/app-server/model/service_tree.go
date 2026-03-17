@@ -18,10 +18,9 @@ const (
 // 例如我有个tools的app，然后，我有个excel的package（目录对应go的package），然后下面有多个function（go文件）
 type ServiceTree struct {
 	models.Base
-	Name         string `json:"name"`
-	Code         string `json:"code"`
-	ParentID     int64  `json:"parent_id" gorm:"-"` // 已废弃：层级由 FullCodePath 推导，观察期保留字段定义但不读写 DB
-	Type         string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), docs(文档), api(API接口), service(服务), module(模块)
+	Name string `json:"name"`
+	Code string `json:"code"`
+	Type string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), docs(文档), api(API接口), service(服务), module(模块)
 	Description  string `json:"description,omitempty"`
 	Tags         string `json:"tags"`
 	Admins       string `json:"admins" gorm:"type:varchar(150);comment:节点管理员列表，逗号分隔的用户名（如 user1,user2,user3）"` // 节点管理员列表
