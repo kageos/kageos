@@ -682,6 +682,8 @@
       v-model="pullFromHubDialogVisible"
       :current-app="currentApp || undefined"
       :initial-hub-link="pastedHubLink"
+      :initial-target-path="pullFromHubTargetPath"
+      :initial-target-name="pullFromHubTargetName"
       @success="handlePullSuccess"
     />
 
@@ -2018,9 +2020,13 @@ const handlePushToHub = (node: ServiceTreeType) => {
   pushToHubDialogVisible.value = true
 }
 
-// 处理从应用中心拉取
-const handlePullFromHub = () => {
-  pastedHubLink.value = ''  // 清空之前的链接（手动打开对话框时）
+// 从应用中心安装：预填链接与目标目录（目标目录默认当前选中目录，显示用 name）
+const pullFromHubTargetPath = ref('')
+const pullFromHubTargetName = ref('')
+const handlePullFromHub = (initialLink?: string, targetFullCodePath?: string, targetName?: string) => {
+  pastedHubLink.value = initialLink ?? ''
+  pullFromHubTargetPath.value = targetFullCodePath ?? ''
+  pullFromHubTargetName.value = targetName ?? ''
   pullFromHubDialogVisible.value = true
 }
 
@@ -2216,8 +2222,9 @@ const handlePushSuccess = async () => {
 
 // 拉取成功后的回调
 const handlePullSuccess = async () => {
-  // 清空粘贴的链接
   pastedHubLink.value = ''
+  pullFromHubTargetPath.value = ''
+  pullFromHubTargetName.value = ''
   // 刷新服务目录树
   if (currentApp.value) {
     const app: App = {

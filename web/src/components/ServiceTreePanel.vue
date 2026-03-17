@@ -328,7 +328,7 @@ interface Emits {
   (e: 'import-go-files', node: ServiceTree): void  // 导入 Go 文件到目录
   (e: 'publish-to-hub', node: ServiceTree): void  // 发布到 Hub
   (e: 'push-to-hub', node: ServiceTree): void  // 推送到 Hub
-  (e: 'pull-from-hub'): void  // 从 Hub 拉取
+  (e: 'pull-from-hub', initialLink?: string, targetFullCodePath?: string, targetName?: string): void  // 从 Hub 拉取，可选预填链接与目标目录（路径+名称）
 }
 
 const props = defineProps<Props>()
@@ -514,15 +514,31 @@ const handleCopy = (node: ServiceTree) => {
       hubLinkToPaste = copiedHubLink.value
     }
     
-    // 如果有 Hub 链接，使用 Hub 链接粘贴
-    if (hubLinkToPaste) {
-      await handlePasteHubLink(hubLinkToPaste, targetNode)
-      return
-    }
-    
-    // 无法读取剪贴板时，不误用本地已复制的目录（用户可能刚复制了 Hub 链接）
-    if (clipboardReadFailed) {
-      ElMessage.warning('无法读取剪贴板。若要粘贴 Hub 链接，请使用 Ctrl+V 或点击「从应用中心安装」在输入框中粘贴。')
+    // 统一走弹窗：有 Hub 链接则预填，没有则打开空框让用户在输入框里 Ctrl+V 粘贴；目标目录用当前选中目录
+    if (hubLinkToPaste || clipboardReadFailed) {
+      let targetForHub = targetNode
+      if (!targetForHub && props.currentFunction && props.currentFunction.type === 'package') {
+        targetForHub = props.currentFunction
+      }
+      if (!targetForHub && props.currentNodeId) {
+        const findNodeById = (nodes: ServiceTree[], id: number | string): ServiceTree | null => {
+          for (const node of nodes) {
+            if (Number(node.id) === Number(id)) return node
+            if (node.children?.length) {
+              const found = findNodeById(node.children, id)
+              if (found) return found
+            }
+          }
+          return null
+        }
+        targetForHub = findNodeById(groupedTreeData.value, props.currentNodeId)
+      }
+      const targetPath = (targetForHub?.type === 'package' ? targetForHub.full_code_path : undefined) || undefined
+      const targetName = (targetForHub?.type === 'package' ? targetForHub.name : undefined) || undefined
+      emit('pull-from-hub', hubLinkToPaste || undefined, targetPath, targetName)
+      if (!hubLinkToPaste) {
+        ElMessage.info('请在输入框中按 Ctrl+V 粘贴 Hub 链接')
+      }
       return
     }
     

@@ -29,13 +29,18 @@
       </el-form-item>
 
       <el-form-item label="目标目录" prop="target_directory_path">
-        <el-input
-          v-model="form.target_directory_path"
-          placeholder="留空则安装到应用根目录"
-        />
-        <el-text type="info" size="small" style="display: block; margin-top: 5px">
-          指定目标目录路径，留空则安装到应用根目录
-        </el-text>
+        <template v-if="initialTargetName">
+          <span class="target-directory-name">{{ initialTargetName }}</span>
+        </template>
+        <template v-else>
+          <el-input
+            v-model="form.target_directory_path"
+            placeholder="留空则安装到应用根目录"
+          />
+          <el-text type="info" size="small" style="display: block; margin-top: 5px">
+            指定目标目录路径，留空则安装到应用根目录
+          </el-text>
+        </template>
       </el-form-item>
 
       <el-form-item label="提示">
@@ -56,7 +61,7 @@
 
     <template #footer>
       <el-button @click="handleClose">取消</el-button>
-      <el-button type="primary" @click="handleSubmit" :loading="submitting">
+      <el-button type="primary" @click="handleSubmit">
         安装
       </el-button>
     </template>
@@ -65,7 +70,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElNotification } from 'element-plus'
 import { Link } from '@element-plus/icons-vue'
 import { pullDirectoryFromHub, type PullDirectoryFromHubReq } from '@/api/hub'
 import type { App } from '@/types'
@@ -74,6 +79,8 @@ interface Props {
   modelValue: boolean
   currentApp?: App | null  // 当前应用
   initialHubLink?: string  // 初始 Hub 链接（用于外部传入）
+  initialTargetPath?: string  // 初始目标目录路径（提交用）
+  initialTargetName?: string  // 初始目标目录名称（展示用，如「长宁」）
 }
 
 interface Emits {
@@ -91,7 +98,6 @@ const dialogVisible = computed({
 
 const formRef = ref()
 const loading = ref(false)
-const submitting = ref(false)
 
 // 表单数据
 const form = ref<Partial<PullDirectoryFromHubReq>>({
@@ -122,9 +128,11 @@ const rules = {
 watch(dialogVisible, (visible) => {
   if (visible) {
     initForm()
-    // 如果有初始链接，填充到表单
     if (props.initialHubLink) {
       form.value.hub_link = props.initialHubLink
+    }
+    if (props.initialTargetPath) {
+      form.value.target_directory_path = props.initialTargetPath
     }
   }
 })
@@ -136,6 +144,13 @@ watch(() => props.initialHubLink, (newLink) => {
   }
 })
 
+// 监听 initialTargetPath / initialTargetName 变化（目标目录默认当前选中目录）
+watch(() => props.initialTargetPath, (newPath) => {
+  if (newPath && dialogVisible.value) {
+    form.value.target_directory_path = newPath
+  }
+})
+
 // 初始化表单
 const initForm = () => {
   if (!props.currentApp) {
@@ -144,8 +159,8 @@ const initForm = () => {
   }
 
   form.value = {
-    hub_link: '',
-    target_directory_path: '',
+    hub_link: props.initialHubLink ?? '',
+    target_directory_path: props.initialTargetPath ?? '',
   }
 }
 
@@ -157,7 +172,7 @@ const handlePaste = (event: ClipboardEvent) => {
   }
 }
 
-// 提交表单
+// 提交表单：后台安装，弹窗立即关闭，右上角通知进度，成功自动消失
 const handleSubmit = async () => {
   if (!formRef.value) return
 
@@ -169,28 +184,47 @@ const handleSubmit = async () => {
       return
     }
 
-    submitting.value = true
-    try {
-      const requestData: PullDirectoryFromHubReq = {
-        hub_link: form.value.hub_link!,
-        target_user: props.currentApp.user,
-        target_app: props.currentApp.code,
-        ...(form.value.target_directory_path ? { target_directory_path: form.value.target_directory_path } : {})
-      }
-
-      // 调用拉取接口
-      const response = await pullDirectoryFromHub(requestData)
-
-      ElMessage.success(response.message || '安装成功！')
-
-      emit('success')
-      handleClose()
-    } catch (error: any) {
-      ElMessage.error(`安装失败: ${error.message || '未知错误'}`)
-      console.error('安装失败:', error)
-    } finally {
-      submitting.value = false
+    const requestData: PullDirectoryFromHubReq = {
+      hub_link: form.value.hub_link!,
+      target_user: props.currentApp.user,
+      target_app: props.currentApp.code,
+      ...(form.value.target_directory_path ? { target_directory_path: form.value.target_directory_path } : {})
     }
+
+    // 先关弹窗，不阻塞用户
+    handleClose()
+
+    // 右上角常驻「安装中」通知
+    const loadingNotify = ElNotification({
+      title: '安装中',
+      message: '正在从应用中心安装目录，请稍候…',
+      type: 'info',
+      position: 'top-right',
+      duration: 0
+    })
+
+    pullDirectoryFromHub(requestData)
+      .then((response) => {
+        loadingNotify.close()
+        ElNotification.success({
+          title: '安装成功',
+          message: response.message || '目录已安装',
+          position: 'top-right',
+          duration: 3000
+        })
+        emit('success')
+      })
+      .catch((error: any) => {
+        loadingNotify.close()
+        const msg = error?.response?.data?.msg || error?.message || '未知错误'
+        ElNotification.error({
+          title: '安装失败',
+          message: msg,
+          position: 'top-right',
+          duration: 5000
+        })
+        console.error('安装失败:', error)
+      })
   })
 }
 
@@ -208,6 +242,11 @@ const handleClose = () => {
 <style scoped>
 :deep(.el-form-item__label) {
   font-weight: 500;
+}
+.target-directory-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
 }
 </style>
 
