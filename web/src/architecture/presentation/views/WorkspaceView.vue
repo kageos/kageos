@@ -334,6 +334,14 @@
             </div>
           </div>
 
+          <el-input
+            v-model="rightSessionSearchKeyword"
+            class="right-session-search"
+            placeholder="搜索会话…"
+            clearable
+            :prefix-icon="Search"
+          />
+
           <div class="right-session-list" v-loading="rightSidebarSessionsLoading">
             <div
               v-for="s in filteredRightSessions"
@@ -359,7 +367,7 @@
               </div>
             </div>
             <div v-if="filteredRightSessions.length === 0 && !rightSidebarSessionsLoading" class="right-session-empty">
-              <el-empty :description="rightTab === 'running' ? '暂无执行中的会话' : rightTab === 'finished' ? '暂无已结束的会话' : '暂无会话记录'" :image-size="48" />
+              <el-empty :description="rightSessionSearchKeyword ? '无匹配会话' : (rightTab === 'running' ? '暂无执行中的会话' : rightTab === 'finished' ? '暂无已结束的会话' : '暂无会话记录')" :image-size="48" />
             </div>
           </div>
 
@@ -790,7 +798,7 @@
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElSwitch, ElSkeleton } from 'element-plus'
-import { InfoFilled, ArrowLeft, ArrowRight, Fold, Expand, Close, ChatDotRound, Minus, Loading, FolderOpened } from '@element-plus/icons-vue'
+import { InfoFilled, ArrowLeft, ArrowRight, Fold, Expand, Close, ChatDotRound, Minus, Loading, FolderOpened, Search } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
@@ -1131,13 +1139,20 @@ function formatRelativeTime(timeStr: string): string {
 
 // ─── 右侧面板 tab（仅筛选当前节点会话） ───
 const rightTab = ref<'all' | 'running' | 'finished'>('all')
+const rightSessionSearchKeyword = ref('')
 const cancellingTaskId = ref<string | null>(null)
 
 const filteredRightSessions = computed(() => {
-  const list = rightSidebarSessions.value
-  if (rightTab.value === 'running') return list.filter((s: WorkspaceSessionItem) => s.status === 'generating')
-  if (rightTab.value === 'finished') return list.filter((s: WorkspaceSessionItem) => s.status === 'done' || s.status === 'cancelled')
-  return list
+  let list = rightSidebarSessions.value
+  if (rightTab.value === 'running') list = list.filter((s: WorkspaceSessionItem) => s.status === 'generating')
+  else if (rightTab.value === 'finished') list = list.filter((s: WorkspaceSessionItem) => s.status === 'done' || s.status === 'cancelled')
+  const k = rightSessionSearchKeyword.value.trim().toLowerCase()
+  if (!k) return list
+  return list.filter((s: WorkspaceSessionItem) => {
+    const title = (s.title || '').toLowerCase()
+    const user = (s.user || '').toLowerCase()
+    return title.includes(k) || user.includes(k)
+  })
 })
 
 async function handleCancelTask(task: WorkspaceSessionItem) {
@@ -2852,6 +2867,13 @@ onUnmounted(() => {
   color: #fff;
   background: var(--el-color-danger);
   border-radius: 8px;
+}
+.right-session-search {
+  flex-shrink: 0;
+  padding: 6px 8px 4px;
+}
+.right-session-search :deep(.el-input__wrapper) {
+  border-radius: 6px;
 }
 .right-session-card-actions {
   display: flex;

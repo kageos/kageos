@@ -37,12 +37,23 @@ type ContainerOperator interface {
 	CopyToContainer(ctx context.Context, containerName, srcPath, destPath string) error
 }
 
+// LSM 类型常量：与宿主机内核安全模块对应，供后续安全策略（如防删 code/workplace）选用其一。
+const (
+	LSMNone     = "none"
+	LSMAppArmor = "apparmor"
+	LSMSELinux  = "selinux"
+)
+
 // PodmanService Podman 容器服务实现
 type PodmanService struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	config *appconfig.ContainerServiceConfig
 	conn   context.Context // Podman bindings 的连接 context
+
+	// detectedLSM：启动时检测到的宿主机 LSM，仅设置一次，后续起容器时只启用该种（与配置配合）。
+	// 用于：runtime 与容器同机时读 /sys；Mac/Win 时起临时容器探测。见 detectLSMOnce。
+	detectedLSM string
 }
 
 // NewDefaultPodmanService 创建新的 Podman 服务（默认，内部获取依赖）
@@ -103,6 +114,12 @@ func (s *PodmanService) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to connect to container runtime: %w", err)
 	}
 
+	// 4. LSM 检测（仅启动时一次，结果缓存供后续安全模块使用）
+	// 背景：容器内代码为 AI 生成且可能引用会删除文件的第三方包，需在内核层限制删除 code/workplace。
+	// 宿主机可能是 AppArmor（如 Ubuntu）或 SELinux（如 Fedora CoreOS），只启用检测到的那一种。
+	s.detectedLSM = s.detectLSMOnce(ctx)
+	logger.Infof(ctx, "[LSM] 检测结果: %s (配置 lsm_mode=%s)", s.detectedLSM, s.config.LSMMode)
+
 	return nil
 }
 
@@ -123,6 +140,79 @@ func (s *PodmanService) IsRunning() bool {
 // GetConfig 获取配置
 func (s *PodmanService) GetConfig() *appconfig.ContainerServiceConfig {
 	return s.config
+}
+
+// GetDetectedLSM 返回启动时检测到的 LSM 类型（apparmor / selinux / none），后续起容器时只启用该种。
+func (s *PodmanService) GetDetectedLSM() string {
+	if s.detectedLSM != "" {
+		return s.detectedLSM
+	}
+	return LSMNone
+}
+
+// detectLSMOnce 在 runtime 启动时执行一次：若配置为 auto 则检测宿主机 LSM，否则使用配置值。
+// 同机 Linux 读 /sys/kernel/security/lsm；Mac/Win 无法直接读宿主机，通过起临时容器执行 cat /proc/self/attr/current 推断。
+func (s *PodmanService) detectLSMOnce(ctx context.Context) string {
+	mode := strings.ToLower(strings.TrimSpace(s.config.LSMMode))
+	if mode == "" {
+		mode = "auto"
+	}
+	switch mode {
+	case "apparmor", "selinux", "none":
+		return mode
+	}
+	// auto：实际检测
+	if runtime.GOOS == "linux" {
+		return s.detectLSMFromHost(ctx)
+	}
+	return s.detectLSMFromProbeContainer(ctx)
+}
+
+// detectLSMFromHost 在 Linux 上直接读宿主机 LSM 列表（runtime 与容器同机时使用）。
+func (s *PodmanService) detectLSMFromHost(ctx context.Context) string {
+	const lsmPath = "/sys/kernel/security/lsm"
+	data, err := os.ReadFile(lsmPath)
+	if err != nil {
+		logger.Warnf(ctx, "[LSM] 读取 %s 失败: %v，视为 none", lsmPath, err)
+		return LSMNone
+	}
+	lsm := strings.TrimSpace(string(data))
+	// 同时存在时优先用 apparmor（策略更易维护）；仅 selinux 时用 selinux。
+	if strings.Contains(lsm, "apparmor") {
+		return LSMAppArmor
+	}
+	if strings.Contains(lsm, "selinux") {
+		return LSMSELinux
+	}
+	logger.Infof(ctx, "[LSM] 宿主机 lsm=%s，未包含 apparmor/selinux", lsm)
+	return LSMNone
+}
+
+// detectLSMFromProbeContainer 在 Mac/Windows 上起临时容器，用容器内 /proc/self/attr/current 推断宿主机 LSM。
+// 临时容器与后续用户容器同处 Podman VM，所见 LSM 一致。
+func (s *PodmanService) detectLSMFromProbeContainer(ctx context.Context) string {
+	image := s.config.Image.BaseImage
+	if image == "" {
+		image = "ai-agent-os:latest"
+	}
+	// 使用本项目运行镜像执行一条命令并退出，避免引入额外镜像依赖
+	cmd := exec.CommandContext(ctx, "podman", "run", "--rm", image, "cat", "/proc/self/attr/current")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		logger.Warnf(ctx, "[LSM] 临时容器探测失败 (image=%s): %v，输出: %s，视为 none", image, err, string(out))
+		return LSMNone
+	}
+	current := strings.TrimSpace(string(out))
+	// SELinux 上下文形如 system_u:system_r:container_t:s0:c952,c991；AppArmor 为单一 token 如 unconfined、docker-default
+	if strings.Count(current, ":") >= 2 && (strings.Contains(current, "container_t") || strings.HasPrefix(current, "system_u:")) {
+		return LSMSELinux
+	}
+	if current == "unconfined" || current == "" {
+		// 无法区分“无 LSM”与“AppArmor 但未挂 profile”，保守返回 none；后续若需可再试 /sys/kernel/security/lsm。
+		return LSMNone
+	}
+	// 单 token 且非 unconfined，视为 AppArmor profile 名
+	return LSMAppArmor
 }
 
 // ExecCommand 在容器内执行命令
@@ -673,6 +763,23 @@ func (s *PodmanService) RunContainerWithCommand(ctx context.Context, image, name
 		"--add-host", hostEntry,
 		"-v", fmt.Sprintf("%s:%s", hostPath, containerPath),
 		"-e", "TZ=Asia/Shanghai"} // 设置时区
+
+	// 按 LSM 检测结果施加内核级安全策略（禁止容器内删除 code/workplace）
+	switch s.GetDetectedLSM() {
+	case LSMAppArmor:
+		if profile := s.config.AppArmorProfile; profile != "" {
+			args = append(args, "--security-opt", "apparmor="+profile)
+			logger.Infof(ctx, "[LSM] AppArmor profile=%s 已应用到容器 %s", profile, name)
+		} else {
+			logger.Warnf(ctx, "[LSM] 检测到 AppArmor 但未配置 apparmor_profile，容器 %s 无内核级防删", name)
+		}
+	case LSMSELinux:
+		// SELinux 防护依赖宿主机上安装的策略模块 + 目录标签（deploy/security/selinux/install.sh），
+		// 挂载时不加 :z/:Z 以保持 ai_agent_os_data_t 标签不被覆盖。
+		logger.Infof(ctx, "[LSM] SELinux 环境，容器 %s 依赖宿主机策略模块与目录标签防删", name)
+	default:
+		logger.Warnf(ctx, "[LSM] 未检测到可用 LSM，容器 %s 无内核级防删保护", name)
+	}
 
 	// 添加环境变量
 	for _, envVar := range envVars {

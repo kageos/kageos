@@ -14,20 +14,14 @@ import (
 )
 
 // FileCache 文件缓存管理器
-// 通过hash实现文件去重，避免重复下载相同文件
-// 支持延迟删除机制：文件删除后延迟一段时间再真正删除，避免用户反复使用同一文件时重复下载
-// 使用普通复制创建文件副本
+// 通过 hash 实现文件去重，避免重复下载相同文件。
+// 磁盘文件不在此处删除，由 app-runtime 定时任务在宿主机清空 file-cache/output。
 type FileCache struct {
-	mu                 sync.RWMutex
-	cacheDir           string               // 缓存目录：/app/workplace/file-cache
-	hashToPath         map[string]string    // hash -> 缓存文件路径
-	refCount           map[string]int       // 缓存文件路径 -> 引用计数（有多少个用户文件在使用）
-	pathToHash         map[string]string    // 用户文件路径 -> hash（用于清理时减少引用计数）
-	pendingDelete      map[string]time.Time // 文件路径 -> 删除时间（待删除的用户文件）
-	pendingCacheDelete map[string]time.Time // hash -> 删除时间（待删除的缓存文件）
-	deleteDelay        time.Duration        // 延迟删除时间（默认1分钟，测试用）
-	cleanupTicker      *time.Ticker         // 清理任务定时器
-	cleanupStop        chan struct{}        // 停止清理任务
+	mu         sync.RWMutex
+	cacheDir   string            // 缓存目录：/app/workplace/file-cache
+	hashToPath map[string]string // hash -> 缓存文件路径
+	refCount   map[string]int    // 缓存文件路径 -> 引用计数
+	pathToHash map[string]string // 用户文件路径 -> hash
 }
 
 var (
@@ -43,21 +37,12 @@ func GetFileCache() *FileCache {
 
 	cacheOnce.Do(func() {
 		globalFileCache = &FileCache{
-			cacheDir:           "/app/workplace/file-cache",
-			hashToPath:         make(map[string]string),
-			refCount:           make(map[string]int),
-			pathToHash:         make(map[string]string),
-			pendingDelete:      make(map[string]time.Time),
-			pendingCacheDelete: make(map[string]time.Time),
-			deleteDelay:        1 * time.Minute, // 测试阶段：1分钟（生产环境建议改为2小时）
-			cleanupStop:        make(chan struct{}),
+			cacheDir:   "/app/workplace/file-cache",
+			hashToPath: make(map[string]string),
+			refCount:   make(map[string]int),
+			pathToHash: make(map[string]string),
 		}
-		// 确保缓存目录存在（虽然现在不在这里存储文件，但保留目录用于其他用途）
 		os.MkdirAll(globalFileCache.cacheDir, 0755)
-		// 注意：缓存文件现在分散在各个 traceid 目录中，无法通过扫描恢复
-		// 应用重启后，第一次请求会重新下载，然后记录到缓存
-		// 启动后台清理任务
-		globalFileCache.startCleanupTask()
 	})
 	return globalFileCache
 }
@@ -69,10 +54,8 @@ func ResetFileCache() {
 	defer cacheMu.Unlock()
 
 	if globalFileCache != nil {
-		// 停止清理任务
-		globalFileCache.CleanupOnShutdown()
+		globalFileCache.resetMaps()
 		globalFileCache = nil
-		// 重置 sync.Once，允许重新创建
 		cacheOnce = sync.Once{}
 	}
 }
@@ -95,17 +78,10 @@ func (fc *FileCache) GetOrDownload(ctx context.Context, hash string, downloadURL
 			cachedPath = existingCachedPath
 			fromCache = true
 
-			// 如果缓存文件在待删除列表中，取消删除标记（文件被重新使用，延长缓存时间）
-			if _, pending := fc.pendingCacheDelete[hash]; pending {
-				delete(fc.pendingCacheDelete, hash)
-				logger.Infof(ctx, "[FileCache] 缓存文件被重新使用，取消删除标记: hash=%s", hash)
-			}
-			logger.Debugf(ctx, "[FileCache] 从内存映射找到缓存文件: hash=%s, path=%s", hash, cachedPath)
+				logger.Debugf(ctx, "[FileCache] 从内存映射找到缓存文件: hash=%s, path=%s", hash, cachedPath)
 		} else {
-			// 缓存文件已被删除，从映射中移除
 			delete(fc.hashToPath, hash)
 			delete(fc.refCount, existingCachedPath)
-			delete(fc.pendingCacheDelete, hash)
 			logger.Debugf(ctx, "[FileCache] 内存映射中的缓存文件已不存在，从映射中移除: hash=%s, path=%s", hash, existingCachedPath)
 		}
 	}
@@ -129,26 +105,16 @@ func (fc *FileCache) GetOrDownload(ctx context.Context, hash string, downloadURL
 		logger.Infof(ctx, "[FileCache] 下载文件完成并记录到缓存: hash=%s, path=%s", hash, targetPath)
 	}
 
-	// 4. 更新映射并增加缓存文件的引用计数
 	fc.pathToHash[targetPath] = hash
-
-	// 增加缓存文件的引用计数（每个用户文件都引用缓存文件）
 	cachedPath, exists := fc.hashToPath[hash]
 	if exists {
 		fc.refCount[cachedPath]++
-		// 如果缓存文件在待删除列表中，重置删除时间（文件被重新使用）
-		if _, pending := fc.pendingCacheDelete[hash]; pending {
-			delete(fc.pendingCacheDelete, hash)
-			logger.Infof(ctx, "[FileCache] 缓存文件被重新使用，取消删除标记: hash=%s", hash)
-		}
 	}
 
 	return targetPath, fromCache, nil
 }
 
-// Release 释放文件引用（延迟删除）
-// 当文件不再使用时调用，标记为延迟删除，不立即删除
-// 减少缓存文件的引用计数，如果引用计数为0，标记缓存文件为延迟删除
+// Release 释放文件引用（仅更新内存映射，不删磁盘；磁盘由 runtime 定时清空）
 func (fc *FileCache) Release(filePath string) {
 	fc.mu.Lock()
 	defer fc.mu.Unlock()
@@ -157,24 +123,16 @@ func (fc *FileCache) Release(filePath string) {
 	if !exists {
 		return
 	}
+	delete(fc.pathToHash, filePath)
 
-	// 标记用户文件为延迟删除（不立即删除）
-	fc.pendingDelete[filePath] = time.Now().Add(fc.deleteDelay)
-	logger.Debugf(context.Background(), "[FileCache] 标记文件为延迟删除: %s (hash: %s, 延迟时间: %v)", filePath, hash, fc.deleteDelay)
-
-	// 减少缓存文件的引用计数
 	cachedPath, exists := fc.hashToPath[hash]
 	if exists {
 		fc.refCount[cachedPath]--
 		if fc.refCount[cachedPath] <= 0 {
-			// 引用计数为0，标记缓存文件为延迟删除
-			fc.pendingCacheDelete[hash] = time.Now().Add(fc.deleteDelay)
-			logger.Infof(context.Background(), "[FileCache] 缓存文件引用计数为0，标记为延迟删除: hash=%s, path=%s", hash, cachedPath)
+			delete(fc.hashToPath, hash)
+			delete(fc.refCount, cachedPath)
 		}
 	}
-
-	// 注意：不立即删除文件，等待清理任务处理
-	// 也不立即从映射中删除，清理任务会处理
 }
 
 // copyFile 普通文件复制
@@ -265,170 +223,16 @@ func downloadFile(ctx context.Context, url string, filePath string) error {
 	return nil
 }
 
-// startCleanupTask 启动后台清理任务
-// 定期检查并删除过期的待删除文件
-func (fc *FileCache) startCleanupTask() {
-	// 测试阶段：每1秒清理一次（便于调试，生产环境建议改为1小时）
-	fc.cleanupTicker = time.NewTicker(1 * time.Second)
-
-	go func() {
-		for {
-			select {
-			case <-fc.cleanupTicker.C:
-				fc.cleanupExpiredFiles()
-			case <-fc.cleanupStop:
-				// 停止清理任务
-				fc.cleanupTicker.Stop()
-				return
-			}
-		}
-	}()
-}
-
-// cleanupExpiredFiles 清理过期的待删除文件
-func (fc *FileCache) cleanupExpiredFiles() {
+// resetMaps 清空所有内存映射（供 ResetFileCache / 测试使用）
+func (fc *FileCache) resetMaps() {
 	fc.mu.Lock()
 	defer fc.mu.Unlock()
-
-	now := time.Now()
-	var expiredPaths []string
-	var expiredCacheHashes []string
-
-	// 1. 找出所有过期的用户文件
-	for filePath, deleteTime := range fc.pendingDelete {
-		if now.After(deleteTime) {
-			// 检查文件是否还在映射中（防止在延迟期间被重新使用）
-			if _, exists := fc.pathToHash[filePath]; exists {
-				expiredPaths = append(expiredPaths, filePath)
-			}
-		}
-	}
-
-	// 2. 找出所有过期的缓存文件
-	for hash, deleteTime := range fc.pendingCacheDelete {
-		if now.After(deleteTime) {
-			cachedPath, exists := fc.hashToPath[hash]
-			if exists && fc.refCount[cachedPath] <= 0 {
-				expiredCacheHashes = append(expiredCacheHashes, hash)
-			}
-		}
-	}
-
-	// 3. 删除过期的用户文件
-	for _, filePath := range expiredPaths {
-		hash, exists := fc.pathToHash[filePath]
-		if !exists {
-			delete(fc.pendingDelete, filePath)
-			continue
-		}
-
-		// 删除用户文件
-		os.Remove(filePath)
-		delete(fc.pathToHash, filePath)
-		delete(fc.pendingDelete, filePath)
-		logger.Infof(context.Background(), "[FileCache] 清理过期用户文件: path=%s, hash=%s", filePath, hash)
-
-		// 减少缓存文件的引用计数
-		cachedPath, exists := fc.hashToPath[hash]
-		if exists {
-			fc.refCount[cachedPath]--
-			if fc.refCount[cachedPath] <= 0 {
-				// 引用计数为0，标记缓存文件为延迟删除（如果还没有标记）
-				if _, pending := fc.pendingCacheDelete[hash]; !pending {
-					fc.pendingCacheDelete[hash] = time.Now().Add(fc.deleteDelay)
-				}
-			}
-		}
-	}
-
-	// 4. 删除过期的缓存文件
-	for _, hash := range expiredCacheHashes {
-		// 再次检查是否还在待删除列表中（可能在检查期间被重新使用，已取消删除标记）
-		if _, stillPending := fc.pendingCacheDelete[hash]; !stillPending {
-			// 已经被取消删除标记，跳过
-			continue
-		}
-
-		cachedPath, exists := fc.hashToPath[hash]
-		if !exists {
-			// 内存映射中没有，但可能磁盘上还有文件，检查一下
-			cachedPath = filepath.Join(fc.cacheDir, hash)
-			if _, err := os.Stat(cachedPath); err != nil {
-				// 磁盘上也不存在，清理标记即可
-				delete(fc.pendingCacheDelete, hash)
-				continue
-			}
-			// 磁盘上存在，但内存映射中没有，说明可能被清理任务误删了映射
-			// 这种情况下不应该删除文件，而是恢复映射（文件可能还在被使用）
-			// 但这里引用计数为0，说明确实没有用户文件在使用，可以删除
-		}
-
-		// 再次检查引用计数（双重检查，防止并发问题）
-		refCount := 0
-		if exists {
-			refCount = fc.refCount[cachedPath]
-		}
-		if refCount <= 0 {
-			// 再次检查磁盘文件是否存在（防止并发问题）
-			if _, err := os.Stat(cachedPath); err == nil {
-				// 真正删除缓存文件
-				os.Remove(cachedPath)
-				logger.Infof(context.Background(), "[FileCache] 清理过期缓存文件: hash=%s, path=%s", hash, cachedPath)
-			}
-			// 清理内存映射（无论文件是否存在）
-			delete(fc.hashToPath, hash)
-			if exists {
-				delete(fc.refCount, cachedPath)
-			}
-			delete(fc.pendingCacheDelete, hash)
-		}
-	}
-
-	if len(expiredPaths) > 0 || len(expiredCacheHashes) > 0 {
-		logger.Infof(context.Background(), "[FileCache] 清理完成: 删除了 %d 个过期用户文件, %d 个过期缓存文件", len(expiredPaths), len(expiredCacheHashes))
-	}
+	fc.hashToPath = make(map[string]string)
+	fc.refCount = make(map[string]int)
+	fc.pathToHash = make(map[string]string)
 }
 
-// CleanupOnShutdown 应用退出时立即清理所有待删除的文件
+// CleanupOnShutdown 应用退出时清空内存映射（磁盘由 runtime 定时清空，此处不删文件）
 func (fc *FileCache) CleanupOnShutdown() {
-	fc.mu.Lock()
-	defer fc.mu.Unlock()
-
-	// 停止清理任务
-	if fc.cleanupTicker != nil {
-		fc.cleanupTicker.Stop()
-	}
-	// 发送停止信号（避免重复关闭channel）
-	select {
-	case <-fc.cleanupStop:
-		// channel已经关闭
-	default:
-		close(fc.cleanupStop)
-	}
-
-	// 立即清理所有待删除的用户文件
-	userFileCount := 0
-	for filePath := range fc.pendingDelete {
-		os.Remove(filePath)
-		delete(fc.pathToHash, filePath)
-		delete(fc.pendingDelete, filePath)
-		userFileCount++
-	}
-
-	// 立即清理所有标记删除的缓存文件（不管引用计数，应用退出时全部清理）
-	cacheFileCount := 0
-	for hash := range fc.pendingCacheDelete {
-		cachedPath, exists := fc.hashToPath[hash]
-		if exists {
-			os.Remove(cachedPath)
-			delete(fc.hashToPath, hash)
-			delete(fc.refCount, cachedPath)
-			delete(fc.pendingCacheDelete, hash)
-			cacheFileCount++
-		}
-	}
-
-	if userFileCount > 0 || cacheFileCount > 0 {
-		logger.Infof(context.Background(), "[FileCache] 应用退出时清理了 %d 个待删除用户文件, %d 个待删除缓存文件", userFileCount, cacheFileCount)
-	}
+	fc.resetMaps()
 }

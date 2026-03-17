@@ -4,6 +4,7 @@ export interface PostItem {
   id: number
   tree_id: number
   title: string
+  summary?: string
   cover?: string[]
   author: string
   status: string
@@ -21,6 +22,7 @@ export interface GetPostResp extends PostItem {
   cover: string[]
   content: string
   content_format: string
+  summary?: string
 }
 
 /** 帖子列表（按版块路径分页） */
@@ -41,6 +43,7 @@ export function getPost(id: number) {
 export function createPost(data: {
   full_code_path: string
   title: string
+  summary?: string
   cover?: string[]
   content?: string
   content_format?: string
@@ -52,7 +55,14 @@ export function createPost(data: {
 /** 更新帖子 */
 export function updatePost(
   id: number,
-  data: { title?: string; cover?: string[]; content?: string; content_format?: string; status?: string }
+  data: {
+    title?: string
+    summary?: string
+    cover?: string[]
+    content?: string
+    content_format?: string
+    status?: string
+  }
 ) {
   return put<GetPostResp>(`/workspace/api/v1/posts/${id}`, data)
 }
