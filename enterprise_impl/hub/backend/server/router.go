@@ -19,6 +19,10 @@ func (s *Server) setupRoutes() {
 	hub := s.httpServer.Group("/hub")
 	apiV1 := hub.Group("/api/v1")
 
+	// 前端配置（公开，无需认证）- 主站地址等，用于「试用」跳转
+	configHandler := v1.NewConfig()
+	apiV1.GET("/config", configHandler.GetConfig)
+
 	// Hub 目录管理路由
 	hubDirectory := apiV1.Group("/directories")
 	hubDirectoryHandler := v1.NewDirectory(s.hubDirectoryService)

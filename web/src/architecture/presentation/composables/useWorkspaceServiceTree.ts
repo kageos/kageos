@@ -40,10 +40,10 @@ export function useWorkspaceServiceTree(
     app: '',
     name: '',
     code: '',
-    parent_id: 0,
+    parent_full_code_path: '',
     description: '',
     tags: '',
-    admins: getDefaultAdmins()  // 默认当前用户为管理员
+    admins: getDefaultAdmins()
   })
 
   // 处理创建目录
@@ -61,10 +61,10 @@ export function useWorkspaceServiceTree(
       app: currentApp().code,
       name: '',
       code: '',
-      parent_id: parentNode ? Number(parentNode.id) : 0,
+      parent_full_code_path: parentNode ? parentNode.full_code_path : '',
       description: '',
       tags: '',
-      admins: getDefaultAdmins()  // 默认当前用户为管理员
+      admins: getDefaultAdmins()
     }
     createDirectoryDialogVisible.value = true
   }
@@ -84,10 +84,10 @@ export function useWorkspaceServiceTree(
       app: app?.code || '',
       name: '',
       code: '',
-      parent_id: 0,
+      parent_full_code_path: '',
       description: '',
       tags: '',
-      admins: getDefaultAdmins()  // 默认当前用户为管理员
+      admins: getDefaultAdmins()
     }
     currentParentNode.value = null
   }
@@ -126,10 +126,10 @@ export function useWorkspaceServiceTree(
         app: currentApp().code,
         name: createDirectoryForm.value.name,
         code: createDirectoryForm.value.code,
-        parent_id: createDirectoryForm.value.parent_id || 0,
+        parent_full_code_path: createDirectoryForm.value.parent_full_code_path || '',
         description: createDirectoryForm.value.description || '',
         tags: createDirectoryForm.value.tags || '',
-        admins: createDirectoryForm.value.admins || getDefaultAdmins()  // 包含管理员字段
+        admins: createDirectoryForm.value.admins || getDefaultAdmins()
       }
       
       // ⭐ 使用新的分离接口

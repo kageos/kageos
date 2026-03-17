@@ -6,6 +6,7 @@ import ServiceTree from './ServiceTree.vue'
 import ServiceNodeForm from './ServiceNodeForm.vue'
 import { createPackage, createServiceTreeFunction, createDocs, updatePackage, updateServiceTreeFunction, updateDocs, deletePackage, deleteServiceTreeFunction, deleteDocs } from '@/api/service-tree'
 import type { ServiceTree } from '@/types'
+import { isRootNode, getParentPath } from '@/utils/tree-utils'
 
 interface Props {
   appId: number
@@ -56,13 +57,12 @@ const refreshTree = async () => {
         id: 1,
         name: 'HR管理中心',
         code: 'hr',
-        parent_id: 0,
         type: 'package',
         description: '人力资源管理中心，包含招聘、绩效、薪酬等功能模块',
         tags: 'hr,人力资源,管理',
         app_id: props.appId,
         ref_id: 0,
-        full_code_path: 'hr',
+        full_code_path: '/demo/app/hr',
         created_at: '2023-01-01T00:00:00Z',
         updated_at: '2023-01-01T00:00:00Z',
         children: [
@@ -70,13 +70,12 @@ const refreshTree = async () => {
             id: 2,
             name: '招聘管理',
             code: 'recruitment',
-            parent_id: 1,
             type: 'function',
             description: '招聘管理系统，包括职位发布、简历筛选、面试安排等功能',
             tags: '招聘,recruitment,面试',
             app_id: props.appId,
             ref_id: 0,
-            full_code_path: 'hr.recruitment',
+            full_code_path: '/demo/app/hr/recruitment',
             created_at: '2023-01-01T00:00:00Z',
             updated_at: '2023-01-01T00:00:00Z'
           },
@@ -84,13 +83,12 @@ const refreshTree = async () => {
             id: 3,
             name: '绩效管理',
             code: 'performance',
-            parent_id: 1,
             type: 'function',
             description: '绩效管理系统，包括目标设定、绩效评估、结果分析等功能',
             tags: '绩效,performance,评估',
             app_id: props.appId,
             ref_id: 0,
-            full_code_path: 'hr.performance',
+            full_code_path: '/demo/app/hr/performance',
             created_at: '2023-01-01T00:00:00Z',
             updated_at: '2023-01-01T00:00:00Z'
           },
@@ -98,13 +96,12 @@ const refreshTree = async () => {
             id: 4,
             name: '薪酬管理',
             code: 'salary',
-            parent_id: 1,
             type: 'function',
             description: '薪酬管理系统，包括薪资计算、发放、统计等功能',
             tags: '薪酬,salary,工资',
             app_id: props.appId,
             ref_id: 0,
-            full_code_path: 'hr.salary',
+            full_code_path: '/demo/app/hr/salary',
             created_at: '2023-01-01T00:00:00Z',
             updated_at: '2023-01-01T00:00:00Z'
           }
@@ -114,13 +111,12 @@ const refreshTree = async () => {
         id: 5,
         name: '项目管理',
         code: 'project',
-        parent_id: 0,
         type: 'package',
         description: '项目管理系统，包括项目规划、任务分配、进度跟踪等功能',
         tags: '项目,管理,任务',
         app_id: props.appId,
         ref_id: 0,
-        full_code_path: 'project',
+        full_code_path: '/demo/app/project',
         created_at: '2023-01-01T00:00:00Z',
         updated_at: '2023-01-01T00:00:00Z',
         children: [
@@ -128,13 +124,12 @@ const refreshTree = async () => {
             id: 6,
             name: '任务管理',
             code: 'tasks',
-            parent_id: 5,
             type: 'function',
             description: '任务管理系统，包括任务创建、分配、跟踪、完成等功能',
             tags: '任务,管理,跟踪',
             app_id: props.appId,
             ref_id: 0,
-            full_code_path: 'project.tasks',
+            full_code_path: '/demo/app/project/tasks',
             created_at: '2023-01-01T00:00:00Z',
             updated_at: '2023-01-01T00:00:00Z'
           },
@@ -142,13 +137,12 @@ const refreshTree = async () => {
             id: 7,
             name: '进度跟踪',
             code: 'progress',
-            parent_id: 5,
             type: 'function',
             description: '项目进度跟踪系统，包括里程碑管理、进度报告等功能',
             tags: '进度,跟踪,报告',
             app_id: props.appId,
             ref_id: 0,
-            full_code_path: 'project.progress',
+            full_code_path: '/demo/app/project/progress',
             created_at: '2023-01-01T00:00:00Z',
             updated_at: '2023-01-01T00:00:00Z'
           }
@@ -158,13 +152,12 @@ const refreshTree = async () => {
         id: 8,
         name: '财务管理',
         code: 'finance',
-        parent_id: 0,
         type: 'package',
         description: '财务管理系统，包括预算、支出、报销等功能',
         tags: '财务,管理,预算',
         app_id: props.appId,
         ref_id: 0,
-        full_code_path: 'finance',
+        full_code_path: '/demo/app/finance',
         created_at: '2023-01-01T00:00:00Z',
         updated_at: '2023-01-01T00:00:00Z'
       }
@@ -181,12 +174,24 @@ const refreshTree = async () => {
   }
 }
 
-// 查找节点
+// 查找节点（按 ID）
 const findNode = (nodes: ServiceTree[], id: number): ServiceTree | null => {
   for (const node of nodes) {
     if (node.id === id) return node
     if (node.children) {
       const found = findNode(node.children, id)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+// 查找节点（按 full_code_path）
+const findNodeByPath = (nodes: ServiceTree[], path: string): ServiceTree | null => {
+  for (const node of nodes) {
+    if (node.full_code_path === path) return node
+    if (node.children) {
+      const found = findNodeByPath(node.children, path)
       if (found) return found
     }
   }
@@ -220,7 +225,6 @@ const handleNodeCreate = async (parentId: number) => {
 
   formMode.value = 'create'
   formData.value = {
-    parent_id: parentId,
     type: 'package',
     app_id: props.appId
   }
@@ -232,7 +236,8 @@ const handleNodeCreate = async (parentId: number) => {
 const handleNodeEdit = (data: ServiceTree) => {
   formMode.value = 'edit'
   formData.value = { ...data }
-  parentNode.value = findNode(treeData.value, data.parent_id)
+  const parentPath = getParentPath(data.full_code_path)
+  parentNode.value = parentPath ? findNodeByPath(treeData.value, parentPath) : null
   showNodeForm.value = true
 }
 
@@ -315,8 +320,6 @@ const handleNodeDrag = (source: ServiceTree, target: ServiceTree) => {
     return
   }
 
-  // 更新父节点ID
-  source.parent_id = target.id
   source.full_code_path = generateFullCodePath(target, source.code)
 
   // 这里应该调用API更新
@@ -347,13 +350,14 @@ const handleFormSubmit = async (data: Partial<ServiceTree>) => {
 
       // ⭐ 根据节点类型调用对应的创建接口
       let newNode: ServiceTree
+      const parentPath = parentNode.value?.full_code_path || ''
       if (data.type === 'package') {
         const resp = await createPackage({
-          user: '', // 需要从 props 或 context 获取
+          user: '',
           app: props.appCode,
           name: data.name!,
           code: data.code!,
-          parent_id: data.parent_id || 0,
+          parent_full_code_path: parentPath,
           description: data.description || '',
           tags: data.tags || '',
           admins: ''
@@ -364,11 +368,11 @@ const handleFormSubmit = async (data: Partial<ServiceTree>) => {
         return
       } else if (data.type === 'docs') {
         const resp = await createDocs({
-          user: '', // 需要从 props 或 context 获取
+          user: '',
           app: props.appCode,
           name: data.name!,
           code: data.code!,
-          parent_id: data.parent_id || 0,
+          parent_full_code_path: parentPath,
           description: data.description || '',
           tags: data.tags || '',
           admins: '',
@@ -378,13 +382,12 @@ const handleFormSubmit = async (data: Partial<ServiceTree>) => {
         })
         newNode = resp as ServiceTree
       } else {
-        // 默认使用 package
         const resp = await createPackage({
           user: '',
           app: props.appCode,
           name: data.name!,
           code: data.code!,
-          parent_id: data.parent_id || 0,
+          parent_full_code_path: parentPath,
           description: data.description || '',
           tags: data.tags || '',
           admins: ''
@@ -403,9 +406,11 @@ const handleFormSubmit = async (data: Partial<ServiceTree>) => {
       }
 
     } else {
-      // 更新完整代码路径
-      if (formData.value.parent_id !== data.parent_id) {
-        const newParent = findNode(treeData.value, data.parent_id!)
+      // 更新完整代码路径（检查父路径是否变化）
+      const oldParentPath = getParentPath(formData.value.full_code_path || '')
+      const newParentPath = getParentPath(data.full_code_path || '')
+      if (oldParentPath !== newParentPath) {
+        const newParent = newParentPath ? findNodeByPath(treeData.value, newParentPath) : null
         data.full_code_path = generateFullCodePath(newParent, data.code!)
       }
 
@@ -440,13 +445,14 @@ const handleFormSubmit = async (data: Partial<ServiceTree>) => {
 
 // 添加节点到树
 const addNodeToTree = (nodes: ServiceTree[], newNode: ServiceTree): boolean => {
-  if (newNode.parent_id === 0) {
+  const parentPath = getParentPath(newNode.full_code_path)
+  if (!parentPath) {
     nodes.push(newNode)
     return true
   }
 
   for (const node of nodes) {
-    if (node.id === newNode.parent_id) {
+    if (node.full_code_path === parentPath) {
       if (!node.children) node.children = []
       node.children.push(newNode)
       return true

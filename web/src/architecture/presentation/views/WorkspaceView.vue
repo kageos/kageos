@@ -840,6 +840,7 @@ import { useWorkspaceDetail } from '../composables/useWorkspaceDetail'
 import { useWorkspaceApp } from '../composables/useWorkspaceApp'
 import { useWorkspaceServiceTree } from '../composables/useWorkspaceServiceTree'
 import { findNodeByPath, findNodeById } from '../utils/workspaceUtils'
+import { isRootNode as isRootTreeNode } from '@/utils/tree-utils'
 import { useAfterCreateNode } from '../composables/useAfterCreateNode'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { resolveWorkspaceUrl, extractWorkspacePath } from '@/utils/route'
@@ -1793,14 +1794,14 @@ const handleSubmitCreateDocs = async () => {
   creatingDocs.value = true
   try {
     const { createDocs } = await import('@/api/service-tree')
-    const parentId = currentDocsParentNode.value?.id || 0
+    const parentFullCodePath = currentDocsParentNode.value?.full_code_path || ''
     // ⭐ 使用新的分离接口
     const response = await createDocs({
       user: currentApp.value.user,
       app: currentApp.value.code,
       name: createDocsForm.value.name.trim(),
       code,
-      parent_id: parentId,
+      parent_full_code_path: parentFullCodePath,
       description: createDocsForm.value.description.trim() || '',
       tags: createDocsForm.value.tags.trim() || '',
       content: createDocsForm.value.content.trim(),  // ⭐ 文档内容
@@ -2029,7 +2030,7 @@ const handleDeleteDirectory = async (node: ServiceTreeType) => {
     ElMessage.warning('只能删除目录节点')
     return
   }
-  if (node.parent_id === 0) {
+  if (isRootTreeNode(node as ServiceTreeType)) {
     ElMessage.warning('不能删除工作空间根目录')
     return
   }

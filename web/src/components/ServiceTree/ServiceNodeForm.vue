@@ -31,7 +31,6 @@ const formData = ref<Partial<ServiceTree>>({
   description: '',
   tags: '',
   type: 'package',
-  parent_id: 0,
   app_id: 0
 })
 
@@ -40,8 +39,8 @@ const dialogTitle = computed(() => {
   return props.mode === 'create' ? '创建服务节点' : '编辑服务节点'
 })
 
-const isRootNode = computed(() => {
-  return props.mode === 'create' && props.data.parent_id === 0
+const isRootNodeFlag = computed(() => {
+  return props.mode === 'create' && !props.parentNode
 })
 
 const parentPath = computed(() => {
@@ -146,7 +145,6 @@ const resetForm = () => {
     description: '',
     tags: '',
     type: 'package',
-    parent_id: props.data.parent_id || 0,
     app_id: props.data.app_id || 0
   }
   formRef.value?.clearValidate()
@@ -186,7 +184,6 @@ watch(() => props.visible, (visible) => {
     if (props.mode === 'edit') {
       Object.assign(formData.value, props.data)
     } else {
-      formData.value.parent_id = props.data.parent_id || 0
       formData.value.app_id = props.data.app_id || 0
     }
   }

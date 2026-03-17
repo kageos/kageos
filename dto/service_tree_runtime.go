@@ -16,12 +16,11 @@ type ServiceTreeRuntimeData struct {
 	ID           int64  `json:"id" example:"1"`                              // 服务目录ID
 	Name         string `json:"name" example:"用户管理"`                         // 服务目录名称
 	Code         string `json:"code" example:"user"`                         // 服务目录代码
-	ParentID     int64  `json:"parent_id" example:"0"`                       // 父目录ID
-	Type         string `json:"type" example:"package"`                      // 节点类型: package(服务目录/包), function(函数/文件), api(API接口), service(服务), module(模块)
+	Type         string `json:"type" example:"package"`                      // 节点类型
 	Description  string `json:"description" example:"用户相关的API接口"`            // 描述
 	Tags         string `json:"tags" example:"user,management"`              // 标签
 	AppID        int64  `json:"app_id" example:"1"`                          // 应用ID
-	RefID        int64  `json:"ref_id" example:"0"`                          // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
+	RefID        int64  `json:"ref_id" example:"0"`                          // 引用ID
 	FullCodePath string `json:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径
 }
 

@@ -139,7 +139,7 @@ async function handleSubmit() {
       app: props.currentApp.code,
       name: form.value.name.trim(),
       code,
-      parent_id: props.parentNode?.id ?? 0,
+      parent_full_code_path: props.parentNode?.full_code_path ?? '',
       description: form.value.description.trim() || '',
       tags: form.value.tags.trim() || ''
     })

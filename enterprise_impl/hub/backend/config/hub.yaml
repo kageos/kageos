@@ -17,6 +17,7 @@ db:
   log_level: warn
   slow_threshold: 200
 
+# 主站前端地址（Hub「试用」跳转用；开发可填 http://localhost:5173，线上填实际前端地址如 http://125.122.96.207:8999）
 os:
-  base_url: http://localhost:9090  # OS 平台基础 URL
+  base_url: http://localhost:5173
 

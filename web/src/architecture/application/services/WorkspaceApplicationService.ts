@@ -99,28 +99,7 @@ export class WorkspaceApplicationService {
   private getFunctionDirectory(functionNode: ServiceTree): ServiceTree | null {
     const serviceTree = this.domainService.getServiceTree()
     
-    // 方法1：通过 parent_id 查找（如果函数节点有 parent_id）
-    if (functionNode.parent_id && functionNode.parent_id > 0) {
-      const findNodeById = (nodes: ServiceTree[], targetId: number): ServiceTree | null => {
-        for (const node of nodes) {
-          if (node.id === targetId && node.type === 'package') {
-            return node
-          }
-          if (node.children && node.children.length > 0) {
-            const found = findNodeById(node.children, targetId)
-            if (found) return found
-          }
-        }
-        return null
-      }
-      
-      const directory = findNodeById(serviceTree, functionNode.parent_id)
-      if (directory) {
-        return directory
-      }
-    }
-    
-    // 方法2：从 full_code_path 提取目录路径（回退方案）
+    // 通过 full_code_path 提取目录路径
     if (!functionNode.full_code_path) {
       return null
     }

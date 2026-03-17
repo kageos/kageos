@@ -18,7 +18,7 @@ export function createPackage(data: CreateServiceTreeRequest) {
     app: data.app,
     name: data.name,
     code: data.code,
-    parent_id: data.parent_id || 0,
+    parent_full_code_path: data.parent_full_code_path || '',
     description: data.description || '',
     tags: data.tags || '',
     admins: data.admins || ''
@@ -37,7 +37,7 @@ export function createDocs(data: CreateServiceTreeRequest & {
     app: data.app,
     name: data.name,
     code: data.code,
-    parent_id: data.parent_id || 0,
+    parent_full_code_path: data.parent_full_code_path || '',
     description: data.description || '',
     tags: data.tags || '',
     admins: data.admins || ''
@@ -91,11 +91,11 @@ export function createServiceTree(data: CreateServiceTreeRequest & { type?: stri
     app: data.app,
     name: data.name,
     code: data.code,
-    parent_id: data.parent_id || 0,
+    parent_full_code_path: data.parent_full_code_path || '',
     type: data.type || 'package',
     description: data.description || '',
     tags: data.tags || '',
-    admins: data.admins || '' // ⭐ 添加管理员字段
+    admins: data.admins || ''
   }
   
   // ⭐ 如果是 docs 类型，添加文档相关字段
@@ -153,7 +153,7 @@ export function createBoard(data: CreateServiceTreeRequest) {
     app: data.app,
     name: data.name,
     code: data.code,
-    parent_id: data.parent_id || 0,
+    parent_full_code_path: data.parent_full_code_path || '',
     description: data.description || '',
     tags: data.tags || '',
     admins: data.admins || ''
@@ -226,7 +226,6 @@ export interface ServiceTreeDetail {
   id: number
   name: string
   code: string
-  parent_id: number
   type: 'package' | 'function'
   description: string
   tags: string
@@ -278,8 +277,8 @@ export function getPackageInfo(params: { id?: number; full_code_path?: string })
 }
 
 // 移动服务目录
-export function moveServiceTree(id: number, newParentId: number) {
-  return put(`/workspace/api/v1/service_tree/${id}/move`, { parent_id: newParentId })
+export function moveServiceTree(id: number, newParentFullCodePath: string) {
+  return put(`/workspace/api/v1/service_tree/${id}/move`, { parent_full_code_path: newParentFullCodePath })
 }
 
 // 复制服务目录（新接口，支持递归复制）
@@ -296,10 +295,10 @@ export function copyDirectory(data: {
 }
 
 // 复制服务目录（旧接口，保留向后兼容）
-export function copyServiceTree(id: number, targetAppId: number, targetParentId?: number) {
+export function copyServiceTree(id: number, targetAppId: number, targetParentFullCodePath?: string) {
   return post(`/workspace/api/v1/service_tree/${id}/copy`, {
     app_id: targetAppId,
-    parent_id: targetParentId
+    parent_full_code_path: targetParentFullCodePath || ''
   })
 }
 

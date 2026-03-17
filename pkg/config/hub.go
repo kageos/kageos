@@ -60,9 +60,9 @@ type HubServerConfig struct {
 	Debug    bool   `mapstructure:"debug"`
 }
 
-// OSConfig OS 平台配置
+// OSConfig 主站相关配置（用于 Hub 试用跳转等）
 type OSConfig struct {
-	BaseURL string `mapstructure:"base_url"` // OS 平台基础 URL
+	BaseURL string `mapstructure:"base_url"` // 主站前端地址（如 http://localhost:5173 或 http://125.122.96.207:8999），不是后端 API 地址
 }
 
 // GetPort 获取端口
@@ -89,4 +89,9 @@ func (c *HubConfig) IsDebug() bool {
 // GetPublicHost 获取主站 host:port（用于 copy_url），返回配置的 public_host，可能为空
 func (c *HubConfig) GetPublicHost() string {
 	return strings.TrimSpace(c.PublicHost)
+}
+
+// GetMainSiteURL 获取主站前端地址，用于 Hub 点击「试用」时跳转（主站前端 + /workspace + 目录路径）。注意是前端地址不是后端 API。
+func (c *HubConfig) GetMainSiteURL() string {
+	return strings.TrimRight(strings.TrimSpace(c.OS.BaseURL), "/")
 }

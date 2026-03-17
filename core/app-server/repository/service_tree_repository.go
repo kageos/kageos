@@ -22,16 +22,6 @@ func (r *ServiceTreeRepository) Create(serviceTree *model.ServiceTree) error {
 	return r.db.Create(serviceTree).Error
 }
 
-// GetDocsNodesByParentID 根据父节点ID获取所有 docs 类型的子节点
-// 已改为基于路径前缀查询，无需递归
-func (r *ServiceTreeRepository) GetDocsNodesByParentID(parentID int64) ([]*model.ServiceTree, error) {
-	parent, err := r.GetServiceTreeByID(parentID)
-	if err != nil {
-		return nil, fmt.Errorf("查询父节点失败: %w", err)
-	}
-	return r.GetDocsNodesByPathPrefix(parent.AppID, parent.FullCodePath)
-}
-
 // GetDocsNodesByPathPrefix 根据路径前缀获取所有 docs 类型的后代节点
 func (r *ServiceTreeRepository) GetDocsNodesByPathPrefix(appID int64, parentPath string) ([]*model.ServiceTree, error) {
 	prefix := strings.TrimSuffix(parentPath, "/") + "/"

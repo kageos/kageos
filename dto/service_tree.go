@@ -76,11 +76,11 @@ type CreateServiceTreeReq struct {
 	App         string `json:"app" binding:"required" example:"myapp"`   // 应用名
 	Name        string `json:"name" binding:"required" example:"用户管理"`   // 服务目录名称
 	Code        string `json:"code" binding:"required" example:"user"`   // 服务目录代码
-	ParentID    int64  `json:"parent_id" example:"0"`                    // 父目录ID，0表示根目录
-	Type        string `json:"type" example:"package"`                   // 节点类型: package(服务目录/包), docs(文档), function(函数/文件)
-	Description string `json:"description" example:"用户相关的API接口"`         // 描述
-	Tags        string `json:"tags" example:"user,management"`           // 标签
-	Admins      string `json:"admins" example:"user1,user2"`             // 管理员列表，逗号分隔的用户名
+	ParentFullCodePath string `json:"parent_full_code_path" example:"/beiluo/myapp"` // 父目录完整路径，空字符串表示根目录
+	Type               string `json:"type" example:"package"`                      // 节点类型: package(服务目录/包), docs(文档), function(函数/文件)
+	Description        string `json:"description" example:"用户相关的API接口"`            // 描述
+	Tags               string `json:"tags" example:"user,management"`              // 标签
+	Admins             string `json:"admins" example:"user1,user2"`                // 管理员列表，逗号分隔的用户名
 	// ⭐ 文档相关字段（仅当 type=docs 时使用）
 	DocContent string `json:"doc_content" example:"# 文档内容\n\n这是文档内容..."` // 文档内容（仅 docs 类型）
 	DocFormat  string `json:"doc_format" example:"markdown"`             // 文档格式（仅 docs 类型，默认为 markdown）
@@ -92,26 +92,24 @@ type CreateServiceTreeResp struct {
 	ID           int64  `json:"id" example:"1"`                              // 服务目录ID
 	Name         string `json:"name" example:"用户管理"`                         // 服务目录名称
 	Code         string `json:"code" example:"user"`                         // 服务目录代码
-	ParentID     int64  `json:"parent_id" example:"0"`                       // 父目录ID
-	Type         string `json:"type" example:"package"`                      // 节点类型: package(服务目录/包), function(函数/文件), api(API接口), service(服务), module(模块)
+	Type         string `json:"type" example:"package"`                      // 节点类型
 	Description  string `json:"description" example:"用户相关的API接口"`            // 描述
 	Tags         string `json:"tags" example:"user,management"`              // 标签
 	AppID        int64  `json:"app_id" example:"1"`                          // 应用ID
-	RefID        int64  `json:"ref_id" example:"0"`                          // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
-	FullCodePath string `json:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径
-	Version      string `json:"version" example:"v1"`                        // 节点当前版本号（如 v1, v2），package类型表示目录版本，function类型表示函数版本等
+	RefID        int64  `json:"ref_id" example:"0"`                          // 引用ID
+	FullCodePath string `json:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径（父路径可由此推导）
+	Version      string `json:"version" example:"v1"`                        // 节点当前版本号
 	VersionNum   int    `json:"version_num" example:"1"`                     // 节点当前版本号（数字部分）
-	Admins       string `json:"admins" example:"user1,user2"`                // 管理员列表，逗号分隔的用户名
-	Status       string `json:"status" example:"enabled"`                    // 状态: enabled(启用), disabled(禁用)
+	Admins       string `json:"admins" example:"user1,user2"`                // 管理员列表
+	Status       string `json:"status" example:"enabled"`                    // 状态
 }
 
 // GetServiceTreeResp 获取服务目录响应
 type GetServiceTreeResp struct {
-	ID              int64                 `json:"id,omitempty" example:"1"`                              // 服务目录ID
-	Name            string                `json:"name,omitempty" example:"用户管理"`                         // 服务目录名称
-	Code            string                `json:"code,omitempty" example:"user"`                         // 服务目录代码
-	ParentID        int64                 `json:"parent_id,omitempty" example:"0"`                       // 父目录ID
-	Type            string                `json:"type,omitempty" example:"package"`                      // 节点类型: package(服务目录/包), function(函数/文件), api(API接口), service(服务), module(模块)
+	ID           int64                 `json:"id,omitempty" example:"1"`                              // 服务目录ID
+	Name         string                `json:"name,omitempty" example:"用户管理"`                         // 服务目录名称
+	Code         string                `json:"code,omitempty" example:"user"`                         // 服务目录代码
+	Type         string                `json:"type,omitempty" example:"package"`                      // 节点类型
 	Description     string                `json:"description,omitempty" example:"用户相关的API接口"`            // 描述
 	Tags            string                `json:"tags,omitempty" example:"user,management"`              // 标签
 	Admins          string                `json:"admins,omitempty" example:"user1,user2"`                // 节点管理员列表，逗号分隔的用户名
@@ -140,11 +138,10 @@ type GetServiceTreeDetailReq struct {
 
 // GetServiceTreeDetailResp 获取服务目录详情响应
 type GetServiceTreeDetailResp struct {
-	ID              int64           `json:"id" example:"1"`                              // 服务目录ID
-	Name            string          `json:"name" example:"用户管理"`                         // 服务目录名称
-	Code            string          `json:"code" example:"user"`                         // 服务目录代码
-	ParentID        int64           `json:"parent_id" example:"0"`                       // 父目录ID
-	Type            string          `json:"type" example:"package"`                      // 节点类型: package(服务目录/包), function(函数/文件)
+	ID           int64           `json:"id" example:"1"`                              // 服务目录ID
+	Name         string          `json:"name" example:"用户管理"`                         // 服务目录名称
+	Code         string          `json:"code" example:"user"`                         // 服务目录代码
+	Type         string          `json:"type" example:"package"`                      // 节点类型
 	Description     string          `json:"description" example:"用户相关的API接口"`            // 描述
 	Tags            string          `json:"tags" example:"user,management"`              // 标签
 	AppID           int64           `json:"app_id" example:"1"`                          // 应用ID
@@ -328,14 +325,14 @@ type GetServiceTreeByIDReq struct {
 
 // CreatePackageReq 创建 package 类型节点请求
 type CreatePackageReq struct {
-	User        string `json:"user" binding:"required" example:"beiluo"` // 用户名
-	App         string `json:"app" binding:"required" example:"myapp"`   // 应用名
-	Name        string `json:"name" binding:"required" example:"用户管理"`   // 目录名称
-	Code        string `json:"code" binding:"required" example:"user"`   // 目录代码
-	ParentID    int64  `json:"parent_id" example:"0"`                    // 父目录ID，0表示根目录
-	Description string `json:"description" example:"用户相关的API接口"`         // 描述
-	Tags        string `json:"tags" example:"user,management"`           // 标签
-	Admins      string `json:"admins" example:"user1,user2"`             // 管理员列表，逗号分隔的用户名
+	User               string `json:"user" binding:"required" example:"beiluo"` // 用户名
+	App                string `json:"app" binding:"required" example:"myapp"`   // 应用名
+	Name               string `json:"name" binding:"required" example:"用户管理"`   // 目录名称
+	Code               string `json:"code" binding:"required" example:"user"`   // 目录代码
+	ParentFullCodePath string `json:"parent_full_code_path" example:"/beiluo/myapp"` // 父目录完整路径，空字符串表示根目录
+	Description        string `json:"description" example:"用户相关的API接口"`         // 描述
+	Tags               string `json:"tags" example:"user,management"`           // 标签
+	Admins             string `json:"admins" example:"user1,user2"`             // 管理员列表，逗号分隔的用户名
 }
 
 // CreatePackageResp 创建 package 类型节点响应
@@ -343,12 +340,11 @@ type CreatePackageResp struct {
 	ID           int64  `json:"id" example:"1"`                              // 目录ID
 	Name         string `json:"name" example:"用户管理"`                         // 目录名称
 	Code         string `json:"code" example:"user"`                         // 目录代码
-	ParentID     int64  `json:"parent_id" example:"0"`                       // 父目录ID
 	Type         string `json:"type" example:"package"`                      // 节点类型（固定为 package）
 	Description  string `json:"description" example:"用户相关的API接口"`            // 描述
 	Tags         string `json:"tags" example:"user,management"`              // 标签
 	AppID        int64  `json:"app_id" example:"1"`                          // 应用ID
-	FullCodePath string `json:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径
+	FullCodePath string `json:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径（父路径可由此推导）
 	Version      string `json:"version" example:"v1"`                        // 目录版本号
 	VersionNum   int    `json:"version_num" example:"1"`                     // 目录版本号（数字部分）
 	Admins       string `json:"admins" example:"user1,user2"`                // 管理员列表
@@ -372,31 +368,30 @@ type CreateFunctionResp struct {
 	ID           int64  `json:"id" example:"1"`                                        // 函数ID
 	Name         string `json:"name" example:"用户列表"`                                   // 函数名称
 	Code         string `json:"code" example:"user_list"`                              // 函数代码
-	ParentID     int64  `json:"parent_id" example:"1"`                                 // 父目录ID
 	Type         string `json:"type" example:"function"`                               // 节点类型（固定为 function）
 	TemplateType string `json:"template_type" example:"table"`                         // 模板类型
 	Description  string `json:"description" example:"获取用户列表"`                          // 描述
 	Tags         string `json:"tags" example:"user,list"`                              // 标签
 	AppID        int64  `json:"app_id" example:"1"`                                    // 应用ID
 	RefID        int64  `json:"ref_id" example:"1"`                                    // 引用ID（指向 Function 表）
-	FullCodePath string `json:"full_code_path" example:"/beiluo/myapp/user/user_list"` // 完整代码路径
+	FullCodePath string `json:"full_code_path" example:"/beiluo/myapp/user/user_list"` // 完整代码路径（父路径可由此推导）
 	Version      string `json:"version" example:"v1"`                                  // 函数版本号
 	VersionNum   int    `json:"version_num" example:"1"`                               // 函数版本号（数字部分）
 }
 
 // CreateDocsReq 创建 docs 类型节点请求
 type CreateDocsReq struct {
-	User        string `json:"user" binding:"required" example:"beiluo"`   // 用户名
-	App         string `json:"app" binding:"required" example:"myapp"`     // 应用名
-	Name        string `json:"name" binding:"required" example:"API文档"`    // 文档名称
-	Code        string `json:"code" binding:"required" example:"api_docs"` // 文档代码
-	ParentID    int64  `json:"parent_id" example:"0"`                      // 父目录ID，0表示根目录
-	Description string `json:"description" example:"API接口文档"`              // 描述
-	Tags        string `json:"tags" example:"api,docs"`                    // 标签
-	Admins      string `json:"admins" example:"user1,user2"`               // 管理员列表，逗号分隔的用户名
-	Content     string `json:"content" example:"# 文档内容\n\n这是文档内容..."`      // 文档内容
-	Format      string `json:"format" example:"markdown"`                  // 文档格式（默认为 markdown）
-	Summary     string `json:"summary" example:"文档摘要"`                     // 文档摘要（可选）
+	User               string `json:"user" binding:"required" example:"beiluo"`   // 用户名
+	App                string `json:"app" binding:"required" example:"myapp"`     // 应用名
+	Name               string `json:"name" binding:"required" example:"API文档"`    // 文档名称
+	Code               string `json:"code" binding:"required" example:"api_docs"` // 文档代码
+	ParentFullCodePath string `json:"parent_full_code_path" example:"/beiluo/myapp"` // 父目录完整路径，空字符串表示根目录
+	Description        string `json:"description" example:"API接口文档"`              // 描述
+	Tags               string `json:"tags" example:"api,docs"`                    // 标签
+	Admins             string `json:"admins" example:"user1,user2"`               // 管理员列表，逗号分隔的用户名
+	Content            string `json:"content" example:"# 文档内容\n\n这是文档内容..."`      // 文档内容
+	Format             string `json:"format" example:"markdown"`                  // 文档格式（默认为 markdown）
+	Summary            string `json:"summary" example:"文档摘要"`                     // 文档摘要（可选）
 }
 
 // CreateDocsResp 创建 docs 类型节点响应
@@ -404,12 +399,11 @@ type CreateDocsResp struct {
 	ID           int64  `json:"id" example:"1"`                                  // 文档ID
 	Name         string `json:"name" example:"API文档"`                            // 文档名称
 	Code         string `json:"code" example:"api_docs"`                         // 文档代码
-	ParentID     int64  `json:"parent_id" example:"0"`                           // 父目录ID
 	Type         string `json:"type" example:"docs"`                             // 节点类型（固定为 docs）
 	Description  string `json:"description" example:"API接口文档"`                   // 描述
 	Tags         string `json:"tags" example:"api,docs"`                         // 标签
 	AppID        int64  `json:"app_id" example:"1"`                              // 应用ID
-	FullCodePath string `json:"full_code_path" example:"/beiluo/myapp/api_docs"` // 完整代码路径
+	FullCodePath string `json:"full_code_path" example:"/beiluo/myapp/api_docs"` // 完整代码路径（父路径可由此推导）
 	Admins       string `json:"admins" example:"user1,user2"`                    // 管理员列表
 	DocID        int64  `json:"doc_id" example:"1"`                              // 关联的文档记录ID
 }
