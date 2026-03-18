@@ -1,5 +1,5 @@
 <template>
-  <div class="app-switcher">
+  <div class="app-switcher" :class="{ 'app-switcher-compact': compact }">
     <div class="app-container">
       <div 
         class="app-current" 
@@ -10,20 +10,21 @@
             <div class="app-icon" :style="{ backgroundColor: getAppColor(currentApp) }">
               {{ getAppInitial(currentApp.name || currentApp.code) }}
             </div>
-            <div class="status-indicator"></div>
+            <div class="status-indicator" v-if="!compact"></div>
           </div>
           <div class="app-info">
             <div class="app-name">{{ currentApp.name || currentApp.code }}</div>
-            <div class="app-path">
+            <div class="app-path" v-if="!compact">
               <el-icon class="path-icon"><FolderOpened /></el-icon>
               <span>{{ currentApp.user }}/{{ currentApp.code }}</span>
             </div>
           </div>
-          <div class="expand-section">
+          <div class="expand-section" v-if="!compact">
             <el-icon class="expand-icon">
               <ArrowUp />
             </el-icon>
           </div>
+          <el-icon v-else class="expand-icon-inline"><ArrowDown /></el-icon>
         </div>
       <div 
         class="app-current" 
@@ -31,21 +32,18 @@
         @click="handleOpenDialog"
       >
           <div class="app-avatar">
-            <div class="app-icon" style="background-color: #909399;">
-              ?
-            </div>
+            <div class="app-icon" style="background-color: #909399;">?</div>
           </div>
           <div class="app-info">
-            <div class="app-name">请选择工作空间</div>
-            <div class="app-path">
+            <div class="app-name">选择工作空间</div>
+            <div class="app-path" v-if="!compact">
               <el-icon class="path-icon"><FolderOpened /></el-icon>
-              <span>点击选择工作空间</span>
+              <span>点击选择</span>
             </div>
           </div>
-          <div class="expand-section">
-            <el-icon class="expand-icon">
-              <ArrowUp />
-            </el-icon>
+          <el-icon v-if="compact" class="expand-icon-inline"><ArrowDown /></el-icon>
+          <div v-else class="expand-section">
+            <el-icon class="expand-icon"><ArrowUp /></el-icon>
           </div>
         </div>
       
@@ -53,11 +51,11 @@
       <el-button
         v-if="currentApp && hasAdminPermission"
         class="settings-button"
+        :class="{ 'settings-button-compact': compact }"
         :icon="Setting"
         circle
-        size="default"
-        @click="handleOpenSettings"
-        title="工作空间设置（需要 app:admin 权限）"
+        @click.stop="handleOpenSettings"
+        title="工作空间设置"
       />
     </div>
 
@@ -83,7 +81,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { ArrowUp, FolderOpened, Setting } from '@element-plus/icons-vue'
+import { ArrowUp, ArrowDown, FolderOpened, Setting } from '@element-plus/icons-vue'
 import type { App, ServiceTree } from '@/types'
 import { hasPermission } from '@/utils/permission'
 import WorkspaceListDialog from './WorkspaceListDialog.vue'
@@ -93,7 +91,8 @@ interface Props {
   currentApp: App | null
   appList: App[]
   loadingApps: boolean
-  serviceTree?: ServiceTree[]  // ⭐ 服务树（用于获取应用节点权限）
+  serviceTree?: ServiceTree[]  // ⭐ 服务树（用于应用节点权限）
+  compact?: boolean  // 紧凑模式：用于左侧边栏控制区
 }
 
 interface Emits {
@@ -231,51 +230,72 @@ defineExpose({
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .app-switcher {
-  position: fixed;
-  left: 20px;
-  bottom: 20px;
-  z-index: 1000;
+  flex-shrink: 0;
 }
 
 .app-container {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+}
+
+/* 固定宽度：普通模式 240px，紧凑模式 220px */
+.app-switcher .app-container {
+  width: 240px;
+  min-width: 240px;
+}
+
+.app-switcher-compact .app-container {
+  width: 220px;
+  min-width: 220px;
+  gap: 8px;
 }
 
 .settings-button {
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-light);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+  color: var(--el-text-color-secondary);
 
   &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    transform: translateY(-2px);
+    border-color: var(--el-color-primary);
+    color: var(--el-color-primary);
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
+  }
+
+  &.settings-button-compact {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    font-size: 12px;
+    border-radius: 6px;
   }
 }
 
 .app-current {
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 10px;
+  padding: 10px 12px;
   background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  min-width: 200px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  min-width: 0;
 
   &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    transform: translateY(-2px);
+    border-color: rgba(99, 102, 241, 0.35);
+    box-shadow: 0 2px 12px rgba(99, 102, 241, 0.12);
   }
 }
 
@@ -285,23 +305,24 @@ defineExpose({
 }
 
 .app-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
   font-weight: 600;
-  font-size: 16px;
+  font-size: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 .status-indicator {
   position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 12px;
-  height: 12px;
+  bottom: -1px;
+  right: -1px;
+  width: 10px;
+  height: 10px;
   background: var(--el-color-success);
   border: 2px solid var(--el-bg-color);
   border-radius: 50%;
@@ -313,10 +334,10 @@ defineExpose({
 }
 
 .app-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--el-text-color-primary);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -326,11 +347,11 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--el-text-color-secondary);
   
   .path-icon {
-    font-size: 12px;
+    font-size: 11px;
   }
 }
 
@@ -339,8 +360,33 @@ defineExpose({
 }
 
 .expand-icon {
-  font-size: 14px;
+  font-size: 12px;
   color: var(--el-text-color-secondary);
-  transition: transform 0.3s;
+  transition: transform 0.2s;
+}
+
+.expand-icon-inline {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  flex-shrink: 0;
+}
+
+/* 紧凑模式：顶部导航栏 */
+.app-switcher-compact .app-current {
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.app-switcher-compact .app-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.app-switcher-compact .app-name {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 0;
 }
 </style>

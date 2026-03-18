@@ -359,6 +359,9 @@ export interface UserWidgetConfig {
    * - MyLeader()：当前用户的上级领导，适用于审批人、抄送人、上级领导等字段
    */
   default?: string
+  
+  /** 是否禁用（只读模式，Form 中展示但不可编辑） */
+  disabled?: boolean
 }
 
 /**

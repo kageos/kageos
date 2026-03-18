@@ -204,52 +204,6 @@ func (s *ServiceTreeService) removeMainFileImport(ctx context.Context, user, app
 	return os.WriteFile(mainFilePath, []byte(newContent), 0644)
 }
 
-// RenameServiceTree 重命名服务目录（旧方法，保留兼容性）
-func (s *ServiceTreeService) RenameServiceTree(ctx context.Context, user, app, oldName, newName string) error {
-	logger.Infof(ctx, "[ServiceTreeService] Updating service tree: %s/%s/%s -> %s", user, app, oldName, newName)
-
-	// 构建应用目录路径
-	appDir := filepath.Join(s.config.AppDir.BasePath, user, app)
-	apiDir := filepath.Join(appDir, "code", "api")
-	oldPackageDir := filepath.Join(apiDir, oldName)
-	newPackageDir := filepath.Join(apiDir, newName)
-
-	// 重命名目录
-	if err := os.Rename(oldPackageDir, newPackageDir); err != nil {
-		return fmt.Errorf("failed to rename package directory: %w", err)
-	}
-
-	// 更新init_.go文件中的包名
-	initFilePath := filepath.Join(newPackageDir, "init_.go")
-	if err := s.updateInitFilePackageName(initFilePath, newName); err != nil {
-		logger.Warnf(ctx, "[ServiceTreeService] Failed to update init file package name: %v", err)
-		// 不返回错误，因为目录重命名已经成功
-	}
-
-	logger.Infof(ctx, "[ServiceTreeService] Service tree updated successfully: %s -> %s", oldPackageDir, newPackageDir)
-	return nil
-}
-
-// updateInitFilePackageName 更新init_.go文件中的包名
-func (s *ServiceTreeService) updateInitFilePackageName(initFilePath, newPackageName string) error {
-	// 读取文件内容
-	content, err := os.ReadFile(initFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to read init file: %w", err)
-	}
-
-	// 替换包名
-	oldContent := string(content)
-	newContent := strings.Replace(oldContent, "package "+strings.Split(oldContent, "\n")[0], "package "+newPackageName, 1)
-
-	// 写回文件
-	if err := os.WriteFile(initFilePath, []byte(newContent), 0644); err != nil {
-		return fmt.Errorf("failed to write init file: %w", err)
-	}
-
-	return nil
-}
-
 // updateMainFileImports 更新main文件，添加新包的import（简化版本）
 func (s *ServiceTreeService) updateMainFileImports(ctx context.Context, user, app, packagePath string) error {
 	logger.Infof(ctx, "[ServiceTreeService] Updating main file imports for package: %s", packagePath)

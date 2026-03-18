@@ -97,27 +97,48 @@
         <el-form
           v-if="requestFields.length > 0"
           :model="formData"
-          label-width="100px"
+          label-position="left"
+          label-width="90px"
           class="function-form"
         >
       <div class="section-title">请求参数</div>
-      <el-form-item
-        v-for="field in requestFields"
-        :key="field.code"
-        :label="field.name"
-        :required="isFieldRequired(field)"
-        :error="getFieldError(field.code)"
-      >
-        <WidgetComponent
-          :field="field"
-          :value="fieldValues[field.code]"
-          :field-path="field.code"
-          :form-renderer="formRendererContext"
-          :function-method="functionDetail?.method || 'GET'"
-          :function-router="functionDetail?.router || ''"
-          @update:model-value="(v: FieldValue) => handleFieldUpdate(field.code, v)"
-        />
-      </el-form-item>
+      <template v-for="field in requestFields" :key="field.code">
+        <!-- 长 label：上方 -->
+        <div v-if="isLongLabel(field.name)" class="form-field-label-top">
+          <label class="field-label">
+            {{ field.name }}
+            <span v-if="isFieldRequired(field)" class="required">*</span>
+          </label>
+          <el-form-item :error="getFieldError(field.code)" class="form-item-no-label">
+            <WidgetComponent
+              :field="field"
+              :value="fieldValues[field.code]"
+              :field-path="field.code"
+              :form-renderer="formRendererContext"
+              :function-method="functionDetail?.method || 'GET'"
+              :function-router="functionDetail?.router || ''"
+              @update:model-value="(v: FieldValue) => handleFieldUpdate(field.code, v)"
+            />
+          </el-form-item>
+        </div>
+        <!-- 短 label：左侧一行 -->
+        <el-form-item
+          v-else
+          :label="field.name"
+          :required="isFieldRequired(field)"
+          :error="getFieldError(field.code)"
+        >
+          <WidgetComponent
+            :field="field"
+            :value="fieldValues[field.code]"
+            :field-path="field.code"
+            :form-renderer="formRendererContext"
+            :function-method="functionDetail?.method || 'GET'"
+            :function-router="functionDetail?.router || ''"
+            @update:model-value="(v: FieldValue) => handleFieldUpdate(field.code, v)"
+          />
+        </el-form-item>
+      </template>
     </el-form>
 
     <!-- 提交按钮 -->
@@ -170,21 +191,31 @@
         </el-tag>
       </div>
       <el-form 
-        label-width="100px"
+        label-position="left"
+        label-width="120px"
         :class="{ 'is-empty': !hasResponseData }"
       >
-        <el-form-item
-          v-for="field in responseFields"
-          :key="field.code"
-          :label="field.name"
-        >
-          <WidgetComponent
-            :field="field"
-            :value="responseFieldValues[field.code]"
-            :field-path="field.code"
-            mode="response"
-          />
-        </el-form-item>
+        <template v-for="field in responseFields" :key="field.code">
+          <div v-if="isLongLabel(field.name)" class="form-field-label-top">
+            <label class="field-label">{{ field.name }}</label>
+            <el-form-item class="form-item-no-label">
+              <WidgetComponent
+                :field="field"
+                :value="responseFieldValues[field.code]"
+                :field-path="field.code"
+                mode="response"
+              />
+            </el-form-item>
+          </div>
+          <el-form-item v-else :label="field.name">
+            <WidgetComponent
+              :field="field"
+              :value="responseFieldValues[field.code]"
+              :field-path="field.code"
+              mode="response"
+            />
+          </el-form-item>
+        </template>
       </el-form>
     </div>
 
@@ -560,6 +591,11 @@ const getResponseFieldValue = (fieldCode: string): FieldValue => {
 
 const isFieldRequired = (field: FieldConfig): boolean => {
   return hasAnyRequiredRule(field)
+}
+
+/** 长 label 阈值：8 字符及以上放上方，短 label 放左侧一行 */
+const isLongLabel = (name: string | undefined): boolean => {
+  return !!(name && name.length >= 8)
 }
 
 const handleFieldUpdate = (fieldCode: string, value: FieldValue): void => {
@@ -1223,6 +1259,41 @@ onUnmounted(() => {
 <style scoped lang="scss">
 .form-view {
   padding: 20px;
+}
+
+/* 长 label：label 在上方 */
+.form-field-label-top {
+  margin-bottom: 18px;
+
+  .field-label {
+    display: block;
+    font-size: 14px;
+    color: var(--el-text-color-regular);
+    margin-bottom: 8px;
+    line-height: 1.4;
+
+    .required {
+      color: var(--el-color-danger);
+      margin-left: 2px;
+    }
+  }
+
+  .form-item-no-label {
+    margin-bottom: 0;
+
+    :deep(.el-form-item__label) {
+      display: none;
+    }
+    :deep(.el-form-item__content) {
+      margin-left: 0 !important;
+    }
+  }
+}
+
+/* 短 label：右对齐，靠近右侧输入框，减少 label 与输入框间距 */
+.form-view-main :deep(.el-form .el-form-item:not(.form-item-no-label) .el-form-item__label) {
+  text-align: right;
+  padding-right: 8px;
 }
 
 .form-view-container {

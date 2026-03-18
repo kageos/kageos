@@ -91,30 +91,51 @@
       </template>
       <el-form
         :model="formData"
-        label-width="100px"
+        label-position="left"
+        label-width="90px"
         class="form-widget-form"
       >
-        <el-form-item
-          v-for="subField in visibleSubFields"
-          :key="subField.code"
-          :label="subField.name"
-          :required="isFieldRequired(subField)"
-          class="form-widget-item"
-        >
-          <!-- 🔥 递归渲染子组件 -->
-          <component
-            :is="getWidgetComponent(subField.widget?.type || 'input')"
-            :field="subField"
-            :value="getSubFieldValue(subField.code)"
-            :model-value="getSubFieldValue(subField.code)"
-            @update:model-value="(v) => updateSubFieldValue(subField.code, v)"
-            :field-path="`${fieldPath}.${subField.code}`"
-            :form-manager="formManager"
-            :form-renderer="formRenderer"
-            :mode="mode"
-            :depth="(depth || 0) + 1"
-          />
-        </el-form-item>
+        <template v-for="subField in visibleSubFields" :key="subField.code">
+          <div v-if="isLongLabel(subField.name)" class="form-field-label-top">
+            <label class="field-label">
+              {{ subField.name }}
+              <span v-if="isFieldRequired(subField)" class="required">*</span>
+            </label>
+            <el-form-item class="form-item-no-label">
+              <component
+                :is="getWidgetComponent(subField.widget?.type || 'input')"
+                :field="subField"
+                :value="getSubFieldValue(subField.code)"
+                :model-value="getSubFieldValue(subField.code)"
+                @update:model-value="(v) => updateSubFieldValue(subField.code, v)"
+                :field-path="`${fieldPath}.${subField.code}`"
+                :form-manager="formManager"
+                :form-renderer="formRenderer"
+                :mode="mode"
+                :depth="(depth || 0) + 1"
+              />
+            </el-form-item>
+          </div>
+          <el-form-item
+            v-else
+            :label="subField.name"
+            :required="isFieldRequired(subField)"
+            class="form-widget-item"
+          >
+            <component
+              :is="getWidgetComponent(subField.widget?.type || 'input')"
+              :field="subField"
+              :value="getSubFieldValue(subField.code)"
+              :model-value="getSubFieldValue(subField.code)"
+              @update:model-value="(v) => updateSubFieldValue(subField.code, v)"
+              :field-path="`${fieldPath}.${subField.code}`"
+              :form-manager="formManager"
+              :form-renderer="formRenderer"
+              :mode="mode"
+              :depth="(depth || 0) + 1"
+            />
+          </el-form-item>
+        </template>
       </el-form>
     </el-card>
     
@@ -196,15 +217,36 @@
           <div class="form-detail-content">
             <el-form
               :model="formData"
-              label-width="120px"
+              label-position="left"
+              label-width="90px"
             >
-              <el-form-item
-                v-for="subField in visibleSubFields"
-                :key="subField.code"
-                :label="subField.name"
-                :required="isFieldRequired(subField)"
-              >
-                <component
+              <template v-for="subField in visibleSubFields" :key="subField.code">
+                <div v-if="isLongLabel(subField.name)" class="form-field-label-top">
+                  <label class="field-label">
+                    {{ subField.name }}
+                    <span v-if="isFieldRequired(subField)" class="required">*</span>
+                  </label>
+                  <el-form-item class="form-item-no-label">
+                    <component
+                      :is="getWidgetComponent(subField.widget?.type || 'input')"
+                      :field="subField"
+                      :value="getSubFieldValue(subField.code)"
+                      :model-value="getSubFieldValue(subField.code)"
+                      @update:model-value="(v) => updateSubFieldValue(subField.code, v)"
+                      :field-path="`${fieldPath}.${subField.code}`"
+                      :form-manager="formManager"
+                      :form-renderer="formRenderer"
+                      :mode="tableCellMode.drawerMode.value"
+                      :depth="(depth || 0) + 1"
+                    />
+                  </el-form-item>
+                </div>
+                <el-form-item
+                  v-else
+                  :label="subField.name"
+                  :required="isFieldRequired(subField)"
+                >
+                  <component
                   :is="getWidgetComponent(subField.widget?.type || 'input')"
                   :field="subField"
                   :value="getSubFieldValue(subField.code)"
@@ -216,7 +258,8 @@
                   :mode="tableCellMode.drawerMode.value"
                   :depth="(depth || 0) + 1"
                 />
-              </el-form-item>
+                </el-form-item>
+              </template>
             </el-form>
           </div>
         </template>
@@ -319,6 +362,11 @@ function getWidgetComponent(type: string) {
 function isFieldRequired(field: FieldConfig): boolean {
   const validation = field.validation || ''
   return validation.includes('required') && !validation.includes('omitempty')
+}
+
+/** 长 label 阈值：8 字符及以上放上方，短 label 放左侧一行 */
+function isLongLabel(name: string | undefined): boolean {
+  return !!(name && name.length >= 8)
 }
 
 /**
@@ -455,6 +503,12 @@ defineExpose({
   color: var(--el-text-color-regular);
 }
 
+/* 短 label：右对齐，靠近右侧输入框，减少 label 与输入框间距 */
+:deep(.form-widget-form .el-form-item:not(.form-item-no-label) .el-form-item__label) {
+  text-align: right;
+  padding-right: 8px;
+}
+
 /* Form 表单项间距 */
 :deep(.form-widget-form .el-form-item) {
   margin-bottom: 20px;
@@ -462,6 +516,35 @@ defineExpose({
 
 :deep(.form-widget-form .el-form-item:last-child) {
   margin-bottom: 0;
+}
+
+/* 长 label：label 在上方 */
+.form-field-label-top {
+  margin-bottom: 20px;
+
+  .field-label {
+    display: block;
+    font-size: 14px;
+    color: var(--el-text-color-regular);
+    margin-bottom: 8px;
+    line-height: 1.4;
+
+    .required {
+      color: var(--el-color-danger);
+      margin-left: 2px;
+    }
+  }
+
+  .form-item-no-label {
+    margin-bottom: 0;
+
+    :deep(.el-form-item__label) {
+      display: none;
+    }
+    :deep(.el-form-item__content) {
+      margin-left: 0 !important;
+    }
+  }
 }
 
 /* 表格单元格模式 */

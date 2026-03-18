@@ -1,7 +1,6 @@
 <template>
   <div class="service-tree-panel" v-loading="loading">
     <div class="tree-header">
-      <h3>服务目录</h3>
       <el-input
         v-model="searchKeyword"
         class="tree-search-input"
@@ -28,12 +27,20 @@
         @node-click="handleNodeClick"
       >
         <template #default="{ node, data }">
-          <span
-            class="tree-node"
-            :class="{ 'tree-node-draggable': data.type === 'function' || data.type === 'package' }"
-            :draggable="data.type === 'function' || data.type === 'package'"
-            @dragstart="onTreeNodeDragStart($event, data)"
+          <el-dropdown
+            trigger="contextmenu"
+            :teleported="true"
+            popper-class="service-tree-contextmenu-popper"
+            @command="(command: string) => handleNodeAction(command, data)"
           >
+            <span
+              class="tree-node"
+              :class="{ 'tree-node-draggable': data.type === 'function' || data.type === 'package' }"
+              :draggable="data.type === 'function' || data.type === 'package'"
+              @dragstart="onTreeNodeDragStart($event, data)"
+              @contextmenu.prevent
+              :title="'右键显示菜单'"
+            >
             <!-- 根节点：使用工作空间图标（package 类型且为根节点） -->
             <img 
               v-if="data.type === 'package' && isRootNode(data)" 
@@ -107,23 +114,39 @@
               :title="`有 ${data.pending_count} 个待审批的权限申请`"
             />
             
-            <!-- 更多操作按钮 - 鼠标悬停时显示 -->
+            <!-- 更多操作按钮 - 鼠标悬停时显示（与右键菜单并存，点击也可打开） -->
             <el-dropdown
               trigger="click"
               :teleported="true"
-              popper-class="service-tree-dropdown-popper"
+              popper-class="service-tree-contextmenu-popper"
               @click.stop
               class="node-more-actions"
               @command="(command: string) => handleNodeAction(command, data)"
             >
-              <el-icon 
-                class="more-icon" 
-                @click.stop
-              >
-                <MoreFilled />
-              </el-icon>
+              <el-icon class="more-icon" @click.stop><MoreFilled /></el-icon>
               <template #dropdown>
                 <el-dropdown-menu>
+                  <el-dropdown-item command="apply-permission"><el-icon><Key /></el-icon>申请权限</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.write)" command="create-directory"><el-icon><Plus /></el-icon>添加服务目录</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.write)" command="create-docs"><el-icon><Document /></el-icon>创建文档</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.write)" command="create-board"><el-icon><ChatDotSquare /></el-icon>新增讨论区</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package'" command="open-workstation"><el-icon><ChatDotRound /></el-icon>打开工作台</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && !isRootNode(data) && hasPermission(data, DirectoryPermissions.delete)" command="delete-directory"><el-icon><Delete /></el-icon>删除目录</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.update)" command="rename"><el-icon><Edit /></el-icon>重命名</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.read)" command="copy"><el-icon><CopyDocument /></el-icon>复制</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && (copiedDirectory || copiedHubLink) && hasPermission(data, DirectoryPermissions.write)" command="paste"><el-icon><DocumentChecked /></el-icon>粘贴</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'function' && hasPermission(data, TablePermissions.delete)" command="delete-function"><el-icon><Delete /></el-icon>删除函数</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'docs' && hasPermission(data, DirectoryPermissions.delete)" command="delete-doc"><el-icon><Delete /></el-icon>删除文档</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'board' && hasPermission(data, DirectoryPermissions.delete)" command="delete-board"><el-icon><Delete /></el-icon>删除讨论区</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.write)" command="import-go-files"><el-icon><Download /></el-icon>导入 Go 文件</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && !data.hub_full_code_path && hasPermission(data, DirectoryPermissions.read)" command="publish-to-hub"><el-icon><Upload /></el-icon>发布到 Hub</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && data.hub_full_code_path && hasPermission(data, DirectoryPermissions.write)" command="push-to-hub"><el-icon><Upload /></el-icon>推送到 Hub</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
                   <!-- 申请权限选项（对所有节点都显示） -->
                   <el-dropdown-item 
                     command="apply-permission"
@@ -258,19 +281,9 @@
                   </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
-            </el-dropdown>
-          </span>
+          </el-dropdown>
         </template>
       </el-tree>
-      
-      <div v-else class="empty-state">
-        <el-empty description="暂无服务目录" :image-size="80">
-          <el-button type="primary" @click="$emit('create-directory')">
-            <el-icon><Plus /></el-icon>
-            创建服务目录
-          </el-button>
-        </el-empty>
-      </div>
     </div>
   </div>
 </template>
@@ -1448,13 +1461,6 @@ defineExpose({
   flex-direction: column;
   gap: 10px;
 
-  h3 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--el-text-color-primary);
-  }
-
   .tree-search-input {
     flex-shrink: 0;
   }
@@ -1495,7 +1501,7 @@ defineExpose({
   overflow-y: auto;
   overflow-x: visible; /* 确保下拉菜单不被裁剪 */
   padding: 8px;
-  padding-bottom: 100px; /* ✅ 为左下角 AppSwitcher 留出空间，避免底部内容被遮挡 */
+  padding-bottom: 16px;
   display: flex;
   flex-direction: column;
   position: relative; /* 确保下拉菜单定位正确 */
@@ -1643,28 +1649,18 @@ defineExpose({
 
   .node-more-actions {
     flex-shrink: 0;
+    margin-left: auto; /* 靠右对齐 */
     opacity: 0;
     transition: opacity 0.2s;
-    position: relative; /* 确保下拉菜单定位正确 */
-    z-index: 10; /* 确保下拉菜单在最上层 */
-    pointer-events: auto; /* 确保可以点击 */
-    
     .more-icon {
       font-size: 14px;
       color: var(--el-text-color-secondary);
       cursor: pointer;
       padding: 4px;
-      pointer-events: auto; /* 确保可以点击 */
-      
-      &:hover {
-        color: var(--el-color-primary);
-      }
+      &:hover { color: var(--el-color-primary); }
     }
   }
-  
-  &:hover .node-more-actions {
-    opacity: 1;
-  }
+  &:hover .node-more-actions { opacity: 1; }
 }
 
 :deep(.el-tree-node__content) {
@@ -1677,10 +1673,7 @@ defineExpose({
   
   &:hover {
     background-color: var(--el-fill-color-light);
-    
-    .tree-node .node-more-actions {
-      opacity: 1;
-    }
+    .tree-node .node-more-actions { opacity: 1; }
   }
 }
 
@@ -1698,17 +1691,7 @@ defineExpose({
       color: #6366f1;
       opacity: 0.8;
     }
-    
-    /* 确保高亮节点时下拉菜单也能正常显示 */
-    .node-more-actions {
-      opacity: 1 !important; /* 高亮节点时始终显示下拉按钮 */
-      z-index: 100; /* 确保下拉菜单在最上层 */
-      pointer-events: auto !important; /* 确保可以点击 */
-      
-      .more-icon {
-        pointer-events: auto !important; /* 确保图标可以点击 */
-      }
-    }
+    .node-more-actions { opacity: 1 !important; }
   }
 }
 
@@ -1718,23 +1701,113 @@ defineExpose({
   border-left: none;
 }
 
-/* 下拉菜单样式修复 */
+/* 右键/三点菜单样式 */
 :deep(.el-dropdown-menu),
+:global(.service-tree-contextmenu-popper .el-dropdown-menu),
 :global(.service-tree-dropdown-popper .el-dropdown-menu) {
   min-width: 160px;
-  z-index: 9999 !important; /* 确保下拉菜单在最上层 */
+  z-index: 9999 !important;
 }
 
 :deep(.el-dropdown-menu__item),
+:global(.service-tree-contextmenu-popper .el-dropdown-menu__item),
 :global(.service-tree-dropdown-popper .el-dropdown-menu__item) {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
   white-space: nowrap;
-  
-  .el-icon {
-    font-size: 14px;
+  .el-icon { font-size: 14px; }
+}
+</style>
+
+<!-- 科幻风格右键菜单（全局样式，popper teleported 到 body） -->
+<style lang="scss">
+.service-tree-contextmenu-popper {
+  --ctx-bg: #0d1321;
+  --ctx-bg-hover: rgba(0, 212, 255, 0.12);
+  --ctx-border: rgba(0, 212, 255, 0.4);
+  --ctx-glow: #00d4ff;
+  --ctx-glow-rgb: 0, 212, 255;
+  --ctx-text: #e2e8f0;
+  --ctx-text-muted: #94a3b8;
+
+  &.el-popper {
+    padding: 0 !important;
+    background: var(--ctx-bg) !important;
+    border: 1px solid var(--ctx-border) !important;
+    box-shadow: 0 0 24px rgba(var(--ctx-glow-rgb), 0.2), 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+    border-radius: 8px !important;
+    overflow: hidden;
+    position: relative;
+
+    /* 顶部流光条 */
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--ctx-glow), transparent);
+      opacity: 0.7;
+    }
+
+    /* 淡网格背景 */
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(rgba(var(--ctx-glow-rgb), 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(var(--ctx-glow-rgb), 0.03) 1px, transparent 1px);
+      background-size: 12px 12px;
+      pointer-events: none;
+    }
+  }
+
+  .el-dropdown-menu {
+    background: transparent !important;
+    border: none !important;
+    padding: 8px 0 !important;
+    min-width: 180px !important;
+    position: relative;
+    z-index: 1;
+  }
+
+  .el-dropdown-menu__item {
+    color: var(--ctx-text) !important;
+    padding: 10px 16px !important;
+    margin: 0 4px !important;
+    border-radius: 6px !important;
+    transition: all 0.2s ease !important;
+
+    .el-icon {
+      color: var(--ctx-glow) !important;
+      opacity: 0.9;
+    }
+
+    &:not(.is-disabled):hover {
+      background: var(--ctx-bg-hover) !important;
+      color: var(--ctx-glow) !important;
+      box-shadow: inset 0 0 12px rgba(var(--ctx-glow-rgb), 0.08) !important;
+
+      .el-icon {
+        color: var(--ctx-glow) !important;
+        opacity: 1;
+      }
+    }
+
+    &.is-disabled {
+      color: var(--ctx-text-muted) !important;
+      opacity: 0.5;
+    }
+  }
+
+  /* 分隔线 */
+  .el-dropdown-menu__item--divided {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(var(--ctx-glow-rgb), 0.2);
   }
 }
 </style>

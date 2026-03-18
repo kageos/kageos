@@ -7,7 +7,7 @@
     @close="handleClose"
   >
     <div class="workspace-settings-dialog">
-      <el-form label-width="100px">
+      <el-form label-width="120px">
         <el-form-item label="工作空间">
           <div class="workspace-info">
             <div class="workspace-name">{{ currentApp?.name || currentApp?.code }}</div>
@@ -16,14 +16,12 @@
         </el-form-item>
         
         <el-form-item label="仅展示有权限">
-          <el-switch
-            v-model="showOnlyPermitted"
-            active-text="开启"
-            inactive-text="关闭"
-          />
-          <div class="form-tip">
-            开启后，非管理员进入该工作空间时，左侧目录只展示其有权限的节点（适合 SaaS 多租户场景）
-          </div>
+          <el-tooltip
+            content="开启后，非管理员进入该工作空间时，左侧目录只展示其有权限的节点（适合 SaaS 多租户场景）"
+            placement="top"
+          >
+            <el-switch v-model="showOnlyPermitted" />
+          </el-tooltip>
         </el-form-item>
 
         <el-form-item label="管理员">

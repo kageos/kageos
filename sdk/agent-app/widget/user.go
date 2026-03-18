@@ -21,8 +21,10 @@ package widget
 //   - default 参数支持函数调用（如 Me()、MyLeader()）
 //   - 如果用户未登录，Me() 会返回 null
 //   - 如果用户没有上级领导，MyLeader() 会返回 null
+//   - disabled: 是否禁用（只读模式，Form 中展示但不可编辑）
 type User struct {
-	Default string `json:"default,omitempty"` // 默认值，支持函数调用 Me()（当前登录用户）、MyLeader()（当前用户的上级领导）
+	Default  string `json:"default,omitempty"`  // 默认值，支持函数调用 Me()（当前登录用户）、MyLeader()（当前用户的上级领导）
+	Disabled bool   `json:"disabled,omitempty"` // 是否禁用（只读模式）
 }
 
 func (u *User) Config() interface{} {
@@ -39,6 +41,9 @@ func newUser(widgetParsed map[string]string) *User {
 	// 从widgetParsed中解析配置
 	if defaultValue, exists := widgetParsed["default"]; exists {
 		user.Default = defaultValue
+	}
+	if disabled, exists := widgetParsed["disabled"]; exists {
+		user.Disabled = disabled == "true"
 	}
 
 	return user

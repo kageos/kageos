@@ -8,6 +8,21 @@
 
 <template>
   <div class="workspace-header">
+    <div class="header-left">
+      <AppSwitcher
+        ref="appSwitcherRef"
+        compact
+        :current-app="currentApp"
+        :app-list="appList"
+        :loading-apps="loadingApps"
+        :service-tree="serviceTree"
+        @switch-app="$emit('switch-app', $event)"
+        @create-app="$emit('create-app')"
+        @update-app="$emit('update-app', $event)"
+        @delete-app="$emit('delete-app', $event)"
+        @load-apps="$emit('load-apps')"
+      />
+    </div>
     <div class="header-right">
       <!-- 仅保留应用中心在栏上 -->
       <el-button
@@ -105,6 +120,8 @@ import {
   Sunny,
   SwitchButton
 } from '@element-plus/icons-vue'
+import AppSwitcher from '@/components/AppSwitcher.vue'
+import type { App, ServiceTree } from '@/types'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useLicenseStore } from '@/stores/license'
@@ -112,6 +129,21 @@ import { useThemeStore } from '@/stores/theme'
 import DebugDialog from './DebugDialog.vue'
 import UpgradeEnterpriseDialog from '@/components/UpgradeEnterpriseDialog.vue'
 import { navigateToHub as navigateToHubUtil } from '@/utils/hub-navigation'
+
+const props = defineProps<{
+  currentApp: App | null
+  appList: App[]
+  loadingApps: boolean
+  serviceTree?: ServiceTree[]
+}>()
+
+const emit = defineEmits<{
+  (e: 'switch-app', app: App): void
+  (e: 'create-app'): void
+  (e: 'update-app', app: App): void
+  (e: 'delete-app', app: App): void
+  (e: 'load-apps'): void
+}>()
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -256,18 +288,34 @@ onMounted(async () => {
     licenseStore.startPeriodicCheck()
   }
 })
+
+const appSwitcherRef = ref<InstanceType<typeof AppSwitcher> | null>(null)
+
+function openWorkspaceListDialog(forceSelect = false) {
+  appSwitcherRef.value?.openWorkspaceListDialog(forceSelect)
+}
+
+defineExpose({
+  openWorkspaceListDialog
+})
 </script>
 
 <style scoped lang="scss">
 .workspace-header {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
   height: 60px;
   padding: 0 24px;
   background: var(--el-bg-color);
   border-bottom: 1px solid var(--el-border-color-lighter);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .header-right {

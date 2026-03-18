@@ -10,11 +10,37 @@
 
 <template>
   <div class="workspace-container">
-    <!-- 顶部导航栏 -->
-    <WorkspaceHeader />
+    <!-- 顶部导航栏：工作空间切换 + 应用中心 同一行 -->
+    <WorkspaceHeader
+      ref="workspaceHeaderRef"
+      :current-app="currentApp"
+      :app-list="appList"
+      :loading-apps="loadingApps"
+      :service-tree="serviceTree"
+      @switch-app="handleSwitchApp"
+      @create-app="showCreateAppDialog"
+      @update-app="handleUpdateApp"
+      @delete-app="handleDeleteApp"
+      @load-apps="loadAppList"
+    />
 
     <div class="workspace-view">
-      <!-- 左侧服务目录树 -->
+      <!-- 左下角：隐藏/显示目录按钮 -->
+      <div class="sidebar-toggle-bottom-left">
+        <el-button
+          link
+          @click="toggleLeftSidebar"
+          class="sidebar-toggle-btn"
+          :title="showLeftSidebar ? '隐藏目录' : '显示目录'"
+        >
+          <el-icon>
+            <ArrowLeft v-if="showLeftSidebar" />
+            <ArrowRight v-else />
+          </el-icon>
+        </el-button>
+      </div>
+
+      <!-- 左侧：目录树 -->
       <div class="left-sidebar" :class="{ 'sidebar-collapsed': !showLeftSidebar }">
         <div class="left-sidebar-tree">
           <ServiceTreePanel
@@ -40,31 +66,6 @@
             @update-history="handleUpdateHistory"
           />
         </div>
-      </div>
-
-      <!-- 左侧边栏控制按钮 -->
-      <div class="left-sidebar-controls">
-        <el-button
-          v-if="!showLeftSidebar"
-          link
-          @click="toggleLeftSidebar"
-          class="sidebar-toggle"
-          title="显示服务目录"
-        >
-          <el-icon><ArrowRight /></el-icon>
-          显示目录
-        </el-button>
-        
-        <el-button
-          v-if="showLeftSidebar"
-          link
-          @click="toggleLeftSidebar"
-          class="sidebar-toggle"
-          title="隐藏服务目录"
-        >
-          <el-icon><ArrowLeft /></el-icon>
-          隐藏目录
-        </el-button>
       </div>
 
       <!-- 中间函数渲染区域 -->
@@ -380,21 +381,6 @@
       </div>
     </div>
 
-    <!-- 应用切换器（底部固定） -->
-    <!-- 始终显示，即使应用列表为空，让用户可以创建应用 -->
-    <AppSwitcher
-      ref="appSwitcherRef"
-      :current-app="currentApp"
-      :app-list="appList"
-      :loading-apps="loadingApps"
-      :service-tree="serviceTree"
-      @switch-app="handleSwitchApp"
-      @create-app="showCreateAppDialog"
-      @update-app="handleUpdateApp"
-      @delete-app="handleDeleteApp"
-      @load-apps="loadAppList"
-    />
-
     <!-- 创建工作空间对话框 -->
     <el-dialog
       v-model="createAppDialogVisible"
@@ -403,7 +389,7 @@
       :close-on-click-modal="false"
       @close="resetCreateAppForm"
     >
-      <el-form :model="createAppForm" label-width="90px">
+      <el-form :model="createAppForm" label-width="120px">
         <el-form-item label="名称" required>
           <el-input
             v-model="createAppForm.name"
@@ -414,40 +400,35 @@
           />
         </el-form-item>
         <el-form-item label="英文标识" required>
-          <el-input
-            v-model="createAppForm.code"
-            placeholder="请输入英文标识（如：tsinghua、pku_gsm）"
-            maxlength="50"
-            show-word-limit
-            clearable
-            @input="createAppForm.code = createAppForm.code.toLowerCase()"
-          />
-          <div class="form-tip">
-            <el-icon><InfoFilled /></el-icon>
-            英文标识只能包含小写字母、数字和下划线，长度 2-50 个字符
-          </div>
+          <el-tooltip
+            content="以小写字母开头，只能包含小写字母、数字和下划线，长度 2-50 个字符"
+            placement="top"
+          >
+            <el-input
+              v-model="createAppForm.code"
+              placeholder="请输入英文标识（如：tsinghua、pku_gsm）"
+              maxlength="50"
+              show-word-limit
+              clearable
+              @input="createAppForm.code = createAppForm.code.toLowerCase()"
+            />
+          </el-tooltip>
         </el-form-item>
-        <el-form-item label="是否公开">
-          <el-switch
-            v-model="createAppForm.is_public"
-            active-text="公开"
-            inactive-text="私有"
-          />
-          <div class="form-tip">
-            <el-icon><InfoFilled /></el-icon>
-            公开的工作空间可以被其他用户搜索到，私有的工作空间只有您自己可以看到
-          </div>
+        <el-form-item label="公开">
+          <el-tooltip
+            content="公开的工作空间可以被其他用户搜索到，关闭则仅自己可见"
+            placement="top"
+          >
+            <el-switch v-model="createAppForm.is_public" />
+          </el-tooltip>
         </el-form-item>
         <el-form-item label="仅展示有权限">
-          <el-switch
-            v-model="createAppForm.show_only_permitted"
-            active-text="开启"
-            inactive-text="关闭"
-          />
-          <div class="form-tip">
-            <el-icon><InfoFilled /></el-icon>
-            开启后，非管理员用户进入该工作空间时，左侧目录只展示其有权限的节点（适合按区/街道/商户划分的 SaaS 场景）
-          </div>
+          <el-tooltip
+            content="开启后，非管理员用户进入该工作空间时，左侧目录只展示其有权限的节点（适合按区/街道/商户划分的 SaaS 场景）"
+            placement="top"
+          >
+            <el-switch v-model="createAppForm.show_only_permitted" />
+          </el-tooltip>
         </el-form-item>
         <el-form-item label="管理员">
           <UserSearchInput
@@ -501,7 +482,7 @@
       :close-on-click-modal="false"
       @close="handleCloseCreateDocsDialog"
     >
-      <el-form :model="createDocsForm" label-width="90px">
+      <el-form :model="createDocsForm" label-width="120px">
         <el-form-item label="文档名称" required>
           <el-input
             v-model="createDocsForm.name"
@@ -599,7 +580,7 @@
       :close-on-click-modal="false"
       @close="handleCloseCreateDirectoryDialog"
     >
-      <el-form :model="createDirectoryForm" label-width="90px">
+      <el-form :model="createDirectoryForm" label-width="120px">
         <el-form-item label="目录名称" required>
           <el-input
             v-model="createDirectoryForm.name"
@@ -777,11 +758,6 @@
     />
 
 
-    <!-- 工作台任务面板：右上角 badge，点击展开查看执行中/已结束任务，点击「查看」打开对应 Mini -->
-    <div class="workspace-task-panel-wrap">
-      <WorkstationTaskPanel :current-full-code-path="workstationContext?.fullCodePath" />
-    </div>
-
     <!-- 多个 Mini 浮动工作台 -->
     <MiniWorkstation
       v-for="mini in miniWsList"
@@ -821,7 +797,6 @@ import FormView from './FormView.vue'
 import TableView from './TableView.vue'
 import ChartView from './ChartView.vue'
 import WorkspaceHeader from '../components/WorkspaceHeader.vue'
-import WorkstationTaskPanel from '../components/WorkstationTaskPanel.vue'
 import FunctionBreadcrumb from '../components/FunctionBreadcrumb.vue'
 import TableRowDetailDrawer from '../components/TableRowDetailDrawer.vue'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
@@ -1087,7 +1062,7 @@ const updateHistoryFullCodePath = ref('')
 
 // ServiceTreePanel 引用（用于展开路径）
 const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(null)
-const appSwitcherRef = ref<InstanceType<typeof AppSwitcher> | null>(null)
+const workspaceHeaderRef = ref<InstanceType<typeof WorkspaceHeader> | null>(null)
 
 // 左侧服务目录树显示状态
 const showLeftSidebar = ref(true)
@@ -2442,7 +2417,7 @@ onMounted(async () => {
   
   // 进入 /workspace/:user（仅 username、无 app）时自动弹出「选择工作空间」，且必须选一个或创建，不可关闭
   if (route.name === 'workspace-user') {
-    nextTick(() => appSwitcherRef.value?.openWorkspaceListDialog(true))
+    nextTick(() => workspaceHeaderRef.value?.openWorkspaceListDialog(true))
   }
 })
 
@@ -2585,17 +2560,12 @@ onUnmounted(() => {
   flex-direction: column;
   height: 100vh;
 }
-.workspace-task-panel-wrap {
-  position: fixed;
-  top: 48px;
-  right: 12px;
-  z-index: 2000;
-}
 
 .workspace-view {
   display: flex;
   flex: 1;
   overflow: hidden; /* 防止双滚动条 */
+  position: relative;
 }
 
 .function-content-wrapper {
@@ -2753,6 +2723,40 @@ onUnmounted(() => {
   -webkit-overflow-scrolling: touch;
 }
 
+/* 左下角：隐藏/显示目录按钮 */
+.sidebar-toggle-bottom-left {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 100;
+}
+
+.sidebar-toggle-bottom-left .sidebar-toggle-btn {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--el-text-color-secondary);
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s;
+
+  &:hover {
+    color: var(--el-color-primary);
+    border-color: var(--el-color-primary);
+    background: var(--el-fill-color-light);
+  }
+
+  .el-icon {
+    font-size: 16px;
+  }
+}
+
 .left-sidebar {
   width: 300px;
   min-width: 300px;
@@ -2770,33 +2774,11 @@ onUnmounted(() => {
   }
 }
 
-/* 左侧边栏内：树区域可滚动，拖拽区固定在底部 */
 .left-sidebar-tree {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-}
-
-// 左侧边栏控制按钮
-.left-sidebar-controls {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  z-index: 10;
-  transition: left 0.3s ease;
-  
-  // 当左侧边栏收起时，按钮位置保持不变
-  .sidebar-toggle {
-    background: var(--el-bg-color);
-    border: 1px solid var(--el-border-color);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    
-    &:hover {
-      background: var(--el-fill-color-light);
-      border-color: var(--el-color-primary);
-    }
-  }
 }
 
 .function-renderer {
