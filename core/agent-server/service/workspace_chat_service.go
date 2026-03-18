@@ -113,6 +113,8 @@ type WorkspaceChatService struct {
 
 	// runningCancels 维护「正在执行的 session → cancelFunc」映射，供手动取消使用
 	runningCancels sync.Map // key: sessionID (string), value: context.CancelFunc
+	// sseConnections 维护「有活跃 SSE 连接的 session」，供前端存活检测，避免无谓轮询大消息列表
+	sseConnections sync.Map // key: sessionID (string), value: struct{}
 }
 
 // NewWorkspaceChatService 创建 WorkspaceChatService
@@ -241,6 +243,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	}
 
 	sessionID := session.SessionID
+	s.sseConnections.Store(sessionID, struct{}{})
 
 	// ⭐ 标记会话为 generating（后台执行中）
 	session.Status = model.ChatSessionStatusGenerating
@@ -256,6 +259,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	defer func() {
 		runCancel()
 		s.runningCancels.Delete(sessionID)
+		s.sseConnections.Delete(sessionID)
 		// ⭐ 恢复会话状态：已取消的保持 cancelled，否则标回 active
 		latest, e := s.sessionRepo.GetBySessionID(sessionID)
 		if e == nil && latest != nil && latest.Status == model.ChatSessionStatusGenerating {
@@ -350,6 +354,12 @@ func (s *WorkspaceChatService) CancelSession(ctx context.Context, sessionID stri
 		logger.Infof(ctx, "[WorkspaceChatStream] 会话已取消 - SessionID: %s", sessionID)
 	}
 	return nil
+}
+
+// IsSSEConnected 检查该 session 是否仍有活跃的 SSE 连接（供前端存活检测，SSE 存活则不轮询大消息列表）
+func (s *WorkspaceChatService) IsSSEConnected(sessionID string) bool {
+	_, ok := s.sseConnections.Load(sessionID)
+	return ok
 }
 
 // ListRunningSessions 查询当前用户所有正在执行的工作台会话

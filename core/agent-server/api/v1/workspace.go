@@ -213,6 +213,18 @@ func (h *Workspace) ListRunningSessions(c *gin.Context) {
 	response.OkWithData(c, gin.H{"sessions": items})
 }
 
+// GetSessionSSEStatus 检查 session 的 SSE 连接是否存活（供前端存活检测，SSE 存活则不轮询大消息列表）
+// GET /agent/api/v1/workspace/sessions/:session_id/sse-status
+func (h *Workspace) GetSessionSSEStatus(c *gin.Context) {
+	sessionID := c.Param("session_id")
+	if sessionID == "" {
+		response.FailWithMessage(c, "session_id 必填")
+		return
+	}
+	connected := h.wsChatSvc.IsSSEConnected(sessionID)
+	response.OkWithData(c, gin.H{"connected": connected})
+}
+
 // CancelChat 取消工作台会话执行
 // POST /agent/api/v1/workspace/chat/cancel
 func (h *Workspace) CancelChat(c *gin.Context) {

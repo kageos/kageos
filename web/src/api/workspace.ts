@@ -326,3 +326,11 @@ export async function getFinishedSessions(limit = 20): Promise<{ sessions: Works
 export async function cancelWorkspaceChat(sessionId: string): Promise<void> {
   return axiosInstance.post('/agent/api/v1/workspace/chat/cancel', { session_id: sessionId })
 }
+
+/** 检查 session 的 SSE 连接是否存活（SSE 存活则不轮询大消息列表，节省带宽） */
+export async function getWorkspaceSessionSSEStatus(sessionId: string): Promise<{ connected: boolean }> {
+  const res = await axiosInstance.get<{ connected?: boolean }>(
+    `/agent/api/v1/workspace/sessions/${encodeURIComponent(sessionId)}/sse-status`
+  )
+  return { connected: !!res?.connected }
+}

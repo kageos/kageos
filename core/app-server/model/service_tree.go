@@ -18,33 +18,33 @@ const (
 // 例如我有个tools的app，然后，我有个excel的package（目录对应go的package），然后下面有多个function（go文件）
 type ServiceTree struct {
 	models.Base
-	Name string `json:"name"`
-	Code string `json:"code"`
-	Type string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), docs(文档), api(API接口), service(服务), module(模块)
+	Name         string `json:"name"`
+	Code         string `json:"code"`
+	Type         string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), docs(文档), api(API接口), servicenpm run(服务), module(模块)
 	Description  string `json:"description,omitempty"`
 	Tags         string `json:"tags"`
 	Admins       string `json:"admins" gorm:"type:varchar(150);comment:节点管理员列表，逗号分隔的用户名（如 user1,user2,user3）"` // 节点管理员列表
-	PendingCount int    `json:"pending_count" gorm:"default:0;comment:待审批的权限申请数量"`                             // ⭐ 待审批的权限申请数量
-	
+	PendingCount int    `json:"pending_count" gorm:"default:0;comment:待审批的权限申请数量"`                                   // ⭐ 待审批的权限申请数量
+
 	// 是否标准库节点（自动对所有用户开放 read、write 权限）
 	// 标准库节点路径示例：/system/official/sdk、/system/official/plugins
 	IsStandardLib bool `json:"is_standard_lib" gorm:"default:false;index;comment:是否标准库节点"`
-	
-	AppID        int64  `json:"app_id"`
+
+	AppID int64 `json:"app_id"`
 	// FullGroupCode 和 GroupName 已移除，不再需要
-	RefID        int64      `json:"ref_id" gorm:"default:0"`                   // 引用ID：function 类型时指向 function 的 ID
-	App          *App       `json:"app" gorm:"foreignKey:AppID;references:ID"` // 预加载
-	Function     *Function   `json:"-" gorm:"foreignKey:RefID;references:ID;constraint:false"` // 预加载，仅 type=function 时有值；不建 DB 外键
-	TemplateType string     `json:"template_type"`                             // 函数的类型
+	RefID        int64     `json:"ref_id" gorm:"default:0"`                                  // 引用ID：function 类型时指向 function 的 ID
+	App          *App      `json:"app" gorm:"foreignKey:AppID;references:ID"`                // 预加载
+	Function     *Function `json:"-" gorm:"foreignKey:RefID;references:ID;constraint:false"` // 预加载，仅 type=function 时有值；不建 DB 外键
+	TemplateType string    `json:"template_type"`                                            // 函数的类型
 	//下面字段是数据库
-	FullCodePath     string         `json:"full_code_path"`                                                                              // /$user/$app/plugins/pdf 这种
-	AddVersionNum    int            `json:"add_version_num"`                                                                             // 添加版本号（数字部分，如 v1 -> 1），用于版本回滚时过滤
-	UpdateVersionNum int            `json:"update_version_num"`                                                                          // 更新版本号（数字部分，如 v2 -> 2），用于版本回滚时过滤
+	FullCodePath     string         `json:"full_code_path"`                                                                                                       // /$user/$app/plugins/pdf 这种
+	AddVersionNum    int            `json:"add_version_num"`                                                                                                      // 添加版本号（数字部分，如 v1 -> 1），用于版本回滚时过滤
+	UpdateVersionNum int            `json:"update_version_num"`                                                                                                   // 更新版本号（数字部分，如 v2 -> 2），用于版本回滚时过滤
 	Version          string         `json:"version" gorm:"type:varchar(50);comment:节点当前版本号（如 v1, v2），package类型表示目录版本，function类型表示函数版本等"` // 节点当前版本号
-	VersionNum       int            `json:"version_num" gorm:"comment:节点当前版本号（数字部分）"`                                                    // 节点当前版本号（数字部分）
-	HubFullCodePath  string         `json:"hub_full_code_path" gorm:"type:varchar(500);default:'';index;comment:Hub 目录完整路径，用于绑定与详情 URL"`   // 绑定与详情 URL 用此字段
-	HubVersionNum    int            `json:"hub_version_num" gorm:"default:0;comment:Hub目录版本号（数字部分），用于版本比较与展示（展示时格式化为 v{N}）"`   // Hub目录版本号（数字部分）
-	RunCount         int            `json:"run_count" gorm:"default:0;comment:函数运行次数，仅 type=function 有意义，用于 search_tools 按热度排序"`   // 运行次数 +1 后搜索按此排序
+	VersionNum       int            `json:"version_num" gorm:"comment:节点当前版本号（数字部分）"`                                                                  // 节点当前版本号（数字部分）
+	HubFullCodePath  string         `json:"hub_full_code_path" gorm:"type:varchar(500);default:'';index;comment:Hub 目录完整路径，用于绑定与详情 URL"`             // 绑定与详情 URL 用此字段
+	HubVersionNum    int            `json:"hub_version_num" gorm:"default:0;comment:Hub目录版本号（数字部分），用于版本比较与展示（展示时格式化为 v{N}）"`             // Hub目录版本号（数字部分）
+	RunCount         int            `json:"run_count" gorm:"default:0;comment:函数运行次数，仅 type=function 有意义，用于 search_tools 按热度排序"`                 // 运行次数 +1 后搜索按此排序
 	Children         []*ServiceTree `json:"children" gorm:"-"`
 }
 

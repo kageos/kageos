@@ -206,7 +206,7 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick, toRaw } from 'v
 import { useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight, Plus, Paperclip, FolderOpened, Loading, Search } from '@element-plus/icons-vue'
 import { marked } from 'marked'
-import { workspaceChatStream, getWorkspaceSessions, getWorkspaceMessages, type WorkspaceSessionItem, type WorkspaceChatReq, type WorkspaceChatMessageFile } from '@/api/workspace'
+import { workspaceChatStream, getWorkspaceSessions, getWorkspaceMessages, getWorkspaceSessionSSEStatus, type WorkspaceSessionItem, type WorkspaceChatReq, type WorkspaceChatMessageFile } from '@/api/workspace'
 import { getLLMList, type LLMInfo } from '@/api/agent'
 import MessageToolCalls from './MessageToolCalls.vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
@@ -391,6 +391,7 @@ function removeAttachedFile(index: number) {
 
 // 向父组件上报执行中状态（用于抽屉关闭时显示浮动按钮）
 watch(sending, (v) => {
+  if (v) stopGeneratingPoll()
   emit('update:sending', v)
 }, { immediate: true })
 
@@ -524,9 +525,17 @@ async function loadSessionMessages(targetSessionId: string) {
 }
 
 function startGeneratingPoll(sid: string) {
+  if (sending.value) return
   stopGeneratingPoll()
   generatingPollTimer = setInterval(async () => {
     if (sessionId.value !== sid) { stopGeneratingPoll(); return }
+    if (sending.value) return
+    try {
+      const { connected } = await getWorkspaceSessionSSEStatus(sid)
+      if (connected) return
+    } catch {
+      /* 存活检测失败时仍按原逻辑拉取，避免漏更新 */
+    }
     await loadSessionMessages(sid)
     await loadSessions()
     const session = sessionList.value.find(s => s.session_id === sid)

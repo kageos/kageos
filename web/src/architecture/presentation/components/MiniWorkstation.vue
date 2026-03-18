@@ -31,7 +31,9 @@
           <el-icon v-if="sending" class="is-loading" :size="14"><Loading /></el-icon>
           <el-icon v-else :size="14"><FolderOpened /></el-icon>
         </span>
-        <span class="mini-ws-dir-name" :title="fullCodePath">{{ dirName || displayPath }}</span>
+        <span class="mini-ws-dir-name" :title="fullCodePath + (firstUserMessageFull ? '\n\n' + firstUserMessageFull : '')">
+          {{ dirName || displayPath }}{{ firstUserMessagePreview ? ' · ' + firstUserMessagePreview : '' }}
+        </span>
         <div class="mini-ws-header-actions" @mousedown.stop>
           <el-dropdown
             ref="keyInfoDropdownRef"
@@ -450,7 +452,7 @@ import { ref, watch, nextTick, onMounted, onUnmounted, computed, toRaw } from 'v
 import { Loading, Close, Minus, FullScreen, CopyDocument, Paperclip, CircleCheck, CircleClose, FolderOpened, UploadFilled, Plus, VideoPause, Download, View, Document as DocumentIcon, Memo } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
-import { workspaceChatStream, getWorkspaceMessages, getWorkspaceSessions, cancelWorkspaceChat, type WorkspaceChatReq, type WorkspaceChatMessageFile, type WorkspaceSessionItem } from '@/api/workspace'
+import { workspaceChatStream, getWorkspaceMessages, getWorkspaceSessions, cancelWorkspaceChat, getWorkspaceSessionSSEStatus, type WorkspaceChatReq, type WorkspaceChatMessageFile, type WorkspaceSessionItem } from '@/api/workspace'
 import { useWorkspaceChatStream } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import type { ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
@@ -582,6 +584,19 @@ const displayPath = computed(() => {
   if (!props.fullCodePath) return '未选择目录'
   const parts = props.fullCodePath.split('/').filter(Boolean)
   return parts[parts.length - 1] || props.fullCodePath
+})
+
+// 首条用户消息摘要，用于同目录多 Mini 时区分（如「分析数据」「帮我把xxx改成」）
+const firstUserMessagePreview = computed(() => {
+  const first = messages.value?.find(m => m.role === 'user')
+  const content = typeof first?.content === 'string' ? first.content.trim() : ''
+  if (!content) return ''
+  const maxLen = 12
+  return content.length > maxLen ? content.slice(0, maxLen) + '…' : content
+})
+const firstUserMessageFull = computed(() => {
+  const first = messages.value?.find(m => m.role === 'user')
+  return typeof first?.content === 'string' ? first.content.trim() : ''
 })
 
 // ─── 最大化 / 还原 ───
@@ -1118,9 +1133,17 @@ function startMiniStreamListening(sid: string) {
 }
 
 function startMiniPoll(sid: string) {
+  if (sending.value) return
   stopMiniPoll()
   miniPollTimer = setInterval(async () => {
     if (sessionId.value !== sid) { stopMiniPoll(); return }
+    if (sending.value) return
+    try {
+      const { connected } = await getWorkspaceSessionSSEStatus(sid)
+      if (connected) return
+    } catch {
+      /* 存活检测失败时仍按原逻辑拉取，避免漏更新 */
+    }
     await loadMiniSessionMessages(sid)
   }, 3000)
 }
@@ -1163,6 +1186,7 @@ watch(messages, (newMsgs) => {
 }, { deep: true })
 
 watch(sending, (cur, prev) => {
+  if (cur) stopMiniPoll()
   if (!props.visible && prev && !cur && sessionId.value) {
     eventBus.emit('workspace:stream-done', { session_id: sessionId.value })
   }
