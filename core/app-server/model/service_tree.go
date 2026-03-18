@@ -24,7 +24,7 @@ type ServiceTree struct {
 	Description  string `json:"description,omitempty"`
 	Tags         string `json:"tags"`
 	Admins       string `json:"admins" gorm:"type:varchar(150);comment:节点管理员列表，逗号分隔的用户名（如 user1,user2,user3）"` // 节点管理员列表
-	PendingCount int    `json:"pending_count" gorm:"default:0;comment:待审批的权限申请数量"`                                   // ⭐ 待审批的权限申请数量
+	PendingCount int    `json:"pending_count" gorm:"default:0;comment:待审批的权限申请数量"`                             // ⭐ 待审批的权限申请数量
 
 	// 是否标准库节点（自动对所有用户开放 read、write 权限）
 	// 标准库节点路径示例：/system/official/sdk、/system/official/plugins
@@ -37,14 +37,14 @@ type ServiceTree struct {
 	Function     *Function `json:"-" gorm:"foreignKey:RefID;references:ID;constraint:false"` // 预加载，仅 type=function 时有值；不建 DB 外键
 	TemplateType string    `json:"template_type"`                                            // 函数的类型
 	//下面字段是数据库
-	FullCodePath     string         `json:"full_code_path"`                                                                                                       // /$user/$app/plugins/pdf 这种
-	AddVersionNum    int            `json:"add_version_num"`                                                                                                      // 添加版本号（数字部分，如 v1 -> 1），用于版本回滚时过滤
-	UpdateVersionNum int            `json:"update_version_num"`                                                                                                   // 更新版本号（数字部分，如 v2 -> 2），用于版本回滚时过滤
+	FullCodePath     string         `json:"full_code_path"`                                                                              // /$user/$app/plugins/pdf 这种
+	AddVersionNum    int            `json:"add_version_num"`                                                                             // 添加版本号（数字部分，如 v1 -> 1），用于版本回滚时过滤
+	UpdateVersionNum int            `json:"update_version_num"`                                                                          // 更新版本号（数字部分，如 v2 -> 2），用于版本回滚时过滤
 	Version          string         `json:"version" gorm:"type:varchar(50);comment:节点当前版本号（如 v1, v2），package类型表示目录版本，function类型表示函数版本等"` // 节点当前版本号
-	VersionNum       int            `json:"version_num" gorm:"comment:节点当前版本号（数字部分）"`                                                                  // 节点当前版本号（数字部分）
-	HubFullCodePath  string         `json:"hub_full_code_path" gorm:"type:varchar(500);default:'';index;comment:Hub 目录完整路径，用于绑定与详情 URL"`             // 绑定与详情 URL 用此字段
+	VersionNum       int            `json:"version_num" gorm:"comment:节点当前版本号（数字部分）"`                                                    // 节点当前版本号（数字部分）
+	HubFullCodePath  string         `json:"hub_full_code_path" gorm:"type:varchar(500);default:'';index;comment:Hub 目录完整路径，用于绑定与详情 URL"` // 绑定与详情 URL 用此字段
 	HubVersionNum    int            `json:"hub_version_num" gorm:"default:0;comment:Hub目录版本号（数字部分），用于版本比较与展示（展示时格式化为 v{N}）"`             // Hub目录版本号（数字部分）
-	RunCount         int            `json:"run_count" gorm:"default:0;comment:函数运行次数，仅 type=function 有意义，用于 search_tools 按热度排序"`                 // 运行次数 +1 后搜索按此排序
+	RunCount         int            `json:"run_count" gorm:"default:0;comment:函数运行次数，仅 type=function 有意义，用于 search_tools 按热度排序"`         // 运行次数 +1 后搜索按此排序
 	Children         []*ServiceTree `json:"children" gorm:"-"`
 }
 

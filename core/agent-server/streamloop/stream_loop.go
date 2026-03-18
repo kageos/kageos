@@ -3,17 +3,24 @@ package streamloop
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/llms"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
 const (
-	EventContent         = "content"
-	EventToolCallsStream = "tool_calls_stream"
-	EventError           = "error"
-	MaxToolRounds        = 100 // 最大工具调用轮数，防止无限循环；过小易中断，过大增加耗时与成本
+	EventContent            = "content"
+	EventToolCallsStream    = "tool_calls_stream"    // 保留兼容，新协议用 delta
+	EventToolCallsStreamDelta = "tool_calls_stream_delta" // 增量+节流，节省带宽
+	EventError              = "error"
+	MaxToolRounds           = 100 // 最大工具调用轮数，防止无限循环；过小易中断，过大增加耗时与成本
+
+	// 节流参数：满足任一条件即 flush
+	throttleIntervalMs = 100  // 距上次发送超过 100ms
+	throttleSizeChars  = 200 // 累积 delta 超过 200 字
 )
 
 // RunStreamLoop 流式工具对话循环：从 BuildMessages 开始，调 LLM 流式，若有 tool_calls 则执行并递归，否则结束
@@ -87,6 +94,17 @@ type toolCallsStreamData struct {
 	ToolCalls []toolCallsStreamItem `json:"tool_calls"`
 }
 
+// toolCallsStreamDeltaUpdate 增量更新项（index + 可选 name + delta）
+type toolCallsStreamDeltaUpdate struct {
+	Index int    `json:"index"`
+	Name  string `json:"name,omitempty"` // 仅新 tool_call 首次出现时
+	Delta string `json:"delta"`
+}
+
+type toolCallsStreamDeltaData struct {
+	Updates []toolCallsStreamDeltaUpdate `json:"updates"`
+}
+
 type errorData struct {
 	Message string `json:"message"`
 }
@@ -100,6 +118,45 @@ func processStreamChunks(
 	allToolCalls := make([]llms.ToolCall, 0)
 	toolCallsIndex := make(map[string]int)
 
+	// 增量+节流：累积 delta，满足条件时 flush
+	pendingDeltas := make(map[int]string)
+	pendingNames := make(map[int]string)
+	var lastSendTime time.Time
+
+	flushToolCallsDelta := func() {
+		if len(pendingDeltas) == 0 && len(pendingNames) == 0 {
+			return
+		}
+		seen := make(map[int]bool)
+		for idx := range pendingDeltas {
+			seen[idx] = true
+		}
+		for idx := range pendingNames {
+			seen[idx] = true
+		}
+		indices := make([]int, 0, len(seen))
+		for idx := range seen {
+			indices = append(indices, idx)
+		}
+		sort.Ints(indices)
+		updates := make([]toolCallsStreamDeltaUpdate, 0, len(indices))
+		for _, idx := range indices {
+			delta := pendingDeltas[idx]
+			name := pendingNames[idx]
+			updates = append(updates, toolCallsStreamDeltaUpdate{Index: idx, Name: name, Delta: delta})
+		}
+		if len(updates) > 0 {
+			sendEvent(EventToolCallsStreamDelta, &toolCallsStreamDeltaData{Updates: updates})
+		}
+		for k := range pendingDeltas {
+			delete(pendingDeltas, k)
+		}
+		for k := range pendingNames {
+			delete(pendingNames, k)
+		}
+		lastSendTime = time.Now()
+	}
+
 	for ch := range stream {
 		select {
 		case <-ctx.Done():
@@ -108,6 +165,7 @@ func processStreamChunks(
 		default:
 		}
 		if ch.Error != "" {
+			flushToolCallsDelta()
 			sendEvent(EventError, &errorData{Message: "LLM 流式错误: " + ch.Error})
 			return "", nil, fmt.Errorf("LLM 流式错误: %s", ch.Error)
 		}
@@ -116,19 +174,50 @@ func processStreamChunks(
 			sendEvent(EventContent, &contentData{Content: ch.Content})
 		}
 		if len(ch.ToolCalls) > 0 {
+			prevArgs := make([]string, len(allToolCalls))
+			for i := range allToolCalls {
+				prevArgs[i] = allToolCalls[i].Function.Arguments
+			}
+			prevLen := len(allToolCalls)
+
 			allToolCalls, toolCallsIndex = mergeToolCalls(ch.ToolCalls, allToolCalls, toolCallsIndex)
-			if len(allToolCalls) > 0 {
-				items := make([]toolCallsStreamItem, 0, len(allToolCalls))
-				for i := range allToolCalls {
-					items = append(items, toolCallsStreamItem{
-						Name:      allToolCalls[i].Function.Name,
-						Arguments: allToolCalls[i].Function.Arguments,
-					})
+
+			// 计算 delta 并累积
+			totalPending := 0
+			for i := 0; i < len(allToolCalls); i++ {
+				newArgs := allToolCalls[i].Function.Arguments
+				delta := ""
+				name := ""
+				if i < prevLen {
+					oldLen := len(prevArgs[i])
+					if len(newArgs) > oldLen {
+						delta = newArgs[oldLen:]
+					}
+				} else {
+					name = allToolCalls[i].Function.Name
+					delta = newArgs
 				}
-				sendEvent(EventToolCallsStream, &toolCallsStreamData{ToolCalls: items})
+				if delta != "" || name != "" {
+					pendingDeltas[i] += delta
+					totalPending += len(delta)
+					if name != "" {
+						pendingNames[i] = name
+					}
+				}
+			}
+
+			// 节流：时间或字数满足则 flush
+			now := time.Now()
+			if totalPending >= throttleSizeChars || (!lastSendTime.IsZero() && now.Sub(lastSendTime) >= throttleIntervalMs*time.Millisecond) {
+				flushToolCallsDelta()
+			} else if lastSendTime.IsZero() && len(pendingDeltas) > 0 {
+				lastSendTime = now
 			}
 		}
 	}
+
+	// 流结束，flush 剩余
+	flushToolCallsDelta()
 
 	content := strings.TrimSpace(buf.String())
 	for _, tc := range allToolCalls {

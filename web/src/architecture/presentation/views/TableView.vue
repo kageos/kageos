@@ -256,9 +256,10 @@
       :data="tableData"
       :stripe="false"
       style="width: 100%"
-      class="table-with-fixed-column"
+      class="table-with-fixed-column table-row-clickable"
       @sort-change="handleSortChange"
       @selection-change="handleSelectionChange"
+      @row-click="handleRowClick"
     >
       <!-- 复选框列（用于批量操作，仅在批量删除模式下显示） -->
       <el-table-column
@@ -2043,6 +2044,13 @@ const handleDetail = (row: TableRow, initialMode: 'read' | 'edit' = 'read'): voi
   })
 }
 
+/** 行点击：整行可点击进入详情，排除操作列、复选框等 */
+const handleRowClick = (row: TableRow, _column: any, event: Event): void => {
+  const target = event.target as HTMLElement
+  if (target?.closest?.('.action-column, .el-dropdown, .el-checkbox')) return
+  handleDetail(row)
+}
+
 const handleDelete = async (row: TableRow): Promise<void> => {
   try {
     await ElMessageBox.confirm('确定要删除该行数据吗？', '提示', {
@@ -2584,6 +2592,11 @@ onUnmounted(() => {
 
 :deep(.el-table__body tr:hover > td) {
   background-color: var(--el-fill-color-light) !important;
+}
+
+/* 整行可点击进入详情 */
+:deep(.table-row-clickable .el-table__body tr) {
+  cursor: pointer;
 }
 
 :deep(.el-table__header th.el-table__cell) {

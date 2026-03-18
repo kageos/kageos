@@ -111,6 +111,8 @@ import { hasAnyRequiredRule } from '@/core/utils/validationUtils'
 import { convertToFieldValue } from '@/utils/field'
 import { useChartParamURLSync } from '@/architecture/presentation/composables/useChartParamURLSync'
 import { convertValueByFieldType } from '@/architecture/presentation/widgets/utils/typeConverter'
+import { getWidgetDefaultValue } from '@/architecture/presentation/widgets/composables/useWidgetDefaultValue'
+import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -152,22 +154,29 @@ const filterForm = ref<Record<string, any>>({})
 // 字段值
 const fieldValues = ref<Record<string, FieldValue>>({})
 
-// 初始化字段值
+// 初始化字段值（优先 URL 参数，其次 widget.config.default 默认值）
 const initializeFieldValues = () => {
   const values: Record<string, FieldValue> = {}
   requestFields.value.forEach((field: FieldConfig) => {
-    // 从 URL 查询参数中获取初始值
+    // 1. 优先从 URL 查询参数中获取初始值
     const queryValue = route.query[field.code]
     const value = Array.isArray(queryValue) ? queryValue[0] : queryValue
-    
+
     if (value !== undefined && value !== null && value !== '') {
-      // 🔥 使用统一的类型转换工具
+      // 使用统一的类型转换工具
       const rawValue = convertValueByFieldType(value, field)
       values[field.code] = convertToFieldValue(rawValue, field)
       filterForm.value[field.code] = rawValue
     } else {
-      values[field.code] = { raw: null, display: '', meta: {} }
-      filterForm.value[field.code] = null
+      // 2. 无 URL 参数时，使用 widget.config.default 默认值（如 Now(-90d)、Now()）
+      const defaultValue = getWidgetDefaultValue(field, undefined, () => useAuthStore())
+      if (defaultValue.raw !== null && defaultValue.raw !== undefined && defaultValue.raw !== '') {
+        values[field.code] = defaultValue
+        filterForm.value[field.code] = defaultValue.raw
+      } else {
+        values[field.code] = { raw: null, display: '', meta: {} }
+        filterForm.value[field.code] = null
+      }
     }
   })
   fieldValues.value = values

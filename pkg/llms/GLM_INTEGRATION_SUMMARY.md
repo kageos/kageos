@@ -156,7 +156,6 @@ pkg/llms/
 ├── glm_test.go              # 单元测试
 ├── glm_simple_test.go       # 简化测试
 ├── glm_integration_test.go  # 集成测试
-├── glm_demo.go              # 使用演示
 ├── glm_example.go           # 示例代码
 └── GLM_INTEGRATION_SUMMARY.md # 本文档
 ```

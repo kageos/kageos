@@ -1996,9 +1996,6 @@ func (s *ServiceTreeService) hasFunctionInDirectChildren(node *model.ServiceTree
 	return false
 }
 
-// ⭐ 已废弃：collectPermissionInfo 和 convertToGetServiceTreeRespWithPermissions 方法已不再使用
-// 服务树不再返回权限信息，权限在详情接口中查询
-
 // getPermissionActionsForNode 根据节点类型和模板类型，获取需要检查的权限点
 // ⭐ 优化：使用公共函数，避免代码重复
 func (s *ServiceTreeService) getPermissionActionsForNode(nodeType string, templateType string) []string {

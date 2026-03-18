@@ -134,6 +134,39 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
     const m = messages.value[lastIdx]
     if (!m || m.role !== 'assistant') return
 
+    // 增量协议：tool_calls_stream_delta（index + 可选 name + delta）
+    if (event === 'tool_calls_stream_delta' && Array.isArray(data.updates)) {
+      const updates = data.updates as Array<{ index?: number; name?: string; delta?: string }>
+      const blocks = m.blocks ?? []
+      const prev = m.tool_calls || []
+
+      let completedCount = 0
+      for (const t of prev) {
+        if (t.status === 'ok' || t.status === 'error') completedCount++
+        else break
+      }
+      const completedCalls = prev.slice(0, completedCount)
+      const currentRoundPrev = prev.slice(completedCount)
+
+      for (const u of updates) {
+        const idx = typeof u.index === 'number' ? u.index : 0
+        const delta = typeof u.delta === 'string' ? u.delta : ''
+        const name = typeof u.name === 'string' ? u.name : ''
+
+        while (currentRoundPrev.length <= idx) {
+          currentRoundPrev.push({ name: '', status: 'streaming', arguments: '' })
+        }
+        const slot = currentRoundPrev[idx]
+        if (name) slot.name = name
+        slot.arguments = (slot.arguments || '') + delta
+        slot.status = 'streaming'
+      }
+
+      const list = [...completedCalls, ...currentRoundPrev]
+      const nextBlocks = updateToolCallsBlocks(blocks, list)
+      messages.value[lastIdx] = { ...m, tool_calls: list, blocks: nextBlocks }
+    }
+    // 兼容旧协议：tool_calls_stream（全量，后端已改为发 delta，此处保留以防回滚）
     if (event === 'tool_calls_stream' && Array.isArray(data.tool_calls)) {
       const streamList = (data.tool_calls as Array<{ name?: string; arguments?: string }>).map((t) => ({
         name: typeof t.name === 'string' ? t.name : '',
@@ -143,8 +176,6 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
       const blocks = m.blocks ?? []
       const prev = m.tool_calls || []
 
-      // 关键：stream 只发「当前轮」的工具（数组长度=1），不是全量列表
-      // 需要把已完成的 tool calls 和当前轮分开：已完成的保留，stream 只合并当前轮
       let completedCount = 0
       for (const t of prev) {
         if (t.status === 'ok' || t.status === 'error') completedCount++

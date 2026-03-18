@@ -13,8 +13,8 @@
       <div
         v-if="selectedUserForDisplay"
         class="user-select-display"
-        :class="{ 'is-disabled': false }"
-        @click="handleOpenDialog()"
+        :class="{ 'is-disabled': widgetConfig.disabled }"
+        @click="!widgetConfig.disabled && handleOpenDialog()"
       >
         <el-avatar 
           v-if="selectedUserForDisplay.avatar" 
@@ -34,16 +34,16 @@
         <span class="user-display-text">
           {{ formatUserDisplayName(selectedUserForDisplay) }}
         </span>
-        <el-icon class="edit-icon">
+        <el-icon v-if="!widgetConfig.disabled" class="edit-icon">
           <Edit />
         </el-icon>
       </div>
       <!-- 未选中时显示按钮 -->
       <el-button
         v-else
-        :disabled="false"
+        :disabled="widgetConfig.disabled"
         :placeholder="field.desc || `请选择${field.name}`"
-        @click="handleOpenDialog()"
+        @click="!widgetConfig.disabled && handleOpenDialog()"
       >
         <el-icon><User /></el-icon>
         {{ field.desc || `请选择${field.name}` }}
@@ -118,6 +118,11 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
+
+// 获取配置（带类型）
+const widgetConfig = computed(() => {
+  return (props.field.widget?.config || {}) as import('@/core/types/widget-configs').UserWidgetConfig
+})
 
 // 弹窗显示状态
 const dialogVisible = ref(false)
