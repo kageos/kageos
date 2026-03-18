@@ -213,6 +213,7 @@ function handleOpenFullScreen(task: WorkspaceSessionItem) {
     eventBus.emit('workspace:open-workstation', {
       full_code_path: task.full_code_path,
       session_id: task.session_id,
+      open_as_mini: true,
     })
   }
 }

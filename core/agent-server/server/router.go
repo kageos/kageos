@@ -48,6 +48,7 @@ func (s *Server) setupRoutes() {
 	workspace.GET("/sessions", workspaceChatHandler.ListSessions)             // 获取会话列表
 	workspace.GET("/sessions/running", workspaceChatHandler.ListRunningSessions)   // 查询执行中的任务
 	workspace.GET("/sessions/finished", workspaceChatHandler.ListFinishedSessions) // 查询已结束的任务
+	workspace.GET("/sessions/:session_id/sse-status", workspaceChatHandler.GetSessionSSEStatus) // SSE 存活检测
 	workspace.GET("/messages", workspaceChatHandler.ListMessages)                   // 获取会话消息列表
 	workspace.POST("/chat/stream", workspaceChatHandler.ChatStream)
 	workspace.POST("/chat/cancel", workspaceChatHandler.CancelChat)            // 取消执行中的任务

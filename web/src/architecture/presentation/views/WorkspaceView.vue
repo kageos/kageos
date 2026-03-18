@@ -777,6 +777,11 @@
     />
 
 
+    <!-- 工作台任务面板：右上角 badge，点击展开查看执行中/已结束任务，点击「查看」打开对应 Mini -->
+    <div class="workspace-task-panel-wrap">
+      <WorkstationTaskPanel :current-full-code-path="workstationContext?.fullCodePath" />
+    </div>
+
     <!-- 多个 Mini 浮动工作台 -->
     <MiniWorkstation
       v-for="mini in miniWsList"
@@ -816,6 +821,7 @@ import FormView from './FormView.vue'
 import TableView from './TableView.vue'
 import ChartView from './ChartView.vue'
 import WorkspaceHeader from '../components/WorkspaceHeader.vue'
+import WorkstationTaskPanel from '../components/WorkstationTaskPanel.vue'
 import FunctionBreadcrumb from '../components/FunctionBreadcrumb.vue'
 import TableRowDetailDrawer from '../components/TableRowDetailDrawer.vue'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
@@ -1374,10 +1380,14 @@ function syncWsQueryParam(open: boolean, sid?: string | undefined) {
   router.replace({ path: route.path, query })
 }
 
-/** 服务树「打开工作台」事件：导航到该目录并打开抽屉（不新开标签） */
-function handleWorkspaceOpenWorkstation(payload: { full_code_path?: string; session_id?: string }) {
+/** 服务树「打开工作台」事件：导航到该目录并打开抽屉（不新开标签）；任务面板「查看」时 open_as_mini 打开 Mini */
+function handleWorkspaceOpenWorkstation(payload: { full_code_path?: string; session_id?: string; open_as_mini?: boolean }) {
   const fullCodePath = (payload?.full_code_path || '').trim()
   if (!fullCodePath) return
+  if (payload.open_as_mini) {
+    openMiniWsForTask(fullCodePath, payload.session_id || '')
+    return
+  }
   // 打开全屏时收起所有 mini，让 mini 的 SSE 转发生效（!visible 时才转发）
   miniWsList.value.forEach((m: MiniWsInstance) => { m.visible = false })
   const targetPath = buildWorkspacePath(fullCodePath)
@@ -1395,6 +1405,28 @@ function handleWorkspaceOpenWorkstation(payload: { full_code_path?: string; sess
   } else {
     nextTick(() => openWorkstationDrawer(payload.session_id))
   }
+}
+
+/** 任务面板「查看」：打开 Mini 并定位到该会话 */
+function openMiniWsForTask(fullCodePath: string, sessionId: string) {
+  const dirName = fullCodePath.split('/').filter(Boolean).pop() || '工作台'
+  const existing = miniWsList.value.find(
+    (m: MiniWsInstance) => m.fullCodePath === fullCodePath && m.initialSessionId === sessionId && !m.visible
+  )
+  if (existing) {
+    existing.visible = true
+    return
+  }
+  miniWsList.value.push({
+    id: String(++miniIdCounter),
+    fullCodePath,
+    dirName,
+    initialSessionId: sessionId,
+    visible: true,
+    offset: 0,
+    initialPosition: 'center',
+    initialMaximized: true,
+  })
 }
 
 // ⭐ 权限检查：是否有表格更新权限
@@ -2552,7 +2584,12 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  overflow: hidden;
+}
+.workspace-task-panel-wrap {
+  position: fixed;
+  top: 48px;
+  right: 12px;
+  z-index: 2000;
 }
 
 .workspace-view {
