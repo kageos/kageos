@@ -1,0 +1,490 @@
+/**
+ * 工作台 + Mini 科幻风格主题（仅样式覆盖，不改逻辑）
+ * 作用域：.workspace-container 内 + .workstation-drawer（append-to-body）
+ * 维护：集中本文件即可，不需要可删除本引用即回滚
+ *
+ * 特效一览（纯 CSS）：
+ * - 工作台抽屉：左侧扫描线（自上而下流动）、头部流光条、内容区淡网格、「工作台」竖条文字呼吸光
+ * - Mini 窗：左上/右上 HUD 角标脉动、标题栏下方流光、标题图标呼吸光、主体区淡网格
+ * - 右侧会话面板：淡网格背景
+ * - 执行中/生成中：会话卡片左侧高亮条 + 光晕脉动
+ */
+
+/* ─── 科幻配色变量（仅本主题内使用） ─── */
+.workspace-container,
+.workstation-drawer {
+  --ws-sci-fi-bg: #0c1222;
+  --ws-sci-fi-bg-panel: #131b2e;
+  --ws-sci-fi-bg-header: #0f172a;
+  --ws-sci-fi-glow: #00d4ff;
+  --ws-sci-fi-glow-rgb: 0, 212, 255;
+  --ws-sci-fi-border: rgba(0, 212, 255, 0.35);
+  --ws-sci-fi-border-strong: rgba(0, 212, 255, 0.55);
+  --ws-sci-fi-text: #e2e8f0;
+  --ws-sci-fi-text-muted: #94a3b8;
+  --ws-sci-fi-shadow: 0 0 20px rgba(0, 212, 255, 0.12);
+  --ws-sci-fi-shadow-strong: 0 0 24px rgba(0, 212, 255, 0.2);
+}
+
+/* ─── 科幻动效关键帧（纯 CSS，低开销） ─── */
+@keyframes ws-scan-line {
+  0% { transform: translateY(-100%); opacity: 0.6; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateY(100vh); opacity: 0.6; }
+}
+@keyframes ws-pulse-glow {
+  0%, 100% { opacity: 0.5; filter: brightness(1); }
+  50% { opacity: 0.9; filter: brightness(1.15); }
+}
+@keyframes ws-header-flow {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@keyframes ws-border-flow {
+  0% { opacity: 0.3; }
+  50% { opacity: 0.8; }
+  100% { opacity: 0.3; }
+}
+@keyframes ws-corner-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.9; }
+}
+@keyframes ws-generating-pulse {
+  0%, 100% { border-left-color: rgba(var(--ws-sci-fi-glow-rgb), 0.6); box-shadow: 0 0 8px rgba(var(--ws-sci-fi-glow-rgb), 0.15); }
+  50% { border-left-color: var(--ws-sci-fi-glow); box-shadow: 0 0 12px rgba(var(--ws-sci-fi-glow-rgb), 0.35); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   工作台抽屉（el-drawer append-to-body，故单独选择器）
+   ═══════════════════════════════════════════════════════════════ */
+.workstation-drawer.el-drawer {
+  background: var(--ws-sci-fi-bg) !important;
+  border-left: 1px solid var(--ws-sci-fi-border);
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+/* 抽屉左侧扫描线：从上往下流动的数据感 */
+.workstation-drawer.el-drawer::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2px;
+  height: 80px;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(var(--ws-sci-fi-glow-rgb), 0.15) 20%,
+    var(--ws-sci-fi-glow) 50%,
+    rgba(var(--ws-sci-fi-glow-rgb), 0.15) 80%,
+    transparent 100%
+  );
+  animation: ws-scan-line 4s ease-in-out infinite;
+  z-index: 2;
+  pointer-events: none;
+}
+.workstation-drawer .el-drawer__header {
+  background: var(--ws-sci-fi-bg-header);
+  border-bottom: 1px solid var(--ws-sci-fi-border);
+  color: var(--ws-sci-fi-text);
+  position: relative;
+}
+/* 抽屉头部下方流光条 */
+.workstation-drawer .el-drawer__header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(var(--ws-sci-fi-glow-rgb), 0.2) 20%,
+    var(--ws-sci-fi-glow) 50%,
+    rgba(var(--ws-sci-fi-glow-rgb), 0.2) 80%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: ws-header-flow 3s linear infinite;
+  opacity: 0.9;
+}
+.workstation-drawer .workstation-drawer-header .el-button {
+  color: var(--ws-sci-fi-glow);
+}
+.workstation-drawer .workstation-drawer-header .el-button:hover {
+  color: var(--ws-sci-fi-text);
+  background: rgba(var(--ws-sci-fi-glow-rgb), 0.12);
+}
+.workstation-drawer .el-drawer__body {
+  background: var(--ws-sci-fi-bg);
+  position: relative;
+}
+/* 抽屉内容区：极淡网格背景（科技感） */
+.workstation-drawer .el-drawer__body::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(var(--ws-sci-fi-glow-rgb), 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--ws-sci-fi-glow-rgb), 0.03) 1px, transparent 1px);
+  background-size: 20px 20px;
+  pointer-events: none;
+  z-index: 0;
+}
+.workstation-drawer-body {
+  background: transparent;
+  position: relative;
+  z-index: 1;
+}
+/* 折叠时的竖条 */
+.workstation-drawer-strip {
+  background: linear-gradient(180deg, var(--ws-sci-fi-bg-header) 0%, var(--ws-sci-fi-bg) 100%);
+  border-left: 1px solid var(--ws-sci-fi-border);
+  position: relative;
+}
+/* 竖条「工作台」文字：呼吸光晕 */
+.workstation-drawer-strip .strip-text {
+  color: var(--ws-sci-fi-glow);
+  text-shadow: 0 0 12px rgba(var(--ws-sci-fi-glow-rgb), 0.5);
+  letter-spacing: 0.25em;
+  font-weight: 600;
+  animation: ws-pulse-glow 2.5s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   工作台抽屉内 WorkstationChat 外壳（会话侧栏 + 主区背景）
+   ═══════════════════════════════════════════════════════════════ */
+.workstation-drawer .workstation-chat {
+  background: var(--ws-sci-fi-bg);
+}
+.workstation-drawer .session-sidebar {
+  background: var(--ws-sci-fi-bg-panel);
+  border-right: 1px solid var(--ws-sci-fi-border);
+}
+.workstation-drawer .sidebar-dir-name {
+  background: rgba(var(--ws-sci-fi-glow-rgb), 0.08);
+  border-bottom: 1px solid var(--ws-sci-fi-border);
+  color: var(--ws-sci-fi-glow);
+}
+.workstation-drawer .session-card {
+  background: var(--ws-sci-fi-bg-panel);
+  border: 1px solid var(--ws-sci-fi-border);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.workstation-drawer .session-card:hover {
+  border-color: var(--ws-sci-fi-glow);
+  box-shadow: var(--ws-sci-fi-shadow);
+}
+.workstation-drawer .session-card.active {
+  border-color: var(--ws-sci-fi-glow);
+  box-shadow: 0 0 0 1px var(--ws-sci-fi-glow);
+}
+.workstation-drawer .session-card.generating {
+  border-left: 2px solid var(--ws-sci-fi-glow);
+  animation: ws-generating-pulse 1.5s ease-in-out infinite;
+}
+.workstation-drawer .workstation-chat-main,
+.workstation-drawer .messages {
+  background: var(--ws-sci-fi-bg);
+}
+.workstation-drawer .sidebar-header h4,
+.workstation-drawer .session-card-title,
+.workstation-drawer .session-card-time {
+  color: var(--ws-sci-fi-text);
+}
+.workstation-drawer .session-search-input .el-input__wrapper {
+  background: var(--ws-sci-fi-bg-panel);
+  border: 1px solid var(--ws-sci-fi-border);
+  color: var(--ws-sci-fi-text);
+}
+.workstation-drawer .session-search-input .el-input__wrapper:hover,
+.workstation-drawer .session-search-input .el-input__wrapper:focus-within {
+  border-color: var(--ws-sci-fi-glow);
+  box-shadow: 0 0 0 1px var(--ws-sci-fi-glow);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   工作空间内：右侧工作台会话面板
+   ═══════════════════════════════════════════════════════════════ */
+.workspace-container .right-sidebar {
+  background: var(--ws-sci-fi-bg-panel);
+  border-left: 1px solid var(--ws-sci-fi-border);
+  position: relative;
+  overflow: hidden;
+}
+.workspace-container .right-sidebar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(var(--ws-sci-fi-glow-rgb), 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--ws-sci-fi-glow-rgb), 0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
+  z-index: 0;
+}
+.workspace-container .right-sidebar > *,
+.workspace-container .right-sidebar-session-panel {
+  position: relative;
+  z-index: 1;
+}
+.workspace-container .right-session-header,
+.workspace-container .right-session-tabs {
+  border-color: var(--ws-sci-fi-border);
+}
+.workspace-container .right-session-dir {
+  color: var(--ws-sci-fi-text);
+}
+.workspace-container .right-tab {
+  color: var(--ws-sci-fi-text-muted);
+}
+.workspace-container .right-tab:hover,
+.workspace-container .right-tab.active {
+  color: var(--ws-sci-fi-glow);
+}
+.workspace-container .right-tab.active {
+  border-bottom-color: var(--ws-sci-fi-glow);
+}
+.workspace-container .right-session-card {
+  background: var(--ws-sci-fi-bg);
+  border: 1px solid var(--ws-sci-fi-border);
+  color: var(--ws-sci-fi-text);
+}
+.workspace-container .right-session-card:hover {
+  border-color: var(--ws-sci-fi-glow);
+  box-shadow: var(--ws-sci-fi-shadow);
+}
+.workspace-container .right-session-card.generating {
+  border-left: 2px solid var(--ws-sci-fi-glow);
+  animation: ws-generating-pulse 1.5s ease-in-out infinite;
+}
+.workspace-container .right-session-footer {
+  border-top-color: var(--ws-sci-fi-border);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Mini 浮动工作台
+   ═══════════════════════════════════════════════════════════════ */
+.workspace-container .mini-ws {
+  background: var(--ws-sci-fi-bg-panel);
+  border: 1px solid var(--ws-sci-fi-border);
+  box-shadow: var(--ws-sci-fi-shadow), 0 8px 32px rgba(0, 0, 0, 0.25);
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+/* Mini 左上角 HUD 风格角标 */
+.workspace-container .mini-ws::before,
+.workspace-container .mini-ws::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: var(--ws-sci-fi-glow);
+  border-style: solid;
+  border-width: 0;
+  opacity: 0.5;
+  animation: ws-corner-pulse 2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 10;
+}
+.workspace-container .mini-ws::before {
+  top: 0;
+  left: 0;
+  border-top-width: 2px;
+  border-left-width: 2px;
+}
+.workspace-container .mini-ws::after {
+  top: 0;
+  right: 0;
+  border-top-width: 2px;
+  border-right-width: 2px;
+}
+.workspace-container .mini-ws:hover {
+  border-color: var(--ws-sci-fi-border-strong);
+  box-shadow: var(--ws-sci-fi-shadow-strong), 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+.workspace-container .mini-ws:hover::before,
+.workspace-container .mini-ws:hover::after {
+  opacity: 0.9;
+}
+.workspace-container .mini-ws--maximized {
+  background: var(--ws-sci-fi-bg);
+  border: none;
+  box-shadow: none;
+}
+.workspace-container .mini-ws--maximized::before,
+.workspace-container .mini-ws--maximized::after {
+  display: none;
+}
+.workspace-container .mini-ws-header {
+  background: var(--ws-sci-fi-bg-header);
+  border-bottom: 1px solid var(--ws-sci-fi-border);
+  position: relative;
+}
+/* Mini 标题栏下方流光 */
+.workspace-container .mini-ws-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(var(--ws-sci-fi-glow-rgb), 0.25) 30%,
+    var(--ws-sci-fi-glow) 50%,
+    rgba(var(--ws-sci-fi-glow-rgb), 0.25) 70%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: ws-header-flow 2.5s linear infinite;
+  opacity: 0.8;
+}
+.workspace-container .mini-ws-title {
+  color: var(--ws-sci-fi-glow);
+  animation: ws-pulse-glow 2.5s ease-in-out infinite;
+}
+.workspace-container .mini-ws-dir-name {
+  color: var(--ws-sci-fi-text);
+}
+.workspace-container .mini-ws-header-actions .el-button {
+  color: var(--ws-sci-fi-text-muted);
+}
+.workspace-container .mini-ws-header-actions .el-button:hover {
+  color: var(--ws-sci-fi-glow);
+}
+.workspace-container .mini-header-files-count {
+  color: var(--ws-sci-fi-glow);
+}
+/* Mini 最大化时会话侧栏 */
+.workspace-container .mini-session-sidebar {
+  background: var(--ws-sci-fi-bg-panel);
+  border-right: 1px solid var(--ws-sci-fi-border);
+}
+.workspace-container .mini-session-header {
+  border-bottom-color: var(--ws-sci-fi-border);
+}
+.workspace-container .mini-session-title {
+  color: var(--ws-sci-fi-text);
+}
+.workspace-container .mini-session-card {
+  background: var(--ws-sci-fi-bg);
+  border: 1px solid var(--ws-sci-fi-border);
+  color: var(--ws-sci-fi-text);
+}
+.workspace-container .mini-session-card:hover {
+  border-color: var(--ws-sci-fi-glow);
+  box-shadow: var(--ws-sci-fi-shadow);
+}
+.workspace-container .mini-session-card.active {
+  border-color: var(--ws-sci-fi-glow);
+  box-shadow: 0 0 0 1px var(--ws-sci-fi-glow);
+}
+.workspace-container .mini-session-card.generating {
+  border-left: 2px solid var(--ws-sci-fi-glow);
+  animation: ws-generating-pulse 1.5s ease-in-out infinite;
+}
+.workspace-container .mini-session-new {
+  background: rgba(var(--ws-sci-fi-glow-rgb), 0.06);
+  border-color: var(--ws-sci-fi-border);
+  color: var(--ws-sci-fi-text-muted);
+}
+.workspace-container .mini-session-new:hover {
+  border-color: var(--ws-sci-fi-glow);
+  color: var(--ws-sci-fi-glow);
+}
+.workspace-container .mini-session-new-icon {
+  color: var(--ws-sci-fi-glow);
+}
+/* Mini 主体区：淡网格背景 */
+.workspace-container .mini-ws-body {
+  position: relative;
+}
+.workspace-container .mini-ws-body::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(var(--ws-sci-fi-glow-rgb), 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--ws-sci-fi-glow-rgb), 0.04) 1px, transparent 1px);
+  background-size: 16px 16px;
+  pointer-events: none;
+  z-index: 0;
+}
+.workspace-container .mini-ws-body > * {
+  position: relative;
+  z-index: 1;
+}
+/* Mini 输出区 */
+.workspace-container .mini-ws-output {
+  background: var(--ws-sci-fi-bg);
+}
+.workspace-container .mini-msg-badge {
+  background: var(--ws-sci-fi-glow);
+  color: var(--ws-sci-fi-bg-header);
+}
+.workspace-container .mini-content-block,
+.workspace-container .mini-msg-user span:not(.mini-msg-badge) {
+  color: var(--ws-sci-fi-text);
+}
+.workspace-container .mini-tool-tag {
+  color: var(--ws-sci-fi-text-muted);
+}
+.workspace-container .mini-ws-empty {
+  color: var(--ws-sci-fi-text-muted);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   工作台任务面板（若在 workspace 内渲染）
+   ═══════════════════════════════════════════════════════════════ */
+.workspace-container .task-panel-trigger {
+  color: var(--ws-sci-fi-text-muted);
+}
+.workspace-container .task-panel-trigger:hover {
+  background: rgba(var(--ws-sci-fi-glow-rgb), 0.12);
+}
+.workspace-container .task-panel-trigger:hover .trigger-icon {
+  color: var(--ws-sci-fi-glow);
+}
+.workspace-container .task-panel {
+  background: var(--ws-sci-fi-bg-panel);
+  border: 1px solid var(--ws-sci-fi-border);
+  box-shadow: var(--ws-sci-fi-shadow), 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+.workspace-container .task-panel-header {
+  border-bottom: 1px solid var(--ws-sci-fi-border);
+}
+.workspace-container .task-panel-title {
+  color: var(--ws-sci-fi-text);
+}
+.workspace-container .task-panel-tabs {
+  border-bottom-color: var(--ws-sci-fi-border);
+}
+.workspace-container .task-panel .tab-item {
+  color: var(--ws-sci-fi-text-muted);
+}
+.workspace-container .task-panel .tab-item:hover,
+.workspace-container .task-panel .tab-item.active {
+  color: var(--ws-sci-fi-glow);
+}
+.workspace-container .task-panel .tab-item.active {
+  border-bottom-color: var(--ws-sci-fi-glow);
+}
+.workspace-container .task-card {
+  background: var(--ws-sci-fi-bg);
+  border: 1px solid var(--ws-sci-fi-border);
+  color: var(--ws-sci-fi-text);
+}
+.workspace-container .task-card:hover {
+  border-color: var(--ws-sci-fi-glow);
+  box-shadow: var(--ws-sci-fi-shadow);
+}
+.workspace-container .task-status--primary {
+  color: var(--ws-sci-fi-glow);
+}
+.workspace-container .status-dot--pulse {
+  background: var(--ws-sci-fi-glow);
+  box-shadow: 0 0 8px var(--ws-sci-fi-glow);
+}

@@ -2,6 +2,7 @@ import './assets/main.css'
 import 'element-plus/dist/index.css'
 import './styles/theme.scss'
 import './styles/widgets.css'
+import './assets/theme-workstation-sci-fi.css'
 
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
