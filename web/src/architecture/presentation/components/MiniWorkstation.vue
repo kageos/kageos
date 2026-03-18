@@ -560,7 +560,7 @@ async function handleSelectSession(targetSid: string) {
   const found = miniSessionList.value.find(s => s.session_id === targetSid)
   if (found?.status === 'generating') {
     startMiniStreamListening(targetSid)
-    startMiniPoll(targetSid)
+    if (!maximized.value) startMiniPoll(targetSid)
   }
 }
 
@@ -596,6 +596,12 @@ watch(maximized, (val) => {
 function toggleMaximize() {
   if (maximized.value) {
     maximized.value = false
+    // 从最大化恢复：若当前会话仍在执行中，重新开轮询兜底（可能连接已断）
+    const cur = miniSessionList.value.find(s => s.session_id === sessionId.value)
+    if (sessionId.value && cur?.status === 'generating') {
+      startMiniStreamListening(sessionId.value)
+      startMiniPoll(sessionId.value)
+    }
     if (preMaxRect.value) {
       posX.value = preMaxRect.value.x
       posY.value = preMaxRect.value.y
@@ -612,6 +618,7 @@ function toggleMaximize() {
       preMaxRect.value = { x: posX.value ?? 0, y: posY.value ?? 0, w: winW.value, h: winH.value }
     }
     maximized.value = true
+    stopMiniPoll()
     emit('maximize-change', { maximized: true, sessionId: sessionId.value })
   }
 }
@@ -1130,7 +1137,8 @@ watch(
     await loadMiniSessionMessages(newSid)
     if (sessionId.value !== newSid) return
     startMiniStreamListening(newSid)
-    startMiniPoll(newSid)
+    // 最大化时 SSE 在本窗，不需要轮询；仅未最大化时轮询（用于连接断开时的兜底）
+    if (!maximized.value) startMiniPoll(newSid)
   },
   { immediate: true }
 )
