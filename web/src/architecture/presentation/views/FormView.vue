@@ -103,8 +103,8 @@
         >
       <div class="section-title">请求参数</div>
       <template v-for="field in requestFields" :key="field.code">
-        <!-- 长 label：上方 -->
-        <div v-if="isLongLabel(field.name)" class="form-field-label-top">
+        <!-- 有任一 label≥6 字：全部上方 -->
+        <div v-if="requestLabelsOnTop" class="form-field-label-top">
           <label class="field-label">
             {{ field.name }}
             <span v-if="isFieldRequired(field)" class="required">*</span>
@@ -121,7 +121,7 @@
             />
           </el-form-item>
         </div>
-        <!-- 短 label：左侧一行 -->
+        <!-- 无 label≥6 字：全部左侧一行 -->
         <el-form-item
           v-else
           :label="field.name"
@@ -192,11 +192,11 @@
       </div>
       <el-form 
         label-position="left"
-        label-width="120px"
+        label-width="90px"
         :class="{ 'is-empty': !hasResponseData }"
       >
         <template v-for="field in responseFields" :key="field.code">
-          <div v-if="isLongLabel(field.name)" class="form-field-label-top">
+          <div v-if="responseLabelsOnTop" class="form-field-label-top">
             <label class="field-label">{{ field.name }}</label>
             <el-form-item class="form-item-no-label">
               <WidgetComponent
@@ -390,6 +390,14 @@ const formData = computed(() => {
 
 const requestFields = computed(() => (functionDetail.value?.request || []) as FieldConfig[])
 const responseFields = computed(() => (functionDetail.value?.response || []) as FieldConfig[])
+
+/** 表单级：有任一 label ≥6 字则全部放上方，否则全部左侧一行 */
+const requestLabelsOnTop = computed(() =>
+  requestFields.value.some((f) => (f.name?.length ?? 0) >= 6)
+)
+const responseLabelsOnTop = computed(() =>
+  responseFields.value.some((f) => (f.name?.length ?? 0) >= 6)
+)
 
 // ⭐ 权限检查：获取当前函数节点的权限信息
 const currentFunctionNode = computed(() => {
@@ -591,11 +599,6 @@ const getResponseFieldValue = (fieldCode: string): FieldValue => {
 
 const isFieldRequired = (field: FieldConfig): boolean => {
   return hasAnyRequiredRule(field)
-}
-
-/** 长 label 阈值：8 字符及以上放上方，短 label 放左侧一行 */
-const isLongLabel = (name: string | undefined): boolean => {
-  return !!(name && name.length >= 8)
 }
 
 const handleFieldUpdate = (fieldCode: string, value: FieldValue): void => {

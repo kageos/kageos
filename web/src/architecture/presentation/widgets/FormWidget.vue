@@ -96,7 +96,7 @@
         class="form-widget-form"
       >
         <template v-for="subField in visibleSubFields" :key="subField.code">
-          <div v-if="isLongLabel(subField.name)" class="form-field-label-top">
+          <div v-if="labelsOnTop" class="form-field-label-top">
             <label class="field-label">
               {{ subField.name }}
               <span v-if="isFieldRequired(subField)" class="required">*</span>
@@ -221,7 +221,7 @@
               label-width="90px"
             >
               <template v-for="subField in visibleSubFields" :key="subField.code">
-                <div v-if="isLongLabel(subField.name)" class="form-field-label-top">
+                <div v-if="labelsOnTop" class="form-field-label-top">
                   <label class="field-label">
                     {{ subField.name }}
                     <span v-if="isFieldRequired(subField)" class="required">*</span>
@@ -364,10 +364,10 @@ function isFieldRequired(field: FieldConfig): boolean {
   return validation.includes('required') && !validation.includes('omitempty')
 }
 
-/** 长 label 阈值：8 字符及以上放上方，短 label 放左侧一行 */
-function isLongLabel(name: string | undefined): boolean {
-  return !!(name && name.length >= 8)
-}
+/** 表单级：有任一 label ≥6 字则全部放上方，否则全部左侧一行 */
+const labelsOnTop = computed(() =>
+  visibleSubFields.value.some((f) => (f.name?.length ?? 0) >= 6)
+)
 
 /**
  * 获取嵌套字段的错误信息（用于显示在表单项下方）
