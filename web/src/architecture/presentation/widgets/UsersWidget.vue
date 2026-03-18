@@ -63,7 +63,7 @@
         v-model="dialogVisible"
         :title="`选择${field.name || '用户'}`"
         :placeholder="field.desc || '请输入用户名或邮箱搜索'"
-        :initial-usernames="value?.raw"
+        :initial-usernames="effectiveValue?.raw"
         :max-count="maxCount"
         @confirm="handleUsersSelected"
       />
@@ -271,7 +271,7 @@ import UserDetailCard from './UserDetailCard.vue'
 import UsersSearchDialog from './UsersSearchDialog.vue'
 import { ElAvatar, ElButton, ElIcon, ElPopover } from 'element-plus'
 import { User, Edit, Close } from '@element-plus/icons-vue'
-import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
+import type { WidgetComponentProps, WidgetComponentEmits, FieldValue } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { formatUserDisplayName } from '@/utils/userInfo'
 import type { UserInfo } from '@/types'
@@ -281,14 +281,17 @@ import { useUserInfoStore } from '@/stores/userInfo'
 
 const COMPONENT_NAME = 'UsersWidget'
 
-const props = withDefaults(defineProps<WidgetComponentProps>(), {
-  value: () => ({
-    raw: null,
-    display: '',
-    meta: {}
+const DEFAULT_FIELD_VALUE: FieldValue = { raw: null, display: '', meta: {} }
+
+  // value 允许为 null（如切换工作空间时父组件尚未就绪），用 effectiveValue 归一化
+  // default 必须用内联字面量，不能引用 DEFAULT_FIELD_VALUE（defineProps 会被提升，无法访问局部变量）
+  const props = withDefaults(defineProps<Omit<WidgetComponentProps, 'value'> & { value?: FieldValue | null }>(), {
+    value: () => ({ raw: null, display: '', meta: {} })
   })
-})
 const emit = defineEmits<WidgetComponentEmits>()
+
+// 父组件可能传入 null（如切换工作空间时），统一规范为有效对象，避免 "Missing required prop: value" 报错
+const effectiveValue = computed<FieldValue>(() => props.value == null ? DEFAULT_FIELD_VALUE : props.value)
 
 const formDataStore = useFormDataStore()
 
@@ -349,7 +352,7 @@ function handleUsersSelected(users: UserInfo[]): void {
 
 // 移除单个用户
 function handleRemoveUser(user: UserInfo): void {
-  const currentUsernames = props.value?.raw ? String(props.value.raw).split(',').map(u => u.trim()).filter(u => u) : []
+  const currentUsernames = effectiveValue.value?.raw != null ? String(effectiveValue.value.raw).split(',').map(u => u.trim()).filter(u => u) : []
   const newUsernames = currentUsernames.filter(u => u !== user.username)
   
   // 重新加载用户信息
@@ -373,8 +376,8 @@ function handleRemoveUser(user: UserInfo): void {
 const selectedUsersForDisplay = computed(() => {
   if (props.mode === 'edit' || props.mode === 'search') {
     // 优先从 meta 中获取
-    if (props.value?.meta?.userInfoList && Array.isArray(props.value.meta.userInfoList)) {
-      return props.value.meta.userInfoList
+    if (effectiveValue.value?.meta?.userInfoList && Array.isArray(effectiveValue.value.meta.userInfoList)) {
+      return effectiveValue.value.meta.userInfoList
     }
     // 从 userInfoList 中获取
     if (userInfoList.value.length > 0) {
@@ -387,8 +390,8 @@ const selectedUsersForDisplay = computed(() => {
 // 显示用户列表（用于响应模式）
 const displayUsers = computed(() => {
   // 优先从 meta 中获取
-  if (props.value?.meta?.userInfoList && Array.isArray(props.value.meta.userInfoList)) {
-    return props.value.meta.userInfoList
+  if (effectiveValue.value?.meta?.userInfoList && Array.isArray(effectiveValue.value.meta.userInfoList)) {
+    return effectiveValue.value.meta.userInfoList
   }
   // 从 userInfoList 中获取
   if (userInfoList.value.length > 0) {
@@ -474,7 +477,7 @@ async function loadUsersInfo(usernames: string): Promise<void> {
 }
 
 // 监听值变化，加载用户信息
-watch(() => props.value?.raw, (newValue: any) => {
+watch(() => effectiveValue.value?.raw, (newValue: any) => {
   if (newValue) {
     loadUsersInfo(String(newValue))
   } else {
@@ -484,8 +487,8 @@ watch(() => props.value?.raw, (newValue: any) => {
 
 // 监听 mode 变化，如果切换到显示模式，加载用户信息
 watch(() => props.mode, (newMode: string) => {
-  if (newMode !== 'edit' && newMode !== 'search' && props.value?.raw) {
-    loadUsersInfo(String(props.value.raw))
+  if (newMode !== 'edit' && newMode !== 'search' && effectiveValue.value?.raw) {
+    loadUsersInfo(String(effectiveValue.value.raw))
   }
 })
 
@@ -499,7 +502,7 @@ onMounted(async () => {
     // 这样可以避免在编辑模式下错误地使用默认值
     await nextTick()
     
-    const currentRaw = props.value?.raw
+    const currentRaw = effectiveValue.value?.raw
     const existingValue = formDataStore.getValue(props.fieldPath)
     const config = props.field.widget?.config
     const defaultValue = config && typeof config === 'object' && 'default' in config 
@@ -522,7 +525,7 @@ onMounted(async () => {
       // 1. 如果 meta.fromInitialData 为 true，说明字段来自 initialData（编辑模式）
       // 2. 如果 existingValue 存在且 raw 不包含 "Me()" 或 "MyLeader()"，说明是编辑模式
       // 编辑模式下，existingValue.raw 应该是实际的用户名，不应该是 "Me()" 或 "MyLeader()"
-      const isEditMode = props.value?.meta?.fromInitialData === true ||
+      const isEditMode = effectiveValue.value?.meta?.fromInitialData === true ||
                         (existingValue && 
                          existingValue.raw !== null && 
                          existingValue.raw !== undefined && 
@@ -593,9 +596,9 @@ onMounted(async () => {
     }
   }
 
-  if (props.value?.raw) {
+  if (effectiveValue.value?.raw) {
     // 加载用户信息用于显示
-    loadUsersInfo(String(props.value.raw))
+    loadUsersInfo(String(effectiveValue.value.raw))
   }
 })
 </script>
