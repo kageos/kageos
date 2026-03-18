@@ -476,16 +476,38 @@ const handleRename = async (node: ServiceTree) => {
   }
 }
 
-// 复制目录
+// 在树中按 id 查找节点（复制/粘贴都用，保证 full_code_path、app_id 来自树数据）
+function findNodeByIdInTree(nodes: ServiceTree[], id: number | string): ServiceTree | null {
+  for (const node of nodes) {
+    if (Number(node.id) === Number(id)) return node
+    if (node.children?.length) {
+      const found = findNodeByIdInTree(node.children, id)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+// 复制目录（必须用树里解析出的节点，否则 full_code_path 可能为空）
 const handleCopy = (node: ServiceTree) => {
   if (node.type !== 'package') {
     ElMessage.warning('只能复制目录（package类型）')
     return
   }
-  
-  copiedDirectory.value = node
-  saveCopiedDirectory(node)  // 保存到 localStorage
-  ElMessage.success(`已复制目录：${node.name}`)
+  const treeData = props.treeData
+  const resolved = treeData.length && node.id != null
+    ? findNodeByIdInTree(treeData, node.id)
+    : null
+  const toCopy = (resolved?.type === 'package' && resolved.full_code_path)
+    ? resolved
+    : node
+  if (!toCopy.full_code_path) {
+    ElMessage.warning('无法获取目录路径，请刷新树后重试')
+    return
+  }
+  copiedDirectory.value = toCopy
+  saveCopiedDirectory(toCopy)
+  ElMessage.success(`已复制目录：${toCopy.name}`)
 }
 
   // 粘贴目录（使用当前选中的目录作为目标）
@@ -514,8 +536,8 @@ const handleCopy = (node: ServiceTree) => {
       hubLinkToPaste = copiedHubLink.value
     }
     
-    // 统一走弹窗：有 Hub 链接则预填，没有则打开空框让用户在输入框里 Ctrl+V 粘贴；目标目录用当前选中目录
-    if (hubLinkToPaste || clipboardReadFailed) {
+    // 有 Hub 链接：统一走弹窗（预填链接 + 当前选中目录）
+    if (hubLinkToPaste) {
       let targetForHub = targetNode
       if (!targetForHub && props.currentFunction && props.currentFunction.type === 'package') {
         targetForHub = props.currentFunction
@@ -535,40 +557,67 @@ const handleCopy = (node: ServiceTree) => {
       }
       const targetPath = (targetForHub?.type === 'package' ? targetForHub.full_code_path : undefined) || undefined
       const targetName = (targetForHub?.type === 'package' ? targetForHub.name : undefined) || undefined
-      emit('pull-from-hub', hubLinkToPaste || undefined, targetPath, targetName)
-      if (!hubLinkToPaste) {
-        ElMessage.info('请在输入框中按 Ctrl+V 粘贴 Hub 链接')
-      }
+      emit('pull-from-hub', hubLinkToPaste, targetPath, targetName)
       return
     }
     
-    // 否则使用本地复制的目录
+    // 剪贴板读失败时：若有本地已复制的目录则走本地粘贴，否则打开弹窗让用户粘贴 Hub 链接
+    if (clipboardReadFailed) {
+      if (copiedDirectory.value) {
+        // 有本地复制目录，继续往下走本地粘贴流程
+      } else {
+        let targetForHub = targetNode
+        if (!targetForHub && props.currentFunction && props.currentFunction.type === 'package') {
+          targetForHub = props.currentFunction
+        }
+        if (!targetForHub && props.currentNodeId) {
+          const findNodeById = (nodes: ServiceTree[], id: number | string): ServiceTree | null => {
+            for (const node of nodes) {
+              if (Number(node.id) === Number(id)) return node
+              if (node.children?.length) {
+                const found = findNodeById(node.children, id)
+                if (found) return found
+              }
+            }
+            return null
+          }
+          targetForHub = findNodeById(groupedTreeData.value, props.currentNodeId)
+        }
+        const targetPath = (targetForHub?.type === 'package' ? targetForHub.full_code_path : undefined) || undefined
+        const targetName = (targetForHub?.type === 'package' ? targetForHub.name : undefined) || undefined
+        emit('pull-from-hub', undefined, targetPath, targetName)
+        ElMessage.info('请在输入框中按 Ctrl+V 粘贴 Hub 链接')
+        return
+      }
+    }
+    
+    // 使用本地复制的目录粘贴
     if (!copiedDirectory.value) {
       ElMessage.warning('没有可粘贴的目录或 Hub 链接')
       return
     }
+    if (!copiedDirectory.value.full_code_path) {
+      ElMessage.warning('复制的目录路径无效，请重新复制目录')
+      copiedDirectory.value = null
+      localStorage.removeItem(COPIED_DIRECTORY_KEY)
+      return
+    }
     
+    const treeData = groupedTreeData.value
     // 如果没有传入 targetNode，使用当前选中的目录
-    let finalTargetNode = targetNode
+    let finalTargetNode: ServiceTree | undefined = targetNode
     if (!finalTargetNode && props.currentFunction && props.currentFunction.type === 'package') {
       finalTargetNode = props.currentFunction
     }
-    
-    // 如果还是没有目标节点，尝试从树数据中查找当前选中的节点
     if (!finalTargetNode && props.currentNodeId) {
-      const findNodeById = (nodes: ServiceTree[], id: number | string): ServiceTree | null => {
-        for (const node of nodes) {
-          if (Number(node.id) === Number(id)) {
-            return node
-          }
-          if (node.children && node.children.length > 0) {
-            const found = findNodeById(node.children, id)
-            if (found) return found
-          }
-        }
-        return null
+      finalTargetNode = findNodeByIdInTree(treeData, props.currentNodeId) ?? undefined
+    }
+    // 始终用树中的数据解析目标：确保 full_code_path、app_id 来自树
+    if (finalTargetNode?.id != null) {
+      const fromTree = findNodeByIdInTree(treeData, finalTargetNode.id)
+      if (fromTree && fromTree.type === 'package') {
+        finalTargetNode = fromTree
       }
-      finalTargetNode = findNodeById(groupedTreeData.value, props.currentNodeId)
     }
     
     if (!finalTargetNode) {
@@ -580,29 +629,35 @@ const handleCopy = (node: ServiceTree) => {
       ElMessage.warning('只能粘贴到目录（package类型）')
       return
     }
+
+    const targetFullCodePath = finalTargetNode.full_code_path
+    if (!targetFullCodePath) {
+      ElMessage.warning('无法获取目标目录路径，请重新选择目标目录')
+      return
+    }
     
     // 检查是否粘贴到自己或子目录
-    if (copiedDirectory.value.full_code_path === finalTargetNode.full_code_path) {
+    if (copiedDirectory.value.full_code_path === targetFullCodePath) {
       ElMessage.warning('不能粘贴到自己')
       return
     }
     
     // 检查是否粘贴到自己的子目录
-    if (finalTargetNode.full_code_path.startsWith(copiedDirectory.value.full_code_path + '/')) {
+    if (targetFullCodePath.startsWith(copiedDirectory.value.full_code_path + '/')) {
       ElMessage.warning('不能粘贴到自己的子目录')
       return
     }
     
     // 检查是否是跨应用复制
     const sourcePathParts = copiedDirectory.value.full_code_path.split('/').filter(Boolean)
-    const targetPathParts = finalTargetNode.full_code_path.split('/').filter(Boolean)
+    const targetPathParts = targetFullCodePath.split('/').filter(Boolean)
     const isCrossApp = sourcePathParts.length >= 2 && targetPathParts.length >= 2 && 
                        (sourcePathParts[0] !== targetPathParts[0] || sourcePathParts[1] !== targetPathParts[1])
     
     // 构建确认消息
     let confirmMessage = `确定要将目录 "${copiedDirectory.value.name}" 复制到 "${finalTargetNode.name}" 吗？\n\n`
     confirmMessage += `源目录：${copiedDirectory.value.full_code_path}\n`
-    confirmMessage += `目标目录：${finalTargetNode.full_code_path}`
+    confirmMessage += `目标目录：${targetFullCodePath}`
     if (isCrossApp) {
       confirmMessage += `\n\n⚠️ 注意：这是跨应用复制操作`
     }
@@ -629,22 +684,21 @@ const handleCopy = (node: ServiceTree) => {
         duration: 0
       })
       try {
-        // 解析目标应用信息（从 finalTargetNode.full_code_path 中提取）
-        const targetPathParts = finalTargetNode.full_code_path.split('/').filter(Boolean)
+        // 解析目标应用信息（使用已解析的 targetFullCodePath）
+        const targetPathParts = targetFullCodePath.split('/').filter(Boolean)
         if (targetPathParts.length < 2) {
           throw new Error('目标路径格式错误')
         }
         
-        // 获取目标应用ID
-        if (!finalTargetNode.app_id) {
+        // 获取目标应用ID（优先用树节点的 app_id）
+        const targetAppId = finalTargetNode.app_id
+        if (!targetAppId) {
           throw new Error('无法获取目标应用ID，请确保目标目录有效')
         }
         
-        const targetAppId = finalTargetNode.app_id
-        
         await copyDirectory({
           source_directory_path: copiedDirectory.value.full_code_path,
-          target_directory_path: finalTargetNode.full_code_path,
+          target_directory_path: targetFullCodePath,
           target_app_id: targetAppId
         })
       
