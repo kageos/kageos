@@ -5,9 +5,19 @@
 
 <template>
   <div class="timestamp-widget">
-    <!-- 编辑模式 -->
+    <!-- 编辑模式：format 为 HH:mm 时用 el-time-picker，否则用 el-date-picker -->
+    <el-time-picker
+      v-if="mode === 'edit' && isTimeOnly"
+      v-model="internalValue"
+      :disabled="widgetConfig.disabled"
+      :placeholder="field.desc || `请选择${field.name}`"
+      :format="format"
+      value-format="x"
+      :clearable="true"
+      @change="handleChange"
+    />
     <el-date-picker
-      v-if="mode === 'edit'"
+      v-else-if="mode === 'edit'"
       v-model="internalValue"
       :disabled="widgetConfig.disabled"
       :placeholder="field.desc || `请选择${field.name}`"
@@ -35,6 +45,13 @@
     </div>
     
     <!-- 搜索模式 -->
+    <el-time-picker
+      v-else-if="mode === 'search' && isTimeOnly"
+      v-model="internalValue"
+      :format="format"
+      value-format="x"
+      :clearable="true"
+    />
     <el-date-picker
       v-else-if="mode === 'search'"
       v-model="internalValue"
@@ -49,7 +66,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ElDatePicker } from 'element-plus'
+import { ElDatePicker, ElTimePicker } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
@@ -72,10 +89,14 @@ const widgetConfig = computed(() => {
   return (props.field.widget?.config || {}) as TimestampWidgetConfig
 })
 
-// 选择器类型（注意：TimestampWidgetConfig 中没有 type 字段，使用默认值）
-const pickerType = computed(() => {
-  return 'datetime'
+// 是否为纯时间模式（format 为 HH:mm 或 HH:mm:ss 时用 el-time-picker）
+const isTimeOnly = computed(() => {
+  const fmt = widgetConfig.value.format || 'YYYY-MM-DD HH:mm:ss'
+  return fmt === 'HH:mm' || fmt === 'HH:mm:ss'
 })
+
+// 选择器类型（仅 el-date-picker 使用，datetime 或 datetimerange）
+const pickerType = computed(() => 'datetime')
 
 // 格式
 const format = computed(() => {
@@ -90,8 +111,11 @@ const valueFormat = computed(() => {
   return 'x'  // TimestampWidgetConfig 中没有 valueFormat 字段，使用默认值
 })
 
-// 快捷选择（注意：TimestampWidgetConfig 中没有 shortcuts 字段，默认显示）
+// 快捷选择（纯时间选择器不显示日期类快捷方式）
 const shortcuts = computed(() => {
+  if (isTimeOnly.value) {
+    return undefined
+  }
   const showShortcuts = true
   if (!showShortcuts) {
     return undefined

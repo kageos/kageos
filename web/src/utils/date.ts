@@ -37,8 +37,14 @@ export function formatTimestamp(timestamp: number | string | null | undefined, f
   const seconds = String(date.getSeconds()).padStart(2, '0')
   
   // 根据格式返回
-  if (format.includes('HH:mm:ss')) {
+  if (format === 'HH:mm' || format === 'hh:mm') {
+    return `${hours}:${minutes}`
+  }
+  if (format.includes('HH:mm:ss') || format === 'HH:mm:ss') {
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+  }
+  if (format.includes('HH:mm')) {
+    return `${year}-${month}-${day} ${hours}:${minutes}`
   }
   return `${year}-${month}-${day}`
 }
