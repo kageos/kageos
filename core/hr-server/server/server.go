@@ -26,12 +26,13 @@ type Server struct {
 	httpServer *gin.Engine
 
 	// 服务
-	authService       *service.AuthService
-	emailService      *service.EmailService
-	jwtService        *service.JWTService
-	userService       *service.UserService
-	departmentService *service.DepartmentService
-	natsService       *service.NATSService
+	authService           *service.AuthService
+	emailService          *service.EmailService
+	jwtService            *service.JWTService
+	userService           *service.UserService
+	departmentService     *service.DepartmentService
+	natsService           *service.NATSService
+	messageConsumerService *service.MessageConsumerService
 
 	// 上下文
 	ctx context.Context
@@ -86,6 +87,12 @@ func (s *Server) Start(ctx context.Context) error {
 			logger.Errorf(ctx, "[Server] HTTP server error: %v", err)
 		}
 	}()
+
+	if s.messageConsumerService != nil {
+		if err := s.messageConsumerService.Start(ctx); err != nil {
+			logger.Warnf(ctx, "[Server] Message consumer start failed: %v", err)
+		}
+	}
 
 	logger.Infof(ctx, "[Server] HR-server started successfully")
 	return nil
@@ -208,6 +215,11 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.userService = service.NewUserService(userRepo, s.natsService, userSessionRepo)
 
 	s.departmentService = service.NewDepartmentService(deptRepo, userRepo)
+
+	// 消息消费服务（订阅 NATS 发邮件，仅当 NATS 可用时）
+	if s.natsService != nil {
+		s.messageConsumerService = service.NewMessageConsumerService(s.natsService, s.emailService, s.userService)
+	}
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil

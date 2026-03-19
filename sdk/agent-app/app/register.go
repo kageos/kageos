@@ -11,6 +11,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
+	"gorm.io/gorm"
 )
 
 type PackageContext struct {
@@ -38,6 +39,11 @@ func (r *RegisterOptions) GetDBName(user string, app string) string {
 func (p *PackageContext) BuildFullRouter(router string) string {
 	packagePath := strings.Trim(p.RouterGroup, "/")
 	return fmt.Sprintf("/%s/%s", packagePath, strings.Trim(router, "/"))
+}
+
+// GetGormDB 获取当前包对应的 DB（与请求里 ctx.GetGormDB() 同源），用于 init 里定时任务等无请求上下文的场景
+func (p *PackageContext) GetGormDB() (*gorm.DB, error) {
+	return GetDBByPackagePath(p.RouterGroup)
 }
 
 // register 通用的注册方法，构建路由路径并注册

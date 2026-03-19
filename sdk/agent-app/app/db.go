@@ -48,6 +48,14 @@ func (c *Context) GetGormDB() *gorm.DB {
 	return db
 }
 
+// GetDBByPackagePath 根据包路径获取 DB（与请求里 ctx.GetGormDB() 同源，用于定时任务等无请求上下文的场景）
+// packagePath 与 PackageContext.RouterGroup 去掉首尾 "/" 一致，如 "booking"、"luobei/example/code/api/booking"
+func GetDBByPackagePath(packagePath string) (*gorm.DB, error) {
+	opts := &RegisterOptions{PackagePath: strings.Trim(packagePath, "/")}
+	dbName := opts.GetDBName(env.User, env.App)
+	return getOrInitDB(dbName)
+}
+
 // sanitizeDBName 安全处理数据库名称，防止目录穿越
 func sanitizeDBName(dbName string) string {
 	// 移除路径前缀
