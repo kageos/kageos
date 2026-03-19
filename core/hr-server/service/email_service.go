@@ -241,6 +241,11 @@ func (s *EmailService) sendEmail(to, subject, body string) error {
 	return nil
 }
 
+// SendNotificationEmail 发送通知类邮件（通用，供消息服务等调用）
+func (s *EmailService) SendNotificationEmail(to, subject, body string) error {
+	return s.sendEmail(to, subject, body)
+}
+
 // SendPasswordResetEmail 发送密码重置邮件
 func (s *EmailService) SendPasswordResetEmail(email, resetToken string) error {
 	// 构建重置密码链接

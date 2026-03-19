@@ -116,6 +116,11 @@ func (s *NATSService) RemoveTokenFromBlacklist(ctx context.Context, userID int64
 	return nil
 }
 
+// GetConn 返回 NATS 连接（供消息消费等订阅使用）
+func (s *NATSService) GetConn() *nats.Conn {
+	return s.conn
+}
+
 // Close 关闭 NATS 连接
 func (s *NATSService) Close() error {
 	if s.conn != nil {

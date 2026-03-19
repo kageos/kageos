@@ -233,3 +233,16 @@ func GetControlLicenseKeyRequestSubject() string {
 func GetControlLicenseKeyRefreshSubject() string {
 	return "control.license.key.refresh"
 }
+
+// ==================== 消息服务相关主题 ====================
+
+// GetMessageSendSubject 获取消息发送主题（SDK 发消息 -> 消息服务消费，渠道由消费方决定）
+// 格式：message.send
+func GetMessageSendSubject() string {
+	return "message.send"
+}
+
+// GetMessageSendQueueGroup 消息发送主题的队列组名（多实例消费时负载均衡）
+func GetMessageSendQueueGroup() string {
+	return "message.send"
+}

@@ -276,6 +276,24 @@ func (a *App) sendResponse(resp *dto.RequestAppResp) {
 		return
 	}
 }
+
+// PublishMessage 将消息发送到 NATS 主题，由消息服务消费（渠道由消费方决定）
+func (a *App) PublishMessage(payload *dto.MessageSendPayload) error {
+	if a.conn == nil {
+		return fmt.Errorf("NATS connection is nil")
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal message payload: %w", err)
+	}
+	subject := subjects.GetMessageSendSubject()
+	if err := a.conn.Publish(subject, data); err != nil {
+		return fmt.Errorf("publish message to %s: %w", subject, err)
+	}
+	logger.Infof(context.Background(), "[PublishMessage] published to %s, to_users=%s title=%s", subject, payload.ToUsers, payload.Title)
+	return nil
+}
+
 func (a *App) sendErrResponse(resp *dto.RequestAppResp) {
 	data, err := json.Marshal(resp)
 	if err != nil {
