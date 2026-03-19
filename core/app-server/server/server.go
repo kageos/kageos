@@ -43,8 +43,9 @@ type Server struct {
 	docService                    *service.DocService
 	boardService                   *service.BoardService     // 版块/帖子服务
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
-	permissionService             *service.PermissionService // ⭐ 权限管理服务
-	appRepo                       *repository.AppRepository  // ⭐ 应用仓储（用于其他服务）
+	permissionService             *service.PermissionService   // ⭐ 权限管理服务
+	scheduledTaskService         *service.ScheduledTaskService // 定时任务服务
+	appRepo                       *repository.AppRepository    // ⭐ 应用仓储（用于其他服务）
 
 	// 上游服务
 	natsService *service.NatsService
@@ -127,6 +128,12 @@ func (s *Server) Start(ctx context.Context) error {
 			logger.Errorf(ctx, "[Server] HTTP server error: %v", err)
 		}
 	}()
+
+	// 启动定时任务调度器（每分钟执行到点任务）
+	if s.scheduledTaskService != nil {
+		go s.scheduledTaskService.StartScheduler(ctx)
+		logger.Infof(ctx, "[Server] Scheduled task scheduler started")
+	}
 
 	logger.Infof(ctx, "[Server] App-server started successfully")
 	logger.Infof(ctx, "[Server] NATS subscriptions are active")
@@ -385,6 +392,11 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化目录更新历史服务
 	s.directoryUpdateHistoryService = service.NewDirectoryUpdateHistoryService(directoryUpdateHistoryRepo, serviceTreeRepo)
+
+	// 定时任务服务（注入 JWT 以便执行时按“请求用户”生成 Token 注入 context）
+	scheduledTaskRepo := repository.NewScheduledTaskRepository(s.db)
+	scheduledTaskExecutionRepo := repository.NewScheduledTaskExecutionRepository(s.db)
+	s.scheduledTaskService = service.NewScheduledTaskService(s.db, s.appService, s.jwtService, scheduledTaskRepo, scheduledTaskExecutionRepo)
 
 	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
 	// 注意：这里先不初始化，等 initEnterprise 之后再初始化

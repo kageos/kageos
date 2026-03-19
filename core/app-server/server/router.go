@@ -242,4 +242,12 @@ func (s *Server) setupRoutes() {
 	role.POST("/department", roleHandler.GetDepartmentRoles)              // 获取组织架构角色
 	role.GET("/for_request", roleHandler.GetRolesForPermissionRequest)    // 获取可用于权限申请的角色列表（根据节点类型过滤）
 
+	// 定时任务（atime/cron/every + 执行记录）
+	scheduledTask := apiV1.Group("/scheduled_tasks")
+	scheduledTask.Use(middleware2.JWTAuth())
+	scheduledTaskHandler := v1.NewScheduledTask(s.scheduledTaskService)
+	scheduledTask.POST("", scheduledTaskHandler.Create)              // 创建定时任务
+	scheduledTask.GET("", scheduledTaskHandler.List)                 // 列表
+	scheduledTask.DELETE("/:id", scheduledTaskHandler.Cancel)        // 取消
+	scheduledTask.GET("/:id/executions", scheduledTaskHandler.ListExecutions) // 执行记录
 }
