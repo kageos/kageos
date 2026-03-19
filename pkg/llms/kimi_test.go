@@ -50,10 +50,10 @@ func TestKimiClientInterface(t *testing.T) {
 		t.Errorf("模型名称错误，期望: kimi-k2-0711-preview, 实际: %s", modelName)
 	}
 
-	// 测试提供商名称
+	// 测试提供商名称（与 ProviderKimi 常量一致，为小写 kimi）
 	provider := client.GetProvider()
-	if provider != "Kimi" {
-		t.Errorf("提供商名称错误，期望: Kimi, 实际: %s", provider)
+	if provider != string(ProviderKimi) {
+		t.Errorf("提供商名称错误，期望: %s, 实际: %s", ProviderKimi, provider)
 	}
 }
 

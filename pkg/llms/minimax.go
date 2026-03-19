@@ -8,23 +8,25 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
-// Kimi（Moonshot）使用 OpenAI 兼容接口：POST /v1/chat/completions
+// MiniMax 使用 OpenAI 兼容接口，响应格式与 DeepSeek 一致
 const (
-	kimiDefaultBaseURL = "https://api.moonshot.cn/v1/chat/completions"
-	kimiDefaultModel   = "kimi-k2-0711-preview"
+	miniMaxDefaultBaseURL = "https://api.minimaxi.com/v1/chat/completions"
+	miniMaxDefaultModel   = "MiniMax-M2.5-highspeed"
 )
 
-// KimiAPIResponse Kimi / Moonshot OpenAI 兼容响应
-type KimiAPIResponse struct {
+// MiniMaxAPIResponse MiniMax API 响应（OpenAI 兼容格式）
+type MiniMaxAPIResponse struct {
 	Error *struct {
-		Code    string `json:"code,omitempty"`
-		Message string `json:"message"`
-		Type    string `json:"type,omitempty"`
+		Code    string      `json:"code"`
+		Message string      `json:"message"`
+		Param   interface{} `json:"param"`
+		Type    string      `json:"type"`
 	} `json:"error,omitempty"`
 	Choices []struct {
 		Message struct {
@@ -40,12 +42,13 @@ type KimiAPIResponse struct {
 	} `json:"usage,omitempty"`
 }
 
-// KimiStreamResponse Kimi 流式 SSE 分片（OpenAI 兼容）
-type KimiStreamResponse struct {
+// MiniMaxStreamResponse MiniMax 流式响应（OpenAI 兼容格式）
+type MiniMaxStreamResponse struct {
 	Error *struct {
-		Code    string `json:"code,omitempty"`
-		Message string `json:"message"`
-		Type    string `json:"type,omitempty"`
+		Code    string      `json:"code"`
+		Message string      `json:"message"`
+		Param   interface{} `json:"param"`
+		Type    string      `json:"type"`
 	} `json:"error,omitempty"`
 	Choices []struct {
 		Delta struct {
@@ -62,33 +65,36 @@ type KimiStreamResponse struct {
 	} `json:"usage,omitempty"`
 }
 
-// KimiClient Kimi（Moonshot）OpenAI 兼容客户端
-type KimiClient struct {
+// MiniMaxClient MiniMax 客户端（OpenAI 兼容）
+type MiniMaxClient struct {
 	APIKey  string
 	BaseURL string
 	Options *ClientOptions
 	Model   string
 }
 
-// NewKimiClient 创建 Kimi 客户端
-func NewKimiClient(apiKey string) *KimiClient {
-	return NewKimiClientWithOptions(apiKey, DefaultClientOptions())
+// NewMiniMaxClient 创建 MiniMax 客户端
+func NewMiniMaxClient(apiKey string) *MiniMaxClient {
+	if apiKey == "" {
+		apiKey = os.Getenv("MINIMAX_API_KEY")
+	}
+	return NewMiniMaxClientWithOptions(apiKey, DefaultClientOptions())
 }
 
-// NewKimiClientWithOptions 创建带配置的 Kimi 客户端
-func NewKimiClientWithOptions(apiKey string, options *ClientOptions) *KimiClient {
+// NewMiniMaxClientWithOptions 创建带配置的 MiniMax 客户端
+func NewMiniMaxClientWithOptions(apiKey string, options *ClientOptions) *MiniMaxClient {
 	if options == nil {
 		options = DefaultClientOptions()
 	}
 	baseURL := options.BaseURL
 	if baseURL == "" {
-		baseURL = kimiDefaultBaseURL
+		baseURL = miniMaxDefaultBaseURL
 	}
-	model := kimiDefaultModel
+	model := miniMaxDefaultModel
 	if options.Model != "" {
 		model = options.Model
 	}
-	return &KimiClient{
+	return &MiniMaxClient{
 		APIKey:  apiKey,
 		BaseURL: baseURL,
 		Options: options,
@@ -97,22 +103,22 @@ func NewKimiClientWithOptions(apiKey string, options *ClientOptions) *KimiClient
 }
 
 // SetModel 设置模型名称
-func (c *KimiClient) SetModel(model string) {
+func (c *MiniMaxClient) SetModel(model string) {
 	c.Model = model
 }
 
 // GetModelName 获取模型名称
-func (c *KimiClient) GetModelName() string {
+func (c *MiniMaxClient) GetModelName() string {
 	return c.Model
 }
 
 // GetProvider 获取提供商名称
-func (c *KimiClient) GetProvider() string {
-	return string(ProviderKimi)
+func (c *MiniMaxClient) GetProvider() string {
+	return string(ProviderMiniMax)
 }
 
-// kimiSanitizeMessages 与 MiniMax 等 OpenAI 兼容厂商一致：tool_calls.arguments 须为合法 JSON 字符串
-func kimiSanitizeMessages(msgs []Message) []Message {
+// minimaxSanitizeMessages 确保发往 MiniMax 的 messages 里所有 tool_calls 的 arguments 均为合法 JSON 字符串（避免 2013 invalid function arguments）
+func minimaxSanitizeMessages(msgs []Message) []Message {
 	if len(msgs) == 0 {
 		return msgs
 	}
@@ -137,9 +143,9 @@ func kimiSanitizeMessages(msgs []Message) []Message {
 	return out
 }
 
-// Chat 实现 LLMClient 接口（OpenAI 兼容：tools / tool_calls）
-func (c *KimiClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
-	msgs := kimiSanitizeMessages(req.Messages)
+// Chat 实现 LLMClient 接口
+func (c *MiniMaxClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
+	msgs := minimaxSanitizeMessages(req.Messages)
 	apiReq := map[string]interface{}{
 		"model":       req.Model,
 		"messages":    msgs,
@@ -159,14 +165,21 @@ func (c *KimiClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse,
 		apiReq["max_tokens"] = 4096
 	}
 	if req.Temperature == 0 {
-		apiReq["temperature"] = 0.6
+		apiReq["temperature"] = 1.0 // MiniMax 推荐 1.0
 	}
 
 	timeout := c.Options.Timeout
 	if req.Timeout != nil && *req.Timeout > 0 {
 		timeout = *req.Timeout
 	}
-	httpClient := createHTTPClient(c.Options, timeout)
+	httpClient := &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			MaxIdleConns:       c.Options.MaxIdleConns,
+			IdleConnTimeout:    c.Options.IdleConnTimeout,
+			DisableCompression: true,
+		},
+	}
 
 	jsonData, err := json.Marshal(apiReq)
 	if err != nil {
@@ -182,7 +195,7 @@ func (c *KimiClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse,
 		httpReq.Header.Set("User-Agent", c.Options.UserAgent)
 	}
 	if c.Options != nil && c.Options.EnableLogging {
-		logger.Infof(ctx, "[Kimi] 发送请求, 请求体长度: %d", len(jsonData))
+		logger.Infof(ctx, "[MiniMax] 发送请求, 请求体长度: %d", len(jsonData))
 	}
 
 	resp, err := httpClient.Do(httpReq)
@@ -191,23 +204,12 @@ func (c *KimiClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse,
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("读取响应失败: %v", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
-	}
-
-	var apiResp KimiAPIResponse
-	if err := json.Unmarshal(body, &apiResp); err != nil {
+	var apiResp MiniMaxAPIResponse
+	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
 		return nil, fmt.Errorf("解析响应失败: %v", err)
 	}
 	if apiResp.Error != nil {
-		if apiResp.Error.Code != "" {
-			return nil, fmt.Errorf("Kimi API错误: %s - %s", apiResp.Error.Code, apiResp.Error.Message)
-		}
-		return nil, fmt.Errorf("Kimi API错误: %s", apiResp.Error.Message)
+		return nil, fmt.Errorf("MiniMax API错误: %s - %s", apiResp.Error.Code, apiResp.Error.Message)
 	}
 	if len(apiResp.Choices) == 0 {
 		return nil, fmt.Errorf("响应格式错误：没有找到 choices")
@@ -229,9 +231,9 @@ func (c *KimiClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse,
 	}, nil
 }
 
-// ChatStream 实现流式聊天接口（OpenAI 兼容 SSE）
-func (c *KimiClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *StreamChunk, error) {
-	msgs := kimiSanitizeMessages(req.Messages)
+// ChatStream 实现流式聊天接口
+func (c *MiniMaxClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *StreamChunk, error) {
+	msgs := minimaxSanitizeMessages(req.Messages)
 	chunkChan := make(chan *StreamChunk, 10)
 	go func() {
 		defer close(chunkChan)
@@ -255,14 +257,21 @@ func (c *KimiClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *
 			apiReq["max_tokens"] = 4096
 		}
 		if req.Temperature == 0 {
-			apiReq["temperature"] = 0.6
+			apiReq["temperature"] = 1.0
 		}
 
 		timeout := c.Options.Timeout
 		if req.Timeout != nil && *req.Timeout > 0 {
 			timeout = *req.Timeout
 		}
-		httpClient := createHTTPClient(c.Options, timeout)
+		httpClient := &http.Client{
+			Timeout: timeout,
+			Transport: &http.Transport{
+				MaxIdleConns:       c.Options.MaxIdleConns,
+				IdleConnTimeout:    c.Options.IdleConnTimeout,
+				DisableCompression: true,
+			},
+		}
 
 		jsonData, err := json.Marshal(apiReq)
 		if err != nil {
@@ -307,17 +316,13 @@ func (c *KimiClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *
 				chunkChan <- &StreamChunk{Usage: finalUsage, Done: true}
 				break
 			}
-			var streamResp KimiStreamResponse
+			var streamResp MiniMaxStreamResponse
 			if err := json.Unmarshal([]byte(data), &streamResp); err != nil {
 				chunkChan <- &StreamChunk{Error: fmt.Sprintf("解析流式响应失败: %v", err), Done: true}
 				return
 			}
 			if streamResp.Error != nil {
-				msg := streamResp.Error.Message
-				if streamResp.Error.Code != "" {
-					msg = streamResp.Error.Code + " - " + msg
-				}
-				chunkChan <- &StreamChunk{Error: "Kimi API错误: " + msg, Done: true}
+				chunkChan <- &StreamChunk{Error: fmt.Sprintf("MiniMax API错误: %s - %s", streamResp.Error.Code, streamResp.Error.Message), Done: true}
 				return
 			}
 			if len(streamResp.Choices) > 0 {
@@ -343,29 +348,4 @@ func (c *KimiClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *
 		}
 	}()
 	return chunkChan, nil
-}
-
-// GetSupportedModels 获取支持的模型列表（参考 Moonshot 文档，以实际平台为准）
-func (c *KimiClient) GetSupportedModels() []string {
-	return []string{
-		"kimi-k2-0711-preview",
-		"moonshot-v1-8k",
-		"moonshot-v1-32k",
-		"moonshot-v1-128k",
-		"moonshot-v1-auto",
-		"kimi-latest",
-		"moonshot-v1-8k-vision-preview",
-		"moonshot-v1-32k-vision-preview",
-		"moonshot-v1-128k-vision-preview",
-		"kimi-thinking-preview",
-	}
-}
-
-// GetPricingInfo 获取价格信息（仅供参考）
-func (c *KimiClient) GetPricingInfo() map[string]interface{} {
-	return map[string]interface{}{
-		"model":          c.Model,
-		"context_length": "视模型而定",
-		"note":             "价格以 Moonshot 开放平台为准；接口为 OpenAI 兼容 /v1/chat/completions",
-	}
 }

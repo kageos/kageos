@@ -96,7 +96,7 @@
         >
           <div class="message-header">
             <span class="role">{{ m.role === 'user' ? '我' : '工作台' }}</span>
-            <span v-if="m.created_at" class="message-time">{{ formatMessageTime(m.created_at) }}</span>
+            <span class="message-time">{{ m.created_at ? formatMessageTime(m.created_at) : '—' }}</span>
           </div>
           <!-- 用户消息 -->
           <template v-if="m.role === 'user'">
@@ -115,7 +115,7 @@
             <div class="content content--blocks">
               <template v-for="(block, bi) in m.blocks" :key="bi">
                 <template v-if="block.type === 'content'">
-                  <div class="message-text" v-html="renderMarkdown(block.text)"></div>
+                  <div class="message-text" v-html="renderMarkdown((sending && i === messages.length - 1 && bi === m.blocks!.length - 1) ? block.text.slice(0, streamingDisplayLength) : block.text)"></div>
                   <span v-if="sending && i === messages.length - 1 && bi === m.blocks!.length - 1" class="streaming-cursor">▌</span>
                 </template>
                 <MessageToolCalls
@@ -151,6 +151,14 @@
         @drop.prevent="onDropFiles"
       >
         <div class="input-area">
+          <div class="input-area-model">
+            <span class="input-area-model-label">模型</span>
+            <LLMSelector
+              :model-value="selectedLLMConfigId ?? 0"
+              scope="market"
+              @update:model-value="onLLMSelect"
+            />
+          </div>
           <div class="input-area-attach">
             <el-upload
               :auto-upload="false"
@@ -211,6 +219,7 @@ import { getLLMList, type LLMInfo } from '@/api/agent'
 import MessageToolCalls from './MessageToolCalls.vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import UserDisplay from '../widgets/UserDisplay.vue'
+import LLMSelector from '@/components/LLMSelector.vue'
 import { extractFileGroupsFromResult, type OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { ElMessage } from 'element-plus'
 import { useWorkspaceChatStream, type ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
@@ -251,7 +260,7 @@ const emit = defineEmits<{
 
 const router = useRouter()
 
-const { messages, sending, sessionId, send: sendMessage, handleEvent, setMessages } = useWorkspaceChatStream()
+const { messages, sending, sessionId, streamingDisplayLength, send: sendMessage, handleEvent, setMessages } = useWorkspaceChatStream()
 const inputText = ref('')
 const messagesRef = ref<HTMLElement | null>(null)
 let generatingPollTimer: ReturnType<typeof setInterval> | null = null
@@ -437,6 +446,10 @@ async function loadLLMs() {
   }
 }
 
+function onLLMSelect(value: number) {
+  selectedLLMConfigId.value = value === 0 ? null : value
+}
+
 // 加载会话列表
 async function loadSessions() {
   if (!props.fullCodePath) {
@@ -492,6 +505,7 @@ async function loadSessionMessages(targetSessionId: string) {
         const role = msg.role as 'user' | 'assistant'
         const content = msg.content || ''
         const tool_calls = msg.tool_calls || []
+        const created_at = msg.created_at ?? (msg as { createdAt?: string }).createdAt ?? ''
         let blocks: ChatMessage['blocks'] | undefined
         if (role === 'assistant' && (content || tool_calls.length)) {
           if (content && tool_calls.length) {
@@ -508,7 +522,7 @@ async function loadSessionMessages(targetSessionId: string) {
           files: parseMessageFiles(msg.files),
           tool_calls,
           blocks,
-          created_at: msg.created_at,
+          created_at,
         }
       })
     setMessages(msgs as ChatMessage[])
@@ -1111,6 +1125,17 @@ async function send() {
 }
 .input-area { display: flex; flex-direction: column; gap: 8px; }
 .input-area .el-button { align-self: flex-end; }
+.input-area-model {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.input-area-model-label {
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  flex-shrink: 0;
+}
+.input-area-model :deep(.llm-selector) { flex: 1; min-width: 0; }
 .input-area-attach {
   display: flex;
   flex-wrap: wrap;

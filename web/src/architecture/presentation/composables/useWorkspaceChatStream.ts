@@ -6,7 +6,7 @@
  * 便于 WorkstationChat 与后续其他流式工具对话复用同一套消息状态与事件处理。
  */
 
-import { ref, type Ref } from 'vue'
+import { ref, watch, onUnmounted, type Ref } from 'vue'
 
 export interface ChatMessageFile {
   name: string
@@ -36,11 +36,17 @@ export interface ChatMessage {
 
 export type StreamEventHandler = (event: string, data: Record<string, unknown>) => void
 
+/** 流式时「已显示字符数」，用于打字机平滑（MiniMax 等大块吐出时不再一卡一卡）；调小更丝滑、调大更快追上 */
+export const SMOOTH_CHARS_PER_TICK = 5
+export const SMOOTH_TICK_MS = 22
+
 export interface UseWorkspaceChatStreamReturn {
   messages: Ref<ChatMessage[]>
   sending: Ref<boolean>
   sessionId: Ref<string | undefined>
   agentId: Ref<number | null>
+  /** 当前流式消息的「已显示长度」，仅对最后一条 assistant 的最后一个 content 块生效，用于平滑展示 */
+  streamingDisplayLength: Ref<number>
   /** 由调用方在 SSE 回调里调用，用于更新最后一条 assistant 消息及 sessionId/agentId */
   handleEvent: StreamEventHandler
   /** 发送一条用户消息并跑流：追加 user + assistant，调用 streamFn(handleEvent)。可选传 files 以便发送后立即展示附件 */
@@ -54,6 +60,41 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
   const sending = ref(false)
   const sessionId = ref<string | undefined>(undefined)
   const agentId = ref<number | null>(null)
+  /** 流式时最后一条 assistant 的最后一个 content 块「已显示字符数」，定时器追赶真实长度，实现打字机平滑 */
+  const streamingDisplayLength = ref(0)
+  let smoothTimer: ReturnType<typeof setInterval> | null = null
+
+  function stopSmoothTimer() {
+    if (smoothTimer != null) {
+      clearInterval(smoothTimer)
+      smoothTimer = null
+    }
+  }
+
+  watch(sending, (val) => {
+    if (!val) {
+      stopSmoothTimer()
+      return
+    }
+    streamingDisplayLength.value = 0
+    smoothTimer = setInterval(() => {
+      const list = messages.value
+      const last = list[list.length - 1]
+      if (!last || last.role !== 'assistant') return
+      const blocks = last.blocks ?? []
+      const lastBlock = blocks[blocks.length - 1]
+      if (!lastBlock || lastBlock.type !== 'content') return
+      const fullLen = lastBlock.text.length
+      if (streamingDisplayLength.value < fullLen) {
+        streamingDisplayLength.value = Math.min(
+          streamingDisplayLength.value + SMOOTH_CHARS_PER_TICK,
+          fullLen
+        )
+      }
+    }, SMOOTH_TICK_MS)
+  })
+
+  onUnmounted(stopSmoothTimer)
 
   /** 统计 blocks 中已经分配的 tool_calls 数量（排除指定 blockIndex） */
   function countCallsInBlocks(blocks: AssistantBlock[], excludeIdx?: number): number {
@@ -271,6 +312,7 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
 
   async function send(content: string, streamFn: (onEvent: StreamEventHandler) => Promise<void>, files?: ChatMessageFile[]) {
     if (sending.value) return
+    streamingDisplayLength.value = 0
     const now = new Date().toISOString()
     messages.value.push({ role: 'user', content, files: files?.length ? files : undefined, created_at: now })
     messages.value.push({ role: 'assistant', content: '', tool_calls: [], blocks: [], created_at: now })
@@ -302,6 +344,7 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
     sending,
     sessionId,
     agentId,
+    streamingDisplayLength,
     handleEvent,
     send,
     setMessages,
