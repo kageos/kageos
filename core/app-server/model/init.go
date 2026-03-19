@@ -38,6 +38,9 @@ func InitTables(db *gorm.DB) error {
 		&RoleAssignment{},
 		// 权限点表（企业版功能）
 		&Action{},
+		// 定时任务
+		&ScheduledTask{},
+		&ScheduledTaskExecution{},
 	)
 	if err != nil {
 		return err

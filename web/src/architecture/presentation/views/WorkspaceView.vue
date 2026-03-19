@@ -263,6 +263,21 @@
                     />
                   </div>
                 </el-tab-pane>
+
+                <!-- 定时任务 tab（仅当前函数存在定时任务时显示） -->
+                <el-tab-pane v-if="hasScheduledTasksForCurrentPath" name="scheduledTask">
+                  <template #label>
+                    <span>定时任务</span>
+                  </template>
+                  <div class="tab-content">
+                    <ScheduledTaskList
+                      ref="scheduledTaskListRef"
+                      :resource-path="currentFunction?.full_code_path"
+                      :auto-load="functionActiveTab === 'scheduledTask'"
+                      @total-change="onScheduledTaskTotalChange"
+                    />
+                  </div>
+                </el-tab-pane>
               </el-tabs>
             </div>
 
@@ -811,6 +826,7 @@ import UserDisplay from '../widgets/UserDisplay.vue'
 import UsersWidget from '../widgets/UsersWidget.vue'
 import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
 import PermissionManageList from '@/components/Permission/PermissionManageList.vue'
+import ScheduledTaskList from '../components/ScheduledTaskList.vue'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
@@ -829,6 +845,7 @@ import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { resolveWorkspaceUrl, extractWorkspacePath } from '@/utils/route'
 import { isLinkNavigation as checkLinkNavigation, LINK_TYPE_QUERY_KEY } from '@/utils/linkNavigation'
 import { getWorkspaceSessions, cancelWorkspaceChat, type WorkspaceSessionItem } from '@/api/workspace'
+import { listScheduledTasks } from '@/api/scheduledTask'
 import { hasPermission, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 
@@ -1156,6 +1173,9 @@ async function handleCancelTask(task: WorkspaceSessionItem) {
 const functionActiveTab = ref('content')
 const functionPermissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> | null>(null)
 const functionPermissionManageListRef = ref<InstanceType<typeof PermissionManageList> | null>(null)
+const scheduledTaskListRef = ref<InstanceType<typeof ScheduledTaskList> | null>(null)
+/** 当前函数是否有定时任务（无则不显示「定时任务」tab） */
+const hasScheduledTasksForCurrentPath = ref(false)
 
 // ⭐ 判断是否显示函数权限申请 tab
 // 条件：1. 节点类型是 function  2. 用户是管理员
@@ -1190,6 +1210,39 @@ const handleFunctionTabChange = (tabName: string) => {
     nextTick(() => {
       functionPermissionManageListRef.value?.loadPermissions()
     })
+  }
+}
+
+/** 定时任务列表 total 变化：无任务时隐藏 tab 并切回内容 */
+function onScheduledTaskTotalChange(total: number) {
+  hasScheduledTasksForCurrentPath.value = total > 0
+  if (total === 0 && functionActiveTab.value === 'scheduledTask') {
+    functionActiveTab.value = 'content'
+  }
+}
+
+/** 根据当前函数路径拉取定时任务数量，决定是否显示「定时任务」tab；若无任务且当前在定时任务 tab 则切回内容避免空白 */
+async function refreshScheduledTasksCountForCurrentPath() {
+  const path = currentFunction.value?.full_code_path
+  if (!path || !showFunctionPermissionRequestTab.value) {
+    hasScheduledTasksForCurrentPath.value = false
+    if (functionActiveTab.value === 'scheduledTask') {
+      functionActiveTab.value = 'content'
+    }
+    return
+  }
+  try {
+    const res = await listScheduledTasks({ full_code_path: path, page: 1, page_size: 1 })
+    const hasAny = (res.total ?? 0) > 0
+    hasScheduledTasksForCurrentPath.value = hasAny
+    if (!hasAny && functionActiveTab.value === 'scheduledTask') {
+      functionActiveTab.value = 'content'
+    }
+  } catch {
+    hasScheduledTasksForCurrentPath.value = false
+    if (functionActiveTab.value === 'scheduledTask') {
+      functionActiveTab.value = 'content'
+    }
   }
 }
 
@@ -2329,6 +2382,7 @@ const handleDeleteApp = async (app: AppType): Promise<void> => {
 let unsubscribeFunctionLoaded: (() => void) | null = null
 let unsubscribeServiceTreeLoaded: (() => void) | null = null
 let unsubscribeAppSwitched: (() => void) | null = null
+let unsubscribeScheduledTaskCreated: (() => void) | null = null
 let unsubscribeAppInfoUpdated: (() => void) | null = null
 
 // 🔥 重新关联 tabs 的 node 信息（使用 Composable）
@@ -2397,6 +2451,11 @@ onMounted(async () => {
     // 应用切换事件处理
   })
 
+  unsubscribeScheduledTaskCreated = eventBus.on(WorkspaceEvent.scheduledTaskCreated, () => {
+    hasScheduledTasksForCurrentPath.value = true
+    functionActiveTab.value = 'scheduledTask'
+  })
+
   // 监听应用信息更新事件（用于更新应用列表中的 app.id）
   unsubscribeAppInfoUpdated = eventBus.on('workspace:app-info-updated' as any, (payload: { app: AppType }) => {
     // 更新应用列表中的 app 信息
@@ -2441,6 +2500,13 @@ watch(() => currentFunction.value?.id, (newId: number | undefined, oldId: number
     permissionErrorStore.clearError()
   }
 })
+
+// 当前函数路径或「显示权限 tab」变化时，刷新定时任务数量以决定是否显示「定时任务」tab
+watch(
+  () => [currentFunction.value?.full_code_path, showFunctionPermissionRequestTab.value] as const,
+  () => { refreshScheduledTasksCountForCurrentPath() },
+  { immediate: true }
+)
 
 // 🔥 监听 queryTab 变化，处理 create/edit/detail 模式
 watch(queryTab, async (newTab: string, oldTab: string) => {
@@ -2533,6 +2599,9 @@ onUnmounted(() => {
   }
   if (unsubscribeAppSwitched) {
     unsubscribeAppSwitched()
+  }
+  if (unsubscribeScheduledTaskCreated) {
+    unsubscribeScheduledTaskCreated()
   }
   if (unsubscribeAppInfoUpdated) {
     unsubscribeAppInfoUpdated()
@@ -2638,7 +2707,7 @@ onUnmounted(() => {
     height: 40px;
     line-height: 40px;
     font-size: 14px;
-    color: var(--el-text-color-regular);
+    color: rgba(255, 255, 255, 0.9);
     border: none;
     background: var(--el-bg-color-overlay);
     margin-right: 4px;
@@ -2648,12 +2717,12 @@ onUnmounted(() => {
     overflow: visible; /* 确保 badge 不被裁剪 */
 
     &:hover {
-      color: var(--el-color-primary);
-      opacity: 0.8;
+      color: #fff;
+      opacity: 0.95;
     }
 
     &.is-active {
-      color: var(--el-color-primary);
+      color: #fff;
       background: var(--el-bg-color);
       font-weight: 500;
       opacity: 1;

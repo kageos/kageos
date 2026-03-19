@@ -158,6 +158,17 @@
           提交
         </el-button>
         <el-button
+          v-if="showSubmitButton && canSubmit"
+          type="primary"
+          plain
+          size="large"
+          @click="showScheduledTaskDialog = true"
+          :disabled="!currentFunctionNode?.full_code_path"
+        >
+          <el-icon><Clock /></el-icon>
+          定时执行
+        </el-button>
+        <el-button
           v-else-if="showSubmitButton"
           type="default"
           size="large"
@@ -317,6 +328,14 @@
         </el-tab-pane>
       </el-tabs>
     </el-dialog>
+
+    <!-- 定时执行弹窗：以当前表单参数为 payload -->
+    <ScheduledTaskDialog
+      v-model="showScheduledTaskDialog"
+      :full-code-path="currentFunctionNode?.full_code_path ?? ''"
+      :get-payload="prepareSubmitDataWithTypeConversion"
+      @success="onScheduledTaskCreated"
+    />
       </div>
     </div>
   </div>
@@ -326,7 +345,7 @@
 import { computed, onMounted, onUnmounted, watch, ref, nextTick, withDefaults } from 'vue'
 import type { ComputedRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Lock, Document, List, User } from '@element-plus/icons-vue'
+import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Lock, Document, List, User, Clock } from '@element-plus/icons-vue'
 import { ElIcon, ElTag, ElNotification, ElMessage, ElAlert, ElMessageBox, ElText, ElCheckbox, ElCard, ElEmpty } from 'element-plus'
 import { eventBus, FormEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
@@ -343,6 +362,7 @@ import { hasPermission, FormPermissions, FunctionPermission, buildPermissionAppl
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
+import ScheduledTaskDialog from '../components/ScheduledTaskDialog.vue'
 
 const props = withDefaults(defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取
@@ -498,6 +518,11 @@ const formatCostTime = (milliseconds: number): string => {
 // Debug 相关
 const showDebugDialog = ref(false)
 const debugActiveTab = ref('request')
+const showScheduledTaskDialog = ref(false)
+
+function onScheduledTaskCreated() {
+  eventBus.emit(WorkspaceEvent.scheduledTaskCreated)
+}
 
 
 // 实时获取提交数据（用于 Debug）

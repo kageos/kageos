@@ -239,3 +239,60 @@ func CtxToTraceNats(c context.Context, subject string) *nats.Msg {
 	return msg
 
 }
+
+// RequestInfo 无 HTTP 请求时的请求信息，与 ToContext 透传字段一致
+type RequestInfo struct {
+	TraceId            string
+	RequestUser        string
+	Token              string
+	DepartmentFullPath string
+}
+
+// WithRequestInfo 一次性注入与 ToContext 一致的 context（用于定时任务等无 HTTP 请求场景）
+func WithRequestInfo(ctx context.Context, info RequestInfo) context.Context {
+	if info.TraceId != "" {
+		ctx = context.WithValue(ctx, TraceIdHeader, info.TraceId)
+	}
+	if info.RequestUser != "" {
+		ctx = context.WithValue(ctx, RequestUserHeader, info.RequestUser)
+	}
+	if info.Token != "" {
+		ctx = context.WithValue(ctx, TokenHeader, info.Token)
+	}
+	if info.DepartmentFullPath != "" {
+		ctx = context.WithValue(ctx, DepartmentFullPathHeader, info.DepartmentFullPath)
+	}
+	return ctx
+}
+
+// WithRequestUser 注入请求用户到 context（用于定时任务等无 HTTP 请求场景）
+func WithRequestUser(ctx context.Context, username string) context.Context {
+	if username == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, RequestUserHeader, username)
+}
+
+// WithToken 注入 Token 到 context
+func WithToken(ctx context.Context, token string) context.Context {
+	if token == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, TokenHeader, token)
+}
+
+// WithDepartmentFullPath 注入部门路径到 context
+func WithDepartmentFullPath(ctx context.Context, deptPath string) context.Context {
+	if deptPath == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, DepartmentFullPathHeader, deptPath)
+}
+
+// WithTraceId 注入 TraceId 到 context
+func WithTraceId(ctx context.Context, traceId string) context.Context {
+	if traceId == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, TraceIdHeader, traceId)
+}
