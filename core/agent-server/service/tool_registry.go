@@ -217,10 +217,10 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 		},
 	})
 
-	// write_go_file：写 Go 代码文件（file_name + content；build_workspace 预留）
+	// write_go_file：写 Go 代码文件（只落盘，不编译）
 	out = append(out, dto.ToolDef{
 		Name:        "write_go_file",
-		Description: "在当前工作目录或指定 directory 下写入一个 .go 代码文件。必填：file_name（如 attendance.go）、content（Go 源码）。可选：directory（目标目录）、build_workspace（是否立即编译，默认 true）。使用原则：若本次任务只需新增一个文件即可完成，直接写并编译即可（不传或传 true，省事）；若本次任务需要新增多个文件，则每个 write_go_file 传 build_workspace=false 仅写不编译，全部写完后调用一次 build_workspace 再编译。",
+		Description: "在当前工作目录或指定 directory 下写入一个 .go 代码文件。必填：file_name（如 attendance.go）、content（Go 源码）。可选：directory（目标目录）。注意：write_go_file 只落盘、不编译；可连续多次写入多个文件，全部写完后统一调用一次 build_workspace 完成编译与部署，无需每写一次就编译。",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -228,17 +228,13 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 					"type":        "string",
 					"description": "文件名，如 attendance.go、biz_vote_system.go",
 				},
-				"content": map[string]interface{}{
-					"type":        "string",
-					"description": "Go 源码全文",
-				},
 				"directory": map[string]interface{}{
 					"type":        "string",
 					"description": "目标目录（可选），不传则当前工作目录",
 				},
-				"build_workspace": map[string]interface{}{
-					"type":        "boolean",
-					"description": "是否立即编译（可选，默认 true）。单文件任务用默认即可；多文件任务时传 false，全部写完后调用 build_workspace 再编译。",
+				"content": map[string]interface{}{
+					"type":        "string",
+					"description": "Go 源码全文",
 				},
 			},
 			"required": []interface{}{"file_name", "content"},
@@ -1413,12 +1409,8 @@ func (r *ToolRegistry) callWriteGoFile(ctx context.Context, args map[string]inte
 	if nameWithoutExt == "init_" {
 		return "不允许创建该文件，由脚手架自动生成。", true
 	}
-	buildWorkspace := true
-	if v, ok := args["build_workspace"]; ok {
-		if b, ok := v.(bool); ok {
-			buildWorkspace = b
-		}
-	}
+	// 永远不编译：避免 write_go_file 触发 go mod tidy / go build 导致失败影响落盘结果
+	buildWorkspace := false
 
 	targetPath := getDirectory(args, currentFullCodePath)
 	targetPath = strings.TrimRight(targetPath, "/")
@@ -1827,7 +1819,7 @@ func (r *ToolRegistry) callSearchTools(ctx context.Context, args map[string]inte
 	} else if resp != nil {
 		functions = resp.Functions
 	}
-		if len(functions) > 0 {
+	if len(functions) > 0 {
 		if keywordRaw == "" {
 			buf.WriteString("【已注册函数】（按调用次数从高到低，仅 system 用户下）\n")
 		} else {
@@ -1911,11 +1903,11 @@ func (r *ToolRegistry) callPublishToHub(ctx context.Context, args map[string]int
 	}
 	req := &dto.PublishDirectoryToHubReq{
 		SourceUser:          sourceUser,
-		SourceApp:            sourceApp,
+		SourceApp:           sourceApp,
 		SourceDirectoryPath: sourceDirectoryPath,
-		Name:                 name,
-		Description:          strings.TrimSpace(GetStringArg(args, "description")),
-		Category:             strings.TrimSpace(GetStringArg(args, "category")),
+		Name:                name,
+		Description:         strings.TrimSpace(GetStringArg(args, "description")),
+		Category:            strings.TrimSpace(GetStringArg(args, "category")),
 	}
 	if tagsStr := strings.TrimSpace(GetStringArg(args, "tags")); tagsStr != "" {
 		for _, t := range strings.Split(tagsStr, ",") {

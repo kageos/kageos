@@ -37,6 +37,18 @@ func (t *FieldTags) GetCode() string {
 	return t.Json
 }
 
+// isJsonOmit 与 encoding/json 一致：json 标签中「名称」为 - 表示不参与序列化，解析模型时也应跳过（与 widget:"-" 等价）
+func isJsonOmit(jsonTag string) bool {
+	if jsonTag == "" {
+		return false
+	}
+	name := strings.TrimSpace(jsonTag)
+	if i := strings.Index(name, ","); i >= 0 {
+		name = strings.TrimSpace(name[:i])
+	}
+	return name == "-"
+}
+
 // ParseModelResult 解析模型的结果
 type ParseModelResult struct {
 	Tags []*FieldTags
@@ -88,6 +100,11 @@ func ParseModelWithType(model interface{}) (*ParseModelResult, error) {
 			Type:         field.Type, // 保存字段类型
 			FieldName:    field.Name, // 保存字段名称
 			Children:     nil,        // 初始化Children为nil
+		}
+
+		// 与 widget:"-" 等价：json:"-" 的字段不参与表单/表格元数据解析
+		if tags.Widget == "-" || isJsonOmit(tags.Json) {
+			continue
 		}
 
 		// 先检查是否是 table 或 form 类型
@@ -232,8 +249,8 @@ func parseStructFields(structType reflect.Type) ([]*FieldTags, error) {
 			Children:     nil,
 		}
 
-		// 跳过 widget="-" 的字段
-		if childTags.Widget == "-" {
+		// 与 widget:"-" 等价：json:"-" 一并跳过
+		if childTags.Widget == "-" || isJsonOmit(childTags.Json) {
 			continue
 		}
 
@@ -278,8 +295,8 @@ func IsSkipField(fieldName string, fieldType reflect.Type, fieldTags *FieldTags)
 		return true
 	}
 
-	// 跳过 widget="-" 的字段
-	if fieldTags.Widget == "-" {
+	// 跳过 widget="-" 或 json:"-"（与 encoding/json 省略语义一致）
+	if fieldTags.Widget == "-" || isJsonOmit(fieldTags.Json) {
 		return true
 	}
 

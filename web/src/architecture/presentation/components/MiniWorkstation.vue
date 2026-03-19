@@ -183,6 +183,7 @@
           >
             <div v-if="msg.role === 'user'" class="mini-msg-user">
               <span class="mini-msg-badge">你</span>
+              <span class="mini-msg-time">{{ msg.created_at ? formatMessageTime(msg.created_at) : '—' }}</span>
               <div class="mini-msg-user-body">
                 <OutputFilesDisplay
                   v-if="msg.files?.length"
@@ -195,9 +196,13 @@
             </div>
             <template v-else>
               <!-- 助手消息：按 block 渲染 -->
+              <div class="mini-msg-assistant-header">
+                <span class="mini-msg-badge">工作台</span>
+                <span class="mini-msg-time">{{ msg.created_at ? formatMessageTime(msg.created_at) : '—' }}</span>
+              </div>
               <div v-if="msg.blocks?.length" class="mini-msg-assistant">
                 <template v-for="(block, bi) in msg.blocks" :key="bi">
-                  <div v-if="block.type === 'content'" class="mini-content-block mini-md-content" v-html="renderMarkdown(block.text)"></div>
+                  <div v-if="block.type === 'content'" class="mini-content-block mini-md-content" v-html="renderMarkdown((sending && i === messages.length - 1 && bi === msg.blocks!.length - 1) ? block.text.slice(0, streamingDisplayLength) : block.text)"></div>
                   <template v-else-if="block.type === 'tool_calls'">
                     <!-- 最大化：用 MessageToolCalls 组件渲染工具详情 -->
                     <MessageToolCalls
@@ -352,7 +357,28 @@
         </el-tag>
       </div>
 
-      <!-- 输入区 -->
+      <!-- 模型选择 + 输入区 -->
+      <div class="mini-ws-model-row">
+        <span class="mini-ws-model-label">模型</span>
+        <el-select
+          v-model="selectedLLMConfigId"
+          placeholder="默认模型"
+          filterable
+          :loading="llmLoading"
+          teleported
+          popper-class="mini-ws-model-select-popper"
+          class="mini-ws-model-select"
+          @visible-change="onLLMSelectVisibleChange"
+        >
+          <el-option label="默认" :value="0" />
+          <el-option
+            v-for="llm in llmList"
+            :key="llm.id"
+            :label="`${llm.name} (${llm.provider}/${llm.model})`"
+            :value="llm.id"
+          />
+        </el-select>
+      </div>
       <div class="mini-ws-input">
         <el-upload
           :auto-upload="false"
@@ -453,6 +479,7 @@ import { Loading, Close, Minus, FullScreen, CopyDocument, Paperclip, CircleCheck
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { workspaceChatStream, getWorkspaceMessages, getWorkspaceSessions, cancelWorkspaceChat, getWorkspaceSessionSSEStatus, type WorkspaceChatReq, type WorkspaceChatMessageFile, type WorkspaceSessionItem } from '@/api/workspace'
+import { getLLMList, type LLMInfo } from '@/api/agent'
 import { useWorkspaceChatStream } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import type { ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
@@ -495,7 +522,7 @@ const emit = defineEmits<{
   (e: 'maximize-change', payload: { maximized: boolean; sessionId?: string }): void
 }>()
 
-const { messages, sending, sessionId, send: sendMessage, handleEvent, setMessages } = useWorkspaceChatStream()
+const { messages, sending, sessionId, streamingDisplayLength, send: sendMessage, handleEvent, setMessages } = useWorkspaceChatStream()
 
 const inputText = ref('')
 const inputRef = ref<HTMLTextAreaElement>()
@@ -503,6 +530,26 @@ const outputRef = ref<HTMLElement>()
 const rootRef = ref<HTMLElement>()
 const attachedFiles = ref<WorkspaceChatMessageFile[]>([])
 const uploading = ref(false)
+
+const llmList = ref<LLMInfo[]>([])
+const llmLoading = ref(false)
+const selectedLLMConfigId = ref<number>(0)
+
+async function loadLLMs() {
+  llmLoading.value = true
+  try {
+    const res = await getLLMList({ scope: 'market', page: 1, page_size: 200 }) as { configs?: LLMInfo[]; total?: number }
+    llmList.value = res?.configs ?? []
+  } catch {
+    llmList.value = []
+  } finally {
+    llmLoading.value = false
+  }
+}
+
+function onLLMSelectVisibleChange(visible: boolean) {
+  if (visible && llmList.value.length === 0) loadLLMs()
+}
 
 const UPLOAD_ROUTER = 'workspace/chat'
 
@@ -578,6 +625,19 @@ function formatRelativeTime(timeStr: string): string {
   if (hours < 24) return `${hours}小时前`
   if (days < 7) return `${days}天前`
   return time.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+}
+
+function formatMessageTime(isoString: string): string {
+  if (!isoString) return '—'
+  const date = new Date(isoString)
+  if (Number.isNaN(date.getTime())) return '—'
+  const y = date.getFullYear()
+  const M = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  const h = String(date.getHours()).padStart(2, '0')
+  const m = String(date.getMinutes()).padStart(2, '0')
+  const s = String(date.getSeconds()).padStart(2, '0')
+  return `${y}-${M}-${d} ${h}:${m}:${s}`
 }
 
 const displayPath = computed(() => {
@@ -1051,6 +1111,9 @@ async function handleSend() {
       ...(files?.length ? { files: { files, widget_type: 'files', data_type: 'struct' } } : {}),
     },
     session_id: sessionId.value,
+  }
+  if (selectedLLMConfigId.value != null && selectedLLMConfigId.value > 0) {
+    payload.llm_config_id = selectedLLMConfigId.value
   }
 
   const streamFn = async (onEvent: (event: string, data: Record<string, unknown>) => void) => {
@@ -1654,6 +1717,22 @@ watch(sending, (cur, prev) => {
   border-radius: 4px;
   margin-top: 1px;
 }
+.mini-msg-time {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  margin-top: 2px;
+}
+.mini-msg-assistant-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.mini-msg-assistant-header .mini-msg-badge {
+  background: var(--el-color-info-light-5, #909399);
+  color: var(--el-text-color-primary);
+}
 .mini-msg-assistant {
   padding-left: 2px;
 }
@@ -1835,6 +1914,23 @@ watch(sending, (cur, prev) => {
 }
 
 /* ── 输入区 ── */
+.mini-ws-model-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-light);
+}
+.mini-ws-model-label {
+  font-size: 12px;
+  color: var(--el-text-color-regular);
+  flex-shrink: 0;
+}
+.mini-ws-model-select {
+  flex: 1;
+  min-width: 0;
+}
 .mini-ws-input {
   display: flex;
   align-items: flex-end;

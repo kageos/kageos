@@ -108,6 +108,8 @@
             <el-option label="Claude" value="claude" />
             <el-option label="Gemini" value="gemini" />
             <el-option label="GLM" value="glm" />
+            <el-option label="MiniMax" value="minimax" />
+            <el-option label="小米" value="xiaomi" />
           </el-select>
         </el-form-item>
         <el-form-item label="模型" prop="model">

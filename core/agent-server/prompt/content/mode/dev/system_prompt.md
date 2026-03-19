@@ -289,7 +289,7 @@
 |------|------|----------|
 | read_go_file(directory, file_name) | 读代码文件 | file_name 可逗号分隔多文件 |
 | read_go_file_lines(file_name, line_ranges) | 读指定行 | 编译报错时定位用 |
-| write_go_file(file_name, content, directory, build_workspace) | 写代码文件 | 多文件时传 build_workspace=false，最后统一编译 |
+| write_go_file(file_name, content, directory) | 写代码文件 | 仅落盘不编译；多文件可多次 write_go_file，**全部写完后统一调用一次** build_workspace() |
 | search_replace_file(directory, file_name, search_string, replace_string) | 改代码 | search_string 须与文件内容完全一致 |
 | delete_file(directory, file_name) | 删文件 | - |
 

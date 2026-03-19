@@ -2,6 +2,7 @@ package streamloop
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -228,6 +229,18 @@ func processStreamChunks(
 	return content, allToolCalls, nil
 }
 
+// appendToolCallArgs 仅当当前 arguments 还不是合法 JSON 时才追加 delta，避免 MiniMax 等先发完整 JSON 再发后缀导致重复拼接成无效 JSON（2013）
+func appendToolCallArgs(cur, delta string) string {
+	if delta == "" {
+		return cur
+	}
+	cur = strings.TrimSpace(cur)
+	if cur != "" && json.Valid([]byte(cur)) {
+		return cur
+	}
+	return cur + delta
+}
+
 func mergeToolCalls(chunkToolCalls []llms.ToolCall, allToolCalls []llms.ToolCall, toolCallsIndex map[string]int) ([]llms.ToolCall, map[string]int) {
 	for _, tc := range chunkToolCalls {
 		if tc.ID != "" {
@@ -236,7 +249,7 @@ func mergeToolCalls(chunkToolCalls []llms.ToolCall, allToolCalls []llms.ToolCall
 					allToolCalls[idx].Function.Name = tc.Function.Name
 				}
 				if tc.Function.Arguments != "" {
-					allToolCalls[idx].Function.Arguments += tc.Function.Arguments
+					allToolCalls[idx].Function.Arguments = appendToolCallArgs(allToolCalls[idx].Function.Arguments, tc.Function.Arguments)
 				}
 			} else if len(allToolCalls) > 0 && allToolCalls[len(allToolCalls)-1].ID == "" {
 				// 流式先发 name 再发 id（按 index 分片）：最后一条是 id 为空的同一 tool_call，合并到该条，避免出现两条（一条 id 空）导致 API 报 insufficient tool messages
@@ -246,7 +259,7 @@ func mergeToolCalls(chunkToolCalls []llms.ToolCall, allToolCalls []llms.ToolCall
 					allToolCalls[lastIdx].Function.Name = tc.Function.Name
 				}
 				if tc.Function.Arguments != "" {
-					allToolCalls[lastIdx].Function.Arguments += tc.Function.Arguments
+					allToolCalls[lastIdx].Function.Arguments = appendToolCallArgs(allToolCalls[lastIdx].Function.Arguments, tc.Function.Arguments)
 				}
 				toolCallsIndex[tc.ID] = lastIdx
 			} else {
@@ -256,7 +269,7 @@ func mergeToolCalls(chunkToolCalls []llms.ToolCall, allToolCalls []llms.ToolCall
 		} else if tc.Function.Arguments != "" {
 			if len(allToolCalls) > 0 {
 				lastIdx := len(allToolCalls) - 1
-				allToolCalls[lastIdx].Function.Arguments += tc.Function.Arguments
+				allToolCalls[lastIdx].Function.Arguments = appendToolCallArgs(allToolCalls[lastIdx].Function.Arguments, tc.Function.Arguments)
 			}
 			if len(allToolCalls) == 0 && tc.Function.Name != "" {
 				allToolCalls = append(allToolCalls, tc)

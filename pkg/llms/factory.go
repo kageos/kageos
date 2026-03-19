@@ -17,6 +17,8 @@ const (
 	ProviderClaude     Provider = "claude"
 	ProviderGemini     Provider = "gemini"
 	ProviderGLM        Provider = "glm"
+	ProviderMiniMax    Provider = "minimax"
+	ProviderXiaomi     Provider = "xiaomi"
 )
 
 // NewLLMClient 创建LLM客户端
@@ -64,6 +66,10 @@ func NewLLMClientWithOptions(provider Provider, apiKey string, options *ClientOp
 		return NewGeminiClientWithOptions(apiKey, options), nil
 	case ProviderGLM:
 		return NewGLMClientWithOptions(apiKey, options), nil
+	case ProviderMiniMax:
+		return NewMiniMaxClientWithOptions(apiKey, options), nil
+	case ProviderXiaomi:
+		return NewXiaomiClientWithOptions(apiKey, options), nil
 	default:
 		return nil, fmt.Errorf("不支持的提供商: %s", provider)
 	}
@@ -87,6 +93,10 @@ func getAPIKeyFromEnv(provider Provider) string {
 		return os.Getenv("GEMINI_API_KEY")
 	case ProviderGLM:
 		return os.Getenv("GLM_API_KEY")
+	case ProviderMiniMax:
+		return os.Getenv("MINIMAX_API_KEY")
+	case ProviderXiaomi:
+		return os.Getenv("XIAOMI_API_KEY")
 	default:
 		return ""
 	}
@@ -137,6 +147,16 @@ func NewGLMClientFromEnv() (LLMClient, error) {
 	return NewLLMClient(ProviderGLM, "")
 }
 
+// NewMiniMaxClientFromEnv 从环境变量创建 MiniMax 客户端
+func NewMiniMaxClientFromEnv() (LLMClient, error) {
+	return NewLLMClient(ProviderMiniMax, "")
+}
+
+// NewXiaomiClientFromEnv 从环境变量创建小米 MiMo 客户端
+func NewXiaomiClientFromEnv() (LLMClient, error) {
+	return NewLLMClient(ProviderXiaomi, "")
+}
+
 // GetSupportedProviders 获取支持的提供商列表
 func GetSupportedProviders() []Provider {
 	return []Provider{
@@ -148,6 +168,8 @@ func GetSupportedProviders() []Provider {
 		ProviderClaude,
 		ProviderGemini,
 		ProviderGLM,
+		ProviderMiniMax,
+		ProviderXiaomi,
 	}
 }
 
@@ -170,6 +192,10 @@ func GetProviderDisplayName(provider Provider) string {
 		return "Gemini"
 	case ProviderGLM:
 		return "GLM"
+	case ProviderMiniMax:
+		return "MiniMax"
+	case ProviderXiaomi:
+		return "小米"
 	default:
 		return string(provider)
 	}
