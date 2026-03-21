@@ -184,6 +184,7 @@ executor := python.NewExecutor(code).
     }).
     WithPackages("pandas").
     WithTimeout(2 * time.Minute)
+defer executor.Close()
 
 err := executor.ExecuteJSON(ctx, &result)
 ```

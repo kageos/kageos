@@ -100,7 +100,8 @@ AI-Agent-OS 是一个革命性的 AI 原生操作系统，它让软件开发从"
 
 6. **📚 代码示例** - 完整的代码生成示例
    - 参考：`note/已归档-无需再看/prds/01系统设计.md` 中的 `crm_ticket.go` 完整示例
-   - 参考：`namespace/luobei/demo/code/api/` 目录下的实际代码
+   - 参考：`namespace/luobei/demo/code/api/`、`namespace/luobei/demos/code/api/` 目录下的实际代码
+   - **Python 在应用容器内产出可下载文件**（非宿主机）：工作台 `run_official_python` 只能返回文本/JSON；需要 PNG/附件时请 **read_doc `/builtin/doc/case_catalog/form/python_output`**，按内置案例与 **agent-app SDK** 写 Form：**绝对路径**（`filepath.Abs` + `GetTraceOutputDir`）传给 Python 落盘 → **`defer executor.Close()`** → `types.Files`；勿用相对路径在 Go/Python 间互传（cwd 不同）。源码演示见 `namespace/luobei/demos/code/api/form/python_output/README.md`（若存在）
 
 ### 📚 第三步：深入理解（按需阅读）
 

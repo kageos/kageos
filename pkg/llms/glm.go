@@ -448,7 +448,7 @@ func (g *GLMClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *S
 			apiReq.MaxTokens = 4096
 		}
 		if apiReq.Temperature == 0 {
-			apiReq.Temperature = 0.6
+			apiReq.Temperature = 0.1
 		}
 
 		// 根据请求参数控制思考模式

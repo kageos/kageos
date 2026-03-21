@@ -165,7 +165,7 @@ func (c *MiniMaxClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 		apiReq["max_tokens"] = 4096
 	}
 	if req.Temperature == 0 {
-		apiReq["temperature"] = 1.0 // MiniMax 推荐 1.0
+		apiReq["temperature"] = 0.1
 	}
 
 	timeout := c.Options.Timeout
@@ -257,7 +257,7 @@ func (c *MiniMaxClient) ChatStream(ctx context.Context, req *ChatRequest) (<-cha
 			apiReq["max_tokens"] = 4096
 		}
 		if req.Temperature == 0 {
-			apiReq["temperature"] = 1.0
+			apiReq["temperature"] = 0.1
 		}
 
 		timeout := c.Options.Timeout

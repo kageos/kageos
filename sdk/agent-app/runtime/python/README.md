@@ -39,6 +39,7 @@ req := Request{A: 10, B: 20}
 executor := python.NewExecutor(code).
     WithRequest(req).
     WithTimeout(30 * time.Second)
+defer executor.Close() // 默认临时工作目录须释放，避免磁盘泄漏
 
 err := executor.ExecuteJSON(ctx, &result)
 if err != nil {
@@ -58,6 +59,7 @@ executor := python.NewExecutor(code).
     WithPackages("pandas", "numpy").  // 可以添加多个包
     WithTimeout(2 * time.Minute).      // 设置超时
     WithWorkDir("/tmp/my-work")        // 设置工作目录（可选）
+defer executor.Close() // WithWorkDir 时不会删除你指定的目录，仅清理 SDK 创建的临时目录（若有）
 
 err := executor.ExecuteJSON(ctx, &result)
 ```
@@ -182,6 +184,19 @@ func (e *Executor) ExecuteJSON(ctx context.Context, result interface{}) error
 **返回**：
 - `error`: 错误
 
+### Close（资源释放）⭐
+
+使用**默认临时工作目录**（未设置 `WithWorkDir`）时，`Execute` / `ExecuteJSON` 会在系统临时目录下创建工作区，**用完后必须调用 `Close`**，否则会泄漏磁盘。
+
+```go
+func (e *Executor) Close() error
+```
+
+- **推荐写法**：在创建 `Executor` 后立刻 `defer executor.Close()`，与 `defer f.Close()` 习惯一致。
+- **`WithWorkDir` 指定的目录不会被删除**，`Close` 只 `RemoveAll` 由 SDK 内部 `MkdirTemp` 创建的目录。
+- **幂等**：可安全多次调用 `Close()`。
+- **Close 之后**不要再调用 `Execute` / `ExecuteJSON`（会返回错误）。
+
 ## 💡 使用示例
 
 ### 示例 1：简单计算
@@ -207,6 +222,7 @@ var result struct {
 req := Request{A: 10, B: 20}
 executor := python.NewExecutor(code).
     WithRequest(req)
+defer executor.Close()
 
 err := executor.ExecuteJSON(ctx, &result)
 // result.Sum = 30, result.Product = 200
@@ -250,6 +266,7 @@ executor := python.NewExecutor(code).
     WithRequest(req).
     WithPackages("pandas").
     WithTimeout(2 * time.Minute)
+defer executor.Close()
 
 err := executor.ExecuteJSON(ctx, &result)
 ```
@@ -277,6 +294,7 @@ print(json.dumps(result))
     executor := python.NewExecutor(code).
         WithRequest(req).
         WithTimeout(30 * time.Second)
+    defer executor.Close()
 
     err := executor.ExecuteJSON(ctx, &result)
     if err != nil {
@@ -302,6 +320,7 @@ request := map[string]interface{}{
 executor := python.NewExecutor(code).
     WithRequest(request).
     WithTimeout(30 * time.Second)
+defer executor.Close()
 
 output, err := executor.Execute(ctx)
 ```
@@ -368,6 +387,7 @@ print(json.dumps({"result": result}))
 executor := python.NewExecutor(code).
     WithWorkDir("/tmp/my-python-scripts").
     WithTimeout(30 * time.Second)
+defer executor.Close()
 ```
 
 ### 自定义 Python 路径
@@ -376,6 +396,7 @@ executor := python.NewExecutor(code).
 executor := python.NewExecutor(code).
     WithPythonPath("/usr/local/bin/python3.11").
     WithTimeout(30 * time.Second)
+defer executor.Close()
 ```
 
 ### 安装多个包
@@ -384,6 +405,7 @@ executor := python.NewExecutor(code).
 executor := python.NewExecutor(code).
     WithPackages("pandas", "numpy", "matplotlib").
     WithTimeout(2 * time.Minute)
+defer executor.Close()
 ```
 
 ## 📝 最佳实践
@@ -399,7 +421,9 @@ executor := python.NewExecutor(code).
    err := executor.ExecuteJSON(ctx, &result)
    ```
 
-3. **错误处理**：检查错误并记录日志
+3. **默认临时目录必须 Close**：`defer executor.Close()`，避免泄漏
+
+4. **错误处理**：检查错误并记录日志
    ```go
    if err != nil {
        logger.Errorf(ctx, "Python 执行失败: %v", err)
@@ -407,7 +431,7 @@ executor := python.NewExecutor(code).
    }
    ```
 
-4. **包管理**：只在需要时安装包
+5. **包管理**：只在需要时安装包
    ```go
    executor.WithPackages("pandas")  // 只在需要时安装
    ```

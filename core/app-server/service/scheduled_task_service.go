@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +16,13 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
+)
+
+const (
+	ScheduledTaskActionExecute     = "execute"
+	ScheduledTaskActionTableCreate = "table_create"
+	ScheduledTaskActionTableUpdate = "table_update"
+	ScheduledTaskActionTableDelete = "table_delete"
 )
 
 // ScheduledTaskService 定时任务服务
@@ -62,13 +71,22 @@ func (s *ScheduledTaskService) Create(ctx context.Context, req *dto.CreateSchedu
 	if err != nil {
 		return nil, err
 	}
-	runAt, err := time.Parse(time.RFC3339, req.RunAt)
+	runAt, err := parseRunAt(req.RunAt)
 	if err != nil {
 		return nil, fmt.Errorf("run_at 格式错误: %w", err)
 	}
 	method := strings.ToUpper(req.Method)
 	if method == "" {
 		method = "POST"
+	}
+	action := strings.ToLower(strings.TrimSpace(req.Action))
+	if action == "" {
+		action = ScheduledTaskActionExecute
+	}
+	switch action {
+	case ScheduledTaskActionExecute, ScheduledTaskActionTableCreate, ScheduledTaskActionTableUpdate, ScheduledTaskActionTableDelete:
+	default:
+		return nil, fmt.Errorf("action 不支持，必须是 execute/table_create/table_update/table_delete")
 	}
 	reqUser := strings.TrimSpace(req.RequestUser)
 	if reqUser == "" {
@@ -80,22 +98,23 @@ func (s *ScheduledTaskService) Create(ctx context.Context, req *dto.CreateSchedu
 	}
 
 	task := &model.ScheduledTask{
-		User:             user,
-		App:              appName,
-		Name:             strings.TrimSpace(req.Name),
-		FullCodePath:     req.FullCodePath,
-		Method:           method,
-		Payload:          req.Payload,
-		RequestUser:      reqUser,
-		RequestUserDept:  reqUserDept,
-		CreatedBy:        requestUser,
-		ScheduleType:     req.ScheduleType,
-		RunAt:            runAt,
-		CronExpr:         req.CronExpr,
-		IntervalSeconds:  req.IntervalSeconds,
-		MaxRuns:          req.MaxRuns,
-		Status:           "pending",
-		Timezone:         req.Timezone,
+		User:            user,
+		App:             appName,
+		Name:            strings.TrimSpace(req.Name),
+		FullCodePath:    req.FullCodePath,
+		Action:          action,
+		Method:          method,
+		Payload:         req.Payload,
+		RequestUser:     reqUser,
+		RequestUserDept: reqUserDept,
+		CreatedBy:       requestUser,
+		ScheduleType:    req.ScheduleType,
+		RunAt:           runAt,
+		CronExpr:        req.CronExpr,
+		IntervalSeconds: req.IntervalSeconds,
+		MaxRuns:         req.MaxRuns,
+		Status:          "pending",
+		Timezone:        req.Timezone,
 	}
 
 	switch req.ScheduleType {
@@ -132,7 +151,7 @@ func (s *ScheduledTaskService) Create(ctx context.Context, req *dto.CreateSchedu
 	return task, nil
 }
 
-// List 分页列表（当前用户创建的任务；可选按 full_code_path 过滤）
+// List 分页列表（当前用户创建的任务；可选按 full_code_path 前缀过滤：含该节点与子节点）
 func (s *ScheduledTaskService) List(ctx context.Context, createdBy string, status string, fullCodePath string, page, pageSize int) ([]*model.ScheduledTask, int64, error) {
 	if pageSize <= 0 {
 		pageSize = 20
@@ -248,24 +267,20 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 			bodyBytes = []byte(inner)
 		}
 	}
-	req := &dto.RequestAppReq{
-		User:            user,
-		App:             appName,
-		Router:          routerPath,
-		Method:          task.Method,
-		Body:            bodyBytes,
-		RequestUser:      task.RequestUser,
-		RequestUserDept: task.RequestUserDept,
-		TraceId:         traceId,
-		Token:           token,
+	req, err := s.buildTaskRequest(runCtx, task, user, appName, routerPath, traceId, token, bodyBytes)
+	if err != nil {
+		s.recordExecution(ctx, task, task.Payload, nil, "failed", err.Error(), executedAt)
+		s.updateTaskAfterRun(task, executedAt, false, err.Error())
+		return
 	}
+
 	resp, err := s.appService.RequestApp(runCtx, req)
 	var respBody []byte
 	if resp != nil {
 		// 存完整响应（trace_id、result、error、err_code），便于区分「成功但 result 为空」与真正失败
 		respBody, _ = json.Marshal(resp)
 	}
-	reqBody := task.Payload
+	reqBody := req.Body
 	if err != nil {
 		s.recordExecution(ctx, task, reqBody, respBody, "failed", err.Error(), executedAt)
 		s.updateTaskAfterRun(task, executedAt, false, err.Error())
@@ -273,6 +288,162 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 	}
 	s.recordExecution(ctx, task, reqBody, respBody, "success", "", executedAt)
 	s.updateTaskAfterRun(task, executedAt, true, "")
+}
+
+func (s *ScheduledTaskService) buildTaskRequest(ctx context.Context, task *model.ScheduledTask, user, appName, routerPath, traceID, token string, bodyBytes []byte) (*dto.RequestAppReq, error) {
+	action := strings.ToLower(strings.TrimSpace(task.Action))
+	if action == "" {
+		action = ScheduledTaskActionExecute
+	}
+
+	switch action {
+	case ScheduledTaskActionExecute:
+		return &dto.RequestAppReq{
+			User:            user,
+			App:             appName,
+			Router:          routerPath,
+			Method:          task.Method,
+			Body:            bodyBytes,
+			RequestUser:     task.RequestUser,
+			RequestUserDept: task.RequestUserDept,
+			TraceId:         traceID,
+			Token:           token,
+		}, nil
+	case ScheduledTaskActionTableCreate:
+		return s.buildTableCallbackReq(user, appName, routerPath, task.Method, "OnTableAddRow", traceID, token, task.RequestUser, task.RequestUserDept, bodyBytes)
+	case ScheduledTaskActionTableUpdate:
+		bodyBytes, err := s.fillTableUpdateOldValues(ctx, task, user, appName, routerPath, traceID, token, bodyBytes)
+		if err != nil {
+			return nil, err
+		}
+		return s.buildTableCallbackReq(user, appName, routerPath, task.Method, "OnTableUpdateRow", traceID, token, task.RequestUser, task.RequestUserDept, bodyBytes)
+	case ScheduledTaskActionTableDelete:
+		return s.buildTableCallbackReq(user, appName, routerPath, task.Method, "OnTableDeleteRows", traceID, token, task.RequestUser, task.RequestUserDept, bodyBytes)
+	default:
+		return nil, fmt.Errorf("未知 action: %s", task.Action)
+	}
+}
+
+// fillTableUpdateOldValues 在执行前实时补齐 old_values，避免创建任务时缓存的旧值变脏。
+func (s *ScheduledTaskService) fillTableUpdateOldValues(ctx context.Context, task *model.ScheduledTask, user, appName, routerPath, traceID, token string, bodyBytes []byte) ([]byte, error) {
+	if len(bodyBytes) == 0 {
+		return bodyBytes, fmt.Errorf("table_update payload 不能为空")
+	}
+
+	var bodyData map[string]interface{}
+	if err := json.Unmarshal(bodyBytes, &bodyData); err != nil {
+		return bodyBytes, fmt.Errorf("解析 table_update payload 失败: %w", err)
+	}
+
+	// 已携带 old_values 则不覆盖，保持显式传参优先。
+	if oldValues, ok := bodyData["old_values"].(map[string]interface{}); ok && len(oldValues) > 0 {
+		return bodyBytes, nil
+	}
+
+	idValue, ok := bodyData["id"]
+	if !ok {
+		return bodyBytes, fmt.Errorf("table_update payload 缺少 id，无法自动补 old_values")
+	}
+
+	var rowID int64
+	switch v := idValue.(type) {
+	case float64:
+		rowID = int64(v)
+	case int64:
+		rowID = v
+	case int:
+		rowID = int64(v)
+	case string:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		if err != nil {
+			return bodyBytes, fmt.Errorf("table_update payload 的 id 非法: %v", err)
+		}
+		rowID = parsed
+	default:
+		return bodyBytes, fmt.Errorf("table_update payload 的 id 类型不支持: %T", idValue)
+	}
+	if rowID <= 0 {
+		return bodyBytes, fmt.Errorf("table_update payload 的 id 必须大于 0")
+	}
+
+	searchReq := &dto.RequestAppReq{
+		User:            user,
+		App:             appName,
+		Router:          routerPath,
+		Method:          "GET",
+		UrlQuery:        "eq=id:" + url.QueryEscape(strconv.FormatInt(rowID, 10)) + "&page=1&page_size=1",
+		TraceId:         traceID,
+		RequestUser:     task.RequestUser,
+		RequestUserDept: task.RequestUserDept,
+		Token:           token,
+	}
+
+	searchResp, err := s.appService.RequestApp(ctx, searchReq)
+	if err != nil {
+		return bodyBytes, fmt.Errorf("执行前查询当前行失败: %w", err)
+	}
+	if searchResp == nil {
+		return bodyBytes, fmt.Errorf("执行前查询当前行失败: 响应为空")
+	}
+	if searchResp.Error != "" {
+		return bodyBytes, fmt.Errorf("执行前查询当前行失败: %s", searchResp.Error)
+	}
+
+	oldRow := extractFirstItemFromSearchResult(searchResp.Result)
+	if oldRow == nil {
+		return bodyBytes, fmt.Errorf("执行前查询当前行失败: 未找到 id=%d 的记录", rowID)
+	}
+
+	bodyData["old_values"] = oldRow
+	newBody, err := json.Marshal(bodyData)
+	if err != nil {
+		return bodyBytes, fmt.Errorf("回填 old_values 后序列化失败: %w", err)
+	}
+	return newBody, nil
+}
+
+func extractFirstItemFromSearchResult(result interface{}) map[string]interface{} {
+	if result == nil {
+		return nil
+	}
+	m, ok := result.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	items, ok := m["items"].([]interface{})
+	if !ok || len(items) == 0 {
+		return nil
+	}
+	first, ok := items[0].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return first
+}
+
+func (s *ScheduledTaskService) buildTableCallbackReq(user, appName, routerPath, method, callbackType, traceID, token, requestUser, requestUserDept string, bodyBytes []byte) (*dto.RequestAppReq, error) {
+	callbackBody := map[string]interface{}{
+		"type":   callbackType,
+		"method": method,
+		"router": routerPath,
+		"body":   bodyBytes,
+	}
+	marshalBody, err := json.Marshal(callbackBody)
+	if err != nil {
+		return nil, fmt.Errorf("构建 table 回调请求失败: %w", err)
+	}
+
+	return &dto.RequestAppReq{
+		User:            user,
+		App:             appName,
+		Router:          "/_callback",
+		Method:          method,
+		Body:            marshalBody,
+		RequestUser:     requestUser,
+		RequestUserDept: requestUserDept,
+		TraceId:         traceID,
+		Token:           token,
+	}, nil
 }
 
 func (s *ScheduledTaskService) recordExecution(ctx context.Context, task *model.ScheduledTask, requestPayload, responsePayload []byte, status, errMsg string, executedAt time.Time) {
@@ -342,4 +513,34 @@ func (s *ScheduledTaskService) updateTaskAfterRun(task *model.ScheduledTask, exe
 	if err := s.taskRepo.Update(task); err != nil {
 		logger.Errorf(context.Background(), "[ScheduledTask] Update task err: %v", err)
 	}
+}
+
+// parseRunAt 兼容解析 run_at：
+// 1) RFC3339（带时区）
+// 2) 本地时间字符串（不带时区，按 time.Local 解析），例如：
+//   - 2006-01-02 15:04:05
+//   - 2006-01-02 15:04
+//   - 2006-01-02T15:04:05
+//   - 2006-01-02T15:04
+func parseRunAt(s string) (time.Time, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}, fmt.Errorf("run_at 不能为空")
+	}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+
+	localLayouts := []string{
+		"2006-01-02 15:04:05",
+		"2006-01-02 15:04",
+		"2006-01-02T15:04:05",
+		"2006-01-02T15:04",
+	}
+	for _, layout := range localLayouts {
+		if t, err := time.ParseInLocation(layout, s, time.Local); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("请使用 RFC3339（如 2026-03-20T23:00:00+08:00）或本地时间（如 2026-03-20 23:00:00）")
 }

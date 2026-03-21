@@ -138,7 +138,7 @@ func (c *XiaomiClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespons
 		apiReq["max_tokens"] = 4096
 	}
 	if req.Temperature == 0 {
-		apiReq["temperature"] = 0.7
+		apiReq["temperature"] = 0.1
 	}
 
 	timeout := c.Options.Timeout
@@ -229,7 +229,7 @@ func (c *XiaomiClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan
 			apiReq["max_tokens"] = 4096
 		}
 		if req.Temperature == 0 {
-			apiReq["temperature"] = 0.7
+			apiReq["temperature"] = 0.1
 		}
 
 		timeout := c.Options.Timeout

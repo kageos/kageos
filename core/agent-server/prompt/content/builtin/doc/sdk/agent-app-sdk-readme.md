@@ -8,7 +8,33 @@
 
 - **本 SDK 文档**：框架怎么用——结构体与标签、Table/Form 模式、注册方式、目录约定。
 - **案例文档**（`/builtin/doc/case_catalog/xxx`）：具体业务长什么样——PRD + 完整 Go 代码。系统消息中「可读的目录」会列出各案例路径与说明；需要单表 CRUD、多表、Form、图表等时，read_doc 对应案例获取 PRD 与代码。
-- **平台横切能力（禁止自己实现）**：权限管理、流程审批、评论/点赞/收藏、定时任务、操作记录——这些由平台统一提供，**禁止**在 PRD 中添加「审批状态/审批人/审批时间」等字段，**禁止**在代码中自己实现审批表/审批流程/权限判断/评论功能。业务代码只管业务数据本身。
+- **平台横切能力（禁止自己实现）**：权限管理、流程审批、评论/点赞/收藏、定时任务、操作记录、消息通知——这些由平台统一提供，**禁止**在 PRD 中添加「审批状态/审批人/审批时间」等字段，**禁止**在代码中自己实现审批表/审批流程/权限判断/评论功能。业务代码只管业务数据本身。
+
+---
+
+## 消息通知（SendMessage）
+
+当业务需要给用户/部门发送提醒（如会议即将开始、任务到期提醒）时，优先使用 SDK 的 `ctx.SendMessage(...)`，不要自建消息通道。
+
+最小示例：
+
+```go
+err := ctx.SendMessage(&app.SendMessageOpts{
+    ToUsers:       "zhangsan,lisi",      // 用户列表（逗号分隔）
+    ToDepartments: "/org/dev,/org/pm",   // 部门 full_code_path（逗号分隔，可选）
+    Title:         "会议即将开始提醒",
+    Content:       "您预约/参与的会议将在 5 分钟后开始，请提前准备。",
+    ContentType:   "text",               // text/html/markdown
+})
+if err != nil {
+    return err
+}
+```
+
+- 可与平台定时任务组合：将“单次巡检 + 发送消息”写成 Form，然后在平台侧配置周期调度。
+- 建议把接收人去重后再发送，避免重复通知。
+- **发消息与组件配合（推荐）**：接收人优先直接使用业务字段里的 `type:user` / `type:users`（填 `ToUsers`）与 `type:department` / `type:departments`（填 `ToDepartments`）值；这些值可直接传给 `SendMessage`，无需额外转换。
+- 若是“给当前登录人相关通知”，可直接用 `ctx.GetRequestUser()`、`ctx.GetRequestUserDept()` 作为接收人来源。
 
 ---
 
@@ -279,6 +305,11 @@ Email string `validate:"required,email"`
 | eq | 精确 = | ID、switch |
 | gte,lte | 范围 | timestamp、number、float、slider |
 
+**组件值使用说明（重要）**：
+- `type:user`、`type:users`、`type:department`、`type:departments` 这些组件提交到后端后，值可以直接当业务参数使用，不需要额外做组件层转换。
+- 常见形态：`user/department` 通常是单值字符串；`users/departments` 通常是逗号分隔字符串（可直接用于 `search:"contains"` 或你自己的拆分逻辑）。
+- 当前请求上下文里也可直接拿到登录人信息：`ctx.GetRequestUser()`（请求用户）、`ctx.GetRequestUserDept()`（请求用户所在组织 full_code_path）。
+
 示例：需要支持搜索的字段都配上 `search`，未配的字段列表里不可搜。系统字段（ID、创建时间、更新时间）若有搜索需求也要配；参考工单等 Table 结构体。
 
 ```go
@@ -331,7 +362,7 @@ RemainingTime string `json:"remaining_time" gorm:"-" widget:"name:剩余时间;t
 
 **场景 2：仅展示、由后端在回调中赋值的字段（permission: read）**
 
-创建人、提单部门等只读，不允许用户在前端选择，必须在 OnTableAddRow 里用 `ctx.GetRequestUser()`、`ctx.GetRequestUserDept()` 等赋值。
+创建人、提单部门等只读，不允许用户在前端选择，必须在 OnTableAddRow 里用 `ctx.GetRequestUser()`、`ctx.GetRequestUserDept()` 等赋值。若业务字段本身就是 `user/users/department/departments` 组件，提交值也可直接用于入库或发消息等业务逻辑。
 
 ```go
 Department string `json:"department" gorm:"column:department" widget:"name:提单部门;type:department" search:"in" permission:"read"`
@@ -611,10 +642,11 @@ func calculateBookingStatus(startTime, endTime int64) string {
 系统错误（数据库异常、网络超时、Python/外部调用失败、未预期的 panic 等）需要**统一加上 `[系统错误]` 前缀**，并带上**报错信息和详细参数**（如请求体 `req`），方便大模型定位和排查问题。
 
 - **规范写法**：`return nil, fmt.Errorf("[系统错误]-[函数名] 简短描述, req: %+v, err: %w", req, err)`；打日志时同样加上 `[系统错误]-[函数名]` 并输出 req、err。
-- **参考实现**：read_doc `/builtin/doc/case_catalog/form/nlp`（见 jieba_segment.go 中 `DoJiebaSegment` 的 Python 执行失败分支）。
+- **参考实现**：read_doc `/builtin/doc/case_catalog/form/nlp`（见 `jieba_segment.go` / `runJiebaOnText` 中 Python 执行失败分支）；使用 `pythonRuntime` 时须 **`defer executor.Close()`**，Go 与 Python 为同机子进程。
 
 ```go
 // 系统错误：必须带 [系统错误]、函数名、req 与 err，方便大模型排查
+// 使用 python runtime 默认临时目录时：创建 executor 后 defer executor.Close() 释放工作区
 if err := executor.ExecuteJSON(ctx, &result); err != nil {
     logger.Errorf(ctx, "[系统错误]-[DoJiebaSegment] Python 执行失败, req: %+v, err: %v", req, err)
     return nil, fmt.Errorf("[系统错误]-[DoJiebaSegment] 执行中文分词失败, req: %+v, err: %w", req, err)
@@ -626,7 +658,8 @@ return resp.Form(&respStruct).Build()
 
 - **上传**：请求或 Table 新增/编辑里用 `*types.Files` 字段，widget `type:files`；可选 `accept:.csv`、`max_size:50MB`、`max_count:10` 等。**Table 模式**下该字段落库用 `gorm:"column:xxx;type:json"`，Create/Update 时直接写入 model 即可，框架负责存储与列表/详情展示、下载。
 - **读上传的文件（Form 内）**：需要访问文件内容时（如解析 CSV、转 Excel），用 `fs := ctx.GetFS()`，`inputFiles := fs.DownloadFiles(req.xxx)` 得到带本地路径的 `*types.Files`；遍历 `inputFiles.GetFiles()`，用 `file.LocalPath`（如 `os.Open(file.LocalPath)`）读内容；用完后 **必须** `defer fs.RemoveFiles(inputFiles)` 清理临时文件。
-- **响应里返回文件（供下载）**：业务生成文件到本地路径后，用 `outputFiles := fs.ResponseFiles([]string{outputPath})` 得到 `*types.Files` 填到响应结构体，前端即可下载；用完后可 `defer fs.RemoveFiles(outputFiles)`。若无上传、仅生成文件给用户（如 CSV 文本转 Excel），可先用 `ctx.GetFS().GetTraceOutputDir()` 得到当前 Trace 输出目录，在该目录下生成文件再 `ResponseFiles`。
+- **响应里返回文件（供下载）**：业务生成文件到本地路径后，用 `outputFiles := fs.ResponseFiles([]string{outputPath})` 得到 `*types.Files` 填到响应结构体，前端即可下载；用完后可 `defer fs.RemoveFiles(outputFiles)`。**路径建议始终用 `filepath.Abs` 得到绝对路径**再交给 `ResponseFiles` 或与 Python 互传（双方进程 cwd 不同）。若无上传、仅生成文件给用户（如 CSV 文本转 Excel），可先用 `ctx.GetFS().GetTraceOutputDir()` 得到当前 Trace 输出目录，在该目录下生成文件再 `ResponseFiles`。
+- **Python runtime 生成可下载文件**：read_doc `/builtin/doc/case_catalog/form/python_output`；Go 将 **绝对路径** 放入请求传给 Python（如 `savefig` 目标路径），**不要**再用 base64 绕一圈；须 **`defer executor.Close()`**。
 - **参考实现**：Table 存储文件字段：read_doc `/builtin/doc/case_catalog/tables/hr`（见 hr_resume_list.go 的 `ResumeFile`）；Form 上传读文件 + 响应返回文件：read_doc `/builtin/doc/case_catalog/form/excelorcsv`（见 `DoCsvToExcel`、`DoCsvTextToExcel`）。
 
 ```go

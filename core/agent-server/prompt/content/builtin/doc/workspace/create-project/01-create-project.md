@@ -101,6 +101,7 @@ PRD 末尾问一句：「请确认以上是否 OK，确认后我再生成代码�
 - 禁止自作主张帮用户生成文档（write_doc），仅用户明确要求时才调用。
 - 禁止在 PRD 只包含一张表时，自作主张添加仪表盘、统计页、dashboard.go 等 PRD 外模块。
 - **禁止在 PRD 或代码中实现平台已有的横切能力**：审批（禁止加「审批状态/审批人/审批时间」字段或审批表）、权限、评论/点赞/收藏、定时任务、操作记录——这些由平台统一提供，业务代码不用管。
+- **消息提醒优先复用平台能力**：给用户/部门发送通知时，优先使用 SDK 的 `ctx.SendMessage(...)`（可与平台定时任务组合做巡检提醒）；不要自建消息系统或长期驻留推送服务。
 
 ---
 
@@ -114,8 +115,9 @@ PRD 末尾问一句：「请确认以上是否 OK，确认后我再生成代码�
 | 工单管理（单 Table） | `/builtin/doc/case_catalog/table/ticket` | `单表CRUD` `AutoCrudTable` `多种组件(input/select/switch/slider/rate/radio/number)` `search筛选` |
 | Excel/CSV 工具（单 Form） | `/builtin/doc/case_catalog/form/excelorcsv` | `文件上传(files)` `excelize库` `多POST同目录` `文件转换` |
 | 图片工具（单 Form） | `/builtin/doc/case_catalog/form/images` | `文件上传(files)` `GraphicsMagick(gm)` `exec.Command调用可执行程序` `图片处理` |
-| NLP 工具（单 Form） | `/builtin/doc/case_catalog/form/nlp` | `调用Python(exec.Command python3)` `响应中含table组件` `文本处理` |
+| NLP 工具（单 Form） | `/builtin/doc/case_catalog/form/nlp` | `pythonRuntime` `defer Close` `jieba` `响应中含table组件` `同机Python子进程` |
 | PDF 工具（单 Form） | `/builtin/doc/case_catalog/form/pdf` | `文件上传(files)` `Poppler(pdftotext/pdftoppm)` `Ghostscript(gs)` `exec.Command调用可执行程序` |
+| Python 容器内产物输出（单 Form） | `/builtin/doc/case_catalog/form/python_output` | `pythonRuntime` `defer Close` `绝对路径落盘` `output_json` `GetTraceOutputDir` `ResponseFiles` `响应types.Files` `用户可下载附件` `同机子进程` `非宿主机` |
 | 视频工具（单 Form） | `/builtin/doc/case_catalog/form/videos` | `文件上传(files)` `FFmpeg(exec.Command)` `音视频处理` `GetFS文件存储` |
 | 招聘投递系统（多 Table） | `/builtin/doc/case_catalog/tables/hr` | `主从两表` `link跳转` `select关联另一表` `文件上传(files)` |
 | 会议室预约（多 Table） | `/builtin/doc/case_catalog/tables/meeting` | `主从两表` `OnSelectFuzzy模糊搜索选择` `link跳转` `时间状态自动计算` `列表筛外表字段` |

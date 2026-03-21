@@ -54,6 +54,16 @@
             >
               保存
             </el-button>
+            <el-button
+              v-if="mode === 'edit'"
+              type="primary"
+              plain
+              size="small"
+              :disabled="!isFormViewReady"
+              @click="openScheduledTaskDialog"
+            >
+              定时执行
+            </el-button>
           </div>
           <!-- 布局切换按钮 -->
           <el-button
@@ -335,6 +345,13 @@
         <el-button @click="handleClose">关闭</el-button>
       </div>
     </template>
+    <ScheduledTaskDialog
+      v-model="showScheduledTaskDialog"
+      :full-code-path="fullCodePath"
+      table-mode
+      fixed-action="table_update"
+      :get-payload="buildScheduledUpdatePayload"
+    />
   </el-drawer>
 </template>
 
@@ -349,6 +366,7 @@ import WidgetComponent from '../widgets/WidgetComponent.vue'
 import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import OperateLogSection from '@/components/OperateLogSection.vue'
 import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
+import ScheduledTaskDialog from '@/architecture/presentation/components/ScheduledTaskDialog.vue'
 import { WidgetType } from '@/core/constants/widget'
 import { Logger } from '@/core/utils/logger'
 import { useAuthStore } from '@/stores/auth'
@@ -395,6 +413,7 @@ const authStore = useAuthStore()
 
 const formViewRef = ref<InstanceType<typeof FormView> | null>(null)
 const isFormViewReady = ref(false)
+const showScheduledTaskDialog = ref(false)
 
 // ==================== 详情布局配置 ====================
 
@@ -842,6 +861,28 @@ const handleSubmit = () => {
   
   // 直接传递 formViewRef 给父组件
   emit('submit', formViewRef.value)
+}
+
+const openScheduledTaskDialog = () => {
+  showScheduledTaskDialog.value = true
+}
+
+const buildScheduledUpdatePayload = async (): Promise<Record<string, any>> => {
+  if (!isFormViewReady.value || !formViewRef.value) {
+    throw new Error('编辑表单尚未就绪，无法创建定时任务')
+  }
+  if (!rowId.value || rowId.value <= 0) {
+    throw new Error('缺少有效行 ID，无法创建定时更新任务')
+  }
+  const isValid = formViewRef.value.validateForm()
+  if (!isValid) {
+    throw new Error('请先修正表单校验错误')
+  }
+  const updates = await formViewRef.value.prepareSubmitDataWithTypeConversion()
+  return {
+    id: rowId.value,
+    updates
+  }
 }
 
 const handleClose = () => {

@@ -272,6 +272,7 @@ package meeting
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
@@ -297,12 +298,15 @@ type MeetingRoomBooking struct {
 	RoomLink string       `json:"room_link" gorm:"-" widget:"name:会议室详情;type:link;target:_blank" permission:"read"`
 
 	Booker        string `json:"booker" gorm:"column:booker;comment:预约人" widget:"name:预约人;type:user;default:Me()" search:"in" validate:"required"`
+	Attendees     string `json:"attendees" gorm:"column:attendees;type:text;comment:参会人（逗号分隔）" widget:"name:参会人;type:users" search:"in"`
 	Subject       string `json:"subject" gorm:"column:subject;comment:会议主题" widget:"name:会议主题;type:input" search:"like" validate:"required,min=2,max=200"`
 	Description   string `json:"description" gorm:"column:description;type:text;comment:会议描述" widget:"name:会议描述;type:text_area" search:"like"`
 	StartTime     int64  `json:"start_time" gorm:"column:start_time;comment:开始时间;index" widget:"name:开始时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss;default:Now()" search:"gte,lte" validate:"required"`
 	EndTime       int64  `json:"end_time" gorm:"column:end_time;comment:结束时间;index" widget:"name:结束时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" validate:"required"`
 	AttendeeCount int    `json:"attendee_count" gorm:"column:attendee_count;comment:参会人数" widget:"name:参会人数;type:number" search:"gte,lte" validate:"required,min=1"`
 	Status        string `json:"status" gorm:"-" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:info,primary,success" search:"-" permission:"read"`
+	ReminderSent  bool   `json:"reminder_sent" gorm:"column:reminder_sent;default:false;comment:是否已发送会前提醒" widget:"name:是否已提醒;type:switch" permission:"read" search:"eq"`
+	RemindedAt    int64  `json:"reminded_at" gorm:"column:reminded_at;default:0;comment:提醒发送时间" widget:"name:提醒时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" permission:"read" search:"gte,lte"`
 	Remark        string `json:"remark" gorm:"column:remark;type:text;comment:备注" widget:"name:备注;type:text_area" search:"like"`
 }
 
@@ -445,6 +449,12 @@ var MeetingRoomBookingListTemplate = &app.TableTemplate{
 				return nil, err
 			}
 		}
+		// 会前提醒相关字段变更后，重置“已提醒”标记，避免错过新的提醒时点。
+		if req.IsFieldUpdated("start_time") || req.IsFieldUpdated("end_time") || req.IsFieldUpdated("room_id") ||
+			req.IsFieldUpdated("booker") || req.IsFieldUpdated("attendees") || req.IsFieldUpdated("subject") {
+			updates["reminder_sent"] = false
+			updates["reminded_at"] = int64(0)
+		}
 
 		err := db.Model(&MeetingRoomBooking{}).Where("id = ?", req.GetId()).Updates(updates).Error
 		if err != nil {
@@ -477,7 +487,110 @@ var MeetingRoomBookingListTemplate = &app.TableTemplate{
 	},
 }
 
+// MeetingRoomNotifySoonReq 会议即将开始提醒请求
+type MeetingRoomNotifySoonReq struct {
+	LeadMinutes int `json:"lead_minutes" widget:"name:提前提醒分钟数;type:number;default:5"`
+}
+
+// MeetingRoomNotifySoonResp 会议即将开始提醒响应
+type MeetingRoomNotifySoonResp struct {
+	CheckedCount  int `json:"checked_count" widget:"name:扫描会议数;type:number"`
+	NotifiedCount int `json:"notified_count" widget:"name:已通知会议数;type:number"`
+}
+
+// MeetingRoomNotifySoon 定时巡检未来 N 分钟内将开始的会议并发送通知
+//
+// 说明：
+// 1. 这是给平台定时任务调用的 Form 接口，建议在平台侧配置每 1 分钟或每 2 分钟执行一次。
+// 2. 该函数会给预约人 + 参会人发送提醒消息，提醒“会议即将开始”。
+func MeetingRoomNotifySoon(ctx *app.Context, resp response.Response) error {
+	db := ctx.GetGormDB()
+	if db == nil {
+		return fmt.Errorf("数据库连接失败")
+	}
+
+	req := MeetingRoomNotifySoonReq{LeadMinutes: 5}
+	if err := ctx.ShouldBind(&req); err != nil {
+		return err
+	}
+	if req.LeadMinutes <= 0 {
+		req.LeadMinutes = 5
+	}
+
+	now := time.Now()
+	windowEnd := now.Add(time.Duration(req.LeadMinutes) * time.Minute)
+
+	var bookings []MeetingRoomBooking
+	if err := db.Model(&MeetingRoomBooking{}).
+		Preload("Room").
+		Where("start_time > ? AND start_time <= ? AND reminder_sent = ? AND deleted_at IS NULL", now.UnixMilli(), windowEnd.UnixMilli(), false).
+		Find(&bookings).Error; err != nil {
+		return err
+	}
+
+	notifiedCount := 0
+	for _, booking := range bookings {
+		toUsers := joinUsers(booking.Booker, booking.Attendees)
+		if toUsers == "" {
+			continue
+		}
+
+		roomName := "未知会议室"
+		if booking.Room != nil && booking.Room.Name != "" {
+			roomName = booking.Room.Name
+		}
+
+		startAt := time.UnixMilli(booking.StartTime).Format("2006-01-02 15:04")
+		content := fmt.Sprintf("您预约/参与的会议《%s》将在 %s 开始，会议室：%s，请提前准备。", booking.Subject, startAt, roomName)
+		err := ctx.SendMessage(&app.SendMessageOpts{
+			ToUsers:     toUsers,
+			Title:       "会议即将开始提醒",
+			Content:     content,
+			ContentType: "text",
+		})
+		if err != nil {
+			logger.Errorf(ctx, "Send meeting reminder failed, booking_id=%d, err=%v", booking.ID, err)
+			continue
+		}
+		if err := db.Model(&MeetingRoomBooking{}).
+			Where("id = ?", booking.ID).
+			Updates(map[string]interface{}{
+				"reminder_sent": true,
+				"reminded_at":   time.Now().UnixMilli(),
+			}).Error; err != nil {
+			logger.Errorf(ctx, "Update reminder status failed, booking_id=%d, err=%v", booking.ID, err)
+			continue
+		}
+		notifiedCount++
+	}
+
+	return resp.Form(&MeetingRoomNotifySoonResp{
+		CheckedCount:  len(bookings),
+		NotifiedCount: notifiedCount,
+	}).Build()
+}
+
 // ================ 辅助函数 ================
+
+func joinUsers(users ...string) string {
+	seen := make(map[string]struct{})
+	result := make([]string, 0)
+	for _, userSet := range users {
+		parts := strings.Split(userSet, ",")
+		for _, part := range parts {
+			user := strings.TrimSpace(part)
+			if user == "" {
+				continue
+			}
+			if _, ok := seen[user]; ok {
+				continue
+			}
+			seen[user] = struct{}{}
+			result = append(result, user)
+		}
+	}
+	return strings.Join(result, ",")
+}
 
 // validateBookingTime 验证预约时间（新增时使用）
 func validateBookingTime(db *gorm.DB, booking *MeetingRoomBooking) error {
@@ -575,6 +688,15 @@ func calculateBookingStatus(startTime, endTime int64) string {
 
 func init() {
 	packageContext.GET("meeting_room_booking_list.table", MeetingRoomBookingList, MeetingRoomBookingListTemplate)
+	packageContext.POST("meeting_room_notify_soon.form", MeetingRoomNotifySoon, &app.FormTemplate{
+		BaseConfig: app.BaseConfig{
+			Name:     "会议即将开始提醒（定时任务）",
+			Desc:     "巡检未来N分钟内将开始的会议，并给预约人和参会人发送提醒消息。建议平台侧配置定时任务调用。",
+			Tags:     []string{"会议室系统", "消息提醒", "定时任务"},
+			Request:  &MeetingRoomNotifySoonReq{},
+			Response: &MeetingRoomNotifySoonResp{},
+		},
+	})
 }
 ```
 

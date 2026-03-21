@@ -30,11 +30,27 @@
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="handleClose">取消</el-button>
+        <el-button
+          v-if="props.mode === 'create' && !!props.router"
+          type="primary"
+          plain
+          @click="openScheduledTaskDialog"
+          :disabled="submitting"
+        >
+          定时执行
+        </el-button>
         <el-button type="primary" @click="handleSubmit" :loading="submitting">
           确定
         </el-button>
       </span>
     </template>
+    <ScheduledTaskDialog
+      v-model="showScheduledTaskDialog"
+      :full-code-path="props.router"
+      table-mode
+      fixed-action="table_create"
+      :get-payload="buildScheduledPayload"
+    />
   </el-dialog>
 </template>
 
@@ -47,6 +63,7 @@ import type { FieldConfig, FunctionDetail, FieldValue } from '@/core/types/field
 import { useFormParamURLSync } from '@/architecture/presentation/composables/useFormParamURLSync'
 import { useFunctionParamInitialization } from '@/architecture/presentation/composables/useFunctionParamInitialization'
 import { useFormDataStore } from '@/core/stores-v2/formData'
+import ScheduledTaskDialog from '@/architecture/presentation/components/ScheduledTaskDialog.vue'
 
 interface Props {
   modelValue: boolean  // 对话框显示状态
@@ -84,6 +101,7 @@ const formViewRef = ref<InstanceType<typeof FormView>>()
 
 // 提交状态
 const submitting = ref(false)
+const showScheduledTaskDialog = ref(false)
 
 // 🔥 获取 formDataStore（与 FormRenderer 共享同一个 store）
 const formDataStore = useFormDataStore()
@@ -191,6 +209,21 @@ const handleSubmit = async () => {
 const handleClose = () => {
   emit('close')
   emit('update:modelValue', false)
+}
+
+const openScheduledTaskDialog = () => {
+  showScheduledTaskDialog.value = true
+}
+
+const buildScheduledPayload = async (): Promise<Record<string, unknown>> => {
+  if (!formViewRef.value) {
+    throw new Error('表单尚未就绪，无法创建定时任务')
+  }
+  const isValid = formViewRef.value.validateForm()
+  if (!isValid) {
+    throw new Error('请先修正表单校验错误')
+  }
+  return await formViewRef.value.prepareSubmitDataWithTypeConversion()
 }
 
 /**

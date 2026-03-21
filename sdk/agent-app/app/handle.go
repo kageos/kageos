@@ -58,14 +58,12 @@ func (a *App) handleMessage(msg *nats.Msg) {
 	a.incrementRunningCount()
 
 	defer a.decrementRunningCount()
-	logger.Infof(ctx, "handleMessage req:%+v", req)
 	resp, err := a.handle(&req)
 	if err != nil {
 		a.sendErrResponse(resp)
 		logger.Errorf(context.Background(), err.Error())
 		return
 	}
-	logger.Infof(ctx, "handleMessage req:%+v", req)
 	a.sendResponse(resp)
 }
 
@@ -113,7 +111,6 @@ func (a *App) handle(req *dto.RequestAppReq) (resp *dto.RequestAppResp, err erro
 	// TODO: 这里调用具体的业务逻辑处理
 	// result := handleBusinessLogic(req.Method, req.Body, req.UrlQuery)
 
-	logger.Infof(ctx, "Handle req:%+v", req)
 	router, err := a.getRoute(newContext.msg.Router)
 	if err != nil {
 		logger.Errorf(ctx, err.Error())
@@ -143,8 +140,6 @@ func (a *App) handle(req *dto.RequestAppReq) (resp *dto.RequestAppResp, err erro
 		logger.Errorf(ctx, "handleFunc err:%s", err.Error())
 		return &dto.RequestAppResp{Result: nil, ErrCode: 1, Error: err.Error(), TraceId: newContext.msg.TraceId}, err
 	}
-	logger.Infof(ctx, "handleFunc req:%+v", req)
-
 	// 退出命令
 	if newContext.msg.Method == "exit" {
 		a.Close()

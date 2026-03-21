@@ -88,9 +88,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && echo "✓ Graphviz"
 
-# 一劳永逸：matplotlib 中文字体由 matplotlibrc 统一配置（仅用 Noto Sans CJK + DejaVu）
+# matplotlib 中文字体：apt 的 fonts-noto-cjk 提供的是泛 CJK .ttc（内含 SC/TC/JP/KR 字形），
+# 但 matplotlib.font_manager 在 Ubuntu 上常把该 TTC 注册名为「Noto Sans CJK JP」，与「SC」字面不匹配。
+# 故 sans-serif 优先写 JP，再写 SC/TC 作兼容；简体中文仍走同一套 Noto 字形，并非改用日文汉字字体文件。
 RUN mkdir -p /etc/matplotlib \
-    && printf 'font.family: sans-serif\nfont.sans-serif: Noto Sans CJK SC, Noto Sans CJK TC, Noto Sans CJK JP, DejaVu Sans\naxes.unicode_minus: False\n' > /etc/matplotlib/matplotlibrc \
+    && printf 'font.family: sans-serif\nfont.sans-serif: Noto Sans CJK JP, Noto Sans CJK SC, Noto Sans CJK TC, DejaVu Sans\naxes.unicode_minus: False\n' > /etc/matplotlib/matplotlibrc \
     && echo "✓ matplotlib matplotlibrc (CJK) configured"
 ENV MPLCONFIGDIR=/etc/matplotlib
 
@@ -101,6 +103,7 @@ RUN ln -sf /usr/bin/lua5.4 /usr/bin/lua
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
 # 安装编译依赖 + pip 包（不删编译工具，避免连锁删 scipy/matplotlib）
+# 若增删此处或上方 python3-* 包：请同步更新 core/agent-server 中 runOfficialPythonPreinstallDoc（工作台 run_official_python 工具说明）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ python3-dev libfreetype6-dev libpng-dev libjpeg-dev zlib1g-dev \
     && pip3 install --no-cache-dir \

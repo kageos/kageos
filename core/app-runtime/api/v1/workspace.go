@@ -87,3 +87,23 @@ func (h *WorkspaceHandler) HandleDeleteFile(msg *nats.Msg) {
 	msgx.RespSuccessMsg(msg, resp)
 	logger.Infof(ctx, "[HandleDeleteFile] path=%s, file=%s", req.DirectoryPath, req.FileName)
 }
+
+// HandleReadAppLog 处理读取应用日志请求
+func (h *WorkspaceHandler) HandleReadAppLog(msg *nats.Msg) {
+	ctx := context.Background()
+	msgInfo, err := msgx.DecodeNatsMsg[dto.ReadAppLogRuntimeReq](msg)
+	if err != nil {
+		logger.Errorf(ctx, "[HandleReadAppLog] Failed to decode: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+	req := &msgInfo.Data
+	resp, err := h.appManageService.ReadAppLog(ctx, req)
+	if err != nil {
+		logger.Errorf(ctx, "[HandleReadAppLog] Failed: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+	msgx.RespSuccessMsg(msg, resp)
+	logger.Infof(ctx, "[HandleReadAppLog] user=%s, app=%s, version=%s", req.User, req.App, req.Version)
+}

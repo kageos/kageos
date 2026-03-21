@@ -119,7 +119,7 @@ func (c *ClaudeClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespons
 
 	// 设置默认值
 	if claudeReq.Temperature == 0 {
-		claudeReq.Temperature = 0.7 // Claude推荐值
+		claudeReq.Temperature = 0.1
 	}
 	if claudeReq.MaxTokens == 0 {
 		claudeReq.MaxTokens = 1024 // 默认值

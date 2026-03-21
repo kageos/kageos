@@ -146,7 +146,7 @@ func (d *DeepSeekClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespo
 		apiReq["max_tokens"] = 4000
 	}
 	if req.Temperature == 0 {
-		apiReq["temperature"] = 0.7
+		apiReq["temperature"] = 0.1
 	}
 
 	// 🎯 动态创建HTTP客户端，支持请求级别的超时配置
@@ -280,7 +280,7 @@ func (d *DeepSeekClient) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 			apiReq["max_tokens"] = 4000
 		}
 		if req.Temperature == 0 {
-			apiReq["temperature"] = 0.7
+			apiReq["temperature"] = 0.1
 		}
 
 		// 动态创建HTTP客户端，支持请求级别的超时配置

@@ -3,6 +3,7 @@ package python
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,7 +14,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
-
 // Executor Python 代码执行器（Builder 模式）
 type Executor struct {
 	code       string
@@ -22,6 +22,10 @@ type Executor struct {
 	timeout    time.Duration
 	workDir    string
 	pythonPath string
+
+	// managedTempDirs 由 MkdirTemp 创建的工作目录，由 Close 负责 RemoveAll（WithWorkDir 指定的目录不会加入此列表）
+	managedTempDirs []string
+	closed          bool
 }
 
 // NewExecutor 创建新的 Python 执行器
@@ -48,6 +52,7 @@ func NewExecutor(code string) *Executor {
 //
 //	req := Request{Name: "Alice", Age: 30}
 //	executor := python.NewExecutor(code).WithRequest(req)
+//	defer executor.Close()
 func (e *Executor) WithRequest(req interface{}) *Executor {
 	e.request = req
 	return e
@@ -81,10 +86,40 @@ func (e *Executor) WithPythonPath(pythonPath string) *Executor {
 	return e
 }
 
+// Close 释放本 Executor 在默认临时工作目录模式下创建的目录（os.MkdirTemp）。
+//
+// 未调用 WithWorkDir 时，Execute/ExecuteJSON 会在系统临时目录下创建工作区；用完后必须调用 Close，否则会泄漏磁盘。
+// 推荐在创建 Executor 后立即：defer executor.Close()。
+//
+// WithWorkDir 指向的目录不会被删除，仅删除 SDK 内部创建的临时目录。
+// Close 可安全多次调用（幂等）。Close 之后不得再调用 Execute / ExecuteJSON。
+//
+// 同一 Executor 在未 Close 前多次 Execute（且未使用 WithWorkDir）时，每次都会新建临时目录；一次 Close 会删除记录的全部此类目录。
+func (e *Executor) Close() error {
+	if e.closed {
+		return nil
+	}
+	e.closed = true
+	var errs []error
+	for _, dir := range e.managedTempDirs {
+		if err := os.RemoveAll(dir); err != nil {
+			errs = append(errs, fmt.Errorf("python executor: remove temp dir %q: %w", dir, err))
+		}
+	}
+	e.managedTempDirs = nil
+	return errors.Join(errs...)
+}
+
 // Execute 执行 Python 代码，返回原始输出
 // ctx: 上下文（用于超时控制）
 // 返回: 执行输出和错误
+//
+// 使用默认临时工作目录（未 WithWorkDir）时，须在适当时机调用 Close() 释放磁盘（推荐创建 Executor 后 defer Close()）。
 func (e *Executor) Execute(ctx context.Context) ([]byte, error) {
+	if e.closed {
+		return nil, fmt.Errorf("python executor: already closed")
+	}
+
 	// 创建带超时的上下文
 	if e.timeout > 0 {
 		var cancel context.CancelFunc
@@ -103,12 +138,9 @@ func (e *Executor) Execute(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("创建工作目录失败: %w", err)
 	}
-	defer func() {
-		// 清理临时目录（如果是临时创建的）
-		if e.workDir == "" {
-			os.RemoveAll(workDir)
-		}
-	}()
+	if e.workDir == "" {
+		e.managedTempDirs = append(e.managedTempDirs, workDir)
+	}
 
 	// 3. 安装依赖包（如果需要）
 	if len(e.packages) > 0 {
@@ -162,6 +194,8 @@ func (e *Executor) Execute(ctx context.Context) ([]byte, error) {
 //	    Sum int `json:"sum"`
 //	}
 //	err := executor.ExecuteJSON(ctx, &result)
+//
+// 使用默认临时工作目录时须配合 Close()，见 Execute。
 func (e *Executor) ExecuteJSON(ctx context.Context, result interface{}) error {
 	output, err := e.Execute(ctx)
 	if err != nil {

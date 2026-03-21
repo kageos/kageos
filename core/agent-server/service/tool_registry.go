@@ -26,6 +26,18 @@ type workspaceContextKey struct{}
 // WorkspaceSessionIDKey 工作台会话 ID 的 context key（在 executeToolCalls 中注入，callRecordWorkspaceEvent 中读取）
 var WorkspaceSessionIDKey = workspaceContextKey{}
 
+// runOfficialPythonPreinstallDoc 与 build/Dockerfile 中 apt/python3-* 与 pip3 install 预装保持一致；改镜像时请同步更新本文案
+const runOfficialPythonPreinstallDoc = `**生产镜像已预装、可直接 import 的第三方库（对应 build/Dockerfile）：**
+- 数据与图表：pandas、numpy、scipy、matplotlib、seaborn
+- 网络与表格：requests、openpyxl
+- 图像：PIL（Pillow，如 from PIL import Image）
+- 文档与 PDF：docx（python-docx）、PyPDF2、pdfplumber
+- 中文分词：jieba
+- 另有 **Python 标准库**（json、re、collections、datetime、itertools、math、random 等）
+
+**若 import 报错：** 优先改用上面列表或标准库；需要新依赖时请管理员更新 Dockerfile / 官方 requirements.txt 并重打镜像。不可在本工具参数里指定 pip 包。
+**环境差异：** 本地非 Docker 运行时以本机 python 为准，可能与镜像不一致。`
+
 func getWorkspaceSessionID(ctx context.Context) string {
 	if v := ctx.Value(WorkspaceSessionIDKey); v != nil {
 		if s, ok := v.(string); ok {
@@ -286,7 +298,7 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 				},
 				"return_full_content": map[string]interface{}{
 					"type":        "boolean",
-					"description": "是否在结果中返回替换后的完整文件内容（可选，默认 true）",
+					"description": "是否在结果中返回替换后的完整文件内容（可选，默认 false）",
 				},
 			},
 			"required": []interface{}{"file_name", "replacements"},
@@ -310,6 +322,46 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 				},
 			},
 			"required": []interface{}{"file_name"},
+		},
+	})
+
+	// read_app_log：读取应用日志（支持指定版本与关键词检索）
+	out = append(out, dto.ToolDef{
+		Name:        "read_app_log",
+		Description: "读取应用日志（workspace/logs），用于排查 bug、报错、超时、异常行为等运行问题。默认读取当前版本日志；可传 version 指定历史版本（如 v48）。支持按关键词过滤（keyword），并返回命中上下文。参数：directory（可选，不传则当前目录）、version（可选，默认当前版本）、lines（可选，默认 200，最大 1000）、keyword（可选）、context_lines（可选，默认 2，最大 5）、max_matches（可选，默认 50，最大 200）、ignore_case（可选，默认 false）。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"directory": map[string]interface{}{
+					"type":        "string",
+					"description": "目录（可选），不传则当前工作目录，如 /luobei/minimax",
+				},
+				"version": map[string]interface{}{
+					"type":        "string",
+					"description": "版本号（可选），如 v48；不传默认当前版本",
+				},
+				"lines": map[string]interface{}{
+					"type":        "integer",
+					"description": "返回行数（可选），默认 200，最大 1000",
+				},
+				"keyword": map[string]interface{}{
+					"type":        "string",
+					"description": "关键词（可选）。传入后按关键词检索并返回命中上下文",
+				},
+				"context_lines": map[string]interface{}{
+					"type":        "integer",
+					"description": "关键词命中上下文行数（可选），默认 2，最大 5",
+				},
+				"max_matches": map[string]interface{}{
+					"type":        "integer",
+					"description": "关键词模式最大命中数（可选），默认 50，最大 200",
+				},
+				"ignore_case": map[string]interface{}{
+					"type":        "boolean",
+					"description": "关键词匹配是否忽略大小写（可选），默认 false",
+				},
+			},
+			"required": []interface{}{},
 		},
 	})
 
@@ -403,10 +455,10 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 			"required": []interface{}{"full_code_path", "body"},
 		},
 	})
-	// web_search：使用必应（cn.bing.com）搜索，国内可直接访问，无需翻墙
+	// web_search：默认百度搜索，失败或无结果时回退必应；环境变量 WEB_SEARCH_ENGINE=bing|baidu 可强制单一引擎
 	out = append(out, dto.ToolDef{
 		Name:        "web_search",
-		Description: "在互联网上搜索知识、概念或资料。使用必应（cn.bing.com）搜索，国内可直接访问，无需翻墙。不调用第三方付费 API。当需要最新信息、概念解释、技术文档或事实查证时调用。",
+		Description: "在互联网上搜索知识、概念或资料。默认使用百度搜索，必要时回退必应（国内可直接访问，不调用第三方付费 API）。当需要最新信息、概念解释、技术文档或事实查证时调用。",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -425,7 +477,7 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 	// fetch_url_content：按 URL 拉取该页正文，支持单链接或多链接
 	out = append(out, dto.ToolDef{
 		Name:        "fetch_url_content",
-		Description: "根据指定 URL（或多个 URL）访问该网页并拉取页面正文。当 web_search 返回了某条结果的链接，需要查看该链接的完整内容时调用。支持传 url（单个）或 urls（多个，最多 5 个）。仅支持 HTTP/HTTPS 的 HTML 页面。",
+		Description: "根据指定 URL（或多个 URL）访问并拉取可读正文。支持 HTML 页面（解析 DOM 取文）、纯文本、Markdown、JSON/XML 等文本类响应；非文本（如二进制）也会返回简短说明（含 Content-Type 与大小）。支持传 url（单个）或 urls（多个，最多 5 个）。",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -487,6 +539,165 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 				},
 			},
 			"required": []interface{}{"full_code_path", "body"},
+		},
+	})
+	out = append(out, dto.ToolDef{
+		Name:        "create_scheduled_task",
+		Description: "创建定时任务。支持 execute（普通函数）、table_create（表格新增）、table_update（表格更新）、table_delete（表格删除）。full_code_path 可不传（默认当前目录）。table_update 的 payload 需包含 id 与 updates，执行时会自动补 old_values。run_at 建议用本地日期时间字符串（无 Z），与前端一致；也可用带时区偏移的 RFC3339。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"name": map[string]interface{}{
+					"type":        "string",
+					"description": "任务名称，如 每晚同步库存",
+				},
+				"full_code_path": map[string]interface{}{
+					"type":        "string",
+					"description": "函数完整路径（可选，不传默认当前工作目录）",
+				},
+				"action": map[string]interface{}{
+					"type":        "string",
+					"description": "动作（可选，默认 execute）：execute/table_create/table_update/table_delete",
+				},
+				"method": map[string]interface{}{
+					"type":        "string",
+					"description": "请求方法（可选，默认 POST）",
+				},
+				"payload": map[string]interface{}{
+					"type":        "string",
+					"description": "JSON 对象字符串（可选，默认 {}）。table_update 示例：{\"id\":1,\"updates\":{\"status\":\"done\"}}；table_delete 示例：{\"ids\":[1,2]}",
+				},
+				"schedule_type": map[string]interface{}{
+					"type":        "string",
+					"description": "调度类型：atime/cron/every",
+				},
+				"run_at": map[string]interface{}{
+					"type":        "string",
+					"description": "首次执行时间。推荐：本地日期时间 \"2006-01-02 15:04:05\" 或 \"2006-01-02T15:04:05\"（按服务器本地时区解析，与界面一致）。也可用 RFC3339 且必须带偏移，如 2026-03-20T23:00:00+08:00；勿单独使用末尾 Z（会被当作 UTC）。",
+				},
+				"cron_expr": map[string]interface{}{
+					"type":        "string",
+					"description": "cron 表达式（schedule_type=cron 时必填）",
+				},
+				"interval_seconds": map[string]interface{}{
+					"type":        "integer",
+					"description": "间隔秒数（schedule_type=every 时必填）",
+				},
+				"max_runs": map[string]interface{}{
+					"type":        "integer",
+					"description": "最多执行次数（every 可选，0 表示不限制）",
+				},
+				"timezone": map[string]interface{}{
+					"type":        "string",
+					"description": "时区（可选）",
+				},
+			},
+			"required": []interface{}{"name", "schedule_type", "run_at"},
+		},
+	})
+	out = append(out, dto.ToolDef{
+		Name:        "list_scheduled_tasks",
+		Description: "查询定时任务列表。full_code_path 可不传（默认当前工作台路径）。传入路径时返回该路径本身及所有子路径下的任务（例如在目录节点也能看到子目录/子表单上挂的定时任务）。可按 status 过滤。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"full_code_path": map[string]interface{}{
+					"type":        "string",
+					"description": "工作台路径前缀（可选，不传默认当前路径）。匹配该路径及其子路径下的定时任务，而非仅精确相等。",
+				},
+				"status": map[string]interface{}{
+					"type":        "string",
+					"description": "状态过滤（可选）：pending/done/failed/cancelled",
+				},
+				"page": map[string]interface{}{
+					"type":        "integer",
+					"description": "页码（可选，默认 1）",
+				},
+				"page_size": map[string]interface{}{
+					"type":        "integer",
+					"description": "每页条数（可选，默认 20）",
+				},
+			},
+			"required": []interface{}{},
+		},
+	})
+	out = append(out, dto.ToolDef{
+		Name:        "cancel_scheduled_task",
+		Description: "取消定时任务（仅创建人可取消）。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"task_id": map[string]interface{}{
+					"type":        "integer",
+					"description": "任务 ID",
+				},
+			},
+			"required": []interface{}{"task_id"},
+		},
+	})
+	out = append(out, dto.ToolDef{
+		Name:        "list_scheduled_task_executions",
+		Description: "查询某个定时任务的执行记录。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"task_id": map[string]interface{}{
+					"type":        "integer",
+					"description": "任务 ID",
+				},
+				"status": map[string]interface{}{
+					"type":        "string",
+					"description": "状态过滤（可选）：success/failed",
+				},
+				"page": map[string]interface{}{
+					"type":        "integer",
+					"description": "页码（可选，默认 1）",
+				},
+				"page_size": map[string]interface{}{
+					"type":        "integer",
+					"description": "每页条数（可选，默认 20）",
+				},
+			},
+			"required": []interface{}{"task_id"},
+		},
+	})
+	// run_official_python：调用系统空间官方 Form「Python 执行」；预装库见 runOfficialPythonPreinstallDoc（与 build/Dockerfile 同步）
+	out = append(out, dto.ToolDef{
+		Name: "run_official_python",
+		Description: runOfficialPythonPreinstallDoc + `
+
+**执行环境：** Python 跑在 **应用运行时容器内**（Podman 等业务容器，**不是宿主机**）。本工具调用官方路径 **/system/official/python/execute**，由 **官方应用** 对应容器执行；脚本在 **临时目录** 中运行，不把工作区源码树当作工作目录。
+
+**无法输出文件到工作台供用户下载：** 本工具只能返回文本/JSON（output/json_result），**不能**把 Python 生成的 PNG/Excel 等变成工作台可下载附件。
+
+**若需要「处理后的文件给用户下载」：** 请先用 **read_doc** 读取内置示例文档 **/builtin/doc/case_catalog/form/python_output**（含 PRD 与完整 Go 示例），再按文档配合 **agent-app SDK** 在用户应用内新增 Form：**pythonRuntime.NewExecutor** → **defer executor.Close()**（默认临时目录）→ Go 用 **filepath.Abs** 得到 **绝对路径**（如 GetTraceOutputDir 下文件）经请求传给 Python → Python **直接写入该路径**（如 savefig，勿用相对路径互传，Go/Python **cwd 不同**）→ 响应 **types.Files**（ResponseFiles 使用同一绝对路径）。Go 与 Python 为**同机子进程**，非网络隔离。
+
+**两种输出方式（二选一或组合）：**
+1. **结构化结果（推荐）**：脚本末尾调用 output_json(字典或列表)，键用双引号、值为 JSON 可序列化类型。返回里 json_result 为格式化后的 JSON，便于你后续取字段。
+2. **纯文本/报表**：用 print(...)。返回里以 output 为准；json_result 会提示「非 JSON」，属正常降级，不要误判为失败。
+
+**如何读返回：** status=成功 时，有结构化数据优先看 json_result；无则读 output。若 json_result 含「JSON解析失败」而 output 里已有 <python-out> 片段，以 output 内 JSON 为准或修正脚本后重试。
+
+**参数：** args_json 为 JSON 对象字符串，字段注入脚本全局命名空间。timeout_seconds 默认 120、上限 300。
+
+返回中可能含 _model_guidance：面向你的纠错/降级说明，请优先阅读。`,
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"python_code": map[string]interface{}{
+					"type":        "string",
+					"description": "完整 Python 源码。需要机器可读结果用 output_json；仅需文本用 print。若要把生成文件给用户下载，本工具做不到，须 read_doc /builtin/doc/case_catalog/form/python_output 后按 SDK 写 Form（绝对路径落盘 + defer Close，勿依赖 base64）。",
+				},
+				"args_json": map[string]interface{}{
+					"type":        "string",
+					"description": "可选。JSON 对象字符串，字段注入全局（如 {\"rows\":[],\"name\":\"x\"}）。",
+				},
+				"timeout_seconds": map[string]interface{}{
+					"type":        "integer",
+					"description": "可选，超时秒数，默认 120，最大 300",
+				},
+			},
+			"required": []interface{}{"python_code"},
 		},
 	})
 
@@ -703,6 +914,8 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, args map[strin
 		return r.callSearchReplaceFile(ctx, args, fullCodePath)
 	case "delete_file":
 		return r.callDeleteFile(ctx, args, fullCodePath)
+	case "read_app_log":
+		return r.callReadAppLog(ctx, args, fullCodePath)
 	case "run_table_search":
 		return r.callRunTableSearch(ctx, args, fullCodePath)
 	case "run_form_submit":
@@ -713,6 +926,16 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, args map[strin
 		return r.callRunTableCreate(ctx, args, fullCodePath)
 	case "run_table_update":
 		return r.callRunTableUpdate(ctx, args, fullCodePath)
+	case "create_scheduled_task":
+		return r.callCreateScheduledTask(ctx, args, fullCodePath)
+	case "list_scheduled_tasks":
+		return r.callListScheduledTasks(ctx, args, fullCodePath)
+	case "cancel_scheduled_task":
+		return r.callCancelScheduledTask(ctx, args)
+	case "list_scheduled_task_executions":
+		return r.callListScheduledTaskExecutions(ctx, args)
+	case "run_official_python":
+		return r.callRunOfficialPython(ctx, args)
 	case "run_on_select_fuzzy":
 		return r.callRunOnSelectFuzzy(ctx, args, fullCodePath)
 	case "web_search":
@@ -1507,7 +1730,7 @@ func (r *ToolRegistry) callSearchReplaceFile(ctx context.Context, args map[strin
 			allOrNothing = b
 		}
 	}
-	returnFullContent := true
+	returnFullContent := false
 	if v, ok := args["return_full_content"]; ok {
 		if b, ok := v.(bool); ok {
 			returnFullContent = b
@@ -1568,6 +1791,60 @@ func (r *ToolRegistry) callDeleteFile(ctx context.Context, args map[string]inter
 		return "delete_file: " + resp.Message, true
 	}
 	return fmt.Sprintf("已删除: 目录=%s, 文件=%s", targetPath, fileName), false
+}
+
+// callReadAppLog 读取应用日志（支持 version、关键词检索）
+func (r *ToolRegistry) callReadAppLog(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
+	targetPath := getDirectory(args, currentFullCodePath)
+	targetPath = strings.TrimRight(targetPath, "/")
+	if targetPath == "" {
+		targetPath = currentFullCodePath
+	}
+	if targetPath != "" && !strings.HasPrefix(targetPath, "/") {
+		targetPath = "/" + targetPath
+	}
+	req := &dto.ReadAppLogReq{
+		FullCodePath: targetPath,
+		Version:      strings.TrimSpace(GetStringArg(args, "version")),
+		Keyword:      GetStringArg(args, "keyword"),
+		ContextLines: 0,
+		MaxMatches:   0,
+		IgnoreCase:   false,
+	}
+	if v, ok := args["lines"]; ok {
+		if n, ok := toInt(v); ok {
+			req.Lines = n
+		}
+	}
+	if v, ok := args["context_lines"]; ok {
+		if n, ok := toInt(v); ok {
+			req.ContextLines = n
+		}
+	}
+	if v, ok := args["max_matches"]; ok {
+		if n, ok := toInt(v); ok {
+			req.MaxMatches = n
+		}
+	}
+	if v, ok := args["ignore_case"]; ok {
+		if b, ok := v.(bool); ok {
+			req.IgnoreCase = b
+		}
+	}
+	resp, err := apicall.ReadAppLog(ctx, req)
+	if err != nil {
+		logger.Errorf(ctx, "[ReadAppLog] ReadAppLog 失败: %v", err)
+		return "read_app_log 调用失败: " + err.Error(), true
+	}
+	if !resp.Success {
+		return "read_app_log: " + resp.Message, true
+	}
+	msg := fmt.Sprintf("日志读取成功：版本=%s，文件=%s，总行数=%d，返回行数=%d，命中数=%d，截断=%t",
+		resp.ResolvedVersion, resp.LogFile, resp.TotalLines, resp.ReturnedLines, resp.MatchCount, resp.Truncated)
+	if resp.Content != "" {
+		msg += "\n\n" + resp.Content
+	}
+	return msg, false
 }
 
 // callRunTableSearch 执行 Table 查询（执行模式专用）；参数遵循 pkg/gormx/query，可传 url_query 或 page/page_size/sorts
@@ -1643,7 +1920,7 @@ func splitSearchKeywords(keyword string) []string {
 }
 
 // callSearchTools 按关键词搜索可用工具（内置工具 + system 用户下已注册 Form/Table/Chart）。keyword 为空时仅返回已注册函数并按调用次数降序（高频在前）
-// callWebSearch 调用 pkg/websearch（必应搜索），返回格式化文本供模型使用
+// callWebSearch 调用 pkg/websearch（默认百度、可回退必应），返回格式化文本供模型使用
 func (r *ToolRegistry) callWebSearch(ctx context.Context, args map[string]interface{}) (string, bool) {
 	keyword := strings.TrimSpace(GetStringArg(args, "keyword"))
 	if keyword == "" {
@@ -1750,11 +2027,11 @@ func (r *ToolRegistry) callFetchURLContent(ctx context.Context, args map[string]
 		if body != "" {
 			b.WriteString("正文: " + body)
 		} else {
-			b.WriteString("（无法访问或非 HTML 页面）")
+			b.WriteString("（请求失败、无响应体或无法建立连接）")
 		}
 	}
 	if b.Len() == 0 {
-		return "所有链接均无法访问或非 HTML 网页。", false
+		return "所有链接均无法拉取内容。", false
 	}
 	return b.String(), false
 }
@@ -2346,6 +2623,287 @@ func (r *ToolRegistry) callRunTableUpdate(ctx context.Context, args map[string]i
 	return formatJSONResult(out)
 }
 
+// callCreateScheduledTask 创建定时任务（工作台工具）
+func (r *ToolRegistry) callCreateScheduledTask(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
+	name := strings.TrimSpace(GetStringArg(args, "name"))
+	if name == "" {
+		return "create_scheduled_task 需传 name（任务名称）。", true
+	}
+	fullCodePath := strings.TrimSpace(GetStringArg(args, "full_code_path"))
+	if fullCodePath == "" {
+		fullCodePath = currentFullCodePath
+	}
+	if fullCodePath == "" {
+		return "create_scheduled_task 需传 full_code_path，或在可推导当前目录的上下文中调用。", true
+	}
+	if !strings.HasPrefix(fullCodePath, "/") {
+		fullCodePath = "/" + fullCodePath
+	}
+
+	scheduleType := strings.TrimSpace(GetStringArg(args, "schedule_type"))
+	if scheduleType == "" {
+		return "create_scheduled_task 需传 schedule_type（atime/cron/every）。", true
+	}
+	runAt := strings.TrimSpace(GetStringArg(args, "run_at"))
+	if runAt == "" {
+		return "create_scheduled_task 需传 run_at（本地时间如 2006-01-02 15:04:05，或带偏移的 RFC3339）。", true
+	}
+
+	action := strings.TrimSpace(GetStringArg(args, "action"))
+	if action == "" {
+		action = "execute"
+	}
+	method := strings.ToUpper(strings.TrimSpace(GetStringArg(args, "method")))
+	if method == "" {
+		method = "POST"
+	}
+
+	payloadStr := strings.TrimSpace(GetStringArg(args, "payload"))
+	if payloadStr == "" {
+		payloadStr = "{}"
+	}
+	var payloadRaw json.RawMessage
+	if err := json.Unmarshal([]byte(payloadStr), &payloadRaw); err != nil {
+		return "create_scheduled_task 的 payload 必须是合法 JSON 对象字符串: " + err.Error(), true
+	}
+
+	req := &dto.CreateScheduledTaskReq{
+		Name:         name,
+		FullCodePath: fullCodePath,
+		Action:       action,
+		Method:       method,
+		Payload:      payloadRaw,
+		ScheduleType: scheduleType,
+		RunAt:        runAt,
+		CronExpr:     strings.TrimSpace(GetStringArg(args, "cron_expr")),
+		Timezone:     strings.TrimSpace(GetStringArg(args, "timezone")),
+	}
+
+	if v, ok := toInt(args["interval_seconds"]); ok {
+		req.IntervalSeconds = int64(v)
+	}
+	if v, ok := toInt(args["max_runs"]); ok {
+		req.MaxRuns = v
+	}
+
+	item, err := apicall.CreateScheduledTask(ctx, req)
+	if err != nil {
+		return "create_scheduled_task 调用失败: " + err.Error(), true
+	}
+	out := map[string]interface{}{
+		"id":             item.ID,
+		"name":           item.Name,
+		"full_code_path": item.FullCodePath,
+		"action":         item.Action,
+		"schedule_type":  item.ScheduleType,
+		"status":         item.Status,
+		"run_at":         item.RunAt,
+		"next_run_at":    item.NextRunAt,
+	}
+	return formatJSONResult(out)
+}
+
+// callListScheduledTasks 查询定时任务列表（工作台工具）
+func (r *ToolRegistry) callListScheduledTasks(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
+	fullCodePath := strings.TrimSpace(GetStringArg(args, "full_code_path"))
+	if fullCodePath == "" {
+		fullCodePath = currentFullCodePath
+	}
+	if fullCodePath != "" && !strings.HasPrefix(fullCodePath, "/") {
+		fullCodePath = "/" + fullCodePath
+	}
+	status := strings.TrimSpace(GetStringArg(args, "status"))
+	page := 1
+	if v, ok := toInt(args["page"]); ok && v > 0 {
+		page = v
+	}
+	pageSize := 20
+	if v, ok := toInt(args["page_size"]); ok && v > 0 {
+		pageSize = v
+	}
+
+	resp, err := apicall.ListScheduledTasks(ctx, fullCodePath, status, page, pageSize)
+	if err != nil {
+		return "list_scheduled_tasks 调用失败: " + err.Error(), true
+	}
+	out := map[string]interface{}{
+		"total": resp.Total,
+		"list":  resp.List,
+	}
+	return formatJSONResult(out)
+}
+
+// callCancelScheduledTask 取消定时任务（工作台工具）
+func (r *ToolRegistry) callCancelScheduledTask(ctx context.Context, args map[string]interface{}) (string, bool) {
+	taskID, ok := toInt64(args["task_id"])
+	if !ok || taskID <= 0 {
+		return "cancel_scheduled_task 需传 task_id（正整数）。", true
+	}
+	if err := apicall.CancelScheduledTask(ctx, taskID); err != nil {
+		return "cancel_scheduled_task 调用失败: " + err.Error(), true
+	}
+	return "已取消定时任务。", false
+}
+
+// officialPythonFormPayload 从 FormSubmit 返回体中取出 Python 执行结果（兼容外层包一层 data/result）
+func officialPythonFormPayload(m map[string]interface{}) map[string]interface{} {
+	if m == nil {
+		return nil
+	}
+	if _, ok := m["output"]; ok {
+		return m
+	}
+	for _, key := range []string{"data", "result"} {
+		inner, ok := m[key].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if _, ok2 := inner["output"]; ok2 {
+			return inner
+		}
+	}
+	return m
+}
+
+func officialPythonAnyToString(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return fmt.Sprintf("%v", v)
+}
+
+// buildOfficialPythonModelGuidance 根据 status/output/json_result 生成给大模型的友好提示与降级说明
+func buildOfficialPythonModelGuidance(raw map[string]interface{}) string {
+	p := officialPythonFormPayload(raw)
+	if p == nil {
+		return ""
+	}
+	status := strings.TrimSpace(officialPythonAnyToString(p["status"]))
+	out := officialPythonAnyToString(p["output"])
+	jr := officialPythonAnyToString(p["json_result"])
+	lowOut := strings.ToLower(out)
+
+	var lines []string
+	appendLine := func(s string) {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return
+		}
+		for _, ex := range lines {
+			if ex == s {
+				return
+			}
+		}
+		lines = append(lines, s)
+	}
+
+	switch status {
+	case "失败":
+		appendLine("【状态为失败】请阅读 output 中的 traceback/错误信息，修正 python_code 后重试。")
+		if strings.Contains(out, "ModuleNotFoundError") || strings.Contains(out, "No module named") {
+			appendLine("【依赖】ModuleNotFoundError：请优先使用工具说明里已列出的预装库（pandas、numpy、jieba、requests、openpyxl、matplotlib…）或仅用标准库；若必须新库，请管理员更新 build/Dockerfile 或官方 requirements.txt 并重打镜像。")
+		}
+		if strings.Contains(out, "SyntaxError") || strings.Contains(out, "IndentationError") {
+			appendLine("【语法】请检查引号、缩进、括号是否匹配；字符串内换行需用三引号或 \\n。")
+		}
+		if strings.Contains(lowOut, "timeout") || strings.Contains(out, "deadline exceeded") || strings.Contains(out, "context deadline") {
+			appendLine("【超时】可适当增大 timeout_seconds（最大 300），或拆分计算、减少数据量。")
+		}
+	case "成功":
+		if strings.Contains(jr, "JSON解析失败") {
+			appendLine("【json_result 解析失败】执行已成功；结构化内容可能在 output 的 <python-out>...</python-out> 内。请以 output 为准，或改为 output_json(合法 dict/list)，避免在标记内输出非 JSON 文本。")
+		}
+		if strings.Contains(jr, "输出不是JSON格式") || strings.Contains(jr, "不是JSON格式") {
+			appendLine("【降级·正常】当前为纯文本输出（print）。若用户只需要报告/说明，无需改代码；若你需要程序取字段，请让脚本改用 output_json({...})。")
+		}
+		if strings.Contains(jr, "标记内无 JSON") {
+			appendLine("【output_json 空内容】请确保 output_json 传入非空 dict/list；若本意是纯文本请改用 print。")
+		}
+		if jr == "" && out != "" && !strings.Contains(out, "<python-out>") {
+			appendLine("【提示】未使用 output_json 时 json_result 常为空，以 output 为准即可。")
+		}
+	default:
+		if status != "" {
+			appendLine("【状态】status=" + status + "：请结合 output、json_result 判断。")
+		}
+	}
+
+	if len(lines) == 0 {
+		return ""
+	}
+	return strings.Join(lines, "\n")
+}
+
+// officialPythonFormPath 系统官方 Python 执行 Form 的 full_code_path（与 namespace system/official/code/api/python 注册路由一致）
+const officialPythonFormPath = "/system/official/python/execute"
+
+// callRunOfficialPython 调用系统官方 Python 执行 Form（预装库见 runOfficialPythonPreinstallDoc）
+func (r *ToolRegistry) callRunOfficialPython(ctx context.Context, args map[string]interface{}) (string, bool) {
+	code := strings.TrimSpace(GetStringArg(args, "python_code"))
+	if code == "" {
+		return "run_official_python 需传 python_code。", true
+	}
+	body := map[string]interface{}{
+		"python_code": code,
+	}
+	if argsJSON := strings.TrimSpace(GetStringArg(args, "args_json")); argsJSON != "" {
+		body["args_json"] = argsJSON
+	}
+	timeoutSec := 120
+	if v, ok := toInt(args["timeout_seconds"]); ok && v > 0 {
+		timeoutSec = v
+	}
+	if timeoutSec > 300 {
+		timeoutSec = 300
+	}
+	body["timeout_seconds"] = timeoutSec
+
+	result, err := apicall.FormSubmit(ctx, officialPythonFormPath, body)
+	if err != nil {
+		logger.Errorf(ctx, "[RunOfficialPython] FormSubmit 失败: %v", err)
+		return "run_official_python 调用失败: " + err.Error() + "\n\n【给模型】可检查 python_code 是否过长、args_json 是否为合法 JSON 对象字符串；网络或权限问题可稍后重试。", true
+	}
+	out := make(map[string]interface{}, len(result)+1)
+	for k, v := range result {
+		out[k] = v
+	}
+	if g := buildOfficialPythonModelGuidance(result); g != "" {
+		out["_model_guidance"] = g
+	}
+	return formatJSONResult(out)
+}
+
+// callListScheduledTaskExecutions 查询任务执行记录（工作台工具）
+func (r *ToolRegistry) callListScheduledTaskExecutions(ctx context.Context, args map[string]interface{}) (string, bool) {
+	taskID, ok := toInt64(args["task_id"])
+	if !ok || taskID <= 0 {
+		return "list_scheduled_task_executions 需传 task_id（正整数）。", true
+	}
+	status := strings.TrimSpace(GetStringArg(args, "status"))
+	page := 1
+	if v, ok := toInt(args["page"]); ok && v > 0 {
+		page = v
+	}
+	pageSize := 20
+	if v, ok := toInt(args["page_size"]); ok && v > 0 {
+		pageSize = v
+	}
+
+	resp, err := apicall.ListScheduledTaskExecutions(ctx, taskID, status, page, pageSize)
+	if err != nil {
+		return "list_scheduled_task_executions 调用失败: " + err.Error(), true
+	}
+	out := map[string]interface{}{
+		"task_id": taskID,
+		"total":   resp.Total,
+		"list":    resp.List,
+	}
+	return formatJSONResult(out)
+}
+
 // callRunOnSelectFuzzy 执行 OnSelectFuzzy 回调（工作台测试用）；仅支持按关键词或空关键词，不支持 by_value/by_values
 func (r *ToolRegistry) callRunOnSelectFuzzy(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
 	fullCodePath := strings.TrimSpace(GetStringArg(args, "full_code_path"))
@@ -2409,6 +2967,20 @@ func toInt(v interface{}) (int, bool) {
 		return int(n), true
 	case float64:
 		return int(n), true
+	default:
+		return 0, false
+	}
+}
+
+// toInt64 从 interface{} 转 int64（支持 float64/int/int64）
+func toInt64(v interface{}) (int64, bool) {
+	switch n := v.(type) {
+	case int:
+		return int64(n), true
+	case int64:
+		return n, true
+	case float64:
+		return int64(n), true
 	default:
 		return 0, false
 	}

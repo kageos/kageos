@@ -83,6 +83,12 @@ func RegisterNATS(ctx context.Context, conn *nats.Conn, subs *[]*nats.Subscripti
 	}
 	*subs = append(*subs, sub)
 
+	sub, err = conn.QueueSubscribe("app_server.app_runtime.read_app_log", "app-runtime-read-app-log-workers", workspaceH.HandleReadAppLog)
+	if err != nil {
+		return fmt.Errorf("subscribe read app log: %w", err)
+	}
+	*subs = append(*subs, sub)
+
 	// ---------- Request (function_server -> app) ----------
 	sub, err = conn.QueueSubscribe("function_server.app_runtime.*.*.*", "app-runtime-request-workers", requestH.HandleFunctionServerRequest)
 	if err != nil {

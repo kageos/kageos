@@ -135,7 +135,7 @@
 | cashier_category_sales_statistics | pie 饼图 | 按商品分类汇总销售额占比（饮料/零食/日用品/其他）；Metadata：总销售额、总订单数 |
 | cashier_average_order_amount_statistics | gauge 仪表盘 | 平均订单金额仪表盘；Series.Config 含 min/max、detail.formatter（如 ¥{value}）；Metadata：总订单数、总销售额、平均/最高/最低订单金额 |
 
-**实现要点**：请求体用同一结构体（如 `CashierSalesStatisticsReq`）+ widget 标签；处理函数内按时间/状态筛选支付记录与明细，聚合后组装 **`chart` 包**具体类型（如 `chart.LineChart`：Title、XAxis、Series、Metadata），`resp.Chart(c).Build()` 返回；多个图表用 `packageContext.GET(路由名.chart, Handler, ChartTemplate)` 注册。图表类型请使用 **`sdk/agent-app/chart`** 包。
+**实现要点**：请求体用同一结构体（如 `CashierSalesStatisticsReq`）+ widget 标签；处理函数内按时间/状态筛选支付记录与明细，聚合后组装 `types.Chart`（ChartType、Title、XAxis、Series、Metadata），`resp.Chart(chart).Build()` 返回；多个图表用 `packageContext.GET(路由名.chart, Handler, ChartTemplate)` 注册。
 
 ---
 
@@ -198,8 +198,8 @@ type CashierProductQuantity struct {
 
 // CashierDeskReq 收银台请求
 type CashierDeskReq struct {
-	ProductQuantities []CashierProductQuantity `json:"product_quantities" widget:"name:商品清单;type:table" validate:"required,min=1"`
 	MemberID          int                      `json:"member_id" widget:"name:会员卡;type:select" validate:"required" callback:"OnSelectFuzzy"`
+	ProductQuantities []CashierProductQuantity `json:"product_quantities" widget:"name:商品清单;type:table" validate:"required,min=1"`
 	Remarks           string                   `json:"remarks" widget:"name:备注;type:text_area"`
 }
 
@@ -273,13 +273,13 @@ func DoCashierDesk(ctx *app.Context, req *CashierDeskReq) (*CashierDeskResp, err
 	}
 
 	return &CashierDeskResp{
-		OrderNumber:     orderNumber,
-		ProductList:     productList,
-		TotalAmount:     totalAmount,
-		DiscountAmount:  discountAmount,
-		FinalAmount:     finalAmount,
-		MemberInfo:      &updatedMember,
-		PaymentResult:   fmt.Sprintf("支付成功！订单号：%s，实付金额：¥%.2f", orderNumber, finalAmount),
+		OrderNumber:    orderNumber,
+		ProductList:    productList,
+		TotalAmount:    totalAmount,
+		DiscountAmount: discountAmount,
+		FinalAmount:    finalAmount,
+		MemberInfo:     &updatedMember,
+		PaymentResult:  fmt.Sprintf("支付成功！订单号：%s，实付金额：¥%.2f", orderNumber, finalAmount),
 	}, nil
 }
 
@@ -463,6 +463,11 @@ func onSelectFuzzyProduct(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*ca
 	db := ctx.GetGormDB()
 	if db == nil {
 		return nil, fmt.Errorf("数据库连接失败")
+	}
+	var currentFormData CashierDeskReq
+	err := req.BindCurrentFormData(&currentFormData) //可以获取当前前端表单用户已经输入的表单数据，此时可以获取到用户已经填写的会员信息等等，假如有需要根据会员做处理的可以用这个
+	if err != nil {
+		return nil, err
 	}
 
 	var products []CashierProduct
@@ -1058,11 +1063,11 @@ func CashierSalesTrendStatistics(ctx *app.Context, resp response.Response) error
 		orderData = append(orderData, stat.Count)
 	}
 
-	c := &chart.LineChart{
+	chart := &types.LineChart{
 		Title: "销售额趋势统计",
 		XAxis: dateLabels,
 		// Series：数据系列，每项为一条折线，Name 为图例名，Data 与 XAxis 一一对应
-		Series: []chart.ChartSeries{
+		Series: []types.ChartSeries{
 			{Name: "销售额(元)", Data: salesData},
 			{Name: "订单数", Data: orderData},
 		},
@@ -1074,7 +1079,7 @@ func CashierSalesTrendStatistics(ctx *app.Context, resp response.Response) error
 			"数据更新时间": time.Now().Format("2006-01-02 15:04:05"),
 		},
 	}
-	return resp.Chart(c).Build()
+	return resp.Chart(chart).Build()
 }
 
 // CashierSalesBarStatistics 每日销售额柱状图统计
@@ -1135,11 +1140,11 @@ func CashierSalesBarStatistics(ctx *app.Context, resp response.Response) error {
 		totalCount += stat.Count
 	}
 
-	c := &chart.BarChart{
+	chart := &types.BarChart{
 		Title: "每日销售额柱状图",
 		XAxis: dateLabels,
 		// Series：数据系列，每项为一组柱子，Name 为图例名，Data 与 XAxis 一一对应
-		Series: []chart.ChartSeries{
+		Series: []types.ChartSeries{
 			{Name: "销售额(元)", Data: salesData},
 			{Name: "订单数", Data: orderData},
 		},
@@ -1151,7 +1156,7 @@ func CashierSalesBarStatistics(ctx *app.Context, resp response.Response) error {
 			"数据更新时间": time.Now().Format("2006-01-02 15:04:05"),
 		},
 	}
-	return resp.Chart(c).Build()
+	return resp.Chart(chart).Build()
 }
 
 // CashierCategorySalesStatistics 商品分类销售额统计（饼图）
@@ -1244,10 +1249,10 @@ func CashierCategorySalesStatistics(ctx *app.Context, resp response.Response) er
 		})
 	}
 
-	c := &chart.PieChart{
+	chart := &types.PieChart{
 		Title: "商品分类销售额统计",
 		// Series：饼图一般一条系列，Data 为 []{name, value} 表示各扇区
-		Series: []chart.ChartSeries{
+		Series: []types.ChartSeries{
 			{Name: "销售额", Data: pieData},
 		},
 		Metadata: map[string]interface{}{
@@ -1256,7 +1261,7 @@ func CashierCategorySalesStatistics(ctx *app.Context, resp response.Response) er
 			"数据更新时间": time.Now().Format("2006-01-02 15:04:05"),
 		},
 	}
-	return resp.Chart(c).Build()
+	return resp.Chart(chart).Build()
 }
 
 // CashierAverageOrderAmountStatistics 平均订单金额统计（仪表盘）
@@ -1308,10 +1313,10 @@ func CashierAverageOrderAmountStatistics(ctx *app.Context, resp response.Respons
 		maxValue = 100
 	}
 
-	c := &chart.GaugeChart{
+	chart := &types.GaugeChart{
 		Title: "平均订单金额统计",
 		// Series：仪表盘一般一条系列，Data 为单值，Config 可配 min/max/detail 等
-		Series: []chart.ChartSeries{
+		Series: []types.ChartSeries{
 			{
 				Name:   "平均订单金额",
 				Data:   []interface{}{avgAmount},
@@ -1339,7 +1344,7 @@ func CashierAverageOrderAmountStatistics(ctx *app.Context, resp response.Respons
 			"数据更新时间": time.Now().Format("2006-01-02 15:04:05"),
 		},
 	}
-	return resp.Chart(c).Build()
+	return resp.Chart(chart).Build()
 }
 
 // CashierSalesTrendStatisticsTemplate 销售额趋势统计图表模板
@@ -1349,7 +1354,7 @@ var CashierSalesTrendStatisticsTemplate = &app.ChartTemplate{
 		Tags:     []string{"BI", "销售分析"},
 		Desc:     "展示销售额和订单数的时间趋势（折线图）",
 		Request:  &CashierSalesStatisticsReq{},
-		Response: &chart.LineChart{},
+		Response: &types.LineChart{},
 	},
 	ChartType: app.ChartTypeLine,
 }
@@ -1361,7 +1366,7 @@ var CashierSalesBarStatisticsTemplate = &app.ChartTemplate{
 		Tags:     []string{"BI", "销售分析"},
 		Desc:     "按日期展示每日销售额和订单数（柱状图）",
 		Request:  &CashierSalesStatisticsReq{},
-		Response: &chart.BarChart{},
+		Response: &types.BarChart{},
 	},
 	ChartType: app.ChartTypeBar,
 }
@@ -1373,7 +1378,7 @@ var CashierCategorySalesStatisticsTemplate = &app.ChartTemplate{
 		Tags:     []string{"BI", "销售分析"},
 		Desc:     "展示各商品分类的销售额占比（饼图）",
 		Request:  &CashierSalesStatisticsReq{},
-		Response: &chart.PieChart{},
+		Response: &types.PieChart{},
 	},
 	ChartType: app.ChartTypePie,
 }
@@ -1385,7 +1390,7 @@ var CashierAverageOrderAmountStatisticsTemplate = &app.ChartTemplate{
 		Tags:     []string{"BI", "经营分析"},
 		Desc:     "展示平均订单金额、总销售额、最高/最低订单金额等关键指标（仪表盘）",
 		Request:  &CashierSalesStatisticsReq{},
-		Response: &chart.GaugeChart{},
+		Response: &types.GaugeChart{},
 	},
 	ChartType: app.ChartTypeGauge,
 }

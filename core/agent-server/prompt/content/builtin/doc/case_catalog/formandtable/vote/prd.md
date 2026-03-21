@@ -663,7 +663,6 @@ func init() {
 package vote
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -846,6 +845,8 @@ func voteOnSelectFuzzyTopicForSubmit(ctx *app.Context, req *callback.OnSelectFuz
 }
 
 // voteOnSelectFuzzyOption 投票选项模糊搜索回调
+// 选项依赖「投票主题」：需在回调中通过 req.BindCurrentFormData 获取当前表单已填数据（含 TopicID），
+// 因此请求结构体里要把依赖字段放上面（TopicID 在上、OptionIDs 在下），顺序很重要。详见 SDK 文档「OnSelectFuzzy → 回调中获取当前表单数据」。
 func voteOnSelectFuzzyOption(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*callback.OnSelectFuzzyResp, error) {
 	db := ctx.GetGormDB()
 	if db == nil {
@@ -854,11 +855,10 @@ func voteOnSelectFuzzyOption(ctx *app.Context, req *callback.OnSelectFuzzyReq) (
 	}
 
 	var currentData VoteSubmitReq
-	reqJSON, err := json.Marshal(req.Request)
+
+	// 在回调中获取当前用户已填写的表单数据；依赖的字段需放在上面先填写（如先选投票主题再选选项），顺序很重要
+	err := req.BindCurrentFormData(&currentData)
 	if err != nil {
-		return nil, fmt.Errorf("表单解析失败，请刷新选择投票主题后再重试")
-	}
-	if err := json.Unmarshal(reqJSON, &currentData); err != nil {
 		return nil, fmt.Errorf("表单解析失败，请刷新选择投票主题后再重试")
 	}
 

@@ -120,7 +120,7 @@ func (c *DouBaoClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespons
 
 	// 设置默认值
 	if douBaoReq.Temperature == 0 {
-		douBaoReq.Temperature = 0.7 // 豆包推荐值
+		douBaoReq.Temperature = 0.1
 	}
 	if douBaoReq.MaxTokens == 0 {
 		douBaoReq.MaxTokens = 1024 // 默认值

@@ -143,7 +143,6 @@ type StreamEventSession struct {
 	SessionID string `json:"session_id"`
 }
 
-
 // StreamEventToolCall tool_call 事件数据
 type StreamEventToolCall struct {
 	Name      string `json:"name"`
@@ -275,7 +274,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	var toolNames []string
 	var systemPromptFragment string
 	if modeProvider == nil {
-		toolNames = []string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "web_search", "fetch_url_content", "search_tools", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory", "publish_to_hub", "push_to_hub", "search_hub_directory", "copy_directory", "record_workspace_event", "run_table_search", "run_table_create", "run_table_update", "run_form_submit", "run_chart_query", "run_on_select_fuzzy"}
+		toolNames = []string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "web_search", "fetch_url_content", "search_tools", "write_doc", "write_go_file", "search_replace_file", "delete_file", "read_app_log", "build_workspace", "create_directory", "publish_to_hub", "push_to_hub", "search_hub_directory", "copy_directory", "record_workspace_event", "run_table_search", "run_table_create", "run_table_update", "run_form_submit", "run_chart_query", "run_on_select_fuzzy", "create_scheduled_task", "list_scheduled_tasks", "cancel_scheduled_task", "list_scheduled_task_executions", "run_official_python"}
 		systemPromptFragment = "当前为开发模式，请协助用户生成新代码、新模块。"
 	}
 

@@ -147,7 +147,7 @@ func (c *GeminiClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespons
 
 	// 设置默认值
 	if geminiReq.GenerationConfig.Temperature == 0 {
-		geminiReq.GenerationConfig.Temperature = 0.7 // Gemini推荐值
+		geminiReq.GenerationConfig.Temperature = 0.1
 	}
 	if geminiReq.GenerationConfig.MaxOutputTokens == 0 {
 		geminiReq.GenerationConfig.MaxOutputTokens = 1024 // 默认值
