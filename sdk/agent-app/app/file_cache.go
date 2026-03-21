@@ -78,7 +78,7 @@ func (fc *FileCache) GetOrDownload(ctx context.Context, hash string, downloadURL
 			cachedPath = existingCachedPath
 			fromCache = true
 
-				logger.Debugf(ctx, "[FileCache] 从内存映射找到缓存文件: hash=%s, path=%s", hash, cachedPath)
+			logger.Debugf(ctx, "[FileCache] 从内存映射找到缓存文件: hash=%s, path=%s", hash, cachedPath)
 		} else {
 			delete(fc.hashToPath, hash)
 			delete(fc.refCount, existingCachedPath)
@@ -177,6 +177,7 @@ func (fc *FileCache) DownloadOnly(ctx context.Context, downloadURL string, targe
 
 // downloadFile 下载文件到指定路径
 func downloadFile(ctx context.Context, url string, filePath string) error {
+
 	// 创建HTTP请求
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {

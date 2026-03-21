@@ -2,7 +2,7 @@
   <el-dialog
     v-model="dialogVisible"
     title="定时执行"
-    width="520px"
+    :width="props.tableMode ? '640px' : '520px'"
     destroy-on-close
     :close-on-click-modal="false"
     @close="handleClose"
@@ -11,6 +11,29 @@
       <el-form-item label="任务名称" prop="name">
         <el-input v-model="form.name" placeholder="例如：每日 9 点发送报表" maxlength="100" show-word-limit />
       </el-form-item>
+      <template v-if="props.tableMode && !props.fixedAction && allowedActions.length > 0">
+        <el-form-item label="Table 操作" prop="table_action">
+          <el-radio-group v-model="form.table_action" class="table-action-group">
+            <el-radio-button
+              v-for="a in allowedActions"
+              :key="a"
+              :value="a"
+            >
+              {{ tableActionLabel(a) }}
+            </el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="请求体" prop="payload_json">
+          <el-input
+            v-model="form.payload_json"
+            type="textarea"
+            :rows="8"
+            placeholder="JSON"
+            class="payload-textarea"
+          />
+          <div class="form-tip">{{ tablePayloadTip }}</div>
+        </el-form-item>
+      </template>
       <el-form-item label="执行方式" prop="schedule_type">
         <el-radio-group v-model="form.schedule_type">
           <el-radio-button value="atime">指定时间一次</el-radio-button>
@@ -24,7 +47,7 @@
           type="datetime"
           placeholder="选择执行时间"
           format="YYYY-MM-DD HH:mm"
-          value-format="YYYY-MM-DDTHH:mm:ss.000Z"
+          value-format="YYYY-MM-DD HH:mm:ss"
           style="width: 100%"
           :default-value="defaultRunAt()"
           :disabled-date="disabledDate"
@@ -53,16 +76,30 @@
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { createScheduledTask, type CreateScheduledTaskReq } from '@/api/scheduledTask'
+import {
+  createScheduledTask,
+  type CreateScheduledTaskReq,
+  type ScheduledTaskAction
+} from '@/api/scheduledTask'
 
 const props = withDefaults(
   defineProps<{
     modelValue: boolean
     fullCodePath: string
-    getPayload: () => Record<string, unknown>
+    /** Form 等：取当前表单提交体；tableMode 下可不传 */
+    getPayload?: () => Record<string, unknown> | Promise<Record<string, unknown>>
+    /** Table：展示操作类型 + JSON 请求体 */
+    tableMode?: boolean
+    /** 允许的 table 动作（与回调、权限在父组件已过滤） */
+    allowedTableActions?: ScheduledTaskAction[]
+    /** 固定动作（用于“新增弹窗/编辑弹窗”内一键创建定时任务） */
+    fixedAction?: ScheduledTaskAction
   }>(),
   {
-    getPayload: () => ({})
+    getPayload: () => ({}),
+    tableMode: false,
+    allowedTableActions: () => [],
+    fixedAction: undefined
   }
 )
 
@@ -81,12 +118,55 @@ const submitting = ref(false)
 
 const form = ref({
   name: '',
+  table_action: 'table_create' as ScheduledTaskAction,
+  payload_json: '',
   schedule_type: 'atime' as 'atime' | 'cron' | 'every',
   run_at: '' as string,
   cron_expr: '',
   interval_seconds: 60,
   max_runs: 0
 })
+
+const allowedActions = computed(() =>
+  (props.allowedTableActions || []).filter(
+    (a) => a === 'table_create' || a === 'table_update' || a === 'table_delete'
+  )
+)
+
+function tableActionLabel(a: ScheduledTaskAction): string {
+  const m: Record<string, string> = {
+    table_create: '新增行',
+    table_update: '更新行',
+    table_delete: '删除行'
+  }
+  return m[a] ?? a
+}
+
+const tablePayloadTip = computed(() => {
+  switch (form.value.table_action) {
+    case 'table_create':
+      return '与表格「新增」提交的数据结构一致（JSON 对象）。'
+    case 'table_update':
+      return '需包含 id 与 updates；执行前会自动按 id 查询当前行并补齐 old_values，避免定时创建时的旧值过期。'
+    case 'table_delete':
+      return '格式：{"ids":[1,2,3]}，与批量删除一致。'
+    default:
+      return ''
+  }
+})
+
+function defaultPayloadJsonForAction(a: ScheduledTaskAction): string {
+  switch (a) {
+    case 'table_create':
+      return '{\n  \n}'
+    case 'table_update':
+      return '{\n  "id": 1,\n  "updates": {\n    \n  }\n}'
+    case 'table_delete':
+      return '{\n  "ids": []\n}'
+    default:
+      return '{}'
+  }
+}
 
 /** 默认执行时间：当前时间往后 1 分钟（用于日期选择器默认展示） */
 function defaultRunAt(): Date {
@@ -103,6 +183,56 @@ function disabledDate(time: Date) {
 
 const rules: FormRules = {
   name: [{ required: true, message: '请输入任务名称', trigger: 'blur' }],
+  payload_json: [
+    {
+      validator: (_rule, value, callback) => {
+        if (!props.tableMode) {
+          callback()
+          return
+        }
+        if (props.fixedAction) {
+          callback()
+          return
+        }
+        const raw = (value as string)?.trim()
+        if (!raw) {
+          callback(new Error('请输入 JSON 请求体'))
+          return
+        }
+        try {
+          const parsed = JSON.parse(raw)
+          if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+            callback(new Error('请求体须为 JSON 对象'))
+            return
+          }
+          const act = form.value.table_action
+          if (act === 'table_delete') {
+            const ids = (parsed as { ids?: unknown }).ids
+            if (!Array.isArray(ids) || ids.length === 0) {
+              callback(new Error('删除需提供非空 ids 数组'))
+              return
+            }
+          }
+          if (act === 'table_update') {
+            const id = (parsed as { id?: unknown }).id
+            if (id === undefined || id === null || id === '') {
+              callback(new Error('更新需提供 id'))
+              return
+            }
+            const updates = (parsed as { updates?: unknown }).updates
+            if (typeof updates !== 'object' || updates === null || Array.isArray(updates)) {
+              callback(new Error('更新需提供 updates 对象'))
+              return
+            }
+          }
+          callback()
+        } catch {
+          callback(new Error('JSON 格式不正确'))
+        }
+      },
+      trigger: 'blur'
+    }
+  ],
   run_at: [
     {
       required: true,
@@ -155,10 +285,14 @@ watch(
     if (open) {
       const runAt = new Date()
       runAt.setMinutes(runAt.getMinutes() + 1)
+      const firstTable =
+        allowedActions.value.length > 0 ? allowedActions.value[0] : 'table_create'
       form.value = {
         name: '',
+        table_action: firstTable,
+        payload_json: props.tableMode ? defaultPayloadJsonForAction(firstTable) : '',
         schedule_type: 'atime',
-        run_at: runAt.toISOString().slice(0, 19) + 'Z',
+        run_at: formatLocalDateTime(runAt),
         cron_expr: '',
         interval_seconds: 60,
         max_runs: 0
@@ -167,13 +301,26 @@ watch(
   }
 )
 
-/** 提交时 atime 用表单选择的 run_at（RFC3339），其他类型用当前时间 */
+watch(
+  () => form.value.table_action,
+  (act) => {
+    if (!props.modelValue || !props.tableMode || !!props.fixedAction) return
+    form.value.payload_json = defaultPayloadJsonForAction(act)
+  }
+)
+
+function formatLocalDateTime(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+/** 提交时 atime 用表单选择的 run_at（本地 datetime），其他类型用当前本地时间 */
 function getRunAtRFC3339(): string {
   if (form.value.schedule_type === 'atime' && form.value.run_at) {
     const d = new Date(form.value.run_at)
-    return d.toISOString().slice(0, 19) + 'Z'
+    return formatLocalDateTime(d)
   }
-  return new Date().toISOString().slice(0, 19) + 'Z'
+  return formatLocalDateTime(new Date())
 }
 
 function handleClose() {
@@ -191,11 +338,23 @@ async function handleSubmit() {
     }
     submitting.value = true
     try {
+      let taskPayload: Record<string, unknown>
+      let action: ScheduledTaskAction = 'execute'
+      if (props.fixedAction) {
+        action = props.fixedAction
+        taskPayload = await props.getPayload!()
+      } else if (props.tableMode) {
+        action = form.value.table_action
+        taskPayload = JSON.parse(form.value.payload_json.trim()) as Record<string, unknown>
+      } else {
+        taskPayload = await props.getPayload!()
+      }
       const payload: CreateScheduledTaskReq = {
         name: form.value.name.trim(),
         full_code_path: props.fullCodePath,
+        action,
         method: 'POST',
-        payload: props.getPayload(),
+        payload: taskPayload,
         schedule_type: form.value.schedule_type,
         run_at: getRunAtRFC3339(),
         max_runs: form.value.max_runs ?? 0

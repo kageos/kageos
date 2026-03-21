@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 )
@@ -104,6 +105,11 @@ func DeleteFile(ctx context.Context, req *dto.DeleteFileReq) (*dto.DeleteFileRes
 	return PostAPI[*dto.DeleteFileReq, *dto.DeleteFileResp](ctx, "/workspace/api/v1/workspace/files/delete", req)
 }
 
+// ReadAppLog 读取应用日志（agent-server -> app-server）
+func ReadAppLog(ctx context.Context, req *dto.ReadAppLogReq) (*dto.ReadAppLogResp, error) {
+	return PostAPI[*dto.ReadAppLogReq, *dto.ReadAppLogResp](ctx, "/workspace/api/v1/workspace/logs/read", req)
+}
+
 // UpdateAppBuild 触发工作空间编译（仅编译不写文件，agent-server -> app-server）
 // 路径为 /api/v1/app/update/{user}/{app}，body 传 {} 即可，只需 user 和 app 即可更新
 func UpdateAppBuild(ctx context.Context, user, app string) (*dto.UpdateAppResp, error) {
@@ -171,4 +177,50 @@ func PushDirectoryToHubViaWorkspace(ctx context.Context, req *dto.PushDirectoryT
 // source_directory_path 可为 hub://host/path@version；target_directory_path 为目标完整路径；target_app_id 由目标路径所在应用决定
 func CopyDirectoryViaWorkspace(ctx context.Context, req *dto.CopyDirectoryReq) (*dto.CopyDirectoryResp, error) {
 	return PostAPI[*dto.CopyDirectoryReq, *dto.CopyDirectoryResp](ctx, "/workspace/api/v1/service_tree/copy", req)
+}
+
+// CreateScheduledTask 创建定时任务（agent-server -> app-server）
+func CreateScheduledTask(ctx context.Context, req *dto.CreateScheduledTaskReq) (*dto.ScheduledTaskItem, error) {
+	return PostAPI[*dto.CreateScheduledTaskReq, *dto.ScheduledTaskItem](ctx, "/workspace/api/v1/scheduled_tasks", req)
+}
+
+// ListScheduledTasks 查询定时任务列表（agent-server -> app-server）
+func ListScheduledTasks(ctx context.Context, fullCodePath, status string, page, pageSize int) (*dto.ListScheduledTasksResp, error) {
+	params := url.Values{}
+	if strings.TrimSpace(fullCodePath) != "" {
+		params.Set("full_code_path", strings.TrimSpace(fullCodePath))
+	}
+	if strings.TrimSpace(status) != "" {
+		params.Set("status", strings.TrimSpace(status))
+	}
+	if page > 0 {
+		params.Set("page", strconv.Itoa(page))
+	}
+	if pageSize > 0 {
+		params.Set("page_size", strconv.Itoa(pageSize))
+	}
+	return GetAPI[*dto.ListScheduledTasksResp](ctx, "/workspace/api/v1/scheduled_tasks", params)
+}
+
+// CancelScheduledTask 取消定时任务（agent-server -> app-server）
+func CancelScheduledTask(ctx context.Context, taskID int64) error {
+	path := fmt.Sprintf("/workspace/api/v1/scheduled_tasks/%d", taskID)
+	_, err := DeleteAPI[map[string]interface{}](ctx, path)
+	return err
+}
+
+// ListScheduledTaskExecutions 查询某任务执行记录（agent-server -> app-server）
+func ListScheduledTaskExecutions(ctx context.Context, taskID int64, status string, page, pageSize int) (*dto.ListScheduledTaskExecutionsResp, error) {
+	params := url.Values{}
+	if strings.TrimSpace(status) != "" {
+		params.Set("status", strings.TrimSpace(status))
+	}
+	if page > 0 {
+		params.Set("page", strconv.Itoa(page))
+	}
+	if pageSize > 0 {
+		params.Set("page_size", strconv.Itoa(pageSize))
+	}
+	path := fmt.Sprintf("/workspace/api/v1/scheduled_tasks/%d/executions", taskID)
+	return GetAPI[*dto.ListScheduledTaskExecutionsResp](ctx, path, params)
 }

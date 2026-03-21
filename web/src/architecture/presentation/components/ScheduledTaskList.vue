@@ -7,6 +7,11 @@
     <el-empty v-if="!loading && list.length === 0" description="暂无定时任务" />
     <el-table v-else :data="list" stripe style="width: 100%">
       <el-table-column prop="name" label="任务名称" min-width="160" show-overflow-tooltip />
+      <el-table-column prop="action" label="动作" width="110">
+        <template #default="{ row }">
+          <el-tag size="small" type="info">{{ actionLabel(row.action) }}</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="schedule_type" label="类型" width="100">
         <template #default="{ row }">
           <el-tag size="small">{{ scheduleTypeLabel(row.schedule_type) }}</el-tag>
@@ -132,6 +137,16 @@ const pageSize = ref(20)
 function scheduleTypeLabel(t: string) {
   const m: Record<string, string> = { atime: '指定时间', cron: 'Cron', every: '每 N 秒' }
   return m[t] ?? t
+}
+
+function actionLabel(a?: string) {
+  const m: Record<string, string> = {
+    execute: '普通执行',
+    table_create: '表格新增',
+    table_update: '表格更新',
+    table_delete: '表格删除'
+  }
+  return a ? (m[a] ?? a) : '普通执行'
 }
 
 function statusTagType(s: string) {

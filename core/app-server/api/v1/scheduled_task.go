@@ -38,7 +38,7 @@ func (s *ScheduledTask) Create(c *gin.Context) {
 	response.OkWithData(c, task)
 }
 
-// List 定时任务列表（当前用户；可选 query full_code_path 按路径过滤）
+// List 定时任务列表（当前用户；可选 query full_code_path：按路径前缀过滤，返回该路径及子路径下的任务）
 func (s *ScheduledTask) List(c *gin.Context) {
 	requestUser := contextx.GetRequestUser(c)
 	if requestUser == "" {
@@ -63,6 +63,7 @@ func (s *ScheduledTask) List(c *gin.Context) {
 			User:         t.User,
 			App:          t.App,
 			FullCodePath: t.FullCodePath,
+			Action:       t.Action,
 			CreatedBy:    t.CreatedBy,
 			ScheduleType: t.ScheduleType,
 			RunAt:        t.RunAt.Format(time.RFC3339),

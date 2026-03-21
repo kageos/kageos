@@ -284,3 +284,27 @@ type DeleteFileResp struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
+
+// ReadAppLogReq 读取应用日志请求（agent-server -> app-server）
+type ReadAppLogReq struct {
+	FullCodePath string `json:"full_code_path" binding:"required"` // 目录完整路径（用于解析 user/app）
+	Version      string `json:"version"`                           // 版本号（如 v48），为空默认当前版本
+	Lines        int    `json:"lines"`                             // 返回行数（默认 200，最大 1000）
+	Keyword      string `json:"keyword"`                           // 关键词（可选）
+	ContextLines int    `json:"context_lines"`                     // 命中上下文行数（可选，默认 2，最大 5）
+	MaxMatches   int    `json:"max_matches"`                       // 最大命中数（可选，默认 50，最大 200）
+	IgnoreCase   bool   `json:"ignore_case"`                       // 关键词是否忽略大小写（可选）
+}
+
+// ReadAppLogResp 读取应用日志响应（app-server -> agent-server）
+type ReadAppLogResp struct {
+	Success         bool   `json:"success"`
+	Message         string `json:"message"`
+	ResolvedVersion string `json:"resolved_version"` // 实际读取的版本
+	LogFile         string `json:"log_file"`         // 日志文件名
+	TotalLines      int    `json:"total_lines"`      // 日志总行数
+	ReturnedLines   int    `json:"returned_lines"`   // 返回行数
+	MatchCount      int    `json:"match_count"`      // 命中数（keyword 模式）
+	Truncated       bool   `json:"truncated"`        // 是否因限制被截断
+	Content         string `json:"content"`          // 日志内容
+}

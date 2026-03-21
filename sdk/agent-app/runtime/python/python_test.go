@@ -2,6 +2,7 @@ package python
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 )
@@ -47,6 +48,7 @@ print(json.dumps(result))
 			executor := NewExecutor(tt.code).
 				WithRequest(tt.args).
 				WithTimeout(30 * time.Second)
+			defer func() { _ = executor.Close() }()
 
 			output, err := executor.Execute(ctx)
 			if (err != nil) != tt.wantErr {
@@ -72,9 +74,8 @@ func TestExecutor_ExecuteJSON(t *testing.T) {
 		{
 			name: "解析 JSON 结果",
 			code: `
-import json
 result = {"sum": a + b, "product": a * b}
-print(json.dumps(result))
+output_json(result)
 `,
 			args: map[string]interface{}{
 				"a": 10,
@@ -94,6 +95,7 @@ print(json.dumps(result))
 			executor := NewExecutor(tt.code).
 				WithRequest(tt.args).
 				WithTimeout(30 * time.Second)
+			defer func() { _ = executor.Close() }()
 
 			err := executor.ExecuteJSON(ctx, &result)
 			if (err != nil) != tt.wantErr {
@@ -115,17 +117,17 @@ func TestExecutor_WithPackages(t *testing.T) {
 
 	// 测试安装包（如果系统有 pandas）
 	code := `
-import json
 import pandas as pd
 
 df = pd.DataFrame([{"a": 1, "b": 2}])
 result = {"rows": len(df), "columns": df.columns.tolist()}
-print(json.dumps(result))
+output_json(result)
 `
 
 	executor := NewExecutor(code).
 		WithPackages("pandas").
 		WithTimeout(2 * time.Minute)
+	defer func() { _ = executor.Close() }()
 
 	output, err := executor.Execute(ctx)
 	if err != nil {
@@ -142,9 +144,8 @@ func TestExecutor_BuilderPattern(t *testing.T) {
 
 	// 测试 Builder 模式的链式调用
 	code := `
-import json
 result = {"message": f"Hello, {name}!", "count": count}
-print(json.dumps(result))
+output_json(result)
 `
 
 	var result struct {
@@ -161,6 +162,7 @@ print(json.dumps(result))
 	executor := NewExecutor(code).
 		WithRequest(request).
 		WithTimeout(30 * time.Second)
+	defer func() { _ = executor.Close() }()
 
 	err := executor.ExecuteJSON(ctx, &result)
 	if err != nil {
@@ -172,4 +174,63 @@ print(json.dumps(result))
 	}
 
 	t.Logf("结果: %+v", result)
+}
+
+func TestExecutor_CloseKeepsWithWorkDir(t *testing.T) {
+	ctx := context.Background()
+	workDir, err := os.MkdirTemp("", "python-exec-workdir-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(workDir)
+
+	code := `
+result = {"ok": true}
+output_json(result)
+`
+	var result struct {
+		OK bool `json:"ok"`
+	}
+	ex := NewExecutor(code).WithWorkDir(workDir).WithTimeout(30 * time.Second)
+	defer func() { _ = ex.Close() }()
+
+	if err := ex.ExecuteJSON(ctx, &result); err != nil {
+		t.Fatal(err)
+	}
+	if !result.OK {
+		t.Fatal("unexpected result")
+	}
+	if _, err := os.Stat(workDir); err != nil {
+		t.Fatalf("WithWorkDir 目录应在 Close 后仍存在: %v", err)
+	}
+}
+
+func TestExecutor_CloseIdempotent(t *testing.T) {
+	ctx := context.Background()
+	code := `
+result = {"a": 1}
+output_json(result)
+`
+	var parsed struct {
+		A int `json:"a"`
+	}
+	ex := NewExecutor(code).WithTimeout(30 * time.Second)
+	if err := ex.ExecuteJSON(ctx, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if err := ex.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := ex.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestExecutor_ExecuteAfterClose(t *testing.T) {
+	ctx := context.Background()
+	ex := NewExecutor(`x = 1`).WithTimeout(5 * time.Second)
+	_ = ex.Close()
+	if _, err := ex.Execute(ctx); err == nil {
+		t.Fatal("Close 后 Execute 应返回错误")
+	}
 }

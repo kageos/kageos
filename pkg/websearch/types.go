@@ -6,5 +6,5 @@ type Result struct {
 	URL     string `json:"url"`
 	Snippet string `json:"snippet"`
 	Body    string `json:"body"`   // 正文（部分源可拉取，如 Wikipedia API）
-	Source  string `json:"source"` // "bing"
+	Source  string `json:"source"` // "baidu" | "bing"
 }

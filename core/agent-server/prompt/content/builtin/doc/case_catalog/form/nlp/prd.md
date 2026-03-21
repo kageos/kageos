@@ -4,7 +4,7 @@
 
 - **类型**：单 Form，POST，无 Table。
 - **路由**：jieba_segment.form（分词/词频）；路由组 `/form/nlp`。
-- **适合参考**：无 files 或可选、text_area/select/number/switch、响应里 table、Python runtime（若用 jieba）。
+- **适合参考**：无 files 或可选、text_area/select/number/switch、响应里 table、**pythonRuntime**（jieba）；须 **`defer executor.Close()`**；Go 与 Python **同机子进程**，非隔离远程环境。
 
 ---
 
@@ -162,6 +162,7 @@ func DoJiebaSegment(ctx *app.Context, req *JiebaSegmentReq) (*JiebaSegmentResp, 
 	executor := pythonRuntime.NewExecutor(pythonCode).
 		WithRequest(pythonReq).
 		WithTimeout(30 * time.Second)
+	defer func() { _ = executor.Close() }()
 
 	var result struct {
 		Words      []string       `json:"words"`

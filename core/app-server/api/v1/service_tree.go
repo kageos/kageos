@@ -979,3 +979,24 @@ func (s *ServiceTree) DeleteFile(c *gin.Context) {
 	}
 	response.OkWithData(c, resp)
 }
+
+// ReadAppLog 读取应用日志（支持 version、关键词检索）
+// POST /api/v1/workspace/logs/read
+func (s *ServiceTree) ReadAppLog(c *gin.Context) {
+	var req dto.ReadAppLogReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	if req.FullCodePath == "" {
+		response.FailWithMessage(c, "full_code_path 必填")
+		return
+	}
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.ReadAppLog(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, "读取日志失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, resp)
+}

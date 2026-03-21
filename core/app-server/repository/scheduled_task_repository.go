@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"strings"
+
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"gorm.io/gorm"
 )
@@ -40,7 +42,7 @@ func (r *ScheduledTaskRepository) ListAllPending() ([]*model.ScheduledTask, erro
 	return list, err
 }
 
-// ListByUser 分页列表（按创建人；可选按 full_code_path 过滤；按创建时间倒序），可按 status 筛选
+// ListByUser 分页列表（按创建人；可选按 full_code_path 前缀过滤：匹配该路径本身及其子路径下的任务；按创建时间倒序），可按 status 筛选
 func (r *ScheduledTaskRepository) ListByUser(createdBy string, status string, fullCodePath string, offset, limit int) ([]*model.ScheduledTask, int64, error) {
 	var list []*model.ScheduledTask
 	query := r.db.Model(&model.ScheduledTask{}).Where("created_by = ?", createdBy)
@@ -48,7 +50,9 @@ func (r *ScheduledTaskRepository) ListByUser(createdBy string, status string, fu
 		query = query.Where("status = ?", status)
 	}
 	if fullCodePath != "" {
-		query = query.Where("full_code_path = ?", fullCodePath)
+		prefix := strings.TrimSuffix(strings.TrimSpace(fullCodePath), "/")
+		// 目录节点下列出子函数上的任务：/a/b 匹配 /a/b 与 /a/b/...；用 "/%" 避免 /a/b 误匹配 /a/b-extra
+		query = query.Where("full_code_path = ? OR full_code_path LIKE ?", prefix, prefix+"/%")
 	}
 	var total int64
 	if err := query.Count(&total).Error; err != nil {

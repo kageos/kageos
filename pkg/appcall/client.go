@@ -139,6 +139,15 @@ func (c *Client) DeleteFile(ctx context.Context, hostId int64, req *dto.DeleteFi
 	return &resp, nil
 }
 
+// ReadAppLog 读取应用日志（subject: app_server.app_runtime.read_app_log）
+func (c *Client) ReadAppLog(ctx context.Context, hostId int64, req *dto.ReadAppLogRuntimeReq) (*dto.ReadAppLogRuntimeResp, error) {
+	var resp dto.ReadAppLogRuntimeResp
+	if err := c.requestByHost(ctx, hostId, "app_server.app_runtime.read_app_log", req, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // BatchCreateDirectoryTree 批量创建目录树（subject: app_server.app_runtime.batch_create_directory_tree）
 func (c *Client) BatchCreateDirectoryTree(ctx context.Context, hostId int64, req *dto.BatchCreateDirectoryTreeRuntimeReq) (*dto.BatchCreateDirectoryTreeRuntimeResp, error) {
 	var resp dto.BatchCreateDirectoryTreeRuntimeResp

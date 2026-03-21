@@ -159,7 +159,7 @@ func (c *KimiClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse,
 		apiReq["max_tokens"] = 4096
 	}
 	if req.Temperature == 0 {
-		apiReq["temperature"] = 0.6
+		apiReq["temperature"] = 0.1
 	}
 
 	timeout := c.Options.Timeout
@@ -255,7 +255,7 @@ func (c *KimiClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *
 			apiReq["max_tokens"] = 4096
 		}
 		if req.Temperature == 0 {
-			apiReq["temperature"] = 0.6
+			apiReq["temperature"] = 0.1
 		}
 
 		timeout := c.Options.Timeout

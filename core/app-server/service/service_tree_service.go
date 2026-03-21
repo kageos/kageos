@@ -4084,3 +4084,51 @@ func (s *ServiceTreeService) DeleteFile(ctx context.Context, req *dto.DeleteFile
 	}
 	return &dto.DeleteFileResp{Success: true, Message: "已删除"}, nil
 }
+
+// ReadAppLog 读取应用日志（支持 version、关键词检索）
+func (s *ServiceTreeService) ReadAppLog(ctx context.Context, req *dto.ReadAppLogReq) (*dto.ReadAppLogResp, error) {
+	detail, err := s.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{FullCodePath: req.FullCodePath})
+	if err != nil {
+		return nil, fmt.Errorf("获取目录详情失败: %w", err)
+	}
+	if detail.AppID <= 0 {
+		return nil, fmt.Errorf("该目录不属于应用")
+	}
+	appModel, err := s.appRepo.GetAppByID(detail.AppID)
+	if err != nil || appModel == nil {
+		return nil, fmt.Errorf("获取应用失败: %w", err)
+	}
+	if appModel.HostID <= 0 {
+		return nil, fmt.Errorf("该应用未绑定 runtime，无法读取日志")
+	}
+
+	version := strings.TrimSpace(req.Version)
+	if version == "" {
+		version = strings.TrimSpace(appModel.Version)
+	}
+	runtimeReq := &dto.ReadAppLogRuntimeReq{
+		User:         appModel.User,
+		App:          appModel.Code,
+		Version:      version,
+		Lines:        req.Lines,
+		Keyword:      req.Keyword,
+		ContextLines: req.ContextLines,
+		MaxMatches:   req.MaxMatches,
+		IgnoreCase:   req.IgnoreCase,
+	}
+	resp, err := s.appCall.ReadAppLog(ctx, appModel.HostID, runtimeReq)
+	if err != nil {
+		return nil, fmt.Errorf("读取日志失败: %w", err)
+	}
+	return &dto.ReadAppLogResp{
+		Success:         resp.Success,
+		Message:         resp.Message,
+		ResolvedVersion: resp.ResolvedVersion,
+		LogFile:         resp.LogFile,
+		TotalLines:      resp.TotalLines,
+		ReturnedLines:   resp.ReturnedLines,
+		MatchCount:      resp.MatchCount,
+		Truncated:       resp.Truncated,
+		Content:         resp.Content,
+	}, nil
+}

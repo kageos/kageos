@@ -5,11 +5,6 @@
     "when_to_use": "生成系统/应用/代码前必读。框架用法：结构体标签、Table/Form/Chart 模式、注册方式、目录约定。"
   },
   {
-    "name": "平台能力边界",
-    "full_code_path": "/builtin/doc/workspace/platform-capability-boundaries",
-    "when_to_use": "评审需求可行性前必读。涉及去水印、复杂图像/视频处理、纯前端、实时通信、第三方API 或不确定能否实现时，先 read_doc 本文档再回答。"
-  },
-  {
     "name": "案例：Excel/CSV 工具（单 Form）",
     "full_code_path": "/builtin/doc/case_catalog/form/excelorcsv",
     "when_to_use": "关键特性：`文件上传(files)` `excelize库` `多POST同目录` `文件转换`"
@@ -22,12 +17,17 @@
   {
     "name": "案例：NLP 工具（单 Form）",
     "full_code_path": "/builtin/doc/case_catalog/form/nlp",
-    "when_to_use": "关键特性：`调用Python(exec.Command python3)` `响应中含table组件` `文本处理`"
+    "when_to_use": "关键特性：`pythonRuntime` `defer Close` `jieba` `响应中含table组件` `同机Python子进程`"
   },
   {
     "name": "案例：PDF 工具（单 Form）",
     "full_code_path": "/builtin/doc/case_catalog/form/pdf",
     "when_to_use": "关键特性：`文件上传(files)` `Poppler(pdftotext/pdftoppm)` `Ghostscript(gs)` `exec.Command调用可执行程序`"
+  },
+  {
+    "name": "案例：Python 容器内产物输出（单 Form）",
+    "full_code_path": "/builtin/doc/case_catalog/form/python_output",
+    "when_to_use": "关键特性：`pythonRuntime` `defer Close` `绝对路径落盘` `output_json` `GetTraceOutputDir` `ResponseFiles` `响应types.Files` `用户可下载附件` `同机子进程` `非宿主机`"
   },
   {
     "name": "案例：视频工具（单 Form）",

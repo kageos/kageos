@@ -4,9 +4,17 @@
 
 import { get, post, del } from '@/utils/request'
 
+/** 与后端一致：execute=普通函数；table_*=表格增改删（走 /_callback） */
+export type ScheduledTaskAction =
+  | 'execute'
+  | 'table_create'
+  | 'table_update'
+  | 'table_delete'
+
 export interface CreateScheduledTaskReq {
   name: string
   full_code_path: string
+  action?: ScheduledTaskAction
   method?: string
   payload?: Record<string, unknown> | string
   request_user?: string
@@ -25,6 +33,7 @@ export interface ScheduledTaskItem {
   user: string
   app: string
   full_code_path: string
+  action?: string
   created_by: string
   schedule_type: string
   run_at: string
@@ -63,6 +72,7 @@ export function createScheduledTask(data: CreateScheduledTaskReq): Promise<Sched
   return post<ScheduledTaskItem>('/workspace/api/v1/scheduled_tasks', {
     name: data.name,
     full_code_path: data.full_code_path,
+    action: data.action ?? 'execute',
     method: data.method || 'POST',
     payload,
     request_user: data.request_user,
@@ -76,6 +86,7 @@ export function createScheduledTask(data: CreateScheduledTaskReq): Promise<Sched
   })
 }
 
+/** full_code_path 为前缀：返回该路径及子路径下的任务（目录节点可看到子表单的定时任务） */
 export function listScheduledTasks(params: {
   full_code_path?: string
   status?: string

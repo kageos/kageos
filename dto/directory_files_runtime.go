@@ -90,3 +90,28 @@ type DeleteFileRuntimeResp struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
+
+// ReadAppLogRuntimeReq 读取应用日志请求（app-server -> app-runtime）
+type ReadAppLogRuntimeReq struct {
+	User         string `json:"user" binding:"required"` // 租户用户名
+	App          string `json:"app" binding:"required"`  // 应用名
+	Version      string `json:"version"`                 // 版本号（如 v48），为空时由 app-server 先解析当前版本
+	Lines        int    `json:"lines"`                   // 返回行数（无 keyword 时用于 tail；有 keyword 时用于输出上限）
+	Keyword      string `json:"keyword"`                 // 关键词（可选）
+	ContextLines int    `json:"context_lines"`           // 命中上下文行数（可选）
+	MaxMatches   int    `json:"max_matches"`             // 最大命中数（可选）
+	IgnoreCase   bool   `json:"ignore_case"`             // 关键词是否忽略大小写（可选）
+}
+
+// ReadAppLogRuntimeResp 读取应用日志响应（app-runtime -> app-server）
+type ReadAppLogRuntimeResp struct {
+	Success         bool   `json:"success"`
+	Message         string `json:"message"`
+	ResolvedVersion string `json:"resolved_version"` // 实际读取的版本
+	LogFile         string `json:"log_file"`         // 日志文件名
+	TotalLines      int    `json:"total_lines"`      // 日志总行数
+	ReturnedLines   int    `json:"returned_lines"`   // 返回行数
+	MatchCount      int    `json:"match_count"`      // 命中数（keyword 模式）
+	Truncated       bool   `json:"truncated"`        // 是否因限制被截断
+	Content         string `json:"content"`          // 日志内容
+}
