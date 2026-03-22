@@ -97,8 +97,15 @@
                 >
                   复制
                 </el-button>
+                <el-button
+                  :loading="exportBundleLoading"
+                  :icon="Download"
+                  @click="handleExportInstallBundle"
+                >
+                  导出 JSON 安装包
+                </el-button>
               </div>
-              <p class="install-link-hint">在工作空间中点击「从应用中心安装」后粘贴此链接即可</p>
+              <p class="install-link-hint">在工作空间中点击「从应用中心安装」后粘贴 Hub 链接，或选「离线 JSON」并上传此处的安装包文件</p>
             </div>
             <div v-if="directoryDetail?.version_description" class="hero-version-desc">
               <span class="version-desc-label">本版本更新说明：</span>
@@ -470,7 +477,8 @@ import {
   Operation,
   User,
   Clock,
-  Star
+  Star,
+  Download
 } from '@element-plus/icons-vue'
 import { ElMessage, ElTag } from 'element-plus'
 import {
@@ -499,6 +507,7 @@ const directoryDetail = ref<HubDirectoryDetail | null>(null)
 const versionList = ref<HubDirectoryVersionItem[]>([])
 const selectedVersion = ref<string>('') // 空表示当前查看的是「最新版本」
 const starLoading = ref(false)
+const exportBundleLoading = ref(false)
 const localHasStarred = ref(false) // 本地加星状态（刷新后不持久，仅当次会话）
 // 主站前端地址（从 Hub 配置接口获取，用于「试用」跳转：主站前端 + /workspace + 目录路径；不是主站后端）
 const mainSiteUrl = ref('')
@@ -926,6 +935,48 @@ const handleCopyInstallLink = async () => {
   }
 }
 
+// 导出含完整 directory_tree（含文件内容）的 JSON，供主站「离线 JSON」安装
+const handleExportInstallBundle = async () => {
+  const pathOrId = getPathOrId()
+  if (!pathOrId) {
+    ElMessage.warning('无法导出')
+    return
+  }
+  exportBundleLoading.value = true
+  try {
+    const ver = selectedVersion.value || undefined
+    const detail =
+      typeof pathOrId === 'object' && 'id' in pathOrId
+        ? await getHubDirectoryDetail(pathOrId.id, true, ver)
+        : await getHubDirectoryDetailByPath(pathOrId as string, true, ver)
+    if (!detail.directory_tree) {
+      ElMessage.warning('当前版本没有可导出的目录树数据')
+      return
+    }
+    const payload = {
+      hub_bundle_format: 'ai-agent-os-hub-directory',
+      hub_bundle_version: 1,
+      exported_at: new Date().toISOString(),
+      ...detail
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' })
+    const a = document.createElement('a')
+    const rawName = detail.full_code_path || 'hub-directory'
+    const safe = rawName.replace(/\//g, '_').replace(/^_+/, '') || 'hub-directory'
+    const verLabel = (detail.version || 'latest').replace(/[^a-zA-Z0-9._-]+/g, '_')
+    a.download = `hub-bundle-${safe}-v${verLabel}.json`
+    const url = URL.createObjectURL(blob)
+    a.href = url
+    a.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('已开始下载安装包')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '导出失败')
+  } finally {
+    exportBundleLoading.value = false
+  }
+}
+
 // 加星（需登录）
 const handleStar = async () => {
   if (!directoryDetail.value?.id) return
@@ -1235,6 +1286,7 @@ onMounted(() => {
             }
             .install-link-row {
               display: flex;
+              flex-wrap: wrap;
               gap: 8px;
               align-items: center;
 

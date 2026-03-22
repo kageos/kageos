@@ -12,5 +12,5 @@ if podman image exists ai-agent-os:latest 2>/dev/null; then
 fi
 
 echo "==> 构建用户应用基础镜像 ai-agent-os:latest（首次约 10–20 分钟）..."
-podman build -t ai-agent-os:latest -f podman/Dockerfile.app-base .
+podman build -t ai-agent-os:latest -f deploy/podman/Dockerfile.app-base .
 echo "==> 完成：ai-agent-os:latest"

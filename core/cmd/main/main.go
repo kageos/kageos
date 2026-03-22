@@ -102,13 +102,13 @@ func main() {
 	defer cancel()
 
 	fmt.Println("========================================")
-	fmt.Println("  AI Agent OS - 统一启动入口")
+	fmt.Println("  AI Agent OS - 统一启动入口（Embedding）")
 	fmt.Println("========================================")
-	fmt.Println("  ⚠️  重要提示：")
-	fmt.Println("  - 此入口仅用于开发环境，提升开发效率")
-	fmt.Println("  - 生产环境必须使用独立启动方式")
-	fmt.Println("  - 每个服务都可以独立启动（见各服务的 cmd/app/main.go）")
-	fmt.Println("  - 生产环境请使用容器编排工具（如 Kubernetes）独立部署")
+	fmt.Println("  说明：")
+	fmt.Println("  - 生产默认 prod：不设 APP_ENV 即读 deploy/config/prod（不必写 APP_ENV=prod）")
+	fmt.Println("  - 开发：APP_ENV=dev 读 deploy/config/dev（可用 AI_AGENT_OS_ROOT 指定仓库根）")
+	fmt.Println("  - 一机一实例生产：见 deploy/embedding/README.md（裸机 + Podman 起中间件）")
+	fmt.Println("  - 亦可拆分为各服务独立进程（各服务 cmd/app/main.go）或 K8s 分布式部署")
 	fmt.Println("========================================")
 
 	// 初始化统一的日志系统（只初始化一次，所有服务共享）

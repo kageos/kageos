@@ -28,7 +28,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends tini \
 # e2fsprogs 提供 chattr/lsattr，用于 start.sh 对 workplace 做 +a 保护（禁止容器内删除）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    curl \
     file \
+    jq \
+    less \
+    qpdf \
+    ripgrep \
+    sqlite3 \
+    unzip \
+    zip \
     e2fsprogs \
     tzdata \
     ghostscript \
@@ -142,6 +150,13 @@ RUN echo "=== 验证安装 ===" && \
     echo "Pandoc:" && pandoc --version 2>/dev/null | head -n 1 && \
     echo "Tesseract:" && tesseract --version 2>/dev/null | head -n 1 && \
     echo "Graphviz:" && dot -V 2>&1 | head -n 1 && \
+    echo "CLI (子进程常用):" && \
+    jq --version && \
+    curl --version | head -n 1 && \
+    sqlite3 --version && \
+    zip -v | head -n 1 && \
+    rg --version | head -n 1 && \
+    qpdf --version | head -n 1 && \
     echo "Python 核心包:" && \
     python3 -c "import pandas; print('  pandas', pandas.__version__)" && \
     python3 -c "import numpy; print('  numpy', numpy.__version__)" && \

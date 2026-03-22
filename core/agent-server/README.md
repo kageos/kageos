@@ -34,7 +34,7 @@ core/agent-server/
 
 ## 配置
 
-配置文件位于 `configs/agent-server.yaml`：
+配置文件位于 **`deploy/config/{dev|prod}/agent-server.yaml`**（由 `APP_ENV` 决定，默认 `prod`）：
 
 ```yaml
 server:

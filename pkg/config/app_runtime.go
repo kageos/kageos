@@ -173,7 +173,7 @@ func (c *AppRuntimeConfig) GetContainerCleanupTimeout() int {
 	return c.Timeouts.ContainerCleanup
 }
 
-// loadYAMLConfig 加载 YAML 配置文件（仅从 configs/dev 或 configs/prod 解析，由 APP_ENV 决定）。
+// loadYAMLConfig 加载 YAML 配置文件（仅从 deploy/config/{dev|prod}/ 解析，由 APP_ENV 决定）。
 // 加载成功时打印实际使用的配置路径，避免糊涂账。
 func loadYAMLConfig(filename string, config interface{}) error {
 	configPath := findConfigFile(filename)
@@ -213,7 +213,7 @@ func loadYAMLConfig(filename string, config interface{}) error {
 }
 
 // getConfigEnv 返回当前配置环境：仅 dev 为开发，其余（含未设）均为 prod
-// 本机开发时设置 APP_ENV=dev 用 configs/dev/；不设或 APP_ENV=prod 用 configs/prod/
+// 仅 APP_ENV=dev 用 deploy/config/dev/；未设置或其它值 → deploy/config/prod（无需显式设 APP_ENV=prod）
 func getConfigEnv() string {
 	e := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
 	if e == "dev" {
@@ -222,50 +222,59 @@ func getConfigEnv() string {
 	return "prod" // 未设或任意其他值都当 prod
 }
 
-// findProjectRoot 从 dir 向上查找包含 go.mod 或 configs 的目录作为项目根
-func findProjectRoot(dir string) string {
-	dir, _ = filepath.Abs(dir)
-	for {
-		if dir == "" || dir == "/" || len(dir) <= 1 {
-			return ""
-		}
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir
-		}
-		if _, err := os.Stat(filepath.Join(dir, "configs")); err == nil {
-			return dir
-		}
-		dir = filepath.Dir(dir)
-	}
+// configPathForEnv 在给定项目根下，唯一配置路径：deploy/config/{env}/<file>
+func configPathForEnv(root, env, baseName string) string {
+	return filepath.Join(filepath.Clean(root), "deploy", "config", env, baseName)
 }
 
-// findConfigFile 查找配置文件
-// 只从 configs/dev/ 或 configs/prod/ 读；先按 cwd 相对路径试，再按项目根（向上找 go.mod/configs）试
+// findConfigFile 查找配置文件：deploy/config/{env}/<filename>
 func findConfigFile(filename string) string {
 	env := getConfigEnv()
 	baseName := filepath.Base(filename)
-	wantPath := filepath.Join("configs", env, baseName)
 
-	// 1. 相对 cwd 的常见层级
-	for _, rel := range []string{"", "..", "../..", "../../..", "../../../..", "../../../../.."} {
-		var path string
-		if rel == "" {
-			path = wantPath
-		} else {
-			path = filepath.Join(rel, wantPath)
+	tryPrefix := func(prefix string) string {
+		p := configPathForEnv(prefix, env, baseName)
+		if _, err := os.Stat(p); err == nil {
+			return p
 		}
-		if _, err := os.Stat(path); err == nil {
-			return path
+		return ""
+	}
+
+	// 0. 显式根目录
+	if root := GetAgentOSRoot(); root != "" {
+		if p := tryPrefix(root); p != "" {
+			return p
 		}
 	}
 
-	// 2. 从 cwd 向上找到项目根，再找 configs/{env}/baseName
-	if cwd, _ := os.Getwd(); cwd != "" {
-		if root := findProjectRoot(cwd); root != "" {
-			path := filepath.Join(root, wantPath)
-			if _, err := os.Stat(path); err == nil {
-				return path
+	// 1. 相对 cwd 的常见层级
+	if cwd, err := os.Getwd(); err == nil && cwd != "" {
+		for _, rel := range []string{".", "..", "../..", "../../..", "../../../..", "../../../../.."} {
+			var base string
+			if rel == "." {
+				base = cwd
+			} else {
+				base = filepath.Join(cwd, rel)
 			}
+			base, _ = filepath.Abs(base)
+			if p := tryPrefix(base); p != "" {
+				return p
+			}
+		}
+	}
+
+	// 2. 从 cwd 逐级向上，在每个祖先目录尝试（不依赖预先解析的根）
+	if cwd, err := os.Getwd(); err == nil && cwd != "" {
+		dir, _ := filepath.Abs(cwd)
+		for dir != "" {
+			if p := tryPrefix(dir); p != "" {
+				return p
+			}
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
 		}
 	}
 

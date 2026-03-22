@@ -168,3 +168,30 @@ export async function pullDirectoryFromHub(
   )
 }
 
+/** 离线安装包：directory_tree 与 Hub 详情/发布接口结构一致 */
+export interface ImportHubDirectoryBundleReq {
+  target_user: string
+  target_app: string
+  target_directory_path?: string
+  directory_tree: Record<string, unknown>
+  hub_full_code_path?: string
+  hub_version_num?: number
+  hub_directory_name?: string
+}
+
+/**
+ * 从离线 JSON 安装目录（与 Hub 详情页「导出 JSON 安装包」格式兼容）
+ */
+export async function importHubDirectoryBundle(
+  data: ImportHubDirectoryBundleReq
+): Promise<PullDirectoryFromHubResp> {
+  if (!isHubEnabled()) {
+    throw new Error('Hub is disabled. Please set VITE_HUB_ENABLED=true')
+  }
+
+  return post<PullDirectoryFromHubResp>(
+    '/workspace/api/v1/service_tree/import_hub_bundle',
+    data
+  )
+}
+

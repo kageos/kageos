@@ -3412,6 +3412,93 @@ func ParseHubLink(hubLink string) (*HubLinkInfo, error) {
 	}, nil
 }
 
+// installDirectoryTreeFromHubSnapshot 将 Hub 快照目录树安装到工作空间（批量建目录、写文件、可选 Hub 绑定）
+func (s *ServiceTreeService) installDirectoryTreeFromHubSnapshot(
+	ctx context.Context,
+	tree *dto.DirectoryTreeNode,
+	targetApp *model.App,
+	targetPath string,
+	hubFullCodePath string,
+	hubVersionNum int,
+	hubDirectoryName string,
+	successMessagePrefix string,
+) (*dto.PullDirectoryFromHubResp, error) {
+	if tree == nil {
+		return nil, fmt.Errorf("目录树为空")
+	}
+
+	directoryItems := make([]*dto.DirectoryTreeItem, 0)
+	fileItems := make([]*dto.DirectoryTreeItem, 0)
+	s.buildItemsFromTree(tree, targetPath, &directoryItems, &fileItems)
+
+	if len(directoryItems) > 0 {
+		batchCreateReq := &dto.BatchCreateDirectoryTreeReq{
+			User:  targetApp.User,
+			App:   targetApp.Code,
+			Items: directoryItems,
+		}
+		batchCreateResp, err := s.BatchCreateDirectoryTree(ctx, batchCreateReq)
+		if err != nil {
+			return nil, fmt.Errorf("批量创建目录失败: %w", err)
+		}
+		logger.Infof(ctx, "[%s] 批量创建目录完成: directoryCount=%d", successMessagePrefix, batchCreateResp.DirectoryCount)
+	}
+
+	if len(fileItems) > 0 {
+		batchWriteReq := &dto.BatchWriteFilesReq{
+			User:  targetApp.User,
+			App:   targetApp.Code,
+			Files: fileItems,
+		}
+		batchWriteResp, err := s.BatchWriteFiles(ctx, batchWriteReq)
+		if err != nil {
+			return nil, fmt.Errorf("批量写文件失败: %w", err)
+		}
+		logger.Infof(ctx, "[%s] 批量写文件完成: fileCount=%d", successMessagePrefix, batchWriteResp.FileCount)
+	}
+
+	rootDirPath := targetPath
+	if tree.Code != "" {
+		rootDirPath = fmt.Sprintf("%s/%s", targetPath, tree.Code)
+	}
+	rootTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(rootDirPath)
+	if err != nil {
+		logger.Warnf(ctx, "[%s] 获取根目录 ServiceTree 失败: path=%s, error=%v", successMessagePrefix, rootDirPath, err)
+	}
+
+	if rootTree != nil && hubFullCodePath != "" {
+		rootTree.HubFullCodePath = hubFullCodePath
+		rootTree.HubVersionNum = hubVersionNum
+		if err := s.serviceTreeRepo.UpdateServiceTree(rootTree); err != nil {
+			logger.Warnf(ctx, "[%s] 更新ServiceTree的Hub信息失败: treeID=%d, hubFullCodePath=%s, error=%v",
+				successMessagePrefix, rootTree.ID, hubFullCodePath, err)
+		} else {
+			logger.Infof(ctx, "[%s] 成功建立双向绑定: treeID=%d, hubFullCodePath=%s, hubVersion=%s",
+				successMessagePrefix, rootTree.ID, hubFullCodePath, fmt.Sprintf("v%d", rootTree.HubVersionNum))
+		}
+	}
+
+	displayName := hubDirectoryName
+	if displayName == "" {
+		displayName = tree.Name
+	}
+
+	var serviceTreeID int64
+	if rootTree != nil {
+		serviceTreeID = rootTree.ID
+	}
+
+	return &dto.PullDirectoryFromHubResp{
+		Message:             fmt.Sprintf("%s，共安装 %d 个目录，%d 个文件", successMessagePrefix, len(directoryItems), len(fileItems)),
+		DirectoryCount:      len(directoryItems),
+		FileCount:           len(fileItems),
+		TargetDirectoryPath: rootDirPath,
+		ServiceTreeID:       serviceTreeID,
+		HubDirectoryName:    displayName,
+		HubVersionNum:       hubVersionNum,
+	}, nil
+}
+
 // PullDirectoryFromHub 从 Hub 拉取目录到工作空间（类似 git pull）
 func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.PullDirectoryFromHubReq) (*dto.PullDirectoryFromHubResp, error) {
 	// 1. 解析 Hub 链接
@@ -3451,87 +3538,31 @@ func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.
 		targetPath = fmt.Sprintf("/%s/%s", targetApp.User, targetApp.Code)
 	}
 
-	// 6. 从 DirectoryTree 构建批量创建请求
 	if hubDetail.DirectoryTree == nil {
 		return nil, fmt.Errorf("Hub 目录树为空")
 	}
 
-	// 6.1 构建目录项列表
-	directoryItems := make([]*dto.DirectoryTreeItem, 0)
-	fileItems := make([]*dto.DirectoryTreeItem, 0)
+	return s.installDirectoryTreeFromHubSnapshot(ctx, hubDetail.DirectoryTree, targetApp, targetPath,
+		hubDetail.FullCodePath, hubDetail.VersionNum, hubDetail.Name,
+		"从 Hub 安装目录成功")
+}
 
-	// 递归遍历目录树，构建目录和文件项
-	s.buildItemsFromTree(hubDetail.DirectoryTree, targetPath, &directoryItems, &fileItems)
-
-	// 7. 先批量创建目录
-	if len(directoryItems) > 0 {
-		batchCreateReq := &dto.BatchCreateDirectoryTreeReq{
-			User:  req.TargetUser,
-			App:   req.TargetApp,
-			Items: directoryItems,
-		}
-
-		batchCreateResp, err := s.BatchCreateDirectoryTree(ctx, batchCreateReq)
-		if err != nil {
-			return nil, fmt.Errorf("批量创建目录失败: %w", err)
-		}
-
-		logger.Infof(ctx, "[PullDirectoryFromHub] 批量创建目录完成: directoryCount=%d", batchCreateResp.DirectoryCount)
-	}
-
-	// 8. 再批量写文件（会编译并返回 diff）
-	if len(fileItems) > 0 {
-		batchWriteReq := &dto.BatchWriteFilesReq{
-			User:  req.TargetUser,
-			App:   req.TargetApp,
-			Files: fileItems,
-		}
-
-		batchWriteResp, err := s.BatchWriteFiles(ctx, batchWriteReq)
-		if err != nil {
-			return nil, fmt.Errorf("批量写文件失败: %w", err)
-		}
-		logger.Infof(ctx, "[PullDirectoryFromHub] 批量写文件完成: fileCount=%d", batchWriteResp.FileCount)
-	}
-
-	// 9. 获取根目录的 ServiceTree ID（用于建立双向绑定）
-	// 直接使用 Code 字段
-	rootDirPath := targetPath
-	if hubDetail.DirectoryTree != nil && hubDetail.DirectoryTree.Code != "" {
-		rootDirPath = fmt.Sprintf("%s/%s", targetPath, hubDetail.DirectoryTree.Code)
-	}
-	rootTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(rootDirPath)
+// ImportHubDirectoryBundle 从离线 JSON 包安装目录（不访问 Hub，不增加下载次数）
+func (s *ServiceTreeService) ImportHubDirectoryBundle(ctx context.Context, req *dto.ImportHubDirectoryBundleReq) (*dto.PullDirectoryFromHubResp, error) {
+	targetApp, err := s.appRepo.GetAppByUserName(req.TargetUser, req.TargetApp)
 	if err != nil {
-		logger.Warnf(ctx, "[PullDirectoryFromHub] 获取根目录 ServiceTree 失败: path=%s, error=%v", targetPath, err)
+		return nil, fmt.Errorf("获取目标应用失败: %w", err)
 	}
-
-	// 10. 建立双向绑定：更新根目录节点的 HubFullCodePath、版本信息
-	if rootTree != nil && hubDetail.FullCodePath != "" {
-		rootTree.HubFullCodePath = hubDetail.FullCodePath
-		rootTree.HubVersionNum = hubDetail.VersionNum
-		if err := s.serviceTreeRepo.UpdateServiceTree(rootTree); err != nil {
-			logger.Warnf(ctx, "[PullDirectoryFromHub] 更新ServiceTree的Hub信息失败: treeID=%d, hubFullCodePath=%s, error=%v",
-				rootTree.ID, hubDetail.FullCodePath, err)
-		} else {
-			logger.Infof(ctx, "[PullDirectoryFromHub] 成功建立双向绑定: treeID=%d, hubFullCodePath=%s, hubVersion=%s", rootTree.ID, hubDetail.FullCodePath, fmt.Sprintf("v%d", rootTree.HubVersionNum))
-		}
+	targetPath := req.TargetDirectoryPath
+	if targetPath == "" {
+		targetPath = fmt.Sprintf("/%s/%s", targetApp.User, targetApp.Code)
 	}
-
-	return &dto.PullDirectoryFromHubResp{
-		Message:             fmt.Sprintf("从 Hub 安装目录成功，共安装 %d 个目录，%d 个文件", len(directoryItems), len(fileItems)),
-		DirectoryCount:      len(directoryItems),
-		FileCount:           len(fileItems),
-		TargetDirectoryPath: rootDirPath,
-		ServiceTreeID: func() int64 {
-			if rootTree != nil {
-				return rootTree.ID
-			} else {
-				return 0
-			}
-		}(),
-		HubDirectoryName: hubDetail.Name,
-		HubVersionNum:    hubDetail.VersionNum,
-	}, nil
+	if req.DirectoryTree == nil {
+		return nil, fmt.Errorf("目录树为空")
+	}
+	return s.installDirectoryTreeFromHubSnapshot(ctx, req.DirectoryTree, targetApp, targetPath,
+		req.HubFullCodePath, req.HubVersionNum, req.HubDirectoryName,
+		"从离线包安装目录成功")
 }
 
 // BatchWriteFiles 批量写文件（app-server 端，调用 runtime）

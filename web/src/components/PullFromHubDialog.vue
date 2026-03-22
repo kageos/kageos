@@ -2,7 +2,7 @@
   <el-dialog
     v-model="dialogVisible"
     title="从应用中心安装目录"
-    width="600px"
+    width="640px"
     :close-on-click-modal="false"
     @close="handleClose"
   >
@@ -13,6 +13,14 @@
       label-width="120px"
       v-loading="loading"
     >
+      <el-form-item label="安装方式">
+        <el-radio-group v-model="installMode" class="install-mode-group">
+          <el-radio-button value="hub_link">Hub 链接</el-radio-button>
+          <el-radio-button value="json_bundle">离线 JSON</el-radio-button>
+        </el-radio-group>
+      </el-form-item>
+
+      <template v-if="installMode === 'hub_link'">
       <el-form-item label="Hub 链接" prop="hub_link">
         <el-input
           v-model="form.hub_link"
@@ -27,6 +35,32 @@
           从应用中心复制 Hub 链接，粘贴到这里即可自动安装
         </el-text>
       </el-form-item>
+      </template>
+
+      <template v-else>
+      <el-form-item label="安装包 JSON">
+        <el-input
+          v-model="bundleJsonText"
+          type="textarea"
+          :rows="10"
+          placeholder="粘贴从应用中心详情页「导出 JSON 安装包」下载的文件内容，或点击下方选择 .json 文件"
+          spellcheck="false"
+        />
+        <el-upload
+          class="bundle-upload"
+          :auto-upload="false"
+          :show-file-list="true"
+          :limit="1"
+          accept=".json,application/json"
+          @change="handleBundleFileChange"
+        >
+          <el-button type="default">选择 JSON 文件</el-button>
+        </el-upload>
+        <el-text type="info" size="small" style="display: block; margin-top: 5px">
+          与 Hub 链接安装效果相同，适用于内网或未连通 Hub 的场景；导出文件内含目录树与源码
+        </el-text>
+      </el-form-item>
+      </template>
 
       <el-form-item label="目标目录" prop="target_directory_path">
         <template v-if="initialTargetName">
@@ -72,7 +106,11 @@
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElNotification } from 'element-plus'
 import { Link } from '@element-plus/icons-vue'
-import { pullDirectoryFromHub, type PullDirectoryFromHubReq } from '@/api/hub'
+import {
+  pullDirectoryFromHub,
+  importHubDirectoryBundle,
+  type PullDirectoryFromHubReq
+} from '@/api/hub'
 import type { App } from '@/types'
 
 interface Props {
@@ -98,6 +136,8 @@ const dialogVisible = computed({
 
 const formRef = ref()
 const loading = ref(false)
+const installMode = ref<'hub_link' | 'json_bundle'>('hub_link')
+const bundleJsonText = ref('')
 
 // 表单数据
 const form = ref<Partial<PullDirectoryFromHubReq>>({
@@ -127,6 +167,8 @@ const rules = {
 // 监听对话框打开，初始化表单
 watch(dialogVisible, (visible) => {
   if (visible) {
+    installMode.value = 'hub_link'
+    bundleJsonText.value = ''
     initForm()
     if (props.initialHubLink) {
       form.value.hub_link = props.initialHubLink
@@ -173,64 +215,127 @@ const handlePaste = (event: ClipboardEvent) => {
   }
 }
 
+/** 解析 Hub 导出或裸 directory_tree 的 JSON */
+function parseHubBundleJson(text: string) {
+  const parsed = JSON.parse(text) as Record<string, unknown>
+  const tree = parsed.directory_tree
+  if (!tree || typeof tree !== 'object') {
+    throw new Error('JSON 中缺少 directory_tree 字段或格式无效')
+  }
+  const name = typeof parsed.name === 'string' ? parsed.name : ''
+  const fullCodePath = typeof parsed.full_code_path === 'string' ? parsed.full_code_path : ''
+  const versionNum = typeof parsed.version_num === 'number' ? parsed.version_num : 0
+  return {
+    directory_tree: tree as Record<string, unknown>,
+    hub_full_code_path: fullCodePath,
+    hub_version_num: versionNum,
+    hub_directory_name: name
+  }
+}
+
+function handleBundleFileChange(uploadFile: { raw?: File }) {
+  const raw = uploadFile.raw
+  if (!raw) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const t = typeof reader.result === 'string' ? reader.result : ''
+    bundleJsonText.value = t
+  }
+  reader.readAsText(raw, 'UTF-8')
+}
+
+function runInstallNotify(
+  promise: Promise<{ message?: string }>,
+  loadingMessage: string
+) {
+  handleClose()
+  const loadingNotify = ElNotification({
+    title: '安装中',
+    message: loadingMessage,
+    type: 'info',
+    position: 'top-right',
+    duration: 0
+  })
+  promise
+    .then((response) => {
+      loadingNotify.close()
+      ElNotification.success({
+        title: '安装成功',
+        message: response.message || '目录已安装',
+        position: 'top-right',
+        duration: 3000
+      })
+      emit('success')
+    })
+    .catch((error: any) => {
+      loadingNotify.close()
+      const msg = error?.response?.data?.msg || error?.message || '未知错误'
+      ElNotification.error({
+        title: '安装失败',
+        message: msg,
+        position: 'top-right',
+        duration: 5000
+      })
+      console.error('安装失败:', error)
+    })
+}
+
 // 提交表单：后台安装，弹窗立即关闭，右上角通知进度，成功自动消失
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!props.currentApp) {
+    ElMessage.error('缺少应用信息')
+    return
+  }
 
-  await formRef.value.validate(async (valid: boolean) => {
-    if (!valid) return
+  if (installMode.value === 'hub_link') {
+    if (!formRef.value) return
+    await formRef.value.validate(async (valid: boolean) => {
+      if (!valid) return
+      const requestData: PullDirectoryFromHubReq = {
+        hub_link: form.value.hub_link!,
+        target_user: props.currentApp!.user,
+        target_app: props.currentApp!.code,
+        ...(form.value.target_directory_path ? { target_directory_path: form.value.target_directory_path } : {})
+      }
+      runInstallNotify(
+        pullDirectoryFromHub(requestData),
+        '正在从应用中心安装目录，请稍候…'
+      )
+    })
+    return
+  }
 
-    if (!props.currentApp) {
-      ElMessage.error('缺少应用信息')
-      return
-    }
+  const raw = bundleJsonText.value.trim()
+  if (!raw) {
+    ElMessage.warning('请粘贴或上传 JSON 安装包')
+    return
+  }
+  let bundle: ReturnType<typeof parseHubBundleJson>
+  try {
+    bundle = parseHubBundleJson(raw)
+  } catch (e: any) {
+    ElMessage.error(e?.message || 'JSON 解析失败，请确认是应用中心导出的安装包')
+    return
+  }
 
-    const requestData: PullDirectoryFromHubReq = {
-      hub_link: form.value.hub_link!,
+  runInstallNotify(
+    importHubDirectoryBundle({
       target_user: props.currentApp.user,
       target_app: props.currentApp.code,
-      ...(form.value.target_directory_path ? { target_directory_path: form.value.target_directory_path } : {})
-    }
-
-    // 先关弹窗，不阻塞用户
-    handleClose()
-
-    // 右上角常驻「安装中」通知
-    const loadingNotify = ElNotification({
-      title: '安装中',
-      message: '正在从应用中心安装目录，请稍候…',
-      type: 'info',
-      position: 'top-right',
-      duration: 0
-    })
-
-    pullDirectoryFromHub(requestData)
-      .then((response) => {
-        loadingNotify.close()
-        ElNotification.success({
-          title: '安装成功',
-          message: response.message || '目录已安装',
-          position: 'top-right',
-          duration: 3000
-        })
-        emit('success')
-      })
-      .catch((error: any) => {
-        loadingNotify.close()
-        const msg = error?.response?.data?.msg || error?.message || '未知错误'
-        ElNotification.error({
-          title: '安装失败',
-          message: msg,
-          position: 'top-right',
-          duration: 5000
-        })
-        console.error('安装失败:', error)
-      })
-  })
+      ...(form.value.target_directory_path ? { target_directory_path: form.value.target_directory_path } : {}),
+      directory_tree: bundle.directory_tree,
+      ...(bundle.hub_full_code_path ? { hub_full_code_path: bundle.hub_full_code_path } : {}),
+      ...(bundle.hub_version_num ? { hub_version_num: bundle.hub_version_num } : {}),
+      ...(bundle.hub_directory_name ? { hub_directory_name: bundle.hub_directory_name } : {})
+    }),
+    '正在从离线安装包安装目录，请稍候…'
+  )
 }
 
 // 关闭对话框
 const handleClose = () => {
+  installMode.value = 'hub_link'
+  bundleJsonText.value = ''
   form.value = {
     hub_link: '',
     target_directory_path: '',
@@ -248,6 +353,12 @@ const handleClose = () => {
   font-size: 14px;
   font-weight: 500;
   color: var(--el-text-color-primary);
+}
+.install-mode-group {
+  width: 100%;
+}
+.bundle-upload {
+  margin-top: 8px;
 }
 </style>
 

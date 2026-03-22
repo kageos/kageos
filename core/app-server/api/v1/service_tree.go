@@ -866,6 +866,24 @@ func (s *ServiceTree) PullDirectoryFromHub(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
+// ImportHubDirectoryBundle 从离线 JSON 包安装目录（与 Hub 详情导出格式兼容）
+func (s *ServiceTree) ImportHubDirectoryBundle(c *gin.Context) {
+	var req dto.ImportHubDirectoryBundleReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.ImportHubDirectoryBundle(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}
+
 // SearchFunctions 搜索函数
 // @Summary 搜索函数
 // @Description 根据关键词、类型等条件搜索函数，支持分页
