@@ -19,13 +19,10 @@ RUN ARCH=$(dpkg --print-architecture) && \
         echo "deb http://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse" >> /etc/apt/sources.list; \
     fi
 
-# 安装 tini（多架构：amd64/arm64），保留 ARG 便于构建时覆盖版本
-ARG TINI_VERSION=0.19.0
-RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certificates \
-    && TINI_ARCH=$(dpkg --print-architecture) \
-    && wget -q -O /usr/bin/tini "https://github.com/krallin/tini/releases/download/v${TINI_VERSION}/tini-${TINI_ARCH}" \
-    && chmod +x /usr/bin/tini \
-    && apt-get remove -y wget && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+# 安装 tini：用 Ubuntu universe 包，避免构建时访问 GitHub（国内/内网常导致 wget exit 8）
+RUN apt-get update && apt-get install -y --no-install-recommends tini \
+    && rm -rf /var/lib/apt/lists/* \
+    && test -x /usr/bin/tini && echo "✓ tini from apt"
 
 # 安装运行时依赖 + 字体（分层便于缓存：只改文档工具时只重建后面几层）
 # e2fsprogs 提供 chattr/lsattr，用于 start.sh 对 workplace 做 +a 保护（禁止容器内删除）
