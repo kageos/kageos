@@ -271,6 +271,17 @@ type PullDirectoryFromHubResp struct {
 	HubVersionNum       int    `json:"hub_version_num"`       // Hub 目录版本号（数字部分），展示时格式化为 v{N}
 }
 
+// ImportHubDirectoryBundleReq 从离线 JSON 包安装目录（与 Hub 详情含 directory_tree 的导出格式兼容，不访问 Hub）
+type ImportHubDirectoryBundleReq struct {
+	TargetUser          string             `json:"target_user" binding:"required"`   // 目标用户
+	TargetApp           string             `json:"target_app" binding:"required"`    // 目标应用
+	TargetDirectoryPath string             `json:"target_directory_path"`            // 目标目录路径（可选，默认为应用根目录）
+	DirectoryTree       *DirectoryTreeNode `json:"directory_tree" binding:"required"` // 目录树（含文件内容），与 PublishHubDirectoryReq.directory_tree 同结构
+	HubFullCodePath     string             `json:"hub_full_code_path"`               // 可选，来自导出：写入本地根节点 Hub 绑定
+	HubVersionNum       int                `json:"hub_version_num"`                  // 可选
+	HubDirectoryName    string             `json:"hub_directory_name"`               // 可选，用于成功提示；缺省用目录树根节点名称
+}
+
 // GetHubInfoReq 获取目录的 Hub 信息请求
 type GetHubInfoReq struct {
 	FullCodePath string `json:"full_code_path" form:"full_code_path" binding:"required"` // 目录完整路径

@@ -194,6 +194,10 @@ podman compose -f docker-compose.infra.yml up -d
 ```
 详见 [docker-compose.infra.yml](docker-compose.infra.yml)。
 
+**Linux 一机一实例（裸机后端 + Podman 中间件）**：见 **[deploy/README.md](deploy/README.md)** → [deploy/embedding/README.md](deploy/embedding/README.md)。
+
+**配置目录**：统一为 **`deploy/config/dev`** / **`deploy/config/prod`**；可选环境变量 **`AI_AGENT_OS_ROOT`** 指定仓库根（详见 [deploy/config/README.md](deploy/config/README.md)）。
+
 ### 创建第一个应用
 
 ```bash

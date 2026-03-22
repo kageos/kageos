@@ -41,7 +41,7 @@ sudo bash install.sh /path/to/namespace
 
 ### 第三步：配置 app-runtime
 
-在 `configs/dev/app-runtime.yaml` 或 `configs/prod/app-runtime.yaml` 中：
+在 `deploy/config/dev/app-runtime.yaml` 或 `deploy/config/prod/app-runtime.yaml` 中：
 
 ```yaml
 container:

@@ -90,7 +90,8 @@ func (s *Server) setupRoutes() {
 	serviceTreeAuth.POST("/push_to_hub", serviceTreeHandler.PushDirectoryToHub)       // 推送目录到 Hub（更新已发布的目录）
 	serviceTreeAuth.GET("/hub_push_form_info", serviceTreeHandler.GetHubPushFormInfo) // 获取推送表单信息（预填 + 下一版本号）
 	serviceTreeAuth.GET("/hub_info", serviceTreeHandler.GetHubInfo)                   // 获取目录的 Hub 信息
-	serviceTreeAuth.POST("/pull_from_hub", serviceTreeHandler.PullDirectoryFromHub)   // 从 Hub 拉取目录
+	serviceTreeAuth.POST("/pull_from_hub", serviceTreeHandler.PullDirectoryFromHub)           // 从 Hub 拉取目录
+	serviceTreeAuth.POST("/import_hub_bundle", serviceTreeHandler.ImportHubDirectoryBundle)   // 从离线 JSON 包安装目录
 
 	// ⭐ 按类型分离的 CRUD 接口（推荐使用）
 	// ==================== Package 类型接口 ====================

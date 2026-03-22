@@ -155,7 +155,7 @@ setup_nginx() {
     fi
 
     # 更新配置中的路径
-    local conf="$PROJECT_DIR/deploy/nginx-server.conf"
+    local conf="$PROJECT_DIR/deploy/embedding/nginx/nginx-server.conf"
     local target="/etc/nginx/sites-available/ai-agent-os.conf"
 
     sudo cp "$conf" "$target"
@@ -181,7 +181,7 @@ build_app_base_image() {
 
     info "构建用户应用基础镜像（首次约 10-20 分钟）..."
     cd "$PROJECT_DIR"
-    podman build -t ai-agent-os:latest -f podman/Dockerfile.app-base .
+    podman build -t ai-agent-os:latest -f deploy/podman/Dockerfile.app-base .
     info "基础镜像构建完成"
 }
 

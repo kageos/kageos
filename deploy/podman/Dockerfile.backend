@@ -1,6 +1,6 @@
 # Go 后端统一 Dockerfile
 # 构建核心服务（7个服务统一启动）+ Hub 服务
-# 构建: docker build -t ai-agent-os-backend:latest -f docker/Dockerfile.backend .
+# 构建: docker build -t ai-agent-os-backend:latest -f deploy/podman/Dockerfile.backend .
 
 # ========== Stage 1: 编译 ==========
 FROM golang:1.24-bookworm AS builder
@@ -90,11 +90,11 @@ COPY enterprise_impl/hub/backend/config/ /app/hub-config/
 RUN mkdir -p /config && ln -sf /app/hub-config/hub.yaml /config/hub.yaml
 
 # 复制用户应用基础镜像构建文件（Podman 首次启动时构建）
-COPY docker/Dockerfile.app-base /app/app-base/Dockerfile
+COPY deploy/podman/Dockerfile.app-base /app/app-base/Dockerfile
 COPY scripts/start.sh /app/app-base/scripts/start.sh
 
 # 复制启动脚本
-COPY docker/entrypoint-backend.sh /app/entrypoint.sh
+COPY deploy/podman/entrypoint-backend.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # 创建运行时目录

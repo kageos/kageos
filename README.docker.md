@@ -58,15 +58,9 @@ docker-compose -f docker-compose.microservices.yml down
 
 ### 配置文件位置
 
-配置文件位于 `configs/` 目录，Docker 容器会挂载此目录：
+仓库内配置统一在 **`deploy/config/`**：裸机 / Embedding 用 **`dev/`**、**`prod/`**；**全栈 Compose** 见 **`deploy/compose/docker-compose.yml`**（根目录 **`docker-compose.yml`** 为 `include` 入口），backend 挂载 **`deploy/config/compose/`**（见 [deploy/compose/README.md](deploy/compose/README.md)）。
 
-- `configs/global.yaml` - 全局共享配置
-- `configs/app-server.yaml` - App Server 配置
-- `configs/agent-server.yaml` - Agent Server 配置
-- `configs/app-runtime.yaml` - App Runtime 配置
-- `configs/app-storage.yaml` - App Storage 配置
-- `configs/api-gateway.yaml` - API Gateway 配置
-- `configs/control-service.yaml` - Control Service 配置
+- Compose 下文件名与 prod 侧一致，但 **主机名等为 Compose 网络**（如 `mysql`、`minio:9000`），勿与 prod 混用同一份文件。
 
 ### 容器环境配置
 
@@ -194,6 +188,6 @@ docker-compose -f docker-compose.microservices.yml logs -f api-gateway
 ## 扩展阅读
 
 - [Docker Compose 官方文档](https://docs.docker.com/compose/)
-- [项目配置说明](../configs/README.md)
+- [应用配置说明](deploy/config/README.md)
 - [服务架构文档](../blueprint/)
 

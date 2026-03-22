@@ -16,7 +16,7 @@ services:
       - "3306:3306"
     volumes:
       - dev-mysql-data:/var/lib/mysql
-      - ./podman/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./deploy/podman/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     command: >
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
@@ -36,7 +36,7 @@ services:
     ports:
       - "4222:4222"
     volumes:
-      - ./podman/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - ./deploy/podman/nats-server.conf:/etc/nats/nats-server.conf:ro
     command: ["-c", "/etc/nats/nats-server.conf"]
 
   minio:
