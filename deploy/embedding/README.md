@@ -15,6 +15,7 @@
 
 - Linux x86_64 / arm64（与 Go 构建目标一致）
 - **Go 1.24+**（与 `go.mod` 一致）、**Podman 4+**（含 `podman compose`）
+- **`podman-compose` 包（强烈建议）**：`podman compose` 在检测到本机有 `docker-compose` 时会**优先调用后者**，镜像由 Docker 拉取，国内常直连 Docker Hub 超时；`embedding.sh` 会尽量设置 `PODMAN_COMPOSE_PROVIDER` 指向 `podman-compose`，使拉镜像走 Podman（可用 `/etc/containers/registries.conf.d/` 镜像加速）。安装示例：`sudo apt-get install -y podman-compose`
 - **`init` 全量部署**还需 **Node.js / npm**（构建 Web + Hub 前端）、**Nginx**（脚本可 `apt` 安装）、**sudo**（写 `/etc/nginx`、reload）
 - 构建 core-server 需本机 **CGO 依赖**（如 `libgpgme-dev` 等；Debian/Ubuntu 上 `embedding.sh build` 会尝试自动安装）
 - 内存建议 **≥ 8GB**，磁盘 **≥ 40GB**（含镜像与数据）
