@@ -109,6 +109,8 @@ export AI_AGENT_OS_ROOT=/绝对路径/ai-agent-os   # 可选
 
 模板与说明与 Embedding 放同一目录：**[nginx/nginx-server.conf](nginx/nginx-server.conf)**、**[nginx/README.md](nginx/README.md)**。
 
+**静态目录**：`embedding.sh nginx` / `init` 会把 `web/dist`、`hub-frontend/dist` **rsync 到 `/opt/ai-agent-os/`** 再让 Nginx 读（避免仓库在 **`/root`** 时 `www-data` 无权限 → **500**）。更新前端后请再执行 **`embedding.sh nginx`** 或跑 **`update`**（已内含 nginx 步骤）。
+
 ---
 
 ## 脚本
@@ -118,7 +120,7 @@ export AI_AGENT_OS_ROOT=/绝对路径/ai-agent-os   # 可选
 | 命令 | 作用 |
 |------|------|
 | **`init`** | 首次完整上线：栈 + 前后端 + Nginx + 运行时镜像 + 启动 core/hub |
-| **`update`** | **`git pull`** → `build` → `frontend` → 重启 core/hub → **`nginx -s reload`**（不重建 runtime 镜像，节省时间） |
+| **`update`** | **`git pull`** → `build` → `frontend` → **`nginx`**（同步 `/opt` + reload）→ 重启 core/hub（不重建 runtime 镜像） |
 | `restart` / `stop` / `status` / `logs` | 与 `server-deploy.sh` 同类（`logs` 默认 `core-server`，可跟 `hub-server`） |
 | `all` | 仅：`infra` → `local`（若有）→ `dbs` → `build` → `runtime` |
 | `infra` | Podman Compose 起 MySQL/NATS/MinIO |
