@@ -97,7 +97,7 @@ usage() {
   init             infra → local? → dbs → build → frontend → nginx → podman.sock → runtime → 启动 core/hub
 
 【运维（参考 server-deploy.sh）】
-  update           git pull → build → frontend → 重启 core/hub → reload nginx（不重建 runtime 镜像，节省时间）
+  update           git pull → 与 init 同序全量：infra → local? → dbs → build → frontend → nginx → runtime → 重启 core/hub（一条命令省事）
   restart          仅重启 core-server、hub-server（需已编译出 bin）
   stop             停止上述进程
   status           后端 PID、Podman 中间件、Podman 镜像摘要、Nginx
@@ -410,7 +410,7 @@ cmd_init() {
 
 cmd_update() {
   echo "========================================="
-  echo "  AI Agent OS - Embedding 更新部署"
+  echo "  AI Agent OS - Embedding 全量更新（对齐 init，仅多 git pull）"
   echo "========================================="
 
   if [ ! -d "$ROOT/.git" ]; then
@@ -418,10 +418,21 @@ cmd_update() {
     exit 1
   fi
 
+  command -v go >/dev/null    || { error "Go 未安装"; exit 1; }
+  command -v node >/dev/null  || { error "Node.js 未安装"; exit 1; }
+  command -v podman >/dev/null || { error "Podman 未安装"; exit 1; }
+
   info "拉取最新代码..."
   cd "$ROOT"
   git pull
 
+  cmd_infra
+  if [ -d "$ROOT/deploy/config/local" ]; then
+    cmd_local
+  else
+    info "跳过 local（无 deploy/config/local/ 目录）"
+  fi
+  cmd_dbs
   cmd_build
   cmd_frontend
   if command -v nginx &>/dev/null; then
@@ -429,14 +440,19 @@ cmd_update() {
   else
     warn "未检测到 nginx，跳过静态同步与站点配置"
   fi
+  ensure_podman_service
+  info "重建用户应用运行时镜像（与 init 一致；耗时较长可去喝杯咖啡）..."
+  cmd_runtime
 
   stop_process "core-server"
   stop_process "hub-server"
-  ensure_podman_service
   start_backend "core-server" "$BIN_DIR/core-server"
   start_backend "hub-server" "$BIN_DIR/hub-server"
 
-  info "更新完成！"
+  echo ""
+  echo "========================================="
+  info "全量更新完成！（infra + 配置 + 前后端 + Nginx + runtime + 后端已重启）"
+  echo "========================================="
 }
 
 cmd_restart() {
