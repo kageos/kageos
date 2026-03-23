@@ -115,6 +115,22 @@ require_root_cd() {
   cd "$ROOT"
 }
 
+# Podman 的 `podman compose` 是外包给「compose 提供者」的；若系统里装了 docker-compose，
+# 默认会优先用它，镜像由 Docker 拉取（国内常直连 registry-1.docker.io 超时），
+# 不会走你在 /etc/containers/registries.conf 里配的镜像加速。
+# 强制使用 podman-compose 后，拉镜像由 Podman 完成，可走腾讯云等 mirror。
+ensure_podman_compose_provider() {
+  if command -v podman-compose &>/dev/null; then
+    export PODMAN_COMPOSE_PROVIDER="$(command -v podman-compose)"
+    # 减少 “Executing external compose provider …” 刷屏（可选）
+    export PODMAN_COMPOSE_WARNING_LOGS="${PODMAN_COMPOSE_WARNING_LOGS:-false}"
+    return 0
+  fi
+  warn "未找到 podman-compose：当前 podman compose 可能改用 docker-compose，拉镜像不走 Podman 镜像加速（易超时）。"
+  warn "建议安装: sudo apt-get install -y podman-compose   （或 pip install podman-compose）"
+  return 1
+}
+
 # ==================== 基础设施（Podman Compose） ====================
 
 cmd_infra() {
@@ -124,6 +140,8 @@ cmd_infra() {
     error "未找到 podman，请先安装 Podman。"
     exit 1
   fi
+  ensure_podman_compose_provider || true
+
   if ! podman compose version &>/dev/null && ! podman-compose version &>/dev/null; then
     error "需要 podman compose（Podman 4+）或 podman-compose 插件。"
     exit 1
@@ -426,7 +444,11 @@ cmd_status() {
   check_process "hub-server"
   echo ""
   echo "=== 基础设施容器（Podman） ==="
-  (cd "$ROOT" && podman compose -f docker-compose.dev.yml ps 2>/dev/null) || echo "  未启动或 compose 失败"
+  (
+    cd "$ROOT"
+    ensure_podman_compose_provider || true
+    podman compose -f docker-compose.dev.yml ps 2>/dev/null
+  ) || echo "  未启动或 compose 失败"
   echo ""
   echo "=== Podman ==="
   if [ -S /run/podman/podman.sock ]; then
