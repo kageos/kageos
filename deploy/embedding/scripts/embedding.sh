@@ -224,8 +224,9 @@ SQL
 maybe_install_go_cgo_deps() {
   # 非 Debian/Ubuntu（无 dpkg）则跳过，由本机自行保证 CGO 依赖
   if command -v dpkg >/dev/null 2>&1 && ! dpkg -l 2>/dev/null | grep -q libgpgme-dev; then
-    warn "尝试安装 core-server 编译依赖（需 sudo）..."
-    sudo apt-get update -qq && sudo apt-get install -y -qq gcc libc6-dev libgpgme-dev libdevmapper-dev pkg-config >/dev/null 2>&1 || true
+    warn "尝试安装 core-server 编译依赖（需 sudo），下载可能较慢，请稍候（勿误以为卡住）..."
+    # 勿将 install 输出丢到 /dev/null，否则网络慢时长时间无日志像死机
+    sudo apt-get update -qq && sudo apt-get install -y gcc libc6-dev libgpgme-dev libdevmapper-dev pkg-config || true
   fi
 }
 
@@ -299,12 +300,28 @@ cmd_nginx() {
     sudo apt-get update -qq && sudo apt-get install -y -qq nginx
   fi
 
+  if [ ! -f "$WEB_DIST/index.html" ]; then
+    error "未找到 $WEB_DIST/index.html，请先执行: bash deploy/embedding/scripts/embedding.sh frontend"
+    exit 1
+  fi
+  if [ ! -f "$HUB_DIST/index.html" ]; then
+    error "未找到 $HUB_DIST/index.html，请先执行: bash deploy/embedding/scripts/embedding.sh frontend"
+    exit 1
+  fi
+
+  # 仓库在 /root 等目录时，Nginx（www-data）无法 stat /root/... → 500 + 重定向死循环。
+  # 同步到 /opt 并开放读权限，配置模板保持 deploy/embedding/nginx 中的 /opt/ai-agent-os/... 路径即可。
+  local deploy_root="/opt/ai-agent-os"
+  info "同步静态资源到 $deploy_root（供 Nginx 读取）..."
+  sudo mkdir -p "$deploy_root/web/dist" "$deploy_root/hub-frontend/dist"
+  sudo rsync -a --delete "$WEB_DIST/" "$deploy_root/web/dist/"
+  sudo rsync -a --delete "$HUB_DIST/" "$deploy_root/hub-frontend/dist/"
+  sudo chmod -R a+rX "$deploy_root"
+
   local conf="$ROOT/deploy/embedding/nginx/nginx-server.conf"
   local target="/etc/nginx/sites-available/ai-agent-os.conf"
 
   sudo cp "$conf" "$target"
-  sudo sed -i "s|/opt/ai-agent-os/web/dist|$WEB_DIST|g" "$target"
-  sudo sed -i "s|/opt/ai-agent-os/hub-frontend/dist|$HUB_DIST|g" "$target"
 
   sudo ln -sf "$target" /etc/nginx/sites-enabled/ai-agent-os.conf
   sudo rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
@@ -407,18 +424,17 @@ cmd_update() {
 
   cmd_build
   cmd_frontend
+  if command -v nginx &>/dev/null; then
+    cmd_nginx
+  else
+    warn "未检测到 nginx，跳过静态同步与站点配置"
+  fi
 
   stop_process "core-server"
   stop_process "hub-server"
   ensure_podman_service
   start_backend "core-server" "$BIN_DIR/core-server"
   start_backend "hub-server" "$BIN_DIR/hub-server"
-
-  if command -v nginx &>/dev/null; then
-    sudo nginx -t && sudo systemctl reload nginx
-  else
-    warn "未检测到 nginx，跳过 reload"
-  fi
 
   info "更新完成！"
 }

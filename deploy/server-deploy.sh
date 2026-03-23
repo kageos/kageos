@@ -154,13 +154,18 @@ setup_nginx() {
         sudo apt-get update -qq && sudo apt-get install -y -qq nginx
     fi
 
-    # 更新配置中的路径
+    # 同步到 /opt：仓库在 /root 时 www-data 无法读 /root/...，会导致 500
+    local deploy_root="/opt/ai-agent-os"
+    info "同步静态资源到 $deploy_root..."
+    sudo mkdir -p "$deploy_root/web/dist" "$deploy_root/hub-frontend/dist"
+    sudo rsync -a --delete "$WEB_DIST/" "$deploy_root/web/dist/"
+    sudo rsync -a --delete "$HUB_DIST/" "$deploy_root/hub-frontend/dist/"
+    sudo chmod -R a+rX "$deploy_root"
+
     local conf="$PROJECT_DIR/deploy/embedding/nginx/nginx-server.conf"
     local target="/etc/nginx/sites-available/ai-agent-os.conf"
 
     sudo cp "$conf" "$target"
-    sudo sed -i "s|/opt/ai-agent-os/web/dist|$WEB_DIST|g" "$target"
-    sudo sed -i "s|/opt/ai-agent-os/hub-frontend/dist|$HUB_DIST|g" "$target"
 
     # 启用站点
     sudo ln -sf "$target" /etc/nginx/sites-enabled/ai-agent-os.conf
