@@ -107,9 +107,12 @@ export AI_AGENT_OS_ROOT=/绝对路径/ai-agent-os   # 可选
 
 ## Nginx 配置
 
-模板与说明与 Embedding 放同一目录：**[nginx/nginx-server.conf](nginx/nginx-server.conf)**、**[nginx/README.md](nginx/README.md)**。
+模板与说明与 Embedding 放同一目录：**[nginx/nginx-server.conf](nginx/nginx-server.conf)**、**[nginx/README.md](nginx/README.md)**。  
+**可选域名反代**（`geeleo.com` → 8999、`hub.*` → 8998）：见 **[nginx/DOMAIN_PROXY.md](nginx/DOMAIN_PROXY.md)** 与示例 **[nginx/nginx-domain-proxy.example.conf](nginx/nginx-domain-proxy.example.conf)**（DNS 未指过来时可不启用）。
 
 **静态目录**：`embedding.sh nginx` / `init` 会把 `web/dist`、`hub-frontend/dist` **rsync 到 `/opt/ai-agent-os/`** 再让 Nginx 读（避免仓库在 **`/root`** 时 `www-data` 无权限 → **500**）。更新前端后请再执行 **`embedding.sh nginx`** 或跑 **`update`**（已内含 nginx 步骤）。
+
+**可选域名（如 geeleo.com → 8999、hub.geeleo.com → 8998）**：仅当 DNS 指向本机时启用，默认可不装；见 **[nginx/DOMAIN_PROXY.md](nginx/DOMAIN_PROXY.md)** 与 **`nginx/nginx-domain-proxy.example.conf`**。
 
 ---
 
