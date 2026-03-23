@@ -123,7 +123,7 @@ export AI_AGENT_OS_ROOT=/绝对路径/ai-agent-os   # 可选
 | 命令 | 作用 |
 |------|------|
 | **`init`** | 首次完整上线：栈 + 前后端 + Nginx + 运行时镜像 + 启动 core/hub |
-| **`update`** | **`git pull`** → `build` → `frontend` → **`nginx`**（同步 `/opt` + reload）→ 重启 core/hub（不重建 runtime 镜像） |
+| **`update`** | **`git pull`** 后 **与 `init` 同序全量**：`infra` → `local`（若有）→ `dbs` → `build` → `frontend` → **`nginx`** → **`runtime`** → 重启 core/hub（日常只跑这一条即可） |
 | `restart` / `stop` / `status` / `logs` | 与 `server-deploy.sh` 同类（`logs` 默认 `core-server`，可跟 `hub-server`） |
 | `all` | 仅：`infra` → `local`（若有）→ `dbs` → `build` → `runtime` |
 | `infra` | Podman Compose 起 MySQL/NATS/MinIO |
