@@ -6,7 +6,7 @@ import "encoding/json"
 type CreateScheduledTaskReq struct {
 	Name            string          `json:"name" binding:"required"`           // 任务名称
 	FullCodePath    string          `json:"full_code_path" binding:"required"` // 如 /system/official/message/send_message_to_users.form
-	Action          string          `json:"action"`                            // 执行动作：空/execute(普通函数)、table_create、table_update、table_delete
+	Action          string          `json:"action"`                            // 执行动作：空/execute/form(普通函数)、table_create、table_update、table_delete
 	Method          string          `json:"method"`                            // GET/POST，默认 POST
 	Payload         json.RawMessage `json:"payload"`                           // 请求体 JSON
 	RequestUser     string          `json:"request_user"`                      // 以谁执行，空则用当前用户

@@ -23,7 +23,23 @@ const (
 	ScheduledTaskActionTableCreate = "table_create"
 	ScheduledTaskActionTableUpdate = "table_update"
 	ScheduledTaskActionTableDelete = "table_delete"
+	ScheduledTaskActionForm        = "form" // 兼容别名：LLM 常用 form 表示普通函数执行
 )
+
+func normalizeScheduledTaskAction(action string) (string, error) {
+	action = strings.ToLower(strings.TrimSpace(action))
+	if action == "" {
+		return ScheduledTaskActionExecute, nil
+	}
+	switch action {
+	case ScheduledTaskActionExecute, ScheduledTaskActionTableCreate, ScheduledTaskActionTableUpdate, ScheduledTaskActionTableDelete:
+		return action, nil
+	case ScheduledTaskActionForm:
+		return ScheduledTaskActionExecute, nil
+	default:
+		return "", fmt.Errorf("action 不支持，必须是 execute/form/table_create/table_update/table_delete")
+	}
+}
 
 // ScheduledTaskService 定时任务服务
 type ScheduledTaskService struct {
@@ -79,14 +95,9 @@ func (s *ScheduledTaskService) Create(ctx context.Context, req *dto.CreateSchedu
 	if method == "" {
 		method = "POST"
 	}
-	action := strings.ToLower(strings.TrimSpace(req.Action))
-	if action == "" {
-		action = ScheduledTaskActionExecute
-	}
-	switch action {
-	case ScheduledTaskActionExecute, ScheduledTaskActionTableCreate, ScheduledTaskActionTableUpdate, ScheduledTaskActionTableDelete:
-	default:
-		return nil, fmt.Errorf("action 不支持，必须是 execute/table_create/table_update/table_delete")
+	action, err := normalizeScheduledTaskAction(req.Action)
+	if err != nil {
+		return nil, err
 	}
 	reqUser := strings.TrimSpace(req.RequestUser)
 	if reqUser == "" {
@@ -223,8 +234,13 @@ func (s *ScheduledTaskService) runDueTasks(ctx context.Context) {
 		if err != nil || task == nil {
 			continue
 		}
-		if task.Status != "pending" || task.NextRunAt == nil || task.NextRunAt.After(now) {
-			// 可能已被取消或已执行，或 DB 与队列不一致，跳过
+		if task.Status != "pending" || task.NextRunAt == nil {
+			// 可能已被取消或已执行，跳过
+			continue
+		}
+		if task.NextRunAt.After(now) {
+			// 队列与 DB 时间不一致时自愈：重新按 DB 的 next_run_at 放回队列，避免任务被“拉下”
+			s.dueQueue.Push(task.ID, *task.NextRunAt)
 			continue
 		}
 		s.executeOne(ctx, task)
@@ -291,9 +307,9 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 }
 
 func (s *ScheduledTaskService) buildTaskRequest(ctx context.Context, task *model.ScheduledTask, user, appName, routerPath, traceID, token string, bodyBytes []byte) (*dto.RequestAppReq, error) {
-	action := strings.ToLower(strings.TrimSpace(task.Action))
-	if action == "" {
-		action = ScheduledTaskActionExecute
+	action, err := normalizeScheduledTaskAction(task.Action)
+	if err != nil {
+		return nil, err
 	}
 
 	switch action {
@@ -464,8 +480,44 @@ func (s *ScheduledTaskService) updateTaskAfterRun(task *model.ScheduledTask, exe
 	task.RunCount++
 	task.ErrorMessage = errMsg
 	if !success {
-		task.Status = "failed"
-		task.NextRunAt = nil
+		// 周期任务失败后继续调度，避免临时抖动导致任务永久停掉
+		switch task.ScheduleType {
+		case "cron":
+			if task.CronExpr == "" {
+				task.Status = "failed"
+				task.NextRunAt = nil
+			} else {
+				parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+				sch, err := parser.Parse(task.CronExpr)
+				if err != nil {
+					task.Status = "failed"
+					task.ErrorMessage = err.Error()
+					task.NextRunAt = nil
+				} else {
+					next := sch.Next(executedAt)
+					if next.IsZero() {
+						task.Status = "failed"
+						task.NextRunAt = nil
+					} else {
+						task.Status = "pending"
+						task.NextRunAt = &next
+					}
+				}
+			}
+		case "every":
+			if task.IntervalSeconds <= 0 || (task.MaxRuns > 0 && task.RunCount >= task.MaxRuns) {
+				task.Status = "failed"
+				task.NextRunAt = nil
+			} else {
+				next := executedAt.Add(time.Duration(task.IntervalSeconds) * time.Second)
+				task.Status = "pending"
+				task.NextRunAt = &next
+			}
+		default:
+			// atime 或未知类型：失败后结束
+			task.Status = "failed"
+			task.NextRunAt = nil
+		}
 		if err := s.taskRepo.Update(task); err != nil {
 			logger.Errorf(context.Background(), "[ScheduledTask] Update task err: %v", err)
 		}
