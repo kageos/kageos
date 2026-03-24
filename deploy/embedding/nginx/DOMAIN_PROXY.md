@@ -38,8 +38,10 @@ bash deploy/embedding/scripts/embedding.sh local
 
 1. 本机确认 **`http://127.0.0.1:8999`**、**`:8998`** 正常（Embedding 已部署）。
 2. **DNS** A/AAAA 指到服务器公网 IP。
-3. 复制 **[nginx-domain-proxy.example.conf](nginx-domain-proxy.example.conf)** → `/etc/nginx/sites-available/`，改域名、按需上证书。
-4. **`nginx -t` + reload**。
+3. **推荐**：直接执行 **`bash deploy/embedding/scripts/embedding.sh nginx`**（或 **`init` / `update`** 里已包含 nginx）。脚本会把 **[nginx-domain-proxy.example.conf](nginx-domain-proxy.example.conf)** 安装到 **`/etc/nginx/conf.d/ai-agent-os-domain.conf`** 并 reload。  
+   - 自定义域名：在 **`deploy/config/local/nginx-domain-proxy.conf`** 放你自己的 `server` 配置（存在则优先于 example）。  
+   - 不需要 80 反代：**`EMBEDDING_SKIP_NGINX_DOMAIN=1`** 再执行 nginx 命令。
+4. 若手工维护：也可复制 example → `conf.d`，再 **`nginx -t` + reload**。
 5. 按上表改 **local yaml**，`local` + 重启后端。
 
 ## 示例文件

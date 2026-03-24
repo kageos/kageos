@@ -91,13 +91,13 @@ usage() {
   build            编译 bin/core-server、bin/hub-server
   runtime          podman build → 镜像 ai-agent-os:latest（build/Dockerfile）
   frontend         构建 Web + Hub 前端（npm）
-  nginx            安装/更新 Nginx 站点配置并 reload（需 sudo）
+  nginx            安装/更新 Nginx：静态同步 /opt、主站 conf，并安装 80→8999/8998 域名反代（可跳过或 local 覆盖）
 
 【首次完整上线（参考 server-deploy.sh init）】
   init             infra → local? → dbs → build → frontend → nginx → podman.sock → runtime → 启动 core/hub
 
 【运维（参考 server-deploy.sh）】
-  update           git pull → 与 init 同序全量：infra → local? → dbs → build → frontend → nginx → runtime → 重启 core/hub（一条命令省事）
+  update           git pull → infra → local? → dbs → build → frontend → nginx → 重启 core/hub（默认不重建 runtime 镜像，省时间）
   restart          仅重启 core-server、hub-server（需已编译出 bin）
   stop             停止上述进程
   status           后端 PID、Podman 中间件、Podman 镜像摘要、Nginx
@@ -292,6 +292,29 @@ ENVEOF
 
 # ==================== Nginx（与 server-deploy.sh setup_nginx 一致） ====================
 
+# 可选：监听 80，将 geeleo.com / hub.geeleo.com 反代到本机 8999 / 8998（模板见 nginx-domain-proxy.example.conf）
+# 跳过：EMBEDDING_SKIP_NGINX_DOMAIN=1
+# 覆盖：deploy/config/local/nginx-domain-proxy.conf（存在则优先于仓库内 example）
+install_nginx_domain_proxy() {
+  if [ "${EMBEDDING_SKIP_NGINX_DOMAIN:-0}" = "1" ]; then
+    info "跳过域名 80 反代（EMBEDDING_SKIP_NGINX_DOMAIN=1）"
+    return 0
+  fi
+  local src="$ROOT/deploy/embedding/nginx/nginx-domain-proxy.example.conf"
+  local local_override="$ROOT/deploy/config/local/nginx-domain-proxy.conf"
+  if [ -f "$local_override" ]; then
+    src="$local_override"
+    info "使用 deploy/config/local/nginx-domain-proxy.conf 作为域名反代"
+  fi
+  if [ ! -f "$src" ]; then
+    warn "未找到域名反代模板，跳过: $src"
+    return 0
+  fi
+  info "安装域名反代 → /etc/nginx/conf.d/ai-agent-os-domain.conf（HTTP 80 → 8999 / 8998）..."
+  sudo mkdir -p /etc/nginx/conf.d
+  sudo cp -f "$src" /etc/nginx/conf.d/ai-agent-os-domain.conf
+}
+
 cmd_nginx() {
   require_root_cd
 
@@ -326,8 +349,10 @@ cmd_nginx() {
   sudo ln -sf "$target" /etc/nginx/sites-enabled/ai-agent-os.conf
   sudo rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
 
+  install_nginx_domain_proxy
+
   sudo nginx -t && sudo systemctl reload nginx
-  info "Nginx 配置完成"
+  info "Nginx 配置完成（含 8999/8998 站点；若未跳过则已写 80 域名反代）"
 }
 
 # ==================== Podman API Socket（app-runtime 需要） ====================
@@ -410,7 +435,7 @@ cmd_init() {
 
 cmd_update() {
   echo "========================================="
-  echo "  AI Agent OS - Embedding 全量更新（对齐 init，仅多 git pull）"
+  echo "  AI Agent OS - Embedding 更新（git pull + 栈/编译/前端/Nginx/重启）"
   echo "========================================="
 
   if [ ! -d "$ROOT/.git" ]; then
@@ -441,8 +466,16 @@ cmd_update() {
     warn "未检测到 nginx，跳过静态同步与站点配置"
   fi
   ensure_podman_service
-  info "重建用户应用运行时镜像（与 init 一致；耗时较长可去喝杯咖啡）..."
-  cmd_runtime
+
+  # 用户应用基础镜像每次 build 太慢；init 仍会构建，日常 update 跳过。
+  # 改了 build/Dockerfile 或依赖时需手动：bash deploy/embedding/scripts/embedding.sh runtime
+  # 或：EMBEDDING_UPDATE_WITH_RUNTIME=1 bash ... update
+  if [ "${EMBEDDING_UPDATE_WITH_RUNTIME:-0}" = "1" ]; then
+    info "EMBEDDING_UPDATE_WITH_RUNTIME=1，重建 ai-agent-os:latest..."
+    cmd_runtime
+  else
+    info "跳过 runtime 镜像（改 Dockerfile 后请执行: bash deploy/embedding/scripts/embedding.sh runtime）"
+  fi
 
   stop_process "core-server"
   stop_process "hub-server"
@@ -451,7 +484,7 @@ cmd_update() {
 
   echo ""
   echo "========================================="
-  info "全量更新完成！（infra + 配置 + 前后端 + Nginx + runtime + 后端已重启）"
+  info "更新完成！（已重启 core/hub）"
   echo "========================================="
 }
 

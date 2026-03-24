@@ -172,6 +172,20 @@ setup_nginx() {
     # 删除默认站点（避免冲突）
     sudo rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
 
+    # 与 embedding.sh 一致：80 → 8999/8998 域名反代（可选跳过 / local 覆盖）
+    if [ "${EMBEDDING_SKIP_NGINX_DOMAIN:-0}" != "1" ]; then
+        local _dpsrc="$PROJECT_DIR/deploy/embedding/nginx/nginx-domain-proxy.example.conf"
+        if [ -f "$PROJECT_DIR/deploy/config/local/nginx-domain-proxy.conf" ]; then
+            _dpsrc="$PROJECT_DIR/deploy/config/local/nginx-domain-proxy.conf"
+            info "使用 deploy/config/local/nginx-domain-proxy.conf 作为域名反代"
+        fi
+        if [ -f "$_dpsrc" ]; then
+            info "安装域名反代 → /etc/nginx/conf.d/ai-agent-os-domain.conf ..."
+            sudo mkdir -p /etc/nginx/conf.d
+            sudo cp -f "$_dpsrc" /etc/nginx/conf.d/ai-agent-os-domain.conf
+        fi
+    fi
+
     sudo nginx -t && sudo systemctl reload nginx
     info "Nginx 配置完成"
 }
