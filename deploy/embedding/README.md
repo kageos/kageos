@@ -112,7 +112,7 @@ export AI_AGENT_OS_ROOT=/绝对路径/ai-agent-os   # 可选
 
 **静态目录**：`embedding.sh nginx` / `init` 会把 `web/dist`、`hub-frontend/dist` **rsync 到 `/opt/ai-agent-os/`** 再让 Nginx 读（避免仓库在 **`/root`** 时 `www-data` 无权限 → **500**）。更新前端后请再执行 **`embedding.sh nginx`** 或跑 **`update`**（已内含 nginx 步骤）。
 
-**可选域名（如 geeleo.com → 8999、hub.geeleo.com → 8998）**：仅当 DNS 指向本机时启用，默认可不装；见 **[nginx/DOMAIN_PROXY.md](nginx/DOMAIN_PROXY.md)** 与 **`nginx/nginx-domain-proxy.example.conf`**。
+**可选域名（80 → 8999 / 8998）**：跑 **`embedding.sh nginx`（或 init/update）** 时会自动安装 **`nginx-domain-proxy.example.conf`** → `/etc/nginx/conf.d/ai-agent-os-domain.conf`；自定义见 **`deploy/config/local/nginx-domain-proxy.conf`**，跳过见 **`EMBEDDING_SKIP_NGINX_DOMAIN=1`**。详见 **[nginx/DOMAIN_PROXY.md](nginx/DOMAIN_PROXY.md)**。
 
 ---
 
@@ -123,7 +123,7 @@ export AI_AGENT_OS_ROOT=/绝对路径/ai-agent-os   # 可选
 | 命令 | 作用 |
 |------|------|
 | **`init`** | 首次完整上线：栈 + 前后端 + Nginx + 运行时镜像 + 启动 core/hub |
-| **`update`** | **`git pull`** 后 **与 `init` 同序全量**：`infra` → `local`（若有）→ `dbs` → `build` → `frontend` → **`nginx`** → **`runtime`** → 重启 core/hub（日常只跑这一条即可） |
+| **`update`** | **`git pull`** → `infra` → `local`（若有）→ `dbs` → `build` → `frontend` → **`nginx`** → 重启 core/hub；**默认不跑 `runtime`**（避免每次 `podman build`）。改 **`build/Dockerfile`** 后请单独 **`embedding.sh runtime`**，或 **`EMBEDDING_UPDATE_WITH_RUNTIME=1`** 再 `update` |
 | `restart` / `stop` / `status` / `logs` | 与 `server-deploy.sh` 同类（`logs` 默认 `core-server`，可跟 `hub-server`） |
 | `all` | 仅：`infra` → `local`（若有）→ `dbs` → `build` → `runtime` |
 | `infra` | Podman Compose 起 MySQL/NATS/MinIO |
