@@ -543,7 +543,7 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 	})
 	out = append(out, dto.ToolDef{
 		Name:        "create_scheduled_task",
-		Description: "创建定时任务。支持 execute（普通函数）、table_create（表格新增）、table_update（表格更新）、table_delete（表格删除）。full_code_path 可不传（默认当前目录）。table_update 的 payload 需包含 id 与 updates，执行时会自动补 old_values。run_at 建议用本地日期时间字符串（无 Z），与前端一致；也可用带时区偏移的 RFC3339。",
+		Description: "创建定时任务。支持 execute/form（普通函数，form 会自动映射为 execute）、table_create（表格新增）、table_update（表格更新）、table_delete（表格删除）。full_code_path 可不传（默认当前目录）。table_update 的 payload 需包含 id 与 updates，执行时会自动补 old_values。run_at 建议用本地日期时间字符串（无 Z），与前端一致；也可用带时区偏移的 RFC3339。",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -557,7 +557,7 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 				},
 				"action": map[string]interface{}{
 					"type":        "string",
-					"description": "动作（可选，默认 execute）：execute/table_create/table_update/table_delete",
+					"description": "动作（可选，默认 execute）：execute/form/table_create/table_update/table_delete",
 				},
 				"method": map[string]interface{}{
 					"type":        "string",
@@ -2651,6 +2651,9 @@ func (r *ToolRegistry) callCreateScheduledTask(ctx context.Context, args map[str
 
 	action := strings.TrimSpace(GetStringArg(args, "action"))
 	if action == "" {
+		action = "execute"
+	}
+	if strings.EqualFold(action, "form") {
 		action = "execute"
 	}
 	method := strings.ToUpper(strings.TrimSpace(GetStringArg(args, "method")))
