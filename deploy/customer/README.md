@@ -31,6 +31,24 @@ podman compose up -d --build
 
 改配置：只改 **`env.yaml`**，再执行 **`./render-env.sh`**，然后按需 **`compose up -d`**。
 
+## 构建加速（依赖与源，默认偏国内）
+
+`Dockerfile` 已内置（可按需关闭或覆盖）：
+
+| 环节 | 默认行为 | 关闭 / 覆盖 |
+|------|----------|-------------|
+| **Debian APT**（Go 阶段、运行阶段） | `APT_USE_MIRROR=1` 时把官方源换成 **阿里云** bookworm / security | 海外构建：`--build-arg APT_USE_MIRROR=0` |
+| **Go 模块** | `GOPROXY` / `GOSUMDB` 见上文 | `--build-arg GOPROXY=direct` 等 |
+| **npm**（前端 `npm ci`） | `NPM_REGISTRY=https://registry.npmmirror.com` | 官方源：`--build-arg NPM_REGISTRY=https://registry.npmjs.org` |
+
+示例（仅重建 `main`）：
+
+```bash
+podman compose build --build-arg APT_USE_MIRROR=0 --build-arg NPM_REGISTRY=https://registry.npmjs.org main
+```
+
+**说明**：拉取 **`golang` / `node` / `debian` 层镜像**仍走宿主机配置的容器 registry（可在 **`/etc/containers/registries.conf.d/`** 为 `docker.io` 配镜像加速，与 Dockerfile 无关）。爱你呦。
+
 ## 存储与公网地址
 
 - **`CANONICAL_BASE_URL`**（写在 `env.yaml` → 生成进 `.env`）为唯一主站真值。

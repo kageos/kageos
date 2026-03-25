@@ -4,10 +4,25 @@
 # ========== Go 编译 ==========
 FROM golang:1.24-bookworm AS gobuilder
 WORKDIR /src
+# 国内构建：APT / Go 模块 / npm 可加速见 README；海外构建传 --build-arg APT_USE_MIRROR=0
+ARG APT_USE_MIRROR=1
 ARG GOPROXY=https://goproxy.cn,direct
 ARG GOSUMDB=sum.golang.google.cn
 ENV GOPROXY=${GOPROXY}
 ENV GOSUMDB=${GOSUMDB}
+RUN set -eux; \
+    if [ "${APT_USE_MIRROR}" = "1" ]; then \
+      if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i \
+          -e 's|http://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g' \
+          -e 's|https://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g' \
+          -e 's|http://security.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' \
+          -e 's|https://security.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' \
+          /etc/apt/sources.list.d/debian.sources; \
+      elif [ -f /etc/apt/sources.list ]; then \
+        sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list; \
+      fi; \
+    fi
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libc6-dev libgpgme-dev libdevmapper-dev pkg-config \
     && rm -rf /var/lib/apt/lists/*
@@ -23,6 +38,8 @@ RUN CGO_ENABLED=1 GOOS=linux go build \
 # ========== Web 静态 ==========
 FROM node:20-bookworm AS webbuilder
 WORKDIR /src/web
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
 COPY web/ ./
@@ -31,12 +48,26 @@ RUN npm run build-only
 # ========== 运行 ==========
 FROM debian:bookworm-slim
 
+ARG APT_USE_MIRROR=1
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Shanghai
 ENV LANG=C.UTF-8
 ENV APP_ENV=prod
 ENV AI_AGENT_OS_ROOT=/app
 
+RUN set -eux; \
+    if [ "${APT_USE_MIRROR}" = "1" ]; then \
+      if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i \
+          -e 's|http://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g' \
+          -e 's|https://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g' \
+          -e 's|http://security.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' \
+          -e 's|https://security.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' \
+          /etc/apt/sources.list.d/debian.sources; \
+      elif [ -f /etc/apt/sources.list ]; then \
+        sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list; \
+      fi; \
+    fi
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates tzdata curl netcat-openbsd \
     nginx gettext-base \
