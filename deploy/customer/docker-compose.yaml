@@ -1,8 +1,6 @@
 # 客户主站一键部署（不含 Hub）
 # 宿主机：手写 env.yaml → ./render-env.sh 生成 .env → podman compose up -d --build
 
-name: ai-agent-os-customer
-
 services:
   mysql:
     image: mysql:8.0
