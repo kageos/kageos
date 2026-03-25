@@ -4,6 +4,10 @@
 # ========== Go 编译 ==========
 FROM golang:1.24-bookworm AS gobuilder
 WORKDIR /src
+ARG GOPROXY=https://goproxy.cn,direct
+ARG GOSUMDB=sum.golang.google.cn
+ENV GOPROXY=${GOPROXY}
+ENV GOSUMDB=${GOSUMDB}
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libc6-dev libgpgme-dev libdevmapper-dev pkg-config \
     && rm -rf /var/lib/apt/lists/*
