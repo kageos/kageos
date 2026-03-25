@@ -47,3 +47,7 @@ data/app-runtime
 # 本机覆盖配置（勿提交敏感信息）
 deploy/config/local/*.yaml
 deploy/config/local/*.yml
+
+# 客户部署本地环境（含密钥）
+deploy/customer/.env
+deploy/customer/env.yaml

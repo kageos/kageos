@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"sync"
 )
 
@@ -110,7 +112,26 @@ func loadAppStorageConfig() *AppStorageConfig {
 		cfg = &AppStorageConfig{}
 	}
 
+	applyCanonicalCDNToAppStorage(cfg)
 	return cfg
+}
+
+// EnvCanonicalBaseURL 容器/一键部署：与浏览器一致的主站公网地址（含 scheme），用于补全 minio.cdn_domain。
+const EnvCanonicalBaseURL = "CANONICAL_BASE_URL"
+
+func applyCanonicalCDNToAppStorage(c *AppStorageConfig) {
+	if c == nil || c.Storage.Type != "minio" {
+		return
+	}
+	if strings.TrimSpace(c.Storage.MinIO.CDNDomain) != "" {
+		return
+	}
+	v := strings.TrimSpace(os.Getenv(EnvCanonicalBaseURL))
+	if v == "" {
+		return
+	}
+	c.Storage.MinIO.CDNDomain = v
+	fmt.Printf("[config] app-storage: storage.minio.cdn_domain empty, using %s=%s\n", EnvCanonicalBaseURL, v)
 }
 
 // GetPort 获取端口
