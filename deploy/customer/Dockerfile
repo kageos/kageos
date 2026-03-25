@@ -69,7 +69,7 @@ COPY --from=gobuilder /src/enterprise/ /app/enterprise/
 COPY --from=gobuilder /go/pkg/mod /go/pkg/mod
 
 COPY deploy/podman/Dockerfile.app-base /app/app-base/Dockerfile
-COPY scripts/start.sh /app/app-base/scripts/start.sh
+COPY build/start.sh /app/app-base/scripts/start.sh
 
 # 配置模板（每次启动从模板复制再 sed，避免重启破坏占位符）
 COPY deploy/customer/config/prod/ /app/config.prod.template/

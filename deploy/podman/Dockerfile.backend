@@ -91,7 +91,7 @@ RUN mkdir -p /config && ln -sf /app/hub-config/hub.yaml /config/hub.yaml
 
 # 复制用户应用基础镜像构建文件（Podman 首次启动时构建）
 COPY deploy/podman/Dockerfile.app-base /app/app-base/Dockerfile
-COPY scripts/start.sh /app/app-base/scripts/start.sh
+COPY build/start.sh /app/app-base/scripts/start.sh
 
 # 复制启动脚本
 COPY deploy/podman/entrypoint-backend.sh /app/entrypoint.sh
