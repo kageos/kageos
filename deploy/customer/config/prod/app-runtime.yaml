@@ -1,0 +1,45 @@
+runtime:
+  port: 9093
+  log_level: "info"
+  debug: false
+
+timeouts:
+  function_server_request: 30
+  container_startup: 2
+  container_cleanup: 10
+
+app_manage:
+  app_dir:
+    base_path: "namespace"
+    structure:
+      - "code"
+      - "code/api"
+      - "code/cmd/app"
+      - "workplace"
+      - "workplace/bin"
+      - "workplace/bin/releases"
+      - "workplace/bin/configs"
+      - "workplace/bin/logs"
+      - "workplace/bin/temp"
+      - "workplace/api-logs"
+      - "workplace/conf"
+      - "workplace/data"
+      - "workplace/logs"
+      - "workplace/metadata"
+  build:
+    output_dir: "workplace/bin/releases"
+    binary_name_format: "{user}_{app}_{version}"
+  git:
+    email_suffix: "ai-agent-os.com"
+
+container:
+  runtime: "podman"
+  socket: "unix:///run/podman/podman.sock"
+  timeout: 30
+  lsm_mode: "auto"
+  apparmor_profile: "ai-agent-os-app"
+  image:
+    base_image: "ai-agent-os:latest"
+    container_path: "/app"
+    command: ["/start.sh"]
+    restart_policy: "always"

@@ -1,0 +1,34 @@
+# App Server（客户）
+server:
+  port: 9091
+  log_level: "info"
+  debug: false
+
+db:
+  type: "mysql"
+  host: "mysql"
+  port: 3306
+  user: "root"
+  password: "__MYSQL_ROOT_PASSWORD__"
+  name: "app_db"
+  max_idle_conns: 30
+  max_open_conns: 200
+  max_lifetime: 300
+  log_level: "warn"
+  slow_threshold: 200
+
+timeouts:
+  app_request: 300
+  nats_request: 300
+
+email:
+  smtp:
+    host: "smtp.example.com"
+    port: 587
+    username: "noreply@example.com"
+    password: "__SMTP_PASSWORD__"
+    from: "noreply@example.com"
+    from_name: "AI Agent OS"
+  verification:
+    code_length: 6
+    code_expire: 300
