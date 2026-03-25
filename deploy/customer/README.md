@@ -51,6 +51,10 @@ podman compose up -d --build
 
 `podman compose build main && podman compose up -d main`
 
+## 构建说明（避免踩坑）
+
+- 用户应用基础镜像上下文里的 **`scripts/start.sh`** 来自仓库根目录的 **`build/start.sh`**（胖镜像构建时复制到 `/app/app-base/scripts/`）。若本地构建报 `scripts/start.sh` / `start.sh` 找不到，先 **`git pull`** 确保 Dockerfile 与 `build/start.sh` 一致。
+
 ## 已知限制
 
 - 边缘为容器内 **8080 HTTP**；对外 HTTPS 前加 LB 并同步 **`CANONICAL_BASE_URL`** 为 `https://`。
