@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/appcall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 
@@ -18,8 +16,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
-	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"gorm.io/gorm"
 )
@@ -49,236 +45,7 @@ func NewAppService(appCall *appcall.Client, appRepo *repository.AppRepository, f
 
 // CreateApp 创建应用
 func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto.CreateAppResp, error) {
-	// 从请求体中获取租户用户信息（应用所有者）
-	tenantUser := req.User
-	if tenantUser == "" {
-		return nil, fmt.Errorf("租户用户信息不能为空")
-	}
-
-	// 从 context 中获取请求用户信息（实际发起请求的用户）
-	requestUser := contextx.GetRequestUser(ctx)
-	if requestUser == "" {
-		return nil, fmt.Errorf("请求用户信息不能为空")
-	}
-
-	// ⭐ 检查应用数量限制（全局限制）
-	appCount, err := a.appRepo.CountApps()
-	if err != nil {
-		logger.Warnf(ctx, "[AppService] Failed to count apps: %v", err)
-	} else {
-		licenseMgr := license.GetManager()
-		if err := licenseMgr.CheckAppLimit(int(appCount)); err != nil {
-			return nil, err
-		}
-	}
-
-	// 验证用户是否存在（通过 hr-server 接口验证）
-	// system 是内置用户，跳过远程验证，避免系统初始化时的循环依赖
-	if tenantUser != SystemUsername {
-		_, err = apicall.GetUserByUsername(ctx, &dto.QueryUserReq{Username: tenantUser})
-		if err != nil {
-			return nil, fmt.Errorf("租户用户 %s 不存在: %w", tenantUser, err)
-		}
-	}
-
-	// ⭐ 校验工作空间 code 必须是合法的 Go package 名称（用于目录路径和 package 声明）
-	if err := validateGoPackageName(req.Code); err != nil {
-		return nil, err
-	}
-
-	// 创建前校验：同一用户下应用中文名称是否重复
-	if exists, err := a.appRepo.ExistsAppNameForUser(tenantUser, req.Name); err != nil {
-		return nil, fmt.Errorf("检查应用名称唯一性失败: %w", err)
-	} else if exists {
-		return nil, fmt.Errorf("应用名称已存在: %s", req.Name)
-	}
-
-	// 分配可用的 Host（选择 app_count 最小的 host，实现负载均衡）
-	hostRepo := repository.NewHostRepository(a.appRepo.GetDB())
-	hosts, err := hostRepo.GetHostList()
-	if err != nil || len(hosts) == 0 {
-		return nil, fmt.Errorf("无法获取可用的主机: %w", err)
-	}
-
-	// 选择 app_count 最小的 host（负载均衡）
-	var selectedHost *model.Host
-	for _, host := range hosts {
-		if host.Status == "enabled" {
-			if selectedHost == nil || host.AppCount < selectedHost.AppCount {
-				selectedHost = host
-			}
-		}
-	}
-	if selectedHost == nil {
-		return nil, fmt.Errorf("没有可用的主机")
-	}
-
-	// 创建包含用户信息的请求对象（内部使用）
-	resp, err := a.appCall.CreateApp(ctx, selectedHost.ID, req)
-	if err != nil {
-		return nil, err
-	}
-
-	// 写入数据库记录
-	isPublic := true // 默认公开
-	if req.IsPublic != nil {
-		isPublic = *req.IsPublic
-	}
-	showOnlyPermitted := false
-	if req.ShowOnlyPermitted != nil {
-		showOnlyPermitted = *req.ShowOnlyPermitted
-	}
-	app := model.App{
-		Base: models.Base{
-			CreatedBy: requestUser, // 记录实际请求用户（谁发起的请求）
-		},
-		Version:           "v1",
-		Code:              req.Code,
-		Name:              req.Name,   // 应用名称
-		User:              tenantUser, // 记录租户用户（应用所有者）
-		NatsID:            selectedHost.NatsID,
-		HostID:            selectedHost.ID,
-		Status:            "enabled",
-		IsPublic:          isPublic,   // 是否公开
-		Admins:            req.Admins, // 管理员列表，逗号分隔的用户名
-		ShowOnlyPermitted: showOnlyPermitted,
-	}
-	err = a.appRepo.CreateApp(&app)
-	if err != nil {
-		return nil, err
-	}
-
-	// ⭐ 创建 service_tree 根节点（新架构）
-	// 每个 app 都在 service_tree 表中有对应的根节点
-	rootNode := &model.ServiceTree{
-		Name:         app.Name,
-		Code:         app.Code,
-		Type:         model.ServiceTreeTypePackage,
-		Admins:       app.Admins,
-		PendingCount: 0,
-		AppID:        app.ID,
-		RefID:        app.ID,  // ⭐ ref_id 指向 app 表，标识这是根节点
-		FullCodePath: fmt.Sprintf("/%s/%s", tenantUser, req.Code),
-		Version:      "v1",
-		VersionNum:   1,
-		Base: models.Base{
-			CreatedBy: requestUser,
-			UpdatedBy: requestUser,
-		},
-	}
-
-	err = a.serviceTreeRepo.Create(rootNode)
-	if err != nil {
-		logger.Errorf(ctx, "[AppService] 创建 service_tree 根节点失败: app_id=%d, error=%v", app.ID, err)
-		// ⚠️ 根节点创建失败会导致服务树无法显示，应该返回错误
-		// TODO: 将根节点创建失败改为阻塞性错误，并回滚应用创建
-		return nil, fmt.Errorf("创建工作空间根节点失败: %w", err)
-	}
-	
-	logger.Infof(ctx, "[AppService] 创建 service_tree 根节点成功: app_id=%d, root_id=%d, full_code_path=%s", 
-		app.ID, rootNode.ID, rootNode.FullCodePath)
-
-	// ⭐ 自动给创建者和管理员分配应用管理员角色（拥有 app:admin 权限）
-	resourcePath := fmt.Sprintf("/%s/%s", tenantUser, req.Code)
-
-	// 1. 给创建者分配应用管理员角色
-	if err := a.assignAppAdminRoleToUser(ctx, tenantUser, req.Code, tenantUser, resourcePath); err != nil {
-		// 权限添加失败不应该影响应用创建，只记录警告日志
-		logger.Warnf(ctx, "[AppService] 自动添加创建者应用管理员角色失败: user=%s, app=%s, username=%s, resource=%s, error=%v",
-			tenantUser, req.Code, tenantUser, resourcePath, err)
-	}
-
-	// 2. 给管理员列表中的用户分配应用管理员角色
-	if req.Admins != "" {
-		admins := strings.Split(req.Admins, ",")
-		for _, admin := range admins {
-			admin = strings.TrimSpace(admin)
-			if admin != "" && admin != tenantUser { // 避免重复分配（创建者已经在上面分配了）
-				if err := a.assignAppAdminRoleToUser(ctx, tenantUser, req.Code, admin, resourcePath); err != nil {
-					// 权限添加失败不应该影响应用创建，只记录警告日志
-					logger.Warnf(ctx, "[AppService] 自动添加应用管理员角色失败: user=%s, app=%s, username=%s, resource=%s, error=%v",
-						tenantUser, req.Code, admin, resourcePath, err)
-				}
-			}
-		}
-	}
-
-	return resp, nil
-}
-
-// assignAppAdminRoleToUser 给用户分配应用管理员角色
-// ⭐ 使用角色系统，分配"admin"角色（拥有 app:admin 权限）
-func (a *AppService) assignAppAdminRoleToUser(ctx context.Context, user, app, username, resourcePath string) error {
-	// 检查权限功能是否启用（企业版）
-	licenseMgr := license.GetManager()
-	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
-		// 权限功能未启用，跳过
-		return nil
-	}
-
-	// 获取权限服务
-	permissionService := enterprise.GetPermissionService()
-	if permissionService == nil {
-		return fmt.Errorf("权限服务未初始化")
-	}
-
-	// ⭐ 使用角色系统，分配"admin"角色（拥有 directory:admin 权限）
-	// 根目录使用 directory 资源类型（工作空间 = 根目录）
-	assignReq := &dto.AssignRoleToUserReq{
-		User:         user,
-		App:          app,
-		Username:     username,
-		RoleCode:     "admin", // 管理员角色
-		ResourceType: "directory",   // ⭐ 根目录使用 directory 资源类型
-		ResourcePath: resourcePath,
-		StartTime:    nil, // 永久权限
-		EndTime:      nil, // 永久权限
-	}
-
-	_, err := permissionService.AssignRoleToUser(ctx, assignReq)
-	if err != nil {
-		return fmt.Errorf("分配应用管理员角色失败: %w", err)
-	}
-
-	logger.Infof(ctx, "[AppService] 分配应用管理员角色成功: user=%s, app=%s, username=%s, resource=%s",
-		user, app, username, resourcePath)
-	return nil
-}
-
-// removeAppAdminRoleFromUser 移除用户的应用管理员角色
-func (a *AppService) removeAppAdminRoleFromUser(ctx context.Context, user, app, username, resourcePath string) error {
-	// 检查权限功能是否启用（企业版）
-	licenseMgr := license.GetManager()
-	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
-		// 权限功能未启用，跳过
-		return nil
-	}
-
-	// 获取权限服务
-	permissionService := enterprise.GetPermissionService()
-	if permissionService == nil {
-		return fmt.Errorf("权限服务未初始化")
-	}
-
-	// ⭐ 使用角色系统，移除"admin"角色
-	// 根目录使用 directory 资源类型（工作空间 = 根目录）
-	removeReq := &dto.RemoveRoleFromUserReq{
-		User:         user,
-		App:          app,
-		Username:     username,
-		RoleCode:     "admin", // 管理员角色
-		ResourceType: "directory",   // ⭐ 根目录使用 directory 资源类型
-		ResourcePath: resourcePath,
-	}
-
-	err := permissionService.RemoveRoleFromUser(ctx, removeReq)
-	if err != nil {
-		return fmt.Errorf("移除应用管理员角色失败: %w", err)
-	}
-
-	logger.Infof(ctx, "[AppService] 移除应用管理员角色成功: user=%s, app=%s, username=%s, resource=%s",
-		user, app, username, resourcePath)
-	return nil
+	return a.createAppFlow(ctx, req)
 }
 
 // UpdateApp 更新应用（更新应用代码并重新编译部署）
@@ -972,20 +739,20 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 	appInfos := make([]*dto.AppInfo, len(apps))
 	for i, app := range apps {
 		appInfos[i] = &dto.AppInfo{
-			ID:                 app.ID,
-			User:               app.User,
-			Code:               app.Code,
-			Name:               app.Name,
-			Status:             app.Status,
-			Version:            app.Version,
-			NatsID:             app.NatsID,
-			HostID:             app.HostID,
-			IsPublic:           app.IsPublic,
-			Admins:             app.Admins,
-			Type:               int(app.Type),
-			ShowOnlyPermitted:  app.ShowOnlyPermitted,
-			CreatedAt:          time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
-			UpdatedAt:          time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
+			ID:                app.ID,
+			User:              app.User,
+			Code:              app.Code,
+			Name:              app.Name,
+			Status:            app.Status,
+			Version:           app.Version,
+			NatsID:            app.NatsID,
+			HostID:            app.HostID,
+			IsPublic:          app.IsPublic,
+			Admins:            app.Admins,
+			Type:              int(app.Type),
+			ShowOnlyPermitted: app.ShowOnlyPermitted,
+			CreatedAt:         time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
+			UpdatedAt:         time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
 		}
 	}
 
@@ -1013,20 +780,20 @@ func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq)
 	// 转换为响应格式
 	return &dto.GetAppDetailResp{
 		AppInfo: dto.AppInfo{
-			ID:                 app.ID,
-			User:               app.User,
-			Code:               app.Code,
-			Name:               app.Name,
-			Status:             app.Status,
-			Version:            app.Version,
-			NatsID:             app.NatsID,
-			HostID:             app.HostID,
-			IsPublic:           app.IsPublic,
-			Admins:             app.Admins,
-			Type:               int(app.Type),
-			ShowOnlyPermitted:  app.ShowOnlyPermitted,
-			CreatedAt:          time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
-			UpdatedAt:          time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
+			ID:                app.ID,
+			User:              app.User,
+			Code:              app.Code,
+			Name:              app.Name,
+			Status:            app.Status,
+			Version:           app.Version,
+			NatsID:            app.NatsID,
+			HostID:            app.HostID,
+			IsPublic:          app.IsPublic,
+			Admins:            app.Admins,
+			Type:              int(app.Type),
+			ShowOnlyPermitted: app.ShowOnlyPermitted,
+			CreatedAt:         time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
+			UpdatedAt:         time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
 		},
 	}, nil
 }
@@ -1280,7 +1047,7 @@ func (a *AppService) createDirectorySnapshots(ctx context.Context, appID int64, 
 
 			// 计算文件行数
 			lineCount := calculateLineCount(file.Content)
-			
+
 			// 创建文件快照（所有文件都创建新快照，记录新的目录版本）
 			fileSnapshot := &model.FileSnapshot{
 				AppID:          appID,
@@ -1586,35 +1353,4 @@ func calculateLineCount(content string) int {
 		lineCount--
 	}
 	return lineCount
-}
-
-// goPackageNameRegex 合法的 Go package 名称：以小写字母开头，后续可跟小写字母、数字、下划线
-var goPackageNameRegex = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
-
-// goKeywords Go 保留关键字，不能作为 package 名
-var goKeywords = map[string]bool{
-	"break": true, "case": true, "chan": true, "const": true, "continue": true,
-	"default": true, "defer": true, "else": true, "fallthrough": true, "for": true,
-	"func": true, "go": true, "goto": true, "if": true, "import": true,
-	"interface": true, "map": true, "package": true, "range": true, "return": true,
-	"select": true, "struct": true, "switch": true, "type": true, "var": true,
-}
-
-// validateGoPackageName 校验字符串是否为合法的 Go package 名称
-// 规则：以小写字母开头，只能包含小写字母、数字、下划线，长度 2-50，不能是 Go 关键字
-func validateGoPackageName(code string) error {
-	code = strings.TrimSpace(code)
-	if code == "" {
-		return fmt.Errorf("工作空间英文标识不能为空")
-	}
-	if len(code) < 2 || len(code) > 50 {
-		return fmt.Errorf("工作空间英文标识长度须为 2-50 个字符")
-	}
-	if !goPackageNameRegex.MatchString(code) {
-		return fmt.Errorf("工作空间英文标识必须是合法的 Go package 名称：以小写字母开头，只能包含小写字母、数字和下划线")
-	}
-	if goKeywords[code] {
-		return fmt.Errorf("工作空间英文标识不能使用 Go 保留关键字：%s", code)
-	}
-	return nil
 }

@@ -135,6 +135,7 @@ type ServiceTreeService struct {
 	appRepo           *repository.AppRepository
 	appCall           *appcall.Client
 	fileSnapshotRepo  *repository.FileSnapshotRepository
+	packageService    *PackageService
 	appService        *AppService
 	permissionService *PermissionService              // ⭐ 添加 PermissionService 依赖，用于查询权限
 	docService        *DocService                     // ⭐ 添加 DocService 依赖，用于创建文档内容
@@ -153,7 +154,7 @@ func NewServiceTreeService(
 	docService *DocService, // ⭐ 新增 DocService 依赖
 	boardPostRepo *repository.BoardPostRepository, // 版块帖子，删版块时需先删帖子
 ) *ServiceTreeService {
-	return &ServiceTreeService{
+	serviceTreeService := &ServiceTreeService{
 		serviceTreeRepo:   serviceTreeRepo,
 		functionRepo:      functionRepo,
 		appRepo:           appRepo,
@@ -164,6 +165,9 @@ func NewServiceTreeService(
 		docService:        docService,
 		boardPostRepo:     boardPostRepo,
 	}
+
+	serviceTreeService.packageService = NewPackageService(serviceTreeRepo, appRepo, appCall)
+	return serviceTreeService
 }
 
 // CreateServiceTree 创建服务目录（package 类型）
@@ -177,155 +181,39 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 		return s.CreateBoardNode(ctx, req)
 	}
 
-	// 获取应用信息
-	app, err := s.appRepo.GetAppByUserName(req.User, req.App)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get app: %w", err)
-	}
-
-	var parentTree *model.ServiceTree
-
-	if req.ParentFullCodePath != "" {
-		parentTree, err = s.serviceTreeRepo.GetServiceTreeByFullPath(req.ParentFullCodePath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get parent node: %w", err)
-		}
-	}
-
-	fullCodePath := fmt.Sprintf("/%s/%s/%s", app.User, app.Code, req.Code)
-	if parentTree != nil {
-		fullCodePath = parentTree.FullCodePath + "/" + req.Code
-	}
-	parentPath := ""
-	if parentTree != nil {
-		parentPath = parentTree.FullCodePath
-	}
-	exists, err := s.serviceTreeRepo.CheckNameExistsByPath(parentPath, req.Code, app.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check name exists: %w", err)
-	}
-	if exists {
-		return nil, fmt.Errorf("directory %s already exists", req.Code)
-	}
-
-	// 提取当前版本号数字
-	currentVersionNum := extractVersionNumForServiceTree(app.Version)
-
-	// 获取创建者用户名
-	requestUser := contextx.GetRequestUser(ctx)
-
-	// 创建服务目录记录（package 类型）
-	serviceTree := &model.ServiceTree{
-		Name:             req.Name,
-		Code:             req.Code,
-		Type:             model.ServiceTreeTypePackage,
-		Description:      req.Description,
-		Tags:             req.Tags,
-		Admins:           req.Admins, // 设置管理员列表
-		AppID:            app.ID,
-		FullCodePath:     fullCodePath,
-		AddVersionNum:    currentVersionNum, // 设置添加版本号
-		UpdateVersionNum: 0,                 // 新增节点，更新版本号为0
-	}
-
-	// 设置创建者
-	if requestUser != "" {
-		serviceTree.CreatedBy = requestUser
-	}
-
-	// 保存到数据库
-	if err := s.serviceTreeRepo.CreateServiceTreeWithParentPath(serviceTree, ""); err != nil {
-		return nil, fmt.Errorf("failed to create service tree: %w", err)
-	}
-
-	logger.Infof(ctx, "[ServiceTreeService] Created package node: %s/%s/%s", req.User, req.App, req.Code)
-
-	// ⭐ 自动给创建者和管理员分配管理员角色（拥有 directory:manage 权限）
-	// 1. 给创建者分配管理员角色
-	if requestUser != "" {
-		if err := s.assignAdminRoleToUser(ctx, req.User, req.App, requestUser, serviceTree.FullCodePath); err != nil {
-			// 权限添加失败不应该影响目录创建，只记录警告日志
-			logger.Warnf(ctx, "[ServiceTreeService] 自动添加创建者管理员角色失败: user=%s, app=%s, username=%s, resource=%s, error=%v",
-				req.User, req.App, requestUser, serviceTree.FullCodePath, err)
-		}
-	}
-
-	// 2. 给管理员列表中的用户分配管理员角色
-	if req.Admins != "" {
-		admins := strings.Split(req.Admins, ",")
-		for _, admin := range admins {
-			admin = strings.TrimSpace(admin)
-			if admin != "" && admin != requestUser { // 避免重复分配（创建者已经在上面分配了）
-				if err := s.assignAdminRoleToUser(ctx, req.User, req.App, admin, serviceTree.FullCodePath); err != nil {
-					// 权限添加失败不应该影响目录创建，只记录警告日志
-					logger.Warnf(ctx, "[ServiceTreeService] 自动添加管理员角色失败: user=%s, app=%s, username=%s, resource=%s, error=%v",
-						req.User, req.App, admin, serviceTree.FullCodePath, err)
-				}
-			}
-		}
-	}
-
-	// ⭐ package 类型需要创建文件系统目录
-	// 发送NATS消息给app-runtime创建目录结构
-	if err := s.sendCreateServiceTreeMessage(ctx, req.User, req.App, serviceTree); err != nil {
-		logger.Warnf(ctx, "[ServiceTreeService] Failed to send NATS message: %v", err)
-		// 不返回错误，因为数据库记录已创建成功
-	}
-
-	// 返回响应
-	resp := &dto.CreateServiceTreeResp{
-		ID:           serviceTree.ID,
-		Name:         serviceTree.Name,
-		Code:         serviceTree.Code,
-		Type:         serviceTree.Type,
-		Description:  serviceTree.Description,
-		Tags:         serviceTree.Tags,
-		Admins:       serviceTree.Admins,
-		AppID:        serviceTree.AppID,
-		FullCodePath: serviceTree.FullCodePath,
-		Version:      serviceTree.Version,
-		VersionNum:   serviceTree.VersionNum,
-		Status:       "created",
-	}
-
-	return resp, nil
-}
-
-// CreatePackage 创建 package 类型节点（专门的接口）
-func (s *ServiceTreeService) CreatePackage(ctx context.Context, req *dto.CreatePackageReq) (*dto.CreatePackageResp, error) {
-	// 转换为通用请求格式
-	createReq := &dto.CreateServiceTreeReq{
+	packageResp, err := s.packageService.CreatePackage(ctx, &dto.CreatePackageReq{
 		User:               req.User,
 		App:                req.App,
 		Name:               req.Name,
 		Code:               req.Code,
 		ParentFullCodePath: req.ParentFullCodePath,
-		Type:               model.ServiceTreeTypePackage,
 		Description:        req.Description,
 		Tags:               req.Tags,
 		Admins:             req.Admins,
-	}
-
-	// 调用通用创建方法
-	resp, err := s.CreateServiceTree(ctx, createReq)
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	// 转换为专门的响应格式
-	return &dto.CreatePackageResp{
-		ID:          resp.ID,
-		Name:        resp.Name,
-		Code:        resp.Code,
-		Type:        resp.Type,
-		Description: resp.Description,
-		Tags:        resp.Tags,
-		AppID:              resp.AppID,
-		FullCodePath:       resp.FullCodePath,
-		Version:            resp.Version,
-		VersionNum:         resp.VersionNum,
-		Admins:             resp.Admins,
+	return &dto.CreateServiceTreeResp{
+		ID:           packageResp.ID,
+		Name:         packageResp.Name,
+		Code:         packageResp.Code,
+		Type:         packageResp.Type,
+		Description:  packageResp.Description,
+		Tags:         packageResp.Tags,
+		Admins:       packageResp.Admins,
+		AppID:        packageResp.AppID,
+		FullCodePath: packageResp.FullCodePath,
+		Version:      packageResp.Version,
+		VersionNum:   packageResp.VersionNum,
+		Status:       "created",
 	}, nil
+}
+
+// CreatePackage 创建 package 类型节点（专门的接口）
+func (s *ServiceTreeService) CreatePackage(ctx context.Context, req *dto.CreatePackageReq) (*dto.CreatePackageResp, error) {
+	return s.packageService.CreatePackage(ctx, req)
 }
 
 // CreateFunction 创建 function 类型节点（专门的接口）
@@ -379,8 +267,8 @@ func (s *ServiceTreeService) CreateFunction(ctx context.Context, req *dto.Create
 			Tags:         req.Tags,
 			AppID:        parentTree.AppID,
 			FullCodePath: expectedPath,
-			Version:            "v1",
-			VersionNum:         1,
+			Version:      "v1",
+			VersionNum:   1,
 		}, nil
 	}
 
@@ -396,8 +284,8 @@ func (s *ServiceTreeService) CreateFunction(ctx context.Context, req *dto.Create
 		AppID:        functionTree.AppID,
 		RefID:        functionTree.RefID,
 		FullCodePath: functionTree.FullCodePath,
-		Version:            functionTree.Version,
-		VersionNum:         functionTree.VersionNum,
+		Version:      functionTree.Version,
+		VersionNum:   functionTree.VersionNum,
 	}
 	return fnResp, nil
 }
@@ -868,20 +756,20 @@ func (s *ServiceTreeService) GetAppWithServiceTree(ctx context.Context, req *dto
 
 	// 转换为 AppInfo 响应格式
 	appInfo := dto.AppInfo{
-		ID:                 appModel.ID,
-		User:               appModel.User,
-		Code:               appModel.Code,
-		Name:               appModel.Name,
-		Status:             appModel.Status,
-		Version:            appModel.Version,
-		NatsID:             appModel.NatsID,
-		HostID:             appModel.HostID,
-		IsPublic:           appModel.IsPublic,
-		Admins:             appModel.Admins,
-		Type:               int(appModel.Type),
-		ShowOnlyPermitted:  appModel.ShowOnlyPermitted,
-		CreatedAt:          time.Time(appModel.CreatedAt).Format("2006-01-02 15:04:05"),
-		UpdatedAt:          time.Time(appModel.UpdatedAt).Format("2006-01-02 15:04:05"),
+		ID:                appModel.ID,
+		User:              appModel.User,
+		Code:              appModel.Code,
+		Name:              appModel.Name,
+		Status:            appModel.Status,
+		Version:           appModel.Version,
+		NatsID:            appModel.NatsID,
+		HostID:            appModel.HostID,
+		IsPublic:          appModel.IsPublic,
+		Admins:            appModel.Admins,
+		Type:              int(appModel.Type),
+		ShowOnlyPermitted: appModel.ShowOnlyPermitted,
+		CreatedAt:         time.Time(appModel.CreatedAt).Format("2006-01-02 15:04:05"),
+		UpdatedAt:         time.Time(appModel.UpdatedAt).Format("2006-01-02 15:04:05"),
 	}
 
 	// 使用内部方法获取服务目录树（复用 appModel，避免重复查询）
@@ -924,21 +812,21 @@ func (s *ServiceTreeService) GetServiceTreeDetail(ctx context.Context, req *dto.
 
 	// 转换为响应格式
 	resp := &dto.GetServiceTreeDetailResp{
-		ID:          tree.ID,
-		Name:        tree.Name,
-		Code:        tree.Code,
-		Type:        tree.Type,
-		Description:        tree.Description,
-		Tags:               tree.Tags,
-		AppID:              tree.AppID,
-		RefID:              tree.RefID,
-		FullCodePath:       tree.FullCodePath,
-		TemplateType:       tree.TemplateType,
-		Version:            tree.Version,
-		VersionNum:         tree.VersionNum,
-		HubFullCodePath:    tree.HubFullCodePath,
-		HubVersionNum:      tree.HubVersionNum,
-		RunCount:           tree.RunCount,
+		ID:              tree.ID,
+		Name:            tree.Name,
+		Code:            tree.Code,
+		Type:            tree.Type,
+		Description:     tree.Description,
+		Tags:            tree.Tags,
+		AppID:           tree.AppID,
+		RefID:           tree.RefID,
+		FullCodePath:    tree.FullCodePath,
+		TemplateType:    tree.TemplateType,
+		Version:         tree.Version,
+		VersionNum:      tree.VersionNum,
+		HubFullCodePath: tree.HubFullCodePath,
+		HubVersionNum:   tree.HubVersionNum,
+		RunCount:        tree.RunCount,
 	}
 
 	// ⭐ 查询权限信息（企业版功能）
@@ -1607,10 +1495,10 @@ func (s *ServiceTreeService) DeleteServiceTree(ctx context.Context, id int64) er
 // ⭐ 父子关系由 FullCodePath 推导，无需 ParentID
 func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tree *model.ServiceTree, permissionsMap map[string]map[string]bool, isAdmin bool) *dto.GetServiceTreeResp {
 	resp := &dto.GetServiceTreeResp{
-		ID:    tree.ID,
-		Name:  tree.Name,
-		Code:  tree.Code,
-		RefID: tree.RefID,
+		ID:              tree.ID,
+		Name:            tree.Name,
+		Code:            tree.Code,
+		RefID:           tree.RefID,
 		Type:            tree.Type,
 		Description:     tree.Description,
 		Tags:            tree.Tags,
@@ -1625,7 +1513,7 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 		HubFullCodePath: tree.HubFullCodePath,
 		HubVersionNum:   tree.HubVersionNum,
 		RunCount:        tree.RunCount,
-		IsAdmin:         isAdmin,       // ⭐ 是否是管理员（前端优先判断此字段）
+		IsAdmin:         isAdmin, // ⭐ 是否是管理员（前端优先判断此字段）
 	}
 
 	// ⭐ 设置权限信息

@@ -27,6 +27,8 @@ podman compose up -d --build
 # Docker：docker compose up -d --build
 ```
 
+> 构建 Go 依赖默认使用 `GOPROXY=https://goproxy.cn,direct` 与 `GOSUMDB=sum.golang.google.cn`；如需覆盖，可在构建时传 `--build-arg GOPROXY=... --build-arg GOSUMDB=...`。
+
 改配置：只改 **`env.yaml`**，再执行 **`./render-env.sh`**，然后按需 **`compose up -d`**。
 
 ## 存储与公网地址
