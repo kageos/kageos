@@ -1,0 +1,29 @@
+server:
+  port: 9097
+  log_level: "info"
+  debug: false
+
+db:
+  type: "mysql"
+  host: "mysql"
+  port: 3306
+  user: "root"
+  password: "__MYSQL_ROOT_PASSWORD__"
+  name: "hr-server"
+  max_idle_conns: 10
+  max_open_conns: 100
+  max_lifetime: 300
+  log_level: "warn"
+  slow_threshold: 200
+
+email:
+  smtp:
+    host: "smtp.example.com"
+    port: 587
+    username: "noreply@example.com"
+    password: "__SMTP_PASSWORD__"
+    from: "noreply@example.com"
+    from_name: "AI Agent OS"
+  verification:
+    code_length: 6
+    code_expire: 300

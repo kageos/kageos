@@ -68,7 +68,7 @@ COPY deploy/podman/Dockerfile.app-base /app/app-base/Dockerfile
 COPY scripts/start.sh /app/app-base/scripts/start.sh
 
 # 配置模板（每次启动从模板复制再 sed，避免重启破坏占位符）
-COPY deploy/config/customer/prod/ /app/config.prod.template/
+COPY deploy/customer/config/prod/ /app/config.prod.template/
 COPY deploy/customer/nginx/default.conf.template /app/deploy/customer/nginx/default.conf.template
 COPY deploy/customer/entrypoint-main.sh /app/entrypoint-main.sh
 RUN chmod +x /app/entrypoint-main.sh

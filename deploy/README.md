@@ -15,4 +15,4 @@
 - **Nginx 站点配置**（裸机 Web + Hub + 反代）：[embedding/nginx/nginx-server.conf](embedding/nginx/nginx-server.conf)（说明见 [embedding/nginx/README.md](embedding/nginx/README.md)）
 - **历史脚本**（Docker 起中间件 + 本机二进制）：[server-deploy.sh](server-deploy.sh) — 与 `embedding` 目标一致时可逐步迁到 **`embedding/scripts/embedding.sh`**。
 
-**应用 YAML** 统一在 **`deploy/config/`**（**`dev` / `prod` / `compose`**），说明见 **[deploy/config/README.md](deploy/config/README.md)**；可选 **`AI_AGENT_OS_ROOT`** 指定项目根。
+**应用 YAML**：开发与 Compose 挂载在 **`deploy/config/`**（**`dev` / `prod` / `compose`**），说明见 **[deploy/config/README.md](deploy/config/README.md)**。客户主站一键部署的 prod 模板在 **`deploy/customer/config/prod/`**（与 **`deploy/customer`** 同包）。可选 **`AI_AGENT_OS_ROOT`** 指定项目根。

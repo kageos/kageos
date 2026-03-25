@@ -45,7 +45,7 @@ podman compose up -d --build
 | `render-env.sh` | `env.yaml` → `.env` |
 | `entrypoint-main.sh` | 等待依赖、注入密钥、起 Nginx + Podman + core |
 | `nginx/default.conf.template` | 边缘模板（envsubst） |
-| `../config/customer/prod/*.yaml` | 配置模板（含占位符，每次启动从镜像内副本重置） |
+| `config/prod/*.yaml` | 主站应用 YAML 模板（含占位符，构建进镜像；启动时复制到容器内 `deploy/config/prod` 再 `sed`） |
 
 ## 升级
 
