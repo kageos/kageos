@@ -1,0 +1,76 @@
+# 客户主站一键部署（不含 Hub）
+# 宿主机 Podman：podman compose up -d --build（同目录需先有 .env，见 render-env.sh）
+# 宿主机 Docker：docker compose up -d --build
+
+name: ai-agent-os-customer
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme}
+      TZ: Asia/Shanghai
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ../podman/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks: [aos]
+
+  nats:
+    image: nats:2.10-alpine
+    restart: unless-stopped
+    volumes:
+      - ../podman/nats-server.conf:/etc/nats/nats-server.conf:ro
+    command: ["-c", "/etc/nats/nats-server.conf"]
+    networks: [aos]
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      TZ: Asia/Shanghai
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks: [aos]
+
+  main:
+    build:
+      context: ../..
+      dockerfile: deploy/customer/Dockerfile
+    image: ${MAIN_IMAGE:-ai-agent-os-main:latest}
+    privileged: true
+    restart: unless-stopped
+    environment:
+      CANONICAL_BASE_URL: ${CANONICAL_BASE_URL:-https://geeleo.com}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      JWT_SECRET: ${JWT_SECRET:-change-me-jwt-secret-min-32-characters-long!!}
+      CONTROL_ENC_KEY: ${CONTROL_ENC_KEY:-ai-agent-os-license-key-32bytes!}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    ports:
+      - "${HTTP_PUBLISH_PORT:-80}:8080"
+    volumes:
+      - podman_storage:/var/lib/containers
+      - app_logs:/app/logs
+    depends_on:
+      - mysql
+      - nats
+      - minio
+    networks: [aos]
+
+networks:
+  aos:
+    name: ai-agent-os-customer-aos
+
+volumes:
+  mysql_data:
+  minio_data:
+  podman_storage:
+  app_logs:
