@@ -1,5 +1,5 @@
 # 客户主站一键部署（不含 Hub）
-# 宿主机：先 cp .env.example .env 填好，再 ./check-env.sh，最后 podman compose up -d --build
+# 宿主机：手写 env.yaml → ./render-env.sh 生成 .env → podman compose up -d --build
 
 name: ai-agent-os-customer
 
