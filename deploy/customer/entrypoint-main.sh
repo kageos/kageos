@@ -4,17 +4,27 @@ set -euo pipefail
 export AI_AGENT_OS_ROOT=/app
 cd /app
 
+require_env() {
+  local n="$1"
+  if [[ -z "${!n:-}" ]]; then
+    echo "ERROR: 环境变量 ${n} 未设置或为空（须由 Compose 从宿主机 .env 注入）" >&2
+    exit 1
+  fi
+}
+
+require_env CANONICAL_BASE_URL
+require_env MYSQL_ROOT_PASSWORD
+require_env MINIO_ROOT_USER
+require_env MINIO_ROOT_PASSWORD
+require_env JWT_SECRET
+require_env CONTROL_ENC_KEY
+
 echo "==> 从模板刷新 deploy/config/prod（可安全重启）..."
 rm -rf /app/deploy/config/prod
 mkdir -p /app/deploy/config
 cp -a /app/config.prod.template /app/deploy/config/prod
 
-MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-changeme}"
-MINIO_ROOT_USER="${MINIO_ROOT_USER:-minioadmin}"
-MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-minioadmin123}"
-JWT_SECRET="${JWT_SECRET:-change-me-jwt-secret-min-32-characters-long!!}"
-CONTROL_ENC_KEY="${CONTROL_ENC_KEY:-ai-agent-os-license-key-32bytes!}"
-SMTP_PASSWORD="${SMTP_PASSWORD:-}"
+SMTP_PASSWORD="${SMTP_PASSWORD-}"
 
 wait_tcp() {
   local host="$1" port="$2" label="$3"
@@ -47,7 +57,7 @@ for f in /app/deploy/config/prod/*.yaml; do
   sed -i "s|__SMTP_PASSWORD__|${SMTP_PASSWORD}|g" "$f"
 done
 
-CANONICAL_BASE_URL="${CANONICAL_BASE_URL:-https://geeleo.com}"
+CANONICAL_BASE_URL="${CANONICAL_BASE_URL}"
 export CANONICAL_BASE_URL
 export CANONICAL_SCHEME
 export CANONICAL_HOST

@@ -6,6 +6,7 @@
 
 - **宿主机 Podman（你们现状）**：安装 **Podman 4+**，并具备 **`podman compose`**（推荐）或 **`podman-compose`**；镜像加速见 `/etc/containers/registries.conf.d/`。若 `podman compose` 误用 `docker-compose` 拉镜像，请安装 **`podman-compose`** 并设 **`PODMAN_COMPOSE_PROVIDER`**（与 `embedding.sh` 说明一致）。
 - **或宿主机 Docker**：Docker Engine + `docker compose`。
+- **无需 Python**：环境只用 **`.env`**（shell 校验），不依赖 `pip` / PyYAML。
 - 本机构建需：CPU/内存足够（Go + Node 构建、容器内首次 `podman build ai-agent-os:latest` 较慢）。
 - `main` 服务需 **`privileged: true`**（嵌套 Podman）。
 
@@ -13,12 +14,11 @@
 
 ```bash
 cd deploy/customer
-cp env.yaml.example env.yaml
-# 编辑 env.yaml：canonical_base_url、各密码
+cp .env.example .env
+# 编辑 .env：逐项必填（无默认值）；SMTP 不用可留空 SMTP_PASSWORD=
 
-pip3 install pyyaml   # 若尚未安装
-chmod +x render-env.sh
-./render-env.sh
+chmod +x check-env.sh
+./check-env.sh
 
 # 宿主机 Podman：
 podman compose up -d --build
@@ -27,7 +27,7 @@ podman compose up -d --build
 # docker compose up -d --build
 ```
 
-浏览器访问：`env.yaml` 里的 `canonical_base_url`（需 DNS 指向本机，且放行 `HTTP_PUBLISH_PORT`）。
+浏览器访问：`.env` 里的 **`CANONICAL_BASE_URL`**（需 DNS 指向本机，且放行 **`HTTP_PUBLISH_PORT`**）。
 
 ## 存储与公网地址
 
@@ -39,10 +39,10 @@ podman compose up -d --build
 
 | 文件 | 说明 |
 |------|------|
-| `docker-compose.yaml` | mysql / nats / minio / main |
+| `docker-compose.yaml` | mysql / nats / minio / main（变量均来自 `.env`，无 `:-` 默认） |
 | `Dockerfile` | 主镜像：core-server + web/dist + Nginx + Podman |
-| `env.yaml.example` | 人类可读配置源 |
-| `render-env.sh` | `env.yaml` → `.env` |
+| `.env.example` | 必填项清单模板；复制为 **`.env`**（**`.env` 勿提交**） |
+| `check-env.sh` | 校验 `.env` 必填非空（纯 bash） |
 | `entrypoint-main.sh` | 等待依赖、注入密钥、起 Nginx + Podman + core |
 | `nginx/default.conf.template` | 边缘模板（envsubst） |
 | `config/prod/*.yaml` | 主站应用 YAML 模板（含占位符，构建进镜像；启动时复制到容器内 `deploy/config/prod` 再 `sed`） |
