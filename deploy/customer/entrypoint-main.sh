@@ -75,8 +75,6 @@ nginx
 
 # Podman 需要明确的 runroot/graphroot（见 /etc/containers/storage.conf）；/run 每次启动需重建
 mkdir -p /run/podman /run/containers/storage
-# core 统一入口的预检会尝试 podman start mysql8 等，客户 Compose 中间件在兄弟容器，需跳过
-export AI_AGENT_OS_SKIP_INFRA_PREFLIGHT=1
 
 echo "==> 启动 Podman API..."
 podman system service --time=0 unix:///run/podman/podman.sock &

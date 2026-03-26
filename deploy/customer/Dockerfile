@@ -77,7 +77,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && echo "Asia/Shanghai" > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /etc/containers /var/lib/containers/storage /run/podman /run/containers/storage \
+RUN mkdir -p /etc/ai-agent-os /etc/containers /var/lib/containers/storage /run/podman /run/containers/storage \
+    && : > /etc/ai-agent-os/customer-compose-bundle \
     && printf '[containers]\nnetns = "host"\n' > /etc/containers/containers.conf \
     && printf '%s\n' '[storage]' 'driver = "overlay"' 'runroot = "/run/containers/storage"' 'graphroot = "/var/lib/containers/storage"' > /etc/containers/storage.conf \
     && printf 'unqualified-search-registries = ["docker.io"]\n' > /etc/containers/registries.conf

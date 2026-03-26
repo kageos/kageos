@@ -14,6 +14,9 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
+// customerComposeBundleMarker 由 deploy/customer 胖镜像构建时写入；线上无需任何环境变量即可走 Compose 中间件路径。
+const customerComposeBundleMarker = "/etc/ai-agent-os/customer-compose-bundle"
+
 // InfraContainers 需要预检的基础设施容器
 var InfraContainers = []containerCheck{
 	{Name: "mysql8", Label: "MySQL"},
@@ -34,8 +37,8 @@ type containerResult struct {
 	elapsed time.Duration
 }
 
-// Preflight 启动预检：确保 Podman 环境和基础设施容器就绪。
-// 在所有服务启动之前调用，适用于开发环境统一入口。
+// Preflight 启动预检：默认（裸机 / Embedding）用 Podman 拉起 mysql8 等；客户胖镜像通过标记文件自动改为仅 TCP 探测，线上不需环境变量。
+// 开发特殊场景：本机中间件已由 compose 提供、又不想走 podman start 时，可设 AI_AGENT_OS_DEV_SKIP_EMBEDDING_INFRA=1。
 //
 // 设计原则：尽可能快地放行，不做多余等待。
 // 服务端已有自动重连（NATS MaxReconnects=-1），预检只管"把东西拉起来"。
@@ -43,9 +46,8 @@ func Preflight(ctx context.Context) error {
 	start := time.Now()
 	logger.Infof(ctx, "[Preflight] ========== 启动预检开始 | 平台=%s ==========", runtime.GOOS)
 
-	// 客户主站 Compose：MySQL/NATS/MinIO 由 compose 起在兄弟容器，非本机 podman 名 mysql8 等；entrypoint 已 wait_tcp。
-	if os.Getenv("AI_AGENT_OS_SKIP_INFRA_PREFLIGHT") == "1" {
-		logger.Infof(ctx, "[Preflight] 跳过 Embedding 基础设施预检 (AI_AGENT_OS_SKIP_INFRA_PREFLIGHT=1)，仅探测 MySQL TCP")
+	if useComposeStyleInfraPreflight() {
+		logger.Infof(ctx, "[Preflight] Compose 中间件路径（标记文件或 DEV 变量）：跳过 Podman 拉起 mysql8/nats/minio，仅探测 MySQL TCP")
 		waitForMySQLTCP(ctx, "mysql:3306", 30*time.Second)
 		logger.Infof(ctx, "[Preflight] ========== 启动预检完成 | 总耗时=%s ==========", time.Since(start).Round(time.Millisecond))
 		return nil
@@ -218,4 +220,12 @@ func waitForMySQLTCP(ctx context.Context, addr string, maxWait time.Duration) {
 		time.Sleep(time.Second)
 	}
 	logger.Warnf(ctx, "[Preflight] [skip-mode] ⚠ MySQL TCP %s 在 %s 内未连通", addr, maxWait)
+}
+
+func useComposeStyleInfraPreflight() bool {
+	if _, err := os.Stat(customerComposeBundleMarker); err == nil {
+		return true
+	}
+	// 仅开发：显式声明本机不用 Embedding 那套 podman 基础设施名
+	return os.Getenv("AI_AGENT_OS_DEV_SKIP_EMBEDDING_INFRA") == "1"
 }
