@@ -56,6 +56,9 @@ services:
     volumes:
       - podman_storage:/var/lib/containers
       - app_logs:/app/logs
+      # 用户应用工作空间（app_manage.app_dir.base_path=namespace，即 /app/namespace 下 per-user/per-app 数据）
+      - namespace_data:/app/namespace
+      - app_data:/app/data
     depends_on:
       - mysql
       - nats
@@ -71,3 +74,5 @@ volumes:
   minio_data:
   podman_storage:
   app_logs:
+  namespace_data:
+  app_data:
