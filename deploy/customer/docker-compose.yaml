@@ -44,8 +44,6 @@ services:
     privileged: true
     restart: unless-stopped
     environment:
-      # app_db.nats 默认曾为 localhost；Compose 下 NATS 服务名为 nats，须与 DB 中 host 一致
-      NATS_SEED_HOST: nats
       CANONICAL_BASE_URL: ${CANONICAL_BASE_URL}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
