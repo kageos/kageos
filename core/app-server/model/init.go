@@ -8,6 +8,28 @@ import (
 	"gorm.io/gorm"
 )
 
+// isAppEnvDev 与 pkg/config getConfigEnv 一致：仅 APP_ENV=dev 为开发，其余（含未设）视为生产/交付环境。
+func isAppEnvDev() bool {
+	return strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV"))) == "dev"
+}
+
+// defaultNatsSeedEndpoint 无 NATS_SEED_HOST 时：开发默认本机 NATS，交付/线上默认 Compose 服务名 nats。
+func defaultNatsSeedEndpoint() (host string, port int) {
+	port = 4222
+	if p := strings.TrimSpace(os.Getenv("NATS_SEED_PORT")); p != "" {
+		if v, err := strconv.Atoi(p); err == nil && v > 0 {
+			port = v
+		}
+	}
+	if h := strings.TrimSpace(os.Getenv("NATS_SEED_HOST")); h != "" {
+		return h, port
+	}
+	if isAppEnvDev() {
+		return "localhost", port
+	}
+	return "nats", port
+}
+
 func InitTables(db *gorm.DB) error {
 	// 先迁移外键父表，再迁移子表，避免外键约束错误
 	err := db.AutoMigrate(
@@ -62,18 +84,9 @@ func initDefaultData(db *gorm.DB) error {
 		return err
 	}
 
-	// 如果没有NATS记录，创建默认记录（Compose 等场景设 NATS_SEED_HOST=nats，见 ReconcileNatsHostFromEnv）
+	// 如果没有 NATS 记录：显式 NATS_SEED_HOST 优先；否则 dev→localhost，其它→nats（客户 Compose 无需再配环境变量）
 	if natsCount == 0 {
-		seedHost := strings.TrimSpace(os.Getenv("NATS_SEED_HOST"))
-		if seedHost == "" {
-			seedHost = "localhost"
-		}
-		seedPort := 4222
-		if p := strings.TrimSpace(os.Getenv("NATS_SEED_PORT")); p != "" {
-			if v, err := strconv.Atoi(p); err == nil && v > 0 {
-				seedPort = v
-			}
-		}
+		seedHost, seedPort := defaultNatsSeedEndpoint()
 		defaultNats := &Nats{
 			Host: seedHost,
 			Port: seedPort,
@@ -111,19 +124,27 @@ func initDefaultData(db *gorm.DB) error {
 	return nil
 }
 
-// ReconcileNatsHostFromEnv 在 app-server 连接 DB 中的 NATS 地址之前调用：若设置了 NATS_SEED_HOST，
-// 将仍为 localhost / 127.0.0.1 的 nats 记录更新为环境变量中的主机（可选 NATS_SEED_PORT 同步改端口）。
-// 用于修复历史默认种子在 Docker Compose 下无法连上独立 nats 容器的问题。
+// ReconcileNatsHostFromEnv 在 app-server 按 DB 连接 NATS 之前调用：
+//   - 若设置了 NATS_SEED_HOST：将仍为 localhost/127.0.0.1 的行更新为该主机（可选 NATS_SEED_PORT 改端口）；
+//   - 若未设置且非 dev：将上述行更新为 nats（与默认种子一致，修复历史 localhost 种子）；
+//   - dev 且未显式 NATS_SEED_HOST：不改动（保留本机 NATS）。
 func ReconcileNatsHostFromEnv(db *gorm.DB) error {
-	h := strings.TrimSpace(os.Getenv("NATS_SEED_HOST"))
-	if h == "" {
-		return nil
-	}
-	updates := map[string]interface{}{"host": h}
-	if p := strings.TrimSpace(os.Getenv("NATS_SEED_PORT")); p != "" {
-		if v, err := strconv.Atoi(p); err == nil && v > 0 {
-			updates["port"] = v
+	explicitHost := strings.TrimSpace(os.Getenv("NATS_SEED_HOST"))
+	updates := map[string]interface{}{}
+
+	if explicitHost != "" {
+		updates["host"] = explicitHost
+		if p := strings.TrimSpace(os.Getenv("NATS_SEED_PORT")); p != "" {
+			if v, err := strconv.Atoi(p); err == nil && v > 0 {
+				updates["port"] = v
+			}
 		}
+	} else {
+		if isAppEnvDev() {
+			return nil
+		}
+		updates["host"] = "nats"
 	}
+
 	return db.Model(&Nats{}).Where("host IN ?", []string{"localhost", "127.0.0.1"}).Updates(updates).Error
 }

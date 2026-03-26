@@ -98,9 +98,11 @@ Compose 为 **`main`** 挂载命名卷，避免重建容器后丢失数据：
 
 ### `panic: nats: no servers available for connection`
 
-`app_db` 里 **`nats` 表** 的 **`host`** 必须是 Compose 网络里可达的 NATS 服务名（本栈为 **`nats`**）。镜像已默认注入 **`NATS_SEED_HOST=nats`**，启动时会将仍为 `localhost` / `127.0.0.1` 的记录改成该主机；**需重建并运行带新代码的 `main` 镜像**。
+`app_db` 里 **`nats` 表** 的 **`host`** 须能被 `main` 容器解析。交付/线上（**未设 `APP_ENV=dev`**）时，进程会在连接前把仍为 **`localhost` / `127.0.0.1`** 的行自动改为 **`nats`**（与 Compose 服务名一致），**无需在 Compose 里再配 NATS 相关环境变量**。
 
-若未走上述逻辑，可手工：
+**本机开发**：连本机 NATS 时请设 **`APP_ENV=dev`**（与 `deploy/config/dev` 约定一致）。若在开发环境用 Compose 里的 NATS 服务而非本机端口，可显式设 **`NATS_SEED_HOST=nats`**。
+
+若仍异常，可手工：
 
 ```sql
 USE app_db;
