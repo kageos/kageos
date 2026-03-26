@@ -1,6 +1,10 @@
 package model
 
 import (
+	"os"
+	"strconv"
+	"strings"
+
 	"gorm.io/gorm"
 )
 
@@ -58,11 +62,21 @@ func initDefaultData(db *gorm.DB) error {
 		return err
 	}
 
-	// 如果没有NATS记录，创建默认记录
+	// 如果没有NATS记录，创建默认记录（Compose 等场景设 NATS_SEED_HOST=nats，见 ReconcileNatsHostFromEnv）
 	if natsCount == 0 {
+		seedHost := strings.TrimSpace(os.Getenv("NATS_SEED_HOST"))
+		if seedHost == "" {
+			seedHost = "localhost"
+		}
+		seedPort := 4222
+		if p := strings.TrimSpace(os.Getenv("NATS_SEED_PORT")); p != "" {
+			if v, err := strconv.Atoi(p); err == nil && v > 0 {
+				seedPort = v
+			}
+		}
 		defaultNats := &Nats{
-			Host: "localhost",
-			Port: 4222,
+			Host: seedHost,
+			Port: seedPort,
 		}
 		if err := db.Create(defaultNats).Error; err != nil {
 			return err
@@ -95,4 +109,21 @@ func initDefaultData(db *gorm.DB) error {
 	}
 
 	return nil
+}
+
+// ReconcileNatsHostFromEnv 在 app-server 连接 DB 中的 NATS 地址之前调用：若设置了 NATS_SEED_HOST，
+// 将仍为 localhost / 127.0.0.1 的 nats 记录更新为环境变量中的主机（可选 NATS_SEED_PORT 同步改端口）。
+// 用于修复历史默认种子在 Docker Compose 下无法连上独立 nats 容器的问题。
+func ReconcileNatsHostFromEnv(db *gorm.DB) error {
+	h := strings.TrimSpace(os.Getenv("NATS_SEED_HOST"))
+	if h == "" {
+		return nil
+	}
+	updates := map[string]interface{}{"host": h}
+	if p := strings.TrimSpace(os.Getenv("NATS_SEED_PORT")); p != "" {
+		if v, err := strconv.Atoi(p); err == nil && v > 0 {
+			updates["port"] = v
+		}
+	}
+	return db.Model(&Nats{}).Where("host IN ?", []string{"localhost", "127.0.0.1"}).Updates(updates).Error
 }
