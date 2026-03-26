@@ -3,6 +3,8 @@ package infra
 import (
 	"context"
 	"fmt"
+	"net"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -40,6 +42,14 @@ type containerResult struct {
 func Preflight(ctx context.Context) error {
 	start := time.Now()
 	logger.Infof(ctx, "[Preflight] ========== 启动预检开始 | 平台=%s ==========", runtime.GOOS)
+
+	// 客户主站 Compose：MySQL/NATS/MinIO 由 compose 起在兄弟容器，非本机 podman 名 mysql8 等；entrypoint 已 wait_tcp。
+	if os.Getenv("AI_AGENT_OS_SKIP_INFRA_PREFLIGHT") == "1" {
+		logger.Infof(ctx, "[Preflight] 跳过 Embedding 基础设施预检 (AI_AGENT_OS_SKIP_INFRA_PREFLIGHT=1)，仅探测 MySQL TCP")
+		waitForMySQLTCP(ctx, "mysql:3306", 30*time.Second)
+		logger.Infof(ctx, "[Preflight] ========== 启动预检完成 | 总耗时=%s ==========", time.Since(start).Round(time.Millisecond))
+		return nil
+	}
 
 	// Step 1: Podman Machine（macOS/Windows 需要虚拟机）
 	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
@@ -191,4 +201,21 @@ func waitForMySQL(ctx context.Context) {
 	}
 
 	logger.Warnf(ctx, "[Preflight] [3/3] ⚠ MySQL 在 %s 内未通过 ping 检查，服务启动可能出现连接错误", maxWait)
+}
+
+// waitForMySQLTCP 用于客户 Compose 等场景：无 podman exec mysql8，仅确认 TCP 可连。
+func waitForMySQLTCP(ctx context.Context, addr string, maxWait time.Duration) {
+	deadline := time.Now().Add(maxWait)
+	logger.Infof(ctx, "[Preflight] [skip-mode] 等待 MySQL TCP %s（最多 %s）...", addr, maxWait)
+	for time.Now().Before(deadline) {
+		d := net.Dialer{Timeout: 2 * time.Second}
+		c, err := d.DialContext(ctx, "tcp", addr)
+		if err == nil {
+			_ = c.Close()
+			logger.Infof(ctx, "[Preflight] [skip-mode] ✅ MySQL TCP 已连通: %s", addr)
+			return
+		}
+		time.Sleep(time.Second)
+	}
+	logger.Warnf(ctx, "[Preflight] [skip-mode] ⚠ MySQL TCP %s 在 %s 内未连通", addr, maxWait)
 }

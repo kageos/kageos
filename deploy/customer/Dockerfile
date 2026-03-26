@@ -77,9 +77,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && echo "Asia/Shanghai" > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /etc/containers /var/lib/containers/storage /run/podman \
+RUN mkdir -p /etc/containers /var/lib/containers/storage /run/podman /run/containers/storage \
     && printf '[containers]\nnetns = "host"\n' > /etc/containers/containers.conf \
-    && printf '[storage]\ndriver = "overlay"\n' > /etc/containers/storage.conf \
+    && printf '%s\n' '[storage]' 'driver = "overlay"' 'runroot = "/run/containers/storage"' 'graphroot = "/var/lib/containers/storage"' > /etc/containers/storage.conf \
     && printf 'unqualified-search-registries = ["docker.io"]\n' > /etc/containers/registries.conf
 
 COPY --from=gobuilder /usr/local/go /usr/local/go

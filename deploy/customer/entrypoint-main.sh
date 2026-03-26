@@ -73,10 +73,24 @@ nginx -t
 echo "==> 启动 Nginx（对外 8080 → 映射 compose 80）..."
 nginx
 
+# Podman 需要明确的 runroot/graphroot（见 /etc/containers/storage.conf）；/run 每次启动需重建
+mkdir -p /run/podman /run/containers/storage
+# core 统一入口的预检会尝试 podman start mysql8 等，客户 Compose 中间件在兄弟容器，需跳过
+export AI_AGENT_OS_SKIP_INFRA_PREFLIGHT=1
+
 echo "==> 启动 Podman API..."
 podman system service --time=0 unix:///run/podman/podman.sock &
 PODMAN_PID=$!
-sleep 1
+for _i in $(seq 1 30); do
+  if [ -S /run/podman/podman.sock ]; then
+    echo "==> Podman socket 就绪"
+    break
+  fi
+  sleep 1
+done
+if [ ! -S /run/podman/podman.sock ]; then
+  echo "WARN: /run/podman/podman.sock 未出现，app-runtime 可能仍失败"
+fi
 
 if ! podman image exists ai-agent-os:latest 2>/dev/null; then
   echo "==> 首次构建用户应用基础镜像 ai-agent-os:latest（较久）..."

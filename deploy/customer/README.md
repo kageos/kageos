@@ -72,6 +72,7 @@ podman compose build --build-arg APT_USE_MIRROR=0 --build-arg NPM_REGISTRY=https
 ## 构建说明（避免踩坑）
 
 - 用户应用基础镜像上下文里的 **`scripts/start.sh`** 来自仓库根目录的 **`build/start.sh`**（胖镜像构建时复制到 `/app/app-base/scripts/`）。若本地构建报 `scripts/start.sh` / `start.sh` 找不到，先 **`git pull`** 确保 Dockerfile 与 `build/start.sh` 一致。
+- **Podman `runroot must be set`**：镜像内 **`/etc/containers/storage.conf`** 已写 `runroot` / `graphroot`；**`entrypoint-main.sh`** 会创建 **`/run/containers/storage`** 并导出 **`AI_AGENT_OS_SKIP_INFRA_PREFLIGHT=1`**，避免统一入口去 `podman start mysql8`（Compose 里中间件是兄弟容器，名字也不同）。
 
 ## 已知限制
 
