@@ -336,6 +336,10 @@ func (s *Server) initNATS(ctx context.Context) error {
 func (s *Server) initServices(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing services...")
 
+	if err := model.ReconcileNatsHostFromEnv(s.db); err != nil {
+		return fmt.Errorf("reconcile nats host from NATS_SEED_HOST: %w", err)
+	}
+
 	// 初始化 NATS 服务 - 其他服务的基础依赖
 	s.natsService = service.NewNatsServiceWithDB(s.db)
 

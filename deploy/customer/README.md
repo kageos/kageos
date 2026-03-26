@@ -93,3 +93,16 @@ Compose 为 **`main`** 挂载命名卷，避免重建容器后丢失数据：
 ## 已知限制
 
 - 边缘为容器内 **8080 HTTP**；对外 HTTPS 前加 LB 并同步 **`CANONICAL_BASE_URL`** 为 `https://`。
+
+## 故障排查
+
+### `panic: nats: no servers available for connection`
+
+`app_db` 里 **`nats` 表** 的 **`host`** 必须是 Compose 网络里可达的 NATS 服务名（本栈为 **`nats`**）。镜像已默认注入 **`NATS_SEED_HOST=nats`**，启动时会将仍为 `localhost` / `127.0.0.1` 的记录改成该主机；**需重建并运行带新代码的 `main` 镜像**。
+
+若未走上述逻辑，可手工：
+
+```sql
+USE app_db;
+UPDATE nats SET host = 'nats' WHERE host IN ('localhost', '127.0.0.1');
+```
