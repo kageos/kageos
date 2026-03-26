@@ -78,6 +78,8 @@ Compose 为 **`main`** 挂载命名卷，避免重建容器后丢失数据：
 | **`render-env.sh`** | `env.yaml` → **`.env`**（校验必填，无 Python） |
 | **`.env`** | Compose 读取（**勿手改**、勿提交） |
 | `docker-compose.yaml` | 服务定义 |
+| `init-db.sql` | MySQL 首次启动建库（挂载 `docker-entrypoint-initdb.d`，**仅本目录**） |
+| `nats-server.conf` | NATS 容器配置（**仅本目录**） |
 | `Dockerfile` / `entrypoint-main.sh` / `nginx/` / `config/prod/` | 镜像与内置模板 |
 
 ## 升级

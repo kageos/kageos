@@ -13,14 +13,14 @@ services:
       --collation-server=utf8mb4_unicode_ci
     volumes:
       - mysql_data:/var/lib/mysql
-      - ../podman/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks: [aos]
 
   nats:
     image: nats:2.10-alpine
     restart: unless-stopped
     volumes:
-      - ../podman/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - ./nats-server.conf:/etc/nats/nats-server.conf:ro
     command: ["-c", "/etc/nats/nats-server.conf"]
     networks: [aos]
 
