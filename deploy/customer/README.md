@@ -56,6 +56,19 @@ podman compose build --build-arg APT_USE_MIRROR=0 --build-arg NPM_REGISTRY=https
 - **`CANONICAL_BASE_URL`**（写在 `env.yaml` → 生成进 `.env`）为唯一主站真值。
 - `cdn_domain` 空时由进程用该 URL 补全；Nginx **`www` → 裸域 301** 与真值 scheme 一致。
 
+### 持久卷（勿误删）
+
+Compose 为 **`main`** 挂载命名卷，避免重建容器后丢失数据：
+
+| 卷名 | 挂载点 | 用途 |
+|------|--------|------|
+| `namespace_data` | `/app/namespace` | **用户应用空间**（`namespace/{user}/{app}/...` 等工作区，与配置里 `app_dir.base_path: namespace` 对应） |
+| `app_data` | `/app/data` | 应用侧其他本地数据目录（与镜像内约定一致） |
+| `app_logs` | `/app/logs` | 主站日志 |
+| `podman_storage` | `/var/lib/containers` | 容器内 Podman 存储 |
+
+**备份 / 升级**：不要用 **`compose down -v`**，否则会删掉上述命名卷。**`docker volume`** / **`podman volume`** 需单独备份 `*_data`、`*_logs`、`podman_storage` 等卷（按运维策略做快照或 `volume inspect` 后拷宿主机路径）。
+
 ## 文件说明
 
 | 文件 | 说明 |
