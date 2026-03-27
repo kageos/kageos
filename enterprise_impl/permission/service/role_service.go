@@ -307,6 +307,9 @@ func (s *RoleService) GetRoles(ctx context.Context, resourceType string) (*dto.G
 
 // AssignRoleToUser 给用户分配角色
 func (s *RoleService) AssignRoleToUser(ctx context.Context, req *dto.AssignRoleToUserReq) (*dto.AssignRoleToUserResp, error) {
+	if s == nil || s.roleCache == nil {
+		return nil, fmt.Errorf("角色缓存未初始化：请重启服务；若 License 在启动后才下发，需重启一次以完成权限模块初始化")
+	}
 	// 1. ⭐ 检查角色是否存在（需要同时匹配 code 和 resourceType）
 	roleID, exists := s.roleCache.GetRoleIDByCode(req.RoleCode, req.ResourceType)
 	if !exists {

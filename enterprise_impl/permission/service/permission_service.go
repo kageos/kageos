@@ -161,6 +161,9 @@ func (s *PermissionServiceImpl) DeleteRole(ctx context.Context, roleID int64) er
 
 // AssignRoleToUser 给用户分配角色
 func (s *PermissionServiceImpl) AssignRoleToUser(ctx context.Context, req *dto.AssignRoleToUserReq) (*dto.AssignRoleToUserResp, error) {
+	if s.roleService == nil {
+		return nil, fmt.Errorf("权限模块未初始化：请确认启动时已加载含 permission 的有效 License，必要时重启服务")
+	}
 	return s.roleService.AssignRoleToUser(ctx, req)
 }
 
