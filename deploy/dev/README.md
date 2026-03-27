@@ -13,6 +13,21 @@
 
 ### 1. 起基础设施
 
+推荐直接用官方脚本：
+
+```bash
+bash deploy/dev/scripts/infra.sh up
+```
+
+若你想显式指定容器引擎：
+
+```bash
+bash deploy/dev/scripts/infra.sh docker up -d
+bash deploy/dev/scripts/infra.sh podman up -d
+```
+
+等价的原始命令如下。
+
 Docker 本地开发：
 
 ```bash
@@ -40,15 +55,15 @@ deploy/dev/config/
 推荐在仓库根目录：
 
 ```bash
-export APP_ENV=dev
-export AI_AGENT_OS_DEV_SKIP_EMBEDDING_INFRA=1
-go run ./core/cmd/main
+bash deploy/dev/scripts/run-backend.sh
 ```
 
 说明：
 
-- `APP_ENV=dev` 会优先读取 `deploy/dev/config/*.yaml`
-- `AI_AGENT_OS_DEV_SKIP_EMBEDDING_INFRA=1` 用于声明“本机中间件已经由 compose 提供，不要再走 embedding/podman 那套预检自动拉起”
+- 脚本会默认设置 `APP_ENV=dev`
+- 脚本会默认设置 `AI_AGENT_OS_DEV_SKIP_EMBEDDING_INFRA=1`
+- 脚本会默认设置 `AI_AGENT_OS_ROOT=<仓库根目录>`
+- 如需手动控制，仍可直接执行 `go run ./core/cmd/main`
 
 ### 3. 起前端
 

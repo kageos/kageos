@@ -453,7 +453,7 @@ import { useTableEditMode } from '@/architecture/presentation/widgets/composable
 import { useTableResponseMode } from '@/architecture/presentation/widgets/composables/useTableResponseMode'
 import { useTableCellMode } from '@/architecture/presentation/widgets/composables/useTableCellMode'
 import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
-import { FieldValue, type FieldConfig } from '@/architecture/domain/types'
+import type { FieldValue, FieldConfig } from '@/architecture/domain/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { createEmptyFieldValue, createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import type { ValidationEngine, ValidationResult } from '@/core/validation/types'
@@ -1393,4 +1393,3 @@ defineExpose({
 }
 
 </style>
-

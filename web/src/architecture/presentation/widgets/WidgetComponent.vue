@@ -33,7 +33,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
-import type { FieldConfig, FieldValue } from '@/core/domain/types'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import type { WidgetMode } from '@/architecture/presentation/widgets/types'
 
 const props = withDefaults(defineProps<{
@@ -84,4 +84,3 @@ const handleUpdate = (value: FieldValue): void => {
   font-size: 12px;
 }
 </style>
-

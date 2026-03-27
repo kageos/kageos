@@ -174,9 +174,12 @@ AI-Agent-OS 是一个革命性的 AI 原生操作系统，它让软件开发从"
 git clone https://github.com/your-org/ai-agent-os.git
 cd ai-agent-os
 
+# 本地基础设施
+bash deploy/dev/scripts/infra.sh up
+
 # 后端
 go mod download
-./scripts/start.sh
+bash deploy/dev/scripts/run-backend.sh
 
 # 前端
 cd web
@@ -189,14 +192,14 @@ npm run dev
 **本地用 Podman 跑依赖（NATS / MySQL / MinIO）**：若 Podman Machine 重建或依赖容器没了，可依次执行：
 ```bash
 podman machine start
-podman compose -f docker-compose.infra.yml up -d
-./scripts/build-app-base-image.sh   # 构建用户应用基础镜像 ai-agent-os:latest
+bash deploy/dev/scripts/infra.sh podman up -d
+bash deploy/base/scripts/build-app-base-image.sh   # 构建用户应用基础镜像 ai-agent-os:latest
 ```
-详见 [docker-compose.infra.yml](docker-compose.infra.yml)。
+详见 [deploy/dev/README.md](deploy/dev/README.md)。
 
 **Linux 一机一实例（裸机后端 + Podman 中间件）**：见 **[deploy/README.md](deploy/README.md)** → [deploy/embedding/README.md](deploy/embedding/README.md)。
 
-**配置目录**：统一为 **`deploy/config/dev`** / **`deploy/config/prod`**；可选环境变量 **`AI_AGENT_OS_ROOT`** 指定仓库根（详见 [deploy/config/README.md](deploy/config/README.md)）。
+**配置目录**：官方入口为 **`deploy/dev/config`** / **`deploy/prod/config`**；**`deploy/config`** 当前只保留兼容 fallback。可选环境变量 **`AI_AGENT_OS_ROOT`** 指定仓库根（详见 [deploy/config/README.md](deploy/config/README.md)）。
 
 ### 创建第一个应用
 

@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
+import type { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionErrorStore } from '@/stores/permissionError'
@@ -24,25 +24,7 @@ const service = axios.create({
 service.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const authStore = useAuthStore()
-    
-    // 从store获取token - 直接访问store中的token（Pinia会自动解包ref）
-    let token: string = ''
-    
-    // 尝试多种方式获取token
-    if (authStore.token) {
-      // 如果是ref对象，访问.value
-      if (typeof authStore.token === 'object' && 'value' in authStore.token) {
-        token = authStore.token.value as string
-      } else {
-        // 直接就是值
-        token = authStore.token as string
-      }
-    }
-    
-    // 如果还是空，尝试从localStorage获取
-    if (!token) {
-      token = localStorage.getItem('token') || ''
-    }
+    const token = authStore.token || localStorage.getItem('token') || ''
 
     // 添加token到请求头（后端使用X-Token头部）
     if (token && typeof token === 'string' && token.trim()) {
@@ -221,13 +203,13 @@ export function get<T = any>(url: string, params?: any, useBody: boolean = false
 }
 
 // 封装POST请求
-export function post<T = any>(url: string, data?: any): Promise<T> {
-  return service.post(url, data)
+export function post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  return service.post(url, data, config)
 }
 
 // 封装PUT请求
-export function put<T = any>(url: string, data?: any): Promise<T> {
-  return service.put(url, data)
+export function put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  return service.put(url, data, config)
 }
 
 // 封装DELETE请求

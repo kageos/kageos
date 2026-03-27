@@ -123,7 +123,7 @@ Compose 为 **`main`** 挂载命名卷，避免重建容器后丢失数据：
 | `docker-compose.yaml` | 服务定义（main 使用 host 网络） |
 | `init-db.sql` | MySQL 首次启动建库（挂载 `docker-entrypoint-initdb.d`，**仅本目录**） |
 | `nats-server.conf` | NATS 容器配置（**仅本目录**） |
-| `Dockerfile` / `entrypoint-main.sh` / `nginx/` / `config/prod/` | 镜像与内置模板 |
+| `Dockerfile` / `entrypoint-main.sh` / `nginx/` / `config/template/` | 镜像与内置模板 |
 
 补充：
 
@@ -139,7 +139,7 @@ bash build.sh update
 ## 构建说明（避免踩坑）
 
 - 用户应用基础镜像的 canonical 构建资源已迁到 **`deploy/base/images/app-base/`**；若本地构建报启动脚本找不到，请先确认 **`deploy/base/images/app-base/start.sh`** 存在且最新。
-- **Podman `runroot must be set`**：镜像内 **`/etc/containers/storage.conf`** 已写 `runroot` / `graphroot`；**`entrypoint-main.sh`** 会创建 **`/run/containers/storage`**。客户预检走 **Compose 路径**由镜像内空标记文件 **`/etc/ai-agent-os/customer-compose-bundle`** 自动识别，**线上无需为此设环境变量**。
+- **Podman `runroot must be set`**：镜像内 **`/etc/containers/storage.conf`** 已写 `runroot` / `graphroot`；**`entrypoint-main.sh`** 会创建 **`/run/containers/storage`**。生产 Compose 预检走 **Compose 路径**由镜像内空标记文件 **`/etc/ai-agent-os/prod-compose-bundle`** 自动识别；为兼容旧镜像也会同时写 **`/etc/ai-agent-os/customer-compose-bundle`**，**线上无需为此设环境变量**。
 - **开发特殊**：本机中间件已由 compose 提供、不想走 `podman start mysql8` 那套时，可设 **`AI_AGENT_OS_DEV_SKIP_EMBEDDING_INFRA=1`**（仅 dev 使用）。
 
 ## 故障排查
@@ -148,7 +148,7 @@ bash build.sh update
 
 `app_db` 里 **`nats` 表** 的 **`host`** 须能被 `main` 容器解析。由于 `main` 使用 `network_mode: host`，中间件端口通过 `127.0.0.1` 暴露，进程会在连接前把仍为 **`localhost` / `127.0.0.1`** 的行自动改为 **`nats`**（Compose 服务名），**无需额外配置环境变量**。
 
-**本机开发**：连本机 NATS 时请设 **`APP_ENV=dev`**（与 `deploy/config/dev` 约定一致）。
+**本机开发**：连本机 NATS 时请设 **`APP_ENV=dev`**（与 `deploy/dev/config` 约定一致）。
 
 若仍异常，可手工：
 

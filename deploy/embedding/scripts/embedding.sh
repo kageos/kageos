@@ -89,7 +89,7 @@ usage() {
   local            将 deploy/config/local/*.yaml 覆盖到 deploy/config/prod/
   dbs              幂等创建 embedding 所需 MySQL 库
   build            编译 bin/core-server、bin/hub-server
-  runtime          podman build → 镜像 ai-agent-os:latest（build/Dockerfile）
+  runtime          podman build → 镜像 ai-agent-os:latest（deploy/base/images/app-base）
   frontend         构建 Web + Hub 前端（npm）
   nginx            安装/更新 Nginx：静态同步 /opt、主站 conf，并安装 80→8999/8998 域名反代（可跳过或 local 覆盖）
 
@@ -148,7 +148,7 @@ cmd_infra() {
   fi
 
   info "在 $ROOT 启动基础设施..."
-  podman compose -f deploy/dev/compose/docker-compose.dev.yml up -d
+  podman compose -f deploy/dev/compose/docker-compose.infra.yml up -d
 
   info "等待 MySQL 就绪（最多约 60s）..."
   for _ in $(seq 1 30); do
@@ -468,7 +468,7 @@ cmd_update() {
   ensure_podman_service
 
   # 用户应用基础镜像每次 build 太慢；init 仍会构建，日常 update 跳过。
-  # 改了 build/Dockerfile 或依赖时需手动：bash deploy/embedding/scripts/embedding.sh runtime
+  # 改了 deploy/base/images/app-base/ 或依赖时需手动：bash deploy/embedding/scripts/embedding.sh runtime
   # 或：EMBEDDING_UPDATE_WITH_RUNTIME=1 bash ... update
   if [ "${EMBEDDING_UPDATE_WITH_RUNTIME:-0}" = "1" ]; then
     info "EMBEDDING_UPDATE_WITH_RUNTIME=1，重建 ai-agent-os:latest..."
@@ -512,7 +512,7 @@ cmd_status() {
   (
     cd "$ROOT"
     ensure_podman_compose_provider || true
-    podman compose -f deploy/dev/compose/docker-compose.dev.yml ps 2>/dev/null
+    podman compose -f deploy/dev/compose/docker-compose.infra.yml ps 2>/dev/null
   ) || echo "  未启动或 compose 失败"
   echo ""
   echo "=== Podman ==="

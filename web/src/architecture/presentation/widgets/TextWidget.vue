@@ -174,6 +174,7 @@ import { marked } from 'marked'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import type { TextWidgetConfig } from '@/core/types/widget-configs'
+import { escapeHtml, sanitizeHtml } from '@/utils/sanitizeHtml'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -279,7 +280,7 @@ const formattedContent = computed(() => {
   
   // HTML 直接返回（使用 v-html 渲染）
   if (fmt === 'html') {
-    return content
+    return sanitizeHtml(content)
   }
   
   // Markdown 需要转换为 HTML（在 markdownContent computed 中处理）
@@ -315,15 +316,11 @@ const markdownContent = computed(() => {
       gfm: true // 支持 GitHub Flavored Markdown
     }
     
-    return marked.parse(content, markedOptions) as string
+    return sanitizeHtml(marked.parse(content, markedOptions) as string)
   } catch (error) {
     console.error('[TextWidget] Markdown 渲染失败:', error)
     // 如果渲染失败，返回转义后的原始内容
-    return content
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/\n/g, '<br>')
+    return escapeHtml(content).replace(/\n/g, '<br>')
   }
 })
 
@@ -914,4 +911,3 @@ async function handleCopyToClipboard(): Promise<void> {
   color: #2c3e50;
 }
 </style>
-

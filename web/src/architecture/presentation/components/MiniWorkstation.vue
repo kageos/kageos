@@ -492,15 +492,16 @@ import { extractAllDisplayFields, type OutputDisplayField } from '@/architecture
 import OutputDisplayFields from './OutputDisplayFields.vue'
 import { eventBus } from '@/architecture/infrastructure/eventBus'
 import { marked } from 'marked'
+import { escapeHtml, sanitizeHtml } from '@/utils/sanitizeHtml'
 
 marked.setOptions({ breaks: true, gfm: true })
 
 function renderMarkdown(content: string): string {
   if (!content) return ''
   try {
-    return marked.parse(content) as string
+    return sanitizeHtml(marked.parse(content) as string)
   } catch {
-    return content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
+    return escapeHtml(content).replace(/\n/g, '<br>')
   }
 }
 

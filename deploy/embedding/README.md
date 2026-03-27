@@ -6,7 +6,7 @@
 |------|------|
 | **core-server** | 单进程，内嵌 gateway、app-server、agent-server、app-storage、app-runtime、hr、control（见 `core/cmd/main/main.go`） |
 | **hub-server** | 单独二进制 |
-| **MySQL / NATS / MinIO** | `podman compose` + 根目录 `docker-compose.dev.yml` |
+| **MySQL / NATS / MinIO** | `podman compose` + `deploy/dev/compose/docker-compose.infra.yml` |
 | **用户应用** | 由 **app-runtime** 调本机 **Podman** 起容器（需 **podman socket**） |
 
 ---
@@ -92,8 +92,8 @@ export AI_AGENT_OS_ROOT=/绝对路径/ai-agent-os   # 可选
 
 ## 配置说明
 
-- **默认**：**不设置 `APP_ENV` 即使用 prod**，读取 **`deploy/config/prod/*.yaml`**（已按本机 `127.0.0.1` / `localhost` 连中间件）；仅开发时设 **`APP_ENV=dev`**。
-- **根目录**：优先 **`AI_AGENT_OS_ROOT`**，否则向上查找 **`.ai-agent-os-root` / `deploy/config` / `go.mod`** 等。详见 **[deploy/config/README.md](../config/README.md)**。
+- **默认**：**不设置 `APP_ENV` 即使用 prod**，优先读取 **`deploy/prod/config/runtime/*.yaml`**，找不到时兼容 fallback 到 **`deploy/config/prod/*.yaml`**；仅开发时设 **`APP_ENV=dev`**。
+- **根目录**：优先 **`AI_AGENT_OS_ROOT`**，否则向上查找 **`.ai-agent-os-root`**、**`deploy/dev/config`**、**`deploy/prod/config`**、**`deploy/config`**、**`go.mod`** 等。详见 **[deploy/config/README.md](../config/README.md)**。
 - **按机覆盖、不进 Git**：将 yaml 放入 **`deploy/config/local/`**，执行 **`bash deploy/embedding/scripts/embedding.sh local`**；说明见 [embedding/config/README.md](config/README.md)。
 - **必改项（公网）**：至少 **`app-storage` 的 `cdn_domain`**、**`hub.yaml` 的 `os.base_url`**，以及 **JWT / 数据库 / MinIO / 系统账号** 等密钥类字段。
 
@@ -123,7 +123,7 @@ export AI_AGENT_OS_ROOT=/绝对路径/ai-agent-os   # 可选
 | 命令 | 作用 |
 |------|------|
 | **`init`** | 首次完整上线：栈 + 前后端 + Nginx + 运行时镜像 + 启动 core/hub |
-| **`update`** | **`git pull`** → `infra` → `local`（若有）→ `dbs` → `build` → `frontend` → **`nginx`** → 重启 core/hub；**默认不跑 `runtime`**（避免每次 `podman build`）。改 **`build/Dockerfile`** 后请单独 **`embedding.sh runtime`**，或 **`EMBEDDING_UPDATE_WITH_RUNTIME=1`** 再 `update` |
+| **`update`** | **`git pull`** → `infra` → `local`（若有）→ `dbs` → `build` → `frontend` → **`nginx`** → 重启 core/hub；**默认不跑 `runtime`**（避免每次 `podman build`）。改 **`deploy/base/images/app-base/`** 后请单独 **`embedding.sh runtime`**，或 **`EMBEDDING_UPDATE_WITH_RUNTIME=1`** 再 `update` |
 | `restart` / `stop` / `status` / `logs` | 与 `server-deploy.sh` 同类（`logs` 默认 `core-server`，可跟 `hub-server`） |
 | `all` | 仅：`infra` → `local`（若有）→ `dbs` → `build` → `runtime` |
 | `infra` | Podman Compose 起 MySQL/NATS/MinIO |
@@ -132,7 +132,7 @@ export AI_AGENT_OS_ROOT=/绝对路径/ai-agent-os   # 可选
 | `build` | 编译 `bin/core-server`、`bin/hub-server` |
 | `frontend` | 构建 Web + Hub（`npm`） |
 | `nginx` | 部署 `deploy/embedding/nginx/nginx-server.conf` 并 reload |
-| `runtime` | `podman build` → `ai-agent-os:latest`（`build/Dockerfile`） |
+| `runtime` | `podman build` → `ai-agent-os:latest`（`deploy/base/images/app-base/`） |
 
 `bash deploy/embedding/scripts/embedding.sh --help` 查看用法。
 
