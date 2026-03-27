@@ -24,7 +24,12 @@ rm -rf /app/deploy/config/prod
 mkdir -p /app/deploy/config
 cp -a /app/config.prod.template /app/deploy/config/prod
 
+SMTP_HOST="${SMTP_HOST:-smtp.qq.com}"
+SMTP_PORT="${SMTP_PORT:-587}"
+SMTP_USERNAME="${SMTP_USERNAME-}"
 SMTP_PASSWORD="${SMTP_PASSWORD-}"
+SMTP_FROM="${SMTP_FROM-}"
+SMTP_FROM_NAME="${SMTP_FROM_NAME:-AI Agent OS}"
 
 wait_tcp() {
   local host="$1" port="$2" label="$3"
@@ -54,7 +59,12 @@ for f in /app/deploy/config/prod/*.yaml; do
   sed -i "s|__CONTROL_ENC_KEY__|${CONTROL_ENC_KEY}|g" "$f"
   sed -i "s|__MINIO_ROOT_USER__|${MINIO_ROOT_USER}|g" "$f"
   sed -i "s|__MINIO_ROOT_PASSWORD__|${MINIO_ROOT_PASSWORD}|g" "$f"
+  sed -i "s|__SMTP_HOST__|${SMTP_HOST}|g" "$f"
+  sed -i "s|__SMTP_PORT__|${SMTP_PORT}|g" "$f"
+  sed -i "s|__SMTP_USERNAME__|${SMTP_USERNAME}|g" "$f"
   sed -i "s|__SMTP_PASSWORD__|${SMTP_PASSWORD}|g" "$f"
+  sed -i "s|__SMTP_FROM__|${SMTP_FROM}|g" "$f"
+  sed -i "s|__SMTP_FROM_NAME__|${SMTP_FROM_NAME}|g" "$f"
 done
 
 CANONICAL_BASE_URL="${CANONICAL_BASE_URL}"
