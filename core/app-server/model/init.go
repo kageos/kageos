@@ -13,7 +13,7 @@ func isAppEnvDev() bool {
 	return strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV"))) == "dev"
 }
 
-// defaultNatsSeedEndpoint 无 NATS_SEED_HOST 时：开发默认本机 NATS，交付/线上默认 Compose 服务名 nats。
+// defaultNatsSeedEndpoint 无 NATS_SEED_HOST 时：开发默认 localhost，交付/线上默认 127.0.0.1（main 容器 host 网络）。
 func defaultNatsSeedEndpoint() (host string, port int) {
 	port = 4222
 	if p := strings.TrimSpace(os.Getenv("NATS_SEED_PORT")); p != "" {
@@ -27,7 +27,7 @@ func defaultNatsSeedEndpoint() (host string, port int) {
 	if isAppEnvDev() {
 		return "localhost", port
 	}
-	return "nats", port
+	return "127.0.0.1", port
 }
 
 func InitTables(db *gorm.DB) error {
@@ -84,7 +84,7 @@ func initDefaultData(db *gorm.DB) error {
 		return err
 	}
 
-	// 如果没有 NATS 记录：显式 NATS_SEED_HOST 优先；否则 dev→localhost，其它→nats（客户 Compose 无需再配环境变量）
+	// 如果没有 NATS 记录：显式 NATS_SEED_HOST 优先；否则 dev→localhost，其它→127.0.0.1（host 网络直连）
 	if natsCount == 0 {
 		seedHost, seedPort := defaultNatsSeedEndpoint()
 		defaultNats := &Nats{
@@ -125,8 +125,8 @@ func initDefaultData(db *gorm.DB) error {
 }
 
 // ReconcileNatsHostFromEnv 在 app-server 按 DB 连接 NATS 之前调用：
-//   - 若设置了 NATS_SEED_HOST：将仍为 localhost/127.0.0.1 的行更新为该主机（可选 NATS_SEED_PORT 改端口）；
-//   - 若未设置且非 dev：将上述行更新为 nats（与默认种子一致，修复历史 localhost 种子）；
+//   - 若设置了 NATS_SEED_HOST：将历史遗留的 localhost/127.0.0.1/nats 更新为该主机；
+//   - 若未设置且非 dev：将 nats/localhost 更新为 127.0.0.1（main 容器 host 网络直连）；
 //   - dev 且未显式 NATS_SEED_HOST：不改动（保留本机 NATS）。
 func ReconcileNatsHostFromEnv(db *gorm.DB) error {
 	explicitHost := strings.TrimSpace(os.Getenv("NATS_SEED_HOST"))
@@ -143,8 +143,8 @@ func ReconcileNatsHostFromEnv(db *gorm.DB) error {
 		if isAppEnvDev() {
 			return nil
 		}
-		updates["host"] = "nats"
+		updates["host"] = "127.0.0.1"
 	}
 
-	return db.Model(&Nats{}).Where("host IN ?", []string{"localhost", "127.0.0.1"}).Updates(updates).Error
+	return db.Model(&Nats{}).Where("host IN ?", []string{"localhost", "127.0.0.1", "nats"}).Updates(updates).Error
 }
