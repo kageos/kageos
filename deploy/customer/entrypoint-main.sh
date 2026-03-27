@@ -22,7 +22,6 @@ require_env CONTROL_ENC_KEY
 echo "==> 从模板刷新 deploy/config/prod（可安全重启）..."
 rm -rf /app/deploy/config/prod
 mkdir -p /app/deploy/config
-cp -a /app/config.prod.template /app/deploy/config/prod
 
 SMTP_HOST="${SMTP_HOST:-smtp.qq.com}"
 SMTP_PORT="${SMTP_PORT:-587}"
@@ -52,19 +51,13 @@ wait_tcp 127.0.0.1 3306 "MySQL"
 wait_tcp 127.0.0.1 4222 "NATS"
 wait_tcp 127.0.0.1 9000 "MinIO"
 
-echo "==> 注入配置占位符..."
-for f in /app/deploy/config/prod/*.yaml; do
-  sed -i "s|__MYSQL_ROOT_PASSWORD__|${MYSQL_ROOT_PASSWORD}|g" "$f"
-  sed -i "s|__JWT_SECRET__|${JWT_SECRET}|g" "$f"
-  sed -i "s|__CONTROL_ENC_KEY__|${CONTROL_ENC_KEY}|g" "$f"
-  sed -i "s|__MINIO_ROOT_USER__|${MINIO_ROOT_USER}|g" "$f"
-  sed -i "s|__MINIO_ROOT_PASSWORD__|${MINIO_ROOT_PASSWORD}|g" "$f"
-  sed -i "s|__SMTP_HOST__|${SMTP_HOST}|g" "$f"
-  sed -i "s|__SMTP_PORT__|${SMTP_PORT}|g" "$f"
-  sed -i "s|__SMTP_USERNAME__|${SMTP_USERNAME}|g" "$f"
-  sed -i "s|__SMTP_PASSWORD__|${SMTP_PASSWORD}|g" "$f"
-  sed -i "s|__SMTP_FROM__|${SMTP_FROM}|g" "$f"
-  sed -i "s|__SMTP_FROM_NAME__|${SMTP_FROM_NAME}|g" "$f"
+PROD_TEMPLATE_VARS='${MYSQL_ROOT_PASSWORD} ${JWT_SECRET} ${CONTROL_ENC_KEY} ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${SMTP_FROM} ${SMTP_FROM_NAME}'
+
+echo "==> 渲染 deploy/config/prod 模板..."
+mkdir -p /app/deploy/config/prod
+for src in /app/config.prod.template/*.yaml; do
+  dst="/app/deploy/config/prod/$(basename "$src")"
+  envsubst "$PROD_TEMPLATE_VARS" < "$src" > "$dst"
 done
 
 CANONICAL_BASE_URL="${CANONICAL_BASE_URL}"

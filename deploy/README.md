@@ -1,18 +1,27 @@
-# 部署说明（入口）
+# 部署说明（官方入口）
 
-本目录收敛 **部署方式与辅助资源**；具体步骤请进入对应子目录。
+本目录现在按 **环境入口** 与 **共享资源** 来组织。
 
-| 方式 | 目录 | 说明 |
+## 官方路径
+
+| 路径 | 角色 | 说明 |
 |------|------|------|
-| **客户主站一键（Compose）** | [customer/](customer/) | **不含 Hub**：用户**手写 `env.yaml`** → **`./render-env.sh`**（bash+awk，无 Python）生成 **`.env`** → **`podman compose`** / **`docker compose`**；说明见 [customer/README.md](customer/README.md)。 |
-| **Embedding（推荐先做）** | [embedding/](embedding/) | 一机一实例：**Podman Compose** 起中间件；脚本 **`embedding/scripts/embedding.sh`** 支持 **`init`**（含前后端+Nginx+启进程）、**`update`**（`git pull` 后编译+构建+重启）、`restart`/`stop`/`status`/`logs`。 |
-| **Docker Compose 全栈** | [compose/](compose/) + [podman/](podman/) | 根目录 **`docker-compose.yml`** `include` **[compose/docker-compose.yml](compose/docker-compose.yml)**；镜像与 **`deploy.sh`** 在 **[podman/](podman/)**，说明 **[podman/DEPLOY.md](podman/DEPLOY.md)**。 |
-| **Distributed（规划）** | [distributed/](distributed/) | 各服务独立进程/容器、可水平扩展；文档与脚本后续补充。 |
+| **`dev/`** | **本地开发入口** | 本地基础设施 compose、开发启动说明。开发同学优先看这里。 |
+| **`prod/`** | **线上部署入口** | 单机生产 Compose 部署包（由原 `customer/` 演进而来）。运维优先看这里。 |
+| **`base/`** | **共享部署资源** | 镜像 Dockerfile、基础启动脚本、Nginx 模板、初始化 SQL、共享构建脚本。 |
+| **`config/`** | **运行时 YAML** | 当前仍由服务配置加载器读取的 `dev / prod / compose` YAML；后续再继续收口。 |
+
+## 兼容与历史
+
+| 路径 | 状态 | 说明 |
+|------|------|------|
+| **`customer/`** | 兼容路径 | 旧的生产部署目录，现保留用于兼容；新文档与新入口请优先使用 `prod/`。 |
+| **`embedding/`** | 备选/历史路径 | Linux 裸机 + Podman 的一机一实例部署方案。 |
+| **`compose/`** + **`podman/`** | 历史资源 | 仍可用，但共享镜像与基础设施资源已逐步迁往 `base/`。 |
+| **`server-deploy.sh`** | 历史脚本 | 仍保留，后续逐步让位于 `dev/` / `prod/`。 |
 
 其他：
 
 - **本机只跑前端、连线上网关**：[前端开发-本地与连线上.md](前端开发-本地与连线上.md)
-- **Nginx 站点配置**（裸机 Web + Hub + 反代）：[embedding/nginx/nginx-server.conf](embedding/nginx/nginx-server.conf)（说明见 [embedding/nginx/README.md](embedding/nginx/README.md)）
-- **历史脚本**（Docker 起中间件 + 本机二进制）：[server-deploy.sh](server-deploy.sh) — 与 `embedding` 目标一致时可逐步迁到 **`embedding/scripts/embedding.sh`**。
-
-**应用 YAML**：开发与 Compose 挂载在 **`deploy/config/`**（**`dev` / `prod` / `compose`**），说明见 **[deploy/config/README.md](deploy/config/README.md)**。客户主站一键部署的 prod 模板在 **`deploy/customer/config/prod/`**（与 **`deploy/customer`** 同包）。可选 **`AI_AGENT_OS_ROOT`** 指定项目根。
+- **运行时配置说明**：见 [config/README.md](config/README.md)
+- **共享部署资源说明**：见 [base/README.md](base/README.md)

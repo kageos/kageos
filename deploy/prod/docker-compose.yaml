@@ -1,0 +1,88 @@
+# 生产单机一键部署（不含 Hub）
+# 用法：手写 .env → bash build.sh（校验 .env + 停宿主机 nginx + compose up）
+
+services:
+  # ─── 中间件 ──────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: Asia/Shanghai
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks: [aos]
+
+  nats:
+    image: nats:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4222:4222"
+    volumes:
+      - ./nats-server.conf:/etc/nats/nats-server.conf:ro
+    command: ["-c", "/etc/nats/nats-server.conf"]
+    networks: [aos]
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      TZ: Asia/Shanghai
+    command: server /data --console-address ":9001"
+    ports:
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - minio_data:/data
+    networks: [aos]
+
+  # ─── 主服务（host 网络，容器内 Nginx 直接对外 80）─────────────
+  main:
+    build:
+      context: ../..
+      dockerfile: deploy/prod/Dockerfile
+    image: ${MAIN_IMAGE}
+    network_mode: host
+    privileged: true
+    restart: unless-stopped
+    environment:
+      CANONICAL_BASE_URL: ${CANONICAL_BASE_URL}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      CONTROL_ENC_KEY: ${CONTROL_ENC_KEY}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME}
+    volumes:
+      - podman_storage:/var/lib/containers
+      - app_logs:/app/logs
+      - namespace_data:/app/namespace
+      - app_data:/app/data
+    depends_on:
+      - mysql
+      - nats
+      - minio
+
+networks:
+  aos:
+    name: ai-agent-os-customer-aos
+
+volumes:
+  mysql_data:
+  minio_data:
+  podman_storage:
+  app_logs:
+  namespace_data:
+  app_data:

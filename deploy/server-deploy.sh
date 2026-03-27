@@ -72,7 +72,7 @@ check_process() {
 start_infra() {
     info "启动基础设施容器 (MySQL/NATS/MinIO)..."
     cd "$PROJECT_DIR"
-    docker compose -f docker-compose.dev.yml up -d
+    docker compose -f deploy/dev/compose/docker-compose.dev.yml up -d
     info "等待 MySQL 就绪..."
     for i in $(seq 1 30); do
         if docker exec ai-agent-os-dev-mysql mysqladmin ping -h localhost -uroot -proot --silent 2>/dev/null; then
@@ -200,7 +200,7 @@ build_app_base_image() {
 
     info "构建用户应用基础镜像（首次约 10-20 分钟）..."
     cd "$PROJECT_DIR"
-    podman build -t ai-agent-os:latest -f deploy/podman/Dockerfile.app-base .
+    podman build -t ai-agent-os:latest deploy/base/images/app-base
     info "基础镜像构建完成"
 }
 
@@ -293,7 +293,7 @@ status)
     check_process "hub-server"
     echo ""
     echo "=== 基础设施容器 ==="
-    docker compose -f "$PROJECT_DIR/docker-compose.dev.yml" ps 2>/dev/null || echo "  未启动"
+    docker compose -f "$PROJECT_DIR/deploy/dev/compose/docker-compose.dev.yml" ps 2>/dev/null || echo "  未启动"
     echo ""
     echo "=== Podman ==="
     if [ -S /run/podman/podman.sock ]; then

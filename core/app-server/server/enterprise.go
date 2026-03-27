@@ -14,9 +14,8 @@ import (
 
 // initEnterprise 初始化企业功能
 // 说明：
-//   - 社区版：使用空实现，不执行任何操作
-//   - 企业版：根据 License 中的功能开关，初始化对应的企业功能
-//   - 不同版本支持的功能不同，通过 HasFeature() 精确控制
+//   - 企业实现统一在启动时完成初始化，避免运行时 License 热更新后出现“功能已开启但实现未初始化”的状态
+//   - License 功能位仅用于控制“能否访问/能否使用”，不再决定是否初始化底层实现
 func (s *Server) initEnterprise() error {
 	ctx := s.ctx
 
@@ -24,49 +23,41 @@ func (s *Server) initEnterprise() error {
 	licenseMgr := license.GetManager()
 	lic := licenseMgr.GetLicense()
 
-	// 检查是否有有效的 License
 	if lic == nil || !lic.IsValid() {
-		logger.Infof(ctx, "[Enterprise] Community edition detected, using default implementations")
-		// 社区版：使用空实现
-		s.operateLogger = enterprise.GetOperateLogger()
-		return nil
+		logger.Infof(ctx, "[Enterprise] No valid license detected, initializing enterprise implementations in disabled mode")
+	} else {
+		logger.Infof(ctx, "[Enterprise] License detected: Edition=%s, Customer=%s",
+			lic.Edition, lic.Customer)
 	}
 
-	// 有有效的 License，根据功能开关初始化企业功能
-	logger.Infof(ctx, "[Enterprise] License detected: Edition=%s, Customer=%s",
-		lic.Edition, lic.Customer)
-
-	// 初始化操作日志功能（如果 License 支持）
+	// 统一初始化操作日志实现；是否可用由 Feature 开关控制
+	logger.Infof(ctx, "[Enterprise] Initializing operate log implementation...")
+	if err := enterprise.InitOperateLogger(&enterprise.InitOptions{DB: s.db}); err != nil {
+		return err
+	}
+	s.operateLogger = enterprise.GetOperateLogger()
 	if licenseMgr.HasFeature(enterprise.FeatureOperateLog) {
-		logger.Infof(ctx, "[Enterprise] Initializing operate log feature...")
-		err := enterprise.InitOperateLogger(&enterprise.InitOptions{DB: s.db})
-		if err != nil {
-			return err
-		}
-		s.operateLogger = enterprise.GetOperateLogger()
-		logger.Infof(ctx, "[Enterprise] Operate log feature initialized")
+		logger.Infof(ctx, "[Enterprise] Operate log feature initialized and enabled")
 	} else {
-		logger.Infof(ctx, "[Enterprise] Operate log feature not available in license, using default implementation")
-		s.operateLogger = enterprise.GetOperateLogger()
+		logger.Infof(ctx, "[Enterprise] Operate log implementation initialized, feature currently disabled by license")
 	}
 
-	// 初始化权限管理功能（如果 License 支持）
+	// 统一初始化权限实现；是否可用由 Feature 开关控制
+	logger.Infof(ctx, "[Enterprise] Initializing permission implementation...")
+	// 企业版 ApplyPermissionByResourcePath 需要 AppIDResolver，由 app-server 注入（依赖 appRepo）
+	if s.appRepo == nil {
+		s.appRepo = repository.NewAppRepository(s.db)
+	}
+	if err := enterprise.InitPermissionService(&enterprise.InitOptions{
+		DB:            s.db,
+		AppIDResolver: service.NewAppIDResolver(s.appRepo),
+	}); err != nil {
+		return err
+	}
 	if licenseMgr.HasFeature(enterprise.FeaturePermission) {
-		logger.Infof(ctx, "[Enterprise] Initializing permission feature...")
-		// ⭐ 企业版 ApplyPermissionByResourcePath 需要 AppIDResolver，由 app-server 注入（依赖 appRepo）
-		if s.appRepo == nil {
-			s.appRepo = repository.NewAppRepository(s.db)
-		}
-		err := enterprise.InitPermissionService(&enterprise.InitOptions{
-			DB:            s.db,
-			AppIDResolver: service.NewAppIDResolver(s.appRepo),
-		})
-		if err != nil {
-			return err
-		}
-		logger.Infof(ctx, "[Enterprise] Permission feature initialized")
+		logger.Infof(ctx, "[Enterprise] Permission feature initialized and enabled")
 	} else {
-		logger.Infof(ctx, "[Enterprise] Permission feature not available in license, using default implementation")
+		logger.Infof(ctx, "[Enterprise] Permission implementation initialized, feature currently disabled by license")
 	}
 
 	// 后续可以添加更多功能的初始化，例如：

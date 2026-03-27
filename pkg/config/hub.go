@@ -16,10 +16,10 @@ var (
 func GetHubConfig() *HubConfig {
 	hubOnce.Do(func() {
 		cfg := &HubConfig{}
-		// 与全项目一致：仅 deploy/config/{dev|prod}/hub.yaml（APP_ENV）
+		// 与全项目一致：优先新结构 deploy/dev|prod，再 fallback 到兼容的 deploy/config/{dev|prod}/hub.yaml
 		if err := loadYAMLConfig("hub.yaml", cfg); err != nil {
 			// 配置文件不存在或加载失败，返回空配置；copy_url 会回退为请求 Host（如 localhost:9090）
-			fmt.Printf("Failed to load hub config, using defaults: %v (set APP_ENV=dev or AI_AGENT_OS_ROOT; expect deploy/config/{dev|prod}/hub.yaml)\n", err)
+			fmt.Printf("Failed to load hub config, using defaults: %v (set APP_ENV=dev or AI_AGENT_OS_ROOT; expect deploy/dev/config or deploy/prod/config/runtime, fallback deploy/config/{dev|prod})\n", err)
 			cfg = &HubConfig{}
 		}
 		hubMu.Lock()

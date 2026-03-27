@@ -1,5 +1,9 @@
 # 客户主站一键部署（Compose：宿主机 Docker 或 Podman）
 
+> 兼容说明：官方生产入口已切到 `deploy/prod/`。
+>
+> 本目录暂时保留，用于兼容旧路径；新部署和新文档请优先使用 `deploy/prod/`。
+
 **范围**：主站 + 中间件（MySQL / NATS / MinIO）+ 内置 Nginx(80) + **容器内 Podman**（跑用户应用）。**不包含 Hub**。
 
 ## 架构
@@ -28,17 +32,41 @@
 
 ```bash
 cd deploy/customer
-cp env.yaml.example env.yaml
-# 手写填写 env.yaml（全部必填项见 example 注释；smtp_password 可留空）
+cp .env.example .env
+# 手写填写 .env（SMTP 相关可留空）
 
-bash build.sh
+bash build.sh        # 等价于: bash build.sh up
 ```
 
-`build.sh` 会自动完成：解析 `env.yaml` → 生成 `.env` → 停宿主机 nginx → `compose up -d --build`。
+`build.sh up` 会自动完成：校验 `.env` → 停宿主机 nginx → `compose up -d --build`。
 
-改配置：编辑 **`env.yaml`** 后重跑 **`bash build.sh`** 即可。
+改配置：编辑 **`.env`** 后重跑 **`bash build.sh`** 即可。
+
+如果你本地仍是旧版 `env.yaml`，可一次性迁移：
+
+```bash
+bash render-env.sh ./env.yaml ./.env
+```
 
 > 构建 Go 依赖默认使用 `GOPROXY=https://goproxy.cn,direct` 与 `GOSUMDB=sum.golang.google.cn`；如需覆盖，可在构建时传 `--build-arg GOPROXY=... --build-arg GOSUMDB=...`。
+
+## 常用命令
+
+```bash
+bash build.sh up            # 首次部署 / 全量重建（默认）
+bash build.sh update        # 只重建并更新 main，不重启 MySQL / NATS / MinIO
+bash build.sh pull-update   # git pull --ff-only 后执行 update
+bash build.sh restart-main  # 仅重启 main，不重建镜像
+bash build.sh logs main     # 查看 main 日志
+bash build.sh status        # 查看服务状态
+bash build.sh down          # 停止服务（保留数据卷）
+```
+
+推荐升级路径：
+
+- 只升级主站代码：`bash build.sh update`
+- 先拉最新代码再升级：`bash build.sh pull-update`
+- 只改 `.env` 或想让主进程重启生效：`bash build.sh restart-main`
 
 ## 构建加速（依赖与源，默认偏国内）
 
@@ -62,7 +90,7 @@ podman compose build --build-arg APT_USE_MIRROR=0 --build-arg NPM_REGISTRY=https
 
 ## 存储与公网地址
 
-- **`CANONICAL_BASE_URL`**（写在 `env.yaml` → 生成进 `.env`）为唯一主站真值。
+- **`CANONICAL_BASE_URL`**（写在 `.env`）为唯一主站真值。
 - `cdn_domain` 空时由进程用该 URL 补全；Nginx **`www` → 裸域 301** 与真值 scheme 一致。
 
 ### 持久卷（勿误删）
@@ -82,19 +110,24 @@ Compose 为 **`main`** 挂载命名卷，避免重建容器后丢失数据：
 
 | 文件 | 说明 |
 |------|------|
-| **`env.yaml.example`** | 结构模板；用户复制为 **`env.yaml`** 并手写 |
-| **`env.yaml`** | 用户真实配置（**勿提交**，见 `.gitignore`） |
-| **`build.sh`** | **一键部署**：env.yaml → .env + 停宿主机 nginx + compose up |
-| **`.env`** | Compose 读取（**勿手改**、勿提交） |
+| **`.env.example`** | 配置模板；复制为 **`.env`** 后填写 |
+| **`.env`** | 唯一配置源；Compose 与 `build.sh` 直接读取（**勿提交**） |
+| **`build.sh`** | 运维入口：支持 `up / update / pull-update / restart-main / logs / status / down` |
+| **`render-env.sh`** | 历史迁移工具：把旧 `env.yaml` 转成 `.env` |
 | `docker-compose.yaml` | 服务定义（main 使用 host 网络） |
 | `init-db.sql` | MySQL 首次启动建库（挂载 `docker-entrypoint-initdb.d`，**仅本目录**） |
 | `nats-server.conf` | NATS 容器配置（**仅本目录**） |
 | `Dockerfile` / `entrypoint-main.sh` / `nginx/` / `config/prod/` | 镜像与内置模板 |
 
+补充：
+
+- `.env` 中的 `MAIN_IMAGE` 只是 `main` 服务本地构建结果的镜像标签；当前默认流程仍会执行 `compose up -d --build`，不会跳过本地构建。
+- Compose 文件名实际为 **`docker-compose.yaml`**，不是 `docker-compose.yml`。
+
 ## 升级
 
 ```bash
-podman compose build main && podman compose up -d main
+bash build.sh update
 ```
 
 ## 构建说明（避免踩坑）

@@ -50,5 +50,5 @@ deploy/config/local/*.yml
 
 # 客户部署本地环境（含密钥）
 deploy/customer/.env
-# 已废弃：若本地仍保留旧 env.yaml（含密钥），勿提交
+# 历史格式：若本地仍保留旧 env.yaml（含密钥），勿提交
 deploy/customer/env.yaml

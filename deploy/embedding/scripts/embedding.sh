@@ -148,7 +148,7 @@ cmd_infra() {
   fi
 
   info "在 $ROOT 启动基础设施..."
-  podman compose -f docker-compose.dev.yml up -d
+  podman compose -f deploy/dev/compose/docker-compose.dev.yml up -d
 
   info "等待 MySQL 就绪（最多约 60s）..."
   for _ in $(seq 1 30); do
@@ -375,8 +375,8 @@ cmd_runtime() {
     exit 1
   fi
 
-  info "podman build -f build/Dockerfile -t ai-agent-os:latest（耗时较长）..."
-  podman build -f build/Dockerfile -t ai-agent-os:latest .
+  info "podman build -t ai-agent-os:latest deploy/base/images/app-base（耗时较长）..."
+  podman build -t ai-agent-os:latest deploy/base/images/app-base
 
   info "镜像 ai-agent-os:latest 已构建"
 }
@@ -512,7 +512,7 @@ cmd_status() {
   (
     cd "$ROOT"
     ensure_podman_compose_provider || true
-    podman compose -f docker-compose.dev.yml ps 2>/dev/null
+    podman compose -f deploy/dev/compose/docker-compose.dev.yml ps 2>/dev/null
   ) || echo "  未启动或 compose 失败"
   echo ""
   echo "=== Podman ==="

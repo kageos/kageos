@@ -1,5 +1,5 @@
 # 客户主站一键部署（不含 Hub）
-# 用法：手写 env.yaml → bash build.sh（一键：生成 .env + 停宿主机 nginx + compose up）
+# 用法：手写 .env → bash build.sh（校验 .env + 停宿主机 nginx + compose up）
 
 services:
   # ─── 中间件 ──────────────────────────────────────────────────
