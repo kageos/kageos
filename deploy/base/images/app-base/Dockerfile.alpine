@@ -1,0 +1,228 @@
+# FFmpeg 构建阶段（静态链接构建，LGPL-only）
+# 合规性：用户代码通过 cmd 调用 FFmpeg，不涉及库链接，完全满足合规要求
+FROM alpine:latest AS ffmpeg-builder
+
+# 安装构建依赖
+RUN apk add --no-cache \
+    build-base \
+    yasm \
+    nasm \
+    wget \
+    tar \
+    xz \
+    pkgconfig \
+    zlib-dev \
+    bzip2-dev \
+    libpng-dev \
+    freetype-dev \
+    fontconfig-dev \
+    libass-dev \
+    libtheora-dev \
+    libvorbis-dev \
+    libvpx-dev \
+    opus-dev
+
+# 下载 FFmpeg 源代码
+WORKDIR /tmp
+ARG FFMPEG_VERSION=6.1.1
+RUN wget -q https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz && \
+    tar -xf ffmpeg-${FFMPEG_VERSION}.tar.xz && \
+    cd ffmpeg-${FFMPEG_VERSION} && \
+    ./configure \
+        --disable-gpl \
+        --disable-nonfree \
+        --enable-static \
+        --disable-shared \
+        --disable-debug \
+        --disable-doc \
+        --disable-ffplay \
+        --disable-ffprobe \
+        --enable-libvpx \
+        --enable-libopus \
+        --enable-libvorbis \
+        --enable-libtheora \
+        --enable-libass \
+        --enable-libfreetype \
+        --enable-libfontconfig \
+        --prefix=/usr/local && \
+    make -j$(nproc) && \
+    make install && \
+    cd .. && \
+    rm -rf ffmpeg-${FFMPEG_VERSION} ffmpeg-${FFMPEG_VERSION}.tar.xz
+
+# 验证 FFmpeg 是否静态链接
+RUN if command -v ldd >/dev/null 2>&1; then \
+        ldd_output=$(ldd /usr/local/bin/ffmpeg 2>&1); \
+        if echo "$ldd_output" | grep -q "not a dynamic"; then \
+            echo "✓ FFmpeg is statically linked"; \
+        elif echo "$ldd_output" | grep -q "statically linked"; then \
+            echo "✓ FFmpeg is statically linked"; \
+        else \
+            echo "⚠ Warning: FFmpeg may have dynamic dependencies:"; \
+            echo "$ldd_output"; \
+        fi; \
+    else \
+        echo "✓ FFmpeg installed (ldd not available, assuming static)"; \
+    fi
+
+# 运行时镜像
+FROM alpine:latest
+WORKDIR /app
+
+# 安装必要的工具和时区数据
+# 添加 tini 作为 init 系统，解决 PID 1 问题
+RUN apk add --no-cache ca-certificates file tzdata tini
+
+# 安装 FFmpeg（静态链接的可执行文件）
+# 合规性：用户代码通过 cmd 调用，不涉及库链接，完全满足合规要求
+COPY --from=ffmpeg-builder /usr/local/bin/ffmpeg /usr/bin/ffmpeg
+
+# 安装处理工具（通过 cmd 调用，完全满足合规要求）
+# Ghostscript: PDF/PostScript 处理
+# Poppler-utils: PDF 工具（pdftotext, pdfinfo, pdfimages 等）
+# GraphicsMagick: 图像处理（ImageMagick 的轻量替代）
+# Lua: 轻量级脚本语言（数据转换、验证、模板处理等）
+# Python 3: Python 解释器和 pip（用于执行 Python 代码）
+# FFmpeg 依赖库（虽然 FFmpeg 是静态链接的，但启用的编码器库是动态的）
+RUN apk add --no-cache \
+    ghostscript \
+    poppler-utils \
+    graphicsmagick \
+    lua5.4 \
+    python3 \
+    py3-pip \
+    libass \
+    libvpx \
+    opus \
+    libvorbis \
+    libtheora \
+    freetype \
+    fontconfig
+
+# 创建 lua 命令的符号链接（Alpine 安装的是 lua5.4）
+RUN ln -sf /usr/bin/lua5.4 /usr/bin/lua
+
+# 创建 python 命令的符号链接（Alpine 安装的是 python3）
+# 使用 -sf 强制创建，如果已存在则覆盖
+RUN ln -sf /usr/bin/python3 /usr/bin/python
+
+# 升级 pip 到最新版本
+# 注意：Alpine Linux Python 3.12+ 需要 --break-system-packages 标志
+RUN pip3 install --no-cache-dir --break-system-packages --upgrade pip
+
+# 安装 Python 编译依赖（matplotlib、scipy、opencv 等需要编译）
+RUN apk add --no-cache \
+    gcc \
+    g++ \
+    musl-dev \
+    python3-dev \
+    linux-headers \
+    freetype-dev \
+    libpng-dev \
+    jpeg-dev \
+    zlib-dev \
+    cmake \
+    ninja \
+    make \
+    && echo "✓ Python build dependencies installed"
+
+# 安装 Python 核心包（数据科学、图像处理、文档处理、OCR 等）
+# 预装常用包，提升运行时性能，避免首次执行时的下载等待
+# 使用 --no-cache-dir 减少镜像体积
+# 先安装基础包
+RUN pip3 install --no-cache-dir --break-system-packages \
+    # 数据科学核心（必装）
+    pandas \
+    numpy \
+    scipy \
+    # 数据可视化（推荐，需要编译）
+    matplotlib \
+    seaborn \
+    # 图像处理（推荐）
+    Pillow \
+    # 文档处理（推荐）
+    openpyxl \
+    python-docx \
+    PyPDF2 \
+    pdfplumber \
+    # NLP（推荐，中文分词）
+    jieba \
+    # HTTP 请求（必装）
+    requests \
+    && echo "✓ Python core packages installed"
+
+# 安装 glibc 兼容层（PaddlePaddle 需要 glibc，Alpine 使用 musl）
+# PaddlePaddle 的预编译版本是为 glibc 编译的，需要兼容层
+RUN apk add --no-cache gcompat || \
+    (wget -q -O /etc/apk/keys/sgerrand.rsa.pub https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub && \
+     wget -q https://github.com/sgerrand/alpine-pkg-glibc/releases/download/2.35-r1/glibc-2.35-r1.apk && \
+     apk add --no-cache --allow-untrusted glibc-2.35-r1.apk) \
+    && echo "✓ glibc compatibility layer installed"
+
+# 安装 PaddlePaddle（使用官方推荐的 CPU 版本，支持 Python 3.12）
+# 使用官方源，让 pip 自动选择与 Python 3.12 兼容的最新版本
+RUN pip3 install --no-cache-dir --break-system-packages \
+    -i https://www.paddlepaddle.org.cn/packages/stable/cpu/ \
+    paddlepaddle \
+    && echo "✓ PaddlePaddle installed"
+
+# 先安装兼容 Python 3.12 的 opencv-python（PaddleOCR 需要 OpenCV）
+RUN pip3 install --no-cache-dir --break-system-packages \
+    --default-timeout=300 \
+    opencv-python \
+    && echo "✓ OpenCV installed"
+
+# 安装 PaddleOCR（跳过 opencv-contrib-python，使用已安装的 opencv-python）
+# 使用 --no-deps 避免安装不兼容的 opencv-contrib-python，然后手动安装其他依赖
+RUN pip3 install --no-cache-dir --break-system-packages \
+    --default-timeout=300 \
+    --no-deps \
+    paddleocr \
+    && pip3 install --no-cache-dir --break-system-packages \
+    PyYAML>=6 \
+    paddlex \
+    && echo "✓ PaddleOCR installed"
+
+# 清理编译依赖（减少镜像体积，但保留运行时需要的库）
+RUN apk del \
+    gcc \
+    g++ \
+    musl-dev \
+    python3-dev \
+    linux-headers \
+    && echo "✓ Build dependencies removed (keeping runtime libraries)"
+
+# 生成已安装包列表环境变量（用于快速检查包是否已安装）
+# 提取已安装包的名称（去除版本号），用逗号分隔，存储到环境变量
+# 保存到文件，并在启动脚本中加载（确保运行时可用）
+RUN INSTALLED_PACKAGES=$(python3 -c "import pkg_resources; packages = [d.project_name.lower() for d in pkg_resources.working_set]; print(','.join(sorted(packages)))") && \
+    echo "${INSTALLED_PACKAGES}" > /etc/python-installed-packages.txt && \
+    echo "export PYTHON_INSTALLED_PACKAGES=\"${INSTALLED_PACKAGES}\"" >> /etc/profile.d/python-packages.sh && \
+    chmod +x /etc/profile.d/python-packages.sh && \
+    echo "✓ Python installed packages list generated ($(echo ${INSTALLED_PACKAGES} | tr ',' '\n' | wc -l) packages)"
+
+# 验证工具安装
+RUN ffmpeg -version | head -n 1 && \
+    gs --version && \
+    pdftotext -v 2>&1 | head -n 1 && \
+    gm version | head -n 1 && \
+    lua -v && \
+    python3 --version && \
+    pip3 --version && \
+    python3 -c "import pandas, numpy, matplotlib, jieba, requests, paddleocr; print('✓ Core Python packages verified (including PaddleOCR)')" && \
+    echo "✓ All tools installed successfully"
+
+# 设置时区
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# 复制启动脚本（要求 build context 为当前目录）
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
+# 使用 tini 作为 entrypoint（作为 PID 1）
+# tini 会正确处理信号转发和僵尸进程回收
+ENTRYPOINT ["/sbin/tini", "--"]
+
+# 设置启动命令
+CMD ["/start.sh"]

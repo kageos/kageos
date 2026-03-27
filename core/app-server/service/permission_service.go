@@ -43,20 +43,27 @@ func NewAppIDResolver(appRepo *repository.AppRepository) enterprise.AppIDResolve
 // ⭐ 权限逻辑在企业版目录（enterprise）；本层只做编排、调用企业版、更新 app-server 侧数据（如 pending_count）
 // ⭐ AppIDResolver 在 server 初始化企业版时注入到 enterprise.InitOptions，本层不再持有
 type PermissionService struct {
-	permissionService     enterprise.PermissionService
+	getPermissionService  func() enterprise.PermissionService
 	serviceTreeRepo       *repository.ServiceTreeRepository
 	permissionRequestRepo *repository.PermissionRequestRepository
 	appRepo               *repository.AppRepository
 }
 
 // NewPermissionService 创建权限管理服务
-func NewPermissionService(permissionService enterprise.PermissionService, serviceTreeRepo *repository.ServiceTreeRepository, permissionRequestRepo *repository.PermissionRequestRepository, appRepo *repository.AppRepository) *PermissionService {
+func NewPermissionService(serviceTreeRepo *repository.ServiceTreeRepository, permissionRequestRepo *repository.PermissionRequestRepository, appRepo *repository.AppRepository) *PermissionService {
 	return &PermissionService{
-		permissionService:     permissionService,
+		getPermissionService:  enterprise.GetPermissionService,
 		serviceTreeRepo:       serviceTreeRepo,
 		permissionRequestRepo: permissionRequestRepo,
 		appRepo:               appRepo,
 	}
+}
+
+func (s *PermissionService) permissionBackend() enterprise.PermissionService {
+	if s != nil && s.getPermissionService != nil {
+		return s.getPermissionService()
+	}
+	return enterprise.GetPermissionService()
 }
 
 // ApplyPermission 权限申请（逻辑在 enterprise_impl 实现 ApplyPermissionByResourcePath），本层只做编排与 pending_count 更新
@@ -66,7 +73,8 @@ func (s *PermissionService) ApplyPermission(ctx context.Context, req *dto.ApplyP
 	if applicantUsername == "" {
 		return nil, fmt.Errorf("无法获取当前用户信息")
 	}
-	requestID, appID, err := s.permissionService.ApplyPermissionByResourcePath(ctx, req, applicantUsername)
+	backend := s.permissionBackend()
+	requestID, appID, err := backend.ApplyPermissionByResourcePath(ctx, req, applicantUsername)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +83,7 @@ func (s *PermissionService) ApplyPermission(ctx context.Context, req *dto.ApplyP
 	autoApproved := false
 	for _, a := range approvers {
 		if strings.TrimSpace(a) == applicantUsername {
-			if errApprove := s.permissionService.ApprovePermissionRequest(ctx, requestID, applicantUsername); errApprove != nil {
+			if errApprove := backend.ApprovePermissionRequest(ctx, requestID, applicantUsername); errApprove != nil {
 				logger.Warnf(ctx, "[PermissionService] 自动通过（审批人为自己）失败: request_id=%d, error=%v", requestID, errApprove)
 			} else {
 				autoApproved = true
@@ -103,7 +111,6 @@ func (s *PermissionService) ApplyPermission(ctx context.Context, req *dto.ApplyP
 		Message:   message,
 	}, nil
 }
-
 
 // GetWorkspacePermissions 获取工作空间的所有权限
 // ⭐ 优化：支持查询用户权限和组织架构权限（v0 可以是用户名或组织架构路径）
@@ -150,7 +157,7 @@ func (s *PermissionService) GetWorkspacePermissions(ctx context.Context, req *dt
 		DepartmentPath: deptPath, // ⭐ 只传递当前路径，父级路径在内部计算
 	}
 
-	enterpriseResp, err := s.permissionService.GetUserWorkspacePermissions(ctx, enterpriseReq)
+	enterpriseResp, err := s.permissionBackend().GetUserWorkspacePermissions(ctx, enterpriseReq)
 	if err != nil {
 		logger.Errorf(ctx, "[PermissionService] 查询权限记录失败: user=%s, app=%s, username=%s, error=%v", req.User, req.App, username, err)
 		return nil, fmt.Errorf("查询权限记录失败: %w", err)
@@ -207,46 +214,46 @@ func (s *PermissionService) getAllParentDeptPaths(deptPath string) []string {
 
 // GetResourcePermissions 查询资源的所有权限分配（委托给 enterprise.PermissionService，供 api 层统一走 service）
 func (s *PermissionService) GetResourcePermissions(ctx context.Context, req *dto.GetResourcePermissionsReq) (*dto.GetResourcePermissionsResp, error) {
-	return s.permissionService.GetResourcePermissions(ctx, req)
+	return s.permissionBackend().GetResourcePermissions(ctx, req)
 }
 
 // 以下为角色相关方法的委托，使 *PermissionService 可实现 enterprise.PermissionService 的角色部分，供 Role handler 统一从 Server 注入
 
 func (s *PermissionService) GetRoles(ctx context.Context, resourceType string) (*dto.GetRolesResp, error) {
-	return s.permissionService.GetRoles(ctx, resourceType)
+	return s.permissionBackend().GetRoles(ctx, resourceType)
 }
 func (s *PermissionService) GetRole(ctx context.Context, roleID int64) (*dto.GetRoleResp, error) {
-	return s.permissionService.GetRole(ctx, roleID)
+	return s.permissionBackend().GetRole(ctx, roleID)
 }
 func (s *PermissionService) CreateRole(ctx context.Context, req *dto.CreateRoleReq) (*dto.CreateRoleResp, error) {
-	return s.permissionService.CreateRole(ctx, req)
+	return s.permissionBackend().CreateRole(ctx, req)
 }
 func (s *PermissionService) UpdateRole(ctx context.Context, roleID int64, req *dto.UpdateRoleReq) (*dto.UpdateRoleResp, error) {
-	return s.permissionService.UpdateRole(ctx, roleID, req)
+	return s.permissionBackend().UpdateRole(ctx, roleID, req)
 }
 func (s *PermissionService) DeleteRole(ctx context.Context, roleID int64) error {
-	return s.permissionService.DeleteRole(ctx, roleID)
+	return s.permissionBackend().DeleteRole(ctx, roleID)
 }
 func (s *PermissionService) AssignRoleToUser(ctx context.Context, req *dto.AssignRoleToUserReq) (*dto.AssignRoleToUserResp, error) {
-	return s.permissionService.AssignRoleToUser(ctx, req)
+	return s.permissionBackend().AssignRoleToUser(ctx, req)
 }
 func (s *PermissionService) AssignRoleToDepartment(ctx context.Context, req *dto.AssignRoleToDepartmentReq) (*dto.AssignRoleToDepartmentResp, error) {
-	return s.permissionService.AssignRoleToDepartment(ctx, req)
+	return s.permissionBackend().AssignRoleToDepartment(ctx, req)
 }
 func (s *PermissionService) RemoveRoleFromUser(ctx context.Context, req *dto.RemoveRoleFromUserReq) error {
-	return s.permissionService.RemoveRoleFromUser(ctx, req)
+	return s.permissionBackend().RemoveRoleFromUser(ctx, req)
 }
 func (s *PermissionService) RemoveRoleFromDepartment(ctx context.Context, req *dto.RemoveRoleFromDepartmentReq) error {
-	return s.permissionService.RemoveRoleFromDepartment(ctx, req)
+	return s.permissionBackend().RemoveRoleFromDepartment(ctx, req)
 }
 func (s *PermissionService) GetUserRoles(ctx context.Context, req *dto.GetUserRolesReq) (*dto.GetUserRolesResp, error) {
-	return s.permissionService.GetUserRoles(ctx, req)
+	return s.permissionBackend().GetUserRoles(ctx, req)
 }
 func (s *PermissionService) GetDepartmentRoles(ctx context.Context, req *dto.GetDepartmentRolesReq) (*dto.GetDepartmentRolesResp, error) {
-	return s.permissionService.GetDepartmentRoles(ctx, req)
+	return s.permissionBackend().GetDepartmentRoles(ctx, req)
 }
 func (s *PermissionService) GetRolesForPermissionRequest(ctx context.Context, req *dto.GetRolesForPermissionRequestReq) (*dto.GetRolesForPermissionRequestResp, error) {
-	return s.permissionService.GetRolesForPermissionRequest(ctx, req)
+	return s.permissionBackend().GetRolesForPermissionRequest(ctx, req)
 }
 
 // CreatePermissionRequest 创建权限申请
@@ -271,14 +278,15 @@ func (s *PermissionService) CreatePermissionRequest(ctx context.Context, req *dt
 		RoleID:            req.RoleID, // ⭐ 角色ID（必填）
 		SubjectType:       req.SubjectType,
 		Subject:           req.Subject,
-		ApplicantUsername: username, // ⭐ 从 context 获取的申请人用户名
+		ApplicantUsername: username,  // ⭐ 从 context 获取的申请人用户名
 		StartTime:         startTime, // ⭐ 使用 models.Time
 		EndTime:           endTime,   // ⭐ 使用 *models.Time（nil 表示永久）
 		Reason:            req.Reason,
 	}
 
 	// 调用企业版接口
-	requestID, err := s.permissionService.CreatePermissionRequest(ctx, enterpriseReq)
+	backend := s.permissionBackend()
+	requestID, err := backend.CreatePermissionRequest(ctx, enterpriseReq)
 	if err != nil {
 		return nil, fmt.Errorf("创建权限申请失败: %w", err)
 	}
@@ -288,7 +296,7 @@ func (s *PermissionService) CreatePermissionRequest(ctx context.Context, req *dt
 	autoApproved := false
 	for _, a := range approvers {
 		if strings.TrimSpace(a) == username {
-			if errApprove := s.permissionService.ApprovePermissionRequest(ctx, requestID, username); errApprove != nil {
+			if errApprove := backend.ApprovePermissionRequest(ctx, requestID, username); errApprove != nil {
 				logger.Warnf(ctx, "[PermissionService] 自动通过（审批人为自己）失败: request_id=%d, error=%v", requestID, errApprove)
 			} else {
 				autoApproved = true
@@ -337,7 +345,7 @@ func (s *PermissionService) ApprovePermissionRequest(ctx context.Context, req *d
 	}
 
 	// 调用企业版接口
-	err = s.permissionService.ApprovePermissionRequest(ctx, req.RequestID, approverUsername)
+	err = s.permissionBackend().ApprovePermissionRequest(ctx, req.RequestID, approverUsername)
 	if err != nil {
 		return err
 	}
@@ -370,7 +378,7 @@ func (s *PermissionService) RejectPermissionRequest(ctx context.Context, req *dt
 	}
 
 	// 调用企业版接口
-	err = s.permissionService.RejectPermissionRequest(ctx, req.RequestID, approverUsername, req.Reason)
+	err = s.permissionBackend().RejectPermissionRequest(ctx, req.RequestID, approverUsername, req.Reason)
 	if err != nil {
 		return err
 	}
@@ -386,7 +394,6 @@ func (s *PermissionService) RejectPermissionRequest(ctx context.Context, req *dt
 
 	return nil
 }
-
 
 // GetPermissionRequests 获取权限申请列表
 func (s *PermissionService) GetPermissionRequests(ctx context.Context, req *dto.GetPermissionRequestsReq) (*dto.GetPermissionRequestsResp, error) {
@@ -417,8 +424,8 @@ func (s *PermissionService) GetPermissionRequests(ctx context.Context, req *dto.
 			SubjectType:       req.SubjectType,
 			Subject:           req.Subject,
 			ResourcePath:      req.ResourcePath,
-			ResourceName:      "", // ⭐ 默认空，后面从 service_tree 获取
-			RoleID:            req.RoleID, // ⭐ 角色ID
+			ResourceName:      "",            // ⭐ 默认空，后面从 service_tree 获取
+			RoleID:            req.RoleID,    // ⭐ 角色ID
 			StartTime:         req.StartTime, // ⭐ 直接赋值，无需转换
 			EndTime:           req.EndTime,   // ⭐ 直接赋值，无需转换
 			Reason:            req.Reason,
@@ -468,7 +475,7 @@ func (s *PermissionService) GetPermissionRequests(ctx context.Context, req *dto.
 
 		// ⭐ 从角色服务获取角色名称
 		if req.RoleID > 0 {
-			roleResp, err := s.permissionService.GetRole(ctx, req.RoleID)
+			roleResp, err := s.permissionBackend().GetRole(ctx, req.RoleID)
 			if err == nil && roleResp != nil && roleResp.Role != nil {
 				info.RoleName = roleResp.Role.Name
 			} else {
@@ -504,18 +511,18 @@ func (s *PermissionService) updateServiceTreePendingCount(ctx context.Context, a
 			// 节点不存在，可能是 app 级别的权限申请（如 /system/official）
 			// app 根节点不在 service_tree 表中，而在 app 表中
 			logger.Infof(ctx, "[PermissionService] service_tree 节点不存在，尝试更新 app 表的 pending_count: resource_path=%s", resourcePath)
-			
+
 			// 更新 app 表的 pending_count
 			if s.appRepo == nil {
 				logger.Warnf(ctx, "[PermissionService] appRepo 未初始化，无法更新 app 的 pending_count")
 				return nil
 			}
-			
+
 			err := s.appRepo.UpdatePendingCount(appID, delta)
 			if err != nil {
 				return fmt.Errorf("更新 app pending_count 失败: %w", err)
 			}
-			
+
 			logger.Debugf(ctx, "[PermissionService] 更新 app pending_count 成功: app_id=%d, delta=%d", appID, delta)
 			return nil
 		}

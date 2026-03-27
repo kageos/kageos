@@ -12,12 +12,12 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/pkg/appcall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/waiter"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
-	"github.com/gin-gonic/gin"
 	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/waiter"
+	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -41,11 +41,11 @@ type Server struct {
 	serviceTreeService            *service.ServiceTreeService
 	functionService               *service.FunctionService
 	docService                    *service.DocService
-	boardService                   *service.BoardService     // 版块/帖子服务
+	boardService                  *service.BoardService // 版块/帖子服务
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
-	permissionService             *service.PermissionService   // ⭐ 权限管理服务
-	scheduledTaskService         *service.ScheduledTaskService // 定时任务服务
-	appRepo                       *repository.AppRepository    // ⭐ 应用仓储（用于其他服务）
+	permissionService             *service.PermissionService    // ⭐ 权限管理服务
+	scheduledTaskService          *service.ScheduledTaskService // 定时任务服务
+	appRepo                       *repository.AppRepository     // ⭐ 应用仓储（用于其他服务）
 
 	// 上游服务
 	natsService *service.NatsService
@@ -375,7 +375,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
 	// ⭐ 完全移除 Casbin，使用新的权限系统
 	// ⭐ 添加 appRepo 用于更新 app 表的 pending_count（支持 app 级别的权限申请）
-	s.permissionService = service.NewPermissionService(enterprise.GetPermissionService(), serviceTreeRepo, permissionRequestRepo, appRepo)
+	s.permissionService = service.NewPermissionService(serviceTreeRepo, permissionRequestRepo, appRepo)
 
 	// 初始化文档服务（需要在 ServiceTreeService 之前初始化，因为 ServiceTreeService 依赖它）
 	docRepo := repository.NewDocRepository(s.db)

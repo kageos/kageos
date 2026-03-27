@@ -101,8 +101,8 @@ type ContainerServiceConfig struct {
 	// - auto: 启动时检测宿主机 LSM（同机读 /sys，Mac/Win 起临时容器探测），结果缓存，后续只启用匹配的一种。
 	// - apparmor / selinux: 强制使用该 LSM（不检测）。
 	// - none: 不使用 LSM 相关安全选项。
-	LSMMode         string `mapstructure:"lsm_mode"`          // auto / apparmor / selinux / none
-	AppArmorProfile string `mapstructure:"apparmor_profile"`  // AppArmor 环境下使用的 profile 名（如 ai-agent-os-app），空则不启用
+	LSMMode         string      `mapstructure:"lsm_mode"`         // auto / apparmor / selinux / none
+	AppArmorProfile string      `mapstructure:"apparmor_profile"` // AppArmor 环境下使用的 profile 名（如 ai-agent-os-app），空则不启用
 	Image           ImageConfig `mapstructure:"image"`
 }
 
@@ -173,7 +173,12 @@ func (c *AppRuntimeConfig) GetContainerCleanupTimeout() int {
 	return c.Timeouts.ContainerCleanup
 }
 
-// loadYAMLConfig 加载 YAML 配置文件（仅从 deploy/config/{dev|prod}/ 解析，由 APP_ENV 决定）。
+// loadYAMLConfig 加载 YAML 配置文件。
+// 当前优先级：
+//
+//	dev  -> deploy/dev/config/<file>            -> 兼容 fallback: deploy/config/dev/<file>
+//	prod -> deploy/prod/config/runtime/<file>   -> 兼容 fallback: deploy/config/prod/<file>
+//
 // 加载成功时打印实际使用的配置路径，避免糊涂账。
 func loadYAMLConfig(filename string, config interface{}) error {
 	configPath := findConfigFile(filename)
@@ -212,8 +217,7 @@ func loadYAMLConfig(filename string, config interface{}) error {
 	return nil
 }
 
-// getConfigEnv 返回当前配置环境：仅 dev 为开发，其余（含未设）均为 prod
-// 仅 APP_ENV=dev 用 deploy/config/dev/；未设置或其它值 → deploy/config/prod（无需显式设 APP_ENV=prod）
+// getConfigEnv 返回当前配置环境：仅 dev 为开发，其余（含未设）均为 prod。
 func getConfigEnv() string {
 	e := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
 	if e == "dev" {
@@ -222,20 +226,30 @@ func getConfigEnv() string {
 	return "prod" // 未设或任意其他值都当 prod
 }
 
-// configPathForEnv 在给定项目根下，唯一配置路径：deploy/config/{env}/<file>
-func configPathForEnv(root, env, baseName string) string {
-	return filepath.Join(filepath.Clean(root), "deploy", "config", env, baseName)
+func configPathsForEnv(root, env, baseName string) []string {
+	root = filepath.Clean(root)
+	if env == "dev" {
+		return []string{
+			filepath.Join(root, "deploy", "dev", "config", baseName),
+			filepath.Join(root, "deploy", "config", "dev", baseName), // legacy fallback
+		}
+	}
+	return []string{
+		filepath.Join(root, "deploy", "prod", "config", "runtime", baseName),
+		filepath.Join(root, "deploy", "config", "prod", baseName), // legacy fallback
+	}
 }
 
-// findConfigFile 查找配置文件：deploy/config/{env}/<filename>
+// findConfigFile 查找配置文件：优先新结构，兼容旧 deploy/config/{env}/。
 func findConfigFile(filename string) string {
 	env := getConfigEnv()
 	baseName := filepath.Base(filename)
 
 	tryPrefix := func(prefix string) string {
-		p := configPathForEnv(prefix, env, baseName)
-		if _, err := os.Stat(p); err == nil {
-			return p
+		for _, p := range configPathsForEnv(prefix, env, baseName) {
+			if _, err := os.Stat(p); err == nil {
+				return p
+			}
 		}
 		return ""
 	}
