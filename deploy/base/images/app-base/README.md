@@ -19,6 +19,17 @@ podman build -t ai-agent-os:latest deploy/base/images/app-base
 docker build -t ai-agent-os:latest deploy/base/images/app-base
 ```
 
+如需显式覆盖 pip 源 / 超时 / 重试（例如网络较差的生产环境）：
+
+```bash
+podman build \
+  --build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+  --build-arg PIP_DEFAULT_TIMEOUT=300 \
+  --build-arg PIP_RETRIES=10 \
+  -t ai-agent-os:latest \
+  deploy/base/images/app-base
+```
+
 ## 镜像内容
 
 - **基础镜像**：Ubuntu 22.04
