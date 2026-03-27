@@ -23,11 +23,11 @@ timeouts:
 
 email:
   smtp:
-    host: "smtp.example.com"
+    host: "smtp.qq.com"
     port: 587
-    username: "noreply@example.com"
+    username: "1210227080@qq.com"
     password: "__SMTP_PASSWORD__"
-    from: "noreply@example.com"
+    from: "1210227080@qq.com"
     from_name: "AI Agent OS"
   verification:
     code_length: 6
