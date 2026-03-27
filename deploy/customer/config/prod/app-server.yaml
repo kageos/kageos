@@ -23,12 +23,12 @@ timeouts:
 
 email:
   smtp:
-    host: "smtp.qq.com"
-    port: 587
-    username: "1210227080@qq.com"
+    host: "__SMTP_HOST__"
+    port: __SMTP_PORT__
+    username: "__SMTP_USERNAME__"
     password: "__SMTP_PASSWORD__"
-    from: "1210227080@qq.com"
-    from_name: "AI Agent OS"
+    from: "__SMTP_FROM__"
+    from_name: "__SMTP_FROM_NAME__"
   verification:
     code_length: 6
     code_expire: 300
