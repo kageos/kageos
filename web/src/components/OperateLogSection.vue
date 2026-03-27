@@ -98,6 +98,7 @@ import { Clock } from '@element-plus/icons-vue'
 import { ElIcon, ElEmpty, ElTag, ElCard, ElDivider, ElButton, ElMessage } from 'element-plus'
 import { formatTimestamp } from '@/utils/date'
 import { useLicenseStore } from '@/stores/license'
+import { useUserInfoStore } from '@/stores/userInfo'
 import { getTableOperateLogs, type TableOperateLog } from '@/api/operateLog'
 import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
 import { convertToFieldValue } from '@/utils/field'
@@ -123,6 +124,7 @@ const props = withDefaults(defineProps<Props>(), {
   functionDetail: undefined,
   autoLoad: false
 })
+const userInfoStore = useUserInfoStore()
 
 /**
  * 格式化日期时间（支持字符串和时间戳）
@@ -303,8 +305,6 @@ const loadUserInfos = async () => {
   }
   
   try {
-    const { useUserInfoStore } = await import('@/stores/userInfo')
-    const userInfoStore = useUserInfoStore()
     const users = await userInfoStore.batchGetUserInfo(Array.from(usernames))
     
     // 更新用户信息映射
@@ -815,4 +815,3 @@ defineExpose({
   color: var(--el-text-color-regular);
 }
 </style>
-

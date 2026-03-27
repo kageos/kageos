@@ -553,6 +553,7 @@ import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from '@/utils/urlParams'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { useDepartmentInfoStore } from '@/stores/departmentInfo'
+import { useAuthStore } from '@/stores/auth'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import type { TableRow, SearchParams, SortParams, SortItem } from '../../domain/services/TableDomainService'
 import type { UserInfo } from '@/types'
@@ -560,6 +561,7 @@ import { hasPermission, TablePermissions, FunctionPermission, buildPermissionApp
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 import { parseExcelFile } from '@/utils/excelImport'
+import { post } from '@/utils/request'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 
 const props = defineProps<{
@@ -568,6 +570,7 @@ const props = defineProps<{
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 // 依赖注入（使用 IServiceProvider 接口，遵循依赖倒置原则）
 const serviceProvider: IServiceProvider = serviceFactory
@@ -1863,8 +1866,6 @@ async function handleParseExcelFile(file: File): Promise<void> {
     const result = await parseExcelFile(file, editableFields.value)
     
     // 获取当前用户名，用于设置系统字段默认值
-    const { useAuthStore } = await import('@/stores/auth')
-    const authStore = useAuthStore()
     const currentUsername = authStore.userName || ''
     const currentTimestamp = Date.now()
     
@@ -1929,9 +1930,6 @@ async function handleSubmitImport(): Promise<void> {
   
   importing.value = true
   try {
-    const { post } = await import('@/utils/request')
-    const { useAuthStore } = await import('@/stores/auth')
-    const authStore = useAuthStore()
     const currentUsername = authStore.userName || ''
     
     // 在提交前处理系统字段，确保所有数据都是真实值
@@ -2705,4 +2703,3 @@ onUnmounted(() => {
   gap: 8px;
 }
 </style>
-

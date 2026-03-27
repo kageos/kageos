@@ -104,6 +104,7 @@ import { formatUserDisplayName } from '@/utils/userInfo'
 import type { UserInfo } from '@/types'
 import { Logger } from '@/core/utils/logger'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
+import { useAuthStore } from '@/stores/auth'
 import { useUserInfoStore } from '@/stores/userInfo'
 
 const COMPONENT_NAME = 'UserWidget'
@@ -118,6 +119,7 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
+const authStore = useAuthStore()
 
 // 获取配置（带类型）
 const widgetConfig = computed(() => {
@@ -300,9 +302,6 @@ onMounted(async () => {
       
       // 只有在新增模式下才解析 Me() 或 MyLeader()
       if (!isEditMode) {
-        const { useAuthStore } = await import('@/stores/auth')
-        const authStore = useAuthStore()
-        
         let targetUsername: string | null = null
         
         if (needsResolveMe) {
@@ -609,4 +608,3 @@ onMounted(async () => {
   align-items: center;
 }
 </style>
-

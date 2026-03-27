@@ -19,6 +19,8 @@ usage() {
   update        仅重建并更新 main 服务，不重启 MySQL / NATS / MinIO
   pull-update   git pull --ff-only 后，仅重建并更新 main 服务
   restart-main  仅重启 main 服务，不重建镜像
+  build-app-base [--no-cache]
+                在 main 容器内单独构建用户应用基础镜像 ai-agent-os:latest
   logs [svc]    查看日志，默认 main
   status        查看 compose 服务状态
   down          停止所有服务（保留数据卷）
@@ -28,6 +30,7 @@ usage() {
   bash build.sh
   bash build.sh update
   bash build.sh pull-update
+  bash build.sh build-app-base --no-cache
   bash build.sh logs main
 EOF
 }
@@ -212,6 +215,31 @@ cmd_restart_main() {
   print_success
 }
 
+cmd_build_app_base() {
+  validate_env
+  ensure_compose_cmd
+
+  local cache_flag=""
+  if [[ -n "${ARG1:-}" ]]; then
+    if [[ "$ARG1" == "--no-cache" ]]; then
+      cache_flag="--no-cache"
+    else
+      echo "ERROR: build-app-base 仅支持可选参数 --no-cache"
+      exit 1
+    fi
+  fi
+
+  if ! compose_run exec main bash -lc 'true' >/dev/null 2>&1; then
+    echo "ERROR: main 服务未运行，无法进入容器单独构建 ai-agent-os:latest"
+    echo "请先执行: bash build.sh up"
+    exit 1
+  fi
+
+  echo "==> 在 main 容器内单独构建 ai-agent-os:latest ..."
+  echo "==> 命令: podman build ${cache_flag} -t ai-agent-os:latest /app/app-base"
+  compose_run exec main bash -lc "set -euo pipefail; podman build ${cache_flag} -t ai-agent-os:latest /app/app-base"
+}
+
 cmd_logs() {
   validate_env
   local service="${ARG1:-main}"
@@ -243,6 +271,9 @@ case "$COMMAND" in
     ;;
   restart-main)
     cmd_restart_main
+    ;;
+  build-app-base)
+    cmd_build_app_base
     ;;
   logs)
     cmd_logs
