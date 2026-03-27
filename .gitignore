@@ -14,10 +14,6 @@ logs/
 dist/
 bin/
 /app
-# 本地构建/缓存目录（可选，如 podman 构建上下文拷贝、镜像构建缓存等）
-build/out/
-deploy/podman/.build/
-
 # 运行时目录
 run/
 namespace/
@@ -43,12 +39,3 @@ license.json
 license_enterprise_1year.json
 agent/
 data/app-runtime
-
-# 本机覆盖配置（勿提交敏感信息）
-deploy/config/local/*.yaml
-deploy/config/local/*.yml
-
-# 客户部署本地环境（含密钥）
-deploy/customer/.env
-# 历史格式：若本地仍保留旧 env.yaml（含密钥），勿提交
-deploy/customer/env.yaml

@@ -21,7 +21,7 @@ require_env CONTROL_ENC_KEY
 
 echo "==> 从模板刷新 deploy/prod/config/runtime（可安全重启）..."
 rm -rf /app/deploy/prod/config/runtime
-mkdir -p /app/deploy/prod/config /app/deploy/config
+mkdir -p /app/deploy/prod/config
 
 SMTP_HOST="${SMTP_HOST:-smtp.qq.com}"
 SMTP_PORT="${SMTP_PORT:-587}"
@@ -59,10 +59,6 @@ for src in /app/config.prod.template/*.yaml; do
   dst="/app/deploy/prod/config/runtime/$(basename "$src")"
   envsubst "$PROD_TEMPLATE_VARS" < "$src" > "$dst"
 done
-
-# 兼容旧路径：仍保留 /app/deploy/config/prod -> /app/deploy/prod/config/runtime
-rm -rf /app/deploy/config/prod
-ln -s /app/deploy/prod/config/runtime /app/deploy/config/prod
 
 CANONICAL_BASE_URL="${CANONICAL_BASE_URL}"
 export CANONICAL_BASE_URL

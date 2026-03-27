@@ -15,7 +15,6 @@ import (
 )
 
 // Compose 胖镜像构建时会写入标记文件；线上无需任何环境变量即可走 Compose 中间件路径。
-const customerComposeBundleMarker = "/etc/ai-agent-os/customer-compose-bundle"
 const prodComposeBundleMarker = "/etc/ai-agent-os/prod-compose-bundle"
 
 // InfraContainers 需要预检的基础设施容器
@@ -225,9 +224,6 @@ func waitForMySQLTCP(ctx context.Context, addr string, maxWait time.Duration) {
 
 func useComposeStyleInfraPreflight() bool {
 	if _, err := os.Stat(prodComposeBundleMarker); err == nil {
-		return true
-	}
-	if _, err := os.Stat(customerComposeBundleMarker); err == nil {
 		return true
 	}
 	// 仅开发：显式声明本机不用 Embedding 那套 podman 基础设施名

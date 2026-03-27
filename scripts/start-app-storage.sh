@@ -11,7 +11,7 @@ cd "$PROJECT_ROOT"
 echo "==> 检查 MinIO 是否运行..."
 if ! podman ps | grep -q minio; then
     echo "MinIO 未运行，正在启动..."
-    bash scripts/podman/minio.sh
+    bash deploy/dev/scripts/infra.sh podman up -d minio
 fi
 
 echo "==> 编译 app-storage..."
@@ -19,4 +19,3 @@ go build -o bin/app-storage ./core/app-storage/cmd/app/
 
 echo "==> 启动 app-storage..."
 ./bin/app-storage
-

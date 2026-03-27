@@ -1,4 +1,4 @@
--- 客户 Compose 专用：与仓库 deploy/podman/init-db.sql 应对齐；交付/拷贝时只依赖本目录即可。
+-- 生产 Compose 专用：官方共享源位于 deploy/base/infra/mysql/init-db.sql。
 -- MySQL 首次启动挂载到 /docker-entrypoint-initdb.d/ 执行。
 --
 -- 密码由 compose 环境变量 MYSQL_ROOT_PASSWORD 注入；应用配置模板中的占位符由 entrypoint 替换。

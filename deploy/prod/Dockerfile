@@ -81,7 +81,6 @@ ARG USE_CN_REGISTRY_MIRROR=1
 COPY deploy/prod/containers/registries.conf.d/000-docker-io-mirror.conf /tmp/000-docker-io-mirror.conf
 RUN mkdir -p /etc/ai-agent-os /etc/containers /var/lib/containers/storage /run/podman /run/containers/storage \
     && : > /etc/ai-agent-os/prod-compose-bundle \
-    && : > /etc/ai-agent-os/customer-compose-bundle \
     && printf '[containers]\nnetns = "host"\n' > /etc/containers/containers.conf \
     && printf '%s\n' '[storage]' 'driver = "overlay"' 'runroot = "/run/containers/storage"' 'graphroot = "/var/lib/containers/storage"' > /etc/containers/storage.conf \
     && printf 'unqualified-search-registries = ["docker.io"]\n' > /etc/containers/registries.conf \

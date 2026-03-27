@@ -48,7 +48,7 @@ podman compose -f deploy/dev/compose/docker-compose.infra.yml up -d
 deploy/dev/config/
 ```
 
-当前服务配置加载会优先读取 `deploy/dev/config/*.yaml`，并兼容 fallback 到旧路径 `deploy/config/dev/*.yaml`。
+当前服务配置加载会读取 `deploy/dev/config/*.yaml`。
 
 ### 2. 起后端
 
@@ -74,7 +74,4 @@ npm run dev
 
 若只跑前端、连线上后端，请在 `web/.env.development.local` 中配置 `VITE_PROXY_TARGET`。
 
-## 兼容说明
-
-- 仓库根的 `docker-compose.dev.yml` 与 `docker-compose.infra.yml` 仍保留，但只是兼容入口。
-- 本地开发相关资源的 canonical 位置已迁到本目录及 `deploy/base/`。
+本地开发相关资源的 canonical 位置已收敛到本目录及 `deploy/base/`。

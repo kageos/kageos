@@ -22,7 +22,7 @@
 
 2. **基础设施容器**（脚本方式）
    - MinIO、MySQL、NATS 等基础设施
-   - 通过 `scripts/podman/*.sh` 脚本管理
+   - 通过 `deploy/dev/compose/` 与 `deploy/dev/scripts/infra.sh` 管理
 
 3. **跨平台需求**
    - Linux：生产环境

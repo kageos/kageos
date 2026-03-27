@@ -18,7 +18,4 @@
 - `infra/nats/`：NATS 配置
 - `scripts/`：共享构建脚本
 
-兼容说明：
-
-- 仓库根的 `build/`、`docker-compose.dev.yml`、`docker-compose.infra.yml` 目前仍保留为兼容入口。
-- 新增和维护时，请优先修改 `deploy/base/` 下的 canonical 资源。
+新增和维护时，请只修改 `deploy/base/` 下的 canonical 资源。

@@ -115,7 +115,7 @@ func GetToken(c context.Context) string {
 	return ""
 }
 
-// PresignDefaultPort 当 Host 无端口且未收到 X-Forwarded-Port 时的默认端口（与 deploy/embedding/nginx/nginx-server.conf 中 Web 监听端口一致）
+// PresignDefaultPort 当 Host 无端口且未收到 X-Forwarded-Port 时的默认端口（与当前默认 Web 入口端口一致）
 const PresignDefaultPort = "8999"
 
 // GetPresignHost 获取用于生成预签名 URL 的 Host（浏览器上传时需与请求 Host 一致，含端口）
