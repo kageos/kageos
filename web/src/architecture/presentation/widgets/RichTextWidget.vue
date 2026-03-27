@@ -519,6 +519,7 @@ import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import type { RichTextWidgetConfig } from '@/core/types/widget-configs'
+import { sanitizeHtml } from '@/utils/sanitizeHtml'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -615,23 +616,6 @@ const editorHeight = computed(() => {
   return 300 // 默认300px
 })
 
-// 🔥 清理 HTML，移除危险标签，但保留图片和视频等媒体内容
-// 这个方法会移除 script、style 等危险标签，但保留 img、video、audio 等媒体标签
-function sanitizeHtmlForDisplay(html: string): string {
-  if (!html) return ''
-  
-  // 只移除危险标签，保留媒体内容
-  return html
-    // 移除 script 标签（安全考虑）
-    .replace(/<script[^>]*>.*?<\/script>/gi, '')
-    // 移除 style 标签（避免样式冲突）
-    .replace(/<style[^>]*>.*?<\/style>/gi, '')
-    // 移除 iframe 标签（安全考虑，避免 XSS）
-    .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '<span class="iframe-placeholder">[嵌入内容]</span>')
-    // 🔥 保留 img、video、audio 标签，让它们正常显示
-    // 图片和视频标签会被保留，浏览器会自动处理加载
-}
-
 // HTML 内容（用于显示）
 const htmlContent = computed(() => {
   const fieldValue = props.value || (props as any).modelValue
@@ -653,7 +637,7 @@ const htmlContent = computed(() => {
   }
   
   // 其他模式（response、detail、table-cell 等）清理 HTML
-  return sanitizeHtmlForDisplay(html)
+  return sanitizeHtml(html)
 })
 
 // TipTap 编辑器（使用完整工具栏，最高级模式）
@@ -1558,4 +1542,3 @@ watch(
   word-wrap: break-word;
 }
 </style>
-

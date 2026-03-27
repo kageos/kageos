@@ -89,7 +89,6 @@
  */
 
 import { watch, nextTick } from 'vue'
-import type { WatchSource } from 'vue'
 import type { Router, RouteLocationNormalized } from 'vue-router'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { RouteEvent } from '../../domain/interfaces/IEventBus'
@@ -117,6 +116,12 @@ export class RouteManager {
   private eventBus: IEventBus
   private isUpdating = false  // 防止循环更新
   private enableDebugLog = false  // 调试日志开关
+  private stopRouteWatch: (() => void) | null = null
+  private removeUpdateListener: (() => void) | null = null
+  private readonly handleUpdateRequestListener = (payload?: RouteUpdateRequest): void => {
+    if (!payload) return
+    void this.handleUpdateRequest(payload)
+  }
 
   constructor(
     router: Router,
@@ -152,7 +157,9 @@ export class RouteManager {
    * 监听 Vue Router 变化
    */
   private setupRouteWatch(): void {
-    watch(() => [this.route.path, this.route.query] as [string, Record<string, any>], ([newPath, newQuery], [oldPath, oldQuery]) => {
+    this.stopRouteWatch?.()
+    this.stopRouteWatch = watch(() => [this.route.path, this.route.query] as const, ([newPath, newQuery], oldValue?: readonly [string, Record<string, any>]) => {
+      const [oldPath, oldQuery] = oldValue ?? [newPath, newQuery]
       if (this.isUpdating) {
         // 如果是程序触发的更新，不发出事件（避免循环）
         this.log('路由更新（程序触发），跳过事件', { path: newPath })
@@ -198,17 +205,18 @@ export class RouteManager {
    * 监听路由更新请求
    */
   private setupUpdateListener(): void {
-    // 🔥 先取消注册旧的监听器（避免热更新时重复注册）
-    this.eventBus.off(RouteEvent.updateRequested, this.handleUpdateRequest)
-    // 注册新的监听器
-    this.eventBus.on(RouteEvent.updateRequested, this.handleUpdateRequest.bind(this))
+    this.removeUpdateListener?.()
+    this.removeUpdateListener = this.eventBus.on(RouteEvent.updateRequested, this.handleUpdateRequestListener)
   }
   
   /**
    * 清理监听器
    */
   destroy(): void {
-    this.eventBus.off(RouteEvent.updateRequested, this.handleUpdateRequest)
+    this.removeUpdateListener?.()
+    this.removeUpdateListener = null
+    this.stopRouteWatch?.()
+    this.stopRouteWatch = null
     this.log('RouteManager 已销毁')
   }
 
@@ -547,4 +555,3 @@ export class RouteManager {
     return isLinkNavCheck(this.route.query)
   }
 }
-

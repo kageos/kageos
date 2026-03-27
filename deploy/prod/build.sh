@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 客户主站部署脚本：直接读取 .env，支持首次部署与仅更新 main 服务
+# 生产主站部署脚本：直接读取 .env，支持首次部署与仅更新 main 服务
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"

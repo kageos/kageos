@@ -1,5 +1,5 @@
 import { useAuthStore } from '@/stores/auth'
-import axiosInstance from '@/utils/request'
+import { del, get, post, put } from '@/utils/request'
 
 /** 工作台消息中上传文件：与后端 sdk/agent-app/types.Files 对齐，供后端注入到 <files> 并供大模型拼到 run_form_submit 的 body */
 export interface WorkspaceChatMessageFile {
@@ -85,10 +85,7 @@ export interface ListWorkspaceModesResp {
  * 获取工作台模式列表（供下拉选择或管理页）
  */
 export async function getWorkspaceModes(params?: { page?: number; page_size?: number }): Promise<ListWorkspaceModesResp> {
-  const base = import.meta.env.VITE_API_BASE_URL || ''
-  const url = `${base}/agent/api/v1/workspace/modes`
-  const res = await axiosInstance.get<ListWorkspaceModesResp>(url, { params: params || {} })
-  return res as unknown as ListWorkspaceModesResp
+  return get<ListWorkspaceModesResp>('/agent/api/v1/workspace/modes', params || {})
 }
 
 /** 创建工作台模式请求 */
@@ -132,47 +129,38 @@ export interface ListWorkspaceToolsResp {
 
 /** 获取工作台工具列表（完整定义，供管理页右侧展示） */
 export async function getWorkspaceTools(): Promise<WorkspaceToolDef[]> {
-  const base = import.meta.env.VITE_API_BASE_URL || ''
-  const res = await axiosInstance.get<ListWorkspaceToolsResp>(`${base}/agent/api/v1/workspace/tools`)
-  const o = res as unknown as ListWorkspaceToolsResp
+  const o = await get<ListWorkspaceToolsResp>('/agent/api/v1/workspace/tools')
   return o?.tools ?? []
 }
 
 /** 获取工作台模式详情（按 id） */
 export async function getWorkspaceMode(id: number): Promise<WorkspaceModeItem> {
-  const base = import.meta.env.VITE_API_BASE_URL || ''
-  return axiosInstance.get<WorkspaceModeItem>(`${base}/agent/api/v1/workspace/modes/${id}`) as Promise<WorkspaceModeItem>
+  return get<WorkspaceModeItem>(`/agent/api/v1/workspace/modes/${id}`)
 }
 
 /** 按 code 获取工作台模式 */
 export async function getWorkspaceModeByCode(code: string): Promise<WorkspaceModeItem> {
-  const base = import.meta.env.VITE_API_BASE_URL || ''
-  return axiosInstance.get<WorkspaceModeItem>(`${base}/agent/api/v1/workspace/modes/by-code`, { params: { code } }) as Promise<WorkspaceModeItem>
+  return get<WorkspaceModeItem>('/agent/api/v1/workspace/modes/by-code', { code })
 }
 
 /** 创建工作台模式 */
 export async function createWorkspaceMode(req: CreateWorkspaceModeReq): Promise<WorkspaceModeItem> {
-  const base = import.meta.env.VITE_API_BASE_URL || ''
-  return axiosInstance.post<WorkspaceModeItem>(`${base}/agent/api/v1/workspace/modes`, req) as Promise<WorkspaceModeItem>
+  return post<WorkspaceModeItem>('/agent/api/v1/workspace/modes', req)
 }
 
 /** 更新工作台模式 */
 export async function updateWorkspaceMode(id: number, req: UpdateWorkspaceModeReq): Promise<WorkspaceModeItem> {
-  const base = import.meta.env.VITE_API_BASE_URL || ''
-  return axiosInstance.put<WorkspaceModeItem>(`${base}/agent/api/v1/workspace/modes/${id}`, req) as Promise<WorkspaceModeItem>
+  return put<WorkspaceModeItem>(`/agent/api/v1/workspace/modes/${id}`, req)
 }
 
 /** 删除工作台模式（内置不可删） */
 export async function deleteWorkspaceMode(id: number): Promise<void> {
-  const base = import.meta.env.VITE_API_BASE_URL || ''
-  await axiosInstance.delete(`${base}/agent/api/v1/workspace/modes/${id}`)
+  await del(`/agent/api/v1/workspace/modes/${id}`)
 }
 
 /** 获取工作台工具名列表（供模式配置时多选） */
 export async function listWorkspaceToolNames(): Promise<string[]> {
-  const base = import.meta.env.VITE_API_BASE_URL || ''
-  const res = await axiosInstance.get<ListWorkspaceToolNamesResp>(`${base}/agent/api/v1/workspace/tools/names`)
-  const o = res as unknown as ListWorkspaceToolNamesResp
+  const o = await get<ListWorkspaceToolNamesResp>('/agent/api/v1/workspace/tools/names')
   return o?.names ?? []
 }
 
@@ -269,7 +257,7 @@ export async function workspaceChatStream(
  * 获取工作台会话列表
  */
 export async function getWorkspaceSessions(params: ListWorkspaceSessionsReq): Promise<ListWorkspaceSessionsResp> {
-  return axiosInstance.get<ListWorkspaceSessionsResp>(`/agent/api/v1/workspace/sessions?full_code_path=${params.full_code_path}`)
+  return get<ListWorkspaceSessionsResp>('/agent/api/v1/workspace/sessions', { full_code_path: params.full_code_path })
 }
 
 /** 工作台消息信息 */
@@ -309,27 +297,27 @@ export interface WorkspaceChatToolCallSummary {
  * 获取工作台会话消息列表
  */
 export async function getWorkspaceMessages(params: ListWorkspaceMessagesReq): Promise<ListWorkspaceMessagesResp> {
-  return axiosInstance.get<ListWorkspaceMessagesResp>('/agent/api/v1/workspace/messages', { params })
+  return get<ListWorkspaceMessagesResp>('/agent/api/v1/workspace/messages', params)
 }
 
 /** 查询当前用户所有正在执行的工作台任务 */
 export async function getRunningSessions(): Promise<{ sessions: WorkspaceSessionItem[] }> {
-  return axiosInstance.get('/agent/api/v1/workspace/sessions/running')
+  return get<{ sessions: WorkspaceSessionItem[] }>('/agent/api/v1/workspace/sessions/running')
 }
 
 /** 查询当前用户最近已结束的工作台任务 */
 export async function getFinishedSessions(limit = 20): Promise<{ sessions: WorkspaceSessionItem[] }> {
-  return axiosInstance.get('/agent/api/v1/workspace/sessions/finished', { params: { limit } })
+  return get<{ sessions: WorkspaceSessionItem[] }>('/agent/api/v1/workspace/sessions/finished', { limit })
 }
 
 /** 取消执行中的工作台任务 */
 export async function cancelWorkspaceChat(sessionId: string): Promise<void> {
-  return axiosInstance.post('/agent/api/v1/workspace/chat/cancel', { session_id: sessionId })
+  await post('/agent/api/v1/workspace/chat/cancel', { session_id: sessionId })
 }
 
 /** 检查 session 的 SSE 连接是否存活（SSE 存活则不轮询大消息列表，节省带宽） */
 export async function getWorkspaceSessionSSEStatus(sessionId: string): Promise<{ connected: boolean }> {
-  const res = await axiosInstance.get<{ connected?: boolean }>(
+  const res = await get<{ connected?: boolean }>(
     `/agent/api/v1/workspace/sessions/${encodeURIComponent(sessionId)}/sse-status`
   )
   return { connected: !!res?.connected }

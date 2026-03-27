@@ -227,13 +227,12 @@ import { eventBus } from '@/architecture/infrastructure/eventBus'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 import type { UploadProgress } from '@/utils/upload/types'
 import { useAuthStore } from '@/stores/auth'
+import { escapeHtml, sanitizeHtml } from '@/utils/sanitizeHtml'
 
 // 配置 marked：支持换行、GFM
 marked.setOptions({
   breaks: true,
   gfm: true,
-  headerIds: false,
-  mangle: false,
 })
 
 const props = withDefaults(
@@ -731,9 +730,9 @@ watch(
 function renderMarkdown(content: string): string {
   if (!content) return ''
   try {
-    return marked.parse(content) as string
+    return sanitizeHtml(marked.parse(content) as string)
   } catch {
-    return content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
+    return escapeHtml(content).replace(/\n/g, '<br>')
   }
 }
 

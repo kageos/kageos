@@ -11,7 +11,7 @@ import { ref, watch, onUnmounted, type Ref } from 'vue'
 export interface ChatMessageFile {
   name: string
   source_name?: string
-  url?: string
+  url: string
   [key: string]: unknown
 }
 
@@ -99,10 +99,9 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
   /** 统计 blocks 中已经分配的 tool_calls 数量（排除指定 blockIndex） */
   function countCallsInBlocks(blocks: AssistantBlock[], excludeIdx?: number): number {
     let count = 0
-    for (let i = 0; i < blocks.length; i++) {
+    for (const [i, block] of blocks.entries()) {
       if (i === excludeIdx) continue
-      const b = blocks[i]
-      if (b.type === 'tool_calls') count += b.calls.length
+      if (block.type === 'tool_calls') count += block.calls.length
     }
     return count
   }
@@ -197,7 +196,11 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
         while (currentRoundPrev.length <= idx) {
           currentRoundPrev.push({ name: '', status: 'streaming', arguments: '' })
         }
-        const slot = currentRoundPrev[idx]
+        let slot = currentRoundPrev[idx]
+        if (!slot) {
+          slot = { name: '', status: 'streaming', arguments: '' }
+          currentRoundPrev[idx] = slot
+        }
         if (name) slot.name = name
         slot.arguments = (slot.arguments || '') + delta
         slot.status = 'streaming'
@@ -225,7 +228,7 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
       const completedCalls = prev.slice(0, completedCount)
       const currentRoundPrev = prev.slice(completedCount)
 
-      const fromStream = streamList.map((item, i) => {
+      const fromStream: ChatMessageToolCall[] = streamList.map((item, i) => {
         const existing = currentRoundPrev[i]
         const args = (item.arguments && item.arguments.trim()) ? item.arguments : (existing?.arguments ?? item.arguments)
         if (existing && ['running', 'ok', 'error'].includes(existing.status)) {
@@ -233,8 +236,8 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
         }
         return { ...item, arguments: args }
       })
-      const currentRound = currentRoundPrev.length > streamList.length
-        ? fromStream.concat(currentRoundPrev.slice(streamList.length))
+      const currentRound: ChatMessageToolCall[] = currentRoundPrev.length > streamList.length
+        ? [...fromStream, ...currentRoundPrev.slice(streamList.length)]
         : fromStream
 
       const list = [...completedCalls, ...currentRound]
@@ -282,7 +285,10 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
           return { ...t, ...dc, arguments: dc.arguments ?? t.arguments, result: dc.result ?? t.result, error: dc.error ?? t.error }
         })
         if (doneList.length > prev.length) {
-          for (let i = prev.length; i < doneList.length; i++) merged.push({ ...doneList[i] })
+          for (let i = prev.length; i < doneList.length; i++) {
+            const nextCall = doneList[i]
+            if (nextCall) merged.push({ ...nextCall })
+          }
         }
         const blocks = m.blocks ?? []
         // 保留现有 block 结构，只更新每个 tool_calls block 的数据

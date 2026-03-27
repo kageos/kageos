@@ -14,8 +14,9 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
-// customerComposeBundleMarker 由 deploy/customer 胖镜像构建时写入；线上无需任何环境变量即可走 Compose 中间件路径。
+// Compose 胖镜像构建时会写入标记文件；线上无需任何环境变量即可走 Compose 中间件路径。
 const customerComposeBundleMarker = "/etc/ai-agent-os/customer-compose-bundle"
+const prodComposeBundleMarker = "/etc/ai-agent-os/prod-compose-bundle"
 
 // InfraContainers 需要预检的基础设施容器
 var InfraContainers = []containerCheck{
@@ -37,7 +38,7 @@ type containerResult struct {
 	elapsed time.Duration
 }
 
-// Preflight 启动预检：默认（裸机 / Embedding）用 Podman 拉起 mysql8 等；客户胖镜像通过标记文件自动改为仅 TCP 探测，线上不需环境变量。
+// Preflight 启动预检：默认（裸机 / Embedding）用 Podman 拉起 mysql8 等；生产 Compose 胖镜像通过标记文件自动改为仅 TCP 探测，线上不需环境变量。
 // 开发特殊场景：本机中间件已由 compose 提供、又不想走 podman start 时，可设 AI_AGENT_OS_DEV_SKIP_EMBEDDING_INFRA=1。
 //
 // 设计原则：尽可能快地放行，不做多余等待。
@@ -223,6 +224,9 @@ func waitForMySQLTCP(ctx context.Context, addr string, maxWait time.Duration) {
 }
 
 func useComposeStyleInfraPreflight() bool {
+	if _, err := os.Stat(prodComposeBundleMarker); err == nil {
+		return true
+	}
 	if _, err := os.Stat(customerComposeBundleMarker); err == nil {
 		return true
 	}

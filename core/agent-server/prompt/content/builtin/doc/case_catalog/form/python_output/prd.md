@@ -33,7 +33,7 @@
 1. Go：`GetTraceOutputDir()` → `MkdirAll` → 拼文件名 → **`filepath.Abs`** 得到 **`image_output_path`**，随 `WithRequest` 传给 Python。
 2. Python：`matplotlib` 非交互后端（Agg），校验路径为绝对路径后 **`plt.savefig(image_output_path)`**，`output_json` 仅回传说明等元数据（**不再经 base64 传图**）。
 3. Go：`ExecuteJSON` 后 **`os.Stat`** 校验文件存在且非空，`ResponseFiles([]string{绝对路径})`；`defer RemoveFiles`；**`defer executor.Close()`** 释放 Python 临时工作区。
-4. 依赖：生产镜像预装 matplotlib 等（见 `build/Dockerfile`）。
+4. 依赖：生产镜像预装 matplotlib 等（见 `deploy/base/images/app-base/Dockerfile`）。
 
 ---
 

@@ -217,6 +217,7 @@ import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 import { useAuthStore } from '@/stores/auth'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { usePermissionErrorStore } from '@/stores/permissionError'
+import { escapeHtml, sanitizeHtml } from '@/utils/sanitizeHtml'
 import PermissionDeniedView from './PermissionDeniedView.vue'
 
 const BOARD_COVER_UPLOAD_ROUTER = 'board/cover'
@@ -342,11 +343,11 @@ const onPageChange = (p: number) => {
 // 详情富文本渲染（markdown -> html）
 const renderedContent = computed(() => {
   if (!postDetail.value?.content) return '（无正文）'
-  if (postDetail.value.content_format === 'html') return postDetail.value.content
+  if (postDetail.value.content_format === 'html') return sanitizeHtml(postDetail.value.content)
   try {
-    return marked(postDetail.value.content)
+    return sanitizeHtml(marked.parse(postDetail.value.content) as string)
   } catch {
-    return postDetail.value.content
+    return escapeHtml(postDetail.value.content).replace(/\n/g, '<br>')
   }
 })
 

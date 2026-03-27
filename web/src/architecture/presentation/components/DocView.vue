@@ -173,6 +173,7 @@ import type { ServiceTree } from '@/types'
 import { getDoc, updateDoc, deleteDoc } from '@/api/doc'  // ✅ 使用新的文档 API
 import { hasPermission, DocsPermission, buildPermissionApplyURL } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
+import { escapeHtml, sanitizeHtml } from '@/utils/sanitizeHtml'
 import VditorEditor from '@/components/VditorEditor.vue'
 import UserDisplay from '../widgets/UserDisplay.vue'
 import PermissionDeniedView from './PermissionDeniedView.vue'
@@ -266,10 +267,10 @@ const renderedContent = computed(() => {
     return ''
   }
   try {
-    return marked(doc.value.content)
+    return sanitizeHtml(marked.parse(doc.value.content) as string)
   } catch (error) {
     console.error('Markdown 渲染失败:', error)
-    return doc.value.content
+    return escapeHtml(doc.value.content).replace(/\n/g, '<br>')
   }
 })
 

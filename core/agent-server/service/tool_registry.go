@@ -26,8 +26,8 @@ type workspaceContextKey struct{}
 // WorkspaceSessionIDKey 工作台会话 ID 的 context key（在 executeToolCalls 中注入，callRecordWorkspaceEvent 中读取）
 var WorkspaceSessionIDKey = workspaceContextKey{}
 
-// runOfficialPythonPreinstallDoc 与 build/Dockerfile 中 apt/python3-* 与 pip3 install 预装保持一致；改镜像时请同步更新本文案
-const runOfficialPythonPreinstallDoc = `**生产镜像已预装、可直接 import 的第三方库（对应 build/Dockerfile）：**
+// runOfficialPythonPreinstallDoc 与 deploy/base/images/app-base/Dockerfile 中 apt/python3-* 与 pip3 install 预装保持一致；改镜像时请同步更新本文案
+const runOfficialPythonPreinstallDoc = `**生产镜像已预装、可直接 import 的第三方库（对应 deploy/base/images/app-base/Dockerfile）：**
 - 数据与图表：pandas、numpy、scipy、matplotlib、seaborn
 - 网络与表格：requests、openpyxl
 - 图像：PIL（Pillow，如 from PIL import Image）
@@ -661,7 +661,7 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 			"required": []interface{}{"task_id"},
 		},
 	})
-	// run_official_python：调用系统空间官方 Form「Python 执行」；预装库见 runOfficialPythonPreinstallDoc（与 build/Dockerfile 同步）
+	// run_official_python：调用系统空间官方 Form「Python 执行」；预装库见 runOfficialPythonPreinstallDoc（与 deploy/base/images/app-base/Dockerfile 同步）
 	out = append(out, dto.ToolDef{
 		Name: "run_official_python",
 		Description: runOfficialPythonPreinstallDoc + `
@@ -2807,7 +2807,7 @@ func buildOfficialPythonModelGuidance(raw map[string]interface{}) string {
 	case "失败":
 		appendLine("【状态为失败】请阅读 output 中的 traceback/错误信息，修正 python_code 后重试。")
 		if strings.Contains(out, "ModuleNotFoundError") || strings.Contains(out, "No module named") {
-			appendLine("【依赖】ModuleNotFoundError：请优先使用工具说明里已列出的预装库（pandas、numpy、jieba、requests、openpyxl、matplotlib…）或仅用标准库；若必须新库，请管理员更新 build/Dockerfile 或官方 requirements.txt 并重打镜像。")
+			appendLine("【依赖】ModuleNotFoundError：请优先使用工具说明里已列出的预装库（pandas、numpy、jieba、requests、openpyxl、matplotlib…）或仅用标准库；若必须新库，请管理员更新 deploy/base/images/app-base/Dockerfile 或官方 requirements.txt 并重打镜像。")
 		}
 		if strings.Contains(out, "SyntaxError") || strings.Contains(out, "IndentationError") {
 			appendLine("【语法】请检查引号、缩进、括号是否匹配；字符串内换行需用三引号或 \\n。")
