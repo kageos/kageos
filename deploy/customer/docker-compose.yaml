@@ -52,7 +52,8 @@ services:
       CONTROL_ENC_KEY: ${CONTROL_ENC_KEY}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
     ports:
-      - "${HTTP_PUBLISH_PORT}:8080"
+      # Podman 端口发布对 loopback 可靠，公网入站需宿主机反代（见 nginx/host-proxy.conf）
+      - "127.0.0.1:8080:8080"
     volumes:
       - podman_storage:/var/lib/containers
       - app_logs:/app/logs

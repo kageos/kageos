@@ -32,7 +32,7 @@ function esc_env(s, r) {
 }
 /^site:/ { sec="site"; next }
 /^secrets:/ { sec="secrets"; next }
-/^ports:/ { sec="ports"; next }
+/^ports:/ { sec="ports"; next }  # 兼容旧 env.yaml，解析但不输出
 /^image:/ { sec="image"; next }
 sec=="site" && $0 ~ /^[ \t]+canonical_base_url:/ {
   sub(/^[ \t]*canonical_base_url:[ \t]*/, ""); canon=unquote($0); next
@@ -69,7 +69,6 @@ END {
   if (ctrl == "")   { print "ERROR: secrets.control_encryption_key 必填" > "/dev/stderr"; errs++ }
   if (mu == "")    { print "ERROR: secrets.minio_root_user 必填" > "/dev/stderr"; errs++ }
   if (mpw == "")   { print "ERROR: secrets.minio_root_password 必填" > "/dev/stderr"; errs++ }
-  if (hp == "")    { print "ERROR: ports.http_publish 必填" > "/dev/stderr"; errs++ }
   if (mi == "")    { print "ERROR: image.main 必填" > "/dev/stderr"; errs++ }
   if (errs) exit 1
   print "CANONICAL_BASE_URL="  esc_env(canon) > out
@@ -79,7 +78,6 @@ END {
   print "MINIO_ROOT_USER="      esc_env(mu)   > out
   print "MINIO_ROOT_PASSWORD="  esc_env(mpw)  > out
   print "SMTP_PASSWORD="        esc_env(smtp) > out
-  print "HTTP_PUBLISH_PORT="    esc_env(hp)   > out
   print "MAIN_IMAGE="           esc_env(mi)   > out
   close(out)
 }
