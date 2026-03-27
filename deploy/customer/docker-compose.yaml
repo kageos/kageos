@@ -1,7 +1,8 @@
 # 客户主站一键部署（不含 Hub）
-# 宿主机：手写 env.yaml → ./render-env.sh 生成 .env → podman compose up -d --build
+# 用法：手写 env.yaml → bash build.sh（一键：生成 .env + 停宿主机 nginx + compose up）
 
 services:
+  # ─── 中间件 ──────────────────────────────────────────────────
   mysql:
     image: mysql:8.0
     restart: unless-stopped
@@ -11,6 +12,8 @@ services:
     command: >
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "127.0.0.1:3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -19,6 +22,8 @@ services:
   nats:
     image: nats:2.10-alpine
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:4222:4222"
     volumes:
       - ./nats-server.conf:/etc/nats/nats-server.conf:ro
     command: ["-c", "/etc/nats/nats-server.conf"]
@@ -32,15 +37,19 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       TZ: Asia/Shanghai
     command: server /data --console-address ":9001"
+    ports:
+      - "127.0.0.1:9000:9000"
     volumes:
       - minio_data:/data
     networks: [aos]
 
+  # ─── 主服务（host 网络，容器内 Nginx 直接对外 80）─────────────
   main:
     build:
       context: ../..
       dockerfile: deploy/customer/Dockerfile
     image: ${MAIN_IMAGE}
+    network_mode: host
     privileged: true
     restart: unless-stopped
     environment:
@@ -51,20 +60,15 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       CONTROL_ENC_KEY: ${CONTROL_ENC_KEY}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
-    ports:
-      # Podman 端口发布对 loopback 可靠，公网入站需宿主机反代（见 nginx/host-proxy.conf）
-      - "127.0.0.1:8080:8080"
     volumes:
       - podman_storage:/var/lib/containers
       - app_logs:/app/logs
-      # 用户应用工作空间（app_manage.app_dir.base_path=namespace，即 /app/namespace 下 per-user/per-app 数据）
       - namespace_data:/app/namespace
       - app_data:/app/data
     depends_on:
       - mysql
       - nats
       - minio
-    networks: [aos]
 
 networks:
   aos:
