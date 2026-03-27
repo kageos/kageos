@@ -60,6 +60,10 @@ AI-Agent-OS 是一个革命性的 AI 原生操作系统，它让软件开发从"
 
 **目标**：理解项目是什么、解决什么问题、核心架构
 
+**📘 首读： [项目代码蓝图（给人和大模型的统一上下文）](blueprint/项目代码蓝图-给人和大模型的统一上下文.md)**  
+从当前真实代码出发，统一解释平台的价值观、世界观、核心抽象、服务边界、SDK 契约、Widget 实现、工作台机制和扩展路径。  
+如果旧文档之间有出入，建议先以这篇为主建立整体上下文。
+
 0. **📘 [项目与平台能力总览（供大模型阅读）](blueprint/项目与平台能力总览-供大模型阅读.md)** - **推荐首读**：一篇文章了解项目简介、已实现能力、当前成就与程度、架构模块、关键概念与文档导航，便于建立整体认知后再深入其他文档。
 
 1. **🎯 [设计理念](blueprint/00-设计理念.md)** - **最重要**：理解项目的核心设计哲学
@@ -197,9 +201,9 @@ bash deploy/base/scripts/build-app-base-image.sh   # 构建用户应用基础镜
 ```
 详见 [deploy/dev/README.md](deploy/dev/README.md)。
 
-**Linux 一机一实例（裸机后端 + Podman 中间件）**：见 **[deploy/README.md](deploy/README.md)** → [deploy/embedding/README.md](deploy/embedding/README.md)。
+**线上部署**：见 **[deploy/README.md](deploy/README.md)** → [deploy/prod/README.md](deploy/prod/README.md)。
 
-**配置目录**：官方入口为 **`deploy/dev/config`** / **`deploy/prod/config`**；**`deploy/config`** 当前只保留兼容 fallback。可选环境变量 **`AI_AGENT_OS_ROOT`** 指定仓库根（详见 [deploy/config/README.md](deploy/config/README.md)）。
+**配置目录**：官方入口为 **`deploy/dev/config`** / **`deploy/prod/config`**。可选环境变量 **`AI_AGENT_OS_ROOT`** 指定仓库根。
 
 ### 创建第一个应用
 

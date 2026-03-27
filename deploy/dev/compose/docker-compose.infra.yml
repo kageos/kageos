@@ -2,7 +2,7 @@
 # 用于 Podman 本地开发：容器名必须为 mysql8、nats-server、minio，与 app-runtime InfraWatchdog 一致。
 #
 # 基础设施账号（与 configs 中各服务 db/storage 配置一致）:
-#   MySQL  端口 3306  root / root           数据库由 deploy/podman/init-db.sql 首次启动时自动创建
+#   MySQL  端口 3306  root / root           数据库由 deploy/base/infra/mysql/init-db.sql 首次启动时自动创建
 #   MinIO  端口 9000  minioadmin / minioadmin123  控制台 http://localhost:9001
 #   NATS   端口 4222  无认证
 #

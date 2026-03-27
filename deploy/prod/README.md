@@ -1,8 +1,6 @@
 # 生产单机一键部署（Compose：宿主机 Docker 或 Podman）
 
 > 官方生产入口：`deploy/prod/`
->
-> 兼容说明：旧路径 `deploy/customer/` 仍保留，但新部署与新文档请优先使用本目录。
 
 **范围**：主站 + 中间件（MySQL / NATS / MinIO）+ 内置 Nginx(80) + **容器内 Podman**（跑用户应用）。**不包含 Hub**。
 
@@ -46,13 +44,6 @@ bash build.sh        # 等价于: bash build.sh up
 
 - 版本库中的官方模板源在 `deploy/prod/config/template/`
 - 容器启动后会渲染到 `deploy/prod/config/runtime/`
-- 旧路径 `deploy/config/prod/` 仍保留兼容软链
-
-如果你本地仍是旧版 `env.yaml`，可一次性迁移：
-
-```bash
-bash render-env.sh ./env.yaml ./.env
-```
 
 > 构建 Go 依赖默认使用 `GOPROXY=https://goproxy.cn,direct` 与 `GOSUMDB=sum.golang.google.cn`；如需覆盖，可在构建时传 `--build-arg GOPROXY=... --build-arg GOSUMDB=...`。
 
@@ -121,7 +112,6 @@ Compose 为 **`main`** 挂载命名卷，避免重建容器后丢失数据：
 | **`.env.example`** | 配置模板；复制为 **`.env`** 后填写 |
 | **`.env`** | 唯一配置源；Compose 与 `build.sh` 直接读取（**勿提交**） |
 | **`build.sh`** | 运维入口：支持 `up / update / pull-update / restart-main / logs / status / down` |
-| **`render-env.sh`** | 历史迁移工具：把旧 `env.yaml` 转成 `.env` |
 | `docker-compose.yaml` | 服务定义（main 使用 host 网络） |
 | `init-db.sql` | MySQL 首次启动建库（挂载 `docker-entrypoint-initdb.d`，**仅本目录**） |
 | `nats-server.conf` | NATS 容器配置（**仅本目录**） |
@@ -141,7 +131,7 @@ bash build.sh update
 ## 构建说明（避免踩坑）
 
 - 用户应用基础镜像的 canonical 构建资源已迁到 **`deploy/base/images/app-base/`**；若本地构建报启动脚本找不到，请先确认 **`deploy/base/images/app-base/start.sh`** 存在且最新。
-- **Podman `runroot must be set`**：镜像内 **`/etc/containers/storage.conf`** 已写 `runroot` / `graphroot`；**`entrypoint-main.sh`** 会创建 **`/run/containers/storage`**。生产 Compose 预检走 **Compose 路径**由镜像内空标记文件 **`/etc/ai-agent-os/prod-compose-bundle`** 自动识别；为兼容旧镜像也会同时写 **`/etc/ai-agent-os/customer-compose-bundle`**，**线上无需为此设环境变量**。
+- **Podman `runroot must be set`**：镜像内 **`/etc/containers/storage.conf`** 已写 `runroot` / `graphroot`；**`entrypoint-main.sh`** 会创建 **`/run/containers/storage`**。生产 Compose 预检走 **Compose 路径**由镜像内空标记文件 **`/etc/ai-agent-os/prod-compose-bundle`** 自动识别，**线上无需为此设环境变量**。
 - **开发特殊**：本机中间件已由 compose 提供、不想走 `podman start mysql8` 那套时，可设 **`AI_AGENT_OS_DEV_SKIP_EMBEDDING_INFRA=1`**（仅 dev 使用）。
 
 ## 故障排查

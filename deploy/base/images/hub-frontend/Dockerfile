@@ -1,5 +1,5 @@
 # Hub 前端 Dockerfile
-# 构建: docker build -t ai-agent-os-hub-frontend:latest -f deploy/podman/Dockerfile.hub-frontend .
+# 构建: docker build -t ai-agent-os-hub-frontend:latest -f deploy/base/images/hub-frontend/Dockerfile .
 
 # ========== Stage 1: 构建 ==========
 FROM node:20-slim AS builder
@@ -21,7 +21,7 @@ FROM nginx:stable-alpine
 COPY --from=builder /src/dist /usr/share/nginx/html
 
 # 复制 Nginx 配置
-COPY deploy/podman/nginx-hub.conf /etc/nginx/conf.d/default.conf
+COPY deploy/base/images/hub-frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 

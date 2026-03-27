@@ -50,7 +50,7 @@ app-storage/
 ### 1. 部署 MinIO
 
 ```bash
-bash scripts/podman/minio.sh
+bash deploy/dev/scripts/infra.sh podman up -d minio
 ```
 
 访问控制台：http://localhost:9001

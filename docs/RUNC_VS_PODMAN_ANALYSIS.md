@@ -38,7 +38,7 @@
 
 主要实现文件：
 - `core/app-runtime/service/container_service.go`：核心容器服务实现
-- `scripts/podman/*.sh`：辅助脚本（MinIO、MySQL、NATS 等）
+- `deploy/dev/compose/` 与 `deploy/dev/scripts/`：本地开发基础设施入口
 
 ## 二、runc 与 Podman 的本质区别
 

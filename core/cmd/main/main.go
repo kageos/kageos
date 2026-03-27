@@ -102,12 +102,12 @@ func main() {
 	defer cancel()
 
 	fmt.Println("========================================")
-	fmt.Println("  AI Agent OS - 统一启动入口（Embedding）")
+	fmt.Println("  AI Agent OS - 统一启动入口")
 	fmt.Println("========================================")
 	fmt.Println("  说明：")
-	fmt.Println("  - 生产默认 prod：优先读 deploy/prod/config/runtime，兼容 fallback 到 deploy/config/prod")
-	fmt.Println("  - 开发：APP_ENV=dev 优先读 deploy/dev/config，兼容 fallback 到 deploy/config/dev")
-	fmt.Println("  - 一机一实例生产：见 deploy/embedding/README.md（裸机 + Podman 起中间件）")
+	fmt.Println("  - 生产默认 prod：优先读 deploy/prod/config/runtime，缺失时回退到 deploy/prod/config/template")
+	fmt.Println("  - 开发：APP_ENV=dev 读 deploy/dev/config")
+	fmt.Println("  - 正式部署入口：见 deploy/prod/README.md")
 	fmt.Println("  - 亦可拆分为各服务独立进程（各服务 cmd/app/main.go）或 K8s 分布式部署")
 	fmt.Println("========================================")
 

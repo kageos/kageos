@@ -1,5 +1,5 @@
 # Web 主前端 Dockerfile
-# 构建: docker build -t ai-agent-os-web:latest -f deploy/podman/Dockerfile.web .
+# 构建: docker build -t ai-agent-os-web:latest -f deploy/base/images/web/Dockerfile .
 
 # ========== Stage 1: 构建 ==========
 FROM node:20-slim AS builder
@@ -27,7 +27,7 @@ FROM nginx:stable-alpine
 COPY --from=builder /src/dist /usr/share/nginx/html
 
 # 复制 Nginx 配置
-COPY deploy/podman/nginx-web.conf /etc/nginx/conf.d/default.conf
+COPY deploy/base/images/web/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 

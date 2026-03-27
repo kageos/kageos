@@ -1,9 +1,0 @@
-server:
-  port: 9096
-  log_level: "info"
-  debug: false
-
-license:
-  path: "./license.json"
-  encryption_key: "${CONTROL_ENC_KEY}"
-  publish_interval: 300

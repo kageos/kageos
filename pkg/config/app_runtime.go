@@ -176,8 +176,8 @@ func (c *AppRuntimeConfig) GetContainerCleanupTimeout() int {
 // loadYAMLConfig 加载 YAML 配置文件。
 // 当前优先级：
 //
-//	dev  -> deploy/dev/config/<file>            -> 兼容 fallback: deploy/config/dev/<file>
-//	prod -> deploy/prod/config/runtime/<file>   -> 兼容 fallback: deploy/config/prod/<file>
+//	dev  -> deploy/dev/config/<file>
+//	prod -> deploy/prod/config/runtime/<file>   -> fallback: deploy/prod/config/template/<file>
 //
 // 加载成功时打印实际使用的配置路径，避免糊涂账。
 func loadYAMLConfig(filename string, config interface{}) error {
@@ -231,16 +231,15 @@ func configPathsForEnv(root, env, baseName string) []string {
 	if env == "dev" {
 		return []string{
 			filepath.Join(root, "deploy", "dev", "config", baseName),
-			filepath.Join(root, "deploy", "config", "dev", baseName), // legacy fallback
 		}
 	}
 	return []string{
 		filepath.Join(root, "deploy", "prod", "config", "runtime", baseName),
-		filepath.Join(root, "deploy", "config", "prod", baseName), // legacy fallback
+		filepath.Join(root, "deploy", "prod", "config", "template", baseName),
 	}
 }
 
-// findConfigFile 查找配置文件：优先新结构，兼容旧 deploy/config/{env}/。
+// findConfigFile 查找配置文件：只使用官方结构。
 func findConfigFile(filename string) string {
 	env := getConfigEnv()
 	baseName := filepath.Base(filename)

@@ -103,14 +103,7 @@ ensure_env_file() {
   if [[ ! -f "$ENV_FILE" ]]; then
     echo "ERROR: 未找到 $ENV_FILE"
     echo "请复制 .env.example 为 .env，填写后重跑: bash build.sh"
-    if [[ -f "$ROOT/env.yaml" ]]; then
-      echo "提示：检测到旧 env.yaml，可一次性执行: bash render-env.sh \"$ROOT/env.yaml\" \"$ENV_FILE\""
-    fi
     exit 1
-  fi
-
-  if [[ -f "$ROOT/env.yaml" ]]; then
-    echo "NOTE: 检测到旧 env.yaml；当前部署已以 .env 为唯一配置源，旧文件不会再被 build.sh 使用。"
   fi
 }
 

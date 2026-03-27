@@ -228,7 +228,7 @@ MinIO (AGPLv3, 独立进程)
 
 ```bash
 # 启动 MinIO
-bash scripts/podman/minio.sh
+bash deploy/dev/scripts/infra.sh podman up -d minio
 
 # 启动 app-storage
 bash scripts/start-app-storage.sh
@@ -262,4 +262,3 @@ curl http://localhost:8083/health
 - 前端 DTO 已包含 hash 字段
 
 **结论**：基础设施完整，未来扩展无障碍！🚀
-
