@@ -92,9 +92,26 @@ Compose 为 **`main`** 挂载命名卷，避免重建容器后丢失数据：
 - **Podman `runroot must be set`**：镜像内 **`/etc/containers/storage.conf`** 已写 `runroot` / `graphroot`；**`entrypoint-main.sh`** 会创建 **`/run/containers/storage`**。客户预检走 **Compose 路径**由镜像内空标记文件 **`/etc/ai-agent-os/customer-compose-bundle`** 自动识别，**线上无需为此设环境变量**。
 - **开发特殊**：本机中间件已由 compose 提供、不想走 `podman start mysql8` 那套时，可设 **`AI_AGENT_OS_DEV_SKIP_EMBEDDING_INFRA=1`**（仅 dev 使用）。
 
+## 宿主机 Nginx 反代（必须）
+
+Podman 端口发布只对 **loopback（127.0.0.1）** 可靠转发；公网 SYN 到达 eth0 后不会被 Podman 正确回复。因此 Compose 将容器 8080 只绑 **`127.0.0.1:8080`**，由 **宿主机 Nginx** 监听公网 **80** 并 `proxy_pass` 到 `127.0.0.1:8080`。
+
+```bash
+# 1. 清理宿主机 Nginx 默认站点（避免冲突）
+sudo rm -f /etc/nginx/sites-enabled/default
+
+# 2. 软链本仓库的反代配置
+sudo ln -sf $(pwd)/nginx/host-proxy.conf /etc/nginx/sites-enabled/host-proxy.conf
+
+# 3. 测试 & 启动
+sudo nginx -t && sudo systemctl enable --now nginx
+```
+
+日后加 **HTTPS**：`sudo certbot --nginx -d 你的域名` 即可自动改配置并续期。
+
 ## 已知限制
 
-- 边缘为容器内 **8080 HTTP**；对外 HTTPS 前加 LB 并同步 **`CANONICAL_BASE_URL`** 为 `https://`。
+- 容器内 Nginx 监听 **8080 HTTP**，宿主机 Nginx 终结公网 80（或 443 + TLS）。
 
 ## 故障排查
 
