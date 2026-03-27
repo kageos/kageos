@@ -6,6 +6,16 @@ WORKDIR /app
 # 禁止 apt/tzdata 交互式提问（构建时 tzdata 会问时区）
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Shanghai
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# 国内环境下 files.pythonhosted.org 经常超时，这里给出更稳的默认 pip 源与重试/超时设置。
+# 海外或自建源场景可在构建时覆盖：
+#   --build-arg PIP_INDEX_URL=...
+#   --build-arg PIP_DEFAULT_TIMEOUT=...
+#   --build-arg PIP_RETRIES=...
+ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ARG PIP_DEFAULT_TIMEOUT=300
+ARG PIP_RETRIES=10
 
 # 配置完整 APT 源（main、restricted、universe、multiverse），按架构选镜像
 RUN ARCH=$(dpkg --print-architecture) && \
@@ -111,7 +121,10 @@ RUN ln -sf /usr/bin/python3 /usr/bin/python
 # 若增删此处或上方 python3-* 包：请同步更新 core/agent-server 中 runOfficialPythonPreinstallDoc（工作台 run_official_python 工具说明）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ python3-dev libfreetype6-dev libpng-dev libjpeg-dev zlib1g-dev \
-    && pip3 install --no-cache-dir \
+    && pip3 install --no-cache-dir --prefer-binary \
+        --index-url "${PIP_INDEX_URL}" \
+        --timeout "${PIP_DEFAULT_TIMEOUT}" \
+        --retries "${PIP_RETRIES}" \
         seaborn python-docx PyPDF2 pdfplumber jieba \
     && rm -rf /tmp/* /root/.cache /var/lib/apt/lists/* \
     && echo "✓ Python packages installed"
