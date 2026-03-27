@@ -7,7 +7,6 @@ import (
 
 func init() {
 	// 注册权限服务实现（企业版）
-	// 只有在企业版 License 激活时才会调用
+	// 这里在进程启动时注册实现；是否可用由 License 功能位控制
 	enterprise.RegisterPermissionService(&service.PermissionServiceImpl{})
 }
-
