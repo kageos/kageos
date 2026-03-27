@@ -8,7 +8,7 @@ gateway:
   internal_url: "http://127.0.0.1:9090"
 
 nats:
-  url: "nats://nats:4222"
+  url: "nats://127.0.0.1:4222"
 
 jwt:
   secret: "__JWT_SECRET__"
@@ -23,7 +23,7 @@ control_service:
   key_path: ""
 
 sdk:
-  nats_url: "nats://nats:4222"
+  nats_url: "nats://127.0.0.1:4222"
   gateway_url: "http://127.0.0.1:9090"
   env_vars:
     FFMPEG_PATH: "/usr/bin/ffmpeg"

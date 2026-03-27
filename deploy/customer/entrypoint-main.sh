@@ -43,9 +43,9 @@ wait_tcp() {
 }
 
 echo "==> 等待依赖（MySQL / NATS / MinIO）..."
-wait_tcp mysql 3306 "MySQL"
-wait_tcp nats 4222 "NATS"
-wait_tcp minio 9000 "MinIO"
+wait_tcp 127.0.0.1 3306 "MySQL"
+wait_tcp 127.0.0.1 4222 "NATS"
+wait_tcp 127.0.0.1 9000 "MinIO"
 
 echo "==> 注入配置占位符..."
 for f in /app/deploy/config/prod/*.yaml; do
@@ -66,11 +66,11 @@ CANONICAL_HOST=$(echo "$CANONICAL_BASE_URL" | sed -E 's|^https?://([^/]+).*|\1|'
 export CANONICAL_SCHEME
 export CANONICAL_HOST
 
-echo "==> 生成 Nginx（8080，www → 裸域 301）canonical_host=${CANONICAL_HOST} scheme=${CANONICAL_SCHEME}"
+echo "==> 生成 Nginx（80，www → 裸域 301）canonical_host=${CANONICAL_HOST} scheme=${CANONICAL_SCHEME}"
 envsubst '${CANONICAL_HOST} ${CANONICAL_SCHEME}' < /app/deploy/customer/nginx/default.conf.template > /etc/nginx/sites-enabled/default
 nginx -t
 
-echo "==> 启动 Nginx（对外 8080 → 映射 compose 80）..."
+echo "==> 启动 Nginx（host 网络直接监听 80）..."
 nginx
 
 # Podman 需要明确的 runroot/graphroot（见 /etc/containers/storage.conf）；/run 每次启动需重建

@@ -14,7 +14,7 @@ audit:
 storage:
   type: "minio"
   minio:
-    endpoint: "minio:9000"
+    endpoint: "127.0.0.1:9000"
     server_endpoint: ""
     access_key: "__MINIO_ROOT_USER__"
     secret_key: "__MINIO_ROOT_PASSWORD__"
@@ -42,7 +42,7 @@ storage:
 
 db:
   type: "mysql"
-  host: "mysql"
+  host: "127.0.0.1"
   port: 3306
   user: "root"
   password: "__MYSQL_ROOT_PASSWORD__"

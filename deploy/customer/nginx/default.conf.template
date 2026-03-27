@@ -1,14 +1,14 @@
 # 由 entrypoint envsubst 生成；变量：CANONICAL_HOST、CANONICAL_SCHEME
-resolver 127.0.0.11 valid=10s ipv6=off;
+# main 容器使用 host 网络，Nginx 直接监听 80 端口对外服务
 
 server {
-    listen 8080;
+    listen 80;
     server_name www.${CANONICAL_HOST};
     return 301 ${CANONICAL_SCHEME}://${CANONICAL_HOST}$request_uri;
 }
 
 server {
-    listen 8080 default_server;
+    listen 80 default_server;
     server_name ${CANONICAL_HOST} _;
 
     root /var/www/web/dist;
@@ -89,8 +89,7 @@ server {
     }
 
     location /ai-agent-os/ {
-        set $minio_upstream http://minio:9000;
-        proxy_pass $minio_upstream;
+        proxy_pass http://127.0.0.1:9000;
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
