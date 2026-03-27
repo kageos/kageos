@@ -117,6 +117,7 @@ import { ref, watch, nextTick } from 'vue'
 import { ElDialog, ElInput, ElButton, ElIcon, ElAvatar, ElEmpty, ElCheckbox } from 'element-plus'
 import { Search, Loading, Close } from '@element-plus/icons-vue'
 import { searchUsersFuzzy } from '@/api/user'
+import { useUserInfoStore } from '@/stores/userInfo'
 import type { UserInfo } from '@/types'
 import { formatUserDisplayName } from '@/utils/userInfo'
 import { Logger } from '@/core/utils/logger'
@@ -142,6 +143,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<Emits>()
+const userInfoStore = useUserInfoStore()
 
 const dialogVisible = ref(false)
 const searchKeyword = ref('')
@@ -160,8 +162,6 @@ watch(() => props.modelValue, async (newValue) => {
       // 🔥 加载已选用户的信息
       if (usernames.length > 0) {
         try {
-          const { useUserInfoStore } = await import('@/stores/userInfo')
-          const userInfoStore = useUserInfoStore()
           const users: UserInfo[] = []
           
           // 并行加载所有用户信息
@@ -470,4 +470,3 @@ const handleClose = () => {
   gap: 12px;
 }
 </style>
-

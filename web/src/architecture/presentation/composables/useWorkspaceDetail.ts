@@ -89,6 +89,7 @@ import FormView from '@/architecture/presentation/views/FormView.vue'
 import type { FieldConfig, FieldValue } from '../../domain/types'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 import { useFormDataStore } from '@/core/stores-v2/formData'
+import { useUserInfoStore } from '@/stores/userInfo'
 import { hasPermission, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
 import type { ServiceTree } from '@/types'
 
@@ -104,6 +105,7 @@ export function useWorkspaceDetail(
   const tableApplicationService = serviceProvider.getTableApplicationService()
   const tableStateManager = serviceProvider.getTableStateManager()
   const stateManager = serviceProvider.getWorkspaceStateManager()
+  const userInfoStore = useUserInfoStore()
 
   // 详情抽屉状态
   const detailDrawerVisible = ref(false)
@@ -248,8 +250,6 @@ export function useWorkspaceDetail(
       
       if (usernames.length > 0) {
         try {
-          const { useUserInfoStore } = await import('@/stores/userInfo')
-          const userInfoStore = useUserInfoStore()
           const users = await userInfoStore.batchGetUserInfo([...new Set(usernames)])
           // 更新到 detailUserInfoMap
           detailUserInfoMap.value = new Map()
@@ -559,8 +559,7 @@ export function useWorkspaceDetail(
         }
       })
       if (usernames.length > 0) {
-        import('@/stores/userInfo')
-          .then(({ useUserInfoStore }) => useUserInfoStore().batchGetUserInfo([...new Set(usernames)]))
+        userInfoStore.batchGetUserInfo([...new Set(usernames)])
           .then(users => {
             const map = new Map<string, any>()
             users.forEach((u: any) => map.set(u.username, u))
@@ -673,8 +672,6 @@ export function useWorkspaceDetail(
             
             if (usernames.length > 0) {
               try {
-                const { useUserInfoStore } = await import('@/stores/userInfo')
-                const userInfoStore = useUserInfoStore()
                 const users = await userInfoStore.batchGetUserInfo([...new Set(usernames)])
                 detailUserInfoMap.value = new Map()
                 users.forEach(user => {
@@ -768,4 +765,3 @@ export function useWorkspaceDetail(
     setupUrlWatch
   }
 }
-

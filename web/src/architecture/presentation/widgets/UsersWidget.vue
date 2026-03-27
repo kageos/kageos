@@ -277,6 +277,7 @@ import { formatUserDisplayName } from '@/utils/userInfo'
 import type { UserInfo } from '@/types'
 import { Logger } from '@/core/utils/logger'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
+import { useAuthStore } from '@/stores/auth'
 import { useUserInfoStore } from '@/stores/userInfo'
 
 const COMPONENT_NAME = 'UsersWidget'
@@ -294,6 +295,7 @@ const emit = defineEmits<WidgetComponentEmits>()
 const effectiveValue = computed<FieldValue>(() => props.value == null ? DEFAULT_FIELD_VALUE : props.value)
 
 const formDataStore = useFormDataStore()
+const authStore = useAuthStore()
 
 // 弹窗显示状态
 const dialogVisible = ref(false)
@@ -535,9 +537,6 @@ onMounted(async () => {
       
       // 只有在新增模式下才解析 Me() 或 MyLeader()
       if (!isEditMode) {
-        const { useAuthStore } = await import('@/stores/auth')
-        const authStore = useAuthStore()
-        
         // 🔥 统一处理逻辑：先确定要处理的源字符串，然后依次替换 Me() 和 MyLeader()
         let sourceValue: string = ''
         
@@ -856,4 +855,3 @@ onMounted(async () => {
   padding: 0 !important;
 }
 </style>
-

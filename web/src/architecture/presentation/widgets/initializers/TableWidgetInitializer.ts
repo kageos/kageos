@@ -15,6 +15,7 @@ import { widgetInitializerRegistry } from './WidgetInitializerRegistry'
 import { convertBasicType } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { Logger } from '@/core/utils/logger'
 import { FieldValueMeta } from '@/core/constants/field'
+import { useFormDataStore } from '@/core/stores-v2/formData'
 
 /**
  * TableWidget 初始化器
@@ -74,7 +75,6 @@ export class TableWidgetInitializer implements IWidgetInitializer {
       }
       
       // 🔥 需要将子字段的值保存到 formDataStore 的子路径中
-      const { useFormDataStore } = await import('@/core/stores-v2/formData')
       const formDataStore = useFormDataStore()
       
       // 递归初始化每一行的子字段
@@ -146,4 +146,3 @@ export class TableWidgetInitializer implements IWidgetInitializer {
   }
   
 }
-

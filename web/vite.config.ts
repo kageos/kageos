@@ -9,28 +9,74 @@ import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, mode }) => {
   // 支持前端开发时「连线上后端」：.env.development.local 中设置 VITE_PROXY_TARGET=https://你的线上网关
   const env = loadEnv(mode, process.cwd(), '')
   const proxyTarget = env.VITE_PROXY_TARGET || 'http://localhost:9090'
   const minioTarget = env.VITE_MINIO_PROXY_TARGET || 'http://localhost:9000'
+  const elementPlusResolver = ElementPlusResolver({ importStyle: 'css' })
 
   return {
   plugins: [
     vue(),
     vueJsx(),
-    vueDevTools(),
+    ...(command === 'serve' ? [vueDevTools()] : []),
     AutoImport({
       imports: ['vue', 'vue-router'],
-      resolvers: [ElementPlusResolver()],
+      resolvers: [elementPlusResolver],
     }),
     Components({
-      resolvers: [ElementPlusResolver()],
+      resolvers: [elementPlusResolver],
     }),
   ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+
+          if (id.includes('@element-plus/icons-vue')) {
+            return 'vendor-element-icons'
+          }
+          if (id.includes('element-plus')) {
+            return 'vendor-element-plus'
+          }
+          if (id.includes('vditor')) {
+            return 'vendor-vditor'
+          }
+          if (id.includes('@tiptap') || id.includes('prosemirror')) {
+            return 'vendor-tiptap'
+          }
+          if (id.includes('monaco-editor') || id.includes('@monaco-editor')) {
+            return 'vendor-monaco'
+          }
+          if (id.includes('xlsx')) {
+            return 'vendor-xlsx'
+          }
+          if (id.includes('jszip')) {
+            return 'vendor-jszip'
+          }
+          if (
+            id.includes('/vue/') ||
+            id.includes('/pinia/') ||
+            id.includes('/vue-router/') ||
+            id.includes('@vueuse/')
+          ) {
+            return 'vendor-vue'
+          }
+          if (id.includes('echarts') || id.includes('vue-echarts')) {
+            return 'vendor-echarts'
+          }
+          if (id.includes('axios') || id.includes('dayjs') || id.includes('marked')) {
+            return 'vendor-utils'
+          }
+        },
+      },
     },
   },
   server: {

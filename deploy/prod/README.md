@@ -63,6 +63,7 @@ bash build.sh up            # 首次部署 / 全量重建（默认）
 bash build.sh update        # 只重建并更新 main，不重启 MySQL / NATS / MinIO
 bash build.sh pull-update   # git pull --ff-only 后执行 update
 bash build.sh restart-main  # 仅重启 main，不重建镜像
+bash build.sh build-app-base --no-cache  # 在 main 容器内单独重建 ai-agent-os:latest
 bash build.sh logs main     # 查看 main 日志
 bash build.sh status        # 查看服务状态
 bash build.sh down          # 停止服务（保留数据卷）
@@ -73,6 +74,7 @@ bash build.sh down          # 停止服务（保留数据卷）
 - 只升级主站代码：`bash build.sh update`
 - 先拉最新代码再升级：`bash build.sh pull-update`
 - 只改 `.env` 或想让主进程重启生效：`bash build.sh restart-main`
+- 只想排查用户应用基础镜像：`bash build.sh build-app-base --no-cache`
 
 ## 构建加速（依赖与源，默认偏国内）
 

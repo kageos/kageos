@@ -172,6 +172,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { pushDirectoryToHub, getHubPushFormInfo, type PushDirectoryToHubReq } from '@/api/hub'
 import type { ServiceTree } from '@/types'
 import type { App } from '@/types'
+import { navigateToHubDirectoryDetail } from '@/utils/hub-navigation'
 import RichTextEditor from './RichTextEditor.vue'
 
 interface Props {
@@ -352,7 +353,6 @@ const handleSubmit = async () => {
         )
 
         // 用户确认，跳转到 Hub 目录详情页
-        const { navigateToHubDirectoryDetail } = await import('@/utils/hub-navigation')
         navigateToHubDirectoryDetail(response.hub_full_code_path)
       } catch {
         // 用户取消，不做任何操作
@@ -402,4 +402,3 @@ const handleClose = () => {
   color: #606266;
 }
 </style>
-

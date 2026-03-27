@@ -352,6 +352,7 @@ import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import { Logger } from '@/core/utils/logger'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
+import { getChangedFields } from '@/utils/objectDiff'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import { hasAnyRequiredRule } from '@/core/utils/validationUtils'
 import { useFormDataStore } from '@/core/stores-v2/formData'
@@ -749,7 +750,6 @@ async function prepareUpdateData(oldValues: Record<string, any>): Promise<Record
   const allSubmitData = domainService.getSubmitData(request)
   
   // 使用 getChangedFields 过滤出只变更的字段
-  const { getChangedFields } = await import('@/utils/objectDiff')
   const { updates } = getChangedFields(oldValues, allSubmitData)
   
   Logger.info('[FormView]', '准备更新数据（表格更新）', {
@@ -1484,4 +1484,3 @@ onUnmounted(() => {
   padding: 40px 0;
 }
 </style>
-

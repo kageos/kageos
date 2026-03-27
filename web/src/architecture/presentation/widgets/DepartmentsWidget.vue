@@ -189,6 +189,7 @@ import { ElButton, ElIcon, ElTag, ElPopover } from 'element-plus'
 import { OfficeBuilding, Edit, Close } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
+import { useAuthStore } from '@/stores/auth'
 import { useDepartmentInfoStore } from '@/stores/departmentInfo'
 import type { Department } from '@/api/department'
 import { getDepartmentTree } from '@/api/department'
@@ -207,6 +208,7 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
+const authStore = useAuthStore()
 const departmentInfoStore = useDepartmentInfoStore()
 
 // 弹窗显示状态
@@ -451,8 +453,6 @@ onMounted(async () => {
       
       // 只有在新增模式下才解析 MyDepartment()
       if (!isEditMode) {
-        const { useAuthStore } = await import('@/stores/auth')
-        const authStore = useAuthStore()
         const currentUserDepartmentPath = authStore.user?.department_full_path
         if (currentUserDepartmentPath) {
           // 🔥 使用 store 获取组织架构信息（避免调用 getDepartmentTree）

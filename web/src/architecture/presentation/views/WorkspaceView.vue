@@ -581,6 +581,7 @@
 
     <!-- 创建讨论区（版块）对话框 - 封装组件 -->
     <CreateBoardDialog
+      v-if="createBoardDialogVisible"
       v-model="createBoardDialogVisible"
       :current-app="currentApp"
       :parent-node="currentBoardParentNode"
@@ -663,18 +664,21 @@
 
     <!-- 发布到应用中心对话框 -->
     <PublishToHubDialog
+      v-if="publishToHubDialogVisible"
       v-model="publishToHubDialogVisible"
       :selected-node="publishSelectedNode"
       :current-app="currentApp || undefined"
       @success="handlePublishSuccess"
     />
     <PushToHubDialog
+      v-if="pushToHubDialogVisible"
       v-model="pushToHubDialogVisible"
       :selected-node="pushSelectedNode"
       :current-app="currentApp || undefined"
       @success="handlePushSuccess"
     />
     <PullFromHubDialog
+      v-if="pullFromHubDialogVisible"
       v-model="pullFromHubDialogVisible"
       :current-app="currentApp || undefined"
       :initial-hub-link="pastedHubLink"
@@ -685,6 +689,7 @@
 
     <!-- 变更记录对话框 -->
     <DirectoryUpdateHistoryDialog
+      v-if="updateHistoryDialogVisible"
       v-model="updateHistoryDialogVisible"
       :mode="updateHistoryMode"
       :app-id="updateHistoryAppId"
@@ -745,7 +750,7 @@
       </template>
       <div v-show="!workstationDrawerCollapsed" class="workstation-drawer-body">
         <WorkstationChat
-          v-if="workstationContext"
+          v-if="workstationContext && workstationMode"
           :full-code-path="workstationContext.fullCodePath"
           :dir-name="workstationContext.dirName"
           :initial-session-id="wsInitialSessionId"
@@ -793,7 +798,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElSwitch, ElSkeleton } from 'element-plus'
 import { InfoFilled, ArrowLeft, ArrowRight, Fold, Expand, Close, ChatDotRound, Minus, Loading, FolderOpened, Search } from '@element-plus/icons-vue'
@@ -803,24 +808,9 @@ import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { RouteManager } from '../../infrastructure/routeManager'
 import { useAuthStore } from '@/stores/auth'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
-import AppSwitcher from '@/components/AppSwitcher.vue'
-import PublishToHubDialog from '@/components/PublishToHubDialog.vue'
-import PushToHubDialog from '@/components/PushToHubDialog.vue'
-import PullFromHubDialog from '@/components/PullFromHubDialog.vue'
-import DirectoryUpdateHistoryDialog from '@/components/DirectoryUpdateHistoryDialog.vue'
-import FormView from './FormView.vue'
-import TableView from './TableView.vue'
-import ChartView from './ChartView.vue'
 import WorkspaceHeader from '../components/WorkspaceHeader.vue'
 import FunctionBreadcrumb from '../components/FunctionBreadcrumb.vue'
 import TableRowDetailDrawer from '../components/TableRowDetailDrawer.vue'
-import PermissionDeniedView from '../components/PermissionDeniedView.vue'
-import PackageDetailView from '../components/PackageDetailView.vue'
-import WorkstationChat from '../components/WorkstationChat.vue'
-import MiniWorkstation from '../components/MiniWorkstation.vue'
-import DocView from '../components/DocView.vue'
-import BoardView from '../components/BoardView.vue'
-import CreateBoardDialog from '../components/CreateBoardDialog.vue'
 import UserSearchInput from '@/components/UserSearchInput.vue'
 import UserDisplay from '../widgets/UserDisplay.vue'
 import UsersWidget from '../widgets/UsersWidget.vue'
@@ -838,6 +828,7 @@ import { RouteSource } from '@/utils/routeSource'
 import { useWorkspaceDetail } from '../composables/useWorkspaceDetail'
 import { useWorkspaceApp } from '../composables/useWorkspaceApp'
 import { useWorkspaceServiceTree } from '../composables/useWorkspaceServiceTree'
+import { addFunctionsToDirectory, createDocs, deleteBoard, deleteDocs, deletePackage, deleteServiceTreeFunction } from '@/api/service-tree'
 import { findNodeByPath, findNodeById } from '../utils/workspaceUtils'
 import { isRootNode as isRootTreeNode } from '@/utils/tree-utils'
 import { useAfterCreateNode } from '../composables/useAfterCreateNode'
@@ -852,6 +843,20 @@ import { usePermissionErrorStore } from '@/stores/permissionError'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const FormView = defineAsyncComponent(() => import('./FormView.vue'))
+const TableView = defineAsyncComponent(() => import('./TableView.vue'))
+const ChartView = defineAsyncComponent(() => import('./ChartView.vue'))
+const DocView = defineAsyncComponent(() => import('../components/DocView.vue'))
+const BoardView = defineAsyncComponent(() => import('../components/BoardView.vue'))
+const PackageDetailView = defineAsyncComponent(() => import('../components/PackageDetailView.vue'))
+const PermissionDeniedView = defineAsyncComponent(() => import('../components/PermissionDeniedView.vue'))
+const WorkstationChat = defineAsyncComponent(() => import('../components/WorkstationChat.vue'))
+const MiniWorkstation = defineAsyncComponent(() => import('../components/MiniWorkstation.vue'))
+const CreateBoardDialog = defineAsyncComponent(() => import('../components/CreateBoardDialog.vue'))
+const PublishToHubDialog = defineAsyncComponent(() => import('@/components/PublishToHubDialog.vue'))
+const PushToHubDialog = defineAsyncComponent(() => import('@/components/PushToHubDialog.vue'))
+const PullFromHubDialog = defineAsyncComponent(() => import('@/components/PullFromHubDialog.vue'))
+const DirectoryUpdateHistoryDialog = defineAsyncComponent(() => import('@/components/DirectoryUpdateHistoryDialog.vue'))
 
 // 依赖注入（使用 IServiceProvider 接口，遵循依赖倒置原则）
 const serviceProvider: IServiceProvider = serviceFactory
@@ -1855,7 +1860,6 @@ const handleSubmitCreateDocs = async () => {
 
   creatingDocs.value = true
   try {
-    const { createDocs } = await import('@/api/service-tree')
     const parentFullCodePath = currentDocsParentNode.value?.full_code_path || ''
     // ⭐ 使用新的分离接口
     const response = await createDocs({
@@ -1921,7 +1925,6 @@ const handleDeleteBoard = async (node: ServiceTreeType) => {
       '确认删除',
       { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
     )
-    const { deleteBoard } = await import('@/api/service-tree')
     await deleteBoard(node.id)
     ElMessage.success('讨论区已删除')
     await handleRefreshTree()
@@ -1957,8 +1960,6 @@ const handleDeleteDoc = async (node: ServiceTreeType) => {
       }
     )
 
-    // ⭐ 使用新的分离接口
-    const { deleteDocs } = await import('@/api/service-tree')
     await deleteDocs(node.id)
     
     ElMessage.success('文档删除成功')
@@ -2010,7 +2011,6 @@ const handleImportGoFiles = (node: ServiceTreeType) => {
 }
 
 async function doImportGoFiles(files: FileList | File[], fullCodePath: string) {
-  const { addFunctionsToDirectory } = await import('@/api/service-tree')
   importGoLoading.value = true
   let ok = 0
   let fail = 0
@@ -2112,7 +2112,6 @@ const handleDeleteDirectory = async (node: ServiceTreeType) => {
       }
     )
 
-    const { deletePackage } = await import('@/api/service-tree')
     await deletePackage(node.id)
 
     ElMessage.success('目录删除成功')
@@ -2159,8 +2158,6 @@ const handleDeleteFunction = async (node: ServiceTreeType) => {
       }
     )
 
-    // ⭐ 使用新的分离接口（API 导出名为 deleteServiceTreeFunction）
-    const { deleteServiceTreeFunction } = await import('@/api/service-tree')
     await deleteServiceTreeFunction(node.id)
 
     ElMessage.success('删除成功')

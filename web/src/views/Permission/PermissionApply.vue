@@ -425,6 +425,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { getAppWithServiceTree } from '@/api/app'
 import { getRolesForPermissionRequest, type Role, type RolePermission } from '@/api/role'
 import { useAuthStore } from '@/stores/auth'
+import { useUserInfoStore } from '@/stores/userInfo'
 import type { ServiceTree, App } from '@/types'
 import UserSelectorDialog from '@/components/UserSelectorDialog.vue'
 import DepartmentsSearchDialog from '@/architecture/presentation/widgets/DepartmentsSearchDialog.vue'
@@ -435,6 +436,7 @@ import { WidgetType } from '@/core/constants/widget'
 
 const route = useRoute()
 const router = useRouter()
+const userInfoStore = useUserInfoStore()
 
 // 权限信息
 const permissionInfo = ref({
@@ -599,8 +601,6 @@ watch(grantTargetUserUsername, async (username) => {
   }
   // 从 store 获取用户信息
   try {
-    const { useUserInfoStore } = await import('@/stores/userInfo')
-    const userInfoStore = useUserInfoStore()
     const user = await userInfoStore.getUserInfo(username)
     grantTargetUser.value = user
   } catch (error) {
@@ -3532,5 +3532,4 @@ const clearRoleSelection = () => {
   }
 }
 </style>
-
 

@@ -610,6 +610,7 @@ import { uploadFile, notifyBatchUploadComplete } from '@/utils/upload'
 import type { FileInfo, BatchUploadCompleteItem, UploadProgress, UploadFileResult } from '@/utils/upload'
 import type { Uploader } from '@/utils/upload'
 import { useFormDataStore } from '@/core/stores-v2/formData'
+import { useAuthStore } from '@/stores/auth'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { isCacheExpired } from '@/stores/userInfo/utils'
 import { Logger } from '@/core/utils/logger'
@@ -632,6 +633,7 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
+const authStore = useAuthStore()
 const userInfoStore = useUserInfoStore()
 
 // 常量定义
@@ -1188,8 +1190,6 @@ async function handleFileSelect(rawFile: File): Promise<void> {
         
         // 如果 localStorage 中没有，尝试从 authStore 获取
         if (!currentUploadUser) {
-          const { useAuthStore } = await import('@/stores/auth')
-          const authStore = useAuthStore()
           currentUploadUser = authStore.userName || authStore.user?.username || ''
         }
       } catch (error: any) {
@@ -1227,8 +1227,6 @@ async function handleFileSelect(rawFile: File): Promise<void> {
         }
         
         if (!currentUploadUser) {
-          const { useAuthStore } = await import('@/stores/auth')
-          const authStore = useAuthStore()
           currentUploadUser = authStore.userName || authStore.user?.username || ''
         }
       } catch (err: any) {
@@ -1383,8 +1381,6 @@ async function updateFiles(files: FileItem[]): Promise<void> {
       
       // 如果 localStorage 中没有，尝试从 authStore 获取
       if (!uploadUser) {
-        const { useAuthStore } = await import('@/stores/auth')
-        const authStore = useAuthStore()
         uploadUser = authStore.userName || authStore.user?.username || ''
       }
       
@@ -2219,4 +2215,3 @@ function handleFileChange(file: any): void {
   justify-content: flex-end;
 }
 </style>
-
