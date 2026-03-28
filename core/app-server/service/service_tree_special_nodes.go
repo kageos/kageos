@@ -129,7 +129,7 @@ func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.Create
 
 	logger.Infof(ctx, "[ServiceTreeService] Created docs node: %s/%s/%s", req.User, req.App, req.Code)
 
-	// ⭐ 自动给创建者和管理员分配管理员角色（拥有 directory:manage 权限）
+	// ⭐ 自动给创建者和管理员分配管理员角色（拥有 directory:admin 权限）
 	if requestUser != "" {
 		if err := s.assignAdminRoleToUser(ctx, req.User, req.App, requestUser, serviceTree.FullCodePath); err != nil {
 			logger.Warnf(ctx, "[ServiceTreeService] 自动添加创建者管理员角色失败: user=%s, app=%s, username=%s, resource=%s, error=%v",

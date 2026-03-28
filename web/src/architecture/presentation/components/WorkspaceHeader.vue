@@ -48,7 +48,7 @@
             </el-dropdown-item>
             <el-dropdown-item divided command="agent">
               <el-icon><Cpu /></el-icon>
-              <span>智能体管理</span>
+              <span>LLM 配置</span>
             </el-dropdown-item>
             <el-dropdown-item command="organization">
               <el-icon><OfficeBuilding /></el-icon>
@@ -167,7 +167,7 @@ const handleUserCommand = (command: string) => {
       router.push('/user/settings')
       break
     case 'agent':
-      router.push('/agent')
+      router.push('/agent/llm')
       break
     case 'organization':
       router.push('/organization')
@@ -223,11 +223,6 @@ const navigateToWorkstation = (fullCodePath?: string) => {
 // 导航到 Hub
 const navigateToHub = () => {
   navigateToHubUtil('/')
-}
-
-// 导航到 Agent
-const navigateToAgent = () => {
-  router.push('/agent')
 }
 
 // 导航到组织架构和用户管理

@@ -84,13 +84,12 @@ const router = createRouter({
       }
     },
 
-    // LLM 与工作台管理
+    // LLM 配置
     {
       path: '/agent',
-      name: 'agent-index',
-      component: () => import('../features/agent/pages/AgentIndexPage.vue'),
+      redirect: '/agent/llm',
       meta: {
-        title: 'LLM 与工作台',
+        title: 'LLM 配置',
         requireAuth: true
       }
     },

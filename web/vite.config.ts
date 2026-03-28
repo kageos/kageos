@@ -119,12 +119,6 @@ export default defineConfig(({ command, mode }) => {
           if (id.includes('marked')) {
             return 'vendor-markdown'
           }
-          if (id.includes('xlsx')) {
-            return 'vendor-xlsx'
-          }
-          if (id.includes('jszip')) {
-            return 'vendor-jszip'
-          }
           if (
             id.includes('/vue/') ||
             id.includes('/pinia/') ||

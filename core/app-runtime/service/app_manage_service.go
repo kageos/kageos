@@ -89,8 +89,8 @@ type AppManageService struct {
 	containerCleanupCron   *cron.Cron // 每日定点执行，如 "0 4 * * *" 表示凌晨 4 点
 
 	// 有版本/容器变动时置为 true，ticker 检查到后执行一次巡检
-	containerCleanupMu     sync.Mutex
-	containerCleanupDirty   bool
+	containerCleanupMu    sync.Mutex
+	containerCleanupDirty bool
 }
 
 // ============================================================================
@@ -123,48 +123,6 @@ func parseContainerName(containerName string) (string, string, string, error) {
 	return user, app, version, nil
 }
 
-// ============================================================================
-// 启动等待器管理方法
-// ============================================================================
-
-// registerStartupWaiter 注册启动等待器
-func (s *AppManageService) registerStartupWaiter(user, app, version string) chan *StartupNotification {
-	key := fmt.Sprintf("%s/%s/%s", user, app, version)
-	s.startupWaitersMu.Lock()
-	defer s.startupWaitersMu.Unlock()
-
-	waiterChan := make(chan *StartupNotification, 1)
-	s.startupWaiters[key] = waiterChan
-	return waiterChan
-}
-
-// unregisterStartupWaiter 注销启动等待器
-func (s *AppManageService) unregisterStartupWaiter(user, app, version string) {
-	key := fmt.Sprintf("%s/%s/%s", user, app, version)
-	s.startupWaitersMu.Lock()
-	defer s.startupWaitersMu.Unlock()
-
-	if waiterChan, exists := s.startupWaiters[key]; exists {
-		close(waiterChan)
-		delete(s.startupWaiters, key)
-	}
-}
-
-// notifyStartupWaiter 通知启动等待器
-func (s *AppManageService) notifyStartupWaiter(user, app, version string, notification *StartupNotification) {
-	key := fmt.Sprintf("%s/%s/%s", user, app, version)
-	s.startupWaitersMu.RLock()
-	waiterChan, exists := s.startupWaiters[key]
-	s.startupWaitersMu.RUnlock()
-
-	if exists {
-		select {
-		case waiterChan <- notification:
-		default:
-		}
-	}
-}
-
 // NewAppManageService 创建应用管理服务（依赖注入）
 func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageServiceConfig, runtimeConfig *appconfig.AppRuntimeConfig, containerService ContainerOperator, appRepo *repository.AppRepository, appDiscoveryService *AppDiscoveryService, natsConn *nats.Conn, createFunctionService *CreateFunctionService) *AppManageService {
 	return &AppManageService{
@@ -179,107 +137,8 @@ func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageSe
 		createFunctionService: createFunctionService,
 		startupWaiters:        make(map[string]chan *StartupNotification),
 		closeWaiters:          make(map[string]chan *CloseNotification),
-		cleanupDone:          make(chan struct{}),
-		containerCleanupDone: make(chan struct{}),
-	}
-}
-
-// ============================================================================
-// 关闭等待器管理方法
-// ============================================================================
-
-// registerCloseWaiter 注册关闭等待器
-func (s *AppManageService) registerCloseWaiter(user, app, version string) chan *CloseNotification {
-	key := fmt.Sprintf("%s/%s/%s", user, app, version)
-	s.closeWaitersMu.Lock()
-	defer s.closeWaitersMu.Unlock()
-
-	waiterChan := make(chan *CloseNotification, 1)
-	s.closeWaiters[key] = waiterChan
-	return waiterChan
-}
-
-// unregisterCloseWaiter 注销关闭等待器
-func (s *AppManageService) unregisterCloseWaiter(user, app, version string) {
-	key := fmt.Sprintf("%s/%s/%s", user, app, version)
-	s.closeWaitersMu.Lock()
-	defer s.closeWaitersMu.Unlock()
-
-	if waiterChan, exists := s.closeWaiters[key]; exists {
-		close(waiterChan)
-		delete(s.closeWaiters, key)
-	}
-}
-
-// notifyCloseWaiter 通知关闭等待器
-func (s *AppManageService) notifyCloseWaiter(user, app, version string, notification *CloseNotification) {
-	key := fmt.Sprintf("%s/%s/%s", user, app, version)
-	s.closeWaitersMu.RLock()
-	waiterChan, exists := s.closeWaiters[key]
-	s.closeWaitersMu.RUnlock()
-
-	if exists {
-		select {
-		case waiterChan <- notification:
-		default:
-			// 通道已满或已关闭，忽略
-		}
-	}
-}
-
-// NotifyStartup 通知应用启动完成（由 NATS 消息处理器调用）
-func (s *AppManageService) NotifyStartup(notification *StartupNotification) {
-	s.notifyStartupWaiter(notification.User, notification.App, notification.Version, notification)
-}
-
-// NotifyClose 通知应用关闭完成（由 NATS 消息处理器调用）
-func (s *AppManageService) NotifyClose(notification *CloseNotification) {
-	s.notifyCloseWaiter(notification.User, notification.App, notification.Version, notification)
-}
-
-// RegisterStartupWaiter 注册启动等待器
-func (s *AppManageService) RegisterStartupWaiter(key string) {
-	s.startupWaitersMu.Lock()
-	defer s.startupWaitersMu.Unlock()
-
-	// 如果已存在，不重复创建
-	if _, exists := s.startupWaiters[key]; !exists {
-		s.startupWaiters[key] = make(chan *StartupNotification, 1)
-	}
-}
-
-// UnregisterStartupWaiter 注销启动等待器
-func (s *AppManageService) UnregisterStartupWaiter(key string) {
-	s.startupWaitersMu.Lock()
-	defer s.startupWaitersMu.Unlock()
-
-	delete(s.startupWaiters, key)
-}
-
-// GetStartupWaiter 获取启动等待器
-func (s *AppManageService) GetStartupWaiter(key string) chan *StartupNotification {
-	s.startupWaitersMu.RLock()
-	defer s.startupWaitersMu.RUnlock()
-
-	return s.startupWaiters[key]
-}
-
-// waitForStartup 等待应用启动完成（内部方法）
-func (s *AppManageService) waitForStartup(ctx context.Context, user, app, version string, timeout time.Duration) (*StartupNotification, error) {
-	// 使用统一的等待器注册方法
-	waiterChan := s.registerStartupWaiter(user, app, version)
-	// 确保在方法结束时清理等待器
-	defer s.unregisterStartupWaiter(user, app, version)
-
-	//logger.Infof(ctx, "[waitForStartup] Waiting for: %s/%s/%s (timeout: %v)", user, app, version, timeout)
-
-	select {
-	case notification := <-waiterChan:
-		return notification, nil
-	case <-time.After(timeout):
-		return nil, fmt.Errorf("timeout waiting for startup notification")
-	case <-ctx.Done():
-		return nil, ctx.Err()
+		cleanupDone:           make(chan struct{}),
+		containerCleanupDone:  make(chan struct{}),
 	}
 }
 
@@ -811,181 +670,6 @@ func (s *AppManageService) IsAppRunning(ctx context.Context, user, app string) (
 	return s.appDiscoveryService.IsAppRunning(user, app), nil
 }
 
-// createDirIfNotExists 创建目录（如果不存在）
-func (s *AppManageService) createDirIfNotExists(dir string) error {
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		return os.MkdirAll(dir, 0755)
-	}
-	return nil
-}
-
-// createVersionFiles 创建版本文件
-func (s *AppManageService) createVersionFiles(metadataDir, user, app string) error {
-	// 创建版本数据结构
-	versionData := VersionData{
-		User:           user,
-		App:            app,
-		CurrentVersion: "v1",
-		LatestVersion:  "v1",
-		Versions: []VersionInfo{
-			{
-				Version:   "v1",
-				CreatedAt: time.Now().Format(time.RFC3339),
-				Status:    "active",
-			},
-		},
-	}
-
-	// 序列化为 JSON
-	data, err := json.MarshalIndent(versionData, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal version.json: %w", err)
-	}
-
-	// 写入文件
-	versionFile := filepath.Join(metadataDir, "version.json")
-	if err := os.WriteFile(versionFile, data, 0644); err != nil {
-		return fmt.Errorf("failed to write version.json: %w", err)
-	}
-
-	return nil
-}
-
-// VersionInfo 版本信息结构体
-type VersionInfo struct {
-	Version   string `json:"version"`
-	CreatedAt string `json:"created_at"`
-	Status    string `json:"status"`
-}
-
-// VersionData version.json 文件结构体
-type VersionData struct {
-	User           string        `json:"user"`
-	App            string        `json:"app"`
-	CurrentVersion string        `json:"current_version"`
-	LatestVersion  string        `json:"latest_version"`
-	Versions       []VersionInfo `json:"versions"`
-}
-
-// updateVersionJson 更新 version.json 文件
-func (s *AppManageService) updateVersionJson(appDir, user, app, newVersion string) error {
-	versionFile := filepath.Join(appDir, "workplace/metadata/version.json")
-
-	// 读取现有的 version.json
-	data, err := os.ReadFile(versionFile)
-	if err != nil {
-		return fmt.Errorf("failed to read version.json: %w", err)
-	}
-
-	// 解析现有数据
-	var versionData VersionData
-	if err := json.Unmarshal(data, &versionData); err != nil {
-		return fmt.Errorf("failed to parse version.json: %w", err)
-	}
-
-	// 将旧版本状态改为 inactive
-	for i := range versionData.Versions {
-		if versionData.Versions[i].Status == "active" {
-			versionData.Versions[i].Status = "inactive"
-		}
-	}
-
-	// 检查新版本是否已存在，如果存在则更新，否则添加
-	var versionExists bool
-	for i := range versionData.Versions {
-		if versionData.Versions[i].Version == newVersion {
-			// 更新现有版本
-			versionData.Versions[i].Status = "active"
-			versionData.Versions[i].CreatedAt = time.Now().Format(time.RFC3339)
-			versionExists = true
-			break
-		}
-	}
-
-	// 如果版本不存在，则添加新版本
-	if !versionExists {
-		newVersionInfo := VersionInfo{
-			Version:   newVersion,
-			CreatedAt: time.Now().Format(time.RFC3339),
-			Status:    "active",
-		}
-		versionData.Versions = append(versionData.Versions, newVersionInfo)
-	}
-
-	// 更新版本信息
-	versionData.CurrentVersion = newVersion
-	versionData.LatestVersion = newVersion
-
-	// 写回文件
-	updatedData, err := json.MarshalIndent(versionData, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal version.json: %w", err)
-	}
-
-	if err := os.WriteFile(versionFile, updatedData, 0644); err != nil {
-		return fmt.Errorf("failed to write version.json: %w", err)
-	}
-
-	// 同时维护纯文本文件，用于极速启动
-	if err := s.updateCurrentVersionFiles(versionData.User, versionData.App, newVersion); err != nil {
-		logger.Warnf(context.Background(), "[updateVersionJson] Failed to update current version files: %v", err)
-		// 不返回错误，纯文本文件失败不应阻止更新
-	}
-
-	//logger.Infof(context.Background(), "[updateVersionJson] Updated version.json: current_version=%s, latest_version=%s", newVersion, newVersion)
-	return nil
-}
-
-// updateCurrentVersionFiles 更新纯文本版本文件，用于极速启动
-func (s *AppManageService) updateCurrentVersionFiles(user, app, version string) error {
-	metadataDir := filepath.Join("namespace", user, app, "workplace", "metadata")
-
-	// 确保 metadata 目录存在
-	if err := os.MkdirAll(metadataDir, 0755); err != nil {
-		return fmt.Errorf("failed to create metadata directory: %w", err)
-	}
-
-	// 更新 current_version.txt
-	versionFile := filepath.Join(metadataDir, "current_version.txt")
-	if err := os.WriteFile(versionFile, []byte(version), 0644); err != nil {
-		return fmt.Errorf("failed to write current_version.txt: %w", err)
-	}
-
-	// 更新 current_app.txt
-	appFile := filepath.Join(metadataDir, "current_app.txt")
-	appName := fmt.Sprintf("%s_%s", user, app)
-	if err := os.WriteFile(appFile, []byte(appName), 0644); err != nil {
-		return fmt.Errorf("failed to write current_app.txt: %w", err)
-	}
-
-	//logger.Infof(context.Background(), "[updateCurrentVersionFiles] Updated current_version.txt=%s, current_app.txt=%s", version, appName)
-	return nil
-}
-
-// createMainGoFile 创建 main.go 文件（已存在则复用，不覆盖）
-func (s *AppManageService) createMainGoFile(mainGoPath, user, app string) error {
-	if _, err := os.Stat(mainGoPath); err == nil {
-		logger.Infof(context.Background(), "[createMainGoFile] main.go already exists, skip: %s", mainGoPath)
-		return nil
-	}
-
-	content := []byte(`package main
-
-import (
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
-)
-
-func main() {
-	err := app.Run()
-	if err != nil {
-		panic(err)
-	}
-}
-`)
-
-	return os.WriteFile(mainGoPath, content, 0644)
-}
-
 // createVersionContainer 创建版本容器
 // 这是新架构的核心方法：每个版本使用独立的容器
 func (s *AppManageService) createVersionContainer(ctx context.Context, user, app, version, appDir string) error {
@@ -1235,7 +919,7 @@ func (s *AppManageService) StartCleanupTask(ctx context.Context) {
 
 // runAllCleanups 执行一次完整清理：先进程级（按当前版本停非当前），再容器级（保留最近 3 版本并删除多余）
 func (s *AppManageService) runAllCleanups(ctx context.Context) {
-	s.performCleanup(ctx)       // 进程级：按 current_version 停掉非当前且无流量的版本
+	s.performCleanup(ctx)        // 进程级：按 current_version 停掉非当前且无流量的版本
 	s.containerLevelCleanup(ctx) // 容器级：每应用保留最近 3 版本，其余 stop+remove
 }
 

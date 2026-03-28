@@ -137,7 +137,7 @@ const userOptions = ref<UserInfo[]>([])
 const loading = ref(false)
 
 // 防抖定时器
-let searchDebounceTimer: NodeJS.Timeout | null = null
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
 // 用户搜索
 const handleUserSearch = async (query: string) => {

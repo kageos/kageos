@@ -13,8 +13,8 @@ type LLMConfig struct {
 	Model      string `gorm:"type:varchar(128);not null" json:"model"`         // gpt-4, claude-3, etc.
 	APIKey     string `gorm:"type:varchar(512)" json:"api_key"`                // 加密存储
 	APIBase    string `gorm:"type:varchar(512)" json:"api_base"`
-	Timeout    int    `gorm:"default:120" json:"timeout"`     // 超时时间（秒）
-	MaxTokens  int    `gorm:"default:4000" json:"max_tokens"` // 最大 token 数
+	Timeout    int    `gorm:"default:300" json:"timeout"`     // 超时时间（秒）
+	MaxTokens  int    `gorm:"default:8196" json:"max_tokens"` // 最大 token 数
 	ExtraConfig *string `gorm:"type:json" json:"extra_config"`  // JSON 额外配置
 	UseThinking bool   `gorm:"default:false;comment:是否使用思考模式" json:"use_thinking"` // 是否使用思考模式（GLM特有功能）
 	IsDefault  bool   `gorm:"default:false;index" json:"is_default"`
@@ -38,4 +38,3 @@ func (llm *LLMConfig) AfterCreate(tx *gorm.DB) error {
 	}
 	return nil
 }
-

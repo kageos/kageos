@@ -17,8 +17,6 @@ export interface WidgetComponentProps {
   searchType?: string
   rowData?: any
   rowIndex?: number
-  functionName?: string
-  recordId?: string | number
   parentMode?: WidgetTypes.WidgetMode
 }
 

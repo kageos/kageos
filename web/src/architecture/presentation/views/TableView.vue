@@ -87,22 +87,6 @@
     <!-- 工具栏 -->
     <div class="toolbar" v-if="hasAddCallback || hasDeleteCallback">
       <div class="toolbar-left">
-        <!-- 导入按钮：需要 table:write 权限 -->
-        <el-button 
-          v-if="hasAddCallback"
-          :type="canCreate ? 'default' : 'default'"
-          :plain="!canCreate"
-          @click="canCreate ? handleImport() : handleApplyPermissionForAction(FunctionPermission.write)"
-          :icon="Upload"
-          class="action-btn"
-          :class="{ 'action-btn-no-permission': !canCreate }"
-        >
-          <template v-if="!canCreate">
-            <el-icon><Lock /></el-icon>
-            导入（需{{ getPermissionShortName(FunctionPermission.write) }}）
-          </template>
-          <template v-else>导入</template>
-        </el-button>
         <!-- 新增按钮：需要 table:write 权限，无权限时可点击跳转申请 -->
         <el-button 
           v-if="hasAddCallback" 
@@ -401,140 +385,14 @@
       @close="handleCreateDialogClose"
     />
 
-    <!-- 导入对话框 -->
-    <el-dialog
-      v-model="importDialogVisible"
-      title="批量导入"
-      width="80%"
-      :close-on-click-modal="false"
-      destroy-on-close
-    >
-      <template #default>
-        <div class="import-dialog-content">
-          <!-- 步骤1: 选择文件 -->
-          <div v-if="!importFile" class="import-step">
-            <h3>步骤 1: 选择 Excel 文件</h3>
-            <el-upload
-              :auto-upload="false"
-              :on-change="handleFileSelect"
-              :show-file-list="false"
-              accept=".xlsx,.xls"
-            >
-              <el-button type="primary">
-                <el-icon><Upload /></el-icon>
-                选择文件
-              </el-button>
-            </el-upload>
-            <div style="margin-top: 16px;">
-              <el-button
-                type="text"
-                @click="handleDownloadTemplate"
-                :loading="downloadingTemplate"
-              >
-                <el-icon><Download /></el-icon>
-                下载导入模板
-              </el-button>
-            </div>
-          </div>
-          
-          <!-- 步骤2: 预览数据 -->
-          <div v-else class="import-step">
-            <h3>步骤 2: 预览数据</h3>
-            <div class="import-info">
-              <p>文件: {{ importFile.name }}</p>
-              <p>共解析 {{ importData.length }} 条数据</p>
-              <p v-if="importErrors.length > 0" style="color: #f56c6c;">
-                发现 {{ importErrors.length }} 个错误
-              </p>
-            </div>
-            
-            <!-- 错误列表 -->
-            <el-alert
-              v-if="importErrors.length > 0"
-              type="error"
-              :closable="false"
-              style="margin-bottom: 16px;"
-            >
-              <template #title>
-                <div>
-                  <p>数据验证失败，请修正以下错误：</p>
-                  <ul style="margin: 8px 0 0 20px;">
-                    <li v-for="error in importErrors" :key="`${error.index}-${error.field}`">
-                      第 {{ error.index + 1 }} 行，字段 "{{ error.field }}": {{ error.error }}
-                    </li>
-                  </ul>
-                </div>
-              </template>
-            </el-alert>
-            
-            <!-- 数据预览表格 -->
-            <el-table
-              :data="importData"
-              max-height="400"
-              border
-              stripe
-            >
-              <el-table-column type="index" label="行号" width="60" />
-              <el-table-column
-                v-for="(field, fieldIndex) in editableFields"
-                :key="field?.code || `field-${fieldIndex}`"
-                :prop="field?.code"
-                :label="field?.name || '未知字段'"
-                :min-width="120"
-              >
-                <template #default="{ row, $index }">
-                  <span
-                    :class="{
-                      'error-cell': importErrors.some(e => e.index === $index && e.field === field?.name)
-                    }"
-                  >
-                    <template v-if="field?.code">
-                      <!-- 时间戳字段：转换为可读格式 -->
-                      <template v-if="(field.code === 'created_at' || field.code === 'updated_at') && field.widget?.type === 'timestamp'">
-                        {{ row[field.code] ? new Date(row[field.code]).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '' }}
-                      </template>
-                      <!-- 其他字段：直接显示 -->
-                      <template v-else>
-                        {{ row[field.code] ?? '' }}
-                      </template>
-                    </template>
-                  </span>
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </div>
-      </template>
-      
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="importDialogVisible = false">取消</el-button>
-          <el-button
-            v-if="importFile"
-            @click="handleReSelectFile"
-          >
-            重新选择
-          </el-button>
-          <el-button
-            v-if="importFile && importErrors.length === 0"
-            type="primary"
-            @click="handleSubmitImport"
-            :loading="importing"
-          >
-            确认导入
-          </el-button>
-        </div>
-      </template>
-    </el-dialog>
-
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, ElIcon, ElTable, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElText, ElCard, ElUpload, ElAlert, ElSkeleton } from 'element-plus'
-import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right, Lock, Document, Key, Edit, Upload, Download } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, ElIcon, ElTable, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElText, ElCard, ElSkeleton } from 'element-plus'
+import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right, Lock, Document, Key, Edit } from '@element-plus/icons-vue'
 import { eventBus, TableEvent, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import { RouteSource } from '@/utils/routeSource'
 import { serviceFactory } from '../../infrastructure/factories'
@@ -553,7 +411,6 @@ import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from '@/utils/urlParams'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { useDepartmentInfoStore } from '@/stores/departmentInfo'
-import { useAuthStore } from '@/stores/auth'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import type { TableRow, SearchParams, SortParams, SortItem } from '../../domain/services/TableDomainService'
@@ -561,8 +418,6 @@ import type { UserInfo } from '@/types'
 import { hasPermission, TablePermission, FunctionPermission, buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
-import { parseExcelFile } from '@/utils/excelImport'
-import { post } from '@/utils/request'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 
 const props = defineProps<{
@@ -571,8 +426,6 @@ const props = defineProps<{
 
 const route = useRoute()
 const router = useRouter()
-const authStore = useAuthStore()
-
 // 依赖注入（使用 IServiceProvider 接口，遵循依赖倒置原则）
 const serviceProvider: IServiceProvider = serviceFactory
 const stateManager = serviceProvider.getTableStateManager()
@@ -1796,212 +1649,6 @@ const handleCreateSubmit = async (data: Record<string, any>): Promise<void> => {
   }
 }
 
-// 导入相关状态
-const importDialogVisible = ref(false)
-const importFile = ref<File | null>(null)
-const importData = ref<any[]>([])
-const importErrors = ref<Array<{ index: number; field: string; error: string }>>([])
-const importing = ref(false)
-const downloadingTemplate = ref(false)
-
-// 获取可编辑字段（用于导入）
-const editableFields = computed(() => {
-  return (props.functionDetail.response || []).filter((field: FieldConfig) => {
-    // 过滤掉 null 或 undefined 的字段
-    if (!field) {
-      return false
-    }
-    // 排除 ID 字段
-    if (field.widget?.type === 'id') {
-      return false
-    }
-    
-    // 检查是否是系统字段
-    const isSystemField = field.code === 'created_at' || field.code === 'create_by' ||
-                          field.code === 'updated_at' || field.code === 'updated_by'
-    
-    // 系统字段：即使 table_permission 是 'read'，也要包含（用于导入）
-    if (isSystemField) {
-      return true
-    }
-    
-    // 非系统字段：只包含可编辑字段（table_permission 为空或 update）
-    const tablePermission = (field as any).table_permission
-    return !tablePermission || tablePermission === 'update'
-  })
-})
-
-// 处理导入
-function handleImport(): void {
-  importDialogVisible.value = true
-  importFile.value = null
-  importData.value = []
-  importErrors.value = []
-}
-
-// 下载模板
-async function handleDownloadTemplate(): Promise<void> {
-  if (!props.functionDetail.router) {
-    ElMessage.error('无法获取函数路由，无法下载模板')
-    return
-  }
-  
-  downloadingTemplate.value = true
-  try {
-    const { download } = await import('@/utils/request')
-    const fullCodePath = props.functionDetail.router.startsWith('/') ? props.functionDetail.router : `/${props.functionDetail.router}`
-    await download(`/workspace/api/v1/table/template${fullCodePath}`)
-    ElMessage.success('模板下载成功')
-  } catch (error: any) {
-    ElMessage.error(`下载模板失败: ${error.message || '未知错误'}`)
-  } finally {
-    downloadingTemplate.value = false
-  }
-}
-
-// 选择文件
-function handleFileSelect(file: any): void {
-  const rawFile = file.raw
-  if (!rawFile) return
-  
-  importFile.value = rawFile
-  
-  // 解析 Excel
-  handleParseExcelFile(rawFile)
-}
-
-// 解析 Excel 文件
-async function handleParseExcelFile(file: File): Promise<void> {
-  try {
-    const result = await parseExcelFile(file, editableFields.value)
-    
-    // 获取当前用户名，用于设置系统字段默认值
-    const currentUsername = authStore.userName || ''
-    const currentTimestamp = Date.now()
-    
-    // 为系统字段设置默认值（如果表格中没有值）
-    const processedData = result.data.map((row: any) => {
-      const processedRow = { ...row }
-      
-      // 处理创建时间：如果为空或无效，使用当前时间（毫秒时间戳）
-      if (!processedRow.created_at || processedRow.created_at === null || processedRow.created_at === '') {
-        processedRow.created_at = currentTimestamp
-      }
-      
-      // 处理创建用户：如果为空或 Me()，使用当前用户名
-      if (!processedRow.create_by || processedRow.create_by === 'Me()' || processedRow.create_by === null || processedRow.create_by === '') {
-        processedRow.create_by = currentUsername
-      }
-      
-      // 处理更新时间：如果为空或无效，使用当前时间（毫秒时间戳）
-      if (!processedRow.updated_at || processedRow.updated_at === null || processedRow.updated_at === '') {
-        processedRow.updated_at = currentTimestamp
-      }
-      
-      // 处理更新用户：如果为空或 Me()，使用当前用户名
-      if (!processedRow.updated_by || processedRow.updated_by === 'Me()' || processedRow.updated_by === null || processedRow.updated_by === '') {
-        processedRow.updated_by = currentUsername
-      }
-      
-      return processedRow
-    })
-    
-    importData.value = processedData
-    importErrors.value = result.errors
-    
-    if (result.errors.length > 0) {
-      ElMessage.warning(`解析完成，发现 ${result.errors.length} 个错误，请修正后重新导入`)
-    } else {
-      ElMessage.success(`解析完成，共 ${processedData.length} 条有效数据`)
-    }
-  } catch (error: any) {
-    ElMessage.error(`解析 Excel 文件失败: ${error.message || '未知错误'}`)
-  }
-}
-
-// 重新选择文件
-function handleReSelectFile(): void {
-  importFile.value = null
-  importData.value = []
-  importErrors.value = []
-}
-
-// 提交导入
-async function handleSubmitImport(): Promise<void> {
-  if (importData.value.length === 0) {
-    ElMessage.warning('没有可导入的数据')
-    return
-  }
-  
-  if (!props.functionDetail.router) {
-    ElMessage.error('无法获取函数路由，无法导入数据')
-    return
-  }
-  
-  importing.value = true
-  try {
-    const currentUsername = authStore.userName || ''
-    
-    // 在提交前处理系统字段，确保所有数据都是真实值
-    const processedData = importData.value.map((row: any) => {
-      const processedRow = { ...row }
-      
-      // 处理创建时间：如果为空或无效，使用当前时间（毫秒时间戳）
-      if (!processedRow.created_at || processedRow.created_at === null || processedRow.created_at === '') {
-        processedRow.created_at = Date.now()
-      }
-      
-      // 处理创建用户：如果为空或 me()/$me，使用当前用户名（兼容旧格式）
-      if (!processedRow.create_by || processedRow.create_by === 'me()' || processedRow.create_by === '$me' || processedRow.create_by === null || processedRow.create_by === '') {
-        processedRow.create_by = currentUsername
-      }
-      
-      // 处理更新时间：如果为空或无效，使用当前时间（毫秒时间戳）
-      if (!processedRow.updated_at || processedRow.updated_at === null || processedRow.updated_at === '') {
-        processedRow.updated_at = Date.now()
-      }
-      
-      // 处理更新用户：如果为空或 me()/$me，使用当前用户名（兼容旧格式）
-      if (!processedRow.updated_by || processedRow.updated_by === 'me()' || processedRow.updated_by === '$me' || processedRow.updated_by === null || processedRow.updated_by === '') {
-        processedRow.updated_by = currentUsername
-      }
-      
-      return processedRow
-    })
-    
-    const fullCodePath = props.functionDetail.router.startsWith('/') ? props.functionDetail.router : `/${props.functionDetail.router}`
-    const result = await post(`/workspace/api/v1/table/batch-create${fullCodePath}`, {
-      data: processedData
-    })
-    
-    // 响应拦截器已经处理了 code，成功时直接返回 data
-    // result 就是 OnTableCreateInBatchesResp 的数据
-    const successCount = result?.success_count || 0
-    const failCount = result?.fail_count || 0
-    
-    if (failCount > 0) {
-      ElMessage.warning(`导入完成：成功 ${successCount} 条，失败 ${failCount} 条`)
-      // 显示失败详情
-      if (result?.errors && result.errors.length > 0) {
-        const errorMsg = result.errors.map((e: any) => `第 ${e.index + 1} 行: ${e.error || e}`).join('\n')
-        ElMessage.error(`失败详情:\n${errorMsg}`)
-      }
-    } else {
-      ElMessage.success(`成功导入 ${successCount} 条数据`)
-    }
-    
-    // 关闭对话框
-    importDialogVisible.value = false
-    
-    // 刷新表格数据
-    await applicationService.loadData(props.functionDetail)
-  } catch (error: any) {
-    ElMessage.error(`导入失败: ${error.message || '未知错误'}`)
-  } finally {
-    importing.value = false
-  }
-}
-
 // 关闭新增对话框时清理 URL 中的 _tab 参数
 const handleCreateDialogClose = (): void => {
   const query = { ...route.query }
@@ -2676,40 +2323,4 @@ onUnmounted(() => {
   }
 }
 
-.import-dialog-content {
-  padding: 16px 0;
-}
-
-.import-step {
-  margin-bottom: 24px;
-}
-
-.import-step h3 {
-  margin-bottom: 16px;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.import-info {
-  margin-bottom: 16px;
-  padding: 12px;
-  background: #f5f7fa;
-  border-radius: 4px;
-}
-
-.import-info p {
-  margin: 4px 0;
-  font-size: 14px;
-}
-
-.error-cell {
-  color: #f56c6c;
-  font-weight: 500;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
 </style>

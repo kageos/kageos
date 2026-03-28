@@ -7,6 +7,8 @@ export interface LLMInfo {
   name: string
   provider: string
   model: string
+  api_key?: string
+  has_api_key: boolean
   api_base: string
   timeout: number
   max_tokens: number
@@ -37,15 +39,43 @@ export interface LLMGetReq {
 }
 
 export interface LLMGetResp {
-  code: number
-  data: LLMInfo
-  msg: string
+  id: number
+  name: string
+  provider: string
+  model: string
+  api_key?: string
+  has_api_key: boolean
+  api_base: string
+  timeout: number
+  max_tokens: number
+  extra_config: string
+  use_thinking: boolean
+  is_default: boolean
+  visibility: number
+  admin: string
+  is_admin: boolean
+  created_at: string
+  updated_at: string
 }
 
 export interface LLMGetDefaultResp {
-  code: number
-  data: LLMInfo
-  msg: string
+  id: number
+  name: string
+  provider: string
+  model: string
+  api_key?: string
+  has_api_key: boolean
+  api_base: string
+  timeout: number
+  max_tokens: number
+  extra_config: string
+  use_thinking: boolean
+  is_default: boolean
+  visibility: number
+  admin: string
+  is_admin: boolean
+  created_at: string
+  updated_at: string
 }
 
 export interface LLMCreateReq {
@@ -64,11 +94,7 @@ export interface LLMCreateReq {
 }
 
 export interface LLMCreateResp {
-  code: number
-  data: {
-    id: number
-  }
-  msg: string
+  id: number
 }
 
 export interface LLMUpdateReq {
@@ -88,11 +114,7 @@ export interface LLMUpdateReq {
 }
 
 export interface LLMUpdateResp {
-  code: number
-  data: {
-    id: number
-  }
-  msg: string
+  id: number
 }
 
 export interface LLMDeleteReq {
@@ -151,4 +173,3 @@ export function deleteLLM(params: LLMDeleteReq) {
 export function setDefaultLLM(params: LLMSetDefaultReq) {
   return post('/agent/api/v1/llm/set_default', params)
 }
-

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -15,7 +14,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
 )
 
 func getServiceTreeByAppModelImpl(s *ServiceTreeService, ctx context.Context, appModel *model.App, nodeType string) ([]*dto.GetServiceTreeResp, error) {
@@ -48,16 +46,9 @@ func getServiceTreeByAppModelImpl(s *ServiceTreeService, ctx context.Context, ap
 	username := contextx.GetRequestUser(ctx)
 
 	if licenseMgr.HasFeature(enterprise.FeaturePermission) && username != "" && appModel.ID > 0 && s.permissionService != nil {
-		if username != "" && appModel.Admins != "" {
-			adminList := strings.Split(appModel.Admins, ",")
-			for _, admin := range adminList {
-				admin = strings.TrimSpace(admin)
-				if admin == username {
-					isAdmin = true
-					logger.Debugf(ctx, "[ServiceTreeService] 用户 %s 是工作空间管理员，设置 isAdmin=true", username)
-					break
-				}
-			}
+		if isWorkspaceAdmin(username, appModel.Admins) {
+			isAdmin = true
+			logger.Debugf(ctx, "[ServiceTreeService] 用户 %s 是工作空间管理员，设置 isAdmin=true", username)
 		}
 
 		permsMap, err := s.calculatePermissions(ctx, appModel.User, appModel.Code, trees, appModel.Admins, username)
@@ -163,95 +154,19 @@ func getServiceTreeDetailImpl(s *ServiceTreeService, ctx context.Context, req *d
 	username := contextx.GetRequestUser(ctx)
 
 	if licenseMgr.HasFeature(enterprise.FeaturePermission) && username != "" && tree.FullCodePath != "" && s.permissionService != nil {
-		_, workspaceUser, workspaceApp := permission.ParseFullCodePath(tree.FullCodePath)
-		if workspaceUser == "" || workspaceApp == "" {
-			logger.Warnf(ctx, "[ServiceTreeService] 无法从 FullCodePath 解析 user 和 app: fullCodePath=%s", tree.FullCodePath)
+		permCtx, err := s.loadWorkspacePermissionContext(ctx, tree.FullCodePath)
+		if err != nil {
+			logger.Warnf(ctx, "[ServiceTreeService] 查询权限失败: fullCodePath=%s, error=%v，继续返回详情（无权限信息）", tree.FullCodePath, err)
 			resp.Permissions = make(map[string]bool)
 		} else {
-			permReq := &dto.GetWorkspacePermissionsReq{
-				User: workspaceUser,
-				App:  workspaceApp,
+			var nodeTypeStr string
+			if tree.Type == model.ServiceTreeTypePackage {
+				nodeTypeStr = "package"
+			} else if tree.Type == model.ServiceTreeTypeFunction {
+				nodeTypeStr = "function"
 			}
-			permResp, err := s.permissionService.GetWorkspacePermissions(ctx, permReq)
-			if err != nil {
-				logger.Warnf(ctx, "[ServiceTreeService] 查询权限失败: user=%s, app=%s, error=%v，继续返回详情（无权限信息）", workspaceUser, workspaceApp, err)
-				resp.Permissions = make(map[string]bool)
-			} else if permResp != nil {
-				rawPermissions := make(map[string]map[string]bool)
-				for _, record := range permResp.Records {
-					resourcePath := record.Resource
-					action := record.Action
 
-					if rawPermissions[resourcePath] == nil {
-						rawPermissions[resourcePath] = make(map[string]bool)
-					}
-					rawPermissions[resourcePath][action] = true
-				}
-
-				var nodeTypeStr string
-				if tree.Type == model.ServiceTreeTypePackage {
-					nodeTypeStr = "package"
-				} else if tree.Type == model.ServiceTreeTypeFunction {
-					nodeTypeStr = "function"
-				}
-
-				actions := permission.GetActionsForNode(nodeTypeStr, tree.TemplateType)
-				nodePerms := make(map[string]bool)
-
-				if len(actions) > 0 {
-					if rawPerms, ok := rawPermissions[tree.FullCodePath]; ok {
-						for _, actionCode := range actions {
-							nodePerms[actionCode] = rawPerms[actionCode]
-						}
-					} else {
-						for _, actionCode := range actions {
-							nodePerms[actionCode] = false
-						}
-					}
-
-					parentPaths := permission.GetParentPaths(tree.FullCodePath)
-					for _, parentPath := range parentPaths {
-						if parentPerms, ok := rawPermissions[parentPath]; ok {
-							s.applyPermissionInheritance(nodeTypeStr, tree.TemplateType, parentPerms, nodePerms)
-						}
-					}
-
-					appModel, err := s.appRepo.GetAppByUserName(workspaceUser, workspaceApp)
-					if err == nil && appModel != nil && appModel.Admins != "" && username != "" {
-						adminList := strings.Split(appModel.Admins, ",")
-						for _, admin := range adminList {
-							admin = strings.TrimSpace(admin)
-							if admin == username {
-								logger.Debugf(ctx, "[ServiceTreeService] 用户 %s 是工作空间管理员，直接返回所有权限", username)
-								for _, actionCode := range actions {
-									nodePerms[actionCode] = true
-								}
-								appAdminCode := permission.BuildActionCode(permission.ResourceTypeApp, "admin")
-								nodePerms[appAdminCode] = true
-								resp.Permissions = nodePerms
-								return resp, nil
-							}
-						}
-					}
-
-					appPath := permission.GetAppPath(tree.FullCodePath)
-					if appPath != "" {
-						if appPerms, ok := rawPermissions[appPath]; ok {
-							appAdminCode := permission.BuildActionCode(permission.ResourceTypeApp, "admin")
-							if appPerms[appAdminCode] {
-								for _, actionCode := range actions {
-									nodePerms[actionCode] = true
-								}
-								nodePerms[appAdminCode] = true
-							}
-						}
-					}
-				}
-
-				resp.Permissions = nodePerms
-			} else {
-				resp.Permissions = make(map[string]bool)
-			}
+			resp.Permissions = s.buildQueryNodePermissions(nodeTypeStr, tree.TemplateType, tree.FullCodePath, permCtx, username)
 		}
 	} else {
 		resp.Permissions = make(map[string]bool)
@@ -294,86 +209,12 @@ func getPackageInfoImpl(s *ServiceTreeService, ctx context.Context, req *dto.Get
 	username := contextx.GetRequestUser(ctx)
 
 	if licenseMgr.HasFeature(enterprise.FeaturePermission) && username != "" && tree.FullCodePath != "" && s.permissionService != nil {
-		_, workspaceUser, workspaceApp := permission.ParseFullCodePath(tree.FullCodePath)
-		if workspaceUser == "" || workspaceApp == "" {
-			logger.Warnf(ctx, "[ServiceTreeService] 无法从 FullCodePath 解析 user 和 app: fullCodePath=%s", tree.FullCodePath)
+		permCtx, err := s.loadWorkspacePermissionContext(ctx, tree.FullCodePath)
+		if err != nil {
+			logger.Warnf(ctx, "[ServiceTreeService] 查询权限失败: fullCodePath=%s, error=%v，继续返回目录信息（无权限信息）", tree.FullCodePath, err)
 			resp.Permissions = make(map[string]bool)
 		} else {
-			permReq := &dto.GetWorkspacePermissionsReq{
-				User: workspaceUser,
-				App:  workspaceApp,
-			}
-			permResp, err := s.permissionService.GetWorkspacePermissions(ctx, permReq)
-			if err != nil {
-				logger.Warnf(ctx, "[ServiceTreeService] 查询权限失败: user=%s, app=%s, error=%v，继续返回目录信息（无权限信息）", workspaceUser, workspaceApp, err)
-				resp.Permissions = make(map[string]bool)
-			} else if permResp != nil {
-				rawPermissions := make(map[string]map[string]bool)
-				for _, record := range permResp.Records {
-					resourcePath := record.Resource
-					action := record.Action
-
-					if rawPermissions[resourcePath] == nil {
-						rawPermissions[resourcePath] = make(map[string]bool)
-					}
-					rawPermissions[resourcePath][action] = true
-				}
-
-				actions := permission.GetActionsForNode("package", "")
-				nodePerms := make(map[string]bool)
-
-				if rawPerms, ok := rawPermissions[tree.FullCodePath]; ok {
-					for _, action := range actions {
-						nodePerms[action] = rawPerms[action]
-					}
-				} else {
-					for _, action := range actions {
-						nodePerms[action] = false
-					}
-				}
-
-				parentPaths := permission.GetParentPaths(tree.FullCodePath)
-				for _, parentPath := range parentPaths {
-					if parentPerms, ok := rawPermissions[parentPath]; ok {
-						s.applyPermissionInheritance("package", "", parentPerms, nodePerms)
-					}
-				}
-
-				appModel, err := s.appRepo.GetAppByUserName(workspaceUser, workspaceApp)
-				if err == nil && appModel != nil && appModel.Admins != "" && username != "" {
-					adminList := strings.Split(appModel.Admins, ",")
-					for _, admin := range adminList {
-						admin = strings.TrimSpace(admin)
-						if admin == username {
-							logger.Debugf(ctx, "[ServiceTreeService] 用户 %s 是工作空间管理员，直接返回所有权限", username)
-							for _, actionCode := range actions {
-								nodePerms[actionCode] = true
-							}
-							appAdminCode := permission.BuildActionCode(permission.ResourceTypeApp, "admin")
-							nodePerms[appAdminCode] = true
-							resp.Permissions = nodePerms
-							return resp, nil
-						}
-					}
-				}
-
-				appPath := permission.GetAppPath(tree.FullCodePath)
-				if appPath != "" {
-					if appPerms, ok := rawPermissions[appPath]; ok {
-						appAdminCode := permission.BuildActionCode(permission.ResourceTypeApp, "admin")
-						if appPerms[appAdminCode] {
-							for _, actionCode := range actions {
-								nodePerms[actionCode] = true
-							}
-							nodePerms[appAdminCode] = true
-						}
-					}
-				}
-
-				resp.Permissions = nodePerms
-			} else {
-				resp.Permissions = make(map[string]bool)
-			}
+			resp.Permissions = s.buildQueryNodePermissions("package", "", tree.FullCodePath, permCtx, username)
 		}
 	} else {
 		resp.Permissions = make(map[string]bool)

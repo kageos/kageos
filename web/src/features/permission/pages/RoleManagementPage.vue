@@ -218,20 +218,16 @@
                 </el-checkbox>
               </div>
               <div class="permissions-list">
-                <el-checkbox-group
-                  v-model="roleForm.permissions[resourceType]"
-                  @change="handlePermissionChange(resourceType)"
-                  class="permissions-checkbox-group"
-                >
+                <div class="permissions-checkbox-group">
                   <el-checkbox
                     v-for="action in getAvailableActions(resourceType)"
                     :key="action.value"
-                    :label="action.value"
-                    :value="action.value"
+                    :model-value="isPermissionSelected(resourceType, action.value)"
+                    @change="togglePermission(resourceType, action.value, $event)"
                   >
                     {{ action.label }}
                   </el-checkbox>
-                </el-checkbox-group>
+                </div>
               </div>
             </div>
           </div>
@@ -704,6 +700,29 @@ function handleSelectAll(resourceType: string, checked: boolean) {
 function handlePermissionChange(resourceType: string) {
   // 触发表单验证
   roleFormRef.value?.validateField('permissions')
+}
+
+function isPermissionSelected(resourceType: string, actionValue: string): boolean {
+  return (roleForm.permissions[resourceType] || []).includes(actionValue)
+}
+
+function togglePermission(resourceType: string, actionValue: string, checked: boolean | string | number) {
+  if (!roleForm.permissions[resourceType]) {
+    roleForm.permissions[resourceType] = []
+  }
+
+  const isChecked = checked === true
+  const selected = roleForm.permissions[resourceType]
+
+  if (isChecked) {
+    if (!selected.includes(actionValue)) {
+      selected.push(actionValue)
+    }
+  } else {
+    roleForm.permissions[resourceType] = selected.filter(value => value !== actionValue)
+  }
+
+  handlePermissionChange(resourceType)
 }
 
 /**
