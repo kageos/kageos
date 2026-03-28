@@ -89,7 +89,7 @@
  */
 
 import { widgetPluginRegistry, type WidgetPlugin } from './WidgetPlugin'
-import { widgetComponentFactory } from '../widgetRegistry/WidgetComponentFactory'
+import { widgetComponentFactory } from '../widgetRegistry'
 import { fieldExtractorRegistry } from '@/core/stores-v2/extractors/FieldExtractorRegistry'
 import { widgetInitializerRegistry } from '@/architecture/presentation/widgets/initializers/WidgetInitializerRegistry'
 import { Logger } from '@/core/utils/logger'
@@ -202,4 +202,3 @@ export function getWidgetPlugin(widgetType: string): WidgetPlugin | undefined {
 export function getRegisteredPluginTypes(): string[] {
   return widgetPluginRegistry.getRegisteredTypes()
 }
-

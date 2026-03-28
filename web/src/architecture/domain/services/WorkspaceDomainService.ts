@@ -35,7 +35,6 @@ export interface WorkspaceState {
   currentFunction: ServiceTree | null
   currentDirectory: ServiceTree | null // 当前目录
   serviceTree: ServiceTree[]
-  functionDetails: Map<string, FunctionDetail> // 🔥 保留字段以兼容接口，但不再使用（移除缓存机制）
   loading: boolean // 加载状态
 }
 
@@ -96,27 +95,6 @@ export class WorkspaceDomainService {
       // 但 currentFunction 已经设置，详情页面可以显示权限错误
       throw error
     }
-  }
-
-  /**
-   * 设置当前函数（加载函数详情并更新状态）
-   * 🔥 简化：不再使用 Tab，直接设置当前函数
-   */
-  setCurrentFunctionWithDetail(node: ServiceTree, detail?: FunctionDetail): void {
-    const state = this.stateManager.getState()
-    
-    // 更新函数详情缓存
-    const key = node.ref_id ? `id:${node.ref_id}` : `path:${node.full_code_path}`
-    const newFunctionDetails = new Map(state.functionDetails)
-    if (detail) {
-      newFunctionDetails.set(key, detail)
-    }
-
-    this.stateManager.setState({
-      ...state,
-      currentFunction: node,
-      functionDetails: newFunctionDetails
-    })
   }
 
   /**
@@ -338,15 +316,6 @@ export class WorkspaceDomainService {
   }
 
   /**
-   * 获取函数详情（从缓存）
-   */
-  getFunctionDetail(node: ServiceTree): FunctionDetail | null {
-    const state = this.stateManager.getState()
-    const key = node.ref_id ? `id:${node.ref_id}` : `path:${node.full_code_path}`
-    return state.functionDetails.get(key) || null
-  }
-
-  /**
    * 检查是否正在加载
    */
   isLoading(): boolean {
@@ -361,4 +330,3 @@ export class WorkspaceDomainService {
   }
 
 }
-

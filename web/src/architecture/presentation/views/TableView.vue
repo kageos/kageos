@@ -394,7 +394,7 @@
       title="新增"
       :fields="props.functionDetail.response || []"
       mode="create"
-      :router="props.functionDetail.router"
+      :router="props.functionDetail.router ?? ''"
       :method="props.functionDetail.method || 'POST'"
       :initial-data="createFormInitialData"
       @submit="handleCreateSubmit"
@@ -539,8 +539,8 @@ import { eventBus, TableEvent, WorkspaceEvent, RouteEvent } from '../../infrastr
 import { RouteSource } from '@/utils/routeSource'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../../presentation/widgets/WidgetComponent.vue'
-import SearchInput from '@/components/SearchInput.vue'
-import FormDialog from '@/components/FormDialog.vue'
+import SearchInput from '@/architecture/presentation/components/SearchInput.vue'
+import FormDialog from '@/architecture/presentation/components/FormDialog.vue'
 import { getSortableConfig } from '@/utils/fieldSort'
 import { buildURLSearchParams } from '@/utils/searchParams'
 import { WidgetType } from '@/core/constants/widget'
@@ -554,10 +554,11 @@ import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { useDepartmentInfoStore } from '@/stores/departmentInfo'
 import { useAuthStore } from '@/stores/auth'
+import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import type { TableRow, SearchParams, SortParams, SortItem } from '../../domain/services/TableDomainService'
 import type { UserInfo } from '@/types'
-import { hasPermission, TablePermissions, FunctionPermission, buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
+import { hasPermission, TablePermission, FunctionPermission, buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 import { parseExcelFile } from '@/utils/excelImport'
@@ -580,9 +581,9 @@ const applicationService = serviceProvider.getTableApplicationService()
 const workspaceStateManager = serviceProvider.getWorkspaceStateManager()  // ⭐ 用于获取当前函数节点的权限信息
 
 // 🔥 从状态管理器获取状态（统一状态管理）
-const tableData = computed(() => stateManager.getData())
-const loading = computed(() => stateManager.isLoading())
-const pagination = computed(() => stateManager.getPagination())
+const tableData = computed(() => stateManager.getState().data)
+const loading = computed(() => stateManager.getState().loading)
+const pagination = computed(() => stateManager.getState().pagination)
 const searchForm = computed({
   get: () => stateManager.getState().searchForm,
   set: (value) => {
@@ -744,7 +745,7 @@ const handleBatchDelete = async (): Promise<void> => {
     return
   }
   
-  if (!hasPermission(node, TablePermissions.delete)) {
+  if (!hasPermission(node, TablePermission.delete)) {
     ElNotification.warning({
       title: '权限不足',
       message: '您没有删除该表格记录的权限',
@@ -753,7 +754,7 @@ const handleBatchDelete = async (): Promise<void> => {
     // 跳转到权限申请页面
     const applyUrl = buildPermissionApplyURL(
       node.full_code_path || '',
-      TablePermissions.delete,
+      TablePermission.delete,
       props.functionDetail?.template_type
     )
     router.push(applyUrl)
@@ -790,7 +791,12 @@ const handleBatchDelete = async (): Promise<void> => {
 
     // 调用批量删除 API
     const { tableDeleteRows } = await import('@/api/function')
-    await tableDeleteRows(props.functionDetail.method || 'GET', props.functionDetail.router, ids)
+    const functionRouter = props.functionDetail.router ?? ''
+    if (!functionRouter) {
+      ElMessage.error('函数路由缺失，无法执行批量删除')
+      return
+    }
+    await tableDeleteRows(props.functionDetail.method || 'GET', functionRouter, ids)
 
     // 显示成功提示
     ElNotification.success({
@@ -1228,7 +1234,10 @@ const handleSortChange = (sortInfo: { prop?: string; order?: string }): void => 
     // 添加或更新排序项
     const existingIndex = newSorts.findIndex((item: SortItem) => item.field === field)
     if (existingIndex >= 0) {
-      newSorts[existingIndex].order = order
+      const existingSort = newSorts[existingIndex]
+      if (existingSort) {
+        existingSort.order = order
+      }
     } else {
       newSorts.push({ field, order })
     }
@@ -1548,9 +1557,10 @@ const loadTableData = async (): Promise<void> => {
     ? currentState.sorts 
     : (currentState.hasManualSort ? [] : buildDefaultSorts())
   
-  const sortParams: SortParams | undefined = finalSorts.length > 0 ? {
-    field: finalSorts[0].field,
-    order: finalSorts[0].order
+  const firstSort = finalSorts[0]
+  const sortParams: SortParams | undefined = firstSort ? {
+    field: firstSort.field,
+    order: firstSort.order
   } : undefined
   
   // 分页参数
@@ -1756,7 +1766,7 @@ const handleCreateSubmit = async (data: Record<string, any>): Promise<void> => {
     return
   }
   
-  if (!hasPermission(node, TablePermissions.write)) {
+  if (!hasPermission(node, TablePermission.write)) {
     ElNotification.warning({
       title: '权限不足',
       message: '您没有新增该表格记录的权限',
@@ -1765,7 +1775,7 @@ const handleCreateSubmit = async (data: Record<string, any>): Promise<void> => {
     // 跳转到权限申请页面
     const applyUrl = buildPermissionApplyURL(
       node.full_code_path || '',
-      TablePermissions.write,
+      TablePermission.write,
       props.functionDetail?.template_type
     )
     router.push(applyUrl)
@@ -2028,7 +2038,7 @@ const handleDetail = (row: TableRow, initialMode: 'read' | 'edit' = 'read'): voi
   // 🔥 标记「接下来一次」表格加载跳过，避免打开详情时 URL 变化触发的 loadTableData 再次请求和骨架屏
   skipNextTableLoad.value = true
 
-  const tableData = stateManager.getData() || []
+  const tableData = stateManager.getState().data || []
   const index = tableData.findIndex((r: any) => {
     if (r.id && row.id && r.id === row.id) return true
     return JSON.stringify(r) === JSON.stringify(row)
@@ -2109,28 +2119,28 @@ const hasUpdateCallback = computed(() => {
 
 // ⭐ 权限检查：获取当前函数节点的权限信息
 const currentFunctionNode = computed(() => {
-  return workspaceStateManager.getCurrentFunction()
+  return workspaceStateManager.getState().currentFunction
 })
 
 // ⭐ 是否有新增权限
 const canCreate = computed(() => {
   const node = currentFunctionNode.value
   if (!node) return false
-  return hasPermission(node, TablePermissions.write)
+  return hasPermission(node, TablePermission.write)
 })
 
 // ⭐ 是否有更新权限
 const canUpdate = computed(() => {
   const node = currentFunctionNode.value
   if (!node) return false
-  return hasPermission(node, TablePermissions.update)
+  return hasPermission(node, TablePermission.update)
 })
 
 // ⭐ 是否有删除权限
 const canDelete = computed(() => {
   const node = currentFunctionNode.value
   if (!node) return false
-  return hasPermission(node, TablePermissions.delete)
+  return hasPermission(node, TablePermission.delete)
 })
 
 // ⭐ 权限错误状态

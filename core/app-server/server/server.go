@@ -11,17 +11,18 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/pkg/appcall"
+	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/ai-agent-os/ai-agent-os/pkg/dbx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
 	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/serverx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/waiter"
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
-	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	gormLogger "gorm.io/gorm/logger"
 )
 
 // Server app-server 服务器
@@ -36,7 +37,7 @@ type Server struct {
 
 	// 服务
 	appService                    *service.AppService
-	jwtService                    *service.JWTService
+	jwtService                    *auth.JWTService
 	appCall                       *appcall.Client // 调用 app-runtime 的 SDK 客户端（替代原 AppRuntime）
 	serviceTreeService            *service.ServiceTreeService
 	functionService               *service.FunctionService
@@ -261,52 +262,17 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing database...")
 
 	dbCfg := s.cfg.GetDB()
-
-	// 配置 GORM：迁移时不创建外键约束，避免历史脏数据（如 function.tree_id、service_tree.ref_id 孤儿引用）导致 1452
-	gormConfig := &gorm.Config{
-		DisableForeignKeyConstraintWhenMigrating: true,
-	}
-	gormConfig.Logger = gormLogger.Default.LogMode(gormLogger.Info)
-
-	var err error
-	switch dbCfg.Type {
-	case "mysql":
-		dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-			dbCfg.User, dbCfg.Password, dbCfg.Host, dbCfg.Port, dbCfg.Name)
-		s.db, err = gorm.Open(mysql.Open(dsn), gormConfig)
-		if err != nil {
-			return fmt.Errorf("failed to connect to MySQL: %w", err)
-		}
-	default:
+	if dbCfg.Type != "mysql" {
 		return fmt.Errorf("unsupported database type: %s", dbCfg.Type)
 	}
-
-	// ✅ 配置数据库连接池（解决 "Too many connections" 问题）
-	sqlDB, err := s.db.DB()
+	db, err := dbx.OpenMySQL(dbCfg, dbx.OpenOptions{
+		DisableForeignKeyConstraintWhenMigrating: true,
+		DefaultMaxLifetime:                       5 * time.Minute,
+	})
 	if err != nil {
-		return fmt.Errorf("failed to get underlying sql.DB: %w", err)
+		return fmt.Errorf("failed to connect to MySQL: %w", err)
 	}
-
-	// 从配置读取连接池参数，如果没有配置则使用默认值
-	maxOpenConns := dbCfg.MaxOpenConns
-	if maxOpenConns <= 0 {
-		maxOpenConns = 100 // 默认值
-	}
-	maxIdleConns := dbCfg.MaxIdleConns
-	if maxIdleConns <= 0 {
-		maxIdleConns = 10 // 默认值
-	}
-	maxLifetime := time.Duration(dbCfg.MaxLifetime) * time.Second
-	if maxLifetime <= 0 {
-		maxLifetime = 300 * time.Second // 默认 5 分钟
-	}
-
-	sqlDB.SetMaxOpenConns(maxOpenConns)   // 最大打开连接数
-	sqlDB.SetMaxIdleConns(maxIdleConns)   // 最大空闲连接数
-	sqlDB.SetConnMaxLifetime(maxLifetime) // 连接最大生命周期
-
-	logger.Infof(ctx, "[Server] Database connection pool configured: MaxOpenConns=%d, MaxIdleConns=%d, MaxLifetime=%v",
-		maxOpenConns, maxIdleConns, maxLifetime)
+	s.db = db
 
 	// 自动迁移表结构
 	if err := model.InitTables(s.db); err != nil {
@@ -367,7 +333,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	// ⭐ 邮件服务已迁移到 hr-server，不再需要初始化
 
 	// 初始化 JWT 服务
-	s.jwtService = service.NewJWTService()
+	s.jwtService = auth.NewJWTService()
 
 	// ⭐ 初始化权限申请仓储
 	permissionRequestRepo := repository.NewPermissionRequestRepository(s.db)
@@ -414,15 +380,14 @@ func (s *Server) initServices(ctx context.Context) error {
 func (s *Server) initRouter(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing router...")
 
-	// 创建 gin 引擎
-	s.httpServer = gin.New()
-
-	// 添加中间件
-	s.httpServer.Use(gin.Recovery())
-	s.httpServer.Use(middleware2.Cors())
+	// 创建 gin 引擎并挂载通用中间件
 	// ✅ 移除 WithTraceId 中间件，统一在网关生成 TraceId
 	// s.httpServer.Use(middleware2.WithTraceId())
 	// 注意：gzip 压缩只在服务树接口上使用，在路由层面配置
+	s.httpServer = serverx.NewGin(
+		serverx.WithRecovery(),
+		serverx.WithMiddleware(middleware2.Cors()),
+	)
 
 	// 设置路由
 	s.setupRoutes()

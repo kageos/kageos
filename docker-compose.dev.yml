@@ -1,3 +1,0 @@
-# 兼容入口。Canonical 文件已迁到 deploy/dev/compose/docker-compose.dev.yml
-include:
-  - path: deploy/dev/compose/docker-compose.dev.yml

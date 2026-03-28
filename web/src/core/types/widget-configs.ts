@@ -9,6 +9,15 @@
  * - 添加详细注释说明每个字段的用途和示例
  */
 
+export interface SelectOptionConfig {
+  label: string
+  value: any
+  disabled?: boolean
+  displayInfo?: any
+  display_info?: any
+  icon?: string
+}
+
 /**
  * Input Widget 配置
  * 对应后端：sdk/agent-app/widget/input.go
@@ -16,6 +25,9 @@
 export interface InputWidgetConfig {
   /** 占位符文本 */
   placeholder?: string
+
+  /** 是否禁用 */
+  disabled?: boolean
   
   /** 是否为密码框（true 时输入内容会被隐藏，且不会同步到 URL） */
   password?: boolean
@@ -35,8 +47,8 @@ export interface InputWidgetConfig {
  * 对应后端：sdk/agent-app/widget/select.go
  */
 export interface SelectWidgetConfig {
-  /** 选项列表（静态选项，逗号分隔） */
-  options?: string[]
+  /** 选项列表（静态选项） */
+  options?: Array<string | SelectOptionConfig>
   
   /** 
    * 选项的颜色配置
@@ -49,9 +61,12 @@ export interface SelectWidgetConfig {
   
   /** 占位符文本 */
   placeholder?: string
+
+  /** 是否禁用 */
+  disabled?: boolean
   
   /** 默认选中的值 */
-  default?: string
+  default?: string | number | boolean | null
   
   /** 是否支持创建新选项（用户可以在下拉框中输入新值） */
   creatable?: boolean
@@ -62,8 +77,8 @@ export interface SelectWidgetConfig {
  * 对应后端：sdk/agent-app/widget/multiselect.go
  */
 export interface MultiSelectWidgetConfig {
-  /** 选项列表（静态选项，逗号分隔） */
-  options?: string[]
+  /** 选项列表（静态选项） */
+  options?: Array<string | SelectOptionConfig>
   
   /** 
    * 选项的颜色配置
@@ -75,9 +90,12 @@ export interface MultiSelectWidgetConfig {
   
   /** 占位符文本 */
   placeholder?: string
+
+  /** 是否禁用 */
+  disabled?: boolean
   
   /** 默认选中的值（多个，逗号分隔） */
-  default?: string[]
+  default?: Array<string | number | boolean> | string
   
   /** 最大选择数量（0 表示不限制） */
   max_count?: number
@@ -93,6 +111,9 @@ export interface MultiSelectWidgetConfig {
 export interface NumberWidgetConfig {
   /** 占位符文本 */
   placeholder?: string
+
+  /** 是否禁用 */
+  disabled?: boolean
   
   /** 步长（点击增减按钮的步进值，字符串或数字） */
   step?: string | number
@@ -111,6 +132,9 @@ export interface NumberWidgetConfig {
 export interface FloatWidgetConfig {
   /** 占位符文本 */
   placeholder?: string
+
+  /** 是否禁用 */
+  disabled?: boolean
   
   /** 小数位数（显示和输入精度，字符串或数字） */
   precision?: string | number
@@ -132,6 +156,9 @@ export interface FloatWidgetConfig {
 export interface TextAreaWidgetConfig {
   /** 占位符文本 */
   placeholder?: string
+
+  /** 是否禁用 */
+  disabled?: boolean
   
   /** 默认值 */
   default?: string
@@ -210,6 +237,9 @@ export interface FilesWidgetConfig {
    * 示例：max_count:10
    */
   max_count?: number
+
+  /** 是否禁用 */
+  disabled?: boolean
 }
 
 /**
@@ -228,6 +258,9 @@ export interface SliderWidgetConfig {
   
   /** 默认值（可选） */
   default?: number
+
+  /** 是否禁用 */
+  disabled?: boolean
   
   /** 单位（可选，如：%、元、kg 等） */
   unit?: string
@@ -242,7 +275,7 @@ export interface RateWidgetConfig {
   max?: number
   
   /** 是否允许半星（默认 false） */
-  allow_half?: boolean
+  allow_half?: boolean | 'true' | 'false'
   
   /** 默认评分（可选） */
   default?: number
@@ -274,7 +307,7 @@ export interface ColorWidgetConfig {
    * 默认 false，仅在 format 为 rgba 时有效
    * 如果启用透明度，会自动设置为 rgba 格式
    */
-  show_alpha?: boolean
+  show_alpha?: boolean | 'true' | 'false'
 }
 
 /**
@@ -298,7 +331,7 @@ export interface LinkWidgetConfig {
   target?: '_self' | '_blank'
   
   /** 链接类型（primary, success, warning, danger, info，默认 primary） */
-  type?: 'primary' | 'success' | 'warning' | 'danger' | 'info'
+  type?: 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'link'
   
   /** 链接图标（可选） */
   icon?: string
@@ -328,7 +361,7 @@ export interface CheckboxWidgetConfig {
   options?: string[]
   
   /** 默认选中项（逗号分隔） */
-  default?: string[]
+  default?: string[] | string
 }
 
 /**
@@ -543,4 +576,3 @@ export type AnyWidgetConfig =
   | IDWidgetConfig
   | TableWidgetConfig
   | FormWidgetConfig
-

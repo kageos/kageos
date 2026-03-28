@@ -4,22 +4,11 @@ import { useAuthStore } from '@/stores/auth'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    // 🔥 测试页面（放在最前面，避免被其他路由匹配）
-    {
-      path: '/test/form-renderer',
-      name: 'test-form-renderer',
-      component: () => import('../views/Test/FormRendererTest.vue'),
-      meta: {
-        title: '表单渲染器测试',
-        requireAuth: false
-      }
-    },
-
     // 认证页面
     {
       path: '/login',
       name: 'login',
-      component: () => import('../views/Auth/Login.vue'),
+      component: () => import('../features/auth/pages/LoginPage.vue'),
       meta: {
         title: '登录',
         requireAuth: false
@@ -28,7 +17,7 @@ const router = createRouter({
     {
       path: '/register',
       name: 'register',
-      component: () => import('../views/Auth/Register.vue'),
+      component: () => import('../features/auth/pages/RegisterPage.vue'),
       meta: {
         title: '注册',
         requireAuth: false
@@ -37,7 +26,7 @@ const router = createRouter({
     {
       path: '/forgot-password',
       name: 'forgot-password',
-      component: () => import('../views/Auth/ForgotPassword.vue'),
+      component: () => import('../features/auth/pages/ForgotPasswordPage.vue'),
       meta: {
         title: '忘记密码',
         requireAuth: false
@@ -46,7 +35,7 @@ const router = createRouter({
     {
       path: '/create-test-user',
       name: 'create-test-user',
-      component: () => import('../views/Auth/CreateTestUser.vue'),
+      component: () => import('../features/auth/pages/CreateTestUserPage.vue'),
       meta: {
         title: '创建测试用户',
         requireAuth: true
@@ -57,7 +46,7 @@ const router = createRouter({
     {
       path: '/user/settings',
       name: 'user-settings',
-      component: () => import('../views/User/Settings.vue'),
+      component: () => import('../features/user/pages/UserSettingsPage.vue'),
       meta: {
         title: '个人设置',
         requireAuth: true
@@ -67,7 +56,7 @@ const router = createRouter({
     {
       path: '/organization',
       name: 'organization-management',
-      component: () => import('../views/Organization/index.vue'),
+      component: () => import('../features/organization/pages/OrganizationManagementPage.vue'),
       meta: {
         title: '组织架构和用户管理',
         requireAuth: true
@@ -78,7 +67,7 @@ const router = createRouter({
     {
       path: '/permissions/apply',
       name: 'permission-apply',
-      component: () => import('../views/Permission/PermissionApply.vue'),
+      component: () => import('../features/permission/pages/PermissionApplyPage.vue'),
       meta: {
         title: '权限申请',
         requireAuth: true
@@ -88,7 +77,7 @@ const router = createRouter({
     {
       path: '/permissions/roles',
       name: 'role-management',
-      component: () => import('../views/Permission/RoleManagement.vue'),
+      component: () => import('../features/permission/pages/RoleManagementPage.vue'),
       meta: {
         title: '角色管理',
         requireAuth: true
@@ -99,7 +88,7 @@ const router = createRouter({
     {
       path: '/agent',
       name: 'agent-index',
-      component: () => import('../views/Agent/index.vue'),
+      component: () => import('../features/agent/pages/AgentIndexPage.vue'),
       meta: {
         title: 'LLM 与工作台',
         requireAuth: true
@@ -108,18 +97,18 @@ const router = createRouter({
     {
       path: '/agent/llm',
       name: 'llm-management',
-      component: () => import('../views/Agent/LLMManagement.vue'),
+      component: () => import('../features/agent/pages/LLMManagementPage.vue'),
       meta: {
         title: 'LLM 管理',
         requireAuth: true
       }
     },
 
-    // 根路径：不再显示一站式首页，在 beforeEach 中重定向到 /workspace/username 或 /login
+    // 根路径：直接走工作空间链路，后续由全局守卫补齐登录态和 username
     {
       path: '/',
       name: 'home',
-      component: () => import('../views/Home.vue'),
+      redirect: '/workspace',
       meta: {
         title: '首页',
         requireAuth: false

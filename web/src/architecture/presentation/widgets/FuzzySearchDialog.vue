@@ -316,7 +316,10 @@ const handleEnter = () => {
     if (selectedItem.value) {
       handleSelectItem(selectedItem.value)
     } else if (props.suggestions.length > 0) {
-      handleSelectItem(props.suggestions[0])
+      const firstSuggestion = props.suggestions[0]
+      if (firstSuggestion) {
+        handleSelectItem(firstSuggestion)
+      }
     }
   }
 }

@@ -26,6 +26,7 @@ export default defineConfig(({ command, mode }) => {
       resolvers: [elementPlusResolver],
     }),
     Components({
+      dirs: ['src/components', 'src/shared/components'],
       resolvers: [elementPlusResolver],
     }),
   ],
@@ -38,13 +39,73 @@ export default defineConfig(({ command, mode }) => {
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (id.includes('/src/architecture/presentation/views/FormView.vue')) {
+            return 'FormView'
+          }
+
           if (!id.includes('node_modules')) return
 
           if (id.includes('@element-plus/icons-vue')) {
             return 'vendor-element-icons'
           }
+          if (id.includes('element-plus/es/components/date-picker') || id.includes('element-plus/es/components/time-picker') || id.includes('element-plus/es/components/time-select')) {
+            return 'vendor-element-date'
+          }
+          if (
+            id.includes('element-plus/es/components/form') ||
+            id.includes('element-plus/es/components/input') ||
+            id.includes('element-plus/es/components/input-number') ||
+            id.includes('element-plus/es/components/select') ||
+            id.includes('element-plus/es/components/option') ||
+            id.includes('element-plus/es/components/option-group') ||
+            id.includes('element-plus/es/components/checkbox') ||
+            id.includes('element-plus/es/components/radio') ||
+            id.includes('element-plus/es/components/switch') ||
+            id.includes('element-plus/es/components/upload')
+          ) {
+            return 'vendor-element-form'
+          }
+          if (
+            id.includes('element-plus/es/components/dialog') ||
+            id.includes('element-plus/es/components/drawer') ||
+            id.includes('element-plus/es/components/dropdown') ||
+            id.includes('element-plus/es/components/popover') ||
+            id.includes('element-plus/es/components/popper') ||
+            id.includes('element-plus/es/components/tooltip') ||
+            id.includes('element-plus/es/components/message-box') ||
+            id.includes('element-plus/es/components/notification') ||
+            id.includes('element-plus/es/components/loading')
+          ) {
+            return 'vendor-element-overlay'
+          }
+          if (
+            id.includes('element-plus/es/components/table') ||
+            id.includes('element-plus/es/components/pagination') ||
+            id.includes('element-plus/es/components/tree') ||
+            id.includes('element-plus/es/components/scrollbar')
+          ) {
+            return 'vendor-element-data'
+          }
           if (id.includes('element-plus')) {
             return 'vendor-element-plus'
+          }
+          if (id.includes('/zrender/')) {
+            return 'vendor-zrender'
+          }
+          if (id.includes('echarts/lib/chart/bar/')) {
+            return 'vendor-echarts-bar'
+          }
+          if (id.includes('echarts/lib/chart/line/')) {
+            return 'vendor-echarts-line'
+          }
+          if (id.includes('echarts/lib/chart/pie/')) {
+            return 'vendor-echarts-pie'
+          }
+          if (id.includes('echarts/lib/chart/gauge/')) {
+            return 'vendor-echarts-gauge'
+          }
+          if (id.includes('echarts') || id.includes('vue-echarts')) {
+            return 'vendor-echarts-core'
           }
           if (id.includes('vditor')) {
             return 'vendor-vditor'
@@ -54,6 +115,9 @@ export default defineConfig(({ command, mode }) => {
           }
           if (id.includes('monaco-editor') || id.includes('@monaco-editor')) {
             return 'vendor-monaco'
+          }
+          if (id.includes('marked')) {
+            return 'vendor-markdown'
           }
           if (id.includes('xlsx')) {
             return 'vendor-xlsx'
@@ -69,10 +133,7 @@ export default defineConfig(({ command, mode }) => {
           ) {
             return 'vendor-vue'
           }
-          if (id.includes('echarts') || id.includes('vue-echarts')) {
-            return 'vendor-echarts'
-          }
-          if (id.includes('axios') || id.includes('dayjs') || id.includes('marked')) {
+          if (id.includes('axios') || id.includes('dayjs')) {
             return 'vendor-utils'
           }
         },

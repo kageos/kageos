@@ -15,6 +15,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
+	"github.com/ai-agent-os/ai-agent-os/pkg/serverx"
 	"github.com/gin-gonic/gin"
 )
 
@@ -26,7 +27,7 @@ type Server struct {
 	// 核心组件
 	httpServer      *gin.Engine
 	sharedTransport *http.Transport // 共享 Transport，提高性能
-	tokenBlacklist  *TokenBlacklist  // ⭐ 新增：Token 黑名单管理器
+	tokenBlacklist  *TokenBlacklist // ⭐ 新增：Token 黑名单管理器
 
 	// 上下文
 	ctx context.Context
@@ -146,12 +147,9 @@ func (s *Server) Stop(ctx context.Context) error {
 func (s *Server) initRouter(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing router...")
 
-	// 创建 gin 引擎
-	s.httpServer = gin.New()
-
 	// 添加中间件：自定义 Recovery。使用 nil writer 避免 Gin 先往 stderr 打堆栈，
 	// 再由我们统一处理：ErrAbortHandler（客户端断开/代理中止）只打 Debug，其它 panic 打 Error+堆栈。
-	s.httpServer.Use(gin.RecoveryWithWriter(nil, func(c *gin.Context, recovered interface{}) {
+	customRecovery := gin.RecoveryWithWriter(nil, func(c *gin.Context, recovered interface{}) {
 		if err, ok := recovered.(error); ok && (errors.Is(err, http.ErrAbortHandler) || err == http.ErrAbortHandler) {
 			logger.Debugf(ctx, "[Recovery] Client connection closed (ErrAbortHandler), path: %s", c.Request.URL.Path)
 			c.Abort()
@@ -175,10 +173,12 @@ func (s *Server) initRouter(ctx context.Context) error {
 		}
 		logger.Errorf(ctx, "[Recovery] panic recovered: %v\n%s", recovered, debug.Stack())
 		c.AbortWithStatus(http.StatusInternalServerError)
-	}))
-	s.httpServer.Use(middleware2.Cors())
-	s.httpServer.Use(middleware2.WithTraceId())
-	s.httpServer.Use(middleware2.AccessLog()) // 访问日志中间件，记录所有请求（包括 agent-server）
+	})
+
+	s.httpServer = serverx.NewGin(
+		serverx.WithMiddleware(customRecovery),
+		serverx.WithMiddleware(middleware2.Cors(), middleware2.WithTraceId(), middleware2.AccessLog()),
+	) // 访问日志中间件，记录所有请求（包括 agent-server）
 
 	// 设置路由
 	s.setupRoutes()
@@ -211,13 +211,13 @@ func (s *Server) initSharedTransport() {
 	if defaultTimeout > streamingTimeout {
 		streamingTimeout = defaultTimeout
 	}
-	
+
 	s.sharedTransport = &http.Transport{
-		MaxIdleConns:          200,              // ✅ 优化：增加到 200，提高并发处理能力
-		MaxIdleConnsPerHost:   50,              // ✅ 优化：增加到 50，支持更高并发
+		MaxIdleConns:          200, // ✅ 优化：增加到 200，提高并发处理能力
+		MaxIdleConnsPerHost:   50,  // ✅ 优化：增加到 50，支持更高并发
 		IdleConnTimeout:       90 * time.Second,
 		ResponseHeaderTimeout: streamingTimeout, // ✅ 优化：设置响应头超时为 30 分钟，支持 SSE 流式响应
-		ExpectContinueTimeout: 1 * time.Second, // ✅ 优化：设置 Expect 100-continue 超时
+		ExpectContinueTimeout: 1 * time.Second,  // ✅ 优化：设置 Expect 100-continue 超时
 		TLSHandshakeTimeout:   10 * time.Second, // ✅ 优化：设置 TLS 握手超时
 	}
 }

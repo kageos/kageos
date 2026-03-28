@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
 </script>
 
 <template>
-  <!-- 🔥 移除 MainLayout，所有页面自己管理布局 -->
-  <RouterView />
+  <el-config-provider :locale="zhCn">
+    <!-- 🔥 移除 MainLayout，所有页面自己管理布局 -->
+    <RouterView />
+  </el-config-provider>
 </template>
 
 <style>

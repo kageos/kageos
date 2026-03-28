@@ -96,7 +96,7 @@ const isTimeOnly = computed(() => {
 })
 
 // 选择器类型（仅 el-date-picker 使用，datetime 或 datetimerange）
-const pickerType = computed(() => 'datetime')
+const pickerType = computed<'datetime'>(() => 'datetime')
 
 // 格式
 const format = computed(() => {
@@ -442,5 +442,4 @@ function handleChange(value: Date | [Date, Date] | null): void {
   color: var(--el-text-color-regular);
 }
 </style>
-
 

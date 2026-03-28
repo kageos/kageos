@@ -273,7 +273,11 @@ function handleSearchChange(): void {
     raw: value,
     display: value,
     meta: {}
-  } : null
+  } : {
+    raw: null,
+    display: '',
+    meta: {}
+  }
   
   formDataStore.setValue(props.fieldPath, newFieldValue)
   emit('update:modelValue', newFieldValue)
@@ -364,4 +368,3 @@ watch(
   font-size: 14px;
 }
 </style>
-

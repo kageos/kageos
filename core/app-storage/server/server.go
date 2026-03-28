@@ -10,12 +10,12 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-storage/service"
 	"github.com/ai-agent-os/ai-agent-os/core/app-storage/storage"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/ai-agent-os/ai-agent-os/pkg/dbx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
+	"github.com/ai-agent-os/ai-agent-os/pkg/serverx"
 	"github.com/gin-gonic/gin"
-	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	gormLogger "gorm.io/gorm/logger"
 )
 
 // Server app-storage 服务器
@@ -111,24 +111,15 @@ func (s *Server) initDatabase(ctx context.Context) error {
 		return nil
 	}
 
-	// 配置 GORM 日志
-	gormConfig := &gorm.Config{}
-	// 开启 SQL 日志便于排查
-	gormConfig.Logger = gormLogger.Default.LogMode(gormLogger.Info)
-
-	var err error
-	switch dbCfg.Type {
-	case "mysql":
-		dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-			dbCfg.User, dbCfg.Password, dbCfg.Host, dbCfg.Port, dbCfg.Name)
-		s.db, err = gorm.Open(mysql.Open(dsn), gormConfig)
-		if err != nil {
-			return fmt.Errorf("failed to connect to MySQL: %w", err)
-		}
-	default:
+	if dbCfg.Type != "mysql" {
 		logger.Infof(ctx, "[Server] Database type not specified, skipping")
 		return nil
 	}
+	db, err := dbx.OpenMySQL(dbCfg, dbx.OpenOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to connect to MySQL: %w", err)
+	}
+	s.db = db
 
 	// 自动迁移表结构
 	if err := model.InitTables(s.db); err != nil {
@@ -207,14 +198,13 @@ func (s *Server) initServices(ctx context.Context) error {
 func (s *Server) initRouter(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing router...")
 
-	// 创建 gin 引擎
-	s.httpServer = gin.New()
-
-	// 添加中间件
-	s.httpServer.Use(gin.Recovery())
-	s.httpServer.Use(middleware2.Cors())
+	// 创建 gin 引擎并挂载通用中间件
 	// ✅ 移除 WithTraceId 中间件，统一在网关生成 TraceId
 	// s.httpServer.Use(middleware2.WithTraceId())
+	s.httpServer = serverx.NewGin(
+		serverx.WithRecovery(),
+		serverx.WithMiddleware(middleware2.Cors()),
+	)
 
 	// 设置路由
 	s.setupRoutes()

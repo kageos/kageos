@@ -76,6 +76,7 @@
  *    - 可以在顶层正常导入
  */
 
+import { defineAsyncComponent } from 'vue'
 import { widgetComponentFactory } from './factory'
 import { WidgetType } from '@/core/constants/widget'
 
@@ -90,21 +91,23 @@ import MultiSelectWidget from '@/architecture/presentation/widgets/MultiSelectWi
 import CheckboxWidget from '@/architecture/presentation/widgets/CheckboxWidget.vue'
 import RadioWidget from '@/architecture/presentation/widgets/RadioWidget.vue'
 import TextWidget from '@/architecture/presentation/widgets/TextWidget.vue'
-import FilesWidget from '@/architecture/presentation/widgets/FilesWidget.vue'
 import TimestampWidget from '@/architecture/presentation/widgets/TimestampWidget.vue'
 import SliderWidget from '@/architecture/presentation/widgets/SliderWidget.vue'
 import RateWidget from '@/architecture/presentation/widgets/RateWidget.vue'
 import ColorWidget from '@/architecture/presentation/widgets/ColorWidget.vue'
-import RichTextWidget from '@/architecture/presentation/widgets/RichTextWidget.vue'
+import RichTextResponseWidget from '@/architecture/presentation/widgets/RichTextResponseWidget.vue'
 // 🔥 延迟导入容器组件，避免循环依赖
 // FormWidget 和 TableWidget 都导入了 widgetComponentFactory，会导致循环依赖
 // 解决方案：在函数内部动态导入，而不是在模块顶层导入
-import UserWidget from '@/architecture/presentation/widgets/UserWidget.vue'
-import UsersWidget from '@/architecture/presentation/widgets/UsersWidget.vue'
+import UserWidget from '@/shared/components/UserWidget.vue'
+import UsersWidget from '@/shared/components/UsersWidget.vue'
 import DepartmentWidget from '@/architecture/presentation/widgets/DepartmentWidget.vue'
-import DepartmentsWidget from '@/architecture/presentation/widgets/DepartmentsWidget.vue'
+import DepartmentsWidget from '@/shared/components/DepartmentsWidget.vue'
 import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import ProgressWidget from '@/architecture/presentation/widgets/ProgressWidget.vue'
+
+const FilesWidget = defineAsyncComponent(() => import('@/architecture/presentation/widgets/FilesWidget.vue'))
+const RichTextWidget = defineAsyncComponent(() => import('@/architecture/presentation/widgets/RichTextWidget.vue'))
 
 /**
  * 同步注册基础组件（不依赖 widgetComponentFactory 的组件）
@@ -134,6 +137,7 @@ function registerBasicComponents(): void {
   widgetComponentFactory.registerRequestComponent(WidgetType.RATE, RateWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.COLOR, ColorWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.RICH_TEXT, RichTextWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.RICH_TEXT, RichTextResponseWidget)
   
   widgetComponentFactory.registerRequestComponent(WidgetType.FILES, FilesWidget)
   
@@ -212,4 +216,3 @@ ensureInitialized().catch(err => {
 
 // 重新导出工厂实例（从 factory.ts 导入）
 export { widgetComponentFactory } from './factory'
-

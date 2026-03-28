@@ -4,7 +4,7 @@
  */
 
 import type { IFieldExtractor, FieldExtractorRegistry } from './FieldExtractor'
-import type { FieldConfig } from '../../../types/field'
+import type { FieldConfig } from '../../types/field'
 
 export class BasicFieldExtractor implements IFieldExtractor {
   extract(
@@ -17,4 +17,3 @@ export class BasicFieldExtractor implements IFieldExtractor {
     return value?.raw ?? null
   }
 }
-

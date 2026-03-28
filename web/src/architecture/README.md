@@ -12,6 +12,8 @@ architecture/
 └── infrastructure/   # Infrastructure Layer (基础设施层)
 ```
 
+跨业务域复用、但不属于 workspace 专属链路的组件，统一放到 `src/shared`，避免继续把共享代码堆回历史 `src/components`。
+
 ## 架构说明
 
 详细说明请参考：
@@ -32,4 +34,3 @@ architecture/
 - ⬜ Phase 2：领域层
 - ⬜ Phase 3：应用层
 - ⬜ Phase 4：展示层
-

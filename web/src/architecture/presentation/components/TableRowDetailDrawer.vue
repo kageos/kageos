@@ -358,14 +358,15 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
 import { Edit, ArrowLeft, ArrowRight, Grid, List, Lock } from '@element-plus/icons-vue'
-import { ElMessage, ElTabs, ElTabPane } from 'element-plus'
+import { ElMessage } from 'element-plus'
+import type { TabPaneName } from 'element-plus'
 import { useRouter, useRoute } from 'vue-router'
 import { buildPermissionApplyURL, getPermissionShortName, FunctionPermission } from '@/utils/permission'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
-import OperateLogSection from '@/components/OperateLogSection.vue'
-import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
+import OperateLogSection from '@/architecture/presentation/components/OperateLogSection.vue'
+import PermissionRequestList from '@/shared/components/permission/PermissionRequestList.vue'
 import ScheduledTaskDialog from '@/architecture/presentation/components/ScheduledTaskDialog.vue'
 import { WidgetType } from '@/core/constants/widget'
 import { Logger } from '@/core/utils/logger'
@@ -463,6 +464,14 @@ const activeTab = ref('detail')
 const operateLogSectionRef = ref<InstanceType<typeof OperateLogSection> | null>(null)
 const permissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> | null>(null)
 
+const logDebug = (message: string, data?: unknown) => {
+  if (data === undefined) {
+    Logger.debug('TableRowDetailDrawer', message)
+    return
+  }
+  Logger.debug('TableRowDetailDrawer', message, data)
+}
+
 // ⭐ 判断是否显示权限申请 tab
 // 条件：1. 节点类型是 package 或 function  2. 用户是管理员
 const showPermissionRequestTab = computed(() => {
@@ -485,7 +494,7 @@ const showPermissionRequestTab = computed(() => {
 })
 
 // 处理 tab 切换
-const handleTabChange = (tabName: string) => {
+const handleTabChange = (tabName: TabPaneName) => {
   if (tabName === 'operateLog' && operateLogSectionRef.value) {
     // 切换到操作日志 tab 时，触发加载
     operateLogSectionRef.value.load()
@@ -508,7 +517,8 @@ const route = useRoute()
 watch(
   () => route.query.tab,
   (tab) => {
-    if (tab === 'permissionRequest' && showPermissionRequestTab.value) {
+    const normalizedTab = Array.isArray(tab) ? tab[0] : tab
+    if (normalizedTab === 'permissionRequest' && showPermissionRequestTab.value) {
       activeTab.value = 'permissionRequest'
       // 切换 tab 时触发加载
       nextTick(() => {
@@ -539,7 +549,7 @@ watch(() => props.mode, (newMode) => {
 // ⭐ 监听 editFunctionDetail 和 rowData 变化，确保数据准备好后再渲染 FormView
 watch([() => props.editFunctionDetail, () => props.rowData, () => props.mode], async () => {
   if (props.mode === 'edit' && props.editFunctionDetail && props.rowData) {
-    Logger.debug('[TableRowDetailDrawer] watch 触发，检查 editFunctionDetail 和 rowData', {
+    logDebug('watch 触发，检查 editFunctionDetail 和 rowData', {
       hasEditFunctionDetail: !!props.editFunctionDetail,
       hasRequest: !!(props.editFunctionDetail?.request),
       requestLength: props.editFunctionDetail?.request?.length || 0,
@@ -552,7 +562,7 @@ watch([() => props.editFunctionDetail, () => props.rowData, () => props.mode], a
     await nextTick()
     // 如果 filteredInitialData 为空，说明 editFunctionDetail.request 可能还没准备好
     // 这种情况下，FormView 不会渲染（因为 v-if 条件不满足）
-    Logger.debug('[TableRowDetailDrawer] watch 完成，filteredInitialData 状态', {
+    logDebug('watch 完成，filteredInitialData 状态', {
       filteredInitialDataKeys: Object.keys(filteredInitialData.value),
       filteredInitialDataCount: Object.keys(filteredInitialData.value).length
     })
@@ -585,7 +595,7 @@ const groupedFields = computed(() => {
   const statusFields = fieldsToGroup.filter((f: FieldConfig) => {
     const widgetType = f.widget?.type
     return widgetType === WidgetType.SELECT || 
-           widgetType === WidgetType.MULTISELECT || 
+           widgetType === WidgetType.MULTI_SELECT || 
            widgetType === WidgetType.RADIO || 
            widgetType === WidgetType.CHECKBOX || 
            widgetType === WidgetType.SWITCH
@@ -602,7 +612,7 @@ const groupedFields = computed(() => {
     const widgetType = f.widget?.type
     return widgetType === WidgetType.FORM || 
            widgetType === WidgetType.TABLE || 
-           widgetType === WidgetType.RICHTEXT
+           widgetType === WidgetType.RICH_TEXT
   })
   
   // 主要业务字段（排除上述所有字段）
@@ -610,7 +620,7 @@ const groupedFields = computed(() => {
     const widgetType = f.widget?.type
     return widgetType !== WidgetType.ID &&
            widgetType !== WidgetType.SELECT &&
-           widgetType !== WidgetType.MULTISELECT &&
+           widgetType !== WidgetType.MULTI_SELECT &&
            widgetType !== WidgetType.RADIO &&
            widgetType !== WidgetType.CHECKBOX &&
            widgetType !== WidgetType.SWITCH &&
@@ -618,7 +628,7 @@ const groupedFields = computed(() => {
            widgetType !== WidgetType.TIMESTAMP &&
            widgetType !== WidgetType.FORM &&
            widgetType !== WidgetType.TABLE &&
-           widgetType !== WidgetType.RICHTEXT
+           widgetType !== WidgetType.RICH_TEXT
   })
   
   return {
@@ -647,7 +657,7 @@ const getFieldValue = (fieldCode: string): FieldValue => {
  */
 const filteredInitialData = computed(() => {
   if (!props.rowData || !props.editFunctionDetail || !props.editFunctionDetail.request) {
-    Logger.debug('[TableRowDetailDrawer] filteredInitialData 为空', {
+    logDebug('filteredInitialData 为空', {
       hasRowData: !!props.rowData,
       hasEditFunctionDetail: !!props.editFunctionDetail,
       hasRequest: !!(props.editFunctionDetail?.request),
@@ -660,19 +670,20 @@ const filteredInitialData = computed(() => {
   const editableFieldCodes = new Set(
     props.editFunctionDetail.request.map((field: FieldConfig) => field.code)
   )
+  const rowData = props.rowData
   
   const filtered: Record<string, any> = {}
-  Object.keys(props.rowData).forEach(key => {
+  Object.keys(rowData).forEach(key => {
     if (editableFieldCodes.has(key)) {
-      filtered[key] = props.rowData[key]
+      filtered[key] = rowData[key]
     }
   })
   
-  Logger.debug('[TableRowDetailDrawer] filteredInitialData 计算完成', {
+  logDebug('filteredInitialData 计算完成', {
     editableFieldCodes: Array.from(editableFieldCodes),
     filteredKeys: Object.keys(filtered),
     filteredCount: Object.keys(filtered).length,
-    rowDataKeys: Object.keys(props.rowData),
+    rowDataKeys: Object.keys(rowData),
     filteredData: JSON.parse(JSON.stringify(filtered)) // 深拷贝以便在日志中查看
   })
   
@@ -775,8 +786,8 @@ const handleToggleMode = async (newMode: 'read' | 'edit') => {
   if (newMode === 'edit' && !props.canEdit) {
     const path = fullCodePath.value
     if (path) {
-      // 获取 template_type（从 currentFunctionDetail 或 functionDetail）
-      const templateType = props.currentFunctionDetail?.template_type || props.functionDetail?.template_type
+      // 获取 template_type（优先使用当前详情，再回退到编辑详情）
+      const templateType = props.currentFunctionDetail?.template_type || props.editFunctionDetail?.template_type
       const applyURL = buildPermissionApplyURL(path, FunctionPermission.update, templateType)
       router.push(applyURL)
     } else {
@@ -787,7 +798,7 @@ const handleToggleMode = async (newMode: 'read' | 'edit') => {
   
   // ⭐ 如果切换到编辑模式，等待 editFunctionDetail 准备好
   if (newMode === 'edit') {
-    Logger.debug('[TableRowDetailDrawer] handleToggleMode 切换到编辑模式', {
+    logDebug('handleToggleMode 切换到编辑模式', {
       hasEditFunctionDetail: !!props.editFunctionDetail,
       hasRequest: !!(props.editFunctionDetail?.request),
       requestLength: props.editFunctionDetail?.request?.length || 0,
@@ -799,7 +810,7 @@ const handleToggleMode = async (newMode: 'read' | 'edit') => {
     })
     
     if (!props.editFunctionDetail || !props.editFunctionDetail.request) {
-      Logger.debug('[TableRowDetailDrawer] editFunctionDetail 未准备好', {
+      logDebug('editFunctionDetail 未准备好', {
         hasEditFunctionDetail: !!props.editFunctionDetail,
         hasRequest: !!(props.editFunctionDetail?.request),
         currentFunctionDetailResponseLength: props.currentFunctionDetail?.response?.length || 0
@@ -811,7 +822,7 @@ const handleToggleMode = async (newMode: 'read' | 'edit') => {
     // 等待一个 tick，确保 editFunctionDetail 和 filteredInitialData 都已准备好
     await nextTick()
     
-    Logger.debug('[TableRowDetailDrawer] 第一次 nextTick 后', {
+    logDebug('第一次 nextTick 后', {
       filteredInitialDataKeys: Object.keys(filteredInitialData.value),
       filteredInitialDataCount: Object.keys(filteredInitialData.value).length,
       filteredInitialDataSample: JSON.parse(JSON.stringify(Object.fromEntries(Object.entries(filteredInitialData.value).slice(0, 5)))),
@@ -820,7 +831,7 @@ const handleToggleMode = async (newMode: 'read' | 'edit') => {
     
     // 再次检查 filteredInitialData 是否有数据
     if (Object.keys(filteredInitialData.value).length === 0 && props.rowData) {
-      Logger.debug('[TableRowDetailDrawer] filteredInitialData 为空，等待重试', {
+      logDebug('filteredInitialData 为空，等待重试', {
         rowDataKeys: Object.keys(props.rowData),
         requestFieldCodes: props.editFunctionDetail?.request?.map((f: FieldConfig) => f.code) || []
       })
@@ -828,13 +839,13 @@ const handleToggleMode = async (newMode: 'read' | 'edit') => {
       // 等待一下再检查
       await new Promise(resolve => setTimeout(resolve, 200))
       
-      Logger.debug('[TableRowDetailDrawer] 等待 200ms 后', {
+      logDebug('等待 200ms 后', {
         filteredInitialDataKeys: Object.keys(filteredInitialData.value),
         filteredInitialDataCount: Object.keys(filteredInitialData.value).length
       })
       
       if (Object.keys(filteredInitialData.value).length === 0) {
-        Logger.debug('[TableRowDetailDrawer] filteredInitialData 仍然为空', {
+        logDebug('filteredInitialData 仍然为空', {
           rowDataKeys: Object.keys(props.rowData),
           requestFieldCodes: props.editFunctionDetail?.request?.map((f: FieldConfig) => f.code) || [],
           requestFieldCodesInRowData: props.editFunctionDetail?.request?.map((f: FieldConfig) => f.code).filter((code: string) => code in (props.rowData || {})) || []
@@ -1296,6 +1307,3 @@ defineExpose({
   padding: 16px;
 }
 </style>
-
-
-

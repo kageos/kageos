@@ -1,4 +1,0 @@
-# 全栈 Compose 定义已迁至 deploy/compose/docker-compose.yml
-# 在仓库根目录可直接使用本文件的 include，保持「docker compose up」习惯不变。
-include:
-  - path: deploy/compose/docker-compose.yml

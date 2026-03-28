@@ -80,7 +80,7 @@
  * - 字段提取器接口：`web/src/core/stores-v2/extractors/FieldExtractor.ts`
  */
 
-import type { FieldConfig } from '../../../types/field'
+import type { FieldConfig } from '../../types/field'
 import type { IFieldExtractor, FieldExtractorRegistry as IFieldExtractorRegistry } from './FieldExtractor'
 import { BasicFieldExtractor } from './BasicFieldExtractor'
 import { MultiSelectFieldExtractor } from './MultiSelectFieldExtractor'
@@ -150,4 +150,3 @@ export class FieldExtractorRegistry implements IFieldExtractorRegistry {
 
 // 导出全局单例（用于插件系统）
 export const fieldExtractorRegistry = new FieldExtractorRegistry()
-

@@ -8,8 +8,8 @@
  * - 返回验证错误列表
  */
 
-import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
-import type { ValidationEngine, ValidationResult } from '@/core/validation/types'
+import type { FieldConfig, FieldValue } from '@/core/types/field'
+import type { ValidationEngine, ValidationResult } from '@/core/validation'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { Logger } from '@/core/utils/logger'
 
@@ -216,4 +216,3 @@ export function validateTableWidgetNestedFields(
   
   return nestedErrors
 }
-

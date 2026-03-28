@@ -8,7 +8,7 @@
  * - 方便扩展新的字段类型
  */
 
-import type { FieldConfig, FieldValue } from '../../../types/field'
+import type { FieldConfig, FieldValue } from '../../types/field'
 
 /**
  * 字段提取器接口
@@ -44,4 +44,3 @@ export interface FieldExtractorRegistry {
    */
   extractField(field: FieldConfig, fieldPath: string, getValue: (path: string) => FieldValue | undefined): any
 }
-

@@ -1,6 +1,5 @@
 import { get, post, put, del } from '@/utils/request'
-import type { Function, SearchParams, TableResponse } from '@/types'
-import type { FieldConfig } from '@/core/types/field'
+import type { Function, SearchParams } from '@/types'
 
 // 获取函数详情（根据路径和函数类型）
 // ⭐ 使用新的路由：/function/info/:func-type/*full-code-path
@@ -11,24 +10,6 @@ export function getFunctionByPath(fullCodePath: string, funcType: string = 'tabl
   const path = fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`
   // ⭐ 函数类型作为路径参数，这样后端无需查询数据库即可构造权限点
   return get<Function>(`/workspace/api/v1/function/info/${funcType}${path}`)
-}
-
-// 获取函数详情（根据ID，已废弃，建议使用 getFunctionByPath）
-// ⭐ 注意：新路由只支持 full-code-path，如果只有 function_id，需要先查询 full-code-path
-export function getFunctionDetail(functionId: number) {
-  // ⭐ 临时兼容：使用旧的 API（如果后端还支持）
-  // TODO: 建议改为先查询 function_id 对应的 full-code-path，然后调用 getFunctionByPath
-  return get<Function>(`/workspace/api/v1/function/get`, { function_id: functionId })
-}
-
-// 获取应用下所有函数
-export function getFunctionList(appId: number) {
-  return get<Function[]>('/workspace/api/v1/function/list', { app_id: appId })
-}
-
-// 获取服务目录下函数列表
-export function getFunctionByTree(treeId: number) {
-  return get<Function[]>(`/workspace/api/v1/function/tree/${treeId}`)
 }
 
 // 执行函数（通用）

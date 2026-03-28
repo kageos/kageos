@@ -40,7 +40,8 @@ export class ExpressionParserAdapter {
       return false
     }
 
-    const [, funcName, argsStr] = match
+    const funcName = match[1] ?? ''
+    const argsStr = match[2] ?? ''
 
     // 特殊函数：value() 使用旧解析器（保持兼容）
     if (funcName === 'value') {
@@ -108,4 +109,3 @@ export class ExpressionParserAdapter {
     }
   }
 }
-

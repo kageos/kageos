@@ -112,7 +112,7 @@
           <el-form-item :error="getFieldError(field.code)" class="form-item-no-label">
             <WidgetComponent
               :field="field"
-              :value="fieldValues[field.code]"
+              :value="getFieldValue(field.code)"
               :field-path="field.code"
               :form-renderer="formRendererContext"
               :function-method="functionDetail?.method || 'GET'"
@@ -130,7 +130,7 @@
         >
           <WidgetComponent
             :field="field"
-            :value="fieldValues[field.code]"
+            :value="getFieldValue(field.code)"
             :field-path="field.code"
             :form-renderer="formRendererContext"
             :function-method="functionDetail?.method || 'GET'"
@@ -212,7 +212,7 @@
             <el-form-item class="form-item-no-label">
               <WidgetComponent
                 :field="field"
-                :value="responseFieldValues[field.code]"
+                :value="getResponseFieldValue(field.code)"
                 :field-path="field.code"
                 mode="response"
               />
@@ -221,7 +221,7 @@
           <el-form-item v-else :label="field.name">
             <WidgetComponent
               :field="field"
-              :value="responseFieldValues[field.code]"
+              :value="getResponseFieldValue(field.code)"
               :field-path="field.code"
               mode="response"
             />
@@ -349,6 +349,7 @@ import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Lock, Document,
 import { ElIcon, ElTag, ElNotification, ElMessage, ElAlert, ElMessageBox, ElText, ElCheckbox, ElCard, ElEmpty } from 'element-plus'
 import { eventBus, FormEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
+import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import { Logger } from '@/core/utils/logger'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
@@ -359,11 +360,13 @@ import { useFormDataStore } from '@/core/stores-v2/formData'
 import { useResponseDataStore } from '@/core/stores-v2/responseData'
 import { useFunctionParamInitialization } from '../composables/useFunctionParamInitialization'
 import { useFormParamURLSync } from '../composables/useFormParamURLSync'
-import { hasPermission, FormPermissions, FunctionPermission, buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
+import { hasPermission, FormPermission, FunctionPermission, buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import ScheduledTaskDialog from '../components/ScheduledTaskDialog.vue'
+import { FormStateManager } from '../../infrastructure/stateManager/FormStateManager'
+import { WorkspaceStateManager } from '../../infrastructure/stateManager/WorkspaceStateManager'
 
 const props = withDefaults(defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取
@@ -385,7 +388,7 @@ const serviceProvider: IServiceProvider = serviceFactory
 const stateManager = serviceProvider.getFormStateManager() as FormStateManager  // 🔥 类型断言：FormStateManager 有 setResponse 方法
 const domainService = serviceProvider.getFormDomainService()
 const applicationService = serviceProvider.getFormApplicationService()
-const workspaceStateManager = serviceProvider.getWorkspaceStateManager()  // 🔥 用于获取当前函数节点
+const workspaceStateManager = serviceProvider.getWorkspaceStateManager() as WorkspaceStateManager  // 🔥 用于获取当前函数节点
 const workspaceDomainService = serviceProvider.getWorkspaceDomainService()  // 🔥 用于获取函数详情
 
 // 🔥 内部维护 functionDetail（在 onMounted 中主动获取）
@@ -400,7 +403,7 @@ const formData = computed(() => {
   const state = stateManager.getState()
   const data: Record<string, any> = {}
   if (state.data) {
-    state.data.forEach((value, key) => {
+    state.data.forEach((value: FieldValue, key: string) => {
       if (value) {
         data[key] = value.raw
       }
@@ -429,7 +432,7 @@ const currentFunctionNode = computed(() => {
 const canSubmit = computed(() => {
   const node = currentFunctionNode.value
   if (!node) return true  // 如果没有节点信息，默认允许（向后兼容）
-  return hasPermission(node, FormPermissions.write)
+  return hasPermission(node, FormPermission.write)
 })
 
 // ⭐ 权限错误状态
@@ -554,7 +557,7 @@ const debugRawData = computed(() => {
   const state = stateManager.getState()
   try {
     const rawData: Record<string, any> = {}
-    state.data.forEach((value, key) => {
+    state.data.forEach((value: FieldValue, key: string) => {
       // 🔥 dataType 和 widgetType 已经是通用字段，直接显示
       rawData[key] = {
         raw: value.raw,
@@ -591,7 +594,7 @@ const formRendererContext = computed(() => {
       const state = stateManager.getState()
       const data: Record<string, any> = {}
       if (state.data) {
-        state.data.forEach((value, key) => {
+        state.data.forEach((value: FieldValue, key: string) => {
           if (value) {
             data[key] = value.raw
           }
@@ -866,7 +869,7 @@ const { initialize: initializeParams } = useFunctionParamInitialization({
       const allValues: Record<string, any> = {}
       const state = stateManager.getState()
       if (state.data) {
-        state.data.forEach((value, key) => {
+        state.data.forEach((value: FieldValue, key: string) => {
           allValues[key] = value
         })
       }
@@ -885,7 +888,7 @@ const formDataStoreForURLSync = {
     const allValues: Record<string, FieldValue> = {}
     const data = formDataStore.data
     if (data) {
-      data.forEach((value, key) => {
+      data.forEach((value: FieldValue, key: string) => {
         allValues[key] = value
       })
     }
@@ -1050,13 +1053,14 @@ onMounted(async () => {
   // 监听函数加载完成事件
   let lastInitializedFunctionId: number | null = null // 🔥 记录上次初始化的函数 ID，防止重复初始化
   unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, async (payload: { detail: FunctionDetail }) => {
-    if (payload.detail.template_type === TEMPLATE_TYPE.FORM && functionDetail.value && payload.detail.id === functionDetail.value.id) {
+    const detailId = payload.detail.id
+    if (payload.detail.template_type === TEMPLATE_TYPE.FORM && functionDetail.value && detailId != null && detailId === functionDetail.value.id) {
       // 🔥 防重复初始化：如果已经初始化过这个函数，跳过
-      if (lastInitializedFunctionId === payload.detail.id) {
-        Logger.debug('FormView', '跳过重复的 functionLoaded 事件', { functionId: payload.detail.id })
+      if (lastInitializedFunctionId === detailId) {
+        Logger.debug('FormView', '跳过重复的 functionLoaded 事件', { functionId: detailId })
         return
       }
-      lastInitializedFunctionId = payload.detail.id
+      lastInitializedFunctionId = detailId
       
       // 🔥 切换函数时，先清理全局 store（因为 WidgetComponent 内部使用的组件会直接使用这些 store）
       formDataStore.clear()

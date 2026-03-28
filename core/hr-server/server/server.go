@@ -9,11 +9,11 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/hr-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/hr-server/service"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/ai-agent-os/ai-agent-os/pkg/dbx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/serverx"
 	"github.com/gin-gonic/gin"
-	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	gormLogger "gorm.io/gorm/logger"
 )
 
 // Server hr-server 服务器
@@ -26,12 +26,11 @@ type Server struct {
 	httpServer *gin.Engine
 
 	// 服务
-	authService           *service.AuthService
-	emailService          *service.EmailService
-	jwtService            *service.JWTService
-	userService           *service.UserService
-	departmentService     *service.DepartmentService
-	natsService           *service.NATSService
+	authService            *service.AuthService
+	emailService           *service.EmailService
+	userService            *service.UserService
+	departmentService      *service.DepartmentService
+	natsService            *service.NATSService
 	messageConsumerService *service.MessageConsumerService
 
 	// 上下文
@@ -129,47 +128,12 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing database...")
 
 	dbCfg := s.cfg.GetDB()
-
-	// 配置 GORM 日志
-	gormConfig := &gorm.Config{}
-	// 开启 SQL 日志便于排查
-	gormConfig.Logger = gormLogger.Default.LogMode(gormLogger.Info)
-
-	// 构建 DSN
-	dsn := s.cfg.GetDatabaseDSN()
-	if dsn == "" {
-		return fmt.Errorf("database DSN is empty")
-	}
-
-	// 创建数据库连接
-	db, err := gorm.Open(mysql.Open(dsn), gormConfig)
+	db, err := dbx.OpenMySQL(dbCfg, dbx.OpenOptions{
+		DefaultMaxLifetime: time.Hour,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
-
-	// 设置连接池
-	sqlDB, err := db.DB()
-	if err != nil {
-		return fmt.Errorf("failed to get sql.DB: %w", err)
-	}
-
-	// 使用配置的连接池参数，如果没有配置则使用默认值
-	maxIdleConns := dbCfg.MaxIdleConns
-	if maxIdleConns == 0 {
-		maxIdleConns = 10
-	}
-	maxOpenConns := dbCfg.MaxOpenConns
-	if maxOpenConns == 0 {
-		maxOpenConns = 100
-	}
-	maxLifetime := time.Duration(dbCfg.MaxLifetime) * time.Second
-	if maxLifetime == 0 {
-		maxLifetime = time.Hour
-	}
-
-	sqlDB.SetMaxIdleConns(maxIdleConns)
-	sqlDB.SetMaxOpenConns(maxOpenConns)
-	sqlDB.SetConnMaxLifetime(maxLifetime)
 
 	s.db = db
 
@@ -208,9 +172,6 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 初始化邮件服务
 	s.emailService = service.NewEmailService(emailCodeRepo)
 
-	// 初始化 JWT 服务
-	s.jwtService = service.NewJWTService()
-
 	// 初始化用户服务
 	s.userService = service.NewUserService(userRepo, s.natsService, userSessionRepo)
 
@@ -230,13 +191,7 @@ func (s *Server) initRouter(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing router...")
 
 	// 创建 Gin 引擎
-	if s.cfg.IsDebug() {
-		gin.SetMode(gin.DebugMode)
-	} else {
-		gin.SetMode(gin.ReleaseMode)
-	}
-
-	s.httpServer = gin.New()
+	s.httpServer = serverx.NewGin(serverx.WithDebug(s.cfg.IsDebug()))
 
 	// 设置路由
 	s.setupRoutes()

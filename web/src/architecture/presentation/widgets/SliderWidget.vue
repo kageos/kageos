@@ -81,6 +81,7 @@ import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { Logger } from '@/core/utils/logger'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
+import type { SliderWidgetConfig } from '@/core/types/widget-configs'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -132,7 +133,7 @@ const unit = computed(() => config.value.unit || '')
 const stepPrecision = computed(() => {
   const stepStr = String(step.value)
   if (stepStr.includes('.')) {
-    return stepStr.split('.')[1].length
+    return stepStr.split('.')[1]?.length ?? 0
   }
   return 0
 })
@@ -340,7 +341,7 @@ function formatProgressText(percentage: number): string {
   
   // 根据步长决定小数位数（例如：step=0.1 时，显示 1 位小数）
   const stepStr = String(step.value)
-  const decimals = stepStr.includes('.') ? stepStr.split('.')[1].length : 0
+  const decimals = stepStr.includes('.') ? (stepStr.split('.')[1]?.length ?? 0) : 0
   const valueStr = numValue.toFixed(decimals)
   
   const unitValue = unit.value
@@ -371,7 +372,7 @@ const maxValue = ref<number | undefined>(undefined)
  * 处理编辑模式的值变化
  * 注意：值变化已在 internalValue 的 setter 中处理，这里不需要额外逻辑
  */
-function handleChange(value: number): void {
+function handleChange(value: number | number[]): void {
   // 值变化已在 internalValue 的 setter 中处理
 }
 
@@ -397,7 +398,11 @@ function handleSearchChange(): void {
     raw: searchValue,
     display: '',
     meta: {}
-  } : null
+  } : {
+    raw: null,
+    display: '',
+    meta: {}
+  }
   
   formDataStore.setValue(props.fieldPath, newFieldValue)
   emit('update:modelValue', newFieldValue)
@@ -479,4 +484,3 @@ watch(
   font-size: 14px;
 }
 </style>
-

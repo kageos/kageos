@@ -7,16 +7,14 @@
  * - 路由变化处理
  */
 
-import { watch, ref, nextTick } from 'vue'
+import { nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { extractWorkspacePath } from '@/utils/route'
-import { preserveQueryParamsForTable, preserveQueryParamsForForm } from '@/utils/queryParams'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { eventBus, RouteEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { RouteSource } from '@/utils/routeSource'
 import { Logger } from '@/core/utils/logger'
-import { getAppWithServiceTree } from '@/api/app'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
 
@@ -40,6 +38,20 @@ export function useWorkspaceRouting(
   let isLoadingAppFromRoute = false
   let isSyncingRouteToTab = false
   let lastProcessedUpdateCompleted: { path: string, source: string } | null = null // 🔥 记录上次处理的 updateCompleted 事件，防止重复处理
+
+  const createPlaceholderApp = (user: string, code: string, name: string = ''): App => ({
+    id: 0,
+    user,
+    code,
+    name,
+    nats_id: 0,
+    host_id: 0,
+    status: 'enabled',
+    version: '',
+    is_public: false,
+    created_at: '',
+    updated_at: ''
+  })
 
   // 从路由同步到当前函数（路由变化时调用）
   const syncRouteToTab = async () => {
@@ -72,7 +84,7 @@ export function useWorkspaceRouting(
         const serviceNode: ServiceTree = node as any
         
         // 检查当前函数是否已经是目标节点
-        const currentFunction = stateManager.getCurrentFunction()
+        const currentFunction = stateManager.getState().currentFunction
         if (currentFunction && (
           currentFunction.id === serviceNode.id || 
           currentFunction.full_code_path === serviceNode.full_code_path
@@ -119,7 +131,11 @@ export function useWorkspaceRouting(
       return
     }
 
-    const [user, appCode] = pathSegments
+    const user = pathSegments[0] ?? ''
+    const appCode = pathSegments[1] ?? ''
+    if (!user || !appCode) {
+      return
+    }
     
     try {
       isLoadingAppFromRoute = true
@@ -136,12 +152,7 @@ export function useWorkspaceRouting(
       }
       
       // 构造临时 app 对象（只有基本信息，triggerAppSwitch 会通过合并接口获取完整信息）
-      const appForService: App = {
-        id: 0, // 临时 ID，triggerAppSwitch 会通过合并接口获取真实的 ID
-        user: user,
-        code: appCode,
-        name: '' // 临时名称，triggerAppSwitch 会通过合并接口获取真实的名称
-      }
+      const appForService = createPlaceholderApp(user, appCode)
       
       try {
         // triggerAppSwitch 内部会使用合并接口获取应用详情和服务目录树
@@ -154,13 +165,7 @@ export function useWorkspaceRouting(
           await options.loadAppList()
           const foundApp = options.appList().find((a: AppType) => a.user === user && a.code === appCode)
           if (foundApp) {
-            const appForServiceFallback: App = {
-              id: foundApp.id,
-              user: foundApp.user,
-              code: foundApp.code,
-              name: foundApp.name
-            }
-            await applicationService.triggerAppSwitch(appForServiceFallback)
+            await applicationService.triggerAppSwitch(foundApp)
           }
         }
         return
@@ -427,4 +432,3 @@ export function useWorkspaceRouting(
     isSyncingRouteToTab: () => isSyncingRouteToTab
   }
 }
-

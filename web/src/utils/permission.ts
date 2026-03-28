@@ -45,16 +45,16 @@
  * ============================================
  * 
  * 1. **表格操作权限检查**：
- *    - 新增：`hasPermission(node, TablePermissions.write)`
- *    - 编辑：`hasPermission(node, TablePermissions.update)`
- *    - 删除：`hasPermission(node, TablePermissions.delete)`
+ *    - 新增：`hasPermission(node, TablePermission.write)`
+ *    - 编辑：`hasPermission(node, TablePermission.update)`
+ *    - 删除：`hasPermission(node, TablePermission.delete)`
  * 
  * 2. **表单提交权限检查**：
- *    - 提交：`hasPermission(node, FormPermissions.write)`
+ *    - 提交：`hasPermission(node, FormPermission.write)`
  * 
  * 3. **目录操作权限检查**：
- *    - 查看：`hasPermission(node, DirectoryPermissions.read)`
- *    - 创建：`hasPermission(node, DirectoryPermissions.write)`
+ *    - 查看：`hasPermission(node, DirectoryPermission.read)`
+ *    - 创建：`hasPermission(node, DirectoryPermission.write)`
  * 
  * ============================================
  * ⚠️ 注意事项
@@ -103,6 +103,8 @@ import {
   type ActionTypeString,
 } from '@/constants/permissions'
 
+export type PermissionResourceType = 'function' | 'directory' | 'app' | 'docs' | 'board'
+
 /**
  * 获取权限的详细说明
  * @param action 权限点
@@ -112,7 +114,7 @@ import {
  */
 export function getPermissionDescription(
   action: string,
-  resourceType?: 'function' | 'directory' | 'app',
+  resourceType?: PermissionResourceType,
   templateType?: string
 ): { description: string; inheritance?: string } {
   const descriptions: Record<string, { description: string; inheritance?: string }> = {
@@ -344,6 +346,18 @@ export function getPermissionDisplayName(action: string): string {
     // Chart 操作（新的权限点格式）
     'chart:read': '查看图表',
     'chart:admin': '所有权',
+    // Docs 操作
+    'docs:read': '查看文档',
+    'docs:write': '写入文档',
+    'docs:update': '更新文档',
+    'docs:delete': '删除文档',
+    'docs:admin': '所有权',
+    // Board 操作
+    'board:read': '查看讨论区',
+    'board:write': '写入讨论区',
+    'board:update': '更新讨论区',
+    'board:delete': '删除讨论区',
+    'board:admin': '所有权',
     // ⭐ 兼容旧格式（function:read、function:write 等）
     'function:read': '查看函数',
     'function:write': '写入函数',
@@ -386,6 +400,16 @@ export function getPermissionShortName(action: string): string {
     // Chart 操作（新的权限点格式）
     'chart:read': 'read权限',
     'chart:admin': 'admin权限',
+    'docs:read': 'read权限',
+    'docs:write': 'write权限',
+    'docs:update': 'update权限',
+    'docs:delete': 'delete权限',
+    'docs:admin': 'admin权限',
+    'board:read': 'read权限',
+    'board:write': 'write权限',
+    'board:update': 'update权限',
+    'board:delete': 'delete权限',
+    'board:admin': 'admin权限',
     // ⭐ 兼容旧格式（function:read、function:write 等）
     'function:read': 'read权限',
     'function:write': 'write权限',
@@ -425,6 +449,13 @@ export function getDefaultPermissionsForTemplate(templateType?: string): string[
   }
 }
 
+export interface PermissionOption {
+  action: string
+  displayName: string
+  isMinimal?: boolean
+  isManage?: boolean
+}
+
 /**
  * 根据资源路径和类型获取可申请的权限点列表
  * @param resourcePath 资源路径（full-code-path）
@@ -434,10 +465,10 @@ export function getDefaultPermissionsForTemplate(templateType?: string): string[
  */
 export function getAvailablePermissions(
   resourcePath: string,
-  resourceType?: 'function' | 'directory' | 'app',
+  resourceType?: PermissionResourceType,
   templateType?: string
-): Array<{ action: string; displayName: string; isMinimal?: boolean }> {
-  const permissions: Array<{ action: string; displayName: string; isMinimal?: boolean }> = []
+): PermissionOption[] {
+  const permissions: PermissionOption[] = []
 
   // 根据资源类型返回相关权限点
   // ⭐ 权限顺序：小权限（具体操作）在前，大权限（所有权/管理）在后
@@ -509,6 +540,26 @@ export function getAvailablePermissions(
     permissions.push(
       { action: 'app:admin', displayName: '所有权', isMinimal: false, isManage: true }
     )
+  } else if (resourceType === 'docs') {
+    permissions.push(
+      { action: 'docs:read', displayName: '查看文档', isMinimal: true },
+      { action: 'docs:write', displayName: '写入文档', isMinimal: false },
+      { action: 'docs:update', displayName: '更新文档', isMinimal: false },
+      { action: 'docs:delete', displayName: '删除文档', isMinimal: false }
+    )
+    permissions.push(
+      { action: 'docs:admin', displayName: '所有权', isMinimal: false, isManage: true }
+    )
+  } else if (resourceType === 'board') {
+    permissions.push(
+      { action: 'board:read', displayName: '查看讨论区', isMinimal: true },
+      { action: 'board:write', displayName: '写入讨论区', isMinimal: false },
+      { action: 'board:update', displayName: '更新讨论区', isMinimal: false },
+      { action: 'board:delete', displayName: '删除讨论区', isMinimal: false }
+    )
+    permissions.push(
+      { action: 'board:admin', displayName: '所有权', isMinimal: false, isManage: true }
+    )
   } else {
     // 未知类型，返回通用权限
     permissions.push(
@@ -526,7 +577,7 @@ export function getAvailablePermissions(
  * @returns 默认选中的权限点列表
  */
 export function getDefaultSelectedPermissions(
-  availablePermissions: Array<{ action: string; displayName: string; isMinimal?: boolean }>
+  availablePermissions: PermissionOption[]
 ): string[] {
   return availablePermissions
     .filter(p => p.isMinimal === true)
@@ -565,30 +616,6 @@ export {
 }
 
 /**
- * 旧版本兼容：保持原有的导出名称
- * @deprecated 请使用 DirectoryPermission 代替
- */
-export const DirectoryPermissions = DirectoryPermission
-
-/**
- * 旧版本兼容：保持原有的导出名称
- * @deprecated 请使用 TablePermission 代替
- */
-export const TablePermissions = TablePermission
-
-/**
- * 旧版本兼容：保持原有的导出名称
- * @deprecated 请使用 FormPermission 代替
- */
-export const FormPermissions = FormPermission
-
-/**
- * 旧版本兼容：保持原有的导出名称
- * @deprecated 请使用 ChartPermission 代替
- */
-export const ChartPermissions = ChartPermission
-
-/**
  * 解析资源路径，提取父级路径
  * @param resourcePath 资源路径（full-code-path）
  * @returns 父级路径信息
@@ -609,8 +636,8 @@ export function parseResourcePath(resourcePath: string): {
     throw new Error('资源路径格式错误，至少需要 user/app')
   }
   
-  const user = pathParts[0]
-  const app = pathParts[1]
+  const user = pathParts[0]!
+  const app = pathParts[1]!
   const appPath = `/${user}/${app}`
   
   if (pathParts.length === 2) {
@@ -640,7 +667,7 @@ export function parseResourcePath(resourcePath: string): {
   } else {
     // 可能是函数（最后一段是函数名）
     const directoryPath = '/' + pathParts.slice(0, -1).join('/')
-    const functionName = pathParts[pathParts.length - 1]
+    const functionName = pathParts[pathParts.length - 1] ?? null
     
     return {
       user,
@@ -664,10 +691,10 @@ export function parseResourcePath(resourcePath: string): {
  */
 export interface PermissionScope {
   resourcePath: string
-  resourceType: 'function' | 'directory' | 'app'
+  resourceType: PermissionResourceType
   resourceName: string
   displayName: string
-  permissions: Array<{ action: string; displayName: string; isMinimal?: boolean }>
+  permissions: PermissionOption[]
   quickSelect?: {
     label: string
     actions: string[]
@@ -676,7 +703,7 @@ export interface PermissionScope {
 
 export function getPermissionScopes(
   resourcePath: string,
-  resourceType?: 'function' | 'directory' | 'app',
+  resourceType?: PermissionResourceType,
   templateType?: string
 ): PermissionScope[] {
   const scopes: PermissionScope[] = []
@@ -749,4 +776,3 @@ export function buildPermissionApplyURL(resourcePath: string, action: string, te
   }
   return url
 }
-

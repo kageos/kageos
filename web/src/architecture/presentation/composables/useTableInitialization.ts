@@ -84,13 +84,13 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     const currentState = stateManager.getState()
     stateManager.setState({
       ...currentState,
-      searchForm: restored.searchForm,
-      sorts: restored.sorts,
-      hasManualSort: restored.sorts.length > 0,
-      sortParams: restored.sorts.length > 0 ? {
-        field: restored.sorts[0].field,
-        order: restored.sorts[0].order
-      } : null,
+	      searchForm: restored.searchForm,
+	      sorts: restored.sorts,
+	      hasManualSort: restored.sorts.length > 0,
+	      sortParams: restored.sorts[0] ? {
+	        field: restored.sorts[0].field,
+	        order: restored.sorts[0].order
+	      } : null,
       pagination: {
         ...currentState.pagination,
         currentPage: restored.pagination.page,

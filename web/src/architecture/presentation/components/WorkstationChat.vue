@@ -213,13 +213,12 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick, toRaw } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight, Plus, Paperclip, FolderOpened, Loading, Search } from '@element-plus/icons-vue'
-import { marked } from 'marked'
 import { workspaceChatStream, getWorkspaceSessions, getWorkspaceMessages, getWorkspaceSessionSSEStatus, type WorkspaceSessionItem, type WorkspaceChatReq, type WorkspaceChatMessageFile } from '@/api/workspace'
 import { getLLMList, type LLMInfo } from '@/api/agent'
 import MessageToolCalls from './MessageToolCalls.vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
-import UserDisplay from '../widgets/UserDisplay.vue'
-import LLMSelector from '@/components/LLMSelector.vue'
+import UserDisplay from '@/shared/components/UserDisplay.vue'
+import LLMSelector from '@/shared/components/LLMSelector.vue'
 import { extractFileGroupsFromResult, type OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { ElMessage } from 'element-plus'
 import { useWorkspaceChatStream, type ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
@@ -227,13 +226,7 @@ import { eventBus } from '@/architecture/infrastructure/eventBus'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 import type { UploadProgress } from '@/utils/upload/types'
 import { useAuthStore } from '@/stores/auth'
-import { escapeHtml, sanitizeHtml } from '@/utils/sanitizeHtml'
-
-// 配置 marked：支持换行、GFM
-marked.setOptions({
-  breaks: true,
-  gfm: true,
-})
+import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
 
 const props = withDefaults(
   defineProps<{
@@ -256,6 +249,9 @@ const emit = defineEmits<{
   (e: 'update:sessionId', value: string | undefined): void
   (e: 'clear-initial-input'): void
 }>()
+
+const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
+void preloadMarkdown()
 
 const router = useRouter()
 
@@ -726,15 +722,6 @@ watch(
     nextTick(() => emit('clear-initial-input'))
   }
 )
-
-function renderMarkdown(content: string): string {
-  if (!content) return ''
-  try {
-    return sanitizeHtml(marked.parse(content) as string)
-  } catch {
-    return escapeHtml(content).replace(/\n/g, '<br>')
-  }
-}
 
 /** 从一组工具调用的 result 中提取输出文件（用于按块展示时的每个 tool_calls 块） */
 function getFileGroupsFromCalls(calls: Array<{ result?: string }>): OutputFileGroup[] {

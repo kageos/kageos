@@ -15,7 +15,7 @@ import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { createPackage, createServiceTree } from '@/api/service-tree'
 import type { ServiceTree as ServiceTreeType, CreateServiceTreeRequest } from '@/types'
-import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
+import ServiceTreePanel from '@/architecture/presentation/components/ServiceTreePanel.vue'
 import { useAuthStore } from '@/stores/auth'
 
 export function useWorkspaceServiceTree(
@@ -175,8 +175,9 @@ export function useWorkspaceServiceTree(
     
     nextTick(() => {
       setTimeout(() => {
-        if (serviceTreePanelRef() && serviceTreePanelRef()!.expandPaths) {
-          serviceTreePanelRef()!.expandPaths([functionPath])
+        const serviceTreePanel = serviceTreePanelRef()
+        if (serviceTreePanel?.expandPaths) {
+          serviceTreePanel.expandPaths([functionPath])
         }
       }, 300)
     })
@@ -196,4 +197,3 @@ export function useWorkspaceServiceTree(
     expandCurrentRoutePath,
   }
 }
-

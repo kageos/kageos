@@ -15,12 +15,11 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/service"
 	"github.com/ai-agent-os/ai-agent-os/pkg/builder"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/ai-agent-os/ai-agent-os/pkg/dbx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
 	"github.com/nats-io/nats.go"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	gormLogger "gorm.io/gorm/logger"
 )
 
 // Server app-runtime 服务器
@@ -119,16 +118,7 @@ func (s *Server) initDatabase(ctx context.Context) error {
 		return fmt.Errorf("failed to get absolute path: %w", err)
 	}
 
-	// 确保目录存在
-	dbDir := filepath.Dir(absPath)
-	if err := os.MkdirAll(dbDir, 0755); err != nil {
-		return fmt.Errorf("failed to create database directory: %w", err)
-	}
-
-	// 连接数据库（开启 SQL 日志便于排查）
-	db, err := gorm.Open(sqlite.Open(absPath), &gorm.Config{
-		Logger: gormLogger.Default.LogMode(gormLogger.Info),
-	})
+	db, err := dbx.OpenSQLite(absPath, dbx.OpenOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}

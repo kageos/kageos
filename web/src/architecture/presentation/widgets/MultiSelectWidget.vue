@@ -114,10 +114,11 @@ import { Logger } from '@/core/utils/logger'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { ExpressionParserAdapter } from '@/core/utils/ExpressionParserAdapter'
 import { isStringDataType, getMultiSelectDefaultDataType, DataType } from '@/core/constants/widget'
-import { SelectFuzzyQueryType, isStandardColor } from '@/core/constants/select'
+import { SelectFuzzyQueryType, isStandardColor, type StandardColorType } from '@/core/constants/select'
 import { convertValueToType } from '@/architecture/presentation/widgets/utils/valueConverter'
 import { convertFormDataToRequestByType, convertArrayType } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
+import type { MultiSelectWidgetConfig } from '@/core/types/widget-configs'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -456,7 +457,7 @@ function getOptionColor(value: any): string | null {
   // 🔥 在 staticOptions 中查找索引（因为 options_colors 与 staticOptions 对齐）
   const optionIndex = staticOptions.value.findIndex((opt: any) => String(opt.value) === valueStr)
   if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
-    return optionColors.value[optionIndex]
+    return optionColors.value[optionIndex] ?? null
   }
   return null
 }
@@ -464,11 +465,11 @@ function getOptionColor(value: any): string | null {
 /**
  * 获取选项的颜色类型（用于 el-tag 的 type 属性）
  */
-function getOptionColorType(value: any): string | undefined {
+function getOptionColorType(value: any): StandardColorType | undefined {
   const color = getOptionColor(value)
   if (!color) return undefined
   const isStandard = isStandardColor(color)
-  return isStandard ? color : undefined
+  return isStandard ? (color as StandardColorType) : undefined
 }
 
 /**
@@ -830,8 +831,8 @@ onMounted(() => {
 
 // 监听 formRenderer 和 value 变化，确保在 formRenderer 准备好后触发回调
 watch(
-  () => [hasRemoteSearch.value, props.value?.raw, props.formRenderer],
-  ([hasCallback, rawValue, formRenderer]: [boolean, any, any]) => {
+  [hasRemoteSearch, () => props.value?.raw, () => props.formRenderer],
+  ([hasCallback, rawValue, formRenderer]) => {
     if (!hasInitialized.value && hasCallback && rawValue && formRenderer) {
       // 🔥 检查 functionDetail 是否已准备好
       const functionDetail = formRenderer?.getFunctionDetail?.()

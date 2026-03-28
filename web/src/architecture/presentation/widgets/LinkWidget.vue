@@ -18,9 +18,9 @@
     <!-- 表格/详情模式：作为按钮显示（在操作区域） -->
     <el-button
       v-else-if="resolvedUrl && (mode === 'table-cell' || mode === 'detail')"
-      :type="linkConfig.type === 'link' ? 'primary' : (linkConfig.type || 'primary')"
+      :type="resolvedLinkType"
       size="small"
-      :link="mode === 'table-cell' || linkConfig.type === 'link'"
+      :link="mode === 'table-cell' || isLinkStyle"
       :plain="mode === 'detail'"
       class="link-button"
       @click.prevent="handleClick"
@@ -36,7 +36,7 @@
       v-else-if="resolvedUrl"
       :href="linkConfig.target === '_blank' ? resolvedUrl : undefined"
       :target="linkConfig.target || '_self'"
-      :type="linkConfig.type || 'primary'"
+      :type="resolvedLinkType"
       :underline="true"
       class="link-response"
       @click.prevent="handleClick"
@@ -65,15 +65,13 @@ import type { LinkWidgetConfig } from '@/core/types/widget-configs'
 
 const props = defineProps<WidgetComponentProps>()
 const router = useRouter()
-const { shouldOpenInCurrentWindow, isStandalone } = useAppEnvironment()
+const { shouldOpenInCurrentWindow } = useAppEnvironment()
 
 // 解析 Link 值（JSON 格式）
 const parsedLink = computed(() => {
   const raw = props.value?.raw || ''
   return parseLinkValue(raw)
 })
-
-import { resolveWorkspaceUrl } from '@/utils/route'
 
 // 解析后的 URL（处理站内跳转，添加 /workspace 前缀）
 const resolvedUrl = computed(() => {
@@ -100,6 +98,13 @@ const linkConfig = computed(() => {
   }
   
   return (widget.config || {}) as LinkWidgetConfig
+})
+
+const isLinkStyle = computed(() => linkConfig.value.type === 'link')
+
+const resolvedLinkType = computed<Exclude<LinkWidgetConfig['type'], 'link' | undefined>>(() => {
+  const type = linkConfig.value.type
+  return type && type !== 'link' ? type : 'primary'
 })
 
 // 判断是否是外链
@@ -240,4 +245,3 @@ const handleClick = (e: Event) => {
   color: var(--el-text-color-placeholder);
 }
 </style>
-

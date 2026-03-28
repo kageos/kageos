@@ -140,7 +140,7 @@ export function useTableStatistics(
       
       return result
     } catch (error) {
-      Logger.error('[useTableStatistics] 聚合计算失败', error)
+      Logger.error('useTableStatistics', '聚合计算失败', error)
       return {}
     }
   })
@@ -157,4 +157,3 @@ export function useTableStatistics(
     collectStatisticsConfig
   }
 }
-

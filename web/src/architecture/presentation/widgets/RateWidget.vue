@@ -290,7 +290,7 @@ function getTextLabel(value: number): string {
   }
   const index = Math.floor(value) - 1
   if (index >= 0 && index < texts.value.length) {
-    return texts.value[index]
+    return texts.value[index] ?? ''
   }
   return ''
 }
@@ -330,7 +330,11 @@ function handleSearchChange(): void {
     raw: searchValue,
     display: '',
     meta: {}
-  } : null
+  } : {
+    raw: null,
+    display: '',
+    meta: {}
+  }
   
   formDataStore.setValue(props.fieldPath, newFieldValue)
   emit('update:modelValue', newFieldValue)
@@ -555,4 +559,3 @@ watch(
   font-size: 14px;
 }
 </style>
-

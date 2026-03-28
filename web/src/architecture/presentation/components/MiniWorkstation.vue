@@ -486,24 +486,15 @@ import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 import type { UploadProgress } from '@/utils/upload/types'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import MessageToolCalls from './MessageToolCalls.vue'
-import UserDisplay from '../widgets/UserDisplay.vue'
+import UserDisplay from '@/shared/components/UserDisplay.vue'
 import { extractFileGroupsFromResult, type OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { extractAllDisplayFields, type OutputDisplayField } from '@/architecture/presentation/composables/useOutputDisplayFields'
 import OutputDisplayFields from './OutputDisplayFields.vue'
 import { eventBus } from '@/architecture/infrastructure/eventBus'
-import { marked } from 'marked'
-import { escapeHtml, sanitizeHtml } from '@/utils/sanitizeHtml'
+import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
 
-marked.setOptions({ breaks: true, gfm: true })
-
-function renderMarkdown(content: string): string {
-  if (!content) return ''
-  try {
-    return sanitizeHtml(marked.parse(content) as string)
-  } catch {
-    return escapeHtml(content).replace(/\n/g, '<br>')
-  }
-}
+const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
+void preloadMarkdown()
 
 const props = defineProps<{
   visible: boolean

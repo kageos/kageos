@@ -609,13 +609,14 @@ import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/
 import { uploadFile, notifyBatchUploadComplete } from '@/utils/upload'
 import type { FileInfo, BatchUploadCompleteItem, UploadProgress, UploadFileResult } from '@/utils/upload'
 import type { Uploader } from '@/utils/upload'
+import type { FilesWidgetConfig } from '@/core/types/widget-configs'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { useAuthStore } from '@/stores/auth'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { isCacheExpired } from '@/stores/userInfo/utils'
 import { Logger } from '@/core/utils/logger'
 import { formatTimestamp } from '@/utils/date'
-import UserDisplay from './UserDisplay.vue'
+import UserDisplay from '@/shared/components/UserDisplay.vue'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -1064,7 +1065,7 @@ function validateFile(file: File): boolean {
 
   // 检查文件类型
   if (accept.value && accept.value !== '*') {
-    const acceptList = accept.value.split(',').map(a => a.trim())
+    const acceptList = accept.value.split(',').map((pattern: string) => pattern.trim())
     const fileName = file.name.toLowerCase()
     const fileType = file.type.toLowerCase()
 
@@ -1482,6 +1483,9 @@ async function handleDownloadAll(): Promise<void> {
     
     for (let i = 0; i < uploadedFiles.length; i++) {
       const file = uploadedFiles[i]
+      if (!file) {
+        continue
+      }
       try {
         let downloadURL = isDirectAccessUrl(file.url)
           ? file.url
@@ -1597,6 +1601,9 @@ function handleEditDescription(index: number): void {
     return
   }
   const file = currentFilesList[index]
+  if (!file) {
+    return
+  }
   editingDescriptionIndex.value = index
   editingDescription.value = file.description || ''
   descriptionDialogVisible.value = true

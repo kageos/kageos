@@ -39,10 +39,6 @@ func InitTables(db *gorm.DB) error {
 		&ServiceTree{},
 		&Function{},
 		&Package{},
-		// 新增的认证相关表
-		&EmailVerification{},
-		&EmailCode{},
-		&UserSession{},
 		// 目录快照表（用于递归 Fork）
 		&FileSnapshot{},
 		// 操作日志表（企业版功能，但社区版也记录）

@@ -44,6 +44,10 @@ function buildChartQueryParams(
   
   requestFields.forEach(field => {
     const fieldValue = fieldValues[field.code]
+
+    if (!fieldValue) {
+      return
+    }
     
     // 跳过空值
     if (isEmptyValue(fieldValue)) {
@@ -165,4 +169,3 @@ export function useChartParamURLSync(options: UseChartParamURLSyncOptions) {
     watchChartData
   }
 }
-

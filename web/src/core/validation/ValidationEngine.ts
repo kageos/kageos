@@ -125,6 +125,9 @@ export class ValidationEngine {
       // 处理带参数的规则：min=2, max=20
       if (part.includes('=')) {
         const [type, valueStr] = part.split('=', 2)
+        if (!type || valueStr === undefined) {
+          continue
+        }
         const typeTrimmed = type.trim()
         const valueTrimmed = valueStr.trim()
         
@@ -213,4 +216,3 @@ export class ValidationEngine {
     return isNaN(num) ? null : num
   }
 }
-

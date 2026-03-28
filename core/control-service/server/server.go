@@ -11,6 +11,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/msgx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
@@ -93,21 +94,7 @@ func NewServer(cfg *config.ControlServiceConfig) (*Server, error) {
 func (s *Server) initNATS(ctx context.Context) error {
 	logger.Infof(ctx, "[Control Service] Initializing NATS connection...")
 
-	conn, err := nats.Connect(s.natsURL,
-		nats.Name("control-service"),
-		nats.Timeout(10*time.Second),
-		nats.ReconnectWait(2*time.Second),
-		nats.MaxReconnects(-1),
-		nats.ReconnectBufSize(8*1024*1024),
-		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
-			if err != nil {
-				logger.Warnf(ctx, "[Control Service] NATS disconnected: %v", err)
-			}
-		}),
-		nats.ReconnectHandler(func(nc *nats.Conn) {
-			logger.Infof(ctx, "[Control Service] NATS reconnected to %s", nc.ConnectedUrl())
-		}),
-	)
+	conn, err := natsx.ConnectNamed(s.natsURL, "control-service")
 	if err != nil {
 		return fmt.Errorf("failed to connect to NATS: %w", err)
 	}

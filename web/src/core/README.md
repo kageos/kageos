@@ -51,24 +51,6 @@ core/
 ### 3. 渲染器
 - ✅ `FormRenderer`：表单渲染器，支持嵌套结构、回调、聚合等完整功能
 
-## 测试
-
-### 访问测试页面
-
-启动开发服务器后，访问：
-
-```
-http://localhost:5173/test/form-renderer
-```
-
-### 测试功能
-
-1. **基础渲染**：测试 InputWidget 的渲染
-2. **数据绑定**：输入内容，查看数据变化
-3. **表单提交**：点击提交按钮，查看控制台输出
-4. **调试模式**：点击"调试输出"按钮，查看详细信息
-5. **切换数据**：点击"切换测试数据"按钮，测试不同表单
-
 ## 下一步计划
 
 ### Phase 1：基础组件（当前）
@@ -150,4 +132,3 @@ const functionDetail: FunctionDetail = {
 旧版本的 `widgets/` 目录和 `factories/WidgetBuilder.ts`、`factories/WidgetFactory.ts` 已完全移除。
 
 所有功能已迁移到 `widgets-v2/` 和 `factories-v2/`。
-

@@ -1,20 +1,16 @@
 package service
 
 import (
-	"bytes"
 	"crypto/rand"
-	"crypto/tls"
-	"encoding/base64"
 	"fmt"
 	"math/big"
-	"mime/multipart"
-	"net/smtp"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/hr-server/repository"
 	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/ai-agent-os/ai-agent-os/pkg/emailx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
@@ -23,6 +19,7 @@ import (
 type EmailService struct {
 	config        *appconfig.EmailConfig
 	emailCodeRepo *repository.EmailCodeRepository
+	sender        *emailx.Sender
 }
 
 // NewEmailService 创建邮箱服务（依赖注入）
@@ -31,6 +28,7 @@ func NewEmailService(emailCodeRepo *repository.EmailCodeRepository) *EmailServic
 	return &EmailService{
 		config:        &hrConfig.Email,
 		emailCodeRepo: emailCodeRepo,
+		sender:        emailx.NewSender(hrConfig.Email.SMTP),
 	}
 }
 
@@ -63,7 +61,7 @@ func (s *EmailService) SendVerificationCode(email, codeType, ipAddress, userAgen
 	subject := s.getSubject(codeType)
 	body := s.getBody(code, codeType)
 
-	err = s.sendEmail(email, subject, body)
+	err = s.sender.SendHTML(email, subject, body)
 	if err != nil {
 		logger.Errorf(nil, "[EmailService] Failed to send email: %v", err)
 		return err
@@ -155,95 +153,9 @@ func (s *EmailService) getBody(code, codeType string) string {
 	}
 }
 
-// sendEmail 发送邮件
-func (s *EmailService) sendEmail(to, subject, body string) error {
-	// 构建MIME消息
-	var buf bytes.Buffer
-	writer := multipart.NewWriter(&buf)
-	boundary := writer.Boundary()
-
-	// 对主题进行编码，支持中文
-	encodedSubject := subject
-	if len([]byte(subject)) != len(subject) {
-		encodedSubject = fmt.Sprintf("=?UTF-8?B?%s?=", base64.StdEncoding.EncodeToString([]byte(subject)))
-	}
-
-	headers := map[string]string{
-		"From":         s.config.SMTP.From,
-		"To":           to,
-		"Subject":      encodedSubject,
-		"MIME-Version": "1.0",
-		"Content-Type": fmt.Sprintf("multipart/mixed; boundary=%s", boundary),
-		"X-Mailer":     "AI Agent OS Email System v1.0",
-		"X-Priority":   "3",
-		"Message-ID":   fmt.Sprintf("<%d@%s>", time.Now().UnixNano(), s.config.SMTP.Host),
-	}
-
-	for k, v := range headers {
-		buf.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
-	}
-	buf.WriteString("\r\n")
-
-	// 邮件正文
-	part, err := writer.CreatePart(map[string][]string{
-		"Content-Type":              {"text/html; charset=UTF-8"},
-		"Content-Transfer-Encoding": {"quoted-printable"},
-	})
-	if err != nil {
-		return fmt.Errorf("创建邮件正文失败: %v", err)
-	}
-
-	part.Write([]byte(body))
-	writer.Close()
-
-	// 连接SMTP服务器
-	addr := fmt.Sprintf("%s:%d", s.config.SMTP.Host, s.config.SMTP.Port)
-	auth := smtp.PlainAuth("", s.config.SMTP.Username, s.config.SMTP.Password, s.config.SMTP.Host)
-
-	client, err := smtp.Dial(addr)
-	if err != nil {
-		return fmt.Errorf("连接SMTP服务器失败: %v", err)
-	}
-	defer client.Quit()
-
-	// 使用STARTTLS
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
-		ServerName:         s.config.SMTP.Host,
-	}
-	if err := client.StartTLS(tlsConfig); err != nil {
-		return fmt.Errorf("STARTTLS失败: %v", err)
-	}
-
-	if err := client.Auth(auth); err != nil {
-		return fmt.Errorf("SMTP认证失败: %v", err)
-	}
-
-	if err := client.Mail(s.config.SMTP.From); err != nil {
-		return fmt.Errorf("设置发件人失败: %v", err)
-	}
-
-	if err := client.Rcpt(to); err != nil {
-		return fmt.Errorf("设置收件人失败: %v", err)
-	}
-
-	w, err := client.Data()
-	if err != nil {
-		return fmt.Errorf("准备发送数据失败: %v", err)
-	}
-	defer w.Close()
-
-	_, err = w.Write(buf.Bytes())
-	if err != nil {
-		return fmt.Errorf("发送邮件内容失败: %v", err)
-	}
-
-	return nil
-}
-
 // SendNotificationEmail 发送通知类邮件（通用，供消息服务等调用）
 func (s *EmailService) SendNotificationEmail(to, subject, body string) error {
-	return s.sendEmail(to, subject, body)
+	return s.sender.SendHTML(to, subject, body)
 }
 
 // SendPasswordResetEmail 发送密码重置邮件
@@ -252,23 +164,23 @@ func (s *EmailService) SendPasswordResetEmail(email, resetToken string) error {
 	// 从环境变量获取前端URL，如果没有则使用相对路径（前端会自动补全）
 	frontendURL := os.Getenv("FRONTEND_URL")
 	resetLink := fmt.Sprintf("/reset-password?token=%s", resetToken)
-	
+
 	// 如果有配置前端URL，使用完整URL
 	if frontendURL != "" {
 		// 确保URL不以/结尾
 		frontendURL = strings.TrimSuffix(frontendURL, "/")
 		resetLink = fmt.Sprintf("%s/reset-password?token=%s", frontendURL, resetToken)
 	}
-	
+
 	subject := s.getSubject("forgot_password")
 	body := s.getBody(resetLink, "forgot_password")
-	
-	err := s.sendEmail(email, subject, body)
+
+	err := s.sender.SendHTML(email, subject, body)
 	if err != nil {
 		logger.Errorf(nil, "[EmailService] Failed to send password reset email: %v", err)
 		return err
 	}
-	
+
 	logger.Infof(nil, "[EmailService] Password reset email sent to %s", email)
 	return nil
 }

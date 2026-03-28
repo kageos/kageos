@@ -31,6 +31,20 @@ export function useWorkspaceApp(
   const loadingApps = ref(false)
   const pendingAppId = ref<number | string | null>(null)
 
+  const createPlaceholderApp = (app: Pick<AppType, 'id' | 'user' | 'code' | 'name'>): App => ({
+    id: app.id,
+    user: app.user,
+    code: app.code,
+    name: app.name,
+    nats_id: 0,
+    host_id: 0,
+    status: 'enabled',
+    version: '',
+    is_public: false,
+    created_at: '',
+    updated_at: ''
+  })
+
   // 创建工作空间对话框状态
   const createAppDialogVisible = ref(false)
   const creatingApp = ref(false)
@@ -100,12 +114,7 @@ export function useWorkspaceApp(
     }
 
     try {
-      const appForService: App = {
-        id: app.id,
-        user: app.user,
-        code: app.code,
-        name: app.name
-      }
+      const appForService = createPlaceholderApp(app)
       
       // 切换工作空间（这会触发服务目录树加载）
       await applicationService.triggerAppSwitch(appForService)
@@ -303,8 +312,9 @@ export function useWorkspaceApp(
       // 🔥 阶段4：改为事件驱动，通过 RouteManager 统一处理路由更新
       const currentAppState = currentApp()
       if (currentAppState && currentAppState.id === app.id) {
-        if (appList.value.length > 0) {
-          await handleSwitchApp(appList.value[0], currentApp)
+        const nextApp = appList.value[0]
+        if (nextApp) {
+          await handleSwitchApp(nextApp, currentApp)
         } else {
           eventBus.emit(RouteEvent.updateRequested, {
             path: '/workspace',
@@ -347,4 +357,3 @@ export function useWorkspaceApp(
     handleDeleteApp
   }
 }
-

@@ -97,7 +97,7 @@ func (tf *TableFormatter) ToMarkdown(data interface{}) (string, error) {
 			} else {
 				fieldValue = elem.FieldByName(field.Name)
 			}
-			
+
 			// Markdown 表格需要转义管道符
 			value := tf.formatValue(fieldValue)
 			value = strings.ReplaceAll(value, "|", "\\|")
@@ -163,7 +163,7 @@ func (tf *TableFormatter) ToHTML(data interface{}) (string, error) {
 			} else {
 				fieldValue = elem.FieldByName(field.Name)
 			}
-			
+
 			formattedValue := html.EscapeString(tf.formatValue(fieldValue))
 			cells = append(cells, fmt.Sprintf("<td>%s</td>", formattedValue))
 		}
@@ -287,9 +287,9 @@ func (tf *TableFormatter) formatValueForCSV(value reflect.Value) string {
 
 // FieldInfo 字段信息（支持路径字段）
 type FieldInfo struct {
-	Name       string // 字段名或路径（如 "Product.Name"）
+	Name        string // 字段名或路径（如 "Product.Name"）
 	DisplayName string // 显示名称
-	IsPath     bool   // 是否为路径字段
+	IsPath      bool   // 是否为路径字段
 }
 
 // getFields 获取要显示的字段列表（支持路径字段）
@@ -362,13 +362,13 @@ func (tf *TableFormatter) getFieldDisplayNameForPath(fieldPath string) string {
 	if displayName, ok := tf.FieldNames[fieldPath]; ok {
 		return displayName
 	}
-	
+
 	// 从路径中提取最后一个字段名作为显示名称
 	parts := strings.Split(fieldPath, ".")
 	if len(parts) > 0 {
 		return parts[len(parts)-1]
 	}
-	
+
 	return fieldPath
 }
 
@@ -419,12 +419,12 @@ func (tf *TableFormatter) getFieldDisplayNameFromTag(field reflect.StructField) 
 func (tf *TableFormatter) getFieldValueByPath(elem reflect.Value, fieldPath string) reflect.Value {
 	parts := strings.Split(fieldPath, ".")
 	currentValue := elem
-	
+
 	for _, part := range parts {
 		if !currentValue.IsValid() {
 			return reflect.Value{}
 		}
-		
+
 		// 处理指针
 		if currentValue.Kind() == reflect.Ptr {
 			if currentValue.IsNil() {
@@ -432,7 +432,7 @@ func (tf *TableFormatter) getFieldValueByPath(elem reflect.Value, fieldPath stri
 			}
 			currentValue = currentValue.Elem()
 		}
-		
+
 		// 处理结构体
 		if currentValue.Kind() == reflect.Struct {
 			field := currentValue.FieldByName(part)
@@ -444,7 +444,7 @@ func (tf *TableFormatter) getFieldValueByPath(elem reflect.Value, fieldPath stri
 			return reflect.Value{}
 		}
 	}
-	
+
 	return currentValue
 }
 
@@ -482,4 +482,3 @@ func (tf *TableFormatter) formatValue(value reflect.Value) string {
 		return fmt.Sprintf("%v", value.Interface())
 	}
 }
-

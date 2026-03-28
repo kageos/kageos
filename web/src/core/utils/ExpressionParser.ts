@@ -39,7 +39,8 @@ export class ExpressionParser {
       return expression
     }
 
-    const [, funcName, argsStr] = match
+    const funcName = match[1] ?? ''
+    const argsStr = match[2] ?? ''
     
     // 🔥 特殊处理：value() 函数需要从选中项中获取值
     if (funcName === 'value') {
@@ -70,12 +71,15 @@ export class ExpressionParser {
     const args = argsStr.split(',').map(arg => arg.trim())
     
     // 第一个参数是主字段
-    const mainField = args[0]
+    const mainField = args[0] ?? ''
     
     // 提取乘法操作符和字段/系数
     const multipliers: Array<{ isField: boolean, value: string }> = []
     for (let i = 1; i < args.length; i++) {
       const arg = args[i]
+      if (!arg) {
+        continue
+      }
       if (arg.startsWith('*')) {
         const value = arg.slice(1)
         // 判断是字段还是数字系数
@@ -323,4 +327,3 @@ export class ExpressionParser {
     return value.toFixed(decimals)
   }
 }
-

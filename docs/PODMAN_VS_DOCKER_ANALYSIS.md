@@ -7,7 +7,7 @@
 - **当前使用**：Podman
 - **配置支持**：已支持 `podman` 和 `docker` 两种运行时（`configs/app-runtime.yaml`）
 - **代码实现**：目前只有 `PodmanService` 实现，没有 `DockerService`
-- **部署方式**：有 Docker Compose 部署文档（`README.docker.md`），但主要用于部署项目本身，不是运行时容器管理
+- **部署方式**：项目本身的官方入口已收口到 `deploy/dev` 与 `deploy/prod`，运行时容器管理仍由 `app-runtime` 负责
 
 ### 1.2 项目使用场景
 

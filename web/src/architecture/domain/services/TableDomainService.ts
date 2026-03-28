@@ -321,8 +321,9 @@ export class TableDomainService {
    * 新增行
    */
   async addRow(functionDetail: FunctionDetail, data: Record<string, any>): Promise<TableRow> {
+    const router = this.requireFunctionRouter(functionDetail)
     // ⭐ 使用标准 API：/table/create/{full-code-path}
-    const response = await tableAddRow(functionDetail.method || 'POST', functionDetail.router, data)
+    const response = await tableAddRow(functionDetail.method || 'POST', router, data)
 
     // 触发事件
     this.eventBus.emit(TableEvent.rowAdded, { row: response })
@@ -339,10 +340,11 @@ export class TableDomainService {
     data: Record<string, any>,
     oldData?: Record<string, any>
   ): Promise<TableRow> {
+    const router = this.requireFunctionRouter(functionDetail)
     // ⭐ 使用标准 API：PUT /workspace/api/v1/table/update/{full-code-path}
-    const fullCodePath = functionDetail.router.startsWith('/') 
-      ? functionDetail.router 
-      : `/${functionDetail.router}`
+    const fullCodePath = router.startsWith('/') 
+      ? router
+      : `/${router}`
     const url = `/workspace/api/v1/table/update${fullCodePath}`
     
     // 构建更新负载
@@ -361,9 +363,10 @@ export class TableDomainService {
    * 删除行
    */
   async deleteRow(functionDetail: FunctionDetail, id: number | string): Promise<void> {
+    const router = this.requireFunctionRouter(functionDetail)
     // ⭐ 使用标准 API：/table/delete/{full-code-path}
     const ids = [typeof id === 'string' ? parseInt(id, 10) : id]
-    await tableDeleteRows(functionDetail.method || 'DELETE', functionDetail.router, ids)
+    await tableDeleteRows(functionDetail.method || 'DELETE', router, ids)
 
     // 触发事件
     this.eventBus.emit(TableEvent.rowDeleted, { ids: [id] })
@@ -740,5 +743,12 @@ export class TableDomainService {
       ...newData
     }
   }
-}
 
+  private requireFunctionRouter(functionDetail: FunctionDetail): string {
+    const router = functionDetail.router
+    if (!router) {
+      throw new Error('函数路由不存在')
+    }
+    return router
+  }
+}

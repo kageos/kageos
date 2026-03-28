@@ -448,52 +448,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/auth/send_email_code": {
-            "post": {
-                "description": "向指定邮箱发送验证码，用于注册验证",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "认证管理"
-                ],
-                "summary": "发送邮箱验证码",
-                "parameters": [
-                    {
-                        "description": "发送验证码请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.SendEmailCodeReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "发送成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.SendEmailCodeResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/callback/{router}": {
             "post": {
                 "security": [
@@ -3167,22 +3121,6 @@ const docTemplate = `{
                     }
                 }
             }
-        },
-        "dto.SendEmailCodeReq": {
-            "type": "object",
-            "required": [
-                "email"
-            ],
-            "properties": {
-                "email": {
-                    "description": "邮箱地址",
-                    "type": "string",
-                    "example": "user@example.com"
-                }
-            }
-        },
-        "dto.SendEmailCodeResp": {
-            "type": "object"
         },
         "dto.UpdateAppResp": {
             "type": "object",

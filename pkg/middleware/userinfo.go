@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
+	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -20,7 +20,7 @@ func WithUserInfo() gin.HandlerFunc {
 			token := c.GetHeader(contextx.TokenHeader)
 			if token != "" {
 				// 尝试解析 token 获取用户信息
-				jwtService := service.NewJWTService()
+				jwtService := auth.NewJWTService()
 				claims, err := jwtService.ValidateToken(token)
 				if err == nil {
 					// token 解析成功，使用 token 中的用户信息
