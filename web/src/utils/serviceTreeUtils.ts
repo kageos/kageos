@@ -303,7 +303,9 @@ export async function expandPathOnly(
   // 确保路径中的最后一个节点也被展开（如果它是可展开的）
   if (path.length > 0) {
     const lastNodeId = path[path.length - 1]
-    await waitForNodeExpansion(treeRef, lastNodeId, 100)
+    if (lastNodeId !== undefined) {
+      await waitForNodeExpansion(treeRef, lastNodeId, 100)
+    }
   }
 }
 
@@ -337,4 +339,3 @@ export async function expandPathAndSelect(
   // 选中目标节点
   treeRef.setCurrentKey(targetNodeId)
 }
-

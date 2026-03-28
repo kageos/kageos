@@ -8,6 +8,8 @@ import { PresignedURLUploader } from './presigned-url'
 import { FormUploader } from './form-upload'
 import { SDKUploader } from './sdk-upload'
 
+export type { UploadCredentials, UploadProgress, UploadResult } from './types'
+
 /**
  * 文件上传器接口（策略模式）
  */

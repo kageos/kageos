@@ -512,7 +512,6 @@ export const useDepartmentInfoStore = defineStore('departmentInfo', () => {
         }
         return JSON.stringify({ departmentInfoCache: {} })
       }
-    },
-    paths: ['departmentInfoCache']
+    }
   }
 })

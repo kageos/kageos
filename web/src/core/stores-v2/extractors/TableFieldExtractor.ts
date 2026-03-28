@@ -4,7 +4,7 @@
  */
 
 import type { IFieldExtractor, FieldExtractorRegistry } from './FieldExtractor'
-import type { FieldConfig } from '../../../types/field'
+import type { FieldConfig } from '../../types/field'
 
 export class TableFieldExtractor implements IFieldExtractor {
   extract(
@@ -88,4 +88,3 @@ export class TableFieldExtractor implements IFieldExtractor {
     }
   }
 }
-

@@ -285,8 +285,7 @@ watch(
     if (open) {
       const runAt = new Date()
       runAt.setMinutes(runAt.getMinutes() + 1)
-      const firstTable =
-        allowedActions.value.length > 0 ? allowedActions.value[0] : 'table_create'
+      const firstTable: ScheduledTaskAction = allowedActions.value[0] ?? 'table_create'
       form.value = {
         name: '',
         table_action: firstTable,

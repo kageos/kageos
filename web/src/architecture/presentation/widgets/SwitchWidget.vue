@@ -118,18 +118,19 @@ const displayValue = computed(() => {
   return raw === true || raw === 'true' || raw === 1 || raw === '1'
 })
 
-function handleChange(value: boolean): void {
+function handleChange(value: string | number | boolean): void {
   // 可以在这里添加验证逻辑
 }
 
 // 表格单元格模式下的变更处理
-function handleTableCellChange(value: boolean): void {
+function handleTableCellChange(value: string | number | boolean): void {
   if (props.mode === 'table-cell') {
+    const normalizedValue = value === true || value === 'true' || value === 1 || value === '1'
     // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
     const newFieldValue = createFieldValue(
       props.field,
-      value,
-      value ? activeText.value : inactiveText.value
+      normalizedValue,
+      normalizedValue ? activeText.value : inactiveText.value
     )
     
     formDataStore.setValue(props.fieldPath, newFieldValue)
@@ -162,4 +163,3 @@ function handleTableCellChange(value: boolean): void {
   font-size: 12px;
 }
 </style>
-

@@ -511,8 +511,6 @@ export const useUserInfoStore = defineStore('userInfo', () => {
         }
         return JSON.stringify({ userInfoCache: {} })
       }
-    },
-    paths: ['userInfoCache']
+    }
   }
 })
-

@@ -79,19 +79,13 @@ import type { IEventBus } from '../interfaces/IEventBus'
 import { FormEvent } from '../interfaces/IEventBus'
 import type { FieldConfig, FieldValue } from '../types'
 import { ValidationEngine, createDefaultValidatorRegistry } from '@/core/validation'
+import type { ValidationResult as CoreValidationResult } from '@/core/validation'
 import type { ReactiveFormDataManager } from '@/core/managers/ReactiveFormDataManager'
 import { Logger } from '@/core/utils/logger'
 import { getWidgetDefaultValue } from '@/architecture/presentation/widgets/composables/useWidgetDefaultValue'
 import { useAuthStore } from '@/stores/auth'
 
-/**
- * 验证结果类型（简化，实际应该从 validation 导入）
- */
-export interface ValidationResult {
-  message: string
-  field: string
-  [key: string]: any
-}
+export type ValidationResult = CoreValidationResult
 
 /**
  * 表单状态
@@ -100,6 +94,8 @@ export interface FormState {
   data: Map<string, FieldValue>
   errors: Map<string, ValidationResult[]>
   submitting: boolean
+  response?: Record<string, any> | null
+  metadata?: Record<string, any> | null
 }
 
 /**
@@ -513,4 +509,3 @@ export class FormDomainService {
     return this.stateManager
   }
 }
-

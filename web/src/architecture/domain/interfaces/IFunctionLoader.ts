@@ -9,18 +9,30 @@
  * - 缓存管理
  */
 
+import type { FieldConfig } from '@/core/types/field'
+
 /**
- * 函数详情类型（简化，实际应该从 types 导入）
+ * 函数详情类型
  */
 export interface FunctionDetail {
   id?: number
+  app_id?: number
+  tree_id?: number
   code?: string
   name?: string
+  description?: string
   method?: string
   router?: string
-  template_type?: 'form' | 'table'
-  request?: any[]
-  response?: any[]
+  has_config?: boolean
+  create_tables?: string
+  callbacks?: string | string[]
+  template_type?: 'form' | 'table' | 'chart' | string
+  request?: FieldConfig[]
+  response?: FieldConfig[]
+  permissions?: Record<string, boolean>
+  created_by?: string
+  created_at?: string
+  updated_at?: string
   [key: string]: any
 }
 
@@ -56,4 +68,3 @@ export interface IFunctionLoader {
    */
   clearCache(): void
 }
-

@@ -139,7 +139,7 @@
               <FormView
                 v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
                 :key="`form-edit-${currentFunction.id}-${editRowId}`"
-                :function-detail="editFunctionDetail"
+                :function-detail="editFunctionDetail || undefined"
                 :initial-data="editInitialData"
               />
               <div v-else class="empty-state">
@@ -212,7 +212,7 @@
                       <ChartView
                         v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
                         :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
-                        :function-detail="currentFunctionDetail"
+                        :function-detail="asRenderableFunctionDetail(currentFunctionDetail)"
                       />
                       <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
                         <el-skeleton :rows="8" animated />
@@ -304,7 +304,7 @@
                 <ChartView
                   v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
                   :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
-                  :function-detail="currentFunctionDetail"
+                  :function-detail="asRenderableFunctionDetail(currentFunctionDetail)"
                 />
                 <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
                   <el-skeleton :rows="8" animated />
@@ -642,6 +642,7 @@
           <UsersWidget
             :field="adminsField"
             :value="adminsFieldValue"
+            :field-path="adminsField.code"
             mode="edit"
             @update:modelValue="handleAdminsChange"
           />
@@ -655,7 +656,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="createDirectoryDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="() => handleSubmitCreateDirectory(() => currentApp.value)" :loading="creatingDirectory">
+          <el-button type="primary" @click="handleSubmitCreateDirectory" :loading="creatingDirectory">
             创建
           </el-button>
         </span>
@@ -807,21 +808,23 @@ import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { RouteManager } from '../../infrastructure/routeManager'
 import { useAuthStore } from '@/stores/auth'
-import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
+import ServiceTreePanel from '@/architecture/presentation/components/ServiceTreePanel.vue'
 import WorkspaceHeader from '../components/WorkspaceHeader.vue'
 import FunctionBreadcrumb from '../components/FunctionBreadcrumb.vue'
 import TableRowDetailDrawer from '../components/TableRowDetailDrawer.vue'
-import UserSearchInput from '@/components/UserSearchInput.vue'
-import UserDisplay from '../widgets/UserDisplay.vue'
-import UsersWidget from '../widgets/UsersWidget.vue'
-import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
-import PermissionManageList from '@/components/Permission/PermissionManageList.vue'
+import UserSearchInput from '@/shared/components/UserSearchInput.vue'
+import UserDisplay from '@/shared/components/UserDisplay.vue'
+import UsersWidget from '@/shared/components/UsersWidget.vue'
+import PermissionRequestList from '@/shared/components/permission/PermissionRequestList.vue'
+import PermissionManageList from '@/shared/components/permission/PermissionManageList.vue'
 import ScheduledTaskList from '../components/ScheduledTaskList.vue'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
+import type { FunctionDetail as RenderableFunctionDetail } from '@/core/types/field'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
+import type { LocationQueryValue } from 'vue-router'
 // 🔥 导入 Composable
 import { useWorkspaceRouting } from '../composables/useWorkspaceRouting'
 import { RouteSource } from '@/utils/routeSource'
@@ -837,7 +840,7 @@ import { resolveWorkspaceUrl, extractWorkspacePath } from '@/utils/route'
 import { isLinkNavigation as checkLinkNavigation, LINK_TYPE_QUERY_KEY } from '@/utils/linkNavigation'
 import { getWorkspaceSessions, cancelWorkspaceChat, type WorkspaceSessionItem } from '@/api/workspace'
 import { listScheduledTasks } from '@/api/scheduledTask'
-import { hasPermission, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
+import { hasPermission, TablePermission, buildPermissionApplyURL } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 
 const route = useRoute()
@@ -853,45 +856,63 @@ const PermissionDeniedView = defineAsyncComponent(() => import('../components/Pe
 const WorkstationChat = defineAsyncComponent(() => import('../components/WorkstationChat.vue'))
 const MiniWorkstation = defineAsyncComponent(() => import('../components/MiniWorkstation.vue'))
 const CreateBoardDialog = defineAsyncComponent(() => import('../components/CreateBoardDialog.vue'))
-const PublishToHubDialog = defineAsyncComponent(() => import('@/components/PublishToHubDialog.vue'))
-const PushToHubDialog = defineAsyncComponent(() => import('@/components/PushToHubDialog.vue'))
-const PullFromHubDialog = defineAsyncComponent(() => import('@/components/PullFromHubDialog.vue'))
-const DirectoryUpdateHistoryDialog = defineAsyncComponent(() => import('@/components/DirectoryUpdateHistoryDialog.vue'))
+const PublishToHubDialog = defineAsyncComponent(() => import('@/shared/components/PublishToHubDialog.vue'))
+const PushToHubDialog = defineAsyncComponent(() => import('@/shared/components/PushToHubDialog.vue'))
+const PullFromHubDialog = defineAsyncComponent(() => import('@/shared/components/PullFromHubDialog.vue'))
+const DirectoryUpdateHistoryDialog = defineAsyncComponent(() => import('@/shared/components/DirectoryUpdateHistoryDialog.vue'))
 
 // 依赖注入（使用 IServiceProvider 接口，遵循依赖倒置原则）
 const serviceProvider: IServiceProvider = serviceFactory
-const stateManager = serviceProvider.getWorkspaceStateManager()
 const applicationService = serviceProvider.getWorkspaceApplicationService()
 const domainService = serviceProvider.getWorkspaceDomainService()
 
 // 从状态管理器获取状态
-const serviceTree = computed(() => stateManager.getServiceTree())
-const currentFunction = computed(() => stateManager.getCurrentFunction())
-const currentAppFromState = computed(() => stateManager.getCurrentApp())
+const serviceTree = computed(() => domainService.getServiceTree())
+const currentFunction = computed(() => domainService.getCurrentFunction())
+const currentAppFromState = computed(() => domainService.getCurrentApp())
 
 // ⭐ 需要自动展开的节点ID列表（从后端返回）
 const expandedKeys = ref<number[]>([])
 
 // 🔥 不再使用 Tab 功能，简化系统
 
+function normalizeApp(app: Partial<AppType> & Pick<AppType, 'id' | 'user' | 'code' | 'name'>): AppType {
+  return {
+    id: app.id,
+    user: app.user,
+    code: app.code,
+    name: app.name,
+    nats_id: app.nats_id ?? 0,
+    host_id: app.host_id ?? 0,
+    status: app.status ?? 'enabled',
+    type: app.type,
+    version: app.version ?? '',
+    is_public: app.is_public ?? false,
+    admins: app.admins ?? '',
+    show_only_permitted: app.show_only_permitted,
+    created_at: app.created_at ?? '',
+    updated_at: app.updated_at ?? ''
+  }
+}
+
+function normalizeQueryTab(tab: LocationQueryValue | LocationQueryValue[] | undefined): string | null {
+  if (Array.isArray(tab)) {
+    return tab[0] ?? null
+  }
+
+  return typeof tab === 'string' ? tab : null
+}
+
+function getCurrentAppForTreeLoad(): App | null {
+  return currentApp.value ? normalizeApp(currentApp.value) : null
+}
+
 const currentApp = computed<AppType | null>(() => {
   const app = currentAppFromState.value
   if (!app) return null
   // 从 appList 中查找对应的应用（确保使用最新的应用数据）
   const foundApp = appList.value.find((a: AppType) => a.id === app.id || (a.user === app.user && a.code === app.code))
-  return foundApp || {
-    id: app.id,
-    user: app.user,
-    code: app.code,
-    name: app.name,
-    nats_id: app.nats_id || 0,
-    host_id: app.host_id || 0,
-    status: (app.status || 'enabled') as 'enabled' | 'disabled',
-    version: app.version || '',
-    created_at: app.created_at || '',
-    updated_at: app.updated_at || '',
-    admins: app.admins || '' // ⭐ 包含 admins 字段
-  }
+  return foundApp ? normalizeApp(foundApp) : normalizeApp(app)
 })
 
 const {
@@ -954,6 +975,10 @@ function handleAdminsChange(value: FieldValue) {
   createDirectoryForm.value.admins = value.raw || ''
 }
 
+function asRenderableFunctionDetail(detail: FunctionDetail): RenderableFunctionDetail {
+  return detail as RenderableFunctionDetail
+}
+
 // 🔥 移除缓存后，通过事件获取函数详情
 const currentFunctionDetail = ref<FunctionDetail | null>(null)
 
@@ -965,7 +990,6 @@ const {
   detailOriginalRow,
   detailDrawerMode,
   drawerSubmitting,
-  detailFormRendererRef,
   detailUserInfoMap,
   detailTableData,
   currentDetailIndex,
@@ -1299,8 +1323,8 @@ const workstationContext = computed(() => {
 
 // 当目录变化或侧边栏打开时加载右侧会话列表
 watch(
-  () => [workstationContext.value?.fullCodePath, showRightSidebar.value] as const,
-  ([path, visible]: [string | undefined, boolean]) => {
+  [() => workstationContext.value?.fullCodePath, showRightSidebar],
+  ([path, visible]) => {
     stopRightSidebarPoll()
     if (path && visible) {
       loadRightSidebarSessions()
@@ -1466,7 +1490,7 @@ function openMiniWsForTask(fullCodePath: string, sessionId: string) {
 const canUpdateTable = computed(() => {
   const node = currentFunction.value
   if (!node) return true  // 如果没有节点信息，默认允许（向后兼容）
-  return hasPermission(node, TablePermissions.update)
+  return hasPermission(node, TablePermission.update)
 })
 
 // ⭐ 权限错误状态
@@ -1595,7 +1619,7 @@ onUnmounted(() => {
 
 
 // 转换 loadingTree 为 boolean (避免 computed 类型问题)
-const loading = computed(() => stateManager.isLoading())
+const loading = computed(() => domainService.isLoading())
 
 /**
  * 构建工作空间路径
@@ -2117,11 +2141,11 @@ const handleDeleteDirectory = async (node: ServiceTreeType) => {
     ElMessage.success('目录删除成功')
 
     // 如果当前选中的是该目录或其子节点，清空或跳转到父级
-    const deletedPath = node.full_code_path || ''
+        const deletedPath = node.full_code_path || ''
     if (currentFunction.value) {
       const currentPath = currentFunction.value.full_code_path || ''
       if (currentPath === deletedPath || currentPath.startsWith(deletedPath + '/')) {
-        currentFunction.value = null
+        domainService.setCurrentFunction(null)
         const parentPath = deletedPath.split('/').slice(0, -1).join('/') || ''
         if (parentPath) {
           router.replace({ path: `/workspace${parentPath}`, query: { ...route.query } })
@@ -2164,7 +2188,7 @@ const handleDeleteFunction = async (node: ServiceTreeType) => {
 
     // 如果删除的是当前选中的函数，清空选中状态
     if (currentFunction.value && currentFunction.value.id === node.id) {
-      currentFunction.value = null
+      domainService.setCurrentFunction(null)
       // 清空 URL 参数
       router.replace({
         path: route.path,
@@ -2184,13 +2208,8 @@ const handleDeleteFunction = async (node: ServiceTreeType) => {
 
 // 处理刷新服务树（复制粘贴后需要刷新）
 const handleRefreshTree = async () => {
-  if (currentApp.value) {
-    const app: App = {
-      id: currentApp.value.id,
-      user: currentApp.value.user,
-      code: currentApp.value.code,
-      name: currentApp.value.name
-    }
+  const app = getCurrentAppForTreeLoad()
+  if (app) {
     await domainService.loadServiceTree(app)
   }
 }
@@ -2252,13 +2271,8 @@ const handleUpdateHistory = (node?: ServiceTreeType) => {
 // 发布成功后的回调
 const handlePublishSuccess = async () => {
   // 刷新服务目录树
-  if (currentApp.value) {
-    const app: App = {
-      id: currentApp.value.id,
-      user: currentApp.value.user,
-      code: currentApp.value.code,
-      name: currentApp.value.name
-    }
+  const app = getCurrentAppForTreeLoad()
+  if (app) {
     await domainService.loadServiceTree(app)
   }
 }
@@ -2266,13 +2280,8 @@ const handlePublishSuccess = async () => {
 // 推送成功后的回调
 const handlePushSuccess = async () => {
   // 刷新服务目录树
-  if (currentApp.value) {
-    const app: App = {
-      id: currentApp.value.id,
-      user: currentApp.value.user,
-      code: currentApp.value.code,
-      name: currentApp.value.name
-    }
+  const app = getCurrentAppForTreeLoad()
+  if (app) {
     await domainService.loadServiceTree(app)
   }
 }
@@ -2283,13 +2292,8 @@ const handlePullSuccess = async () => {
   pullFromHubTargetPath.value = ''
   pullFromHubTargetName.value = ''
   // 刷新服务目录树
-  if (currentApp.value) {
-    const app: App = {
-      id: currentApp.value.id,
-      user: currentApp.value.user,
-      code: currentApp.value.code,
-      name: currentApp.value.name
-    }
+  const app = getCurrentAppForTreeLoad()
+  if (app) {
     await domainService.loadServiceTree(app)
   }
 }
@@ -2535,8 +2539,10 @@ watch(queryTab, async (newTab: string, oldTab: string) => {
 // ⭐ 监听路由 query 参数，支持通过 tab 参数指定要打开的函数 tab
 watch(
   () => route.query.tab,
-  (tab: string | string[] | null) => {
-    if (tab === 'permissionRequest' && showFunctionPermissionRequestTab.value) {
+  (tab) => {
+    const normalizedTab = normalizeQueryTab(tab)
+
+    if (normalizedTab === 'permissionRequest' && showFunctionPermissionRequestTab.value) {
       functionActiveTab.value = 'permissionRequest'
       // 切换 tab 时触发加载
       nextTick(() => {
@@ -2544,7 +2550,7 @@ watch(
           functionPermissionRequestListRef.value.loadRequests()
         }
       })
-    } else if (tab === 'permissionManage' && showFunctionPermissionRequestTab.value) {
+    } else if (normalizedTab === 'permissionManage' && showFunctionPermissionRequestTab.value) {
       functionActiveTab.value = 'permissionManage'
       // 切换 tab 时触发加载
       nextTick(() => {

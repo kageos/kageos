@@ -14,7 +14,8 @@ import type { FieldConfig } from '@/core/types/field'
 export interface ComponentConfig {
   component: string
   props?: Record<string, any>
-  onRemoteMethod?: (query: string) => Promise<Array<{ label: string; value: any }>>
+  onRemoteMethod?: (query: string) => Promise<Array<{ label: string; value: any; userInfo?: any; departmentInfo?: any }>>
+  onInitOptions?: (value: any) => Promise<Array<{ label: string; value: any; userInfo?: any; departmentInfo?: any }>>
 }
 
 /**
@@ -345,7 +346,7 @@ function createSliderComponentConfig(
   
   // 计算步长的小数位数（用于 input-number 的 precision）
   const stepStr = String(step)
-  const precision = stepStr.includes('.') ? stepStr.split('.')[1].length : 0
+  const precision = stepStr.includes('.') ? (stepStr.split('.')[1]?.length ?? 0) : 0
 
   return {
     component: SearchComponent.NUMBER_RANGE_INPUT,
@@ -918,4 +919,3 @@ function createDateShortcuts(): Array<{ text: string; value: () => number[] }> {
     }
   ]
 }
-

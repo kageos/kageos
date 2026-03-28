@@ -139,7 +139,7 @@ export class FormApplicationService {
         Logger.info('[FormApplicationService]', '提交前 formStore.data 状态', {
           dataSize: stateManagerForDebug.formStore.data.size,
           dataKeys: Array.from(stateManagerForDebug.formStore.data.keys()),
-          dataSample: Array.from(stateManagerForDebug.formStore.data.entries()).slice(0, 5).map(([k, v]) => ({
+          dataSample: Array.from(stateManagerForDebug.formStore.data.entries() as Iterable<[string, any]>).slice(0, 5).map(([k, v]) => ({
             key: k,
             raw: (v as any)?.raw,
             display: (v as any)?.display
@@ -243,4 +243,3 @@ export class FormApplicationService {
     this.domainService.clearForm()
   }
 }
-

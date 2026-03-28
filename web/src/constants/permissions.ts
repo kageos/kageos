@@ -189,30 +189,6 @@ export const Permission = {
   Board: BoardPermission,
 } as const
 
-/**
- * 旧版本兼容：保持原有的导出名称
- * @deprecated 请使用 DirectoryPermission 代替
- */
-export const DirectoryPermissions = DirectoryPermission
-
-/**
- * 旧版本兼容：保持原有的导出名称
- * @deprecated 请使用 TablePermission 代替
- */
-export const TablePermissions = TablePermission
-
-/**
- * 旧版本兼容：保持原有的导出名称
- * @deprecated 请使用 FormPermission 代替
- */
-export const FormPermissions = FormPermission
-
-/**
- * 旧版本兼容：保持原有的导出名称
- * @deprecated 请使用 ChartPermission 代替
- */
-export const ChartPermissions = ChartPermission
-
 // ========================================
 // 工具函数
 // ========================================
@@ -243,9 +219,14 @@ export function parsePermission(permission: string): {
   if (parts.length !== 2) {
     return null
   }
+  const resourceType = parts[0]
+  const actionType = parts[1]
+  if (!resourceType || !actionType) {
+    return null
+  }
   return {
-    resourceType: parts[0],
-    actionType: parts[1],
+    resourceType,
+    actionType,
   }
 }
 

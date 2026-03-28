@@ -154,6 +154,7 @@ export interface RemoveRoleFromUserReq {
   app: string
   username: string
   role_code: string
+  resource_type?: string
   resource_path: string
 }
 
@@ -172,6 +173,7 @@ export interface RemoveRoleFromDepartmentReq {
   app: string
   department_path: string
   role_code: string
+  resource_type?: string
   resource_path: string
 }
 

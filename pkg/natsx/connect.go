@@ -10,6 +10,22 @@ import (
 // Connect 创建带自动重连的 NATS 连接
 // 休眠/网络中断后会自动重连，避免手动重启服务。
 func Connect(url string) (*nats.Conn, error) {
+	return ConnectWithOptions(url)
+}
+
+// ConnectNamed 创建带服务名的 NATS 连接。
+func ConnectNamed(url, name string) (*nats.Conn, error) {
+	opts := []nats.Option{
+		nats.Timeout(10 * time.Second),
+	}
+	if name != "" {
+		opts = append(opts, nats.Name(name))
+	}
+	return ConnectWithOptions(url, opts...)
+}
+
+// ConnectWithOptions 在默认自动重连选项上叠加额外配置。
+func ConnectWithOptions(url string, extraOpts ...nats.Option) (*nats.Conn, error) {
 	opts := []nats.Option{
 		nats.MaxReconnects(-1), // 无限重连
 		nats.ReconnectWait(2 * time.Second),
@@ -31,6 +47,7 @@ func Connect(url string) (*nats.Conn, error) {
 			logger.Warnf(nil, "[NATS] Connection closed permanently")
 		}),
 	}
+	opts = append(opts, extraOpts...)
 
 	conn, err := nats.Connect(url, opts...)
 	if err != nil {

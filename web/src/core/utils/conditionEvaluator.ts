@@ -82,6 +82,9 @@ function parseConditionalRules(validation: string, allFields: FieldConfig[]): Co
     }
     
     const [type, valueStr] = part.split('=', 2)
+    if (!type || valueStr === undefined) {
+      continue
+    }
     const typeTrimmed = type.trim()
     const valueTrimmed = valueStr.trim()
     
@@ -161,4 +164,3 @@ function isValueEqual(actual: any, expected: string): boolean {
   
   return String(actual) === expected
 }
-

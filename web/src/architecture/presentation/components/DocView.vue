@@ -165,20 +165,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, Check, Plus, Delete, Close, ArrowLeft, ArrowRight, Clock, RefreshRight } from '@element-plus/icons-vue'
-import { marked } from 'marked'
 import type { ServiceTree } from '@/types'
 import { getDoc, updateDoc, deleteDoc } from '@/api/doc'  // ✅ 使用新的文档 API
 import { hasPermission, DocsPermission, buildPermissionApplyURL } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
-import { escapeHtml, sanitizeHtml } from '@/utils/sanitizeHtml'
-import VditorEditor from '@/components/VditorEditor.vue'
-import UserDisplay from '../widgets/UserDisplay.vue'
+import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
+import UserDisplay from '@/shared/components/UserDisplay.vue'
 import PermissionDeniedView from './PermissionDeniedView.vue'
 
-marked.setOptions({ breaks: true, gfm: true })
+const VditorEditor = defineAsyncComponent(() => import('@/shared/components/VditorEditor.vue'))
+const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
+void preloadMarkdown()
 
 interface Props {
   node: ServiceTree
@@ -266,12 +266,7 @@ const renderedContent = computed(() => {
   if (!doc.value || !doc.value.content) {
     return ''
   }
-  try {
-    return sanitizeHtml(marked.parse(doc.value.content) as string)
-  } catch (error) {
-    console.error('Markdown 渲染失败:', error)
-    return escapeHtml(doc.value.content).replace(/\n/g, '<br>')
-  }
+  return renderMarkdown(doc.value.content)
 })
 
 // 格式化时间（创建/更新展示用）

@@ -107,7 +107,7 @@
                 :field="subField"
                 :value="getSubFieldValue(subField.code)"
                 :model-value="getSubFieldValue(subField.code)"
-                @update:model-value="(v) => updateSubFieldValue(subField.code, v)"
+                @update:model-value="handleSubFieldModelUpdate(subField.code, $event)"
                 :field-path="`${fieldPath}.${subField.code}`"
                 :form-manager="formManager"
                 :form-renderer="formRenderer"
@@ -127,7 +127,7 @@
               :field="subField"
               :value="getSubFieldValue(subField.code)"
               :model-value="getSubFieldValue(subField.code)"
-              @update:model-value="(v) => updateSubFieldValue(subField.code, v)"
+              @update:model-value="handleSubFieldModelUpdate(subField.code, $event)"
               :field-path="`${fieldPath}.${subField.code}`"
               :form-manager="formManager"
               :form-renderer="formRenderer"
@@ -232,7 +232,7 @@
                       :field="subField"
                       :value="getSubFieldValue(subField.code)"
                       :model-value="getSubFieldValue(subField.code)"
-                      @update:model-value="(v) => updateSubFieldValue(subField.code, v)"
+                      @update:model-value="handleSubFieldModelUpdate(subField.code, $event)"
                       :field-path="`${fieldPath}.${subField.code}`"
                       :form-manager="formManager"
                       :form-renderer="formRenderer"
@@ -251,7 +251,7 @@
                   :field="subField"
                   :value="getSubFieldValue(subField.code)"
                   :model-value="getSubFieldValue(subField.code)"
-                  @update:model-value="(v) => updateSubFieldValue(subField.code, v)"
+                  @update:model-value="handleSubFieldModelUpdate(subField.code, $event)"
                   :field-path="`${fieldPath}.${subField.code}`"
                   :form-manager="formManager"
                   :form-renderer="formRenderer"
@@ -311,8 +311,8 @@ import type { WidgetComponentProps } from '@/architecture/presentation/widgets/t
 import { useFormWidget } from '@/architecture/presentation/widgets/composables/useFormWidget'
 import { useTableCellMode } from '@/architecture/presentation/widgets/composables/useTableCellMode'
 import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
-import type { FieldConfig } from '@/architecture/domain/types'
-import type { ValidationEngine, ValidationResult } from '@/core/validation/types'
+import type { FieldConfig, FieldValue } from '@/core/types/field'
+import type { ValidationEngine, ValidationResult } from '@/core/validation'
 import { validateFieldValue, validateFormWidgetNestedFields, type WidgetValidationContext } from '@/architecture/presentation/widgets/composables/useWidgetValidation'
 
 // 抽屉配置常量
@@ -356,6 +356,10 @@ const formData = computed(() => {
 // 获取组件
 function getWidgetComponent(type: string) {
   return widgetComponentFactory.getRequestComponent(type)
+}
+
+function handleSubFieldModelUpdate(subFieldCode: string, value: FieldValue): void {
+  updateSubFieldValue(subFieldCode, value)
 }
 
 // 检查字段是否必填

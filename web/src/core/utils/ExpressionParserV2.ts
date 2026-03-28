@@ -160,7 +160,7 @@ class Lexer {
 
   constructor(input: string) {
     this.input = input.trim()
-    this.currentChar = this.input[this.position] || null
+    this.currentChar = this.input[this.position] ?? null
   }
 
   /**
@@ -168,7 +168,7 @@ class Lexer {
    */
   private advance(): void {
     this.position++
-    this.currentChar = this.position < this.input.length ? this.input[this.position] : null
+    this.currentChar = this.position < this.input.length ? (this.input[this.position] ?? null) : null
   }
 
   /**
@@ -270,14 +270,16 @@ class Lexer {
           return { type: TokenType.COMMA, value: ',', position: startPos }
         case '>':
           this.advance()
-          if (this.currentChar === '=') {
+          const nextCharAfterGt = this.position < this.input.length ? this.input[this.position] ?? null : null
+          if (nextCharAfterGt === '=') {
             this.advance()
             return { type: TokenType.GTE, value: '>=', position: startPos }
           }
           return { type: TokenType.GT, value: '>', position: startPos }
         case '<':
           this.advance()
-          if (this.currentChar === '=') {
+          const nextCharAfterLt = this.position < this.input.length ? this.input[this.position] ?? null : null
+          if (nextCharAfterLt === '=') {
             this.advance()
             return { type: TokenType.LTE, value: '<=', position: startPos }
           }
@@ -291,7 +293,8 @@ class Lexer {
           return { type: TokenType.EQ, value: '=', position: startPos }
         case '!':
           this.advance()
-          if (this.currentChar === '=') {
+          const nextCharAfterBang = this.position < this.input.length ? this.input[this.position] ?? null : null
+          if (nextCharAfterBang === '=') {
             this.advance()
             return { type: TokenType.NE, value: '!=', position: startPos }
           }
@@ -328,8 +331,9 @@ class Lexer {
           'VALUE': TokenType.VALUE,
         }
 
-        if (keywordMap[upperIdentifier]) {
-          return { type: keywordMap[upperIdentifier], value: identifier, position: startPos }
+        const keywordType = keywordMap[upperIdentifier]
+        if (keywordType) {
+          return { type: keywordType, value: identifier, position: startPos }
         }
 
         // 普通字段名
@@ -401,7 +405,7 @@ class Parser {
    */
   private peekNextToken(): Token | null {
     const nextPos = this.position + 1
-    return nextPos < this.tokens.length ? this.tokens[nextPos] : null
+    return nextPos < this.tokens.length ? (this.tokens[nextPos] ?? null) : null
   }
 
   /**
@@ -475,7 +479,7 @@ class Parser {
       this.advance()
       const right = this.parseAdditive()
       
-      const operatorMap: Record<TokenType, string> = {
+      const operatorMap: Partial<Record<TokenType, BinaryOpNode['operator']>> = {
         [TokenType.GT]: '>',
         [TokenType.GTE]: '>=',
         [TokenType.LT]: '<',
@@ -483,8 +487,12 @@ class Parser {
         [TokenType.EQ]: '==',
         [TokenType.NE]: '!=',
       }
+      const operator = operatorMap[token.type]
+      if (!operator) {
+        throw new Error(`Unknown comparison operator: ${token.type}`)
+      }
       
-      left = { type: 'BinaryOp', operator: operatorMap[token.type] as any, left, right } as BinaryOpNode
+      left = { type: 'BinaryOp', operator, left, right } as BinaryOpNode
     }
     
     return left
@@ -781,9 +789,13 @@ class Evaluator {
       case 'IF':
         // MySQL IF(cond, thenExpr, elseExpr)：条件为真取第二参数，否则取第三参数
         if (node.args.length !== 3) throw new Error('IF requires 3 arguments: IF(cond, thenExpr, elseExpr)')
-        const condVal = this.evaluate(node.args[0], row)
+        const [conditionArg, thenArg, elseArg] = node.args
+        if (!conditionArg || !thenArg || !elseArg) {
+          throw new Error('IF requires 3 arguments: IF(cond, thenExpr, elseExpr)')
+        }
+        const condVal = this.evaluate(conditionArg, row)
         const truthy = condVal !== null && condVal !== undefined && condVal !== '' && condVal !== 0 && condVal !== false
-        return truthy ? this.evaluate(node.args[1], row) : this.evaluate(node.args[2], row)
+        return truthy ? this.evaluate(thenArg, row) : this.evaluate(elseArg, row)
       
       case 'COALESCE':
         // 返回第一个非空值
@@ -798,8 +810,12 @@ class Evaluator {
       case 'IFNULL':
         // 如果第一个参数为空，返回第二个参数
         if (node.args.length < 2) throw new Error('IFNULL requires 2 arguments')
-        const first = this.evaluate(node.args[0], row)
-        return (first !== null && first !== undefined && first !== '') ? first : this.evaluate(node.args[1], row)
+        const [firstArg, secondArg] = node.args
+        if (!firstArg || !secondArg) {
+          throw new Error('IFNULL requires 2 arguments')
+        }
+        const first = this.evaluate(firstArg, row)
+        return (first !== null && first !== undefined && first !== '') ? first : this.evaluate(secondArg, row)
       
       default:
         throw new Error(`Unknown function: ${node.name}`)
@@ -894,7 +910,8 @@ export class ExpressionParserV2 {
         return expression
       }
 
-      const [, funcName, argsStr] = match
+      const funcName = match[1] ?? ''
+      const argsStr = match[2] ?? ''
 
       // 特殊处理：value() 函数
       if (funcName === 'value') {
@@ -1168,4 +1185,3 @@ export class ExpressionParserV2 {
     return value
   }
 }
-

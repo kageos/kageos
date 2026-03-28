@@ -170,11 +170,11 @@
 import { computed, ref, watch } from 'vue'
 import { ElInput, ElButton, ElDialog } from 'element-plus'
 import { ElMessage } from 'element-plus'
-import { marked } from 'marked'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import type { TextWidgetConfig } from '@/core/types/widget-configs'
-import { escapeHtml, sanitizeHtml } from '@/utils/sanitizeHtml'
+import { sanitizeHtml } from '@/utils/sanitizeHtml'
+import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -186,6 +186,8 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
+const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
+void preloadMarkdown()
 
 // 获取配置（带类型）
 const config = computed(() => {
@@ -307,21 +309,8 @@ const markdownContent = computed(() => {
   if (!content) {
     return ''
   }
-  
-  try {
-    // 使用 marked 渲染 Markdown
-    // 配置 marked 选项
-    const markedOptions = {
-      breaks: true, // 支持换行
-      gfm: true // 支持 GitHub Flavored Markdown
-    }
-    
-    return sanitizeHtml(marked.parse(content, markedOptions) as string)
-  } catch (error) {
-    console.error('[TextWidget] Markdown 渲染失败:', error)
-    // 如果渲染失败，返回转义后的原始内容
-    return escapeHtml(content).replace(/\n/g, '<br>')
-  }
+
+  return renderMarkdown(content)
 })
 
 // CSV 解析后的表格数据
@@ -406,13 +395,14 @@ const csvTableData = computed<CSVTableData | null>(() => {
     }
     
     // 解析表头
-    const headers = parseCSVLine(lines[0])
+    const headers = parseCSVLine(lines[0] ?? '')
     
     // 解析数据行
     const rows: string[][] = []
     for (let i = 1; i < lines.length; i++) {
-      if (lines[i].trim()) {
-        rows.push(parseCSVLine(lines[i]))
+      const line = lines[i]
+      if (line?.trim()) {
+        rows.push(parseCSVLine(line))
       }
     }
     

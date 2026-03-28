@@ -23,7 +23,7 @@
         </template>
         <el-descriptions :column="2" border>
           <el-descriptions-item label="函数组名称">{{ groupName }}</el-descriptions-item>
-          <el-descriptions-item label="函数组代码">{{ fullGroupCode.value }}</el-descriptions-item>
+          <el-descriptions-item label="函数组代码">{{ fullGroupCode }}</el-descriptions-item>
           <el-descriptions-item label="函数数量" :span="2">
             {{ functions.length }}
           </el-descriptions-item>
@@ -68,9 +68,9 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ArrowLeft, ArrowRight, Document } from '@element-plus/icons-vue'
-import ChartIcon from '@/components/icons/ChartIcon.vue'
-import TableIcon from '@/components/icons/TableIcon.vue'
-import FormIcon from '@/components/icons/FormIcon.vue'
+import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
+import TableIcon from '@/shared/components/icons/TableIcon.vue'
+import FormIcon from '@/shared/components/icons/FormIcon.vue'
 import type { ServiceTree } from '@/types'
 import { extractFullGroupCodeFromRoute, getParentPathFromFullGroupCode } from '@/utils/route'
 import { findFunctionGroup } from '@/utils/serviceTreeUtils'
@@ -243,4 +243,3 @@ onMounted(() => {
   }
 }
 </style>
-

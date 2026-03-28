@@ -44,11 +44,11 @@ export function preserveQueryParams(
       shouldPreserve = true
     }
     // 保留 table 参数
-    else if (preserveTableParams && tableParamKeys.includes(key)) {
+    else if (preserveTableParams && tableParamKeys.includes(key as typeof tableParamKeys[number])) {
       shouldPreserve = true
     }
     // 保留搜索参数
-    else if (preserveSearchParams && searchParamKeys.includes(key)) {
+    else if (preserveSearchParams && searchParamKeys.includes(key as typeof searchParamKeys[number])) {
       shouldPreserve = true
     }
     // 保留自定义参数

@@ -27,12 +27,9 @@ export interface LLMListReq {
 }
 
 export interface LLMListResp {
-  code: number
-  data: {
-    configs: LLMInfo[]
-    total: number
-  }
-  msg: string
+  configs: LLMInfo[]
+  total: number
+  _metadata?: Record<string, any>
 }
 
 export interface LLMGetReq {
@@ -154,5 +151,4 @@ export function deleteLLM(params: LLMDeleteReq) {
 export function setDefaultLLM(params: LLMSetDefaultReq) {
   return post('/agent/api/v1/llm/set_default', params)
 }
-
 

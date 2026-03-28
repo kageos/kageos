@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
+	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -49,7 +49,7 @@ func JWTOrPubKeyAuth(validator PubKeyValidator) gin.HandlerFunc {
 		// 3. JWT Token 解析
 		token := c.GetHeader(contextx.TokenHeader)
 		if token != "" {
-			jwtService := service.NewJWTService()
+			jwtService := auth.NewJWTService()
 			claims, err := jwtService.ValidateToken(token)
 			if err == nil {
 				c.Set(contextx.RequestUserHeader, claims.Username)

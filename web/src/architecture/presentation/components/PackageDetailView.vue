@@ -604,6 +604,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import type { LocationQueryValue } from 'vue-router'
 import { ArrowLeft, Folder, Document, CopyDocument, Key, Link, Files, Clock, Lock, Avatar, Edit, Star, DataLine } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
@@ -612,19 +613,19 @@ import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
-import ChartIcon from '@/components/icons/ChartIcon.vue'
-import TableIcon from '@/components/icons/TableIcon.vue'
-import FormIcon from '@/components/icons/FormIcon.vue'
-import DirectoryUpdateHistoryDialog from '@/components/DirectoryUpdateHistoryDialog.vue'
+import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
+import TableIcon from '@/shared/components/icons/TableIcon.vue'
+import FormIcon from '@/shared/components/icons/FormIcon.vue'
+import DirectoryUpdateHistoryDialog from '@/shared/components/DirectoryUpdateHistoryDialog.vue'
 import { buildPermissionApplyURL, DirectoryPermission } from '@/utils/permission'
-import UsersWidget from '@/architecture/presentation/widgets/UsersWidget.vue'
-import UserWidget from '@/architecture/presentation/widgets/UserWidget.vue'
+import UsersWidget from '@/shared/components/UsersWidget.vue'
+import UserWidget from '@/shared/components/UserWidget.vue'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
 import { useAuthStore } from '@/stores/auth'
 import { updatePackage, addFunctionsToDirectory } from '@/api/service-tree'
-import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
-import PermissionManageList from '@/components/Permission/PermissionManageList.vue'
+import PermissionRequestList from '@/shared/components/permission/PermissionRequestList.vue'
+import PermissionManageList from '@/shared/components/permission/PermissionManageList.vue'
 
 interface Props {
   packageNode?: ServiceTree | null
@@ -717,11 +718,21 @@ const handleTabChange = (tabName: string) => {
   }
 }
 
+function normalizeTabQuery(tab: LocationQueryValue | LocationQueryValue[] | undefined): string | null {
+  if (Array.isArray(tab)) {
+    return tab[0] ?? null
+  }
+
+  return typeof tab === 'string' ? tab : null
+}
+
 // ⭐ 监听路由 query 参数，支持通过 tab 参数指定要打开的 tab
 watch(
   () => route.query.tab,
-  (tab: string | string[] | null) => {
-    if (tab === 'permissionRequest' && showPermissionRequestTab.value) {
+  (tab) => {
+    const normalizedTab = normalizeTabQuery(tab)
+
+    if (normalizedTab === 'permissionRequest' && showPermissionRequestTab.value) {
       activeTab.value = 'permissionRequest'
       // 切换 tab 时触发加载
       nextTick(() => {
@@ -729,7 +740,7 @@ watch(
           permissionRequestListRef.value.loadRequests()
         }
       })
-    } else if (tab === 'permissionManage' && showPermissionRequestTab.value) {
+    } else if (normalizedTab === 'permissionManage' && showPermissionRequestTab.value) {
       activeTab.value = 'permissionManage'
       // 切换 tab 时触发加载
       nextTick(() => {
@@ -979,23 +990,23 @@ async function onImportGoDrop(e: DragEvent) {
 }
 
 // 获取模板类型标签类型
-function getTemplateTypeTag(templateType: string): string {
+function getTemplateTypeTag(templateType?: string): string {
   const typeMap: Record<string, string> = {
     'table': 'success',
     'form': 'primary',
     'chart': 'warning'
   }
-  return typeMap[templateType] || 'info'
+  return templateType ? (typeMap[templateType] || 'info') : 'info'
 }
 
 // 获取模板类型文本
-function getTemplateTypeText(templateType: string): string {
+function getTemplateTypeText(templateType?: string): string {
   const typeMap: Record<string, string> = {
     'table': '表格',
     'form': '表单',
     'chart': '图表'
   }
-  return typeMap[templateType] || '函数'
+  return templateType ? (typeMap[templateType] || '函数') : '函数'
 }
 
 // 获取子项函数图标组件（与左侧目录树保持一致）
@@ -1013,7 +1024,7 @@ function getChildFunctionIcon(child: ServiceTree) {
 
 // 处理显示变更记录
 function handleShowUpdateHistory(): void {
-  emit('update-history', props.packageNode)
+  updateHistoryDialogVisible.value = true
 }
 
 // 编辑表单的管理员字段值
@@ -1862,4 +1873,3 @@ function handleChildClick(child: ServiceTree): void {
   }
 }
 </style>
-

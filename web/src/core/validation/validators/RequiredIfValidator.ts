@@ -52,21 +52,21 @@ export class RequiredIfValidator implements Validator {
    * - 布尔值：true === true
    * - 数字：1 === 1
    */
-  private isConditionMet(fieldValue: FieldValue, expectedValue: string): boolean {
+  private isConditionMet(fieldValue: FieldValue, expectedValue: string | number): boolean {
     const actualValue = fieldValue.raw
+    const expectedValueStr = String(expectedValue)
     
     // 类型转换和比较
     if (typeof actualValue === 'boolean') {
-      return String(actualValue) === expectedValue || actualValue === (expectedValue === 'true')
+      return String(actualValue) === expectedValueStr || actualValue === (expectedValueStr === 'true')
     }
     
     if (typeof actualValue === 'number') {
-      const expectedNum = Number(expectedValue)
+      const expectedNum = Number(expectedValueStr)
       return !isNaN(expectedNum) && actualValue === expectedNum
     }
     
     // 默认字符串比较
-    return String(actualValue) === expectedValue
+    return String(actualValue) === expectedValueStr
   }
 }
-

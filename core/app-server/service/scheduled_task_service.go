@@ -12,6 +12,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/robfig/cron/v3"
@@ -45,7 +46,7 @@ func normalizeScheduledTaskAction(action string) (string, error) {
 type ScheduledTaskService struct {
 	db            *gorm.DB
 	appService    *AppService
-	jwtService    *JWTService
+	jwtService    *auth.JWTService
 	taskRepo      *repository.ScheduledTaskRepository
 	executionRepo *repository.ScheduledTaskExecutionRepository
 	dueQueue      DueQueue // 按 next_run_at 排序的队列，兜底到点执行（类似 Redis ZSET）
@@ -54,7 +55,7 @@ type ScheduledTaskService struct {
 func NewScheduledTaskService(
 	db *gorm.DB,
 	appService *AppService,
-	jwtService *JWTService,
+	jwtService *auth.JWTService,
 	taskRepo *repository.ScheduledTaskRepository,
 	executionRepo *repository.ScheduledTaskExecutionRepository,
 ) *ScheduledTaskService {

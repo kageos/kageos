@@ -867,17 +867,6 @@ definitions:
           $ref: '#/definitions/dto.UserInfo'
         type: array
     type: object
-  dto.SendEmailCodeReq:
-    properties:
-      email:
-        description: 邮箱地址
-        example: user@example.com
-        type: string
-    required:
-    - email
-    type: object
-  dto.SendEmailCodeResp:
-    type: object
   dto.UpdateAppResp:
     properties:
       app:
@@ -1416,36 +1405,6 @@ paths:
           schema:
             type: string
       summary: 用户注册
-      tags:
-      - 认证管理
-  /api/v1/auth/send_email_code:
-    post:
-      consumes:
-      - application/json
-      description: 向指定邮箱发送验证码，用于注册验证
-      parameters:
-      - description: 发送验证码请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.SendEmailCodeReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 发送成功
-          schema:
-            $ref: '#/definitions/dto.SendEmailCodeResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      summary: 发送邮箱验证码
       tags:
       - 认证管理
   /api/v1/callback/{router}:

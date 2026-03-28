@@ -47,7 +47,8 @@ function parseTimeOffset(offset: string): number {
   const match = valueStr.match(/^(\d+)([smhdwy])?$/i)
   if (!match) return 0
   
-  const [, numStr, unit = 'h'] = match
+  const numStr = match[1] ?? '0'
+  const unit = match[2] ?? 'h'
   const num = parseInt(numStr, 10)
   
   switch (unit.toLowerCase()) {
@@ -80,7 +81,8 @@ function parseFunctionCall(funcCall: string): { name: string; args: string[] } |
   const match = funcCall.match(/^(\w+)\((.*)\)$/)
   if (!match) return null
   
-  const [, name, argsStr] = match
+  const name = match[1] ?? ''
+  const argsStr = match[2] ?? ''
   const args: string[] = []
   
   // 解析参数（支持引号字符串，也支持不带引号的参数）
@@ -213,7 +215,7 @@ export function resolveDynamicDefaultValue(
         if (args.length === 0) {
           return now.getTime()
         }
-        const offset = parseTimeOffset(args[0])
+        const offset = parseTimeOffset(args[0] ?? '')
         return now.getTime() + offset
       }
       
@@ -224,7 +226,7 @@ export function resolveDynamicDefaultValue(
           return today.getTime()
         }
         // Today(+1d) - 明天 00:00:00
-        const offset = parseTimeOffset(args[0])
+        const offset = parseTimeOffset(args[0] ?? '')
         return today.getTime() + offset
       }
       

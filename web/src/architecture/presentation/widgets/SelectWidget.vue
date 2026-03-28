@@ -66,8 +66,8 @@
     <div v-else-if="mode === 'table-cell'" class="table-cell-value">
       <el-tag
         v-if="currentOptionColor"
-        :type="isStandardColor(currentOptionColor) ? currentOptionColor : undefined"
-        :color="!isStandardColor(currentOptionColor) ? currentOptionColor : undefined"
+        :type="getTagType(currentOptionColor)"
+        :color="getTagColor(currentOptionColor)"
         size="small"
         class="select-tag select-tag-outline"
       >
@@ -80,8 +80,8 @@
     <div v-else-if="mode === 'detail'" class="detail-value">
       <el-tag
         v-if="currentOptionColor"
-        :type="isStandardColor(currentOptionColor) ? currentOptionColor : undefined"
-        :color="!isStandardColor(currentOptionColor) ? currentOptionColor : undefined"
+        :type="getTagType(currentOptionColor)"
+        :color="getTagColor(currentOptionColor)"
         class="select-tag select-tag-outline"
       >
         {{ displayValue }}
@@ -155,7 +155,7 @@ import { convertFormDataToRequestByType } from '@/architecture/presentation/widg
 import { eventBus, FormEvent } from '@/architecture/infrastructure/eventBus'
 import { widgetInitializerRegistry } from '@/architecture/presentation/widgets/initializers/WidgetInitializerRegistry'
 import { SelectWidgetInitializer } from '@/architecture/presentation/widgets/initializers/SelectWidgetInitializer'
-import type { SelectWidgetConfig } from '@/core/types/widget-configs'
+import type { SelectOptionConfig, SelectWidgetConfig } from '@/core/types/widget-configs'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -174,25 +174,41 @@ const widgetConfig = computed(() => {
 })
 
 // 选项列表
-const options = ref<Array<{ label: string; value: any; disabled?: boolean; displayInfo?: string }>>([])
+type SelectOptionItem = {
+  label: string
+  value: any
+  disabled?: boolean
+  displayInfo?: any
+  icon?: string
+}
+
+function normalizeOption(option: string | SelectOptionConfig): SelectOptionItem {
+  if (typeof option === 'string') {
+    return {
+      label: option,
+      value: option,
+    }
+  }
+
+  return {
+    label: option.label,
+    value: option.value,
+    disabled: option.disabled,
+    displayInfo: option.displayInfo ?? option.display_info,
+    icon: option.icon,
+  }
+}
+
+const options = ref<SelectOptionItem[]>([])
 
 /**
  * 🔥 静态选项（从配置中获取，用于颜色索引对齐）
  * options_colors 数组与静态选项的索引对齐
  */
-const staticOptions = computed(() => {
+const staticOptions = computed<SelectOptionItem[]>(() => {
   const configOptions = widgetConfig.value.options || []
   if (Array.isArray(configOptions)) {
-    if (typeof configOptions[0] === 'string') {
-      // 字符串数组
-      return configOptions.map(opt => ({
-        label: opt,
-        value: opt
-      }))
-    } else {
-      // 对象数组
-      return configOptions
-    }
+    return configOptions.map(normalizeOption)
   }
   return []
 })
@@ -228,11 +244,19 @@ const currentOptionColor = computed(() => {
   // 查找当前值在 options 中的索引
   const optionIndex = options.value.findIndex(opt => opt.value === rawValue)
   if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
-    return optionColors.value[optionIndex]
+    return optionColors.value[optionIndex] ?? null
   }
   
   return null
 })
+
+function getTagType(color: string | null): StandardColorType | undefined {
+  return color && isStandardColor(color) ? (color as StandardColorType) : undefined
+}
+
+function getTagColor(color: string | null): string | undefined {
+  return color && !isStandardColor(color) ? color : undefined
+}
 
 /**
  * 🔥 获取选项的颜色（用于下拉选项显示）
@@ -244,7 +268,7 @@ function getOptionColor(value: any): string | null {
   // 🔥 在 staticOptions 中查找索引（因为 options_colors 与 staticOptions 对齐）
   const optionIndex = staticOptions.value.findIndex((opt: any) => String(opt.value) === valueStr)
   if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
-    return optionColors.value[optionIndex]
+    return optionColors.value[optionIndex] ?? null
   }
   return null
 }
@@ -454,18 +478,8 @@ const displayValue = computed(() => {
 
 // 初始化选项
 function initOptions(): void {
-  const configOptions = widgetConfig.value.options
-  if (configOptions && Array.isArray(configOptions)) {
-    if (typeof configOptions[0] === 'string') {
-      // 字符串数组
-      options.value = configOptions.map(opt => ({
-        label: opt,
-        value: opt
-      }))
-    } else {
-      // 对象数组
-      options.value = configOptions
-    }
+  if (Array.isArray(widgetConfig.value.options)) {
+    options.value = [...staticOptions.value]
   }
   
   // 🔥 如果有回调接口且有初始值，触发一次搜索（包括详情模式）
@@ -797,7 +811,6 @@ const registerFormInitializedListener = () => {
       formRenderer: !!props.formRenderer,
       getFunctionDetail: !!props.formRenderer?.getFunctionDetail,
       functionDetail: props.formRenderer?.getFunctionDetail?.(),
-      functionId: props.formRenderer?.getFunctionDetail?.()?.id,
       lastSearchedValue: lastSearchedValue.value,
       lastSearchedRouter: lastSearchedRouter.value,
       lastSearchedFunctionId: lastSearchedFunctionId.value
@@ -809,7 +822,6 @@ const registerFormInitializedListener = () => {
           Logger.debug('[SelectWidget]', '触发 triggerSearchIfNeeded (FormEvent.initialized)', { 
             fieldCode: props.field.code,
             rawValue: props.value?.raw,
-            functionId: props.formRenderer?.getFunctionDetail?.()?.id,
             lastSearchedValue: lastSearchedValue.value,
             lastSearchedRouter: lastSearchedRouter.value,
             lastSearchedFunctionId: lastSearchedFunctionId.value
@@ -1363,5 +1375,3 @@ watch(
   color: var(--el-text-color-regular);
 }
 </style>
-
-

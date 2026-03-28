@@ -38,5 +38,8 @@ export const THEME_PRESETS: ThemeConfig[] = [
 /**
  * 默认主题
  */
-export const DEFAULT_THEME = THEME_PRESETS[0]
-
+export const DEFAULT_THEME: ThemeConfig = THEME_PRESETS[0] ?? {
+  mode: 'light',
+  name: 'modern-light',
+  label: '现代浅色'
+}

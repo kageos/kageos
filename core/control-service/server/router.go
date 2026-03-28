@@ -5,17 +5,18 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/middleware"
 	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
-	"github.com/gin-gonic/gin"
+	"github.com/ai-agent-os/ai-agent-os/pkg/serverx"
 )
 
 // initRouter 初始化路由
 func (s *Server) initRouter(ctx context.Context) error {
 	logger.Infof(ctx, "[Control Service] Initializing router...")
 
-	gin.SetMode(gin.ReleaseMode)
-	s.httpServer = gin.New()
-	s.httpServer.Use(gin.Recovery())
-	s.httpServer.Use(gin.Logger())
+	s.httpServer = serverx.NewGin(
+		serverx.WithDebug(false),
+		serverx.WithRecovery(),
+		serverx.WithLogger(),
+	)
 
 	// 注册 pprof 路由（性能分析）
 	pprof.RegisterPprofRoutes(s.httpServer)

@@ -53,7 +53,7 @@ export function convertValueToType(
 
       case DataType.BOOL:
       case 'boolean': // 兼容 boolean 别名
-        return value === 'true' || value === '1' || value === 1 || value === true
+        return value === 'true' || value === '1'
 
       default:
         // 未知类型，保持原样
@@ -64,4 +64,3 @@ export function convertValueToType(
     return value
   }
 }
-

@@ -3,10 +3,10 @@ package service
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
+	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
 	"github.com/nats-io/nats.go"
 	"gorm.io/gorm"
 )
@@ -36,12 +36,7 @@ func newNatsServiceFromHostList(list []*model.Host) *NatsService {
 
 	for _, host := range list {
 		url := host.Nats.URL()
-		connect, err := nats.Connect(url,
-			nats.Name(fmt.Sprintf("app-server-host-%d", host.ID)),
-			nats.MaxReconnects(-1),
-			nats.ReconnectWait(2*time.Second),
-			nats.ReconnectBufSize(8*1024*1024),
-		)
+		connect, err := natsx.ConnectNamed(url, fmt.Sprintf("app-server-host-%d", host.ID))
 		if err != nil {
 			panic(err)
 		}

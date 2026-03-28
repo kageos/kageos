@@ -3,8 +3,8 @@
  * 用于 TableView 和 TableWidget 的批量导入功能
  */
 
-import * as XLSX from 'xlsx'
 import type { FieldConfig } from '@/core/types/field'
+import { loadXlsx } from '@/utils/loadXlsx'
 
 export interface ImportError {
   index: number
@@ -26,19 +26,23 @@ export interface ImportResult {
 export function parseExcelFile(file: File, fields: FieldConfig[]): Promise<ImportResult> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
-        console.log('[ExcelImport] 开始解析 Excel 文件')
-        console.log('[ExcelImport] fields 参数:', fields)
-        console.log('[ExcelImport] fields 长度:', fields?.length)
-        console.log('[ExcelImport] fields 中是否有 null:', fields?.some(f => f === null || f === undefined))
-        
+        const XLSX = await loadXlsx()
         const data = new Uint8Array(e.target?.result as ArrayBuffer)
         const workbook = XLSX.read(data, { type: 'array' })
         
         // 获取第一个工作表
         const firstSheetName = workbook.SheetNames[0]
+        if (!firstSheetName) {
+          reject(new Error('Excel 文件中没有可读取的工作表'))
+          return
+        }
         const worksheet = workbook.Sheets[firstSheetName]
+        if (!worksheet) {
+          reject(new Error(`Excel 工作表 "${firstSheetName}" 不存在或无法读取`))
+          return
+        }
         
         // 转换为 JSON（第一行作为键名）
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' })
@@ -51,35 +55,24 @@ export function parseExcelFile(file: File, fields: FieldConfig[]): Promise<Impor
         // 第一行：字段名称（中文）
         // 第二行开始：示例数据（跳过）和数据行
         const fieldNames = jsonData[0] as string[]
-        console.log('[ExcelImport] 第一行字段名称:', fieldNames)
         
         // 根据字段名称匹配字段配置，构建字段映射（字段 code -> 列索引）
         const fieldCodeMap = new Map<string, number>()
         fieldNames.forEach((name, index) => {
           if (name) {
-            // 根据字段名称（中文）查找对应的字段配置
-            console.log(`[ExcelImport] 查找字段名称 "${name}" 的配置`)
             const matchedField = fields.find(field => {
               if (!field) {
-                console.log(`[ExcelImport] 发现 null 字段，跳过`)
                 return false
               }
               return field.name === name || field.name === String(name).trim()
             })
-            console.log(`[ExcelImport] 匹配结果:`, matchedField)
             if (matchedField) {
-              if (!matchedField.code) {
-                console.error(`[ExcelImport] 警告：字段 "${matchedField.name}" 没有 code 属性`, matchedField)
-              } else {
+              if (matchedField.code) {
                 fieldCodeMap.set(matchedField.code, index)
-                console.log(`[ExcelImport] 设置字段映射: ${matchedField.code} -> ${index}`)
               }
-            } else {
-              console.log(`[ExcelImport] 未找到字段名称 "${name}" 的配置`)
             }
           }
         })
-        console.log('[ExcelImport] 字段映射完成:', Array.from(fieldCodeMap.entries()))
         
         // 从第二行开始都是数据行（包括示例数据行，会在后续过滤）
         const dataRows = jsonData.slice(1) as any[][]
@@ -104,7 +97,7 @@ export function parseExcelFile(file: File, fields: FieldConfig[]): Promise<Impor
             let exampleCellCount = 0
             let totalCellCount = 0
             
-            row.forEach((cell, colIndex) => {
+            row.forEach((cell) => {
               if (cell !== null && cell !== undefined && cell.toString().trim() !== '') {
                 totalCellCount++
                 const cellStr = cell.toString().trim()
@@ -135,17 +128,14 @@ export function parseExcelFile(file: File, fields: FieldConfig[]): Promise<Impor
           let hasBusinessData = false // 标记是否有业务数据（非系统字段）
           
           // 根据字段代码映射数据
-          fields.forEach((field, fieldIndex) => {
+          fields.forEach((field) => {
             // 跳过 null 或 undefined 的字段
             if (!field) {
-              console.error(`[ExcelImport] 第 ${excelRowNumber} 行，字段索引 ${fieldIndex} 为 null 或 undefined`)
               return
             }
             if (!field.code) {
-              console.error(`[ExcelImport] 第 ${excelRowNumber} 行，字段 "${field.name || '未知'}" (索引 ${fieldIndex}) 没有 code 属性`, field)
               return
             }
-            console.log(`[ExcelImport] 处理字段: ${field.name} (code: ${field.code})`)
             
             // 检查是否是系统字段
             const isSystemField = field.code === 'created_at' || field.code === 'create_by' || 
@@ -209,9 +199,6 @@ export function parseExcelFile(file: File, fields: FieldConfig[]): Promise<Impor
           // 如果只有系统字段有值，但业务字段都是空的，跳过这一行
           if (hasBusinessData) {
             convertedData.push(rowData)
-          } else {
-            // 如果没有业务数据，跳过这一行（可能是空行或只有系统字段的行）
-            console.log(`[ExcelImport] 跳过 Excel 第 ${excelRowNumber} 行 (无业务数据)`)
           }
         })
         
@@ -270,13 +257,14 @@ function convertFieldValue(field: FieldConfig, value: any): any {
       const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})(?:\.(\d{3}))?$/)
       if (dateMatch) {
         try {
+          const [, yearStr = '', monthStr = '', dayStr = '', hourStr = '', minuteStr = '', secondStr = ''] = dateMatch
           // 手动解析：年-月-日 时:分:秒
-          const year = parseInt(dateMatch[1], 10)
-          const month = parseInt(dateMatch[2], 10) - 1 // JavaScript 月份从 0 开始
-          const day = parseInt(dateMatch[3], 10)
-          const hour = parseInt(dateMatch[4], 10)
-          const minute = parseInt(dateMatch[5], 10)
-          const second = parseInt(dateMatch[6], 10)
+          const year = parseInt(yearStr, 10)
+          const month = parseInt(monthStr, 10) - 1 // JavaScript 月份从 0 开始
+          const day = parseInt(dayStr, 10)
+          const hour = parseInt(hourStr, 10)
+          const minute = parseInt(minuteStr, 10)
+          const second = parseInt(secondStr, 10)
           
           // 创建 Date 对象（本地时间）
           const date = new Date(year, month, day, hour, minute, second)
@@ -286,7 +274,6 @@ function convertFieldValue(field: FieldConfig, value: any): any {
           }
         } catch (e) {
           // 解析失败，继续尝试其他方式
-          console.warn('[ExcelImport] 时间解析失败:', dateStr, e)
         }
       }
       // 尝试其他常见格式
@@ -403,13 +390,14 @@ function convertFieldValue(field: FieldConfig, value: any): any {
           const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})(?:\.(\d{3}))?$/)
           if (dateMatch) {
             try {
+              const [, yearStr = '', monthStr = '', dayStr = '', hourStr = '', minuteStr = '', secondStr = ''] = dateMatch
               // 手动解析：年-月-日 时:分:秒
-              const year = parseInt(dateMatch[1], 10)
-              const month = parseInt(dateMatch[2], 10) - 1 // JavaScript 月份从 0 开始
-              const day = parseInt(dateMatch[3], 10)
-              const hour = parseInt(dateMatch[4], 10)
-              const minute = parseInt(dateMatch[5], 10)
-              const second = parseInt(dateMatch[6], 10)
+              const year = parseInt(yearStr, 10)
+              const month = parseInt(monthStr, 10) - 1 // JavaScript 月份从 0 开始
+              const day = parseInt(dayStr, 10)
+              const hour = parseInt(hourStr, 10)
+              const minute = parseInt(minuteStr, 10)
+              const second = parseInt(secondStr, 10)
               
               // 创建 Date 对象（本地时间）
               const date = new Date(year, month, day, hour, minute, second)
@@ -419,7 +407,6 @@ function convertFieldValue(field: FieldConfig, value: any): any {
               }
             } catch (e) {
               // 解析失败，返回原值
-              console.warn('[ExcelImport] 时间解析失败:', dateStr, e)
             }
           } else {
             // 尝试其他常见格式
@@ -516,4 +503,3 @@ function validateFieldValue(field: FieldConfig, value: any): string | null {
 function isFieldRequired(field: FieldConfig): boolean {
   return field.validation?.includes('required') || false
 }
-

@@ -9,45 +9,6 @@
 
 ## 已实现的 Composables
 
-### usePWAInstall
-负责 PWA 安装功能：
-- 监听 beforeinstallprompt 事件
-- 提供安装提示和安装方法
-- 检测是否已安装
-
-**使用示例**：
-```typescript
-import { usePWAInstall } from '@/composables/usePWAInstall'
-
-const { showInstallButton, install } = usePWAInstall()
-
-// 显示安装按钮
-if (showInstallButton.value) {
-  // 显示安装按钮
-}
-
-// 安装 PWA
-await install()
-```
-
-### useTableOperations
-负责表格操作：
-- 搜索、排序、分页
-- 行选择
-- 批量操作
-
-**使用示例**：
-```typescript
-import { useTableOperations } from '@/composables/useTableOperations'
-
-const {
-  searchForm,
-  handleSearch,
-  handleReset,
-  // ... 其他操作
-} = useTableOperations()
-```
-
 ### useAppEnvironment
 负责应用环境管理：
 - 环境变量管理
@@ -87,12 +48,6 @@ const { currentEnvironment, switchEnvironment } = useAppEnvironment()
 - 验证规则解析
 - 表单验证执行
 - 错误信息展示
-
-### useTableOperations
-负责表格操作：
-- 搜索、排序、分页
-- 行选择
-- 批量操作
 
 ## 优势
 
@@ -169,4 +124,3 @@ const serviceTree = computed(() => stateManager.getServiceTree())
 - ✅ **易于维护**
 
 **永远记住**：避免屎山，从组件化开始！🚀
-

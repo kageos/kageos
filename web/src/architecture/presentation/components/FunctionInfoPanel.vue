@@ -39,12 +39,12 @@
       <h3 v-if="mergedFunctionData.tags">相关Tag</h3>
       <div v-if="mergedFunctionData.tags" class="function-tags">
         <el-tag 
-          v-for="tag in (mergedFunctionData.tags || '').split(',').filter(t => t.trim())" 
+          v-for="tag in tagList"
           :key="tag"
           effect="plain"
           class="tag-item"
         >
-          {{ tag.trim() }}
+          {{ tag }}
         </el-tag>
       </div>
 
@@ -77,38 +77,66 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ElRow, ElCol, ElAvatar, ElText, ElTooltip, ElTag, ElDivider, ElIcon } from 'element-plus'
+import { ElAvatar, ElText, ElTag, ElDivider, ElIcon } from 'element-plus'
 import { User, Clock } from '@element-plus/icons-vue'
-import UserDisplay from '../widgets/UserDisplay.vue'
-import type { FunctionDetail } from '../../domain/types'
+import UserDisplay from '@/shared/components/UserDisplay.vue'
 import type { ServiceTree } from '@/types'
 
+interface FunctionInfoSource {
+  name?: string
+  description?: string
+  created_by?: string
+  created_at?: string
+  router?: string
+  method?: string
+  callbacks?: string
+  run_count?: number | null
+}
+
 interface Props {
-  functionData?: FunctionDetail | null
+  functionData?: FunctionInfoSource | null
   functionNode?: ServiceTree | null  // 服务树节点，可能包含额外的元数据
 }
 
 const props = defineProps<Props>()
 
+interface FunctionInfoDisplayData {
+  name: string
+  description: string
+  tags: string
+  created_by: string
+  created_at: string
+  router: string
+  method: string
+  callbacks: string
+  run_count: number | null
+}
+
 // 合并函数详情和服务树节点的数据
-const mergedFunctionData = computed(() => {
-  const detail = props.functionData || {}
-  const node = props.functionNode || {}
-  
+const mergedFunctionData = computed<FunctionInfoDisplayData>(() => {
+  const detail = props.functionData
+  const node = props.functionNode
+
   return {
-    ...detail,
     // 优先使用 detail 中的数据，如果没有则使用 node 中的数据
-    name: detail.name || node.name || '',
-    description: detail.description || node.description || '',
-    tags: detail.tags || node.tags || '',
+    name: detail?.name || node?.name || '',
+    description: detail?.description || node?.description || '',
+    tags: node?.tags || '',
     // ⭐ 优先使用树节点的 owner（创建用户），这样即使没有 read 权限也可以展示
-    created_by: node.owner || detail.created_by || '',
-    created_at: detail.created_at || node.created_at || '',
-    router: detail.router || node.full_code_path || '',
-    method: detail.method || 'GET',
-    callbacks: detail.callbacks || '',
-    run_count: node.run_count ?? (detail as any).run_count
+    created_by: node?.owner || detail?.created_by || '',
+    created_at: detail?.created_at || node?.created_at || '',
+    router: detail?.router || node?.full_code_path || '',
+    method: detail?.method || 'GET',
+    callbacks: detail?.callbacks || '',
+    run_count: node?.run_count ?? null
   }
+})
+
+const tagList = computed(() => {
+  return mergedFunctionData.value.tags
+    .split(',')
+    .map(tag => tag.trim())
+    .filter(Boolean)
 })
 
 // 格式化日期
@@ -292,4 +320,3 @@ const hasUsageInfo = computed(() => {
   }
 }
 </style>
-

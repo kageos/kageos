@@ -10,7 +10,7 @@
  */
 
 import type { IFieldExtractor, FieldExtractorRegistry } from './FieldExtractor'
-import type { FieldConfig } from '../../../types/field'
+import type { FieldConfig } from '../../types/field'
 import { isStringDataType, getMultiSelectDefaultDataType } from '../../constants/widget'
 
 export class MultiSelectFieldExtractor implements IFieldExtractor {
@@ -59,4 +59,3 @@ export class MultiSelectFieldExtractor implements IFieldExtractor {
     }
   }
 }
-

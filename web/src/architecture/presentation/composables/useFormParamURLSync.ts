@@ -99,7 +99,7 @@ export interface UseFormParamURLSyncOptions {
     getValue: (fieldCode: string) => FieldValue
     getAllValues: () => Record<string, FieldValue>
   }
-  enabled?: boolean  // 是否启用 URL 同步（默认 true）
+  enabled?: boolean | Ref<boolean> | ComputedRef<boolean>  // 是否启用 URL 同步（默认 true）
   debounceMs?: number  // 防抖延迟（默认 300ms）
 }
 
@@ -143,7 +143,13 @@ function buildFormQueryParams(
  */
 export function useFormParamURLSync(options: UseFormParamURLSyncOptions) {
   const route = useRoute()
-  const enabled = options.enabled !== false  // 默认启用
+  const enabled = computed(() => {
+    const option = options.enabled
+    if (option && typeof option === 'object' && 'value' in option) {
+      return option.value !== false
+    }
+    return option !== false
+  })
   const debounceMs = options.debounceMs || 300
 
   // 计算 functionDetail（支持 Ref 和 ComputedRef）
@@ -158,7 +164,7 @@ export function useFormParamURLSync(options: UseFormParamURLSyncOptions) {
    * 同步到 URL
    */
   const syncToURL = (): void => {
-    if (!enabled) {
+    if (!enabled.value) {
       return
     }
 
@@ -226,10 +232,6 @@ export function useFormParamURLSync(options: UseFormParamURLSyncOptions) {
    * 监听表单数据变化，自动同步到 URL
    */
   const watchFormData = (): void => {
-    if (!enabled) {
-      return
-    }
-
     // 监听所有字段值的变化
     watch(
       () => {
@@ -242,8 +244,10 @@ export function useFormParamURLSync(options: UseFormParamURLSyncOptions) {
         }))
       },
       () => {
-        // 字段值变化时，防抖同步到 URL
-        debouncedSyncToURL()
+        if (enabled.value) {
+          // 字段值变化时，防抖同步到 URL
+          debouncedSyncToURL()
+        }
       },
       { deep: true }
     )
@@ -255,4 +259,3 @@ export function useFormParamURLSync(options: UseFormParamURLSyncOptions) {
     watchFormData
   }
 }
-

@@ -8,11 +8,9 @@
  * - 提供工作空间特定的状态管理
  */
 
-import { reactive } from 'vue'
 import { StateManagerImpl } from './StateManagerImpl'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'
 import type { WorkspaceState, App, ServiceTree } from '../../domain/services/WorkspaceDomainService'
-import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 
 /**
  * 工作空间状态管理实现
@@ -22,11 +20,9 @@ export class WorkspaceStateManager extends StateManagerImpl<WorkspaceState> impl
     const defaultState: WorkspaceState = {
       currentApp: null,
       currentFunction: null,
+      currentDirectory: null,
       serviceTree: [],
-      functionDetails: new Map(), // 🔥 保留字段以兼容接口，但不再使用
       loading: false, // 🔥 默认 loading 为 false
-      tabs: [], // 🔥 默认空 Tabs
-      activeTabId: null // 🔥 默认无激活 Tab
     }
 
     super({
@@ -59,20 +55,7 @@ export class WorkspaceStateManager extends StateManagerImpl<WorkspaceState> impl
     return this.getState().serviceTree
   }
 
-  /**
-   * 获取函数详情
-   * 🔥 移除缓存后，此方法已废弃，总是返回 null
-   * 函数详情应该通过 WorkspaceEvent.functionLoaded 事件获取
-   * @deprecated 使用事件监听获取函数详情，而不是从缓存获取
-   */
-  getFunctionDetail(node: ServiceTree): FunctionDetail | null {
-    // 🔥 移除缓存后，不再从缓存获取，总是返回 null
-    // 函数详情应该通过 WorkspaceEvent.functionLoaded 事件获取
-    return null
-  }
-
   isLoading(): boolean {
     return this.getState().loading
   }
 }
-

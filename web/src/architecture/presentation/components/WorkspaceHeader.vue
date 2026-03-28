@@ -120,14 +120,14 @@ import {
   Sunny,
   SwitchButton
 } from '@element-plus/icons-vue'
-import AppSwitcher from '@/components/AppSwitcher.vue'
+import AppSwitcher from '@/shared/components/AppSwitcher.vue'
 import type { App, ServiceTree } from '@/types'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useLicenseStore } from '@/stores/license'
 import { useThemeStore } from '@/stores/theme'
 import DebugDialog from './DebugDialog.vue'
-import UpgradeEnterpriseDialog from '@/components/UpgradeEnterpriseDialog.vue'
+import UpgradeEnterpriseDialog from '@/shared/components/UpgradeEnterpriseDialog.vue'
 import { navigateToHub as navigateToHubUtil } from '@/utils/hub-navigation'
 
 const props = defineProps<{
@@ -343,5 +343,3 @@ defineExpose({
   color: var(--el-text-color-primary);
 }
 </style>
-
-

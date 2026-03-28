@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
+	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -31,13 +31,13 @@ func JWTAuth() gin.HandlerFunc {
 			// ⭐ 网关已解析token，直接使用header中的username
 			// ⭐ 统一使用常量 RequestUserHeader，不再使用 "request_user" 和 "user" 字符串 key
 			c.Set(contextx.RequestUserHeader, requestUser)
-			
+
 			// ⭐ 从 header 获取组织架构信息（网关已设置）
 			// ⭐ 统一使用 DepartmentFullPathHeader 常量
 			if deptPath := c.GetHeader(contextx.DepartmentFullPathHeader); deptPath != "" {
 				c.Set(contextx.DepartmentFullPathHeader, deptPath)
 			}
-			
+
 			logger.Debugf(c, "[JWTAuth] 从 header 获取用户信息 - User: %s, Path: %s", requestUser, c.Request.URL.Path)
 			c.Next()
 			return
@@ -50,7 +50,7 @@ func JWTAuth() gin.HandlerFunc {
 		// ✅ 如果有token，使用token验证（Web端调用）
 		if token != "" {
 			// 验证Token
-			jwtService := service.NewJWTService()
+			jwtService := auth.NewJWTService()
 			claims, err := jwtService.ValidateToken(token)
 			if err != nil {
 				logger.Errorf(c, "[JWTAuth] Token validation failed: %v", err)
@@ -64,8 +64,8 @@ func JWTAuth() gin.HandlerFunc {
 			c.Set("username", claims.Username)
 			c.Set("email", claims.Email)
 			c.Set(contextx.RequestUserHeader, claims.Username) // ⭐ 统一使用常量 RequestUserHeader
-			c.Set(contextx.TokenHeader, token)                // ⭐ 统一使用常量 TokenHeader
-			
+			c.Set(contextx.TokenHeader, token)                 // ⭐ 统一使用常量 TokenHeader
+
 			// ⭐ 设置组织架构信息到上下文（token 中一定包含这些字段，如果用户有组织架构信息）
 			// ⭐ 统一使用 DepartmentFullPathHeader 常量
 			if claims.DepartmentFullPath != nil && *claims.DepartmentFullPath != "" {
@@ -116,7 +116,7 @@ func JWTAuthOptional() gin.HandlerFunc {
 		}
 		token := c.GetHeader(contextx.TokenHeader)
 		if token != "" {
-			jwtService := service.NewJWTService()
+			jwtService := auth.NewJWTService()
 			claims, err := jwtService.ValidateToken(token)
 			if err == nil {
 				c.Set(contextx.RequestUserHeader, claims.Username)

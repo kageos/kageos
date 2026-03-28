@@ -34,7 +34,7 @@ core/agent-server/
 
 ## 配置
 
-配置文件位于 **`deploy/config/{dev|prod}/agent-server.yaml`**（由 `APP_ENV` 决定，默认 `prod`）：
+配置文件位于 **`deploy/dev/config/agent-server.yaml`** 或 **`deploy/prod/config/{runtime|template}/agent-server.yaml`**（由 `APP_ENV` 决定，默认 `prod`）：
 
 ```yaml
 server:
@@ -144,4 +144,3 @@ go build -o bin/agent-server ./core/agent-server/cmd/app
 3. 实现 Service 层
 4. 实现 API 层（定义 DTO）
 5. 逐步完善功能
-

@@ -68,7 +68,7 @@
                 :field="itemField"
                 :value="getRowFieldValue($index, itemField.code)"
                 :model-value="getRowFieldValue($index, itemField.code)"
-                @update:model-value="(v) => updateRowFieldValue($index, itemField.code, v)"
+                @update:model-value="handleRowFieldModelUpdate($index, itemField.code, $event)"
                 :field-path="`${fieldPath}[${$index}].${itemField.code}`"
                 :form-manager="formManager"
                 :form-renderer="formRenderer"
@@ -86,7 +86,7 @@
                   :field="itemField"
                   :value="getRowFieldValue($index, itemField.code)"
                   :model-value="getRowFieldValue($index, itemField.code)"
-                  @update:model-value="(v) => updateRowFieldValue($index, itemField.code, v)"
+                  @update:model-value="handleRowFieldModelUpdate($index, itemField.code, $event)"
                   :field-path="`${fieldPath}[${$index}].${itemField.code}`"
                   :form-manager="formManager"
                   :form-renderer="formRenderer"
@@ -297,7 +297,7 @@
               :field="field"
               :value="value"
               :model-value="value"
-              @update:model-value="(v) => emit('update:modelValue', v)"
+              @update:model-value="emit('update:modelValue', $event)"
               :field-path="fieldPath"
               :form-manager="formManager"
               :form-renderer="formRenderer"
@@ -445,19 +445,19 @@
 import { computed, defineComponent, ref } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElDrawer, ElCard, ElIcon, ElDialog, ElUpload, ElAlert, ElMessage } from 'element-plus'
 import { Upload, Download, View } from '@element-plus/icons-vue'
-import * as XLSX from 'xlsx'
 import { download, post } from '@/utils/request'
+import { loadXlsx } from '@/utils/loadXlsx'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useTableWidget } from '@/architecture/presentation/widgets/composables/useTableWidget'
 import { useTableEditMode } from '@/architecture/presentation/widgets/composables/useTableEditMode'
 import { useTableResponseMode } from '@/architecture/presentation/widgets/composables/useTableResponseMode'
 import { useTableCellMode } from '@/architecture/presentation/widgets/composables/useTableCellMode'
 import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
-import type { FieldValue, FieldConfig } from '@/architecture/domain/types'
+import type { FieldValue, FieldConfig } from '@/core/types/field'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { createEmptyFieldValue, createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import type { ValidationEngine, ValidationResult } from '@/core/validation/types'
-import { validateFieldValue, validateTableWidgetNestedFields, type WidgetValidationContext } from '@/architecture/presentation/widgets/composables/useWidgetValidation'
+import type { ValidationEngine, ValidationResult } from '@/core/validation'
+import { validateFieldValue as validateWidgetFieldValue, validateTableWidgetNestedFields, type WidgetValidationContext } from '@/architecture/presentation/widgets/composables/useWidgetValidation'
 import { Logger } from '@/core/utils/logger'
 import { renderTableCell } from '@/core/utils/tableCellRenderer'
 import FieldStatistics from './FieldStatistics.vue'
@@ -709,6 +709,10 @@ function getWidgetComponent(type: string) {
   return widgetComponentFactory.getRequestComponent(type)
 }
 
+function handleRowFieldModelUpdate(index: number, fieldCode: string, value: FieldValue): void {
+  updateRowFieldValue(index, fieldCode, value)
+}
+
 /**
  * 判断字段是否为嵌套容器类型（form 或 table）
  */
@@ -797,7 +801,7 @@ function validate(
   }
   
   // 1. 验证当前字段（如果有验证规则）
-  const currentFieldErrors = validateFieldValue(props.field, props.fieldPath, context)
+  const currentFieldErrors = validateWidgetFieldValue(props.field, props.fieldPath, context)
   updateFieldErrors(props.fieldPath, currentFieldErrors, fieldErrors)
   
   // 2. 验证嵌套字段（TableWidget 自己负责）
@@ -876,14 +880,23 @@ function handleFileSelect(file: any): void {
 // 解析 Excel 文件
 function parseExcelFile(file: File): void {
   const reader = new FileReader()
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
+      const XLSX = await loadXlsx()
       const data = new Uint8Array(e.target?.result as ArrayBuffer)
       const workbook = XLSX.read(data, { type: 'array' })
       
       // 获取第一个工作表
       const firstSheetName = workbook.SheetNames[0]
+      if (!firstSheetName) {
+        ElMessage.error('Excel 文件格式错误：未找到工作表')
+        return
+      }
       const worksheet = workbook.Sheets[firstSheetName]
+      if (!worksheet) {
+        ElMessage.error('Excel 文件格式错误：工作表内容为空')
+        return
+      }
       
       // 转换为 JSON（第一行作为键名）
       const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' })
@@ -932,7 +945,7 @@ function parseExcelFile(file: File): void {
             rowData[field.code] = convertedValue
             
             // 验证数据
-            const validationError = validateFieldValue(field, convertedValue)
+            const validationError = validateImportedFieldValue(field, convertedValue)
             if (validationError) {
               errors.push({
                 index: convertedData.length, // 使用 convertedData 的长度作为索引（实际数据行号）
@@ -1061,7 +1074,7 @@ function convertFieldValue(field: FieldConfig, value: any): any {
 }
 
 // 验证字段值
-function validateFieldValue(field: FieldConfig, value: any): string | null {
+function validateImportedFieldValue(field: FieldConfig, value: any): string | null {
   // 必填验证
   if (isFieldRequired(field)) {
     if (value === null || value === undefined || value === '' || 

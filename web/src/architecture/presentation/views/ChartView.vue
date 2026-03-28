@@ -18,8 +18,8 @@
 </template>
 
 <script setup lang="ts">
-import ChartRenderer from '@/components/ChartRenderer.vue'
-import type { FunctionDetail } from '@/architecture/domain/types'
+import ChartRenderer from '@/architecture/presentation/components/ChartRenderer.vue'
+import type { FunctionDetail } from '@/core/types/field'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -32,4 +32,3 @@ const props = defineProps<{
   height: 100%;
 }
 </style>
-

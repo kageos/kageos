@@ -117,9 +117,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
-import DepartmentDisplay from './DepartmentDisplay.vue'
-import DepartmentSelectorDialog from '@/components/DepartmentSelectorDialog.vue'
-import DepartmentsSearchDialog from './DepartmentsSearchDialog.vue'
+import DepartmentDisplay from '@/shared/components/DepartmentDisplay.vue'
+import DepartmentSelectorDialog from '@/shared/components/DepartmentSelectorDialog.vue'
+import DepartmentsSearchDialog from '@/shared/components/DepartmentsSearchDialog.vue'
 import { ElButton, ElIcon } from 'element-plus'
 import { OfficeBuilding, Edit, Close } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
@@ -207,7 +207,7 @@ function handleDepartmentsSelected(departments: Department[]): void {
   
   // 更新 departmentInfo 用于显示（多选模式下，取第一个）
   if (departments.length > 0) {
-    departmentInfo.value = departments[0]
+    departmentInfo.value = departments[0] ?? null
   } else {
     departmentInfo.value = null
   }

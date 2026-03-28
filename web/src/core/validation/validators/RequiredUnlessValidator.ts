@@ -48,19 +48,19 @@ export class RequiredUnlessValidator implements Validator {
   /**
    * 判断条件是否满足
    */
-  private isConditionMet(fieldValue: FieldValue, expectedValue: string): boolean {
+  private isConditionMet(fieldValue: FieldValue, expectedValue: string | number): boolean {
     const actualValue = fieldValue.raw
+    const expectedValueStr = String(expectedValue)
     
     if (typeof actualValue === 'boolean') {
-      return String(actualValue) === expectedValue || actualValue === (expectedValue === 'true')
+      return String(actualValue) === expectedValueStr || actualValue === (expectedValueStr === 'true')
     }
     
     if (typeof actualValue === 'number') {
-      const expectedNum = Number(expectedValue)
+      const expectedNum = Number(expectedValueStr)
       return !isNaN(expectedNum) && actualValue === expectedNum
     }
     
-    return String(actualValue) === expectedValue
+    return String(actualValue) === expectedValueStr
   }
 }
-

@@ -9,7 +9,7 @@
  */
 
 import { computed } from 'vue'
-import type { FieldConfig, FieldValue } from '@/architecture/presentation/widgets/types/field'
+import type { FieldConfig, FieldValue } from '@/core/types/field'
 import { DataType } from '@/core/constants/widget'
 import { resolveDynamicDefaultValue } from '@/architecture/presentation/widgets/utils/dynamicDefaultValue'
 
@@ -240,4 +240,3 @@ export function useWidgetDefaultValue(
     defaultValue
   }
 }
-

@@ -1406,4 +1406,3 @@ func init() {
 	packageContext.GET("cashier_average_order_amount_statistics.chart", CashierAverageOrderAmountStatistics, CashierAverageOrderAmountStatisticsTemplate)
 }
 ```
-

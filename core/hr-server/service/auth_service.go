@@ -6,6 +6,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/hr-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/hr-server/repository"
+	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
 	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
@@ -16,7 +17,7 @@ import (
 // AuthService 认证服务
 type AuthService struct {
 	config          *appconfig.HRServerConfig
-	jwtService      *JWTService
+	jwtService      *auth.JWTService
 	userRepo        *repository.UserRepository
 	userSessionRepo *repository.UserSessionRepository
 	natsService     *NATSService // ⭐ 新增：NATS 服务（可选，可能为 nil）
@@ -25,7 +26,7 @@ type AuthService struct {
 // NewAuthService 创建认证服务（依赖注入）
 func NewAuthService(userRepo *repository.UserRepository, userSessionRepo *repository.UserSessionRepository, natsService *NATSService) *AuthService {
 	config := appconfig.GetHRServerConfig()
-	jwtService := NewJWTService()
+	jwtService := auth.NewJWTService()
 	return &AuthService{
 		config:          config,
 		jwtService:      jwtService,

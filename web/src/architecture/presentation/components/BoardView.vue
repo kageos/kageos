@@ -206,19 +206,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, defineAsyncComponent } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, ArrowLeft, Search } from '@element-plus/icons-vue'
-import { marked } from 'marked'
 import type { ServiceTree, UserInfo } from '@/types'
 import { listPosts, getPost, createPost, updatePost, deletePost, type PostItem, type GetPostResp } from '@/api/board'
-import VditorEditor from '@/components/VditorEditor.vue'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 import { useAuthStore } from '@/stores/auth'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { usePermissionErrorStore } from '@/stores/permissionError'
-import { escapeHtml, sanitizeHtml } from '@/utils/sanitizeHtml'
+import { sanitizeHtml } from '@/utils/sanitizeHtml'
+import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
 import PermissionDeniedView from './PermissionDeniedView.vue'
+
+const VditorEditor = defineAsyncComponent(() => import('@/shared/components/VditorEditor.vue'))
+const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
+void preloadMarkdown()
 
 const BOARD_COVER_UPLOAD_ROUTER = 'board/cover'
 
@@ -344,11 +347,7 @@ const onPageChange = (p: number) => {
 const renderedContent = computed(() => {
   if (!postDetail.value?.content) return '（无正文）'
   if (postDetail.value.content_format === 'html') return sanitizeHtml(postDetail.value.content)
-  try {
-    return sanitizeHtml(marked.parse(postDetail.value.content) as string)
-  } catch {
-    return escapeHtml(postDetail.value.content).replace(/\n/g, '<br>')
-  }
+  return renderMarkdown(postDetail.value.content)
 })
 
 // 发帖：封面 + 富文本

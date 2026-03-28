@@ -90,7 +90,7 @@ import type { FieldConfig, FieldValue } from '../../domain/types'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { useUserInfoStore } from '@/stores/userInfo'
-import { hasPermission, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
+import { hasPermission, TablePermission, buildPermissionApplyURL } from '@/utils/permission'
 import type { ServiceTree } from '@/types'
 
 export function useWorkspaceDetail(
@@ -281,7 +281,7 @@ export function useWorkspaceDetail(
       return
     }
     
-    if (!hasPermission(currentFunction, TablePermissions.update)) {
+    if (!hasPermission(currentFunction, TablePermission.update)) {
       ElNotification.warning({
         title: '权限不足',
         message: '您没有更新该表格记录的权限',
@@ -290,7 +290,7 @@ export function useWorkspaceDetail(
       // 跳转到权限申请页面
       const applyUrl = buildPermissionApplyURL(
         currentFunction.full_code_path || '',
-        TablePermissions.update,
+        TablePermission.update,
         currentDetail.template_type
       )
       router.push(applyUrl)
@@ -304,7 +304,7 @@ export function useWorkspaceDetail(
         : undefined
       
       // 🔥 表格更新场景：使用 prepareUpdateData 只返回变更的字段
-      const submitData = await viewRef.prepareUpdateData(oldValues)
+      const submitData = await viewRef.prepareUpdateData(oldValues ?? {})
       
       const updatedRow = await tableApplicationService.updateRow(
         currentDetail,
@@ -382,7 +382,7 @@ export function useWorkspaceDetail(
     const currentId = detailRowData.value.id
     if (currentId === undefined || currentId === null) return
     const state = tableStateManager?.getState?.()
-    const tableData = state?.tableData
+    const tableData = state?.data
     if (!Array.isArray(tableData)) {
       return
     }

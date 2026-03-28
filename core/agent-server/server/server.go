@@ -9,14 +9,15 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/service"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/ai-agent-os/ai-agent-os/pkg/dbx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
+	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/serverx"
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
-	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	gormLogger "gorm.io/gorm/logger"
 )
 
 // Server agent-server 服务器
@@ -30,9 +31,9 @@ type Server struct {
 	natsConn   *nats.Conn // NATS 连接，用于 plugin 调用
 
 	// Repository
-	llmRepo         *repository.LLMRepository
-	sessionRepo     *repository.ChatSessionRepository
-	messageRepo     *repository.ChatMessageRepository
+	llmRepo     *repository.LLMRepository
+	sessionRepo *repository.ChatSessionRepository
+	messageRepo *repository.ChatMessageRepository
 
 	// 服务
 	llmService           *service.LLMService
@@ -142,24 +143,14 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing database...")
 
 	dbCfg := s.cfg.DB
-
-	// 配置 GORM 日志
-	gormConfig := &gorm.Config{}
-	// 开启 SQL 日志便于排查
-	gormConfig.Logger = gormLogger.Default.LogMode(gormLogger.Info)
-
-	var err error
-	switch dbCfg.Type {
-	case "mysql":
-		dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-			dbCfg.User, dbCfg.Password, dbCfg.Host, dbCfg.Port, dbCfg.Name)
-		s.db, err = gorm.Open(mysql.Open(dsn), gormConfig)
-		if err != nil {
-			return fmt.Errorf("failed to connect to MySQL: %w", err)
-		}
-	default:
+	if dbCfg.Type != "mysql" {
 		return fmt.Errorf("unsupported database type: %s", dbCfg.Type)
 	}
+	db, err := dbx.OpenMySQL(dbCfg, dbx.OpenOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to connect to MySQL: %w", err)
+	}
+	s.db = db
 
 	// 自动迁移表结构
 	if err := model.InitTables(s.db); err != nil {
@@ -185,27 +176,7 @@ func (s *Server) initNATS(ctx context.Context) error {
 		return fmt.Errorf("NATS URL is not configured in global config")
 	}
 
-	// 连接选项
-	opts := []nats.Option{
-		nats.Name("agent-server"),
-		nats.Timeout(10 * time.Second),
-		nats.ReconnectWait(2 * time.Second),
-		nats.MaxReconnects(-1),
-		nats.ReconnectBufSize(8 * 1024 * 1024),
-		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
-			if err != nil {
-				logger.Warnf(ctx, "[Server] NATS disconnected: %v", err)
-			}
-		}),
-		nats.ReconnectHandler(func(nc *nats.Conn) {
-			logger.Infof(ctx, "[Server] NATS reconnected to %s", nc.ConnectedUrl())
-		}),
-		nats.ErrorHandler(func(nc *nats.Conn, sub *nats.Subscription, err error) {
-			logger.Errorf(ctx, "[Server] NATS error: %v", err)
-		}),
-	}
-
-	conn, err := nats.Connect(natsURL, opts...)
+	conn, err := natsx.ConnectNamed(natsURL, "agent-server")
 	if err != nil {
 		return fmt.Errorf("failed to connect to NATS: %w", err)
 	}
@@ -236,7 +207,7 @@ func (s *Server) initLicenseClient(ctx context.Context) error {
 	if controlCfg.GetNatsURL() != "" {
 		// 使用独立的 NATS 连接
 		var err error
-		natsConn, err = nats.Connect(controlCfg.GetNatsURL())
+		natsConn, err = natsx.ConnectNamed(controlCfg.GetNatsURL(), "agent-server-control-client")
 		if err != nil {
 			return fmt.Errorf("failed to connect to Control Service NATS: %w", err)
 		}
@@ -286,12 +257,11 @@ func (s *Server) initServices(ctx context.Context) error {
 func (s *Server) initRouter(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing router...")
 
-	// 创建 gin 引擎
-	s.httpServer = gin.New()
-
-	// 添加中间件
-	s.httpServer.Use(gin.Recovery())
-	s.httpServer.Use(middleware2.Cors())
+	// 创建 gin 引擎并挂载通用中间件
+	s.httpServer = serverx.NewGin(
+		serverx.WithRecovery(),
+		serverx.WithMiddleware(middleware2.Cors()),
+	)
 	// 注意：用户信息中间件在路由组中添加
 
 	// 设置路由

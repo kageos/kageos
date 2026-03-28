@@ -18,8 +18,7 @@ export { default as FilesWidget } from './FilesWidget.vue'
 export { default as TimestampWidget } from './TimestampWidget.vue'
 export { default as FormWidget } from './FormWidget.vue'
 export { default as TableWidget } from './TableWidget.vue'
-export { default as UserWidget } from './UserWidget.vue'
+export { default as UserWidget } from '@/shared/components/UserWidget.vue'
 
 // 通用组件
-export { default as UserDisplay } from './UserDisplay.vue'
-
+export { default as UserDisplay } from '@/shared/components/UserDisplay.vue'

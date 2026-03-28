@@ -6,8 +6,7 @@ import './assets/theme-workstation-sci-fi.css'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
-import ElementPlus from 'element-plus'
-import zhCn from 'element-plus/es/locale/lang/zh-cn'
+import { ElLoadingDirective } from 'element-plus'
 import dayjs from 'dayjs'
 import 'dayjs/locale/zh-cn'
 
@@ -27,13 +26,9 @@ const pinia = createPinia()
 // 配置持久化插件
 pinia.use(piniaPluginPersistedstate)
 
-// 配置 Element Plus 中文语言包
-app.use(ElementPlus, {
-  locale: zhCn
-})
-
 app.use(pinia)
 app.use(router)
+app.directive('loading', ElLoadingDirective)
 
 // 初始化认证状态
 const authStore = useAuthStore()

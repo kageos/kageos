@@ -45,7 +45,7 @@ export function shouldSkipURLSync(field: FieldConfig, logPrefix: string = '[URLS
   
   // 排除复杂类型
   const unsupportedTypes = [WidgetType.FORM, WidgetType.TABLE, WidgetType.FILES]
-  if (widgetType && unsupportedTypes.includes(widgetType)) {
+  if (widgetType && unsupportedTypes.includes(widgetType as typeof unsupportedTypes[number])) {
     Logger.debug(logPrefix, `字段 ${field.code} 是复杂类型（${widgetType}），跳过 URL 同步`)
     return true
   }
@@ -119,4 +119,3 @@ export function mergeURLQueryParams(
   
   return mergedQuery
 }
-
