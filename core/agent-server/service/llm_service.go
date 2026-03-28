@@ -40,6 +40,11 @@ type LLMService struct {
 	repo *repository.LLMRepository
 }
 
+const (
+	defaultLLMTimeout   = 300
+	defaultLLMMaxTokens = 8196
+)
+
 // NewLLMService 创建 LLM 服务
 func NewLLMService(repo *repository.LLMRepository) *LLMService {
 	return &LLMService{repo: repo}
@@ -95,6 +100,12 @@ func (s *LLMService) CreateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 	}
 	if cfg.Model == "" {
 		return fmt.Errorf("模型名称不能为空")
+	}
+	if cfg.Timeout <= 0 {
+		cfg.Timeout = defaultLLMTimeout
+	}
+	if cfg.MaxTokens <= 0 {
+		cfg.MaxTokens = defaultLLMMaxTokens
 	}
 
 	// 规范化 extra_config 字段
@@ -158,6 +169,12 @@ func (s *LLMService) UpdateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 	if cfg.Model == "" {
 		return fmt.Errorf("模型名称不能为空")
 	}
+	if cfg.Timeout <= 0 {
+		cfg.Timeout = defaultLLMTimeout
+	}
+	if cfg.MaxTokens <= 0 {
+		cfg.MaxTokens = defaultLLMMaxTokens
+	}
 
 	// 规范化 extra_config 字段
 	normalizedExtraConfig, err := normalizeExtraConfig(func() string {
@@ -170,6 +187,14 @@ func (s *LLMService) UpdateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 		return err
 	}
 	cfg.ExtraConfig = normalizedExtraConfig
+
+	if cfg.Admin == "" {
+		if existing.Admin != "" {
+			cfg.Admin = existing.Admin
+		} else {
+			cfg.Admin = user
+		}
+	}
 
 	// 如果设置为默认，先取消其他默认配置
 	if cfg.IsDefault {
@@ -204,4 +229,3 @@ func (s *LLMService) DeleteLLMConfig(ctx context.Context, id int64) error {
 func (s *LLMService) SetDefaultLLMConfig(ctx context.Context, id int64) error {
 	return s.repo.SetDefault(id)
 }
-

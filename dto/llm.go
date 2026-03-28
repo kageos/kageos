@@ -13,9 +13,11 @@ type LLMInfo struct {
 	Name        string `json:"name" example:"OpenAI GPT-4"`
 	Provider    string `json:"provider" example:"openai"` // openai, claude, local, etc.
 	Model       string `json:"model" example:"gpt-4"`
+	APIKey      string `json:"api_key,omitempty" example:"sk-xxx"`
+	HasAPIKey   bool   `json:"has_api_key" example:"true"`
 	APIBase     string `json:"api_base" example:"https://api.openai.com/v1"`
-	Timeout     int    `json:"timeout" example:"120"`
-	MaxTokens   int    `json:"max_tokens" example:"4000"`
+	Timeout     int    `json:"timeout" example:"300"`
+	MaxTokens   int    `json:"max_tokens" example:"8196"`
 	ExtraConfig string `json:"extra_config" example:"{}"`
 	UseThinking bool   `json:"use_thinking" example:"false"` // 是否使用思考模式（GLM特有功能）
 	IsDefault   bool   `json:"is_default" example:"true"`
@@ -54,8 +56,8 @@ type LLMCreateReq struct {
 	Model       string  `json:"model" binding:"required" example:"gpt-4"`
 	APIKey      string  `json:"api_key" example:"sk-xxx"`
 	APIBase     string  `json:"api_base" example:"https://api.openai.com/v1"`
-	Timeout     int     `json:"timeout" example:"120"`
-	MaxTokens   int     `json:"max_tokens" example:"4000"`
+	Timeout     int     `json:"timeout" example:"300"`
+	MaxTokens   int     `json:"max_tokens" example:"8196"`
 	ExtraConfig *string `json:"extra_config" example:"{}"`
 	UseThinking bool    `json:"use_thinking" example:"false"` // 是否使用思考模式（GLM特有功能）
 	IsDefault   bool    `json:"is_default" example:"false"`
@@ -76,8 +78,8 @@ type LLMUpdateReq struct {
 	Model       string `json:"model" binding:"required" example:"gpt-4"`
 	APIKey      string `json:"api_key" example:"sk-xxx"`
 	APIBase     string `json:"api_base" example:"https://api.openai.com/v1"`
-	Timeout     int    `json:"timeout" example:"120"`
-	MaxTokens   int    `json:"max_tokens" example:"4000"`
+	Timeout     int    `json:"timeout" example:"300"`
+	MaxTokens   int    `json:"max_tokens" example:"8196"`
 	ExtraConfig string `json:"extra_config" example:"{}"`
 	UseThinking bool   `json:"use_thinking" example:"false"` // 是否使用思考模式（GLM特有功能）
 	IsDefault   bool   `json:"is_default" example:"false"`

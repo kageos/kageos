@@ -13,6 +13,44 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func llmAPIKeyForResponse(cfg *model.LLMConfig, isAdmin bool) (string, bool) {
+	if cfg.APIKey == "" {
+		return "", false
+	}
+	if isAdmin {
+		return cfg.APIKey, true
+	}
+	return "", true
+}
+
+func maskLLMAPIKey(apiKey string) string {
+	if apiKey == "" {
+		return ""
+	}
+	if len(apiKey) <= 8 {
+		return "****"
+	}
+	return apiKey[:4] + "****" + apiKey[len(apiKey)-4:]
+}
+
+func sanitizeLLMInfoForLog(info dto.LLMInfo) dto.LLMInfo {
+	info.APIKey = maskLLMAPIKey(info.APIKey)
+	return info
+}
+
+func sanitizeLLMReqForLog(req interface{}) interface{} {
+	switch v := req.(type) {
+	case dto.LLMCreateReq:
+		v.APIKey = maskLLMAPIKey(v.APIKey)
+		return v
+	case dto.LLMUpdateReq:
+		v.APIKey = maskLLMAPIKey(v.APIKey)
+		return v
+	default:
+		return req
+	}
+}
+
 // LLM LLM 配置 API 处理器
 type LLM struct {
 	service *service.LLMService
@@ -63,11 +101,15 @@ func (h *LLM) List(c *gin.Context) {
 		if cfg.ExtraConfig != nil {
 			extraConfig = *cfg.ExtraConfig
 		}
+		isAdmin := utils.IsAdmin(cfg.Admin, currentUser)
+		apiKey, hasAPIKey := llmAPIKeyForResponse(cfg, false)
 		llmInfos = append(llmInfos, dto.LLMInfo{
 			ID:          cfg.ID,
 			Name:        cfg.Name,
 			Provider:    cfg.Provider,
 			Model:       cfg.Model,
+			APIKey:      apiKey,
+			HasAPIKey:   hasAPIKey,
 			APIBase:     cfg.APIBase,
 			Timeout:     cfg.Timeout,
 			MaxTokens:   cfg.MaxTokens,
@@ -76,7 +118,7 @@ func (h *LLM) List(c *gin.Context) {
 			IsDefault:   cfg.IsDefault,
 			Visibility:  cfg.Visibility,
 			Admin:       cfg.Admin,
-			IsAdmin:     utils.IsAdmin(cfg.Admin, currentUser),
+			IsAdmin:     isAdmin,
 			CreatedAt:   time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:   time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
 		})
@@ -110,13 +152,25 @@ func (h *LLM) Get(c *gin.Context) {
 	}
 
 	defer func() {
+		if resp != nil {
+			safeResp := *resp
+			safeResp.LLMInfo = sanitizeLLMInfoForLog(safeResp.LLMInfo)
+			logger.Infof(c, "LLM.Get req:%+v resp:%+v err:%v", req, safeResp, err)
+			return
+		}
 		logger.Infof(c, "LLM.Get req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
 	ctx := contextx.ToContext(c)
+	currentUser := contextx.GetRequestUser(ctx)
 	cfg, err := h.service.GetLLMConfig(ctx, req.ID)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
+		return
+	}
+	isAdmin := utils.IsAdmin(cfg.Admin, currentUser)
+	if cfg.Visibility == 1 && !isAdmin {
+		response.FailWithMessage(c, "无权限查看该 LLM 配置")
 		return
 	}
 
@@ -124,18 +178,24 @@ func (h *LLM) Get(c *gin.Context) {
 	if cfg.ExtraConfig != nil {
 		extraConfig = *cfg.ExtraConfig
 	}
+	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg, isAdmin)
 	resp = &dto.LLMGetResp{
 		LLMInfo: dto.LLMInfo{
 			ID:          cfg.ID,
 			Name:        cfg.Name,
 			Provider:    cfg.Provider,
 			Model:       cfg.Model,
+			APIKey:      apiKey,
+			HasAPIKey:   hasAPIKey,
 			APIBase:     cfg.APIBase,
 			Timeout:     cfg.Timeout,
 			MaxTokens:   cfg.MaxTokens,
 			ExtraConfig: extraConfig,
 			UseThinking: cfg.UseThinking,
 			IsDefault:   cfg.IsDefault,
+			Visibility:  cfg.Visibility,
+			Admin:       cfg.Admin,
+			IsAdmin:     isAdmin,
 			CreatedAt:   time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:   time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
 		},
@@ -157,13 +217,25 @@ func (h *LLM) GetDefault(c *gin.Context) {
 	var err error
 
 	defer func() {
+		if resp != nil {
+			safeResp := *resp
+			safeResp.LLMInfo = sanitizeLLMInfoForLog(safeResp.LLMInfo)
+			logger.Infof(c, "LLM.GetDefault resp:%+v err:%v", safeResp, err)
+			return
+		}
 		logger.Infof(c, "LLM.GetDefault resp:%+v err:%v", resp, err)
 	}()
 
 	ctx := contextx.ToContext(c)
+	currentUser := contextx.GetRequestUser(ctx)
 	cfg, err := h.service.GetDefaultLLMConfig(ctx)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
+		return
+	}
+	isAdmin := utils.IsAdmin(cfg.Admin, currentUser)
+	if cfg.Visibility == 1 && !isAdmin {
+		response.FailWithMessage(c, "无权限查看默认 LLM 配置")
 		return
 	}
 
@@ -171,18 +243,24 @@ func (h *LLM) GetDefault(c *gin.Context) {
 	if cfg.ExtraConfig != nil {
 		extraConfig = *cfg.ExtraConfig
 	}
+	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg, isAdmin)
 	resp = &dto.LLMGetDefaultResp{
 		LLMInfo: dto.LLMInfo{
 			ID:          cfg.ID,
 			Name:        cfg.Name,
 			Provider:    cfg.Provider,
 			Model:       cfg.Model,
+			APIKey:      apiKey,
+			HasAPIKey:   hasAPIKey,
 			APIBase:     cfg.APIBase,
 			Timeout:     cfg.Timeout,
 			MaxTokens:   cfg.MaxTokens,
 			ExtraConfig: extraConfig,
 			UseThinking: cfg.UseThinking,
 			IsDefault:   cfg.IsDefault,
+			Visibility:  cfg.Visibility,
+			Admin:       cfg.Admin,
+			IsAdmin:     isAdmin,
 			CreatedAt:   time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:   time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
 		},
@@ -211,7 +289,7 @@ func (h *LLM) Create(c *gin.Context) {
 	}
 
 	defer func() {
-		logger.Infof(c, "LLM.Create req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Infof(c, "LLM.Create req:%+v resp:%+v err:%v", sanitizeLLMReqForLog(req), resp, err)
 	}()
 
 	ctx := contextx.ToContext(c)
@@ -226,6 +304,8 @@ func (h *LLM) Create(c *gin.Context) {
 		ExtraConfig: req.ExtraConfig,
 		UseThinking: req.UseThinking,
 		IsDefault:   req.IsDefault,
+		Visibility:  req.Visibility,
+		Admin:       req.Admin,
 	}
 
 	if err := h.service.CreateLLMConfig(ctx, cfg); err != nil {
@@ -258,7 +338,7 @@ func (h *LLM) Update(c *gin.Context) {
 	}
 
 	defer func() {
-		logger.Infof(c, "LLM.Update req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Infof(c, "LLM.Update req:%+v resp:%+v err:%v", sanitizeLLMReqForLog(req), resp, err)
 	}()
 
 	ctx := contextx.ToContext(c)
@@ -286,6 +366,8 @@ func (h *LLM) Update(c *gin.Context) {
 	}
 	cfg.UseThinking = req.UseThinking
 	cfg.IsDefault = req.IsDefault
+	cfg.Visibility = req.Visibility
+	cfg.Admin = req.Admin
 
 	if err := h.service.UpdateLLMConfig(ctx, cfg); err != nil {
 		response.FailWithMessage(c, err.Error())
@@ -310,7 +392,7 @@ func (h *LLM) Delete(c *gin.Context) {
 	var req dto.LLMDeleteReq
 	var err error
 
-	if err := c.ShouldBindQuery(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
@@ -342,7 +424,7 @@ func (h *LLM) SetDefault(c *gin.Context) {
 	var req dto.LLMSetDefaultReq
 	var err error
 
-	if err := c.ShouldBindQuery(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
@@ -359,4 +441,3 @@ func (h *LLM) SetDefault(c *gin.Context) {
 
 	response.OkWithMessage(c, "设置成功")
 }
-

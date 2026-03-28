@@ -218,23 +218,13 @@
     <template v-else-if="mode === 'response'">
       <div class="detail-files">
         <div v-if="currentFiles.length > 0" class="uploaded-files">
-          <!-- 🔥 参考旧版本的布局：标题和打包下载按钮 -->
+          <!-- 文件列表标题 -->
           <div class="detail-files-header">
             <div class="header-left">
               <div class="section-title">
                 已上传文件 ({{ currentFiles.length }})
               </div>
             </div>
-            <el-button
-              v-if="currentFiles.some((f: FileItem) => f.is_uploaded)"
-              size="small"
-              type="primary"
-              :icon="Download"
-              :loading="downloadingAll"
-              @click="handleDownloadAll"
-            >
-              打包下载
-            </el-button>
           </div>
           
           <!-- 🔥 参考旧版本的卡片式布局 -->
@@ -349,23 +339,13 @@
     <template v-else-if="mode === 'detail'">
       <div class="detail-files">
         <div v-if="currentFiles.length > 0" class="uploaded-files">
-          <!-- 🔥 参考旧版本的布局：标题和打包下载按钮 -->
+          <!-- 文件列表标题 -->
           <div class="detail-files-header">
             <div class="header-left">
               <div class="section-title">
                 已上传文件 ({{ currentFiles.length }})
               </div>
             </div>
-            <el-button
-              v-if="currentFiles.some((f: FileItem) => f.is_uploaded)"
-              size="small"
-              type="primary"
-              :icon="Download"
-              :loading="downloadingAll"
-              @click="handleDownloadAll"
-            >
-              打包下载
-            </el-button>
           </div>
           
           <!-- 🔥 参考旧版本的卡片式布局 -->
@@ -628,8 +608,6 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
     display: '0 个文件',
     meta: {},
   }),
-  functionName: undefined,
-  recordId: undefined,
 })
 const emit = defineEmits<WidgetComponentEmits>()
 
@@ -670,9 +648,6 @@ const previewImageName = ref('')
 // 文件详情弹窗相关状态
 const fileDetailVisible = ref(false)
 const currentDetailFile = ref<FileItem | null>(null)
-
-// 打包下载状态
-const downloadingAll = ref(false)
 
 // 上传中的文件状态
 interface UploadingFile {
@@ -1456,127 +1431,6 @@ async function handleDownloadFile(file: FileItem): Promise<void> {
   } catch (error: any) {
     Logger.error('[FilesWidget]', 'Download failed', error)
     ElMessage.error(`下载失败: ${error.message}`)
-  }
-}
-
-// 🔥 打包下载所有文件（参考旧版本实现）
-async function handleDownloadAll(): Promise<void> {
-  const uploadedFiles = currentFiles.value.filter(f => f.is_uploaded)
-  
-  if (uploadedFiles.length === 0) {
-    ElMessage.warning('没有可下载的文件')
-    return
-  }
-
-  downloadingAll.value = true
-  try {
-    // 动态导入 JSZip
-    const JSZip = (await import('jszip')).default
-    const zip = new JSZip()
-
-    ElMessage.info(`开始打包 ${uploadedFiles.length} 个文件...`)
-
-    // 逐个下载文件并添加到zip
-    const token = localStorage.getItem('token') || ''
-    let successCount = 0
-    let failCount = 0
-    
-    for (let i = 0; i < uploadedFiles.length; i++) {
-      const file = uploadedFiles[i]
-      if (!file) {
-        continue
-      }
-      try {
-        let downloadURL = isDirectAccessUrl(file.url)
-          ? file.url
-          : `/storage/api/v1/download/${encodeURIComponent(file.url)}`
-
-        const response = await fetch(downloadURL, {
-          headers: {
-            'X-Token': token,
-          },
-        })
-
-        if (!response.ok) {
-          throw new Error(`下载文件失败: ${response.statusText}`)
-        }
-
-        const blob = await response.blob()
-        
-        // 添加到zip，使用文件名作为路径
-        zip.file(file.name || `file_${i}`, blob)
-        successCount++
-      } catch (error: any) {
-        Logger.error('[FilesWidget]', `下载文件失败: ${file.name}`, error)
-        failCount++
-      }
-    }
-    
-    if (failCount > 0) {
-      ElMessage.warning(`${failCount} 个文件下载失败，已跳过`)
-    }
-
-    if (successCount === 0) {
-      ElMessage.error('没有文件可以打包')
-      downloadingAll.value = false
-      return
-    }
-
-    // 生成zip文件
-    ElMessage.info('正在生成压缩包...')
-    const zipBlob = await zip.generateAsync({ 
-      type: 'blob',
-      compression: 'DEFLATE',
-      compressionOptions: { level: 6 }
-    })
-    
-    // 创建下载链接
-    const url = window.URL.createObjectURL(zipBlob)
-    const link = document.createElement('a')
-    link.href = url
-    
-    // 🔥 使用与旧版本一致的命名规则：函数名称_id_记录ID 或 函数名称_时间戳
-    let zipFileName = 'files'
-    
-    // 🔥 完全按照旧版本的逻辑
-    if (props.functionName) {
-      zipFileName = props.functionName
-    }
-    if (props.recordId !== undefined && props.recordId !== null) {
-      zipFileName += `_id_${props.recordId}`
-    } else {
-      // 如果没有 recordId，追加时间戳（无论是否有 functionName）
-      zipFileName += `_${new Date().getTime()}`
-    }
-    
-    // 🔥 在文件名后面加上导出时间（格式：YYYY-MM-DD_HH-mm），方便审计
-    const now = new Date()
-    const year = now.getFullYear()
-    const month = String(now.getMonth() + 1).padStart(2, '0')
-    const day = String(now.getDate()).padStart(2, '0')
-    const hours = String(now.getHours()).padStart(2, '0')
-    const minutes = String(now.getMinutes()).padStart(2, '0')
-    const exportTime = `${year}-${month}-${day}_${hours}-${minutes}`
-    zipFileName += `_${exportTime}`
-    link.download = `${zipFileName}.zip`
-    
-    document.body.appendChild(link)
-    link.click()
-    
-    // 清理
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-    
-    if (failCount > 0) {
-      ElMessage.success(`成功打包下载 ${successCount} 个文件，${failCount} 个文件失败`)
-    } else {
-      ElMessage.success(`成功打包下载 ${successCount} 个文件`)
-    }
-  } catch (error: any) {
-    Logger.error('[FilesWidget]', '打包下载失败', error)
-    ElMessage.error(`打包下载失败: ${error.message}`)
-  } finally {
-    downloadingAll.value = false
   }
 }
 

@@ -22,7 +22,7 @@ export class FunctionLoaderImpl implements IFunctionLoader {
   private pendingRequests = new Map<string, Promise<FunctionDetail>>()
 
   // 防抖定时器
-  private debounceTimers = new Map<string, NodeJS.Timeout>()
+  private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
   constructor(
     private apiClient: IApiClient,
@@ -176,4 +176,3 @@ export class FunctionLoaderImpl implements IFunctionLoader {
     return response
   }
 }
-

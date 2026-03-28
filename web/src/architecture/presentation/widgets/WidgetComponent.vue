@@ -22,8 +22,6 @@
     :form-renderer="formRenderer"
     :function-method="functionMethod"
     :function-router="functionRouter"
-    :function-name="functionName"
-    :record-id="recordId"
   />
   <div v-else class="widget-error">
     组件未找到: {{ field.widget?.type || 'input' }}
@@ -45,14 +43,10 @@ const props = withDefaults(defineProps<{
   formRenderer?: any // FormRenderer 上下文（用于 OnSelectFuzzy 回调）
   functionMethod?: string // 函数 HTTP 方法（用于 OnSelectFuzzy 回调）
   functionRouter?: string // 函数路由（用于 OnSelectFuzzy 回调）
-  functionName?: string // 函数名称（用于 FilesWidget 打包下载命名）
-  recordId?: string | number // 记录ID（用于 FilesWidget 打包下载命名）
 }>(), {
   mode: 'edit',
   fieldPath: '',
   value: () => ({ raw: null, display: '', meta: {} }),
-  functionName: undefined,
-  recordId: undefined
 })
 
 const emit = defineEmits<{

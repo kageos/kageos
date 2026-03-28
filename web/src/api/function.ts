@@ -206,15 +206,6 @@ export function exportData(router: string, params: SearchParams) {
   return post(`/workspace/api/v1/export`, { router, ...params })
 }
 
-// 导入数据
-export function importData(router: string, formData: FormData) {
-  return post(`/workspace/api/v1/import`, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
-  })
-}
-
 /**
  * 获取函数组信息（用于 Hub 发布）
  * @param fullGroupCode 完整函数组代码，例如：/luobei/testgroup/plugins/tools_cashier

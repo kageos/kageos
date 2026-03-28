@@ -47,28 +47,34 @@
 
           <!-- 组织架构信息展示 -->
           <div v-if="selectedDepartment" class="department-info-section">
-            <el-descriptions :column="1" border>
-              <el-descriptions-item label="部门介绍" v-if="selectedDepartment.description">
-                <div class="description-text">{{ selectedDepartment.description }}</div>
-              </el-descriptions-item>
-              <el-descriptions-item label="负责人" v-if="selectedDepartment.managers">
-                <div class="managers-list">
-                  <UserDisplay
-                    v-for="manager in managerUsers"
-                    :key="manager.username"
-                    :user-info="manager"
-                    :username="manager.username"
-                    mode="card"
-                    layout="horizontal"
-                    size="small"
-                    class="manager-item"
-                  />
-                  <span v-if="managerUsers.length === 0 && selectedDepartment.managers" class="loading-text">
-                    加载中...
-                  </span>
+            <div class="department-info-grid">
+              <div v-if="selectedDepartment.description" class="department-info-item">
+                <div class="department-info-label">部门介绍</div>
+                <div class="department-info-value">
+                  <div class="description-text">{{ selectedDepartment.description }}</div>
                 </div>
-              </el-descriptions-item>
-            </el-descriptions>
+              </div>
+              <div v-if="selectedDepartment.managers" class="department-info-item">
+                <div class="department-info-label">负责人</div>
+                <div class="department-info-value">
+                  <div class="managers-list">
+                    <UserDisplay
+                      v-for="manager in managerUsers"
+                      :key="manager.username"
+                      :user-info="manager"
+                      :username="manager.username"
+                      mode="card"
+                      layout="horizontal"
+                      size="small"
+                      class="manager-item"
+                    />
+                    <span v-if="managerUsers.length === 0 && selectedDepartment.managers" class="loading-text">
+                      加载中...
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- 用户列表 -->
@@ -650,6 +656,33 @@ onMounted(() => {
   padding: 16px;
   background-color: var(--el-bg-color-page);
   border-radius: 4px;
+
+  .department-info-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .department-info-item {
+    display: grid;
+    grid-template-columns: 100px minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--el-border-color-light);
+    border-radius: 10px;
+    background: var(--el-fill-color-blank);
+  }
+
+  .department-info-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--el-text-color-secondary);
+  }
+
+  .department-info-value {
+    min-width: 0;
+    color: var(--el-text-color-primary);
+  }
   
   .description-text {
     white-space: pre-wrap;
