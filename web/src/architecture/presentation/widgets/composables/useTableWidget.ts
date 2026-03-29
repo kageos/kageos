@@ -7,6 +7,16 @@ import { computed } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 
+function toFieldValue(rawValue: any) {
+  return {
+    raw: rawValue ?? null,
+    display: rawValue !== null && rawValue !== undefined
+      ? (typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue))
+      : '',
+    meta: {}
+  }
+}
+
 export function useTableWidget(props: WidgetComponentProps) {
   const formDataStore = useFormDataStore()
   
@@ -23,7 +33,22 @@ export function useTableWidget(props: WidgetComponentProps) {
   // 获取行的字段值
   function getRowFieldValue(rowIndex: number, fieldCode: string): any {
     const fieldPath = `${props.fieldPath}[${rowIndex}].${fieldCode}`
-    return formDataStore.getValue(fieldPath)
+    const storeValue = formDataStore.getValue(fieldPath)
+
+    if (storeValue && (
+      storeValue.raw !== null ||
+      storeValue.display !== '' ||
+      Object.keys(storeValue.meta || {}).length > 0
+    )) {
+      return storeValue
+    }
+
+    const rawRow = Array.isArray(props.value?.raw) ? props.value.raw[rowIndex] : undefined
+    if (rawRow && typeof rawRow === 'object' && fieldCode in rawRow) {
+      return toFieldValue(rawRow[fieldCode])
+    }
+
+    return storeValue
   }
   
   // 更新行的字段值
@@ -71,4 +96,3 @@ export function useTableWidget(props: WidgetComponentProps) {
     getAllRowsData
   }
 }
-

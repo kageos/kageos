@@ -11,7 +11,6 @@
 import { computed } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
-import { shouldShowField } from '@/core/utils/conditionEvaluator'
 
 export function useFormWidget(props: WidgetComponentProps) {
   const formDataStore = useFormDataStore()
@@ -23,14 +22,7 @@ export function useFormWidget(props: WidgetComponentProps) {
   
   // 可见子字段（根据条件渲染规则过滤）
   const visibleSubFields = computed(() => {
-    // 🔥 依赖 formDataStore.data，当数据变化时自动重新计算
-    const _ = formDataStore.data  // 触发响应式追踪
-    
-    return subFields.value.filter((subField) => {
-      // 条件渲染：根据其他字段的值决定是否显示
-      // 注意：这里需要适配 shouldShowField 函数，使其支持 formDataStore
-      return shouldShowFieldInForm(subField, formDataStore, subFields.value)
-    })
+    return subFields.value
   })
   
   // 获取子字段的值
@@ -73,38 +65,3 @@ export function useFormWidget(props: WidgetComponentProps) {
     updateSubFieldValue
   }
 }
-
-/**
- * 条件渲染评估（适配 formDataStore）
- */
-function shouldShowFieldInForm(
-  field: any,
-  formDataStore: ReturnType<typeof useFormDataStore>,
-  allFields: any[]
-): boolean {
-  if (!field.validation) {
-    return true
-  }
-  
-  // 简单的条件评估（可以根据需要扩展）
-  const validation = field.validation || ''
-  const showIfMatch = validation.match(/show_if=([^,]+),([^,\s]+)/)
-  const hideIfMatch = validation.match(/hide_if=([^,]+),([^,\s]+)/)
-  
-  if (showIfMatch) {
-    const [, fieldCode, expectedValue] = showIfMatch
-    const fieldValue = formDataStore.getValue(fieldCode)
-    const actualValue = String(fieldValue?.raw || '')
-    return actualValue === expectedValue
-  }
-  
-  if (hideIfMatch) {
-    const [, fieldCode, expectedValue] = hideIfMatch
-    const fieldValue = formDataStore.getValue(fieldCode)
-    const actualValue = String(fieldValue?.raw || '')
-    return actualValue !== expectedValue
-  }
-  
-  return true
-}
-

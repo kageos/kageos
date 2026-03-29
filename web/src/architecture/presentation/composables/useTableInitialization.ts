@@ -19,6 +19,14 @@ import { extractWorkspacePath } from '@/utils/route'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import { isLinkNavigation } from '@/utils/linkNavigation'
+import {
+  buildClearedTableState,
+  buildRestoredTableState,
+  decideTableRestoreStrategy,
+  normalizeTableRouteQuery,
+  shouldSkipTableReloadOnRouteChange,
+  shouldSyncTableURLAfterRestore
+} from './utils/tableInitializationRuntime'
 
 export interface UseTableInitializationOptions {
   functionDetail: FunctionDetail | { value: FunctionDetail }
@@ -61,20 +69,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
    * 从 URL 恢复状态
    */
   const restoreFromURL = (): void => {
-    const query = route.query
-
-    // 转换 query 类型为 Domain Service 期望的类型
-    const queryParams: Record<string, string | string[]> = {}
-    Object.keys(query).forEach(key => {
-      const value = query[key]
-      if (value !== null && value !== undefined) {
-        if (Array.isArray(value)) {
-          queryParams[key] = value.filter(v => v !== null).map(v => String(v))
-        } else {
-          queryParams[key] = String(value)
-        }
-      }
-    })
+    const queryParams = normalizeTableRouteQuery(route.query as Record<string, any>)
 
     // 使用 Domain Service 恢复状态
     const functionDetailValue = 'value' in functionDetail ? functionDetail.value : functionDetail
@@ -82,21 +77,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
 
     // 🔥 更新 StateManager 中的状态
     const currentState = stateManager.getState()
-    stateManager.setState({
-      ...currentState,
-	      searchForm: restored.searchForm,
-	      sorts: restored.sorts,
-	      hasManualSort: restored.sorts.length > 0,
-	      sortParams: restored.sorts[0] ? {
-	        field: restored.sorts[0].field,
-	        order: restored.sorts[0].order
-	      } : null,
-      pagination: {
-        ...currentState.pagination,
-        currentPage: restored.pagination.page,
-        pageSize: restored.pagination.pageSize
-      }
-    })
+    stateManager.setState(buildRestoredTableState(currentState, restored))
   }
 
   /**
@@ -122,10 +103,9 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     // 🔥 修复：检查是否是 link 跳转，如果是 link 跳转，即使没有分页参数，也不要同步
     // 因为 link 跳转时，URL 中的参数是用户明确指定的，不应该被覆盖
     const isLinkNav = isLinkNavigation(route.query)
-    const hasPaginationParams = route.query.page && route.query.page_size
     
     // 🔥 只有在非 link 跳转且没有分页参数时，才同步默认分页参数
-    if (!isLinkNav && !hasPaginationParams) {
+    if (shouldSyncTableURLAfterRestore({ query: route.query as Record<string, any>, isLinkNavigation: isLinkNav })) {
       // URL 中没有分页参数，需要同步默认分页参数
       if (!isSyncingToURL.value) {
         isSyncingToURL.value = true
@@ -157,41 +137,18 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
   const decideRestoreStrategy = async (router: string): Promise<void> => {
     const currentState = stateManager.getState()
     const pathMatches = checkPathMatch(router)
-    const hasTabState = currentState.searchForm && Object.keys(currentState.searchForm).length > 0
-    const hasURLParams = pathMatches && Object.keys(route.query).length > 0
-    
-    // 🔥 检查是否是 link 跳转（通过 _link_type 参数）
-    // link 跳转时，URL 中的参数是用户明确指定的（来自 link 值），应该优先从 URL 恢复
-    const isLinkNav = isLinkNavigation(route.query)
-    
-    // 优先级 1：如果是 link 跳转，优先从 URL 恢复（即使 Tab 有状态也要覆盖）
-    if (isLinkNav && hasURLParams) {
+    const strategy = decideTableRestoreStrategy({
+      pathMatches,
+      query: route.query as Record<string, any>,
+      searchForm: currentState.searchForm,
+      isLinkNavigation: isLinkNavigation(route.query)
+    })
+
+    if (strategy === 'restore-from-url') {
       await restoreFromURLAndSync()
       return
     }
-    
-    // 优先级 2：Tab 有保存的状态，优先使用 Tab 的状态（Tab 切换场景）
-    if (hasTabState) {
-      await syncTabStateToURL()
-      return
-    }
-    
-    // 优先级 3：Tab 没有保存的状态，且 URL 有参数，从 URL 恢复（link 跳转场景）
-    if (hasURLParams) {
-      await restoreFromURLAndSync()
-      return
-    }
-    
-    // 🔥 优先级 4：Tab 没有保存的状态，且 URL 没有参数（刚切换函数），清空状态
-    // 这是关键修复：切换函数时，如果 URL 没有参数，说明是新的函数，应该清空旧的状态
-    // 注意：状态清空已在 initializeTable 开始时处理，这里只需要同步默认参数到 URL
-    if (!hasTabState && !hasURLParams && !isLinkNav) {
-      // 清空状态后，同步默认参数到 URL
-      await syncTabStateToURL()
-      return
-    }
-    
-    // 默认：同步 Tab 状态到 URL（即使没有状态，也需要同步默认参数）
+
     await syncTabStateToURL()
   }
 
@@ -214,21 +171,11 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     // 如果 URL 没有查询参数（刚切换函数），先清空 TableStateManager 的状态
     const hasQueryParams = Object.keys(route.query).length > 0
     const isLinkNav = isLinkNavigation(route.query)
-    
+
     if (!hasQueryParams && !isLinkNav) {
       // 刚切换函数，清空 TableStateManager 的状态，避免旧函数的状态污染新函数
       const currentState = stateManager.getState()
-      stateManager.setState({
-        ...currentState,
-        searchForm: {},
-        sorts: [],
-        hasManualSort: false,
-        pagination: {
-          currentPage: 1,
-          pageSize: currentState.pagination.pageSize, // 保留分页大小
-          total: 0
-        }
-      })
+      stateManager.setState(buildClearedTableState(currentState))
     }
 
     // 🔥 立即显示加载状态（骨架屏），避免先出现「暂无数据」再出现 loading
@@ -273,84 +220,55 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
    * 当前 URL 是否处于「详情已打开」状态（有 _tab=detail 且 _id）。
    * 此时列表数据已存在，不应再触发表格接口重载和骨架屏。
    */
-  const isDetailViewQuery = (q: Record<string, any>): boolean => {
-    return !!(q && (q._tab === 'detail' && q._id))
-  }
-
-  /**
-   * 仅当变化是「只增删 _tab/_id」时返回 true（关闭详情或仅详情开关）。
-   * 用于关闭详情时也不重载表格。
-   */
-  const isOnlyDetailParamsChanged = (oldQuery: Record<string, any>, newQuery: Record<string, any>): boolean => {
-    const omit = (o: Record<string, any>) => {
-      const copy = { ...o }
-      delete copy._tab
-      delete copy._id
-      return copy
-    }
-    return JSON.stringify(omit(oldQuery || {})) === JSON.stringify(omit(newQuery || {}))
-  }
-
   /**
    * 监听 URL 变化（用户操作浏览器前进/后退时）
    * 🔥 打开详情或仅 _tab/_id 变化时不重载表格，避免多余请求和骨架屏
    */
-  const setupQueryWatch = () => {
-    eventBus.on(RouteEvent.queryChanged, async (payload: { query: any, oldQuery: any, source: string }) => {
-      if (payload.source === 'router-change') {
-        const functionDetailValue = 'value' in functionDetail ? functionDetail.value : functionDetail
-        const router = functionDetailValue?.router
+  const setupQueryWatch = (): (() => void) => {
+    return eventBus.on(RouteEvent.queryChanged, async (payload: { query: any, oldQuery: any, source: string }) => {
+      const functionDetailValue = 'value' in functionDetail ? functionDetail.value : functionDetail
+      const router = functionDetailValue?.router
 
-        if (functionDetailValue?.template_type !== TEMPLATE_TYPE.TABLE) {
-          return
-        }
+      if (functionDetailValue?.template_type !== TEMPLATE_TYPE.TABLE) {
+        return
+      }
 
-        const currentPath = extractWorkspacePath(route.path)
-        const expectedPath = (router || '').replace(/^\/+/, '')
-        const pathMatches = currentPath === expectedPath || currentPath.startsWith(expectedPath + '?')
+      const currentPath = extractWorkspacePath(route.path)
+      const expectedPath = (router || '').replace(/^\/+/, '')
+      const pathMatches = currentPath === expectedPath || currentPath.startsWith(expectedPath + '?')
 
-        if (!pathMatches) {
-          return
-        }
+      const shouldSkipReload = shouldSkipTableReloadOnRouteChange({
+        source: payload.source,
+        pathMatches,
+        isMounted: isMounted ? isMounted.value : true,
+        isSyncingToURL: isSyncingToURL.value,
+        isRestoringFromURL: isRestoringFromURL.value,
+        isInitializing: isInitializing.value,
+        newQuery: payload.query || {},
+        oldQuery: payload.oldQuery || {}
+      })
+
+      if (shouldSkipReload) {
+        return
+      }
+
+      isRestoringFromURL.value = true
+      try {
+        restoreFromURL()
 
         if (isMounted && !isMounted.value) {
           return
         }
 
-        if (isSyncingToURL.value || isRestoringFromURL.value || isInitializing.value) {
+        const currentPathAfterRestore = extractWorkspacePath(route.path)
+        const pathMatchesAfterRestore = currentPathAfterRestore === expectedPath || currentPathAfterRestore.startsWith(expectedPath + '?')
+        if (!pathMatchesAfterRestore) {
           return
         }
 
-        const newQuery = payload.query || {}
-        const oldQuery = payload.oldQuery || {}
-
-        // 🔥 当前是详情页：说明是「点击详情」导致的 URL 变化，列表数据已有，不重载
-        if (isDetailViewQuery(newQuery)) {
-          return
-        }
-        // 🔥 仅 _tab/_id 变化（例如关闭详情）：列表数据仍在，不重载
-        if (isOnlyDetailParamsChanged(oldQuery, newQuery)) {
-          return
-        }
-
-        isRestoringFromURL.value = true
-        try {
-          restoreFromURL()
-
-          if (isMounted && !isMounted.value) {
-            return
-          }
-
-          const currentPathAfterRestore = extractWorkspacePath(route.path)
-          const pathMatchesAfterRestore = currentPathAfterRestore === expectedPath || currentPathAfterRestore.startsWith(expectedPath + '?')
-          if (!pathMatchesAfterRestore) {
-            return
-          }
-
-          await loadTableData()
-        } finally {
-          isRestoringFromURL.value = false
-        }
+        await loadTableData()
+      } finally {
+        isRestoringFromURL.value = false
       }
     })
   }

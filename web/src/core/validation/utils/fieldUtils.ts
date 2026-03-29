@@ -7,6 +7,82 @@ import type { FieldConfig, FieldValue } from '../../types/field'
 import type { ValidationContext } from '../types'
 import { Logger } from '@/core/utils/logger'
 
+function findFieldRecursive(
+  fields: FieldConfig[],
+  matcher: (field: FieldConfig) => boolean
+): FieldConfig | null {
+  for (const field of fields) {
+    if (matcher(field)) {
+      return field
+    }
+
+    if (field.children && field.children.length > 0) {
+      const nestedMatch = findFieldRecursive(field.children, matcher)
+      if (nestedMatch) {
+        return nestedMatch
+      }
+    }
+  }
+
+  return null
+}
+
+export function getLeafFieldCode(fieldPath: string): string {
+  if (!fieldPath) {
+    return ''
+  }
+
+  const lastSegment = fieldPath.split('.').pop() || fieldPath
+  const code = lastSegment.replace(/\[\d+\]/g, '')
+  return code
+}
+
+export function findFieldByCode(fields: FieldConfig[], fieldCode: string): FieldConfig | null {
+  return findFieldRecursive(fields, field => field.code === fieldCode)
+}
+
+export function findFieldByPath(fields: FieldConfig[], fieldPath: string): FieldConfig | null {
+  if (!fieldPath) {
+    return null
+  }
+
+  const exactMatch = findFieldRecursive(fields, field => field.code === fieldPath || field.field_path === fieldPath)
+  if (exactMatch) {
+    return exactMatch
+  }
+
+  const leafFieldCode = getLeafFieldCode(fieldPath)
+  if (!leafFieldCode) {
+    return null
+  }
+
+  return findFieldByCode(fields, leafFieldCode)
+}
+
+export function resolveReferencedFieldPath(context: ValidationContext, fieldCode: string): string {
+  if (!fieldCode) {
+    return fieldCode
+  }
+
+  if (fieldCode.includes('.') || fieldCode.includes('[')) {
+    return fieldCode
+  }
+
+  if (!context.fieldPath || !context.fieldPath.includes('.')) {
+    return fieldCode
+  }
+
+  const parentPath = context.fieldPath.replace(/\.[^.]+$/, '')
+  const scopedFieldPath = `${parentPath}.${fieldCode}`
+  const formManager = context.formManager as any
+
+  if (typeof formManager?.hasValue === 'function' && formManager.hasValue(scopedFieldPath)) {
+    return scopedFieldPath
+  }
+
+  return fieldCode
+}
+
 /**
  * 判断字段值是否为空
  * 
@@ -81,21 +157,7 @@ export function isEmpty(value: FieldValue, field?: FieldConfig): boolean {
  * @returns 字段配置，如果找不到则返回 null
  */
 export function findFieldInContext(context: ValidationContext): FieldConfig | null {
-  // 🔥 先尝试匹配 code（因为 fieldPath 通常是 code）
-  let foundField = context.allFields.find(f => f.code === context.fieldPath)
-  
-  // 如果还找不到，尝试匹配 field_path
-  if (!foundField) {
-    foundField = context.allFields.find(f => {
-      if (f.field_path) {
-        return f.field_path === context.fieldPath
-      }
-      return false
-    })
-  }
-  
-  
-  return foundField || null
+  return findFieldByPath(context.allFields, context.fieldPath)
 }
 
 /**
@@ -126,7 +188,7 @@ export function getFieldName(context: ValidationContext, fallback: string = '此
   // 🔥 如果找不到字段配置，尝试从 fieldPath 查找
   // 因为 fieldPath 可能是字段的 code，我们可以从 allFields 中查找
   if (!field && context.fieldPath) {
-    const foundField = context.allFields.find(f => f.code === context.fieldPath || f.field_path === context.fieldPath)
+    const foundField = findFieldByPath(context.allFields, context.fieldPath)
     if (foundField?.name) {
       return foundField.name
     }
@@ -165,4 +227,3 @@ export function isStringField(field: FieldConfig | null | undefined): boolean {
   
   return false
 }
-

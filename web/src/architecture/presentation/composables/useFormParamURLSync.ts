@@ -92,6 +92,7 @@ import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types
 import { Logger } from '@/core/utils/logger'
 import { isEmptyValue, shouldSkipURLSync, convertFieldValueToURLParam, mergeURLQueryParams } from './utils/urlSyncUtils'
 import { isLinkNavigation } from '@/utils/linkNavigation'
+import { deleteScopedFieldQueryKey, getFormDraftQueryKey } from '@/utils/queryFieldNamespace'
 
 export interface UseFormParamURLSyncOptions {
   functionDetail: Ref<FunctionDetail | null> | ComputedRef<FunctionDetail | null>
@@ -132,7 +133,7 @@ function buildFormQueryParams(
     // 🔥 默认支持所有其他类型：转换为 URL 参数
     // 支持的类型包括：input, text, text_area, number, float, switch, select, multiselect,
     // radio, checkbox, timestamp, ID, rate, user, slider, color, richtext, link, progress 等
-    query[field.code] = convertFieldValueToURLParam(fieldValue)
+    query[getFormDraftQueryKey(field.code)] = convertFieldValueToURLParam(fieldValue)
   })
 
   return query
@@ -191,7 +192,10 @@ export function useFormParamURLSync(options: UseFormParamURLSyncOptions) {
     const query = buildFormQueryParams(requestFields, options.formDataStore)
 
     // 获取当前 URL 的查询参数并合并
-    const currentQuery = route.query
+    const currentQuery = { ...route.query }
+    requestFields.forEach(field => {
+      deleteScopedFieldQueryKey(currentQuery, field.code, 'form')
+    })
     const newQuery = mergeURLQueryParams(currentQuery, query, 'form')
 
     // 判断是否是 link 跳转

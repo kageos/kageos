@@ -24,6 +24,7 @@ import { parseCommaSeparatedString } from '@/utils/stringUtils'
 import { SearchType } from '@/core/constants/search'
 import { WidgetType } from '@/core/constants/widget'
 import { tableAddRow, tableDeleteRows } from '@/api/function'
+import { getScopedFieldQueryValue } from '@/utils/queryFieldNamespace'
 
 /**
  * 表格数据项类型
@@ -123,6 +124,8 @@ export interface TableDataHook {
 export class TableDomainService {
   /** 🔥 BeforeRender 钩子列表（按优先级排序） */
   private beforeRenderHooks: TableDataHook[] = []
+  /** 只允许最后一次列表请求更新状态，避免旧请求回写新状态 */
+  private latestLoadRequestId = 0
 
   constructor(
     private apiClient: IApiClient,
@@ -177,6 +180,7 @@ export class TableDomainService {
    * 加载表格数据
    */
   async loadData(functionDetail: FunctionDetail, searchParams?: SearchParams, sortParams?: SortParams, pagination?: { page: number, pageSize: number }): Promise<TableResponse> {
+    const requestId = ++this.latestLoadRequestId
     const state = this.stateManager.getState()
     
     // 更新加载状态
@@ -217,6 +221,10 @@ export class TableDomainService {
       
       // Table 查询统一使用 GET 方法
       const response = await this.apiClient.get<TableResponse>(url, params)
+
+      if (requestId !== this.latestLoadRequestId) {
+        return response
+      }
       
       // ⭐ 旧版本（已注释，保留用于参考）
       // const url = `/workspace/api/v1/run${functionDetail.router}`
@@ -240,16 +248,22 @@ export class TableDomainService {
         }
       }
 
+      if (requestId !== this.latestLoadRequestId) {
+        return response
+      }
+
       // 更新状态
+      const latestState = this.stateManager.getState()
       this.stateManager.setState({
-        ...state,
+        ...latestState,
         data: response.items || [],
         loading: false,
-        searchParams: searchParams || state.searchParams,
-        sortParams: sortParams || state.sortParams,
+        searchParams: searchParams || latestState.searchParams,
+        sortParams: sortParams || latestState.sortParams,
         pagination: {
-          currentPage: response.paginated?.current_page || state.pagination.currentPage,
-          pageSize: response.paginated?.page_size || state.pagination.pageSize,
+          ...latestState.pagination,
+          currentPage: response.paginated?.current_page || latestState.pagination.currentPage,
+          pageSize: response.paginated?.page_size || latestState.pagination.pageSize,
           total: response.paginated?.total_count || 0
         }
       })
@@ -260,10 +274,13 @@ export class TableDomainService {
       return response
     } catch (error) {
       // 更新加载状态
-      this.stateManager.setState({
-        ...state,
-        loading: false
-      })
+      if (requestId === this.latestLoadRequestId) {
+        const latestState = this.stateManager.getState()
+        this.stateManager.setState({
+          ...latestState,
+          loading: false
+        })
+      }
       throw error
     }
   }
@@ -503,7 +520,7 @@ export class TableDomainService {
     // 恢复搜索条件（request 字段）
     requestFields.forEach((field: FieldConfig) => {
       if (!currentRequestFieldCodes.has(field.code)) return
-      const value = query[field.code]
+      const value = getScopedFieldQueryValue(query, field.code, 'search')
       if (value !== undefined && value !== null && value !== '') {
         searchForm[field.code] = String(value)
       }

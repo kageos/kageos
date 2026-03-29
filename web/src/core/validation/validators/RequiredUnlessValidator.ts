@@ -7,7 +7,7 @@
 
 import type { Validator, ValidationRule, ValidationResult, ValidationContext } from '../types'
 import type { FieldValue } from '../../types/field'
-import { isEmpty, getFieldName, createRequiredErrorMessage, findFieldInContext } from '../utils/fieldUtils'
+import { isEmpty, getFieldName, createRequiredErrorMessage, findFieldInContext, resolveReferencedFieldPath } from '../utils/fieldUtils'
 
 export class RequiredUnlessValidator implements Validator {
   readonly name = 'required_unless'
@@ -23,7 +23,8 @@ export class RequiredUnlessValidator implements Validator {
     }
     
     // 🔥 通过 formManager 获取其他字段的值（解耦设计）
-    const otherFieldValue = context.formManager.getValue(rule.field)
+    const otherFieldPath = resolveReferencedFieldPath(context, rule.field)
+    const otherFieldValue = context.formManager.getValue(otherFieldPath)
     
     // 判断条件是否满足（unless 是相反的逻辑）
     const conditionMet = this.isConditionMet(otherFieldValue, rule.value)

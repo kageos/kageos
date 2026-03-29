@@ -95,6 +95,7 @@ import { useAuthStore } from '@/stores/auth'
 import { FieldValueMeta, FieldCallback } from '@/core/constants/field'
 import { DataType } from '@/core/constants/widget'
 import { convertValueByFieldType } from '../../presentation/widgets/utils/typeConverter'
+import { getScopedFieldQueryValue } from '@/utils/queryFieldNamespace'
 
 /**
  * 初始化源接口
@@ -155,9 +156,12 @@ class URLParamsInitSource implements InitSource {
     const formData: Record<string, FieldValue> = {}
     // 🔥 确保 requestFields 是数组，防止类型错误
     const requestFields = Array.isArray(functionDetail.request) ? functionDetail.request : []
+    const fallbackToLegacyRaw = query._tab !== 'OnTableAddRow'
     
     requestFields.forEach(field => {
-      const queryValue = query[field.code]
+      const queryValue = getScopedFieldQueryValue(query, field.code, 'form', {
+        fallbackToLegacyRaw
+      })
       if (queryValue !== undefined && queryValue !== null) {
         let value = Array.isArray(queryValue) ? queryValue[0] : queryValue
         
@@ -234,7 +238,7 @@ class URLParamsInitSource implements InitSource {
  * 
  * 职责：
  * - 处理 widget.config.default 默认值
- * - 对于没有 URL 参数和快链的字段，使用默认值
+ * - 对于没有 URL 参数和初始值的字段，使用默认值
  */
 class DefaultInitSource implements InitSource {
   priority = InitSourcePriority.DEFAULT
@@ -255,7 +259,7 @@ class DefaultInitSource implements InitSource {
     
     // 遍历所有字段，对于没有初始值的字段，使用默认值
     requestFields.forEach(field => {
-      // 如果已经有初始值（来自 URL 或快链），跳过
+      // 如果已经有初始值（来自 URL 或其他初始化源），跳过
       if (currentFormData.hasOwnProperty(field.code)) {
         console.log(`🔍 [DefaultInitSource] 字段 ${field.code} 已有初始值，跳过默认值初始化`)
         return
@@ -333,9 +337,9 @@ export function useFunctionParamInitialization(
    * 初始化函数参数
    * 
    * 流程：
-   * 1. 通用初始化（框架负责）：URL/快链加载、类型转换、构建基础 FieldValue
+   * 1. 通用初始化（框架负责）：URL/默认值加载、类型转换、构建基础 FieldValue
    * 2. 组件自治初始化（组件负责）：调用组件的初始化接口
-   * 3. 应用字段元数据（快链特有）
+   * 3. 应用字段元数据（保留扩展点）
    * 4. 完成初始化，触发 FormEvent.initialized 事件
    * 
    * @returns metadata 元数据（包含 responseParams 等）
@@ -348,7 +352,7 @@ export function useFunctionParamInitialization(
     
     // 🔥 检查 functionDetail 是否有效（使用 computed 的值）
     const detail = functionDetail.value
-    if (!detail || !detail.id) {
+    if (!detail || detail.id === undefined || detail.id === null) {
       console.log('🔍 [useFunctionParamInitialization] functionDetail 无效，跳过初始化', {
         functionDetail: detail,
         isComputedRef: options.functionDetail && typeof options.functionDetail === 'object' && 'value' in options.functionDetail
@@ -430,7 +434,7 @@ export function useFunctionParamInitialization(
       await triggerWidgetInitialization(currentFormData, fieldMetadata)
       console.log('🔍 [useFunctionParamInitialization] 组件自治初始化完成')
       
-      // 步骤 4：应用字段元数据（快链特有，未来实现）
+      // 步骤 4：应用字段元数据（保留扩展点，未来实现）
       // applyFieldMetadata(fieldMetadata)
       
       // 步骤 5：触发 FormEvent.initialized 事件
@@ -512,6 +516,7 @@ export function useFunctionParamInitialization(
         field,
         currentValue,
         allFormData: allFormData,  // 🔥 使用实时获取的最新值
+        formDataStore: options.formDataStore,
         functionDetail: detail,  // 🔥 使用解包后的 detail
         initSource: 'url',
         fieldPath: field.code  // 🔥 顶层字段的路径就是 field.code
@@ -567,4 +572,3 @@ export function useFunctionParamInitialization(
     isInitializing
   }
 }
-

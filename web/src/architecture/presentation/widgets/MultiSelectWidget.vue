@@ -5,7 +5,7 @@
 <template>
   <div class="multiselect-widget">
     <!-- 编辑模式 -->
-    <div v-if="mode === 'edit'" class="edit-multiselect">
+    <div v-if="mode === 'edit' || mode === 'search'" class="edit-multiselect">
       <!-- 参考单选的展示效果，使用条目式显示 -->
       <div class="select-container" @click="openDialog">
         <div class="select-content">
@@ -113,12 +113,14 @@ import { MultiSelectWidgetInitializer } from '@/architecture/presentation/widget
 import { Logger } from '@/core/utils/logger'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { ExpressionParserAdapter } from '@/core/utils/ExpressionParserAdapter'
-import { isStringDataType, getMultiSelectDefaultDataType, DataType } from '@/core/constants/widget'
+import { getMultiSelectDefaultDataType, DataType } from '@/core/constants/widget'
 import { SelectFuzzyQueryType, isStandardColor, type StandardColorType } from '@/core/constants/select'
 import { convertValueToType } from '@/architecture/presentation/widgets/utils/valueConverter'
 import { convertFormDataToRequestByType, convertArrayType } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import type { MultiSelectWidgetConfig } from '@/core/types/widget-configs'
+import { buildMultiSelectRawValue } from '@/architecture/presentation/widgets/utils/multiSelectValue'
+import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/utils/searchType'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -133,6 +135,10 @@ const emit = defineEmits<{
 }>()
 
 const formDataStore = useFormDataStore()
+
+const callbackMethod = computed(() => props.formRenderer?.getFunctionMethod?.() || props.functionMethod || 'POST')
+const callbackRouter = computed(() => props.formRenderer?.getFunctionRouter?.() || props.functionRouter || '')
+const searchType = computed(() => resolveWidgetSearchType(props.searchType, props.field.search))
 
 // 获取配置（带类型）
 const config = computed(() => {
@@ -271,17 +277,12 @@ const selectedValues = computed({
      * - 如果 type 是 []int：提交整数数组（如 [1, 2]）
      * - 如果 type 是 []float：提交浮点数数组（如 [1.5, 2.3]）
      */
-    let rawValue: any
-    const dataType = fieldDataType.value
-    
-    if (isStringDataType(dataType)) {
-      // 提交逗号分隔的字符串
-      rawValue = stringValues.length > 0 ? stringValues.join(',') : ''
-    } else {
-      // 🔥 提交数组，使用统一的类型转换工具
-      // 根据 field.data.type 决定数组元素类型
-      rawValue = convertArrayType(stringValues, dataType)
-    }
+    const rawValue = buildMultiSelectRawValue({
+      values: stringValues,
+      mode: props.mode,
+      dataType: fieldDataType.value,
+      searchType: searchType.value
+    })
     
     // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
     const fieldValue = createFieldValue(
@@ -561,8 +562,8 @@ async function handleSearch(query: string | any[], isByValue = false): Promise<v
     return
   }
   
-  const method = props.formRenderer?.getFunctionMethod?.()
-  const router = props.formRenderer?.getFunctionRouter?.()
+  const method = callbackMethod.value
+  const router = callbackRouter.value
   
   if (!router) {
     Logger.error('MultiSelectWidget', `${props.field.code} 无法获取函数路由，取消回调`)
@@ -775,6 +776,10 @@ function handleChange(values: any[]): void {
 watch(
   () => props.value,
   (newValue: any) => {
+    if (props.mode !== 'edit') {
+      return
+    }
+
     if (!newValue || !newValue.raw) {
       const defaultValue = config.value.default
       if (Array.isArray(defaultValue) && defaultValue.length > 0) {
@@ -793,7 +798,7 @@ const lastSearchedValues = ref<string[]>([])
 onMounted(() => {
   // 🔥 注册 MultiSelectWidget 初始化器（组件自治）
   // 只在有 OnSelectFuzzy 回调时才注册
-  if (hasRemoteSearch.value) {
+  if (hasRemoteSearch.value && props.mode === 'edit') {
     widgetInitializerRegistry.register('multiselect', new MultiSelectWidgetInitializer())
     Logger.debug('[MultiSelectWidget]', '注册初始化器', {
       fieldCode: props.field.code,
@@ -804,11 +809,11 @@ onMounted(() => {
   // 🔥 如果有回调接口且有初始值，立即触发一次回调
   // 因为 watch 可能在组件挂载时 formRenderer 还没传递过来
   // 🔥 注意：这个逻辑未来可能会被统一初始化框架替代
-  if (hasRemoteSearch.value && props.value?.raw && props.formRenderer) {
+  if (hasRemoteSearch.value && props.value?.raw && callbackRouter.value) {
     nextTick(() => {
       // 🔥 检查 functionDetail 是否已准备好
       const functionDetail = props.formRenderer?.getFunctionDetail?.()
-      if (!functionDetail || !functionDetail.request || functionDetail.request.length === 0) {
+      if (props.mode === 'edit' && (!functionDetail || !functionDetail.request || functionDetail.request.length === 0)) {
         // functionDetail 还没准备好，等待 watch 触发
         console.log(`🔍 [MultiSelectWidget] onMounted 时 functionDetail 未准备好，等待 watch 触发`, {
           fieldCode: props.field.code,
@@ -831,12 +836,12 @@ onMounted(() => {
 
 // 监听 formRenderer 和 value 变化，确保在 formRenderer 准备好后触发回调
 watch(
-  [hasRemoteSearch, () => props.value?.raw, () => props.formRenderer],
-  ([hasCallback, rawValue, formRenderer]) => {
-    if (!hasInitialized.value && hasCallback && rawValue && formRenderer) {
+  [hasRemoteSearch, () => props.value?.raw, () => props.formRenderer, callbackRouter],
+  ([hasCallback, rawValue, formRenderer, router]) => {
+    if (!hasInitialized.value && hasCallback && rawValue && router) {
       // 🔥 检查 functionDetail 是否已准备好
       const functionDetail = formRenderer?.getFunctionDetail?.()
-      if (!functionDetail || !functionDetail.request || functionDetail.request.length === 0) {
+      if (props.mode === 'edit' && (!functionDetail || !functionDetail.request || functionDetail.request.length === 0)) {
         // functionDetail 还没准备好，等待下次触发
         console.log(`🔍 [MultiSelectWidget] watch 触发，但 functionDetail 未准备好，等待下次触发`, {
           fieldCode: props.field.code,
@@ -865,7 +870,7 @@ watch(
 
 // 🔥 组件卸载时取消注册初始化器
 onUnmounted(() => {
-  if (hasRemoteSearch.value) {
+  if (hasRemoteSearch.value && props.mode === 'edit') {
     widgetInitializerRegistry.unregister('multiselect')
     Logger.debug('[MultiSelectWidget]', 'onUnmounted - 取消注册初始化器', {
       fieldCode: props.field.code,

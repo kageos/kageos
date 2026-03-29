@@ -17,15 +17,12 @@ import type { IFunctionLoader } from './IFunctionLoader'
 import type { IServiceTreeLoader } from './IServiceTreeLoader'
 
 // 导入状态类型
-import type { FormState } from '../services/FormDomainService'
 import type { TableState } from '../services/TableDomainService'
 import type { WorkspaceState } from '../services/WorkspaceDomainService'
 
 // 导入服务类型（使用具体类型，因为 Domain Services 是业务逻辑层）
-import type { FormDomainService } from '../services/FormDomainService'
 import type { TableDomainService } from '../services/TableDomainService'
 import type { WorkspaceDomainService } from '../services/WorkspaceDomainService'
-import type { FormApplicationService } from '../../application/services/FormApplicationService'
 import type { TableApplicationService } from '../../application/services/TableApplicationService'
 import type { WorkspaceApplicationService } from '../../application/services/WorkspaceApplicationService'
 
@@ -36,11 +33,6 @@ import type { WorkspaceApplicationService } from '../../application/services/Wor
  */
 export interface IServiceProvider {
   // ========== State Managers ==========
-  /**
-   * 获取表单状态管理器
-   */
-  getFormStateManager(): IStateManager<FormState>
-
   /**
    * 获取表格状态管理器
    */
@@ -53,11 +45,6 @@ export interface IServiceProvider {
 
   // ========== Domain Services ==========
   /**
-   * 获取表单领域服务
-   */
-  getFormDomainService(): FormDomainService
-
-  /**
    * 获取表格领域服务
    */
   getTableDomainService(): TableDomainService
@@ -68,11 +55,6 @@ export interface IServiceProvider {
   getWorkspaceDomainService(): WorkspaceDomainService
 
   // ========== Application Services ==========
-  /**
-   * 获取表单应用服务
-   */
-  getFormApplicationService(): FormApplicationService
-
   /**
    * 获取表格应用服务
    */
@@ -109,4 +91,3 @@ export interface IServiceProvider {
    */
   getServiceTreeLoader(): IServiceTreeLoader
 }
-

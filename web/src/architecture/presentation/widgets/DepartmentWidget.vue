@@ -131,6 +131,7 @@ import { getDepartmentTree, getDepartmentByPath } from '@/api/department'
 import { Logger } from '@/core/utils/logger'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import { SearchType, hasSearchType } from '@/core/constants/search'
+import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/utils/searchType'
 
 const COMPONENT_NAME = 'DepartmentWidget'
 
@@ -163,7 +164,7 @@ const supportsMultipleSelection = computed(() => {
   if (props.mode !== 'search') {
     return false
   }
-  const searchType = props.field.search || ''
+  const searchType = resolveWidgetSearchType(props.searchType, props.field.search)
   return hasSearchType(searchType, SearchType.IN)
 })
 

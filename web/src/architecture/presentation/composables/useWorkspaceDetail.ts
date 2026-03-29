@@ -77,21 +77,30 @@
  *    - 通过 `editFunctionDetail` computed 过滤字段
  */
 
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed } from 'vue'
 import { deepClone } from '@/utils/clone'
 import { useRoute, useRouter } from 'vue-router'
 import { ElNotification, ElMessage } from 'element-plus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
-import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
+import { eventBus, RouteEvent, TableEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import type { FieldConfig, FieldValue } from '../../domain/types'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
-import { useFormDataStore } from '@/core/stores-v2/formData'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { hasPermission, TablePermission, buildPermissionApplyURL } from '@/utils/permission'
 import type { ServiceTree } from '@/types'
+import {
+  buildDetailBaseQuery as buildDetailBaseQueryHelper,
+  buildEditFunctionDetail,
+  findDetailIdField,
+  findDetailRowMatch,
+  getEditableFieldCodes as getEditableFieldCodesHelper,
+  resolveDetailRouteRequest,
+  shouldWaitForDetailTableData,
+  type DetailRestoreTrigger
+} from './utils/workspaceDetailRuntime'
 
 export function useWorkspaceDetail(
   options: {
@@ -104,7 +113,6 @@ export function useWorkspaceDetail(
   const router = useRouter()
   const tableApplicationService = serviceProvider.getTableApplicationService()
   const tableStateManager = serviceProvider.getTableStateManager()
-  const stateManager = serviceProvider.getWorkspaceStateManager()
   const userInfoStore = useUserInfoStore()
 
   // 详情抽屉状态
@@ -122,32 +130,136 @@ export function useWorkspaceDetail(
 
   // 编辑模式的函数详情（从 response 字段中筛选可编辑的字段）
   const editFunctionDetail = computed<FunctionDetail | null>(() => {
-    const current = options.currentFunctionDetail()
-    if (!current) return null
-    
-    // 如果是 table 类型，从 response 字段中筛选可编辑的字段
-    if (current.template_type === TEMPLATE_TYPE.TABLE) {
-      const fields = (current.response || []) as FieldConfig[]
-      const editableFields = fields.filter(field => {
-        const permission = field.table_permission
-        return !permission || permission === '' || permission === 'update'
-      })
-      
-      return {
-        ...current,
-        template_type: 'form',
-        request: editableFields,
-        response: []
-      }
-    }
-    
-    // 如果是 form 类型，直接使用 request 字段
-    if (current.template_type === TEMPLATE_TYPE.FORM) {
-      return current
-    }
-    
-    return null
+    return buildEditFunctionDetail(options.currentFunctionDetail())
   })
+
+  const getEditableFieldCodes = (): string[] => {
+    return getEditableFieldCodesHelper(editFunctionDetail.value)
+  }
+
+  const buildDetailBaseQuery = (): Record<string, string | string[]> => {
+    return buildDetailBaseQueryHelper({
+      query: route.query as Record<string, any>,
+      editableFieldCodes: getEditableFieldCodes()
+    })
+  }
+
+  let pendingDetailRestoreKey: string | null = null
+  let pendingDetailRestoreQuery: Record<string, any> | null = null
+  let latestDetailRestoreToken = 0
+  let inFlightDetailLookupKey: string | null = null
+
+  const setPendingDetailRestore = (query: Record<string, any>) => {
+    const request = resolveDetailRouteRequest(query)
+    const nextKey = request?.key ?? null
+
+    if (nextKey !== pendingDetailRestoreKey) {
+      latestDetailRestoreToken += 1
+    }
+
+    pendingDetailRestoreKey = nextKey
+    pendingDetailRestoreQuery = request ? { ...query } : null
+
+    return request
+  }
+
+  const clearPendingDetailRestore = (): void => {
+    pendingDetailRestoreKey = null
+    pendingDetailRestoreQuery = null
+  }
+
+  const closeDetailDrawerForRoute = (query: Record<string, any>): void => {
+    const hasDetailRouteState = query._tab === 'detail' || query._id !== undefined
+    if (!hasDetailRouteState) {
+      detailDrawerVisible.value = false
+      detailDrawerMode.value = 'read'
+    }
+  }
+
+  const resolveDetailIndex = (
+    row: Record<string, any>,
+    fields: FieldConfig[],
+    tableData: Record<string, any>[],
+    explicitIndex?: number
+  ): number => {
+    if (typeof explicitIndex === 'number' && explicitIndex >= 0) {
+      return explicitIndex
+    }
+
+    const matchedById = findDetailRowMatch(tableData, String(row.id ?? row._id ?? ''))
+    if (matchedById) {
+      return matchedById.index
+    }
+
+    const idField = fields.find(field => field.code === 'id' || field.widget?.type === 'number')
+    if (idField && row[idField.code] !== undefined && row[idField.code] !== null) {
+      return tableData.findIndex((candidate: Record<string, any>) => candidate[idField.code] === row[idField.code])
+    }
+
+    return tableData.findIndex((candidate: Record<string, any>) => JSON.stringify(candidate) === JSON.stringify(row))
+  }
+
+  const preloadDetailUserInfo = async (fields: FieldConfig[], row: Record<string, any>): Promise<void> => {
+    const userFields = fields.filter(field => field.widget?.type === 'user')
+    if (userFields.length === 0) {
+      detailUserInfoMap.value = new Map()
+      return
+    }
+
+    const usernames: string[] = []
+    userFields.forEach(field => {
+      const value = row[field.code]
+      if (!value) {
+        return
+      }
+
+      if (Array.isArray(value)) {
+        usernames.push(...value.map(item => String(item)))
+        return
+      }
+
+      usernames.push(String(value))
+    })
+
+    if (usernames.length === 0) {
+      detailUserInfoMap.value = new Map()
+      return
+    }
+
+    try {
+      const users = await userInfoStore.batchGetUserInfo([...new Set(usernames)])
+      const map = new Map<string, any>()
+      users.forEach(user => {
+        map.set(user.username, user)
+      })
+      detailUserInfoMap.value = map
+    } catch (error) {
+      detailUserInfoMap.value = new Map()
+    }
+  }
+
+  const applyDetailDrawerState = (options: {
+    detail: FunctionDetail
+    row: Record<string, any>
+    tableData: Record<string, any>[]
+    mode?: 'read' | 'edit'
+    index?: number
+  }): void => {
+    const { detail, row, tableData, mode = 'read', index } = options
+    const fields = (detail.response || []) as FieldConfig[]
+
+    clearPendingDetailRestore()
+    detailRowData.value = row
+    detailOriginalRow.value = deepClone(row)
+    detailDrawerTitle.value = detail.name || '详情'
+    detailFields.value = fields
+    detailTableData.value = tableData
+    currentDetailIndex.value = resolveDetailIndex(row, fields, tableData, index)
+    detailDrawerMode.value = mode
+    detailDrawerVisible.value = true
+
+    void preloadDetailUserInfo(fields, row)
+  }
 
   // 切换抽屉模式
   const toggleDrawerMode = (mode: 'read' | 'edit') => {
@@ -163,35 +275,7 @@ export function useWorkspaceDetail(
     // 🔥 切换模式时更新 URL：查看模式使用 _tab=detail，编辑模式不设置 _tab（只使用 _id）
     const id = detailRowData.value?.id || detailRowData.value?._id
     if (id) {
-      // 🔥 获取编辑模式的字段代码集合，用于清除表单字段参数
-      const editableFieldCodes = new Set<string>()
-      if (editFunctionDetail.value && editFunctionDetail.value.request) {
-        editFunctionDetail.value.request.forEach((field: FieldConfig) => {
-          editableFieldCodes.add(field.code)
-        })
-      }
-      
-      const query: Record<string, string | string[]> = {}
-      // 保留现有参数（除了 _tab、_id 和表单字段参数）
-      Object.keys(route.query).forEach(key => {
-        // 跳过 _tab 和 _id，后面会根据模式设置
-        if (key === '_tab' || key === '_id') {
-          return
-        }
-        
-        // 🔥 编辑模式：清除所有表单字段参数（这些参数不应该在编辑模式下存在）
-        if (mode === 'edit' && editableFieldCodes.has(key)) {
-          return
-        }
-        
-        // 保留其他参数（如 table 参数、搜索参数等）
-        const value = route.query[key]
-        if (value !== null && value !== undefined) {
-          query[key] = Array.isArray(value) 
-            ? value.filter(v => v !== null).map(v => String(v))
-            : String(value)
-        }
-      })
+      const query = buildDetailBaseQuery()
       
       // 🔥 查看模式：设置 _tab=detail；编辑模式：不设置 _tab（只使用 _id）
       if (mode === 'read') {
@@ -232,35 +316,8 @@ export function useWorkspaceDetail(
     detailRowData.value = row
     detailOriginalRow.value = deepClone(row)
     detailDrawerMode.value = 'read'  // 切换记录时，重置为查看模式
-    
-    // 收集新行的用户字段并查询用户信息
-    const userFields = detailFields.value.filter(f => f.widget?.type === 'user')
-    if (userFields.length > 0) {
-      const usernames: string[] = []
-      userFields.forEach(field => {
-        const value = row[field.code]
-        if (value) {
-          if (Array.isArray(value)) {
-            usernames.push(...value.map(v => String(v)))
-          } else {
-            usernames.push(String(value))
-          }
-        }
-      })
-      
-      if (usernames.length > 0) {
-        try {
-          const users = await userInfoStore.batchGetUserInfo([...new Set(usernames)])
-          // 更新到 detailUserInfoMap
-          detailUserInfoMap.value = new Map()
-          users.forEach(user => {
-            detailUserInfoMap.value.set(user.username, user)
-          })
-        } catch (error) {
-          // 静默失败
-        }
-      }
-    }
+
+    await preloadDetailUserInfo(detailFields.value, row)
   }
 
   // 提交编辑
@@ -317,34 +374,8 @@ export function useWorkspaceDetail(
         detailOriginalRow.value = deepClone(updatedRow)
         await refreshDetailRowData()
         
-        // 🔥 保存成功后，清除 URL 中的表单字段参数和 _tab 参数
-        const editableFieldCodes = new Set<string>()
-        if (editFunctionDetail.value && editFunctionDetail.value.request) {
-          editFunctionDetail.value.request.forEach((field: FieldConfig) => {
-            editableFieldCodes.add(field.code)
-          })
-        }
-        
-        const query: Record<string, string | string[]> = {}
-        Object.keys(route.query).forEach(key => {
-          // 跳过 _tab 和 _id 参数（详情抽屉相关）
-          if (key === '_tab' || key === '_id') {
-            return
-          }
-          
-          // 🔥 清除所有表单字段参数
-          if (editableFieldCodes.has(key)) {
-            return
-          }
-          
-          // 保留其他参数（如 table 参数、搜索参数等）
-          const value = route.query[key]
-          if (value !== null && value !== undefined) {
-            query[key] = Array.isArray(value) 
-              ? value.filter(v => v !== null).map(v => String(v))
-              : String(value)
-          }
-        })
+        // 🔥 保存成功后，清除 URL 中的表单草稿参数和详情参数
+        const query = buildDetailBaseQuery()
         
         // 🔥 发出路由更新请求事件，清除表单字段参数
         eventBus.emit(RouteEvent.updateRequested, {
@@ -409,38 +440,7 @@ export function useWorkspaceDetail(
     // 如果当前 URL 有 _tab=detail 或 _id 参数，移除它
     // 🔥 阶段3：改为事件驱动，通过 RouteManager 统一处理路由更新
     if (route.query._tab === 'detail' || route.query._id) {
-      // 🔥 获取编辑模式的字段代码集合，用于清除表单字段参数
-      const editableFieldCodes = new Set<string>()
-      if (editFunctionDetail.value && editFunctionDetail.value.request) {
-        editFunctionDetail.value.request.forEach((field: FieldConfig) => {
-          editableFieldCodes.add(field.code)
-        })
-      }
-      
-      // 🔥 清空 formDataStore，避免 FormView 重新初始化时从 URL 读取数据
-      const formDataStore = useFormDataStore()
-      formDataStore.clear()
-      
-      const query: Record<string, string | string[]> = {}
-      Object.keys(route.query).forEach(key => {
-        // 跳过 _tab 和 _id 参数（详情抽屉相关）
-        if (key === '_tab' || key === '_id') {
-          return
-        }
-        
-        // 🔥 跳过表单字段参数（编辑模式下 FormView 不应该同步到 URL，但如果有残留参数需要清除）
-        if (editableFieldCodes.has(key)) {
-          return
-        }
-        
-        // 保留其他参数（如 table 参数、搜索参数等）
-          const value = route.query[key]
-          if (value !== null && value !== undefined) {
-            query[key] = Array.isArray(value) 
-              ? value.filter(v => v !== null).map(v => String(v))
-              : String(value)
-        }
-      })
+      const query = buildDetailBaseQuery()
       
       // 🔥 发出路由更新请求事件
       eventBus.emit(RouteEvent.updateRequested, {
@@ -466,76 +466,23 @@ export function useWorkspaceDetail(
   ) => {
     const currentDetail = options.currentFunctionDetail()
     if (!currentDetail) return
-    
-    detailRowData.value = row
-    detailOriginalRow.value = deepClone(row)
-    detailDrawerTitle.value = currentDetail.name || '详情'
-    detailFields.value = (currentDetail.response || []) as FieldConfig[]
+    const resolvedTableData = Array.isArray(tableData)
+      ? tableData
+      : (tableStateManager.getState().data || [])
 
-    // 保存表格数据和索引（用于上一条下一条导航）
-    if (tableData && Array.isArray(tableData) && tableData.length > 0) {
-      detailTableData.value = tableData
-      if (typeof index === 'number' && index >= 0) {
-        currentDetailIndex.value = index
-      } else {
-        // 如果没有传递 index，尝试从 tableData 中查找
-        const idField = detailFields.value.find(f => f.code === 'id' || f.widget?.type === 'number')
-        if (idField && row[idField.code]) {
-          const foundIndex = tableData.findIndex((r: any) => r[idField.code] === row[idField.code])
-          currentDetailIndex.value = foundIndex >= 0 ? foundIndex : -1
-        } else {
-          // 如果没有 id 字段，尝试通过对象匹配
-          const foundIndex = tableData.findIndex((r: any) => JSON.stringify(r) === JSON.stringify(row))
-          currentDetailIndex.value = foundIndex >= 0 ? foundIndex : -1
-        }
-      }
-    } else {
-      // 如果没有传递 tableData，尝试从 StateManager 获取
-      try {
-        const tableStateManager = serviceFactory.getTableStateManager()
-        const tableData = tableStateManager.getData() || []
-        if (tableData && Array.isArray(tableData) && tableData.length > 0) {
-          detailTableData.value = tableData
-          const idField = detailFields.value.find(f => f.code === 'id' || f.widget?.type === 'number')
-          if (idField && row[idField.code]) {
-            const foundIndex = tableData.findIndex((r: any) => r[idField.code] === row[idField.code])
-            currentDetailIndex.value = foundIndex >= 0 ? foundIndex : -1
-          } else {
-            // 如果没有 id 字段，尝试通过对象匹配
-            const foundIndex = tableData.findIndex((r: any) => JSON.stringify(r) === JSON.stringify(row))
-            currentDetailIndex.value = foundIndex >= 0 ? foundIndex : -1
-          }
-        } else {
-          detailTableData.value = []
-          currentDetailIndex.value = -1
-        }
-      } catch (error) {
-        detailTableData.value = []
-        currentDetailIndex.value = -1
-      }
-    }
-
-    detailDrawerMode.value = initialMode
-    detailDrawerVisible.value = true
+    applyDetailDrawerState({
+      detail: currentDetail,
+      row,
+      tableData: Array.isArray(resolvedTableData) ? resolvedTableData : [],
+      mode: initialMode,
+      index
+    })
 
     // URL 同步更新（分享用）；仅 _tab/_id 变化时 query 监听会跳过表格 load，不会闪
     if (options.currentFunction()) {
       const id = row.id || row._id
       if (id) {
-        const editableFieldCodes = new Set<string>()
-        if (editFunctionDetail.value?.request) {
-          editFunctionDetail.value.request.forEach((field: FieldConfig) => editableFieldCodes.add(field.code))
-        }
-        const query: Record<string, string | string[]> = {}
-        Object.keys(route.query).forEach(key => {
-          if (editableFieldCodes.has(key)) return
-          const value = route.query[key]
-          if (value !== null && value !== undefined) {
-            query[key] = Array.isArray(value)
-              ? value.filter((v: any) => v !== null).map((v: any) => String(v))
-              : String(value)
-          }
-        })
+        const query = buildDetailBaseQuery()
         query._tab = 'detail'
         query._id = String(id)
         eventBus.emit(RouteEvent.updateRequested, {
@@ -546,154 +493,103 @@ export function useWorkspaceDetail(
         })
       }
     }
-
-    // 用户信息后台加载，不阻塞抽屉展示
-    const userFields = detailFields.value.filter(f => f.widget?.type === 'user')
-    if (userFields.length > 0) {
-      const usernames: string[] = []
-      userFields.forEach(field => {
-        const value = row[field.code]
-        if (value) {
-          if (Array.isArray(value)) usernames.push(...value.map(v => String(v)))
-          else usernames.push(String(value))
-        }
-      })
-      if (usernames.length > 0) {
-        userInfoStore.batchGetUserInfo([...new Set(usernames)])
-          .then(users => {
-            const map = new Map<string, any>()
-            users.forEach((u: any) => map.set(u.username, u))
-            detailUserInfoMap.value = map
-          })
-          .catch(() => {})
-      }
-    }
   }
 
-  // 打开详情抽屉的辅助函数（从 URL 参数）
-  const openDetailFromUrl = async (query: any) => {
-    const tab = query._tab
-    const id = query._id
-    const detail = options.currentFunctionDetail()
-    
-    // 使用 nextTick 确保 detail 已更新
-    await nextTick()
-    
-    // 继续原有的逻辑（从 watch 中复制）
-    // 🔥 支持 _tab=detail（查看模式），编辑模式不设置 _tab 参数
-    if (tab === 'detail' && id && detail && detail.template_type === TEMPLATE_TYPE.TABLE) {
-      // 确保函数详情已加载
-      if (!options.currentFunction()) {
+  const restoreDetailFromQuery = async (
+    rawQuery: Record<string, any>,
+    trigger: DetailRestoreTrigger,
+    detailOverride?: FunctionDetail | null
+  ): Promise<void> => {
+    const query = rawQuery || {}
+    const request = setPendingDetailRestore(query)
+
+    if (!request) {
+      closeDetailDrawerForRoute(query)
+      return
+    }
+
+    const detail = detailOverride ?? options.currentFunctionDetail()
+    if (!detail || detail.template_type !== TEMPLATE_TYPE.TABLE || !options.currentFunction()) {
+      return
+    }
+
+    const tableState = tableStateManager.getState()
+    const currentTableData = Array.isArray(tableState.data) ? tableState.data : []
+    const currentMatch = findDetailRowMatch(currentTableData, request.rowId)
+
+    if (currentMatch) {
+      applyDetailDrawerState({
+        detail,
+        row: currentMatch.row,
+        tableData: currentTableData,
+        mode: 'read',
+        index: currentMatch.index
+      })
+      clearPendingDetailRestore()
+      return
+    }
+
+    if (shouldWaitForDetailTableData({
+      loading: tableState.loading,
+      dataLength: currentTableData.length,
+      trigger
+    })) {
+      return
+    }
+
+    const idField = findDetailIdField(detail)
+    if (!idField) {
+      clearPendingDetailRestore()
+      return
+    }
+
+    if (inFlightDetailLookupKey === request.key) {
+      return
+    }
+
+    const token = latestDetailRestoreToken
+    inFlightDetailLookupKey = request.key
+
+    try {
+      await tableApplicationService.loadData(
+        detail,
+        { [idField.code]: request.rowId },
+        undefined,
+        { page: 1, pageSize: 20 }
+      )
+
+      if (token !== latestDetailRestoreToken || pendingDetailRestoreKey !== request.key) {
         return
       }
-      
-      const rowId = Number(id)
-      if (isNaN(rowId)) {
+
+      const refreshedState = tableStateManager.getState()
+      const refreshedTableData = Array.isArray(refreshedState.data) ? refreshedState.data : []
+      const refreshedMatch = findDetailRowMatch(refreshedTableData, request.rowId)
+
+      if (!refreshedMatch) {
+        clearPendingDetailRestore()
+        ElNotification.warning({
+          title: '提示',
+          message: `未找到 id 为 ${request.rowId} 的记录，可能不在当前页`
+        })
         return
       }
-      
-      // 从表格数据中查找对应 id 的记录
-      try {
-        const tableStateManager = serviceFactory.getTableStateManager()
-        let tableData = tableStateManager.getData() || []
-        
-        // 尝试通过 id 字段查找
-        let targetRow = tableData.find((r: any) => r.id === rowId || r._id === rowId)
-        
-        // 如果当前页没有找到，尝试通过搜索 id 来加载数据
-        if (!targetRow) {
-          // 先等待表格数据加载完成（如果表格正在加载）
-          let retries = 0
-          while (tableData.length === 0 && retries < 10) {
-            await nextTick()
-            await new Promise(resolve => setTimeout(resolve, 300))
-            tableData = tableStateManager.getData() || []
-            targetRow = tableData.find((r: any) => r.id === rowId || r._id === rowId)
-            if (targetRow) break
-            retries++
-          }
-          
-          // 如果还是没有找到，尝试通过搜索 id 来加载
-          if (!targetRow && options.currentFunctionDetail()) {
-            try {
-              const tableApplicationService = serviceFactory.getTableApplicationService()
-              // 通过搜索 id 字段来加载数据
-              const idField = options.currentFunctionDetail()?.response?.find((f: FieldConfig) => 
-                f.code === 'id' || f.code.toLowerCase() === 'id'
-              )
-              
-              if (idField) {
-                // 设置搜索条件为 id = rowId
-                const searchParams: Record<string, any> = {}
-                searchParams[idField.code] = rowId
-                
-                // 加载数据（使用搜索参数）
-                await tableApplicationService.loadData(
-                  options.currentFunctionDetail()!,
-                  searchParams, // 搜索参数
-                  undefined, // 排序参数
-                  { page: 1, pageSize: 20 } // 分页参数
-                )
-                
-                // 重新获取数据
-                tableData = tableStateManager.getData() || []
-                targetRow = tableData.find((r: any) => r.id === rowId || r._id === rowId)
-              }
-            } catch (error) {
-              // 静默失败
-            }
-          }
-        }
-        
-        if (targetRow) {
-          // 找到记录，打开详情抽屉
-          const index = tableData.findIndex((r: any) => r.id === rowId || r._id === rowId)
-          detailRowData.value = targetRow
-          detailOriginalRow.value = deepClone(targetRow)
-          detailDrawerTitle.value = detail.name || '详情'
-          detailFields.value = (detail.response || []) as FieldConfig[]
-          detailTableData.value = tableData
-          currentDetailIndex.value = index >= 0 ? index : -1
-          
-          // 收集用户字段信息
-          const userFields = detailFields.value.filter(f => f.widget?.type === 'user')
-          if (userFields.length > 0) {
-            const usernames: string[] = []
-            userFields.forEach(field => {
-              const value = targetRow[field.code]
-              if (value) {
-                if (Array.isArray(value)) {
-                  usernames.push(...value.map(v => String(v)))
-                } else {
-                  usernames.push(String(value))
-                }
-              }
-            })
-            
-            if (usernames.length > 0) {
-              try {
-                const users = await userInfoStore.batchGetUserInfo([...new Set(usernames)])
-                detailUserInfoMap.value = new Map()
-                users.forEach(user => {
-                  detailUserInfoMap.value.set(user.username, user)
-                })
-              } catch (error) {
-                // 静默失败
-              }
-            }
-          }
-          
-          // 🔥 根据 _tab 参数设置模式：detail 为查看模式，没有 _tab 时默认为查看模式
-          detailDrawerMode.value = 'read'
-          detailDrawerVisible.value = true
-        } else {
-          ElNotification.warning({
-            title: '提示',
-            message: `未找到 id 为 ${rowId} 的记录，可能不在当前页`
-          })
-        }
-      } catch (error) {
-        // 静默失败
+
+      applyDetailDrawerState({
+        detail,
+        row: refreshedMatch.row,
+        tableData: refreshedTableData,
+        mode: 'read',
+        index: refreshedMatch.index
+      })
+      clearPendingDetailRestore()
+    } catch (error) {
+      if (token === latestDetailRestoreToken && pendingDetailRestoreKey === request.key) {
+        clearPendingDetailRestore()
+      }
+    } finally {
+      if (inFlightDetailLookupKey === request.key) {
+        inFlightDetailLookupKey = null
       }
     }
   }
@@ -701,40 +597,37 @@ export function useWorkspaceDetail(
   // 设置 URL 参数监听（用于分享链接）
   // 🔥 阶段4：改为监听 RouteEvent.queryChanged 事件，而不是直接 watch route.query
   // 这样可以避免程序触发的路由更新导致循环
-  const setupUrlWatch = () => {
-    // 🔥 初始化时检查 URL 参数（页面刷新场景）
-    // 如果 URL 中已经有 _tab=detail&_id=xxx，等待函数详情和表格数据加载完成后打开详情
-    if (route.query._tab === 'detail' && route.query._id) {
-      // 等待函数详情加载完成
-      const checkAndOpen = async () => {
-        let retries = 0
-        while (retries < 20) { // 最多等待 10 秒
-          await nextTick()
-          await new Promise(resolve => setTimeout(resolve, 500))
-          
-          const detail = options.currentFunctionDetail()
-          const currentFunction = options.currentFunction()
-          
-          // 如果函数详情已加载，尝试打开详情
-          if (detail && currentFunction && detail.template_type === TEMPLATE_TYPE.TABLE) {
-            await openDetailFromUrl(route.query)
-            break
-          }
-          
-          retries++
-        }
-      }
-      
-      checkAndOpen()
-    }
-    
-    // 监听 URL 参数变化（浏览器前进/后退场景）
-    eventBus.on(RouteEvent.queryChanged, async (payload: { query: any, oldQuery: any, source: string }) => {
+  const setupUrlWatch = (): (() => void) => {
+    const unsubscribeQueryChanged = eventBus.on(RouteEvent.queryChanged, async (payload: { query: any, oldQuery: any, source: string }) => {
       // 🔥 只处理用户操作（浏览器前进/后退）或外部变化，不处理程序触发的更新
       if (payload.source === 'router-change') {
-        await openDetailFromUrl(payload.query)
+        await restoreDetailFromQuery(payload.query || {}, 'route-change')
       }
     })
+
+    const unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, async (payload: { detail: FunctionDetail }) => {
+      if (!pendingDetailRestoreQuery || payload.detail.template_type !== TEMPLATE_TYPE.TABLE) {
+        return
+      }
+
+      await restoreDetailFromQuery(pendingDetailRestoreQuery, 'function-loaded', payload.detail)
+    })
+
+    const unsubscribeTableDataLoaded = eventBus.on(TableEvent.dataLoaded, async () => {
+      if (!pendingDetailRestoreQuery) {
+        return
+      }
+
+      await restoreDetailFromQuery(pendingDetailRestoreQuery, 'table-data-loaded')
+    })
+
+    void restoreDetailFromQuery(route.query as Record<string, any>, 'setup')
+
+    return () => {
+      unsubscribeQueryChanged()
+      unsubscribeFunctionLoaded()
+      unsubscribeTableDataLoaded()
+    }
   }
 
   return {

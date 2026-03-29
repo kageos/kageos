@@ -1,8 +1,20 @@
 <template>
   <div class="search-input">
+    <WidgetComponent
+      v-if="shouldUseWidgetSearchRenderer"
+      :field="widgetSearchField"
+      :value="widgetSearchFieldValue"
+      :field-path="field.code"
+      mode="search"
+      :search-type="searchType"
+      :function-method="functionMethod"
+      :function-router="functionRouter"
+      @update:model-value="handleWidgetFieldUpdate"
+    />
+
     <!-- 🔥 用户搜索专用组件（弹窗搜索，体验更好） -->
     <UserSearchWidget
-      v-if="shouldUseUserSearchWidget"
+      v-else-if="shouldUseUserSearchWidget"
       :field="field"
       :model-value="localValue"
       :search-type="searchType"
@@ -293,13 +305,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted, provide } from 'vue'
+import { createPinia } from 'pinia'
 import { ElAvatar, ElIcon, ElTag } from 'element-plus'
 import { Close } from '@element-plus/icons-vue'
 import UserSearchInput from '@/shared/components/UserSearchInput.vue'
 import UserSearchWidget from './UserSearchWidget.vue'
 import DepartmentSearchWidget from './DepartmentSearchWidget.vue'
 import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
+import WidgetComponent from '@/architecture/presentation/widgets/WidgetComponent.vue'
 import { ErrorHandler } from '@/core/utils/ErrorHandler'
 import { convertToFieldValue } from '@/utils/field'
 import { normalizeSearchValue, denormalizeSearchValue } from '@/utils/searchValueNormalizer'
@@ -310,6 +324,13 @@ import { parseCommaSeparatedString } from '@/utils/stringUtils'
 import { isStandardColor, getStandardColorCSSVar, type StandardColorType } from '@/core/constants/select'
 import { Logger } from '@/core/utils/logger'
 import type { FieldConfig } from '@/core/types/field'
+import { formDataStoreKey, useFormDataStore } from '@/core/stores-v2/formData'
+import {
+  buildSearchWidgetField,
+  adaptSearchModelValueForWidget,
+  resolveWidgetTypeForSearchRenderer,
+  shouldUseWidgetSearchRenderer as resolveWidgetSearchMode
+} from './utils/searchWidgetMode'
 
 type SearchOption = {
   label: string
@@ -344,6 +365,52 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+
+const scopedSearchPinia = createPinia()
+const scopedSearchFormDataStore = useFormDataStore(scopedSearchPinia)
+provide(formDataStoreKey, scopedSearchFormDataStore)
+
+const searchWidgetType = computed(() => {
+  return resolveWidgetTypeForSearchRenderer({
+    widgetType: props.field.widget?.type,
+    searchType: props.searchType
+  })
+})
+
+const widgetSearchField = computed(() => {
+  return buildSearchWidgetField(props.field, props.searchType)
+})
+
+const shouldUseWidgetSearchRenderer = computed(() => {
+  return resolveWidgetSearchMode({
+    widgetType: searchWidgetType.value,
+    searchType: props.searchType,
+    hasRegisteredWidget: widgetComponentFactory.hasRequestComponent(searchWidgetType.value)
+  })
+})
+
+const widgetSearchFieldValue = computed(() => {
+  const denormalizedValue = denormalizeSearchValue(props.modelValue, {
+    widgetType: searchWidgetType.value,
+    searchType: props.searchType,
+    field: widgetSearchField.value
+  })
+
+  return convertToFieldValue(
+    adaptSearchModelValueForWidget(denormalizedValue, searchWidgetType.value),
+    widgetSearchField.value
+  )
+})
+
+watch(widgetSearchFieldValue, (newValue) => {
+  if (shouldUseWidgetSearchRenderer.value) {
+    scopedSearchFormDataStore.setValue(props.field.code, newValue)
+  }
+}, { immediate: true, deep: true })
+
+onUnmounted(() => {
+  scopedSearchFormDataStore.clear()
+})
 
 // 本地值（单值）
 const localValue = ref(props.modelValue)
@@ -892,6 +959,16 @@ const handleInput = (value: any) => {
   }, SearchConfig.INTERNAL_UPDATE_DELAY)
 }
 
+const handleWidgetFieldUpdate = (value: any) => {
+  const normalizedValue = normalizeSearchValue(value?.raw, {
+    widgetType: searchWidgetType.value,
+    searchType: props.searchType,
+    field: widgetSearchField.value
+  })
+
+  emit('update:modelValue', normalizedValue)
+}
+
 // 处理清空事件（ElInput、ElSelect、ElDatePicker 等组件的 clearable）
 const handleClear = () => {
   localValue.value = null
@@ -935,6 +1012,10 @@ const handleDateRangeChange = (value: [number | string | null, number | string |
 
 // 监听外部值变化
 watch(() => props.modelValue, (newValue: any, oldValue: any) => {
+  if (shouldUseWidgetSearchRenderer.value) {
+    return
+  }
+
   // 🔥 如果是内部更新触发的，跳过处理
   if (isInternalUpdate.value) {
     return
@@ -1069,6 +1150,10 @@ watch(() => props.modelValue, (newValue: any, oldValue: any) => {
 
 // 🔥 监听 inputConfig 变化，初始化已选中值的选项
 watch(() => inputConfig.value, (newConfig, oldConfig) => {
+  if (shouldUseWidgetSearchRenderer.value) {
+    return
+  }
+
   // 🔥 只有当 inputConfig 真正变化时才触发（避免初始化时重复调用）
   if (newConfig === oldConfig) {
     return
@@ -1085,6 +1170,10 @@ watch(() => inputConfig.value, (newConfig, oldConfig) => {
 
 // 🔥 组件挂载时，如果已有值且是 remote 模式，立即触发初始化（避免先显示原始值）
 onMounted(() => {
+  if (shouldUseWidgetSearchRenderer.value) {
+    return
+  }
+
   if (inputConfig.value.component === SearchComponent.EL_SELECT && 
       inputConfig.value.props?.remote && 
       localValue.value && 
@@ -1128,20 +1217,46 @@ onMounted(() => {
 }
 
 .search-input {
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
 }
 
 .number-range,
 .text-range {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
+  min-width: 0;
 }
 
 .range-separator {
   color: var(--el-text-color-secondary);
   font-size: 14px;
+  flex-shrink: 0;
+}
+
+.search-input :deep(.el-input),
+.search-input :deep(.el-select),
+.search-input :deep(.el-date-editor),
+.search-input :deep(.el-input-number),
+.search-input :deep(.widget-component) {
+  width: 100%;
+  min-width: 0;
+}
+
+.search-input :deep(.el-select__wrapper),
+.search-input :deep(.el-input__wrapper),
+.search-input :deep(.el-textarea__inner) {
+  width: 100%;
+}
+
+.number-range :deep(.el-input-number),
+.text-range :deep(.el-input) {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 /* 🔥 用户选择器选中后的标签样式（multiple 模式，使用 user-cell 样式） */

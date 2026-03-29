@@ -83,6 +83,12 @@ import type { ValidationResult as CoreValidationResult } from '@/core/validation
 import type { ReactiveFormDataManager } from '@/core/managers/ReactiveFormDataManager'
 import { Logger } from '@/core/utils/logger'
 import { getWidgetDefaultValue } from '@/architecture/presentation/widgets/composables/useWidgetDefaultValue'
+import {
+  validateFieldValue,
+  validateFormWidgetNestedFields,
+  validateTableWidgetNestedFields,
+  type WidgetValidationContext
+} from '@/architecture/presentation/widgets/composables/useWidgetValidation'
 import { useAuthStore } from '@/stores/auth'
 
 export type ValidationResult = CoreValidationResult
@@ -113,6 +119,11 @@ class FormStateManagerAdapter {
   getValue(fieldPath: string): FieldValue {
     const state = this.stateManager.getState()
     return state.data.get(fieldPath) || { raw: null, display: '', meta: {} }
+  }
+
+  hasValue(fieldPath: string): boolean {
+    const state = this.stateManager.getState()
+    return state.data.has(fieldPath)
   }
 }
 
@@ -407,15 +418,15 @@ export class FormDomainService {
       this.fields = fields
     }
 
-    // 验证所有字段
+    const validationContext: WidgetValidationContext = {
+      validationEngine: this.validationEngine,
+      allFields: fields,
+      fieldErrors: errors,
+      formDataStore: this.stateManager as any
+    }
+
     fields.forEach(field => {
-      const value = state.data.get(field.code) || { raw: null, display: '', meta: {} }
-      if (field.validation) {
-        const fieldErrors = this.validationEngine!.validateField(field, value, fields)
-        if (fieldErrors.length > 0) {
-          errors.set(field.code, fieldErrors)
-        }
-      }
+      this.validateFieldRecursively(field, field.code, validationContext, errors)
     })
 
     // 更新状态
@@ -428,6 +439,36 @@ export class FormDomainService {
     this.eventBus.emit(FormEvent.validated, { errors })
 
     return errors.size === 0
+  }
+
+  private validateFieldRecursively(
+    field: FieldConfig,
+    fieldPath: string,
+    context: WidgetValidationContext,
+    errors: Map<string, ValidationResult[]>
+  ): void {
+    const currentFieldErrors = validateFieldValue(field, fieldPath, context)
+    if (currentFieldErrors.length > 0) {
+      errors.set(fieldPath, currentFieldErrors)
+    } else {
+      errors.delete(fieldPath)
+    }
+
+    if (!field.children || field.children.length === 0) {
+      return
+    }
+
+    const nestedErrors = field.widget?.type === 'table'
+      ? validateTableWidgetNestedFields(field, fieldPath, context)
+      : validateFormWidgetNestedFields(field, fieldPath, context)
+
+    nestedErrors.forEach((fieldErrors, nestedFieldPath) => {
+      if (fieldErrors.length > 0) {
+        errors.set(nestedFieldPath, fieldErrors)
+      } else {
+        errors.delete(nestedFieldPath)
+      }
+    })
   }
 
   /**
@@ -493,12 +534,16 @@ export class FormDomainService {
     if (stateManager && typeof stateManager.setResponse === 'function') {
       stateManager.setResponse(null)
     }
+    if (stateManager && typeof stateManager.setMetadata === 'function') {
+      stateManager.setMetadata(null)
+    }
     
     this.stateManager.setState({
       data: new Map(),
       errors: new Map(),
       submitting: false,
-      response: null
+      response: null,
+      metadata: null
     })
   }
 

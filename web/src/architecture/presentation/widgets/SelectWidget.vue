@@ -167,6 +167,8 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
+const callbackMethod = computed(() => props.formRenderer?.getFunctionMethod?.() || props.functionMethod || 'POST')
+const callbackRouter = computed(() => props.formRenderer?.getFunctionRouter?.() || props.functionRouter || '')
 
 // 获取配置（带类型）
 const widgetConfig = computed(() => {
@@ -485,10 +487,8 @@ function initOptions(): void {
   // 🔥 如果有回调接口且有初始值，触发一次搜索（包括详情模式）
   // 详情模式下也需要触发回调，通过 by_value 查询来获取选项标签
   // ⚠️ 注意：详情模式下由 watch 处理，这里只处理非详情模式
-  if (hasCallback.value && props.value?.raw && props.mode !== 'detail') {
-    if (props.formRenderer) {
-      handleSearch(props.value.raw, true) // by_value
-    }
+  if (hasCallback.value && props.value?.raw && props.mode !== 'detail' && callbackRouter.value) {
+    handleSearch(props.value.raw, true) // by_value
   }
   
   // 🔥 详情模式下，如果已经有 formRenderer，由 watch 处理
@@ -510,9 +510,8 @@ async function openDialog(): Promise<void> {
   
   // 如果有回调接口
   if (hasCallback.value) {
-    // 🔥 检查 formRenderer 是否存在
-    if (!props.formRenderer) {
-      console.warn('[SelectWidget] openDialog: formRenderer 不存在，无法触发回调', {
+    if (!callbackRouter.value) {
+      console.warn('[SelectWidget] openDialog: functionRouter 不存在，无法触发回调', {
         fieldCode: props.field.code
       })
       return
@@ -540,9 +539,8 @@ async function openDialog(): Promise<void> {
 // 处理对话框搜索
 async function handleDialogSearch(keyword: string): Promise<void> {
   if (hasCallback.value) {
-    // 🔥 检查 formRenderer 是否存在
-    if (!props.formRenderer) {
-      console.warn('[SelectWidget] handleDialogSearch: formRenderer 不存在，无法触发回调', {
+    if (!callbackRouter.value) {
+      console.warn('[SelectWidget] handleDialogSearch: functionRouter 不存在，无法触发回调', {
         fieldCode: props.field.code,
         keyword
       })
@@ -646,12 +644,12 @@ function handleClear(): void {
 
 // 处理搜索
 async function handleSearch(query: string | number, isByValue: boolean): Promise<void> {
-  if (!hasCallback.value || !props.formRenderer) {
+  if (!hasCallback.value || !callbackRouter.value) {
     return
   }
   
-  const method = props.formRenderer.getFunctionMethod()
-  const router = props.formRenderer.getFunctionRouter()
+  const method = callbackMethod.value
+  const router = callbackRouter.value
   
   if (!router) {
     console.warn('[SelectWidget] 无法获取函数路由，取消回调', { fieldCode: props.field.code, router })
@@ -674,8 +672,8 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
     
     // 🔥 获取提交数据并根据字段类型进行转换
     // 使用统一的类型转换函数，确保所有字段都根据 field.data.type 正确转换
-    const submitData = props.formRenderer.getSubmitData()
-    const functionDetail = props.formRenderer.getFunctionDetail?.()
+    const submitData = props.formRenderer?.getSubmitData?.() || {}
+    const functionDetail = props.formRenderer?.getFunctionDetail?.()
     const requestData = convertFormDataToRequestByType(submitData, functionDetail || {})
     
     const requestBody = {
@@ -847,7 +845,7 @@ onMounted(() => {
   
   // 🔥 注册 SelectWidget 初始化器（组件自治）
   // 只在有 OnSelectFuzzy 回调时才注册
-  if (hasCallback.value) {
+  if (hasCallback.value && props.mode === 'edit') {
     widgetInitializerRegistry.register('select', new SelectWidgetInitializer())
     Logger.debug('[SelectWidget]', '注册初始化器', {
       fieldCode: props.field.code,
@@ -872,7 +870,7 @@ onUnmounted(() => {
   }
   
   // 🔥 取消注册初始化器（防止内存泄漏）
-  if (hasCallback.value) {
+  if (hasCallback.value && props.mode === 'edit') {
     widgetInitializerRegistry.unregister('select')
     Logger.debug('[SelectWidget]', 'onUnmounted - 取消注册初始化器', {
       fieldCode: props.field.code,
@@ -907,9 +905,9 @@ const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) =
   
   // 🔥 移除 keep-alive 后，组件每次都会重新挂载，不需要检查激活状态
   
-  if (!hasCallback.value || !formRenderer) {
+  if (!hasCallback.value || !callbackRouter.value) {
     if (shouldLog) {
-      Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 跳过：无回调或无 formRenderer', {
+      Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 跳过：无回调或无 router', {
         fieldCode: props.field.code,
         hasCallback: hasCallback.value,
         formRenderer: !!formRenderer
@@ -918,7 +916,7 @@ const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) =
     return false
   }
   
-  const currentRouter = formRenderer.getFunctionRouter?.()
+  const currentRouter = formRenderer?.getFunctionRouter?.() || callbackRouter.value
   if (!currentRouter) {
     if (shouldLog) {
       Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 跳过：无 currentRouter', {
@@ -929,7 +927,7 @@ const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) =
   }
   
   // 🔥 获取当前函数 ID（用于防重复调用）
-  const currentFunctionId = formRenderer.getFunctionDetail?.()?.id || null
+  const currentFunctionId = formRenderer?.getFunctionDetail?.()?.id || null
   
   if (shouldLog) {
     Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 当前状态', {
@@ -1088,7 +1086,7 @@ watch(
     // 🔥 移除 keep-alive 后，组件每次都会重新挂载，不需要检查激活状态
     if (hasCallback.value && 
         props.mode !== 'table-cell' && 
-        props.formRenderer && 
+        callbackRouter.value && 
         newRaw !== null && 
         newRaw !== undefined && 
         newRaw !== oldRaw) {
