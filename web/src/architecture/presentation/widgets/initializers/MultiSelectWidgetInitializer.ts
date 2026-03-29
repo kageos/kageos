@@ -6,7 +6,7 @@
  * 功能：
  * - 检查是否需要初始化（是否有 OnSelectFuzzy 回调）
  * - 如果只有 raw 值（来自 URL），通过 by_values 查询获取 display 和 meta
- * - 如果已经有完整的 display 和 meta（来自快链），则不需要初始化
+ * - 如果已经有完整的 display 和 meta，则不需要初始化
  */
 
 import type { IWidgetInitializer, WidgetInitContext } from '@/architecture/presentation/widgets/interfaces/IWidgetInitializer'
@@ -91,7 +91,7 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
       return processedValue !== currentValue ? processedValue : null
     }
     
-    // 2. 如果已经有完整的 display 和 meta（来自快链），则不需要初始化
+    // 2. 如果已经有完整的 display 和 meta，则不需要初始化
     if (processedValue.display && processedValue.meta?.displayInfo) {
       console.log(`🔍 [MultiSelectWidgetInitializer] 字段 ${field.code} 已有完整的 display 和 meta，跳过初始化`, {
         display: processedValue.display,
@@ -214,4 +214,3 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
   }
   
 }
-

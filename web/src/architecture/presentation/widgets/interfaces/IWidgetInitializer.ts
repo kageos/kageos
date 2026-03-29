@@ -12,6 +12,12 @@
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import type { FunctionDetail } from '@/architecture/domain/types'
 
+export interface WidgetInitFormDataStore {
+  getValue: (fieldCode: string) => FieldValue | undefined
+  setValue: (fieldCode: string, value: FieldValue) => void
+  getAllValues: () => Record<string, FieldValue>
+}
+
 /**
  * Widget 初始化上下文
  */
@@ -19,11 +25,14 @@ export interface WidgetInitContext {
   /** 字段配置 */
   field: FieldConfig
   
-  /** 当前字段值（可能来自 URL、快链等） */
+  /** 当前字段值（可能来自 URL、默认值或初始数据） */
   currentValue: FieldValue
   
   /** 表单所有字段的值（用于依赖字段的初始化） */
   allFormData: Record<string, FieldValue>
+
+  /** 当前表单的数据存取接口（用于嵌套字段初始化） */
+  formDataStore?: WidgetInitFormDataStore
   
   /** 函数详情（用于调用回调接口） */
   functionDetail: FunctionDetail
@@ -49,4 +58,3 @@ export interface IWidgetInitializer {
    */
   initialize(context: WidgetInitContext): Promise<FieldValue | null>
 }
-

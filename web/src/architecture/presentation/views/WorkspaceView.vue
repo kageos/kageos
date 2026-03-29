@@ -833,6 +833,7 @@ import { useWorkspaceApp } from '../composables/useWorkspaceApp'
 import { useWorkspaceServiceTree } from '../composables/useWorkspaceServiceTree'
 import { addFunctionsToDirectory, createDocs, deleteBoard, deleteDocs, deletePackage, deleteServiceTreeFunction } from '@/api/service-tree'
 import { findNodeByPath, findNodeById } from '../utils/workspaceUtils'
+import { getScopedFieldQueryValue } from '@/utils/queryFieldNamespace'
 import { isRootNode as isRootTreeNode } from '@/utils/tree-utils'
 import { useAfterCreateNode } from '../composables/useAfterCreateNode'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
@@ -1058,8 +1059,8 @@ const editInitialData = computed(() => {
       // 跳过 _ 开头的参数（系统参数）
       if (fieldCode.startsWith('_')) return
       
-      if (query[fieldCode] !== undefined && query[fieldCode] !== null && query[fieldCode] !== '') {
-        const value = query[fieldCode]
+      const value = getScopedFieldQueryValue(query, fieldCode, 'form')
+      if (value !== undefined && value !== null && value !== '') {
         // 🔥 类型转换：根据字段类型转换值
         if (field.data?.type === 'int' || field.data?.type === 'integer') {
           const intValue = parseInt(String(value), 10)
@@ -1551,7 +1552,7 @@ onMounted(() => {
 
   
   // 🔥 监听表格详情事件（使用 Composable）
-  eventBus.on('table:detail-row', async (payload: { row: Record<string, any>, index?: number, tableData?: any[], initialMode?: 'read' | 'edit' }) => {
+  unsubscribeTableDetailRow = eventBus.on('table:detail-row', async (payload: { row: Record<string, any>, index?: number, tableData?: any[], initialMode?: 'read' | 'edit' }) => {
     const { row, index, tableData, initialMode = 'read' } = payload
     await openDetailDrawer(row, index, tableData, initialMode)
   })
@@ -1559,13 +1560,13 @@ onMounted(() => {
   // 🔥 Tab 功能已删除，相关事件监听已移除
   
   // 🔥 设置 URL 监听（使用 Composable）
-  setupUrlWatch()
+  unsubscribeDetailUrlWatch = setupUrlWatch()
   
   // 🔥 添加全局粘贴监听
   document.addEventListener('paste', handleGlobalPaste)
 
   // 🔥 服务目录树「打开工作台」：在本页打开抽屉并定位到该目录（不新开标签）
-  eventBus.on('workspace:open-workstation', handleWorkspaceOpenWorkstation)
+  unsubscribeWorkspaceOpenWorkstation = eventBus.on('workspace:open-workstation', handleWorkspaceOpenWorkstation)
 
   // 🔥 URL 参数恢复：?ws=open 时自动打开工作台抽屉，?ws_sid=xxx 恢复到具体会话
   if (route.query.ws === 'open') {
@@ -1612,7 +1613,15 @@ onMounted(() => {
 onUnmounted(() => {
   // 🔥 移除全局粘贴监听
   document.removeEventListener('paste', handleGlobalPaste)
-  eventBus.off('workspace:open-workstation', handleWorkspaceOpenWorkstation)
+  if (unsubscribeTableDetailRow) {
+    unsubscribeTableDetailRow()
+  }
+  if (unsubscribeDetailUrlWatch) {
+    unsubscribeDetailUrlWatch()
+  }
+  if (unsubscribeWorkspaceOpenWorkstation) {
+    unsubscribeWorkspaceOpenWorkstation()
+  }
   stopRightSidebarPoll()
 })
 
@@ -2385,6 +2394,9 @@ let unsubscribeServiceTreeLoaded: (() => void) | null = null
 let unsubscribeAppSwitched: (() => void) | null = null
 let unsubscribeScheduledTaskCreated: (() => void) | null = null
 let unsubscribeAppInfoUpdated: (() => void) | null = null
+let unsubscribeTableDetailRow: (() => void) | null = null
+let unsubscribeDetailUrlWatch: (() => void) | null = null
+let unsubscribeWorkspaceOpenWorkstation: (() => void) | null = null
 
 // 🔥 重新关联 tabs 的 node 信息（使用 Composable）
 // 🔥 不再使用 Tab，删除 restoreTabsNodes 函数

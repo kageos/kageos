@@ -18,6 +18,7 @@
     @update:model-value="handleUpdate"
     :field-path="fieldPath"
     :mode="mode"
+    :search-type="searchType"
     :row-data="rowData"
     :form-renderer="formRenderer"
     :function-method="functionMethod"
@@ -39,6 +40,7 @@ const props = withDefaults(defineProps<{
   value: FieldValue
   mode?: WidgetMode
   fieldPath?: string
+  searchType?: string
   rowData?: any
   formRenderer?: any // FormRenderer 上下文（用于 OnSelectFuzzy 回调）
   functionMethod?: string // 函数 HTTP 方法（用于 OnSelectFuzzy 回调）

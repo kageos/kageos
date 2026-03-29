@@ -180,8 +180,8 @@ go tool trace trace.out
 
 2. **在另一个终端运行压力测试**：
    ```bash
-   cd test/压力测试
-   ./详细压力测试.sh
+   # 用你自己的压测脚本或压测工具持续打请求
+   # 目标是让服务在一段时间内保持稳定负载
    ```
 
 3. **采集 CPU profile**（在压力测试期间）：
@@ -344,4 +344,3 @@ sudo apt-get install graphviz
 - [Go pprof 官方文档](https://pkg.go.dev/net/http/pprof)
 - [Go 性能优化实战](https://github.com/golang/go/wiki/Performance)
 - [Dave Cheney 的 pprof 教程](https://dave.cheney.net/2013/06/30/how-to-write-benchmarks-in-go)
-

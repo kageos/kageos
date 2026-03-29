@@ -72,6 +72,7 @@ import { useFormDataStore } from '@/core/stores-v2/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import { formatTimestamp } from '@/utils/date'
 import type { TimestampWidgetConfig } from '@/core/types/widget-configs'
+import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/utils/searchType'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -291,7 +292,9 @@ const shortcuts = computed(() => {
 
 // 搜索类型
 const searchType = computed(() => {
-  if (props.searchType?.includes('gte') && props.searchType?.includes('lte')) {
+  const currentSearchType = resolveWidgetSearchType(props.searchType, props.field.search)
+
+  if (currentSearchType.includes('gte') && currentSearchType.includes('lte')) {
     return 'datetimerange'
   }
   return 'datetime'
@@ -442,4 +445,3 @@ function handleChange(value: Date | [Date, Date] | null): void {
   color: var(--el-text-color-regular);
 }
 </style>
-

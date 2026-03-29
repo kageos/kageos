@@ -266,7 +266,7 @@ podman run --rm ai-agent-os:latest sh -c "
 ## 注意事项
 
 1. **构建时间**：FFmpeg 构建可能需要 10-30 分钟，取决于硬件性能
-2. **镜像大小**：构建时已做瘦身（清 /tmp、缓存、man/doc、site-packages 的 tests/docs、FFmpeg strip 等），实际体积取决于依赖；若仍较大可参考 `note/临时分析/镜像体积精简分析.md`
+2. **镜像大小**：构建时已做瘦身（清 /tmp、缓存、man/doc、site-packages 的 tests/docs、FFmpeg strip 等），实际体积取决于依赖；若仍较大可继续裁剪缓存、文档和调试符号
 3. **功能限制**：FFmpeg 不支持 H.264/H.265 编码（GPL 许可），但支持解码
 4. **Python 包**：Python 包会在运行时动态安装，首次使用可能需要下载时间
 

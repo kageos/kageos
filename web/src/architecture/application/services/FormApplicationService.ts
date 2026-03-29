@@ -85,6 +85,8 @@ import type { IApiClient } from '../../domain/interfaces/IApiClient'
  * 表单应用服务
  */
 export class FormApplicationService {
+  private unsubscribeFieldValueUpdated?: () => void
+
   constructor(
     private domainService: FormDomainService,
     private eventBus: IEventBus,
@@ -98,10 +100,17 @@ export class FormApplicationService {
    */
   private setupEventHandlers(): void {
     // 监听字段值更新事件（可以在这里添加额外的业务逻辑）
-    this.eventBus.on(FormEvent.fieldValueUpdated, (payload: { fieldCode: string, value: any }) => {
+    this.unsubscribeFieldValueUpdated = this.eventBus.on(FormEvent.fieldValueUpdated, (payload: { fieldCode: string, value: any }) => {
       // 可以在这里添加额外的业务逻辑
       // 例如：自动保存、自动验证等
     })
+  }
+
+  dispose(): void {
+    if (this.unsubscribeFieldValueUpdated) {
+      this.unsubscribeFieldValueUpdated()
+      this.unsubscribeFieldValueUpdated = undefined
+    }
   }
 
   /**

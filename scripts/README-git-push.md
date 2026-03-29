@@ -233,5 +233,4 @@ git remote add gitee https://gitee.com/your-org/your-repo.git
 
 ## 🔗 相关文档
 
-- [Git Submodule 使用说明](../../note/企业代码Submodule使用说明.md)
-- [企业代码版本控制方案](../../note/企业代码版本控制方案.md)
+- [项目总蓝图](../../README.md)

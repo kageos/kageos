@@ -314,6 +314,7 @@ import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegi
 import type { FieldConfig, FieldValue } from '@/core/types/field'
 import type { ValidationEngine, ValidationResult } from '@/core/validation'
 import { validateFieldValue, validateFormWidgetNestedFields, type WidgetValidationContext } from '@/architecture/presentation/widgets/composables/useWidgetValidation'
+import { useFormDataStore } from '@/core/stores-v2/formData'
 
 // 抽屉配置常量
 const DRAWER_CONFIG = {
@@ -321,6 +322,7 @@ const DRAWER_CONFIG = {
 } as const
 
 const props = defineProps<WidgetComponentProps>()
+const formDataStore = useFormDataStore()
 
 // 使用组合式函数
 const { visibleSubFields, getSubFieldValue, updateSubFieldValue } = useFormWidget(props)
@@ -405,7 +407,8 @@ function validate(
   const context: WidgetValidationContext = {
     validationEngine,
     allFields,
-    fieldErrors
+    fieldErrors,
+    formDataStore
   }
   
   // 1. 验证当前字段（如果有验证规则）

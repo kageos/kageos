@@ -10,13 +10,14 @@
 
 import type { FieldConfig, FieldValue } from '@/core/types/field'
 import type { ValidationEngine, ValidationResult } from '@/core/validation'
-import { useFormDataStore } from '@/core/stores-v2/formData'
+import { useFormDataStore, type FormDataStore } from '@/core/stores-v2/formData'
 import { Logger } from '@/core/utils/logger'
 
 export interface WidgetValidationContext {
   validationEngine: ValidationEngine | null
   allFields: FieldConfig[]
   fieldErrors: Map<string, ValidationResult[]>
+  formDataStore?: Pick<FormDataStore, 'getValue'>
 }
 
 /**
@@ -47,11 +48,11 @@ export function validateFieldValue(
     return []
   }
   
-  const formDataStore = useFormDataStore()
+  const formDataStore = context.formDataStore || useFormDataStore()
   const value = formDataStore.getValue(fieldPath)
   
   try {
-    return context.validationEngine.validateField(field, value, context.allFields)
+    return context.validationEngine.validateField(field, value, context.allFields, fieldPath)
   } catch (error) {
     Logger.error('[useWidgetValidation]', `验证字段 ${fieldPath} 失败`, error)
     return []
@@ -177,7 +178,7 @@ export function validateTableWidgetNestedFields(
     return nestedErrors
   }
   
-  const formDataStore = useFormDataStore()
+  const formDataStore = context.formDataStore || useFormDataStore()
   const value = formDataStore.getValue(parentPath)
   const tableValue = value.raw
   

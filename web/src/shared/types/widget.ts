@@ -18,6 +18,8 @@ export interface WidgetComponentProps {
   rowData?: any
   rowIndex?: number
   parentMode?: WidgetTypes.WidgetMode
+  functionMethod?: string
+  functionRouter?: string
 }
 
 export type WidgetComponentEmits = {

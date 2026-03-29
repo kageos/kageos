@@ -342,22 +342,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch, ref, nextTick, withDefaults } from 'vue'
+import { computed, onMounted, onUnmounted, watch, ref, withDefaults, provide } from 'vue'
 import type { ComputedRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Lock, Document, List, User, Clock } from '@element-plus/icons-vue'
 import { ElIcon, ElTag, ElNotification, ElMessage, ElAlert, ElMessageBox, ElText, ElCheckbox, ElCard, ElEmpty } from 'element-plus'
 import { eventBus, FormEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
-import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
+import { apiClient } from '../../infrastructure/apiClient'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import { Logger } from '@/core/utils/logger'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { getChangedFields } from '@/utils/objectDiff'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import { hasAnyRequiredRule } from '@/core/utils/validationUtils'
-import { useFormDataStore } from '@/core/stores-v2/formData'
-import { useResponseDataStore } from '@/core/stores-v2/responseData'
+import { formDataStoreKey } from '@/core/stores-v2/formData'
 import { useFunctionParamInitialization } from '../composables/useFunctionParamInitialization'
 import { useFormParamURLSync } from '../composables/useFormParamURLSync'
 import { hasPermission, FormPermission, FunctionPermission, buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
@@ -365,8 +364,12 @@ import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import ScheduledTaskDialog from '../components/ScheduledTaskDialog.vue'
-import { FormStateManager } from '../../infrastructure/stateManager/FormStateManager'
 import { WorkspaceStateManager } from '../../infrastructure/stateManager/WorkspaceStateManager'
+import {
+  buildInitialDataFromFormDataStore as buildInitialDataFromFormDataStoreHelper,
+  createFormViewRuntime,
+  syncFormDataStoreToStateManager as syncFormDataStoreToStateManagerHelper
+} from './utils/formViewRuntime'
 
 const props = withDefaults(defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取
@@ -383,20 +386,22 @@ const props = withDefaults(defineProps<{
 const route = useRoute()
 const router = useRouter()
 
-// 依赖注入（使用 IServiceProvider 接口，遵循依赖倒置原则）
-const serviceProvider: IServiceProvider = serviceFactory
-const stateManager = serviceProvider.getFormStateManager() as FormStateManager  // 🔥 类型断言：FormStateManager 有 setResponse 方法
-const domainService = serviceProvider.getFormDomainService()
-const applicationService = serviceProvider.getFormApplicationService()
-const workspaceStateManager = serviceProvider.getWorkspaceStateManager() as WorkspaceStateManager  // 🔥 用于获取当前函数节点
-const workspaceDomainService = serviceProvider.getWorkspaceDomainService()  // 🔥 用于获取函数详情
+const {
+  formDataStore,
+  responseDataStore,
+  stateManager,
+  domainService,
+  applicationService
+} = createFormViewRuntime({
+  eventBus,
+  apiClient
+})
+provide(formDataStoreKey, formDataStore)
+const workspaceStateManager = serviceFactory.getWorkspaceStateManager() as WorkspaceStateManager
+const workspaceDomainService = serviceFactory.getWorkspaceDomainService()
 
 // 🔥 内部维护 functionDetail（在 onMounted 中主动获取）
 const functionDetail = ref<FunctionDetail | null>(props.functionDetail || null)
-
-// 🔥 获取全局 formDataStore 和 responseDataStore（用于清理，因为 WidgetComponent 内部使用的组件会直接使用这些 store）
-const formDataStore = useFormDataStore()
-const responseDataStore = useResponseDataStore()
 
 // 从状态管理器获取状态
 const formData = computed(() => {
@@ -683,11 +688,7 @@ const handleSubmit = async (): Promise<void> => {
 }
 
 const handleReset = (): void => {
-  // 🔥 重置时清理 store 数据
-  formDataStore.clear()
-  responseDataStore.clear()
-  
-  applicationService.clearForm()
+  resetFormRuntimeState()
   // 重新初始化表单
   const fields = requestFields.value
   if (fields.length > 0) {
@@ -820,24 +821,10 @@ let unsubscribeFormInitialized: (() => void) | null = null
  * @param fields 字段配置列表
  */
 function syncFormDataStoreToStateManager(fields: FieldConfig[]): void {
-  const state = stateManager.getState()
-  const newData = new Map<string, FieldValue>()
-  
-  fields.forEach((field: FieldConfig) => {
-    const fieldValue = formDataStore.getValue(field.code)
-    if (fieldValue) {
-      // 🔥 直接使用 formDataStore 中的完整 FieldValue（包含 display）
-      newData.set(field.code, fieldValue)
-    } else {
-      // 如果没有值，使用默认值
-      newData.set(field.code, { raw: null, display: '', meta: {} })
-    }
-  })
-  
-  // 🔥 同步更新 stateManager，确保 fieldValues computed 能获取到最新的 display 值
-  stateManager.setState({
-    ...state,
-    data: newData
+  syncFormDataStoreToStateManagerHelper({
+    fields,
+    formDataStore,
+    stateManager
   })
 }
 
@@ -849,14 +836,110 @@ function syncFormDataStoreToStateManager(fields: FieldConfig[]): void {
  * @returns initialData 对象
  */
 function buildInitialDataFromFormDataStore(fields: FieldConfig[]): Record<string, any> {
-  const initialData: Record<string, any> = {}
-  fields.forEach((field: FieldConfig) => {
-    const fieldValue = formDataStore.getValue(field.code)
-    if (fieldValue) {
-      initialData[field.code] = fieldValue.raw
-    }
+  return buildInitialDataFromFormDataStoreHelper({
+    fields,
+    formDataStore
   })
-  return initialData
+}
+
+function hasNonEmptyInitialData(data?: Record<string, any> | null): boolean {
+  return !!data && Object.keys(data).length > 0
+}
+
+function buildFormInitializationKey(
+  detail: FunctionDetail,
+  initialData?: Record<string, any> | null
+): string {
+  return JSON.stringify({
+    id: detail.id ?? null,
+    router: detail.router ?? '',
+    mode: hasNonEmptyInitialData(initialData) ? 'update' : 'create',
+    initialData: initialData || null
+  })
+}
+
+function restoreResponseParams(metadata?: Record<string, any> | null): void {
+  const responseParams = metadata?.responseParams
+  if (!responseParams || !stateManager || typeof (stateManager as any).setResponse !== 'function') {
+    return
+  }
+
+  ;(stateManager as any).setResponse(responseParams)
+  Logger.debug('FormView', '已恢复响应数据', {
+    responseParamsKeys: Object.keys(responseParams),
+    responseParams,
+    stateResponse: stateManager.getState().response
+  })
+}
+
+function resetFormRuntimeState(): void {
+  applicationService.clearForm()
+  responseDataStore.clear()
+}
+
+let latestFormInitializationToken = 0
+let inFlightFormInitializationKey: string | null = null
+let lastAppliedFormInitializationKey: string | null = null
+
+async function initializeFormForDetail(
+  detail: FunctionDetail,
+  options: {
+    initialData?: Record<string, any>
+    resetRuntime?: boolean
+    force?: boolean
+  } = {}
+): Promise<void> {
+  const fields = (Array.isArray(detail.request) ? detail.request : []) as FieldConfig[]
+  if (fields.length === 0) {
+    return
+  }
+
+  const explicitInitialData = options.initialData ?? props.initialData
+  const initializationKey = buildFormInitializationKey(detail, explicitInitialData)
+
+  if (!options.force) {
+    if (initializationKey === inFlightFormInitializationKey || initializationKey === lastAppliedFormInitializationKey) {
+      return
+    }
+  }
+
+  const token = ++latestFormInitializationToken
+  inFlightFormInitializationKey = initializationKey
+
+  if (options.resetRuntime !== false) {
+    resetFormRuntimeState()
+  }
+
+  try {
+    if (hasNonEmptyInitialData(explicitInitialData)) {
+      applicationService.initializeForm(fields, explicitInitialData, true)
+    } else {
+      const metadata = await initializeParams()
+      if (token !== latestFormInitializationToken) {
+        return
+      }
+
+      syncFormDataStoreToStateManager(fields)
+      const initialData = buildInitialDataFromFormDataStore(fields)
+      applicationService.initializeForm(fields, initialData, false)
+
+      if (token !== latestFormInitializationToken) {
+        return
+      }
+
+      restoreResponseParams(metadata)
+    }
+
+    if (token !== latestFormInitializationToken) {
+      return
+    }
+
+    lastAppliedFormInitializationKey = initializationKey
+  } finally {
+    if (token === latestFormInitializationToken) {
+      inFlightFormInitializationKey = null
+    }
+  }
 }
 
 // 🔥 使用统一的数据初始化框架
@@ -914,9 +997,7 @@ const { watchFormData } = useFormParamURLSync({
 })
 
 onMounted(async () => {
-  // 🔥 挂载时清理 store，避免之前函数的数据污染
-  formDataStore.clear()
-  responseDataStore.clear()
+  resetFormRuntimeState()
   // ⭐ 清除之前的权限错误（切换函数时清除）
   permissionErrorStore.clearError()
   
@@ -969,85 +1050,10 @@ onMounted(async () => {
     }
   }
   
-  /**
-   * 🔥 使用 initialData 初始化表单（用于编辑模式）
-   * 先清空 stateManager，然后直接使用 initialData 初始化，避免默认值干扰
-   */
-  const initializeFormWithData = (fields: FieldConfig[], initialData: Record<string, any>) => {
-    Logger.debug('FormView', 'initializeFormWithData 被调用', {
-      fieldsCount: fields.length,
-      fieldCodes: fields.map((f: FieldConfig) => f.code),
-      initialDataKeys: Object.keys(initialData),
-      initialDataCount: Object.keys(initialData).length,
-      initialDataSample: JSON.parse(JSON.stringify(Object.fromEntries(Object.entries(initialData).slice(0, 5))))
-    })
-    
-    // 🔥 重要：先清空 stateManager，避免已有值影响 initialData 的初始化
-    const currentState = stateManager.getState()
-    stateManager.setState({
-      ...currentState,
-      data: new Map(),
-      errors: new Map(),
-      submitting: false
-    })
-    
-    // 🔥 直接调用 initializeForm，不使用 syncFormDataStoreToStateManager
-    // 因为 formDataStore 可能是空的，会设置默认值，影响 initialData 的初始化
-    // 🔥 传递 isUpdateMode=true，表示这是更新模式，不会使用默认值覆盖空值
-    applicationService.initializeForm(fields, initialData, true)
-    
-    Logger.debug('FormView', 'initializeFormWithData 完成', {
-      stateDataSize: stateManager.getState().data.size,
-      stateDataKeys: Array.from(stateManager.getState().data.keys())
-    })
-  }
-
-  /**
-   * 🔥 使用正常流程初始化表单（用于新建模式）
-   * 先初始化参数，然后从 formDataStore 或 props.initialData 构建初始数据
-   */
-  const initializeFormNormal = async (fields: FieldConfig[]) => {
-    Logger.debug('FormView', 'onMounted 时初始化参数', {
-      functionId: functionDetail.value?.id,
-      requestFieldsCount: fields.length
-    })
-    const metadata = await initializeParams()
-    
-    // 初始化表单：在参数初始化完成后，初始化表单结构
-    if (fields.length > 0) {
-      // 🔥 同步 formDataStore 的数据到 stateManager，确保 display 值不丢失
-      syncFormDataStoreToStateManager(fields)
-      
-      // 🔥 优先使用 props.initialData，如果没有则使用 formDataStore 中的数据
-      const initialData = Object.keys(props.initialData).length > 0 
-        ? props.initialData 
-        : buildInitialDataFromFormDataStore(fields)
-      // 🔥 新增模式：传递 isUpdateMode=false，允许使用默认值
-      applicationService.initializeForm(fields, initialData, false)
-    }
-    
-    // 🔥 恢复响应数据（在表单初始化之后，避免被覆盖）
-    if (metadata?.responseParams && stateManager) {
-      stateManager.setResponse(metadata.responseParams)
-      Logger.debug('FormView', '已恢复响应数据', {
-        responseParamsKeys: Object.keys(metadata.responseParams)
-      })
-    }
-  }
-
-  // 🔥 初始化参数（此时 functionDetail 已经加载完成）
-  // ⚠️ 注意：id 可能为 0（FormDialog 中设置），所以不能直接用 truthy 判断
   if (functionDetail.value && (functionDetail.value.id !== undefined && functionDetail.value.id !== null) && functionDetail.value.request) {
-    const fields = Array.isArray(functionDetail.value.request) ? functionDetail.value.request : []
-    
-    // 🔥 如果 props.initialData 有值，直接使用它初始化，跳过 initializeParams
-    // 这样可以避免 initializeParams 使用默认值覆盖 initialData
-    if (Object.keys(props.initialData).length > 0 && fields.length > 0) {
-      initializeFormWithData(fields, props.initialData)
-    } else {
-      // 🔥 如果没有 initialData，使用正常的初始化流程
-      await initializeFormNormal(fields)
-    }
+    await initializeFormForDetail(functionDetail.value, {
+      resetRuntime: false
+    })
   }
 
   // 监听函数加载完成事件
@@ -1061,38 +1067,9 @@ onMounted(async () => {
         return
       }
       lastInitializedFunctionId = detailId
-      
-      // 🔥 切换函数时，先清理全局 store（因为 WidgetComponent 内部使用的组件会直接使用这些 store）
-      formDataStore.clear()
-      responseDataStore.clear()
-      
-      // 🔥 使用统一的数据初始化框架初始化参数
-      const metadata = await initializeParams()
-      
-      // 🔥 使用 nextTick 确保参数初始化完成
-      nextTick(() => {
-        // 重新初始化表单（从 formDataStore 获取已初始化的数据）
-        // 🔥 确保 fields 是数组，防止类型错误
-        const fields = (Array.isArray(payload.detail.request) ? payload.detail.request : []) as FieldConfig[]
-        if (fields.length > 0) {
-          // 🔥 同步 formDataStore 的数据到 stateManager，确保 display 值不丢失
-          syncFormDataStoreToStateManager(fields)
-          
-          // 🔥 构建 initialData 并调用 initializeForm
-          const initialData = buildInitialDataFromFormDataStore(fields)
-          // 🔥 新增模式：传递 isUpdateMode=false，允许使用默认值
-          applicationService.initializeForm(fields, initialData, false)
-        }
-        
-        // 🔥 恢复响应数据（在表单初始化之后，避免被覆盖）
-        if (metadata?.responseParams && stateManager && typeof (stateManager as any).setResponse === 'function') {
-          (stateManager as any).setResponse(metadata.responseParams)
-          Logger.debug('FormView', '已恢复响应数据', {
-            responseParamsKeys: Object.keys(metadata.responseParams),
-            responseParams: metadata.responseParams,
-            stateResponse: stateManager.getState().response
-          })
-        }
+      functionDetail.value = payload.detail
+      await initializeFormForDetail(payload.detail, {
+        force: true
       })
     }
   })
@@ -1105,89 +1082,6 @@ onMounted(async () => {
   // 🔥 开始监听表单数据变化，自动同步到 URL
   watchFormData()
 })
-
-  // 🔥 监听 props.functionDetail 变化，同步到内部的 functionDetail ref
-  // 注意：只在 props.functionDetail 真正变化时（id 或 router 变化）才重新初始化
-  // 初始化逻辑在 onMounted 中处理，这里只处理函数切换的场景
-  watch(() => props.functionDetail, async (newDetail: FunctionDetail | undefined, oldDetail?: FunctionDetail) => {
-    // ⭐ 切换函数时清除权限错误
-    permissionErrorStore.clearError()
-    
-    // 🔥 同步到内部的 functionDetail ref
-    // ⚠️ 注意：id 可能为 0（FormDialog 中设置），所以不能直接用 truthy 判断
-    if (newDetail && (newDetail.id !== undefined && newDetail.id !== null)) {
-      functionDetail.value = newDetail
-    }
-    
-    // 🔥 检查 functionDetail 是否有效（必须要有 id 和 request 字段）
-    // ⚠️ 注意：id 可能为 0（FormDialog 中设置），所以不能直接用 truthy 判断
-    if (!newDetail || (newDetail.id === undefined || newDetail.id === null) || !newDetail.request) {
-      Logger.debug('FormView', 'props.functionDetail 无效或未加载完成，跳过初始化', {
-        hasDetail: !!newDetail,
-        hasId: !!newDetail?.id,
-        hasRequest: !!newDetail?.request,
-        requestCount: newDetail?.request?.length || 0
-      })
-      return
-    }
-    
-    // 🔥 只在 functionDetail 的 id 或 router 真正变化时重新初始化
-    // 如果只是其他属性变化（如字段配置），不应该重新初始化
-    // 注意：oldDetail 为 undefined 时，说明是首次设置，此时 onMounted 已经处理过了，不需要重复初始化
-    if (oldDetail && (newDetail.id !== oldDetail.id || newDetail.router !== oldDetail.router)) {
-      Logger.debug('FormView', 'props.functionDetail 变化（函数切换），开始重新初始化', {
-        oldId: oldDetail.id,
-        newId: newDetail.id,
-        oldRouter: oldDetail.router,
-        newRouter: newDetail.router,
-        requestFieldsCount: newDetail.request?.length || 0
-      })
-      
-      // 🔥 切换函数时，先清理全局 store（因为 WidgetComponent 内部使用的组件会直接使用这些 store）
-      formDataStore.clear()
-      responseDataStore.clear()
-      
-      // 🔥 使用统一的数据初始化框架初始化参数（此时 functionDetail 已经加载完成）
-      const metadata = await initializeParams()
-      
-      const fields = (newDetail.request || []) as FieldConfig[]
-      if (fields.length > 0) {
-        // 🔥 使用 nextTick 确保参数初始化完成
-        nextTick(() => {
-          // 🔥 同步 formDataStore 的数据到 stateManager，确保 display 值不丢失
-          syncFormDataStoreToStateManager(fields)
-          
-          // 🔥 构建 initialData 并调用 initializeForm
-          // 🔥 优先使用 props.initialData，如果没有则使用 formDataStore 中的数据
-          const initialData = Object.keys(props.initialData).length > 0 
-            ? props.initialData 
-            : buildInitialDataFromFormDataStore(fields)
-          console.log('[FormView] 函数切换后初始化表单', {
-            fieldsCount: fields.length,
-            fieldCodes: fields.map((f: FieldConfig) => f.code),
-            initialDataKeys: Object.keys(initialData),
-            initialData,
-            propsInitialDataKeys: Object.keys(props.initialData),
-            propsInitialData: props.initialData,
-            fromProps: Object.keys(props.initialData).length > 0
-          })
-          // 🔥 判断模式：如果 props.initialData 有值，是更新模式；否则是新增模式
-          const isUpdateMode = Object.keys(props.initialData).length > 0
-          applicationService.initializeForm(fields, initialData, isUpdateMode)
-          
-          // 🔥 恢复响应数据（在表单初始化之后，避免被覆盖）
-          if (metadata?.responseParams && stateManager && typeof (stateManager as any).setResponse === 'function') {
-            (stateManager as any).setResponse(metadata.responseParams)
-            Logger.debug('FormView', '已恢复响应数据', {
-              responseParamsKeys: Object.keys(metadata.responseParams),
-              responseParams: metadata.responseParams,
-              stateResponse: stateManager.getState().response
-            })
-          }
-        })
-      }
-    }
-  }, { deep: false }) // 🔥 移除 immediate: true，避免与 onMounted 重复初始化
 
   /**
    * 🔥 检查 initialData 是否真的变化了
@@ -1211,66 +1105,50 @@ onMounted(async () => {
       return
     }
     
-    // ⭐ 如果 oldInitialData 为空，说明是首次设置，跳过（由 onMounted 处理）
-    if (!oldInitialData || Object.keys(oldInitialData).length === 0) {
+    if (oldInitialData === undefined) {
       return
     }
     
     if (!hasInitialDataChanged(newInitialData, oldInitialData)) {
       return
     }
-    
-    const fields = (functionDetail.value.request || []) as FieldConfig[]
-    if (fields.length > 0 && newInitialData && Object.keys(newInitialData).length > 0) {
-      // 🔥 使用新的 initialData 重新初始化表单
-      // 🔥 这是更新模式（initialData 变化），传递 isUpdateMode=true
-      nextTick(() => {
-        syncFormDataStoreToStateManager(fields)
-        applicationService.initializeForm(fields, newInitialData, true)
-      })
-    }
+
+    await initializeFormForDetail(functionDetail.value, {
+      initialData: newInitialData,
+      force: true
+    })
   }, { deep: true })
 
-  // 🔥 监听 functionDetail 变化，确保在编辑模式下能够正确初始化
-  // 当切换到编辑模式时，functionDetail 可能会变化，此时需要重新初始化表单
-  // ⚠️ 注意：initialData 的变化由上面的 watch 处理，这里只处理 functionDetail 的变化
+  // 🔥 统一监听 functionDetail 的关键属性变化，避免多个 watch 走不同初始化分支
   watch(
-    () => [props.functionDetail?.id, props.functionDetail?.request],
-    async ([newId, newRequest], [oldId, oldRequest]) => {
-      // 只在 functionDetail 准备好时才初始化
-      // ⚠️ 注意：id 可能为 0（FormDialog 中设置），所以不能直接用 truthy 判断
-      if (!functionDetail.value || !functionDetail.value.request || (functionDetail.value.id === undefined || functionDetail.value.id === null)) {
+    () => [props.functionDetail?.id, props.functionDetail?.router, props.functionDetail?.request],
+    async ([newId, newRouter, newRequest], [oldId, oldRouter, oldRequest]) => {
+      permissionErrorStore.clearError()
+
+      if (props.functionDetail && props.functionDetail.id !== undefined && props.functionDetail.id !== null) {
+        functionDetail.value = props.functionDetail
+      }
+
+      if (!functionDetail.value || !functionDetail.value.request || functionDetail.value.id === undefined || functionDetail.value.id === null) {
         return
       }
       
-      // ⭐ 如果 oldId 为空，说明是首次设置，跳过（由 onMounted 处理）
       if (oldId === undefined || oldId === null) {
         return
       }
       
-      // 检查 functionDetail 是否变化了（id 或 request 变化）
-      const functionDetailChanged = newId !== oldId || 
-        (newRequest && oldRequest && JSON.stringify(newRequest) !== JSON.stringify(oldRequest))
-      
-      // 如果 functionDetail 变化了，重新初始化
-      if (functionDetailChanged) {
-        const fields = (functionDetail.value.request || []) as FieldConfig[]
-        if (fields.length > 0) {
-          const initialData = Object.keys(props.initialData).length > 0 
-            ? props.initialData 
-            : buildInitialDataFromFormDataStore(fields)
-          
-          // 🔥 判断模式：如果 props.initialData 有值，是更新模式；否则是新增模式
-          const isUpdateMode = Object.keys(props.initialData).length > 0
-          
-          if (Object.keys(initialData).length > 0) {
-            nextTick(() => {
-              syncFormDataStoreToStateManager(fields)
-              applicationService.initializeForm(fields, initialData, isUpdateMode)
-            })
-          }
-        }
+      const functionDetailChanged =
+        newId !== oldId ||
+        newRouter !== oldRouter ||
+        JSON.stringify(newRequest || []) !== JSON.stringify(oldRequest || [])
+
+      if (!functionDetailChanged) {
+        return
       }
+
+      await initializeFormForDetail(functionDetail.value, {
+        force: true
+      })
     },
     { deep: true, immediate: false }
   )
@@ -1285,6 +1163,9 @@ onUnmounted(() => {
   if (unsubscribeFormInitialized) {
     unsubscribeFormInitialized()
   }
+  applicationService.dispose()
+  formDataStore.clear()
+  responseDataStore.clear()
 })
 </script>
 

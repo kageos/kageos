@@ -252,4 +252,4 @@ fi
 ## 🔗 相关文档
 
 - [Git 提交脚本使用说明](./README-git-push.md)
-- [企业代码 Submodule 使用说明](../../note/企业代码Submodule使用说明.md)
+- [项目总蓝图](../../README.md)

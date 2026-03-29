@@ -87,13 +87,10 @@ import { apiClient } from '../apiClient'
 import { cacheManager } from '../cacheManager'
 import { functionLoader } from '../functionLoader'
 import { WorkspaceStateManager } from '../stateManager/WorkspaceStateManager'
-import { FormStateManager } from '../stateManager/FormStateManager'
 import { TableStateManager } from '../stateManager/TableStateManager'
 import { WorkspaceDomainService } from '../../domain/services/WorkspaceDomainService'
-import { FormDomainService } from '../../domain/services/FormDomainService'
 import { TableDomainService } from '../../domain/services/TableDomainService'
 import { WorkspaceApplicationService } from '../../application/services/WorkspaceApplicationService'
-import { FormApplicationService } from '../../application/services/FormApplicationService'
 import { TableApplicationService } from '../../application/services/TableApplicationService'
 import { serviceTreeLoader } from '../serviceTreeLoader'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
@@ -127,17 +124,14 @@ export class ServiceFactory implements IServiceProvider {
 
   // Domain Services
   private workspaceDomainService?: WorkspaceDomainService
-  private formDomainService?: FormDomainService
   private tableDomainService?: TableDomainService
 
   // Application Services
   private workspaceApplicationService?: WorkspaceApplicationService
-  private formApplicationService?: FormApplicationService
   private tableApplicationService?: TableApplicationService
 
   // State Managers
   private workspaceStateManager?: WorkspaceStateManager
-  private formStateManager?: FormStateManager
   private tableStateManager?: TableStateManager
 
   constructor(config?: ServiceFactoryConfig) {
@@ -158,19 +152,6 @@ export class ServiceFactory implements IServiceProvider {
     return this.workspaceStateManager
   }
 
-  /**
-   * 获取表单状态管理器
-   */
-  getFormStateManager(): FormStateManager {
-    if (!this.formStateManager) {
-      this.formStateManager = new FormStateManager()
-    }
-    return this.formStateManager
-  }
-
-  /**
-   * 获取表格状态管理器
-   */
   getTableStateManager(): TableStateManager {
     if (!this.tableStateManager) {
       this.tableStateManager = new TableStateManager()
@@ -194,23 +175,6 @@ export class ServiceFactory implements IServiceProvider {
     return this.workspaceDomainService
   }
 
-  /**
-   * 获取表单领域服务
-   */
-  getFormDomainService(): FormDomainService {
-    if (!this.formDomainService) {
-      const stateManager = this.getFormStateManager()
-      this.formDomainService = new FormDomainService(
-        stateManager,
-        this.eventBus
-      )
-    }
-    return this.formDomainService
-  }
-
-  /**
-   * 获取表格领域服务
-   */
   getTableDomainService(): TableDomainService {
     if (!this.tableDomainService) {
       const stateManager = this.getTableStateManager()
@@ -237,24 +201,6 @@ export class ServiceFactory implements IServiceProvider {
     return this.workspaceApplicationService
   }
 
-  /**
-   * 获取表单应用服务
-   */
-  getFormApplicationService(): FormApplicationService {
-    if (!this.formApplicationService) {
-      const domainService = this.getFormDomainService()
-      this.formApplicationService = new FormApplicationService(
-        domainService,
-        this.eventBus,
-        this.apiClient
-      )
-    }
-    return this.formApplicationService
-  }
-
-  /**
-   * 获取表格应用服务
-   */
   getTableApplicationService(): TableApplicationService {
     if (!this.tableApplicationService) {
       const domainService = this.getTableDomainService()
@@ -307,17 +253,13 @@ export class ServiceFactory implements IServiceProvider {
    */
   reset(): void {
     this.workspaceDomainService = undefined
-    this.formDomainService = undefined
     this.tableDomainService = undefined
     this.workspaceApplicationService = undefined
-    this.formApplicationService = undefined
     this.tableApplicationService = undefined
     this.workspaceStateManager = undefined
-    this.formStateManager = undefined
     this.tableStateManager = undefined
   }
 }
 
 // 导出单例实例
 export const serviceFactory = new ServiceFactory()
-

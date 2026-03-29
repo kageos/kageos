@@ -8,13 +8,13 @@
  * - 提供提交数据提取方法（递归收集，使用策略模式）
  */
 
-import { defineStore } from 'pinia'
-import { reactive } from 'vue'
+import { defineStore, type Pinia } from 'pinia'
+import { reactive, inject, hasInjectionContext, type InjectionKey } from 'vue'
 import type { FieldConfig, FieldValue } from '../types/field'
 import { fieldExtractorRegistry } from './extractors/FieldExtractorRegistry'
 import { Logger } from '@/core/utils/logger'
 
-export const useFormDataStore = defineStore('formData-v2', () => {
+const createFormDataStore = defineStore('formData-v2', () => {
   // 存储所有字段的值（field_path -> FieldValue）
   const data = reactive<Map<string, FieldValue>>(new Map())
   
@@ -25,6 +25,13 @@ export const useFormDataStore = defineStore('formData-v2', () => {
    */
   function setValue(fieldPath: string, value: FieldValue): void {
     data.set(fieldPath, value)
+  }
+
+  /**
+   * 删除字段值
+   */
+  function deleteValue(fieldPath: string): void {
+    data.delete(fieldPath)
   }
   
   /**
@@ -134,6 +141,7 @@ export const useFormDataStore = defineStore('formData-v2', () => {
   return {
     data,
     setValue,
+    deleteValue,
     getValue,
     initializeField,
     getSubmitData,
@@ -142,3 +150,18 @@ export const useFormDataStore = defineStore('formData-v2', () => {
     getAllValues
   }
 })
+
+export type FormDataStore = ReturnType<typeof createFormDataStore>
+
+export const formDataStoreKey: InjectionKey<FormDataStore> = Symbol('form-data-store')
+
+export function useFormDataStore(pinia?: Pinia | null): FormDataStore {
+  if (!pinia && hasInjectionContext()) {
+    const injectedStore = inject(formDataStoreKey, null)
+    if (injectedStore) {
+      return injectedStore
+    }
+  }
+
+  return createFormDataStore(pinia || undefined)
+}

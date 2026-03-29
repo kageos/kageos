@@ -59,7 +59,8 @@ export class ValidationEngine {
   validateField(
     field: FieldConfig,
     value: FieldValue,
-    allFields: FieldConfig[]
+    allFields: FieldConfig[],
+    fieldPath: string = field.code
   ): ValidationResult[] {
     if (!field.validation) {
       return []  // 无验证规则，直接通过
@@ -72,7 +73,7 @@ export class ValidationEngine {
     // 🔥 使用 field.code 作为 fieldPath，确保 findFieldInContext 能正确找到字段配置
     const context: ValidationContext = {
       formManager: this.formManager,
-      fieldPath: field.code,  // 🔥 使用 code 而不是 field_path，确保能匹配到字段
+      fieldPath,
       allFields
     }
     

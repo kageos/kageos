@@ -674,7 +674,8 @@ function validate(
   const context: WidgetValidationContext = {
     validationEngine,
     allFields,
-    fieldErrors
+    fieldErrors,
+    formDataStore
   }
   
   // 1. 验证当前字段（如果有验证规则）

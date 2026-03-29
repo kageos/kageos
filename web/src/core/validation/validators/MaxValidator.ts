@@ -4,7 +4,7 @@
 
 import type { Validator, ValidationRule, ValidationResult, ValidationContext } from '../types'
 import type { FieldValue } from '../../types/field'
-import { isStringField } from '../utils/fieldUtils'
+import { findFieldInContext, isStringField } from '../utils/fieldUtils'
 
 export class MaxValidator implements Validator {
   readonly name = 'max'
@@ -24,7 +24,7 @@ export class MaxValidator implements Validator {
     }
     
     // 判断字段类型
-    const field = context.allFields.find(f => (f.field_path || f.code) === context.fieldPath)
+    const field = findFieldInContext(context)
     
     // 🔥 数组类型（table 字段）：比较数组长度
     if (Array.isArray(value.raw)) {
@@ -61,4 +61,3 @@ export class MaxValidator implements Validator {
     return { valid: true }
   }
 }
-

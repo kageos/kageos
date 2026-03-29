@@ -92,14 +92,14 @@
           v-if="hasAddCallback" 
           :type="canCreate ? 'primary' : 'default'"
           :plain="!canCreate"
-          @click="canCreate ? handleAdd() : handleApplyPermissionForAction(FunctionPermission.write)" 
+          @click="canCreate ? handleAdd() : handleApplyPermissionForAction(TablePermission.write)"
           :icon="Plus"
           class="action-btn"
           :class="{ 'action-btn-no-permission': !canCreate }"
         >
           <template v-if="!canCreate">
             <el-icon><Lock /></el-icon>
-            新增（需{{ getPermissionShortName(FunctionPermission.write) }}）
+            新增（需{{ getPermissionShortName(TablePermission.write) }}）
           </template>
           <template v-else>新增</template>
         </el-button>
@@ -108,12 +108,12 @@
           v-if="hasDeleteCallback && !isBatchDeleteMode" 
           :type="canDelete ? 'danger' : 'default'"
           :plain="!canDelete"
-          @click="canDelete ? enterBatchDeleteMode() : handleApplyPermissionForAction(FunctionPermission.delete)"
+          @click="canDelete ? enterBatchDeleteMode() : handleApplyPermissionForAction(TablePermission.delete)"
           :icon="canDelete ? Delete : Lock"
           class="action-btn"
           :class="{ 'action-btn-no-permission': !canDelete }"
         >
-          {{ canDelete ? '批量删除' : `批量删除（需${getPermissionShortName(FunctionPermission.delete)}）` }}
+          {{ canDelete ? '批量删除' : `批量删除（需${getPermissionShortName(TablePermission.delete)}）` }}
         </el-button>
         <template v-if="hasDeleteCallback && isBatchDeleteMode">
           <el-button 
@@ -338,7 +338,7 @@
                 >
                   <span class="dropdown-action-item">
                     <el-icon><component :is="canUpdate ? Edit : Lock" /></el-icon>
-                    {{ canUpdate ? '更新' : `更新（需${getPermissionShortName(FunctionPermission.update)}）` }}
+                    {{ canUpdate ? '更新' : `更新（需${getPermissionShortName(TablePermission.update)}）` }}
                   </span>
                 </el-dropdown-item>
                 <!-- 删除：需要 table:delete 权限 -->
@@ -349,7 +349,7 @@
                 >
                   <span class="dropdown-action-item delete-action-text">
                     <el-icon><component :is="canDelete ? Delete : Lock" /></el-icon>
-                    {{ canDelete ? '删除' : `删除（需${getPermissionShortName(FunctionPermission.delete)}）` }}
+                    {{ canDelete ? '删除' : `删除（需${getPermissionShortName(TablePermission.delete)}）` }}
                   </span>
                 </el-dropdown-item>
               </el-dropdown-menu>
@@ -400,25 +400,43 @@ import WidgetComponent from '../../presentation/widgets/WidgetComponent.vue'
 import SearchInput from '@/architecture/presentation/components/SearchInput.vue'
 import FormDialog from '@/architecture/presentation/components/FormDialog.vue'
 import { getSortableConfig } from '@/utils/fieldSort'
-import { buildURLSearchParams } from '@/utils/searchParams'
 import { WidgetType } from '@/core/constants/widget'
 import { useTableInitialization } from '../composables/useTableInitialization'
 import { convertToFieldValue } from '@/utils/field'
 import { resolveWorkspaceUrl } from '@/utils/route'
-import { parseLinkValue, addLinkTypeToUrl, isLinkNavigation, LINK_TYPE_QUERY_KEY } from '@/utils/linkNavigation'
+import { parseLinkValue, addLinkTypeToUrl, isLinkNavigation } from '@/utils/linkNavigation'
 import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
-import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from '@/utils/urlParams'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { useDepartmentInfoStore } from '@/stores/departmentInfo'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
-import type { TableRow, SearchParams, SortParams, SortItem } from '../../domain/services/TableDomainService'
+import type { TableRow, SortItem } from '../../domain/services/TableDomainService'
 import type { UserInfo } from '@/types'
-import { hasPermission, TablePermission, FunctionPermission, buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
+import { hasPermission, TablePermission, getPermissionShortName } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
+import { getScopedFieldQueryValue } from '@/utils/queryFieldNamespace'
+import { buildNextTableSyncQuery } from './utils/tableViewURLRuntime'
+import {
+  buildTableLoadRequest,
+  buildTableLoadingState,
+  decideTableLoadGuard,
+  getTableLoadErrorMessage
+} from './utils/tableViewLoadRuntime'
+import {
+  buildBatchDeleteIds,
+  buildTablePermissionApplyURL,
+  resolveTableActionCommand
+} from './utils/tableViewActionRuntime'
+import {
+  buildTableAddDialogOpenRequest,
+  buildTableCreateDialogCloseRequest,
+  buildTableDetailRowPayload,
+  buildTableLinkRouteRequest,
+  resolveTableAddDialogVisibility
+} from './utils/tableViewRouteRuntime'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -604,13 +622,10 @@ const handleBatchDelete = async (): Promise<void> => {
       message: '您没有删除该表格记录的权限',
       duration: 3000
     })
-    // 跳转到权限申请页面
-    const applyUrl = buildPermissionApplyURL(
-      node.full_code_path || '',
-      TablePermission.delete,
-      props.functionDetail?.template_type
-    )
-    router.push(applyUrl)
+    const applyUrl = buildTablePermissionApplyURL(node, TablePermission.delete)
+    if (applyUrl) {
+      router.push(applyUrl)
+    }
     return
   }
 
@@ -626,16 +641,7 @@ const handleBatchDelete = async (): Promise<void> => {
     )
 
     // 获取所有选中行的 ID
-    const ids = selectedRows.value
-      .map((row: TableRow) => {
-        // 尝试从 id 字段获取，如果没有则尝试从 idField 获取
-        if (row.id) return row.id
-        if (idField.value && row[idField.value.code]) {
-          return row[idField.value.code]
-        }
-        return null
-      })
-      .filter((id: any): id is number => id !== null && typeof id === 'number')
+    const ids = buildBatchDeleteIds(selectedRows.value, idField.value?.code)
 
     if (ids.length === 0) {
       ElMessage.error('无法获取记录 ID，删除失败')
@@ -702,7 +708,9 @@ const createFormInitialData = computed(() => {
   if (props.functionDetail?.response) {
     props.functionDetail.response.forEach((field: FieldConfig) => {
       const fieldCode = field.code
-      const queryValue = query[fieldCode]
+      const queryValue = getScopedFieldQueryValue(query, fieldCode, 'form', {
+        fallbackToLegacyRaw: false
+      })
       
       // 🔥 处理数组类型的查询参数（取第一个值）
       const value = Array.isArray(queryValue) ? queryValue[0] : queryValue
@@ -1181,133 +1189,6 @@ const handleReset = (): void => {
 // ==================== URL 同步 ====================
 
 /**
- * 构建表格查询参数（分页、排序、搜索）
- */
-const buildTableQueryParams = (): Record<string, string> => {
-  const query: Record<string, string> = {}
-  const currentState = stateManager.getState()
-  
-  // 分页参数
-  query.page = String(currentState.pagination.currentPage)
-  query.page_size = String(currentState.pagination.pageSize)
-  
-  // 排序参数
-  const finalSorts = currentState.sorts.length > 0 
-    ? currentState.sorts 
-    : (currentState.hasManualSort ? [] : buildDefaultSorts())
-  
-  if (finalSorts.length > 0) {
-    query.sorts = finalSorts.map((item: SortItem) => `${item.field}:${item.order}`).join(',')
-  }
-  
-  // 搜索参数（response 字段）
-  const responseFields = (props.functionDetail.response || []).filter((field: FieldConfig) => {
-    const search = field.search
-    return search && search !== '-' && search !== '' && search.trim() !== ''
-  })
-  const requestFields = Array.isArray(props.functionDetail.request) ? props.functionDetail.request : []
-  const requestFieldCodes = new Set<string>()
-  requestFields.forEach((field: FieldConfig) => {
-    requestFieldCodes.add(field.code)
-  })
-  
-  const responseFieldsForURL = responseFields.filter(
-    (field: FieldConfig) => !requestFieldCodes.has(field.code)
-  )
-  Object.assign(query, buildURLSearchParams(searchForm.value, responseFieldsForURL))
-  
-  // 搜索参数（request 字段）
-  requestFields.forEach((field: FieldConfig) => {
-    const value = searchForm.value[field.code]
-    
-    // 早期返回：跳过空值
-    if (value === null || value === undefined) {
-      return
-    }
-    
-    // 早期返回：跳过空数组
-    if (Array.isArray(value) && value.length === 0) {
-      return
-    }
-    
-    // 早期返回：跳过空字符串
-    if (typeof value === 'string' && value.trim() === '') {
-      return
-    }
-    
-    query[field.code] = Array.isArray(value) ? value.join(',') : String(value)
-  })
-  
-  // 清理空值参数
-  Object.keys(query).forEach(key => {
-    const value = query[key]
-    
-    // 早期返回：保留有效值
-    if (value && typeof value === 'string' && !value.endsWith(':') && value.trim() !== '') {
-      return
-    }
-    
-    // 删除空值或无效值
-    delete query[key]
-  })
-  
-  return query
-}
-
-/**
- * 保留 URL 中的现有参数（除了 table 相关的参数）
- * 这样可以保留 link 组件跳转时携带的参数（如 eq=topic_id:1, topic_id=4 等）
- * 使用早期返回优化条件判断
- */
-const preserveExistingParams = (requestFieldCodes: Set<string>): Record<string, string> => {
-  const newQuery: Record<string, string> = {}
-  const tableParamKeys = TABLE_PARAM_KEYS
-  const searchParamKeys = SEARCH_PARAM_KEYS
-  
-  // 🔥 检查是否是 link 跳转（通过 _link_type 参数）
-  // link 跳转时，URL 中的参数是用户明确指定的（来自 link 值），应该全部保留
-  const isLinkNav = isLinkNavigation(route.query as Record<string, any>)
-  
-  // 先保留所有非 table 相关的参数（包括 link 跳转携带的参数）
-  Object.keys(route.query).forEach(key => {
-    const value = route.query[key]
-    
-    // 早期返回：跳过空值
-    if (value === null || value === undefined) {
-      return
-    }
-
-    // 保留以 _ 开头的参数（前端状态参数），但清除 _link_type（临时参数）
-    if (key.startsWith('_')) {
-      if (key !== LINK_TYPE_QUERY_KEY) {
-        newQuery[key] = String(value)
-      }
-      return
-    }
-    
-    // 🔥 搜索参数处理：
-    // - link 跳转时：保留所有搜索参数（因为这是用户明确指定的）
-    // - 非 link 跳转时：不保留搜索参数，搜索参数完全由当前函数的 searchForm 决定
-    //   这样当用户删除搜索选项时，URL 中的搜索参数会被清除
-    if (searchParamKeys.includes(key as any)) {
-      if (isLinkNav) {
-        // link 跳转：保留搜索参数
-        newQuery[key] = String(value)
-      }
-      // 非 link 跳转：不保留搜索参数，让 buildTableQueryParams 根据 searchForm 重新构建
-      return
-    }
-    
-    // 保留不在 tableParamKeys 和 searchParamKeys 中的参数（这些可能是 link 跳转携带的参数，如 topic_id=4）
-    if (!tableParamKeys.includes(key as any) && !requestFieldCodes.has(key)) {
-      newQuery[key] = String(value)
-    }
-  })
-  
-  return newQuery
-}
-
-/**
  * 同步状态到 URL
  * 🔥 重要：URL 参数必须和接口请求参数完全对齐
  * URL 中的参数 = 接口请求的参数（包括分页、排序、搜索等）
@@ -1321,31 +1202,14 @@ const syncToURL = (): void => {
     return
   }
   
-  // 构建表格查询参数
-  const query = buildTableQueryParams()
-  
-  // 🔥 检查当前 URL 是否有查询参数
-  // 如果 URL 没有查询参数（刚切换函数），不应该保留任何旧参数
-  const hasQueryParams = Object.keys(route.query).length > 0
-    const isLinkNav = isLinkNavigation(route.query as Record<string, any>)
-  
-  // 获取 request 字段代码集合（用于过滤）
-  const requestFields = Array.isArray(props.functionDetail.request) ? props.functionDetail.request : []
-  const requestFieldCodes = new Set<string>()
-  requestFields.forEach((field: FieldConfig) => {
-    requestFieldCodes.add(field.code)
+  const isLinkNav = isLinkNavigation(route.query as Record<string, any>)
+  const newQuery = buildNextTableSyncQuery({
+    routeQuery: route.query as Record<string, any>,
+    functionDetail: props.functionDetail,
+    state: stateManager.getState(),
+    buildDefaultSorts,
+    isLinkNavigation: isLinkNav
   })
-  
-  // 🔥 如果 URL 没有查询参数（刚切换函数），直接使用新的查询参数，不保留任何旧参数
-  let newQuery: Record<string, string | string[]>
-    if (!hasQueryParams && !isLinkNav) {
-    // 刚切换函数，URL 是空的，直接使用新的查询参数
-    newQuery = { ...query }
-  } else {
-    // URL 有查询参数，保留现有参数并合并新的 table 参数
-    newQuery = preserveExistingParams(requestFieldCodes)
-    Object.assign(newQuery, query)
-  }
   
   // 🔥 阶段2：改为发出事件，通过 RouteManager 统一处理路由更新
   
@@ -1375,52 +1239,35 @@ const skipNextTableLoad = ref(false)
  * 加载表格数据
  */
 const loadTableData = async (): Promise<void> => {
-  const functionId = props.functionDetail.id
-  const router = props.functionDetail.router
+  const guardResult = decideTableLoadGuard({
+    isMounted: isMounted.value,
+    skipNextTableLoad: skipNextTableLoad.value
+  })
 
-  // 🔥 检查组件是否还在挂载状态，如果已卸载，不加载数据
-  if (!isMounted.value) {
+  if (guardResult === 'skip-unmounted') {
     return
   }
 
-  // 🔥 打开详情后若被误触发重载（如 URL 变化），跳过本次请求，并确保不出现/保持骨架屏
-  if (skipNextTableLoad.value) {
+  if (guardResult === 'skip-next-load') {
     skipNextTableLoad.value = false
     const state = stateManager.getState()
-    stateManager.setState({ ...state, loading: false })
+    stateManager.setState(buildTableLoadingState(state, false))
     return
   }
 
   // 🔥 立即设置 loading，避免刷新时先出现「暂无数据」再出现 loading
   const stateBeforeLoad = stateManager.getState()
-  stateManager.setState({ ...stateBeforeLoad, loading: true })
-
-  // 构建搜索参数
-  const searchParams: SearchParams = {}
+  stateManager.setState(buildTableLoadingState(stateBeforeLoad, true))
 
   // 🔥 从 StateManager 获取状态
   const currentState = stateManager.getState()
-  
-  // 使用 Domain Service 构建搜索参数（遵循依赖倒置原则）
-  const builtSearchParams = domainService.buildSearchParams(props.functionDetail, currentState.searchForm)
-  Object.assign(searchParams, builtSearchParams)
-  
-  // 排序参数
-  const finalSorts = currentState.sorts.length > 0 
-    ? currentState.sorts 
-    : (currentState.hasManualSort ? [] : buildDefaultSorts())
-  
-  const firstSort = finalSorts[0]
-  const sortParams: SortParams | undefined = firstSort ? {
-    field: firstSort.field,
-    order: firstSort.order
-  } : undefined
-  
-  // 分页参数
-  const pagination = {
-    page: currentState.pagination.currentPage,
-    pageSize: currentState.pagination.pageSize
-  }
+  const { searchParams, sortParams, pagination } = buildTableLoadRequest({
+    functionDetail: props.functionDetail,
+    state: currentState,
+    buildDefaultSorts,
+    buildSearchParams: (functionDetail, searchForm) =>
+      domainService.buildSearchParams(functionDetail, searchForm)
+  })
   
   // 🔥 再次检查组件是否还在挂载状态（可能在异步操作期间卸载了）
   if (!isMounted.value) {
@@ -1428,24 +1275,9 @@ const loadTableData = async (): Promise<void> => {
   }
   
   try {
-  await applicationService.loadData(props.functionDetail, searchParams, sortParams, pagination)
+    await applicationService.loadData(props.functionDetail, searchParams, sortParams, pagination)
   } catch (error: any) {
-    // 🔥 处理错误：当 API 返回 code !== 0 时，显示错误消息
-    // request.ts 的响应拦截器在 code !== 0 时会 reject，并创建错误对象
-    // 错误对象包含 response 属性，其中包含完整的响应数据
-    let errorMessage = '加载数据失败，请稍后重试'
-    
-    // 🔥 统一使用 msg 字段
-    // 尝试从 error.response.data 中获取错误消息（request.ts 第 99-101 行）
-    if (error?.response?.data) {
-      const responseData = error.response.data
-      errorMessage = responseData.msg || errorMessage
-    } else if (error?.message) {
-      // 如果错误对象本身有 message（request.ts 第 99 行创建的）
-      errorMessage = error.message
-    }
-    
-    ElMessage.error(errorMessage)
+    ElMessage.error(getTableLoadErrorMessage(error))
   }
 }
 
@@ -1467,24 +1299,29 @@ const getActionColumnWidth = (): number => {
  * 操作列统一下拉命令分发：link:字段码 | update | delete
  */
 const handleActionCommand = (command: string, row: TableRow): void => {
-  if (command.startsWith('link:')) {
-    handleLinkClick(command.slice(5), row)
+  const action = resolveTableActionCommand({
+    command,
+    canUpdate: canUpdate.value,
+    canDelete: canDelete.value
+  })
+
+  if (action.type === 'link') {
+    handleLinkClick(action.fieldCode, row)
     return
   }
-  if (command === 'update') {
-    if (canUpdate.value) {
-      handleDetail(row, 'edit')
-    } else {
-      handleApplyPermissionForAction(FunctionPermission.update)
-    }
+
+  if (action.type === 'detail') {
+    handleDetail(row, action.initialMode)
     return
   }
-  if (command === 'delete') {
-    if (canDelete.value) {
-      handleDelete(row)
-    } else {
-      handleApplyPermissionForAction(FunctionPermission.delete)
-    }
+
+  if (action.type === 'delete') {
+    handleDelete(row)
+    return
+  }
+
+  if (action.type === 'apply-permission') {
+    handleApplyPermissionForAction(action.action)
   }
 }
 
@@ -1542,31 +1379,9 @@ const handleLinkClick = (fieldCode: string, row: any) => {
     if (target === '_blank') {
       window.open(finalUrl, '_blank')
     } else {
-      // 🔥 阶段3：改为事件驱动，通过 RouteManager 统一处理路由更新
-      // 解析 URL，提取 path 和 query
-      // 注意：finalUrl 可能是相对路径（如 /workspace/xxx?param=value）
-      let path = finalUrl
-      const query: Record<string, string> = {}
-      
-      // 检查是否有查询参数
-      const queryIndex = finalUrl.indexOf('?')
-      if (queryIndex >= 0) {
-        path = finalUrl.substring(0, queryIndex)
-        const queryString = finalUrl.substring(queryIndex + 1)
-        const params = new URLSearchParams(queryString)
-        params.forEach((value, key) => {
-          query[key] = value
-        })
-      }
-      
       // 🔥 发出路由更新请求事件
       eventBus.emit(RouteEvent.updateRequested, {
-        path,
-        query,
-        replace: false,  // link 跳转使用 push，保留历史记录
-        preserveParams: {
-          linkNavigation: true  // link 跳转：保留所有参数
-        },
+        ...buildTableLinkRouteRequest(finalUrl),
         source: RouteSource.TABLE_LINK_CLICK
       })
     }
@@ -1586,27 +1401,9 @@ const getColumnWidth = (field: FieldConfig): number => {
 const handleAdd = (): void => {
   createDialogVisible.value = true
   
-  // 更新 URL 为 ?_tab=OnTableAddRow（用于分享和直接跳转）
-  const query: Record<string, string | string[]> = {}
-  // 保留现有参数
-  Object.keys(route.query).forEach(key => {
-    const value = route.query[key]
-    if (value !== null && value !== undefined) {
-      query[key] = Array.isArray(value) 
-        ? value.filter(v => v !== null).map(v => String(v))
-        : String(value)
-    }
-  })
-  // 添加新增弹窗参数
-  query._tab = 'OnTableAddRow'
-  
   // 🔥 发出路由更新请求事件
   eventBus.emit(RouteEvent.updateRequested, {
-    query,
-    replace: true,
-    preserveParams: {
-      state: true  // 保留状态参数
-    },
+    ...buildTableAddDialogOpenRequest(route.query as Record<string, any>),
     source: RouteSource.TABLE_ADD_DIALOG_OPEN
   })
 }
@@ -1625,13 +1422,10 @@ const handleCreateSubmit = async (data: Record<string, any>): Promise<void> => {
       message: '您没有新增该表格记录的权限',
       duration: 3000
     })
-    // 跳转到权限申请页面
-    const applyUrl = buildPermissionApplyURL(
-      node.full_code_path || '',
-      TablePermission.write,
-      props.functionDetail?.template_type
-    )
-    router.push(applyUrl)
+    const applyUrl = buildTablePermissionApplyURL(node, TablePermission.write)
+    if (applyUrl) {
+      router.push(applyUrl)
+    }
     return
   }
   
@@ -1651,26 +1445,17 @@ const handleCreateSubmit = async (data: Record<string, any>): Promise<void> => {
 
 // 关闭新增对话框时清理 URL 中的 _tab 参数
 const handleCreateDialogClose = (): void => {
-  const query = { ...route.query }
-  if (query._tab === 'OnTableAddRow') {
-    delete query._tab
-    // 清理所有表单字段参数（保留其他参数如搜索、分页等）
-    if (props.functionDetail?.response) {
-      props.functionDetail.response.forEach((field: FieldConfig) => {
-        if (query[field.code]) {
-          delete query[field.code]
-        }
-      })
-    }
+  const request = buildTableCreateDialogCloseRequest({
+    routeQuery: route.query as Record<string, any>,
+    responseFieldCodes: Array.isArray(props.functionDetail?.response)
+      ? props.functionDetail.response.map((field: FieldConfig) => field.code)
+      : []
+  })
+
+  if (request) {
     // 🔥 通过事件总线更新路由，统一管理
     eventBus.emit(RouteEvent.updateRequested, {
-      query,
-      replace: true,
-      preserveParams: {
-        table: true,  // 保留 table 参数（分页、排序等）
-        search: true, // 保留搜索参数
-        state: true   // 保留状态参数
-      },
+      ...request,
       source: RouteSource.TABLE_CREATE_DIALOG_CLOSE
     })
   }
@@ -1686,17 +1471,12 @@ const handleDetail = (row: TableRow, initialMode: 'read' | 'edit' = 'read'): voi
   skipNextTableLoad.value = true
 
   const tableData = stateManager.getState().data || []
-  const index = tableData.findIndex((r: any) => {
-    if (r.id && row.id && r.id === row.id) return true
-    return JSON.stringify(r) === JSON.stringify(row)
-  })
 
-  eventBus.emit('table:detail-row', {
+  eventBus.emit('table:detail-row', buildTableDetailRowPayload({
     row,
-    index: index >= 0 ? index : undefined,
-    tableData: tableData.length > 0 ? tableData : undefined,
+    tableData,
     initialMode
-  })
+  }))
 }
 
 /** 行点击：整行可点击进入详情，排除操作列、复选框等 */
@@ -1797,13 +1577,12 @@ const permissionError = computed<PermissionInfo | null>(() => permissionErrorSto
 // ⭐ 为特定操作申请权限（PermissionDeniedView 组件已处理权限错误显示）
 const handleApplyPermissionForAction = (action: string) => {
   const node = currentFunctionNode.value
-  if (!node || !node.full_code_path) {
+  const applyUrl = buildTablePermissionApplyURL(node, action)
+  if (!applyUrl) {
     ElMessage.warning('无法获取资源路径，无法申请权限')
     return
   }
-  
-  // 使用 buildPermissionApplyURL 构建 URL（传递 template_type 以便正确显示权限选项）
-  const applyUrl = buildPermissionApplyURL(node.full_code_path, action, node.template_type)
+
   router.push(applyUrl)
 }
 
@@ -1811,7 +1590,8 @@ const handleApplyPermissionForAction = (action: string) => {
 
 let unsubscribeDataLoaded: (() => void) | null = null
 let unsubscribeFunctionLoaded: (() => void) | null = null
-let unsubscribeQueryChanged: (() => void) | null = null
+let unsubscribeTableQueryChanged: (() => void) | null = null
+let unsubscribeAddDialogQueryChanged: (() => void) | null = null
 
 // 🔥 使用 composable 统一管理初始化逻辑
 const { initializeTable, setupQueryWatch } = useTableInitialization({
@@ -1838,7 +1618,7 @@ onMounted(async () => {
   isMounted.value = true
   
   // 🔥 阶段4：设置 URL 变化监听（监听 RouteEvent.queryChanged）
-  setupQueryWatch()
+  unsubscribeTableQueryChanged = setupQueryWatch()
   
   // 初始化表格（状态清空逻辑已在 initializeTable 中处理）
   await initializeTable()
@@ -1882,16 +1662,12 @@ onMounted(async () => {
 
 // 从 URL 恢复新增弹窗
 const restoreAddDialogFromURL = (query: any): void => {
-  const tabParam = query._tab as string
-  
-  // 检查是否存在 _tab=OnTableAddRow 参数
-  if (tabParam === 'OnTableAddRow' && hasAddCallback.value && isMounted.value) {
-    // 打开新增弹窗
-    createDialogVisible.value = true
-  } else if (tabParam !== 'OnTableAddRow' && createDialogVisible.value) {
-    // 如果 _tab 参数被移除或改变，关闭弹窗
-    createDialogVisible.value = false
-  }
+  createDialogVisible.value = resolveTableAddDialogVisibility({
+    query,
+    hasAddCallback: hasAddCallback.value,
+    isMounted: isMounted.value,
+    currentVisible: createDialogVisible.value
+  })
 }
 
 // 设置 URL 参数监听（用于分享链接和直接跳转）
@@ -1907,7 +1683,7 @@ const setupAddDialogUrlWatch = () => {
   }
   
   // 监听 URL 参数变化（浏览器前进/后退场景）
-  unsubscribeQueryChanged = eventBus.on(RouteEvent.queryChanged, async (payload: { query: any, oldQuery: any, source: string }) => {
+  unsubscribeAddDialogQueryChanged = eventBus.on(RouteEvent.queryChanged, async (payload: { query: any, oldQuery: any, source: string }) => {
     // 🔥 只处理用户操作（浏览器前进/后退）或外部变化，不处理程序触发的更新
     if (payload.source === 'router-change') {
       restoreAddDialogFromURL(payload.query)
@@ -1916,9 +1692,6 @@ const setupAddDialogUrlWatch = () => {
 }
 
 onUnmounted(() => {
-  const functionId = props.functionDetail.id
-  const router = props.functionDetail.router
-  
   // 🔥 设置卸载状态，防止继续加载数据
   isMounted.value = false
   
@@ -1928,8 +1701,11 @@ onUnmounted(() => {
   if (unsubscribeFunctionLoaded) {
     unsubscribeFunctionLoaded()
   }
-  if (unsubscribeQueryChanged) {
-    unsubscribeQueryChanged()
+  if (unsubscribeTableQueryChanged) {
+    unsubscribeTableQueryChanged()
+  }
+  if (unsubscribeAddDialogQueryChanged) {
+    unsubscribeAddDialogQueryChanged()
   }
 })
 </script>
@@ -2067,15 +1843,42 @@ onUnmounted(() => {
 }
 
 .search-bar .search-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px 16px;
+  align-items: start;
+}
+
+.search-bar :deep(.search-form > .el-form-item) {
+  margin-right: 0;
+  margin-bottom: 0;
+  width: 100%;
+  align-items: flex-start;
+}
+
+.search-bar :deep(.search-form > .el-form-item .el-form-item__label) {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 0 0 6px;
+  line-height: 1.25;
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.search-bar :deep(.search-form > .el-form-item .el-form-item__content) {
+  width: 100%;
+  min-width: 0;
+  margin-left: 0 !important;
 }
 
 .search-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  justify-content: flex-start;
+  grid-column: 1 / -1;
+  padding-top: 4px;
 }
 
 /* 收起按钮：终端风格 */
@@ -2171,12 +1974,6 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.search-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
 /* 表格骨架屏（加载中） */
 .table-skeleton-wrap {
   min-height: 320px;
@@ -2185,6 +1982,16 @@ onUnmounted(() => {
 
 .table-skeleton-wrap .table-skeleton {
   width: 100%;
+}
+
+@media (max-width: 900px) {
+  .search-bar .search-form {
+    grid-template-columns: 1fr;
+  }
+
+  .search-actions {
+    flex-wrap: wrap;
+  }
 }
 
 .table-skeleton-wrap .el-skeleton__item {

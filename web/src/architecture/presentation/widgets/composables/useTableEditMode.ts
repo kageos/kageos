@@ -6,6 +6,7 @@
 import { ref, computed } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
+import { reindexTableRowFieldPaths } from '@/architecture/presentation/widgets/utils/tableFieldPathSync'
 
 export function useTableEditMode(props: WidgetComponentProps) {
   const formDataStore = useFormDataStore()
@@ -81,13 +82,8 @@ export function useTableEditMode(props: WidgetComponentProps) {
       const indexToRemove = editingIndex.value
       currentData.splice(indexToRemove, 1)
       tableData.value = currentData
-      
-      // 清理 formDataStore 中该行的数据
-      const itemFields = props.field.children || []
-      itemFields.forEach(itemField => {
-        const fieldPath = `${props.fieldPath}[${indexToRemove}].${itemField.code}`
-        // 注意：formDataStore 没有 delete 方法，这里先不清理，后续可以优化
-      })
+
+      reindexTableRowFieldPaths(formDataStore, props.fieldPath, indexToRemove)
     }
     
     editingIndex.value = null
@@ -121,6 +117,17 @@ export function useTableEditMode(props: WidgetComponentProps) {
     const currentData = [...tableData.value]
     currentData.splice(index, 1)
     tableData.value = currentData
+
+    reindexTableRowFieldPaths(formDataStore, props.fieldPath, index)
+
+    if (editingIndex.value !== null) {
+      if (editingIndex.value === index) {
+        editingIndex.value = null
+        isAdding.value = false
+      } else if (editingIndex.value > index) {
+        editingIndex.value -= 1
+      }
+    }
   }
   
   return {

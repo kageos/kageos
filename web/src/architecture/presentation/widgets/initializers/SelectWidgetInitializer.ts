@@ -6,7 +6,7 @@
  * 功能：
  * - 检查是否需要初始化（是否有 OnSelectFuzzy 回调）
  * - 如果只有 raw 值（来自 URL），通过 by_value 查询获取 display 和 meta
- * - 如果已经有完整的 display 和 meta（来自快链），则不需要初始化
+ * - 如果已经有完整的 display 和 meta，则不需要初始化
  */
 
 import type { IWidgetInitializer, WidgetInitContext } from '@/architecture/presentation/widgets/interfaces/IWidgetInitializer'
@@ -85,7 +85,7 @@ export class SelectWidgetInitializer implements IWidgetInitializer {
       return processedValue !== currentValue ? processedValue : null
     }
     
-    // 2. 如果已经有完整的 display 和 meta（来自快链），则不需要初始化
+    // 2. 如果已经有完整的 display 和 meta，则不需要初始化
     // 🔥 优化：如果 display 存在且不等于 raw，说明已经有有意义的显示值，不需要初始化
     if (processedValue.display && 
         String(processedValue.display) !== String(processedValue.raw) && 
@@ -211,4 +211,3 @@ export class SelectWidgetInitializer implements IWidgetInitializer {
   }
   
 }
-

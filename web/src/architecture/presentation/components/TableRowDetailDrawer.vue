@@ -305,23 +305,32 @@
       <!-- 编辑模式（复用 FormRenderer） -->
       <div v-else class="edit-form-wrapper" v-loading="submitting">
         <FormView
-          v-if="editFunctionDetail && mode === 'edit' && Object.keys(filteredInitialData).length > 0"
+          v-if="editFunctionDetail && mode === 'edit' && editFormState.readiness === 'ready'"
           ref="formViewRef"
-          :key="`detail-edit-${rowData?.id || ''}-${mode}-${editFunctionDetail?.router || ''}-${editFunctionDetail?.id || ''}`"
+          :key="editFormKey"
           :function-detail="editFunctionDetail"
           :initial-data="filteredInitialData"
           :show-submit-button="false"
           :show-reset-button="false"
         />
         <el-empty v-else-if="!editFunctionDetail" description="无法构建编辑表单" />
-        <div v-else-if="editFunctionDetail && Object.keys(filteredInitialData).length === 0" class="form-loading">
-          <el-skeleton :rows="5" animated />
-          <div style="text-align: center; margin-top: 16px; color: var(--el-text-color-secondary);">
-            正在加载编辑表单数据...
-          </div>
-        </div>
+        <el-empty
+          v-else-if="editFormState.readiness === 'no-editable-fields'"
+          description="当前记录没有可编辑字段"
+        />
+        <el-empty
+          v-else-if="editFormState.readiness === 'missing-edit-values'"
+          description="当前记录缺少可编辑字段数据"
+        />
+        <el-empty
+          v-else-if="editFormState.readiness === 'missing-row-data'"
+          description="当前记录数据缺失"
+        />
         <div v-else class="form-loading">
           <el-skeleton :rows="5" animated />
+          <div style="text-align: center; margin-top: 16px; color: var(--el-text-color-secondary);">
+            正在加载编辑表单结构...
+          </div>
         </div>
       </div>
     </div>
@@ -355,10 +364,10 @@ import OperateLogSection from '@/architecture/presentation/components/OperateLog
 import PermissionRequestList from '@/shared/components/permission/PermissionRequestList.vue'
 import ScheduledTaskDialog from '@/architecture/presentation/components/ScheduledTaskDialog.vue'
 import { WidgetType } from '@/core/constants/widget'
-import { Logger } from '@/core/utils/logger'
 import { useAuthStore } from '@/stores/auth'
 import type { FieldConfig, FieldValue } from '../../domain/types'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
+import { buildDetailEditFormState } from '../composables/utils/workspaceDetailRuntime'
 
 interface Props {
   visible: boolean
@@ -399,7 +408,6 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const formViewRef = ref<InstanceType<typeof FormView> | null>(null)
-const isFormViewReady = ref(false)
 const showScheduledTaskDialog = ref(false)
 
 // ==================== 详情布局配置 ====================
@@ -449,14 +457,6 @@ const toggleDetailLayout = (): void => {
 const activeTab = ref('detail')
 const operateLogSectionRef = ref<InstanceType<typeof OperateLogSection> | null>(null)
 const permissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> | null>(null)
-
-const logDebug = (message: string, data?: unknown) => {
-  if (data === undefined) {
-    Logger.debug('TableRowDetailDrawer', message)
-    return
-  }
-  Logger.debug('TableRowDetailDrawer', message, data)
-}
 
 // ⭐ 判断是否显示权限申请 tab
 // 条件：1. 节点类型是 package 或 function  2. 用户是管理员
@@ -516,44 +516,6 @@ watch(
   },
   { immediate: true }
 )
-
-// 监听 formViewRef 的变化
-watch(formViewRef, (newVal) => {
-  isFormViewReady.value = !!newVal
-}, { immediate: true })
-
-// 监听 mode 变化，重置 ready 状态
-watch(() => props.mode, (newMode) => {
-  if (newMode === 'edit') {
-    // 重置 ready 状态，等待 watch(formViewRef) 自动更新
-    isFormViewReady.value = false
-  } else {
-    isFormViewReady.value = false
-  }
-})
-
-// ⭐ 监听 editFunctionDetail 和 rowData 变化，确保数据准备好后再渲染 FormView
-watch([() => props.editFunctionDetail, () => props.rowData, () => props.mode], async () => {
-  if (props.mode === 'edit' && props.editFunctionDetail && props.rowData) {
-    logDebug('watch 触发，检查 editFunctionDetail 和 rowData', {
-      hasEditFunctionDetail: !!props.editFunctionDetail,
-      hasRequest: !!(props.editFunctionDetail?.request),
-      requestLength: props.editFunctionDetail?.request?.length || 0,
-      hasRowData: !!props.rowData,
-      rowDataKeys: props.rowData ? Object.keys(props.rowData) : [],
-      filteredInitialDataKeys: Object.keys(filteredInitialData.value),
-      filteredInitialDataCount: Object.keys(filteredInitialData.value).length
-    })
-    // 等待 filteredInitialData 准备好
-    await nextTick()
-    // 如果 filteredInitialData 为空，说明 editFunctionDetail.request 可能还没准备好
-    // 这种情况下，FormView 不会渲染（因为 v-if 条件不满足）
-    logDebug('watch 完成，filteredInitialData 状态', {
-      filteredInitialDataKeys: Object.keys(filteredInitialData.value),
-      filteredInitialDataCount: Object.keys(filteredInitialData.value).length
-    })
-  }
-}, { immediate: true })
 
 const visible = computed({
   get: () => props.visible,
@@ -641,39 +603,21 @@ const getFieldValue = (fieldCode: string): FieldValue => {
  * 🔥 过滤 initialData，只包含 editFunctionDetail.request 中的字段
  * 这样可以确保传递给 FormView 的 initialData 只包含可编辑的字段
  */
-const filteredInitialData = computed(() => {
-  if (!props.rowData || !props.editFunctionDetail || !props.editFunctionDetail.request) {
-    logDebug('filteredInitialData 为空', {
-      hasRowData: !!props.rowData,
-      hasEditFunctionDetail: !!props.editFunctionDetail,
-      hasRequest: !!(props.editFunctionDetail?.request),
-      requestLength: props.editFunctionDetail?.request?.length || 0,
-      rowDataKeys: props.rowData ? Object.keys(props.rowData) : []
-    })
-    return {}
-  }
-  
-  const editableFieldCodes = new Set(
-    props.editFunctionDetail.request.map((field: FieldConfig) => field.code)
-  )
-  const rowData = props.rowData
-  
-  const filtered: Record<string, any> = {}
-  Object.keys(rowData).forEach(key => {
-    if (editableFieldCodes.has(key)) {
-      filtered[key] = rowData[key]
-    }
-  })
-  
-  logDebug('filteredInitialData 计算完成', {
-    editableFieldCodes: Array.from(editableFieldCodes),
-    filteredKeys: Object.keys(filtered),
-    filteredCount: Object.keys(filtered).length,
-    rowDataKeys: Object.keys(rowData),
-    filteredData: JSON.parse(JSON.stringify(filtered)) // 深拷贝以便在日志中查看
-  })
-  
-  return filtered
+const editFormState = computed(() => buildDetailEditFormState({
+  rowData: props.rowData,
+  editFunctionDetail: props.editFunctionDetail
+}))
+
+const filteredInitialData = computed(() => editFormState.value.initialData)
+
+const editFormKey = computed(() => {
+  const rowIdentity = props.rowData?.id ?? props.rowData?._id ?? 'unknown'
+  const editableFieldSignature = editFormState.value.editableFieldCodes.join(',')
+  return `detail-edit-${rowIdentity}-${props.mode}-${props.editFunctionDetail?.router || ''}-${props.editFunctionDetail?.id || ''}-${editableFieldSignature}`
+})
+
+const isFormViewReady = computed(() => {
+  return props.mode === 'edit' && editFormState.value.readiness === 'ready' && !!formViewRef.value
 })
 
 /**
@@ -715,7 +659,7 @@ const rowId = computed(() => {
   return 0
 })
 
-const handleToggleMode = async (newMode: 'read' | 'edit') => {
+const handleToggleMode = (newMode: 'read' | 'edit') => {
   // 如果尝试进入编辑模式但没有权限，跳转到权限申请页面
   if (newMode === 'edit' && !props.canEdit) {
     const path = fullCodePath.value
@@ -730,63 +674,20 @@ const handleToggleMode = async (newMode: 'read' | 'edit') => {
     return
   }
   
-  // ⭐ 如果切换到编辑模式，等待 editFunctionDetail 准备好
   if (newMode === 'edit') {
-    logDebug('handleToggleMode 切换到编辑模式', {
-      hasEditFunctionDetail: !!props.editFunctionDetail,
-      hasRequest: !!(props.editFunctionDetail?.request),
-      requestLength: props.editFunctionDetail?.request?.length || 0,
-      requestFieldCodes: props.editFunctionDetail?.request?.map((f: FieldConfig) => f.code) || [],
-      hasRowData: !!props.rowData,
-      rowDataKeys: props.rowData ? Object.keys(props.rowData) : [],
-      rowDataSample: props.rowData ? Object.fromEntries(Object.entries(props.rowData).slice(0, 5)) : {},
-      currentFunctionDetailResponseLength: props.currentFunctionDetail?.response?.length || 0
-    })
-    
-    if (!props.editFunctionDetail || !props.editFunctionDetail.request) {
-      logDebug('editFunctionDetail 未准备好', {
-        hasEditFunctionDetail: !!props.editFunctionDetail,
-        hasRequest: !!(props.editFunctionDetail?.request),
-        currentFunctionDetailResponseLength: props.currentFunctionDetail?.response?.length || 0
-      })
-      ElMessage.warning('编辑表单正在初始化，请稍后再试')
-      return
-    }
-    
-    // 等待一个 tick，确保 editFunctionDetail 和 filteredInitialData 都已准备好
-    await nextTick()
-    
-    logDebug('第一次 nextTick 后', {
-      filteredInitialDataKeys: Object.keys(filteredInitialData.value),
-      filteredInitialDataCount: Object.keys(filteredInitialData.value).length,
-      filteredInitialDataSample: JSON.parse(JSON.stringify(Object.fromEntries(Object.entries(filteredInitialData.value).slice(0, 5)))),
-      requestFieldCodes: props.editFunctionDetail?.request?.map((f: FieldConfig) => f.code) || []
-    })
-    
-    // 再次检查 filteredInitialData 是否有数据
-    if (Object.keys(filteredInitialData.value).length === 0 && props.rowData) {
-      logDebug('filteredInitialData 为空，等待重试', {
-        rowDataKeys: Object.keys(props.rowData),
-        requestFieldCodes: props.editFunctionDetail?.request?.map((f: FieldConfig) => f.code) || []
-      })
-      // 如果 filteredInitialData 为空，但 rowData 有数据，说明 editFunctionDetail.request 可能还没准备好
-      // 等待一下再检查
-      await new Promise(resolve => setTimeout(resolve, 200))
-      
-      logDebug('等待 200ms 后', {
-        filteredInitialDataKeys: Object.keys(filteredInitialData.value),
-        filteredInitialDataCount: Object.keys(filteredInitialData.value).length
-      })
-      
-      if (Object.keys(filteredInitialData.value).length === 0) {
-        logDebug('filteredInitialData 仍然为空', {
-          rowDataKeys: Object.keys(props.rowData),
-          requestFieldCodes: props.editFunctionDetail?.request?.map((f: FieldConfig) => f.code) || [],
-          requestFieldCodesInRowData: props.editFunctionDetail?.request?.map((f: FieldConfig) => f.code).filter((code: string) => code in (props.rowData || {})) || []
-        })
-        ElMessage.warning('编辑表单数据正在加载，请稍后再试')
+    switch (editFormState.value.readiness) {
+      case 'missing-edit-detail':
+        ElMessage.warning('编辑表单正在初始化，请稍后再试')
         return
-      }
+      case 'missing-row-data':
+        ElMessage.warning('当前记录数据缺失，无法编辑')
+        return
+      case 'no-editable-fields':
+        ElMessage.warning('当前记录没有可编辑字段')
+        return
+      case 'missing-edit-values':
+        ElMessage.warning('当前记录缺少可编辑字段数据，暂时无法编辑')
+        return
     }
   }
   
@@ -798,7 +699,7 @@ const handleNavigate = (direction: 'prev' | 'next') => {
 }
 
 const handleSubmit = () => {
-  // 直接检查 isFormViewReady，这个状态由 watch(formViewRef) 自动维护
+  // 只有 FormView 实例已挂载且编辑表单就绪时才允许提交
   if (!isFormViewReady.value || !formViewRef.value) {
     ElMessage.warning('编辑表单正在初始化，请稍后再试')
     return

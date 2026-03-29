@@ -75,7 +75,7 @@
  */
 
 import { reactive, watch } from 'vue'
-import { useFormDataStore } from '@/core/stores-v2/formData'
+import { useFormDataStore, type FormDataStore } from '@/core/stores-v2/formData'
 import { StateManagerImpl } from './StateManagerImpl'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'
 import type { FieldValue } from '@/architecture/domain/types'
@@ -95,14 +95,14 @@ export interface FormState {
  * 表单状态管理实现
  */
 export class FormStateManager extends StateManagerImpl<FormState> implements IStateManager<FormState> {
-  private formStore: ReturnType<typeof useFormDataStore>
+  private formStore: FormDataStore
   private errors = reactive<Map<string, any[]>>(new Map())
   private submitting = reactive({ value: false })
 
   private response = reactive<{ value: Record<string, any> | null }>({ value: null })
   private metadata = reactive<{ value: Record<string, any> | null }>({ value: null })
 
-  constructor() {
+  constructor(formStore?: FormDataStore) {
     // 1. 先调用 super 传递初始空状态
     super({
       data: new Map(),
@@ -113,7 +113,7 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
     })
 
     // 2. 初始化 store 和其他属性
-    this.formStore = useFormDataStore()
+    this.formStore = formStore || useFormDataStore()
     
     // 3. 立即同步真实状态
     this.updateState()
@@ -281,4 +281,3 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
   }
 
 }
-
