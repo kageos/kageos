@@ -16,29 +16,41 @@
         <template #header>
           <span>筛选条件</span>
         </template>
-        <el-form :inline="true" :model="filterForm" class="filter-form">
+        <el-form :model="filterForm" class="filter-form">
           <el-form-item
             v-for="field in requestFields"
             :key="field.code"
+            class="filter-field"
             :label="field.name"
             :required="isFieldRequired(field)"
           >
             <div class="widget-wrapper">
+              <SearchInput
+                v-if="shouldUseChartSearchInput(field)"
+                :field="field"
+                :model-value="getFieldRawValue(field.code)"
+                :search-type="field.search || 'eq'"
+                :function-method="props.functionDetail.method || 'GET'"
+                :function-router="props.functionDetail.router || ''"
+                @update:model-value="(v) => handleSearchFieldUpdate(field, v)"
+              />
               <WidgetComponent
+                v-else
                 :field="field"
                 :value="getFieldValue(field.code)"
                 :model-value="getFieldValue(field.code)"
                 @update:model-value="(v) => handleFieldUpdate(field.code, v)"
                 :field-path="field.code"
+                :search-type="field.search || 'eq'"
                 :form-renderer="formRendererContext"
                 :function-method="props.functionDetail.method || 'GET'"
                 :function-router="props.functionDetail.router || ''"
-                mode="edit"
+                mode="search"
               />
             </div>
           </el-form-item>
           
-          <el-form-item>
+          <el-form-item class="filter-actions">
             <el-button type="primary" @click="handleSearch" :loading="loading" :icon="Search">
               查询
             </el-button>
@@ -101,6 +113,7 @@ import { useRoute } from 'vue-router'
 import { ElCard, ElForm, ElFormItem, ElButton, ElEmpty, ElMessage, ElRow, ElCol, ElDialog, ElInput, ElText, ElNotification } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import type { EChartsType, EChartsCoreOption } from 'echarts/core'
+import SearchInput from '@/architecture/presentation/components/SearchInput.vue'
 import WidgetComponent from '@/architecture/presentation/widgets/WidgetComponent.vue'
 import { executeFunction } from '@/api/function'
 import type { FieldConfig, FieldValue, FunctionDetail } from '@/core/types/field'
@@ -278,6 +291,14 @@ const getFieldValue = (fieldCode: string): FieldValue => {
   return fieldValues.value[fieldCode] || { raw: null, display: '', meta: {} }
 }
 
+const getFieldRawValue = (fieldCode: string): any => {
+  return getFieldValue(fieldCode).raw ?? null
+}
+
+const shouldUseChartSearchInput = (field: FieldConfig): boolean => {
+  return !field.callbacks?.includes('OnSelectFuzzy')
+}
+
 // 🔥 使用 Chart 参数 URL 同步
 const { watchChartData } = useChartParamURLSync({
   functionDetail: computed(() => props.functionDetail),
@@ -304,6 +325,10 @@ const handleFieldUpdate = (fieldCode: string, value: FieldValue): void => {
   if (valueChanged) {
     loadChartData()
   }
+}
+
+const handleSearchFieldUpdate = (field: FieldConfig, rawValue: any): void => {
+  handleFieldUpdate(field.code, convertToFieldValue(rawValue, field))
 }
 
 // 判断字段是否必填
@@ -962,18 +987,64 @@ watch(() => chartData.value, (newData) => {
   .filter-card {
     margin-bottom: 20px;
     
-    .widget-wrapper {
-      min-width: 200px; // 设置下拉框最小宽度
-      width: 100%;
-      
-      // 确保下拉框可以清空
-      :deep(.el-select) {
-        width: 100%;
-      }
-    }
-    
     .filter-form {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px 16px;
       margin-top: 0;
+      align-items: start;
+    }
+
+    :deep(.filter-form .el-form-item) {
+      margin-bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    :deep(.filter-form .el-form-item__label) {
+      width: 100%;
+      justify-content: flex-start;
+      line-height: 20px;
+      margin: 0 0 6px;
+      padding: 0;
+      color: var(--el-text-color-primary);
+      font-weight: 500;
+    }
+
+    :deep(.filter-form .el-form-item__content) {
+      width: 100%;
+      min-width: 0;
+      display: flex;
+    }
+
+    .widget-wrapper {
+      min-width: 0;
+      width: 100%;
+    }
+
+    :deep(.widget-wrapper > *) {
+      width: 100%;
+    }
+
+    .filter-actions {
+      grid-column: 1 / -1;
+    }
+
+    :deep(.filter-actions .el-form-item__content) {
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 768px) {
+      .filter-form {
+        grid-template-columns: 1fr;
+      }
+
+      :deep(.filter-actions .el-form-item__content) {
+        justify-content: flex-start;
+      }
     }
   }
   

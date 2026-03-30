@@ -1,20 +1,9 @@
 <template>
   <div class="search-input">
-    <WidgetComponent
-      v-if="shouldUseWidgetSearchRenderer"
-      :field="widgetSearchField"
-      :value="widgetSearchFieldValue"
-      :field-path="field.code"
-      mode="search"
-      :search-type="searchType"
-      :function-method="functionMethod"
-      :function-router="functionRouter"
-      @update:model-value="handleWidgetFieldUpdate"
-    />
-
     <!-- 🔥 用户搜索专用组件（弹窗搜索，体验更好） -->
     <UserSearchWidget
-      v-else-if="shouldUseUserSearchWidget"
+      v-if="shouldUseUserSearchWidget"
+      class="search-control"
       :field="field"
       :model-value="localValue"
       :search-type="searchType"
@@ -24,15 +13,30 @@
     <!-- 🔥 部门搜索专用组件（弹窗搜索，体验更好） -->
     <DepartmentSearchWidget
       v-else-if="shouldUseDepartmentSearchWidget"
+      class="search-control"
       :field="field"
       :model-value="localValue"
       :search-type="searchType"
       @update:model-value="handleInput"
     />
+
+    <WidgetComponent
+      v-else-if="shouldUseWidgetSearchRenderer"
+      class="search-control"
+      :field="widgetSearchField"
+      :value="widgetSearchFieldValue"
+      :field-path="field.code"
+      mode="search"
+      :search-type="searchType"
+      :function-method="functionMethod"
+      :function-router="functionRouter"
+      @update:model-value="handleWidgetFieldUpdate"
+    />
     
     <!-- 🔥 用户搜索组件（自定义组件，降级方案） -->
     <UserSearchInput
       v-else-if="inputConfig.component === SearchComponent.USER_SEARCH_INPUT"
+      class="search-control"
       v-model="localValue"
       :placeholder="inputConfig.props?.placeholder"
       :multiple="inputConfig.props?.multiple"
@@ -42,19 +46,20 @@
     <!-- 🔥 精确搜索 / 模糊搜索 -->
     <el-input
       v-else-if="inputConfig.component === SearchComponent.EL_INPUT"
+      class="search-control"
       v-model="localValue"
       :placeholder="inputConfig.props?.placeholder"
       :clearable="inputConfig.props?.clearable"
       :disabled="inputConfig.props?.disabled"
-      :style="inputConfig.props?.style"
+      :style="controlStyle"
       @input="handleInput"
       @clear="handleClear"
     />
 
-    <!-- 🔥 下拉选择 -->
-    <!-- 🔥 单选组件：简化实现，不显示颜色，避免重叠问题 -->
+    <!-- 🔥 单选 fallback：统一走同一套下拉逻辑，避免样式/行为再继续分叉 -->
     <el-select
-      v-if="!shouldUseUserSearchWidget && !shouldUseDepartmentSearchWidget && !inputConfig.props?.multiple && isSelectWidget"
+      v-else-if="isSingleFallbackSelect"
+      class="search-control user-select-search"
       v-model="selectValue"
       :placeholder="inputConfig.props?.placeholder"
       :clearable="inputConfig.props?.clearable"
@@ -63,79 +68,28 @@
       :remote-method="handleRemoteMethod"
       :loading="selectLoading || inputConfig.props?.loading"
       :popper-class="inputConfig.props?.popperClass"
-      :style="inputConfig.props?.style"
+      :style="controlStyle"
       :reserve-keyword="inputConfig.props?.remote"
-      class="user-select-search"
       @change="handleInput"
       @clear="handleClear"
       @visible-change="handleVisibleChange"
     >
       <el-option
         v-for="option in selectOptionsComputed"
-        :key="typeof option === 'object' ? option.value : option"
-        :label="typeof option === 'object' ? option.label : option"
-        :value="typeof option === 'object' ? option.value : option"
+        :key="getRenderedOptionValue(option)"
+        :label="getRenderedOptionLabel(option)"
+        :value="getRenderedOptionValue(option)"
       >
-        <!-- 🔥 如果是用户选择器，显示头像和用户信息 -->
-        <div v-if="option.userInfo" class="user-option">
-          <el-avatar :src="option.userInfo.avatar" :size="24" class="user-avatar">
-            {{ option.userInfo.username?.[0]?.toUpperCase() || 'U' }}
-          </el-avatar>
-          <span class="user-name">{{ option.userInfo.username }}</span>
-          <span v-if="option.userInfo.nickname" class="user-nickname">({{ option.userInfo.nickname }})</span>
-        </div>
-        <!-- 普通选项 -->
-        <span v-else>{{ typeof option === 'object' ? option.label : option }}</span>
-      </el-option>
-    </el-select>
-    <!-- 🔥 普通单选组件（没有颜色配置） -->
-    <el-select
-      v-else-if="!shouldUseUserSearchWidget && !shouldUseDepartmentSearchWidget && inputConfig.component === SearchComponent.EL_SELECT && !inputConfig.props?.multiple"
-      v-model="selectValue"
-      :placeholder="inputConfig.props?.placeholder"
-      :clearable="inputConfig.props?.clearable"
-      :filterable="inputConfig.props?.filterable"
-      :remote="inputConfig.props?.remote"
-      :remote-method="handleRemoteMethod"
-      :loading="selectLoading || inputConfig.props?.loading"
-      :popper-class="inputConfig.props?.popperClass"
-      :style="inputConfig.props?.style"
-      :reserve-keyword="inputConfig.props?.remote"
-      class="user-select-search"
-      @change="handleInput"
-      @clear="handleClear"
-      @visible-change="handleVisibleChange"
-    >
-      <el-option
-        v-for="option in selectOptionsComputed"
-        :key="typeof option === 'object' ? option.value : option"
-        :label="typeof option === 'object' ? option.label : option"
-        :value="typeof option === 'object' ? option.value : option"
-      >
-        <!-- 🔥 如果是用户选择器，显示头像和用户信息 -->
-        <div v-if="option.userInfo" class="user-option">
-          <el-avatar :src="option.userInfo.avatar" :size="24" class="user-avatar">
-            {{ option.userInfo.username?.[0]?.toUpperCase() || 'U' }}
-          </el-avatar>
-          <span class="user-name">{{ option.userInfo.username }}</span>
-          <span v-if="option.userInfo.nickname" class="user-nickname">({{ option.userInfo.nickname }})</span>
-        </div>
-        <!-- 🔥 如果是单选组件，显示带颜色的标签 -->
-        <div v-else-if="isSelectWidget" class="flex items-center">
-          <span
-            v-if="getOptionColor(typeof option === 'object' ? option.value : option)"
-            class="option-color-indicator"
-            :style="getOptionColorStyle(typeof option === 'object' ? option.value : option)"
-          />
-          <span>{{ typeof option === 'object' ? option.label : option }}</span>
-        </div>
-        <!-- 普通选项 -->
-        <span v-else>{{ typeof option === 'object' ? option.label : option }}</span>
+        <SearchSelectOptionContent
+          :label="getRenderedOptionLabel(option)"
+          :user-info="getRenderedOptionUserInfo(option)"
+        />
       </el-option>
     </el-select>
     <!-- 🔥 多选组件 -->
     <el-select
-      v-else-if="!shouldUseUserSearchWidget && !shouldUseDepartmentSearchWidget && inputConfig.component === SearchComponent.EL_SELECT && inputConfig.props?.multiple"
+      v-else-if="isMultipleFallbackSelect"
+      class="search-control user-select-search"
       v-model="selectValue"
       :placeholder="inputConfig.props?.placeholder"
       :clearable="inputConfig.props?.clearable"
@@ -145,49 +99,39 @@
       :multiple="inputConfig.props?.multiple"
       :loading="selectLoading || inputConfig.props?.loading"
       :popper-class="inputConfig.props?.popperClass"
-      :style="inputConfig.props?.style"
+      :style="controlStyle"
       :collapse-tags="inputConfig.props?.multiple"
       :max-collapse-tags="SearchConfig.MAX_COLLAPSE_TAGS"
       :reserve-keyword="inputConfig.props?.remote && inputConfig.props?.multiple"
-      class="user-select-search"
       @change="handleInput"
       @clear="handleClear"
       @visible-change="handleVisibleChange"
     >
       <!-- 🔥 自定义标签显示（multiple 模式） -->
-      <template v-if="inputConfig.props?.multiple" #tag>
+      <template v-if="shouldUseCustomFallbackTags" #tag>
         <!-- 🔥 用户选择器：使用 user-cell 样式 -->
-        <template v-if="inputConfig.props?.popperClass === 'user-select-dropdown-popper'">
-          <div
-            v-for="value in localValue"
+        <template v-if="shouldUseUserFallbackTags">
+          <SearchUserTag
+            v-for="value in fallbackTagSummary.visibleValues"
             :key="value"
-            class="user-cell user-cell-tag"
+            :label="getOptionLabel(value) || ''"
+            :avatar="getUserInfoByValue(value)?.avatar || null"
+            :initial="getUserTagInitial(value)"
+            @remove="handleRemoveTag(value)"
+          />
+          <el-tag
+            v-if="fallbackTagSummary.hiddenCount > 0"
+            class="search-summary-tag"
+            size="small"
+            disable-transitions
           >
-            <el-avatar 
-              v-if="value && getUserInfoByValue(value)"
-              :src="getUserInfoByValue(value)?.avatar" 
-              :size="24" 
-              class="user-avatar"
-            >
-              {{ getUserInfoByValue(value)?.username?.[0]?.toUpperCase() || 'U' }}
-            </el-avatar>
-            <el-avatar 
-              v-else
-              :size="24" 
-              class="user-avatar"
-            >
-              {{ (getOptionLabel(value) || '')?.[0]?.toUpperCase() || 'U' }}
-            </el-avatar>
-            <span class="user-name">{{ getOptionLabel(value) || '' }}</span>
-            <el-icon class="user-tag-close" @click.stop="handleRemoveTag(value)">
-              <Close />
-            </el-icon>
-          </div>
+            +{{ fallbackTagSummary.hiddenCount }}
+          </el-tag>
         </template>
         <!-- 🔥 多选组件：使用带颜色的标签 -->
-        <template v-else-if="isMultiselectWidget">
+        <template v-else-if="shouldUseColoredFallbackTags">
           <el-tag
-            v-for="value in localValue"
+            v-for="value in fallbackTagSummary.visibleValues"
             :key="value"
             :type="getOptionColorType(value)"
             :color="getOptionColorValue(value)"
@@ -197,49 +141,55 @@
           >
             {{ getOptionLabel(value) }}
           </el-tag>
+          <el-tag
+            v-if="fallbackTagSummary.hiddenCount > 0"
+            class="search-summary-tag"
+            size="small"
+            disable-transitions
+          >
+            +{{ fallbackTagSummary.hiddenCount }}
+          </el-tag>
+        </template>
+        <template v-else-if="shouldUseNeutralFallbackTags">
+          <el-tag
+            v-for="value in fallbackTagSummary.visibleValues"
+            :key="value"
+            :closable="true"
+            @close.stop="handleRemoveTag(value)"
+            class="multiselect-tag multiselect-tag-neutral"
+          >
+            {{ getOptionLabel(value) }}
+          </el-tag>
+          <el-tag
+            v-if="fallbackTagSummary.hiddenCount > 0"
+            class="search-summary-tag"
+            size="small"
+            disable-transitions
+          >
+            +{{ fallbackTagSummary.hiddenCount }}
+          </el-tag>
         </template>
       </template>
       
       <el-option
         v-for="option in selectOptionsComputed"
-        :key="typeof option === 'object' ? option.value : option"
-        :label="typeof option === 'object' ? option.label : option"
-        :value="typeof option === 'object' ? option.value : option"
+        :key="getRenderedOptionValue(option)"
+        :label="getRenderedOptionLabel(option)"
+        :value="getRenderedOptionValue(option)"
       >
-        <!-- 🔥 如果是用户选择器，显示头像和用户信息 -->
-        <div v-if="option.userInfo" class="user-option">
-          <el-avatar :src="option.userInfo.avatar" :size="24" class="user-avatar">
-            {{ option.userInfo.username?.[0]?.toUpperCase() || 'U' }}
-          </el-avatar>
-          <span class="user-name">{{ option.userInfo.username }}</span>
-          <span v-if="option.userInfo.nickname" class="user-nickname">({{ option.userInfo.nickname }})</span>
-        </div>
-        <!-- 🔥 如果是多选组件，显示带颜色的标签 -->
-        <div v-else-if="isMultiselectWidget" class="flex items-center">
-          <span
-            v-if="getOptionColor(typeof option === 'object' ? option.value : option)"
-            class="option-color-indicator"
-            :style="getOptionColorStyle(typeof option === 'object' ? option.value : option)"
-          />
-          <span>{{ typeof option === 'object' ? option.label : option }}</span>
-        </div>
-        <!-- 🔥 如果是单选组件，显示带颜色的标签 -->
-        <div v-else-if="isSelectWidget" class="flex items-center">
-          <span
-            v-if="getOptionColor(typeof option === 'object' ? option.value : option)"
-            class="option-color-indicator"
-            :style="getOptionColorStyle(typeof option === 'object' ? option.value : option)"
-          />
-          <span>{{ typeof option === 'object' ? option.label : option }}</span>
-        </div>
-        <!-- 普通选项 -->
-        <span v-else>{{ typeof option === 'object' ? option.label : option }}</span>
+        <SearchSelectOptionContent
+          :label="getRenderedOptionLabel(option)"
+          :user-info="getRenderedOptionUserInfo(option)"
+          :show-color-indicator="shouldShowColoredMultiFallbackOption"
+          :color-style="getOptionColorStyle(getRenderedOptionValue(option))"
+        />
       </el-option>
     </el-select>
 
     <!-- 🔥 数字范围输入 -->
     <div v-else-if="inputConfig.component === SearchComponent.NUMBER_RANGE_INPUT" class="number-range">
       <el-input-number
+        class="search-range-field"
         v-model="rangeValue.min"
         :placeholder="inputConfig.props?.minPlaceholder"
         :precision="inputConfig.props?.precision"
@@ -248,11 +198,12 @@
         :max="inputConfig.props?.max"
         :clearable="true"
         :controls-position="'right'"
-        :style="{ width: SearchConfig.DEFAULT_NUMBER_RANGE_WIDTH }"
+        :style="rangeFieldStyle"
         @change="handleRangeChange"
       />
       <span class="range-separator">至</span>
       <el-input-number
+        class="search-range-field"
         v-model="rangeValue.max"
         :placeholder="inputConfig.props?.maxPlaceholder"
         :precision="inputConfig.props?.precision"
@@ -261,7 +212,7 @@
         :max="inputConfig.props?.max"
         :clearable="true"
         :controls-position="'right'"
-        :style="{ width: SearchConfig.DEFAULT_NUMBER_RANGE_WIDTH }"
+        :style="rangeFieldStyle"
         @change="handleRangeChange"
       />
     </div>
@@ -269,6 +220,7 @@
     <!-- 🔥 日期范围选择 -->
     <el-date-picker
       v-else-if="inputConfig.component === SearchComponent.EL_DATE_PICKER"
+      class="search-control"
       v-model="dateRangeValue"
       :type="inputConfig.props?.type"
       :range-separator="inputConfig.props?.rangeSeparator"
@@ -278,7 +230,7 @@
       :value-format="inputConfig.props?.valueFormat"
       :shortcuts="inputConfig.props?.shortcuts"
       :clearable="inputConfig.props?.clearable"
-      :style="inputConfig.props?.style"
+      :style="controlStyle"
       @change="handleDateRangeChange"
       @clear="handleClear"
     />
@@ -286,18 +238,20 @@
     <!-- 🔥 文本范围输入（默认降级） -->
     <div v-else-if="inputConfig.component === SearchComponent.RANGE_INPUT" class="text-range">
       <el-input
+        class="search-range-field"
         v-model="rangeValue.min"
         :placeholder="inputConfig.props?.minPlaceholder"
         clearable
-        :style="{ width: SearchConfig.DEFAULT_NUMBER_RANGE_WIDTH }"
+        :style="rangeFieldStyle"
         @input="handleRangeChange"
       />
       <span class="range-separator">至</span>
       <el-input
+        class="search-range-field"
         v-model="rangeValue.max"
         :placeholder="inputConfig.props?.maxPlaceholder"
         clearable
-        :style="{ width: SearchConfig.DEFAULT_NUMBER_RANGE_WIDTH }"
+        :style="rangeFieldStyle"
         @input="handleRangeChange"
       />
     </div>
@@ -307,11 +261,12 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, provide } from 'vue'
 import { createPinia } from 'pinia'
-import { ElAvatar, ElIcon, ElTag } from 'element-plus'
-import { Close } from '@element-plus/icons-vue'
+import { ElTag } from 'element-plus'
 import UserSearchInput from '@/shared/components/UserSearchInput.vue'
 import UserSearchWidget from './UserSearchWidget.vue'
 import DepartmentSearchWidget from './DepartmentSearchWidget.vue'
+import SearchSelectOptionContent from './SearchSelectOptionContent.vue'
+import SearchUserTag from './SearchUserTag.vue'
 import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
 import WidgetComponent from '@/architecture/presentation/widgets/WidgetComponent.vue'
 import { ErrorHandler } from '@/core/utils/ErrorHandler'
@@ -331,6 +286,8 @@ import {
   resolveWidgetTypeForSearchRenderer,
   shouldUseWidgetSearchRenderer as resolveWidgetSearchMode
 } from './utils/searchWidgetMode'
+import { buildSearchControlStyle, buildSearchRangeFieldStyle } from './utils/searchControlStyle'
+import { buildSearchTagSummary } from '@/architecture/presentation/widgets/utils/searchTagSummary'
 
 type SearchOption = {
   label: string
@@ -381,7 +338,22 @@ const widgetSearchField = computed(() => {
   return buildSearchWidgetField(props.field, props.searchType)
 })
 
+const hasSelectFuzzyCallback = computed(() => {
+  return props.field.callbacks?.includes('OnSelectFuzzy') || false
+})
+
+const shouldPreferInlineSelectSearch = computed(() => {
+  return (
+    (searchWidgetType.value === WidgetType.SELECT || searchWidgetType.value === WidgetType.MULTI_SELECT) &&
+    !hasSelectFuzzyCallback.value
+  )
+})
+
 const shouldUseWidgetSearchRenderer = computed(() => {
+  if (shouldPreferInlineSelectSearch.value) {
+    return false
+  }
+
   return resolveWidgetSearchMode({
     widgetType: searchWidgetType.value,
     searchType: props.searchType,
@@ -402,11 +374,62 @@ const widgetSearchFieldValue = computed(() => {
   )
 })
 
-watch(widgetSearchFieldValue, (newValue) => {
-  if (shouldUseWidgetSearchRenderer.value) {
-    scopedSearchFormDataStore.setValue(props.field.code, newValue)
-  }
-}, { immediate: true, deep: true })
+const isFallbackSelect = computed(() => {
+  return inputConfig.value.component === SearchComponent.EL_SELECT
+})
+
+const isSingleFallbackSelect = computed(() => {
+  return isFallbackSelect.value && !inputConfig.value.props?.multiple
+})
+
+const isMultipleFallbackSelect = computed(() => {
+  return isFallbackSelect.value && !!inputConfig.value.props?.multiple
+})
+
+const shouldUseUserFallbackTags = computed(() => {
+  return inputConfig.value.props?.popperClass === 'user-select-dropdown-popper'
+})
+
+const shouldUseColoredFallbackTags = computed(() => {
+  return isMultiselectWidget.value
+})
+
+const shouldUseCustomFallbackTags = computed(() => {
+  return isMultipleFallbackSelect.value
+})
+
+const shouldUseNeutralFallbackTags = computed(() => {
+  return shouldUseCustomFallbackTags.value &&
+    !shouldUseUserFallbackTags.value &&
+    !shouldUseColoredFallbackTags.value
+})
+
+const shouldShowColoredMultiFallbackOption = computed(() => {
+  return isMultiselectWidget.value || isSelectWidget.value
+})
+
+const fallbackTagSummary = computed(() => {
+  const values = Array.isArray(localValue.value) ? localValue.value : []
+  return buildSearchTagSummary(values, 1)
+})
+
+const controlStyle = computed(() => {
+  return buildSearchControlStyle(inputConfig.value.props?.style)
+})
+
+const rangeFieldStyle = computed(() => {
+  return buildSearchRangeFieldStyle()
+})
+
+watch(
+  () => (shouldUseWidgetSearchRenderer.value ? widgetSearchFieldValue.value : null),
+  (newValue) => {
+    if (shouldUseWidgetSearchRenderer.value && newValue) {
+      scopedSearchFormDataStore.setValue(props.field.code, newValue)
+    }
+  },
+  { immediate: true, deep: true }
+)
 
 onUnmounted(() => {
   scopedSearchFormDataStore.clear()
@@ -651,6 +674,28 @@ function getOptionLabel(value: any): string {
     return typeof option === 'object' ? option.label : option
   }
   return valueStr
+}
+
+function getRenderedOptionValue(option: any): any {
+  return typeof option === 'object' ? option.value : option
+}
+
+function getRenderedOptionLabel(option: any): string {
+  return typeof option === 'object' ? option.label : String(option)
+}
+
+function getRenderedOptionUserInfo(option: any): SearchOption['userInfo'] | null {
+  return typeof option === 'object' && option?.userInfo ? option.userInfo : null
+}
+
+function getUserTagInitial(value: any): string {
+  const userInfo = getUserInfoByValue(value)
+  if (userInfo?.username) {
+    return userInfo.username[0]?.toUpperCase() || 'U'
+  }
+
+  const label = getOptionLabel(value)
+  return label?.[0]?.toUpperCase() || 'U'
 }
 
 // 🔥 移除标签
@@ -1194,31 +1239,17 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* 🔥 用户选择器选项样式（与 UserWidget 保持一致） */
-.user-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.user-avatar {
-  flex-shrink: 0;
-}
-
-.user-name {
-  flex: 1;
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-}
-
-.user-nickname {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
 .search-input {
   display: flex;
   align-items: stretch;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+}
+
+.search-control {
+  display: block;
+  flex: 1 1 auto;
   width: 100%;
   min-width: 0;
 }
@@ -1241,6 +1272,9 @@ onMounted(() => {
 .search-input :deep(.el-input),
 .search-input :deep(.el-select),
 .search-input :deep(.el-date-editor),
+.search-input :deep(.el-date-editor--daterange),
+.search-input :deep(.el-date-editor--timerange),
+.search-input :deep(.el-time-editor),
 .search-input :deep(.el-input-number),
 .search-input :deep(.widget-component) {
   width: 100%;
@@ -1249,8 +1283,29 @@ onMounted(() => {
 
 .search-input :deep(.el-select__wrapper),
 .search-input :deep(.el-input__wrapper),
+.search-input :deep(.el-date-editor .el-input__wrapper),
 .search-input :deep(.el-textarea__inner) {
   width: 100%;
+  min-width: 0;
+}
+
+.search-input :deep(.select-widget),
+.search-input :deep(.multiselect-widget),
+.search-input :deep(.department-widget),
+.search-input :deep(.user-search-widget),
+.search-input :deep(.textarea-widget),
+.search-input :deep(.rich-text-widget) {
+  width: 100%;
+  min-width: 0;
+}
+
+.search-input :deep(.select-container),
+.search-input :deep(.department-select-display),
+.search-input :deep(.departments-select-display),
+.search-input :deep(.user-search-display) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .number-range :deep(.el-input-number),
@@ -1259,62 +1314,41 @@ onMounted(() => {
   min-width: 0;
 }
 
+.search-range-field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 /* 🔥 用户选择器选中后的标签样式（multiple 模式，使用 user-cell 样式） */
 .user-select-search :deep(.el-select__tags) {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-wrap: nowrap;
+  gap: 6px;
   align-items: center;
-}
-
-.user-cell-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  position: relative;
-  padding-right: 20px;
-}
-
-.user-cell-tag .user-avatar {
-  flex-shrink: 0;
-  width: 24px !important;
-  height: 24px !important;
-}
-
-.user-cell-tag .user-name {
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-  white-space: nowrap;
-}
-
-.user-tag-close {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  color: var(--el-text-color-secondary);
-  transition: color 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.user-tag-close:hover {
-  color: var(--el-text-color-primary);
+  overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* 🔥 多选组件标签样式 */
 .multiselect-tag {
   font-weight: 500;
-  border: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--el-border-color-lighter);
+  background-color: var(--el-fill-color-light);
+  color: var(--el-text-color-primary);
+  box-shadow: none;
   margin-right: 6px;
   margin-bottom: 2px;
   opacity: 0.9;
   transition: opacity 0.2s;
+}
+
+.search-summary-tag {
+  flex-shrink: 0;
+  margin-right: 0;
+  border: 1px solid var(--el-border-color-lighter);
+  background-color: var(--el-fill-color-light);
+  color: var(--el-text-color-secondary);
 }
 
 .multiselect-tag:hover {
@@ -1378,30 +1412,6 @@ onMounted(() => {
   border-color: currentColor !important;
 }
 
-/* 🔥 下拉选项中的颜色指示器样式 */
-.option-color-indicator {
-  display: inline-block !important;
-  width: 12px !important;
-  height: 12px !important;
-  min-width: 12px !important;
-  min-height: 12px !important;
-  border-radius: 2px !important;
-  flex-shrink: 0 !important;
-  border: none !important;
-  vertical-align: middle !important;
-  /* 🔥 降低亮度：使用 filter 降低饱和度和亮度 */
-  filter: brightness(0.95) saturate(0.9);
-  opacity: 0.9;
-}
-
-/* 选项容器样式 */
-.flex {
-  display: flex;
-}
-
-.items-center {
-  align-items: center;
-}
 </style>
 
 <style>

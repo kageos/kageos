@@ -28,6 +28,11 @@ export interface DetailRowMatch<T extends Record<string, any> = Record<string, a
 
 export type DetailRestoreTrigger = 'setup' | 'route-change' | 'function-loaded' | 'table-data-loaded'
 
+export interface DetailLookupSearchRequest {
+  url: string
+  params: Record<string, any>
+}
+
 export function buildEditFunctionDetail(current: FunctionDetail | null): FunctionDetail | null {
   if (!current) return null
 
@@ -207,6 +212,25 @@ export function findDetailIdField(detail: FunctionDetail | null): FieldConfig | 
     const code = String(field.code || '').toLowerCase()
     return code === 'id' || code === '_id'
   }) || null
+}
+
+export function buildDetailLookupSearchRequest(options: {
+  detail: FunctionDetail
+  idFieldCode: string
+  rowId: string
+}): DetailLookupSearchRequest {
+  const fullCodePath = options.detail.router?.startsWith('/')
+    ? options.detail.router
+    : `/${options.detail.router || ''}`
+
+  return {
+    url: `/workspace/api/v1/table/search${fullCodePath}`,
+    params: {
+      [options.idFieldCode]: options.rowId,
+      page: 1,
+      page_size: 20
+    }
+  }
 }
 
 export function buildDetailBaseQuery(options: {

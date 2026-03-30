@@ -88,10 +88,12 @@ import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import type { FieldConfig, FieldValue } from '../../domain/types'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
+import type { TableResponse } from '../../domain/services/TableDomainService'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { hasPermission, TablePermission, buildPermissionApplyURL } from '@/utils/permission'
 import type { ServiceTree } from '@/types'
 import {
+  buildDetailLookupSearchRequest,
   buildDetailBaseQuery as buildDetailBaseQueryHelper,
   buildEditFunctionDetail,
   findDetailIdField,
@@ -111,6 +113,7 @@ export function useWorkspaceDetail(
 ) {
   const route = useRoute()
   const router = useRouter()
+  const apiClient = serviceProvider.getApiClient()
   const tableApplicationService = serviceProvider.getTableApplicationService()
   const tableStateManager = serviceProvider.getTableStateManager()
   const userInfoStore = useUserInfoStore()
@@ -551,20 +554,19 @@ export function useWorkspaceDetail(
     inFlightDetailLookupKey = request.key
 
     try {
-      await tableApplicationService.loadData(
+      const lookupRequest = buildDetailLookupSearchRequest({
         detail,
-        { [idField.code]: request.rowId },
-        undefined,
-        { page: 1, pageSize: 20 }
-      )
+        idFieldCode: idField.code,
+        rowId: request.rowId
+      })
+      const lookupResponse = await apiClient.get<TableResponse>(lookupRequest.url, lookupRequest.params)
 
       if (token !== latestDetailRestoreToken || pendingDetailRestoreKey !== request.key) {
         return
       }
 
-      const refreshedState = tableStateManager.getState()
-      const refreshedTableData = Array.isArray(refreshedState.data) ? refreshedState.data : []
-      const refreshedMatch = findDetailRowMatch(refreshedTableData, request.rowId)
+      const lookupTableData = Array.isArray(lookupResponse.items) ? lookupResponse.items : []
+      const refreshedMatch = findDetailRowMatch(lookupTableData, request.rowId)
 
       if (!refreshedMatch) {
         clearPendingDetailRestore()
@@ -578,9 +580,9 @@ export function useWorkspaceDetail(
       applyDetailDrawerState({
         detail,
         row: refreshedMatch.row,
-        tableData: refreshedTableData,
+        tableData: currentTableData,
         mode: 'read',
-        index: refreshedMatch.index
+        index: resolveDetailIndex(refreshedMatch.row, (detail.response || []) as FieldConfig[], currentTableData)
       })
       clearPendingDetailRestore()
     } catch (error) {

@@ -698,76 +698,6 @@
       :full-code-path="updateHistoryFullCodePath"
     />
 
-    <!-- 🔥 工作台抽屉：右侧滑出，不阻塞主区域；支持折叠为窄条 -->
-    <el-drawer
-      v-model="workstationMode"
-      title="工作台"
-      direction="rtl"
-      :size="workstationDrawerCollapsed ? 48 : '75%'"
-      append-to-body
-      :show-close="false"
-      class="workstation-drawer"
-      :class="{ 'workstation-drawer--collapsed': workstationDrawerCollapsed }"
-      @close="handleWorkstationDrawerClose"
-    >
-      <template #header>
-        <div class="workstation-drawer-header workstation-drawer-header--compact">
-          <div class="drawer-actions">
-            <el-button
-              v-if="!workstationDrawerCollapsed"
-              link
-              type="primary"
-              size="small"
-              @click="handleWorkstationMinimize"
-              title="最小化为迷你窗口"
-            >
-              <el-icon><Minus /></el-icon>
-            </el-button>
-            <el-button
-              v-if="!workstationDrawerCollapsed"
-              link
-              type="primary"
-              size="small"
-              @click="workstationDrawerCollapsed = true"
-              title="折叠"
-            >
-              <el-icon><Fold /></el-icon>
-            </el-button>
-            <el-button
-              v-if="workstationDrawerCollapsed"
-              link
-              type="primary"
-              size="small"
-              @click="workstationDrawerCollapsed = false"
-              title="展开"
-            >
-              <el-icon><Expand /></el-icon>
-            </el-button>
-            <el-button link type="primary" size="small" @click="handleWorkstationDrawerClose" title="关闭">
-              <el-icon><Close /></el-icon>
-            </el-button>
-          </div>
-        </div>
-      </template>
-      <div v-show="!workstationDrawerCollapsed" class="workstation-drawer-body">
-        <WorkstationChat
-          v-if="workstationContext && workstationMode"
-          :full-code-path="workstationContext.fullCodePath"
-          :dir-name="workstationContext.dirName"
-          :initial-session-id="wsInitialSessionId"
-          :visible="workstationMode"
-          :embedded="true"
-          @back="handleWorkstationDrawerClose"
-          @tool-call-ok="handleWorkstationToolCallOk"
-          @update:sending="workstationSending = $event"
-          @update:session-id="handleWsSessionIdChange"
-        />
-      </div>
-      <div v-show="workstationDrawerCollapsed" class="workstation-drawer-strip">
-        <span class="strip-text">工作台</span>
-      </div>
-    </el-drawer>
-
     <!-- 导入 Go 文件：隐藏的 file input，选中的 .go 会写入当前目录 -->
     <input
       ref="importGoFileInputRef"
@@ -802,7 +732,7 @@
 import { computed, defineAsyncComponent, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElSwitch, ElSkeleton } from 'element-plus'
-import { InfoFilled, ArrowLeft, ArrowRight, Fold, Expand, Close, ChatDotRound, Minus, Loading, FolderOpened, Search } from '@element-plus/icons-vue'
+import { InfoFilled, ArrowLeft, ArrowRight, ChatDotRound, Loading, FolderOpened, Search } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
@@ -854,7 +784,6 @@ const DocView = defineAsyncComponent(() => import('../components/DocView.vue'))
 const BoardView = defineAsyncComponent(() => import('../components/BoardView.vue'))
 const PackageDetailView = defineAsyncComponent(() => import('../components/PackageDetailView.vue'))
 const PermissionDeniedView = defineAsyncComponent(() => import('../components/PermissionDeniedView.vue'))
-const WorkstationChat = defineAsyncComponent(() => import('../components/WorkstationChat.vue'))
 const MiniWorkstation = defineAsyncComponent(() => import('../components/MiniWorkstation.vue'))
 const CreateBoardDialog = defineAsyncComponent(() => import('../components/CreateBoardDialog.vue'))
 const PublishToHubDialog = defineAsyncComponent(() => import('@/shared/components/PublishToHubDialog.vue'))
@@ -1290,12 +1219,6 @@ const toggleRightSidebar = () => {
   localStorage.setItem('workspace-right-sidebar', String(showRightSidebar.value))
 }
 
-/** 工作台模式：以右侧抽屉展示，不占主区域；目录详情始终可见 */
-const workstationMode = ref(false)
-/** 工作台抽屉是否折叠为窄条（折叠后主区域更宽） */
-const workstationDrawerCollapsed = ref(false)
-/** 工作台是否正在执行（发送/工具调用中），用于抽屉关闭时显示浮动按钮 */
-const workstationSending = ref(false)
 /** 多 Mini 工作台实例 */
 interface MiniWsInstance {
   id: string
@@ -1309,8 +1232,6 @@ interface MiniWsInstance {
 }
 const miniWsList = ref<MiniWsInstance[]>([])
 let miniIdCounter = 0
-/** 刷新时恢复的 session_id（从 URL ?ws_sid= 读取） */
-const wsInitialSessionId = ref('')
 
 /** 工作台上下文：点击什么节点就用什么节点的 full_code_path */
 const workstationContext = computed(() => {
@@ -1335,29 +1256,18 @@ watch(
   { immediate: true }
 )
 
-function openWorkstationDrawer(sid?: string) {
-  workstationMode.value = true
-  workstationDrawerCollapsed.value = false
-  if (sid) wsInitialSessionId.value = sid
-  syncWsQueryParam(true, sid)
-}
-
-function handleOpenWorkstationDrawer() {
-  openWorkstationDrawer()
-}
-
-function handleWorkstationDrawerClose() {
-  workstationMode.value = false
-  workstationDrawerCollapsed.value = false
-  wsInitialSessionId.value = ''
-  syncWsQueryParam(false)
-}
-
-function openNewMiniWs(initialSessionId?: string, overridePath?: string, overrideName?: string) {
+function openNewMiniWs(initialSessionId?: string, overridePath?: string, overrideName?: string, initialMaximized = false) {
   const ctx = workstationContext.value
   const fcp = overridePath || ctx?.fullCodePath
   if (!fcp) return
   const dirName = overrideName || ctx?.dirName || fcp.split('/').filter(Boolean).pop() || '工作台'
+  const existing = miniWsList.value.find(
+    (mini: MiniWsInstance) => mini.fullCodePath === fcp && mini.initialSessionId === (initialSessionId || '')
+  )
+  if (existing) {
+    existing.visible = true
+    return
+  }
   const offset = miniWsList.value.filter((m: MiniWsInstance) => m.visible).length * 40
   miniWsList.value.push({
     id: String(++miniIdCounter),
@@ -1365,8 +1275,9 @@ function openNewMiniWs(initialSessionId?: string, overridePath?: string, overrid
     dirName,
     initialSessionId: initialSessionId || '',
     visible: true,
-    offset,
-    initialPosition: 'center',
+    offset: initialMaximized ? 0 : offset,
+    initialPosition: initialMaximized ? undefined : 'center',
+    initialMaximized,
   })
 }
 
@@ -1408,60 +1319,60 @@ function syncMiniWsQueryParam(open: boolean, sid?: string) {
   router.replace({ path: route.path, query })
 }
 
-function handleWorkstationMinimize() {
-  const currentSid = wsInitialSessionId.value || (typeof (route.query.ws_sid) === 'string' ? route.query.ws_sid : '')
-  workstationMode.value = false
-  workstationDrawerCollapsed.value = false
-  wsInitialSessionId.value = ''
-  syncWsQueryParam(false)
-  nextTick(() => openNewMiniWs(currentSid || undefined))
-}
-
-function handleWsSessionIdChange(sid: string | undefined) {
-  if (sid) wsInitialSessionId.value = sid
-  syncWsQueryParam(true, sid)
-}
-
-function syncWsQueryParam(open: boolean, sid?: string | undefined) {
-  const query = { ...route.query }
-  if (open) {
-    query.ws = 'open'
-    if (sid) {
-      query.ws_sid = sid
-    } else {
-      delete query.ws_sid
-    }
-  } else {
-    delete query.ws
-    delete query.ws_sid
+function restoreMiniWorkstation(options?: {
+  fullCodePath?: string
+  dirName?: string
+  sessionId?: string
+  initialMaximized?: boolean
+}) {
+  const restore = (fullCodePath: string, dirName: string) => {
+    openNewMiniWs(
+      options?.sessionId || undefined,
+      fullCodePath,
+      dirName,
+      !!options?.initialMaximized
+    )
   }
-  router.replace({ path: route.path, query })
+
+  if (options?.fullCodePath) {
+    const dirName = options.dirName || options.fullCodePath.split('/').filter(Boolean).pop() || '工作台'
+    nextTick(() => restore(options.fullCodePath!, dirName))
+    return
+  }
+
+  const stopRestore = watch(workstationContext, (ctx: { fullCodePath: string; dirName: string } | null) => {
+    if (ctx?.fullCodePath) {
+      restore(ctx.fullCodePath, ctx.dirName)
+      stopRestore()
+    }
+  }, { immediate: true })
+
+  setTimeout(() => stopRestore(), 10000)
 }
 
-/** 服务树「打开工作台」事件：导航到该目录并打开抽屉（不新开标签）；任务面板「查看」时 open_as_mini 打开 Mini */
+/** 服务树「打开工作台」事件：统一打开 Mini；任务面板「查看」仍可指定最大化 Mini。 */
 function handleWorkspaceOpenWorkstation(payload: { full_code_path?: string; session_id?: string; open_as_mini?: boolean }) {
   const fullCodePath = (payload?.full_code_path || '').trim()
   if (!fullCodePath) return
-  if (payload.open_as_mini) {
-    openMiniWsForTask(fullCodePath, payload.session_id || '')
-    return
-  }
-  // 打开全屏时收起所有 mini，让 mini 的 SSE 转发生效（!visible 时才转发）
-  miniWsList.value.forEach((m: MiniWsInstance) => { m.visible = false })
   const targetPath = buildWorkspacePath(fullCodePath)
-  wsInitialSessionId.value = ''
+  const dirName = fullCodePath.split('/').filter(Boolean).pop() || '工作台'
+  const openMini = () => {
+    if (payload.open_as_mini) {
+      openMiniWsForTask(fullCodePath, payload.session_id || '')
+      return
+    }
+    openNewMiniWs(payload.session_id || undefined, fullCodePath, dirName)
+  }
+
   if (route.path !== targetPath) {
-    const query: Record<string, string> = { ws: 'open' }
-    if (payload.session_id) query.ws_sid = payload.session_id
+    const query = { ...route.query }
+    delete query.ws
+    delete query.ws_sid
     router.push({ path: targetPath, query }).then(() => {
-      nextTick(() => {
-        if (payload.session_id) wsInitialSessionId.value = payload.session_id
-        workstationMode.value = true
-        workstationDrawerCollapsed.value = false
-      })
+      nextTick(() => openMini())
     })
   } else {
-    nextTick(() => openWorkstationDrawer(payload.session_id))
+    nextTick(() => openMini())
   }
 }
 
@@ -1469,7 +1380,7 @@ function handleWorkspaceOpenWorkstation(payload: { full_code_path?: string; sess
 function openMiniWsForTask(fullCodePath: string, sessionId: string) {
   const dirName = fullCodePath.split('/').filter(Boolean).pop() || '工作台'
   const existing = miniWsList.value.find(
-    (m: MiniWsInstance) => m.fullCodePath === fullCodePath && m.initialSessionId === sessionId && !m.visible
+    (m: MiniWsInstance) => m.fullCodePath === fullCodePath && m.initialSessionId === sessionId
   )
   if (existing) {
     existing.visible = true
@@ -1565,48 +1476,29 @@ onMounted(() => {
   // 🔥 添加全局粘贴监听
   document.addEventListener('paste', handleGlobalPaste)
 
-  // 🔥 服务目录树「打开工作台」：在本页打开抽屉并定位到该目录（不新开标签）
+  // 🔥 服务目录树「打开工作台」：统一打开 Mini 并定位到对应目录
   unsubscribeWorkspaceOpenWorkstation = eventBus.on('workspace:open-workstation', handleWorkspaceOpenWorkstation)
 
-  // 🔥 URL 参数恢复：?ws=open 时自动打开工作台抽屉，?ws_sid=xxx 恢复到具体会话
+  // 🔥 兼容旧链接：?ws=open 时改为恢复 Mini 工作台
   if (route.query.ws === 'open') {
     const sid = typeof route.query.ws_sid === 'string' ? route.query.ws_sid : ''
-    if (sid) wsInitialSessionId.value = sid
-    nextTick(() => {
-      workstationMode.value = true
-      workstationDrawerCollapsed.value = false
+    restoreMiniWorkstation({
+      sessionId: sid || undefined,
+      initialMaximized: false,
     })
   }
 
-  // 🔥 URL 参数恢复：?mws=open 时恢复最大化的 mini 工作台
+  // 🔥 URL 参数恢复：?mws=open 时恢复 Mini 工作台
   if (route.query.mws === 'open') {
     const mwsSid = typeof route.query.mws_sid === 'string' ? route.query.mws_sid : ''
     const mwsPath = typeof route.query.mws_path === 'string' ? route.query.mws_path : ''
     const mwsName = typeof route.query.mws_name === 'string' ? route.query.mws_name : ''
-    const restoreMiniWs = (fcp: string, name: string) => {
-      if (!fcp) return
-      miniWsList.value.push({
-        id: String(++miniIdCounter),
-        fullCodePath: fcp,
-        dirName: name || fcp.split('/').filter(Boolean).pop() || '工作台',
-        initialSessionId: mwsSid,
-        visible: true,
-        offset: 0,
-        initialPosition: 'center',
-        initialMaximized: true,
-      })
-    }
-    if (mwsPath) {
-      nextTick(() => restoreMiniWs(mwsPath, mwsName))
-    } else {
-      const stopRestore = watch(workstationContext, (ctx: { fullCodePath: string; dirName: string } | null) => {
-        if (ctx?.fullCodePath) {
-          restoreMiniWs(ctx.fullCodePath, ctx.dirName)
-          stopRestore()
-        }
-      }, { immediate: true })
-      setTimeout(() => stopRestore(), 10000)
-    }
+    restoreMiniWorkstation({
+      fullCodePath: mwsPath || undefined,
+      dirName: mwsName || undefined,
+      sessionId: mwsSid || undefined,
+      initialMaximized: true,
+    })
   }
 })
 

@@ -105,21 +105,9 @@
             </el-icon>
             <el-icon class="input-icon"><ArrowDown /></el-icon>
           </div>
-          <div v-if="displayInfoText" class="display-info-text">
-            {{ displayInfoText }}
-          </div>
         </div>
       </div>
-      
-      <!-- 🔥 显示 Statistics 统计信息（使用 FieldStatistics 组件） -->
-      <!-- 🔥 在表格内部（depth > 0）时不显示，避免撑大表格单元格，统计信息会在表格下方统一显示 -->
-      <FieldStatistics
-        v-if="currentStatistics && Object.keys(currentStatistics).length > 0 && props.value?.raw && (props.depth || 0) === 0"
-        :field="field"
-        :value="props.value"
-        :statistics="currentStatistics"
-      />
-      
+
       <!-- 模糊搜索对话框（单选模式） -->
       <FuzzySearchDialog
         v-model="dialogVisible"
@@ -474,6 +462,13 @@ const displayValue = computed(() => {
   if (raw === null || raw === undefined || raw === '') {
     return '-'
   }
+
+  const matchedOption = options.value.find((opt: any) => {
+    return opt.value === raw || String(opt.value) === String(raw)
+  })
+  if (matchedOption?.label) {
+    return matchedOption.label
+  }
   
   return String(raw)
 })
@@ -715,6 +710,10 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
     // max_selections 只在 MultiSelectWidget（多选组件）里有意义
     
     if (response.items && Array.isArray(response.items)) {
+      // OnSelectFuzzy 回调约定：
+      // - label: 候选项主文案，搜索态和选中态优先展示它
+      // - value: 实际提交值
+      // - display_info/displayInfo: 次级结构化信息，用于弹窗候选项补充说明和选中后的 displayInfo 展示
       options.value = response.items.map((item: any) => ({
         label: item.label || String(item.value),
         value: item.value,
@@ -1186,6 +1185,25 @@ watch(
 .select-container:hover .input-icon {
   color: var(--el-color-primary);
   transform: translateY(1px);
+}
+
+.search-select .select-container {
+  min-height: 32px;
+  padding: 5px 10px;
+  box-shadow: none;
+}
+
+.search-select .select-content {
+  gap: 0;
+}
+
+.search-select .select-label {
+  font-size: 13px;
+}
+
+.search-select .clear-icon,
+.search-select .input-icon {
+  font-size: 14px;
 }
 
 .select-option {
