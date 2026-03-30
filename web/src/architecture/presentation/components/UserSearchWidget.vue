@@ -78,10 +78,11 @@
     <!-- 未选中时显示按钮 -->
     <el-button
       v-else
+      class="search-trigger-button"
       @click="handleOpenDialog()"
     >
       <el-icon><User /></el-icon>
-      {{ field.desc || `请选择${field.name}` }}
+      <span class="search-trigger-text">{{ field.desc || `请选择${field.name}` }}</span>
     </el-button>
     
     <!-- 多用户搜索弹窗（支持 IN 查询时使用） -->
@@ -245,17 +246,30 @@ watch(() => [props.modelValue, supportsMultiple], () => {
   width: 100%;
 }
 
+.search-trigger-button {
+  width: 100%;
+  min-height: 32px;
+  justify-content: flex-start;
+  padding: 0 12px;
+}
+
+.search-trigger-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .user-search-display {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 5px 10px;
   border: 1px solid var(--el-border-color);
-  border-radius: 4px;
+  border-radius: 6px;
   background-color: var(--el-bg-color);
   cursor: pointer;
   transition: all 0.2s;
-  min-height: 40px;
+  min-height: 32px;
 }
 
 .user-search-display .user-avatar-small {
@@ -264,7 +278,7 @@ watch(() => [props.modelValue, supportsMultiple], () => {
 
 .user-search-display .user-display-text {
   flex: 1;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--el-text-color-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -288,7 +302,7 @@ watch(() => [props.modelValue, supportsMultiple], () => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
+  padding: 2px 6px;
   background-color: var(--el-fill-color-light);
   border: 1px solid var(--el-border-color);
   border-radius: 4px;

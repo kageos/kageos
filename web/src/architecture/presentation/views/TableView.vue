@@ -155,9 +155,14 @@
       <div v-else class="search-bar sci-fi-panel sci-fi-panel-expanded">
         <span class="sci-fi-accent-bar" />
         <div class="search-bar-inner">
-          <el-form :inline="true" :model="searchForm" class="search-form">
+          <el-form
+            :inline="false"
+            label-position="top"
+            :model="searchForm"
+            class="search-form"
+          >
             <template v-for="field in searchableFields" :key="field.code">
-              <el-form-item :label="field.name">
+              <el-form-item :label="field.name" :class="getSearchFieldLayoutClass(field)">
                 <SearchInput
                   :field="field"
                   :search-type="field.search || ''"
@@ -171,7 +176,7 @@
               </el-form-item>
             </template>
 
-            <el-form-item class="search-actions">
+            <div class="search-actions">
               <el-button type="primary" @click="handleSearch" class="sci-fi-btn-primary">
                 <el-icon><Search /></el-icon>
                 搜索
@@ -188,7 +193,7 @@
                 <el-icon><ArrowUp /></el-icon>
                 <span>收起</span>
               </button>
-            </el-form-item>
+            </div>
           </el-form>
         </div>
       </div>
@@ -437,6 +442,7 @@ import {
   buildTableLinkRouteRequest,
   resolveTableAddDialogVisibility
 } from './utils/tableViewRouteRuntime'
+import { resolveSearchFieldLayoutClass } from './utils/searchFieldLayout'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -979,6 +985,10 @@ const visibleFields = computed(() => {
     return permission === '' || permission === 'read'
   })
 })
+
+const getSearchFieldLayoutClass = (field: FieldConfig): string => {
+  return resolveSearchFieldLayoutClass(field)
+}
 
 /**
  * Link 字段（用于操作列显示）
@@ -1844,20 +1854,33 @@ onUnmounted(() => {
 
 .search-bar .search-form {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 14px 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 14px;
   align-items: start;
 }
 
 .search-bar :deep(.search-form > .el-form-item) {
+  display: flex;
+  flex-direction: column;
+  justify-self: stretch;
   margin-right: 0;
   margin-bottom: 0;
   width: 100%;
+  min-width: 0;
   align-items: flex-start;
+}
+
+.search-bar :deep(.search-form > .el-form-item.search-field-layout--wide) {
+  grid-column: span 2;
+}
+
+.search-bar :deep(.search-form > .el-form-item .el-form-item__label-wrap) {
+  width: 100%;
 }
 
 .search-bar :deep(.search-form > .el-form-item .el-form-item__label) {
   width: 100%;
+  display: flex;
   justify-content: flex-start;
   padding: 0 0 6px;
   line-height: 1.25;
@@ -1867,18 +1890,28 @@ onUnmounted(() => {
 }
 
 .search-bar :deep(.search-form > .el-form-item .el-form-item__content) {
+  display: flex;
+  align-items: stretch;
+  flex: 1 1 auto;
   width: 100%;
   min-width: 0;
   margin-left: 0 !important;
+}
+
+.search-bar :deep(.search-form > .el-form-item .el-form-item__content > *) {
+  width: 100%;
+  min-width: 0;
 }
 
 .search-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  justify-content: flex-start;
+  justify-content: flex-end;
   grid-column: 1 / -1;
   padding-top: 4px;
+  width: 100%;
+  min-width: 0;
 }
 
 /* 收起按钮：终端风格 */
@@ -1987,6 +2020,10 @@ onUnmounted(() => {
 @media (max-width: 900px) {
   .search-bar .search-form {
     grid-template-columns: 1fr;
+  }
+
+  .search-bar :deep(.search-form > .el-form-item.search-field-layout--wide) {
+    grid-column: 1 / -1;
   }
 
   .search-actions {

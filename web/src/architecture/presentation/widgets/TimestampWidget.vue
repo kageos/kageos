@@ -45,6 +45,49 @@
     </div>
     
     <!-- 搜索模式 -->
+    <div v-else-if="mode === 'search' && isRangeSearch" class="timestamp-range-search">
+      <el-time-picker
+        v-if="isTimeOnly"
+        v-model="rangeStartValue"
+        class="timestamp-range-field"
+        :format="format"
+        value-format="x"
+        :clearable="true"
+        :placeholder="`开始${field.name}`"
+      />
+      <el-date-picker
+        v-else
+        v-model="rangeStartValue"
+        class="timestamp-range-field"
+        type="datetime"
+        :format="format"
+        :value-format="valueFormat"
+        :clearable="true"
+        :shortcuts="shortcuts"
+        :placeholder="`开始${field.name}`"
+      />
+      <span class="range-separator">至</span>
+      <el-time-picker
+        v-if="isTimeOnly"
+        v-model="rangeEndValue"
+        class="timestamp-range-field"
+        :format="format"
+        value-format="x"
+        :clearable="true"
+        :placeholder="`结束${field.name}`"
+      />
+      <el-date-picker
+        v-else
+        v-model="rangeEndValue"
+        class="timestamp-range-field"
+        type="datetime"
+        :format="format"
+        :value-format="valueFormat"
+        :clearable="true"
+        :shortcuts="shortcuts"
+        :placeholder="`结束${field.name}`"
+      />
+    </div>
     <el-time-picker
       v-else-if="mode === 'search' && isTimeOnly"
       v-model="internalValue"
@@ -84,6 +127,12 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
+
+type TimestampSingleInput = Date | number | string | null
+type TimestampRangeInput = [TimestampSingleInput, TimestampSingleInput]
+type TimestampModelInput = Date | number | string | TimestampRangeInput | null
+type TimestampRawRange = [number | null, number | null]
+type TimestampRawValue = number | TimestampRawRange | null
 
 // 获取配置（带类型）
 const widgetConfig = computed(() => {
@@ -300,6 +349,11 @@ const searchType = computed(() => {
   return 'datetime'
 })
 
+const isRangeSearch = computed(() => {
+  const currentSearchType = resolveWidgetSearchType(props.searchType, props.field.search)
+  return currentSearchType.includes('gte') && currentSearchType.includes('lte')
+})
+
 // 内部值（用于 v-model）
 const internalValue = computed({
   get: () => {
@@ -317,67 +371,55 @@ const internalValue = computed({
       
       // 如果是数组（范围选择）
       if (Array.isArray(value)) {
-        return value.map(v => new Date(v))
+        return value.map(v => {
+          if (v === null || v === undefined || v === '') {
+            return null
+          }
+
+          if (typeof v === 'number') {
+            return new Date(v)
+          }
+
+          return new Date(v)
+        })
       }
       
       return value
     }
     return null
   },
-  set: (newValue: Date | [Date, Date] | number | [number, number] | string | [string, string] | null) => {
-    if (props.mode === 'edit') {
-      let rawValue: number | [number, number] | null = null
-      
-      if (newValue === null || newValue === undefined) {
-        rawValue = null
-      } else if (Array.isArray(newValue)) {
-        // 范围选择：处理数组
-        rawValue = newValue.map(v => {
-          if (v instanceof Date) {
-            return v.getTime()
-          } else if (typeof v === 'number') {
-            return v
-          } else if (typeof v === 'string') {
-            // 字符串可能是时间戳字符串或日期字符串
-            const num = Number(v)
-            if (!isNaN(num)) {
-              return num
-            }
-            // 尝试解析日期字符串
-            return new Date(v).getTime()
-          }
-          throw new Error(`[TimestampWidget] 无法转换值: ${v}`)
-        }) as [number, number]
-      } else {
-        // 单个值
-        if (newValue instanceof Date) {
-        rawValue = newValue.getTime()
-        } else if (typeof newValue === 'number') {
-          rawValue = newValue
-        } else if (typeof newValue === 'string') {
-          // 字符串可能是时间戳字符串或日期字符串
-          const num = Number(newValue)
-          if (!isNaN(num)) {
-            rawValue = num
-          } else {
-            // 尝试解析日期字符串
-            rawValue = new Date(newValue).getTime()
-          }
-        } else {
-          throw new Error(`[TimestampWidget] 无法转换值类型: ${typeof newValue}, 值: ${newValue}`)
-        }
-      }
-      
-      // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
-      const newFieldValue = createFieldValue(
-        props.field,
-        rawValue,
-        formatTimestamp(rawValue as number)
-      )
-      
-      formDataStore.setValue(props.fieldPath, newFieldValue)
-      emit('update:modelValue', newFieldValue)
+  set: (newValue: TimestampModelInput) => {
+    commitTimestampValue(newValue)
+  }
+})
+
+const rangeStartValue = computed<TimestampSingleInput>({
+  get: () => {
+    const currentValue = internalValue.value
+    if (Array.isArray(currentValue)) {
+      return currentValue[0] ?? null
     }
+    return null
+  },
+  set: (newValue) => {
+    const currentValue = internalValue.value
+    const endValue = Array.isArray(currentValue) ? (currentValue[1] ?? null) : null
+    commitTimestampValue(buildRangeValue(newValue, endValue))
+  }
+})
+
+const rangeEndValue = computed<TimestampSingleInput>({
+  get: () => {
+    const currentValue = internalValue.value
+    if (Array.isArray(currentValue)) {
+      return currentValue[1] ?? null
+    }
+    return null
+  },
+  set: (newValue) => {
+    const currentValue = internalValue.value
+    const startValue = Array.isArray(currentValue) ? (currentValue[0] ?? null) : null
+    commitTimestampValue(buildRangeValue(startValue, newValue))
   }
 })
 
@@ -401,7 +443,7 @@ const displayValue = computed(() => {
   }
   
   if (Array.isArray(raw)) {
-    return raw.map(v => formatTimestamp(v, props.field.widget?.config?.format)).join(' 至 ')
+    return formatTimestampDisplay(raw as [number | null, number | null])
   }
   
   // 如果 raw 不是数字，尝试使用 display 值
@@ -416,11 +458,131 @@ const displayValue = computed(() => {
 function handleChange(value: Date | [Date, Date] | null): void {
   // 已经在 computed setter 中处理
 }
+
+function normalizeTimestampValue(
+  value: TimestampModelInput
+): TimestampRawValue {
+  if (value === null || value === undefined) {
+    return null
+  }
+
+  if (Array.isArray(value)) {
+    const normalizedRange = value.map(item => (
+      item === null || item === undefined || item === '' ? null : normalizeTimestampItem(item)
+    )) as TimestampRawRange
+
+    if (normalizedRange[0] === null && normalizedRange[1] === null) {
+      return null
+    }
+
+    return normalizedRange
+  }
+
+  return normalizeTimestampItem(value)
+}
+
+function normalizeTimestampItem(value: Date | number | string): number {
+  if (value instanceof Date) {
+    return value.getTime()
+  }
+
+  if (typeof value === 'number') {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const numericValue = Number(value)
+    if (!Number.isNaN(numericValue)) {
+      return numericValue
+    }
+
+    const timestamp = new Date(value).getTime()
+    if (!Number.isNaN(timestamp)) {
+      return timestamp
+    }
+  }
+
+  throw new Error(`[TimestampWidget] 无法转换值: ${value}`)
+}
+
+function formatTimestampDisplay(value: TimestampRawValue): string {
+  if (value === null) {
+    return ''
+  }
+
+  if (Array.isArray(value)) {
+    const [startValue, endValue] = value
+    const startDisplay = startValue === null ? '' : formatTimestamp(startValue, format.value)
+    const endDisplay = endValue === null ? '' : formatTimestamp(endValue, format.value)
+
+    if (startDisplay && endDisplay) {
+      return `${startDisplay} 至 ${endDisplay}`
+    }
+
+    return startDisplay || endDisplay
+  }
+
+  return formatTimestamp(value, format.value)
+}
+
+function commitTimestampValue(
+  newValue: TimestampModelInput
+): void {
+  if (props.mode !== 'edit' && props.mode !== 'search') {
+    return
+  }
+
+  const rawValue = normalizeTimestampValue(newValue)
+  const newFieldValue = createFieldValue(
+    props.field,
+    rawValue,
+    formatTimestampDisplay(rawValue)
+  )
+
+  if (props.mode === 'edit') {
+    formDataStore.setValue(props.fieldPath, newFieldValue)
+  }
+
+  emit('update:modelValue', newFieldValue)
+}
+
+function buildRangeValue(
+  startValue: TimestampSingleInput,
+  endValue: TimestampSingleInput
+): TimestampRangeInput | null {
+  if (
+    (startValue === null || startValue === undefined || startValue === '') &&
+    (endValue === null || endValue === undefined || endValue === '')
+  ) {
+    return null
+  }
+
+  return [startValue ?? null, endValue ?? null]
+}
 </script>
 
 <style scoped>
 .timestamp-widget {
   width: 100%;
+}
+
+.timestamp-range-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.timestamp-range-field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.range-separator {
+  color: var(--el-text-color-secondary);
+  font-size: 14px;
+  flex-shrink: 0;
 }
 
 .response-value {

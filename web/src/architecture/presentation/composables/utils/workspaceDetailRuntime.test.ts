@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { FunctionDetail } from '@/architecture/domain/interfaces/IFunctionLoader'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import {
+  buildDetailLookupSearchRequest,
   buildDetailEditFormState,
   buildDetailBaseQuery,
   buildEditFunctionDetail,
@@ -204,6 +205,21 @@ describe('workspaceDetailRuntime', () => {
   it('detects the detail id field from table response schema', () => {
     expect(findDetailIdField(tableFunctionDetail)?.code).toBe('id')
     expect(findDetailIdField(null)).toBeNull()
+  })
+
+  it('builds a standalone detail lookup search request without mutating table state', () => {
+    expect(buildDetailLookupSearchRequest({
+      detail: tableFunctionDetail,
+      idFieldCode: 'id',
+      rowId: '42'
+    })).toEqual({
+      url: '/workspace/api/v1/table/search/members',
+      params: {
+        id: '42',
+        page: 1,
+        page_size: 20
+      }
+    })
   })
 
   it('builds detail base query without detail params or form draft keys', () => {

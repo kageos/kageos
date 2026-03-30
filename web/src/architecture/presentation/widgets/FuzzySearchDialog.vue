@@ -1,17 +1,31 @@
 <template>
   <el-dialog
     v-model="visible"
-    :title="dialogTitle"
-    width="600px"
+    class="fuzzy-search-dialog-shell"
+    width="680px"
     :close-on-click-modal="false"
     :close-on-press-escape="true"
     append-to-body
     @close="handleClose"
   >
+    <template #header>
+      <div class="dialog-header">
+        <div class="dialog-title-row">
+          <span class="dialog-title">{{ dialogTitle }}</span>
+          <span class="dialog-mode-chip">{{ isMultiselect ? '多选' : '单选' }}</span>
+        </div>
+        <div class="dialog-subtitle">
+          <span>{{ resultSummaryText }}</span>
+          <span class="dialog-shortcut-hint">Enter 选中 · ↑↓ 切换 · Esc 关闭</span>
+        </div>
+      </div>
+    </template>
+
     <div class="fuzzy-search-dialog">
       <!-- 搜索输入框 -->
       <div class="search-input-section">
         <el-input
+          class="dialog-search-input"
           v-model="searchKeyword"
           :placeholder="placeholder"
           clearable
@@ -24,6 +38,17 @@
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
+        <div class="search-toolbar-meta">
+          <span class="toolbar-chip">
+            {{ loading ? '搜索中...' : `${suggestions.length} 个候选项` }}
+          </span>
+          <span
+            v-if="isMultiselect && selectedItems.length > 0"
+            class="toolbar-chip toolbar-chip-active"
+          >
+            已选 {{ selectedItems.length }}{{ maxSelectionsText }}项
+          </span>
+        </div>
       </div>
 
       <!-- 搜索结果列表 -->
@@ -79,17 +104,20 @@
             
             <!-- 主要内容 -->
             <div class="item-content">
-              <div class="item-label">{{ item.label || item.value }}</div>
+              <div class="item-header">
+                <div class="item-label">{{ item.label || item.value }}</div>
+                <span v-if="isItemSelected(item)" class="item-state-chip">已选</span>
+              </div>
               
               <!-- 显示信息 -->
               <div v-if="(item.display_info && Object.keys(item.display_info).length > 0) || (item.displayInfo && Object.keys(item.displayInfo).length > 0)" class="item-display-info">
                 <div
-                  v-for="(value, key) in (item.display_info || item.displayInfo)"
-                  :key="key"
+                  v-for="([infoKey, infoValue], infoIndex) in getDisplayInfoEntries(item)"
+                  :key="`${String(item.value)}-${infoKey}-${infoIndex}`"
                   class="info-item"
                 >
-                  <span class="info-key">{{ key }}:</span>
-                  <span class="info-value">{{ value }}</span>
+                  <span class="info-key">{{ infoKey }}</span>
+                  <span class="info-value">{{ infoValue }}</span>
                 </div>
               </div>
             </div>
@@ -151,6 +179,16 @@
 import { ref, computed, nextTick, watch } from 'vue'
 import { Search, Loading, InfoFilled, ArrowRight, Check } from '@element-plus/icons-vue'
 
+/**
+ * OnSelectFuzzy / 模糊搜索回调的标准候选项结构。
+ *
+ * 约定：
+ * - `label` 是用户在候选列表里第一眼看到的主文案
+ * - `value` 是真正提交给后端的值
+ * - `display_info` / `displayInfo` 是候选项的次级结构化信息
+ *   例如职位的部门/地点/薪资，供应商的联系人/电话
+ *   适合展示成 key-value chip，不适合直接把整个对象或 statistics 原样抛给用户
+ */
 interface InputFuzzyItem {
   value: any
   label?: string
@@ -217,6 +255,22 @@ const maxSelectionsText = computed(() => {
     return `/${props.maxSelections} `
   }
   return ' '
+})
+
+const resultSummaryText = computed(() => {
+  if (props.loading) {
+    return '正在加载候选项'
+  }
+
+  if (!searchKeyword.value && props.suggestions.length === 0) {
+    return '输入关键词后立即开始搜索'
+  }
+
+  if (props.suggestions.length === 0) {
+    return '没有匹配结果'
+  }
+
+  return `当前共 ${props.suggestions.length} 个结果`
 })
 
 // 监听对话框显示状态
@@ -294,6 +348,14 @@ function getItemColorStyle(value: any): Record<string, string> {
     filter: 'brightness(0.95) saturate(0.9)',
     opacity: '0.9'
   }
+}
+
+function getDisplayInfoEntries(item: InputFuzzyItem): Array<[string, any]> {
+  const displayInfo = item.display_info || item.displayInfo || {}
+
+  return Object.entries(displayInfo)
+    .filter(([, value]) => value !== null && value !== undefined && value !== '')
+    .slice(0, 6)
 }
 
 // 处理搜索
@@ -444,14 +506,108 @@ watch(visible, (newVisible) => {
 </script>
 
 <style scoped>
+:deep(.fuzzy-search-dialog-shell) {
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+:deep(.fuzzy-search-dialog-shell .el-dialog__header) {
+  padding: 18px 22px 0;
+}
+
+:deep(.fuzzy-search-dialog-shell .el-dialog__body) {
+  padding: 18px 22px 12px;
+}
+
+:deep(.fuzzy-search-dialog-shell .el-dialog__footer) {
+  padding: 0 22px 20px;
+}
+
+.dialog-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dialog-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dialog-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--el-text-color-primary);
+  letter-spacing: 0.01em;
+}
+
+.dialog-mode-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(24, 144, 255, 0.12), rgba(22, 119, 255, 0.06));
+  border: 1px solid rgba(24, 144, 255, 0.18);
+  color: var(--el-color-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dialog-subtitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+.dialog-shortcut-hint {
+  white-space: nowrap;
+}
+
 .fuzzy-search-dialog {
   display: flex;
   flex-direction: column;
-  height: 400px;
+  height: 480px;
+  gap: 14px;
 }
 
 .search-input-section {
-  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dialog-search-input :deep(.el-input__wrapper) {
+  min-height: 42px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.search-toolbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.toolbar-chip-active {
+  background: rgba(24, 144, 255, 0.12);
+  color: var(--el-color-primary);
 }
 
 .search-results-section {
@@ -482,36 +638,39 @@ watch(visible, (newVisible) => {
   flex: 1;
   overflow-y: auto;
   border: 1px solid var(--el-border-color-light);
-  border-radius: 4px;
-  background: var(--el-bg-color);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(24, 144, 255, 0.03), rgba(24, 144, 255, 0)),
+    var(--el-bg-color);
+  padding: 8px;
 }
 
 .suggestion-item {
   display: flex;
   align-items: flex-start;
-  padding: 12px 16px;
+  padding: 14px 16px;
   cursor: pointer;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  transition: background-color 0.2s;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
+  margin-bottom: 8px;
 }
 
 .suggestion-item:hover,
 .suggestion-item.active {
   background-color: var(--el-fill-color-light);
+  border-color: var(--el-border-color);
+  transform: translateY(-1px);
 }
 
 .suggestion-item.selected {
-  background: linear-gradient(90deg, var(--el-color-primary-light-2) 0%, var(--el-color-primary-light-3) 4px, var(--el-color-primary-light-3) 100%) !important;
-  border-left: 4px solid var(--el-color-primary) !important;
-  position: relative;
+  background: linear-gradient(135deg, rgba(24, 144, 255, 0.12), rgba(24, 144, 255, 0.04)) !important;
+  border-color: rgba(24, 144, 255, 0.35) !important;
+  box-shadow: 0 8px 20px rgba(24, 144, 255, 0.08);
 }
 
 .suggestion-item.selected:hover {
-  background: linear-gradient(90deg, var(--el-color-primary-light-1) 0%, var(--el-color-primary-light-2) 4px, var(--el-color-primary-light-2) 100%) !important;
-}
-
-.suggestion-item:last-child {
-  border-bottom: none;
+  background: linear-gradient(135deg, rgba(24, 144, 255, 0.16), rgba(24, 144, 255, 0.06)) !important;
 }
 
 .item-checkbox {
@@ -544,13 +703,35 @@ watch(visible, (newVisible) => {
 .item-content {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .item-label {
   font-size: 14px;
   color: var(--el-text-color-primary);
-  margin-bottom: 4px;
   font-weight: 500;
+  line-height: 1.45;
+}
+
+.item-state-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(24, 144, 255, 0.12);
+  color: var(--el-color-primary);
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 
 .suggestion-item.selected .item-label {
@@ -570,23 +751,29 @@ watch(visible, (newVisible) => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 4px;
 }
 
 .info-item {
   display: flex;
   align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--el-fill-color-light);
   font-size: 12px;
   color: var(--el-text-color-regular);
 }
 
 .info-key {
   color: var(--el-text-color-placeholder);
-  margin-right: 4px;
 }
 
 .info-value {
   color: var(--el-text-color-regular);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .item-indicator {
@@ -603,17 +790,17 @@ watch(visible, (newVisible) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  
-  .footer-left {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-  
-  .footer-right {
-    display: flex;
-    gap: 8px;
-  }
+}
+
+.footer-left {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.footer-right {
+  display: flex;
+  gap: 8px;
 }
 
 .selected-count {
@@ -644,5 +831,41 @@ watch(visible, (newVisible) => {
 
 .suggestions-list::-webkit-scrollbar-thumb:hover {
   background: var(--el-border-color-dark);
+}
+
+@media (max-width: 768px) {
+  .dialog-subtitle {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .dialog-shortcut-hint {
+    white-space: normal;
+  }
+
+  .fuzzy-search-dialog {
+    height: 70vh;
+  }
+
+  .item-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .info-value {
+    max-width: none;
+  }
+
+  .dialog-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .footer-left,
+  .footer-right {
+    justify-content: space-between;
+    width: 100%;
+  }
 }
 </style>

@@ -5,12 +5,33 @@
 <template>
   <div class="multiselect-widget">
     <!-- 编辑模式 -->
-    <div v-if="mode === 'edit' || mode === 'search'" class="edit-multiselect">
+    <div v-if="mode === 'edit' || mode === 'search'" class="edit-multiselect" :class="{ 'is-search-mode': mode === 'search' }">
       <!-- 参考单选的展示效果，使用条目式显示 -->
       <div class="select-container" @click="openDialog">
         <div class="select-content">
           <!-- 显示已选条目 -->
-          <div v-if="selectedValues.length > 0" class="selected-items-list">
+          <div v-if="selectedValues.length > 0 && mode === 'search'" class="selected-search-tags">
+            <el-tag
+              v-for="value in searchTagSummary.visibleValues"
+              :key="value"
+              :type="getOptionColorType(value)"
+              :color="getOptionColorValue(value)"
+              :closable="true"
+              class="search-selected-tag"
+              @close.stop="handleRemoveTag(value)"
+            >
+              {{ getOptionLabel(value) }}
+            </el-tag>
+            <el-tag
+              v-if="searchTagSummary.hiddenCount > 0"
+              class="search-selected-tag search-summary-tag"
+              size="small"
+              disable-transitions
+            >
+              +{{ searchTagSummary.hiddenCount }}
+            </el-tag>
+          </div>
+          <div v-else-if="selectedValues.length > 0" class="selected-items-list">
             <div
               v-for="(value, index) in selectedValues"
           :key="value"
@@ -33,7 +54,7 @@
             <el-icon class="input-icon"><ArrowDown /></el-icon>
           </div>
           <!-- 显示总体 display_info -->
-          <div v-if="selectedValues.length > 0 && displayInfoText" class="display-info-text">
+          <div v-if="selectedValues.length > 0 && displayInfoText && mode !== 'search'" class="display-info-text">
             {{ displayInfoText }}
           </div>
         </div>
@@ -121,6 +142,7 @@ import { createFieldValue } from '@/architecture/presentation/widgets/utils/crea
 import type { MultiSelectWidgetConfig } from '@/core/types/widget-configs'
 import { buildMultiSelectRawValue } from '@/architecture/presentation/widgets/utils/multiSelectValue'
 import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/utils/searchType'
+import { buildSearchTagSummary } from '@/architecture/presentation/widgets/utils/searchTagSummary'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -299,6 +321,10 @@ const selectedValues = computed({
     formDataStore.setValue(props.fieldPath, fieldValue)
     emit('update:modelValue', fieldValue)
   }
+})
+
+const searchTagSummary = computed(() => {
+  return buildSearchTagSummary(selectedValues.value, 1)
 })
 
 // 当前统计信息（从回调接口获取）
@@ -619,6 +645,10 @@ async function handleSearch(query: string | any[], isByValue = false): Promise<v
       currentStatistics.value = response.statistics
     }
 
+    // OnSelectFuzzy 回调约定：
+    // - label: 候选项主文案，优先直接给用户看
+    // - value: 实际提交值
+    // - display_info/displayInfo: 候选项的次级结构化信息，用于弹窗补充说明和后续 displayInfo/统计计算
     dynamicOptions.value = (response.items || []).map((item: any) => ({
       label: item.label || item.value,
       value: item.value,
@@ -908,10 +938,20 @@ onUnmounted(() => {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
+.edit-multiselect.is-search-mode .select-container {
+  min-height: 32px;
+  padding: 5px 10px;
+  box-shadow: none;
+}
+
 .select-content {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.edit-multiselect.is-search-mode .select-content {
+  gap: 0;
 }
 
 .select-main {
@@ -935,6 +975,29 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 8px;
   width: 100%;
+}
+
+.selected-search-tags {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  align-items: center;
+}
+
+.search-selected-tag {
+  margin: 0;
+  max-width: min(100%, 160px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.search-summary-tag {
+  flex-shrink: 0;
 }
 
 .selected-item {

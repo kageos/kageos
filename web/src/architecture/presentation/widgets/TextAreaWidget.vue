@@ -39,9 +39,7 @@
     <el-input
       v-else-if="mode === 'search'"
       v-model="internalValue"
-      type="textarea"
       :placeholder="searchPlaceholder"
-      :rows="3"
     />
   </div>
 </template>
@@ -210,4 +208,3 @@ function handleBlur(): void {
   word-wrap: break-word;
 }
 </style>
-

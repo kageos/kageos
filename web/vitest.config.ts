@@ -23,6 +23,11 @@ export default defineConfig(async () =>
       environment: 'jsdom',
       exclude: [...configDefaults.exclude, 'e2e/**'],
       root: fileURLToPath(new URL('./', import.meta.url)),
+      server: {
+        deps: {
+          inline: ['element-plus', '@element-plus/icons-vue', 'vditor']
+        }
+      }
     },
   })
 )

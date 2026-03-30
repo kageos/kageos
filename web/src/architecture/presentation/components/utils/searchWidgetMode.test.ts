@@ -23,6 +23,20 @@ describe('searchWidgetMode', () => {
     })).toBe(WidgetType.MULTI_SELECT)
   })
 
+  it('maps textarea search to compact input renderer', () => {
+    expect(resolveWidgetTypeForSearchRenderer({
+      widgetType: WidgetType.TEXT_AREA,
+      searchType: 'like'
+    })).toBe(WidgetType.INPUT)
+  })
+
+  it('maps rich text search to compact input renderer', () => {
+    expect(resolveWidgetTypeForSearchRenderer({
+      widgetType: WidgetType.RICH_TEXT,
+      searchType: 'like'
+    })).toBe(WidgetType.INPUT)
+  })
+
   it('uses widget search mode for select fields with IN search', () => {
     expect(shouldUseWidgetSearchRenderer({
       widgetType: WidgetType.SELECT,
@@ -63,6 +77,22 @@ describe('searchWidgetMode', () => {
       widgetType: WidgetType.INPUT,
       searchType: 'like',
       hasRegisteredWidget: false
+    })).toBe(false)
+  })
+
+  it('keeps users search on the dedicated search shell instead of widget renderer', () => {
+    expect(shouldUseWidgetSearchRenderer({
+      widgetType: WidgetType.USERS,
+      searchType: 'in',
+      hasRegisteredWidget: true
+    })).toBe(false)
+  })
+
+  it('keeps department search on the dedicated search shell instead of widget renderer', () => {
+    expect(shouldUseWidgetSearchRenderer({
+      widgetType: WidgetType.DEPARTMENT,
+      searchType: 'eq',
+      hasRegisteredWidget: true
     })).toBe(false)
   })
 

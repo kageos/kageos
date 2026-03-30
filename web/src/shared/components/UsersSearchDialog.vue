@@ -8,8 +8,9 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
+    class="entity-search-dialog-shell"
     :title="title"
-    width="500px"
+    width="620px"
     :close-on-click-modal="false"
     @close="handleClose"
     @opened="handleDialogOpened"
@@ -29,6 +30,14 @@
           <el-icon><Search /></el-icon>
         </template>
       </el-input>
+      <div class="dialog-status">
+        <span class="status-chip">
+          {{ loading ? '搜索中...' : (searchKeyword ? `${userList.length} 个结果` : '输入关键词开始搜索') }}
+        </span>
+        <span v-if="selectedUsers.length > 0" class="status-chip status-chip-active">
+          已选 {{ selectedUsers.length }}{{ maxCount > 0 ? `/${maxCount}` : '' }} 项
+        </span>
+      </div>
     </div>
 
     <!-- 已选用户列表 -->
@@ -316,15 +325,67 @@ const handleClose = () => {
 </script>
 
 <style scoped>
+:deep(.entity-search-dialog-shell) {
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+:deep(.entity-search-dialog-shell .el-dialog__header) {
+  padding: 18px 22px 0;
+}
+
+:deep(.entity-search-dialog-shell .el-dialog__body) {
+  padding: 18px 22px 12px;
+}
+
+:deep(.entity-search-dialog-shell .el-dialog__footer) {
+  padding: 0 22px 20px;
+}
+
 .users-search-dialog-search {
-  margin-bottom: 20px;
+  margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.users-search-dialog-search :deep(.el-input__wrapper) {
+  min-height: 42px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.dialog-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-chip-active {
+  background: rgba(24, 144, 255, 0.12);
+  color: var(--el-color-primary);
 }
 
 .users-search-dialog-selected {
-  margin-bottom: 20px;
-  padding: 12px;
-  background-color: var(--el-fill-color-lighter);
-  border-radius: 6px;
+  margin-bottom: 18px;
+  padding: 14px;
+  background:
+    linear-gradient(180deg, rgba(24, 144, 255, 0.06), rgba(24, 144, 255, 0)),
+    var(--el-fill-color-lighter);
+  border-radius: 14px;
+  border: 1px solid rgba(24, 144, 255, 0.12);
 }
 
 .selected-header {
@@ -347,10 +408,10 @@ const handleClose = () => {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px;
+  padding: 5px 9px;
   background-color: var(--el-bg-color);
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 999px;
 }
 
 .selected-user-item .user-avatar {
@@ -377,6 +438,7 @@ const handleClose = () => {
   min-height: 300px;
   max-height: 400px;
   overflow-y: auto;
+  padding-right: 2px;
 }
 
 .users-search-dialog-loading {
@@ -395,28 +457,33 @@ const handleClose = () => {
 .users-search-dialog-items {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .users-search-dialog-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(24, 144, 255, 0.02), rgba(24, 144, 255, 0)),
+    var(--el-bg-color);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .users-search-dialog-item:hover {
-  border-color: var(--el-color-primary-light-3);
+  border-color: rgba(24, 144, 255, 0.24);
   background-color: var(--el-fill-color-light);
+  transform: translateY(-1px);
 }
 
 .users-search-dialog-item.is-selected {
-  border-color: var(--el-color-primary);
-  background-color: var(--el-fill-color-light);
+  border-color: rgba(24, 144, 255, 0.34);
+  background: linear-gradient(135deg, rgba(24, 144, 255, 0.12), rgba(24, 144, 255, 0.04));
+  box-shadow: 0 8px 20px rgba(24, 144, 255, 0.08);
 }
 
 .user-avatar {
@@ -456,5 +523,11 @@ const handleClose = () => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .users-search-dialog-item {
+    align-items: flex-start;
+  }
 }
 </style>

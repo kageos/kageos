@@ -68,7 +68,18 @@ async function initializeChildField(
     fieldPath: childFieldPath
   }
 
-  const initializedValue = await widgetInitializerRegistry.initialize(childContext)
+  let initializedValue: FieldValue
+
+  // 容器字段的递归 hydrate 不能依赖外部 registry 注册时机，
+  // 否则 form -> form -> table 这类深层结构会在某些入口下直接断掉。
+  if (childField.widget?.type === 'form') {
+    initializedValue = (await hydrateFormField(childContext)) || childContext.currentValue
+  } else if (childField.widget?.type === 'table') {
+    initializedValue = (await hydrateTableField(childContext)) || childContext.currentValue
+  } else {
+    initializedValue = await widgetInitializerRegistry.initialize(childContext)
+  }
+
   formDataStore.setValue(childFieldPath, initializedValue)
   return initializedValue
 }

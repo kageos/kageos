@@ -1115,7 +1115,7 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
   } else if (command === 'manage-permission') {
     handleManagePermission(data)
   } else if (command === 'open-workstation') {
-    // 在本页以右侧抽屉打开工作台，不新开标签；WorkspaceView 监听此事件
+    // 在本页打开 Mini 工作台，不新开标签；WorkspaceView 监听此事件
     eventBus.emit('workspace:open-workstation', { full_code_path: data.full_code_path || '' })
   }
 }

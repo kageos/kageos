@@ -15,6 +15,11 @@ export function resolveWidgetTypeForSearchRenderer(options: {
     return WidgetType.MULTI_SELECT
   }
 
+  // 搜索栏优先使用紧凑单行控件，多行/富文本在筛选区没有展示价值。
+  if (widgetType === WidgetType.TEXT_AREA || widgetType === WidgetType.RICH_TEXT) {
+    return WidgetType.INPUT
+  }
+
   return widgetType
 }
 
@@ -27,6 +32,16 @@ export function shouldUseWidgetSearchRenderer(options: {
   const searchType = options.searchType || ''
 
   if (!options.hasRegisteredWidget) {
+    return false
+  }
+
+  // 这些类型在搜索栏里有更合适的专用壳层或 fallback 控件。
+  if (
+    widgetType === WidgetType.USER ||
+    widgetType === WidgetType.USERS ||
+    widgetType === WidgetType.DEPARTMENT ||
+    widgetType === WidgetType.DEPARTMENTS
+  ) {
     return false
   }
 

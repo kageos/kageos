@@ -7,7 +7,7 @@
 <template>
   <div class="department-widget">
     <!-- 编辑模式：组织架构选择器（使用弹窗搜索） -->
-    <div v-if="mode === 'edit' || mode === 'search'" class="department-select-wrapper">
+    <div v-if="mode === 'edit' || mode === 'search'" class="department-select-wrapper" :class="{ 'is-search-mode': mode === 'search' }">
       <!-- 搜索模式下支持多选时的显示 -->
       <div
         v-if="mode === 'search' && supportsMultipleSelection && selectedDepartmentsForDisplay.length > 0"
@@ -51,6 +51,7 @@
       <!-- 未选中时显示按钮 -->
       <el-button
         v-else
+        class="department-search-trigger"
         :disabled="false"
         :placeholder="field.desc || `请选择${field.name}`"
         @click="handleOpenDialog()"
@@ -505,6 +506,26 @@ onMounted(async () => {
 .department-select-wrapper {
   position: relative;
   width: 100%;
+}
+
+.department-select-wrapper.is-search-mode .department-select-display,
+.department-select-wrapper.is-search-mode .departments-select-display {
+  padding: 5px 10px;
+  border-radius: 6px;
+  min-height: 32px;
+}
+
+.department-select-wrapper.is-search-mode .department-display-text {
+  font-size: 13px;
+}
+
+.department-select-wrapper.is-search-mode .selected-department-tag {
+  padding: 2px 6px;
+}
+
+.department-search-trigger {
+  width: 100%;
+  justify-content: flex-start;
 }
 
 /* 选中后的显示（可点击） */
