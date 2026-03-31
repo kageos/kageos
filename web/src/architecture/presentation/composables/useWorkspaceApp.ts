@@ -16,8 +16,9 @@ import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import type { App } from '../../domain/services/WorkspaceDomainService'
 import type { App as AppType, CreateAppRequest } from '@/types'
-import { getAppDetailByUserAndCode, getAppWithServiceTree, updateApp } from '@/api/app'
+import { deleteApp, getAppDetailByUserAndCode, getAppWithServiceTree, updateApp } from '@/api/app'
 import { useAuthStore } from '@/stores/auth'
+import { buildAppResourcePath } from '@/utils/resourcePath'
 
 export function useWorkspaceApp(
   serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性
@@ -212,8 +213,8 @@ export function useWorkspaceApp(
       if (createResponse && createResponse.user && createResponse.app) {
         try {
           // ⭐ 使用合并接口获取工作空间详情和服务目录树
-          // 传递 user 和 app，而不是只传 code
-          const workspaceData = await getAppWithServiceTree(createResponse.user, createResponse.app)
+          // 统一通过 resource_path 加载工作空间
+          const workspaceData = await getAppWithServiceTree(buildAppResourcePath(createResponse.user, createResponse.app))
           
           if (workspaceData && workspaceData.app && workspaceData.app.user && workspaceData.app.code) {
             const newApp = workspaceData.app
@@ -268,10 +269,10 @@ export function useWorkspaceApp(
     }
   }
 
-  // 更新工作空间（重新编译）。显式传 user 和 app，避免应用是别人时误用当前用户为租户
+  // 更新工作空间（重新编译）。统一通过 resource_path 标识目标工作空间
   const handleUpdateApp = async (app: AppType): Promise<void> => {
     try {
-      await updateApp(app.user, app.code)
+      await updateApp(buildAppResourcePath(app.user, app.code))
       ElNotification.success({
         title: '成功',
         message: '工作空间更新成功'
@@ -299,7 +300,7 @@ export function useWorkspaceApp(
         }
       )
       
-      await apiClient.delete(`/workspace/api/v1/app/delete/${app.code}`)
+      await deleteApp(buildAppResourcePath(app.user, app.code))
       ElNotification.success({
         title: '成功',
         message: '工作空间删除成功'

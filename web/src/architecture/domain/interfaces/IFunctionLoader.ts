@@ -4,7 +4,6 @@
  * 职责：定义函数加载的标准接口，实现依赖倒置原则
  * 
  * 使用场景：
- * - 根据 ID 加载函数详情
  * - 根据路径加载函数详情
  * - 缓存管理
  */
@@ -41,13 +40,6 @@ export interface FunctionDetail {
  */
 export interface IFunctionLoader {
   /**
-   * 根据 ID 加载函数详情
-   * @param id 函数 ID
-   * @returns Promise<FunctionDetail>
-   */
-  loadById(id: number): Promise<FunctionDetail>
-
-  /**
    * 根据路径加载函数详情
    * @param path 函数路径（如：/workspace/tenant/app/service/function）
    * @param funcType 函数类型：table、form、chart（可选，默认为 table）
@@ -57,11 +49,10 @@ export interface IFunctionLoader {
 
   /**
    * 获取缓存的函数详情
-   * @param id 函数 ID（可选）
-   * @param path 函数路径（可选）
+   * @param path 函数路径
    * @returns FunctionDetail | null
    */
-  getCached(id?: number, path?: string): FunctionDetail | null
+  getCached(path: string): FunctionDetail | null
 
   /**
    * 清空缓存

@@ -1,3 +1,5 @@
+import { isLinkNavigation } from './linkNavigation'
+
 export const FORM_DRAFT_QUERY_PREFIX = 'f_'
 export const SEARCH_FIELD_QUERY_PREFIX = 's_'
 
@@ -39,6 +41,10 @@ export const getScopedFieldQueryValue = (
     return undefined
   }
   return query[fieldCode]
+}
+
+export const shouldAllowLegacyFormDraftFallback = (query: Record<string, any>): boolean => {
+  return query._tab !== 'OnTableAddRow' || isLinkNavigation(query)
 }
 
 export const deleteScopedFieldQueryKey = (

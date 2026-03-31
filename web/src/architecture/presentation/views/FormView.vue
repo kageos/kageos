@@ -352,6 +352,7 @@ import { serviceFactory } from '../../infrastructure/factories'
 import { apiClient } from '../../infrastructure/apiClient'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import { Logger } from '@/core/utils/logger'
+import { getErrorMessage } from '@/utils/apiError'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { getChangedFields } from '@/utils/objectDiff'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
@@ -646,10 +647,10 @@ const handleFieldUpdate = (fieldCode: string, value: FieldValue): void => {
 const handleSubmit = async (): Promise<void> => {
   try {
     if (!functionDetail.value) {
-      ElNotification.error({
-        title: '提交失败',
+      ElMessage.error({
         message: '函数详情未加载完成，请稍后重试',
-        duration: 3000
+        duration: 3000,
+        showClose: true
       })
       return
     }
@@ -664,25 +665,17 @@ const handleSubmit = async (): Promise<void> => {
       duration: 3000
     })
   } catch (error: any) {
-    // 🔥 从错误对象中提取错误消息
-    // request.ts 的响应拦截器在 code !== 0 时会 reject，并创建错误对象
-    // 错误对象包含 response 属性，其中包含完整的响应数据
-    let errorMessage = '提交失败，请稍后重试'
-    
-    // 🔥 统一使用 msg 字段
-    // 尝试从 error.response.data 中获取错误消息（request.ts 第 99-101 行）
-    if (error?.response?.data) {
-      const responseData = error.response.data
-      errorMessage = responseData.msg || errorMessage
-    } else if (error?.message) {
-      // 如果错误对象本身有 message（request.ts 第 99 行创建的）
-      errorMessage = error.message
-    }
-    
-    ElNotification.error({
-      title: '提交失败',
+    const errorMessage = getErrorMessage(error, '提交失败，请稍后重试')
+    Logger.error('FormView', '表单提交失败', {
+      router: functionDetail.value?.router,
       message: errorMessage,
-      duration: 3000
+      error
+    })
+
+    ElMessage.error({
+      message: errorMessage,
+      duration: 5000,
+      showClose: true
     })
   }
 }

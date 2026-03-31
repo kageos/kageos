@@ -51,6 +51,9 @@ func (s *HubDirectoryService) PublishDirectory(ctx context.Context, req *dto.Pub
 	if req.DirectoryTree == nil {
 		return nil, fmt.Errorf("目录树不能为空")
 	}
+	if err := validateDirectoryTreeForPersistence(req.DirectoryTree, req.SourceDirectoryPath); err != nil {
+		return nil, fmt.Errorf("目录树校验失败: %w", err)
+	}
 
 	// 3. 序列化目录树（JSON格式）
 	directoryTreeJSON, err := json.Marshal(req.DirectoryTree)
@@ -73,19 +76,19 @@ func (s *HubDirectoryService) PublishDirectory(ctx context.Context, req *dto.Pub
 	// 6. 创建 Hub 目录记录
 	now := time.Now()
 	directory := &model.HubDirectory{
-		Status:                model.HubDirectoryStatusActive,
-		Name:                  req.Name,
-		Description:           req.Description,
-		Category:              req.Category,
-		Tags:                  strings.Join(req.Tags, ","),
-		PackagePath:           packagePath,
-		FullCodePath:          rootPath,
-		ParentDirID:           0, // 根目录
-		SourceUser:            req.SourceUser,
-		SourceApp:             req.SourceApp,
-		SourceDirectoryPath:   req.SourceDirectoryPath,
-		PublisherUsername:     publisherUsername,
-		PublishedAt:           &now,
+		Status:               model.HubDirectoryStatusActive,
+		Name:                 req.Name,
+		Description:          req.Description,
+		Category:             req.Category,
+		Tags:                 strings.Join(req.Tags, ","),
+		PackagePath:          packagePath,
+		FullCodePath:         rootPath,
+		ParentDirID:          0, // 根目录
+		SourceUser:           req.SourceUser,
+		SourceApp:            req.SourceApp,
+		SourceDirectoryPath:  req.SourceDirectoryPath,
+		PublisherUsername:    publisherUsername,
+		PublishedAt:          &now,
 		ServiceFeePersonal:   req.ServiceFeePersonal,
 		ServiceFeeEnterprise: req.ServiceFeeEnterprise,
 		Version:              version,
@@ -106,7 +109,7 @@ func (s *HubDirectoryService) PublishDirectory(ctx context.Context, req *dto.Pub
 	if err != nil {
 		return nil, fmt.Errorf("拆分快照三字段失败: %w", err)
 	}
-	// 9. 创建快照（三字段 + 兼容旧端的 SnapshotData + 该版本详情）
+	// 9. 创建快照（三字段为当前单源；SnapshotData 仅保留给历史存量数据兜底）
 	snapshot := &model.HubSnapshot{
 		HubDirectoryID:       directory.ID,
 		Version:              version,
@@ -125,7 +128,7 @@ func (s *HubDirectoryService) PublishDirectory(ctx context.Context, req *dto.Pub
 		SnapshotData:         string(directoryTreeJSON),
 		SnapshotTree:         treeJSON,
 		SnapshotFiles:        filesJSON,
-		SnapshotFunctionDefs:  defsJSON,
+		SnapshotFunctionDefs: defsJSON,
 		IsCurrent:            true,
 	}
 	if err := s.snapshotRepo.Create(ctx, snapshot); err != nil {
@@ -163,6 +166,9 @@ func (s *HubDirectoryService) UpdateDirectory(ctx context.Context, req *dto.Upda
 	// 3. 验证目录树
 	if req.DirectoryTree == nil {
 		return nil, fmt.Errorf("目录树不能为空")
+	}
+	if err := validateDirectoryTreeForPersistence(req.DirectoryTree, req.SourceDirectoryPath); err != nil {
+		return nil, fmt.Errorf("目录树校验失败: %w", err)
 	}
 
 	// 4. 序列化目录树（JSON格式）
@@ -225,7 +231,7 @@ func (s *HubDirectoryService) UpdateDirectory(ctx context.Context, req *dto.Upda
 		HubDirectoryID:       existingDirectory.ID,
 		Version:              newVersion,
 		VersionNum:           newVersionNum,
-		SnapshotAt:            now,
+		SnapshotAt:           now,
 		DirectoryCount:       totalDirectories - 1,
 		FileCount:            totalFiles,
 		FunctionCount:        stats.FunctionCount,
@@ -239,7 +245,7 @@ func (s *HubDirectoryService) UpdateDirectory(ctx context.Context, req *dto.Upda
 		SnapshotData:         string(directoryTreeJSON),
 		SnapshotTree:         treeJSON,
 		SnapshotFiles:        filesJSON,
-		SnapshotFunctionDefs:  defsJSON,
+		SnapshotFunctionDefs: defsJSON,
 		IsCurrent:            true,
 		Description:          req.UpdateDescription, // 本版本更新说明，便于在 Hub 查看历史时看到「这个版本加了什么」
 	}
@@ -709,4 +715,3 @@ func extractVersionNum(version string) int {
 	}
 	return num
 }
-

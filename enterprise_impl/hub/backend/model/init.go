@@ -16,14 +16,13 @@ import (
 //  2. HubSnapshot（hub_snapshots）
 //     每个版本一条，同一目录多版本 = 多行。存：Version、VersionNum、IsCurrent、Description（更新说明）。
 //     快照三字段（单源）：SnapshotTree（目录结构，展示用）、SnapshotFiles（文件列表，复制用）、
-//     SnapshotFunctionDefs（函数定义列表，预览用）。SnapshotData 保留兼容旧数据。
+//     SnapshotFunctionDefs（函数定义列表，预览用）。SnapshotData 仅保留给历史存量快照兜底。
 //     关联：HubDirectoryID -> HubDirectory。
 func InitTables(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&HubDirectory{},     // 1. 已发布目录元信息
-		&HubSnapshot{},     // 2. 每版本一条，三字段 + SnapshotData 兼容
+		&HubSnapshot{},     // 2. 每版本一条，三字段为单源；SnapshotData 仅作历史兜底
 		&HubDirectoryStar{}, // 3. 目录星星记录（类似 GitHub star）
 		&PubKey{},           // 4. 发布密钥（跨站发布认证）
 	)
 }
-

@@ -487,6 +487,7 @@ import {
   getHubDirectoryVersions,
   getHubDirectoryVersionsByPath,
   getHubConfig,
+  downloadHubDirectoryBundle,
   starHubDirectory,
   unstarHubDirectory,
   type HubDirectoryDetail,
@@ -945,26 +946,12 @@ const handleExportInstallBundle = async () => {
   exportBundleLoading.value = true
   try {
     const ver = selectedVersion.value || undefined
-    const detail =
+    const { blob, filename } =
       typeof pathOrId === 'object' && 'id' in pathOrId
-        ? await getHubDirectoryDetail(pathOrId.id, true, ver)
-        : await getHubDirectoryDetailByPath(pathOrId as string, true, ver)
-    if (!detail.directory_tree) {
-      ElMessage.warning('当前版本没有可导出的目录树数据')
-      return
-    }
-    const payload = {
-      hub_bundle_format: 'ai-agent-os-hub-directory',
-      hub_bundle_version: 1,
-      exported_at: new Date().toISOString(),
-      ...detail
-    }
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' })
+        ? await downloadHubDirectoryBundle({ hubDirectoryId: pathOrId.id, version: ver })
+        : await downloadHubDirectoryBundle({ fullCodePath: pathOrId as string, version: ver })
     const a = document.createElement('a')
-    const rawName = detail.full_code_path || 'hub-directory'
-    const safe = rawName.replace(/\//g, '_').replace(/^_+/, '') || 'hub-directory'
-    const verLabel = (detail.version || 'latest').replace(/[^a-zA-Z0-9._-]+/g, '_')
-    a.download = `hub-bundle-${safe}-v${verLabel}.json`
+    a.download = filename
     const url = URL.createObjectURL(blob)
     a.href = url
     a.click()

@@ -1,5 +1,6 @@
 import { get, post, put, del } from '@/utils/request'
 import type { App, CreateAppRequest, CreateAppResponse } from '@/types'
+import { buildAppResourcePath, normalizeResourcePath } from '@/utils/resourcePath'
 
 // 获取工作空间列表
 export function getAppList(pageSize: number = 200, search?: string, includeAll: boolean = false, type?: number) {
@@ -59,53 +60,58 @@ export function createApp(data: CreateAppRequest) {
   return post<CreateAppResponse>('/workspace/api/v1/app/create', payload)
 }
 
-// 更新工作空间（重新编译）。路径传 user、app 即可，body 传 {}，无需其他参数
-export function updateApp(user: string, app: string) {
-  return post(`/workspace/api/v1/app/update/${encodeURIComponent(user)}/${encodeURIComponent(app)}`, {})
+// 更新工作空间（重新编译）
+export function updateApp(resourcePath: string) {
+  return post('/workspace/api/v1/app/update', {
+    resource_path: normalizeResourcePath(resourcePath)
+  })
 }
 
-// 删除工作空间
-export function deleteApp(code: string) {
-  return del(`/workspace/api/v1/app/delete/${code}`)
+// 删除工作空间（canonical 标识为 resource_path）
+export function deleteApp(resourcePath: string) {
+  const normalizedResourcePath = encodeURIComponent(normalizeResourcePath(resourcePath))
+  return del(`/workspace/api/v1/app/delete?resource_path=${normalizedResourcePath}`)
 }
 
-// 获取工作空间详情
-export function getAppDetail(code: string) {
-  return get<App>(`/workspace/api/v1/app/detail/${code}`)
+// 获取工作空间详情（canonical 标识为 resource_path）
+export function getAppDetail(resourcePath: string) {
+  return get<App>('/workspace/api/v1/app/detail', {
+    resource_path: normalizeResourcePath(resourcePath)
+  })
 }
 
-// 根据 user 和 code 获取工作空间详情（创建后使用）
+// 根据 user 和 code 构造 resource_path 获取工作空间详情（创建后使用）
 export function getAppDetailByUserAndCode(user: string, code: string) {
-  // 注意：后端接口只需要 code，user 从 JWT Token 获取
-  return get<App>(`/workspace/api/v1/app/detail/${code}`)
+  return getAppDetail(buildAppResourcePath(user, code))
 }
 
-// ⭐ 获取工作空间详情和服务目录树（合并接口，减少请求次数）
-// 使用 full-code-path（至少包含 user/app）
-export function getAppWithServiceTree(user: string, app: string, nodeType?: string) {
+// ⭐ 获取工作空间详情和服务目录树（合并接口，减少请求次数，canonical 标识为 resource_path）
+export function getAppWithServiceTree(resourcePath: string, nodeType?: string) {
   const params: Record<string, any> = {}
   if (nodeType) {
     params.type = nodeType
   }
-  // ⭐ 使用 full-code-path：/{user}/{app}/tree
+  params.resource_path = normalizeResourcePath(resourcePath)
   return get<{
     app: App
     service_tree: import('@/types').ServiceTree[]
     expanded_keys?: number[] // ⭐ 需要自动展开的节点ID列表（包含所有 pending_count > 0 的节点及其父节点）
-  }>(`/workspace/api/v1/app/${user}/${app}/tree`, params)
+  }>('/workspace/api/v1/app/tree', params)
 }
 
-// 更新工作空间配置（只更新 MySQL 记录，不涉及容器更新）
+// 更新工作空间配置（只更新 MySQL 记录，不涉及容器更新，canonical 标识为 resource_path）
 export function updateWorkspace(
-  user: string,
-  app: string,
+  resourcePath: string,
   data: { admins?: string; show_only_permitted?: boolean }
 ) {
   return put<{
     user: string
     app: string
     admins: string
-  }>(`/workspace/api/v1/app/workspace/${user}/${app}`, data)
+  }>('/workspace/api/v1/app/workspace', {
+    resource_path: normalizeResourcePath(resourcePath),
+    ...data
+  })
 }
 
 // 运行业务系统函数

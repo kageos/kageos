@@ -43,7 +43,7 @@ func NewFunction(functionService *service.FunctionService) *Function {
 // @Failure 403 {string} string "权限不足"
 // @Failure 404 {string} string "函数不存在"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/function/info/{func-type}/*full-code-path [get]
+// @Router /api/v1/function/info/{func-type}/{full-code-path} [get]
 func (f *Function) GetFunction(c *gin.Context) {
 	//// ⭐ 从路径参数获取函数类型和 full-code-path
 	//funcType := c.Param("func-type")

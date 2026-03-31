@@ -7,10 +7,10 @@ import (
 
 // WorkspaceChatReq 工作台对话请求（只认 LLM，单模式）
 type WorkspaceChatReq struct {
-	FullCodePath  string       `json:"full_code_path" binding:"required"` // 目录完整路径（必填）
-	Message       WorkspaceMsg `json:"message" binding:"required"`         // 本条消息
-	SessionID     string       `json:"session_id"`                         // 会话 ID，空则新建
-	LLMConfigID   int64        `json:"llm_config_id"`                      // LLM 配置 ID，0 表示使用默认 LLM
+	FullCodePath string       `json:"full_code_path" binding:"required"` // 目录完整路径（必填）
+	Message      WorkspaceMsg `json:"message" binding:"required"`        // 本条消息
+	SessionID    string       `json:"session_id"`                        // 会话 ID，空则新建
+	LLMConfigID  int64        `json:"llm_config_id"`                     // LLM 配置 ID，0 表示使用默认 LLM
 }
 
 // WorkspaceMsg 工作台单条消息
@@ -21,9 +21,9 @@ type WorkspaceMsg struct {
 
 // WorkspaceChatResp 工作台对话响应
 type WorkspaceChatResp struct {
-	SessionID   string                         `json:"session_id"`
-	Content     string                         `json:"content"`
-	ToolCalls   []WorkspaceChatToolCallSummary `json:"tool_calls,omitempty"`
+	SessionID string                         `json:"session_id"`
+	Content   string                         `json:"content"`
+	ToolCalls []WorkspaceChatToolCallSummary `json:"tool_calls,omitempty"`
 }
 
 // WorkspaceChatToolCallSummary 工作台单次 tool 调用摘要（供前端展示）
@@ -53,15 +53,15 @@ type ListWorkspaceSessionsResp struct {
 
 // WorkspaceSessionItem 工作台会话项
 type WorkspaceSessionItem struct {
-	SessionID    string      `json:"session_id"`              // 会话ID
-	Title        string      `json:"title"`                   // 会话标题
-	User         string      `json:"user"`                    // 创建该会话的用户
-	AgentID      *int64      `json:"agent_id"`                // 关联的智能体ID（可为空）
-	AgentName    string      `json:"agent_name"`              // 智能体名称（如果有）
-	Status       string      `json:"status"`                  // 会话状态（active/generating/done/cancelled）
+	SessionID    string      `json:"session_id"`               // 会话ID
+	Title        string      `json:"title"`                    // 会话标题
+	User         string      `json:"user"`                     // 创建该会话的用户
+	AgentID      *int64      `json:"agent_id"`                 // 关联的智能体ID（可为空）
+	AgentName    string      `json:"agent_name"`               // 智能体名称（如果有）
+	Status       string      `json:"status"`                   // 会话状态（active/generating/done/cancelled）
 	FullCodePath string      `json:"full_code_path,omitempty"` // 所属目录完整路径
-	CreatedAt    models.Time `json:"created_at"`              // 创建时间
-	UpdatedAt    models.Time `json:"updated_at"`              // 更新时间
+	CreatedAt    models.Time `json:"created_at"`               // 创建时间
+	UpdatedAt    models.Time `json:"updated_at"`               // 更新时间
 }
 
 // CancelWorkspaceChatReq 取消工作台会话执行请求
@@ -172,14 +172,15 @@ type CallToolResp struct {
 	IsError bool   `json:"is_error"`
 }
 
-// ----- 以下为 app-server 工作空间（user/app）更新接口使用 -----
+// ----- 以下为 app-server 工作空间资源更新接口使用（canonical 标识为 resource_path=/user/app） -----
 
-// UpdateWorkspaceReq 更新工作空间请求（只更新 MySQL 如 Admins、ShowOnlyPermitted；user/app 自路径参数填入）
+// UpdateWorkspaceReq 更新工作空间请求（只更新 MySQL 如 Admins、ShowOnlyPermitted；canonical 标识为 resource_path）
 type UpdateWorkspaceReq struct {
-	User               string `json:"-"`      // 从路径 :user 填入，不绑定 body
-	App                string `json:"-"`     // 从路径 :app 填入，不绑定 body
-	Admins             string `json:"admins"` // 管理员列表，逗号分隔
-	ShowOnlyPermitted  *bool  `json:"show_only_permitted,omitempty"` // 仅展示有权限的空间（nil 表示不更新）
+	User              string `json:"-"`                             // 兼容字段，优先从 resource_path 解析
+	App               string `json:"-"`                             // 兼容字段，优先从 resource_path 解析
+	ResourcePath      string `json:"resource_path,omitempty"`       // 工作空间资源路径，规范为 /user/app
+	Admins            string `json:"admins"`                        // 管理员列表，逗号分隔
+	ShowOnlyPermitted *bool  `json:"show_only_permitted,omitempty"` // 仅展示有权限的空间（nil 表示不更新）
 }
 
 // UpdateWorkspaceResp 更新工作空间响应
@@ -213,12 +214,12 @@ type WorkspaceContextNode struct {
 type WorkspaceContextDirectory struct {
 	ID              int64  `json:"id"`
 	Name            string `json:"name"`               // 目录名称
-	Code            string `json:"code"`                // 目录代码
+	Code            string `json:"code"`               // 目录代码
 	FullCodePath    string `json:"full_code_path"`     // 完整路径
 	Description     string `json:"description"`        // 目录描述
-	Type            string `json:"type"`                // 节点类型
-	PublishedToHub  bool   `json:"published_to_hub"`    // 当前目录是否已上架到应用中心（Hub）
-	HubFullCodePath string `json:"hub_full_code_path"`  // 已上架时在 Hub 的目录路径，未上架时为空
+	Type            string `json:"type"`               // 节点类型
+	PublishedToHub  bool   `json:"published_to_hub"`   // 当前目录是否已上架到应用中心（Hub）
+	HubFullCodePath string `json:"hub_full_code_path"` // 已上架时在 Hub 的目录路径，未上架时为空
 }
 
 // WorkspaceContextFile 工作台环境文件信息

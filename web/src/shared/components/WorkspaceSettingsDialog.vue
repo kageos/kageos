@@ -8,10 +8,10 @@
   >
     <div class="workspace-settings-dialog">
       <el-form label-width="120px">
-        <el-form-item label="工作空间">
+        <el-form-item label="资源路径">
           <div class="workspace-info">
             <div class="workspace-name">{{ currentApp?.name || currentApp?.code }}</div>
-            <div class="workspace-path">{{ currentApp?.user }}/{{ currentApp?.code }}</div>
+            <div class="workspace-path">{{ workspaceResourcePath }}</div>
           </div>
         </el-form-item>
         
@@ -33,7 +33,7 @@
             @update:modelValue="handleAdminsChange"
           />
           <div class="form-tip">
-            管理员拥有该工作空间的所有权限（app:admin）
+            管理员拥有该资源根路径下的所有权限（app:admin）
           </div>
         </el-form-item>
       </el-form>
@@ -55,6 +55,7 @@ import { ref, computed, watch } from 'vue'
 import { ElMessage, ElNotification } from 'element-plus'
 import type { App } from '@/types'
 import { updateWorkspace } from '@/api/app'
+import { buildAppResourcePath } from '@/utils/resourcePath'
 import UsersWidget from '@/shared/components/UsersWidget.vue'
 import type { FieldConfig, FieldValue } from '@/core/types/field'
 import { WidgetType } from '@/core/constants/widget'
@@ -75,6 +76,11 @@ const emit = defineEmits<Emits>()
 const visible = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value)
+})
+
+const workspaceResourcePath = computed(() => {
+  if (!props.currentApp) return ''
+  return buildAppResourcePath(props.currentApp.user, props.currentApp.code)
 })
 
 const saving = ref(false)
@@ -158,7 +164,7 @@ async function handleSave() {
     
     const admins = adminsArray.value.length > 0 ? adminsArray.value.join(',') : ''
     
-    await updateWorkspace(props.currentApp.user, props.currentApp.code, {
+    await updateWorkspace(buildAppResourcePath(props.currentApp.user, props.currentApp.code), {
       admins,
       show_only_permitted: showOnlyPermitted.value
     })

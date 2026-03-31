@@ -111,6 +111,7 @@ import {
   importHubDirectoryBundle,
   type PullDirectoryFromHubReq
 } from '@/api/hub'
+import { parseHubDirectoryBundleJson } from '@/utils/hubBundle'
 import type { App } from '@/types'
 
 interface Props {
@@ -215,24 +216,6 @@ const handlePaste = (event: ClipboardEvent) => {
   }
 }
 
-/** 解析 Hub 导出或裸 directory_tree 的 JSON */
-function parseHubBundleJson(text: string) {
-  const parsed = JSON.parse(text) as Record<string, unknown>
-  const tree = parsed.directory_tree
-  if (!tree || typeof tree !== 'object') {
-    throw new Error('JSON 中缺少 directory_tree 字段或格式无效')
-  }
-  const name = typeof parsed.name === 'string' ? parsed.name : ''
-  const fullCodePath = typeof parsed.full_code_path === 'string' ? parsed.full_code_path : ''
-  const versionNum = typeof parsed.version_num === 'number' ? parsed.version_num : 0
-  return {
-    directory_tree: tree as Record<string, unknown>,
-    hub_full_code_path: fullCodePath,
-    hub_version_num: versionNum,
-    hub_directory_name: name
-  }
-}
-
 function handleBundleFileChange(uploadFile: { raw?: File }) {
   const raw = uploadFile.raw
   if (!raw) return
@@ -310,11 +293,11 @@ const handleSubmit = async () => {
     ElMessage.warning('请粘贴或上传 JSON 安装包')
     return
   }
-  let bundle: ReturnType<typeof parseHubBundleJson>
+  let bundle: ReturnType<typeof parseHubDirectoryBundleJson>
   try {
-    bundle = parseHubBundleJson(raw)
+    bundle = parseHubDirectoryBundleJson(raw)
   } catch (e: any) {
-    ElMessage.error(e?.message || 'JSON 解析失败，请确认是应用中心导出的安装包')
+    ElMessage.error(e?.message || 'JSON 解析失败，请确认是应用中心导出的标准安装包')
     return
   }
 
@@ -323,10 +306,7 @@ const handleSubmit = async () => {
       target_user: props.currentApp.user,
       target_app: props.currentApp.code,
       ...(form.value.target_directory_path ? { target_directory_path: form.value.target_directory_path } : {}),
-      directory_tree: bundle.directory_tree,
-      ...(bundle.hub_full_code_path ? { hub_full_code_path: bundle.hub_full_code_path } : {}),
-      ...(bundle.hub_version_num ? { hub_version_num: bundle.hub_version_num } : {}),
-      ...(bundle.hub_directory_name ? { hub_directory_name: bundle.hub_directory_name } : {})
+      bundle
     }),
     '正在从离线安装包安装目录，请稍候…'
   )

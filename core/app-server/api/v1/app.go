@@ -65,17 +65,15 @@ func (a *App) CreateApp(c *gin.Context) {
 
 // UpdateApp 更新应用
 // @Summary 更新应用
-// @Description 更新应用代码并重新编译部署。路径传 user（租户）和 app（应用名），请求体传 CreateFunctions、SkipBuild 等。
+// @Description 更新应用代码并重新编译部署。canonical 入口使用 resource_path=/user/app，旧路径参数路由仅保留兼容。
 // @Tags 应用管理
 // @Accept json
 // @Produce json
-// @Param user path string true "租户用户名"
-// @Param app path string true "应用名"
 // @Param body body dto.UpdateAppReq false "CreateFunctions、SkipBuild 等"
 // @Success 200 {object} dto.UpdateAppResp "更新成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/app/update/{user}/{app} [post]
+// @Router /api/v1/app/update [post]
 func (a *App) UpdateApp(c *gin.Context) {
 	var resp *dto.UpdateAppResp
 	var err error
@@ -85,17 +83,18 @@ func (a *App) UpdateApp(c *gin.Context) {
 		return
 	}
 
-	user := c.Param("user")
-	app := c.Param("app")
-	if user == "" || app == "" {
-		response.FailWithMessage(c, "user 和 app 路径参数必填")
+	req := &dto.UpdateAppReq{}
+	if err := c.ShouldBindJSON(req); err != nil && err.Error() != "EOF" {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
 
-	req := &dto.UpdateAppReq{}
-	_ = c.ShouldBindJSON(req)
-	req.User = user
-	req.App = app
+	if user := c.Param("user"); user != "" {
+		req.User = user
+	}
+	if app := c.Param("app"); app != "" {
+		req.App = app
+	}
 
 	ctx := contextx.ToContext(c)
 	resp, err = a.appService.UpdateApp(ctx, req)
@@ -108,46 +107,32 @@ func (a *App) UpdateApp(c *gin.Context) {
 
 // UpdateWorkspace 更新工作空间
 // @Summary 更新工作空间
-// @Description 更新工作空间配置（只更新 MySQL 记录，不涉及容器更新）。A 用户可以更新 B 租户的工作空间（如果有 app:admin 权限）
+// @Description 更新工作空间配置（只更新 MySQL 记录，不涉及容器更新）。canonical 入口使用 resource_path=/user/app，旧路径参数路由仅保留兼容。
 // @Tags 应用管理
 // @Accept json
 // @Produce json
 // @Security ApiKeyAuth
 // @Param X-Token header string true "JWT Token"
-// @Param user path string true "租户用户名"
-// @Param app path string true "应用名"
 // @Param request body dto.UpdateWorkspaceReq true "更新工作空间请求"
 // @Success 200 {object} dto.UpdateWorkspaceResp "更新成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
 // @Failure 403 {string} string "无权限"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/app/workspace/:user/:app [put]
+// @Router /api/v1/app/workspace [put]
 func (a *App) UpdateWorkspace(c *gin.Context) {
-	// 从路径参数获取租户和应用信息
-	user := c.Param("user")
-	app := c.Param("app")
-	if user == "" {
-		response.FailWithMessage(c, "user parameter is required")
-		return
-	}
-	if app == "" {
-		response.FailWithMessage(c, "app parameter is required")
-		return
-	}
-
-	// 绑定请求体
 	var req dto.UpdateWorkspaceReq
-	// ⭐ user 和 app 从路径参数获取，不在请求体中
-	req.User = user
-	req.App = app
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
-	// ⭐ 确保 User 和 App 始终来自路径参数（防止请求体中覆盖，虽然 JSON tag 是 "-" 不会绑定）
-	req.User = user
-	req.App = app
+
+	if user := c.Param("user"); user != "" {
+		req.User = user
+	}
+	if app := c.Param("app"); app != "" {
+		req.App = app
+	}
 
 	ctx := contextx.ToContext(c)
 	resp, err := a.appService.UpdateWorkspace(ctx, &req)
@@ -414,38 +399,26 @@ func (a *App) CallbackApp(c *gin.Context) {
 
 // DeleteApp 删除应用
 // @Summary 删除应用
-// @Description 删除应用及其所有相关资源
+// @Description 删除应用及其所有相关资源。canonical 入口使用 query resource_path=/user/app，旧路径参数路由仅保留兼容。
 // @Tags 应用管理
 // @Accept json
 // @Produce json
-// @Param app path string true "应用名"
+// @Param resource_path query string false "工作空间资源路径，格式 /user/app"
 // @Success 200 {object} dto.DeleteAppResp "删除成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/app/delete/{app} [delete]
+// @Router /api/v1/app/delete [delete]
 func (a *App) DeleteApp(c *gin.Context) {
 	var resp *dto.DeleteAppResp
 	var err error
 
-	// 从JWT Token获取用户信息
-	user := contextx.GetRequestUser(c)
-	if user == "" {
-		response.FailWithMessage(c, "无法获取用户信息")
-		return
-	}
-
-	// 从路径参数获取应用信息
-	app := c.Param("app")
-
-	if app == "" {
-		response.FailWithMessage(c, "app parameter is required")
-		return
-	}
-
-	// 构建请求对象
+	resourcePath := c.Query("resource_path")
 	req := &dto.DeleteAppReq{
-		User: user,
-		App:  app,
+		ResourcePath: resourcePath,
+	}
+	if resourcePath == "" {
+		req.User = contextx.GetRequestUser(c)
+		req.App = c.Param("app")
 	}
 
 	ctx := contextx.ToContext(c)
@@ -522,42 +495,31 @@ func (a *App) GetApps(c *gin.Context) {
 
 // GetAppDetail 获取应用详情
 // @Summary 获取应用详情
-// @Description 根据应用代码获取应用详情信息
+// @Description 根据 resource_path=/user/app 获取应用详情信息，旧路径参数路由仅保留兼容。
 // @Tags 应用管理
 // @Accept json
 // @Produce json
 // @Security ApiKeyAuth
 // @Param X-Token header string true "JWT Token"
-// @Param app path string true "应用代码"
+// @Param resource_path query string false "工作空间资源路径，格式 /user/app"
 // @Success 200 {object} dto.GetAppDetailResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
 // @Failure 404 {string} string "应用不存在"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/app/detail/{app} [get]
+// @Router /api/v1/app/detail [get]
 func (a *App) GetAppDetail(c *gin.Context) {
 	var req dto.GetAppDetailReq
 	var resp *dto.GetAppDetailResp
 	var err error
 
-	// 从JWT Token获取用户信息
-	user := contextx.GetRequestUser(c)
-	if user == "" {
-		response.FailWithMessage(c, "无法获取用户信息")
-		return
-	}
-
-	// 从路径参数获取应用代码
-	app := c.Param("app")
-	if app == "" {
-		response.FailWithMessage(c, "app parameter is required")
-		return
-	}
-
-	// 构建请求对象
+	resourcePath := c.Query("resource_path")
 	req = dto.GetAppDetailReq{
-		User: user,
-		App:  app,
+		ResourcePath: resourcePath,
+	}
+	if resourcePath == "" {
+		req.User = contextx.GetRequestUser(c)
+		req.App = c.Param("app")
 	}
 
 	ctx := contextx.ToContext(c)
@@ -571,42 +533,30 @@ func (a *App) GetAppDetail(c *gin.Context) {
 
 // GetAppWithServiceTree 获取应用详情和服务目录树
 // @Summary 获取应用详情和服务目录树
-// @Description 根据应用代码获取应用详情和服务目录树（合并接口，减少请求次数）
+// @Description 根据 resource_path=/user/app 获取应用详情和服务目录树（合并接口，减少请求次数），旧路径参数路由仅保留兼容。
 // @Tags 应用管理
 // @Accept json
 // @Produce json
 // @Security ApiKeyAuth
 // @Param X-Token header string true "JWT Token"
-// @Param app path string true "应用代码"
+// @Param resource_path query string false "工作空间资源路径，格式 /user/app"
 // @Param type query string false "节点类型过滤（可选），如：package（只显示服务目录/包）、function（只显示函数/文件）"
 // @Success 200 {object} dto.GetAppWithServiceTreeResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
 // @Failure 404 {string} string "应用不存在"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/app/{app}/tree [get]
+// @Router /api/v1/app/tree [get]
 func (a *App) GetAppWithServiceTree(c *gin.Context) {
 	var req dto.GetAppWithServiceTreeReq
 	var resp *dto.GetAppWithServiceTreeResp
 	var err error
 
-	// ⭐ 从路径参数获取 user 和 app（不再从 JWT Token 获取）
-	user := c.Param("user")
-	app := c.Param("app")
-
-	if user == "" || app == "" {
-		response.FailWithMessage(c, "user 和 app 参数不能为空")
-		return
-	}
-
-	// 从查询参数获取节点类型过滤
-	nodeType := c.Query("type")
-
-	// 构建请求对象
 	req = dto.GetAppWithServiceTreeReq{
-		User: user,
-		App:  app,
-		Type: nodeType,
+		User:         c.Param("user"),
+		App:          c.Param("app"),
+		ResourcePath: c.Query("resource_path"),
+		Type:         c.Query("type"),
 	}
 
 	// 调用 ServiceTreeService 的方法（避免循环依赖）

@@ -23,7 +23,6 @@ func NewPermission(permissionService *service.PermissionService) *Permission {
 	}
 }
 
-
 // ApplyPermission 权限申请
 // @Summary 权限申请
 // @Description 用户申请资源权限，创建申请记录，等待管理员审批
@@ -74,7 +73,7 @@ func (p *Permission) ApplyPermission(c *gin.Context) {
 // @Produce json
 // @Security ApiKeyAuth
 // @Param X-Token header string true "JWT Token"
-// @Param app_id query int true "应用ID"
+// @Param resource_path query string true "工作空间资源路径，格式 /user/app"
 // @Param username query string false "用户名（可选，不传则获取当前用户权限）"
 // @Param department_full_path query string false "组织架构路径（可选，不传则从 context 获取）"
 // @Success 200 {object} dto.GetWorkspacePermissionsResp "查询成功"
@@ -89,9 +88,8 @@ func (p *Permission) GetWorkspacePermissions(c *gin.Context) {
 		return
 	}
 
-	// ⭐ 参数验证：必须提供 user 和 app
-	if req.User == "" || req.App == "" {
-		response.FailWithMessage(c, "必须提供 user 和 app 参数")
+	if req.ResourcePath == "" && (req.User == "" || req.App == "") {
+		response.FailWithMessage(c, "必须提供 resource_path 或 user/app 参数")
 		return
 	}
 
@@ -230,7 +228,6 @@ func (p *Permission) RejectPermissionRequest(c *gin.Context) {
 
 	response.OkWithMessage(c, "审批拒绝成功")
 }
-
 
 // GetPermissionRequests 获取权限申请列表
 // @Summary 获取权限申请列表

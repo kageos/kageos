@@ -50,6 +50,13 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 
 // UpdateApp 更新应用（更新应用代码并重新编译部署）
 func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto.UpdateAppResp, error) {
+	user, appCode, err := resolveUserAppFromResourcePath(req.ResourcePath, req.User, req.App)
+	if err != nil {
+		return nil, err
+	}
+	req.User = user
+	req.App = appCode
+
 	// 记录开始时间（用于计算变更耗时）
 	startTime := time.Now()
 
@@ -696,6 +703,13 @@ func (a *AppService) deleteFunctionsForAPIs(ctx context.Context, appID int64, ap
 
 // DeleteApp 删除应用
 func (a *AppService) DeleteApp(ctx context.Context, req *dto.DeleteAppReq) (*dto.DeleteAppResp, error) {
+	user, appCode, err := resolveUserAppFromResourcePath(req.ResourcePath, req.User, req.App)
+	if err != nil {
+		return nil, err
+	}
+	req.User = user
+	req.App = appCode
+
 	// 根据应用信息获取 NATS 连接
 	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
 	if err != nil {
@@ -768,6 +782,13 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 
 // GetAppDetail 获取应用详情
 func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq) (*dto.GetAppDetailResp, error) {
+	user, appCode, err := resolveUserAppFromResourcePath(req.ResourcePath, req.User, req.App)
+	if err != nil {
+		return nil, err
+	}
+	req.User = user
+	req.App = appCode
+
 	// 从数据库获取应用信息
 	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
 	if err != nil {
@@ -805,6 +826,13 @@ func (a *AppService) GetAppByUserName(ctx context.Context, user, app string) (*m
 
 // UpdateWorkspace 更新工作空间（只更新 MySQL 记录，不涉及容器更新）
 func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspaceReq) (*dto.UpdateWorkspaceResp, error) {
+	user, appCode, err := resolveUserAppFromResourcePath(req.ResourcePath, req.User, req.App)
+	if err != nil {
+		return nil, err
+	}
+	req.User = user
+	req.App = appCode
+
 	// 获取应用信息
 	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
 	if err != nil {

@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
@@ -184,6 +185,63 @@ func (d *Directory) GetDirectoryDetail(c *gin.Context) {
 	}
 
 	response.OkWithData(c, resp)
+}
+
+// ExportDirectoryBundle 导出标准 JSON 安装包
+// @Summary 导出 JSON 安装包
+// @Description 导出目录的标准 JSON 安装包，供主站离线安装使用
+// @Tags Hub目录管理
+// @Accept json
+// @Produce application/json
+// @Param request query dto.ExportHubDirectoryBundleRequest true "查询参数"
+// @Success 200 {file} file "JSON 安装包"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 404 {string} string "目录不存在"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/hub/directories/export_bundle [get]
+func (d *Directory) ExportDirectoryBundle(c *gin.Context) {
+	var req dto.ExportHubDirectoryBundleRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	if req.HubDirectoryID == 0 && req.FullCodePath == "" {
+		response.FailWithMessage(c, "必须提供 hub_directory_id 或 full_code_path 之一")
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	host := config.GetHubConfig().GetPublicHost()
+	if host == "" {
+		host = contextx.GetPresignHost(c)
+	}
+	if host == "" {
+		host = c.Request.Host
+	}
+
+	bundle, err := d.directoryService.ExportDirectoryBundle(ctx, req.HubDirectoryID, req.FullCodePath, req.Version, host)
+	if err != nil {
+		logger.Errorf(ctx, "[Directory] 导出目录安装包失败: %v", err)
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	payload, err := json.MarshalIndent(bundle, "", "  ")
+	if err != nil {
+		logger.Errorf(ctx, "[Directory] 序列化目录安装包失败: %v", err)
+		response.FailWithMessage(c, "序列化安装包失败")
+		return
+	}
+
+	versionLabel := req.Version
+	if versionLabel == "" && bundle.HubVersionNum > 0 {
+		versionLabel = fmt.Sprintf("v%d", bundle.HubVersionNum)
+	}
+	filename := service.BuildHubDirectoryBundleDownloadFileName(bundle.HubFullCodePath, versionLabel)
+	c.Header("Content-Type", "application/json; charset=utf-8")
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	c.Header("Cache-Control", "no-store")
+	c.Data(200, "application/json; charset=utf-8", payload)
 }
 
 // GetDirectoryVersions 获取目录版本列表

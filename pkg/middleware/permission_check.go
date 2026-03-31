@@ -158,7 +158,7 @@ func CheckFunctionRead() gin.HandlerFunc {
 		// 从 URL 路径参数提取函数类型和 full-code-path
 		funcType := c.Param("func-type")
 		fullCodePath := c.Param("full-code-path")
-		
+
 		if fullCodePath == "" {
 			response.PermissionDenied(c, "无法获取资源路径", map[string]interface{}{
 				"resource_path": "",
@@ -252,17 +252,22 @@ func CheckAppUpdate() gin.HandlerFunc {
 // CheckAppDelete 检查应用删除权限
 func CheckAppDelete() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 从路径参数获取应用信息，构建 full-code-path
-		app := c.Param("app")
-		user := contextx.GetRequestUser(c)
-		if user == "" || app == "" {
+		fullCodePath := strings.TrimSpace(c.Query("resource_path"))
+		if fullCodePath == "" {
+			// 兼容旧路由：从路径参数获取应用信息，构建 full-code-path
+			app := c.Param("app")
+			user := contextx.GetRequestUser(c)
+			if user != "" && app != "" {
+				fullCodePath = "/" + user + "/" + app
+			}
+		}
+		if fullCodePath == "" {
 			response.PermissionDenied(c, "无法获取用户信息或应用信息", map[string]interface{}{
 				"resource_path": "",
 				"action":        "app:delete",
 			})
 			return
 		}
-		fullCodePath := "/" + user + "/" + app
 		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionDelete)
 		if !checkPermissionForPath(c, fullCodePath, action, "无权限删除该应用") {
 			return
@@ -284,10 +289,10 @@ func CheckWorkspaceUpdate() gin.HandlerFunc {
 			})
 			return
 		}
-		
+
 		// 构建 full-code-path
 		fullCodePath := "/" + user + "/" + app
-		
+
 		// 检查是否有 app:admin 权限
 		actionCode := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionAdmin)
 		if !checkPermissionForPath(c, fullCodePath, actionCode, "无权限更新该工作空间") {
@@ -371,37 +376,37 @@ func getActionDisplayName(action string) string {
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, permissionconstants.ActionWrite):  "表格写入",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, permissionconstants.ActionUpdate): "表格更新",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, permissionconstants.ActionDelete): "表格删除",
-		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, permissionconstants.ActionAdmin): "表格管理",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, permissionconstants.ActionAdmin):  "表格管理",
 		// Form 函数操作
-		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeForm, permissionconstants.ActionRead):   "表单查看",
-		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeForm, permissionconstants.ActionWrite):  "表单提交",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeForm, permissionconstants.ActionRead):  "表单查看",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeForm, permissionconstants.ActionWrite): "表单提交",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeForm, permissionconstants.ActionAdmin): "表单管理",
 		// Chart 函数操作
-		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeChart, permissionconstants.ActionRead):   "图表查看",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeChart, permissionconstants.ActionRead):  "图表查看",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeChart, permissionconstants.ActionAdmin): "图表管理",
 		// Directory 操作
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDirectory, permissionconstants.ActionRead):   "目录查看",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDirectory, permissionconstants.ActionWrite):  "目录写入",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDirectory, permissionconstants.ActionUpdate): "目录更新",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDirectory, permissionconstants.ActionDelete): "目录删除",
-		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDirectory, permissionconstants.ActionAdmin): "目录管理",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDirectory, permissionconstants.ActionAdmin):  "目录管理",
 		// App 操作
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionRead):   "工作空间查看",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionWrite):  "工作空间创建",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionUpdate): "工作空间更新",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionDelete): "工作空间删除",
-		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionAdmin): "工作空间管理",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionAdmin):  "工作空间管理",
 		// Docs 操作
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionRead):   "文档查看",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionWrite):  "文档编辑",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionDelete): "文档删除",
-		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionAdmin): "文档管理",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionAdmin):  "文档管理",
 		// Board 讨论区操作
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, permissionconstants.ActionRead):   "帖子查看",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, permissionconstants.ActionWrite):  "发帖",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, permissionconstants.ActionUpdate): "帖子更新",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, permissionconstants.ActionDelete): "帖子删除",
-		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, permissionconstants.ActionAdmin): "板块管理",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, permissionconstants.ActionAdmin):  "板块管理",
 	}
 
 	if displayName, ok := displayNames[action]; ok {

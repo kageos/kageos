@@ -16,6 +16,7 @@ import { WorkspaceDomainService } from '../../domain/services/WorkspaceDomainSer
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { WorkspaceEvent } from '../../domain/interfaces/IEventBus'
 import type { App, ServiceTree } from '../../domain/services/WorkspaceDomainService'
+import { buildAppResourcePath } from '@/utils/resourcePath'
 
 /**
  * 工作空间应用服务
@@ -167,8 +168,8 @@ export class WorkspaceApplicationService {
         try {
           // 动态导入 getAppWithServiceTree，避免循环依赖
           const { getAppWithServiceTree } = await import('@/api/app')
-          // ⭐ 传递 user 和 app，而不是只传 code
-          const workspaceData = await getAppWithServiceTree(app.user, app.code)
+          // ⭐ 统一通过 resource_path 获取完整工作空间数据
+          const workspaceData = await getAppWithServiceTree(buildAppResourcePath(app.user, app.code))
           if (workspaceData && workspaceData.app) {
             // ⭐ 使用完整的 app 对象，包含所有字段（包括 admins）
             appToSwitch = workspaceData.app as App
@@ -234,4 +235,3 @@ export class WorkspaceApplicationService {
     await this.domainService.loadServiceTree(currentApp)
   }
 }
-

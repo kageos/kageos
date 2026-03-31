@@ -74,6 +74,13 @@ func getServiceTreeByAppModelImpl(s *ServiceTreeService, ctx context.Context, ap
 }
 
 func getAppWithServiceTreeImpl(s *ServiceTreeService, ctx context.Context, req *dto.GetAppWithServiceTreeReq) (*dto.GetAppWithServiceTreeResp, error) {
+	user, appCode, err := resolveUserAppFromResourcePath(req.ResourcePath, req.User, req.App)
+	if err != nil {
+		return nil, err
+	}
+	req.User = user
+	req.App = appCode
+
 	appModel, err := s.appRepo.GetAppByUserName(req.User, req.App)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

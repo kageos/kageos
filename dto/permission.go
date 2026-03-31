@@ -24,8 +24,9 @@ type ApplyPermissionResp struct {
 // GetWorkspacePermissionsReq 获取工作空间权限请求
 // ⭐ 支持传递用户和组织架构参数，使方法可复用（既可以获取当前用户权限，也可以获取其他用户权限）
 type GetWorkspacePermissionsReq struct {
-	User               string `json:"user" form:"user"`                                                     // 工作空间所属用户（必填）
-	App                string `json:"app" form:"app"`                                                       // 工作空间应用代码（必填）
+	ResourcePath       string `json:"resource_path,omitempty" form:"resource_path,omitempty"`               // 工作空间资源路径，规范为 /user/app
+	User               string `json:"user,omitempty" form:"user,omitempty"`                                 // 工作空间所属用户（兼容旧接口，可选）
+	App                string `json:"app,omitempty" form:"app,omitempty"`                                   // 工作空间应用代码（兼容旧接口，可选）
 	Username           string `json:"username,omitempty" form:"username,omitempty"`                         // 用户名（可选，如果不提供则从 context 获取当前用户）
 	DepartmentFullPath string `json:"department_full_path,omitempty" form:"department_full_path,omitempty"` // 组织架构路径（可选，如果不提供则从 context 获取）
 }
@@ -56,7 +57,7 @@ type CreatePermissionRequestReq struct {
 	RoleID            int64        `json:"role_id" binding:"required"`       // 角色ID（必填）
 	SubjectType       string       `json:"subject_type" binding:"required"`  // 权限主体类型：user 或 department
 	Subject           string       `json:"subject" binding:"required"`       // 权限主体：用户名或组织架构路径
-	ApplicantUsername string       `json:"applicant_username"`              // 申请人用户名（可选，通常从 context 获取）
+	ApplicantUsername string       `json:"applicant_username"`               // 申请人用户名（可选，通常从 context 获取）
 	StartTime         models.Time  `json:"start_time"`                       // 权限开始时间（可选，默认为当前时间）
 	EndTime           *models.Time `json:"end_time"`                         // 权限结束时间（nil 表示永久）
 	Reason            string       `json:"reason"`                           // 申请原因（可选）
@@ -112,9 +113,9 @@ type PermissionRequest struct {
 	AppID             int64  `json:"app_id"`             // 工作空间ID
 	ApplicantUsername string `json:"applicant_username"` // 申请人用户名
 	SubjectType       string `json:"subject_type"`       // 权限主体类型
-	Subject           string `json:"subject"`             // 权限主体
+	Subject           string `json:"subject"`            // 权限主体
 	ResourcePath      string `json:"resource_path"`      // 资源路径
-	RoleID            int64  `json:"role_id"`             // 角色ID
+	RoleID            int64  `json:"role_id"`            // 角色ID
 	Status            string `json:"status"`             // 申请状态
 }
 

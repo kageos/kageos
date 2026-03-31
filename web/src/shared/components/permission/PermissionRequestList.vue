@@ -108,7 +108,7 @@
                 {{ getStatusText(request.status) }}
               </el-tag>
             </div>
-            <div class="request-actions" v-if="request.status === 'pending' && canApprove">
+            <div class="request-actions" v-if="canApproveRequest(request)">
               <el-button
                 type="success"
                 size="small"
@@ -298,6 +298,7 @@ import { WidgetType } from '@/core/constants/widget'
 import type { FieldConfig, FieldValue } from '@/core/types/field'
 import type { Department } from '@/api/department'
 import type { Role } from '@/api/role'
+import { canApprovePermissionRequest } from '@/utils/permissionActors'
 
 interface Props {
   resourcePath?: string  // 资源路径（可选，如果提供则只显示该资源的申请）
@@ -460,10 +461,11 @@ async function submitGrant() {
 
 // 获取当前用户
 const authStore = useAuthStore()
-const canApprove = computed(() => {
-  // 只有管理员可以审批，这里可以根据实际情况判断
-  return true  // TODO: 根据实际权限判断
-})
+const currentUsername = computed(() => authStore.user?.username || '')
+
+function canApproveRequest(request: PermissionRequest): boolean {
+  return canApprovePermissionRequest(currentUsername.value, request.approvers, request.status)
+}
 
 // 加载申请列表
 const loadRequests = async () => {

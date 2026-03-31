@@ -348,8 +348,6 @@
                 ref="permissionManageListRef"
                 :resource-path="packageNode?.full_code_path"
                 :resource-type="resourceType"
-                :user="getUserFromPath(packageNode?.full_code_path) || ''"
-                :app="getAppFromPath(packageNode?.full_code_path) || ''"
                 :auto-load="activeTab === 'permissionManage'"
               />
             </div>
@@ -626,6 +624,7 @@ import { useAuthStore } from '@/stores/auth'
 import { updatePackage, addFunctionsToDirectory } from '@/api/service-tree'
 import PermissionRequestList from '@/shared/components/permission/PermissionRequestList.vue'
 import PermissionManageList from '@/shared/components/permission/PermissionManageList.vue'
+import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
 
 interface Props {
   packageNode?: ServiceTree | null
@@ -660,13 +659,7 @@ const showPermissionRequestTab = computed(() => {
     return false
   }
   
-  // 检查是否是管理员
-  if (!props.packageNode.admins || !authStore.user?.username) {
-    return false
-  }
-  
-  const admins = props.packageNode.admins.split(',').map((a: string) => a.trim()).filter(Boolean)
-  return admins.includes(authStore.user.username)
+  return isServiceTreeNodeAdmin(props.packageNode, authStore.user?.username)
 })
 
 // ⭐ 计算资源类型（用于权限组件）
@@ -683,25 +676,6 @@ const totalRunCount = computed(() => {
     .filter((c: ServiceTree) => c.type === 'function')
     .reduce((sum: number, c: ServiceTree) => sum + (c.run_count ?? 0), 0)
 })
-
-// 从路径解析 user 和 app
-const getUserFromPath = (fullCodePath?: string): string => {
-  if (!fullCodePath) return ''
-  const pathParts = fullCodePath.split('/').filter(Boolean)
-  if (pathParts.length > 0 && pathParts[0]) {
-    return pathParts[0]
-  }
-  return ''
-}
-
-const getAppFromPath = (fullCodePath?: string): string => {
-  if (!fullCodePath) return ''
-  const pathParts = fullCodePath.split('/').filter(Boolean)
-  if (pathParts.length > 1 && pathParts[1]) {
-    return pathParts[1]
-  }
-  return ''
-}
 
 // 处理 tab 切换
 const handleTabChange = (tabName: string) => {

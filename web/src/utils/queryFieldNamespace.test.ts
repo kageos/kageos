@@ -3,7 +3,8 @@ import {
   deleteScopedFieldQueryKey,
   getFormDraftQueryKey,
   getScopedFieldQueryValue,
-  getSearchFieldQueryKey
+  getSearchFieldQueryKey,
+  shouldAllowLegacyFormDraftFallback
 } from './queryFieldNamespace'
 
 describe('queryFieldNamespace', () => {
@@ -38,5 +39,24 @@ describe('queryFieldNamespace', () => {
 
     deleteScopedFieldQueryKey(query, 'status', 'search')
     expect(query).toEqual({})
+  })
+
+  it('allows legacy form draft fallback for link navigation add-dialog URLs', () => {
+    expect(
+      shouldAllowLegacyFormDraftFallback({
+        _tab: 'OnTableAddRow',
+        _link_type: 'table',
+        job_id: '6'
+      })
+    ).toBe(true)
+  })
+
+  it('disables legacy form draft fallback for normal add-dialog URLs', () => {
+    expect(
+      shouldAllowLegacyFormDraftFallback({
+        _tab: 'OnTableAddRow',
+        job_id: '6'
+      })
+    ).toBe(false)
   })
 })

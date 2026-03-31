@@ -4,7 +4,7 @@
  * 职责：实现 IFunctionLoader 接口，提供函数加载功能（带防抖和去重）
  * 
  * 特点：
- * - 支持根据 ID 或路径加载函数详情
+ * - 只支持根据 full-code-path 加载函数详情
  * - 内置缓存机制
  * - 防抖和去重，避免重复调用
  * - 解决当前架构的重复调用问题
@@ -29,37 +29,6 @@ export class FunctionLoaderImpl implements IFunctionLoader {
     private cacheManager: ICacheManager,
     private debounceDelay: number = 300 // 防抖延迟（毫秒）
   ) {}
-
-  /**
-   * 根据 ID 加载函数详情
-   */
-  async loadById(id: number): Promise<FunctionDetail> {
-    const cacheKey = `function:id:${id}`
-    
-    // 先检查缓存
-    const cached = this.cacheManager.get<FunctionDetail>(cacheKey)
-    if (cached) {
-      return cached
-    }
-
-    // 检查是否有正在进行的请求（去重）
-    const pendingKey = `id:${id}`
-    if (this.pendingRequests.has(pendingKey)) {
-      return this.pendingRequests.get(pendingKey)!
-    }
-
-    // 创建新请求
-    const request = this.loadFunctionById(id, cacheKey)
-    this.pendingRequests.set(pendingKey, request)
-
-    try {
-      const result = await request
-      return result
-    } finally {
-      // 请求完成后移除
-      this.pendingRequests.delete(pendingKey)
-    }
-  }
 
   /**
    * 根据路径加载函数详情（带防抖）
@@ -113,18 +82,9 @@ export class FunctionLoaderImpl implements IFunctionLoader {
   /**
    * 获取缓存的函数详情
    */
-  getCached(id?: number, path?: string): FunctionDetail | null {
-    if (id !== undefined) {
-      const cacheKey = `function:id:${id}`
-      return this.cacheManager.get<FunctionDetail>(cacheKey)
-    }
-    
-    if (path !== undefined) {
-      const cacheKey = `function:path:${path}`
-      return this.cacheManager.get<FunctionDetail>(cacheKey)
-    }
-
-    return null
+  getCached(path: string): FunctionDetail | null {
+    const cacheKey = `function:path:${path}`
+    return this.cacheManager.get<FunctionDetail>(cacheKey)
   }
 
   /**
@@ -138,23 +98,6 @@ export class FunctionLoaderImpl implements IFunctionLoader {
         this.cacheManager.delete(key)
       }
     })
-  }
-
-  /**
-   * 根据 ID 加载函数详情（内部方法）
-   * ⭐ 注意：新路由只支持 full-code-path，如果只有 function_id，需要先查询 full-code-path
-   */
-  private async loadFunctionById(id: number, cacheKey: string): Promise<FunctionDetail> {
-    // ⭐ 临时兼容：使用旧的 API（如果后端还支持）
-    // TODO: 建议改为先查询 function_id 对应的 full-code-path，然后调用 loadFunctionByPath
-    const response = await this.apiClient.get<FunctionDetail>('/workspace/api/v1/function/get', {
-      function_id: id
-    })
-    
-    // 缓存结果
-    this.cacheManager.set(cacheKey, response)
-    
-    return response
   }
 
   /**

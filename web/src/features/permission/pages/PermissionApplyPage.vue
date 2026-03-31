@@ -435,6 +435,8 @@ import type { UserInfo } from '@/types'
 import UsersWidget from '@/shared/components/UsersWidget.vue'
 import type { FieldConfig, FieldValue } from '@/core/types/field'
 import { WidgetType } from '@/core/constants/widget'
+import { isServiceTreeNodeAdmin, parseUsernameList } from '@/utils/permissionActors'
+import { buildAppResourcePath, parseResourcePath } from '@/utils/resourcePath'
 
 const route = useRoute()
 const router = useRouter()
@@ -491,7 +493,7 @@ const getScopeTypeLabel = (resourceType: PermissionResourceType): string => {
     case 'directory':
       return '目录'
     case 'app':
-      return '工作空间'
+      return '资源根路径'
     case 'docs':
       return '文档'
     case 'board':
@@ -578,11 +580,7 @@ const currentUser = computed(() => authStore.user)
 
 // 检查是否是管理员
 const isAdmin = (node: ServiceTree): boolean => {
-  if (!node.admins || !currentUser.value?.username) {
-    return false
-  }
-  const admins = node.admins.split(',').map(a => a.trim()).filter(Boolean)
-  return admins.includes(currentUser.value.username)
+  return isServiceTreeNodeAdmin(node, currentUser.value?.username)
 }
 
 // 检查当前节点是否有 manage 权限
@@ -748,8 +746,7 @@ const approvers = computed(() => {
   if (!selectedResourcePath.value) return []
   const node = findNodeInTree(serviceTree.value, selectedResourcePath.value)
   if (!node || !node.admins) return []
-  // admins 是逗号分隔的字符串
-  return node.admins.split(',').filter(Boolean).map(u => u.trim())
+  return parseUsernameList(node.admins)
 })
 
 // 审批人字段配置（用于 UsersWidget）
@@ -931,24 +928,23 @@ onMounted(async () => {
     error_message: '',
   }
 
-  // 解析资源路径，获取 user 和 app
-  const pathParts = resourcePath.split('/').filter(Boolean)
-  if (pathParts.length < 2) {
+  const parsedResourcePath = parseResourcePath(resourcePath)
+  if (!parsedResourcePath) {
     error.value = '资源路径格式错误'
     loading.value = false
     return
   }
 
-  const user = pathParts[0]!
-  const app = pathParts[1]!
+  const { user, app } = parsedResourcePath
+  const workspaceResourcePath = buildAppResourcePath(user, app)
 
   // 加载服务树和工作空间信息
   try {
     // ⭐ 加载服务树
-    const treeResponse = await getAppWithServiceTree(user, app)
+    const treeResponse = await getAppWithServiceTree(workspaceResourcePath)
     
     // ⭐ 直接使用 user 和 app 查询权限（无需查询 app_id，性能更好）
-    const permissionsResponse = await getWorkspacePermissions({ user, app }).catch(err => {
+    const permissionsResponse = await getWorkspacePermissions({ resource_path: workspaceResourcePath }).catch(err => {
           console.warn('获取工作空间权限失败:', err)
           return null
         })
@@ -1195,7 +1191,7 @@ const loadResourcePermissions = async (resourcePath: string, defaultAction?: str
     ? `文档：${node?.name || resourceName}`
     : resourceType === 'board'
     ? `讨论区：${node?.name || resourceName}`
-    : `工作空间：${node?.name || parsed[1] || '工作空间'}`
+    : `资源根路径：${node?.name || parsed[1] || '资源根路径'}`
   
   const permissions = getAvailablePermissions(resourcePath, resourceType, templateType)
   
@@ -1218,7 +1214,7 @@ const loadResourcePermissions = async (resourcePath: string, defaultAction?: str
       label: '申请此讨论区的全部权限',
       actions: permissions.map(p => p.action)
     } : {
-      label: '申请此工作空间的管理权限',
+      label: '申请此资源根路径的管理权限',
       actions: ['app:admin']
     }
   }
@@ -2202,7 +2198,7 @@ const getRolePermissions = (role: Role): Record<string, string[]> => {
 // ⭐ 获取资源类型标签
 const getResourceTypeLabel = (resourceType: string): string => {
   const labels: Record<string, string> = {
-    'app': '工作空间',
+    'app': '资源根路径',
     'directory': '目录',
     'function': '函数',
     'function:table': '表格',

@@ -385,7 +385,6 @@
       mode="create"
       :router="props.functionDetail.router ?? ''"
       :method="props.functionDetail.method || 'POST'"
-      :initial-data="createFormInitialData"
       @submit="handleCreateSubmit"
       @close="handleCreateDialogClose"
     />
@@ -422,7 +421,6 @@ import { hasPermission, TablePermission, getPermissionShortName } from '@/utils/
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
-import { getScopedFieldQueryValue } from '@/utils/queryFieldNamespace'
 import { buildNextTableSyncQuery } from './utils/tableViewURLRuntime'
 import {
   buildTableLoadRequest,
@@ -699,52 +697,6 @@ const handleBatchDelete = async (): Promise<void> => {
 
 // 创建对话框
 const createDialogVisible = ref(false)
-
-// 从 URL 查询参数中提取新增表单的初始数据
-const createFormInitialData = computed(() => {
-  const initialData: Record<string, any> = {}
-  const query = route.query
-  
-  // 只有存在 _tab=OnTableAddRow 参数时才提取初始数据
-  if (query._tab !== 'OnTableAddRow') {
-    return initialData
-  }
-  
-  // 遍历所有查询参数，如果字段在 response 中，添加到 initialData
-  if (props.functionDetail?.response) {
-    props.functionDetail.response.forEach((field: FieldConfig) => {
-      const fieldCode = field.code
-      const queryValue = getScopedFieldQueryValue(query, fieldCode, 'form', {
-        fallbackToLegacyRaw: false
-      })
-      
-      // 🔥 处理数组类型的查询参数（取第一个值）
-      const value = Array.isArray(queryValue) ? queryValue[0] : queryValue
-      
-      if (value !== undefined && value !== null && value !== '') {
-        // 类型转换：根据字段类型转换值
-        if (field.data?.type === 'int' || field.data?.type === 'integer') {
-          const intValue = parseInt(String(value), 10)
-          if (!isNaN(intValue)) {
-            initialData[fieldCode] = intValue
-          }
-        } else if (field.data?.type === 'float' || field.data?.type === 'number') {
-          const floatValue = parseFloat(String(value))
-          if (!isNaN(floatValue)) {
-            initialData[fieldCode] = floatValue
-          }
-        } else if (field.data?.type === 'bool' || field.data?.type === 'boolean') {
-          const strValue = String(value)
-          initialData[fieldCode] = strValue === 'true' || strValue === '1'
-        } else {
-          initialData[fieldCode] = value
-        }
-      }
-    })
-  }
-  
-  return initialData
-})
 
 // ==================== 用户信息预加载 ====================
 

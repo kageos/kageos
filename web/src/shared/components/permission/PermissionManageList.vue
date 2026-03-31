@@ -142,12 +142,11 @@ import UsersWidget from '@/shared/components/UsersWidget.vue'
 import DepartmentsWidget from '@/shared/components/DepartmentsWidget.vue'
 import { WidgetType } from '@/core/constants/widget'
 import type { FieldConfig, FieldValue } from '@/core/types/field'
+import { parseResourcePath } from '@/utils/resourcePath'
 
 interface Props {
   resourcePath?: string  // 资源路径（可选，如果提供则使用该路径，否则从路由获取）
   resourceType?: 'function' | 'directory' | 'app'  // 资源类型（可选）
-  user?: string  // 租户用户（可选，如果提供则使用，否则从 resourcePath 解析）
-  app?: string  // 应用代码（可选，如果提供则使用，否则从 resourcePath 解析）
   autoLoad?: boolean  // 是否自动加载
 }
 
@@ -185,27 +184,6 @@ const getResourcePath = computed(() => {
   return '/' + fullPath.split('/').filter(Boolean).join('/')
 })
 
-// 获取 user 和 app
-const getUserAndApp = computed(() => {
-  // 优先使用 props 传入的 user 和 app
-  if (props.user && props.app) {
-    return {
-      user: props.user,
-      app: props.app
-    }
-  }
-  
-  // 否则从 resourcePath 解析
-  const pathParts = getResourcePath.value.split('/').filter(Boolean)
-  if (pathParts.length < 2) {
-    return { user: '', app: '' }
-  }
-  return {
-    user: pathParts[0],
-    app: pathParts[1]
-  }
-})
-
 // 加载权限列表
 const loadPermissions = async () => {
   const resourcePath = getResourcePath.value
@@ -214,17 +192,9 @@ const loadPermissions = async () => {
     return
   }
 
-  const { user, app } = getUserAndApp.value
-  if (!user || !app) {
-    ElMessage.warning('无法获取用户和应用信息')
-    return
-  }
-
   loading.value = true
   try {
     const response = await getResourcePermissions({
-      user,
-      app,
       resource_path: resourcePath
     })
     allAssignments.value = response.assignments || []
@@ -341,9 +311,9 @@ const handleDelete = async (assignment: ResourcePermissionAssignment) => {
       }
     )
 
-    const { user, app } = getUserAndApp.value
-    if (!user || !app) {
-      ElMessage.error('无法获取用户和应用信息')
+    const parsedResourcePath = parseResourcePath(assignment.resource_path)
+    if (!parsedResourcePath) {
+      ElMessage.error('资源路径格式错误')
       return
     }
 
@@ -362,8 +332,6 @@ const handleDelete = async (assignment: ResourcePermissionAssignment) => {
 
     if (assignment.subject_type === 'user') {
       await removeRoleFromUser({
-        user,
-        app,
         username: assignment.subject,
         role_code: assignment.role_code,
         resource_type: resourceType,
@@ -371,8 +339,6 @@ const handleDelete = async (assignment: ResourcePermissionAssignment) => {
       })
     } else {
       await removeRoleFromDepartment({
-        user,
-        app,
         department_path: assignment.subject,
         role_code: assignment.role_code,
         resource_type: resourceType,
