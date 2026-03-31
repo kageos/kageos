@@ -122,8 +122,7 @@ export function getPermissionApplication(id: string): Promise<any> {
  * 获取工作空间权限请求参数
  */
 export interface GetWorkspacePermissionsReq {
-  user: string  // 工作空间所属用户（必填）
-  app: string   // 工作空间应用代码（必填）
+  resource_path: string  // 工作空间资源路径，规范为 /user/app
 }
 
 /**
@@ -170,8 +169,6 @@ export function addPermission(data: AddPermissionReq): Promise<void> {
  * 查询资源的所有权限分配请求参数
  */
 export interface GetResourcePermissionsReq {
-  user: string  // 租户用户（必填）
-  app: string   // 应用代码（必填）
   resource_path: string  // 资源路径（full-code-path，必填）
 }
 
@@ -209,4 +206,3 @@ export interface GetResourcePermissionsResp {
 export function getResourcePermissions(params: GetResourcePermissionsReq): Promise<GetResourcePermissionsResp> {
   return get<GetResourcePermissionsResp>('/workspace/api/v1/permission/resource', params)
 }
-

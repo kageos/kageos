@@ -115,8 +115,7 @@ func (s *ServiceTreeService) loadWorkspacePermissionContext(ctx context.Context,
 	}
 
 	permReq := &dto.GetWorkspacePermissionsReq{
-		User: workspaceUser,
-		App:  workspaceApp,
+		ResourcePath: permission.GetAppPath(fullCodePath),
 	}
 	permResp, err := s.permissionService.GetWorkspacePermissions(ctx, permReq)
 	if err != nil {
@@ -215,8 +214,7 @@ func calculatePermissionsImpl(
 	}
 
 	permReq := &dto.GetWorkspacePermissionsReq{
-		User: user,
-		App:  app,
+		ResourcePath: fmt.Sprintf("/%s/%s", user, app),
 	}
 	permResp, err := s.permissionService.GetWorkspacePermissions(ctx, permReq)
 	if err != nil {

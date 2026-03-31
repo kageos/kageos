@@ -6,6 +6,7 @@
 
 import { getHubBaseURL, isHubEnabled } from '@/config/hub'
 import { post, get } from '@/utils/request'
+import type { HubDirectoryBundle } from '@/utils/hubBundle'
 
 /**
  * 发布目录到 Hub 请求
@@ -168,19 +169,16 @@ export async function pullDirectoryFromHub(
   )
 }
 
-/** 离线安装包：directory_tree 与 Hub 详情/发布接口结构一致 */
+/** 离线安装包导入请求：目标信息 + 标准 Hub bundle */
 export interface ImportHubDirectoryBundleReq {
   target_user: string
   target_app: string
   target_directory_path?: string
-  directory_tree: Record<string, unknown>
-  hub_full_code_path?: string
-  hub_version_num?: number
-  hub_directory_name?: string
+  bundle: HubDirectoryBundle
 }
 
 /**
- * 从离线 JSON 安装目录（与 Hub 详情页「导出 JSON 安装包」格式兼容）
+ * 从标准 Hub JSON 安装包安装目录
  */
 export async function importHubDirectoryBundle(
   data: ImportHubDirectoryBundleReq
@@ -194,4 +192,3 @@ export async function importHubDirectoryBundle(
     data
   )
 }
-

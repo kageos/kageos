@@ -75,6 +75,7 @@
  */
 
 import { Logger } from '@/core/utils/logger'
+import { unwrapApiResponseData } from '@/utils/apiError'
 import { FormDomainService } from '../../domain/services/FormDomainService'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { WorkspaceEvent, FormEvent } from '../../domain/interfaces/IEventBus'
@@ -179,6 +180,8 @@ export class FormApplicationService {
       } else {
         response = await this.apiClient.post(url, submitData)
       }
+
+      response = unwrapApiResponseData(response, '提交失败，请稍后重试')
       
       // ⭐ 旧版本（已注释，保留用于参考）
       // const url = `/workspace/api/v1/run${functionDetail.router}`

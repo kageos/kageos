@@ -368,6 +368,7 @@ import { useAuthStore } from '@/stores/auth'
 import type { FieldConfig, FieldValue } from '../../domain/types'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 import { buildDetailEditFormState } from '../composables/utils/workspaceDetailRuntime'
+import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
 
 interface Props {
   visible: boolean
@@ -470,13 +471,7 @@ const showPermissionRequestTab = computed(() => {
     return false
   }
   
-  // 检查是否是管理员
-  if (!props.currentFunction.admins || !authStore.user?.username) {
-    return false
-  }
-  
-  const admins = props.currentFunction.admins.split(',').map((a: string) => a.trim()).filter(Boolean)
-  return admins.includes(authStore.user.username)
+  return isServiceTreeNodeAdmin(props.currentFunction, authStore.user?.username)
 })
 
 // 处理 tab 切换

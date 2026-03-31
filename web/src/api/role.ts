@@ -93,8 +93,8 @@ export interface DeleteRoleResp {
  * 给用户分配角色请求
  */
 export interface AssignRoleToUserReq {
-  user: string // 工作空间所属用户
-  app: string // 工作空间应用代码
+  user?: string // 工作空间所属用户（兼容旧接口，可选）
+  app?: string // 工作空间应用代码（兼容旧接口，可选）
   username: string // 要分配角色的用户名
   role_code: string // 角色代码
   resource_path: string // 资源路径（支持通配符，如 "/user/app/*"）
@@ -113,8 +113,8 @@ export interface AssignRoleToUserResp {
  * 给组织架构分配角色请求
  */
 export interface AssignRoleToDepartmentReq {
-  user: string // 工作空间所属用户
-  app: string // 工作空间应用代码
+  user?: string // 工作空间所属用户（兼容旧接口，可选）
+  app?: string // 工作空间应用代码（兼容旧接口，可选）
   department_path: string // 组织架构路径（如 "/org/master/bizit"）
   role_code: string // 角色代码
   resource_path: string // 资源路径（支持通配符，如 "/user/app/*"）
@@ -150,8 +150,8 @@ export interface RoleAssignment {
  * 移除用户角色请求
  */
 export interface RemoveRoleFromUserReq {
-  user: string
-  app: string
+  user?: string
+  app?: string
   username: string
   role_code: string
   resource_type?: string
@@ -169,8 +169,8 @@ export interface RemoveRoleFromUserResp {
  * 移除组织架构角色请求
  */
 export interface RemoveRoleFromDepartmentReq {
-  user: string
-  app: string
+  user?: string
+  app?: string
   department_path: string
   role_code: string
   resource_type?: string

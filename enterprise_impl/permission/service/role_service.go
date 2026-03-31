@@ -23,6 +23,20 @@ type RoleService struct {
 	roleCache          *RoleCache
 }
 
+func resolveUserAppFromResourcePath(resourcePath, requestedUser, requestedApp string) (string, string, error) {
+	_, user, app := permissionpkg.ParseFullCodePath(resourcePath)
+	if user == "" || app == "" {
+		return "", "", fmt.Errorf("无法从资源路径解析 user 和 app: %s", resourcePath)
+	}
+	if requestedUser != "" && requestedUser != user {
+		return "", "", fmt.Errorf("资源路径中的 user 与请求参数不匹配")
+	}
+	if requestedApp != "" && requestedApp != app {
+		return "", "", fmt.Errorf("资源路径中的 app 与请求参数不匹配")
+	}
+	return user, app, nil
+}
+
 // NewRoleService 创建角色服务
 func NewRoleService(
 	roleRepo *permissionrepo.RoleRepository,
@@ -316,26 +330,20 @@ func (s *RoleService) AssignRoleToUser(ctx context.Context, req *dto.AssignRoleT
 		return nil, fmt.Errorf("角色不存在: resourceType=%s, code=%s", req.ResourceType, req.RoleCode)
 	}
 
-	// 2. 从 resource_path 解析 user 和 app（验证）
-	_, user, app := permissionpkg.ParseFullCodePath(req.ResourcePath)
-	if user == "" || app == "" {
-		return nil, fmt.Errorf("无法从资源路径解析 user 和 app: %s", req.ResourcePath)
+	user, app, err := resolveUserAppFromResourcePath(req.ResourcePath, req.User, req.App)
+	if err != nil {
+		return nil, err
 	}
 
-	// 3. 验证 user 和 app 是否匹配
-	if user != req.User || app != req.App {
-		return nil, fmt.Errorf("资源路径中的 user 和 app 与请求参数不匹配")
-	}
-
-	// 4. 创建用户角色分配
+	// 3. 创建用户角色分配
 	startTime := models.Time(time.Now())
 	if req.StartTime != nil {
 		startTime = *req.StartTime
 	}
 
 	assignment := &model.RoleAssignment{
-		User:         req.User,
-		App:          req.App,
+		User:         user,
+		App:          app,
 		SubjectType:  "user",
 		Subject:      req.Username,
 		RoleID:       roleID,
@@ -346,16 +354,16 @@ func (s *RoleService) AssignRoleToUser(ctx context.Context, req *dto.AssignRoleT
 	}
 
 	logger.Infof(ctx, "[RoleService] 创建用户角色分配: user=%s, app=%s, username=%s, role_code=%s, role_id=%d, resource_path=%s, start_time=%v, end_time=%v",
-		req.User, req.App, req.Username, req.RoleCode, roleID, req.ResourcePath, startTime, req.EndTime)
+		user, app, req.Username, req.RoleCode, roleID, req.ResourcePath, startTime, req.EndTime)
 
 	if err := s.roleAssignmentRepo.CreateRoleAssignment(ctx, assignment); err != nil {
 		logger.Errorf(ctx, "[RoleService] 创建用户角色分配失败: user=%s, app=%s, username=%s, role_code=%s, error=%v",
-			req.User, req.App, req.Username, req.RoleCode, err)
+			user, app, req.Username, req.RoleCode, err)
 		return nil, fmt.Errorf("分配角色失败: %w", err)
 	}
 
 	logger.Infof(ctx, "[RoleService] 给用户分配角色成功: user=%s, app=%s, username=%s, role=%s, resource=%s, assignment_id=%d",
-		req.User, req.App, req.Username, req.RoleCode, req.ResourcePath, assignment.ID)
+		user, app, req.Username, req.RoleCode, req.ResourcePath, assignment.ID)
 
 	return &dto.AssignRoleToUserResp{
 		Assignment: assignment,
@@ -370,26 +378,20 @@ func (s *RoleService) AssignRoleToDepartment(ctx context.Context, req *dto.Assig
 		return nil, fmt.Errorf("角色不存在: resourceType=%s, code=%s", req.ResourceType, req.RoleCode)
 	}
 
-	// 2. 从 resource_path 解析 user 和 app（验证）
-	_, user, app := permissionpkg.ParseFullCodePath(req.ResourcePath)
-	if user == "" || app == "" {
-		return nil, fmt.Errorf("无法从资源路径解析 user 和 app: %s", req.ResourcePath)
+	user, app, err := resolveUserAppFromResourcePath(req.ResourcePath, req.User, req.App)
+	if err != nil {
+		return nil, err
 	}
 
-	// 3. 验证 user 和 app 是否匹配
-	if user != req.User || app != req.App {
-		return nil, fmt.Errorf("资源路径中的 user 和 app 与请求参数不匹配")
-	}
-
-	// 4. 创建组织架构角色分配
+	// 3. 创建组织架构角色分配
 	startTime := models.Time(time.Now())
 	if req.StartTime != nil {
 		startTime = *req.StartTime
 	}
 
 	assignment := &model.RoleAssignment{
-		User:         req.User,
-		App:          req.App,
+		User:         user,
+		App:          app,
 		SubjectType:  "department",
 		Subject:      req.DepartmentPath,
 		RoleID:       roleID,
@@ -400,16 +402,16 @@ func (s *RoleService) AssignRoleToDepartment(ctx context.Context, req *dto.Assig
 	}
 
 	logger.Infof(ctx, "[RoleService] 创建组织架构角色分配: user=%s, app=%s, dept=%s, role_code=%s, role_id=%d, resource_path=%s, start_time=%v, end_time=%v",
-		req.User, req.App, req.DepartmentPath, req.RoleCode, roleID, req.ResourcePath, startTime, req.EndTime)
+		user, app, req.DepartmentPath, req.RoleCode, roleID, req.ResourcePath, startTime, req.EndTime)
 
 	if err := s.roleAssignmentRepo.CreateRoleAssignment(ctx, assignment); err != nil {
 		logger.Errorf(ctx, "[RoleService] 创建组织架构角色分配失败: user=%s, app=%s, dept=%s, role_code=%s, error=%v",
-			req.User, req.App, req.DepartmentPath, req.RoleCode, err)
+			user, app, req.DepartmentPath, req.RoleCode, err)
 		return nil, fmt.Errorf("分配角色失败: %w", err)
 	}
 
 	logger.Infof(ctx, "[RoleService] 给组织架构分配角色成功: user=%s, app=%s, dept=%s, role=%s, resource=%s, assignment_id=%d",
-		req.User, req.App, req.DepartmentPath, req.RoleCode, req.ResourcePath, assignment.ID)
+		user, app, req.DepartmentPath, req.RoleCode, req.ResourcePath, assignment.ID)
 
 	return &dto.AssignRoleToDepartmentResp{
 		Assignment: assignment,
@@ -424,13 +426,18 @@ func (s *RoleService) RemoveRoleFromUser(ctx context.Context, req *dto.RemoveRol
 		return fmt.Errorf("角色不存在: resourceType=%s, code=%s", req.ResourceType, req.RoleCode)
 	}
 
+	user, app, err := resolveUserAppFromResourcePath(req.ResourcePath, req.User, req.App)
+	if err != nil {
+		return err
+	}
+
 	// 2. 删除角色分配
-	if err := s.roleAssignmentRepo.DeleteRoleAssignmentByUser(ctx, req.User, req.App, req.Username, roleID, req.ResourcePath); err != nil {
+	if err := s.roleAssignmentRepo.DeleteRoleAssignmentByUser(ctx, user, app, req.Username, roleID, req.ResourcePath); err != nil {
 		return fmt.Errorf("移除角色失败: %w", err)
 	}
 
 	logger.Infof(ctx, "[RoleService] 移除用户角色成功: user=%s, app=%s, username=%s, role=%s, resource=%s",
-		req.User, req.App, req.Username, req.RoleCode, req.ResourcePath)
+		user, app, req.Username, req.RoleCode, req.ResourcePath)
 
 	return nil
 }
@@ -443,13 +450,18 @@ func (s *RoleService) RemoveRoleFromDepartment(ctx context.Context, req *dto.Rem
 		return fmt.Errorf("角色不存在: resourceType=%s, code=%s", req.ResourceType, req.RoleCode)
 	}
 
+	user, app, err := resolveUserAppFromResourcePath(req.ResourcePath, req.User, req.App)
+	if err != nil {
+		return err
+	}
+
 	// 2. 删除角色分配
-	if err := s.roleAssignmentRepo.DeleteRoleAssignmentByDepartment(ctx, req.User, req.App, req.DepartmentPath, roleID, req.ResourcePath); err != nil {
+	if err := s.roleAssignmentRepo.DeleteRoleAssignmentByDepartment(ctx, user, app, req.DepartmentPath, roleID, req.ResourcePath); err != nil {
 		return fmt.Errorf("移除角色失败: %w", err)
 	}
 
 	logger.Infof(ctx, "[RoleService] 移除组织架构角色成功: user=%s, app=%s, dept=%s, role=%s, resource=%s",
-		req.User, req.App, req.DepartmentPath, req.RoleCode, req.ResourcePath)
+		user, app, req.DepartmentPath, req.RoleCode, req.ResourcePath)
 
 	return nil
 }
@@ -480,8 +492,22 @@ func (s *RoleService) GetDepartmentRoles(ctx context.Context, req *dto.GetDepart
 
 // GetResourcePermissions 查询资源的所有权限分配
 func (s *RoleService) GetResourcePermissions(ctx context.Context, req *dto.GetResourcePermissionsReq) (*dto.GetResourcePermissionsResp, error) {
+	user, app := req.User, req.App
+	_, parsedUser, parsedApp := permissionpkg.ParseFullCodePath(req.ResourcePath)
+	if parsedUser == "" || parsedApp == "" {
+		return nil, fmt.Errorf("resource_path 格式错误，无法解析 user 和 app: %s", req.ResourcePath)
+	}
+	if user != "" && user != parsedUser {
+		return nil, fmt.Errorf("user 与 resource_path 不匹配: user=%s, resource_path=%s", user, req.ResourcePath)
+	}
+	if app != "" && app != parsedApp {
+		return nil, fmt.Errorf("app 与 resource_path 不匹配: app=%s, resource_path=%s", app, req.ResourcePath)
+	}
+	user = parsedUser
+	app = parsedApp
+
 	// 1. 查询角色分配
-	assignments, err := s.roleAssignmentRepo.GetRoleAssignmentsByResourcePath(ctx, req.User, req.App, req.ResourcePath)
+	assignments, err := s.roleAssignmentRepo.GetRoleAssignmentsByResourcePath(ctx, user, app, req.ResourcePath)
 	if err != nil {
 		return nil, fmt.Errorf("查询角色分配失败: %w", err)
 	}
@@ -556,14 +582,14 @@ func (s *RoleService) GetResourcePermissions(ctx context.Context, req *dto.GetRe
 //   - 不需要转换，直接匹配相同的权限点
 //
 // ⭐ 智能对比和增量添加（重要！避免每次重启都删除重建）：
-//   1. 如果角色不存在：创建角色 + 添加权限点（增量添加新角色）
-//   2. 如果角色已存在：
-//      - 智能对比：查询当前权限点和期望权限点
-//      - 如果权限一致：跳过更新（避免无意义的删除重建）⭐
-//      - 如果权限不一致：删除旧权限，添加新权限
-//   3. 性能优化：避免每次系统重启都产生大量删除记录
-//      - 修改前：每次重启删除+插入 31 条记录（62 次数据库操作）
-//      - 修改后：首次重启插入 31 条，后续重启 0 条删除记录（减少 81% 数据库操作）
+//  1. 如果角色不存在：创建角色 + 添加权限点（增量添加新角色）
+//  2. 如果角色已存在：
+//     - 智能对比：查询当前权限点和期望权限点
+//     - 如果权限一致：跳过更新（避免无意义的删除重建）⭐
+//     - 如果权限不一致：删除旧权限，添加新权限
+//  3. 性能优化：避免每次系统重启都产生大量删除记录
+//     - 修改前：每次重启删除+插入 31 条记录（62 次数据库操作）
+//     - 修改后：首次重启插入 31 条，后续重启 0 条删除记录（减少 81% 数据库操作）
 func (s *RoleService) InitDefaultRoles(ctx context.Context) error {
 	// ⭐ 预设角色配置（使用权限点表管理，格式：resource_type:action_type）
 	// 目录开发者可以配置多个资源类型的权限点（目录权限 + 函数权限）

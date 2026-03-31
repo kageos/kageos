@@ -36,8 +36,8 @@ type HubSnapshot struct {
 	ServiceFeeEnterprise float64 `gorm:"type:decimal(10,2)" json:"service_fee_enterprise"`
 	PublisherUsername    string  `gorm:"type:varchar(100)" json:"publisher_username"` // 该版本的上传人（发布/推送时的用户）
 
-	// 快照元数据（JSON格式，存储完整的树结构，用于快速预览）
-	SnapshotData string `gorm:"type:json" json:"snapshot_data"` // 兼容旧数据；新数据以三字段为准
+	// 快照元数据（JSON格式，历史存量兜底字段；新增链路以三字段为准）
+	SnapshotData string `gorm:"type:json" json:"snapshot_data"` // 历史存量快照兜底，不再作为当前安装/导出协议单源
 
 	// 快照三字段：各司其职，单源
 	SnapshotTree       string `gorm:"type:json" json:"snapshot_tree"`        // 目录结构（展示用：树/列表/面包屑），不含文件 content、不含函数详情
@@ -54,4 +54,3 @@ type HubSnapshot struct {
 func (HubSnapshot) TableName() string {
 	return "hub_snapshots"
 }
-

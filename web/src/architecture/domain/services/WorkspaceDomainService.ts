@@ -68,17 +68,13 @@ export class WorkspaceDomainService {
     // 直接加载函数详情，不使用缓存
     let detail: FunctionDetail
     try {
-      // ⭐ 优先使用 full_code_path 加载（新 API 只支持 full-code-path）
-      if (node.full_code_path) {
-        // ⭐ 从 node.template_type 获取函数类型，传递给 API（后端无需查询数据库即可构造权限点）
-        const funcType = node.template_type || 'table'
-        detail = await this.functionLoader.loadByPath(node.full_code_path, funcType)
-      } else if (node.ref_id && node.ref_id > 0) {
-        // ⭐ 如果没有 full_code_path，使用 ref_id 加载（向后兼容，但建议后端总是返回 full_code_path）
-        detail = await this.functionLoader.loadById(node.ref_id)
-      } else {
-        throw new Error('节点没有 full_code_path 和 ref_id，无法加载函数详情')
+      if (!node.full_code_path) {
+        throw new Error('节点缺少 full_code_path，无法加载函数详情')
       }
+
+      // ⭐ 函数类型作为路径参数传给标准 API
+      const funcType = node.template_type || 'table'
+      detail = await this.functionLoader.loadByPath(node.full_code_path, funcType)
 
       // ⭐ 权限信息已从树接口返回，不需要缓存
       // 直接使用 node.permissions（后端返回的最新数据，已包含继承）

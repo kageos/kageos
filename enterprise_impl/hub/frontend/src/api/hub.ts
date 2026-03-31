@@ -88,7 +88,6 @@ export async function getHubDirectoryList(params?: {
   const url = `${baseURL}/directories`
   const p = { ...params }
   if (p.fee_type === '') delete (p as Record<string, unknown>).fee_type
-  if (p.order_by === '') delete (p as Record<string, unknown>).order_by
   if (p.mine_only === false) delete (p as Record<string, unknown>).mine_only
   return get<HubDirectoryListResp>(url, p || {})
 }
@@ -152,6 +151,44 @@ export interface HubDirectoryVersionItem {
   publisher_username?: string       // 该版本的上传人
 }
 
+export interface DownloadHubDirectoryBundleParams {
+  hubDirectoryId?: number
+  fullCodePath?: string
+  version?: string
+}
+
+export interface DownloadHubDirectoryBundleResult {
+  blob: Blob
+  filename: string
+}
+
+function parseDownloadFileName(contentDisposition: string | null): string {
+  if (!contentDisposition) {
+    return 'hub-directory-bundle.json'
+  }
+
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1])
+  }
+
+  const plainMatch = contentDisposition.match(/filename="([^"]+)"/i) || contentDisposition.match(/filename=([^;]+)/i)
+  if (plainMatch?.[1]) {
+    return plainMatch[1].trim()
+  }
+
+  return 'hub-directory-bundle.json'
+}
+
+async function parseDownloadError(response: Response): Promise<string> {
+  try {
+    const data = await response.json() as { msg?: string; message?: string }
+    return data.msg || data.message || '导出失败'
+  } catch {
+    return '导出失败'
+  }
+}
+
 /**
  * 获取 Hub 目录详情
  * @param version 可选，不传则返回最新版本
@@ -210,6 +247,39 @@ export async function getHubDirectoryVersions(
   return get<{ items: HubDirectoryVersionItem[] }>(url, {
     hub_directory_id: hubDirectoryId
   })
+}
+
+export async function downloadHubDirectoryBundle(
+  params: DownloadHubDirectoryBundleParams
+): Promise<DownloadHubDirectoryBundleResult> {
+  const baseURL = getHubBaseURL()
+  const query = new URLSearchParams()
+  if (params.hubDirectoryId) {
+    query.set('hub_directory_id', String(params.hubDirectoryId))
+  }
+  if (params.fullCodePath) {
+    query.set('full_code_path', params.fullCodePath)
+  }
+  if (params.version) {
+    query.set('version', params.version)
+  }
+
+  const token = localStorage.getItem('token') || ''
+  const response = await fetch(`${baseURL}/directories/export_bundle?${query.toString()}`, {
+    headers: token.trim()
+      ? { 'X-Token': token }
+      : undefined
+  })
+
+  const contentDisposition = response.headers.get('content-disposition')
+  if (!contentDisposition?.toLowerCase().includes('attachment')) {
+    throw new Error(await parseDownloadError(response))
+  }
+
+  return {
+    blob: await response.blob(),
+    filename: parseDownloadFileName(contentDisposition)
+  }
 }
 
 /** 为目录加星（需要登录） */

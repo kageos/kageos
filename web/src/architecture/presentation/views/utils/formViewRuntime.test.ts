@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { IApiClient } from '@/architecture/domain/interfaces/IApiClient'
 import type { IEventBus } from '@/architecture/domain/interfaces/IEventBus'
-import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
+import type { FieldConfig, FieldValue, FunctionDetail } from '@/architecture/domain/types'
 import {
   buildInitialDataFromFormDataStore,
   createFormViewRuntime,
@@ -69,6 +69,12 @@ const fields: FieldConfig[] = [
     }
   }
 ]
+
+const submitFunctionDetail: FunctionDetail = {
+  method: 'POST',
+  router: '/test/form-submit',
+  request: fields
+}
 
 describe('formViewRuntime', () => {
   beforeEach(() => {
@@ -170,6 +176,33 @@ describe('formViewRuntime', () => {
       raw: null,
       display: '',
       meta: {}
+    })
+  })
+
+  it('rejects with backend msg when api client returns a raw business error envelope', async () => {
+    const runtime = createFormViewRuntime({
+      eventBus: createMockEventBus(),
+      apiClient: {
+        get: async () => ({}),
+        post: async () => ({
+          code: -1,
+          data: null,
+          msg: '您不在本次活动参与名单中，无法参与抽奖'
+        }),
+        put: async () => ({}),
+        delete: async () => ({})
+      } as IApiClient
+    })
+
+    runtime.applicationService.initializeForm(fields, { name: 'Alice' }, true)
+
+    await expect(runtime.applicationService.submitForm(submitFunctionDetail)).rejects.toMatchObject({
+      message: '您不在本次活动参与名单中，无法参与抽奖',
+      response: {
+        data: {
+          msg: '您不在本次活动参与名单中，无法参与抽奖'
+        }
+      }
     })
   })
 })

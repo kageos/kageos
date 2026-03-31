@@ -294,17 +294,17 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="工作空间" prop="user">
-          <el-input v-model="assignForm.user" placeholder="工作空间所属用户" />
-        </el-form-item>
-        <el-form-item label="应用代码" prop="app">
-          <el-input v-model="assignForm.app" placeholder="工作空间应用代码" />
+        <el-form-item label="资源根路径">
+          <el-input :model-value="assignRootResourcePath" placeholder="由资源路径自动解析" readonly />
         </el-form-item>
         <el-form-item label="资源路径" prop="resource_path">
           <el-input
             v-model="assignForm.resource_path"
             placeholder="资源路径（支持通配符，如：/user/app/*）"
           />
+          <div class="path-tip">
+            示例：`/user/app`、`/user/app/*`、`/user/app/docs/guide`
+          </div>
         </el-form-item>
         <el-form-item label="有效期">
           <el-checkbox v-model="assignForm.isPermanent">永久有效</el-checkbox>
@@ -347,7 +347,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Refresh, FolderOpened } from '@element-plus/icons-vue'
 import {
@@ -366,6 +366,7 @@ import {
 } from '@/api/role'
 import UserSearchInput from '@/shared/components/UserSearchInput.vue'
 import DepartmentSelector from '@/shared/components/DepartmentSelector.vue'
+import { buildAppResourcePath, parseResourcePath } from '@/utils/resourcePath'
 
 // ==================== 数据定义 ====================
 
@@ -476,10 +477,19 @@ const assignFormRules: FormRules = {
       },
     },
   ],
-  user: [{ required: true, message: '请输入工作空间所属用户', trigger: 'blur' }],
-  app: [{ required: true, message: '请输入工作空间应用代码', trigger: 'blur' }],
   resource_path: [{ required: true, message: '请输入资源路径', trigger: 'blur' }],
 }
+
+watch(
+  () => assignForm.resource_path,
+  (resourcePath) => {
+    const parsed = parseResourcePath(resourcePath)
+    assignForm.user = parsed?.user || ''
+    assignForm.app = parsed?.app || ''
+  }
+)
+
+const assignRootResourcePath = computed(() => buildAppResourcePath(assignForm.user, assignForm.app))
 
 // ==================== 资源类型和权限配置 ====================
 
@@ -951,10 +961,14 @@ async function handleSubmitAssign() {
     await assignFormRef.value.validate()
     assignSubmitting.value = true
 
+    const parsedResourcePath = parseResourcePath(assignForm.resource_path)
+    if (!parsedResourcePath) {
+      ElMessage.error('资源路径格式错误，至少需要 /user/app')
+      return
+    }
+
     if (assignForm.subject_type === 'user') {
       const req: AssignRoleToUserReq = {
-        user: assignForm.user,
-        app: assignForm.app,
         username: assignForm.username,
         role_code: currentAssignRole.value.code,
         resource_path: assignForm.resource_path,
@@ -965,8 +979,6 @@ async function handleSubmitAssign() {
       ElMessage.success('分配角色成功')
     } else {
       const req: AssignRoleToDepartmentReq = {
-        user: assignForm.user,
-        app: assignForm.app,
         department_path: assignForm.department_path,
         role_code: currentAssignRole.value.code,
         resource_path: assignForm.resource_path,
@@ -1126,6 +1138,13 @@ onMounted(() => {
 
   .permissions-tip {
     margin-top: 12px;
+  }
+
+  .path-tip {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--el-text-color-secondary);
   }
 }
 </style>

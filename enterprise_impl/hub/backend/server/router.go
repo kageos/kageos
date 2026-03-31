@@ -30,6 +30,7 @@ func (s *Server) setupRoutes() {
 	// 公开接口（不需要认证）
 	hubDirectory.GET("", hubDirectoryHandler.GetDirectoryList)
 	hubDirectory.GET("/detail", hubDirectoryHandler.GetDirectoryDetail)
+	hubDirectory.GET("/export_bundle", hubDirectoryHandler.ExportDirectoryBundle)
 	hubDirectory.GET("/versions", hubDirectoryHandler.GetDirectoryVersions)
 	hubDirectory.POST("/increment_download", hubDirectoryHandler.IncrementDownloadCount)
 

@@ -380,12 +380,11 @@ const updateCacheStats = () => {
     // 构建函数详情缓存列表
     functionCacheList.value = functionKeys.map((key: string) => {
       const cached = cacheManager.get<any>(key)
-      const isId = key.startsWith('function:id:')
-      const identifier = isId ? key.replace('function:id:', '') : key.replace('function:path:', '')
+      const identifier = key.replace('function:path:', '')
       
       return {
         key,
-        type: isId ? 'id' : 'path',
+        type: 'path',
         functionName: cached?.name || cached?.router || identifier,
         templateType: cached?.template_type || '-'
       }
@@ -650,4 +649,3 @@ const handleCopyCacheInfo = async () => {
   font-weight: 500;
 }
 </style>
-

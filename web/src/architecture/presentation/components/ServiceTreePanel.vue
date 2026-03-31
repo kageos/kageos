@@ -317,6 +317,7 @@ import {
 } from '@/utils/permission'
 import { useAuthStore } from '@/stores/auth'
 import { eventBus, RouteEvent } from '@/architecture/infrastructure/eventBus'
+import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
 
 interface Props {
   treeData: ServiceTree[]
@@ -1010,12 +1011,7 @@ const currentUsername = computed(() => authStore.user?.username || '')
 
 // 判断是否是管理员（使用缓存的用户名）
 const isAdmin = (node: ServiceTree): boolean => {
-  const username = currentUsername.value
-  if (!node.admins || !username) {
-    return false
-  }
-  const admins = node.admins.split(',').map(a => a.trim()).filter(Boolean)
-  return admins.includes(username)
+  return isServiceTreeNodeAdmin(node, currentUsername.value)
 }
 
 // 处理申请权限
@@ -1030,11 +1026,7 @@ const handleApplyPermission = (data: ServiceTree) => {
 
 // 处理待审批数量点击
 const handlePendingCountClick = (data: ServiceTree) => {
-  // 点击待审批数量时，跳转到节点详情页面的权限申请 tab
-  // 这里先触发 node-click 事件，让父组件处理路由跳转
-  // 后续可以在详情页面添加权限申请 tab
-  emit('node-click', data)
-  // TODO: 在详情页面添加权限申请 tab，显示待审批的申请列表
+  handleApprovePermission(data)
 }
 
 // 处理审批权限申请

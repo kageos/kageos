@@ -267,6 +267,9 @@ func copyFromHubImpl(s *ServiceTreeService, ctx context.Context, req *dto.CopyDi
 	if hubDetail.DirectoryTree == nil {
 		return nil, fmt.Errorf("Hub 目录树为空")
 	}
+	if err := validateHubDirectoryTreeForInstallImpl(hubDetail.DirectoryTree); err != nil {
+		return nil, fmt.Errorf("Hub 目录树校验失败: %w", err)
+	}
 
 	directoryItems := make([]*dto.DirectoryTreeItem, 0)
 	fileItems := make([]*dto.DirectoryTreeItem, 0)
@@ -427,6 +430,9 @@ func publishDirectoryToHubImpl(s *ServiceTreeService, ctx context.Context, req *
 	}
 
 	directoryTree := s.buildDirectoryTree(rootTree, allTrees, directoryFiles, idToTree, functionMap, refIDToFunction)
+	if err := validateHubDirectoryTreeForPublishImpl(directoryTree); err != nil {
+		return nil, fmt.Errorf("发布目录树校验失败: %w", err)
+	}
 
 	hubReq := &dto.PublishHubDirectoryReq{
 		SourceUser:           req.SourceUser,
@@ -560,6 +566,9 @@ func pushDirectoryToHubImpl(s *ServiceTreeService, ctx context.Context, req *dto
 	}
 
 	directoryTree := s.buildDirectoryTree(rootTree, allTrees, directoryFiles, idToTree, functionMap, refIDToFunction)
+	if err := validateHubDirectoryTreeForPublishImpl(directoryTree); err != nil {
+		return nil, fmt.Errorf("更新目录树校验失败: %w", err)
+	}
 
 	detailForID, errDetail := apicall.GetHubDirectoryDetail(ctx, &dto.GetHubDirectoryDetailReq{
 		FullCodePath: sourceTree.HubFullCodePath,
@@ -880,6 +889,9 @@ func pullDirectoryFromHubImpl(s *ServiceTreeService, ctx context.Context, req *d
 	if hubDetail.DirectoryTree == nil {
 		return nil, fmt.Errorf("Hub 目录树为空")
 	}
+	if err := validateHubDirectoryTreeForInstallImpl(hubDetail.DirectoryTree); err != nil {
+		return nil, fmt.Errorf("Hub 目录树校验失败: %w", err)
+	}
 
 	return s.installDirectoryTreeFromHubSnapshot(ctx, hubDetail.DirectoryTree, targetApp, targetPath,
 		hubDetail.FullCodePath, hubDetail.VersionNum, hubDetail.Name,
@@ -895,11 +907,11 @@ func importHubDirectoryBundleImpl(s *ServiceTreeService, ctx context.Context, re
 	if targetPath == "" {
 		targetPath = fmt.Sprintf("/%s/%s", targetApp.User, targetApp.Code)
 	}
-	if req.DirectoryTree == nil {
-		return nil, fmt.Errorf("目录树为空")
+	if err := validateHubDirectoryInstallBundleForImportImpl(req.Bundle); err != nil {
+		return nil, err
 	}
-	return s.installDirectoryTreeFromHubSnapshot(ctx, req.DirectoryTree, targetApp, targetPath,
-		req.HubFullCodePath, req.HubVersionNum, req.HubDirectoryName,
+	return s.installDirectoryTreeFromHubSnapshot(ctx, req.Bundle.DirectoryTree, targetApp, targetPath,
+		req.Bundle.HubFullCodePath, req.Bundle.HubVersionNum, req.Bundle.HubDirectoryName,
 		"从离线包安装目录成功")
 }
 

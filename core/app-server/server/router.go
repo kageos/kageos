@@ -36,13 +36,17 @@ func (s *Server) setupRoutes() {
 	app.Use(middleware2.JWTAuth()) // 应用管理需要JWT认证
 	appHandler := v1.NewApp(s.appService, s.serviceTreeService)
 	app.GET("/list", appHandler.GetApps)
+	app.GET("/detail", appHandler.GetAppDetail)
 	app.GET("/detail/:app", appHandler.GetAppDetail)
-	// ⭐ 服务树接口：使用 user 和 app 参数（从 full-code-path 中解析）
-	// 格式：/workspace/api/v1/app/{user}/{app}/tree
+	app.GET("/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
+	// ⭐ 服务树接口：canonical 入口使用 query resource_path=/user/app，路径参数路由仅保留兼容
 	app.GET("/:user/:app/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
+	app.DELETE("/delete", middleware2.CheckAppDelete(), appHandler.DeleteApp)
 	app.POST("/create", appHandler.CreateApp)
+	app.POST("/update", appHandler.UpdateApp)
 	// ⭐ 更新应用接口（debug 功能，生产环境不存在，无需权限检查）
 	app.POST("/update/:user/:app", appHandler.UpdateApp)
+	app.PUT("/workspace", appHandler.UpdateWorkspace)
 	// ⭐ 更新工作空间接口（只更新 MySQL 记录，不涉及容器更新，需要 app:admin 权限）
 	//app.PUT("/workspace/:user/:app", middleware2.CheckWorkspaceUpdate(), appHandler.UpdateWorkspace)
 	app.PUT("/workspace/:user/:app", appHandler.UpdateWorkspace)
@@ -85,13 +89,13 @@ func (s *Server) setupRoutes() {
 	serviceTreeAuth.GET("/search_functions", serviceTreeHandler.SearchFunctions) // ⭐ 搜索函数
 	serviceTreeAuth.PUT("", serviceTreeHandler.UpdateServiceTree)
 	serviceTreeAuth.DELETE("", serviceTreeHandler.DeleteServiceTree)
-	serviceTreeAuth.POST("/copy", serviceTreeHandler.CopyServiceTree)                 // 复制服务目录
-	serviceTreeAuth.POST("/publish_to_hub", serviceTreeHandler.PublishDirectoryToHub) // 发布目录到 Hub
-	serviceTreeAuth.POST("/push_to_hub", serviceTreeHandler.PushDirectoryToHub)       // 推送目录到 Hub（更新已发布的目录）
-	serviceTreeAuth.GET("/hub_push_form_info", serviceTreeHandler.GetHubPushFormInfo) // 获取推送表单信息（预填 + 下一版本号）
-	serviceTreeAuth.GET("/hub_info", serviceTreeHandler.GetHubInfo)                   // 获取目录的 Hub 信息
-	serviceTreeAuth.POST("/pull_from_hub", serviceTreeHandler.PullDirectoryFromHub)           // 从 Hub 拉取目录
-	serviceTreeAuth.POST("/import_hub_bundle", serviceTreeHandler.ImportHubDirectoryBundle)   // 从离线 JSON 包安装目录
+	serviceTreeAuth.POST("/copy", serviceTreeHandler.CopyServiceTree)                       // 复制服务目录
+	serviceTreeAuth.POST("/publish_to_hub", serviceTreeHandler.PublishDirectoryToHub)       // 发布目录到 Hub
+	serviceTreeAuth.POST("/push_to_hub", serviceTreeHandler.PushDirectoryToHub)             // 推送目录到 Hub（更新已发布的目录）
+	serviceTreeAuth.GET("/hub_push_form_info", serviceTreeHandler.GetHubPushFormInfo)       // 获取推送表单信息（预填 + 下一版本号）
+	serviceTreeAuth.GET("/hub_info", serviceTreeHandler.GetHubInfo)                         // 获取目录的 Hub 信息
+	serviceTreeAuth.POST("/pull_from_hub", serviceTreeHandler.PullDirectoryFromHub)         // 从 Hub 拉取目录
+	serviceTreeAuth.POST("/import_hub_bundle", serviceTreeHandler.ImportHubDirectoryBundle) // 从离线 JSON 包安装目录
 
 	// ⭐ 按类型分离的 CRUD 接口（推荐使用）
 	// ==================== Package 类型接口 ====================
@@ -130,11 +134,11 @@ func (s *Server) setupRoutes() {
 	getPostPath := func(c *gin.Context, id int64) (string, error) {
 		return s.boardService.GetPostPath(contextx.ToContext(c), id)
 	}
-	postsAuth.GET("", middleware2.CheckBoardRead(), boardPostHandler.ListPosts)                                    // GET 列表：query full_code_path
-	postsAuth.GET("/:id", middleware2.CheckBoardReadFromPostID(getPostPath), boardPostHandler.GetPost)             // GET 详情
-	postsAuth.POST("", middleware2.CheckBoardWrite(), boardPostHandler.CreatePost)                                 // POST 发帖：body full_code_path
-	postsAuth.PUT("/:id", middleware2.CheckBoardUpdateFromPostID(getPostPath), boardPostHandler.UpdatePost)        // PUT 更新
-	postsAuth.DELETE("/:id", middleware2.CheckBoardDeleteFromPostID(getPostPath), boardPostHandler.DeletePost)    // DELETE 删除
+	postsAuth.GET("", middleware2.CheckBoardRead(), boardPostHandler.ListPosts)                                // GET 列表：query full_code_path
+	postsAuth.GET("/:id", middleware2.CheckBoardReadFromPostID(getPostPath), boardPostHandler.GetPost)         // GET 详情
+	postsAuth.POST("", middleware2.CheckBoardWrite(), boardPostHandler.CreatePost)                             // POST 发帖：body full_code_path
+	postsAuth.PUT("/:id", middleware2.CheckBoardUpdateFromPostID(getPostPath), boardPostHandler.UpdatePost)    // PUT 更新
+	postsAuth.DELETE("/:id", middleware2.CheckBoardDeleteFromPostID(getPostPath), boardPostHandler.DeletePost) // DELETE 删除
 
 	// ⭐ 文档管理路由（基于完整路径，与 table/form/chart 风格一致）
 	docs := apiV1.Group("/docs")
@@ -248,8 +252,8 @@ func (s *Server) setupRoutes() {
 	scheduledTask := apiV1.Group("/scheduled_tasks")
 	scheduledTask.Use(middleware2.JWTAuth())
 	scheduledTaskHandler := v1.NewScheduledTask(s.scheduledTaskService)
-	scheduledTask.POST("", scheduledTaskHandler.Create)              // 创建定时任务
-	scheduledTask.GET("", scheduledTaskHandler.List)                 // 列表
-	scheduledTask.DELETE("/:id", scheduledTaskHandler.Cancel)        // 取消
+	scheduledTask.POST("", scheduledTaskHandler.Create)                       // 创建定时任务
+	scheduledTask.GET("", scheduledTaskHandler.List)                          // 列表
+	scheduledTask.DELETE("/:id", scheduledTaskHandler.Cancel)                 // 取消
 	scheduledTask.GET("/:id/executions", scheduledTaskHandler.ListExecutions) // 执行记录
 }

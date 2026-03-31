@@ -50,8 +50,6 @@ func (s *ServiceTreeService) assignAdminRoleToUser(ctx context.Context, user, ap
 	// ⭐ 使用角色系统，分配"admin"角色（拥有 directory:admin 权限）
 	// 目录节点使用 directory 资源类型
 	assignReq := &dto.AssignRoleToUserReq{
-		User:         user,
-		App:          app,
 		Username:     username,
 		RoleCode:     "admin",     // 管理员角色
 		ResourceType: "directory", // ⭐ 目录节点使用 directory 资源类型
@@ -102,8 +100,6 @@ func (s *ServiceTreeService) removeAdminRoleFromUserWithUserApp(ctx context.Cont
 	// ⭐ 使用角色系统，移除"admin"角色
 	// 目录节点使用 directory 资源类型
 	removeReq := &dto.RemoveRoleFromUserReq{
-		User:         user,
-		App:          app,
 		Username:     username,
 		RoleCode:     "admin",     // 管理员角色
 		ResourceType: "directory", // ⭐ 目录节点使用 directory 资源类型

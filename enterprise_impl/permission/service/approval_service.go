@@ -21,17 +21,17 @@ type ApprovalService struct {
 	permissionRequestRepo *permissionrepo.PermissionRequestRepository
 	serviceTreeRepo       *repository.ServiceTreeRepository // ⭐ 使用社区版的 repository，不重复造轮子
 	appRepo               *repository.AppRepository         // ⭐ app repository，用于查询 app 管理员
-	roleService           *RoleService                       // ⭐ 角色服务，用于分配角色
-	roleCache             *RoleCache                         // ⭐ 角色缓存，用于从 RoleID 获取 RoleCode
+	roleService           *RoleService                      // ⭐ 角色服务，用于分配角色
+	roleCache             *RoleCache                        // ⭐ 角色缓存，用于从 RoleID 获取 RoleCode
 }
 
 // NewApprovalService 创建审批服务（企业版内部使用）
 func NewApprovalService(
 	permissionRequestRepo *permissionrepo.PermissionRequestRepository,
 	serviceTreeRepo *repository.ServiceTreeRepository, // ⭐ 使用社区版的 repository
-	appRepo *repository.AppRepository,                 // ⭐ app repository
-	roleService *RoleService,                           // ⭐ 角色服务
-	roleCache *RoleCache,                               // ⭐ 角色缓存
+	appRepo *repository.AppRepository, // ⭐ app repository
+	roleService *RoleService, // ⭐ 角色服务
+	roleCache *RoleCache, // ⭐ 角色缓存
 ) *ApprovalService {
 	return &ApprovalService{
 		permissionRequestRepo: permissionRequestRepo,
@@ -52,7 +52,7 @@ func (s *ApprovalService) CreateRequest(ctx context.Context, req *dto.InternalCr
 		SubjectType:       req.SubjectType,
 		Subject:           req.Subject,
 		ResourcePath:      req.ResourcePath,
-		RoleID:            req.RoleID, // ⭐ 角色ID（必填）
+		RoleID:            req.RoleID,    // ⭐ 角色ID（必填）
 		StartTime:         req.StartTime, // ⭐ 直接赋值，无需转换
 		EndTime:           req.EndTime,   // ⭐ 直接赋值，无需转换
 		Reason:            req.Reason,
@@ -138,23 +138,21 @@ func (s *ApprovalService) ApproveRequest(ctx context.Context, requestID int64, a
 	if !exists {
 		return fmt.Errorf("角色不存在: role_id=%d", request.RoleID)
 	}
-	
+
 	startTime := models.Time(time.Time(request.StartTime))
 	var endTime *models.Time
 	if request.EndTime != nil {
 		t := models.Time(time.Time(*request.EndTime))
 		endTime = &t
 	}
-	
+
 	var roleAssignmentID *int64
-	
+
 	// 分配角色给用户或组织架构
 	// ⭐ 从 role 中获取 resourceType（角色已绑定到特定资源类型）
 	if request.SubjectType == "user" {
 		// 分配角色给用户
 		assignReq := &dto.AssignRoleToUserReq{
-			User:         user,
-			App:          app,
 			Username:     request.Subject,
 			RoleCode:     role.Code,
 			ResourceType: role.ResourceType, // ⭐ 从角色中获取资源类型
@@ -176,8 +174,6 @@ func (s *ApprovalService) ApproveRequest(ctx context.Context, requestID int64, a
 	} else if request.SubjectType == "department" {
 		// 分配角色给组织架构
 		assignReq := &dto.AssignRoleToDepartmentReq{
-			User:           user,
-			App:            app,
 			DepartmentPath: request.Subject,
 			RoleCode:       role.Code,
 			ResourceType:   role.ResourceType, // ⭐ 从角色中获取资源类型
@@ -197,7 +193,7 @@ func (s *ApprovalService) ApproveRequest(ctx context.Context, requestID int64, a
 		logger.Infof(ctx, "[ApprovalService] 分配角色给组织架构成功: user=%s, app=%s, dept=%s, role_id=%d, role_code=%s",
 			user, app, request.Subject, request.RoleID, role.Code)
 	}
-	
+
 	// 6. 更新申请记录的 role_assignment_id
 	if roleAssignmentID != nil {
 		if err := s.permissionRequestRepo.UpdateRoleAssignmentID(ctx, requestID, *roleAssignmentID); err != nil {
@@ -206,7 +202,7 @@ func (s *ApprovalService) ApproveRequest(ctx context.Context, requestID int64, a
 			// 不影响主流程
 		}
 	}
-	
+
 	logger.Infof(ctx, "[ApprovalService] 审批通过（角色申请）: request_id=%d, approver=%s, role_id=%d",
 		requestID, approverUsername, request.RoleID)
 
@@ -274,17 +270,17 @@ func (s *ApprovalService) getNodeAdmins(ctx context.Context, resourcePath string
 		// 是 app 类型，从 app 表查询
 		user := parts[0]
 		app := parts[1]
-		
+
 		appModel, err := s.appRepo.GetAppByUserName(user, app)
 		if err != nil {
 			return nil, fmt.Errorf("查询应用失败: %w", err)
 		}
-		
+
 		// 解析 app 的 admins 字段
 		if appModel.Admins == "" {
 			return []string{}, nil
 		}
-		
+
 		admins := strings.Split(appModel.Admins, ",")
 		result := make([]string, 0, len(admins))
 		for _, admin := range admins {
@@ -295,7 +291,7 @@ func (s *ApprovalService) getNodeAdmins(ctx context.Context, resourcePath string
 		}
 		return result, nil
 	}
-	
+
 	// 不是 app 类型，从 service_tree 表查询
 	return s.serviceTreeRepo.GetNodeAdmins(ctx, resourcePath)
 }

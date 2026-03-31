@@ -95,7 +95,7 @@ import { useAuthStore } from '@/stores/auth'
 import { FieldValueMeta, FieldCallback } from '@/core/constants/field'
 import { DataType } from '@/core/constants/widget'
 import { convertValueByFieldType } from '../../presentation/widgets/utils/typeConverter'
-import { getScopedFieldQueryValue } from '@/utils/queryFieldNamespace'
+import { getScopedFieldQueryValue, shouldAllowLegacyFormDraftFallback } from '@/utils/queryFieldNamespace'
 
 /**
  * 初始化源接口
@@ -156,7 +156,7 @@ class URLParamsInitSource implements InitSource {
     const formData: Record<string, FieldValue> = {}
     // 🔥 确保 requestFields 是数组，防止类型错误
     const requestFields = Array.isArray(functionDetail.request) ? functionDetail.request : []
-    const fallbackToLegacyRaw = query._tab !== 'OnTableAddRow'
+    const fallbackToLegacyRaw = shouldAllowLegacyFormDraftFallback(query as Record<string, any>)
     
     requestFields.forEach(field => {
       const queryValue = getScopedFieldQueryValue(query, field.code, 'form', {

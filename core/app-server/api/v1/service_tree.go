@@ -866,7 +866,7 @@ func (s *ServiceTree) PullDirectoryFromHub(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
-// ImportHubDirectoryBundle 从离线 JSON 包安装目录（与 Hub 详情导出格式兼容）
+// ImportHubDirectoryBundle 从标准 Hub JSON 安装包安装目录
 func (s *ServiceTree) ImportHubDirectoryBundle(c *gin.Context) {
 	var req dto.ImportHubDirectoryBundleReq
 	if err := c.ShouldBindJSON(&req); err != nil {

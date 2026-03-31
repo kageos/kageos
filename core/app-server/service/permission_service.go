@@ -117,9 +117,16 @@ func (s *PermissionService) ApplyPermission(ctx context.Context, req *dto.ApplyP
 // ⭐ 一次性查询用户及其组织架构的所有权限，性能更好
 // ⭐ 支持传递用户和组织架构参数，使方法可复用（既可以获取当前用户权限，也可以获取其他用户权限）
 func (s *PermissionService) GetWorkspacePermissions(ctx context.Context, req *dto.GetWorkspacePermissionsReq) (*dto.GetWorkspacePermissionsResp, error) {
-	// ⭐ 参数验证：必须提供 user 和 app
-	if req.User == "" || req.App == "" {
-		return nil, fmt.Errorf("必须提供 user 和 app 参数")
+	workspaceUser, workspaceApp := req.User, req.App
+	if req.ResourcePath != "" {
+		_, parsedUser, parsedApp := permission.ParseFullCodePath(req.ResourcePath)
+		if parsedUser == "" || parsedApp == "" {
+			return nil, fmt.Errorf("resource_path 格式错误，无法解析 user 和 app: %s", req.ResourcePath)
+		}
+		workspaceUser, workspaceApp = parsedUser, parsedApp
+	}
+	if workspaceUser == "" || workspaceApp == "" {
+		return nil, fmt.Errorf("必须提供 resource_path 或 user/app 参数")
 	}
 
 	// ⭐ 获取用户名：优先使用请求参数，否则从 context 获取（向后兼容）
@@ -151,15 +158,15 @@ func (s *PermissionService) GetWorkspacePermissions(ctx context.Context, req *dt
 	// ⭐ 注意：DepartmentPath 只需要传递当前路径，GetUserWorkspacePermissions 内部会重新计算所有父级路径
 	// ⭐ 这样可以确保父级路径的计算逻辑统一（在 getUserRolePermissions 中处理）
 	enterpriseReq := &enterprise.GetUserWorkspacePermissionsReq{
-		User:           req.User,
-		App:            req.App,
+		User:           workspaceUser,
+		App:            workspaceApp,
 		Username:       username,
 		DepartmentPath: deptPath, // ⭐ 只传递当前路径，父级路径在内部计算
 	}
 
 	enterpriseResp, err := s.permissionBackend().GetUserWorkspacePermissions(ctx, enterpriseReq)
 	if err != nil {
-		logger.Errorf(ctx, "[PermissionService] 查询权限记录失败: user=%s, app=%s, username=%s, error=%v", req.User, req.App, username, err)
+		logger.Errorf(ctx, "[PermissionService] 查询权限记录失败: resource_path=%s, user=%s, app=%s, username=%s, error=%v", req.ResourcePath, workspaceUser, workspaceApp, username, err)
 		return nil, fmt.Errorf("查询权限记录失败: %w", err)
 	}
 
@@ -175,7 +182,7 @@ func (s *PermissionService) GetWorkspacePermissions(ctx context.Context, req *dt
 		})
 	}
 
-	logger.Debugf(ctx, "[PermissionService] 查询权限成功: user=%s, app=%s, username=%s, total_records=%d", req.User, req.App, username, len(records))
+	logger.Debugf(ctx, "[PermissionService] 查询权限成功: resource_path=%s, user=%s, app=%s, username=%s, total_records=%d", req.ResourcePath, workspaceUser, workspaceApp, username, len(records))
 
 	// ⭐ 返回所有权限记录（包括用户权限和组织架构权限）
 	return &dto.GetWorkspacePermissionsResp{

@@ -257,8 +257,6 @@
                     <PermissionManageList
                       ref="functionPermissionManageListRef"
                       :resource-path="currentFunction?.full_code_path"
-                      :user="currentApp?.user"
-                      :app="currentApp?.code"
                       :auto-load="functionActiveTab === 'permissionManage'"
                     />
                   </div>
@@ -773,6 +771,7 @@ import { getWorkspaceSessions, cancelWorkspaceChat, type WorkspaceSessionItem } 
 import { listScheduledTasks } from '@/api/scheduledTask'
 import { hasPermission, TablePermission, buildPermissionApplyURL } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
+import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
 
 const route = useRoute()
 const router = useRouter()
@@ -1148,13 +1147,7 @@ const showFunctionPermissionRequestTab = computed(() => {
     return false
   }
   
-  // 检查是否是管理员
-  if (!currentFunction.value.admins || !authStore.user?.username) {
-    return false
-  }
-  
-  const admins = currentFunction.value.admins.split(',').map((a: string) => a.trim()).filter(Boolean)
-  return admins.includes(authStore.user.username)
+  return isServiceTreeNodeAdmin(currentFunction.value, authStore.user?.username)
 })
 
 // 处理函数 tab 切换

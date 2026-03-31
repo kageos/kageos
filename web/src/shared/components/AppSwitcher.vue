@@ -83,7 +83,8 @@
 import { ref, computed, watch } from 'vue'
 import { ArrowUp, ArrowDown, FolderOpened, Setting } from '@element-plus/icons-vue'
 import type { App, ServiceTree } from '@/types'
-import { hasPermission } from '@/utils/permission'
+import { useAuthStore } from '@/stores/auth'
+import { hasWorkspaceAdminAccess } from '@/utils/permissionActors'
 import WorkspaceListDialog from './WorkspaceListDialog.vue'
 import WorkspaceSettingsDialog from './WorkspaceSettingsDialog.vue'
 
@@ -105,55 +106,19 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+const authStore = useAuthStore()
 
 const dialogVisible = ref(false)
 const settingsDialogVisible = ref(false)
 /** 本次打开工作空间列表是否强制必须选择/创建（从 /workspace/:user 进入时为 true） */
 const workspaceListForceSelect = ref(false)
 
-// ⭐ 检查是否有 app:admin 权限
-// 方案：从服务树的根节点获取应用权限（如果根节点有 app:admin 权限，说明用户有应用管理员权限）
 const hasAdminPermission = computed(() => {
-  if (!props.currentApp || !props.serviceTree || props.serviceTree.length === 0) {
-    return false
-  }
-  
-  // 应用节点路径：/{user}/{app}
-  const appPath = `/${props.currentApp.user}/${props.currentApp.code}`
-  
-  // ⭐ 方案1：从服务树的第一个根节点获取权限（如果根节点有 app:admin 权限，说明用户有应用管理员权限）
-  // 注意：服务树返回的是目录和函数节点，应用节点权限会继承到所有子节点
-  // 如果根节点有 app:admin 权限，说明用户有应用管理员权限
-  for (const node of props.serviceTree) {
-    // 检查根节点是否有 app:admin 权限
-    if (node.permissions && node.permissions['app:admin'] === true) {
-      return true
-    }
-    // 递归检查子节点（应用权限会继承到所有子节点）
-    const checkNode = (n: ServiceTree): boolean => {
-      if (n.permissions && n.permissions['app:admin'] === true) {
-        return true
-      }
-      if (n.children) {
-        for (const child of n.children) {
-          if (checkNode(child)) {
-            return true
-          }
-        }
-      }
-      return false
-    }
-    if (checkNode(node)) {
-      return true
-    }
-  }
-  
-  // ⭐ 方案2：如果服务树中没有权限信息，检查当前用户是否是应用管理员（从 admins 字段）
-  // 注意：这只是临时方案，实际应该从后端获取权限
-  // 但为了简化，我们可以检查 currentApp.admins 字段
-  // 不过 currentApp 可能没有 admins 字段，所以这个方案不可靠
-  
-  return false
+  return hasWorkspaceAdminAccess({
+    currentApp: props.currentApp,
+    currentUsername: authStore.user?.username,
+    serviceTree: props.serviceTree
+  })
 })
 
 // 应用颜色映射

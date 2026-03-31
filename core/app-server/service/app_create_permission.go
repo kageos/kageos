@@ -49,8 +49,6 @@ func (a *AppService) assignAppAdminRoleToUser(ctx context.Context, user, app, us
 	}
 
 	assignReq := &dto.AssignRoleToUserReq{
-		User:         user,
-		App:          app,
 		Username:     username,
 		RoleCode:     "admin",
 		ResourceType: "directory",
@@ -81,8 +79,6 @@ func (a *AppService) removeAppAdminRoleFromUser(ctx context.Context, user, app, 
 	}
 
 	removeReq := &dto.RemoveRoleFromUserReq{
-		User:         user,
-		App:          app,
 		Username:     username,
 		RoleCode:     "admin",
 		ResourceType: "directory",
