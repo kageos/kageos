@@ -149,20 +149,59 @@
                   <!-- 左侧：主要业务字段 -->
                   <div class="main-content">
                     <div 
-                      v-for="field in groupedFields.mainFields"
+                      v-for="field in groupedFields.mainContentFields"
                       :key="field.code"
-                      class="field-row"
+                      :class="field.widget?.type === WidgetType.RICH_TEXT ? 'main-content-rich-text' : 'field-row'"
                     >
-                      <div class="field-label">
-                        {{ field.name }}
-                      </div>
-                      <div class="field-value">
-                        <WidgetComponent
-                          :field="field"
-                          :value="getFieldValue(field.code)"
-                          mode="detail"
-                        />
-                      </div>
+                      <template v-if="field.widget?.type === WidgetType.RICH_TEXT">
+                        <div class="rich-text-field-card">
+                          <div class="rich-text-field-header">
+                            <span class="rich-text-field-name">{{ field.name }}</span>
+                          </div>
+                          <div class="rich-text-field-content">
+                            <div
+                              class="rich-text-preview-shell"
+                              :class="{
+                                'is-collapsed': !isRichTextExpanded(field.code),
+                                'is-expandable': isRichTextOverflow(field.code)
+                              }"
+                              :style="{ '--rich-text-preview-height': `${RICH_TEXT_PREVIEW_HEIGHT}px` }"
+                            >
+                              <div
+                                :ref="(el) => setRichTextContentRef(field.code, el as Element | null)"
+                                class="rich-text-preview-inner"
+                              >
+                                <WidgetComponent
+                                  :field="field"
+                                  :value="getFieldValue(field.code)"
+                                  mode="detail"
+                                />
+                              </div>
+                            </div>
+                            <div v-if="isRichTextOverflow(field.code)" class="rich-text-preview-actions">
+                              <el-button
+                                type="primary"
+                                link
+                                @click="toggleRichTextExpanded(field.code)"
+                              >
+                                {{ isRichTextExpanded(field.code) ? '收起' : '展开全文' }}
+                              </el-button>
+                            </div>
+                          </div>
+                        </div>
+                      </template>
+                      <template v-else>
+                        <div class="field-label">
+                          {{ field.name }}
+                        </div>
+                        <div class="field-value">
+                          <WidgetComponent
+                            :field="field"
+                            :value="getFieldValue(field.code)"
+                            mode="detail"
+                          />
+                        </div>
+                      </template>
                     </div>
                   </div>
 
@@ -227,7 +266,7 @@
                   </div>
                 </div>
 
-                <!-- 底部：复杂字段（可折叠） -->
+                <!-- 底部：复杂字段（form / table，保留折叠展示） -->
                 <div v-if="groupedFields.complexFields.length > 0" class="complex-section">
                   <div 
                     v-for="field in groupedFields.complexFields"
@@ -351,7 +390,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import { Edit, ArrowLeft, ArrowRight, Grid, List, Lock } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { TabPaneName } from 'element-plus'
@@ -407,9 +446,14 @@ const emit = defineEmits<Emits>()
 
 const router = useRouter()
 const authStore = useAuthStore()
+const RICH_TEXT_PREVIEW_HEIGHT = 320
 
 const formViewRef = ref<InstanceType<typeof FormView> | null>(null)
 const showScheduledTaskDialog = ref(false)
+const richTextExpanded = ref<Record<string, boolean>>({})
+const richTextOverflow = ref<Record<string, boolean>>({})
+const richTextContentRefs = new Map<string, HTMLElement>()
+const richTextResizeObservers = new Map<string, ResizeObserver>()
 
 // ==================== 详情布局配置 ====================
 
@@ -490,6 +534,7 @@ watch(
   () => props.rowData,
   () => {
     activeTab.value = 'detail'
+    richTextExpanded.value = {}
   }
 )
 
@@ -550,16 +595,18 @@ const groupedFields = computed(() => {
   // 时间字段
   const timestampFields = fieldsToGroup.filter((f: FieldConfig) => f.widget?.type === WidgetType.TIMESTAMP)
   
-  // 复杂字段（form, table, richtext）
+  // 富文本字段：在分组布局中保持直接展示，避免默认折叠影响可见性
+  const richTextFields = fieldsToGroup.filter((f: FieldConfig) => f.widget?.type === WidgetType.RICH_TEXT)
+
+  // 复杂字段（form, table）
   const complexFields = fieldsToGroup.filter((f: FieldConfig) => {
     const widgetType = f.widget?.type
     return widgetType === WidgetType.FORM || 
-           widgetType === WidgetType.TABLE || 
-           widgetType === WidgetType.RICH_TEXT
+           widgetType === WidgetType.TABLE
   })
   
-  // 主要业务字段（排除上述所有字段）
-  const mainFields = fieldsToGroup.filter((f: FieldConfig) => {
+  // 主内容字段：保留原始字段顺序，在 main-content 中统一渲染
+  const mainContentFields = fieldsToGroup.filter((f: FieldConfig) => {
     const widgetType = f.widget?.type
     return widgetType !== WidgetType.ID &&
            widgetType !== WidgetType.SELECT &&
@@ -570,8 +617,7 @@ const groupedFields = computed(() => {
            widgetType !== WidgetType.USER &&
            widgetType !== WidgetType.TIMESTAMP &&
            widgetType !== WidgetType.FORM &&
-           widgetType !== WidgetType.TABLE &&
-           widgetType !== WidgetType.RICH_TEXT
+           widgetType !== WidgetType.TABLE
   })
   
   return {
@@ -579,10 +625,131 @@ const groupedFields = computed(() => {
     statusFields,
     userFields,
     timestampFields,
+    richTextFields,
     complexFields,
-    mainFields
+    mainContentFields
   }
 })
+
+const syncRichTextState = () => {
+  const activeCodes = new Set(groupedFields.value.richTextFields.map((field: FieldConfig) => field.code))
+  const nextExpanded: Record<string, boolean> = {}
+  const nextOverflow: Record<string, boolean> = {}
+
+  activeCodes.forEach((code) => {
+    nextExpanded[code] = richTextExpanded.value[code] ?? false
+    nextOverflow[code] = richTextOverflow.value[code] ?? false
+  })
+
+  const hasExpandedChanged = Object.keys(nextExpanded).length !== Object.keys(richTextExpanded.value).length ||
+    Object.entries(nextExpanded).some(([code, value]) => richTextExpanded.value[code] !== value)
+  const hasOverflowChanged = Object.keys(nextOverflow).length !== Object.keys(richTextOverflow.value).length ||
+    Object.entries(nextOverflow).some(([code, value]) => richTextOverflow.value[code] !== value)
+
+  if (hasExpandedChanged) {
+    richTextExpanded.value = nextExpanded
+  }
+
+  if (hasOverflowChanged) {
+    richTextOverflow.value = nextOverflow
+  }
+
+  Array.from(richTextResizeObservers.keys()).forEach((code) => {
+    if (!activeCodes.has(code)) {
+      richTextResizeObservers.get(code)?.disconnect()
+      richTextResizeObservers.delete(code)
+      richTextContentRefs.delete(code)
+    }
+  })
+}
+
+const measureRichTextOverflow = (fieldCode: string) => {
+  const content = richTextContentRefs.get(fieldCode)
+  if (!content) {
+    return
+  }
+
+  const contentHeight = Math.ceil(content.getBoundingClientRect().height || content.scrollHeight || 0)
+  const hasOverflow = contentHeight > RICH_TEXT_PREVIEW_HEIGHT + 8
+
+  if (richTextOverflow.value[fieldCode] !== hasOverflow) {
+    richTextOverflow.value = {
+      ...richTextOverflow.value,
+      [fieldCode]: hasOverflow
+    }
+  }
+
+  if (!hasOverflow && richTextExpanded.value[fieldCode]) {
+    richTextExpanded.value = {
+      ...richTextExpanded.value,
+      [fieldCode]: false
+    }
+  }
+}
+
+const measureAllRichTextOverflow = () => {
+  if (!useGroupedDetailLayout.value) {
+    return
+  }
+
+  groupedFields.value.richTextFields.forEach((field: FieldConfig) => {
+    measureRichTextOverflow(field.code)
+  })
+}
+
+const scheduleRichTextMeasurement = () => {
+  nextTick(() => {
+    measureAllRichTextOverflow()
+  })
+}
+
+const setRichTextContentRef = (fieldCode: string, el: Element | null) => {
+  if (!(el instanceof HTMLElement)) {
+    richTextResizeObservers.get(fieldCode)?.disconnect()
+    richTextResizeObservers.delete(fieldCode)
+    richTextContentRefs.delete(fieldCode)
+    return
+  }
+
+  richTextContentRefs.set(fieldCode, el)
+
+  if (typeof ResizeObserver !== 'undefined') {
+    let observer = richTextResizeObservers.get(fieldCode)
+    if (!observer) {
+      observer = new ResizeObserver(() => {
+        measureRichTextOverflow(fieldCode)
+      })
+      richTextResizeObservers.set(fieldCode, observer)
+    }
+    observer.disconnect()
+    observer.observe(el)
+  }
+
+  measureRichTextOverflow(fieldCode)
+}
+
+const isRichTextExpanded = (fieldCode: string): boolean => !!richTextExpanded.value[fieldCode]
+const isRichTextOverflow = (fieldCode: string): boolean => !!richTextOverflow.value[fieldCode]
+
+const toggleRichTextExpanded = (fieldCode: string) => {
+  richTextExpanded.value = {
+    ...richTextExpanded.value,
+    [fieldCode]: !richTextExpanded.value[fieldCode]
+  }
+}
+
+watch(
+  () => [
+    useGroupedDetailLayout.value,
+    groupedFields.value.richTextFields.map((field: FieldConfig) => field.code).join('|'),
+    props.rowData
+  ],
+  () => {
+    syncRichTextState()
+    scheduleRichTextMeasurement()
+  },
+  { immediate: true }
+)
 
 const getFieldValue = (fieldCode: string): FieldValue => {
   if (!props.rowData) return { raw: null, display: '', meta: {} }
@@ -729,6 +896,12 @@ const buildScheduledUpdatePayload = async (): Promise<Record<string, any>> => {
 const handleClose = () => {
   emit('close')
 }
+
+onBeforeUnmount(() => {
+  richTextResizeObservers.forEach((observer) => observer.disconnect())
+  richTextResizeObservers.clear()
+  richTextContentRefs.clear()
+})
 
 // 暴露方法供父组件调用
 defineExpose({
@@ -1100,6 +1273,67 @@ defineExpose({
 .grouped-detail-layout .sidebar-content .field-value {
   font-size: 13px;
   width: 100%;
+}
+
+/* main-content 内的富文本：跟随主内容阅读流，但保持块级卡片样式 */
+.main-content-rich-text {
+  padding-top: 12px;
+}
+
+.rich-text-field-card {
+  background: var(--el-bg-color);
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-light);
+}
+
+.rich-text-field-header {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.rich-text-field-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.rich-text-field-content {
+  padding: 16px;
+}
+
+.rich-text-preview-shell {
+  position: relative;
+  width: 100%;
+}
+
+.rich-text-preview-shell.is-collapsed {
+  max-height: var(--rich-text-preview-height);
+  overflow: hidden;
+}
+
+.rich-text-preview-shell.is-collapsed.is-expandable::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 72px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), var(--el-bg-color));
+  pointer-events: none;
+}
+
+.rich-text-preview-inner {
+  width: 100%;
+}
+
+.rich-text-preview-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 
 /* 底部：复杂字段 */

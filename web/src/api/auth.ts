@@ -40,15 +40,6 @@ export function sendEmailCode(email: string, codeType: 'register' | 'forgot_pass
   return post(url, { email })
 }
 
-// 验证邮箱
-// 注意：hr-server 中没有独立的 verify-email API，验证码验证在 register 接口中完成
-// 如果需要独立的验证邮箱功能，需要在 hr-server 中添加对应的 API
-export function verifyEmail(email: string, code: string) {
-  // TODO: hr-server 中暂无独立的 verify-email API，暂时保留此函数以保持兼容性
-  // 实际验证在 register 接口中完成
-  return post('/hr/api/v1/auth/verify-email', { email, code })
-}
-
 // 忘记密码（简化版：直接通过验证码重置密码）
 export function forgotPassword(data: { email: string; code: string; password: string }) {
   return post('/hr/api/v1/auth/forgot_password', data)

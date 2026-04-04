@@ -52,17 +52,6 @@ func SearchFunctions(ctx context.Context, req *dto.SearchFunctionsReq) (*dto.Sea
 	return GetAPI[*dto.SearchFunctionsResp](ctx, path, params)
 }
 
-// CreateServiceTree 创建服务目录（agent-server -> app-server）
-func CreateServiceTree(ctx context.Context, req *dto.CreateServiceTreeReq) (*dto.CreateServiceTreeResp, error) {
-	return PostAPI[*dto.CreateServiceTreeReq, *dto.CreateServiceTreeResp](ctx, "/workspace/api/v1/service_tree", req)
-}
-
-// GetServiceTreeByID 根据ID获取服务目录（agent-server -> app-server）
-func GetServiceTreeByID(ctx context.Context, req *dto.GetServiceTreeByIDReq) (*dto.GetServiceTreeResp, error) {
-	path := fmt.Sprintf("/workspace/api/v1/service_tree/%d", req.ID)
-	return GetAPI[*dto.GetServiceTreeResp](ctx, path, nil)
-}
-
 // GetWorkspaceContext 获取工作台环境信息（agent-server -> app-server）
 // fileSource 可选："" 或 "snapshot" 从快照表读；"runtime" 从 app-runtime 磁盘实时读（更准）
 func GetWorkspaceContext(ctx context.Context, fullCodePath string, fileSource string) (*dto.GetWorkspaceContextResp, error) {

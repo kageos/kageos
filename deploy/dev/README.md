@@ -61,8 +61,8 @@ bash deploy/dev/scripts/run-backend.sh
 说明：
 
 - 脚本会默认设置 `APP_ENV=dev`
-- 脚本会默认设置 `AI_AGENT_OS_DEV_SKIP_EMBEDDING_INFRA=1`
 - 脚本会默认设置 `AI_AGENT_OS_ROOT=<仓库根目录>`
+- `APP_ENV=dev` 时启动预检会自动按本地 compose 基础设施模式处理，无需额外环境变量
 - 如需手动控制，仍可直接执行 `go run ./core/cmd/main`
 
 ### 3. 起前端
