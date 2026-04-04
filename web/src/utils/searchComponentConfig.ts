@@ -113,14 +113,24 @@ export function createSearchComponentConfig(
  * 创建用户组件配置
  */
 function createUserComponentConfig(field: FieldConfig, searchType: string | undefined): ComponentConfig {
-  // 如果 search 标签是 "in" 或 "eq"，使用自定义的用户搜索组件
+  // 如果 search 标签是 "in" 或 "eq"，使用统一的远程选择器兜底
   if (hasSearchType(searchType, SearchType.IN) || hasSearchType(searchType, SearchType.EQ)) {
+    const multiple = hasSearchType(searchType, SearchType.IN)
     return {
-      component: SearchComponent.USER_SEARCH_INPUT,
+      component: SearchComponent.EL_SELECT,
       props: {
-        placeholder: generatePlaceholder(field.name, 'search'),
-        multiple: hasSearchType(searchType, SearchType.IN)
-      }
+        placeholder: generatePlaceholder(field.name, 'select'),
+        clearable: true,
+        filterable: true,
+        remote: true,
+        multiple,
+        style: { width: SearchConfig.DEFAULT_INPUT_WIDTH },
+        collapseTags: multiple,
+        maxCollapseTags: SearchConfig.MAX_COLLAPSE_TAGS,
+        popperClass: 'user-select-dropdown-popper'
+      },
+      onRemoteMethod: createUserRemoteMethod(),
+      onInitOptions: createUsersInitOptions()
     }
   }
 
@@ -137,9 +147,11 @@ function createUserComponentConfig(field: FieldConfig, searchType: string | unde
       clearable: true,
       filterable: true,
       remote: true,
-      style: { width: SearchConfig.DEFAULT_INPUT_WIDTH }
+      style: { width: SearchConfig.DEFAULT_INPUT_WIDTH },
+      popperClass: 'user-select-dropdown-popper'
     },
-    onRemoteMethod: createUserRemoteMethod()
+    onRemoteMethod: createUserRemoteMethod(),
+    onInitOptions: createUsersInitOptions()
   }
 }
 

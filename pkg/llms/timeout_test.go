@@ -9,8 +9,8 @@ import (
 func TestTimeoutConfiguration(t *testing.T) {
 	// 测试默认超时
 	options := DefaultClientOptions()
-	if options.Timeout != 60*time.Second {
-		t.Errorf("默认超时应该是60秒，实际是: %v", options.Timeout)
+	if options.Timeout != 1200*time.Second {
+		t.Errorf("默认超时应该是1200秒，实际是: %v", options.Timeout)
 	}
 
 	// 测试自定义超时
@@ -56,7 +56,7 @@ func TestClientCreationWithOptions(t *testing.T) {
 
 // TestRequestLevelTimeout 测试请求级别的超时配置
 func TestRequestLevelTimeout(t *testing.T) {
-	// 创建客户端，默认超时60秒
+	// 创建客户端，默认超时1200秒
 	client := NewKimiClient("test-key")
 
 	// 创建请求，指定超时600秒

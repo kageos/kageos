@@ -274,9 +274,10 @@
     </el-dialog>
 
     <!-- 直接赋权：选择部门（多选） -->
-    <DepartmentsSearchDialog
+    <DepartmentPickerDialog
       v-model="showGrantDeptDialog"
       :initial-paths="grantDepartmentPaths.join(',')"
+      :multiple="true"
       @confirm="onGrantDepartmentsSelected"
     />
   </div>
@@ -293,12 +294,13 @@ import { useAuthStore } from '@/stores/auth'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import UsersWidget from '@/shared/components/UsersWidget.vue'
 import DepartmentsWidget from '@/shared/components/DepartmentsWidget.vue'
-import DepartmentsSearchDialog from '@/shared/components/DepartmentsSearchDialog.vue'
+import DepartmentPickerDialog from '@/shared/components/DepartmentPickerDialog.vue'
 import { WidgetType } from '@/core/constants/widget'
-import type { FieldConfig, FieldValue } from '@/core/types/field'
+import type { FieldValue } from '@/core/types/field'
 import type { Department } from '@/api/department'
 import type { Role } from '@/api/role'
 import { canApprovePermissionRequest } from '@/utils/permissionActors'
+import { createStringFieldValue, createWidgetFieldConfig } from '@/utils/widgetFieldHelpers'
 
 interface Props {
   resourcePath?: string  // 资源路径（可选，如果提供则只显示该资源的申请）
@@ -366,17 +368,15 @@ const currentRejectRequest = ref<PermissionRequest | null>(null)
 const grantSubjectType = ref<'user' | 'department'>('user')
 const grantRoleId = ref<number | null>(null)
 const grantRoles = ref<Role[]>([])
-const grantUsersValue = ref<FieldValue>({ raw: '', display: '', meta: {} })
+const grantUsersField = createWidgetFieldConfig({
+  code: 'grant_user',
+  name: '用户',
+  widgetType: WidgetType.USERS
+})
+const grantUsersValue = ref<FieldValue>(createStringFieldValue(grantUsersField, '', { emptyRaw: '' }))
 const grantDepartmentPaths = ref<string[]>([])
 const showGrantDeptDialog = ref(false)
 const grantSubmitting = ref(false)
-
-const grantUsersField = computed<FieldConfig>(() => ({
-  code: 'grant_user',
-  name: '用户',
-  widget: { type: WidgetType.USERS, config: {} },
-  data: { type: 'string' }
-}))
 
 async function loadRolesForGrant() {
   if (grantRoles.value.length > 0 || !props.resourcePath) return
@@ -548,64 +548,24 @@ const getStatusText = (status: string) => {
   }
 }
 
-// 权限主体用户字段配置（用于 UsersWidget）
-const subjectUsersField = computed<FieldConfig>(() => ({
+const subjectUsersField = createWidgetFieldConfig({
   code: 'subject',
   name: '权限主体',
-  widget: {
-    type: WidgetType.USERS,
-    config: {}
-  },
-  data: {
-    type: 'string'
-  }
-}))
+  widgetType: WidgetType.USERS
+})
 
-// 获取权限主体用户字段值（用于 UsersWidget）
 const getSubjectUsersValue = (subject: string): FieldValue => {
-  if (!subject) {
-    return {
-      raw: '',
-      display: '',
-      meta: {}
-    }
-  }
-  // subject 是逗号分隔的用户名
-  return {
-    raw: subject,
-    display: subject,
-    meta: {}
-  }
+  return createStringFieldValue(subjectUsersField, subject, { emptyRaw: '' })
 }
 
-// 权限主体组织架构字段配置（用于 DepartmentsWidget）
-const subjectDepartmentsField = computed<FieldConfig>(() => ({
+const subjectDepartmentsField = createWidgetFieldConfig({
   code: 'subject',
   name: '权限主体',
-  widget: {
-    type: 'departments', // 使用字符串，因为 WidgetType 中可能还没有定义
-    config: {}
-  },
-  data: {
-    type: 'string'
-  }
-}))
+  widgetType: WidgetType.DEPARTMENTS
+})
 
-// 获取权限主体组织架构字段值（用于 DepartmentsWidget）
 const getSubjectDepartmentsValue = (subject: string): FieldValue => {
-  if (!subject) {
-    return {
-      raw: '',
-      display: '',
-      meta: {}
-    }
-  }
-  // subject 是逗号分隔的组织架构路径（如 "/org/nanjing,/org/beijing"）
-  return {
-    raw: subject,
-    display: subject,
-    meta: {}
-  }
+  return createStringFieldValue(subjectDepartmentsField, subject, { emptyRaw: '' })
 }
 
 // 处理同意

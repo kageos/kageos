@@ -514,8 +514,8 @@ func (s *PodmanService) prepareMacOSEnvironment() error {
 	cmd := exec.Command("podman", "machine", "list", "--format", "{{.Running}}")
 	output, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("failed to check podman machine status: %w\n\n" +
-			"Try running: podman machine init")
+		return fmt.Errorf("failed to check podman machine status: %w\n\n"+
+			"Try running: podman machine init", err)
 	}
 
 	running := strings.TrimSpace(string(output))
@@ -524,8 +524,8 @@ func (s *PodmanService) prepareMacOSEnvironment() error {
 		logger.Infof(s.ctx, "Starting Podman Machine...")
 		cmd = exec.Command("podman", "machine", "start")
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to start podman machine: %w\n\n" +
-				"Try running manually: podman machine start")
+			return fmt.Errorf("failed to start podman machine: %w\n\n"+
+				"Try running manually: podman machine start", err)
 		}
 
 		// 等待 Machine 启动
@@ -544,18 +544,18 @@ func (s *PodmanService) prepareWindowsEnvironment() error {
 	// 检查 WSL2
 	cmd := exec.Command("wsl", "--status")
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("WSL2 is not available: %w\n\n" +
-			"Please enable WSL2:\n" +
-			"  wsl --update\n" +
-			"  wsl --install --no-distribution")
+		return fmt.Errorf("WSL2 is not available: %w\n\n"+
+			"Please enable WSL2:\n"+
+			"  wsl --update\n"+
+			"  wsl --install --no-distribution", err)
 	}
 
 	// 检查 Podman Machine 状态
 	cmd = exec.Command("podman", "machine", "list", "--format", "{{.Running}}")
 	output, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("failed to check podman machine status: %w\n\n" +
-			"Try running: podman machine init")
+		return fmt.Errorf("failed to check podman machine status: %w\n\n"+
+			"Try running: podman machine init", err)
 	}
 
 	running := strings.TrimSpace(string(output))
@@ -564,8 +564,8 @@ func (s *PodmanService) prepareWindowsEnvironment() error {
 		logger.Infof(s.ctx, "Starting Podman Machine...")
 		cmd = exec.Command("podman", "machine", "start")
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to start podman machine: %w\n\n" +
-				"Try running manually: podman machine start")
+			return fmt.Errorf("failed to start podman machine: %w\n\n"+
+				"Try running manually: podman machine start", err)
 		}
 
 		// 等待 Machine 启动

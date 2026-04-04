@@ -10,6 +10,14 @@ export function resolveWidgetTypeForSearchRenderer(options: {
   const widgetType = options.widgetType || WidgetType.INPUT
   const searchType = options.searchType || ''
 
+  if (widgetType === WidgetType.USER || widgetType === WidgetType.USERS) {
+    return hasSearchType(searchType, SearchType.IN) ? WidgetType.USERS : WidgetType.USER
+  }
+
+  if (widgetType === WidgetType.DEPARTMENT || widgetType === WidgetType.DEPARTMENTS) {
+    return hasSearchType(searchType, SearchType.IN) ? WidgetType.DEPARTMENTS : WidgetType.DEPARTMENT
+  }
+
   // `select + in` 在搜索语义上是多值选择，更适合直接复用 multiselect 的稳定实现。
   if (widgetType === WidgetType.SELECT && hasSearchType(searchType, SearchType.IN)) {
     return WidgetType.MULTI_SELECT
@@ -35,16 +43,6 @@ export function shouldUseWidgetSearchRenderer(options: {
     return false
   }
 
-  // 这些类型在搜索栏里有更合适的专用壳层或 fallback 控件。
-  if (
-    widgetType === WidgetType.USER ||
-    widgetType === WidgetType.USERS ||
-    widgetType === WidgetType.DEPARTMENT ||
-    widgetType === WidgetType.DEPARTMENTS
-  ) {
-    return false
-  }
-
   const hasInSearch = hasSearchType(searchType, SearchType.IN)
   const hasContainsSearch = hasSearchType(searchType, SearchType.CONTAINS)
   const hasLikeSearch = hasSearchType(searchType, SearchType.LIKE)
@@ -64,11 +62,10 @@ export function shouldUseWidgetSearchRenderer(options: {
     case WidgetType.RADIO:
       return !hasInSearch && !hasLikeSearch && !hasRangeSearch
     case WidgetType.USER:
-      return !hasInSearch && !hasLikeSearch
     case WidgetType.USERS:
     case WidgetType.DEPARTMENT:
     case WidgetType.DEPARTMENTS:
-      return !hasLikeSearch
+      return hasSearchType(searchType, SearchType.EQ) || hasInSearch
     case WidgetType.MULTI_SELECT:
       return !hasLikeSearch && !hasRangeSearch
     case WidgetType.CHECKBOX:

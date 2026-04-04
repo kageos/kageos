@@ -50,12 +50,12 @@
       </el-button>
       
       <!-- 用户搜索弹窗 -->
-      <UserSearchDialog
+      <UserPickerDialog
         v-model="dialogVisible"
         :title="`选择${field.name || '用户'}`"
         :placeholder="field.desc || '请输入用户名或邮箱搜索'"
-        :initial-username="value?.raw"
-        @confirm="handleUserSelected"
+        :initial-usernames="value?.raw ? String(value.raw) : null"
+        @confirm="handleUsersConfirmed"
       />
     </div>
     
@@ -95,7 +95,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import UserDisplay from './UserDisplay.vue'
-import UserSearchDialog from './UserSearchDialog.vue'
+import UserPickerDialog from './UserPickerDialog.vue'
 import { ElAvatar, ElButton, ElIcon } from 'element-plus'
 import { User, Edit } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/shared/types/widget'
@@ -159,6 +159,10 @@ function handleUserSelected(user: UserInfo | null): void {
   userInfo.value = user
 }
 
+function handleUsersConfirmed(users: UserInfo[]): void {
+  handleUserSelected(users[0] ?? null)
+}
+
 // 显示名称：username(昵称) 或 username
 const displayName = computed(() => {
   if (userInfo.value) {
@@ -195,13 +199,13 @@ const selectedUserForDisplay = computed(() => {
   return null
 })
 
-// ⭐ 注意：UserWidget 现在使用 UserSearchDialog 弹窗，不再使用 el-select 下拉框
+// ⭐ 注意：UserWidget 现在使用统一的 UserPickerDialog 弹窗，不再使用 el-select 下拉框
 // 以下代码已移除，因为不再需要：
-// - handleRemoteSearch（搜索逻辑在 UserSearchDialog 中）
-// - handleChange（选择逻辑在 UserSearchDialog 中）
-// - handleFocus（聚焦逻辑在 UserSearchDialog 中）
+// - handleRemoteSearch（搜索逻辑在 UserPickerDialog 中）
+// - handleChange（选择逻辑在 UserPickerDialog 中）
+// - handleFocus（聚焦逻辑在 UserPickerDialog 中）
 // - handleVisibleChange（下拉框显示逻辑已移除）
-// - handleClear（清空逻辑在 UserSearchDialog 中）
+// - handleClear（清空逻辑在 UserPickerDialog 中）
 
 // 加载用户信息（用于显示）
 async function loadUserInfo(username: string | null): Promise<UserInfo | null> {

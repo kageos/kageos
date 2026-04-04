@@ -444,10 +444,12 @@
           </el-tooltip>
         </el-form-item>
         <el-form-item label="管理员">
-          <UserSearchInput
-            v-model="adminsArray"
-            placeholder="搜索并选择管理员（可多选）"
-            :multiple="true"
+          <UsersWidget
+            :field="createAppAdminsField"
+            :value="createAppAdminsFieldValue"
+            :field-path="createAppAdminsField.code"
+            mode="edit"
+            @update:modelValue="handleCreateAppAdminsChange"
           />
           <div class="form-tip">
             <el-icon><InfoFilled /></el-icon>
@@ -740,7 +742,6 @@ import ServiceTreePanel from '@/architecture/presentation/components/ServiceTree
 import WorkspaceHeader from '../components/WorkspaceHeader.vue'
 import FunctionBreadcrumb from '../components/FunctionBreadcrumb.vue'
 import TableRowDetailDrawer from '../components/TableRowDetailDrawer.vue'
-import UserSearchInput from '@/shared/components/UserSearchInput.vue'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import UsersWidget from '@/shared/components/UsersWidget.vue'
 import PermissionRequestList from '@/shared/components/permission/PermissionRequestList.vue'
@@ -772,6 +773,7 @@ import { listScheduledTasks } from '@/api/scheduledTask'
 import { hasPermission, TablePermission, buildPermissionApplyURL } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
+import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/utils/widgetFieldHelpers'
 
 const route = useRoute()
 const router = useRouter()
@@ -850,7 +852,6 @@ const {
   createAppDialogVisible,
   creatingApp,
   createAppForm,
-  adminsArray,
   loadAppList,
   handleSwitchApp: appHandleSwitchApp,
   showCreateAppDialog,
@@ -859,6 +860,22 @@ const {
   handleUpdateApp,
   handleDeleteApp: appHandleDeleteApp
 } = useWorkspaceApp()
+
+const createAppAdminsField = createWidgetFieldConfig({
+  code: 'create_app_admins',
+  name: '管理员',
+  widgetType: WidgetType.USERS
+})
+
+const createAppAdminsFieldValue = computed(() =>
+  createStringFieldValue(createAppAdminsField, createAppForm.value.admins, {
+    display: (createAppForm.value.admins || '').split(',').map(s => s.trim()).filter(Boolean).join(', ')
+  })
+)
+
+function handleCreateAppAdminsChange(value: FieldValue) {
+  createAppForm.value.admins = extractStringFieldRaw(value)
+}
 
 const {
   createDirectoryDialogVisible,
@@ -871,37 +888,21 @@ const {
   expandCurrentRoutePath: serviceTreeExpandCurrentRoutePath,
 } = useWorkspaceServiceTree()
 
-// 管理员字段配置（用于 UsersWidget）
-const adminsField = computed<FieldConfig>(() => ({
+const adminsField = createWidgetFieldConfig({
   code: 'admins',
   name: '管理员',
-  widget: {
-    type: WidgetType.USERS,
-    config: {}
-  }
-}))
-
-// 管理员字段值（用于 UsersWidget）
-const adminsFieldValue = computed<FieldValue>(() => {
-  if (!createDirectoryForm.value.admins || !createDirectoryForm.value.admins.trim()) {
-    return {
-      raw: null,
-      display: '',
-      meta: {}
-    }
-  }
-  
-  const admins = createDirectoryForm.value.admins.split(',').map(s => s.trim()).filter(s => s)
-  return {
-    raw: admins.join(','),
-    display: admins.join(', '),
-    meta: {}
-  }
+  widgetType: WidgetType.USERS
 })
+
+const adminsFieldValue = computed(() =>
+  createStringFieldValue(adminsField, createDirectoryForm.value.admins, {
+    display: (createDirectoryForm.value.admins || '').split(',').map(s => s.trim()).filter(Boolean).join(', ')
+  })
+)
 
 // 处理管理员字段变化
 function handleAdminsChange(value: FieldValue) {
-  createDirectoryForm.value.admins = value.raw || ''
+  createDirectoryForm.value.admins = extractStringFieldRaw(value)
 }
 
 function asRenderableFunctionDetail(detail: FunctionDetail): RenderableFunctionDetail {

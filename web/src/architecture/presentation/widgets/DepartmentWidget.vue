@@ -60,22 +60,14 @@
         {{ field.desc || `请选择${field.name}` }}
       </el-button>
       
-      <!-- 组织架构选择弹窗 -->
-      <!-- 搜索模式下，如果支持 IN 查询，使用多选对话框 -->
-      <DepartmentsSearchDialog
-        v-if="mode === 'search' && supportsMultipleSelection"
+      <!-- 统一组织架构选择弹窗 -->
+      <DepartmentPickerDialog
         v-model="dialogVisible"
         :title="`选择${field.name || '组织架构'}`"
         :placeholder="field.desc || '搜索部门名称或路径...'"
-        :initial-paths="value?.raw"
-        @confirm="handleDepartmentsSelected"
-      />
-      <!-- 其他情况使用单选对话框 -->
-      <DepartmentSelectorDialog
-        v-else
-        v-model="dialogVisible"
-        :selected-department="selectedDepartmentForDisplay"
-        @select="handleDepartmentSelected"
+        :initial-paths="typeof value?.raw === 'string' ? value.raw : null"
+        :multiple="mode === 'search' && supportsMultipleSelection"
+        @confirm="handlePickerConfirm"
       />
     </div>
     
@@ -119,8 +111,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import DepartmentDisplay from '@/shared/components/DepartmentDisplay.vue'
-import DepartmentSelectorDialog from '@/shared/components/DepartmentSelectorDialog.vue'
-import DepartmentsSearchDialog from '@/shared/components/DepartmentsSearchDialog.vue'
+import DepartmentPickerDialog from '@/shared/components/DepartmentPickerDialog.vue'
 import { ElButton, ElIcon } from 'element-plus'
 import { OfficeBuilding, Edit, Close } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
@@ -128,7 +119,6 @@ import { useFormDataStore } from '@/core/stores-v2/formData'
 import { useAuthStore } from '@/stores/auth'
 import { useDepartmentInfoStore } from '@/stores/departmentInfo'
 import type { Department } from '@/api/department'
-import { getDepartmentTree, getDepartmentByPath } from '@/api/department'
 import { Logger } from '@/core/utils/logger'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import { SearchType, hasSearchType } from '@/core/constants/search'
@@ -212,6 +202,18 @@ function handleDepartmentsSelected(departments: Department[]): void {
     departmentInfo.value = departments[0] ?? null
   } else {
     departmentInfo.value = null
+  }
+}
+
+function handlePickerConfirm(departments: Department[]): void {
+  if (props.mode === 'search' && supportsMultipleSelection.value) {
+    handleDepartmentsSelected(departments)
+    return
+  }
+
+  const department = departments[0]
+  if (department) {
+    handleDepartmentSelected(department)
   }
 }
 

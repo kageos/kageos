@@ -81,7 +81,8 @@ import UserDisplay from '@/shared/components/UserDisplay.vue'
 import DepartmentSelector from '@/shared/components/DepartmentSelector.vue'
 import UserWidget from '@/shared/components/UserWidget.vue'
 import { WidgetType } from '@/core/constants/widget'
-import type { FieldConfig, FieldValue } from '@/core/types/field'
+import type { FieldValue } from '@/core/types/field'
+import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/utils/widgetFieldHelpers'
 
 interface Props {
   modelValue: boolean
@@ -108,43 +109,18 @@ const formData = ref({
 
 const submitting = ref(false)
 
-// 直接上级字段配置（用于 UserWidget）
-const leaderField: FieldConfig = {
+const leaderField = createWidgetFieldConfig({
   code: 'leader_username',
   name: '直接上级',
-  widget: {
-    type: WidgetType.USER,
-    config: {}
-  },
-  data: {
-    type: 'string'
-  }
-}
-
-// 直接上级字段值（用于 UserWidget）
-const leaderFieldValue = computed<FieldValue>(() => {
-  if (!formData.value.leader_username) {
-    return {
-      raw: '',
-      display: '',
-      meta: {}
-    }
-  }
-  return {
-    raw: formData.value.leader_username,
-    display: formData.value.leader_username,
-    meta: {}
-  }
+  widgetType: WidgetType.USER
 })
 
-// 处理直接上级变化
+const leaderFieldValue = computed(() =>
+  createStringFieldValue(leaderField, formData.value.leader_username, { emptyRaw: '' })
+)
+
 const handleLeaderChange = (value: FieldValue) => {
-  // 从 FieldValue 中提取 raw 值（用户名）
-  if (typeof value.raw === 'string') {
-    formData.value.leader_username = value.raw || null
-  } else {
-    formData.value.leader_username = null
-  }
+  formData.value.leader_username = extractStringFieldRaw(value) || null
 }
 
 // 部门树数据
