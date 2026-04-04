@@ -16,7 +16,7 @@ import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import type { App } from '../../domain/services/WorkspaceDomainService'
 import type { App as AppType, CreateAppRequest } from '@/types'
-import { deleteApp, getAppDetailByUserAndCode, getAppWithServiceTree, updateApp } from '@/api/app'
+import { deleteApp, getAppWithServiceTree, updateApp } from '@/api/app'
 import { useAuthStore } from '@/stores/auth'
 import { buildAppResourcePath } from '@/utils/resourcePath'
 

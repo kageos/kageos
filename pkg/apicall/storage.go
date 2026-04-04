@@ -20,15 +20,6 @@ type ApiResult[T any] struct {
 	Data T      `json:"data"`
 }
 
-// Header 已废弃，请使用 context.Context 替代
-// 保留此类型仅用于向后兼容，新代码请使用 WithCtx 方法
-// Deprecated: 使用 context.Context 替代，通过 contextx 包提取 token、trace_id、request_user
-type Header struct {
-	TraceID     string `json:"trace_id"`
-	RequestUser string `json:"request_user"`
-	Token       string `json:"token"`
-}
-
 // httpClient 通用HTTP客户端（复用连接，提高性能）
 var httpClient = &http.Client{
 	Timeout: 300 * time.Second,

@@ -1,16 +1,6 @@
 import { get, post, put, del } from '@/utils/request'
 import type { ServiceTree, CreateServiceTreeRequest } from '@/types'
 
-// 获取服务目录树（使用user和app参数）
-// @param typeFilter 可选，节点类型过滤：'package'（只显示服务目录/包）、'function'（只显示函数/文件）
-export function getServiceTree(user: string, app: string, typeFilter?: 'package' | 'function') {
-  const params: Record<string, string> = { user, app }
-  if (typeFilter) {
-    params.type = typeFilter
-  }
-  return get<ServiceTree[]>('/workspace/api/v1/service_tree', params)
-}
-
 // ⭐ 创建 package 类型节点（推荐使用）
 export function createPackage(data: CreateServiceTreeRequest) {
   const payload = {
@@ -83,37 +73,6 @@ export function createServiceTreeFunction(data: {
   return post<ServiceTree>('/workspace/api/v1/functions', payload)
 }
 
-// 创建服务目录（使用user和app参数）
-// ⚠️ 保留向后兼容，推荐使用 createPackage、createDocs、createFunction
-export function createServiceTree(data: CreateServiceTreeRequest & { type?: string }) {
-  const payload: any = {
-    user: data.user,
-    app: data.app,
-    name: data.name,
-    code: data.code,
-    parent_full_code_path: data.parent_full_code_path || '',
-    type: data.type || 'package',
-    description: data.description || '',
-    tags: data.tags || '',
-    admins: data.admins || ''
-  }
-  
-  // ⭐ 如果是 docs 类型，添加文档相关字段
-  if (data.type === 'docs') {
-    if (data.doc_content) {
-      payload.doc_content = data.doc_content
-    }
-    if (data.doc_format) {
-      payload.doc_format = data.doc_format
-    }
-    if (data.doc_summary) {
-      payload.doc_summary = data.doc_summary
-    }
-  }
-  
-  return post<ServiceTree>('/workspace/api/v1/service_tree', payload)
-}
-
 // ⭐ 更新 package 类型节点（推荐使用）
 export function updatePackage(id: number, data: { name?: string; code?: string; description?: string; tags?: string; admins?: string }) {
   return put(`/workspace/api/v1/packages/${id}`, data)
@@ -171,22 +130,6 @@ export function deleteBoard(id: number) {
   return del(`/workspace/api/v1/boards/crud/${id}`)
 }
 
-// 更新服务目录
-// ⚠️ 保留向后兼容，推荐使用 updatePackage、updateFunction、updateDocs
-export function updateServiceTree(id: number, data: { name?: string; admins?: string }) {
-  return put('/workspace/api/v1/service_tree', {
-    id,
-    name: data.name,
-    admins: data.admins
-  })
-}
-
-// 删除服务目录
-// ⚠️ 保留向后兼容，推荐使用 deletePackage、deleteFunction、deleteDocs
-export function deleteServiceTree(id: number) {
-  return del(`/workspace/api/v1/service_tree/${id}`)
-}
-
 /** 向目录写入单个 Go 文件（与 write_go_file 一致：add_functions 落盘） */
 export function addFunctionsToDirectory(params: {
   full_code_path: string
@@ -205,82 +148,6 @@ export function addFunctionsToDirectory(params: {
   )
 }
 
-// 文档相关 API
-export interface Doc {
-  id: number
-  title: string
-  content: string
-  format: string
-  app_id: number
-  tree_id: number
-  summary?: string
-  category?: string
-  created_at: string
-  updated_at: string
-}
-
-// 文档相关 API 已迁移到 @/api/doc.ts，使用基于 full_code_path 的新接口
-
-// 获取服务目录详情（包含权限信息）
-export interface ServiceTreeDetail {
-  id: number
-  name: string
-  code: string
-  type: 'package' | 'function'
-  description: string
-  tags: string
-  app_id: number
-  ref_id: number
-  full_code_path: string
-  template_type?: string
-  version: string
-  version_num: number
-  hub_full_code_path?: string
-  hub_version_num?: number
-  run_count?: number  // ⭐ 运行次数（仅 function 类型有意义），用于展示「已使用 N 次」
-  permissions?: Record<string, boolean>  // ⭐ 权限信息
-}
-
-// 获取服务目录详情（支持 ID 或 full_code_path）
-// ⚠️ 注意：函数权限请使用函数详情接口，此接口主要用于兼容旧代码
-export function getServiceTreeDetail(params: { id?: number; full_code_path?: string }) {
-  const queryParams: Record<string, string> = {}
-  if (params.id) {
-    queryParams.id = params.id.toString()
-  }
-  if (params.full_code_path) {
-    queryParams.full_code_path = params.full_code_path
-  }
-  return get<ServiceTreeDetail>('/workspace/api/v1/service_tree/detail', queryParams)
-}
-
-// 获取目录信息（仅用于获取目录权限）
-export interface PackageInfo {
-  id: number
-  name: string
-  code: string
-  full_code_path: string
-  permissions?: Record<string, boolean>  // ⭐ 权限信息：directory:read, directory:write, directory:update, directory:delete, directory:admin
-}
-
-// 获取目录信息（支持 ID 或 full_code_path）
-// ⭐ 优化：专门用于获取目录权限，函数权限从函数详情接口获取
-export function getPackageInfo(params: { id?: number; full_code_path?: string }) {
-  const queryParams: Record<string, string> = {}
-  if (params.id) {
-    queryParams.id = params.id.toString()
-  }
-  if (params.full_code_path) {
-    queryParams.full_code_path = params.full_code_path
-  }
-  return get<PackageInfo>('/workspace/api/v1/service_tree/package_info', queryParams)
-}
-
-// 移动服务目录
-export function moveServiceTree(id: number, newParentFullCodePath: string) {
-  return put(`/workspace/api/v1/service_tree/${id}/move`, { parent_full_code_path: newParentFullCodePath })
-}
-
 // 复制服务目录（新接口，支持递归复制）
 export function copyDirectory(data: {
   source_directory_path: string
@@ -292,14 +159,6 @@ export function copyDirectory(data: {
     directory_count: number
     file_count: number
   }>('/workspace/api/v1/service_tree/copy', data)
-}
-
-// 复制服务目录（旧接口，保留向后兼容）
-export function copyServiceTree(id: number, targetAppId: number, targetParentFullCodePath?: string) {
-  return post(`/workspace/api/v1/service_tree/${id}/copy`, {
-    app_id: targetAppId,
-    parent_full_code_path: targetParentFullCodePath || ''
-  })
 }
 
 // 搜索函数

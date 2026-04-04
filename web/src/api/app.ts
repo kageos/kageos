@@ -80,11 +80,6 @@ export function getAppDetail(resourcePath: string) {
   })
 }
 
-// 根据 user 和 code 构造 resource_path 获取工作空间详情（创建后使用）
-export function getAppDetailByUserAndCode(user: string, code: string) {
-  return getAppDetail(buildAppResourcePath(user, code))
-}
-
 // ⭐ 获取工作空间详情和服务目录树（合并接口，减少请求次数，canonical 标识为 resource_path）
 export function getAppWithServiceTree(resourcePath: string, nodeType?: string) {
   const params: Record<string, any> = {}
@@ -112,9 +107,4 @@ export function updateWorkspace(
     resource_path: normalizeResourcePath(resourcePath),
     ...data
   })
-}
-
-// 运行业务系统函数
-export function runFunction(fullCodePath: string, params?: any) {
-  return post(`/workspace/api/v1/run/${fullCodePath}`, params)
 }

@@ -37,8 +37,10 @@ type containerResult struct {
 	elapsed time.Duration
 }
 
-// Preflight 启动预检：默认（裸机 / Embedding）用 Podman 拉起 mysql8 等；生产 Compose 胖镜像通过标记文件自动改为仅 TCP 探测，线上不需环境变量。
-// 开发特殊场景：本机中间件已由 compose 提供、又不想走 podman start 时，可设 AI_AGENT_OS_DEV_SKIP_EMBEDDING_INFRA=1。
+// Preflight 启动预检：
+//   - 开发环境（APP_ENV=dev）默认按本地 compose 中间件处理，仅做 TCP 探测；
+//   - 生产 Compose 胖镜像通过标记文件自动识别，同样仅做 TCP 探测；
+//   - 其余历史/兼容场景保留 Podman 拉起 mysql8/nats-server/minio。
 //
 // 设计原则：尽可能快地放行，不做多余等待。
 // 服务端已有自动重连（NATS MaxReconnects=-1），预检只管"把东西拉起来"。
@@ -47,8 +49,8 @@ func Preflight(ctx context.Context) error {
 	logger.Infof(ctx, "[Preflight] ========== 启动预检开始 | 平台=%s ==========", runtime.GOOS)
 
 	if useComposeStyleInfraPreflight() {
-		logger.Infof(ctx, "[Preflight] Compose 中间件路径（标记文件或 DEV 变量）：跳过 Podman 拉起 mysql8/nats/minio，仅探测 MySQL TCP")
-		waitForMySQLTCP(ctx, "mysql:3306", 30*time.Second)
+		logger.Infof(ctx, "[Preflight] Compose 中间件路径（prod bundle 或 APP_ENV=dev）：跳过 Podman 拉起 mysql8/nats/minio，仅探测 MySQL TCP")
+		waitForMySQLTCP(ctx, composeStyleMySQLAddr(), 30*time.Second)
 		logger.Infof(ctx, "[Preflight] ========== 启动预检完成 | 总耗时=%s ==========", time.Since(start).Round(time.Millisecond))
 		return nil
 	}
@@ -222,10 +224,15 @@ func waitForMySQLTCP(ctx context.Context, addr string, maxWait time.Duration) {
 	logger.Warnf(ctx, "[Preflight] [skip-mode] ⚠ MySQL TCP %s 在 %s 内未连通", addr, maxWait)
 }
 
+func composeStyleMySQLAddr() string {
+	// dev 在宿主机直接访问 compose 暴露的 127.0.0.1:3306；
+	// prod main 容器使用 host 网络，也通过 127.0.0.1 访问中间件端口。
+	return "127.0.0.1:3306"
+}
+
 func useComposeStyleInfraPreflight() bool {
 	if _, err := os.Stat(prodComposeBundleMarker); err == nil {
 		return true
 	}
-	// 仅开发：显式声明本机不用 Embedding 那套 podman 基础设施名
-	return os.Getenv("AI_AGENT_OS_DEV_SKIP_EMBEDDING_INFRA") == "1"
+	return strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV"))) == "dev"
 }

@@ -57,38 +57,6 @@ export function executeFunction(method: string, router: string, params?: SearchP
   }
 }
 
-// ⭐ 旧版本（已注释，保留用于参考）
-// export function executeFunction_OLD(method: string, router: string, params?: SearchParams | any) {
-//   const url = `/workspace/api/v1/run${router}`
-//   switch (method.toUpperCase()) {
-//     case 'GET':
-//       return get<any>(url, params || {})
-//     case 'POST':
-//       return post<any>(url, params || {})
-//     case 'PUT':
-//       return put<any>(url, params || {})
-//     case 'DELETE':
-//       return del<any>(url)
-//     default:
-//       return get<any>(url, params || {})
-//   }
-// }
-
-// 创建函数
-export function createFunction(data: Partial<Function>) {
-  return post<Function>('/workspace/api/v1/function/create', data)
-}
-
-// 更新函数
-export function updateFunction(id: number, data: Partial<Function>) {
-  return put(`/workspace/api/v1/function/${id}`, data)
-}
-
-// 删除函数
-export function deleteFunction(id: number) {
-  return del(`/workspace/api/v1/function/${id}`)
-}
-
 // ⭐ Table 回调操作 - 新增记录（使用标准 API）
 export function tableAddRow(method: string, router: string, data: any) {
   // ⭐ 使用标准 API：/table/create/{full-code-path}
@@ -163,8 +131,6 @@ export function tableDeleteRows(method: string, router: string, ids: number[]) {
  *   value_type: 'int'
  * })
  */
-import { SelectFuzzyQueryType } from '@/core/constants/select'
-import { Logger } from '@/core/utils/logger'
 
 /**
  * Select 回调操作 - 模糊查询选项（使用标准 API）
@@ -187,23 +153,6 @@ export function selectFuzzy(method: string, router: string, data: {
 
   // 统一使用 POST 方法
   return post(url, data)
-}
-
-// ⭐ 旧版本（已注释，保留用于参考）
-// export function selectFuzzy_OLD(method: string, router: string, data: {
-//   code: string
-//   type: 'by_keyword' | 'by_value' | 'by_values'
-//   value: any
-//   request: Record<string, any>
-//   value_type: string
-// }) {
-//   const url = `/workspace/api/v1/callback${router}?_type=OnSelectFuzzy&_function_method=${method.toUpperCase()}`
-//   return post(url, data)
-// }
-
-// 导出数据
-export function exportData(router: string, params: SearchParams) {
-  return post(`/workspace/api/v1/export`, { router, ...params })
 }
 
 /**
