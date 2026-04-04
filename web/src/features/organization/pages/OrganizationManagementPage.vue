@@ -248,7 +248,8 @@ import UserEditDialog from '@/features/user/components/UserEditDialog.vue'
 import { useAuthStore } from '@/stores/auth'
 import UsersWidget from '@/shared/components/UsersWidget.vue'
 import { WidgetType } from '@/core/constants/widget'
-import type { FieldConfig, FieldValue } from '@/core/types/field'
+import type { FieldValue } from '@/core/types/field'
+import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/utils/widgetFieldHelpers'
 
 // ==================== 状态管理 ====================
 
@@ -286,47 +287,18 @@ const departmentForm = reactive<{
   managers: ''
 })
 
-// 负责人字段配置（用于 UsersWidget）
-const managersField: FieldConfig = {
+const managersField = createWidgetFieldConfig({
   code: 'managers',
   name: '负责人',
-  widget: {
-    type: WidgetType.USERS,
-    config: {}
-  },
-  data: {
-    type: 'string'
-  }
-}
-
-// 负责人字段值（用于 UsersWidget）
-const managersFieldValue = computed<FieldValue>(() => {
-  if (!departmentForm.managers) {
-    return {
-      raw: '',
-      display: '',
-      meta: {}
-    }
-  }
-  // managers 是逗号分隔的字符串，需要转换为数组格式
-  const usernames = departmentForm.managers.split(',').map(u => u.trim()).filter(Boolean)
-  return {
-    raw: usernames.join(','),
-    display: usernames.join(','),
-    meta: {}
-  }
+  widgetType: WidgetType.USERS
 })
 
-// 处理负责人变化
+const managersFieldValue = computed(() =>
+  createStringFieldValue(managersField, departmentForm.managers, { emptyRaw: '' })
+)
+
 const handleManagersChange = (value: FieldValue) => {
-  // 从 FieldValue 中提取 raw 值（逗号分隔的字符串）
-  if (typeof value.raw === 'string') {
-    departmentForm.managers = value.raw
-  } else if (Array.isArray(value.raw)) {
-    departmentForm.managers = value.raw.join(',')
-  } else {
-    departmentForm.managers = ''
-  }
+  departmentForm.managers = extractStringFieldRaw(value)
 }
 
 const departmentFormRules: FormRules = {

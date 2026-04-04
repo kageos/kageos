@@ -24,7 +24,6 @@ export const SearchComponent = {
   EL_INPUT: 'ElInput',
   EL_SELECT: 'ElSelect',
   EL_DATE_PICKER: 'ElDatePicker',
-  USER_SEARCH_INPUT: 'UserSearchInput',
   RANGE_INPUT: 'RangeInput',
   NUMBER_RANGE_INPUT: 'NumberRangeInput'
 } as const
@@ -63,4 +62,3 @@ export function hasAllSearchTypes(searchType: string | undefined | null, types: 
   if (!searchType) return false
   return types.every(type => searchType.includes(type))
 }
-

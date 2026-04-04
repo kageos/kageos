@@ -399,6 +399,7 @@ func (g *GLMClient) ChatWithThinking(ctx context.Context, req *ChatRequest, enab
 // GetSupportedModels 获取支持的模型列表
 func (g *GLMClient) GetSupportedModels() []string {
 	return []string{
+		"glm-4.6",       // 当前默认模型
 		"glm-4.5",       // 最强大的推理模型，3550亿参数
 		"glm-4.5-air",   // 高性价比轻量级强性能
 		"glm-4.5-x",     // 高性能强推理极速响应
@@ -409,7 +410,7 @@ func (g *GLMClient) GetSupportedModels() []string {
 
 // IsThinkingEnabled 检查当前模型是否支持思考模式
 func (g *GLMClient) IsThinkingEnabled() bool {
-	// GLM-4.5系列都支持思考模式
+	// 当前支持的 GLM 模型都允许通过 thinking 参数控制思考模式
 	supportedModels := g.GetSupportedModels()
 	for _, model := range supportedModels {
 		if g.Model == model {

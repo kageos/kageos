@@ -20,7 +20,6 @@ require (
 	github.com/swaggo/gin-swagger v1.6.1
 	github.com/swaggo/swag v1.16.6
 	github.com/xuri/excelize/v2 v2.10.0
-	github.com/yunhanshu-net/pkg v0.0.0-20251009115937-c97d64985fe6
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.43.0
 	golang.org/x/net v0.46.0

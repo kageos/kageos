@@ -23,6 +23,151 @@ type ServiceTreeService struct {
 	appManageService *AppManageService // 用于编译和获取 diff
 }
 
+type fileRollbackEntry struct {
+	Path    string
+	Existed bool
+	Content []byte
+	Mode    os.FileMode
+}
+
+func validateBatchWritePathSegment(segment string) error {
+	segment = strings.TrimSpace(segment)
+	if segment == "" {
+		return fmt.Errorf("路径片段不能为空")
+	}
+	if segment == "." || segment == ".." {
+		return fmt.Errorf("路径片段不能为 . 或 ..: %s", segment)
+	}
+	if strings.ContainsAny(segment, `/\`) {
+		return fmt.Errorf("路径片段不能包含路径分隔符: %s", segment)
+	}
+	if strings.HasPrefix(segment, ".") {
+		return fmt.Errorf("路径片段不能以 . 开头: %s", segment)
+	}
+	return nil
+}
+
+func validateBatchWritePackagePath(user, app, fullCodePath string) (string, error) {
+	trimmed := strings.Trim(strings.TrimSpace(fullCodePath), "/")
+	if trimmed == "" {
+		return "", fmt.Errorf("full_code_path 不能为空")
+	}
+
+	parts := strings.Split(trimmed, "/")
+	if len(parts) < 3 {
+		return "", fmt.Errorf("full_code_path 必须至少包含 user/app/directory")
+	}
+	if parts[0] != user || parts[1] != app {
+		return "", fmt.Errorf("full_code_path 与目标应用不匹配: %s", fullCodePath)
+	}
+
+	packageParts := parts[2:]
+	for _, part := range packageParts {
+		if err := validateBatchWritePathSegment(part); err != nil {
+			return "", fmt.Errorf("非法目录路径 %s: %w", fullCodePath, err)
+		}
+	}
+
+	return strings.Join(packageParts, "/"), nil
+}
+
+func validateBatchWriteFileName(fileName string) error {
+	fileName = strings.TrimSpace(fileName)
+	if fileName == "" {
+		return fmt.Errorf("file_name 不能为空")
+	}
+	if fileName == "." || fileName == ".." {
+		return fmt.Errorf("file_name 不能为 . 或 ..")
+	}
+	if strings.ContainsAny(fileName, `/\`) {
+		return fmt.Errorf("file_name 不能包含路径分隔符: %s", fileName)
+	}
+	if strings.HasPrefix(fileName, ".") {
+		return fmt.Errorf("file_name 不能以 . 开头: %s", fileName)
+	}
+	if fileName == "init_" {
+		return fmt.Errorf("不允许修改 init_.go，该文件由目录创建流程自动维护")
+	}
+	return nil
+}
+
+func validateBatchWriteFileExt(fileType string) (string, error) {
+	ext := getFileExtension(strings.TrimSpace(fileType))
+	trimmed := strings.TrimPrefix(ext, ".")
+	if trimmed == "" {
+		return "", fmt.Errorf("file_type 不能为空")
+	}
+	if trimmed == "." || trimmed == ".." || strings.Contains(trimmed, "..") {
+		return "", fmt.Errorf("非法 file_type: %s", fileType)
+	}
+	if strings.ContainsAny(trimmed, `/\`) {
+		return "", fmt.Errorf("file_type 不能包含路径分隔符: %s", fileType)
+	}
+	if strings.TrimSpace(trimmed) != trimmed {
+		return "", fmt.Errorf("file_type 不能包含首尾空格: %s", fileType)
+	}
+	return ext, nil
+}
+
+func ensurePathWithinBase(baseDir, targetPath string) error {
+	rel, err := filepath.Rel(baseDir, targetPath)
+	if err != nil {
+		return err
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return fmt.Errorf("目标路径越界: %s", targetPath)
+	}
+	return nil
+}
+
+func resolveBatchWriteTarget(user, app, apiDir string, item *dto.DirectoryTreeItem) (string, string, string, error) {
+	if item == nil {
+		return "", "", "", fmt.Errorf("文件项不能为空")
+	}
+	if item.Type != "" && item.Type != "file" {
+		return "", "", "", fmt.Errorf("BatchWriteFiles 仅允许 file 类型，当前为: %s", item.Type)
+	}
+
+	packagePath, err := validateBatchWritePackagePath(user, app, item.FullCodePath)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	rawFileName := strings.TrimSpace(item.FileName)
+	if rawFileName == "" {
+		pathParts := strings.Split(strings.Trim(item.FullCodePath, "/"), "/")
+		rawFileName = pathParts[len(pathParts)-1]
+	}
+
+	fileName := rawFileName
+	fileExtFromName := filepath.Ext(rawFileName)
+	if fileExtFromName != "" {
+		fileName = strings.TrimSuffix(rawFileName, fileExtFromName)
+	}
+	if err := validateBatchWriteFileName(fileName); err != nil {
+		return "", "", "", err
+	}
+
+	resolvedExt, err := validateBatchWriteFileExt(item.FileType)
+	if err != nil {
+		return "", "", "", err
+	}
+	if fileExtFromName != "" {
+		if item.FileType != "" && resolvedExt != fileExtFromName {
+			return "", "", "", fmt.Errorf("file_name 和 file_type 扩展名不一致: %s vs %s", fileExtFromName, resolvedExt)
+		}
+		resolvedExt = fileExtFromName
+	}
+
+	packageDir := filepath.Join(apiDir, packagePath)
+	filePath := filepath.Join(packageDir, fileName+resolvedExt)
+	if err := ensurePathWithinBase(apiDir, filePath); err != nil {
+		return "", "", "", err
+	}
+
+	return packageDir, filePath, fileName, nil
+}
+
 // NewServiceTreeService 创建服务目录管理服务
 func NewServiceTreeService(config *config.AppManageServiceConfig) *ServiceTreeService {
 	return &ServiceTreeService{
@@ -363,51 +508,41 @@ func (s *ServiceTreeService) BatchWriteFiles(
 	}
 
 	// 3. 批量写入文件
-	writtenPaths := make([]string, 0)     // FullCodePath 列表
-	writtenFilePaths := make([]string, 0) // 实际文件路径列表（用于回滚）
+	writtenPaths := make([]string, 0) // FullCodePath 列表
+	rollbackEntries := make(map[string]*fileRollbackEntry)
+	rollbackOrder := make([]string, 0)
 
 	for _, item := range req.Files {
-		// 从 FullCodePath 提取 package 路径和文件名
-		packagePath := extractPackagePath(item.FullCodePath)
-		if packagePath == "" {
-			s.rollbackFiles(ctx, writtenFilePaths)
-			return nil, fmt.Errorf("无效的文件路径: %s", item.FullCodePath)
-		}
-
-		fileName := item.FileName
-		if fileName == "" {
-			// 从 FullCodePath 提取文件名
-			pathParts := strings.Split(strings.Trim(item.FullCodePath, "/"), "/")
-			if len(pathParts) == 0 {
-				s.rollbackFiles(ctx, writtenFilePaths)
-				return nil, fmt.Errorf("无法从路径提取文件名: %s", item.FullCodePath)
-			}
-			fileName = pathParts[len(pathParts)-1]
-			// 去掉文件扩展名
-			if ext := filepath.Ext(fileName); ext != "" {
-				fileName = strings.TrimSuffix(fileName, ext)
-			}
+		packageDir, filePath, _, err := resolveBatchWriteTarget(req.User, req.App, apiDir, item)
+		if err != nil {
+			s.rollbackFiles(ctx, rollbackEntries, rollbackOrder)
+			return nil, fmt.Errorf("非法文件写入目标 (%s): %w", item.FullCodePath, err)
 		}
 
 		// 确保目录存在
-		packageDir := filepath.Join(apiDir, packagePath)
 		if err := os.MkdirAll(packageDir, 0755); err != nil {
-			s.rollbackFiles(ctx, writtenFilePaths)
+			s.rollbackFiles(ctx, rollbackEntries, rollbackOrder)
 			return nil, fmt.Errorf("创建目录失败: %w", err)
 		}
 
-		// 构建文件路径
-		fileExt := getFileExtension(item.FileType)
-		filePath := filepath.Join(packageDir, fileName+fileExt)
+		// 首次写入某个文件前，先记录旧状态，失败时才能恢复被覆盖的内容
+		if _, exists := rollbackEntries[filePath]; !exists {
+			entry, err := s.captureFileRollbackEntry(filePath)
+			if err != nil {
+				s.rollbackFiles(ctx, rollbackEntries, rollbackOrder)
+				return nil, fmt.Errorf("备份文件失败 (%s): %w", item.FullCodePath, err)
+			}
+			rollbackEntries[filePath] = entry
+			rollbackOrder = append(rollbackOrder, filePath)
+		}
 
 		// 写入文件内容
 		if err := os.WriteFile(filePath, []byte(item.Content), 0644); err != nil {
-			s.rollbackFiles(ctx, writtenFilePaths)
+			s.rollbackFiles(ctx, rollbackEntries, rollbackOrder)
 			return nil, fmt.Errorf("写入文件失败 (%s): %w", item.FullCodePath, err)
 		}
 
 		writtenPaths = append(writtenPaths, item.FullCodePath)
-		writtenFilePaths = append(writtenFilePaths, filePath)
 		logger.Infof(ctx, "[ServiceTreeService] 文件写入成功: %s", filePath)
 	}
 
@@ -439,8 +574,8 @@ func (s *ServiceTreeService) BatchWriteFiles(
 	buildResult, err := s.appManageService.BuildApp(ctx, req.User, req.App, buildOpts)
 	if err != nil {
 		// 编译失败时，回滚已写入的文件
-		logger.Warnf(ctx, "[BatchWriteFiles] 编译失败，开始回滚已写入的文件: fileCount=%d", len(writtenFilePaths))
-		s.rollbackFiles(ctx, writtenFilePaths)
+		logger.Warnf(ctx, "[BatchWriteFiles] 编译失败，开始回滚已写入的文件: fileCount=%d", len(rollbackOrder))
+		s.rollbackFiles(ctx, rollbackEntries, rollbackOrder)
 		return nil, fmt.Errorf("编译应用失败: %w", err)
 	}
 
@@ -529,25 +664,80 @@ func (s *ServiceTreeService) BatchWriteFiles(
 	}, nil
 }
 
-// rollbackFiles 回滚已写入的文件（内部方法，失败时调用）
-// filePaths: 实际的文件路径列表（绝对路径）
-func (s *ServiceTreeService) rollbackFiles(ctx context.Context, filePaths []string) {
-	logger.Warnf(ctx, "[ServiceTreeService] 开始回滚已写入的文件: fileCount=%d", len(filePaths))
-
-	deletedCount := 0
-	for _, filePath := range filePaths {
-		if err := os.Remove(filePath); err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			logger.Errorf(ctx, "[ServiceTreeService] 删除文件失败: file=%s, error=%v", filePath, err)
-		} else {
-			deletedCount++
-			logger.Infof(ctx, "[ServiceTreeService] 已删除文件: %s", filePath)
+func (s *ServiceTreeService) captureFileRollbackEntry(filePath string) (*fileRollbackEntry, error) {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &fileRollbackEntry{
+				Path:    filePath,
+				Existed: false,
+			}, nil
 		}
+		return nil, err
+	}
+	if info.IsDir() {
+		return nil, fmt.Errorf("路径是目录，无法按文件回滚: %s", filePath)
 	}
 
-	logger.Infof(ctx, "[ServiceTreeService] 文件回滚完成: deletedCount=%d, totalCount=%d", deletedCount, len(filePaths))
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	return &fileRollbackEntry{
+		Path:    filePath,
+		Existed: true,
+		Content: content,
+		Mode:    info.Mode(),
+	}, nil
+}
+
+// rollbackFiles 回滚已写入的文件（内部方法，失败时调用）
+// 对已存在文件恢复旧内容；对新文件直接删除。
+func (s *ServiceTreeService) rollbackFiles(ctx context.Context, entries map[string]*fileRollbackEntry, order []string) {
+	logger.Warnf(ctx, "[ServiceTreeService] 开始回滚已写入的文件: fileCount=%d", len(order))
+
+	restoredCount := 0
+	deletedCount := 0
+	for i := len(order) - 1; i >= 0; i-- {
+		filePath := order[i]
+		entry := entries[filePath]
+		if entry == nil {
+			continue
+		}
+
+		if !entry.Existed {
+			if err := os.Remove(filePath); err != nil {
+				if os.IsNotExist(err) {
+					continue
+				}
+				logger.Errorf(ctx, "[ServiceTreeService] 删除新文件失败: file=%s, error=%v", filePath, err)
+				continue
+			}
+			deletedCount++
+			logger.Infof(ctx, "[ServiceTreeService] 已删除新文件: %s", filePath)
+			continue
+		}
+
+		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+			logger.Errorf(ctx, "[ServiceTreeService] 创建回滚目录失败: file=%s, error=%v", filePath, err)
+			continue
+		}
+
+		if err := os.WriteFile(filePath, entry.Content, entry.Mode.Perm()); err != nil {
+			logger.Errorf(ctx, "[ServiceTreeService] 恢复文件内容失败: file=%s, error=%v", filePath, err)
+			continue
+		}
+		if err := os.Chmod(filePath, entry.Mode); err != nil {
+			logger.Warnf(ctx, "[ServiceTreeService] 恢复文件权限失败: file=%s, error=%v", filePath, err)
+		}
+
+		restoredCount++
+		logger.Infof(ctx, "[ServiceTreeService] 已恢复原文件: %s", filePath)
+	}
+
+	logger.Infof(ctx, "[ServiceTreeService] 文件回滚完成: restoredCount=%d, deletedCount=%d, totalCount=%d",
+		restoredCount, deletedCount, len(order))
 }
 
 // extractPackagePath 从 FullCodePath 提取 package 路径（去掉 /user/app 前缀）

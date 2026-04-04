@@ -260,27 +260,6 @@ vi.mock('@/architecture/presentation/widgets/WidgetComponent.vue', () => ({
   }
 }))
 
-vi.mock('@/shared/components/UserSearchInput.vue', () => ({
-  default: {
-    name: 'UserSearchInputStub',
-    template: '<div data-testid="user-search-input-stub"><slot /></div>'
-  }
-}))
-
-vi.mock('./UserSearchWidget.vue', () => ({
-  default: {
-    name: 'UserSearchWidgetStub',
-    template: '<div data-testid="user-search-widget-stub"><slot /></div>'
-  }
-}))
-
-vi.mock('./DepartmentSearchWidget.vue', () => ({
-  default: {
-    name: 'DepartmentSearchWidgetStub',
-    template: '<div data-testid="department-search-widget-stub"><slot /></div>'
-  }
-}))
-
 import SearchInput from './SearchInput.vue'
 
 function createField(widgetType: string, overrides: Record<string, any> = {}) {
@@ -382,7 +361,7 @@ describe('SearchInput', () => {
     expect(wrapper.find('[data-testid="el-select"]').exists()).toBe(true)
   })
 
-  it('uses dedicated user search widget before widget renderer in search bar', () => {
+  it('uses widget renderer for user eq search in search bar', () => {
     hasRequestComponent.mockReturnValue(true)
 
     const wrapper = mountSearchInput({
@@ -390,11 +369,10 @@ describe('SearchInput', () => {
       searchType: SearchType.EQ
     })
 
-    expect(wrapper.find('[data-testid="user-search-widget-stub"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="widget-search"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="widget-search"]').exists()).toBe(true)
   })
 
-  it('uses dedicated department search widget before widget renderer in search bar', () => {
+  it('uses widget renderer for department eq search in search bar', () => {
     hasRequestComponent.mockReturnValue(true)
 
     const wrapper = mountSearchInput({
@@ -402,8 +380,7 @@ describe('SearchInput', () => {
       searchType: SearchType.EQ
     })
 
-    expect(wrapper.find('[data-testid="department-search-widget-stub"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="widget-search"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="widget-search"]').exists()).toBe(true)
   })
 
   it('uses inline fallback select for static select options even when a widget renderer exists', () => {

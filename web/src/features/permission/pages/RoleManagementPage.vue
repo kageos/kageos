@@ -277,10 +277,12 @@
           label="用户名"
           prop="username"
         >
-          <UserSearchInput
-            v-model="assignForm.username"
-            placeholder="请输入用户名"
-            style="width: 100%"
+          <UserWidget
+            :field="assignUserField"
+            :value="assignUserFieldValue"
+            :field-path="assignUserField.code"
+            mode="edit"
+            @update:modelValue="handleAssignUserChange"
           />
         </el-form-item>
         <el-form-item
@@ -364,9 +366,12 @@ import {
   type AssignRoleToUserReq,
   type AssignRoleToDepartmentReq,
 } from '@/api/role'
-import UserSearchInput from '@/shared/components/UserSearchInput.vue'
+import UserWidget from '@/shared/components/UserWidget.vue'
 import DepartmentSelector from '@/shared/components/DepartmentSelector.vue'
+import type { FieldValue } from '@/core/types/field'
+import { WidgetType } from '@/core/constants/widget'
 import { buildAppResourcePath, parseResourcePath } from '@/utils/resourcePath'
+import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/utils/widgetFieldHelpers'
 
 // ==================== 数据定义 ====================
 
@@ -490,6 +495,18 @@ watch(
 )
 
 const assignRootResourcePath = computed(() => buildAppResourcePath(assignForm.user, assignForm.app))
+
+const assignUserField = createWidgetFieldConfig({
+  code: 'assign_username',
+  name: '用户名',
+  widgetType: WidgetType.USER
+})
+
+const assignUserFieldValue = computed(() => createStringFieldValue(assignUserField, assignForm.username))
+
+function handleAssignUserChange(value: FieldValue) {
+  assignForm.username = extractStringFieldRaw(value)
+}
 
 // ==================== 资源类型和权限配置 ====================
 

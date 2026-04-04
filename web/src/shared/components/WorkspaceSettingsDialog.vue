@@ -57,8 +57,9 @@ import type { App } from '@/types'
 import { updateWorkspace } from '@/api/app'
 import { buildAppResourcePath } from '@/utils/resourcePath'
 import UsersWidget from '@/shared/components/UsersWidget.vue'
-import type { FieldConfig, FieldValue } from '@/core/types/field'
+import type { FieldValue } from '@/core/types/field'
 import { WidgetType } from '@/core/constants/widget'
+import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/utils/widgetFieldHelpers'
 
 interface Props {
   modelValue: boolean
@@ -84,50 +85,29 @@ const workspaceResourcePath = computed(() => {
 })
 
 const saving = ref(false)
-const adminsArray = ref<string[]>([])
+const adminsRaw = ref('')
 const showOnlyPermitted = ref(false)
 
-// 管理员字段配置（用于 UsersWidget）
-const adminsField = computed<FieldConfig>(() => ({
+const adminsField = createWidgetFieldConfig({
   code: 'admins',
   name: '管理员',
-  widget: {
-    type: WidgetType.USERS,
-    config: {}
-  }
-}))
-
-// 管理员字段值（用于 UsersWidget）
-const adminsFieldValue = computed<FieldValue>(() => {
-  if (adminsArray.value.length === 0) {
-    return {
-      raw: null,
-      display: '',
-      meta: {}
-    }
-  }
-  
-  return {
-    raw: adminsArray.value.join(','),
-    display: adminsArray.value.join(', '),
-    meta: {}
-  }
+  widgetType: WidgetType.USERS
 })
 
-// 处理管理员字段变化
+const adminsFieldValue = computed(() =>
+  createStringFieldValue(adminsField, adminsRaw.value, {
+    display: adminsRaw.value.split(',').map(s => s.trim()).filter(Boolean).join(', ')
+  })
+)
+
 function handleAdminsChange(value: FieldValue) {
-  if (value.raw === null || value.raw === '') {
-    adminsArray.value = []
-  } else {
-    const admins = String(value.raw).split(',').map(s => s.trim()).filter(s => s)
-    adminsArray.value = admins
-  }
+  adminsRaw.value = extractStringFieldRaw(value)
 }
 
 // 初始化表单数据
 function initForm() {
   if (!props.currentApp) {
-    adminsArray.value = []
+    adminsRaw.value = ''
     showOnlyPermitted.value = false
     return
   }
@@ -136,12 +116,9 @@ function initForm() {
 
   // 直接使用 currentApp 中的 admins 字段（tree 接口已经返回了）
   if (props.currentApp?.admins) {
-    adminsArray.value = props.currentApp.admins
-      .split(',')
-      .map(s => s.trim())
-      .filter(s => s)
+    adminsRaw.value = props.currentApp.admins
   } else {
-    adminsArray.value = []
+    adminsRaw.value = ''
   }
 }
 
@@ -161,11 +138,9 @@ async function handleSave() {
 
   try {
     saving.value = true
-    
-    const admins = adminsArray.value.length > 0 ? adminsArray.value.join(',') : ''
-    
+
     await updateWorkspace(buildAppResourcePath(props.currentApp.user, props.currentApp.code), {
-      admins,
+      admins: adminsRaw.value.trim(),
       show_only_permitted: showOnlyPermitted.value
     })
     

@@ -59,11 +59,12 @@
       </el-button>
       
       <!-- 多用户搜索弹窗 -->
-      <UsersSearchDialog
+      <UserPickerDialog
         v-model="dialogVisible"
         :title="`选择${field.name || '用户'}`"
         :placeholder="field.desc || '请输入用户名或邮箱搜索'"
         :initial-usernames="effectiveValue?.raw"
+        multiple
         :max-count="maxCount"
         @confirm="handleUsersSelected"
       />
@@ -268,7 +269,7 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import UserDisplay from './UserDisplay.vue'
 import UserDetailCard from './UserDetailCard.vue'
-import UsersSearchDialog from './UsersSearchDialog.vue'
+import UserPickerDialog from './UserPickerDialog.vue'
 import { ElAvatar, ElButton, ElIcon, ElPopover } from 'element-plus'
 import { User, Edit, Close } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits, FieldValue } from '@/shared/types/widget'

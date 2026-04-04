@@ -1,7 +1,6 @@
 package llms
 
 import (
-	"os"
 	"testing"
 	"time"
 )
@@ -15,12 +14,12 @@ func TestGLMClientCreation(t *testing.T) {
 	}
 
 	// 测试默认值
-	if client.GetProvider() != "GLM" {
-		t.Errorf("期望提供商为 GLM，实际为 %s", client.GetProvider())
+	if client.GetProvider() != string(ProviderGLM) {
+		t.Errorf("期望提供商为 %s，实际为 %s", ProviderGLM, client.GetProvider())
 	}
 
-	if client.GetModelName() != "glm-4.5" {
-		t.Errorf("期望默认模型为 glm-4.5，实际为 %s", client.GetModelName())
+	if client.GetModelName() != "glm-4.6" {
+		t.Errorf("期望默认模型为 glm-4.6，实际为 %s", client.GetModelName())
 	}
 
 	// 测试带配置的创建
@@ -40,7 +39,7 @@ func TestGLMModelSwitching(t *testing.T) {
 	client := NewGLMClient("test-api-key")
 
 	// 测试设置不同模型
-	models := []string{"glm-4.5", "glm-4.5-air", "glm-4.5-x", "glm-4.5-airx", "glm-4.5-flash"}
+	models := []string{"glm-4.6", "glm-4.5", "glm-4.5-air", "glm-4.5-x", "glm-4.5-airx", "glm-4.5-flash"}
 
 	for _, model := range models {
 		client.SetModel(model)
@@ -56,6 +55,7 @@ func TestGLMSupportedModels(t *testing.T) {
 	models := client.GetSupportedModels()
 
 	expectedModels := []string{
+		"glm-4.6",
 		"glm-4.5",
 		"glm-4.5-air",
 		"glm-4.5-x",
@@ -87,7 +87,7 @@ func TestGLMThinkingMode(t *testing.T) {
 
 	// 测试思考模式支持
 	if !client.IsThinkingEnabled() {
-		t.Error("GLM-4.5系列应该支持思考模式")
+		t.Error("默认 GLM 模型应该支持思考模式")
 	}
 
 	// 测试不同模型的思考模式支持
@@ -102,25 +102,15 @@ func TestGLMThinkingMode(t *testing.T) {
 
 // TestGLMFromEnv 测试从环境变量创建客户端
 func TestGLMFromEnv(t *testing.T) {
-	// 设置测试环境变量
-	originalKey := os.Getenv("GLM_API_KEY")
-	defer func() {
-		if originalKey != "" {
-			os.Setenv("GLM_API_KEY", originalKey)
-		} else {
-			os.Unsetenv("GLM_API_KEY")
-		}
-	}()
-
 	// 测试没有环境变量的情况
-	os.Unsetenv("GLM_API_KEY")
+	t.Setenv("GLM_API_KEY", "")
 	_, err := NewGLMClientFromEnv()
 	if err == nil {
 		t.Error("期望在没有环境变量时返回错误")
 	}
 
 	// 测试有环境变量的情况
-	os.Setenv("GLM_API_KEY", "test-api-key")
+	t.Setenv("GLM_API_KEY", "test-api-key")
 	client, err := NewGLMClientFromEnv()
 	if err != nil {
 		t.Errorf("期望从环境变量创建客户端成功，但得到错误: %v", err)
@@ -130,8 +120,8 @@ func TestGLMFromEnv(t *testing.T) {
 		t.Fatal("期望创建客户端成功，但得到nil")
 	}
 
-	if client.GetProvider() != "GLM" {
-		t.Errorf("期望提供商为 GLM，实际为 %s", client.GetProvider())
+	if client.GetProvider() != string(ProviderGLM) {
+		t.Errorf("期望提供商为 %s，实际为 %s", ProviderGLM, client.GetProvider())
 	}
 }
 
@@ -152,8 +142,8 @@ func TestGLMFactoryIntegration(t *testing.T) {
 		t.Fatal("期望返回GLMClient类型")
 	}
 
-	if glmClient.GetProvider() != "GLM" {
-		t.Errorf("期望提供商为 GLM，实际为 %s", glmClient.GetProvider())
+	if glmClient.GetProvider() != string(ProviderGLM) {
+		t.Errorf("期望提供商为 %s，实际为 %s", ProviderGLM, glmClient.GetProvider())
 	}
 }
 
@@ -190,9 +180,9 @@ func TestGLMChatRequest(t *testing.T) {
 	// 创建测试请求
 	req := &ChatRequest{
 		Messages: []Message{
-			{Role: "user", Content: "你好，请介绍一下GLM-4.5模型"},
+			{Role: "user", Content: "你好，请介绍一下GLM模型"},
 		},
-		Model:       "glm-4.5",
+		Model:       "glm-4.6",
 		MaxTokens:   1000,
 		Temperature: 0.7,
 	}
@@ -202,8 +192,8 @@ func TestGLMChatRequest(t *testing.T) {
 		req.Model = client.GetModelName()
 	}
 
-	if req.Model != "glm-4.5" {
-		t.Errorf("期望模型为 glm-4.5，实际为 %s", req.Model)
+	if req.Model != "glm-4.6" {
+		t.Errorf("期望模型为 glm-4.6，实际为 %s", req.Model)
 	}
 
 	if req.MaxTokens != 1000 {
@@ -254,6 +244,7 @@ func TestGLMWithTimeout(t *testing.T) {
 // TestGLMErrorHandling 测试错误处理
 func TestGLMErrorHandling(t *testing.T) {
 	// 测试空API Key
+	t.Setenv("GLM_API_KEY", "")
 	client := NewGLMClient("")
 	if client.APIKey != "" {
 		t.Error("期望空API Key时客户端APIKey为空")
@@ -272,8 +263,8 @@ func TestGLMClientOptions(t *testing.T) {
 	client := NewGLMClientWithOptions("test-api-key", options)
 
 	// 测试默认选项
-	if client.Options.Timeout != 60*time.Second {
-		t.Errorf("期望默认超时时间为60秒，实际为 %v", client.Options.Timeout)
+	if client.Options.Timeout != 1200*time.Second {
+		t.Errorf("期望默认超时时间为1200秒，实际为 %v", client.Options.Timeout)
 	}
 
 	if client.Options.MaxIdleConns != 10 {

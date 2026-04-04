@@ -9,7 +9,7 @@
   <div class="departments-widget">
     <!-- 编辑模式：多组织架构选择器（使用弹窗搜索） -->
     <div v-if="mode === 'edit' || mode === 'search'" class="departments-select-wrapper">
-      <!-- 选中后的显示（参考 DepartmentSearchWidget 的实现） -->
+      <!-- 选中后的显示 -->
       <div
         v-if="selectedDepartmentsForDisplay.length > 0"
         class="departments-select-display"
@@ -59,12 +59,13 @@
         {{ field.desc || `请选择${field.name}` }}
       </el-button>
       
-      <!-- 多组织架构搜索弹窗 -->
-      <DepartmentsSearchDialog
+      <!-- 统一组织架构选择弹窗 -->
+      <DepartmentPickerDialog
         v-model="dialogVisible"
         :title="`选择${field.name || '组织架构'}`"
         :placeholder="field.desc || '搜索部门名称或路径...'"
-        :initial-paths="value?.raw"
+        :initial-paths="typeof value?.raw === 'string' ? value.raw : null"
+        :multiple="true"
         :max-count="maxCount"
         @confirm="handleDepartmentsSelected"
       />
@@ -184,7 +185,7 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import DepartmentDisplay from './DepartmentDisplay.vue'
 import DepartmentDetailCard from './DepartmentDetailCard.vue'
-import DepartmentsSearchDialog from './DepartmentsSearchDialog.vue'
+import DepartmentPickerDialog from './DepartmentPickerDialog.vue'
 import { ElButton, ElIcon, ElTag, ElPopover } from 'element-plus'
 import { OfficeBuilding, Edit, Close } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/shared/types/widget'
@@ -539,7 +540,7 @@ async function loadDepartmentTree(): Promise<void> {
   width: 100%;
 }
 
-/* 选中后的显示（参考 DepartmentSearchWidget 的实现） */
+/* 选中后的显示 */
 .departments-select-display {
   display: flex;
   align-items: center;

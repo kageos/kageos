@@ -141,8 +141,9 @@ import UserDisplay from '@/shared/components/UserDisplay.vue'
 import UsersWidget from '@/shared/components/UsersWidget.vue'
 import DepartmentsWidget from '@/shared/components/DepartmentsWidget.vue'
 import { WidgetType } from '@/core/constants/widget'
-import type { FieldConfig, FieldValue } from '@/core/types/field'
+import type { FieldValue } from '@/core/types/field'
 import { parseResourcePath } from '@/utils/resourcePath'
+import { createStringFieldValue, createWidgetFieldConfig } from '@/utils/widgetFieldHelpers'
 
 interface Props {
   resourcePath?: string  // 资源路径（可选，如果提供则使用该路径，否则从路由获取）
@@ -372,48 +373,24 @@ const formatDateTime = (dateTime: string) => {
   return new Date(dateTime).toLocaleString('zh-CN')
 }
 
-// 用户字段配置（用于 UsersWidget）
-const subjectUsersField: FieldConfig = {
+const subjectUsersField = createWidgetFieldConfig({
   code: 'subject',
   name: '权限主体',
-  widget: {
-    type: WidgetType.USERS,
-    config: {}
-  },
-  data: {
-    type: 'string'
-  }
-}
+  widgetType: WidgetType.USERS
+})
 
-// 部门字段配置（用于 DepartmentsWidget）
-const subjectDepartmentsField: FieldConfig = {
+const subjectDepartmentsField = createWidgetFieldConfig({
   code: 'subject',
   name: '权限主体',
-  widget: {
-    type: WidgetType.DEPARTMENTS,
-    config: {}
-  },
-  data: {
-    type: 'string'
-  }
-}
+  widgetType: WidgetType.DEPARTMENTS
+})
 
-// 获取用户字段值
 const getSubjectUsersValue = (subject: string): FieldValue => {
-  return {
-    raw: subject,
-    display: subject,
-    meta: {}
-  }
+  return createStringFieldValue(subjectUsersField, subject, { emptyRaw: '' })
 }
 
-// 获取部门字段值
 const getSubjectDepartmentsValue = (subject: string): FieldValue => {
-  return {
-    raw: subject,
-    display: subject,
-    meta: {}
-  }
+  return createStringFieldValue(subjectDepartmentsField, subject, { emptyRaw: '' })
 }
 
 // 监听 autoLoad 和 resourcePath 变化，自动加载

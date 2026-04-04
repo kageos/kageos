@@ -1,10 +1,3 @@
-<!--
-  UsersSearchDialog - 多用户搜索弹窗组件
-  功能：
-  - 弹窗式用户搜索和选择
-  - 支持多选模式
-  - 搜索、选择、确认
--->
 <template>
   <el-dialog
     v-model="dialogVisible"
@@ -15,8 +8,7 @@
     @close="handleClose"
     @opened="handleDialogOpened"
   >
-    <!-- 搜索框 -->
-    <div class="users-search-dialog-search">
+    <div class="user-picker-dialog-search">
       <el-input
         ref="inputRef"
         v-model="searchKeyword"
@@ -35,13 +27,12 @@
           {{ loading ? '搜索中...' : (searchKeyword ? `${userList.length} 个结果` : '输入关键词开始搜索') }}
         </span>
         <span v-if="selectedUsers.length > 0" class="status-chip status-chip-active">
-          已选 {{ selectedUsers.length }}{{ maxCount > 0 ? `/${maxCount}` : '' }} 项
+          已选 {{ selectedUsers.length }}{{ multiple && maxCount > 0 ? `/${maxCount}` : '' }} 项
         </span>
       </div>
     </div>
 
-    <!-- 已选用户列表 -->
-    <div v-if="selectedUsers.length > 0" class="users-search-dialog-selected">
+    <div v-if="multiple && selectedUsers.length > 0" class="user-picker-dialog-selected">
       <div class="selected-header">
         <span>已选择 ({{ selectedUsers.length }}{{ maxCount > 0 ? `/${maxCount}` : '' }})</span>
         <el-button type="text" size="small" @click="handleClearAll">清空</el-button>
@@ -63,39 +54,39 @@
       </div>
     </div>
 
-    <!-- 用户列表 -->
-    <div class="users-search-dialog-list">
+    <div class="user-picker-dialog-list">
       <div
         v-if="loading"
-        class="users-search-dialog-loading"
+        class="user-picker-dialog-loading"
       >
         <el-icon class="is-loading"><Loading /></el-icon>
         <span>搜索中...</span>
       </div>
       <div
         v-else-if="userList.length === 0 && searchKeyword"
-        class="users-search-dialog-empty"
+        class="user-picker-dialog-empty"
       >
         <el-empty description="未找到用户" :image-size="80" />
       </div>
       <div
         v-else-if="userList.length === 0 && !searchKeyword"
-        class="users-search-dialog-empty"
+        class="user-picker-dialog-empty"
       >
         <el-empty description="请输入关键词搜索用户" :image-size="80" />
       </div>
       <div
         v-else
-        class="users-search-dialog-items"
+        class="user-picker-dialog-items"
       >
         <div
           v-for="user in userList"
           :key="user.username"
-          class="users-search-dialog-item"
+          class="user-picker-dialog-item"
           :class="{ 'is-selected': isUserSelected(user) }"
-          @click="handleToggleUser(user)"
+          @click="handlePickUser(user)"
         >
           <el-checkbox
+            v-if="multiple"
             :model-value="isUserSelected(user)"
             @change="handleToggleUser(user)"
             @click.stop
@@ -107,36 +98,52 @@
             <div class="user-name">{{ user.username }}</div>
             <div v-if="user.nickname" class="user-nickname">{{ user.nickname }}</div>
             <div v-if="user.email" class="user-email">{{ user.email }}</div>
+            <div v-if="user.signature" class="user-signature">{{ user.signature }}</div>
           </div>
+          <el-icon
+            v-if="!multiple && isUserSelected(user)"
+            class="selected-icon"
+          >
+            <Check />
+          </el-icon>
         </div>
       </div>
     </div>
 
     <template #footer>
-      <div class="users-search-dialog-footer">
-        <el-button @click="handleClose">取消</el-button>
-        <el-button type="primary" @click="handleConfirm">确认</el-button>
+      <div class="user-picker-dialog-footer">
+        <el-button @click="handleClose">{{ multiple || !autoConfirmSingle ? '取消' : '关闭' }}</el-button>
+        <el-button
+          v-if="multiple || !autoConfirmSingle"
+          type="primary"
+          :disabled="selectedUsers.length === 0"
+          @click="handleConfirm"
+        >
+          确认
+        </el-button>
       </div>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-import { ElDialog, ElInput, ElButton, ElIcon, ElAvatar, ElEmpty, ElCheckbox } from 'element-plus'
-import { Search, Loading, Close } from '@element-plus/icons-vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import { ElAvatar, ElButton, ElCheckbox, ElDialog, ElEmpty, ElIcon, ElInput } from 'element-plus'
+import { Check, Close, Loading, Search } from '@element-plus/icons-vue'
 import { searchUsersFuzzy } from '@/api/user'
+import { Logger } from '@/core/utils/logger'
 import { useUserInfoStore } from '@/stores/userInfo'
 import type { UserInfo } from '@/types'
 import { formatUserDisplayName } from '@/utils/userInfo'
-import { Logger } from '@/core/utils/logger'
 
 interface Props {
   modelValue: boolean
   title?: string
   placeholder?: string
-  initialUsernames?: string | null // 逗号分隔的用户名列表
-  maxCount?: number // 最大选择数量，0表示不限制
+  initialUsernames?: string | null
+  multiple?: boolean
+  maxCount?: number
+  autoConfirmSingle?: boolean
 }
 
 interface Emits {
@@ -148,7 +155,9 @@ const props = withDefaults(defineProps<Props>(), {
   title: '选择用户',
   placeholder: '请输入用户名或邮箱搜索',
   initialUsernames: null,
-  maxCount: 0
+  multiple: false,
+  maxCount: 0,
+  autoConfirmSingle: true
 })
 
 const emit = defineEmits<Emits>()
@@ -161,107 +170,135 @@ const userList = ref<UserInfo[]>([])
 const selectedUsers = ref<UserInfo[]>([])
 const inputRef = ref<InstanceType<typeof ElInput> | null>(null)
 
-// 监听 modelValue 变化，控制弹窗显示
-watch(() => props.modelValue, async (newValue) => {
-  dialogVisible.value = newValue
-  if (newValue) {
-    // 弹窗打开时，初始化已选用户
-    if (props.initialUsernames) {
-      const usernames = props.initialUsernames.split(',').map(u => u.trim()).filter(u => u)
-      // 🔥 加载已选用户的信息
-      if (usernames.length > 0) {
-        try {
-          const users: UserInfo[] = []
-          
-          // 并行加载所有用户信息
-          await Promise.all(
-            usernames.map(async (username) => {
-              try {
-                const user = await userInfoStore.getUserInfo(username)
-                if (user) {
-                  users.push(user)
-                }
-              } catch (error) {
-                Logger.error('UsersSearchDialog', '加载用户信息失败', { username, error })
-              }
-            })
-          )
-          
-          selectedUsers.value = users
-        } catch (error) {
-          Logger.error('UsersSearchDialog', '加载已选用户信息失败', { error })
-          selectedUsers.value = []
-        }
-      } else {
-        selectedUsers.value = []
-      }
-    } else {
-      selectedUsers.value = []
-    }
-    // ⭐ 弹窗打开时不清空搜索关键词，保持用户之前的搜索状态
-    userList.value = []
-  } else {
-    // 弹窗关闭时，清空搜索关键词
-    searchKeyword.value = ''
-    userList.value = []
-  }
-})
+const multiple = computed(() => props.multiple)
+const maxCount = computed(() => props.maxCount)
+const autoConfirmSingle = computed(() => props.autoConfirmSingle)
 
-// 处理弹窗打开完成事件（动画结束后）
-const handleDialogOpened = async () => {
-  await nextTick()
-  await nextTick()
-  
-  if (inputRef.value) {
-    const inputEl = (inputRef.value as any).$el?.querySelector('input') as HTMLInputElement
-    if (inputEl) {
-      inputEl.focus()
-      setTimeout(() => {
-        inputEl.focus()
-      }, 100)
+watch(
+  () => props.modelValue,
+  async (newValue) => {
+    dialogVisible.value = newValue
+    if (!newValue) {
+      resetSearchState()
+      return
     }
+    await initializeSelectedUsers()
+    resetSearchState()
   }
-  
-  // ⭐ 弹窗打开时不再自动搜索，让用户手动输入关键词
-}
+)
 
-// 监听 dialogVisible 变化，同步到 modelValue
 watch(dialogVisible, (newValue) => {
   emit('update:modelValue', newValue)
 })
 
-// 判断用户是否已选中
-const isUserSelected = (user: UserInfo): boolean => {
-  return selectedUsers.value.some(u => u.username === user.username)
-}
+const handleDialogOpened = async () => {
+  await nextTick()
+  await nextTick()
 
-// 切换用户选择状态
-const handleToggleUser = (user: UserInfo) => {
-  if (isUserSelected(user)) {
-    // 取消选择
-    selectedUsers.value = selectedUsers.value.filter(u => u.username !== user.username)
-  } else {
-    // 检查是否超过最大数量
-    if (props.maxCount > 0 && selectedUsers.value.length >= props.maxCount) {
-      return
-    }
-    // 添加选择
-    selectedUsers.value.push(user)
+  const inputEl = (inputRef.value as any)?.$el?.querySelector('input') as HTMLInputElement | undefined
+  if (inputEl) {
+    inputEl.focus()
+    setTimeout(() => inputEl.focus(), 100)
   }
 }
 
-// 移除已选用户
-const handleRemoveUser = (user: UserInfo) => {
-  selectedUsers.value = selectedUsers.value.filter(u => u.username !== user.username)
+const normalizeUsernames = (value: string | null): string[] => {
+  if (!value) {
+    return []
+  }
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
 }
 
-// 清空所有已选用户
+const initializeSelectedUsers = async () => {
+  const usernames = normalizeUsernames(props.initialUsernames)
+  if (usernames.length === 0) {
+    selectedUsers.value = []
+    return
+  }
+
+  try {
+    const loadedUsers = await Promise.all(
+      usernames.map(async (username) => {
+        try {
+          return await userInfoStore.getUserInfo(username)
+        } catch (error) {
+          Logger.error('UserPickerDialog', '加载用户信息失败', { username, error })
+          return null
+        }
+      })
+    )
+
+    const validUsers = loadedUsers.filter((user): user is UserInfo => !!user)
+    selectedUsers.value = multiple.value ? validUsers : validUsers.slice(0, 1)
+  } catch (error) {
+    Logger.error('UserPickerDialog', '初始化已选用户失败', { error })
+    selectedUsers.value = []
+  }
+}
+
+const isUserSelected = (user: UserInfo): boolean => {
+  return selectedUsers.value.some((item) => item.username === user.username)
+}
+
+const handleToggleUser = (user: UserInfo) => {
+  if (!multiple.value) {
+    selectedUsers.value = [user]
+    return
+  }
+
+  if (isUserSelected(user)) {
+    selectedUsers.value = selectedUsers.value.filter((item) => item.username !== user.username)
+    return
+  }
+
+  if (maxCount.value > 0 && selectedUsers.value.length >= maxCount.value) {
+    return
+  }
+
+  selectedUsers.value = [...selectedUsers.value, user]
+}
+
+const handlePickUser = (user: UserInfo) => {
+  if (multiple.value) {
+    handleToggleUser(user)
+    return
+  }
+
+  selectedUsers.value = [user]
+  if (autoConfirmSingle.value) {
+    emit('confirm', [user])
+    handleClose()
+  }
+}
+
+const handleRemoveUser = (user: UserInfo) => {
+  selectedUsers.value = selectedUsers.value.filter((item) => item.username !== user.username)
+}
+
 const handleClearAll = () => {
   selectedUsers.value = []
 }
 
-// 搜索用户（防抖）
+const handleConfirm = () => {
+  emit('confirm', [...selectedUsers.value])
+  handleClose()
+}
+
+const resetSearchState = () => {
+  searchKeyword.value = ''
+  userList.value = []
+}
+
+const handleClose = () => {
+  dialogVisible.value = false
+  resetSearchState()
+}
+
 let searchTimer: ReturnType<typeof setTimeout> | null = null
+
 const handleSearch = (keyword: string) => {
   if (searchTimer) {
     clearTimeout(searchTimer)
@@ -276,51 +313,19 @@ const handleSearch = (keyword: string) => {
     try {
       loading.value = true
       const response = await searchUsersFuzzy(keyword.trim(), 20)
-      Logger.debug('UsersSearchDialog', '搜索用户响应', { keyword, response })
-      
+      Logger.debug('UserPickerDialog', '搜索用户响应', { keyword, response })
       userList.value = response.users || []
-      
-      // 🔥 如果有初始用户名，自动选中匹配的用户（参考 UserSearchDialog）
-      if (props.initialUsernames && userList.value.length > 0) {
-        const initialUsernames = props.initialUsernames.split(',').map(u => u.trim()).filter(u => u)
-        initialUsernames.forEach(username => {
-          const matchedUser = userList.value.find(u => u.username === username)
-          if (matchedUser && !isUserSelected(matchedUser)) {
-            // 检查是否超过最大数量
-            if (props.maxCount > 0 && selectedUsers.value.length >= props.maxCount) {
-              return
-            }
-            selectedUsers.value.push(matchedUser)
-          }
-        })
-      }
     } catch (error) {
-      Logger.error('UsersSearchDialog', '搜索用户失败', { keyword, error })
+      Logger.error('UserPickerDialog', '搜索用户失败', { keyword, error })
       userList.value = []
     } finally {
       loading.value = false
     }
-  }, 300) // 300ms 防抖
+  }, 300)
 }
 
-// 清空搜索
 const handleClearSearch = () => {
-  searchKeyword.value = ''
-  userList.value = []
-}
-
-// 确认选择
-const handleConfirm = () => {
-  emit('confirm', [...selectedUsers.value])
-  handleClose()
-}
-
-// 关闭弹窗
-const handleClose = () => {
-  dialogVisible.value = false
-  searchKeyword.value = ''
-  userList.value = []
-  // 注意：不清空 selectedUsers，保留选择状态，以便下次打开时继续使用
+  resetSearchState()
 }
 </script>
 
@@ -342,14 +347,14 @@ const handleClose = () => {
   padding: 0 22px 20px;
 }
 
-.users-search-dialog-search {
+.user-picker-dialog-search {
   margin-bottom: 18px;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.users-search-dialog-search :deep(.el-input__wrapper) {
+.user-picker-dialog-search :deep(.el-input__wrapper) {
   min-height: 42px;
   border-radius: 12px;
   box-shadow: none;
@@ -378,7 +383,7 @@ const handleClose = () => {
   color: var(--el-color-primary);
 }
 
-.users-search-dialog-selected {
+.user-picker-dialog-selected {
   margin-bottom: 18px;
   padding: 14px;
   background:
@@ -434,14 +439,14 @@ const handleClose = () => {
   color: var(--el-color-danger);
 }
 
-.users-search-dialog-list {
+.user-picker-dialog-list {
   min-height: 300px;
   max-height: 400px;
   overflow-y: auto;
   padding-right: 2px;
 }
 
-.users-search-dialog-loading {
+.user-picker-dialog-loading {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -450,17 +455,17 @@ const handleClose = () => {
   color: var(--el-text-color-secondary);
 }
 
-.users-search-dialog-empty {
+.user-picker-dialog-empty {
   padding: 40px 0;
 }
 
-.users-search-dialog-items {
+.user-picker-dialog-items {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.users-search-dialog-item {
+.user-picker-dialog-item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -474,13 +479,13 @@ const handleClose = () => {
   transition: all 0.2s;
 }
 
-.users-search-dialog-item:hover {
+.user-picker-dialog-item:hover {
   border-color: rgba(24, 144, 255, 0.24);
   background-color: var(--el-fill-color-light);
   transform: translateY(-1px);
 }
 
-.users-search-dialog-item.is-selected {
+.user-picker-dialog-item.is-selected {
   border-color: rgba(24, 144, 255, 0.34);
   background: linear-gradient(135deg, rgba(24, 144, 255, 0.12), rgba(24, 144, 255, 0.04));
   box-shadow: 0 8px 20px rgba(24, 144, 255, 0.08);
@@ -519,14 +524,30 @@ const handleClose = () => {
   line-height: 1.4;
 }
 
-.users-search-dialog-footer {
+.user-signature {
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.selected-icon {
+  flex-shrink: 0;
+  color: var(--el-color-primary);
+  font-size: 20px;
+}
+
+.user-picker-dialog-footer {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
 }
 
 @media (max-width: 768px) {
-  .users-search-dialog-item {
+  .user-picker-dialog-item {
     align-items: flex-start;
   }
 }

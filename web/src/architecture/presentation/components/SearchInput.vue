@@ -1,27 +1,7 @@
 <template>
   <div class="search-input">
-    <!-- 🔥 用户搜索专用组件（弹窗搜索，体验更好） -->
-    <UserSearchWidget
-      v-if="shouldUseUserSearchWidget"
-      class="search-control"
-      :field="field"
-      :model-value="localValue"
-      :search-type="searchType"
-      @update:model-value="handleInput"
-    />
-    
-    <!-- 🔥 部门搜索专用组件（弹窗搜索，体验更好） -->
-    <DepartmentSearchWidget
-      v-else-if="shouldUseDepartmentSearchWidget"
-      class="search-control"
-      :field="field"
-      :model-value="localValue"
-      :search-type="searchType"
-      @update:model-value="handleInput"
-    />
-
     <WidgetComponent
-      v-else-if="shouldUseWidgetSearchRenderer"
+      v-if="shouldUseWidgetSearchRenderer"
       class="search-control"
       :field="widgetSearchField"
       :value="widgetSearchFieldValue"
@@ -32,17 +12,6 @@
       :function-router="functionRouter"
       @update:model-value="handleWidgetFieldUpdate"
     />
-    
-    <!-- 🔥 用户搜索组件（自定义组件，降级方案） -->
-    <UserSearchInput
-      v-else-if="inputConfig.component === SearchComponent.USER_SEARCH_INPUT"
-      class="search-control"
-      v-model="localValue"
-      :placeholder="inputConfig.props?.placeholder"
-      :multiple="inputConfig.props?.multiple"
-      @update:modelValue="handleInput"
-    />
-
     <!-- 🔥 精确搜索 / 模糊搜索 -->
     <el-input
       v-else-if="inputConfig.component === SearchComponent.EL_INPUT"
@@ -262,9 +231,6 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, provide } from 'vue'
 import { createPinia } from 'pinia'
 import { ElTag } from 'element-plus'
-import UserSearchInput from '@/shared/components/UserSearchInput.vue'
-import UserSearchWidget from './UserSearchWidget.vue'
-import DepartmentSearchWidget from './DepartmentSearchWidget.vue'
 import SearchSelectOptionContent from './SearchSelectOptionContent.vue'
 import SearchUserTag from './SearchUserTag.vue'
 import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
@@ -475,24 +441,6 @@ const selectOptions = ref<SearchOption[]>([])
 
 // 下拉加载状态
 const selectLoading = ref(false)
-
-// 🔥 判断是否使用用户搜索专用组件
-const shouldUseUserSearchWidget = computed(() => {
-  const widgetType = props.field.widget?.type
-  const searchType = props.searchType || ''
-  // 用户字段，且支持 IN 查询（多选）或 EQ 查询（单选）
-  return (widgetType === WidgetType.USER || widgetType === WidgetType.USERS) && 
-         (hasSearchType(searchType, SearchType.IN) || hasSearchType(searchType, SearchType.EQ))
-})
-
-// 🔥 判断是否使用部门搜索专用组件
-const shouldUseDepartmentSearchWidget = computed(() => {
-  const widgetType = props.field.widget?.type
-  const searchType = props.searchType || ''
-  // 部门字段，且支持 IN 查询（多选）或 EQ 查询（单选）
-  return (widgetType === WidgetType.DEPARTMENT || widgetType === WidgetType.DEPARTMENTS) && 
-         (hasSearchType(searchType, SearchType.IN) || hasSearchType(searchType, SearchType.EQ))
-})
 
 // 🔥 判断是否是多选组件
 const isMultiselectWidget = computed(() => {

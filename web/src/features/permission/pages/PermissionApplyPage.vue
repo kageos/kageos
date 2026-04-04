@@ -385,17 +385,11 @@
     </div>
   </div>
 
-  <!-- 用户选择器对话框 -->
-  <UserSelectorDialog
-    v-model="showUserSelector"
-    :selected-user="grantTargetUser"
-    @select="handleUserSelect"
-  />
-
   <!-- 组织架构选择器对话框（多选） -->
-  <DepartmentsSearchDialog
+  <DepartmentPickerDialog
     v-model="showDepartmentSelector"
     :initial-paths="grantTargetDepartmentPaths.join(',')"
+    :multiple="true"
     @confirm="handleDepartmentsSelect"
   />
 </template>
@@ -427,20 +421,18 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { getAppWithServiceTree } from '@/api/app'
 import { getRolesForPermissionRequest, type Role, type RolePermission } from '@/api/role'
 import { useAuthStore } from '@/stores/auth'
-import { useUserInfoStore } from '@/stores/userInfo'
 import type { ServiceTree, App } from '@/types'
-import UserSelectorDialog from '@/shared/components/UserSelectorDialog.vue'
-import DepartmentsSearchDialog from '@/shared/components/DepartmentsSearchDialog.vue'
+import DepartmentPickerDialog from '@/shared/components/DepartmentPickerDialog.vue'
 import type { UserInfo } from '@/types'
 import UsersWidget from '@/shared/components/UsersWidget.vue'
 import type { FieldConfig, FieldValue } from '@/core/types/field'
 import { WidgetType } from '@/core/constants/widget'
 import { isServiceTreeNodeAdmin, parseUsernameList } from '@/utils/permissionActors'
 import { buildAppResourcePath, parseResourcePath } from '@/utils/resourcePath'
+import { createStringFieldValue, createWidgetFieldConfig } from '@/utils/widgetFieldHelpers'
 
 const route = useRoute()
 const router = useRouter()
-const userInfoStore = useUserInfoStore()
 
 // 权限信息
 const permissionInfo = ref({
@@ -611,8 +603,6 @@ const hasManagePermission = computed(() => {
 const grantTargetType = ref<'self' | 'user' | 'department'>('self')
 
 // 赋权目标：个人（用户对象）或组织架构（部门路径，支持多选）
-const grantTargetUser = ref<UserInfo | null>(null)
-const grantTargetUserUsername = ref<string | null>(null)
 const grantTargetDepartment = ref<string>('') // 保留兼容，实际用 selectedDepartments
 const selectedDepartments = ref<Department[]>([])
 
@@ -620,24 +610,7 @@ const selectedDepartments = ref<Department[]>([])
 const grantTargetDepartmentPaths = computed(() => selectedDepartments.value.map(d => d.full_code_path))
 
 // 对话框状态
-const showUserSelector = ref(false)
 const showDepartmentSelector = ref(false)
-
-// 监听 grantTargetUserUsername 变化，更新 grantTargetUser
-watch(grantTargetUserUsername, async (username) => {
-  if (!username) {
-    grantTargetUser.value = null
-    return
-  }
-  // 从 store 获取用户信息
-  try {
-    const user = await userInfoStore.getUserInfo(username)
-    grantTargetUser.value = user
-  } catch (error) {
-    console.error('获取用户信息失败:', error)
-    grantTargetUser.value = null
-  }
-})
 
 // 监听部门路径变化（兼容旧逻辑，selectedDepartments 为主）
 watch(grantTargetDepartmentPaths, (paths) => {
@@ -647,12 +620,6 @@ watch(grantTargetDepartmentPaths, (paths) => {
   }
   grantTargetDepartment.value = paths.join(',')
 })
-
-// 处理用户选择
-const handleUserSelect = (user: UserInfo) => {
-  grantTargetUser.value = user
-  grantTargetUserUsername.value = user.username
-}
 
 // 处理部门选择（多选）
 const handleDepartmentsSelect = (departments: Department[]) => {
@@ -749,25 +716,20 @@ const approvers = computed(() => {
   return parseUsernameList(node.admins)
 })
 
-// 审批人字段配置（用于 UsersWidget）
-const approversField = computed<FieldConfig>(() => ({
+const approversField = createWidgetFieldConfig({
   code: 'approvers',
   name: '审批人',
-  widget: {
-    type: WidgetType.USERS,
-    config: {}
-  },
-  data: {
-    type: 'string'
-  }
-}))
+  widgetType: WidgetType.USERS
+})
 
-// 审批人字段值（用于 UsersWidget）
-const approversFieldValue = computed<FieldValue>(() => ({
-  raw: approvers.value.join(','),
-  display: approvers.value.join(','),
-  meta: {}
-}))
+const approversFieldValue = computed(() => createStringFieldValue(
+  approversField,
+  approvers.value.join(','),
+  {
+    emptyRaw: '',
+    display: approvers.value.join(',')
+  }
+))
 
 // 部门列表（用于组织架构赋权）
 const departmentTree = ref<Department[]>([])
@@ -794,25 +756,13 @@ function formatUserDisplayName(user: UserInfo | null): string {
   return user.username
 }
 
-// 赋权目标用户字段配置（用于 UsersWidget，支持多选）
-const grantTargetUsersField = computed<FieldConfig>(() => ({
+const grantTargetUsersField = createWidgetFieldConfig({
   code: 'grantTargetUsers',
   name: '申请权限的用户',
-  widget: {
-    type: WidgetType.USERS,
-    config: {}
-  },
-  data: {
-    type: 'string'
-  }
-}))
-
-// 赋权目标用户字段值（用于 UsersWidget）
-const grantTargetUsersValue = ref<FieldValue>({
-  raw: '',
-  display: '',
-  meta: {}
+  widgetType: WidgetType.USERS
 })
+
+const grantTargetUsersValue = ref<FieldValue>(createStringFieldValue(grantTargetUsersField, '', { emptyRaw: '' }))
 
 // 处理赋权目标用户变化
 const handleGrantTargetUsersChange = (value: FieldValue) => {
@@ -1091,14 +1041,9 @@ async function loadDepartmentTree() {
 // 监听赋权对象类型变化，重置相关状态
 watch(() => grantTargetType.value, (newType) => {
   if (newType === 'self') {
-    grantTargetUser.value = null
-    grantTargetUserUsername.value = null
     selectedDepartments.value = []
   } else if (newType === 'user') {
     selectedDepartments.value = []
-  } else if (newType === 'department') {
-    grantTargetUser.value = null
-    grantTargetUserUsername.value = null
   }
 })
 
@@ -3484,7 +3429,7 @@ const clearRoleSelection = () => {
               opacity: 0.6;
             }
 
-            // 优化 UserSearchInput 的显示效果
+            // 优化用户选择器的显示效果
             :deep(.user-search-input) {
               .user-search-input-wrapper {
                 background-color: var(--el-fill-color-lighter);
