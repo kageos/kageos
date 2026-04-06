@@ -1,1 +1,7 @@
-export { createFieldValue, createEmptyFieldValue } from '@/core/utils/createFieldValue'
+export {
+  createFieldValue,
+  createRawFieldValue,
+  createEmptyFieldValue,
+  createEmptyRawFieldValue,
+  createAutoFieldValue
+} from '@/core/utils/createFieldValue'

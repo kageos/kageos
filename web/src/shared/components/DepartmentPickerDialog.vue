@@ -25,7 +25,7 @@
       </el-input>
       <div class="dialog-status">
         <span class="status-chip">
-          {{ loading ? '加载中...' : (searchKeyword ? `${filteredDepartments.length} 个结果` : '输入关键词开始搜索') }}
+          {{ loading ? '加载中...' : `共 ${totalDepartments} 个部门${searchKeyword ? `，匹配“${searchKeyword}”` : ''}` }}
         </span>
         <span v-if="selectedDepartments.length > 0" class="status-chip status-chip-active">
           已选 {{ selectedDepartments.length }}{{ multiple && maxCount > 0 ? `/${maxCount}` : '' }} 项
@@ -44,7 +44,7 @@
           :key="dept.full_code_path"
           class="selected-department-item"
         >
-          <img src="/组织架构.svg" alt="组织架构" class="department-icon" />
+          <img src="/组织架构.svg" alt="组织架构" class="selected-department-icon" width="16" height="16" />
           <span class="department-name">{{ dept.name }}</span>
           <el-icon class="remove-icon" @click="handleRemoveDepartment(dept)">
             <Close />
@@ -55,57 +55,44 @@
 
     <div class="department-picker-dialog-list" v-loading="loading">
       <div
-        v-if="filteredDepartments.length === 0 && !loading && searchKeyword"
+        v-if="departmentTreeData.length === 0 && !loading"
         class="department-picker-dialog-empty"
       >
-        <el-empty description="未找到组织架构" :image-size="80" />
-      </div>
-      <div
-        v-else-if="filteredDepartments.length === 0 && !loading && !searchKeyword"
-        class="department-picker-dialog-empty"
-      >
-        <el-empty description="请输入关键词搜索组织架构" :image-size="80" />
+        <el-empty description="暂无组织架构" :image-size="80" />
       </div>
       <div
         v-else
-        class="department-picker-dialog-items"
+        class="department-picker-dialog-tree-shell"
       >
-        <div
-          v-for="dept in filteredDepartments"
-          :key="dept.full_code_path"
-          class="department-picker-dialog-item"
-          :class="{ 'is-selected': isDepartmentSelected(dept) }"
-          @click="handlePickDepartment(dept)"
+        <el-tree
+          ref="treeRef"
+          :data="departmentTreeData"
+          node-key="full_code_path"
+          :props="{ children: 'children', label: 'name' }"
+          :default-expand-all="true"
+          :expand-on-click-node="false"
+          :highlight-current="!multiple"
+          :show-checkbox="multiple"
+          :check-strictly="multiple"
+          :check-on-click-node="multiple"
+          :filter-node-method="filterTreeNode"
+          empty-text="没有匹配的组织架构"
+          @node-click="handleTreeNodeClick"
+          @check="handleTreeCheck"
         >
-          <el-checkbox
-            v-if="multiple"
-            :model-value="isDepartmentSelected(dept)"
-            @change="handleToggleDepartment(dept)"
-            @click.stop
-          />
-          <img src="/组织架构.svg" alt="组织架构" class="department-icon" />
-          <div class="department-info">
-            <div class="department-name">{{ dept.name }}</div>
-            <div class="department-meta">
-              <span
-                class="department-path clickable-path"
-                @click.stop="handlePathClick(dept.full_code_path)"
-                :title="`点击跳转到: ${dept.full_code_path}`"
-              >
-                {{ dept.full_code_path }}
-              </span>
-              <span v-if="dept.full_name_path && dept.full_name_path !== dept.name" class="department-full-name">
-                {{ dept.full_name_path }}
-              </span>
+          <template #default="{ data }">
+            <div class="department-tree-node">
+              <div class="department-tree-main">
+                <span class="department-tree-name">{{ data.name }}</span>
+                <span v-if="data.is_system_default" class="department-tree-badge">默认</span>
+              </div>
+              <div class="department-tree-meta">
+                <span class="department-tree-code">{{ data.code }}</span>
+                <span class="department-tree-path">{{ data.full_name_path || data.full_code_path }}</span>
+              </div>
             </div>
-          </div>
-          <el-icon
-            v-if="!multiple && isDepartmentSelected(dept)"
-            class="selected-icon"
-          >
-            <Check />
-          </el-icon>
-        </div>
+          </template>
+        </el-tree>
       </div>
     </div>
 
@@ -127,9 +114,9 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElButton, ElCheckbox, ElDialog, ElEmpty, ElIcon, ElInput } from 'element-plus'
-import { Check, Close, Search } from '@element-plus/icons-vue'
+import type { TreeInstance } from 'element-plus'
+import { ElButton, ElDialog, ElEmpty, ElIcon, ElInput } from 'element-plus'
+import { Close, Search } from '@element-plus/icons-vue'
 import { getDepartmentTree } from '@/api/department'
 import type { Department } from '@/api/department'
 import { Logger } from '@/core/utils/logger'
@@ -161,7 +148,6 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<Emits>()
-const router = useRouter()
 
 const dialogVisible = ref(false)
 const searchKeyword = ref('')
@@ -169,41 +155,16 @@ const loading = ref(false)
 const departmentTreeData = ref<Department[]>([])
 const selectedDepartments = ref<Department[]>([])
 const inputRef = ref<InstanceType<typeof ElInput> | null>(null)
+const treeRef = ref<TreeInstance>()
 
 const multiple = computed(() => props.multiple)
 const maxCount = computed(() => props.maxCount)
 const autoConfirmSingle = computed(() => props.autoConfirmSingle)
 
-const flattenDepartments = (depts: Department[]): Department[] => {
-  const result: Department[] = []
-  const traverse = (list: Department[]) => {
-    for (const dept of list) {
-      result.push(dept)
-      if (dept.children && dept.children.length > 0) {
-        traverse(dept.children)
-      }
-    }
-  }
-  traverse(depts)
-  return result
-}
+const flattenDepartments = (depts: Department[]): Department[] =>
+  depts.flatMap((dept) => [dept, ...(dept.children ? flattenDepartments(dept.children) : [])])
 
-const filteredDepartments = computed(() => {
-  const allDepartments = flattenDepartments(departmentTreeData.value)
-  if (!searchKeyword.value || searchKeyword.value.trim().length === 0) {
-    return allDepartments
-  }
-
-  const keyword = searchKeyword.value.trim().toLowerCase()
-  return allDepartments.filter((dept) => {
-    return (
-      dept.name.toLowerCase().includes(keyword) ||
-      dept.full_code_path.toLowerCase().includes(keyword) ||
-      (dept.full_name_path && dept.full_name_path.toLowerCase().includes(keyword)) ||
-      (dept.code && dept.code.toLowerCase().includes(keyword))
-    )
-  })
-})
+const totalDepartments = computed(() => flattenDepartments(departmentTreeData.value).length)
 
 const normalizePaths = (value: string | null): string[] => {
   if (!value) {
@@ -266,6 +227,23 @@ const initializeSelectedDepartments = async () => {
   selectedDepartments.value = multiple.value ? loadedDepartments : loadedDepartments.slice(0, 1)
 }
 
+const applyTreeState = async () => {
+  await nextTick()
+
+  if (!treeRef.value) {
+    return
+  }
+
+  treeRef.value.filter(searchKeyword.value.trim())
+
+  if (multiple.value) {
+    treeRef.value.setCheckedKeys(selectedDepartments.value.map((dept) => dept.full_code_path), false)
+    return
+  }
+
+  treeRef.value.setCurrentKey(selectedDepartments.value[0]?.full_code_path ?? undefined)
+}
+
 watch(
   () => props.modelValue,
   async (newValue) => {
@@ -277,6 +255,7 @@ watch(
     await loadDepartmentTreeData()
     await initializeSelectedDepartments()
     resetSearchState()
+    await applyTreeState()
   }
 )
 
@@ -284,37 +263,30 @@ watch(dialogVisible, (newValue) => {
   emit('update:modelValue', newValue)
 })
 
+watch(
+  () => props.departmentTree,
+  async (newTree) => {
+    if (newTree && newTree.length > 0) {
+      departmentTreeData.value = newTree
+      await applyTreeState()
+    }
+  },
+  { deep: true }
+)
+
 const handleDialogOpened = async () => {
   await nextTick()
   await nextTick()
   inputRef.value?.focus()
+  await applyTreeState()
 }
 
 const isDepartmentSelected = (dept: Department): boolean => {
   return selectedDepartments.value.some((item) => item.full_code_path === dept.full_code_path)
 }
 
-const handleToggleDepartment = (dept: Department) => {
-  if (!multiple.value) {
-    selectedDepartments.value = [dept]
-    return
-  }
-
-  if (isDepartmentSelected(dept)) {
-    selectedDepartments.value = selectedDepartments.value.filter((item) => item.full_code_path !== dept.full_code_path)
-    return
-  }
-
-  if (maxCount.value > 0 && selectedDepartments.value.length >= maxCount.value) {
-    return
-  }
-
-  selectedDepartments.value = [...selectedDepartments.value, dept]
-}
-
-const handlePickDepartment = (dept: Department) => {
+const handleTreeNodeClick = (dept: Department) => {
   if (multiple.value) {
-    handleToggleDepartment(dept)
     return
   }
 
@@ -331,11 +303,53 @@ const handleRemoveDepartment = (dept: Department) => {
 
 const handleClearAll = () => {
   selectedDepartments.value = []
+  if (multiple.value) {
+    treeRef.value?.setCheckedKeys([], false)
+  } else {
+    treeRef.value?.setCurrentKey(undefined)
+  }
 }
 
 const handleConfirm = () => {
   emit('confirm', [...selectedDepartments.value])
   handleClose()
+}
+
+const filterTreeNode = (keyword: string, data: Department): boolean => {
+  const normalizedKeyword = keyword.trim().toLowerCase()
+  if (!normalizedKeyword) {
+    return true
+  }
+
+  const selfMatched = [
+    data.name,
+    data.code,
+    data.full_code_path,
+    data.full_name_path
+  ]
+    .filter(Boolean)
+    .some((value) => String(value).toLowerCase().includes(normalizedKeyword))
+
+  if (selfMatched) {
+    return true
+  }
+
+  return (data.children || []).some((child) => filterTreeNode(keyword, child))
+}
+
+const handleTreeCheck = () => {
+  if (!multiple.value || !treeRef.value) {
+    return
+  }
+
+  const checkedDepartments = treeRef.value.getCheckedNodes(false, false) as Department[]
+
+  if (maxCount.value > 0 && checkedDepartments.length > maxCount.value) {
+    treeRef.value.setCheckedKeys(selectedDepartments.value.map((dept) => dept.full_code_path), false)
+    return
+  }
+
+  selectedDepartments.value = checkedDepartments
 }
 
 const handleSearchInput = (value: string) => {
@@ -348,6 +362,7 @@ const handleClearSearch = () => {
 
 const resetSearchState = () => {
   searchKeyword.value = ''
+  treeRef.value?.filter('')
 }
 
 const handleClose = () => {
@@ -355,14 +370,10 @@ const handleClose = () => {
   resetSearchState()
 }
 
-const handlePathClick = (fullCodePath: string) => {
-  if (!fullCodePath) {
-    return
-  }
-  const targetPath = `/workspace${fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`}`
-  router.push(targetPath)
-  handleClose()
-}
+watch(searchKeyword, async () => {
+  await nextTick()
+  treeRef.value?.filter(searchKeyword.value.trim())
+})
 </script>
 
 <style scoped>
@@ -449,88 +460,89 @@ const handlePathClick = (fullCodePath: string) => {
   border-radius: 999px;
 }
 
+.selected-department-icon {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  max-width: 16px;
+  max-height: 16px;
+  flex-shrink: 0;
+  object-fit: contain;
+  display: block;
+}
+
 .department-picker-dialog-list {
   min-height: 300px;
   max-height: 400px;
-  overflow-y: auto;
-  padding-right: 2px;
+}
+
+.department-picker-dialog-tree-shell {
+  height: 100%;
+  min-height: 300px;
+  max-height: 400px;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .department-picker-dialog-empty {
   padding: 40px 0;
 }
 
-.department-picker-dialog-items {
+.department-tree-node {
+  width: 100%;
   display: flex;
+  min-width: 0;
   flex-direction: column;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px 0;
 }
 
-.department-picker-dialog-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 12px;
-  background:
-    linear-gradient(180deg, rgba(24, 144, 255, 0.02), rgba(24, 144, 255, 0)),
-    var(--el-bg-color);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.department-picker-dialog-item:hover {
-  border-color: rgba(24, 144, 255, 0.24);
-  background-color: var(--el-fill-color-light);
-  transform: translateY(-1px);
-}
-
-.department-picker-dialog-item.is-selected {
-  border-color: rgba(24, 144, 255, 0.34);
-  background: linear-gradient(135deg, rgba(24, 144, 255, 0.12), rgba(24, 144, 255, 0.04));
-  box-shadow: 0 8px 20px rgba(24, 144, 255, 0.08);
-}
-
-.department-icon {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
-
-.department-info {
-  flex: 1;
+.department-tree-main,
+.department-tree-meta {
+  width: 100%;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 8px;
 }
 
-.department-name {
+.department-tree-main {
+  justify-content: flex-start;
+}
+
+.department-tree-meta {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.department-tree-name {
   font-size: 14px;
   font-weight: 500;
   color: var(--el-text-color-primary);
 }
 
-.department-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.department-path,
-.department-full-name {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.4;
-}
-
-.clickable-path {
-  cursor: pointer;
-}
-
-.clickable-path:hover {
+.department-tree-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(24, 144, 255, 0.1);
   color: var(--el-color-primary);
+  font-size: 11px;
+}
+
+.department-tree-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  flex-shrink: 0;
+}
+
+.department-tree-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .remove-icon {
@@ -544,10 +556,28 @@ const handlePathClick = (fullCodePath: string) => {
   color: var(--el-color-danger);
 }
 
-.selected-icon {
-  flex-shrink: 0;
-  color: var(--el-color-primary);
-  font-size: 20px;
+:deep(.department-picker-dialog-tree-shell .el-tree) {
+  background: transparent;
+}
+
+:deep(.department-picker-dialog-tree-shell .el-tree-node__content) {
+  height: auto;
+  min-height: 52px;
+  padding: 0 8px;
+  border-radius: 10px;
+  transition: background-color 0.18s ease;
+}
+
+:deep(.department-picker-dialog-tree-shell .el-tree-node__content:hover) {
+  background: var(--el-fill-color-light);
+}
+
+:deep(.department-picker-dialog-tree-shell .el-tree-node.is-current > .el-tree-node__content) {
+  background: rgba(24, 144, 255, 0.08);
+}
+
+:deep(.department-picker-dialog-tree-shell .el-checkbox) {
+  margin-right: 8px;
 }
 
 .department-picker-dialog-footer {

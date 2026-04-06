@@ -92,6 +92,7 @@ import type { TableResponse } from '../../domain/services/TableDomainService'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { hasPermission, TablePermission, buildPermissionApplyURL } from '@/utils/permission'
 import type { ServiceTree } from '@/types'
+import { createAutoFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
 import {
   buildDetailLookupSearchRequest,
   buildDetailBaseQuery as buildDetailBaseQueryHelper,
@@ -429,13 +430,9 @@ export function useWorkspaceDetail(
 
   // 获取详情字段值
   const getDetailFieldValue = (fieldCode: string): FieldValue => {
-    if (!detailRowData.value) return { raw: null, display: '', meta: {} }
+    if (!detailRowData.value) return createEmptyRawFieldValue()
     const value = detailRowData.value[fieldCode]
-    return { 
-      raw: value, 
-      display: typeof value === 'object' ? JSON.stringify(value) : String(value ?? ''), 
-      meta: {} 
-    }
+    return createAutoFieldValue(value)
   }
 
   // 处理详情抽屉关闭（移除 URL 参数）

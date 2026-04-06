@@ -12,23 +12,38 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
-// RunWriteDocTool 写文档工具：按 full_code_path 创建或更新文档，使用现有 CreateDocs / UpdateDocs 接口
-// 树节点必有 code（URL 标识）和 name（中文描述）。args: full_code_path、doc_code（URL 标识）、doc_name（中文描述）、content、format
-func RunWriteDocTool(ctx context.Context, args map[string]interface{}, defaultFullCodePath string) (content string, isError bool) {
-	fullCodePath := strings.TrimSpace(GetStringArg(args, "full_code_path"))
-	if fullCodePath == "" {
-		fullCodePath = strings.TrimSpace(defaultFullCodePath)
-	}
+type writeDocCommand struct {
+	FullCodePath string
+	Name         string
+	Code         string
+	Content      string
+	Format       string
+}
+
+type createDirectoryCommand struct {
+	Directory    string
+	FullCodePath string
+	Name         string
+	Code         string
+	Description  string
+	Tags         string
+	Admins       string
+}
+
+// runWriteDocCommand 按 full_code_path 创建或更新文档，使用现有 CreateDocs / UpdateDocs 接口。
+// 树节点必有 code（URL 标识）和 name（中文描述）。
+func runWriteDocCommand(ctx context.Context, cmd writeDocCommand, defaultFullCodePath string) (content string, isError bool) {
+	fullCodePath := resolveFullCodePathArg(cmd.FullCodePath, defaultFullCodePath)
 	if fullCodePath == "" {
 		return "write_doc 需要 full_code_path（或当前目录上下文）", true
 	}
-	docCode := strings.TrimSpace(GetStringArg(args, "code"))
-	docName := strings.TrimSpace(GetStringArg(args, "name"))
-	docContent := GetStringArg(args, "content")
+	docCode := strings.TrimSpace(cmd.Code)
+	docName := strings.TrimSpace(cmd.Name)
+	docContent := cmd.Content
 	if docContent == "" {
 		return "write_doc 缺少必需参数 content（文档内容）", true
 	}
-	format := GetStringArg(args, "format")
+	format := strings.TrimSpace(cmd.Format)
 	if format == "" {
 		format = "markdown"
 	}
@@ -120,21 +135,20 @@ func RunWriteDocTool(ctx context.Context, args map[string]interface{}, defaultFu
 	return fmt.Sprintf("文档已创建: %s", resp.FullCodePath), false
 }
 
-// RunCreateDirectoryTool 创建目录工具：在 directory（父目录）下创建 package 类型子目录
-// args: directory（可选）、name（必填）、code（必填）、description、tags、admins 可选
-func RunCreateDirectoryTool(ctx context.Context, args map[string]interface{}, defaultFullCodePath string) (content string, isError bool) {
-	fullCodePath := getDirectory(args, defaultFullCodePath)
+// runCreateDirectoryCommand 在 directory（父目录）下创建 package 类型子目录。
+func runCreateDirectoryCommand(ctx context.Context, cmd createDirectoryCommand, defaultFullCodePath string) (content string, isError bool) {
+	fullCodePath := resolveDirectoryArg(cmd.Directory, cmd.FullCodePath, defaultFullCodePath)
 	if fullCodePath == "" {
 		return "create_directory 需要 directory（或当前目录上下文）", true
 	}
-	name := GetStringArg(args, "name")
-	code := GetStringArg(args, "code")
+	name := strings.TrimSpace(cmd.Name)
+	code := strings.TrimSpace(cmd.Code)
 	if name == "" || code == "" {
 		return "create_directory 缺少必需参数 name 或 code（目录名称与代码，如 name=\"文档\" code=\"docs\"）", true
 	}
-	description := GetStringArg(args, "description")
-	tags := strings.TrimSpace(GetStringArg(args, "tags"))
-	admins := strings.TrimSpace(GetStringArg(args, "admins"))
+	description := cmd.Description
+	tags := strings.TrimSpace(cmd.Tags)
+	admins := strings.TrimSpace(cmd.Admins)
 	if admins == "" {
 		admins = contextx.GetRequestUser(ctx)
 		if admins == "" {

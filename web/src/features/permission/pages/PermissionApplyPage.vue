@@ -2143,12 +2143,17 @@ const getRolePermissions = (role: Role): Record<string, string[]> => {
 // ⭐ 获取资源类型标签
 const getResourceTypeLabel = (resourceType: string): string => {
   const labels: Record<string, string> = {
-    'app': '资源根路径',
+    'app': '工作空间',
     'directory': '目录',
     'function': '函数',
     'function:table': '表格',
     'function:form': '表单',
     'function:chart': '图表',
+    'table': '表格',
+    'form': '表单',
+    'chart': '图表',
+    'docs': '文档',
+    'board': '讨论区',
   }
   return labels[resourceType] || resourceType
 }

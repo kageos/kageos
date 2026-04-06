@@ -274,7 +274,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	var toolNames []string
 	var systemPromptFragment string
 	if modeProvider == nil {
-		toolNames = []string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "web_search", "fetch_url_content", "search_tools", "write_doc", "write_go_file", "search_replace_file", "delete_file", "read_app_log", "build_workspace", "create_directory", "publish_to_hub", "push_to_hub", "search_hub_directory", "copy_directory", "record_workspace_event", "run_table_search", "run_table_create", "run_table_update", "run_form_submit", "run_chart_query", "run_on_select_fuzzy", "create_scheduled_task", "list_scheduled_tasks", "cancel_scheduled_task", "list_scheduled_task_executions", "run_official_python"}
+		toolNames = s.toolReg.AllToolNames()
 		systemPromptFragment = "当前为开发模式，请协助用户生成新代码、新模块。"
 	}
 
@@ -730,7 +730,9 @@ func (s *WorkspaceChatService) parseToolCallArgs(ctx context.Context, tc llms.To
 // callOtherTool 调用 ToolRegistry（read_go_file、read_doc、read_dir、write_doc、write_go_file、build_workspace、create_directory、插件等）
 func (s *WorkspaceChatService) callOtherTool(ctx context.Context, name string, args map[string]interface{}, fullCodePath string, files *types.Files, idx, total int) (res string, st string) {
 	logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 调用工具 - ToolName: %s, FullCodePath: %s", idx, total, name, fullCodePath)
-	res, isErr := s.toolReg.CallTool(ctx, name, args, fullCodePath, files)
+	result := s.toolReg.CallTool(ctx, name, args, fullCodePath, files)
+	res = result.Content
+	isErr := result.IsError
 	st = ToolCallStatusOK
 	if isErr {
 		st = ToolCallStatusError

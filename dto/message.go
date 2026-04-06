@@ -9,5 +9,5 @@ type MessageSendPayload struct {
 	ToDepartments   string `json:"to_departments"`   // 接收部门（full_code_path），逗号分隔
 	Title           string `json:"title"`            // 标题/摘要（可选）
 	Content         string `json:"content"`           // 正文
-	ContentType     string `json:"content_type"`      // 内容类型：text | html | markdown
+	ContentType     string `json:"content_type"`      // 内容类型："markdown"(默认) | "html" | "text"
 }

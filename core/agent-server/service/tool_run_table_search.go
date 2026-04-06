@@ -1,0 +1,85 @@
+package service
+
+import (
+	"context"
+	"net/url"
+	"strconv"
+	"strings"
+
+	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
+	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/timex"
+)
+
+type RunTableSearchTool struct{}
+
+type runTableSearchArgs struct {
+	FullCodePath string `json:"full_code_path" schema_desc:"表格函数完整路径" schema_required:"true"`
+	URLQuery     string `json:"url_query" schema_desc:"完整查询串"`
+	Page         *int   `json:"page" schema_desc:"页码"`
+	PageSize     *int   `json:"page_size" schema_desc:"每页条数"`
+	Sorts        string `json:"sorts" schema_desc:"排序字段"`
+}
+
+var runTableSearchToolDef = toolDefinition[runTableSearchArgs](
+	"run_table_search",
+	"执行工作区内 Table 查询接口，返回分页表格数据。full_code_path 必须为「具体表格函数的完整路径」，包含函数名（如 .../nps/nps_questionnaire_list），不能只填包路径（如 .../nps），否则会查不到数据。若只知包路径，请先用 read_dir 看该包下 .go 文件，根据 init() 中 GET(\"xxx_list\",...) 确定函数名，再拼成 full_code_path=.../包名/函数名。查询参数遵循 pkg/gormx/query：page、page_size、sorts、eq/like/in/gte/lte 等；可传 url_query 或单独传 page、page_size、sorts。",
+)
+
+func (t *RunTableSearchTool) Definition() dto.ToolDef {
+	return runTableSearchToolDef
+}
+
+func (t *RunTableSearchTool) Execute(ctx context.Context, call ToolCall) ToolResult {
+	args, err := decodeToolArgs[runTableSearchArgs](call.Args)
+	if err != nil {
+		return toolResult("run_table_search 参数解析失败: "+err.Error(), true)
+	}
+	content, isError := runTableSearchTool(ctx, args, call.FullCodePath)
+	return toolResult(content, isError)
+}
+
+// runTableSearchTool 执行 Table 查询；参数遵循 pkg/gormx/query，可传 url_query 或 page/page_size/sorts
+func runTableSearchTool(ctx context.Context, args runTableSearchArgs, currentFullCodePath string) (string, bool) {
+	fullCodePath := resolveFullCodePathArg(args.FullCodePath, currentFullCodePath)
+	if fullCodePath == "" {
+		return "run_table_search 需传 full_code_path（表格函数路径，如 /luobei/myapp/tables/hr）。", true
+	}
+	var params url.Values
+	if q := strings.TrimSpace(args.URLQuery); q != "" {
+		parsed, err := url.ParseQuery(q)
+		if err != nil {
+			return "run_table_search 的 url_query 需为合法查询串: " + err.Error(), true
+		}
+		params = parsed
+		if params.Get("page") == "" {
+			params.Set("page", "1")
+		}
+		if params.Get("page_size") == "" {
+			params.Set("page_size", "20")
+		}
+	} else {
+		params = url.Values{}
+		params.Set("page", "1")
+		params.Set("page_size", "20")
+		if args.Page != nil {
+			params.Set("page", strconv.Itoa(*args.Page))
+		}
+		if args.PageSize != nil {
+			params.Set("page_size", strconv.Itoa(*args.PageSize))
+		}
+		if s := strings.TrimSpace(args.Sorts); s != "" {
+			params.Set("sorts", s)
+		}
+	}
+	for key := range params {
+		params.Set(key, timex.ReplaceTimeExprsInParamValue(params.Get(key)))
+	}
+	result, err := apicall.TableSearch(ctx, fullCodePath, params)
+	if err != nil {
+		logger.Errorf(ctx, "[RunTableSearch] TableSearch 失败: %v", err)
+		return "run_table_search 调用失败: " + err.Error(), true
+	}
+	return formatJSONResult(result)
+}

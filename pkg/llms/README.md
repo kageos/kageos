@@ -1,32 +1,51 @@
-# LLMs - 大模型调用库
+# LLMs
 
-这是一个抽象的大模型调用库，支持多种AI提供商，提供统一的接口进行AI对话。
+统一的大模型调用封装，提供：
 
-## 特性
+- 统一的 `Chat` / `ChatStream` 接口
+- 多 provider 工厂创建
+- 配置文件与环境变量两种初始化方式
+- 工具调用字段透传
+- GLM 思考模式等 provider-specific 扩展
 
-- **统一接口**：所有AI提供商使用相同的接口
-- **多提供商支持**：支持DeepSeek、千问、豆包、Kimi等
-- **流式支持**：支持实时流式响应，提升用户体验
-- **配置管理**：支持配置文件管理API密钥
-- **错误处理**：完善的错误处理机制
-- **使用统计**：支持token使用统计
-- **易于扩展**：简单的接口设计，易于添加新提供商
+当前代码仓库的正确 import path 是：
 
-## 支持的提供商
+```go
+import "github.com/ai-agent-os/ai-agent-os/pkg/llms"
+```
 
-| 提供商 | 状态 | 说明 |
-|--------|------|------|
-| DeepSeek | ✅ 已实现 | 代码生成能力强，推荐使用 |
-| 千问 | ✅ 已实现 | 中文理解好，价格便宜 |
-| 豆包 | ✅ 已实现 | 字节跳动出品，价格便宜 |
-| Kimi | ✅ 已实现 | 月之暗面出品，长文本处理强 |
-| Claude | ✅ 已实现 | Anthropic出品，推理能力强 |
-| Gemini | ✅ 已实现 | Google出品，多模态支持 |
-| GLM | ✅ 已实现 | 智谱AI出品，GLM-4.5系列，思考模式 |
+## 支持的 Provider
+
+工厂层支持这些 provider 常量：
+
+- `ProviderDeepSeek`
+- `ProviderQwen`
+- `ProviderQwen3Coder`
+- `ProviderDouBao`
+- `ProviderKimi`
+- `ProviderClaude`
+- `ProviderGemini`
+- `ProviderGLM`
+- `ProviderMiniMax`
+- `ProviderXiaomi`
+
+对应环境变量：
+
+| Provider | 环境变量 |
+| --- | --- |
+| DeepSeek | `DEEPSEEK_API_KEY` |
+| Qwen / Qwen3Coder | `QIANWEN_API_KEY` |
+| DouBao | `DOUBAO_API_KEY` |
+| Kimi | `KIMI_API_KEY` |
+| Claude | `CLAUDE_API_KEY` |
+| Gemini | `GEMINI_API_KEY` |
+| GLM | `GLM_API_KEY` |
+| MiniMax | `MINIMAX_API_KEY` |
+| Xiaomi | `XIAOMI_API_KEY` |
 
 ## 快速开始
 
-### 1. 基本使用
+最常见的方式是直接从环境变量创建：
 
 ```go
 package main
@@ -35,389 +54,189 @@ import (
     "context"
     "fmt"
     "log"
-    
-    "github.com/yunhanshu-net/function-go/pkg/llms"
+
+    "github.com/ai-agent-os/ai-agent-os/pkg/llms"
 )
 
 func main() {
-    // 创建DeepSeek客户端
-    client, err := llms.NewLLMClient(llms.ProviderDeepSeek, "your-api-key")
+    client, err := llms.NewLLMClientFromEnv(llms.ProviderDeepSeek)
     if err != nil {
         log.Fatal(err)
     }
 
-    // 构造对话请求
     req := &llms.ChatRequest{
         Messages: []llms.Message{
-            {Role: "system", Content: "你是function-go框架专家"},
-            {Role: "user", Content: "请帮我创建一个图书管理系统"},
+            {Role: "system", Content: "你是一个简洁的技术助手"},
+            {Role: "user", Content: "用三句话解释 goroutine"},
         },
-        MaxTokens:  4000,
-        Temperature: 0.7,
+        MaxTokens:   800,
+        Temperature: 0.2,
     }
 
-    // 调用AI
     resp, err := client.Chat(context.Background(), req)
     if err != nil {
         log.Fatal(err)
     }
 
-    if resp.Error != "" {
-        fmt.Printf("错误: %s\n", resp.Error)
-        return
-    }
-
-    fmt.Printf("AI回答: %s\n", resp.Content)
+    fmt.Println(resp.Content)
 }
 ```
 
-### 2. 流式聊天
+也可以显式传 API Key：
 
 ```go
-// 创建客户端
-client, err := llms.NewLLMClient(llms.ProviderGLM, "your-api-key")
-if err != nil {
-    log.Fatal(err)
-}
+client, err := llms.NewLLMClient(llms.ProviderGLM, "<api-key>")
+```
 
-// 构造对话请求
-req := &llms.ChatRequest{
-    Messages: []llms.Message{
-        {Role: "user", Content: "请详细介绍一下人工智能"},
-    },
-    MaxTokens:  2000,
-    Temperature: 0.7,
-}
+## 流式调用
 
-// 开始流式聊天
+```go
 stream, err := client.ChatStream(context.Background(), req)
 if err != nil {
     log.Fatal(err)
 }
 
-// 处理流式响应
 for chunk := range stream {
     if chunk.Error != "" {
-        fmt.Printf("错误: %s\n", chunk.Error)
-        break
+        log.Fatal(chunk.Error)
     }
-    
     if chunk.Content != "" {
-        // 实时打印内容
         fmt.Print(chunk.Content)
     }
-    
     if chunk.Done {
-        fmt.Println("\n\n聊天完成")
-        if chunk.Usage != nil {
-            fmt.Printf("Token使用: %d\n", chunk.Usage.TotalTokens)
-        }
         break
     }
 }
 ```
 
-### 3. 使用配置文件
+目前 `GLM`、`DeepSeek`、`Qwen`、`Kimi` 以及部分 OpenAI 兼容 provider 实现了真实流式逻辑；`Claude`、`Gemini`、`DouBao`、`Qwen3Coder` 当前会返回“不支持流式”的完成块。
 
-```go
-// 加载配置文件
-err := llms.LoadConfig("config.json")
-if err != nil {
-    log.Fatal(err)
-}
+## 配置文件
 
-// 创建默认客户端
-client, err := llms.CreateDefaultClient()
-if err != nil {
-    log.Fatal(err)
-}
-
-// 使用客户端
-resp, err := client.Chat(context.Background(), req)
-```
-
-### 4. 多提供商使用
-
-```go
-// 支持的提供商列表
-providers := llms.GetSupportedProviders()
-for _, provider := range providers {
-    fmt.Printf("提供商: %s (%s)\n", 
-        provider, llms.GetProviderDisplayName(provider))
-}
-
-// 创建指定提供商客户端
-client, err := llms.NewLLMClient(llms.ProviderQwen, "your-qwen-api-key")
-```
-
-## 配置说明
-
-### 配置文件格式
+配置结构对应 `Config` / `ProviderConfig`：
 
 ```json
 {
   "providers": {
     "deepseek": {
-      "api_key": "your-deepseek-api-key-here",
+      "api_key": "<api-key>",
       "base_url": "https://api.deepseek.com/v1/chat/completions",
-      "timeout": 60
+      "timeout": 300
     },
-    "qwen": {
-      "api_key": "your-qwen-api-key-here",
-      "base_url": "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
-      "timeout": 60
+    "glm": {
+      "api_key": "<api-key>",
+      "timeout": 600
     }
   },
   "default": "deepseek"
 }
 ```
 
-### 环境变量支持
+用法：
 
-你也可以通过环境变量设置API密钥：
+```go
+if err := llms.LoadConfig("llms.json"); err != nil {
+    log.Fatal(err)
+}
 
-```bash
-export DEEPSEEK_API_KEY="your-api-key"
-export QWEN_API_KEY="your-api-key"
-export DOUBAO_API_KEY="your-api-key"
-export KIMI_API_KEY="your-api-key"
-export CLAUDE_API_KEY="your-api-key"
-export GEMINI_API_KEY="your-api-key"
-export GLM_API_KEY="your-api-key"
+client, err := llms.CreateDefaultClient()
+if err != nil {
+    log.Fatal(err)
+}
 ```
 
-## API参考
+`timeout` 字段单位是秒，加载时会转换成 `time.Duration`。
 
-### 核心接口
+## 关键类型
 
-#### LLMClient
+最核心的接口：
 
 ```go
 type LLMClient interface {
-    // Chat 核心方法：根据对话列表返回AI回答
     Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error)
-    
-    // ChatStream 流式聊天方法：返回流式响应通道
     ChatStream(ctx context.Context, req *ChatRequest) (<-chan *StreamChunk, error)
-    
-    // GetModelName 获取模型名称
     GetModelName() string
-    
-    // GetProvider 获取提供商名称
     GetProvider() string
 }
 ```
 
-#### ChatRequest
+`ChatRequest` 常用字段：
 
-```go
-type ChatRequest struct {
-    Messages   []Message `json:"messages"`   // 对话历史
-    Model     string    `json:"model"`       // 模型名称（可选）
-    MaxTokens int       `json:"max_tokens"`  // 最大token数（可选）
-    Temperature float64 `json:"temperature"` // 温度参数（可选）
-}
-```
+- `Messages`: 对话消息列表
+- `Model`: 可选，覆盖客户端默认模型
+- `MaxTokens`: 可选，覆盖默认 token 上限
+- `Temperature`: 可选
+- `Timeout`: 请求级超时，优先级高于客户端默认超时
+- `UseThinking`: GLM 使用的思考模式开关
+- `Tools` / `ToolChoice`: OpenAI-compatible provider 的工具调用参数
 
-#### ChatResponse
+`ChatResponse` / `StreamChunk` 都可能带 `ToolCalls`，用于透传工具调用结果。
 
-```go
-type ChatResponse struct {
-    Content string `json:"content"` // AI回答内容
-    Error   string `json:"error"`   // 错误信息（如果有）
-    Usage   *Usage `json:"usage"`   // 使用统计（可选）
-}
-```
+## 超时与默认值
 
-#### StreamChunk
-
-```go
-type StreamChunk struct {
-    Content string `json:"content"`           // 流式内容片段
-    Done    bool   `json:"done"`              // 是否完成
-    Error   string `json:"error,omitempty"`   // 错误信息（如果有）
-    Usage   *Usage `json:"usage,omitempty"`   // 使用统计（完成时提供）
-}
-```
-
-### 工厂函数
-
-```go
-// 创建LLM客户端
-func NewLLMClient(provider Provider, apiKey string) (LLMClient, error)
-
-// 获取支持的提供商列表
-func GetSupportedProviders() []Provider
-
-// 获取提供商显示名称
-func GetProviderDisplayName(provider Provider) string
-```
-
-### 配置管理
-
-```go
-// 加载配置文件
-func LoadConfig(configPath string) error
-
-// 创建默认客户端
-func CreateDefaultClient() (LLMClient, error)
-
-// 从配置创建客户端
-func CreateClientFromConfig(provider Provider) (LLMClient, error)
-```
-
-## 扩展新提供商
-
-要添加新的AI提供商，只需要：
-
-1. 实现`LLMClient`接口
-2. 在`factory.go`中添加新的case
-3. 在`Provider`常量中添加新值
+- `DefaultClientOptions()` 当前默认超时是 `1200s`
+- `ChatRequest.Timeout` 会覆盖客户端级超时
+- 如果 provider 支持自定义 `BaseURL`，可以通过 `ClientOptions.WithBaseURL(...)` 或配置文件传入
 
 示例：
 
 ```go
-// 新提供商实现
-type NewProviderClient struct {
-    APIKey string
+timeout := 45 * time.Second
+req := &llms.ChatRequest{
+    Messages: []llms.Message{
+        {Role: "user", Content: "总结这段日志"},
+    },
+    Timeout: &timeout,
 }
-
-func (n *NewProviderClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
-    // 实现具体的API调用逻辑
-}
-
-func (n *NewProviderClient) GetModelName() string {
-    return "new-provider-model"
-}
-
-func (n *NewProviderClient) GetProvider() string {
-    return "NewProvider"
-}
-
-// 在factory.go中添加
-case ProviderNewProvider:
-    return NewNewProviderClient(apiKey), nil
 ```
 
-## GLM 特殊功能
+## GLM 扩展
 
-### 思考模式
-
-GLM-4.5 系列支持深度思考模式，可以通过 `thinking.type` 参数控制：
+`GLMClient` 暴露了额外能力：
 
 ```go
-// 创建GLM客户端
-client, err := llms.NewLLMClient(llms.ProviderGLM, "your-glm-api-key")
+client, err := llms.NewLLMClientFromEnv(llms.ProviderGLM)
 if err != nil {
     log.Fatal(err)
 }
 
-// 设置模型
 glmClient := client.(*llms.GLMClient)
-glmClient.SetModel("glm-4.5") // 或 glm-4.5-air, glm-4.5-x 等
+glmClient.SetModel("glm-4.6")
 
-// 使用思考模式
-resp, err := glmClient.ChatWithThinking(ctx, req, true) // 启用思考模式
-```
-
-### 支持的模型
-
-GLM-4.5 系列提供多个模型选择：
-
-- `glm-4.5`: 最强大的推理模型，3550亿参数
-- `glm-4.5-air`: 高性价比轻量级强性能
-- `glm-4.5-x`: 高性能强推理极速响应
-- `glm-4.5-airx`: 轻量级强性能极速响应
-- `glm-4.5-flash`: 免费高效多功能
-
-```go
-// 获取支持的模型列表
-models := glmClient.GetSupportedModels()
-for _, model := range models {
-    fmt.Printf("支持模型: %s\n", model)
-}
-
-// 检查思考模式支持
-if glmClient.IsThinkingEnabled() {
-    fmt.Println("当前模型支持思考模式")
-}
-```
-
-## 流式支持
-
-### 支持的提供商
-
-| 提供商 | 流式支持 | 说明 |
-|--------|----------|------|
-| GLM | ✅ 完全支持 | 支持思考模式流式输出 |
-| DeepSeek | ✅ 完全支持 | 高性能流式响应 |
-| 千问 | ✅ 完全支持 | 阿里云流式API |
-| Claude | ⚠️ 暂不支持 | 返回降级提示 |
-| Kimi | ⚠️ 暂不支持 | 返回降级提示 |
-| 豆包 | ⚠️ 暂不支持 | 返回降级提示 |
-| Gemini | ⚠️ 暂不支持 | 返回降级提示 |
-| Qwen3Coder | ⚠️ 暂不支持 | 返回降级提示 |
-
-### 流式使用场景
-
-1. **实时对话**：用户可以看到AI逐步生成回答
-2. **长文本生成**：避免长时间等待，提升用户体验
-3. **Web应用**：支持Server-Sent Events (SSE)
-4. **调试分析**：实时查看AI的思考过程
-
-### 性能优势
-
-- **首字响应时间**：通常比非流式快50-80%
-- **用户体验**：实时反馈，避免长时间等待
-- **资源利用**：可以提前开始处理部分响应
-
-## 最佳实践
-
-### 1. 错误处理
-
-```go
-resp, err := client.Chat(ctx, req)
+resp, err := glmClient.ChatWithThinking(context.Background(), req, true)
 if err != nil {
-    // 处理网络错误、超时等
-    log.Printf("调用失败: %v", err)
-    return
-}
-
-if resp.Error != "" {
-    // 处理API返回的错误
-    log.Printf("API错误: %s", resp.Error)
-    return
+    log.Fatal(err)
 }
 ```
 
-### 2. 超时控制
+当前 `GLMClient` 默认模型是 `glm-4.6`。`GetSupportedModels()` 返回当前代码里登记的模型列表；`IsThinkingEnabled()` 会根据当前模型判断是否支持思考模式。
 
-```go
-ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-defer cancel()
+## Concrete Client 扩展
 
-resp, err := client.Chat(ctx, req)
+`LLMClient` 只保证最小接口。部分具体实现还提供额外方法，例如：
+
+- `GetSupportedModels()`
+- `GetPricingInfo()`
+- `SetModel(...)`
+- `ChatWithThinking(...)`（仅 GLM）
+
+如果需要这些能力，请做具体类型断言。
+
+## 测试
+
+默认测试集只保留离线可跑的单元测试：
+
+```bash
+go test ./pkg/llms
 ```
 
-### 3. 重试机制
+真实联网测试已经隔离到 `integration` build tag：
 
-```go
-var resp *ChatResponse
-var err error
-
-for i := 0; i < 3; i++ {
-    resp, err = client.Chat(ctx, req)
-    if err == nil && resp.Error == "" {
-        break
-    }
-    time.Sleep(time.Duration(i+1) * time.Second)
-}
+```bash
+go test -tags=integration ./pkg/llms
 ```
 
-## 许可证
-
-MIT License
-
+运行前需要先配置对应 provider 的环境变量。
 
 
 

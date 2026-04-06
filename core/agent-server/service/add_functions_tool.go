@@ -10,12 +10,16 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
-// RunAddFunctionsTool 内部工具：将源码落盘到 directory（full_code_path）对应目录
-// args: file_name, source_code（必填）；build_workspace 可选，默认 true
-// 租户由 app-server 从 full_code_path 解析，不传 User；buildWorkspace=false 时仅写文件不编译（对应 SkipBuild=true）
-func RunAddFunctionsTool(ctx context.Context, args map[string]interface{}, fullCodePath string, skipMetadataParse bool, buildWorkspace bool) (content string, isError bool) {
-	fileName := GetStringArg(args, "file_name")
-	sourceCode := GetStringArg(args, "source_code")
+type addFunctionsCommand struct {
+	FileName   string
+	SourceCode string
+}
+
+// runAddFunctionsCommand 将源码落盘到 full_code_path 对应目录。
+// 租户由 app-server 从 full_code_path 解析，不传 User；buildWorkspace=false 时仅写文件不编译（对应 SkipBuild=true）。
+func runAddFunctionsCommand(ctx context.Context, cmd addFunctionsCommand, fullCodePath string, buildWorkspace bool) (content string, isError bool) {
+	fileName := strings.TrimSpace(cmd.FileName)
+	sourceCode := cmd.SourceCode
 	if fileName == "" || sourceCode == "" {
 		return "write_go_file 缺少 file_name 或 content/source_code", true
 	}

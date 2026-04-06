@@ -8,20 +8,21 @@
 <template>
   <div class="department-selector">
     <div v-if="selectedDepartmentPath" class="selected-department">
-      <DepartmentDisplay
-        :full-code-path="selectedDepartmentPath"
-        mode="card"
-        layout="horizontal"
-        size="medium"
-      />
-      <el-button
-        type="danger"
-        link
-        size="small"
-        @click="handleClear"
-      >
-        清空
-      </el-button>
+      <div class="selected-department-main" @click="dialogVisible = true">
+        <img src="/组织架构.svg" alt="组织架构" class="selected-department-icon" width="18" height="18" />
+        <span class="selected-department-text">{{ selectedDepartmentLabel }}</span>
+      </div>
+      <div class="selected-department-actions">
+        <el-button link size="small" @click="dialogVisible = true">重新选择</el-button>
+        <el-button
+          type="danger"
+          link
+          size="small"
+          @click="handleClear"
+        >
+          清空
+        </el-button>
+      </div>
     </div>
     
     <!-- 未选择时显示按钮 -->
@@ -47,7 +48,6 @@ import { ref, computed } from 'vue'
 import { ElButton } from 'element-plus'
 import { OfficeBuilding } from '@element-plus/icons-vue'
 import type { Department } from '@/api/department'
-import DepartmentDisplay from '@/shared/components/DepartmentDisplay.vue'
 import DepartmentPickerDialog from '@/shared/components/DepartmentPickerDialog.vue'
 
 interface Props {
@@ -78,6 +78,34 @@ const selectedDepartmentPath = computed({
   set: (value) => emit('update:modelValue', value)
 })
 
+function findDepartmentByPath(departments: Department[], path: string): Department | null {
+  for (const department of departments) {
+    if (department.full_code_path === path) {
+      return department
+    }
+    if (department.children?.length) {
+      const match = findDepartmentByPath(department.children, path)
+      if (match) {
+        return match
+      }
+    }
+  }
+  return null
+}
+
+const selectedDepartmentLabel = computed(() => {
+  if (!selectedDepartmentPath.value) {
+    return ''
+  }
+
+  const department = findDepartmentByPath(departmentTree.value, selectedDepartmentPath.value)
+  if (!department) {
+    return selectedDepartmentPath.value
+  }
+
+  return department.full_name_path || department.name
+})
+
 function handleDepartmentsConfirm(departments: Department[]) {
   const department = departments[0]
   selectedDepartmentPath.value = department ? department.full_code_path : null
@@ -103,5 +131,42 @@ function handleClear() {
   border: 1px solid var(--el-border-color);
   border-radius: 4px;
   background-color: var(--el-bg-color);
+}
+
+.selected-department-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.selected-department-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.selected-department-icon {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  max-width: 18px;
+  max-height: 18px;
+  flex-shrink: 0;
+  object-fit: contain;
+  display: block;
+}
+
+.selected-department-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--el-text-color-primary);
+  font-size: 14px;
 }
 </style>

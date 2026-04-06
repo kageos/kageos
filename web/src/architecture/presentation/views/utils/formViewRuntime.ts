@@ -7,6 +7,7 @@ import { FormDomainService } from '@/architecture/domain/services/FormDomainServ
 import { FormStateManager } from '@/architecture/infrastructure/stateManager/FormStateManager'
 import { useFormDataStore, type FormDataStore } from '@/core/stores-v2/formData'
 import { useResponseDataStore } from '@/core/stores-v2/responseData'
+import { createEmptyFieldValue } from '@/core/utils/createFieldValue'
 
 export function createFormViewRuntime(options: {
   eventBus: IEventBus
@@ -42,7 +43,7 @@ export function syncFormDataStoreToStateManager(options: {
     if (fieldValue) {
       newData.set(field.code, fieldValue)
     } else {
-      newData.set(field.code, { raw: null, display: '', meta: {} })
+      newData.set(field.code, createEmptyFieldValue(field))
     }
   })
 

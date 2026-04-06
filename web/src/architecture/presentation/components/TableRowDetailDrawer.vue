@@ -408,6 +408,7 @@ import type { FieldConfig, FieldValue } from '../../domain/types'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 import { buildDetailEditFormState } from '../composables/utils/workspaceDetailRuntime'
 import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
+import { createAutoFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
 
 interface Props {
   visible: boolean
@@ -752,13 +753,9 @@ watch(
 )
 
 const getFieldValue = (fieldCode: string): FieldValue => {
-  if (!props.rowData) return { raw: null, display: '', meta: {} }
+  if (!props.rowData) return createEmptyRawFieldValue()
   const value = props.rowData[fieldCode]
-  return { 
-    raw: value, 
-    display: typeof value === 'object' ? JSON.stringify(value) : String(value ?? ''), 
-    meta: {} 
-  }
+  return createAutoFieldValue(value)
 }
 
 /**

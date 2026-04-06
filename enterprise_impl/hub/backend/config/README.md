@@ -1,45 +1,48 @@
 # Hub 配置文件
 
-## 配置文件位置
+这个目录下的 [hub.yaml](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/enterprise_impl/hub/backend/config/hub.yaml) 可以作为配置结构参考，但 Hub 服务运行时实际走的是全局 `pkg/config` 配置加载逻辑。
 
-配置文件应该放在 `hub/backend/config/hub.yaml`。
+## 实际加载路径
 
-## 配置示例
+- `APP_ENV=dev`：`deploy/dev/config/hub.yaml`
+- `APP_ENV!=dev`：`deploy/prod/config/runtime/hub.yaml`
+- 如果上一步不存在：`deploy/prod/config/template/hub.yaml`
 
-参考 `hub.yaml.example` 文件。
+当前仓库已提供的开发配置文件在：
 
-## 快速开始
+- [deploy/dev/config/hub.yaml](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/deploy/dev/config/hub.yaml)
 
-1. 复制配置文件示例：
-```bash
-cd hub/backend
-cp config/hub.yaml.example config/hub.yaml
-```
-
-2. 修改 `config/hub.yaml` 中的配置：
-- 数据库连接信息（MySQL）
-- OS 平台基础 URL
-- 服务器端口等
-
-## 配置说明
+## 字段说明
 
 ### server
-- `port`: 服务器端口（默认：9094）
-- `log_level`: 日志级别（info, warn, error）
-- `debug`: 是否调试模式
+
+- `port`: 服务端口，默认 `9094`
+- `log_level`: 日志级别
+- `debug`: 是否启用 Gin 调试模式
 
 ### db
-- `type`: 数据库类型（mysql）
-- `host`: 数据库主机
-- `port`: 数据库端口（默认：3306）
-- `user`: 数据库用户名
-- `password`: 数据库密码
-- `name`: 数据库名称
-- `log_level`: 数据库日志级别（silent, error, warn, info）
-- `slow_threshold`: 慢查询阈值（毫秒）
 
-### os
-- `base_url`: **主站前端地址**（用户打开工作空间的页面地址），用于 Hub「试用」按钮跳转（跳转 = base_url + /workspace + 目录 full_code_path）。注意是前端地址，不是主站后端/API 地址。
-  - 开发环境示例：`http://localhost:5173`
-  - 线上环境示例：`http://125.122.96.207:8999`
+- `type`: 当前实现使用 `mysql`
+- `host`
+- `port`
+- `user`
+- `password`
+- `name`
+- `log_level`
+- `slow_threshold`
 
+### public_host
+
+- 用于生成 `copy_url` 的主站 `host:port`
+- 未配置时会回退请求头中的 host 信息
+
+### os.base_url
+
+- 主站前端地址
+- 用于 Hub 前端“试用”跳转
+- 这里填的是前端入口，不是后端 API 地址
+
+示例：
+
+- 开发环境：`http://localhost:5173`
+- 线上环境：实际主站前端地址

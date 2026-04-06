@@ -1,47 +1,37 @@
 <!--
   DepartmentTreePanel - 组织架构树形面板组件
-  
+
   需求：
-  - 使用类似服务目录的树形结构展示组织架构
+  - 使用树形结构展示组织架构
   - 支持点击节点查看部门用户
   - 支持右键菜单操作（编辑、删除、查看用户等）
-  
-  设计思路：
-  - 参考 ServiceTreePanel 的实现
-  - 使用 el-tree 展示部门层级
-  - 支持节点点击、右键菜单等交互
 -->
 <template>
   <div class="department-tree-panel" v-loading="loading">
     <div class="tree-header">
-      <div class="header-title">
-        <img src="/组织架构.svg" alt="组织架构" class="header-icon" />
-        <h3>组织架构</h3>
-      </div>
+      <h3>组织架构</h3>
+
       <div class="header-actions">
-        <el-link
-          v-if="!loading"
-          type="primary"
-          :underline="false"
-          @click="$emit('create-department')"
-          class="header-link"
-        >
+        <el-button type="primary" plain size="small" @click="$emit('create-department')">
           <el-icon><Plus /></el-icon>
-          新增部门
-        </el-link>
-        <el-link
-          v-if="!loading"
-          type="primary"
-          :underline="false"
-          @click="$emit('refresh')"
-          class="header-link"
-        >
+          新增
+        </el-button>
+        <el-button text size="small" @click="$emit('refresh')">
           <el-icon><Refresh /></el-icon>
           刷新
-        </el-link>
+        </el-button>
       </div>
     </div>
-    
+
+    <div v-if="treeData.length > 0" class="tree-search">
+      <el-input
+        v-model="searchKeyword"
+        clearable
+        :prefix-icon="Search"
+        placeholder="搜索部门名称、编码或路径"
+      />
+    </div>
+
     <div class="tree-content">
       <el-tree
         v-if="treeData.length > 0"
@@ -49,23 +39,24 @@
         :data="treeData"
         :props="{ children: 'children', label: 'name' }"
         node-key="id"
+        :current-node-key="currentNodeId ?? undefined"
         :default-expand-all="true"
         :expand-on-click-node="false"
         :highlight-current="true"
+        :filter-node-method="filterTreeNode"
+        empty-text="没有匹配的部门"
         @node-click="handleNodeClick"
       >
         <template #default="{ node, data }">
-          <span class="tree-node">
-            <!-- 部门图标 -->
-            <img 
-              src="/组织架构.svg" 
-              alt="部门" 
-              class="node-icon department-icon-img"
-            />
-            <span class="node-label">{{ node.label }}</span>
-            <span class="node-code">({{ data.code }})</span>
-            
-            <!-- 更多操作按钮 - 鼠标悬停时显示 -->
+          <div class="tree-node">
+            <div class="node-texts">
+              <span class="node-label-row">
+                <span class="node-label">{{ node.label }}</span>
+                <span v-if="data.is_system_default" class="node-status">默认</span>
+              </span>
+              <span class="node-caption">{{ data.code }}</span>
+            </div>
+
             <el-dropdown
               trigger="click"
               :teleported="true"
@@ -74,10 +65,7 @@
               class="node-more-actions"
               @command="(command: string) => handleNodeAction(command, data)"
             >
-              <el-icon 
-                class="more-icon" 
-                @click.stop
-              >
+              <el-icon class="more-icon" @click.stop>
                 <MoreFilled />
               </el-icon>
               <template #dropdown>
@@ -94,8 +82,8 @@
                     <el-icon><Edit /></el-icon>
                     编辑
                   </el-dropdown-item>
-                  <el-dropdown-item 
-                    command="delete" 
+                  <el-dropdown-item
+                    command="delete"
                     divided
                     :disabled="data.is_system_default"
                   >
@@ -106,10 +94,10 @@
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
-          </span>
+          </div>
         </template>
       </el-tree>
-      
+
       <div v-else class="empty-state">
         <el-empty description="暂无组织架构" :image-size="80">
           <el-button type="primary" @click="$emit('create-department')">
@@ -123,8 +111,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Plus, MoreFilled, Refresh, User, Edit, Delete } from '@element-plus/icons-vue'
+import { nextTick, ref, watch } from 'vue'
+import type { TreeInstance } from 'element-plus'
+import { Delete, Edit, MoreFilled, Plus, Refresh, Search, User } from '@element-plus/icons-vue'
 import type { Department } from '@/api/department'
 
 interface Props {
@@ -149,8 +138,14 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
-// el-tree 的引用
-const treeRef = ref()
+const treeRef = ref<TreeInstance>()
+const searchKeyword = ref('')
+
+const applyTreeState = async () => {
+  await nextTick()
+  treeRef.value?.filter(searchKeyword.value.trim())
+  treeRef.value?.setCurrentKey(props.currentNodeId ?? undefined)
+}
 
 const handleNodeClick = (data: Department) => {
   emit('node-click', data)
@@ -168,209 +163,208 @@ const handleNodeAction = (command: string, data: Department) => {
   }
 }
 
-// 暴露方法给父组件
+const filterTreeNode = (keyword: string, data: Department) => {
+  const normalizedKeyword = keyword.trim().toLowerCase()
+  if (!normalizedKeyword) return true
+
+  return [
+    data.name,
+    data.code,
+    data.full_name_path,
+    data.full_code_path
+  ]
+    .filter(Boolean)
+    .some((value) => String(value).toLowerCase().includes(normalizedKeyword))
+}
+
+watch(searchKeyword, () => {
+  treeRef.value?.filter(searchKeyword.value.trim())
+})
+
+watch(() => props.currentNodeId, applyTreeState, { immediate: true })
+watch(() => props.treeData, applyTreeState)
+
 defineExpose({
   treeRef
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .department-tree-panel {
+  --dept-tree-accent: var(--color-primary);
+  --dept-tree-ink: var(--text-primary);
+  --dept-tree-muted: var(--text-secondary);
+  --dept-tree-line: color-mix(in srgb, var(--border-base) 82%, var(--color-primary) 18%);
+  --dept-tree-surface: var(--bg-primary);
+  --dept-tree-accent-soft: color-mix(in srgb, var(--color-primary) 10%, transparent);
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--el-bg-color);
+  gap: 12px;
+  background: transparent;
 }
 
 .tree-header {
-  padding: 16px;
-  border-bottom: 1px solid var(--el-border-color-light);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  
-  .header-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    
-    .header-icon {
-      width: 20px;
-      height: 20px;
-      flex-shrink: 0;
-    }
-    
-    h3 {
-      margin: 0;
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--el-text-color-primary);
-    }
-  }
-  
-  .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-  
-  .header-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.2s;
-    color: #6366f1 !important;
-    
-    &:hover {
-      color: #4f46e5 !important;
-      opacity: 1;
-    }
-    
-    .el-icon {
-      font-size: 14px;
-      color: inherit;
-    }
+  gap: 12px;
+}
+
+.tree-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--dept-tree-ink);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.tree-search {
+  :deep(.el-input__wrapper) {
+    border-radius: 14px;
+    box-shadow: none;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-base);
   }
 }
 
 .tree-content {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: visible;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  position: relative;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 2px 0;
 }
 
 .empty-state {
-  flex: 1;
+  min-height: 280px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.tree-node {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  width: 100%;
-  
-  .node-icon {
-    width: 16px;
-    height: 16px;
-    margin-right: 8px;
-    color: #6366f1;
-    opacity: 0.8;
-    flex-shrink: 0;
-    transition: color 0.2s ease;
-    
-    &.department-icon-img {
-      width: 16px;
-      height: 16px;
-      object-fit: contain;
-      opacity: 0.9;
-    }
-  }
-  
-  .node-label {
-    font-size: 14px;
-    color: var(--el-text-color-primary);
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  
-  .node-code {
-    font-size: 12px;
-    color: var(--el-text-color-secondary);
-    flex-shrink: 0;
-  }
-  
-  .node-more-actions {
-    flex-shrink: 0;
-    opacity: 0;
-    transition: opacity 0.2s;
-    position: relative;
-    z-index: 10;
-    pointer-events: auto;
-    
-    .more-icon {
-      font-size: 14px;
-      color: var(--el-text-color-secondary);
-      cursor: pointer;
-      padding: 4px;
-      pointer-events: auto;
-      
-      &:hover {
-        color: var(--el-color-primary);
-      }
-    }
-  }
-  
-  &:hover .node-more-actions {
-    opacity: 1;
-  }
+:deep(.el-tree) {
+  background: transparent;
 }
 
 :deep(.el-tree-node__content) {
-  height: 32px;
+  height: 44px;
+  margin-bottom: 4px;
   padding: 0 8px;
-  display: flex;
-  align-items: center;
-  position: relative;
-  overflow: visible;
-  
+  border-radius: 10px;
+  background: var(--dept-tree-surface);
+  transition: background-color 0.18s ease;
+
   &:hover {
-    background-color: var(--el-fill-color-light);
-    
-    .tree-node .node-more-actions {
+    background: color-mix(in srgb, var(--color-primary) 4%, var(--bg-primary) 96%);
+
+    .node-more-actions {
       opacity: 1;
     }
   }
 }
 
 :deep(.el-tree-node.is-current > .el-tree-node__content) {
-  background-color: rgba(99, 102, 241, 0.15) !important;
-  border-left: 2px solid #6366f1;
-  
-  .tree-node {
-    .node-label {
-      color: var(--el-text-color-primary);
-      font-weight: 500;
-    }
-    
-    .node-icon {
-      opacity: 0.8;
-      filter: brightness(0.9);
-    }
-    
-    .node-more-actions {
-      opacity: 1 !important;
-      z-index: 100;
-      pointer-events: auto !important;
-      
-      .more-icon {
-        pointer-events: auto !important;
-      }
-    }
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--bg-primary) 92%) !important;
+  box-shadow: inset 2px 0 0 var(--color-primary);
+
+  .node-more-actions {
+    opacity: 1;
+  }
+
+  .node-label {
+    color: var(--dept-tree-ink);
   }
 }
 
-:deep(.el-tree-node.is-current .el-tree-node__children .el-tree-node__content) {
-  background-color: transparent;
-  border-left: none;
+.tree-node {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.node-texts {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.node-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.node-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dept-tree-ink);
+}
+
+.node-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-warning) 14%, var(--bg-primary) 86%);
+  color: var(--color-warning);
+  font-size: 11px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.node-caption {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--dept-tree-muted);
+}
+
+.node-more-actions {
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.more-icon {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--dept-tree-muted);
+  transition: background-color 0.18s ease, color 0.18s ease;
+
+  &:hover {
+    background: var(--dept-tree-accent-soft);
+    color: var(--dept-tree-accent);
+  }
+}
+
+.disabled-hint {
+  color: var(--text-disabled);
 }
 
 :deep(.el-dropdown-menu),
 :global(.department-tree-dropdown-popper .el-dropdown-menu) {
-  min-width: 160px;
-  z-index: 9999 !important;
+  min-width: 176px;
 }
 
 :deep(.el-dropdown-menu__item),
@@ -378,12 +372,22 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
+  padding: 9px 14px;
   white-space: nowrap;
-  
-  .el-icon {
-    font-size: 14px;
+}
+
+@media (max-width: 920px) {
+  .tree-header {
+    flex-direction: column;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  :deep(.el-tree-node__content) {
+    height: 52px;
   }
 }
 </style>
-

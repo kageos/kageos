@@ -90,6 +90,7 @@ import {
   type WidgetValidationContext
 } from '@/architecture/presentation/widgets/composables/useWidgetValidation'
 import { useAuthStore } from '@/stores/auth'
+import { createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
 
 export type ValidationResult = CoreValidationResult
 
@@ -118,7 +119,7 @@ class FormStateManagerAdapter {
    */
   getValue(fieldPath: string): FieldValue {
     const state = this.stateManager.getState()
-    return state.data.get(fieldPath) || { raw: null, display: '', meta: {} }
+    return state.data.get(fieldPath) || createEmptyRawFieldValue()
   }
 
   hasValue(fieldPath: string): boolean {
@@ -476,7 +477,7 @@ export class FormDomainService {
    */
   getFieldValue(fieldCode: string): FieldValue {
     const state = this.stateManager.getState()
-    return state.data.get(fieldCode) || { raw: null, display: '', meta: {} }
+    return state.data.get(fieldCode) || createEmptyRawFieldValue()
   }
 
   /**

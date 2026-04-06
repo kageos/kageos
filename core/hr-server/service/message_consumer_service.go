@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/nats-io/nats.go"
+	"github.com/yuin/goldmark"
 )
 
 // MessageConsumerService 消息消费服务：订阅 NATS 主题，解析后按渠道投递（当前实现：邮件）
@@ -128,17 +130,32 @@ func splitAndTrim(s, sep string) []string {
 	return out
 }
 
-// wrapBody 根据 content_type 简单包装正文（邮件用 HTML 发）
+// wrapBody 根据 content_type 将正文转为邮件可用的 HTML
+//   - "markdown"（SDK 默认）：用 goldmark 解析为 HTML，支持加粗、列表、链接、表格等
+//   - "html"：业务方自行控制的原始 HTML，直接透传
+//   - "text"：纯文本，HTML 转义后保留换行
+//
+// 未来扩展其他渠道（企微/钉钉/站内信）时，在此按渠道分别适配即可，SDK 侧无需改动
 func (s *MessageConsumerService) wrapBody(contentType, content string) string {
 	switch strings.ToLower(contentType) {
 	case "html":
 		return content
-	case "markdown", "text", "":
-		// 纯文本/ Markdown 用简单 HTML 包裹，避免被当作 HTML 注入
+	case "markdown", "":
+		return markdownToHTML(content)
+	case "text":
 		return "<div style=\"white-space: pre-wrap;\">" + escapeHTML(content) + "</div>"
 	default:
 		return "<div style=\"white-space: pre-wrap;\">" + escapeHTML(content) + "</div>"
 	}
+}
+
+// markdownToHTML 将 Markdown 正文转为邮件安全的 HTML
+func markdownToHTML(md string) string {
+	var buf bytes.Buffer
+	if err := goldmark.Convert([]byte(md), &buf); err != nil {
+		return "<div style=\"white-space: pre-wrap;\">" + escapeHTML(md) + "</div>"
+	}
+	return buf.String()
 }
 
 func escapeHTML(s string) string {

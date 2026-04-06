@@ -16,7 +16,7 @@ export interface Role {
   description: string
   is_system: boolean // 是否为系统角色（不可删除）
   is_default: boolean // 是否为默认角色（用于权限申请时的默认推荐）
-  resource_type?: string // 资源类型（directory、table、form、chart、app）- 角色的主要资源类型
+  resource_type?: string // 资源类型（directory、table、form、chart、docs、board、app）- 角色的主要资源类型
   created_at: string
   updated_at: string
   permissions?: RolePermission[] // 角色权限列表（可选）
@@ -28,8 +28,8 @@ export interface Role {
 export interface RolePermission {
   id: number
   role_id: number
-  resource_type: string // 资源类型（如 "directory", "table", "form", "chart"）
-  action: string // 权限点（如 "directory:read", "function:write"）
+  resource_type: string // 资源类型（如 "directory", "table", "form", "chart", "docs", "board", "app"）
+  action: string // 权限点（如 "directory:read", "table:write", "docs:read"）
 }
 
 /**
@@ -39,7 +39,7 @@ export interface CreateRoleReq {
   name: string
   code: string
   description?: string
-  permissions: Record<string, string[]> // 权限点列表，按资源类型分组，例如：{ "directory": ["directory:read", "directory:write"], "table": ["function:read", "function:write"] }
+  permissions: Record<string, string[]> // 权限点列表，按资源类型分组，例如：{ "directory": ["directory:read"], "table": ["table:read", "table:write"], "docs": ["docs:read"] }
 }
 
 /**
@@ -220,7 +220,7 @@ export interface GetDepartmentRolesResp {
 
 /**
  * 获取所有角色
- * @param resourceType 可选的资源类型过滤（directory、table、form、chart、app）
+ * @param resourceType 可选的资源类型过滤（directory、table、form、chart、docs、board、app）
  */
 export function getRoles(resourceType?: string): Promise<GetRolesResp> {
   const params = resourceType ? { resource_type: resourceType } : undefined

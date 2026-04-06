@@ -34,6 +34,7 @@ import { computed } from 'vue'
 import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import type { WidgetMode } from '@/architecture/presentation/widgets/types'
+import { createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
 
 const props = withDefaults(defineProps<{
   field: FieldConfig
@@ -48,7 +49,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   mode: 'edit',
   fieldPath: '',
-  value: () => ({ raw: null, display: '', meta: {} }),
+  value: () => createEmptyRawFieldValue(),
 })
 
 const emit = defineEmits<{

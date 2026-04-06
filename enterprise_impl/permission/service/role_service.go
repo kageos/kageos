@@ -558,17 +558,17 @@ func (s *RoleService) GetResourcePermissions(ctx context.Context, req *dto.GetRe
 // InitDefaultRoles 初始化预设角色（智能对比 + 增量添加）
 //
 // ⭐ 角色和权限点的关系：
-//   - 角色（Role）：按资源类型分组（directory、table、form、chart、app、docs）
+//   - 角色（Role）：按资源类型分组（directory、table、form、chart、docs、board、app）
 //   - 权限点（Action）：格式为 resource_type:action_type（如 table:read、form:write）
 //   - 角色权限（RolePermission）：角色和权限点的关联关系（通过 ActionID 外键关联到 action 表）
 //   - 一个角色可以配置多个权限点（支持跨资源类型，如目录开发者可以配置目录权限 + 函数权限）
 //
 // ⭐ 预设角色配置说明：
-//   - 目录角色（directory）：可以配置目录权限 + 函数权限（table、form、chart）
-//   - 目录查看者：配置了 directory:read + table:read + form:read + chart:read
-//   - 目录开发者：配置了 directory:read/write/update + table:read/write/update/delete + form:read/write + chart:read
-//   - 目录管理员：配置了 directory:admin + table:admin + form:admin + chart:admin
-//   - 函数角色（table、form、chart、docs）：只配置对应资源类型的权限点
+//   - 目录角色（directory）：可以配置目录权限 + 子资源权限（table、form、chart、docs、board）
+//   - 目录查看者：配置了 directory:read + table/form/chart/docs/board:read
+//   - 目录开发者：配置了目录读写更新 + 常用子资源编辑权限
+//   - 目录管理员：配置了 directory:admin + table/form/chart/docs/board:admin
+//   - 函数角色（table、form、chart、docs、board）：只配置对应资源类型的权限点
 //   - 表格查看者：只配置 table:read
 //   - 表格开发者：配置 table:read/write/update/delete
 //   - 表格管理员：配置 table:admin
@@ -606,22 +606,24 @@ func (s *RoleService) InitDefaultRoles(ctx context.Context) error {
 			resourceType: permissionpkg.ResourceTypeDirectory,
 			name:         "查看者",
 			code:         "viewer",
-			description:  "目录查看者，拥有查看目录和目录下函数的权限",
+			description:  "目录查看者，拥有查看目录及目录下表格、表单、图表、文档、讨论区的权限",
 			isDefault:    true, // ⭐ 默认角色
 			actions: []string{
 				// 目录权限
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDirectory, "read"),
-				// 函数权限（目录查看者可以查看所有类型的函数）
+				// 子资源权限（目录查看者可以查看目录下所有常见资源）
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeTable, "read"),
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeForm, "read"),
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeChart, "read"),
+				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDocs, "read"),
+				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, "read"),
 			},
 		},
 		{
 			resourceType: permissionpkg.ResourceTypeDirectory,
 			name:         "开发者",
 			code:         "developer",
-			description:  "目录开发者，拥有查看、创建和修改目录、函数的权限",
+			description:  "目录开发者，拥有查看、创建和修改目录及目录下常见资源的权限",
 			isDefault:    false,
 			// ⭐ 目录开发者可以配置多个资源类型的权限点
 			actions: []string{
@@ -629,7 +631,7 @@ func (s *RoleService) InitDefaultRoles(ctx context.Context) error {
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDirectory, "read"),
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDirectory, "write"),
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDirectory, "update"),
-				// 函数权限（目录开发者可以操作函数）
+				// 子资源权限（目录开发者可以操作目录下的常见资源）
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeTable, "read"),
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeTable, "write"),
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeTable, "update"),
@@ -637,21 +639,29 @@ func (s *RoleService) InitDefaultRoles(ctx context.Context) error {
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeForm, "read"),
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeForm, "write"),
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeChart, "read"),
+				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDocs, "read"),
+				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDocs, "write"),
+				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, "read"),
+				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, "write"),
+				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, "update"),
+				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, "delete"),
 			},
 		},
 		{
 			resourceType: permissionpkg.ResourceTypeDirectory,
 			name:         "管理员",
 			code:         "admin",
-			description:  "目录管理员，拥有完整的管理权限（包括目录和所有函数类型）",
+			description:  "目录管理员，拥有完整的管理权限（包括目录及目录下所有子资源类型）",
 			isDefault:    false,
 			actions: []string{
 				// 目录权限
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDirectory, "admin"),
-				// 函数权限（目录管理员拥有所有函数类型的所有权限）
+				// 子资源权限（目录管理员拥有所有子资源类型的所有权限）
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeTable, "admin"),
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeForm, "admin"),
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeChart, "admin"),
+				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDocs, "admin"),
+				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, "admin"),
 			},
 		},
 		// Table 资源类型的角色
