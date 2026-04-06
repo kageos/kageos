@@ -18,6 +18,28 @@ func (s *Select) Type() string {
 	return TypeSelect
 }
 
+func (s *Select) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticFact {
+	facts := make([]SemanticFact, 0, 5)
+	if len(s.Options) > 0 {
+		facts = append(facts, SemanticFact{Key: "enum", Value: strings.Join(s.Options, "|")})
+	}
+	if fact, ok := placeholderFact(s.Placeholder); ok {
+		facts = append(facts, fact)
+	}
+	if strings.TrimSpace(s.Default) != "" {
+		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: s.Default})
+		if field != nil && field.Data != nil && strings.TrimSpace(field.Data.Example) == "" {
+			facts = append(facts, SemanticFact{Key: "example", Value: quoteExampleValue(s.Default)})
+		}
+	} else if len(s.Options) > 0 {
+		facts = append(facts, SemanticFact{Key: "example", Value: quoteExampleValue(s.Options[0])})
+	}
+	if s.Creatable && opts.Mode == SummaryFull {
+		facts = append(facts, SemanticFact{Key: "creatable", Value: "true"})
+	}
+	return facts
+}
+
 func newSelect(widgetParsed map[string]string) *Select {
 	selectWidget := &Select{}
 

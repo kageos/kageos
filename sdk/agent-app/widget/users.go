@@ -1,5 +1,7 @@
 package widget
 
+import "fmt"
+
 // Users 多用户选择器组件
 //
 // 功能：
@@ -8,9 +10,10 @@ package widget
 // - 值使用逗号分隔的字符串格式存储（如 "user1,user2,user3"）
 //
 // 使用示例：
-//   widget:"name:审核人;type:users;default:Me()"
-//   widget:"name:抄送人;type:users;default:MyLeader()"
-//   widget:"name:管理员;type:users;max_count:5"
+//
+//	widget:"name:审核人;type:users;default:Me()"
+//	widget:"name:抄送人;type:users;default:MyLeader()"
+//	widget:"name:管理员;type:users;max_count:5"
 //
 // 动态默认值函数说明：
 //   - Me(): 自动填充当前登录用户的用户名，用户无需手动选择
@@ -36,6 +39,19 @@ func (u *Users) Type() string {
 	return TypeUsers
 }
 
+func (u *Users) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticFact {
+	facts := []SemanticFact{
+		{Key: "example", Value: `"beiluo,zhangsan"`},
+	}
+	if u.Default != "" {
+		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: u.Default})
+	}
+	if u.MaxCount > 0 && opts.Mode == SummaryFull {
+		facts = append(facts, SemanticFact{Key: "max_count", Value: fmt.Sprintf("%d", u.MaxCount)})
+	}
+	return facts
+}
+
 func newUsers(widgetParsed map[string]string) *Users {
 	users := &Users{}
 
@@ -56,4 +72,3 @@ func newUsers(widgetParsed map[string]string) *Users {
 
 	return users
 }
-

@@ -123,6 +123,14 @@ func wrapValidationError(err error) error {
 	return err
 }
 
+// GetTraceId 获取当前请求的 TraceId（用于日志串联）
+func (ctx *Context) GetTraceId() string {
+	if ctx.msg != nil {
+		return ctx.msg.TraceId
+	}
+	return ""
+}
+
 // GetRouterGroup 获取当前请求的 RouterGroup
 // 返回当前请求所属的 RouterGroup 路径（如 "/tools/pdftools"）
 // 如果无法获取（系统路由或未设置），返回空字符串

@@ -384,6 +384,12 @@ const props = withDefaults(defineProps<{
   initialData: () => ({}),
 })
 
+interface ApplyOperateLogPayload {
+  requestBody?: Record<string, any> | null
+  responseBody?: Record<string, any> | null
+  responseMetadata?: Record<string, any> | null
+}
+
 // 路由
 const route = useRoute()
 const router = useRouter()
@@ -777,11 +783,42 @@ function validateForm(): boolean {
   return isValid
 }
 
+async function applyOperateLog(payload: ApplyOperateLogPayload): Promise<void> {
+  if (!functionDetail.value) {
+    throw new Error('函数详情未加载完成')
+  }
+
+  const requestBody =
+    payload.requestBody && typeof payload.requestBody === 'object' && !Array.isArray(payload.requestBody)
+      ? payload.requestBody
+      : {}
+
+  await initializeFormForDetail(functionDetail.value, {
+    initialData: requestBody,
+    force: true
+  })
+
+  if (typeof (stateManager as any).setResponse === 'function') {
+    ;(stateManager as any).setResponse(payload.responseBody || null)
+  }
+  if (typeof (stateManager as any).setMetadata === 'function') {
+    ;(stateManager as any).setMetadata(payload.responseMetadata || null)
+  }
+
+  Logger.info('[FormView]', '已回填执行记录到表单', {
+    router: functionDetail.value.router,
+    requestKeys: Object.keys(requestBody),
+    hasResponseBody: !!payload.responseBody,
+    metadataKeys: payload.responseMetadata ? Object.keys(payload.responseMetadata) : []
+  })
+}
+
 // 🔥 暴露方法给外部组件调用（兼容 FormRenderer 的接口）
 defineExpose({
   prepareSubmitDataWithTypeConversion,  // 表单提交（新增场景）
   prepareUpdateData,                     // 表格更新（更新场景，只返回变更的字段）
-  validateForm
+  validateForm,
+  applyOperateLog
 })
 
 
@@ -1087,7 +1124,7 @@ onMounted(async () => {
   }
 
   // 🔥 监听 initialData 变化，当切换到编辑模式时重新初始化表单
-  watch(() => props.initialData, async (newInitialData: Record<string, any>, oldInitialData?: Record<string, any>) => {
+watch(() => props.initialData, async (newInitialData: Record<string, any>, oldInitialData?: Record<string, any>) => {
     // 只在 initialData 真正变化时（且不是首次设置）才重新初始化
     if (!functionDetail.value || !functionDetail.value.request) {
       return
@@ -1141,8 +1178,8 @@ onMounted(async () => {
     { deep: true, immediate: false }
   )
 
-  // 🔥 移除 watch route.query，改为使用统一的数据初始化框架处理 URL 参数
-  // URL 参数会在 initializeParams 时统一处理，包括类型转换和组件自治初始化
+// 🔥 移除 watch route.query，改为使用统一的数据初始化框架处理 URL 参数
+// URL 参数会在 initializeParams 时统一处理，包括类型转换和组件自治初始化
 
 onUnmounted(() => {
   if (unsubscribeFunctionLoaded) {

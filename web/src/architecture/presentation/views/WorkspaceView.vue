@@ -182,8 +182,7 @@
         <!-- 函数详情区域（正常模式 - 函数节点） -->
         <div v-else-if="currentFunction && currentFunction.type === 'function'" class="function-content-wrapper">
           <div class="function-content">
-            <!-- ⭐ 权限申请 tab（仅管理员可见） -->
-            <div v-if="showFunctionPermissionRequestTab" class="function-tabs-wrapper">
+            <div v-if="showFunctionTabsWrapper" class="function-tabs-wrapper">
               <el-tabs v-model="functionActiveTab" type="card" @tab-change="handleFunctionTabChange" class="function-detail-tabs">
                 <!-- 函数内容 tab -->
                 <el-tab-pane name="content">
@@ -201,6 +200,7 @@
                       <!-- 🔥 使用 full_code_path 作为 key，确保函数切换时组件正确重建 -->
                       <FormView
                         v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
+                        ref="functionFormViewRef"
                         :key="`form-${currentFunction.full_code_path || currentFunction.id}`"
                         :function-detail="currentFunctionDetail"
                       />
@@ -257,7 +257,24 @@
                     <PermissionManageList
                       ref="functionPermissionManageListRef"
                       :resource-path="currentFunction?.full_code_path"
+                      resource-type="function"
+                      :template-type="currentFunctionDetail?.template_type"
                       :auto-load="functionActiveTab === 'permissionManage'"
+                    />
+                  </div>
+                </el-tab-pane>
+
+                <el-tab-pane v-if="showFormOperateLogTab" name="operateLog">
+                  <template #label>
+                    <span>执行记录</span>
+                  </template>
+                  <div class="tab-content">
+                    <FormOperateLogSection
+                      ref="formOperateLogSectionRef"
+                      :full-code-path="currentFunction?.full_code_path || ''"
+                      :function-detail="currentFunctionDetail"
+                      :auto-load="functionActiveTab === 'operateLog'"
+                      @apply-log="handleApplyFormOperateLog"
                     />
                   </div>
                 </el-tab-pane>
@@ -279,7 +296,7 @@
               </el-tabs>
             </div>
 
-            <!-- 非管理员或没有权限申请 tab 时，显示原来的内容 -->
+            <!-- 没有函数 tabs 时，直接显示内容 -->
             <div v-else>
               <!-- ⭐ 如果函数详情已加载，显示对应的视图 -->
               <!-- ⚠️ 重要：只有当 currentFunctionDetail 的 id 或 router 与 currentFunction 匹配时才显示 -->
@@ -785,6 +802,7 @@ const DocView = defineAsyncComponent(() => import('../components/DocView.vue'))
 const BoardView = defineAsyncComponent(() => import('../components/BoardView.vue'))
 const PackageDetailView = defineAsyncComponent(() => import('../components/PackageDetailView.vue'))
 const PermissionDeniedView = defineAsyncComponent(() => import('../components/PermissionDeniedView.vue'))
+const FormOperateLogSection = defineAsyncComponent(() => import('../components/FormOperateLogSection.vue'))
 const MiniWorkstation = defineAsyncComponent(() => import('../components/MiniWorkstation.vue'))
 const CreateBoardDialog = defineAsyncComponent(() => import('../components/CreateBoardDialog.vue'))
 const PublishToHubDialog = defineAsyncComponent(() => import('@/shared/components/PublishToHubDialog.vue'))
@@ -1130,9 +1148,17 @@ async function handleCancelTask(task: WorkspaceSessionItem) {
 
 // 函数详情 tab 相关
 const functionActiveTab = ref('content')
+const functionFormViewRef = ref<{
+  applyOperateLog: (payload: {
+    requestBody?: Record<string, any> | null
+    responseBody?: Record<string, any> | null
+    responseMetadata?: Record<string, any> | null
+  }) => Promise<void>
+} | null>(null)
 const functionPermissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> | null>(null)
 const functionPermissionManageListRef = ref<InstanceType<typeof PermissionManageList> | null>(null)
 const scheduledTaskListRef = ref<InstanceType<typeof ScheduledTaskList> | null>(null)
+const formOperateLogSectionRef = ref<{ loadLogs: (options?: { page?: number }) => void } | null>(null)
 /** 当前函数是否有定时任务（无则不显示「定时任务」tab） */
 const hasScheduledTasksForCurrentPath = ref(false)
 
@@ -1151,6 +1177,14 @@ const showFunctionPermissionRequestTab = computed(() => {
   return isServiceTreeNodeAdmin(currentFunction.value, authStore.user?.username)
 })
 
+const showFormOperateLogTab = computed(() => {
+  return currentFunction.value?.type === 'function' && currentFunctionDetail.value?.template_type === TEMPLATE_TYPE.FORM
+})
+
+const showFunctionTabsWrapper = computed(() => {
+  return showFunctionPermissionRequestTab.value || showFormOperateLogTab.value
+})
+
 // 处理函数 tab 切换
 const handleFunctionTabChange = (tabName: string) => {
   if (tabName === 'permissionRequest' && functionPermissionRequestListRef.value) {
@@ -1163,6 +1197,31 @@ const handleFunctionTabChange = (tabName: string) => {
     nextTick(() => {
       functionPermissionManageListRef.value?.loadPermissions()
     })
+  } else if (tabName === 'operateLog' && formOperateLogSectionRef.value) {
+    nextTick(() => {
+      formOperateLogSectionRef.value?.loadLogs({ page: 1 })
+    })
+  }
+}
+
+const handleApplyFormOperateLog = async (payload: {
+  requestBody?: Record<string, any> | null
+  responseBody?: Record<string, any> | null
+  responseMetadata?: Record<string, any> | null
+}) => {
+  functionActiveTab.value = 'content'
+  await nextTick()
+
+  if (!functionFormViewRef.value) {
+    ElMessage.warning('当前表单尚未加载完成，请稍后重试')
+    return
+  }
+
+  try {
+    await functionFormViewRef.value.applyOperateLog(payload)
+    ElMessage.success('已将执行记录回填到表单')
+  } catch (error: any) {
+    ElMessage.error(error?.message || '回填执行记录失败')
   }
 }
 
@@ -2400,10 +2459,15 @@ watch(() => currentFunction.value?.id, (newId: number | undefined, oldId: number
   }
 })
 
-// 当前函数路径或「显示权限 tab」变化时，刷新定时任务数量以决定是否显示「定时任务」tab
+// 当前函数路径或 tabs 可见性变化时，刷新状态并修正当前 tab
 watch(
-  () => [currentFunction.value?.full_code_path, showFunctionPermissionRequestTab.value] as const,
-  () => { refreshScheduledTasksCountForCurrentPath() },
+  () => [currentFunction.value?.full_code_path, showFunctionPermissionRequestTab.value, showFormOperateLogTab.value] as const,
+  () => {
+    if (!showFormOperateLogTab.value && functionActiveTab.value === 'operateLog') {
+      functionActiveTab.value = 'content'
+    }
+    refreshScheduledTasksCountForCurrentPath()
+  },
   { immediate: true }
 )
 
@@ -2456,6 +2520,13 @@ watch(
           functionPermissionManageListRef.value.loadPermissions()
         }
       })
+    } else if (normalizedTab === 'operateLog' && showFormOperateLogTab.value) {
+      functionActiveTab.value = 'operateLog'
+      nextTick(() => {
+        formOperateLogSectionRef.value?.loadLogs({ page: 1 })
+      })
+    } else if (functionActiveTab.value !== 'scheduledTask') {
+      functionActiveTab.value = 'content'
     }
   },
   { immediate: true }

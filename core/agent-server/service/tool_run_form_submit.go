@@ -20,7 +20,7 @@ type runFormSubmitArgs struct {
 
 var runFormSubmitToolDef = toolDefinition[runFormSubmitArgs](
 	"run_form_submit",
-	"执行工作区内 Form 函数的提交接口，提交表单数据。full_code_path 为表单函数的完整路径，如 /luobei/myapp/plugins/cashier_desk。body 为 JSON 对象字符串，包含表单字段（如 {\"name\":\"张三\",\"amount\":100}）；若表单无必填字段可传 {}。output_display 可选，用于标记结果中需要在前端直接展示给用户的字段（避免大模型重复输出大段内容），key 为展示标签，value 为结果 JSON 中的字段名。返回中若有输出文件 URL（多为内部地址如 host.containers.internal），勿在回复用户时贴出或写「可通过以下链接访问」；文件已在工作台展示。",
+	"执行工作区内 Form 函数的提交接口，提交表单数据。full_code_path 为表单函数的完整路径，如 /luobei/myapp/plugins/cashier_desk。body 为 JSON 对象字符串，包含表单字段（如 {\"name\":\"张三\",\"amount\":100}）；字段摘要中标记为【必填】的字段必须显式传入，若表单无【必填】字段可传 {}。字段摘要中的“前端默认值”仅表示前端界面初始值，不会自动写入 body；如需使用该值，也必须在 body 中显式传入。output_display 可选，用于标记结果中需要在前端直接展示给用户的字段（避免大模型重复输出大段内容），key 为展示标签，value 为结果 JSON 中的字段名。返回中若有输出文件 URL（多为内部地址如 host.containers.internal），勿在回复用户时贴出或写「可通过以下链接访问」；文件已在工作台展示。",
 )
 
 func (t *RunFormSubmitTool) Definition() dto.ToolDef {

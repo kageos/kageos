@@ -1,5 +1,7 @@
 package widget
 
+import "strings"
+
 type Input struct {
 	Placeholder string `json:"placeholder,omitempty"` // 占位符文本
 	Password    bool   `json:"password,omitempty"`    // 密码框
@@ -14,6 +16,23 @@ func (i *Input) Config() interface{} {
 
 func (i *Input) Type() string {
 	return TypeInput
+}
+
+func (i *Input) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticFact {
+	facts := make([]SemanticFact, 0, 4)
+	if fact, ok := placeholderFact(i.Placeholder); ok {
+		facts = append(facts, fact)
+	}
+	if strings.TrimSpace(i.Default) != "" {
+		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: i.Default})
+		if field != nil && field.Data != nil && strings.TrimSpace(field.Data.Example) == "" {
+			facts = append(facts, SemanticFact{Key: "example", Value: quoteExampleValue(i.Default)})
+		}
+	}
+	if i.Password && opts.Mode == SummaryFull {
+		facts = append(facts, SemanticFact{Key: "password", Value: "true"})
+	}
+	return facts
 }
 
 func newInput(widgetParsed map[string]string) *Input {
