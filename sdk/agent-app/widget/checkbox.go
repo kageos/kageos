@@ -1,5 +1,7 @@
 package widget
 
+import "strings"
+
 type Checkbox struct {
 	Options []string `json:"options,omitempty"` // 选项列表
 	Default []string `json:"default,omitempty"` // 默认选中项（逗号分隔）
@@ -11,6 +13,24 @@ func (c *Checkbox) Config() interface{} {
 
 func (c *Checkbox) Type() string {
 	return TypeCheckbox
+}
+
+func (c *Checkbox) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticFact {
+	facts := make([]SemanticFact, 0, 3)
+	if len(c.Options) > 0 {
+		facts = append(facts, SemanticFact{Key: "enum", Value: strings.Join(c.Options, "|")})
+	}
+	if len(c.Default) > 0 {
+		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: strings.Join(c.Default, "|")})
+		facts = append(facts, SemanticFact{Key: "example", Value: quoteJSONArrayExample(c.Default)})
+	} else if len(c.Options) > 0 {
+		limit := 2
+		if len(c.Options) < limit {
+			limit = len(c.Options)
+		}
+		facts = append(facts, SemanticFact{Key: "example", Value: quoteJSONArrayExample(c.Options[:limit])})
+	}
+	return facts
 }
 
 func newCheckbox(widgetParsed map[string]string) *Checkbox {
@@ -28,6 +48,3 @@ func newCheckbox(widgetParsed map[string]string) *Checkbox {
 
 	return checkbox
 }
-
-
-

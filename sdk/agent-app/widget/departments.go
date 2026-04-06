@@ -1,5 +1,7 @@
 package widget
 
+import "fmt"
+
 // Departments 多组织架构选择器组件
 //
 // 功能：
@@ -8,8 +10,9 @@ package widget
 // - 值使用逗号分隔的字符串格式存储（如 "/dept1,/dept2"）
 //
 // 使用示例：
-//   widget:"name:关联部门;type:departments;default:MyDepartment()"
-//   widget:"name:管理部门;type:departments;max_count:5"
+//
+//	widget:"name:关联部门;type:departments;default:MyDepartment()"
+//	widget:"name:管理部门;type:departments;max_count:5"
 //
 // 动态默认值函数说明：
 //   - MyDepartment(): 自动填充当前登录用户所在部门的 full_code_path
@@ -31,6 +34,19 @@ func (d *Departments) Config() interface{} {
 
 func (d *Departments) Type() string {
 	return TypeDepartments
+}
+
+func (d *Departments) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticFact {
+	facts := []SemanticFact{
+		{Key: "example", Value: `"/org/hr,/org/finance"`},
+	}
+	if d.Default != "" {
+		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: d.Default})
+	}
+	if d.MaxCount > 0 && opts.Mode == SummaryFull {
+		facts = append(facts, SemanticFact{Key: "max_count", Value: fmt.Sprintf("%d", d.MaxCount)})
+	}
+	return facts
 }
 
 func newDepartments(widgetParsed map[string]string) *Departments {

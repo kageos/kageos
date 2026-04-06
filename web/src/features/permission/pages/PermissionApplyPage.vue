@@ -4,7 +4,7 @@
       <el-card shadow="hover" class="apply-card">
       <template #header>
         <div class="card-header">
-          <h2>权限申请</h2>
+          <h2>{{ pageTitle }}</h2>
         </div>
       </template>
 
@@ -145,52 +145,51 @@
                 <!-- 角色选择区域 -->
                 <div v-if="availableRoles.length > 0" class="role-selection-section">
                   <div class="role-selection-header">
-                    <h4 class="role-selection-title">
-                      <el-icon><UserFilled /></el-icon>
-                      快速选择角色
-                    </h4>
-                    <el-alert
-                      type="info"
-                      :closable="false"
-                      show-icon
-                      class="role-tip"
-                    >
-                      <template #default>
-                        <p class="tip-text">💡 选择角色后，系统会自动填充该角色的所有权限点</p>
-                      </template>
-                    </el-alert>
+                    <div class="role-selection-copy">
+                      <span class="role-selection-kicker">角色切换</span>
+                      <h4 class="role-selection-title">
+                        <el-icon><UserFilled /></el-icon>
+                        点击切换当前申请角色
+                      </h4>
+                      <div class="role-selection-meta">
+                        <div class="role-selection-resource-pill">
+                          <img
+                            v-if="isRolePreviewImageIcon(currentRoleFallbackResourceType)"
+                            :src="getRolePreviewIconSrc(currentRoleFallbackResourceType)"
+                            :alt="getRolePreviewResourceLabel(currentRoleFallbackResourceType)"
+                            class="role-selection-resource-icon"
+                            :class="getRolePreviewIconClass(currentRoleFallbackResourceType)"
+                          />
+                          <component
+                            :is="getRolePreviewIconComponent(currentRoleFallbackResourceType)"
+                            v-else
+                            class="role-selection-resource-icon"
+                            :class="getRolePreviewIconClass(currentRoleFallbackResourceType)"
+                          />
+                          <span>{{ getRolePreviewResourceLabel(currentRoleFallbackResourceType) }}</span>
+                        </div>
+                      </div>
+                      <p class="role-selection-desc">
+                        每张角色卡都会展示当前资源哪些动作可用、哪些不可用，以及附带影响范围。
+                      </p>
+                    </div>
+                    <span class="role-selection-hint">
+                      {{ selectedRole ? `当前已选择：${selectedRole.name}` : '选择后将按角色模板发起申请' }}
+                    </span>
                   </div>
                   <div class="role-list">
                     <div class="role-cards">
-                      <div
+                      <PermissionRoleCard
                         v-for="role in availableRoles"
                         :key="role.id"
-                        class="role-card"
-                        :class="{ 'is-selected': selectedRoleId === role.id }"
-                        @click="handleRoleCardClick(role.id)"
-                      >
-                        <div class="role-card-header">
-                          <span class="role-name">{{ role.name }}</span>
-                          <div class="role-tags">
-                            <el-tag v-if="role.is_default" type="warning" size="small">默认</el-tag>
-                            <el-tag v-if="role.is_system" type="success" size="small">系统角色</el-tag>
-                          </div>
-                        </div>
-                        <p class="role-description">{{ role.description || '无描述' }}</p>
-                        <div class="role-permissions-preview">
-                          <el-tag
-                            v-for="(actions, resourceType) in getRolePermissions(role)"
-                            :key="resourceType"
-                            size="small"
-                            class="permission-tag"
-                          >
-                            {{ getResourceTypeLabel(resourceType) }}: {{ actions.length }} 个权限
-                          </el-tag>
-                        </div>
-                      </div>
+                        :role="role"
+                        :selected="selectedRoleId === role.id"
+                        :fallback-resource-type="currentRoleFallbackResourceType"
+                        @select="handleRoleCardClick(role.id)"
+                      />
                     </div>
                     <div v-if="selectedRoleId" class="role-selected-actions">
-                      <el-button size="small" @click="clearRoleSelection">清除角色选择</el-button>
+                      <el-button size="small" @click="clearRoleSelection">清除当前角色</el-button>
                     </div>
                   </div>
                 </div>
@@ -211,7 +210,7 @@
           <div class="apply-sidebar-right">
             <el-card shadow="never" class="form-card">
               <template #header>
-                <h3>提交申请</h3>
+                <h3>{{ formCardTitle }}</h3>
               </template>
               <el-form
                 ref="formRef"
@@ -402,6 +401,7 @@ import { Document, Folder, Lock, OfficeBuilding, UserFilled, User, Close } from 
 import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/shared/components/icons/TableIcon.vue'
 import FormIcon from '@/shared/components/icons/FormIcon.vue'
+import PermissionRoleCard from '@/features/permission/components/PermissionRoleCard.vue'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { 
   getPermissionDisplayName, 
@@ -433,6 +433,10 @@ import { createStringFieldValue, createWidgetFieldConfig } from '@/utils/widgetF
 
 const route = useRoute()
 const router = useRouter()
+
+const isGrantMode = computed(() => route.query.mode === 'grant')
+const pageTitle = computed(() => isGrantMode.value ? '发起赋权' : '权限申请')
+const formCardTitle = computed(() => isGrantMode.value ? '填写赋权信息' : '提交申请')
 
 // 权限信息
 const permissionInfo = ref({
@@ -499,6 +503,9 @@ const getScopeTypeLabel = (resourceType: PermissionResourceType): string => {
 const availableRoles = ref<Role[]>([]) // 当前资源可用的角色列表
 const selectedRoleId = ref<number | null>(null) // 选中的角色ID
 const rolesLoading = ref(false) // 加载角色列表的状态
+const selectedRole = computed(() => availableRoles.value.find(role => role.id === selectedRoleId.value) || null)
+
+type RolePreviewResourceType = 'directory' | 'table' | 'form' | 'chart' | 'docs' | 'board' | 'app'
 
 // 用户选择的资源路径（用于申请权限的资源）
 // ⭐ 使用数组而不是 Set，确保 Vue 响应式系统能正确追踪变化
@@ -1057,9 +1064,112 @@ const findNodeInTree = (nodes: ServiceTree[], path: string): ServiceTree | null 
       const found = findNodeInTree(node.children, path)
             if (found) return found
           }
-        }
+      }
         return null
       }
+
+const currentRoleFallbackResourceType = computed<RolePreviewResourceType>(() => {
+  const resourcePath = selectedResourcePath.value
+  if (!resourcePath) {
+    return 'directory'
+  }
+
+  const node = findNodeInTree(serviceTree.value, resourcePath)
+  if (node) {
+    if (node.type === 'function') {
+      if (node.template_type === TEMPLATE_TYPE.FORM) {
+        return 'form'
+      }
+      if (node.template_type === TEMPLATE_TYPE.CHART) {
+        return 'chart'
+      }
+      return 'table'
+    }
+
+    if (node.type === 'docs') {
+      return 'docs'
+    }
+
+    if (node.type === 'board') {
+      return 'board'
+    }
+
+    const pathDepth = node.full_code_path.split('/').filter(Boolean).length
+    return pathDepth <= 2 ? 'app' : 'directory'
+  }
+
+  const pathDepth = resourcePath.split('/').filter(Boolean).length
+  return pathDepth <= 2 ? 'app' : 'directory'
+})
+
+const getRolePreviewResourceLabel = (resourceType: RolePreviewResourceType): string => {
+  const labels: Record<RolePreviewResourceType, string> = {
+    app: '工作空间',
+    directory: '目录',
+    table: '表格函数',
+    form: '表单函数',
+    chart: '图表函数',
+    docs: '文档',
+    board: '讨论区',
+  }
+  return labels[resourceType]
+}
+
+const isRolePreviewImageIcon = (resourceType: RolePreviewResourceType): boolean => {
+  return resourceType === 'directory'
+    || resourceType === 'form'
+    || resourceType === 'docs'
+    || resourceType === 'board'
+    || resourceType === 'app'
+}
+
+const getRolePreviewIconSrc = (resourceType: RolePreviewResourceType): string => {
+  switch (resourceType) {
+    case 'directory':
+      return '/service-tree/custom-folder.svg'
+    case 'form':
+      return '/service-tree/编辑.svg'
+    case 'docs':
+      return '/文档.svg'
+    case 'board':
+      return '/讨论区.svg'
+    case 'app':
+      return '/service-tree/custom-folder.svg'
+    default:
+      return '/service-tree/custom-folder.svg'
+  }
+}
+
+const getRolePreviewIconComponent = (resourceType: RolePreviewResourceType) => {
+  switch (resourceType) {
+    case 'chart':
+      return ChartIcon
+    case 'table':
+    default:
+      return TableIcon
+  }
+}
+
+const getRolePreviewIconClass = (resourceType: RolePreviewResourceType): string => {
+  switch (resourceType) {
+    case 'directory':
+      return 'package-icon-img'
+    case 'form':
+      return 'form-icon-img'
+    case 'docs':
+      return 'docs-icon-img'
+    case 'board':
+      return 'board-icon-img'
+    case 'app':
+      return 'app-icon-img'
+    case 'table':
+      return 'table-icon'
+    case 'chart':
+      return 'chart-icon'
+    default:
+      return ''
+  }
+}
 
 // 加载资源的权限范围
 const loadResourcePermissions = async (resourcePath: string, defaultAction?: string, urlTemplateType?: string) => {
@@ -2038,8 +2148,14 @@ const handleSubmit = async () => {
         })
       }
       const targetText = `共 ${selectedDepartments.value.length} 个部门`
-      ElMessage.success(`赋权成功：${targetText}`)
-      router.push('/workspace/' + (currentApp.value?.user || '') + '/' + (currentApp.value?.code || ''))
+      ElMessage.success(
+        isGrantMode.value
+          ? `已为${targetText}发起赋权申请，等待审批`
+          : `已为${targetText}提交权限申请，等待审批`
+      )
+      setTimeout(() => {
+        navigateBack()
+      }, 1500)
       return
     }
 
@@ -2059,11 +2175,15 @@ const handleSubmit = async () => {
       ? `用户 "${grantTargetUsersValue.value?.display || grantTargetUsersValue.value?.raw || ''}"` 
       : `部门 "${grantTargetDepartment.value}"`
     
-    ElMessage.success(`已为${targetText}提交权限申请，等待审批`)
+    ElMessage.success(
+      isGrantMode.value
+        ? `已为${targetText}发起赋权申请，等待审批`
+        : `已为${targetText}提交权限申请，等待审批`
+    )
     
     // 延迟后返回上一页
     setTimeout(() => {
-      router.back()
+      navigateBack()
     }, 1500)
   } catch (err: any) {
     // 显示详细的错误信息
@@ -2074,9 +2194,23 @@ const handleSubmit = async () => {
   }
 }
 
+const navigateBack = () => {
+  if (window.history.length > 1) {
+    router.back()
+    return
+  }
+
+  if (currentApp.value?.user && currentApp.value?.code) {
+    router.push(`/workspace/${currentApp.value.user}/${currentApp.value.code}`)
+    return
+  }
+
+  router.push('/workspace')
+}
+
 // 取消申请
 const handleCancel = () => {
-  router.back()
+  navigateBack()
 }
 
 // ⭐ 加载可用角色列表（根据资源类型过滤）
@@ -2119,43 +2253,6 @@ const loadAvailableRoles = async (nodeType: string, templateType: string) => {
   } finally {
     rolesLoading.value = false
   }
-}
-
-// ⭐ 获取角色的权限点（按资源类型分组）
-const getRolePermissions = (role: Role): Record<string, string[]> => {
-  if (!role.permissions || role.permissions.length === 0) {
-    return {}
-  }
-  
-  // 按资源类型分组
-  const grouped: Record<string, string[]> = {}
-  for (const perm of role.permissions) {
-    const resourceType = perm.resource_type
-    if (!grouped[resourceType]) {
-      grouped[resourceType] = []
-    }
-    grouped[resourceType]!.push(perm.action)
-  }
-  
-  return grouped
-}
-
-// ⭐ 获取资源类型标签
-const getResourceTypeLabel = (resourceType: string): string => {
-  const labels: Record<string, string> = {
-    'app': '工作空间',
-    'directory': '目录',
-    'function': '函数',
-    'function:table': '表格',
-    'function:form': '表单',
-    'function:chart': '图表',
-    'table': '表格',
-    'form': '表单',
-    'chart': '图表',
-    'docs': '文档',
-    'board': '讨论区',
-  }
-  return labels[resourceType] || resourceType
 }
 
 // ⭐ 处理角色卡片点击
@@ -2588,20 +2685,72 @@ const clearRoleSelection = () => {
             position: relative;
 
             .role-selection-header {
+              display: flex;
+              align-items: flex-start;
+              justify-content: space-between;
+              gap: 16px;
               margin-bottom: 20px;
+
+              .role-selection-copy {
+                min-width: 0;
+              }
+
+              .role-selection-kicker {
+                display: inline-block;
+                margin-bottom: 8px;
+                font-size: 12px;
+                color: var(--el-text-color-secondary);
+              }
 
               .role-selection-title {
                 display: flex;
                 align-items: center;
                 gap: 8px;
-                margin: 0 0 12px 0;
+                margin: 0;
                 font-size: 16px;
                 font-weight: 600;
                 color: var(--el-text-color-primary);
               }
 
-              .role-tip {
-                margin-top: 12px;
+              .role-selection-meta {
+                margin-top: 10px;
+              }
+
+              .role-selection-resource-pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                min-height: 34px;
+                padding: 7px 12px;
+                border-radius: 999px;
+                background: var(--el-bg-color);
+                border: 1px solid var(--el-border-color-lighter);
+                font-size: 12px;
+                color: var(--el-text-color-primary);
+              }
+
+              .role-selection-resource-icon {
+                width: 16px;
+                height: 16px;
+                flex-shrink: 0;
+              }
+
+              .role-selection-desc {
+                margin: 10px 0 0;
+                font-size: 13px;
+                line-height: 1.7;
+                color: var(--el-text-color-secondary);
+              }
+
+              .role-selection-hint {
+                flex-shrink: 0;
+                font-size: 12px;
+                line-height: 1.6;
+                color: var(--el-text-color-secondary);
+                padding: 8px 12px;
+                border-radius: 999px;
+                background: var(--el-bg-color);
+                border: 1px solid var(--el-border-color-lighter);
               }
             }
 
@@ -2618,87 +2767,6 @@ const clearRoleSelection = () => {
                 margin: 0;
                 padding: 0;
                 box-sizing: border-box;
-
-                .role-card {
-                  padding: 20px;
-                  border: 2px solid var(--el-border-color);
-                  border-radius: 10px;
-                  background: var(--el-bg-color);
-                  cursor: pointer;
-                  transition: all 0.3s ease;
-                  position: relative;
-                  display: block;
-                  width: 100%;
-                  box-sizing: border-box;
-                  margin: 0;
-                  overflow: hidden;
-
-                  // 添加选中指示器
-                  &::before {
-                    content: '';
-                    position: absolute;
-                    left: 0;
-                    top: 0;
-                    bottom: 0;
-                    width: 4px;
-                    background: transparent;
-                    transition: background 0.3s ease;
-                  }
-
-                  &:hover {
-                    border-color: var(--el-color-primary-light-5);
-                  }
-
-                  &.is-selected {
-                    border-color: var(--el-color-primary);
-                    border-width: 2px;
-
-                    &::before {
-                      background: var(--el-color-primary);
-                      width: 4px;
-                    }
-                  }
-
-                  .role-card-header {
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    margin-bottom: 12px;
-                    flex-wrap: nowrap;
-                    gap: 12px;
-
-                    .role-name {
-                      font-size: 16px;
-                      font-weight: 600;
-                      color: var(--el-text-color-primary);
-                      flex: 1;
-                      min-width: 0;
-                      line-height: 1.4;
-                    }
-                  }
-
-                  .role-description {
-                    margin: 0 0 12px 0;
-                    font-size: 14px;
-                    color: var(--el-text-color-regular);
-                    line-height: 1.6;
-                    word-break: break-word;
-                    min-height: 20px;
-                  }
-
-                  .role-permissions-preview {
-                    margin-top: 12px;
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 6px;
-                    align-items: center;
-                    min-height: 24px;
-
-                    .permission-tag {
-                      margin: 0;
-                    }
-                  }
-                }
               }
 
               .role-selected-actions {
@@ -2708,6 +2776,12 @@ const clearRoleSelection = () => {
                 display: flex;
                 gap: 12px;
                 justify-content: flex-end;
+              }
+            }
+
+            @media (max-width: 960px) {
+              .role-selection-header {
+                flex-direction: column;
               }
             }
           }

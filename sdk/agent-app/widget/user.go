@@ -35,6 +35,19 @@ func (u *User) Type() string {
 	return TypeUser
 }
 
+func (u *User) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticFact {
+	facts := []SemanticFact{
+		{Key: "example", Value: `"beiluo"`},
+	}
+	if u.Default != "" {
+		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: u.Default})
+	}
+	if u.Disabled && opts.Mode == SummaryFull {
+		facts = append(facts, SemanticFact{Key: "disabled", Value: "true"})
+	}
+	return facts
+}
+
 func newUser(widgetParsed map[string]string) *User {
 	user := &User{}
 

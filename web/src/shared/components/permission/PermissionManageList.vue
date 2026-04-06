@@ -1,5 +1,17 @@
 <template>
   <div class="permission-manage-list" v-loading="loading">
+    <div v-if="grantEntryUrl" class="manage-toolbar">
+      <div class="manage-toolbar-copy">
+        <div class="manage-toolbar-title">发起赋权</div>
+        <div class="manage-toolbar-desc">
+          新增权限时使用独立赋权页，现有权限列表只负责查看、检索和回收。
+        </div>
+      </div>
+      <el-button type="primary" @click="goToGrantPage">
+        发起赋权
+      </el-button>
+    </div>
+
     <!-- 筛选条件 -->
     <div class="filter-section">
       <el-form :inline="true" :model="filterForm" class="filter-form">
@@ -135,7 +147,7 @@ import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getResourcePermissions, type ResourcePermissionAssignment } from '@/api/permission'
 import { removeRoleFromUser, removeRoleFromDepartment } from '@/api/role'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { extractWorkspacePath } from '@/utils/route'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import UsersWidget from '@/shared/components/UsersWidget.vue'
@@ -144,10 +156,13 @@ import { WidgetType } from '@/core/constants/widget'
 import type { FieldValue } from '@/core/types/field'
 import { parseResourcePath } from '@/utils/resourcePath'
 import { createStringFieldValue, createWidgetFieldConfig } from '@/utils/widgetFieldHelpers'
+import { buildPermissionApplyURL } from '@/utils/permission'
+import { DirectoryPermission, FunctionPermission } from '@/constants/permissions'
 
 interface Props {
   resourcePath?: string  // 资源路径（可选，如果提供则使用该路径，否则从路由获取）
   resourceType?: 'function' | 'directory' | 'app'  // 资源类型（可选）
+  templateType?: string  // 模板类型（function 时可选：table、form、chart）
   autoLoad?: boolean  // 是否自动加载
 }
 
@@ -156,6 +171,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const route = useRoute()
+const router = useRouter()
 
 // 状态
 const loading = ref(false)
@@ -184,6 +200,26 @@ const getResourcePath = computed(() => {
   }
   return '/' + fullPath.split('/').filter(Boolean).join('/')
 })
+
+const grantEntryUrl = computed(() => {
+  const resourcePath = getResourcePath.value
+  if (!resourcePath) {
+    return ''
+  }
+
+  const defaultAction = props.resourceType === 'directory' || props.resourceType === 'app'
+    ? DirectoryPermission.read
+    : FunctionPermission.read
+
+  return `${buildPermissionApplyURL(resourcePath, defaultAction, props.templateType)}&mode=grant`
+})
+
+const goToGrantPage = () => {
+  if (!grantEntryUrl.value) {
+    return
+  }
+  router.push(grantEntryUrl.value)
+}
 
 // 加载权限列表
 const loadPermissions = async () => {
@@ -414,6 +450,35 @@ defineExpose({
 .permission-manage-list {
   padding: 20px;
 
+  .manage-toolbar {
+    margin-bottom: 20px;
+    padding: 18px 20px;
+    border: 1px solid var(--el-border-color-light);
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(64, 158, 255, 0.08), rgba(64, 158, 255, 0.02));
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+
+    .manage-toolbar-copy {
+      min-width: 0;
+    }
+
+    .manage-toolbar-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--el-text-color-primary);
+    }
+
+    .manage-toolbar-desc {
+      margin-top: 4px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--el-text-color-secondary);
+    }
+  }
+
   .filter-section {
     margin-bottom: 20px;
 
@@ -435,6 +500,21 @@ defineExpose({
   .resource-path {
     font-size: 12px;
     color: var(--el-text-color-secondary);
+  }
+}
+
+@media (max-width: 768px) {
+  .permission-manage-list {
+    .manage-toolbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .filter-section {
+      .filter-form {
+        display: block;
+      }
+    }
   }
 }
 </style>

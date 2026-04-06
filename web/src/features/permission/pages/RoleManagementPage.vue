@@ -94,13 +94,16 @@
             </div>
 
             <div class="role-switcher">
-              <button
+              <div
                 v-for="role in selectedResourceRoles"
                 :key="role.id"
-                type="button"
                 class="role-switcher-item"
                 :class="[`role-switcher-item-${getRoleVisual(role).tone}`, { 'is-active': focusedRole?.id === role.id }]"
+                role="button"
+                tabindex="0"
                 @click="handleSelectRoleFromDetail(role)"
+                @keydown.enter.prevent="handleSelectRoleFromDetail(role)"
+                @keydown.space.prevent="handleSelectRoleFromDetail(role)"
               >
                 <div class="role-switcher-item-head">
                   <span class="role-icon-badge" :class="`role-icon-badge-${getRoleVisual(role).tone}`">
@@ -138,7 +141,7 @@
                     </el-button>
                   </div>
                 </div>
-              </button>
+              </div>
             </div>
           </div>
 
@@ -369,6 +372,11 @@
                     <el-switch v-model="roleFormCrossResourceEnabled" />
                   </div>
 
+                  <div v-else-if="isWorkspaceRole" class="role-editor-sidebar-summary">
+                    <strong>工作空间覆盖</strong>
+                    <p>{{ workspaceRoleEditorSummary }}</p>
+                  </div>
+
                   <el-tree
                     ref="roleEditorTreeRef"
                     :data="roleEditorTreeData"
@@ -381,7 +389,7 @@
                     @node-click="handleRoleEditorNodeClick"
                   >
                     <template #default="{ data }">
-                      <div class="role-editor-node" :class="{ 'is-disabled': data.disabled }">
+                      <div class="role-editor-node" :class="{ 'is-disabled': data.disabled, 'is-readonly': data.readOnly }">
                         <div class="role-editor-node-main">
                           <img
                             v-if="isImageResourceIcon(data.resourceType)"
@@ -398,9 +406,11 @@
                           />
                           <span class="role-editor-node-label">{{ data.label }}</span>
                         </div>
-                        <el-tag size="small" effect="plain" :type="data.statusType">
-                          {{ data.status }}
-                        </el-tag>
+                        <div class="role-editor-node-side">
+                          <el-tag size="small" effect="plain" :type="data.statusType">
+                            {{ data.status }}
+                          </el-tag>
+                        </div>
                       </div>
                     </template>
                   </el-tree>
@@ -420,7 +430,7 @@
                       <el-button
                         link
                         type="primary"
-                        :disabled="currentRoleEditorDisabled"
+                        :disabled="currentRoleEditorDisabled || currentRoleEditorReadOnly"
                         @click="setCurrentEditorActions(true)"
                       >
                         全开
@@ -428,7 +438,7 @@
                       <el-button
                         link
                         type="primary"
-                        :disabled="currentRoleEditorDisabled"
+                        :disabled="currentRoleEditorDisabled || currentRoleEditorReadOnly"
                         @click="setCurrentEditorActions(false)"
                       >
                         清空
@@ -444,12 +454,21 @@
                     </div>
                   </div>
 
-                  <div v-else class="role-editor-action-list">
+                  <div v-else>
+                    <div v-if="currentRoleEditorReadOnly" class="role-editor-readonly">
+                      <el-icon><CircleCheck /></el-icon>
+                      <div>
+                        <strong>当前节点由工作空间角色自动覆盖</strong>
+                        <p>{{ currentRoleEditorReadOnlyHint }}</p>
+                      </div>
+                    </div>
+
+                    <div class="role-editor-action-list">
                     <article
                       v-for="action in currentRoleEditorActionOptions"
                       :key="action.value"
                       class="role-editor-action-card"
-                      :class="{ 'is-enabled': hasRoleFormAction(selectedRoleEditorResourceType, action.value) }"
+                      :class="{ 'is-enabled': hasEffectiveRoleEditorAction(selectedRoleEditorResourceType, action.value) }"
                     >
                       <div class="role-editor-action-copy">
                         <strong>{{ action.label }}</strong>
@@ -457,10 +476,12 @@
                         <span>{{ action.value }}</span>
                       </div>
                       <el-switch
-                        :model-value="hasRoleFormAction(selectedRoleEditorResourceType, action.value)"
+                        :model-value="hasEffectiveRoleEditorAction(selectedRoleEditorResourceType, action.value)"
+                        :disabled="currentRoleEditorReadOnly || isEffectiveRoleEditorActionLocked(selectedRoleEditorResourceType, action.value)"
                         @change="setRoleFormAction(selectedRoleEditorResourceType, action.value, $event)"
                       />
                     </article>
+                    </div>
                   </div>
                 </section>
               </div>
@@ -687,6 +708,7 @@ type RoleEditorNode = {
   status: string
   statusType?: 'primary' | 'success' | 'info' | 'warning'
   disabled?: boolean
+  readOnly?: boolean
   children?: RoleEditorNode[]
 }
 
@@ -977,6 +999,10 @@ function getRolePermissionCount(role: Role): number {
   return role.permissions?.length || 0
 }
 
+function hasRoleAction(role: Role, actionValue: string): boolean {
+  return (role.permissions || []).some((permission) => permission.action === actionValue)
+}
+
 function getRoleVisual(role: Role) {
   const actions = (role.permissions || []).map((permission) => permission.action)
 
@@ -1164,20 +1190,55 @@ function getActionLabelsFromRole(role: Role, resourceType: ResourceType): string
   return (groupedPermissions[resourceType] || []).map((action) => getPermissionLabel(action))
 }
 
+function getAllActionLabelsForResourceType(resourceType: ResourceType): string[] {
+  return getAvailableActions(resourceType).map((action) => action.label)
+}
+
 function getNodeActionStates(node: RoleHierarchyNode) {
   const availableActions = getAvailableActions(node.resourceType)
   const enabledActions = new Set(node.actions)
+  const hasAdminCoverage = enabledActions.has(getPermissionLabel(`${node.resourceType}:admin`))
   return availableActions.map((action) => ({
     value: action.value,
     label: action.label,
     description: action.description || '',
-    enabled: enabledActions.has(action.label),
+    enabled: hasAdminCoverage || enabledActions.has(action.label),
   }))
 }
 
 function buildRoleHierarchyTree(role: Role): RoleHierarchyNode[] {
   const primaryResourceType = inferPrimaryResourceType(role)
   const roleName = role.name
+
+  if (primaryResourceType === 'app' && hasRoleAction(role, 'app:admin')) {
+    return [{
+      id: `role-${role.id}-app-root`,
+      title: '工作空间',
+      description: `角色「${roleName}」直接作用在工作空间上，并覆盖当前工作空间下的目录与所有资源类型。`,
+      resourceType: 'app',
+      status: '全域管理',
+      statusType: 'primary',
+      actions: getActionLabelsFromRole(role, 'app'),
+      children: [{
+        id: `role-${role.id}-app-directory`,
+        title: '目录',
+        description: '工作空间管理员会自动拥有当前工作空间下所有目录的完整能力。',
+        resourceType: 'directory',
+        status: '工作空间继承',
+        statusType: 'success',
+        actions: getAllActionLabelsForResourceType('directory'),
+        children: directoryInheritedResourceTypes.map((resourceType) => ({
+          id: `role-${role.id}-app-${resourceType}`,
+          title: getResourceTypeLabel(resourceType),
+          description: `工作空间管理员会自动拥有当前工作空间下所有${getResourceTypeLabel(resourceType)}的完整能力。`,
+          resourceType,
+          status: '工作空间继承',
+          statusType: 'success',
+          actions: getAllActionLabelsForResourceType(resourceType),
+        })),
+      }],
+    }]
+  }
 
   if (primaryResourceType === 'directory') {
     const directoryActions = getActionLabelsFromRole(role, 'directory')
@@ -1238,6 +1299,7 @@ const currentRolePrimaryResourceType = computed<ResourceType>(() => {
 
 const currentRolePrimaryResourceLabel = computed(() => getResourceTypeLabel(currentRolePrimaryResourceType.value))
 const isDirectoryRole = computed(() => currentRolePrimaryResourceType.value === 'directory')
+const isWorkspaceRole = computed(() => currentRolePrimaryResourceType.value === 'app')
 
 const availableRoleConfigResourceTypes = computed<ResourceType[]>(() => {
   if (isDirectoryRole.value && roleFormCrossResourceEnabled.value) {
@@ -1251,6 +1313,10 @@ function isRoleEditorResourceDisabled(resourceType: ResourceType): boolean {
   return isDirectoryRole.value
     && resourceType !== 'directory'
     && !roleFormCrossResourceEnabled.value
+}
+
+function isRoleEditorResourceReadOnly(resourceType: ResourceType): boolean {
+  return isWorkspaceRole.value && resourceType !== 'app'
 }
 
 const roleEditorTreeData = computed<RoleEditorNode[]>(() => {
@@ -1272,6 +1338,33 @@ const roleEditorTreeData = computed<RoleEditorNode[]>(() => {
     }]
   }
 
+  if (currentRolePrimaryResourceType.value === 'app') {
+    const workspaceAdminEnabled = hasRoleFormAction('app', 'app:admin')
+    return [{
+      id: getRoleTreeNodeId('app'),
+      label: '工作空间',
+      resourceType: 'app',
+      status: '直接作用',
+      statusType: 'primary',
+      children: [{
+        id: getRoleTreeNodeId('directory'),
+        label: '目录',
+        resourceType: 'directory',
+        status: workspaceAdminEnabled ? '自动覆盖' : '等待开启',
+        statusType: workspaceAdminEnabled ? 'success' : 'info',
+        readOnly: true,
+        children: directoryInheritedResourceTypes.map((resourceType) => ({
+          id: getRoleTreeNodeId(resourceType),
+          label: getResourceTypeLabel(resourceType),
+          resourceType,
+          status: workspaceAdminEnabled ? '自动覆盖' : '等待开启',
+          statusType: workspaceAdminEnabled ? 'success' : 'info',
+          readOnly: true,
+        })),
+      }],
+    }]
+  }
+
   return [{
     id: getRoleTreeNodeId(currentRolePrimaryResourceType.value),
     label: getResourceTypeLabel(currentRolePrimaryResourceType.value),
@@ -1289,13 +1382,36 @@ const currentRoleEditorDisabled = computed(() =>
   isRoleEditorResourceDisabled(selectedRoleEditorResourceType.value)
 )
 
-const currentRoleEditorEnabledActionCount = computed(() =>
-  (roleForm.permissions[selectedRoleEditorResourceType.value] || []).length
+const currentRoleEditorReadOnly = computed(() =>
+  isRoleEditorResourceReadOnly(selectedRoleEditorResourceType.value)
 )
+
+const currentRoleEditorEnabledActionCount = computed(() => {
+  if (isWorkspaceRole.value && hasRoleFormAction('app', 'app:admin')) {
+    return hasRoleFormAction('app', 'app:admin') ? currentRoleEditorActionOptions.value.length : 0
+  }
+
+  return (roleForm.permissions[selectedRoleEditorResourceType.value] || []).length
+})
 
 const currentRoleEditorDescription = computed(() => {
   if (currentRoleEditorDisabled.value) {
     return `先开启目录子资源继承，才能给${getResourceTypeLabel(selectedRoleEditorResourceType.value)}单独配置动作。`
+  }
+
+  if (currentRoleEditorReadOnly.value) {
+    const label = getResourceTypeLabel(selectedRoleEditorResourceType.value)
+    if (hasRoleFormAction('app', 'app:admin')) {
+      return `工作空间所有权已经开启，当前工作空间下的${label}会自动拥有全部动作。`
+    }
+    return `当前节点由工作空间角色统一覆盖。开启工作空间所有权后，当前工作空间下的${label}会自动拥有全部动作。`
+  }
+
+  if (selectedRoleEditorResourceType.value === 'app') {
+    if (hasRoleFormAction('app', 'app:admin')) {
+      return '工作空间所有权已开启，工作空间本身以及下面的目录和各类资源都会自动拥有完整能力。'
+    }
+    return '这里编辑工作空间节点本身的动作。开启工作空间所有权后，当前工作空间下的目录和各类资源会自动拥有完整能力。'
   }
 
   if (selectedRoleEditorResourceType.value === 'directory') {
@@ -1304,6 +1420,36 @@ const currentRoleEditorDescription = computed(() => {
 
   return `这里编辑${getResourceTypeLabel(selectedRoleEditorResourceType.value)}节点会拿到的动作。`
 })
+
+const currentRoleEditorReadOnlyHint = computed(() => {
+  const label = getResourceTypeLabel(selectedRoleEditorResourceType.value)
+  if (hasRoleFormAction('app', 'app:admin')) {
+    return `${label}节点的完整能力已经由工作空间管理员自动覆盖，这里只展示结果，不需要单独配置。`
+  }
+  return `${label}节点目前不会自动获得完整能力。要覆盖这类资源，请回到工作空间节点开启“所有权”。`
+})
+
+const workspaceRoleEditorSummary = computed(() => {
+  if (hasRoleFormAction('app', 'app:admin')) {
+    return '工作空间所有权已开启，目录和各类资源会自动拥有完整能力。下面子树只用于查看覆盖结果，不需要单独配置。'
+  }
+  return '当前只有工作空间节点本身可编辑。开启“所有权”后，目录和各类资源会自动获得完整能力。'
+})
+
+function hasEffectiveRoleEditorAction(resourceType: ResourceType, actionValue: string): boolean {
+  if (isWorkspaceRole.value && hasRoleFormAction('app', 'app:admin')) {
+    return true
+  }
+
+  return hasRoleFormAction(resourceType, actionValue)
+}
+
+function isEffectiveRoleEditorActionLocked(resourceType: ResourceType, actionValue: string): boolean {
+  return isWorkspaceRole.value
+    && resourceType === 'app'
+    && hasRoleFormAction('app', 'app:admin')
+    && actionValue !== 'app:admin'
+}
 
 function getActionLabelsForResourceType(resourceType: ResourceType): string[] {
   return (roleForm.permissions[resourceType] || []).map((action) => getPermissionLabel(action))
@@ -1975,42 +2121,6 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.active-role-inline {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--bg-primary) 92%, var(--color-primary) 8%);
-  border: 1px solid var(--role-line);
-}
-
-.active-role-inline-main {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.active-role-inline h4 {
-  margin: 6px 0 0;
-  font-size: 18px;
-}
-
-.active-role-inline p {
-  margin: 8px 0 0;
-  color: var(--role-muted);
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.active-role-inline-side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 12px;
-}
-
 .role-tree-search {
   margin-bottom: 4px;
 }
@@ -2156,11 +2266,13 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  align-items: stretch;
 }
 
 .role-switcher-item {
   position: relative;
-  min-width: 180px;
+  flex: 0 0 196px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -2175,6 +2287,7 @@ onMounted(() => {
 }
 
 .role-switcher-item-head {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2225,7 +2338,15 @@ onMounted(() => {
   transform: translateY(-1px);
 }
 
+.role-switcher-item:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--color-primary) 72%, var(--border-base) 28%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
 .role-switcher-item.is-active {
+  flex: 1 1 360px;
+  min-width: 320px;
   border-color: color-mix(in srgb, var(--color-primary) 76%, var(--border-base) 24%);
   background: color-mix(in srgb, var(--bg-primary) 84%, var(--color-primary) 16%);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 22%, transparent);
@@ -2246,6 +2367,35 @@ onMounted(() => {
 
 .role-switcher-item strong {
   font-size: 14px;
+}
+
+.role-switcher-item-expanded {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--role-line) 82%, transparent);
+}
+
+.role-switcher-item-expanded p {
+  margin: 0;
+  color: var(--role-muted);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.role-switcher-item-actions {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.role-switcher-item-actions :deep(.el-button) {
+  margin: 0;
 }
 
 .role-switcher-item-view {
@@ -2859,6 +3009,26 @@ onMounted(() => {
   line-height: 1.6;
 }
 
+.role-editor-sidebar-summary {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-primary) 92%, var(--color-primary) 8%);
+  border: 1px solid color-mix(in srgb, var(--role-line) 86%, transparent);
+}
+
+.role-editor-sidebar-summary strong {
+  display: block;
+  font-size: 14px;
+}
+
+.role-editor-sidebar-summary p {
+  margin: 6px 0 0;
+  color: var(--role-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .role-editor-tree {
   background: transparent;
 }
@@ -2908,10 +3078,21 @@ onMounted(() => {
   opacity: 0.56;
 }
 
+.role-editor-node.is-readonly {
+  opacity: 0.9;
+}
+
 .role-editor-node-main {
   display: flex;
   align-items: center;
   min-width: 0;
+}
+
+.role-editor-node-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .role-editor-node-label {
@@ -2972,6 +3153,29 @@ onMounted(() => {
 }
 
 .role-editor-disabled p {
+  margin: 6px 0 0;
+  color: var(--role-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.role-editor-readonly {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-primary) 92%, var(--color-primary) 8%);
+  color: var(--color-primary);
+}
+
+.role-editor-readonly strong {
+  display: block;
+  font-size: 14px;
+}
+
+.role-editor-readonly p {
   margin: 6px 0 0;
   color: var(--role-muted);
   font-size: 13px;
@@ -3332,7 +3536,8 @@ onMounted(() => {
   .section-heading,
   .role-card-footer,
   .hierarchy-header,
-  .active-role-inline {
+  .role-switcher-header,
+  .role-switcher-item-footer {
     flex-direction: column;
     align-items: flex-start;
   }
@@ -3349,8 +3554,15 @@ onMounted(() => {
   .page-header-actions,
   .resource-filter,
   .type-choice-grid,
-  .active-role-inline-side {
+  .role-switcher-item,
+  .role-switcher-item.is-active {
     width: 100%;
+  }
+
+  .role-switcher-item,
+  .role-switcher-item.is-active {
+    flex-basis: 100%;
+    min-width: 0;
   }
 }
 </style>

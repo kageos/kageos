@@ -287,6 +287,8 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 	}
 
 	return func(c *gin.Context) {
+		proxyStart := time.Now()
+
 		// ✨ 将 TraceId 从 gin context 设置到请求 header，供后端服务使用
 		// WithTraceId 中间件已经将 TraceId 设置到 gin context 中（使用常量 TraceIdHeader）
 		traceId := c.GetString(contextx.TraceIdHeader) // ⭐ 使用常量 TraceIdHeader
@@ -355,11 +357,17 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 		}
 		defer cancel()
 
+		logger.Infof(s.ctx, "[Proxy] start: traceId=%s, method=%s, path=%s, target=%s, timeout=%ds",
+			traceId, c.Request.Method, c.Request.URL.Path, targetURL, timeout)
+
 		// ✅ 使用带超时的 Context 创建新请求
 		// ⭐ 注意：WithContext 会创建一个新请求，但 Header 是共享的（引用类型）
 		// 所以之前设置的 header（TraceId、X-Request-User 等）会被正确传递到后端服务
 		req := c.Request.WithContext(ctx)
 		proxy.ServeHTTP(c.Writer, req)
+
+		logger.Infof(s.ctx, "[Proxy] done: traceId=%s, path=%s, status=%d, elapsed=%s",
+			traceId, c.Request.URL.Path, c.Writer.Status(), time.Since(proxyStart).Truncate(time.Millisecond))
 	}
 }
 

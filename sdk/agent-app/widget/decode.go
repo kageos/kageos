@@ -336,6 +336,12 @@ func ConvertTagsToField(tags *FieldTags) *Field {
 
 	// 根据Go类型推断数据类型，完全基于Go类型，与widget type无关
 	field.Data.Type = inferDataType(tags.Type)
+	if format := strings.TrimSpace(tags.DataParsed["format"]); format != "" {
+		field.Data.Format = format
+	}
+	if example := strings.TrimSpace(tags.DataParsed["example"]); example != "" {
+		field.Data.Example = example
+	}
 
 	// 递归转换Children字段
 	if len(tags.Children) > 0 {

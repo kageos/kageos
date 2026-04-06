@@ -1,6 +1,10 @@
 package widget
 
-import "github.com/ai-agent-os/ai-agent-os/pkg/convert"
+import (
+	"fmt"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/convert"
+)
 
 type Files struct {
 	// Accept 文件类型限制，支持多种格式（逗号分隔）：
@@ -28,6 +32,20 @@ func (i *Files) Config() interface{} {
 
 func (i *Files) Type() string {
 	return TypeFiles
+}
+
+func (i *Files) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticFact {
+	facts := make([]SemanticFact, 0, 3)
+	if i.Accept != "" {
+		facts = append(facts, SemanticFact{Key: "accept", Value: i.Accept})
+	}
+	if i.MaxCount > 0 {
+		facts = append(facts, SemanticFact{Key: "max_count", Value: fmt.Sprintf("%d", i.MaxCount)})
+	}
+	if i.MaxSize != "" && opts.Mode == SummaryFull {
+		facts = append(facts, SemanticFact{Key: "max_size", Value: i.MaxSize})
+	}
+	return facts
 }
 
 func newFiles(widgetParsed map[string]string) *Files {

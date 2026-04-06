@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -100,22 +101,24 @@ func (ops *OperateLogService) createFormOperateLog(ctx context.Context, req *dto
 	// 使用请求中的 RequestBody 和 ResponseBody
 	requestBody := req.RequestBody
 	responseBody := req.ResponseBody
+	code, msg := extractFormOperateLogStatus(responseBody)
 
 	// 创建 FormOperateLog 记录
 	log := &model.FormOperateLog{
-		TenantUser:      tenantUser,
-		RequestUser:     req.User,
-		Action:          req.Action,
-		IPAddress:       req.IPAddress,
-		UserAgent:       req.UserAgent,
-		App:             app,
-		FullCodePath:    fullCodePath,
-		FunctionMethod:  method,
-		RequestBody:     requestBody,
-		ResponseBody:    responseBody,
-		Code:            0, // 默认成功
-		Msg:             "",
-		Version:         version,
+		TenantUser:     tenantUser,
+		RequestUser:    req.User,
+		Action:         req.Action,
+		IPAddress:      req.IPAddress,
+		UserAgent:      req.UserAgent,
+		App:            app,
+		FullCodePath:   fullCodePath,
+		FunctionMethod: method,
+		RequestBody:    requestBody,
+		ResponseBody:   responseBody,
+		Code:           code,
+		Msg:            msg,
+		TraceID:        req.TraceID,
+		Version:        version,
 	}
 
 	// 保存到数据库
@@ -128,6 +131,59 @@ func (ops *OperateLogService) createFormOperateLog(ctx context.Context, req *dto
 	}, nil
 }
 
+func extractFormOperateLogStatus(responseBody json.RawMessage) (int, string) {
+	if len(responseBody) == 0 {
+		return 0, ""
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(responseBody, &payload); err != nil {
+		return 0, ""
+	}
+
+	code, hasCode := readOperateLogCode(payload["code"])
+	if !hasCode {
+		code, hasCode = readOperateLogCode(payload["err_code"])
+	}
+
+	msg := readOperateLogMsg(payload["msg"])
+	if msg == "" {
+		msg = readOperateLogMsg(payload["error"])
+	}
+
+	if !hasCode {
+		if msg != "" {
+			return 1, msg
+		}
+		return 0, ""
+	}
+	return code, msg
+}
+
+func readOperateLogCode(v interface{}) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int32:
+		return int(n), true
+	case int64:
+		return int(n), true
+	case float64:
+		return int(n), true
+	case float32:
+		return int(n), true
+	default:
+		return 0, false
+	}
+}
+
+func readOperateLogMsg(v interface{}) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
 // createTableOperateLog 创建 Table 操作日志
 func (ops *OperateLogService) createTableOperateLog(ctx context.Context, req *dto.CreateOperateLoggerReq) (*dto.CreateOperateLoggerResp, error) {
 	// 解析 ResourceID（格式：user/app/router）
@@ -137,7 +193,7 @@ func (ops *OperateLogService) createTableOperateLog(ctx context.Context, req *dt
 	}
 	tenantUser := parts[0]
 	app := parts[1]
-	
+
 	// 构建 full_code_path
 	fullCodePath := fmt.Sprintf("/%s/%s", tenantUser, app)
 	if len(parts) > 2 {

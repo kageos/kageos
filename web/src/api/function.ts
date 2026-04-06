@@ -12,14 +12,14 @@ export function getFunctionByPath(fullCodePath: string, funcType: string = 'tabl
   return get<Function>(`/workspace/api/v1/function/info/${funcType}${path}`)
 }
 
-// 执行函数（通用）
+// 执行函数（标准接口）
 /**
- * 执行函数（通用接口，根据 template_type 自动选择标准 API）
+ * 执行函数（根据 template_type 选择标准 API）
  * 
  * @param method 原函数的 HTTP 方法（GET/POST 等）
  * @param router 函数路由（如 /luobei/test999/plugins/cashier_desk），将转换为 full-code-path
  * @param params 请求参数
- * @param templateType 模板类型（table/form/chart），用于选择标准 API
+ * @param templateType 模板类型（table/form/chart），必须传入
  */
 export function executeFunction(method: string, router: string, params?: SearchParams | any, templateType?: string) {
   const fullCodePath = router.startsWith('/') ? router : `/${router}`
@@ -40,21 +40,8 @@ export function executeFunction(method: string, router: string, params?: SearchP
     // Chart 查询：使用 /chart/query/{full-code-path}
     return get<any>(`/workspace/api/v1/chart/query${fullCodePath}`, params || {})
   }
-  
-  // ⭐ 如果没有指定 template_type，使用旧的 /run 接口（向后兼容）
-  const url = `/workspace/api/v1/run${router}`
-  switch (method.toUpperCase()) {
-    case 'GET':
-      return get<any>(url, params || {})
-    case 'POST':
-      return post<any>(url, params || {})
-    case 'PUT':
-      return put<any>(url, params || {})
-    case 'DELETE':
-      return del<any>(url)
-    default:
-      return get<any>(url, params || {})
-  }
+
+  throw new Error('executeFunction 缺少合法的 templateType，/run 兼容接口已下线')
 }
 
 // ⭐ Table 回调操作 - 新增记录（使用标准 API）

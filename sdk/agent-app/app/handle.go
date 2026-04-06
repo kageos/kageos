@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
@@ -22,6 +23,7 @@ func (a *App) handleMessageAsync(msg *nats.Msg) {
 
 // handleMessage 处理接收到的消息
 func (a *App) handleMessage(msg *nats.Msg) {
+	start := time.Now()
 	ctx := context.Background()
 
 	// 检查是否已经请求关闭
@@ -54,16 +56,23 @@ func (a *App) handleMessage(msg *nats.Msg) {
 		req.RequestUserDept = msg.Header.Get(contextx.DepartmentFullPathHeader)
 	}
 
+	logger.Infof(ctx, "[SDK:handleMessage] received: traceId=%s, method=%s, router=%s, user=%s, bodyLen=%d",
+		req.TraceId, req.Method, req.Router, req.RequestUser, len(req.Body))
+
 	// 增加运行中函数计数
 	a.incrementRunningCount()
 
 	defer a.decrementRunningCount()
 	resp, err := a.handle(&req)
+	elapsed := time.Since(start)
 	if err != nil {
+		logger.Errorf(ctx, "[SDK:handleMessage] error: traceId=%s, router=%s, err=%v, elapsed=%s",
+			req.TraceId, req.Router, err, elapsed.Truncate(time.Millisecond))
 		a.sendErrResponse(resp)
-		logger.Errorf(context.Background(), err.Error())
 		return
 	}
+	logger.Infof(ctx, "[SDK:handleMessage] done: traceId=%s, router=%s, hasError=%v, elapsed=%s",
+		req.TraceId, req.Router, resp != nil && resp.Error != "", elapsed.Truncate(time.Millisecond))
 	a.sendResponse(resp)
 }
 

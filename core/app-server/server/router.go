@@ -1,8 +1,6 @@
 package server
 
 import (
-	"context"
-
 	v1 "github.com/ai-agent-os/ai-agent-os/core/app-server/api/v1"
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
@@ -52,21 +50,6 @@ func (s *Server) setupRoutes() {
 	app.PUT("/workspace/:user/:app", appHandler.UpdateWorkspace)
 	// ⭐ 添加应用删除权限检查
 	app.DELETE("/delete/:app", middleware2.CheckAppDelete(), appHandler.DeleteApp)
-	// 支持所有 HTTP 方法的请求应用接口
-	request := apiV1.Group("/run")
-	request.Use(middleware2.JWTAuth())
-	// ⭐ 添加权限检查中间件（动态根据函数类型和HTTP方法确定权限点）
-	request.Use(middleware2.CheckFunctionExecute(func(ctx context.Context, fullCodePath string) (string, error) {
-		// 根据 full-code-path 获取服务树节点（包含 template_type）
-		serviceTree, err := s.serviceTreeService.GetServiceTreeByFullPath(ctx, fullCodePath)
-		if err != nil {
-			// 如果查询失败，返回空字符串（使用默认的 function:manage 权限）
-			return "", nil
-		}
-		return serviceTree.TemplateType, nil
-	}))
-	request.Any("/*router", appHandler.RequestApp)
-
 	// ⭐ 旧的回调接口（已注释，改用标准接口）
 	// callback := apiV1.Group("/callback")
 	// callback.Use(middleware2.JWTAuth())

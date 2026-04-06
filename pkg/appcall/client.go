@@ -168,9 +168,15 @@ func (c *Client) BatchWriteFiles(ctx context.Context, hostId int64, req *dto.Bat
 
 // RequestApp 请求应用（Publish 到 function_server.app_runtime.{user}.{app}.{version}，通过 waiter 等响应）
 func (c *Client) RequestApp(ctx context.Context, natsId int64, req *dto.RequestAppReq) (*dto.RequestAppResp, error) {
+	start := time.Now()
 	subject := fmt.Sprintf("function_server.app_runtime.%s.%s.%s", req.User, req.App, req.Version)
+	logger.Infof(ctx, "[appcall:RequestApp] start: traceId=%s, subject=%s, method=%s, router=%s, user=%s, bodyLen=%d",
+		req.TraceId, subject, req.Method, req.Router, req.RequestUser, len(req.Body))
+
 	conn, err := c.connProvider.GetNatsByNatsId(natsId)
 	if err != nil {
+		logger.Errorf(ctx, "[appcall:RequestApp] GetNatsByNatsId failed: traceId=%s, natsId=%d, err=%v, elapsed=%s",
+			req.TraceId, natsId, err, time.Since(start).Truncate(time.Millisecond))
 		return nil, err
 	}
 	data, err := json.Marshal(req)
@@ -192,12 +198,24 @@ func (c *Client) RequestApp(ctx context.Context, natsId int64, req *dto.RequestA
 		msg.Header.Set(contextx.TokenHeader, req.Token)
 	}
 	if err := conn.PublishMsg(msg); err != nil {
+		logger.Errorf(ctx, "[appcall:RequestApp] PublishMsg failed: traceId=%s, subject=%s, err=%v, elapsed=%s",
+			req.TraceId, subject, err, time.Since(start).Truncate(time.Millisecond))
 		return nil, fmt.Errorf("publish request failed: %w", err)
 	}
+	publishElapsed := time.Since(start)
+	logger.Infof(ctx, "[appcall:RequestApp] published, waiting response: traceId=%s, publishElapsed=%s, waitTimeout=%s",
+		req.TraceId, publishElapsed.Truncate(time.Millisecond), c.appRequestTimeout)
+
 	resp, err := c.waiter.Wait(ctx, req.TraceId, c.appRequestTimeout)
+	totalElapsed := time.Since(start)
 	if err != nil {
+		logger.Errorf(ctx, "[appcall:RequestApp] Wait failed: traceId=%s, err=%v, totalElapsed=%s (publish=%s, wait=%s)",
+			req.TraceId, err, totalElapsed.Truncate(time.Millisecond), publishElapsed.Truncate(time.Millisecond),
+			(totalElapsed - publishElapsed).Truncate(time.Millisecond))
 		return nil, fmt.Errorf("wait response timeout: %w", err)
 	}
+	logger.Infof(ctx, "[appcall:RequestApp] done: traceId=%s, hasError=%v, totalElapsed=%s",
+		req.TraceId, resp.Error != "", totalElapsed.Truncate(time.Millisecond))
 	return resp, nil
 }
 

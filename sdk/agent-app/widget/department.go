@@ -31,6 +31,16 @@ func (d *Department) Type() string {
 	return TypeDepartment
 }
 
+func (d *Department) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticFact {
+	facts := []SemanticFact{
+		{Key: "example", Value: `"/org/hr"`},
+	}
+	if d.Default != "" {
+		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: d.Default})
+	}
+	return facts
+}
+
 func newDepartment(widgetParsed map[string]string) *Department {
 	department := &Department{}
 

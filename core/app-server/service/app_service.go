@@ -112,15 +112,27 @@ func extractVersionNum(version string) int {
 
 // RequestApp 请求应用
 func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*dto.RequestAppResp, error) {
+	start := time.Now()
 	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
 	if err != nil {
+		logger.Errorf(ctx, "[AppService:RequestApp] GetAppByUserName failed: user=%s, app=%s, traceId=%s, err=%v, elapsed=%s",
+			req.User, req.App, req.TraceId, err, time.Since(start).Truncate(time.Millisecond))
 		return nil, err
 	}
+	dbElapsed := time.Since(start)
 	req.Version = app.Version
+	logger.Infof(ctx, "[AppService:RequestApp] start: traceId=%s, %s/%s/%s, method=%s, router=%s, natsId=%d, dbElapsed=%s",
+		req.TraceId, req.User, req.App, req.Version, req.Method, req.Router, app.NatsID, dbElapsed.Truncate(time.Millisecond))
+
 	resp, err := a.appCall.RequestApp(ctx, app.NatsID, req)
+	totalElapsed := time.Since(start)
 	if err != nil {
+		logger.Errorf(ctx, "[AppService:RequestApp] appCall failed: traceId=%s, %s/%s/%s, err=%v, totalElapsed=%s",
+			req.TraceId, req.User, req.App, req.Version, err, totalElapsed.Truncate(time.Millisecond))
 		return nil, err
 	}
+	logger.Infof(ctx, "[AppService:RequestApp] done: traceId=%s, %s/%s/%s, hasError=%v, totalElapsed=%s",
+		req.TraceId, req.User, req.App, req.Version, resp.Error != "", totalElapsed.Truncate(time.Millisecond))
 	resp.Version = req.Version
 	return resp, nil
 }

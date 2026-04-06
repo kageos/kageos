@@ -1,5 +1,10 @@
 package widget
 
+import (
+	"fmt"
+	"strings"
+)
+
 type MultiSelect struct {
 	Options       []string `json:"options,omitempty"`        // 选项列表
 	OptionsColors []string `json:"options_colors,omitempty"` // 选项的颜色，支持warning，info，success，danger，primary 还支持自定义颜色例如：#FF9800 橙色，#9C27B0 紫色，每个颜色都可以可以重复
@@ -15,6 +20,33 @@ func (m *MultiSelect) Config() interface{} {
 
 func (m *MultiSelect) Type() string {
 	return TypeMultiSelect
+}
+
+func (m *MultiSelect) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticFact {
+	facts := make([]SemanticFact, 0, 5)
+	if len(m.Options) > 0 {
+		facts = append(facts, SemanticFact{Key: "enum", Value: strings.Join(m.Options, "|")})
+	}
+	if fact, ok := placeholderFact(m.Placeholder); ok {
+		facts = append(facts, fact)
+	}
+	if len(m.Default) > 0 {
+		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: strings.Join(m.Default, "|")})
+		facts = append(facts, SemanticFact{Key: "example", Value: quoteJSONArrayExample(m.Default)})
+	} else if len(m.Options) > 0 {
+		limit := 2
+		if len(m.Options) < limit {
+			limit = len(m.Options)
+		}
+		facts = append(facts, SemanticFact{Key: "example", Value: quoteJSONArrayExample(m.Options[:limit])})
+	}
+	if m.MaxCount > 0 && opts.Mode == SummaryFull {
+		facts = append(facts, SemanticFact{Key: "max_count", Value: fmt.Sprintf("%d", m.MaxCount)})
+	}
+	if m.Creatable && opts.Mode == SummaryFull {
+		facts = append(facts, SemanticFact{Key: "creatable", Value: "true"})
+	}
+	return facts
 }
 
 func newMultiSelect(widgetParsed map[string]string) *MultiSelect {
