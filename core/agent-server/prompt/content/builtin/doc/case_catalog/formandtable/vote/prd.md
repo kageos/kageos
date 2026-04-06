@@ -1016,7 +1016,7 @@ func DoVoteSubmit(ctx *app.Context, req *VoteSubmitReq) (*VoteSubmitResp, error)
 	}
 
 	params := VoteResultReq{TopicID: req.TopicID}
-	functionLink, _ := ctx.BuildFunctionUrlWithText("vote_result", params, "查看投票结果")
+	functionLink, _ := ctx.BuildFunctionUrlWithText("vote_result.form", params, "查看投票结果")
 
 	return &VoteSubmitResp{
 		Success:         true,
@@ -1361,4 +1361,3 @@ func init() {
 	packageContext.GET("vote_topic_list.table", VoteTopicList, VoteTopicListTemplate)
 }
 ```
-

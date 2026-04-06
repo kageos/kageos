@@ -8,17 +8,23 @@ import (
 )
 
 // SendMessageOpts 发送消息参数
-// ToUsers、ToDepartments 为逗号分隔字符串；ContentType 为空时默认 text
-// From 可选：不填时由 SDK 用当前请求用户填充，无用户（如定时任务）时为 "system"
-// FullCodePath 可选：不填时由 SDK 用当前请求路由推导（/user/app/router），定时任务等可显式传入来源目录
+//
+// ContentType 支持以下值：
+//   - "markdown"（默认）：正文用 Markdown 书写，消费端按渠道自动转换（邮件→HTML，企微/钉钉原生支持，短信→纯文本）
+//   - "html"：正文为原始 HTML，适合需要精确控制排版的场景（如模板邮件），注意自行防 XSS
+//   - "text"：纯文本，不做任何格式解析
+//
+// ToUsers / ToDepartments 为逗号分隔字符串，与 user / departments 组件的存储格式一致
+// From 可选：不填时用当前请求用户，无用户上下文（如定时任务）时为 "system"
+// FullCodePath 可选：不填时由 SDK 从当前请求路由推导
 type SendMessageOpts struct {
-	ToUsers       string `json:"to_users"`        // 接收用户，逗号分隔，如 "zhangsan,lisi"
-	ToDepartments string `json:"to_departments"`  // 接收部门（full_code_path），逗号分隔
-	Title         string `json:"title"`           // 标题/摘要（可选）
-	Content       string `json:"content"`         // 正文
-	ContentType   string `json:"content_type"`    // text | html | markdown，空默认 text
-	From          string `json:"from"`            // 发送人（可选，不填则用当前请求用户或 system）
-	FullCodePath  string `json:"full_code_path"`  // 来源目录/函数路径（可选，不填则用当前请求的 full_code_path）
+	ToUsers       string `json:"to_users"`       // 接收用户，逗号分隔，如 "zhangsan,lisi"
+	ToDepartments string `json:"to_departments"` // 接收部门（full_code_path），逗号分隔
+	Title         string `json:"title"`          // 标题/摘要（可选）
+	Content       string `json:"content"`        // 正文（默认 markdown 格式）
+	ContentType   string `json:"content_type"`   // "markdown"(默认) | "html" | "text"
+	From          string `json:"from"`           // 发送人（可选）
+	FullCodePath  string `json:"full_code_path"` // 来源目录/函数路径（可选）
 }
 
 // SendMessage 发送消息：接收结构体参数，渠道由消息服务内部决定
@@ -38,7 +44,7 @@ func (c *Context) SendMessage(opts *SendMessageOpts) error {
 	}
 	contentType := strings.TrimSpace(opts.ContentType)
 	if contentType == "" {
-		contentType = "text"
+		contentType = "markdown"
 	}
 	fullCodePath := strings.TrimSpace(opts.FullCodePath)
 	if fullCodePath == "" && c.msg != nil {

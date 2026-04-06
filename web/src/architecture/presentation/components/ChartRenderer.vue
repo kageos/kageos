@@ -125,6 +125,7 @@ import { useChartParamURLSync } from '@/architecture/presentation/composables/us
 import { convertValueByFieldType } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { getWidgetDefaultValue } from '@/architecture/presentation/widgets/composables/useWidgetDefaultValue'
 import { useAuthStore } from '@/stores/auth'
+import { createEmptyFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -257,7 +258,7 @@ const initializeFieldValues = () => {
         values[field.code] = defaultValue
         filterForm.value[field.code] = defaultValue.raw
       } else {
-        values[field.code] = { raw: null, display: '', meta: {} }
+        values[field.code] = createEmptyFieldValue(field)
         filterForm.value[field.code] = null
       }
     }
@@ -288,7 +289,7 @@ const formRendererContext = computed(() => {
 
 // 获取字段值
 const getFieldValue = (fieldCode: string): FieldValue => {
-  return fieldValues.value[fieldCode] || { raw: null, display: '', meta: {} }
+  return fieldValues.value[fieldCode] || createEmptyRawFieldValue()
 }
 
 const getFieldRawValue = (fieldCode: string): any => {
@@ -890,7 +891,7 @@ const handleSearch = () => {
 const handleReset = () => {
   // 重置字段值
   requestFields.value.forEach((field: FieldConfig) => {
-    fieldValues.value[field.code] = { raw: null, display: '', meta: {} }
+    fieldValues.value[field.code] = createEmptyFieldValue(field)
     filterForm.value[field.code] = null
   })
   

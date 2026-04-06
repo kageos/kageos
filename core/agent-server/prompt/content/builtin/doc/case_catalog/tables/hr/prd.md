@@ -173,7 +173,7 @@ func HrJobList(ctx *app.Context, resp response.Response) error {
 				params := HrResume{
 					JobID: jobs[i].ID,
 				}
-				jobs[i].ApplyLink, _ = ctx.BuildFunctionUrlWithText("hr_resume_list?_tab=OnTableAddRow", params, "投递简历")
+				jobs[i].ApplyLink, _ = ctx.BuildFunctionUrlWithText("hr_resume_list.table?_tab=OnTableAddRow", params, "投递简历")
 			}
 		}
 	}
@@ -425,7 +425,7 @@ func HrResumeList(ctx *app.Context, resp response.Response) error {
 		params := HrJob{
 			ID: resumes[i].JobID,
 		}
-		resumes[i].JobLink, _ = ctx.BuildFunctionUrlWithText("hr_job_list", params, "查看职位详情")
+		resumes[i].JobLink, _ = ctx.BuildFunctionUrlWithText("hr_job_list.table", params, "查看职位详情")
 	}
 
 	return nil
@@ -601,4 +601,3 @@ func init() {
 	packageContext.GET("hr_resume_list.table", HrResumeList, HrResumeListTemplate)
 }
 ```
-

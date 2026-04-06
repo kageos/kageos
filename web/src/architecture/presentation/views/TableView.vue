@@ -294,7 +294,7 @@
         <template #default="{ row }">
           <WidgetComponent
             :field="field"
-            :value="getRowFieldValue(row, field.code)"
+            :value="getRowFieldValue(row, field)"
             mode="table-cell"
             :row-data="row"
           />
@@ -441,6 +441,7 @@ import {
   resolveTableAddDialogVisibility
 } from './utils/tableViewRouteRuntime'
 import { resolveSearchFieldLayoutClass } from './utils/searchFieldLayout'
+import { createAutoFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -1245,9 +1246,12 @@ const loadTableData = async (): Promise<void> => {
 
 // ==================== 其他方法 ====================
 
-const getRowFieldValue = (row: TableRow, fieldCode: string): FieldValue => {
-  const value = row[fieldCode]
-  return value ? { raw: value, display: String(value), meta: {} } : { raw: null, display: '', meta: {} }
+const getRowFieldValue = (row: TableRow, field: FieldConfig): FieldValue => {
+  const value = row[field.code]
+  if (value === null || value === undefined || value === '') {
+    return createEmptyRawFieldValue()
+  }
+  return createAutoFieldValue(value, field)
 }
 
 /**

@@ -168,8 +168,9 @@ type CallToolReq struct {
 
 // CallToolResp 工作台 call_tool 响应
 type CallToolResp struct {
-	Content string `json:"content"`
-	IsError bool   `json:"is_error"`
+	Content string      `json:"content"`
+	IsError bool        `json:"is_error"`
+	Data    interface{} `json:"data,omitempty"`
 }
 
 // ----- 以下为 app-server 工作空间资源更新接口使用（canonical 标识为 resource_path=/user/app） -----

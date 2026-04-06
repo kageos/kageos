@@ -366,6 +366,7 @@ import type { PermissionInfo } from '@/utils/permission'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import ScheduledTaskDialog from '../components/ScheduledTaskDialog.vue'
 import { WorkspaceStateManager } from '../../infrastructure/stateManager/WorkspaceStateManager'
+import { createAutoFieldValue, createEmptyFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
 import {
   buildInitialDataFromFormDataStore as buildInitialDataFromFormDataStoreHelper,
   createFormViewRuntime,
@@ -473,7 +474,7 @@ const fieldValues = computed(() => {
   // ⭐ 确保所有 requestFields 中的字段都有值（即使 formDataStore 中没有）
   requestFields.value.forEach((field: FieldConfig) => {
     if (!values[field.code]) {
-      values[field.code] = { raw: null, display: '', meta: {} }
+      values[field.code] = createEmptyFieldValue(field)
     }
   })
   return values
@@ -490,13 +491,7 @@ const responseFieldValues = computed(() => {
   const values: Record<string, FieldValue> = {}
   responseFields.value.forEach((field: FieldConfig) => {
     const rawValue = state.response?.[field.code]
-    values[field.code] = {
-      raw: rawValue !== undefined ? rawValue : null,
-      display: rawValue !== null && rawValue !== undefined 
-        ? (typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue))
-        : '',
-      meta: {}
-    }
+    values[field.code] = createAutoFieldValue(rawValue, field)
   })
   return values
 })
@@ -619,7 +614,7 @@ const formRendererContext = computed(() => {
 
 // 方法
 const getFieldValue = (fieldCode: string): FieldValue => {
-  return fieldValues.value[fieldCode] || { raw: null, display: '', meta: {} }
+  return fieldValues.value[fieldCode] || createEmptyRawFieldValue()
 }
 
 const getFieldError = (fieldCode: string): string => {
@@ -629,7 +624,7 @@ const getFieldError = (fieldCode: string): string => {
 }
 
 const getResponseFieldValue = (fieldCode: string): FieldValue => {
-  return responseFieldValues.value[fieldCode] || { raw: null, display: '', meta: {} }
+  return responseFieldValues.value[fieldCode] || createEmptyRawFieldValue()
 }
 
 const isFieldRequired = (field: FieldConfig): boolean => {

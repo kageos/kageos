@@ -1,254 +1,118 @@
-# Logger 日志库
+# Logger
 
-一个简单易用的 Go 日志库，支持上下文和配置。
+当前实现是一个基于 `zap` 和 `lumberjack` 的全局日志包装层，提供统一初始化、开发/生产两种输出形态，以及一组包级日志函数。
 
-## 特性
+## 公开接口
 
-- 支持多种日志级别：DEBUG, INFO, WARN, ERROR, FATAL
-- 支持上下文日志记录
-- 可配置的输出目标（stdout, stderr, 文件）
-- 可配置的时间格式
-- 线程安全
-- 简单的 API 设计
+初始化是可选的：
 
-## 快速开始
-
-### 初始化（可选）
-
-日志库**不需要初始化**，如果不初始化会使用默认配置：
+- 如果显式调用 `Init`，会按传入配置初始化一次。
+- 如果不初始化，第一次写日志时会自动使用默认配置。
+- `Init` 是幂等的，已经初始化后再次调用会直接返回。
 
 ```go
-// 默认配置：
-// - 级别: INFO
-// - 输出: stdout
-// - 时间格式: "2006-01-02 15:04:05"
-// - 显示调用者: false
-```
-
-如果需要自定义配置，可以在程序启动时初始化：
-
-```go
-// 方式1: 手动初始化
-logger.Init(&logger.Config{
-    Level:      logger.DEBUG,
-    Output:     os.Stdout,
-    TimeFormat: "2006-01-02 15:04:05.000",
-    ShowCaller: true,
-})
-
-// 方式2: 从配置文件初始化
-logConfig := &logger.LogConfig{
-    Level:      "debug",
-    Output:     "stdout",
-    TimeFormat: "2006-01-02 15:04:05.000",
-    ShowCaller: true,
+type Config struct {
+    Level      string // debug, info, warn, error
+    Filename   string // 日志文件路径
+    MaxSize    int    // 单个文件最大大小（MB）
+    MaxBackups int    // 保留旧文件数量
+    MaxAge     int    // 保留旧文件天数
+    Compress   bool   // 是否压缩旧文件
+    IsDev      bool   // 开发环境开关
 }
-logger.InitFromConfig(logConfig)
+
+func Init(cfg Config) error
+func IsInitialized() bool
+func Sync() error
 ```
 
-### 基本使用
+包级日志函数：
+
+```go
+func Debug(ctx context.Context, msg string, fields ...zap.Field)
+func Debugf(ctx context.Context, format string, args ...interface{})
+func Info(ctx context.Context, msg string, fields ...zap.Field)
+func Infof(ctx context.Context, format string, args ...interface{})
+func Warn(ctx context.Context, msg string, fields ...zap.Field)
+func Warnf(ctx context.Context, format string, args ...interface{})
+func Error(ctx context.Context, msg string, args ...interface{})
+func Errorf(ctx context.Context, format string, args ...interface{})
+func Fatal(ctx context.Context, msg string, args ...interface{})
+func Fatalf(ctx context.Context, format string, args ...interface{})
+```
+
+`ctx` 现在主要用于统一调用签名；当前实现不会从上下文提取额外字段。
+
+## 默认行为
+
+未显式初始化时，会自动使用这组默认值：
+
+```go
+logger.Config{
+    Level:      "info",
+    Filename:   "./logs/app.log",
+    MaxSize:    100,
+    MaxBackups: 3,
+    MaxAge:     7,
+    Compress:   true,
+    IsDev:      true,
+}
+```
+
+## 输出模式
+
+- `IsDev=true`：同时输出到控制台和文件，使用可读性更高的 console encoder。
+- `IsDev=false`：输出到文件，使用 JSON encoder。
+
+两种模式都会带时间、级别和调用位置；文件会通过 `lumberjack` 做滚动切分。
+
+## 示例
 
 ```go
 package main
 
 import (
     "context"
+
     "github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
 func main() {
+    _ = logger.Init(logger.Config{
+        Level:      "debug",
+        Filename:   "./logs/app.log",
+        MaxSize:    100,
+        MaxBackups: 3,
+        MaxAge:     7,
+        Compress:   true,
+        IsDev:      true,
+    })
+    defer logger.Sync()
+
     ctx := context.Background()
-    
-    // 使用默认日志器（第一个参数是 ctx）
-    logger.Info(ctx, "Application started")
-    logger.Debug(ctx, "Debug message: %s", "some debug info")
-    logger.Warn(ctx, "Warning message")
-    logger.Error(ctx, "Error message")
+
+    logger.Infof(ctx, "service started on %s", ":9090")
+    logger.Warn(ctx, "cache miss")
+    logger.Errorf(ctx, "request failed: %v", "timeout")
 }
 ```
-
-### 带上下文的日志
-
-```go
-func handleRequest(ctx context.Context, userID string) {
-    // 直接使用全局函数，第一个参数是 ctx
-    logger.Info(ctx, "Processing request for user: %s", userID)
-    
-    // 处理逻辑...
-    
-    logger.Info(ctx, "Request processed successfully")
-}
-
-func main() {
-    ctx := context.Background()
-    ctx = context.WithValue(ctx, "request_id", "req-123")
-    
-    handleRequest(ctx, "user-789")
-}
-```
-
-### 自定义日志器
-
-```go
-import (
-    "os"
-    "github.com/ai-agent-os/ai-agent-os/pkg/logger"
-)
-
-func main() {
-    // 创建自定义配置
-    config := &logger.Config{
-        Level:      logger.DEBUG,
-        Output:     os.Stdout,
-        TimeFormat: "2006-01-02 15:04:05.000",
-        ShowCaller: true,
-    }
-    
-    // 创建日志器
-    log := logger.NewLogger(config)
-    
-    // 使用日志器
-    log.Info("Custom logger message")
-    
-    // 设置默认日志器
-    logger.SetDefaultLogger(log)
-}
-```
-
-### 从配置文件加载
-
-```go
-import (
-    "github.com/ai-agent-os/ai-agent-os/pkg/logger"
-    "github.com/ai-agent-os/ai-agent-os/pkg/config"
-)
-
-func main() {
-    // 加载日志配置
-    manager := config.NewSimpleManager()
-    var logConfig logger.LogConfig
-    if err := manager.LoadYAML("logger.yaml", &logConfig); err != nil {
-        // 使用默认配置
-        logConfig = *logger.GetDefaultLogConfig()
-    }
-    
-    // 创建日志器
-    log := logger.NewLogger(logConfig.ToLoggerConfig())
-    logger.SetDefaultLogger(log)
-    
-    logger.Info("Logger configured from file")
-}
-```
-
-## 配置
-
-### 日志级别
-
-- `DEBUG`: 调试信息
-- `INFO`: 一般信息
-- `WARN`: 警告信息
-- `ERROR`: 错误信息
-- `FATAL`: 致命错误（会退出程序）
-
-### 输出目标
-
-- `stdout`: 标准输出
-- `stderr`: 标准错误
-- `文件路径`: 输出到指定文件
-
-### 时间格式
-
-使用 Go 的时间格式字符串，例如：
-- `2006-01-02 15:04:05` (默认)
-- `2006-01-02 15:04:05.000`
-- `2006/01/02 15:04:05`
 
 ## 配置文件示例
 
-### logger.yaml
-
-```yaml
-level: "info"
-output: "stdout"
-time_format: "2006-01-02 15:04:05"
-show_caller: false
-```
-
-### logger.json
-
 ```json
 {
-  "level": "debug",
-  "output": "/var/log/app.log",
-  "time_format": "2006-01-02 15:04:05.000",
-  "show_caller": true
+  "level": "info",
+  "filename": "./logs/app.log",
+  "max_size": 100,
+  "max_backups": 3,
+  "max_age": 7,
+  "compress": true,
+  "is_dev": false
 }
 ```
 
-## API 参考
+## 注意事项
 
-### 全局函数
-
-```go
-// 使用默认日志器（第一个参数是 ctx）
-logger.Debug(ctx context.Context, msg string, args ...interface{})
-logger.Info(ctx context.Context, msg string, args ...interface{})
-logger.Warn(ctx context.Context, msg string, args ...interface{})
-logger.Error(ctx context.Context, msg string, args ...interface{})
-logger.Fatal(ctx context.Context, msg string, args ...interface{})
-
-// 带上下文的日志器
-logger.WithContext(ctx context.Context) *ContextLogger
-```
-
-### Logger 结构体
-
-```go
-type Logger struct {
-    // 内部字段
-}
-
-// 创建日志器
-func NewLogger(config *Config) *Logger
-
-// 设置日志级别
-func (l *Logger) SetLevel(level Level)
-
-// 设置输出
-func (l *Logger) SetOutput(w io.Writer)
-
-// 记录日志
-func (l *Logger) Debug(msg string, args ...interface{})
-func (l *Logger) Info(msg string, args ...interface{})
-func (l *Logger) Warn(msg string, args ...interface{})
-func (l *Logger) Error(msg string, args ...interface{})
-func (l *Logger) Fatal(msg string, args ...interface{})
-
-// 带上下文的日志器
-func (l *Logger) WithContext(ctx context.Context) *ContextLogger
-```
-
-### ContextLogger 结构体
-
-```go
-type ContextLogger struct {
-    // 内部字段
-}
-
-// 记录日志（自动包含上下文信息）
-func (cl *ContextLogger) Debug(msg string, args ...interface{})
-func (cl *ContextLogger) Info(msg string, args ...interface{})
-func (cl *ContextLogger) Warn(msg string, args ...interface{})
-func (cl *ContextLogger) Error(msg string, args ...interface{})
-func (cl *ContextLogger) Fatal(msg string, args ...interface{})
-```
-
-## 测试
-
-```bash
-go test ./pkg/logger
-```
-
-## 示例
-
-查看 `example.go` 文件了解完整的使用示例。
+- `Fatal` / `Fatalf` 会调用底层 logger 的 fatal 逻辑并退出进程。
+- 建议在进程退出前调用一次 `Sync()`，尤其是只写文件的场景。
+- 当前包已经不再提供旧版的 `NewLogger`、`LogConfig`、`Output`、`TimeFormat`、`ShowCaller` 等 API。

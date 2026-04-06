@@ -37,11 +37,11 @@
     <!-- 权限列表 -->
     <div class="permission-list">
       <el-empty v-if="!loading && assignments.length === 0" description="暂无权限分配" />
-      <el-table
-        v-else
-        :data="assignments"
-        stripe
-        style="width: 100%"
+        <el-table
+          v-else
+          :data="assignments"
+          stripe
+          style="width: 100%"
       >
         <el-table-column label="权限主体" min-width="200">
           <template #default="{ row }">

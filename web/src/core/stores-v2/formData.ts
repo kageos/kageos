@@ -13,6 +13,7 @@ import { reactive, inject, hasInjectionContext, type InjectionKey } from 'vue'
 import type { FieldConfig, FieldValue } from '../types/field'
 import { fieldExtractorRegistry } from './extractors/FieldExtractorRegistry'
 import { Logger } from '@/core/utils/logger'
+import { createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
 
 const createFormDataStore = defineStore('formData-v2', () => {
   // 存储所有字段的值（field_path -> FieldValue）
@@ -47,7 +48,7 @@ const createFormDataStore = defineStore('formData-v2', () => {
         value = v
       }
     })
-    return value || { raw: null, display: '', meta: {} }
+    return value || createEmptyRawFieldValue()
   }
   
   /**
@@ -57,7 +58,7 @@ const createFormDataStore = defineStore('formData-v2', () => {
     if (initialValue) {
       data.set(fieldPath, initialValue)
     } else if (!data.has(fieldPath)) {
-      data.set(fieldPath, { raw: null, display: '', meta: {} })
+      data.set(fieldPath, createEmptyRawFieldValue())
     }
   }
   

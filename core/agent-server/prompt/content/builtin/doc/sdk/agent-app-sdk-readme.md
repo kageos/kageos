@@ -14,27 +14,59 @@
 
 ## 消息通知（SendMessage）
 
-当业务需要给用户/部门发送提醒（如会议即将开始、任务到期提醒）时，优先使用 SDK 的 `ctx.SendMessage(...)`，不要自建消息通道。
+当业务需要给用户/部门发送提醒（如商机赢单通知、定时巡检提醒）时，使用 `ctx.SendMessage(...)`，不要自建消息通道。
 
-最小示例：
+### ContentType 说明
+
+| 类型 | 说明 | 适用场景 |
+|------|------|----------|
+| `"markdown"`（**默认**，不填即为此值） | 正文用 Markdown 书写，消费端按渠道自动转换（邮件→HTML，企微/钉钉原生支持，短信→纯文本） | **绝大多数场景**，推荐使用 |
+| `"html"` | 原始 HTML 直接透传，业务方自行控制排版 | 需要精确控制排版的模板邮件，注意自行防 XSS |
+| `"text"` | 纯文本，不做任何格式解析 | 极简短通知 |
+
+### 最小示例（默认 markdown）
 
 ```go
+// 正文用 markdown 书写，支持加粗、列表、链接等，不需要指定 ContentType（默认 markdown）
 err := ctx.SendMessage(&app.SendMessageOpts{
-    ToUsers:       "zhangsan,lisi",      // 用户列表（逗号分隔）
-    ToDepartments: "/org/dev,/org/pm",   // 部门 full_code_path（逗号分隔，可选）
-    Title:         "会议即将开始提醒",
-    Content:       "您预约/参与的会议将在 5 分钟后开始，请提前准备。",
-    ContentType:   "text",               // text/html/markdown
+    ToUsers: "zhangsan,lisi",           // 逗号分隔，与 user/users 组件的存储格式一致
+    Title:   "商机赢单通知",
+    Content: "商机「**企业ERP项目**」已赢单，金额 50,000 元。\n\n请及时跟进后续服务。",
 })
 if err != nil {
     return err
 }
 ```
 
-- 可与平台定时任务组合：将“单次巡检 + 发送消息”写成 Form，然后在平台侧配置周期调度。
-- 建议把接收人去重后再发送，避免重复通知。
-- **发消息与组件配合（推荐）**：接收人优先直接使用业务字段里的 `type:user` / `type:users`（填 `ToUsers`）与 `type:department` / `type:departments`（填 `ToDepartments`）值；这些值可直接传给 `SendMessage`，无需额外转换。
-- 若是“给当前登录人相关通知”，可直接用 `ctx.GetRequestUser()`、`ctx.GetRequestUserDept()` 作为接收人来源。
+### 指定 HTML 格式
+
+```go
+// 需要精确控制排版时可指定 html
+err := ctx.SendMessage(&app.SendMessageOpts{
+    ToUsers:     owner,
+    Title:       "月度报告",
+    Content:     "<h2>销售月报</h2><table>...</table>",
+    ContentType: "html",
+})
+```
+
+### 发给部门
+
+```go
+// ToDepartments 值与 departments 组件存储格式一致（full_code_path，逗号分隔）
+err := ctx.SendMessage(&app.SendMessageOpts{
+    ToDepartments: "/org/dev,/org/pm",
+    Title:         "系统升级通知",
+    Content:       "今晚 **22:00** 将进行系统升级，预计维护 2 小时。",
+})
+```
+
+### 使用建议
+
+- **不要在每次增删改操作里都发消息**，容易导致消息膨胀，只在关键业务节点通知（如状态流转、审批、到期提醒）。
+- 可与平台**定时任务**组合：将“巡检 + 发消息”写成 Form，然后在平台侧配置周期调度。
+- **接收人与组件对齐**：`ToUsers` 的值与 `type:user` / `type:users` 组件的存储格式一致（逗号分隔的用户名），`ToDepartments` 与 `type:department` / `type:departments` 一致（full_code_path），可直接传入，无需转换。
+- 获取当前用户：`ctx.GetRequestUser()`、`ctx.GetRequestUserDept()`。
 
 ---
 
@@ -242,7 +274,7 @@ Attachment *types.Files `gorm:"type:json" widget:"name:附件;type:files"`
 - **params 类型约定（必读，不可混用）**：  
   - **跳转到 Table（GET 列表）**：params 必须是**目标 Table 对应的列表 Model**，即该 GET 路由的 `AutoCrudTable` 指向的结构体。前端打开列表时会用 params 的字段（如 ID）做筛选/定位。  
     - 例：target 为 `"meeting_room_list.table"` 时，params 用 `MeetingRoom{ID: roomID}`，其中 **MeetingRoom** 是会议室表（meeting_room_list.table）的 **Model**，不能写成别的结构体。  
-    - 例：target 为 `"hr_resume_list.table?_tab=OnTableAddRow"` 时，params 用 `HrJob{ID: jobID}`（职位表的 Model），打开简历列表并预填职位 ID。  
+    - 例：target 为 `"hr_resume_list.table?_tab=OnTableAddRow"` 时，params 用 `HrResume{JobID: jobID}`（简历表 `hr_resume_list.table` 的 Model），打开简历列表并预填新增表单里的职位 ID。  
   - **跳转到 Form（POST 表单）**：params 必须是**目标 Form 的请求结构体**，即该 POST 路由的 `Request` 结构体。前端打开表单时会预填 params 的字段。  
     - 例：target 为 `"vote_result.form"` 时，params 用 `VoteResultReq{TopicID: topicID}`，其中 **VoteResultReq** 是查看结果 Form 的 **请求结构体**，不能写成 VoteTopic（Model）。  
     - 例：target 为 `"vote_submit.form"` 时，params 用 `VoteSubmitReq{TopicID: topicID}`（提交投票 Form 的请求结构体）。  
@@ -253,7 +285,7 @@ Attachment *types.Files `gorm:"type:json" widget:"name:附件;type:files"`
 
 - **典型场景**：  
   1. **Table 列表「查看详情」列**：当前行关联另一张表，链接跳转到该表并带上当前行 ID（如预约列表的「会议室详情」→ 跳会议室列表，params 用 **MeetingRoom{ID: RoomID}**，MeetingRoom 是目标表的 Model）。  
-  2. **Table 列表「操作」列**：根据状态动态生成链接（如投票主题列表「投票操作」→ 跳 `vote_submit` 用 **VoteSubmitReq**，跳 `vote_result` 用 **VoteResultReq**；职位列表「投递简历」→ 跳简历列表用 **HrJob{ID: JobID}** 并 `_tab=OnTableAddRow`）。  
+  2. **Table 列表「操作」列**：根据状态动态生成链接（如投票主题列表「投票操作」→ 跳 `vote_submit.form` 用 **VoteSubmitReq**，跳 `vote_result.form` 用 **VoteResultReq**；职位列表「投递简历」→ 跳简历列表用 **HrResume{JobID: JobID}** 并 `_tab=OnTableAddRow`）。  
   3. **Form 响应**：提交后返回一个「查看结果」链接（如投票提交后返回「查看投票结果」，params 用 **VoteResultReq{TopicID: req.TopicID}**）。
 
 ```go
@@ -267,8 +299,8 @@ for i := range bookings {
     bookings[i].RoomLink, _ = ctx.BuildFunctionUrlWithText("meeting_room_list.table", params, "查看会议室详情")
 }
 
-// 带 _tab 参数：打开列表并切到「新增」Tab（如投递简历），params 用目标表 Model
-params := HrJob{ID: jobs[i].ID}  // HrJob 是职位表的 Model
+// 带 _tab 参数：打开列表并切到「新增」Tab（如投递简历），params 用目标表 Model，并按新增表单字段预填
+params := HrResume{JobID: jobs[i].ID}  // HrResume 是简历表的 Model，新增表单会预填 JobID
 jobs[i].ApplyLink, _ = ctx.BuildFunctionUrlWithText("hr_resume_list.table?_tab=OnTableAddRow", params, "投递简历")
 
 // Form 响应：跳转到 Form 必须用该 Form 的请求结构体
@@ -613,7 +645,7 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
             bookings[i].RoomName = bookings[i].Room.Name
         }
         bookings[i].Status = calculateBookingStatus(bookings[i].StartTime, bookings[i].EndTime)
-        bookings[i].RoomLink, _ = ctx.BuildFunctionUrlWithText("meeting_room_list", MeetingRoom{ID: bookings[i].RoomID}, "查看会议室详情")
+        bookings[i].RoomLink, _ = ctx.BuildFunctionUrlWithText("meeting_room_list.table", MeetingRoom{ID: bookings[i].RoomID}, "查看会议室详情")
     }
     return nil
 }

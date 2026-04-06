@@ -60,7 +60,7 @@
 
 **说明**：
 - 列表中「会议室名称」来自 Preload 的 Room，在 Handler 里赋值到 `RoomName`；「预约状态」由 `calculateBookingStatus(startTime, endTime)` 计算（待开始/进行中/已结束），不存库。
-- **操作列**统一在列表右侧，包含删除与 link「查看会议室详情」：`BuildFunctionUrlWithText("meeting_room_list", params, "查看会议室详情")`，params 为 `MeetingRoom{ID: RoomID}`。
+- **操作列**统一在列表右侧，包含删除与 link「查看会议室详情」：`BuildFunctionUrlWithText("meeting_room_list.table", params, "查看会议室详情")`，params 为 `MeetingRoom{ID: RoomID}`。
 
 ---
 
@@ -377,7 +377,7 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
 		params := MeetingRoom{
 			ID: bookings[i].RoomID,
 		}
-		bookings[i].RoomLink, _ = ctx.BuildFunctionUrlWithText("meeting_room_list", params, "查看会议室详情")
+		bookings[i].RoomLink, _ = ctx.BuildFunctionUrlWithText("meeting_room_list.table", params, "查看会议室详情")
 	}
 
 	return nil
@@ -699,4 +699,3 @@ func init() {
 	})
 }
 ```
-

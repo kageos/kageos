@@ -241,11 +241,13 @@ onMounted(async () => {
 .department-display-wrapper {
   display: inline-flex;
   align-items: center;
+  min-width: 0;
 }
 
 /* 简单模式 */
 .department-display-simple {
-  display: flex;
+  display: inline-flex;
+  min-width: 0;
 }
 
 /* 水平布局：图标在左，名称在右 */
@@ -264,13 +266,22 @@ onMounted(async () => {
 }
 
 .department-display-simple .department-icon {
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
   flex-shrink: 0;
   opacity: 0.8;
+  object-fit: contain;
+  display: block;
 }
 
 .department-display-simple .department-name {
   font-size: 14px;
   color: var(--el-text-color-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

@@ -105,8 +105,8 @@ func (h *Workspace) CallTool(c *gin.Context) {
 	}
 	ctx := contextx.ToContext(c)
 	args := service.ToToolArgs(req.Arguments)
-	content, isErr := h.toolReg.CallTool(ctx, req.ToolName, args, req.FullCodePath, nil)
-	response.OkWithData(c, &dto.CallToolResp{Content: content, IsError: isErr})
+	result := h.toolReg.CallTool(ctx, req.ToolName, args, req.FullCodePath, nil)
+	response.OkWithData(c, &dto.CallToolResp{Content: result.Content, IsError: result.IsError, Data: result.Data})
 }
 
 // ListSessions 获取工作台会话列表（根据 full_code_path）

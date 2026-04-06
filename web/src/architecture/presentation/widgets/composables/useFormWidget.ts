@@ -11,6 +11,7 @@
 import { computed } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
+import { createAutoFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
 
 export function useFormWidget(props: WidgetComponentProps) {
   const formDataStore = useFormDataStore()
@@ -36,15 +37,9 @@ export function useFormWidget(props: WidgetComponentProps) {
       const rawValue = props.value?.raw
       if (rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
         const subValue = rawValue[subFieldCode]
-        return {
-          raw: subValue ?? null,
-          display: subValue !== null && subValue !== undefined
-            ? (typeof subValue === 'object' ? JSON.stringify(subValue) : String(subValue))
-            : '',
-          meta: {}
-        }
+        return createAutoFieldValue(subValue)
       }
-      return { raw: null, display: '', meta: {} }
+      return createEmptyRawFieldValue()
     }
 
     // 编辑模式下，从 formDataStore 读取

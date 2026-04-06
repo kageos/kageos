@@ -277,18 +277,18 @@ import { useFormDataStore } from '@/core/stores-v2/formData'
 import { formatUserDisplayName } from '@/utils/userInfo'
 import type { UserInfo } from '@/types'
 import { Logger } from '@/core/utils/logger'
-import { createFieldValue } from '@/core/utils/createFieldValue'
+import { createEmptyRawFieldValue, createFieldValue } from '@/core/utils/createFieldValue'
 import { useAuthStore } from '@/stores/auth'
 import { useUserInfoStore } from '@/stores/userInfo'
 
 const COMPONENT_NAME = 'UsersWidget'
 
-const DEFAULT_FIELD_VALUE: FieldValue = { raw: null, display: '', meta: {} }
+const DEFAULT_FIELD_VALUE: FieldValue = createEmptyRawFieldValue()
 
   // value 允许为 null（如切换工作空间时父组件尚未就绪），用 effectiveValue 归一化
   // default 必须用内联字面量，不能引用 DEFAULT_FIELD_VALUE（defineProps 会被提升，无法访问局部变量）
   const props = withDefaults(defineProps<Omit<WidgetComponentProps, 'value'> & { value?: FieldValue | null }>(), {
-    value: () => ({ raw: null, display: '', meta: {} })
+    value: () => createEmptyRawFieldValue()
   })
 const emit = defineEmits<WidgetComponentEmits>()
 

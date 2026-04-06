@@ -9,32 +9,51 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    title="编辑用户组织架构"
+    class="user-edit-dialog"
     width="600px"
     :close-on-click-modal="false"
   >
+    <template #header>
+      <div class="dialog-header">
+        <span class="dialog-kicker">Member Editor</span>
+        <h3>编辑用户组织架构</h3>
+        <p>调整部门归属和直属上级，保存后会立即反映到当前组织成员列表。</p>
+      </div>
+    </template>
+
     <div v-if="userInfo" class="user-edit-content">
-      <!-- 用户基本信息 -->
-      <div class="user-info-section">
-        <div class="section-title">用户信息</div>
+      <section class="user-hero-card">
         <div class="user-basic">
           <UserDisplay :user-info="userInfo" mode="simple" size="large" />
           <div class="user-details">
-            <div class="detail-item">
-              <span class="label">用户名：</span>
-              <span class="value">{{ userInfo.username }}</span>
+            <div class="detail-primary">
+              <strong>{{ userInfo.nickname || userInfo.username }}</strong>
+              <span>@{{ userInfo.username }}</span>
             </div>
             <div v-if="userInfo.email" class="detail-item">
-              <span class="label">邮箱：</span>
               <span class="value">{{ userInfo.email }}</span>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- 组织架构选择 -->
-      <div class="form-section">
-        <div class="section-title">组织架构</div>
+        <div class="user-current-grid">
+          <article class="current-card">
+            <span class="current-label">当前部门</span>
+            <strong>{{ userInfo.department_full_name_path || userInfo.department_name || '未分配部门' }}</strong>
+          </article>
+          <article class="current-card">
+            <span class="current-label">直属上级</span>
+            <strong>{{ userInfo.leader_display_name || userInfo.leader_username || '未分配 Leader' }}</strong>
+          </article>
+        </div>
+      </section>
+
+      <section class="form-card">
+        <div class="section-title">
+          <span>组织调整</span>
+          <p>这里修改的是用户的组织归属，不会改动用户基础账号信息。</p>
+        </div>
+
         <el-form :model="formData" label-width="120px">
           <el-form-item label="所属部门">
             <DepartmentSelector
@@ -53,7 +72,7 @@
             />
           </el-form-item>
         </el-form>
-      </div>
+      </section>
     </div>
 
     <template #footer>
@@ -153,6 +172,7 @@ async function handleSubmit() {
     })
     
     ElMessage.success('更新成功')
+    dialogVisible.value = false
     emit('success')
   } catch (error: any) {
     ElMessage.error(error.message || '更新失败')
@@ -162,52 +182,166 @@ async function handleSubmit() {
 }
 </script>
 
-<style scoped>
-.user-edit-content {
-  padding: 10px 0;
+<style scoped lang="scss">
+.user-edit-dialog {
+  --user-edit-ink: var(--text-primary);
+  --user-edit-muted: var(--text-secondary);
+  --user-edit-line: color-mix(in srgb, var(--border-base) 82%, var(--color-primary) 18%);
+  --user-edit-surface: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-primary) 90%, var(--color-primary) 10%),
+    color-mix(in srgb, var(--bg-secondary) 92%, var(--color-primary) 8%)
+  );
+  --user-edit-card: color-mix(in srgb, var(--bg-primary) 84%, var(--bg-secondary) 16%);
+  --user-edit-accent-soft: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  --user-edit-kicker: color-mix(in srgb, var(--color-primary) 68%, var(--text-secondary) 32%);
 }
 
-.user-info-section,
-.form-section {
-  margin-bottom: 24px;
-  
-  &:last-child {
-    margin-bottom: 0;
+.dialog-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  h3 {
+    margin: 0;
+    font-size: 24px;
+    color: var(--user-edit-ink);
+  }
+
+  p {
+    margin: 0;
+    line-height: 1.7;
+    color: var(--user-edit-muted);
+    font-size: 13px;
   }
 }
 
+.dialog-kicker {
+  display: inline-flex;
+  align-items: center;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--user-edit-kicker);
+}
+
+.user-edit-content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.user-hero-card,
+.form-card {
+  padding: 18px;
+  border-radius: 20px;
+  background: var(--user-edit-surface);
+  border: 1px solid var(--user-edit-line);
+}
+
 .section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin-bottom: 16px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+
+  span {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--user-edit-ink);
+  }
+
+  p {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--user-edit-muted);
+  }
 }
 
 .user-basic {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
+  margin-bottom: 16px;
 }
 
 .user-details {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+}
+
+.detail-primary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  strong {
+    font-size: 20px;
+    color: var(--user-edit-ink);
+  }
+
+  span {
+    font-size: 13px;
+    color: var(--user-edit-muted);
+  }
 }
 
 .detail-item {
   font-size: 14px;
-  
-  .label {
-    color: var(--el-text-color-secondary);
-    margin-right: 8px;
-  }
-  
+
   .value {
-    color: var(--el-text-color-primary);
+    color: var(--text-regular);
+  }
+}
+
+.user-current-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.current-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--user-edit-card);
+  border: 1px solid var(--user-edit-line);
+
+  strong {
+    word-break: break-word;
+    color: var(--user-edit-ink);
+  }
+}
+
+.current-label {
+  font-size: 12px;
+  color: var(--user-edit-muted);
+}
+
+.form-card {
+  :deep(.el-form-item) {
+    margin-bottom: 20px;
+  }
+
+  :deep(.el-form-item__label) {
+    font-weight: 600;
+    color: var(--text-regular);
+  }
+
+  :deep(.el-input__wrapper),
+  :deep(.el-select__wrapper),
+  :deep(.el-textarea__inner) {
+    border-radius: 14px;
+    box-shadow: none;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-base);
   }
 }
 
@@ -215,5 +349,33 @@ async function handleSubmit() {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+:deep(.user-edit-dialog) {
+  border-radius: 28px;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+:deep(.user-edit-dialog .el-dialog__header) {
+  padding: 24px 24px 12px;
+}
+
+:deep(.user-edit-dialog .el-dialog__body) {
+  padding: 0 24px 8px;
+}
+
+:deep(.user-edit-dialog .el-dialog__footer) {
+  padding: 12px 24px 24px;
+}
+
+@media (max-width: 720px) {
+  .user-current-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .user-basic {
+    flex-direction: column;
+  }
 }
 </style>
