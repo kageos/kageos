@@ -183,91 +183,100 @@
         <div v-else-if="currentFunction && currentFunction.type === 'function'" class="function-content-wrapper">
           <div class="function-content">
             <div v-if="showFunctionTabsWrapper" class="function-tabs-wrapper">
-              <el-tabs v-model="functionActiveTab" type="card" @tab-change="handleFunctionTabChange" class="function-detail-tabs">
-                <!-- 函数内容 tab -->
+              <el-tabs
+                v-model="functionActiveTab"
+                class="function-detail-tabs"
+                @tab-change="handleFunctionTabChange"
+              >
                 <el-tab-pane name="content">
                   <template #label>
                     <span>函数内容</span>
                   </template>
                   <div class="tab-content">
-                    <!-- ⭐ 如果函数详情已加载，显示对应的视图 -->
-                    <!-- ⚠️ 重要：只有当 currentFunctionDetail 的 id 或 router 与 currentFunction 匹配时才显示 -->
-                    <template v-if="currentFunctionDetail && 
-                                   currentFunction && 
-                                   (currentFunctionDetail.id === currentFunction.ref_id || 
-                                    currentFunctionDetail.router === currentFunction.full_code_path)">
-                      <!-- 🔥 移除 keep-alive，每次切换函数时重新渲染，保证数据一致性 -->
-                      <!-- 🔥 使用 full_code_path 作为 key，确保函数切换时组件正确重建 -->
-                      <FormView
-                        v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
-                        ref="functionFormViewRef"
-                        :key="`form-${currentFunction.full_code_path || currentFunction.id}`"
-                        :function-detail="currentFunctionDetail"
-                      />
-                      <TableView
-                        v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.TABLE"
-                        :key="`table-${currentFunction.full_code_path || currentFunction.id}`"
-                        :function-detail="currentFunctionDetail"
-                      />
-                      <ChartView
-                        v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
-                        :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
-                        :function-detail="asRenderableFunctionDetail(currentFunctionDetail)"
-                      />
-                      <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
-                        <el-skeleton :rows="8" animated />
-                      </div>
-                    </template>
-                    <!-- 如果函数详情未加载且有权限错误，显示权限错误组件 -->
-                    <PermissionDeniedView
-                      v-else-if="hasPermissionError"
-                      :key="`permission-denied-${currentFunction.full_code_path || currentFunction.id}`"
-                    />
-                    <!-- 如果函数详情未加载且没有权限错误，显示骨架屏 -->
-                    <div v-else :key="`loading-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
-                      <el-skeleton :rows="8" animated />
-                    </div>
+                <!-- ⭐ 如果函数详情已加载，显示对应的视图 -->
+                <!-- ⚠️ 重要：只有当 currentFunctionDetail 的 id 或 router 与 currentFunction 匹配时才显示 -->
+                <template v-if="currentFunctionDetail && 
+                               currentFunction && 
+                               (currentFunctionDetail.id === currentFunction.ref_id || 
+                                currentFunctionDetail.router === currentFunction.full_code_path)">
+                  <!-- 🔥 移除 keep-alive，每次切换函数时重新渲染，保证数据一致性 -->
+                  <!-- 🔥 使用 full_code_path 作为 key，确保函数切换时组件正确重建 -->
+                  <FormView
+                    v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
+                    ref="functionFormViewRef"
+                    :key="`form-${currentFunction.full_code_path || currentFunction.id}`"
+                    :function-detail="currentFunctionDetail"
+                  />
+                  <TableView
+                    v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.TABLE"
+                    :key="`table-${currentFunction.full_code_path || currentFunction.id}`"
+                    :function-detail="currentFunctionDetail"
+                  />
+                  <ChartView
+                    v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
+                    :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
+                    :function-detail="asRenderableFunctionDetail(currentFunctionDetail)"
+                  />
+                  <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
+                    <el-skeleton :rows="8" animated />
+                  </div>
+                </template>
+                <!-- 如果函数详情未加载且有权限错误，显示权限错误组件 -->
+                <PermissionDeniedView
+                  v-else-if="hasPermissionError"
+                  :key="`permission-denied-${currentFunction.full_code_path || currentFunction.id}`"
+                />
+                <!-- 如果函数详情未加载且没有权限错误，显示骨架屏 -->
+                <div v-else :key="`loading-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
+                  <el-skeleton :rows="8" animated />
+                </div>
                   </div>
                 </el-tab-pane>
 
-                <!-- 权限申请 tab -->
-                <el-tab-pane name="permissionRequest">
+                <el-tab-pane v-if="showFunctionPermissionRequestTab" name="permission">
                   <template #label>
                     <el-badge :value="currentFunction?.pending_count || 0" :hidden="!currentFunction?.pending_count || currentFunction.pending_count === 0" :max="99">
-                      <span>权限申请</span>
+                      <span>权限</span>
                     </el-badge>
                   </template>
                   <div class="tab-content">
-                    <PermissionRequestList
-                      ref="functionPermissionRequestListRef"
-                      :resource-path="currentFunction?.full_code_path"
-                      resource-type="function"
-                      :template-type="currentFunctionDetail?.template_type"
-                      :auto-load="functionActiveTab === 'permissionRequest'"
-                    />
+                    <el-tabs
+                      v-model="functionPermissionTab"
+                      class="permission-detail-tabs"
+                      @tab-change="handleFunctionPermissionTabChange"
+                    >
+                      <el-tab-pane name="request">
+                        <template #label>
+                          <el-badge :value="currentFunction?.pending_count || 0" :hidden="!currentFunction?.pending_count || currentFunction.pending_count === 0" :max="99">
+                            <span>审批流</span>
+                          </el-badge>
+                        </template>
+                        <div class="permission-tab-panel">
+                          <PermissionRequestList
+                            ref="functionPermissionRequestListRef"
+                            :resource-path="currentFunction?.full_code_path"
+                            resource-type="function"
+                            :template-type="currentFunctionDetail?.template_type"
+                            :auto-load="functionActiveTab === 'permission' && functionPermissionTab === 'request'"
+                          />
+                        </div>
+                      </el-tab-pane>
+                      <el-tab-pane name="manage" label="权限管理">
+                        <div class="permission-tab-panel">
+                          <PermissionManageList
+                            ref="functionPermissionManageListRef"
+                            :resource-path="currentFunction?.full_code_path"
+                            resource-type="function"
+                            :template-type="currentFunctionDetail?.template_type"
+                            :auto-load="functionActiveTab === 'permission' && functionPermissionTab === 'manage'"
+                          />
+                        </div>
+                      </el-tab-pane>
+                    </el-tabs>
                   </div>
                 </el-tab-pane>
 
-                <!-- 权限管理 tab -->
-                <el-tab-pane name="permissionManage">
-                  <template #label>
-                    <span>权限管理</span>
-                  </template>
-                  <div class="tab-content">
-                    <PermissionManageList
-                      ref="functionPermissionManageListRef"
-                      :resource-path="currentFunction?.full_code_path"
-                      resource-type="function"
-                      :template-type="currentFunctionDetail?.template_type"
-                      :auto-load="functionActiveTab === 'permissionManage'"
-                    />
-                  </div>
-                </el-tab-pane>
-
-                <el-tab-pane v-if="showFormOperateLogTab" name="operateLog">
-                  <template #label>
-                    <span>执行记录</span>
-                  </template>
+                <el-tab-pane v-if="showFormOperateLogTab" name="operateLog" label="执行记录">
                   <div class="tab-content">
                     <FormOperateLogSection
                       ref="formOperateLogSectionRef"
@@ -279,11 +288,7 @@
                   </div>
                 </el-tab-pane>
 
-                <!-- 定时任务 tab（仅当前函数存在定时任务时显示） -->
-                <el-tab-pane v-if="hasScheduledTasksForCurrentPath" name="scheduledTask">
-                  <template #label>
-                    <span>定时任务</span>
-                  </template>
+                <el-tab-pane v-if="hasScheduledTasksForCurrentPath" name="scheduledTask" label="定时任务">
                   <div class="tab-content">
                     <ScheduledTaskList
                       ref="scheduledTaskListRef"
@@ -1148,6 +1153,7 @@ async function handleCancelTask(task: WorkspaceSessionItem) {
 
 // 函数详情 tab 相关
 const functionActiveTab = ref('content')
+const functionPermissionTab = ref('request')
 const functionFormViewRef = ref<{
   applyOperateLog: (payload: {
     requestBody?: Record<string, any> | null
@@ -1185,22 +1191,35 @@ const showFunctionTabsWrapper = computed(() => {
   return showFunctionPermissionRequestTab.value || showFormOperateLogTab.value
 })
 
-// 处理函数 tab 切换
-const handleFunctionTabChange = (tabName: string) => {
-  if (tabName === 'permissionRequest' && functionPermissionRequestListRef.value) {
-    // 切换到权限申请 tab 时，触发加载
-    nextTick(() => {
-      functionPermissionRequestListRef.value?.loadRequests()
-    })
-  } else if (tabName === 'permissionManage' && functionPermissionManageListRef.value) {
-    // 切换到权限管理 tab 时，触发加载
+const loadCurrentFunctionPermissionTab = () => {
+  if (functionPermissionTab.value === 'manage') {
     nextTick(() => {
       functionPermissionManageListRef.value?.loadPermissions()
     })
+    return
+  }
+
+  nextTick(() => {
+    functionPermissionRequestListRef.value?.loadRequests()
+  })
+}
+
+// 处理函数 tab 切换
+const handleFunctionTabChange = (tabName: string) => {
+  functionActiveTab.value = tabName
+  if (tabName === 'permission') {
+    loadCurrentFunctionPermissionTab()
   } else if (tabName === 'operateLog' && formOperateLogSectionRef.value) {
     nextTick(() => {
       formOperateLogSectionRef.value?.loadLogs({ page: 1 })
     })
+  }
+}
+
+const handleFunctionPermissionTabChange = (tabName: string) => {
+  functionPermissionTab.value = tabName === 'manage' ? 'manage' : 'request'
+  if (functionActiveTab.value === 'permission') {
+    loadCurrentFunctionPermissionTab()
   }
 }
 
@@ -2463,6 +2482,9 @@ watch(() => currentFunction.value?.id, (newId: number | undefined, oldId: number
 watch(
   () => [currentFunction.value?.full_code_path, showFunctionPermissionRequestTab.value, showFormOperateLogTab.value] as const,
   () => {
+    if (!showFunctionPermissionRequestTab.value && functionActiveTab.value === 'permission') {
+      functionActiveTab.value = 'content'
+    }
     if (!showFormOperateLogTab.value && functionActiveTab.value === 'operateLog') {
       functionActiveTab.value = 'content'
     }
@@ -2505,21 +2527,16 @@ watch(
     const normalizedTab = normalizeQueryTab(tab)
 
     if (normalizedTab === 'permissionRequest' && showFunctionPermissionRequestTab.value) {
-      functionActiveTab.value = 'permissionRequest'
-      // 切换 tab 时触发加载
-      nextTick(() => {
-        if (functionPermissionRequestListRef.value) {
-          functionPermissionRequestListRef.value.loadRequests()
-        }
-      })
+      functionActiveTab.value = 'permission'
+      functionPermissionTab.value = 'request'
+      loadCurrentFunctionPermissionTab()
     } else if (normalizedTab === 'permissionManage' && showFunctionPermissionRequestTab.value) {
-      functionActiveTab.value = 'permissionManage'
-      // 切换 tab 时触发加载
-      nextTick(() => {
-        if (functionPermissionManageListRef.value) {
-          functionPermissionManageListRef.value.loadPermissions()
-        }
-      })
+      functionActiveTab.value = 'permission'
+      functionPermissionTab.value = 'manage'
+      loadCurrentFunctionPermissionTab()
+    } else if (normalizedTab === 'permission' && showFunctionPermissionRequestTab.value) {
+      functionActiveTab.value = 'permission'
+      loadCurrentFunctionPermissionTab()
     } else if (normalizedTab === 'operateLog' && showFormOperateLogTab.value) {
       functionActiveTab.value = 'operateLog'
       nextTick(() => {
@@ -2646,104 +2663,85 @@ onUnmounted(() => {
 
 // 函数 tab 包装器（已在 function-content 中定义，这里不需要重复）
 
-// 函数详情 tab 样式（参考旧版本的 card 样式）
-.function-detail-tabs {
+.function-tabs-wrapper {
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-
-  :deep(.el-tabs__header) {
-    margin-top: 20px; /* 与面包屑保持距离 */
-    margin-bottom: 20px;
-    flex-shrink: 0;
-    position: relative;
-    z-index: 1; /* 确保 tab header 在面包屑之上 */
-    overflow: visible; /* 确保 badge 不被裁剪 */
-  }
-
-  :deep(.el-tabs__nav-wrap) {
-    overflow: visible !important; /* 确保 badge 不被裁剪 */
-  }
-
-  :deep(.el-tabs__nav-scroll) {
-    overflow: visible !important; /* 确保 badge 不被裁剪 */
-  }
-
-  :deep(.el-tabs__nav) {
-    border: none;
-    overflow: visible; /* 确保 badge 不被裁剪 */
-  }
-
-  :deep(.el-tabs__item) {
-    height: 40px;
-    line-height: 40px;
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.9);
-    border: none;
-    background: var(--el-bg-color-overlay);
-    margin-right: 4px;
-    border-radius: 4px 4px 0 0;
-    transition: all 0.3s;
-    padding: 0 20px;
-    overflow: visible; /* 确保 badge 不被裁剪 */
-
-    &:hover {
-      color: #fff;
-      opacity: 0.95;
-    }
-
-    &.is-active {
-      color: #fff;
-      background: var(--el-bg-color);
-      font-weight: 500;
-      opacity: 1;
-    }
-  }
-
-  :deep(.el-tabs__active-bar) {
-    display: none; /* card 类型不需要 active-bar */
-  }
-
-  :deep(.el-tabs__content) {
-    flex: 1;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  :deep(.el-tab-pane) {
-    height: 100%;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  // Badge 样式
-  :deep(.el-badge) {
-    position: relative;
-    display: inline-block;
-    
-    .el-badge__content {
-      font-size: 11px;
-      height: 18px;
-      line-height: 18px;
-      padding: 0 6px;
-      min-width: 18px;
-      border-radius: 9px;
-      z-index: 10; /* 确保 badge 在最上层 */
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* 添加阴影，增强可见性 */
-    }
-  }
 }
 
-.function-tabs-wrapper .tab-content {
-  padding: 0;
-  flex: 1;
-  overflow-y: auto;
+.function-detail-tabs,
+.permission-detail-tabs {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
+}
+
+.function-detail-tabs :deep(.el-tabs__header) {
+  margin: 14px 0 12px;
+  flex-shrink: 0;
+}
+
+.permission-detail-tabs :deep(.el-tabs__header) {
+  margin: 2px 0 14px;
+  flex-shrink: 0;
+}
+
+.function-detail-tabs :deep(.el-tabs__nav-wrap::after),
+.permission-detail-tabs :deep(.el-tabs__nav-wrap::after) {
+  background-color: var(--el-border-color-extra-light);
+}
+
+.function-detail-tabs :deep(.el-tabs__item.is-active) {
+  font-weight: 600;
+}
+
+.function-detail-tabs :deep(.el-tabs__content) {
+  background: var(--el-bg-color);
+}
+
+.function-detail-tabs :deep(.el-tabs__item),
+.permission-detail-tabs :deep(.el-tabs__item) {
+  font-size: 14px;
+}
+
+.permission-detail-tabs :deep(.el-tabs__item) {
+  font-size: 13px;
+}
+
+.function-detail-tabs :deep(.el-tabs__content),
+.permission-detail-tabs :deep(.el-tabs__content) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.function-detail-tabs :deep(.el-tab-pane),
+.permission-detail-tabs :deep(.el-tab-pane) {
+  height: 100%;
+}
+
+.function-detail-tabs :deep(.el-badge),
+.permission-detail-tabs :deep(.el-badge) {
+  position: relative;
+  display: inline-block;
+}
+
+.function-detail-tabs :deep(.el-badge__content),
+.permission-detail-tabs :deep(.el-badge__content) {
+  font-size: 11px;
+  height: 16px;
+  line-height: 16px;
+  min-width: 16px;
+  padding: 0 5px;
+  border-radius: 8px;
+}
+
+.permission-tab-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 /* 保留旧的类名以兼容（如果还有地方使用） */
@@ -2760,7 +2758,7 @@ onUnmounted(() => {
   overflow-y: auto !important;
   overflow-x: hidden;
   min-height: 0;
-  height: 0;
+  height: 100%;
   -webkit-overflow-scrolling: touch;
 }
 

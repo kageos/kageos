@@ -44,6 +44,7 @@ func (a *AppService) RecordFormOperateLog(ctx context.Context, req *dto.RecordFo
 		Action:       action,
 		Resource:     "form",
 		ResourceID:   resourceID,
+		Source:       req.Source,
 		IPAddress:    req.IPAddress,
 		UserAgent:    req.UserAgent,
 		TraceID:      req.TraceID,

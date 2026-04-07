@@ -267,39 +267,13 @@
                   <!-- 部门选择（支持多选） -->
                   <div v-if="grantTargetType === 'department'" class="grant-target-input">
                     <div>
-                      <el-button
-                        type="primary"
-                        @click="showDepartmentSelector = true"
-                        style="width: 100%"
-                        :icon="selectedDepartments.length ? null : OfficeBuilding"
-                      >
-                        {{ selectedDepartments.length ? `已选择 ${selectedDepartments.length} 个部门` : '选择组织架构（可多选）' }}
-                      </el-button>
-                      <div v-if="selectedDepartments.length" class="selected-department-details">
-                        <div
-                          v-for="dept in selectedDepartments"
-                          :key="dept.full_code_path"
-                          class="selected-department-card"
-                        >
-                          <div class="department-content">
-                            <img src="/组织架构.svg" alt="部门" class="department-icon" />
-                            <div class="department-info">
-                              <div class="department-name">{{ dept.name }}</div>
-                              <div class="department-meta">
-                                <span class="department-path">{{ dept.full_code_path }}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <el-button
-                            text
-                            type="danger"
-                            @click="removeSelectedDepartment(dept)"
-                            :icon="Close"
-                            circle
-                            class="remove-btn"
-                          />
-                        </div>
-                      </div>
+                      <DepartmentsWidget
+                        :value="grantTargetDepartmentsValue"
+                        :field="grantTargetDepartmentsField"
+                        mode="edit"
+                        field-path="grantTargetDepartments"
+                        @update:modelValue="handleGrantTargetDepartmentsChange"
+                      />
                       <el-alert
                         type="info"
                         :closable="false"
@@ -384,20 +358,13 @@
     </div>
   </div>
 
-  <!-- 组织架构选择器对话框（多选） -->
-  <DepartmentPickerDialog
-    v-model="showDepartmentSelector"
-    :initial-paths="grantTargetDepartmentPaths.join(',')"
-    :multiple="true"
-    @confirm="handleDepartmentsSelect"
-  />
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElText, ElIcon, ElTree, ElDivider } from 'element-plus'
-import { Document, Folder, Lock, OfficeBuilding, UserFilled, User, Close } from '@element-plus/icons-vue'
+import { Document, Folder, Lock, OfficeBuilding, UserFilled, User } from '@element-plus/icons-vue'
 import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/shared/components/icons/TableIcon.vue'
 import FormIcon from '@/shared/components/icons/FormIcon.vue'
@@ -416,20 +383,19 @@ import {
   type PermissionResourceType
 } from '@/utils/permission'
 import { applyPermission, getWorkspacePermissions, addPermission, type AddPermissionReq } from '@/api/permission'
-import { getDepartmentTree, getUsersByDepartment, type Department } from '@/api/department'
 import type { FormInstance, FormRules } from 'element-plus'
 import { getAppWithServiceTree } from '@/api/app'
 import { getRolesForPermissionRequest, type Role, type RolePermission } from '@/api/role'
 import { useAuthStore } from '@/stores/auth'
 import type { ServiceTree, App } from '@/types'
-import DepartmentPickerDialog from '@/shared/components/DepartmentPickerDialog.vue'
 import type { UserInfo } from '@/types'
 import UsersWidget from '@/shared/components/UsersWidget.vue'
+import DepartmentsWidget from '@/shared/components/DepartmentsWidget.vue'
 import type { FieldConfig, FieldValue } from '@/core/types/field'
 import { WidgetType } from '@/core/constants/widget'
 import { isServiceTreeNodeAdmin, parseUsernameList } from '@/utils/permissionActors'
 import { buildAppResourcePath, parseResourcePath } from '@/utils/resourcePath'
-import { createStringFieldValue, createWidgetFieldConfig } from '@/utils/widgetFieldHelpers'
+import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/utils/widgetFieldHelpers'
 
 const route = useRoute()
 const router = useRouter()
@@ -609,34 +575,6 @@ const hasManagePermission = computed(() => {
 // 赋权对象类型：self（自己）、user（其他用户）、department（部门）
 const grantTargetType = ref<'self' | 'user' | 'department'>('self')
 
-// 赋权目标：个人（用户对象）或组织架构（部门路径，支持多选）
-const grantTargetDepartment = ref<string>('') // 保留兼容，实际用 selectedDepartments
-const selectedDepartments = ref<Department[]>([])
-
-// 部门路径数组（用于提交和 initial-paths）
-const grantTargetDepartmentPaths = computed(() => selectedDepartments.value.map(d => d.full_code_path))
-
-// 对话框状态
-const showDepartmentSelector = ref(false)
-
-// 监听部门路径变化（兼容旧逻辑，selectedDepartments 为主）
-watch(grantTargetDepartmentPaths, (paths) => {
-  if (paths.length === 0) {
-    grantTargetDepartment.value = ''
-    return
-  }
-  grantTargetDepartment.value = paths.join(',')
-})
-
-// 处理部门选择（多选）
-const handleDepartmentsSelect = (departments: Department[]) => {
-  selectedDepartments.value = departments
-}
-
-const removeSelectedDepartment = (dept: Department) => {
-  selectedDepartments.value = selectedDepartments.value.filter(d => d.full_code_path !== dept.full_code_path)
-}
-
 // 日期选择器快捷选项
 const datePickerShortcuts = computed(() => {
   const now = new Date()
@@ -738,22 +676,6 @@ const approversFieldValue = computed(() => createStringFieldValue(
   }
 ))
 
-// 部门列表（用于组织架构赋权）
-const departmentTree = ref<Department[]>([])
-const flatDepartmentList = computed(() => {
-  const flatten = (depts: Department[]): Department[] => {
-    const result: Department[] = []
-    depts.forEach(dept => {
-      result.push(dept)
-      if (dept.children && dept.children.length > 0) {
-        result.push(...flatten(dept.children))
-      }
-    })
-    return result
-  }
-  return flatten(departmentTree.value)
-})
-
 // 格式化用户显示名称
 function formatUserDisplayName(user: UserInfo | null): string {
   if (!user) return ''
@@ -771,9 +693,25 @@ const grantTargetUsersField = createWidgetFieldConfig({
 
 const grantTargetUsersValue = ref<FieldValue>(createStringFieldValue(grantTargetUsersField, '', { emptyRaw: '' }))
 
+const grantTargetDepartmentsField = createWidgetFieldConfig({
+  code: 'grantTargetDepartments',
+  name: '申请权限的组织架构',
+  widgetType: WidgetType.DEPARTMENTS
+})
+
+const grantTargetDepartmentsValue = ref<FieldValue>(
+  createStringFieldValue(grantTargetDepartmentsField, '', { emptyRaw: '' })
+)
+
+const selectedDepartmentPaths = computed(() => extractStringFieldRaw(grantTargetDepartmentsValue.value).split(',').filter(Boolean))
+
 // 处理赋权目标用户变化
 const handleGrantTargetUsersChange = (value: FieldValue) => {
   grantTargetUsersValue.value = value
+}
+
+const handleGrantTargetDepartmentsChange = (value: FieldValue) => {
+  grantTargetDepartmentsValue.value = value
 }
 
 // 是否可以提交
@@ -785,7 +723,7 @@ const canSubmit = computed(() => {
   if (grantTargetType.value === 'user') {
     return grantTargetUsersValue.value?.raw && String(grantTargetUsersValue.value.raw).trim() !== ''
   } else if (grantTargetType.value === 'department') {
-    return selectedDepartments.value.length > 0
+    return selectedDepartmentPaths.value.length > 0
   }
   // self 类型总是可以提交（如果已选择角色）
   return true
@@ -1021,8 +959,6 @@ onMounted(async () => {
       // 加载选中资源的权限范围
       await loadResourcePermissions(resourcePath, action, templateType)
       
-      // 加载部门树（用于组织架构赋权）
-      await loadDepartmentTree()
     } else {
       error.value = '无法加载服务树数据'
     }
@@ -1034,23 +970,12 @@ onMounted(async () => {
   loading.value = false
 })
 
-// 加载部门树
-async function loadDepartmentTree() {
-  try {
-    const res = await getDepartmentTree()
-    departmentTree.value = res.departments || []
-  } catch (error: any) {
-    console.warn('加载部门树失败:', error)
-    // 不显示错误，因为赋权功能是可选的
-  }
-}
-
 // 监听赋权对象类型变化，重置相关状态
 watch(() => grantTargetType.value, (newType) => {
   if (newType === 'self') {
-    selectedDepartments.value = []
+    grantTargetDepartmentsValue.value = createStringFieldValue(grantTargetDepartmentsField, '', { emptyRaw: '' })
   } else if (newType === 'user') {
-    selectedDepartments.value = []
+    grantTargetDepartmentsValue.value = createStringFieldValue(grantTargetDepartmentsField, '', { emptyRaw: '' })
   }
 })
 
@@ -2131,23 +2056,23 @@ const handleSubmit = async () => {
       subject = String(selectedUsernames).trim() // 多个用户名用逗号分隔
     } else if (grantTargetType.value === 'department') {
       // 给部门申请权限（支持多选，每个部门单独提交一条）
-      if (selectedDepartments.value.length === 0) {
+      if (selectedDepartmentPaths.value.length === 0) {
         ElMessage.warning('请至少选择一个要申请权限的部门')
         return
       }
       subjectType = 'department'
       // 多部门：循环提交，每个部门一条申请
-      for (const dept of selectedDepartments.value) {
+      for (const departmentPath of selectedDepartmentPaths.value) {
         await applyPermission({
           resource_path: resourcePath,
           role_id: selectedRoleId.value,
           subject_type: 'department',
-          subject: dept.full_code_path,
+          subject: departmentPath,
           reason: formData.value.reason,
           end_time: endTime,
         })
       }
-      const targetText = `共 ${selectedDepartments.value.length} 个部门`
+      const targetText = `共 ${selectedDepartmentPaths.value.length} 个部门`
       ElMessage.success(
         isGrantMode.value
           ? `已为${targetText}发起赋权申请，等待审批`
@@ -2173,7 +2098,7 @@ const handleSubmit = async () => {
       ? '自己' 
       : grantTargetType.value === 'user' 
       ? `用户 "${grantTargetUsersValue.value?.display || grantTargetUsersValue.value?.raw || ''}"` 
-      : `部门 "${grantTargetDepartment.value}"`
+      : `部门 (${selectedDepartmentPaths.value.length})`
     
     ElMessage.success(
       isGrantMode.value
@@ -3367,118 +3292,6 @@ const clearRoleSelection = () => {
                       overflow: hidden;
                       text-overflow: ellipsis;
                       white-space: nowrap;
-                    }
-                  }
-                }
-              }
-
-              .remove-btn {
-                position: absolute;
-                top: 8px;
-                right: 8px;
-                width: 24px;
-                height: 24px;
-                padding: 0;
-                flex-shrink: 0;
-                z-index: 1;
-              }
-            }
-          }
-
-          .selected-department-details {
-            margin-top: 12px;
-            width: 100%;
-            max-width: 100%;
-            overflow: hidden;
-
-            .selected-department-card {
-              position: relative;
-              padding: 12px;
-              padding-right: 36px;
-              background: var(--el-bg-color);
-              border: 1px solid var(--el-color-primary-light-7);
-              border-radius: 8px;
-              box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-              width: 100%;
-              max-width: 100%;
-              box-sizing: border-box;
-              overflow: hidden;
-
-              .department-content {
-                display: flex;
-                gap: 12px;
-                width: 100%;
-                max-width: 100%;
-                min-width: 0;
-                overflow: hidden;
-
-                .department-icon {
-                  flex-shrink: 0;
-                  width: 36px;
-                  height: 36px;
-                  object-fit: contain;
-                }
-
-                .department-info {
-                  flex: 1;
-                  min-width: 0;
-                  max-width: 100%;
-                  overflow: hidden;
-
-                  .department-name {
-                    font-size: 14px;
-                    font-weight: 600;
-                    color: var(--el-text-color-primary);
-                    margin-bottom: 4px;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    width: 100%;
-                    max-width: 100%;
-                  }
-
-                  .department-meta {
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 8px;
-                    font-size: 12px;
-                    color: var(--el-text-color-secondary);
-                    line-height: 1.4;
-                    width: 100%;
-                    max-width: 100%;
-                    overflow: hidden;
-
-                    .department-path {
-                      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-                      color: var(--el-text-color-secondary);
-                      white-space: nowrap;
-                      overflow: hidden;
-                      text-overflow: ellipsis;
-                      max-width: 200px;
-                    }
-
-                    .department-full-name {
-                      color: var(--el-text-color-regular);
-                      white-space: nowrap;
-                      overflow: hidden;
-                      text-overflow: ellipsis;
-                      max-width: 150px;
-                    }
-
-                    .department-managers {
-                      display: inline-flex;
-                      align-items: center;
-                      gap: 4px;
-                      color: var(--el-text-color-secondary);
-                      white-space: nowrap;
-                      overflow: hidden;
-                      text-overflow: ellipsis;
-                      max-width: 180px;
-
-                      .el-icon {
-                        font-size: 12px;
-                        flex-shrink: 0;
-                      }
                     }
                   }
                 }

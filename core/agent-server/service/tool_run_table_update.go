@@ -37,6 +37,7 @@ func (t *RunTableUpdateTool) Execute(ctx context.Context, call ToolCall) ToolRes
 
 // runTableUpdateTool 执行 Table 批量更新；body 为 JSON 数组，每项 { id, updates }
 func runTableUpdateTool(ctx context.Context, args runTableUpdateArgs, currentFullCodePath string) (string, bool) {
+	ctx = withAgentToolClientSource(ctx)
 	fullCodePath := resolveFullCodePathArg(args.FullCodePath, currentFullCodePath)
 	if fullCodePath == "" {
 		return "run_table_update 需传 full_code_path（表格函数路径，如 /luobei/myapp/nps/nps_questionnaire_list）。", true

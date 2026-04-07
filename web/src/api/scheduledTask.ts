@@ -34,10 +34,18 @@ export interface ScheduledTaskItem {
   app: string
   full_code_path: string
   action?: string
+  method?: string
+  payload?: string
+  request_user?: string
+  request_user_dept?: string
   created_by: string
   schedule_type: string
   run_at: string
   next_run_at?: string
+  cron_expr?: string
+  interval_seconds?: number
+  max_runs?: number
+  timezone?: string
   status: string
   run_count: number
   error_message?: string

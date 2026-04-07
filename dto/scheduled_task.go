@@ -21,20 +21,28 @@ type CreateScheduledTaskReq struct {
 
 // ScheduledTaskItem 定时任务列表项
 type ScheduledTaskItem struct {
-	ID           int64   `json:"id"`
-	Name         string  `json:"name"`
-	User         string  `json:"user"`
-	App          string  `json:"app"`
-	FullCodePath string  `json:"full_code_path"`
-	Action       string  `json:"action"`
-	CreatedBy    string  `json:"created_by"`
-	ScheduleType string  `json:"schedule_type"`
-	RunAt        string  `json:"run_at"`
-	NextRunAt    *string `json:"next_run_at,omitempty"`
-	Status       string  `json:"status"`
-	RunCount     int     `json:"run_count"`
-	ErrorMessage string  `json:"error_message,omitempty"`
-	CreatedAt    string  `json:"created_at"`
+	ID              int64   `json:"id"`
+	Name            string  `json:"name"`
+	User            string  `json:"user"`
+	App             string  `json:"app"`
+	FullCodePath    string  `json:"full_code_path"`
+	Action          string  `json:"action"`
+	Method          string  `json:"method"`
+	Payload         string  `json:"payload"`
+	RequestUser     string  `json:"request_user"`
+	RequestUserDept string  `json:"request_user_dept"`
+	CreatedBy       string  `json:"created_by"`
+	ScheduleType    string  `json:"schedule_type"`
+	RunAt           string  `json:"run_at"`
+	NextRunAt       *string `json:"next_run_at,omitempty"`
+	CronExpr        string  `json:"cron_expr,omitempty"`
+	IntervalSeconds int64   `json:"interval_seconds,omitempty"`
+	MaxRuns         int     `json:"max_runs,omitempty"`
+	Timezone        string  `json:"timezone,omitempty"`
+	Status          string  `json:"status"`
+	RunCount        int     `json:"run_count"`
+	ErrorMessage    string  `json:"error_message,omitempty"`
+	CreatedAt       string  `json:"created_at"`
 }
 
 // ScheduledTaskExecutionItem 执行记录列表项

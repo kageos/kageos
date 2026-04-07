@@ -1,53 +1,135 @@
 <template>
   <div class="scheduled-task-list" v-loading="loading">
-    <div class="list-toolbar">
-      <span class="list-tip">仅展示当前函数的定时任务（按路径过滤）</span>
-      <el-button type="primary" link @click="loadList">刷新</el-button>
+    <div class="section-header">
+      <div class="section-copy">
+        <div class="section-title">定时任务</div>
+        <div class="section-desc">查看当前函数及子路径下的调度任务，并追踪每次执行结果。</div>
+      </div>
+      <div class="section-actions">
+        <span class="section-total">共 {{ resourceTotal }} 个任务</span>
+        <el-button type="primary" @click="loadList">刷新</el-button>
+      </div>
     </div>
-    <el-empty v-if="!loading && list.length === 0" description="暂无定时任务" />
-    <el-table v-else :data="list" stripe style="width: 100%">
-      <el-table-column prop="name" label="任务名称" min-width="160" show-overflow-tooltip />
-      <el-table-column prop="action" label="动作" width="110">
-        <template #default="{ row }">
-          <el-tag size="small" type="info">{{ actionLabel(row.action) }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="schedule_type" label="类型" width="100">
-        <template #default="{ row }">
-          <el-tag size="small">{{ scheduleTypeLabel(row.schedule_type) }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="run_at" label="首次执行" width="165">
-        <template #default="{ row }">{{ formatDateTime(row.run_at) }}</template>
-      </el-table-column>
-      <el-table-column prop="next_run_at" label="下次执行" width="165">
-        <template #default="{ row }">
-          {{ row.next_run_at ? formatDateTime(row.next_run_at) : '-' }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="status" label="状态" width="90">
-        <template #default="{ row }">
-          <el-tag :type="statusTagType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="run_count" label="已执行" width="80" />
-      <el-table-column label="操作" width="140" fixed="right">
-        <template #default="{ row }">
-          <el-button
-            v-if="row.status === 'pending'"
-            type="danger"
-            link
-            size="small"
-            @click="handleCancel(row)"
+
+    <div class="filter-section">
+      <el-form :inline="true" :model="filterForm" class="filter-form">
+        <el-form-item label="状态">
+          <el-select
+            v-model="filterForm.status"
+            placeholder="全部状态"
+            clearable
+            style="width: 160px"
+            @change="handleFilterChange"
           >
-            取消
-          </el-button>
-          <el-button type="primary" link size="small" @click="openExecutions(row)">
-            执行记录
-          </el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+            <el-option label="全部状态" value="" />
+            <el-option label="待执行" value="pending" />
+            <el-option label="已完成" value="done" />
+            <el-option label="失败" value="failed" />
+            <el-option label="已取消" value="cancelled" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button @click="resetFilters">重置</el-button>
+        </el-form-item>
+      </el-form>
+      <div class="filter-summary">
+        <span>当前仅展示当前节点及其子路径下的任务</span>
+        <span v-if="filterForm.status">筛选后 {{ total }} 条</span>
+      </div>
+    </div>
+
+    <div class="table-section">
+      <el-empty
+        v-if="!loading && list.length === 0"
+        :description="filterForm.status ? '当前筛选条件下暂无定时任务' : '暂无定时任务'"
+      />
+      <el-table
+        v-else
+        :data="list"
+        stripe
+        style="width: 100%"
+        class="task-table"
+        @row-click="handleTaskRowClick"
+      >
+        <el-table-column prop="name" label="任务名称" min-width="180" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span class="task-name">{{ row.name || '未命名任务' }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="full_code_path" label="函数路径" min-width="260" show-overflow-tooltip />
+
+        <el-table-column label="动作" width="110">
+          <template #default="{ row }">
+            <el-tag size="small" type="info">{{ actionLabel(row.action) }}</el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="调度方式" min-width="240">
+          <template #default="{ row }">
+            <div class="schedule-cell">
+              <div class="schedule-top">
+                <el-tag size="small">{{ scheduleTypeLabel(row.schedule_type) }}</el-tag>
+              </div>
+              <div class="schedule-summary" :title="getScheduleSummary(row)">{{ getScheduleSummary(row) }}</div>
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="request_user" label="执行身份" width="140" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.request_user || row.created_by || '-' }}</template>
+        </el-table-column>
+
+        <el-table-column prop="status" label="状态" width="120">
+          <template #default="{ row }">
+            <div class="status-cell">
+              <el-tag :type="statusTagType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
+              <el-tooltip
+                v-if="row.error_message"
+                :content="row.error_message"
+                placement="top"
+                effect="light"
+              >
+                <span class="error-dot" />
+              </el-tooltip>
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="下次执行" width="180">
+          <template #default="{ row }">
+            {{ row.next_run_at ? formatDateTime(row.next_run_at) : '-' }}
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="run_count" label="已执行" width="90" />
+
+        <el-table-column label="创建时间" width="180">
+          <template #default="{ row }">{{ formatDateTime(row.created_at) }}</template>
+        </el-table-column>
+
+        <el-table-column label="操作" width="180" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" link size="small" @click.stop="openTaskDetail(row)">
+              详情
+            </el-button>
+            <el-button type="primary" link size="small" @click.stop="openExecutions(row)">
+              执行记录
+            </el-button>
+            <el-button
+              v-if="row.status === 'pending'"
+              type="danger"
+              link
+              size="small"
+              @click.stop="handleCancel(row)"
+            >
+              取消
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+
     <el-pagination
       v-if="total > 0"
       v-model:current-page="page"
@@ -57,34 +139,168 @@
       layout="total, sizes, prev, pager, next"
       class="list-pagination"
       @current-change="loadList"
-      @size-change="loadList"
+      @size-change="handlePageSizeChange"
     />
+
+    <el-dialog
+      v-model="taskDetailVisible"
+      :title="taskDetailTitle"
+      width="960px"
+      destroy-on-close
+    >
+      <template v-if="currentTask">
+        <div class="detail-overview">
+          <div class="overview-item">
+            <span class="overview-label">任务名称</span>
+            <span class="overview-value">{{ currentTask.name || '-' }}</span>
+          </div>
+          <div class="overview-item">
+            <span class="overview-label">函数路径</span>
+            <span class="overview-value">{{ currentTask.full_code_path }}</span>
+          </div>
+          <div class="overview-item">
+            <span class="overview-label">执行动作</span>
+            <span class="overview-value">{{ actionLabel(currentTask.action) }}</span>
+          </div>
+          <div class="overview-item">
+            <span class="overview-label">请求方法</span>
+            <span class="overview-value">{{ currentTask.method || 'POST' }}</span>
+          </div>
+          <div class="overview-item">
+            <span class="overview-label">调度方式</span>
+            <span class="overview-value">
+              {{ scheduleTypeLabel(currentTask.schedule_type) }} / {{ getScheduleSummary(currentTask) }}
+            </span>
+          </div>
+          <div class="overview-item">
+            <span class="overview-label">执行身份</span>
+            <span class="overview-value">{{ currentTask.request_user || '-' }}</span>
+          </div>
+          <div class="overview-item">
+            <span class="overview-label">创建者</span>
+            <span class="overview-value">{{ currentTask.created_by || '-' }}</span>
+          </div>
+          <div class="overview-item">
+            <span class="overview-label">当前状态</span>
+            <span class="overview-value">
+              <el-tag :type="statusTagType(currentTask.status)" size="small">
+                {{ statusLabel(currentTask.status) }}
+              </el-tag>
+            </span>
+          </div>
+          <div class="overview-item">
+            <span class="overview-label">首次执行</span>
+            <span class="overview-value">{{ formatDateTime(currentTask.run_at) }}</span>
+          </div>
+          <div class="overview-item">
+            <span class="overview-label">下次执行</span>
+            <span class="overview-value">
+              {{ currentTask.next_run_at ? formatDateTime(currentTask.next_run_at) : '-' }}
+            </span>
+          </div>
+          <div class="overview-item">
+            <span class="overview-label">时区</span>
+            <span class="overview-value">{{ currentTask.timezone || '-' }}</span>
+          </div>
+          <div class="overview-item">
+            <span class="overview-label">已执行次数</span>
+            <span class="overview-value">{{ currentTask.run_count || 0 }}</span>
+          </div>
+        </div>
+
+        <el-alert
+          v-if="currentTask.error_message"
+          title="最近一次失败原因"
+          :description="currentTask.error_message"
+          type="warning"
+          show-icon
+          :closable="false"
+          class="detail-alert"
+        />
+
+        <div class="payload-section">
+          <div class="payload-header">
+            <span class="payload-title">任务请求参数</span>
+            <span class="payload-tip">创建任务时保存的请求体</span>
+          </div>
+          <pre class="payload-pre">{{ formatPayload(currentTask.payload) }}</pre>
+        </div>
+      </template>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="taskDetailVisible = false">关闭</el-button>
+          <el-button type="primary" @click="openExecutionsFromDetail">查看执行记录</el-button>
+          <el-button
+            v-if="currentTask?.status === 'pending'"
+            type="danger"
+            @click="handleCancelFromDetail"
+          >
+            取消任务
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
 
     <el-dialog
       v-model="executionsVisible"
       :title="`执行记录：${currentTaskName}`"
-      width="80%"
+      width="88%"
       destroy-on-close
     >
-      <el-table :data="executions" stripe v-loading="executionsLoading">
-        <el-table-column prop="executed_at" label="执行时间" width="175">
+      <div class="execution-toolbar">
+        <el-form :inline="true" :model="executionFilterForm" class="filter-form">
+          <el-form-item label="状态">
+            <el-select
+              v-model="executionFilterForm.status"
+              placeholder="全部状态"
+              clearable
+              style="width: 160px"
+              @change="handleExecutionFilterChange"
+            >
+              <el-option label="全部状态" value="" />
+              <el-option label="成功" value="success" />
+              <el-option label="失败" value="failed" />
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-button @click="loadExecutions">刷新</el-button>
+          </el-form-item>
+        </el-form>
+        <span class="section-total">共 {{ executionsTotal }} 条记录</span>
+      </div>
+
+      <el-empty
+        v-if="!executionsLoading && executions.length === 0"
+        :description="executionFilterForm.status ? '当前筛选条件下暂无执行记录' : '暂无执行记录'"
+      />
+      <el-table
+        v-else
+        :data="executions"
+        stripe
+        class="execution-table"
+        v-loading="executionsLoading"
+        @row-click="handleExecutionRowClick"
+      >
+        <el-table-column prop="executed_at" label="执行时间" width="180">
           <template #default="{ row }">{{ formatDateTime(row.executed_at) }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="90">
+        <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="row.status === 'success' ? 'success' : 'danger'" size="small">
               {{ statusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="error_message" label="错误信息" min-width="200" show-overflow-tooltip />
-        <el-table-column label="请求/响应" width="120">
+        <el-table-column prop="trace_id" label="Trace ID" min-width="200" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.trace_id || '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="error_message" label="错误信息" min-width="260" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.error_message || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="100" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="showPayload(row.request_payload, '请求')">
-              请求
-            </el-button>
-            <el-button link type="primary" size="small" @click="showPayload(row.response_payload, '响应')">
-              响应
+            <el-button type="primary" link size="small" @click.stop="openExecutionDetail(row)">
+              详情
             </el-button>
           </template>
         </el-table-column>
@@ -97,18 +313,67 @@
         layout="total, prev, pager, next"
         class="executions-pagination"
         @current-change="loadExecutions"
-        @size-change="loadExecutions"
+        @size-change="handleExecutionPageSizeChange"
       />
     </el-dialog>
 
-    <el-dialog v-model="payloadVisible" :title="payloadDialogTitle" width="600px" destroy-on-close>
-      <pre class="payload-pre">{{ payloadPreview }}</pre>
+    <el-dialog
+      v-model="executionDetailVisible"
+      title="执行详情"
+      width="960px"
+      destroy-on-close
+    >
+      <template v-if="currentExecution">
+        <div class="detail-overview execution-overview">
+          <div class="overview-item">
+            <span class="overview-label">执行时间</span>
+            <span class="overview-value">{{ formatDateTime(currentExecution.executed_at) }}</span>
+          </div>
+          <div class="overview-item">
+            <span class="overview-label">执行状态</span>
+            <span class="overview-value">
+              <el-tag :type="currentExecution.status === 'success' ? 'success' : 'danger'" size="small">
+                {{ statusLabel(currentExecution.status) }}
+              </el-tag>
+            </span>
+          </div>
+          <div class="overview-item">
+            <span class="overview-label">Trace ID</span>
+            <span class="overview-value">{{ currentExecution.trace_id || '-' }}</span>
+          </div>
+        </div>
+
+        <el-alert
+          v-if="currentExecution.error_message"
+          title="执行失败"
+          :description="currentExecution.error_message"
+          type="error"
+          show-icon
+          :closable="false"
+          class="detail-alert"
+        />
+
+        <div class="payload-grid">
+          <div class="payload-panel">
+            <div class="payload-header">
+              <span class="payload-title">请求参数</span>
+            </div>
+            <pre class="payload-pre">{{ formatPayload(currentExecution.request_payload) }}</pre>
+          </div>
+          <div class="payload-panel">
+            <div class="payload-header">
+              <span class="payload-title">响应结果</span>
+            </div>
+            <pre class="payload-pre">{{ formatPayload(currentExecution.response_payload) }}</pre>
+          </div>
+        </div>
+      </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onUnmounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   listScheduledTasks,
@@ -131,104 +396,228 @@ const emit = defineEmits<{ (e: 'total-change', total: number): void }>()
 const loading = ref(false)
 const list = ref<ScheduledTaskItem[]>([])
 const total = ref(0)
+const resourceTotal = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
+const filterForm = ref({
+  status: ''
+})
 
-function scheduleTypeLabel(t: string) {
-  const m: Record<string, string> = { atime: '指定时间', cron: 'Cron', every: '每 N 秒' }
-  return m[t] ?? t
+function scheduleTypeLabel(type: string) {
+  const mapping: Record<string, string> = {
+    atime: '指定时间',
+    cron: 'Cron',
+    every: '每 N 秒'
+  }
+  return mapping[type] ?? type
 }
 
-function actionLabel(a?: string) {
-  const m: Record<string, string> = {
+function actionLabel(action?: string) {
+  const mapping: Record<string, string> = {
     execute: '普通执行',
     table_create: '表格新增',
     table_update: '表格更新',
     table_delete: '表格删除'
   }
-  return a ? (m[a] ?? a) : '普通执行'
+  return action ? (mapping[action] ?? action) : '普通执行'
 }
 
-function statusTagType(s: string) {
-  const m: Record<string, string> = {
+function statusTagType(status: string) {
+  const mapping: Record<string, string> = {
     pending: 'warning',
     done: 'success',
     failed: 'danger',
     cancelled: 'info'
   }
-  return m[s] ?? 'info'
+  return mapping[status] ?? 'info'
 }
 
-/** 状态中文展示 */
-function statusLabel(s: string) {
-  const m: Record<string, string> = {
+function statusLabel(status: string) {
+  const mapping: Record<string, string> = {
     pending: '待执行',
     done: '已完成',
     failed: '失败',
     cancelled: '已取消',
     success: '成功'
   }
-  return m[s] ?? s
+  return mapping[status] ?? status
 }
 
-function formatDateTime(s: string) {
-  if (!s) return ''
-  const d = new Date(s)
-  return d.toLocaleString('zh-CN')
+function formatDateTime(value?: string | null) {
+  if (!value) {
+    return '-'
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return date.toLocaleString('zh-CN')
+}
+
+function formatPayload(raw?: string | null) {
+  if (!raw) {
+    return '{}'
+  }
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2)
+  } catch {
+    return raw
+  }
+}
+
+function getScheduleSummary(task: ScheduledTaskItem) {
+  switch (task.schedule_type) {
+    case 'cron':
+      return task.cron_expr ? `Cron：${task.cron_expr}` : '按 Cron 表达式重复执行'
+    case 'every': {
+      const seconds = task.interval_seconds || 0
+      const runLimit = task.max_runs ? `，最多执行 ${task.max_runs} 次` : '，不限制次数'
+      return `每 ${seconds} 秒执行一次${runLimit}`
+    }
+    case 'atime':
+    default:
+      return '到点执行一次'
+  }
+}
+
+function emitResourceTotal(totalValue: number) {
+  resourceTotal.value = totalValue
+  emit('total-change', totalValue)
 }
 
 async function loadList() {
   if (!props.resourcePath) {
     list.value = []
     total.value = 0
+    emitResourceTotal(0)
     return
   }
+
   loading.value = true
   try {
-    const res = await listScheduledTasks({
+    const filteredParams = {
       full_code_path: props.resourcePath,
+      status: filterForm.value.status || undefined,
       page: page.value,
       page_size: pageSize.value
-    })
+    }
+
+    if (filterForm.value.status) {
+      const [filteredRes, baseRes] = await Promise.all([
+        listScheduledTasks(filteredParams),
+        listScheduledTasks({
+          full_code_path: props.resourcePath,
+          page: 1,
+          page_size: 1
+        })
+      ])
+      list.value = filteredRes.list ?? []
+      total.value = filteredRes.total ?? 0
+      emitResourceTotal(baseRes.total ?? 0)
+      return
+    }
+
+    const res = await listScheduledTasks(filteredParams)
     list.value = res.list ?? []
     total.value = res.total ?? 0
+    emitResourceTotal(res.total ?? 0)
   } catch {
     list.value = []
     total.value = 0
+    emitResourceTotal(0)
   } finally {
     loading.value = false
-    emit('total-change', total.value)
   }
+}
+
+function handleFilterChange() {
+  page.value = 1
+  loadList()
+}
+
+function handlePageSizeChange() {
+  page.value = 1
+  loadList()
+}
+
+function resetFilters() {
+  filterForm.value.status = ''
+  page.value = 1
+  loadList()
 }
 
 watch(
   () => [props.resourcePath, props.autoLoad] as const,
   ([path, auto]) => {
-    if (path && auto) loadList()
-    else if (!path) {
+    if (path && auto) {
+      page.value = 1
+      loadList()
+    } else if (!path) {
       list.value = []
       total.value = 0
+      emitResourceTotal(0)
     }
   },
   { immediate: true }
 )
 
-eventBus.on(WorkspaceEvent.scheduledTaskCreated, () => {
-  if (props.resourcePath) loadList()
+const unsubscribeScheduledTaskCreated = eventBus.on(WorkspaceEvent.scheduledTaskCreated, () => {
+  if (props.resourcePath) {
+    loadList()
+  }
 })
+
+onUnmounted(() => {
+  unsubscribeScheduledTaskCreated()
+})
+
+function handleTaskRowClick(row: ScheduledTaskItem) {
+  openTaskDetail(row)
+}
 
 function handleCancel(row: ScheduledTaskItem) {
   ElMessageBox.confirm(`确定取消定时任务「${row.name}」？`, '取消任务', {
     type: 'warning'
-  }).then(async () => {
-    try {
-      await cancelScheduledTask(row.id)
-      ElMessage.success('已取消')
-      loadList()
-    } catch (e: any) {
-      ElMessage.error(e?.message || '取消失败')
-    }
-  }).catch(() => {})
+  })
+    .then(async () => {
+      try {
+        await cancelScheduledTask(row.id)
+        ElMessage.success('已取消')
+        if (currentTask.value?.id === row.id) {
+          taskDetailVisible.value = false
+        }
+        await loadList()
+      } catch (error: any) {
+        ElMessage.error(error?.message || '取消失败')
+      }
+    })
+    .catch(() => {})
+}
+
+const taskDetailVisible = ref(false)
+const currentTask = ref<ScheduledTaskItem | null>(null)
+
+const taskDetailTitle = ref('任务详情')
+
+function openTaskDetail(row: ScheduledTaskItem) {
+  currentTask.value = row
+  taskDetailTitle.value = row.name ? `任务详情：${row.name}` : '任务详情'
+  taskDetailVisible.value = true
+}
+
+function handleCancelFromDetail() {
+  if (!currentTask.value) {
+    return
+  }
+  handleCancel(currentTask.value)
+}
+
+function openExecutionsFromDetail() {
+  if (!currentTask.value) {
+    return
+  }
+  taskDetailVisible.value = false
+  openExecutions(currentTask.value)
 }
 
 const executionsVisible = ref(false)
@@ -239,20 +628,27 @@ const executionsPageSize = ref(20)
 const executionsLoading = ref(false)
 const currentTaskId = ref(0)
 const currentTaskName = ref('')
+const executionFilterForm = ref({
+  status: ''
+})
 
 function openExecutions(row: ScheduledTaskItem) {
   currentTaskId.value = row.id
-  currentTaskName.value = row.name
+  currentTaskName.value = row.name || '未命名任务'
   executionsPage.value = 1
+  executionFilterForm.value.status = ''
   executionsVisible.value = true
   loadExecutions()
 }
 
 async function loadExecutions() {
-  if (!currentTaskId.value) return
+  if (!currentTaskId.value) {
+    return
+  }
   executionsLoading.value = true
   try {
     const res = await listScheduledTaskExecutions(currentTaskId.value, {
+      status: executionFilterForm.value.status || undefined,
       page: executionsPage.value,
       page_size: executionsPageSize.value
     })
@@ -266,45 +662,284 @@ async function loadExecutions() {
   }
 }
 
-const payloadVisible = ref(false)
-const payloadDialogTitle = ref('')
-const payloadPreview = ref('')
+function handleExecutionFilterChange() {
+  executionsPage.value = 1
+  loadExecutions()
+}
 
-function showPayload(raw: string, title: string) {
-  try {
-    payloadPreview.value = JSON.stringify(JSON.parse(raw || '{}'), null, 2)
-  } catch {
-    payloadPreview.value = raw || ''
-  }
-  payloadDialogTitle.value = title
-  payloadVisible.value = true
+function handleExecutionPageSizeChange() {
+  executionsPage.value = 1
+  loadExecutions()
+}
+
+const executionDetailVisible = ref(false)
+const currentExecution = ref<ScheduledTaskExecutionItem | null>(null)
+
+function handleExecutionRowClick(row: ScheduledTaskExecutionItem) {
+  openExecutionDetail(row)
+}
+
+function openExecutionDetail(row: ScheduledTaskExecutionItem) {
+  currentExecution.value = row
+  executionDetailVisible.value = true
 }
 </script>
 
 <style scoped>
 .scheduled-task-list {
-  padding: 12px;
+  padding: 20px;
 }
-.list-toolbar {
+
+.section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.section-copy {
+  min-width: 0;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  line-height: 1.4;
+}
+
+.section-desc {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.5;
+}
+
+.section-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
+  gap: 12px;
+  flex-shrink: 0;
 }
-.list-tip {
-  font-size: 12px;
+
+.section-total {
+  font-size: 13px;
   color: var(--el-text-color-secondary);
 }
+
+.filter-section {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px 8px;
+  margin-bottom: 16px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 12px;
+  background: var(--el-bg-color);
+}
+
+.filter-form {
+  flex: 1;
+}
+
+.filter-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.table-section {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--el-bg-color);
+}
+
+.task-table :deep(.el-table__row) {
+  cursor: pointer;
+}
+
+.task-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  line-height: 1.5;
+}
+
+.schedule-cell {
+  min-width: 0;
+}
+
+.schedule-top {
+  display: flex;
+  align-items: center;
+}
+
+.schedule-summary {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.error-dot {
+  display: inline-flex;
+  align-items: center;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--el-color-danger);
+}
+
 .list-pagination,
 .executions-pagination {
   margin-top: 16px;
   justify-content: flex-end;
 }
+
+.detail-overview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+}
+
+.overview-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--el-fill-color-light);
+}
+
+.overview-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
+}
+
+.overview-value {
+  font-size: 13px;
+  color: var(--el-text-color-primary);
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.detail-alert {
+  margin-top: 16px;
+}
+
+.payload-section,
+.payload-panel {
+  margin-top: 18px;
+}
+
+.payload-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.payload-panel {
+  min-width: 0;
+}
+
+.payload-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.payload-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.payload-tip {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
 .payload-pre {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-primary);
+  font-size: 12px;
+  line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-all;
-  max-height: 60vh;
+  max-height: 52vh;
   overflow: auto;
-  font-size: 12px;
+}
+
+.dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.execution-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 8px;
+}
+
+.execution-table :deep(.el-table__row) {
+  cursor: pointer;
+}
+
+.execution-overview {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 960px) {
+  .scheduled-task-list {
+    padding: 16px;
+  }
+
+  .section-header,
+  .filter-section,
+  .execution-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .section-actions {
+    justify-content: space-between;
+  }
+
+  .filter-summary {
+    white-space: normal;
+  }
+
+  .detail-overview,
+  .execution-overview,
+  .payload-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

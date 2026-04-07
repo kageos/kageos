@@ -22,6 +22,10 @@ const DepartmentFullPathHeader = "X-Department-Full-Path"
 
 // TokenHeader HTTP Header 中的 Token key（统一使用此名称）
 const TokenHeader = "X-Token"
+
+// ClientSourceHeader HTTP Header 中的客户端来源 key（统一使用此名称）
+const ClientSourceHeader = "X-Client-Source"
+
 const PubKeyHerder = "X-Pub-Key"
 
 // PresignHostKey 用于生成预签名 URL 时使用的 Host（与请求 Host 一致，避免 Nginx 代理后签名 403）
@@ -98,6 +102,23 @@ func GetRequestDepartmentFullPath(c context.Context) string {
 	return ""
 }
 
+// GetClientSource 获取客户端来源
+// 支持从 *gin.Context 或标准 context.Context 读取
+func GetClientSource(c context.Context) string {
+	v, ok := c.(*gin.Context)
+	if ok {
+		return v.GetHeader(ClientSourceHeader)
+	}
+
+	if value := c.Value(ClientSourceHeader); value != nil {
+		if source, ok := value.(string); ok && source != "" {
+			return source
+		}
+	}
+
+	return ""
+}
+
 // GetToken 获取认证 Token
 // ⭐ 只从 HTTP Header 读取（统一方式，避免混乱）
 func GetToken(c context.Context) string {
@@ -113,6 +134,18 @@ func GetToken(c context.Context) string {
 		}
 	}
 	return ""
+}
+
+// WithClientSource 为标准 context 写入客户端来源；空值时返回原 context
+func WithClientSource(ctx context.Context, source string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, ClientSourceHeader, source)
 }
 
 // PresignDefaultPort 当 Host 无端口且未收到 X-Forwarded-Port 时的默认端口（与当前默认 Web 入口端口一致）
