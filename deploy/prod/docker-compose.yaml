@@ -15,7 +15,7 @@ services:
     ports:
       - "127.0.0.1:3306:3306"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - ${STORAGE_ROOT}/mysql:/var/lib/mysql
       - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks: [aos]
 
@@ -40,7 +40,7 @@ services:
     ports:
       - "127.0.0.1:9000:9000"
     volumes:
-      - minio_data:/data
+      - ${STORAGE_ROOT}/minio:/data
     networks: [aos]
 
   # ─── 主服务（host 网络，容器内 Nginx 直接对外 80）─────────────
@@ -54,6 +54,7 @@ services:
     restart: unless-stopped
     environment:
       CANONICAL_BASE_URL: ${CANONICAL_BASE_URL}
+      STORAGE_ROOT: ${STORAGE_ROOT}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
@@ -66,23 +67,38 @@ services:
       SMTP_FROM: ${SMTP_FROM}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME}
     volumes:
-      - podman_storage:/var/lib/containers
-      - app_logs:/app/logs
-      - namespace_data:/app/namespace
-      - app_data:/app/data
+      - ${STORAGE_ROOT}/podman_storage:/var/lib/containers
+      - ${STORAGE_ROOT}/logs:/app/logs
+      - ${STORAGE_ROOT}/namespace:/app/namespace
+      - ${STORAGE_ROOT}/data:/app/data
+    depends_on:
+      - mysql
+      - minio
+
+  backup:
+    image: ${MAIN_IMAGE}
+    entrypoint: ["/app/entrypoint-backup.sh"]
+    restart: unless-stopped
+    environment:
+      STORAGE_ROOT: ${STORAGE_ROOT}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "127.0.0.1:19088:19088"
+    volumes:
+      - ${STORAGE_ROOT}/logs:/app/logs
+      - ${STORAGE_ROOT}/namespace:/app/namespace:ro
+      - ${STORAGE_ROOT}/data:/app/data
+      - ${STORAGE_ROOT}/mysql:/storage/mysql:ro
+      - ${STORAGE_ROOT}/minio:/storage/minio:ro
+      - ${STORAGE_ROOT}/podman_storage:/storage/podman_storage:ro
     depends_on:
       - mysql
       - nats
       - minio
+    networks: [aos]
 
 networks:
   aos:
     name: ai-agent-os-customer-aos
-
-volumes:
-  mysql_data:
-  minio_data:
-  podman_storage:
-  app_logs:
-  namespace_data:
-  app_data:

@@ -15,8 +15,10 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
+	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/serverx"
 	"github.com/gin-gonic/gin"
+	"github.com/nats-io/nats.go"
 )
 
 // Server api-gateway 服务器
@@ -28,6 +30,8 @@ type Server struct {
 	httpServer      *gin.Engine
 	sharedTransport *http.Transport // 共享 Transport，提高性能
 	tokenBlacklist  *TokenBlacklist // ⭐ 新增：Token 黑名单管理器
+	natsConn        *nats.Conn
+	subscriptions   []*nats.Subscription
 
 	// 上下文
 	ctx context.Context
@@ -41,6 +45,7 @@ func NewServer(cfg *config.APIGatewayConfig) (*Server, error) {
 		cfg:            cfg,
 		ctx:            ctx,
 		tokenBlacklist: NewTokenBlacklist(), // ⭐ 新增：初始化 Token 黑名单管理器
+		subscriptions:  make([]*nats.Subscription, 0),
 	}
 
 	// 初始化共享 Transport
@@ -66,10 +71,13 @@ func (s *Server) Start(ctx context.Context) error {
 	// 打印代理配置信息
 	s.printProxyRoutes(ctx)
 
-	// ⭐ 新增：启动 NATS 监听器
-	if err := s.startNATSListener(ctx); err != nil {
-		logger.Warnf(ctx, "[Server] Failed to start NATS listener: %v, continuing without NATS", err)
-		// 不返回错误，允许服务在没有 NATS 的情况下运行（向后兼容）
+	// 启动 NATS 连接和订阅。失败时保持向后兼容，不阻断 HTTP 服务。
+	if err := s.initNATS(ctx); err != nil {
+		logger.Warnf(ctx, "[Server] Failed to init NATS: %v, continuing without NATS", err)
+	} else if err := s.subscribeNATS(ctx); err != nil {
+		logger.Warnf(ctx, "[Server] Failed to subscribe NATS: %v, continuing without NATS", err)
+		s.unsubscribeNATS(ctx)
+		s.closeNATS(ctx)
 	}
 
 	// 启动 HTTP 服务器
@@ -139,8 +147,62 @@ func (s *Server) Stop(ctx context.Context) error {
 		logger.Infof(ctx, "[Server] Shared transport closed")
 	}
 
+	s.unsubscribeNATS(ctx)
+	s.closeNATS(ctx)
+
 	logger.Infof(ctx, "[Server] Api-gateway stopped")
 	return nil
+}
+
+// initNATS 初始化 NATS 连接
+func (s *Server) initNATS(ctx context.Context) error {
+	globalConfig := config.GetGlobalSharedConfig()
+	natsURL := globalConfig.Nats.URL
+	if natsURL == "" {
+		natsURL = "nats://127.0.0.1:4222"
+	}
+
+	conn, err := natsx.ConnectNamed(natsURL, "api-gateway")
+	if err != nil {
+		return fmt.Errorf("connect NATS: %w", err)
+	}
+
+	s.natsConn = conn
+	logger.Infof(ctx, "[Server] NATS connected: %s", conn.ConnectedUrl())
+	return nil
+}
+
+// subscribeNATS 注册所有 NATS 订阅
+func (s *Server) subscribeNATS(ctx context.Context) error {
+	if s.natsConn == nil {
+		return nil
+	}
+
+	tokenHandler := NewTokenCommandHandler(s.tokenBlacklist)
+	return RegisterNATS(ctx, s.natsConn, &s.subscriptions, tokenHandler)
+}
+
+// unsubscribeNATS 取消所有 NATS 订阅
+func (s *Server) unsubscribeNATS(ctx context.Context) {
+	for _, sub := range s.subscriptions {
+		if sub == nil {
+			continue
+		}
+		if err := sub.Unsubscribe(); err != nil {
+			logger.Warnf(ctx, "[Server] Failed to unsubscribe NATS subject %s: %v", sub.Subject, err)
+		}
+	}
+	s.subscriptions = s.subscriptions[:0]
+}
+
+// closeNATS 关闭 NATS 连接
+func (s *Server) closeNATS(ctx context.Context) {
+	if s.natsConn == nil {
+		return
+	}
+	s.natsConn.Close()
+	s.natsConn = nil
+	logger.Infof(ctx, "[Server] NATS connection closed")
 }
 
 // initRouter 初始化路由

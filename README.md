@@ -536,10 +536,11 @@ AI-Agent-OS 想做的，本质上是把这三层一起拆掉：
 1. 前端调用标准接口，例如 table/search、form/submit、chart/query
 2. app-server 用 `full_code_path` 解析出 user/app/router
 3. app-server 调用 `RequestApp`
-4. 请求通过 NATS 发往 `function_server.app_runtime.{user}.{app}.{version}`
-5. 应用容器内的 SDK App 收到消息，匹配 handler 并执行
-6. 结果通过 `app.function_server.*.*.*` 返回
-7. app-server 再把统一 JSON 响应给前端
+4. 请求先通过 NATS 发往 `runtime.v1.cmd.app.invoke.{user}.{app}.{version}`
+5. app-runtime 再把调用转发到应用容器内的 `app.v1.cmd.invoke.{user}.{app}.{version}`
+6. SDK App 收到消息，匹配 handler 并执行
+7. 结果通过 `app-server.v1.reply.app.invoke.{user}.{app}.{version}` 返回
+8. app-server 再把统一 JSON 响应给前端
 
 这个设计的好处是：
 

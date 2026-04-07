@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 生产主站部署脚本：直接读取 .env，支持首次部署与仅更新 main 服务
+# 生产主站部署脚本：直接读取 .env，统一使用 STORAGE_ROOT 宿主机目录
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -9,6 +9,7 @@ PROJECT_ROOT="$(cd "$ROOT/../.." && pwd)"
 ENV_FILE="$ROOT/.env"
 COMMAND="${1:-up}"
 ARG1="${2:-}"
+STORAGE_ROOT=""
 
 usage() {
   cat <<'EOF'
@@ -16,14 +17,14 @@ usage() {
 
 命令：
   up            首次部署 / 全量重建（默认）
-  update        仅重建并更新 main 服务，不重启 MySQL / NATS / MinIO
-  pull-update   git pull --ff-only 后，仅重建并更新 main 服务
+  update        仅重建并更新 main / backup 服务，不重启 MySQL / NATS / MinIO
+  pull-update   git pull --ff-only 后，仅重建并更新 main / backup 服务
   restart-main  仅重启 main 服务，不重建镜像
   build-app-base [--no-cache]
                 在 main 容器内单独构建用户应用基础镜像 ai-agent-os:latest
   logs [svc]    查看日志，默认 main
   status        查看 compose 服务状态
-  down          停止所有服务（保留数据卷）
+  down          停止所有服务（保留 STORAGE_ROOT 数据）
   help          显示帮助
 
 示例：
@@ -77,6 +78,25 @@ require_env_key() {
   fi
 }
 
+prepare_storage_layout() {
+  mkdir -p \
+    "$STORAGE_ROOT/mysql" \
+    "$STORAGE_ROOT/minio" \
+    "$STORAGE_ROOT/podman_storage" \
+    "$STORAGE_ROOT/logs" \
+    "$STORAGE_ROOT/namespace" \
+    "$STORAGE_ROOT/data/runtime/app-runtime" \
+    "$STORAGE_ROOT/data/license" \
+    "$STORAGE_ROOT/data/backup/repo" \
+    "$STORAGE_ROOT/data/backup/state" \
+    "$STORAGE_ROOT/data/backup/staging" \
+    "$STORAGE_ROOT/data/tmp"
+}
+
+print_storage_mode() {
+  echo "==> 存储模式: 宿主机固定目录 ($STORAGE_ROOT)"
+}
+
 COMPOSE_CMD=()
 
 ensure_compose_cmd() {
@@ -110,12 +130,18 @@ ensure_env_file() {
 validate_env() {
   ensure_env_file
   require_env_key CANONICAL_BASE_URL
+  require_env_key STORAGE_ROOT
   require_env_key MYSQL_ROOT_PASSWORD
   require_env_key JWT_SECRET
   require_env_key CONTROL_ENC_KEY
   require_env_key MINIO_ROOT_USER
   require_env_key MINIO_ROOT_PASSWORD
   require_env_key MAIN_IMAGE
+  STORAGE_ROOT="$(read_env_value STORAGE_ROOT)"
+  if [[ "$STORAGE_ROOT" != /* ]]; then
+    echo "ERROR: STORAGE_ROOT 必须是绝对路径，当前值: $STORAGE_ROOT"
+    exit 1
+  fi
   CANONICAL_BASE_URL="$(read_env_value CANONICAL_BASE_URL)"
 }
 
@@ -162,11 +188,12 @@ print_success() {
   echo "  操作完成"
   echo "=============================="
   echo "  访问地址: ${CANONICAL_BASE_URL}"
+  echo "  存储根目录: ${STORAGE_ROOT}"
   echo ""
   echo "  查看日志: bash build.sh logs main"
   echo "  查看状态: bash build.sh status"
   echo "  停止服务: bash build.sh down"
-  echo "  ⚠ 切勿:  ${COMPOSE_CMD[*]} --env-file $ENV_FILE down -v"
+  echo "  ⚠ 切勿:  rm -rf ${STORAGE_ROOT}"
   echo "=============================="
 }
 
@@ -174,7 +201,9 @@ cmd_up() {
   validate_env
   ensure_compose_cmd
   echo "==> 使用: ${COMPOSE_CMD[*]}"
+  print_storage_mode
   stop_host_nginx_if_needed
+  prepare_storage_layout
   ensure_port_80_available_for_first_up
   echo "==> 全量启动并构建..."
   compose_run up -d --build
@@ -185,9 +214,11 @@ cmd_update() {
   validate_env
   ensure_compose_cmd
   echo "==> 使用: ${COMPOSE_CMD[*]}"
+  print_storage_mode
   stop_host_nginx_if_needed
-  echo "==> 仅重建并更新 main 服务（不重启中间件）..."
-  compose_run up -d --build --no-deps main
+  prepare_storage_layout
+  echo "==> 仅重建并更新 main / backup 服务（不重启中间件）..."
+  compose_run up -d --build --no-deps main backup
   print_success
 }
 
@@ -202,7 +233,9 @@ cmd_restart_main() {
   validate_env
   ensure_compose_cmd
   echo "==> 使用: ${COMPOSE_CMD[*]}"
+  print_storage_mode
   stop_host_nginx_if_needed
+  prepare_storage_layout
   echo "==> 重启 main 服务..."
   compose_run restart main
   print_success

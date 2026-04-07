@@ -20,11 +20,11 @@ type AuthService struct {
 	jwtService      *auth.JWTService
 	userRepo        *repository.UserRepository
 	userSessionRepo *repository.UserSessionRepository
-	natsService     *NATSService // ⭐ 新增：NATS 服务（可选，可能为 nil）
+	tokenPublisher  TokenPublisher // 可选：向 gateway 发布 token 命令
 }
 
 // NewAuthService 创建认证服务（依赖注入）
-func NewAuthService(userRepo *repository.UserRepository, userSessionRepo *repository.UserSessionRepository, natsService *NATSService) *AuthService {
+func NewAuthService(userRepo *repository.UserRepository, userSessionRepo *repository.UserSessionRepository, tokenPublisher TokenPublisher) *AuthService {
 	config := appconfig.GetHRServerConfig()
 	jwtService := auth.NewJWTService()
 	return &AuthService{
@@ -32,7 +32,7 @@ func NewAuthService(userRepo *repository.UserRepository, userSessionRepo *reposi
 		jwtService:      jwtService,
 		userRepo:        userRepo,
 		userSessionRepo: userSessionRepo,
-		natsService:     natsService,
+		tokenPublisher:  tokenPublisher,
 	}
 }
 
@@ -234,8 +234,8 @@ func (s *AuthService) LoginUser(username, password string, remember bool) (*mode
 	}
 
 	// ⭐ 新增：通过 NATS 通知网关，移除旧 token 的黑名单
-	if s.natsService != nil && len(oldSessions) > 0 {
-		if err := s.natsService.RemoveTokenFromBlacklist(nil, user.ID, user.Username, oldSessions); err != nil {
+	if s.tokenPublisher != nil && len(oldSessions) > 0 {
+		if err := s.tokenPublisher.RemoveTokenFromBlacklist(nil, user.ID, user.Username, oldSessions); err != nil {
 			logger.Warnf(nil, "[AuthService] 发送移除黑名单通知失败: %v", err)
 			// 不返回错误，因为登录已成功
 		}

@@ -16,7 +16,7 @@
     <el-color-picker
       v-if="mode === 'edit'"
       v-model="internalValue"
-      :color-format="colorFormat"
+      :color-format="pickerColorFormat"
       :show-alpha="showAlpha"
       :disabled="field.widget?.config?.disabled"
       @change="handleChange"
@@ -24,19 +24,31 @@
     
     <!-- 响应模式（只读） -->
     <div v-else-if="mode === 'response'" class="response-value">
-      <span class="color-block" :style="{ backgroundColor: colorValue }"></span>
+      <span
+        v-if="hasColorValue"
+        class="color-block"
+        :style="{ backgroundColor: colorValue }"
+      ></span>
       <span class="color-text">{{ displayValue }}</span>
     </div>
     
     <!-- 表格单元格模式：显示颜色块和值 -->
     <div v-else-if="mode === 'table-cell'" class="table-cell-value">
-      <span class="color-block" :style="{ backgroundColor: colorValue }"></span>
+      <span
+        v-if="hasColorValue"
+        class="color-block"
+        :style="{ backgroundColor: colorValue }"
+      ></span>
       <span class="color-text">{{ displayValue }}</span>
     </div>
     
     <!-- 详情模式：显示颜色块和值 -->
     <div v-else-if="mode === 'detail'" class="detail-value">
-      <span class="color-block" :style="{ backgroundColor: colorValue }"></span>
+      <span
+        v-if="hasColorValue"
+        class="color-block"
+        :style="{ backgroundColor: colorValue }"
+      ></span>
       <span class="color-text">{{ displayValue }}</span>
     </div>
     
@@ -52,7 +64,7 @@
       <template #prefix>
         <el-color-picker
           v-model="searchValue"
-          :color-format="colorFormat"
+          :color-format="pickerColorFormat"
           :show-alpha="showAlpha"
           size="small"
           @change="handleSearchChange"
@@ -64,7 +76,6 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ElColorPicker, ElInput } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
@@ -95,6 +106,13 @@ const colorFormat = computed(() => {
   return 'hex' // 默认hex格式
 })
 
+const pickerColorFormat = computed(() => {
+  if (colorFormat.value === 'rgba') {
+    return 'rgb'
+  }
+  return colorFormat.value
+})
+
 const showAlpha = computed(() => {
   return config.value.show_alpha === true || config.value.show_alpha === 'true'
 })
@@ -109,25 +127,40 @@ const defaultValue = computed(() => {
 })
 
 // 内部值（用于 v-model）
-const internalValue = computed({
+function toPickerColor(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') {
+    return null
+  }
+
+  const strValue = String(value).trim()
+  if (!strValue || !isValidColor(strValue)) {
+    return null
+  }
+
+  return normalizeColor(strValue)
+}
+
+const internalValue = computed<string | null>({
   get: () => {
     if (props.mode === 'edit') {
-      const value = props.value?.raw
-      if (value !== null && value !== undefined && value !== '') {
-        return String(value)
+      const rawColor = toPickerColor(props.value?.raw)
+      if (rawColor) {
+        return rawColor
       }
-      // 如果没有值且有默认值，返回默认值
-      if (defaultValue.value !== undefined) {
-        return defaultValue.value
+
+      const fallbackColor = toPickerColor(defaultValue.value)
+      if (fallbackColor) {
+        return fallbackColor
       }
-      return '#409EFF' // 默认颜色
+
+      return null
     }
-    return undefined
+    return null
   },
   set: (newValue: string | null) => {
     if (props.mode === 'edit') {
-      const value = newValue ?? null
-      const display = value !== null ? String(value) : ''
+      const value = toPickerColor(newValue)
+      const display = value ?? ''
       // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
       const newFieldValue = createFieldValue(
         props.field,
@@ -143,47 +176,20 @@ const internalValue = computed({
 
 // 颜色值（用于显示）
 const colorValue = computed(() => {
-  const value = props.value
-  
-  // 🔥 优先使用 display 值（响应模式下可能只有 display 值）
-  if (value?.display) {
-    const displayStr = String(value.display).trim()
-    if (displayStr && displayStr !== '-' && isValidColor(displayStr)) {
-      return normalizeColor(displayStr)
-    }
+  const displayColor = toPickerColor(props.value?.display)
+  if (displayColor) {
+    return displayColor
   }
-  
-  // 其次使用 raw 值
-  const rawValue = value?.raw
-  if (rawValue !== null && rawValue !== undefined && rawValue !== '') {
-    const strValue = String(rawValue).trim()
-    // 验证是否为有效的颜色值
-    if (strValue && isValidColor(strValue)) {
-      return normalizeColor(strValue)
-    }
+
+  const rawColor = toPickerColor(props.value?.raw)
+  if (rawColor) {
+    return rawColor
   }
-  
-  // 🔥 如果都没有，尝试从 displayValue 中获取（兼容响应模式下数据传递的特殊情况）
-  // 注意：这里需要先计算 displayValue，但不能直接引用（会造成循环依赖）
-  // 所以手动实现 displayValue 的逻辑
-  let displayVal = ''
-  if (value) {
-    if (value.display) {
-      displayVal = String(value.display)
-    } else {
-      const raw = value.raw
-      if (raw !== null && raw !== undefined && raw !== '') {
-        displayVal = String(raw)
-      }
-    }
-  }
-  
-  if (displayVal && displayVal !== '-' && isValidColor(displayVal)) {
-    return normalizeColor(displayVal)
-  }
-  
-  return 'transparent'
+
+  return ''
 })
+
+const hasColorValue = computed(() => Boolean(colorValue.value))
 
 // 显示值
 const displayValue = computed(() => {
@@ -306,14 +312,15 @@ watch(
     if (props.mode === 'edit') {
       if (!newValue || newValue.raw === null || newValue.raw === undefined || newValue.raw === '') {
         // 编辑模式：如果字段没有值，使用默认值
-        if (defaultValue.value !== undefined) {
-          internalValue.value = defaultValue.value
+        const fallbackColor = toPickerColor(defaultValue.value)
+        if (fallbackColor && internalValue.value !== fallbackColor) {
+          internalValue.value = fallbackColor
         }
       } else {
         // 🔥 关键：如果值存在，确保它能正确显示
-        const strValue = String(newValue.raw)
-        if (internalValue.value !== strValue) {
-          internalValue.value = strValue
+        const normalizedValue = toPickerColor(newValue.raw)
+        if (normalizedValue && internalValue.value !== normalizedValue) {
+          internalValue.value = normalizedValue
         }
       }
     } else if (props.mode === 'search') {

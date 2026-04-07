@@ -1,8 +1,18 @@
 #!/bin/bash
 set -euo pipefail
 
-export AI_AGENT_OS_ROOT=/app
 cd /app
+
+# 确保持久化目录结构存在，便于备份与恢复编排
+mkdir -p \
+  /app/logs \
+  /app/namespace \
+  /app/data/runtime/app-runtime \
+  /app/data/license \
+  /app/data/backup/repo \
+  /app/data/backup/state \
+  /app/data/backup/staging \
+  /app/data/tmp
 
 require_env() {
   local n="$1"
@@ -13,6 +23,7 @@ require_env() {
 }
 
 require_env CANONICAL_BASE_URL
+require_env STORAGE_ROOT
 require_env MYSQL_ROOT_PASSWORD
 require_env MINIO_ROOT_USER
 require_env MINIO_ROOT_PASSWORD
@@ -51,7 +62,7 @@ wait_tcp 127.0.0.1 3306 "MySQL"
 wait_tcp 127.0.0.1 4222 "NATS"
 wait_tcp 127.0.0.1 9000 "MinIO"
 
-PROD_TEMPLATE_VARS='${MYSQL_ROOT_PASSWORD} ${JWT_SECRET} ${CONTROL_ENC_KEY} ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${SMTP_FROM} ${SMTP_FROM_NAME}'
+PROD_TEMPLATE_VARS='${STORAGE_ROOT} ${MYSQL_ROOT_PASSWORD} ${JWT_SECRET} ${CONTROL_ENC_KEY} ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${SMTP_FROM} ${SMTP_FROM_NAME}'
 
 echo "==> 渲染 deploy/prod/config/runtime 模板..."
 mkdir -p /app/deploy/prod/config/runtime

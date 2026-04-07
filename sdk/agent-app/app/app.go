@@ -13,8 +13,6 @@ import (
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/discovery"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
@@ -47,6 +45,7 @@ func initApp() {
 type App struct {
 	conn      *nats.Conn
 	subjects  *Subjects
+	transport *AppTransport
 	subs      []*nats.Subscription
 	exit      chan struct{}
 	startTime time.Time // 应用启动时间
@@ -109,16 +108,13 @@ func (a *App) getRoute(router string) (*routerInfo, error) {
 	return nil, fmt.Errorf("router %s not found", router)
 }
 
-// Subjects NATS 主题（重构后）
+// Subjects NATS 主题
 type Subjects struct {
-	// 保持独立的复杂主题
-	AppRequest  string // app_runtime.app.{user}.{app}.{version} - 应用请求
-	AppResponse string // app.function_server.{user}.{app}.{version} - 应用响应
-
-	// 简化的状态通知主题
-	AppStatus     string // app.status.{user}.{app}.{version} - 处理 shutdown、discovery、onAppUpdate
-	RuntimeStatus string // runtime.status.{user}.{app}.{version} - 处理 startup、close、discovery
-	Discovery     string // ai-agent-os.runtime.discovery 处理服务发现
+	InvokeCommand    string // app.v1.cmd.invoke.{user}.{app}.{version} - runtime 转发到 app 的调用命令
+	InvokeReply      string // app-server.v1.reply.app.invoke.{user}.{app}.{version} - app 回给 app-server 的回复
+	ControlCommand   string // app.v1.cmd.control.{user}.{app}.{version} - shutdown / onAppUpdate 控制命令
+	LifecycleEvent   string // runtime.v1.event.lifecycle.{user}.{app}.{version} - startup / close / discovery 事件
+	DiscoveryRequest string // app.v1.cmd.discovery.request - runtime 广播发现命令
 }
 
 // NewApp 创建新的应用实例
@@ -180,16 +176,14 @@ func NewApp() (*App, error) {
 		routerInfo:      make(map[string]*routerInfo),
 		packageContexts: make(map[string]*PackageContext),
 		subjects: &Subjects{
-			// 保持独立的复杂主题
-			AppRequest:  subjects.BuildAppRuntime2AppSubject(env.User, env.App, env.Version),
-			AppResponse: subjects.BuildApp2FunctionServerSubject(env.User, env.App, env.Version),
-
-			// 简化的状态通知主题（AppStatus 也用于 app-runtime 的 update 回调请求）
-			AppStatus:     subjects.BuildAppStatusSubject(env.User, env.App, env.Version),
-			RuntimeStatus: subjects.BuildRuntimeStatusSubject(env.User, env.App, env.Version),
-			Discovery:     subjects.GetRuntimeDiscoverySubject(),
+			InvokeCommand:    subjects.BuildAppInvokeSubject(env.User, env.App, env.Version),
+			InvokeReply:      subjects.BuildAppServerAppInvokeReplySubject(env.User, env.App, env.Version),
+			ControlCommand:   subjects.BuildAppControlSubject(env.User, env.App, env.Version),
+			LifecycleEvent:   subjects.BuildRuntimeLifecycleEventSubject(env.User, env.App, env.Version),
+			DiscoveryRequest: subjects.AppDiscoveryRequestSubject,
 		},
 	}
+	newApp.transport = NewAppTransport(newApp.conn, newApp.subjects)
 
 	logger.Infof(context.Background(), "Initializing router...")
 	initRouter(newApp)
@@ -253,113 +247,33 @@ func (a *App) Start(ctx context.Context) error {
 
 // sendResponse 发送响应消息
 func (a *App) sendResponse(resp *dto.RequestAppResp) {
-	data, err := json.Marshal(resp)
-	if err != nil {
-		return
-	}
-
-	// 创建带 header 的消息
-	msg := &nats.Msg{
-		Subject: a.subjects.AppResponse,
-		Data:    data,
-		Header:  make(nats.Header),
-	}
-	logger.Infof(context.Background(), "Sending response: %s", msg.Subject)
-
-	// 设置 trace_id header
-	if resp.TraceId != "" {
-		msg.Header.Set(contextx.TraceIdHeader, resp.TraceId)
-	}
-	msg.Header.Set("code", "0")
-
-	if err := a.conn.PublishMsg(msg); err != nil {
-		return
+	if err := a.transport.PublishInvokeResponse(resp, true); err != nil {
+		logger.Errorf(context.Background(), "Failed to publish invoke response: %v", err)
 	}
 }
 
 // PublishMessage 将消息发送到 NATS 主题，由消息服务消费（渠道由消费方决定）
 func (a *App) PublishMessage(payload *dto.MessageSendPayload) error {
-	if a.conn == nil {
-		return fmt.Errorf("NATS connection is nil")
-	}
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("marshal message payload: %w", err)
-	}
-	subject := subjects.GetMessageSendSubject()
-	if err := a.conn.Publish(subject, data); err != nil {
-		return fmt.Errorf("publish message to %s: %w", subject, err)
-	}
-	logger.Infof(context.Background(), "[PublishMessage] published to %s, to_users=%s title=%s", subject, payload.ToUsers, payload.Title)
-	return nil
+	return a.transport.PublishMessageCommand(payload)
 }
 
 func (a *App) sendErrResponse(resp *dto.RequestAppResp) {
-	data, err := json.Marshal(resp)
-	if err != nil {
-		logger.Errorf(context.Background(), "Failed to marshal response: %v", err)
-		return
-	}
-
-	// 创建带 header 的消息
-	msg := &nats.Msg{
-		Subject: a.subjects.AppResponse,
-		Data:    data,
-		Header:  make(nats.Header),
-	}
-
-	// 设置 trace_id header
-	if resp.TraceId != "" {
-		msg.Header.Set(contextx.TraceIdHeader, resp.TraceId)
-	}
-	msg.Header.Set("code", "-1")
-	msg.Header.Set("msg", resp.Error)
-
-	if err := a.conn.PublishMsg(msg); err != nil {
-		return
+	if err := a.transport.PublishInvokeResponse(resp, false); err != nil {
+		logger.Errorf(context.Background(), "Failed to publish invoke error response: %v", err)
 	}
 }
 
 // handleDiscovery 处理发现消息
 func (a *App) handleDiscovery(msg *nats.Msg) {
-	var discoveryMsg discovery.DiscoveryMessage
-	if err := json.Unmarshal(msg.Data, &discoveryMsg); err != nil {
-		return
-	}
-
-	// 构建发现响应数据
-	responseData := map[string]interface{}{
-		"type":       "response",
-		"status":     "running",
-		"runtime_id": discoveryMsg.RuntimeID,
-		"start_time": a.startTime,
-		"timestamp":  time.Now(),
-	}
-
-	// 使用新的统一消息格式
-	message := subjects.Message{
-		Type:      subjects.MessageTypeStatusDiscovery,
-		User:      env.User,
-		App:       env.App,
-		Version:   env.Version,
-		Data:      responseData,
-		Timestamp: time.Now(),
-	}
-
-	messageData, err := json.Marshal(message)
+	discoveryMsg, err := a.transport.ParseDiscoveryRequest(msg)
 	if err != nil {
-		logger.Errorf(context.Background(), "Failed to marshal discovery response: %v", err)
+		logger.Errorf(context.Background(), "Failed to parse discovery request: %v", err)
 		return
 	}
-
-	// 发送到 Runtime 状态主题
-	subject := subjects.BuildRuntimeStatusSubject(env.User, env.App, env.Version)
-	if err := a.conn.Publish(subject, messageData); err != nil {
+	if err := a.transport.PublishDiscoveryResponse(discoveryMsg.RuntimeID, a.startTime); err != nil {
 		logger.Errorf(context.Background(), "Failed to publish discovery response: %v", err)
 		return
 	}
-
-	logger.Infof(context.Background(), "Discovery response sent to subject: %s", subject)
 }
 
 // Close 关闭应用
@@ -456,69 +370,12 @@ func Run() error {
 
 // sendStartupNotification 发送启动完成通知
 func (a *App) sendStartupNotification() error {
-	// 构建启动通知消息（只包含业务数据，不重复标识信息）
-	notification := map[string]interface{}{
-		"status":     "started",
-		"start_time": a.startTime,
-	}
-
-	// 使用新的消息格式
-	message := subjects.Message{
-		Type:      subjects.MessageTypeStatusStartup,
-		User:      env.User,
-		App:       env.App,
-		Version:   env.Version,
-		Data:      notification,
-		Timestamp: time.Now(),
-	}
-
-	messageData, err := json.Marshal(message)
-	if err != nil {
-		return fmt.Errorf("failed to marshal startup message: %w", err)
-	}
-
-	// 发送到 Runtime 状态主题
-	subject := subjects.BuildRuntimeStatusSubject(env.User, env.App, env.Version)
-	if err := a.conn.Publish(subject, messageData); err != nil {
-		return fmt.Errorf("failed to publish startup notification: %w", err)
-	}
-
-	logger.Infof(context.Background(), "Startup notification sent to subject: %s", subject)
-	return nil
+	return a.transport.PublishStartup(a.startTime)
 }
 
 // sendCloseNotification 发送应用关闭通知
 func (a *App) sendCloseNotification() error {
-	// 构建关闭通知消息（只包含业务数据，不重复标识信息）
-	notification := map[string]interface{}{
-		"status":     "closed",
-		"start_time": a.startTime,
-		"close_time": time.Now(),
-	}
-
-	// 使用新的消息格式
-	message := subjects.Message{
-		Type:      subjects.MessageTypeStatusClose,
-		User:      env.User,
-		App:       env.App,
-		Version:   env.Version,
-		Data:      notification,
-		Timestamp: time.Now(),
-	}
-
-	messageData, err := json.Marshal(message)
-	if err != nil {
-		return fmt.Errorf("failed to marshal close message: %w", err)
-	}
-
-	// 发送到 Runtime 状态主题
-	subject := subjects.BuildRuntimeStatusSubject(env.User, env.App, env.Version)
-	if err := a.conn.Publish(subject, messageData); err != nil {
-		return fmt.Errorf("failed to publish close notification: %w", err)
-	}
-
-	logger.Infof(context.Background(), "Close notification sent to subject: %s", subject)
-	return nil
+	return a.transport.PublishClose(a.startTime, time.Now())
 }
 
 // handleShutdownCommand 处理 runtime 发送的关闭命令
@@ -606,14 +463,14 @@ func (a *App) waitForAllFunctionsToComplete(ctx context.Context, timeout time.Du
 	}
 }
 
-// handleAppStatusMessage 处理 App 状态消息（shutdown、discovery）
-func (a *App) handleAppStatusMessage(msg *nats.Msg) {
+// handleAppControlMessage 处理 App 控制消息（shutdown、onAppUpdate）。
+func (a *App) handleAppControlMessage(msg *nats.Msg) {
 	var message subjects.Message
 	if err := json.Unmarshal(msg.Data, &message); err != nil {
-		logger.Errorf(context.Background(), "Failed to unmarshal app status message: %v", err)
+		logger.Errorf(context.Background(), "Failed to unmarshal app control message: %v", err)
 		return
 	}
-	logger.Infof(context.Background(), "Received app status message: %+v", message)
+	logger.Infof(context.Background(), "Received app control message: %+v", message)
 
 	switch message.Type {
 	case subjects.MessageTypeStatusShutdown:
@@ -623,7 +480,7 @@ func (a *App) handleAppStatusMessage(msg *nats.Msg) {
 	case subjects.MessageTypeStatusOnAppUpdate:
 		a.onAppUpdate(msg) // 发现消息还是用原来的格式
 	default:
-		logger.Warnf(context.Background(), "Unknown app status message type: %s", message.Type)
+		logger.Warnf(context.Background(), "Unknown app control message type: %s", message.Type)
 	}
 }
 
@@ -770,8 +627,8 @@ func (a *App) handleAppStatusMessage(msg *nats.Msg) {
 //	return messageData
 //}
 
-// handleRuntimeStatusMessage 方法已移除
-// RuntimeStatus 主题是应用发送给 Runtime 的，不需要接收
+// handleRuntimeStatusMessage 方法已移除。
+// runtime.v1.event.lifecycle.*.*.* 是应用发送给 Runtime 的事件主题，不需要在应用内订阅。
 
 // forceGCAndFreeMemory 强制 GC 并释放内存回操作系统
 // 在应用关闭时调用，帮助减少内存占用

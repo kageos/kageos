@@ -12,15 +12,15 @@ import (
 // UserService 用户服务
 type UserService struct {
 	userRepo        *repository.UserRepository
-	natsService     *NATSService                    // ⭐ 新增：NATS 服务（可选，可能为 nil）
+	tokenPublisher  TokenPublisher                    // 可选：向 gateway 发布 token 命令
 	userSessionRepo *repository.UserSessionRepository // ⭐ 新增：用户会话仓库（用于查询活跃会话）
 }
 
 // NewUserService 创建用户服务（依赖注入）
-func NewUserService(userRepo *repository.UserRepository, natsService *NATSService, userSessionRepo *repository.UserSessionRepository) *UserService {
+func NewUserService(userRepo *repository.UserRepository, tokenPublisher TokenPublisher, userSessionRepo *repository.UserSessionRepository) *UserService {
 	return &UserService{
 		userRepo:        userRepo,
-		natsService:     natsService,
+		tokenPublisher:  tokenPublisher,
 		userSessionRepo: userSessionRepo,
 	}
 }
@@ -115,8 +115,8 @@ func (s *UserService) AssignUserOrganization(ctx context.Context, username strin
 	}
 
 	// ⭐ 发送 NATS 失效通知（如果组织架构发生变化）
-	if s.natsService != nil {
-		if err := s.natsService.InvalidateUserToken(ctx, user.ID, user.Username, "organization_changed", s.userSessionRepo); err != nil {
+	if s.tokenPublisher != nil {
+		if err := s.tokenPublisher.InvalidateUserToken(ctx, user.ID, user.Username, "organization_changed", s.userSessionRepo); err != nil {
 			logger.Warnf(ctx, "[UserService] 发送 token 失效通知失败: %v", err)
 			// 不返回错误，因为用户更新已成功
 		}

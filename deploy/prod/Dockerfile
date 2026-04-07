@@ -34,6 +34,11 @@ RUN CGO_ENABLED=1 GOOS=linux go build \
     -ldflags="-s -w" \
     -o /out/core-server \
     ./core/cmd/main/main.go
+RUN CGO_ENABLED=1 GOOS=linux go build \
+    -tags "exclude_graphdriver_btrfs" \
+    -ldflags="-s -w" \
+    -o /out/backup-server \
+    ./core/backup-service/cmd/app/main.go
 
 # ========== Web 静态 ==========
 FROM node:20-bookworm AS webbuilder
@@ -53,7 +58,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Shanghai
 ENV LANG=C.UTF-8
 ENV APP_ENV=prod
-ENV AI_AGENT_OS_ROOT=/app
 
 RUN set -eux; \
     if [ "${APT_USE_MIRROR}" = "1" ]; then \
@@ -70,7 +74,7 @@ RUN set -eux; \
     fi
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates tzdata curl netcat-openbsd \
-    nginx gettext-base \
+    nginx gettext-base default-mysql-client \
     libgpgme11 libdevmapper1.02.1 git \
     podman buildah fuse-overlayfs slirp4netns crun \
     && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
@@ -97,6 +101,7 @@ ENV GOCACHE="/tmp/go-cache"
 WORKDIR /app
 
 COPY --from=gobuilder /out/core-server /app/core-server
+COPY --from=gobuilder /out/backup-server /app/backup-server
 COPY --from=gobuilder /src/go.mod /src/go.sum /app/
 COPY --from=gobuilder /src/sdk/ /app/sdk/
 COPY --from=gobuilder /src/pkg/ /app/pkg/
@@ -113,14 +118,17 @@ COPY deploy/base/images/app-base/start.sh /app/app-base/start.sh
 COPY deploy/prod/config/template/ /app/config.prod.template/
 COPY deploy/prod/nginx/default.conf.template /app/deploy/prod/nginx/default.conf.template
 COPY deploy/prod/entrypoint-main.sh /app/entrypoint-main.sh
-RUN chmod +x /app/entrypoint-main.sh
+COPY deploy/prod/entrypoint-backup.sh /app/entrypoint-backup.sh
+RUN chmod +x /app/entrypoint-main.sh /app/entrypoint-backup.sh
 
-RUN mkdir -p /app/deploy /app/logs /app/namespace /app/data \
+RUN mkdir -p /app/deploy /app/logs /app/namespace \
+    /app/data/runtime/app-runtime /app/data/license /app/data/backup/repo \
+    /app/data/backup/state /app/data/backup/staging /app/data/tmp \
     && mkdir -p /var/www/web \
     && rm -f /etc/nginx/sites-enabled/default
 
 COPY --from=webbuilder /src/web/dist /var/www/web/dist
 
-EXPOSE 8080 9090
+EXPOSE 8080 9090 19088
 
 ENTRYPOINT ["/app/entrypoint-main.sh"]

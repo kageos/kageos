@@ -117,15 +117,14 @@
 
 ### 5. 统计/图表（cashier_statistics）
 
-多个 GET 图表接口，共用同一请求结构；支持时间范围、支付状态筛选，响应为 Chart 数据（折线图/饼图/仪表盘）。
+多个 GET 图表接口，共用同一请求结构；主筛选建议保留时间范围，支付状态等业务维度更适合作为图表中的 Series 直接展开对比。
 
 **请求（各图表通用）**
 
-| 字段     | 类型     | 必填 | 说明 |
-|----------|----------|------|------|
-| 开始时间 | 时间戳   | ✗   | 默认 30 天前 |
-| 结束时间 | 时间戳   | ✗   | 默认当前时间 |
-| 支付状态 | 下拉选择 | ✗   | 支付成功/已退款，不选则全部 |
+| 字段     | 类型   | 必填 | 说明 |
+|----------|--------|------|------|
+| 开始时间 | 时间戳 | ✗   | 默认 30 天前 |
+| 结束时间 | 时间戳 | ✗   | 默认当前时间 |
 
 **图表列表**
 
@@ -136,7 +135,7 @@
 | cashier_category_sales_statistics.chart | pie 饼图 | 按商品分类汇总销售额占比（饮料/零食/日用品/其他）；Metadata：总销售额、总订单数 |
 | cashier_average_order_amount_statistics.chart | gauge 仪表盘 | 平均订单金额仪表盘；Series.Config 含 min/max、detail.formatter（如 ¥{value}）；Metadata：总订单数、总销售额、平均/最高/最低订单金额 |
 
-**实现要点**：请求体用同一结构体（如 `CashierSalesStatisticsReq`）+ widget 标签；处理函数内按时间/状态筛选支付记录与明细，聚合后组装具体图表类型 `chart.LineChart` / `chart.BarChart` / `chart.PieChart` / `chart.GaugeChart`（只填 Title、XAxis、Series、Metadata；无需手填 ChartType 或 Series[].Type），`resp.Chart(chart).Build()` 返回；多个图表用 `packageContext.GET(路由名.chart, Handler, ChartTemplate)` 注册。
+**实现要点**：请求体用同一结构体（如 `CashierSalesStatisticsReq`）+ widget 标签；处理函数内优先按时间范围筛选支付记录与明细，业务维度优先作为 `Series` 直接展开对比，再聚合组装具体图表类型 `chart.LineChart` / `chart.BarChart` / `chart.PieChart` / `chart.GaugeChart`（只填 Title、XAxis、Series、Metadata；无需手填 ChartType 或 Series[].Type），`resp.Chart(chart).Build()` 返回；多个图表用 `packageContext.GET(路由名.chart, Handler, ChartTemplate)` 注册。
 
 ---
 
@@ -948,10 +947,14 @@ import (
 
 // CashierSalesStatisticsReq 销售统计请求参数
 type CashierSalesStatisticsReq struct {
-	StartTime int64  `json:"start_time" form:"start_time" widget:"name:开始时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"`
-	EndTime   int64  `json:"end_time" form:"end_time" widget:"name:结束时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"`
-	Status    string `json:"status" form:"status" widget:"name:支付状态;type:select;options:支付成功,已退款;options_colors:success,danger"`
+	StartTime int64 `json:"start_time" form:"start_time" widget:"name:开始时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"`
+	EndTime   int64 `json:"end_time" form:"end_time" widget:"name:结束时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"`
 }
+
+// 图表设计建议：
+// - 时间范围通常是最重要的筛选条件，建议优先保留
+// - 支付状态、门店、渠道、部门等业务维度，很多时候更适合作为 Series 维度直接展开对比
+// - 只有业务上确实需要 drill-down 时，再额外提供维度筛选，避免把图表做成“先选一个值才能看”
 
 // CashierGetDateFormatSQL 根据数据库类型返回对应的日期格式化 SQL 表达式
 func CashierGetDateFormatSQL(db *gorm.DB) (dateFormatExpr, groupByExpr string) {
@@ -998,10 +1001,6 @@ func CashierSalesTrendStatistics(ctx *app.Context, resp response.Response) error
 		Where("created_at >= ?", req.StartTime).
 		Where("created_at <= ?", req.EndTime)
 
-	if req.Status != "" {
-		baseQuery = baseQuery.Where("status = ?", req.Status)
-	}
-
 	var totalAmount float64
 	var totalCount int64
 	var stats struct {
@@ -1023,10 +1022,6 @@ func CashierSalesTrendStatistics(ctx *app.Context, resp response.Response) error
 		Where("created_at >= ?", req.StartTime).
 		Where("created_at <= ?", req.EndTime)
 
-	if req.Status != "" {
-		trendQuery = trendQuery.Where("status = ?", req.Status)
-	}
-
 	dateFormatExpr, groupByExpr := CashierGetDateFormatSQL(db)
 
 	err := trendQuery.
@@ -1038,10 +1033,6 @@ func CashierSalesTrendStatistics(ctx *app.Context, resp response.Response) error
 		logger.Errorf(ctx, "CashierSalesTrendStatistics Scan err: %v", err)
 		sql := fmt.Sprintf("SELECT %s as date, COALESCE(SUM(final_amount), 0) as amount, COUNT(*) as count FROM cashier_payment_record WHERE created_at >= ? AND created_at <= ?", dateFormatExpr)
 		args := []interface{}{req.StartTime, req.EndTime}
-		if req.Status != "" {
-			sql += " AND status = ?"
-			args = append(args, req.Status)
-		}
 		sql += fmt.Sprintf(" GROUP BY %s ORDER BY date ASC", groupByExpr)
 
 		err2 := db.Raw(sql, args...).Scan(&trendStats).Error
@@ -1064,17 +1055,20 @@ func CashierSalesTrendStatistics(ctx *app.Context, resp response.Response) error
 		orderData = append(orderData, stat.Count)
 	}
 
-	c := &chart.LineChart{
-		Title: "销售额趋势统计",
-		XAxis: dateLabels,
-		// Series：数据系列，每项为一条折线，Name 为图例名，Data 与 XAxis 一一对应
-		Series: []chart.ChartSeries{
-			{Name: "销售额(元)", Data: salesData},
-			{Name: "订单数", Data: orderData},
-		},
-		Metadata: map[string]interface{}{
-			"总销售额":   roundMoney(totalAmount),
-			"总订单数":   totalCount,
+		c := &chart.LineChart{
+			Title: "销售额趋势统计",
+			XAxis: dateLabels,
+			// Series：数据系列，每项为一条折线，Name 为图例名，Data 与 XAxis 一一对应。
+			// 一个 LineChart 可以同时返回多条线；ToB 场景下常见做法是：
+			// - 时间作为主筛选
+			// - 状态/门店/渠道作为多条折线直接对比
+			Series: []chart.ChartSeries{
+				{Name: "销售额(元)", Data: salesData},
+				{Name: "订单数", Data: orderData},
+			},
+			Metadata: map[string]interface{}{
+				"总销售额":   roundMoney(totalAmount),
+				"总订单数":   totalCount,
 			"统计天数":   len(dateLabels),
 			"平均日销售额": roundMoney(totalAmount / float64(cashierMax(len(dateLabels), 1))),
 			"数据更新时间": time.Now().Format("2006-01-02 15:04:05"),
@@ -1113,10 +1107,6 @@ func CashierSalesBarStatistics(ctx *app.Context, resp response.Response) error {
 		Where("created_at >= ?", req.StartTime).
 		Where("created_at <= ?", req.EndTime)
 
-	if req.Status != "" {
-		trendQuery = trendQuery.Where("status = ?", req.Status)
-	}
-
 	dateFormatExpr, groupByExpr := CashierGetDateFormatSQL(db)
 	err := trendQuery.
 		Select(fmt.Sprintf("%s as date, COALESCE(SUM(final_amount), 0) as amount, COUNT(*) as count", dateFormatExpr)).
@@ -1141,17 +1131,18 @@ func CashierSalesBarStatistics(ctx *app.Context, resp response.Response) error {
 		totalCount += stat.Count
 	}
 
-	c := &chart.BarChart{
-		Title: "每日销售额柱状图",
-		XAxis: dateLabels,
-		// Series：数据系列，每项为一组柱子，Name 为图例名，Data 与 XAxis 一一对应
-		Series: []chart.ChartSeries{
-			{Name: "销售额(元)", Data: salesData},
-			{Name: "订单数", Data: orderData},
-		},
-		Metadata: map[string]interface{}{
-			"总销售额":   roundMoney(totalAmount),
-			"总订单数":   totalCount,
+		c := &chart.BarChart{
+			Title: "每日销售额柱状图",
+			XAxis: dateLabels,
+			// Series：数据系列，每项为一组柱子，Name 为图例名，Data 与 XAxis 一一对应。
+			// 一个 BarChart 可以返回多组柱子，适合做“同一维度下的多指标/多状态并排对比”。
+			Series: []chart.ChartSeries{
+				{Name: "销售额(元)", Data: salesData},
+				{Name: "订单数", Data: orderData},
+			},
+			Metadata: map[string]interface{}{
+				"总销售额":   roundMoney(totalAmount),
+				"总订单数":   totalCount,
 			"统计天数":   len(dateLabels),
 			"平均日销售额": roundMoney(totalAmount / float64(cashierMax(len(dateLabels), 1))),
 			"数据更新时间": time.Now().Format("2006-01-02 15:04:05"),
@@ -1186,10 +1177,6 @@ func CashierCategorySalesStatistics(ctx *app.Context, resp response.Response) er
 		Where("cashier_payment_record.created_at <= ?", req.EndTime).
 		Where("cashier_payment_record.status = ?", "支付成功")
 
-	if req.Status != "" {
-		queryDB = queryDB.Where("cashier_payment_record.status = ?", req.Status)
-	}
-
 	var categoryStats []struct {
 		Category string  `gorm:"column:category"`
 		Amount   float64 `gorm:"column:amount"`
@@ -1217,10 +1204,6 @@ func CashierCategorySalesStatistics(ctx *app.Context, resp response.Response) er
 		Where("created_at >= ?", req.StartTime).
 		Where("created_at <= ?", req.EndTime).
 		Where("status = ?", "支付成功")
-
-	if req.Status != "" {
-		baseQuery = baseQuery.Where("status = ?", req.Status)
-	}
 
 	baseQuery.
 		Select("COALESCE(SUM(final_amount), 0) as total_amount, COUNT(*) as total_count").
@@ -1289,10 +1272,6 @@ func CashierAverageOrderAmountStatistics(ctx *app.Context, resp response.Respons
 		Where("created_at >= ?", req.StartTime).
 		Where("created_at <= ?", req.EndTime).
 		Where("status = ?", "支付成功")
-
-	if req.Status != "" {
-		baseQuery = baseQuery.Where("status = ?", req.Status)
-	}
 
 	var stats struct {
 		TotalCount  int64   `gorm:"column:total_count"`
@@ -1397,13 +1376,15 @@ var CashierAverageOrderAmountStatisticsTemplate = &app.ChartTemplate{
 }
 
 func init() {
-	// 销售额趋势统计：按日期展示销售额、订单数折线图，支持时间范围、支付状态筛选
+	// 销售额趋势统计：按日期展示销售额、订单数折线图。推荐保留时间筛选；
+	// 若后续要比较不同支付状态，可直接把状态展开成多条折线。
 	packageContext.GET("cashier_sales_trend_statistics.chart", CashierSalesTrendStatistics, CashierSalesTrendStatisticsTemplate)
-	// 每日销售额柱状图：按日期展示销售额、订单数柱状图，支持时间范围、支付状态筛选
+	// 每日销售额柱状图：按日期展示销售额、订单数柱状图。
+	// 若后续要比较不同支付状态/门店，可直接返回多组柱子做并排对比。
 	packageContext.GET("cashier_sales_bar_statistics.chart", CashierSalesBarStatistics, CashierSalesBarStatisticsTemplate)
-	// 商品分类销售额统计：各分类销售额占比饼图，支持时间范围、支付状态筛选
+	// 商品分类销售额统计：各分类销售额占比饼图，支持时间范围筛选
 	packageContext.GET("cashier_category_sales_statistics.chart", CashierCategorySalesStatistics, CashierCategorySalesStatisticsTemplate)
-	// 平均订单金额统计：平均订单金额、总销售额等指标仪表盘，支持时间范围、支付状态筛选
+	// 平均订单金额统计：平均订单金额、总销售额等指标仪表盘，支持时间范围筛选
 	packageContext.GET("cashier_average_order_amount_statistics.chart", CashierAverageOrderAmountStatistics, CashierAverageOrderAmountStatisticsTemplate)
 }
 ```

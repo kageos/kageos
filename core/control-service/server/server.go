@@ -10,9 +10,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/control-service/service"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/msgx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
 )
@@ -20,8 +18,9 @@ import (
 // Server Control Service 服务器
 type Server struct {
 	// 核心组件
-	natsConn   *nats.Conn
-	httpServer *gin.Engine
+	natsConn      *nats.Conn
+	httpServer    *gin.Engine
+	subscriptions []*nats.Subscription
 
 	// 服务
 	licenseService *service.LicenseService
@@ -61,6 +60,7 @@ func NewServer(cfg *config.ControlServiceConfig) (*Server, error) {
 		httpPort:        cfg.GetPort(),
 		publishInterval: cfg.GetPublishInterval(),
 		ctx:             ctx,
+		subscriptions:   make([]*nats.Subscription, 0),
 	}
 
 	// 初始化各个组件
@@ -79,11 +79,6 @@ func NewServer(cfg *config.ControlServiceConfig) (*Server, error) {
 
 	if err := s.initRouter(ctx); err != nil {
 		return nil, fmt.Errorf("failed to init router: %w", err)
-	}
-
-	// 初始化 NATS 订阅（请求-响应模式）
-	if err := s.initNATSSubscriptions(ctx); err != nil {
-		return nil, fmt.Errorf("failed to init NATS subscriptions: %w", err)
 	}
 
 	logger.Infof(ctx, "[Control Service] Server instance created successfully")
@@ -149,7 +144,12 @@ func (s *Server) Start(ctx context.Context) error {
 	go s.startPeriodicTasks(ctx)
 	logger.Infof(ctx, "[Control Service] Periodic tasks started (checking license expiry)")
 
-	// 3. 启动 HTTP 服务器
+	// 3. 注册 NATS 订阅（请求-响应模式）
+	if err := s.subscribeNATS(ctx); err != nil {
+		return fmt.Errorf("failed to subscribe NATS: %w", err)
+	}
+
+	// 4. 启动 HTTP 服务器
 	port := fmt.Sprintf(":%d", s.httpPort)
 	logger.Infof(ctx, "[Control Service] Starting HTTP server on port %s", port)
 
@@ -215,6 +215,8 @@ func (s *Server) Stop(ctx context.Context) error {
 		s.ticker.Stop()
 	}
 
+	s.unsubscribeNATS(ctx)
+
 	// 关闭 NATS 连接
 	if s.natsConn != nil {
 		s.natsConn.Close()
@@ -225,45 +227,21 @@ func (s *Server) Stop(ctx context.Context) error {
 	return nil
 }
 
-// initNATSSubscriptions 初始化 NATS 订阅
-func (s *Server) initNATSSubscriptions(ctx context.Context) error {
-	logger.Infof(ctx, "[Control Service] Initializing NATS subscriptions...")
-
-	// 订阅 License 密钥请求主题（请求-响应模式）
-	sub, err := s.natsConn.Subscribe(subjects.GetControlLicenseKeyRequestSubject(), func(msg *nats.Msg) {
-		s.handleLicenseKeyRequest(ctx, msg)
-	})
-	if err != nil {
-		return fmt.Errorf("failed to subscribe license key request topic: %w", err)
-	}
-
-	logger.Infof(ctx, "[Control Service] Subscribed to license key request topic: %s", subjects.GetControlLicenseKeyRequestSubject())
-	_ = sub // 保存订阅（如果需要后续取消订阅）
-
-	return nil
+// subscribeNATS 注册所有 NATS 订阅
+func (s *Server) subscribeNATS(ctx context.Context) error {
+	handler := NewLicenseCommandHandler(s.licenseService)
+	return RegisterNATS(ctx, s.natsConn, &s.subscriptions, handler)
 }
 
-// handleLicenseKeyRequest 处理 License 密钥请求
-func (s *Server) handleLicenseKeyRequest(ctx context.Context, msg *nats.Msg) {
-	logger.Infof(ctx, "[Control Service] Received license key request")
-
-	// 构建密钥消息
-	keyMsg, err := s.licenseService.BuildKeyMessage(ctx)
-	if err != nil {
-		logger.Errorf(ctx, "[Control Service] Failed to build key message: %v", err)
-		msgx.RespFailMsg(msg, err)
-		return
+// unsubscribeNATS 取消所有 NATS 订阅
+func (s *Server) unsubscribeNATS(ctx context.Context) {
+	for _, sub := range s.subscriptions {
+		if sub == nil {
+			continue
+		}
+		if err := sub.Unsubscribe(); err != nil {
+			logger.Warnf(ctx, "[Control Service] Failed to unsubscribe NATS subject %s: %v", sub.Subject, err)
+		}
 	}
-
-	// 返回响应（使用 msgx.RespSuccessMsg 设置正确的 header）
-	if err := msgx.RespSuccessMsg(msg, keyMsg); err != nil {
-		logger.Errorf(ctx, "[Control Service] Failed to send key message response: %v", err)
-		return
-	}
-
-	if keyMsg.EncryptedLicense == "" {
-		logger.Infof(ctx, "[Control Service] Sent license key response (community edition, no license)")
-	} else {
-		logger.Infof(ctx, "[Control Service] Sent license key response (license size: %d bytes)", len(keyMsg.EncryptedLicense))
-	}
+	s.subscriptions = s.subscriptions[:0]
 }

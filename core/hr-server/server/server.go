@@ -11,8 +11,10 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/dbx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/serverx"
 	"github.com/gin-gonic/gin"
+	"github.com/nats-io/nats.go"
 	"gorm.io/gorm"
 )
 
@@ -24,14 +26,17 @@ type Server struct {
 	// 核心组件
 	db         *gorm.DB
 	httpServer *gin.Engine
+	natsConn   *nats.Conn
 
 	// 服务
 	authService            *service.AuthService
 	emailService           *service.EmailService
 	userService            *service.UserService
 	departmentService      *service.DepartmentService
-	natsService            *service.NATSService
+	tokenPublisher         service.TokenPublisher
 	messageConsumerService *service.MessageConsumerService
+	messageCommandHandler  *service.MessageCommandHandler
+	subscriptions          []*nats.Subscription
 
 	// 上下文
 	ctx context.Context
@@ -42,13 +47,18 @@ func NewServer(cfg *config.HRServerConfig) (*Server, error) {
 	ctx := context.Background()
 
 	s := &Server{
-		cfg: cfg,
-		ctx: ctx,
+		cfg:           cfg,
+		ctx:           ctx,
+		subscriptions: make([]*nats.Subscription, 0),
 	}
 
 	// 初始化各个组件
 	if err := s.initDatabase(ctx); err != nil {
 		return nil, fmt.Errorf("failed to init database: %w", err)
+	}
+
+	if err := s.initNATS(ctx); err != nil {
+		logger.Warnf(ctx, "[Server] Failed to initialize NATS: %v, continuing without NATS", err)
 	}
 
 	if err := s.initServices(ctx); err != nil {
@@ -87,10 +97,8 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 	}()
 
-	if s.messageConsumerService != nil {
-		if err := s.messageConsumerService.Start(ctx); err != nil {
-			logger.Warnf(ctx, "[Server] Message consumer start failed: %v", err)
-		}
+	if err := s.subscribeNATS(ctx); err != nil {
+		logger.Warnf(ctx, "[Server] NATS subscribe failed: %v", err)
 	}
 
 	logger.Infof(ctx, "[Server] HR-server started successfully")
@@ -110,14 +118,8 @@ func (s *Server) Stop(ctx context.Context) error {
 		}
 	}
 
-	// 关闭 NATS 连接
-	if s.natsService != nil {
-		if err := s.natsService.Close(); err != nil {
-			logger.Warnf(ctx, "[Server] Failed to close NATS connection: %v", err)
-		} else {
-			logger.Infof(ctx, "[Server] NATS connection closed")
-		}
-	}
+	s.unsubscribeNATS(ctx)
+	s.closeNATS(ctx)
 
 	logger.Infof(ctx, "[Server] HR-server stopped")
 	return nil
@@ -146,6 +148,23 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	return nil
 }
 
+// initNATS 初始化 NATS 连接
+func (s *Server) initNATS(ctx context.Context) error {
+	natsURL := config.GetGlobalSharedConfig().Nats.URL
+	if natsURL == "" {
+		natsURL = "nats://127.0.0.1:4222"
+	}
+
+	conn, err := natsx.ConnectNamed(natsURL, "hr-server")
+	if err != nil {
+		return fmt.Errorf("connect NATS: %w", err)
+	}
+
+	s.natsConn = conn
+	logger.Infof(ctx, "[Server] NATS initialized successfully")
+	return nil
+}
+
 // initServices 初始化所有业务服务
 func (s *Server) initServices(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing services...")
@@ -156,34 +175,57 @@ func (s *Server) initServices(ctx context.Context) error {
 	emailCodeRepo := repository.NewEmailCodeRepository(s.db)
 	deptRepo := repository.NewDepartmentRepository(s.db)
 
-	// 初始化 NATS 服务
-	natsService, err := service.NewNATSService()
-	if err != nil {
-		logger.Warnf(ctx, "[Server] Failed to initialize NATS service: %v, continuing without NATS", err)
-		// 不返回错误，允许服务在没有 NATS 的情况下运行（向后兼容）
-	} else {
-		s.natsService = natsService
-		logger.Infof(ctx, "[Server] NATS service initialized successfully")
+	if s.natsConn != nil {
+		s.tokenPublisher = service.NewGatewayTokenPublisher(s.natsConn)
 	}
 
 	// 初始化认证服务
-	s.authService = service.NewAuthService(userRepo, userSessionRepo, s.natsService)
+	s.authService = service.NewAuthService(userRepo, userSessionRepo, s.tokenPublisher)
 
 	// 初始化邮件服务
 	s.emailService = service.NewEmailService(emailCodeRepo)
 
 	// 初始化用户服务
-	s.userService = service.NewUserService(userRepo, s.natsService, userSessionRepo)
+	s.userService = service.NewUserService(userRepo, s.tokenPublisher, userSessionRepo)
 
 	s.departmentService = service.NewDepartmentService(deptRepo, userRepo)
 
-	// 消息消费服务（订阅 NATS 发邮件，仅当 NATS 可用时）
-	if s.natsService != nil {
-		s.messageConsumerService = service.NewMessageConsumerService(s.natsService, s.emailService, s.userService)
-	}
+	s.messageConsumerService = service.NewMessageConsumerService(s.emailService, s.userService)
+	s.messageCommandHandler = service.NewMessageCommandHandler(s.messageConsumerService)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil
+}
+
+// subscribeNATS 注册所有 NATS 订阅
+func (s *Server) subscribeNATS(ctx context.Context) error {
+	if s.natsConn == nil || s.messageCommandHandler == nil {
+		return nil
+	}
+	return RegisterNATS(ctx, s.natsConn, &s.subscriptions, s.messageCommandHandler)
+}
+
+// unsubscribeNATS 取消所有 NATS 订阅
+func (s *Server) unsubscribeNATS(ctx context.Context) {
+	for _, sub := range s.subscriptions {
+		if sub == nil {
+			continue
+		}
+		if err := sub.Unsubscribe(); err != nil {
+			logger.Warnf(ctx, "[Server] Failed to unsubscribe NATS subject %s: %v", sub.Subject, err)
+		}
+	}
+	s.subscriptions = s.subscriptions[:0]
+}
+
+// closeNATS 关闭 NATS 连接
+func (s *Server) closeNATS(ctx context.Context) {
+	if s.natsConn == nil {
+		return
+	}
+	s.natsConn.Close()
+	s.natsConn = nil
+	logger.Infof(ctx, "[Server] NATS connection closed")
 }
 
 // initRouter 初始化路由

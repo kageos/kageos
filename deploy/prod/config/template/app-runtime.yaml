@@ -4,7 +4,7 @@ runtime:
   debug: false
 
 timeouts:
-  function_server_request: 30
+  app_server_request: 30
   container_startup: 2
   container_cleanup: 10
 

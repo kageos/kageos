@@ -1,1 +1,2 @@
-export const FORM_INLINE_LABEL_MAX_CHARS = 8
+export const FORM_LABEL_WIDTH = '150px'
+export const FORM_QUESTIONNAIRE_TRIGGER_CHARS = 9

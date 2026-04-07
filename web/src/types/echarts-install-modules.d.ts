@@ -22,6 +22,10 @@ declare module 'echarts/lib/component/tooltip/install.js' {
   export const install: (registers: unknown) => void
 }
 
+declare module 'echarts/lib/component/axisPointer/install.js' {
+  export const install: (registers: unknown) => void
+}
+
 declare module 'echarts/lib/component/legend/install.js' {
   export const install: (registers: unknown) => void
 }

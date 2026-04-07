@@ -128,7 +128,7 @@ func (c *Client) requestKey(ctx context.Context) error {
 
 	// 发送请求并等待响应（10秒超时）
 	var resp LicenseKeyMessage
-	_, err := msgx.RequestMsgWithTimeout(ctx, c.natsConn, subjects.GetControlLicenseKeyRequestSubject(), req, &resp, 10*time.Second)
+	_, err := msgx.RequestMsgWithTimeout(ctx, c.natsConn, subjects.ControlLicenseKeyGetQuerySubject, req, &resp, 10*time.Second)
 	if err != nil {
 		return fmt.Errorf("failed to request license key: %w", err)
 	}
@@ -162,7 +162,7 @@ func (c *Client) requestKey(ctx context.Context) error {
 
 // subscribePush 订阅推送主题（接收推送的License，直接刷新）
 func (c *Client) subscribePush(ctx context.Context) error {
-	subject := subjects.GetControlLicenseKeySubject()
+	subject := subjects.LicenseKeyUpdatedEventSubject
 	logger.Infof(ctx, "[License Client] 准备订阅推送主题: %s", subject)
 
 	// 检查 NATS 连接状态
@@ -244,7 +244,7 @@ func (c *Client) handlePush(ctx context.Context, msg *nats.Msg) {
 
 // subscribeRefresh 订阅刷新指令主题（备用，用于启动时主动请求）
 func (c *Client) subscribeRefresh(ctx context.Context) error {
-	subject := subjects.GetControlLicenseKeyRefreshSubject()
+	subject := subjects.LicenseKeyRefreshEventSubject
 	logger.Infof(ctx, "[License Client] 准备订阅刷新指令主题: %s", subject)
 
 	// 检查 NATS 连接状态

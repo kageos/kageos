@@ -144,10 +144,7 @@ async function handleSave() {
       show_only_permitted: showOnlyPermitted.value
     })
     
-    ElNotification.success({
-      title: '成功',
-      message: '工作空间设置已保存'
-    })
+    ElMessage.success('工作空间设置已保存')
     
     emit('saved')
     handleClose()

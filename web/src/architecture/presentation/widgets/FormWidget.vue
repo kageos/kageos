@@ -92,7 +92,7 @@
       <el-form
         :model="formData"
         label-position="left"
-        label-width="90px"
+        :label-width="FORM_LABEL_WIDTH"
         class="form-widget-form"
       >
         <template v-for="subField in visibleSubFields" :key="subField.code">
@@ -218,7 +218,7 @@
             <el-form
               :model="formData"
               label-position="left"
-              label-width="90px"
+              :label-width="FORM_LABEL_WIDTH"
             >
               <template v-for="subField in visibleSubFields" :key="subField.code">
                 <div v-if="labelsOnTop" class="form-field-label-top">
@@ -315,7 +315,7 @@ import type { FieldConfig, FieldValue } from '@/core/types/field'
 import type { ValidationEngine, ValidationResult } from '@/core/validation'
 import { validateFieldValue, validateFormWidgetNestedFields, type WidgetValidationContext } from '@/architecture/presentation/widgets/composables/useWidgetValidation'
 import { useFormDataStore } from '@/core/stores-v2/formData'
-import { FORM_INLINE_LABEL_MAX_CHARS } from '@/architecture/presentation/utils/formLayout'
+import { FORM_LABEL_WIDTH, FORM_QUESTIONNAIRE_TRIGGER_CHARS } from '@/architecture/presentation/utils/formLayout'
 
 // 抽屉配置常量
 const DRAWER_CONFIG = {
@@ -371,9 +371,8 @@ function isFieldRequired(field: FieldConfig): boolean {
   return validation.includes('required') && !validation.includes('omitempty')
 }
 
-/** 表单级：有任一 label 超过 8 字则全部放上方，否则全部左侧一行 */
 const labelsOnTop = computed(() =>
-  visibleSubFields.value.some((f) => (f.name?.length ?? 0) > FORM_INLINE_LABEL_MAX_CHARS)
+  visibleSubFields.value.some((f) => (f.name?.length ?? 0) > FORM_QUESTIONNAIRE_TRIGGER_CHARS)
 )
 
 /**
@@ -539,7 +538,7 @@ defineExpose({
     color: var(--el-text-color-regular);
     margin-bottom: 8px;
     line-height: 1.4;
-    text-align: right;
+    text-align: left;
 
     .required {
       color: var(--el-color-danger);
