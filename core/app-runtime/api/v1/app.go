@@ -1,13 +1,9 @@
 package v1
 
 import (
-	"context"
-
 	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/msgx"
 	"github.com/nats-io/nats.go"
 )
 
@@ -23,65 +19,65 @@ func NewAppHandler(appManageService *service.AppManageService) *AppHandler {
 
 // HandleAppCreate 处理应用创建请求
 func (h *AppHandler) HandleAppCreate(msg *nats.Msg) {
-	ctx := context.Background()
-	msgInfo, err := msgx.DecodeNatsMsg[dto.CreateAppReq](msg)
-	if err != nil {
-		logger.Errorf(ctx, "[HandleAppCreate] Failed to decode message: %v", err)
-		msgx.RespFailMsg(msg, err)
+	ctx := handlerContext(msg)
+	req, ok := decodeRequest[dto.CreateAppReq](ctx, msg, "HandleAppCreate")
+	if !ok {
 		return
 	}
-	tenantUser := msgInfo.Data.User
+	tenantUser := req.User
 	logger.Infof(ctx, "[HandleAppCreate] Received app create: tenantUser=%s, app=%s, reply=%s",
-		tenantUser, msgInfo.Data.Code, msg.Reply)
-	appDir, err := h.appManageService.CreateApp(ctx, tenantUser, msgInfo.Data.Code)
+		tenantUser, req.Code, msg.Reply)
+	appDir, err := h.appManageService.CreateApp(ctx, tenantUser, req.Code)
 	if err != nil {
 		logger.Errorf(ctx, "[HandleAppCreate] Failed to create app: %v", err)
-		msgx.RespFailMsg(msg, err)
+		respondFailure(ctx, msg, "HandleAppCreate", err)
 		return
 	}
-	resp := dto.CreateAppResp{User: tenantUser, App: msgInfo.Data.Code, AppDir: appDir}
-	msgx.RespSuccessMsg(msg, resp)
+	resp := dto.CreateAppResp{User: tenantUser, App: req.Code, AppDir: appDir}
+	if !respondSuccess(ctx, msg, "HandleAppCreate", resp) {
+		return
+	}
 	logger.Infof(ctx, "[HandleAppCreate] App created successfully: %s", appDir)
 }
 
 // HandleAppUpdate 处理应用更新请求
 func (h *AppHandler) HandleAppUpdate(msg *nats.Msg) {
-	ctx := contextx.NatsTraceContext(msg)
-	msgInfo, err := msgx.DecodeNatsMsg[dto.UpdateAppReq](msg)
-	if err != nil {
-		logger.Errorf(ctx, "[HandleAppUpdate] Failed to decode message: %v", err)
-		msgx.RespFailMsg(msg, err)
+	ctx := handlerContext(msg)
+	req, ok := decodeRequest[dto.UpdateAppReq](ctx, msg, "HandleAppUpdate")
+	if !ok {
 		return
 	}
-	tenantUser := msgInfo.Data.User
-	result, err := h.appManageService.UpdateApp(ctx, tenantUser, msgInfo.Data.App, msgInfo.Data.CreateFunctions, msgInfo.Data.Requirement, msgInfo.Data.ChangeDescription, msgInfo.Data.SkipBuild)
+	tenantUser := req.User
+	result, err := h.appManageService.UpdateApp(ctx, tenantUser, req.App, req.CreateFunctions, req.Requirement, req.ChangeDescription, req.SkipBuild)
 	if err != nil {
 		logger.Errorf(ctx, "[HandleAppUpdate] Failed to update app: %v", err)
-		msgx.RespFailMsg(msg, err)
+		respondFailure(ctx, msg, "HandleAppUpdate", err)
 		return
 	}
-	msgx.RespSuccessMsg(msg, result)
+	if !respondSuccess(ctx, msg, "HandleAppUpdate", result) {
+		return
+	}
 	logger.Infof(ctx, "[HandleAppUpdate] App updated: user=%s, app=%s, newVersion=%s", result.User, result.App, result.NewVersion)
 }
 
 // HandleAppDelete 处理应用删除请求
 func (h *AppHandler) HandleAppDelete(msg *nats.Msg) {
-	ctx := context.Background()
-	msgInfo, err := msgx.DecodeNatsMsg[dto.DeleteAppReq](msg)
-	if err != nil {
-		logger.Errorf(ctx, "[HandleAppDelete] Failed to decode message: %v", err)
-		msgx.RespFailMsg(msg, err)
+	ctx := handlerContext(msg)
+	req, ok := decodeRequest[dto.DeleteAppReq](ctx, msg, "HandleAppDelete")
+	if !ok {
 		return
 	}
-	tenantUser := msgInfo.Data.User
-	logger.Infof(ctx, "[HandleAppDelete] Received app delete: tenantUser=%s, app=%s", tenantUser, msgInfo.Data.App)
-	err = h.appManageService.DeleteApp(ctx, tenantUser, msgInfo.Data.App)
+	tenantUser := req.User
+	logger.Infof(ctx, "[HandleAppDelete] Received app delete: tenantUser=%s, app=%s", tenantUser, req.App)
+	err := h.appManageService.DeleteApp(ctx, tenantUser, req.App)
 	if err != nil {
 		logger.Errorf(ctx, "[HandleAppDelete] Failed to delete app: %v", err)
-		msgx.RespFailMsg(msg, err)
+		respondFailure(ctx, msg, "HandleAppDelete", err)
 		return
 	}
-	resp := dto.DeleteAppResp{User: tenantUser, App: msgInfo.Data.App}
-	msgx.RespSuccessMsg(msg, resp)
-	logger.Infof(ctx, "[HandleAppDelete] App deleted: %s/%s", tenantUser, msgInfo.Data.App)
+	resp := dto.DeleteAppResp{User: tenantUser, App: req.App}
+	if !respondSuccess(ctx, msg, "HandleAppDelete", resp) {
+		return
+	}
+	logger.Infof(ctx, "[HandleAppDelete] App deleted: %s/%s", tenantUser, req.App)
 }

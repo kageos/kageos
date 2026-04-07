@@ -4,41 +4,37 @@ import (
 	"fmt"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
 	"github.com/nats-io/nats.go"
 )
 
-// registerNATS 注册所有 NATS 订阅，subject 硬编码在此，方便阅读（与 app-runtime nats_router 一致）
+// registerNATS 注册所有 NATS 订阅。
 func registerNATS(a *App) error {
 	var err error
 	var sub *nats.Subscription
 
-	// 应用请求：app_runtime.app.{user}.{app}.{version}
-	subjRequest := fmt.Sprintf("app_runtime.app.%s.%s.%s", env.User, env.App, env.Version)
-	sub, err = a.conn.Subscribe(subjRequest, a.handleMessageAsync)
+	// runtime -> app 的调用命令
+	sub, err = a.conn.Subscribe(a.subjects.InvokeCommand, a.handleMessageAsync)
 	if err != nil {
-		return fmt.Errorf("subscribe app request %s: %w", subjRequest, err)
+		return fmt.Errorf("subscribe app invoke command %s: %w", a.subjects.InvokeCommand, err)
 	}
 	a.subs = append(a.subs, sub)
-	logger.Infof(a, "Subscribed to app request: %s", subjRequest)
+	logger.Infof(a, "Subscribed to app invoke command: %s", a.subjects.InvokeCommand)
 
-	// App 状态：app.status.{user}.{app}.{version}
-	subjStatus := fmt.Sprintf("app.status.%s.%s.%s", env.User, env.App, env.Version)
-	sub, err = a.conn.Subscribe(subjStatus, a.handleAppStatusMessage)
+	// runtime -> app 的控制命令
+	sub, err = a.conn.Subscribe(a.subjects.ControlCommand, a.handleAppControlMessage)
 	if err != nil {
-		return fmt.Errorf("subscribe app status %s: %w", subjStatus, err)
+		return fmt.Errorf("subscribe app control command %s: %w", a.subjects.ControlCommand, err)
 	}
 	a.subs = append(a.subs, sub)
-	logger.Infof(a, "Subscribed to app status: %s", subjStatus)
+	logger.Infof(a, "Subscribed to app control command: %s", a.subjects.ControlCommand)
 
-	// 服务发现：固定主题
-	subjDiscovery := "ai-agent-os.runtime.discovery"
-	sub, err = a.conn.Subscribe(subjDiscovery, a.handleDiscovery)
+	// runtime 广播发现命令
+	sub, err = a.conn.Subscribe(a.subjects.DiscoveryRequest, a.handleDiscovery)
 	if err != nil {
-		return fmt.Errorf("subscribe discovery %s: %w", subjDiscovery, err)
+		return fmt.Errorf("subscribe discovery request %s: %w", a.subjects.DiscoveryRequest, err)
 	}
 	a.subs = append(a.subs, sub)
-	logger.Infof(a, "Subscribed to discovery: %s", subjDiscovery)
+	logger.Infof(a, "Subscribed to discovery request: %s", a.subjects.DiscoveryRequest)
 
 	return nil
 }

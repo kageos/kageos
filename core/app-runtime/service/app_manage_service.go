@@ -68,7 +68,7 @@ type AppManageService struct {
 	containerService      ContainerOperator           // 容器服务依赖
 	appRepo               *repository.AppRepository   // 应用数据访问层
 	appDiscoveryService   *AppDiscoveryService        // 应用发现服务，用于获取运行状态
-	natsConn              *nats.Conn                  // NATS 连接，用于发送关闭命令
+	appControlClient      *AppControlClient           // runtime -> app 控制调用
 	QPSTracker            *QPSTracker                 // QPS 跟踪器
 	createFunctionService *CreateFunctionService      // 创建函数服务
 
@@ -132,7 +132,7 @@ func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageSe
 		containerService:      containerService,
 		appRepo:               appRepo,
 		appDiscoveryService:   appDiscoveryService,
-		natsConn:              natsConn,
+		appControlClient:      NewAppControlClient(natsConn),
 		QPSTracker:            NewQPSTracker(60*time.Second, 10*time.Second), // 60秒窗口，10秒检查间隔
 		createFunctionService: createFunctionService,
 		startupWaiters:        make(map[string]chan *StartupNotification),
@@ -574,7 +574,7 @@ func (s *AppManageService) updateAppStatusToActive(ctx context.Context, user, ap
 
 // sendUpdateCallbackAndWait 使用 NATS Request/Reply 模式发送 update 回调并等待响应
 func (s *AppManageService) sendUpdateCallbackAndWait(ctx context.Context, user, app, version string) (*subjects.Message, error) {
-	if s.natsConn == nil {
+	if s.appControlClient == nil {
 		return nil, fmt.Errorf("NATS connection is nil")
 	}
 
@@ -588,44 +588,12 @@ func (s *AppManageService) sendUpdateCallbackAndWait(ctx context.Context, user, 
 		Timestamp: time.Now(),
 	}
 
-	// 构建请求主题
-	//subject := subjects.GetAppUpdateCallbackRequestSubject(user, app, version)
-	subject := subjects.BuildAppStatusSubject(user, app, version)
-
-	logger.Infof(ctx, "[sendUpdateCallbackAndWait] 📤 Sending update callback request to subject: %s", subject)
-	logger.Infof(ctx, "[sendUpdateCallbackAndWait] Request data: %+v", request)
-
-	// 使用原生 NATS Request 模式，避免依赖 gin context
-	msg := nats.NewMsg(subject)
-	requestData, err := json.Marshal(request)
-	if err != nil {
-		logger.Errorf(ctx, "[sendUpdateCallbackAndWait] Failed to marshal request: %v", err)
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-	msg.Data = requestData
-
-	// 发送请求并等待响应（60秒超时）
-	responseMsg, err := s.natsConn.RequestMsg(msg, 60*time.Second)
+	rsp, err := s.appControlClient.RequestUpdateCallback(ctx, user, app, version, &request, 60*time.Second)
 	if err != nil {
 		logger.Errorf(ctx, "[sendUpdateCallbackAndWait] ❌ Request failed: %v", err)
-		return nil, fmt.Errorf("update callback request failed: %w", err)
+		return rsp, err
 	}
-
-	var rsp subjects.Message
-
-	// 解析响应
-	if err := json.Unmarshal(responseMsg.Data, &rsp); err != nil {
-		logger.Errorf(ctx, "[sendUpdateCallbackAndWait] Failed to unmarshal response: %v", err)
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	// 检查 SDK 返回的错误信息
-	if rsp.ErrorMsg != "" {
-		logger.Warnf(ctx, "[sendUpdateCallbackAndWait] ⚠️ SDK returned error: %s", rsp.ErrorMsg)
-		return &rsp, fmt.Errorf("SDK onAppUpdate error: %s", rsp.ErrorMsg)
-	}
-
-	return &rsp, nil
+	return rsp, nil
 }
 
 // UpdateResult 更新结果
@@ -822,16 +790,8 @@ func (s *AppManageService) ShutdownAppVersion(ctx context.Context, user, app, ve
 		Timestamp: time.Now(),
 	}
 
-	data, err := json.Marshal(message)
-	if err != nil {
-		return fmt.Errorf("failed to marshal shutdown command: %w", err)
-	}
-
-	// 发送关闭命令到应用状态主题
-	subject := subjects.BuildAppStatusSubject(user, app, version)
-
-	if err := s.natsConn.Publish(subject, data); err != nil {
-		return fmt.Errorf("failed to publish shutdown command to %s: %w", subject, err)
+	if err := s.appControlClient.PublishShutdown(ctx, user, app, version, &message); err != nil {
+		return err
 	}
 
 	//logger.Infof(ctx, "[ShutdownAppVersion] Shutdown command sent to %s", subject)

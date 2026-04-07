@@ -50,6 +50,14 @@ deploy/dev/config/
 
 当前服务配置加载会读取 `deploy/dev/config/*.yaml`。
 
+如需单独本地调试 `backup-service`，也请使用同样的约定：
+
+```bash
+export APP_ENV=dev
+```
+
+建议同时把工作目录设为仓库根目录；如果用 GoLand 直接运行，配置解析也会自动回落到仓库根目录查找 `deploy/dev/config/backup-service.yaml`。
+
 ### 2. 起后端
 
 推荐在仓库根目录：
@@ -61,7 +69,6 @@ bash deploy/dev/scripts/run-backend.sh
 说明：
 
 - 脚本会默认设置 `APP_ENV=dev`
-- 脚本会默认设置 `AI_AGENT_OS_ROOT=<仓库根目录>`
 - `APP_ENV=dev` 时启动预检会自动按本地 compose 基础设施模式处理，无需额外环境变量
 - 如需手动控制，仍可直接执行 `go run ./core/cmd/main`
 

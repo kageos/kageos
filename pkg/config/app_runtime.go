@@ -55,9 +55,9 @@ type AppRuntimeConfig struct {
 
 // AppRuntimeTimeoutConfig App Runtime 超时配置
 type AppRuntimeTimeoutConfig struct {
-	FunctionServerRequest int `mapstructure:"function_server_request"` // app-server 请求处理超时时间（秒）
-	ContainerStartup      int `mapstructure:"container_startup"`       // 容器启动等待时间（秒）
-	ContainerCleanup      int `mapstructure:"container_cleanup"`       // 容器清理等待时间（秒）
+	AppServerRequest int `mapstructure:"app_server_request"` // app-server 请求处理超时时间（秒）
+	ContainerStartup int `mapstructure:"container_startup"`  // 容器启动等待时间（秒）
+	ContainerCleanup int `mapstructure:"container_cleanup"`  // 容器清理等待时间（秒）
 }
 
 // RuntimeConfig 运行时配置
@@ -149,12 +149,12 @@ func (c *AppRuntimeConfig) Validate() error {
 	return nil
 }
 
-// GetFunctionServerRequestTimeout 获取 app-server 请求处理超时时间
-func (c *AppRuntimeConfig) GetFunctionServerRequestTimeout() int {
-	if c.Timeouts.FunctionServerRequest <= 0 {
+// GetAppServerRequestTimeout 获取 app-server 请求处理超时时间
+func (c *AppRuntimeConfig) GetAppServerRequestTimeout() int {
+	if c.Timeouts.AppServerRequest <= 0 {
 		return 30 // 默认 30 秒
 	}
-	return c.Timeouts.FunctionServerRequest
+	return c.Timeouts.AppServerRequest
 }
 
 // GetContainerStartupTimeout 获取容器启动等待时间

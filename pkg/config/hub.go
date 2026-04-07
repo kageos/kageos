@@ -19,7 +19,7 @@ func GetHubConfig() *HubConfig {
 		// 与全项目一致：dev 读 deploy/dev/config，prod 读 deploy/prod/config/runtime 或 template
 		if err := loadYAMLConfig("hub.yaml", cfg); err != nil {
 			// 配置文件不存在或加载失败，返回空配置；copy_url 会回退为请求 Host（如 localhost:9090）
-			fmt.Printf("Failed to load hub config, using defaults: %v (set APP_ENV=dev or AI_AGENT_OS_ROOT; expect deploy/dev/config or deploy/prod/config/{runtime|template})\n", err)
+			fmt.Printf("Failed to load hub config, using defaults: %v (set APP_ENV=dev; expect deploy/dev/config or deploy/prod/config/{runtime|template})\n", err)
 			cfg = &HubConfig{}
 		}
 		hubMu.Lock()

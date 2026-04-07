@@ -2,7 +2,7 @@
 
 ## 🎯 功能概述
 
-API Diff 功能实现了应用版本间的API变更检测，支持自动识别新增、修改、删除的API，并将变更信息推送给前端，实现界面的自动更新。
+API Diff 功能实现了应用版本间的 API 变更检测，支持自动识别新增、修改、删除的 API，并把差异结果回给 runtime 做后续平台同步。
 
 ## 🔄 工作流程
 
@@ -11,7 +11,7 @@ sequenceDiagram
     participant Runtime as Runtime
     participant App as 应用实例
     participant FileSystem as 文件系统
-    participant Frontend as 前端
+    participant RuntimeReply as Runtime Request/Reply
 
     Runtime->>App: 发送 onAppUpdate 消息
     App->>App: getApis() 获取当前API
@@ -19,8 +19,7 @@ sequenceDiagram
     App->>App: diffApi() 执行差异对比
     App->>FileSystem: 读取上一版本API
     App->>App: 对比分析变更
-    App->>Frontend: 发送差异结果
-    Frontend->>Frontend: 自动更新界面
+    App-->>RuntimeReply: 返回差异结果
 ```
 
 ## 📁 文件结构
@@ -74,11 +73,11 @@ type ApiDiffResult struct {
 
 ## 🔧 使用方式
 
-### 1. 触发API更新检测
+### 1. 触发 API 更新检测
 
-Runtime发送消息到主题：
+Runtime 通过 NATS Request/Reply 向应用控制主题发送 `onAppUpdate` 消息：
 ```
-app.update.{user}.{app}.{version}
+app.v1.cmd.control.{user}.{app}.{version}
 ```
 
 ### 2. 应用自动处理
@@ -92,10 +91,7 @@ app.update.{user}.{app}.{version}
 
 ### 3. 接收差异结果
 
-前端监听响应主题：
-```
-app.update.response.{user}.{app}.{version}
-```
+Runtime 直接通过 NATS Request/Reply 收到 SDK 的响应，不再依赖固定响应主题。
 
 ## 📊 响应格式
 
@@ -219,7 +215,7 @@ LLM删除：移除Remark字段和相关处理
 2. **文件存储**: API信息存储在容器的持久化目录中
 3. **性能考虑**: 差异检测在内存中进行，性能优异
 4. **错误处理**: 所有步骤都有完善的错误处理和日志记录
-5. **向后兼容**: 新版本总是兼容旧版本的API结构
+5. **平台同步**: diff 结果由 runtime 回传给平台，再触发函数和目录同步
 
 ## 🔗 相关组件
 

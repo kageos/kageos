@@ -98,12 +98,11 @@
           v-if="requestFields.length > 0"
           :model="formData"
           label-position="left"
-          label-width="90px"
+          :label-width="FORM_LABEL_WIDTH"
           class="function-form"
         >
       <div class="section-title">请求参数</div>
       <template v-for="field in requestFields" :key="field.code">
-        <!-- 有任一 label 超过 8 字：全部上方 -->
         <div v-if="requestLabelsOnTop" class="form-field-label-top">
           <label class="field-label">
             {{ field.name }}
@@ -121,7 +120,6 @@
             />
           </el-form-item>
         </div>
-        <!-- 无超过 8 字的 label：全部左侧一行 -->
         <el-form-item
           v-else
           :label="field.name"
@@ -203,7 +201,7 @@
       </div>
       <el-form 
         label-position="left"
-        label-width="90px"
+        :label-width="FORM_LABEL_WIDTH"
         :class="{ 'is-empty': !hasResponseData }"
       >
         <template v-for="field in responseFields" :key="field.code">
@@ -372,7 +370,7 @@ import {
   createFormViewRuntime,
   syncFormDataStoreToStateManager as syncFormDataStoreToStateManagerHelper
 } from './utils/formViewRuntime'
-import { FORM_INLINE_LABEL_MAX_CHARS } from '../utils/formLayout'
+import { FORM_LABEL_WIDTH, FORM_QUESTIONNAIRE_TRIGGER_CHARS } from '../utils/formLayout'
 
 const props = withDefaults(defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取
@@ -428,13 +426,11 @@ const formData = computed(() => {
 
 const requestFields = computed(() => (functionDetail.value?.request || []) as FieldConfig[])
 const responseFields = computed(() => (functionDetail.value?.response || []) as FieldConfig[])
-
-/** 表单级：有任一 label 超过 8 字则全部放上方，否则全部左侧一行 */
 const requestLabelsOnTop = computed(() =>
-  requestFields.value.some((f) => (f.name?.length ?? 0) > FORM_INLINE_LABEL_MAX_CHARS)
+  requestFields.value.some((f) => (f.name?.length ?? 0) > FORM_QUESTIONNAIRE_TRIGGER_CHARS)
 )
 const responseLabelsOnTop = computed(() =>
-  responseFields.value.some((f) => (f.name?.length ?? 0) > FORM_INLINE_LABEL_MAX_CHARS)
+  responseFields.value.some((f) => (f.name?.length ?? 0) > FORM_QUESTIONNAIRE_TRIGGER_CHARS)
 )
 
 // ⭐ 权限检查：获取当前函数节点的权限信息
@@ -1210,7 +1206,7 @@ onUnmounted(() => {
     color: var(--el-text-color-regular);
     margin-bottom: 8px;
     line-height: 1.4;
-    text-align: right;
+    text-align: left;
 
     .required {
       color: var(--el-color-danger);

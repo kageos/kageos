@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Backup Console</title>
+  <style>
+    :root {
+      --bg: #f3efe7;
+      --panel: rgba(255, 252, 246, 0.9);
+      --line: rgba(50, 43, 33, 0.14);
+      --text: #2d241b;
+      --muted: #756656;
+      --accent: #0e6b5c;
+      --warn: #b0631b;
+      --danger: #9d2e2e;
+      --shadow: 0 18px 42px rgba(58, 42, 24, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "SF Mono", "IBM Plex Sans", "PingFang SC", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(14, 107, 92, 0.12), transparent 32%),
+        linear-gradient(180deg, #f8f4ee 0%, #efe6d7 100%);
+      min-height: 100vh;
+    }
+
+    .shell { max-width: 1240px; margin: 0 auto; padding: 28px 20px 40px; }
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      border-radius: 22px;
+      backdrop-filter: blur(14px);
+    }
+    .hero { padding: 26px 28px; margin-bottom: 18px; }
+    h1, h2 { margin: 0; font-weight: 700; letter-spacing: -0.03em; }
+    h1 { font-size: clamp(30px, 5vw, 44px); }
+    h2 { font-size: 18px; margin-bottom: 14px; }
+    p { margin: 8px 0 0; color: var(--muted); line-height: 1.5; }
+
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+      transition: transform 0.16s ease, box-shadow 0.16s ease;
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(0,0,0,0.12); }
+    .primary { background: var(--accent); color: #fff; }
+    .secondary { background: #fff; color: var(--text); border: 1px solid var(--line); }
+    .danger { background: var(--danger); color: #fff; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 18px;
+    }
+    .panel { padding: 20px; }
+    .span-4 { grid-column: span 4; }
+    .span-6 { grid-column: span 6; }
+    .span-8 { grid-column: span 8; }
+    .span-12 { grid-column: span 12; }
+
+    .stat { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+    .label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+    .value { font-size: 26px; font-weight: 700; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .ok { background: rgba(14,107,92,0.12); color: var(--accent); }
+    .warn { background: rgba(176,99,27,0.12); color: var(--warn); }
+    .danger-text { background: rgba(157,46,46,0.12); color: var(--danger); }
+    .subtle { color: var(--muted); font-size: 13px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td {
+      text-align: left;
+      padding: 10px 8px;
+      border-top: 1px solid var(--line);
+      vertical-align: top;
+    }
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    tr.selectable { cursor: pointer; }
+    tr.selectable:hover { background: rgba(14,107,92,0.06); }
+    tr.selected { background: rgba(14,107,92,0.12); }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: rgba(45,36,27,0.06);
+      border-radius: 16px;
+      padding: 16px;
+      max-height: 360px;
+      overflow: auto;
+    }
+
+    @media (max-width: 900px) {
+      .span-4, .span-6, .span-8, .span-12 { grid-column: span 12; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <h1>Backup Control Plane</h1>
+      <p>独立于主站的本地控制台。当前已支持环境预检、维护模式、namespace 快照恢复、MySQL 逻辑全量快照恢复，以及 MinIO 对象快照恢复。维护模式会同步触发主站 Nginx 对外返回 503 维护页。</p>
+      <div class="actions">
+        <button class="primary" id="runPrecheckBtn">执行环境预检</button>
+        <button class="secondary" id="snapshotBtn">创建 Namespace 快照</button>
+        <button class="danger" id="restoreBtn">恢复选中 Namespace 快照</button>
+        <button class="secondary" id="mysqlSnapshotBtn">创建 MySQL 快照</button>
+        <button class="danger" id="mysqlRestoreBtn">恢复选中 MySQL 快照</button>
+        <button class="secondary" id="minioSnapshotBtn">创建 MinIO 快照</button>
+        <button class="danger" id="minioRestoreBtn">恢复选中 MinIO 快照</button>
+        <button class="secondary" id="refreshBtn">刷新状态</button>
+        <button class="danger" id="toggleMaintenanceBtn">切换维护模式</button>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="panel span-4">
+        <h2>系统状态</h2>
+        <div class="stat">
+          <span class="label">维护模式</span>
+          <span class="value" id="maintenanceValue">-</span>
+        </div>
+        <div class="stat">
+          <span class="label">活动任务</span>
+          <span class="value" id="activeTaskValue">-</span>
+        </div>
+        <div class="stat">
+          <span class="label">最近预检</span>
+          <span class="subtle" id="lastPrecheckValue">-</span>
+        </div>
+      </article>
+
+      <article class="panel span-8">
+        <h2>存储映射</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>路径</th>
+              <th>存在</th>
+              <th>可写</th>
+              <th>备注</th>
+            </tr>
+          </thead>
+          <tbody id="pathsTable"></tbody>
+        </table>
+      </article>
+
+      <article class="panel span-6">
+        <h2>仓库信息</h2>
+        <pre id="repositoryBlock">加载中...</pre>
+      </article>
+
+      <article class="panel span-6">
+        <h2>状态快照</h2>
+        <pre id="statusBlock">加载中...</pre>
+      </article>
+
+      <article class="panel span-12">
+        <h2>Namespace 快照</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>路径</th>
+              <th>来源</th>
+              <th>大小</th>
+              <th>文件</th>
+              <th>时间</th>
+            </tr>
+          </thead>
+          <tbody id="snapshotsTable"></tbody>
+        </table>
+      </article>
+
+      <article class="panel span-12">
+        <h2>MySQL 快照</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>说明</th>
+              <th>来源</th>
+              <th>大小</th>
+              <th>库</th>
+              <th>时间</th>
+            </tr>
+          </thead>
+          <tbody id="mysqlSnapshotsTable"></tbody>
+        </table>
+      </article>
+
+      <article class="panel span-12">
+        <h2>MinIO 快照</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>说明</th>
+              <th>来源</th>
+              <th>大小</th>
+              <th>桶 / 对象</th>
+              <th>时间</th>
+            </tr>
+          </thead>
+          <tbody id="minioSnapshotsTable"></tbody>
+        </table>
+      </article>
+
+      <article class="panel span-12">
+        <h2>最近任务</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>类型</th>
+              <th>状态</th>
+              <th>摘要</th>
+              <th>操作者</th>
+              <th>时间</th>
+            </tr>
+          </thead>
+          <tbody id="tasksTable"></tbody>
+        </table>
+      </article>
+
+      <article class="panel span-12">
+        <h2>详情</h2>
+        <pre id="detailBlock">选择快照或任务后这里会显示详情。</pre>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const state = {
+      status: null,
+      tasks: [],
+      snapshots: [],
+      mysqlSnapshots: [],
+      minioSnapshots: [],
+      selectedSnapshotId: null,
+      selectedMySQLSnapshotId: null,
+      selectedMinIOSnapshotId: null
+    };
+
+    function fmtTime(value) {
+      if (!value) return "-";
+      return new Date(value).toLocaleString("zh-CN", { hour12: false });
+    }
+
+    function fmtBytes(value) {
+      if (!value) return "0 B";
+      const units = ["B", "KB", "MB", "GB", "TB"];
+      let size = value;
+      let idx = 0;
+      while (size >= 1024 && idx < units.length - 1) {
+        size /= 1024;
+        idx += 1;
+      }
+      return `${size.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
+    }
+
+    function badge(status) {
+      const map = { succeeded: "ok", warning: "warn", failed: "danger-text", running: "warn" };
+      return `<span class="badge ${map[status] || "ok"}">${status}</span>`;
+    }
+
+    async function loadAll() {
+      const [statusResp, tasksResp, snapshotsResp, mysqlSnapshotsResp, minioSnapshotsResp] = await Promise.all([
+        fetch("/backup/api/v1/status"),
+        fetch("/backup/api/v1/tasks?limit=12"),
+        fetch("/backup/api/v1/snapshots?resource_type=namespace&limit=20"),
+        fetch("/backup/api/v1/snapshots?resource_type=mysql&limit=20"),
+        fetch("/backup/api/v1/snapshots?resource_type=minio&limit=20")
+      ]);
+
+      state.status = await statusResp.json();
+      state.tasks = await tasksResp.json();
+      state.snapshots = await snapshotsResp.json();
+      state.mysqlSnapshots = await mysqlSnapshotsResp.json();
+      state.minioSnapshots = await minioSnapshotsResp.json();
+      render();
+    }
+
+    function render() {
+      const {
+        status,
+        tasks,
+        snapshots,
+        mysqlSnapshots,
+        minioSnapshots,
+        selectedSnapshotId,
+        selectedMySQLSnapshotId,
+        selectedMinIOSnapshotId
+      } = state;
+      if (!status) return;
+
+      document.getElementById("maintenanceValue").innerHTML =
+        status.system_state.maintenance_mode
+          ? `<span class="badge danger-text">已开启</span>`
+          : `<span class="badge ok">已关闭</span>`;
+      document.getElementById("activeTaskValue").textContent =
+        status.system_state.active_task_id ?? "-";
+      document.getElementById("lastPrecheckValue").textContent =
+        fmtTime(status.system_state.last_precheck_at);
+      document.getElementById("repositoryBlock").textContent = JSON.stringify(status.repository, null, 2);
+      document.getElementById("statusBlock").textContent = JSON.stringify(status.system_state, null, 2);
+
+      document.getElementById("pathsTable").innerHTML =
+        Object.entries(status.paths).map(([name, item]) => `
+          <tr>
+            <td><strong>${name}</strong><div class="subtle">${item.path}</div></td>
+            <td>${item.exists ? "是" : "否"}</td>
+            <td>${item.writable_expected ? (item.writable ? "是" : "否") : "只读预期"}</td>
+            <td>${item.error || "-"}</td>
+          </tr>
+        `).join("");
+
+      const snapshotsTable = document.getElementById("snapshotsTable");
+      snapshotsTable.innerHTML = snapshots.map(snapshot => `
+        <tr class="selectable ${snapshot.id === selectedSnapshotId ? "selected" : ""}" data-snapshot-id="${snapshot.id}">
+          <td>${snapshot.id}</td>
+          <td><strong>${snapshot.relative_path}</strong><div class="subtle">${snapshot.archive_path}</div></td>
+          <td>${snapshot.source}</td>
+          <td>${fmtBytes(snapshot.archive_size)}</td>
+          <td>${snapshot.file_count}/${snapshot.directory_count}</td>
+          <td>${fmtTime(snapshot.created_at)}</td>
+        </tr>
+      `).join("");
+
+      snapshotsTable.querySelectorAll("tr[data-snapshot-id]").forEach(row => {
+        row.addEventListener("click", async () => {
+          state.selectedSnapshotId = Number(row.dataset.snapshotId);
+          state.selectedMySQLSnapshotId = null;
+          const resp = await fetch(`/backup/api/v1/snapshots/${row.dataset.snapshotId}`);
+          const snapshot = await resp.json();
+          document.getElementById("detailBlock").textContent = JSON.stringify(snapshot, null, 2);
+          render();
+        });
+      });
+
+      const mysqlSnapshotsTable = document.getElementById("mysqlSnapshotsTable");
+      mysqlSnapshotsTable.innerHTML = mysqlSnapshots.map(snapshot => `
+        <tr class="selectable ${snapshot.id === selectedMySQLSnapshotId ? "selected" : ""}" data-mysql-snapshot-id="${snapshot.id}">
+          <td>${snapshot.id}</td>
+          <td><strong>${snapshot.relative_path}</strong><div class="subtle">${snapshot.archive_path}</div></td>
+          <td>${snapshot.source}</td>
+          <td>${fmtBytes(snapshot.archive_size)}</td>
+          <td>${snapshot.metadata?.databases ? snapshot.metadata.databases.join(", ") : "-"}</td>
+          <td>${fmtTime(snapshot.created_at)}</td>
+        </tr>
+      `).join("");
+
+      mysqlSnapshotsTable.querySelectorAll("tr[data-mysql-snapshot-id]").forEach(row => {
+        row.addEventListener("click", async () => {
+          state.selectedMySQLSnapshotId = Number(row.dataset.mysqlSnapshotId);
+          state.selectedSnapshotId = null;
+          state.selectedMinIOSnapshotId = null;
+          const resp = await fetch(`/backup/api/v1/snapshots/${row.dataset.mysqlSnapshotId}`);
+          const snapshot = await resp.json();
+          document.getElementById("detailBlock").textContent = JSON.stringify(snapshot, null, 2);
+          render();
+        });
+      });
+
+      const minioSnapshotsTable = document.getElementById("minioSnapshotsTable");
+      minioSnapshotsTable.innerHTML = minioSnapshots.map(snapshot => `
+        <tr class="selectable ${snapshot.id === selectedMinIOSnapshotId ? "selected" : ""}" data-minio-snapshot-id="${snapshot.id}">
+          <td>${snapshot.id}</td>
+          <td><strong>${snapshot.relative_path}</strong><div class="subtle">${snapshot.archive_path}</div></td>
+          <td>${snapshot.source}</td>
+          <td>${fmtBytes(snapshot.archive_size)}</td>
+          <td>${snapshot.metadata?.buckets ? snapshot.metadata.buckets.length : 0} / ${snapshot.metadata?.objects ?? 0}</td>
+          <td>${fmtTime(snapshot.created_at)}</td>
+        </tr>
+      `).join("");
+
+      minioSnapshotsTable.querySelectorAll("tr[data-minio-snapshot-id]").forEach(row => {
+        row.addEventListener("click", async () => {
+          state.selectedMinIOSnapshotId = Number(row.dataset.minioSnapshotId);
+          state.selectedSnapshotId = null;
+          state.selectedMySQLSnapshotId = null;
+          const resp = await fetch(`/backup/api/v1/snapshots/${row.dataset.minioSnapshotId}`);
+          const snapshot = await resp.json();
+          document.getElementById("detailBlock").textContent = JSON.stringify(snapshot, null, 2);
+          render();
+        });
+      });
+
+      const tasksTable = document.getElementById("tasksTable");
+      tasksTable.innerHTML = tasks.map(task => `
+        <tr class="selectable" data-task-id="${task.id}">
+          <td>${task.id}</td>
+          <td>${task.type}</td>
+          <td>${badge(task.status)}</td>
+          <td>${task.summary || "-"}</td>
+          <td>${task.requested_by || "-"}</td>
+          <td>${fmtTime(task.finished_at || task.started_at || task.created_at)}</td>
+        </tr>
+      `).join("");
+
+      tasksTable.querySelectorAll("tr[data-task-id]").forEach(row => {
+        row.addEventListener("click", async () => {
+          const resp = await fetch(`/backup/api/v1/tasks/${row.dataset.taskId}`);
+          const task = await resp.json();
+          document.getElementById("detailBlock").textContent = JSON.stringify(task, null, 2);
+        });
+      });
+    }
+
+    async function postJSON(url, payload) {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        throw new Error(data.error || `Request failed: ${resp.status}`);
+      }
+      return data;
+    }
+
+    async function runPrecheck() {
+      const note = window.prompt("可选：输入本次预检备注", "") || "";
+      const data = await postJSON("/backup/api/v1/precheck", { requested_by: "backup-console", note });
+      document.getElementById("detailBlock").textContent = JSON.stringify(data, null, 2);
+      await loadAll();
+    }
+
+    async function toggleMaintenance() {
+      const enabled = !state.status?.system_state?.maintenance_mode;
+      const reason = window.prompt(enabled ? "输入开启维护模式的原因" : "输入关闭维护模式的原因", "") || "";
+      const data = await postJSON("/backup/api/v1/maintenance", {
+        enabled,
+        requested_by: "backup-console",
+        reason
+      });
+      document.getElementById("detailBlock").textContent = JSON.stringify(data, null, 2);
+      await loadAll();
+    }
+
+    async function createSnapshot() {
+      const relativePath = window.prompt("输入 namespace 相对路径，默认整个 namespace", "") || "";
+      const note = window.prompt("可选：输入快照备注", "") || "";
+      const data = await postJSON("/backup/api/v1/namespace/snapshots", {
+        requested_by: "backup-console",
+        relative_path: relativePath,
+        note
+      });
+      document.getElementById("detailBlock").textContent = JSON.stringify(data, null, 2);
+      await loadAll();
+    }
+
+    async function restoreSnapshot() {
+      if (!state.selectedSnapshotId) {
+        window.alert("先在快照表里选中一个 snapshot。");
+        return;
+      }
+      const note = window.prompt("可选：输入本次恢复备注", "") || "";
+      const data = await postJSON("/backup/api/v1/namespace/restore", {
+        requested_by: "backup-console",
+        snapshot_id: state.selectedSnapshotId,
+        note
+      });
+      document.getElementById("detailBlock").textContent = JSON.stringify(data, null, 2);
+      await loadAll();
+    }
+
+    async function createMySQLSnapshot() {
+      const note = window.prompt("可选：输入 MySQL 快照备注", "") || "";
+      const data = await postJSON("/backup/api/v1/mysql/snapshots", {
+        requested_by: "backup-console",
+        note
+      });
+      document.getElementById("detailBlock").textContent = JSON.stringify(data, null, 2);
+      await loadAll();
+    }
+
+    async function restoreMySQLSnapshot() {
+      if (!state.selectedMySQLSnapshotId) {
+        window.alert("先在 MySQL 快照表里选中一个 snapshot。");
+        return;
+      }
+      const note = window.prompt("可选：输入本次 MySQL 恢复备注", "") || "";
+      const data = await postJSON("/backup/api/v1/mysql/restore", {
+        requested_by: "backup-console",
+        snapshot_id: state.selectedMySQLSnapshotId,
+        note
+      });
+      document.getElementById("detailBlock").textContent = JSON.stringify(data, null, 2);
+      await loadAll();
+    }
+
+    async function createMinIOSnapshot() {
+      const note = window.prompt("可选：输入 MinIO 快照备注", "") || "";
+      const data = await postJSON("/backup/api/v1/minio/snapshots", {
+        requested_by: "backup-console",
+        note
+      });
+      document.getElementById("detailBlock").textContent = JSON.stringify(data, null, 2);
+      await loadAll();
+    }
+
+    async function restoreMinIOSnapshot() {
+      if (!state.selectedMinIOSnapshotId) {
+        window.alert("先在 MinIO 快照表里选中一个 snapshot。");
+        return;
+      }
+      const note = window.prompt("可选：输入本次 MinIO 恢复备注", "") || "";
+      const data = await postJSON("/backup/api/v1/minio/restore", {
+        requested_by: "backup-console",
+        snapshot_id: state.selectedMinIOSnapshotId,
+        note
+      });
+      document.getElementById("detailBlock").textContent = JSON.stringify(data, null, 2);
+      await loadAll();
+    }
+
+    document.getElementById("refreshBtn").addEventListener("click", () => loadAll().catch(showError));
+    document.getElementById("runPrecheckBtn").addEventListener("click", () => runPrecheck().catch(showError));
+    document.getElementById("toggleMaintenanceBtn").addEventListener("click", () => toggleMaintenance().catch(showError));
+    document.getElementById("snapshotBtn").addEventListener("click", () => createSnapshot().catch(showError));
+    document.getElementById("restoreBtn").addEventListener("click", () => restoreSnapshot().catch(showError));
+    document.getElementById("mysqlSnapshotBtn").addEventListener("click", () => createMySQLSnapshot().catch(showError));
+    document.getElementById("mysqlRestoreBtn").addEventListener("click", () => restoreMySQLSnapshot().catch(showError));
+    document.getElementById("minioSnapshotBtn").addEventListener("click", () => createMinIOSnapshot().catch(showError));
+    document.getElementById("minioRestoreBtn").addEventListener("click", () => restoreMinIOSnapshot().catch(showError));
+
+    function showError(err) {
+      document.getElementById("detailBlock").textContent = err.stack || String(err);
+    }
+
+    loadAll().catch(showError);
+  </script>
+</body>
+</html>

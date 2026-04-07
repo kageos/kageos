@@ -110,10 +110,9 @@ func (s *Server) Stop(ctx context.Context) error {
 // initDatabase 初始化数据库
 func (s *Server) initDatabase(ctx context.Context) error {
 	// 数据库文件路径
-	root := config.GetAgentOSRoot()
-	dbPath := filepath.Join("data", "app-runtime", "app_runtime.db")
-	if root != "" {
-		dbPath = filepath.Join(root, "data", "app-runtime", "app_runtime.db")
+	dbPath, err := resolveRuntimeDBPath()
+	if err != nil {
+		return fmt.Errorf("failed to resolve runtime db path: %w", err)
 	}
 
 	// 获取绝对路径
@@ -133,6 +132,48 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	}
 
 	s.db = db
+	return nil
+}
+
+func resolveRuntimeDBPath() (string, error) {
+	root := config.GetAgentOSRoot()
+	dataRoot := "data"
+	if root != "" {
+		dataRoot = filepath.Join(root, "data")
+	}
+
+	currentPath := filepath.Join(dataRoot, "runtime", "app-runtime", "app_runtime.db")
+	legacyPath := filepath.Join(dataRoot, "app-runtime", "app_runtime.db")
+
+	if err := migrateLegacyRuntimeDB(currentPath, legacyPath); err != nil {
+		return "", err
+	}
+
+	return currentPath, nil
+}
+
+func migrateLegacyRuntimeDB(currentPath, legacyPath string) error {
+	if _, err := os.Stat(currentPath); err == nil {
+		return nil
+	} else if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	if _, err := os.Stat(legacyPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(currentPath), 0o755); err != nil {
+		return fmt.Errorf("failed to create runtime db directory: %w", err)
+	}
+	if err := os.Rename(legacyPath, currentPath); err != nil {
+		return fmt.Errorf("failed to migrate runtime db from %s to %s: %w", legacyPath, currentPath, err)
+	}
+
+	_ = os.Remove(filepath.Dir(legacyPath))
 	return nil
 }
 
@@ -281,11 +322,12 @@ func (s *Server) subscribeNATS(ctx context.Context) error {
 	appH := v1.NewAppHandler(s.appManageService)
 	serviceTreeH := v1.NewServiceTreeHandler(s.serviceTreeService)
 	workspaceH := v1.NewWorkspaceHandler(s.appManageService)
-	requestH := v1.NewRequestHandler(s.appManageService, s) // s 实现 RequestRouter
+	requestTransport := NewAppRequestTransport(s.natsConn, s.containerService, s.appManageService, s.appDiscoveryService)
+	requestH := v1.NewRequestHandler(s.appManageService, requestTransport)
 	if err := RegisterNATS(ctx, s.natsConn, &s.subscriptions, appH, serviceTreeH, workspaceH, requestH); err != nil {
 		return err
 	}
-	// Runtime 状态主题由 AppDiscoveryService 统一处理，不需要在此订阅
+	// Runtime 生命周期事件主题由 AppDiscoveryService 统一处理，不需要在此订阅
 	return nil
 }
 

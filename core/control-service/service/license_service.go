@@ -118,12 +118,12 @@ func (s *LicenseService) PublishKey(ctx context.Context) error {
 		return fmt.Errorf("NATS connection is not connected")
 	}
 
-	if err := s.natsConn.Publish(subjects.GetControlLicenseKeySubject(), data); err != nil {
+	if err := s.natsConn.Publish(subjects.LicenseKeyUpdatedEventSubject, data); err != nil {
 		logger.Errorf(ctx, "[License Service] Failed to publish license key: %v", err)
 		return fmt.Errorf("failed to publish license key: %w", err)
 	}
 
-	logger.Infof(ctx, "[License Service] Published license key to NATS (subject: %s)", subjects.GetControlLicenseKeySubject())
+	logger.Infof(ctx, "[License Service] Published license key to NATS (subject: %s)", subjects.LicenseKeyUpdatedEventSubject)
 	return nil
 }
 
@@ -351,7 +351,7 @@ func (s *LicenseService) PublishDeactivate(ctx context.Context) error {
 		return fmt.Errorf("failed to marshal deactivate message: %w", err)
 	}
 
-	if err := s.natsConn.Publish(subjects.GetControlLicenseKeyRefreshSubject(), data); err != nil {
+	if err := s.natsConn.Publish(subjects.LicenseKeyRefreshEventSubject, data); err != nil {
 		return fmt.Errorf("failed to publish deactivate instruction: %w", err)
 	}
 
@@ -405,7 +405,7 @@ func (s *LicenseService) PublishRefresh(ctx context.Context) error {
 		return fmt.Errorf("NATS connection is not connected")
 	}
 
-	if err := s.natsConn.Publish(subjects.GetControlLicenseKeyRefreshSubject(), data); err != nil {
+	if err := s.natsConn.Publish(subjects.LicenseKeyRefreshEventSubject, data); err != nil {
 		logger.Errorf(ctx, "[License Service] Failed to publish refresh instruction: %v", err)
 		return fmt.Errorf("failed to publish refresh instruction: %w", err)
 	}

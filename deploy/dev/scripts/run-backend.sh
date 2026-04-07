@@ -10,10 +10,8 @@ fi
 
 cd "$ROOT"
 
-export AI_AGENT_OS_ROOT="${AI_AGENT_OS_ROOT:-$ROOT}"
 export APP_ENV="${APP_ENV:-dev}"
 
-echo "==> AI_AGENT_OS_ROOT=$AI_AGENT_OS_ROOT"
 echo "==> APP_ENV=$APP_ENV"
 
 exec go run ./core/cmd/main "$@"

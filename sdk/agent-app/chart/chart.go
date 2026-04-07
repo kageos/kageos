@@ -12,6 +12,7 @@ type ChartSeries struct {
 	Name string `json:"name"`
 	// 数据点（必需）
 	// - bar/line: []interface{}，如 [100, 200, 150]
+	//   支持多系列：例如 3 个状态维度可返回 3 个 ChartSeries，前端会并列渲染为多根柱子或多条折线
 	// - pie: []map[string]interface{}，如 [{"name": "A", "value": 100}]
 	// - gauge: []interface{}，如 [75]（单值）
 	Data []interface{} `json:"data"`
@@ -22,6 +23,8 @@ type ChartSeries struct {
 }
 
 // LineChart 折线图
+// - XAxis 为横轴分类（常见为日期）
+// - Series 支持单条线或多条线；多维趋势对比时，通常一个维度值对应一个 ChartSeries
 type LineChart struct {
 	ChartType string                 `json:"chart_type"` // 由 resp.Chart() 注入，业务无需填
 	Title     string                 `json:"title,omitempty"`
@@ -39,6 +42,8 @@ func (c *LineChart) SetChartType(typ string) {
 }
 
 // BarChart 柱状图
+// - XAxis 为横轴分类（常见为优先级、部门、月份等）
+// - Series 支持单系列或多系列；多维对比时可返回多个 ChartSeries 做分组柱状图
 type BarChart struct {
 	ChartType string                 `json:"chart_type"`
 	Title     string                 `json:"title,omitempty"`

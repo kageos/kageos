@@ -163,6 +163,14 @@ func init() {
 3. **配置 ChartTemplate**：`BaseConfig`（Name、Request、Response 填**与返回值一致的具体类型**，如 `Response: &chart.LineChart{}`）。图表类型请使用 **`sdk/agent-app/chart`** 包（`chart.LineChart`、`chart.BarChart` 等），勿使用 `types` 包下的图表类型。
 4. **注册**：`init()` 中 `packageContext.GET("路由名", ChartHandler, ChartTemplate)`。
 
+**多维图表推荐模式（重要）**：
+- `LineChart` / `BarChart` 的 `Series` 是数组，**天然支持多系列**。
+- 如果请求里有“状态 / 部门 / 门店 / 渠道”这类**可选聚焦维度**，推荐采用：
+  - **不传维度**：返回多个 `ChartSeries` 做总览对比（例如不同状态的多条折线、分组柱状图）。
+  - **传了维度值**：退回单 `ChartSeries`，只聚焦该维度。
+- 对趋势图，建议把缺失日期补 `0`，避免线断掉或横轴漂移。
+- 对柱状图，建议固定分类顺序（如 `低/中/高`、`待处理/处理中/已完成`），避免不同请求之间柱子顺序变化。
+
 最小可用片段示例：
 
 ```go
@@ -191,6 +199,30 @@ func init() {
     packageContext.GET("sales_trend_statistics.chart", SalesTrendChart, &app.ChartTemplate{
         BaseConfig: app.BaseConfig{Name: "销售趋势", Request: &SalesStatisticsReq{}, Response: &chart.LineChart{}},
     })
+}
+```
+
+多系列示例（默认总览）：
+
+```go
+type TicketTrendReq struct {
+    StartTime int64 `json:"start_time" form:"start_time" widget:"name:开始时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"`
+    EndTime   int64 `json:"end_time" form:"end_time" widget:"name:结束时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"`
+}
+
+func TicketTrendChart(ctx *app.Context, resp response.Response) error {
+    var req TicketTrendReq
+    if err := ctx.ShouldBind(&req); err != nil { return err }
+
+    return resp.Chart(&chart.LineChart{
+        Title: "工单趋势",
+        XAxis: []string{"2026-04-01", "2026-04-02"},
+        Series: []chart.ChartSeries{
+            {Name: "待处理", Data: []interface{}{12, 15}},
+            {Name: "处理中", Data: []interface{}{5, 7}},
+            {Name: "已完成", Data: []interface{}{8, 11}},
+        },
+    }).Build()
 }
 ```
 

@@ -94,16 +94,87 @@ podman compose build --build-arg APT_USE_MIRROR=0 --build-arg NPM_REGISTRY=https
 
 ### 持久卷（勿误删）
 
-Compose 为 **`main`** 挂载命名卷，避免重建容器后丢失数据：
+生产环境统一使用 **`STORAGE_ROOT` 宿主机固定目录挂载**，避免核心数据落在容器层。
 
-| 卷名 | 挂载点 | 用途 |
+| 宿主机目录 | 容器挂载点 | 用途 |
 |------|--------|------|
-| `namespace_data` | `/app/namespace` | **用户应用空间**（`namespace/{user}/{app}/...` 等工作区，与配置里 `app_dir.base_path: namespace` 对应） |
-| `app_data` | `/app/data` | 应用侧其他本地数据目录（当前已用于 `app-runtime` 本地 SQLite、License 文件/密钥等持久化状态） |
-| `app_logs` | `/app/logs` | 主站日志 |
-| `podman_storage` | `/var/lib/containers` | 容器内 Podman 存储 |
+| `${STORAGE_ROOT}/mysql` | `/var/lib/mysql` | MySQL 数据目录 |
+| `${STORAGE_ROOT}/minio` | `/data` | MinIO 数据目录 |
+| `${STORAGE_ROOT}/namespace` | `/app/namespace` | **用户应用空间**（`namespace/{user}/{app}/...` 等工作区，与配置里 `app_dir.base_path: namespace` 对应） |
+| `${STORAGE_ROOT}/data` | `/app/data` | 应用侧其他本地数据目录（当前已用于 `app-runtime` SQLite、License、backup repo/state/tmp） |
+| `${STORAGE_ROOT}/logs` | `/app/logs` | 主站与 backup-service 日志 |
+| `${STORAGE_ROOT}/podman_storage` | `/var/lib/containers` | 容器内 Podman 存储 |
 
-**备份 / 升级**：不要用 **`compose down -v`**，否则会删掉上述命名卷。**`docker volume`** / **`podman volume`** 需单独备份 `*_data`、`*_logs`、`podman_storage` 等卷（按运维策略做快照或 `volume inspect` 后拷宿主机路径）。
+`build.sh` 会自动创建以下目录结构：
+
+- `${STORAGE_ROOT}/mysql`
+- `${STORAGE_ROOT}/minio`
+- `${STORAGE_ROOT}/podman_storage`
+- `${STORAGE_ROOT}/logs`
+- `${STORAGE_ROOT}/namespace`
+- `${STORAGE_ROOT}/data`
+
+`/app/data` 当前推荐子目录：
+
+- `/app/data/runtime/app-runtime/app_runtime.db`
+- `/app/data/license/license.json`
+- `/app/data/license/license.key`
+- `/app/data/backup/repo`
+- `/app/data/backup/state`
+- `/app/data/backup/staging`
+- `/app/data/tmp`
+
+**备份 / 升级**：
+
+- 直接备份 `${STORAGE_ROOT}` 下对应目录即可。
+- 切勿对 `${STORAGE_ROOT}` 做 `rm -rf` 或未经验证的清理。
+- `backup` 服务默认监听 `127.0.0.1:19088`，作为后续恢复控制面的独立入口。
+
+### Backup 控制面
+
+当前 `backup-service` 已经是独立控制面，不依赖主站 MySQL：
+
+- 本地控制台：`http://127.0.0.1:19088/backup`
+- 值班清单：见 `RECOVERY_CHECKLIST.md`
+- 恢复操作手册：见 `RECOVERY.md`
+- 健康检查：`GET /health`
+- 状态总览：`GET /backup/api/v1/status`
+- 最近任务：`GET /backup/api/v1/tasks`
+- 单任务详情：`GET /backup/api/v1/tasks/:id`
+- 快照列表：`GET /backup/api/v1/snapshots?resource_type=namespace`
+- 单快照详情：`GET /backup/api/v1/snapshots/:id`
+- 手工预检：`POST /backup/api/v1/precheck`
+- 维护模式：`POST /backup/api/v1/maintenance`
+- 创建 namespace 快照：`POST /backup/api/v1/namespace/snapshots`
+- 基于快照恢复 namespace：`POST /backup/api/v1/namespace/restore`
+- 创建 MySQL 快照：`POST /backup/api/v1/mysql/snapshots`
+- 基于快照恢复 MySQL：`POST /backup/api/v1/mysql/restore`
+- 创建 MinIO 快照：`POST /backup/api/v1/minio/snapshots`
+- 基于快照恢复 MinIO：`POST /backup/api/v1/minio/restore`
+
+当前阶段已落地：
+
+- SQLite 状态库存放在 `/app/data/backup/state/backup-service.db`
+- 维护模式状态持久化，并同步生成 `/app/data/backup/state/maintenance.flag` 与 `/app/data/backup/state/maintenance.html`
+- 预检任务持久化与历史查询
+- `namespace` 本地快照归档与快照列表查询
+- `namespace` 基于快照的恢复能力，恢复前自动创建 `pre-restore` 快照
+- `MySQL` 逻辑全量快照归档与快照列表查询
+- `MySQL` 基于快照的整库恢复能力，恢复前自动创建 `pre-restore` dump
+- `MinIO` 对象级快照归档与快照列表查询
+- `MinIO` 基于快照的整仓恢复能力，恢复前自动创建 `pre-restore` 对象快照
+- 对 `namespace / data / mysql / minio / podman_storage` 的路径、MySQL/MinIO 连通性和工具链预检
+
+注意：
+
+- `namespace` / `MySQL` / `MinIO` 恢复目前都要求先开启维护模式。
+- 开启维护模式后，主站 Nginx 会自动对外返回 `503` 维护页，入口页内容来自 `/app/data/backup/state/maintenance.html`。
+- 如果你是在宿主机本地直接启动 `backup-service`，没有手工导出环境变量也没关系；它会优先读取 `deploy/prod/.env` 里的 `STORAGE_ROOT / MYSQL_ROOT_PASSWORD / MINIO_ROOT_USER / MINIO_ROOT_PASSWORD`，并把容器内 `/app/...` 路径自动映射到宿主机 `${STORAGE_ROOT}`。
+- 当前 `namespace` 快照仓库存放在 `/app/data/backup/repo/namespace/`。
+- 当前 `MySQL` 快照仓库存放在 `/app/data/backup/repo/mysql/`。
+- 当前 `MinIO` 快照仓库存放在 `/app/data/backup/repo/minio/`。
+
+后续再在此基础上接真正的备份执行器与恢复编排。
 
 ## 文件说明
 
@@ -111,11 +182,13 @@ Compose 为 **`main`** 挂载命名卷，避免重建容器后丢失数据：
 |------|------|
 | **`.env.example`** | 配置模板；复制为 **`.env`** 后填写 |
 | **`.env`** | 唯一配置源；Compose 与 `build.sh` 直接读取（**勿提交**） |
-| **`build.sh`** | 运维入口：支持 `up / update / pull-update / restart-main / logs / status / down` |
+| **`build.sh`** | 运维入口：支持 `up / update / pull-update / restart-main / logs / status / down`（统一使用 `STORAGE_ROOT`） |
+| `RECOVERY_CHECKLIST.md` | 值班恢复速查清单 |
+| `RECOVERY.md` | 误删数据后的恢复操作手册 |
 | `docker-compose.yaml` | 服务定义（main 使用 host 网络） |
 | `init-db.sql` | MySQL 首次启动建库（挂载 `docker-entrypoint-initdb.d`，**仅本目录**） |
 | `nats-server.conf` | NATS 容器配置（**仅本目录**） |
-| `Dockerfile` / `entrypoint-main.sh` / `nginx/` / `config/template/` | 镜像与内置模板 |
+| `Dockerfile` / `entrypoint-main.sh` / `entrypoint-backup.sh` / `nginx/` / `config/template/` | 镜像与内置模板 |
 
 补充：
 

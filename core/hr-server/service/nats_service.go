@@ -10,34 +10,25 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/hr-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/hr-server/repository"
-	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/nats-io/nats.go"
 )
 
-// NATSService NATS 服务
-type NATSService struct {
+// TokenPublisher 定义 hr-server 向其他服务发布 token 相关命令的能力。
+type TokenPublisher interface {
+	InvalidateUserToken(ctx context.Context, userID int64, username string, reason string, userSessionRepo *repository.UserSessionRepository) error
+	RemoveTokenFromBlacklist(ctx context.Context, userID int64, username string, oldSessions []*model.UserSession) error
+}
+
+// GatewayTokenPublisher 负责向 gateway 发布 token 相关命令。
+type GatewayTokenPublisher struct {
 	conn *nats.Conn
 }
 
-// NewNATSService 创建 NATS 服务
-func NewNATSService() (*NATSService, error) {
-	// 从全局配置获取 NATS 连接
-	globalConfig := appconfig.GetGlobalSharedConfig()
-	natsURL := globalConfig.Nats.URL
-	if natsURL == "" {
-		natsURL = "nats://127.0.0.1:4222" // 默认值
-	}
-
-	conn, err := natsx.Connect(natsURL)
-	if err != nil {
-		return nil, fmt.Errorf("连接 NATS 失败: %w", err)
-	}
-
-	return &NATSService{
-		conn: conn,
-	}, nil
+// NewGatewayTokenPublisher 创建 GatewayTokenPublisher。
+func NewGatewayTokenPublisher(conn *nats.Conn) *GatewayTokenPublisher {
+	return &GatewayTokenPublisher{conn: conn}
 }
 
 // hashToken 计算 token hash
@@ -46,28 +37,28 @@ func hashToken(token string) string {
 	return hex.EncodeToString(h[:])
 }
 
-// InvalidateUserToken 使用户的 token 失效（通过 NATS 通知网关）
-func (s *NATSService) InvalidateUserToken(ctx context.Context, userID int64, username string, reason string, userSessionRepo *repository.UserSessionRepository) error {
-	// 获取用户的所有活跃 token（从 UserSession 表查询）
+// InvalidateUserToken 使用户的 token 失效（通过 NATS 通知 gateway）。
+func (p *GatewayTokenPublisher) InvalidateUserToken(ctx context.Context, userID int64, username string, reason string, userSessionRepo *repository.UserSessionRepository) error {
+	if p == nil || p.conn == nil {
+		return fmt.Errorf("NATS connection is nil")
+	}
+
 	activeSessions, err := userSessionRepo.GetActiveSessionsByUserID(userID)
 	if err != nil {
 		return fmt.Errorf("查询活跃会话失败: %w", err)
 	}
 
-	// 计算所有 token 的 hash
 	tokenHashes := make([]string, 0, len(activeSessions))
 	for _, session := range activeSessions {
 		tokenHash := hashToken(session.Token)
 		tokenHashes = append(tokenHashes, tokenHash)
 	}
 
-	subject := "hr.token.invalidate"
-
 	message := map[string]interface{}{
 		"user_id":   userID,
 		"username":  username,
-		"tokens":    tokenHashes, // 所有活跃 token hash 列表
-		"reason":    reason,      // department_changed, leader_changed
+		"tokens":    tokenHashes,
+		"reason":    reason,
 		"timestamp": time.Now().Unix(),
 	}
 
@@ -76,30 +67,31 @@ func (s *NATSService) InvalidateUserToken(ctx context.Context, userID int64, use
 		return fmt.Errorf("序列化消息失败: %w", err)
 	}
 
-	if err := s.conn.Publish(subject, data); err != nil {
+	if err := p.conn.Publish(subjects.GatewayTokenInvalidateCommandSubject, data); err != nil {
 		return fmt.Errorf("发布消息失败: %w", err)
 	}
 
-	logger.Infof(ctx, "[NATSService] Token 失效通知已发送: userID=%d, reason=%s, tokenCount=%d", userID, reason, len(tokenHashes))
+	logger.Infof(ctx, "[GatewayTokenPublisher] Token 失效通知已发送: userID=%d, reason=%s, tokenCount=%d", userID, reason, len(tokenHashes))
 	return nil
 }
 
-// RemoveTokenFromBlacklist 从黑名单移除 token（通过 NATS 通知网关）
-func (s *NATSService) RemoveTokenFromBlacklist(ctx context.Context, userID int64, username string, oldSessions []*model.UserSession) error {
-	// 计算所有旧 token 的 hash
+// RemoveTokenFromBlacklist 从黑名单移除 token（通过 NATS 通知 gateway）。
+func (p *GatewayTokenPublisher) RemoveTokenFromBlacklist(ctx context.Context, userID int64, username string, oldSessions []*model.UserSession) error {
+	if p == nil || p.conn == nil {
+		return fmt.Errorf("NATS connection is nil")
+	}
+
 	tokenHashes := make([]string, 0, len(oldSessions))
 	for _, session := range oldSessions {
 		tokenHash := hashToken(session.Token)
 		tokenHashes = append(tokenHashes, tokenHash)
 	}
 
-	subject := "hr.token.remove_blacklist"
-
 	message := map[string]interface{}{
 		"user_id":   userID,
 		"username":  username,
-		"tokens":    tokenHashes,  // 要移除的旧 token hash 列表
-		"reason":    "user_relogin", // 移除原因：用户重新登录
+		"tokens":    tokenHashes,
+		"reason":    "user_relogin",
 		"timestamp": time.Now().Unix(),
 	}
 
@@ -108,24 +100,10 @@ func (s *NATSService) RemoveTokenFromBlacklist(ctx context.Context, userID int64
 		return fmt.Errorf("序列化消息失败: %w", err)
 	}
 
-	if err := s.conn.Publish(subject, data); err != nil {
+	if err := p.conn.Publish(subjects.GatewayTokenRemoveBlacklistCommandSubject, data); err != nil {
 		return fmt.Errorf("发布消息失败: %w", err)
 	}
 
-	logger.Infof(ctx, "[NATSService] 移除黑名单通知已发送: userID=%d, reason=user_relogin, tokenCount=%d", userID, len(tokenHashes))
+	logger.Infof(ctx, "[GatewayTokenPublisher] 移除黑名单通知已发送: userID=%d, reason=user_relogin, tokenCount=%d", userID, len(tokenHashes))
 	return nil
 }
-
-// GetConn 返回 NATS 连接（供消息消费等订阅使用）
-func (s *NATSService) GetConn() *nats.Conn {
-	return s.conn
-}
-
-// Close 关闭 NATS 连接
-func (s *NATSService) Close() error {
-	if s.conn != nil {
-		s.conn.Close()
-	}
-	return nil
-}
-

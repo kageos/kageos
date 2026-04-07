@@ -5,71 +5,103 @@ import (
 	"time"
 )
 
-// 重构后的主题设计：保持应用请求/响应独立，简化状态通知主题
+// NATS 主题命名规范：
+// 1. 统一使用点分隔：<target>.<version>.<kind>.<domain>.<action>[.<scope...>]。
+// 2. target 表示该主题主要由谁消费/归谁负责，例如 runtime、app、gateway、control。
+// 3. version 当前固定为 v1；后续协议升级时新增独立版本层，例如 v2。
+// 4. kind 取值固定为 cmd / query / event / reply：
+//    - cmd: 目标方执行命令或变更
+//    - query: 目标方响应查询或 request-reply
+//    - event: 目标方观察生命周期/广播事件
+//    - reply: 目标方接收异步回复
+// 5. 静态 token 一律使用小写 kebab-case；动态 scope 放在尾部，当前主要是 {user}.{app}.{version}。
 
-// 保持独立的复杂主题
-// BuildAppRuntime2AppSubject 构建 app_runtime 到 app 的具体主题（应用请求）
-func BuildAppRuntime2AppSubject(user, app, version string) string {
-	return fmt.Sprintf("app_runtime.app.%s.%s.%s", user, app, version)
+const (
+	// runtime / app 调用链
+	RuntimeAppCreateCommandSubject                = "runtime.v1.cmd.app.create"
+	RuntimeAppUpdateCommandSubject                = "runtime.v1.cmd.app.update"
+	RuntimeAppDeleteCommandSubject                = "runtime.v1.cmd.app.delete"
+	RuntimeServiceTreeCreateCommandSubject        = "runtime.v1.cmd.service-tree.create"
+	RuntimeServiceTreeDeleteCommandSubject        = "runtime.v1.cmd.service-tree.delete"
+	RuntimeServiceTreeUpdateCommandSubject        = "runtime.v1.cmd.service-tree.update"
+	RuntimeDirectoryFilesReadQuerySubject         = "runtime.v1.query.directory-files.read"
+	RuntimeFileReplaceBatchCommandSubject         = "runtime.v1.cmd.file.replace-batch"
+	RuntimeFileDeleteCommandSubject               = "runtime.v1.cmd.file.delete"
+	RuntimeAppLogReadQuerySubject                 = "runtime.v1.query.app-log.read"
+	RuntimeDirectoryTreeBatchCreateCommandSubject = "runtime.v1.cmd.directory-tree.batch-create"
+	RuntimeFileBatchWriteCommandSubject           = "runtime.v1.cmd.file.batch-write"
+	RuntimeNamespaceCreateCommandSubject          = "runtime.v1.cmd.namespace.create"
+	RuntimeAppInvokeCommandSubjectPattern         = "runtime.v1.cmd.app.invoke.*.*.*"
+	RuntimeLifecycleEventSubjectPattern           = "runtime.v1.event.lifecycle.*.*.*"
+
+	AppControlSubjectPattern              = "app.v1.cmd.control.*.*.*"
+	AppDiscoveryRequestSubject            = "app.v1.cmd.discovery.request"
+	AppServerAppInvokeReplySubjectPattern = "app-server.v1.reply.app.invoke.*.*.*"
+
+	// agent / plugin
+	AgentFunctionGenCommandSubject       = "agent.v1.cmd.function-gen"
+	AgentFunctionGenCallbackReplySubject = "agent.v1.reply.function-gen.callback"
+
+	// license / control
+	ControlLicenseKeyGetQuerySubject = "control.v1.query.license-key.get"
+	LicenseKeyUpdatedEventSubject    = "license.v1.event.key.updated"
+	LicenseKeyRefreshEventSubject    = "license.v1.event.key.refresh"
+
+	// message / gateway
+	MessageSendCommandSubject                 = "message.v1.cmd.send"
+	MessageSendQueueGroup                     = MessageSendCommandSubject
+	GatewayTokenInvalidateCommandSubject      = "gateway.v1.cmd.token.invalidate"
+	GatewayTokenRemoveBlacklistCommandSubject = "gateway.v1.cmd.token.remove-blacklist"
+)
+
+// BuildAppInvokeSubject 构建 runtime -> app 的调用主题。
+func BuildAppInvokeSubject(user, app, version string) string {
+	return fmt.Sprintf("app.v1.cmd.invoke.%s.%s.%s", user, app, version)
 }
 
-// BuildApp2FunctionServerSubject 构建 app 到 function_server 的具体主题（应用响应）
-func BuildApp2FunctionServerSubject(user, app, version string) string {
-	return fmt.Sprintf("app.function_server.%s.%s.%s", user, app, version)
+// BuildAppServerAppInvokeReplySubject 构建 app -> app-server 的异步回复主题。
+func BuildAppServerAppInvokeReplySubject(user, app, version string) string {
+	return fmt.Sprintf("app-server.v1.reply.app.invoke.%s.%s.%s", user, app, version)
 }
 
-// GetApp2FunctionServerResponseSubject 获取 app 到 function_server 响应的订阅主题（通配符）
-func GetApp2FunctionServerResponseSubject() string {
-	return "app.function_server.*.*.*"
+// BuildAppControlSubject 构建 runtime -> app 的控制主题。
+// 当前用于 shutdown 与 onAppUpdate request-reply。
+func BuildAppControlSubject(user, app, version string) string {
+	return fmt.Sprintf("app.v1.cmd.control.%s.%s.%s", user, app, version)
 }
 
-// 简化的状态通知主题
-// BuildAppStatusSubject 构建 SDK App 状态主题
-// 处理：shutdown、discovery
-func BuildAppStatusSubject(user, app, version string) string {
-	return fmt.Sprintf("app.status.%s.%s.%s", user, app, version)
+// BuildRuntimeLifecycleEventSubject 构建 app -> runtime 的生命周期事件主题。
+func BuildRuntimeLifecycleEventSubject(user, app, version string) string {
+	return fmt.Sprintf("runtime.v1.event.lifecycle.%s.%s.%s", user, app, version)
 }
 
-// GetAppStatusSubjectPattern 获取 SDK App 状态主题模式（通配符）
-func GetAppStatusSubjectPattern() string {
-	return "app.status.*.*.*"
+// BuildRuntimeAppInvokeCommandSubject 构建 app-server -> runtime 的应用调用主题。
+func BuildRuntimeAppInvokeCommandSubject(user, app, version string) string {
+	return fmt.Sprintf("runtime.v1.cmd.app.invoke.%s.%s.%s", user, app, version)
 }
 
-// GetAppUpdateCallbackRequestSubject 获取 App Update Callback 请求主题
-func GetAppUpdateCallbackRequestSubject(user, app, version string) string {
-	return fmt.Sprintf("app.update.callback.%s.%s.%s", user, app, version)
+// BuildAgentMsgSubject 构建 agent 消息主题（用于 MsgSubject 字段）。
+func BuildAgentMsgSubject(chatType, user string, agentID int64) string {
+	return fmt.Sprintf("agent.v1.msg.%s.%s.%d", chatType, user, agentID)
 }
 
-// GetAppUpdateCallbackRequestSubjectPattern 获取 App Update Callback 请求主题模式（通配符）
-func GetAppUpdateCallbackRequestSubjectPattern() string {
-	return "app.update.callback.*.*.*"
-}
-
-// BuildRuntimeStatusSubject 构建 Runtime 状态主题
-// 处理：startup、close、discovery
-func BuildRuntimeStatusSubject(user, app, version string) string {
-	return fmt.Sprintf("runtime.status.%s.%s.%s", user, app, version)
-}
-
-// GetRuntimeStatusSubjectPattern 获取 Runtime 状态主题模式（通配符）
-func GetRuntimeStatusSubjectPattern() string {
-	return "runtime.status.*.*.*"
+// BuildPluginSubject 构建插件消息主题。
+func BuildPluginSubject(user string, pluginID int64) string {
+	return fmt.Sprintf("plugin.v1.msg.%s.%d", user, pluginID)
 }
 
 // 消息类型常量
 const (
-	// 状态通知消息类型
-	MessageTypeStatusShutdown    = "shutdown"    // 关闭命令
-	MessageTypeStatusDiscovery   = "discovery"   // 服务发现
-	MessageTypeStatusStartup     = "startup"     // 启动通知
-	MessageTypeStatusClose       = "close"       // 关闭通知
-	MessageTypeStatusOnAppUpdate = "onAppUpdate" // 当程序更新时候
+	MessageTypeStatusShutdown    = "shutdown"
+	MessageTypeStatusDiscovery   = "discovery"
+	MessageTypeStatusStartup     = "startup"
+	MessageTypeStatusClose       = "close"
+	MessageTypeStatusOnAppUpdate = "onAppUpdate"
 
-	// Request/Reply 消息类型
-	MessageTypeUpdateCallbackRequest = "update_callback_request" // 更新回调请求
+	MessageTypeUpdateCallbackRequest = "update_callback_request"
 )
 
-// 消息结构体
+// Message 为 runtime / app 生命周期与控制链路共用的统一消息体。
 type Message struct {
 	ErrorMsg  string      `json:"error_msg"`
 	Type      string      `json:"type"`
@@ -78,153 +110,4 @@ type Message struct {
 	Version   string      `json:"version"`
 	Data      interface{} `json:"data"`
 	Timestamp time.Time   `json:"timestamp"`
-}
-
-// GetAppRuntime2AppCreateRequestSubject 获取 app_runtime 到 app 创建请求的订阅主题
-func GetAppRuntime2AppCreateRequestSubject() string {
-	return "app_runtime.app.create"
-}
-
-// GetAppRuntime2AppUpdateRequestSubject 获取 app_runtime 到 app 更新请求的订阅主题
-func GetAppRuntime2AppUpdateRequestSubject() string {
-	return "app_runtime.app.update"
-}
-
-// GetAppRuntime2ServiceTreeCreateRequestSubject 获取 app_runtime 到 service_tree 创建请求的订阅主题
-func GetAppRuntime2ServiceTreeCreateRequestSubject() string {
-	return "app_runtime.service_tree.create"
-}
-
-// GetFunctionServer2AppRuntimeNamespaceCreateSubject 获取 function_server 到 app_runtime 命名空间创建的主题
-func GetFunctionServer2AppRuntimeNamespaceCreateSubject() string {
-	return "function_server.app_runtime.namespace.create"
-}
-
-// BuildFunctionServer2AppRuntimeSubject 构建 function_server 到 app_runtime 的具体主题
-func BuildFunctionServer2AppRuntimeSubject(user, app, version string) string {
-	return fmt.Sprintf("function_server.app_runtime.%s.%s.%s", user, app, version)
-}
-
-// GetFunctionServer2AppRuntimeRequestSubject 获取 function_server 到 app_runtime 请求的订阅主题（通配符）
-func GetFunctionServer2AppRuntimeRequestSubject() string {
-	return "function_server.app_runtime.*.*.*"
-}
-
-// GetRuntimeDiscoverySubject 获取 runtime 发现应用的广播主题
-func GetRuntimeDiscoverySubject() string {
-	return "ai-agent-os.runtime.discovery"
-}
-
-// GetAppServer2AppRuntimeDeleteRequestSubject 获取 app_server 到 app_runtime 删除请求的订阅主题
-func GetAppServer2AppRuntimeDeleteRequestSubject() string {
-	return "app_server.app_runtime.delete"
-}
-
-// GetAppServer2AppRuntimeReadDirectoryFilesRequestSubject 获取 app_server 到 app_runtime 读取目录文件请求的订阅主题
-func GetAppServer2AppRuntimeReadDirectoryFilesRequestSubject() string {
-	return "app_server.app_runtime.read_directory_files"
-}
-
-// GetAppServer2AppRuntimeReplaceInFileBatchRequestSubject 获取 app_server 到 app_runtime 批量 search-replace 请求的订阅主题
-func GetAppServer2AppRuntimeReplaceInFileBatchRequestSubject() string {
-	return "app_server.app_runtime.replace_in_file_batch"
-}
-
-// GetAppServer2AppRuntimeDeleteFileRequestSubject 获取 app_server 到 app_runtime 删除磁盘文件请求的订阅主题
-func GetAppServer2AppRuntimeDeleteFileRequestSubject() string {
-	return "app_server.app_runtime.delete_file"
-}
-
-// GetAppServer2AppRuntimeBatchCreateDirectoryTreeRequestSubject 获取 app_server 到 app_runtime 批量创建目录树请求的订阅主题
-func GetAppServer2AppRuntimeBatchCreateDirectoryTreeRequestSubject() string {
-	return "app_server.app_runtime.batch_create_directory_tree"
-}
-
-// GetAppServer2AppRuntimeUpdateServiceTreeRequestSubject 获取 app_server 到 app_runtime 更新服务树请求的订阅主题
-func GetAppServer2AppRuntimeUpdateServiceTreeRequestSubject() string {
-	return "app_server.app_runtime.update_service_tree"
-}
-
-// GetAppServer2AppRuntimeBatchWriteFilesRequestSubject 获取 app_server 到 app_runtime 批量写文件请求的订阅主题
-func GetAppServer2AppRuntimeBatchWriteFilesRequestSubject() string {
-	return "app_server.app_runtime.batch_write_files"
-}
-
-// GetAppStartupNotificationSubject 获取应用启动完成通知的订阅主题（通配符）
-func GetAppStartupNotificationSubject() string {
-	return "app.startup.notification.*.*.*"
-}
-
-// GetAppCloseNotificationSubject 获取应用关闭通知的订阅主题（通配符）
-func GetAppCloseNotificationSubject() string {
-	return "app.close.notification.*.*.*"
-}
-
-// BuildRuntime2AppShutdownSubject 构建 runtime 到 app 的关闭命令主题
-func BuildRuntime2AppShutdownSubject(user, app, version string) string {
-	return fmt.Sprintf("runtime.app.shutdown.%s.%s.%s", user, app, version)
-}
-
-// GetRuntime2AppShutdownSubject 获取 runtime 到 app 关闭命令的订阅主题（通配符）
-func GetRuntime2AppShutdownSubject() string {
-	return "runtime.app.shutdown.*.*.*"
-}
-
-// ==================== Agent Server 相关主题 ====================
-
-// BuildAgentMsgSubject 构建 agent 消息主题（用于 MsgSubject 字段）
-// 格式：agent.{chat_type}.{user}.{id}
-func BuildAgentMsgSubject(chatType, user string, agentID int64) string {
-	return fmt.Sprintf("agent.%s.%s.%d", chatType, user, agentID)
-}
-
-// BuildPluginSubject 构建插件主题
-// 格式：plugins.{user}.{plugin_id}
-func BuildPluginSubject(user string, pluginID int64) string {
-	return fmt.Sprintf("plugins.%s.%d", user, pluginID)
-}
-
-// GetAgentServerFunctionGenSubject 获取 agent-server 函数生成结果队列主题
-// 格式：agent_server.function_gen
-func GetAgentServerFunctionGenSubject() string {
-	return "agent_server.function_gen"
-}
-
-// GetAgentServerFunctionGenCallbackSubject 获取 agent-server 函数生成回调主题（app-server -> agent-server）
-// 格式：agent_server.function_gen.callback
-func GetAgentServerFunctionGenCallbackSubject() string {
-	return "agent_server.function_gen.callback"
-}
-
-// ==================== Control Service 相关主题 ====================
-
-// GetControlLicenseKeySubject 获取 Control Service License 密钥发布主题（推送模式）
-// 格式：control.license.key
-func GetControlLicenseKeySubject() string {
-	return "control.license.key"
-}
-
-// GetControlLicenseKeyRequestSubject 获取 Control Service License 密钥请求主题（请求-响应模式）
-// 格式：control.license.key.request
-func GetControlLicenseKeyRequestSubject() string {
-	return "control.license.key.request"
-}
-
-// GetControlLicenseKeyRefreshSubject 获取 Control Service License 密钥刷新主题（推送刷新指令）
-// 格式：control.license.key.refresh
-func GetControlLicenseKeyRefreshSubject() string {
-	return "control.license.key.refresh"
-}
-
-// ==================== 消息服务相关主题 ====================
-
-// GetMessageSendSubject 获取消息发送主题（SDK 发消息 -> 消息服务消费，渠道由消费方决定）
-// 格式：message.send
-func GetMessageSendSubject() string {
-	return "message.send"
-}
-
-// GetMessageSendQueueGroup 消息发送主题的队列组名（多实例消费时负载均衡）
-func GetMessageSendQueueGroup() string {
-	return "message.send"
 }

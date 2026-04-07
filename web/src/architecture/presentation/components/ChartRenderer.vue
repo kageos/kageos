@@ -12,10 +12,10 @@
   <div class="chart-renderer">
     <!-- 筛选表单 -->
     <div v-if="requestFields.length > 0" class="chart-filters">
-      <el-card class="filter-card">
-        <template #header>
-          <span>筛选条件</span>
-        </template>
+      <div class="filter-card sci-fi-panel sci-fi-panel-expanded">
+        <span class="sci-fi-accent-bar" />
+        <div class="filter-card-inner">
+          <div class="filter-card-title">筛选条件</div>
         <el-form :model="filterForm" class="filter-form">
           <el-form-item
             v-for="field in requestFields"
@@ -59,7 +59,8 @@
             </el-button>
           </el-form-item>
         </el-form>
-      </el-card>
+        </div>
+      </div>
     </div>
     
     <!-- 图表容器 -->
@@ -75,6 +76,10 @@
           </div>
         </div>
       </template>
+
+      <div v-if="isPlaceholderChart" class="chart-placeholder-tip">
+        {{ chartPlaceholderMessage }}
+      </div>
       
       <div v-loading="loading" class="chart-container">
         <div
@@ -140,6 +145,11 @@ const chartContainerRef = ref<HTMLElement | null>(null)
 const chartInstance = ref<EChartsType | null>(null)
 const chartHeight = ref('600px')
 
+type RenderableChart = Chart & {
+  __placeholder?: boolean
+  __placeholderMessage?: string
+}
+
 type EChartsRuntime = {
   init: (typeof import('echarts/core'))['init']
   use: (typeof import('echarts/core'))['use']
@@ -171,6 +181,7 @@ async function loadEChartsRuntime(chartType: string): Promise<{ init: (typeof im
         { use, init },
         { install: TitleComponent },
         { install: TooltipComponent },
+        { install: AxisPointerComponent },
         { install: LegendComponent },
         { install: GridComponent },
         { install: CanvasRenderer },
@@ -178,6 +189,7 @@ async function loadEChartsRuntime(chartType: string): Promise<{ init: (typeof im
         import('echarts/core'),
         import('echarts/lib/component/title/install.js'),
         import('echarts/lib/component/tooltip/install.js'),
+        import('echarts/lib/component/axisPointer/install.js'),
         import('echarts/lib/component/legend/install.js'),
         import('echarts/lib/component/grid/install.js'),
         import('echarts/lib/renderer/installCanvasRenderer.js'),
@@ -187,6 +199,7 @@ async function loadEChartsRuntime(chartType: string): Promise<{ init: (typeof im
         use([
           TitleComponent,
           TooltipComponent,
+          AxisPointerComponent,
           LegendComponent,
           GridComponent,
           CanvasRenderer,
@@ -230,6 +243,16 @@ const requestFields = computed(() => {
     }
     return field
   })
+})
+
+const chartPlaceholderMessage = computed(() => {
+  const data = chartData.value as RenderableChart | null
+  return data?.__placeholderMessage || '当前暂无图表数据，已按 0 值占位显示。'
+})
+
+const isPlaceholderChart = computed(() => {
+  const data = chartData.value as RenderableChart | null
+  return Boolean(data?.__placeholder)
 })
 
 // 筛选表单数据
@@ -352,8 +375,197 @@ const getMetadataSpan = (count: number): number => {
   return 6
 }
 
+const hasRenderableSeriesData = (series: ChartSeries, chartType: string): boolean => {
+  if (!series || !Array.isArray(series.data) || series.data.length === 0) {
+    return false
+  }
+
+  switch (chartType) {
+    case 'pie':
+      return series.data.some((item: any) => {
+        if (typeof item === 'number') {
+          return item !== 0
+        }
+        if (typeof item === 'object' && item !== null && 'value' in item) {
+          return Number((item as any).value) !== 0
+        }
+        return Boolean(item)
+      })
+    case 'gauge':
+      return series.data.some((item: any) => {
+        if (typeof item === 'number') {
+          return item !== 0
+        }
+        if (typeof item === 'object' && item !== null && 'value' in item) {
+          return Number((item as any).value) !== 0
+        }
+        return Boolean(item)
+      })
+    default:
+      return series.data.some((item: any) => Number(item) !== 0 || String(item).trim() !== '')
+  }
+}
+
+const hasRenderableChartData = (chart: Chart | null | undefined): boolean => {
+  if (!chart || !Array.isArray(chart.series) || chart.series.length === 0) {
+    return false
+  }
+
+  return chart.series.some((series) => hasRenderableSeriesData(series, chart.chart_type))
+}
+
+const createZeroValueChart = (base?: Partial<RenderableChart> | null): RenderableChart => {
+  const chartType = base?.chart_type || 'bar'
+  const placeholderMessage = base?.__placeholderMessage || '当前暂无图表数据，已按 0 值占位显示。'
+
+  if (chartType === 'pie') {
+    const pieSeries = Array.isArray(base?.series) && base!.series!.length > 0
+      ? base!.series!.map((series, index) => {
+          const candidateNames = series.data
+            ?.map((item: any) => (typeof item === 'object' && item !== null ? item.name : null))
+            .filter(Boolean) as string[] | undefined
+
+          const pieData = (candidateNames && candidateNames.length > 0 ? candidateNames : ['暂无数据'])
+            .map((name) => ({ name, value: 0 }))
+
+          return {
+            ...series,
+            name: series.name || `系列${index + 1}`,
+            data: pieData,
+          }
+        })
+      : [{
+          name: '数值',
+          data: [{ name: '暂无数据', value: 0 }],
+        }]
+
+    return {
+      chart_type: 'pie',
+      title: base?.title,
+      metadata: base?.metadata,
+      series: pieSeries,
+      widget_type: base?.widget_type,
+      data_type: base?.data_type,
+      __placeholder: true,
+      __placeholderMessage: placeholderMessage,
+    }
+  }
+
+  if (chartType === 'gauge') {
+    const gaugeSeries = Array.isArray(base?.series) && base!.series!.length > 0
+      ? base!.series!.map((series, index) => ({
+          ...series,
+          name: series.name || `系列${index + 1}`,
+          data: [{ value: 0 }],
+        }))
+      : [{
+          name: '当前值',
+          data: [{ value: 0 }],
+        }]
+
+    return {
+      chart_type: 'gauge',
+      title: base?.title,
+      metadata: base?.metadata,
+      series: gaugeSeries,
+      widget_type: base?.widget_type,
+      data_type: base?.data_type,
+      __placeholder: true,
+      __placeholderMessage: placeholderMessage,
+    }
+  }
+
+  const xAxis = Array.isArray(base?.x_axis) && base!.x_axis!.length > 0 ? base!.x_axis! : ['暂无数据']
+  const commonSeries = Array.isArray(base?.series) && base!.series!.length > 0
+    ? base!.series!.map((series, index) => ({
+        ...series,
+        name: series.name || `系列${index + 1}`,
+        data: xAxis.map(() => 0),
+      }))
+    : [{
+        name: '数值',
+        data: xAxis.map(() => 0),
+      }]
+
+  return {
+    chart_type: chartType === 'line' ? 'line' : 'bar',
+    title: base?.title,
+    x_axis: xAxis,
+    metadata: base?.metadata,
+    series: commonSeries,
+    widget_type: base?.widget_type,
+    data_type: base?.data_type,
+    __placeholder: true,
+    __placeholderMessage: placeholderMessage,
+  }
+}
+
+const normalizeChartData = (chart: Chart): RenderableChart => {
+  if (hasRenderableChartData(chart)) {
+    return chart as RenderableChart
+  }
+
+  return createZeroValueChart({
+    ...chart,
+    __placeholderMessage: requestFields.value.length > 0
+      ? '当前暂无图表数据，已按 0 值占位显示，可继续调整筛选条件。'
+      : '当前暂无图表数据，已按 0 值占位显示。'
+  })
+}
+
+const createPendingQueryChart = (): RenderableChart => {
+  return createZeroValueChart({
+    chart_type: 'bar',
+    title: props.functionDetail.name || '图表',
+    __placeholderMessage: '请先设置筛选条件后查询，当前以 0 值占位显示。'
+  })
+}
+
+const formatSeriesTooltip = (params: any): string => {
+  if (!params) {
+    return '无数据'
+  }
+
+  if (Array.isArray(params)) {
+    if (params.length === 0) {
+      return '无数据'
+    }
+
+    const title = params[0]?.axisValue || params[0]?.name || ''
+    const lines = params.map((param: any) => {
+      const value = typeof param.value === 'number'
+        ? (param.value % 1 === 0 ? param.value : param.value.toFixed(2))
+        : param.value
+      const name = param.seriesName || param.name || ''
+      const color = param.color || '#5470c6'
+
+      return `<div style="display: flex; align-items: center; margin-bottom: 4px;">
+        <span style="display: inline-block; width: 10px; height: 10px; background-color: ${color}; border-radius: 50%; margin-right: 8px;"></span>
+        <span style="flex: 1;">${name}:</span>
+        <span style="font-weight: bold; margin-left: 10px;">${value}</span>
+      </div>`
+    }).join('')
+
+    return `<div style="font-weight: bold; margin-bottom: 8px;">${title}</div>${lines}`
+  }
+
+  const value = typeof params.value === 'number'
+    ? (params.value % 1 === 0 ? params.value : params.value.toFixed(2))
+    : params.value
+  const title = params.name || params.axisValue || params.seriesName || ''
+  const color = params.color || '#5470c6'
+  const name = params.seriesName || '数值'
+
+  return `<div style="font-weight: bold; margin-bottom: 8px;">${title}</div>
+    <div style="display: flex; align-items: center;">
+      <span style="display: inline-block; width: 10px; height: 10px; background-color: ${color}; border-radius: 50%; margin-right: 8px;"></span>
+      <span style="flex: 1;">${name}:</span>
+      <span style="font-weight: bold; margin-left: 10px;">${value}</span>
+    </div>`
+}
+
 // 构建 ECharts 配置
-const buildEChartsOption = (chart: Chart): EChartsCoreOption => {
+const buildEChartsOption = (chart: RenderableChart): EChartsCoreOption => {
   // 先检查数据是否有效
   if (!chart || !chart.series || chart.series.length === 0) {
     return {}
@@ -398,10 +610,7 @@ const buildEChartsOption = (chart: Chart): EChartsCoreOption => {
       // 柱状图 tooltip 配置（参照折线图的样式）
       option.tooltip = {
         show: true, // 明确启用 tooltip
-        trigger: 'axis',
-        axisPointer: {
-          type: 'shadow'
-        },
+        trigger: 'item',
         backgroundColor: 'rgba(50, 50, 50, 0.9)',
         borderColor: '#333',
         borderWidth: 1,
@@ -411,30 +620,7 @@ const buildEChartsOption = (chart: Chart): EChartsCoreOption => {
           fontSize: 13,
           lineHeight: 20
         },
-        formatter: (params: any) => {
-          // params 是数组，包含所有系列在该点的数据
-          if (!Array.isArray(params) || params.length === 0) {
-            return '无数据'
-          }
-          
-          let result = `<div style="font-weight: bold; margin-bottom: 8px;">${params[0].axisValue || ''}</div>`
-          
-          params.forEach((param: any) => {
-            const value = typeof param.value === 'number'
-              ? (param.value % 1 === 0 ? param.value : param.value.toFixed(2))
-              : param.value
-            const name = param.seriesName || param.name || ''
-            const color = param.color || '#5470c6'
-            
-            result += `<div style="display: flex; align-items: center; margin-bottom: 4px;">
-              <span style="display: inline-block; width: 10px; height: 10px; background-color: ${color}; border-radius: 50%; margin-right: 8px;"></span>
-              <span style="flex: 1;">${name}:</span>
-              <span style="font-weight: bold; margin-left: 10px;">${value}</span>
-            </div>`
-          })
-          
-          return result
-        }
+        formatter: formatSeriesTooltip
       }
       option.xAxis = {
         type: 'category',
@@ -488,7 +674,7 @@ const buildEChartsOption = (chart: Chart): EChartsCoreOption => {
       // 折线图 tooltip 配置（参照 gauge 图表的样式）
       option.tooltip = {
         show: true, // 明确启用 tooltip
-        trigger: 'axis',
+        trigger: 'item',
         backgroundColor: 'rgba(50, 50, 50, 0.9)',
         borderColor: '#333',
         borderWidth: 1,
@@ -498,30 +684,7 @@ const buildEChartsOption = (chart: Chart): EChartsCoreOption => {
           fontSize: 13,
           lineHeight: 20
         },
-        formatter: (params: any) => {
-          // params 是数组，包含所有系列在该点的数据
-          if (!Array.isArray(params) || params.length === 0) {
-            return '无数据'
-          }
-          
-          let result = `<div style="font-weight: bold; margin-bottom: 8px;">${params[0].axisValue || ''}</div>`
-          
-          params.forEach((param: any) => {
-            const value = typeof param.value === 'number'
-              ? (param.value % 1 === 0 ? param.value : param.value.toFixed(2))
-              : param.value
-            const name = param.seriesName || param.name || ''
-            const color = param.color || '#5470c6'
-            
-            result += `<div style="display: flex; align-items: center; margin-bottom: 4px;">
-              <span style="display: inline-block; width: 10px; height: 10px; background-color: ${color}; border-radius: 50%; margin-right: 8px;"></span>
-              <span style="flex: 1;">${name}:</span>
-              <span style="font-weight: bold; margin-left: 10px;">${value}</span>
-            </div>`
-          })
-          
-          return result
-        }
+        formatter: formatSeriesTooltip
       }
       // 折线图必须有 X 轴数据
       if (!chart.x_axis || chart.x_axis.length === 0) {
@@ -608,6 +771,7 @@ const buildEChartsOption = (chart: Chart): EChartsCoreOption => {
         name: s.name,
         type: 'pie',
         radius: '50%',
+        stillShowZeroSum: true,
         data: s.data.map((item: any) => {
           if (typeof item === 'object' && item !== null) {
             return item
@@ -738,19 +902,6 @@ const buildEChartsOption = (chart: Chart): EChartsCoreOption => {
 const renderChart = async () => {
   if (!chartContainerRef.value || !chartData.value) return
 
-  // 检查是否有数据
-  const hasData = chartData.value.series && chartData.value.series.length > 0 && 
-    chartData.value.series.some(s => s.data && s.data.length > 0)
-  
-  if (!hasData) {
-    // 如果没有数据，销毁旧实例并返回
-    if (chartInstance.value) {
-      chartInstance.value.dispose()
-      chartInstance.value = null
-    }
-    return
-  }
-
   const { init } = await loadEChartsRuntime(chartData.value.chart_type)
 
   if (!chartContainerRef.value || !chartData.value) {
@@ -786,7 +937,7 @@ const renderChart = async () => {
   }
 
   // 构建配置
-  const option = buildEChartsOption(chartData.value)
+  const option = buildEChartsOption(chartData.value as RenderableChart)
   
   // 如果配置为空（没有数据），不渲染
   if (!option || Object.keys(option).length === 0) {
@@ -864,15 +1015,13 @@ const loadChartData = async () => {
     // 后端返回格式：RunFunctionResp.Data() 返回 ChartData，ChartData 结构是 { chart: {...} }
     // 所以最终返回的是 { chart: {...} }，而不是 { chart_data: { chart: {...} } }
     if (response && response.chart) {
-      chartData.value = response.chart
+      chartData.value = normalizeChartData(response.chart)
       
       // 渲染图表
       await nextTick()
       await renderChart()
     } else {
-      console.error('返回数据格式不正确，响应数据：', response)
-      ElMessage.warning('返回数据格式不正确')
-      chartData.value = null
+      chartData.value = requestFields.value.length > 0 ? createPendingQueryChart() : null
     }
   } catch (error: any) {
     ElMessage.error(error?.message || '加载图表数据失败')
@@ -896,7 +1045,7 @@ const handleReset = () => {
   })
   
   // 清空图表数据
-  chartData.value = null
+  chartData.value = requestFields.value.length > 0 ? createPendingQueryChart() : null
   if (chartInstance.value) {
     chartInstance.value.dispose()
     chartInstance.value = null
@@ -984,14 +1133,49 @@ watch(() => chartData.value, (newData) => {
 .chart-renderer {
   width: 100%;
   padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+
+  .chart-filters {
+    margin: 0;
+  }
   
   .filter-card {
-    margin-bottom: 20px;
+    margin: 0;
+    position: relative;
+    border-radius: 8px;
+    border: 1px solid var(--el-border-color-lighter);
+    background: var(--el-bg-color);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+
+    .sci-fi-accent-bar {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: linear-gradient(180deg, rgba(0, 212, 255, 0.9), rgba(0, 212, 255, 0.4));
+      box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+    }
+
+    .filter-card-inner {
+      padding: 20px 20px 20px 24px;
+    }
+
+    .filter-card-title {
+      margin-bottom: 14px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--el-text-color-primary);
+      letter-spacing: 0.3px;
+    }
     
     .filter-form {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 12px 16px;
+      gap: 12px 14px;
       margin-top: 0;
       align-items: start;
     }
@@ -1006,11 +1190,17 @@ watch(() => chartData.value, (newData) => {
     :deep(.filter-form .el-form-item__label) {
       width: 100%;
       justify-content: flex-start;
-      line-height: 20px;
-      margin: 0 0 6px;
+      line-height: 1.25;
+      margin: 0;
       padding: 0;
-      color: var(--el-text-color-primary);
-      font-weight: 500;
+      color: var(--el-text-color-regular);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    :deep(.filter-form .el-form-item__label-wrap) {
+      width: 100%;
+      margin: 0 0 6px;
     }
 
     :deep(.filter-form .el-form-item__content) {
@@ -1050,7 +1240,16 @@ watch(() => chartData.value, (newData) => {
   }
   
   .chart-card {
-    margin-bottom: 20px;
+    margin: 0;
+
+    :deep(.el-card__header) {
+      padding: 16px 20px 14px;
+      border-bottom: 1px solid var(--el-border-color-lighter);
+    }
+
+    :deep(.el-card__body) {
+      padding: 0 20px 20px;
+    }
     
     .chart-header {
       display: flex;
@@ -1062,10 +1261,21 @@ watch(() => chartData.value, (newData) => {
         gap: 10px;
       }
     }
+
+    .chart-placeholder-tip {
+      margin: 14px 0 0;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: var(--el-fill-color-light);
+      color: var(--el-text-color-regular);
+      font-size: 13px;
+      line-height: 1.5;
+    }
     
     .chart-container {
       width: 100%;
       min-height: 400px;
+      margin-top: 16px;
       
       .chart-wrapper {
         width: 100%;
@@ -1082,7 +1292,7 @@ watch(() => chartData.value, (newData) => {
   }
   
   .metadata-card {
-    margin-top: 20px;
+    margin-top: 0;
     padding: 16px;
     background-color: var(--el-fill-color-light); // 使用 Element Plus 的浅色填充色
     border-radius: 8px;

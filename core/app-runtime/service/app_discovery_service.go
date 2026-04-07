@@ -20,13 +20,14 @@ import (
 
 // AppDiscoveryService 应用发现服务
 type AppDiscoveryService struct {
-	nats      *nats.Conn
-	apps      map[string]*discovery.AppInfo
-	mutex     sync.RWMutex
-	ticker    *time.Ticker
-	runtimeID string
-	sub       *nats.Subscription // 存储订阅对象
-	basePath  string             // 应用基础路径
+	nats        *nats.Conn
+	broadcaster *AppDiscoveryBroadcaster
+	apps        map[string]*discovery.AppInfo
+	mutex       sync.RWMutex
+	ticker      *time.Ticker
+	runtimeID   string
+	sub         *nats.Subscription // 存储订阅对象
+	basePath    string             // 应用基础路径
 
 	// 回调函数，用于通知其他服务
 	onStartup func(user, app, version string, startTime time.Time)
@@ -36,10 +37,11 @@ type AppDiscoveryService struct {
 // NewAppDiscoveryService 创建应用发现服务
 func NewAppDiscoveryService(natsConn *nats.Conn, basePath string) *AppDiscoveryService {
 	return &AppDiscoveryService{
-		nats:      natsConn,
-		apps:      make(map[string]*discovery.AppInfo),
-		runtimeID: "runtime-1", // TODO: 从配置获取
-		basePath:  basePath,
+		nats:        natsConn,
+		broadcaster: NewAppDiscoveryBroadcaster(natsConn),
+		apps:        make(map[string]*discovery.AppInfo),
+		runtimeID:   "runtime-1", // TODO: 从配置获取
+		basePath:    basePath,
 	}
 }
 
@@ -51,8 +53,8 @@ func (s *AppDiscoveryService) SetCallbacks(onStartup func(user, app, version str
 
 // Start 启动发现服务
 func (s *AppDiscoveryService) Start() error {
-	// 订阅 Runtime 状态主题（处理 discovery 消息）
-	sub, err := s.nats.Subscribe(subjects.GetRuntimeStatusSubjectPattern(), s.handleRuntimeStatusMessage)
+	// 订阅 Runtime 生命周期事件主题（处理 startup / close / discovery 事件）
+	sub, err := s.nats.Subscribe(subjects.RuntimeLifecycleEventSubjectPattern, s.handleRuntimeStatusMessage)
 	if err != nil {
 		return err
 	}
@@ -103,16 +105,7 @@ func (s *AppDiscoveryService) discoverApps() {
 		Timeout:   5,
 	}
 
-	data, err := json.Marshal(discoveryMsg)
-	if err != nil {
-		logger.Errorf(ctx, "[AppDiscoveryService] Failed to marshal discovery message: %v", err)
-		return
-	}
-
-	// 发送发现请求到固定的服务发现主题
-	subject := subjects.GetRuntimeDiscoverySubject() // "ai-agent-os.runtime.discovery"
-	err = s.nats.Publish(subject, data)
-	if err != nil {
+	if err := s.broadcaster.PublishDiscoveryRequest(ctx, &discoveryMsg); err != nil {
 		logger.Errorf(ctx, "[AppDiscoveryService] Failed to publish discovery message: %v", err)
 		return
 	}
@@ -254,7 +247,7 @@ func (s *AppDiscoveryService) readCurrentVersion(user, app string) string {
 	return strings.TrimSpace(string(data))
 }
 
-// handleRuntimeStatusMessage 处理 Runtime 状态消息（startup、close、discovery）
+// handleRuntimeStatusMessage 处理 Runtime 生命周期事件（startup、close、discovery）。
 func (s *AppDiscoveryService) handleRuntimeStatusMessage(msg *nats.Msg) {
 	ctx := context.Background()
 
@@ -263,7 +256,7 @@ func (s *AppDiscoveryService) handleRuntimeStatusMessage(msg *nats.Msg) {
 
 	var message subjects.Message
 	if err := json.Unmarshal(msg.Data, &message); err != nil {
-		logger.Errorf(ctx, "[AppDiscoveryService] Failed to unmarshal runtime status %s message: %v", string(msg.Data), err)
+		logger.Errorf(ctx, "[AppDiscoveryService] Failed to unmarshal runtime lifecycle event %s: %v", string(msg.Data), err)
 		return
 	}
 

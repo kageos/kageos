@@ -9,7 +9,7 @@
 
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElNotification, ElMessageBox } from 'element-plus'
+import { ElNotification, ElMessage, ElMessageBox } from 'element-plus'
 import { apiClient } from '../../infrastructure/apiClient'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
@@ -264,10 +264,7 @@ export function useWorkspaceApp(
   const handleUpdateApp = async (app: AppType): Promise<void> => {
     try {
       await updateApp(buildAppResourcePath(app.user, app.code))
-      ElNotification.success({
-        title: '成功',
-        message: '工作空间更新成功'
-      })
+      ElMessage.success('工作空间更新成功')
     } catch (error: any) {
       // 🔥 统一使用 msg 字段
       const errorMessage = error?.response?.data?.msg || '更新工作空间失败'
