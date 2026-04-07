@@ -110,7 +110,11 @@ func (s *Server) Stop(ctx context.Context) error {
 // initDatabase 初始化数据库
 func (s *Server) initDatabase(ctx context.Context) error {
 	// 数据库文件路径
+	root := config.GetAgentOSRoot()
 	dbPath := filepath.Join("data", "app-runtime", "app_runtime.db")
+	if root != "" {
+		dbPath = filepath.Join(root, "data", "app-runtime", "app_runtime.db")
+	}
 
 	// 获取绝对路径
 	absPath, err := filepath.Abs(dbPath)

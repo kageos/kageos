@@ -315,6 +315,7 @@ import type { FieldConfig, FieldValue } from '@/core/types/field'
 import type { ValidationEngine, ValidationResult } from '@/core/validation'
 import { validateFieldValue, validateFormWidgetNestedFields, type WidgetValidationContext } from '@/architecture/presentation/widgets/composables/useWidgetValidation'
 import { useFormDataStore } from '@/core/stores-v2/formData'
+import { FORM_INLINE_LABEL_MAX_CHARS } from '@/architecture/presentation/utils/formLayout'
 
 // 抽屉配置常量
 const DRAWER_CONFIG = {
@@ -370,9 +371,9 @@ function isFieldRequired(field: FieldConfig): boolean {
   return validation.includes('required') && !validation.includes('omitempty')
 }
 
-/** 表单级：有任一 label ≥6 字则全部放上方，否则全部左侧一行 */
+/** 表单级：有任一 label 超过 8 字则全部放上方，否则全部左侧一行 */
 const labelsOnTop = computed(() =>
-  visibleSubFields.value.some((f) => (f.name?.length ?? 0) >= 6)
+  visibleSubFields.value.some((f) => (f.name?.length ?? 0) > FORM_INLINE_LABEL_MAX_CHARS)
 )
 
 /**
@@ -512,6 +513,9 @@ defineExpose({
 
 /* 短 label：右对齐，靠近右侧输入框，减少 label 与输入框间距 */
 :deep(.form-widget-form .el-form-item:not(.form-item-no-label) .el-form-item__label) {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   text-align: right;
   padding-right: 8px;
 }
@@ -535,6 +539,7 @@ defineExpose({
     color: var(--el-text-color-regular);
     margin-bottom: 8px;
     line-height: 1.4;
+    text-align: right;
 
     .required {
       color: var(--el-color-danger);

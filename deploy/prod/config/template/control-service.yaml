@@ -4,6 +4,6 @@ server:
   debug: false
 
 license:
-  path: "./license.json"
+  path: "/app/data/license/license.json"
   encryption_key: "${CONTROL_ENC_KEY}"
   publish_interval: 300

@@ -47,11 +47,10 @@ func NewClient(natsConn *nats.Conn, encryptionKey []byte, keyPath string) (*Clie
 			keyPath = "./license.key"
 		} else {
 			keyPath = filepath.Join(homeDir, ".ai-agent-os", "license.key")
-			// 确保目录存在
-			if err := os.MkdirAll(filepath.Dir(keyPath), 0755); err != nil {
-				return nil, fmt.Errorf("failed to create license key directory: %w", err)
-			}
 		}
+	}
+	if err := os.MkdirAll(filepath.Dir(keyPath), 0o755); err != nil {
+		return nil, fmt.Errorf("failed to create license key directory: %w", err)
 	}
 
 	client := &Client{

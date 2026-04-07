@@ -20,7 +20,7 @@ control_service:
   enabled: true
   nats_url: ""
   encryption_key: "${CONTROL_ENC_KEY}"
-  key_path: ""
+  key_path: "/app/data/license/license.key"
 
 sdk:
   nats_url: "nats://127.0.0.1:4222"

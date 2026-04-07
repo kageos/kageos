@@ -490,7 +490,7 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, crea
 	updateCallbackResponse, callbackErr := s.sendUpdateCallbackAndWait(ctx, user, app, newVersion)
 	if callbackErr != nil {
 		logger.Warnf(ctx, "[UpdateApp] ❌ Update callback failed: %v", callbackErr)
-		logger.Warnf(ctx, "[UpdateApp] Continuing without diff information")
+		logger.Warnf(ctx, "[UpdateApp] Aborting update result to avoid API state drift")
 		return nil, callbackErr
 	} else {
 		logger.Infof(ctx, "[UpdateApp] ✅ Update callback response received from %s/%s/%s: %+v", user, app, newVersion, updateCallbackResponse)
@@ -640,7 +640,7 @@ func (s *AppManageService) sendUpdateCallbackAndWait(ctx context.Context, user, 
 
 // GetAppInfo 获取应用信息
 func (s *AppManageService) GetAppInfo(ctx context.Context, user, app string) (map[string]interface{}, error) {
-	appDir := fmt.Sprintf("namespace/%s/%s", user, app)
+	appDir := filepath.Join(s.config.AppDir.BasePath, user, app)
 
 	// 检查应用是否存在
 	if _, err := os.Stat(appDir); os.IsNotExist(err) {
@@ -648,14 +648,20 @@ func (s *AppManageService) GetAppInfo(ctx context.Context, user, app string) (ma
 	}
 
 	// 读取版本信息
-	versionFile := filepath.Join(appDir, "workplace/metadata/version.txt")
-	versionData, _ := os.ReadFile(versionFile)
+	versionFile := filepath.Join(appDir, "workplace", "metadata", "current_version.txt")
+	version := ""
+	versionData, err := os.ReadFile(versionFile)
+	if err == nil {
+		version = strings.TrimSpace(string(versionData))
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("failed to read current version: %w", err)
+	}
 
 	return map[string]interface{}{
 		"user":    user,
 		"app":     app,
 		"app_dir": appDir,
-		"version": string(versionData),
+		"version": version,
 	}, nil
 }
 
@@ -887,9 +893,9 @@ func (s *AppManageService) StartCleanupTask(ctx context.Context) {
 	// 凌晨 4 点：先进程级（按当前版本停非当前），再容器级（保留最近 3 版本并删除多余）
 	s.containerCleanupCron = cron.New(cron.WithLocation(time.Local))
 	_, err := s.containerCleanupCron.AddFunc(containerCleanupCronExpr, func() {
-		logger.Infof(ctx, "[CleanupTask] cron 触发 | 执行进程级清理 + 容器级巡检 + workplace(file-cache/output)清空")
+		logger.Infof(ctx, "[CleanupTask] cron 触发 | 执行进程级清理 + 容器级巡检 + workplace(file-cache/output/uploads)清空")
 		s.runAllCleanups(ctx)
-		s.runFileCacheCleanup(ctx)
+		s.runWorkplaceTempCleanup(ctx)
 	})
 	if err != nil {
 		logger.Warnf(ctx, "[CleanupTask] cron 添加失败: %v，将仅依赖有变动时触发", err)
@@ -923,8 +929,8 @@ func (s *AppManageService) runAllCleanups(ctx context.Context) {
 	s.containerLevelCleanup(ctx) // 容器级：每应用保留最近 3 版本，其余 stop+remove
 }
 
-// runFileCacheCleanup 清空各应用 workplace/file-cache 与 workplace/output 目录（全部删除，无需保留）
-func (s *AppManageService) runFileCacheCleanup(ctx context.Context) {
+// runWorkplaceTempCleanup 清空各应用 workplace 下的临时目录（全部删除，无需保留）
+func (s *AppManageService) runWorkplaceTempCleanup(ctx context.Context) {
 	apps, err := s.getAllApps(ctx)
 	if err != nil {
 		logger.Errorf(ctx, "[WorkplaceCleanup] 获取应用列表失败: %v", err)
@@ -933,7 +939,7 @@ func (s *AppManageService) runFileCacheCleanup(ctx context.Context) {
 	basePath := s.config.AppDir.BasePath
 	for _, app := range apps {
 		appBase := filepath.Join(basePath, app.User, app.App, "workplace")
-		for _, subdir := range []string{"file-cache", "output"} {
+		for _, subdir := range []string{"file-cache", "output", "uploads"} {
 			dir := filepath.Join(appBase, subdir)
 			if _, err := os.Stat(dir); err != nil {
 				if !os.IsNotExist(err) {
