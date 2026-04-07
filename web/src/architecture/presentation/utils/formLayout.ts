@@ -1,0 +1,1 @@
+export const FORM_INLINE_LABEL_MAX_CHARS = 8

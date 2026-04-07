@@ -1204,6 +1204,40 @@ const loadCurrentFunctionPermissionTab = () => {
   })
 }
 
+const getFunctionTabQueryValue = () => {
+  switch (functionActiveTab.value) {
+    case 'permission':
+      return functionPermissionTab.value === 'manage' ? 'permissionManage' : 'permissionRequest'
+    case 'operateLog':
+      return 'operateLog'
+    case 'scheduledTask':
+      return 'scheduledTask'
+    default:
+      return undefined
+  }
+}
+
+const syncFunctionTabQuery = () => {
+  const nextTab = getFunctionTabQueryValue()
+  const currentTab = normalizeQueryTab(route.query._panel)
+
+  if ((nextTab ?? null) === currentTab) {
+    return
+  }
+
+  const nextQuery = { ...route.query }
+  if (nextTab) {
+    nextQuery._panel = nextTab
+  } else {
+    delete nextQuery._panel
+  }
+
+  router.replace({
+    path: route.path,
+    query: nextQuery
+  })
+}
+
 // 处理函数 tab 切换
 const handleFunctionTabChange = (tabName: string) => {
   functionActiveTab.value = tabName
@@ -1214,12 +1248,14 @@ const handleFunctionTabChange = (tabName: string) => {
       formOperateLogSectionRef.value?.loadLogs({ page: 1 })
     })
   }
+  syncFunctionTabQuery()
 }
 
 const handleFunctionPermissionTabChange = (tabName: string) => {
   functionPermissionTab.value = tabName === 'manage' ? 'manage' : 'request'
   if (functionActiveTab.value === 'permission') {
     loadCurrentFunctionPermissionTab()
+    syncFunctionTabQuery()
   }
 }
 
@@ -1229,6 +1265,7 @@ const handleApplyFormOperateLog = async (payload: {
   responseMetadata?: Record<string, any> | null
 }) => {
   functionActiveTab.value = 'content'
+  syncFunctionTabQuery()
   await nextTick()
 
   if (!functionFormViewRef.value) {
@@ -1249,6 +1286,7 @@ function onScheduledTaskTotalChange(total: number) {
   hasScheduledTasksForCurrentPath.value = total > 0
   if (total === 0 && functionActiveTab.value === 'scheduledTask') {
     functionActiveTab.value = 'content'
+    syncFunctionTabQuery()
   }
 }
 
@@ -1259,6 +1297,7 @@ async function refreshScheduledTasksCountForCurrentPath() {
     hasScheduledTasksForCurrentPath.value = false
     if (functionActiveTab.value === 'scheduledTask') {
       functionActiveTab.value = 'content'
+      syncFunctionTabQuery()
     }
     return
   }
@@ -1266,13 +1305,18 @@ async function refreshScheduledTasksCountForCurrentPath() {
     const res = await listScheduledTasks({ full_code_path: path, page: 1, page_size: 1 })
     const hasAny = (res.total ?? 0) > 0
     hasScheduledTasksForCurrentPath.value = hasAny
+    if (hasAny && normalizeQueryTab(route.query._panel) === 'scheduledTask') {
+      functionActiveTab.value = 'scheduledTask'
+    }
     if (!hasAny && functionActiveTab.value === 'scheduledTask') {
       functionActiveTab.value = 'content'
+      syncFunctionTabQuery()
     }
   } catch {
     hasScheduledTasksForCurrentPath.value = false
     if (functionActiveTab.value === 'scheduledTask') {
       functionActiveTab.value = 'content'
+      syncFunctionTabQuery()
     }
   }
 }
@@ -1753,9 +1797,9 @@ const handleApprovePermission = (node: ServiceTreeType) => {
   // 先触发节点点击，确保节点详情已加载
   applicationService.triggerNodeClick(serviceTree)
   
-  // 然后更新路由，添加 tab 参数
+  // 然后更新路由，添加工作台保留参数
   handlePackageNodeRoute(serviceTree, 'approve-permission-click', {
-    tab: 'permissionRequest'
+    _panel: 'permissionRequest'
   })
 }
 
@@ -2431,6 +2475,7 @@ onMounted(async () => {
   unsubscribeScheduledTaskCreated = eventBus.on(WorkspaceEvent.scheduledTaskCreated, () => {
     hasScheduledTasksForCurrentPath.value = true
     functionActiveTab.value = 'scheduledTask'
+    syncFunctionTabQuery()
   })
 
   // 监听应用信息更新事件（用于更新应用列表中的 app.id）
@@ -2484,9 +2529,11 @@ watch(
   () => {
     if (!showFunctionPermissionRequestTab.value && functionActiveTab.value === 'permission') {
       functionActiveTab.value = 'content'
+      syncFunctionTabQuery()
     }
     if (!showFormOperateLogTab.value && functionActiveTab.value === 'operateLog') {
       functionActiveTab.value = 'content'
+      syncFunctionTabQuery()
     }
     refreshScheduledTasksCountForCurrentPath()
   },
@@ -2520,9 +2567,9 @@ watch(queryTab, async (newTab: string, oldTab: string) => {
   }
 }, { immediate: false })
 
-// ⭐ 监听路由 query 参数，支持通过 tab 参数指定要打开的函数 tab
+// ⭐ 监听路由 query 参数，支持通过 _panel 参数指定要打开的函数 tab
 watch(
-  () => route.query.tab,
+  () => route.query._panel,
   (tab) => {
     const normalizedTab = normalizeQueryTab(tab)
 
@@ -2536,12 +2583,15 @@ watch(
       loadCurrentFunctionPermissionTab()
     } else if (normalizedTab === 'permission' && showFunctionPermissionRequestTab.value) {
       functionActiveTab.value = 'permission'
+      functionPermissionTab.value = 'request'
       loadCurrentFunctionPermissionTab()
     } else if (normalizedTab === 'operateLog' && showFormOperateLogTab.value) {
       functionActiveTab.value = 'operateLog'
       nextTick(() => {
         formOperateLogSectionRef.value?.loadLogs({ page: 1 })
       })
+    } else if (normalizedTab === 'scheduledTask' && hasScheduledTasksForCurrentPath.value) {
+      functionActiveTab.value = 'scheduledTask'
     } else if (functionActiveTab.value !== 'scheduledTask') {
       functionActiveTab.value = 'content'
     }

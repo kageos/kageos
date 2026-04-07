@@ -103,7 +103,7 @@
         >
       <div class="section-title">请求参数</div>
       <template v-for="field in requestFields" :key="field.code">
-        <!-- 有任一 label≥6 字：全部上方 -->
+        <!-- 有任一 label 超过 8 字：全部上方 -->
         <div v-if="requestLabelsOnTop" class="form-field-label-top">
           <label class="field-label">
             {{ field.name }}
@@ -121,7 +121,7 @@
             />
           </el-form-item>
         </div>
-        <!-- 无 label≥6 字：全部左侧一行 -->
+        <!-- 无超过 8 字的 label：全部左侧一行 -->
         <el-form-item
           v-else
           :label="field.name"
@@ -372,6 +372,7 @@ import {
   createFormViewRuntime,
   syncFormDataStoreToStateManager as syncFormDataStoreToStateManagerHelper
 } from './utils/formViewRuntime'
+import { FORM_INLINE_LABEL_MAX_CHARS } from '../utils/formLayout'
 
 const props = withDefaults(defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取
@@ -428,12 +429,12 @@ const formData = computed(() => {
 const requestFields = computed(() => (functionDetail.value?.request || []) as FieldConfig[])
 const responseFields = computed(() => (functionDetail.value?.response || []) as FieldConfig[])
 
-/** 表单级：有任一 label ≥6 字则全部放上方，否则全部左侧一行 */
+/** 表单级：有任一 label 超过 8 字则全部放上方，否则全部左侧一行 */
 const requestLabelsOnTop = computed(() =>
-  requestFields.value.some((f) => (f.name?.length ?? 0) >= 6)
+  requestFields.value.some((f) => (f.name?.length ?? 0) > FORM_INLINE_LABEL_MAX_CHARS)
 )
 const responseLabelsOnTop = computed(() =>
-  responseFields.value.some((f) => (f.name?.length ?? 0) >= 6)
+  responseFields.value.some((f) => (f.name?.length ?? 0) > FORM_INLINE_LABEL_MAX_CHARS)
 )
 
 // ⭐ 权限检查：获取当前函数节点的权限信息
@@ -1209,6 +1210,7 @@ onUnmounted(() => {
     color: var(--el-text-color-regular);
     margin-bottom: 8px;
     line-height: 1.4;
+    text-align: right;
 
     .required {
       color: var(--el-color-danger);
@@ -1230,6 +1232,9 @@ onUnmounted(() => {
 
 /* 短 label：右对齐，靠近右侧输入框，减少 label 与输入框间距 */
 .form-view-main :deep(.el-form .el-form-item:not(.form-item-no-label) .el-form-item__label) {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   text-align: right;
   padding-right: 8px;
 }

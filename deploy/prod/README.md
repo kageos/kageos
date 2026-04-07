@@ -99,7 +99,7 @@ Compose 为 **`main`** 挂载命名卷，避免重建容器后丢失数据：
 | 卷名 | 挂载点 | 用途 |
 |------|--------|------|
 | `namespace_data` | `/app/namespace` | **用户应用空间**（`namespace/{user}/{app}/...` 等工作区，与配置里 `app_dir.base_path: namespace` 对应） |
-| `app_data` | `/app/data` | 应用侧其他本地数据目录（与镜像内约定一致） |
+| `app_data` | `/app/data` | 应用侧其他本地数据目录（当前已用于 `app-runtime` 本地 SQLite、License 文件/密钥等持久化状态） |
 | `app_logs` | `/app/logs` | 主站日志 |
 | `podman_storage` | `/var/lib/containers` | 容器内 Podman 存储 |
 

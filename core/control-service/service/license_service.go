@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -263,6 +264,9 @@ func (s *LicenseService) Activate(ctx context.Context, licenseData []byte) error
 	}
 
 	// 2. 保存License文件到本地
+	if err := os.MkdirAll(filepath.Dir(s.licensePath), 0o755); err != nil {
+		return fmt.Errorf("failed to create license directory: %w", err)
+	}
 	if err := os.WriteFile(s.licensePath, licenseData, 0600); err != nil {
 		return fmt.Errorf("failed to save license file: %w", err)
 	}
