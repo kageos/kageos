@@ -1,17 +1,5 @@
 <template>
   <div class="permission-request-list" v-loading="loading">
-    <div v-if="grantEntryUrl" class="request-toolbar">
-      <div class="request-toolbar-copy">
-        <div class="request-toolbar-title">赋权入口已独立</div>
-        <div class="request-toolbar-desc">
-          审批列表只保留审批流。需要给当前资源发起赋权时，请前往独立页面操作。
-        </div>
-      </div>
-      <el-button @click="goToGrantPage">
-        发起赋权
-      </el-button>
-    </div>
-
     <!-- 筛选条件 -->
     <div class="filter-section">
       <el-form :inline="true" :model="filterForm" class="filter-form">
@@ -223,11 +211,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getPermissionRequests, approvePermissionRequest, rejectPermissionRequest } from '@/api/permission'
 import { useAuthStore } from '@/stores/auth'
-import { useRouter } from 'vue-router'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import UsersWidget from '@/shared/components/UsersWidget.vue'
 import DepartmentsWidget from '@/shared/components/DepartmentsWidget.vue'
@@ -235,8 +222,6 @@ import { WidgetType } from '@/core/constants/widget'
 import type { FieldValue } from '@/core/types/field'
 import { canApprovePermissionRequest } from '@/utils/permissionActors'
 import { createStringFieldValue, createWidgetFieldConfig } from '@/utils/widgetFieldHelpers'
-import { buildPermissionApplyURL } from '@/utils/permission'
-import { DirectoryPermission, FunctionPermission } from '@/constants/permissions'
 
 interface Props {
   resourcePath?: string  // 资源路径（可选，如果提供则只显示该资源的申请）
@@ -250,8 +235,6 @@ const props = withDefaults(defineProps<Props>(), {
   autoLoad: true,
   showMyRequests: false
 })
-
-const router = useRouter()
 
 // 权限申请信息接口
 interface PermissionRequest {
@@ -301,25 +284,6 @@ const rejectForm = ref({
   reason: ''
 })
 const currentRejectRequest = ref<PermissionRequest | null>(null)
-
-const grantEntryUrl = computed(() => {
-  if (!props.resourcePath) {
-    return ''
-  }
-
-  const defaultAction = props.resourceType === 'directory' || props.resourceType === 'app'
-    ? DirectoryPermission.read
-    : FunctionPermission.read
-
-  return `${buildPermissionApplyURL(props.resourcePath, defaultAction, props.templateType)}&mode=grant`
-})
-
-const goToGrantPage = () => {
-  if (!grantEntryUrl.value) {
-    return
-  }
-  router.push(grantEntryUrl.value)
-}
 
 // 获取当前用户
 const authStore = useAuthStore()

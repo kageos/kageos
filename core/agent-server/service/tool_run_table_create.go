@@ -37,6 +37,7 @@ func (t *RunTableCreateTool) Execute(ctx context.Context, call ToolCall) ToolRes
 
 // runTableCreateTool 执行 Table 新增；body 必须为 JSON 数组，逐条调用 table/create 触发 OnTableAddRow
 func runTableCreateTool(ctx context.Context, args runTableCreateArgs, currentFullCodePath string) (string, bool) {
+	ctx = withAgentToolClientSource(ctx)
 	fullCodePath := resolveFullCodePathArg(args.FullCodePath, currentFullCodePath)
 	if fullCodePath == "" {
 		return "run_table_create 需传 full_code_path（表格函数路径，如 /luobei/myapp/nps/nps_questionnaire_list）。", true

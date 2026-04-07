@@ -39,6 +39,7 @@ func (t *RunOnSelectFuzzyTool) Execute(ctx context.Context, call ToolCall) ToolR
 
 // runOnSelectFuzzyTool 执行 OnSelectFuzzy 回调；仅支持按关键词或空关键词
 func runOnSelectFuzzyTool(ctx context.Context, args runOnSelectFuzzyArgs, currentFullCodePath string) (string, bool) {
+	ctx = withAgentToolClientSource(ctx)
 	fullCodePath := resolveFullCodePathArg(args.FullCodePath, currentFullCodePath)
 	if fullCodePath == "" {
 		return "run_on_select_fuzzy 需传 full_code_path（配置了 OnSelectFuzzy 的 Form/Table 路径，如 .../cashier_desk.form）。", true

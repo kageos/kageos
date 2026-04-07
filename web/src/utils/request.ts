@@ -9,6 +9,9 @@ import type { ApiResponse } from '@/types'
 import type { PermissionInfo } from './permission'
 import { getPermissionDisplayName } from './permission'
 
+const CLIENT_SOURCE_HEADER = 'X-Client-Source'
+const CLIENT_SOURCE_BROWSER = 'browser'
+
 // 创建axios实例
 // 注意：使用相对路径，通过 Vite 代理转发到网关，避免跨域问题
 // 在生产环境可以通过 VITE_API_BASE_URL 环境变量指定绝对路径
@@ -47,6 +50,14 @@ service.interceptors.request.use(
         localStorageToken: localStorage.getItem('token'),
         url: config.url
       })
+    }
+
+    if (config.headers) {
+      if (typeof config.headers.set === 'function') {
+        config.headers.set(CLIENT_SOURCE_HEADER, CLIENT_SOURCE_BROWSER)
+      } else {
+        ;(config.headers as any)[CLIENT_SOURCE_HEADER] = CLIENT_SOURCE_BROWSER
+      }
     }
 
     return config

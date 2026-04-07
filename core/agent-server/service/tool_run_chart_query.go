@@ -37,6 +37,7 @@ func (t *RunChartQueryTool) Execute(ctx context.Context, call ToolCall) ToolResu
 
 // runChartQueryTool 执行 Chart 查询；图表参数不固定，由 handler 定义，可传 url_query
 func runChartQueryTool(ctx context.Context, args runChartQueryArgs, currentFullCodePath string) (string, bool) {
+	ctx = withAgentToolClientSource(ctx)
 	fullCodePath := resolveFullCodePathArg(args.FullCodePath, currentFullCodePath)
 	if fullCodePath == "" {
 		return "run_chart_query 需传 full_code_path（图表函数路径，如 /luobei/myapp/charts/xxx）。", true

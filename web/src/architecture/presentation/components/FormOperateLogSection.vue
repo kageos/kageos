@@ -2,84 +2,176 @@
   <div class="form-operate-log-section">
     <template v-if="hasOperateLog">
       <div v-loading="loading" class="section-body">
-        <el-card shadow="never" class="history-card">
-          <template #header>
-            <div class="section-header">
-              <div class="section-title">最近执行记录</div>
-              <el-button link :loading="loading" @click="loadLogs({ page: 1 })">刷新</el-button>
-            </div>
-          </template>
+        <div class="section-header">
+          <div class="section-title-block">
+            <div class="section-title">执行记录</div>
+            <div class="section-subtitle">支持筛选、预览详情和直接重放到当前表单。</div>
+          </div>
+          <div class="section-count">共 {{ total }} 条记录</div>
+        </div>
+
+        <div class="filter-section">
+          <el-form :inline="true" :model="filters" class="filter-form">
+            <el-form-item label="执行用户">
+              <div class="user-filter-group">
+                <button type="button" class="user-filter-trigger" @click="openUserFilterDialog">
+                  <UserDisplay
+                    v-if="selectedFilterUser || filters.requestUser"
+                    :user-info="selectedFilterUser"
+                    :username="filters.requestUser"
+                    mode="card"
+                    layout="horizontal"
+                    size="small"
+                  />
+                  <span v-else class="user-filter-placeholder">选择用户</span>
+                </button>
+                <el-button v-if="filters.requestUser" link @click="clearUserFilter">清空</el-button>
+              </div>
+            </el-form-item>
+            <el-form-item label="结果">
+              <el-select
+                v-model="filters.status"
+                clearable
+                class="filter-select"
+                placeholder="全部"
+                @change="handleFilterSubmit"
+              >
+                <el-option label="成功" value="success" />
+                <el-option label="失败" value="failed" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="来源">
+              <el-select
+                v-model="filters.source"
+                clearable
+                class="filter-select"
+                placeholder="全部"
+                @change="handleFilterSubmit"
+              >
+                <el-option
+                  v-for="item in sourceOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="关键字">
+              <el-input
+                v-model="filters.keyword"
+                clearable
+                class="filter-search"
+                placeholder="搜索版本、错误、请求或响应内容"
+                @keyup.enter="handleFilterSubmit"
+                @clear="handleFilterSubmit"
+              />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" @click="handleFilterSubmit">查询</el-button>
+              <el-button @click="resetFilters">重置</el-button>
+              <el-button @click="loadLogs({ page: 1 })">刷新</el-button>
+            </el-form-item>
+          </el-form>
+        </div>
+
+        <div class="history-list">
           <el-table
             :data="logs"
             stripe
+            size="small"
             class="history-table"
             empty-text="暂无执行记录"
+            row-key="id"
+            @row-click="handleRowClick"
           >
-            <el-table-column label="结果" min-width="260">
+            <el-table-column label="结果" min-width="280">
               <template #default="{ row }">
-                <div class="result-cell">
+                <div class="clickable-cell result-cell">
                   <el-tag :type="getStatusTagType(row)" effect="light" round>
                     {{ getStatusLabel(row) }}
                   </el-tag>
                   <div class="result-copy">
-                    <div class="result-title">{{ getResultMessage(row) }}</div>
+                    <div class="result-title">
+                      <span>{{ getResultTitle(row) }}</span>
+                      <el-tooltip
+                        v-if="getFailureMessage(row)"
+                        :content="getFailureMessage(row)"
+                        placement="top"
+                      >
+                        <el-icon class="result-warning-icon"><WarningFilled /></el-icon>
+                      </el-tooltip>
+                    </div>
                     <div class="result-subtitle">{{ getResultSummary(row) }}</div>
                   </div>
                 </div>
               </template>
             </el-table-column>
 
-            <el-table-column label="执行用户" min-width="170">
+            <el-table-column label="执行用户" min-width="180">
               <template #default="{ row }">
-                <UserDisplay
-                  :user-info="getUserInfo(row.request_user)"
-                  :username="row.request_user"
-                  mode="card"
-                  layout="horizontal"
-                  size="small"
-                />
+                <div class="clickable-cell user-cell">
+                  <UserDisplay
+                    :user-info="getUserInfo(row.request_user)"
+                    :username="row.request_user"
+                    mode="card"
+                    layout="horizontal"
+                    size="small"
+                  />
+                </div>
+              </template>
+            </el-table-column>
+
+            <el-table-column label="来源" width="110" align="center">
+              <template #default="{ row }">
+                <div class="clickable-cell source-cell">
+                  <el-tag size="small" effect="plain" round class="source-tag">
+                    {{ getSourceLabel(row) }}
+                  </el-tag>
+                </div>
               </template>
             </el-table-column>
 
             <el-table-column label="执行时间" min-width="180">
               <template #default="{ row }">
-                <div class="time-cell">
+                <div class="clickable-cell time-cell">
                   <div class="time-primary">{{ formatDateTime(row.created_at) }}</div>
                   <div class="time-secondary">{{ formatRelativeTime(row.created_at) }}</div>
                 </div>
               </template>
             </el-table-column>
 
-            <el-table-column label="耗时" min-width="110" align="center">
+            <el-table-column label="耗时" width="120" align="center">
               <template #default="{ row }">
-                <div class="meta-cell">
+                <div class="clickable-cell meta-cell">
                   <div class="meta-primary">{{ formatDuration(getDuration(row)) }}</div>
                   <div class="meta-secondary">{{ getDurationHint(row) }}</div>
                 </div>
               </template>
             </el-table-column>
 
-            <el-table-column label="版本" min-width="120" align="center">
+            <el-table-column label="版本" width="140" align="center">
               <template #default="{ row }">
-                <span class="version-text">{{ row.version || '-' }}</span>
+                <div class="clickable-cell version-cell">
+                  <span class="version-text">{{ row.version || '-' }}</span>
+                </div>
               </template>
             </el-table-column>
 
             <el-table-column label="操作" width="160" align="right" fixed="right">
               <template #default="{ row }">
                 <div class="action-cell">
-                  <el-button text @click="openPreviewDialog(row)">预览</el-button>
-                  <el-button type="primary" @click="handleApplyLog(row)">重放</el-button>
+                  <el-button @click.stop="openPreviewDialog(row)">详情</el-button>
+                  <el-button type="primary" @click.stop="handleApplyLog(row)">重放</el-button>
                 </div>
               </template>
             </el-table-column>
           </el-table>
-        </el-card>
+        </div>
 
         <div v-if="total > pageSize" class="pagination-wrapper">
           <el-pagination
             background
-            layout="prev, pager, next"
+            layout="total, prev, pager, next"
             :current-page="page"
             :page-size="pageSize"
             :total="total"
@@ -108,8 +200,8 @@
 
     <el-dialog
       v-model="previewDialogVisible"
-      title="执行记录预览"
-      width="820px"
+      title="执行详情"
+      width="1120px"
       :close-on-click-modal="false"
       class="preview-dialog"
     >
@@ -119,40 +211,76 @@
             <el-tag :type="getStatusTagType(previewLog)" effect="light" round>
               {{ getStatusLabel(previewLog) }}
             </el-tag>
-            <span class="preview-summary-text">{{ getResultMessage(previewLog) }}</span>
+            <div class="preview-summary-copy">
+              <div class="preview-summary-text">{{ getResultTitle(previewLog) }}</div>
+              <div class="preview-summary-desc">{{ getResultMessage(previewLog) }}</div>
+            </div>
           </div>
           <div class="preview-summary-meta">
-            <span>执行时间：{{ formatDateTime(previewLog.created_at) }}</span>
-            <span>耗时：{{ formatDuration(getDuration(previewLog)) }}</span>
+            <span>{{ formatDateTime(previewLog.created_at) }}</span>
+            <span>{{ formatDuration(getDuration(previewLog)) }}</span>
           </div>
         </div>
 
-        <el-tabs v-model="previewActiveTab" class="preview-tabs">
-          <el-tab-pane label="请求参数" name="request">
-            <div class="preview-tab-intro">
-              本次提交 {{ getRequestFieldCount(previewLog) }} 个字段，可直接重放回当前表单。
+        <div class="preview-overview-grid">
+          <div class="overview-item">
+            <div class="overview-label">执行用户</div>
+            <div class="overview-value">{{ previewLog.request_user || '-' }}</div>
+          </div>
+          <div class="overview-item">
+            <div class="overview-label">来源</div>
+            <div class="overview-value">{{ getSourceLabel(previewLog) }}</div>
+          </div>
+          <div class="overview-item">
+            <div class="overview-label">执行时间</div>
+            <div class="overview-value">{{ formatDateTime(previewLog.created_at) }}</div>
+          </div>
+          <div class="overview-item">
+            <div class="overview-label">耗时</div>
+            <div class="overview-value">{{ formatDuration(getDuration(previewLog)) }}</div>
+          </div>
+          <div class="overview-item">
+            <div class="overview-label">版本</div>
+            <div class="overview-value">{{ previewLog.version || '-' }}</div>
+          </div>
+          <div class="overview-item">
+            <div class="overview-label">本次提交</div>
+            <div class="overview-value">{{ getRequestFieldCount(previewLog) }} 个字段</div>
+          </div>
+        </div>
+
+        <div class="preview-panels">
+          <div class="preview-panel">
+            <div class="preview-panel-header">
+              <div class="preview-panel-title">请求参数</div>
+              <div class="preview-panel-desc">
+                本次提交 {{ getRequestFieldCount(previewLog) }} 个字段，可直接重放回当前表单。
+              </div>
             </div>
             <el-input
               :model-value="previewRequestContent"
               type="textarea"
-              :rows="16"
+              :rows="18"
               readonly
               class="preview-json-input"
             />
-          </el-tab-pane>
-          <el-tab-pane label="响应结果" name="response">
-            <div class="preview-tab-intro">
-              会回填响应参数和执行信息，方便继续调试或比对结果。
+          </div>
+          <div class="preview-panel">
+            <div class="preview-panel-header">
+              <div class="preview-panel-title">响应结果</div>
+              <div class="preview-panel-desc">
+                会一起回填响应参数和执行信息，方便继续调试或比对结果。
+              </div>
             </div>
             <el-input
               :model-value="previewResponseContent"
               type="textarea"
-              :rows="16"
+              :rows="18"
               readonly
               class="preview-json-input"
             />
-          </el-tab-pane>
-        </el-tabs>
+          </div>
+        </div>
       </template>
 
       <template #footer>
@@ -162,24 +290,36 @@
         </div>
       </template>
     </el-dialog>
+
+    <UserPickerDialog
+      v-model="userFilterDialogVisible"
+      title="选择执行用户"
+      placeholder="请输入用户名或邮箱搜索"
+      :initial-usernames="filters.requestUser || null"
+      @confirm="handleUserFilterConfirm"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Clock } from '@element-plus/icons-vue'
+import { Clock, WarningFilled } from '@element-plus/icons-vue'
 import {
   ElButton,
   ElCard,
   ElDialog,
-  ElEmpty,
+  ElForm,
+  ElFormItem,
   ElIcon,
   ElInput,
   ElMessage,
+  ElOption,
   ElPagination,
+  ElSelect,
   ElTable,
   ElTableColumn,
-  ElTag
+  ElTag,
+  ElTooltip
 } from 'element-plus'
 import type { TagProps } from 'element-plus'
 import { getFormOperateLogs, type FormOperateLog } from '@/api/operateLog'
@@ -188,6 +328,8 @@ import { useUserInfoStore } from '@/stores/userInfo'
 import type { FieldConfig } from '@/core/types/field'
 import { formatTimestamp } from '@/utils/date'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
+import UserPickerDialog from '@/shared/components/UserPickerDialog.vue'
+import type { UserInfo } from '@/types'
 
 interface Props {
   fullCodePath: string
@@ -223,8 +365,22 @@ const page = ref(1)
 const pageSize = 10
 const userInfoMap = ref<Map<string, any>>(new Map())
 const previewDialogVisible = ref(false)
-const previewActiveTab = ref('request')
 const previewLog = ref<FormOperateLog | null>(null)
+const userFilterDialogVisible = ref(false)
+const selectedFilterUser = ref<UserInfo | null>(null)
+const filters = ref({
+  requestUser: '',
+  keyword: '',
+  status: '',
+  source: ''
+})
+
+const sourceOptions = [
+  { label: '浏览器', value: 'browser' },
+  { label: '定时任务', value: 'scheduled_task' },
+  { label: '智能体', value: 'agent' },
+  { label: 'API', value: 'api' }
+]
 
 const requestFieldMap = computed(() => {
   const map = new Map<string, FieldConfig>()
@@ -282,16 +438,6 @@ const getRequestFieldLabels = (log: FormOperateLog): string[] => {
 
 const getRequestFieldCount = (log: FormOperateLog): number => {
   return getRequestFieldLabels(log).length
-}
-
-const getRequestFieldHint = (log: FormOperateLog): string => {
-  const labels = getRequestFieldLabels(log)
-  if (labels.length === 0) {
-    return '本次未记录请求字段'
-  }
-  const visible = labels.slice(0, 3).join('、')
-  const remaining = labels.length - Math.min(labels.length, 3)
-  return remaining > 0 ? `${visible} 等 ${labels.length} 项` : visible
 }
 
 const getResponsePayload = (log: FormOperateLog): Record<string, any> | null => {
@@ -371,6 +517,10 @@ const getStatusLabel = (log: FormOperateLog): string => {
   return log.code === 0 ? '成功' : '失败'
 }
 
+const getResultTitle = (log: FormOperateLog): string => {
+  return log.code === 0 ? '执行成功' : '执行失败'
+}
+
 const getResultMessage = (log: FormOperateLog): string => {
   if (log.msg) {
     return log.msg
@@ -401,6 +551,54 @@ const getResultSummary = (log: FormOperateLog): string => {
     return `返回结果：${String(result)}`
   }
   return log.code === 0 ? '本次执行已完成' : '请查看预览中的响应结果'
+}
+
+const getFailureMessage = (log: FormOperateLog): string => {
+  if (log.code === 0) {
+    return ''
+  }
+  return getResultMessage(log)
+}
+
+const inferSourceFromUserAgent = (userAgent?: string | null): string => {
+  const normalized = (userAgent || '').toLowerCase()
+  if (!normalized) {
+    return ''
+  }
+  if (normalized.includes('mozilla') || normalized.includes('chrome') || normalized.includes('safari')) {
+    return 'browser'
+  }
+  if (
+    normalized.includes('postman') ||
+    normalized.includes('curl') ||
+    normalized.includes('httpie') ||
+    normalized.includes('apifox')
+  ) {
+    return 'api'
+  }
+  return ''
+}
+
+const getSourceCode = (log: FormOperateLog): string => {
+  const direct = (log.source || '').trim().toLowerCase()
+  if (direct === 'browser' || direct === 'scheduled_task' || direct === 'agent' || direct === 'api') {
+    return direct
+  }
+  return inferSourceFromUserAgent(log.user_agent)
+}
+
+const getSourceLabel = (log: FormOperateLog): string => {
+  switch (getSourceCode(log)) {
+    case 'scheduled_task':
+      return '定时任务'
+    case 'agent':
+      return '智能体'
+    case 'api':
+    case 'browser':
+      return getSourceCode(log) === 'api' ? 'API' : '浏览器'
+    default:
+      return '-'
+  }
 }
 
 const formatDateTime = (value: string | number | null | undefined): string => {
@@ -488,6 +686,10 @@ const loadLogs = async (options?: { page?: number }) => {
     const response = await getFormOperateLogs({
       full_code_path: props.fullCodePath,
       action: 'form_submit',
+      request_user: filters.value.requestUser || undefined,
+      source: filters.value.source || undefined,
+      status: (filters.value.status as 'success' | 'failed' | '') || undefined,
+      keyword: filters.value.keyword.trim() || undefined,
       page: page.value,
       page_size: pageSize,
       order_by: 'created_at DESC'
@@ -507,9 +709,44 @@ const handlePageChange = (nextPage: number) => {
   loadLogs({ page: nextPage })
 }
 
+const handleFilterSubmit = () => {
+  loadLogs({ page: 1 })
+}
+
+const openUserFilterDialog = () => {
+  userFilterDialogVisible.value = true
+}
+
+const handleUserFilterConfirm = (users: UserInfo[]) => {
+  const user = users[0] || null
+  selectedFilterUser.value = user
+  filters.value.requestUser = user?.username || ''
+  handleFilterSubmit()
+}
+
+const clearUserFilter = () => {
+  selectedFilterUser.value = null
+  filters.value.requestUser = ''
+  handleFilterSubmit()
+}
+
+const resetFilters = () => {
+  filters.value = {
+    requestUser: '',
+    keyword: '',
+    status: '',
+    source: ''
+  }
+  selectedFilterUser.value = null
+  loadLogs({ page: 1 })
+}
+
+const handleRowClick = (row: FormOperateLog) => {
+  openPreviewDialog(row)
+}
+
 const openPreviewDialog = (log: FormOperateLog) => {
   previewLog.value = log
-  previewActiveTab.value = 'request'
   previewDialogVisible.value = true
 }
 
@@ -580,21 +817,14 @@ defineExpose({
 
 <style scoped lang="scss">
 .form-operate-log-section {
-  display: flex;
-  flex-direction: column;
   min-height: 320px;
+  padding: 20px;
 }
 
 .section-body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-}
-
-.history-card {
-  border-radius: 12px;
-  border-color: var(--el-border-color-lighter);
-  background: var(--el-bg-color);
+  gap: 20px;
 }
 
 .section-header {
@@ -604,10 +834,84 @@ defineExpose({
   gap: 12px;
 }
 
+.section-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .section-title {
   font-size: 15px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+}
+
+.section-subtitle {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
+}
+
+.section-count {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+
+.filter-section {
+  margin-bottom: 4px;
+}
+
+.filter-form {
+  margin: 0;
+}
+
+.filter-search {
+  width: 320px;
+}
+
+.filter-select {
+  width: 130px;
+}
+
+.user-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-filter-trigger {
+  display: flex;
+  align-items: center;
+  min-width: 180px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color);
+  background: var(--el-bg-color);
+  cursor: pointer;
+}
+
+.user-filter-trigger:hover {
+  border-color: var(--el-color-primary-light-5);
+}
+
+.user-filter-placeholder {
+  font-size: 13px;
+  color: var(--el-text-color-placeholder);
+}
+
+.history-list {
+  min-height: 220px;
+}
+
+.history-table {
+  --el-table-row-hover-bg-color: var(--el-fill-color-light);
+}
+
+.history-table :deep(.el-table__row) {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
 }
 
 .history-table :deep(.el-table__cell) {
@@ -615,14 +919,18 @@ defineExpose({
 }
 
 .history-table :deep(.cell) {
-  padding-top: 14px;
-  padding-bottom: 14px;
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+
+.clickable-cell {
+  min-height: 46px;
 }
 
 .result-cell {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 14px;
   min-width: 0;
 }
 
@@ -635,20 +943,40 @@ defineExpose({
   font-weight: 600;
   color: var(--el-text-color-primary);
   line-height: 1.5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .result-subtitle {
-  margin-top: 4px;
+  margin-top: 6px;
   font-size: 12px;
   line-height: 1.5;
   color: var(--el-text-color-secondary);
 }
 
+.result-warning-icon {
+  font-size: 14px;
+  color: var(--el-color-warning);
+  cursor: help;
+}
+
+.user-cell,
 .time-cell,
 .meta-cell {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+}
+
+.source-tag {
+  border-color: var(--el-border-color);
+}
+
+.source-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .time-primary,
@@ -666,9 +994,17 @@ defineExpose({
   color: var(--el-text-color-secondary);
 }
 
+.version-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
 .version-text {
   display: inline-block;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 600;
   line-height: 1.5;
   color: var(--el-text-color-primary);
   word-break: break-all;
@@ -732,12 +1068,12 @@ defineExpose({
 .preview-summary {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  padding: 14px 16px;
+  gap: 20px;
+  padding: 18px 20px;
   border-radius: 16px;
   background: var(--el-fill-color-light);
   border: 1px solid var(--el-border-color-lighter);
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .preview-dialog :deep(.el-dialog) {
@@ -750,14 +1086,26 @@ defineExpose({
 
 .preview-summary-main {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.preview-summary-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .preview-summary-text {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+}
+
+.preview-summary-desc {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--el-text-color-secondary);
 }
 
 .preview-summary-meta {
@@ -769,13 +1117,62 @@ defineExpose({
   color: var(--el-text-color-secondary);
 }
 
-.preview-tabs :deep(.el-tabs__content) {
-  overflow: visible;
+.preview-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
 }
 
-.preview-tab-intro {
-  margin-bottom: 10px;
+.overview-item {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--el-fill-color-blank);
+  border: 1px solid var(--el-border-color-lighter);
+}
+
+.overview-label {
   font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
+}
+
+.overview-value {
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--el-text-color-primary);
+  word-break: break-word;
+}
+
+.preview-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.preview-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.preview-panel-header {
+  margin-bottom: 12px;
+}
+
+.preview-panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--el-text-color-primary);
+}
+
+.preview-panel-desc {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
   color: var(--el-text-color-secondary);
 }
 
@@ -783,6 +1180,7 @@ defineExpose({
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   background: var(--el-bg-color);
   border-color: var(--el-border-color);
+  min-height: 420px;
 }
 
 .preview-footer {
@@ -796,6 +1194,24 @@ defineExpose({
   .preview-summary {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .form-operate-log-section {
+    padding: 16px;
+  }
+
+  .preview-overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .preview-panels {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-search,
+  .filter-select,
+  .user-filter-trigger {
+    width: 100%;
   }
 
   .preview-summary-meta {

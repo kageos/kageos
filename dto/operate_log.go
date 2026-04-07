@@ -25,6 +25,7 @@ type RecordFormOperateLogReq struct {
 	RequestUser    string          `json:"request_user"`                                    // 请求用户（实际执行操作的用户）
 	App            string          `json:"app"`                                             // 应用名
 	Router         string          `json:"router"`                                          // 路由路径（如：plugins/cashier_desk）
+	Source         string          `json:"source"`                                          // 来源（如：browser、scheduled_task、agent、api）
 	Action         string          `json:"action"`                                          // 操作类型：form_submit 或 request_app
 	FunctionMethod string          `json:"function_method"`                                 // HTTP 方法
 	RequestBody    json.RawMessage `json:"request_body" swaggertype:"string" example:"{}"`  // 请求体

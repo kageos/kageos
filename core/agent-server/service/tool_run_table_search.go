@@ -42,6 +42,7 @@ func (t *RunTableSearchTool) Execute(ctx context.Context, call ToolCall) ToolRes
 
 // runTableSearchTool 执行 Table 查询；参数遵循 pkg/gormx/query，可传 url_query 或 page/page_size/sorts
 func runTableSearchTool(ctx context.Context, args runTableSearchArgs, currentFullCodePath string) (string, bool) {
+	ctx = withAgentToolClientSource(ctx)
 	fullCodePath := resolveFullCodePathArg(args.FullCodePath, currentFullCodePath)
 	if fullCodePath == "" {
 		return "run_table_search 需传 full_code_path（表格函数路径，如 /luobei/myapp/tables/hr）。", true

@@ -112,6 +112,7 @@ func (ops *OperateLogService) createFormOperateLog(ctx context.Context, req *dto
 		UserAgent:      req.UserAgent,
 		App:            app,
 		FullCodePath:   fullCodePath,
+		Source:         req.Source,
 		FunctionMethod: method,
 		RequestBody:    requestBody,
 		ResponseBody:   responseBody,

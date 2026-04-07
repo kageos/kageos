@@ -109,6 +109,22 @@ func (r *OperateLogRepository) GetFormOperateLogs(ctx context.Context, req *dto.
 	if req.Action != "" {
 		query = query.Where("action = ?", req.Action)
 	}
+	if req.Source != "" {
+		query = query.Where("source = ?", req.Source)
+	}
+	switch req.Status {
+	case "success":
+		query = query.Where("code = ?", 0)
+	case "failed":
+		query = query.Where("code <> ?", 0)
+	}
+	if req.Keyword != "" {
+		like := "%" + req.Keyword + "%"
+		query = query.Where(
+			"(request_user LIKE ? OR msg LIKE ? OR version LIKE ? OR trace_id LIKE ? OR CAST(request_body AS CHAR) LIKE ? OR CAST(response_body AS CHAR) LIKE ?)",
+			like, like, like, like, like, like,
+		)
+	}
 
 	// 获取总数
 	if err := query.Count(&total).Error; err != nil {

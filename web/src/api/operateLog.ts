@@ -26,6 +26,7 @@ export interface FormOperateLog {
   action: string
   app: string
   full_code_path: string
+  source?: string
   function_method?: string
   request_body?: any
   response_body?: any
@@ -58,6 +59,9 @@ export interface GetFormOperateLogsParams {
   app?: string
   full_code_path?: string
   action?: string
+  source?: string
+  status?: 'success' | 'failed'
+  keyword?: string
   page?: number
   page_size?: number
   order_by?: string
@@ -92,4 +96,3 @@ export function getTableOperateLogs(params: GetTableOperateLogsParams): Promise<
 export function getFormOperateLogs(params: GetFormOperateLogsParams): Promise<GetFormOperateLogsResponse> {
   return get<GetFormOperateLogsResponse>('/workspace/api/v1/operate_log/form', params)
 }
-

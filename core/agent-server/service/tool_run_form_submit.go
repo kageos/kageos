@@ -38,6 +38,7 @@ func (t *RunFormSubmitTool) Execute(ctx context.Context, call ToolCall) ToolResu
 
 // runFormSubmitTool 执行 Form 提交。body 由模型按具体表单定义自行拼装。
 func runFormSubmitTool(ctx context.Context, args runFormSubmitArgs, currentFullCodePath string) (string, bool) {
+	ctx = withAgentToolClientSource(ctx)
 	fullCodePath := resolveFullCodePathArg(args.FullCodePath, currentFullCodePath)
 	if fullCodePath == "" {
 		return "run_form_submit 需传 full_code_path（表单函数路径，如 /luobei/myapp/plugins/xxx）。", true

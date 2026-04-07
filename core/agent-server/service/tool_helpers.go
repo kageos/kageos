@@ -1,12 +1,16 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 )
+
+const agentToolClientSource = "agent"
 
 // decodeToolArgs 将 tool args 反序列化到强类型结构体；未知字段保持忽略，避免对旧调用方过于敏感。
 func decodeToolArgs[T any](args map[string]interface{}) (T, error) {
@@ -118,6 +122,10 @@ func resolveFullCodePathArg(fullCodePath string, defaultPath string) string {
 		return path
 	}
 	return normalizeAbsoluteToolPath(defaultPath)
+}
+
+func withAgentToolClientSource(ctx context.Context) context.Context {
+	return contextx.WithClientSource(ctx, agentToolClientSource)
 }
 
 func workspaceFileLineCount(file dto.WorkspaceContextFile) int {
