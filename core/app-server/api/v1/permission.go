@@ -178,7 +178,7 @@ func (p *Permission) GetResourcePermissions(c *gin.Context) {
 // @Security ApiKeyAuth
 // @Param X-Token header string true "JWT Token"
 // @Param body body dto.ApprovePermissionRequestReq true "审批请求"
-// @Success 200 {object} response.Response "审批成功"
+// @Success 200 {object} map[string]interface{} "审批成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
 // @Failure 500 {string} string "服务器内部错误"
@@ -208,7 +208,7 @@ func (p *Permission) ApprovePermissionRequest(c *gin.Context) {
 // @Security ApiKeyAuth
 // @Param X-Token header string true "JWT Token"
 // @Param body body dto.RejectPermissionRequestReq true "拒绝请求"
-// @Success 200 {object} response.Response "拒绝成功"
+// @Success 200 {object} map[string]interface{} "拒绝成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
 // @Failure 500 {string} string "服务器内部错误"

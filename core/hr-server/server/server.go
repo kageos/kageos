@@ -58,7 +58,11 @@ func NewServer(cfg *config.HRServerConfig) (*Server, error) {
 	}
 
 	if err := s.initNATS(ctx); err != nil {
-		logger.Warnf(ctx, "[Server] Failed to initialize NATS: %v, continuing without NATS", err)
+		if s.cfg.AllowNATSDegradedStartup() {
+			logger.Warnf(ctx, "[Server] Failed to initialize NATS: %v, allow_nats_degraded_startup=true so HR server will continue", err)
+		} else {
+			return nil, fmt.Errorf("failed to initialize required NATS: %w", err)
+		}
 	}
 
 	if err := s.initServices(ctx); err != nil {
@@ -87,6 +91,14 @@ func NewServer(cfg *config.HRServerConfig) (*Server, error) {
 func (s *Server) Start(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Starting hr-server...")
 
+	if err := s.subscribeNATS(ctx); err != nil {
+		if s.cfg.AllowNATSDegradedStartup() {
+			logger.Warnf(ctx, "[Server] NATS subscribe failed: %v, allow_nats_degraded_startup=true so HR server will continue", err)
+		} else {
+			return fmt.Errorf("failed to subscribe required NATS: %w", err)
+		}
+	}
+
 	// 启动 HTTP 服务器
 	port := fmt.Sprintf(":%d", s.cfg.GetPort())
 	logger.Infof(ctx, "[Server] HTTP server starting on port %s", port)
@@ -96,10 +108,6 @@ func (s *Server) Start(ctx context.Context) error {
 			logger.Errorf(ctx, "[Server] HTTP server error: %v", err)
 		}
 	}()
-
-	if err := s.subscribeNATS(ctx); err != nil {
-		logger.Warnf(ctx, "[Server] NATS subscribe failed: %v", err)
-	}
 
 	logger.Infof(ctx, "[Server] HR-server started successfully")
 	return nil

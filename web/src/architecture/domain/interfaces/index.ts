@@ -9,7 +9,8 @@ export type { IStateManager } from './IStateManager'
 
 export type { IApiClient } from './IApiClient'
 
-export type { IFunctionLoader, FunctionDetail } from './IFunctionLoader'
+export type { IFunctionLoader } from './IFunctionLoader'
+export type { FunctionDetail } from '../types'
 
 export type { ICacheManager } from './ICacheManager'
 

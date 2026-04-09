@@ -16,6 +16,30 @@ import (
 	_ "github.com/ai-agent-os/ai-agent-os/core/app-server/api/v1"
 )
 
+func ensureLogger(ctx context.Context, level, filename string, isDev bool) error {
+	if logger.IsInitialized() {
+		logger.Infof(ctx, "Logger already initialized (unified entry), skipping initialization")
+		return nil
+	}
+
+	logConfig := logger.Config{
+		Level:      level,
+		Filename:   filename,
+		MaxSize:    100,
+		MaxBackups: 3,
+		MaxAge:     7,
+		Compress:   true,
+		IsDev:      isDev,
+	}
+
+	if err := logger.Init(logConfig); err != nil {
+		return fmt.Errorf("failed to initialize logger: %w", err)
+	}
+
+	logger.Infof(ctx, "Logger initialized - Service: %s", filename)
+	return nil
+}
+
 // Main 服务主函数（支持统一入口调用）
 // ctx: 统一的上下文
 // stopCh: 停止信号通道，服务应该监听此通道并在收到信号时优雅关闭
@@ -24,27 +48,12 @@ func Main(ctx context.Context, stopCh <-chan struct{}, readyCh chan<- struct{}) 
 	// 获取配置
 	cfg := config.GetAppServerConfig()
 
-	// 初始化日志系统（如果还未初始化）
-	// 注意：统一入口时，日志系统已经在 main.go 中初始化，这里会跳过
-	if !logger.IsInitialized() {
-		logConfig := logger.Config{
-			Level:      cfg.GetLogLevel(),
-			Filename:   "./logs/app-server.log",
-			MaxSize:    100,
-			MaxBackups: 3,
-			MaxAge:     7,
-			Compress:   true,
-			IsDev:      cfg.IsDebug(),
-		}
-
-		if err := logger.Init(logConfig); err != nil {
-			return fmt.Errorf("failed to initialize logger: %w", err)
-		}
-
-		logger.Infof(ctx, "Logger initialized - Service: app-server, File: %s", logConfig.Filename)
-	} else {
-		logger.Infof(ctx, "Logger already initialized (unified entry), skipping initialization")
+	if err := ensureLogger(ctx, cfg.GetLogLevel(), "./logs/app-server.log", cfg.IsDebug()); err != nil {
+		return err
 	}
+
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	// 创建并启动服务器
 	srv, err := server.NewServer(cfg)
@@ -52,12 +61,12 @@ func Main(ctx context.Context, stopCh <-chan struct{}, readyCh chan<- struct{}) 
 		return fmt.Errorf("failed to create server: %w", err)
 	}
 
-	if err := srv.Start(ctx); err != nil {
+	if err := srv.Start(runCtx); err != nil {
 		return fmt.Errorf("failed to start server: %w", err)
 	}
 
 	logger.Infof(ctx, "App-server started successfully")
-	
+
 	// ⭐ 发送就绪信号（如果提供了 readyCh）
 	// 使用阻塞式发送，确保信号被接收（channel 容量为 1，不会阻塞太久）
 	if readyCh != nil {
@@ -74,6 +83,7 @@ func Main(ctx context.Context, stopCh <-chan struct{}, readyCh chan<- struct{}) 
 		// 收到停止信号
 		logger.Infof(ctx, "Received stop signal, shutting down app-server...")
 	}
+	cancel()
 
 	// 优雅关闭服务器
 	if err := srv.Stop(ctx); err != nil {
@@ -84,3 +94,44 @@ func Main(ctx context.Context, stopCh <-chan struct{}, readyCh chan<- struct{}) 
 	return nil
 }
 
+// SchedulerMain 仅启动定时任务调度 worker。
+func SchedulerMain(ctx context.Context, stopCh <-chan struct{}, readyCh chan<- struct{}) error {
+	cfg := config.GetAppServerConfig()
+
+	if err := ensureLogger(ctx, cfg.GetLogLevel(), "./logs/app-scheduler.log", cfg.IsDebug()); err != nil {
+		return err
+	}
+
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	srv, err := server.NewServer(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create scheduler server: %w", err)
+	}
+
+	if err := srv.StartScheduler(runCtx); err != nil {
+		return fmt.Errorf("failed to start scheduler: %w", err)
+	}
+
+	logger.Infof(ctx, "App scheduler started successfully")
+	if readyCh != nil {
+		readyCh <- struct{}{}
+		logger.Infof(ctx, "App scheduler 就绪信号已发送")
+	}
+
+	select {
+	case <-ctx.Done():
+		logger.Infof(ctx, "Context cancelled, shutting down app scheduler...")
+	case <-stopCh:
+		logger.Infof(ctx, "Received stop signal, shutting down app scheduler...")
+	}
+	cancel()
+
+	if err := srv.Stop(ctx); err != nil {
+		return fmt.Errorf("error during scheduler shutdown: %w", err)
+	}
+
+	logger.Infof(ctx, "App scheduler stopped")
+	return nil
+}

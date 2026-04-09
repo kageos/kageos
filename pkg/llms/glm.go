@@ -2,7 +2,6 @@ package llms
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -173,19 +172,7 @@ func (g *GLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, 
 	}
 
 	// 动态创建HTTP客户端，支持请求级别的超时配置
-	timeout := g.Options.Timeout // 默认使用客户端配置的超时时间
-	if req.Timeout != nil && *req.Timeout > 0 {
-		timeout = *req.Timeout // 如果请求中指定了超时时间，则使用请求的超时时间
-	}
-
-	httpClient := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			MaxIdleConns:       g.Options.MaxIdleConns,
-			IdleConnTimeout:    g.Options.IdleConnTimeout,
-			DisableCompression: true,
-		},
-	}
+	httpClient := createHTTPClient(g.Options, resolveRequestTimeout(g.Options, req))
 
 	// 发送HTTP请求
 	jsonData, err := json.Marshal(apiReq)
@@ -193,17 +180,9 @@ func (g *GLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, 
 		return nil, fmt.Errorf("序列化请求失败: %v", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", g.BaseURL, bytes.NewBuffer(jsonData))
+	httpReq, err := newBearerJSONRequest(ctx, g.BaseURL, g.APIKey, jsonData, g.Options)
 	if err != nil {
 		return nil, fmt.Errorf("创建HTTP请求失败: %v", err)
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+g.APIKey)
-
-	// 设置自定义User-Agent
-	if g.Options != nil && g.Options.UserAgent != "" {
-		httpReq.Header.Set("User-Agent", g.Options.UserAgent)
 	}
 
 	// 启用日志记录（优化：不打印完整请求体，只记录长度）
@@ -301,19 +280,7 @@ func (g *GLMClient) ChatWithThinking(ctx context.Context, req *ChatRequest, enab
 	}
 
 	// 动态创建HTTP客户端，支持请求级别的超时配置
-	timeout := g.Options.Timeout // 默认使用客户端配置的超时时间
-	if req.Timeout != nil && *req.Timeout > 0 {
-		timeout = *req.Timeout // 如果请求中指定了超时时间，则使用请求的超时时间
-	}
-
-	httpClient := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			MaxIdleConns:       g.Options.MaxIdleConns,
-			IdleConnTimeout:    g.Options.IdleConnTimeout,
-			DisableCompression: true,
-		},
-	}
+	httpClient := createHTTPClient(g.Options, resolveRequestTimeout(g.Options, req))
 
 	// 发送HTTP请求
 	jsonData, err := json.Marshal(apiReq)
@@ -321,17 +288,9 @@ func (g *GLMClient) ChatWithThinking(ctx context.Context, req *ChatRequest, enab
 		return nil, fmt.Errorf("序列化请求失败: %v", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", g.BaseURL, bytes.NewBuffer(jsonData))
+	httpReq, err := newBearerJSONRequest(ctx, g.BaseURL, g.APIKey, jsonData, g.Options)
 	if err != nil {
 		return nil, fmt.Errorf("创建HTTP请求失败: %v", err)
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+g.APIKey)
-
-	// 设置自定义User-Agent
-	if g.Options != nil && g.Options.UserAgent != "" {
-		httpReq.Header.Set("User-Agent", g.Options.UserAgent)
 	}
 
 	// 启用日志记录（优化：不打印完整请求体，只记录长度）
@@ -462,19 +421,7 @@ func (g *GLMClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *S
 		}
 
 		// 动态创建HTTP客户端，支持请求级别的超时配置
-		timeout := g.Options.Timeout
-		if req.Timeout != nil && *req.Timeout > 0 {
-			timeout = *req.Timeout
-		}
-
-		httpClient := &http.Client{
-			Timeout: timeout,
-			Transport: &http.Transport{
-				MaxIdleConns:       g.Options.MaxIdleConns,
-				IdleConnTimeout:    g.Options.IdleConnTimeout,
-				DisableCompression: true,
-			},
-		}
+		httpClient := createHTTPClient(g.Options, resolveRequestTimeout(g.Options, req))
 
 		// 序列化请求
 		jsonData, err := json.Marshal(apiReq)
@@ -492,20 +439,13 @@ func (g *GLMClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *S
 		}
 
 		// 创建HTTP请求
-		httpReq, err := http.NewRequestWithContext(ctx, "POST", g.BaseURL, bytes.NewBuffer(jsonData))
+		httpReq, err := newBearerJSONRequest(ctx, g.BaseURL, g.APIKey, jsonData, g.Options)
 		if err != nil {
 			chunkChan <- &StreamChunk{
 				Error: fmt.Sprintf("创建HTTP请求失败: %v", err),
 				Done:  true,
 			}
 			return
-		}
-
-		// 设置请求头
-		httpReq.Header.Set("Content-Type", "application/json")
-		httpReq.Header.Set("Authorization", "Bearer "+g.APIKey)
-		if g.Options.UserAgent != "" {
-			httpReq.Header.Set("User-Agent", g.Options.UserAgent)
 		}
 
 		// 发送请求

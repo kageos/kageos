@@ -312,6 +312,12 @@
       gap: 6px;
     }
 
+    .toolbar-stack {
+      display: grid;
+      gap: 10px;
+      justify-items: end;
+    }
+
     .resource-tab {
       min-height: 38px;
       padding: 0 16px;
@@ -326,6 +332,29 @@
       background: #fff;
       color: var(--text);
       border: 1px solid var(--line);
+    }
+
+    .snapshot-filters {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .snapshot-filter {
+      min-height: 34px;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.76);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      box-shadow: none;
+    }
+
+    .snapshot-filter.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: rgba(22, 104, 93, 0.22);
     }
 
     .resource-layout {
@@ -630,6 +659,12 @@
         flex-direction: column;
       }
 
+      .toolbar-stack,
+      .snapshot-filters {
+        justify-items: start;
+        justify-content: flex-start;
+      }
+
       .status-bar {
         flex-direction: column;
         align-items: flex-start;
@@ -723,9 +758,9 @@
           <p class="hint" id="maintenanceHint">当前状态加载中...</p>
         </article>
 
-        <article class="panel">
-          <h2 class="section-title">创建快照</h2>
-          <p class="section-copy">当前会按右侧选中的资源类型创建快照。只有 namespace 需要额外输入相对路径。</p>
+	        <article class="panel">
+	          <h2 class="section-title">创建快照</h2>
+	          <p class="section-copy">当前会按右侧选中的资源类型创建快照。只有 namespace 需要额外输入相对路径。</p>
           <div class="field">
             <label for="snapshotPathInput">Namespace 相对路径</label>
             <input id="snapshotPathInput" type="text" placeholder="留空表示整个 namespace，例如 alice/demo">
@@ -734,13 +769,32 @@
             <label for="snapshotNoteInput">快照备注</label>
             <textarea id="snapshotNoteInput" placeholder="可选，例如：发布前手工快照"></textarea>
           </div>
-          <div class="button-row" style="margin-top: 12px;">
-            <button class="secondary" id="createSnapshotBtn">为当前资源创建快照</button>
-          </div>
-        </article>
+	          <div class="button-row" style="margin-top: 12px;">
+	            <button class="secondary" id="createSnapshotBtn">为当前资源创建快照</button>
+	          </div>
+	        </article>
 
-        <article class="panel">
-          <h2 class="section-title">恢复当前选中快照</h2>
+	        <article class="panel">
+	          <h2 class="section-title">批量清理 pre-restore</h2>
+	          <p class="section-copy">清理当前资源下旧的自动快照，只保留最近 N 条。手工快照不会动，适合日常收口历史恢复点。</p>
+	          <div class="field">
+	            <label for="pruneKeepLatestInput">保留最近条数</label>
+	            <input id="pruneKeepLatestInput" type="text" value="3" placeholder="例如 3">
+	          </div>
+	          <div class="field" style="margin-top: 12px;">
+	            <label for="pruneNoteInput">清理备注</label>
+	            <textarea id="pruneNoteInput" placeholder="例如：定期清理历史 pre-restore 快照"></textarea>
+	          </div>
+	          <div class="callout warn" style="margin-top: 12px;">
+	            当前只清理所选资源类型下的 <strong>pre-restore</strong> 快照，不会删除手工快照。
+	          </div>
+	          <div class="button-row" style="margin-top: 12px;">
+	            <button class="warn-btn" id="pruneSnapshotsBtn">清理当前资源旧 pre-restore 快照</button>
+	          </div>
+	        </article>
+
+	        <article class="panel">
+	          <h2 class="section-title">恢复当前选中快照</h2>
           <div id="selectedSnapshotCard" class="selection-card empty">
             先在右侧列表选中一个快照。
           </div>
@@ -748,13 +802,14 @@
             <label for="restoreNoteInput">恢复备注</label>
             <textarea id="restoreNoteInput" placeholder="例如：恢复误删目录 / 回滚错误数据"></textarea>
           </div>
-          <div class="callout danger" style="margin-top: 12px;">
-            恢复前会自动创建一份 <strong>pre-restore</strong> 快照。当前版本仍建议你先确认维护模式已开启。
-          </div>
-          <div class="button-row" style="margin-top: 12px;">
-            <button class="danger-btn" id="restoreSnapshotBtn" disabled>恢复当前快照</button>
-          </div>
-        </article>
+	          <div class="callout danger" style="margin-top: 12px;">
+	            恢复前会自动创建一份 <strong>pre-restore</strong> 快照。当前版本仍建议你先确认维护模式已开启。
+	          </div>
+	          <div class="button-row" style="margin-top: 12px;">
+	            <button class="danger-btn" id="restoreSnapshotBtn" disabled>恢复当前快照</button>
+	            <button class="warn-btn" id="deleteSnapshotBtn" disabled>删除当前快照</button>
+	          </div>
+	        </article>
       </aside>
 
       <section class="stack">
@@ -764,10 +819,17 @@
               <h2 class="section-title" style="margin-bottom: 8px;">资源快照</h2>
               <p class="section-copy" id="resourceDescription">选择资源类型后，在下方列表里挑一个快照，再到左侧执行恢复。</p>
             </div>
-            <div class="resource-tabs" id="resourceTabs">
-              <button class="resource-tab active" data-resource="namespace">Namespace</button>
-              <button class="resource-tab" data-resource="mysql">MySQL</button>
-              <button class="resource-tab" data-resource="minio">MinIO</button>
+            <div class="toolbar-stack">
+              <div class="resource-tabs" id="resourceTabs">
+                <button class="resource-tab active" data-resource="namespace">Namespace</button>
+                <button class="resource-tab" data-resource="mysql">MySQL</button>
+                <button class="resource-tab" data-resource="minio">MinIO</button>
+              </div>
+              <div class="snapshot-filters" id="snapshotFilters">
+                <button class="snapshot-filter active" data-source-filter="all">全部</button>
+                <button class="snapshot-filter" data-source-filter="manual">manual</button>
+                <button class="snapshot-filter" data-source-filter="pre_restore">pre-restore</button>
+              </div>
             </div>
           </div>
 
@@ -832,42 +894,46 @@
   </main>
 
   <script>
-    const resourceMeta = {
-      namespace: {
-        label: "Namespace",
-        title: "Namespace 快照",
-        description: "适合恢复误删目录、应用工作区或用户 namespace。支持指定相对路径创建快照。",
-        createLabel: "创建 Namespace 快照",
-        restoreLabel: "恢复 Namespace 快照"
-      },
-      mysql: {
-        label: "MySQL",
-        title: "MySQL 快照",
-        description: "当前是整库逻辑全量快照与整库恢复。适合误删业务库、清空表数据或需要整库回滚。",
-        createLabel: "创建 MySQL 快照",
-        restoreLabel: "恢复 MySQL 快照"
-      },
-      minio: {
-        label: "MinIO",
-        title: "MinIO 快照",
-        description: "当前是对象级整仓快照与整仓恢复。适合桶内容被误删或对象批量异常覆盖。",
-        createLabel: "创建 MinIO 快照",
-        restoreLabel: "恢复 MinIO 快照"
-      }
-    };
+	    const resourceMeta = {
+	      namespace: {
+	        label: "Namespace",
+	        title: "Namespace 快照",
+	        description: "适合恢复误删目录、应用工作区或用户 namespace。支持指定相对路径创建快照。",
+	        createLabel: "创建 Namespace 快照",
+	        restoreLabel: "恢复 Namespace 快照",
+	        deleteLabel: "删除 Namespace 快照"
+	      },
+	      mysql: {
+	        label: "MySQL",
+	        title: "MySQL 快照",
+	        description: "当前是整库逻辑全量快照与整库恢复。适合误删业务库、清空表数据或需要整库回滚。",
+	        createLabel: "创建 MySQL 快照",
+	        restoreLabel: "恢复 MySQL 快照",
+	        deleteLabel: "删除 MySQL 快照"
+	      },
+	      minio: {
+	        label: "MinIO",
+	        title: "MinIO 快照",
+	        description: "当前是对象级整仓快照与整仓恢复。适合桶内容被误删或对象批量异常覆盖。",
+	        createLabel: "创建 MinIO 快照",
+	        restoreLabel: "恢复 MinIO 快照",
+	        deleteLabel: "删除 MinIO 快照"
+	      }
+	    };
 
-    const state = {
-      status: null,
-      tasks: [],
+	    const state = {
+	      status: null,
+	      tasks: [],
       snapshotsByResource: {
         namespace: [],
         mysql: [],
         minio: []
       },
-      activeResource: "namespace",
-      selectedSnapshotIds: {
-        namespace: null,
-        mysql: null,
+	      activeResource: "namespace",
+	      snapshotSourceFilter: "all",
+	      selectedSnapshotIds: {
+	        namespace: null,
+	        mysql: null,
         minio: null
       },
       selectedTaskId: null,
@@ -916,12 +982,21 @@
       return `<span class="inline-status ${kind}"><span class="status-dot"></span>${escapeHTML(label)}</span>`;
     }
 
-    function selectedSnapshot() {
-      const resource = state.activeResource;
-      const id = state.selectedSnapshotIds[resource];
-      if (!id) return null;
-      return state.snapshotsByResource[resource].find(snapshot => snapshot.id === id) || null;
-    }
+	    function selectedSnapshot() {
+	      const resource = state.activeResource;
+	      const id = state.selectedSnapshotIds[resource];
+	      if (!id) return null;
+	      return filteredSnapshots(resource).find(snapshot => snapshot.id === id) || null;
+	    }
+
+	    function filteredSnapshots(resource) {
+	      const snapshots = state.snapshotsByResource[resource] || [];
+	      const sourceFilter = state.snapshotSourceFilter;
+	      if (!sourceFilter || sourceFilter === "all") {
+	        return snapshots;
+	      }
+	      return snapshots.filter(snapshot => snapshot.source === sourceFilter);
+	    }
 
     function selectedTask() {
       if (!state.selectedTaskId) return null;
@@ -983,13 +1058,25 @@
       }
     }
 
-    function render() {
-      if (!state.status) return;
-      renderHero();
-      renderTabs();
-      renderSnapshotTable();
-      renderSnapshotSummary();
-      renderTasks();
+    function ensureSnapshotSelectionVisible() {
+      const resource = state.activeResource;
+      const selectedId = state.selectedSnapshotIds[resource];
+      if (!selectedId) {
+        return;
+      }
+      if (!filteredSnapshots(resource).some(snapshot => snapshot.id === selectedId)) {
+        state.selectedSnapshotIds[resource] = null;
+      }
+    }
+
+	    function render() {
+	      if (!state.status) return;
+	      renderHero();
+	      renderTabs();
+	      renderSnapshotFilters();
+	      renderSnapshotTable();
+	      renderSnapshotSummary();
+	      renderTasks();
       renderPaths();
       renderRepository();
       renderSystemState();
@@ -1035,23 +1122,44 @@
         `Namespace ${state.snapshotsByResource.namespace.length} · MySQL ${state.snapshotsByResource.mysql.length} · MinIO ${state.snapshotsByResource.minio.length}`;
     }
 
-    function renderTabs() {
-      const meta = resourceMeta[state.activeResource];
-      document.getElementById("resourceDescription").textContent = meta.description;
-      document.getElementById("createSnapshotBtn").textContent = meta.createLabel;
-      document.getElementById("restoreSnapshotBtn").textContent = meta.restoreLabel;
-      const showNamespacePath = state.activeResource === "namespace";
-      document.getElementById("snapshotPathInput").closest(".field").style.display = showNamespacePath ? "grid" : "none";
+	    function renderTabs() {
+	      const meta = resourceMeta[state.activeResource];
+	      document.getElementById("resourceDescription").textContent = meta.description;
+	      document.getElementById("createSnapshotBtn").textContent = meta.createLabel;
+	      document.getElementById("restoreSnapshotBtn").textContent = meta.restoreLabel;
+	      document.getElementById("deleteSnapshotBtn").textContent = meta.deleteLabel;
+	      const showNamespacePath = state.activeResource === "namespace";
+	      document.getElementById("snapshotPathInput").closest(".field").style.display = showNamespacePath ? "grid" : "none";
 
-      document.querySelectorAll(".resource-tab").forEach(button => {
-        button.classList.toggle("active", button.dataset.resource === state.activeResource);
-      });
-    }
+	      document.querySelectorAll(".resource-tab").forEach(button => {
+	        button.classList.toggle("active", button.dataset.resource === state.activeResource);
+	      });
+	    }
 
-    function renderSnapshotTable() {
-      const resource = state.activeResource;
-      const snapshots = state.snapshotsByResource[resource];
-      const selectedId = state.selectedSnapshotIds[resource];
+	    function renderSnapshotFilters() {
+	      const counts = {
+	        all: state.snapshotsByResource[state.activeResource].length,
+	        manual: state.snapshotsByResource[state.activeResource].filter(snapshot => snapshot.source === "manual").length,
+	        pre_restore: state.snapshotsByResource[state.activeResource].filter(snapshot => snapshot.source === "pre_restore").length
+	      };
+
+	      document.querySelectorAll(".snapshot-filter").forEach(button => {
+	        const sourceFilter = button.dataset.sourceFilter;
+	        button.classList.toggle("active", sourceFilter === state.snapshotSourceFilter);
+	        if (sourceFilter === "all") {
+	          button.textContent = `全部 ${counts.all}`;
+	        } else if (sourceFilter === "manual") {
+	          button.textContent = `manual ${counts.manual}`;
+	        } else if (sourceFilter === "pre_restore") {
+	          button.textContent = `pre-restore ${counts.pre_restore}`;
+	        }
+	      });
+	    }
+
+	    function renderSnapshotTable() {
+	      const resource = state.activeResource;
+	      const snapshots = filteredSnapshots(resource);
+	      const selectedId = state.selectedSnapshotIds[resource];
 
       const head = document.getElementById("snapshotTableHead");
       const body = document.getElementById("snapshotTableBody");
@@ -1067,8 +1175,8 @@
             <th>时间</th>
           </tr>
         `;
-        body.innerHTML = snapshots.length ? snapshots.map(snapshot => `
-          <tr class="selectable ${snapshot.id === selectedId ? "selected" : ""}" data-snapshot-id="${snapshot.id}">
+	        body.innerHTML = snapshots.length ? snapshots.map(snapshot => `
+	          <tr class="selectable ${snapshot.id === selectedId ? "selected" : ""}" data-snapshot-id="${snapshot.id}">
             <td>${snapshot.id}</td>
             <td>
               <div class="cell-main">
@@ -1081,8 +1189,8 @@
             <td>${snapshot.file_count} / ${snapshot.directory_count}</td>
             <td>${fmtTime(snapshot.created_at)}</td>
           </tr>
-        `).join("") : `<tr><td colspan="6"><div class="empty-state">当前还没有 Namespace 快照。</div></td></tr>`;
-      } else if (resource === "mysql") {
+	        `).join("") : `<tr><td colspan="6"><div class="empty-state">${state.snapshotSourceFilter === "all" ? "当前还没有 Namespace 快照。" : "当前筛选条件下没有 Namespace 快照。"}</div></td></tr>`;
+	      } else if (resource === "mysql") {
         head.innerHTML = `
           <tr>
             <th>ID</th>
@@ -1093,7 +1201,7 @@
             <th>时间</th>
           </tr>
         `;
-        body.innerHTML = snapshots.length ? snapshots.map(snapshot => `
+	        body.innerHTML = snapshots.length ? snapshots.map(snapshot => `
           <tr class="selectable ${snapshot.id === selectedId ? "selected" : ""}" data-snapshot-id="${snapshot.id}">
             <td>${snapshot.id}</td>
             <td>
@@ -1107,8 +1215,8 @@
             <td>${escapeHTML(snapshot.metadata?.databases?.join(", ") || "-")}</td>
             <td>${fmtTime(snapshot.created_at)}</td>
           </tr>
-        `).join("") : `<tr><td colspan="6"><div class="empty-state">当前还没有 MySQL 快照。</div></td></tr>`;
-      } else {
+	        `).join("") : `<tr><td colspan="6"><div class="empty-state">${state.snapshotSourceFilter === "all" ? "当前还没有 MySQL 快照。" : "当前筛选条件下没有 MySQL 快照。"}</div></td></tr>`;
+	      } else {
         head.innerHTML = `
           <tr>
             <th>ID</th>
@@ -1119,7 +1227,7 @@
             <th>时间</th>
           </tr>
         `;
-        body.innerHTML = snapshots.length ? snapshots.map(snapshot => `
+	        body.innerHTML = snapshots.length ? snapshots.map(snapshot => `
           <tr class="selectable ${snapshot.id === selectedId ? "selected" : ""}" data-snapshot-id="${snapshot.id}">
             <td>${snapshot.id}</td>
             <td>
@@ -1133,8 +1241,8 @@
             <td>${snapshot.metadata?.buckets?.length || 0} / ${snapshot.metadata?.objects || 0}</td>
             <td>${fmtTime(snapshot.created_at)}</td>
           </tr>
-        `).join("") : `<tr><td colspan="6"><div class="empty-state">当前还没有 MinIO 快照。</div></td></tr>`;
-      }
+	        `).join("") : `<tr><td colspan="6"><div class="empty-state">${state.snapshotSourceFilter === "all" ? "当前还没有 MinIO 快照。" : "当前筛选条件下没有 MinIO 快照。"}</div></td></tr>`;
+	      }
 
       body.querySelectorAll("tr[data-snapshot-id]").forEach(row => {
         row.addEventListener("click", () => {
@@ -1363,12 +1471,13 @@
       const activeTask = state.status.system_state.active_task_id;
       const resource = state.activeResource;
 
-      document.getElementById("maintenanceHint").textContent = maintenance
-        ? `当前已开启维护模式。${state.status.system_state.maintenance_reason || ""}`
-        : "当前未开启维护模式。恢复前建议先开启。";
+	      document.getElementById("maintenanceHint").textContent = maintenance
+	        ? `当前已开启维护模式。${state.status.system_state.maintenance_reason || ""}`
+	        : "当前未开启维护模式。恢复前建议先开启。";
 
-      document.getElementById("toggleMaintenanceBtn").textContent = maintenance ? "关闭维护模式" : "开启维护模式";
-      document.getElementById("restoreSnapshotBtn").disabled = !snapshot;
+	      document.getElementById("toggleMaintenanceBtn").textContent = maintenance ? "关闭维护模式" : "开启维护模式";
+	      document.getElementById("restoreSnapshotBtn").disabled = !snapshot;
+	      document.getElementById("deleteSnapshotBtn").disabled = !snapshot;
 
       if (activeTask) {
         setStatus(`当前有活动任务 #${activeTask}，建议等待其完成后再执行下一步。`, "warning");
@@ -1393,33 +1502,51 @@
       document.getElementById("detailBlock").textContent = "选择快照或任务后，这里会显示完整 JSON。";
     }
 
-    async function postJSON(url, payload) {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+	    async function postJSON(url, payload) {
+	      const response = await fetch(url, {
+	        method: "POST",
+	        headers: { "Content-Type": "application/json" },
+	        body: JSON.stringify(payload)
+	      });
 
-      let data = {};
-      try {
-        data = await response.json();
-      } catch (_) {}
+	      let data = {};
+	      try {
+	        data = await response.json();
+	      } catch (_) {}
 
-      if (!response.ok) {
-        throw new Error(data.error || `请求失败: ${response.status}`);
-      }
-      return data;
-    }
+	      if (!response.ok) {
+	        throw new Error(data.error || `请求失败: ${response.status}`);
+	      }
+	      return data;
+	    }
 
-    function setStatus(message, tone = "neutral") {
-      const el = document.getElementById("statusMessage");
-      const prefix =
-        tone === "error" ? "<strong>失败。</strong> " :
-        tone === "success" ? "<strong>完成。</strong> " :
-        tone === "warning" ? "<strong>注意。</strong> " :
-        "<strong>状态。</strong> ";
-      el.innerHTML = prefix + escapeHTML(message);
-    }
+	    async function deleteJSON(url, payload) {
+	      const response = await fetch(url, {
+	        method: "DELETE",
+	        headers: { "Content-Type": "application/json" },
+	        body: JSON.stringify(payload || {})
+	      });
+
+	      let data = {};
+	      try {
+	        data = await response.json();
+	      } catch (_) {}
+
+	      if (!response.ok) {
+	        throw new Error(data.error || `请求失败: ${response.status}`);
+	      }
+	      return data;
+	    }
+
+	    function setStatus(message, tone = "neutral") {
+	      const el = document.getElementById("statusMessage");
+	      const prefix =
+	        tone === "error" ? "<strong>失败。</strong> " :
+	        tone === "success" ? "<strong>完成。</strong> " :
+	        tone === "warning" ? "<strong>注意。</strong> " :
+	        "<strong>状态。</strong> ";
+	      el.innerHTML = prefix + escapeHTML(message);
+	    }
 
     async function runPrecheck() {
       setStatus("正在执行环境预检...", "neutral");
@@ -1483,10 +1610,10 @@
       setStatus(`${resourceMeta[resource].label} 快照已创建。`, "success");
     }
 
-    async function restoreSelectedSnapshot() {
-      const snapshot = selectedSnapshot();
-      if (!snapshot) {
-        throw new Error("请先在右侧列表选中一个快照。");
+	    async function restoreSelectedSnapshot() {
+	      const snapshot = selectedSnapshot();
+	      if (!snapshot) {
+	        throw new Error("请先在右侧列表选中一个快照。");
       }
 
       const resource = state.activeResource;
@@ -1514,23 +1641,88 @@
         });
       }
 
-      document.getElementById("restoreNoteInput").value = "";
-      state.selectedTaskId = task.id;
-      await loadAll();
-      setStatus(`${resourceMeta[resource].label} 恢复任务 #${task.id} 已完成。`, "success");
-    }
+	      document.getElementById("restoreNoteInput").value = "";
+	      state.selectedTaskId = task.id;
+	      await loadAll();
+	      setStatus(`${resourceMeta[resource].label} 恢复任务 #${task.id} 已完成。`, "success");
+	    }
 
-    function bindEvents() {
-      document.getElementById("refreshBtn").addEventListener("click", () => loadAll().catch(showError));
-      document.getElementById("statusReloadBtn").addEventListener("click", () => loadAll().catch(showError));
-      document.getElementById("runPrecheckBtn").addEventListener("click", () => runPrecheck().catch(showError));
-      document.getElementById("toggleMaintenanceBtn").addEventListener("click", () => toggleMaintenance().catch(showError));
-      document.getElementById("createSnapshotBtn").addEventListener("click", () => createSnapshot().catch(showError));
-      document.getElementById("restoreSnapshotBtn").addEventListener("click", () => restoreSelectedSnapshot().catch(showError));
+	    async function deleteSelectedSnapshot() {
+	      const snapshot = selectedSnapshot();
+	      if (!snapshot) {
+	        throw new Error("请先在右侧列表选中一个快照。");
+	      }
+
+	      const resource = state.activeResource;
+	      const snapshotLabel = `${resourceMeta[resource].label} #${snapshot.id}`;
+	      const confirmed = window.confirm(`确定删除快照 ${snapshotLabel} 吗？\n\n这会同时删除快照记录和归档文件，不能撤销。`);
+	      if (!confirmed) {
+	        return;
+	      }
+
+	      setStatus(`正在删除 ${snapshotLabel}...`, "warning");
+	      const task = await deleteJSON(`/backup/api/v1/snapshots/${snapshot.id}`, {
+	        requested_by: "backup-console",
+	        note: `manual delete ${snapshotLabel}`
+	      });
+
+	      state.selectedSnapshotIds[resource] = null;
+	      state.selectedTaskId = task.id;
+	      await loadAll();
+	      setStatus(`${snapshotLabel} 删除任务 #${task.id} 已完成。`, task.status === "warning" ? "warning" : "success");
+	    }
+
+	    async function pruneSnapshots() {
+	      const resource = state.activeResource;
+	      const rawKeepLatest = document.getElementById("pruneKeepLatestInput").value.trim();
+	      const keepLatest = rawKeepLatest === "" ? 3 : Number.parseInt(rawKeepLatest, 10);
+	      if (!Number.isInteger(keepLatest) || keepLatest < 0) {
+	        throw new Error("保留条数必须是大于等于 0 的整数。");
+	      }
+
+	      const note = document.getElementById("pruneNoteInput").value.trim();
+	      const confirmed = window.confirm(`确定清理 ${resourceMeta[resource].label} 的旧 pre-restore 快照吗？\n\n系统会保留最近 ${keepLatest} 条，其余更旧的 pre-restore 快照会被删除。`);
+	      if (!confirmed) {
+	        return;
+	      }
+
+	      setStatus(`正在清理 ${resourceMeta[resource].label} 的旧 pre-restore 快照...`, "warning");
+	      const task = await postJSON("/backup/api/v1/snapshots/prune", {
+	        requested_by: "backup-console",
+	        note,
+	        resource_type: resource,
+	        source: "pre_restore",
+	        keep_latest: keepLatest
+	      });
+
+	      document.getElementById("pruneNoteInput").value = "";
+	      state.selectedTaskId = task.id;
+	      await loadAll();
+	      setStatus(`${resourceMeta[resource].label} 清理任务 #${task.id} 已完成。`, task.status === "warning" ? "warning" : "success");
+	    }
+
+	    function bindEvents() {
+	      document.getElementById("refreshBtn").addEventListener("click", () => loadAll().catch(showError));
+	      document.getElementById("statusReloadBtn").addEventListener("click", () => loadAll().catch(showError));
+	      document.getElementById("runPrecheckBtn").addEventListener("click", () => runPrecheck().catch(showError));
+	      document.getElementById("toggleMaintenanceBtn").addEventListener("click", () => toggleMaintenance().catch(showError));
+	      document.getElementById("createSnapshotBtn").addEventListener("click", () => createSnapshot().catch(showError));
+	      document.getElementById("pruneSnapshotsBtn").addEventListener("click", () => pruneSnapshots().catch(showError));
+	      document.getElementById("restoreSnapshotBtn").addEventListener("click", () => restoreSelectedSnapshot().catch(showError));
+	      document.getElementById("deleteSnapshotBtn").addEventListener("click", () => deleteSelectedSnapshot().catch(showError));
 
       document.querySelectorAll(".resource-tab").forEach(button => {
         button.addEventListener("click", () => {
           state.activeResource = button.dataset.resource;
+          ensureSnapshotSelectionVisible();
+          render();
+        });
+      });
+
+      document.querySelectorAll(".snapshot-filter").forEach(button => {
+        button.addEventListener("click", () => {
+          state.snapshotSourceFilter = button.dataset.sourceFilter || "all";
+          ensureSnapshotSelectionVisible();
           render();
         });
       });

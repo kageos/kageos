@@ -14,7 +14,7 @@ type CreateRoleReq struct {
 	Name        string              `json:"name" binding:"required" example:"开发者"`
 	Code        string              `json:"code" binding:"required" example:"developer"`
 	Description string              `json:"description" example:"开发人员角色"`
-	Permissions map[string][]string `json:"permissions" binding:"required" example:"{\"directory\":[\"directory:read\",\"directory:write\"],\"table\":[\"function:read\",\"function:write\"]}"` // resourceType -> []action
+	Permissions map[string][]string `json:"permissions" binding:"required"` // resourceType -> []action
 }
 
 // CreateRoleResp 创建角色响应
@@ -26,8 +26,8 @@ type CreateRoleResp struct {
 type UpdateRoleReq struct {
 	Name        *string              `json:"name,omitempty" example:"开发者"`
 	Description *string              `json:"description,omitempty" example:"开发人员角色"`
-	IsDefault   *bool                `json:"is_default,omitempty" example:"true"`                                                                // 是否设置为默认角色
-	Permissions *map[string][]string `json:"permissions,omitempty" example:"{\"directory\":[\"directory:read\"],\"table\":[\"function:read\"]}"` // resourceType -> []action
+	IsDefault   *bool                `json:"is_default,omitempty" example:"true"` // 是否设置为默认角色
+	Permissions *map[string][]string `json:"permissions,omitempty"`               // resourceType -> []action
 }
 
 // UpdateRoleResp 更新角色响应

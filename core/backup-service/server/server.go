@@ -94,3 +94,14 @@ func (s *Server) preparePaths() error {
 	}
 	return nil
 }
+
+func (s *Server) protectedHandlers() []gin.HandlerFunc {
+	if !s.cfg.IsBasicAuthEnabled() {
+		return nil
+	}
+	return []gin.HandlerFunc{
+		gin.BasicAuthForRealm(gin.Accounts{
+			s.cfg.GetBasicAuthUsername(): s.cfg.GetBasicAuthPassword(),
+		}, s.cfg.GetBasicAuthRealm()),
+	}
+}

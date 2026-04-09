@@ -2,7 +2,7 @@
 
 > 官方生产入口：`deploy/prod/`
 
-**范围**：主站 + 中间件（MySQL / NATS / MinIO）+ 内置 Nginx(80) + **容器内 Podman**（跑用户应用）。**不包含 Hub**。
+**范围**：主站 + 独立定时任务调度器 + 中间件（MySQL / NATS / MinIO）+ 内置 Nginx(80) + **容器内 Podman**（跑用户应用）。**不包含 Hub**。
 
 ## 架构
 
@@ -16,9 +16,13 @@
               ├─ MySQL  127.0.0.1:3306
               ├─ NATS   127.0.0.1:4222
               └─ MinIO  127.0.0.1:9000
+
+host 网络独立容器
+  └─ scheduler 容器
+       └─ app-scheduler（仅执行定时任务调度与投递）
 ```
 
-`main` 使用 `network_mode: host`，容器内 Nginx 直接监听宿主机 80 端口。中间件容器通过 `127.0.0.1` 暴露端口供 `main` 访问，无需额外宿主机 Nginx。
+`main` 使用 `network_mode: host`，容器内 Nginx 直接监听宿主机 80 端口。`scheduler` 也使用 `network_mode: host`，通过数据库租约 claim 防止重复执行。中间件容器通过 `127.0.0.1` 暴露端口供 `main` / `scheduler` 访问，无需额外宿主机 Nginx。
 
 ## 前置
 
@@ -44,6 +48,7 @@ bash build.sh        # 等价于: bash build.sh up
 
 - 版本库中的官方模板源在 `deploy/prod/config/template/`
 - 容器启动后会渲染到 `deploy/prod/config/runtime/`
+- 定时任务是否内嵌在 `main` 中由 `global.yaml` 的 `scheduler.embedded` 控制；prod 默认关闭，由独立 `scheduler` 容器执行
 
 > 构建 Go 依赖默认使用 `GOPROXY=https://goproxy.cn,direct` 与 `GOSUMDB=sum.golang.google.cn`；如需覆盖，可在构建时传 `--build-arg GOPROXY=... --build-arg GOSUMDB=...`。
 
@@ -51,9 +56,10 @@ bash build.sh        # 等价于: bash build.sh up
 
 ```bash
 bash build.sh up            # 首次部署 / 全量重建（默认）
-bash build.sh update        # 只重建并更新 main，不重启 MySQL / NATS / MinIO
+bash build.sh update        # 只重建并更新 main / scheduler / backup，不重启 MySQL / NATS / MinIO
 bash build.sh pull-update   # git pull --ff-only 后执行 update
 bash build.sh restart-main  # 仅重启 main，不重建镜像
+bash build.sh restart-scheduler  # 仅重启 scheduler，不重建镜像
 bash build.sh build-app-base --no-cache  # 在 main 容器内单独重建 ai-agent-os:latest
 bash build.sh logs main     # 查看 main 日志
 bash build.sh status        # 查看服务状态
@@ -65,6 +71,7 @@ bash build.sh down          # 停止服务（保留数据卷）
 - 只升级主站代码：`bash build.sh update`
 - 先拉最新代码再升级：`bash build.sh pull-update`
 - 只改 `.env` 或想让主进程重启生效：`bash build.sh restart-main`
+- 只想重启独立调度器：`bash build.sh restart-scheduler`
 - 只想排查用户应用基础镜像：`bash build.sh build-app-base --no-cache`
 
 ## 构建加速（依赖与源，默认偏国内）
@@ -135,6 +142,7 @@ podman compose build --build-arg APT_USE_MIRROR=0 --build-arg NPM_REGISTRY=https
 当前 `backup-service` 已经是独立控制面，不依赖主站 MySQL：
 
 - 本地控制台：`http://127.0.0.1:19088/backup`
+- 服务说明：见 `core/backup-service/README.md`
 - 值班清单：见 `RECOVERY_CHECKLIST.md`
 - 恢复操作手册：见 `RECOVERY.md`
 - 健康检查：`GET /health`
@@ -169,7 +177,7 @@ podman compose build --build-arg APT_USE_MIRROR=0 --build-arg NPM_REGISTRY=https
 
 - `namespace` / `MySQL` / `MinIO` 恢复目前都要求先开启维护模式。
 - 开启维护模式后，主站 Nginx 会自动对外返回 `503` 维护页，入口页内容来自 `/app/data/backup/state/maintenance.html`。
-- 如果你是在宿主机本地直接启动 `backup-service`，没有手工导出环境变量也没关系；它会优先读取 `deploy/prod/.env` 里的 `STORAGE_ROOT / MYSQL_ROOT_PASSWORD / MINIO_ROOT_USER / MINIO_ROOT_PASSWORD`，并把容器内 `/app/...` 路径自动映射到宿主机 `${STORAGE_ROOT}`。
+- 如果你是在宿主机本地直接启动 `backup-service`，没有手工导出环境变量也没关系；它会优先读取 `deploy/prod/.env` 里的 `STORAGE_ROOT / MYSQL_ROOT_PASSWORD / MINIO_ROOT_USER / MINIO_ROOT_PASSWORD / BACKUP_BASIC_AUTH_USERNAME / BACKUP_BASIC_AUTH_PASSWORD`，并把容器内 `/app/...` 路径自动映射到宿主机 `${STORAGE_ROOT}`。
 - 当前 `namespace` 快照仓库存放在 `/app/data/backup/repo/namespace/`。
 - 当前 `MySQL` 快照仓库存放在 `/app/data/backup/repo/mysql/`。
 - 当前 `MinIO` 快照仓库存放在 `/app/data/backup/repo/minio/`。
@@ -182,13 +190,13 @@ podman compose build --build-arg APT_USE_MIRROR=0 --build-arg NPM_REGISTRY=https
 |------|------|
 | **`.env.example`** | 配置模板；复制为 **`.env`** 后填写 |
 | **`.env`** | 唯一配置源；Compose 与 `build.sh` 直接读取（**勿提交**） |
-| **`build.sh`** | 运维入口：支持 `up / update / pull-update / restart-main / logs / status / down`（统一使用 `STORAGE_ROOT`） |
+| **`build.sh`** | 运维入口：支持 `up / update / pull-update / restart-main / restart-scheduler / logs / status / down`（统一使用 `STORAGE_ROOT`） |
 | `RECOVERY_CHECKLIST.md` | 值班恢复速查清单 |
 | `RECOVERY.md` | 误删数据后的恢复操作手册 |
 | `docker-compose.yaml` | 服务定义（main 使用 host 网络） |
 | `init-db.sql` | MySQL 首次启动建库（挂载 `docker-entrypoint-initdb.d`，**仅本目录**） |
 | `nats-server.conf` | NATS 容器配置（**仅本目录**） |
-| `Dockerfile` / `entrypoint-main.sh` / `entrypoint-backup.sh` / `nginx/` / `config/template/` | 镜像与内置模板 |
+| `Dockerfile` / `entrypoint-main.sh` / `entrypoint-scheduler.sh` / `entrypoint-backup.sh` / `nginx/` / `config/template/` | 镜像与内置模板 |
 
 补充：
 

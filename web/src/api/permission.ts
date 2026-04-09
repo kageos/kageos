@@ -100,25 +100,6 @@ export function rejectPermissionRequest(data: RejectPermissionRequestReq): Promi
 }
 
 /**
- * 获取权限申请列表（旧接口，保留兼容）
- */
-export function getPermissionApplications(params?: {
-  username?: string
-  status?: string
-  page?: number
-  page_size?: number
-}): Promise<any> {
-  return get('/workspace/api/v1/permission/apply/list', { params })
-}
-
-/**
- * 获取权限申请详情
- */
-export function getPermissionApplication(id: string): Promise<any> {
-  return get(`/workspace/api/v1/permission/apply/${id}`)
-}
-
-/**
  * 获取工作空间权限请求参数
  */
 export interface GetWorkspacePermissionsReq {
@@ -145,24 +126,6 @@ export interface GetWorkspacePermissionsResp {
  */
 export function getWorkspacePermissions(params: GetWorkspacePermissionsReq): Promise<GetWorkspacePermissionsResp> {
   return get<GetWorkspacePermissionsResp>('/workspace/api/v1/permission/workspace', params)
-}
-
-/**
- * 添加权限请求（用于赋权）
- * ⭐ Subject 可以是用户名（如 "liubeiluo"）或组织架构路径（如 "/org/sub/qsearch"）
- */
-export interface AddPermissionReq {
-  subject: string  // 权限主体：用户名或组织架构路径
-  resource_path: string  // 资源路径
-  action: string  // 权限点
-  end_time?: string  // 权限结束时间（ISO 8601 格式，可选，空字符串或 null 表示永久）
-}
-
-/**
- * 添加权限（赋权给用户）
- */
-export function addPermission(data: AddPermissionReq): Promise<void> {
-  return post<void>('/workspace/api/v1/permission/add', data)
 }
 
 /**

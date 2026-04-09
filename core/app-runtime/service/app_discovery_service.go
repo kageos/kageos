@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -29,10 +28,18 @@ type AppDiscoveryService struct {
 
 // NewAppDiscoveryService 创建应用发现服务
 func NewAppDiscoveryService(natsConn *nats.Conn, basePath string) *AppDiscoveryService {
+	return NewAppDiscoveryServiceWithRuntimeID(natsConn, basePath, "")
+}
+
+func NewAppDiscoveryServiceWithRuntimeID(natsConn *nats.Conn, basePath, runtimeID string) *AppDiscoveryService {
+	if strings.TrimSpace(runtimeID) == "" {
+		runtimeID = "runtime-local"
+	}
+
 	return &AppDiscoveryService{
 		transport: NewAppDiscoveryTransport(natsConn),
 		apps:      make(map[string]*discovery.AppInfo),
-		runtimeID: "runtime-1", // TODO: 从配置获取
+		runtimeID: runtimeID,
 		basePath:  basePath,
 	}
 }
@@ -221,7 +228,7 @@ func (s *AppDiscoveryService) IsAppVersionRunning(user, app, version string) boo
 
 // readCurrentVersion 读取应用的当前版本
 func (s *AppDiscoveryService) readCurrentVersion(user, app string) string {
-	versionFile := filepath.Join(s.basePath, user, app, "workplace/metadata/current_version.txt")
+	versionFile := newRuntimeAppPaths(s.basePath, user, app).CurrentVersionPath()
 
 	data, err := os.ReadFile(versionFile)
 	if err != nil {

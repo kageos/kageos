@@ -62,6 +62,12 @@ type BackupServiceConfig struct {
 		AccessKey string `mapstructure:"access_key"`
 		SecretKey string `mapstructure:"secret_key"`
 	} `mapstructure:"minio"`
+
+	Auth struct {
+		Username string `mapstructure:"username"`
+		Password string `mapstructure:"password"`
+		Realm    string `mapstructure:"realm"`
+	} `mapstructure:"auth"`
 }
 
 var (
@@ -201,6 +207,34 @@ func (c *BackupServiceConfig) GetMinIOSecretKey() string {
 		return value
 	}
 	return sanitizeConfigValue(os.Getenv("MINIO_ROOT_PASSWORD"))
+}
+
+func (c *BackupServiceConfig) GetBasicAuthUsername() string {
+	if value := sanitizeConfigValue(c.Auth.Username); value != "" {
+		return value
+	}
+	return sanitizeConfigValue(os.Getenv("BACKUP_BASIC_AUTH_USERNAME"))
+}
+
+func (c *BackupServiceConfig) GetBasicAuthPassword() string {
+	if value := sanitizeConfigValue(c.Auth.Password); value != "" {
+		return value
+	}
+	return sanitizeConfigValue(os.Getenv("BACKUP_BASIC_AUTH_PASSWORD"))
+}
+
+func (c *BackupServiceConfig) GetBasicAuthRealm() string {
+	if value := sanitizeConfigValue(c.Auth.Realm); value != "" {
+		return value
+	}
+	if value := sanitizeConfigValue(os.Getenv("BACKUP_BASIC_AUTH_REALM")); value != "" {
+		return value
+	}
+	return "Backup Control Plane"
+}
+
+func (c *BackupServiceConfig) IsBasicAuthEnabled() bool {
+	return c.GetBasicAuthUsername() != "" && c.GetBasicAuthPassword() != ""
 }
 
 func sanitizeConfigValue(value string) string {
@@ -345,6 +379,9 @@ func bootstrapBackupServiceLocalEnv() {
 		"MYSQL_ROOT_PASSWORD",
 		"MINIO_ROOT_USER",
 		"MINIO_ROOT_PASSWORD",
+		"BACKUP_BASIC_AUTH_USERNAME",
+		"BACKUP_BASIC_AUTH_PASSWORD",
+		"BACKUP_BASIC_AUTH_REALM",
 	} {
 		if strings.TrimSpace(os.Getenv(key)) != "" {
 			continue

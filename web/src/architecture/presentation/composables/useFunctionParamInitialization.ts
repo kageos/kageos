@@ -84,7 +84,7 @@
 
 import { ref, computed, type ComputedRef } from 'vue'
 import { useRoute } from 'vue-router'
-import type { FunctionDetail, FieldConfig } from '../../domain/types'
+import type { FunctionDetail } from '../../domain/types'
 import type { FieldValue } from '../../domain/types'
 import { widgetInitializerRegistry } from '../../presentation/widgets/initializers/WidgetInitializerRegistry'
 import type { WidgetInitContext } from '../../presentation/widgets/interfaces/IWidgetInitializer'
@@ -92,8 +92,7 @@ import { eventBus, FormEvent } from '../../infrastructure/eventBus'
 import { Logger } from '@/core/utils/logger'
 import { getWidgetDefaultValue } from '../../presentation/widgets/composables/useWidgetDefaultValue'
 import { useAuthStore } from '@/stores/auth'
-import { FieldValueMeta, FieldCallback } from '@/core/constants/field'
-import { DataType } from '@/core/constants/widget'
+import { FieldValueMeta } from '@/core/constants/field'
 import { convertValueByFieldType } from '../../presentation/widgets/utils/typeConverter'
 import { getScopedFieldQueryValue, shouldAllowLegacyFormDraftFallback } from '@/utils/queryFieldNamespace'
 
@@ -145,13 +144,7 @@ class URLParamsInitSource implements InitSource {
   async initialize(context: InitContext): Promise<InitResult> {
     const { route, functionDetail } = context
     const query = route.query
-    
-    console.log('🔍 [URLParamsInitSource] 开始初始化', {
-      queryKeys: Object.keys(query),
-      queryCount: Object.keys(query).length,
-      requestFieldsCount: (Array.isArray(functionDetail.request) ? functionDetail.request : []).length
-    })
-    
+
     // 从 URL 解析参数
     const formData: Record<string, FieldValue> = {}
     // 🔥 确保 requestFields 是数组，防止类型错误
@@ -173,38 +166,15 @@ class URLParamsInitSource implements InitSource {
             // 检查是否是 JSON 字符串（以 [ 或 { 开头）
             if ((decoded.startsWith('[') || decoded.startsWith('{')) && decoded !== value) {
               value = decoded
-              console.log(`🔍 [URLParamsInitSource] 字段 ${field.code} URL 解码成功`, {
-                original: value,
-                decoded
-              })
             }
-          } catch (e) {
+          } catch {
             // URL 解码失败，使用原始值
-            console.log(`🔍 [URLParamsInitSource] 字段 ${field.code} URL 解码失败，使用原始值`, {
-              value,
-              error: e
-            })
           }
         }
-        
-        console.log(`🔍 [URLParamsInitSource] 解析字段 ${field.code}`, {
-          queryValue,
-          value,
-          fieldType: field.data?.type || 'string',
-          widgetType: (field.widget && 'type' in field.widget) ? field.widget.type : 'unknown'
-        })
-        
+
         // 🔥 根据字段类型进行转换（URL 参数都是字符串，需要转换为正确的类型）
         const convertedValue = convertValueByFieldType(value, field)
-        
-        console.log(`🔍 [URLParamsInitSource] 字段 ${field.code} 类型转换`, {
-          originalValue: value,
-          convertedValue,
-          fieldType: field.data?.type || 'string',
-          originalType: typeof value,
-          convertedType: typeof convertedValue
-        })
-        
+
         // 🔥 将转换后的值保存为 FieldValue
         formData[field.code] = {
           raw: convertedValue,  // 使用转换后的值（可能是数字、布尔值等）
@@ -214,20 +184,9 @@ class URLParamsInitSource implements InitSource {
             [FieldValueMeta.ORIGINAL_VALUE]: value  // 保存原始值（用于调试）
           }
         }
-        const savedFieldValue = formData[field.code]
-        console.log(`✅ [URLParamsInitSource] 字段 ${field.code} 原始值已保存`, {
-          originalValue: value,
-          raw: savedFieldValue?.raw,
-          hasFromURLFlag: !!savedFieldValue?.meta?.[FieldValueMeta.FROM_URL]
-        })
       }
     })
-    
-    console.log('✅ [URLParamsInitSource] 初始化完成', {
-      formDataKeys: Object.keys(formData),
-      formDataCount: Object.keys(formData).length
-    })
-    
+
     return { formData }
   }
   
@@ -246,13 +205,7 @@ class DefaultInitSource implements InitSource {
   
   async initialize(context: InitContext): Promise<InitResult> {
     const { functionDetail, currentFormData } = context
-    
-    console.log('🔍 [DefaultInitSource] 开始初始化', {
-      requestFieldsCount: (Array.isArray(functionDetail.request) ? functionDetail.request : []).length,
-      currentFormDataKeys: Object.keys(currentFormData),
-      currentFormDataCount: Object.keys(currentFormData).length
-    })
-    
+
     const formData: Record<string, FieldValue> = {}
     // 🔥 确保 requestFields 是数组，防止类型错误
     const requestFields = Array.isArray(functionDetail.request) ? functionDetail.request : []
@@ -261,7 +214,6 @@ class DefaultInitSource implements InitSource {
     requestFields.forEach(field => {
       // 如果已经有初始值（来自 URL 或其他初始化源），跳过
       if (currentFormData.hasOwnProperty(field.code)) {
-        console.log(`🔍 [DefaultInitSource] 字段 ${field.code} 已有初始值，跳过默认值初始化`)
         return
       }
       
@@ -275,23 +227,9 @@ class DefaultInitSource implements InitSource {
       // 只有当默认值不是空值时才设置（但容器组件例外）
       if (isContainerWidget || (defaultValue.raw !== null && defaultValue.raw !== undefined && defaultValue.raw !== '')) {
         formData[field.code] = defaultValue
-        console.log(`🔍 [DefaultInitSource] 字段 ${field.code} 使用默认值`, {
-          raw: defaultValue.raw,
-          display: defaultValue.display,
-          widgetType: field.widget?.type,
-          isContainerWidget,
-          hasConfigDefault: !!(field.widget?.config as any)?.default
-        })
-      } else {
-        console.log(`🔍 [DefaultInitSource] 字段 ${field.code} 没有默认值，跳过`)
       }
     })
-    
-    console.log('✅ [DefaultInitSource] 初始化完成', {
-      formDataKeys: Object.keys(formData),
-      formDataCount: Object.keys(formData).length
-    })
-    
+
     return { formData }
   }
 }
@@ -346,32 +284,18 @@ export function useFunctionParamInitialization(
    */
   const initialize = async (): Promise<Record<string, any>> => {
     if (isInitializing.value) {
-      console.log('🔍 [useFunctionParamInitialization] 正在初始化中，跳过')
       return {}
     }
     
     // 🔥 检查 functionDetail 是否有效（使用 computed 的值）
     const detail = functionDetail.value
     if (!detail || detail.id === undefined || detail.id === null) {
-      console.log('🔍 [useFunctionParamInitialization] functionDetail 无效，跳过初始化', {
-        functionDetail: detail,
-        isComputedRef: options.functionDetail && typeof options.functionDetail === 'object' && 'value' in options.functionDetail
-      })
       return {}
     }
     
     isInitializing.value = true
     
     try {
-      console.log('🔍 [useFunctionParamInitialization] 开始初始化', {
-        functionId: detail.id,
-        router: detail.router,
-        functionName: detail.name,
-        requestFieldsCount: (Array.isArray(detail.request) ? detail.request : []).length,
-        currentQuery: route.query,
-        currentQueryKeys: Object.keys(route.query)
-      })
-      
       // 步骤 1：通用初始化（框架负责）
       let currentFormData: Record<string, FieldValue> = {}
       let fieldMetadata: Record<string, any> = {}
@@ -379,45 +303,20 @@ export function useFunctionParamInitialization(
       
       // 按优先级执行初始化源
       const sortedSources = initSources.sort((a, b) => a.priority - b.priority)
-      console.log('🔍 [useFunctionParamInitialization] 初始化源列表', {
-        sources: sortedSources.map(s => ({ name: s.name, priority: s.priority })),
-        count: sortedSources.length
-      })
       
       for (const source of sortedSources) {
-        console.log(`🔍 [useFunctionParamInitialization] 执行初始化源: ${source.name}`, {
-          priority: source.priority,
-          currentFormDataKeys: Object.keys(currentFormData),
-          currentFormDataCount: Object.keys(currentFormData).length
-        })
-        
         const result = await source.initialize({
           functionDetail: detail,  // 🔥 使用解包后的 detail
           currentFormData,
           route
         })
-        
-        console.log(`🔍 [useFunctionParamInitialization] 初始化源 ${source.name} 完成`, {
-          resultFormDataKeys: Object.keys(result.formData),
-          resultFormDataCount: Object.keys(result.formData).length,
-          hasFieldMetadata: !!result.fieldMetadata,
-          fieldMetadataKeys: result.fieldMetadata ? Object.keys(result.fieldMetadata) : [],
-          hasMetadata: !!result.metadata,
-          metadataKeys: result.metadata ? Object.keys(result.metadata) : []
-        })
-        
+
         // 合并数据（后面的优先级更高，会覆盖前面的）
         currentFormData = { ...currentFormData, ...result.formData }
         fieldMetadata = { ...fieldMetadata, ...(result.fieldMetadata || {}) }
         metadata = { ...metadata, ...(result.metadata || {}) }
       }
-      
-      console.log('🔍 [useFunctionParamInitialization] 通用初始化完成', {
-        finalFormDataKeys: Object.keys(currentFormData),
-        finalFormDataCount: Object.keys(currentFormData).length,
-        finalFormData: currentFormData
-      })
-      
+
       // 步骤 2：应用数据到 formDataStore
       Object.keys(currentFormData).forEach(fieldCode => {
         const fieldValue = currentFormData[fieldCode]
@@ -425,33 +324,19 @@ export function useFunctionParamInitialization(
           options.formDataStore.setValue(fieldCode, fieldValue)
         }
       })
-      console.log('🔍 [useFunctionParamInitialization] 数据已应用到 formDataStore', {
-        appliedFields: Object.keys(currentFormData)
-      })
-      
+
       // 步骤 3：组件自治初始化（组件负责）
-      console.log('🔍 [useFunctionParamInitialization] 开始组件自治初始化')
       await triggerWidgetInitialization(currentFormData, fieldMetadata)
-      console.log('🔍 [useFunctionParamInitialization] 组件自治初始化完成')
       
       // 步骤 4：应用字段元数据（保留扩展点，未来实现）
       // applyFieldMetadata(fieldMetadata)
       
       // 步骤 5：触发 FormEvent.initialized 事件
-      console.log('🔍 [useFunctionParamInitialization] 触发 FormEvent.initialized 事件')
       eventBus.emit(FormEvent.initialized)
-      
-      console.log('✅ [useFunctionParamInitialization] 初始化完成', {
-        functionId: detail.id,
-        router: detail.router,
-        initializedFields: Object.keys(currentFormData),
-        initializedFieldsCount: Object.keys(currentFormData).length
-      })
-      
+
       // 🔥 返回 metadata（包含 responseParams 等）
       return metadata
     } catch (error: any) {
-      console.error('❌ [useFunctionParamInitialization] 初始化失败', error)
       Logger.error('[useFunctionParamInitialization]', '初始化失败', error)
       throw error
     } finally {
@@ -473,44 +358,23 @@ export function useFunctionParamInitialization(
   ): Promise<void> => {
     const detail = functionDetail.value
     if (!detail) {
-      console.log('🔍 [triggerWidgetInitialization] functionDetail 无效，跳过组件自治初始化')
       return
     }
     
     // 🔥 确保 fields 是数组，防止类型错误
     const fields = Array.isArray(detail.request) ? detail.request : []
-    
-    console.log('🔍 [triggerWidgetInitialization] 开始组件自治初始化', {
-      fieldsCount: fields.length,
-      fields: fields.map((f: FieldConfig) => ({ 
-        code: f.code, 
-        widgetType: f.widget?.type, 
-        hasCallback: f.callbacks?.includes(FieldCallback.ON_SELECT_FUZZY) 
-      }))
-    })
-    
+
     // 遍历所有字段，调用组件的初始化接口
     for (const field of fields) {
       // 🔥 每次循环都从 formDataStore 获取最新值，确保获取到之前字段初始化后的最新值
       const currentValue = options.formDataStore.getValue(field.code)
       if (!currentValue || currentValue.raw === null || currentValue.raw === undefined) {
-        console.log(`🔍 [triggerWidgetInitialization] 跳过字段 ${field.code}（没有值）`)
         continue  // 没有值，跳过
       }
       
       // 🔥 每次循环都从 formDataStore 获取所有字段的最新值，确保 allFormData 包含之前字段初始化后的最新值
       const allFormData = options.formDataStore.getAllValues()
-      
-      console.log(`🔍 [triggerWidgetInitialization] 初始化字段 ${field.code}`, {
-        widgetType: field.widget?.type,
-        hasCallback: field.callbacks?.includes(FieldCallback.ON_SELECT_FUZZY),
-        currentValue: {
-          raw: currentValue.raw,
-          display: currentValue.display,
-          hasDisplayInfo: !!currentValue.meta?.displayInfo
-        }
-      })
-      
+
       // 🔥 调用抽象接口，组件自己决定是否需要初始化
       const initContext: WidgetInitContext = {
         field,
@@ -531,28 +395,9 @@ export function useFunctionParamInitialization(
                             JSON.stringify(initializedValue.meta) !== JSON.stringify(currentValue.meta)
         
         if (needsUpdate) {
-          console.log(`✅ [triggerWidgetInitialization] 字段 ${field.code} 初始化完成`, {
-            widgetType: field.widget?.type,
-            oldValue: {
-              raw: currentValue.raw,
-              display: currentValue.display,
-              hasDisplayInfo: !!currentValue.meta?.displayInfo
-            },
-            newValue: {
-              raw: initializedValue.raw,
-              display: initializedValue.display,
-              hasDisplayInfo: !!initializedValue.meta?.displayInfo
-            }
-          })
           options.formDataStore.setValue(field.code, initializedValue)
-        } else {
-          console.log(`🔍 [triggerWidgetInitialization] 字段 ${field.code} 不需要初始化（组件返回 null 或原始值）`)
         }
       } catch (error: any) {
-        console.warn(`⚠️ [triggerWidgetInitialization] 字段 ${field.code} 初始化失败`, {
-          widgetType: field.widget?.type,
-          error: error?.message || error
-        })
         Logger.warn('[useFunctionParamInitialization]', '组件初始化失败', {
           fieldCode: field.code,
           widgetType: field.widget?.type,
@@ -561,10 +406,6 @@ export function useFunctionParamInitialization(
         // 初始化失败不影响其他字段，继续处理下一个字段
       }
     }
-    
-    console.log('✅ [triggerWidgetInitialization] 组件自治初始化完成', {
-      processedFieldsCount: fields.length
-    })
   }
   
   return {

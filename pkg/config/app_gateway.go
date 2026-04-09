@@ -39,9 +39,10 @@ type APIGatewayConfig struct {
 
 // GatewayServerConfig 网关服务器配置
 type GatewayServerConfig struct {
-	Port     int    `mapstructure:"port"`
-	LogLevel string `mapstructure:"log_level"`
-	Debug    bool   `mapstructure:"debug"`
+	Port                     int    `mapstructure:"port"`
+	LogLevel                 string `mapstructure:"log_level"`
+	Debug                    bool   `mapstructure:"debug"`
+	AllowNATSDegradedStartup bool   `mapstructure:"allow_nats_degraded_startup"`
 }
 
 // RouteConfig 路由配置
@@ -88,4 +89,10 @@ func (c *APIGatewayConfig) GetLogLevel() string {
 // IsDebug 是否调试模式
 func (c *APIGatewayConfig) IsDebug() bool {
 	return c.Server.Debug
+}
+
+// AllowNATSDegradedStartup 是否允许在 NATS 初始化失败时继续启动 HTTP 网关。
+// 默认值为 false，避免 token 失效链路静默漂移。
+func (c *APIGatewayConfig) AllowNATSDegradedStartup() bool {
+	return c.Server.AllowNATSDegradedStartup
 }

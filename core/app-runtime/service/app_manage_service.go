@@ -17,7 +17,6 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/repository"
-	appPkg "github.com/ai-agent-os/ai-agent-os/pkg/app"
 	"github.com/ai-agent-os/ai-agent-os/pkg/builder"
 	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
@@ -146,12 +145,13 @@ func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageSe
 func (s *AppManageService) CreateApp(ctx context.Context, user, app string, opts ...*CreateOpts) (string, error) {
 	logger.Infof(ctx, "[CreateApp] *** ENTRY *** user=%s, app=%s", user, app)
 
-	// 1. 获取应用目录的绝对路径（使用配置中的基础路径）
-	appDirRel := filepath.Join(s.config.AppDir.BasePath, user, app)
+	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
+	appDirRel := appPaths.AppDir()
 	absAppDir, err := filepath.Abs(appDirRel)
 	if err != nil {
 		return "", fmt.Errorf("failed to get absolute path: %w", err)
 	}
+	absPaths := newRuntimeAppPathsFromAppDir(absAppDir, user, app)
 
 	// 2. 定义完整的目录结构（使用配置中的结构）
 	dirs := []string{
@@ -178,7 +178,7 @@ func (s *AppManageService) CreateApp(ctx context.Context, user, app string, opts
 	logger.Infof(ctx, "[CreateApp] Skipping version files creation, will be created on first build")
 
 	// 6. 创建 main.go 文件
-	mainGoPath := filepath.Join(absAppDir, "code/cmd/app/main.go")
+	mainGoPath := absPaths.MainGoPath()
 	if err := s.createMainGoFile(mainGoPath, user, app); err != nil {
 		return "", fmt.Errorf("failed to create main.go file: %w", err)
 	}
@@ -288,7 +288,7 @@ func (s *AppManageService) DeleteApp(ctx context.Context, user, app string) erro
 	}
 
 	// 2. 删除应用目录
-	appDirRel := filepath.Join(s.config.AppDir.BasePath, user, app)
+	appDirRel := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app).AppDir()
 	absAppDir, err := filepath.Abs(appDirRel)
 	if err != nil {
 		logger.Warnf(ctx, "[DeleteApp] Failed to get absolute path: %v", err)
@@ -317,53 +317,17 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, crea
 	logStr := strings.Builder{}
 	logStr.WriteString(fmt.Sprintf("[UpdateApp] Starting update: %s/%s\t", user, app))
 
-	// 0. 如果有 CreateFunctions，先执行创建函数操作
-	var writtenFiles []string
-	if len(createFunctions) > 0 {
-		logger.Infof(ctx, "[UpdateApp] 检测到 CreateFunctions，先执行创建函数操作: functionCount=%d", len(createFunctions))
-
-		createResp, err := s.createFunctionService.CreateFunctions(ctx, user, app, createFunctions)
-		if err != nil {
-			logger.Errorf(ctx, "[UpdateApp] 创建函数失败: error=%v", err)
-			return nil, fmt.Errorf("创建函数失败: %w", err)
-		}
-
-		if !createResp.Success {
-			logger.Errorf(ctx, "[UpdateApp] 创建函数失败: %s", createResp.Message)
-			// 创建函数失败时，删除已写入的文件（如果有）
-			if len(createResp.WrittenFiles) > 0 {
-				s.createFunctionService.rollbackFiles(ctx, createResp.WrittenFiles)
-			}
-			return nil, fmt.Errorf("创建函数失败: %s", createResp.Message)
-		}
-
-		writtenFiles = createResp.WrittenFiles
-		logger.Infof(ctx, "[UpdateApp] 创建函数成功: fileCount=%d", len(writtenFiles))
-	}
-
-	// 1. 获取当前版本
-	appDirRel := filepath.Join(s.config.AppDir.BasePath, user, app)
-	absAppDir, err := filepath.Abs(appDirRel)
+	writtenFiles, err := s.createFunctionsForUpdate(ctx, user, app, createFunctions)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get absolute path: %w", err)
+		return nil, err
 	}
 
-	// 检查应用是否存在
-	if _, err := os.Stat(absAppDir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("app not found: %s/%s", user, app)
-	}
-
-	// 2. 确保应用记录存在，若无则创建（便于 build_workspace 等对“仅目录存在”的场景）；失败仅打日志，不阻断编译部署
-	if err := s.appRepo.EnsureAppExists(user, app); err != nil {
-		logger.Warnf(ctx, "[UpdateApp] ensure app record failed (non-blocking): %v", err)
-	}
-
-	// 3. 使用 VersionManager 获取当前版本
-	vm := appPkg.NewVersionManager(filepath.Join(s.config.AppDir.BasePath, user), app)
-	oldVersion, err := vm.GetCurrentVersion()
+	state, err := s.prepareUpdateAppState(ctx, user, app)
 	if err != nil {
-		logStr.WriteString(fmt.Sprintf("Failed to get current version: %v\t", err))
-		oldVersion = "unknown"
+		return nil, err
+	}
+	if state.oldVersion == "unknown" {
+		logStr.WriteString("Failed to get current version\t")
 	}
 
 	if skipBuild {
@@ -371,24 +335,22 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, crea
 		return &sharedDto.UpdateAppResp{
 			User:       user,
 			App:        app,
-			OldVersion: oldVersion,
-			NewVersion: oldVersion,
+			OldVersion: state.oldVersion,
+			NewVersion: state.oldVersion,
 		}, nil
 	}
 
-	// 2. 重新编译应用（Builder 会自动生成新版本号）
-	sourceDir := filepath.Join(absAppDir, "code/cmd/app")
-	outputDir := filepath.Join(absAppDir, s.config.Build.OutputDir)
-
-	buildOpts := &BuildOpts{
-		SourceDir:        sourceDir,
-		OutputDir:        outputDir,
-		BinaryNameFormat: s.config.Build.BinaryNameFormat,
-	}
-
-	buildResult, err := s.BuildApp(ctx, user, app, buildOpts)
+	release, err := s.prepareAppRelease(
+		ctx,
+		user,
+		app,
+		state.absPaths,
+		state.oldVersion,
+		"UpdateApp",
+		requirement,
+		changeDescription,
+	)
 	if err != nil {
-		// 编译失败时，如果有创建的文件，回滚
 		if len(writtenFiles) > 0 {
 			logger.Warnf(ctx, "[UpdateApp] 编译失败，开始回滚已创建的文件: fileCount=%d", len(writtenFiles))
 			s.rollbackCreateFunctionFiles(ctx, user, app, writtenFiles)
@@ -396,138 +358,24 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, crea
 		return nil, fmt.Errorf("failed to build app: %w", err)
 	}
 
-	newVersion := buildResult.Version
-
-	// 🔥 新增：Git 提交（在编译成功后）
-	var gitCommitHash string
-	if hash, err := s.commitToGit(ctx, user, app, newVersion, requirement, changeDescription); err != nil {
-		logger.Warnf(ctx, "[UpdateApp] Git 提交失败: %v，继续执行", err)
-		// Git 提交失败不应该影响主流程
-	} else {
-		gitCommitHash = hash
+	if err := s.deployUpdatedVersion(ctx, user, app, state, release.newVersion, &logStr); err != nil {
+		return nil, err
 	}
 
-	// 4. 更新或创建 version.json 文件
-	metadataDir := filepath.Join(absAppDir, "workplace/metadata")
-	versionFile := filepath.Join(metadataDir, "version.json")
-
-	// 检查版本文件是否存在，如果不存在则创建
-	if _, err := os.Stat(versionFile); os.IsNotExist(err) {
-		logger.Infof(ctx, "[UpdateApp] Version file not found, creating initial version file...")
-		if err := s.createVersionFiles(metadataDir, user, app); err != nil {
-			return nil, fmt.Errorf("failed to create initial version files: %w", err)
-		}
-	}
-
-	// 更新版本信息
-	if err := s.updateVersionJson(absAppDir, user, app, newVersion); err != nil {
-		return nil, fmt.Errorf("failed to update version.json: %w", err)
-	}
-
-	// 5. 创建新版本容器（新架构：每个版本独立容器）
-	// 统一在外层注册启动等待器，因为无论哪种启动方式都需要等待
-	// 先注册等待器，再执行启动命令，避免错过通知
-	waiterChan := s.registerStartupWaiter(user, app, newVersion)
-	// 确保在方法结束时清理等待器
-	defer s.unregisterStartupWaiter(user, app, newVersion)
-
-	if s.containerService == nil {
-		return nil, fmt.Errorf("container operator not available")
-	}
-
-	// 创建新版本容器（无论应用是否正在运行，都创建新容器）
-	logger.Infof(ctx, "[UpdateApp] Creating new version container for %s/%s/%s", user, app, newVersion)
-	if err := s.createVersionContainer(ctx, user, app, newVersion, appDirRel); err != nil {
-		logStr.WriteString(fmt.Sprintf("Failed to create version container: %v\t", err))
-		return nil, fmt.Errorf("failed to create version container: %w", err)
-	}
-
-	logStr.WriteString("New version container created\t")
-
-	// 6. 等待新版本启动（第一次握手）
-	logger.Infof(ctx, "[UpdateApp] Waiting for startup notification for %s/%s/%s (first handshake)", user, app, newVersion)
-
-	select {
-	case notification := <-waiterChan:
-		logStr.WriteString(fmt.Sprintf("Startup confirmed at %s\t", notification.StartTime.Format(time.DateTime)))
-		logger.Infof(ctx, "[UpdateApp] ✅ Startup confirmed: %s/%s/%s (first handshake completed)", user, app, newVersion)
-
-		// 启动成功后统一将应用状态更新为已激活（幂等，已为 active 时多一次 UPDATE 无影响）
-		if err := s.updateAppStatusToActive(ctx, user, app); err != nil {
-			logger.Warnf(ctx, "[UpdateApp] Failed to update app status to active: %v", err)
-		} else {
-			logger.Infof(ctx, "[UpdateApp] App status updated to active: %s/%s", user, app)
-		}
-	case <-time.After(60 * time.Second):
-		logStr.WriteString("Startup timeout\t")
-		logger.Warnf(ctx, "[UpdateApp] ⚠️ Startup notification timeout for %s/%s/%s, but continue anyway", user, app, newVersion)
-		// 不返回错误，超时不应阻止更新流程
-	}
-
-	// 7. 优雅关闭旧容器（如果存在）- 三次握手流程
-	if oldVersion != "" && oldVersion != "unknown" {
-		logger.Infof(ctx, "[UpdateApp] Starting graceful shutdown for old version %s/%s/%s", user, app, oldVersion)
-		if err := s.stopOldVersionContainer(ctx, user, app, oldVersion); err != nil {
-			logStr.WriteString(fmt.Sprintf("Failed to stop old container: %v\t", err))
-			logger.Warnf(ctx, "[UpdateApp] ⚠️ Failed to stop old container: %v, but continue anyway", err)
-			// 不返回错误，继续执行
-		} else {
-			logStr.WriteString("Old container stopped gracefully\t")
-			logger.Infof(ctx, "[UpdateApp] ✅ Old container stopped gracefully: %s/%s/%s", user, app, oldVersion)
-		}
-	} else {
-		logger.Infof(ctx, "[UpdateApp] No old version to stop (oldVersion: %s)", oldVersion)
-	}
-
-	logStr.WriteString(fmt.Sprintf("Update completed: %s->%s", oldVersion, newVersion))
-
-	// 统一打印所有日志
-	logger.Infof(ctx, logStr.String())
-
-	// 使用 NATS Request/Reply 模式获取 API diff 结果
-	logger.Infof(ctx, "[UpdateApp] 🚀 Using NATS Request/Reply to get update callback from %s/%s/%s", user, app, newVersion)
-
-	updateCallbackResponse, callbackErr := s.sendUpdateCallbackAndWait(ctx, user, app, newVersion)
-	if callbackErr != nil {
-		logger.Warnf(ctx, "[UpdateApp] ❌ Update callback failed: %v", callbackErr)
+	diffData, err := s.requestRequiredVersionDiff(ctx, user, app, release.newVersion, "UpdateApp")
+	if err != nil {
 		logger.Warnf(ctx, "[UpdateApp] Aborting update result to avoid API state drift")
-		return nil, callbackErr
-	} else {
-		logger.Infof(ctx, "[UpdateApp] ✅ Update callback response received from %s/%s/%s: %+v", user, app, newVersion, updateCallbackResponse)
-	}
-
-	// 构建 UpdateResult，包含 diff 信息（如果有）
-	// 解析嵌套的 diff 数据，避免双嵌套
-
-	// 将 updateCallbackResponse.Data (interface{}) 转换为 *dto.DiffData
-	// 因为 JSON 反序列化时，Data 被解析为 map[string]interface{}，需要重新序列化/反序列化
-	var diffData *sharedDto.DiffData
-	if updateCallbackResponse.Data != nil {
-		// 先序列化为 JSON，再反序列化为 DiffData
-		dataBytes, err := json.Marshal(updateCallbackResponse.Data)
-		if err == nil {
-			var tempDiffData sharedDto.DiffData
-			if err := json.Unmarshal(dataBytes, &tempDiffData); err == nil {
-				diffData = &tempDiffData
-			} else {
-				logger.Warnf(ctx, "[UpdateApp] 反序列化 diff 数据失败: %v", err)
-			}
-		} else {
-			logger.Warnf(ctx, "[UpdateApp] 序列化 diff 数据失败: %v", err)
-		}
+		return nil, err
 	}
 
 	result := &sharedDto.UpdateAppResp{
 		User:          user,
 		App:           app,
-		OldVersion:    oldVersion,
-		NewVersion:    newVersion,
-		GitCommitHash: gitCommitHash, // Git 提交哈希
-		Diff:          diffData,      // 转换后的 diff 信息
+		OldVersion:    release.oldVersion,
+		NewVersion:    release.newVersion,
+		GitCommitHash: release.gitCommitHash, // Git 提交哈希
+		Diff:          diffData,              // 转换后的 diff 信息
 		Error:         "",
-	}
-	if callbackErr != nil {
-		result.Error = callbackErr.Error()
 	}
 
 	return result, nil
@@ -537,7 +385,7 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, crea
 func (s *AppManageService) rollbackCreateFunctionFiles(ctx context.Context, user, app string, filePaths []string) {
 	logger.Warnf(ctx, "[UpdateApp] 开始回滚已创建的函数文件: fileCount=%d", len(filePaths))
 
-	appDir := filepath.Join(s.config.AppDir.BasePath, user, app)
+	appDir := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app).AppDir()
 
 	deletedCount := 0
 	for _, relPath := range filePaths {
@@ -608,20 +456,15 @@ func (s *AppManageService) sendUpdateCallbackAndWait(ctx context.Context, user, 
 
 // GetAppInfo 获取应用信息
 func (s *AppManageService) GetAppInfo(ctx context.Context, user, app string) (map[string]interface{}, error) {
-	appDir := filepath.Join(s.config.AppDir.BasePath, user, app)
+	appDir := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app).AppDir()
 
 	// 检查应用是否存在
 	if _, err := os.Stat(appDir); os.IsNotExist(err) {
 		return nil, fmt.Errorf("app not found: %s/%s", user, app)
 	}
 
-	// 读取版本信息
-	versionFile := filepath.Join(appDir, "workplace", "metadata", "current_version.txt")
-	version := ""
-	versionData, err := os.ReadFile(versionFile)
-	if err == nil {
-		version = strings.TrimSpace(string(versionData))
-	} else if !os.IsNotExist(err) {
+	version, err := s.readCurrentVersion(user, app)
+	if err != nil {
 		return nil, fmt.Errorf("failed to read current version: %w", err)
 	}
 
@@ -896,11 +739,10 @@ func (s *AppManageService) runWorkplaceTempCleanup(ctx context.Context) {
 		logger.Errorf(ctx, "[WorkplaceCleanup] 获取应用列表失败: %v", err)
 		return
 	}
-	basePath := s.config.AppDir.BasePath
 	for _, app := range apps {
-		appBase := filepath.Join(basePath, app.User, app.App, "workplace")
+		appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, app.User, app.App)
 		for _, subdir := range []string{"file-cache", "output", "uploads"} {
-			dir := filepath.Join(appBase, subdir)
+			dir := appPaths.WorkplaceSubDir(subdir)
 			if _, err := os.Stat(dir); err != nil {
 				if !os.IsNotExist(err) {
 					logger.Warnf(ctx, "[WorkplaceCleanup] 检查目录失败 %s: %v", dir, err)
@@ -1246,19 +1088,7 @@ func (s *AppManageService) CleanupNonCurrentVersions(ctx context.Context, user, 
 
 // getCurrentVersion 获取应用的当前版本（从 metadata/current_version.txt）
 func (s *AppManageService) getCurrentVersion(ctx context.Context, user, app string) (string, error) {
-	// 读取 current_version.txt
-	versionFile := filepath.Join(s.config.AppDir.BasePath, user, app, "workplace/metadata/current_version.txt")
-
-	data, err := os.ReadFile(versionFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", nil // 文件不存在，返回空
-		}
-		return "", fmt.Errorf("failed to read current version file: %w", err)
-	}
-
-	currentVersion := strings.TrimSpace(string(data))
-	return currentVersion, nil
+	return s.readCurrentVersion(user, app)
 }
 
 // StartAppVersion 启动指定版本的应用（兜底启动）
@@ -1295,7 +1125,7 @@ func (s *AppManageService) StartAppVersion(ctx context.Context, user, app, versi
 		logger.Infof(ctx, "[StartAppVersion] Container %s already exists and is running, waiting for startup notification", containerName)
 	} else {
 		// 容器不存在或已停止，需要创建或启动容器
-		appDirRel := filepath.Join(s.config.AppDir.BasePath, user, app)
+		appDirRel := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app).AppDir()
 
 		// 尝试启动已存在的容器（可能已停止）
 		if err := s.containerService.StartContainer(ctx, containerName); err != nil {
@@ -1333,19 +1163,11 @@ func (s *AppManageService) StartAppVersion(ctx context.Context, user, app, versi
 func (s *AppManageService) ReadDirectoryFiles(ctx context.Context, user, app, fullCodePath string) ([]sharedDto.DirectoryFileInfo, error) {
 	logger.Infof(ctx, "[ReadDirectoryFiles] 开始读取目录文件: user=%s, app=%s, path=%s", user, app, fullCodePath)
 
-	// 构建应用目录路径
-	appDir := filepath.Join(s.config.AppDir.BasePath, user, app)
-	apiDir := filepath.Join(appDir, "code", "api")
-
-	// 从 full_code_path 提取相对路径（去掉应用前缀）
-	// fullCodePath 格式：/user/app/package1/package2
-	// 需要提取 package1/package2
-	appPrefix := fmt.Sprintf("/%s/%s", user, app)
-	relativePath := strings.TrimPrefix(fullCodePath, appPrefix)
-	relativePath = strings.TrimPrefix(relativePath, "/")
+	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
+	relativePath := appPaths.TrimAppPrefix(fullCodePath)
 
 	// 构建目录路径
-	directoryPath := filepath.Join(apiDir, relativePath)
+	directoryPath := filepath.Join(appPaths.APIDir(), relativePath)
 
 	var files []sharedDto.DirectoryFileInfo
 
@@ -1390,11 +1212,8 @@ func (s *AppManageService) ReadDirectoryFiles(ctx context.Context, user, app, fu
 
 // ReplaceInFileBatch 在指定文件中做多组 search-replace：读入内存、按顺序执行、校验 expected_count，全部通过才落盘
 func (s *AppManageService) ReplaceInFileBatch(ctx context.Context, user, app, directoryPath, fileName string, replacements []sharedDto.ReplaceItemRuntime, allOrNothing, returnFullContent bool) (totalCount int, newContent string, details []sharedDto.ReplaceItemResultRuntime, err error) {
-	appDir := filepath.Join(s.config.AppDir.BasePath, user, app)
-	apiDir := filepath.Join(appDir, "code", "api")
-	appPrefix := fmt.Sprintf("/%s/%s", user, app)
-	relativePath := strings.TrimPrefix(strings.TrimPrefix(directoryPath, appPrefix), "/")
-	dirPath := filepath.Join(apiDir, relativePath)
+	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
+	dirPath := filepath.Join(appPaths.APIDir(), appPaths.TrimAppPrefix(directoryPath))
 
 	baseName := fileName
 	if !strings.HasSuffix(baseName, ".go") {
@@ -1460,11 +1279,8 @@ func (s *AppManageService) ReplaceInFileBatch(ctx context.Context, user, app, di
 func (s *AppManageService) DeleteFile(ctx context.Context, user, app, directoryPath, fileName string) error {
 	logger.Infof(ctx, "[DeleteFile] user=%s, app=%s, path=%s, file=%s", user, app, directoryPath, fileName)
 
-	appDir := filepath.Join(s.config.AppDir.BasePath, user, app)
-	apiDir := filepath.Join(appDir, "code", "api")
-	appPrefix := fmt.Sprintf("/%s/%s", user, app)
-	relativePath := strings.TrimPrefix(strings.TrimPrefix(directoryPath, appPrefix), "/")
-	dirPath := filepath.Join(apiDir, relativePath)
+	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
+	dirPath := filepath.Join(appPaths.APIDir(), appPaths.TrimAppPrefix(directoryPath))
 
 	baseName := fileName
 	if !strings.HasSuffix(baseName, ".go") {
@@ -1530,8 +1346,9 @@ func (s *AppManageService) ReadAppLog(ctx context.Context, req *sharedDto.ReadAp
 		version = strings.TrimSpace(currentVersion)
 	}
 
-	logFileName := fmt.Sprintf("%s_%s_%s.log", req.User, req.App, version)
-	logFilePath := filepath.Join(s.config.AppDir.BasePath, req.User, req.App, "workplace", "logs", logFileName)
+	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, req.User, req.App)
+	logFileName := appPaths.LogFileName(version)
+	logFilePath := appPaths.LogFile(version)
 
 	f, err := os.Open(logFilePath)
 	if err != nil {
@@ -1670,7 +1487,7 @@ func (s *AppManageService) commitToGit(
 	requirement, changeDescription string,
 ) (string, error) {
 	// 1. 获取应用代码目录
-	appCodeDir := filepath.Join(s.config.AppDir.BasePath, user, app, "code", "api")
+	appCodeDir := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app).APIDir()
 
 	// 2. 从 ctx 获取用户名称
 	authorName := contextx.GetRequestUser(ctx)

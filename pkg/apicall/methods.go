@@ -13,27 +13,8 @@ import (
 // queryParams: URL查询参数（可选，nil 表示无查询参数或 path 已包含 query params）
 // 返回: T（指针类型）
 func GetAPI[T any](ctx context.Context, path string, queryParams url.Values) (T, error) {
-	// 构建完整路径
-	fullPath := path
-	if len(queryParams) > 0 {
-		// 如果 path 已包含 ?，则使用 & 连接，否则使用 ? 连接
-		separator := "?"
-		if len(path) > 0 && path[len(path)-1] == '?' {
-			separator = ""
-		} else if len(path) > 0 {
-			// 检查 path 是否已包含 query params
-			for i := len(path) - 1; i >= 0; i-- {
-				if path[i] == '?' {
-					separator = "&"
-					break
-				} else if path[i] == '/' || path[i] == '&' {
-					break
-				}
-			}
-		}
-		fullPath = path + separator + queryParams.Encode()
-	}
-	
+	fullPath := buildPathWithQuery(path, queryParams)
+
 	result, err := callAPI[T](ctx, http.MethodGet, fullPath, nil)
 	if err != nil {
 		var zero T
@@ -86,4 +67,20 @@ func DeleteAPI[T any](ctx context.Context, path string) (T, error) {
 		return zero, err
 	}
 	return result.Data, nil
+}
+
+func buildPathWithQuery(path string, queryParams url.Values) string {
+	if len(queryParams) == 0 {
+		return path
+	}
+	if encoded := queryParams.Encode(); encoded != "" {
+		separator := "?"
+		if len(path) > 0 && path[len(path)-1] == '?' {
+			separator = ""
+		} else if parsed, err := url.Parse(path); err == nil && parsed.RawQuery != "" {
+			separator = "&"
+		}
+		return path + separator + encoded
+	}
+	return path
 }

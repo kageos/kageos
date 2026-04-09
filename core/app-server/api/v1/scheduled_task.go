@@ -139,6 +139,7 @@ func (s *ScheduledTask) ListExecutions(c *gin.Context) {
 			TaskID:          e.TaskID,
 			ExecutedAt:      e.ExecutedAt.Format(time.RFC3339),
 			Status:          e.Status,
+			DurationMillis:  e.DurationMillis,
 			RequestPayload:  string(e.RequestPayload),
 			ResponsePayload: string(e.ResponsePayload),
 			ErrorMessage:    e.ErrorMessage,

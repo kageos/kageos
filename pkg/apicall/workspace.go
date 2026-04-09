@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"strconv"
-	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 )
@@ -16,9 +14,9 @@ var _ = (*dto.UpdateAppResp)(nil)
 // GetServiceTreeDetailByFullCodePath 根据 full_code_path 获取服务目录详情（agent-server -> app-server）
 // 用于从 full_code_path 解析出节点信息（含 id/tree_id），供 add_functions、权限等使用
 func GetServiceTreeDetailByFullCodePath(ctx context.Context, fullCodePath string) (*dto.GetServiceTreeDetailResp, error) {
-	params := url.Values{}
-	params.Set("full_code_path", fullCodePath)
-	return GetAPI[*dto.GetServiceTreeDetailResp](ctx, "/workspace/api/v1/service_tree/detail", params)
+	return GetAPI[*dto.GetServiceTreeDetailResp](ctx, "/workspace/api/v1/service_tree/detail", buildQueryParams(
+		withFullCodePathQuery(fullCodePath),
+	))
 }
 
 // ServiceTreeAddFunctions 向服务目录添加函数（agent-server -> workspace）
@@ -31,36 +29,22 @@ func ServiceTreeAddFunctions(ctx context.Context, req *dto.AddFunctionsReq) (*dt
 // SearchFunctions 搜索函数（agent-server -> app-server）
 // 根据关键词、类型等条件搜索函数，支持分页
 func SearchFunctions(ctx context.Context, req *dto.SearchFunctionsReq) (*dto.SearchFunctionsResp, error) {
-	// 构建查询参数
-	path := "/workspace/api/v1/service_tree/search_functions"
-	params := url.Values{}
-	params.Set("page", strconv.Itoa(req.Page))
-	params.Set("page_size", strconv.Itoa(req.PageSize))
-	if req.User != "" {
-		params.Set("user", req.User)
-	}
-	if req.App != "" {
-		params.Set("app", req.App)
-	}
-	if req.Keyword != "" {
-		params.Set("keyword", req.Keyword)
-	}
-	if req.TemplateType != "" {
-		params.Set("template_type", req.TemplateType)
-	}
-
-	return GetAPI[*dto.SearchFunctionsResp](ctx, path, params)
+	return GetAPI[*dto.SearchFunctionsResp](ctx, "/workspace/api/v1/service_tree/search_functions", buildQueryParams(
+		withPaginationQuery(req.Page, req.PageSize),
+		withTrimmedQueryValue("user", req.User),
+		withTrimmedQueryValue("app", req.App),
+		withTrimmedQueryValue("keyword", req.Keyword),
+		withTrimmedQueryValue("template_type", req.TemplateType),
+	))
 }
 
 // GetWorkspaceContext 获取工作台环境信息（agent-server -> app-server）
 // fileSource 可选："" 或 "snapshot" 从快照表读；"runtime" 从 app-runtime 磁盘实时读（更准）
 func GetWorkspaceContext(ctx context.Context, fullCodePath string, fileSource string) (*dto.GetWorkspaceContextResp, error) {
-	params := url.Values{}
-	params.Set("full_code_path", fullCodePath)
-	if fileSource != "" {
-		params.Set("file_source", fileSource)
-	}
-	return GetAPI[*dto.GetWorkspaceContextResp](ctx, "/workspace/api/v1/workspace/context", params)
+	return GetAPI[*dto.GetWorkspaceContextResp](ctx, "/workspace/api/v1/workspace/context", buildQueryParams(
+		withFullCodePathQuery(fullCodePath),
+		withTrimmedQueryValue("file_source", fileSource),
+	))
 }
 
 // CreateDocs 创建 docs 类型节点（agent-server -> app-server）
@@ -100,10 +84,12 @@ func ReadAppLog(ctx context.Context, req *dto.ReadAppLogReq) (*dto.ReadAppLogRes
 }
 
 // UpdateAppBuild 触发工作空间编译（仅编译不写文件，agent-server -> app-server）
-// 路径为 /api/v1/app/update/{user}/{app}，body 传 {} 即可，只需 user 和 app 即可更新
+// 统一走 canonical 入口 /workspace/api/v1/app/update，使用 resource_path 标识工作空间
 func UpdateAppBuild(ctx context.Context, user, app string) (*dto.UpdateAppResp, error) {
-	path := "/workspace/api/v1/app/update/" + url.PathEscape(user) + "/" + url.PathEscape(app)
-	return PostAPI[*dto.UpdateAppReq, *dto.UpdateAppResp](ctx, path, &dto.UpdateAppReq{})
+	req := &dto.UpdateAppReq{
+		ResourcePath: fmt.Sprintf("/%s/%s", user, app),
+	}
+	return PostAPI[*dto.UpdateAppReq, *dto.UpdateAppResp](ctx, "/workspace/api/v1/app/update", req)
 }
 
 // ========== 执行模式：查表 / 提交表单 / 查图表（agent 调用工作区标准接口） ==========
@@ -111,42 +97,42 @@ func UpdateAppBuild(ctx context.Context, user, app string) (*dto.UpdateAppResp, 
 // TableSearch 调用工作区 Table 查询接口（GET table/search/{full-code-path}）
 // fullCodePath 如 /luobei/myapp/tables/hr；queryParams 可含 page、page_size、sorts 等
 func TableSearch(ctx context.Context, fullCodePath string, queryParams url.Values) (map[string]interface{}, error) {
-	path := "/workspace/api/v1/table/search" + fullCodePath
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/table/search", fullCodePath)
 	return GetAPI[map[string]interface{}](ctx, path, queryParams)
 }
 
 // FormSubmit 调用工作区 Form 提交接口（POST form/submit/{full-code-path}）
 // fullCodePath 如 /luobei/myapp/plugins/cashier_desk；body 为表单字段 JSON
 func FormSubmit(ctx context.Context, fullCodePath string, body interface{}) (map[string]interface{}, error) {
-	path := "/workspace/api/v1/form/submit" + fullCodePath
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/form/submit", fullCodePath)
 	return PostAPI[interface{}, map[string]interface{}](ctx, path, body)
 }
 
 // ChartQuery 调用工作区 Chart 查询接口（GET chart/query/{full-code-path}）
 // fullCodePath 如 /luobei/myapp/charts/sales；queryParams 为图表查询条件
 func ChartQuery(ctx context.Context, fullCodePath string, queryParams url.Values) (map[string]interface{}, error) {
-	path := "/workspace/api/v1/chart/query" + fullCodePath
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/chart/query", fullCodePath)
 	return GetAPI[map[string]interface{}](ctx, path, queryParams)
 }
 
 // TableCreate 调用工作区 Table 新增接口（POST table/create/{full-code-path}）
 // fullCodePath 为表格函数完整路径（如 /luobei/myapp/nps/nps_questionnaire_list）；body 为单条记录的字段 JSON，会触发 OnTableAddRow 回调
 func TableCreate(ctx context.Context, fullCodePath string, body interface{}) (map[string]interface{}, error) {
-	path := "/workspace/api/v1/table/create" + fullCodePath
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/table/create", fullCodePath)
 	return PostAPI[interface{}, map[string]interface{}](ctx, path, body)
 }
 
 // TableUpdate 调用工作区 Table 更新接口（PUT table/update/{full-code-path}）
 // fullCodePath 为表格函数完整路径；body 为 { "id": 行ID, "updates": { "field": "value", ... } }，不传 old_values 时由 app-server 自动查表填充
 func TableUpdate(ctx context.Context, fullCodePath string, body interface{}) (map[string]interface{}, error) {
-	path := "/workspace/api/v1/table/update" + fullCodePath
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/table/update", fullCodePath)
 	return PutAPI[interface{}, map[string]interface{}](ctx, path, body)
 }
 
 // CallbackOnSelectFuzzy 调用工作区 OnSelectFuzzy 回调（POST callback/on_select_fuzzy/{full-code-path}）
 // 用于工作台测试带 OnSelectFuzzy 的表单/表格下拉回调查询。当前仅支持按关键词或空关键词：body 中 type=by_keyword，value=关键词（可为空）。不支持 by_value/by_values。fullCodePath 为配置了 OnSelectFuzzyMap 的 Form/Table 完整路径；body 含 code、type、value、request（可选）。
 func CallbackOnSelectFuzzy(ctx context.Context, fullCodePath string, body map[string]interface{}) (map[string]interface{}, error) {
-	path := "/workspace/api/v1/callback/on_select_fuzzy" + fullCodePath
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/callback/on_select_fuzzy", fullCodePath)
 	return PostAPI[map[string]interface{}, map[string]interface{}](ctx, path, body)
 }
 
@@ -175,20 +161,11 @@ func CreateScheduledTask(ctx context.Context, req *dto.CreateScheduledTaskReq) (
 
 // ListScheduledTasks 查询定时任务列表（agent-server -> app-server）
 func ListScheduledTasks(ctx context.Context, fullCodePath, status string, page, pageSize int) (*dto.ListScheduledTasksResp, error) {
-	params := url.Values{}
-	if strings.TrimSpace(fullCodePath) != "" {
-		params.Set("full_code_path", strings.TrimSpace(fullCodePath))
-	}
-	if strings.TrimSpace(status) != "" {
-		params.Set("status", strings.TrimSpace(status))
-	}
-	if page > 0 {
-		params.Set("page", strconv.Itoa(page))
-	}
-	if pageSize > 0 {
-		params.Set("page_size", strconv.Itoa(pageSize))
-	}
-	return GetAPI[*dto.ListScheduledTasksResp](ctx, "/workspace/api/v1/scheduled_tasks", params)
+	return GetAPI[*dto.ListScheduledTasksResp](ctx, "/workspace/api/v1/scheduled_tasks", buildQueryParams(
+		withFullCodePathQuery(fullCodePath),
+		withStatusQuery(status),
+		withOptionalPaginationQuery(page, pageSize),
+	))
 }
 
 // CancelScheduledTask 取消定时任务（agent-server -> app-server）
@@ -200,16 +177,9 @@ func CancelScheduledTask(ctx context.Context, taskID int64) error {
 
 // ListScheduledTaskExecutions 查询某任务执行记录（agent-server -> app-server）
 func ListScheduledTaskExecutions(ctx context.Context, taskID int64, status string, page, pageSize int) (*dto.ListScheduledTaskExecutionsResp, error) {
-	params := url.Values{}
-	if strings.TrimSpace(status) != "" {
-		params.Set("status", strings.TrimSpace(status))
-	}
-	if page > 0 {
-		params.Set("page", strconv.Itoa(page))
-	}
-	if pageSize > 0 {
-		params.Set("page_size", strconv.Itoa(pageSize))
-	}
 	path := fmt.Sprintf("/workspace/api/v1/scheduled_tasks/%d/executions", taskID)
-	return GetAPI[*dto.ListScheduledTaskExecutionsResp](ctx, path, params)
+	return GetAPI[*dto.ListScheduledTaskExecutionsResp](ctx, path, buildQueryParams(
+		withStatusQuery(status),
+		withOptionalPaginationQuery(page, pageSize),
+	))
 }

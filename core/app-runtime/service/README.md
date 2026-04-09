@@ -1,198 +1,92 @@
-# App Runtime Service 代码结构
+# App Runtime Service
 
-## 文件组织
+`core/app-runtime/service` 负责 runtime 进程内的应用生命周期、版本元数据、发现机制和 runtime -> app 控制调用。
 
-为了提高代码可读性和可维护性，我们将 `AppManageService` 拆分成多个文件，按功能模块组织：
+## 当前文件分工
 
-```
-service/
-├── app_manage_service.go      # 主服务：结构定义、创建/删除应用
-├── app_manage_build.go         # 编译模块：编译新版本、更新元数据
-├── app_manage_startup.go       # 启动模块：启动通知、等待器、启动应用
-├── app_manage_cleanup.go       # 清理模块：定时巡检、清理旧版本
-├── app_manage_shutdown.go      # 关闭模块：关闭命令、状态更新
-├── qps_tracker.go             # QPS 追踪
-├── container_service.go       # 容器服务
-└── app_discovery_service.go   # 应用发现服务
-```
+- `app_manage_service.go`
+  应用生命周期主服务，负责创建、更新、启动、关闭、清理版本。
+- `app_manage_waiters.go`
+  启动确认和 update callback 等待器。
+- `app_manage_version_files.go`
+  维护 `workplace/metadata` 下的版本文件。
+- `app_nats_clients.go`
+  runtime 主动发出的 NATS 调用，包括 discovery 广播和 app control request-reply。
+- `app_discovery_service.go`
+  运行中应用注册表和 discovery 调度。
+- `app_discovery_handler.go`
+  解析生命周期事件并更新 discovery 状态。
+- `app_discovery_transport.go`
+  discovery 相关的订阅与广播 transport。
+- `qps_tracker.go`
+  追踪版本级流量，辅助旧版本安全关闭。
+- `container_service.go`
+  容器运行时适配。
+- `create_function_service.go`
+  新应用初始化时的函数脚手架生成。
+- `service_tree_service.go`
+  目录树相关服务能力。
 
-## 各文件职责
+## 版本元数据
 
-### 1. app_manage_service.go（主服务）
-**职责**：服务结构定义、基础CRUD操作
+应用版本元数据位于 `workplace/metadata`：
 
-**主要内容**：
-- `AppManageService` 结构定义
-- `NewAppManageService()` - 服务初始化
-- `CreateApp()` - 创建应用
-- `DeleteApp()` - 删除应用
-- `initAppDirectory()` - 初始化目录结构
-- `createAndStartContainer()` - 创建容器
-- `getCurrentVersion()` - 获取当前版本
-- `getAllApps()` - 获取所有应用
+- `current_version.txt`
+  当前生效版本，启动和查询时优先读取。
+- `current_app.txt`
+  当前应用二进制名前缀。
+- `version.json`
+  版本索引，记录当前版本、最新版本和历史版本状态。
 
-**特点**：
-- ✅ 依赖注入（Builder, Config, ContainerService, Repository, NATS）
-- ✅ 完整的应用生命周期管理
+## 关键链路
 
-### 2. app_manage_build.go（编译模块）
-**职责**：应用编译和版本管理
+### 更新发布
 
-**主要内容**：
-- `UpdateApp()` - 更新应用（主流程）
-- `buildNewVersion()` - 编译新版本
-- `updateMetadata()` - 更新元数据文件
-- `updateAppVersionRecord()` - 更新数据库记录
+`UpdateApp()` 主流程会：
 
-**编译流程**：
-```
-UpdateApp()
-  ├─ buildNewVersion()      # 编译新版本
-  ├─ updateMetadata()        # 更新 current_version.txt
-  ├─ StartAppVersion()       # 启动新版本
-  └─ updateAppVersionRecord() # 更新数据库
-```
+1. 编译新版本产物到 `workplace/bin/releases`
+2. 更新 `workplace/metadata` 下的版本文件
+3. 启动新版本
+4. 等待启动确认和 update callback
+5. 更新数据库中的版本记录
 
-**元数据文件**：
-- `current_version.txt` - 当前版本（纯文本，极速读取）
-- `current_app.txt` - 二进制前缀
-- `version.json` - 兼容性保留
+### 应用发现
 
-### 3. app_manage_startup.go（启动模块）
-**职责**：应用启动和启动通知管理
+`AppDiscoveryService` 会：
 
-**主要内容**：
-- `StartAppVersion()` - 启动指定版本
-- `NotifyStartup()` - 接收启动通知
-- `RegisterStartupWaiter()` - 注册等待器
-- `UnregisterStartupWaiter()` - 注销等待器
-- `GetStartupWaiter()` - 获取等待器
-- `waitForStartup()` - 等待启动完成
+1. 广播 `app.v1.cmd.discovery.request`
+2. 监听 `runtime.v1.event.lifecycle.*.*.*`
+3. 把 startup / close / discovery 响应收敛到内存中的运行状态表
 
-**启动流程**：
-```
-StartAppVersion()
-  ├─ 读取 current_app.txt
-  ├─ 钻进容器执行启动命令（setsid nohup）
-  ├─ 注册启动等待器
-  └─ 等待 NATS 启动通知（30秒超时）
-```
+`runtime_id` 来自 runtime 配置，未配置时回退为基于 hostname 的稳定值。
 
-**特点**：
-- ✅ 基于 NATS 事件的启动确认
-- ✅ 超时保护（30秒）
-- ✅ 自动清理等待器
+### 优雅关闭
 
-### 4. app_manage_cleanup.go（清理模块/巡检）
-**职责**：定时巡检和清理旧版本
+`ShutdownAppVersion()` 会通过 `app.v1.cmd.control.{user}.{app}.{version}` 向 SDK app 发送 shutdown 控制消息。
 
-**主要内容**：
-- `StartCleanupTask()` - 启动定时任务
-- `StopCleanupTask()` - 停止定时任务
-- `performCleanup()` - 执行清理
-- `CleanupNonCurrentVersions()` - 清理非当前版本
+SDK app 收到后会：
 
-**巡检流程**：
-```
-每 30 秒执行一次
-  ├─ 获取所有应用
-  ├─ 遍历每个应用
-  │   ├─ 读取 current_version.txt
-  │   ├─ 获取所有运行中版本
-  │   └─ 关闭非当前版本且无流量的版本
-  └─ 记录日志
-```
+1. 拒绝新请求
+2. 等待运行中的函数完成
+3. 上报 close 生命周期事件
+4. 退出进程
 
-**清理策略**：
-- ✅ 只保留 `current_version`
-- ✅ QPS 为 0 才关闭
-- ✅ 支持回滚（current_version 可能不是最新版本）
+### 旧版本清理
 
-### 5. app_manage_shutdown.go（关闭模块）
-**职责**：应用关闭和状态更新
+清理逻辑只会关闭“非当前版本且无流量”的容器，避免直接切断仍在处理请求的旧版本。
 
-**主要内容**：
-- `ShutdownAppVersion()` - 关闭指定版本
-- `UpdateAppStatus()` - 更新应用状态
-- `ShutdownOldVersions()` - 已废弃（保留兼容性）
+## 入口关系
 
-**关闭流程**：
-```
-ShutdownAppVersion()
-  ├─ 构建关闭消息
-  ├─ 发送 NATS 命令到 runtime.app.shutdown.*.*.*
-  └─ SDK App 收到命令
-      ├─ 拒绝新请求
-      ├─ 等待运行中函数完成
-      ├─ 发送关闭通知
-      └─ 退出进程
-```
+- `server/server.go`
+  初始化数据库、NATS、业务服务和订阅。
+- `server/nats_router.go`
+  注册 runtime 侧 command/query 路由。
+- `api/v1/*.go`
+  NATS handler，负责解码请求并调用 service。
 
-**特点**：
-- ✅ 优雅关闭
-- ✅ 等待运行中函数
-- ✅ NATS 双向通信
+## 当前原则
 
-### 6. qps_tracker.go（QPS 追踪）
-**职责**：追踪每个应用版本的 QPS
-
-**主要内容**：
-- `QPSTracker` - QPS 追踪器
-- `RecordRequest()` - 记录请求
-- `GetQPS()` - 获取 QPS
-- `IsSafeToShutdown()` - 检查是否可以安全关闭
-- `StartCleanup()` - 清理旧数据
-
-**特点**：
-- ✅ 滑动窗口（60秒）
-- ✅ 自动清理
-- ✅ 线程安全
-
-## 调用关系
-
-```
-Server (handlers.go)
-  ↓
-AppManageService
-  ├─ CreateApp() → createAndStartContainer()
-  ├─ DeleteApp() → StopContainer()
-  ├─ UpdateApp() → buildNewVersion() → StartAppVersion()
-  │                                    → waitForStartup()
-  ↓
-CleanupTask (每30秒)
-  └─ CleanupNonCurrentVersions() → ShutdownAppVersion()
-                                  → UpdateAppStatus()
-```
-
-## 优势
-
-1. **职责单一**：每个文件只负责一个功能模块
-2. **易于维护**：修改编译逻辑只需要看 `app_manage_build.go`
-3. **易于测试**：可以单独测试每个模块
-4. **代码清晰**：不再有1000+行的巨型文件
-5. **便于协作**：不同开发者可以同时修改不同文件
-
-## 注意事项
-
-1. **所有文件都在同一个 package**：`package service`
-2. **共享结构体**：`AppManageService` 结构定义在主文件中
-3. **方法接收者**：所有方法都是 `(s *AppManageService)` 的方法
-4. **导入路径相同**：可以直接调用其他文件中的方法
-5. **编译单元**：Go 会自动将同一 package 下的所有文件编译在一起
-
-## 未来扩展
-
-如果需要添加新功能，可以继续拆分：
-
-- `app_manage_rollback.go` - 回滚功能
-- `app_manage_health.go` - 健康检查
-- `app_manage_metrics.go` - 指标收集
-- `app_manage_backup.go` - 备份恢复
-
-## 最佳实践
-
-1. **单一职责**：每个文件只负责一个功能领域
-2. **命名规范**：文件名使用 `app_manage_<功能>.go`
-3. **注释完整**：每个导出函数都有注释说明
-4. **错误处理**：统一的错误返回格式
-5. **日志记录**：关键步骤都有详细日志
+- `pkg/subjects` 是主题真值
+- `pkg/msgx` 提供基础 request-reply 原语
+- service 负责业务，transport/handler 负责 NATS 适配
+- 版本状态以 `workplace/metadata` 为准

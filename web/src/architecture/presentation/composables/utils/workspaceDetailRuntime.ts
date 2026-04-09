@@ -1,5 +1,5 @@
 import type { FieldConfig } from '@/architecture/domain/types'
-import type { FunctionDetail } from '@/architecture/domain/interfaces/IFunctionLoader'
+import type { FunctionDetail } from '@/architecture/domain/types'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { deleteScopedFieldQueryKey } from '@/utils/queryFieldNamespace'
 

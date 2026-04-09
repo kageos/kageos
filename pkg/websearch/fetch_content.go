@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"golang.org/x/net/html"
@@ -29,18 +28,9 @@ func FetchURLContent(ctx context.Context, pageURL string, maxChars int) (title, 
 	if pageURL == "" || maxChars <= 0 {
 		return "", ""
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, nil)
-	if err != nil {
-		return "", ""
-	}
-	applyFollowURLHeaders(req)
-	client := &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		if len(via) >= 3 {
-			return http.ErrUseLastResponse
-		}
-		return nil
-	}}
-	resp, err := client.Do(req)
+	resp, err := doGET(ctx, followURLHTTPClient, pageURL, func(req *http.Request) {
+		applyFollowURLHeaders(req)
+	})
 	if err != nil || resp.StatusCode != http.StatusOK {
 		return "", ""
 	}

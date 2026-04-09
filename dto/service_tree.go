@@ -156,21 +156,6 @@ type GetServiceTreeDetailResp struct {
 	Permissions     map[string]bool `json:"permissions"`                                 // ⭐ 权限标识（企业版功能）：权限点 -> 是否有权限（即使为空也返回 {}）
 }
 
-// GetPackageInfoReq 获取目录信息请求（仅用于获取目录权限，不包含函数）
-type GetPackageInfoReq struct {
-	ID           int64  `json:"id" form:"id" example:"1"`                                          // 目录ID（优先使用）
-	FullCodePath string `json:"full_code_path" form:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径（如果未提供ID则使用）
-}
-
-// GetPackageInfoResp 获取目录信息响应（仅包含目录权限）
-type GetPackageInfoResp struct {
-	ID           int64           `json:"id" example:"1"`                              // 目录ID
-	Name         string          `json:"name" example:"用户管理"`                         // 目录名称
-	Code         string          `json:"code" example:"user"`                         // 目录代码
-	FullCodePath string          `json:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径
-	Permissions  map[string]bool `json:"permissions"`                                 // ⭐ 权限信息（企业版功能）：directory:read, directory:create, directory:update, directory:delete, directory:manage（即使为空也返回 {}）
-}
-
 // UpdateServiceTreeMetadataReq 更新服务目录元数据请求
 // 使用指针类型支持增量更新和字段清空
 type UpdateServiceTreeMetadataReq struct {
@@ -180,11 +165,6 @@ type UpdateServiceTreeMetadataReq struct {
 	Description *string `json:"description,omitempty" example:"用户相关的API接口"` // 描述（指针类型，nil=不更新，""=清空）
 	Tags        *string `json:"tags,omitempty" example:"user,management"`   // 标签（指针类型，nil=不更新，""=清空）
 	Admins      *string `json:"admins,omitempty" example:"user1,user2"`     // 管理员列表（指针类型，nil=不更新，""=清空）
-}
-
-// DeleteServiceTreeReq 删除服务目录请求
-type DeleteServiceTreeReq struct {
-	ID int64 `json:"id" binding:"required" example:"1"` // 服务目录ID
 }
 
 // ==================== 按类型分离的更新和删除接口 DTO ====================

@@ -13,18 +13,14 @@
  * - 通过状态管理器管理状态
  */
 
-import type { IFunctionLoader, FunctionDetail } from '../interfaces/IFunctionLoader'
+import type { IFunctionLoader } from '../interfaces/IFunctionLoader'
 import type { IStateManager } from '../interfaces/IStateManager'
 import type { IEventBus } from '../interfaces/IEventBus'
 import type { IServiceTreeLoader } from '../interfaces/IServiceTreeLoader'
 import { WorkspaceEvent } from '../interfaces/IEventBus'
+import type { FunctionDetail } from '../types'
 
-/**
- * 应用类型（从 types 导入）
- */
 import type { App, ServiceTree } from '@/types'
-
-// 重新导出，方便使用
 export type { App, ServiceTree }
 
 /**
@@ -120,13 +116,11 @@ export class WorkspaceDomainService {
    */
   async loadServiceTreeWithData(app: App, tree: ServiceTree[], expandedKeys?: number[]): Promise<ServiceTree[]> {
     try {
-      console.log('[WorkspaceDomainService] loadServiceTreeWithData 开始，expandedKeys:', expandedKeys)
       const state = this.stateManager.getState()
 
       // 使用已获取的服务目录树和 expanded_keys
 
       // 更新状态
-      console.log('[WorkspaceDomainService] 调用 setState 更新 serviceTree')
       this.stateManager.setState({
         ...state,
         serviceTree: tree || [],
@@ -134,7 +128,6 @@ export class WorkspaceDomainService {
       })
 
       // 触发事件（包含 expandedKeys）
-      console.log('[WorkspaceDomainService] 触发 serviceTreeLoaded 事件，expandedKeys:', expandedKeys)
       this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: tree || [], expandedKeys })
 
       return tree || []
@@ -184,7 +177,6 @@ export class WorkspaceDomainService {
       })
 
       // 🔥 触发事件，包含 expandedKeys（如果后端返回了）
-      console.log('[WorkspaceDomainService] 触发 serviceTreeLoaded 事件，expandedKeys:', expandedKeys)
       this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app: updatedApp, tree, expandedKeys })
 
       return tree

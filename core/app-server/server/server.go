@@ -59,6 +59,7 @@ type Server struct {
 
 	// License Client
 	licenseClient *license.Client
+	schedulerDone chan struct{}
 }
 
 // NewServer 创建新的服务器实例
@@ -120,7 +121,26 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 func (s *Server) Start(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Starting app-server...")
 
-	// 启动 HTTP 服务器
+	if err := s.StartHTTP(ctx); err != nil {
+		return err
+	}
+	if s.cfg.IsSchedulerEmbedded() {
+		if err := s.StartScheduler(ctx); err != nil {
+			return err
+		}
+	} else {
+		logger.Infof(ctx, "[Server] Embedded scheduled task scheduler disabled")
+	}
+
+	logger.Infof(ctx, "[Server] App-server started successfully")
+	logger.Infof(ctx, "[Server] NATS subscriptions are active")
+	return nil
+}
+
+func (s *Server) StartHTTP(ctx context.Context) error {
+	if s.httpServer == nil {
+		return fmt.Errorf("http server is not initialized")
+	}
 	port := fmt.Sprintf(":%d", s.cfg.GetPort())
 	logger.Infof(ctx, "[Server] HTTP server starting on port %s", port)
 
@@ -129,21 +149,35 @@ func (s *Server) Start(ctx context.Context) error {
 			logger.Errorf(ctx, "[Server] HTTP server error: %v", err)
 		}
 	}()
+	return nil
+}
 
-	// 启动定时任务调度器（每分钟执行到点任务）
-	if s.scheduledTaskService != nil {
-		go s.scheduledTaskService.StartScheduler(ctx)
-		logger.Infof(ctx, "[Server] Scheduled task scheduler started")
+func (s *Server) StartScheduler(ctx context.Context) error {
+	if s.scheduledTaskService == nil {
+		return fmt.Errorf("scheduled task service is not initialized")
 	}
-
-	logger.Infof(ctx, "[Server] App-server started successfully")
-	logger.Infof(ctx, "[Server] NATS subscriptions are active")
+	if s.schedulerDone != nil {
+		return fmt.Errorf("scheduled task scheduler is already running")
+	}
+	s.schedulerDone = make(chan struct{})
+	go func() {
+		defer close(s.schedulerDone)
+		s.scheduledTaskService.StartScheduler(ctx)
+	}()
+	logger.Infof(ctx, "[Server] Scheduled task scheduler started")
 	return nil
 }
 
 // Stop 停止服务器（优雅关闭）
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping app-server...")
+
+	if s.schedulerDone != nil {
+		logger.Infof(ctx, "[Server] Waiting scheduled task scheduler to stop...")
+		<-s.schedulerDone
+		s.schedulerDone = nil
+		logger.Infof(ctx, "[Server] Scheduled task scheduler stopped")
+	}
 
 	// 关闭 appcall 客户端（取消 NATS 订阅）
 	if s.appCall != nil {
@@ -366,7 +400,12 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 定时任务服务（注入 JWT 以便执行时按“请求用户”生成 Token 注入 context）
 	scheduledTaskRepo := repository.NewScheduledTaskRepository(s.db)
 	scheduledTaskExecutionRepo := repository.NewScheduledTaskExecutionRepository(s.db)
-	s.scheduledTaskService = service.NewScheduledTaskService(s.db, s.appService, s.jwtService, scheduledTaskRepo, scheduledTaskExecutionRepo)
+	s.scheduledTaskService = service.NewScheduledTaskService(s.db, s.appService, s.jwtService, scheduledTaskRepo, scheduledTaskExecutionRepo, service.ScheduledTaskServiceOptions{
+		PollInterval:   s.cfg.GetSchedulerPollInterval(),
+		BatchSize:      s.cfg.GetSchedulerBatchSize(),
+		LeaseDuration:  s.cfg.GetSchedulerLeaseDuration(),
+		MaxConcurrency: s.cfg.GetSchedulerMaxConcurrency(),
+	})
 
 	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
 	// 注意：这里先不初始化，等 initEnterprise 之后再初始化

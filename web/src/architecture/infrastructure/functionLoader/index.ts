@@ -4,11 +4,13 @@
 
 import { FunctionLoaderImpl } from './FunctionLoaderImpl'
 import type { IFunctionLoader } from '../../domain/interfaces/IFunctionLoader'
+import type { FunctionDetail } from '../../domain/types'
 import { apiClient } from '../apiClient'
 import { cacheManager } from '../cacheManager'
 
 // 导出接口
-export type { IFunctionLoader, FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
+export type { IFunctionLoader } from '../../domain/interfaces/IFunctionLoader'
+export type { FunctionDetail } from '../../domain/types'
 
 // 导出实现
 export { FunctionLoaderImpl }
@@ -19,4 +21,3 @@ export const functionLoader: IFunctionLoader = new FunctionLoaderImpl(
   cacheManager,
   300 // 防抖延迟 300ms
 )
-

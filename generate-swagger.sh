@@ -67,7 +67,7 @@ for service_config in "${services[@]}"; do
     
     # 构建排除目录列表（排除其他服务）
     exclude_dirs=""
-    for other_service in "app-server" "app-storage" "api-gateway" "app-runtime" "agent-server"; do
+    for other_service in "app-server" "app-storage" "api-gateway" "app-runtime" "agent-server" "hr-server" "backup-service" "control-service"; do
         service_base_name=$(basename "$service_dir")
         if [ "$other_service" != "$service_base_name" ]; then
             if [ -n "$exclude_dirs" ]; then
@@ -87,6 +87,13 @@ for service_config in "${services[@]}"; do
             exclude_dirs="$exclude_dir"
         fi
     done
+
+    # enterprise Hub backend 使用独立路由，不应混入核心服务 Swagger
+    if [ -n "$exclude_dirs" ]; then
+        exclude_dirs="$exclude_dirs,enterprise_impl/hub/backend"
+    else
+        exclude_dirs="enterprise_impl/hub/backend"
+    fi
     
     echo -e "${YELLOW}正在生成 Swagger 文档...${NC}"
     echo -e "${BLUE}服务目录: $service_dir${NC}"

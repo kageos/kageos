@@ -16,7 +16,17 @@ import { WorkspaceDomainService } from '../../domain/services/WorkspaceDomainSer
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { WorkspaceEvent } from '../../domain/interfaces/IEventBus'
 import type { App, ServiceTree } from '../../domain/services/WorkspaceDomainService'
-import { buildAppResourcePath } from '@/utils/resourcePath'
+import { Logger } from '@/core/utils/logger'
+
+export interface WorkspaceTreeLoadResult {
+  app?: App
+  service_tree?: ServiceTree[]
+  expanded_keys?: number[]
+}
+
+export interface WorkspaceApplicationServiceOptions {
+  loadWorkspaceTree?: (app: App) => Promise<WorkspaceTreeLoadResult | null>
+}
 
 /**
  * 工作空间应用服务
@@ -24,7 +34,8 @@ import { buildAppResourcePath } from '@/utils/resourcePath'
 export class WorkspaceApplicationService {
   constructor(
     private domainService: WorkspaceDomainService,
-    private eventBus: IEventBus
+    private eventBus: IEventBus,
+    private options: WorkspaceApplicationServiceOptions = {}
   ) {
     this.setupEventHandlers()
   }
@@ -138,11 +149,8 @@ export class WorkspaceApplicationService {
    * 处理应用切换
    */
   async handleAppSwitch(app: App): Promise<void> {
-    console.log('[handleAppSwitch] 开始，app:', app.user, app.code, 'isHandling:', this.isHandlingAppSwitch)
-    
     // ⭐ 防重入：如果正在处理应用切换，跳过
     if (this.isHandlingAppSwitch) {
-      console.log('[handleAppSwitch] 正在处理中，跳过')
       return
     }
     
@@ -152,13 +160,9 @@ export class WorkspaceApplicationService {
       // 🔥 检查当前应用是否已经是目标应用，避免重复切换
       const currentApp = this.domainService.getCurrentApp()
       if (currentApp && currentApp.id === app.id && app.id !== 0) {
-        // 当前应用已经是目标应用，不需要切换
-        console.log('[handleAppSwitch] 已经是当前应用，跳过')
         return
       }
-      
-      console.log('[handleAppSwitch] 准备切换应用')
-      
+
       // 🔥 修复：如果 app.id 是 0（临时值），通过合并接口获取完整的应用信息和服务目录树
       let appToSwitch = app
       let preloadedServiceTree: ServiceTree[] | null = null
@@ -166,10 +170,7 @@ export class WorkspaceApplicationService {
       
       if (app.id === 0) {
         try {
-          // 动态导入 getAppWithServiceTree，避免循环依赖
-          const { getAppWithServiceTree } = await import('@/api/app')
-          // ⭐ 统一通过 resource_path 获取完整工作空间数据
-          const workspaceData = await getAppWithServiceTree(buildAppResourcePath(app.user, app.code))
+          const workspaceData = await this.options.loadWorkspaceTree?.(app)
           if (workspaceData && workspaceData.app) {
             // ⭐ 使用完整的 app 对象，包含所有字段（包括 admins）
             appToSwitch = workspaceData.app as App
@@ -189,7 +190,7 @@ export class WorkspaceApplicationService {
             this.eventBus.emit('workspace:app-info-updated', { app: appToSwitch })
           }
         } catch (error) {
-          console.error('[WorkspaceApplicationService] 获取应用信息失败', error)
+          Logger.error('WorkspaceApplicationService', '获取应用信息失败', error)
           // 如果获取失败，继续使用原始的 app 对象
         }
       }
@@ -204,8 +205,6 @@ export class WorkspaceApplicationService {
         // 加载服务目录树
         await this.domainService.loadServiceTree(appToSwitch)
       }
-      
-      console.log('[handleAppSwitch] 完成')
     } finally {
       this.isHandlingAppSwitch = false
     }

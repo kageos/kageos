@@ -33,7 +33,7 @@ func NewDoc(docService *service.DocService) *Doc {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 404 {string} string "文档不存在"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/docs/info/{full-code-path} [get]
+// @Router /workspace/api/v1/docs/info/{full-code-path} [get]
 func (s *Doc) GetDoc(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
@@ -66,7 +66,7 @@ func (s *Doc) GetDoc(c *gin.Context) {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 404 {string} string "文档不存在"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/docs/info/{full-code-path} [put]
+// @Router /workspace/api/v1/docs/info/{full-code-path} [put]
 func (s *Doc) UpdateDoc(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
@@ -107,7 +107,7 @@ func (s *Doc) UpdateDoc(c *gin.Context) {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 404 {string} string "文档不存在"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/docs/info/{full-code-path} [delete]
+// @Router /workspace/api/v1/docs/info/{full-code-path} [delete]
 func (s *Doc) DeleteDoc(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
@@ -140,7 +140,7 @@ func (s *Doc) DeleteDoc(c *gin.Context) {
 // @Success 200 {object} dto.SearchDocsResp "搜索成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/docs/search [get]
+// @Router /workspace/api/v1/docs/search [get]
 func (s *Doc) SearchDocs(c *gin.Context) {
 	var req dto.SearchDocsReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -172,7 +172,7 @@ func (s *Doc) SearchDocs(c *gin.Context) {
 // @Success 200 {object} dto.BatchGetDocsResp "查询成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/docs/batch [get]
+// @Router /workspace/api/v1/docs/batch [get]
 func (s *Doc) BatchGetDocs(c *gin.Context) {
 	var req dto.BatchGetDocsReq
 	if err := c.ShouldBindQuery(&req); err != nil {

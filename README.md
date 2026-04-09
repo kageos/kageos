@@ -21,6 +21,16 @@
 
 > **它想把企业软件从“一个个孤岛应用”，变成“挂在统一服务树上的标准能力单元”。**
 
+### 0.1 关键文档入口
+
+如果你现在关心的是“怎么跑、怎么恢复、怎么进 backup 控制台”，先看这几份：
+
+- [backup-service 说明](core/backup-service/README.md)
+- [开发环境说明](deploy/dev/README.md)
+- [生产部署说明](deploy/prod/README.md)
+- [生产恢复手册](deploy/prod/RECOVERY.md)
+- [值班恢复清单](deploy/prod/RECOVERY_CHECKLIST.md)
+
 ---
 
 ## 1. 这个项目到底是什么

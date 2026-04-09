@@ -3,10 +3,13 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
@@ -49,7 +52,41 @@ type ScheduledTaskService struct {
 	jwtService    *auth.JWTService
 	taskRepo      *repository.ScheduledTaskRepository
 	executionRepo *repository.ScheduledTaskExecutionRepository
-	dueQueue      DueQueue // 按 next_run_at 排序的队列，兜底到点执行（类似 Redis ZSET）
+	options       ScheduledTaskServiceOptions
+	schedulerID   string
+	workerSlots   chan struct{}
+	runWG         sync.WaitGroup
+}
+
+type ScheduledTaskServiceOptions struct {
+	PollInterval   time.Duration
+	BatchSize      int
+	LeaseDuration  time.Duration
+	MaxConcurrency int
+}
+
+func normalizeScheduledTaskServiceOptions(opts ScheduledTaskServiceOptions) ScheduledTaskServiceOptions {
+	if opts.PollInterval <= 0 {
+		opts.PollInterval = time.Second
+	}
+	if opts.BatchSize <= 0 {
+		opts.BatchSize = 50
+	}
+	if opts.LeaseDuration <= 0 {
+		opts.LeaseDuration = 6 * time.Minute
+	}
+	if opts.MaxConcurrency <= 0 {
+		opts.MaxConcurrency = 4
+	}
+	return opts
+}
+
+func newSchedulerInstanceID() string {
+	host, err := os.Hostname()
+	if err != nil || strings.TrimSpace(host) == "" {
+		host = "unknown-host"
+	}
+	return fmt.Sprintf("%s-%d-%d", host, os.Getpid(), time.Now().UnixNano())
 }
 
 func NewScheduledTaskService(
@@ -58,14 +95,41 @@ func NewScheduledTaskService(
 	jwtService *auth.JWTService,
 	taskRepo *repository.ScheduledTaskRepository,
 	executionRepo *repository.ScheduledTaskExecutionRepository,
+	opts ScheduledTaskServiceOptions,
 ) *ScheduledTaskService {
+	opts = normalizeScheduledTaskServiceOptions(opts)
 	return &ScheduledTaskService{
 		db:            db,
 		appService:    appService,
 		jwtService:    jwtService,
 		taskRepo:      taskRepo,
 		executionRepo: executionRepo,
-		dueQueue:      NewMemDueQueue(),
+		options:       opts,
+		schedulerID:   newSchedulerInstanceID(),
+		workerSlots:   make(chan struct{}, opts.MaxConcurrency),
+	}
+}
+
+func (s *ScheduledTaskService) availableWorkerSlots() int {
+	if cap(s.workerSlots) == 0 {
+		return 0
+	}
+	return cap(s.workerSlots) - len(s.workerSlots)
+}
+
+func (s *ScheduledTaskService) tryAcquireWorkerSlot() bool {
+	select {
+	case s.workerSlots <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *ScheduledTaskService) releaseWorkerSlot() {
+	select {
+	case <-s.workerSlots:
+	default:
 	}
 }
 
@@ -157,9 +221,6 @@ func (s *ScheduledTaskService) Create(ctx context.Context, req *dto.CreateSchedu
 	if err := s.taskRepo.Create(task); err != nil {
 		return nil, err
 	}
-	if task.NextRunAt != nil {
-		s.dueQueue.Push(task.ID, *task.NextRunAt)
-	}
 	return task, nil
 }
 
@@ -177,11 +238,7 @@ func (s *ScheduledTaskService) List(ctx context.Context, createdBy string, statu
 
 // Cancel 取消任务（仅创建人可取消）
 func (s *ScheduledTaskService) Cancel(ctx context.Context, id int64, createdBy string) error {
-	if err := s.taskRepo.Cancel(id, createdBy); err != nil {
-		return err
-	}
-	s.dueQueue.Remove(id)
-	return nil
+	return s.taskRepo.Cancel(id, createdBy)
 }
 
 // ListExecutions 某任务的执行记录（仅创建人可查）
@@ -203,22 +260,22 @@ func (s *ScheduledTaskService) ListExecutions(ctx context.Context, taskID int64,
 	return s.executionRepo.ListByTaskID(taskID, status, offset, pageSize)
 }
 
-// StartScheduler 启动调度器，应在 server 启动时调用
-// 使用 DueQueue（按 next_run_at 排序）：每次 tick 取 score<=now 的任务执行，避免固定间隔漏执行；
-// tick 间隔 1 秒，到点任务最多延迟约 1 秒被执行
+// StartScheduler 启动调度器，应在 worker 或 app-server 启动时调用。
+// 调度源以 DB 为准：每次轮询查询到点且无有效租约的任务，再用原子更新抢占租约，
+// 这样即使多实例并发运行，也只有抢到租约的实例会实际执行该任务。
 func (s *ScheduledTaskService) StartScheduler(ctx context.Context) {
-	// 启动时从 DB 同步待执行任务到队列
-	pending, err := s.taskRepo.ListAllPending()
-	if err != nil {
-		logger.Errorf(ctx, "[ScheduledTask] ListAllPending on start err: %v", err)
-	} else {
-		s.dueQueue.Sync(pending)
-	}
-	ticker := time.NewTicker(1 * time.Second)
+	logger.Infof(ctx, "[ScheduledTask] Scheduler loop started: worker=%s poll_interval=%s batch_size=%d lease_duration=%s max_concurrency=%d",
+		s.schedulerID, s.options.PollInterval, s.options.BatchSize, s.options.LeaseDuration, s.options.MaxConcurrency)
+	s.runDueTasks(ctx)
+	ticker := time.NewTicker(s.options.PollInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
+			logger.Infof(ctx, "[ScheduledTask] Scheduler stopping: worker=%s waiting_inflight=%d",
+				s.schedulerID, len(s.workerSlots))
+			s.runWG.Wait()
+			logger.Infof(ctx, "[ScheduledTask] Scheduler stopped: worker=%s", s.schedulerID)
 			return
 		case <-ticker.C:
 			s.runDueTasks(ctx)
@@ -226,39 +283,63 @@ func (s *ScheduledTaskService) StartScheduler(ctx context.Context) {
 	}
 }
 
-// runDueTasks 从 DueQueue 取已到点任务执行（next_run_at <= now），执行后若仍 pending 则把新 next_run_at 推回队列
+// runDueTasks 查询到点任务并抢占租约，抢占成功的实例负责执行。
 func (s *ScheduledTaskService) runDueTasks(ctx context.Context) {
+	availableSlots := s.availableWorkerSlots()
+	if availableSlots <= 0 {
+		return
+	}
+	limit := s.options.BatchSize
+	if limit <= 0 || limit > availableSlots {
+		limit = availableSlots
+	}
 	now := time.Now()
-	ids := s.dueQueue.PopDue(now)
-	for _, id := range ids {
-		task, err := s.taskRepo.GetByID(id)
-		if err != nil || task == nil {
+	tasks, err := s.taskRepo.ListPendingDue(now, limit)
+	if err != nil {
+		logger.Errorf(ctx, "[ScheduledTask] ListPendingDue err: %v", err)
+		return
+	}
+	for _, task := range tasks {
+		if !s.tryAcquireWorkerSlot() {
+			return
+		}
+		leaseUntil := now.Add(s.options.LeaseDuration)
+		acquired, err := s.taskRepo.TryAcquireLease(task.ID, s.schedulerID, now, leaseUntil)
+		if err != nil {
+			logger.Errorf(ctx, "[ScheduledTask] TryAcquireLease err: task=%d err=%v", task.ID, err)
+			s.releaseWorkerSlot()
 			continue
 		}
-		if task.Status != "pending" || task.NextRunAt == nil {
-			// 可能已被取消或已执行，跳过
+		if !acquired {
+			s.releaseWorkerSlot()
 			continue
 		}
-		if task.NextRunAt.After(now) {
-			// 队列与 DB 时间不一致时自愈：重新按 DB 的 next_run_at 放回队列，避免任务被“拉下”
-			s.dueQueue.Push(task.ID, *task.NextRunAt)
-			continue
-		}
-		s.executeOne(ctx, task)
-		// 执行后 task 已被 updateTaskAfterRun 更新；若仍待执行则推回队列
-		if task.Status == "pending" && task.NextRunAt != nil {
-			s.dueQueue.Push(task.ID, *task.NextRunAt)
-		}
+		task.LeaseOwner = s.schedulerID
+		task.LeaseUntil = &leaseUntil
+		s.runWG.Add(1)
+		go func(task *model.ScheduledTask) {
+			defer s.runWG.Done()
+			defer s.releaseWorkerSlot()
+			s.executeOne(ctx, task)
+		}(task)
 	}
 }
 
 // executeOne 执行一条任务：注入“请求用户”context、用 JWT 生成 Token，再调 RequestApp、写执行记录、更新任务
 func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.ScheduledTask) {
+	taskCtx := context.WithoutCancel(ctx)
 	executedAt := time.Now()
+	elapsedMillis := func() int64 {
+		duration := time.Since(executedAt).Milliseconds()
+		if duration < 0 {
+			return 0
+		}
+		return duration
+	}
 	user, appName, routerPath, err := parseFullCodePath(task.FullCodePath)
 	if err != nil {
-		s.recordExecution(ctx, task, nil, nil, "failed", err.Error(), executedAt)
-		s.updateTaskAfterRun(task, executedAt, false, err.Error())
+		s.recordExecution(taskCtx, task, nil, nil, "failed", err.Error(), "", executedAt, elapsedMillis())
+		s.updateTaskAfterRun(task, task.LeaseOwner, executedAt, false, err.Error())
 		return
 	}
 	// 定时任务无 HTTP 请求，用 WithRequestInfo 一次性注入与 ToContext 一致的 context
@@ -269,7 +350,7 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 			token = t
 		}
 	}
-	runCtx := contextx.WithRequestInfo(ctx, contextx.RequestInfo{
+	runCtx := contextx.WithRequestInfo(taskCtx, contextx.RequestInfo{
 		TraceId:            traceId,
 		RequestUser:        task.RequestUser,
 		Token:              token,
@@ -286,8 +367,9 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 	}
 	req, err := s.buildTaskRequest(runCtx, task, user, appName, routerPath, traceId, token, bodyBytes)
 	if err != nil {
-		s.recordExecution(ctx, task, task.Payload, nil, "failed", err.Error(), executedAt)
-		s.updateTaskAfterRun(task, executedAt, false, err.Error())
+		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, task.Payload, nil, err, traceId, elapsedMillis())
+		s.recordExecution(taskCtx, task, task.Payload, nil, "failed", err.Error(), traceId, executedAt, elapsedMillis())
+		s.updateTaskAfterRun(task, task.LeaseOwner, executedAt, false, err.Error())
 		return
 	}
 
@@ -299,12 +381,33 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 	}
 	reqBody := req.Body
 	if err != nil {
-		s.recordExecution(ctx, task, reqBody, respBody, "failed", err.Error(), executedAt)
-		s.updateTaskAfterRun(task, executedAt, false, err.Error())
+		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, err, traceId, elapsedMillis())
+		s.recordExecution(taskCtx, task, reqBody, respBody, "failed", err.Error(), traceId, executedAt, elapsedMillis())
+		s.updateTaskAfterRun(task, task.LeaseOwner, executedAt, false, err.Error())
 		return
 	}
-	s.recordExecution(ctx, task, reqBody, respBody, "success", "", executedAt)
-	s.updateTaskAfterRun(task, executedAt, true, "")
+	if resp == nil {
+		errMsg := "应用响应为空"
+		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, errors.New(errMsg), traceId, elapsedMillis())
+		s.recordExecution(taskCtx, task, reqBody, respBody, "failed", errMsg, traceId, executedAt, elapsedMillis())
+		s.updateTaskAfterRun(task, task.LeaseOwner, executedAt, false, errMsg)
+		return
+	}
+	if resp.Error != "" || resp.ErrCode != 0 {
+		errMsg := resp.Error
+		if errMsg == "" {
+			errMsg = fmt.Sprintf("应用返回错误码 %d", resp.ErrCode)
+		} else if resp.ErrCode != 0 {
+			errMsg = fmt.Sprintf("%s (err_code=%d)", errMsg, resp.ErrCode)
+		}
+		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, nil, traceId, elapsedMillis())
+		s.recordExecution(taskCtx, task, reqBody, respBody, "failed", errMsg, traceId, executedAt, elapsedMillis())
+		s.updateTaskAfterRun(task, task.LeaseOwner, executedAt, false, errMsg)
+		return
+	}
+	s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, nil, traceId, elapsedMillis())
+	s.recordExecution(taskCtx, task, reqBody, respBody, "success", "", traceId, executedAt, elapsedMillis())
+	s.updateTaskAfterRun(task, task.LeaseOwner, executedAt, true, "")
 }
 
 func (s *ScheduledTaskService) buildTaskRequest(ctx context.Context, task *model.ScheduledTask, user, appName, routerPath, traceID, token string, bodyBytes []byte) (*dto.RequestAppReq, error) {
@@ -463,23 +566,100 @@ func (s *ScheduledTaskService) buildTableCallbackReq(user, appName, routerPath, 
 	}, nil
 }
 
-func (s *ScheduledTaskService) recordExecution(ctx context.Context, task *model.ScheduledTask, requestPayload, responsePayload []byte, status, errMsg string, executedAt time.Time) {
+func (s *ScheduledTaskService) recordExecution(ctx context.Context, task *model.ScheduledTask, requestPayload, responsePayload []byte, status, errMsg, traceID string, executedAt time.Time, durationMillis int64) {
 	exec := &model.ScheduledTaskExecution{
 		TaskID:          task.ID,
 		ExecutedAt:      executedAt,
 		Status:          status,
+		DurationMillis:  durationMillis,
 		RequestPayload:  requestPayload,
 		ResponsePayload: responsePayload,
 		ErrorMessage:    errMsg,
+		TraceID:         traceID,
 	}
 	if err := s.executionRepo.Create(exec); err != nil {
 		logger.Errorf(ctx, "[ScheduledTask] Create execution record err: %v", err)
 	}
 }
 
-func (s *ScheduledTaskService) updateTaskAfterRun(task *model.ScheduledTask, executedAt time.Time, success bool, errMsg string) {
+func (s *ScheduledTaskService) recordFunctionOperateLog(ctx context.Context, task *model.ScheduledTask, user, appName, routerPath string, requestPayload []byte, resp *dto.RequestAppResp, requestErr error, traceID string, durationMillis int64) {
+	action, err := normalizeScheduledTaskAction(task.Action)
+	if err != nil || action != ScheduledTaskActionExecute {
+		return
+	}
+
+	logReq := &dto.RecordFormOperateLogReq{
+		TenantUser:     user,
+		RequestUser:    task.RequestUser,
+		App:            appName,
+		Router:         routerPath,
+		Source:         "scheduled_task",
+		Action:         "form_submit",
+		FunctionMethod: task.Method,
+		RequestBody:    requestPayload,
+		ResponseBody:   buildScheduledTaskOperateLogResponseBody(resp, requestErr, durationMillis),
+		UserAgent:      "scheduled-task",
+		TraceID:        traceID,
+	}
+	if resp != nil {
+		logReq.Version = resp.Version
+	}
+
+	if err := s.appService.RecordFormOperateLog(ctx, logReq); err != nil {
+		logger.Warnf(ctx, "[ScheduledTask] Record form operate log failed: task=%d err=%v", task.ID, err)
+	}
+}
+
+func buildScheduledTaskOperateLogResponseBody(resp *dto.RequestAppResp, err error, totalCostMill int64) []byte {
+	payload := map[string]interface{}{
+		"code": 0,
+	}
+	if totalCostMill >= 0 {
+		payload["total_cost_mill"] = totalCostMill
+	}
+
+	switch {
+	case resp != nil:
+		payload["code"] = resp.ErrCode
+		if resp.TraceId != "" {
+			payload["trace_id"] = resp.TraceId
+		}
+		if resp.Version != "" {
+			payload["version"] = resp.Version
+		}
+		if resp.Result != nil {
+			payload["result"] = resp.Result
+		}
+		if resp.Error != "" {
+			payload["msg"] = resp.Error
+			payload["error"] = resp.Error
+		}
+	case err != nil:
+		payload["code"] = 1
+		payload["msg"] = err.Error()
+		payload["error"] = err.Error()
+	}
+
+	data, marshalErr := json.Marshal(payload)
+	if marshalErr != nil {
+		fallback := map[string]interface{}{
+			"code": 1,
+			"msg":  "marshal scheduled task operate log response failed",
+		}
+		if err != nil {
+			fallback["msg"] = err.Error()
+			fallback["error"] = err.Error()
+		}
+		data, _ = json.Marshal(fallback)
+	}
+	return data
+}
+
+func (s *ScheduledTaskService) updateTaskAfterRun(task *model.ScheduledTask, leaseOwner string, executedAt time.Time, success bool, errMsg string) {
 	task.RunCount++
 	task.ErrorMessage = errMsg
+	task.LeaseOwner = ""
+	task.LeaseUntil = nil
 	if !success {
 		// 周期任务失败后继续调度，避免临时抖动导致任务永久停掉
 		switch task.ScheduleType {
@@ -519,8 +699,11 @@ func (s *ScheduledTaskService) updateTaskAfterRun(task *model.ScheduledTask, exe
 			task.Status = "failed"
 			task.NextRunAt = nil
 		}
-		if err := s.taskRepo.Update(task); err != nil {
+		updated, err := s.taskRepo.UpdateAfterRun(task, leaseOwner)
+		if err != nil {
 			logger.Errorf(context.Background(), "[ScheduledTask] Update task err: %v", err)
+		} else if !updated {
+			logger.Warnf(context.Background(), "[ScheduledTask] Skip stale run result: task=%d worker=%s", task.ID, leaseOwner)
 		}
 		return
 	}
@@ -563,8 +746,11 @@ func (s *ScheduledTaskService) updateTaskAfterRun(task *model.ScheduledTask, exe
 		task.Status = "done"
 		task.NextRunAt = nil
 	}
-	if err := s.taskRepo.Update(task); err != nil {
+	updated, err := s.taskRepo.UpdateAfterRun(task, leaseOwner)
+	if err != nil {
 		logger.Errorf(context.Background(), "[ScheduledTask] Update task err: %v", err)
+	} else if !updated {
+		logger.Warnf(context.Background(), "[ScheduledTask] Skip stale run result: task=%d worker=%s", task.ID, leaseOwner)
 	}
 }
 

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"golang.org/x/net/html"
 )
@@ -18,18 +17,13 @@ const (
 
 // searchBing 请求必应（cn.bing.com）HTML 搜索页并解析结果，国内可直接访问
 func searchBing(ctx context.Context, keyword string, limit int) ([]Result, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, bingSearchURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	applyBingSearchHeaders(req)
-	q := req.URL.Query()
-	q.Set("q", keyword)
-	q.Set("count", "20")
-	req.URL.RawQuery = q.Encode()
-
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := doGET(ctx, searchHTTPClient, bingSearchURL, func(req *http.Request) {
+		applyBingSearchHeaders(req)
+		q := req.URL.Query()
+		q.Set("q", keyword)
+		q.Set("count", "20")
+		req.URL.RawQuery = q.Encode()
+	})
 	if err != nil {
 		return nil, err
 	}

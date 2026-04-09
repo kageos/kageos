@@ -12,17 +12,20 @@ import (
 )
 
 func (s *Server) setupRoutes() {
-	s.httpServer.GET("/", s.consoleHandler)
-	s.httpServer.GET("/backup", s.consoleHandler)
+	protected := s.protectedHandlers()
+
+	s.httpServer.GET("/", append(protected, s.consoleHandler)...)
+	s.httpServer.GET("/backup", append(protected, s.consoleHandler)...)
 	s.httpServer.GET("/health", s.healthHandler)
 
-	apiV1 := s.httpServer.Group("/backup/api/v1")
+	apiV1 := s.httpServer.Group("/backup/api/v1", protected...)
 	apiV1.GET("/status", s.statusHandler)
 	apiV1.GET("/tasks", s.listTasksHandler)
 	apiV1.GET("/tasks/:id", s.getTaskHandler)
 	apiV1.GET("/snapshots", s.listSnapshotsHandler)
 	apiV1.GET("/snapshots/:id", s.getSnapshotHandler)
 	apiV1.DELETE("/snapshots/:id", s.deleteSnapshotHandler)
+	apiV1.POST("/snapshots/prune", s.pruneSnapshotsHandler)
 	apiV1.POST("/precheck", s.precheckHandler)
 	apiV1.POST("/maintenance", s.maintenanceHandler)
 	apiV1.POST("/namespace/snapshots", s.namespaceSnapshotHandler)
@@ -132,6 +135,39 @@ func (s *Server) deleteSnapshotHandler(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		case errors.Is(err, gorm.ErrRecordNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"error": "snapshot not found"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, task)
+}
+
+func (s *Server) pruneSnapshotsHandler(c *gin.Context) {
+	var req struct {
+		RequestedBy  string `json:"requested_by"`
+		Note         string `json:"note"`
+		ResourceType string `json:"resource_type"`
+		Source       string `json:"source"`
+		KeepLatest   int    `json:"keep_latest"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.ResourceType == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "resource_type is required"})
+		return
+	}
+
+	task, err := s.controlPlane.PruneSnapshots(c.Request.Context(), req.RequestedBy, req.Note, req.ResourceType, req.Source, req.KeepLatest)
+	if err != nil {
+		switch {
+		case errors.Is(err, backupservice.ErrTaskAlreadyRunning):
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		case errors.Is(err, backupservice.ErrInvalidSnapshotResource):
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		}

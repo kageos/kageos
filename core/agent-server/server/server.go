@@ -28,7 +28,7 @@ type Server struct {
 	// 核心组件
 	db         *gorm.DB
 	httpServer *gin.Engine
-	natsConn   *nats.Conn // NATS 连接，用于 plugin 调用
+	natsConn   *nats.Conn // NATS 连接，当前主要供 license client 使用
 
 	// Repository
 	llmRepo     *repository.LLMRepository
@@ -61,14 +61,19 @@ func NewServer(cfg *config.AgentServerConfig) (*Server, error) {
 		return nil, fmt.Errorf("failed to init database: %w", err)
 	}
 
-	if err := s.initNATS(ctx); err != nil {
-		return nil, fmt.Errorf("failed to init NATS: %w", err)
-	}
+	controlCfg := s.cfg.GetControlService()
+	if controlCfg.IsEnabled() {
+		if err := s.initNATS(ctx); err != nil {
+			return nil, fmt.Errorf("failed to init NATS: %w", err)
+		}
 
-	// ⭐ 初始化 License Client（在 NATS 初始化之后）
-	if err := s.initLicenseClient(ctx); err != nil {
-		// License Client 初始化失败，记录警告但不中断启动（社区版可以继续运行）
-		logger.Warnf(ctx, "[Server] Failed to init license client: %v, continuing with community edition", err)
+		// ⭐ 初始化 License Client（在 NATS 初始化之后）
+		if err := s.initLicenseClient(ctx); err != nil {
+			// License Client 初始化失败，记录警告但不中断启动（社区版可以继续运行）
+			logger.Warnf(ctx, "[Server] Failed to init license client: %v, continuing with community edition", err)
+		}
+	} else {
+		logger.Infof(ctx, "[Server] Control Service client disabled, skipping NATS initialization")
 	}
 
 	if err := s.initServices(ctx); err != nil {
@@ -79,7 +84,7 @@ func NewServer(cfg *config.AgentServerConfig) (*Server, error) {
 		return nil, fmt.Errorf("failed to init router: %w", err)
 	}
 
-	// NATS 订阅已移除，回调现在通过 HTTP 处理
+	// 当前 agent-server 不注册 NATS 订阅，回调通过 HTTP 处理。
 
 	return s, nil
 }

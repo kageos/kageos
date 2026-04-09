@@ -41,7 +41,7 @@ func NewOperateLog() *OperateLog {
 // @Failure 401 {string} string "未认证"
 // @Failure 403 {string} string "需要企业版 License"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/operate_log/table [get]
+// @Router /workspace/api/v1/operate_log/table [get]
 func (o *OperateLog) GetTableOperateLogs(c *gin.Context) {
 	var req dto.GetTableOperateLogsReq
 	var resp *dto.GetTableOperateLogsResp
@@ -99,7 +99,7 @@ func (o *OperateLog) GetTableOperateLogs(c *gin.Context) {
 // @Failure 401 {string} string "未认证"
 // @Failure 403 {string} string "需要企业版 License"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/operate_log/form [get]
+// @Router /workspace/api/v1/operate_log/form [get]
 func (o *OperateLog) GetFormOperateLogs(c *gin.Context) {
 	var req dto.GetFormOperateLogsReq
 	var resp *dto.GetFormOperateLogsResp

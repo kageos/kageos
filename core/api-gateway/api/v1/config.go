@@ -2,6 +2,7 @@ package v1
 
 import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/ai-agent-os/ai-agent-os/pkg/serviceconfig"
 	"github.com/gin-gonic/gin"
 )
 
@@ -38,9 +39,7 @@ type Service struct {
 func (c *Config) GetConfig(ctx *gin.Context) {
 	cfg := config.GetAPIGatewayConfig()
 
-	// 获取网关地址（从全局配置读取，裸机服务访问）
-	globalConfig := config.GetGlobalSharedConfig()
-	gatewayURL := globalConfig.Gateway.GetBaseURL()
+	gatewayURL := serviceconfig.GetGatewayURL()
 
 	// 构建服务配置
 	services := make(map[string]Service)
@@ -57,8 +56,8 @@ func (c *Config) GetConfig(ctx *gin.Context) {
 		// 构建服务配置
 		services[route.ServiceName] = Service{
 			URL:       gatewayURL, // 通过网关访问
-			Path:      route.Path,  // 路径前缀
-			DirectURL: directURL,   // 直接地址（SDK 内部调用）
+			Path:      route.Path, // 路径前缀
+			DirectURL: directURL,  // 直接地址（SDK 内部调用）
 		}
 	}
 
@@ -69,4 +68,3 @@ func (c *Config) GetConfig(ctx *gin.Context) {
 		Version:  "v1.0.0",
 	})
 }
-

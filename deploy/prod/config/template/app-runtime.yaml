@@ -2,6 +2,7 @@ runtime:
   port: 9093
   log_level: "info"
   debug: false
+  instance_id: ""
 
 timeouts:
   app_server_request: 30

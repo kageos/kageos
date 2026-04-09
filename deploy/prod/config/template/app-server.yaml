@@ -4,6 +4,12 @@ server:
   log_level: "info"
   debug: false
 
+scheduler:
+  poll_interval_seconds: 1
+  batch_size: 50
+  lease_duration_seconds: 360
+  max_concurrency: 4
+
 db:
   type: "mysql"
   host: "127.0.0.1"

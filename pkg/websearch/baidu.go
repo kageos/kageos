@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	"golang.org/x/net/html"
 )
@@ -16,22 +15,17 @@ const baiduSearchURL = "https://www.baidu.com/s"
 
 // searchBaidu 请求百度 HTML 搜索页并解析结果（国内常用；可能遇验证码或空结果，可与必应互为兜底）
 func searchBaidu(ctx context.Context, keyword string, limit int) ([]Result, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baiduSearchURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	applyBaiduSearchHeaders(req)
-	q := req.URL.Query()
-	q.Set("wd", keyword)
-	rn := limit
-	if rn > 50 {
-		rn = 50
-	}
-	q.Set("rn", strconv.Itoa(rn))
-	req.URL.RawQuery = q.Encode()
-
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := doGET(ctx, searchHTTPClient, baiduSearchURL, func(req *http.Request) {
+		applyBaiduSearchHeaders(req)
+		q := req.URL.Query()
+		q.Set("wd", keyword)
+		rn := limit
+		if rn > 50 {
+			rn = 50
+		}
+		q.Set("rn", strconv.Itoa(rn))
+		req.URL.RawQuery = q.Encode()
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -58,6 +58,10 @@ export APP_ENV=dev
 
 建议同时把工作目录设为仓库根目录；如果用 GoLand 直接运行，配置解析也会自动回落到仓库根目录查找 `deploy/dev/config/backup-service.yaml`。
 
+服务本身的集中说明见：
+
+- `core/backup-service/README.md`
+
 ### 2. 起后端
 
 推荐在仓库根目录：

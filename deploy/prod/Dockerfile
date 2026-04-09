@@ -37,6 +37,11 @@ RUN CGO_ENABLED=1 GOOS=linux go build \
 RUN CGO_ENABLED=1 GOOS=linux go build \
     -tags "exclude_graphdriver_btrfs" \
     -ldflags="-s -w" \
+    -o /out/app-scheduler \
+    ./core/app-server/cmd/scheduler/main.go
+RUN CGO_ENABLED=1 GOOS=linux go build \
+    -tags "exclude_graphdriver_btrfs" \
+    -ldflags="-s -w" \
     -o /out/backup-server \
     ./core/backup-service/cmd/app/main.go
 
@@ -109,6 +114,7 @@ ENV GOCACHE="/tmp/go-cache"
 WORKDIR /app
 
 COPY --from=gobuilder /out/core-server /app/core-server
+COPY --from=gobuilder /out/app-scheduler /app/app-scheduler
 COPY --from=gobuilder /out/backup-server /app/backup-server
 COPY --from=gobuilder /src/go.mod /src/go.sum /app/
 COPY --from=gobuilder /src/sdk/ /app/sdk/
@@ -126,8 +132,9 @@ COPY deploy/base/images/app-base/start.sh /app/app-base/start.sh
 COPY deploy/prod/config/template/ /app/config.prod.template/
 COPY deploy/prod/nginx/default.conf.template /app/deploy/prod/nginx/default.conf.template
 COPY deploy/prod/entrypoint-main.sh /app/entrypoint-main.sh
+COPY deploy/prod/entrypoint-scheduler.sh /app/entrypoint-scheduler.sh
 COPY deploy/prod/entrypoint-backup.sh /app/entrypoint-backup.sh
-RUN chmod +x /app/entrypoint-main.sh /app/entrypoint-backup.sh
+RUN chmod +x /app/entrypoint-main.sh /app/entrypoint-scheduler.sh /app/entrypoint-backup.sh
 
 RUN mkdir -p /app/deploy /app/logs /app/namespace \
     /app/data/runtime/app-runtime /app/data/license /app/data/backup/repo \

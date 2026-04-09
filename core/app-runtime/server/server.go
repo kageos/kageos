@@ -225,7 +225,9 @@ func (s *Server) initServices(ctx context.Context) error {
 	appRepo := repository.NewAppRepository(s.db)
 
 	// 初始化应用发现服务（需要在 AppManageService 之前）
-	s.appDiscoveryService = service.NewAppDiscoveryService(s.natsConn, s.cfg.AppManage.AppDir.BasePath)
+	runtimeID := s.cfg.GetRuntimeInstanceID()
+	s.appDiscoveryService = service.NewAppDiscoveryServiceWithRuntimeID(s.natsConn, s.cfg.AppManage.AppDir.BasePath, runtimeID)
+	logger.Infof(ctx, "[Server] App discovery runtime_id=%s", runtimeID)
 
 	// 设置回调函数
 	s.appDiscoveryService.SetCallbacks(

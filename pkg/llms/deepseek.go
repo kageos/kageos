@@ -2,7 +2,6 @@ package llms
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -129,7 +128,7 @@ func (d *DeepSeekClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespo
 		"max_tokens":  req.MaxTokens,
 		"temperature": req.Temperature,
 	}
-	
+
 	// 添加 tools 参数（如果提供）
 	if len(req.Tools) > 0 {
 		apiReq["tools"] = req.Tools
@@ -150,19 +149,7 @@ func (d *DeepSeekClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespo
 	}
 
 	// 🎯 动态创建HTTP客户端，支持请求级别的超时配置
-	timeout := d.Options.Timeout // 默认使用客户端配置的超时时间
-	if req.Timeout != nil && *req.Timeout > 0 {
-		timeout = *req.Timeout // 如果请求中指定了超时时间，则使用请求的超时时间
-	}
-
-	httpClient := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			MaxIdleConns:       d.Options.MaxIdleConns,
-			IdleConnTimeout:    d.Options.IdleConnTimeout,
-			DisableCompression: true,
-		},
-	}
+	httpClient := createHTTPClient(d.Options, resolveRequestTimeout(d.Options, req))
 
 	// 发送HTTP请求
 	jsonData, err := json.Marshal(apiReq)
@@ -170,17 +157,9 @@ func (d *DeepSeekClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespo
 		return nil, fmt.Errorf("序列化请求失败: %v", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", d.BaseURL, bytes.NewBuffer(jsonData))
+	httpReq, err := newBearerJSONRequest(ctx, d.BaseURL, d.APIKey, jsonData, d.Options)
 	if err != nil {
 		return nil, fmt.Errorf("创建HTTP请求失败: %v", err)
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+d.APIKey)
-
-	// 设置自定义User-Agent
-	if d.Options != nil && d.Options.UserAgent != "" {
-		httpReq.Header.Set("User-Agent", d.Options.UserAgent)
 	}
 
 	// 启用日志记录（优化：不打印完整请求体，只记录长度）
@@ -262,7 +241,7 @@ func (d *DeepSeekClient) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 			"temperature": req.Temperature,
 			"stream":      true, // 启用流式
 		}
-		
+
 		// 添加 tools 参数（如果提供）
 		if len(req.Tools) > 0 {
 			apiReq["tools"] = req.Tools
@@ -284,19 +263,7 @@ func (d *DeepSeekClient) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 		}
 
 		// 动态创建HTTP客户端，支持请求级别的超时配置
-		timeout := d.Options.Timeout
-		if req.Timeout != nil && *req.Timeout > 0 {
-			timeout = *req.Timeout
-		}
-
-		httpClient := &http.Client{
-			Timeout: timeout,
-			Transport: &http.Transport{
-				MaxIdleConns:       d.Options.MaxIdleConns,
-				IdleConnTimeout:    d.Options.IdleConnTimeout,
-				DisableCompression: true,
-			},
-		}
+		httpClient := createHTTPClient(d.Options, resolveRequestTimeout(d.Options, req))
 
 		// 序列化请求
 		jsonData, err := json.Marshal(apiReq)
@@ -314,20 +281,13 @@ func (d *DeepSeekClient) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 		}
 
 		// 创建HTTP请求
-		httpReq, err := http.NewRequestWithContext(ctx, "POST", d.BaseURL, bytes.NewBuffer(jsonData))
+		httpReq, err := newBearerJSONRequest(ctx, d.BaseURL, d.APIKey, jsonData, d.Options)
 		if err != nil {
 			chunkChan <- &StreamChunk{
 				Error: fmt.Sprintf("创建HTTP请求失败: %v", err),
 				Done:  true,
 			}
 			return
-		}
-
-		// 设置请求头
-		httpReq.Header.Set("Content-Type", "application/json")
-		httpReq.Header.Set("Authorization", "Bearer "+d.APIKey)
-		if d.Options.UserAgent != "" {
-			httpReq.Header.Set("User-Agent", d.Options.UserAgent)
 		}
 
 		// 发送请求

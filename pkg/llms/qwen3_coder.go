@@ -1,11 +1,9 @@
 package llms
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
@@ -97,7 +95,7 @@ func (q *Qwen3CoderClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRes
 		logger.Infof(ctx, "[Qwen3Coder] 发送请求到: %s, 请求体长度: %d", q.BaseURL, requestLen)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", q.BaseURL, bytes.NewBuffer(jsonData))
+	httpReq, err := newBearerJSONRequest(ctx, q.BaseURL, q.APIKey, jsonData, q.Options)
 	if err != nil {
 		if q.Options != nil && q.Options.EnableLogging {
 			logger.Errorf(ctx, "[Qwen3Coder] %v", err)
@@ -105,18 +103,7 @@ func (q *Qwen3CoderClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRes
 		return nil, fmt.Errorf("创建HTTP请求失败: %v", err)
 	}
 
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+q.APIKey)
-	if q.Options != nil && q.Options.UserAgent != "" {
-		httpReq.Header.Set("User-Agent", q.Options.UserAgent)
-	}
-
-	// 动态创建HTTP客户端，支持请求级别的超时配置
-	timeout := q.Options.Timeout
-	if req.Timeout != nil && *req.Timeout > 0 {
-		timeout = *req.Timeout
-	}
-	httpClient := createHTTPClient(q.Options, timeout)
+	httpClient := createHTTPClient(q.Options, resolveRequestTimeout(q.Options, req))
 
 	resp, err := httpClient.Do(httpReq)
 	if err != nil {

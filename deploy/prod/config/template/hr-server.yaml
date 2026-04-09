@@ -2,6 +2,7 @@ server:
   port: 9097
   log_level: "info"
   debug: false
+  allow_nats_degraded_startup: false
 
 db:
   type: "mysql"

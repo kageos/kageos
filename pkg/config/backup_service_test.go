@@ -149,3 +149,25 @@ func TestBackupServiceConfigCredentialMethodsPreferExplicitConfig(t *testing.T) 
 		t.Fatalf("GetMinIOSecretKey() = %q", got)
 	}
 }
+
+func TestBackupServiceConfigBasicAuthMethodsPreferExplicitConfig(t *testing.T) {
+	t.Parallel()
+
+	cfg := &BackupServiceConfig{}
+	cfg.Auth.Username = "backup-admin"
+	cfg.Auth.Password = "backup-admin-pass"
+	cfg.Auth.Realm = "Backup Realm"
+
+	if got := cfg.GetBasicAuthUsername(); got != "backup-admin" {
+		t.Fatalf("GetBasicAuthUsername() = %q", got)
+	}
+	if got := cfg.GetBasicAuthPassword(); got != "backup-admin-pass" {
+		t.Fatalf("GetBasicAuthPassword() = %q", got)
+	}
+	if got := cfg.GetBasicAuthRealm(); got != "Backup Realm" {
+		t.Fatalf("GetBasicAuthRealm() = %q", got)
+	}
+	if !cfg.IsBasicAuthEnabled() {
+		t.Fatal("IsBasicAuthEnabled() = false, want true")
+	}
+}

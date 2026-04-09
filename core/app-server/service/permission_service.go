@@ -259,46 +259,42 @@ func (s *PermissionService) GetUserRoles(ctx context.Context, req *dto.GetUserRo
 func (s *PermissionService) GetDepartmentRoles(ctx context.Context, req *dto.GetDepartmentRolesReq) (*dto.GetDepartmentRolesResp, error) {
 	return s.permissionBackend().GetDepartmentRoles(ctx, req)
 }
+
 func (s *PermissionService) GetRolesForPermissionRequest(ctx context.Context, req *dto.GetRolesForPermissionRequestReq) (*dto.GetRolesForPermissionRequestResp, error) {
 	return s.permissionBackend().GetRolesForPermissionRequest(ctx, req)
 }
 
 // CreatePermissionRequest 创建权限申请
 func (s *PermissionService) CreatePermissionRequest(ctx context.Context, req *dto.CreatePermissionRequestReq) (*dto.CreatePermissionRequestResp, error) {
-	// 获取当前用户名
 	username := contextx.GetRequestUser(ctx)
 	if username == "" {
 		return nil, fmt.Errorf("无法获取当前用户信息")
 	}
 
-	// 处理时间字段：dto 已经使用 models.Time，直接使用
 	startTime := req.StartTime
 	if time.Time(startTime).IsZero() {
-		startTime = models.Time(time.Now()) // 默认为当前时间
+		startTime = models.Time(time.Now())
 	}
-	endTime := req.EndTime // dto.CreatePermissionRequestReq.EndTime 已经是 *models.Time
+	endTime := req.EndTime
 
-	// 构建企业版请求（添加 ApplicantUsername）
 	enterpriseReq := &dto.CreatePermissionRequestReq{
-		AppID:             req.AppID, // ⭐ 传递 AppID（从 resourcePath 解析得到）
+		AppID:             req.AppID,
 		ResourcePath:      req.ResourcePath,
-		RoleID:            req.RoleID, // ⭐ 角色ID（必填）
+		RoleID:            req.RoleID,
 		SubjectType:       req.SubjectType,
 		Subject:           req.Subject,
-		ApplicantUsername: username,  // ⭐ 从 context 获取的申请人用户名
-		StartTime:         startTime, // ⭐ 使用 models.Time
-		EndTime:           endTime,   // ⭐ 使用 *models.Time（nil 表示永久）
+		ApplicantUsername: username,
+		StartTime:         startTime,
+		EndTime:           endTime,
 		Reason:            req.Reason,
 	}
 
-	// 调用企业版接口
 	backend := s.permissionBackend()
 	requestID, err := backend.CreatePermissionRequest(ctx, enterpriseReq)
 	if err != nil {
 		return nil, fmt.Errorf("创建权限申请失败: %w", err)
 	}
 
-	// ⭐ 若申请人是该资源的审批人之一，直接通过，不增加 pending_count
 	approvers, _ := s.getApproversForResource(ctx, req.AppID, req.ResourcePath)
 	autoApproved := false
 	for _, a := range approvers {
@@ -315,9 +311,7 @@ func (s *PermissionService) CreatePermissionRequest(ctx context.Context, req *dt
 		}
 	}
 	if !autoApproved {
-		// ⭐ 更新对应节点的 pending_count（+1）
 		if err := s.updateServiceTreePendingCount(ctx, req.AppID, req.ResourcePath, 1); err != nil {
-			// 记录日志，但不影响申请创建
 			logger.Warnf(ctx, "[PermissionService] 更新节点 pending_count 失败: app_id=%d, resource_path=%s, error=%v",
 				req.AppID, req.ResourcePath, err)
 		}

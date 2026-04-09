@@ -10,9 +10,10 @@
  * - 解决当前架构的重复调用问题
  */
 
-import type { IFunctionLoader, FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
+import type { IFunctionLoader } from '../../domain/interfaces/IFunctionLoader'
 import type { IApiClient } from '../../domain/interfaces/IApiClient'
 import type { ICacheManager } from '../../domain/interfaces/ICacheManager'
+import type { FunctionDetail } from '../../domain/types'
 
 /**
  * 函数加载器实现

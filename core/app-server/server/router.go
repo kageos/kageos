@@ -35,27 +35,11 @@ func (s *Server) setupRoutes() {
 	appHandler := v1.NewApp(s.appService, s.serviceTreeService)
 	app.GET("/list", appHandler.GetApps)
 	app.GET("/detail", appHandler.GetAppDetail)
-	app.GET("/detail/:app", appHandler.GetAppDetail)
 	app.GET("/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
-	// ⭐ 服务树接口：canonical 入口使用 query resource_path=/user/app，路径参数路由仅保留兼容
-	app.GET("/:user/:app/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
 	app.DELETE("/delete", middleware2.CheckAppDelete(), appHandler.DeleteApp)
 	app.POST("/create", appHandler.CreateApp)
 	app.POST("/update", appHandler.UpdateApp)
-	// ⭐ 更新应用接口（debug 功能，生产环境不存在，无需权限检查）
-	app.POST("/update/:user/:app", appHandler.UpdateApp)
 	app.PUT("/workspace", appHandler.UpdateWorkspace)
-	// ⭐ 更新工作空间接口（只更新 MySQL 记录，不涉及容器更新，需要 app:admin 权限）
-	//app.PUT("/workspace/:user/:app", middleware2.CheckWorkspaceUpdate(), appHandler.UpdateWorkspace)
-	app.PUT("/workspace/:user/:app", appHandler.UpdateWorkspace)
-	// ⭐ 添加应用删除权限检查
-	app.DELETE("/delete/:app", middleware2.CheckAppDelete(), appHandler.DeleteApp)
-	// ⭐ 旧的回调接口（已注释，改用标准接口）
-	// callback := apiV1.Group("/callback")
-	// callback.Use(middleware2.JWTAuth())
-	// // ⭐ 添加回调接口权限检查
-	// callback.Use(middleware2.CheckCallback())
-	// callback.POST("/*router", appHandler.CallbackApp)
 
 	// 服务目录管理路由（需要JWT验证）
 	serviceTree := apiV1.Group("/service_tree")
@@ -63,20 +47,13 @@ func (s *Server) setupRoutes() {
 
 	// 需要JWT验证的路由
 	serviceTreeAuth := serviceTree.Group("")
-	serviceTreeAuth.Use(middleware2.JWTAuth()) // 服务目录管理需要JWT认证
-	serviceTreeAuth.POST("", serviceTreeHandler.CreateServiceTree)
-	// 服务树接口使用 gzip 压缩
-	serviceTreeAuth.GET("", middleware2.Gzip(), serviceTreeHandler.GetServiceTree)
-	serviceTreeAuth.GET("/detail", serviceTreeHandler.GetServiceTreeDetail)      // ⭐ 获取服务目录详情（包含权限，兼容旧接口）
-	serviceTreeAuth.GET("/package_info", serviceTreeHandler.GetPackageInfo)      // ⭐ 获取目录信息（仅用于获取目录权限，函数权限从函数详情接口获取）
-	serviceTreeAuth.GET("/search_functions", serviceTreeHandler.SearchFunctions) // ⭐ 搜索函数
-	serviceTreeAuth.PUT("", serviceTreeHandler.UpdateServiceTree)
-	serviceTreeAuth.DELETE("", serviceTreeHandler.DeleteServiceTree)
+	serviceTreeAuth.Use(middleware2.JWTAuth())                                              // 服务目录管理需要JWT认证
+	serviceTreeAuth.GET("/detail", serviceTreeHandler.GetServiceTreeDetail)                 // ⭐ 获取服务目录详情（包含权限，兼容旧接口）
+	serviceTreeAuth.GET("/search_functions", serviceTreeHandler.SearchFunctions)            // ⭐ 搜索函数
 	serviceTreeAuth.POST("/copy", serviceTreeHandler.CopyServiceTree)                       // 复制服务目录
 	serviceTreeAuth.POST("/publish_to_hub", serviceTreeHandler.PublishDirectoryToHub)       // 发布目录到 Hub
 	serviceTreeAuth.POST("/push_to_hub", serviceTreeHandler.PushDirectoryToHub)             // 推送目录到 Hub（更新已发布的目录）
 	serviceTreeAuth.GET("/hub_push_form_info", serviceTreeHandler.GetHubPushFormInfo)       // 获取推送表单信息（预填 + 下一版本号）
-	serviceTreeAuth.GET("/hub_info", serviceTreeHandler.GetHubInfo)                         // 获取目录的 Hub 信息
 	serviceTreeAuth.POST("/pull_from_hub", serviceTreeHandler.PullDirectoryFromHub)         // 从 Hub 拉取目录
 	serviceTreeAuth.POST("/import_hub_bundle", serviceTreeHandler.ImportHubDirectoryBundle) // 从离线 JSON 包安装目录
 
@@ -148,8 +125,6 @@ func (s *Server) setupRoutes() {
 	function := apiV1.Group("/function")
 	function.Use(middleware2.JWTAuth()) // 函数管理需要JWT认证
 	functionHandler := v1.NewFunction(s.functionService)
-	// ⭐ /list 路由放在通配符路由之前，避免路由冲突
-	function.GET("/list", functionHandler.GetFunctionsByApp)
 	// ⭐ 使用 /info/:func-type/*full-code-path 作为路径参数，函数类型直接从 URL 路径获取
 	// ⭐ 这样后端无需查询数据库即可构造权限点（table:read、form:read、chart:read）
 	function.GET("/info/:func-type/*full-code-path", middleware2.CheckFunctionRead(), functionHandler.GetFunction)

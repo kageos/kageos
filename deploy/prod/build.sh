@@ -17,9 +17,11 @@ usage() {
 
 命令：
   up            首次部署 / 全量重建（默认）
-  update        仅重建并更新 main / backup 服务，不重启 MySQL / NATS / MinIO
-  pull-update   git pull --ff-only 后，仅重建并更新 main / backup 服务
+  update        仅重建并更新 main / scheduler / backup 服务，不重启 MySQL / NATS / MinIO
+  pull-update   git pull --ff-only 后，仅重建并更新 main / scheduler / backup 服务
   restart-main  仅重启 main 服务，不重建镜像
+  restart-scheduler
+                仅重启 scheduler 服务，不重建镜像
   build-app-base [--no-cache]
                 在 main 容器内单独构建用户应用基础镜像 ai-agent-os:latest
   logs [svc]    查看日志，默认 main
@@ -136,6 +138,8 @@ validate_env() {
   require_env_key CONTROL_ENC_KEY
   require_env_key MINIO_ROOT_USER
   require_env_key MINIO_ROOT_PASSWORD
+  require_env_key BACKUP_BASIC_AUTH_USERNAME
+  require_env_key BACKUP_BASIC_AUTH_PASSWORD
   require_env_key MAIN_IMAGE
   STORAGE_ROOT="$(read_env_value STORAGE_ROOT)"
   if [[ "$STORAGE_ROOT" != /* ]]; then
@@ -217,8 +221,8 @@ cmd_update() {
   print_storage_mode
   stop_host_nginx_if_needed
   prepare_storage_layout
-  echo "==> 仅重建并更新 main / backup 服务（不重启中间件）..."
-  compose_run up -d --build --no-deps main backup
+  echo "==> 仅重建并更新 main / scheduler / backup 服务（不重启中间件）..."
+  compose_run up -d --build --no-deps main scheduler backup
   print_success
 }
 
@@ -238,6 +242,17 @@ cmd_restart_main() {
   prepare_storage_layout
   echo "==> 重启 main 服务..."
   compose_run restart main
+  print_success
+}
+
+cmd_restart_scheduler() {
+  validate_env
+  ensure_compose_cmd
+  echo "==> 使用: ${COMPOSE_CMD[*]}"
+  print_storage_mode
+  prepare_storage_layout
+  echo "==> 重启 scheduler 服务..."
+  compose_run restart scheduler
   print_success
 }
 
@@ -297,6 +312,9 @@ case "$COMMAND" in
     ;;
   restart-main)
     cmd_restart_main
+    ;;
+  restart-scheduler)
+    cmd_restart_scheduler
     ;;
   build-app-base)
     cmd_build_app_base

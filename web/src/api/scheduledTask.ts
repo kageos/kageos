@@ -57,6 +57,7 @@ export interface ScheduledTaskExecutionItem {
   task_id: number
   executed_at: string
   status: string
+  duration_millis?: number
   request_payload: string
   response_payload: string
   error_message?: string

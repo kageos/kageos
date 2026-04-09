@@ -1,7 +1,6 @@
 package llms
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -141,7 +140,7 @@ func (c *ClaudeClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespons
 	}
 
 	// 创建HTTP请求
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL, bytes.NewBuffer(jsonData))
+	httpReq, err := newBearerJSONRequest(ctx, c.BaseURL, c.APIKey, jsonData, c.Options)
 	if err != nil {
 		if c.Options != nil && c.Options.EnableLogging {
 			logger.Errorf(ctx, "[Claude] %v", err)
@@ -149,19 +148,7 @@ func (c *ClaudeClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespons
 		return nil, fmt.Errorf("创建HTTP请求失败: %v", err)
 	}
 
-	// 设置请求头
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+c.APIKey)
-	if c.Options != nil && c.Options.UserAgent != "" {
-		httpReq.Header.Set("User-Agent", c.Options.UserAgent)
-	}
-
-	// 动态创建HTTP客户端，支持请求级别的超时配置
-	timeout := c.Options.Timeout
-	if req.Timeout != nil && *req.Timeout > 0 {
-		timeout = *req.Timeout
-	}
-	httpClient := createHTTPClient(c.Options, timeout)
+	httpClient := createHTTPClient(c.Options, resolveRequestTimeout(c.Options, req))
 
 	// 发送请求
 	resp, err := httpClient.Do(httpReq)

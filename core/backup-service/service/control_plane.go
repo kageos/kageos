@@ -31,6 +31,7 @@ var (
 	ErrTaskAlreadyRunning      = errors.New("another backup task is already running")
 	ErrMaintenanceModeRequired = errors.New("maintenance mode must be enabled before restore")
 	ErrInvalidRelativePath     = errors.New("invalid relative path")
+	ErrInvalidSnapshotResource = errors.New("invalid snapshot resource type")
 )
 
 type ControlPlane struct {
@@ -180,6 +181,17 @@ type SnapshotDeleteResult struct {
 	DeletedSnapshot SnapshotView `json:"deleted_snapshot"`
 	ArchiveDeleted  bool         `json:"archive_deleted"`
 	ArchiveMissing  bool         `json:"archive_missing"`
+}
+
+type SnapshotPruneResult struct {
+	ResourceType       string  `json:"resource_type"`
+	Source             string  `json:"source"`
+	KeepLatest         int     `json:"keep_latest"`
+	Matched            int     `json:"matched"`
+	Deleted            int     `json:"deleted"`
+	Kept               int     `json:"kept"`
+	MissingArchives    int     `json:"missing_archives"`
+	DeletedSnapshotIDs []int64 `json:"deleted_snapshot_ids,omitempty"`
 }
 
 type minIOSnapshotManifest struct {
@@ -576,6 +588,37 @@ func (c *ControlPlane) DeleteSnapshot(ctx context.Context, requestedBy string, n
 
 		task.Status = backupmodel.TaskStatusSucceeded
 		task.Summary = fmt.Sprintf("快照已删除: #%d", deleteResult.DeletedSnapshot.ID)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	view := toTaskView(task)
+	return &view, nil
+}
+
+func (c *ControlPlane) PruneSnapshots(ctx context.Context, requestedBy string, note string, resourceType string, source string, keepLatest int) (*TaskView, error) {
+	task, err := c.runExclusiveTask(ctx, backupmodel.TaskTypeSnapshotPrune, requestedBy, note, "快照清理执行中", func(task *backupmodel.Task) error {
+		pruneResult, pruneErr := c.pruneSnapshots(ctx, resourceType, source, keepLatest)
+		if pruneErr != nil {
+			task.Status = backupmodel.TaskStatusFailed
+			task.Summary = "快照清理失败"
+			task.ErrorMessage = pruneErr.Error()
+			return pruneErr
+		}
+
+		task.DetailJSON = marshalJSON(pruneResult)
+		if pruneResult.MissingArchives > 0 {
+			task.Status = backupmodel.TaskStatusWarning
+			task.Summary = fmt.Sprintf("快照清理完成，删除 %d 条，%d 条归档原本缺失", pruneResult.Deleted, pruneResult.MissingArchives)
+			return nil
+		}
+		task.Status = backupmodel.TaskStatusSucceeded
+		if pruneResult.Deleted == 0 {
+			task.Summary = fmt.Sprintf("无需清理，当前保留 %d 条 %s 快照", pruneResult.Kept, pruneResult.Source)
+			return nil
+		}
+		task.Summary = fmt.Sprintf("快照清理完成，删除 %d 条，保留 %d 条", pruneResult.Deleted, pruneResult.Kept)
 		return nil
 	})
 	if err != nil {
@@ -1078,6 +1121,50 @@ func (c *ControlPlane) deleteSnapshot(ctx context.Context, snapshotID int64) (*S
 	return result, nil
 }
 
+func (c *ControlPlane) pruneSnapshots(ctx context.Context, resourceType string, source string, keepLatest int) (*SnapshotPruneResult, error) {
+	resourceType = strings.TrimSpace(resourceType)
+	source = strings.TrimSpace(source)
+	if source == "" {
+		source = backupmodel.SnapshotSourcePreRestore
+	}
+	if keepLatest < 0 {
+		keepLatest = 0
+	}
+	if err := validateSnapshotResourceType(resourceType); err != nil {
+		return nil, err
+	}
+
+	snapshots, err := c.store.ListSnapshotsForPrune(ctx, resourceType, source)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &SnapshotPruneResult{
+		ResourceType: resourceType,
+		Source:       source,
+		KeepLatest:   keepLatest,
+		Matched:      len(snapshots),
+	}
+	if len(snapshots) <= keepLatest {
+		result.Kept = len(snapshots)
+		return result, nil
+	}
+
+	result.Kept = keepLatest
+	for _, snapshot := range snapshots[keepLatest:] {
+		deleteResult, err := c.deleteSnapshot(ctx, snapshot.ID)
+		if err != nil {
+			return nil, err
+		}
+		result.Deleted++
+		result.DeletedSnapshotIDs = append(result.DeletedSnapshotIDs, snapshot.ID)
+		if deleteResult.ArchiveMissing {
+			result.MissingArchives++
+		}
+	}
+	return result, nil
+}
+
 func (c *ControlPlane) collectMySQLDatabases(ctx context.Context) ([]string, error) {
 	args, env, err := c.mysqlConnectionArgs()
 	if err != nil {
@@ -1085,8 +1172,10 @@ func (c *ControlPlane) collectMySQLDatabases(ctx context.Context) ([]string, err
 	}
 	args = append(args, "--batch", "--skip-column-names", "--execute", "SHOW DATABASES;")
 
-	cmd := exec.CommandContext(ctx, c.cfg.GetMySQLBinary(), args...)
-	cmd.Env = env
+	cmd, err := c.mysqlCommandContext(ctx, c.cfg.GetMySQLBinary(), args, env)
+	if err != nil {
+		return nil, fmt.Errorf("list mysql databases: %w", err)
+	}
 
 	output, err := cmd.Output()
 	if err != nil {
@@ -1135,8 +1224,10 @@ func (c *ControlPlane) dumpMySQLDatabases(ctx context.Context, databases []strin
 	)
 	args = append(args, databases...)
 
-	cmd := exec.CommandContext(ctx, c.cfg.GetMySQLDumpBinary(), args...)
-	cmd.Env = env
+	cmd, err := c.mysqlCommandContext(ctx, c.cfg.GetMySQLDumpBinary(), args, env)
+	if err != nil {
+		return err
+	}
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -1364,8 +1455,10 @@ func (c *ControlPlane) restoreMySQLDump(ctx context.Context, archivePath string)
 		return err
 	}
 
-	cmd := exec.CommandContext(ctx, c.cfg.GetMySQLBinary(), args...)
-	cmd.Env = env
+	cmd, err := c.mysqlCommandContext(ctx, c.cfg.GetMySQLBinary(), args, env)
+	if err != nil {
+		return err
+	}
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -1400,8 +1493,10 @@ func (c *ControlPlane) execMySQLStatement(ctx context.Context, statement string)
 	}
 	args = append(args, "--batch", "--silent", "--execute", statement)
 
-	cmd := exec.CommandContext(ctx, c.cfg.GetMySQLBinary(), args...)
-	cmd.Env = env
+	cmd, err := c.mysqlCommandContext(ctx, c.cfg.GetMySQLBinary(), args, env)
+	if err != nil {
+		return err
+	}
 
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
@@ -1429,6 +1524,82 @@ func (c *ControlPlane) mysqlConnectionArgs() ([]string, []string, error) {
 	}
 	env := append(os.Environ(), "MYSQL_PWD="+password)
 	return args, env, nil
+}
+
+func (c *ControlPlane) mysqlCommandContext(ctx context.Context, binary string, args []string, env []string) (*exec.Cmd, error) {
+	if path, err := exec.LookPath(binary); err == nil {
+		cmd := exec.CommandContext(ctx, path, args...)
+		cmd.Env = env
+		return cmd, nil
+	}
+
+	spec, ok := c.devMySQLToolSpec(filepath.Base(binary), env)
+	if !ok {
+		return nil, fmt.Errorf("%s executable file not found in $PATH", binary)
+	}
+
+	cmd := exec.CommandContext(ctx, spec.runtime, spec.args(binary, args)...)
+	cmd.Env = os.Environ()
+	return cmd, nil
+}
+
+type devMySQLExecSpec struct {
+	runtime   string
+	container string
+	password  string
+}
+
+func (s devMySQLExecSpec) args(binary string, binaryArgs []string) []string {
+	args := []string{"exec"}
+	if s.password != "" {
+		args = append(args, "-e", "MYSQL_PWD="+s.password)
+	}
+	args = append(args, s.container, filepath.Base(binary))
+	args = append(args, binaryArgs...)
+	return args
+}
+
+func (c *ControlPlane) devMySQLToolSpec(binary string, env []string) (devMySQLExecSpec, bool) {
+	if strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV"))) != "dev" {
+		return devMySQLExecSpec{}, false
+	}
+	base := filepath.Base(binary)
+	if base != "mysql" && base != "mysqldump" {
+		return devMySQLExecSpec{}, false
+	}
+
+	password := mysqlPasswordFromEnv(env)
+	for _, runtime := range []string{"docker", "podman"} {
+		if _, err := exec.LookPath(runtime); err != nil {
+			continue
+		}
+		for _, container := range []string{"ai-agent-os-dev-mysql", "mysql8"} {
+			if !isContainerReachable(runtime, container) {
+				continue
+			}
+			return devMySQLExecSpec{
+				runtime:   runtime,
+				container: container,
+				password:  password,
+			}, true
+		}
+	}
+
+	return devMySQLExecSpec{}, false
+}
+
+func mysqlPasswordFromEnv(env []string) string {
+	for _, item := range env {
+		if strings.HasPrefix(item, "MYSQL_PWD=") {
+			return strings.TrimPrefix(item, "MYSQL_PWD=")
+		}
+	}
+	return ""
+}
+
+func isContainerReachable(runtime string, container string) bool {
+	cmd := exec.Command(runtime, "inspect", container)
+	return cmd.Run() == nil
 }
 
 func escapeMySQLIdentifier(name string) string {
@@ -1532,6 +1703,13 @@ func (c *ControlPlane) buildPrecheckResult() (*PrecheckResult, error) {
 	}
 	for name, binary := range tools {
 		check := inspectBinary(binary)
+		if !check.Exists && (name == "mysql" || name == "mysqldump") {
+			if spec, ok := c.devMySQLToolSpec(binary, []string{"MYSQL_PWD=" + c.cfg.GetMySQLPassword()}); ok {
+				check.Exists = true
+				check.Path = fmt.Sprintf("%s exec %s %s", spec.runtime, spec.container, filepath.Base(binary))
+				check.Error = ""
+			}
+		}
 		result.Tooling[name] = check
 		if !check.Exists {
 			result.Warnings = append(result.Warnings, fmt.Sprintf("%s 未安装，相关备份能力暂不可用", name))
@@ -1982,6 +2160,15 @@ func cleanupEmptyParentDirs(startDir string, stopDir string) error {
 	}
 
 	return nil
+}
+
+func validateSnapshotResourceType(resourceType string) error {
+	switch resourceType {
+	case backupmodel.SnapshotResourceNamespace, backupmodel.SnapshotResourceMySQL, backupmodel.SnapshotResourceMinIO:
+		return nil
+	default:
+		return fmt.Errorf("%w: %s", ErrInvalidSnapshotResource, resourceType)
+	}
 }
 
 func sanitizeRelativePath(input string) (string, error) {
