@@ -8,6 +8,7 @@ import { FormStateManager } from '@/architecture/infrastructure/stateManager/For
 import { useFormDataStore, type FormDataStore } from '@/core/stores-v2/formData'
 import { useResponseDataStore } from '@/core/stores-v2/responseData'
 import { createEmptyFieldValue } from '@/core/utils/createFieldValue'
+import { useAuthStore } from '@/stores/auth'
 
 export function createFormViewRuntime(options: {
   eventBus: IEventBus
@@ -17,7 +18,9 @@ export function createFormViewRuntime(options: {
   const formDataStore = useFormDataStore(scopedFormPinia)
   const responseDataStore = useResponseDataStore(scopedFormPinia)
   const stateManager = new FormStateManager(formDataStore)
-  const domainService = new FormDomainService(stateManager, options.eventBus)
+  const domainService = new FormDomainService(stateManager, options.eventBus, [], {
+    getAuthStore: () => useAuthStore()
+  })
   const applicationService = new FormApplicationService(domainService, options.eventBus, options.apiClient)
 
   return {

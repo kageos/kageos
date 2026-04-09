@@ -21,13 +21,14 @@
 - `cacheManager/`：缓存管理实现
   - `CacheManagerImpl.ts`：内存缓存实现
 - `widgetRegistry/`：Widget 注册表
-  - `WidgetComponentFactory.ts`：Widget 组件工厂（从 `core/factories-v2` 迁移）
+  - `WidgetComponentFactory.ts`：Widget 组件工厂与注册入口
 
 ## 特点
 
 - 实现 Domain Layer 定义的接口
 - 可以轻松替换实现（例如：从内存缓存切换到 Redis 缓存）
 - 提供技术能力，不包含业务逻辑
+- 允许复用 `src/core` 的稳定底座能力，例如提取器、常量、运行时工具
 
 ## 使用示例
 
@@ -37,4 +38,3 @@ import type { IEventBus } from '@/architecture/domain/interfaces/IEventBus'
 
 const eventBus: IEventBus = new EventBusImpl()
 ```
-

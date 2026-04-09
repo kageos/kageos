@@ -1,6 +1,6 @@
 import { SearchType, hasSearchType } from '@/core/constants/search'
 import { WidgetType } from '@/core/constants/widget'
-import type { FieldConfig } from '@/core/types/field'
+import type { FieldConfig } from '@/architecture/domain/types'
 import { parseCommaSeparatedString } from '@/utils/stringUtils'
 
 export function resolveWidgetTypeForSearchRenderer(options: {

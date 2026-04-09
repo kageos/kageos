@@ -19,6 +19,7 @@
 ## 使用规则
 
 - 固定主题使用 `const`
+- `QueueSubscribe` 的 queue group 也统一放在 `pkg/subjects`
 - 动态主题使用 `BuildXxxSubject()`
 - 跨服务收发统一引用 `pkg/subjects`
 - 单个文件内部的订阅装配直接引用常量或 builder
@@ -54,7 +55,7 @@
 
 如果主题名发生调整，需要同时更新：
 
-- [sub.go](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/pkg/subjects/sub.go)
+- `pkg/subjects/*.go`
 - 相关调用方/消费方代码
 - 设计文档和 README
 

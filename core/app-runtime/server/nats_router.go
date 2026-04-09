@@ -22,76 +22,76 @@ func RegisterNATS(ctx context.Context, conn *nats.Conn, subs *[]*nats.Subscripti
 	var sub *nats.Subscription
 
 	// ---------- App ----------
-	sub, err = conn.QueueSubscribe(subjects.RuntimeAppCreateCommandSubject, "app-runtime-create-workers", appH.HandleAppCreate)
+	sub, err = conn.QueueSubscribe(subjects.RuntimeAppCreateCommandSubject, subjects.RuntimeAppCreateQueueGroup, appH.HandleAppCreate)
 	if err != nil {
 		return fmt.Errorf("subscribe app create: %w", err)
 	}
 	*subs = append(*subs, sub)
 
-	sub, err = conn.QueueSubscribe(subjects.RuntimeAppUpdateCommandSubject, "app-runtime-update-workers", appH.HandleAppUpdate)
+	sub, err = conn.QueueSubscribe(subjects.RuntimeAppUpdateCommandSubject, subjects.RuntimeAppUpdateQueueGroup, appH.HandleAppUpdate)
 	if err != nil {
 		return fmt.Errorf("subscribe app update: %w", err)
 	}
 	*subs = append(*subs, sub)
 
-	sub, err = conn.QueueSubscribe(subjects.RuntimeAppDeleteCommandSubject, "app-runtime-delete-workers", appH.HandleAppDelete)
+	sub, err = conn.QueueSubscribe(subjects.RuntimeAppDeleteCommandSubject, subjects.RuntimeAppDeleteQueueGroup, appH.HandleAppDelete)
 	if err != nil {
 		return fmt.Errorf("subscribe app delete: %w", err)
 	}
 	*subs = append(*subs, sub)
 
 	// ---------- ServiceTree ----------
-	sub, err = conn.QueueSubscribe(subjects.RuntimeServiceTreeCreateCommandSubject, "app-runtime-service-tree-workers", serviceTreeH.HandleServiceTreeCreate)
+	sub, err = conn.QueueSubscribe(subjects.RuntimeServiceTreeCreateCommandSubject, subjects.RuntimeServiceTreeCreateQueueGroup, serviceTreeH.HandleServiceTreeCreate)
 	if err != nil {
 		return fmt.Errorf("subscribe service tree create: %w", err)
 	}
 	*subs = append(*subs, sub)
 
-	sub, err = conn.QueueSubscribe(subjects.RuntimeServiceTreeDeleteCommandSubject, "app-runtime-delete-service-tree-workers", serviceTreeH.HandleServiceTreeDelete)
+	sub, err = conn.QueueSubscribe(subjects.RuntimeServiceTreeDeleteCommandSubject, subjects.RuntimeServiceTreeDeleteQueueGroup, serviceTreeH.HandleServiceTreeDelete)
 	if err != nil {
 		return fmt.Errorf("subscribe service tree delete: %w", err)
 	}
 	*subs = append(*subs, sub)
 
-	sub, err = conn.QueueSubscribe(subjects.RuntimeDirectoryTreeBatchCreateCommandSubject, "app-runtime-batch-create-directory-tree-workers", serviceTreeH.HandleBatchCreateDirectoryTree)
+	sub, err = conn.QueueSubscribe(subjects.RuntimeDirectoryTreeBatchCreateCommandSubject, subjects.RuntimeDirectoryTreeBatchCreateQueueGroup, serviceTreeH.HandleBatchCreateDirectoryTree)
 	if err != nil {
 		return fmt.Errorf("subscribe batch create directory tree: %w", err)
 	}
 	*subs = append(*subs, sub)
 
-	sub, err = conn.QueueSubscribe(subjects.RuntimeFileBatchWriteCommandSubject, "app-runtime-batch-write-files-workers", serviceTreeH.HandleBatchWriteFiles)
+	sub, err = conn.QueueSubscribe(subjects.RuntimeFileBatchWriteCommandSubject, subjects.RuntimeFileBatchWriteQueueGroup, serviceTreeH.HandleBatchWriteFiles)
 	if err != nil {
 		return fmt.Errorf("subscribe batch write files: %w", err)
 	}
 	*subs = append(*subs, sub)
 
 	// ---------- Workspace (read/replace/delete file) ----------
-	sub, err = conn.QueueSubscribe(subjects.RuntimeDirectoryFilesReadQuerySubject, "app-runtime-read-directory-files-workers", workspaceH.HandleReadDirectoryFiles)
+	sub, err = conn.QueueSubscribe(subjects.RuntimeDirectoryFilesReadQuerySubject, subjects.RuntimeDirectoryFilesReadQueueGroup, workspaceH.HandleReadDirectoryFiles)
 	if err != nil {
 		return fmt.Errorf("subscribe read directory files: %w", err)
 	}
 	*subs = append(*subs, sub)
 
-	sub, err = conn.QueueSubscribe(subjects.RuntimeFileReplaceBatchCommandSubject, "app-runtime-replace-in-file-batch-workers", workspaceH.HandleReplaceInFileBatch)
+	sub, err = conn.QueueSubscribe(subjects.RuntimeFileReplaceBatchCommandSubject, subjects.RuntimeFileReplaceBatchQueueGroup, workspaceH.HandleReplaceInFileBatch)
 	if err != nil {
 		return fmt.Errorf("subscribe replace in file batch: %w", err)
 	}
 	*subs = append(*subs, sub)
 
-	sub, err = conn.QueueSubscribe(subjects.RuntimeFileDeleteCommandSubject, "app-runtime-delete-file-workers", workspaceH.HandleDeleteFile)
+	sub, err = conn.QueueSubscribe(subjects.RuntimeFileDeleteCommandSubject, subjects.RuntimeFileDeleteQueueGroup, workspaceH.HandleDeleteFile)
 	if err != nil {
 		return fmt.Errorf("subscribe delete file: %w", err)
 	}
 	*subs = append(*subs, sub)
 
-	sub, err = conn.QueueSubscribe(subjects.RuntimeAppLogReadQuerySubject, "app-runtime-read-app-log-workers", workspaceH.HandleReadAppLog)
+	sub, err = conn.QueueSubscribe(subjects.RuntimeAppLogReadQuerySubject, subjects.RuntimeAppLogReadQueueGroup, workspaceH.HandleReadAppLog)
 	if err != nil {
 		return fmt.Errorf("subscribe read app log: %w", err)
 	}
 	*subs = append(*subs, sub)
 
 	// ---------- Request (app-server -> app) ----------
-	sub, err = conn.QueueSubscribe(subjects.RuntimeAppInvokeCommandSubjectPattern, "app-runtime-request-workers", requestH.HandleAppServerInvokeRequest)
+	sub, err = conn.QueueSubscribe(subjects.RuntimeAppInvokeCommandSubjectPattern, subjects.RuntimeAppInvokeQueueGroup, requestH.HandleAppServerInvokeRequest)
 	if err != nil {
 		return fmt.Errorf("subscribe app-server invoke request: %w", err)
 	}

@@ -82,14 +82,13 @@ import { ValidationEngine, createDefaultValidatorRegistry } from '@/core/validat
 import type { ValidationResult as CoreValidationResult } from '@/core/validation'
 import type { ReactiveFormDataManager } from '@/core/managers/ReactiveFormDataManager'
 import { Logger } from '@/core/utils/logger'
-import { getWidgetDefaultValue } from '@/architecture/presentation/widgets/composables/useWidgetDefaultValue'
+import { getWidgetDefaultValue } from '@/core/widgetRuntime/defaultValue'
 import {
   validateFieldValue,
   validateFormWidgetNestedFields,
   validateTableWidgetNestedFields,
   type WidgetValidationContext
-} from '@/architecture/presentation/widgets/composables/useWidgetValidation'
-import { useAuthStore } from '@/stores/auth'
+} from '@/core/widgetRuntime/validation'
 import { createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
 
 export type ValidationResult = CoreValidationResult
@@ -103,6 +102,10 @@ export interface FormState {
   submitting: boolean
   response?: Record<string, any> | null
   metadata?: Record<string, any> | null
+}
+
+export interface FormDomainServiceOptions {
+  getAuthStore?: () => any
 }
 
 /**
@@ -137,7 +140,8 @@ export class FormDomainService {
   constructor(
     private stateManager: IStateManager<FormState>,
     private eventBus: IEventBus,
-    private fields: FieldConfig[] = [] // 字段配置（用于处理依赖）
+    private fields: FieldConfig[] = [], // 字段配置（用于处理依赖）
+    private options: FormDomainServiceOptions = {}
   ) {}
 
   /**
@@ -392,11 +396,10 @@ export class FormDomainService {
 
   /**
    * 获取默认值
-   * 🔥 使用 getWidgetDefaultValue 来解析动态默认值（如 Me(), MyDepartment() 等）
+   * 使用注入的认证上下文解析动态默认值（如 Me(), MyDepartment() 等）
    */
   private getDefaultValue(field: FieldConfig): FieldValue {
-    // 🔥 使用 getWidgetDefaultValue 来获取默认值，它会自动解析动态默认值（如 Me(), MyDepartment()）
-    return getWidgetDefaultValue(field, undefined, () => useAuthStore())
+    return getWidgetDefaultValue(field, undefined, this.options.getAuthStore)
   }
 
   /**

@@ -29,10 +29,17 @@
 ### 1.2 核心特性
 
 - ✅ **动态组件渲染系统**：根据后端配置动态渲染表单、表格等组件
-- ✅ **四层架构设计**：Presentation → Application → Domain → Infrastructure
-- ✅ **完全遵循 SOLID 原则**：高内聚低耦合，易于扩展和维护
-- ✅ **策略模式 + 工厂模式**：支持任意组件类型和数据结构
+- ✅ **分层架构设计**：Presentation → Application → Domain → Infrastructure
+- ✅ **领域导向的工程组织**：主业务页面、流程编排、领域逻辑、基础设施分层清晰
+- ✅ **渐进式收边界**：主页面已迁入 `architecture/`，公共底座仍由 `core/shared/utils` 承担
 - ✅ **事件驱动架构**：组件间通过事件总线解耦
+
+### 1.3 当前状态说明
+
+- 工作空间、工作台等主页面入口已经迁移到 `src/architecture/`
+- `src/core/`、`src/shared/`、`src/utils/` 仍然是当前线上主链路正在使用的公共底座
+- `src/views/` 目前基本只保留错误页等少量遗留页面
+- 因此前端当前真实状态是：**主页面已迁到 `architecture/`，底层能力仍处于混合复用阶段**
 
 ---
 
@@ -73,21 +80,23 @@
 └─────────────────────────────────────────────────────────┘
 ```
 
-### 2.2 核心原则（SOLID）
+### 2.2 核心原则
 
 | 原则 | 说明 | 体现 |
 |------|------|------|
 | **SRP** (单一职责原则) | 每个类/模块只负责一件事 | Domain Service 只负责业务逻辑，不负责 UI 渲染 |
-| **OCP** (开闭原则) | 对扩展开放，对修改封闭 | 新增组件只需注册，无需修改现有代码 |
-| **LSP** (里氏替换原则) | 子类可以替换父类 | 所有提取器实现 IFieldExtractor 接口 |
-| **ISP** (接口隔离原则) | 接口设计简洁 | IStateManager、IEventBus 等接口职责明确 |
-| **DIP** (依赖倒置原则) | 高层模块依赖抽象 | Domain Service 依赖 IStateManager，不依赖具体实现 |
+| **OCP** (开闭原则) | 对扩展开放，对修改封闭 | 新增 Widget 类型主要通过注册表扩展 |
+| **ISP** (接口隔离原则) | 接口设计简洁 | IStateManager、IEventBus、IApiClient 等接口职责明确 |
+| **DIP** (依赖倒置原则) | 高层模块依赖抽象 | Domain/Application 通过接口依赖基础设施 |
+
+> 说明：当前实现是**领域导向的分层架构**，而不是追求教科书式的“纯 DDD / 纯 SOLID”。上线前更重视边界清晰和可维护性，而不是过度抽象。
 
 ### 2.3 设计模式
 
 - **策略模式**：FieldExtractorRegistry（根据字段类型选择不同的提取器）
-- **工厂模式**：WidgetComponentFactory（根据组件类型创建不同的组件）
-- **适配器模式**：FormStateManagerAdapter（适配不同的状态管理接口）
+- **工厂/注册表模式**：WidgetComponentFactory + widgetRegistry（根据组件类型选择组件）
+- **策略模式**：FieldExtractorRegistry（根据字段结构提取提交值）
+- **门面模式**：`src/types`、`architecture/domain/types` 对共享类型做统一出口
 - **观察者模式**：EventBus（事件发布订阅）
 - **单例模式**：Pinia Store（全局状态管理）
 
@@ -97,124 +106,45 @@
 
 ### 3.1 完整目录树
 
-```
+```text
 web/
 ├── src/
-│   ├── architecture/                    # 🏗️ 新架构（四层架构）
-│   │   ├── presentation/                # 表示层
-│   │   │   ├── views/                   # 页面组件
-│   │   │   │   ├── WorkspaceView.vue   # 工作空间主页
-│   │   │   │   ├── FormView.vue        # 表单页面
-│   │   │   │   ├── TableView.vue       # 表格页面
-│   │   │   │   └── DetailView.vue      # 详情页面
-│   │   │   ├── widgets/                 # 表示层组件（高级组件）
-│   │   │   │   └── WidgetComponent.vue # 通用组件包装器
-│   │   │   └── composables/             # 组合式函数
-│   │   │       ├── useFormInitialization.ts
-│   │   │       ├── useTableInitialization.ts
-│   │   │       └── useWorkspaceInitialization.ts
-│   │   ├── application/                 # 应用层
-│   │   │   └── services/                # 应用服务（业务流程编排）
-│   │   │       ├── FormApplicationService.ts      # 表单应用服务
-│   │   │       ├── TableApplicationService.ts     # 表格应用服务
-│   │   │       └── WorkspaceApplicationService.ts # 工作空间应用服务
-│   │   ├── domain/                      # 领域层
-│   │   │   ├── services/                # 领域服务（核心业务逻辑）
-│   │   │   │   ├── FormDomainService.ts      # 表单领域服务
-│   │   │   │   ├── TableDomainService.ts     # 表格领域服务
-│   │   │   │   └── WorkspaceDomainService.ts # 工作空间领域服务
-│   │   │   ├── interfaces/              # 抽象接口（依赖倒置）
-│   │   │   │   ├── IStateManager.ts     # 状态管理接口
-│   │   │   │   ├── IEventBus.ts         # 事件总线接口
-│   │   │   │   ├── IApiClient.ts        # API 客户端接口
-│   │   │   │   ├── IServiceTreeLoader.ts # 服务树加载器接口
-│   │   │   │   └── index.ts             # 统一导出
-│   │   │   └── types/                   # 类型定义
-│   │   │       └── index.ts
-│   │   └── infrastructure/              # 基础设施层
-│   │       ├── api/                     # API 实现
-│   │       │   └── ApiClientImpl.ts
-│   │       ├── eventBus/                # 事件总线实现
-│   │       │   └── EventBusImpl.ts
-│   │       ├── stateManager/            # 状态管理器实现
-│   │       │   ├── StateManagerImpl.ts      # 通用状态管理器
-│   │       │   ├── FormStateManager.ts      # 表单状态管理器
-│   │       │   ├── TableStateManager.ts     # 表格状态管理器
-│   │       │   └── WorkspaceStateManager.ts # 工作空间状态管理器
-│   │       ├── serviceTreeLoader/       # 服务树加载器实现
-│   │       │   └── ServiceTreeLoaderImpl.ts
-│   │       └── factories/               # 工厂类
-│   │           ├── ServiceFactory.ts    # 服务工厂（创建 Domain/Application Service）
-│   │           └── WidgetComponentFactory.ts # 组件工厂（已移到 core/factories-v2）
-│   ├── core/                            # 🎯 核心系统（独立于架构层）
-│   │   ├── widgets-v2/                  # 组件库（新版本）
-│   │   │   ├── components/              # 所有 UI 组件
-│   │   │   │   ├── InputWidget.vue      # 文本输入框
-│   │   │   │   ├── SelectWidget.vue     # 下拉选择
-│   │   │   │   ├── MultiSelectWidget.vue # 多选
-│   │   │   │   ├── NumberWidget.vue     # 数字输入
-│   │   │   │   ├── FormWidget.vue       # 表单（form/struct）
-│   │   │   │   ├── TableWidget.vue      # 表格（table/array）
-│   │   │   │   ├── FilesWidget.vue      # 文件上传
-│   │   │   │   └── ...                  # 其他组件
-│   │   │   └── composables/             # 组件相关的组合式函数
-│   │   │       ├── useTableEditMode.ts  # 表格编辑模式
-│   │   │       └── ...
-│   │   ├── factories-v2/                # 工厂（新版本）
-│   │   │   └── index.ts                 # WidgetComponentFactory 注册所有组件
-│   │   ├── stores-v2/                   # Pinia Store（新版本）
-│   │   │   ├── formData.ts              # 表单数据 Store
-│   │   │   ├── tableData.ts             # 表格数据 Store
-│   │   │   └── extractors/              # 值提取器（策略模式）
-│   │   │       ├── FieldExtractor.ts           # 提取器接口
-│   │   │       ├── FieldExtractorRegistry.ts   # 提取器注册表
-│   │   │       ├── BasicFieldExtractor.ts      # 基础字段提取器
-│   │   │       ├── MultiSelectFieldExtractor.ts # 多选字段提取器
-│   │   │       ├── FormFieldExtractor.ts       # 表单字段提取器
-│   │   │       └── TableFieldExtractor.ts      # 表格字段提取器
-│   │   ├── renderers-v2/                # 渲染器（新版本）
-│   │   │   └── FormRenderer.vue         # 表单渲染器
-│   │   ├── utils/                       # 工具函数
-│   │   │   ├── logger.ts                # 日志工具
-│   │   │   └── ...
-│   │   └── validation/                  # 验证引擎
-│   │       └── ValidationEngine.ts
-│   ├── components/                      # 🧩 通用组件（不属于 widgets）
-│   │   ├── TableRenderer.vue            # 表格渲染器
-│   │   ├── FileUpload.vue               # 文件上传组件
-│   │   ├── SearchInput.vue              # 搜索输入框
-│   │   └── ...
-│   ├── views/                           # 📄 页面（旧架构，保留但不推荐使用）
-│   │   └── layouts/
-│   │       └── MainLayout.vue           # 主布局
-│   ├── router/                          # 🚦 路由
-│   │   └── index.ts
-│   ├── styles/                          # 🎨 样式
-│   │   └── theme.scss
-│   ├── types/                           # 📝 类型定义
-│   │   └── field.ts                     # FieldConfig, FieldValue 等
-│   ├── utils/                           # 🔧 工具函数
-│   │   └── route.ts                     # 路由工具
-│   ├── App.vue                          # 应用入口
-│   └── main.ts                          # 应用启动
-├── docs/                                # 📚 文档
-│   ├── 表单值提取逻辑分析报告.md
-│   └── 值提取和渲染机制完整性分析.md
-└── README.md                            # 本文档
+│   ├── architecture/                    # 主业务架构层（四层架构）
+│   │   ├── application/                 # 应用服务：流程编排
+│   │   ├── domain/                      # 领域服务、接口、类型
+│   │   ├── infrastructure/              # API、事件总线、状态管理、Widget 注册
+│   │   └── presentation/                # views / components / widgets / composables
+│   ├── api/                             # 接口请求封装
+│   ├── core/                            # 当前仍在主链路中使用的基础能力层
+│   │   ├── constants/                   # Widget/Event 等常量
+│   │   ├── managers/                    # 运行期管理器
+│   │   ├── stores-v2/                   # 表单/表格数据存储与值提取
+│   │   ├── types/                       # 核心类型
+│   │   ├── utils/                       # 基础工具函数
+│   │   └── validation/                  # 校验引擎
+│   ├── features/                        # agent / auth / permission / user 等功能模块
+│   ├── shared/                          # 共享组件、富文本与通用展示能力
+│   ├── stores/                          # 全局 Pinia Store
+│   ├── utils/                           # 通用工具函数
+│   ├── router/                          # 路由
+│   ├── views/                           # 遗留页面（当前基本只剩错误页）
+│   ├── App.vue
+│   └── main.ts
+└── README.md
 ```
 
 ### 3.2 目录职责说明
 
-#### 🏗️ architecture/ - 架构目录（新架构）
+#### 🏗️ architecture/ - 主业务架构层
 
-**作用**：实现四层架构，所有业务逻辑都在这里。
+**作用**：承载工作空间、工作台、表单/表格/图表等主业务页面与四层架构实现。
 
 | 子目录 | 职责 | 示例 |
 |--------|------|------|
-| `presentation/` | UI 渲染、用户交互 | WorkspaceView.vue, FormView.vue |
+| `presentation/` | UI 渲染、用户交互、Widget 展示 | WorkspaceView.vue, FormView.vue |
 | `application/` | 业务流程编排 | FormApplicationService |
 | `domain/` | 核心业务逻辑 | FormDomainService, IStateManager |
-| `infrastructure/` | 技术实现 | ApiClientImpl, EventBusImpl |
+| `infrastructure/` | 技术实现、组件注册、状态适配 | widgetRegistry, EventBusImpl |
 
 **何时添加代码**：
 - 新增页面 → `presentation/views/`
@@ -222,30 +152,35 @@ web/
 - 新增业务逻辑 → `domain/services/`
 - 新增基础设施 → `infrastructure/`
 
-#### 🎯 core/ - 核心系统
+#### 🎯 core/ - 基础能力层
 
-**作用**：提供可复用的核心功能，独立于具体业务。
+**作用**：提供当前仍在主链路中使用的稳定基础能力，不应简单视为“旧架构遗留”。
 
 | 子目录 | 职责 | 示例 |
 |--------|------|------|
-| `widgets-v2/` | UI 组件库 | InputWidget.vue, SelectWidget.vue |
-| `factories-v2/` | 工厂类 | WidgetComponentFactory |
 | `stores-v2/` | 状态管理 | formData.ts, extractors/ |
-| `renderers-v2/` | 渲染器 | FormRenderer.vue |
+| `constants/` | 共享常量 | widget.ts |
+| `managers/` | 运行期管理器 | 运行期加载/缓存管理 |
+| `widgetRuntime/` | Widget 默认值、校验等中性运行时能力 | defaultValue.ts, validation.ts |
 | `utils/` | 工具函数 | logger.ts |
 | `validation/` | 验证引擎 | ValidationEngine.ts |
 
 **何时添加代码**：
-- 新增 UI 组件 → `widgets-v2/components/`
 - 新增提取器 → `stores-v2/extractors/`
-- 新增工具函数 → `utils/`
+- 新增基础常量/校验能力 → `constants/` / `validation/`
+- 新增底层工具函数 → `utils/`
 
-#### 🧩 components/ - 通用组件
+#### 🧩 shared/ / features/ / utils/
 
-**作用**：存放不属于 widgets 的通用组件。
+**作用**：
 
-**何时添加代码**：
-- 新增非表单组件（如布局、对话框等）→ `components/`
+- `shared/`：跨业务共享组件、富文本编辑器、通用展示组件
+- `features/`：权限、组织、用户等横向功能模块
+- `utils/`：与具体架构层无关的通用工具函数
+
+#### 📄 views/
+
+**作用**：遗留页面目录。当前主业务路由已切到 `architecture/presentation/views/`，这里只保留少量兼容页面与错误页。
 
 ---
 
@@ -305,7 +240,7 @@ FormRenderer / TableRenderer 遍历字段
   ↓
 WidgetComponent 包装每个字段
   ↓
-WidgetComponentFactory.getComponent(widget.type)
+widgetComponentFactory.getRequestComponent(widget.type, mode)
   ↓ 根据 widget.type 返回对应的 Vue 组件
   ├─ InputWidget (text)
   ├─ SelectWidget (select)
@@ -409,7 +344,7 @@ TableEvent.rowDeleted              // 行删除
 
 #### 步骤 1：创建 Vue 组件
 
-文件位置：`src/core/widgets-v2/components/RichTextEditorWidget.vue`
+文件位置：`src/architecture/presentation/widgets/RichTextEditorWidget.vue`
 
 ```vue
 <template>
@@ -443,7 +378,7 @@ TableEvent.rowDeleted              // 行删除
 </template>
 
 <script setup lang="ts">
-import type { FieldValue } from '@/types/field'
+import type { FieldValue } from '@/architecture/domain/types'
 
 interface Props {
   fieldPath: string
@@ -473,24 +408,28 @@ function truncate(str: string | undefined, len: number): string {
 
 #### 步骤 2：注册组件到工厂
 
-文件位置：`src/core/factories-v2/index.ts`
+文件位置：`src/architecture/infrastructure/widgetRegistry/index.ts`
 
 ```typescript
-import RichTextEditorWidget from '@/core/widgets-v2/components/RichTextEditorWidget.vue'
+import RichTextEditorWidget from '@/architecture/presentation/widgets/RichTextEditorWidget.vue'
+import RichTextResponseWidget from '@/architecture/presentation/widgets/RichTextResponseWidget.vue'
 
-// 注册组件
-widgetFactory.register('rich_text_editor', RichTextEditorWidget)
+// 注册请求参数组件
+widgetComponentFactory.registerRequestComponent('rich_text_editor', RichTextEditorWidget)
+
+// 如需单独的响应展示组件，可同时注册响应组件
+widgetComponentFactory.registerResponseComponent('rich_text_editor', RichTextResponseWidget)
 ```
 
 #### 步骤 3：（可选）创建提取器
 
-**如果需要特殊提取逻辑**（通常简单组件不需要）：
+**如果需要特殊提交提取逻辑**（通常简单组件不需要）：
 
 文件位置：`src/core/stores-v2/extractors/RichTextEditorFieldExtractor.ts`
 
 ```typescript
 import type { IFieldExtractor, FieldExtractorRegistry } from './FieldExtractor'
-import type { FieldConfig } from '@/types/field'
+import type { FieldConfig } from '@/architecture/domain/types'
 
 export class RichTextEditorFieldExtractor implements IFieldExtractor {
   extract(
@@ -910,7 +849,7 @@ onMounted(() => {
    - 在 `src/router/index.ts` 中添加路由
 
 6. **（可选）新增组件**
-   - 在 `src/core/widgets-v2/components/` 中创建工作流相关的组件
+   - 在 `src/architecture/presentation/widgets/` 中创建工作流相关的组件
 
 ---
 
@@ -1328,9 +1267,10 @@ const HeavyComponent = defineAsyncComponent(() =>
 
 **A**: 根据组件类型决定：
 
-- **表单组件（Widget）** → `src/core/widgets-v2/components/`
-- **通用组件（非 Widget）** → `src/components/`
+- **表单组件（Widget）** → `src/architecture/presentation/widgets/`
+- **跨业务共享组件** → `src/shared/components/`
 - **页面组件（View）** → `src/architecture/presentation/views/`
+- **Widget 默认值/校验等运行时能力** → `src/core/widgetRuntime/`
 
 ### Q2: 新增业务逻辑时，应该放在哪一层？
 
@@ -1340,6 +1280,7 @@ const HeavyComponent = defineAsyncComponent(() =>
 - **流程编排** → Application Layer (`src/architecture/application/services/`)
 - **UI 交互** → Presentation Layer (`src/architecture/presentation/views/`)
 - **技术实现** → Infrastructure Layer (`src/architecture/infrastructure/`)
+- **跨业务共享但不属于主页面流程的通用能力** → `src/core/` / `src/shared/` / `src/utils/`
 
 ### Q3: 如何在组件之间通信？
 

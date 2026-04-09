@@ -54,8 +54,14 @@ type BackupServiceConfig struct {
 	} `mapstructure:"tooling"`
 
 	MySQL struct {
-		User string `mapstructure:"user"`
+		User     string `mapstructure:"user"`
+		Password string `mapstructure:"password"`
 	} `mapstructure:"mysql"`
+
+	MinIO struct {
+		AccessKey string `mapstructure:"access_key"`
+		SecretKey string `mapstructure:"secret_key"`
+	} `mapstructure:"minio"`
 }
 
 var (
@@ -138,10 +144,29 @@ func (c *BackupServiceConfig) GetMySQLAddress() string {
 }
 
 func (c *BackupServiceConfig) GetMySQLUser() string {
-	if c.MySQL.User != "" {
-		return c.MySQL.User
+	if value := sanitizeConfigValue(c.MySQL.User); value != "" {
+		return value
+	}
+	if value := sanitizeConfigValue(GetAppStorageConfig().DB.User); value != "" {
+		return value
+	}
+	if value := sanitizeConfigValue(GetAppServerConfig().DB.User); value != "" {
+		return value
 	}
 	return "root"
+}
+
+func (c *BackupServiceConfig) GetMySQLPassword() string {
+	if value := sanitizeConfigValue(c.MySQL.Password); value != "" {
+		return value
+	}
+	if value := sanitizeConfigValue(GetAppStorageConfig().DB.Password); value != "" {
+		return value
+	}
+	if value := sanitizeConfigValue(GetAppServerConfig().DB.Password); value != "" {
+		return value
+	}
+	return sanitizeConfigValue(os.Getenv("MYSQL_ROOT_PASSWORD"))
 }
 
 func (c *BackupServiceConfig) GetMySQLBinary() string {
@@ -156,6 +181,37 @@ func (c *BackupServiceConfig) GetMinIOAddress() string {
 		return c.Dependencies.MinIOAddress
 	}
 	return "minio:9000"
+}
+
+func (c *BackupServiceConfig) GetMinIOAccessKey() string {
+	if value := sanitizeConfigValue(c.MinIO.AccessKey); value != "" {
+		return value
+	}
+	if value := sanitizeConfigValue(GetAppStorageConfig().Storage.MinIO.AccessKey); value != "" {
+		return value
+	}
+	return sanitizeConfigValue(os.Getenv("MINIO_ROOT_USER"))
+}
+
+func (c *BackupServiceConfig) GetMinIOSecretKey() string {
+	if value := sanitizeConfigValue(c.MinIO.SecretKey); value != "" {
+		return value
+	}
+	if value := sanitizeConfigValue(GetAppStorageConfig().Storage.MinIO.SecretKey); value != "" {
+		return value
+	}
+	return sanitizeConfigValue(os.Getenv("MINIO_ROOT_PASSWORD"))
+}
+
+func sanitizeConfigValue(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if strings.HasPrefix(value, "${") && strings.HasSuffix(value, "}") {
+		return ""
+	}
+	return value
 }
 
 func (c *BackupServiceConfig) GetMySQLDumpBinary() string {

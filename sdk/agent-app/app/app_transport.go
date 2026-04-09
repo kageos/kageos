@@ -117,7 +117,7 @@ func (t *AppTransport) RespondUpdateSuccess(msg *nats.Msg, data *DiffData) error
 		Timestamp: time.Now(),
 	}
 
-	return msgx.RespSuccessMsg(msg, rsp)
+	return msgx.RespondJSONSuccess(msg, rsp)
 }
 
 func (t *AppTransport) RespondUpdateError(msg *nats.Msg, message string) error {

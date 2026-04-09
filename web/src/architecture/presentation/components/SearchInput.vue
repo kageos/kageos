@@ -244,7 +244,7 @@ import { WidgetType } from '@/core/constants/widget'
 import { parseCommaSeparatedString } from '@/utils/stringUtils'
 import { isStandardColor, getStandardColorCSSVar, type StandardColorType } from '@/core/constants/select'
 import { Logger } from '@/core/utils/logger'
-import type { FieldConfig } from '@/core/types/field'
+import type { FieldConfig } from '@/architecture/domain/types'
 import { formDataStoreKey, useFormDataStore } from '@/core/stores-v2/formData'
 import {
   buildSearchWidgetField,

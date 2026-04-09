@@ -132,6 +132,10 @@ func (s *Store) GetSnapshot(ctx context.Context, id int64) (*backupmodel.Snapsho
 	return &snapshot, nil
 }
 
+func (s *Store) DeleteSnapshot(ctx context.Context, id int64) error {
+	return s.db.WithContext(ctx).Delete(&backupmodel.Snapshot{}, id).Error
+}
+
 func (s *Store) ListSnapshots(ctx context.Context, resourceType string, limit int) ([]backupmodel.Snapshot, error) {
 	if limit <= 0 {
 		limit = 20

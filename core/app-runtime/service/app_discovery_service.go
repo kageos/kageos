@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,23 +10,17 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/discovery"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/nats-io/nats.go"
 )
 
-//还有一点，就是发起请求时候，需要快速判断当前的版本是否在运行中，（默认请求的就是当前版本）不考虑其他情况，不在运行有两种情况，1 连容器都没运行，这种情况需要启动容器即可以解决问题，2容器在运行，
-//但是目标版本的可执行程序没在运行，这种一般是特殊情况，可能是应用挂了，我们需要像更新那样来钻进容器启动，或者更新的过程中失败了，导致新的没起来，但是版本更新了，旧的还没停掉，这时候新版本流量过来了，我们需要再兜底启动
-
 // AppDiscoveryService 应用发现服务
 type AppDiscoveryService struct {
-	nats        *nats.Conn
-	broadcaster *AppDiscoveryBroadcaster
-	apps        map[string]*discovery.AppInfo
-	mutex       sync.RWMutex
-	ticker      *time.Ticker
-	runtimeID   string
-	sub         *nats.Subscription // 存储订阅对象
-	basePath    string             // 应用基础路径
+	transport *AppDiscoveryTransport
+	apps      map[string]*discovery.AppInfo
+	mutex     sync.RWMutex
+	ticker    *time.Ticker
+	runtimeID string
+	basePath  string // 应用基础路径
 
 	// 回调函数，用于通知其他服务
 	onStartup func(user, app, version string, startTime time.Time)
@@ -37,11 +30,10 @@ type AppDiscoveryService struct {
 // NewAppDiscoveryService 创建应用发现服务
 func NewAppDiscoveryService(natsConn *nats.Conn, basePath string) *AppDiscoveryService {
 	return &AppDiscoveryService{
-		nats:        natsConn,
-		broadcaster: NewAppDiscoveryBroadcaster(natsConn),
-		apps:        make(map[string]*discovery.AppInfo),
-		runtimeID:   "runtime-1", // TODO: 从配置获取
-		basePath:    basePath,
+		transport: NewAppDiscoveryTransport(natsConn),
+		apps:      make(map[string]*discovery.AppInfo),
+		runtimeID: "runtime-1", // TODO: 从配置获取
+		basePath:  basePath,
 	}
 }
 
@@ -53,12 +45,10 @@ func (s *AppDiscoveryService) SetCallbacks(onStartup func(user, app, version str
 
 // Start 启动发现服务
 func (s *AppDiscoveryService) Start() error {
-	// 订阅 Runtime 生命周期事件主题（处理 startup / close / discovery 事件）
-	sub, err := s.nats.Subscribe(subjects.RuntimeLifecycleEventSubjectPattern, s.handleRuntimeStatusMessage)
-	if err != nil {
+	handler := NewAppDiscoveryHandler(s)
+	if err := s.transport.SubscribeRuntimeLifecycleEvents(handler.HandleRuntimeLifecycleEvent); err != nil {
 		return err
 	}
-	s.sub = sub // 存储订阅对象
 
 	// 启动定期心跳检测
 	//go s.startHeartbeat()
@@ -76,10 +66,7 @@ func (s *AppDiscoveryService) Stop() {
 		s.ticker.Stop()
 	}
 
-	// 取消订阅
-	if s.sub != nil {
-		s.sub.Unsubscribe()
-	}
+	_ = s.transport.Close()
 
 	//logger.Infof(context.Background(), "[AppDiscoveryService] Stopped")
 }
@@ -105,15 +92,13 @@ func (s *AppDiscoveryService) discoverApps() {
 		Timeout:   5,
 	}
 
-	if err := s.broadcaster.PublishDiscoveryRequest(ctx, &discoveryMsg); err != nil {
+	if err := s.transport.PublishDiscoveryRequest(ctx, &discoveryMsg); err != nil {
 		logger.Errorf(ctx, "[AppDiscoveryService] Failed to publish discovery message: %v", err)
 		return
 	}
 
 	//logger.Infof(ctx, "[AppDiscoveryService] Discovery message sent")
 }
-
-// 旧的 handleDiscoveryResponse 方法已移除，现在使用统一的 handleRuntimeStatusMessage
 
 // GetRunningApps 获取运行中的应用
 func (s *AppDiscoveryService) GetRunningApps() map[string]*discovery.AppInfo {
@@ -247,60 +232,17 @@ func (s *AppDiscoveryService) readCurrentVersion(user, app string) string {
 	return strings.TrimSpace(string(data))
 }
 
-// handleRuntimeStatusMessage 处理 Runtime 生命周期事件（startup、close、discovery）。
-func (s *AppDiscoveryService) handleRuntimeStatusMessage(msg *nats.Msg) {
+func (s *AppDiscoveryService) applyStartupNotification(user, app, version, status string, startTime time.Time) {
 	ctx := context.Background()
-
-	// 添加调试日志
-	//logger.Infof(ctx, "[AppDiscoveryService] Received message on subject: %s, data: %s", msg.Subject, string(msg.Data))
-
-	var message subjects.Message
-	if err := json.Unmarshal(msg.Data, &message); err != nil {
-		logger.Errorf(ctx, "[AppDiscoveryService] Failed to unmarshal runtime lifecycle event %s: %v", string(msg.Data), err)
-		return
-	}
-
-	switch message.Type {
-	case subjects.MessageTypeStatusStartup:
-		s.handleStartupNotification(message)
-	case subjects.MessageTypeStatusClose:
-		s.handleCloseNotification(message)
-	case subjects.MessageTypeStatusDiscovery:
-		s.HandleDiscoveryResponse(message)
-	default:
-		logger.Warnf(ctx, "[AppDiscoveryService] Unknown message type: %s", message.Type)
-	}
-}
-
-// handleStartupNotification 处理应用启动通知
-func (s *AppDiscoveryService) handleStartupNotification(message subjects.Message) {
-	ctx := context.Background()
-
-	// 从 message.Data 中提取启动信息
-	var data struct {
-		Status    string    `json:"status"`
-		StartTime time.Time `json:"start_time"`
-	}
-
-	dataBytes, err := json.Marshal(message.Data)
-	if err != nil {
-		logger.Errorf(ctx, "[AppDiscoveryService] Failed to marshal startup data: %v", err)
-		return
-	}
-
-	if err := json.Unmarshal(dataBytes, &data); err != nil {
-		logger.Errorf(ctx, "[AppDiscoveryService] Failed to unmarshal startup data: %v", err)
-		return
-	}
+	_ = status
 
 	// 如果 StartTime 为零值，使用当前时间
-	startTime := data.StartTime
 	if startTime.IsZero() {
 		startTime = time.Now()
 	}
 
 	// 更新应用状态
-	key := message.User + "/" + message.App
+	key := user + "/" + app
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -309,59 +251,45 @@ func (s *AppDiscoveryService) handleStartupNotification(message subjects.Message
 	appInfo, exists := s.apps[key]
 	if !exists {
 		appInfo = &discovery.AppInfo{
-			User:           message.User,
-			App:            message.App,
-			CurrentVersion: s.readCurrentVersion(message.User, message.App),
+			User:           user,
+			App:            app,
+			CurrentVersion: s.readCurrentVersion(user, app),
 			Versions:       make(map[string]*discovery.AppVersion),
 		}
 		s.apps[key] = appInfo
 	} else {
 		// 更新当前版本
-		appInfo.CurrentVersion = s.readCurrentVersion(message.User, message.App)
+		appInfo.CurrentVersion = s.readCurrentVersion(user, app)
 	}
 
 	// 添加或更新版本信息
-	version := &discovery.AppVersion{
-		Version:   message.Version,
+	appVersion := &discovery.AppVersion{
+		Version:   version,
 		Status:    "running",
 		StartTime: startTime,
 		LastSeen:  time.Now(),
 	}
-	appInfo.AddVersion(version)
+	appInfo.AddVersion(appVersion)
 
 	logger.Infof(ctx, "[AppDiscoveryService] Updated app state from startup: %s/%s %s (started: %s, total versions: %d)",
-		message.User, message.App, message.Version, startTime.Format("15:04:05"), appInfo.GetVersionCount())
+		user, app, version, startTime.Format("15:04:05"), appInfo.GetVersionCount())
 
 	// 通知其他服务
 	if s.onStartup != nil {
-		s.onStartup(message.User, message.App, message.Version, startTime)
+		s.onStartup(user, app, version, startTime)
 	}
 }
 
-// handleCloseNotification 处理应用关闭通知
-func (s *AppDiscoveryService) handleCloseNotification(message subjects.Message) {
+func (s *AppDiscoveryService) applyCloseNotification(user, app, version, status string, startTime, closeTime time.Time) {
 	ctx := context.Background()
-
-	// 从 message.Data 中提取关闭信息
-	var data struct {
-		Status    string    `json:"status"`
-		StartTime time.Time `json:"start_time"`
-		CloseTime time.Time `json:"close_time"`
-	}
-
-	dataBytes, err := json.Marshal(message.Data)
-	if err != nil {
-		logger.Errorf(ctx, "[AppDiscoveryService] Failed to marshal close data: %v", err)
-		return
-	}
-
-	if err := json.Unmarshal(dataBytes, &data); err != nil {
-		logger.Errorf(ctx, "[AppDiscoveryService] Failed to unmarshal close data: %v", err)
-		return
+	_ = status
+	_ = startTime
+	if closeTime.IsZero() {
+		closeTime = time.Now()
 	}
 
 	// 更新应用状态
-	key := message.User + "/" + message.App
+	key := user + "/" + app
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -369,48 +297,33 @@ func (s *AppDiscoveryService) handleCloseNotification(message subjects.Message) 
 	// 获取应用信息
 	appInfo, exists := s.apps[key]
 	if !exists {
-		logger.Warnf(ctx, "[AppDiscoveryService] App not found for close notification: %s/%s", message.User, message.App)
+		logger.Warnf(ctx, "[AppDiscoveryService] App not found for close notification: %s/%s", user, app)
 		return
 	}
 
 	// 更新版本状态为停止
-	if version, exists := appInfo.Versions[message.Version]; exists {
-		version.Status = "stopped"
-		version.LastSeen = time.Now()
+	if appVersion, exists := appInfo.Versions[version]; exists {
+		appVersion.Status = "stopped"
+		appVersion.LastSeen = time.Now()
 		logger.Infof(ctx, "[AppDiscoveryService] Updated app state from close: %s/%s %s (stopped)",
-			message.User, message.App, message.Version)
+			user, app, version)
 
 		// 通知其他服务
 		if s.onClose != nil {
-			s.onClose(message.User, message.App, message.Version)
+			s.onClose(user, app, version)
 		}
 	} else {
 		logger.Warnf(ctx, "[AppDiscoveryService] Version not found for close notification: %s/%s/%s",
-			message.User, message.App, message.Version)
+			user, app, version)
 	}
 }
 
-// HandleDiscoveryResponse 公开的发现响应处理方法（使用新的消息结构）
-func (s *AppDiscoveryService) HandleDiscoveryResponse(message subjects.Message) {
+func (s *AppDiscoveryService) applyDiscoveryResponse(response *discovery.DiscoveryResponse) {
 	ctx := context.Background()
-
-	// 从 message.Data 中提取发现响应信息
-	var response discovery.DiscoveryResponse
-	dataBytes, err := json.Marshal(message.Data)
-	if err != nil {
-		logger.Errorf(ctx, "[AppDiscoveryService] Failed to marshal message data: %v", err)
+	if response == nil {
+		logger.Warnf(ctx, "[AppDiscoveryService] Discovery response is nil")
 		return
 	}
-
-	if err := json.Unmarshal(dataBytes, &response); err != nil {
-		logger.Errorf(ctx, "[AppDiscoveryService] Failed to unmarshal discovery response: %v", err)
-		return
-	}
-
-	// 使用消息中的标识信息
-	response.User = message.User
-	response.App = message.App
-	response.Version = message.Version
 
 	// 更新应用状态
 	key := response.User + "/" + response.App

@@ -58,7 +58,7 @@
 import { ref, computed } from 'vue'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import { Logger } from '@/core/utils/logger'
-import type { FieldConfig, FunctionDetail } from '@/core/types/field'
+import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
 import ScheduledTaskDialog from '@/architecture/presentation/components/ScheduledTaskDialog.vue'
 
 interface Props {

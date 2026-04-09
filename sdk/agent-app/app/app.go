@@ -14,6 +14,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
 	"github.com/nats-io/nats.go"
@@ -142,25 +143,13 @@ func NewApp() (*App, error) {
 
 	logger.Infof(context.Background(), "Connecting to NATS: %s", natsURL)
 
-	// 设置连接选项，包括超时
-	opts := []nats.Option{
-		nats.Timeout(10 * time.Second),      // 连接超时 10 秒
-		nats.ReconnectWait(2 * time.Second), // 重连等待时间
-		nats.MaxReconnects(5),               // 最大重连次数
-		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
-			if err != nil {
-				logger.Warnf(context.Background(), "NATS disconnected: %v", err)
-			}
-		}),
-		nats.ReconnectHandler(func(nc *nats.Conn) {
-			logger.Infof(context.Background(), "NATS reconnected to %s", nc.ConnectedUrl())
-		}),
+	conn, err := natsx.ConnectNamedWithOptions(
+		natsURL,
+		fmt.Sprintf("agent-app-%s-%s-%s", env.User, env.App, env.Version),
 		nats.ErrorHandler(func(nc *nats.Conn, sub *nats.Subscription, err error) {
 			logger.Errorf(context.Background(), "NATS error: %v", err)
 		}),
-	}
-
-	conn, err := nats.Connect(natsURL, opts...)
+	)
 	if err != nil {
 		logger.Errorf(context.Background(), "Failed to connect to NATS: %v", err)
 		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
@@ -491,7 +480,7 @@ func (a *App) handleAppControlMessage(msg *nats.Msg) {
 //	if err := json.Unmarshal(msg.Data, &request); err != nil {
 //		logger.Errorf(context.Background(), "Failed to unmarshal update callback request: %v", err)
 //		// 发送错误响应
-//		msgx.RespFailMsg(msg, fmt.Errorf("failed to unmarshal request: %w", err))
+//		msgx.RespondJSONFailure(msg, fmt.Errorf("failed to unmarshal request: %w", err))
 //		return
 //	}
 //
@@ -499,7 +488,7 @@ func (a *App) handleAppControlMessage(msg *nats.Msg) {
 //	if request.Type != subjects.MessageTypeUpdateCallbackRequest {
 //		logger.Warnf(context.Background(), "Invalid message type: %s (expected: %s)", request.Type, subjects.MessageTypeUpdateCallbackRequest)
 //		// 发送错误响应
-//		msgx.RespFailMsg(msg, fmt.Errorf("invalid message type: %s", request.Type))
+//		msgx.RespondJSONFailure(msg, fmt.Errorf("invalid message type: %s", request.Type))
 //		return
 //	}
 //	// 处理 update 回调逻辑（复用现有的 onAppUpdate 逻辑）
@@ -507,11 +496,11 @@ func (a *App) handleAppControlMessage(msg *nats.Msg) {
 //	if err != nil {
 //		logger.Errorf(context.Background(), "❌ Update callback processing failed: %v", err)
 //		// 发送错误响应
-//		msgx.RespFailMsg(msg, err)
+//		msgx.RespondJSONFailure(msg, err)
 //		return
 //	}
 //	// 发送成功响应
-//	if err := msgx.RespSuccessMsg(msg, response); err != nil {
+//	if err := msgx.RespondJSONSuccess(msg, response); err != nil {
 //		logger.Errorf(context.Background(), "Failed to send update callback response: %v", err)
 //	} else {
 //		logger.Infof(context.Background(), "📤 Update callback response sent successfully")

@@ -311,7 +311,7 @@ import type { WidgetComponentProps } from '@/architecture/presentation/widgets/t
 import { useFormWidget } from '@/architecture/presentation/widgets/composables/useFormWidget'
 import { useTableCellMode } from '@/architecture/presentation/widgets/composables/useTableCellMode'
 import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
-import type { FieldConfig, FieldValue } from '@/core/types/field'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import type { ValidationEngine, ValidationResult } from '@/core/validation'
 import { validateFieldValue, validateFormWidgetNestedFields, type WidgetValidationContext } from '@/architecture/presentation/widgets/composables/useWidgetValidation'
 import { useFormDataStore } from '@/core/stores-v2/formData'

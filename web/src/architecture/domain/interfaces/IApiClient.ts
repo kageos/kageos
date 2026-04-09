@@ -40,8 +40,8 @@ export interface IApiClient {
   /**
    * DELETE 请求
    * @param url 请求 URL
+   * @param data 请求体数据（可选）
    * @returns Promise<T>
    */
-  delete<T>(url: string): Promise<T>
+  delete<T>(url: string, data?: any): Promise<T>
 }
-

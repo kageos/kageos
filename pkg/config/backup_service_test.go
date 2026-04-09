@@ -101,3 +101,51 @@ func TestBackupServiceConfigNormalizeForDevRoot(t *testing.T) {
 		t.Fatalf("MinIOAddress = %q", got)
 	}
 }
+
+func TestSanitizeConfigValue(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "plain", input: "root", want: "root"},
+		{name: "trim", input: "  root  ", want: "root"},
+		{name: "empty", input: "   ", want: ""},
+		{name: "template", input: "${MYSQL_ROOT_PASSWORD}", want: ""},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := sanitizeConfigValue(tc.input); got != tc.want {
+				t.Fatalf("sanitizeConfigValue(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestBackupServiceConfigCredentialMethodsPreferExplicitConfig(t *testing.T) {
+	t.Parallel()
+
+	cfg := &BackupServiceConfig{}
+	cfg.MySQL.User = "backup-root"
+	cfg.MySQL.Password = "backup-pass"
+	cfg.MinIO.AccessKey = "backup-ak"
+	cfg.MinIO.SecretKey = "backup-sk"
+
+	if got := cfg.GetMySQLUser(); got != "backup-root" {
+		t.Fatalf("GetMySQLUser() = %q", got)
+	}
+	if got := cfg.GetMySQLPassword(); got != "backup-pass" {
+		t.Fatalf("GetMySQLPassword() = %q", got)
+	}
+	if got := cfg.GetMinIOAccessKey(); got != "backup-ak" {
+		t.Fatalf("GetMinIOAccessKey() = %q", got)
+	}
+	if got := cfg.GetMinIOSecretKey(); got != "backup-sk" {
+		t.Fatalf("GetMinIOSecretKey() = %q", got)
+	}
+}

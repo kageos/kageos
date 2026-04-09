@@ -10,11 +10,11 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// ConnProvider 按 hostId / natsId 提供 NATS 连接；HostIds 用于订阅时遍历所有连接。
+// ConnProvider 按 hostID / natsID 提供 NATS 连接；HostIDs 用于订阅时遍历所有连接。
 type ConnProvider interface {
-	GetNatsByHost(hostId int64) (*nats.Conn, error)
-	GetNatsByNatsId(natsId int64) (*nats.Conn, error)
-	HostIds() []int64
+	GetConnByHost(hostID int64) (*nats.Conn, error)
+	GetConnByNATSID(natsID int64) (*nats.Conn, error)
+	HostIDs() []int64
 }
 
 // Waiter RequestApp 发 Publish 后 Wait 等响应，响应回调里 Notify；需同一实例。

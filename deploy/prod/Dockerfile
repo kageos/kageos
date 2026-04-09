@@ -74,9 +74,17 @@ RUN set -eux; \
     fi
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates tzdata curl netcat-openbsd \
-    nginx gettext-base default-mysql-client \
+    nginx gettext-base default-mysql-client restic \
     libgpgme11 libdevmapper1.02.1 git \
     podman buildah fuse-overlayfs slirp4netns crun \
+    && case "$(dpkg --print-architecture)" in \
+         amd64) mc_arch="linux-amd64" ;; \
+         arm64) mc_arch="linux-arm64" ;; \
+         *) echo "ERROR: unsupported architecture for MinIO mc: $(dpkg --print-architecture)" >&2; exit 1 ;; \
+       esac \
+    && curl --fail --location --output /usr/local/bin/mc "https://dl.min.io/client/mc/release/${mc_arch}/mc" \
+    && chmod +x /usr/local/bin/mc \
+    && /usr/local/bin/mc --help >/dev/null \
     && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
     && echo "Asia/Shanghai" > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*

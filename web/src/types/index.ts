@@ -117,8 +117,7 @@ export interface CreateServiceTreeRequest {
   doc_summary?: string  // 文档摘要（可选）
 }
 
-// 🔥 统一类型系统：从 core/types/field 重新导出 Widget 相关类型
-// 保持向后兼容，旧代码可以继续使用 @/types 导入
+// 统一类型系统：从本目录 field.ts 重新导出 Widget 相关类型
 export type { 
   FieldConfig, 
   WidgetConfig, 
@@ -128,16 +127,16 @@ export type {
   WidgetMode,
   ValidationRule,
   PermissionConfig
-} from '@/core/types/field'
+} from './field'
 
 // 导出 WidgetTypes 命名空间（推荐新代码使用）
-export type { WidgetTypes } from '@/core/types/field'
+export type { WidgetTypes } from './field'
 
 // 函数相关类型
 export interface Function {
   id: number
   request: any
-  response: import('@/core/types/field').FieldConfig[]  // 🔥 使用统一的 FieldConfig 类型
+  response: import('./field').FieldConfig[]  // 使用统一的 FieldConfig 类型
   app_id: number
   tree_id: number
   method: string

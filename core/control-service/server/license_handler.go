@@ -27,11 +27,11 @@ func (h *LicenseCommandHandler) HandleLicenseKeyGetQuery(msg *nats.Msg) {
 	keyMsg, err := h.licenseService.BuildKeyMessage(ctx)
 	if err != nil {
 		logger.Errorf(ctx, "[Control Service] Failed to build key message: %v", err)
-		_ = msgx.RespFailMsg(msg, err)
+		_ = msgx.RespondJSONFailure(msg, err)
 		return
 	}
 
-	if err := msgx.RespSuccessMsg(msg, keyMsg); err != nil {
+	if err := msgx.RespondJSONSuccess(msg, keyMsg); err != nil {
 		logger.Errorf(ctx, "[Control Service] Failed to send key message response: %v", err)
 		return
 	}

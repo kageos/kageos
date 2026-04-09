@@ -19,7 +19,7 @@
 
 <script setup lang="ts">
 import ChartRenderer from '@/architecture/presentation/components/ChartRenderer.vue'
-import type { FunctionDetail } from '@/core/types/field'
+import type { FunctionDetail } from '@/architecture/domain/types'
 
 const props = defineProps<{
   functionDetail: FunctionDetail

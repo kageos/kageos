@@ -8,32 +8,9 @@
  * - 缓存管理
  */
 
-import type { FieldConfig } from '@/core/types/field'
+import type { FunctionDetail as DomainFunctionDetail } from '../types'
 
-/**
- * 函数详情类型
- */
-export interface FunctionDetail {
-  id?: number
-  app_id?: number
-  tree_id?: number
-  code?: string
-  name?: string
-  description?: string
-  method?: string
-  router?: string
-  has_config?: boolean
-  create_tables?: string
-  callbacks?: string | string[]
-  template_type?: 'form' | 'table' | 'chart' | string
-  request?: FieldConfig[]
-  response?: FieldConfig[]
-  permissions?: Record<string, boolean>
-  created_by?: string
-  created_at?: string
-  updated_at?: string
-  [key: string]: any
-}
+export type { FunctionDetail } from '../types'
 
 /**
  * 函数加载器接口
@@ -45,14 +22,14 @@ export interface IFunctionLoader {
    * @param funcType 函数类型：table、form、chart（可选，默认为 table）
    * @returns Promise<FunctionDetail>
    */
-  loadByPath(path: string, funcType?: string): Promise<FunctionDetail>
+  loadByPath(path: string, funcType?: string): Promise<DomainFunctionDetail>
 
   /**
    * 获取缓存的函数详情
    * @param path 函数路径
    * @returns FunctionDetail | null
    */
-  getCached(path: string): FunctionDetail | null
+  getCached(path: string): DomainFunctionDetail | null
 
   /**
    * 清空缓存
