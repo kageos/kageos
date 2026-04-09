@@ -29,6 +29,8 @@ type ScheduledTask struct {
 	ScheduleType    string     `json:"schedule_type" gorm:"size:20;not null;index;comment:atime/cron/every"`
 	RunAt           time.Time  `json:"run_at" gorm:"comment:首次执行时间"`
 	NextRunAt       *time.Time `json:"next_run_at" gorm:"index;comment:下次执行时间"`
+	LeaseOwner      string     `json:"lease_owner" gorm:"size:128;index;comment:执行租约持有者"`
+	LeaseUntil      *time.Time `json:"lease_until" gorm:"index;comment:执行租约到期时间"`
 	CronExpr        string     `json:"cron_expr" gorm:"size:100;comment:cron表达式"`
 	IntervalSeconds int64      `json:"interval_seconds" gorm:"comment:every 时间间隔秒"`
 	MaxRuns         int        `json:"max_runs" gorm:"default:0;comment:every 最多执行次数,0不限制"`

@@ -13,26 +13,64 @@
   <div class="select-widget">
     <!-- 编辑模式 -->
     <div v-if="mode === 'edit'" class="edit-select">
-      <!-- 显示当前选中值和 display_info -->
-      <div class="select-container" @click="openDialog">
-        <div class="select-content">
-          <div class="select-main">
-            <span class="select-label">{{ displayValue || (field.desc || `请选择${field.name}`) }}</span>
-            <!-- 🔥 清除按钮（当有值且不是必填字段时显示） -->
-            <el-icon
-              v-if="props.value?.raw != null && props.value?.raw !== '' && !isFieldRequired(field)"
-              class="clear-icon"
-              @click.stop="handleClear"
-            >
-              <CircleClose />
-            </el-icon>
-            <el-icon class="input-icon"><ArrowDown /></el-icon>
-          </div>
-          <div v-if="displayInfoText" class="display-info-text">
-            {{ displayInfoText }}
+      <template v-if="shouldUseInlineSelect">
+        <el-select
+          v-model="internalValue"
+          class="inline-select"
+          :placeholder="selectPlaceholder"
+          :disabled="widgetConfig.disabled"
+          :clearable="allowInlineClear"
+          :filterable="true"
+          :allow-create="!!widgetConfig.creatable"
+          :default-first-option="!!widgetConfig.creatable"
+          @clear="handleClear"
+        >
+          <el-option
+            v-for="option in options"
+            :key="String(option.value)"
+            :label="option.label"
+            :value="option.value"
+            :disabled="option.disabled"
+          >
+            <div class="select-option">
+              <span
+                v-if="getOptionColor(option.value)"
+                class="option-color-indicator"
+                :style="getOptionColorStyle(option.value)"
+              />
+              <span class="option-label">{{ option.label }}</span>
+              <span v-if="getOptionDisplayInfo(option)" class="display-info">
+                {{ getOptionDisplayInfo(option) }}
+              </span>
+            </div>
+          </el-option>
+        </el-select>
+        <div v-if="displayInfoText" class="display-info-text inline-select-display-info">
+          {{ displayInfoText }}
+        </div>
+      </template>
+      <template v-else>
+        <!-- 显示当前选中值和 display_info -->
+        <div class="select-container" @click="openDialog">
+          <div class="select-content">
+            <div class="select-main">
+              <span class="select-label">{{ displayValue || (field.desc || `请选择${field.name}`) }}</span>
+              <!-- 🔥 清除按钮（当有值且不是必填字段时显示） -->
+              <el-icon
+                v-if="props.value?.raw != null && props.value?.raw !== '' && !isFieldRequired(field)"
+                class="clear-icon"
+                @click.stop="handleClear"
+              >
+                <CircleClose />
+              </el-icon>
+              <el-icon class="input-icon"><ArrowDown /></el-icon>
+            </div>
+            <div v-if="displayInfoText" class="display-info-text">
+              {{ displayInfoText }}
+            </div>
           </div>
         </div>
-      </div>
+      </template>
       
       <!-- 🔥 显示 Statistics 统计信息（使用 FieldStatistics 组件） -->
       <!-- 🔥 在表格内部（depth > 0）时不显示，避免撑大表格单元格，统计信息会在表格下方统一显示 -->
@@ -45,6 +83,7 @@
       
       <!-- 模糊搜索对话框（单选模式） -->
       <FuzzySearchDialog
+        v-if="hasCallback"
         v-model="dialogVisible"
         :title="`选择${field.name}`"
         :placeholder="field.desc || `请输入搜索关键词`"
@@ -91,25 +130,61 @@
     
     <!-- 搜索模式 -->
     <div v-else-if="mode === 'search'" class="search-select">
-      <div class="select-container" @click="openDialog">
-        <div class="select-content">
-          <div class="select-main">
-            <span class="select-label">{{ displayValue || `搜索${field.name}` }}</span>
-            <!-- 🔥 清除按钮（当有值且不是必填字段时显示） -->
-            <el-icon
-              v-if="props.value?.raw != null && props.value?.raw !== '' && !isFieldRequired(field)"
-              class="clear-icon"
-              @click.stop="handleClear"
-            >
-              <CircleClose />
-            </el-icon>
-            <el-icon class="input-icon"><ArrowDown /></el-icon>
+      <template v-if="shouldUseInlineSelect">
+        <el-select
+          v-model="internalValue"
+          class="inline-select inline-select-search"
+          :placeholder="selectPlaceholder"
+          :disabled="widgetConfig.disabled"
+          :clearable="allowInlineClear"
+          :filterable="true"
+          :allow-create="!!widgetConfig.creatable"
+          :default-first-option="!!widgetConfig.creatable"
+          @clear="handleClear"
+        >
+          <el-option
+            v-for="option in options"
+            :key="String(option.value)"
+            :label="option.label"
+            :value="option.value"
+            :disabled="option.disabled"
+          >
+            <div class="select-option">
+              <span
+                v-if="getOptionColor(option.value)"
+                class="option-color-indicator"
+                :style="getOptionColorStyle(option.value)"
+              />
+              <span class="option-label">{{ option.label }}</span>
+              <span v-if="getOptionDisplayInfo(option)" class="display-info">
+                {{ getOptionDisplayInfo(option) }}
+              </span>
+            </div>
+          </el-option>
+        </el-select>
+      </template>
+      <template v-else>
+        <div class="select-container" @click="openDialog">
+          <div class="select-content">
+            <div class="select-main">
+              <span class="select-label">{{ displayValue || `搜索${field.name}` }}</span>
+              <!-- 🔥 清除按钮（当有值且不是必填字段时显示） -->
+              <el-icon
+                v-if="props.value?.raw != null && props.value?.raw !== '' && !isFieldRequired(field)"
+                class="clear-icon"
+                @click.stop="handleClear"
+              >
+                <CircleClose />
+              </el-icon>
+              <el-icon class="input-icon"><ArrowDown /></el-icon>
+            </div>
           </div>
         </div>
-      </div>
+      </template>
 
       <!-- 模糊搜索对话框（单选模式） -->
       <FuzzySearchDialog
+        v-if="hasCallback"
         v-model="dialogVisible"
         :title="`选择${field.name}`"
         :placeholder="`请输入搜索关键词`"
@@ -125,8 +200,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick, withDefaults } from 'vue'
-import { ElInput, ElMessage, ElTag, ElIcon } from 'element-plus'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ElMessage, ElTag, ElIcon, ElSelect, ElOption } from 'element-plus'
 import { ArrowDown, CircleClose } from '@element-plus/icons-vue'
 import FuzzySearchDialog from './FuzzySearchDialog.vue'
 import FieldStatistics from './FieldStatistics.vue'
@@ -232,7 +307,7 @@ const currentOptionColor = computed(() => {
   }
   
   // 查找当前值在 options 中的索引
-  const optionIndex = options.value.findIndex(opt => opt.value === rawValue)
+  const optionIndex = options.value.findIndex(opt => String(opt.value) === String(rawValue))
   if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
     return optionColors.value[optionIndex] ?? null
   }
@@ -300,12 +375,62 @@ function getOptionColorStyle(value: any): Record<string, string> {
   return style
 }
 
+function formatDisplayInfo(info: any): string {
+  if (!info) {
+    return ''
+  }
+
+  const normalizedInfo = Array.isArray(info) ? info[0] : info
+  if (!normalizedInfo) {
+    return ''
+  }
+
+  if (typeof normalizedInfo !== 'object') {
+    return String(normalizedInfo)
+  }
+
+  const infoItems: string[] = []
+  Object.entries(normalizedInfo).forEach(([key, val]) => {
+    if (val !== null && val !== undefined && val !== '') {
+      infoItems.push(`${key}: ${val}`)
+    }
+  })
+
+  if (infoItems.length === 0) {
+    return ''
+  }
+
+  if (infoItems.length > 5) {
+    return infoItems.slice(0, 5).join(' | ') + ' ...'
+  }
+
+  return infoItems.join(' | ')
+}
+
+function getOptionDisplayInfo(option: SelectOptionItem): string {
+  return formatDisplayInfo(option.displayInfo)
+}
+
 // 加载状态
 const loading = ref(false)
 
 // 是否有回调接口
 const hasCallback = computed(() => {
   return props.field.callbacks?.includes('OnSelectFuzzy') || false
+})
+
+const shouldUseInlineSelect = computed(() => !hasCallback.value)
+
+const allowInlineClear = computed(() => {
+  return props.mode === 'search' || !isFieldRequired(props.field)
+})
+
+const selectPlaceholder = computed(() => {
+  if (props.mode === 'search') {
+    return widgetConfig.value.placeholder || `搜索${props.field.name}`
+  }
+
+  return widgetConfig.value.placeholder || props.field.desc || `请选择${props.field.name}`
 })
 
 // 对话框相关状态
@@ -325,7 +450,12 @@ const internalValue = computed({
   },
   set: (newValue: any) => {
     if (props.mode === 'edit' || props.mode === 'search') {
-      const selectedOption = options.value.find(opt => opt.value === newValue)
+      if (newValue === null || newValue === undefined || newValue === '') {
+        handleClear()
+        return
+      }
+
+      const selectedOption = options.value.find(opt => opt.value === newValue || String(opt.value) === String(newValue))
       // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
       const newFieldValue = createFieldValue(
         props.field,
@@ -350,46 +480,15 @@ const detailDisplayValue = ref<string | null>(null)
 // 获取 display_info 的显示文本
 const displayInfoText = computed(() => {
   const value = props.value
-  if (!value || !value.raw) {
+  if (!value || value.raw === null || value.raw === undefined || value.raw === '') {
     return ''
   }
   
   // 🔥 优先从 meta.displayInfo 获取（这是保存的值）
   if (value.meta?.displayInfo) {
-    const info = value.meta.displayInfo
-    // 如果是数组（多选的情况），取第一个
-    if (Array.isArray(info) && info.length > 0) {
-      const firstInfo = info[0]
-      if (firstInfo && typeof firstInfo === 'object') {
-        const infoItems: string[] = []
-        Object.entries(firstInfo).forEach(([key, val]) => {
-          if (val !== null && val !== undefined && val !== '') {
-            infoItems.push(`${key}: ${val}`)
-          }
-        })
-        if (infoItems.length > 0) {
-          // 限制显示数量，避免过长
-          if (infoItems.length > 5) {
-            return infoItems.slice(0, 5).join(' | ') + ' ...'
-          }
-          return infoItems.join(' | ')
-        }
-      }
-    } else if (typeof info === 'object' && info !== null) {
-      // 如果是对象（单选的情况）
-      const infoItems: string[] = []
-      Object.entries(info).forEach(([key, val]) => {
-        if (val !== null && val !== undefined && val !== '') {
-          infoItems.push(`${key}: ${val}`)
-        }
-      })
-      if (infoItems.length > 0) {
-        // 限制显示数量，避免过长
-        if (infoItems.length > 5) {
-          return infoItems.slice(0, 5).join(' | ') + ' ...'
-        }
-        return infoItems.join(' | ')
-      }
+    const metaDisplayInfo = formatDisplayInfo(value.meta.displayInfo)
+    if (metaDisplayInfo) {
+      return metaDisplayInfo
     }
   }
   
@@ -399,20 +498,9 @@ const displayInfoText = computed(() => {
   })
   
   if (selectedOption?.displayInfo) {
-    const info = selectedOption.displayInfo
-    if (typeof info === 'object' && info !== null) {
-      const infoItems: string[] = []
-      Object.entries(info).forEach(([key, val]) => {
-        if (val !== null && val !== undefined && val !== '') {
-          infoItems.push(`${key}: ${val}`)
-        }
-      })
-      if (infoItems.length > 0) {
-        if (infoItems.length > 5) {
-          return infoItems.slice(0, 5).join(' | ') + ' ...'
-        }
-        return infoItems.join(' | ')
-      }
+    const optionDisplayInfo = formatDisplayInfo(selectedOption.displayInfo)
+    if (optionDisplayInfo) {
+      return optionDisplayInfo
     }
   }
   
@@ -488,15 +576,6 @@ function initOptions(): void {
   
   // 🔥 详情模式下，如果已经有 formRenderer，由 watch 处理
   // 如果没有 formRenderer，等待 watch 检测到 formRenderer 后再触发
-}
-
-// 处理远程搜索（保留用于兼容）
-async function handleRemoteSearch(query: string): Promise<void> {
-  if (!hasCallback.value) {
-    return
-  }
-  
-  await handleSearch(query, false) // by_keyword
 }
 
 // 打开对话框
@@ -1095,7 +1174,9 @@ watch(
 )
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use './styles/inlineSelectShared' as inlineSelectShared;
+
 .select-widget {
   width: 100%;
 }
@@ -1105,6 +1186,10 @@ watch(
   width: 100%;
   position: relative;
 }
+
+@include inlineSelectShared.inline-select-surface('.inline-select', 40px, 14px);
+@include inlineSelectShared.inline-select-surface('.inline-select-search', 32px, 13px, $box-shadow: none);
+@include inlineSelectShared.inline-select-display-info('.inline-select-display-info');
 
 .select-container {
   width: 100%;
@@ -1206,24 +1291,7 @@ watch(
   font-size: 14px;
 }
 
-.select-option {
-  display: flex;
-  align-items: center;
-}
-
-.select-option > *:not(:last-child) {
-  margin-right: 8px;
-}
-
-.option-label {
-  flex: 1;
-}
-
-.display-info {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  margin-left: auto;
-}
+@include inlineSelectShared.inline-select-option-row('.select-option');
 
 .response-value {
   color: var(--el-text-color-regular);

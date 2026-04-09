@@ -186,7 +186,7 @@ func (r *Role) GetRole(c *gin.Context) {
 // @Router /workspace/api/v1/role [get]
 func (r *Role) GetRoles(c *gin.Context) {
 	resourceType := c.Query("resource_type")
-	
+
 	ctx := contextx.ToContext(c)
 	resp, err := r.roleService.GetRoles(ctx, resourceType)
 	if err != nil {

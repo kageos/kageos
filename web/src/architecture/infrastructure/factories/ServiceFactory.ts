@@ -92,6 +92,10 @@ import { WorkspaceDomainService } from '../../domain/services/WorkspaceDomainSer
 import { TableDomainService } from '../../domain/services/TableDomainService'
 import { WorkspaceApplicationService } from '../../application/services/WorkspaceApplicationService'
 import { TableApplicationService } from '../../application/services/TableApplicationService'
+import { useUserInfoStore } from '@/stores/userInfo'
+import { useDepartmentInfoStore } from '@/stores/departmentInfo'
+import { getAppWithServiceTree } from '@/api/app'
+import { buildAppResourcePath } from '@/utils/resourcePath'
 import { serviceTreeLoader } from '../serviceTreeLoader'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import type { IApiClient } from '../../domain/interfaces/IApiClient'
@@ -195,7 +199,15 @@ export class ServiceFactory implements IServiceProvider {
       const domainService = this.getWorkspaceDomainService()
       this.workspaceApplicationService = new WorkspaceApplicationService(
         domainService,
-        this.eventBus
+        this.eventBus,
+        {
+          loadWorkspaceTree: async (app) => {
+            if (!app.user || !app.code) {
+              return null
+            }
+            return await getAppWithServiceTree(buildAppResourcePath(app.user, app.code))
+          }
+        }
       )
     }
     return this.workspaceApplicationService
@@ -206,7 +218,19 @@ export class ServiceFactory implements IServiceProvider {
       const domainService = this.getTableDomainService()
       this.tableApplicationService = new TableApplicationService(
         domainService,
-        this.eventBus
+        this.eventBus,
+        {
+          preloadUserInfo: async (usernames: string[]) => {
+            if (usernames.length === 0) return
+            const userInfoStore = useUserInfoStore()
+            await userInfoStore.batchGetUserInfo(usernames)
+          },
+          preloadDepartmentInfo: async (paths: string[]) => {
+            if (paths.length === 0) return
+            const departmentInfoStore = useDepartmentInfoStore()
+            await departmentInfoStore.batchGetDepartmentInfo(paths)
+          }
+        }
       )
     }
     return this.tableApplicationService

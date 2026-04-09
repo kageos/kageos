@@ -182,16 +182,6 @@ export class FormApplicationService {
       }
 
       response = unwrapApiResponseData(response, '提交失败，请稍后重试')
-      
-      // ⭐ 旧版本（已注释，保留用于参考）
-      // const url = `/workspace/api/v1/run${functionDetail.router}`
-      // const method = functionDetail.method?.toUpperCase() || 'POST'
-      // let response: any
-      // if (method === 'GET') {
-      //   response = await this.apiClient.get(url, submitData)
-      // } else {
-      //   response = await this.apiClient.post(url, submitData)
-      // }
 
       // 🔥 保存响应数据到状态管理器
       const stateManager = this.domainService.getStateManager()

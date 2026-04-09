@@ -150,3 +150,17 @@ func (s *Store) ListSnapshots(ctx context.Context, resourceType string, limit in
 	err := query.Find(&snapshots).Error
 	return snapshots, err
 }
+
+func (s *Store) ListSnapshotsForPrune(ctx context.Context, resourceType string, source string) ([]backupmodel.Snapshot, error) {
+	query := s.db.WithContext(ctx).Order("id desc")
+	if resourceType != "" {
+		query = query.Where("resource_type = ?", resourceType)
+	}
+	if source != "" {
+		query = query.Where("source = ?", source)
+	}
+
+	var snapshots []backupmodel.Snapshot
+	err := query.Find(&snapshots).Error
+	return snapshots, err
+}

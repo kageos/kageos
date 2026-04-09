@@ -51,6 +51,7 @@ type ScheduledTaskExecutionItem struct {
 	TaskID          int64  `json:"task_id"`
 	ExecutedAt      string `json:"executed_at"`
 	Status          string `json:"status"`
+	DurationMillis  int64  `json:"duration_millis,omitempty"`
 	RequestPayload  string `json:"request_payload"`  // JSON 字符串
 	ResponsePayload string `json:"response_payload"` // JSON 字符串
 	ErrorMessage    string `json:"error_message,omitempty"`

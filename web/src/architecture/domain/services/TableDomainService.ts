@@ -17,13 +17,16 @@ import type { IStateManager } from '../interfaces/IStateManager'
 import type { IEventBus } from '../interfaces/IEventBus'
 import { TableEvent } from '../interfaces/IEventBus'
 import type { FunctionDetail, FieldConfig } from '../types'
-import { getChangedFields } from '@/utils/objectDiff'
-import { buildSearchParamsString } from '@/utils/searchParams'
-import { denormalizeSearchValue } from '@/utils/searchValueNormalizer'
-import { parseCommaSeparatedString } from '@/utils/stringUtils'
-import { SearchType } from '@/core/constants/search'
-import { WidgetType } from '@/core/constants/widget'
-import { getScopedFieldQueryValue } from '@/utils/queryFieldNamespace'
+import {
+  SearchType,
+  WidgetType,
+  buildSearchParamsString,
+  denormalizeSearchValue,
+  getChangedFields,
+  getScopedFieldQueryValue,
+  parseCommaSeparatedString
+} from '@/core/tableRuntime/search'
+import { Logger } from '@/core/utils/logger'
 
 /**
  * 表格数据项类型
@@ -224,16 +227,6 @@ export class TableDomainService {
       if (requestId !== this.latestLoadRequestId) {
         return response
       }
-      
-      // ⭐ 旧版本（已注释，保留用于参考）
-      // const url = `/workspace/api/v1/run${functionDetail.router}`
-      // const method = functionDetail.method?.toUpperCase() || 'GET'
-      // let response: TableResponse
-      // if (method === 'GET') {
-      //   response = await this.apiClient.get<TableResponse>(url, params)
-      // } else {
-      //   response = await this.apiClient.post<TableResponse>(url, params)
-      // }
 
       // 🔥 BeforeRender: 在数据加载完成后、状态更新前、界面渲染前执行所有钩子
       // 这样渲染时，所有关联数据（用户信息、部门信息等）都已经在缓存中
@@ -243,7 +236,7 @@ export class TableDomainService {
           await hook.execute(functionDetail, response.items || [])
         } catch (error) {
           // 单个钩子失败不影响其他钩子执行
-          console.error(`[TableDomainService] BeforeRender 钩子 ${hook.name} 执行失败`, error)
+          Logger.error('TableDomainService', `BeforeRender 钩子 ${hook.name} 执行失败`, error)
         }
       }
 

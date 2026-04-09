@@ -382,7 +382,7 @@ import {
   type PermissionScope,
   type PermissionResourceType
 } from '@/utils/permission'
-import { applyPermission, getWorkspacePermissions, addPermission, type AddPermissionReq } from '@/api/permission'
+import { applyPermission, getWorkspacePermissions } from '@/api/permission'
 import type { FormInstance, FormRules } from 'element-plus'
 import { getAppWithServiceTree } from '@/api/app'
 import { getRolesForPermissionRequest, type Role, type RolePermission } from '@/api/role'

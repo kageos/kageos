@@ -71,22 +71,22 @@ func (o *ClientOptions) WithModel(model string) *ClientOptions {
 
 // ToolDef 工具定义（标准 OpenAI 格式）
 type ToolDef struct {
-	Type     string                 `json:"type"`     // 固定为 "function"
-	Function ToolFunctionDef         `json:"function"` // 函数定义
+	Type     string          `json:"type"`     // 固定为 "function"
+	Function ToolFunctionDef `json:"function"` // 函数定义
 }
 
 // ToolFunctionDef 工具函数定义
 type ToolFunctionDef struct {
-	Name        string                 `json:"name"`        // 函数名
-	Description string                 `json:"description"` // 函数描述
-	Parameters  map[string]interface{} `json:"parameters"`  // JSON Schema 参数定义
+	Name        string                 `json:"name"`             // 函数名
+	Description string                 `json:"description"`      // 函数描述
+	Parameters  map[string]interface{} `json:"parameters"`       // JSON Schema 参数定义
 	Strict      *bool                  `json:"strict,omitempty"` // strict 模式（DeepSeek 特有）
 }
 
 // ToolCall 工具调用（标准 OpenAI 格式）
 type ToolCall struct {
-	ID       string `json:"id"`       // 工具调用 ID（用于关联 tool 消息）
-	Type     string `json:"type"`      // 固定为 "function"
+	ID       string `json:"id"`   // 工具调用 ID（用于关联 tool 消息）
+	Type     string `json:"type"` // 固定为 "function"
 	Function struct {
 		Name      string `json:"name"`      // 函数名
 		Arguments string `json:"arguments"` // JSON 字符串格式的参数
@@ -95,10 +95,10 @@ type ToolCall struct {
 
 // Message 对话消息结构（扩展支持 tool 角色和 tool_calls）
 type Message struct {
-	Role       string      `json:"role"`                 // system, user, assistant, tool
-	Content    string      `json:"content,omitempty"`     // 消息内容（tool 角色时可为空）
-	ToolCallID string      `json:"tool_call_id,omitempty"` // tool 角色的 tool_call_id
-	ToolCalls  []ToolCall  `json:"tool_calls,omitempty"`  // assistant 角色的工具调用列表
+	Role       string     `json:"role"`                   // system, user, assistant, tool
+	Content    string     `json:"content,omitempty"`      // 消息内容（tool 角色时可为空）
+	ToolCallID string     `json:"tool_call_id,omitempty"` // tool 角色的 tool_call_id
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`   // assistant 角色的工具调用列表
 }
 
 // ChatRequest 聊天请求
@@ -133,7 +133,7 @@ type StreamChunk struct {
 	Content   string     `json:"content"`              // 流式内容片段
 	ToolCalls []ToolCall `json:"tool_calls,omitempty"` // 工具调用列表（流式输出中可能包含）
 	Done      bool       `json:"done"`                 // 是否完成
-	Error     string     `json:"error,omitempty"`       // 错误信息（如果有）
+	Error     string     `json:"error,omitempty"`      // 错误信息（如果有）
 	Usage     *Usage     `json:"usage,omitempty"`      // 使用统计（完成时提供）
 }
 

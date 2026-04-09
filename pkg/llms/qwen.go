@@ -1,7 +1,6 @@
 package llms
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -113,11 +112,7 @@ func (q *QwenClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse,
 	}
 
 	// 动态创建HTTP客户端，支持请求级别的超时配置
-	timeout := q.Options.Timeout
-	if req.Timeout != nil && *req.Timeout > 0 {
-		timeout = *req.Timeout
-	}
-	httpClient := createHTTPClient(q.Options, timeout)
+	httpClient := createHTTPClient(q.Options, resolveRequestTimeout(q.Options, req))
 
 	// 发送HTTP请求
 	jsonData, err := json.Marshal(apiReq)
@@ -134,18 +129,12 @@ func (q *QwenClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse,
 		logger.Infof(ctx, "[千问] 发送请求到: %s, 请求体长度: %d", q.BaseURL, requestLen)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", q.BaseURL, bytes.NewBuffer(jsonData))
+	httpReq, err := newBearerJSONRequest(ctx, q.BaseURL, q.APIKey, jsonData, q.Options)
 	if err != nil {
 		if q.Options != nil && q.Options.EnableLogging {
 			logger.Errorf(ctx, "[千问] 创建HTTP请求失败: %v", err)
 		}
 		return nil, fmt.Errorf("创建HTTP请求失败: %v", err)
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+q.APIKey)
-	if q.Options != nil && q.Options.UserAgent != "" {
-		httpReq.Header.Set("User-Agent", q.Options.UserAgent)
 	}
 
 	resp, err := httpClient.Do(httpReq)
@@ -265,11 +254,7 @@ func (q *QwenClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *
 		}
 
 		// 动态创建HTTP客户端，支持请求级别的超时配置
-		timeout := q.Options.Timeout
-		if req.Timeout != nil && *req.Timeout > 0 {
-			timeout = *req.Timeout
-		}
-		httpClient := createHTTPClient(q.Options, timeout)
+		httpClient := createHTTPClient(q.Options, resolveRequestTimeout(q.Options, req))
 
 		// 序列化请求
 		jsonData, err := json.Marshal(apiReq)
@@ -291,7 +276,7 @@ func (q *QwenClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *
 		}
 
 		// 创建HTTP请求
-		httpReq, err := http.NewRequestWithContext(ctx, "POST", q.BaseURL, bytes.NewBuffer(jsonData))
+		httpReq, err := newBearerJSONRequest(ctx, q.BaseURL, q.APIKey, jsonData, q.Options)
 		if err != nil {
 			if q.Options != nil && q.Options.EnableLogging {
 				logger.Errorf(ctx, "[千问] 创建HTTP请求失败: %v", err)
@@ -301,13 +286,6 @@ func (q *QwenClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *
 				Done:  true,
 			}
 			return
-		}
-
-		// 设置请求头
-		httpReq.Header.Set("Content-Type", "application/json")
-		httpReq.Header.Set("Authorization", "Bearer "+q.APIKey)
-		if q.Options != nil && q.Options.UserAgent != "" {
-			httpReq.Header.Set("User-Agent", q.Options.UserAgent)
 		}
 
 		// 发送请求

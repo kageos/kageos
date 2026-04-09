@@ -2,7 +2,6 @@ package llms
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -162,24 +161,15 @@ func (c *KimiClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse,
 		apiReq["temperature"] = 0.1
 	}
 
-	timeout := c.Options.Timeout
-	if req.Timeout != nil && *req.Timeout > 0 {
-		timeout = *req.Timeout
-	}
-	httpClient := createHTTPClient(c.Options, timeout)
+	httpClient := createHTTPClient(c.Options, resolveRequestTimeout(c.Options, req))
 
 	jsonData, err := json.Marshal(apiReq)
 	if err != nil {
 		return nil, fmt.Errorf("序列化请求失败: %v", err)
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL, bytes.NewBuffer(jsonData))
+	httpReq, err := newBearerJSONRequest(ctx, c.BaseURL, c.APIKey, jsonData, c.Options)
 	if err != nil {
 		return nil, fmt.Errorf("创建HTTP请求失败: %v", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+c.APIKey)
-	if c.Options != nil && c.Options.UserAgent != "" {
-		httpReq.Header.Set("User-Agent", c.Options.UserAgent)
 	}
 	if c.Options != nil && c.Options.EnableLogging {
 		logger.Infof(ctx, "[Kimi] 发送请求, 请求体长度: %d", len(jsonData))
@@ -258,26 +248,17 @@ func (c *KimiClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *
 			apiReq["temperature"] = 0.1
 		}
 
-		timeout := c.Options.Timeout
-		if req.Timeout != nil && *req.Timeout > 0 {
-			timeout = *req.Timeout
-		}
-		httpClient := createHTTPClient(c.Options, timeout)
+		httpClient := createHTTPClient(c.Options, resolveRequestTimeout(c.Options, req))
 
 		jsonData, err := json.Marshal(apiReq)
 		if err != nil {
 			chunkChan <- &StreamChunk{Error: fmt.Sprintf("序列化请求失败: %v", err), Done: true}
 			return
 		}
-		httpReq, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL, bytes.NewBuffer(jsonData))
+		httpReq, err := newBearerJSONRequest(ctx, c.BaseURL, c.APIKey, jsonData, c.Options)
 		if err != nil {
 			chunkChan <- &StreamChunk{Error: fmt.Sprintf("创建HTTP请求失败: %v", err), Done: true}
 			return
-		}
-		httpReq.Header.Set("Content-Type", "application/json")
-		httpReq.Header.Set("Authorization", "Bearer "+c.APIKey)
-		if c.Options.UserAgent != "" {
-			httpReq.Header.Set("User-Agent", c.Options.UserAgent)
 		}
 
 		resp, err := httpClient.Do(httpReq)
@@ -366,6 +347,6 @@ func (c *KimiClient) GetPricingInfo() map[string]interface{} {
 	return map[string]interface{}{
 		"model":          c.Model,
 		"context_length": "视模型而定",
-		"note":             "价格以 Moonshot 开放平台为准；接口为 OpenAI 兼容 /v1/chat/completions",
+		"note":           "价格以 Moonshot 开放平台为准；接口为 OpenAI 兼容 /v1/chat/completions",
 	}
 }

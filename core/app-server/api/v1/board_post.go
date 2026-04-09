@@ -28,7 +28,7 @@ func NewBoardPost(boardService *service.BoardService) *BoardPost {
 // @Param page query int false "页码"
 // @Param page_size query int false "每页条数"
 // @Success 200 {object} dto.ListPostsResp
-// @Router /api/v1/posts [get]
+// @Router /workspace/api/v1/posts [get]
 func (s *BoardPost) ListPosts(c *gin.Context) {
 	var req dto.ListPostsReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -54,7 +54,7 @@ func (s *BoardPost) ListPosts(c *gin.Context) {
 // @Summary 帖子详情
 // @Param id path int true "帖子ID"
 // @Success 200 {object} dto.GetPostResp
-// @Router /api/v1/posts/{id} [get]
+// @Router /workspace/api/v1/posts/{id} [get]
 func (s *BoardPost) GetPost(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -75,7 +75,7 @@ func (s *BoardPost) GetPost(c *gin.Context) {
 // @Summary 发帖
 // @Param request body dto.CreatePostReq true "发帖请求"
 // @Success 200 {object} dto.GetPostResp
-// @Router /api/v1/posts [post]
+// @Router /workspace/api/v1/posts [post]
 func (s *BoardPost) CreatePost(c *gin.Context) {
 	var req dto.CreatePostReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -96,7 +96,7 @@ func (s *BoardPost) CreatePost(c *gin.Context) {
 // @Param id path int true "帖子ID"
 // @Param request body dto.UpdatePostReq true "更新请求"
 // @Success 200 {object} dto.GetPostResp
-// @Router /api/v1/posts/{id} [put]
+// @Router /workspace/api/v1/posts/{id} [put]
 func (s *BoardPost) UpdatePost(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -122,7 +122,7 @@ func (s *BoardPost) UpdatePost(c *gin.Context) {
 // DeletePost 删除帖子
 // @Summary 删除帖子
 // @Param id path int true "帖子ID"
-// @Router /api/v1/posts/{id} [delete]
+// @Router /workspace/api/v1/posts/{id} [delete]
 func (s *BoardPost) DeletePost(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)

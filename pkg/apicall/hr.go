@@ -2,21 +2,15 @@ package apicall
 
 import (
 	"context"
-	"net/url"
-	"strconv"
-	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 )
 
 // GetUserByUsername 根据用户名获取用户信息（app-server -> hr-server）
 func GetUserByUsername(ctx context.Context, req *dto.QueryUserReq) (*dto.UserInfo, error) {
-	// 构建查询参数
-	path := "/hr/api/v1/user/query"
-	params := url.Values{}
-	params.Set("username", req.Username)
-
-	result, err := GetAPI[*dto.QueryUserResp](ctx, path, params)
+	result, err := GetAPI[*dto.QueryUserResp](ctx, "/hr/api/v1/user/query", buildQueryParams(
+		withTrimmedQueryValue("username", req.Username),
+	))
 	if err != nil {
 		return nil, err
 	}
@@ -34,15 +28,10 @@ func GetUsersByUsernames(ctx context.Context, req *dto.GetUsersByUsernamesReq) (
 
 // SearchUsersFuzzy 模糊查询用户（app-server -> hr-server）
 func SearchUsersFuzzy(ctx context.Context, req *dto.SearchUsersFuzzyReq) ([]dto.UserInfo, error) {
-	// 构建查询参数
-	path := "/hr/api/v1/user/search_fuzzy"
-	params := url.Values{}
-	params.Set("keyword", req.Keyword)
-	if req.Limit > 0 {
-		params.Set("limit", strconv.Itoa(req.Limit))
-	}
-
-	result, err := GetAPI[*dto.SearchUsersFuzzyResp](ctx, path, params)
+	result, err := GetAPI[*dto.SearchUsersFuzzyResp](ctx, "/hr/api/v1/user/search_fuzzy", buildQueryParams(
+		withTrimmedQueryValue("keyword", req.Keyword),
+		withPositiveIntQueryValue("limit", req.Limit),
+	))
 	if err != nil {
 		return nil, err
 	}
@@ -55,8 +44,7 @@ func GetDepartmentsByPaths(ctx context.Context, fullCodePaths []string) (*dto.Ge
 	if len(fullCodePaths) == 0 {
 		return &dto.GetDepartmentsByPathsResp{Departments: nil}, nil
 	}
-	path := "/hr/api/v1/departments"
-	params := url.Values{}
-	params.Set("full_code_paths", strings.Join(fullCodePaths, ","))
-	return GetAPI[*dto.GetDepartmentsByPathsResp](ctx, path, params)
+	return GetAPI[*dto.GetDepartmentsByPathsResp](ctx, "/hr/api/v1/departments", buildQueryParams(
+		withCSVQueryValue("full_code_paths", fullCodePaths),
+	))
 }

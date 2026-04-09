@@ -71,13 +71,21 @@ func (s *Server) Start(ctx context.Context) error {
 	// 打印代理配置信息
 	s.printProxyRoutes(ctx)
 
-	// 启动 NATS 连接和订阅。失败时保持向后兼容，不阻断 HTTP 服务。
+	// 启动 NATS 连接和订阅。默认要求 NATS 可用，避免 token 失效链路静默漂移。
 	if err := s.initNATS(ctx); err != nil {
-		logger.Warnf(ctx, "[Server] Failed to init NATS: %v, continuing without NATS", err)
+		if s.cfg.AllowNATSDegradedStartup() {
+			logger.Warnf(ctx, "[Server] Failed to init NATS: %v, allow_nats_degraded_startup=true so HTTP gateway will continue", err)
+		} else {
+			return fmt.Errorf("failed to init required NATS: %w", err)
+		}
 	} else if err := s.subscribeNATS(ctx); err != nil {
-		logger.Warnf(ctx, "[Server] Failed to subscribe NATS: %v, continuing without NATS", err)
 		s.unsubscribeNATS(ctx)
 		s.closeNATS(ctx)
+		if s.cfg.AllowNATSDegradedStartup() {
+			logger.Warnf(ctx, "[Server] Failed to subscribe NATS: %v, allow_nats_degraded_startup=true so HTTP gateway will continue", err)
+		} else {
+			return fmt.Errorf("failed to subscribe required NATS: %w", err)
+		}
 	}
 
 	// 启动 HTTP 服务器

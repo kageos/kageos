@@ -157,47 +157,6 @@ func NewServiceTreeService(
 	return serviceTreeService
 }
 
-// CreateServiceTree 创建服务目录（package 类型）
-func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.CreateServiceTreeReq) (*dto.CreateServiceTreeResp, error) {
-	// ⭐ 如果指定了类型为 docs，则调用专门的方法
-	if req.Type == model.ServiceTreeTypeDocs {
-		return s.CreateDocsNode(ctx, req)
-	}
-	// ⭐ 如果指定了类型为 board，则调用专门的方法
-	if req.Type == model.ServiceTreeTypeBoard {
-		return s.CreateBoardNode(ctx, req)
-	}
-
-	packageResp, err := s.packageService.CreatePackage(ctx, &dto.CreatePackageReq{
-		User:               req.User,
-		App:                req.App,
-		Name:               req.Name,
-		Code:               req.Code,
-		ParentFullCodePath: req.ParentFullCodePath,
-		Description:        req.Description,
-		Tags:               req.Tags,
-		Admins:             req.Admins,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &dto.CreateServiceTreeResp{
-		ID:           packageResp.ID,
-		Name:         packageResp.Name,
-		Code:         packageResp.Code,
-		Type:         packageResp.Type,
-		Description:  packageResp.Description,
-		Tags:         packageResp.Tags,
-		Admins:       packageResp.Admins,
-		AppID:        packageResp.AppID,
-		FullCodePath: packageResp.FullCodePath,
-		Version:      packageResp.Version,
-		VersionNum:   packageResp.VersionNum,
-		Status:       "created",
-	}, nil
-}
-
 // CreatePackage 创建 package 类型节点（专门的接口）
 func (s *ServiceTreeService) CreatePackage(ctx context.Context, req *dto.CreatePackageReq) (*dto.CreatePackageResp, error) {
 	return s.packageService.CreatePackage(ctx, req)
@@ -330,15 +289,6 @@ func calculateTotalPendingCount(node *dto.GetServiceTreeResp) int {
 	return total
 }
 
-// GetServiceTree 获取服务目录
-func (s *ServiceTreeService) GetServiceTree(ctx context.Context, user, app string, nodeType string) ([]*dto.GetServiceTreeResp, error) {
-	appModel, err := s.appRepo.GetAppByUserName(user, app)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get app: %w", err)
-	}
-	return s.getServiceTreeByAppModel(ctx, appModel, nodeType)
-}
-
 // GetAppWithServiceTree 获取应用详情和服务目录树（合并接口，减少请求次数）
 // 这个方法放在 ServiceTreeService 中，因为：
 // 1. ServiceTreeService 已经有 appService 依赖，可以直接调用
@@ -353,12 +303,6 @@ func (s *ServiceTreeService) GetAppWithServiceTree(ctx context.Context, req *dto
 // ⭐ 优化：按需查询权限，只在获取详情时查询
 func (s *ServiceTreeService) GetServiceTreeDetail(ctx context.Context, req *dto.GetServiceTreeDetailReq) (*dto.GetServiceTreeDetailResp, error) {
 	return getServiceTreeDetailImpl(s, ctx, req)
-}
-
-// GetPackageInfo 获取目录信息（仅用于获取目录权限，不包含函数）
-// ⭐ 优化：专门用于获取目录权限，函数权限从函数详情接口获取
-func (s *ServiceTreeService) GetPackageInfo(ctx context.Context, req *dto.GetPackageInfoReq) (*dto.GetPackageInfoResp, error) {
-	return getPackageInfoImpl(s, ctx, req)
 }
 
 // convertToGetServiceTreeResp 转换为响应格式（包含权限信息）

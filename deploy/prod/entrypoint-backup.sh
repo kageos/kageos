@@ -12,6 +12,8 @@ require_env() {
 }
 
 require_env STORAGE_ROOT
+require_env BACKUP_BASIC_AUTH_USERNAME
+require_env BACKUP_BASIC_AUTH_PASSWORD
 
 mkdir -p \
   /app/logs \
@@ -21,6 +23,6 @@ mkdir -p \
   /app/data/tmp
 
 mkdir -p /app/deploy/prod/config/runtime
-envsubst '${STORAGE_ROOT}' < /app/config.prod.template/backup-service.yaml > /app/deploy/prod/config/runtime/backup-service.yaml
+envsubst '${STORAGE_ROOT} ${MYSQL_ROOT_PASSWORD} ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} ${BACKUP_BASIC_AUTH_USERNAME} ${BACKUP_BASIC_AUTH_PASSWORD}' < /app/config.prod.template/backup-service.yaml > /app/deploy/prod/config/runtime/backup-service.yaml
 
 exec /app/backup-server

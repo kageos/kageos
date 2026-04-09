@@ -15,54 +15,22 @@ func GetGatewayURL() string {
 	if url := os.Getenv("GATEWAY_URL"); url != "" {
 		return url
 	}
-
-	// 从全局配置读取（裸机服务访问）
-	globalConfig := config.GetGlobalSharedConfig()
-	gatewayURL := globalConfig.Gateway.GetBaseURL()
-	if gatewayURL != "" {
-		return gatewayURL
-	}
-
-	// 默认值（开发环境）
-	return "http://localhost:9090"
+	return config.GetGatewayURL()
 }
 
-// GetServiceURL 获取服务地址（通过网关）
-// serviceName: 服务名称（如 "storage", "app"）
-// path: 服务路径前缀（如 "/storage/api/v1", "/api"）
-func GetServiceURL(serviceName, path string) string {
-	gatewayURL := GetGatewayURL()
+// BuildGatewayURL 基于当前网关配置构建完整 URL。
+func BuildGatewayURL(path string) string {
+	return joinURL(GetGatewayURL(), path)
+}
 
+func joinURL(baseURL, path string) string {
 	// 确保路径以 / 开头
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}
 
-	// 返回：网关地址 + 路径
-	return gatewayURL + path
-}
+	// 移除基地址末尾的 /
+	baseURL = strings.TrimSuffix(baseURL, "/")
 
-// GetStorageURL 获取存储服务地址（便捷方法）
-func GetStorageURL() string {
-	return GetServiceURL("storage", "/storage/api/v1")
-}
-
-// GetAppServerURL 获取主服务地址（便捷方法）
-func GetAppServerURL() string {
-	return GetServiceURL("app", "/api")
-}
-
-// BuildServiceURL 构建完整的服务 URL
-// gatewayURL: 网关地址
-// path: 服务路径（如 "/api/v1/storage/upload"）
-func BuildServiceURL(gatewayURL, path string) string {
-	// 确保路径以 / 开头
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
-	}
-
-	// 移除网关地址末尾的 /
-	gatewayURL = strings.TrimSuffix(gatewayURL, "/")
-
-	return gatewayURL + path
+	return baseURL + path
 }

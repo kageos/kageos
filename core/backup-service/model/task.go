@@ -17,6 +17,7 @@ const (
 	TaskTypeMinIOSnapshot     = "minio_snapshot"
 	TaskTypeMinIORestore      = "minio_restore"
 	TaskTypeSnapshotDelete    = "snapshot_delete"
+	TaskTypeSnapshotPrune     = "snapshot_prune"
 
 	TaskStatusPending   = "pending"
 	TaskStatusRunning   = "running"

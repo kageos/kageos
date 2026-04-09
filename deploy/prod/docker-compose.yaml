@@ -75,6 +75,34 @@ services:
       - mysql
       - minio
 
+  scheduler:
+    image: ${MAIN_IMAGE}
+    entrypoint: ["/app/entrypoint-scheduler.sh"]
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      STORAGE_ROOT: ${STORAGE_ROOT}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      CONTROL_ENC_KEY: ${CONTROL_ENC_KEY}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME}
+    volumes:
+      - ${STORAGE_ROOT}/logs:/app/logs
+      - ${STORAGE_ROOT}/namespace:/app/namespace
+      - ${STORAGE_ROOT}/data:/app/data
+    depends_on:
+      - main
+      - mysql
+      - nats
+      - minio
+
   backup:
     image: ${MAIN_IMAGE}
     entrypoint: ["/app/entrypoint-backup.sh"]
@@ -84,6 +112,8 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      BACKUP_BASIC_AUTH_USERNAME: ${BACKUP_BASIC_AUTH_USERNAME}
+      BACKUP_BASIC_AUTH_PASSWORD: ${BACKUP_BASIC_AUTH_PASSWORD}
     ports:
       - "127.0.0.1:19088:19088"
     volumes:

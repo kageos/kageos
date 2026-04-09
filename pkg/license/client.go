@@ -4,11 +4,8 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -23,7 +20,7 @@ type Client struct {
 	natsConn            *nats.Conn
 	transport           *NATSTransport
 	encryptionKey       []byte
-	keyPath             string // 本地密钥文件路径
+	keyStore            *encryptedLicenseStore
 	manager             *Manager
 	pushSubscription    *nats.Subscription // 推送主题订阅（接收License内容）
 	refreshSubscription *nats.Subscription // 刷新指令订阅（通知主动请求）
@@ -40,24 +37,16 @@ func NewClient(natsConn *nats.Conn, encryptionKey []byte, keyPath string) (*Clie
 		return nil, fmt.Errorf("encryption key must be 32 bytes")
 	}
 
-	// 设置默认密钥路径
-	if keyPath == "" {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			keyPath = "./license.key"
-		} else {
-			keyPath = filepath.Join(homeDir, ".ai-agent-os", "license.key")
-		}
-	}
-	if err := os.MkdirAll(filepath.Dir(keyPath), 0o755); err != nil {
-		return nil, fmt.Errorf("failed to create license key directory: %w", err)
+	keyStore, err := newEncryptedLicenseStore(keyPath)
+	if err != nil {
+		return nil, err
 	}
 
 	client := &Client{
 		natsConn:      natsConn,
 		transport:     NewNATSTransport(natsConn),
 		encryptionKey: encryptionKey,
-		keyPath:       keyPath,
+		keyStore:      keyStore,
 		manager:       GetManager(),
 	}
 
@@ -74,7 +63,7 @@ func (c *Client) Start(ctx context.Context) error {
 
 	// 1. 尝试从本地加载密钥
 	if err := c.loadLocalKey(ctx); err == nil {
-		logger.Infof(ctx, "[License Client] Loaded license key from local file: %s", c.keyPath)
+		logger.Infof(ctx, "[License Client] Loaded license key from local file: %s", c.keyStore.Path())
 	} else {
 		logger.Warnf(ctx, "[License Client] Failed to load local key: %v, will request from Control Service", err)
 
@@ -104,13 +93,13 @@ func (c *Client) Start(ctx context.Context) error {
 
 // loadLocalKey 从本地加载密钥
 func (c *Client) loadLocalKey(ctx context.Context) error {
-	data, err := os.ReadFile(c.keyPath)
+	data, err := c.keyStore.Read()
 	if err != nil {
-		return fmt.Errorf("failed to read local key file: %w", err)
+		return err
 	}
 
 	// 解密并设置 License
-	return c.setLicenseFromEncrypted(ctx, data)
+	return c.applyEncryptedLicense(ctx, data, false)
 }
 
 // requestKey 通过 NATS 请求获取密钥
@@ -128,25 +117,7 @@ func (c *Client) requestKey(ctx context.Context) error {
 		return nil // 社区版，不需要设置 License
 	}
 
-	// 解码加密的 License
-	encrypted, err := base64.StdEncoding.DecodeString(resp.EncryptedLicense)
-	if err != nil {
-		return fmt.Errorf("failed to decode encrypted license: %w", err)
-	}
-
-	// 解密并设置 License
-	if err := c.setLicenseFromEncrypted(ctx, encrypted); err != nil {
-		return fmt.Errorf("failed to decrypt license: %w", err)
-	}
-
-	// 保存到本地
-	if err := os.WriteFile(c.keyPath, encrypted, 0600); err != nil {
-		logger.Warnf(ctx, "[License Client] Failed to save license key to local: %v", err)
-	} else {
-		logger.Infof(ctx, "[License Client] Saved license key to local file: %s", c.keyPath)
-	}
-
-	return nil
+	return c.applyLicenseKeyMessage(ctx, resp, false)
 }
 
 // subscribePush 订阅推送主题（接收推送的License，直接刷新）
@@ -176,9 +147,8 @@ func (c *Client) subscribePush(ctx context.Context) error {
 func (c *Client) handlePush(ctx context.Context, msg *nats.Msg) {
 	logger.Infof(ctx, "[License Client] Received pushed license, refreshing...")
 
-	// 解析推送的License消息
-	var keyMsg LicenseKeyMessage
-	if err := json.Unmarshal(msg.Data, &keyMsg); err != nil {
+	keyMsg, err := decodeLicenseKeyPayload(msg.Data)
+	if err != nil {
 		logger.Errorf(ctx, "[License Client] Failed to unmarshal pushed license: %v", err)
 		return
 	}
@@ -189,35 +159,8 @@ func (c *Client) handlePush(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	// 解码加密的 License
-	encrypted, err := base64.StdEncoding.DecodeString(keyMsg.EncryptedLicense)
-	if err != nil {
-		logger.Errorf(ctx, "[License Client] Failed to decode pushed license: %v", err)
-		return
-	}
-
-	// 读取本地密钥（用于对比）
-	localKey, err := os.ReadFile(c.keyPath)
-	if err == nil {
-		// 对比密钥（如果相同则不更新）
-		if string(localKey) == string(encrypted) {
-			logger.Infof(ctx, "[License Client] Pushed license unchanged, skipping update")
-			return
-		}
-	}
-
-	// 密钥不同，直接解密并刷新
-	logger.Infof(ctx, "[License Client] 检测到 License 更新，正在刷新...")
-	if err := c.setLicenseFromEncrypted(ctx, encrypted); err != nil {
-		logger.Errorf(ctx, "[License Client] Failed to decrypt pushed license: %v", err)
-		return
-	}
-
-	// 保存新密钥到本地
-	if err := os.WriteFile(c.keyPath, encrypted, 0600); err != nil {
-		logger.Warnf(ctx, "[License Client] Failed to save pushed license to local: %v", err)
-	} else {
-		logger.Infof(ctx, "[License Client] License 已刷新并保存到本地: %s", c.keyPath)
+	if err := c.applyLicenseKeyMessage(ctx, keyMsg, true); err != nil {
+		logger.Errorf(ctx, "[License Client] Failed to refresh pushed license: %v", err)
 	}
 }
 
@@ -254,8 +197,8 @@ func (c *Client) handleRefresh(ctx context.Context, msg *nats.Msg) {
 	logger.Infof(ctx, "[License Client] 消息数据: %s", string(msg.Data))
 
 	// 解析消息，检查是否是注销指令
-	var instructionMsg LicenseInstructionMessage
-	if err := json.Unmarshal(msg.Data, &instructionMsg); err != nil {
+	instructionMsg, err := decodeLicenseInstructionPayload(msg.Data)
+	if err != nil {
 		logger.Errorf(ctx, "[License Client] ❌ Failed to unmarshal refresh message: %v", err)
 		logger.Errorf(ctx, "[License Client] 原始消息数据: %s", string(msg.Data))
 		return
@@ -277,24 +220,9 @@ func (c *Client) handleRefresh(ctx context.Context, msg *nats.Msg) {
 	if instructionMsg.EncryptedLicense != "" {
 		logger.Infof(ctx, "[License Client] Received refresh instruction with license content, refreshing directly...")
 
-		// 解码加密的 License
-		encrypted, err := base64.StdEncoding.DecodeString(instructionMsg.EncryptedLicense)
-		if err != nil {
-			logger.Errorf(ctx, "[License Client] Failed to decode encrypted license: %v", err)
-			return
-		}
-
-		// 解密并设置 License
-		if err := c.setLicenseFromEncrypted(ctx, encrypted); err != nil {
+		if err := c.applyInstructionLicense(ctx, instructionMsg); err != nil {
 			logger.Errorf(ctx, "[License Client] Failed to refresh license from instruction: %v", err)
 			return
-		}
-
-		// 保存到本地
-		if err := os.WriteFile(c.keyPath, encrypted, 0600); err != nil {
-			logger.Warnf(ctx, "[License Client] Failed to save license key to local: %v", err)
-		} else {
-			logger.Infof(ctx, "[License Client] License refreshed and saved to local: %s", c.keyPath)
 		}
 
 		logger.Infof(ctx, "[License Client] License key refreshed successfully from instruction")
@@ -326,11 +254,11 @@ func (c *Client) handleDeactivate(ctx context.Context) {
 	logger.Infof(ctx, "[License Client] ✅ License 状态已清除，回到社区版")
 
 	// 2. 删除本地存储的 License 密钥文件
-	if _, err := os.Stat(c.keyPath); err == nil {
-		if err := os.Remove(c.keyPath); err != nil {
+	if c.keyStore.Exists() {
+		if err := c.keyStore.Delete(); err != nil {
 			logger.Warnf(ctx, "[License Client] ❌ 删除本地 License 密钥文件失败: %v", err)
 		} else {
-			logger.Infof(ctx, "[License Client] ✅ 本地 License 密钥文件已删除: %s", c.keyPath)
+			logger.Infof(ctx, "[License Client] ✅ 本地 License 密钥文件已删除: %s", c.keyStore.Path())
 		}
 	} else {
 		logger.Infof(ctx, "[License Client] 本地 License 密钥文件不存在，跳过删除")
@@ -339,6 +267,63 @@ func (c *Client) handleDeactivate(ctx context.Context) {
 	logger.Infof(ctx, "[License Client] ========================================")
 	logger.Infof(ctx, "[License Client] ✅ License 注销成功，系统已回到社区版")
 	logger.Infof(ctx, "[License Client] ========================================")
+}
+
+func (c *Client) applyInstructionLicense(ctx context.Context, instruction *LicenseInstructionMessage) error {
+	if instruction == nil || instruction.EncryptedLicense == "" {
+		return fmt.Errorf("instruction has no encrypted license")
+	}
+
+	encrypted, err := decodeEncryptedLicenseBase64(instruction.EncryptedLicense)
+	if err != nil {
+		return err
+	}
+
+	return c.applyEncryptedLicense(ctx, encrypted, true)
+}
+
+func (c *Client) applyLicenseKeyMessage(ctx context.Context, keyMsg *LicenseKeyMessage, skipIfUnchanged bool) error {
+	if keyMsg == nil || keyMsg.EncryptedLicense == "" {
+		return fmt.Errorf("license key message has no encrypted license")
+	}
+
+	encrypted, err := decodeEncryptedLicenseBase64(keyMsg.EncryptedLicense)
+	if err != nil {
+		return err
+	}
+
+	if skipIfUnchanged {
+		same, err := c.keyStore.IsSame(encrypted)
+		if err == nil && same {
+			logger.Infof(ctx, "[License Client] Pushed license unchanged, skipping update")
+			return nil
+		}
+		if err != nil {
+			logger.Warnf(ctx, "[License Client] Failed to compare local license key: %v", err)
+		}
+	}
+
+	return c.applyEncryptedLicense(ctx, encrypted, true)
+}
+
+func (c *Client) applyEncryptedLicense(ctx context.Context, encrypted []byte, persist bool) error {
+	logger.Infof(ctx, "[License Client] 检测到 License 更新，正在刷新...")
+
+	if err := c.setLicenseFromEncrypted(ctx, encrypted); err != nil {
+		return fmt.Errorf("failed to decrypt license: %w", err)
+	}
+
+	if !persist {
+		return nil
+	}
+
+	if err := c.keyStore.Write(encrypted); err != nil {
+		logger.Warnf(ctx, "[License Client] Failed to save license key to local: %v", err)
+	} else {
+		logger.Infof(ctx, "[License Client] License 已刷新并保存到本地: %s", c.keyStore.Path())
+	}
+
+	return nil
 }
 
 // setLicenseFromEncrypted 从加密数据设置 License

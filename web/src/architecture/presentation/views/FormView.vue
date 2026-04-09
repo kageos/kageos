@@ -340,12 +340,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch, ref, withDefaults, provide } from 'vue'
-import type { ComputedRef } from 'vue'
+import { computed, ref, withDefaults, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Lock, Document, List, User, Clock } from '@element-plus/icons-vue'
-import { ElIcon, ElTag, ElNotification, ElMessage, ElAlert, ElMessageBox, ElText, ElCheckbox, ElCard, ElEmpty } from 'element-plus'
-import { eventBus, FormEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
+import { ElIcon, ElTag, ElNotification, ElMessage, ElEmpty } from 'element-plus'
+import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import { apiClient } from '../../infrastructure/apiClient'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
@@ -354,23 +353,19 @@ import { getErrorMessage } from '@/utils/apiError'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { getChangedFields } from '@/utils/objectDiff'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
-import { hasAnyRequiredRule } from '@/core/utils/validationUtils'
 import { formDataStoreKey } from '@/core/stores-v2/formData'
 import { useFunctionParamInitialization } from '../composables/useFunctionParamInitialization'
+import { useFormDebug } from '../composables/useFormDebug'
 import { useFormParamURLSync } from '../composables/useFormParamURLSync'
+import { useFormViewState } from '../composables/useFormViewState'
+import { useFormViewLifecycle } from '../composables/useFormViewLifecycle'
 import { hasPermission, FormPermission, FunctionPermission, buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import ScheduledTaskDialog from '../components/ScheduledTaskDialog.vue'
-import { WorkspaceStateManager } from '../../infrastructure/stateManager/WorkspaceStateManager'
-import { createAutoFieldValue, createEmptyFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
-import {
-  buildInitialDataFromFormDataStore as buildInitialDataFromFormDataStoreHelper,
-  createFormViewRuntime,
-  syncFormDataStoreToStateManager as syncFormDataStoreToStateManagerHelper
-} from './utils/formViewRuntime'
-import { FORM_LABEL_WIDTH, FORM_QUESTIONNAIRE_TRIGGER_CHARS } from '../utils/formLayout'
+import { createFormViewRuntime } from './utils/formViewRuntime'
+import { FORM_LABEL_WIDTH } from '../utils/formLayout'
 
 const props = withDefaults(defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取
@@ -404,34 +399,32 @@ const {
   apiClient
 })
 provide(formDataStoreKey, formDataStore)
-const workspaceStateManager = serviceFactory.getWorkspaceStateManager() as WorkspaceStateManager
+const workspaceStateManager = serviceFactory.getWorkspaceStateManager()
 const workspaceDomainService = serviceFactory.getWorkspaceDomainService()
 
 // 🔥 内部维护 functionDetail（在 onMounted 中主动获取）
 const functionDetail = ref<FunctionDetail | null>(props.functionDetail || null)
-
-// 从状态管理器获取状态
-const formData = computed(() => {
-  const state = stateManager.getState()
-  const data: Record<string, any> = {}
-  if (state.data) {
-    state.data.forEach((value: FieldValue, key: string) => {
-      if (value) {
-        data[key] = value.raw
-      }
-    })
-  }
-  return data
+const {
+  formData,
+  requestFields,
+  responseFields,
+  requestLabelsOnTop,
+  responseLabelsOnTop,
+  hasResponseData,
+  responseMetadata,
+  submitting,
+  formRendererContext,
+  getFieldValue,
+  getFieldError,
+  getResponseFieldValue,
+  isFieldRequired,
+  handleFieldUpdate,
+} = useFormViewState({
+  functionDetail,
+  stateManager,
+  domainService,
+  applicationService
 })
-
-const requestFields = computed(() => (functionDetail.value?.request || []) as FieldConfig[])
-const responseFields = computed(() => (functionDetail.value?.response || []) as FieldConfig[])
-const requestLabelsOnTop = computed(() =>
-  requestFields.value.some((f) => (f.name?.length ?? 0) > FORM_QUESTIONNAIRE_TRIGGER_CHARS)
-)
-const responseLabelsOnTop = computed(() =>
-  responseFields.value.some((f) => (f.name?.length ?? 0) > FORM_QUESTIONNAIRE_TRIGGER_CHARS)
-)
 
 // ⭐ 权限检查：获取当前函数节点的权限信息
 const currentFunctionNode = computed(() => {
@@ -462,54 +455,6 @@ const handleApplyPermissionForSubmit = () => {
 // 🔥 移除 formInitialData computed，改为使用统一的数据初始化框架
 // URL 参数会在 useFunctionParamInitialization 中统一处理
 
-// 🔥 为所有字段创建响应式的值 Map
-// ⭐ 直接访问 formDataStore.data，确保响应式更新
-// ⚠️ 注意：Vue 3 的 reactive Map 的 .get() 可能不会建立响应式依赖，需要使用 forEach 遍历
-const fieldValues = computed(() => {
-  const values: Record<string, FieldValue> = {}
-  // ⭐ 先遍历 formDataStore.data 建立响应式依赖
-  formDataStore.data.forEach((value, key) => {
-    // 只包含 requestFields 中的字段
-    if (requestFields.value.some((f: FieldConfig) => f.code === key)) {
-      values[key] = value
-    }
-  })
-  // ⭐ 确保所有 requestFields 中的字段都有值（即使 formDataStore 中没有）
-  requestFields.value.forEach((field: FieldConfig) => {
-    if (!values[field.code]) {
-      values[field.code] = createEmptyFieldValue(field)
-    }
-  })
-  return values
-})
-
-const submitting = computed(() => {
-  const state = stateManager.getState()
-  return state.submitting
-})
-
-// 🔥 为所有响应字段创建响应式的值 Map
-const responseFieldValues = computed(() => {
-  const state = stateManager.getState()
-  const values: Record<string, FieldValue> = {}
-  responseFields.value.forEach((field: FieldConfig) => {
-    const rawValue = state.response?.[field.code]
-    values[field.code] = createAutoFieldValue(rawValue, field)
-  })
-  return values
-})
-
-const hasResponseData = computed(() => {
-  const state = stateManager.getState()
-  return state.response !== null && state.response !== undefined
-})
-
-// 🔥 获取响应元数据（如 total_cost_mill、trace_id 等）
-const responseMetadata = computed(() => {
-  const state = stateManager.getState()
-  return state.metadata || null
-})
-
 // 🔥 格式化耗时显示
 const formatCostTime = (milliseconds: number): string => {
   if (milliseconds < 1000) {
@@ -523,123 +468,23 @@ const formatCostTime = (milliseconds: number): string => {
   }
 }
 
-// Debug 相关
-const showDebugDialog = ref(false)
-const debugActiveTab = ref('request')
+const {
+  showDebugDialog,
+  debugActiveTab,
+  debugRequestData,
+  debugResponseData,
+  debugRawData,
+  copyToClipboard,
+} = useFormDebug({
+  stateManager,
+  domainService,
+  requestFields,
+})
+
 const showScheduledTaskDialog = ref(false)
 
 function onScheduledTaskCreated() {
   eventBus.emit(WorkspaceEvent.scheduledTaskCreated)
-}
-
-
-// 实时获取提交数据（用于 Debug）
-const debugRequestData = computed(() => {
-  try {
-    const submitData = domainService.getSubmitData(requestFields.value)
-    return JSON.stringify(submitData, null, 2)
-  } catch (error) {
-    return JSON.stringify({ error: '获取提交数据失败' }, null, 2)
-  }
-})
-
-// 获取响应数据（用于 Debug）
-const debugResponseData = computed(() => {
-  const state = stateManager.getState()
-  if (state.response) {
-    try {
-      return JSON.stringify(state.response, null, 2)
-    } catch (error) {
-      return JSON.stringify({ error: '格式化响应数据失败' }, null, 2)
-    }
-  }
-  return ''
-})
-
-// 获取原始状态数据（用于 Debug）
-const debugRawData = computed(() => {
-  const state = stateManager.getState()
-  try {
-    const rawData: Record<string, any> = {}
-    state.data.forEach((value: FieldValue, key: string) => {
-      // 🔥 dataType 和 widgetType 已经是通用字段，直接显示
-      rawData[key] = {
-        raw: value.raw,
-        display: value.display,
-        dataType: value.dataType || 'unknown',  // 🔥 通用字段，和 display 同级别
-        widgetType: value.widgetType || 'unknown',  // 🔥 通用字段，和 display 同级别
-        meta: value.meta
-      }
-    })
-    return JSON.stringify(rawData, null, 2)
-  } catch (error) {
-    return JSON.stringify({ error: '格式化原始数据失败' }, null, 2)
-  }
-})
-
-// 复制到剪贴板
-const copyToClipboard = async (text: string): Promise<void> => {
-  try {
-    await navigator.clipboard.writeText(text)
-    ElMessage.success('已复制到剪贴板')
-  } catch (error) {
-    ElMessage.error('复制失败，请手动复制')
-  }
-}
-
-
-// FormRenderer 上下文（用于 OnSelectFuzzy 回调）
-// 注意：使用 computed 确保响应式更新，并且每次访问都返回新的对象（但方法引用稳定）
-const formRendererContext = computed(() => {
-  return {
-    getFunctionMethod: () => functionDetail.value?.method || 'GET',
-    getFunctionRouter: () => functionDetail.value?.router || '',
-    getSubmitData: () => {
-      const state = stateManager.getState()
-      const data: Record<string, any> = {}
-      if (state.data) {
-        state.data.forEach((value: FieldValue, key: string) => {
-          if (value) {
-            data[key] = value.raw
-          }
-        })
-      }
-      return data
-    },
-    registerWidget: () => {},
-    unregisterWidget: () => {},
-    getFieldError: (fieldPath: string) => {
-      const errors = domainService.getFieldError(fieldPath)
-      return errors[0]?.message || null
-    }
-  }
-})
-
-// 方法
-const getFieldValue = (fieldCode: string): FieldValue => {
-  return fieldValues.value[fieldCode] || createEmptyRawFieldValue()
-}
-
-const getFieldError = (fieldCode: string): string => {
-  // 🔥 只在提交时显示验证错误
-  const errors = domainService.getFieldError(fieldCode)
-  return errors[0]?.message || ''
-}
-
-const getResponseFieldValue = (fieldCode: string): FieldValue => {
-  return responseFieldValues.value[fieldCode] || createEmptyRawFieldValue()
-}
-
-const isFieldRequired = (field: FieldConfig): boolean => {
-  return hasAnyRequiredRule(field)
-}
-
-const handleFieldUpdate = (fieldCode: string, value: FieldValue): void => {
-  // 🔥 调试日志：检查值是否正确传递
-  if (!value || value.raw === null || value.raw === undefined) {
-    // 空值处理
-  }
-  applicationService.updateFieldValue(fieldCode, value)
 }
 
 const handleSubmit = async (): Promise<void> => {
@@ -679,7 +524,7 @@ const handleSubmit = async (): Promise<void> => {
 }
 
 const handleReset = (): void => {
-  resetFormRuntimeState()
+  lifecycle.resetFormRuntimeState()
   // 重新初始化表单
   const fields = requestFields.value
   if (fields.length > 0) {
@@ -781,33 +626,7 @@ function validateForm(): boolean {
 }
 
 async function applyOperateLog(payload: ApplyOperateLogPayload): Promise<void> {
-  if (!functionDetail.value) {
-    throw new Error('函数详情未加载完成')
-  }
-
-  const requestBody =
-    payload.requestBody && typeof payload.requestBody === 'object' && !Array.isArray(payload.requestBody)
-      ? payload.requestBody
-      : {}
-
-  await initializeFormForDetail(functionDetail.value, {
-    initialData: requestBody,
-    force: true
-  })
-
-  if (typeof (stateManager as any).setResponse === 'function') {
-    ;(stateManager as any).setResponse(payload.responseBody || null)
-  }
-  if (typeof (stateManager as any).setMetadata === 'function') {
-    ;(stateManager as any).setMetadata(payload.responseMetadata || null)
-  }
-
-  Logger.info('[FormView]', '已回填执行记录到表单', {
-    router: functionDetail.value.router,
-    requestKeys: Object.keys(requestBody),
-    hasResponseBody: !!payload.responseBody,
-    metadataKeys: payload.responseMetadata ? Object.keys(payload.responseMetadata) : []
-  })
+  await lifecycle.applyOperateLog(payload)
 }
 
 // 🔥 暴露方法给外部组件调用（兼容 FormRenderer 的接口）
@@ -818,151 +637,6 @@ defineExpose({
   applyOperateLog
 })
 
-
-// 格式化日期
-const formatDate = (dateStr: string): string => {
-  if (!dateStr) return ''
-  const date = new Date(dateStr)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
-
-// 生命周期
-let unsubscribeFunctionLoaded: (() => void) | null = null
-let unsubscribeFormInitialized: (() => void) | null = null
-
-/**
- * 同步 formDataStore 的数据到 stateManager
- * 🔥 确保 SelectWidgetInitializer 更新后的 display 值不丢失
- * 
- * @param fields 字段配置列表
- */
-function syncFormDataStoreToStateManager(fields: FieldConfig[]): void {
-  syncFormDataStoreToStateManagerHelper({
-    fields,
-    formDataStore,
-    stateManager
-  })
-}
-
-/**
- * 从 formDataStore 构建 initialData（只包含 raw 值）
- * 用于传递给 applicationService.initializeForm
- * 
- * @param fields 字段配置列表
- * @returns initialData 对象
- */
-function buildInitialDataFromFormDataStore(fields: FieldConfig[]): Record<string, any> {
-  return buildInitialDataFromFormDataStoreHelper({
-    fields,
-    formDataStore
-  })
-}
-
-function hasNonEmptyInitialData(data?: Record<string, any> | null): boolean {
-  return !!data && Object.keys(data).length > 0
-}
-
-function buildFormInitializationKey(
-  detail: FunctionDetail,
-  initialData?: Record<string, any> | null
-): string {
-  return JSON.stringify({
-    id: detail.id ?? null,
-    router: detail.router ?? '',
-    mode: hasNonEmptyInitialData(initialData) ? 'update' : 'create',
-    initialData: initialData || null
-  })
-}
-
-function restoreResponseParams(metadata?: Record<string, any> | null): void {
-  const responseParams = metadata?.responseParams
-  if (!responseParams || !stateManager || typeof (stateManager as any).setResponse !== 'function') {
-    return
-  }
-
-  ;(stateManager as any).setResponse(responseParams)
-  Logger.debug('FormView', '已恢复响应数据', {
-    responseParamsKeys: Object.keys(responseParams),
-    responseParams,
-    stateResponse: stateManager.getState().response
-  })
-}
-
-function resetFormRuntimeState(): void {
-  applicationService.clearForm()
-  responseDataStore.clear()
-}
-
-let latestFormInitializationToken = 0
-let inFlightFormInitializationKey: string | null = null
-let lastAppliedFormInitializationKey: string | null = null
-
-async function initializeFormForDetail(
-  detail: FunctionDetail,
-  options: {
-    initialData?: Record<string, any>
-    resetRuntime?: boolean
-    force?: boolean
-  } = {}
-): Promise<void> {
-  const fields = (Array.isArray(detail.request) ? detail.request : []) as FieldConfig[]
-  if (fields.length === 0) {
-    return
-  }
-
-  const explicitInitialData = options.initialData ?? props.initialData
-  const initializationKey = buildFormInitializationKey(detail, explicitInitialData)
-
-  if (!options.force) {
-    if (initializationKey === inFlightFormInitializationKey || initializationKey === lastAppliedFormInitializationKey) {
-      return
-    }
-  }
-
-  const token = ++latestFormInitializationToken
-  inFlightFormInitializationKey = initializationKey
-
-  if (options.resetRuntime !== false) {
-    resetFormRuntimeState()
-  }
-
-  try {
-    if (hasNonEmptyInitialData(explicitInitialData)) {
-      applicationService.initializeForm(fields, explicitInitialData, true)
-    } else {
-      const metadata = await initializeParams()
-      if (token !== latestFormInitializationToken) {
-        return
-      }
-
-      syncFormDataStoreToStateManager(fields)
-      const initialData = buildInitialDataFromFormDataStore(fields)
-      applicationService.initializeForm(fields, initialData, false)
-
-      if (token !== latestFormInitializationToken) {
-        return
-      }
-
-      restoreResponseParams(metadata)
-    }
-
-    if (token !== latestFormInitializationToken) {
-      return
-    }
-
-    lastAppliedFormInitializationKey = initializationKey
-  } finally {
-    if (token === latestFormInitializationToken) {
-      inFlightFormInitializationKey = null
-    }
-  }
-}
 
 // 🔥 使用统一的数据初始化框架
 const { initialize: initializeParams } = useFunctionParamInitialization({
@@ -1017,177 +691,21 @@ const { watchFormData } = useFormParamURLSync({
   enabled: shouldSyncURL,
   debounceMs: 300
 })
-
-onMounted(async () => {
-  resetFormRuntimeState()
-  // ⭐ 清除之前的权限错误（切换函数时清除）
-  permissionErrorStore.clearError()
-  
-  // 🔥 在 onMounted 中主动获取 functionDetail
-  // 如果 prop 已经提供了 functionDetail，直接使用；否则从 WorkspaceStateManager 获取当前函数节点并加载详情
-  // ⚠️ 注意：id 可能为 0（FormDialog 中设置），所以不能直接用 truthy 判断
-  if (props.functionDetail && (props.functionDetail.id !== undefined && props.functionDetail.id !== null)) {
-    // 如果 prop 已经提供了 functionDetail，直接使用
-    functionDetail.value = props.functionDetail
-    Logger.debug('FormView', 'onMounted 时使用 prop 提供的 functionDetail', {
-      functionId: props.functionDetail.id,
-      requestFieldsCount: Array.isArray(props.functionDetail.request) ? props.functionDetail.request.length : 0
-    })
-  } else {
-    // 否则，从 WorkspaceStateManager 获取当前函数节点并加载详情
-    const currentFunction = workspaceStateManager.getCurrentFunction()
-    if (currentFunction && currentFunction.type === 'function') {
-      Logger.debug('FormView', 'onMounted 时主动加载 functionDetail', {
-        functionNodeId: currentFunction.id,
-        refId: currentFunction.ref_id,  // 🔥 记录 ref_id（函数 ID）
-        functionPath: currentFunction.full_code_path,
-        hasRefId: !!(currentFunction.ref_id && currentFunction.ref_id > 0)
-      })
-      try {
-        // 🔥 loadFunction 会优先使用 ref_id 加载函数详情
-        const detail = await workspaceDomainService.loadFunction(currentFunction)
-        functionDetail.value = detail
-        Logger.info('FormView', 'onMounted 时成功加载 functionDetail', {
-          functionId: detail.id,
-          refId: currentFunction.ref_id,  // 🔥 记录使用的 ref_id
-          requestFieldsCount: detail.request?.length || 0,
-          requestFields: Array.isArray(detail.request) ? detail.request.map((f: any) => ({
-            code: f.code,
-            name: f.name,
-            widgetType: f.widget?.type,
-            hasDefault: !!(f.widget?.config as any)?.default,
-            defaultValue: (f.widget?.config as any)?.default
-          })) : []
-        })
-      } catch (error) {
-        Logger.error('FormView', 'onMounted 时加载 functionDetail 失败', error)
-        return
-      }
-    } else {
-      Logger.debug('FormView', 'onMounted 时没有当前函数节点，等待 watch 触发', {
-        hasCurrentFunction: !!currentFunction,
-        functionType: currentFunction?.type
-      })
-      return
-    }
-  }
-  
-  if (functionDetail.value && (functionDetail.value.id !== undefined && functionDetail.value.id !== null) && functionDetail.value.request) {
-    await initializeFormForDetail(functionDetail.value, {
-      resetRuntime: false
-    })
-  }
-
-  // 监听函数加载完成事件
-  let lastInitializedFunctionId: number | null = null // 🔥 记录上次初始化的函数 ID，防止重复初始化
-  unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, async (payload: { detail: FunctionDetail }) => {
-    const detailId = payload.detail.id
-    if (payload.detail.template_type === TEMPLATE_TYPE.FORM && functionDetail.value && detailId != null && detailId === functionDetail.value.id) {
-      // 🔥 防重复初始化：如果已经初始化过这个函数，跳过
-      if (lastInitializedFunctionId === detailId) {
-        Logger.debug('FormView', '跳过重复的 functionLoaded 事件', { functionId: detailId })
-        return
-      }
-      lastInitializedFunctionId = detailId
-      functionDetail.value = payload.detail
-      await initializeFormForDetail(payload.detail, {
-        force: true
-      })
-    }
-  })
-
-  // 监听表单初始化完成事件
-  unsubscribeFormInitialized = eventBus.on(FormEvent.initialized, () => {
-    // 表单已初始化，可以渲染
-  })
-  
-  // 🔥 开始监听表单数据变化，自动同步到 URL
-  watchFormData()
-})
-
-  /**
-   * 🔥 检查 initialData 是否真的变化了
-   */
-  const hasInitialDataChanged = (
-    newData: Record<string, any>,
-    oldData?: Record<string, any>
-  ): boolean => {
-    const newKeys = Object.keys(newData || {})
-    const oldKeys = Object.keys(oldData || {})
-    
-    // 如果 key 数量不同，或者有新的 key，或者值有变化，才重新初始化
-    return newKeys.length !== oldKeys.length || 
-      newKeys.some(key => newData[key] !== oldData?.[key])
-  }
-
-  // 🔥 监听 initialData 变化，当切换到编辑模式时重新初始化表单
-watch(() => props.initialData, async (newInitialData: Record<string, any>, oldInitialData?: Record<string, any>) => {
-    // 只在 initialData 真正变化时（且不是首次设置）才重新初始化
-    if (!functionDetail.value || !functionDetail.value.request) {
-      return
-    }
-    
-    if (oldInitialData === undefined) {
-      return
-    }
-    
-    if (!hasInitialDataChanged(newInitialData, oldInitialData)) {
-      return
-    }
-
-    await initializeFormForDetail(functionDetail.value, {
-      initialData: newInitialData,
-      force: true
-    })
-  }, { deep: true })
-
-  // 🔥 统一监听 functionDetail 的关键属性变化，避免多个 watch 走不同初始化分支
-  watch(
-    () => [props.functionDetail?.id, props.functionDetail?.router, props.functionDetail?.request],
-    async ([newId, newRouter, newRequest], [oldId, oldRouter, oldRequest]) => {
-      permissionErrorStore.clearError()
-
-      if (props.functionDetail && props.functionDetail.id !== undefined && props.functionDetail.id !== null) {
-        functionDetail.value = props.functionDetail
-      }
-
-      if (!functionDetail.value || !functionDetail.value.request || functionDetail.value.id === undefined || functionDetail.value.id === null) {
-        return
-      }
-      
-      if (oldId === undefined || oldId === null) {
-        return
-      }
-      
-      const functionDetailChanged =
-        newId !== oldId ||
-        newRouter !== oldRouter ||
-        JSON.stringify(newRequest || []) !== JSON.stringify(oldRequest || [])
-
-      if (!functionDetailChanged) {
-        return
-      }
-
-      await initializeFormForDetail(functionDetail.value, {
-        force: true
-      })
-    },
-    { deep: true, immediate: false }
-  )
-
-// 🔥 移除 watch route.query，改为使用统一的数据初始化框架处理 URL 参数
-// URL 参数会在 initializeParams 时统一处理，包括类型转换和组件自治初始化
-
-onUnmounted(() => {
-  if (unsubscribeFunctionLoaded) {
-    unsubscribeFunctionLoaded()
-  }
-  if (unsubscribeFormInitialized) {
-    unsubscribeFormInitialized()
-  }
-  applicationService.dispose()
-  formDataStore.clear()
-  responseDataStore.clear()
+const lifecycle = useFormViewLifecycle({
+  eventBus,
+  functionDetail,
+  propsFunctionDetail: () => props.functionDetail,
+  propsInitialData: () => props.initialData,
+  formDataStore,
+  responseDataStore,
+  stateManager,
+  domainService,
+  applicationService,
+  workspaceStateManager,
+  workspaceDomainService,
+  permissionErrorStore,
+  initializeParams,
+  watchFormData
 })
 </script>
 

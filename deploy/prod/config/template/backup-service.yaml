@@ -37,6 +37,11 @@ minio:
   access_key: "${MINIO_ROOT_USER}"
   secret_key: "${MINIO_ROOT_PASSWORD}"
 
+auth:
+  username: "${BACKUP_BASIC_AUTH_USERNAME}"
+  password: "${BACKUP_BASIC_AUTH_PASSWORD}"
+  realm: "Backup Control Plane"
+
 tooling:
   mysql_binary: "mysql"
   mysqldump_binary: "mysqldump"

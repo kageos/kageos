@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"sync"
+	"time"
 )
 
 var (
@@ -33,10 +34,11 @@ func GetAppServerConfig() *AppServerConfig {
 
 // AppServerConfig app-server 配置
 type AppServerConfig struct {
-	Server   AppServerServerConfig `mapstructure:"server"`
-	Timeouts AppServerTimeoutCfg   `mapstructure:"timeouts"`
-	Email    EmailConfig           `mapstructure:"email"`
-	DB       DBConfig              `mapstructure:"db"`
+	Server    AppServerServerConfig    `mapstructure:"server"`
+	Scheduler AppServerSchedulerConfig `mapstructure:"scheduler"`
+	Timeouts  AppServerTimeoutCfg      `mapstructure:"timeouts"`
+	Email     EmailConfig              `mapstructure:"email"`
+	DB        DBConfig                 `mapstructure:"db"`
 	// 注意：NATS、JWT、Control Service 配置已移至全局配置，不再在此处配置
 	// 数据库配置保留在服务配置中，因为微服务后续每个服务一个库
 }
@@ -46,6 +48,14 @@ type AppServerServerConfig struct {
 	Port     int    `mapstructure:"port"`
 	LogLevel string `mapstructure:"log_level"`
 	Debug    bool   `mapstructure:"debug"`
+}
+
+// AppServerSchedulerConfig app-server 定时任务调度配置
+type AppServerSchedulerConfig struct {
+	PollIntervalSeconds  int `mapstructure:"poll_interval_seconds"`
+	BatchSize            int `mapstructure:"batch_size"`
+	LeaseDurationSeconds int `mapstructure:"lease_duration_seconds"`
+	MaxConcurrency       int `mapstructure:"max_concurrency"`
 }
 
 // AppServerTimeoutCfg 超时配置
@@ -122,6 +132,42 @@ func (c *AppServerConfig) GetNatsRequestTimeout() int {
 		return 300 // 默认 300 秒（5分钟）
 	}
 	return c.Timeouts.NatsRequest
+}
+
+func (c *AppServerConfig) IsSchedulerEmbedded() bool {
+	return GetGlobalSharedConfig().IsSchedulerEmbedded()
+}
+
+func (c *AppServerConfig) GetSchedulerPollInterval() time.Duration {
+	if c.Scheduler.PollIntervalSeconds <= 0 {
+		return time.Second
+	}
+	return time.Duration(c.Scheduler.PollIntervalSeconds) * time.Second
+}
+
+func (c *AppServerConfig) GetSchedulerBatchSize() int {
+	if c.Scheduler.BatchSize <= 0 {
+		return 50
+	}
+	return c.Scheduler.BatchSize
+}
+
+func (c *AppServerConfig) GetSchedulerLeaseDuration() time.Duration {
+	seconds := c.Scheduler.LeaseDurationSeconds
+	if seconds <= 0 {
+		seconds = c.GetAppRequestTimeout() + 60
+		if seconds < 360 {
+			seconds = 360
+		}
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+func (c *AppServerConfig) GetSchedulerMaxConcurrency() int {
+	if c.Scheduler.MaxConcurrency <= 0 {
+		return 4
+	}
+	return c.Scheduler.MaxConcurrency
 }
 
 // 数据库配置便捷访问方法

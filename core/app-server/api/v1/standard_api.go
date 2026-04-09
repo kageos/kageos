@@ -209,7 +209,7 @@ func (s *StandardAPI) buildCallbackAppReq(c *gin.Context, fullCodePath string, c
 // @Failure 401 {string} string "未授权"
 // @Failure 403 {string} string "权限不足"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/table/search/{full-code-path} [get]
+// @Router /workspace/api/v1/table/search/{full-code-path} [get]
 func (s *StandardAPI) TableSearch(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
@@ -268,7 +268,7 @@ func (s *StandardAPI) TableSearch(c *gin.Context) {
 // @Failure 401 {string} string "未授权"
 // @Failure 403 {string} string "权限不足"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/table/create/{full-code-path} [post]
+// @Router /workspace/api/v1/table/create/{full-code-path} [post]
 func (s *StandardAPI) TableCreate(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
@@ -327,7 +327,7 @@ func (s *StandardAPI) TableCreate(c *gin.Context) {
 // @Failure 401 {string} string "未授权"
 // @Failure 403 {string} string "权限不足"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/table/batch-create/{full-code-path} [post]
+// @Router /workspace/api/v1/table/batch-create/{full-code-path} [post]
 func (s *StandardAPI) TableBatchCreate(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
@@ -384,7 +384,7 @@ func (s *StandardAPI) TableBatchCreate(c *gin.Context) {
 // @Failure 401 {string} string "未授权"
 // @Failure 403 {string} string "权限不足"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/table/template/{full-code-path} [get]
+// @Router /workspace/api/v1/table/template/{full-code-path} [get]
 func (s *StandardAPI) TableTemplate(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
@@ -702,7 +702,7 @@ func generateExampleValueForRow(field *widget.Field, rowIndex int, maxRows int, 
 // @Failure 401 {string} string "未授权"
 // @Failure 403 {string} string "权限不足"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/table/update/{full-code-path} [put]
+// @Router /workspace/api/v1/table/update/{full-code-path} [put]
 func (s *StandardAPI) TableUpdate(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
@@ -864,7 +864,7 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 // @Failure 401 {string} string "未授权"
 // @Failure 403 {string} string "权限不足"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/table/delete/{full-code-path} [delete]
+// @Router /workspace/api/v1/table/delete/{full-code-path} [delete]
 func (s *StandardAPI) TableDelete(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
@@ -972,7 +972,7 @@ func (s *StandardAPI) TableDelete(c *gin.Context) {
 // @Failure 401 {string} string "未授权"
 // @Failure 403 {string} string "权限不足"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/form/submit/{full-code-path} [post]
+// @Router /workspace/api/v1/form/submit/{full-code-path} [post]
 func (s *StandardAPI) FormSubmit(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
@@ -1056,7 +1056,7 @@ func (s *StandardAPI) FormSubmit(c *gin.Context) {
 // @Failure 401 {string} string "未授权"
 // @Failure 403 {string} string "权限不足"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/chart/query/{full-code-path} [get]
+// @Router /workspace/api/v1/chart/query/{full-code-path} [get]
 func (s *StandardAPI) ChartQuery(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
@@ -1119,7 +1119,7 @@ func (s *StandardAPI) ChartQuery(c *gin.Context) {
 // @Failure 401 {string} string "未授权"
 // @Failure 403 {string} string "权限不足"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/callback/on_select_fuzzy/{full-code-path} [post]
+// @Router /workspace/api/v1/callback/on_select_fuzzy/{full-code-path} [post]
 func (s *StandardAPI) CallbackOnSelectFuzzy(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {

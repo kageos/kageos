@@ -301,9 +301,9 @@ type AppInfo struct {
 
 // GetAppDetailReq 获取应用详情请求
 type GetAppDetailReq struct {
-	User         string `json:"user,omitempty" swaggerignore:"true"`                    // 租户名（兼容字段，优先从 resource_path 解析）
-	App          string `json:"app,omitempty" form:"app,omitempty" example:"myapp"`     // 应用代码（兼容字段，优先从 resource_path 解析）
-	ResourcePath string `json:"resource_path,omitempty" form:"resource_path,omitempty"` // 工作空间资源路径，规范为 /user/app
+	User         string `json:"user,omitempty" swaggerignore:"true"`
+	App          string `json:"app,omitempty" form:"app,omitempty" example:"myapp"`
+	ResourcePath string `json:"resource_path,omitempty" form:"resource_path,omitempty"`
 }
 
 // GetAppDetailResp 获取应用详情响应

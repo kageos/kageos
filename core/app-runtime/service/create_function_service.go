@@ -29,9 +29,9 @@ func (s *CreateFunctionService) CreateFunctions(ctx context.Context, user, app s
 	logger.Infof(ctx, "[CreateFunctionService] 开始创建函数: target=%s/%s, functionCount=%d",
 		user, app, len(functions))
 
-	// 构建应用目录路径
-	appDir := filepath.Join(s.config.AppDir.BasePath, user, app)
-	apiDir := filepath.Join(appDir, "code", "api")
+	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
+	appDir := appPaths.AppDir()
+	apiDir := appPaths.APIDir()
 
 	writtenFiles := make([]string, 0) // 记录已写入的文件路径，用于失败时回滚
 
@@ -107,5 +107,3 @@ func (s *CreateFunctionService) rollbackFiles(ctx context.Context, files []strin
 	}
 	logger.Infof(ctx, "[CreateFunctionService] 文件回滚完成")
 }
-
-

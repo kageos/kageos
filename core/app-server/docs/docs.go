@@ -24,7 +24,7 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/api/v1/app/create": {
+        "/workspace/api/v1/app/create": {
             "post": {
                 "security": [
                     {
@@ -88,9 +88,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/app/delete": {
+        "/workspace/api/v1/app/delete": {
             "delete": {
-                "description": "删除应用及其所有相关资源。canonical 入口使用 query resource_path=/user/app，旧路径参数路由仅保留兼容。",
+                "description": "删除应用及其所有相关资源，使用 query resource_path=/user/app 标识工作空间。",
                 "consumes": [
                     "application/json"
                 ],
@@ -106,7 +106,8 @@ const docTemplate = `{
                         "type": "string",
                         "description": "工作空间资源路径，格式 /user/app",
                         "name": "resource_path",
-                        "in": "query"
+                        "in": "query",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -131,14 +132,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/app/detail": {
+        "/workspace/api/v1/app/detail": {
             "get": {
                 "security": [
                     {
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "根据 resource_path=/user/app 获取应用详情信息，旧路径参数路由仅保留兼容。",
+                "description": "根据 resource_path=/user/app 获取应用详情信息。",
                 "consumes": [
                     "application/json"
                 ],
@@ -161,7 +162,8 @@ const docTemplate = `{
                         "type": "string",
                         "description": "工作空间资源路径，格式 /user/app",
                         "name": "resource_path",
-                        "in": "query"
+                        "in": "query",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -198,7 +200,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/app/list": {
+        "/workspace/api/v1/app/list": {
             "get": {
                 "security": [
                     {
@@ -267,14 +269,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/app/tree": {
+        "/workspace/api/v1/app/tree": {
             "get": {
                 "security": [
                     {
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "根据 resource_path=/user/app 获取应用详情和服务目录树（合并接口，减少请求次数），旧路径参数路由仅保留兼容。",
+                "description": "根据 resource_path=/user/app 获取应用详情和服务目录树（合并接口，减少请求次数）。",
                 "consumes": [
                     "application/json"
                 ],
@@ -297,7 +299,8 @@ const docTemplate = `{
                         "type": "string",
                         "description": "工作空间资源路径，格式 /user/app",
                         "name": "resource_path",
-                        "in": "query"
+                        "in": "query",
+                        "required": true
                     },
                     {
                         "type": "string",
@@ -340,9 +343,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/app/update": {
+        "/workspace/api/v1/app/update": {
             "post": {
-                "description": "更新应用代码并重新编译部署。canonical 入口使用 resource_path=/user/app，旧路径参数路由仅保留兼容。",
+                "description": "更新应用代码并重新编译部署，使用 resource_path=/user/app 标识工作空间。",
                 "consumes": [
                     "application/json"
                 ],
@@ -385,14 +388,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/app/workspace": {
+        "/workspace/api/v1/app/workspace": {
             "put": {
                 "security": [
                     {
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "更新工作空间配置（只更新 MySQL 记录，不涉及容器更新）。canonical 入口使用 resource_path=/user/app，旧路径参数路由仅保留兼容。",
+                "description": "更新工作空间配置（只更新 MySQL 记录，不涉及容器更新），使用 resource_path=/user/app 标识工作空间。",
                 "consumes": [
                     "application/json"
                 ],
@@ -455,7 +458,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/boards/crud": {
+        "/workspace/api/v1/boards/crud": {
             "post": {
                 "security": [
                     {
@@ -494,7 +497,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/boards/crud/{id}": {
+        "/workspace/api/v1/boards/crud/{id}": {
             "put": {
                 "summary": "更新版块",
                 "parameters": [
@@ -531,7 +534,7 @@ const docTemplate = `{
                 "responses": {}
             }
         },
-        "/api/v1/callback/on_select_fuzzy/{full-code-path}": {
+        "/workspace/api/v1/callback/on_select_fuzzy/{full-code-path}": {
             "post": {
                 "security": [
                     {
@@ -608,78 +611,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/callback/{router}": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "接收外部系统的回调请求并转发到应用内部的 callback 路由。路径格式：/api/v1/callback/*router?_type=回调类型",
-                "consumes": [
-                    "application/json",
-                    "application/x-www-form-urlencoded",
-                    "multipart/form-data",
-                    "text/plain"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "应用接口请求(运行函数)"
-                ],
-                "summary": "回调应用",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "回调路由路径，格式：/{router}，例如：/api/v1/callback/*router?_type=回调类型",
-                        "name": "router",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "回调类型（可选），用于标识回调类型",
-                        "name": "_type",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "回调处理成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.RequestAppResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/chart/query/{full-code-path}": {
+        "/workspace/api/v1/chart/query/{full-code-path}": {
             "get": {
                 "security": [
                     {
@@ -753,7 +685,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/directory_update_history/app_version": {
+        "/workspace/api/v1/directory_update_history/app_version": {
             "get": {
                 "security": [
                     {
@@ -815,7 +747,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/directory_update_history/directory": {
+        "/workspace/api/v1/directory_update_history/directory": {
             "get": {
                 "security": [
                     {
@@ -890,7 +822,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/docs/batch": {
+        "/workspace/api/v1/docs/batch": {
             "get": {
                 "security": [
                     {
@@ -956,7 +888,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/docs/crud": {
+        "/workspace/api/v1/docs/crud": {
             "post": {
                 "security": [
                     {
@@ -1008,7 +940,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/docs/crud/{id}": {
+        "/workspace/api/v1/docs/crud/{id}": {
             "put": {
                 "security": [
                     {
@@ -1115,7 +1047,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/docs/info/{full-code-path}": {
+        "/workspace/api/v1/docs/info/{full-code-path}": {
             "get": {
                 "security": [
                     {
@@ -1309,7 +1241,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/docs/search": {
+        "/workspace/api/v1/docs/search": {
             "get": {
                 "security": [
                     {
@@ -1382,7 +1314,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/form/submit/{full-code-path}": {
+        "/workspace/api/v1/form/submit/{full-code-path}": {
             "post": {
                 "security": [
                     {
@@ -1461,7 +1393,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/function/info/{func-type}/{full-code-path}": {
+        "/workspace/api/v1/function/info/{func-type}/{full-code-path}": {
             "get": {
                 "security": [
                     {
@@ -1542,69 +1474,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/function/list": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "根据应用ID获取该应用下的所有函数列表",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "函数管理"
-                ],
-                "summary": "获取应用下所有函数",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "应用ID",
-                        "name": "app_id",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.GetFunctionsByAppResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/functions": {
+        "/workspace/api/v1/functions": {
             "post": {
                 "security": [
                     {
@@ -1656,7 +1526,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/functions/{id}": {
+        "/workspace/api/v1/functions/{id}": {
             "put": {
                 "security": [
                     {
@@ -1763,7 +1633,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/operate_log/form": {
+        "/workspace/api/v1/operate_log/form": {
             "get": {
                 "description": "查询 Form 操作日志（需要企业版 License）",
                 "consumes": [
@@ -1812,6 +1682,24 @@ const docTemplate = `{
                         "type": "string",
                         "description": "操作类型：request_app, form_submit",
                         "name": "action",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "来源：browser, scheduled_task, agent, api",
+                        "name": "source",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "结果状态：success, failed",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "关键字搜索（用户、版本、错误、请求/响应内容）",
+                        "name": "keyword",
                         "in": "query"
                     },
                     {
@@ -1869,7 +1757,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/operate_log/table": {
+        "/workspace/api/v1/operate_log/table": {
             "get": {
                 "description": "查询 Table 操作日志（需要企业版 License）",
                 "consumes": [
@@ -1981,7 +1869,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/packages": {
+        "/workspace/api/v1/packages": {
             "post": {
                 "security": [
                     {
@@ -2033,7 +1921,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/packages/{id}": {
+        "/workspace/api/v1/packages/{id}": {
             "put": {
                 "security": [
                     {
@@ -2133,1537 +2021,6 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/posts": {
-            "get": {
-                "description": "按版块 full_code_path 分页获取帖子列表",
-                "tags": [
-                    "版块帖子"
-                ],
-                "summary": "帖子列表",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "版块完整路径",
-                        "name": "full_code_path",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "每页条数",
-                        "name": "page_size",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ListPostsResp"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "summary": "发帖",
-                "parameters": [
-                    {
-                        "description": "发帖请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.CreatePostReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.GetPostResp"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/posts/{id}": {
-            "get": {
-                "summary": "帖子详情",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "帖子ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.GetPostResp"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "summary": "更新帖子",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "帖子ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "更新请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.UpdatePostReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.GetPostResp"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "summary": "删除帖子",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "帖子ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {}
-            }
-        },
-        "/api/v1/run/{full_code_path}": {
-            "get": {
-                "consumes": [
-                    "application/json",
-                    "application/x-www-form-urlencoded",
-                    "multipart/form-data",
-                    "text/plain"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "应用接口请求(运行函数)"
-                ],
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "应用名",
-                        "name": "app",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "接口路由路径",
-                        "name": "router",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "应用内部方法名（可选）",
-                        "name": "method",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "请求成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.RequestAppResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/service_tree": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "获取指定应用的服务目录树形结构，支持按类型过滤（如只显示 package 类型的节点）",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "获取服务目录树",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "用户名",
-                        "name": "user",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "应用名",
-                        "name": "app",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "节点类型过滤（可选），如：package（只显示服务目录/包）、function（只显示函数/文件）",
-                        "name": "type",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/dto.GetServiceTreeResp"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "更新指定服务目录的信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "更新服务目录",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "更新服务目录请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.UpdateServiceTreeMetadataReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "更新成功",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "为指定应用创建服务目录",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "创建服务目录",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "创建服务目录请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.CreateServiceTreeReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.CreateServiceTreeResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "删除指定服务目录（级联删除子目录）",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "删除服务目录",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "删除服务目录请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.DeleteServiceTreeReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "删除成功",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/service_tree/copy": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "递归复制服务目录及其所有子目录到目标目录，保持目录结构",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "复制服务目录",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "复制请求，source_directory_path=源目录完整路径，target_directory_path=目标目录完整路径",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.CopyDirectoryReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "复制成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.CopyDirectoryResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/service_tree/detail": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "根据ID或full-code-path获取服务目录详情，包含权限信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "获取服务目录详情",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "服务目录ID（优先使用）",
-                        "name": "id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "完整代码路径（如果未提供ID则使用）",
-                        "name": "full_code_path",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.GetServiceTreeDetailResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "404": {
-                        "description": "服务目录不存在",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/service_tree/hub_info": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "根据目录完整路径获取其关联的 Hub 目录信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "获取目录的 Hub 信息",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "目录完整路径",
-                        "name": "full_code_path",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.GetHubInfoResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "404": {
-                        "description": "目录未发布到 Hub",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/service_tree/hub_push_form_info": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "根据目录路径获取当前在 Hub 的已发布信息及下一版本号，用于推送对话框预填与自动版本",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "获取推送表单信息",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "源用户",
-                        "name": "source_user",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "源应用",
-                        "name": "source_app",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "源目录完整路径",
-                        "name": "source_directory_path",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.GetHubPushFormInfoResp"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/service_tree/package_info": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "根据ID或full-code-path获取目录信息，包含权限信息（仅用于目录，函数请使用函数详情接口）",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "获取目录信息",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "目录ID（优先使用）",
-                        "name": "id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "完整代码路径（如果未提供ID则使用）",
-                        "name": "full_code_path",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.GetPackageInfoResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "404": {
-                        "description": "目录不存在",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/service_tree/publish_to_hub": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "将指定目录及其所有子目录发布到 Hub 市场",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "发布目录到 Hub",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "发布目录请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.PublishDirectoryToHubReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "发布成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.PublishDirectoryToHubResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/service_tree/pull_from_hub": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "使用 Hub 链接从 Hub 拉取目录到工作空间（类似 git pull）",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "从 Hub 拉取目录",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "拉取目录请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.PullDirectoryFromHubReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "拉取成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.PullDirectoryFromHubResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/service_tree/push_to_hub": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "推送目录更新到 Hub（类似 git push），更新已发布的目录",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "推送目录到 Hub",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "推送目录请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.PushDirectoryToHubReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "推送成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.PushDirectoryToHubResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/service_tree/search_functions": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "根据关键词、类型等条件搜索函数，支持分页",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "搜索函数",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "用户名（可选，用于过滤应用）",
-                        "name": "user",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "应用名（可选，用于过滤应用）",
-                        "name": "app",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "搜索关键词（可选，用于搜索名称和路径）",
-                        "name": "keyword",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "模板类型过滤（可选，如：form、table、chart）",
-                        "name": "template_type",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页数量",
-                        "name": "page_size",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "搜索成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.SearchFunctionsResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/table/batch-create/{full-code-path}": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "批量导入表格记录（直接批量插入数据库，不触发 OnTableAddRow 回调）",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "标准接口"
-                ],
-                "summary": "Table 批量导入",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "函数完整路径，如：/luobei/operations/tools/pdftools/to_images",
-                        "name": "full-code-path",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "批量导入数据，格式：{\\",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "导入成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.RequestAppResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "403": {
-                        "description": "权限不足",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/table/create/{full-code-path}": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "新增表格记录",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "标准接口"
-                ],
-                "summary": "Table 新增",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "函数完整路径，如：/luobei/operations/tools/pdftools/to_images",
-                        "name": "full-code-path",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "新增记录的字段数据",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "新增成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.RequestAppResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "403": {
-                        "description": "权限不足",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/table/delete/{full-code-path}": {
-            "delete": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "删除表格记录（支持批量删除）",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "标准接口"
-                ],
-                "summary": "Table 删除",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "函数完整路径，如：/luobei/operations/tools/pdftools/to_images",
-                        "name": "full-code-path",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "删除记录的ID列表，格式：{\\",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "删除成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.RequestAppResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "403": {
-                        "description": "权限不足",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/table/search/{full-code-path}": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "查询表格数据（列表），支持分页、排序、搜索",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "标准接口"
-                ],
-                "summary": "Table 查询",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "函数完整路径，如：/luobei/operations/tools/pdftools/to_images",
-                        "name": "full-code-path",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "页码（可选，默认 1）",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "每页数量（可选，默认 20）",
-                        "name": "page_size",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "排序（可选，格式：id:desc,name:asc）",
-                        "name": "sorts",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "查询成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.RequestAppResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "403": {
-                        "description": "权限不足",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/table/template/{full-code-path}": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "根据函数详情生成 Excel 导入模板",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                ],
-                "tags": [
-                    "标准接口"
-                ],
-                "summary": "Table 下载导入模板",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "函数完整路径，如：/luobei/operations/tools/pdftools/to_images",
-                        "name": "full-code-path",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Excel 模板文件",
-                        "schema": {
-                            "type": "file"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "403": {
-                        "description": "权限不足",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/table/update/{full-code-path}": {
-            "put": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "更新表格记录",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "标准接口"
-                ],
-                "summary": "Table 更新",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "函数完整路径，如：/luobei/operations/tools/pdftools/to_images",
-                        "name": "full-code-path",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "更新记录的字段数据（必须包含 id 字段）",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "更新成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.RequestAppResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "403": {
-                        "description": "权限不足",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
                         "schema": {
                             "type": "string"
                         }
@@ -3775,7 +2132,8 @@ const docTemplate = `{
                     "200": {
                         "description": "审批成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -3903,7 +2261,8 @@ const docTemplate = `{
                     "200": {
                         "description": "拒绝成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -4166,6 +2525,130 @@ const docTemplate = `{
                         }
                     }
                 }
+            }
+        },
+        "/workspace/api/v1/posts": {
+            "get": {
+                "description": "按版块 full_code_path 分页获取帖子列表",
+                "tags": [
+                    "版块帖子"
+                ],
+                "summary": "帖子列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "版块完整路径",
+                        "name": "full_code_path",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页条数",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ListPostsResp"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "summary": "发帖",
+                "parameters": [
+                    {
+                        "description": "发帖请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreatePostReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GetPostResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/posts/{id}": {
+            "get": {
+                "summary": "帖子详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "帖子ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GetPostResp"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "summary": "更新帖子",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "帖子ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdatePostReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GetPostResp"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "删除帖子",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "帖子ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {}
             }
         },
         "/workspace/api/v1/role": {
@@ -4986,6 +3469,950 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/service_tree/copy": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "递归复制服务目录及其所有子目录到目标目录，保持目录结构",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务目录"
+                ],
+                "summary": "复制服务目录",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "复制请求，source_directory_path=源目录完整路径，target_directory_path=目标目录完整路径",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CopyDirectoryReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "复制成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.CopyDirectoryResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/service_tree/detail": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "根据ID或full-code-path获取服务目录详情，包含权限信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务目录"
+                ],
+                "summary": "获取服务目录详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "服务目录ID（优先使用）",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "完整代码路径（如果未提供ID则使用）",
+                        "name": "full_code_path",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GetServiceTreeDetailResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "服务目录不存在",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/service_tree/hub_push_form_info": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "根据目录路径获取当前在 Hub 的已发布信息及下一版本号，用于推送对话框预填与自动版本",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务目录"
+                ],
+                "summary": "获取推送表单信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "源用户",
+                        "name": "source_user",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "源应用",
+                        "name": "source_app",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "源目录完整路径",
+                        "name": "source_directory_path",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GetHubPushFormInfoResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/service_tree/publish_to_hub": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "将指定目录及其所有子目录发布到 Hub 市场",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务目录"
+                ],
+                "summary": "发布目录到 Hub",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "发布目录请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.PublishDirectoryToHubReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "发布成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PublishDirectoryToHubResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/service_tree/pull_from_hub": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "使用 Hub 链接从 Hub 拉取目录到工作空间（类似 git pull）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务目录"
+                ],
+                "summary": "从 Hub 拉取目录",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "拉取目录请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.PullDirectoryFromHubReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "拉取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PullDirectoryFromHubResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/service_tree/push_to_hub": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "推送目录更新到 Hub（类似 git push），更新已发布的目录",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务目录"
+                ],
+                "summary": "推送目录到 Hub",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "推送目录请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.PushDirectoryToHubReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "推送成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PushDirectoryToHubResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/service_tree/search_functions": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "根据关键词、类型等条件搜索函数，支持分页",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务目录"
+                ],
+                "summary": "搜索函数",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "用户名（可选，用于过滤应用）",
+                        "name": "user",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "应用名（可选，用于过滤应用）",
+                        "name": "app",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索关键词（可选，用于搜索名称和路径）",
+                        "name": "keyword",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "模板类型过滤（可选，如：form、table、chart）",
+                        "name": "template_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "搜索成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SearchFunctionsResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/table/batch-create/{full-code-path}": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "批量导入表格记录（直接批量插入数据库，不触发 OnTableAddRow 回调）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "标准接口"
+                ],
+                "summary": "Table 批量导入",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "函数完整路径，如：/luobei/operations/tools/pdftools/to_images",
+                        "name": "full-code-path",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "批量导入数据，格式：{\\",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "导入成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.RequestAppResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "权限不足",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/table/create/{full-code-path}": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "新增表格记录",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "标准接口"
+                ],
+                "summary": "Table 新增",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "函数完整路径，如：/luobei/operations/tools/pdftools/to_images",
+                        "name": "full-code-path",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "新增记录的字段数据",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "新增成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.RequestAppResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "权限不足",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/table/delete/{full-code-path}": {
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "删除表格记录（支持批量删除）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "标准接口"
+                ],
+                "summary": "Table 删除",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "函数完整路径，如：/luobei/operations/tools/pdftools/to_images",
+                        "name": "full-code-path",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "删除记录的ID列表，格式：{\\",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.RequestAppResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "权限不足",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/table/search/{full-code-path}": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "查询表格数据（列表），支持分页、排序、搜索",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "标准接口"
+                ],
+                "summary": "Table 查询",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "函数完整路径，如：/luobei/operations/tools/pdftools/to_images",
+                        "name": "full-code-path",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "页码（可选，默认 1）",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量（可选，默认 20）",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "排序（可选，格式：id:desc,name:asc）",
+                        "name": "sorts",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "查询成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.RequestAppResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "权限不足",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/table/template/{full-code-path}": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "根据函数详情生成 Excel 导入模板",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ],
+                "tags": [
+                    "标准接口"
+                ],
+                "summary": "Table 下载导入模板",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "函数完整路径，如：/luobei/operations/tools/pdftools/to_images",
+                        "name": "full-code-path",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Excel 模板文件",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "权限不足",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/table/update/{full-code-path}": {
+            "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "更新表格记录",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "标准接口"
+                ],
+                "summary": "Table 更新",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "函数完整路径，如：/luobei/operations/tools/pdftools/to_images",
+                        "name": "full-code-path",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新记录的字段数据（必须包含 id 字段）",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.RequestAppResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "权限不足",
                         "schema": {
                             "type": "string"
                         }
@@ -6122,154 +5549,42 @@ const docTemplate = `{
             }
         },
         "dto.CreateRoleReq": {
-            "type": "object"
+            "type": "object",
+            "required": [
+                "code",
+                "name",
+                "permissions"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "developer"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "开发人员角色"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "开发者"
+                },
+                "permissions": {
+                    "description": "resourceType -\u003e []action",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
         },
         "dto.CreateRoleResp": {
             "type": "object",
             "properties": {
                 "role": {
                     "$ref": "#/definitions/model.Role"
-                }
-            }
-        },
-        "dto.CreateServiceTreeReq": {
-            "type": "object",
-            "required": [
-                "app",
-                "code",
-                "name",
-                "user"
-            ],
-            "properties": {
-                "admins": {
-                    "description": "管理员列表，逗号分隔的用户名",
-                    "type": "string",
-                    "example": "user1,user2"
-                },
-                "app": {
-                    "description": "应用名",
-                    "type": "string",
-                    "example": "myapp"
-                },
-                "code": {
-                    "description": "服务目录代码",
-                    "type": "string",
-                    "example": "user"
-                },
-                "description": {
-                    "description": "描述",
-                    "type": "string",
-                    "example": "用户相关的API接口"
-                },
-                "doc_content": {
-                    "description": "⭐ 文档相关字段（仅当 type=docs 时使用）",
-                    "type": "string",
-                    "example": "# 文档内容\n\n这是文档内容..."
-                },
-                "doc_format": {
-                    "description": "文档格式（仅 docs 类型，默认为 markdown）",
-                    "type": "string",
-                    "example": "markdown"
-                },
-                "doc_summary": {
-                    "description": "文档摘要（仅 docs 类型，可选）",
-                    "type": "string",
-                    "example": "文档摘要"
-                },
-                "name": {
-                    "description": "服务目录名称",
-                    "type": "string",
-                    "example": "用户管理"
-                },
-                "parent_full_code_path": {
-                    "description": "父目录完整路径，空字符串表示根目录",
-                    "type": "string",
-                    "example": "/beiluo/myapp"
-                },
-                "tags": {
-                    "description": "标签",
-                    "type": "string",
-                    "example": "user,management"
-                },
-                "type": {
-                    "description": "节点类型: package(服务目录/包), docs(文档), function(函数/文件)",
-                    "type": "string",
-                    "example": "package"
-                },
-                "user": {
-                    "description": "用户名",
-                    "type": "string",
-                    "example": "beiluo"
-                }
-            }
-        },
-        "dto.CreateServiceTreeResp": {
-            "type": "object",
-            "properties": {
-                "admins": {
-                    "description": "管理员列表",
-                    "type": "string",
-                    "example": "user1,user2"
-                },
-                "app_id": {
-                    "description": "应用ID",
-                    "type": "integer",
-                    "example": 1
-                },
-                "code": {
-                    "description": "服务目录代码",
-                    "type": "string",
-                    "example": "user"
-                },
-                "description": {
-                    "description": "描述",
-                    "type": "string",
-                    "example": "用户相关的API接口"
-                },
-                "full_code_path": {
-                    "description": "完整代码路径（父路径可由此推导）",
-                    "type": "string",
-                    "example": "/beiluo/myapp/user"
-                },
-                "id": {
-                    "description": "服务目录ID",
-                    "type": "integer",
-                    "example": 1
-                },
-                "name": {
-                    "description": "服务目录名称",
-                    "type": "string",
-                    "example": "用户管理"
-                },
-                "ref_id": {
-                    "description": "引用ID",
-                    "type": "integer",
-                    "example": 0
-                },
-                "status": {
-                    "description": "状态",
-                    "type": "string",
-                    "example": "enabled"
-                },
-                "tags": {
-                    "description": "标签",
-                    "type": "string",
-                    "example": "user,management"
-                },
-                "type": {
-                    "description": "节点类型",
-                    "type": "string",
-                    "example": "package"
-                },
-                "version": {
-                    "description": "节点当前版本号",
-                    "type": "string",
-                    "example": "v1"
-                },
-                "version_num": {
-                    "description": "节点当前版本号（数字部分）",
-                    "type": "integer",
-                    "example": 1
                 }
             }
         },
@@ -6293,19 +5608,6 @@ const docTemplate = `{
             "properties": {
                 "message": {
                     "type": "string"
-                }
-            }
-        },
-        "dto.DeleteServiceTreeReq": {
-            "type": "object",
-            "required": [
-                "id"
-            ],
-            "properties": {
-                "id": {
-                    "description": "服务目录ID",
-                    "type": "integer",
-                    "example": 1
                 }
             }
         },
@@ -6453,76 +5755,6 @@ const docTemplate = `{
                 },
                 "summary": {
                     "type": "string"
-                }
-            }
-        },
-        "dto.FunctionInfo": {
-            "type": "object",
-            "properties": {
-                "app_id": {
-                    "description": "应用ID",
-                    "type": "integer",
-                    "example": 1
-                },
-                "callbacks": {
-                    "description": "回调函数",
-                    "type": "string",
-                    "example": "onCreate,onUpdate"
-                },
-                "create_tables": {
-                    "description": "创建的表",
-                    "type": "string",
-                    "example": "users,orders"
-                },
-                "created_at": {
-                    "description": "创建时间",
-                    "type": "string",
-                    "example": "2024-01-01T00:00:00Z"
-                },
-                "description": {
-                    "description": "函数描述（从 ServiceTree 获取）",
-                    "type": "string",
-                    "example": "用于管理工单的创建、更新、删除等功能"
-                },
-                "has_config": {
-                    "description": "是否有配置",
-                    "type": "boolean",
-                    "example": true
-                },
-                "id": {
-                    "description": "函数ID",
-                    "type": "integer",
-                    "example": 1
-                },
-                "method": {
-                    "description": "HTTP方法",
-                    "type": "string",
-                    "example": "GET"
-                },
-                "name": {
-                    "description": "函数名称（从 ServiceTree 获取）",
-                    "type": "string",
-                    "example": "工单管理"
-                },
-                "router": {
-                    "description": "路由路径",
-                    "type": "string",
-                    "example": "/users"
-                },
-                "template_type": {
-                    "description": "模板类型",
-                    "type": "string",
-                    "example": "default"
-                },
-                "tree_id": {
-                    "description": "服务目录ID",
-                    "type": "integer",
-                    "example": 1
-                },
-                "updated_at": {
-                    "description": "更新时间",
-                    "type": "string",
-                    "example": "2024-01-01T00:00:00Z"
                 }
             }
         },
@@ -6887,31 +6119,6 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.GetFunctionsByAppResp": {
-            "type": "object",
-            "properties": {
-                "functions": {
-                    "description": "函数列表",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.FunctionInfo"
-                    }
-                }
-            }
-        },
-        "dto.GetHubInfoResp": {
-            "type": "object",
-            "properties": {
-                "hub_full_code_path": {
-                    "description": "Hub 目录完整路径，用于绑定与详情 URL（前端用此拼 /directory/xxx）",
-                    "type": "string"
-                },
-                "published_at": {
-                    "description": "发布时间",
-                    "type": "string"
-                }
-            }
-        },
         "dto.GetHubPushFormInfoResp": {
             "type": "object",
             "properties": {
@@ -6942,38 +6149,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "type": "string"
-                    }
-                }
-            }
-        },
-        "dto.GetPackageInfoResp": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "description": "目录代码",
-                    "type": "string",
-                    "example": "user"
-                },
-                "full_code_path": {
-                    "description": "完整代码路径",
-                    "type": "string",
-                    "example": "/beiluo/myapp/user"
-                },
-                "id": {
-                    "description": "目录ID",
-                    "type": "integer",
-                    "example": 1
-                },
-                "name": {
-                    "description": "目录名称",
-                    "type": "string",
-                    "example": "用户管理"
-                },
-                "permissions": {
-                    "description": "⭐ 权限信息（企业版功能）：directory:read, directory:create, directory:update, directory:delete, directory:manage（即使为空也返回 {}）",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "boolean"
                     }
                 }
             }
@@ -8306,51 +7481,38 @@ const docTemplate = `{
             }
         },
         "dto.UpdateRoleReq": {
-            "type": "object"
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "开发人员角色"
+                },
+                "is_default": {
+                    "description": "是否设置为默认角色",
+                    "type": "boolean",
+                    "example": true
+                },
+                "name": {
+                    "type": "string",
+                    "example": "开发者"
+                },
+                "permissions": {
+                    "description": "resourceType -\u003e []action",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
         },
         "dto.UpdateRoleResp": {
             "type": "object",
             "properties": {
                 "role": {
                     "$ref": "#/definitions/model.Role"
-                }
-            }
-        },
-        "dto.UpdateServiceTreeMetadataReq": {
-            "type": "object",
-            "required": [
-                "id"
-            ],
-            "properties": {
-                "admins": {
-                    "description": "管理员列表（指针类型，nil=不更新，\"\"=清空）",
-                    "type": "string",
-                    "example": "user1,user2"
-                },
-                "code": {
-                    "description": "服务目录代码（指针类型，nil=不更新，\"\"=清空）",
-                    "type": "string",
-                    "example": "user"
-                },
-                "description": {
-                    "description": "描述（指针类型，nil=不更新，\"\"=清空）",
-                    "type": "string",
-                    "example": "用户相关的API接口"
-                },
-                "id": {
-                    "description": "服务目录ID",
-                    "type": "integer",
-                    "example": 1
-                },
-                "name": {
-                    "description": "服务目录名称（指针类型，nil=不更新，\"\"=清空）",
-                    "type": "string",
-                    "example": "用户管理"
-                },
-                "tags": {
-                    "description": "标签（指针类型，nil=不更新，\"\"=清空）",
-                    "type": "string",
-                    "example": "user,management"
                 }
             }
         },
@@ -8572,22 +7734,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updated_by": {
-                    "type": "string"
-                }
-            }
-        },
-        "response.Response": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "integer"
-                },
-                "data": {},
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "msg": {
                     "type": "string"
                 }
             }

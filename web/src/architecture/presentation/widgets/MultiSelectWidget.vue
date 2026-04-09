@@ -6,62 +6,127 @@
   <div class="multiselect-widget">
     <!-- 编辑模式 -->
     <div v-if="mode === 'edit' || mode === 'search'" class="edit-multiselect" :class="{ 'is-search-mode': mode === 'search' }">
-      <!-- 参考单选的展示效果，使用条目式显示 -->
-      <div class="select-container" @click="openDialog">
-        <div class="select-content">
-          <!-- 显示已选条目 -->
-          <div v-if="selectedValues.length > 0 && mode === 'search'" class="selected-search-tags">
+      <template v-if="shouldUseInlineSelect">
+        <el-select
+          v-model="inlineSelectedValues"
+          class="inline-multiselect"
+          :class="{ 'inline-multiselect-search': mode === 'search' }"
+          multiple
+          filterable
+          :clearable="true"
+          :collapse-tags="true"
+          :max-collapse-tags="1"
+          :placeholder="inlinePlaceholder"
+          :disabled="config.disabled"
+          :allow-create="!!config.creatable"
+          :default-first-option="!!config.creatable"
+          @clear="handleClearSelection"
+        >
+          <template #tag>
             <el-tag
-              v-for="value in searchTagSummary.visibleValues"
-              :key="value"
+              v-for="value in inlineTagSummary.visibleValues"
+              :key="String(value)"
               :type="getOptionColorType(value)"
               :color="getOptionColorValue(value)"
               :closable="true"
-              class="search-selected-tag"
+              class="search-selected-tag inline-selected-tag"
               @close.stop="handleRemoveTag(value)"
             >
               {{ getOptionLabel(value) }}
             </el-tag>
             <el-tag
-              v-if="searchTagSummary.hiddenCount > 0"
-              class="search-selected-tag search-summary-tag"
+              v-if="inlineTagSummary.hiddenCount > 0"
+              class="search-selected-tag search-summary-tag inline-summary-tag"
               size="small"
               disable-transitions
             >
-              +{{ searchTagSummary.hiddenCount }}
+              +{{ inlineTagSummary.hiddenCount }}
             </el-tag>
-          </div>
-          <div v-else-if="selectedValues.length > 0" class="selected-items-list">
-            <div
-              v-for="(value, index) in selectedValues"
-          :key="value"
-              class="selected-item"
-            >
-              <div class="item-main">
-                <span class="item-label">{{ getOptionLabel(value) }}</span>
-                <el-icon class="item-close-icon" @click.stop="handleRemoveTag(value)">
-                  <Close />
-                </el-icon>
-              </div>
-              <div v-if="getItemDisplayInfo(value)" class="item-display-info">
-                {{ getItemDisplayInfo(value) }}
+          </template>
+
+          <el-option
+            v-for="option in options"
+            :key="String(option.value)"
+            :label="option.label"
+            :value="option.value"
+            :disabled="option.disabled"
+          >
+            <div class="multiselect-option">
+              <span
+                v-if="getOptionColor(option.value)"
+                class="option-color-indicator"
+                :style="getOptionColorStyle(option.value)"
+              />
+              <span class="option-label">{{ option.label }}</span>
+              <span v-if="getOptionDisplayInfo(option)" class="display-info">
+                {{ getOptionDisplayInfo(option) }}
+              </span>
+            </div>
+          </el-option>
+        </el-select>
+        <div v-if="selectedValues.length > 0 && displayInfoText && mode !== 'search'" class="display-info-text inline-display-info-text">
+          {{ displayInfoText }}
+        </div>
+      </template>
+      <template v-else>
+        <!-- 参考单选的展示效果，使用条目式显示 -->
+        <div class="select-container" @click="openDialog">
+          <div class="select-content">
+            <!-- 显示已选条目 -->
+            <div v-if="selectedValues.length > 0 && mode === 'search'" class="selected-search-tags">
+              <el-tag
+                v-for="value in searchTagSummary.visibleValues"
+                :key="value"
+                :type="getOptionColorType(value)"
+                :color="getOptionColorValue(value)"
+                :closable="true"
+                class="search-selected-tag"
+                @close.stop="handleRemoveTag(value)"
+              >
+                {{ getOptionLabel(value) }}
+              </el-tag>
+              <el-tag
+                v-if="searchTagSummary.hiddenCount > 0"
+                class="search-selected-tag search-summary-tag"
+                size="small"
+                disable-transitions
+              >
+                +{{ searchTagSummary.hiddenCount }}
+              </el-tag>
+            </div>
+            <div v-else-if="selectedValues.length > 0" class="selected-items-list">
+              <div
+                v-for="(value, index) in selectedValues"
+                :key="value"
+                class="selected-item"
+              >
+                <div class="item-main">
+                  <span class="item-label">{{ getOptionLabel(value) }}</span>
+                  <el-icon class="item-close-icon" @click.stop="handleRemoveTag(value)">
+                    <Close />
+                  </el-icon>
+                </div>
+                <div v-if="getItemDisplayInfo(value)" class="item-display-info">
+                  {{ getItemDisplayInfo(value) }}
+                </div>
               </div>
             </div>
-          </div>
-          <!-- 显示占位符 -->
-          <div v-else class="select-main">
-            <span class="select-label">{{ placeholder }}</span>
-            <el-icon class="input-icon"><ArrowDown /></el-icon>
-          </div>
-          <!-- 显示总体 display_info -->
-          <div v-if="selectedValues.length > 0 && displayInfoText && mode !== 'search'" class="display-info-text">
-            {{ displayInfoText }}
+            <!-- 显示占位符 -->
+            <div v-else class="select-main">
+              <span class="select-label">{{ placeholder }}</span>
+              <el-icon class="input-icon"><ArrowDown /></el-icon>
+            </div>
+            <!-- 显示总体 display_info -->
+            <div v-if="selectedValues.length > 0 && displayInfoText && mode !== 'search'" class="display-info-text">
+              {{ displayInfoText }}
+            </div>
           </div>
         </div>
-      </div>
+      </template>
       
       <!-- 模糊搜索对话框 -->
       <FuzzySearchDialog
+        v-if="hasRemoteSearch"
         v-model="dialogVisible"
         :title="`选择${props.field.name}`"
         :placeholder="placeholder"
@@ -75,7 +140,7 @@
         @select-multiple="handleDialogSelectMultiple"
         @select-all="handleDialogSelectAll"
       />
-        </div>
+    </div>
     
     <!-- 响应模式（只读） -->
     <div v-else-if="mode === 'response'" class="response-multiselect">
@@ -123,8 +188,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onMounted, onUnmounted, withDefaults } from 'vue'
-import { ElInput, ElTag, ElIcon } from 'element-plus'
+import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ElTag, ElIcon, ElSelect, ElOption } from 'element-plus'
 import { ArrowDown, Close } from '@element-plus/icons-vue'
 import FuzzySearchDialog from './FuzzySearchDialog.vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
@@ -134,12 +199,11 @@ import { MultiSelectWidgetInitializer } from '@/architecture/presentation/widget
 import { Logger } from '@/core/utils/logger'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { ExpressionParserAdapter } from '@/core/utils/ExpressionParserAdapter'
-import { getMultiSelectDefaultDataType, DataType } from '@/core/constants/widget'
-import { SelectFuzzyQueryType, isStandardColor, type StandardColorType } from '@/core/constants/select'
-import { convertValueToType } from '@/architecture/presentation/widgets/utils/valueConverter'
+import { getMultiSelectDefaultDataType } from '@/core/constants/widget'
+import { SelectFuzzyQueryType, isStandardColor, getStandardColorCSSVar, type StandardColorType } from '@/core/constants/select'
 import { convertFormDataToRequestByType, convertArrayType } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import type { MultiSelectWidgetConfig } from '@/core/types/widget-configs'
+import type { MultiSelectWidgetConfig, SelectOptionConfig } from '@/core/types/widget-configs'
 import { buildMultiSelectRawValue } from '@/architecture/presentation/widgets/utils/multiSelectValue'
 import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/utils/searchType'
 import { buildSearchTagSummary } from '@/architecture/presentation/widgets/utils/searchTagSummary'
@@ -162,6 +226,14 @@ const callbackMethod = computed(() => props.formRenderer?.getFunctionMethod?.() 
 const callbackRouter = computed(() => props.formRenderer?.getFunctionRouter?.() || props.functionRouter || '')
 const searchType = computed(() => resolveWidgetSearchType(props.searchType, props.field.search))
 
+type MultiSelectOptionItem = {
+  label: string
+  value: any
+  disabled?: boolean
+  displayInfo?: any
+  icon?: string
+}
+
 // 获取配置（带类型）
 const config = computed(() => {
   return (props.field.widget?.config || {}) as MultiSelectWidgetConfig
@@ -182,18 +254,27 @@ const optionColors = computed(() => {
   return config.value.options_colors || []
 })
 
-const staticOptions = computed(() => {
+function normalizeOption(opt: string | SelectOptionConfig): MultiSelectOptionItem {
+  if (typeof opt === 'string') {
+    return { label: opt, value: opt }
+  }
+
+  return {
+    label: opt.label,
+    value: opt.value,
+    disabled: opt.disabled,
+    displayInfo: opt.displayInfo ?? opt.display_info,
+    icon: opt.icon
+  }
+}
+
+const staticOptions = computed<MultiSelectOptionItem[]>(() => {
   const opts = config.value.options || []
-  return opts.map((opt: any) => {
-    if (typeof opt === 'string') {
-      return { label: opt, value: opt }
-    }
-    return opt
-  })
+  return opts.map(normalizeOption)
 })
 
 // 动态选项（从回调接口获取）
-const dynamicOptions = ref<Array<{ label: string; value: any; displayInfo?: any; icon?: string }>>([])
+const dynamicOptions = ref<MultiSelectOptionItem[]>([])
 
 // 合并后的选项（静态 + 动态）
 const options = computed(() => {
@@ -206,6 +287,16 @@ const options = computed(() => {
 const placeholder = computed(() => {
   const basePlaceholder = config.value.placeholder || `请选择${props.field.name}`
   // 🔥 如果有限制，在 placeholder 中显示最多可选数量
+  if (maxCount.value > 0) {
+    return `${basePlaceholder}（最多可选${maxCount.value}个）`
+  }
+  return basePlaceholder
+})
+
+const shouldUseInlineSelect = computed(() => !hasRemoteSearch.value)
+
+const inlinePlaceholder = computed(() => {
+  const basePlaceholder = config.value.placeholder || (props.mode === 'search' ? `搜索${props.field.name}` : `请选择${props.field.name}`)
   if (maxCount.value > 0) {
     return `${basePlaceholder}（最多可选${maxCount.value}个）`
   }
@@ -323,8 +414,26 @@ const selectedValues = computed({
   }
 })
 
+function getTypedOptionValue(rawValue: string): any {
+  const matchedOption = options.value.find((opt: any) => String(opt.value) === String(rawValue))
+  return matchedOption ? matchedOption.value : rawValue
+}
+
+const inlineSelectedValues = computed({
+  get: () => {
+    return selectedValues.value.map(value => getTypedOptionValue(String(value)))
+  },
+  set: (newValues: any[]) => {
+    selectedValues.value = newValues
+  }
+})
+
 const searchTagSummary = computed(() => {
   return buildSearchTagSummary(selectedValues.value, 1)
+})
+
+const inlineTagSummary = computed(() => {
+  return buildSearchTagSummary(inlineSelectedValues.value, props.mode === 'search' ? 1 : 2)
 })
 
 // 当前统计信息（从回调接口获取）
@@ -335,6 +444,46 @@ const displayValues = computed(() => {
   return parseRawValue(props.value?.raw)
 })
 
+function formatDisplayInfo(info: any, limit = 5): string {
+  if (!info) {
+    return ''
+  }
+
+  const normalizedList = Array.isArray(info) ? info : [info]
+  const infoItems: string[] = []
+
+  normalizedList.forEach((item: any) => {
+    if (item && typeof item === 'object') {
+      Object.entries(item).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') {
+          const text = `${key}: ${value}`
+          if (!infoItems.includes(text)) {
+            infoItems.push(text)
+          }
+        }
+      })
+      return
+    }
+
+    if (item !== null && item !== undefined && item !== '') {
+      const text = String(item)
+      if (!infoItems.includes(text)) {
+        infoItems.push(text)
+      }
+    }
+  })
+
+  if (infoItems.length === 0) {
+    return ''
+  }
+
+  if (infoItems.length > limit) {
+    return infoItems.slice(0, limit).join(' | ') + ' ...'
+  }
+
+  return infoItems.join(' | ')
+}
+
 // 获取 display_info 的显示文本（用于输入框下方显示）
 const displayInfoText = computed(() => {
   if (selectedValues.value.length === 0) {
@@ -343,27 +492,10 @@ const displayInfoText = computed(() => {
   
   // 🔥 优先从 props.value.meta.displayInfo 获取（这是保存的值）
   const metaDisplayInfos = props.value?.meta?.displayInfo
-  if (metaDisplayInfos && Array.isArray(metaDisplayInfos) && metaDisplayInfos.length > 0) {
-    const infoItems: string[] = []
-    metaDisplayInfos.forEach((info: any) => {
-      if (info && typeof info === 'object') {
-        Object.entries(info).forEach(([key, value]) => {
-          if (value !== null && value !== undefined && value !== '') {
-            const item = `${key}: ${value}`
-            if (!infoItems.includes(item)) {
-              infoItems.push(item)
-            }
-          }
-        })
-      }
-    })
-    
-    if (infoItems.length > 0) {
-      // 限制显示数量，避免过长
-      if (infoItems.length > 5) {
-        return infoItems.slice(0, 5).join(' | ') + ' ...'
-      }
-      return infoItems.join(' | ')
+  if (metaDisplayInfos) {
+    const formattedMetaDisplayInfo = formatDisplayInfo(metaDisplayInfos, 5)
+    if (formattedMetaDisplayInfo) {
+      return formattedMetaDisplayInfo
     }
   }
   
@@ -371,33 +503,9 @@ const displayInfoText = computed(() => {
   const displayInfos = selectedValues.value.map((val: any) => {
     const option = options.value.find((opt: any) => String(opt.value) === String(val))
     return option?.displayInfo || null
-  }).filter((info: any) => info && typeof info === 'object')
-  
-  if (displayInfos.length === 0) {
-    return ''
-  }
-  
-  // 提取所有 display_info 的键值对，格式化为文本
-  const infoItems: string[] = []
-  displayInfos.forEach((info: any) => {
-    if (info && typeof info === 'object') {
-      Object.entries(info).forEach(([key, value]) => {
-        if (value !== null && value !== undefined && value !== '') {
-          const item = `${key}: ${value}`
-          if (!infoItems.includes(item)) {
-            infoItems.push(item)
-          }
-        }
-      })
-    }
   })
-  
-  // 限制显示数量，避免过长
-  if (infoItems.length > 5) {
-    return infoItems.slice(0, 5).join(' | ') + ' ...'
-  }
-  
-  return infoItems.join(' | ')
+
+  return formatDisplayInfo(displayInfos, 5)
 })
 
 // 获取单个条目的 display_info 文本
@@ -405,22 +513,11 @@ function getItemDisplayInfo(value: any): string {
   const valueStr = String(value)
   // 从 options 中查找
   const option = options.value.find((opt: any) => String(opt.value) === valueStr)
-  if (option?.displayInfo && typeof option.displayInfo === 'object') {
-    const infoItems: string[] = []
-    Object.entries(option.displayInfo).forEach(([key, val]) => {
-      if (val !== null && val !== undefined && val !== '') {
-        infoItems.push(`${key}: ${val}`)
-      }
-    })
-    if (infoItems.length > 0) {
-      // 限制显示数量，避免过长
-      if (infoItems.length > 3) {
-        return infoItems.slice(0, 3).join(' | ') + ' ...'
-      }
-      return infoItems.join(' | ')
-    }
-  }
-  return ''
+  return formatDisplayInfo(option?.displayInfo, 3)
+}
+
+function getOptionDisplayInfo(option: MultiSelectOptionItem): string {
+  return formatDisplayInfo(option.displayInfo, 3)
 }
 
 // 获取选项标签
@@ -459,14 +556,6 @@ function getOptionLabel(value: any): string {
   
   // 3. 如果还没有，返回 valueStr（作为后备）
   return valueStr
-}
-
-/**
- * 移除指定值
- */
-function handleRemoveValue(value: any): void {
-  const newValues = selectedValues.value.filter((v: any) => String(v) !== String(value))
-  selectedValues.value = newValues
 }
 
 /**
@@ -518,7 +607,7 @@ function getOptionColorValue(value: any): string | undefined {
 function getOptionColorStyle(value: any): Record<string, string> {
   const colorValue = getOptionColorValue(value)
   const color = getOptionColor(value)
-  const backgroundColor = colorValue || color || ''
+  const backgroundColor = colorValue || (color && isStandardColor(color) ? getStandardColorCSSVar(color as StandardColorType) : color) || ''
   
   // 🔥 确保 backgroundColor 有值，并且使用 !important 确保样式生效
   const style: Record<string, string> = {
@@ -664,11 +753,6 @@ async function handleSearch(query: string | any[], isByValue = false): Promise<v
   }
 }
 
-// 远程搜索方法（保留用于兼容）
-async function remoteMethod(query: string): Promise<void> {
-  await handleSearch(query, false)
-}
-
 // 打开对话框
 async function openDialog(): Promise<void> {
   dialogVisible.value = true
@@ -699,24 +783,18 @@ async function handleDialogSearch(keyword: string): Promise<void> {
       display_info: opt.displayInfo, // 同时提供两种格式，确保兼容
       icon: opt.icon
     }))
-    } else {
+  } else {
     // 静态选项，本地过滤
     const filtered = staticOptions.value.filter((opt: any) => {
-      const label = typeof opt === 'string' ? opt : opt.label
-      return label.toLowerCase().includes(keyword.toLowerCase())
+      return opt.label.toLowerCase().includes(keyword.toLowerCase())
     })
-    dialogSuggestions.value = filtered.map((opt: any) => {
-      if (typeof opt === 'string') {
-        return { label: opt, value: opt }
-      }
-      return {
+    dialogSuggestions.value = filtered.map((opt: any) => ({
         label: opt.label,
         value: opt.value,
         displayInfo: opt.displayInfo,
         display_info: opt.displayInfo, // 同时提供两种格式，确保兼容
         icon: opt.icon
-      }
-    })
+      }))
   }
 }
 
@@ -797,9 +875,8 @@ function handleRemoveTag(valueToRemove?: any): void {
   }
 }
 
-// 处理值变化（保留用于兼容）
-function handleChange(values: any[]): void {
-  selectedValues.value = values
+function handleClearSelection(): void {
+  selectedValues.value = []
 }
 
 // 初始化：如果字段没有值，使用默认值
@@ -910,7 +987,9 @@ onUnmounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use './styles/inlineSelectShared' as inlineSelectShared;
+
 .multiselect-widget {
   width: 100%;
 }
@@ -919,6 +998,36 @@ onUnmounted(() => {
   position: relative;
   width: 100%;
 }
+
+@include inlineSelectShared.inline-select-surface('.inline-multiselect', 40px, 13px, $padding-top: 4px, $padding-bottom: 4px, $align-start: true);
+@include inlineSelectShared.inline-select-surface('.inline-multiselect-search', 32px, 13px, $box-shadow: none, $padding-left: 9px, $padding-right: 9px, $padding-top: 1px, $padding-bottom: 1px, $align-start: true);
+
+.inline-multiselect :deep(.el-select__selection) {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 28px;
+}
+
+.inline-multiselect :deep(.el-select__input-wrapper) {
+  min-width: 96px;
+}
+
+.inline-multiselect :deep(.el-select__input) {
+  font-size: 13px;
+  color: var(--el-text-color-primary);
+}
+
+.inline-multiselect :deep(.el-select__placeholder) {
+  font-size: 13px;
+}
+
+.inline-multiselect :deep(.el-select__tags-text) {
+  max-width: none;
+}
+
+@include inlineSelectShared.inline-select-display-info('.inline-display-info-text', 2px);
 
 /* 🔥 参考单选的样式，使用相同的容器样式 */
 .select-container {
@@ -996,6 +1105,33 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
+.inline-selected-tag {
+  max-width: min(100%, 180px);
+}
+
+.inline-selected-tag,
+.inline-summary-tag {
+  height: 24px;
+  line-height: 22px;
+  border-radius: 999px;
+  padding: 0 10px;
+  border: 1px solid var(--el-border-color);
+  box-shadow: none;
+  background-color: #fff;
+  color: var(--el-text-color-primary);
+  font-weight: 500;
+}
+
+.inline-selected-tag.el-tag--info {
+  background-color: #fff;
+  color: var(--el-text-color-primary);
+  border-color: var(--el-border-color);
+}
+
+.inline-selected-tag :deep(.el-tag__close) {
+  margin-left: 6px;
+}
+
 .search-summary-tag {
   flex-shrink: 0;
 }
@@ -1059,6 +1195,8 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+@include inlineSelectShared.inline-select-option-row('.multiselect-option');
 
 .input-icon {
   color: var(--el-text-color-placeholder);
@@ -1182,13 +1320,6 @@ onUnmounted(() => {
 }
 
 /* 选项容器样式 */
-.flex {
-  display: flex;
-}
-
-.items-center {
-  align-items: center;
-}
 </style>
 
 <style>

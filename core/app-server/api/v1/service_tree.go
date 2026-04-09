@@ -22,38 +22,6 @@ func NewServiceTree(serviceTreeService *service.ServiceTreeService) *ServiceTree
 	}
 }
 
-// CreateServiceTree 创建服务目录
-// @Summary 创建服务目录
-// @Description 为指定应用创建服务目录
-// @Tags 服务目录
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param X-Token header string true "JWT Token"
-// @Param request body dto.CreateServiceTreeReq true "创建服务目录请求"
-// @Success 200 {object} dto.CreateServiceTreeResp
-// @Failure 400 {string} string "请求参数错误"
-// @Failure 401 {string} string "未授权"
-// @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/service_tree [post]
-func (s *ServiceTree) CreateServiceTree(c *gin.Context) {
-	var req dto.CreateServiceTreeReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
-		return
-	}
-
-	// 创建服务目录
-	ctx := contextx.ToContext(c)
-	resp, err := s.serviceTreeService.CreateServiceTree(ctx, &req)
-	if err != nil {
-		response.FailWithMessage(c, "创建服务目录失败: "+err.Error())
-		return
-	}
-
-	response.OkWithData(c, resp)
-}
-
 // CreatePackage 创建 package 类型节点（专门的接口）
 // @Summary 创建目录
 // @Description 创建 package 类型的服务目录节点
@@ -65,7 +33,7 @@ func (s *ServiceTree) CreateServiceTree(c *gin.Context) {
 // @Param request body dto.CreatePackageReq true "创建目录请求"
 // @Success 200 {object} dto.CreatePackageResp
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/packages [post]
+// @Router /workspace/api/v1/packages [post]
 func (s *ServiceTree) CreatePackage(c *gin.Context) {
 	var req dto.CreatePackageReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -94,7 +62,7 @@ func (s *ServiceTree) CreatePackage(c *gin.Context) {
 // @Param request body dto.CreateFunctionReq true "创建函数请求"
 // @Success 200 {object} dto.CreateFunctionResp
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/functions [post]
+// @Router /workspace/api/v1/functions [post]
 func (s *ServiceTree) CreateFunction(c *gin.Context) {
 	var req dto.CreateFunctionReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -123,7 +91,7 @@ func (s *ServiceTree) CreateFunction(c *gin.Context) {
 // @Param request body dto.CreateDocsReq true "创建文档请求"
 // @Success 200 {object} dto.CreateDocsResp
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/docs/crud [post]
+// @Router /workspace/api/v1/docs/crud [post]
 func (s *ServiceTree) CreateDocs(c *gin.Context) {
 	var req dto.CreateDocsReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -141,43 +109,6 @@ func (s *ServiceTree) CreateDocs(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
-// GetServiceTree 获取服务目录树
-// @Summary 获取服务目录树
-// @Description 获取指定应用的服务目录树形结构，支持按类型过滤（如只显示 package 类型的节点）
-// @Tags 服务目录
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param X-Token header string true "JWT Token"
-// @Param user query string true "用户名"
-// @Param app query string true "应用名"
-// @Param type query string false "节点类型过滤（可选），如：package（只显示服务目录/包）、function（只显示函数/文件）"
-// @Success 200 {object} []dto.GetServiceTreeResp
-// @Failure 400 {string} string "请求参数错误"
-// @Failure 401 {string} string "未授权"
-// @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/service_tree [get]
-func (s *ServiceTree) GetServiceTree(c *gin.Context) {
-	user := c.Query("user")
-	app := c.Query("app")
-	nodeType := c.Query("type")
-
-	if user == "" || app == "" {
-		response.FailWithMessage(c, "用户和应用名不能为空")
-		return
-	}
-
-	// 获取服务目录树（支持类型过滤）
-	ctx := contextx.ToContext(c)
-	trees, err := s.serviceTreeService.GetServiceTree(ctx, user, app, nodeType)
-	if err != nil {
-		response.FailWithMessage(c, "获取服务目录失败: "+err.Error())
-		return
-	}
-
-	response.OkWithData(c, trees)
-}
-
 // GetServiceTreeDetail 获取服务目录详情（包含权限信息）
 // @Summary 获取服务目录详情
 // @Description 根据ID或full-code-path获取服务目录详情，包含权限信息
@@ -193,7 +124,7 @@ func (s *ServiceTree) GetServiceTree(c *gin.Context) {
 // @Failure 401 {string} string "未授权"
 // @Failure 404 {string} string "服务目录不存在"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/service_tree/detail [get]
+// @Router /workspace/api/v1/service_tree/detail [get]
 func (s *ServiceTree) GetServiceTreeDetail(c *gin.Context) {
 	var req dto.GetServiceTreeDetailReq
 
@@ -226,116 +157,6 @@ func (s *ServiceTree) GetServiceTreeDetail(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
-// GetPackageInfo 获取目录信息（仅用于获取目录权限）
-// @Summary 获取目录信息
-// @Description 根据ID或full-code-path获取目录信息，包含权限信息（仅用于目录，函数请使用函数详情接口）
-// @Tags 服务目录
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param X-Token header string true "JWT Token"
-// @Param id query int false "目录ID（优先使用）"
-// @Param full_code_path query string false "完整代码路径（如果未提供ID则使用）"
-// @Success 200 {object} dto.GetPackageInfoResp "获取成功"
-// @Failure 400 {string} string "请求参数错误"
-// @Failure 401 {string} string "未授权"
-// @Failure 404 {string} string "目录不存在"
-// @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/service_tree/package_info [get]
-func (s *ServiceTree) GetPackageInfo(c *gin.Context) {
-	var req dto.GetPackageInfoReq
-
-	// 从 query 参数获取 ID
-	idStr := c.Query("id")
-	if idStr != "" {
-		id, err := strconv.ParseInt(idStr, 10, 64)
-		if err != nil {
-			response.FailWithMessage(c, "无效的ID参数")
-			return
-		}
-		req.ID = id
-	}
-
-	// 从 query 参数获取 full_code_path
-	req.FullCodePath = c.Query("full_code_path")
-
-	if req.ID == 0 && req.FullCodePath == "" {
-		response.FailWithMessage(c, "必须提供 ID 或 full_code_path 参数")
-		return
-	}
-
-	ctx := contextx.ToContext(c)
-	resp, err := s.serviceTreeService.GetPackageInfo(ctx, &req)
-	if err != nil {
-		response.FailWithMessage(c, "获取目录信息失败: "+err.Error())
-		return
-	}
-
-	response.OkWithData(c, resp)
-}
-
-// UpdateServiceTree 更新服务目录
-// @Summary 更新服务目录
-// @Description 更新指定服务目录的信息
-// @Tags 服务目录
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param X-Token header string true "JWT Token"
-// @Param request body dto.UpdateServiceTreeMetadataReq true "更新服务目录请求"
-// @Success 200 {string} string "更新成功"
-// @Failure 400 {string} string "请求参数错误"
-// @Failure 401 {string} string "未授权"
-// @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/service_tree [put]
-func (s *ServiceTree) UpdateServiceTree(c *gin.Context) {
-	var req dto.UpdateServiceTreeMetadataReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
-		return
-	}
-
-	// 更新服务目录
-	ctx := contextx.ToContext(c)
-	if err := s.serviceTreeService.UpdateServiceTreeMetadata(ctx, &req); err != nil {
-		response.FailWithMessage(c, "更新服务目录失败: "+err.Error())
-		return
-	}
-
-	response.OkWithMessage(c, "更新成功")
-}
-
-// DeleteServiceTree 删除服务目录
-// @Summary 删除服务目录
-// @Description 删除指定服务目录（级联删除子目录）
-// @Tags 服务目录
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param X-Token header string true "JWT Token"
-// @Param request body dto.DeleteServiceTreeReq true "删除服务目录请求"
-// @Success 200 {string} string "删除成功"
-// @Failure 400 {string} string "请求参数错误"
-// @Failure 401 {string} string "未授权"
-// @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/service_tree [delete]
-func (s *ServiceTree) DeleteServiceTree(c *gin.Context) {
-	var req dto.DeleteServiceTreeReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
-		return
-	}
-
-	// 删除服务目录
-	ctx := contextx.ToContext(c)
-	if err := s.serviceTreeService.DeleteServiceTree(ctx, req.ID); err != nil {
-		response.FailWithMessage(c, "删除服务目录失败: "+err.Error())
-		return
-	}
-
-	response.OkWithMessage(c, "删除成功")
-}
-
 // UpdatePackage 更新 package 类型节点（专门的接口）
 // @Summary 更新目录
 // @Description 更新 package 类型的服务目录节点
@@ -348,7 +169,7 @@ func (s *ServiceTree) DeleteServiceTree(c *gin.Context) {
 // @Param request body dto.UpdatePackageReq true "更新目录请求"
 // @Success 200 {string} string "更新成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/packages/{id} [put]
+// @Router /workspace/api/v1/packages/{id} [put]
 func (s *ServiceTree) UpdatePackage(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -384,7 +205,7 @@ func (s *ServiceTree) UpdatePackage(c *gin.Context) {
 // @Param id path int true "目录ID"
 // @Success 200 {string} string "删除成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/packages/{id} [delete]
+// @Router /workspace/api/v1/packages/{id} [delete]
 func (s *ServiceTree) DeletePackage(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -414,7 +235,7 @@ func (s *ServiceTree) DeletePackage(c *gin.Context) {
 // @Param request body dto.UpdateFunctionReq true "更新函数请求"
 // @Success 200 {string} string "更新成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/functions/{id} [put]
+// @Router /workspace/api/v1/functions/{id} [put]
 func (s *ServiceTree) UpdateFunction(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -450,7 +271,7 @@ func (s *ServiceTree) UpdateFunction(c *gin.Context) {
 // @Param id path int true "函数ID"
 // @Success 200 {string} string "删除成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/functions/{id} [delete]
+// @Router /workspace/api/v1/functions/{id} [delete]
 func (s *ServiceTree) DeleteFunction(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -480,7 +301,7 @@ func (s *ServiceTree) DeleteFunction(c *gin.Context) {
 // @Param request body dto.UpdateDocsReq true "更新文档请求"
 // @Success 200 {string} string "更新成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/docs/crud/{id} [put]
+// @Router /workspace/api/v1/docs/crud/{id} [put]
 func (s *ServiceTree) UpdateDocs(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -516,7 +337,7 @@ func (s *ServiceTree) UpdateDocs(c *gin.Context) {
 // @Param id path int true "文档ID"
 // @Success 200 {string} string "删除成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/docs/crud/{id} [delete]
+// @Router /workspace/api/v1/docs/crud/{id} [delete]
 func (s *ServiceTree) DeleteDocs(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -543,7 +364,7 @@ func (s *ServiceTree) DeleteDocs(c *gin.Context) {
 // @Security ApiKeyAuth
 // @Param request body dto.CreateBoardReq true "创建版块请求"
 // @Success 200 {object} dto.CreateBoardResp
-// @Router /api/v1/boards/crud [post]
+// @Router /workspace/api/v1/boards/crud [post]
 func (s *ServiceTree) CreateBoard(c *gin.Context) {
 	var req dto.CreateBoardReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -563,7 +384,7 @@ func (s *ServiceTree) CreateBoard(c *gin.Context) {
 // @Summary 更新版块
 // @Param id path int true "版块ID"
 // @Param request body dto.UpdateBoardReq true "更新版块请求"
-// @Router /api/v1/boards/crud/{id} [put]
+// @Router /workspace/api/v1/boards/crud/{id} [put]
 func (s *ServiceTree) UpdateBoard(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -588,7 +409,7 @@ func (s *ServiceTree) UpdateBoard(c *gin.Context) {
 // DeleteBoard 删除版块节点（会先删除该版块下全部帖子）
 // @Summary 删除版块
 // @Param id path int true "版块ID"
-// @Router /api/v1/boards/crud/{id} [delete]
+// @Router /workspace/api/v1/boards/crud/{id} [delete]
 func (s *ServiceTree) DeleteBoard(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -617,7 +438,7 @@ func (s *ServiceTree) DeleteBoard(c *gin.Context) {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/service_tree/copy [post]
+// @Router /workspace/api/v1/service_tree/copy [post]
 func (s *ServiceTree) CopyServiceTree(c *gin.Context) {
 	var req dto.CopyDirectoryReq
 	var resp *dto.CopyDirectoryResp
@@ -654,7 +475,7 @@ func (s *ServiceTree) CopyServiceTree(c *gin.Context) {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/service_tree/publish_to_hub [post]
+// @Router /workspace/api/v1/service_tree/publish_to_hub [post]
 func (s *ServiceTree) PublishDirectoryToHub(c *gin.Context) {
 	var req dto.PublishDirectoryToHubReq
 	var resp *dto.PublishDirectoryToHubResp
@@ -691,7 +512,7 @@ func (s *ServiceTree) PublishDirectoryToHub(c *gin.Context) {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/service_tree/push_to_hub [post]
+// @Router /workspace/api/v1/service_tree/push_to_hub [post]
 func (s *ServiceTree) PushDirectoryToHub(c *gin.Context) {
 	var req dto.PushDirectoryToHubReq
 	var resp *dto.PushDirectoryToHubResp
@@ -728,7 +549,7 @@ func (s *ServiceTree) PushDirectoryToHub(c *gin.Context) {
 // @Param source_app query string true "源应用"
 // @Param source_directory_path query string true "源目录完整路径"
 // @Success 200 {object} dto.GetHubPushFormInfoResp "获取成功"
-// @Router /api/v1/service_tree/hub_push_form_info [get]
+// @Router /workspace/api/v1/service_tree/hub_push_form_info [get]
 func (s *ServiceTree) GetHubPushFormInfo(c *gin.Context) {
 	var req dto.GetHubPushFormInfoReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -803,38 +624,6 @@ func (s *ServiceTree) AddFunctions(c *gin.Context) {
 	}
 }
 
-// GetHubInfo 获取目录的 Hub 信息
-// @Summary 获取目录的 Hub 信息
-// @Description 根据目录完整路径获取其关联的 Hub 目录信息
-// @Tags 服务目录
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param X-Token header string true "JWT Token"
-// @Param full_code_path query string true "目录完整路径"
-// @Success 200 {object} dto.GetHubInfoResp "获取成功"
-// @Failure 400 {string} string "请求参数错误"
-// @Failure 401 {string} string "未授权"
-// @Failure 404 {string} string "目录未发布到 Hub"
-// @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/service_tree/hub_info [get]
-func (s *ServiceTree) GetHubInfo(c *gin.Context) {
-	var req dto.GetHubInfoReq
-	if err := c.ShouldBindQuery(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
-		return
-	}
-
-	ctx := contextx.ToContext(c)
-	resp, err := s.serviceTreeService.GetHubInfo(ctx, &req)
-	if err != nil {
-		response.FailWithMessage(c, err.Error())
-		return
-	}
-
-	response.OkWithData(c, resp)
-}
-
 // PullDirectoryFromHub 从 Hub 拉取目录到工作空间
 // @Summary 从 Hub 拉取目录
 // @Description 使用 Hub 链接从 Hub 拉取目录到工作空间（类似 git pull）
@@ -848,7 +637,7 @@ func (s *ServiceTree) GetHubInfo(c *gin.Context) {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/service_tree/pull_from_hub [post]
+// @Router /workspace/api/v1/service_tree/pull_from_hub [post]
 func (s *ServiceTree) PullDirectoryFromHub(c *gin.Context) {
 	var req dto.PullDirectoryFromHubReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -902,7 +691,7 @@ func (s *ServiceTree) ImportHubDirectoryBundle(c *gin.Context) {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/service_tree/search_functions [get]
+// @Router /workspace/api/v1/service_tree/search_functions [get]
 func (s *ServiceTree) SearchFunctions(c *gin.Context) {
 	var req dto.SearchFunctionsReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -932,7 +721,7 @@ func (s *ServiceTree) SearchFunctions(c *gin.Context) {
 }
 
 // GetWorkspaceContext 获取工作台环境信息
-// GET /api/v1/workspace/context?full_code_path=...&file_source=snapshot|runtime
+// GET /workspace/api/v1/workspace/context?full_code_path=...&file_source=snapshot|runtime
 func (s *ServiceTree) GetWorkspaceContext(c *gin.Context) {
 	var req dto.GetWorkspaceContextReq
 	req.FullCodePath = c.Query("full_code_path")
@@ -953,7 +742,7 @@ func (s *ServiceTree) GetWorkspaceContext(c *gin.Context) {
 }
 
 // ReplaceFileContent 工作台文件 search-replace（实时写盘）
-// POST /api/v1/workspace/files/replace
+// POST /workspace/api/v1/workspace/files/replace
 func (s *ServiceTree) ReplaceFileContent(c *gin.Context) {
 	var req dto.ReplaceFileContentReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -978,7 +767,7 @@ func (s *ServiceTree) ReplaceFileContent(c *gin.Context) {
 }
 
 // DeleteFile 工作台删除文件（删磁盘+删节点）
-// POST /api/v1/workspace/files/delete
+// POST /workspace/api/v1/workspace/files/delete
 func (s *ServiceTree) DeleteFile(c *gin.Context) {
 	var req dto.DeleteFileReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -999,7 +788,7 @@ func (s *ServiceTree) DeleteFile(c *gin.Context) {
 }
 
 // ReadAppLog 读取应用日志（支持 version、关键词检索）
-// POST /api/v1/workspace/logs/read
+// POST /workspace/api/v1/workspace/logs/read
 func (s *ServiceTree) ReadAppLog(c *gin.Context) {
 	var req dto.ReadAppLogReq
 	if err := c.ShouldBindJSON(&req); err != nil {

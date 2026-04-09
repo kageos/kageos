@@ -65,13 +65,13 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="调度方式" min-width="240">
+        <el-table-column label="调度方式" width="140">
           <template #default="{ row }">
             <div class="schedule-cell">
-              <div class="schedule-top">
-                <el-tag size="small">{{ scheduleTypeLabel(row.schedule_type) }}</el-tag>
-              </div>
-              <div class="schedule-summary" :title="getScheduleSummary(row)">{{ getScheduleSummary(row) }}</div>
+              <el-tag size="small">{{ scheduleTypeLabel(row.schedule_type) }}</el-tag>
+              <el-tooltip :content="getScheduleSummary(row)" placement="top" effect="light">
+                <span class="schedule-summary-trigger">说明</span>
+              </el-tooltip>
             </div>
           </template>
         </el-table-column>
@@ -189,7 +189,7 @@
             </span>
           </div>
           <div class="overview-item">
-            <span class="overview-label">首次执行</span>
+            <span class="overview-label">{{ runAtLabel(currentTask) }}</span>
             <span class="overview-value">{{ formatDateTime(currentTask.run_at) }}</span>
           </div>
           <div class="overview-item">
@@ -291,6 +291,16 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="耗时" width="120" align="center">
+          <template #default="{ row }">
+            <span v-if="!hasExecutionDuration(row)" class="duration-empty">-</span>
+            <el-tooltip v-else :content="getExecutionDurationTip(row)" placement="top" effect="light">
+              <el-tag :type="getExecutionDurationTagType(row)" size="small" effect="light">
+                {{ formatExecutionDuration(row) }}
+              </el-tag>
+            </el-tooltip>
+          </template>
+        </el-table-column>
         <el-table-column prop="trace_id" label="Trace ID" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">{{ row.trace_id || '-' }}</template>
         </el-table-column>
@@ -320,7 +330,7 @@
     <el-dialog
       v-model="executionDetailVisible"
       title="执行详情"
-      width="960px"
+      width="720px"
       destroy-on-close
     >
       <template v-if="currentExecution">
@@ -341,6 +351,17 @@
             <span class="overview-label">Trace ID</span>
             <span class="overview-value">{{ currentExecution.trace_id || '-' }}</span>
           </div>
+          <div class="overview-item">
+            <span class="overview-label">耗时</span>
+            <span class="overview-value">
+              <span v-if="!hasExecutionDuration(currentExecution)">-</span>
+              <el-tooltip v-else :content="getExecutionDurationTip(currentExecution)" placement="top" effect="light">
+                <el-tag :type="getExecutionDurationTagType(currentExecution)" size="small" effect="light">
+                  {{ formatExecutionDuration(currentExecution) }}
+                </el-tag>
+              </el-tooltip>
+            </span>
+          </div>
         </div>
 
         <el-alert
@@ -352,21 +373,6 @@
           :closable="false"
           class="detail-alert"
         />
-
-        <div class="payload-grid">
-          <div class="payload-panel">
-            <div class="payload-header">
-              <span class="payload-title">请求参数</span>
-            </div>
-            <pre class="payload-pre">{{ formatPayload(currentExecution.request_payload) }}</pre>
-          </div>
-          <div class="payload-panel">
-            <div class="payload-header">
-              <span class="payload-title">响应结果</span>
-            </div>
-            <pre class="payload-pre">{{ formatPayload(currentExecution.response_payload) }}</pre>
-          </div>
-        </div>
       </template>
     </el-dialog>
   </div>
@@ -465,6 +471,31 @@ function formatPayload(raw?: string | null) {
   }
 }
 
+function parseObjectPayload(raw?: string | null): Record<string, any> | null {
+  if (!raw) {
+    return null
+  }
+  try {
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, any>
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+function readNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+  if (typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value))) {
+    return Number(value)
+  }
+  return null
+}
+
 function getScheduleSummary(task: ScheduledTaskItem) {
   switch (task.schedule_type) {
     case 'cron':
@@ -477,6 +508,97 @@ function getScheduleSummary(task: ScheduledTaskItem) {
     case 'atime':
     default:
       return '到点执行一次'
+  }
+}
+
+function runAtLabel(task: ScheduledTaskItem) {
+  return task.schedule_type === 'atime' ? '执行时间' : '开始时间'
+}
+
+function getExecutionDuration(execution: ScheduledTaskExecutionItem): number | null {
+  const direct = readNumber(execution.duration_millis)
+  if (direct !== null && direct >= 0) {
+    return direct
+  }
+  const payload = parseObjectPayload(execution.response_payload)
+  const topLevel = readNumber(payload?.total_cost_mill)
+  if (topLevel !== null && topLevel >= 0) {
+    return topLevel
+  }
+  const result = payload?.result
+  if (result && typeof result === 'object' && !Array.isArray(result)) {
+    const nested = readNumber((result as Record<string, unknown>).total_cost_mill)
+    if (nested !== null && nested >= 0) {
+      return nested
+    }
+  }
+  return null
+}
+
+function hasExecutionDuration(execution: ScheduledTaskExecutionItem): boolean {
+  return getExecutionDuration(execution) !== null
+}
+
+function formatDuration(value: number | null): string {
+  if (value === null || value < 0) {
+    return '-'
+  }
+  if (value < 1000) {
+    return `${value}ms`
+  }
+  if (value < 60000) {
+    return `${(value / 1000).toFixed(value < 10000 ? 2 : 1)}s`
+  }
+  const minutes = Math.floor(value / 60000)
+  const seconds = ((value % 60000) / 1000).toFixed(1)
+  return `${minutes}分${seconds}秒`
+}
+
+function formatExecutionDuration(execution: ScheduledTaskExecutionItem): string {
+  return formatDuration(getExecutionDuration(execution))
+}
+
+function getExecutionDurationTone(execution: ScheduledTaskExecutionItem): 'fast' | 'medium' | 'slow' | 'unknown' {
+  const duration = getExecutionDuration(execution)
+  if (duration === null) {
+    return 'unknown'
+  }
+  if (duration < 1000) {
+    return 'fast'
+  }
+  if (duration < 3000) {
+    return 'medium'
+  }
+  return 'slow'
+}
+
+function getExecutionDurationTagType(execution: ScheduledTaskExecutionItem) {
+  switch (getExecutionDurationTone(execution)) {
+    case 'fast':
+      return 'success'
+    case 'medium':
+      return 'warning'
+    case 'slow':
+      return 'danger'
+    default:
+      return 'info'
+  }
+}
+
+function getExecutionDurationTip(execution: ScheduledTaskExecutionItem): string {
+  const duration = getExecutionDuration(execution)
+  if (duration === null) {
+    return '未记录耗时'
+  }
+  switch (getExecutionDurationTone(execution)) {
+    case 'fast':
+      return `执行较快：${formatDuration(duration)}`
+    case 'medium':
+      return `执行中等：${formatDuration(duration)}`
+    case 'slow':
+      return `执行较慢：${formatDuration(duration)}`
+    default:
+      return formatDuration(duration)
   }
 }
 
@@ -773,22 +895,17 @@ function openExecutionDetail(row: ScheduledTaskExecutionItem) {
 }
 
 .schedule-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 
-.schedule-top {
-  display: flex;
-  align-items: center;
-}
-
-.schedule-summary {
-  margin-top: 6px;
+.schedule-summary-trigger {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.5;
+  color: var(--el-color-primary);
+  cursor: help;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .status-cell {
@@ -804,6 +921,10 @@ function openExecutionDetail(row: ScheduledTaskExecutionItem) {
   height: 8px;
   border-radius: 50%;
   background: var(--el-color-danger);
+}
+
+.duration-empty {
+  color: var(--el-text-color-placeholder);
 }
 
 .list-pagination,
@@ -913,7 +1034,7 @@ function openExecutionDetail(row: ScheduledTaskExecutionItem) {
 }
 
 .execution-overview {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 @media (max-width: 960px) {

@@ -36,7 +36,7 @@ func NewDirectoryUpdateHistory(directoryUpdateHistoryService *service.DirectoryU
 // @Success 200 {object} dto.GetAppVersionUpdateHistoryResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/directory_update_history/app_version [get]
+// @Router /workspace/api/v1/directory_update_history/app_version [get]
 func (d *DirectoryUpdateHistory) GetAppVersionUpdateHistory(c *gin.Context) {
 	var resp *dto.GetAppVersionUpdateHistoryResp
 	var err error
@@ -86,7 +86,7 @@ func (d *DirectoryUpdateHistory) GetAppVersionUpdateHistory(c *gin.Context) {
 // @Success 200 {object} dto.GetDirectoryUpdateHistoryResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/directory_update_history/directory [get]
+// @Router /workspace/api/v1/directory_update_history/directory [get]
 func (d *DirectoryUpdateHistory) GetDirectoryUpdateHistory(c *gin.Context) {
 	var resp *dto.GetDirectoryUpdateHistoryResp
 	var err error

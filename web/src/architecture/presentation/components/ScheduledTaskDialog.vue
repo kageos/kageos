@@ -41,11 +41,11 @@
           <el-radio-button value="every">每 N 秒</el-radio-button>
         </el-radio-group>
       </el-form-item>
-      <el-form-item v-if="form.schedule_type === 'atime'" label="执行时间" prop="run_at">
+      <el-form-item :label="runAtFieldLabel" prop="run_at">
         <el-date-picker
           v-model="form.run_at"
           type="datetime"
-          placeholder="选择执行时间"
+          :placeholder="runAtFieldPlaceholder"
           format="YYYY-MM-DD HH:mm"
           value-format="YYYY-MM-DD HH:mm:ss"
           style="width: 100%"
@@ -55,12 +55,12 @@
       </el-form-item>
       <el-form-item v-if="form.schedule_type === 'cron'" label="Cron 表达式" prop="cron_expr">
         <el-input v-model="form.cron_expr" placeholder="如 0 9 * * *（每天 9 点）" />
-        <div class="form-tip">格式：分 时 日 月 周；以当前时间为起点计算下次执行</div>
+        <div class="form-tip">格式：分 时 日 月 周；从开始时间之后匹配下一次执行，不会在创建后立刻执行</div>
       </el-form-item>
       <el-form-item v-if="form.schedule_type === 'every'" label="间隔（秒）" prop="interval_seconds">
         <el-input-number v-model="form.interval_seconds" :min="1" :max="86400" placeholder="如 60" style="width: 100%" />
       </el-form-item>
-      <div v-if="form.schedule_type === 'every'" class="form-tip-inline">以当前时间为起点，按间隔重复执行</div>
+      <div v-if="form.schedule_type === 'every'" class="form-tip-inline">从开始时间开始，按间隔重复执行</div>
       <el-form-item v-if="form.schedule_type === 'every'" label="最多执行次数">
         <el-input-number v-model="form.max_runs" :min="0" placeholder="0 表示不限制" style="width: 100%" />
       </el-form-item>
@@ -132,6 +132,8 @@ const allowedActions = computed(() =>
     (a) => a === 'table_create' || a === 'table_update' || a === 'table_delete'
   )
 )
+const runAtFieldLabel = computed(() => (form.value.schedule_type === 'atime' ? '执行时间' : '开始时间'))
+const runAtFieldPlaceholder = computed(() => (form.value.schedule_type === 'atime' ? '选择执行时间' : '选择开始时间'))
 
 function tableActionLabel(a: ScheduledTaskAction): string {
   const m: Record<string, string> = {
@@ -179,6 +181,12 @@ function disabledDate(time: Date) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   return time.getTime() < today.getTime()
+}
+
+function parseDateTimeValue(value: string): Date | null {
+  const normalized = value.trim().replace(' ', 'T')
+  const date = new Date(normalized)
+  return Number.isNaN(date.getTime()) ? null : date
 }
 
 const rules: FormRules = {
@@ -236,16 +244,23 @@ const rules: FormRules = {
   run_at: [
     {
       required: true,
-      message: '请选择执行时间',
+      message: '请选择时间',
       trigger: 'change',
       validator: (_rule, value, callback) => {
-        if (form.value.schedule_type === 'atime' && !value) {
-          callback(new Error('请选择执行时间'))
-        } else if (form.value.schedule_type === 'atime' && value && new Date(value).getTime() < Date.now()) {
-          callback(new Error('执行时间不能早于当前时间'))
-        } else {
-          callback()
+        if (!value) {
+          callback(new Error(form.value.schedule_type === 'atime' ? '请选择执行时间' : '请选择开始时间'))
+          return
         }
+        const date = parseDateTimeValue(String(value))
+        if (!date) {
+          callback(new Error('时间格式不正确'))
+          return
+        }
+        if (date.getTime() < Date.now()) {
+          callback(new Error(form.value.schedule_type === 'atime' ? '执行时间不能早于当前时间' : '开始时间不能早于当前时间'))
+          return
+        }
+        callback()
       }
     }
   ],
@@ -313,13 +328,8 @@ function formatLocalDateTime(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
-/** 提交时 atime 用表单选择的 run_at（本地 datetime），其他类型用当前本地时间 */
-function getRunAtRFC3339(): string {
-  if (form.value.schedule_type === 'atime' && form.value.run_at) {
-    const d = new Date(form.value.run_at)
-    return formatLocalDateTime(d)
-  }
-  return formatLocalDateTime(new Date())
+function getRunAtValue(): string {
+  return form.value.run_at.trim()
 }
 
 function handleClose() {
@@ -355,7 +365,7 @@ async function handleSubmit() {
         method: 'POST',
         payload: taskPayload,
         schedule_type: form.value.schedule_type,
-        run_at: getRunAtRFC3339(),
+        run_at: getRunAtValue(),
         max_runs: form.value.max_runs ?? 0
       }
       if (form.value.schedule_type === 'cron') {

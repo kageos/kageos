@@ -801,7 +801,6 @@ func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq)
 	req.User = user
 	req.App = appCode
 
-	// 从数据库获取应用信息
 	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -810,7 +809,6 @@ func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq)
 		return nil, fmt.Errorf("获取应用详情失败: %w", err)
 	}
 
-	// 转换为响应格式
 	return &dto.GetAppDetailResp{
 		AppInfo: dto.AppInfo{
 			ID:                app.ID,

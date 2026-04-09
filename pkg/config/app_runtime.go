@@ -62,9 +62,10 @@ type AppRuntimeTimeoutConfig struct {
 
 // RuntimeConfig 运行时配置
 type RuntimeConfig struct {
-	Port     int    `mapstructure:"port"`
-	LogLevel string `mapstructure:"log_level"`
-	Debug    bool   `mapstructure:"debug"`
+	Port       int    `mapstructure:"port"`
+	LogLevel   string `mapstructure:"log_level"`
+	Debug      bool   `mapstructure:"debug"`
+	InstanceID string `mapstructure:"instance_id"`
 	// 注意：gateway_url 已移除，改为从全局配置读取（GetGatewayURL()）
 }
 
@@ -171,6 +172,25 @@ func (c *AppRuntimeConfig) GetContainerCleanupTimeout() int {
 		return 10 // 默认 10 秒
 	}
 	return c.Timeouts.ContainerCleanup
+}
+
+// GetRuntimeInstanceID 获取 runtime 实例 ID。
+// 优先使用配置；未配置时回退为基于 hostname 的稳定 ID。
+func (c *AppRuntimeConfig) GetRuntimeInstanceID() string {
+	if id := strings.TrimSpace(c.Runtime.InstanceID); id != "" {
+		return id
+	}
+
+	hostname, err := os.Hostname()
+	if err == nil {
+		hostname = strings.TrimSpace(hostname)
+		if hostname != "" {
+			hostname = strings.NewReplacer("/", "-", "\\", "-", " ", "-").Replace(hostname)
+			return "runtime-" + hostname
+		}
+	}
+
+	return "runtime-local"
 }
 
 // loadYAMLConfig 加载 YAML 配置文件。

@@ -922,7 +922,6 @@ watch(() => props.expandedKeys, async (newKeys, oldKeys) => {
     const keysChanged = JSON.stringify(keysArray.sort()) !== JSON.stringify(oldKeysArray.sort())
     
     if (keysChanged) {
-      console.log('[ServiceTreePanel] props.expandedKeys 变化（切换工作空间），强制重新渲染树组件，expandedKeys:', keysArray)
       // 先更新 expandedKeysState
       expandedKeysState.value = keysArray
       // 更新 key 强制重新渲染，这样 default-expanded-keys 会重新生效
@@ -937,7 +936,6 @@ watch(() => props.expandedKeys, async (newKeys, oldKeys) => {
       // 🔥 使用 expandPathOnly 手动展开节点路径（因为 setExpandedKeys 不可用）
       if (treeRef.value && groupedTreeData.value.length > 0) {
         try {
-          console.log('[ServiceTreePanel] 使用 expandPathOnly 展开节点:', keysArray)
           // 为每个节点找到路径并展开
           for (const nodeId of keysArray) {
             const path = findPathToNode(groupedTreeData.value, nodeId)
@@ -945,15 +943,11 @@ watch(() => props.expandedKeys, async (newKeys, oldKeys) => {
               await expandPathOnly(treeRef.value, path)
             }
           }
-          console.log('[ServiceTreePanel] expandPathOnly 展开完成')
         } catch (error) {
           console.error('[ServiceTreePanel] expandPathOnly 展开失败:', error)
         }
-      } else {
-        console.log('[ServiceTreePanel] 树组件重新渲染完成，已设置 expandedKeysState:', keysArray, 'treeRef:', !!treeRef.value, 'dataLength:', groupedTreeData.value.length)
       }
     } else {
-      console.log('[ServiceTreePanel] props.expandedKeys 变化，更新 expandedKeysState:', keysArray)
       // 直接更新 expandedKeysState，expanded-keys 属性会自动同步到树组件
       expandedKeysState.value = keysArray
     }
@@ -968,7 +962,6 @@ watch(() => groupedTreeData.value.length, (newLength, oldLength) => {
   // 如果树数据从空变为有数据，且有 expandedKeys，更新展开状态
   if (oldLength === 0 && newLength > 0 && props.expandedKeys && props.expandedKeys.length > 0) {
     const keysArray = [...props.expandedKeys] // 转换为普通数组
-    console.log('[ServiceTreePanel] 树数据加载完成，更新 expandedKeysState:', keysArray)
     expandedKeysState.value = keysArray
   }
 })
@@ -1283,19 +1276,12 @@ let isExpanding = false
 let lastExpandedKeys: number[] = []
 let expandKeysPromise: Promise<void> | null = null
 
-// 调试计数器
-let expandKeysNowCallCount = 0
-
 // ⭐ 展开节点的辅助函数（带重入保护）
 const expandKeysNow = async (keys: number[]): Promise<void> => {
-  expandKeysNowCallCount++
-  console.log(`[expandKeysNow] 调用次数: ${expandKeysNowCallCount}, keys:`, keys, 'keys类型:', typeof keys, 'isArray:', Array.isArray(keys))
-  
   // 🔥 确保 keys 是普通数组
   const keysArray = Array.isArray(keys) ? [...keys] : []
   
   if (keysArray.length === 0) {
-    console.log('[expandKeysNow] keys 为空，跳过')
     return
   }
   
@@ -1304,19 +1290,15 @@ const expandKeysNow = async (keys: number[]): Promise<void> => {
   const keysStr = JSON.stringify([...keysArray].sort())
   const lastKeysStr = JSON.stringify([...lastExpandedKeys].sort())
   if (keysStr === lastKeysStr) {
-    console.log('[expandKeysNow] keys 与上次相同，跳过')
     return
   }
   
   // ⭐ 重入保护：如果已经有正在执行的展开操作，等待它完成
   if (expandKeysPromise) {
-    console.log('[expandKeysNow] 已有正在执行的操作，等待完成')
     await expandKeysPromise
     return
   }
-  
-  console.log('[expandKeysNow] 开始执行展开操作')
-  
+
   // ⭐ 创建新的 Promise 用于重入保护
   expandKeysPromise = (async () => {
     isExpanding = true
@@ -1331,7 +1313,6 @@ const expandKeysNow = async (keys: number[]): Promise<void> => {
       while (retryCount < maxRetries) {
         // 检查 treeRef 是否可用
         if (!treeRef.value) {
-          console.log(`[expandKeysNow] 等待 treeRef 初始化 (${retryCount + 1}/${maxRetries})`)
           await nextTick()
           await new Promise(resolve => setTimeout(resolve, retryDelay))
           retryCount++
@@ -1340,7 +1321,6 @@ const expandKeysNow = async (keys: number[]): Promise<void> => {
         
         // 检查数据是否加载完成
         if (!groupedTreeData.value.length) {
-          console.log(`[expandKeysNow] 等待数据加载 (${retryCount + 1}/${maxRetries})`)
           await nextTick()
           await new Promise(resolve => setTimeout(resolve, retryDelay))
           retryCount++
@@ -1349,7 +1329,6 @@ const expandKeysNow = async (keys: number[]): Promise<void> => {
         
         // 检查 setExpandedKeys 方法是否可用
         if (!treeRef.value.setExpandedKeys) {
-          console.log(`[expandKeysNow] 等待 setExpandedKeys 方法可用 (${retryCount + 1}/${maxRetries})`)
           await nextTick()
           await new Promise(resolve => setTimeout(resolve, retryDelay))
           retryCount++
@@ -1377,9 +1356,7 @@ const expandKeysNow = async (keys: number[]): Promise<void> => {
       
       if (treeRef.value && treeRef.value.setExpandedKeys) {
         try {
-          console.log('[expandKeysNow] 调用 setExpandedKeys，keys:', keysArray, 'treeRef:', !!treeRef.value, 'setExpandedKeys:', !!treeRef.value.setExpandedKeys)
           treeRef.value.setExpandedKeys(keysArray, false) // false 表示不触发 expand 事件
-          console.log('[expandKeysNow] setExpandedKeys 调用成功')
         } catch (error) {
           console.error('[ServiceTreePanel] setExpandedKeys 调用失败:', error)
           // 回退方案：使用 expandPathOnly 批量展开（不选中节点，避免节点切换）
@@ -1396,10 +1373,6 @@ const expandKeysNow = async (keys: number[]): Promise<void> => {
           }
         }
       } else {
-        console.log('[expandKeysNow] treeRef 或 setExpandedKeys 不可用，使用回退方案', {
-          hasTreeRef: !!treeRef.value,
-          hasSetExpandedKeys: !!(treeRef.value && treeRef.value.setExpandedKeys)
-        })
         // 回退方案：使用 expandPathOnly 批量展开（不选中节点，避免节点切换）
         if (treeRef.value) {
           const paths: number[][] = []

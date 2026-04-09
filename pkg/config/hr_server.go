@@ -49,9 +49,10 @@ type SystemUserConfig struct {
 
 // HRServerServerConfig hr-server 服务器配置
 type HRServerServerConfig struct {
-	Port     int    `mapstructure:"port"`
-	LogLevel string `mapstructure:"log_level"`
-	Debug    bool   `mapstructure:"debug"`
+	Port                     int    `mapstructure:"port"`
+	LogLevel                 string `mapstructure:"log_level"`
+	Debug                    bool   `mapstructure:"debug"`
+	AllowNATSDegradedStartup bool   `mapstructure:"allow_nats_degraded_startup"`
 }
 
 // 常用便捷访问方法
@@ -71,6 +72,12 @@ func (c *HRServerConfig) GetLogLevel() string {
 
 func (c *HRServerConfig) IsDebug() bool {
 	return c.Server.Debug
+}
+
+// AllowNATSDegradedStartup 是否允许在 NATS 初始化失败时继续启动 HR 服务。
+// 默认值为 false，避免 token 失效和消息消费链路静默漂移。
+func (c *HRServerConfig) AllowNATSDegradedStartup() bool {
+	return c.Server.AllowNATSDegradedStartup
 }
 
 // 数据库配置便捷访问方法

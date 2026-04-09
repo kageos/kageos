@@ -38,4 +38,5 @@ licenses/
 license.json
 license_enterprise_1year.json
 /agent/
-data/app-runtime
+# 本地运行时 SQLite、备份产物等，勿入库
+data/

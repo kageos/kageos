@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -27,6 +27,67 @@ type VersionData struct {
 	Versions       []VersionInfo `json:"versions"`
 }
 
+type versionMetadataPaths struct {
+	metadataDir        string
+	versionJSONPath    string
+	currentVersionPath string
+	currentAppPath     string
+}
+
+func buildVersionMetadataPaths(appPaths runtimeAppPaths) versionMetadataPaths {
+	return versionMetadataPaths{
+		metadataDir:        appPaths.MetadataDir(),
+		versionJSONPath:    appPaths.VersionJSONPath(),
+		currentVersionPath: appPaths.CurrentVersionPath(),
+		currentAppPath:     appPaths.CurrentAppPath(),
+	}
+}
+
+func (s *AppManageService) getVersionMetadataPaths(user, app string) versionMetadataPaths {
+	return buildVersionMetadataPaths(newRuntimeAppPaths(s.config.AppDir.BasePath, user, app))
+}
+
+func (s *AppManageService) readVersionData(versionJSONPath string) (*VersionData, error) {
+	data, err := os.ReadFile(versionJSONPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read version.json: %w", err)
+	}
+
+	var versionData VersionData
+	if err := json.Unmarshal(data, &versionData); err != nil {
+		return nil, fmt.Errorf("failed to parse version.json: %w", err)
+	}
+
+	return &versionData, nil
+}
+
+func (s *AppManageService) writeVersionData(versionJSONPath string, versionData *VersionData) error {
+	data, err := json.MarshalIndent(versionData, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal version.json: %w", err)
+	}
+
+	if err := writeFileAtomic(versionJSONPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write version.json: %w", err)
+	}
+
+	return nil
+}
+
+func (s *AppManageService) readCurrentVersion(user, app string) (string, error) {
+	paths := s.getVersionMetadataPaths(user, app)
+
+	data, err := os.ReadFile(paths.currentVersionPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("failed to read current version file: %w", err)
+	}
+
+	return strings.TrimSpace(string(data)), nil
+}
+
 // createDirIfNotExists 创建目录（如果不存在）
 func (s *AppManageService) createDirIfNotExists(dir string) error {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
@@ -36,7 +97,8 @@ func (s *AppManageService) createDirIfNotExists(dir string) error {
 }
 
 // createVersionFiles 创建版本文件
-func (s *AppManageService) createVersionFiles(metadataDir, user, app string) error {
+func (s *AppManageService) createVersionFiles(user, app string) error {
+	paths := s.getVersionMetadataPaths(user, app)
 	versionData := VersionData{
 		User:           user,
 		App:            app,
@@ -51,14 +113,16 @@ func (s *AppManageService) createVersionFiles(metadataDir, user, app string) err
 		},
 	}
 
-	data, err := json.MarshalIndent(versionData, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal version.json: %w", err)
+	if err := s.createDirIfNotExists(paths.metadataDir); err != nil {
+		return fmt.Errorf("failed to create metadata directory: %w", err)
 	}
 
-	versionFile := filepath.Join(metadataDir, "version.json")
-	if err := os.WriteFile(versionFile, data, 0644); err != nil {
-		return fmt.Errorf("failed to write version.json: %w", err)
+	if err := s.writeVersionData(paths.versionJSONPath, &versionData); err != nil {
+		return err
+	}
+
+	if err := s.updateCurrentVersionFiles(user, app, versionData.CurrentVersion); err != nil {
+		return fmt.Errorf("failed to create current version files: %w", err)
 	}
 
 	return nil
@@ -66,16 +130,11 @@ func (s *AppManageService) createVersionFiles(metadataDir, user, app string) err
 
 // updateVersionJson 更新 version.json 文件
 func (s *AppManageService) updateVersionJson(appDir, user, app, newVersion string) error {
-	versionFile := filepath.Join(appDir, "workplace/metadata/version.json")
+	paths := buildVersionMetadataPaths(newRuntimeAppPathsFromAppDir(appDir, user, app))
 
-	data, err := os.ReadFile(versionFile)
+	versionData, err := s.readVersionData(paths.versionJSONPath)
 	if err != nil {
-		return fmt.Errorf("failed to read version.json: %w", err)
-	}
-
-	var versionData VersionData
-	if err := json.Unmarshal(data, &versionData); err != nil {
-		return fmt.Errorf("failed to parse version.json: %w", err)
+		return err
 	}
 
 	for i := range versionData.Versions {
@@ -105,13 +164,8 @@ func (s *AppManageService) updateVersionJson(appDir, user, app, newVersion strin
 	versionData.CurrentVersion = newVersion
 	versionData.LatestVersion = newVersion
 
-	updatedData, err := json.MarshalIndent(versionData, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal version.json: %w", err)
-	}
-
-	if err := os.WriteFile(versionFile, updatedData, 0644); err != nil {
-		return fmt.Errorf("failed to write version.json: %w", err)
+	if err := s.writeVersionData(paths.versionJSONPath, versionData); err != nil {
+		return err
 	}
 
 	if err := s.updateCurrentVersionFiles(versionData.User, versionData.App, newVersion); err != nil {
@@ -123,20 +177,18 @@ func (s *AppManageService) updateVersionJson(appDir, user, app, newVersion strin
 
 // updateCurrentVersionFiles 更新纯文本版本文件，用于极速启动
 func (s *AppManageService) updateCurrentVersionFiles(user, app, version string) error {
-	metadataDir := filepath.Join("namespace", user, app, "workplace", "metadata")
+	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
+	paths := buildVersionMetadataPaths(appPaths)
 
-	if err := os.MkdirAll(metadataDir, 0755); err != nil {
+	if err := os.MkdirAll(paths.metadataDir, 0755); err != nil {
 		return fmt.Errorf("failed to create metadata directory: %w", err)
 	}
 
-	versionFile := filepath.Join(metadataDir, "current_version.txt")
-	if err := os.WriteFile(versionFile, []byte(version), 0644); err != nil {
+	if err := writeFileAtomic(paths.currentVersionPath, []byte(version), 0644); err != nil {
 		return fmt.Errorf("failed to write current_version.txt: %w", err)
 	}
 
-	appFile := filepath.Join(metadataDir, "current_app.txt")
-	appName := fmt.Sprintf("%s_%s", user, app)
-	if err := os.WriteFile(appFile, []byte(appName), 0644); err != nil {
+	if err := writeFileAtomic(paths.currentAppPath, []byte(appPaths.AppName()), 0644); err != nil {
 		return fmt.Errorf("failed to write current_app.txt: %w", err)
 	}
 
@@ -164,5 +216,5 @@ func main() {
 }
 `)
 
-	return os.WriteFile(mainGoPath, content, 0644)
+	return writeFileAtomic(mainGoPath, content, 0644)
 }

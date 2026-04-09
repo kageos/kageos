@@ -3,6 +3,7 @@ server:
   port: 9090
   log_level: "info"
   debug: false
+  allow_nats_degraded_startup: false
 
 routes:
   - path: "/storage"

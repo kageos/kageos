@@ -17,9 +17,12 @@ import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { WorkspaceEvent, TableEvent } from '../../domain/interfaces/IEventBus'
 import type { FunctionDetail } from '../../domain/types'
 import type { SearchParams, SortParams, TableRow } from '../../domain/services/TableDomainService'
-import { useUserInfoStore } from '@/stores/userInfo'
-import { useDepartmentInfoStore } from '@/stores/departmentInfo'
-import type { UserInfo } from '@/types'
+import { Logger } from '@/core/utils/logger'
+
+export interface TableApplicationServiceOptions {
+  preloadUserInfo?: (usernames: string[]) => Promise<void>
+  preloadDepartmentInfo?: (paths: string[]) => Promise<void>
+}
 
 /**
  * 表格应用服务
@@ -27,7 +30,8 @@ import type { UserInfo } from '@/types'
 export class TableApplicationService {
   constructor(
     private domainService: TableDomainService,
-    private eventBus: IEventBus
+    private eventBus: IEventBus,
+    private options: TableApplicationServiceOptions = {}
   ) {
     this.setupEventHandlers()
     this.setupPreloadHooks() // 🔥 设置预加载钩子
@@ -131,16 +135,13 @@ export class TableApplicationService {
       if (usernames.size === 0) {
         return
       }
-      
-      // 3. 🔥 批量查询用户信息到 store 缓存（这是关键！）
-      // 调用 batchGetUserInfo 会把用户信息加载到 userInfoStore 的缓存中
-      // 渲染时，UserDisplay 组件调用 getUserInfo 或 batchGetUserInfo 都能命中缓存
-      const userInfoStore = useUserInfoStore()
-      const usernamesArray = [...usernames]
-      await userInfoStore.batchGetUserInfo(usernamesArray)
+
+      if (this.options.preloadUserInfo) {
+        await this.options.preloadUserInfo([...usernames])
+      }
     } catch (error) {
       // 静默失败，不影响表格数据加载
-      console.error('[TableApplicationService] 预加载用户信息失败', error)
+      Logger.error('TableApplicationService', '预加载用户信息失败', error)
     }
   }
 
@@ -182,16 +183,13 @@ export class TableApplicationService {
       if (paths.size === 0) {
         return
       }
-      
-      // 3. 🔥 批量查询部门信息到 store 缓存（这是关键！）
-      // 调用 batchGetDepartmentInfo 会把部门信息加载到 departmentInfoStore 的缓存中
-      // 渲染时，DepartmentDisplay 组件调用 getDepartmentInfo 或 batchGetDepartmentInfo 都能命中缓存
-      const departmentInfoStore = useDepartmentInfoStore()
-      const pathsArray = [...paths]
-      await departmentInfoStore.batchGetDepartmentInfo(pathsArray)
+
+      if (this.options.preloadDepartmentInfo) {
+        await this.options.preloadDepartmentInfo([...paths])
+      }
     } catch (error) {
       // 静默失败，不影响表格数据加载
-      console.error('[TableApplicationService] 预加载部门信息失败', error)
+      Logger.error('TableApplicationService', '预加载部门信息失败', error)
     }
   }
 
@@ -250,4 +248,3 @@ export class TableApplicationService {
     await this.loadData(functionDetail)
   }
 }
-
