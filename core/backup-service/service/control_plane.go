@@ -176,6 +176,12 @@ type MinIORestoreResult struct {
 	Objects            int64         `json:"objects"`
 }
 
+type SnapshotDeleteResult struct {
+	DeletedSnapshot SnapshotView `json:"deleted_snapshot"`
+	ArchiveDeleted  bool         `json:"archive_deleted"`
+	ArchiveMissing  bool         `json:"archive_missing"`
+}
+
 type minIOSnapshotManifest struct {
 	Buckets []minIOBucketManifest `json:"buckets"`
 }
@@ -542,6 +548,34 @@ func (c *ControlPlane) RestoreMinIOSnapshot(ctx context.Context, requestedBy str
 		task.Status = backupmodel.TaskStatusSucceeded
 		task.Summary = fmt.Sprintf("MinIO 恢复完成，桶数量: %d，对象数量: %d", len(restoreResult.Buckets), restoreResult.Objects)
 		task.DetailJSON = marshalJSON(restoreResult)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	view := toTaskView(task)
+	return &view, nil
+}
+
+func (c *ControlPlane) DeleteSnapshot(ctx context.Context, requestedBy string, note string, snapshotID int64) (*TaskView, error) {
+	task, err := c.runExclusiveTask(ctx, backupmodel.TaskTypeSnapshotDelete, requestedBy, note, "快照删除执行中", func(task *backupmodel.Task) error {
+		deleteResult, deleteErr := c.deleteSnapshot(ctx, snapshotID)
+		if deleteErr != nil {
+			task.Status = backupmodel.TaskStatusFailed
+			task.Summary = "快照删除失败"
+			task.ErrorMessage = deleteErr.Error()
+			return deleteErr
+		}
+
+		task.DetailJSON = marshalJSON(deleteResult)
+		if deleteResult.ArchiveMissing {
+			task.Status = backupmodel.TaskStatusWarning
+			task.Summary = fmt.Sprintf("快照记录已删除，归档文件原本缺失: #%d", deleteResult.DeletedSnapshot.ID)
+			return nil
+		}
+
+		task.Status = backupmodel.TaskStatusSucceeded
+		task.Summary = fmt.Sprintf("快照已删除: #%d", deleteResult.DeletedSnapshot.ID)
 		return nil
 	})
 	if err != nil {
@@ -1012,6 +1046,38 @@ func (c *ControlPlane) restoreMinIOSnapshot(
 	return result, nil
 }
 
+func (c *ControlPlane) deleteSnapshot(ctx context.Context, snapshotID int64) (*SnapshotDeleteResult, error) {
+	snapshot, err := c.store.GetSnapshot(ctx, snapshotID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &SnapshotDeleteResult{
+		DeletedSnapshot: toSnapshotView(snapshot),
+	}
+
+	if archivePath := strings.TrimSpace(snapshot.ArchivePath); archivePath != "" {
+		if err := os.Remove(archivePath); err != nil {
+			if os.IsNotExist(err) {
+				result.ArchiveMissing = true
+			} else {
+				return nil, fmt.Errorf("delete snapshot archive: %w", err)
+			}
+		} else {
+			result.ArchiveDeleted = true
+		}
+
+		if err := cleanupEmptyParentDirs(filepath.Dir(archivePath), c.cfg.Repository.RootPath); err != nil {
+			return nil, fmt.Errorf("cleanup snapshot archive directories: %w", err)
+		}
+	}
+
+	if err := c.store.DeleteSnapshot(ctx, snapshot.ID); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 func (c *ControlPlane) collectMySQLDatabases(ctx context.Context) ([]string, error) {
 	args, env, err := c.mysqlConnectionArgs()
 	if err != nil {
@@ -1108,10 +1174,10 @@ func (c *ControlPlane) dumpMySQLDatabases(ctx context.Context, databases []strin
 }
 
 func (c *ControlPlane) newMinIOClient() (*minio.Client, error) {
-	accessKey := strings.TrimSpace(os.Getenv("MINIO_ROOT_USER"))
-	secretKey := strings.TrimSpace(os.Getenv("MINIO_ROOT_PASSWORD"))
+	accessKey := c.cfg.GetMinIOAccessKey()
+	secretKey := c.cfg.GetMinIOSecretKey()
 	if accessKey == "" || secretKey == "" {
-		return nil, fmt.Errorf("MINIO_ROOT_USER and MINIO_ROOT_PASSWORD are required for minio backup operations")
+		return nil, fmt.Errorf("minio credentials are required for minio backup operations")
 	}
 
 	client, err := minio.New(c.cfg.GetMinIOAddress(), &minio.Options{
@@ -1346,9 +1412,9 @@ func (c *ControlPlane) execMySQLStatement(ctx context.Context, statement string)
 }
 
 func (c *ControlPlane) mysqlConnectionArgs() ([]string, []string, error) {
-	password := strings.TrimSpace(os.Getenv("MYSQL_ROOT_PASSWORD"))
+	password := c.cfg.GetMySQLPassword()
 	if password == "" {
-		return nil, nil, fmt.Errorf("MYSQL_ROOT_PASSWORD is required for mysql backup operations")
+		return nil, nil, fmt.Errorf("mysql password is required for mysql backup operations")
 	}
 
 	host, port, err := net.SplitHostPort(c.cfg.GetMySQLAddress())
@@ -1875,6 +1941,46 @@ func removeDirectoryContents(root string) error {
 			return err
 		}
 	}
+	return nil
+}
+
+func cleanupEmptyParentDirs(startDir string, stopDir string) error {
+	if strings.TrimSpace(startDir) == "" || strings.TrimSpace(stopDir) == "" {
+		return nil
+	}
+
+	current, err := filepath.Abs(startDir)
+	if err != nil {
+		return err
+	}
+	stop, err := filepath.Abs(stopDir)
+	if err != nil {
+		return err
+	}
+
+	for current != "." && current != string(os.PathSeparator) {
+		if current == stop {
+			return nil
+		}
+
+		err := os.Remove(current)
+		if err != nil {
+			if os.IsNotExist(err) {
+				current = filepath.Dir(current)
+				continue
+			}
+			if errors.Is(err, syscall.ENOTEMPTY) || errors.Is(err, syscall.EEXIST) {
+				return nil
+			}
+			var pathErr *os.PathError
+			if errors.As(err, &pathErr) && errors.Is(pathErr.Err, syscall.ENOTEMPTY) {
+				return nil
+			}
+			return err
+		}
+		current = filepath.Dir(current)
+	}
+
 	return nil
 }
 

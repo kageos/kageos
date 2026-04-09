@@ -105,7 +105,7 @@ import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegi
 import { convertToFieldValue } from '@/utils/field'
 import type { FieldConfig } from '@/types'
 import { getFunctionByPath } from '@/api/function'
-import type { FunctionDetail } from '@/core/types/field'
+import type { FunctionDetail } from '@/architecture/domain/types'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 
 interface Props {

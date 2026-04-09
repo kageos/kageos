@@ -22,6 +22,7 @@ func (s *Server) setupRoutes() {
 	apiV1.GET("/tasks/:id", s.getTaskHandler)
 	apiV1.GET("/snapshots", s.listSnapshotsHandler)
 	apiV1.GET("/snapshots/:id", s.getSnapshotHandler)
+	apiV1.DELETE("/snapshots/:id", s.deleteSnapshotHandler)
 	apiV1.POST("/precheck", s.precheckHandler)
 	apiV1.POST("/maintenance", s.maintenanceHandler)
 	apiV1.POST("/namespace/snapshots", s.namespaceSnapshotHandler)
@@ -106,6 +107,38 @@ func (s *Server) getSnapshotHandler(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, snapshot)
+}
+
+func (s *Server) deleteSnapshotHandler(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid snapshot id"})
+		return
+	}
+
+	var req struct {
+		RequestedBy string `json:"requested_by"`
+		Note        string `json:"note"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	task, err := s.controlPlane.DeleteSnapshot(c.Request.Context(), req.RequestedBy, req.Note, id)
+	if err != nil {
+		switch {
+		case errors.Is(err, backupservice.ErrTaskAlreadyRunning):
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "snapshot not found"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, task)
 }
 
 func (s *Server) precheckHandler(c *gin.Context) {

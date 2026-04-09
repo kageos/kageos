@@ -33,7 +33,7 @@ type LicenseStatus struct {
 
 // LicenseService License 服务
 type LicenseService struct {
-	natsConn      *nats.Conn
+	transport     *license.NATSTransport
 	licensePath   string
 	encryptionKey []byte
 	manager       *license.Manager
@@ -43,7 +43,7 @@ type LicenseService struct {
 // NewLicenseService 创建 License 服务
 func NewLicenseService(natsConn *nats.Conn, licensePath string, encryptionKey []byte) *LicenseService {
 	return &LicenseService{
-		natsConn:      natsConn,
+		transport:     license.NewNATSTransport(natsConn),
 		licensePath:   licensePath,
 		encryptionKey: encryptionKey,
 		manager:       license.GetManager(),
@@ -95,30 +95,13 @@ func (s *LicenseService) PublishKey(ctx context.Context) error {
 	}
 
 	// 构建消息
-	msg := &LicenseKeyMessage{
+	msg := &license.LicenseKeyMessage{
 		EncryptedLicense: base64.StdEncoding.EncodeToString(encrypted),
 		Algorithm:        "aes-256-gcm",
 		Timestamp:        getCurrentTimestamp(),
 	}
 
-	// 发布到 NATS
-	data, err := json.Marshal(msg)
-	if err != nil {
-		logger.Errorf(ctx, "[License Service] Failed to marshal message: %v", err)
-		return fmt.Errorf("failed to marshal message: %w", err)
-	}
-
-	// 检查 NATS 连接状态
-	if s.natsConn == nil {
-		logger.Errorf(ctx, "[License Service] NATS connection is nil")
-		return fmt.Errorf("NATS connection is nil")
-	}
-	if !s.natsConn.IsConnected() {
-		logger.Errorf(ctx, "[License Service] NATS connection is not connected")
-		return fmt.Errorf("NATS connection is not connected")
-	}
-
-	if err := s.natsConn.Publish(subjects.LicenseKeyUpdatedEventSubject, data); err != nil {
+	if err := s.transport.PublishKeyUpdate(msg); err != nil {
 		logger.Errorf(ctx, "[License Service] Failed to publish license key: %v", err)
 		return fmt.Errorf("failed to publish license key: %w", err)
 	}
@@ -184,14 +167,14 @@ func (s *LicenseService) GetLicense() *license.License {
 }
 
 // BuildKeyMessage 构建 License 密钥消息（用于请求-响应）
-func (s *LicenseService) BuildKeyMessage(ctx context.Context) (*LicenseKeyMessage, error) {
+func (s *LicenseService) BuildKeyMessage(ctx context.Context) (*license.LicenseKeyMessage, error) {
 	s.mu.RLock()
 	lic := s.manager.GetLicense()
 	s.mu.RUnlock()
 
 	if lic == nil {
 		// 没有 License，返回空消息（社区版）
-		return &LicenseKeyMessage{
+		return &license.LicenseKeyMessage{
 			EncryptedLicense: "",
 			Algorithm:        "",
 			Timestamp:        getCurrentTimestamp(),
@@ -211,7 +194,7 @@ func (s *LicenseService) BuildKeyMessage(ctx context.Context) (*LicenseKeyMessag
 	}
 
 	// 构建消息
-	msg := &LicenseKeyMessage{
+	msg := &license.LicenseKeyMessage{
 		EncryptedLicense: base64.StdEncoding.EncodeToString(encrypted),
 		Algorithm:        "aes-256-gcm",
 		Timestamp:        getCurrentTimestamp(),
@@ -341,17 +324,12 @@ func (s *LicenseService) Deactivate(ctx context.Context) error {
 
 // PublishDeactivate 发布注销指令（通知所有服务清除 License）
 func (s *LicenseService) PublishDeactivate(ctx context.Context) error {
-	deactivateMsg := LicenseInstructionMessage{
+	deactivateMsg := license.LicenseInstructionMessage{
 		Action:    "deactivate",
 		Timestamp: getCurrentTimestamp(),
 	}
 
-	data, err := json.Marshal(deactivateMsg)
-	if err != nil {
-		return fmt.Errorf("failed to marshal deactivate message: %w", err)
-	}
-
-	if err := s.natsConn.Publish(subjects.LicenseKeyRefreshEventSubject, data); err != nil {
+	if err := s.transport.PublishInstruction(&deactivateMsg); err != nil {
 		return fmt.Errorf("failed to publish deactivate instruction: %w", err)
 	}
 
@@ -366,7 +344,7 @@ func (s *LicenseService) PublishRefresh(ctx context.Context) error {
 	lic := s.manager.GetLicense()
 	s.mu.RUnlock()
 
-	refreshMsg := LicenseInstructionMessage{
+	refreshMsg := license.LicenseInstructionMessage{
 		Action:    "refresh",
 		Timestamp: getCurrentTimestamp(),
 	}
@@ -389,23 +367,7 @@ func (s *LicenseService) PublishRefresh(ctx context.Context) error {
 		refreshMsg.Algorithm = "aes-256-gcm"
 	}
 
-	data, err := json.Marshal(refreshMsg)
-	if err != nil {
-		logger.Errorf(ctx, "[License Service] Failed to marshal refresh message: %v", err)
-		return fmt.Errorf("failed to marshal refresh message: %w", err)
-	}
-
-	// 检查 NATS 连接状态
-	if s.natsConn == nil {
-		logger.Errorf(ctx, "[License Service] NATS connection is nil")
-		return fmt.Errorf("NATS connection is nil")
-	}
-	if !s.natsConn.IsConnected() {
-		logger.Errorf(ctx, "[License Service] NATS connection is not connected")
-		return fmt.Errorf("NATS connection is not connected")
-	}
-
-	if err := s.natsConn.Publish(subjects.LicenseKeyRefreshEventSubject, data); err != nil {
+	if err := s.transport.PublishInstruction(&refreshMsg); err != nil {
 		logger.Errorf(ctx, "[License Service] Failed to publish refresh instruction: %v", err)
 		return fmt.Errorf("failed to publish refresh instruction: %w", err)
 	}
@@ -433,21 +395,6 @@ func (s *LicenseService) encryptLicense(data []byte) ([]byte, error) {
 
 	ciphertext := gcm.Seal(nonce, nonce, data, nil)
 	return ciphertext, nil
-}
-
-// LicenseKeyMessage License 密钥消息
-type LicenseKeyMessage struct {
-	EncryptedLicense string `json:"encrypted_license"` // 加密的 License（Base64 编码）
-	Algorithm        string `json:"algorithm"`         // 加密算法（如 "aes-256-gcm"）
-	Timestamp        int64  `json:"timestamp"`         // 时间戳
-}
-
-// LicenseInstructionMessage License 指令消息（用于刷新和注销）
-type LicenseInstructionMessage struct {
-	Action           string `json:"action"`                      // 指令类型：refresh（刷新）、deactivate（注销）
-	Timestamp        int64  `json:"timestamp"`                   // 时间戳
-	EncryptedLicense string `json:"encrypted_license,omitempty"` // 加密的 License（Base64 编码，可选，refresh 时携带）
-	Algorithm        string `json:"algorithm,omitempty"`         // 加密算法（如 "aes-256-gcm"，可选）
 }
 
 // getCurrentTimestamp 获取当前时间戳

@@ -215,7 +215,7 @@
                   <ChartView
                     v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
                     :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
-                    :function-detail="asRenderableFunctionDetail(currentFunctionDetail)"
+                    :function-detail="currentFunctionDetail"
                   />
                   <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
                     <el-skeleton :rows="8" animated />
@@ -324,7 +324,7 @@
                 <ChartView
                   v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
                   :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
-                  :function-detail="asRenderableFunctionDetail(currentFunctionDetail)"
+                  :function-detail="currentFunctionDetail"
                 />
                 <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
                   <el-skeleton :rows="8" animated />
@@ -770,10 +770,8 @@ import PermissionRequestList from '@/shared/components/permission/PermissionRequ
 import PermissionManageList from '@/shared/components/permission/PermissionManageList.vue'
 import ScheduledTaskList from '../components/ScheduledTaskList.vue'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
-import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
+import type { FieldConfig, FieldValue, FunctionDetail } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
-import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
-import type { FunctionDetail as RenderableFunctionDetail } from '@/core/types/field'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
 import type { LocationQueryValue } from 'vue-router'
 // 🔥 导入 Composable
@@ -926,10 +924,6 @@ const adminsFieldValue = computed(() =>
 // 处理管理员字段变化
 function handleAdminsChange(value: FieldValue) {
   createDirectoryForm.value.admins = extractStringFieldRaw(value)
-}
-
-function asRenderableFunctionDetail(detail: FunctionDetail): RenderableFunctionDetail {
-  return detail as RenderableFunctionDetail
 }
 
 // 🔥 移除缓存后，通过事件获取函数详情

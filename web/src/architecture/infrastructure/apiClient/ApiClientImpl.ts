@@ -40,8 +40,7 @@ export class ApiClientImpl implements IApiClient {
   /**
    * DELETE 请求
    */
-  async delete<T>(url: string): Promise<T> {
-    return del<T>(url)
+  async delete<T>(url: string, data?: any): Promise<T> {
+    return del<T>(url, data)
   }
 }
-

@@ -21,11 +21,11 @@ func newRuntimeRequester(connProvider ConnProvider, timeout time.Duration) *runt
 }
 
 func (r *runtimeRequester) requestByHost(ctx context.Context, hostID int64, subject string, req, resp interface{}) error {
-	conn, err := r.connProvider.GetNatsByHost(hostID)
+	conn, err := r.connProvider.GetConnByHost(hostID)
 	if err != nil {
 		return err
 	}
 
-	_, err = msgx.RequestMsgWithTimeout(ctx, conn, subject, req, resp, r.timeout)
+	_, err = msgx.RequestJSON(ctx, conn, subject, req, resp, r.timeout)
 	return err
 }

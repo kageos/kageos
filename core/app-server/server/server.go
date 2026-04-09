@@ -49,7 +49,7 @@ type Server struct {
 	appRepo                       *repository.AppRepository     // ⭐ 应用仓储（用于其他服务）
 
 	// 上游服务
-	natsService *service.NatsService
+	natsConnPool *service.NATSConnPool
 
 	// 上下文
 	ctx context.Context
@@ -151,10 +151,10 @@ func (s *Server) Stop(ctx context.Context) error {
 		logger.Infof(ctx, "[Server] appcall client closed")
 	}
 
-	// 关闭 NATS 服务
-	if s.natsService != nil {
-		s.natsService.Close()
-		logger.Infof(ctx, "[Server] NATS service closed")
+	// 关闭 NATS 连接池
+	if s.natsConnPool != nil {
+		s.natsConnPool.Close()
+		logger.Infof(ctx, "[Server] NATS conn pool closed")
 	}
 
 	// 关闭 License Client
@@ -306,12 +306,12 @@ func (s *Server) initServices(ctx context.Context) error {
 		return fmt.Errorf("reconcile nats host from NATS_SEED_HOST: %w", err)
 	}
 
-	// 初始化 NATS 服务 - 其他服务的基础依赖
-	s.natsService = service.NewNatsServiceWithDB(s.db)
+	// 初始化 NATS 连接池 - 其他服务调用 app-runtime 的基础依赖
+	s.natsConnPool = service.NewNATSConnPoolWithDB(s.db)
 
 	// 初始化 appcall 客户端（调用 app-runtime 的 SDK 风格客户端，依赖注入）
 	s.appCall = appcall.New(appcall.Options{
-		ConnProvider:       s.natsService,
+		ConnProvider:       s.natsConnPool,
 		NatsRequestTimeout: time.Duration(s.cfg.GetNatsRequestTimeout()) * time.Second,
 		AppRequestTimeout:  time.Duration(s.cfg.GetAppRequestTimeout()) * time.Second,
 		Waiter:             waiter.GetDefaultWaiter(),

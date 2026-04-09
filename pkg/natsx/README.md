@@ -70,9 +70,10 @@ service
 ## 主题和协议
 
 - 主题真值统一放在 `pkg/subjects`
+- 基础 request-reply 原语统一放在 `pkg/msgx`
+- 某条业务链自己的 subject / header / request 语义放在领域 transport 包里，例如 `pkg/appinvoke`、`pkg/license`
 - 固定主题用 `const`
 - 动态主题用 `BuildXxxSubject()`
-- request-reply 优先复用 `pkg/msgx`
 - 新服务连接 NATS 时优先使用 `natsx.ConnectNamed(url, serviceName)`
 
 ## 当前参考实现

@@ -1,134 +1,77 @@
-# Core 核心模块
+# core 核心模块
 
-> **注意**：Widget 组件、工厂和渲染器已迁移到新架构 `web/src/architecture/` 目录下。
-> 旧架构代码（widgets-v2、factories-v2、renderers-v2）已删除。
+`src/core/` 不是“等待删除的旧目录”，而是当前前端线上链路仍在复用的稳定基础层。
+
+主业务页面和流程已经放到 `src/architecture/`，但这些底层能力仍继续由 `core` 提供：
+
+- 状态提取与提交数据组装
+- Widget 运行时默认值与校验
+- 共享常量、管理器、校验引擎
+- 兼容层类型出口
 
 ## 目录结构
 
-```
+```text
 core/
-├── types/              # 类型定义（共享类型，新架构也使用）
-│   ├── field.ts       # 字段相关类型
-│   └── widget.ts      # Widget 相关类型
-├── constants/          # 常量定义（共享常量）
-│   ├── field.ts       # 字段常量
-│   └── widget.ts      # Widget 常量
-├── managers/          # 管理器（共享管理器）
-│   └── ReactiveFormDataManager.ts  # 表单数据管理器
-├── stores-v2/         # Pinia Stores（共享状态管理）
-│   ├── formData.ts    # 表单数据 Store
-│   └── responseData.ts # 响应数据 Store
-├── utils/             # 工具函数（共享工具）
-│   ├── logger.ts      # 日志工具
-│   └── validationUtils.ts # 验证工具
-└── validation/        # 验证系统（共享验证）
-    └── ValidationEngine.ts # 验证引擎
+├── constants/       # 共享常量
+├── managers/        # 运行期管理器
+├── stores-v2/       # 表单/响应数据存储与提取器
+├── types/           # 兼容层类型出口（真实定义已收口到 src/types）
+├── utils/           # 基础工具函数
+├── validation/      # 通用校验能力
+└── widgetRuntime/   # Widget 默认值 / 校验 / 动态默认值等运行时能力
 ```
 
-## 已实现功能
+## 当前职责
 
-### 1. 基础架构
-- ✅ `WidgetComponentFactory` 工厂：根据类型动态获取 Vue 组件
-- ✅ `ReactiveFormDataManager` 管理器：管理表单数据
-- ✅ 所有 Widget 已迁移到 Vue 组件版本（widgets-v2）
+### 1. 类型兼容层
 
-### 2. Widget 组件（widgets-v2）
-- ✅ `InputWidget`：文本输入
-- ✅ `NumberWidget`：整数输入
-- ✅ `FloatWidget`：浮点数输入
-- ✅ `TextAreaWidget`：多行文本
-- ✅ `SelectWidget`：下拉选择（单选）
-- ✅ `MultiSelectWidget`：下拉选择（多选）
-- ✅ `CheckboxWidget`：复选框
-- ✅ `RadioWidget`：单选框
-- ✅ `SwitchWidget`：开关
-- ✅ `TimestampWidget`：时间戳
-- ✅ `FilesWidget`：文件上传
-- ✅ `UserWidget`：用户选择
-- ✅ `TableWidget`：表格（嵌套）
-- ✅ `FormWidget`：表单（嵌套）
+- [field.ts](./types/field.ts)：对外保留历史导入路径
+- 真实字段类型定义已经收口到 `src/types/field.ts`
 
-### 3. 渲染器
-- ✅ `FormRenderer`：表单渲染器，支持嵌套结构、回调、聚合等完整功能
+### 2. 表单数据与提取
 
-## 下一步计划
+- `stores-v2/formData.ts`：表单数据存储
+- `stores-v2/extractors/*`：字段提取器
+- `stores-v2/extractors/FieldExtractorRegistry.ts`：提取策略注册表
 
-### Phase 1：基础组件（当前）
-- ✅ InputWidget
-- ⬜ TextAreaWidget
-- ⬜ NumberWidget
-- ⬜ SelectWidget
-- ⬜ MultiSelectWidget
+### 3. Widget 运行时
 
-### Phase 2：容器组件
-- ✅ TableWidget
-- ⬜ StructWidget
+- `widgetRuntime/defaultValue.ts`：默认值处理
+- `widgetRuntime/dynamicDefaultValue.ts`：动态默认值（如 `Me()`）
+- `widgetRuntime/validation.ts`：Widget 级校验辅助
 
-### Phase 3：高级功能
-- ⬜ 字段验证
-- ⬜ 条件渲染
-- ⬜ 回调系统
-- ⬜ 聚合统计
+### 4. 通用底座
 
-### Phase 4：优化
-- ⬜ 性能优化
-- ⬜ 错误处理
-- ⬜ 快照系统
+- `constants/`：Widget/Event 等常量
+- `utils/`：日志、通用工具
+- `validation/`：通用校验引擎
+- `managers/`：运行期管理器
 
-## 使用示例
+## 边界说明
 
-```vue
-<template>
-  <FormRenderer :function-detail="functionDetail" />
-</template>
+1. `core` 可以被 `architecture`、`shared`、`features` 复用。
+2. `core` 不负责页面编排和业务流程。
+3. Widget Vue 组件和主页面视图不再放在这里，它们位于 `src/architecture/presentation/`。
+4. 如果某段能力与 UI 无关、但又不属于单个业务域，优先考虑放到 `core`。
 
-<script setup lang="ts">
-import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
-import type { FunctionDetail } from '@/core/types/field'
+## 什么时候往 core 里放代码
 
-const functionDetail: FunctionDetail = {
-  code: 'test_form',
-  name: '测试表单',
-  method: 'POST',
-  router: '/test/form',
-  template_type: 'form',
-  request: [
-    {
-      code: 'username',
-      name: '用户名',
-      validation: 'required',
-      widget: { type: 'input' }
-    }
-  ],
-  response: []
-}
-</script>
-```
+- 放这里：
+  - 通用提取器
+  - 通用校验能力
+  - Widget 运行时纯逻辑
+  - 稳定共享常量和工具
 
-## 架构特点
+- 不放这里：
+  - 页面组件
+  - 工作空间/工作台业务流程
+  - 具体业务域规则
+  - 只能被单一页面使用的临时逻辑
 
-1. **Vue 组件化**：所有 Widget 都是 Vue 3 组件，使用 Composition API
-2. **工厂模式**：通过 `WidgetComponentFactory` 动态获取组件
-3. **响应式管理**：基于 Vue 3 响应式系统和 Pinia Store
-4. **类型安全**：完整的 TypeScript 类型定义
-5. **可扩展性**：新增 Widget 只需在 `widgets-v2/components/` 中添加组件并注册到工厂
+## 和 architecture 的关系
 
-## 使用场景
+- `architecture/`：主业务页面、流程编排、领域逻辑、基础设施实现
+- `core/`：被这些层复用的稳定底座
 
-### 1. 表单渲染（FormRenderer）
-- 使用 `widgets-v2/components/*.vue` 组件
-- 支持编辑模式（edit）、响应模式（response）
-
-### 2. 表格渲染（TableRenderer）
-- 使用 `widgets-v2/components/*.vue` 组件
-- 支持表格单元格模式（table-cell）、详情模式（detail）
-
-### 3. 搜索输入（SearchInput）
-- 使用 `widgets-v2/components/*.vue` 组件
-- 支持搜索模式（search）
-
-## 迁移说明
-
-旧版本的 `widgets/` 目录和 `factories/WidgetBuilder.ts`、`factories/WidgetFactory.ts` 已完全移除。
-
-所有功能已迁移到 `widgets-v2/` 和 `factories-v2/`。
+这两个目录当前是**协作关系**，不是“新替换旧”的关系。

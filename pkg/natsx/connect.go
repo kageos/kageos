@@ -15,12 +15,18 @@ func Connect(url string) (*nats.Conn, error) {
 
 // ConnectNamed 创建带服务名的 NATS 连接。
 func ConnectNamed(url, name string) (*nats.Conn, error) {
+	return ConnectNamedWithOptions(url, name)
+}
+
+// ConnectNamedWithOptions 创建带服务名的 NATS 连接，并允许附加额外选项。
+func ConnectNamedWithOptions(url, name string, extraOpts ...nats.Option) (*nats.Conn, error) {
 	opts := []nats.Option{
 		nats.Timeout(10 * time.Second),
 	}
 	if name != "" {
 		opts = append(opts, nats.Name(name))
 	}
+	opts = append(opts, extraOpts...)
 	return ConnectWithOptions(url, opts...)
 }
 

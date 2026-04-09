@@ -46,9 +46,9 @@ func (t *appInvokeTransport) requestApp(ctx context.Context, natsID int64, req *
 	logger.Infof(ctx, "[appcall:RequestApp] start: traceId=%s, subject=%s, method=%s, router=%s, user=%s, bodyLen=%d",
 		req.TraceId, subject, req.Method, req.Router, req.RequestUser, len(req.Body))
 
-	conn, err := t.connProvider.GetNatsByNatsId(natsID)
+	conn, err := t.connProvider.GetConnByNATSID(natsID)
 	if err != nil {
-		logger.Errorf(ctx, "[appcall:RequestApp] GetNatsByNatsId failed: traceId=%s, natsId=%d, err=%v, elapsed=%s",
+		logger.Errorf(ctx, "[appcall:RequestApp] GetConnByNATSID failed: traceId=%s, natsId=%d, err=%v, elapsed=%s",
 			req.TraceId, natsID, err, time.Since(start).Truncate(time.Millisecond))
 		return nil, err
 	}
@@ -78,8 +78,8 @@ func (t *appInvokeTransport) requestApp(ctx context.Context, natsID int64, req *
 }
 
 func (t *appInvokeTransport) initSubscriptions() {
-	for _, hostID := range t.connProvider.HostIds() {
-		conn, err := t.connProvider.GetNatsByHost(hostID)
+	for _, hostID := range t.connProvider.HostIDs() {
+		conn, err := t.connProvider.GetConnByHost(hostID)
 		if err != nil {
 			continue
 		}

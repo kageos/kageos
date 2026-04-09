@@ -23,7 +23,6 @@ import { denormalizeSearchValue } from '@/utils/searchValueNormalizer'
 import { parseCommaSeparatedString } from '@/utils/stringUtils'
 import { SearchType } from '@/core/constants/search'
 import { WidgetType } from '@/core/constants/widget'
-import { tableAddRow, tableDeleteRows } from '@/api/function'
 import { getScopedFieldQueryValue } from '@/utils/queryFieldNamespace'
 
 /**
@@ -339,8 +338,12 @@ export class TableDomainService {
    */
   async addRow(functionDetail: FunctionDetail, data: Record<string, any>): Promise<TableRow> {
     const router = this.requireFunctionRouter(functionDetail)
-    // ⭐ 使用标准 API：/table/create/{full-code-path}
-    const response = await tableAddRow(functionDetail.method || 'POST', router, data)
+    // ⭐ 使用标准 API：POST /workspace/api/v1/table/create/{full-code-path}
+    const fullCodePath = router.startsWith('/')
+      ? router
+      : `/${router}`
+    const url = `/workspace/api/v1/table/create${fullCodePath}`
+    const response = await this.apiClient.post<TableRow>(url, data)
 
     // 触发事件
     this.eventBus.emit(TableEvent.rowAdded, { row: response })
@@ -381,9 +384,13 @@ export class TableDomainService {
    */
   async deleteRow(functionDetail: FunctionDetail, id: number | string): Promise<void> {
     const router = this.requireFunctionRouter(functionDetail)
-    // ⭐ 使用标准 API：/table/delete/{full-code-path}
+    // ⭐ 使用标准 API：DELETE /workspace/api/v1/table/delete/{full-code-path}
+    const fullCodePath = router.startsWith('/')
+      ? router
+      : `/${router}`
+    const url = `/workspace/api/v1/table/delete${fullCodePath}`
     const ids = [typeof id === 'string' ? parseInt(id, 10) : id]
-    await tableDeleteRows(functionDetail.method || 'DELETE', router, ids)
+    await this.apiClient.delete<void>(url, { ids })
 
     // 触发事件
     this.eventBus.emit(TableEvent.rowDeleted, { ids: [id] })

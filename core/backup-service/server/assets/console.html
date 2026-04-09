@@ -3,274 +3,885 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Backup Console</title>
+  <title>Backup Control Plane</title>
   <style>
     :root {
-      --bg: #f3efe7;
-      --panel: rgba(255, 252, 246, 0.9);
-      --line: rgba(50, 43, 33, 0.14);
-      --text: #2d241b;
-      --muted: #756656;
-      --accent: #0e6b5c;
-      --warn: #b0631b;
-      --danger: #9d2e2e;
-      --shadow: 0 18px 42px rgba(58, 42, 24, 0.12);
+      --bg: #efe8dc;
+      --paper: rgba(255, 251, 245, 0.9);
+      --panel: rgba(255, 254, 250, 0.82);
+      --line: rgba(53, 43, 30, 0.12);
+      --text: #261f18;
+      --muted: #74665a;
+      --accent: #16685d;
+      --accent-soft: rgba(22, 104, 93, 0.12);
+      --warn: #a86410;
+      --warn-soft: rgba(168, 100, 16, 0.12);
+      --danger: #9a2f2f;
+      --danger-soft: rgba(154, 47, 47, 0.12);
+      --ok-soft: rgba(22, 104, 93, 0.12);
+      --shadow: 0 24px 60px rgba(61, 48, 29, 0.12);
+      --radius-xl: 28px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --radius-sm: 12px;
     }
 
     * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
     body {
       margin: 0;
-      font-family: "SF Mono", "IBM Plex Sans", "PingFang SC", sans-serif;
       color: var(--text);
+      font-family: "IBM Plex Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
       background:
-        radial-gradient(circle at top left, rgba(14, 107, 92, 0.12), transparent 32%),
-        linear-gradient(180deg, #f8f4ee 0%, #efe6d7 100%);
-      min-height: 100vh;
+        radial-gradient(circle at top left, rgba(22, 104, 93, 0.14), transparent 26%),
+        radial-gradient(circle at top right, rgba(154, 47, 47, 0.08), transparent 22%),
+        linear-gradient(180deg, #f8f3eb 0%, #ebe1d2 100%);
     }
 
-    .shell { max-width: 1240px; margin: 0 auto; padding: 28px 20px 40px; }
-    .hero, .panel {
-      background: var(--panel);
+    button, input, textarea {
+      font: inherit;
+    }
+
+    .page {
+      width: min(1480px, calc(100vw - 32px));
+      margin: 20px auto 42px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.3fr 0.9fr;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .hero-card, .panel {
+      background: var(--paper);
       border: 1px solid var(--line);
       box-shadow: var(--shadow);
-      border-radius: 22px;
-      backdrop-filter: blur(14px);
+      border-radius: var(--radius-xl);
+      backdrop-filter: blur(18px);
     }
-    .hero { padding: 26px 28px; margin-bottom: 18px; }
-    h1, h2 { margin: 0; font-weight: 700; letter-spacing: -0.03em; }
-    h1 { font-size: clamp(30px, 5vw, 44px); }
-    h2 { font-size: 18px; margin-bottom: 14px; }
-    p { margin: 8px 0 0; color: var(--muted); line-height: 1.5; }
 
-    .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
-    button {
-      border: 0;
-      border-radius: 999px;
-      padding: 12px 18px;
-      cursor: pointer;
-      font: inherit;
-      font-weight: 700;
-      transition: transform 0.16s ease, box-shadow 0.16s ease;
+    .hero-card {
+      padding: 28px 30px;
     }
-    button:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(0,0,0,0.12); }
-    .primary { background: var(--accent); color: #fff; }
-    .secondary { background: #fff; color: var(--text); border: 1px solid var(--line); }
-    .danger { background: var(--danger); color: #fff; }
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(12, minmax(0, 1fr));
-      gap: 18px;
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(32px, 4vw, 52px);
+      line-height: 0.96;
+      letter-spacing: -0.05em;
     }
-    .panel { padding: 20px; }
-    .span-4 { grid-column: span 4; }
-    .span-6 { grid-column: span 6; }
-    .span-8 { grid-column: span 8; }
-    .span-12 { grid-column: span 12; }
 
-    .stat { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
-    .label {
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
+    .hero p {
+      margin: 14px 0 0;
       color: var(--muted);
+      line-height: 1.65;
+      font-size: 15px;
     }
-    .value { font-size: 26px; font-weight: 700; }
 
-    .badge {
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .pill {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      width: fit-content;
+      min-height: 36px;
+      padding: 8px 14px;
       border-radius: 999px;
-      padding: 6px 12px;
+      border: 1px solid transparent;
       font-size: 13px;
       font-weight: 700;
+      white-space: nowrap;
     }
-    .ok { background: rgba(14,107,92,0.12); color: var(--accent); }
-    .warn { background: rgba(176,99,27,0.12); color: var(--warn); }
-    .danger-text { background: rgba(157,46,46,0.12); color: var(--danger); }
-    .subtle { color: var(--muted); font-size: 13px; }
 
-    table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    th, td {
-      text-align: left;
-      padding: 10px 8px;
-      border-top: 1px solid var(--line);
-      vertical-align: top;
+    .pill.ok { background: var(--ok-soft); color: var(--accent); }
+    .pill.warn { background: var(--warn-soft); color: var(--warn); }
+    .pill.danger { background: var(--danger-soft); color: var(--danger); }
+    .pill.neutral { background: rgba(38, 31, 24, 0.06); color: var(--text); }
+
+    .hero-side {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
     }
-    th {
+
+    .hero-stat {
+      border-radius: var(--radius-lg);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      padding: 18px;
+      min-height: 122px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .eyebrow {
       color: var(--muted);
       font-size: 12px;
       text-transform: uppercase;
       letter-spacing: 0.08em;
+      font-weight: 700;
     }
-    tr.selectable { cursor: pointer; }
-    tr.selectable:hover { background: rgba(14,107,92,0.06); }
-    tr.selected { background: rgba(14,107,92,0.12); }
+
+    .hero-stat .value {
+      font-size: 30px;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      margin-top: 10px;
+    }
+
+    .hero-stat .note {
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 340px minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      padding: 22px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 16px;
+    }
+
+    .section-title {
+      margin: 0 0 12px;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+
+    .section-copy {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .action-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    button {
+      appearance: none;
+      border: 0;
+      cursor: pointer;
+      border-radius: 999px;
+      min-height: 42px;
+      padding: 0 18px;
+      font-weight: 700;
+      transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+    }
+
+    button:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.1); }
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .primary { background: var(--accent); color: #fff; }
+    .secondary {
+      background: rgba(255, 255, 255, 0.88);
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+    .danger-btn { background: var(--danger); color: #fff; }
+    .warn-btn { background: #fff3e2; color: var(--warn); border: 1px solid rgba(168, 100, 16, 0.22); }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    input[type="text"], textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.82);
+      border-radius: 14px;
+      padding: 12px 14px;
+      color: var(--text);
+    }
+
+    textarea {
+      min-height: 82px;
+      resize: vertical;
+      line-height: 1.55;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .callout {
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      border: 1px solid transparent;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .callout.warn {
+      background: var(--warn-soft);
+      border-color: rgba(168, 100, 16, 0.18);
+      color: #784507;
+    }
+
+    .callout.danger {
+      background: var(--danger-soft);
+      border-color: rgba(154, 47, 47, 0.16);
+      color: #7d1e1e;
+    }
+
+    .selection-card {
+      padding: 16px;
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.74);
+      border: 1px solid var(--line);
+      display: grid;
+      gap: 8px;
+    }
+
+    .selection-card.empty {
+      background: rgba(38, 31, 24, 0.04);
+      color: var(--muted);
+    }
+
+    .selection-main {
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .selection-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .resource-tabs {
+      display: inline-flex;
+      background: rgba(38, 31, 24, 0.06);
+      padding: 6px;
+      border-radius: 999px;
+      gap: 6px;
+    }
+
+    .resource-tab {
+      min-height: 38px;
+      padding: 0 16px;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      border: 0;
+      box-shadow: none;
+    }
+
+    .resource-tab.active {
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+
+    .resource-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) 360px;
+      gap: 18px;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.78);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 780px;
+    }
+
+    th, td {
+      padding: 12px 14px;
+      border-top: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    th {
+      border-top: 0;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      background: rgba(255, 251, 245, 0.88);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    tr.selectable {
+      cursor: pointer;
+      transition: background 0.14s ease;
+    }
+
+    tr.selectable:hover { background: rgba(22, 104, 93, 0.06); }
+    tr.selected { background: rgba(22, 104, 93, 0.12); }
+
+    .cell-main {
+      display: grid;
+      gap: 4px;
+    }
+
+    .cell-title {
+      font-weight: 700;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .cell-subtitle {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .detail-stack {
+      display: grid;
+      gap: 14px;
+    }
+
+    .detail-card {
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.74);
+      padding: 16px;
+    }
+
+    .detail-card h3 {
+      margin: 0 0 12px;
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .kv {
+      display: grid;
+      gap: 10px;
+    }
+
+    .kv-row {
+      display: grid;
+      gap: 4px;
+    }
+
+    .kv-label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+
+    .kv-value {
+      font-size: 14px;
+      line-height: 1.6;
+      word-break: break-word;
+    }
+
+    .precheck-list {
+      margin: 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 8px;
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .empty-state {
+      padding: 18px;
+      border-radius: var(--radius-md);
+      background: rgba(38, 31, 24, 0.04);
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
 
     pre {
       margin: 0;
+      border-radius: var(--radius-md);
+      background: rgba(32, 27, 22, 0.92);
+      color: #f5efe5;
+      padding: 14px;
+      overflow: auto;
+      max-height: 320px;
       white-space: pre-wrap;
       word-break: break-word;
-      background: rgba(45,36,27,0.06);
-      border-radius: 16px;
-      padding: 16px;
-      max-height: 360px;
-      overflow: auto;
+      font-family: "SF Mono", "IBM Plex Mono", monospace;
+      font-size: 12px;
+      line-height: 1.55;
     }
 
-    @media (max-width: 900px) {
-      .span-4, .span-6, .span-8, .span-12 { grid-column: span 12; }
+    .activity-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .activity-item {
+      padding: 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.75);
+      cursor: pointer;
+      transition: border-color 0.14s ease, transform 0.14s ease;
+    }
+
+    .activity-item:hover {
+      transform: translateY(-1px);
+      border-color: rgba(22, 104, 93, 0.22);
+    }
+
+    .activity-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .activity-title {
+      font-weight: 700;
+      line-height: 1.4;
+    }
+
+    .activity-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .path-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .path-item {
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.74);
+      padding: 14px;
+    }
+
+    .path-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+
+    .path-name {
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .path-location {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .inline-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      background: rgba(38, 31, 24, 0.06);
+      color: var(--text);
+    }
+
+    .inline-status.ok {
+      background: var(--ok-soft);
+      color: var(--accent);
+    }
+
+    .inline-status.warn {
+      background: var(--warn-soft);
+      color: var(--warn);
+    }
+
+    .inline-status.danger {
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: currentColor;
+    }
+
+    .status-bar {
+      position: sticky;
+      bottom: 12px;
+      z-index: 10;
+      margin-top: 18px;
+      padding: 14px 18px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: rgba(255, 251, 245, 0.94);
+      box-shadow: 0 16px 36px rgba(61, 48, 29, 0.14);
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .status-message {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--muted);
+    }
+
+    .status-message strong {
+      color: var(--text);
+    }
+
+    @media (max-width: 1180px) {
+      .hero,
+      .workspace,
+      .resource-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-side {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 860px) {
+      .page {
+        width: min(100vw - 18px, 100%);
+        margin: 10px auto 26px;
+      }
+
+      .hero-side {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .topbar {
+        flex-direction: column;
+      }
+
+      .status-bar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .hero-card, .panel {
+        border-radius: 20px;
+      }
+
+      .hero-card {
+        padding: 22px;
+      }
+
+      .panel {
+        padding: 18px;
+      }
+
+      .hero-side {
+        grid-template-columns: 1fr;
+      }
+
+      .button-row {
+        flex-direction: column;
+      }
+
+      button {
+        width: 100%;
+      }
     }
   </style>
 </head>
 <body>
-  <main class="shell">
+  <main class="page">
     <section class="hero">
-      <h1>Backup Control Plane</h1>
-      <p>独立于主站的本地控制台。当前已支持环境预检、维护模式、namespace 快照恢复、MySQL 逻辑全量快照恢复，以及 MinIO 对象快照恢复。维护模式会同步触发主站 Nginx 对外返回 503 维护页。</p>
-      <div class="actions">
-        <button class="primary" id="runPrecheckBtn">执行环境预检</button>
-        <button class="secondary" id="snapshotBtn">创建 Namespace 快照</button>
-        <button class="danger" id="restoreBtn">恢复选中 Namespace 快照</button>
-        <button class="secondary" id="mysqlSnapshotBtn">创建 MySQL 快照</button>
-        <button class="danger" id="mysqlRestoreBtn">恢复选中 MySQL 快照</button>
-        <button class="secondary" id="minioSnapshotBtn">创建 MinIO 快照</button>
-        <button class="danger" id="minioRestoreBtn">恢复选中 MinIO 快照</button>
-        <button class="secondary" id="refreshBtn">刷新状态</button>
-        <button class="danger" id="toggleMaintenanceBtn">切换维护模式</button>
+      <article class="hero-card">
+        <h1>Backup Control Plane</h1>
+        <p>把这个页面当成恢复操作台，而不是调试面板。先做预检，再开维护模式，再选快照恢复。当前已支持 <strong>namespace</strong>、<strong>MySQL</strong>、<strong>MinIO</strong> 三条恢复链路。</p>
+        <div class="hero-meta">
+          <span class="pill neutral">控制台地址 /backup</span>
+          <span class="pill neutral">维护模式会触发主站 503 维护页</span>
+          <span class="pill neutral">恢复前会自动创建 pre-restore 快照</span>
+        </div>
+      </article>
+      <aside class="hero-side">
+        <section class="hero-stat">
+          <div class="eyebrow">维护模式</div>
+          <div class="value" id="heroMaintenanceValue">-</div>
+          <div class="note" id="heroMaintenanceNote">加载中...</div>
+        </section>
+        <section class="hero-stat">
+          <div class="eyebrow">最近任务</div>
+          <div class="value" id="heroTaskValue">-</div>
+          <div class="note" id="heroTaskNote">加载中...</div>
+        </section>
+        <section class="hero-stat">
+          <div class="eyebrow">最近预检</div>
+          <div class="value" id="heroPrecheckValue">-</div>
+          <div class="note" id="heroPrecheckNote">加载中...</div>
+        </section>
+        <section class="hero-stat">
+          <div class="eyebrow">快照总量</div>
+          <div class="value" id="heroSnapshotValue">-</div>
+          <div class="note" id="heroSnapshotNote">加载中...</div>
+        </section>
+      </aside>
+    </section>
+
+    <section class="workspace">
+      <aside class="stack">
+        <article class="panel">
+          <h2 class="section-title">操作步骤</h2>
+          <p class="section-copy">先做预检，确认环境和依赖；需要恢复时先开维护模式，再执行恢复。页面当前按所选资源类型执行动作。</p>
+          <div class="button-row">
+            <button class="primary" id="runPrecheckBtn">执行环境预检</button>
+            <button class="secondary" id="refreshBtn">刷新数据</button>
+          </div>
+        </article>
+
+        <article class="panel">
+          <h2 class="section-title">维护模式</h2>
+          <p class="section-copy">恢复前建议先开启。开启后主站会自动切到 503 维护页，避免外部继续写入。</p>
+          <div class="field">
+            <label for="maintenanceReasonInput">本次维护原因</label>
+            <textarea id="maintenanceReasonInput" placeholder="例如：恢复 namespace 快照 / 恢复 MySQL 业务库"></textarea>
+          </div>
+          <div class="button-row" style="margin-top: 12px;">
+            <button class="danger-btn" id="toggleMaintenanceBtn">切换维护模式</button>
+          </div>
+          <p class="hint" id="maintenanceHint">当前状态加载中...</p>
+        </article>
+
+        <article class="panel">
+          <h2 class="section-title">创建快照</h2>
+          <p class="section-copy">当前会按右侧选中的资源类型创建快照。只有 namespace 需要额外输入相对路径。</p>
+          <div class="field">
+            <label for="snapshotPathInput">Namespace 相对路径</label>
+            <input id="snapshotPathInput" type="text" placeholder="留空表示整个 namespace，例如 alice/demo">
+          </div>
+          <div class="field" style="margin-top: 12px;">
+            <label for="snapshotNoteInput">快照备注</label>
+            <textarea id="snapshotNoteInput" placeholder="可选，例如：发布前手工快照"></textarea>
+          </div>
+          <div class="button-row" style="margin-top: 12px;">
+            <button class="secondary" id="createSnapshotBtn">为当前资源创建快照</button>
+          </div>
+        </article>
+
+        <article class="panel">
+          <h2 class="section-title">恢复当前选中快照</h2>
+          <div id="selectedSnapshotCard" class="selection-card empty">
+            先在右侧列表选中一个快照。
+          </div>
+          <div class="field" style="margin-top: 12px;">
+            <label for="restoreNoteInput">恢复备注</label>
+            <textarea id="restoreNoteInput" placeholder="例如：恢复误删目录 / 回滚错误数据"></textarea>
+          </div>
+          <div class="callout danger" style="margin-top: 12px;">
+            恢复前会自动创建一份 <strong>pre-restore</strong> 快照。当前版本仍建议你先确认维护模式已开启。
+          </div>
+          <div class="button-row" style="margin-top: 12px;">
+            <button class="danger-btn" id="restoreSnapshotBtn" disabled>恢复当前快照</button>
+          </div>
+        </article>
+      </aside>
+
+      <section class="stack">
+        <article class="panel">
+          <div class="topbar">
+            <div>
+              <h2 class="section-title" style="margin-bottom: 8px;">资源快照</h2>
+              <p class="section-copy" id="resourceDescription">选择资源类型后，在下方列表里挑一个快照，再到左侧执行恢复。</p>
+            </div>
+            <div class="resource-tabs" id="resourceTabs">
+              <button class="resource-tab active" data-resource="namespace">Namespace</button>
+              <button class="resource-tab" data-resource="mysql">MySQL</button>
+              <button class="resource-tab" data-resource="minio">MinIO</button>
+            </div>
+          </div>
+
+          <div class="resource-layout">
+            <div class="table-wrap">
+              <table>
+                <thead id="snapshotTableHead"></thead>
+                <tbody id="snapshotTableBody"></tbody>
+              </table>
+            </div>
+
+            <div class="detail-stack">
+              <section class="detail-card">
+                <h3>已选快照</h3>
+                <div id="snapshotDetailSummary" class="empty-state">还没有选中任何快照。</div>
+              </section>
+
+              <section class="detail-card">
+                <h3>最近预检结果</h3>
+                <div id="precheckSummary"></div>
+              </section>
+
+              <section class="detail-card">
+                <h3>原始详情</h3>
+                <pre id="detailBlock">选择快照或任务后，这里会显示完整 JSON。</pre>
+              </section>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <h2 class="section-title">最近任务</h2>
+          <p class="section-copy">这里直接看最近动作是否成功。点击某条任务会在右侧显示详情。</p>
+          <div id="activityList" class="activity-list"></div>
+        </article>
+
+        <article class="panel">
+          <h2 class="section-title">路径与仓库状态</h2>
+          <div class="resource-layout">
+            <div class="path-grid" id="pathsGrid"></div>
+            <div class="detail-stack">
+              <section class="detail-card">
+                <h3>仓库路径</h3>
+                <div id="repositorySummary" class="kv"></div>
+              </section>
+              <section class="detail-card">
+                <h3>系统状态</h3>
+                <div id="systemStateSummary" class="kv"></div>
+              </section>
+            </div>
+          </div>
+        </article>
+      </section>
+    </section>
+
+    <div class="status-bar">
+      <div class="status-message" id="statusMessage"><strong>就绪。</strong> 先执行一次预检，再按当前资源类型创建或恢复快照。</div>
+      <div class="button-row">
+        <button class="secondary" id="statusReloadBtn">重新加载</button>
       </div>
-    </section>
-
-    <section class="grid">
-      <article class="panel span-4">
-        <h2>系统状态</h2>
-        <div class="stat">
-          <span class="label">维护模式</span>
-          <span class="value" id="maintenanceValue">-</span>
-        </div>
-        <div class="stat">
-          <span class="label">活动任务</span>
-          <span class="value" id="activeTaskValue">-</span>
-        </div>
-        <div class="stat">
-          <span class="label">最近预检</span>
-          <span class="subtle" id="lastPrecheckValue">-</span>
-        </div>
-      </article>
-
-      <article class="panel span-8">
-        <h2>存储映射</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>路径</th>
-              <th>存在</th>
-              <th>可写</th>
-              <th>备注</th>
-            </tr>
-          </thead>
-          <tbody id="pathsTable"></tbody>
-        </table>
-      </article>
-
-      <article class="panel span-6">
-        <h2>仓库信息</h2>
-        <pre id="repositoryBlock">加载中...</pre>
-      </article>
-
-      <article class="panel span-6">
-        <h2>状态快照</h2>
-        <pre id="statusBlock">加载中...</pre>
-      </article>
-
-      <article class="panel span-12">
-        <h2>Namespace 快照</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>路径</th>
-              <th>来源</th>
-              <th>大小</th>
-              <th>文件</th>
-              <th>时间</th>
-            </tr>
-          </thead>
-          <tbody id="snapshotsTable"></tbody>
-        </table>
-      </article>
-
-      <article class="panel span-12">
-        <h2>MySQL 快照</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>说明</th>
-              <th>来源</th>
-              <th>大小</th>
-              <th>库</th>
-              <th>时间</th>
-            </tr>
-          </thead>
-          <tbody id="mysqlSnapshotsTable"></tbody>
-        </table>
-      </article>
-
-      <article class="panel span-12">
-        <h2>MinIO 快照</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>说明</th>
-              <th>来源</th>
-              <th>大小</th>
-              <th>桶 / 对象</th>
-              <th>时间</th>
-            </tr>
-          </thead>
-          <tbody id="minioSnapshotsTable"></tbody>
-        </table>
-      </article>
-
-      <article class="panel span-12">
-        <h2>最近任务</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>类型</th>
-              <th>状态</th>
-              <th>摘要</th>
-              <th>操作者</th>
-              <th>时间</th>
-            </tr>
-          </thead>
-          <tbody id="tasksTable"></tbody>
-        </table>
-      </article>
-
-      <article class="panel span-12">
-        <h2>详情</h2>
-        <pre id="detailBlock">选择快照或任务后这里会显示详情。</pre>
-      </article>
-    </section>
+    </div>
   </main>
 
   <script>
+    const resourceMeta = {
+      namespace: {
+        label: "Namespace",
+        title: "Namespace 快照",
+        description: "适合恢复误删目录、应用工作区或用户 namespace。支持指定相对路径创建快照。",
+        createLabel: "创建 Namespace 快照",
+        restoreLabel: "恢复 Namespace 快照"
+      },
+      mysql: {
+        label: "MySQL",
+        title: "MySQL 快照",
+        description: "当前是整库逻辑全量快照与整库恢复。适合误删业务库、清空表数据或需要整库回滚。",
+        createLabel: "创建 MySQL 快照",
+        restoreLabel: "恢复 MySQL 快照"
+      },
+      minio: {
+        label: "MinIO",
+        title: "MinIO 快照",
+        description: "当前是对象级整仓快照与整仓恢复。适合桶内容被误删或对象批量异常覆盖。",
+        createLabel: "创建 MinIO 快照",
+        restoreLabel: "恢复 MinIO 快照"
+      }
+    };
+
     const state = {
       status: null,
       tasks: [],
-      snapshots: [],
-      mysqlSnapshots: [],
-      minioSnapshots: [],
-      selectedSnapshotId: null,
-      selectedMySQLSnapshotId: null,
-      selectedMinIOSnapshotId: null
+      snapshotsByResource: {
+        namespace: [],
+        mysql: [],
+        minio: []
+      },
+      activeResource: "namespace",
+      selectedSnapshotIds: {
+        namespace: null,
+        mysql: null,
+        minio: null
+      },
+      selectedTaskId: null,
+      autoRefreshAt: null
     };
+
+    function escapeHTML(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
 
     function fmtTime(value) {
       if (!value) return "-";
@@ -289,278 +900,650 @@
       return `${size.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
     }
 
-    function badge(status) {
-      const map = { succeeded: "ok", warning: "warn", failed: "danger-text", running: "warn" };
-      return `<span class="badge ${map[status] || "ok"}">${status}</span>`;
+    function makeBadge(label, kind = "neutral") {
+      return `<span class="pill ${kind}">${escapeHTML(label)}</span>`;
+    }
+
+    function taskBadge(status) {
+      if (status === "succeeded") return makeBadge("成功", "ok");
+      if (status === "warning") return makeBadge("警告", "warn");
+      if (status === "failed") return makeBadge("失败", "danger");
+      if (status === "running") return makeBadge("执行中", "warn");
+      return makeBadge(status || "-", "neutral");
+    }
+
+    function inlineStatus(label, kind) {
+      return `<span class="inline-status ${kind}"><span class="status-dot"></span>${escapeHTML(label)}</span>`;
+    }
+
+    function selectedSnapshot() {
+      const resource = state.activeResource;
+      const id = state.selectedSnapshotIds[resource];
+      if (!id) return null;
+      return state.snapshotsByResource[resource].find(snapshot => snapshot.id === id) || null;
+    }
+
+    function selectedTask() {
+      if (!state.selectedTaskId) return null;
+      return state.tasks.find(task => task.id === state.selectedTaskId) || null;
+    }
+
+    function latestTask() {
+      return state.tasks[0] || null;
+    }
+
+    function latestPrecheckTask() {
+      return state.tasks.find(task => task.type === "precheck") || null;
     }
 
     async function loadAll() {
-      const [statusResp, tasksResp, snapshotsResp, mysqlSnapshotsResp, minioSnapshotsResp] = await Promise.all([
+      setStatus("正在刷新控制台数据...", "neutral");
+
+      const [statusResp, tasksResp, namespaceResp, mysqlResp, minioResp] = await Promise.all([
         fetch("/backup/api/v1/status"),
         fetch("/backup/api/v1/tasks?limit=12"),
-        fetch("/backup/api/v1/snapshots?resource_type=namespace&limit=20"),
-        fetch("/backup/api/v1/snapshots?resource_type=mysql&limit=20"),
-        fetch("/backup/api/v1/snapshots?resource_type=minio&limit=20")
+        fetch("/backup/api/v1/snapshots?resource_type=namespace&limit=24"),
+        fetch("/backup/api/v1/snapshots?resource_type=mysql&limit=24"),
+        fetch("/backup/api/v1/snapshots?resource_type=minio&limit=24")
       ]);
+
+      const responses = [statusResp, tasksResp, namespaceResp, mysqlResp, minioResp];
+      for (const resp of responses) {
+        if (!resp.ok) {
+          let message = `请求失败: ${resp.status}`;
+          try {
+            const payload = await resp.json();
+            message = payload.error || message;
+          } catch (_) {}
+          throw new Error(message);
+        }
+      }
 
       state.status = await statusResp.json();
       state.tasks = await tasksResp.json();
-      state.snapshots = await snapshotsResp.json();
-      state.mysqlSnapshots = await mysqlSnapshotsResp.json();
-      state.minioSnapshots = await minioSnapshotsResp.json();
+      state.snapshotsByResource.namespace = await namespaceResp.json();
+      state.snapshotsByResource.mysql = await mysqlResp.json();
+      state.snapshotsByResource.minio = await minioResp.json();
+
+      ensureSelectionStillValid();
       render();
+      setStatus("控制台数据已更新。", "success");
+    }
+
+    function ensureSelectionStillValid() {
+      for (const resource of Object.keys(state.snapshotsByResource)) {
+        const snapshots = state.snapshotsByResource[resource];
+        const currentId = state.selectedSnapshotIds[resource];
+        if (currentId && !snapshots.some(item => item.id === currentId)) {
+          state.selectedSnapshotIds[resource] = null;
+        }
+      }
+      if (state.selectedTaskId && !state.tasks.some(task => task.id === state.selectedTaskId)) {
+        state.selectedTaskId = null;
+      }
     }
 
     function render() {
-      const {
-        status,
-        tasks,
-        snapshots,
-        mysqlSnapshots,
-        minioSnapshots,
-        selectedSnapshotId,
-        selectedMySQLSnapshotId,
-        selectedMinIOSnapshotId
-      } = state;
-      if (!status) return;
+      if (!state.status) return;
+      renderHero();
+      renderTabs();
+      renderSnapshotTable();
+      renderSnapshotSummary();
+      renderTasks();
+      renderPaths();
+      renderRepository();
+      renderSystemState();
+      renderPrecheckSummary();
+      renderForms();
+      renderDetail();
+    }
 
-      document.getElementById("maintenanceValue").innerHTML =
-        status.system_state.maintenance_mode
-          ? `<span class="badge danger-text">已开启</span>`
-          : `<span class="badge ok">已关闭</span>`;
-      document.getElementById("activeTaskValue").textContent =
-        status.system_state.active_task_id ?? "-";
-      document.getElementById("lastPrecheckValue").textContent =
-        fmtTime(status.system_state.last_precheck_at);
-      document.getElementById("repositoryBlock").textContent = JSON.stringify(status.repository, null, 2);
-      document.getElementById("statusBlock").textContent = JSON.stringify(status.system_state, null, 2);
+    function renderHero() {
+      const maintenance = state.status.system_state.maintenance_mode;
+      const latest = latestTask();
+      const precheck = latestPrecheckTask();
+      const totalSnapshots =
+        state.snapshotsByResource.namespace.length +
+        state.snapshotsByResource.mysql.length +
+        state.snapshotsByResource.minio.length;
 
-      document.getElementById("pathsTable").innerHTML =
-        Object.entries(status.paths).map(([name, item]) => `
+      document.getElementById("heroMaintenanceValue").innerHTML = maintenance
+        ? makeBadge("已开启", "danger")
+        : makeBadge("已关闭", "ok");
+      document.getElementById("heroMaintenanceNote").textContent =
+        maintenance
+          ? state.status.system_state.maintenance_reason || "当前外部入口应返回维护页。"
+          : "主站当前处于可访问状态。";
+
+      document.getElementById("heroTaskValue").innerHTML = latest ? taskBadge(latest.status) : makeBadge("无", "neutral");
+      document.getElementById("heroTaskNote").textContent = latest
+        ? `${latest.type} · ${latest.summary || "无摘要"}`
+        : "最近还没有任务记录。";
+
+      let precheckValue = makeBadge("未执行", "neutral");
+      let precheckNote = "建议先执行一次环境预检。";
+      if (precheck) {
+        precheckValue = taskBadge(precheck.status);
+        const detail = precheck.detail || {};
+        precheckNote = `问题 ${detail.issues?.length || 0} / 警告 ${detail.warnings?.length || 0} · ${fmtTime(precheck.finished_at || precheck.created_at)}`;
+      }
+      document.getElementById("heroPrecheckValue").innerHTML = precheckValue;
+      document.getElementById("heroPrecheckNote").textContent = precheckNote;
+
+      document.getElementById("heroSnapshotValue").textContent = String(totalSnapshots);
+      document.getElementById("heroSnapshotNote").textContent =
+        `Namespace ${state.snapshotsByResource.namespace.length} · MySQL ${state.snapshotsByResource.mysql.length} · MinIO ${state.snapshotsByResource.minio.length}`;
+    }
+
+    function renderTabs() {
+      const meta = resourceMeta[state.activeResource];
+      document.getElementById("resourceDescription").textContent = meta.description;
+      document.getElementById("createSnapshotBtn").textContent = meta.createLabel;
+      document.getElementById("restoreSnapshotBtn").textContent = meta.restoreLabel;
+      const showNamespacePath = state.activeResource === "namespace";
+      document.getElementById("snapshotPathInput").closest(".field").style.display = showNamespacePath ? "grid" : "none";
+
+      document.querySelectorAll(".resource-tab").forEach(button => {
+        button.classList.toggle("active", button.dataset.resource === state.activeResource);
+      });
+    }
+
+    function renderSnapshotTable() {
+      const resource = state.activeResource;
+      const snapshots = state.snapshotsByResource[resource];
+      const selectedId = state.selectedSnapshotIds[resource];
+
+      const head = document.getElementById("snapshotTableHead");
+      const body = document.getElementById("snapshotTableBody");
+
+      if (resource === "namespace") {
+        head.innerHTML = `
           <tr>
-            <td><strong>${name}</strong><div class="subtle">${item.path}</div></td>
-            <td>${item.exists ? "是" : "否"}</td>
-            <td>${item.writable_expected ? (item.writable ? "是" : "否") : "只读预期"}</td>
-            <td>${item.error || "-"}</td>
+            <th>ID</th>
+            <th>路径</th>
+            <th>来源</th>
+            <th>体积</th>
+            <th>文件 / 目录</th>
+            <th>时间</th>
           </tr>
-        `).join("");
+        `;
+        body.innerHTML = snapshots.length ? snapshots.map(snapshot => `
+          <tr class="selectable ${snapshot.id === selectedId ? "selected" : ""}" data-snapshot-id="${snapshot.id}">
+            <td>${snapshot.id}</td>
+            <td>
+              <div class="cell-main">
+                <div class="cell-title">${escapeHTML(snapshot.relative_path || ".")}</div>
+                <div class="cell-subtitle">${escapeHTML(snapshot.archive_path)}</div>
+              </div>
+            </td>
+            <td>${escapeHTML(snapshot.source)}</td>
+            <td>${fmtBytes(snapshot.archive_size)}</td>
+            <td>${snapshot.file_count} / ${snapshot.directory_count}</td>
+            <td>${fmtTime(snapshot.created_at)}</td>
+          </tr>
+        `).join("") : `<tr><td colspan="6"><div class="empty-state">当前还没有 Namespace 快照。</div></td></tr>`;
+      } else if (resource === "mysql") {
+        head.innerHTML = `
+          <tr>
+            <th>ID</th>
+            <th>说明</th>
+            <th>来源</th>
+            <th>体积</th>
+            <th>数据库</th>
+            <th>时间</th>
+          </tr>
+        `;
+        body.innerHTML = snapshots.length ? snapshots.map(snapshot => `
+          <tr class="selectable ${snapshot.id === selectedId ? "selected" : ""}" data-snapshot-id="${snapshot.id}">
+            <td>${snapshot.id}</td>
+            <td>
+              <div class="cell-main">
+                <div class="cell-title">${escapeHTML(snapshot.note || "MySQL 全量快照")}</div>
+                <div class="cell-subtitle">${escapeHTML(snapshot.archive_path)}</div>
+              </div>
+            </td>
+            <td>${escapeHTML(snapshot.source)}</td>
+            <td>${fmtBytes(snapshot.archive_size)}</td>
+            <td>${escapeHTML(snapshot.metadata?.databases?.join(", ") || "-")}</td>
+            <td>${fmtTime(snapshot.created_at)}</td>
+          </tr>
+        `).join("") : `<tr><td colspan="6"><div class="empty-state">当前还没有 MySQL 快照。</div></td></tr>`;
+      } else {
+        head.innerHTML = `
+          <tr>
+            <th>ID</th>
+            <th>说明</th>
+            <th>来源</th>
+            <th>体积</th>
+            <th>桶 / 对象</th>
+            <th>时间</th>
+          </tr>
+        `;
+        body.innerHTML = snapshots.length ? snapshots.map(snapshot => `
+          <tr class="selectable ${snapshot.id === selectedId ? "selected" : ""}" data-snapshot-id="${snapshot.id}">
+            <td>${snapshot.id}</td>
+            <td>
+              <div class="cell-main">
+                <div class="cell-title">${escapeHTML(snapshot.note || "MinIO 对象快照")}</div>
+                <div class="cell-subtitle">${escapeHTML(snapshot.archive_path)}</div>
+              </div>
+            </td>
+            <td>${escapeHTML(snapshot.source)}</td>
+            <td>${fmtBytes(snapshot.archive_size)}</td>
+            <td>${snapshot.metadata?.buckets?.length || 0} / ${snapshot.metadata?.objects || 0}</td>
+            <td>${fmtTime(snapshot.created_at)}</td>
+          </tr>
+        `).join("") : `<tr><td colspan="6"><div class="empty-state">当前还没有 MinIO 快照。</div></td></tr>`;
+      }
 
-      const snapshotsTable = document.getElementById("snapshotsTable");
-      snapshotsTable.innerHTML = snapshots.map(snapshot => `
-        <tr class="selectable ${snapshot.id === selectedSnapshotId ? "selected" : ""}" data-snapshot-id="${snapshot.id}">
-          <td>${snapshot.id}</td>
-          <td><strong>${snapshot.relative_path}</strong><div class="subtle">${snapshot.archive_path}</div></td>
-          <td>${snapshot.source}</td>
-          <td>${fmtBytes(snapshot.archive_size)}</td>
-          <td>${snapshot.file_count}/${snapshot.directory_count}</td>
-          <td>${fmtTime(snapshot.created_at)}</td>
-        </tr>
-      `).join("");
-
-      snapshotsTable.querySelectorAll("tr[data-snapshot-id]").forEach(row => {
-        row.addEventListener("click", async () => {
-          state.selectedSnapshotId = Number(row.dataset.snapshotId);
-          state.selectedMySQLSnapshotId = null;
-          const resp = await fetch(`/backup/api/v1/snapshots/${row.dataset.snapshotId}`);
-          const snapshot = await resp.json();
-          document.getElementById("detailBlock").textContent = JSON.stringify(snapshot, null, 2);
+      body.querySelectorAll("tr[data-snapshot-id]").forEach(row => {
+        row.addEventListener("click", () => {
+          state.selectedSnapshotIds[resource] = Number(row.dataset.snapshotId);
           render();
-        });
-      });
-
-      const mysqlSnapshotsTable = document.getElementById("mysqlSnapshotsTable");
-      mysqlSnapshotsTable.innerHTML = mysqlSnapshots.map(snapshot => `
-        <tr class="selectable ${snapshot.id === selectedMySQLSnapshotId ? "selected" : ""}" data-mysql-snapshot-id="${snapshot.id}">
-          <td>${snapshot.id}</td>
-          <td><strong>${snapshot.relative_path}</strong><div class="subtle">${snapshot.archive_path}</div></td>
-          <td>${snapshot.source}</td>
-          <td>${fmtBytes(snapshot.archive_size)}</td>
-          <td>${snapshot.metadata?.databases ? snapshot.metadata.databases.join(", ") : "-"}</td>
-          <td>${fmtTime(snapshot.created_at)}</td>
-        </tr>
-      `).join("");
-
-      mysqlSnapshotsTable.querySelectorAll("tr[data-mysql-snapshot-id]").forEach(row => {
-        row.addEventListener("click", async () => {
-          state.selectedMySQLSnapshotId = Number(row.dataset.mysqlSnapshotId);
-          state.selectedSnapshotId = null;
-          state.selectedMinIOSnapshotId = null;
-          const resp = await fetch(`/backup/api/v1/snapshots/${row.dataset.mysqlSnapshotId}`);
-          const snapshot = await resp.json();
-          document.getElementById("detailBlock").textContent = JSON.stringify(snapshot, null, 2);
-          render();
-        });
-      });
-
-      const minioSnapshotsTable = document.getElementById("minioSnapshotsTable");
-      minioSnapshotsTable.innerHTML = minioSnapshots.map(snapshot => `
-        <tr class="selectable ${snapshot.id === selectedMinIOSnapshotId ? "selected" : ""}" data-minio-snapshot-id="${snapshot.id}">
-          <td>${snapshot.id}</td>
-          <td><strong>${snapshot.relative_path}</strong><div class="subtle">${snapshot.archive_path}</div></td>
-          <td>${snapshot.source}</td>
-          <td>${fmtBytes(snapshot.archive_size)}</td>
-          <td>${snapshot.metadata?.buckets ? snapshot.metadata.buckets.length : 0} / ${snapshot.metadata?.objects ?? 0}</td>
-          <td>${fmtTime(snapshot.created_at)}</td>
-        </tr>
-      `).join("");
-
-      minioSnapshotsTable.querySelectorAll("tr[data-minio-snapshot-id]").forEach(row => {
-        row.addEventListener("click", async () => {
-          state.selectedMinIOSnapshotId = Number(row.dataset.minioSnapshotId);
-          state.selectedSnapshotId = null;
-          state.selectedMySQLSnapshotId = null;
-          const resp = await fetch(`/backup/api/v1/snapshots/${row.dataset.minioSnapshotId}`);
-          const snapshot = await resp.json();
-          document.getElementById("detailBlock").textContent = JSON.stringify(snapshot, null, 2);
-          render();
-        });
-      });
-
-      const tasksTable = document.getElementById("tasksTable");
-      tasksTable.innerHTML = tasks.map(task => `
-        <tr class="selectable" data-task-id="${task.id}">
-          <td>${task.id}</td>
-          <td>${task.type}</td>
-          <td>${badge(task.status)}</td>
-          <td>${task.summary || "-"}</td>
-          <td>${task.requested_by || "-"}</td>
-          <td>${fmtTime(task.finished_at || task.started_at || task.created_at)}</td>
-        </tr>
-      `).join("");
-
-      tasksTable.querySelectorAll("tr[data-task-id]").forEach(row => {
-        row.addEventListener("click", async () => {
-          const resp = await fetch(`/backup/api/v1/tasks/${row.dataset.taskId}`);
-          const task = await resp.json();
-          document.getElementById("detailBlock").textContent = JSON.stringify(task, null, 2);
         });
       });
     }
 
+    function renderSnapshotSummary() {
+      const card = document.getElementById("selectedSnapshotCard");
+      const summary = document.getElementById("snapshotDetailSummary");
+      const snapshot = selectedSnapshot();
+
+      if (!snapshot) {
+        card.className = "selection-card empty";
+        card.textContent = "先在右侧列表选中一个快照。";
+        summary.innerHTML = `<div class="empty-state">还没有选中任何快照。</div>`;
+        return;
+      }
+
+      card.className = "selection-card";
+      card.innerHTML = `
+        <div class="selection-main">${escapeHTML(resourceMeta[state.activeResource].label)} #${snapshot.id}</div>
+        <div>${escapeHTML(snapshot.note || snapshot.relative_path || "未填写说明")}</div>
+        <div class="selection-meta">
+          ${makeBadge(snapshot.source === "pre_restore" ? "pre-restore" : snapshot.source, snapshot.source === "pre_restore" ? "warn" : "neutral")}
+          <span>${fmtBytes(snapshot.archive_size)}</span>
+          <span>${fmtTime(snapshot.created_at)}</span>
+        </div>
+      `;
+
+      const rows = [
+        ["资源类型", resourceMeta[state.activeResource].label],
+        ["快照 ID", snapshot.id],
+        ["相对路径", snapshot.relative_path || "."],
+        ["来源", snapshot.source],
+        ["快照备注", snapshot.note || "-"],
+        ["归档路径", snapshot.archive_path],
+        ["归档大小", fmtBytes(snapshot.archive_size)],
+        ["创建时间", fmtTime(snapshot.created_at)]
+      ];
+
+      if (state.activeResource === "namespace") {
+        rows.push(["文件 / 目录", `${snapshot.file_count} / ${snapshot.directory_count}`]);
+      } else if (state.activeResource === "mysql") {
+        rows.push(["数据库", snapshot.metadata?.databases?.join(", ") || "-"]);
+      } else {
+        rows.push(["桶数量", snapshot.metadata?.buckets?.length || 0]);
+        rows.push(["对象数量", snapshot.metadata?.objects || 0]);
+      }
+
+      summary.innerHTML = `
+        <div class="kv">
+          ${rows.map(([label, value]) => `
+            <div class="kv-row">
+              <div class="kv-label">${escapeHTML(label)}</div>
+              <div class="kv-value">${escapeHTML(value)}</div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function renderTasks() {
+      const list = document.getElementById("activityList");
+      if (!state.tasks.length) {
+        list.innerHTML = `<div class="empty-state">最近还没有任务记录。</div>`;
+        return;
+      }
+
+      list.innerHTML = state.tasks.map(task => `
+        <article class="activity-item" data-task-id="${task.id}">
+          <div class="activity-head">
+            <div class="activity-title">${escapeHTML(task.summary || task.type)}</div>
+            ${taskBadge(task.status)}
+          </div>
+          <div class="activity-meta">
+            <span>ID ${task.id}</span>
+            <span>${escapeHTML(task.type)}</span>
+            <span>${escapeHTML(task.requested_by || "-")}</span>
+            <span>${fmtTime(task.finished_at || task.started_at || task.created_at)}</span>
+          </div>
+          ${task.error_message ? `<div class="hint" style="margin-top:8px;color:var(--danger);">${escapeHTML(task.error_message)}</div>` : ""}
+        </article>
+      `).join("");
+
+      list.querySelectorAll("[data-task-id]").forEach(item => {
+        item.addEventListener("click", () => {
+          state.selectedTaskId = Number(item.dataset.taskId);
+          renderDetail();
+          setStatus(`已选中任务 #${item.dataset.taskId}。`, "neutral");
+        });
+      });
+    }
+
+    function renderPaths() {
+      const grid = document.getElementById("pathsGrid");
+      const paths = state.status.paths || {};
+      const entries = Object.entries(paths);
+
+      if (!entries.length) {
+        grid.innerHTML = `<div class="empty-state">暂无路径状态。</div>`;
+        return;
+      }
+
+      grid.innerHTML = entries.map(([name, item]) => {
+        let badge = inlineStatus("正常", "ok");
+        if (!item.exists || !item.is_dir) {
+          badge = inlineStatus("不可用", "danger");
+        } else if (item.writable_expected && !item.writable) {
+          badge = inlineStatus("不可写", "warn");
+        } else if (!item.writable_expected) {
+          badge = inlineStatus("只读预期", "neutral");
+        }
+
+        return `
+          <article class="path-item">
+            <div class="path-head">
+              <div>
+                <div class="path-name">${escapeHTML(name)}</div>
+                <div class="path-location">${escapeHTML(item.path)}</div>
+              </div>
+              ${badge}
+            </div>
+            <div class="hint">${escapeHTML(item.error || "无异常信息")}</div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderRepository() {
+      const repository = state.status.repository || {};
+      const rows = [
+        ["Storage Root", state.status.storage_root || "-"],
+        ["Repo Root", repository.root_path || "-"],
+        ["State Path", repository.state_path || "-"],
+        ["Staging Path", repository.staging_path || "-"],
+        ["DB Path", repository.database_path || "-"],
+        ["Maintenance Flag", repository.maintenance_marker_path || "-"],
+        ["Maintenance Page", repository.maintenance_page_path || "-"]
+      ];
+
+      document.getElementById("repositorySummary").innerHTML = rows.map(([label, value]) => `
+        <div class="kv-row">
+          <div class="kv-label">${escapeHTML(label)}</div>
+          <div class="kv-value">${escapeHTML(value)}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderSystemState() {
+      const system = state.status.system_state || {};
+      const rows = [
+        ["维护模式", system.maintenance_mode ? "已开启" : "已关闭"],
+        ["维护原因", system.maintenance_reason || "-"],
+        ["活动任务", system.active_task_id ?? "-"],
+        ["最近预检", fmtTime(system.last_precheck_at)],
+        ["最近更新时间", fmtTime(system.updated_at)]
+      ];
+
+      document.getElementById("systemStateSummary").innerHTML = rows.map(([label, value]) => `
+        <div class="kv-row">
+          <div class="kv-label">${escapeHTML(label)}</div>
+          <div class="kv-value">${escapeHTML(value)}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderPrecheckSummary() {
+      const container = document.getElementById("precheckSummary");
+      const task = latestPrecheckTask();
+      if (!task) {
+        container.innerHTML = `<div class="empty-state">还没有执行过预检。建议先点一次“执行环境预检”。</div>`;
+        return;
+      }
+
+      const detail = task.detail || {};
+      const issues = Array.isArray(detail.issues) ? detail.issues : [];
+      const warnings = Array.isArray(detail.warnings) ? detail.warnings : [];
+      const topBlock = `
+        <div class="kv" style="margin-bottom: 12px;">
+          <div class="kv-row">
+            <div class="kv-label">状态</div>
+            <div class="kv-value">${taskBadge(task.status)}</div>
+          </div>
+          <div class="kv-row">
+            <div class="kv-label">执行时间</div>
+            <div class="kv-value">${fmtTime(task.finished_at || task.created_at)}</div>
+          </div>
+          <div class="kv-row">
+            <div class="kv-label">摘要</div>
+            <div class="kv-value">${escapeHTML(task.summary || "-")}</div>
+          </div>
+        </div>
+      `;
+
+      const issueHTML = issues.length
+        ? `
+          <div class="callout danger" style="margin-bottom: 12px;">
+            <strong>阻塞项 ${issues.length}</strong>
+            <ul class="precheck-list">${issues.map(item => `<li>${escapeHTML(item)}</li>`).join("")}</ul>
+          </div>
+        `
+        : `
+          <div class="callout warn" style="margin-bottom: 12px;">
+            当前没有阻塞项。
+          </div>
+        `;
+
+      const warningHTML = warnings.length
+        ? `
+          <div class="callout warn">
+            <strong>警告 ${warnings.length}</strong>
+            <ul class="precheck-list">${warnings.map(item => `<li>${escapeHTML(item)}</li>`).join("")}</ul>
+          </div>
+        `
+        : "";
+
+      container.innerHTML = topBlock + issueHTML + warningHTML;
+    }
+
+    function renderForms() {
+      const snapshot = selectedSnapshot();
+      const maintenance = state.status.system_state.maintenance_mode;
+      const activeTask = state.status.system_state.active_task_id;
+      const resource = state.activeResource;
+
+      document.getElementById("maintenanceHint").textContent = maintenance
+        ? `当前已开启维护模式。${state.status.system_state.maintenance_reason || ""}`
+        : "当前未开启维护模式。恢复前建议先开启。";
+
+      document.getElementById("toggleMaintenanceBtn").textContent = maintenance ? "关闭维护模式" : "开启维护模式";
+      document.getElementById("restoreSnapshotBtn").disabled = !snapshot;
+
+      if (activeTask) {
+        setStatus(`当前有活动任务 #${activeTask}，建议等待其完成后再执行下一步。`, "warning");
+      }
+
+      if (resource !== "namespace") {
+        document.getElementById("snapshotPathInput").value = "";
+      }
+    }
+
+    function renderDetail() {
+      const snapshot = selectedSnapshot();
+      const task = selectedTask();
+      if (task) {
+        document.getElementById("detailBlock").textContent = JSON.stringify(task, null, 2);
+        return;
+      }
+      if (snapshot) {
+        document.getElementById("detailBlock").textContent = JSON.stringify(snapshot, null, 2);
+        return;
+      }
+      document.getElementById("detailBlock").textContent = "选择快照或任务后，这里会显示完整 JSON。";
+    }
+
     async function postJSON(url, payload) {
-      const resp = await fetch(url, {
+      const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      const data = await resp.json();
-      if (!resp.ok) {
-        throw new Error(data.error || `Request failed: ${resp.status}`);
+
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (_) {}
+
+      if (!response.ok) {
+        throw new Error(data.error || `请求失败: ${response.status}`);
       }
       return data;
     }
 
+    function setStatus(message, tone = "neutral") {
+      const el = document.getElementById("statusMessage");
+      const prefix =
+        tone === "error" ? "<strong>失败。</strong> " :
+        tone === "success" ? "<strong>完成。</strong> " :
+        tone === "warning" ? "<strong>注意。</strong> " :
+        "<strong>状态。</strong> ";
+      el.innerHTML = prefix + escapeHTML(message);
+    }
+
     async function runPrecheck() {
-      const note = window.prompt("可选：输入本次预检备注", "") || "";
-      const data = await postJSON("/backup/api/v1/precheck", { requested_by: "backup-console", note });
-      document.getElementById("detailBlock").textContent = JSON.stringify(data, null, 2);
+      setStatus("正在执行环境预检...", "neutral");
+      const note = `manual precheck @ ${new Date().toLocaleString("zh-CN", { hour12: false })}`;
+      const task = await postJSON("/backup/api/v1/precheck", {
+        requested_by: "backup-console",
+        note
+      });
+      state.selectedTaskId = task.id;
       await loadAll();
+      setStatus(`预检任务 #${task.id} 已完成。`, "success");
     }
 
     async function toggleMaintenance() {
-      const enabled = !state.status?.system_state?.maintenance_mode;
-      const reason = window.prompt(enabled ? "输入开启维护模式的原因" : "输入关闭维护模式的原因", "") || "";
-      const data = await postJSON("/backup/api/v1/maintenance", {
+      const enabled = !state.status.system_state.maintenance_mode;
+      const reason = document.getElementById("maintenanceReasonInput").value.trim();
+      setStatus(enabled ? "正在开启维护模式..." : "正在关闭维护模式...", "neutral");
+      const response = await postJSON("/backup/api/v1/maintenance", {
         enabled,
         requested_by: "backup-console",
         reason
       });
-      document.getElementById("detailBlock").textContent = JSON.stringify(data, null, 2);
+      document.getElementById("maintenanceReasonInput").value = "";
+      state.selectedTaskId = null;
       await loadAll();
+      setStatus(enabled ? "维护模式已开启。" : "维护模式已关闭。", "success");
+      document.getElementById("detailBlock").textContent = JSON.stringify(response, null, 2);
     }
 
     async function createSnapshot() {
-      const relativePath = window.prompt("输入 namespace 相对路径，默认整个 namespace", "") || "";
-      const note = window.prompt("可选：输入快照备注", "") || "";
-      const data = await postJSON("/backup/api/v1/namespace/snapshots", {
-        requested_by: "backup-console",
-        relative_path: relativePath,
-        note
-      });
-      document.getElementById("detailBlock").textContent = JSON.stringify(data, null, 2);
-      await loadAll();
-    }
+      const resource = state.activeResource;
+      const note = document.getElementById("snapshotNoteInput").value.trim();
+      setStatus(`正在创建 ${resourceMeta[resource].label} 快照...`, "neutral");
 
-    async function restoreSnapshot() {
-      if (!state.selectedSnapshotId) {
-        window.alert("先在快照表里选中一个 snapshot。");
-        return;
+      let task;
+      if (resource === "namespace") {
+        const relativePath = document.getElementById("snapshotPathInput").value.trim();
+        task = await postJSON("/backup/api/v1/namespace/snapshots", {
+          requested_by: "backup-console",
+          note,
+          relative_path: relativePath
+        });
+      } else if (resource === "mysql") {
+        task = await postJSON("/backup/api/v1/mysql/snapshots", {
+          requested_by: "backup-console",
+          note
+        });
+      } else {
+        task = await postJSON("/backup/api/v1/minio/snapshots", {
+          requested_by: "backup-console",
+          note
+        });
       }
-      const note = window.prompt("可选：输入本次恢复备注", "") || "";
-      const data = await postJSON("/backup/api/v1/namespace/restore", {
-        requested_by: "backup-console",
-        snapshot_id: state.selectedSnapshotId,
-        note
-      });
-      document.getElementById("detailBlock").textContent = JSON.stringify(data, null, 2);
-      await loadAll();
-    }
 
-    async function createMySQLSnapshot() {
-      const note = window.prompt("可选：输入 MySQL 快照备注", "") || "";
-      const data = await postJSON("/backup/api/v1/mysql/snapshots", {
-        requested_by: "backup-console",
-        note
-      });
-      document.getElementById("detailBlock").textContent = JSON.stringify(data, null, 2);
-      await loadAll();
-    }
-
-    async function restoreMySQLSnapshot() {
-      if (!state.selectedMySQLSnapshotId) {
-        window.alert("先在 MySQL 快照表里选中一个 snapshot。");
-        return;
+      document.getElementById("snapshotNoteInput").value = "";
+      if (resource === "namespace") {
+        document.getElementById("snapshotPathInput").value = "";
       }
-      const note = window.prompt("可选：输入本次 MySQL 恢复备注", "") || "";
-      const data = await postJSON("/backup/api/v1/mysql/restore", {
-        requested_by: "backup-console",
-        snapshot_id: state.selectedMySQLSnapshotId,
-        note
-      });
-      document.getElementById("detailBlock").textContent = JSON.stringify(data, null, 2);
+      state.selectedTaskId = task.id;
       await loadAll();
+      setStatus(`${resourceMeta[resource].label} 快照已创建。`, "success");
     }
 
-    async function createMinIOSnapshot() {
-      const note = window.prompt("可选：输入 MinIO 快照备注", "") || "";
-      const data = await postJSON("/backup/api/v1/minio/snapshots", {
-        requested_by: "backup-console",
-        note
-      });
-      document.getElementById("detailBlock").textContent = JSON.stringify(data, null, 2);
-      await loadAll();
-    }
-
-    async function restoreMinIOSnapshot() {
-      if (!state.selectedMinIOSnapshotId) {
-        window.alert("先在 MinIO 快照表里选中一个 snapshot。");
-        return;
+    async function restoreSelectedSnapshot() {
+      const snapshot = selectedSnapshot();
+      if (!snapshot) {
+        throw new Error("请先在右侧列表选中一个快照。");
       }
-      const note = window.prompt("可选：输入本次 MinIO 恢复备注", "") || "";
-      const data = await postJSON("/backup/api/v1/minio/restore", {
-        requested_by: "backup-console",
-        snapshot_id: state.selectedMinIOSnapshotId,
-        note
-      });
-      document.getElementById("detailBlock").textContent = JSON.stringify(data, null, 2);
+
+      const resource = state.activeResource;
+      const note = document.getElementById("restoreNoteInput").value.trim();
+      setStatus(`正在恢复 ${resourceMeta[resource].label} 快照 #${snapshot.id}...`, "warning");
+
+      let task;
+      if (resource === "namespace") {
+        task = await postJSON("/backup/api/v1/namespace/restore", {
+          requested_by: "backup-console",
+          note,
+          snapshot_id: snapshot.id
+        });
+      } else if (resource === "mysql") {
+        task = await postJSON("/backup/api/v1/mysql/restore", {
+          requested_by: "backup-console",
+          note,
+          snapshot_id: snapshot.id
+        });
+      } else {
+        task = await postJSON("/backup/api/v1/minio/restore", {
+          requested_by: "backup-console",
+          note,
+          snapshot_id: snapshot.id
+        });
+      }
+
+      document.getElementById("restoreNoteInput").value = "";
+      state.selectedTaskId = task.id;
       await loadAll();
+      setStatus(`${resourceMeta[resource].label} 恢复任务 #${task.id} 已完成。`, "success");
     }
 
-    document.getElementById("refreshBtn").addEventListener("click", () => loadAll().catch(showError));
-    document.getElementById("runPrecheckBtn").addEventListener("click", () => runPrecheck().catch(showError));
-    document.getElementById("toggleMaintenanceBtn").addEventListener("click", () => toggleMaintenance().catch(showError));
-    document.getElementById("snapshotBtn").addEventListener("click", () => createSnapshot().catch(showError));
-    document.getElementById("restoreBtn").addEventListener("click", () => restoreSnapshot().catch(showError));
-    document.getElementById("mysqlSnapshotBtn").addEventListener("click", () => createMySQLSnapshot().catch(showError));
-    document.getElementById("mysqlRestoreBtn").addEventListener("click", () => restoreMySQLSnapshot().catch(showError));
-    document.getElementById("minioSnapshotBtn").addEventListener("click", () => createMinIOSnapshot().catch(showError));
-    document.getElementById("minioRestoreBtn").addEventListener("click", () => restoreMinIOSnapshot().catch(showError));
+    function bindEvents() {
+      document.getElementById("refreshBtn").addEventListener("click", () => loadAll().catch(showError));
+      document.getElementById("statusReloadBtn").addEventListener("click", () => loadAll().catch(showError));
+      document.getElementById("runPrecheckBtn").addEventListener("click", () => runPrecheck().catch(showError));
+      document.getElementById("toggleMaintenanceBtn").addEventListener("click", () => toggleMaintenance().catch(showError));
+      document.getElementById("createSnapshotBtn").addEventListener("click", () => createSnapshot().catch(showError));
+      document.getElementById("restoreSnapshotBtn").addEventListener("click", () => restoreSelectedSnapshot().catch(showError));
 
-    function showError(err) {
-      document.getElementById("detailBlock").textContent = err.stack || String(err);
+      document.querySelectorAll(".resource-tab").forEach(button => {
+        button.addEventListener("click", () => {
+          state.activeResource = button.dataset.resource;
+          render();
+        });
+      });
     }
 
+    function showError(error) {
+      document.getElementById("detailBlock").textContent = error.stack || String(error);
+      setStatus(error.message || String(error), "error");
+    }
+
+    bindEvents();
     loadAll().catch(showError);
+    setInterval(() => loadAll().catch(showError), 15000);
   </script>
 </body>
 </html>

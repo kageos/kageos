@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/msgx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/nats-io/nats.go"
 )
@@ -22,6 +21,7 @@ import (
 // 用于各服务实例获取和更新 License 密钥
 type Client struct {
 	natsConn            *nats.Conn
+	transport           *NATSTransport
 	encryptionKey       []byte
 	keyPath             string // 本地密钥文件路径
 	manager             *Manager
@@ -55,6 +55,7 @@ func NewClient(natsConn *nats.Conn, encryptionKey []byte, keyPath string) (*Clie
 
 	client := &Client{
 		natsConn:      natsConn,
+		transport:     NewNATSTransport(natsConn),
 		encryptionKey: encryptionKey,
 		keyPath:       keyPath,
 		manager:       GetManager(),
@@ -112,23 +113,11 @@ func (c *Client) loadLocalKey(ctx context.Context) error {
 	return c.setLicenseFromEncrypted(ctx, data)
 }
 
-// LicenseKeyRequestMessage License 密钥请求消息
-type LicenseKeyRequestMessage struct {
-	Request string `json:"request"` // 请求类型：license_key
-}
-
 // requestKey 通过 NATS 请求获取密钥
 func (c *Client) requestKey(ctx context.Context) error {
 	logger.Infof(ctx, "[License Client] Requesting license key from Control Service...")
 
-	// 构建请求消息
-	req := LicenseKeyRequestMessage{
-		Request: "license_key",
-	}
-
-	// 发送请求并等待响应（10秒超时）
-	var resp LicenseKeyMessage
-	_, err := msgx.RequestMsgWithTimeout(ctx, c.natsConn, subjects.ControlLicenseKeyGetQuerySubject, req, &resp, 10*time.Second)
+	resp, err := c.transport.RequestKey(ctx, 10*time.Second)
 	if err != nil {
 		return fmt.Errorf("failed to request license key: %w", err)
 	}
@@ -164,19 +153,9 @@ func (c *Client) requestKey(ctx context.Context) error {
 func (c *Client) subscribePush(ctx context.Context) error {
 	subject := subjects.LicenseKeyUpdatedEventSubject
 	logger.Infof(ctx, "[License Client] 准备订阅推送主题: %s", subject)
-
-	// 检查 NATS 连接状态
-	if c.natsConn == nil {
-		logger.Errorf(ctx, "[License Client] ❌ NATS connection is nil, cannot subscribe")
-		return fmt.Errorf("NATS connection is nil")
-	}
-	if !c.natsConn.IsConnected() {
-		logger.Errorf(ctx, "[License Client] ❌ NATS connection is not connected, cannot subscribe")
-		return fmt.Errorf("NATS connection is not connected")
-	}
 	logger.Infof(ctx, "[License Client] NATS 连接状态: Connected=%v, URL=%s", c.natsConn.IsConnected(), c.natsConn.ConnectedUrl())
 
-	sub, err := c.natsConn.Subscribe(subject, func(msg *nats.Msg) {
+	sub, err := c.transport.SubscribeKeyUpdates(func(msg *nats.Msg) {
 		logger.Infof(ctx, "[License Client] 收到推送主题消息: %s, 数据长度: %d 字节", subject, len(msg.Data))
 		c.handlePush(ctx, msg)
 	})
@@ -246,19 +225,9 @@ func (c *Client) handlePush(ctx context.Context, msg *nats.Msg) {
 func (c *Client) subscribeRefresh(ctx context.Context) error {
 	subject := subjects.LicenseKeyRefreshEventSubject
 	logger.Infof(ctx, "[License Client] 准备订阅刷新指令主题: %s", subject)
-
-	// 检查 NATS 连接状态
-	if c.natsConn == nil {
-		logger.Errorf(ctx, "[License Client] ❌ NATS connection is nil, cannot subscribe")
-		return fmt.Errorf("NATS connection is nil")
-	}
-	if !c.natsConn.IsConnected() {
-		logger.Errorf(ctx, "[License Client] ❌ NATS connection is not connected, cannot subscribe")
-		return fmt.Errorf("NATS connection is not connected")
-	}
 	logger.Infof(ctx, "[License Client] NATS 连接状态: Connected=%v, URL=%s", c.natsConn.IsConnected(), c.natsConn.ConnectedUrl())
 
-	sub, err := c.natsConn.Subscribe(subject, func(msg *nats.Msg) {
+	sub, err := c.transport.SubscribeRefreshInstructions(func(msg *nats.Msg) {
 		logger.Infof(ctx, "[License Client] 收到刷新指令主题消息: %s, 数据长度: %d 字节", subject, len(msg.Data))
 		c.handleRefresh(ctx, msg)
 	})
@@ -273,14 +242,6 @@ func (c *Client) subscribeRefresh(ctx context.Context) error {
 
 	logger.Infof(ctx, "[License Client] ✅ 成功订阅刷新指令主题: %s", subject)
 	return nil
-}
-
-// LicenseInstructionMessage License 指令消息（用于刷新和注销）
-type LicenseInstructionMessage struct {
-	Action           string `json:"action"`                      // 指令类型：refresh（刷新）、deactivate（注销）
-	Timestamp        int64  `json:"timestamp"`                   // 时间戳
-	EncryptedLicense string `json:"encrypted_license,omitempty"` // 加密的 License（Base64 编码，可选，refresh 时携带）
-	Algorithm        string `json:"algorithm,omitempty"`         // 加密算法（如 "aes-256-gcm"，可选）
 }
 
 // handleRefresh 处理刷新指令（备用方案）
@@ -474,11 +435,4 @@ func (c *Client) Stop(ctx context.Context) error {
 
 	logger.Infof(ctx, "[License Client] License client stopped")
 	return nil
-}
-
-// LicenseKeyMessage License 密钥消息
-type LicenseKeyMessage struct {
-	EncryptedLicense string `json:"encrypted_license"` // 加密的 License（Base64 编码）
-	Algorithm        string `json:"algorithm"`         // 加密算法（如 "aes-256-gcm"）
-	Timestamp        int64  `json:"timestamp"`         // 时间戳
 }

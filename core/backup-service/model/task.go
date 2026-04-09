@@ -16,6 +16,7 @@ const (
 	TaskTypeMySQLRestore      = "mysql_restore"
 	TaskTypeMinIOSnapshot     = "minio_snapshot"
 	TaskTypeMinIORestore      = "minio_restore"
+	TaskTypeSnapshotDelete    = "snapshot_delete"
 
 	TaskStatusPending   = "pending"
 	TaskStatusRunning   = "running"
