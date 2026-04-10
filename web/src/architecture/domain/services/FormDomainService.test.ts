@@ -116,4 +116,73 @@ describe('FormDomainService nested validation', () => {
     expect(stateManager.getState().response).toBeNull()
     expect(stateManager.getState().metadata).toBeNull()
   })
+
+  it('clears top-level dependent fields and nested subtrees on update', () => {
+    const stateManager = new FormStateManager()
+    const service = new FormDomainService(stateManager as any, createEventBus())
+
+    const fields = [
+      {
+        code: 'topic_id',
+        name: '主题',
+        widget: { type: 'input' },
+      },
+      {
+        code: 'option_ids',
+        name: '选项',
+        widget: { type: 'multiselect' },
+        depend_on: 'topic_id',
+      },
+      {
+        code: 'advanced',
+        name: '高级设置',
+        widget: { type: 'form' },
+        depend_on: 'topic_id',
+        children: [
+          {
+            code: 'note',
+            name: '备注',
+            widget: { type: 'input' },
+          },
+        ],
+      },
+    ] as any
+
+    service.setFields(fields)
+    stateManager.setState({
+      data: new Map([
+        ['topic_id', { raw: 't1', display: 't1', meta: {} }],
+        ['option_ids', { raw: ['o1'], display: 'o1', meta: { preserved: true } }],
+        ['advanced', { raw: { note: 'old' }, display: '{"note":"old"}', meta: { preserved: true } }],
+        ['advanced.note', { raw: 'old', display: 'old', meta: {} }],
+      ]),
+      errors: new Map([
+        ['option_ids', [{ message: 'old error' }]],
+        ['advanced.note', [{ message: 'old nested error' }]],
+      ]),
+      submitting: false,
+      response: null,
+      metadata: null
+    } as any)
+
+    service.updateFieldValue('topic_id', { raw: 't2', display: 't2', meta: {} } as any)
+
+    expect(stateManager.getValue('option_ids')).toEqual({
+      raw: null,
+      display: '',
+      dataType: undefined,
+      widgetType: 'multiselect',
+      meta: { preserved: true },
+    })
+    expect(stateManager.getValue('advanced')).toEqual({
+      raw: {},
+      display: '',
+      dataType: undefined,
+      widgetType: 'form',
+      meta: { preserved: true },
+    })
+    expect(useFormDataStore().getAllFieldPaths()).not.toContain('advanced.note')
+    expect(service.getFieldError('option_ids')).toEqual([])
+    expect(service.getFieldError('advanced.note')).toEqual([])
+  })
 })

@@ -22,10 +22,14 @@
   追踪版本级流量，辅助旧版本安全关闭。
 - `container_service.go`
   容器运行时适配。
-- `create_function_service.go`
-  新应用初始化时的函数脚手架生成。
+- `workspace_file_service.go`
+  工作区源码文件服务，负责源码文件读写、替换、删除和回滚。
+- `workspace_file_write_executor.go`
+  文件写盘与回滚执行器，供工作区源码文件服务复用。
+- `package_scaffold_service.go`
+  package 目录脚手架服务，负责目录创建删除、`init_.go` 维护和 `main.go` import 同步。
 - `service_tree_service.go`
-  目录树相关服务能力。
+  工作区变更编排入口，组合目录脚手架、文件写入和发布能力；对外仍保留 `ServiceTreeService` 兼容别名。
 
 ## 版本元数据
 

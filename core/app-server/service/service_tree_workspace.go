@@ -51,36 +51,28 @@ func (s *ServiceTreeService) GetWorkspaceContext(ctx context.Context, req *dto.G
 
 	var files []dto.WorkspaceContextFile
 	if detail.AppID > 0 {
-		appModel, errApp := s.appRepo.GetAppByID(detail.AppID)
-		if errApp == nil && appModel != nil && appModel.HostID > 0 {
-			runtimeReq := &dto.ReadDirectoryFilesRuntimeReq{
-				User:          appModel.User,
-				App:           appModel.Code,
-				DirectoryPath: req.FullCodePath,
-			}
-			runtimeResp, errRt := s.appCall.ReadDirectoryFiles(ctx, appModel.HostID, runtimeReq)
-			if errRt == nil && runtimeResp != nil && runtimeResp.Success {
-				files = make([]dto.WorkspaceContextFile, 0, len(runtimeResp.Files))
-				for _, f := range runtimeResp.Files {
-					lineCount := 0
-					if f.Content != "" {
-						lines := strings.Split(f.Content, "\n")
-						lineCount = len(lines)
-						if lineCount > 0 && lines[lineCount-1] == "" {
-							lineCount--
-						}
+		_, runtimeResp, errRt := s.runtimeWorkspace.readDirectoryFiles(ctx, detail.AppID, req.FullCodePath)
+		if errRt == nil && runtimeResp != nil && runtimeResp.Success {
+			files = make([]dto.WorkspaceContextFile, 0, len(runtimeResp.Files))
+			for _, f := range runtimeResp.Files {
+				lineCount := 0
+				if f.Content != "" {
+					lines := strings.Split(f.Content, "\n")
+					lineCount = len(lines)
+					if lineCount > 0 && lines[lineCount-1] == "" {
+						lineCount--
 					}
-					files = append(files, dto.WorkspaceContextFile{
-						FileName:      f.FileName,
-						RelativePath:  f.RelativePath,
-						FileType:      "go",
-						Content:       f.Content,
-						ContentLength: len(f.Content),
-						LineCount:     lineCount,
-					})
 				}
-				logger.Infof(ctx, "[GetWorkspaceContext] 从 runtime 读取目录文件: fullCodePath=%s, fileCount=%d", req.FullCodePath, len(files))
+				files = append(files, dto.WorkspaceContextFile{
+					FileName:      f.FileName,
+					RelativePath:  f.RelativePath,
+					FileType:      "go",
+					Content:       f.Content,
+					ContentLength: len(f.Content),
+					LineCount:     lineCount,
+				})
 			}
+			logger.Infof(ctx, "[GetWorkspaceContext] 从 runtime 读取目录文件: fullCodePath=%s, fileCount=%d", req.FullCodePath, len(files))
 		}
 		if files == nil {
 			files = []dto.WorkspaceContextFile{}
@@ -119,12 +111,9 @@ func (s *ServiceTreeService) ReplaceFileContent(ctx context.Context, req *dto.Re
 	if detail.AppID <= 0 {
 		return nil, fmt.Errorf("该目录不属于应用，无法替换文件")
 	}
-	appModel, err := s.appRepo.GetAppByID(detail.AppID)
-	if err != nil || appModel == nil {
-		return nil, fmt.Errorf("获取应用失败: %w", err)
-	}
-	if appModel.HostID <= 0 {
-		return nil, fmt.Errorf("应用未关联 runtime，无法替换文件")
+	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(detail.AppID, "替换文件")
+	if err != nil {
+		return nil, err
 	}
 	items := make([]dto.ReplaceItemRuntime, 0, len(req.Replacements))
 	for _, r := range req.Replacements {
@@ -147,7 +136,7 @@ func (s *ServiceTreeService) ReplaceFileContent(ctx context.Context, req *dto.Re
 		AllOrNothing:      allOrNothing,
 		ReturnFullContent: req.ReturnFullContent,
 	}
-	resp, err := s.appCall.ReplaceInFileBatch(ctx, appModel.HostID, runtimeReq)
+	resp, err := s.runtimeWorkspace.replaceInFileBatch(ctx, appModel, runtimeReq)
 	if err != nil {
 		return nil, fmt.Errorf("替换文件失败: %w", err)
 	}
@@ -174,12 +163,9 @@ func (s *ServiceTreeService) DeleteFile(ctx context.Context, req *dto.DeleteFile
 	if detail.AppID <= 0 {
 		return nil, fmt.Errorf("该目录不属于应用")
 	}
-	appModel, err := s.appRepo.GetAppByID(detail.AppID)
-	if err != nil || appModel == nil {
-		return nil, fmt.Errorf("获取应用失败: %w", err)
-	}
-	if appModel.HostID <= 0 {
-		return nil, fmt.Errorf("该应用未绑定 runtime，无法删除文件")
+	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(detail.AppID, "删除文件")
+	if err != nil {
+		return nil, err
 	}
 	runtimeReq := &dto.DeleteFileRuntimeReq{
 		User:          appModel.User,
@@ -187,7 +173,7 @@ func (s *ServiceTreeService) DeleteFile(ctx context.Context, req *dto.DeleteFile
 		DirectoryPath: req.FullCodePath,
 		FileName:      req.FileName,
 	}
-	_, err = s.appCall.DeleteFile(ctx, appModel.HostID, runtimeReq)
+	_, err = s.runtimeWorkspace.deleteFile(ctx, appModel, runtimeReq)
 	if err != nil {
 		logger.Warnf(ctx, "[DeleteFile] runtime 删文件失败: %v", err)
 		return nil, fmt.Errorf("删除文件失败: %w", err)
@@ -204,12 +190,9 @@ func (s *ServiceTreeService) ReadAppLog(ctx context.Context, req *dto.ReadAppLog
 	if detail.AppID <= 0 {
 		return nil, fmt.Errorf("该目录不属于应用")
 	}
-	appModel, err := s.appRepo.GetAppByID(detail.AppID)
-	if err != nil || appModel == nil {
-		return nil, fmt.Errorf("获取应用失败: %w", err)
-	}
-	if appModel.HostID <= 0 {
-		return nil, fmt.Errorf("该应用未绑定 runtime，无法读取日志")
+	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(detail.AppID, "读取日志")
+	if err != nil {
+		return nil, err
 	}
 
 	version := strings.TrimSpace(req.Version)
@@ -226,7 +209,7 @@ func (s *ServiceTreeService) ReadAppLog(ctx context.Context, req *dto.ReadAppLog
 		MaxMatches:   req.MaxMatches,
 		IgnoreCase:   req.IgnoreCase,
 	}
-	resp, err := s.appCall.ReadAppLog(ctx, appModel.HostID, runtimeReq)
+	resp, err := s.runtimeWorkspace.readAppLog(ctx, appModel, runtimeReq)
 	if err != nil {
 		return nil, fmt.Errorf("读取日志失败: %w", err)
 	}

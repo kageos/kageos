@@ -118,6 +118,9 @@ func (r *OperateLogRepository) GetFormOperateLogs(ctx context.Context, req *dto.
 	case "failed":
 		query = query.Where("code <> ?", 0)
 	}
+	if req.TraceID != "" {
+		query = query.Where("trace_id = ?", req.TraceID)
+	}
 	if req.Keyword != "" {
 		like := "%" + req.Keyword + "%"
 		query = query.Where(

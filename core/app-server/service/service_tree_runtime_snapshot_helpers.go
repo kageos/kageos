@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
@@ -77,15 +77,22 @@ func getDirectoryFilesFromRuntimeRecursivelyImpl(
 	appID int64,
 	rootDirectoryPath string,
 ) (map[string][]*model.FileSnapshot, error) {
-	app, err := s.appRepo.GetAppByID(appID)
+	return readDirectoryFilesFromRuntimeRecursively(ctx, s.serviceTreeRepo, s.runtimeWorkspace, appID, rootDirectoryPath)
+}
+
+func readDirectoryFilesFromRuntimeRecursively(
+	ctx context.Context,
+	serviceTreeRepo *repository.ServiceTreeRepository,
+	runtimeWorkspace *runtimeWorkspaceBridge,
+	appID int64,
+	rootDirectoryPath string,
+) (map[string][]*model.FileSnapshot, error) {
+	app, err := runtimeWorkspace.getRuntimeBoundAppByID(appID, "读取目录文件")
 	if err != nil {
-		return nil, fmt.Errorf("获取应用失败: %w", err)
-	}
-	if app.HostID <= 0 {
-		return nil, fmt.Errorf("应用未关联 runtime，无法读取目录文件")
+		return nil, err
 	}
 
-	rootTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(rootDirectoryPath)
+	rootTree, err := serviceTreeRepo.GetServiceTreeByFullPath(rootDirectoryPath)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			logger.Warnf(ctx, "[ServiceTreeService] 根目录节点不存在: path=%s", rootDirectoryPath)
@@ -94,7 +101,7 @@ func getDirectoryFilesFromRuntimeRecursivelyImpl(
 		return nil, fmt.Errorf("获取根目录节点失败: %w", err)
 	}
 
-	descendants, err := s.serviceTreeRepo.GetDescendantDirectories(appID, rootDirectoryPath)
+	descendants, err := serviceTreeRepo.GetDescendantDirectories(appID, rootDirectoryPath)
 	if err != nil {
 		return nil, fmt.Errorf("查询子目录失败: %w", err)
 	}
@@ -109,12 +116,7 @@ func getDirectoryFilesFromRuntimeRecursivelyImpl(
 	}
 
 	for _, tree := range allTrees {
-		runtimeReq := &dto.ReadDirectoryFilesRuntimeReq{
-			User:          app.User,
-			App:           app.Code,
-			DirectoryPath: tree.FullCodePath,
-		}
-		runtimeResp, err := s.appCall.ReadDirectoryFiles(ctx, app.HostID, runtimeReq)
+		runtimeResp, err := runtimeWorkspace.readDirectoryFilesFromApp(ctx, app, tree.FullCodePath)
 		if err != nil {
 			return nil, fmt.Errorf("从 runtime 读取目录文件失败 path=%s: %w", tree.FullCodePath, err)
 		}

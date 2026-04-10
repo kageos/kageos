@@ -9,12 +9,16 @@ import (
 
 // WorkspaceHandler 处理工作区文件/目录相关的 NATS 请求（读目录、replace、删文件）
 type WorkspaceHandler struct {
-	appManageService *service.AppManageService
+	appManageService     *service.AppManageService
+	workspaceFileService *service.WorkspaceFileService
 }
 
 // NewWorkspaceHandler 创建 Workspace 处理器（依赖注入）
-func NewWorkspaceHandler(appManageService *service.AppManageService) *WorkspaceHandler {
-	return &WorkspaceHandler{appManageService: appManageService}
+func NewWorkspaceHandler(appManageService *service.AppManageService, workspaceFileService *service.WorkspaceFileService) *WorkspaceHandler {
+	return &WorkspaceHandler{
+		appManageService:     appManageService,
+		workspaceFileService: workspaceFileService,
+	}
 }
 
 // HandleReadDirectoryFiles 处理读取目录文件请求
@@ -25,7 +29,7 @@ func (h *WorkspaceHandler) HandleReadDirectoryFiles(msg *nats.Msg) {
 		return
 	}
 	logger.Infof(ctx, "[HandleReadDirectoryFiles] user=%s, app=%s, path=%s", req.User, req.App, req.DirectoryPath)
-	files, err := h.appManageService.ReadDirectoryFiles(ctx, req.User, req.App, req.DirectoryPath)
+	files, err := h.workspaceFileService.ReadDirectoryFiles(ctx, req.User, req.App, req.DirectoryPath)
 	if err != nil {
 		logger.Errorf(ctx, "[HandleReadDirectoryFiles] Failed: %v", err)
 		respondFailure(ctx, msg, "HandleReadDirectoryFiles", err)
@@ -46,7 +50,7 @@ func (h *WorkspaceHandler) HandleReplaceInFileBatch(msg *nats.Msg) {
 		return
 	}
 	allOrNothing := req.AllOrNothing
-	totalCount, fullContent, details, err := h.appManageService.ReplaceInFileBatch(ctx, req.User, req.App, req.DirectoryPath, req.FileName, req.Replacements, allOrNothing, req.ReturnFullContent)
+	totalCount, fullContent, details, err := h.workspaceFileService.ReplaceInFileBatch(ctx, req.User, req.App, req.DirectoryPath, req.FileName, req.Replacements, allOrNothing, req.ReturnFullContent)
 	if err != nil {
 		resp := dto.ReplaceInFileBatchResp{Success: false, Message: err.Error(), Details: details}
 		respondSuccess(ctx, msg, "HandleReplaceInFileBatch", resp)
@@ -69,7 +73,7 @@ func (h *WorkspaceHandler) HandleDeleteFile(msg *nats.Msg) {
 	if !ok {
 		return
 	}
-	err := h.appManageService.DeleteFile(ctx, req.User, req.App, req.DirectoryPath, req.FileName)
+	err := h.workspaceFileService.DeleteFile(ctx, req.User, req.App, req.DirectoryPath, req.FileName)
 	if err != nil {
 		logger.Errorf(ctx, "[HandleDeleteFile] Failed: %v", err)
 		respondFailure(ctx, msg, "HandleDeleteFile", err)

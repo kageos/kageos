@@ -30,6 +30,7 @@ type GetFormOperateLogsReq struct {
 	Action       string `json:"action" form:"action"`                 // 操作类型：request_app, form_submit
 	Source       string `json:"source" form:"source"`                 // 来源：browser, scheduled_task, agent, api
 	Status       string `json:"status" form:"status"`                 // 结果状态：success, failed
+	TraceID      string `json:"trace_id" form:"trace_id"`             // 追踪ID（精确匹配）
 	Keyword      string `json:"keyword" form:"keyword"`               // 关键字搜索（请求用户、版本、错误、请求/响应内容）
 	Page         int    `json:"page" form:"page"`                     // 页码（从1开始）
 	PageSize     int    `json:"page_size" form:"page_size"`           // 每页数量

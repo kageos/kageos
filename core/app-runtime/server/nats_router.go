@@ -14,7 +14,7 @@ import (
 // subject 真值统一放在 pkg/subjects，这里只做路由装配。
 func RegisterNATS(ctx context.Context, conn *nats.Conn, subs *[]*nats.Subscription,
 	appH *v1.AppHandler,
-	serviceTreeH *v1.ServiceTreeHandler,
+	workspaceChangeH *v1.WorkspaceChangeHandler,
 	workspaceH *v1.WorkspaceHandler,
 	requestH *v1.RequestHandler,
 ) error {
@@ -40,26 +40,20 @@ func RegisterNATS(ctx context.Context, conn *nats.Conn, subs *[]*nats.Subscripti
 	}
 	*subs = append(*subs, sub)
 
-	// ---------- ServiceTree ----------
-	sub, err = conn.QueueSubscribe(subjects.RuntimeServiceTreeCreateCommandSubject, subjects.RuntimeServiceTreeCreateQueueGroup, serviceTreeH.HandleServiceTreeCreate)
-	if err != nil {
-		return fmt.Errorf("subscribe service tree create: %w", err)
-	}
-	*subs = append(*subs, sub)
-
-	sub, err = conn.QueueSubscribe(subjects.RuntimeServiceTreeDeleteCommandSubject, subjects.RuntimeServiceTreeDeleteQueueGroup, serviceTreeH.HandleServiceTreeDelete)
+	// ---------- Workspace Changes ----------
+	sub, err = conn.QueueSubscribe(subjects.RuntimeServiceTreeDeleteCommandSubject, subjects.RuntimeServiceTreeDeleteQueueGroup, workspaceChangeH.HandleServiceTreeDelete)
 	if err != nil {
 		return fmt.Errorf("subscribe service tree delete: %w", err)
 	}
 	*subs = append(*subs, sub)
 
-	sub, err = conn.QueueSubscribe(subjects.RuntimeDirectoryTreeBatchCreateCommandSubject, subjects.RuntimeDirectoryTreeBatchCreateQueueGroup, serviceTreeH.HandleBatchCreateDirectoryTree)
+	sub, err = conn.QueueSubscribe(subjects.RuntimeDirectoryTreeBatchCreateCommandSubject, subjects.RuntimeDirectoryTreeBatchCreateQueueGroup, workspaceChangeH.HandleBatchCreateDirectoryTree)
 	if err != nil {
 		return fmt.Errorf("subscribe batch create directory tree: %w", err)
 	}
 	*subs = append(*subs, sub)
 
-	sub, err = conn.QueueSubscribe(subjects.RuntimeFileBatchWriteCommandSubject, subjects.RuntimeFileBatchWriteQueueGroup, serviceTreeH.HandleBatchWriteFiles)
+	sub, err = conn.QueueSubscribe(subjects.RuntimeFileBatchWriteCommandSubject, subjects.RuntimeFileBatchWriteQueueGroup, workspaceChangeH.HandleBatchWriteFiles)
 	if err != nil {
 		return fmt.Errorf("subscribe batch write files: %w", err)
 	}

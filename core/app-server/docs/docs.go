@@ -358,7 +358,7 @@ const docTemplate = `{
                 "summary": "更新应用",
                 "parameters": [
                     {
-                        "description": "CreateFunctions、SkipBuild 等",
+                        "description": "SourceFiles、WriteOnly 等",
                         "name": "body",
                         "in": "body",
                         "schema": {
@@ -1694,6 +1694,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "结果状态：success, failed",
                         "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "追踪ID（精确匹配）",
+                        "name": "trace_id",
                         "in": "query"
                     },
                     {
@@ -5194,23 +5200,6 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.CreateFunctionInfo": {
-            "type": "object",
-            "properties": {
-                "directory_path": {
-                    "description": "目标目录路径（相对于 code/api，如 \"crm\" 或 \"plugins/cashier\"）",
-                    "type": "string"
-                },
-                "file_name": {
-                    "description": "文件名（不含 .go 扩展名）",
-                    "type": "string"
-                },
-                "source_code": {
-                    "description": "源代码内容",
-                    "type": "string"
-                }
-            }
-        },
         "dto.CreateFunctionReq": {
             "type": "object",
             "required": [
@@ -7205,6 +7194,23 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.SourceFileWrite": {
+            "type": "object",
+            "properties": {
+                "directory_path": {
+                    "description": "目标目录路径（相对于 code/api，如 \"crm\" 或 \"plugins/cashier\"）",
+                    "type": "string"
+                },
+                "file_name": {
+                    "description": "文件名（不含 .go 扩展名）",
+                    "type": "string"
+                },
+                "source_code": {
+                    "description": "源代码内容",
+                    "type": "string"
+                }
+            }
+        },
         "dto.UpdateAppReq": {
             "type": "object",
             "properties": {
@@ -7217,10 +7223,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "create_functions": {
-                    "description": "可选的新建函数列表（如果有，先执行创建函数再更新）",
+                    "description": "兼容旧字段：历史命名为创建函数，实际语义为写入源码文件",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/dto.CreateFunctionInfo"
+                        "$ref": "#/definitions/dto.SourceFileWrite"
                     }
                 },
                 "requirement": {
@@ -7232,8 +7238,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "skip_build": {
-                    "description": "为 true 时仅执行写文件（CreateFunctions），不编译不部署",
+                    "description": "兼容旧字段：等价于 write_only",
                     "type": "boolean"
+                },
+                "source_files": {
+                    "description": "推荐字段：本次需要写入的源码文件列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.SourceFileWrite"
+                    }
                 },
                 "summary": {
                     "description": "变更摘要（详情），兼容旧字段，如果未提供则使用 Requirement + ChangeDescription 组合",
@@ -7242,6 +7255,10 @@ const docTemplate = `{
                 "user": {
                     "description": "租户用户名（兼容字段，优先从 resource_path 解析）",
                     "type": "string"
+                },
+                "write_only": {
+                    "description": "为 true 时仅写文件不编译不部署",
+                    "type": "boolean"
                 }
             }
         },

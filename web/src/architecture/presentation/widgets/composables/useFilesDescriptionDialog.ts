@@ -7,12 +7,10 @@ interface UseFilesDescriptionDialogOptions {
 }
 
 export function useFilesDescriptionDialog(options: UseFilesDescriptionDialogOptions) {
-  const descriptionDialogVisible = ref(false)
   const editingDescriptionIndex = ref<number>(-1)
   const editingDescription = ref<string>('')
 
-  function resetDialog(): void {
-    descriptionDialogVisible.value = false
+  function resetEditingState(): void {
     editingDescriptionIndex.value = -1
     editingDescription.value = ''
   }
@@ -22,31 +20,38 @@ export function useFilesDescriptionDialog(options: UseFilesDescriptionDialogOpti
     if (index < 0 || index >= currentFilesList.length) {
       return
     }
+    if (editingDescriptionIndex.value === index) {
+      resetEditingState()
+      return
+    }
     const file = currentFilesList[index]
     if (!file) {
       return
     }
     editingDescriptionIndex.value = index
     editingDescription.value = file.description || ''
-    descriptionDialogVisible.value = true
+  }
+
+  function updateEditingDescription(value: string): void {
+    editingDescription.value = value
   }
 
   function handleSaveDescription(): void {
     if (editingDescriptionIndex.value >= 0) {
       options.handleUpdateDescription(editingDescriptionIndex.value, editingDescription.value)
     }
-    resetDialog()
+    resetEditingState()
   }
 
   function handleCancelDescription(): void {
-    resetDialog()
+    resetEditingState()
   }
 
   return {
-    descriptionDialogVisible,
     editingDescriptionIndex,
     editingDescription,
     handleEditDescription,
+    updateEditingDescription,
     handleSaveDescription,
     handleCancelDescription,
   }

@@ -289,24 +289,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { Plus, MoreFilled, CopyDocument, Document, Clock, Upload, Download, Delete, Key, User, DocumentChecked, Edit, ChatDotRound, ChatDotSquare, Search } from '@element-plus/icons-vue'
+import { computed, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
+import { Plus, MoreFilled, CopyDocument, Document, Upload, Download, Delete, Key, DocumentChecked, Edit, ChatDotRound, ChatDotSquare, Search } from '@element-plus/icons-vue'
 import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/shared/components/icons/TableIcon.vue'
 import FormIcon from '@/shared/components/icons/FormIcon.vue'
-import { ElTag, ElLink, ElMessageBox, ElMessage, ElNotification } from 'element-plus'
+import { ElMessageBox, ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import { isRootNode } from '@/utils/tree-utils'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
-import { copyDirectory, updatePackage, updateServiceTreeFunction, updateDocs } from '@/api/service-tree'
-import {
-  findPathToNode,
-  expandParentNodes,
-  findNodeByPath,
-  expandPathAndSelect,
-  expandPathOnly
-} from '@/utils/serviceTreeUtils'
+import { updatePackage, updateServiceTreeFunction, updateDocs } from '@/api/service-tree'
 import { 
   hasPermission, 
   hasAnyPermissionForNode, 
@@ -318,6 +311,8 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { eventBus, RouteEvent } from '@/architecture/infrastructure/eventBus'
 import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
+import { useServiceTreeClipboard } from '../composables/useServiceTreeClipboard'
+import { useServiceTreeSearchExpand } from '../composables/useServiceTreeSearchExpand'
 
 interface Props {
   treeData: ServiceTree[]
@@ -348,88 +343,37 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const router = useRouter()
-const route = useRoute()
 
 // 获取当前用户信息
 const authStore = useAuthStore()
 
-// el-tree 的引用
-const treeRef = ref()
+const {
+  treeRef,
+  groupedTreeData,
+  searchKeyword,
+  filterNodeMethod,
+  defaultExpandedKeysWithWorkspace,
+  expandedKeysState,
+  treeKey,
+  expandPaths
+} = useServiceTreeSearchExpand({
+  treeData: computed(() => props.treeData),
+  expandedKeys: computed(() => props.expandedKeys)
+})
 
-// 复制粘贴相关状态
-const copiedDirectory = ref<ServiceTree | null>(null)  // 复制的目录信息（本地目录）
-const copiedHubLink = ref<string | null>(null)  // 复制的 Hub 链接
-const isPasting = ref(false)  // 是否正在粘贴
-
-// localStorage 键名
-const COPIED_DIRECTORY_KEY = 'copied_directory'
-const COPIED_HUB_LINK_KEY = 'copied_hub_link'
-
-// 从 localStorage 恢复复制的目录或 Hub 链接
-const restoreCopiedDirectory = () => {
-  try {
-    // 恢复本地目录
-    const saved = localStorage.getItem(COPIED_DIRECTORY_KEY)
-    if (saved) {
-      const parsed = JSON.parse(saved)
-      // 验证数据格式
-      if (parsed && parsed.full_code_path && parsed.name) {
-        copiedDirectory.value = parsed as ServiceTree
-      } else {
-        localStorage.removeItem(COPIED_DIRECTORY_KEY)
-      }
-    }
-    
-    // 恢复 Hub 链接
-    const savedHubLink = localStorage.getItem(COPIED_HUB_LINK_KEY)
-    if (savedHubLink && savedHubLink.startsWith('hub://')) {
-      copiedHubLink.value = savedHubLink
-    } else if (savedHubLink) {
-      localStorage.removeItem(COPIED_HUB_LINK_KEY)
-    }
-  } catch (error) {
-    console.error('恢复复制的目录失败:', error)
-    localStorage.removeItem(COPIED_DIRECTORY_KEY)
-    localStorage.removeItem(COPIED_HUB_LINK_KEY)
+const {
+  copiedDirectory,
+  copiedHubLink,
+  handleCopy,
+  handlePaste
+} = useServiceTreeClipboard({
+  treeData: groupedTreeData,
+  currentFunction: computed(() => props.currentFunction),
+  currentNodeId: computed(() => props.currentNodeId),
+  onRefreshTree: () => emit('refresh-tree'),
+  onPullFromHub: (initialLink, targetFullCodePath, targetName) => {
+    emit('pull-from-hub', initialLink, targetFullCodePath, targetName)
   }
-}
-
-// 保存复制的目录到 localStorage
-const saveCopiedDirectory = (node: ServiceTree) => {
-  try {
-    // 只保存必要的字段，避免存储过多数据
-    const dataToSave = {
-      id: node.id,
-      name: node.name,
-      full_code_path: node.full_code_path,
-      app_id: node.app_id,
-      type: node.type
-    }
-    localStorage.setItem(COPIED_DIRECTORY_KEY, JSON.stringify(dataToSave))
-    // 清除 Hub 链接（如果存在）
-    copiedHubLink.value = null
-    localStorage.removeItem(COPIED_HUB_LINK_KEY)
-  } catch (error) {
-    console.error('保存复制的目录失败:', error)
-  }
-}
-
-// 保存复制的 Hub 链接到 localStorage
-const saveCopiedHubLink = (hubLink: string) => {
-  try {
-    localStorage.setItem(COPIED_HUB_LINK_KEY, hubLink)
-    // 清除本地目录（如果存在）
-    copiedDirectory.value = null
-    localStorage.removeItem(COPIED_DIRECTORY_KEY)
-  } catch (error) {
-    console.error('保存复制的 Hub 链接失败:', error)
-  }
-}
-
-// 组件挂载时恢复复制的目录
-onMounted(() => {
-  restoreCopiedDirectory()
-  window.addEventListener('keydown', handleKeyDown)
 })
 
 // 重命名目录
@@ -488,483 +432,6 @@ const handleRename = async (node: ServiceTree) => {
     // 用户取消了输入
   }
 }
-
-// 在树中按 id 查找节点（复制/粘贴都用，保证 full_code_path、app_id 来自树数据）
-function findNodeByIdInTree(nodes: ServiceTree[], id: number | string): ServiceTree | null {
-  for (const node of nodes) {
-    if (Number(node.id) === Number(id)) return node
-    if (node.children?.length) {
-      const found = findNodeByIdInTree(node.children, id)
-      if (found) return found
-    }
-  }
-  return null
-}
-
-// 复制目录（必须用树里解析出的节点，否则 full_code_path 可能为空）
-const handleCopy = (node: ServiceTree) => {
-  if (node.type !== 'package') {
-    ElMessage.warning('只能复制目录（package类型）')
-    return
-  }
-  const treeData = props.treeData
-  const resolved = treeData.length && node.id != null
-    ? findNodeByIdInTree(treeData, node.id)
-    : null
-  const toCopy = (resolved?.type === 'package' && resolved.full_code_path)
-    ? resolved
-    : node
-  if (!toCopy.full_code_path) {
-    ElMessage.warning('无法获取目录路径，请刷新树后重试')
-    return
-  }
-  copiedDirectory.value = toCopy
-  saveCopiedDirectory(toCopy)
-  ElMessage.success(`已复制目录：${toCopy.name}`)
-}
-
-  // 粘贴目录（使用当前选中的目录作为目标）
-  // 支持两种模式：
-  // 1. 粘贴本地复制的目录
-  // 2. 粘贴 Hub 链接（从剪贴板检测或已保存的 Hub 链接）
-  const handlePaste = async (targetNode?: ServiceTree) => {
-    // 首先检查剪贴板是否有 Hub 链接
-    let hubLinkToPaste: string | null = null
-    let clipboardReadFailed = false
-    try {
-      const clipboardText = await navigator.clipboard.readText()
-      if (clipboardText && clipboardText.trim().startsWith('hub://')) {
-        hubLinkToPaste = clipboardText.trim()
-        // 保存到 localStorage
-        saveCopiedHubLink(hubLinkToPaste)
-        copiedHubLink.value = hubLinkToPaste
-      }
-    } catch {
-      // 剪贴板访问失败（如右键菜单、跨页无权限），不能假定用户要粘贴的是本地目录
-      clipboardReadFailed = true
-    }
-    
-    // 如果剪贴板没有 Hub 链接，检查已保存的 Hub 链接
-    if (!hubLinkToPaste && copiedHubLink.value) {
-      hubLinkToPaste = copiedHubLink.value
-    }
-    
-    // 有 Hub 链接：统一走弹窗（预填链接 + 当前选中目录）
-    if (hubLinkToPaste) {
-      let targetForHub = targetNode
-      if (!targetForHub && props.currentFunction && props.currentFunction.type === 'package') {
-        targetForHub = props.currentFunction
-      }
-      if (!targetForHub && props.currentNodeId) {
-        const findNodeById = (nodes: ServiceTree[], id: number | string): ServiceTree | null => {
-          for (const node of nodes) {
-            if (Number(node.id) === Number(id)) return node
-            if (node.children?.length) {
-              const found = findNodeById(node.children, id)
-              if (found) return found
-            }
-          }
-          return null
-        }
-        targetForHub = findNodeById(groupedTreeData.value, props.currentNodeId) ?? undefined
-      }
-      const targetPath = (targetForHub?.type === 'package' ? targetForHub.full_code_path : undefined) || undefined
-      const targetName = (targetForHub?.type === 'package' ? targetForHub.name : undefined) || undefined
-      emit('pull-from-hub', hubLinkToPaste, targetPath, targetName)
-      return
-    }
-    
-    // 剪贴板读失败时：若有本地已复制的目录则走本地粘贴，否则打开弹窗让用户粘贴 Hub 链接
-    if (clipboardReadFailed) {
-      if (copiedDirectory.value) {
-        // 有本地复制目录，继续往下走本地粘贴流程
-      } else {
-        let targetForHub = targetNode
-        if (!targetForHub && props.currentFunction && props.currentFunction.type === 'package') {
-          targetForHub = props.currentFunction
-        }
-        if (!targetForHub && props.currentNodeId) {
-          const findNodeById = (nodes: ServiceTree[], id: number | string): ServiceTree | null => {
-            for (const node of nodes) {
-              if (Number(node.id) === Number(id)) return node
-              if (node.children?.length) {
-                const found = findNodeById(node.children, id)
-                if (found) return found
-              }
-            }
-            return null
-          }
-          targetForHub = findNodeById(groupedTreeData.value, props.currentNodeId) ?? undefined
-        }
-        const targetPath = (targetForHub?.type === 'package' ? targetForHub.full_code_path : undefined) || undefined
-        const targetName = (targetForHub?.type === 'package' ? targetForHub.name : undefined) || undefined
-        emit('pull-from-hub', undefined, targetPath, targetName)
-        ElMessage.info('请在输入框中按 Ctrl+V 粘贴 Hub 链接')
-        return
-      }
-    }
-    
-    // 使用本地复制的目录粘贴
-    if (!copiedDirectory.value) {
-      ElMessage.warning('没有可粘贴的目录或 Hub 链接')
-      return
-    }
-    if (!copiedDirectory.value.full_code_path) {
-      ElMessage.warning('复制的目录路径无效，请重新复制目录')
-      copiedDirectory.value = null
-      localStorage.removeItem(COPIED_DIRECTORY_KEY)
-      return
-    }
-    
-    const treeData = groupedTreeData.value
-    // 如果没有传入 targetNode，使用当前选中的目录
-    let finalTargetNode: ServiceTree | undefined = targetNode
-    if (!finalTargetNode && props.currentFunction && props.currentFunction.type === 'package') {
-      finalTargetNode = props.currentFunction
-    }
-    if (!finalTargetNode && props.currentNodeId) {
-      finalTargetNode = findNodeByIdInTree(treeData, props.currentNodeId) ?? undefined
-    }
-    // 始终用树中的数据解析目标：确保 full_code_path、app_id 来自树
-    if (finalTargetNode?.id != null) {
-      const fromTree = findNodeByIdInTree(treeData, finalTargetNode.id)
-      if (fromTree && fromTree.type === 'package') {
-        finalTargetNode = fromTree
-      }
-    }
-    
-    if (!finalTargetNode) {
-      ElMessage.warning('请先选择一个目录作为粘贴目标')
-      return
-    }
-    
-    if (finalTargetNode.type !== 'package') {
-      ElMessage.warning('只能粘贴到目录（package类型）')
-      return
-    }
-
-    const targetFullCodePath = finalTargetNode.full_code_path
-    if (!targetFullCodePath) {
-      ElMessage.warning('无法获取目标目录路径，请重新选择目标目录')
-      return
-    }
-    
-    // 检查是否粘贴到自己或子目录
-    if (copiedDirectory.value.full_code_path === targetFullCodePath) {
-      ElMessage.warning('不能粘贴到自己')
-      return
-    }
-    
-    // 检查是否粘贴到自己的子目录
-    if (targetFullCodePath.startsWith(copiedDirectory.value.full_code_path + '/')) {
-      ElMessage.warning('不能粘贴到自己的子目录')
-      return
-    }
-    
-    // 检查是否是跨应用复制
-    const sourcePathParts = copiedDirectory.value.full_code_path.split('/').filter(Boolean)
-    const targetPathParts = targetFullCodePath.split('/').filter(Boolean)
-    const isCrossApp = sourcePathParts.length >= 2 && targetPathParts.length >= 2 && 
-                       (sourcePathParts[0] !== targetPathParts[0] || sourcePathParts[1] !== targetPathParts[1])
-    
-    // 构建确认消息
-    let confirmMessage = `确定要将目录 "${copiedDirectory.value.name}" 复制到 "${finalTargetNode.name}" 吗？\n\n`
-    confirmMessage += `源目录：${copiedDirectory.value.full_code_path}\n`
-    confirmMessage += `目标目录：${targetFullCodePath}`
-    if (isCrossApp) {
-      confirmMessage += `\n\n⚠️ 注意：这是跨应用复制操作`
-    }
-    
-    // 弹窗确认
-    try {
-      await ElMessageBox.confirm(
-        confirmMessage,
-        '确认粘贴',
-        {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
-          type: 'info'
-        }
-      )
-      
-      // 执行粘贴：右上角显示加载中通知
-      isPasting.value = true
-      const loadingNotify = ElNotification({
-        title: '复制中',
-        message: '正在复制目录，请稍候…',
-        type: 'info',
-        position: 'top-right',
-        duration: 0
-      })
-      try {
-        // 解析目标应用信息（使用已解析的 targetFullCodePath）
-        const targetPathParts = targetFullCodePath.split('/').filter(Boolean)
-        if (targetPathParts.length < 2) {
-          throw new Error('目标路径格式错误')
-        }
-        
-        // 获取目标应用ID（优先用树节点的 app_id）
-        const targetAppId = finalTargetNode.app_id
-        if (!targetAppId) {
-          throw new Error('无法获取目标应用ID，请确保目标目录有效')
-        }
-        
-        await copyDirectory({
-          source_directory_path: copiedDirectory.value.full_code_path,
-          target_directory_path: targetFullCodePath,
-          target_app_id: targetAppId
-        })
-      
-        loadingNotify.close()
-        ElNotification.success({
-          title: '复制完成',
-          message: '目录已复制成功',
-          position: 'top-right'
-        })
-      
-      // 触发刷新树事件
-      emit('refresh-tree')
-      
-      // 清空复制状态（可选，也可以保留以便多次粘贴）
-      // copiedDirectory.value = null
-    } catch (error: any) {
-      loadingNotify.close()
-      // 用户取消操作不显示错误
-      if (error !== 'cancel' && error !== 'close') {
-        const errorMessage = error?.response?.data?.message || error?.message || '复制失败'
-        ElMessage.error(errorMessage)
-      }
-    } finally {
-      isPasting.value = false
-    }
-  } catch (error) {
-    // 用户取消
-  }
-}
-
-// 粘贴 Hub 链接
-const handlePasteHubLink = async (hubLink: string, targetNode?: ServiceTree) => {
-  // 如果没有传入 targetNode，使用当前选中的目录
-  let finalTargetNode = targetNode
-  if (!finalTargetNode && props.currentFunction && props.currentFunction.type === 'package') {
-    finalTargetNode = props.currentFunction
-  }
-  
-  // 如果还是没有目标节点，尝试从树数据中查找当前选中的节点
-  if (!finalTargetNode && props.currentNodeId) {
-    const findNodeById = (nodes: ServiceTree[], id: number | string): ServiceTree | null => {
-      for (const node of nodes) {
-        if (Number(node.id) === Number(id)) {
-          return node
-        }
-        if (node.children && node.children.length > 0) {
-          const found = findNodeById(node.children, id)
-          if (found) return found
-        }
-      }
-      return null
-    }
-    finalTargetNode = findNodeById(groupedTreeData.value, props.currentNodeId) ?? undefined
-  }
-  
-  if (!finalTargetNode) {
-    ElMessage.warning('请先选择一个目录作为粘贴目标')
-    return
-  }
-  
-  if (finalTargetNode.type !== 'package') {
-    ElMessage.warning('只能粘贴到目录（package类型）')
-    return
-  }
-  
-  // 构建确认消息
-  let confirmMessage = `确定要从 Hub 链接复制目录到 "${finalTargetNode.name}" 吗？\n\n`
-  confirmMessage += `Hub 链接：${hubLink}\n`
-  confirmMessage += `目标目录：${finalTargetNode.full_code_path}`
-  
-  // 弹窗确认
-  try {
-    await ElMessageBox.confirm(
-      confirmMessage,
-      '确认粘贴',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'info'
-      }
-    )
-    
-    // 执行粘贴：右上角显示加载中通知
-    isPasting.value = true
-    const loadingNotify = ElNotification({
-      title: '复制中',
-      message: '正在从 Hub 复制目录，请稍候…',
-      type: 'info',
-      position: 'top-right',
-      duration: 0
-    })
-    try {
-      // 获取目标应用ID
-      if (!finalTargetNode.app_id) {
-        throw new Error('无法获取目标应用ID，请确保目标目录有效')
-      }
-      
-      const targetAppId = finalTargetNode.app_id
-      
-      // 调用复制 API（后端会自动检测 hub:// 前缀）
-      await copyDirectory({
-        source_directory_path: hubLink,  // Hub 链接
-        target_directory_path: finalTargetNode.full_code_path,
-        target_app_id: targetAppId
-      })
-    
-      loadingNotify.close()
-      ElNotification.success({
-        title: '复制完成',
-        message: '目录已从 Hub 复制成功',
-        position: 'top-right'
-      })
-      
-      // 触发刷新树事件
-      emit('refresh-tree')
-      
-      // 保留 Hub 链接以便多次粘贴
-    } catch (error: any) {
-      loadingNotify.close()
-      // 用户取消操作不显示错误
-      if (error !== 'cancel' && error !== 'close') {
-        const errorMessage = error?.response?.data?.message || error?.message || '复制失败'
-        ElMessage.error(errorMessage)
-      }
-    } finally {
-      isPasting.value = false
-    }
-  } catch (error) {
-    // 用户取消
-  }
-}
-
-
-// ⭐ 直接使用后端返回的树数据（已包含 app 根节点）
-const groupedTreeData = computed(() => {
-  return props.treeData
-})
-
-// ⭐ 服务目录搜索：匹配 name / code / full_code_path，保留匹配节点及其祖先
-const searchKeyword = ref('')
-
-/** 递归收集「自身匹配或任意子孙匹配」的节点 id 集合（用于过滤时显示这些节点及其祖先） */
-function collectVisibleNodeIds(nodes: ServiceTree[], keyword: string): Set<number> {
-  const visibleIds = new Set<number>()
-  if (!keyword || !nodes.length) return visibleIds
-  const k = keyword.trim().toLowerCase()
-  if (!k) return visibleIds
-
-  function match(node: ServiceTree): boolean {
-    const name = (node.name || '').toLowerCase()
-    const code = (node.code || '').toLowerCase()
-    const path = (node.full_code_path || '').toLowerCase()
-    return name.includes(k) || code.includes(k) || path.includes(k)
-  }
-
-  function walk(nodeList: ServiceTree[]): boolean {
-    let hasMatchInSubtree = false
-    for (const node of nodeList) {
-      const nodeId = Number(node.id)
-      const selfMatch = match(node)
-      const children = node.children || []
-      const childMatch = children.length > 0 ? walk(children) : false
-      if (selfMatch || childMatch) {
-        visibleIds.add(nodeId)
-        hasMatchInSubtree = true
-      }
-    }
-    return hasMatchInSubtree
-  }
-  walk(nodes)
-  return visibleIds
-}
-
-const visibleNodeIdsForFilter = computed(() =>
-  collectVisibleNodeIds(groupedTreeData.value, searchKeyword.value)
-)
-
-const filterNodeMethod = (value: string, data: ServiceTree) => {
-  if (!value || !value.trim()) return true
-  return visibleNodeIdsForFilter.value.has(Number(data.id))
-}
-
-watch(searchKeyword, () => {
-  nextTick(() => {
-    treeRef.value?.filter(searchKeyword.value)
-  })
-})
-
-// ⭐ 默认展开的节点（后端返回的 expandedKeys 中已包含 app 根节点）
-const defaultExpandedKeysWithWorkspace = computed(() => {
-  // 直接使用后端返回的 expandedKeys
-  return props.expandedKeys || []
-})
-
-// 🔥 使用响应式的 expandedKeysState 来管理展开状态（用于动态更新）
-const expandedKeysState = ref<number[]>([])
-
-// 🔥 树组件的 key，用于强制重新渲染（切换工作空间时）
-const treeKey = ref(0)
-
-// 🔥 监听 props.expandedKeys 变化，更新 expandedKeysState 并强制重新渲染
-watch(() => props.expandedKeys, async (newKeys, oldKeys) => {
-  if (newKeys && Array.isArray(newKeys) && newKeys.length > 0) {
-    const keysArray = [...newKeys] // 转换为普通数组
-    
-    // 🔥 如果 expandedKeys 发生变化（切换工作空间），强制重新渲染树组件
-    const oldKeysArray = oldKeys && Array.isArray(oldKeys) ? [...oldKeys] : []
-    const keysChanged = JSON.stringify(keysArray.sort()) !== JSON.stringify(oldKeysArray.sort())
-    
-    if (keysChanged) {
-      // 先更新 expandedKeysState
-      expandedKeysState.value = keysArray
-      // 更新 key 强制重新渲染，这样 default-expanded-keys 会重新生效
-      treeKey.value++
-      // 🔥 等待树组件重新渲染完成后，确保展开状态正确
-      await nextTick()
-      await new Promise(resolve => setTimeout(resolve, 200))
-      
-      // 🔥 再次设置 expandedKeysState，确保展开状态正确
-      expandedKeysState.value = keysArray
-      
-      // 🔥 使用 expandPathOnly 手动展开节点路径（因为 setExpandedKeys 不可用）
-      if (treeRef.value && groupedTreeData.value.length > 0) {
-        try {
-          // 为每个节点找到路径并展开
-          for (const nodeId of keysArray) {
-            const path = findPathToNode(groupedTreeData.value, nodeId)
-            if (path.length > 0) {
-              await expandPathOnly(treeRef.value, path)
-            }
-          }
-        } catch (error) {
-          console.error('[ServiceTreePanel] expandPathOnly 展开失败:', error)
-        }
-      }
-    } else {
-      // 直接更新 expandedKeysState，expanded-keys 属性会自动同步到树组件
-      expandedKeysState.value = keysArray
-    }
-  } else {
-    // 如果 expandedKeys 为空，清空展开状态
-    expandedKeysState.value = []
-  }
-}, { immediate: true })
-
-// 🔥 监听树数据变化，当树数据加载完成且有 expandedKeys 时，也更新展开状态
-watch(() => groupedTreeData.value.length, (newLength, oldLength) => {
-  // 如果树数据从空变为有数据，且有 expandedKeys，更新展开状态
-  if (oldLength === 0 && newLength > 0 && props.expandedKeys && props.expandedKeys.length > 0) {
-    const keysArray = [...props.expandedKeys] // 转换为普通数组
-    expandedKeysState.value = keysArray
-  }
-})
 
 // 处理无权限节点点击
 const handleNoPermissionClick = (data: ServiceTree) => {
@@ -1034,7 +501,7 @@ const handleApprovePermission = (data: ServiceTree) => {
     eventBus.emit(RouteEvent.updateRequested, {
       path: targetPath,
       query: {
-        tab: 'permissionRequest'  // 指定要打开的 tab
+        _panel: 'permissionRequest'
       },
       replace: true,
       preserveParams: {
@@ -1105,29 +572,6 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
   }
 }
 
-// 处理 Ctrl+V 快捷键
-const handleKeyDown = (event: KeyboardEvent) => {
-  // 检查是否是 Ctrl+V 或 Cmd+V（Mac）
-  if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
-    // 检查是否在输入框中（避免与输入框的粘贴冲突）
-    const target = event.target as HTMLElement
-    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-      return // 在输入框中，不处理
-    }
-    
-    // 阻止默认行为
-    event.preventDefault()
-    
-    // 执行粘贴
-    handlePaste()
-  }
-}
-
-// 注销键盘事件监听
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeyDown)
-})
-
 // 处理从应用中心安装按钮点击
 const handlePullFromHubClick = () => {
   emit('pull-from-hub')
@@ -1166,241 +610,7 @@ const getNodeIconClass = (data: ServiceTree) => {
     return 'board-icon'
   }
   return 'function-icon'
-  }
-  
-// ⭐ 递归查找所有 pending_count > 0 的节点
-const findAllNodesWithPendingCount = (nodes: ServiceTree[]): ServiceTree[] => {
-  const result: ServiceTree[] = []
-  
-  const traverse = (nodeList: ServiceTree[]) => {
-    for (const node of nodeList) {
-      // 检查当前节点是否有 pending_count > 0
-      if (node.pending_count && node.pending_count > 0) {
-        result.push(node)
-      }
-      
-      // 递归处理子节点
-      if (node.children && node.children.length > 0) {
-        traverse(node.children)
-      }
-    }
-  }
-  
-  traverse(nodes)
-  return result
 }
-
-// ⭐ 自动展开所有 pending_count > 0 的节点及其父节点
-const expandNodesWithPendingCount = async (treeData: ServiceTree[]) => {
-  if (!treeRef.value || !treeData.length) {
-    return
-  }
-  
-  // 查找所有 pending_count > 0 的节点
-  const nodesWithPending = findAllNodesWithPendingCount(treeData)
-  
-  if (nodesWithPending.length === 0) {
-    return
-  }
-  
-  // 收集所有需要展开的节点 ID（包括节点本身及其所有父节点）
-  const expandNodeIds = new Set<number>()
-  
-  for (const node of nodesWithPending) {
-    const nodeId = Number(node.id)
-    // 找到从根到该节点的路径
-    const path = findPathToNode(treeData, nodeId)
-    // 将路径中的所有节点 ID 添加到展开集合中
-    path.forEach(id => expandNodeIds.add(id))
-  }
-  
-  // 展开所有收集到的节点
-  if (expandNodeIds.size > 0) {
-    const expandKeys = Array.from(expandNodeIds)
-    
-    // 使用 Element Plus Tree 的 setExpandedKeys 方法批量展开
-    await nextTick()
-    if (treeRef.value && treeRef.value.setExpandedKeys) {
-      treeRef.value.setExpandedKeys(expandKeys, false) // false 表示不触发 expand 事件
-    } else {
-      // 如果 setExpandedKeys 不可用，使用 expandPathAndSelect 逐个展开
-      for (const nodeId of expandKeys) {
-        const path = findPathToNode(treeData, nodeId)
-        if (path.length > 0) {
-          await expandPathAndSelect(
-            treeRef.value,
-            treeData,
-            path,
-            nodeId
-          )
-        }
-      }
-    }
-  }
-}
-
-// 展开多个路径
-const expandPaths = async (paths: string[]) => {
-  if (!treeRef.value || !groupedTreeData.value.length) {
-    return
-  }
-  
-  for (const path of paths) {
-    // 根据 full_code_path 查找节点
-    const node = findNodeByPath(groupedTreeData.value, path)
-    if (node) {
-      // 找到节点后，展开到该节点的所有父节点
-      const nodeId = Number(node.id)
-      const pathToNode = findPathToNode(groupedTreeData.value, nodeId)
-      if (pathToNode.length > 0) {
-        await expandPathAndSelect(
-          treeRef.value,
-          groupedTreeData.value,
-          pathToNode,
-          nodeId
-        )
-      }
-    }
-  }
-}
-
-// ✅ 暂时完全禁用这个 watch，彻底排查问题
-// 
-// // 监听 currentNodeId 变化，自动展开并选中节点
-// watch(() => props.currentNodeId, async (nodeId) => {
-//   // ... 代码省略 ...
-// }, { immediate: true })
-
-// ⭐ 防重复展开标志
-let isExpanding = false
-let lastExpandedKeys: number[] = []
-let expandKeysPromise: Promise<void> | null = null
-
-// ⭐ 展开节点的辅助函数（带重入保护）
-const expandKeysNow = async (keys: number[]): Promise<void> => {
-  // 🔥 确保 keys 是普通数组
-  const keysArray = Array.isArray(keys) ? [...keys] : []
-  
-  if (keysArray.length === 0) {
-    return
-  }
-  
-  // ⭐ 防重复展开：如果正在展开或 keys 相同，跳过
-  // 注意：使用展开运算符创建副本再排序，避免修改原数组触发无限循环
-  const keysStr = JSON.stringify([...keysArray].sort())
-  const lastKeysStr = JSON.stringify([...lastExpandedKeys].sort())
-  if (keysStr === lastKeysStr) {
-    return
-  }
-  
-  // ⭐ 重入保护：如果已经有正在执行的展开操作，等待它完成
-  if (expandKeysPromise) {
-    await expandKeysPromise
-    return
-  }
-
-  // ⭐ 创建新的 Promise 用于重入保护
-  expandKeysPromise = (async () => {
-    isExpanding = true
-    lastExpandedKeys = [...keysArray]
-    
-    try {
-      // 🔥 等待树组件和数据完全准备好（增加重试机制）
-      let retryCount = 0
-      const maxRetries = 10
-      const retryDelay = 100
-      
-      while (retryCount < maxRetries) {
-        // 检查 treeRef 是否可用
-        if (!treeRef.value) {
-          await nextTick()
-          await new Promise(resolve => setTimeout(resolve, retryDelay))
-          retryCount++
-          continue
-        }
-        
-        // 检查数据是否加载完成
-        if (!groupedTreeData.value.length) {
-          await nextTick()
-          await new Promise(resolve => setTimeout(resolve, retryDelay))
-          retryCount++
-          continue
-        }
-        
-        // 检查 setExpandedKeys 方法是否可用
-        if (!treeRef.value.setExpandedKeys) {
-          await nextTick()
-          await new Promise(resolve => setTimeout(resolve, retryDelay))
-          retryCount++
-          continue
-        }
-        
-        // 所有条件都满足，跳出循环
-        break
-      }
-      
-      // 最终检查
-      if (!treeRef.value) {
-        console.error('[ServiceTreePanel] treeRef.value 仍未初始化，无法展开节点')
-        return
-      }
-      
-      if (!groupedTreeData.value.length) {
-        console.error('[ServiceTreePanel] groupedTreeData 仍为空，无法展开节点')
-        return
-      }
-      
-      // 等待 DOM 渲染完成
-      await nextTick()
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
-      if (treeRef.value && treeRef.value.setExpandedKeys) {
-        try {
-          treeRef.value.setExpandedKeys(keysArray, false) // false 表示不触发 expand 事件
-        } catch (error) {
-          console.error('[ServiceTreePanel] setExpandedKeys 调用失败:', error)
-          // 回退方案：使用 expandPathOnly 批量展开（不选中节点，避免节点切换）
-          const paths: number[][] = []
-          for (const nodeId of keysArray) {
-            const path = findPathToNode(groupedTreeData.value, nodeId)
-            if (path.length > 0) {
-              paths.push(path)
-            }
-          }
-          // 一次性展开所有路径（不选中节点）
-          for (const path of paths) {
-            await expandPathOnly(treeRef.value, path)
-          }
-        }
-      } else {
-        // 回退方案：使用 expandPathOnly 批量展开（不选中节点，避免节点切换）
-        if (treeRef.value) {
-          const paths: number[][] = []
-          for (const nodeId of keysArray) {
-            const path = findPathToNode(groupedTreeData.value, nodeId)
-            if (path.length > 0) {
-              paths.push(path)
-            }
-          }
-          // 一次性展开所有路径（不选中节点）
-          for (const path of paths) {
-            await expandPathOnly(treeRef.value, path)
-          }
-        } else {
-          console.error('[expandKeysNow] treeRef 不可用，无法展开节点')
-        }
-      }
-    } finally {
-      isExpanding = false
-      expandKeysPromise = null
-    }
-  })()
-  
-  await expandKeysPromise
-}
-
-// 🔥 移除之前的 watch，改用 key 强制重新渲染的方式
-// 这样 default-expanded-keys 会在组件重新渲染时自动生效
 
 // 暴露方法给父组件
 defineExpose({

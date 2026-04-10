@@ -9,7 +9,7 @@ import (
 )
 
 func convertToGetServiceTreeRespImpl(
-	s *ServiceTreeService,
+	q *serviceTreeQueryView,
 	ctx context.Context,
 	tree *model.ServiceTree,
 	permissionsMap map[string]map[string]bool,
@@ -53,13 +53,13 @@ func convertToGetServiceTreeRespImpl(
 
 	if len(tree.Children) > 0 {
 		for _, child := range tree.Children {
-			childResp := convertToGetServiceTreeRespImpl(s, ctx, child, permissionsMap, isAdmin)
+			childResp := convertToGetServiceTreeRespImpl(q, ctx, child, permissionsMap, isAdmin)
 			resp.Children = append(resp.Children, childResp)
 		}
 	}
 
 	if tree.Type == model.ServiceTreeTypePackage {
-		resp.HasFunction = s.hasFunctionInDirectChildren(tree)
+		resp.HasFunction = q.hasFunctionInDirectChildren(tree)
 	}
 
 	return resp

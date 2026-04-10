@@ -3,29 +3,29 @@ package service
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/enterprise"
-	"github.com/ai-agent-os/ai-agent-os/pkg/appcall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
 type PackageService struct {
-	serviceTreeRepo *repository.ServiceTreeRepository
-	appRepo         *repository.AppRepository
-	appCall         *appcall.Client
+	serviceTreeRepo  *repository.ServiceTreeRepository
+	appRepo          *repository.AppRepository
+	runtimeWorkspace *runtimeWorkspaceBridge
 }
 
-func NewPackageService(serviceTreeRepo *repository.ServiceTreeRepository, appRepo *repository.AppRepository, appCall *appcall.Client) *PackageService {
+func NewPackageService(
+	serviceTreeRepo *repository.ServiceTreeRepository,
+	appRepo *repository.AppRepository,
+	runtimeWorkspace *runtimeWorkspaceBridge,
+) *PackageService {
 	return &PackageService{
-		serviceTreeRepo: serviceTreeRepo,
-		appRepo:         appRepo,
-		appCall:         appCall,
+		serviceTreeRepo:  serviceTreeRepo,
+		appRepo:          appRepo,
+		runtimeWorkspace: runtimeWorkspace,
 	}
 }
 
@@ -93,10 +93,8 @@ func (s *PackageService) CreatePackage(ctx context.Context, req *dto.CreatePacka
 	}
 
 	if req.Admins != "" {
-		admins := strings.Split(req.Admins, ",")
-		for _, admin := range admins {
-			admin = strings.TrimSpace(admin)
-			if admin != "" && admin != requestUser {
+		for admin := range parseAdminUserSet(req.Admins) {
+			if admin != requestUser {
 				if err := assignDirectoryAdminRoleToUser(ctx, req.User, req.App, admin, serviceTree.FullCodePath); err != nil {
 					logger.Warnf(ctx, "[PackageService] 自动添加管理员角色失败: user=%s, app=%s, username=%s, resource=%s, error=%v",
 						req.User, req.App, admin, serviceTree.FullCodePath, err)
@@ -125,62 +123,11 @@ func (s *PackageService) CreatePackage(ctx context.Context, req *dto.CreatePacka
 }
 
 func (s *PackageService) sendCreatePackageMessage(ctx context.Context, user, app string, serviceTree *model.ServiceTree) error {
-	appModel, err := s.appRepo.GetAppByUserName(user, app)
-	if err != nil {
-		return fmt.Errorf("failed to get app info: %w", err)
+	if err := s.runtimeWorkspace.createDirectoryScaffold(ctx, user, app, serviceTree); err != nil {
+		return err
 	}
 
-	req := dto.CreateServiceTreeRuntimeReq{
-		User: user,
-		App:  app,
-		ServiceTree: &dto.ServiceTreeRuntimeData{
-			ID:           serviceTree.ID,
-			Name:         serviceTree.Name,
-			Code:         serviceTree.Code,
-			Type:         serviceTree.Type,
-			Description:  serviceTree.Description,
-			Tags:         serviceTree.Tags,
-			AppID:        serviceTree.AppID,
-			FullCodePath: serviceTree.FullCodePath,
-		},
-	}
-
-	if _, err := s.appCall.CreateServiceTree(ctx, appModel.HostID, &req); err != nil {
-		return fmt.Errorf("failed to create service tree via app-runtime: %w", err)
-	}
-
-	logger.Infof(ctx, "[PackageService] Service tree created successfully via app-runtime: %s/%s/%s",
+	logger.Infof(ctx, "[PackageService] Directory scaffold created successfully via app-runtime: %s/%s/%s",
 		user, app, serviceTree.Code)
-	return nil
-}
-
-func assignDirectoryAdminRoleToUser(ctx context.Context, user, app, username, resourcePath string) error {
-	licenseMgr := license.GetManager()
-	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
-		return nil
-	}
-
-	permissionService := enterprise.GetPermissionService()
-	if permissionService == nil {
-		return fmt.Errorf("权限服务未初始化")
-	}
-
-	assignReq := &dto.AssignRoleToUserReq{
-		User:         user,
-		App:          app,
-		Username:     username,
-		RoleCode:     "admin",
-		ResourceType: "directory",
-		ResourcePath: resourcePath,
-		StartTime:    nil,
-		EndTime:      nil,
-	}
-
-	if _, err := permissionService.AssignRoleToUser(ctx, assignReq); err != nil {
-		return fmt.Errorf("分配管理员角色失败: %w", err)
-	}
-
-	logger.Infof(ctx, "[ServiceTree] 分配管理员角色成功: user=%s, app=%s, username=%s, resource=%s",
-		user, app, username, resourcePath)
 	return nil
 }

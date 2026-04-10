@@ -61,15 +61,15 @@ type CloseNotification struct {
 
 // AppManageService 应用管理服务 - 负责应用的增删改查
 type AppManageService struct {
-	builder               *builder.Builder
-	config                *appconfig.AppManageServiceConfig
-	runtimeConfig         *appconfig.AppRuntimeConfig // 运行时完整配置（用于获取网关地址等）
-	containerService      ContainerOperator           // 容器服务依赖
-	appRepo               *repository.AppRepository   // 应用数据访问层
-	appDiscoveryService   *AppDiscoveryService        // 应用发现服务，用于获取运行状态
-	appControlClient      *AppControlClient           // runtime -> app 控制调用
-	QPSTracker            *QPSTracker                 // QPS 跟踪器
-	createFunctionService *CreateFunctionService      // 创建函数服务
+	builder              *builder.Builder
+	config               *appconfig.AppManageServiceConfig
+	runtimeConfig        *appconfig.AppRuntimeConfig // 运行时完整配置（用于获取网关地址等）
+	containerService     ContainerOperator           // 容器服务依赖
+	appRepo              *repository.AppRepository   // 应用数据访问层
+	appDiscoveryService  *AppDiscoveryService        // 应用发现服务，用于获取运行状态
+	appControlClient     *AppControlClient           // runtime -> app 控制调用
+	QPSTracker           *QPSTracker                 // QPS 跟踪器
+	workspaceFileService *WorkspaceFileService       // 工作区源码文件服务
 
 	// 启动等待器 - 用于等待应用启动完成通知
 	startupWaiters   map[string]chan *StartupNotification // key: user/app/version
@@ -123,21 +123,21 @@ func parseContainerName(containerName string) (string, string, string, error) {
 }
 
 // NewAppManageService 创建应用管理服务（依赖注入）
-func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageServiceConfig, runtimeConfig *appconfig.AppRuntimeConfig, containerService ContainerOperator, appRepo *repository.AppRepository, appDiscoveryService *AppDiscoveryService, natsConn *nats.Conn, createFunctionService *CreateFunctionService) *AppManageService {
+func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageServiceConfig, runtimeConfig *appconfig.AppRuntimeConfig, containerService ContainerOperator, appRepo *repository.AppRepository, appDiscoveryService *AppDiscoveryService, natsConn *nats.Conn, workspaceFileService *WorkspaceFileService) *AppManageService {
 	return &AppManageService{
-		builder:               builder,
-		config:                config,
-		runtimeConfig:         runtimeConfig,
-		containerService:      containerService,
-		appRepo:               appRepo,
-		appDiscoveryService:   appDiscoveryService,
-		appControlClient:      NewAppControlClient(natsConn),
-		QPSTracker:            NewQPSTracker(60*time.Second, 10*time.Second), // 60秒窗口，10秒检查间隔
-		createFunctionService: createFunctionService,
-		startupWaiters:        make(map[string]chan *StartupNotification),
-		closeWaiters:          make(map[string]chan *CloseNotification),
-		cleanupDone:           make(chan struct{}),
-		containerCleanupDone:  make(chan struct{}),
+		builder:              builder,
+		config:               config,
+		runtimeConfig:        runtimeConfig,
+		containerService:     containerService,
+		appRepo:              appRepo,
+		appDiscoveryService:  appDiscoveryService,
+		appControlClient:     NewAppControlClient(natsConn),
+		QPSTracker:           NewQPSTracker(60*time.Second, 10*time.Second), // 60秒窗口，10秒检查间隔
+		workspaceFileService: workspaceFileService,
+		startupWaiters:       make(map[string]chan *StartupNotification),
+		closeWaiters:         make(map[string]chan *CloseNotification),
+		cleanupDone:          make(chan struct{}),
+		containerCleanupDone: make(chan struct{}),
 	}
 }
 
@@ -309,18 +309,13 @@ func (s *AppManageService) DeleteApp(ctx context.Context, user, app string) erro
 	return nil
 }
 
-// UpdateApp 更新应用（重新编译并重启容器）
-// 如果提供了 CreateFunctions，先执行创建函数操作
-// skipBuild 为 true 时仅执行写文件（CreateFunctions），不编译不部署
-func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, createFunctions []*sharedDto.CreateFunctionInfo, requirement, changeDescription string, skipBuild bool) (*sharedDto.UpdateAppResp, error) {
+// UpdateApp 更新应用（写入源码文件并重新编译部署）
+// 如果提供了 sourceFiles，先执行源码文件写入。
+// writeOnly 为 true 时仅写文件，不编译不部署。
+func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, sourceFiles []*sharedDto.SourceFileWrite, requirement, changeDescription string, writeOnly bool) (*sharedDto.UpdateAppResp, error) {
 
 	logStr := strings.Builder{}
 	logStr.WriteString(fmt.Sprintf("[UpdateApp] Starting update: %s/%s\t", user, app))
-
-	writtenFiles, err := s.createFunctionsForUpdate(ctx, user, app, createFunctions)
-	if err != nil {
-		return nil, err
-	}
 
 	state, err := s.prepareUpdateAppState(ctx, user, app)
 	if err != nil {
@@ -330,8 +325,13 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, crea
 		logStr.WriteString("Failed to get current version\t")
 	}
 
-	if skipBuild {
-		logger.Infof(ctx, "[UpdateApp] SkipBuild=true，仅写文件不编译不部署")
+	sourceWriteState, err := s.writeSourceFilesForUpdate(ctx, user, app, sourceFiles)
+	if err != nil {
+		return nil, err
+	}
+
+	if writeOnly {
+		logger.Infof(ctx, "[UpdateApp] WriteOnly=true，仅写文件不编译不部署")
 		return &sharedDto.UpdateAppResp{
 			User:       user,
 			App:        app,
@@ -351,9 +351,9 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, crea
 		changeDescription,
 	)
 	if err != nil {
-		if len(writtenFiles) > 0 {
-			logger.Warnf(ctx, "[UpdateApp] 编译失败，开始回滚已创建的文件: fileCount=%d", len(writtenFiles))
-			s.rollbackCreateFunctionFiles(ctx, user, app, writtenFiles)
+		if sourceWriteState != nil && len(sourceWriteState.writtenPaths) > 0 {
+			logger.Warnf(ctx, "[UpdateApp] 编译失败，开始回滚已写入的源码文件: fileCount=%d", len(sourceWriteState.writtenPaths))
+			s.workspaceFileService.rollbackWriteState(ctx, sourceWriteState)
 		}
 		return nil, fmt.Errorf("failed to build app: %w", err)
 	}
@@ -379,29 +379,6 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, crea
 	}
 
 	return result, nil
-}
-
-// rollbackCreateFunctionFiles 回滚已创建的函数文件（内部方法，失败时调用）
-func (s *AppManageService) rollbackCreateFunctionFiles(ctx context.Context, user, app string, filePaths []string) {
-	logger.Warnf(ctx, "[UpdateApp] 开始回滚已创建的函数文件: fileCount=%d", len(filePaths))
-
-	appDir := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app).AppDir()
-
-	deletedCount := 0
-	for _, relPath := range filePaths {
-		filePath := filepath.Join(appDir, relPath)
-		if err := os.Remove(filePath); err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			logger.Errorf(ctx, "[UpdateApp] 删除文件失败: file=%s, error=%v", filePath, err)
-		} else {
-			deletedCount++
-			logger.Infof(ctx, "[UpdateApp] 已删除文件: %s", filePath)
-		}
-	}
-
-	logger.Infof(ctx, "[UpdateApp] 函数文件回滚完成: deletedCount=%d, totalCount=%d", deletedCount, len(filePaths))
 }
 
 // updateAppStatusToActive 将应用状态更新为active（已激活）
@@ -1157,149 +1134,6 @@ func (s *AppManageService) StartAppVersion(ctx context.Context, user, app, versi
 		logger.Warnf(ctx, "[StartAppVersion] Timeout waiting for startup notification from version %s", version)
 		return fmt.Errorf("timeout waiting for app startup notification")
 	}
-}
-
-// ReadDirectoryFiles 读取目录下的所有文件（用于创建快照）
-func (s *AppManageService) ReadDirectoryFiles(ctx context.Context, user, app, fullCodePath string) ([]sharedDto.DirectoryFileInfo, error) {
-	logger.Infof(ctx, "[ReadDirectoryFiles] 开始读取目录文件: user=%s, app=%s, path=%s", user, app, fullCodePath)
-
-	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
-	relativePath := appPaths.TrimAppPrefix(fullCodePath)
-
-	// 构建目录路径
-	directoryPath := filepath.Join(appPaths.APIDir(), relativePath)
-
-	var files []sharedDto.DirectoryFileInfo
-
-	// 只读取当前目录直接下的 .go 文件（不递归子目录），避免 read_dir 树形展示时根下重复列出子目录文件
-	entries, err := os.ReadDir(directoryPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			logger.Warnf(ctx, "[ReadDirectoryFiles] 目录不存在: path=%s", directoryPath)
-			return []sharedDto.DirectoryFileInfo{}, nil
-		}
-		return nil, err
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if !strings.HasSuffix(name, ".go") {
-			continue
-		}
-
-		path := filepath.Join(directoryPath, name)
-		content, err := os.ReadFile(path)
-		if err != nil {
-			logger.Warnf(ctx, "[ReadDirectoryFiles] 读取文件失败: path=%s, error=%v", path, err)
-			continue
-		}
-
-		fileName := strings.TrimSuffix(name, ".go")
-		files = append(files, sharedDto.DirectoryFileInfo{
-			FileName:     fileName,
-			RelativePath: name,
-			Content:      string(content),
-			GroupCode:    fileName,
-		})
-	}
-
-	logger.Infof(ctx, "[ReadDirectoryFiles] 读取目录文件完成: path=%s, fileCount=%d", directoryPath, len(files))
-	return files, nil
-}
-
-// ReplaceInFileBatch 在指定文件中做多组 search-replace：读入内存、按顺序执行、校验 expected_count，全部通过才落盘
-func (s *AppManageService) ReplaceInFileBatch(ctx context.Context, user, app, directoryPath, fileName string, replacements []sharedDto.ReplaceItemRuntime, allOrNothing, returnFullContent bool) (totalCount int, newContent string, details []sharedDto.ReplaceItemResultRuntime, err error) {
-	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
-	dirPath := filepath.Join(appPaths.APIDir(), appPaths.TrimAppPrefix(directoryPath))
-
-	baseName := fileName
-	if !strings.HasSuffix(baseName, ".go") {
-		baseName = baseName + ".go"
-	}
-	if baseName == "init_.go" {
-		return 0, "", nil, fmt.Errorf("不允许修改 init_.go，由脚手架生成")
-	}
-	filePath := filepath.Join(dirPath, baseName)
-
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return 0, "", nil, fmt.Errorf("文件不存在: %s", filePath)
-		}
-		return 0, "", nil, err
-	}
-	current := string(content)
-
-	// 第一轮：仅校验每项 actual_count 与 expected_count（allOrNothing 时）
-	for i, item := range replacements {
-		if item.SearchString == "" {
-			return 0, "", nil, fmt.Errorf("第 %d 项 search_string 不能为空", i+1)
-		}
-		expected := item.ExpectedCount
-		if expected <= 0 {
-			expected = 1
-		}
-		actual := strings.Count(current, item.SearchString)
-		if allOrNothing && actual != expected {
-			details = append(details, sharedDto.ReplaceItemResultRuntime{Index: i, ExpectedCount: expected, ActualCount: actual})
-		}
-		// 先不修改 current，下一轮再统一替换
-	}
-
-	if allOrNothing && len(details) > 0 {
-		return 0, "", details, fmt.Errorf("有 %d 项实际匹配次数与预期不符，未落盘", len(details))
-	}
-
-	// 第二轮：按顺序执行替换并累计次数
-	for _, item := range replacements {
-		n := strings.Count(current, item.SearchString)
-		totalCount += n
-		current = strings.ReplaceAll(current, item.SearchString, item.ReplaceString)
-	}
-
-	if current == string(content) {
-		logger.Infof(ctx, "[ReplaceInFileBatch] 未发生替换: %s", filePath)
-		return 0, current, nil, nil
-	}
-	if err := os.WriteFile(filePath, []byte(current), 0644); err != nil {
-		return 0, "", nil, err
-	}
-	logger.Infof(ctx, "[ReplaceInFileBatch] 替换完成: path=%s, totalCount=%d", filePath, totalCount)
-	outContent := current
-	if !returnFullContent {
-		outContent = ""
-	}
-	return totalCount, outContent, nil, nil
-}
-
-// DeleteFile 删除指定磁盘文件（不删 DB 节点，由 app-server 删节点时调用）
-func (s *AppManageService) DeleteFile(ctx context.Context, user, app, directoryPath, fileName string) error {
-	logger.Infof(ctx, "[DeleteFile] user=%s, app=%s, path=%s, file=%s", user, app, directoryPath, fileName)
-
-	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
-	dirPath := filepath.Join(appPaths.APIDir(), appPaths.TrimAppPrefix(directoryPath))
-
-	baseName := fileName
-	if !strings.HasSuffix(baseName, ".go") {
-		baseName = baseName + ".go"
-	}
-	if baseName == "init_.go" {
-		return fmt.Errorf("不允许删除 init_.go，由脚手架生成")
-	}
-	filePath := filepath.Join(dirPath, baseName)
-
-	if err := os.Remove(filePath); err != nil {
-		if os.IsNotExist(err) {
-			logger.Warnf(ctx, "[DeleteFile] 文件已不存在: %s", filePath)
-			return nil
-		}
-		return err
-	}
-	logger.Infof(ctx, "[DeleteFile] 已删除: %s", filePath)
-	return nil
 }
 
 type lineRange struct {

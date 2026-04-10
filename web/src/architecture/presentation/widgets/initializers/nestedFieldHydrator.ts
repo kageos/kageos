@@ -3,6 +3,7 @@ import type { WidgetInitContext } from '@/architecture/presentation/widgets/inte
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import { convertBasicType } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { useFormDataStore } from '@/core/stores-v2/formData'
+import { buildContainerDisplayValue } from '@/core/widgetRuntime/containerValue'
 import { widgetInitializerRegistry } from './WidgetInitializerRegistry'
 
 function isPlainObject(value: unknown): value is Record<string, any> {
@@ -11,22 +12,6 @@ function isPlainObject(value: unknown): value is Record<string, any> {
 
 function cloneMeta(meta?: Record<string, any>): Record<string, any> {
   return { ...(meta || {}) }
-}
-
-function buildDisplayValue(field: FieldConfig, rawValue: any): string {
-  if (rawValue === null || rawValue === undefined) {
-    return ''
-  }
-
-  if (field.widget?.type === 'table' && Array.isArray(rawValue)) {
-    return `共 ${rawValue.length} 条`
-  }
-
-  if (typeof rawValue === 'object') {
-    return JSON.stringify(rawValue)
-  }
-
-  return String(rawValue)
 }
 
 function normalizeRawValue(field: FieldConfig, rawValue: any): any {
@@ -46,7 +31,7 @@ function createNestedFieldValue(field: FieldConfig, rawValue: any, meta?: Record
   return createFieldValue(
     field,
     normalizedRawValue,
-    buildDisplayValue(field, normalizedRawValue),
+    buildContainerDisplayValue(field, normalizedRawValue),
     cloneMeta(meta)
   )
 }
@@ -112,7 +97,7 @@ export async function hydrateFormField(context: WidgetInitContext): Promise<Fiel
   return createFieldValue(
     field,
     initializedFormData,
-    buildDisplayValue(field, initializedFormData),
+    buildContainerDisplayValue(field, initializedFormData),
     cloneMeta(currentValue.meta)
   )
 }
@@ -159,7 +144,7 @@ export async function hydrateTableField(context: WidgetInitContext): Promise<Fie
   return createFieldValue(
     field,
     initializedRows,
-    buildDisplayValue(field, initializedRows),
+    buildContainerDisplayValue(field, initializedRows),
     cloneMeta(currentValue.meta)
   )
 }

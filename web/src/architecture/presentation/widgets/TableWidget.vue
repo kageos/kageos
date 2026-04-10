@@ -18,17 +18,6 @@
         shadow="hover"
         class="table-card"
       >
-        <template #header>
-          <div class="table-card-header">
-            <span class="table-title">{{ field.name }}</span>
-            <div class="table-header-actions">
-              <el-button size="small" @click="handleExport">
-                <el-icon><Download /></el-icon>
-                导出
-              </el-button>
-            </div>
-          </div>
-        </template>
         <div class="table-widget-content">
           <el-table :data="editMode.tableData.value" :stripe="false" class="table-widget-table">
         <el-table-column
@@ -60,7 +49,8 @@
             -->
             <template v-if="isNestedContainerField(itemField)">
               <component
-                :is="getWidgetComponent(itemField.widget?.type)"
+                v-if="isEditRowFieldVisible($index, itemField)"
+                :is="getWidgetComponent(itemField.widget?.type, 'table-cell')"
                 :field="itemField"
                 :value="getRowFieldValue($index, itemField.code)"
                 :model-value="getRowFieldValue($index, itemField.code)"
@@ -72,13 +62,15 @@
                 :parent-mode="mode"
                 :depth="(depth || 0) + 1"
               />
+              <span v-else class="table-cell-hidden-placeholder">-</span>
             </template>
             <!-- 其他类型字段：编辑状态直接编辑，显示状态简化显示 -->
             <template v-else>
               <!-- 编辑状态 -->
               <template v-if="editMode.editingIndex.value === $index">
                 <component
-                  :is="getWidgetComponent(itemField.widget?.type || 'input')"
+                  v-if="isEditRowFieldVisible($index, itemField)"
+                  :is="getWidgetComponent(itemField.widget?.type || 'input', 'edit')"
                   :field="itemField"
                   :value="getRowFieldValue($index, itemField.code)"
                   :model-value="getRowFieldValue($index, itemField.code)"
@@ -89,11 +81,13 @@
                   mode="edit"
                   :depth="(depth || 0) + 1"
                 />
+                <span v-else class="table-cell-hidden-placeholder">-</span>
               </template>
               <!-- 显示状态 -->
               <template v-else>
                 <component
-                  :is="getWidgetComponent(itemField.widget?.type || 'input')"
+                  v-if="isEditRowFieldVisible($index, itemField)"
+                  :is="getWidgetComponent(itemField.widget?.type || 'input', 'table-cell')"
                   :field="itemField"
                   :value="getRowFieldValue($index, itemField.code)"
                   :model-value="getRowFieldValue($index, itemField.code)"
@@ -101,6 +95,7 @@
                   mode="table-cell"
                   :depth="(depth || 0) + 1"
                 />
+                <span v-else class="table-cell-hidden-placeholder">-</span>
               </template>
             </template>
           </template>
@@ -144,11 +139,6 @@
         shadow="never"
         class="table-card response-table-card"
       >
-        <template #header>
-          <div class="table-card-header">
-            <span class="table-title">{{ field.name }}</span>
-          </div>
-        </template>
         <div class="table-widget-content">
           <el-table :data="responseTableData" :stripe="false" class="table-widget-table">
             <el-table-column
@@ -180,7 +170,8 @@
                 -->
                 <template v-if="isNestedContainerField(itemField)">
                   <component
-                    :is="getWidgetComponent(itemField.widget?.type || 'input')"
+                    v-if="isResponseRowFieldVisible($index, itemField)"
+                    :is="getWidgetComponent(itemField.widget?.type || 'input', 'table-cell')"
                     :field="itemField"
                     :value="getResponseRowFieldValue($index, itemField.code)"
                     :model-value="getResponseRowFieldValue($index, itemField.code)"
@@ -191,10 +182,14 @@
                     :parent-mode="mode"
                     :depth="(depth || 0) + 1"
                   />
+                  <span v-else class="table-cell-hidden-placeholder">-</span>
                 </template>
                 <!-- 🔥 其他类型字段：使用共享的渲染函数（与 TableRenderer 一致） -->
                 <template v-else>
-                  <template v-if="getCellContent(itemField, row[itemField.code]).isString">
+                  <template v-if="!isResponseRowFieldVisible($index, itemField)">
+                    <span class="table-cell-hidden-placeholder">-</span>
+                  </template>
+                  <template v-else-if="getCellContent(itemField, row[itemField.code]).isString">
                     {{ getCellContent(itemField, row[itemField.code]).content }}
                   </template>
                   <!-- 🔥 VNode 直接渲染：使用 render 函数 -->
@@ -216,14 +211,14 @@
         <template #default>
           <div v-if="responseMode.currentDetailRow.value">
             <div
-              v-for="itemField in itemFields"
+              v-for="itemField in getVisibleResponseDetailFields(responseMode.currentDetailIndex.value)"
               :key="itemField.code"
               class="detail-field"
             >
               <div class="field-label">{{ itemField.name }}</div>
               <div class="field-value">
                 <component
-                  :is="getWidgetComponent(itemField.widget?.type || 'input')"
+                  :is="getWidgetComponent(itemField.widget?.type || 'input', 'detail')"
                   :field="itemField"
                   :value="getResponseRowFieldValue(responseMode.currentDetailIndex.value, itemField.code)"
                   :model-value="getResponseRowFieldValue(responseMode.currentDetailIndex.value, itemField.code)"
@@ -278,6 +273,7 @@
         :size="DRAWER_CONFIG.size"
         destroy-on-close
         append-to-body
+        @close="tableCellMode.handleDrawerClose()"
       >
         <template #default>
           <div class="table-detail-content">
@@ -289,7 +285,7 @@
               - 响应上下文：drawerMode = 'response' → 只读，仅展示数据
             -->
             <component
-              :is="getWidgetComponent('table')"
+              :is="getWidgetComponent('table', tableCellMode.drawerMode.value)"
               :field="field"
               :value="value"
               :model-value="value"
@@ -311,7 +307,7 @@
         -->
         <template #footer v-if="tableCellMode.isInEditContext.value">
           <div class="drawer-footer">
-            <el-button @click="tableCellMode.closeDrawer()">取消</el-button>
+            <el-button @click="tableCellMode.cancelDrawer()">取消</el-button>
             <el-button type="primary" @click="handleTableCellConfirm">确认</el-button>
           </div>
         </template>
@@ -323,7 +319,7 @@
 <script setup lang="ts">
 import { computed, defineComponent } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElDrawer, ElCard, ElIcon } from 'element-plus'
-import { Download, View } from '@element-plus/icons-vue'
+import { View } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useTableWidget } from '@/architecture/presentation/widgets/composables/useTableWidget'
 import { useTableEditMode } from '@/architecture/presentation/widgets/composables/useTableEditMode'
@@ -337,6 +333,12 @@ import type { ValidationEngine, ValidationResult } from '@/core/validation'
 import { validateFieldValue as validateWidgetFieldValue, validateTableWidgetNestedFields, type WidgetValidationContext } from '@/architecture/presentation/widgets/composables/useWidgetValidation'
 import { Logger } from '@/core/utils/logger'
 import { renderTableCell } from '@/core/utils/tableCellRenderer'
+import { createPersistedFieldValue } from '@/core/widgetRuntime/persistedFieldValue'
+import {
+  clearFieldSubtree,
+  createClearedFieldValue,
+  shouldShowTableRowField,
+} from '@/architecture/presentation/widgets/utils/tableRowVisibility'
 import FieldStatistics from './FieldStatistics.vue'
 
 // 抽屉配置常量
@@ -488,6 +490,46 @@ function getResponseRowFieldValue(rowIndex: number, fieldCode: string): FieldVal
   )
 }
 
+function getEditRowSource(rowIndex: number): Record<string, any> | null {
+  const row = tableData.value[rowIndex]
+  return row && typeof row === 'object' && !Array.isArray(row) ? row : null
+}
+
+function getResponseRowSource(rowIndex: number): Record<string, any> | null {
+  const row = responseTableData.value[rowIndex]
+  return row && typeof row === 'object' && !Array.isArray(row) ? row : null
+}
+
+function isEditRowFieldVisible(rowIndex: number, field: FieldConfig): boolean {
+  return shouldShowTableRowField(
+    formDataStore,
+    props.fieldPath,
+    rowIndex,
+    getEditRowSource(rowIndex),
+    field,
+    itemFields.value
+  )
+}
+
+function isResponseRowFieldVisible(rowIndex: number, field: FieldConfig): boolean {
+  return shouldShowTableRowField(
+    formDataStore,
+    props.fieldPath,
+    rowIndex,
+    getResponseRowSource(rowIndex),
+    field,
+    itemFields.value
+  )
+}
+
+function getVisibleResponseDetailFields(rowIndex: number): FieldConfig[] {
+  if (rowIndex < 0) {
+    return []
+  }
+
+  return itemFields.value.filter((field) => isResponseRowFieldVisible(rowIndex, field))
+}
+
 /**
  * 🔥 获取表格单元格内容（用于模板，与 TableRenderer 一致）
  * 
@@ -517,7 +559,9 @@ const CellRenderer = defineComponent({
 
 // 显示值（用于 table-cell 模式）
 const displayValue = computed(() => {
-  const value = props.value
+  const value = formDataStore.data.has(props.fieldPath)
+    ? formDataStore.getValue(props.fieldPath)
+    : props.value
   if (!value) {
     return '共 0 条记录'
   }
@@ -546,8 +590,7 @@ const displayValue = computed(() => {
 
 // 处理 table-cell 模式的确认按钮
 function handleTableCellConfirm(): void {
-  // 关闭抽屉即可，数据已经通过 update:modelValue 事件更新
-  tableCellMode.closeDrawer()
+  tableCellMode.confirmDrawer()
 }
 
 
@@ -582,7 +625,10 @@ function getColumnAlign(field: any): 'left' | 'center' | 'right' {
 }
 
 // 获取组件
-function getWidgetComponent(type: string) {
+function getWidgetComponent(type: string, widgetMode: string = props.mode) {
+  if (widgetMode === 'response') {
+    return widgetComponentFactory.getResponseComponent(type)
+  }
   return widgetComponentFactory.getRequestComponent(type)
 }
 
@@ -605,6 +651,16 @@ function handleSave(index: number): void {
     
     itemFields.value.forEach(itemField => {
       const fieldPath = `${props.fieldPath}[${index}].${itemField.code}`
+      const currentValue = formDataStore.getValue(fieldPath)
+
+      if (!isEditRowFieldVisible(index, itemField)) {
+        clearFieldSubtree(formDataStore, fieldPath)
+        const clearedFieldValue = createClearedFieldValue(itemField, currentValue?.meta || {})
+        formDataStore.setValue(fieldPath, clearedFieldValue)
+        rowData[itemField.code] = clearedFieldValue.raw
+        return
+      }
+
       const value = getRowFieldValue(index, itemField.code)
       
       // 确保值存在，如果不存在则使用默认值
@@ -634,15 +690,8 @@ function handleSave(index: number): void {
       
       // 🔥 获取当前的值，保留 meta 和 display 信息
       const currentValue = formDataStore.getValue(fieldPath)
-      
-      // 确保 formDataStore 中有正确的值，并保留 display 和 meta 信息
-      const fieldValue: FieldValue = {
-        raw: rawValue,
-        display: currentValue?.display || (rawValue !== null && rawValue !== undefined ? String(rawValue) : ''),
-        meta: {
-          ...(currentValue?.meta || {}), // 🔥 保留原有的 meta 信息（displayInfo、statistics 等）
-        }
-      }
+
+      const fieldValue = createPersistedFieldValue(itemField, rawValue, currentValue)
       formDataStore.setValue(fieldPath, fieldValue)
     })
   } catch (error) {
@@ -708,11 +757,6 @@ function updateFieldErrors(
   }
 }
 
-// 处理导出（待实现）
-function handleExport(): void {
-  Logger.warn('TableWidget', '导出功能待实现')
-}
-
 // 🔥 暴露验证方法给父组件
 defineExpose({
   validate
@@ -737,27 +781,6 @@ defineExpose({
   margin-bottom: 0;
 }
 
-.table-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.table-title {
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.table-header-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
 .table-widget-content {
   width: 100%;
   padding: 0;
@@ -769,9 +792,11 @@ defineExpose({
 }
 
 .table-actions {
-  margin-top: 16px;
-  padding-top: 16px;
+  margin-top: 20px;
+  padding: 18px 4px 0;
   border-top: 1px solid var(--el-border-color-extra-light);
+  display: flex;
+  align-items: center;
 }
 
 
@@ -785,12 +810,35 @@ defineExpose({
   font-size: 14px;
 }
 
+.table-cell-hidden-placeholder {
+  color: var(--el-text-color-placeholder);
+}
+
 /* 详情抽屉内容 */
 .table-detail-content {
-  padding: 16px 0;
+  padding: 24px;
+  box-sizing: border-box;
   /* 确保下拉菜单可以正常显示 */
   overflow: visible;
   position: relative;
+}
+
+:deep(.table-detail-content .form-card),
+:deep(.table-detail-content .table-card) {
+  margin-bottom: 0;
+}
+
+:deep(.table-detail-content .el-card__body) {
+  padding: 20px 22px;
+}
+
+:deep(.table-detail-content .form-widget-form .el-form-item:last-child) {
+  margin-bottom: 0;
+}
+
+:deep(.table-detail-content .table-actions) {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .drawer-footer {

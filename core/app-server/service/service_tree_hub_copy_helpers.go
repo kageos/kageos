@@ -13,7 +13,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
-func copyServiceTreeImpl(s *ServiceTreeService, ctx context.Context, req *dto.CopyDirectoryReq) (*dto.CopyDirectoryResp, error) {
+func copyServiceTreeImpl(s *serviceTreeHubService, ctx context.Context, req *dto.CopyDirectoryReq) (*dto.CopyDirectoryResp, error) {
 	targetApp, err := s.appRepo.GetAppByID(req.TargetAppID)
 	if err != nil {
 		return nil, fmt.Errorf("获取目标应用失败: %w", err)
@@ -26,7 +26,7 @@ func copyServiceTreeImpl(s *ServiceTreeService, ctx context.Context, req *dto.Co
 	return s.copyFromLocal(ctx, req, targetApp)
 }
 
-func copyFromLocalImpl(s *ServiceTreeService, ctx context.Context, req *dto.CopyDirectoryReq, targetApp *model.App) (*dto.CopyDirectoryResp, error) {
+func copyFromLocalImpl(s *serviceTreeHubService, ctx context.Context, req *dto.CopyDirectoryReq, targetApp *model.App) (*dto.CopyDirectoryResp, error) {
 	sourceParts := strings.Split(strings.Trim(req.SourceDirectoryPath, "/"), "/")
 	if len(sourceParts) < 3 {
 		return nil, fmt.Errorf("源目录路径格式错误: %s", req.SourceDirectoryPath)
@@ -55,7 +55,7 @@ func copyFromLocalImpl(s *ServiceTreeService, ctx context.Context, req *dto.Copy
 		sourceTrees[desc.FullCodePath] = desc
 	}
 
-	directoryFiles, err := s.GetDirectoryFilesFromRuntimeRecursively(ctx, sourceApp.ID, req.SourceDirectoryPath)
+	directoryFiles, err := s.getDirectoryFilesFromRuntimeRecursively(ctx, sourceApp.ID, req.SourceDirectoryPath)
 	if err != nil {
 		return nil, fmt.Errorf("从 runtime 读取目录文件失败: %w", err)
 	}
@@ -114,13 +114,12 @@ func copyFromLocalImpl(s *ServiceTreeService, ctx context.Context, req *dto.Copy
 		targetRootPath = dirsToCreate[0].targetPath
 	}
 
-	directoryItems := make([]*dto.DirectoryTreeItem, 0)
-	fileItems := make([]*dto.DirectoryTreeItem, 0)
+	directoryItems := make([]*dto.DirectoryScaffoldItem, 0)
+	fileItems := make([]*dto.FileWriteItem, 0)
 
 	for _, dirInfo := range dirsToCreate {
-		directoryItems = append(directoryItems, &dto.DirectoryTreeItem{
+		directoryItems = append(directoryItems, &dto.DirectoryScaffoldItem{
 			FullCodePath: dirInfo.targetPath,
-			Type:         "directory",
 			Name:         dirInfo.sourceTree.Name,
 			Description:  dirInfo.sourceTree.Description,
 			Tags:         dirInfo.sourceTree.Tags,
@@ -162,9 +161,8 @@ func copyFromLocalImpl(s *ServiceTreeService, ctx context.Context, req *dto.Copy
 				continue
 			}
 
-			fileItems = append(fileItems, &dto.DirectoryTreeItem{
+			fileItems = append(fileItems, &dto.FileWriteItem{
 				FullCodePath: targetPath,
-				Type:         "file",
 				FileName:     fileName,
 				FileType:     fileSnapshot.FileType,
 				Content:      fileSnapshot.Content,
@@ -185,7 +183,7 @@ func copyFromLocalImpl(s *ServiceTreeService, ctx context.Context, req *dto.Copy
 			Items: directoryItems,
 		}
 
-		batchCreateResp, err := s.BatchCreateDirectoryTree(ctx, batchCreateReq)
+		batchCreateResp, err := s.batchCreateDirectoryTree(ctx, batchCreateReq)
 		if err != nil {
 			logger.Errorf(ctx, "[ServiceTreeService] 批量创建目录失败: error=%v", err)
 			return nil, fmt.Errorf("批量创建目录失败: %w", err)
@@ -204,7 +202,7 @@ func copyFromLocalImpl(s *ServiceTreeService, ctx context.Context, req *dto.Copy
 			Files: fileItems,
 		}
 
-		batchWriteResp, err := s.BatchWriteFiles(ctx, batchWriteReq)
+		batchWriteResp, err := s.batchWriteFiles(ctx, batchWriteReq)
 		if err != nil {
 			logger.Errorf(ctx, "[ServiceTreeService] 批量写文件失败: error=%v", err)
 			return nil, fmt.Errorf("批量写文件失败: %w", err)
@@ -231,7 +229,7 @@ func copyFromLocalImpl(s *ServiceTreeService, ctx context.Context, req *dto.Copy
 	}, nil
 }
 
-func copyFromHubImpl(s *ServiceTreeService, ctx context.Context, req *dto.CopyDirectoryReq, targetApp *model.App) (*dto.CopyDirectoryResp, error) {
+func copyFromHubImpl(s *serviceTreeHubService, ctx context.Context, req *dto.CopyDirectoryReq, targetApp *model.App) (*dto.CopyDirectoryResp, error) {
 	hubLinkInfo, err := ParseHubLink(req.SourceDirectoryPath)
 	if err != nil {
 		return nil, fmt.Errorf("解析 Hub 链接失败: %w", err)
@@ -271,8 +269,8 @@ func copyFromHubImpl(s *ServiceTreeService, ctx context.Context, req *dto.CopyDi
 		return nil, fmt.Errorf("Hub 目录树校验失败: %w", err)
 	}
 
-	directoryItems := make([]*dto.DirectoryTreeItem, 0)
-	fileItems := make([]*dto.DirectoryTreeItem, 0)
+	directoryItems := make([]*dto.DirectoryScaffoldItem, 0)
+	fileItems := make([]*dto.FileWriteItem, 0)
 	s.buildItemsFromTree(hubDetail.DirectoryTree, targetPath, &directoryItems, &fileItems)
 
 	var directoryCount int
@@ -283,7 +281,7 @@ func copyFromHubImpl(s *ServiceTreeService, ctx context.Context, req *dto.CopyDi
 			Items: directoryItems,
 		}
 
-		batchCreateResp, err := s.BatchCreateDirectoryTree(ctx, batchCreateReq)
+		batchCreateResp, err := s.batchCreateDirectoryTree(ctx, batchCreateReq)
 		if err != nil {
 			return nil, fmt.Errorf("批量创建目录失败: %w", err)
 		}
@@ -301,7 +299,7 @@ func copyFromHubImpl(s *ServiceTreeService, ctx context.Context, req *dto.CopyDi
 			Files: fileItems,
 		}
 
-		batchWriteResp, err := s.BatchWriteFiles(ctx, batchWriteReq)
+		batchWriteResp, err := s.batchWriteFiles(ctx, batchWriteReq)
 		if err != nil {
 			return nil, fmt.Errorf("批量写文件失败: %w", err)
 		}
@@ -354,7 +352,7 @@ func copyFromHubImpl(s *ServiceTreeService, ctx context.Context, req *dto.CopyDi
 	}, nil
 }
 
-func publishDirectoryToHubImpl(s *ServiceTreeService, ctx context.Context, req *dto.PublishDirectoryToHubReq) (*dto.PublishDirectoryToHubResp, error) {
+func publishDirectoryToHubImpl(s *serviceTreeHubService, ctx context.Context, req *dto.PublishDirectoryToHubReq) (*dto.PublishDirectoryToHubResp, error) {
 	sourceApp, err := s.appRepo.GetAppByUserName(req.SourceUser, req.SourceApp)
 	if err != nil {
 		return nil, fmt.Errorf("获取源应用失败: %w", err)
@@ -386,7 +384,7 @@ func publishDirectoryToHubImpl(s *ServiceTreeService, ctx context.Context, req *
 		idToTree[tree.ID] = tree
 	}
 
-	directoryFiles, err := s.GetDirectoryFilesFromRuntimeRecursively(ctx, sourceApp.ID, req.SourceDirectoryPath)
+	directoryFiles, err := s.getDirectoryFilesFromRuntimeRecursively(ctx, sourceApp.ID, req.SourceDirectoryPath)
 	if err != nil {
 		return nil, fmt.Errorf("从 runtime 读取目录文件失败: %w", err)
 	}
@@ -486,7 +484,7 @@ func publishDirectoryToHubImpl(s *ServiceTreeService, ctx context.Context, req *
 	}, nil
 }
 
-func pushDirectoryToHubImpl(s *ServiceTreeService, ctx context.Context, req *dto.PushDirectoryToHubReq) (*dto.PushDirectoryToHubResp, error) {
+func pushDirectoryToHubImpl(s *serviceTreeHubService, ctx context.Context, req *dto.PushDirectoryToHubReq) (*dto.PushDirectoryToHubResp, error) {
 	sourceApp, err := s.appRepo.GetAppByUserName(req.SourceUser, req.SourceApp)
 	if err != nil {
 		return nil, fmt.Errorf("获取源应用失败: %w", err)
@@ -522,7 +520,7 @@ func pushDirectoryToHubImpl(s *ServiceTreeService, ctx context.Context, req *dto
 		pathToTreeLocal[tree.FullCodePath] = tree
 	}
 
-	directoryFiles, err := s.GetDirectoryFilesFromRuntimeRecursively(ctx, sourceApp.ID, req.SourceDirectoryPath)
+	directoryFiles, err := s.getDirectoryFilesFromRuntimeRecursively(ctx, sourceApp.ID, req.SourceDirectoryPath)
 	if err != nil {
 		return nil, fmt.Errorf("从 runtime 读取目录文件失败: %w", err)
 	}
@@ -628,7 +626,7 @@ func pushDirectoryToHubImpl(s *ServiceTreeService, ctx context.Context, req *dto
 	}, nil
 }
 
-func getHubPushFormInfoImpl(s *ServiceTreeService, ctx context.Context, req *dto.GetHubPushFormInfoReq) (*dto.GetHubPushFormInfoResp, error) {
+func getHubPushFormInfoImpl(s *serviceTreeHubService, ctx context.Context, req *dto.GetHubPushFormInfoReq) (*dto.GetHubPushFormInfoResp, error) {
 	sourceTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(req.SourceDirectoryPath)
 	if err != nil {
 		return nil, fmt.Errorf("获取源目录信息失败: %w", err)
@@ -659,11 +657,11 @@ func getHubPushFormInfoImpl(s *ServiceTreeService, ctx context.Context, req *dto
 	}, nil
 }
 
-func buildDirectoryTreeImpl(s *ServiceTreeService, rootTree *model.ServiceTree, allTrees []*model.ServiceTree, directoryFiles map[string][]*model.FileSnapshot, idToTree map[int64]*model.ServiceTree, functionMap map[int64][]*model.ServiceTree, refIDToFunction map[int64]*model.Function) *dto.DirectoryTreeNode {
+func buildDirectoryTreeImpl(s *serviceTreeHubService, rootTree *model.ServiceTree, allTrees []*model.ServiceTree, directoryFiles map[string][]*model.FileSnapshot, idToTree map[int64]*model.ServiceTree, functionMap map[int64][]*model.ServiceTree, refIDToFunction map[int64]*model.Function) *dto.DirectoryTreeNode {
 	return s.buildDirectoryTreeNode(rootTree, allTrees, directoryFiles, idToTree, functionMap, refIDToFunction)
 }
 
-func buildDirectoryTreeNodeImpl(s *ServiceTreeService, tree *model.ServiceTree, allTrees []*model.ServiceTree, directoryFiles map[string][]*model.FileSnapshot, idToTree map[int64]*model.ServiceTree, functionMap map[int64][]*model.ServiceTree, refIDToFunction map[int64]*model.Function) *dto.DirectoryTreeNode {
+func buildDirectoryTreeNodeImpl(s *serviceTreeHubService, tree *model.ServiceTree, allTrees []*model.ServiceTree, directoryFiles map[string][]*model.FileSnapshot, idToTree map[int64]*model.ServiceTree, functionMap map[int64][]*model.ServiceTree, refIDToFunction map[int64]*model.Function) *dto.DirectoryTreeNode {
 	files := make([]*dto.FileSnapshotInfo, 0)
 	if fileSnapshots, exists := directoryFiles[tree.FullCodePath]; exists {
 		for _, file := range fileSnapshots {
@@ -776,13 +774,13 @@ func ParseHubLink(hubLink string) (*HubLinkInfo, error) {
 	}, nil
 }
 
-func installDirectoryTreeFromHubSnapshotImpl(s *ServiceTreeService, ctx context.Context, tree *dto.DirectoryTreeNode, targetApp *model.App, targetPath, hubFullCodePath string, hubVersionNum int, hubDirectoryName, successMessagePrefix string) (*dto.PullDirectoryFromHubResp, error) {
+func installDirectoryTreeFromHubSnapshotImpl(s *serviceTreeHubService, ctx context.Context, tree *dto.DirectoryTreeNode, targetApp *model.App, targetPath, hubFullCodePath string, hubVersionNum int, hubDirectoryName, successMessagePrefix string) (*dto.PullDirectoryFromHubResp, error) {
 	if tree == nil {
 		return nil, fmt.Errorf("目录树为空")
 	}
 
-	directoryItems := make([]*dto.DirectoryTreeItem, 0)
-	fileItems := make([]*dto.DirectoryTreeItem, 0)
+	directoryItems := make([]*dto.DirectoryScaffoldItem, 0)
+	fileItems := make([]*dto.FileWriteItem, 0)
 	s.buildItemsFromTree(tree, targetPath, &directoryItems, &fileItems)
 
 	if len(directoryItems) > 0 {
@@ -791,7 +789,7 @@ func installDirectoryTreeFromHubSnapshotImpl(s *ServiceTreeService, ctx context.
 			App:   targetApp.Code,
 			Items: directoryItems,
 		}
-		batchCreateResp, err := s.BatchCreateDirectoryTree(ctx, batchCreateReq)
+		batchCreateResp, err := s.batchCreateDirectoryTree(ctx, batchCreateReq)
 		if err != nil {
 			return nil, fmt.Errorf("批量创建目录失败: %w", err)
 		}
@@ -804,7 +802,7 @@ func installDirectoryTreeFromHubSnapshotImpl(s *ServiceTreeService, ctx context.
 			App:   targetApp.Code,
 			Files: fileItems,
 		}
-		batchWriteResp, err := s.BatchWriteFiles(ctx, batchWriteReq)
+		batchWriteResp, err := s.batchWriteFiles(ctx, batchWriteReq)
 		if err != nil {
 			return nil, fmt.Errorf("批量写文件失败: %w", err)
 		}
@@ -853,7 +851,7 @@ func installDirectoryTreeFromHubSnapshotImpl(s *ServiceTreeService, ctx context.
 	}, nil
 }
 
-func pullDirectoryFromHubImpl(s *ServiceTreeService, ctx context.Context, req *dto.PullDirectoryFromHubReq) (*dto.PullDirectoryFromHubResp, error) {
+func pullDirectoryFromHubImpl(s *serviceTreeHubService, ctx context.Context, req *dto.PullDirectoryFromHubReq) (*dto.PullDirectoryFromHubResp, error) {
 	hubLinkInfo, err := ParseHubLink(req.HubLink)
 	if err != nil {
 		return nil, fmt.Errorf("解析 Hub 链接失败: %w", err)
@@ -898,7 +896,7 @@ func pullDirectoryFromHubImpl(s *ServiceTreeService, ctx context.Context, req *d
 		"从 Hub 安装目录成功")
 }
 
-func importHubDirectoryBundleImpl(s *ServiceTreeService, ctx context.Context, req *dto.ImportHubDirectoryBundleReq) (*dto.PullDirectoryFromHubResp, error) {
+func importHubDirectoryBundleImpl(s *serviceTreeHubService, ctx context.Context, req *dto.ImportHubDirectoryBundleReq) (*dto.PullDirectoryFromHubResp, error) {
 	targetApp, err := s.appRepo.GetAppByUserName(req.TargetUser, req.TargetApp)
 	if err != nil {
 		return nil, fmt.Errorf("获取目标应用失败: %w", err)
@@ -915,7 +913,7 @@ func importHubDirectoryBundleImpl(s *ServiceTreeService, ctx context.Context, re
 		"从离线包安装目录成功")
 }
 
-func countFilesInTreeImpl(s *ServiceTreeService, node *dto.DirectoryTreeNode) int {
+func countFilesInTreeImpl(s *serviceTreeHubService, node *dto.DirectoryTreeNode) int {
 	count := len(node.Files)
 	for _, subdir := range node.Subdirectories {
 		count += s.countFilesInTree(subdir)
@@ -923,7 +921,7 @@ func countFilesInTreeImpl(s *ServiceTreeService, node *dto.DirectoryTreeNode) in
 	return count
 }
 
-func logDirectoryTreeImpl(s *ServiceTreeService, ctx context.Context, node *dto.DirectoryTreeNode, level int) {
+func logDirectoryTreeImpl(s *serviceTreeHubService, ctx context.Context, node *dto.DirectoryTreeNode, level int) {
 	indent := strings.Repeat("  ", level)
 	logger.Infof(ctx, "%s[logDirectoryTree] 节点: Name=%s, Code=%s, Path=%s, Files数量=%d, Subdirectories数量=%d",
 		indent, node.Name, node.Code, node.Path, len(node.Files), len(node.Subdirectories))
@@ -939,7 +937,7 @@ func logDirectoryTreeImpl(s *ServiceTreeService, ctx context.Context, node *dto.
 	}
 }
 
-func buildItemsFromTreeImpl(s *ServiceTreeService, node *dto.DirectoryTreeNode, targetBasePath string, directoryItems *[]*dto.DirectoryTreeItem, fileItems *[]*dto.DirectoryTreeItem) {
+func buildItemsFromTreeImpl(s *serviceTreeHubService, node *dto.DirectoryTreeNode, targetBasePath string, directoryItems *[]*dto.DirectoryScaffoldItem, fileItems *[]*dto.FileWriteItem) {
 	dirCode := node.Code
 	logger.Infof(context.Background(), "[buildItemsFromTree] 处理节点: Name=%s, Code=%s, Path=%s, Files数量=%d",
 		node.Name, node.Code, node.Path, len(node.Files))
@@ -954,9 +952,8 @@ func buildItemsFromTreeImpl(s *ServiceTreeService, node *dto.DirectoryTreeNode, 
 	if dirName == "" {
 		dirName = dirCode
 	}
-	*directoryItems = append(*directoryItems, &dto.DirectoryTreeItem{
+	*directoryItems = append(*directoryItems, &dto.DirectoryScaffoldItem{
 		FullCodePath: currentTargetPath,
-		Type:         "directory",
 		Name:         dirName,
 		Description:  "",
 		Tags:         "",
@@ -982,9 +979,8 @@ func buildItemsFromTreeImpl(s *ServiceTreeService, node *dto.DirectoryTreeNode, 
 			logger.Warnf(context.Background(), "[buildItemsFromTree] 文件 %s 内容为空", fileName)
 		}
 
-		*fileItems = append(*fileItems, &dto.DirectoryTreeItem{
+		*fileItems = append(*fileItems, &dto.FileWriteItem{
 			FullCodePath: currentTargetPath,
-			Type:         "file",
 			FileName:     fileName,
 			FileType:     file.FileType,
 			Content:      file.Content,
@@ -998,7 +994,7 @@ func buildItemsFromTreeImpl(s *ServiceTreeService, node *dto.DirectoryTreeNode, 
 	}
 }
 
-func getHubInfoImpl(s *ServiceTreeService, ctx context.Context, req *dto.GetHubInfoReq) (*dto.GetHubInfoResp, error) {
+func getHubInfoImpl(s *serviceTreeHubService, ctx context.Context, req *dto.GetHubInfoReq) (*dto.GetHubInfoResp, error) {
 	tree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(req.FullCodePath)
 	if err != nil {
 		return nil, fmt.Errorf("获取目录信息失败: %w", err)

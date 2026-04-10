@@ -16,7 +16,7 @@ func TestUpdateMainFileImportsAddsBlankImportAndIsIdempotent(t *testing.T) {
 	t.Parallel()
 
 	basePath := t.TempDir()
-	service := newServiceTreeTestService(basePath)
+	service := newPackageScaffoldTestService(basePath)
 	mainFilePath := writeMainGoFixture(t, basePath, `package main
 
 import (
@@ -51,7 +51,7 @@ func TestRemoveMainFileImportRemovesOnlyTargetImport(t *testing.T) {
 	t.Parallel()
 
 	basePath := t.TempDir()
-	service := newServiceTreeTestService(basePath)
+	service := newPackageScaffoldTestService(basePath)
 	mainFilePath := writeMainGoFixture(t, basePath, `package main
 
 import (
@@ -84,13 +84,37 @@ func main() {
 }
 
 func newServiceTreeTestService(basePath string) *ServiceTreeService {
-	return &ServiceTreeService{
-		config: &appconfig.AppManageServiceConfig{
-			AppDir: appconfig.AppDirConfig{
-				BasePath: basePath,
-			},
+	cfg := &appconfig.AppManageServiceConfig{
+		AppDir: appconfig.AppDirConfig{
+			BasePath: basePath,
 		},
 	}
+	return NewWorkspaceChangeService(cfg, nil, NewWorkspaceFileService(cfg))
+}
+
+func newServiceTreeTestServiceWithAppManage(basePath string) *ServiceTreeService {
+	cfg := &appconfig.AppManageServiceConfig{
+		AppDir: appconfig.AppDirConfig{
+			BasePath: basePath,
+		},
+	}
+	return NewWorkspaceChangeService(cfg, &AppManageService{config: cfg}, NewWorkspaceFileService(cfg))
+}
+
+func newPackageScaffoldTestService(basePath string) *PackageScaffoldService {
+	return NewPackageScaffoldService(&appconfig.AppManageServiceConfig{
+		AppDir: appconfig.AppDirConfig{
+			BasePath: basePath,
+		},
+	})
+}
+
+func newWorkspaceFileTestService(basePath string) *WorkspaceFileService {
+	return NewWorkspaceFileService(&appconfig.AppManageServiceConfig{
+		AppDir: appconfig.AppDirConfig{
+			BasePath: basePath,
+		},
+	})
 }
 
 func writeMainGoFixture(t *testing.T, basePath string, content string) string {

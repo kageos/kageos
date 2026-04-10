@@ -90,6 +90,7 @@ func (o *OperateLog) GetTableOperateLogs(c *gin.Context) {
 // @Param action query string false "操作类型：request_app, form_submit"
 // @Param source query string false "来源：browser, scheduled_task, agent, api"
 // @Param status query string false "结果状态：success, failed"
+// @Param trace_id query string false "追踪ID（精确匹配）"
 // @Param keyword query string false "关键字搜索（用户、版本、错误、请求/响应内容）"
 // @Param page query int false "页码（从1开始）" default(1)
 // @Param page_size query int false "每页数量" default(20)

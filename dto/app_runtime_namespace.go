@@ -66,30 +66,60 @@ func (r *RequestAppResp) IsError() bool {
 	return r.ErrCode != 0
 }
 
-// CreateFunctionInfo 创建函数信息
-type CreateFunctionInfo struct {
+// SourceFileWrite 源码文件写入描述
+// runtime 底层只关心“往某个目录写入一个源码文件”，不直接承载“函数”业务语义。
+type SourceFileWrite struct {
 	DirectoryPath string `json:"directory_path"` // 目标目录路径（相对于 code/api，如 "crm" 或 "plugins/cashier"）
 	FileName      string `json:"file_name"`      // 文件名（不含 .go 扩展名）
 	SourceCode    string `json:"source_code"`    // 源代码内容
 }
 
-// CreateFunctionsResp 创建函数响应
-type CreateFunctionsResp struct {
+// CreateFunctionInfo 已废弃，请使用 SourceFileWrite
+// Deprecated: 使用 SourceFileWrite 替代。
+type CreateFunctionInfo = SourceFileWrite
+
+// WriteSourceFilesResp 源码文件写入响应
+type WriteSourceFilesResp struct {
 	Success      bool     `json:"success" example:"true"`   // 是否成功
 	Message      string   `json:"message" example:"文件创建成功"` // 响应消息
 	WrittenFiles []string `json:"written_files"`            // 已写入的文件路径列表（用于失败时回滚）
 }
 
+// CreateFunctionsResp 已废弃，请使用 WriteSourceFilesResp
+// Deprecated: 使用 WriteSourceFilesResp 替代。
+type CreateFunctionsResp = WriteSourceFilesResp
+
 // UpdateAppReq 更新应用请求（更新应用代码并重新编译部署）
 type UpdateAppReq struct {
-	User              string                `json:"user,omitempty"`               // 租户用户名（兼容字段，优先从 resource_path 解析）
-	App               string                `json:"app,omitempty"`                // 应用名（兼容字段，优先从 resource_path 解析）
-	ResourcePath      string                `json:"resource_path,omitempty"`      // 资源路径，规范为 /user/app
-	CreateFunctions   []*CreateFunctionInfo `json:"create_functions,omitempty"`   // 可选的新建函数列表（如果有，先执行创建函数再更新）
-	Requirement       string                `json:"requirement,omitempty"`        // 变更需求（用户在前端输入的）
-	ChangeDescription string                `json:"change_description,omitempty"` // 变更描述（大模型输出的）
-	Summary           string                `json:"summary,omitempty"`            // 变更摘要（详情），兼容旧字段，如果未提供则使用 Requirement + ChangeDescription 组合
-	SkipBuild         bool                  `json:"skip_build,omitempty"`         // 为 true 时仅执行写文件（CreateFunctions），不编译不部署
+	User              string             `json:"user,omitempty"`               // 租户用户名（兼容字段，优先从 resource_path 解析）
+	App               string             `json:"app,omitempty"`                // 应用名（兼容字段，优先从 resource_path 解析）
+	ResourcePath      string             `json:"resource_path,omitempty"`      // 资源路径，规范为 /user/app
+	SourceFiles       []*SourceFileWrite `json:"source_files,omitempty"`       // 推荐字段：本次需要写入的源码文件列表
+	CreateFunctions   []*SourceFileWrite `json:"create_functions,omitempty"`   // 兼容旧字段：历史命名为创建函数，实际语义为写入源码文件
+	Requirement       string             `json:"requirement,omitempty"`        // 变更需求（用户在前端输入的）
+	ChangeDescription string             `json:"change_description,omitempty"` // 变更描述（大模型输出的）
+	Summary           string             `json:"summary,omitempty"`            // 变更摘要（详情），兼容旧字段，如果未提供则使用 Requirement + ChangeDescription 组合
+	WriteOnly         bool               `json:"write_only,omitempty"`         // 为 true 时仅写文件不编译不部署
+	SkipBuild         bool               `json:"skip_build,omitempty"`         // 兼容旧字段：等价于 write_only
+}
+
+// RequestedSourceFiles 返回本次请求携带的源码文件列表，优先使用新字段 source_files。
+func (r *UpdateAppReq) RequestedSourceFiles() []*SourceFileWrite {
+	if r == nil {
+		return nil
+	}
+	if len(r.SourceFiles) > 0 {
+		return r.SourceFiles
+	}
+	return r.CreateFunctions
+}
+
+// ShouldWriteOnly 返回本次更新是否仅写文件不发布，优先使用新字段 write_only。
+func (r *UpdateAppReq) ShouldWriteOnly() bool {
+	if r == nil {
+		return false
+	}
+	return r.WriteOnly || r.SkipBuild
 }
 
 // UpdateAppResp 更新应用响应
