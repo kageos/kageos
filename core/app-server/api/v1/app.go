@@ -64,7 +64,7 @@ func (a *App) CreateApp(c *gin.Context) {
 // @Tags 应用管理
 // @Accept json
 // @Produce json
-// @Param body body dto.UpdateAppReq false "CreateFunctions、SkipBuild 等"
+// @Param body body dto.UpdateAppReq false "SourceFiles、WriteOnly 等"
 // @Success 200 {object} dto.UpdateAppResp "更新成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"

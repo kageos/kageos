@@ -210,23 +210,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick, toRaw } from 'vue'
+import { ref, watch, nextTick, toRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight, Plus, Paperclip, FolderOpened, Loading, Search } from '@element-plus/icons-vue'
-import { workspaceChatStream, getWorkspaceSessions, getWorkspaceMessages, getWorkspaceSessionSSEStatus, type WorkspaceSessionItem, type WorkspaceChatReq, type WorkspaceChatMessageFile } from '@/api/workspace'
-import { getLLMList, type LLMInfo } from '@/api/agent'
+import { workspaceChatStream, type WorkspaceChatReq, type WorkspaceChatMessageFile } from '@/api/workspace'
 import MessageToolCalls from './MessageToolCalls.vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import LLMSelector from '@/shared/components/LLMSelector.vue'
-import { extractFileGroupsFromResult, type OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { ElMessage } from 'element-plus'
 import { useWorkspaceChatStream, type ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
-import { eventBus } from '@/architecture/infrastructure/eventBus'
-import { uploadFile, notifyUploadComplete } from '@/utils/upload'
-import type { UploadProgress } from '@/utils/upload/types'
-import { useAuthStore } from '@/stores/auth'
 import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
+import { useWorkstationChatAttachments } from '@/architecture/presentation/composables/useWorkstationChatAttachments'
+import { useWorkstationChatSessions } from '@/architecture/presentation/composables/useWorkstationChatSessions'
 
 const props = withDefaults(
   defineProps<{
@@ -255,10 +251,9 @@ void preloadMarkdown()
 
 const router = useRouter()
 
-const { messages, sending, sessionId, streamingDisplayLength, send: sendMessage, handleEvent, setMessages } = useWorkspaceChatStream()
+const { messages, sending, sessionId, streamingDisplayLength, send: sendMessage, setMessages } = useWorkspaceChatStream()
 const inputText = ref('')
 const messagesRef = ref<HTMLElement | null>(null)
-let generatingPollTimer: ReturnType<typeof setInterval> | null = null
 
 /** 消息内容变化时自动滚到底部，用 rAF 节流避免抖动 */
 let _scrollRafId = 0
@@ -287,138 +282,23 @@ watch(sending, (v) => {
   }
 })
 
-/** 工作台上传文件 router，与存储路径一致 */
-const WORKSPACE_CHAT_UPLOAD_ROUTER = 'workspace/chat'
-
-/** 本条消息附带的文件（上传后加入，发送时随 message.files 提交，发送成功后清空） */
-const attachedFiles = ref<WorkspaceChatMessageFile[]>([])
-const uploading = ref(false)
-/** 拖拽悬停时高亮输入区 */
-const isDraggingOver = ref(false)
-
-/** 将可能带 host 的 URL 转为仅 path（工作台发送给后端时 url 不要 host） */
-function toPathOnlyUrl(url: string): string {
-  if (!url) return url
-  try {
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      const u = new URL(url)
-      return u.pathname + u.search + u.hash
-    }
-  } catch {
-    // 解析失败则原样返回
-  }
-  return url
-}
-
-/** 上传单个文件并加入附件列表（按钮选择与拖拽共用） */
-async function addFileAsAttachment(file: File): Promise<void> {
-  if (!file || !props.fullCodePath) return
-  const uploadResult = await uploadFile(
-    WORKSPACE_CHAT_UPLOAD_ROUTER,
-    file,
-    (_progress: UploadProgress) => {}
-  )
-  if (!uploadResult.fileInfo) {
-    throw new Error('上传失败')
-  }
-  const completeResult = await notifyUploadComplete({
-    key: uploadResult.fileInfo.key,
-    success: true,
-    router: uploadResult.fileInfo.router,
-    file_name: uploadResult.fileInfo.file_name,
-    file_size: uploadResult.fileInfo.file_size,
-    content_type: uploadResult.fileInfo.content_type,
-    hash: uploadResult.fileInfo.hash,
-    upload_user: useAuthStore().userName || undefined,
-  })
-  if (!completeResult?.download_url) {
-    throw new Error('获取下载地址失败')
-  }
-  // 工作台发送时 url 只要 path，不要 host（后端可能返回带 cdnDomain 的完整 URL）
-  const urlPathOnly = toPathOnlyUrl(completeResult.download_url)
-  const item: WorkspaceChatMessageFile = {
-    name: completeResult.file_name,
-    source_name: file.name,
-    storage: completeResult.storage || uploadResult.storage,
-    hash: completeResult.hash || uploadResult.fileInfo.hash || '',
-    size: completeResult.file_size,
-    upload_ts: Math.floor(Date.now() / 1000),
-    is_uploaded: true,
-    url: urlPathOnly,
-    server_url: completeResult.server_download_url,
-    upload_user: useAuthStore().userName || undefined,
-  }
-  attachedFiles.value = [...attachedFiles.value, item]
-  ElMessage.success(`已添加：${file.name}`)
-}
-
-async function onAttachFileChange(uploadFileObj: { raw?: File; name?: string }) {
-  const file = uploadFileObj?.raw
-  if (!file || !props.fullCodePath) return
-  uploading.value = true
-  try {
-    await addFileAsAttachment(file)
-  } catch (e: unknown) {
-    console.error('[WorkstationChat] 上传失败:', e)
-    ElMessage.error(e instanceof Error ? e.message : '上传失败')
-  } finally {
-    uploading.value = false
-  }
-}
-
-/** 拖拽放下：将文件加入附件并上传（多个文件逐个上传，单个失败不影响其余） */
-async function onDropFiles(e: DragEvent) {
-  isDraggingOver.value = false
-  if (!props.fullCodePath || uploading.value) return
-  const files = e.dataTransfer?.files
-  if (!files?.length) return
-  const fileList = Array.from(files)
-  uploading.value = true
-  try {
-    for (const file of fileList) {
-      if (!file.name) continue
-      try {
-        await addFileAsAttachment(file)
-      } catch (err: unknown) {
-        console.error('[WorkstationChat] 拖拽上传失败:', file.name, err)
-        ElMessage.error(`${file.name} 上传失败：${err instanceof Error ? err.message : '未知错误'}`)
-      }
-    }
-  } finally {
-    uploading.value = false
-  }
-}
-
-function removeAttachedFile(index: number) {
-  attachedFiles.value = attachedFiles.value.filter((_, i) => i !== index)
-}
+const {
+  attachedFiles,
+  uploading,
+  isDraggingOver,
+  onAttachFileChange,
+  onDropFiles,
+  removeAttachedFile,
+  setAttachedFiles,
+  clearAttachedFiles
+} = useWorkstationChatAttachments(toRef(props, 'fullCodePath'))
 
 // 向父组件上报执行中状态（用于抽屉关闭时显示浮动按钮）
 watch(sending, (v) => {
-  if (v) stopGeneratingPoll()
   emit('update:sending', v)
 }, { immediate: true })
 
-const llmList = ref<LLMInfo[]>([])
-const llmLoading = ref(false)
 const selectedLLMConfigId = ref<number | null>(null)
-
-// 会话列表相关
-const sessionList = ref<WorkspaceSessionItem[]>([])
-const loadingSessions = ref(false)
-const sessionSidebarExpanded = ref(true) // 默认展开
-const sessionSearchKeyword = ref('')
-
-/** 按关键词过滤会话列表：匹配标题、用户 */
-const filteredSessionList = computed(() => {
-  const k = sessionSearchKeyword.value.trim().toLowerCase()
-  if (!k) return sessionList.value
-  return sessionList.value.filter((s) => {
-    const title = (s.title || '').toLowerCase()
-    const user = (s.user || '').toLowerCase()
-    return title.includes(k) || user.includes(k)
-  })
-})
 
 function handleBack() {
   if (props.embedded) {
@@ -428,327 +308,42 @@ function handleBack() {
   }
 }
 
-async function loadLLMs() {
-  llmLoading.value = true
-  try {
-    const res = await getLLMList({ scope: 'market', page: 1, page_size: 200 }) as { configs?: LLMInfo[]; total?: number }
-    llmList.value = res?.configs ?? []
-  } catch (e: unknown) {
-    console.error('加载 LLM 列表失败:', e)
-    llmList.value = []
-  } finally {
-    llmLoading.value = false
-  }
-}
-
 function onLLMSelect(value: number) {
   selectedLLMConfigId.value = value === 0 ? null : value
 }
 
-// 加载会话列表
-async function loadSessions() {
-  if (!props.fullCodePath) {
-    sessionList.value = []
-    return
-  }
-  loadingSessions.value = true
-  try {
-    const res = await getWorkspaceSessions({ full_code_path: props.fullCodePath })
-    sessionList.value = res.sessions || []
-  } catch (e: any) {
-    console.error('加载会话列表失败:', e)
-    ElMessage.error('加载会话列表失败')
-    sessionList.value = []
-  } finally {
-    loadingSessions.value = false
-  }
-}
-
-/** 从接口返回的 files JSON 解析出文件列表（用于展示用户消息附件） */
-function parseMessageFiles(filesStr: string | null | undefined): WorkspaceChatMessageFile[] {
-  if (!filesStr) return []
-  try {
-    const o = JSON.parse(filesStr) as { files?: WorkspaceChatMessageFile[] }
-    return Array.isArray(o?.files) ? o.files : []
-  } catch {
-    return []
-  }
-}
-
-/** 历史消息中可能含 <files>...</files> 与说明文，展示时去掉，只留用户文字 */
-function stripFilesBlockForDisplay(content: string): string {
-  if (!content) return ''
-  const stripped = content
-    .replace(/<files>[\s\S]*?<\/files>/i, '')
-    .replace(/\s*以上\s*<files>\s*标签中的 JSON[^。]*。\s*/g, '')
-    .trim()
-  return stripped || content
-}
-
-/** 用于展示的消息正文：用户消息去掉 <files> 块，避免出现整段 JSON */
-function getMessageDisplayContent(m: { role: string; content: string }): string {
-  return m.role === 'user' ? stripFilesBlockForDisplay(m.content) : m.content
-}
-
-// 加载会话消息
-async function loadSessionMessages(targetSessionId: string) {
-  try {
-    const res = await getWorkspaceMessages({ session_id: targetSessionId })
-    const msgs = res.messages
-      .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
-      .map((msg) => {
-        const role = msg.role as 'user' | 'assistant'
-        const content = msg.content || ''
-        const tool_calls = msg.tool_calls || []
-        const created_at = msg.created_at ?? (msg as { createdAt?: string }).createdAt ?? ''
-        let blocks: ChatMessage['blocks'] | undefined
-        if (role === 'assistant' && (content || tool_calls.length)) {
-          if (content && tool_calls.length) {
-            blocks = [{ type: 'content', text: content }, { type: 'tool_calls', calls: tool_calls }]
-          } else if (content) {
-            blocks = [{ type: 'content', text: content }]
-          } else {
-            blocks = [{ type: 'tool_calls', calls: tool_calls }]
-          }
-        }
-        return {
-          role,
-          content,
-          files: parseMessageFiles(msg.files),
-          tool_calls,
-          blocks,
-          created_at,
-        }
-      })
-    setMessages(msgs as ChatMessage[])
-    setTimeout(() => {
-      if (messagesRef.value) {
-        messagesRef.value.scrollTop = messagesRef.value.scrollHeight
-      }
-    }, 100)
-  } catch (e: unknown) {
-    console.error('加载会话消息失败:', e)
-    ElMessage.error('加载会话消息失败')
-    setMessages([])
-  }
-}
-
-function startGeneratingPoll(sid: string) {
-  if (sending.value) return
-  stopGeneratingPoll()
-  generatingPollTimer = setInterval(async () => {
-    if (sessionId.value !== sid) { stopGeneratingPoll(); return }
-    if (sending.value) return
-    try {
-      const { connected } = await getWorkspaceSessionSSEStatus(sid)
-      if (connected) return
-    } catch {
-      /* 存活检测失败时仍按原逻辑拉取，避免漏更新 */
-    }
-    await loadSessionMessages(sid)
-    await loadSessions()
-    const session = sessionList.value.find(s => s.session_id === sid)
-    if (!session || session.status !== 'generating') {
-      stopGeneratingPoll()
-    }
-  }, 3000)
-}
-
-function stopGeneratingPoll() {
-  if (generatingPollTimer) {
-    clearInterval(generatingPollTimer)
-    generatingPollTimer = null
-  }
-}
-
-// ─── 监听 mini 工作台转发的 SSE 消息（最大化时 mini 仍持有活跃连接） ───
-let streamCleanup: (() => void) | null = null
-
-function startStreamListening(sid: string) {
-  stopStreamListening()
-
-  const handleUpdate = (payload: { session_id: string; messages: ChatMessage[] }) => {
-    if (payload.session_id === sid && sessionId.value === sid) {
-      stopGeneratingPoll()
-      setMessages(payload.messages)
-      nextTick(() => {
-        if (messagesRef.value) messagesRef.value.scrollTop = messagesRef.value.scrollHeight
-      })
-    }
-  }
-
-  const handleDone = (payload: { session_id: string }) => {
-    if (payload.session_id === sid) {
-      stopStreamListening()
-      loadSessionMessages(sid)
-      loadSessions()
-    }
-  }
-
-  const offUpdate = eventBus.on('workspace:stream-update', handleUpdate)
-  const offDone = eventBus.on('workspace:stream-done', handleDone)
-
-  streamCleanup = () => { offUpdate(); offDone() }
-}
-
-function stopStreamListening() {
-  if (streamCleanup) { streamCleanup(); streamCleanup = null }
-}
-
-// 新建会话
-function handleNewSession() {
-  stopGeneratingPoll()
-  stopStreamListening()
-  sessionId.value = undefined
-  setMessages([])
-  emit('update:sessionId', undefined)
-  ElMessage.success('已创建新会话，发送第一条消息后将自动保存')
-}
-
-// 选择会话
-async function handleSelectSession(targetSessionId: string) {
-  if (targetSessionId === sessionId.value) return
-  stopGeneratingPoll()
-  stopStreamListening()
-  sessionId.value = targetSessionId
-  emit('update:sessionId', targetSessionId)
-  await loadSessionMessages(targetSessionId)
-}
-
-// 格式化相对时间
-function formatRelativeTime(timeStr: string): string {
-  const time = new Date(timeStr)
-  const now = new Date()
-  const diff = now.getTime() - time.getTime()
-  const minutes = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
-  if (minutes < 1) return '刚刚'
-  if (minutes < 60) return `${minutes}分钟前`
-  if (hours < 24) return `${hours}小时前`
-  if (days < 7) return `${days}天前`
-  return time.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
-}
-
-onMounted(async () => {
-  loadLLMs()
-  if (props.fullCodePath) {
-    await loadSessions()
-    if (props.initialSessionId) {
-      const found = sessionList.value.find(s => s.session_id === props.initialSessionId)
-      if (found) {
-        sessionId.value = props.initialSessionId
-        await loadSessionMessages(props.initialSessionId)
-        if (found.status === 'generating') {
-          startStreamListening(props.initialSessionId)
-          startGeneratingPoll(props.initialSessionId)
-        }
-      }
-    }
-  }
+const {
+  sessionList,
+  loadingSessions,
+  sessionSidebarExpanded,
+  sessionSearchKeyword,
+  filteredSessionList,
+  loadSessions,
+  handleNewSession,
+  handleSelectSession,
+  formatRelativeTime,
+  formatMessageTime,
+  getMessageDisplayContent,
+  getFileGroupsFromCalls,
+  getMessageFileGroups
+} = useWorkstationChatSessions({
+  fullCodePath: toRef(props, 'fullCodePath'),
+  initialSessionId: toRef(props, 'initialSessionId'),
+  initialInputText: toRef(props, 'initialInputText'),
+  initialAttachedFiles: toRef(props, 'initialAttachedFiles'),
+  visible: toRef(props, 'visible'),
+  messages,
+  sending,
+  sessionId,
+  messagesRef,
+  setMessages,
+  setInputText: (value) => {
+    inputText.value = value
+  },
+  setAttachedFiles,
+  clearInitialInput: () => emit('clear-initial-input'),
+  updateSessionId: (value) => emit('update:sessionId', value)
 })
-
-onUnmounted(() => {
-  stopGeneratingPoll()
-  stopStreamListening()
-})
-
-// ─── SSE 转发：全屏隐藏（最小化）时把消息实时转给 mini 工作台 ───
-watch(messages, (newMsgs) => {
-  if (!props.visible && sending.value && sessionId.value) {
-    eventBus.emit('workspace:stream-update', {
-      session_id: sessionId.value,
-      messages: JSON.parse(JSON.stringify(toRaw(newMsgs))),
-    })
-  }
-})
-watch(sending, (val, oldVal) => {
-  if (!props.visible && oldVal === true && val === false && sessionId.value) {
-    eventBus.emit('workspace:stream-done', { session_id: sessionId.value })
-  }
-})
-
-// 监听 fullCodePath 变化，自动加载会话列表
-watch(
-  () => props.fullCodePath,
-  (newPath) => {
-    if (newPath) {
-      loadSessions()
-      if (!props.initialSessionId) {
-        sessionId.value = undefined
-        setMessages([])
-      }
-    } else {
-      sessionList.value = []
-      sessionId.value = undefined
-      setMessages([])
-    }
-  }
-)
-
-// 监听 initialSessionId 变化，定位到指定会话
-watch(
-  () => props.initialSessionId,
-  async (newSid) => {
-    if (!newSid || !props.fullCodePath) return
-    stopGeneratingPoll()
-    stopStreamListening()
-    await loadSessions()
-    sessionId.value = newSid
-    await loadSessionMessages(newSid)
-    emit('update:sessionId', newSid)
-    const found = sessionList.value.find(s => s.session_id === newSid)
-    if (found?.status === 'generating') {
-      startStreamListening(newSid)
-      startGeneratingPoll(newSid)
-    }
-    // 从 mini 最大化带过来的输入/附件：应用后通知父组件清空
-    if (props.initialInputText || (props.initialAttachedFiles && props.initialAttachedFiles.length > 0)) {
-      if (props.initialInputText) inputText.value = props.initialInputText
-      if (props.initialAttachedFiles?.length) attachedFiles.value = [...props.initialAttachedFiles]
-      nextTick(() => emit('clear-initial-input'))
-    }
-  }
-)
-
-// 无会话时最大化（mini 未发过消息）：有 initialInputText 时也要填入
-watch(
-  () => [props.visible, props.initialInputText] as const,
-  ([visible, text]) => {
-    if (!visible || !text || !props.fullCodePath) return
-    if (sessionId.value) return // 已有会话时由 initialSessionId 的 watch 处理
-    inputText.value = text
-    if (props.initialAttachedFiles?.length) attachedFiles.value = [...props.initialAttachedFiles]
-    nextTick(() => emit('clear-initial-input'))
-  }
-)
-
-/** 从一组工具调用的 result 中提取输出文件（用于按块展示时的每个 tool_calls 块） */
-function getFileGroupsFromCalls(calls: Array<{ result?: string }>): OutputFileGroup[] {
-  const groups: OutputFileGroup[] = []
-  for (const tc of calls) {
-    groups.push(...extractFileGroupsFromResult(tc.result))
-  }
-  return groups
-}
-
-/** 聚合本消息所有工具调用的 result 中的输出文件，供下方独立展示（不展开工具详情也能看到） */
-function getMessageFileGroups(m: ChatMessage): OutputFileGroup[] {
-  const list = m.tool_calls ?? []
-  return getFileGroupsFromCalls(list)
-}
-
-function formatMessageTime(isoString: string): string {
-  if (!isoString) return ''
-  const date = new Date(isoString)
-  const y = date.getFullYear()
-  const M = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  const h = String(date.getHours()).padStart(2, '0')
-  const m = String(date.getMinutes()).padStart(2, '0')
-  const s = String(date.getSeconds()).padStart(2, '0')
-  return `${y}-${M}-${d} ${h}:${m}:${s}`
-}
 
 async function send() {
   const text = inputText.value.trim()
@@ -756,7 +351,7 @@ async function send() {
   if (!props.fullCodePath || (!text && !files?.length)) return
   inputText.value = ''
   // 发送后清空附件，便于下一条消息重新选文件
-  attachedFiles.value = []
+  clearAttachedFiles()
   const content = text || ''
   const payload: WorkspaceChatReq = {
     full_code_path: props.fullCodePath,

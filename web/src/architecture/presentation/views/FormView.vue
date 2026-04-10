@@ -93,7 +93,7 @@
     <div class="form-view-container">
       <!-- 左侧：表单内容 -->
       <div class="form-view-main">
-        <!-- 请求参数表单 -->
+        <!-- 输入参数表单 -->
         <el-form
           v-if="requestFields.length > 0"
           :model="formData"
@@ -101,7 +101,7 @@
           :label-width="FORM_LABEL_WIDTH"
           class="function-form"
         >
-      <div class="section-title">请求参数</div>
+      <div class="section-title">输入参数</div>
       <template v-for="field in requestFields" :key="field.code">
         <div v-if="requestLabelsOnTop" class="form-field-label-top">
           <label class="field-label">
@@ -157,8 +157,6 @@
         </el-button>
         <el-button
           v-if="showSubmitButton && canSubmit"
-          type="primary"
-          plain
           size="large"
           @click="showScheduledTaskDialog = true"
           :disabled="!currentFunctionNode?.full_code_path"
@@ -188,10 +186,10 @@
       </div>
     </div>
 
-    <!-- 响应参数展示：提交前就显示，显示"等待提交"标签 -->
+    <!-- 输出参数展示：提交前就显示，显示"等待提交"标签 -->
     <div v-if="responseFields.length > 0" class="response-section">
       <div class="section-title">
-        响应参数
+        输出参数
         <el-tag v-if="!hasResponseData" type="info" size="small" style="margin-left: 12px">
           等待提交
         </el-tag>
@@ -228,7 +226,7 @@
       </el-form>
     </div>
 
-    <!-- 执行信息（元数据）：显示函数执行耗时等信息，明确区分不是响应参数 -->
+    <!-- 执行信息（元数据）：显示函数执行耗时等信息，明确区分不是输出参数 -->
     <div v-if="responseMetadata && responseMetadata.total_cost_mill !== undefined" class="metadata-section">
       <div class="metadata-title">
         <el-icon class="metadata-icon"><InfoFilled /></el-icon>
@@ -245,13 +243,13 @@
     <!-- Debug 弹窗 -->
     <el-dialog
       v-model="showDebugDialog"
-      title="Debug - 请求和响应数据"
+      title="Debug - 输入和输出数据"
       width="80%"
       :close-on-click-modal="false"
     >
       <el-tabs v-model="debugActiveTab">
-        <!-- 请求参数 -->
-        <el-tab-pane label="请求参数" name="request">
+        <!-- 输入参数 -->
+        <el-tab-pane label="输入参数" name="request">
           <div class="debug-section">
             <div class="debug-header">
               <span class="debug-label">提交数据（实时）</span>
@@ -274,11 +272,11 @@
           </div>
         </el-tab-pane>
 
-        <!-- 响应参数 -->
-        <el-tab-pane label="响应参数" name="response">
+        <!-- 输出参数 -->
+        <el-tab-pane label="输出参数" name="response">
           <div class="debug-section">
             <div class="debug-header">
-              <span class="debug-label">响应数据</span>
+              <span class="debug-label">输出数据</span>
               <el-button
                 v-if="debugResponseData"
                 size="small"
@@ -297,7 +295,7 @@
               readonly
               class="debug-json-input"
             />
-            <el-empty v-else description="暂无响应数据，请先提交表单" />
+            <el-empty v-else description="暂无输出数据，请先提交表单" />
           </div>
         </el-tab-pane>
 

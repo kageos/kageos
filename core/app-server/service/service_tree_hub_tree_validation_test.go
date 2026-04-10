@@ -98,11 +98,11 @@ func TestValidateHubDirectoryTreeForInstall_RejectsEmptyNestedCode(t *testing.T)
 }
 
 func TestBuildItemsFromTree_ExpandsNestedDirectoriesRecursively(t *testing.T) {
-	service := &ServiceTreeService{}
+	service := &serviceTreeHubService{}
 	tree := buildValidNestedAppDirectoryTree()
 
-	directoryItems := make([]*dto.DirectoryTreeItem, 0)
-	fileItems := make([]*dto.DirectoryTreeItem, 0)
+	directoryItems := make([]*dto.DirectoryScaffoldItem, 0)
+	fileItems := make([]*dto.FileWriteItem, 0)
 	service.buildItemsFromTree(tree, "/target/workspace", &directoryItems, &fileItems)
 
 	gotDirectoryPaths := make([]string, 0, len(directoryItems))

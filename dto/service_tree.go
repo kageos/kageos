@@ -203,9 +203,9 @@ type UpdateDocsReq struct {
 
 // BatchCreateDirectoryTreeReq 批量创建目录树请求
 type BatchCreateDirectoryTreeReq struct {
-	User  string               `json:"user" binding:"required"`  // 用户名
-	App   string               `json:"app" binding:"required"`   // 应用名
-	Items []*DirectoryTreeItem `json:"items" binding:"required"` // 目录树项列表
+	User  string                   `json:"user" binding:"required"`  // 用户名
+	App   string                   `json:"app" binding:"required"`   // 应用名
+	Items []*DirectoryScaffoldItem `json:"items" binding:"required"` // 目录脚手架项列表
 }
 
 // BatchCreateDirectoryTreeResp 批量创建目录树响应
@@ -217,9 +217,9 @@ type BatchCreateDirectoryTreeResp struct {
 
 // BatchWriteFilesReq 批量写文件请求
 type BatchWriteFilesReq struct {
-	User  string               `json:"user" binding:"required"`  // 用户名
-	App   string               `json:"app" binding:"required"`   // 应用名
-	Files []*DirectoryTreeItem `json:"files" binding:"required"` // 文件列表（只包含文件，不包含目录）
+	User  string           `json:"user" binding:"required"`  // 用户名
+	App   string           `json:"app" binding:"required"`   // 应用名
+	Files []*FileWriteItem `json:"files" binding:"required"` // 文件写入项列表
 }
 
 // BatchWriteFilesResp 批量写文件响应

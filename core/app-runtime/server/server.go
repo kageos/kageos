@@ -32,10 +32,11 @@ type Server struct {
 	db       *gorm.DB
 
 	// 业务服务
-	containerService    service.ContainerOperator
-	appManageService    *service.AppManageService
-	appDiscoveryService *service.AppDiscoveryService
-	serviceTreeService  *service.ServiceTreeService
+	containerService       service.ContainerOperator
+	appManageService       *service.AppManageService
+	appDiscoveryService    *service.AppDiscoveryService
+	workspaceChangeService *service.WorkspaceChangeService
+	workspaceFileService   *service.WorkspaceFileService
 
 	// HTTP 健康检查服务器
 	httpServer *http.Server
@@ -239,8 +240,8 @@ func (s *Server) initServices(ctx context.Context) error {
 		return fmt.Errorf("failed to start app discovery service: %w", err)
 	}
 
-	// 初始化创建函数服务（需要在 AppManageService 之前）
-	createFunctionService := service.NewCreateFunctionService(&s.cfg.AppManage)
+	// 初始化工作区文件服务（需要在 AppManageService / WorkspaceChangeService 之前）
+	s.workspaceFileService = service.NewWorkspaceFileService(&s.cfg.AppManage)
 
 	// 初始化应用管理服务
 	wd, _ := os.Getwd()
@@ -252,7 +253,7 @@ func (s *Server) initServices(ctx context.Context) error {
 		appRepo,
 		s.appDiscoveryService,
 		s.natsConn,
-		createFunctionService, // 传入创建函数服务
+		s.workspaceFileService,
 	)
 
 	// 启动 QPS 跟踪器清理任务
@@ -261,10 +262,8 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 启动应用清理任务
 	go s.appManageService.StartCleanupTask(ctx)
 
-	// 初始化服务目录管理服务
-	s.serviceTreeService = service.NewServiceTreeService(&s.cfg.AppManage)
-	// 设置依赖关系
-	s.serviceTreeService.SetAppManageService(s.appManageService)
+	// 初始化工作区变更编排服务
+	s.workspaceChangeService = service.NewWorkspaceChangeService(&s.cfg.AppManage, s.appManageService, s.workspaceFileService)
 
 	// 启动基础设施看门狗（以 NATS 连接状态为探针，1 秒轮询，断开时触发恢复）
 	watchdog := service.NewInfraWatchdog(s.natsConn, s.containerService)
@@ -322,11 +321,11 @@ func (s *Server) stopServices(ctx context.Context) {
 // subscribeNATS 订阅所有 NATS 主题（Gin 风格：api/v1 放 handler，router 里注册）
 func (s *Server) subscribeNATS(ctx context.Context) error {
 	appH := v1.NewAppHandler(s.appManageService)
-	serviceTreeH := v1.NewServiceTreeHandler(s.serviceTreeService)
-	workspaceH := v1.NewWorkspaceHandler(s.appManageService)
+	workspaceChangeH := v1.NewWorkspaceChangeHandler(s.workspaceChangeService)
+	workspaceH := v1.NewWorkspaceHandler(s.appManageService, s.workspaceFileService)
 	requestTransport := NewAppRequestTransport(s.natsConn, s.containerService, s.appManageService, s.appDiscoveryService)
 	requestH := v1.NewRequestHandler(s.appManageService, requestTransport)
-	if err := RegisterNATS(ctx, s.natsConn, &s.subscriptions, appH, serviceTreeH, workspaceH, requestH); err != nil {
+	if err := RegisterNATS(ctx, s.natsConn, &s.subscriptions, appH, workspaceChangeH, workspaceH, requestH); err != nil {
 		return err
 	}
 	// Runtime 生命周期事件主题由 AppDiscoveryService 统一处理，不需要在此订阅
@@ -400,9 +399,14 @@ func (s *Server) GetDB() *gorm.DB {
 	return s.db
 }
 
-// GetServiceTreeService 获取服务目录管理服务
-func (s *Server) GetServiceTreeService() *service.ServiceTreeService {
-	return s.serviceTreeService
+// GetWorkspaceChangeService 获取工作区变更编排服务。
+func (s *Server) GetWorkspaceChangeService() *service.WorkspaceChangeService {
+	return s.workspaceChangeService
+}
+
+// GetServiceTreeService 兼容旧命名，请优先使用 GetWorkspaceChangeService。
+func (s *Server) GetServiceTreeService() *service.WorkspaceChangeService {
+	return s.workspaceChangeService
 }
 
 // reconcileAppContainers 对账应用容器

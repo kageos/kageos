@@ -101,12 +101,9 @@ func ensurePathWithinBase(baseDir, targetPath string) error {
 	return nil
 }
 
-func resolveBatchWriteTarget(user, app, apiDir string, item *dto.DirectoryTreeItem) (string, string, string, error) {
+func resolveBatchWriteTarget(user, app, apiDir string, item *dto.FileWriteItem) (string, string, string, error) {
 	if item == nil {
 		return "", "", "", fmt.Errorf("文件项不能为空")
-	}
-	if item.Type != "" && item.Type != "file" {
-		return "", "", "", fmt.Errorf("BatchWriteFiles 仅允许 file 类型，当前为: %s", item.Type)
 	}
 
 	packagePath, err := validateBatchWritePackagePath(user, app, item.FullCodePath)
@@ -165,12 +162,9 @@ func validateRelativePackagePath(packagePath string) (string, error) {
 	return strings.Join(parts, "/"), nil
 }
 
-func resolveDirectoryTarget(user, app, apiDir string, item *dto.DirectoryTreeItem) (string, string, error) {
+func resolveDirectoryTarget(user, app, apiDir string, item *dto.DirectoryScaffoldItem) (string, string, error) {
 	if item == nil {
 		return "", "", fmt.Errorf("目录项不能为空")
-	}
-	if item.Type != "directory" {
-		return "", "", fmt.Errorf("BatchCreateDirectoryTree 仅允许 directory 类型，当前为: %s", item.Type)
 	}
 
 	packagePath, err := validateBatchWritePackagePath(user, app, item.FullCodePath)
@@ -226,8 +220,8 @@ func getFileExtension(fileType string) string {
 	return "." + fileType
 }
 
-func sortItemsByPath(items []*dto.DirectoryTreeItem) []*dto.DirectoryTreeItem {
-	sorted := make([]*dto.DirectoryTreeItem, len(items))
+func sortDirectoryItemsByPath(items []*dto.DirectoryScaffoldItem) []*dto.DirectoryScaffoldItem {
+	sorted := make([]*dto.DirectoryScaffoldItem, len(items))
 	copy(sorted, items)
 
 	sort.Slice(sorted, func(i, j int) bool {
@@ -235,9 +229,6 @@ func sortItemsByPath(items []*dto.DirectoryTreeItem) []*dto.DirectoryTreeItem {
 		lenJ := len(sorted[j].FullCodePath)
 		if lenI != lenJ {
 			return lenI < lenJ
-		}
-		if sorted[i].Type != sorted[j].Type {
-			return sorted[i].Type == "directory"
 		}
 		return sorted[i].FullCodePath < sorted[j].FullCodePath
 	})

@@ -98,7 +98,10 @@ export function useFormViewState(options: UseFormViewStateOptions) {
       getFieldError: (fieldPath: string) => {
         const errors = options.domainService.getFieldError(fieldPath)
         return errors[0]?.message || null
-      }
+      },
+      clearFieldErrors: (fieldPath: string, clearOptions?: { includeSubtree?: boolean }) => {
+        options.domainService.clearFieldErrors(fieldPath, clearOptions?.includeSubtree || false)
+      },
     }
   })
 

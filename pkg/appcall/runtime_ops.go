@@ -34,15 +34,6 @@ func (c *Client) DeleteApp(ctx context.Context, hostID int64, req *dto.DeleteApp
 	return &resp, nil
 }
 
-// CreateServiceTree 创建服务目录（subject: runtime.v1.cmd.service-tree.create）
-func (c *Client) CreateServiceTree(ctx context.Context, hostID int64, req *dto.CreateServiceTreeRuntimeReq) (*dto.CreateServiceTreeRuntimeResp, error) {
-	var resp dto.CreateServiceTreeRuntimeResp
-	if err := c.runtime.requestByHost(ctx, hostID, subjects.RuntimeServiceTreeCreateCommandSubject, req, &resp); err != nil {
-		return nil, err
-	}
-	return &resp, nil
-}
-
 // DeleteServiceTree 删除服务目录（subject: runtime.v1.cmd.service-tree.delete，删磁盘并从 main.go 移除 import）
 func (c *Client) DeleteServiceTree(ctx context.Context, hostID int64, req *dto.DeleteServiceTreeRuntimeReq) (*dto.DeleteServiceTreeRuntimeResp, error) {
 	var resp dto.DeleteServiceTreeRuntimeResp

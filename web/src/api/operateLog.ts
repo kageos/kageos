@@ -61,6 +61,7 @@ export interface GetFormOperateLogsParams {
   action?: string
   source?: string
   status?: 'success' | 'failed'
+  trace_id?: string
   keyword?: string
   page?: number
   page_size?: number

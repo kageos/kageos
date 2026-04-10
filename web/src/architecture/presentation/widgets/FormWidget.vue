@@ -103,7 +103,7 @@
             </label>
             <el-form-item class="form-item-no-label">
               <component
-                :is="getWidgetComponent(subField.widget?.type || 'input')"
+                :is="getWidgetComponent(subField.widget?.type || 'input', mode)"
                 :field="subField"
                 :value="getSubFieldValue(subField.code)"
                 :model-value="getSubFieldValue(subField.code)"
@@ -123,7 +123,7 @@
             class="form-widget-item"
           >
             <component
-              :is="getWidgetComponent(subField.widget?.type || 'input')"
+              :is="getWidgetComponent(subField.widget?.type || 'input', mode)"
               :field="subField"
               :value="getSubFieldValue(subField.code)"
               :model-value="getSubFieldValue(subField.code)"
@@ -159,7 +159,7 @@
           <div class="field-label">{{ subField.name }}</div>
           <div class="field-value">
             <component
-              :is="getWidgetComponent(subField.widget?.type || 'input')"
+              :is="getWidgetComponent(subField.widget?.type || 'input', 'response')"
               :field="subField"
               :value="getSubFieldValue(subField.code)"
               :model-value="getSubFieldValue(subField.code)"
@@ -212,6 +212,7 @@
         :size="DRAWER_CONFIG.size"
         destroy-on-close
         append-to-body
+        @close="tableCellMode.handleDrawerClose()"
       >
         <template #default>
           <div class="form-detail-content">
@@ -228,7 +229,7 @@
                   </label>
                   <el-form-item class="form-item-no-label">
                     <component
-                      :is="getWidgetComponent(subField.widget?.type || 'input')"
+                      :is="getWidgetComponent(subField.widget?.type || 'input', tableCellMode.drawerMode.value)"
                       :field="subField"
                       :value="getSubFieldValue(subField.code)"
                       :model-value="getSubFieldValue(subField.code)"
@@ -247,7 +248,7 @@
                   :required="isFieldRequired(subField)"
                 >
                   <component
-                  :is="getWidgetComponent(subField.widget?.type || 'input')"
+                  :is="getWidgetComponent(subField.widget?.type || 'input', tableCellMode.drawerMode.value)"
                   :field="subField"
                   :value="getSubFieldValue(subField.code)"
                   :model-value="getSubFieldValue(subField.code)"
@@ -272,7 +273,7 @@
         -->
         <template #footer v-if="tableCellMode.isInEditContext.value">
           <div class="drawer-footer">
-            <el-button @click="tableCellMode.closeDrawer()">取消</el-button>
+            <el-button @click="tableCellMode.cancelDrawer()">取消</el-button>
             <el-button type="primary" @click="handleFormCellConfirm">确认</el-button>
           </div>
         </template>
@@ -289,7 +290,7 @@
         <div class="field-label">{{ subField.name }}</div>
         <div class="field-value">
           <component
-            :is="getWidgetComponent(subField.widget?.type || 'input')"
+            :is="getWidgetComponent(subField.widget?.type || 'input', mode)"
             :field="subField"
             :value="getSubFieldValue(subField.code)"
             :model-value="getSubFieldValue(subField.code)"
@@ -333,7 +334,10 @@ const tableCellMode = useTableCellMode(props)
 
 // 字段数量（用于 table-cell 模式显示）
 const fieldCount = computed(() => {
-  const raw = props.value?.raw
+  const currentFieldValue = formDataStore.data.has(props.fieldPath)
+    ? formDataStore.getValue(props.fieldPath)
+    : props.value
+  const raw = currentFieldValue?.raw
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     return Object.keys(raw).length
   }
@@ -342,8 +346,7 @@ const fieldCount = computed(() => {
 
 // 处理 table-cell 模式的确认按钮
 function handleFormCellConfirm(): void {
-  // 关闭抽屉即可，数据已经通过 update:modelValue 事件更新
-  tableCellMode.closeDrawer()
+  tableCellMode.confirmDrawer()
 }
 
 // 表单数据（用于 el-form 绑定）
@@ -357,7 +360,10 @@ const formData = computed(() => {
 })
 
 // 获取组件
-function getWidgetComponent(type: string) {
+function getWidgetComponent(type: string, widgetMode: string = props.mode) {
+  if (widgetMode === 'response') {
+    return widgetComponentFactory.getResponseComponent(type)
+  }
   return widgetComponentFactory.getRequestComponent(type)
 }
 
@@ -567,10 +573,24 @@ defineExpose({
 
 /* 详情抽屉内容 */
 .form-detail-content {
-  padding: 16px 0;
+  padding: 24px;
+  box-sizing: border-box;
   /* 确保下拉菜单可以正常显示 */
   overflow: visible;
   position: relative;
+}
+
+:deep(.form-detail-content .form-card),
+:deep(.form-detail-content .table-card) {
+  margin-bottom: 0;
+}
+
+:deep(.form-detail-content .el-card__body) {
+  padding: 20px 22px;
+}
+
+:deep(.form-detail-content .form-widget-form .el-form-item:last-child) {
+  margin-bottom: 0;
 }
 
 .drawer-footer {

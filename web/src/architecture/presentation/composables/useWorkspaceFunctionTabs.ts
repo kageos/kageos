@@ -28,6 +28,13 @@ type PermissionManageListRef = {
 
 type FormOperateLogSectionRef = {
   loadLogs: (options?: { page?: number }) => void
+  openWithFilters?: (filters: {
+    requestUser?: string
+    traceId?: string
+    keyword?: string
+    status?: string
+    source?: string
+  }) => void
 }
 
 export interface UseWorkspaceFunctionTabsOptions {
@@ -165,6 +172,30 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     }
   }
 
+  const openFunctionOperateLog = async (filters?: {
+    requestUser?: string
+    traceId?: string
+    keyword?: string
+    status?: string
+    source?: string
+  }) => {
+    if (!showFormOperateLogTab.value) {
+      ElMessage.warning('当前函数暂不支持函数执行记录视图')
+      return
+    }
+
+    functionActiveTab.value = 'operateLog'
+    syncFunctionTabQuery()
+    await nextTick()
+
+    if (filters && formOperateLogSectionRef.value?.openWithFilters) {
+      formOperateLogSectionRef.value.openWithFilters(filters)
+      return
+    }
+
+    formOperateLogSectionRef.value?.loadLogs({ page: 1 })
+  }
+
   function onScheduledTaskTotalChange(_total: number) {
   }
 
@@ -237,6 +268,7 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     handleFunctionTabChange,
     handleFunctionPermissionTabChange,
     handleApplyFormOperateLog,
+    openFunctionOperateLog,
     onScheduledTaskTotalChange,
     syncFunctionTabQuery,
     activateScheduledTaskTab

@@ -295,6 +295,7 @@
                         :resource-path="currentFunction?.full_code_path"
                         :auto-load="functionActiveTab === 'scheduledTask'"
                         @total-change="onScheduledTaskTotalChange"
+                        @open-function-operate-log="openFunctionOperateLog"
                       />
                     </div>
                   </el-tab-pane>
@@ -931,6 +932,7 @@ const {
   handleFunctionTabChange,
   handleFunctionPermissionTabChange,
   handleApplyFormOperateLog,
+  openFunctionOperateLog,
   onScheduledTaskTotalChange,
   syncFunctionTabQuery,
   activateScheduledTaskTab

@@ -32,8 +32,6 @@
         <el-button @click="handleClose">取消</el-button>
         <el-button
           v-if="props.mode === 'create' && !!props.router"
-          type="primary"
-          plain
           @click="openScheduledTaskDialog"
           :disabled="submitting"
         >

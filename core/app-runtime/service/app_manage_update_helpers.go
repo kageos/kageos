@@ -18,47 +18,39 @@ type updateAppState struct {
 	oldVersion string
 }
 
-func (s *AppManageService) createFunctionsForUpdate(
+func (s *AppManageService) writeSourceFilesForUpdate(
 	ctx context.Context,
 	user, app string,
-	createFunctions []*sharedDto.CreateFunctionInfo,
-) ([]string, error) {
-	if len(createFunctions) == 0 {
+	sourceFiles []*sharedDto.SourceFileWrite,
+) (*batchWriteState, error) {
+	if len(sourceFiles) == 0 {
 		return nil, nil
 	}
+	if s.workspaceFileService == nil {
+		return nil, fmt.Errorf("workspace file service not available")
+	}
 
-	logger.Infof(ctx, "[UpdateApp] 检测到 CreateFunctions，先执行创建函数操作: functionCount=%d", len(createFunctions))
+	logger.Infof(ctx, "[UpdateApp] 检测到 SourceFiles，先写入源码文件: fileCount=%d", len(sourceFiles))
 
-	createResp, err := s.createFunctionService.CreateFunctions(ctx, user, app, createFunctions)
+	state, err := s.workspaceFileService.writeSourceFiles(ctx, user, app, sourceFiles)
 	if err != nil {
-		logger.Errorf(ctx, "[UpdateApp] 创建函数失败: error=%v", err)
-		return nil, fmt.Errorf("创建函数失败: %w", err)
-	}
-	if !createResp.Success {
-		logger.Errorf(ctx, "[UpdateApp] 创建函数失败: %s", createResp.Message)
-		if len(createResp.WrittenFiles) > 0 {
-			s.createFunctionService.rollbackFiles(ctx, createResp.WrittenFiles)
-		}
-		return nil, fmt.Errorf("创建函数失败: %s", createResp.Message)
+		logger.Errorf(ctx, "[UpdateApp] 写入源码文件失败: error=%v", err)
+		return nil, fmt.Errorf("写入源码文件失败: %w", err)
 	}
 
-	logger.Infof(ctx, "[UpdateApp] 创建函数成功: fileCount=%d", len(createResp.WrittenFiles))
-	return createResp.WrittenFiles, nil
+	logger.Infof(ctx, "[UpdateApp] 源码文件写入成功: fileCount=%d", len(state.writtenPaths))
+	return state, nil
 }
 
 func (s *AppManageService) prepareUpdateAppState(
 	ctx context.Context,
 	user, app string,
 ) (*updateAppState, error) {
-	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
-	appDirRel := appPaths.AppDir()
-	absAppDir, err := filepath.Abs(appDirRel)
+	appPaths, absAppDir, err := s.prepareExistingAppPaths(user, app)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get absolute path: %w", err)
+		return nil, err
 	}
-	if _, err := os.Stat(absAppDir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("app not found: %s/%s", user, app)
-	}
+	appDirRel := appPaths.AppDir()
 
 	if err := s.appRepo.EnsureAppExists(user, app); err != nil {
 		logger.Warnf(ctx, "[UpdateApp] ensure app record failed (non-blocking): %v", err)
@@ -72,6 +64,22 @@ func (s *AppManageService) prepareUpdateAppState(
 		absPaths:   absPaths,
 		oldVersion: oldVersion,
 	}, nil
+}
+
+func (s *AppManageService) prepareExistingAppPaths(user, app string) (runtimeAppPaths, string, error) {
+	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
+	appDirRel := appPaths.AppDir()
+	absAppDir, err := filepath.Abs(appDirRel)
+	if err != nil {
+		return runtimeAppPaths{}, "", fmt.Errorf("failed to get absolute path: %w", err)
+	}
+	if _, err := os.Stat(absAppDir); err != nil {
+		if os.IsNotExist(err) {
+			return runtimeAppPaths{}, "", fmt.Errorf("app not found: %s/%s", user, app)
+		}
+		return runtimeAppPaths{}, "", fmt.Errorf("检查应用目录失败: %w", err)
+	}
+	return appPaths, absAppDir, nil
 }
 
 func (s *AppManageService) deployUpdatedVersion(

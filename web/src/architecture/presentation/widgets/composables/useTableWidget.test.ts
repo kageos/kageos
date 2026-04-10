@@ -3,27 +3,49 @@ import { createPinia, setActivePinia } from 'pinia'
 import { useTableWidget } from './useTableWidget'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 
+function createFieldValue(raw: any, meta: Record<string, any> = {}) {
+  return {
+    raw,
+    display: raw === null || raw === undefined ? '' : String(raw),
+    meta,
+  }
+}
+
 function createProps() {
   return {
     field: {
-      code: 'contacts',
-      name: '联系人',
+      code: 'items',
+      name: '明细',
       widget: { type: 'table' },
       children: [
-        { code: 'name', name: '姓名', widget: { type: 'input' } },
-        { code: 'phone', name: '电话', widget: { type: 'input' } }
-      ]
+        { code: 'topic_id', name: '主题', widget: { type: 'input' } },
+        { code: 'option_ids', name: '选项', widget: { type: 'multiselect' }, depend_on: 'topic_id' },
+        {
+          code: 'extra',
+          name: '扩展',
+          widget: { type: 'form' },
+          depend_on: 'topic_id',
+          children: [
+            { code: 'note', name: '备注', widget: { type: 'input' } },
+          ],
+        },
+      ],
     },
     value: {
       raw: [
-        { name: 'Alice', phone: '10086' },
-        { name: 'Bob', phone: '10010' }
+        {
+          topic_id: 't1',
+          option_ids: ['o1'],
+          extra: {
+            note: 'old',
+          },
+        },
       ],
-      display: '共 2 条',
-      meta: {}
+      display: '共 1 条',
+      meta: {},
     },
-    mode: 'table-cell',
-    fieldPath: 'profile.address.contacts'
+    mode: 'edit',
+    fieldPath: 'items',
   } as any
 }
 
@@ -33,35 +55,56 @@ describe('useTableWidget', () => {
     useFormDataStore().clear()
   })
 
-  it('falls back to raw row values when nested row paths are not hydrated into store', () => {
-    const { getRowFieldValue } = useTableWidget(createProps())
-
-    expect(getRowFieldValue(0, 'name')).toEqual({
-      raw: 'Alice',
-      display: 'Alice',
-      meta: {}
-    })
-    expect(getRowFieldValue(1, 'phone')).toEqual({
-      raw: '10010',
-      display: '10010',
-      meta: {}
-    })
-  })
-
-  it('prefers store values when a row field has already been edited', () => {
+  it('clears dependent fields within the edited table row scope', () => {
     const formDataStore = useFormDataStore()
-    formDataStore.setValue('profile.address.contacts[0].name', {
-      raw: 'Alice Updated',
-      display: 'Alice Updated',
-      meta: {}
+    formDataStore.setValue('items', createFieldValue([
+      {
+        topic_id: 't1',
+        option_ids: ['o1'],
+        extra: {
+          note: 'old',
+        },
+      },
+    ], { preserved: true }) as any)
+    formDataStore.setValue('items[0].option_ids', createFieldValue(['o1'], { preserved: true }) as any)
+    formDataStore.setValue('items[0].extra', {
+      raw: { note: 'old' },
+      display: '{"note":"old"}',
+      meta: { preserved: true },
     } as any)
+    formDataStore.setValue('items[0].extra.note', createFieldValue('old') as any)
 
-    const { getRowFieldValue } = useTableWidget(createProps())
+    const { updateRowFieldValue } = useTableWidget(createProps())
 
-    expect(getRowFieldValue(0, 'name')).toEqual({
-      raw: 'Alice Updated',
-      display: 'Alice Updated',
-      meta: {}
+    updateRowFieldValue(0, 'topic_id', createFieldValue('t2') as any)
+
+    expect(formDataStore.getValue('items[0].option_ids')).toEqual({
+      raw: null,
+      display: '',
+      dataType: undefined,
+      widgetType: 'multiselect',
+      meta: { preserved: true },
     })
+    expect(formDataStore.getValue('items[0].extra')).toEqual({
+      raw: {},
+      display: '',
+      dataType: undefined,
+      widgetType: 'form',
+      meta: { preserved: true },
+    })
+    expect(formDataStore.getValue('items')).toEqual({
+      raw: [
+        {
+          topic_id: 't2',
+          option_ids: null,
+          extra: {},
+        },
+      ],
+      display: '共 1 条',
+      dataType: undefined,
+      widgetType: 'table',
+      meta: { preserved: true },
+    })
+    expect(formDataStore.getAllFieldPaths()).not.toContain('items[0].extra.note')
   })
 })

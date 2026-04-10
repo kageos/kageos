@@ -7,6 +7,11 @@ import { ref, computed } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { reindexTableRowFieldPaths } from '@/architecture/presentation/widgets/utils/tableFieldPathSync'
+import {
+  captureFieldTreeSnapshot,
+  restoreFieldTreeSnapshot,
+  type FieldTreeSnapshot,
+} from '@/architecture/presentation/widgets/utils/fieldTreeSnapshot'
 
 export function useTableEditMode(props: WidgetComponentProps) {
   const formDataStore = useFormDataStore()
@@ -14,6 +19,7 @@ export function useTableEditMode(props: WidgetComponentProps) {
   // 编辑状态
   const editingIndex = ref<number | null>(null)
   const isAdding = ref(false)
+  const editingSnapshot = ref<FieldTreeSnapshot | null>(null)
   
   // 表格数据（可编辑）
   // 🔥 关键修复：getter 从 formDataStore 读取，确保与 setter 同步
@@ -40,6 +46,7 @@ export function useTableEditMode(props: WidgetComponentProps) {
   
   // 开始编辑
   function startEditing(index: number): void {
+    editingSnapshot.value = captureFieldTreeSnapshot(formDataStore, `${props.fieldPath}[${index}]`)
     editingIndex.value = index
     isAdding.value = false
   }
@@ -84,10 +91,13 @@ export function useTableEditMode(props: WidgetComponentProps) {
       tableData.value = currentData
 
       reindexTableRowFieldPaths(formDataStore, props.fieldPath, indexToRemove)
+    } else if (editingSnapshot.value) {
+      restoreFieldTreeSnapshot(formDataStore, editingSnapshot.value)
     }
     
     editingIndex.value = null
     isAdding.value = false
+    editingSnapshot.value = null
   }
   
   // 保存（新增或编辑）
@@ -110,6 +120,7 @@ export function useTableEditMode(props: WidgetComponentProps) {
     // 因为 cancelEditing() 会删除新增的空行，但我们已经保存了数据
     editingIndex.value = null
     isAdding.value = false
+    editingSnapshot.value = null
   }
   
   // 删除行
@@ -124,6 +135,7 @@ export function useTableEditMode(props: WidgetComponentProps) {
       if (editingIndex.value === index) {
         editingIndex.value = null
         isAdding.value = false
+        editingSnapshot.value = null
       } else if (editingIndex.value > index) {
         editingIndex.value -= 1
       }

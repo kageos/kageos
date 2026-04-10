@@ -6,56 +6,74 @@
   <div class="files-widget">
     <!-- 编辑模式 -->
     <template v-if="mode === 'edit'">
-      <!-- 上传区域 -->
-      <div
-        v-if="!isDisabled && !isMaxReached"
-        class="upload-area"
-        @drop.prevent="handleDrop"
-        @dragover.prevent="handleDragOver"
-        @dragleave.prevent="handleDragLeave"
-        :class="{ 'is-dragging': isDragging }"
-      >
-        <div class="upload-area-summary">
-          <div class="upload-area-title-row">
-            <div class="upload-area-title">上传文件</div>
-            <div class="upload-area-count">{{ currentFiles.length }}/{{ maxCount }}</div>
-          </div>
-          <div class="upload-area-meta">
-            <span class="upload-meta-badge">
-              {{ maxSize ? `单文件 ≤ ${maxSize}` : '大小不限' }}
-            </span>
-            <span class="upload-meta-badge">
-              {{ accept === '*' ? '任意格式' : accept }}
-            </span>
-          </div>
-        </div>
-        <el-upload
-          ref="uploadRef"
-          :auto-upload="false"
-          :show-file-list="false"
-          :drag="true"
-          :multiple="true"
-          :accept="accept"
-          :on-change="handleFileChange"
-          @drop.native.stop.prevent="handleElUploadDrop"
-          @dragover.native.stop.prevent
+      <div v-if="!isDisabled" class="files-editor-shell">
+        <!-- 上传区域 -->
+        <div
+          v-if="!isDisabled && !isMaxReached"
+          class="upload-area"
+          @drop.prevent="handleDrop"
+          @dragover.prevent="handleDragOver"
+          @dragleave.prevent="handleDragLeave"
+          :class="{ 'is-dragging': isDragging }"
         >
-          <div class="upload-dragger-content">
-            <el-icon :size="48" class="upload-icon">
-              <Upload />
-            </el-icon>
-            <div class="el-upload__text">
-              将文件拖到此处，或<em>点击上传</em>
+          <div class="upload-area-summary">
+            <div class="upload-area-title-row">
+              <div class="upload-area-title">上传文件</div>
+              <div class="upload-area-count">{{ currentFiles.length }}/{{ maxCount }}</div>
             </div>
-            <div class="el-upload__tip">
-              {{ uploadTip }}
+            <div class="upload-area-meta">
+              <span class="upload-meta-badge">
+                {{ maxSize ? `单文件 ≤ ${maxSize}` : '大小不限' }}
+              </span>
+              <span class="upload-meta-badge">
+                {{ accept === '*' ? '任意格式' : accept }}
+              </span>
             </div>
           </div>
-        </el-upload>
-      </div>
-      <div v-else-if="!isDisabled && isMaxReached" class="upload-limit-tip">
-        <el-icon class="limit-tip-icon"><Document /></el-icon>
-        <span>已达到上传上限（{{ currentFiles.length }}/{{ maxCount }}），请先删除已有文件</span>
+          <el-upload
+            ref="uploadRef"
+            :auto-upload="false"
+            :show-file-list="false"
+            :drag="true"
+            :multiple="true"
+            :accept="accept"
+            :on-change="handleFileChange"
+            @drop.native.stop.prevent="handleElUploadDrop"
+            @dragover.native.stop.prevent
+          >
+            <div class="upload-dragger-content">
+              <el-icon :size="48" class="upload-icon">
+                <Upload />
+              </el-icon>
+              <div class="el-upload__text">
+                将文件拖到此处，或<em>点击上传</em>
+              </div>
+              <div class="el-upload__tip">
+                {{ uploadTip }}
+              </div>
+            </div>
+          </el-upload>
+        </div>
+        <div v-else-if="!isDisabled && isMaxReached" class="upload-limit-tip">
+          <el-icon class="limit-tip-icon"><Document /></el-icon>
+          <span>已达到上传上限（{{ currentFiles.length }}/{{ maxCount }}），请先删除已有文件</span>
+        </div>
+
+        <div class="files-remark-panel">
+          <div class="files-remark-header">
+            <div class="files-remark-title">文件说明</div>
+            <div class="files-remark-tip">和上传文件一起保存，适合补充用途、来源或注意事项。</div>
+          </div>
+          <el-input
+            v-model="remark"
+            type="textarea"
+            :rows="2"
+            placeholder="补充这批文件的说明（可选）"
+            :maxlength="500"
+            show-word-limit
+            @blur="handleUpdateRemark"
+          />
+        </div>
       </div>
 
       <!-- 上传中的文件 -->
@@ -133,22 +151,14 @@
             @open-browser="handlePreviewInNewWindow(file)"
             @preview-image="handlePreviewImage(file)"
             @edit-description="handleEditDescription(index)"
+            @update-description-draft="updateEditingDescription"
+            @save-description="handleSaveDescription"
+            @cancel-description="handleCancelDescription"
             @delete-file="handleDeleteFile(index)"
+            :is-description-editing="editingDescriptionIndex === index"
+            :description-draft="editingDescription"
           />
         </div>
-      </div>
-
-      <!-- 备注（作为文件列表的补充说明） -->
-      <div v-if="!isDisabled" class="files-remark">
-        <el-input
-          v-model="remark"
-          type="textarea"
-          :rows="2"
-          placeholder="添加文件列表备注（可选）"
-          :maxlength="500"
-          show-word-limit
-          @blur="handleUpdateRemark"
-        />
       </div>
     </template>
 
@@ -224,31 +234,6 @@
       </div>
     </el-dialog>
 
-    <!-- 🔥 备注编辑对话框 -->
-    <el-dialog
-      v-model="descriptionDialogVisible"
-      title="添加文件备注"
-      width="600px"
-      :close-on-click-modal="true"
-      @close="handleCancelDescription"
-    >
-      <div class="description-dialog-content">
-        <el-input
-          v-model="editingDescription"
-          type="textarea"
-          :rows="4"
-          placeholder="请输入文件备注（可选）"
-          :maxlength="500"
-          show-word-limit
-        />
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="handleCancelDescription">取消</el-button>
-          <el-button type="primary" @click="handleSaveDescription">保存</el-button>
-        </span>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -436,9 +421,10 @@ const {
 })
 
 const {
-  descriptionDialogVisible,
+  editingDescriptionIndex,
   editingDescription,
   handleEditDescription,
+  updateEditingDescription,
   handleSaveDescription,
   handleCancelDescription,
 } = useFilesDescriptionDialog({
@@ -456,13 +442,22 @@ function handleUpdateRemark(): void {
   width: 100%;
 }
 
+.files-editor-shell {
+  margin-bottom: 20px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 14px;
+  background: var(--el-bg-color);
+  overflow: hidden;
+}
+
 /* 上传区域 */
 .upload-area {
-  margin-bottom: 20px;
+  margin-bottom: 0;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--el-color-primary) 3%, var(--el-bg-color)) 0%, var(--el-bg-color) 100%);
-  border: 2px dashed var(--el-border-color);
-  border-radius: 12px;
+  border: none;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-radius: 0;
   padding: 18px 20px 20px;
   transition: all 0.3s ease;
   cursor: pointer;
@@ -709,11 +704,6 @@ function handleUpdateRemark(): void {
   gap: 10px;
 }
 
-/* 🔥 备注编辑对话框样式 */
-.description-dialog-content {
-  padding: 10px 0;
-}
-
 /* 🔥 表格单元格模式下的简化样式 */
 .files-table-cell {
   display: flex;
@@ -737,11 +727,35 @@ function handleUpdateRemark(): void {
   color: var(--el-text-color-secondary);
 }
 
+.files-remark-panel {
+  padding: 16px 20px 18px;
+  background: color-mix(in srgb, var(--el-color-primary) 2%, var(--el-bg-color));
+}
+
+.files-remark-header {
+  margin-bottom: 10px;
+}
+
+.files-remark-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.files-remark-tip {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
+}
+
 /* 备注（作为文件列表的补充说明，不显示为独立字段） */
 .files-remark {
   margin-top: 12px;
-  padding-top: 0;
-  border-top: none;
+  padding: 12px 14px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-fill-color-light);
 }
 
 .files-remark :deep(.el-textarea__inner) {

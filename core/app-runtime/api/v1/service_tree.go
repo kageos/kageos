@@ -7,39 +7,26 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// ServiceTreeHandler 处理服务目录相关的 NATS 请求
-type ServiceTreeHandler struct {
-	serviceTreeService *service.ServiceTreeService
+// WorkspaceChangeHandler 处理工作区目录脚手架和批量文件写入相关的 NATS 请求。
+type WorkspaceChangeHandler struct {
+	workspaceChangeService *service.WorkspaceChangeService
 }
 
-// NewServiceTreeHandler 创建 ServiceTree 处理器（依赖注入）
-func NewServiceTreeHandler(serviceTreeService *service.ServiceTreeService) *ServiceTreeHandler {
-	return &ServiceTreeHandler{serviceTreeService: serviceTreeService}
+// ServiceTreeHandler 兼容旧命名，请优先使用 WorkspaceChangeHandler。
+type ServiceTreeHandler = WorkspaceChangeHandler
+
+// NewWorkspaceChangeHandler 创建工作区变更处理器（依赖注入）。
+func NewWorkspaceChangeHandler(workspaceChangeService *service.WorkspaceChangeService) *WorkspaceChangeHandler {
+	return &WorkspaceChangeHandler{workspaceChangeService: workspaceChangeService}
 }
 
-// HandleServiceTreeCreate 处理服务目录创建请求
-func (h *ServiceTreeHandler) HandleServiceTreeCreate(msg *nats.Msg) {
-	ctx := handlerContext(msg)
-	req, ok := decodeRequest[dto.CreateServiceTreeRuntimeReq](ctx, msg, "HandleServiceTreeCreate")
-	if !ok {
-		return
-	}
-	logger.Infof(ctx, "[HandleServiceTreeCreate] Received: user=%s, app=%s, serviceTree=%s",
-		req.User, req.App, req.ServiceTree.Code)
-	resp, err := h.serviceTreeService.CreateServiceTree(ctx, req)
-	if err != nil {
-		logger.Errorf(ctx, "[HandleServiceTreeCreate] Failed: %v", err)
-		respondFailure(ctx, msg, "HandleServiceTreeCreate", err)
-		return
-	}
-	if !respondSuccess(ctx, msg, "HandleServiceTreeCreate", resp) {
-		return
-	}
-	logger.Infof(ctx, "[HandleServiceTreeCreate] Created: %s", resp.ServiceTree)
+// NewServiceTreeHandler 兼容旧命名，请优先使用 NewWorkspaceChangeHandler。
+func NewServiceTreeHandler(workspaceChangeService *service.WorkspaceChangeService) *WorkspaceChangeHandler {
+	return NewWorkspaceChangeHandler(workspaceChangeService)
 }
 
 // HandleBatchCreateDirectoryTree 处理批量创建目录树请求
-func (h *ServiceTreeHandler) HandleBatchCreateDirectoryTree(msg *nats.Msg) {
+func (h *WorkspaceChangeHandler) HandleBatchCreateDirectoryTree(msg *nats.Msg) {
 	ctx := handlerContext(msg)
 	req, ok := decodeRequest[dto.BatchCreateDirectoryTreeRuntimeReq](ctx, msg, "HandleBatchCreateDirectoryTree")
 	if !ok {
@@ -48,7 +35,7 @@ func (h *ServiceTreeHandler) HandleBatchCreateDirectoryTree(msg *nats.Msg) {
 	tenantUser := req.User
 	logger.Infof(ctx, "[HandleBatchCreateDirectoryTree] Received: user=%s, app=%s, itemCount=%d",
 		tenantUser, req.App, len(req.Items))
-	resp, err := h.serviceTreeService.BatchCreateDirectoryTree(ctx, req)
+	resp, err := h.workspaceChangeService.BatchCreateDirectoryTree(ctx, req)
 	if err != nil {
 		logger.Errorf(ctx, "[HandleBatchCreateDirectoryTree] Failed: %v", err)
 		respondFailure(ctx, msg, "HandleBatchCreateDirectoryTree", err)
@@ -61,7 +48,7 @@ func (h *ServiceTreeHandler) HandleBatchCreateDirectoryTree(msg *nats.Msg) {
 }
 
 // HandleBatchWriteFiles 处理批量写文件请求
-func (h *ServiceTreeHandler) HandleBatchWriteFiles(msg *nats.Msg) {
+func (h *WorkspaceChangeHandler) HandleBatchWriteFiles(msg *nats.Msg) {
 	ctx := handlerContext(msg)
 	req, ok := decodeRequest[dto.BatchWriteFilesRuntimeReq](ctx, msg, "HandleBatchWriteFiles")
 	if !ok {
@@ -69,7 +56,7 @@ func (h *ServiceTreeHandler) HandleBatchWriteFiles(msg *nats.Msg) {
 	}
 	logger.Infof(ctx, "[HandleBatchWriteFiles] Received: user=%s, app=%s, fileCount=%d",
 		req.User, req.App, len(req.Files))
-	resp, err := h.serviceTreeService.BatchWriteFiles(ctx, req)
+	resp, err := h.workspaceChangeService.BatchWriteFiles(ctx, req)
 	if err != nil {
 		logger.Errorf(ctx, "[HandleBatchWriteFiles] Failed: %v", err)
 		respondFailure(ctx, msg, "HandleBatchWriteFiles", err)
@@ -82,7 +69,7 @@ func (h *ServiceTreeHandler) HandleBatchWriteFiles(msg *nats.Msg) {
 }
 
 // HandleServiceTreeDelete 处理删除服务目录请求（删磁盘目录并从 main.go 移除 import）
-func (h *ServiceTreeHandler) HandleServiceTreeDelete(msg *nats.Msg) {
+func (h *WorkspaceChangeHandler) HandleServiceTreeDelete(msg *nats.Msg) {
 	ctx := handlerContext(msg)
 	req, ok := decodeRequest[dto.DeleteServiceTreeRuntimeReq](ctx, msg, "HandleServiceTreeDelete")
 	if !ok {
@@ -90,7 +77,7 @@ func (h *ServiceTreeHandler) HandleServiceTreeDelete(msg *nats.Msg) {
 	}
 	logger.Infof(ctx, "[HandleServiceTreeDelete] Received: user=%s, app=%s, packagePath=%s",
 		req.User, req.App, req.PackagePath)
-	resp, err := h.serviceTreeService.DeleteServiceTreeByReq(ctx, req)
+	resp, err := h.workspaceChangeService.DeleteServiceTreeByReq(ctx, req)
 	if err != nil {
 		logger.Errorf(ctx, "[HandleServiceTreeDelete] Failed: %v", err)
 		respondFailure(ctx, msg, "HandleServiceTreeDelete", err)

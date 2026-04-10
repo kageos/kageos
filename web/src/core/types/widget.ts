@@ -43,6 +43,9 @@ export interface FormRendererContext {
   
   /** 获取字段错误（v2 系统新增） */
   getFieldError?: (fieldPath: string) => string | null
+
+  /** 清理字段错误（嵌套容器更新时使用） */
+  clearFieldErrors?: (fieldPath: string, options?: { includeSubtree?: boolean }) => void
 }
 
 /**

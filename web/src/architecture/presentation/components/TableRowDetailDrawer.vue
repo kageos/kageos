@@ -56,8 +56,6 @@
             </el-button>
             <el-button
               v-if="mode === 'edit'"
-              type="primary"
-              plain
               size="small"
               :disabled="!isFormViewReady"
               @click="openScheduledTaskDialog"
@@ -390,10 +388,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, toRef } from 'vue'
 import { Edit, ArrowLeft, ArrowRight, Grid, List, Lock } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import type { TabPaneName } from 'element-plus'
 import { useRouter, useRoute } from 'vue-router'
 import { buildPermissionApplyURL, getPermissionShortName, FunctionPermission } from '@/utils/permission'
 import FormView from '@/architecture/presentation/views/FormView.vue'
@@ -406,8 +403,8 @@ import { WidgetType } from '@/core/constants/widget'
 import { useAuthStore } from '@/stores/auth'
 import type { FieldConfig, FieldValue, FunctionDetail } from '../../domain/types'
 import { buildDetailEditFormState } from '../composables/utils/workspaceDetailRuntime'
-import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
-import { createAutoFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
+import { useTableRowDetailTabs } from '@/architecture/presentation/composables/useTableRowDetailTabs'
+import { useTableRowDetailLayout } from '@/architecture/presentation/composables/useTableRowDetailLayout'
 
 interface Props {
   visible: boolean
@@ -446,316 +443,41 @@ const emit = defineEmits<Emits>()
 
 const router = useRouter()
 const authStore = useAuthStore()
-const RICH_TEXT_PREVIEW_HEIGHT = 320
 
 const formViewRef = ref<InstanceType<typeof FormView> | null>(null)
 const showScheduledTaskDialog = ref(false)
-const richTextExpanded = ref<Record<string, boolean>>({})
-const richTextOverflow = ref<Record<string, boolean>>({})
-const richTextContentRefs = new Map<string, HTMLElement>()
-const richTextResizeObservers = new Map<string, ResizeObserver>()
-
-// ==================== 详情布局配置 ====================
-
-/**
- * 是否使用分组布局的详情页面
- * 默认使用新布局，可以通过切换按钮或 localStorage 控制
- */
-const getInitialLayout = (): boolean => {
-  try {
-    // 优先从 localStorage 读取用户设置
-    const stored = localStorage.getItem('useGroupedDetailLayout')
-    const layoutVersion = localStorage.getItem('useGroupedDetailLayoutVersion')
-    
-    // 如果用户明确设置了布局且有版本标记，使用用户设置
-    if (stored === 'true' || stored === 'false') {
-      if (layoutVersion) {
-        // 有版本标记，说明是用户明确的选择，使用用户设置
-        return stored === 'true'
-      } else {
-        // 没有版本标记，说明是旧的设置，清除它
-        localStorage.removeItem('useGroupedDetailLayout')
-      }
-    }
-    
-    // 默认使用新布局
-    return true
-  } catch (error) {
-    console.error('[TableRowDetailDrawer] 读取布局设置失败:', error)
-    // 出错时默认使用新布局
-    return true
-  }
-}
-const useGroupedDetailLayout = ref<boolean>(getInitialLayout())
-
-/**
- * 切换详情布局
- */
-const toggleDetailLayout = (): void => {
-  useGroupedDetailLayout.value = !useGroupedDetailLayout.value
-  localStorage.setItem('useGroupedDetailLayout', String(useGroupedDetailLayout.value))
-  // 设置版本标记，表示这是用户明确的选择
-  localStorage.setItem('useGroupedDetailLayoutVersion', '1.0')
-}
-
-// Tab 相关
-const activeTab = ref('detail')
-const operateLogSectionRef = ref<InstanceType<typeof OperateLogSection> | null>(null)
-const permissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> | null>(null)
-
-// ⭐ 判断是否显示权限申请 tab
-// 条件：1. 节点类型是 package 或 function  2. 用户是管理员
-const showPermissionRequestTab = computed(() => {
-  if (!props.currentFunction) {
-    return false
-  }
-  
-  // 必须是 package 或 function 类型
-  if (props.currentFunction.type !== 'package' && props.currentFunction.type !== 'function') {
-    return false
-  }
-  
-  return isServiceTreeNodeAdmin(props.currentFunction, authStore.user?.username)
+const {
+  activeTab,
+  operateLogSectionRef,
+  permissionRequestListRef,
+  showPermissionRequestTab,
+  handleTabChange
+} = useTableRowDetailTabs({
+  currentFunction: toRef(props, 'currentFunction'),
+  currentUsername: computed(() => authStore.user?.username),
+  rowData: toRef(props, 'rowData')
 })
-
-// 处理 tab 切换
-const handleTabChange = (tabName: TabPaneName) => {
-  if (tabName === 'operateLog' && operateLogSectionRef.value) {
-    // 切换到操作日志 tab 时，触发加载
-    operateLogSectionRef.value.load()
-  } else if (tabName === 'permissionRequest' && permissionRequestListRef.value) {
-    // 切换到权限申请 tab 时，触发加载
-    permissionRequestListRef.value.loadRequests()
-  }
-}
-
-// 监听 rowData 变化，重置 tab
-watch(
-  () => props.rowData,
-  () => {
-    activeTab.value = 'detail'
-    richTextExpanded.value = {}
-  }
-)
-
-// ⭐ 监听路由 query 参数，支持通过 tab 参数指定要打开的 tab
-const route = useRoute()
-watch(
-  () => route.query.tab,
-  (tab) => {
-    const normalizedTab = Array.isArray(tab) ? tab[0] : tab
-    if (normalizedTab === 'permissionRequest' && showPermissionRequestTab.value) {
-      activeTab.value = 'permissionRequest'
-      // 切换 tab 时触发加载
-      nextTick(() => {
-        if (permissionRequestListRef.value) {
-          permissionRequestListRef.value.loadRequests()
-        }
-      })
-    }
-  },
-  { immediate: true }
-)
 
 const visible = computed({
   get: () => props.visible,
   set: (val) => emit('update:visible', val)
 })
 
-// 详情页的 Link 字段（用于顶部链接区域显示）
-const linkFields = computed(() => {
-  return props.fields.filter((f: FieldConfig) => f.widget?.type === WidgetType.LINK)
+const {
+  RICH_TEXT_PREVIEW_HEIGHT,
+  useGroupedDetailLayout,
+  toggleDetailLayout,
+  linkFields,
+  groupedFields,
+  setRichTextContentRef,
+  isRichTextExpanded,
+  isRichTextOverflow,
+  toggleRichTextExpanded,
+  getFieldValue
+} = useTableRowDetailLayout({
+  fields: toRef(props, 'fields'),
+  rowData: toRef(props, 'rowData')
 })
-
-// ==================== 分组布局字段分组 ====================
-
-/**
- * 分组布局的字段分组
- */
-const groupedFields = computed(() => {
-  // 排除 link 字段（link 字段单独显示在顶部）
-  const fieldsToGroup = props.fields.filter((f: FieldConfig) => f.widget?.type !== WidgetType.LINK)
-  
-  // ID 字段
-  const idField = fieldsToGroup.find((f: FieldConfig) => f.widget?.type === WidgetType.ID)
-  
-  // 状态/分类字段（select, multiselect, radio, checkbox, switch）
-  const statusFields = fieldsToGroup.filter((f: FieldConfig) => {
-    const widgetType = f.widget?.type
-    return widgetType === WidgetType.SELECT || 
-           widgetType === WidgetType.MULTI_SELECT || 
-           widgetType === WidgetType.RADIO || 
-           widgetType === WidgetType.CHECKBOX || 
-           widgetType === WidgetType.SWITCH
-  })
-  
-  // 用户字段
-  const userFields = fieldsToGroup.filter((f: FieldConfig) => f.widget?.type === WidgetType.USER)
-  
-  // 时间字段
-  const timestampFields = fieldsToGroup.filter((f: FieldConfig) => f.widget?.type === WidgetType.TIMESTAMP)
-  
-  // 富文本字段：在分组布局中保持直接展示，避免默认折叠影响可见性
-  const richTextFields = fieldsToGroup.filter((f: FieldConfig) => f.widget?.type === WidgetType.RICH_TEXT)
-
-  // 复杂字段（form, table）
-  const complexFields = fieldsToGroup.filter((f: FieldConfig) => {
-    const widgetType = f.widget?.type
-    return widgetType === WidgetType.FORM || 
-           widgetType === WidgetType.TABLE
-  })
-  
-  // 主内容字段：保留原始字段顺序，在 main-content 中统一渲染
-  const mainContentFields = fieldsToGroup.filter((f: FieldConfig) => {
-    const widgetType = f.widget?.type
-    return widgetType !== WidgetType.ID &&
-           widgetType !== WidgetType.SELECT &&
-           widgetType !== WidgetType.MULTI_SELECT &&
-           widgetType !== WidgetType.RADIO &&
-           widgetType !== WidgetType.CHECKBOX &&
-           widgetType !== WidgetType.SWITCH &&
-           widgetType !== WidgetType.USER &&
-           widgetType !== WidgetType.TIMESTAMP &&
-           widgetType !== WidgetType.FORM &&
-           widgetType !== WidgetType.TABLE
-  })
-  
-  return {
-    idField,
-    statusFields,
-    userFields,
-    timestampFields,
-    richTextFields,
-    complexFields,
-    mainContentFields
-  }
-})
-
-const syncRichTextState = () => {
-  const activeCodes = new Set(groupedFields.value.richTextFields.map((field: FieldConfig) => field.code))
-  const nextExpanded: Record<string, boolean> = {}
-  const nextOverflow: Record<string, boolean> = {}
-
-  activeCodes.forEach((code) => {
-    nextExpanded[code] = richTextExpanded.value[code] ?? false
-    nextOverflow[code] = richTextOverflow.value[code] ?? false
-  })
-
-  const hasExpandedChanged = Object.keys(nextExpanded).length !== Object.keys(richTextExpanded.value).length ||
-    Object.entries(nextExpanded).some(([code, value]) => richTextExpanded.value[code] !== value)
-  const hasOverflowChanged = Object.keys(nextOverflow).length !== Object.keys(richTextOverflow.value).length ||
-    Object.entries(nextOverflow).some(([code, value]) => richTextOverflow.value[code] !== value)
-
-  if (hasExpandedChanged) {
-    richTextExpanded.value = nextExpanded
-  }
-
-  if (hasOverflowChanged) {
-    richTextOverflow.value = nextOverflow
-  }
-
-  Array.from(richTextResizeObservers.keys()).forEach((code) => {
-    if (!activeCodes.has(code)) {
-      richTextResizeObservers.get(code)?.disconnect()
-      richTextResizeObservers.delete(code)
-      richTextContentRefs.delete(code)
-    }
-  })
-}
-
-const measureRichTextOverflow = (fieldCode: string) => {
-  const content = richTextContentRefs.get(fieldCode)
-  if (!content) {
-    return
-  }
-
-  const contentHeight = Math.ceil(content.getBoundingClientRect().height || content.scrollHeight || 0)
-  const hasOverflow = contentHeight > RICH_TEXT_PREVIEW_HEIGHT + 8
-
-  if (richTextOverflow.value[fieldCode] !== hasOverflow) {
-    richTextOverflow.value = {
-      ...richTextOverflow.value,
-      [fieldCode]: hasOverflow
-    }
-  }
-
-  if (!hasOverflow && richTextExpanded.value[fieldCode]) {
-    richTextExpanded.value = {
-      ...richTextExpanded.value,
-      [fieldCode]: false
-    }
-  }
-}
-
-const measureAllRichTextOverflow = () => {
-  if (!useGroupedDetailLayout.value) {
-    return
-  }
-
-  groupedFields.value.richTextFields.forEach((field: FieldConfig) => {
-    measureRichTextOverflow(field.code)
-  })
-}
-
-const scheduleRichTextMeasurement = () => {
-  nextTick(() => {
-    measureAllRichTextOverflow()
-  })
-}
-
-const setRichTextContentRef = (fieldCode: string, el: Element | null) => {
-  if (!(el instanceof HTMLElement)) {
-    richTextResizeObservers.get(fieldCode)?.disconnect()
-    richTextResizeObservers.delete(fieldCode)
-    richTextContentRefs.delete(fieldCode)
-    return
-  }
-
-  richTextContentRefs.set(fieldCode, el)
-
-  if (typeof ResizeObserver !== 'undefined') {
-    let observer = richTextResizeObservers.get(fieldCode)
-    if (!observer) {
-      observer = new ResizeObserver(() => {
-        measureRichTextOverflow(fieldCode)
-      })
-      richTextResizeObservers.set(fieldCode, observer)
-    }
-    observer.disconnect()
-    observer.observe(el)
-  }
-
-  measureRichTextOverflow(fieldCode)
-}
-
-const isRichTextExpanded = (fieldCode: string): boolean => !!richTextExpanded.value[fieldCode]
-const isRichTextOverflow = (fieldCode: string): boolean => !!richTextOverflow.value[fieldCode]
-
-const toggleRichTextExpanded = (fieldCode: string) => {
-  richTextExpanded.value = {
-    ...richTextExpanded.value,
-    [fieldCode]: !richTextExpanded.value[fieldCode]
-  }
-}
-
-watch(
-  () => [
-    useGroupedDetailLayout.value,
-    groupedFields.value.richTextFields.map((field: FieldConfig) => field.code).join('|'),
-    props.rowData
-  ],
-  () => {
-    syncRichTextState()
-    scheduleRichTextMeasurement()
-  },
-  { immediate: true }
-)
-
-const getFieldValue = (fieldCode: string): FieldValue => {
-  if (!props.rowData) return createEmptyRawFieldValue()
-  const value = props.rowData[fieldCode]
-  return createAutoFieldValue(value)
-}
 
 /**
  * 🔥 过滤 initialData，只包含 editFunctionDetail.request 中的字段
@@ -813,7 +535,7 @@ const rowId = computed(() => {
     const idValue = props.rowData[idField]
     return idValue !== null && idValue !== undefined ? Number(idValue) : 0
   }
-  
+
   return 0
 })
 
@@ -892,12 +614,6 @@ const buildScheduledUpdatePayload = async (): Promise<Record<string, any>> => {
 const handleClose = () => {
   emit('close')
 }
-
-onBeforeUnmount(() => {
-  richTextResizeObservers.forEach((observer) => observer.disconnect())
-  richTextResizeObservers.clear()
-  richTextContentRefs.clear()
-})
 
 // 暴露方法供父组件调用
 defineExpose({

@@ -104,8 +104,8 @@ func mergePermissionMaps(base map[string]bool, extra map[string]bool) map[string
 	return merged
 }
 
-func (s *ServiceTreeService) loadWorkspacePermissionContext(ctx context.Context, fullCodePath string) (*workspacePermissionContext, error) {
-	if s.permissionService == nil || s.permissionService.permissionBackend() == nil {
+func (q *serviceTreeQueryView) loadWorkspacePermissionContext(ctx context.Context, fullCodePath string) (*workspacePermissionContext, error) {
+	if q.permissionService == nil || q.permissionService.permissionBackend() == nil {
 		return nil, fmt.Errorf("权限服务未初始化")
 	}
 
@@ -117,7 +117,7 @@ func (s *ServiceTreeService) loadWorkspacePermissionContext(ctx context.Context,
 	permReq := &dto.GetWorkspacePermissionsReq{
 		ResourcePath: permission.GetAppPath(fullCodePath),
 	}
-	permResp, err := s.permissionService.GetWorkspacePermissions(ctx, permReq)
+	permResp, err := q.permissionService.GetWorkspacePermissions(ctx, permReq)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ func (s *ServiceTreeService) loadWorkspacePermissionContext(ctx context.Context,
 		permCtx.rawPermissions = buildRawPermissions(permResp.Records)
 	}
 
-	appModel, err := s.appRepo.GetAppByUserName(workspaceUser, workspaceApp)
+	appModel, err := q.appRepo.GetAppByUserName(workspaceUser, workspaceApp)
 	if err == nil && appModel != nil {
 		permCtx.admins = appModel.Admins
 	}
@@ -139,7 +139,7 @@ func (s *ServiceTreeService) loadWorkspacePermissionContext(ctx context.Context,
 	return permCtx, nil
 }
 
-func (s *ServiceTreeService) buildQueryNodePermissions(
+func (q *serviceTreeQueryView) buildQueryNodePermissions(
 	nodeType string,
 	templateType string,
 	fullCodePath string,
@@ -173,7 +173,7 @@ func (s *ServiceTreeService) buildQueryNodePermissions(
 	return nodePerms
 }
 
-func (s *ServiceTreeService) buildAllAdminPermissionsMap(trees []*model.ServiceTree) map[string]map[string]bool {
+func (q *serviceTreeQueryView) buildAllAdminPermissionsMap(trees []*model.ServiceTree) map[string]map[string]bool {
 	permissionsMap := make(map[string]map[string]bool)
 
 	var setAllPermissions func(nodes []*model.ServiceTree)
@@ -195,7 +195,7 @@ func (s *ServiceTreeService) buildAllAdminPermissionsMap(trees []*model.ServiceT
 }
 
 func calculatePermissionsImpl(
-	s *ServiceTreeService,
+	q *serviceTreeQueryView,
 	ctx context.Context,
 	user string,
 	app string,
@@ -205,10 +205,10 @@ func calculatePermissionsImpl(
 ) (map[string]map[string]bool, error) {
 	if isWorkspaceAdmin(username, admins) {
 		logger.Debugf(ctx, "[ServiceTreeService] 用户 %s 是工作空间管理员，直接返回所有权限", username)
-		return s.buildAllAdminPermissionsMap(trees), nil
+		return q.buildAllAdminPermissionsMap(trees), nil
 	}
 
-	if s.permissionService == nil || s.permissionService.permissionBackend() == nil {
+	if q.permissionService == nil || q.permissionService.permissionBackend() == nil {
 		logger.Warnf(ctx, "[ServiceTreeService] 权限服务未初始化，返回空权限")
 		return make(map[string]map[string]bool), nil
 	}
@@ -216,7 +216,7 @@ func calculatePermissionsImpl(
 	permReq := &dto.GetWorkspacePermissionsReq{
 		ResourcePath: fmt.Sprintf("/%s/%s", user, app),
 	}
-	permResp, err := s.permissionService.GetWorkspacePermissions(ctx, permReq)
+	permResp, err := q.permissionService.GetWorkspacePermissions(ctx, permReq)
 	if err != nil {
 		return nil, fmt.Errorf("查询权限失败: %w", err)
 	}

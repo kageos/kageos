@@ -2,7 +2,7 @@
 
 ## 一、项目概要
 
-- **类型**：多 Table（商品、会员、支付记录）+ 收银台 Form（请求里 table 子项 + 会员 select）+ 多个统计 Form（销售趋势、分类销售、客单价等折线图）。
+- **类型**：多 Table（商品、会员、支付记录）+ 收银台 Form（请求里 table 子项 + 会员 select）+ 多个统计 Form（销售趋势、分类销售、客单价等折线图）。适合单店、小门店、理发店这类轻量收银场景。
 - **路由**：POST `cashier_desk.form`，GET 多个 list.table + 多个 statistics.chart；路由组 `/form_table_chart/cashier`。
 - **适合参考**：FormTemplate 请求中 table 子组件、OnSelectFuzzy、主从表、统计/图表。
 
@@ -79,7 +79,7 @@
 
 ### 3. 支付记录表（cashier_payment_record_list）
 
-仅列表查询（记录由收银台 Form 产生）。
+仅列表查询（记录由收银台 Form 产生），**不允许手工新增、编辑、删除**。
 
 **列表模式**
 
@@ -111,7 +111,7 @@
 | 商品清单   | 表格     | 商品名称、单价、数量、小计、折扣率、折扣后金额 |
 | 会员信息   | 表单     | 会员卡号、姓名、余额等 |
 
-**说明**：请求中「商品清单」为 table 子组件，每行选商品 + 填数量；按会员折扣率计算实付金额；提交后写支付记录、扣减库存、扣减会员余额（若使用余额）。
+**说明**：请求中「商品清单」为 table 子组件，每行选商品 + 填数量；按会员折扣率计算实付金额；提交后写支付记录、扣减库存、扣减会员余额（若使用余额）。**扣余额、扣库存、写支付记录必须放在同一个事务里**，避免并发下超卖或透支。
 
 ---
 
@@ -311,6 +311,7 @@ func validateAndCalculateProducts(db *gorm.DB, quantities []CashierProductQuanti
 	var totalAmount float64
 	var finalAmount float64
 	productList := make([]CashierCartItem, 0)
+	requestedQuantities := make(map[int]int)
 
 	if len(quantities) == 0 {
 		return productList, totalAmount, finalAmount, fmt.Errorf("请至少选择一件商品")
@@ -330,9 +331,10 @@ func validateAndCalculateProducts(db *gorm.DB, quantities []CashierProductQuanti
 				product.Name, product.ID, product.Status)
 		}
 
-		if product.Stock < pq.Quantity {
+		requestedQuantities[pq.ProductID] += pq.Quantity
+		if product.Stock < requestedQuantities[pq.ProductID] {
 			return productList, totalAmount, finalAmount, fmt.Errorf("商品 %s 库存不足，需要 %d 件，当前库存 %d 件",
-				product.Name, pq.Quantity, product.Stock)
+				product.Name, requestedQuantities[pq.ProductID], product.Stock)
 		}
 
 		discountRate := product.DiscountRate
@@ -357,26 +359,47 @@ func validateAndCalculateProducts(db *gorm.DB, quantities []CashierProductQuanti
 		finalAmount += itemDiscountPrice
 	}
 
-	return productList, totalAmount, finalAmount, nil
+	return productList, roundMoney(totalAmount), roundMoney(finalAmount), nil
 }
 
 // processPaymentTransaction 处理支付事务
 func processPaymentTransaction(db *gorm.DB, member CashierMember, req CashierDeskReq, productList []CashierCartItem, totalAmount, discountAmount, finalAmount float64) (string, error) {
 	var orderNumber string
+	productQuantities := make(map[int]int)
+	productNames := make(map[int]string)
+	for _, item := range productList {
+		productQuantities[item.ProductID] += item.Quantity
+		if _, ok := productNames[item.ProductID]; !ok {
+			productNames[item.ProductID] = item.ProductName
+		}
+	}
 
 	err := db.Transaction(func(tx *gorm.DB) error {
 		orderNumber = fmt.Sprintf("ORD%s%d", time.Now().Format("20060102"), time.Now().UnixNano())
 
-		if err := tx.Model(&member).Update("balance", gorm.Expr("balance - ?", finalAmount)).Error; err != nil {
+		memberResult := tx.Model(&CashierMember{}).
+			Where("id = ? AND status = ? AND balance >= ?", member.ID, "正常", finalAmount).
+			Update("balance", gorm.Expr("balance - ?", finalAmount))
+		if err := memberResult.Error; err != nil {
 			return fmt.Errorf("扣减会员余额失败 - 会员ID: %d, 卡号: %s, 消费金额: %.2f, 错误: %v",
 				member.ID, member.CardNumber, finalAmount, err)
 		}
+		if memberResult.RowsAffected != 1 {
+			return fmt.Errorf("会员余额不足或会员状态异常 - 会员ID: %d, 卡号: %s, 消费金额: %.2f",
+				member.ID, member.CardNumber, finalAmount)
+		}
 
-		for _, item := range productList {
-			if err := tx.Model(&CashierProduct{}).Where("id = ?", item.ProductID).
-				Update("stock", gorm.Expr("stock - ?", item.Quantity)).Error; err != nil {
+		for productID, quantity := range productQuantities {
+			productResult := tx.Model(&CashierProduct{}).
+				Where("id = ? AND status = ? AND stock >= ?", productID, "上架", quantity).
+				Update("stock", gorm.Expr("stock - ?", quantity))
+			if err := productResult.Error; err != nil {
 				return fmt.Errorf("扣减商品库存失败 - 商品ID: %d, 扣减数量: %d, 错误: %v",
-					item.ProductID, item.Quantity, err)
+					productID, quantity, err)
+			}
+			if productResult.RowsAffected != 1 {
+				return fmt.Errorf("商品 %s 库存不足或状态异常 - 商品ID: %d, 扣减数量: %d",
+					productNames[productID], productID, quantity)
 			}
 		}
 
@@ -584,9 +607,7 @@ import (
 	"fmt"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
 	"gorm.io/gorm"
 )
@@ -766,51 +787,13 @@ func CashierPaymentRecordList(ctx *app.Context, resp response.Response) error {
 var CashierPaymentRecordListTemplate = &app.TableTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:         "支付记录",
-		Desc:         "收银支付记录查询管理，包括订单号、会员信息、消费明细、实付金额等信息",
+		Desc:         "收银支付记录查询，仅允许查看，不允许手工新增、编辑或删除",
 		Tags:         []string{"收银系统", "支付记录"},
 		Request:      &CashierPaymentRecordListReq{},
 		Response:     query.PaginatedTable[[]CashierPaymentRecord]{},
 		CreateTables: []interface{}{&CashierPaymentRecord{}, &CashierPaymentRecordItem{}},
 	},
 	AutoCrudTable: &CashierPaymentRecord{},
-	OnTableAddRow: func(ctx *app.Context, req *callback.OnTableAddRowReq) (*callback.OnTableAddRowResp, error) {
-		db := ctx.GetGormDB()
-		var row CashierPaymentRecord
-		if err := ctx.ShouldBindValidate(&row); err != nil {
-			return nil, err
-		}
-		err := db.Create(&row).Error
-		if err != nil {
-			logger.Errorf(ctx, "Create cashier_payment_record err: %v", err)
-			return nil, err
-		}
-		return &callback.OnTableAddRowResp{Data: &row}, nil
-	},
-	OnTableUpdateRow: func(ctx *app.Context, req *callback.OnTableUpdateRowReq) (*callback.OnTableUpdateRowResp, error) {
-		db := ctx.GetGormDB()
-
-		var updateFields CashierPaymentRecord
-		if err := req.BindUpdates(&updateFields); err != nil {
-			return nil, fmt.Errorf("绑定更新字段失败: %w", err)
-		}
-
-		updates := req.GetUpdates()
-		err := db.Model(&CashierPaymentRecord{}).Where("id = ?", req.GetId()).Updates(updates).Error
-		if err != nil {
-			logger.Errorf(ctx, "Update cashier_payment_record err: %v", err)
-			return nil, err
-		}
-		return &callback.OnTableUpdateRowResp{}, nil
-	},
-	OnTableDeleteRows: func(ctx *app.Context, req *callback.OnTableDeleteRowsReq) (*callback.OnTableDeleteRowsResp, error) {
-		db := ctx.GetGormDB()
-		err := db.Model(&CashierPaymentRecord{}).Delete(&CashierPaymentRecord{}, "id in ?", req.GetIds()).Error
-		if err != nil {
-			logger.Errorf(ctx, "Delete cashier_payment_record err: %v", err)
-			return nil, err
-		}
-		return &callback.OnTableDeleteRowsResp{}, nil
-	},
 }
 
 func init() {
@@ -956,18 +939,9 @@ type CashierSalesStatisticsReq struct {
 // - 支付状态、门店、渠道、部门等业务维度，很多时候更适合作为 Series 维度直接展开对比
 // - 只有业务上确实需要 drill-down 时，再额外提供维度筛选，避免把图表做成“先选一个值才能看”
 
-// CashierGetDateFormatSQL 根据数据库类型返回对应的日期格式化 SQL 表达式
+// CashierGetDateFormatSQL 直接复用 SDK 的时间分组 helper，避免在业务代码里重复写 mysql/sqlite 分支。
 func CashierGetDateFormatSQL(db *gorm.DB) (dateFormatExpr, groupByExpr string) {
-	dbType := db.Dialector.Name()
-	switch dbType {
-	case "mysql":
-		dateFormatExpr = "DATE_FORMAT(FROM_UNIXTIME(created_at/1000), '%Y-%m-%d')"
-	case "sqlite":
-		dateFormatExpr = "strftime('%Y-%m-%d', created_at/1000, 'unixepoch')"
-	default:
-		dateFormatExpr = "strftime('%Y-%m-%d', created_at/1000, 'unixepoch')"
-	}
-	return dateFormatExpr, dateFormatExpr
+	return app.UnixMilliTimeBucketExpr(db, "created_at", app.TimeBucketDay)
 }
 
 func cashierMax(a, b int) int {
@@ -999,7 +973,8 @@ func CashierSalesTrendStatistics(ctx *app.Context, resp response.Response) error
 
 	baseQuery := db.Model(&CashierPaymentRecord{}).
 		Where("created_at >= ?", req.StartTime).
-		Where("created_at <= ?", req.EndTime)
+		Where("created_at <= ?", req.EndTime).
+		Where("status = ?", "支付成功")
 
 	var totalAmount float64
 	var totalCount int64
@@ -1020,7 +995,8 @@ func CashierSalesTrendStatistics(ctx *app.Context, resp response.Response) error
 
 	trendQuery := db.Model(&CashierPaymentRecord{}).
 		Where("created_at >= ?", req.StartTime).
-		Where("created_at <= ?", req.EndTime)
+		Where("created_at <= ?", req.EndTime).
+		Where("status = ?", "支付成功")
 
 	dateFormatExpr, groupByExpr := CashierGetDateFormatSQL(db)
 
@@ -1031,8 +1007,8 @@ func CashierSalesTrendStatistics(ctx *app.Context, resp response.Response) error
 		Scan(&trendStats).Error
 	if err != nil {
 		logger.Errorf(ctx, "CashierSalesTrendStatistics Scan err: %v", err)
-		sql := fmt.Sprintf("SELECT %s as date, COALESCE(SUM(final_amount), 0) as amount, COUNT(*) as count FROM cashier_payment_record WHERE created_at >= ? AND created_at <= ?", dateFormatExpr)
-		args := []interface{}{req.StartTime, req.EndTime}
+		sql := fmt.Sprintf("SELECT %s as date, COALESCE(SUM(final_amount), 0) as amount, COUNT(*) as count FROM cashier_payment_record WHERE created_at >= ? AND created_at <= ? AND status = ?", dateFormatExpr)
+		args := []interface{}{req.StartTime, req.EndTime, "支付成功"}
 		sql += fmt.Sprintf(" GROUP BY %s ORDER BY date ASC", groupByExpr)
 
 		err2 := db.Raw(sql, args...).Scan(&trendStats).Error

@@ -21,7 +21,7 @@ func TestRollbackFilesRestoresOverwrittenFile(t *testing.T) {
 		t.Fatalf("write original file: %v", err)
 	}
 
-	service := &ServiceTreeService{}
+	service := newWorkspaceFileTestService(tempDir)
 	entry, err := service.captureFileRollbackEntry(filePath)
 	if err != nil {
 		t.Fatalf("capture rollback entry: %v", err)
@@ -58,7 +58,7 @@ func TestRollbackFilesDeletesNewFile(t *testing.T) {
 	tempDir := t.TempDir()
 	filePath := filepath.Join(tempDir, "new.go")
 
-	service := &ServiceTreeService{}
+	service := newWorkspaceFileTestService(tempDir)
 	entry, err := service.captureFileRollbackEntry(filePath)
 	if err != nil {
 		t.Fatalf("capture rollback entry: %v", err)
@@ -83,8 +83,7 @@ func TestRollbackFilesDeletesNewFile(t *testing.T) {
 func TestResolveBatchWriteTargetRejectsInitFile(t *testing.T) {
 	t.Parallel()
 
-	_, _, _, err := resolveBatchWriteTarget("luobei", "demo", "/tmp/api", &dto.DirectoryTreeItem{
-		Type:         "file",
+	_, _, _, err := resolveBatchWriteTarget("luobei", "demo", "/tmp/api", &dto.FileWriteItem{
 		FullCodePath: "/luobei/demo/ticket_system",
 		FileName:     "init_",
 		FileType:     "go",
@@ -97,8 +96,7 @@ func TestResolveBatchWriteTargetRejectsInitFile(t *testing.T) {
 func TestResolveBatchWriteTargetRejectsPathTraversal(t *testing.T) {
 	t.Parallel()
 
-	_, _, _, err := resolveBatchWriteTarget("luobei", "demo", "/tmp/api", &dto.DirectoryTreeItem{
-		Type:         "file",
+	_, _, _, err := resolveBatchWriteTarget("luobei", "demo", "/tmp/api", &dto.FileWriteItem{
 		FullCodePath: "/luobei/demo/../code/cmd/app",
 		FileName:     "main",
 		FileType:     "go",
@@ -111,8 +109,7 @@ func TestResolveBatchWriteTargetRejectsPathTraversal(t *testing.T) {
 func TestResolveBatchWriteTargetRejectsTraversalInFileType(t *testing.T) {
 	t.Parallel()
 
-	_, _, _, err := resolveBatchWriteTarget("luobei", "demo", "/tmp/api", &dto.DirectoryTreeItem{
-		Type:         "file",
+	_, _, _, err := resolveBatchWriteTarget("luobei", "demo", "/tmp/api", &dto.FileWriteItem{
 		FullCodePath: "/luobei/demo/ticket_system",
 		FileName:     "ticket",
 		FileType:     "../go",
@@ -125,8 +122,7 @@ func TestResolveBatchWriteTargetRejectsTraversalInFileType(t *testing.T) {
 func TestResolveBatchWriteTargetAcceptsBusinessGoFile(t *testing.T) {
 	t.Parallel()
 
-	packageDir, filePath, fileName, err := resolveBatchWriteTarget("luobei", "demo", "/tmp/api", &dto.DirectoryTreeItem{
-		Type:         "file",
+	packageDir, filePath, fileName, err := resolveBatchWriteTarget("luobei", "demo", "/tmp/api", &dto.FileWriteItem{
 		FullCodePath: "/luobei/demo/ticket_system",
 		FileName:     "ticket",
 		FileType:     "go",
@@ -162,9 +158,8 @@ func TestBatchCreateDirectoryTreeRejectsPathTraversal(t *testing.T) {
 	_, err := service.BatchCreateDirectoryTree(context.Background(), &dto.BatchCreateDirectoryTreeRuntimeReq{
 		User: "luobei",
 		App:  "demo",
-		Items: []*dto.DirectoryTreeItem{
+		Items: []*dto.DirectoryScaffoldItem{
 			{
-				Type:         "directory",
 				FullCodePath: "/luobei/demo/../code/cmd/app",
 				Name:         "bad",
 			},
@@ -184,9 +179,8 @@ func TestBatchCreateDirectoryTreeWritesInitFile(t *testing.T) {
 	resp, err := service.BatchCreateDirectoryTree(context.Background(), &dto.BatchCreateDirectoryTreeRuntimeReq{
 		User: "luobei",
 		App:  "demo",
-		Items: []*dto.DirectoryTreeItem{
+		Items: []*dto.DirectoryScaffoldItem{
 			{
-				Type:         "directory",
 				FullCodePath: "/luobei/demo/ticket_system/order",
 				Name:         "订单",
 				Description:  "订单目录",
@@ -234,9 +228,8 @@ func TestBatchWriteFilesDoesNotMutateWhenAppManageServiceMissing(t *testing.T) {
 	_, err := service.BatchWriteFiles(context.Background(), &dto.BatchWriteFilesRuntimeReq{
 		User: "luobei",
 		App:  "demo",
-		Files: []*dto.DirectoryTreeItem{
+		Files: []*dto.FileWriteItem{
 			{
-				Type:         "file",
 				FullCodePath: "/luobei/demo/ticket_system",
 				FileName:     "ticket",
 				FileType:     "go",
@@ -254,16 +247,71 @@ func TestBatchWriteFilesDoesNotMutateWhenAppManageServiceMissing(t *testing.T) {
 	}
 }
 
+func TestBatchWriteFilesRejectsMissingAppWithoutCreatingDirectories(t *testing.T) {
+	t.Parallel()
+
+	basePath := t.TempDir()
+	service := newServiceTreeTestServiceWithAppManage(basePath)
+
+	_, err := service.BatchWriteFiles(context.Background(), &dto.BatchWriteFilesRuntimeReq{
+		User: "luobei",
+		App:  "demo",
+		Files: []*dto.FileWriteItem{
+			{
+				FullCodePath: "/luobei/demo/ticket_system",
+				FileName:     "ticket",
+				FileType:     "go",
+				Content:      "package ticket\n",
+			},
+		},
+	})
+	if err == nil {
+		t.Fatalf("expected missing app to fail")
+	}
+
+	appDir := newRuntimeAppPaths(basePath, "luobei", "demo").AppDir()
+	if _, statErr := os.Stat(appDir); !os.IsNotExist(statErr) {
+		t.Fatalf("expected app dir to remain absent, got err=%v", statErr)
+	}
+}
+
+func TestWriteSourceFilesRejectsMissingAppWithoutMutatingDisk(t *testing.T) {
+	t.Parallel()
+
+	basePath := t.TempDir()
+	workspaceFiles := newWorkspaceFileTestService(basePath)
+
+	_, err := workspaceFiles.writeSourceFiles(context.Background(), "luobei", "demo", []*dto.SourceFileWrite{
+		{
+			DirectoryPath: "ticket_system",
+			FileName:      "ticket",
+			SourceCode:    "package ticket\n",
+		},
+	})
+	if err == nil {
+		t.Fatalf("expected missing app to fail")
+	}
+
+	appDir := newRuntimeAppPaths(basePath, "luobei", "demo").AppDir()
+	if _, statErr := os.Stat(appDir); !os.IsNotExist(statErr) {
+		t.Fatalf("expected app dir to remain absent, got err=%v", statErr)
+	}
+}
+
 func TestWriteBatchFilesToDiskRollsBackOnError(t *testing.T) {
 	t.Parallel()
 
 	basePath := t.TempDir()
-	service := newServiceTreeTestService(basePath)
+	workspaceFiles := newWorkspaceFileTestService(basePath)
 	apiDir := newRuntimeAppPaths(basePath, "luobei", "demo").APIDir()
 	filePath := filepath.Join(apiDir, "ticket_system", "ticket.go")
+	appDir := newRuntimeAppPaths(basePath, "luobei", "demo").AppDir()
 
 	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
 		t.Fatalf("mkdir test dir: %v", err)
+	}
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		t.Fatalf("mkdir app dir: %v", err)
 	}
 
 	originalContent := []byte("package ticket\n\nconst Name = \"old\"\n")
@@ -271,16 +319,14 @@ func TestWriteBatchFilesToDiskRollsBackOnError(t *testing.T) {
 		t.Fatalf("write original file: %v", err)
 	}
 
-	_, err := service.writeBatchFilesToDisk(context.Background(), "luobei", "demo", apiDir, []*dto.DirectoryTreeItem{
+	_, err := workspaceFiles.writeDirectoryTreeFiles(context.Background(), "luobei", "demo", []*dto.FileWriteItem{
 		{
-			Type:         "file",
 			FullCodePath: "/luobei/demo/ticket_system",
 			FileName:     "ticket",
 			FileType:     "go",
 			Content:      "package ticket\n\nconst Name = \"new\"\n",
 		},
 		{
-			Type:         "file",
 			FullCodePath: "/luobei/demo/../cmd/app",
 			FileName:     "main",
 			FileType:     "go",
@@ -297,5 +343,43 @@ func TestWriteBatchFilesToDiskRollsBackOnError(t *testing.T) {
 	}
 	if string(got) != string(originalContent) {
 		t.Fatalf("unexpected rolled back content: got %q want %q", string(got), string(originalContent))
+	}
+}
+
+func TestWriteDirectoryTreeFilesRollsBackCreatedDirectoriesOnError(t *testing.T) {
+	t.Parallel()
+
+	basePath := t.TempDir()
+	workspaceFiles := newWorkspaceFileTestService(basePath)
+	appPaths := newRuntimeAppPaths(basePath, "luobei", "demo")
+
+	if err := os.MkdirAll(appPaths.AppDir(), 0755); err != nil {
+		t.Fatalf("mkdir app dir: %v", err)
+	}
+
+	_, err := workspaceFiles.writeDirectoryTreeFiles(context.Background(), "luobei", "demo", []*dto.FileWriteItem{
+		{
+			FullCodePath: "/luobei/demo/ticket_system",
+			FileName:     "ticket",
+			FileType:     "go",
+			Content:      "package ticket\n",
+		},
+		{
+			FullCodePath: "/luobei/demo/../cmd/app",
+			FileName:     "main",
+			FileType:     "go",
+			Content:      "package main\n",
+		},
+	})
+	if err == nil {
+		t.Fatalf("expected invalid path to fail")
+	}
+
+	packageDir := filepath.Join(appPaths.APIDir(), "ticket_system")
+	if _, statErr := os.Stat(packageDir); !os.IsNotExist(statErr) {
+		t.Fatalf("expected package dir to be removed, got err=%v", statErr)
+	}
+	if _, statErr := os.Stat(appPaths.APIDir()); !os.IsNotExist(statErr) {
+		t.Fatalf("expected api dir to be removed, got err=%v", statErr)
 	}
 }

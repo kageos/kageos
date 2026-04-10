@@ -15,6 +15,11 @@
 import { computed, ref } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
+import {
+  captureFieldTreeSnapshot,
+  restoreFieldTreeSnapshot,
+  type FieldTreeSnapshot,
+} from '@/architecture/presentation/widgets/utils/fieldTreeSnapshot'
 
 /**
  * 判断 table-cell 模式是在编辑上下文还是响应上下文中使用
@@ -76,14 +81,49 @@ export function useTableCellMode(props: WidgetComponentProps) {
   
   // 抽屉中使用的渲染模式
   const drawerMode = useDrawerMode(isInEditContext)
+
+  const formDataStore = useFormDataStore()
+  const editSnapshot = ref<FieldTreeSnapshot | null>(null)
   
-  // 关闭抽屉
-  const closeDrawer = () => {
+  const clearSnapshot = () => {
+    editSnapshot.value = null
+  }
+
+  const captureSnapshot = () => {
+    if (!isInEditContext.value || !props.fieldPath) {
+      clearSnapshot()
+      return
+    }
+    editSnapshot.value = captureFieldTreeSnapshot(formDataStore, props.fieldPath)
+  }
+
+  const restoreSnapshot = () => {
+    restoreFieldTreeSnapshot(formDataStore, editSnapshot.value)
+    clearSnapshot()
+  }
+
+  // 取消并关闭抽屉
+  const cancelDrawer = () => {
+    restoreSnapshot()
     showDrawer.value = false
+  }
+
+  // 确认并关闭抽屉
+  const confirmDrawer = () => {
+    clearSnapshot()
+    showDrawer.value = false
+  }
+
+  // 处理右上角关闭、点击遮罩等非显式取消动作
+  const handleDrawerClose = () => {
+    if (editSnapshot.value) {
+      restoreSnapshot()
+    }
   }
   
   // 打开抽屉
   const openDrawer = () => {
+    captureSnapshot()
     showDrawer.value = true
   }
   
@@ -91,8 +131,9 @@ export function useTableCellMode(props: WidgetComponentProps) {
     showDrawer,
     isInEditContext,
     drawerMode,
-    closeDrawer,
+    cancelDrawer,
+    confirmDrawer,
+    handleDrawerClose,
     openDrawer
   }
 }
-

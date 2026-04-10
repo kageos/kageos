@@ -12,45 +12,164 @@ import { computed } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
+import { shouldShowField } from '@/core/utils/conditionEvaluator'
+import { syncFormContainerValue } from '@/core/widgetRuntime/containerValue'
+import { clearScopedDependentFields } from '@/core/widgetRuntime/dependency'
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function hasMeaningfulFieldValue(value: any): boolean {
+  if (!value) {
+    return false
+  }
+  return (value.raw !== null && value.raw !== undefined)
+    || value.display !== ''
+    || Object.keys(value.meta || {}).length > 0
+}
+
+function readObjectPath(source: Record<string, any>, path: string): any {
+  if (!path) {
+    return source
+  }
+
+  const segments = path.match(/([^[.\]]+)|\[(\d+)\]/g) || []
+  let current: any = source
+
+  for (const segment of segments) {
+    if (current === null || current === undefined) {
+      return undefined
+    }
+
+    if (segment.startsWith('[')) {
+      const index = Number(segment.slice(1, -1))
+      current = Array.isArray(current) ? current[index] : undefined
+    } else {
+      current = current[segment]
+    }
+  }
+
+  return current
+}
 
 export function useFormWidget(props: WidgetComponentProps) {
   const formDataStore = useFormDataStore()
+  const rawObject = computed(() => {
+    if (formDataStore.data.has(props.fieldPath)) {
+      const storeValue = formDataStore.getValue(props.fieldPath)
+      if (isPlainObject(storeValue?.raw)) {
+        return storeValue.raw
+      }
+    }
+
+    return isPlainObject(props.value?.raw) ? props.value.raw : null
+  })
   
   // 子字段列表
   const subFields = computed(() => {
     return props.field.children || []
   })
+
+  function resolveScopedPath(fieldCodeOrPath: string): string {
+    if (!fieldCodeOrPath) {
+      return fieldCodeOrPath
+    }
+
+    if (fieldCodeOrPath === props.fieldPath) {
+      return fieldCodeOrPath
+    }
+
+    if (fieldCodeOrPath.startsWith(`${props.fieldPath}.`) || fieldCodeOrPath.startsWith(`${props.fieldPath}[`)) {
+      return fieldCodeOrPath
+    }
+
+    if (fieldCodeOrPath.includes('.') || fieldCodeOrPath.includes('[')) {
+      return fieldCodeOrPath
+    }
+
+    return `${props.fieldPath}.${fieldCodeOrPath}`
+  }
+
+  function resolveRawRelativePath(fieldCodeOrPath: string): string {
+    if (!fieldCodeOrPath) {
+      return fieldCodeOrPath
+    }
+
+    if (fieldCodeOrPath.startsWith(`${props.fieldPath}.`)) {
+      return fieldCodeOrPath.slice(props.fieldPath.length + 1)
+    }
+
+    if (fieldCodeOrPath.startsWith(`${props.fieldPath}[`)) {
+      return fieldCodeOrPath.slice(props.fieldPath.length)
+    }
+
+    return fieldCodeOrPath
+  }
+
+  function getScopedFieldValue(fieldCodeOrPath: string): any {
+    const scopedPath = resolveScopedPath(fieldCodeOrPath)
+    const storeValue = formDataStore.getValue(scopedPath)
+    const hasStoredValue = formDataStore.data.has(scopedPath)
+
+    if (hasStoredValue || hasMeaningfulFieldValue(storeValue)) {
+      return storeValue
+    }
+
+    if (rawObject.value) {
+      const rawValue = readObjectPath(rawObject.value, resolveRawRelativePath(fieldCodeOrPath))
+      if (rawValue !== undefined) {
+        return createAutoFieldValue(rawValue)
+      }
+    }
+
+    return storeValue
+  }
   
   // 可见子字段（根据条件渲染规则过滤）
   const visibleSubFields = computed(() => {
-    return subFields.value
+    const scopedFormManager = {
+      getValue: (fieldCodeOrPath: string) => getScopedFieldValue(fieldCodeOrPath),
+    }
+
+    return subFields.value.filter((subField) =>
+      shouldShowField(subField, scopedFormManager as any, subFields.value)
+    )
   })
   
   // 获取子字段的值
   function getSubFieldValue(subFieldCode: string): any {
-    // 🔥 响应模式 或 table-cell 抽屉（只读数据）：从 props.value.raw 读取
-    // 表格里 form 列传的是 mode=table-cell，抽屉打开时也要用 value.raw，否则会去 formDataStore 取不到
-    const isReadOnlyFromRaw =
-      props.mode === 'response' ||
-      (props.mode === 'table-cell' && props.value?.raw && typeof props.value.raw === 'object' && !Array.isArray(props.value.raw))
-    if (isReadOnlyFromRaw) {
-      const rawValue = props.value?.raw
-      if (rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
-        const subValue = rawValue[subFieldCode]
-        return createAutoFieldValue(subValue)
-      }
-      return createEmptyRawFieldValue()
+    const isReadOnlyContext =
+      props.mode === 'response'
+      || (props.mode === 'table-cell' && props.parentMode === 'response')
+
+    if (isReadOnlyContext && rawObject.value) {
+      const rawValue = rawObject.value[subFieldCode]
+      return rawValue !== undefined ? createAutoFieldValue(rawValue) : createEmptyRawFieldValue()
     }
 
-    // 编辑模式下，从 formDataStore 读取
-    const subFieldPath = `${props.fieldPath}.${subFieldCode}`
-    return formDataStore.getValue(subFieldPath)
+    return getScopedFieldValue(subFieldCode)
   }
   
   // 更新子字段的值
   function updateSubFieldValue(subFieldCode: string, value: any): void {
     const subFieldPath = `${props.fieldPath}.${subFieldCode}`
     formDataStore.setValue(subFieldPath, value)
+    props.formRenderer?.clearFieldErrors?.(subFieldPath)
+
+    const clearedFieldPaths = clearScopedDependentFields({
+      formDataStore,
+      fields: subFields.value,
+      changedFieldCode: subFieldCode,
+      scopePath: props.fieldPath,
+    })
+
+    clearedFieldPaths.forEach((fieldPath) => {
+      props.formRenderer?.clearFieldErrors?.(fieldPath, { includeSubtree: true })
+    })
+
+    syncFormContainerValue(formDataStore, props.field, props.fieldPath, props.value)
+    props.formRenderer?.clearFieldErrors?.(props.fieldPath)
   }
   
   return {

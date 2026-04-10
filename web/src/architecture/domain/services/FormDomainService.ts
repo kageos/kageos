@@ -83,6 +83,8 @@ import type { ValidationResult as CoreValidationResult } from '@/core/validation
 import type { ReactiveFormDataManager } from '@/core/managers/ReactiveFormDataManager'
 import { Logger } from '@/core/utils/logger'
 import { getWidgetDefaultValue } from '@/core/widgetRuntime/defaultValue'
+import { clearScopedDependentFields } from '@/core/widgetRuntime/dependency'
+import { isSubtreePath } from '@/core/widgetRuntime/fieldReset'
 import {
   validateFieldValue,
   validateFormWidgetNestedFields,
@@ -353,7 +355,7 @@ export class FormDomainService {
     })
 
     // 处理字段依赖
-    this.handleDependency(fieldCode, currentData)
+    this.handleDependency(fieldCode)
 
     // 触发事件
     this.eventBus.emit(FormEvent.fieldValueUpdated, { fieldCode, value })
@@ -362,36 +364,37 @@ export class FormDomainService {
   /**
    * 处理字段依赖（depend_on）
    */
-  private handleDependency(fieldCode: string, data: Map<string, FieldValue>): void {
-    // 查找依赖该字段的其他字段
-    this.fields.forEach(field => {
-      if (field.depend_on === fieldCode) {
-        // 清空依赖字段的值
-        const clearedValue: FieldValue = {
-          raw: null,
-          display: '',
-          meta: {}
-        }
-        
-        const newData = new Map(data)
-        newData.set(field.code, clearedValue)
-        
-        // 更新状态
-        const state = this.stateManager.getState()
-        this.stateManager.setState({
-          ...state,
-          data: newData
-        })
+  private handleDependency(fieldCode: string): void {
+    const stateManager = this.stateManager as any
+    const formDataStore = stateManager?.formStore
 
-        // 清除错误
-        const newErrors = new Map(state.errors)
-        newErrors.delete(field.code)
-        this.stateManager.setState({
-          ...state,
-          errors: newErrors
-        })
-      }
+    if (!formDataStore) {
+      return
+    }
+
+    const clearedFieldPaths = clearScopedDependentFields({
+      formDataStore,
+      fields: this.fields,
+      changedFieldCode: fieldCode
     })
+
+    if (clearedFieldPaths.length === 0) {
+      return
+    }
+
+    const state = this.stateManager.getState()
+    const newErrors = new Map(state.errors)
+    clearedFieldPaths.forEach((fieldPath) => {
+      Array.from(newErrors.keys()).forEach((errorFieldPath) => {
+        if (isSubtreePath(fieldPath, errorFieldPath)) {
+          newErrors.delete(errorFieldPath)
+        }
+      })
+    })
+
+    this.stateManager.setState({
+      errors: newErrors
+    } as any)
   }
 
   /**
@@ -489,6 +492,29 @@ export class FormDomainService {
   getFieldError(fieldCode: string): ValidationResult[] {
     const state = this.stateManager.getState()
     return state.errors.get(fieldCode) || []
+  }
+
+  clearFieldErrors(fieldPath: string, includeSubtree: boolean = false): void {
+    const state = this.stateManager.getState()
+    if (!state.errors.size) {
+      return
+    }
+
+    const newErrors = new Map(state.errors)
+
+    Array.from(newErrors.keys()).forEach((errorFieldPath) => {
+      const shouldDelete = includeSubtree
+        ? isSubtreePath(fieldPath, errorFieldPath)
+        : errorFieldPath === fieldPath
+
+      if (shouldDelete) {
+        newErrors.delete(errorFieldPath)
+      }
+    })
+
+    this.stateManager.setState({
+      errors: newErrors
+    } as any)
   }
 
   /**

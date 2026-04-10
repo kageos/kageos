@@ -16,13 +16,13 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
-func getServiceTreeByAppModelImpl(s *ServiceTreeService, ctx context.Context, appModel *model.App, nodeType string) ([]*dto.GetServiceTreeResp, error) {
+func getServiceTreeByAppModelImpl(q *serviceTreeQueryView, ctx context.Context, appModel *model.App, nodeType string) ([]*dto.GetServiceTreeResp, error) {
 	var trees []*model.ServiceTree
 	var err error
 	if nodeType != "" {
-		trees, err = s.serviceTreeRepo.BuildServiceTreeByType(appModel.ID, nodeType)
+		trees, err = q.serviceTreeRepo.BuildServiceTreeByType(appModel.ID, nodeType)
 	} else {
-		trees, err = s.serviceTreeRepo.BuildServiceTree(appModel.ID)
+		trees, err = q.serviceTreeRepo.BuildServiceTree(appModel.ID)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to build service tree: %w", err)
@@ -45,13 +45,13 @@ func getServiceTreeByAppModelImpl(s *ServiceTreeService, ctx context.Context, ap
 	licenseMgr := license.GetManager()
 	username := contextx.GetRequestUser(ctx)
 
-	if licenseMgr.HasFeature(enterprise.FeaturePermission) && username != "" && appModel.ID > 0 && s.permissionService != nil {
+	if licenseMgr.HasFeature(enterprise.FeaturePermission) && username != "" && appModel.ID > 0 && q.permissionService != nil {
 		if isWorkspaceAdmin(username, appModel.Admins) {
 			isAdmin = true
 			logger.Debugf(ctx, "[ServiceTreeService] 用户 %s 是工作空间管理员，设置 isAdmin=true", username)
 		}
 
-		permsMap, err := s.calculatePermissions(ctx, appModel.User, appModel.Code, trees, appModel.Admins, username)
+		permsMap, err := q.calculatePermissions(ctx, appModel.User, appModel.Code, trees, appModel.Admins, username)
 		if err != nil {
 			logger.Warnf(ctx, "[ServiceTreeService] 计算权限失败: app_id=%d, error=%v，继续返回服务树（无权限信息）", appModel.ID, err)
 		} else {
@@ -60,10 +60,10 @@ func getServiceTreeByAppModelImpl(s *ServiceTreeService, ctx context.Context, ap
 		}
 	}
 
-	rootResp := s.convertToGetServiceTreeResp(ctx, rootNode, permissionsMap, isAdmin)
+	rootResp := q.convertToGetServiceTreeResp(ctx, rootNode, permissionsMap, isAdmin)
 
 	if appModel.ShowOnlyPermitted && !isAdmin && permissionsMap != nil {
-		rootResp = s.filterTreeByPermission(rootResp)
+		rootResp = q.filterTreeByPermission(rootResp)
 		logger.Debugf(ctx, "[ServiceTreeService] 已按权限过滤服务树: app_id=%d, username=%s", appModel.ID, username)
 	}
 
@@ -73,7 +73,7 @@ func getServiceTreeByAppModelImpl(s *ServiceTreeService, ctx context.Context, ap
 	return []*dto.GetServiceTreeResp{rootResp}, nil
 }
 
-func getAppWithServiceTreeImpl(s *ServiceTreeService, ctx context.Context, req *dto.GetAppWithServiceTreeReq) (*dto.GetAppWithServiceTreeResp, error) {
+func getAppWithServiceTreeImpl(q *serviceTreeQueryView, ctx context.Context, req *dto.GetAppWithServiceTreeReq) (*dto.GetAppWithServiceTreeResp, error) {
 	user, appCode, err := resolveUserAppFromResourcePath(req.ResourcePath, req.User, req.App)
 	if err != nil {
 		return nil, err
@@ -81,7 +81,7 @@ func getAppWithServiceTreeImpl(s *ServiceTreeService, ctx context.Context, req *
 	req.User = user
 	req.App = appCode
 
-	appModel, err := s.appRepo.GetAppByUserName(req.User, req.App)
+	appModel, err := q.appRepo.GetAppByUserName(req.User, req.App)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("应用不存在: %s/%s", req.User, req.App)
@@ -106,12 +106,12 @@ func getAppWithServiceTreeImpl(s *ServiceTreeService, ctx context.Context, req *
 		UpdatedAt:         time.Time(appModel.UpdatedAt).Format("2006-01-02 15:04:05"),
 	}
 
-	serviceTreeResp, err := s.getServiceTreeByAppModel(ctx, appModel, req.Type)
+	serviceTreeResp, err := q.getServiceTreeByAppModel(ctx, appModel, req.Type)
 	if err != nil {
 		return nil, fmt.Errorf("获取服务目录树失败: %w", err)
 	}
 
-	expandedKeys := s.calculateExpandedKeys(serviceTreeResp)
+	expandedKeys := q.calculateExpandedKeys(serviceTreeResp)
 
 	return &dto.GetAppWithServiceTreeResp{
 		App:          appInfo,
@@ -120,14 +120,14 @@ func getAppWithServiceTreeImpl(s *ServiceTreeService, ctx context.Context, req *
 	}, nil
 }
 
-func getServiceTreeDetailImpl(s *ServiceTreeService, ctx context.Context, req *dto.GetServiceTreeDetailReq) (*dto.GetServiceTreeDetailResp, error) {
+func getServiceTreeDetailImpl(q *serviceTreeQueryView, ctx context.Context, req *dto.GetServiceTreeDetailReq) (*dto.GetServiceTreeDetailResp, error) {
 	var tree *model.ServiceTree
 	var err error
 
 	if req.ID > 0 {
-		tree, err = s.serviceTreeRepo.GetServiceTreeByID(req.ID)
+		tree, err = q.serviceTreeRepo.GetServiceTreeByID(req.ID)
 	} else if req.FullCodePath != "" {
-		tree, err = s.serviceTreeRepo.GetServiceTreeByFullPath(req.FullCodePath)
+		tree, err = q.serviceTreeRepo.GetServiceTreeByFullPath(req.FullCodePath)
 	} else {
 		return nil, fmt.Errorf("必须提供 ID 或 full_code_path")
 	}
@@ -160,8 +160,8 @@ func getServiceTreeDetailImpl(s *ServiceTreeService, ctx context.Context, req *d
 	licenseMgr := license.GetManager()
 	username := contextx.GetRequestUser(ctx)
 
-	if licenseMgr.HasFeature(enterprise.FeaturePermission) && username != "" && tree.FullCodePath != "" && s.permissionService != nil {
-		permCtx, err := s.loadWorkspacePermissionContext(ctx, tree.FullCodePath)
+	if licenseMgr.HasFeature(enterprise.FeaturePermission) && username != "" && tree.FullCodePath != "" && q.permissionService != nil {
+		permCtx, err := q.loadWorkspacePermissionContext(ctx, tree.FullCodePath)
 		if err != nil {
 			logger.Warnf(ctx, "[ServiceTreeService] 查询权限失败: fullCodePath=%s, error=%v，继续返回详情（无权限信息）", tree.FullCodePath, err)
 			resp.Permissions = make(map[string]bool)
@@ -173,7 +173,7 @@ func getServiceTreeDetailImpl(s *ServiceTreeService, ctx context.Context, req *d
 				nodeTypeStr = "function"
 			}
 
-			resp.Permissions = s.buildQueryNodePermissions(nodeTypeStr, tree.TemplateType, tree.FullCodePath, permCtx, username)
+			resp.Permissions = q.buildQueryNodePermissions(nodeTypeStr, tree.TemplateType, tree.FullCodePath, permCtx, username)
 		}
 	} else {
 		resp.Permissions = make(map[string]bool)
