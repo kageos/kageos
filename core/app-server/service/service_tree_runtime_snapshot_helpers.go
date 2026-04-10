@@ -12,13 +12,14 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
-func getDirectorySnapshotsRecursivelyImpl(
-	s *ServiceTreeService,
+func readDirectorySnapshotsRecursively(
 	ctx context.Context,
+	serviceTreeRepo *repository.ServiceTreeRepository,
+	fileSnapshotRepo *repository.FileSnapshotRepository,
 	appID int64,
 	rootDirectoryPath string,
 ) (map[string][]*model.FileSnapshot, error) {
-	rootTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(rootDirectoryPath)
+	rootTree, err := serviceTreeRepo.GetServiceTreeByFullPath(rootDirectoryPath)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			logger.Warnf(ctx, "[ServiceTreeService] 根目录节点不存在: path=%s", rootDirectoryPath)
@@ -27,7 +28,7 @@ func getDirectorySnapshotsRecursivelyImpl(
 		return nil, fmt.Errorf("获取根目录节点失败: %w", err)
 	}
 
-	descendants, err := s.serviceTreeRepo.GetDescendantDirectories(appID, rootDirectoryPath)
+	descendants, err := serviceTreeRepo.GetDescendantDirectories(appID, rootDirectoryPath)
 	if err != nil {
 		return nil, fmt.Errorf("查询子目录失败: %w", err)
 	}
@@ -43,7 +44,7 @@ func getDirectorySnapshotsRecursivelyImpl(
 		treeIDToPath[tree.ID] = tree.FullCodePath
 	}
 
-	allSnapshots, err := s.fileSnapshotRepo.GetCurrentSnapshotsByServiceTreeIDs(treeIDs)
+	allSnapshots, err := fileSnapshotRepo.GetCurrentSnapshotsByServiceTreeIDs(treeIDs)
 	if err != nil {
 		return nil, fmt.Errorf("批量查询文件快照失败: %w", err)
 	}
@@ -69,15 +70,6 @@ func getDirectorySnapshotsRecursivelyImpl(
 		rootDirectoryPath, len(allTrees), totalFiles)
 
 	return result, nil
-}
-
-func getDirectoryFilesFromRuntimeRecursivelyImpl(
-	s *ServiceTreeService,
-	ctx context.Context,
-	appID int64,
-	rootDirectoryPath string,
-) (map[string][]*model.FileSnapshot, error) {
-	return readDirectoryFilesFromRuntimeRecursively(ctx, s.serviceTreeRepo, s.runtimeWorkspace, appID, rootDirectoryPath)
 }
 
 func readDirectoryFilesFromRuntimeRecursively(

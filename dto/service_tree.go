@@ -296,6 +296,7 @@ type FunctionSearchResult struct {
 	FullCodePath string        `json:"full_code_path" example:"/system/official/agent/plugin/excel_or_csv/table_parse"` // 完整代码路径
 	Description  string        `json:"description" example:"解析Excel/CSV文件为Markdown表格"`                                  // 函数描述
 	TemplateType string        `json:"template_type" example:"form"`                                                    // 模板类型（form、table、chart）
+	Callbacks    string        `json:"callbacks,omitempty" example:"OnTableAddRow,OnTableUpdateRow"`                    // 函数回调能力
 	AppID        int64         `json:"app_id" example:"1"`                                                              // 应用ID
 	AppUser      string        `json:"app_user" example:"system"`                                                       // 应用所属用户
 	AppCode      string        `json:"app_code" example:"official"`                                                     // 应用代码

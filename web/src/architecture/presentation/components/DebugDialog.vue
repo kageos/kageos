@@ -265,6 +265,7 @@ import { functionLoader } from '../../infrastructure/functionLoader'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { useDepartmentInfoStore } from '@/stores/departmentInfo'
 import { cacheManager } from '../../infrastructure/cacheManager'
+import { Logger } from '@/core/utils/logger'
 
 interface Props {
   modelValue: boolean
@@ -414,7 +415,7 @@ const updateCacheStats = () => {
         age: formatAge(item.age)
       }))
     } catch (error) {
-      console.warn('[DebugDialog] 无法获取用户信息缓存详情', error)
+      Logger.warn('[DebugDialog]', '无法获取用户信息缓存详情', { error })
       userCacheList.value = []
     }
     
@@ -442,11 +443,11 @@ const updateCacheStats = () => {
         age: formatAge(item.age)
       }))
     } catch (error) {
-      console.warn('[DebugDialog] 无法获取部门信息缓存详情', error)
+      Logger.warn('[DebugDialog]', '无法获取部门信息缓存详情', { error })
       departmentCacheList.value = []
     }
   } catch (error) {
-    console.error('[DebugDialog] 获取缓存统计失败', error)
+    Logger.error('[DebugDialog]', '获取缓存统计失败', { error })
   }
 }
 

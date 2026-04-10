@@ -320,6 +320,8 @@ func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error)
 			var callback []string
 			if template.OnTableAddRow != nil {
 				callback = append(callback, CallbackTypeOnTableAddRow)
+				// 只有可新增的表才暴露批量导入能力，避免只读查询表被误判为可写。
+				callback = append(callback, CallbackTypeOnTableCreateInBatches)
 			}
 			if template.OnTableUpdateRow != nil {
 				callback = append(callback, CallbackTypeOnTableUpdateRow)
@@ -327,9 +329,6 @@ func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error)
 			if template.OnTableDeleteRows != nil {
 				callback = append(callback, CallbackTypeOnTableDeleteRows)
 			}
-			// OnTableCreateInBatches 是系统内置的回调，所有 Table 函数都自动支持
-			// 不需要用户实现，系统会自动处理批量创建
-			callback = append(callback, CallbackTypeOnTableCreateInBatches)
 			if len(callback) > 0 {
 				api.Callback = callback
 			}

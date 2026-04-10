@@ -193,14 +193,12 @@
     -->
     <template v-else-if="mode === 'table-cell'">
       <el-button
-        link
-        type="primary"
         size="small"
         @click="tableCellMode.openDrawer()"
         class="form-field-button"
       >
         <span>共 {{ fieldCount }} 个字段</span>
-        <el-icon style="margin-left: 4px">
+        <el-icon class="form-field-button-icon">
           <View />
         </el-icon>
       </el-button>
@@ -216,18 +214,38 @@
       >
         <template #default>
           <div class="form-detail-content">
-            <el-form
-              :model="formData"
-              label-position="left"
-              :label-width="FORM_LABEL_WIDTH"
-            >
-              <template v-for="subField in visibleSubFields" :key="subField.code">
-                <div v-if="labelsOnTop" class="form-field-label-top">
-                  <label class="field-label">
-                    {{ subField.name }}
-                    <span v-if="isFieldRequired(subField)" class="required">*</span>
-                  </label>
-                  <el-form-item class="form-item-no-label">
+            <div class="form-detail-panel">
+              <el-form
+                :model="formData"
+                label-position="left"
+                :label-width="FORM_LABEL_WIDTH"
+              >
+                <template v-for="subField in visibleSubFields" :key="subField.code">
+                  <div v-if="labelsOnTop" class="form-field-label-top">
+                    <label class="field-label">
+                      {{ subField.name }}
+                      <span v-if="isFieldRequired(subField)" class="required">*</span>
+                    </label>
+                    <el-form-item class="form-item-no-label">
+                      <component
+                        :is="getWidgetComponent(subField.widget?.type || 'input', tableCellMode.drawerMode.value)"
+                        :field="subField"
+                        :value="getSubFieldValue(subField.code)"
+                        :model-value="getSubFieldValue(subField.code)"
+                        @update:model-value="handleSubFieldModelUpdate(subField.code, $event)"
+                        :field-path="`${fieldPath}.${subField.code}`"
+                        :form-manager="formManager"
+                        :form-renderer="formRenderer"
+                        :mode="tableCellMode.drawerMode.value"
+                        :depth="(depth || 0) + 1"
+                      />
+                    </el-form-item>
+                  </div>
+                  <el-form-item
+                    v-else
+                    :label="subField.name"
+                    :required="isFieldRequired(subField)"
+                  >
                     <component
                       :is="getWidgetComponent(subField.widget?.type || 'input', tableCellMode.drawerMode.value)"
                       :field="subField"
@@ -241,27 +259,9 @@
                       :depth="(depth || 0) + 1"
                     />
                   </el-form-item>
-                </div>
-                <el-form-item
-                  v-else
-                  :label="subField.name"
-                  :required="isFieldRequired(subField)"
-                >
-                  <component
-                  :is="getWidgetComponent(subField.widget?.type || 'input', tableCellMode.drawerMode.value)"
-                  :field="subField"
-                  :value="getSubFieldValue(subField.code)"
-                  :model-value="getSubFieldValue(subField.code)"
-                  @update:model-value="handleSubFieldModelUpdate(subField.code, $event)"
-                  :field-path="`${fieldPath}.${subField.code}`"
-                  :form-manager="formManager"
-                  :form-renderer="formRenderer"
-                  :mode="tableCellMode.drawerMode.value"
-                  :depth="(depth || 0) + 1"
-                />
-                </el-form-item>
-              </template>
-            </el-form>
+                </template>
+              </el-form>
+            </div>
           </div>
         </template>
         <!-- 
@@ -569,6 +569,26 @@ defineExpose({
   padding: 0;
   height: auto;
   font-size: 14px;
+  line-height: 1.4;
+  border-color: transparent;
+  background: transparent;
+  color: var(--el-text-color-regular);
+  justify-content: flex-start;
+  max-width: 100%;
+  text-align: left;
+}
+
+.form-field-button:hover,
+.form-field-button:focus-visible {
+  border-color: transparent;
+  background: transparent;
+  color: var(--el-text-color-primary);
+}
+
+.form-field-button-icon {
+  margin-left: 4px;
+  color: var(--el-text-color-secondary);
+  flex-shrink: 0;
 }
 
 /* 详情抽屉内容 */
@@ -578,6 +598,10 @@ defineExpose({
   /* 确保下拉菜单可以正常显示 */
   overflow: visible;
   position: relative;
+}
+
+.form-detail-panel {
+  box-sizing: border-box;
 }
 
 :deep(.form-detail-content .form-card),

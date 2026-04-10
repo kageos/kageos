@@ -1,15 +1,35 @@
 package service
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 )
+
+func normalizeSearchFunctionsPagination(page, pageSize int) (int, int) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+	return page, pageSize
+}
+
+func calculateSearchFunctionsFetchSize(page, pageSize int, keyword string) int {
+	if keyword == "" || page != 1 {
+		return pageSize
+	}
+
+	fetchSize := 200
+	if fetchSize > pageSize*10 {
+		fetchSize = pageSize * 10
+	}
+	return fetchSize
+}
 
 func splitSearchKeywordsForRelevance(keyword string) []string {
 	keyword = strings.TrimSpace(keyword)
@@ -78,38 +98,18 @@ func searchFunctionsRelevanceScore(tree *model.ServiceTree, keywords []string) i
 	return score
 }
 
-func searchFunctionsImpl(
-	s *ServiceTreeService,
-	ctx context.Context,
-	req *dto.SearchFunctionsReq,
-) (*dto.SearchFunctionsResp, error) {
-	pageSize := req.PageSize
-	if pageSize <= 0 {
-		pageSize = 10
+func rankAndLimitSearchFunctions(
+	trees []*model.ServiceTree,
+	keyword string,
+	page int,
+	pageSize int,
+) []*model.ServiceTree {
+	if pageSize <= 0 || len(trees) == 0 {
+		return trees
 	}
 
-	fetchSize := pageSize
-	if req.Keyword != "" && req.Page == 1 {
-		fetchSize = 200
-		if fetchSize > pageSize*10 {
-			fetchSize = pageSize * 10
-		}
-	}
-
-	trees, total, err := s.serviceTreeRepo.SearchFunctions(
-		req.User,
-		req.App,
-		req.Keyword,
-		req.TemplateType,
-		req.Page,
-		fetchSize,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("搜索函数失败: %w", err)
-	}
-
-	if req.Keyword != "" && req.Page == 1 && len(trees) > 0 {
-		keywords := splitSearchKeywordsForRelevance(req.Keyword)
+	if keyword != "" && page == 1 {
+		keywords := splitSearchKeywordsForRelevance(keyword)
 		type scored struct {
 			tree  *model.ServiceTree
 			score int
@@ -126,18 +126,20 @@ func searchFunctionsImpl(
 			return scoredList[i].tree.RunCount > scoredList[j].tree.RunCount
 		})
 
-		trees = make([]*model.ServiceTree, 0, pageSize)
+		limitedTrees := make([]*model.ServiceTree, 0, pageSize)
 		for i := 0; i < len(scoredList) && i < pageSize; i++ {
-			trees = append(trees, scoredList[i].tree)
+			limitedTrees = append(limitedTrees, scoredList[i].tree)
 		}
-	} else if req.Page > 1 && req.Keyword != "" {
-		if len(trees) > pageSize {
-			trees = trees[:pageSize]
-		}
-	} else if len(trees) > pageSize {
-		trees = trees[:pageSize]
+		return limitedTrees
 	}
 
+	if len(trees) > pageSize {
+		return trees[:pageSize]
+	}
+	return trees
+}
+
+func buildFunctionSearchResults(trees []*model.ServiceTree) []*dto.FunctionSearchResult {
 	functionResults := make([]*dto.FunctionSearchResult, 0, len(trees))
 	for _, tree := range trees {
 		result := &dto.FunctionSearchResult{
@@ -156,6 +158,7 @@ func searchFunctionsImpl(
 		if tree.Function != nil {
 			result.ID = tree.Function.ID
 			result.FullCodePath = tree.Function.Router
+			result.Callbacks = tree.Function.Callbacks
 			if len(tree.Function.Request) > 0 {
 				var reqArr []interface{}
 				if err := json.Unmarshal(tree.Function.Request, &reqArr); err == nil {
@@ -171,11 +174,5 @@ func searchFunctionsImpl(
 		}
 		functionResults = append(functionResults, result)
 	}
-
-	return &dto.SearchFunctionsResp{
-		Functions: functionResults,
-		Total:     total,
-		Page:      req.Page,
-		PageSize:  req.PageSize,
-	}, nil
+	return functionResults
 }

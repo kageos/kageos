@@ -114,190 +114,13 @@
               <span>目录信息</span>
             </template>
             <div class="tab-content">
-              <!-- 信息概览卡片 -->
-              <div v-if="packageNode" class="overview-section">
-                <div class="overview-card">
-                  <div class="overview-item">
-                    <div class="overview-icon-wrapper name-icon">
-                      <el-icon class="overview-icon"><Document /></el-icon>
-                    </div>
-                    <div class="overview-content">
-                      <div class="overview-label">目录名称</div>
-                      <div class="overview-value">{{ packageNode.name }}</div>
-                    </div>
-                  </div>
-
-                  <div class="overview-divider"></div>
-
-                  <div class="overview-item">
-                    <div class="overview-icon-wrapper code-icon">
-                      <el-icon class="overview-icon"><Key /></el-icon>
-                    </div>
-                    <div class="overview-content">
-                      <div class="overview-label">目录代码</div>
-                      <div class="overview-value code-text">{{ packageNode.code }}</div>
-                    </div>
-                  </div>
-
-                  <div class="overview-divider"></div>
-
-                  <div class="overview-item">
-                    <div class="overview-icon-wrapper count-icon">
-                      <el-icon class="overview-icon"><Files /></el-icon>
-                    </div>
-                    <div class="overview-content">
-                      <div class="overview-label">子项数量</div>
-                      <div class="overview-value">
-                        {{ packageNode?.children?.length || 0 }} 项
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="overview-divider"></div>
-
-                  <div class="overview-item overview-item-run">
-                    <div class="overview-icon-wrapper run-icon">
-                      <el-icon class="overview-icon"><DataLine /></el-icon>
-                    </div>
-                    <div class="overview-content">
-                      <div class="overview-label">本目录调用次数</div>
-                      <div class="overview-value overview-value-run">
-                        <span class="overview-run-num">{{ totalRunCount }}</span>
-                        <span class="overview-run-unit">次</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Owner 信息 -->
-                  <div v-if="packageNode?.owner && packageNode.owner.trim()" class="overview-divider"></div>
-
-                  <div v-if="packageNode?.owner && packageNode.owner.trim()" class="overview-item">
-                    <div class="overview-icon-wrapper owner-icon">
-                      <el-icon class="overview-icon"><Star /></el-icon>
-                    </div>
-                    <div class="overview-content">
-                      <div class="overview-label">创建者</div>
-                      <div class="overview-value">
-                        <UserWidget
-                          :field="ownerField"
-                          :value="ownerFieldValue"
-                          mode="detail"
-                          field-path="owner"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- 管理员信息 -->
-                  <div v-if="packageNode?.admins && packageNode.admins.trim()" class="overview-divider"></div>
-
-                  <div v-if="packageNode?.admins && packageNode.admins.trim()" class="overview-item">
-                    <div class="overview-icon-wrapper admins-icon">
-                      <el-icon class="overview-icon"><Avatar /></el-icon>
-                    </div>
-                    <div class="overview-content">
-                      <div class="overview-label">管理员</div>
-                      <div class="overview-value">
-                        <UsersWidget
-                          :field="adminsField"
-                          :value="adminsFieldValue"
-                          :field-path="adminsField.code"
-                          mode="detail"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 子目录和函数列表 -->
-              <div class="children-section" v-if="packageNode?.children && packageNode.children.length > 0">
-                <div class="section-header">
-                  <h3 class="section-title">
-                    <el-icon class="section-icon"><Files /></el-icon>
-                    子目录和函数
-                  </h3>
-                  <el-tag class="section-badge" type="primary" size="small">
-                    {{ packageNode.children.length }}
-                  </el-tag>
-                </div>
-
-                <div class="children-grid">
-                  <div
-                    v-for="child in packageNode.children"
-                    :key="child.id"
-                    class="child-card"
-                    @click="handleChildClick(child)"
-                  >
-                    <div class="child-card-header">
-                      <div class="child-icon-wrapper" :class="child.type === 'package' ? 'package-type' : 'function-type'">
-                        <!-- package 类型：使用自定义文件夹图标 -->
-                        <img
-                          v-if="child.type === 'package'"
-                          src="/service-tree/custom-folder.svg"
-                          alt="目录"
-                          class="child-icon-img"
-                        />
-                        <!-- function 类型：根据 template_type 显示不同图标 -->
-                        <template v-else-if="child.type === 'function'">
-                          <!-- 表单类型：使用编辑图标 -->
-                          <img
-                            v-if="child.template_type === TEMPLATE_TYPE.FORM"
-                            src="/service-tree/编辑.svg"
-                            alt="表单"
-                            class="child-icon-img"
-                          />
-                          <!-- 其他类型：使用组件图标 -->
-                          <el-icon v-else class="child-icon">
-                            <component :is="getChildFunctionIcon(child)" />
-                          </el-icon>
-                        </template>
-                        <!-- 讨论区 -->
-                        <img
-                          v-else-if="child.type === 'board'"
-                          src="/讨论区.svg"
-                          alt="讨论区"
-                          class="child-icon-img"
-                        />
-                        <!-- 文档 -->
-                        <el-icon v-else-if="child.type === 'docs'" class="child-icon">
-                          <Document />
-                        </el-icon>
-                        <!-- 默认图标 -->
-                        <el-icon v-else class="child-icon">
-                          <Document />
-                        </el-icon>
-                      </div>
-                      <el-tag
-                        v-if="child.type === 'function'"
-                        size="small"
-                        :type="getTemplateTypeTag(child.template_type)"
-                        class="child-type-tag"
-                      >
-                        {{ getTemplateTypeText(child.template_type) }}
-                      </el-tag>
-                      <el-tag v-else-if="child.type === 'board'" size="small" type="success" class="child-type-tag">讨论区</el-tag>
-                      <el-tag v-else-if="child.type === 'docs'" size="small" type="info" class="child-type-tag">文档</el-tag>
-                    </div>
-                    <div class="child-card-body">
-                      <div class="child-name">{{ child.name }}</div>
-                      <div class="child-description" v-if="child.description">
-                        {{ child.description }}
-                      </div>
-                    </div>
-                    <div v-if="child.type === 'function'" class="child-run-badge">
-                      <el-icon class="child-run-badge-icon"><DataLine /></el-icon>
-                      <span class="child-run-badge-num">{{ child.run_count ?? 0 }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <el-empty
-                v-else
-                description="该目录下暂无子目录或函数"
-                :image-size="120"
-                class="empty-state"
+              <PackageDetailOverviewCard
+                :package-node="packageNode || null"
+                :total-run-count="totalRunCount"
+              />
+              <PackageDetailChildrenGrid
+                :children="packageNode?.children || []"
+                @select-child="handleChildClick"
               />
             </div>
           </el-tab-pane>
@@ -356,188 +179,14 @@
         </div>
         
         <!-- 非管理员或没有权限申请 tab 时，显示原来的内容 -->
-        <div v-else-if="packageNode" class="overview-section">
-        <div class="overview-card">
-          <div class="overview-item">
-            <div class="overview-icon-wrapper name-icon">
-              <el-icon class="overview-icon"><Document /></el-icon>
-            </div>
-            <div class="overview-content">
-              <div class="overview-label">目录名称</div>
-              <div class="overview-value">{{ packageNode.name }}</div>
-            </div>
-          </div>
-
-          <div class="overview-divider"></div>
-
-          <div class="overview-item">
-            <div class="overview-icon-wrapper code-icon">
-              <el-icon class="overview-icon"><Key /></el-icon>
-            </div>
-            <div class="overview-content">
-              <div class="overview-label">目录代码</div>
-              <div class="overview-value code-text">{{ packageNode.code }}</div>
-            </div>
-          </div>
-
-          <div class="overview-divider"></div>
-
-          <div class="overview-item">
-            <div class="overview-icon-wrapper count-icon">
-              <el-icon class="overview-icon"><Files /></el-icon>
-            </div>
-            <div class="overview-content">
-              <div class="overview-label">子项数量</div>
-              <div class="overview-value">
-                {{ packageNode?.children?.length || 0 }} 项
-              </div>
-            </div>
-          </div>
-
-          <div class="overview-divider"></div>
-
-          <div class="overview-item overview-item-run">
-            <div class="overview-icon-wrapper run-icon">
-              <el-icon class="overview-icon"><DataLine /></el-icon>
-            </div>
-            <div class="overview-content">
-              <div class="overview-label">本目录调用次数</div>
-              <div class="overview-value overview-value-run">
-                <span class="overview-run-num">{{ totalRunCount }}</span>
-                <span class="overview-run-unit">次</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Owner 信息 -->
-          <div v-if="packageNode?.owner && packageNode.owner.trim()" class="overview-divider"></div>
-
-          <div v-if="packageNode?.owner && packageNode.owner.trim()" class="overview-item">
-            <div class="overview-icon-wrapper owner-icon">
-              <el-icon class="overview-icon"><Star /></el-icon>
-            </div>
-            <div class="overview-content">
-              <div class="overview-label">创建者</div>
-              <div class="overview-value">
-                <UserWidget
-                  :field="ownerField"
-                  :value="ownerFieldValue"
-                  mode="detail"
-                  field-path="owner"
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- 管理员信息 -->
-          <div v-if="packageNode?.admins && packageNode.admins.trim()" class="overview-divider"></div>
-
-          <div v-if="packageNode?.admins && packageNode.admins.trim()" class="overview-item">
-            <div class="overview-icon-wrapper admins-icon">
-              <el-icon class="overview-icon"><Avatar /></el-icon>
-            </div>
-            <div class="overview-content">
-              <div class="overview-label">管理员</div>
-              <div class="overview-value">
-                <UsersWidget
-                  :field="adminsField"
-                  :value="adminsFieldValue"
-                  :field-path="adminsField.code"
-                  mode="detail"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 子目录和函数列表 -->
-        <div class="children-section" v-if="!hasNoDirectoryPermissions && packageNode?.children && packageNode.children.length > 0">
-          <div class="section-header">
-            <h3 class="section-title">
-              <el-icon class="section-icon"><Files /></el-icon>
-              子目录和函数
-            </h3>
-            <el-tag class="section-badge" type="primary" size="small">
-              {{ packageNode.children.length }}
-            </el-tag>
-          </div>
-
-          <div class="children-grid">
-            <div
-              v-for="child in packageNode.children"
-              :key="child.id"
-              class="child-card"
-              @click="handleChildClick(child)"
-            >
-              <div class="child-card-header">
-                <div class="child-icon-wrapper" :class="child.type === 'package' ? 'package-type' : 'function-type'">
-                  <!-- package 类型：使用自定义文件夹图标 -->
-                  <img
-                    v-if="child.type === 'package'"
-                    src="/service-tree/custom-folder.svg"
-                    alt="目录"
-                    class="child-icon-img"
-                  />
-                  <!-- function 类型：根据 template_type 显示不同图标 -->
-                  <template v-else-if="child.type === 'function'">
-                    <!-- 表单类型：使用编辑图标 -->
-                    <img
-                      v-if="child.template_type === TEMPLATE_TYPE.FORM"
-                      src="/service-tree/编辑.svg"
-                      alt="表单"
-                      class="child-icon-img"
-                    />
-                    <!-- 其他类型：使用组件图标 -->
-                    <el-icon v-else class="child-icon">
-                      <component :is="getChildFunctionIcon(child)" />
-                    </el-icon>
-                  </template>
-                  <!-- 讨论区 -->
-                  <img
-                    v-else-if="child.type === 'board'"
-                    src="/讨论区.svg"
-                    alt="讨论区"
-                    class="child-icon-img"
-                  />
-                  <!-- 文档 -->
-                  <el-icon v-else-if="child.type === 'docs'" class="child-icon">
-                    <Document />
-                  </el-icon>
-                  <!-- 默认图标 -->
-                  <el-icon v-else class="child-icon">
-                    <Document />
-                  </el-icon>
-                </div>
-                <el-tag
-                  v-if="child.type === 'function'"
-                  size="small"
-                  :type="getTemplateTypeTag(child.template_type)"
-                  class="child-type-tag"
-                >
-                  {{ getTemplateTypeText(child.template_type) }}
-                </el-tag>
-                <el-tag v-else-if="child.type === 'board'" size="small" type="success" class="child-type-tag">讨论区</el-tag>
-                <el-tag v-else-if="child.type === 'docs'" size="small" type="info" class="child-type-tag">文档</el-tag>
-              </div>
-              <div class="child-card-body">
-                <div class="child-name">{{ child.name }}</div>
-                <div class="child-description" v-if="child.description">
-                  {{ child.description }}
-                </div>
-              </div>
-              <div v-if="child.type === 'function'" class="child-run-badge">
-                <el-icon class="child-run-badge-icon"><DataLine /></el-icon>
-                <span class="child-run-badge-num">{{ child.run_count ?? 0 }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <el-empty
-          v-else-if="!hasNoDirectoryPermissions"
-          description="该目录下暂无子目录或函数"
-          :image-size="120"
-          class="empty-state"
+        <div v-else-if="packageNode">
+        <PackageDetailOverviewCard
+          :package-node="packageNode"
+          :total-run-count="totalRunCount"
+        />
+        <PackageDetailChildrenGrid
+          :children="packageNode.children || []"
+          @select-child="handleChildClick"
         />
         </div>
       </div>
@@ -603,21 +252,16 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { LocationQueryValue } from 'vue-router'
-import { ArrowLeft, Folder, Document, CopyDocument, Key, Link, Files, Clock, Lock, Avatar, Edit, Star, DataLine } from '@element-plus/icons-vue'
+import { ArrowLeft, Folder, Document, CopyDocument, Link, Clock, Lock, Edit } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import { extractWorkspacePath } from '@/utils/route'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
-import { TEMPLATE_TYPE } from '@/utils/functionTypes'
-import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
-import TableIcon from '@/shared/components/icons/TableIcon.vue'
-import FormIcon from '@/shared/components/icons/FormIcon.vue'
 import DirectoryUpdateHistoryDialog from '@/shared/components/DirectoryUpdateHistoryDialog.vue'
 import { buildPermissionApplyURL, DirectoryPermission } from '@/utils/permission'
 import UsersWidget from '@/shared/components/UsersWidget.vue'
-import UserWidget from '@/shared/components/UserWidget.vue'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
 import { useAuthStore } from '@/stores/auth'
@@ -625,6 +269,9 @@ import { updatePackage, addFunctionsToDirectory } from '@/api/service-tree'
 import PermissionRequestList from '@/shared/components/permission/PermissionRequestList.vue'
 import PermissionManageList from '@/shared/components/permission/PermissionManageList.vue'
 import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
+import { Logger } from '@/core/utils/logger'
+import PackageDetailOverviewCard from './PackageDetailOverviewCard.vue'
+import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
 
 interface Props {
   packageNode?: ServiceTree | null
@@ -700,9 +347,9 @@ function normalizeTabQuery(tab: LocationQueryValue | LocationQueryValue[] | unde
   return typeof tab === 'string' ? tab : null
 }
 
-// ⭐ 监听路由 query 参数，支持通过 tab 参数指定要打开的 tab
+// ⭐ 监听路由 query 参数，支持通过 _panel 参数指定要打开的 tab
 watch(
-  () => route.query.tab,
+  () => route.query._panel,
   (tab) => {
     const normalizedTab = normalizeTabQuery(tab)
 
@@ -763,33 +410,6 @@ const canEdit = computed(() => {
   return false
 })
 
-// Owner 字段配置（用于 UserWidget）
-const ownerField = computed<FieldConfig>(() => ({
-  code: 'owner',
-  name: '创建者',
-  widget: {
-    type: WidgetType.USER,
-    config: {}
-  }
-}))
-
-// Owner 字段值（用于 UserWidget）
-const ownerFieldValue = computed<FieldValue>(() => {
-  if (!props.packageNode?.owner || !props.packageNode.owner.trim()) {
-    return {
-      raw: null,
-      display: '',
-      meta: {}
-    }
-  }
-  
-  return {
-    raw: props.packageNode.owner.trim(),
-    display: props.packageNode.owner.trim(),
-    meta: {}
-  }
-})
-
 // 管理员字段配置（用于 UsersWidget）
 const adminsField = computed<FieldConfig>(() => ({
   code: 'admins',
@@ -799,24 +419,6 @@ const adminsField = computed<FieldConfig>(() => ({
     config: {}
   }
 }))
-
-// 管理员字段值（用于 UsersWidget）
-const adminsFieldValue = computed<FieldValue>(() => {
-  if (!props.packageNode?.admins || !props.packageNode.admins.trim()) {
-    return {
-      raw: null,
-      display: '',
-      meta: {}
-    }
-  }
-  
-  const admins = props.packageNode.admins.split(',').map((s: string) => s.trim()).filter((s: string) => Boolean(s))
-  return {
-    raw: admins.join(','),
-    display: admins.join(', '),
-    meta: {}
-  }
-})
 
 // ⭐ 检查是否没有任何权限（根据节点类型检查对应的权限）
 const hasNoDirectoryPermissions = computed(() => {
@@ -947,7 +549,14 @@ async function onImportGoDrop(e: DragEvent) {
           skip_build: true
         })
         if (res?.success !== false) ok++
-        else { fail++; console.warn('add_functions failed:', res?.error) }
+        else {
+          fail++
+          Logger.warn('[PackageDetailView]', '导入 Go 文件失败', {
+            fullCodePath,
+            fileName,
+            error: res?.error
+          })
+        }
       } catch (err: any) {
         fail++
         ElMessage.warning(`${file.name}: ${err?.message || err?.response?.data?.msg || '写入失败'}`)
@@ -961,39 +570,6 @@ async function onImportGoDrop(e: DragEvent) {
   } finally {
     importGoLoading.value = false
   }
-}
-
-// 获取模板类型标签类型
-function getTemplateTypeTag(templateType?: string): string {
-  const typeMap: Record<string, string> = {
-    'table': 'success',
-    'form': 'primary',
-    'chart': 'warning'
-  }
-  return templateType ? (typeMap[templateType] || 'info') : 'info'
-}
-
-// 获取模板类型文本
-function getTemplateTypeText(templateType?: string): string {
-  const typeMap: Record<string, string> = {
-    'table': '表格',
-    'form': '表单',
-    'chart': '图表'
-  }
-  return templateType ? (typeMap[templateType] || '函数') : '函数'
-}
-
-// 获取子项函数图标组件（与左侧目录树保持一致）
-function getChildFunctionIcon(child: ServiceTree) {
-  if (child.template_type === TEMPLATE_TYPE.TABLE) {
-    return TableIcon
-  } else if (child.template_type === TEMPLATE_TYPE.FORM) {
-    return FormIcon
-  } else if (child.template_type === TEMPLATE_TYPE.CHART) {
-    return ChartIcon
-  }
-  // 默认使用 Document 图标
-  return Document
 }
 
 // 处理显示变更记录
@@ -1076,7 +652,10 @@ async function handleSubmitEdit(): Promise<void> {
     // 或者我们可以 emit 一个事件让父组件处理刷新
     emit('refresh')
   } catch (error: any) {
-    console.error('更新目录失败:', error)
+    Logger.error('[PackageDetailView]', '更新目录失败', {
+      packageId: props.packageNode.id,
+      error
+    })
     ElMessage.error(error.message || '更新目录失败')
   } finally {
     editSubmitting.value = false
@@ -1085,26 +664,13 @@ async function handleSubmitEdit(): Promise<void> {
 
 // 处理子项点击（跳转到对应的目录或函数）
 function handleChildClick(child: ServiceTree): void {
-  console.log('🔍 [PackageDetailView.handleChildClick] 开始处理子项点击', {
-    childName: child.name,
-    childType: child.type,
-    fullCodePath: child.full_code_path,
-    currentPath: route.path,
-    currentQuery: route.query
-  })
-  
   const serviceProvider: IServiceProvider = serviceFactory
   const applicationService = serviceProvider.getWorkspaceApplicationService()
 
   if (child.type === 'function' && child.full_code_path) {
     // 函数节点：跳转到函数页面
     const targetPath = `/workspace${child.full_code_path}`
-    console.log('🔍 [PackageDetailView.handleChildClick] 函数节点', {
-      targetPath,
-      currentPath: route.path,
-      pathMatch: route.path === targetPath
-    })
-    
+
     if (route.path !== targetPath) {
       // 触发节点点击，加载函数详情
       applicationService.triggerNodeClick(child)
@@ -1115,15 +681,6 @@ function handleChildClick(child: ServiceTree): void {
         state: false,
         linkNavigation: false
       }
-      
-      console.log('🔍 [PackageDetailView.handleChildClick] 发出路由更新请求（函数）', {
-        path: targetPath,
-        query: {},
-        queryKeys: Object.keys({}),
-        queryLength: Object.keys({}).length,
-        preserveParams,
-        source: 'package-detail-child-click'
-      })
 
       // 更新路由
       eventBus.emit(RouteEvent.updateRequested, {
@@ -1135,15 +692,10 @@ function handleChildClick(child: ServiceTree): void {
       })
     } else {
       // 路由已匹配，直接触发节点点击加载详情
-      console.log('🔍 [PackageDetailView.handleChildClick] 路由已匹配，直接触发节点点击')
       applicationService.triggerNodeClick(child)
     }
   } else if (child.type === 'package' && child.full_code_path) {
     // 目录节点：跳转到目录详情页面
-    console.log('🔍 [PackageDetailView.handleChildClick] 目录节点', {
-      fullCodePath: child.full_code_path
-    })
-    
     applicationService.triggerNodeClick(child)
 
     const targetPath = `/workspace${child.full_code_path}`
@@ -1154,16 +706,7 @@ function handleChildClick(child: ServiceTree): void {
         state: false,
         linkNavigation: false
       }
-      
-      console.log('🔍 [PackageDetailView.handleChildClick] 发出路由更新请求（目录）', {
-        path: targetPath,
-        query: {},
-        queryKeys: Object.keys({}),
-        queryLength: Object.keys({}).length,
-        preserveParams,
-        source: 'package-detail-child-click-package'
-      })
-      
+
       eventBus.emit(RouteEvent.updateRequested, {
         path: targetPath,
         query: {},
@@ -1345,275 +888,6 @@ function handleChildClick(child: ServiceTree): void {
       padding: 32px 40px;
       min-width: 0;
       width: 100%;
-
-      // 信息概览卡片
-      .overview-section {
-        margin-bottom: 32px;
-
-        .overview-card {
-          display: flex;
-          align-items: center;
-          background: var(--el-bg-color);
-          border: 1px solid var(--el-border-color-lighter);
-          border-radius: 16px;
-          padding: 24px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-
-          .overview-item {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-
-            .overview-icon-wrapper {
-              flex-shrink: 0;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              width: 48px;
-              height: 48px;
-              border-radius: 12px;
-
-              &.name-icon {
-                background: linear-gradient(135deg, var(--el-color-primary-light-8), var(--el-color-primary-light-9));
-
-                .overview-icon {
-                  font-size: 24px;
-                  color: var(--el-color-primary);
-                }
-              }
-
-              &.code-icon {
-                background: linear-gradient(135deg, var(--el-color-success-light-8), var(--el-color-success-light-9));
-
-                .overview-icon {
-                  font-size: 24px;
-                  color: var(--el-color-success);
-                }
-              }
-
-              &.count-icon {
-                background: linear-gradient(135deg, var(--el-color-warning-light-8), var(--el-color-warning-light-9));
-
-                .overview-icon {
-                  font-size: 24px;
-                  color: var(--el-color-warning);
-                }
-              }
-
-              &.admins-icon {
-                background: linear-gradient(135deg, #f3e8ff, #e9d5ff);
-
-                .overview-icon {
-                  font-size: 24px;
-                  color: #9333ea;
-                }
-              }
-
-              &.run-icon {
-                background: var(--el-fill-color-light);
-
-                .overview-icon {
-                  font-size: 24px;
-                  color: var(--el-text-color-secondary);
-                }
-              }
-            }
-
-            .overview-content {
-              flex: 1;
-              min-width: 0;
-
-              .overview-label {
-                font-size: 13px;
-                color: var(--el-text-color-secondary);
-                margin-bottom: 4px;
-                font-weight: 500;
-              }
-
-              .overview-value {
-                font-size: 18px;
-                font-weight: 600;
-                color: var(--el-text-color-primary);
-
-                &.code-text {
-                  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
-                  color: var(--el-color-success);
-                  font-size: 16px;
-                }
-
-                &.overview-value-run {
-                  .overview-run-num,
-                  .overview-run-unit {
-                    font-size: 18px;
-                    font-weight: 600;
-                    color: var(--el-text-color-primary);
-                  }
-                  .overview-run-unit {
-                    font-weight: 500;
-                    color: var(--el-text-color-secondary);
-                    margin-left: 2px;
-                  }
-                }
-              }
-            }
-          }
-
-          .overview-divider {
-            width: 1px;
-            height: 48px;
-            background: var(--el-border-color-lighter);
-            margin: 0 24px;
-          }
-        }
-      }
-
-      // 子目录和函数区域
-      .children-section {
-        margin-top: 32px;
-
-        .section-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 20px;
-
-          .section-title {
-            margin: 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 20px;
-            font-weight: 600;
-            color: var(--el-text-color-primary);
-
-            .section-icon {
-              font-size: 22px;
-              color: var(--el-color-primary);
-            }
-          }
-
-          .section-badge {
-            font-weight: 600;
-            padding: 4px 12px;
-          }
-        }
-
-        .children-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-          gap: 16px;
-          width: 100%;
-
-          .child-card {
-            position: relative;
-            background: var(--el-bg-color);
-            border: 1px solid var(--el-border-color-lighter);
-            border-radius: 12px;
-            padding: 20px;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            width: 100%;
-            box-sizing: border-box;
-
-            &:hover {
-              border-color: var(--el-color-primary-light-7);
-              box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-              transform: translateY(-2px);
-            }
-
-            .child-card-header {
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-              margin-bottom: 16px;
-
-              .child-icon-wrapper {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                width: 48px;
-                height: 48px;
-                border-radius: 12px;
-                flex-shrink: 0;
-
-                &.package-type {
-                  background: linear-gradient(135deg, var(--el-color-primary-light-8), var(--el-color-primary-light-9));
-
-                  .child-icon-img {
-                    width: 32px;
-                    height: 32px;
-                    object-fit: contain;
-                  }
-                }
-
-                &.function-type {
-                  background: linear-gradient(135deg, var(--el-color-success-light-8), var(--el-color-success-light-9));
-
-                  .child-icon {
-                    font-size: 24px;
-                    color: var(--el-color-success);
-                  }
-
-                  .child-icon-img {
-                    width: 32px;
-                    height: 32px;
-                    object-fit: contain;
-                  }
-                }
-              }
-
-              .child-type-tag {
-                font-weight: 500;
-              }
-            }
-
-            .child-card-body {
-              .child-name {
-                font-size: 16px;
-                font-weight: 600;
-                color: var(--el-text-color-primary);
-                line-height: 1.5;
-                word-break: break-word;
-                margin-bottom: 8px;
-              }
-
-              .child-description {
-                font-size: 13px;
-                color: var(--el-text-color-secondary);
-                line-height: 1.6;
-                word-break: break-word;
-                padding-top: 8px;
-                border-top: 1px solid var(--el-border-color-lighter);
-              }
-            }
-
-            .child-run-badge {
-              position: absolute;
-              bottom: 14px;
-              right: 14px;
-              display: inline-flex;
-              align-items: center;
-              gap: 4px;
-              font-size: 12px;
-              color: var(--el-text-color-secondary);
-              font-weight: 500;
-
-              .child-run-badge-icon {
-                font-size: 13px;
-                color: var(--el-text-color-placeholder);
-              }
-              .child-run-badge-num {
-                min-width: 1ch;
-              }
-            }
-          }
-        }
-      }
-
-      .empty-state {
-        margin-top: 60px;
-      }
 
       // ⭐ 权限不足提示样式
       .permission-error-wrapper {
@@ -1823,25 +1097,6 @@ function handleChildClick(child: ServiceTree): void {
 
       .detail-content {
         padding: 24px 20px;
-
-        .overview-section {
-          .overview-card {
-            flex-direction: column;
-            gap: 20px;
-
-            .overview-divider {
-              width: 100%;
-              height: 1px;
-              margin: 0;
-            }
-          }
-        }
-
-        .children-section {
-          .children-grid {
-            grid-template-columns: 1fr;
-          }
-        }
       }
     }
   }

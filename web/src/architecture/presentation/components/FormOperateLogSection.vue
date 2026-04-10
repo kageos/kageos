@@ -84,6 +84,15 @@
             row-key="id"
             @row-click="handleRowClick"
           >
+            <el-table-column label="执行时间" min-width="180">
+              <template #default="{ row }">
+                <div class="clickable-cell time-cell">
+                  <div class="time-primary">{{ formatDateTime(row.created_at) }}</div>
+                  <div class="time-secondary">{{ formatRelativeTime(row.created_at) }}</div>
+                </div>
+              </template>
+            </el-table-column>
+
             <el-table-column label="结果" min-width="280">
               <template #default="{ row }">
                 <div class="clickable-cell result-cell">
@@ -127,15 +136,6 @@
                   <el-tag size="small" effect="plain" round class="source-tag">
                     {{ getSourceLabel(row) }}
                   </el-tag>
-                </div>
-              </template>
-            </el-table-column>
-
-            <el-table-column label="执行时间" min-width="180">
-              <template #default="{ row }">
-                <div class="clickable-cell time-cell">
-                  <div class="time-primary">{{ formatDateTime(row.created_at) }}</div>
-                  <div class="time-secondary">{{ formatRelativeTime(row.created_at) }}</div>
                 </div>
               </template>
             </el-table-column>

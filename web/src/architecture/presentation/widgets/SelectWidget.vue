@@ -14,40 +14,19 @@
     <!-- 编辑模式 -->
     <div v-if="mode === 'edit'" class="edit-select">
       <template v-if="shouldUseInlineSelect">
-        <el-select
+        <SelectWidgetInlineSelect
           v-model="internalValue"
-          class="inline-select"
+          :options="options"
           :placeholder="selectPlaceholder"
-          :disabled="widgetConfig.disabled"
+          :disabled="!!widgetConfig.disabled"
           :clearable="allowInlineClear"
-          :filterable="true"
-          :allow-create="!!widgetConfig.creatable"
-          :default-first-option="!!widgetConfig.creatable"
+          :creatable="!!widgetConfig.creatable"
+          :display-info-text="displayInfoText"
+          :get-option-color="getOptionColor"
+          :get-option-color-style="getOptionColorStyle"
+          :get-option-display-info="getOptionDisplayInfo"
           @clear="handleClear"
-        >
-          <el-option
-            v-for="option in options"
-            :key="String(option.value)"
-            :label="option.label"
-            :value="option.value"
-            :disabled="option.disabled"
-          >
-            <div class="select-option">
-              <span
-                v-if="getOptionColor(option.value)"
-                class="option-color-indicator"
-                :style="getOptionColorStyle(option.value)"
-              />
-              <span class="option-label">{{ option.label }}</span>
-              <span v-if="getOptionDisplayInfo(option)" class="display-info">
-                {{ getOptionDisplayInfo(option) }}
-              </span>
-            </div>
-          </el-option>
-        </el-select>
-        <div v-if="displayInfoText" class="display-info-text inline-select-display-info">
-          {{ displayInfoText }}
-        </div>
+        />
       </template>
       <template v-else>
         <!-- 显示当前选中值和 display_info -->
@@ -97,71 +76,29 @@
     </div>
     
     <!-- 响应模式（只读） -->
-    <span v-else-if="mode === 'response'" class="response-value">
-      {{ displayValue }}
-    </span>
-    
-    <!-- 表格单元格模式 -->
-    <div v-else-if="mode === 'table-cell'" class="table-cell-value">
-      <el-tag
-        v-if="currentOptionColor"
-        :type="getTagType(currentOptionColor)"
-        :color="getTagColor(currentOptionColor)"
-        size="small"
-        class="select-tag select-tag-outline"
-      >
-        {{ displayValue }}
-      </el-tag>
-      <span v-else>{{ displayValue }}</span>
-    </div>
-    
-    <!-- 详情模式 -->
-    <div v-else-if="mode === 'detail'" class="detail-value">
-      <el-tag
-        v-if="currentOptionColor"
-        :type="getTagType(currentOptionColor)"
-        :color="getTagColor(currentOptionColor)"
-        class="select-tag select-tag-outline"
-      >
-        {{ displayValue }}
-      </el-tag>
-      <span v-else class="detail-content">{{ displayValue }}</span>
-    </div>
+    <SelectWidgetValueDisplay
+      v-else-if="mode === 'response' || mode === 'table-cell' || mode === 'detail'"
+      :mode="mode"
+      :display-value="displayValue"
+      :current-option-color="currentOptionColor"
+    />
     
     <!-- 搜索模式 -->
     <div v-else-if="mode === 'search'" class="search-select">
       <template v-if="shouldUseInlineSelect">
-        <el-select
+        <SelectWidgetInlineSelect
           v-model="internalValue"
-          class="inline-select inline-select-search"
+          :options="options"
           :placeholder="selectPlaceholder"
-          :disabled="widgetConfig.disabled"
+          :disabled="!!widgetConfig.disabled"
           :clearable="allowInlineClear"
-          :filterable="true"
-          :allow-create="!!widgetConfig.creatable"
-          :default-first-option="!!widgetConfig.creatable"
+          :creatable="!!widgetConfig.creatable"
+          :search-mode="true"
+          :get-option-color="getOptionColor"
+          :get-option-color-style="getOptionColorStyle"
+          :get-option-display-info="getOptionDisplayInfo"
           @clear="handleClear"
-        >
-          <el-option
-            v-for="option in options"
-            :key="String(option.value)"
-            :label="option.label"
-            :value="option.value"
-            :disabled="option.disabled"
-          >
-            <div class="select-option">
-              <span
-                v-if="getOptionColor(option.value)"
-                class="option-color-indicator"
-                :style="getOptionColorStyle(option.value)"
-              />
-              <span class="option-label">{{ option.label }}</span>
-              <span v-if="getOptionDisplayInfo(option)" class="display-info">
-                {{ getOptionDisplayInfo(option) }}
-              </span>
-            </div>
-          </el-option>
-        </el-select>
+        />
       </template>
       <template v-else>
         <div class="select-container" @click="openDialog">
@@ -201,10 +138,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { ElMessage, ElTag, ElIcon, ElSelect, ElOption } from 'element-plus'
+import { ElMessage, ElIcon } from 'element-plus'
 import { ArrowDown, CircleClose } from '@element-plus/icons-vue'
 import FuzzySearchDialog from './FuzzySearchDialog.vue'
 import FieldStatistics from './FieldStatistics.vue'
+import SelectWidgetInlineSelect from './SelectWidgetInlineSelect.vue'
+import SelectWidgetValueDisplay from './SelectWidgetValueDisplay.vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
@@ -214,11 +153,10 @@ import { Logger } from '@/core/utils/logger'
 import { SelectFuzzyQueryType, isStandardColor, getStandardColorCSSVar, type StandardColorType } from '@/core/constants/select'
 import { convertValueToType } from '@/architecture/presentation/widgets/utils/valueConverter'
 import { convertFormDataToRequestByType } from '@/architecture/presentation/widgets/utils/typeConverter'
-// 🔥 使用事件驱动：监听表单初始化完成事件，统一处理 OnSelectFuzzy 字段
-import { eventBus, FormEvent } from '@/architecture/infrastructure/eventBus'
 import { widgetInitializerRegistry } from '@/architecture/presentation/widgets/initializers/WidgetInitializerRegistry'
 import { SelectWidgetInitializer } from '@/architecture/presentation/widgets/initializers/SelectWidgetInitializer'
 import type { SelectOptionConfig, SelectWidgetConfig } from '@/core/types/widget-configs'
+import type { SelectOptionItem } from './selectWidgetTypes'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -237,15 +175,6 @@ const callbackRouter = computed(() => props.formRenderer?.getFunctionRouter?.() 
 const widgetConfig = computed(() => {
   return (props.field.widget?.config || {}) as SelectWidgetConfig
 })
-
-// 选项列表
-type SelectOptionItem = {
-  label: string
-  value: any
-  disabled?: boolean
-  displayInfo?: any
-  icon?: string
-}
 
 function normalizeOption(option: string | SelectOptionConfig): SelectOptionItem {
   if (typeof option === 'string') {
@@ -314,14 +243,6 @@ const currentOptionColor = computed(() => {
   
   return null
 })
-
-function getTagType(color: string | null): StandardColorType | undefined {
-  return color && isStandardColor(color) ? (color as StandardColorType) : undefined
-}
-
-function getTagColor(color: string | null): string | undefined {
-  return color && !isStandardColor(color) ? color : undefined
-}
 
 /**
  * 🔥 获取选项的颜色（用于下拉选项显示）
@@ -585,7 +506,7 @@ async function openDialog(): Promise<void> {
   // 如果有回调接口
   if (hasCallback.value) {
     if (!callbackRouter.value) {
-      console.warn('[SelectWidget] openDialog: functionRouter 不存在，无法触发回调', {
+      Logger.warn('[SelectWidget]', 'openDialog: functionRouter 不存在，无法触发回调', {
         fieldCode: props.field.code
       })
       return
@@ -614,7 +535,7 @@ async function openDialog(): Promise<void> {
 async function handleDialogSearch(keyword: string): Promise<void> {
   if (hasCallback.value) {
     if (!callbackRouter.value) {
-      console.warn('[SelectWidget] handleDialogSearch: functionRouter 不存在，无法触发回调', {
+      Logger.warn('[SelectWidget]', 'handleDialogSearch: functionRouter 不存在，无法触发回调', {
         fieldCode: props.field.code,
         keyword
       })
@@ -726,7 +647,10 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
   const router = callbackRouter.value
   
   if (!router) {
-    console.warn('[SelectWidget] 无法获取函数路由，取消回调', { fieldCode: props.field.code, router })
+    Logger.warn('[SelectWidget]', '无法获取函数路由，取消回调', {
+      fieldCode: props.field.code,
+      router
+    })
     return
   }
   
@@ -843,80 +767,6 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
 // 当前统计信息（从回调接口获取）
 const currentStatistics = ref<Record<string, string>>({})
 
-// 处理值变化
-function handleChange(value: any): void {
-  // 值变化时，保存 displayInfo 和 statistics
-  const selectedOption = options.value.find(opt => opt.value === value)
-  if (selectedOption) {
-    // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
-    const newFieldValue = createFieldValue(
-      props.field,
-      value,
-      selectedOption.label,
-      {
-        displayInfo: selectedOption.displayInfo,
-        statistics: currentStatistics.value  // 🔥 保存 statistics 配置
-      }
-    )
-    
-    formDataStore.setValue(props.fieldPath, newFieldValue)
-    emit('update:modelValue', newFieldValue)
-  }
-}
-
-// 处理聚焦（已移除，因为 Element Plus 的 remote-method 会在聚焦时自动触发）
-// 如果同时使用 handleFocus 和 remote-method，会导致重复回调
-
-// 🔥 事件监听器（用于在表单初始化完成后统一处理）
-let unsubscribeFormInitialized: (() => void) | null = null
-
-// 🔥 注册监听器的函数（避免重复代码）
-const registerFormInitializedListener = () => {
-  // 🔥 先取消注册旧的监听器（避免重复注册）
-  if (unsubscribeFormInitialized) {
-    unsubscribeFormInitialized()
-    unsubscribeFormInitialized = null
-  }
-  
-  // 注册新的监听器
-  unsubscribeFormInitialized = eventBus.on(FormEvent.initialized, () => {
-    Logger.debug('[SelectWidget]', 'FormEvent.initialized 收到', { 
-      fieldCode: props.field.code,
-      hasCallback: hasCallback.value,
-      rawValue: props.value?.raw,
-      formRenderer: !!props.formRenderer,
-      getFunctionDetail: !!props.formRenderer?.getFunctionDetail,
-      functionDetail: props.formRenderer?.getFunctionDetail?.(),
-      lastSearchedValue: lastSearchedValue.value,
-      lastSearchedRouter: lastSearchedRouter.value,
-      lastSearchedFunctionId: lastSearchedFunctionId.value
-    })
-    // 如果当前字段有 OnSelectFuzzy 回调，且有值，触发搜索获取 label
-    if (hasCallback.value && props.value?.raw !== null && props.value?.raw !== undefined && props.formRenderer) {
-      nextTick(() => {
-        if (props.formRenderer && !isSearching.value && props.value?.raw !== lastSearchedValue.value) {
-          Logger.debug('[SelectWidget]', '触发 triggerSearchIfNeeded (FormEvent.initialized)', { 
-            fieldCode: props.field.code,
-            rawValue: props.value?.raw,
-            lastSearchedValue: lastSearchedValue.value,
-            lastSearchedRouter: lastSearchedRouter.value,
-            lastSearchedFunctionId: lastSearchedFunctionId.value
-          })
-          triggerSearchIfNeeded(props.value.raw, props.formRenderer, props.mode)
-        }
-      })
-    }
-  })
-}
-
-// 🔥 取消注册监听器的函数
-const unregisterFormInitializedListener = () => {
-  if (unsubscribeFormInitialized) {
-    unsubscribeFormInitialized()
-    unsubscribeFormInitialized = null
-  }
-}
-
 // 初始化
 onMounted(() => {
   initOptions()
@@ -931,22 +781,14 @@ onMounted(() => {
     })
   }
   
-  // 🔥 移除 FormEvent.initialized 监听器，统一使用 SelectWidgetInitializer 处理初始化
+  // 🔥 统一使用 SelectWidgetInitializer 处理初始化
   // 🔥 SelectWidgetInitializer 在 useFunctionParamInitialization 的 triggerWidgetInitialization 中调用
   // 🔥 这样可以避免重复调用回显接口，并且保证初始化逻辑的统一性
   // 🔥 如果未来需要保留这个监听器，需要添加防重复调用的机制
 })
 
-// 🔥 组件卸载时取消注册监听器和初始化器
+// 🔥 组件卸载时取消注册初始化器
 onUnmounted(() => {
-  // 取消注册表单监听器
-  if (unsubscribeFormInitialized) {
-    Logger.debug('[SelectWidget]', 'onUnmounted - 取消注册监听器', { 
-      fieldCode: props.field.code
-    })
-    unregisterFormInitializedListener()
-  }
-  
   // 🔥 取消注册初始化器（防止内存泄漏）
   if (hasCallback.value && props.mode === 'edit') {
     widgetInitializerRegistry.unregister('select')
@@ -1175,8 +1017,6 @@ watch(
 </script>
 
 <style scoped lang="scss">
-@use './styles/inlineSelectShared' as inlineSelectShared;
-
 .select-widget {
   width: 100%;
 }
@@ -1186,10 +1026,6 @@ watch(
   width: 100%;
   position: relative;
 }
-
-@include inlineSelectShared.inline-select-surface('.inline-select', 40px, 14px);
-@include inlineSelectShared.inline-select-surface('.inline-select-search', 32px, 13px, $box-shadow: none);
-@include inlineSelectShared.inline-select-display-info('.inline-select-display-info');
 
 .select-container {
   width: 100%;
@@ -1289,173 +1125,5 @@ watch(
 .search-select .clear-icon,
 .search-select .input-icon {
   font-size: 14px;
-}
-
-@include inlineSelectShared.inline-select-option-row('.select-option');
-
-.response-value {
-  color: var(--el-text-color-regular);
-}
-
-.table-cell-value {
-  display: inline-flex;
-  align-items: center;
-}
-
-/* 🔥 单选组件的标签样式：使用空心样式（outline） */
-.select-tag {
-  font-weight: 500;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-  opacity: 0.9;
-  transition: opacity 0.2s;
-}
-
-.select-tag:hover {
-  opacity: 1;
-}
-
-/* 🔥 空心样式：使用边框和透明背景 */
-.select-tag-outline {
-  background-color: transparent !important;
-  border: 2px solid currentColor !important;
-}
-
-/* 标准颜色的空心标签 */
-.select-tag-outline.el-tag--success {
-  color: var(--el-color-success) !important;
-  border-color: var(--el-color-success) !important;
-}
-
-.select-tag-outline.el-tag--warning {
-  color: var(--el-color-warning) !important;
-  border-color: var(--el-color-warning) !important;
-}
-
-.select-tag-outline.el-tag--danger {
-  color: var(--el-color-danger) !important;
-  border-color: var(--el-color-danger) !important;
-}
-
-.select-tag-outline.el-tag--info {
-  color: var(--el-color-info) !important;
-  border-color: var(--el-color-info) !important;
-}
-
-.select-tag-outline.el-tag--primary {
-  color: var(--el-color-primary) !important;
-  border-color: var(--el-color-primary) !important;
-}
-
-/* 🔥 多选模式样式（从 MultiSelectWidget 复制） */
-.edit-multiselect {
-  width: 100%;
-}
-
-.selected-tags-container {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  min-height: 32px;
-  padding: 4px 8px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
-  background-color: var(--el-fill-color-blank);
-  cursor: pointer;
-  transition: border-color 0.2s;
-}
-
-.selected-tags-container:hover {
-  border-color: var(--el-color-primary);
-}
-
-.tags-wrapper {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  flex: 1;
-  min-width: 0;
-}
-
-.input-wrapper {
-  flex: 1;
-  min-width: 120px;
-  position: relative;
-}
-
-.multiselect-input {
-  width: 100%;
-}
-
-.multiselect-tag {
-  margin: 0;
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 自定义颜色的空心标签：使用边框颜色 */
-.select-tag-outline[style*="color"] {
-  border-color: currentColor !important;
-}
-
-.table-cell-value .el-tag {
-  font-weight: 500;
-  border: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-/* 自定义颜色的 tag，确保文字清晰 */
-.table-cell-value .el-tag[style*="background-color"] {
-  color: #fff !important;
-  font-weight: 500;
-}
-
-.detail-value {
-  margin-bottom: 16px;
-  display: inline-flex;
-  align-items: center;
-}
-
-.detail-value .el-tag {
-  font-weight: 500;
-  border: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-/* 自定义颜色的 tag，确保文字清晰 */
-.detail-value .el-tag[style*="background-color"] {
-  color: #fff !important;
-  font-weight: 500;
-}
-
-/* 🔥 下拉选项中的颜色指示器样式 */
-.option-color-indicator {
-  display: inline-block !important;
-  width: 12px !important;
-  height: 12px !important;
-  min-width: 12px !important;
-  min-height: 12px !important;
-  border-radius: 2px !important;
-  flex-shrink: 0 !important;
-  border: none !important;
-  vertical-align: middle !important;
-  /* 🔥 降低亮度：使用 filter 降低饱和度和亮度 */
-  filter: brightness(0.95) saturate(0.9);
-  opacity: 0.9;
-}
-
-.detail-label {
-  font-weight: 500;
-  color: var(--el-text-color-primary);
-  margin-bottom: 4px;
-}
-
-.detail-content {
-  color: var(--el-text-color-regular);
 }
 </style>

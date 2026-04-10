@@ -14,377 +14,16 @@
   <div class="rich-text-widget">
     <!-- 编辑模式：TipTap 编辑器 -->
     <div v-if="mode === 'edit'" class="editor-container">
-      <div v-if="editor" class="editor-toolbar">
-        <!-- 预览切换按钮 -->
-        <div class="toolbar-group" style="margin-right: auto;">
-          <el-tooltip :content="isPreviewMode ? '编辑模式' : '预览模式'" placement="bottom">
-            <button
-              type="button"
-              @click="togglePreview"
-              class="toolbar-button preview-toggle"
-              :class="{ 'is-active': isPreviewMode }"
-            >
-              <el-icon v-if="!isPreviewMode"><View /></el-icon>
-              <el-icon v-else><Edit /></el-icon>
-            </button>
-          </el-tooltip>
-        </div>
-        
-        <div class="toolbar-divider"></div>
-        
-        <!-- 工具栏按钮（预览模式下隐藏） -->
-        <template v-if="!isPreviewMode">
-        <!-- 文本格式组 -->
-        <div class="toolbar-group">
-          <el-tooltip content="粗体" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().toggleBold().run()"
-              :class="{ 'is-active': editor.isActive('bold') }"
-              class="toolbar-button"
-            >
-              <strong style="font-size: 14px;">B</strong>
-            </button>
-          </el-tooltip>
-          <el-tooltip content="斜体" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().toggleItalic().run()"
-              :class="{ 'is-active': editor.isActive('italic') }"
-              class="toolbar-button"
-            >
-              <em style="font-size: 14px;">I</em>
-            </button>
-          </el-tooltip>
-          <el-tooltip content="删除线" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().toggleStrike().run()"
-              :class="{ 'is-active': editor.isActive('strike') }"
-              class="toolbar-button"
-            >
-              <s style="font-size: 14px;">S</s>
-            </button>
-          </el-tooltip>
-          <el-tooltip content="下划线" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().toggleUnderline().run()"
-              :class="{ 'is-active': editor.isActive('underline') }"
-              class="toolbar-button"
-            >
-              <u style="font-size: 14px;">U</u>
-            </button>
-          </el-tooltip>
-        </div>
-        
-        <div class="toolbar-divider"></div>
-        
-        <!-- 标题组 -->
-        <div class="toolbar-group">
-          <el-tooltip content="正文" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().setParagraph().run()"
-              :class="{ 'is-active': editor.isActive('paragraph') }"
-              class="toolbar-button"
-            >
-              <el-icon><Document /></el-icon>
-            </button>
-          </el-tooltip>
-          <el-tooltip content="标题 1" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().toggleHeading({ level: 1 }).run()"
-              :class="{ 'is-active': editor.isActive('heading', { level: 1 }) }"
-              class="toolbar-button"
-            >
-              <span class="heading-text">H1</span>
-            </button>
-          </el-tooltip>
-          <el-tooltip content="标题 2" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().toggleHeading({ level: 2 }).run()"
-              :class="{ 'is-active': editor.isActive('heading', { level: 2 }) }"
-              class="toolbar-button"
-            >
-              <span class="heading-text">H2</span>
-            </button>
-          </el-tooltip>
-          <el-tooltip content="标题 3" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().toggleHeading({ level: 3 }).run()"
-              :class="{ 'is-active': editor.isActive('heading', { level: 3 }) }"
-              class="toolbar-button"
-            >
-              <span class="heading-text">H3</span>
-            </button>
-          </el-tooltip>
-        </div>
-        
-        <div class="toolbar-divider"></div>
-        
-        <!-- 列表组 -->
-        <div class="toolbar-group">
-          <el-tooltip content="无序列表" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().toggleBulletList().run()"
-              :class="{ 'is-active': editor.isActive('bulletList') }"
-              class="toolbar-button"
-            >
-              <el-icon><List /></el-icon>
-            </button>
-          </el-tooltip>
-          <el-tooltip content="有序列表" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().toggleOrderedList().run()"
-              :class="{ 'is-active': editor.isActive('orderedList') }"
-              class="toolbar-button"
-            >
-              <el-icon><Sort /></el-icon>
-            </button>
-          </el-tooltip>
-          <el-tooltip content="任务列表" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().toggleTaskList().run()"
-              :class="{ 'is-active': editor.isActive('taskList') }"
-              class="toolbar-button"
-            >
-              <el-icon><CircleCheck /></el-icon>
-            </button>
-          </el-tooltip>
-          <el-tooltip content="引用" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().toggleBlockquote().run()"
-              :class="{ 'is-active': editor.isActive('blockquote') }"
-              class="toolbar-button"
-            >
-              <el-icon><ChatLineRound /></el-icon>
-            </button>
-          </el-tooltip>
-        </div>
-        
-        <div class="toolbar-divider"></div>
-        
-        <!-- 对齐组 -->
-        <div class="toolbar-group">
-          <el-tooltip content="左对齐" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().setTextAlign('left').run()"
-              :class="{ 'is-active': editor.isActive({ textAlign: 'left' }) }"
-              class="toolbar-button"
-            >
-              <span style="font-size: 14px; font-weight: bold;">◀</span>
-            </button>
-          </el-tooltip>
-          <el-tooltip content="居中" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().setTextAlign('center').run()"
-              :class="{ 'is-active': editor.isActive({ textAlign: 'center' }) }"
-              class="toolbar-button"
-            >
-              <span style="font-size: 14px; font-weight: bold;">⬌</span>
-            </button>
-          </el-tooltip>
-          <el-tooltip content="右对齐" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().setTextAlign('right').run()"
-              :class="{ 'is-active': editor.isActive({ textAlign: 'right' }) }"
-              class="toolbar-button"
-            >
-              <span style="font-size: 14px; font-weight: bold;">▶</span>
-            </button>
-          </el-tooltip>
-        </div>
-        
-        <div class="toolbar-divider"></div>
-        
-        <!-- 代码组 -->
-        <div class="toolbar-group">
-          <el-tooltip content="行内代码" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().toggleCode().run()"
-              :class="{ 'is-active': editor.isActive('code') }"
-              class="toolbar-button"
-            >
-              <span style="font-size: 12px; font-family: monospace;">&lt;/&gt;</span>
-            </button>
-          </el-tooltip>
-          <el-tooltip content="代码块" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().toggleCodeBlock().run()"
-              :class="{ 'is-active': editor.isActive('codeBlock') }"
-              class="toolbar-button"
-            >
-              <el-icon><Operation /></el-icon>
-            </button>
-          </el-tooltip>
-        </div>
-        
-        <div class="toolbar-divider"></div>
-        
-        <!-- 颜色组 -->
-        <div class="toolbar-group">
-          <el-tooltip content="文字颜色" placement="bottom">
-            <div class="color-picker-wrapper">
-              <input
-                type="color"
-                :value="getTextColor()"
-                @input="handleTextColorChange"
-                class="color-picker-input"
-              />
-              <button
-                type="button"
-                class="toolbar-button color-picker-button"
-                :style="{ color: getTextColor() }"
-              >
-                A
-              </button>
-            </div>
-          </el-tooltip>
-          <el-tooltip content="背景高亮" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().toggleHighlight().run()"
-              :class="{ 'is-active': editor.isActive('highlight') }"
-              class="toolbar-button"
-            >
-              <span style="background-color: yellow; padding: 2px 4px; border-radius: 2px;">高</span>
-            </button>
-          </el-tooltip>
-        </div>
-        
-        <div class="toolbar-divider"></div>
-        
-        <!-- 插入组 -->
-        <div class="toolbar-group">
-          <el-tooltip content="链接" placement="bottom">
-            <button
-              type="button"
-              @click="handleSetLink"
-              :class="{ 'is-active': editor.isActive('link') }"
-              class="toolbar-button"
-            >
-              <el-icon><LinkIcon /></el-icon>
-            </button>
-          </el-tooltip>
-          <el-tooltip content="表格" placement="bottom">
-            <el-dropdown trigger="click" @command="handleTableCommand" placement="bottom-start">
-              <button
-                type="button"
-                :class="{ 'is-active': editor.isActive('table') }"
-                class="toolbar-button"
-              >
-                <el-icon><Grid /></el-icon>
-              </button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="insert">
-                    <el-icon style="margin-right: 8px;"><Plus /></el-icon>
-                    插入表格 (3x3)
-                  </el-dropdown-item>
-                  <el-dropdown-item 
-                    command="addColumnBefore" 
-                    :disabled="!editor.isActive('table')"
-                    divided
-                  >
-                    <el-icon style="margin-right: 8px;"><Plus /></el-icon>
-                    左侧插入列
-                  </el-dropdown-item>
-                  <el-dropdown-item command="addColumnAfter" :disabled="!editor.isActive('table')">
-                    <el-icon style="margin-right: 8px;"><Plus /></el-icon>
-                    右侧插入列
-                  </el-dropdown-item>
-                  <el-dropdown-item command="deleteColumn" :disabled="!editor.isActive('table')">
-                    <el-icon style="margin-right: 8px;"><Remove /></el-icon>
-                    删除当前列
-                  </el-dropdown-item>
-                  <el-dropdown-item 
-                    command="addRowBefore" 
-                    :disabled="!editor.isActive('table')"
-                    divided
-                  >
-                    <el-icon style="margin-right: 8px;"><Plus /></el-icon>
-                    上方插入行
-                  </el-dropdown-item>
-                  <el-dropdown-item command="addRowAfter" :disabled="!editor.isActive('table')">
-                    <el-icon style="margin-right: 8px;"><Plus /></el-icon>
-                    下方插入行
-                  </el-dropdown-item>
-                  <el-dropdown-item command="deleteRow" :disabled="!editor.isActive('table')">
-                    <el-icon style="margin-right: 8px;"><Remove /></el-icon>
-                    删除当前行
-                  </el-dropdown-item>
-                  <el-dropdown-item 
-                    command="deleteTable" 
-                    :disabled="!editor.isActive('table')"
-                    divided
-                  >
-                    <el-icon style="margin-right: 8px;"><Delete /></el-icon>
-                    删除表格
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </el-tooltip>
-          <el-tooltip content="分隔线" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().setHorizontalRule().run()"
-              class="toolbar-button"
-            >
-              <el-icon><Minus /></el-icon>
-            </button>
-          </el-tooltip>
-        </div>
-        
-        <div class="toolbar-divider"></div>
-        
-        <!-- 操作组 -->
-        <div class="toolbar-group">
-          <el-tooltip content="清除格式" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().clearNodes().unsetAllMarks().run()"
-              class="toolbar-button"
-            >
-              <el-icon><Delete /></el-icon>
-            </button>
-          </el-tooltip>
-          <el-tooltip content="撤销" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().undo().run()"
-              :disabled="!editor.can().undo()"
-              class="toolbar-button"
-            >
-              <el-icon><RefreshLeft /></el-icon>
-            </button>
-          </el-tooltip>
-          <el-tooltip content="重做" placement="bottom">
-            <button
-              type="button"
-              @click="editor.chain().focus().redo().run()"
-              :disabled="!editor.can().redo()"
-              class="toolbar-button"
-            >
-              <el-icon><RefreshRight /></el-icon>
-            </button>
-          </el-tooltip>
-        </div>
-        </template>
-      </div>
+      <RichTextEditorToolbar
+        v-if="editor"
+        :editor="editor"
+        :is-preview-mode="isPreviewMode"
+        :text-color="textColor"
+        @toggle-preview="togglePreview"
+        @set-link="handleSetLink"
+        @table-command="handleTableCommand"
+        @text-color-change="handleTextColorChange"
+      />
       <!-- 编辑模式 -->
       <editor-content v-if="!isPreviewMode" :editor="editor" class="editor-content" />
       <!-- 预览模式 -->
@@ -433,39 +72,6 @@
       @clear="handleSearchClear"
     />
     
-    <!-- 文件上传对话框 -->
-    <el-dialog
-      v-model="fileUploadDialogVisible"
-      title="上传文件"
-      width="500px"
-      :close-on-click-modal="false"
-    >
-      <CommonUpload
-        ref="fileUploadRef"
-        v-model="uploadedFileUrl"
-        :router="fileUploadRouter"
-        accept="*"
-        max-size="100MB"
-        @success="handleFileUploadSuccess"
-        @error="handleFileUploadError"
-        @change="handleFileUploadChange"
-      />
-      <div v-if="uploadedFileInfo" class="file-info">
-        <p><strong>文件名：</strong>{{ uploadedFileInfo.fileName }}</p>
-        <p><strong>文件类型：</strong>{{ uploadedFileInfo.fileType }}</p>
-        <p v-if="uploadedFileInfo.fileSize > 0"><strong>文件大小：</strong>{{ formatFileSize(uploadedFileInfo.fileSize) }}</p>
-      </div>
-      <template #footer>
-        <el-button @click="fileUploadDialogVisible = false">取消</el-button>
-        <el-button
-          type="primary"
-          :disabled="!uploadedFileUrl"
-          @click="handleConfirmFileInsert"
-        >
-          插入文件
-        </el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -495,32 +101,14 @@ import { TaskItem } from '@tiptap/extension-task-item'
 import { Placeholder } from '@tiptap/extension-placeholder'
 import { Dropcursor } from '@tiptap/extension-dropcursor'
 import { Gapcursor } from '@tiptap/extension-gapcursor'
-import { ElInput, ElIcon, ElTooltip, ElMessageBox, ElDropdown, ElDropdownMenu, ElDropdownItem, ElDialog, ElMessage } from 'element-plus'
-import CommonUpload from '@/shared/components/CommonUpload.vue'
+import { ElMessage } from 'element-plus'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
-import {
-  Document,
-  List,
-  Sort,
-  ChatLineRound,
-  Link as LinkIcon,
-  Grid,
-  Minus,
-  RefreshLeft,
-  RefreshRight,
-  Operation,
-  Delete,
-  CircleCheck,
-  Plus,
-  Remove,
-  View,
-  Edit
-} from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import type { RichTextWidgetConfig } from '@/core/types/widget-configs'
 import { sanitizeHtml } from '@/utils/sanitizeHtml'
+import RichTextEditorToolbar from './RichTextEditorToolbar.vue'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -541,16 +129,6 @@ function togglePreview(): void {
   isPreviewMode.value = !isPreviewMode.value
 }
 
-// 文件上传对话框
-const fileUploadDialogVisible = ref(false)
-const uploadedFileUrl = ref<string>('')
-const uploadedFileInfo = ref<{
-  fileName: string
-  fileType: string
-  fileSize: number
-} | null>(null)
-const fileUploadRef = ref<InstanceType<typeof CommonUpload> | null>(null)
-
 // 文件上传路由（从 localStorage 获取用户名）
 const fileUploadRouter = computed(() => {
   const savedUserStr = localStorage.getItem('user')
@@ -564,44 +142,6 @@ const fileUploadRouter = computed(() => {
   }
   return 'default/richtext/files'
 })
-
-// 判断文件是否为图片
-function isImageFile(fileName: string): boolean {
-  const ext = fileName.split('.').pop()?.toLowerCase() || ''
-  return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(ext)
-}
-
-// 判断文件是否为视频
-function isVideoFile(fileName: string): boolean {
-  const ext = fileName.split('.').pop()?.toLowerCase() || ''
-  return ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm', 'm4v', '3gp'].includes(ext)
-}
-
-// 格式化文件大小
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
-}
-
-// 获取视频 MIME 类型
-function getVideoMimeType(ext: string): string {
-  const mimeTypes: Record<string, string> = {
-    'mp4': 'video/mp4',
-    'webm': 'video/webm',
-    'ogg': 'video/ogg',
-    'avi': 'video/x-msvideo',
-    'mov': 'video/quicktime',
-    'wmv': 'video/x-ms-wmv',
-    'flv': 'video/x-flv',
-    'mkv': 'video/x-matroska',
-    'm4v': 'video/x-m4v',
-    '3gp': 'video/3gpp'
-  }
-  return mimeTypes[ext.toLowerCase()] || 'video/mp4'
-}
 
 // 获取配置（带类型）
 const config = computed(() => {
@@ -928,86 +468,6 @@ function handleSetLink(): void {
   editor.value.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
 }
 
-// 处理插入文件
-function handleInsertFile(): void {
-  if (!editor.value) return
-  
-  // 打开上传对话框
-  fileUploadDialogVisible.value = true
-  uploadedFileUrl.value = '' // 重置上传的文件 URL
-  uploadedFileInfo.value = null // 重置文件信息
-}
-
-// 文件上传变化（包括成功和失败）
-function handleFileUploadChange(url: string | null): void {
-  if (!url) {
-    uploadedFileInfo.value = null
-    return
-  }
-  
-  // 从 URL 中提取文件名和类型信息
-  try {
-    const urlObj = new URL(url)
-    const pathParts = urlObj.pathname.split('/')
-    const fileName = decodeURIComponent(pathParts[pathParts.length - 1] || '未知文件')
-    const fileType = fileName.split('.').pop()?.toUpperCase() || '未知'
-    
-    uploadedFileInfo.value = {
-      fileName,
-      fileType,
-      fileSize: 0 // 文件大小无法从 URL 中获取，显示为 0
-    }
-  } catch (error) {
-    Logger.warn('RichTextWidget', '解析文件信息失败', error)
-    uploadedFileInfo.value = {
-      fileName: '未知文件',
-      fileType: '未知',
-      fileSize: 0
-    }
-  }
-}
-
-// 文件上传成功
-function handleFileUploadSuccess(url: string): void {
-  uploadedFileUrl.value = url
-  handleFileUploadChange(url)
-}
-
-// 文件上传失败
-function handleFileUploadError(error: Error): void {
-  Logger.error('RichTextWidget', '文件上传失败', error)
-  uploadedFileInfo.value = null
-}
-
-// 确认插入文件
-function handleConfirmFileInsert(): void {
-  if (!editor.value || !uploadedFileUrl.value) return
-  
-  const fileName = uploadedFileInfo.value?.fileName || '文件'
-  const isImage = uploadedFileInfo.value ? isImageFile(uploadedFileInfo.value.fileName) : false
-  const isVideo = uploadedFileInfo.value ? isVideoFile(uploadedFileInfo.value.fileName) : false
-  
-  if (isImage) {
-    // 图片：插入为图片标签
-    editor.value.chain().focus().setImage({ src: uploadedFileUrl.value, alt: fileName }).run()
-  } else if (isVideo) {
-    // 视频：使用 Video 扩展插入视频
-    editor.value.chain().focus().setVideo({ 
-      src: uploadedFileUrl.value,
-      alt: fileName,
-      controls: true
-    }).run()
-  } else {
-    // 其他文件：插入为链接
-    editor.value.chain().focus().setLink({ href: uploadedFileUrl.value }).insertContent(fileName).run()
-  }
-  
-  // 关闭对话框并重置
-  fileUploadDialogVisible.value = false
-  uploadedFileUrl.value = ''
-  uploadedFileInfo.value = null
-}
-
 // 处理表格命令
 function handleTableCommand(command: string): void {
   if (!editor.value) return
@@ -1040,17 +500,12 @@ function handleTableCommand(command: string): void {
   }
 }
 
-// 获取文字颜色
-function getTextColor(): string {
-  if (!editor.value) return '#000000'
-  return editor.value.getAttributes('textStyle').color || '#000000'
-}
+const textColor = computed(() => editor.value?.getAttributes('textStyle').color || '#000000')
 
 // 处理文字颜色变化
-function handleTextColorChange(event: Event): void {
+function handleTextColorChange(color: string): void {
   if (!editor.value) return
-  const target = event.target as HTMLInputElement
-  editor.value.chain().focus().setColor(target.value).run()
+  editor.value.chain().focus().setColor(color).run()
 }
 
 // 获取字数（不含HTML标签）
@@ -1172,84 +627,6 @@ watch(
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.editor-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  padding: 8px 12px;
-  background: linear-gradient(to bottom, var(--el-fill-color-lighter), var(--el-fill-color));
-  border-bottom: 1px solid var(--el-border-color);
-  flex-wrap: wrap;
-}
-
-.toolbar-group {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.toolbar-divider {
-  width: 1px;
-  height: 24px;
-  background-color: var(--el-border-color);
-  margin: 0 8px;
-}
-
-.toolbar-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: none;
-  border-radius: 4px;
-  background-color: transparent;
-  color: var(--el-text-color-regular);
-  cursor: pointer;
-  font-size: 16px;
-  transition: all 0.2s;
-}
-
-.toolbar-button:hover:not(:disabled) {
-  background-color: var(--el-fill-color);
-  color: var(--el-color-primary);
-}
-
-.toolbar-button.is-active {
-  background-color: var(--el-color-primary);
-  color: var(--el-color-white);
-}
-
-.toolbar-button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.heading-text {
-  font-size: 12px;
-  font-weight: bold;
-}
-
-.color-picker-wrapper {
-  position: relative;
-  display: inline-block;
-}
-
-.color-picker-input {
-  position: absolute;
-  width: 32px;
-  height: 32px;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.color-picker-button {
-  position: relative;
-  font-weight: bold;
-  font-size: 16px;
-}
-
 .editor-content {
   min-height: v-bind('editorHeight + "px"');
 }
@@ -1292,19 +669,6 @@ watch(
   color: var(--el-color-primary);
   text-decoration: underline;
   cursor: pointer;
-}
-
-.file-info {
-  margin-top: 16px;
-  padding: 12px;
-  background-color: var(--el-fill-color-lighter);
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.file-info p {
-  margin: 4px 0;
-  color: var(--el-text-color-primary);
 }
 
 .editor-content :deep(.ProseMirror video) {
@@ -1523,10 +887,6 @@ watch(
   color: var(--el-text-color-placeholder);
   max-width: 320px;
   text-align: right;
-}
-
-.preview-toggle {
-  margin-right: 8px;
 }
 
 .preview-content {

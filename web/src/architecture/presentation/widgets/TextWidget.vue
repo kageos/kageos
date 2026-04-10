@@ -175,6 +175,7 @@ import { useFormDataStore } from '@/core/stores-v2/formData'
 import type { TextWidgetConfig } from '@/core/types/widget-configs'
 import { sanitizeHtml } from '@/utils/sanitizeHtml'
 import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
+import { Logger } from '@/core/utils/logger'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -196,18 +197,7 @@ const config = computed(() => {
 
 // 格式化类型
 const format = computed(() => {
-  const fmt = (config.value.format || '').toLowerCase()
-  // 调试：在详情模式下输出 format 值
-  if (props.mode === 'detail' && props.field.code === 'details_display') {
-    console.log('[TextWidget] format computed:', {
-      format: fmt,
-      config: config.value,
-      field: props.field,
-      widget: props.field.widget,
-      value: props.value
-    })
-  }
-  return fmt
+  return (config.value.format || '').toLowerCase()
 })
 
 // 是否为代码格式（需要代码高亮）
@@ -320,47 +310,21 @@ interface CSVTableData {
 }
 
 const csvTableData = computed<CSVTableData | null>(() => {
-  // 调试：在详情模式下输出
-  if (props.mode === 'detail' && props.field?.code === 'details_display') {
-    console.log('[TextWidget] csvTableData computed:', {
-      format: format.value,
-      isCsv: format.value === 'csv',
-      rawContent: rawContent.value,
-      value: props.value,
-      config: config.value
-    })
-  }
-  
   if (format.value !== 'csv') {
     return null
   }
   
   const content = rawContent.value
   if (!content) {
-    console.warn('[TextWidget] CSV format but no content', { 
-      format: format.value, 
-      content,
-      rawContent: rawContent.value,
-      value: props.value,
-      field: props.field?.code
-    })
     return null
   }
   
   try {
     const lines = content.trim().split('\n')
     if (lines.length === 0) {
-      console.warn('[TextWidget] CSV format but empty lines', { content })
       return null
     }
-    
-    console.log('[TextWidget] Parsing CSV:', { 
-      lines, 
-      lineCount: lines.length,
-      firstLine: lines[0],
-      field: props.field?.code
-    })
-    
+
     // 解析 CSV 行（支持引号包裹的字段）
     const parseCSVLine = (line: string): string[] => {
       const result: string[] = []
@@ -406,14 +370,16 @@ const csvTableData = computed<CSVTableData | null>(() => {
       }
     }
     
-    const result = {
+    return {
       headers,
       rows
     }
-    console.log('[TextWidget] CSV parsed successfully:', result)
-    return result
   } catch (error) {
-    console.error('[TextWidget] CSV 解析失败:', error, { content, format: format.value })
+    Logger.error('[TextWidget]', 'CSV 解析失败', {
+      fieldCode: props.field?.code,
+      format: format.value,
+      error
+    })
     return null
   }
 })
@@ -511,7 +477,10 @@ async function handleCopyToClipboard(): Promise<void> {
     await navigator.clipboard.writeText(editableContent.value)
     ElMessage.success('已复制到剪贴板')
   } catch (error) {
-    console.error('复制失败:', error)
+    Logger.error('[TextWidget]', '复制失败', {
+      fieldCode: props.field?.code,
+      error
+    })
     ElMessage.error('复制失败，请手动复制')
   }
 }

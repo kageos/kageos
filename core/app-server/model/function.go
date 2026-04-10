@@ -18,7 +18,7 @@ type Function struct {
 	CreateTables string          `json:"create_tables"`                                      //创建该api时候会自动帮忙创建这个数据库表gorm的model列表
 	Callbacks    string          `json:"callbacks"`
 	TemplateType string          `json:"widget"`                                  // 渲染类型
-	App *App `json:"-" gorm:"foreignKey:AppID;references:ID"` // 预加载
+	App          *App            `json:"-" gorm:"foreignKey:AppID;references:ID"` // 预加载
 	// 不在此处关联 ServiceTree，避免 AutoMigrate 为 tree_id 建外键导致历史脏数据迁移失败；搜索函数改为查 ServiceTree 并 Preload Function
 }
 
@@ -59,6 +59,33 @@ func (f *Function) HasCreateTables() bool {
 // HasCallbacks 是否有回调配置
 func (f *Function) HasCallbacks() bool {
 	return f.Callbacks != ""
+}
+
+// GetCallbacks 获取回调列表（去重/顺序保持由写入方保证，这里只做 trim 和过滤空值）
+func (f *Function) GetCallbacks() []string {
+	if f == nil || strings.TrimSpace(f.Callbacks) == "" {
+		return nil
+	}
+	parts := strings.Split(f.Callbacks, ",")
+	callbacks := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		callbacks = append(callbacks, part)
+	}
+	return callbacks
+}
+
+// HasCallback 判断是否声明了某个回调能力
+func (f *Function) HasCallback(target string) bool {
+	for _, callback := range f.GetCallbacks() {
+		if callback == target {
+			return true
+		}
+	}
+	return false
 }
 
 // GetTemplateType 获取模板类型

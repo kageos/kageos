@@ -467,7 +467,7 @@ CostPrice    float64 `json:"cost_price" gorm:"column:cost_price" widget:"name:�
 
 ## 四、Table 模式要点
 
-- **TableTemplate**：`BaseConfig` 含 Name、Request、Response、CreateTables；**`AutoCrudTable` 必配**（指向列表结构体，前端据此展示列表与增删改入口）。**不需要哪种操作就删掉对应回调**：不想要新增 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`（如消费记录、支付流水、操作日志通常应直接只读）。前端根据是否配置回调来显示或隐藏「新增」「编辑」「删除」按钮。可选 `OnTableAddRow`、`OnTableUpdateRow`、`OnTableDeleteRows`；若新增/编辑表单中有 select 需后端动态选项，配 `OnSelectFuzzyMap`（用法见「六、Form 模式要点 → OnSelectFuzzy」）。
+- **TableTemplate**：`BaseConfig` 含 Name、Request、Response、CreateTables；**`AutoCrudTable` 必配**（指向列表结构体，前端据此展示列表与增删改入口）。**不需要哪种操作就删掉对应回调**：不想要新增 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`（如消费记录、支付流水、操作日志通常应直接只读）。前端根据是否配置回调来显示或隐藏「新增」「编辑」「删除」按钮；工作台和服务端也会据此判断表是否允许写入。可选 `OnTableAddRow`、`OnTableUpdateRow`、`OnTableDeleteRows`；若新增/编辑表单中有 select 需后端动态选项，配 `OnSelectFuzzyMap`（用法见「六、Form 模式要点 → OnSelectFuzzy」）。
 - **AutoCrudTable 的 model 可落库字段类型**：model 里凡是有 **gorm 列**（会被 GORM 写入数据库）的字段，**只能是**以下可落库类型：**基础类型**（int、string、bool、int64、float64 等）、**files.Files**（`gorm:"type:json"`）、**gorm.DeletedAt**（软删除，GORM 特例）。除此以外，**其他 struct、slice（如 type:table / type:form）不能作为一列写入数据库**；若在 model 里出现这类 struct/slice，须为：**外键关联**（如 `Room *MeetingRoom` 配 `gorm:"foreignKey:RoomID;references:ID"`，实际存的是 RoomID，不占一列）或 **gorm:"-"**（不落库，仅展示/表单用，如 RoomName、Status、Options、link 等）。否则 GORM 无法把该列写进数据库。
 - **List 函数**：请求体包含 `*query.SearchFilterPageReq`，使用 `resp.Table(&lists).AutoSearchFilterPaged(db, &Model{}, req.SearchFilterPageReq).Build()`；Build 后可在内存中给计算字段赋值（如剩余时间、**link 跳转 URL**，见「三、结构体与标签 → link 组件」）。若列表需要**按外表或计算字段筛选**（如按「会议室名称」筛预约、按「预约状态：待开始/进行中/已结束」筛），这些字段**不是主表的列**，应在 **Request 结构体**（TableTemplate.BaseConfig.Request）中定义：带 `form:"xxx"` 便于绑定，带 `widget` 让前端展示筛选控件；在 List 函数里**手写 Where**（外表筛先查关联表得 ID 再 `Where 外键 IN ?`，计算字段筛用主表时间等与当前时间比较），再传 `AutoSearchFilterPaged`。详见下「4. List 函数」中会议室预约示例。
 - 主键、CreatedAt、UpdatedAt、DeletedAt、DeletedBy 等系统字段约定见案例；init_.go 由脚手架生成，不要手写。
@@ -478,7 +478,7 @@ CostPrice    float64 `json:"cost_price" gorm:"column:cost_price" widget:"name:�
 
 ## 五、Table 回调函数
 
-Table 的增删改由三个**可选**回调实现；**不配某个回调则前端不显示或禁用对应操作**（不配 `OnTableAddRow` 则无新增、不配 `OnTableUpdateRow` 则无编辑、不配 `OnTableDeleteRows` 则无删除）。配置了的回调用于新增、更新、删除时的业务逻辑；不配则走框架默认行为（若有默认实现）或该操作不可用。**流水/日志/审计类表默认不要配这些回调**；需要退款、冲正、撤销时，应做独立业务动作，不要直接修改流水记录本身。
+Table 的增删改由三个**可选**回调实现；**不配某个回调则对应操作不可用**（不配 `OnTableAddRow` 则无新增，不暴露批量导入；不配 `OnTableUpdateRow` 则无编辑；不配 `OnTableDeleteRows` 则无删除）。配置了的回调用于新增、更新、删除时的业务逻辑。**流水/日志/审计类表默认不要配这些回调**；需要退款、冲正、撤销时，应做独立业务动作，不要直接修改流水记录本身。
 
 ### 1. OnTableAddRow（新增行）
 

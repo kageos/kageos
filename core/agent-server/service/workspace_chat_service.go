@@ -204,6 +204,10 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	if fullCodePath == "" {
 		return s.handleError(sendEvent, "full_code_path 必填", nil)
 	}
+	requestedModeCode := normalizeWorkspaceModeCode(req.ModeCode)
+	if req.SessionID == "" && prompt.GetModeProvider(requestedModeCode) == nil {
+		return s.handleError(sendEvent, fmt.Sprintf("不支持的 mode_code: %s", requestedModeCode), nil)
+	}
 
 	// 1) 获取工作台环境信息（包含目录详情、子节点等，一次性获取，避免重复调用）
 	workspaceCtx, e := apicall.GetWorkspaceContext(ctx, fullCodePath, "")
@@ -231,6 +235,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 			SessionID:    uuid.New().String(),
 			AgentID:      nil,
 			Title:        "",
+			ModeCode:     requestedModeCode,
 			Status:       model.ChatSessionStatusActive,
 			User:         user,
 		}
@@ -239,6 +244,19 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		if e := s.sessionRepo.Create(session); e != nil {
 			return s.handleError(sendEvent, "创建会话失败", e)
 		}
+	}
+	modeCode := requestedModeCode
+	if req.SessionID != "" && strings.TrimSpace(req.ModeCode) == "" {
+		modeCode = normalizeWorkspaceModeCode(session.ModeCode)
+	}
+	if session.ModeCode != modeCode {
+		session.ModeCode = modeCode
+	}
+	modeProvider := prompt.GetModeProvider(modeCode)
+	var toolNames []string
+	var systemPromptFragment string
+	if modeProvider == nil {
+		return s.handleError(sendEvent, fmt.Sprintf("不支持的 mode_code: %s", modeCode), nil)
 	}
 
 	sessionID := session.SessionID
@@ -269,14 +287,6 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 			}
 		}
 	}()
-
-	modeProvider := prompt.GetModeProvider("dev")
-	var toolNames []string
-	var systemPromptFragment string
-	if modeProvider == nil {
-		toolNames = s.toolReg.AllToolNames()
-		systemPromptFragment = "当前为开发模式，请协助用户生成新代码、新模块。"
-	}
 
 	llmConfigID := req.LLMConfigID
 
@@ -375,6 +385,7 @@ func (s *WorkspaceChatService) ListRunningSessions(ctx context.Context) ([]*dto.
 			Title:        session.Title,
 			User:         session.User,
 			AgentID:      session.AgentID,
+			ModeCode:     normalizeWorkspaceModeCode(session.ModeCode),
 			Status:       session.Status,
 			FullCodePath: session.FullCodePath,
 			CreatedAt:    session.CreatedAt,
@@ -508,6 +519,7 @@ func workspaceCtxToEnvInput(c *dto.GetWorkspaceContextResp) *prompt.WorkspaceEnv
 			Type:         n.Type,
 			FullCodePath: n.FullCodePath,
 			TemplateType: n.TemplateType,
+			Callbacks:    n.Callbacks,
 		})
 	}
 	files := make([]prompt.WorkspaceEnvFile, 0, len(c.Files))
@@ -532,6 +544,14 @@ func workspaceCtxToEnvInput(c *dto.GetWorkspaceContextResp) *prompt.WorkspaceEnv
 		Children:               children,
 		Files:                  files,
 	}
+}
+
+func normalizeWorkspaceModeCode(code string) string {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return "dev"
+	}
+	return code
 }
 
 func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, fullCodePath, directoryName string, workspaceCtx *dto.GetWorkspaceContextResp, modeProvider prompt.WorkspaceModePromptProvider, fallbackToolNames []string, fallbackSystemPrompt string) ([]llms.Message, []llms.ToolDef, error) {

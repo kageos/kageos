@@ -4,6 +4,7 @@
  */
 
 import type { ServiceTree } from '@/types'
+import { Logger } from '@/core/utils/logger'
 
 export function useAfterCreateNode(deps: {
   handleRefreshTree: () => Promise<void>
@@ -18,7 +19,7 @@ export function useAfterCreateNode(deps: {
       const newNode = deps.findNodeById(deps.serviceTree(), response.id)
       if (newNode) deps.handleNodeClick(newNode)
     } catch (err) {
-      console.error('刷新服务树失败:', err)
+      Logger.error('[useAfterCreateNode]', '刷新服务树失败', { error: err })
       const newNode = deps.findNodeById(deps.serviceTree(), response.id)
       if (newNode) deps.handleNodeClick(newNode)
     }

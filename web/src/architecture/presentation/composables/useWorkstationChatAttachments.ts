@@ -4,6 +4,7 @@ import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 import type { WorkspaceChatMessageFile } from '@/api/workspace'
 import type { UploadProgress } from '@/utils/upload/types'
 import { useAuthStore } from '@/stores/auth'
+import { Logger } from '@/core/utils/logger'
 
 const WORKSPACE_CHAT_UPLOAD_ROUTER = 'workspace/chat'
 
@@ -75,7 +76,7 @@ export function useWorkstationChatAttachments(fullCodePath: Ref<string>) {
     try {
       await addFileAsAttachment(file)
     } catch (error: unknown) {
-      console.error('[WorkstationChat] 上传失败:', error)
+      Logger.error('[WorkstationChat]', '上传失败', { error })
       ElMessage.error(error instanceof Error ? error.message : '上传失败')
     } finally {
       uploading.value = false
@@ -95,7 +96,10 @@ export function useWorkstationChatAttachments(fullCodePath: Ref<string>) {
         try {
           await addFileAsAttachment(file)
         } catch (error: unknown) {
-          console.error('[WorkstationChat] 拖拽上传失败:', file.name, error)
+          Logger.error('[WorkstationChat]', '拖拽上传失败', {
+            fileName: file.name,
+            error
+          })
           ElMessage.error(`${file.name} 上传失败：${error instanceof Error ? error.message : '未知错误'}`)
         }
       }

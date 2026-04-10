@@ -129,6 +129,7 @@ import { useThemeStore } from '@/stores/theme'
 import DebugDialog from './DebugDialog.vue'
 import UpgradeEnterpriseDialog from '@/shared/components/UpgradeEnterpriseDialog.vue'
 import { navigateToHub as navigateToHubUtil } from '@/utils/hub-navigation'
+import { Logger } from '@/core/utils/logger'
 
 const props = defineProps<{
   currentApp: App | null
@@ -249,7 +250,9 @@ const handleDeactivate = async () => {
   try {
     // 检查方法是否存在
     if (typeof licenseStore.deactivate !== 'function') {
-      console.error('licenseStore.deactivate 不是函数', licenseStore)
+      Logger.error('[WorkspaceHeader]', 'licenseStore.deactivate 不是函数', {
+        licenseStore
+      })
       ElMessage.error('License Store 未正确初始化，请刷新页面')
       return
     }
@@ -257,7 +260,7 @@ const handleDeactivate = async () => {
     // 注销成功后，状态会自动更新（store 中已处理）
   } catch (error) {
     // 错误已在 store 中处理
-    console.error('注销 License 失败:', error)
+    Logger.error('[WorkspaceHeader]', '注销 License 失败', { error })
   }
 }
 
@@ -274,7 +277,7 @@ onMounted(async () => {
     try {
       await licenseStore.fetchStatus()
     } catch (error) {
-      console.warn('[WorkspaceHeader] 获取 License 状态失败:', error)
+      Logger.warn('[WorkspaceHeader]', '获取 License 状态失败', { error })
     }
   }
   

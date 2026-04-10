@@ -283,25 +283,47 @@
 
       <!-- 模型选择 + 输入区 -->
       <div class="mini-ws-model-row">
-        <span class="mini-ws-model-label">模型</span>
-        <el-select
-          v-model="selectedLLMConfigId"
-          placeholder="默认模型"
-          filterable
-          :loading="llmLoading"
-          teleported
-          popper-class="mini-ws-model-select-popper"
-          class="mini-ws-model-select"
-          @visible-change="onLLMSelectVisibleChange"
-        >
-          <el-option label="默认" :value="0" />
-          <el-option
-            v-for="llm in llmList"
-            :key="llm.id"
-            :label="`${llm.name} (${llm.provider}/${llm.model})`"
-            :value="llm.id"
-          />
-        </el-select>
+        <div class="mini-ws-control">
+          <span class="mini-ws-model-label">模型</span>
+          <el-select
+            v-model="selectedLLMConfigId"
+            placeholder="默认模型"
+            filterable
+            :loading="llmLoading"
+            teleported
+            popper-class="mini-ws-model-select-popper"
+            class="mini-ws-model-select"
+            @visible-change="onLLMSelectVisibleChange"
+          >
+            <el-option label="默认" :value="0" />
+            <el-option
+              v-for="llm in llmList"
+              :key="llm.id"
+              :label="`${llm.name} (${llm.provider}/${llm.model})`"
+              :value="llm.id"
+            />
+          </el-select>
+        </div>
+        <div class="mini-ws-control">
+          <span class="mini-ws-model-label">模式</span>
+          <el-select
+            :model-value="selectedModeCode"
+            placeholder="dev"
+            :disabled="!fullCodePath"
+            :loading="modeLoading"
+            teleported
+            popper-class="mini-ws-model-select-popper"
+            class="mini-ws-model-select"
+            @update:model-value="setSelectedModeCode"
+          >
+            <el-option
+              v-for="mode in modeOptions"
+              :key="mode.code"
+              :label="formatModeOptionLabel(mode)"
+              :value="mode.code"
+            />
+          </el-select>
+        </div>
       </div>
       <div class="mini-ws-input">
         <el-upload
@@ -366,9 +388,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onUnmounted, computed } from 'vue'
+import { ref, onUnmounted, computed, watch } from 'vue'
 import { Loading, Close, Minus, FullScreen, CopyDocument, Paperclip, CircleCheck, CircleClose, FolderOpened, UploadFilled, VideoPause, Document as DocumentIcon, Memo } from '@element-plus/icons-vue'
 import { useWorkspaceChatStream } from '@/architecture/presentation/composables/useWorkspaceChatStream'
+import type { WorkspaceModeItem } from '@/api/workspace'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import MessageToolCalls from './MessageToolCalls.vue'
 import OutputDisplayFields from './OutputDisplayFields.vue'
@@ -383,6 +406,7 @@ import { useMiniWorkstationSessions } from '../composables/useMiniWorkstationSes
 import { useMiniWorkstationUploads } from '../composables/useMiniWorkstationUploads'
 import { useMiniWorkstationComposer } from '../composables/useMiniWorkstationComposer'
 import { useMiniWorkstationEffects } from '../composables/useMiniWorkstationEffects'
+import { useWorkspaceModeSelection } from '../composables/useWorkspaceModeSelection'
 
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
@@ -396,6 +420,9 @@ const props = defineProps<{
   initialPosition?: 'center'
   initialMaximized?: boolean
 }>()
+
+const fullCodePathRef = computed(() => props.fullCodePath)
+const initialSessionIdRef = computed(() => props.initialSessionId)
 
 const emit = defineEmits<{
   (e: 'minimize'): void
@@ -448,8 +475,8 @@ const {
   stopMiniStreamListening,
   stopMiniPoll
 } = useMiniWorkstationSessions({
-  fullCodePath: computed(() => props.fullCodePath),
-  initialSessionId: computed(() => props.initialSessionId),
+  fullCodePath: fullCodePathRef,
+  initialSessionId: initialSessionIdRef,
   maximized,
   sending,
   sessionId,
@@ -492,6 +519,10 @@ function toggleMaximize() {
   }
 }
 
+function formatModeOptionLabel(mode: WorkspaceModeItem): string {
+  return mode.name && mode.name !== mode.code ? `${mode.name} (${mode.code})` : mode.code
+}
+
 // ─── 文件预览辅助 ───
 const {
   getFileGroupsFromCalls,
@@ -524,10 +555,18 @@ const {
   onDragLeave,
   onDrop
 } = useMiniWorkstationUploads({
-  fullCodePath: computed(() => props.fullCodePath),
+  fullCodePath: fullCodePathRef,
   inputText,
   inputRef
 })
+
+const {
+  modeOptions,
+  modeLoading,
+  selectedModeCode,
+  setSelectedModeCode,
+  applySessionMode
+} = useWorkspaceModeSelection(fullCodePathRef)
 
 const {
   llmList,
@@ -537,8 +576,9 @@ const {
   onInputEnter,
   handleSend
 } = useMiniWorkstationComposer({
-  fullCodePath: computed(() => props.fullCodePath),
+  fullCodePath: fullCodePathRef,
   sessionId,
+  selectedModeCode,
   maximized,
   inputText,
   inputRef,
@@ -556,6 +596,28 @@ const {
     emit('maximize-change', { maximized: true, sessionId: startedSessionId })
   }
 })
+
+watch(
+  () => [props.visible, props.fullCodePath] as const,
+  ([visible, fullCodePath]) => {
+    if (visible && fullCodePath) {
+      void loadMiniSessions()
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => [sessionId.value, miniSessionList.value] as const,
+  ([currentSessionId, sessions]) => {
+    if (!currentSessionId) return
+    const found = sessions.find((session) => session.session_id === currentSessionId)
+    if (found) {
+      applySessionMode(found)
+    }
+  },
+  { immediate: true }
+)
 
 /** 双击标题栏切换最大化 */
 function onHeaderDblClick() {
@@ -965,10 +1027,18 @@ onUnmounted(() => {
 .mini-ws-model-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 6px 10px;
   border-top: 1px solid var(--el-border-color-lighter);
   background: var(--el-fill-color-light);
+}
+.mini-ws-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 180px;
 }
 .mini-ws-model-label {
   font-size: 12px;

@@ -79,6 +79,7 @@
 import { defineAsyncComponent } from 'vue'
 import { widgetComponentFactory } from './factory'
 import { WidgetType } from '@/core/constants/widget'
+import { Logger } from '@/core/utils/logger'
 
 // 导入组件（按需导入，避免循环依赖）
 import InputWidget from '@/architecture/presentation/widgets/InputWidget.vue'
@@ -211,7 +212,7 @@ export function ensureInitialized(): Promise<void> {
 
 // 立即开始异步初始化容器组件
 ensureInitialized().catch(err => {
-  console.error('[WidgetComponentFactory] 容器组件初始化失败', err)
+  Logger.error('[WidgetComponentFactory]', '容器组件初始化失败', { error: err })
 })
 
 // 重新导出工厂实例（从 factory.ts 导入）

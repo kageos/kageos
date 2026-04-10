@@ -7,66 +7,25 @@
     <!-- 编辑模式 -->
     <div v-if="mode === 'edit' || mode === 'search'" class="edit-multiselect" :class="{ 'is-search-mode': mode === 'search' }">
       <template v-if="shouldUseInlineSelect">
-        <el-select
+        <MultiSelectWidgetInlineSelect
           v-model="inlineSelectedValues"
-          class="inline-multiselect"
-          :class="{ 'inline-multiselect-search': mode === 'search' }"
-          multiple
-          filterable
-          :clearable="true"
-          :collapse-tags="true"
-          :max-collapse-tags="1"
+          :options="options"
           :placeholder="inlinePlaceholder"
-          :disabled="config.disabled"
-          :allow-create="!!config.creatable"
-          :default-first-option="!!config.creatable"
+          :disabled="!!config.disabled"
+          :creatable="!!config.creatable"
+          :visible-values="inlineTagSummary.visibleValues"
+          :hidden-count="inlineTagSummary.hiddenCount"
+          :search-mode="mode === 'search'"
+          :display-info-text="selectedValues.length > 0 && mode !== 'search' ? displayInfoText : ''"
+          :get-option-label="getOptionLabel"
+          :get-option-color="getOptionColor"
+          :get-option-color-type="getOptionColorType"
+          :get-option-color-value="getOptionColorValue"
+          :get-option-color-style="getOptionColorStyle"
+          :get-option-display-info="getOptionDisplayInfo"
           @clear="handleClearSelection"
-        >
-          <template #tag>
-            <el-tag
-              v-for="value in inlineTagSummary.visibleValues"
-              :key="String(value)"
-              :type="getOptionColorType(value)"
-              :color="getOptionColorValue(value)"
-              :closable="true"
-              class="search-selected-tag inline-selected-tag"
-              @close.stop="handleRemoveTag(value)"
-            >
-              {{ getOptionLabel(value) }}
-            </el-tag>
-            <el-tag
-              v-if="inlineTagSummary.hiddenCount > 0"
-              class="search-selected-tag search-summary-tag inline-summary-tag"
-              size="small"
-              disable-transitions
-            >
-              +{{ inlineTagSummary.hiddenCount }}
-            </el-tag>
-          </template>
-
-          <el-option
-            v-for="option in options"
-            :key="String(option.value)"
-            :label="option.label"
-            :value="option.value"
-            :disabled="option.disabled"
-          >
-            <div class="multiselect-option">
-              <span
-                v-if="getOptionColor(option.value)"
-                class="option-color-indicator"
-                :style="getOptionColorStyle(option.value)"
-              />
-              <span class="option-label">{{ option.label }}</span>
-              <span v-if="getOptionDisplayInfo(option)" class="display-info">
-                {{ getOptionDisplayInfo(option) }}
-              </span>
-            </div>
-          </el-option>
-        </el-select>
-        <div v-if="selectedValues.length > 0 && displayInfoText && mode !== 'search'" class="display-info-text inline-display-info-text">
-          {{ displayInfoText }}
-        </div>
+          @remove-tag="handleRemoveTag"
+        />
       </template>
       <template v-else>
         <!-- 参考单选的展示效果，使用条目式显示 -->
@@ -143,55 +102,24 @@
     </div>
     
     <!-- 响应模式（只读） -->
-    <div v-else-if="mode === 'response'" class="response-multiselect">
-      <el-tag
-        v-for="(value, index) in displayValues"
-        :key="index"
-        class="tag-item"
-        :type="getOptionColorType(value)"
-        :color="getOptionColorValue(value)"
-      >
-        {{ getOptionLabel(value) }}
-      </el-tag>
-      <span v-if="displayValues.length === 0" class="empty-text">-</span>
-    </div>
-    
-    <!-- 表格单元格模式 -->
-    <div v-else-if="mode === 'table-cell'" class="table-cell-multiselect">
-      <el-tag
-        v-for="(value, index) in displayValues"
-        :key="index"
-        class="tag-item"
-        size="small"
-        :type="getOptionColorType(value)"
-        :color="getOptionColorValue(value)"
-      >
-        {{ getOptionLabel(value) }}
-      </el-tag>
-      <span v-if="displayValues.length === 0" class="empty-text">-</span>
-    </div>
-    
-    <!-- 详情模式 -->
-    <div v-else class="detail-multiselect">
-      <el-tag
-        v-for="(value, index) in displayValues"
-        :key="index"
-        class="tag-item"
-        :type="getOptionColorType(value)"
-        :color="getOptionColorValue(value)"
-      >
-        {{ getOptionLabel(value) }}
-      </el-tag>
-      <span v-if="displayValues.length === 0" class="empty-text">-</span>
-    </div>
+    <MultiSelectWidgetValueDisplay
+      v-else
+      :mode="mode as 'response' | 'table-cell' | 'detail'"
+      :display-values="displayValues"
+      :get-option-label="getOptionLabel"
+      :get-option-color-type="getOptionColorType"
+      :get-option-color-value="getOptionColorValue"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { ElTag, ElIcon, ElSelect, ElOption } from 'element-plus'
+import { ElIcon } from 'element-plus'
 import { ArrowDown, Close } from '@element-plus/icons-vue'
 import FuzzySearchDialog from './FuzzySearchDialog.vue'
+import MultiSelectWidgetInlineSelect from './MultiSelectWidgetInlineSelect.vue'
+import MultiSelectWidgetValueDisplay from './MultiSelectWidgetValueDisplay.vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import { selectFuzzy } from '@/api/function'
 import { widgetInitializerRegistry } from '@/architecture/presentation/widgets/initializers/WidgetInitializerRegistry'
@@ -207,6 +135,7 @@ import type { MultiSelectWidgetConfig, SelectOptionConfig } from '@/core/types/w
 import { buildMultiSelectRawValue } from '@/architecture/presentation/widgets/utils/multiSelectValue'
 import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/utils/searchType'
 import { buildSearchTagSummary } from '@/architecture/presentation/widgets/utils/searchTagSummary'
+import type { MultiSelectOptionItem } from './multiSelectWidgetTypes'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -225,14 +154,6 @@ const formDataStore = useFormDataStore()
 const callbackMethod = computed(() => props.formRenderer?.getFunctionMethod?.() || props.functionMethod || 'POST')
 const callbackRouter = computed(() => props.formRenderer?.getFunctionRouter?.() || props.functionRouter || '')
 const searchType = computed(() => resolveWidgetSearchType(props.searchType, props.field.search))
-
-type MultiSelectOptionItem = {
-  label: string
-  value: any
-  disabled?: boolean
-  displayInfo?: any
-  icon?: string
-}
 
 // 获取配置（带类型）
 const config = computed(() => {
@@ -921,13 +842,6 @@ onMounted(() => {
       // 🔥 检查 functionDetail 是否已准备好
       const functionDetail = props.formRenderer?.getFunctionDetail?.()
       if (props.mode === 'edit' && (!functionDetail || !functionDetail.request || functionDetail.request.length === 0)) {
-        // functionDetail 还没准备好，等待 watch 触发
-        console.log(`🔍 [MultiSelectWidget] onMounted 时 functionDetail 未准备好，等待 watch 触发`, {
-          fieldCode: props.field.code,
-          hasFunctionDetail: !!functionDetail,
-          hasRequestFields: !!(functionDetail?.request && Array.isArray(functionDetail.request)),
-          requestFieldsCount: functionDetail?.request?.length || 0
-        })
         return
       }
       
@@ -949,13 +863,6 @@ watch(
       // 🔥 检查 functionDetail 是否已准备好
       const functionDetail = formRenderer?.getFunctionDetail?.()
       if (props.mode === 'edit' && (!functionDetail || !functionDetail.request || functionDetail.request.length === 0)) {
-        // functionDetail 还没准备好，等待下次触发
-        console.log(`🔍 [MultiSelectWidget] watch 触发，但 functionDetail 未准备好，等待下次触发`, {
-          fieldCode: props.field.code,
-          hasFunctionDetail: !!functionDetail,
-          hasRequestFields: !!(functionDetail?.request && Array.isArray(functionDetail.request)),
-          requestFieldsCount: functionDetail?.request?.length || 0
-        })
         return
       }
       
@@ -988,8 +895,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-@use './styles/inlineSelectShared' as inlineSelectShared;
-
 .multiselect-widget {
   width: 100%;
 }
@@ -998,36 +903,6 @@ onUnmounted(() => {
   position: relative;
   width: 100%;
 }
-
-@include inlineSelectShared.inline-select-surface('.inline-multiselect', 40px, 13px, $padding-top: 4px, $padding-bottom: 4px, $align-start: true);
-@include inlineSelectShared.inline-select-surface('.inline-multiselect-search', 32px, 13px, $box-shadow: none, $padding-left: 9px, $padding-right: 9px, $padding-top: 1px, $padding-bottom: 1px, $align-start: true);
-
-.inline-multiselect :deep(.el-select__selection) {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  min-height: 28px;
-}
-
-.inline-multiselect :deep(.el-select__input-wrapper) {
-  min-width: 96px;
-}
-
-.inline-multiselect :deep(.el-select__input) {
-  font-size: 13px;
-  color: var(--el-text-color-primary);
-}
-
-.inline-multiselect :deep(.el-select__placeholder) {
-  font-size: 13px;
-}
-
-.inline-multiselect :deep(.el-select__tags-text) {
-  max-width: none;
-}
-
-@include inlineSelectShared.inline-select-display-info('.inline-display-info-text', 2px);
 
 /* 🔥 参考单选的样式，使用相同的容器样式 */
 .select-container {
@@ -1196,8 +1071,6 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-@include inlineSelectShared.inline-select-option-row('.multiselect-option');
-
 .input-icon {
   color: var(--el-text-color-placeholder);
   transition: all 0.2s;
@@ -1208,99 +1081,6 @@ onUnmounted(() => {
 .select-container:hover .input-icon {
   color: var(--el-color-primary);
   transform: translateY(1px);
-}
-
-.response-multiselect,
-.table-cell-multiselect,
-.detail-multiselect {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-}
-
-.table-cell-multiselect .tag-item,
-.detail-multiselect .tag-item {
-  font-weight: 500;
-  border: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-  margin: 0;
-  opacity: 0.9;
-}
-
-/* 自定义颜色的 tag，确保文字清晰 */
-.table-cell-multiselect .tag-item[style*="background-color"],
-.detail-multiselect .tag-item[style*="background-color"] {
-  color: #fff !important;
-  font-weight: 500;
-  /* 🔥 降低亮度：使用 filter 降低饱和度和亮度 */
-  filter: brightness(0.95) saturate(0.9);
-}
-
-/* 标准颜色的 tag，增强对比度 */
-.table-cell-multiselect .tag-item.el-tag--success,
-.table-cell-multiselect .tag-item.el-tag--warning,
-.table-cell-multiselect .tag-item.el-tag--danger,
-.table-cell-multiselect .tag-item.el-tag--info,
-.table-cell-multiselect .tag-item.el-tag--primary,
-.detail-multiselect .tag-item.el-tag--success,
-.detail-multiselect .tag-item.el-tag--warning,
-.detail-multiselect .tag-item.el-tag--danger,
-.detail-multiselect .tag-item.el-tag--info,
-.detail-multiselect .tag-item.el-tag--primary {
-  font-weight: 500;
-  border: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-  opacity: 0.9;
-}
-
-.response-multiselect .tag-item {
-  margin-right: 4px;
-}
-
-.empty-text {
-  color: #999;
-}
-
-/* 编辑模式下的自定义标签样式 - 参考单选的标签样式 */
-.multiselect-tag {
-  font-weight: 500;
-  border: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-  margin: 0;
-  opacity: 0.9;
-  transition: all 0.2s;
-  font-size: 12px;
-  padding: 2px 8px;
-  height: 22px;
-  line-height: 1.5;
-}
-
-.multiselect-tag:hover {
-  opacity: 1;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
-}
-
-/* 自定义颜色的 tag，确保文字清晰 */
-.multiselect-tag[style*="background-color"] {
-  color: #fff !important;
-  font-weight: 500;
-  /* 🔥 降低亮度：使用 filter 降低饱和度 */
-  filter: brightness(0.95) saturate(0.9);
-}
-
-/* 🔥 确保 el-tag 的 color 属性正确应用（通过内联样式） */
-/* Element Plus 的 el-tag 组件会自动将 color 属性转换为内联样式 */
-
-/* 标准颜色的 tag，增强对比度 */
-.multiselect-tag.el-tag--success,
-.multiselect-tag.el-tag--warning,
-.multiselect-tag.el-tag--danger,
-.multiselect-tag.el-tag--info,
-.multiselect-tag.el-tag--primary {
-  font-weight: 500;
-  border: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 /* 🔥 下拉选项中的颜色指示器样式（参考 Element Plus 官方示例） */

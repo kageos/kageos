@@ -119,6 +119,7 @@ func (r *ServiceTreeRepository) GetDirectChildrenByPath(appID int64, parentPath 
 	prefix := strings.TrimSuffix(parentPath, "/") + "/"
 	var all []*model.ServiceTree
 	err := r.db.Where("app_id = ? AND full_code_path LIKE ?", appID, prefix+"%").
+		Preload("Function").
 		Order("created_at ASC").
 		Find(&all).Error
 	if err != nil {

@@ -204,6 +204,59 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     syncFunctionTabQuery()
   }
 
+  const applyFunctionPanelQuery = (tab: LocationQueryValue | LocationQueryValue[] | undefined) => {
+    const normalizedTab = normalizePanelQuery(tab)
+
+    if (normalizedTab === 'permissionRequest' && showFunctionPermissionRequestTab.value) {
+      functionActiveTab.value = 'permission'
+      functionPermissionTab.value = 'request'
+      loadCurrentFunctionPermissionTab()
+      return
+    }
+
+    if (normalizedTab === 'permissionManage' && showFunctionPermissionRequestTab.value) {
+      functionActiveTab.value = 'permission'
+      functionPermissionTab.value = 'manage'
+      loadCurrentFunctionPermissionTab()
+      return
+    }
+
+    if (normalizedTab === 'permission' && showFunctionPermissionRequestTab.value) {
+      functionActiveTab.value = 'permission'
+      functionPermissionTab.value = 'request'
+      loadCurrentFunctionPermissionTab()
+      return
+    }
+
+    if (normalizedTab === 'operateLog' && showFormOperateLogTab.value) {
+      functionActiveTab.value = 'operateLog'
+      nextTick(() => {
+        formOperateLogSectionRef.value?.loadLogs({ page: 1 })
+      })
+      return
+    }
+
+    if (normalizedTab === 'scheduledTask' && showScheduledTaskTab.value) {
+      functionActiveTab.value = 'scheduledTask'
+      return
+    }
+
+    if (normalizedTab) {
+      if (functionActiveTab.value !== 'scheduledTask') {
+        functionActiveTab.value = 'content'
+      }
+      return
+    }
+
+    if (
+      (functionActiveTab.value === 'permission' && !showFunctionPermissionRequestTab.value) ||
+      (functionActiveTab.value === 'operateLog' && !showFormOperateLogTab.value) ||
+      (functionActiveTab.value === 'scheduledTask' && !showScheduledTaskTab.value)
+    ) {
+      functionActiveTab.value = 'content'
+    }
+  }
+
   watch(
     () => [currentFunction.value?.full_code_path, showFunctionPermissionRequestTab.value, showFormOperateLogTab.value, showScheduledTaskTab.value] as const,
     () => {
@@ -224,32 +277,9 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   )
 
   watch(
-    () => route.query._panel,
-    (tab) => {
-      const normalizedTab = normalizePanelQuery(tab)
-
-      if (normalizedTab === 'permissionRequest' && showFunctionPermissionRequestTab.value) {
-        functionActiveTab.value = 'permission'
-        functionPermissionTab.value = 'request'
-        loadCurrentFunctionPermissionTab()
-      } else if (normalizedTab === 'permissionManage' && showFunctionPermissionRequestTab.value) {
-        functionActiveTab.value = 'permission'
-        functionPermissionTab.value = 'manage'
-        loadCurrentFunctionPermissionTab()
-      } else if (normalizedTab === 'permission' && showFunctionPermissionRequestTab.value) {
-        functionActiveTab.value = 'permission'
-        functionPermissionTab.value = 'request'
-        loadCurrentFunctionPermissionTab()
-      } else if (normalizedTab === 'operateLog' && showFormOperateLogTab.value) {
-        functionActiveTab.value = 'operateLog'
-        nextTick(() => {
-          formOperateLogSectionRef.value?.loadLogs({ page: 1 })
-        })
-      } else if (normalizedTab === 'scheduledTask' && showScheduledTaskTab.value) {
-        functionActiveTab.value = 'scheduledTask'
-      } else if (functionActiveTab.value !== 'scheduledTask') {
-        functionActiveTab.value = 'content'
-      }
+    () => [route.query._panel, showFunctionPermissionRequestTab.value, showFormOperateLogTab.value, showScheduledTaskTab.value] as const,
+    ([tab]) => {
+      applyFunctionPanelQuery(tab)
     },
     { immediate: true }
   )

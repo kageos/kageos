@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/dto"
@@ -11,97 +10,11 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
 )
 
-var appAdminActionCode = permission.BuildActionCode(permission.ResourceTypeApp, "admin")
-
 type workspacePermissionContext struct {
 	workspaceUser  string
 	workspaceApp   string
 	rawPermissions map[string]map[string]bool
 	admins         string
-}
-
-func isWorkspaceAdmin(username, admins string) bool {
-	if username == "" || admins == "" {
-		return false
-	}
-
-	for _, admin := range strings.Split(admins, ",") {
-		if strings.TrimSpace(admin) == username {
-			return true
-		}
-	}
-
-	return false
-}
-
-func buildRawPermissions(records []dto.PermissionRecord) map[string]map[string]bool {
-	rawPermissions := make(map[string]map[string]bool)
-	for _, record := range records {
-		resourcePath := record.Resource
-		action := record.Action
-
-		if rawPermissions[resourcePath] == nil {
-			rawPermissions[resourcePath] = make(map[string]bool)
-		}
-		rawPermissions[resourcePath][action] = true
-	}
-
-	return rawPermissions
-}
-
-func getPermissionActionsForNodeImpl(nodeType string, templateType string) []string {
-	var nodeTypeStr string
-	if nodeType == model.ServiceTreeTypePackage {
-		nodeTypeStr = "package"
-	} else if nodeType == model.ServiceTreeTypeFunction {
-		nodeTypeStr = "function"
-	} else {
-		return []string{}
-	}
-
-	return permission.GetActionsForNode(nodeTypeStr, templateType)
-}
-
-func copyPermissionMap(src map[string]bool) map[string]bool {
-	dst := make(map[string]bool)
-	for k, v := range src {
-		dst[k] = v
-	}
-	return dst
-}
-
-func initializeNodePermissions(actions []string, rawPerms map[string]bool) map[string]bool {
-	nodePerms := make(map[string]bool, len(actions)+1)
-	for _, action := range actions {
-		nodePerms[action] = rawPerms != nil && rawPerms[action]
-	}
-	return nodePerms
-}
-
-func grantAllNodePermissions(nodePerms map[string]bool) {
-	for actionCode := range nodePerms {
-		nodePerms[actionCode] = true
-	}
-}
-
-func grantAppAdminPermission(nodePerms map[string]bool) {
-	grantAllNodePermissions(nodePerms)
-	nodePerms[appAdminActionCode] = true
-}
-
-func hasAppAdminPermission(perms map[string]bool) bool {
-	return perms != nil && perms[appAdminActionCode]
-}
-
-func mergePermissionMaps(base map[string]bool, extra map[string]bool) map[string]bool {
-	merged := make(map[string]bool)
-	for k, v := range base {
-		merged[k] = v
-	}
-	for k, v := range extra {
-		merged[k] = v
-	}
-	return merged
 }
 
 func (q *serviceTreeQueryView) loadWorkspacePermissionContext(ctx context.Context, fullCodePath string) (*workspacePermissionContext, error) {
@@ -146,7 +59,7 @@ func (q *serviceTreeQueryView) buildQueryNodePermissions(
 	permCtx *workspacePermissionContext,
 	username string,
 ) map[string]bool {
-	actions := getPermissionActionsForNodeImpl(nodeType, templateType)
+	actions := permissionActionsForNode(nodeType, templateType)
 	nodePerms := initializeNodePermissions(actions, permCtx.rawPermissions[fullCodePath])
 	if len(actions) == 0 {
 		return nodePerms
@@ -154,7 +67,7 @@ func (q *serviceTreeQueryView) buildQueryNodePermissions(
 
 	for _, parentPath := range permission.GetParentPaths(fullCodePath) {
 		if parentPerms, ok := permCtx.rawPermissions[parentPath]; ok {
-			applyPermissionInheritanceImpl(nodeType, templateType, parentPerms, nodePerms)
+			applyPermissionInheritance(nodeType, templateType, parentPerms, nodePerms)
 		}
 	}
 
@@ -179,7 +92,7 @@ func (q *serviceTreeQueryView) buildAllAdminPermissionsMap(trees []*model.Servic
 	var setAllPermissions func(nodes []*model.ServiceTree)
 	setAllPermissions = func(nodes []*model.ServiceTree) {
 		for _, node := range nodes {
-			actions := getPermissionActionsForNodeImpl(node.Type, node.TemplateType)
+			actions := permissionActionsForNode(node.Type, node.TemplateType)
 			nodePerms := initializeNodePermissions(actions, nil)
 			grantAppAdminPermission(nodePerms)
 			permissionsMap[node.FullCodePath] = nodePerms
@@ -194,8 +107,7 @@ func (q *serviceTreeQueryView) buildAllAdminPermissionsMap(trees []*model.Servic
 	return permissionsMap
 }
 
-func calculatePermissionsImpl(
-	q *serviceTreeQueryView,
+func (q *serviceTreeQueryView) calculatePermissions(
 	ctx context.Context,
 	user string,
 	app string,
@@ -240,7 +152,7 @@ func calculatePermissionsImpl(
 	var calculatePermissionsRecursive func(nodes []*model.ServiceTree, inheritedPerms map[string]bool)
 	calculatePermissionsRecursive = func(nodes []*model.ServiceTree, inheritedPerms map[string]bool) {
 		for _, node := range nodes {
-			actions := getPermissionActionsForNodeImpl(node.Type, node.TemplateType)
+			actions := permissionActionsForNode(node.Type, node.TemplateType)
 			if len(actions) == 0 {
 				if len(node.Children) > 0 {
 					calculatePermissionsRecursive(node.Children, inheritedPerms)
@@ -251,7 +163,7 @@ func calculatePermissionsImpl(
 			nodePerms := initializeNodePermissions(actions, rawPermissions[node.FullCodePath])
 
 			if inheritedPerms != nil {
-				applyPermissionInheritanceImpl(node.Type, node.TemplateType, inheritedPerms, nodePerms)
+				applyPermissionInheritance(node.Type, node.TemplateType, inheritedPerms, nodePerms)
 			}
 
 			currentNodePerms := copyPermissionMap(rawPermissions[node.FullCodePath])
@@ -274,45 +186,4 @@ func calculatePermissionsImpl(
 
 	logger.Debugf(ctx, "[ServiceTreeService] 权限计算完成（支持角色权限）: 节点数=%d, 权限节点数=%d", len(trees), len(permissionsMap))
 	return permissionsMap, nil
-}
-
-func applyPermissionInheritanceImpl(
-	nodeType string,
-	templateType string,
-	parentPerms map[string]bool,
-	nodePerms map[string]bool,
-) {
-	resourceType := permission.GetResourceType(nodeType, templateType)
-	if resourceType == "" {
-		return
-	}
-
-	for parentActionCode := range parentPerms {
-		parentResourceType, actionType, ok := permission.ParseActionCode(parentActionCode)
-		if !ok {
-			continue
-		}
-
-		if parentResourceType == permission.ResourceTypeDirectory {
-			if actionType == "admin" {
-				for actionCode := range nodePerms {
-					nodePerms[actionCode] = true
-				}
-				return
-			}
-
-			childActionCode := permission.BuildActionCode(resourceType, actionType)
-			if _, exists := nodePerms[childActionCode]; exists {
-				nodePerms[childActionCode] = true
-			}
-			continue
-		}
-
-		if parentResourceType == permission.ResourceTypeApp && actionType == "admin" {
-			for actionCode := range nodePerms {
-				nodePerms[actionCode] = true
-			}
-			return
-		}
-	}
 }

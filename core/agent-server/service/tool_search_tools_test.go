@@ -118,3 +118,16 @@ func TestNormalizeSearchToolsRequestOutput(t *testing.T) {
 		}
 	}
 }
+
+func TestFormatSearchToolFunctionSummaryIncludesTableCapabilities(t *testing.T) {
+	fn := &dto.FunctionSearchResult{
+		Name:         "支付记录",
+		FullCodePath: "/liubeiluo/work/cashier/payment_record_list.table",
+		TemplateType: "table",
+		Callbacks:    "",
+	}
+	out := formatSearchToolFunctionSummary(0, fn)
+	if !strings.Contains(out, "capabilities: read-only") {
+		t.Fatalf("expected read-only capabilities, got:\n%s", out)
+	}
+}
