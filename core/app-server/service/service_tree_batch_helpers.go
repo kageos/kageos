@@ -75,14 +75,6 @@ func executeBatchCreateDirectoryTree(
 	}, nil
 }
 
-func batchCreateDirectoryTreeImpl(
-	s *ServiceTreeService,
-	ctx context.Context,
-	req *dto.BatchCreateDirectoryTreeReq,
-) (*dto.BatchCreateDirectoryTreeResp, error) {
-	return executeBatchCreateDirectoryTree(ctx, s.serviceTreeRepo, s.runtimeWorkspace, req)
-}
-
 func getParentPathForBatch(fullCodePath string) string {
 	pathParts := strings.Split(strings.Trim(fullCodePath, "/"), "/")
 	if len(pathParts) <= 2 {
@@ -133,12 +125,4 @@ func executeBatchWriteFiles(
 		NewVersion:    runtimeResp.NewVersion,
 		GitCommitHash: runtimeResp.GitCommitHash,
 	}, nil
-}
-
-func batchWriteFilesImpl(
-	s *ServiceTreeService,
-	ctx context.Context,
-	req *dto.BatchWriteFilesReq,
-) (*dto.BatchWriteFilesResp, error) {
-	return executeBatchWriteFiles(ctx, s.runtimeWorkspace, s.appService, s.appRepo, req)
 }

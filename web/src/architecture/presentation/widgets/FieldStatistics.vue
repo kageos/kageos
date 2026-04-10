@@ -27,6 +27,7 @@
 import { computed } from 'vue'
 import type { FieldConfig } from '@/architecture/presentation/widgets/types'
 import { ExpressionParserAdapter } from '@/core/utils/ExpressionParserAdapter'
+import { Logger } from '@/core/utils/logger'
 
 interface Props {
   field: FieldConfig
@@ -120,11 +121,15 @@ const statisticsData = computed(() => {
           })
         }
       } catch (error: any) {
-        console.error(`[FieldStatistics] 计算失败: ${label} = ${expression}`, error)
+        Logger.error('[FieldStatistics]', '统计表达式计算失败', {
+          label,
+          expression,
+          error
+        })
       }
     }
   } catch (error: any) {
-    console.error('[FieldStatistics] 计算失败', error)
+    Logger.error('[FieldStatistics]', '统计计算失败', { error })
   }
   
   return results
@@ -210,4 +215,3 @@ const getStatisticSpan = (count: number) => {
   padding: 0 !important;
 }
 </style>
-

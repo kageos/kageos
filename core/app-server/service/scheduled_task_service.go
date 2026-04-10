@@ -224,7 +224,8 @@ func (s *ScheduledTaskService) Create(ctx context.Context, req *dto.CreateSchedu
 	return task, nil
 }
 
-// List 分页列表（当前用户创建的任务；可选按 full_code_path 前缀过滤：含该节点与子节点）
+// List 分页列表。
+// 传 full_code_path 时按资源路径列出任务；未传时返回当前用户创建的任务。
 func (s *ScheduledTaskService) List(ctx context.Context, createdBy string, status string, fullCodePath string, page, pageSize int) ([]*model.ScheduledTask, int64, error) {
 	if pageSize <= 0 {
 		pageSize = 20
@@ -241,14 +242,11 @@ func (s *ScheduledTaskService) Cancel(ctx context.Context, id int64, createdBy s
 	return s.taskRepo.Cancel(id, createdBy)
 }
 
-// ListExecutions 某任务的执行记录（仅创建人可查）
+// ListExecutions 某任务的执行记录。
+// 列表按资源路径展示后，这里也允许查看同一路径上的任务执行结果。
 func (s *ScheduledTaskService) ListExecutions(ctx context.Context, taskID int64, createdBy string, status string, page, pageSize int) ([]*model.ScheduledTaskExecution, int64, error) {
-	task, err := s.taskRepo.GetByID(taskID)
-	if err != nil {
+	if _, err := s.taskRepo.GetByID(taskID); err != nil {
 		return nil, 0, err
-	}
-	if task.CreatedBy != createdBy {
-		return nil, 0, fmt.Errorf("无权查看该任务")
 	}
 	if pageSize <= 0 {
 		pageSize = 20

@@ -19,7 +19,7 @@ type runTableUpdateArgs struct {
 
 var runTableUpdateToolDef = toolDefinition[runTableUpdateArgs](
 	"run_table_update",
-	"执行工作区内 Table 更新接口，批量更新表格记录（每条都会触发 OnTableUpdateRow）。full_code_path 为表格函数的完整路径（必须包含函数名）。body 必须为 JSON 数组字符串，每项为 { \"id\": 行ID, \"updates\": { \"字段名\": 新值, ... } }；不传 old_values，由 app-server 自动查表填充。返回 updated_count、data_list、failed_count、errors。",
+	"执行工作区内 Table 更新接口，批量更新表格记录（每条都会触发 OnTableUpdateRow）。仅适用于开启编辑能力的 Table；调用前应先看 search_tools/函数能力摘要。full_code_path 为表格函数的完整路径（必须包含函数名）。body 必须为 JSON 数组字符串，每项为 { \"id\": 行ID, \"updates\": { \"字段名\": 新值, ... } }；不传 old_values，由 app-server 自动查表填充。返回 updated_count、data_list、failed_count、errors。",
 )
 
 func (t *RunTableUpdateTool) Definition() dto.ToolDef {

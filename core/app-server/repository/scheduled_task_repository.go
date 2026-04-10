@@ -42,10 +42,14 @@ func (r *ScheduledTaskRepository) ListPendingDue(now time.Time, limit int) ([]*m
 	return list, err
 }
 
-// ListByUser 分页列表（按创建人；可选按 full_code_path 前缀过滤：匹配该路径本身及其子路径下的任务；按创建时间倒序），可按 status 筛选
+// ListByUser 分页列表。
+// 规则：
+// 1. 传 full_code_path 时，按路径维度返回该节点及子路径下的任务，不再额外按 created_by 过滤。
+// 2. 未传 full_code_path 时，返回当前创建人的任务。
+// 3. 按创建时间倒序，可按 status 筛选。
 func (r *ScheduledTaskRepository) ListByUser(createdBy string, status string, fullCodePath string, offset, limit int) ([]*model.ScheduledTask, int64, error) {
 	var list []*model.ScheduledTask
-	query := r.db.Model(&model.ScheduledTask{}).Where("created_by = ?", createdBy)
+	query := r.db.Model(&model.ScheduledTask{})
 	if status != "" {
 		query = query.Where("status = ?", status)
 	}
@@ -53,6 +57,8 @@ func (r *ScheduledTaskRepository) ListByUser(createdBy string, status string, fu
 		prefix := strings.TrimSuffix(strings.TrimSpace(fullCodePath), "/")
 		// 目录节点下列出子函数上的任务：/a/b 匹配 /a/b 与 /a/b/...；用 "/%" 避免 /a/b 误匹配 /a/b-extra
 		query = query.Where("full_code_path = ? OR full_code_path LIKE ?", prefix, prefix+"/%")
+	} else if createdBy != "" {
+		query = query.Where("created_by = ?", createdBy)
 	}
 	var total int64
 	if err := query.Count(&total).Error; err != nil {

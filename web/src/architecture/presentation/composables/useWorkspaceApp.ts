@@ -19,6 +19,7 @@ import type { App as AppType, CreateAppRequest } from '@/types'
 import { deleteApp, getAppWithServiceTree, updateApp } from '@/api/app'
 import { useAuthStore } from '@/stores/auth'
 import { buildAppResourcePath } from '@/utils/resourcePath'
+import { Logger } from '@/core/utils/logger'
 
 export function useWorkspaceApp(
   serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性
@@ -94,7 +95,7 @@ export function useWorkspaceApp(
   const handleSwitchApp = async (app: AppType, currentApp: () => AppType | null): Promise<void> => {
     // 检查 app 对象是否有效
     if (!app || !app.user || !app.code) {
-      console.error('[useWorkspaceApp] handleSwitchApp: app 对象无效', app)
+      Logger.error('[useWorkspaceApp]', 'handleSwitchApp: app 对象无效', { app })
       return
     }
     
@@ -125,7 +126,7 @@ export function useWorkspaceApp(
         })
       }
     } catch (error) {
-      console.error('[useWorkspaceApp] handleSwitchApp 失败:', error)
+      Logger.error('[useWorkspaceApp]', 'handleSwitchApp 失败', { error })
       // 静默失败
     }
   }
@@ -235,7 +236,7 @@ export function useWorkspaceApp(
           }
         } catch (error) {
           // 如果获取详情失败，使用创建响应中的信息直接跳转
-          console.error('[useWorkspaceApp] 获取工作空间数据失败:', error)
+          Logger.error('[useWorkspaceApp]', '获取工作空间数据失败', { error })
           const targetPath = `/workspace/${createResponse.user}/${createResponse.app}`
           if (route.path !== targetPath) {
             eventBus.emit(RouteEvent.updateRequested, {

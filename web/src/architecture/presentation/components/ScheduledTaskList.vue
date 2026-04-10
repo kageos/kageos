@@ -77,7 +77,14 @@
         </el-table-column>
 
         <el-table-column prop="request_user" label="执行身份" width="140" show-overflow-tooltip>
-          <template #default="{ row }">{{ row.request_user || row.created_by || '-' }}</template>
+          <template #default="{ row }">
+            <UserDisplay
+              :username="row.request_user || row.created_by || null"
+              mode="card"
+              layout="horizontal"
+              size="small"
+            />
+          </template>
         </el-table-column>
 
         <el-table-column prop="status" label="状态" width="120">
@@ -117,7 +124,7 @@
               执行记录
             </el-button>
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="canCancelTask(row)"
               type="danger"
               link
               size="small"
@@ -174,7 +181,14 @@
           </div>
           <div class="overview-item">
             <span class="overview-label">执行身份</span>
-            <span class="overview-value">{{ currentTask.request_user || '-' }}</span>
+            <span class="overview-value">
+              <UserDisplay
+                :username="currentTask.request_user || currentTask.created_by || null"
+                mode="card"
+                layout="horizontal"
+                size="small"
+              />
+            </span>
           </div>
           <div class="overview-item">
             <span class="overview-label">创建者</span>
@@ -231,7 +245,7 @@
           <el-button @click="taskDetailVisible = false">关闭</el-button>
           <el-button type="primary" @click="openExecutionsFromDetail">查看执行记录</el-button>
           <el-button
-            v-if="currentTask?.status === 'pending'"
+            v-if="canCancelTask(currentTask)"
             type="danger"
             @click="handleCancelFromDetail"
           >
@@ -291,6 +305,9 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="error_message" label="错误信息" min-width="260" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.error_message || '-' }}</template>
+        </el-table-column>
         <el-table-column label="耗时" width="120" align="center">
           <template #default="{ row }">
             <ExecutionDurationTag :duration="getExecutionDuration(row)" />
@@ -298,9 +315,6 @@
         </el-table-column>
         <el-table-column prop="trace_id" label="Trace ID" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">{{ row.trace_id || '-' }}</template>
-        </el-table-column>
-        <el-table-column prop="error_message" label="错误信息" min-width="260" show-overflow-tooltip>
-          <template #default="{ row }">{{ row.error_message || '-' }}</template>
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
@@ -392,6 +406,8 @@
 <script setup lang="ts">
 import { onUnmounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useAuthStore } from '@/stores/auth'
+import UserDisplay from '@/shared/components/UserDisplay.vue'
 import {
   listScheduledTasks,
   cancelScheduledTask,
@@ -418,6 +434,7 @@ const emit = defineEmits<{
   (e: 'total-change', total: number): void
   (e: 'open-function-operate-log', payload: { source: 'scheduled_task'; traceId?: string }): void
 }>()
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const list = ref<ScheduledTaskItem[]>([])
@@ -620,6 +637,15 @@ onUnmounted(() => {
 
 function handleTaskRowClick(row: ScheduledTaskItem) {
   openTaskDetail(row)
+}
+
+function canCancelTask(task?: ScheduledTaskItem | null): boolean {
+  if (!task || task.status !== 'pending') {
+    return false
+  }
+  const currentUser = authStore.userName?.trim()
+  const createdBy = task.created_by?.trim()
+  return !!currentUser && currentUser === createdBy
 }
 
 function handleCancel(row: ScheduledTaskItem) {

@@ -188,6 +188,20 @@ func (s *StandardAPI) buildCallbackAppReq(c *gin.Context, fullCodePath string, c
 	return req, nil
 }
 
+func (s *StandardAPI) ensureTableCallbackEnabled(c *gin.Context, fullCodePath, callbackType, denyMessage string) error {
+	function, err := s.appService.GetFunctionByFullCodePath(contextx.ToContext(c), fullCodePath)
+	if err != nil {
+		return err
+	}
+	if function.GetTemplateType() != "table" {
+		return fmt.Errorf("目标函数不是 Table 类型，不支持该操作")
+	}
+	if !function.HasCallback(callbackType) {
+		return fmt.Errorf("%s", denyMessage)
+	}
+	return nil
+}
+
 // ============================================
 // Table 函数接口
 // ============================================
@@ -275,6 +289,10 @@ func (s *StandardAPI) TableCreate(c *gin.Context) {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
+	if err := s.ensureTableCallbackEnabled(c, fullCodePath, "OnTableAddRow", "该表未开启新增能力，通常是只读查询表，不支持新增"); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 
 	// 构建回调请求对象（调用 OnTableAddRow）
 	req, err := s.buildCallbackAppReq(c, fullCodePath, "OnTableAddRow")
@@ -332,6 +350,10 @@ func (s *StandardAPI) TableBatchCreate(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
+		return
+	}
+	if err := s.ensureTableCallbackEnabled(c, fullCodePath, "OnTableCreateInBatches", "该表未开启批量导入能力，通常是只读查询表，不支持批量新增"); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
@@ -709,6 +731,10 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
+	if err := s.ensureTableCallbackEnabled(c, fullCodePath, "OnTableUpdateRow", "该表未开启编辑能力，通常是只读查询表，不支持更新"); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 
 	// 读取请求体
 	bodyBytes, err := io.ReadAll(c.Request.Body)
@@ -869,6 +895,10 @@ func (s *StandardAPI) TableDelete(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
+		return
+	}
+	if err := s.ensureTableCallbackEnabled(c, fullCodePath, "OnTableDeleteRows", "该表未开启删除能力，不支持删除"); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 

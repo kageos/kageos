@@ -6,6 +6,7 @@ import { workspaceChatStream, type WorkspaceChatMessageFile, type WorkspaceChatR
 export interface UseMiniWorkstationComposerOptions {
   fullCodePath: Ref<string>
   sessionId: Ref<string | undefined>
+  selectedModeCode: Ref<string>
   maximized: Ref<boolean>
   inputText: Ref<string>
   inputRef: Ref<HTMLTextAreaElement | undefined>
@@ -21,6 +22,7 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
   const {
     fullCodePath,
     sessionId,
+    selectedModeCode,
     maximized,
     inputText,
     inputRef,
@@ -77,7 +79,8 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
         content: text || '',
         ...(files?.length ? { files: { files, widget_type: 'files', data_type: 'struct' } } : {})
       },
-      session_id: sessionId.value
+      session_id: sessionId.value,
+      mode_code: selectedModeCode.value
     }
 
     if (selectedLLMConfigId.value > 0) {

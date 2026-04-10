@@ -30,6 +30,7 @@ export interface WorkspaceChatReq {
   full_code_path: string
   message: { content: string; files?: WorkspaceChatMessageFiles }
   session_id?: string
+  mode_code?: string
   /** LLM 配置 ID，0 表示使用默认 LLM */
   llm_config_id?: number
 }
@@ -41,6 +42,7 @@ export interface WorkspaceSessionItem {
   user?: string
   agent_id?: number | null
   agent_name?: string
+  mode_code?: string
   status: string // active | generating | done | cancelled
   full_code_path?: string
   created_at: string

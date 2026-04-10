@@ -1,6 +1,7 @@
 import { computed, nextTick, ref, watch, type ComputedRef } from 'vue'
 import { findNodeByPath, findPathToNode, expandPathAndSelect, expandPathOnly } from '@/utils/serviceTreeUtils'
 import type { ServiceTree } from '@/types'
+import { Logger } from '@/core/utils/logger'
 
 export interface UseServiceTreeSearchExpandOptions {
   treeData: ComputedRef<ServiceTree[]>
@@ -93,7 +94,7 @@ export function useServiceTreeSearchExpand(options: UseServiceTreeSearchExpandOp
               }
             }
           } catch (error) {
-            console.error('[ServiceTreePanel] expandPathOnly 展开失败:', error)
+            Logger.error('[ServiceTreePanel]', 'expandPathOnly 展开失败', { error })
           }
         }
       } else {

@@ -11,25 +11,25 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
-type PackageService struct {
+type serviceTreePackageService struct {
 	serviceTreeRepo  *repository.ServiceTreeRepository
 	appRepo          *repository.AppRepository
 	runtimeWorkspace *runtimeWorkspaceBridge
 }
 
-func NewPackageService(
+func newServiceTreePackageService(
 	serviceTreeRepo *repository.ServiceTreeRepository,
 	appRepo *repository.AppRepository,
 	runtimeWorkspace *runtimeWorkspaceBridge,
-) *PackageService {
-	return &PackageService{
+) *serviceTreePackageService {
+	return &serviceTreePackageService{
 		serviceTreeRepo:  serviceTreeRepo,
 		appRepo:          appRepo,
 		runtimeWorkspace: runtimeWorkspace,
 	}
 }
 
-func (s *PackageService) CreatePackage(ctx context.Context, req *dto.CreatePackageReq) (*dto.CreatePackageResp, error) {
+func (s *serviceTreePackageService) CreatePackage(ctx context.Context, req *dto.CreatePackageReq) (*dto.CreatePackageResp, error) {
 	app, err := s.appRepo.GetAppByUserName(req.User, req.App)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get app: %w", err)
@@ -122,7 +122,7 @@ func (s *PackageService) CreatePackage(ctx context.Context, req *dto.CreatePacka
 	}, nil
 }
 
-func (s *PackageService) sendCreatePackageMessage(ctx context.Context, user, app string, serviceTree *model.ServiceTree) error {
+func (s *serviceTreePackageService) sendCreatePackageMessage(ctx context.Context, user, app string, serviceTree *model.ServiceTree) error {
 	if err := s.runtimeWorkspace.createDirectoryScaffold(ctx, user, app, serviceTree); err != nil {
 		return err
 	}

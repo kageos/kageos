@@ -10,6 +10,7 @@ import {
 import type { ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import { eventBus } from '@/architecture/infrastructure/eventBus'
 import { extractFileGroupsFromResult, type OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
+import { Logger } from '@/core/utils/logger'
 
 interface UseWorkstationChatSessionsOptions {
   fullCodePath: Ref<string>
@@ -91,7 +92,7 @@ export function useWorkstationChatSessions({
       const result = await getWorkspaceSessions({ full_code_path: fullCodePath.value })
       sessionList.value = result.sessions || []
     } catch (error) {
-      console.error('加载会话列表失败:', error)
+      Logger.error('[WorkstationChatSessions]', '加载会话列表失败', { error })
       ElMessage.error('加载会话列表失败')
       sessionList.value = []
     } finally {
@@ -135,7 +136,7 @@ export function useWorkstationChatSessions({
         }
       }, 100)
     } catch (error) {
-      console.error('加载会话消息失败:', error)
+      Logger.error('[WorkstationChatSessions]', '加载会话消息失败', { error })
       ElMessage.error('加载会话消息失败')
       setMessages([])
     }

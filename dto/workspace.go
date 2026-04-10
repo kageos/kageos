@@ -10,6 +10,7 @@ type WorkspaceChatReq struct {
 	FullCodePath string       `json:"full_code_path" binding:"required"` // 目录完整路径（必填）
 	Message      WorkspaceMsg `json:"message" binding:"required"`        // 本条消息
 	SessionID    string       `json:"session_id"`                        // 会话 ID，空则新建
+	ModeCode     string       `json:"mode_code"`                         // 工作台模式代码，空则默认 dev
 	LLMConfigID  int64        `json:"llm_config_id"`                     // LLM 配置 ID，0 表示使用默认 LLM
 }
 
@@ -58,6 +59,7 @@ type WorkspaceSessionItem struct {
 	User         string      `json:"user"`                     // 创建该会话的用户
 	AgentID      *int64      `json:"agent_id"`                 // 关联的智能体ID（可为空）
 	AgentName    string      `json:"agent_name"`               // 智能体名称（如果有）
+	ModeCode     string      `json:"mode_code"`                // 工作台模式代码
 	Status       string      `json:"status"`                   // 会话状态（active/generating/done/cancelled）
 	FullCodePath string      `json:"full_code_path,omitempty"` // 所属目录完整路径
 	CreatedAt    models.Time `json:"created_at"`               // 创建时间
@@ -209,6 +211,7 @@ type WorkspaceContextNode struct {
 	Description  string `json:"description"`    // 节点描述
 	FullCodePath string `json:"full_code_path"` // 完整路径
 	TemplateType string `json:"template_type"`  // 函数类型（仅 function 有效）：table、form、chart
+	Callbacks    string `json:"callbacks"`      // 函数回调能力（仅 function 有效），逗号分隔
 }
 
 // WorkspaceContextDirectory 工作台环境目录信息

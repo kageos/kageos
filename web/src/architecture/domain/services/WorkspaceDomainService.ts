@@ -21,6 +21,7 @@ import { WorkspaceEvent } from '../interfaces/IEventBus'
 import type { FunctionDetail } from '../types'
 
 import type { App, ServiceTree } from '@/types'
+import { Logger } from '@/core/utils/logger'
 export type { App, ServiceTree }
 
 /**
@@ -132,7 +133,7 @@ export class WorkspaceDomainService {
 
       return tree || []
     } catch (error) {
-      console.error('[WorkspaceDomainService] 设置服务目录树失败', error)
+      Logger.error('[WorkspaceDomainService]', '设置服务目录树失败', { error })
 
       // 更新状态：即使失败也要重置 loading
       const state = this.stateManager.getState()
@@ -181,7 +182,7 @@ export class WorkspaceDomainService {
 
       return tree
     } catch (error) {
-      console.error('[WorkspaceDomainService] 加载服务目录树失败', error)
+      Logger.error('[WorkspaceDomainService]', '加载服务目录树失败', { error })
       
       // 更新状态：即使失败也要重置 loading
       const state = this.stateManager.getState()

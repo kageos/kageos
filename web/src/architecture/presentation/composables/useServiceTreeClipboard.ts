@@ -2,6 +2,7 @@ import { computed, onMounted, onUnmounted, ref, type ComputedRef } from 'vue'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { copyDirectory } from '@/api/service-tree'
 import type { ServiceTree } from '@/types'
+import { Logger } from '@/core/utils/logger'
 
 const COPIED_DIRECTORY_KEY = 'copied_directory'
 const COPIED_HUB_LINK_KEY = 'copied_hub_link'
@@ -85,7 +86,7 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
         localStorage.removeItem(COPIED_HUB_LINK_KEY)
       }
     } catch (error) {
-      console.error('恢复复制的目录失败:', error)
+      Logger.error('[ServiceTreeClipboard]', '恢复复制内容失败', { error })
       localStorage.removeItem(COPIED_DIRECTORY_KEY)
       localStorage.removeItem(COPIED_HUB_LINK_KEY)
     }
@@ -104,7 +105,7 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
       copiedHubLink.value = null
       localStorage.removeItem(COPIED_HUB_LINK_KEY)
     } catch (error) {
-      console.error('保存复制的目录失败:', error)
+      Logger.error('[ServiceTreeClipboard]', '保存复制目录失败', { error })
     }
   }
 
@@ -114,7 +115,7 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
       copiedDirectory.value = null
       localStorage.removeItem(COPIED_DIRECTORY_KEY)
     } catch (error) {
-      console.error('保存复制的 Hub 链接失败:', error)
+      Logger.error('[ServiceTreeClipboard]', '保存复制的 Hub 链接失败', { error })
     }
   }
 

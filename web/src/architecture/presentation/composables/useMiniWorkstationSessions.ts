@@ -3,6 +3,7 @@ import { onUnmounted, ref, watch, type Ref } from 'vue'
 import { cancelWorkspaceChat, getWorkspaceMessages, getWorkspaceSessionSSEStatus, getWorkspaceSessions, type WorkspaceSessionItem } from '@/api/workspace'
 import { eventBus } from '@/architecture/infrastructure/eventBus'
 import type { ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
+import { Logger } from '@/core/utils/logger'
 
 export interface UseMiniWorkstationSessionsOptions {
   fullCodePath: Ref<string>
@@ -113,7 +114,7 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
       const response = await getWorkspaceMessages({ session_id: targetSessionId })
       setMessages(normalizeSessionMessages(response?.messages || []))
     } catch (error) {
-      console.error('[MiniWs] loadMessages error:', error)
+      Logger.error('[MiniWorkstationSessions]', '加载会话消息失败', { error })
     }
   }
 

@@ -13,6 +13,7 @@ type AgentChatSession struct {
 	SessionID    string `gorm:"type:varchar(64);not null;uniqueIndex;comment:会话ID（UUID）" json:"session_id"`
 	AgentID      *int64 `gorm:"type:bigint;index;comment:智能体ID（已废弃，工作台恒为空）" json:"agent_id"`
 	Title        string `gorm:"type:varchar(255);comment:会话标题" json:"title"`
+	ModeCode     string `gorm:"type:varchar(32);not null;default:'dev';index;comment:工作台模式代码" json:"mode_code"`
 	Status       string `gorm:"type:varchar(32);not null;default:'active';index;comment:会话状态(active/generating/done)" json:"status"`
 	User         string `gorm:"type:varchar(128);not null;index;comment:创建用户" json:"user"`
 }
@@ -29,4 +30,3 @@ const (
 func (AgentChatSession) TableName() string {
 	return "agent_chat_sessions"
 }
-

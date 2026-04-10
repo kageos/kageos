@@ -31,6 +31,7 @@ type WorkspaceEnvNode struct {
 	Type         string
 	FullCodePath string // 完整路径（执行模式 run_table_search/run_form_submit/run_chart_query 用）
 	TemplateType string // 函数类型（仅 function 有效）：table、form、chart
+	Callbacks    string // 函数回调能力（仅 function 有效），逗号分隔
 }
 
 // WorkspaceEnvFile 环境中的代码文件
@@ -156,7 +157,7 @@ func buildChildrenSection(children []WorkspaceEnvNode) string {
 	return b.String()
 }
 
-// buildFunctionsSection 输出当前目录下所有函数及其 full_code_path、template_type（table/form/chart），供开发/执行模式 run_table_search/run_form_submit/run_chart_query/run_table_create 直接使用
+// buildFunctionsSection 输出当前目录下所有函数及其 full_code_path、template_type（table/form/chart）与能力摘要。
 func buildFunctionsSection(children []WorkspaceEnvNode) string {
 	var functions []WorkspaceEnvNode
 	for _, c := range children {
@@ -168,7 +169,7 @@ func buildFunctionsSection(children []WorkspaceEnvNode) string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("\n**当前目录下的可执行函数（可直接用下列 full_code_path 调用 run_table_search / run_form_submit / run_chart_query / run_table_create / run_table_update）：**\n")
+	b.WriteString("\n**当前目录下的可执行函数（Table 默认先用 run_table_search；只有能力摘要明确支持写入时，才使用 run_table_create / run_table_update）：**\n")
 	for _, f := range functions {
 		tpl := f.TemplateType
 		if tpl == "" {
@@ -178,8 +179,49 @@ func buildFunctionsSection(children []WorkspaceEnvNode) string {
 		if f.Description != "" {
 			b.WriteString(fmt.Sprintf("  - %s\n", f.Description))
 		}
+		if caps := formatWorkspaceFunctionCapabilities(f.TemplateType, f.Callbacks); caps != "" {
+			b.WriteString(fmt.Sprintf("  - 能力：%s\n", caps))
+		}
 	}
 	return b.String()
+}
+
+func formatWorkspaceFunctionCapabilities(templateType, callbacks string) string {
+	switch templateType {
+	case "table":
+		caps := []string{"查询"}
+		if hasWorkspaceCallback(callbacks, "OnTableAddRow") {
+			caps = append(caps, "新增")
+		}
+		if hasWorkspaceCallback(callbacks, "OnTableCreateInBatches") {
+			caps = append(caps, "批量导入")
+		}
+		if hasWorkspaceCallback(callbacks, "OnTableUpdateRow") {
+			caps = append(caps, "编辑")
+		}
+		if hasWorkspaceCallback(callbacks, "OnTableDeleteRows") {
+			caps = append(caps, "删除")
+		}
+		if len(caps) == 1 {
+			return "只读查询"
+		}
+		return strings.Join(caps, "、")
+	case "form":
+		return "表单提交"
+	case "chart":
+		return "图表查询"
+	default:
+		return ""
+	}
+}
+
+func hasWorkspaceCallback(callbacks, target string) bool {
+	for _, callback := range strings.Split(callbacks, ",") {
+		if strings.TrimSpace(callback) == target {
+			return true
+		}
+	}
+	return false
 }
 
 // buildFilesSection 输出当前目录下全部可读文件，完整列表不省略

@@ -80,6 +80,7 @@
 
 import type { Component } from 'vue'
 import { WidgetType } from '@/core/constants/widget'
+import { Logger } from '@/core/utils/logger'
 
 export class WidgetComponentFactory {
   // 请求参数组件映射（widget.type -> Component）
@@ -108,11 +109,13 @@ export class WidgetComponentFactory {
   getRequestComponent(type: string): Component | null {
     const component = this.requestComponentMap.get(type)
     if (!component) {
-      console.warn(`[WidgetComponentFactory] 未找到请求参数组件: ${type}，尝试使用默认组件`)
+      Logger.warn('[WidgetComponentFactory]', '未找到请求参数组件，尝试使用默认组件', {
+        widgetType: type
+      })
       // 返回默认组件（Input）
       const defaultComponent = this.requestComponentMap.get(WidgetType.INPUT)
       if (!defaultComponent) {
-        console.error(`[WidgetComponentFactory] 连默认组件（input）都未找到！`)
+        Logger.error('[WidgetComponentFactory]', '连默认组件（input）都未找到')
         return null
       }
       return defaultComponent
@@ -165,4 +168,3 @@ export class WidgetComponentFactory {
 
 // 🔥 不在这里导出实例，避免循环依赖
 // 实例在 index.ts 中创建和导出，这样 FormWidget 和 TableWidget 可以安全导入
-

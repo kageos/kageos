@@ -12,6 +12,7 @@ import {
   formatExecutionRelativeTime,
   readExecutionNumber
 } from '@/architecture/presentation/utils/executionLog'
+import { Logger } from '@/core/utils/logger'
 
 interface FunctionDetailLike {
   request?: FieldConfig[]
@@ -279,7 +280,7 @@ export function useFormOperateLogSection({
       })
       userInfoMap.value = map
     } catch (error) {
-      console.warn('[FormOperateLogSection] 加载用户信息失败:', error)
+      Logger.warn('[FormOperateLogSection]', '加载用户信息失败', { error })
     }
   }
 
@@ -317,7 +318,7 @@ export function useFormOperateLogSection({
       total.value = response.total || 0
       await loadUserInfos()
     } catch (error: any) {
-      console.error('[FormOperateLogSection] 加载执行记录失败:', error)
+      Logger.error('[FormOperateLogSection]', '加载执行记录失败', { error })
       ElMessage.warning(`加载执行记录失败: ${error?.message || '未知错误'}`)
     } finally {
       loading.value = false

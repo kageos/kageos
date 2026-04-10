@@ -161,7 +161,7 @@ func formatSearchToolsOutput(keywordRaw string, matchedTools []dto.ToolDef, func
 		if keywordRaw == "" {
 			buf.WriteString("按调用次数从高到低，仅 system 用户下。\n")
 		} else {
-			buf.WriteString("调用方式：form → run_form_submit，table → run_table_search/run_table_create/run_table_update，chart → run_chart_query。\n")
+			buf.WriteString("调用方式：form → run_form_submit，table → 默认先 run_table_search，仅在函数能力摘要明确支持写入时再用 run_table_create/run_table_update，chart → run_chart_query。\n")
 		}
 		for i, fn := range functions {
 			buf.WriteString(formatSearchToolFunctionSummary(i, fn))
@@ -193,7 +193,7 @@ func formatSearchToolsLegacyOutput(keywordRaw string, matchedTools []dto.ToolDef
 		if keywordRaw == "" {
 			buf.WriteString("【已注册函数】（按调用次数从高到低，仅 system 用户下）\n")
 		} else {
-			buf.WriteString("【已注册函数】（仅 system 用户下）调用方式：form → run_form_submit，table → run_table_search/run_table_create/run_table_update，chart → run_chart_query。\n")
+			buf.WriteString("【已注册函数】（仅 system 用户下）调用方式：form → run_form_submit，table → 默认先 run_table_search，仅在函数能力摘要明确支持写入时再用 run_table_create/run_table_update，chart → run_chart_query。\n")
 		}
 		buf.WriteString(formatSearchToolsLegacyFunctionRequests(functions))
 	}
@@ -220,6 +220,11 @@ func formatSearchToolsLegacyFunctionRequests(functions []*dto.FunctionSearchResu
 			buf.WriteString(fn.TemplateType)
 			buf.WriteString("\n")
 		}
+		if caps := formatSearchToolFunctionCapabilities(fn.TemplateType, fn.Callbacks); caps != "" {
+			buf.WriteString("   capabilities: ")
+			buf.WriteString(caps)
+			buf.WriteString("\n")
+		}
 		if len(fn.Request) > 0 {
 			if reqJSON, err := json.MarshalIndent(fn.Request, "   ", "  "); err == nil {
 				buf.WriteString("   request: ")
@@ -240,6 +245,11 @@ func formatSearchToolFunctionSummary(index int, fn *dto.FunctionSearchResult) st
 	if fn.TemplateType != "" {
 		buf.WriteString("   type: ")
 		buf.WriteString(fn.TemplateType)
+		buf.WriteString("\n")
+	}
+	if caps := formatSearchToolFunctionCapabilities(fn.TemplateType, fn.Callbacks); caps != "" {
+		buf.WriteString("   capabilities: ")
+		buf.WriteString(caps)
 		buf.WriteString("\n")
 	}
 	if fn.RunCount > 0 {
@@ -265,6 +275,44 @@ func formatSearchToolFunctionSummary(index int, fn *dto.FunctionSearchResult) st
 		}
 	}
 	return buf.String()
+}
+
+func formatSearchToolFunctionCapabilities(templateType, callbacks string) string {
+	switch templateType {
+	case "table":
+		caps := []string{"read"}
+		if hasSearchToolCallback(callbacks, "OnTableAddRow") {
+			caps = append(caps, "create")
+		}
+		if hasSearchToolCallback(callbacks, "OnTableCreateInBatches") {
+			caps = append(caps, "batch-create")
+		}
+		if hasSearchToolCallback(callbacks, "OnTableUpdateRow") {
+			caps = append(caps, "update")
+		}
+		if hasSearchToolCallback(callbacks, "OnTableDeleteRows") {
+			caps = append(caps, "delete")
+		}
+		if len(caps) == 1 {
+			return "read-only"
+		}
+		return strings.Join(caps, ", ")
+	case "form":
+		return "submit"
+	case "chart":
+		return "query"
+	default:
+		return ""
+	}
+}
+
+func hasSearchToolCallback(callbacks, target string) bool {
+	for _, callback := range strings.Split(callbacks, ",") {
+		if strings.TrimSpace(callback) == target {
+			return true
+		}
+	}
+	return false
 }
 
 func summarizeSearchToolRequestFields(raw []interface{}) ([]string, error) {

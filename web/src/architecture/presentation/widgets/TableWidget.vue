@@ -19,7 +19,12 @@
         class="table-card"
       >
         <div class="table-widget-content">
-          <el-table :data="editMode.tableData.value" :stripe="false" class="table-widget-table">
+          <el-table
+            :data="editMode.tableData.value"
+            :stripe="false"
+            :row-class-name="getEditRowClassName"
+            class="table-widget-table"
+          >
         <el-table-column
           v-for="itemField in itemFields"
           :key="itemField.code"
@@ -30,23 +35,6 @@
           header-align="left"
         >
           <template #default="{ row, $index }">
-            <!-- 
-              🔥 嵌套字段渲染策略（edit 模式）
-              
-              问题：在表格单元格中直接渲染嵌套的 form/table 字段会导致：
-              - 表格列过宽，布局混乱
-              - 嵌套表格/表单占用大量空间，影响用户体验
-              
-              解决方案：
-              - 对于 form 和 table 类型字段，统一使用 table-cell 模式显示
-              - table-cell 模式会显示为简化形式（"共xx个字段"、"共xx条记录"）
-              - 点击后打开抽屉，在抽屉中使用 edit 模式渲染完整内容，支持编辑
-              
-              关键点：
-              - mode="table-cell"：使用表格单元格模式，显示简化信息
-              - parent-mode="mode"：传递父级模式（这里是 'edit'），让嵌套组件知道上下文
-              - 嵌套组件会根据 parentMode 判断：如果是 'edit'，抽屉中使用 edit 模式（可编辑）
-            -->
             <template v-if="isNestedContainerField(itemField)">
               <component
                 v-if="isEditRowFieldVisible($index, itemField)"
@@ -64,9 +52,7 @@
               />
               <span v-else class="table-cell-hidden-placeholder">-</span>
             </template>
-            <!-- 其他类型字段：编辑状态直接编辑，显示状态简化显示 -->
             <template v-else>
-              <!-- 编辑状态 -->
               <template v-if="editMode.editingIndex.value === $index">
                 <component
                   v-if="isEditRowFieldVisible($index, itemField)"
@@ -83,7 +69,6 @@
                 />
                 <span v-else class="table-cell-hidden-placeholder">-</span>
               </template>
-              <!-- 显示状态 -->
               <template v-else>
                 <component
                   v-if="isEditRowFieldVisible($index, itemField)"
@@ -102,33 +87,34 @@
         </el-table-column>
         
         <!-- 操作列 -->
-        <el-table-column label="操作" width="150" fixed="right" header-align="left">
-          <template #default="{ $index }">
-            <template v-if="editMode.editingIndex.value === $index">
-              <el-button size="small" @click="handleSave($index)">保存</el-button>
-              <el-button size="small" @click="editMode.cancelEditing()">取消</el-button>
+          <el-table-column label="操作" width="150" fixed="right" header-align="left">
+            <template #default="{ $index }">
+              <div class="table-row-actions">
+                <template v-if="editMode.editingIndex.value === $index">
+                  <el-button size="small" type="primary" @click="handleSave($index)">保存</el-button>
+                  <el-button size="small" @click="editMode.cancelEditing()">取消</el-button>
+                </template>
+                <template v-else>
+                  <el-button size="small" @click="editMode.startEditing($index)">编辑</el-button>
+                  <el-button size="small" type="danger" @click="handleDelete($index)">删除</el-button>
+                </template>
+              </div>
             </template>
-            <template v-else>
-              <el-button size="small" @click="editMode.startEditing($index)">编辑</el-button>
-              <el-button size="small" type="danger" @click="handleDelete($index)">删除</el-button>
-            </template>
-          </template>
-        </el-table-column>
+          </el-table-column>
       </el-table>
       
       <!-- 新增按钮 -->
       <div class="table-actions">
-        <el-button type="primary" @click="editMode.startAdding()">新增</el-button>
+        <el-button type="primary" class="table-add-button" @click="editMode.startAdding()">新增</el-button>
       </div>
-      
-      <!-- 🔥 当前编辑行的字段统计信息（显示在表格下方） -->
-      <!-- 🔥 使用所有行的数据来计算统计（表格场景） -->
+
       <FieldStatistics
         v-if="editingRowStatistics && Object.keys(editingRowStatistics).length > 0"
         :field="field"
         :value="getAllRowsData()"
         :statistics="editingRowStatistics"
       />
+
         </div>
       </el-card>
     </template>
@@ -254,14 +240,12 @@
     -->
     <template v-else-if="mode === 'table-cell'">
       <el-button
-        link
-        type="primary"
         size="small"
         @click="tableCellMode.openDrawer()"
         class="table-cell-button"
       >
         <span>{{ displayValue }}</span>
-        <el-icon style="margin-left: 4px">
+        <el-icon class="table-cell-button-icon">
           <View />
         </el-icon>
       </el-button>
@@ -277,25 +261,27 @@
       >
         <template #default>
           <div class="table-detail-content">
-            <!-- 
-              🔥 抽屉中根据上下文使用 edit 或 response 模式的渲染逻辑
-              
-              drawerMode 的值由 isInEditContext 决定：
-              - 编辑上下文：drawerMode = 'edit' → 可编辑，支持数据修改
-              - 响应上下文：drawerMode = 'response' → 只读，仅展示数据
-            -->
-            <component
-              :is="getWidgetComponent('table', tableCellMode.drawerMode.value)"
-              :field="field"
-              :value="value"
-              :model-value="value"
-              @update:model-value="emit('update:modelValue', $event)"
-              :field-path="fieldPath"
-              :form-manager="formManager"
-              :form-renderer="formRenderer"
-              :mode="tableCellMode.drawerMode.value"
-              :depth="(depth || 0) + 1"
-            />
+            <div class="table-detail-panel">
+              <!-- 
+                🔥 抽屉中根据上下文使用 edit 或 response 模式的渲染逻辑
+                
+                drawerMode 的值由 isInEditContext 决定：
+                - 编辑上下文：drawerMode = 'edit' → 可编辑，支持数据修改
+                - 响应上下文：drawerMode = 'response' → 只读，仅展示数据
+              -->
+              <component
+                :is="getWidgetComponent('table', tableCellMode.drawerMode.value)"
+                :field="field"
+                :value="value"
+                :model-value="value"
+                @update:model-value="emit('update:modelValue', $event)"
+                :field-path="fieldPath"
+                :form-manager="formManager"
+                :form-renderer="formRenderer"
+                :mode="tableCellMode.drawerMode.value"
+                :depth="(depth || 0) + 1"
+              />
+            </div>
           </div>
         </template>
         <!-- 
@@ -643,6 +629,10 @@ function isNestedContainerField(field: FieldConfig): boolean {
   return field.widget?.type === 'form' || field.widget?.type === 'table'
 }
 
+function getEditRowClassName({ rowIndex }: { rowIndex: number }): string {
+  return editMode.editingIndex.value === rowIndex ? 'is-editing-row' : ''
+}
+
 // 保存行
 function handleSave(index: number): void {
   try {
@@ -784,6 +774,9 @@ defineExpose({
 .table-widget-content {
   width: 100%;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 /* 响应模式表格卡片样式 */
@@ -791,14 +784,29 @@ defineExpose({
   background-color: var(--el-bg-color-page);
 }
 
+:deep(.table-card .el-card__body) {
+  padding: 18px 20px 16px;
+}
+
 .table-actions {
-  margin-top: 20px;
-  padding: 18px 4px 0;
+  margin-top: 0;
+  padding: 16px 0 0;
   border-top: 1px solid var(--el-border-color-extra-light);
   display: flex;
   align-items: center;
+  justify-content: flex-end;
 }
 
+.table-add-button {
+  min-width: 88px;
+}
+
+.table-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 
 .table-cell-value {
   color: var(--el-text-color-regular);
@@ -808,10 +816,33 @@ defineExpose({
   padding: 0;
   height: auto;
   font-size: 14px;
+  line-height: 1.4;
+  border-color: transparent;
+  background: transparent;
+  color: var(--el-text-color-regular);
+  justify-content: flex-start;
+  max-width: 100%;
+  text-align: left;
+}
+
+.table-cell-button:hover,
+.table-cell-button:focus-visible {
+  border-color: transparent;
+  background: transparent;
+  color: var(--el-text-color-primary);
+}
+
+.table-cell-button-icon {
+  margin-left: 4px;
+  color: var(--el-text-color-secondary);
+  flex-shrink: 0;
 }
 
 .table-cell-hidden-placeholder {
   color: var(--el-text-color-placeholder);
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
 }
 
 /* 详情抽屉内容 */
@@ -821,6 +852,12 @@ defineExpose({
   /* 确保下拉菜单可以正常显示 */
   overflow: visible;
   position: relative;
+}
+
+.table-detail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 :deep(.table-detail-content .form-card),
@@ -839,6 +876,11 @@ defineExpose({
 :deep(.table-detail-content .table-actions) {
   padding-left: 0;
   padding-right: 0;
+}
+
+:deep(.table-detail-panel > .table-widget > .table-card),
+:deep(.table-detail-panel > .form-widget > .form-card) {
+  margin-bottom: 0;
 }
 
 .drawer-footer {
@@ -925,10 +967,39 @@ defineExpose({
   text-align: left !important;
 }
 
+:deep(.table-widget-table .el-table__body td) {
+  vertical-align: top;
+}
+
 :deep(.table-widget-table .el-table__body td .cell) {
   display: flex !important;
   justify-content: flex-start !important;
   align-items: center !important;
+  width: 100%;
+  min-height: 52px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+:deep(.table-widget-table .is-editing-row > td) {
+  background-color: var(--el-fill-color-extra-light) !important;
+}
+
+:deep(.table-widget-table .is-editing-row:hover > td) {
+  background-color: var(--el-fill-color-light) !important;
+}
+
+:deep(.table-widget-table .is-editing-row > td .cell) {
+  align-items: flex-start !important;
+}
+
+:deep(.table-widget-table .is-editing-row .el-input),
+:deep(.table-widget-table .is-editing-row .el-input-number),
+:deep(.table-widget-table .is-editing-row .el-select),
+:deep(.table-widget-table .is-editing-row .el-date-editor),
+:deep(.table-widget-table .is-editing-row .el-cascader) {
+  width: 100%;
+  max-width: 100%;
 }
 
 </style>

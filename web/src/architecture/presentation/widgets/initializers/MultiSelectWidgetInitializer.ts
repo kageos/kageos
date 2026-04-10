@@ -34,30 +34,13 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
    */
   async initialize(context: WidgetInitContext): Promise<FieldValue | null> {
     const { field, currentValue, functionDetail, allFormData } = context
-    
-    console.log(`🔍 [MultiSelectWidgetInitializer] 开始初始化字段 ${field.code}`, {
-      hasCallback: field.callbacks?.includes(FieldCallback.ON_SELECT_FUZZY),
-      currentValue: {
-        raw: currentValue.raw,
-        display: currentValue.display,
-        hasDisplayInfo: !!currentValue.meta?.displayInfo,
-        fromURL: !!currentValue.meta?.[FieldValueMeta.FROM_URL]
-      },
-      initSource: context.initSource
-    })
-    
+
     // 🔥 步骤 0：处理来自 URL 的类型转换（组件自治）
     let processedValue = currentValue
     if (currentValue.meta?.[FieldValueMeta.FROM_URL] && currentValue.meta?.[FieldValueMeta.ORIGINAL_VALUE] !== undefined) {
       const originalValue = currentValue.meta[FieldValueMeta.ORIGINAL_VALUE]
       const fieldType = field.data?.type || DataType.STRINGS
-      
-      console.log(`🔍 [MultiSelectWidgetInitializer] 字段 ${field.code} 来自 URL，进行类型转换`, {
-        originalValue,
-        fieldType,
-        currentRaw: currentValue.raw
-      })
-      
+
       // 🔥 使用统一的类型转换工具（避免硬编码）
       const convertedRaw = convertArrayType(originalValue, fieldType)
       
@@ -74,38 +57,22 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
           [FieldValueMeta.CONVERTED]: true  // 标记已转换
         }
       }
-      
-      console.log(`✅ [MultiSelectWidgetInitializer] 字段 ${field.code} 类型转换完成`, {
-        originalValue,
-        convertedRaw,
-        display,
-        fieldType
-      })
     }
     
     // 1. 检查是否需要初始化
     // 如果字段没有 OnSelectFuzzy 回调，则不需要初始化（但已转换的值需要返回）
     if (!field.callbacks?.includes(FieldCallback.ON_SELECT_FUZZY)) {
-      console.log(`🔍 [MultiSelectWidgetInitializer] 字段 ${field.code} 没有 ${FieldCallback.ON_SELECT_FUZZY} 回调，跳过初始化`)
       // 🔥 如果进行了类型转换，返回转换后的值；否则返回 null
       return processedValue !== currentValue ? processedValue : null
     }
     
     // 2. 如果已经有完整的 display 和 meta，则不需要初始化
     if (processedValue.display && processedValue.meta?.displayInfo) {
-      console.log(`🔍 [MultiSelectWidgetInitializer] 字段 ${field.code} 已有完整的 display 和 meta，跳过初始化`, {
-        display: processedValue.display,
-        hasDisplayInfo: !!processedValue.meta?.displayInfo
-      })
       return processedValue  // 返回处理后的值（可能包含类型转换）
     }
     
     // 3. 如果只有 raw 值（来自 URL 或默认值），需要通过 by_values 查询获取 display 和 meta
     if (processedValue.raw !== null && processedValue.raw !== undefined) {
-      console.log(`🔍 [MultiSelectWidgetInitializer] 字段 ${field.code} 只有 raw 值，需要通过 by_values 查询`, {
-        rawValue: processedValue.raw,
-        isArray: Array.isArray(processedValue.raw)
-      })
       try {
         // 确保 raw 是数组
         const rawArray = Array.isArray(processedValue.raw) ? processedValue.raw : [processedValue.raw]
@@ -127,17 +94,8 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
         // 🔥 构建请求参数（将 allFormData 转换为请求格式，并根据字段类型进行转换）
         // 使用统一的类型转换函数，确保所有字段都根据 field.data.type 正确转换
         const requestData = convertFormDataToRequestByType(allFormData, functionDetail)
-        
+
         // 调用 OnSelectFuzzy 回调接口（使用 by_values）
-        console.log(`🔍 [MultiSelectWidgetInitializer] 调用 OnSelectFuzzy 回调接口`, {
-          fieldCode: field.code,
-          method: functionDetail.method || 'POST',
-          router: functionDetail.router || '',
-          convertedValue,
-          valueType,
-          valuesCount: Array.isArray(convertedValue) ? convertedValue.length : 1
-        })
-        
         const response = await selectFuzzy(
           functionDetail.method || 'POST',
           functionDetail.router || '',
@@ -149,15 +107,10 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
             value_type: valueType
           }
         )
-        
-        console.log(`🔍 [MultiSelectWidgetInitializer] OnSelectFuzzy 回调接口返回`, {
-          fieldCode: field.code,
-          hasError: !!response.error_msg,
-          itemsCount: response.items?.length || 0
-        })
-        
+
         if (response.error_msg) {
-          console.warn(`⚠️ [MultiSelectWidgetInitializer] 字段 ${field.code} 回调接口返回错误`, {
+          Logger.warn('[MultiSelectWidgetInitializer]', '回调接口返回错误', {
+            fieldCode: field.code,
             error: response.error_msg
           })
           return null  // 初始化失败，返回 null
@@ -190,14 +143,7 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
             statistics: response.statistics || {}
           }
         )
-        
-        console.log(`✅ [MultiSelectWidgetInitializer] 字段 ${field.code} 初始化成功`, {
-          raw: initializedValue.raw,
-          display: initializedValue.display,
-          hasDisplayInfo: !!initializedValue.meta?.displayInfo,
-          displayInfoCount: Array.isArray(initializedValue.meta?.displayInfo) ? initializedValue.meta.displayInfo.length : 0
-        })
-        
+
         // 构建初始化后的 FieldValue
         return initializedValue
       } catch (error: any) {

@@ -11,6 +11,7 @@
 
 import type { IWidgetInitializer, WidgetInitContext } from '@/architecture/presentation/widgets/interfaces/IWidgetInitializer'
 import type { FieldValue } from '@/architecture/domain/types'
+import { Logger } from '@/core/utils/logger'
 
 /**
  * Widget 初始化器注册表
@@ -79,7 +80,8 @@ export class WidgetInitializerRegistry {
       
       return initializedValue
     } catch (error) {
-      console.error(`❌ [WidgetInitializerRegistry] 初始化组件失败: ${widgetType}`, {
+      Logger.error('[WidgetInitializerRegistry]', '初始化组件失败', {
+        widgetType,
         fieldCode: context.field.code,
         error
       })
@@ -100,4 +102,3 @@ export class WidgetInitializerRegistry {
 
 // 全局单例
 export const widgetInitializerRegistry = new WidgetInitializerRegistry()
-

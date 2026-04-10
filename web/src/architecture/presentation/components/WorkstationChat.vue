@@ -62,6 +62,9 @@
           <div class="session-card-header">
             <el-icon v-if="session.status === 'generating'" class="is-loading session-generating-icon" :size="12"><Loading /></el-icon>
             <span class="session-card-title">{{ session.title || '未命名会话' }}</span>
+            <el-tag size="small" effect="plain" class="session-mode-tag">
+              {{ session.mode_code || 'dev' }}
+            </el-tag>
           </div>
           <div v-if="session.user" class="session-card-user">
             <UserDisplay :username="session.user" mode="simple" size="small" />
@@ -151,13 +154,32 @@
         @drop.prevent="onDropFiles"
       >
         <div class="input-area">
-          <div class="input-area-model">
-            <span class="input-area-model-label">模型</span>
-            <LLMSelector
-              :model-value="selectedLLMConfigId ?? 0"
-              scope="market"
-              @update:model-value="onLLMSelect"
-            />
+          <div class="input-area-controls">
+            <div class="input-area-control">
+              <span class="input-area-model-label">模型</span>
+              <LLMSelector
+                :model-value="selectedLLMConfigId ?? 0"
+                scope="market"
+                @update:model-value="onLLMSelect"
+              />
+            </div>
+            <div class="input-area-control">
+              <span class="input-area-model-label">模式</span>
+              <el-select
+                :model-value="selectedModeCode"
+                class="input-area-mode-select"
+                :disabled="!fullCodePath"
+                :loading="modeLoading"
+                @update:model-value="setSelectedModeCode"
+              >
+                <el-option
+                  v-for="mode in modeOptions"
+                  :key="mode.code"
+                  :label="formatModeOptionLabel(mode)"
+                  :value="mode.code"
+                />
+              </el-select>
+            </div>
           </div>
           <div class="input-area-attach">
             <el-upload
@@ -213,7 +235,7 @@
 import { ref, watch, nextTick, toRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight, Plus, Paperclip, FolderOpened, Loading, Search } from '@element-plus/icons-vue'
-import { workspaceChatStream, type WorkspaceChatReq, type WorkspaceChatMessageFile } from '@/api/workspace'
+import { workspaceChatStream, type WorkspaceChatReq, type WorkspaceChatMessageFile, type WorkspaceModeItem } from '@/api/workspace'
 import MessageToolCalls from './MessageToolCalls.vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
@@ -223,6 +245,7 @@ import { useWorkspaceChatStream, type ChatMessage } from '@/architecture/present
 import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
 import { useWorkstationChatAttachments } from '@/architecture/presentation/composables/useWorkstationChatAttachments'
 import { useWorkstationChatSessions } from '@/architecture/presentation/composables/useWorkstationChatSessions'
+import { useWorkspaceModeSelection } from '@/architecture/presentation/composables/useWorkspaceModeSelection'
 
 const props = withDefaults(
   defineProps<{
@@ -312,6 +335,10 @@ function onLLMSelect(value: number) {
   selectedLLMConfigId.value = value === 0 ? null : value
 }
 
+function formatModeOptionLabel(mode: WorkspaceModeItem): string {
+  return mode.name && mode.name !== mode.code ? `${mode.name} (${mode.code})` : mode.code
+}
+
 const {
   sessionList,
   loadingSessions,
@@ -345,6 +372,26 @@ const {
   updateSessionId: (value) => emit('update:sessionId', value)
 })
 
+const {
+  modeOptions,
+  modeLoading,
+  selectedModeCode,
+  setSelectedModeCode,
+  applySessionMode
+} = useWorkspaceModeSelection(toRef(props, 'fullCodePath'))
+
+watch(
+  () => [sessionId.value, sessionList.value] as const,
+  ([currentSessionId, sessions]) => {
+    if (!currentSessionId) return
+    const found = sessions.find((session) => session.session_id === currentSessionId)
+    if (found) {
+      applySessionMode(found)
+    }
+  },
+  { immediate: true }
+)
+
 async function send() {
   const text = inputText.value.trim()
   const files = attachedFiles.value.length > 0 ? attachedFiles.value : null
@@ -368,6 +415,7 @@ async function send() {
         : {}),
     },
     session_id: sessionId.value,
+    mode_code: selectedModeCode.value,
   }
   if (selectedLLMConfigId.value != null && selectedLLMConfigId.value > 0) {
     payload.llm_config_id = selectedLLMConfigId.value
@@ -706,17 +754,28 @@ async function send() {
 }
 .input-area { display: flex; flex-direction: column; gap: 8px; }
 .input-area .el-button { align-self: flex-end; }
-.input-area-model {
+.input-area-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.input-area-control {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
+  min-width: 240px;
 }
 .input-area-model-label {
   font-size: 13px;
   color: var(--el-text-color-regular);
   flex-shrink: 0;
 }
-.input-area-model :deep(.llm-selector) { flex: 1; min-width: 0; }
+.input-area-control :deep(.llm-selector) { flex: 1; min-width: 0; }
+.input-area-mode-select {
+  flex: 1;
+  min-width: 0;
+}
 .input-area-attach {
   display: flex;
   flex-wrap: wrap;
@@ -725,4 +784,8 @@ async function send() {
 }
 .attached-files { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .attached-tag { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-mode-tag {
+  flex-shrink: 0;
+  text-transform: lowercase;
+}
 </style>
