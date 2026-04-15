@@ -24,7 +24,7 @@ type runTableSearchArgs struct {
 
 var runTableSearchToolDef = toolDefinition[runTableSearchArgs](
 	"run_table_search",
-	"执行工作区内 Table 查询接口，返回分页表格数据。full_code_path 必须为「具体表格函数的完整路径」，包含函数名（如 .../nps/nps_questionnaire_list），不能只填包路径（如 .../nps），否则会查不到数据。若只知包路径，请先用 read_dir 看该包下 .go 文件，根据 init() 中 GET(\"xxx_list\",...) 确定函数名，再拼成 full_code_path=.../包名/函数名。查询参数遵循 pkg/gormx/query：page、page_size、sorts、eq/like/in/gte/lte 等；可传 url_query 或单独传 page、page_size、sorts。",
+	"执行工作区内 Table 查询接口，返回分页表格数据。full_code_path 必须为带 `.table` 后缀的具体表格函数完整路径，包含函数名（如 .../nps/nps_questionnaire_list.table），不能只填包路径（如 .../nps），否则会查不到数据。若只知包路径，请先用 read_dir 看该包下 .go 文件，根据 init() 中 GET(\"xxx_list.table\",...) 确定函数名，再直接使用环境信息里带后缀的 full_code_path。查询参数遵循 pkg/gormx/query：page、page_size、sorts、eq/like/in/gte/lte 等；可传 url_query 或单独传 page、page_size、sorts。",
 )
 
 func (t *RunTableSearchTool) Definition() dto.ToolDef {
@@ -43,9 +43,9 @@ func (t *RunTableSearchTool) Execute(ctx context.Context, call ToolCall) ToolRes
 // runTableSearchTool 执行 Table 查询；参数遵循 pkg/gormx/query，可传 url_query 或 page/page_size/sorts
 func runTableSearchTool(ctx context.Context, args runTableSearchArgs, currentFullCodePath string) (string, bool) {
 	ctx = withAgentToolClientSource(ctx)
-	fullCodePath := resolveFullCodePathArg(args.FullCodePath, currentFullCodePath)
+	fullCodePath, pathNotice := resolveTypedFunctionFullCodePathArg(args.FullCodePath, currentFullCodePath, ".table")
 	if fullCodePath == "" {
-		return "run_table_search 需传 full_code_path（表格函数路径，如 /luobei/myapp/tables/hr）。", true
+		return "run_table_search 需传 full_code_path（表格函数路径，如 /luobei/myapp/tables/hr_resume_list.table）。", true
 	}
 	var params url.Values
 	if q := strings.TrimSpace(args.URLQuery); q != "" {
@@ -82,5 +82,9 @@ func runTableSearchTool(ctx context.Context, args runTableSearchArgs, currentFul
 		logger.Errorf(ctx, "[RunTableSearch] TableSearch 失败: %v", err)
 		return "run_table_search 调用失败: " + err.Error(), true
 	}
-	return formatJSONResult(result)
+	content, _ := formatJSONResult(result)
+	if pathNotice != "" {
+		return pathNotice + "\n\n" + content, false
+	}
+	return content, false
 }

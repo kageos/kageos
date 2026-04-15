@@ -1,8 +1,10 @@
 # 客户部署：MinIO 在 compose 服务 minio；cdn_domain 空则由 CANONICAL_BASE_URL 注入
 server:
   port: 9092
+  listen_host: "127.0.0.1"
   log_level: "info"
   debug: false
+  enable_pprof: false
 
 audit:
   upload_tracking:

@@ -63,6 +63,7 @@ type AppRuntimeTimeoutConfig struct {
 // RuntimeConfig 运行时配置
 type RuntimeConfig struct {
 	Port       int    `mapstructure:"port"`
+	ListenHost string `mapstructure:"listen_host"`
 	LogLevel   string `mapstructure:"log_level"`
 	Debug      bool   `mapstructure:"debug"`
 	InstanceID string `mapstructure:"instance_id"`
@@ -191,6 +192,13 @@ func (c *AppRuntimeConfig) GetRuntimeInstanceID() string {
 	}
 
 	return "runtime-local"
+}
+
+func (c *AppRuntimeConfig) GetListenHost() string {
+	if c == nil {
+		return normalizeListenHost("")
+	}
+	return normalizeListenHost(c.Runtime.ListenHost)
 }
 
 // loadYAMLConfig 加载 YAML 配置文件。

@@ -23,9 +23,9 @@
 
       <div class="file-thumbnail">
         <el-image
-          v-if="enableImagePreviewList && isImage && file.is_uploaded && file.url"
-          :src="file.url"
-          fit="cover"
+          v-if="enableImagePreviewList && isImage && file.is_uploaded && imageSrc"
+          :src="imageSrc"
+          fit="contain"
           class="thumbnail-image"
           :preview-src-list="previewImageList"
           :initial-index="previewIndex"
@@ -34,9 +34,9 @@
           @click.stop
         />
         <el-image
-          v-else-if="isImage && file.is_uploaded && file.url"
-          :src="file.url"
-          fit="cover"
+          v-else-if="isImage && file.is_uploaded && imageSrc"
+          :src="imageSrc"
+          fit="contain"
           class="thumbnail-image"
         />
         <el-icon
@@ -178,6 +178,7 @@ interface Props {
   iconComponent: any
   iconColor: string
   isImage: boolean
+  imageSrc?: string
   canOpenInBrowser: boolean
   sizeText: string
   uploadTimeText?: string
@@ -201,6 +202,7 @@ const props = withDefaults(defineProps<Props>(), {
   uploadTimeText: '',
   showUploadUser: false,
   uploadUserInfo: null,
+  imageSrc: '',
   showDescriptionPlaceholder: false,
   showUploadStatusTag: false,
   showUploadTime: true,
@@ -283,6 +285,8 @@ function handleCardClick(): void {
   width: 60px;
   height: 60px;
   flex-shrink: 0;
+  box-sizing: border-box;
+  padding: 4px;
   border-radius: 6px;
   overflow: hidden;
   background-color: var(--el-fill-color-light);
@@ -294,6 +298,24 @@ function handleCardClick(): void {
 .thumbnail-image {
   width: 100%;
   height: 100%;
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  background-color: var(--el-fill-color-light);
+}
+
+.thumbnail-image :deep(.el-image__wrapper) {
+  width: 100%;
+  height: 100%;
+}
+
+.thumbnail-image :deep(.el-image__inner) {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  object-position: center;
 }
 
 .thumbnail-icon {

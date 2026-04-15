@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"fmt"
+	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -51,6 +53,10 @@ func NewServer(cfg *config.ControlServiceConfig) (*Server, error) {
 	logger.Infof(ctx, "[Control Service] Creating server instance...")
 	logger.Infof(ctx, "[Control Service] Configuration: Port=%d, NATS=%s, LicensePath=%s",
 		cfg.GetPort(), cfg.GetNatsURL(), cfg.GetLicensePath())
+
+	if len(cfg.GetEncryptionKey()) != 32 {
+		return nil, fmt.Errorf("control-service encryption key must be exactly 32 bytes, got %d", len(cfg.GetEncryptionKey()))
+	}
 
 	s := &Server{
 		cfg:             cfg,
@@ -150,12 +156,12 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	// 4. 启动 HTTP 服务器
-	port := fmt.Sprintf(":%d", s.httpPort)
-	logger.Infof(ctx, "[Control Service] Starting HTTP server on port %s", port)
+	addr := net.JoinHostPort(s.cfg.GetListenHost(), strconv.Itoa(s.httpPort))
+	logger.Infof(ctx, "[Control Service] Starting HTTP server on %s", addr)
 
 	go func() {
-		logger.Infof(ctx, "[Control Service] HTTP server listening on http://localhost%s", port)
-		if err := s.httpServer.Run(port); err != nil {
+		logger.Infof(ctx, "[Control Service] HTTP server listening on http://%s", addr)
+		if err := s.httpServer.Run(addr); err != nil {
 			logger.Errorf(ctx, "[Control Service] HTTP server error: %v", err)
 		}
 	}()
@@ -165,9 +171,17 @@ func (s *Server) Start(ctx context.Context) error {
 
 	logger.Infof(ctx, "[Control Service] Control-service started successfully")
 	logger.Infof(ctx, "[Control Service] API endpoints:")
-	logger.Infof(ctx, "[Control Service]   - GET  http://localhost%s/control/api/v1/license/status", port)
-	logger.Infof(ctx, "[Control Service]   - POST http://localhost%s/control/api/v1/license/activate", port)
+	logger.Infof(ctx, "[Control Service]   - GET  http://%s/control/api/v1/license/status", addr)
+	logger.Infof(ctx, "[Control Service]   - POST http://%s/control/api/v1/license/activate", addr)
 	return nil
+}
+
+func (s *Server) healthHandler(c *gin.Context) {
+	c.JSON(200, gin.H{
+		"status":    "ok",
+		"timestamp": time.Now().Format(time.DateTime),
+		"service":   "control-service",
+	})
 }
 
 // startPeriodicTasks 启动定期任务

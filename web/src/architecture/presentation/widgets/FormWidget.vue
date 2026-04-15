@@ -327,7 +327,7 @@ const props = defineProps<WidgetComponentProps>()
 const formDataStore = useFormDataStore()
 
 // 使用组合式函数
-const { visibleSubFields, getSubFieldValue, updateSubFieldValue } = useFormWidget(props)
+const { visibleSubFields, isSubFieldRequired, getSubFieldValue, updateSubFieldValue } = useFormWidget(props)
 
 // table-cell 模式的公共逻辑
 const tableCellMode = useTableCellMode(props)
@@ -373,8 +373,7 @@ function handleSubFieldModelUpdate(subFieldCode: string, value: FieldValue): voi
 
 // 检查字段是否必填
 function isFieldRequired(field: FieldConfig): boolean {
-  const validation = field.validation || ''
-  return validation.includes('required') && !validation.includes('omitempty')
+  return isSubFieldRequired(field)
 }
 
 const labelsOnTop = computed(() =>

@@ -1,9 +1,8 @@
-// sync-case-catalog 从示例项目（namespace/luobei/demos/code/api）同步 prd.md + 业务 .go 代码 → builtin/case_catalog/*.md，summary.md → 文档目录.json。
+// sync-case-catalog 从示例项目（namespace/luobei/demos/code/api）同步 prd.md + 业务 .go 代码 → system/prompt/case_catalog/*/prd.md，summary.md → readme.md。
 // 用法：在项目根目录执行 go run ./scripts/sync-case-catalog
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,23 +12,13 @@ import (
 
 const (
 	apiRoot              = "namespace/luobei/demos/code/api"
-	builtinDir           = "core/agent-server/prompt/content/builtin/doc/case_catalog"
-	catalogPath          = "core/agent-server/prompt/content/doc/文档目录.json"
-	createProjectDocPath = "core/agent-server/prompt/content/builtin/doc/workspace/create-project/01-create-project.md"
-	sdkEntryName         = "agent-app SDK使用手册"
-	sdkPath              = "/builtin/doc/sdk/agent-app-sdk-readme"
-	sdkWhenToUse         = "生成系统/应用/代码前必读。框架用法：结构体标签、Table/Form/Chart 模式、注册方式、目录约定。"
+	builtinDir           = "core/agent-server/prompt/system/prompt/case_catalog"
+	createProjectDocPath = "core/agent-server/prompt/system/prompt/workspace/create-project/01-create-project.md"
 	caseCatalogBegin     = "<!-- BEGIN CASE CATALOG -->"
 	caseCatalogEnd       = "<!-- END CASE CATALOG -->"
 )
 
-type DocCatalogEntry struct {
-	Name         string `json:"name"`
-	FullCodePath string `json:"full_code_path"`
-	WhenToUse    string `json:"when_to_use"`
-}
-
-// caseInfo 用于生成 create-project 中的案例索引表和文档目录.json
+// caseInfo 用于生成 create-project 中的案例索引表
 type caseInfo struct {
 	Rel         string // 相对路径，如 form/excelorcsv，与目录对齐
 	Name        string // 案例名（含类型）
@@ -46,27 +35,15 @@ func main() {
 	}
 	apiRootAbs := filepath.Join(repoRoot, apiRoot)
 	builtinAbs := filepath.Join(repoRoot, builtinDir)
-	catalogAbs := filepath.Join(repoRoot, catalogPath)
 
 	cleanOldFlatCaseDocs(builtinAbs)
 
-	entries, caseInfos, err := collectCaseEntries(repoRoot, apiRootAbs, builtinAbs)
+	caseInfos, err := collectCaseEntries(apiRootAbs, builtinAbs)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "collect cases: %v\n", err)
 		os.Exit(1)
 	}
-
-	// 保留 SDK 条目，案例条目用本次同步结果
-	catalog := []DocCatalogEntry{
-		{Name: sdkEntryName, FullCodePath: sdkPath, WhenToUse: sdkWhenToUse},
-	}
-	catalog = append(catalog, entries...)
-
-	if err := writeCatalog(catalogAbs, catalog); err != nil {
-		fmt.Fprintf(os.Stderr, "write catalog: %v\n", err)
-		os.Exit(1)
-	}
-	fmt.Printf("sync ok: %d case entries, catalog written to %s\n", len(entries), catalogPath)
+	fmt.Printf("sync ok: %d case entries\n", len(caseInfos))
 
 	// 根据摘要生成「案例按类型归类」段落并写回 create-project/01-create-project.md
 	section := buildCaseCatalogSection(caseInfos)
@@ -77,7 +54,7 @@ func main() {
 	fmt.Printf("01-create-project.md case catalog section updated\n")
 }
 
-// cleanOldFlatCaseDocs 删除 builtin/case_catalog 下旧的扁平 .md（如 form_excelorcsv.md），只保留与目录对齐的子路径文档
+// cleanOldFlatCaseDocs 删除 system/prompt/case_catalog 下旧的扁平 .md（如 form_excelorcsv.md），只保留与目录对齐的子路径文档
 func cleanOldFlatCaseDocs(builtinAbs string) {
 	entries, err := os.ReadDir(builtinAbs)
 	if err != nil {
@@ -110,8 +87,7 @@ func findRepoRoot() (string, error) {
 	}
 }
 
-func collectCaseEntries(repoRoot, apiRootAbs, builtinAbs string) ([]DocCatalogEntry, []caseInfo, error) {
-	var catalog []DocCatalogEntry
+func collectCaseEntries(apiRootAbs, builtinAbs string) ([]caseInfo, error) {
 	var infos []caseInfo
 	err := filepath.Walk(apiRootAbs, func(path string, info os.FileInfo, err error) error {
 		if err != nil || !info.IsDir() {
@@ -137,6 +113,7 @@ func collectCaseEntries(repoRoot, apiRootAbs, builtinAbs string) ([]DocCatalogEn
 			docContent := appendCaseCode(path, prdContent)
 			destDir := filepath.Join(builtinAbs, rel)
 			dest := filepath.Join(destDir, "prd.md")
+			readmeDest := filepath.Join(destDir, "readme.md")
 			if err := os.MkdirAll(destDir, 0755); err != nil {
 				return err
 			}
@@ -144,15 +121,15 @@ func collectCaseEntries(repoRoot, apiRootAbs, builtinAbs string) ([]DocCatalogEn
 			if err := os.WriteFile(dest, docContent, 0644); err != nil {
 				return err
 			}
-			fullPath := "/builtin/doc/case_catalog/" + relSlash
-			whenToUseCat := buildWhenToUse(keyFeatures, fullPath)
-			catalog = append(catalog, DocCatalogEntry{Name: name, FullCodePath: fullPath, WhenToUse: whenToUseCat})
+			if err := os.WriteFile(readmeDest, summaryContent, 0644); err != nil {
+				return err
+			}
 			infos = append(infos, caseInfo{Rel: relSlash, Name: name, Category: category, ModuleDesc: moduleDesc, KeyFeatures: keyFeatures})
 			fmt.Printf("  %s -> %s/prd.md (%s)\n", rel, relSlash, name)
 		}
 		return nil
 	})
-	return catalog, infos, err
+	return infos, err
 }
 
 func readFile(path string) error {
@@ -240,21 +217,6 @@ func parseSummary(b []byte) (name, moduleDesc, keyFeatures, category string) {
 	return name, moduleDesc, keyFeatures, category
 }
 
-func buildWhenToUse(keyFeatures, fullPath string) string {
-	if keyFeatures == "" {
-		return "关键特性：见 read_doc(\"" + fullPath + "\")。"
-	}
-	return "关键特性：" + keyFeatures
-}
-
-func writeCatalog(path string, catalog []DocCatalogEntry) error {
-	data, err := json.MarshalIndent(catalog, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, append(data, '\n'), 0644)
-}
-
 // categoryOrder 用于「案例按类型归类」的段落顺序
 var categoryOrder = []struct {
 	Key   string
@@ -297,7 +259,7 @@ func buildCaseCatalogSection(infos []caseInfo) string {
 			continue
 		}
 		for _, c := range cases {
-			docPath := "/builtin/doc/case_catalog/" + c.Rel
+			docPath := "/system/prompt/case_catalog/" + c.Rel
 			caseName := strings.TrimPrefix(c.Name, "案例：")
 			features := c.KeyFeatures
 			if features == "" {

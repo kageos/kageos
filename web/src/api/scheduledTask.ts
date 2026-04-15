@@ -20,7 +20,7 @@ export interface CreateScheduledTaskReq {
   request_user?: string
   request_user_dept?: string
   schedule_type: 'atime' | 'cron' | 'every'
-  run_at: string
+  run_at?: string
   cron_expr?: string
   interval_seconds?: number
   max_runs?: number

@@ -131,7 +131,16 @@ export class FormApplicationService {
    * 提交表单
    */
   async submitForm(functionDetail: FunctionDetail): Promise<any> {
-    // 🔥 不进行前端验证，由后端验证
+    const fields = (Array.isArray(functionDetail.request) ? functionDetail.request : []) as FieldConfig[]
+    // 主提交链路也要先跑前端校验，保证顶层 form 与弹窗/抽屉场景行为一致。
+    const isValid = this.domainService.validateForm(fields)
+    if (!isValid) {
+      Logger.warn('[FormApplicationService]', '提交前表单验证失败', {
+        fieldsCount: fields.length,
+        fieldCodes: fields.map(f => f.code)
+      })
+      throw new Error('请先修正表单校验错误')
+    }
 
     // 设置提交状态
     this.domainService.setSubmitting(true)
@@ -141,8 +150,6 @@ export class FormApplicationService {
       // 注意：这里需要访问 FormStateManager 的 getSubmitData 方法
       // 为了保持依赖倒置，我们通过 Domain Service 获取
       // 🔥 确保 fields 是数组，防止类型错误
-      const fields = (Array.isArray(functionDetail.request) ? functionDetail.request : []) as FieldConfig[]
-      
       // 🔥 调试日志：检查提交前的数据状态
       const stateManagerForDebug = (this.domainService as any).stateManager
       if (stateManagerForDebug && stateManagerForDebug.formStore && stateManagerForDebug.formStore.data) {

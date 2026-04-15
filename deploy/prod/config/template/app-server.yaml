@@ -1,8 +1,10 @@
 # App Server（客户）
 server:
   port: 9091
+  listen_host: "127.0.0.1"
   log_level: "info"
   debug: false
+  enable_pprof: false
 
 scheduler:
   poll_interval_seconds: 1

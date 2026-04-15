@@ -42,7 +42,7 @@ func runOnSelectFuzzyTool(ctx context.Context, args runOnSelectFuzzyArgs, curren
 	ctx = withAgentToolClientSource(ctx)
 	fullCodePath := resolveFullCodePathArg(args.FullCodePath, currentFullCodePath)
 	if fullCodePath == "" {
-		return "run_on_select_fuzzy 需传 full_code_path（配置了 OnSelectFuzzy 的 Form/Table 路径，如 .../cashier_desk.form）。", true
+		return "run_on_select_fuzzy 需传 full_code_path（配置了 OnSelectFuzzy 的 Form/Table 路径，如 .../cashier_desk.form 或 .../member_list.table）。", true
 	}
 	code := strings.TrimSpace(args.Code)
 	if code == "" {

@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
@@ -21,6 +22,37 @@ func NewScheduledTask(scheduledTaskService *service.ScheduledTaskService) *Sched
 	return &ScheduledTask{scheduledTaskService: scheduledTaskService}
 }
 
+func buildScheduledTaskItem(t *model.ScheduledTask) dto.ScheduledTaskItem {
+	item := dto.ScheduledTaskItem{
+		ID:              t.ID,
+		Name:            t.Name,
+		User:            t.User,
+		App:             t.App,
+		FullCodePath:    t.FullCodePath,
+		Action:          t.Action,
+		Method:          t.Method,
+		Payload:         string(t.Payload),
+		RequestUser:     t.RequestUser,
+		RequestUserDept: t.RequestUserDept,
+		CreatedBy:       t.CreatedBy,
+		ScheduleType:    t.ScheduleType,
+		RunAt:           t.RunAt.Format(time.RFC3339),
+		CronExpr:        t.CronExpr,
+		IntervalSeconds: t.IntervalSeconds,
+		MaxRuns:         t.MaxRuns,
+		Timezone:        t.Timezone,
+		Status:          t.Status,
+		RunCount:        t.RunCount,
+		ErrorMessage:    t.ErrorMessage,
+		CreatedAt:       t.CreatedAt.Format(time.RFC3339),
+	}
+	if t.NextRunAt != nil {
+		next := t.NextRunAt.Format(time.RFC3339)
+		item.NextRunAt = &next
+	}
+	return item
+}
+
 // Create 创建定时任务
 func (s *ScheduledTask) Create(c *gin.Context) {
 	var req dto.CreateScheduledTaskReq
@@ -35,7 +67,7 @@ func (s *ScheduledTask) Create(c *gin.Context) {
 		response.FailWithMessage(c, "创建失败: "+err.Error())
 		return
 	}
-	response.OkWithData(c, task)
+	response.OkWithData(c, buildScheduledTaskItem(task))
 }
 
 // List 定时任务列表。
@@ -58,34 +90,7 @@ func (s *ScheduledTask) List(c *gin.Context) {
 	}
 	items := make([]dto.ScheduledTaskItem, 0, len(list))
 	for _, t := range list {
-		item := dto.ScheduledTaskItem{
-			ID:              t.ID,
-			Name:            t.Name,
-			User:            t.User,
-			App:             t.App,
-			FullCodePath:    t.FullCodePath,
-			Action:          t.Action,
-			Method:          t.Method,
-			Payload:         string(t.Payload),
-			RequestUser:     t.RequestUser,
-			RequestUserDept: t.RequestUserDept,
-			CreatedBy:       t.CreatedBy,
-			ScheduleType:    t.ScheduleType,
-			RunAt:           t.RunAt.Format(time.RFC3339),
-			CronExpr:        t.CronExpr,
-			IntervalSeconds: t.IntervalSeconds,
-			MaxRuns:         t.MaxRuns,
-			Status:          t.Status,
-			Timezone:        t.Timezone,
-			RunCount:        t.RunCount,
-			ErrorMessage:    t.ErrorMessage,
-			CreatedAt:       t.CreatedAt.Format(time.RFC3339),
-		}
-		if t.NextRunAt != nil {
-			next := t.NextRunAt.Format(time.RFC3339)
-			item.NextRunAt = &next
-		}
-		items = append(items, item)
+		items = append(items, buildScheduledTaskItem(t))
 	}
 	response.OkWithData(c, gin.H{"list": items, "total": total})
 }

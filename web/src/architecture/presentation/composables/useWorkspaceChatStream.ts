@@ -3,7 +3,7 @@
  *
  * 维护 messages、sending、sessionId、agentId，暴露 handleEvent 与 send。
  * 调用方负责构造 payload 并调用 API（如 workspaceChatStream），在 SSE 回调里调用 handleEvent 即可。
- * 便于 WorkstationChat 与后续其他流式工具对话复用同一套消息状态与事件处理。
+ * 便于 Mini 工作台与后续其他流式工具对话复用同一套消息状态与事件处理。
  */
 
 import { ref, watch, onUnmounted, type Ref } from 'vue'

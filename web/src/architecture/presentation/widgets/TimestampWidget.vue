@@ -8,7 +8,7 @@
     <!-- 编辑模式：format 为 HH:mm 时用 el-time-picker，否则用 el-date-picker -->
     <el-time-picker
       v-if="mode === 'edit' && isTimeOnly"
-      v-model="internalValue"
+      v-model="singlePickerValue"
       :disabled="widgetConfig.disabled"
       :placeholder="field.desc || `请选择${field.name}`"
       :format="format"
@@ -18,7 +18,7 @@
     />
     <el-date-picker
       v-else-if="mode === 'edit'"
-      v-model="internalValue"
+      v-model="singlePickerValue"
       :disabled="widgetConfig.disabled"
       :placeholder="field.desc || `请选择${field.name}`"
       :type="pickerType"
@@ -90,14 +90,14 @@
     </div>
     <el-time-picker
       v-else-if="mode === 'search' && isTimeOnly"
-      v-model="internalValue"
+      v-model="singlePickerValue"
       :format="format"
       value-format="x"
       :clearable="true"
     />
     <el-date-picker
       v-else-if="mode === 'search'"
-      v-model="internalValue"
+      v-model="singlePickerValue"
       :type="searchType"
       :format="format"
       :value-format="valueFormat"
@@ -108,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { ElDatePicker, ElTimePicker } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
@@ -133,6 +133,8 @@ type TimestampRangeInput = [TimestampSingleInput, TimestampSingleInput]
 type TimestampModelInput = Date | number | string | TimestampRangeInput | null
 type TimestampRawRange = [number | null, number | null]
 type TimestampRawValue = number | TimestampRawRange | null
+type TimestampPickerRangeValue = [Date | null, Date | null]
+type TimestampPickerValue = Date | TimestampPickerRangeValue | null
 
 // 获取配置（带类型）
 const widgetConfig = computed(() => {
@@ -354,37 +356,70 @@ const isRangeSearch = computed(() => {
   return currentSearchType.includes('gte') && currentSearchType.includes('lte')
 })
 
+function isTimestampEmptyLike(value: TimestampSingleInput): boolean {
+  if (value === null || value === undefined) {
+    return true
+  }
+
+  if (value instanceof Date) {
+    const time = value.getTime()
+    return Number.isNaN(time) || (!isTimeOnly.value && time === 0)
+  }
+
+  if (typeof value === 'number') {
+    return Number.isNaN(value) || (!isTimeOnly.value && value === 0)
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed === '' || (!isTimeOnly.value && trimmed === '0')
+  }
+
+  return false
+}
+
+function toPickerValue(value: Date | number | string): Date | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value
+  }
+
+  const date = typeof value === 'number'
+    ? new Date(value)
+    : (() => {
+        const numericValue = Number(value)
+        if (!Number.isNaN(numericValue)) {
+          return new Date(numericValue)
+        }
+
+        return new Date(value)
+      })()
+
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function isSameTimestampRawValue(left: unknown, right: TimestampRawValue): boolean {
+  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null)
+}
+
 // 内部值（用于 v-model）
-const internalValue = computed({
+const internalValue = computed<TimestampPickerValue>({
   get: () => {
     if (props.mode === 'edit' || props.mode === 'search') {
       const value = props.value?.raw
-      if (value === null || value === undefined) {
+      if (isTimestampEmptyLike(value)) {
         return null
       }
-      
-      // 🔥 如果是时间戳，转换为 Date 对象
-      // 注意：系统统一使用毫秒级时间戳，直接使用
-      if (typeof value === 'number') {
-        return new Date(value)
-      }
-      
+
       // 如果是数组（范围选择）
       if (Array.isArray(value)) {
-        return value.map(v => {
-          if (v === null || v === undefined || v === '') {
-            return null
-          }
-
-          if (typeof v === 'number') {
-            return new Date(v)
-          }
-
-          return new Date(v)
-        })
+        const [startValue, endValue] = value
+        return [
+          isTimestampEmptyLike(startValue) ? null : toPickerValue(startValue),
+          isTimestampEmptyLike(endValue) ? null : toPickerValue(endValue)
+        ] as TimestampPickerRangeValue
       }
-      
-      return value
+
+      return toPickerValue(value)
     }
     return null
   },
@@ -393,7 +428,17 @@ const internalValue = computed({
   }
 })
 
-const rangeStartValue = computed<TimestampSingleInput>({
+const singlePickerValue = computed<Date | null>({
+  get: () => {
+    const currentValue = internalValue.value
+    return Array.isArray(currentValue) ? (currentValue[0] ?? null) : currentValue
+  },
+  set: (newValue) => {
+    commitTimestampValue(newValue)
+  }
+})
+
+const rangeStartValue = computed<Date | null>({
   get: () => {
     const currentValue = internalValue.value
     if (Array.isArray(currentValue)) {
@@ -408,7 +453,7 @@ const rangeStartValue = computed<TimestampSingleInput>({
   }
 })
 
-const rangeEndValue = computed<TimestampSingleInput>({
+const rangeEndValue = computed<Date | null>({
   get: () => {
     const currentValue = internalValue.value
     if (Array.isArray(currentValue)) {
@@ -431,7 +476,7 @@ const displayValue = computed(() => {
   }
   
   const raw = value.raw
-  if (raw === null || raw === undefined) {
+  if (isTimestampEmptyLike(raw)) {
     return '-'
   }
   
@@ -439,6 +484,10 @@ const displayValue = computed(() => {
   // 即使 value.display 已经有值，也要重新格式化（因为可能是之前转换错误的值）
   if (typeof raw === 'number') {
     // 🔥 formatTimestamp 会自动判断秒级/毫秒级，直接调用即可
+    return formatTimestamp(raw, props.field.widget?.config?.format)
+  }
+
+  if (typeof raw === 'string') {
     return formatTimestamp(raw, props.field.widget?.config?.format)
   }
   
@@ -467,15 +516,23 @@ function normalizeTimestampValue(
   }
 
   if (Array.isArray(value)) {
-    const normalizedRange = value.map(item => (
-      item === null || item === undefined || item === '' ? null : normalizeTimestampItem(item)
-    )) as TimestampRawRange
+    const normalizedRange = value.map((item): number | null => {
+      if (isTimestampEmptyLike(item)) {
+        return null
+      }
+
+      return normalizeTimestampItem(item as Date | number | string)
+    }) as TimestampRawRange
 
     if (normalizedRange[0] === null && normalizedRange[1] === null) {
       return null
     }
 
     return normalizedRange
+  }
+
+  if (isTimestampEmptyLike(value)) {
+    return null
   }
 
   return normalizeTimestampItem(value)
@@ -512,14 +569,18 @@ function formatTimestampDisplay(value: TimestampRawValue): string {
 
   if (Array.isArray(value)) {
     const [startValue, endValue] = value
-    const startDisplay = startValue === null ? '' : formatTimestamp(startValue, format.value)
-    const endDisplay = endValue === null ? '' : formatTimestamp(endValue, format.value)
+    const startDisplay = startValue === null || isTimestampEmptyLike(startValue) ? '' : formatTimestamp(startValue, format.value)
+    const endDisplay = endValue === null || isTimestampEmptyLike(endValue) ? '' : formatTimestamp(endValue, format.value)
 
     if (startDisplay && endDisplay) {
       return `${startDisplay} 至 ${endDisplay}`
     }
 
     return startDisplay || endDisplay
+  }
+
+  if (isTimestampEmptyLike(value)) {
+    return ''
   }
 
   return formatTimestamp(value, format.value)
@@ -559,6 +620,31 @@ function buildRangeValue(
 
   return [startValue ?? null, endValue ?? null]
 }
+
+watch(
+  () => props.value?.raw,
+  (rawValue) => {
+    if (props.mode !== 'edit') {
+      return
+    }
+
+    const normalizedRawValue = normalizeTimestampValue(rawValue as TimestampModelInput)
+    if (isSameTimestampRawValue(rawValue, normalizedRawValue)) {
+      return
+    }
+
+    const normalizedFieldValue = createFieldValue(
+      props.field,
+      normalizedRawValue,
+      formatTimestampDisplay(normalizedRawValue),
+      props.value?.meta
+    )
+
+    formDataStore.setValue(props.fieldPath, normalizedFieldValue)
+    emit('update:modelValue', normalizedFieldValue)
+  },
+  { immediate: true }
+)
 </script>
 
 <style scoped>

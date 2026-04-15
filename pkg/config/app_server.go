@@ -45,9 +45,11 @@ type AppServerConfig struct {
 
 // AppServerServerConfig app-server 服务器配置
 type AppServerServerConfig struct {
-	Port     int    `mapstructure:"port"`
-	LogLevel string `mapstructure:"log_level"`
-	Debug    bool   `mapstructure:"debug"`
+	Port        int    `mapstructure:"port"`
+	ListenHost  string `mapstructure:"listen_host"`
+	LogLevel    string `mapstructure:"log_level"`
+	Debug       bool   `mapstructure:"debug"`
+	EnablePprof *bool  `mapstructure:"enable_pprof"`
 }
 
 // AppServerSchedulerConfig app-server 定时任务调度配置
@@ -118,9 +120,21 @@ type DBConfig struct {
 }
 
 // 常用便捷访问方法（可选）
-func (c *AppServerConfig) GetPort() int        { return c.Server.Port }
+func (c *AppServerConfig) GetPort() int { return c.Server.Port }
+func (c *AppServerConfig) GetListenHost() string {
+	if c == nil {
+		return normalizeListenHost("")
+	}
+	return normalizeListenHost(c.Server.ListenHost)
+}
 func (c *AppServerConfig) GetLogLevel() string { return c.Server.LogLevel }
 func (c *AppServerConfig) IsDebug() bool       { return c.Server.Debug }
+func (c *AppServerConfig) IsPprofEnabled() bool {
+	if c == nil {
+		return true
+	}
+	return boolConfigValue(c.Server.EnablePprof, true)
+}
 func (c *AppServerConfig) GetAppRequestTimeout() int {
 	if c.Timeouts.AppRequest <= 0 {
 		return 300 // 默认 300 秒（5分钟）

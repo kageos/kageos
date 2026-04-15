@@ -27,7 +27,7 @@ const (
 	MaxToolRounds   = 100 // 与 streamloop.MaxToolRounds 保持一致，仅作注释/文档用，实际以 streamloop 为准
 )
 
-// 工作台操作提示词在 core/agent-server/prompt/content/doc/ 下，由 //go:embed content 嵌入，通过 prompt 包加载（见 prompt.ReadContent / init）
+// 工作台系统提示词与文档统一来自 /system/prompt；运行时优先读树，缺失时回落到本地 seed。
 
 // 消息角色常量
 const (
@@ -205,7 +205,8 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		return s.handleError(sendEvent, "full_code_path 必填", nil)
 	}
 	requestedModeCode := normalizeWorkspaceModeCode(req.ModeCode)
-	if req.SessionID == "" && prompt.GetModeProvider(requestedModeCode) == nil {
+	requestedModeProvider := prompt.ResolveModeProvider(ctx, requestedModeCode)
+	if req.SessionID == "" && requestedModeProvider == nil {
 		return s.handleError(sendEvent, fmt.Sprintf("不支持的 mode_code: %s", requestedModeCode), nil)
 	}
 
@@ -252,7 +253,10 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	if session.ModeCode != modeCode {
 		session.ModeCode = modeCode
 	}
-	modeProvider := prompt.GetModeProvider(modeCode)
+	modeProvider := requestedModeProvider
+	if modeCode != requestedModeCode || modeProvider == nil {
+		modeProvider = prompt.ResolveModeProvider(ctx, modeCode)
+	}
 	var toolNames []string
 	var systemPromptFragment string
 	if modeProvider == nil {
@@ -579,8 +583,10 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 	if workspaceCtx != nil {
 		envInput = workspaceCtxToEnvInput(workspaceCtx)
 	}
-	data := prompt.BuildWorkspaceEnvData(envInput, directoryName, fullCodePath, now)
-	envBlock := prompt.BuildWorkspaceEnvBlock(data, workspaceCtx != nil, directoryName, fullCodePath)
+	catalog := prompt.LoadPromptDocCatalog(ctx)
+	data := prompt.BuildWorkspaceEnvDataWithCatalog(envInput, directoryName, fullCodePath, now, catalog)
+	envTemplate := prompt.LoadWorkspaceEnvTemplate(ctx)
+	envBlock := prompt.BuildWorkspaceEnvBlockWithTemplate(envTemplate, data, workspaceCtx != nil, directoryName, fullCodePath)
 
 	if modeProvider != nil {
 		systemPromptFragment = modeProvider.SystemPrompt(data)
@@ -591,12 +597,10 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 	if systemPromptFragment != "" {
 		system += "\n\n" + systemPromptFragment
 	}
-	// 操作提示词：有 modeProvider 时用其 OperationPrompt（可为空）；无 modeProvider 时用公用 WorkspacePrompt（doc/工作台操作提示词.md）。mode 未提供 OperationPrompt 时不再追加（规则已在 system_prompt 中）
+	// 额外操作提示词：仅 modeProvider 明确提供时才追加；默认所有规则都放在 system_prompt 与子文档里。
 	var operationPrompt string
 	if modeProvider != nil {
 		operationPrompt = strings.TrimSpace(modeProvider.OperationPrompt())
-	} else {
-		operationPrompt = strings.TrimSpace(prompt.WorkspacePrompt)
 	}
 	if operationPrompt != "" {
 		system += "\n\n" + operationPrompt
@@ -755,6 +759,7 @@ func (s *WorkspaceChatService) callOtherTool(ctx context.Context, name string, a
 	isErr := result.IsError
 	st = ToolCallStatusOK
 	if isErr {
+		res = appendExecuteGuideHint(name, res)
 		st = ToolCallStatusError
 		logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 工具调用失败 - ToolName: %s, Error: %s", idx, total, name, res)
 	} else if len(res) > 200 {
@@ -763,6 +768,29 @@ func (s *WorkspaceChatService) callOtherTool(ctx context.Context, name string, a
 		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 工具调用成功 - ToolName: %s, Result: %s", idx, total, name, res)
 	}
 	return res, st
+}
+
+const executeGuideDocPath = "/system/prompt/workspace/execute"
+
+func shouldSuggestExecuteGuide(toolName string) bool {
+	switch strings.TrimSpace(toolName) {
+	case "run_table_search", "run_table_create", "run_table_update", "run_form_submit", "run_chart_query", "run_on_select_fuzzy":
+		return true
+	default:
+		return false
+	}
+}
+
+func appendExecuteGuideHint(toolName, message string) string {
+	if !shouldSuggestExecuteGuide(toolName) || strings.Contains(message, executeGuideDocPath) {
+		return message
+	}
+	hint := fmt.Sprintf("提示：如需该工具的 SOP、参数规范和易错点，可先 `read_doc(\"%s\")` 再重试。", executeGuideDocPath)
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return hint
+	}
+	return message + "\n\n" + hint
 }
 
 // sanitizeContentForMySQLUtf8 去掉 4 字节 UTF-8 字符（BMP 外），避免 MySQL utf8 列报 Error 1366；表为 utf8mb4 时无需此过滤。

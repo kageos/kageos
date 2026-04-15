@@ -1,18 +1,16 @@
 /**
- * 工作台 + Mini 科幻风格主题（仅样式覆盖，不改逻辑）
- * 作用域：.workspace-container 内 + .workstation-drawer（append-to-body）
+ * Mini 工作台 + 右侧会话面板科幻风格主题（仅样式覆盖，不改逻辑）
+ * 作用域：.workspace-container 内
  * 维护：集中本文件即可，不需要可删除本引用即回滚
  *
  * 特效一览（纯 CSS）：
- * - 工作台抽屉：左侧扫描线（自上而下流动）、头部流光条、内容区淡网格、「工作台」竖条文字呼吸光
  * - Mini 窗：左上/右上 HUD 角标脉动、标题栏下方流光、标题图标呼吸光、主体区淡网格
  * - 右侧会话面板：淡网格背景
  * - 执行中/生成中：会话卡片左侧高亮条 + 光晕脉动
  */
 
 /* ─── 科幻配色变量（仅本主题内使用） ─── */
-.workspace-container,
-.workstation-drawer {
+.workspace-container {
   --ws-sci-fi-bg: #0c1222;
   --ws-sci-fi-bg-panel: #131b2e;
   --ws-sci-fi-bg-header: #0f172a;
@@ -53,156 +51,6 @@
 @keyframes ws-generating-pulse {
   0%, 100% { border-left-color: rgba(var(--ws-sci-fi-glow-rgb), 0.6); box-shadow: 0 0 8px rgba(var(--ws-sci-fi-glow-rgb), 0.15); }
   50% { border-left-color: var(--ws-sci-fi-glow); box-shadow: 0 0 12px rgba(var(--ws-sci-fi-glow-rgb), 0.35); }
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   工作台抽屉（el-drawer append-to-body，故单独选择器）
-   ═══════════════════════════════════════════════════════════════ */
-.workstation-drawer.el-drawer {
-  background: var(--ws-sci-fi-bg) !important;
-  border-left: 1px solid var(--ws-sci-fi-border);
-  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3);
-  position: relative;
-  overflow: hidden;
-}
-/* 抽屉左侧扫描线：从上往下流动的数据感 */
-.workstation-drawer.el-drawer::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 2px;
-  height: 80px;
-  background: linear-gradient(
-    180deg,
-    transparent 0%,
-    rgba(var(--ws-sci-fi-glow-rgb), 0.15) 20%,
-    var(--ws-sci-fi-glow) 50%,
-    rgba(var(--ws-sci-fi-glow-rgb), 0.15) 80%,
-    transparent 100%
-  );
-  animation: ws-scan-line 4s ease-in-out infinite;
-  z-index: 2;
-  pointer-events: none;
-}
-.workstation-drawer .el-drawer__header {
-  background: var(--ws-sci-fi-bg-header);
-  border-bottom: 1px solid var(--ws-sci-fi-border);
-  color: var(--ws-sci-fi-text);
-  position: relative;
-}
-/* 抽屉头部下方流光条 */
-.workstation-drawer .el-drawer__header::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(var(--ws-sci-fi-glow-rgb), 0.2) 20%,
-    var(--ws-sci-fi-glow) 50%,
-    rgba(var(--ws-sci-fi-glow-rgb), 0.2) 80%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  animation: ws-header-flow 3s linear infinite;
-  opacity: 0.9;
-}
-.workstation-drawer .workstation-drawer-header .el-button {
-  color: var(--ws-sci-fi-glow);
-}
-.workstation-drawer .workstation-drawer-header .el-button:hover {
-  color: var(--ws-sci-fi-text);
-  background: rgba(var(--ws-sci-fi-glow-rgb), 0.12);
-}
-.workstation-drawer .el-drawer__body {
-  background: var(--ws-sci-fi-bg);
-  position: relative;
-}
-/* 抽屉内容区：极淡网格背景（科技感） */
-.workstation-drawer .el-drawer__body::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: linear-gradient(rgba(var(--ws-sci-fi-glow-rgb), 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(var(--ws-sci-fi-glow-rgb), 0.03) 1px, transparent 1px);
-  background-size: 20px 20px;
-  pointer-events: none;
-  z-index: 0;
-}
-.workstation-drawer-body {
-  background: transparent;
-  position: relative;
-  z-index: 1;
-}
-/* 折叠时的竖条 */
-.workstation-drawer-strip {
-  background: linear-gradient(180deg, var(--ws-sci-fi-bg-header) 0%, var(--ws-sci-fi-bg) 100%);
-  border-left: 1px solid var(--ws-sci-fi-border);
-  position: relative;
-}
-/* 竖条「工作台」文字：呼吸光晕 */
-.workstation-drawer-strip .strip-text {
-  color: var(--ws-sci-fi-glow);
-  text-shadow: 0 0 12px rgba(var(--ws-sci-fi-glow-rgb), 0.5);
-  letter-spacing: 0.25em;
-  font-weight: 600;
-  animation: ws-pulse-glow 2.5s ease-in-out infinite;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   工作台抽屉内 WorkstationChat 外壳（会话侧栏 + 主区背景）
-   ═══════════════════════════════════════════════════════════════ */
-.workstation-drawer .workstation-chat {
-  background: var(--ws-sci-fi-bg);
-}
-.workstation-drawer .session-sidebar {
-  background: var(--ws-sci-fi-bg-panel);
-  border-right: 1px solid var(--ws-sci-fi-border);
-}
-.workstation-drawer .sidebar-dir-name {
-  background: rgba(var(--ws-sci-fi-glow-rgb), 0.08);
-  border-bottom: 1px solid var(--ws-sci-fi-border);
-  color: var(--ws-sci-fi-glow);
-}
-.workstation-drawer .session-card {
-  background: var(--ws-sci-fi-bg-panel);
-  border: 1px solid var(--ws-sci-fi-border);
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-.workstation-drawer .session-card:hover {
-  border-color: var(--ws-sci-fi-glow);
-  box-shadow: var(--ws-sci-fi-shadow);
-}
-.workstation-drawer .session-card.active {
-  border-color: var(--ws-sci-fi-glow);
-  box-shadow: 0 0 0 1px var(--ws-sci-fi-glow);
-}
-.workstation-drawer .session-card.generating {
-  border-left: 2px solid var(--ws-sci-fi-glow);
-  animation: ws-generating-pulse 1.5s ease-in-out infinite;
-}
-.workstation-drawer .workstation-chat-main,
-.workstation-drawer .messages {
-  background: var(--ws-sci-fi-bg);
-}
-.workstation-drawer .sidebar-header h4,
-.workstation-drawer .session-card-title,
-.workstation-drawer .session-card-time {
-  color: var(--ws-sci-fi-text);
-}
-.workstation-drawer .session-search-input .el-input__wrapper {
-  background: var(--ws-sci-fi-bg-panel);
-  border: 1px solid var(--ws-sci-fi-border);
-  color: var(--ws-sci-fi-text);
-}
-.workstation-drawer .session-search-input .el-input__wrapper:hover,
-.workstation-drawer .session-search-input .el-input__wrapper:focus-within {
-  border-color: var(--ws-sci-fi-glow);
-  box-shadow: 0 0 0 1px var(--ws-sci-fi-glow);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -435,4 +283,3 @@
 .workspace-container .mini-ws-empty {
   color: var(--ws-sci-fi-text-muted);
 }
-

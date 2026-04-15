@@ -2,14 +2,14 @@
 
 > 官方生产入口：`deploy/prod/`
 
-**范围**：主站 + 独立定时任务调度器 + 中间件（MySQL / NATS / MinIO）+ 内置 Nginx(80) + **容器内 Podman**（跑用户应用）。**不包含 Hub**。
+**范围**：主站 + 独立定时任务调度器 + 中间件（MySQL / NATS / MinIO）+ 内置 Nginx（默认 80，可选 443）+ **容器内 Podman**（跑用户应用）。**不包含 Hub**。
 
 ## 架构
 
 ```
-公网 :80
+公网 :80 / :443（可选）
   └─ main 容器（network_mode: host）
-       ├─ Nginx :80  → 静态文件 / SPA fallback
+       ├─ Nginx :80 / :443  → 静态文件 / SPA fallback
        │             → proxy_pass API Gateway :9090
        │             → proxy_pass MinIO 127.0.0.1:9000
        └─ API Gateway :9090
@@ -22,13 +22,13 @@ host 网络独立容器
        └─ app-scheduler（仅执行定时任务调度与投递）
 ```
 
-`main` 使用 `network_mode: host`，容器内 Nginx 直接监听宿主机 80 端口。`scheduler` 也使用 `network_mode: host`，通过数据库租约 claim 防止重复执行。中间件容器通过 `127.0.0.1` 暴露端口供 `main` / `scheduler` 访问，无需额外宿主机 Nginx。
+`main` 使用 `network_mode: host`，容器内 Nginx 默认直接监听宿主机 80 端口；开启 HTTPS 后会额外监听 443。`scheduler` 也使用 `network_mode: host`，通过数据库租约 claim 防止重复执行。中间件容器通过 `127.0.0.1` 暴露端口供 `main` / `scheduler` 访问，无需额外宿主机 Nginx。
 
 ## 前置
 
 - Podman 4+（`podman compose`）或 Docker（`docker compose`）。
 - `main` 服务 **`privileged: true`**。
-- 宿主机 **80 端口未被占用**（`build.sh` 会自动检测并停用宿主机 nginx）。
+- 宿主机 **80 端口未被占用**；如果开启 HTTPS，**443 端口也必须空闲**（`build.sh` 会自动检测并停用宿主机 nginx）。
 
 ## 快速开始
 
@@ -40,9 +40,45 @@ cp .env.example .env
 bash build.sh        # 等价于: bash build.sh up
 ```
 
-`build.sh up` 会自动完成：校验 `.env` → 停宿主机 nginx → `compose up -d --build`。
+`build.sh up` 会自动完成：校验 `.env` → 停宿主机 nginx → 检查 80/443 端口 → `compose up -d --build`。
 
 改配置：编辑 **`.env`** 后重跑 **`bash build.sh`** 即可。
+
+## HTTP / HTTPS 模式
+
+默认模式是 **HTTP**，复制 `.env.example` 后直接填写即可启动。
+
+```env
+CANONICAL_BASE_URL="http://example.com"
+ENABLE_HTTPS="0"
+HTTPS_REDIRECT="0"
+```
+
+如需启用容器内 HTTPS，补齐证书目录并打开开关：
+
+```env
+CANONICAL_BASE_URL="https://example.com"
+ENABLE_HTTPS="1"
+HTTPS_REDIRECT="1"
+TLS_CERTS_HOST_DIR="./certs"
+TLS_CERT_FILE="/app/tls/fullchain.pem"
+TLS_KEY_FILE="/app/tls/privkey.pem"
+```
+
+三种模式：
+
+- `ENABLE_HTTPS=0`：仅监听 `80`，保持当前 HTTP 部署方式。
+- `ENABLE_HTTPS=1` 且 `HTTPS_REDIRECT=0`：同时监听 `80` 和 `443`，HTTP / HTTPS 都可访问。
+- `ENABLE_HTTPS=1` 且 `HTTPS_REDIRECT=1`：`80` 统一 `301 -> 443`。
+
+证书路径说明：
+
+- `TLS_CERTS_HOST_DIR` 是宿主机证书目录，会整体挂载到容器内 `/app/tls`。
+- `TLS_CERTS_HOST_DIR` 支持绝对路径；如果写相对路径，则相对 `deploy/prod/` 目录解析。
+- `TLS_CERT_FILE` / `TLS_KEY_FILE` 必须是容器内路径，且位于 `/app/tls/` 下。
+- `build.sh` 会在启动前检查证书文件是否真实存在；缺文件直接失败，不会带着坏配置启动。
+
+如果你是云厂商 LB / CDN 做 TLS 终止，`main` 容器仍可保持 `ENABLE_HTTPS=0` 继续只跑 HTTP；这时 `CANONICAL_BASE_URL` 可以写成 `https://`，`build.sh` 只会给出提醒，不会阻断启动。
 
 生产配置说明：
 
@@ -60,6 +96,7 @@ bash build.sh update        # 只重建并更新 main / scheduler / backup，不
 bash build.sh pull-update   # git pull --ff-only 后执行 update
 bash build.sh restart-main  # 仅重启 main，不重建镜像
 bash build.sh restart-scheduler  # 仅重启 scheduler，不重建镜像
+bash build.sh verify        # 执行生产健康检查（mysql / main / scheduler / backup）
 bash build.sh build-app-base --no-cache  # 在 main 容器内单独重建 ai-agent-os:latest
 bash build.sh logs main     # 查看 main 日志
 bash build.sh status        # 查看服务状态
@@ -72,7 +109,16 @@ bash build.sh down          # 停止服务（保留数据卷）
 - 先拉最新代码再升级：`bash build.sh pull-update`
 - 只改 `.env` 或想让主进程重启生效：`bash build.sh restart-main`
 - 只想重启独立调度器：`bash build.sh restart-scheduler`
+- 部署完成后补一轮健康检查：`bash build.sh verify`
 - 只想排查用户应用基础镜像：`bash build.sh build-app-base --no-cache`
+
+## 安全默认值
+
+- 生产模板里的内部 Go 服务现在默认监听 **`127.0.0.1`**，不再直接绑宿主机所有网卡。
+- 生产模板里的 **`pprof`** 默认关闭；如需临时排障，必须显式在对应服务配置里把 `enable_pprof` 打开。
+- 公网入口仍然只应通过容器内 Nginx 暴露；生产 Nginx 不再转发 `/swagger/`。
+- `build.sh` 现在会校验：`JWT_SECRET` 至少 32 字符、`CONTROL_ENC_KEY` 必须正好 32 字符、`BACKUP_BASIC_AUTH_PASSWORD` 至少 16 字符。
+- 如果开启 HTTPS，`build.sh` 还会校验证书路径、宿主机证书文件、`80/443` 端口占用，以及 `HTTPS_REDIRECT=1` 时 `CANONICAL_BASE_URL` 必须是 `https://`。
 
 ## 构建加速（依赖与源，默认偏国内）
 
@@ -232,12 +278,14 @@ UPDATE nats SET host = 'nats' WHERE host IN ('localhost', '127.0.0.1');
 
 ### 外网无法访问
 
-`main` 容器使用 `network_mode: host`，容器内 Nginx 直接绑定宿主机 80 端口，不依赖 Podman/Docker 的端口映射。如果仍无法访问：
+`main` 容器使用 `network_mode: host`，容器内 Nginx 直接绑定宿主机 80 端口；开启 HTTPS 后也会绑定 443，不依赖 Podman/Docker 的端口映射。如果仍无法访问：
 
 1. 确认宿主机 80 端口无其他进程占用：`ss -tlnp | grep :80`
-2. 确认云平台安全组 / 防火墙允许 TCP 80 入站
-3. `build.sh` 已自动停用宿主机 systemd nginx，若手动启动了其他 HTTP 服务请先关闭
+2. 如果开启 HTTPS，再检查 443：`ss -tlnp | grep :443`
+3. 确认云平台安全组 / 防火墙允许 TCP 80/443 入站
+4. `build.sh` 已自动停用宿主机 systemd nginx，若手动启动了其他 HTTP / HTTPS 服务请先关闭
 
 ## 已知限制
 
-- 容器内 Nginx 监听 **80 HTTP**。加 HTTPS 可在宿主机用 **`certbot`** 配合额外 Nginx 或在 `default.conf.template` 中直接配置证书。
+- 如果你挂的是 Let’s Encrypt `live/` 目录，里面通常包含符号链接；请确认挂载目录内能解析到真实证书文件，否则容器内会校验失败。
+- `www` 到裸域的 HTTPS 跳转会复用同一张证书；如果证书不覆盖 `www`，浏览器会在握手阶段先报证书不匹配。

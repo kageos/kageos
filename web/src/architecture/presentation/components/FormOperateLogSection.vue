@@ -224,7 +224,17 @@
         <div class="preview-overview-grid">
           <div class="overview-item">
             <div class="overview-label">执行用户</div>
-            <div class="overview-value">{{ previewLog.request_user || '-' }}</div>
+            <div class="overview-value">
+              <UserDisplay
+                v-if="previewLog.request_user"
+                :user-info="getUserInfo(previewLog.request_user)"
+                :username="previewLog.request_user"
+                mode="card"
+                layout="horizontal"
+                size="small"
+              />
+              <span v-else>-</span>
+            </div>
           </div>
           <div class="overview-item">
             <div class="overview-label">来源</div>

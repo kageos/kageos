@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	pathpkg "path"
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
@@ -122,6 +123,32 @@ func resolveFullCodePathArg(fullCodePath string, defaultPath string) string {
 		return path
 	}
 	return normalizeAbsoluteToolPath(defaultPath)
+}
+
+func resolveTypedFunctionFullCodePathArg(fullCodePath string, defaultPath string, expectedSuffix string) (string, string) {
+	resolved := resolveFullCodePathArg(fullCodePath, defaultPath)
+	if resolved == "" || strings.TrimSpace(expectedSuffix) == "" {
+		return resolved, ""
+	}
+
+	pathPart, queryPart, hasQuery := strings.Cut(resolved, "?")
+	lastSegment := pathpkg.Base(pathPart)
+	if strings.HasSuffix(lastSegment, expectedSuffix) {
+		return resolved, ""
+	}
+
+	suggested := pathPart
+	reason := "缺少函数类型后缀"
+	if ext := pathpkg.Ext(lastSegment); ext == "" {
+		suggested += expectedSuffix
+	} else {
+		suggested = strings.TrimSuffix(pathPart, ext) + expectedSuffix
+		reason = fmt.Sprintf("后缀 `%s` 与当前工具不一致", ext)
+	}
+	if hasQuery {
+		suggested += "?" + queryPart
+	}
+	return suggested, fmt.Sprintf("注意：传入的 full_code_path 是 `%s`，%s；已自动改为 `%s` 后执行。后续请直接使用环境信息里的完整路径。", resolved, reason, suggested)
 }
 
 func withAgentToolClientSource(ctx context.Context) context.Context {

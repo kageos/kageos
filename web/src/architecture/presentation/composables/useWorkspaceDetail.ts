@@ -103,6 +103,7 @@ import {
   shouldWaitForDetailTableData,
   type DetailRestoreTrigger
 } from './utils/workspaceDetailRuntime'
+import { hasFunctionCallback } from '../views/utils/tableViewActionRuntime'
 
 export function useWorkspaceDetail(
   options: {
@@ -134,6 +135,10 @@ export function useWorkspaceDetail(
   // 编辑模式的函数详情（从 response 字段中筛选可编辑的字段）
   const editFunctionDetail = computed<FunctionDetail | null>(() => {
     return buildEditFunctionDetail(options.currentFunctionDetail())
+  })
+
+  const supportsDetailEdit = computed(() => {
+    return hasFunctionCallback(options.currentFunctionDetail()?.callbacks, 'OnTableUpdateRow')
   })
 
   const getEditableFieldCodes = (): string[] => {
@@ -266,6 +271,14 @@ export function useWorkspaceDetail(
 
   // 切换抽屉模式
   const toggleDrawerMode = (mode: 'read' | 'edit') => {
+    if (mode === 'edit' && !supportsDetailEdit.value) {
+      ElNotification.info({
+        title: '提示',
+        message: '当前表格不支持更新'
+      })
+      return
+    }
+
     if (mode === 'edit' && (!editFunctionDetail.value || !detailRowData.value)) {
       ElNotification.warning({
         title: '提示',
@@ -331,6 +344,11 @@ export function useWorkspaceDetail(
     
     if (!currentDetail || !detailRowData.value || !viewRef) {
       ElMessage.error('编辑表单未准备就绪')
+      return
+    }
+
+    if (!supportsDetailEdit.value) {
+      ElMessage.warning('当前表格不支持更新')
       return
     }
     
@@ -473,7 +491,7 @@ export function useWorkspaceDetail(
       detail: currentDetail,
       row,
       tableData: Array.isArray(resolvedTableData) ? resolvedTableData : [],
-      mode: initialMode,
+      mode: initialMode === 'edit' && supportsDetailEdit.value ? 'edit' : 'read',
       index
     })
 

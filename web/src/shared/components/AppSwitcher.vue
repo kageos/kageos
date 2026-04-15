@@ -1,10 +1,11 @@
 <template>
-  <div class="app-switcher" :class="{ 'app-switcher-compact': compact }">
-    <div class="app-container">
+  <div class="app-switcher" :class="{ 'app-switcher-compact': compact }" data-testid="app-switcher">
+    <div class="app-container" data-testid="app-switcher-container">
       <div 
         class="app-current" 
         v-if="currentApp"
         @click="handleOpenDialog"
+        data-testid="app-switcher-current"
       >
           <div class="app-avatar">
             <div class="app-icon" :style="{ backgroundColor: getAppColor(currentApp) }">
@@ -30,6 +31,7 @@
         class="app-current" 
         v-else
         @click="handleOpenDialog"
+        data-testid="app-switcher-empty"
       >
           <div class="app-avatar">
             <div class="app-icon" style="background-color: #909399;">?</div>
@@ -56,6 +58,7 @@
         circle
         @click.stop="handleOpenSettings"
         title="工作空间设置"
+        data-testid="app-switcher-settings"
       />
     </div>
 

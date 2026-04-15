@@ -3,10 +3,25 @@ import { TablePermission } from '@/utils/permission'
 import {
   buildBatchDeleteIds,
   buildTablePermissionApplyURL,
+  hasFunctionCallback,
+  resolveTableDetailEditAccess,
   resolveTableActionCommand
 } from './tableViewActionRuntime'
 
 describe('tableViewActionRuntime', () => {
+  it('detects function callbacks from array or comma-separated string values', () => {
+    expect(hasFunctionCallback(['OnTableAddRow', 'OnTableUpdateRow'], 'OnTableUpdateRow')).toBe(true)
+    expect(hasFunctionCallback('OnTableAddRow, OnTableUpdateRow', 'OnTableUpdateRow')).toBe(true)
+    expect(hasFunctionCallback('OnTableAddRow', 'OnTableUpdateRow')).toBe(false)
+    expect(hasFunctionCallback(undefined, 'OnTableUpdateRow')).toBe(false)
+  })
+
+  it('distinguishes unsupported edit from missing update permission', () => {
+    expect(resolveTableDetailEditAccess({ supportsUpdate: false, canUpdate: true })).toBe('unsupported')
+    expect(resolveTableDetailEditAccess({ supportsUpdate: true, canUpdate: false })).toBe('no-permission')
+    expect(resolveTableDetailEditAccess({ supportsUpdate: true, canUpdate: true })).toBe('allowed')
+  })
+
   it('routes action commands to link, edit, delete or permission request', () => {
     expect(
       resolveTableActionCommand({

@@ -6,7 +6,7 @@
     :close-on-click-modal="false"
     @close="$emit('close')"
   >
-    <el-form :model="form" label-width="120px">
+    <el-form :model="form" label-width="120px" data-testid="create-app-dialog">
       <el-form-item label="名称" required>
         <el-input
           v-model="form.name"
@@ -14,6 +14,7 @@
           maxlength="100"
           show-word-limit
           clearable
+          data-testid="create-app-name"
         />
       </el-form-item>
       <el-form-item label="英文标识" required>
@@ -27,6 +28,7 @@
             maxlength="50"
             show-word-limit
             clearable
+            data-testid="create-app-code"
             @input="form.code = form.code.toLowerCase()"
           />
         </el-tooltip>
@@ -64,8 +66,8 @@
 
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="$emit('submit')" :loading="creating">
+        <el-button data-testid="create-app-cancel" @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" data-testid="create-app-submit" @click="$emit('submit')" :loading="creating">
           创建
         </el-button>
       </span>

@@ -5,17 +5,19 @@ import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
 import { useAuthStore } from '@/stores/auth'
 import type { FunctionDetail } from '@/architecture/domain/types'
+import { Logger } from '@/core/utils/logger'
 import type { ServiceTree } from '../../domain/services/WorkspaceDomainService'
 
 type FunctionTabName = 'content' | 'permission' | 'operateLog' | 'scheduledTask'
 type FunctionPermissionTabName = 'request' | 'manage'
+type FormOperateLogApplyPayload = {
+  requestBody?: Record<string, any> | null
+  responseBody?: Record<string, any> | null
+  responseMetadata?: Record<string, any> | null
+}
 
 type FunctionFormViewRef = {
-  applyOperateLog: (payload: {
-    requestBody?: Record<string, any> | null
-    responseBody?: Record<string, any> | null
-    responseMetadata?: Record<string, any> | null
-  }) => Promise<void>
+  applyOperateLog: (payload: FormOperateLogApplyPayload) => Promise<void>
 }
 
 type PermissionRequestListRef = {
@@ -44,6 +46,26 @@ export interface UseWorkspaceFunctionTabsOptions {
   currentFunctionDetail: ComputedRef<FunctionDetail | null> | { value: FunctionDetail | null }
 }
 
+function cloneOperateLogObject<T extends Record<string, any> | null | undefined>(value: T): T {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return value
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(value)) as T
+  } catch {
+    return { ...value } as T
+  }
+}
+
+function cloneOperateLogPayload(payload: FormOperateLogApplyPayload): FormOperateLogApplyPayload {
+  return {
+    requestBody: cloneOperateLogObject(payload.requestBody),
+    responseBody: cloneOperateLogObject(payload.responseBody),
+    responseMetadata: cloneOperateLogObject(payload.responseMetadata)
+  }
+}
+
 function normalizePanelQuery(tab: LocationQueryValue | LocationQueryValue[] | undefined): string | null {
   if (Array.isArray(tab)) {
     return tab[0] ?? null
@@ -62,6 +84,36 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   const functionPermissionRequestListRef = ref<PermissionRequestListRef | null>(null)
   const functionPermissionManageListRef = ref<PermissionManageListRef | null>(null)
   const formOperateLogSectionRef = ref<FormOperateLogSectionRef | null>(null)
+
+  const setFunctionFormViewRef = (instance: FunctionFormViewRef | null) => {
+    functionFormViewRef.value = instance
+    Logger.debug('WorkspaceFunctionTabs', '更新 FormView 引用', {
+      ready: !!instance
+    })
+  }
+
+  const setFunctionPermissionRequestListRef = (instance: PermissionRequestListRef | null) => {
+    functionPermissionRequestListRef.value = instance
+  }
+
+  const setFunctionPermissionManageListRef = (instance: PermissionManageListRef | null) => {
+    functionPermissionManageListRef.value = instance
+  }
+
+  const setFormOperateLogSectionRef = (instance: FormOperateLogSectionRef | null) => {
+    formOperateLogSectionRef.value = instance
+  }
+
+  const waitForFormViewRef = async (maxAttempts = 8): Promise<FunctionFormViewRef | null> => {
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      if (functionFormViewRef.value) {
+        return functionFormViewRef.value
+      }
+      await nextTick()
+    }
+
+    return functionFormViewRef.value
+  }
 
   const showFunctionPermissionRequestTab = computed(() => {
     if (!currentFunction.value || currentFunction.value.type !== 'function') {
@@ -150,22 +202,44 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     }
   }
 
-  const handleApplyFormOperateLog = async (payload: {
-    requestBody?: Record<string, any> | null
-    responseBody?: Record<string, any> | null
-    responseMetadata?: Record<string, any> | null
-  }) => {
+  const handleApplyFormOperateLog = async (payload: FormOperateLogApplyPayload) => {
     functionActiveTab.value = 'content'
     syncFunctionTabQuery()
-    await nextTick()
 
-    if (!functionFormViewRef.value) {
-      ElMessage.warning('当前表单尚未加载完成，请稍后重试')
-      return
-    }
+    Logger.debug('WorkspaceFunctionTabs', '收到执行记录重放请求', {
+      requestKeys: Object.keys(payload.requestBody || {}),
+      hasResponseBody: !!payload.responseBody,
+      hasResponseMetadata: !!payload.responseMetadata,
+      refReady: !!functionFormViewRef.value
+    })
 
     try {
-      await functionFormViewRef.value.applyOperateLog(payload)
+      let applied = false
+      let lastAppliedRef: FunctionFormViewRef | null = null
+
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const targetRef = attempt === 0
+          ? functionFormViewRef.value || await waitForFormViewRef()
+          : functionFormViewRef.value
+
+        if (!targetRef || targetRef === lastAppliedRef) {
+          break
+        }
+
+        await targetRef.applyOperateLog(cloneOperateLogPayload(payload))
+        applied = true
+        lastAppliedRef = targetRef
+        await nextTick()
+      }
+
+      if (!applied) {
+        Logger.warn('WorkspaceFunctionTabs', '执行记录重放失败：FormView 引用不可用', {
+          requestKeys: Object.keys(payload.requestBody || {})
+        })
+        ElMessage.warning('当前表单尚未加载完成，请稍后重试')
+        return
+      }
+
       ElMessage.success('已将执行记录回填到表单')
     } catch (error: any) {
       ElMessage.error(error?.message || '回填执行记录失败')
@@ -291,6 +365,10 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     functionPermissionRequestListRef,
     functionPermissionManageListRef,
     formOperateLogSectionRef,
+    setFunctionFormViewRef,
+    setFunctionPermissionRequestListRef,
+    setFunctionPermissionManageListRef,
+    setFormOperateLogSectionRef,
     showScheduledTaskTab,
     showFunctionPermissionRequestTab,
     showFormOperateLogTab,

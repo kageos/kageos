@@ -10,6 +10,7 @@ import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManage
 import type { ValidationRule, ValidationResult, ValidationContext } from './types'
 import { ValidatorRegistry } from './ValidatorRegistry'
 import { Logger } from '../utils/logger'
+import { parsePresenceRule } from './utils/presenceRules'
 
 export class ValidationEngine {
   private fieldNameMap: Map<string, string>
@@ -134,29 +135,18 @@ export class ValidationEngine {
         
         // 判断是否是条件验证规则
         if (this.isConditionalRule(typeTrimmed)) {
-          // 解析字段名和值
-          // required_if=MemberType vip会员
-          // required_with=Email
-          const spaceIndex = valueTrimmed.indexOf(' ')
-          
-          if (spaceIndex > 0) {
-            // 有空格：required_if=MemberType vip会员
-            const goFieldName = valueTrimmed.substring(0, spaceIndex).trim()
-            const value = valueTrimmed.substring(spaceIndex + 1).trim()
-            
-            // 🔥 关键：将 Go 字段名转换为 code
-            const code = this.fieldNameMap.get(goFieldName) || goFieldName
-            
-            rules.push({ type: typeTrimmed, field: code, value })
-          } else {
-            // 无空格：required_with=Email（只有字段名）
-            const goFieldName = valueTrimmed
-            
-            // 🔥 关键：将 Go 字段名转换为 code
-            const code = this.fieldNameMap.get(goFieldName) || goFieldName
-            
-            rules.push({ type: typeTrimmed, field: code })
+          const parsedPresenceRule = parsePresenceRule(typeTrimmed, valueTrimmed, this.fieldNameMap)
+          if (parsedPresenceRule) {
+            rules.push({
+              type: typeTrimmed,
+              ...parsedPresenceRule
+            })
+            continue
           }
+
+          const goFieldName = valueTrimmed
+          const code = this.fieldNameMap.get(goFieldName) || goFieldName
+          rules.push({ type: typeTrimmed, field: code })
       } else {
         // 普通带参数规则：min=2, max=20, oneof=选项1 选项2
         // 注意：oneof 使用空格分隔选项，如果选项值包含空格，需要用单引号括起来

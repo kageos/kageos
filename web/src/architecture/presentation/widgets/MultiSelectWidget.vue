@@ -21,6 +21,7 @@
           :get-option-color="getOptionColor"
           :get-option-color-type="getOptionColorType"
           :get-option-color-value="getOptionColorValue"
+          :get-option-tag-style="getOptionTagStyle"
           :get-option-color-style="getOptionColorStyle"
           :get-option-display-info="getOptionDisplayInfo"
           @clear="handleClearSelection"
@@ -38,8 +39,10 @@
                 :key="value"
                 :type="getOptionColorType(value)"
                 :color="getOptionColorValue(value)"
+                effect="light"
+                :style="getOptionTagStyle(value)"
                 :closable="true"
-                class="search-selected-tag"
+                :class="['search-selected-tag', { 'search-selected-tag-neutral': !getOptionColor(value) }]"
                 @close.stop="handleRemoveTag(value)"
               >
                 {{ getOptionLabel(value) }}
@@ -109,6 +112,7 @@
       :get-option-label="getOptionLabel"
       :get-option-color-type="getOptionColorType"
       :get-option-color-value="getOptionColorValue"
+      :get-option-tag-style="getOptionTagStyle"
     />
   </div>
 </template>
@@ -128,7 +132,7 @@ import { Logger } from '@/core/utils/logger'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { ExpressionParserAdapter } from '@/core/utils/ExpressionParserAdapter'
 import { getMultiSelectDefaultDataType } from '@/core/constants/widget'
-import { SelectFuzzyQueryType, isStandardColor, getStandardColorCSSVar, type StandardColorType } from '@/core/constants/select'
+import { SelectFuzzyQueryType, getOptionLightPalette, getOptionSolidColor, isStandardColor, normalizeOptionColor, type StandardColorType } from '@/core/constants/select'
 import { convertFormDataToRequestByType, convertArrayType } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import type { MultiSelectWidgetConfig, SelectOptionConfig } from '@/core/types/widget-configs'
@@ -494,7 +498,7 @@ function getOptionColor(value: any): string | null {
   // 🔥 在 staticOptions 中查找索引（因为 options_colors 与 staticOptions 对齐）
   const optionIndex = staticOptions.value.findIndex((opt: any) => String(opt.value) === valueStr)
   if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
-    return optionColors.value[optionIndex] ?? null
+    return normalizeOptionColor(optionColors.value[optionIndex]) ?? null
   }
   return null
 }
@@ -514,21 +518,32 @@ function getOptionColorType(value: any): StandardColorType | undefined {
  * 🔥 注意：el-tag 的 color 属性只接受自定义颜色（hex），标准颜色使用 type 属性
  */
 function getOptionColorValue(value: any): string | undefined {
+  return undefined
+}
+
+function getOptionTagStyle(value: any): Record<string, string> {
   const color = getOptionColor(value)
   if (!color) {
-    return undefined
+    return {}
   }
-  const isStandard = isStandardColor(color)
-  return !isStandard ? color : undefined
+
+  const lightPalette = getOptionLightPalette(color)
+  if (!lightPalette) {
+    return {}
+  }
+
+  return {
+    backgroundColor: lightPalette.backgroundColor,
+    borderColor: lightPalette.borderColor,
+    color: lightPalette.color
+  }
 }
 
 /**
  * 🔥 获取选项的颜色样式对象（用于 span 的 style 绑定）
  */
 function getOptionColorStyle(value: any): Record<string, string> {
-  const colorValue = getOptionColorValue(value)
-  const color = getOptionColor(value)
-  const backgroundColor = colorValue || (color && isStandardColor(color) ? getStandardColorCSSVar(color as StandardColorType) : color) || ''
+  const backgroundColor = getOptionBackgroundColor(value)
   
   // 🔥 确保 backgroundColor 有值，并且使用 !important 确保样式生效
   const style: Record<string, string> = {
@@ -550,6 +565,11 @@ function getOptionColorStyle(value: any): Record<string, string> {
   }
   
   return style
+}
+
+function getOptionBackgroundColor(value: any): string {
+  const color = getOptionColor(value)
+  return color ? getOptionSolidColor(color) : ''
 }
 
 /**
@@ -978,6 +998,12 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.search-selected-tag-neutral {
+  border: 1px solid var(--el-border-color-lighter);
+  background-color: var(--el-fill-color-light);
+  color: var(--el-text-color-primary);
 }
 
 .inline-selected-tag {

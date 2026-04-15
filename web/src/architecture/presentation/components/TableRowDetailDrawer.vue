@@ -26,7 +26,7 @@
           <!-- 模式切换按钮 -->
           <div class="drawer-mode-actions">
             <el-button
-              v-if="mode === 'read'"
+              v-if="mode === 'read' && detailEditAccess !== 'unsupported'"
               :type="canEdit ? 'primary' : 'default'"
               :plain="!canEdit"
               size="small"
@@ -37,6 +37,12 @@
               <el-icon><component :is="canEdit ? Edit : Lock" /></el-icon>
               {{ canEdit ? '编辑' : `编辑（需${getPermissionShortName(FunctionPermission.update)}）` }}
             </el-button>
+            <span
+              v-else-if="mode === 'read'"
+              class="edit-unsupported-hint"
+            >
+              当前表格不支持更新
+            </span>
             <el-button
               v-if="mode === 'edit'"
               size="small"
@@ -171,7 +177,7 @@
 import { ref, computed, toRef } from 'vue'
 import { Edit, ArrowLeft, ArrowRight, Grid, List, Lock } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { buildPermissionApplyURL, getPermissionShortName, FunctionPermission } from '@/utils/permission'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import ScheduledTaskDialog from '@/architecture/presentation/components/ScheduledTaskDialog.vue'
@@ -181,6 +187,7 @@ import type { FieldConfig, FunctionDetail } from '../../domain/types'
 import { buildDetailEditFormState } from '../composables/utils/workspaceDetailRuntime'
 import { useTableRowDetailTabs } from '@/architecture/presentation/composables/useTableRowDetailTabs'
 import { useTableRowDetailLayout } from '@/architecture/presentation/composables/useTableRowDetailLayout'
+import { resolveTableDetailEditAccess } from '../views/utils/tableViewActionRuntime'
 
 interface Props {
   visible: boolean
@@ -190,6 +197,7 @@ interface Props {
   rowData: Record<string, any> | null
   tableData?: any[]
   currentIndex?: number
+  supportsEdit?: boolean
   canEdit?: boolean
   editFunctionDetail?: FunctionDetail | null
   currentFunctionDetail?: FunctionDetail | null  // 原始的 functionDetail（未修改的，用于操作日志）
@@ -208,6 +216,7 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   tableData: () => [],
   currentIndex: -1,
+  supportsEdit: false,
   canEdit: false,
   editFunctionDetail: null,
   currentFunctionDetail: null,
@@ -222,6 +231,12 @@ const authStore = useAuthStore()
 
 const formViewRef = ref<InstanceType<typeof FormView> | null>(null)
 const showScheduledTaskDialog = ref(false)
+const detailEditAccess = computed(() => {
+  return resolveTableDetailEditAccess({
+    supportsUpdate: props.supportsEdit,
+    canUpdate: props.canEdit
+  })
+})
 const {
   activeTab,
   showPermissionRequestTab
@@ -313,6 +328,11 @@ const rowId = computed(() => {
 })
 
 const handleToggleMode = (newMode: 'read' | 'edit') => {
+  if (newMode === 'edit' && detailEditAccess.value === 'unsupported') {
+    ElMessage.info('当前表格不支持更新')
+    return
+  }
+
   // 如果尝试进入编辑模式但没有权限，跳转到权限申请页面
   if (newMode === 'edit' && !props.canEdit) {
     const path = fullCodePath.value
@@ -437,6 +457,12 @@ defineExpose({
   font-size: 16px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+}
+
+.edit-unsupported-hint {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
 }
 
 .drawer-header-actions {

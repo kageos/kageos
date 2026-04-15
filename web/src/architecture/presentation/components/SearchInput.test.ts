@@ -80,6 +80,7 @@ const ElSelectStub = defineComponent({
           'data-multiple': String(props.multiple)
         },
         [
+          slots.tag?.(),
           h(
             'button',
             {
@@ -103,6 +104,56 @@ const ElSelectStub = defineComponent({
             'open-select'
           ),
           slots.default?.()
+        ]
+      )
+  }
+})
+
+const ElTagStub = defineComponent({
+  name: 'ElTag',
+  props: {
+    type: {
+      type: String,
+      default: undefined
+    },
+    color: {
+      type: String,
+      default: undefined
+    },
+    style: {
+      type: [String, Array, Object],
+      default: undefined
+    },
+    closable: {
+      type: Boolean,
+      default: false
+    }
+  },
+  emits: ['close'],
+  setup(props, { emit, slots }) {
+    return () =>
+      h(
+        'div',
+        {
+          class: 'el-tag-stub',
+          'data-type': props.type ?? '',
+          'data-color': props.color ?? '',
+          'data-style': JSON.stringify(props.style ?? null),
+          'data-closable': String(props.closable)
+        },
+        [
+          slots.default?.(),
+          props.closable
+            ? h(
+                'button',
+                {
+                  type: 'button',
+                  'data-testid': 'close-tag',
+                  onClick: () => emit('close')
+                },
+                'close'
+              )
+            : null
         ]
       )
   }
@@ -293,7 +344,7 @@ function mountSearchInput(options?: {
         ElDatePicker: ElDatePickerStub,
         ElAvatar: true,
         ElIcon: true,
-        ElTag: true,
+        ElTag: ElTagStub,
         SearchUserTag: true,
         Close: true
       }
@@ -403,6 +454,106 @@ describe('SearchInput', () => {
 
     expect(wrapper.find('[data-testid="widget-search"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="el-select"]').exists()).toBe(true)
+  })
+
+  it('uses inline fallback select for radio in search', () => {
+    hasRequestComponent.mockReturnValue(true)
+    createSearchComponentConfigMock.mockImplementation(() => ({
+      component: SearchComponent.EL_SELECT,
+      props: {
+        clearable: true,
+        multiple: true,
+        options: [
+          { label: '是', value: '是' },
+          { label: '否', value: '否' },
+          { label: '不确定', value: '不确定' }
+        ]
+      }
+    }))
+
+    const wrapper = mountSearchInput({
+      field: createField(WidgetType.RADIO),
+      searchType: SearchType.IN
+    })
+
+    expect(wrapper.find('[data-testid="widget-search"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="el-select"]').exists()).toBe(true)
+    expect(wrapper.findAll('.el-option-stub').map(option => option.attributes('data-value'))).toEqual([
+      '是',
+      '否',
+      '不确定'
+    ])
+  })
+
+  it('renders high-contrast colored tags for radio in search when options_colors exist', () => {
+    hasRequestComponent.mockReturnValue(true)
+    createSearchComponentConfigMock.mockImplementation(() => ({
+      component: SearchComponent.EL_SELECT,
+      props: {
+        clearable: true,
+        multiple: true,
+        options: [
+          { label: '是', value: '是' },
+          { label: '否', value: '否' },
+          { label: '不确定', value: '不确定' }
+        ]
+      }
+    }))
+
+    const wrapper = mountSearchInput({
+      field: createField(WidgetType.RADIO, {
+        widget: {
+          type: WidgetType.RADIO,
+          config: {
+            options: ['是', '否', '不确定'],
+            options_colors: ['danger', 'success', 'warning']
+          }
+        }
+      }),
+      searchType: SearchType.IN,
+      modelValue: '是'
+    })
+
+    const tag = wrapper.find('.multiselect-tag.el-tag-stub')
+
+    expect(tag.exists()).toBe(true)
+    expect(tag.attributes('data-type')).toBe('danger')
+    expect(tag.attributes('data-style')).toContain('var(--el-color-danger-light-9)')
+    expect(tag.attributes('data-style')).toContain('var(--el-color-danger)')
+  })
+
+  it('falls back to neutral tag style for unsupported search option colors', () => {
+    hasRequestComponent.mockReturnValue(true)
+    createSearchComponentConfigMock.mockImplementation(() => ({
+      component: SearchComponent.EL_SELECT,
+      props: {
+        clearable: true,
+        multiple: true,
+        options: [
+          { label: '是', value: '是' },
+          { label: '否', value: '否' }
+        ]
+      }
+    }))
+
+    const wrapper = mountSearchInput({
+      field: createField(WidgetType.RADIO, {
+        widget: {
+          type: WidgetType.RADIO,
+          config: {
+            options: ['是', '否'],
+            options_colors: ['default', 'not-a-real-color']
+          }
+        }
+      }),
+      searchType: SearchType.IN,
+      modelValue: ['否']
+    })
+
+    const tag = wrapper.find('.multiselect-tag.el-tag-stub')
+    expect(tag.attributes('data-type')).toBe('')
+    expect(tag.attributes('data-style')).toContain('var(--el-fill-color-light)')
+    expect(tag.attributes('data-style')).toContain('var(--el-text-color-regular)')
   })
 
   it('keeps widget renderer for callback-driven select search', () => {

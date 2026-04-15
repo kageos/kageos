@@ -4,8 +4,10 @@ import { SearchComponent } from '@/core/constants/search'
 import { WidgetType } from '@/core/constants/widget'
 import { buildSearchTagSummary } from '@/architecture/presentation/widgets/utils/searchTagSummary'
 import {
+  getOptionLightPalette,
+  getOptionSolidColor,
   isStandardColor,
-  getStandardColorCSSVar,
+  normalizeOptionColor,
   type StandardColorType
 } from '@/core/constants/select'
 import { Logger } from '@/core/utils/logger'
@@ -50,12 +52,16 @@ export function useSearchInputFallbackSelect({
     return field.widget?.type === WidgetType.SELECT
   })
 
+  const hasOptionColors = computed(() => {
+    return optionColors.value.length > 0
+  })
+
   const shouldUseUserFallbackTags = computed(() => {
     return inputConfig.value.props?.popperClass === 'user-select-dropdown-popper'
   })
 
   const shouldUseColoredFallbackTags = computed(() => {
-    return isMultiselectWidget.value
+    return isMultipleFallbackSelect.value && hasOptionColors.value
   })
 
   const shouldUseCustomFallbackTags = computed(() => {
@@ -71,7 +77,7 @@ export function useSearchInputFallbackSelect({
   })
 
   const shouldShowColoredMultiFallbackOption = computed(() => {
-    return isMultiselectWidget.value || isSelectWidget.value
+    return (isMultiselectWidget.value || isSelectWidget.value || field.widget?.type === WidgetType.RADIO) && hasOptionColors.value
   })
 
   const fallbackTagSummary = computed(() => {
@@ -114,7 +120,7 @@ export function useSearchInputFallbackSelect({
     })
 
     if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
-      return optionColors.value[optionIndex] || null
+      return normalizeOptionColor(optionColors.value[optionIndex]) || null
     }
 
     return null
@@ -127,22 +133,22 @@ export function useSearchInputFallbackSelect({
   }
 
   function getOptionColorValue(value: any): string | undefined {
-    const color = getOptionColor(value)
-    if (!color) return undefined
-    return !isStandardColor(color) ? color : undefined
+    return undefined
   }
 
   function getSelectTagStyle(value: any): Record<string, string> {
     const color = getOptionColor(value)
     if (!color) return {}
 
-    if (isStandardColor(color)) {
+    const palette = getOptionLightPalette(color)
+    if (!palette) {
       return {}
     }
 
     return {
-      borderColor: color,
-      color
+      backgroundColor: palette.backgroundColor,
+      borderColor: palette.borderColor,
+      color: palette.color
     }
   }
 
@@ -150,10 +156,7 @@ export function useSearchInputFallbackSelect({
     const color = getOptionColor(value)
     if (!color) return {}
 
-    const isStandard = isStandardColor(color)
-    const backgroundColor = isStandard
-      ? getStandardColorCSSVar(color as StandardColorType)
-      : color
+    const backgroundColor = getOptionSolidColor(color)
 
     const style: Record<string, string> = {
       marginRight: '8px',
@@ -428,6 +431,7 @@ export function useSearchInputFallbackSelect({
     isMultipleFallbackSelect,
     isMultiselectWidget,
     isSelectWidget,
+    hasOptionColors,
     shouldUseUserFallbackTags,
     shouldUseColoredFallbackTags,
     shouldUseCustomFallbackTags,

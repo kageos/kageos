@@ -137,6 +137,7 @@
             :icon-component="getFileIcon(file.name)"
             :icon-color="getFileIconColor(file.name)"
             :is-image="isImageFile(file)"
+            :image-src="getFileDisplayUrl(file)"
             :can-open-in-browser="canPreviewInBrowser(file)"
             :size-text="formatSize(file.size)"
             :upload-time-text="file.upload_ts ? formatTimestamp(file.upload_ts) : ''"
@@ -182,6 +183,7 @@
               :icon-component="getFileIcon(file.name)"
               :icon-color="getFileIconColor(file.name)"
               :is-image="isImageFile(file)"
+              :image-src="getFileDisplayUrl(file)"
               :can-open-in-browser="canPreviewInBrowser(file)"
               :size-text="formatSize(file.size)"
               :upload-time-text="file.upload_ts ? formatTimestamp(file.upload_ts) : ''"
@@ -390,6 +392,7 @@ const {
   formatSize,
   isImageFile,
   canPreviewInBrowser,
+  getFileDisplayUrl,
   getFileIcon,
   getFileIconColor,
   handlePreviewInNewWindow,

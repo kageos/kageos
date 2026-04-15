@@ -130,11 +130,12 @@ COPY deploy/base/images/app-base/start.sh /app/app-base/start.sh
 
 # 配置模板（每次启动从模板复制再 sed，避免重启破坏占位符）
 COPY deploy/prod/config/template/ /app/config.prod.template/
-COPY deploy/prod/nginx/default.conf.template /app/deploy/prod/nginx/default.conf.template
+COPY deploy/prod/health/ /app/health/
+COPY deploy/prod/nginx/ /app/deploy/prod/nginx/
 COPY deploy/prod/entrypoint-main.sh /app/entrypoint-main.sh
 COPY deploy/prod/entrypoint-scheduler.sh /app/entrypoint-scheduler.sh
 COPY deploy/prod/entrypoint-backup.sh /app/entrypoint-backup.sh
-RUN chmod +x /app/entrypoint-main.sh /app/entrypoint-scheduler.sh /app/entrypoint-backup.sh
+RUN chmod +x /app/entrypoint-main.sh /app/entrypoint-scheduler.sh /app/entrypoint-backup.sh /app/health/*.sh
 
 RUN mkdir -p /app/deploy /app/logs /app/namespace \
     /app/data/runtime/app-runtime /app/data/license /app/data/backup/repo \
@@ -144,6 +145,6 @@ RUN mkdir -p /app/deploy /app/logs /app/namespace \
 
 COPY --from=webbuilder /src/web/dist /var/www/web/dist
 
-EXPOSE 8080 9090 19088
+EXPOSE 80 443 9090 19088
 
 ENTRYPOINT ["/app/entrypoint-main.sh"]

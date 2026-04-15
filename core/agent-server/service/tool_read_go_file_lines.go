@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ai-agent-os/ai-agent-os/core/agent-server/prompt"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 )
@@ -46,8 +47,8 @@ func runReadGoFileLinesTool(ctx context.Context, args readGoFileLinesArgs, curre
 		return "read_go_file_lines 需传 file_name。", true
 	}
 
-	if strings.HasPrefix(targetPath, "/builtin/") {
-		return "read_go_file_lines 仅用于工作区 Go 文件，不能读内置文档路径；请用 read_doc 读取文档。", true
+	if prompt.IsPromptDocPath(targetPath) {
+		return "read_go_file_lines 仅用于工作区 Go 文件，不能读文档路径；请用 read_doc 读取文档。", true
 	}
 
 	workspaceCtx, err := apicall.GetWorkspaceContext(ctx, targetPath, "runtime")

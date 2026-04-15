@@ -7,6 +7,7 @@
       :size="mode === 'table-cell' ? 'small' : undefined"
       :type="getOptionColorType(value)"
       :color="getOptionColorValue(value)"
+      :style="getOptionTagStyle(value)"
     >
       {{ getOptionLabel(value) }}
     </el-tag>
@@ -25,6 +26,7 @@ const props = defineProps<{
   getOptionLabel: (value: any) => string
   getOptionColorType: (value: any) => StandardColorType | undefined
   getOptionColorValue: (value: any) => string | undefined
+  getOptionTagStyle: (value: any) => Record<string, string>
 }>()
 
 const containerClass = computed(() => {
@@ -55,7 +57,6 @@ const containerClass = computed(() => {
 
 .table-cell-multiselect .tag-item[style*="background-color"],
 .detail-multiselect .tag-item[style*="background-color"] {
-  color: #fff !important;
   font-weight: 500;
   filter: brightness(0.95) saturate(0.9);
 }

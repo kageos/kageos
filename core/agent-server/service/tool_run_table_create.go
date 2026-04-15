@@ -19,7 +19,7 @@ type runTableCreateArgs struct {
 
 var runTableCreateToolDef = toolDefinition[runTableCreateArgs](
 	"run_table_create",
-	"执行工作区内 Table 新增接口，批量新增表格记录（每条都会触发 OnTableAddRow）。仅适用于开启新增能力的 Table；调用前应先看 search_tools/函数能力摘要，确认不是只读表。full_code_path 为表格函数的完整路径（必须包含函数名，如 /luobei/myapp/nps/nps_questionnaire_list）。body 必须为 JSON 数组字符串，每项为一条记录的字段对象，如 [{\"title\":\"问卷A\"},{\"title\":\"问卷B\"}]；字段名与表格 model 的 json 标签一致，必填项需包含。返回 data_list 为成功插入的每条记录（后端返回的数据列表），以及 created_count、failed_count、errors。",
+	"执行工作区内 Table 新增接口，批量新增表格记录（每条都会触发 OnTableAddRow）。仅适用于开启新增能力的 Table；调用前应先看 search_tools/函数能力摘要，确认不是只读表。full_code_path 必须为带 `.table` 后缀的具体表格函数完整路径（如 /luobei/myapp/nps/nps_questionnaire_list.table）。body 必须为 JSON 数组字符串，每项为一条记录的字段对象，如 [{\"title\":\"问卷A\"},{\"title\":\"问卷B\"}]；字段名与表格 model 的 json 标签一致，必填项需包含。返回 data_list 为成功插入的每条记录（后端返回的数据列表），以及 created_count、failed_count、errors。",
 )
 
 func (t *RunTableCreateTool) Definition() dto.ToolDef {
@@ -38,9 +38,9 @@ func (t *RunTableCreateTool) Execute(ctx context.Context, call ToolCall) ToolRes
 // runTableCreateTool 执行 Table 新增；body 必须为 JSON 数组，逐条调用 table/create 触发 OnTableAddRow
 func runTableCreateTool(ctx context.Context, args runTableCreateArgs, currentFullCodePath string) (string, bool) {
 	ctx = withAgentToolClientSource(ctx)
-	fullCodePath := resolveFullCodePathArg(args.FullCodePath, currentFullCodePath)
+	fullCodePath, pathNotice := resolveTypedFunctionFullCodePathArg(args.FullCodePath, currentFullCodePath, ".table")
 	if fullCodePath == "" {
-		return "run_table_create 需传 full_code_path（表格函数路径，如 /luobei/myapp/nps/nps_questionnaire_list）。", true
+		return "run_table_create 需传 full_code_path（表格函数路径，如 /luobei/myapp/nps/nps_questionnaire_list.table）。", true
 	}
 	bodyStr := strings.TrimSpace(args.Body)
 	if bodyStr == "" {
@@ -92,7 +92,11 @@ func runTableCreateTool(ctx context.Context, args runTableCreateArgs, currentFul
 	if len(errorsList) > 0 {
 		out["errors"] = errorsList
 	}
-	return formatJSONResult(out)
+	content, _ := formatJSONResult(out)
+	if pathNotice != "" {
+		return pathNotice + "\n\n" + content, false
+	}
+	return content, false
 }
 
 // extractTableCreateRecord 从 table/create 的返回值中提取单条记录。

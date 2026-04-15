@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"fmt"
+	"net"
+	"strconv"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
@@ -105,7 +107,7 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 	// ⭐ 初始化系统工作空间（只初始化 official 工作空间）
 	// 注意：system 用户应该在 hr-server 中初始化
 	// 在服务初始化之后，路由初始化之前
-	if err := service.InitSystemWorkspace(ctx, s.appService); err != nil {
+	if err := service.InitSystemWorkspace(ctx, s.appService, s.serviceTreeService); err != nil {
 		logger.Warnf(ctx, "[Server] 初始化系统工作空间失败: %v", err)
 		// 不中断启动，记录警告即可
 	}
@@ -141,11 +143,11 @@ func (s *Server) StartHTTP(ctx context.Context) error {
 	if s.httpServer == nil {
 		return fmt.Errorf("http server is not initialized")
 	}
-	port := fmt.Sprintf(":%d", s.cfg.GetPort())
-	logger.Infof(ctx, "[Server] HTTP server starting on port %s", port)
+	addr := net.JoinHostPort(s.cfg.GetListenHost(), strconv.Itoa(s.cfg.GetPort()))
+	logger.Infof(ctx, "[Server] HTTP server starting on %s", addr)
 
 	go func() {
-		if err := s.httpServer.Run(port); err != nil {
+		if err := s.httpServer.Run(addr); err != nil {
 			logger.Errorf(ctx, "[Server] HTTP server error: %v", err)
 		}
 	}()

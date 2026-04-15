@@ -9,7 +9,7 @@
 -->
 
 <template>
-  <div class="workspace-container">
+  <div class="workspace-container" data-testid="workspace-view">
     <!-- 顶部导航栏：工作空间切换 + 应用中心 同一行 -->
     <WorkspaceHeader
       ref="workspaceHeaderRef"
@@ -42,7 +42,7 @@
 
       <!-- 左侧：目录树 -->
       <div class="left-sidebar" :class="{ 'sidebar-collapsed': !showLeftSidebar }">
-        <div class="left-sidebar-tree">
+        <div class="left-sidebar-tree" data-testid="workspace-service-tree">
           <ServiceTreePanel
             ref="serviceTreePanelRef"
             :tree-data="serviceTree"
@@ -69,7 +69,7 @@
       </div>
 
       <!-- 中间函数渲染区域 -->
-      <div class="function-renderer">
+      <div class="function-renderer" data-testid="workspace-function-renderer">
         <!-- 右侧边栏控制按钮：工作台会话 -->
         <div class="sidebar-controls" v-if="workstationContext">
           <div class="right-controls">
@@ -107,50 +107,26 @@
         
         <!-- 🔥 Create/Edit 模式：根据 queryTab 显示独立页面 -->
         <template v-if="queryTab === 'create' && currentFunction && currentFunctionDetail">
-          <div class="form-page">
-            <div class="form-page-header">
-              <el-button @click="backToList" :icon="ArrowLeft">返回列表</el-button>
-              <h2 class="form-page-title">新增数据</h2>
-            </div>
-            <div class="form-page-content">
-              <FormView
-                v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
-                :key="`form-create-${currentFunction.id}`"
-                :function-detail="currentFunctionDetail"
-              />
-              <div v-else class="empty-state">
-                <p>该函数不支持新增操作</p>
-              </div>
-            </div>
-            <div class="form-page-footer">
-              <el-button @click="backToList">取消</el-button>
-              <el-button type="primary" @click="handleCreateSubmit">提交</el-button>
-            </div>
-          </div>
+          <WorkspaceFormPage
+            title="新增数据"
+            :function-detail="currentFunctionDetail"
+            :page-key="`form-create-${currentFunction.id}`"
+            submit-text="提交"
+            unsupported-message="该函数不支持新增操作"
+            @back="backToList"
+          />
         </template>
         
         <template v-else-if="queryTab === 'edit' && currentFunction && currentFunctionDetail">
-          <div class="form-page">
-            <div class="form-page-header">
-              <el-button @click="backToList" :icon="ArrowLeft">返回列表</el-button>
-              <h2 class="form-page-title">编辑数据</h2>
-            </div>
-            <div class="form-page-content">
-              <FormView
-                v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
-                :key="`form-edit-${currentFunction.id}-${editRowId}`"
-                :function-detail="editFunctionDetail || undefined"
-                :initial-data="editInitialData"
-              />
-              <div v-else class="empty-state">
-                <p>该函数不支持编辑操作</p>
-              </div>
-            </div>
-            <div class="form-page-footer">
-              <el-button @click="backToList">取消</el-button>
-              <el-button type="primary" @click="handleEditSubmit">保存</el-button>
-            </div>
-          </div>
+          <WorkspaceFormPage
+            title="编辑数据"
+            :function-detail="editFunctionDetail || currentFunctionDetail"
+            :initial-data="editInitialData"
+            :page-key="`form-edit-${currentFunction.id}-${editRowId}`"
+            submit-text="保存"
+            unsupported-message="该函数不支持编辑操作"
+            @back="backToList"
+          />
         </template>
         
         <!-- 🔥 Detail 模式：显示详情抽屉（通过 URL 参数打开） -->
@@ -182,169 +158,40 @@
         <!-- 函数详情区域（正常模式 - 函数节点） -->
         <div v-else-if="currentFunction && currentFunction.type === 'function'" class="function-content-wrapper">
           <div class="function-content">
-            <div v-if="showFunctionTabsWrapper" class="function-tabs-wrapper">
-              <div class="function-tabs-shell">
-                <el-tabs
-                  v-model="functionActiveTab"
-                  class="function-detail-tabs"
-                  @tab-change="handleFunctionTabChange"
-                >
-                  <el-tab-pane name="content">
-                    <template #label>
-                      <span>函数内容</span>
-                    </template>
-                    <div class="tab-content">
-                <!-- ⭐ 如果函数详情已加载，显示对应的视图 -->
-                <!-- ⚠️ 重要：只有当 currentFunctionDetail 的 id 或 router 与 currentFunction 匹配时才显示 -->
-                <template v-if="currentFunctionDetail && 
-                               currentFunction && 
-                               (currentFunctionDetail.id === currentFunction.ref_id || 
-                                currentFunctionDetail.router === currentFunction.full_code_path)">
-                  <!-- 🔥 移除 keep-alive，每次切换函数时重新渲染，保证数据一致性 -->
-                  <!-- 🔥 使用 full_code_path 作为 key，确保函数切换时组件正确重建 -->
-                  <FormView
-                    v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
-                    ref="functionFormViewRef"
-                    :key="`form-${currentFunction.full_code_path || currentFunction.id}`"
-                    :function-detail="currentFunctionDetail"
-                  />
-                  <TableView
-                    v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.TABLE"
-                    :key="`table-${currentFunction.full_code_path || currentFunction.id}`"
-                    :function-detail="currentFunctionDetail"
-                  />
-                  <ChartView
-                    v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
-                    :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
-                    :function-detail="currentFunctionDetail"
-                  />
-                  <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
-                    <el-skeleton :rows="8" animated />
-                  </div>
-                </template>
-                <!-- 如果函数详情未加载且有权限错误，显示权限错误组件 -->
-                <PermissionDeniedView
-                  v-else-if="hasPermissionError"
-                  :key="`permission-denied-${currentFunction.full_code_path || currentFunction.id}`"
-                />
-                <!-- 如果函数详情未加载且没有权限错误，显示骨架屏 -->
-                <div v-else :key="`loading-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
-                  <el-skeleton :rows="8" animated />
-                </div>
-                    </div>
-                  </el-tab-pane>
-
-                  <el-tab-pane v-if="showFunctionPermissionRequestTab" name="permission">
-                    <template #label>
-                      <el-badge :value="currentFunction?.pending_count || 0" :hidden="!currentFunction?.pending_count || currentFunction.pending_count === 0" :max="99">
-                        <span>权限</span>
-                      </el-badge>
-                    </template>
-                    <div class="tab-content">
-                      <el-tabs
-                        v-model="functionPermissionTab"
-                        class="permission-detail-tabs"
-                        @tab-change="handleFunctionPermissionTabChange"
-                      >
-                        <el-tab-pane name="request">
-                          <template #label>
-                            <el-badge :value="currentFunction?.pending_count || 0" :hidden="!currentFunction?.pending_count || currentFunction.pending_count === 0" :max="99">
-                              <span>审批流</span>
-                            </el-badge>
-                          </template>
-                          <div class="permission-tab-panel">
-                            <PermissionRequestList
-                              ref="functionPermissionRequestListRef"
-                              :resource-path="currentFunction?.full_code_path"
-                              resource-type="function"
-                              :template-type="currentFunctionDetail?.template_type"
-                              :auto-load="functionActiveTab === 'permission' && functionPermissionTab === 'request'"
-                            />
-                          </div>
-                        </el-tab-pane>
-                        <el-tab-pane name="manage" label="权限管理">
-                          <div class="permission-tab-panel">
-                            <PermissionManageList
-                              ref="functionPermissionManageListRef"
-                              :resource-path="currentFunction?.full_code_path"
-                              resource-type="function"
-                              :template-type="currentFunctionDetail?.template_type"
-                              :auto-load="functionActiveTab === 'permission' && functionPermissionTab === 'manage'"
-                            />
-                          </div>
-                        </el-tab-pane>
-                      </el-tabs>
-                    </div>
-                  </el-tab-pane>
-
-                  <el-tab-pane v-if="showFormOperateLogTab" name="operateLog" label="执行记录">
-                    <div class="tab-content">
-                      <FormOperateLogSection
-                        ref="formOperateLogSectionRef"
-                        :full-code-path="currentFunction?.full_code_path || ''"
-                        :function-detail="currentFunctionDetail"
-                        :auto-load="functionActiveTab === 'operateLog'"
-                        @apply-log="handleApplyFormOperateLog"
-                      />
-                    </div>
-                  </el-tab-pane>
-
-                  <el-tab-pane v-if="showScheduledTaskTab" name="scheduledTask" label="定时任务">
-                    <div class="tab-content">
-                      <ScheduledTaskList
-                        :resource-path="currentFunction?.full_code_path"
-                        :auto-load="functionActiveTab === 'scheduledTask'"
-                        @total-change="onScheduledTaskTotalChange"
-                        @open-function-operate-log="openFunctionOperateLog"
-                      />
-                    </div>
-                  </el-tab-pane>
-                </el-tabs>
-              </div>
-            </div>
+            <WorkspaceFunctionTabsPanel
+              v-if="showFunctionTabsWrapper"
+              :active-tab="functionActiveTab"
+              :permission-tab="functionPermissionTab"
+              :current-function="currentFunction"
+              :current-function-detail="currentFunctionDetail"
+              :has-permission-error="hasPermissionError"
+              :show-function-permission-request-tab="showFunctionPermissionRequestTab"
+              :show-form-operate-log-tab="showFormOperateLogTab"
+              :show-scheduled-task-tab="showScheduledTaskTab"
+              :function-form-view-ref="setFunctionFormViewRef"
+              :function-permission-request-list-ref="setFunctionPermissionRequestListRef"
+              :function-permission-manage-list-ref="setFunctionPermissionManageListRef"
+              :form-operate-log-section-ref="setFormOperateLogSectionRef"
+              :on-function-tab-change="handleFunctionTabChange"
+              :on-function-permission-tab-change="handleFunctionPermissionTabChange"
+              :on-apply-form-operate-log="handleApplyFormOperateLog"
+              :on-scheduled-task-total-change="onScheduledTaskTotalChange"
+              :on-open-function-operate-log="openFunctionOperateLog"
+              @update:active-tab="functionActiveTab = $event"
+              @update:permission-tab="functionPermissionTab = $event"
+            />
 
             <!-- 没有函数 tabs 时，直接显示内容 -->
             <div v-else>
-              <!-- ⭐ 如果函数详情已加载，显示对应的视图 -->
-              <!-- ⚠️ 重要：只有当 currentFunctionDetail 的 id 或 router 与 currentFunction 匹配时才显示 -->
-              <template v-if="currentFunctionDetail && 
-                             currentFunction && 
-                             (currentFunctionDetail.id === currentFunction.ref_id || 
-                              currentFunctionDetail.router === currentFunction.full_code_path)">
-                <!-- 🔥 移除 keep-alive，每次切换函数时重新渲染，保证数据一致性 -->
-                <!-- 🔥 使用 full_code_path 作为 key，确保函数切换时组件正确重建 -->
-                <FormView
-                  v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
-                  :key="`form-${currentFunction.full_code_path || currentFunction.id}`"
-                  :function-detail="currentFunctionDetail"
-                />
-                <TableView
-                  v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.TABLE"
-                  :key="`table-${currentFunction.full_code_path || currentFunction.id}`"
-                  :function-detail="currentFunctionDetail"
-                />
-                <ChartView
-                  v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
-                  :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
-                  :function-detail="currentFunctionDetail"
-                />
-                <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
-                  <el-skeleton :rows="8" animated />
-                </div>
-              </template>
-              <!-- 如果函数详情未加载且有权限错误，显示权限错误组件 -->
-              <PermissionDeniedView
-                v-else-if="hasPermissionError"
-                :key="`permission-denied-${currentFunction.full_code_path || currentFunction.id}`"
+              <WorkspaceFunctionRenderer
+                :current-function="currentFunction"
+                :function-detail="currentFunctionDetail"
+                :has-permission-error="hasPermissionError"
               />
-              <!-- 如果函数详情未加载且没有权限错误，显示骨架屏 -->
-              <div v-else :key="`loading-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
-                <el-skeleton :rows="8" animated />
-              </div>
             </div>
           </div>
         </div>
-        <div v-else class="empty-state">
+        <div v-else class="empty-state" data-testid="workspace-empty-state">
           <p>请在左侧选择功能或目录</p>
         </div>
       </div>
@@ -354,67 +201,21 @@
         v-if="workstationContext && showRightSidebar"
         class="right-sidebar"
       >
-        <div class="right-sidebar-session-panel">
-          <div class="right-session-header">
-            <el-icon :size="16" color="var(--el-color-primary)"><FolderOpened /></el-icon>
-            <span class="right-session-dir">{{ workstationContext.dirName }}</span>
-          </div>
-          <div class="right-session-tabs">
-            <div :class="['right-tab', { active: rightTab === 'all' }]" @click="rightTab = 'all'">
-              全部
-            </div>
-            <div :class="['right-tab', { active: rightTab === 'running' }]" @click="rightTab = 'running'">
-              执行中
-              <span v-if="rightSidebarRunningCount > 0" class="right-tab-badge">{{ rightSidebarRunningCount }}</span>
-            </div>
-            <div :class="['right-tab', { active: rightTab === 'finished' }]" @click="rightTab = 'finished'">
-              已结束
-            </div>
-          </div>
-
-          <el-input
-            v-model="rightSessionSearchKeyword"
-            class="right-session-search"
-            placeholder="搜索会话…"
-            clearable
-            :prefix-icon="Search"
-          />
-
-          <div class="right-session-list" v-loading="rightSidebarSessionsLoading">
-            <div
-              v-for="s in filteredRightSessions"
-              :key="s.session_id"
-              :class="['right-session-card', { generating: s.status === 'generating' }]"
-              @click="openSessionInMini(s)"
-            >
-              <div class="right-session-card-head">
-                <el-icon v-if="s.status === 'generating'" class="is-loading" :size="12" color="var(--el-color-primary)"><Loading /></el-icon>
-                <span class="right-session-card-title">{{ s.title || '未命名会话' }}</span>
-              </div>
-              <div v-if="s.user" class="right-session-card-user">
-                <UserDisplay :username="s.user" mode="simple" size="small" />
-              </div>
-              <div class="right-session-card-meta">
-                <el-tag v-if="s.status === 'generating'" type="primary" size="small" effect="light">执行中</el-tag>
-                <el-tag v-else-if="s.status === 'done'" type="success" size="small" effect="plain">已完成</el-tag>
-                <el-tag v-else-if="s.status === 'cancelled'" type="info" size="small" effect="plain">已取消</el-tag>
-                <span class="right-session-time">{{ formatRelativeTime(s.updated_at) }}</span>
-              </div>
-              <div v-if="s.status === 'generating'" class="right-session-card-actions">
-                <el-button size="small" link type="danger" @click.stop="handleCancelTask(s)" :loading="cancellingTaskId === s.session_id">停止</el-button>
-              </div>
-            </div>
-            <div v-if="filteredRightSessions.length === 0 && !rightSidebarSessionsLoading" class="right-session-empty">
-              <el-empty :description="rightSessionSearchKeyword ? '无匹配会话' : (rightTab === 'running' ? '暂无执行中的会话' : rightTab === 'finished' ? '暂无已结束的会话' : '暂无会话记录')" :image-size="48" />
-            </div>
-          </div>
-
-          <div class="right-session-footer">
-            <el-button type="primary" @click="openNewMiniWs()" :icon="ChatDotRound" class="right-new-session-btn">
-              新增会话
-            </el-button>
-          </div>
-        </div>
+        <WorkspaceSidebarSessionsPanel
+          :dir-name="workstationContext.dirName"
+          :loading="rightSidebarSessionsLoading"
+          :active-tab="rightTab"
+          :search-keyword="rightSessionSearchKeyword"
+          :running-count="rightSidebarRunningCount"
+          :sessions="filteredRightSessions"
+          :cancelling-task-id="cancellingTaskId"
+          :format-relative-time="formatRelativeTime"
+          @update:active-tab="rightTab = $event"
+          @update:search-keyword="rightSessionSearchKeyword = $event"
+          @open-session="openSessionInMini"
+          @cancel-task="handleCancelTask"
+          @create-session="openNewMiniWs()"
+        />
       </div>
     </div>
 
@@ -438,7 +239,8 @@
       :row-data="detailRowData"
       :table-data="detailTableData"
       :current-index="currentDetailIndex"
-      :can-edit="(currentFunctionDetail?.callbacks?.includes('OnTableUpdateRow') || false) && canUpdateTable"
+      :supports-edit="supportsUpdateTable"
+      :can-edit="canUpdateTable"
       :edit-function-detail="editFunctionDetail"
       :current-function-detail="currentFunctionDetail"
       :user-info-map="detailUserInfoMap"
@@ -450,95 +252,14 @@
       @close="handleDetailDrawerClose"
     />
 
-    <!-- 创建文档节点对话框 -->
-    <el-dialog
-      v-model="createDocsDialogVisible"
-      :title="currentDocsParentNode ? `在「${currentDocsParentNode.name || currentDocsParentNode.code}」下创建文档` : '创建文档'"
-      width="600px"
-      :close-on-click-modal="false"
+    <WorkspaceCreateDocsDialog
+      v-model:visible="createDocsDialogVisible"
+      :parent-node="currentDocsParentNode"
+      :form="createDocsForm"
+      :creating="creatingDocs"
+      @submit="handleSubmitCreateDocs"
       @close="handleCloseCreateDocsDialog"
-    >
-      <el-form :model="createDocsForm" label-width="120px">
-        <el-form-item label="文档名称" required>
-          <el-input
-            v-model="createDocsForm.name"
-            placeholder="请输入文档名称"
-            maxlength="100"
-            show-word-limit
-            clearable
-          />
-        </el-form-item>
-        <el-form-item label="文档代码" required>
-          <el-input
-            v-model="createDocsForm.code"
-            placeholder="英文，如 readme"
-            maxlength="50"
-            show-word-limit
-            clearable
-            @input="createDocsForm.code = createDocsForm.code.toLowerCase().replace(/[^a-z0-9_]/g, '')"
-          >
-            <template #suffix>
-              <span class="create-docs-code-suffix">.docs</span>
-            </template>
-          </el-input>
-          <div class="form-tip">
-            <el-icon><InfoFilled /></el-icon>
-            只能包含小写字母、数字和下划线，保存后自动带后缀 .docs
-          </div>
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input
-            v-model="createDocsForm.description"
-            type="textarea"
-            placeholder="请输入文档描述（可选）"
-            :rows="3"
-            maxlength="500"
-            show-word-limit
-          />
-        </el-form-item>
-        <el-form-item label="标签">
-          <el-input
-            v-model="createDocsForm.tags"
-            placeholder="请输入标签，多个标签用逗号分隔（可选）"
-            maxlength="200"
-            clearable
-          />
-        </el-form-item>
-        <el-form-item label="文档内容" required>
-          <el-input
-            v-model="createDocsForm.content"
-            type="textarea"
-            placeholder="请输入文档内容（支持 Markdown 格式）"
-            :rows="15"
-            maxlength="50000"
-            show-word-limit
-          />
-          <div class="form-tip">
-            <el-icon><InfoFilled /></el-icon>
-            支持 Markdown 格式，可以使用标题、列表、代码块、链接等语法
-          </div>
-        </el-form-item>
-        <el-form-item label="文档摘要">
-          <el-input
-            v-model="createDocsForm.summary"
-            type="textarea"
-            placeholder="请输入文档摘要（可选）"
-            :rows="2"
-            maxlength="500"
-            show-word-limit
-          />
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="createDocsDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleSubmitCreateDocs" :loading="creatingDocs">
-            创建
-          </el-button>
-        </span>
-      </template>
-    </el-dialog>
+    />
 
     <!-- 创建讨论区（版块）对话框 - 封装组件 -->
     <CreateBoardDialog
@@ -629,8 +350,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElSkeleton } from 'element-plus'
-import { InfoFilled, ArrowLeft, ArrowRight, ChatDotRound, Loading, FolderOpened, Search } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import ServiceTreePanel from '@/architecture/presentation/components/ServiceTreePanel.vue'
@@ -638,11 +358,12 @@ import WorkspaceHeader from '../components/WorkspaceHeader.vue'
 import FunctionBreadcrumb from '../components/FunctionBreadcrumb.vue'
 import TableRowDetailDrawer from '../components/TableRowDetailDrawer.vue'
 import WorkspaceCreateAppDialog from '../components/WorkspaceCreateAppDialog.vue'
+import WorkspaceFormPage from '../components/WorkspaceFormPage.vue'
 import WorkspaceCreateDirectoryDialog from '../components/WorkspaceCreateDirectoryDialog.vue'
-import UserDisplay from '@/shared/components/UserDisplay.vue'
-import PermissionRequestList from '@/shared/components/permission/PermissionRequestList.vue'
-import PermissionManageList from '@/shared/components/permission/PermissionManageList.vue'
-import ScheduledTaskList from '../components/ScheduledTaskList.vue'
+import WorkspaceCreateDocsDialog from '../components/WorkspaceCreateDocsDialog.vue'
+import WorkspaceFunctionRenderer from '../components/WorkspaceFunctionRenderer.vue'
+import WorkspaceFunctionTabsPanel from '../components/WorkspaceFunctionTabsPanel.vue'
+import WorkspaceSidebarSessionsPanel from '../components/WorkspaceSidebarSessionsPanel.vue'
 import type { App } from '../../domain/services/WorkspaceDomainService'
 import type { FieldConfig, FieldValue, FunctionDetail } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
@@ -663,21 +384,16 @@ import { useWorkspaceViewLifecycle } from '../composables/useWorkspaceViewLifecy
 import { findNodeByPath, findNodeById } from '../utils/workspaceUtils'
 import { getScopedFieldQueryValue } from '@/utils/queryFieldNamespace'
 import { useAfterCreateNode } from '../composables/useAfterCreateNode'
-import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { hasPermission, TablePermission } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/utils/widgetFieldHelpers'
+import { hasFunctionCallback } from './utils/tableViewActionRuntime'
 
 const route = useRoute()
 const router = useRouter()
-const FormView = defineAsyncComponent(() => import('./FormView.vue'))
-const TableView = defineAsyncComponent(() => import('./TableView.vue'))
-const ChartView = defineAsyncComponent(() => import('./ChartView.vue'))
 const DocView = defineAsyncComponent(() => import('../components/DocView.vue'))
 const BoardView = defineAsyncComponent(() => import('../components/BoardView.vue'))
 const PackageDetailView = defineAsyncComponent(() => import('../components/PackageDetailView.vue'))
-const PermissionDeniedView = defineAsyncComponent(() => import('../components/PermissionDeniedView.vue'))
-const FormOperateLogSection = defineAsyncComponent(() => import('../components/FormOperateLogSection.vue'))
 const MiniWorkstation = defineAsyncComponent(() => import('../components/MiniWorkstation.vue'))
 const CreateBoardDialog = defineAsyncComponent(() => import('../components/CreateBoardDialog.vue'))
 const PublishToHubDialog = defineAsyncComponent(() => import('@/shared/components/PublishToHubDialog.vue'))
@@ -809,14 +525,12 @@ const {
   detailDrawerTitle,
   detailRowData,
   detailFields,
-  detailOriginalRow,
   detailDrawerMode,
   drawerSubmitting,
   detailUserInfoMap,
   detailTableData,
   currentDetailIndex,
   editFunctionDetail,
-  toggleDrawerMode,
   handleNavigateDetail,
   submitDrawerEdit,
   handleDetailDrawerClose,
@@ -828,7 +542,6 @@ const {
 })
 
 const {
-  syncRouteToTab,
   loadAppFromRoute: routingLoadAppFromRoute,
   setupRouteWatch
 } = useWorkspaceRouting({
@@ -859,7 +572,7 @@ const editRowId = computed(() => {
 
 // 🔥 编辑模式的初始数据（从 URL 参数提取）
 const editInitialData = computed(() => {
-  const initialData: Record<string, any> = {}
+  const initialData: Record<string, unknown> = {}
   const query = route.query
   
   // 如果有 id 参数，添加到 initialData
@@ -921,10 +634,10 @@ const showRightSidebar = ref(true)
 const {
   functionActiveTab,
   functionPermissionTab,
-  functionFormViewRef,
-  functionPermissionRequestListRef,
-  functionPermissionManageListRef,
-  formOperateLogSectionRef,
+  setFunctionFormViewRef,
+  setFunctionPermissionRequestListRef,
+  setFunctionPermissionManageListRef,
+  setFormOperateLogSectionRef,
   showScheduledTaskTab,
   showFunctionPermissionRequestTab,
   showFormOperateLogTab,
@@ -934,7 +647,6 @@ const {
   handleApplyFormOperateLog,
   openFunctionOperateLog,
   onScheduledTaskTotalChange,
-  syncFunctionTabQuery,
   activateScheduledTaskTab
 } = useWorkspaceFunctionTabs({
   route,
@@ -1015,7 +727,6 @@ const {
 })
 
 const {
-  sessions: rightSidebarSessions,
   sessionsLoading: rightSidebarSessionsLoading,
   activeTab: rightTab,
   sessionSearchKeyword: rightSessionSearchKeyword,
@@ -1038,6 +749,10 @@ const canUpdateTable = computed(() => {
   const node = currentFunction.value
   if (!node) return true  // 如果没有节点信息，默认允许（向后兼容）
   return hasPermission(node, TablePermission.update)
+})
+
+const supportsUpdateTable = computed(() => {
+  return hasFunctionCallback(currentFunctionDetail.value?.callbacks, 'OnTableUpdateRow')
 })
 
 // ⭐ 权限错误状态
@@ -1146,27 +861,6 @@ const handleWorkstationToolCallOk = (payload: { name: string }) => {
     handleRefreshTree()
   }
 }
-// 🔥 返回列表（从 create/edit 模式返回）
-// 🔥 处理新增提交（通过 FormView 的提交按钮，这里只是占位）
-const handleCreateSubmit = async () => {
-  // FormView 内部已经有提交逻辑，这里不需要额外处理
-  // 如果需要，可以通过 ref 或事件总线来触发 FormView 的提交
-  ElNotification.info({
-    title: '提示',
-    message: '请使用表单内的提交按钮提交数据'
-  })
-}
-
-// 🔥 处理编辑提交（通过 FormView 的提交按钮，这里只是占位）
-const handleEditSubmit = async () => {
-  // FormView 内部已经有提交逻辑，这里不需要额外处理
-  // 如果需要，可以通过 ref 或事件总线来触发 FormView 的提交
-  ElNotification.info({
-    title: '提示',
-    message: '请使用表单内的提交按钮提交数据'
-  })
-}
-
 // 🔥 切换应用（使用 Composable）
 const handleSwitchApp = async (app: AppType): Promise<void> => {
   await appHandleSwitchApp(app, () => currentApp.value)
@@ -1202,12 +896,6 @@ useWorkspaceUiEffects({
   height: 0;
   opacity: 0;
   pointer-events: none;
-}
-
-.create-docs-code-suffix {
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-  padding-right: 4px;
 }
 
 .workspace-container {
@@ -1258,103 +946,6 @@ useWorkspaceUiEffects({
   }
 }
 
-// 函数 tab 包装器（已在 function-content 中定义，这里不需要重复）
-
-.function-tabs-wrapper {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 0 16px 16px;
-}
-
-.function-tabs-shell {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 0 16px 16px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 16px;
-  background: var(--el-bg-color);
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
-}
-
-.function-detail-tabs,
-.permission-detail-tabs {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.function-detail-tabs :deep(.el-tabs__header) {
-  margin: 14px 0 12px;
-  flex-shrink: 0;
-}
-
-.permission-detail-tabs :deep(.el-tabs__header) {
-  margin: 2px 0 14px;
-  flex-shrink: 0;
-}
-
-.function-detail-tabs :deep(.el-tabs__nav-wrap::after),
-.permission-detail-tabs :deep(.el-tabs__nav-wrap::after) {
-  background-color: var(--el-border-color-extra-light);
-}
-
-.function-detail-tabs :deep(.el-tabs__item.is-active) {
-  font-weight: 600;
-}
-
-.function-detail-tabs :deep(.el-tabs__content) {
-  background: transparent;
-}
-
-.function-detail-tabs :deep(.el-tabs__item),
-.permission-detail-tabs :deep(.el-tabs__item) {
-  font-size: 14px;
-}
-
-.permission-detail-tabs :deep(.el-tabs__item) {
-  font-size: 13px;
-}
-
-.function-detail-tabs :deep(.el-tabs__content),
-.permission-detail-tabs :deep(.el-tabs__content) {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.function-detail-tabs :deep(.el-tab-pane),
-.permission-detail-tabs :deep(.el-tab-pane) {
-  height: 100%;
-}
-
-.function-detail-tabs :deep(.el-badge),
-.permission-detail-tabs :deep(.el-badge) {
-  position: relative;
-  display: inline-block;
-}
-
-.function-detail-tabs :deep(.el-badge__content),
-.permission-detail-tabs :deep(.el-badge__content) {
-  font-size: 11px;
-  height: 16px;
-  line-height: 16px;
-  min-width: 16px;
-  padding: 0 5px;
-  border-radius: 8px;
-}
-
-.permission-tab-panel {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
-
 /* 保留旧的类名以兼容（如果还有地方使用） */
 .tabs-content-wrapper {
   flex: 1;
@@ -1362,15 +953,6 @@ useWorkspaceUiEffects({
   display: flex;
   flex-direction: column;
   min-height: 0;
-}
-
-.tab-content {
-  flex: 1;
-  overflow-y: auto !important;
-  overflow-x: hidden;
-  min-height: 0;
-  height: 100%;
-  -webkit-overflow-scrolling: touch;
 }
 
 /* 左下角：隐藏/显示目录按钮 */
@@ -1486,144 +1068,6 @@ useWorkspaceUiEffects({
   display: flex;
   flex-direction: column;
 }
-.right-sidebar-session-panel {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
-.right-session-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--el-border-color-extra-light);
-  flex-shrink: 0;
-}
-.right-session-dir {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.right-session-tabs {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  padding: 0 6px;
-  border-bottom: 1px solid var(--el-border-color-extra-light);
-  flex-shrink: 0;
-}
-.right-tab {
-  padding: 8px 10px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: all 0.2s;
-  white-space: nowrap;
-  &:hover { color: var(--el-color-primary); }
-  &.active {
-    color: var(--el-color-primary);
-    font-weight: 500;
-    border-bottom-color: var(--el-color-primary);
-  }
-}
-.right-tab-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  margin-left: 4px;
-  font-size: 10px;
-  line-height: 1;
-  color: #fff;
-  background: var(--el-color-danger);
-  border-radius: 8px;
-}
-.right-session-search {
-  flex-shrink: 0;
-  padding: 6px 8px 4px;
-}
-.right-session-search :deep(.el-input__wrapper) {
-  border-radius: 6px;
-}
-.right-session-card-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 4px;
-}
-.right-session-footer {
-  flex-shrink: 0;
-  padding: 10px 12px;
-  border-top: 1px solid var(--el-border-color-extra-light);
-}
-.right-new-session-btn {
-  width: 100%;
-}
-.right-session-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 8px;
-}
-.right-session-card {
-  padding: 10px 12px;
-  margin-bottom: 6px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--el-border-radius-base);
-  background: var(--el-bg-color);
-  cursor: pointer;
-  transition: all 0.15s;
-  &:hover {
-    border-color: var(--el-color-primary);
-    background: var(--el-fill-color-lighter);
-  }
-  &.generating {
-    border-left: 3px solid var(--el-color-primary);
-  }
-}
-.right-session-card-head {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 6px;
-}
-.right-session-card-user {
-  margin-bottom: 4px;
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-}
-.right-session-card-user :deep(.user-display-wrapper) {
-  display: inline-flex;
-}
-.right-session-card-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--el-text-color-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-}
-.right-session-card-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--el-text-color-placeholder);
-}
-.right-session-time {
-  font-size: 11px;
-  color: var(--el-text-color-placeholder);
-}
-.right-session-empty {
-  padding: 24px 8px;
-  text-align: center;
-}
 
 .ai-chat-wrapper {
   flex: 1;
@@ -1631,95 +1075,6 @@ useWorkspaceUiEffects({
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
-}
-
-/* 工作台抽屉：右侧滑出，可折叠为窄条 */
-.workstation-drawer .el-drawer__header {
-  margin-bottom: 0;
-  padding: 4px 12px;
-}
-.workstation-drawer-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-}
-.workstation-drawer-header--compact {
-  justify-content: flex-end;
-}
-.workstation-drawer-header .drawer-actions {
-  flex-shrink: 0;
-}
-.workstation-drawer-body {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.workstation-drawer-body .workstation-chat {
-  flex: 1;
-  min-height: 0;
-}
-.workstation-drawer .el-drawer__body {
-  padding-top: 0;
-}
-.workstation-drawer--collapsed .el-drawer__body {
-  padding: 0;
-  overflow: hidden;
-}
-.workstation-drawer-strip {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  min-height: 200px;
-}
-.workstation-drawer-strip .strip-text {
-  writing-mode: vertical-rl;
-  letter-spacing: 0.2em;
-  font-size: 14px;
-  color: var(--el-text-color-regular);
-}
-
-/* 新增/编辑页面样式 */
-.form-page {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 24px;
-  overflow-y: auto;
-}
-
-.form-page-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.form-page-title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.form-page-content {
-  flex: 1;
-  min-height: 0;
-}
-
-.form-page-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--el-border-color-lighter);
 }
 
 /* 函数加载骨架屏样式 */

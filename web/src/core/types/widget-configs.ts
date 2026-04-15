@@ -52,9 +52,10 @@ export interface SelectWidgetConfig {
   
   /** 
    * 选项的颜色配置
-   * 支持标准颜色：warning、info、success、danger、primary
+   * 支持标准颜色：default、warning、info、success、danger、primary
    * 支持自定义颜色：如 #FF9800（橙色）、#9C27B0（紫色）
    * 每个颜色可以重复使用
+   * 未识别颜色会降级为 default 的中性灰
    * 示例：["success", "warning", "#FF9800"]
    */
   options_colors?: string[]
@@ -82,9 +83,10 @@ export interface MultiSelectWidgetConfig {
   
   /** 
    * 选项的颜色配置
-   * 支持标准颜色：warning、info、success、danger、primary
+   * 支持标准颜色：default、warning、info、success、danger、primary
    * 支持自定义颜色：如 #FF9800（橙色）、#9C27B0（紫色）
    * 每个颜色可以重复使用
+   * 未识别颜色会降级为 default 的中性灰
    */
   options_colors?: string[]
   

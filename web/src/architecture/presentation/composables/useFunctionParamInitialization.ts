@@ -262,6 +262,51 @@ export function useFunctionParamInitialization(
     // 如果是 ComputedRef，获取其 value；否则直接使用
     return detail && typeof detail === 'object' && 'value' in detail ? detail.value : detail
   })
+
+  const hydrateCurrentWidgetDisplays = async (initSource: 'url' | 'default' | 'initialData' = 'url'): Promise<void> => {
+    const detail = functionDetail.value
+    if (!detail) {
+      return
+    }
+
+    const fields = Array.isArray(detail.request) ? detail.request : []
+
+    for (const field of fields) {
+      const currentValue = options.formDataStore.getValue(field.code)
+      if (!currentValue || currentValue.raw === null || currentValue.raw === undefined) {
+        continue
+      }
+
+      const allFormData = options.formDataStore.getAllValues()
+      const initContext: WidgetInitContext = {
+        field,
+        currentValue,
+        allFormData,
+        formDataStore: options.formDataStore,
+        functionDetail: detail,
+        initSource,
+        fieldPath: field.code
+      }
+
+      try {
+        const initializedValue = await widgetInitializerRegistry.initialize(initContext)
+        const needsUpdate = initializedValue !== currentValue ||
+          initializedValue.display !== currentValue.display ||
+          JSON.stringify(initializedValue.meta) !== JSON.stringify(currentValue.meta)
+
+        if (needsUpdate) {
+          options.formDataStore.setValue(field.code, initializedValue)
+        }
+      } catch (error: any) {
+        Logger.warn('[useFunctionParamInitialization]', '组件初始化失败', {
+          fieldCode: field.code,
+          widgetType: field.widget?.type,
+          initSource,
+          error: error?.message || error
+        })
+      }
+    }
+  }
   
   // 注册初始化源
   const initSources: InitSource[] = [
@@ -353,63 +398,15 @@ export function useFunctionParamInitialization(
    * @param fieldMetadata 字段元数据
    */
   const triggerWidgetInitialization = async (
-    formData: Record<string, FieldValue>,
-    fieldMetadata: Record<string, any>
+    _formData: Record<string, FieldValue>,
+    _fieldMetadata: Record<string, any>
   ): Promise<void> => {
-    const detail = functionDetail.value
-    if (!detail) {
-      return
-    }
-    
-    // 🔥 确保 fields 是数组，防止类型错误
-    const fields = Array.isArray(detail.request) ? detail.request : []
-
-    // 遍历所有字段，调用组件的初始化接口
-    for (const field of fields) {
-      // 🔥 每次循环都从 formDataStore 获取最新值，确保获取到之前字段初始化后的最新值
-      const currentValue = options.formDataStore.getValue(field.code)
-      if (!currentValue || currentValue.raw === null || currentValue.raw === undefined) {
-        continue  // 没有值，跳过
-      }
-      
-      // 🔥 每次循环都从 formDataStore 获取所有字段的最新值，确保 allFormData 包含之前字段初始化后的最新值
-      const allFormData = options.formDataStore.getAllValues()
-
-      // 🔥 调用抽象接口，组件自己决定是否需要初始化
-      const initContext: WidgetInitContext = {
-        field,
-        currentValue,
-        allFormData: allFormData,  // 🔥 使用实时获取的最新值
-        formDataStore: options.formDataStore,
-        functionDetail: detail,  // 🔥 使用解包后的 detail
-        initSource: 'url',
-        fieldPath: field.code  // 🔥 顶层字段的路径就是 field.code
-      }
-      
-      try {
-        const initializedValue = await widgetInitializerRegistry.initialize(initContext)
-        
-        // 🔥 判断是否需要更新：即使 raw 相同，如果 display 或 meta 不同，也需要更新
-        const needsUpdate = initializedValue !== currentValue || 
-                            initializedValue.display !== currentValue.display ||
-                            JSON.stringify(initializedValue.meta) !== JSON.stringify(currentValue.meta)
-        
-        if (needsUpdate) {
-          options.formDataStore.setValue(field.code, initializedValue)
-        }
-      } catch (error: any) {
-        Logger.warn('[useFunctionParamInitialization]', '组件初始化失败', {
-          fieldCode: field.code,
-          widgetType: field.widget?.type,
-          error: error?.message || error
-        })
-        // 初始化失败不影响其他字段，继续处理下一个字段
-      }
-    }
+    await hydrateCurrentWidgetDisplays('url')
   }
   
   return {
     initialize,
+    hydrateCurrentWidgetDisplays,
     isInitializing
   }
 }

@@ -31,7 +31,9 @@ func (s *Server) setupRoutes() {
 	s.httpServer.GET("/health", s.healthHandler)
 
 	// 注册 pprof 路由（性能分析）
-	pprof.RegisterPprofRoutes(s.httpServer)
+	if s.cfg.IsPprofEnabled() {
+		pprof.RegisterPprofRoutes(s.httpServer)
+	}
 
 	// 配置接口（本地处理）
 	configHandler := v1.NewConfig()
@@ -341,11 +343,11 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 		// ⭐ 特殊处理：对于 SSE 流式接口（如 /chat/stream），使用更长的超时时间或不设置超时
 		var ctx context.Context
 		var cancel context.CancelFunc
-		
+
 		// 检测是否是 SSE 流式接口（通过路径判断）
-		isStreamingRequest := strings.Contains(c.Request.URL.Path, "/stream") || 
+		isStreamingRequest := strings.Contains(c.Request.URL.Path, "/stream") ||
 			strings.Contains(c.Request.URL.Path, "/chat/stream")
-		
+
 		if isStreamingRequest {
 			// SSE 流式接口：使用更长的超时时间（30分钟）或不设置超时
 			// 使用 30 分钟超时，避免无限等待，但足够长以支持长时间流式响应

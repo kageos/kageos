@@ -85,6 +85,8 @@ import { Logger } from '@/core/utils/logger'
 import { getWidgetDefaultValue } from '@/core/widgetRuntime/defaultValue'
 import { clearScopedDependentFields } from '@/core/widgetRuntime/dependency'
 import { isSubtreePath } from '@/core/widgetRuntime/fieldReset'
+import { applyScopedPresenceEffects } from '@/core/widgetRuntime/presenceEffects'
+import { sanitizeExcludedSubmitData } from '@/core/validation/utils/presenceRules'
 import {
   validateFieldValue,
   validateFormWidgetNestedFields,
@@ -192,21 +194,18 @@ export class FormDomainService {
       const existingValue = currentData.get(fieldCode) || state.data?.get(fieldCode)
       const hasInitialData = initialData && initialData.hasOwnProperty(fieldCode)
       const initialRawValue = hasInitialData ? initialData[fieldCode] : undefined
+      const hasEnrichedExistingValue = !!(
+        existingValue &&
+        existingValue.display &&
+        String(existingValue.display) !== String(existingValue.raw) &&
+        existingValue.display !== ''
+      )
       
       // 🔥 优先级：已有完整值（包含 display）> initialData > 已有值（只有 raw）> 默认值
       // 这样可以保留 SelectWidgetInitializer 更新后的完整 FieldValue（包含 display）
-      
-      // 1. 如果已有值且 display 存在且不等于 raw，说明已经通过 SelectWidgetInitializer 初始化过了
-      // 此时应该保留这个完整值，即使 initialData 中有该字段
-      if (existingValue && 
-          existingValue.display && 
-          String(existingValue.display) !== String(existingValue.raw) &&
-          existingValue.display !== '') {
-        newData.set(fieldCode, existingValue)
-        return  // 保留完整值，跳过后续处理
-      }
-      
-      // 2. 如果 initialData 中有该字段，使用 initialData（但保留已有的 display 和 meta）
+
+      // 1. 如果 initialData 中有该字段，优先使用 initialData
+      // 只有当 existingValue 与 initialRawValue 是同一个 raw 值时，才保留已有的 display/meta
       if (hasInitialData) {
         // 🔥 关键修复：检查 initialRawValue 是否为空值
         // 如果 initialRawValue 是空值（null/undefined/空字符串/空数组/空对象），且是新增模式，使用默认值
@@ -239,6 +238,13 @@ export class FormDomainService {
             }
           })
         } else {
+          if (hasEnrichedExistingValue) {
+            Logger.debug('FormDomainService', 'initialData 覆盖已有展示态值', {
+              fieldCode,
+              existingRaw: existingValue?.raw,
+              initialRawValue
+            })
+          }
           // 🔥 对于有 OnSelectFuzzy 回调的字段，display 暂时设置为空字符串
           // 让 SelectWidgetInitializer 通过 by_value 来获取 label
           const hasOnSelectFuzzy = field.callbacks?.includes('OnSelectFuzzy') || false
@@ -250,6 +256,13 @@ export class FormDomainService {
             }
           })
         }
+        return
+      }
+
+      // 2. 如果已有值且 display 存在且不等于 raw，说明已经通过 SelectWidgetInitializer 初始化过了
+      // 仅在没有 initialData 时保留这个完整值
+      if (hasEnrichedExistingValue) {
+        newData.set(fieldCode, existingValue!)
         return
       }
       
@@ -290,6 +303,13 @@ export class FormDomainService {
       errors: new Map(),
       submitting: false
     })
+
+    if (stateManager?.formStore) {
+      applyScopedPresenceEffects({
+        fields,
+        formDataStore: stateManager.formStore,
+      })
+    }
 
     Logger.debug('FormDomainService', 'initializeForm 完成', {
       fieldsCount: fields.length,
@@ -356,6 +376,14 @@ export class FormDomainService {
 
     // 处理字段依赖
     this.handleDependency(fieldCode)
+
+    if (stateManager?.formStore) {
+      applyScopedPresenceEffects({
+        fields: this.fields,
+        formDataStore: stateManager.formStore,
+        clearFieldErrors: (fieldPath, clearOptions) => this.clearFieldErrors(fieldPath, clearOptions?.includeSubtree || false),
+      })
+    }
 
     // 触发事件
     this.eventBus.emit(FormEvent.fieldValueUpdated, { fieldCode, value })
@@ -525,7 +553,20 @@ export class FormDomainService {
     // 🔥 委托给 FormStateManager.getSubmitData()，它会使用 FieldExtractorRegistry
     const stateManager = this.stateManager as any
     if (stateManager && typeof stateManager.getSubmitData === 'function') {
-      return stateManager.getSubmitData(fields)
+      const submitData = stateManager.getSubmitData(fields)
+      const formDataStore = stateManager.formStore
+
+      if (formDataStore) {
+        // getSubmitData 先按字段结构提取 raw 值，再按 presence rule 递归剔除 excluded 字段。
+        return sanitizeExcludedSubmitData(fields, submitData, {
+          formManager: {
+            getValue: (fieldPath: string) => formDataStore.getValue(fieldPath),
+            hasValue: (fieldPath: string) => formDataStore.data.has(fieldPath),
+          }
+        })
+      }
+
+      return submitData
     }
     
     Logger.warn('FormDomainService', 'stateManager.getSubmitData 方法不存在，返回空对象')

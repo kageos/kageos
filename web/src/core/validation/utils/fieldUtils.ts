@@ -90,63 +90,86 @@ export function resolveReferencedFieldPath(context: ValidationContext, fieldCode
  * 因为 TableFieldExtractor 会过滤掉空行（所有字段都为 null/undefined 的行）
  */
 export function isEmpty(value: FieldValue, field?: FieldConfig): boolean {
-  // 🔥 基本空值检查：如果 raw 有值（不是 null、undefined、空字符串），则认为不为空
-  // 注意：空字符串 '' 也认为是空值，但 0、false 等认为是有效值
-  if (value.raw === null || value.raw === undefined) {
+  const raw = value.raw
+
+  if (raw === null || raw === undefined) {
     return true
   }
-  
-  // 🔥 字符串类型：空字符串认为是空值
-  if (typeof value.raw === 'string' && value.raw.trim() === '') {
-    return true
+
+  if (typeof raw === 'string') {
+    return raw.trim() === ''
   }
-  
-  // 🔥 其他类型（数字、布尔值等）：有值就认为不为空
-  if (value.raw !== '') {
-    return false
+
+  if (typeof raw === 'number') {
+    return Number.isNaN(raw) || raw === 0
   }
-  
-  // 数组类型检查
-  if (Array.isArray(value.raw)) {
-    // 🔥 如果是 table 类型字段，需要检查过滤后的有效行数
+
+  if (typeof raw === 'boolean') {
+    return raw === false
+  }
+
+  if (Array.isArray(raw)) {
     if (field?.widget?.type === 'table') {
-      // 🔥 使用与 TableFieldExtractor 相同的逻辑过滤空行
-      // 过滤掉空行（所有字段都为 null/undefined 的行）
-      const validRows = value.raw.filter((row: any) => {
-        if (!row || typeof row !== 'object') {
-          return false
-        }
-        // 🔥 检查行中是否有任何非空字段
-        // 注意：这里只检查 null 和 undefined，不检查空字符串
-        // 因为空字符串可能是用户有意输入的（例如备注字段可以为空）
-        // 只有当所有字段都是 null 或 undefined 时，才认为是空行
-        const hasValidValue = Object.values(row).some((val: any) => {
-          // 非空值：不是 null、undefined
-          return val !== null && val !== undefined
-        })
-        return hasValidValue
-      })
-      
-      // 🔥 调试日志：帮助排查问题（使用 Logger.warn）
-      if (value.raw.length > 0 && validRows.length === 0) {
+      const validRows = raw.filter((row: any) => !isRawValueEmpty(row))
+
+      if (raw.length > 0 && validRows.length === 0) {
         Logger.warn('[isEmpty]', 'table 字段所有行都被过滤为空', {
           fieldCode: field.code,
-          totalRows: value.raw.length,
-          rows: value.raw.map((row: any, index: number) => ({
+          totalRows: raw.length,
+          rows: raw.map((row: any, index: number) => ({
             index,
             row,
-            values: Object.entries(row).map(([key, val]) => ({ key, val, isEmpty: val === null || val === undefined }))
           }))
         })
       }
-      
+
       return validRows.length === 0
     }
-    
-    // 普通数组：检查长度
-    return value.raw.length === 0
+
+    return raw.length === 0 || raw.every((item) => isRawValueEmpty(item))
   }
-  
+
+  if (raw instanceof Date) {
+    return Number.isNaN(raw.getTime())
+  }
+
+  if (typeof raw === 'object') {
+    return isRawValueEmpty(raw)
+  }
+
+  return false
+}
+
+function isRawValueEmpty(raw: unknown): boolean {
+  if (raw === null || raw === undefined) {
+    return true
+  }
+
+  if (typeof raw === 'string') {
+    return raw.trim() === ''
+  }
+
+  if (typeof raw === 'number') {
+    return Number.isNaN(raw) || raw === 0
+  }
+
+  if (typeof raw === 'boolean') {
+    return raw === false
+  }
+
+  if (Array.isArray(raw)) {
+    return raw.length === 0 || raw.every((item) => isRawValueEmpty(item))
+  }
+
+  if (raw instanceof Date) {
+    return Number.isNaN(raw.getTime())
+  }
+
+  if (typeof raw === 'object') {
+    const values = Object.values(raw as Record<string, unknown>)
+    return values.length === 0 || values.every((value) => isRawValueEmpty(value))
+  }
+
   return false
 }
 
@@ -168,6 +191,10 @@ export function findFieldInContext(context: ValidationContext): FieldConfig | nu
  */
 export function createRequiredErrorMessage(fieldName: string): string {
   return `${fieldName}必填`
+}
+
+export function createExcludedErrorMessage(fieldName: string): string {
+  return `${fieldName}在当前条件下不可填写`
 }
 
 /**

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IApiClient } from '@/architecture/domain/interfaces/IApiClient'
 import type { IEventBus } from '@/architecture/domain/interfaces/IEventBus'
 import type { FieldConfig, FieldValue, FunctionDetail } from '@/architecture/domain/types'
@@ -125,6 +125,39 @@ describe('formViewRuntime', () => {
     })
   })
 
+  it('omits excluded fields from submit data when the exclusion condition is active', () => {
+    const runtime = createFormViewRuntime({
+      eventBus: createMockEventBus(),
+      apiClient: apiClientStub
+    })
+
+    const exclusionFields: FieldConfig[] = [
+      {
+        code: 'invoice_type',
+        field_name: 'InvoiceType',
+        name: '发票类型',
+        widget: { type: 'input', config: {} },
+        data: { type: 'string' }
+      },
+      {
+        code: 'tax_no',
+        name: '税号',
+        widget: { type: 'input', config: {} },
+        data: { type: 'string' },
+        validation: 'excluded_unless=InvoiceType company'
+      }
+    ]
+
+    runtime.applicationService.initializeForm(exclusionFields, {
+      invoice_type: 'personal',
+      tax_no: 'T-001'
+    }, true)
+
+    expect(runtime.domainService.getSubmitData(exclusionFields)).toEqual({
+      invoice_type: 'personal'
+    })
+  })
+
   it('builds raw initialData from the scoped form store', () => {
     const runtime = createFormViewRuntime({
       eventBus: createMockEventBus(),
@@ -204,5 +237,96 @@ describe('formViewRuntime', () => {
         }
       }
     })
+  })
+
+  it('blocks submit when conditional required fields fail validation', async () => {
+    const post = vi.fn(async () => ({}))
+    const runtime = createFormViewRuntime({
+      eventBus: createMockEventBus(),
+      apiClient: {
+        get: async () => ({}),
+        post,
+        put: async () => ({}),
+        delete: async () => ({})
+      } as IApiClient
+    })
+
+    const conditionalFields: FieldConfig[] = [
+      {
+        code: 'member_type',
+        field_name: 'MemberType',
+        name: '会员类型',
+        widget: { type: 'input', config: {} },
+        data: { type: 'string' }
+      },
+      {
+        code: 'card_no',
+        name: '卡号',
+        widget: { type: 'input', config: {} },
+        data: { type: 'string' },
+        validation: 'required_if=MemberType vip'
+      }
+    ]
+
+    runtime.applicationService.initializeForm(conditionalFields, {
+      member_type: 'vip',
+      card_no: ''
+    }, true)
+
+    await expect(runtime.applicationService.submitForm({
+      method: 'POST',
+      router: '/test/conditional-submit',
+      request: conditionalFields
+    })).rejects.toThrow('请先修正表单校验错误')
+
+    expect(post).not.toHaveBeenCalled()
+    expect(runtime.domainService.getFieldError('card_no')[0]?.message).toBe('卡号必填')
+  })
+
+  it('submits sanitized payload with excluded fields removed', async () => {
+    const post = vi.fn(async (_url: string, payload: Record<string, any>) => payload)
+    const runtime = createFormViewRuntime({
+      eventBus: createMockEventBus(),
+      apiClient: {
+        get: async () => ({}),
+        post,
+        put: async () => ({}),
+        delete: async () => ({})
+      } as IApiClient
+    })
+
+    const exclusionFields: FieldConfig[] = [
+      {
+        code: 'invoice_type',
+        field_name: 'InvoiceType',
+        name: '发票类型',
+        widget: { type: 'input', config: {} },
+        data: { type: 'string' }
+      },
+      {
+        code: 'tax_no',
+        name: '税号',
+        widget: { type: 'input', config: {} },
+        data: { type: 'string' },
+        validation: 'excluded_unless=InvoiceType company'
+      }
+    ]
+
+    runtime.applicationService.initializeForm(exclusionFields, {
+      invoice_type: 'personal',
+      tax_no: 'T-001'
+    }, true)
+
+    const response = await runtime.applicationService.submitForm({
+      method: 'POST',
+      router: '/test/excluded-submit',
+      request: exclusionFields
+    })
+
+    expect(post).toHaveBeenCalledWith(
+      '/workspace/api/v1/form/submit/test/excluded-submit',
+      { invoice_type: 'personal' }
+    )
+    expect(response).toEqual({ invoice_type: 'personal' })
   })
 })

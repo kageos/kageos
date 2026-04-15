@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	v1 "github.com/ai-agent-os/ai-agent-os/core/app-runtime/api/v1"
@@ -345,13 +346,13 @@ func (s *Server) unsubscribeNATS(ctx context.Context) {
 // startHTTP 检测是否重复启动（通过端口占用检测）
 // 如果端口已被占用，说明已有实例运行，直接 panic
 func (s *Server) startHTTP(ctx context.Context) error {
-	port := fmt.Sprintf(":%d", s.cfg.Runtime.Port)
+	addr := net.JoinHostPort(s.cfg.GetListenHost(), strconv.Itoa(s.cfg.Runtime.Port))
 
 	// 尝试监听端口，如果失败说明已有实例运行
-	listener, err := net.Listen("tcp", port)
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		logger.Errorf(ctx, "[Server] Port %s already in use, another instance is running", port)
-		panic(fmt.Sprintf("启动失败：端口 %s 已被占用，可能有其他实例正在运行", port))
+		logger.Errorf(ctx, "[Server] Port %s already in use, another instance is running", addr)
+		panic(fmt.Sprintf("启动失败：端口 %s 已被占用，可能有其他实例正在运行", addr))
 	}
 
 	// 保持端口监听，作为实例运行的标识
@@ -359,7 +360,7 @@ func (s *Server) startHTTP(ctx context.Context) error {
 
 	// 将 listener 保存到 httpServer 的 Addr 字段，用于后续关闭
 	s.httpServer = &http.Server{
-		Addr: port,
+		Addr: addr,
 	}
 
 	// 启动一个 goroutine 保持监听

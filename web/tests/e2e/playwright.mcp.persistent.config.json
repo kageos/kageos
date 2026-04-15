@@ -1,0 +1,39 @@
+{
+  "browser": {
+    "browserName": "chromium",
+    "userDataDir": "./tests/e2e/.mcp-profile/chromium",
+    "launchOptions": {
+      "headless": false
+    },
+    "contextOptions": {
+      "baseURL": "http://127.0.0.1:5173",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "locale": "zh-CN"
+    }
+  },
+  "capabilities": [
+    "core",
+    "vision",
+    "devtools"
+  ],
+  "outputDir": "./tests/e2e/.mcp-output/persistent",
+  "saveSession": true,
+  "testIdAttribute": "data-testid",
+  "console": {
+    "level": "info"
+  },
+  "timeouts": {
+    "action": 5000,
+    "navigation": 60000,
+    "expect": 5000
+  },
+  "network": {
+    "allowedOrigins": [
+      "http://127.0.0.1:*",
+      "http://localhost:*"
+    ]
+  }
+}

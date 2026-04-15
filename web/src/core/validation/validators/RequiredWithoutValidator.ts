@@ -12,9 +12,8 @@ import {
   getFieldName,
   createRequiredErrorMessage,
   findFieldInContext,
-  findFieldByCode,
-  resolveReferencedFieldPath
 } from '../utils/fieldUtils'
+import { evaluatePresenceRule } from '../utils/presenceRules'
 
 export class RequiredWithoutValidator implements Validator {
   readonly name = 'required_without'
@@ -24,22 +23,7 @@ export class RequiredWithoutValidator implements Validator {
     rule: ValidationRule,
     context: ValidationContext
   ): ValidationResult {
-    // 检查规则配置
-    if (!rule.field) {
-      return { valid: true }  // 配置错误，跳过验证
-    }
-    
-    // 🔥 通过 formManager 获取其他字段的值（解耦设计）
-    const otherFieldPath = resolveReferencedFieldPath(context, rule.field)
-    const otherFieldValue = context.formManager.getValue(otherFieldPath)
-    
-    // 🔥 查找其他字段的配置（用于 table 类型字段的空行过滤）
-    const otherField = findFieldByCode(context.allFields, rule.field)
-    
-    // 判断其他字段是否为空
-    const otherFieldIsEmpty = isEmptyValue(otherFieldValue, otherField || undefined)
-    
-    if (otherFieldIsEmpty) {
+    if (evaluatePresenceRule(rule, context)) {
       // 其他字段为空，当前字段必填
       // 🔥 从 context 中查找字段配置，用于 table 类型字段的空行过滤
       const field = findFieldInContext(context)

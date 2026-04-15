@@ -14,7 +14,9 @@ func (s *Server) setupRoutes() {
 	s.httpServer.GET("/health", s.healthHandler)
 
 	// 注册 pprof 路由（性能分析）
-	pprof.RegisterPprofRoutes(s.httpServer)
+	if s.cfg.IsPprofEnabled() {
+		pprof.RegisterPprofRoutes(s.httpServer)
+	}
 
 	// Swagger 文档路由
 	s.httpServer.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -42,14 +44,14 @@ func (s *Server) setupRoutes() {
 	// 智能工作台（只认 LLM，单模式）
 	workspace := apiV1.Group("/workspace")
 	workspaceChatHandler := v1.NewWorkspace(s.toolRegistry, s.workspaceChatService)
-	workspace.GET("/tools", workspaceChatHandler.ListTools)           // 列出工具
-	workspace.GET("/tools/names", workspaceChatHandler.ListToolNames) // 工具名列表
-	workspace.POST("/call_tool", workspaceChatHandler.CallTool)       // 执行工具（临时）
-	workspace.GET("/sessions", workspaceChatHandler.ListSessions)             // 获取会话列表
-	workspace.GET("/sessions/running", workspaceChatHandler.ListRunningSessions)   // 查询执行中的任务
-	workspace.GET("/sessions/finished", workspaceChatHandler.ListFinishedSessions) // 查询已结束的任务
+	workspace.GET("/tools", workspaceChatHandler.ListTools)                                     // 列出工具
+	workspace.GET("/tools/names", workspaceChatHandler.ListToolNames)                           // 工具名列表
+	workspace.POST("/call_tool", workspaceChatHandler.CallTool)                                 // 执行工具（临时）
+	workspace.GET("/sessions", workspaceChatHandler.ListSessions)                               // 获取会话列表
+	workspace.GET("/sessions/running", workspaceChatHandler.ListRunningSessions)                // 查询执行中的任务
+	workspace.GET("/sessions/finished", workspaceChatHandler.ListFinishedSessions)              // 查询已结束的任务
 	workspace.GET("/sessions/:session_id/sse-status", workspaceChatHandler.GetSessionSSEStatus) // SSE 存活检测
-	workspace.GET("/messages", workspaceChatHandler.ListMessages)                   // 获取会话消息列表
+	workspace.GET("/messages", workspaceChatHandler.ListMessages)                               // 获取会话消息列表
 	workspace.POST("/chat/stream", workspaceChatHandler.ChatStream)
-	workspace.POST("/chat/cancel", workspaceChatHandler.CancelChat)            // 取消执行中的任务
+	workspace.POST("/chat/cancel", workspaceChatHandler.CancelChat) // 取消执行中的任务
 }

@@ -12,9 +12,10 @@
       :rules="rules"
       label-width="120px"
       v-loading="loading"
+      data-testid="pull-from-hub-dialog"
     >
       <el-form-item label="安装方式">
-        <el-radio-group v-model="installMode" class="install-mode-group">
+        <el-radio-group v-model="installMode" class="install-mode-group" data-testid="pull-from-hub-mode">
           <el-radio-button value="hub_link">Hub 链接</el-radio-button>
           <el-radio-button value="json_bundle">离线 JSON</el-radio-button>
         </el-radio-group>
@@ -25,6 +26,7 @@
         <el-input
           v-model="form.hub_link"
           placeholder="粘贴 Hub 链接，格式：hub://host/full_code_path@version"
+          data-testid="pull-from-hub-link"
           @paste="handlePaste"
         >
           <template #prepend>
@@ -45,6 +47,7 @@
           :rows="10"
           placeholder="粘贴从应用中心详情页「导出 JSON 安装包」下载的文件内容，或点击下方选择 .json 文件"
           spellcheck="false"
+          data-testid="pull-from-hub-json"
         />
         <el-upload
           class="bundle-upload"
@@ -54,7 +57,7 @@
           accept=".json,application/json"
           @change="handleBundleFileChange"
         >
-          <el-button type="default">选择 JSON 文件</el-button>
+          <el-button type="default" data-testid="pull-from-hub-json-upload">选择 JSON 文件</el-button>
         </el-upload>
         <el-text type="info" size="small" style="display: block; margin-top: 5px">
           与 Hub 链接安装效果相同，适用于内网或未连通 Hub 的场景；导出文件内含目录树与源码
@@ -70,6 +73,7 @@
           <el-input
             v-model="form.target_directory_path"
             placeholder="留空则安装到应用根目录"
+            data-testid="pull-from-hub-target"
           />
           <el-text type="info" size="small" style="display: block; margin-top: 5px">
             指定目标目录路径，留空则安装到应用根目录
@@ -94,8 +98,8 @@
     </el-form>
 
     <template #footer>
-      <el-button @click="handleClose">取消</el-button>
-      <el-button type="primary" @click="handleSubmit">
+      <el-button data-testid="pull-from-hub-cancel" @click="handleClose">取消</el-button>
+      <el-button type="primary" data-testid="pull-from-hub-submit" @click="handleSubmit">
         安装
       </el-button>
     </template>
@@ -165,6 +169,19 @@ const rules = {
   ]
 }
 
+// 初始化表单
+function initForm() {
+  if (!props.currentApp) {
+    ElMessage.warning('请先选择应用')
+    return
+  }
+
+  form.value = {
+    hub_link: props.initialHubLink ?? '',
+    target_directory_path: props.initialTargetPath ?? '',
+  }
+}
+
 // 监听对话框打开，初始化表单
 watch(dialogVisible, (visible) => {
   if (visible) {
@@ -178,7 +195,7 @@ watch(dialogVisible, (visible) => {
       form.value.target_directory_path = props.initialTargetPath
     }
   }
-})
+}, { immediate: true })
 
 // 监听 initialHubLink 变化，更新表单
 watch(() => props.initialHubLink, (newLink) => {
@@ -193,19 +210,6 @@ watch(() => props.initialTargetPath, (newPath) => {
     form.value.target_directory_path = newPath
   }
 })
-
-// 初始化表单
-const initForm = () => {
-  if (!props.currentApp) {
-    ElMessage.warning('请先选择应用')
-    return
-  }
-
-  form.value = {
-    hub_link: props.initialHubLink ?? '',
-    target_directory_path: props.initialTargetPath ?? '',
-  }
-}
 
 // 处理粘贴事件
 const handlePaste = (event: ClipboardEvent) => {

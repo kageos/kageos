@@ -10,9 +10,10 @@ import (
 
 type BackupServiceConfig struct {
 	Server struct {
-		Port     int    `mapstructure:"port"`
-		LogLevel string `mapstructure:"log_level"`
-		Debug    bool   `mapstructure:"debug"`
+		Port       int    `mapstructure:"port"`
+		ListenHost string `mapstructure:"listen_host"`
+		LogLevel   string `mapstructure:"log_level"`
+		Debug      bool   `mapstructure:"debug"`
 	} `mapstructure:"server"`
 
 	Storage struct {
@@ -101,6 +102,13 @@ func (c *BackupServiceConfig) GetPort() int {
 		return 19088
 	}
 	return c.Server.Port
+}
+
+func (c *BackupServiceConfig) GetListenHost() string {
+	if c == nil {
+		return normalizeListenHost("")
+	}
+	return normalizeListenHost(c.Server.ListenHost)
 }
 
 func (c *BackupServiceConfig) GetLogLevel() string {

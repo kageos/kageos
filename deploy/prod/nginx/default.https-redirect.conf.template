@@ -1,0 +1,38 @@
+# 由 entrypoint envsubst 生成；变量：CANONICAL_HOST、TLS_CERT_FILE、TLS_KEY_FILE
+# main 容器使用 host 网络，80 仅做 HTTPS 跳转，主流量走 443
+
+server {
+    listen 80;
+    server_name www.${CANONICAL_HOST};
+    return 301 https://${CANONICAL_HOST}$request_uri;
+}
+
+server {
+    listen 80 default_server;
+    server_name ${CANONICAL_HOST} _;
+    return 301 https://${CANONICAL_HOST}$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name www.${CANONICAL_HOST};
+    ssl_certificate ${TLS_CERT_FILE};
+    ssl_certificate_key ${TLS_KEY_FILE};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+    return 301 https://${CANONICAL_HOST}$request_uri;
+}
+
+server {
+    listen 443 ssl http2 default_server;
+    server_name ${CANONICAL_HOST} _;
+
+    ssl_certificate ${TLS_CERT_FILE};
+    ssl_certificate_key ${TLS_KEY_FILE};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    include /etc/nginx/snippets/ai-agent-os-common.conf;
+}

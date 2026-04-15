@@ -1,7 +1,7 @@
 import type { FieldConfig, FieldValue } from '@/core/types/field'
 import type { FormDataStore } from '@/core/stores-v2/formData'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
-import { shouldShowField } from '@/core/utils/conditionEvaluator'
+import { getFieldPresenceState } from '@/core/utils/conditionEvaluator'
 import {
   clearFieldSubtree as clearFieldSubtreeInStore,
   createClearedFieldValue as createClearedStoreFieldValue,
@@ -117,9 +117,39 @@ export function shouldShowTableRowField(
   const scopedFormManager = {
     getValue: (fieldCodeOrPath: string) =>
       getTableRowScopedFieldValue(formDataStore, tablePath, rowIndex, rowData, fieldCodeOrPath),
+    hasValue: (fieldCodeOrPath: string) =>
+      formDataStore.data.has(resolveRowScopedPath(tablePath, rowIndex, fieldCodeOrPath)),
   }
 
-  return shouldShowField(field, scopedFormManager as any, allFields)
+  return getFieldPresenceState(
+    field,
+    scopedFormManager as any,
+    allFields,
+    `${tablePath}[${rowIndex}].${field.code}`
+  ).visible
+}
+
+export function getTableRowFieldPresenceState(
+  formDataStore: Pick<FormDataStore, 'getValue' | 'data'>,
+  tablePath: string,
+  rowIndex: number,
+  rowData: Record<string, any> | null | undefined,
+  field: FieldConfig,
+  allFields: FieldConfig[]
+) {
+  const scopedFormManager = {
+    getValue: (fieldCodeOrPath: string) =>
+      getTableRowScopedFieldValue(formDataStore, tablePath, rowIndex, rowData, fieldCodeOrPath),
+    hasValue: (fieldCodeOrPath: string) =>
+      formDataStore.data.has(resolveRowScopedPath(tablePath, rowIndex, fieldCodeOrPath)),
+  }
+
+  return getFieldPresenceState(
+    field,
+    scopedFormManager as any,
+    allFields,
+    `${tablePath}[${rowIndex}].${field.code}`
+  )
 }
 
 export function clearFieldSubtree(

@@ -1,5 +1,6 @@
 runtime:
   port: 9093
+  listen_host: "127.0.0.1"
   log_level: "info"
   debug: false
   instance_id: ""

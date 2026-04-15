@@ -13,6 +13,38 @@ interface PermissionNodeLike {
   template_type?: string
 }
 
+export type TableDetailEditAccess = 'unsupported' | 'no-permission' | 'allowed'
+
+export function hasFunctionCallback(
+  callbacks: string[] | string | null | undefined,
+  callbackName: string
+): boolean {
+  if (Array.isArray(callbacks)) {
+    return callbacks.includes(callbackName)
+  }
+
+  if (typeof callbacks !== 'string') {
+    return false
+  }
+
+  return callbacks
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean)
+    .includes(callbackName)
+}
+
+export function resolveTableDetailEditAccess(options: {
+  supportsUpdate: boolean
+  canUpdate: boolean
+}): TableDetailEditAccess {
+  if (!options.supportsUpdate) {
+    return 'unsupported'
+  }
+
+  return options.canUpdate ? 'allowed' : 'no-permission'
+}
+
 export function resolveTableActionCommand(options: {
   command: string
   canUpdate: boolean

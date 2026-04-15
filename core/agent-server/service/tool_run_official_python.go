@@ -40,7 +40,7 @@ var runOfficialPythonToolDef = toolDefinition[runOfficialPythonArgs](
 
 **无法输出文件到工作台供用户下载：** 本工具只能返回文本/JSON（output/json_result），**不能**把 Python 生成的 PNG/Excel 等变成工作台可下载附件。
 
-**若需要「处理后的文件给用户下载」：** 请先用 **read_doc** 读取内置示例文档 **/builtin/doc/case_catalog/form/python_output**（含 PRD 与完整 Go 示例），再按文档配合 **agent-app SDK** 在用户应用内新增 Form：**pythonRuntime.NewExecutor** → **defer executor.Close()**（默认临时目录）→ Go 用 **filepath.Abs** 得到 **绝对路径**（如 GetTraceOutputDir 下文件）经请求传给 Python → Python **直接写入该路径**（如 savefig，勿用相对路径互传，Go/Python **cwd 不同**）→ 响应 **types.Files**（ResponseFiles 使用同一绝对路径）。Go 与 Python 为**同机子进程**，非网络隔离。
+**若需要「处理后的文件给用户下载」：** 请先用 **read_doc** 读取内置示例文档 **/system/prompt/case_catalog/form/python_output**（含 PRD 与完整 Go 示例），再按文档配合 **agent-app SDK** 在用户应用内新增 Form：**pythonRuntime.NewExecutor** → **defer executor.Close()**（默认临时目录）→ Go 用 **filepath.Abs** 得到 **绝对路径**（如 GetTraceOutputDir 下文件）经请求传给 Python → Python **直接写入该路径**（如 savefig，勿用相对路径互传，Go/Python **cwd 不同**）→ 响应 **types.Files**（ResponseFiles 使用同一绝对路径）。Go 与 Python 为**同机子进程**，非网络隔离。
 
 **两种输出方式（二选一或组合）：**
 1. **结构化结果（推荐）**：脚本末尾调用 output_json(字典或列表)，键用双引号、值为 JSON 可序列化类型。返回里 json_result 为格式化后的 JSON，便于你后续取字段。

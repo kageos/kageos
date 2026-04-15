@@ -103,6 +103,90 @@ describe('FormDomainService nested validation', () => {
     expect(service.getFieldError('items[0].name')[0]?.message).toBe('名称必填')
   })
 
+  it('validates required_with_all on top-level fields', () => {
+    const stateManager = new FormStateManager()
+    const service = new FormDomainService(stateManager as any, createEventBus())
+
+    const fields = [
+      {
+        code: 'email',
+        field_name: 'Email',
+        name: '邮箱',
+        widget: { type: 'input' },
+        data: { type: 'string' }
+      },
+      {
+        code: 'mobile',
+        field_name: 'Mobile',
+        name: '手机号',
+        widget: { type: 'input' },
+        data: { type: 'string' }
+      },
+      {
+        code: 'contact_name',
+        name: '联系人',
+        widget: { type: 'input' },
+        data: { type: 'string' },
+        validation: 'required_with_all=Email Mobile'
+      }
+    ] as any
+
+    stateManager.setState({
+      data: new Map([
+        ['email', { raw: 'a@example.com', display: 'a@example.com', meta: {} }],
+        ['mobile', { raw: '13800000000', display: '13800000000', meta: {} }],
+        ['contact_name', { raw: '', display: '', meta: {} }]
+      ]),
+      errors: new Map(),
+      submitting: false,
+      response: null,
+      metadata: null
+    } as any)
+
+    const isValid = service.validateForm(fields)
+
+    expect(isValid).toBe(false)
+    expect(service.getFieldError('contact_name')[0]?.message).toBe('联系人必填')
+  })
+
+  it('validates excluded_unless on top-level fields', () => {
+    const stateManager = new FormStateManager()
+    const service = new FormDomainService(stateManager as any, createEventBus())
+
+    const fields = [
+      {
+        code: 'invoice_type',
+        field_name: 'InvoiceType',
+        name: '发票类型',
+        widget: { type: 'input' },
+        data: { type: 'string' }
+      },
+      {
+        code: 'tax_no',
+        name: '税号',
+        widget: { type: 'input' },
+        data: { type: 'string' },
+        validation: 'excluded_unless=InvoiceType company'
+      }
+    ] as any
+
+    stateManager.setState({
+      data: new Map([
+        ['invoice_type', { raw: 'personal', display: 'personal', meta: {} }],
+        ['tax_no', { raw: 'T-001', display: 'T-001', meta: {} }]
+      ]),
+      errors: new Map(),
+      submitting: false,
+      response: null,
+      metadata: null
+    } as any)
+
+    const isValid = service.validateForm(fields)
+
+    expect(isValid).toBe(false)
+    expect(service.getFieldError('tax_no')[0]?.message).toBe('税号在当前条件下不可填写')
+  })
+
   it('clears response metadata together with form state', () => {
     const stateManager = new FormStateManager()
     const service = new FormDomainService(stateManager as any, createEventBus())
@@ -115,6 +199,75 @@ describe('FormDomainService nested validation', () => {
     expect(stateManager.getState().data.size).toBe(0)
     expect(stateManager.getState().response).toBeNull()
     expect(stateManager.getState().metadata).toBeNull()
+  })
+
+  it('prefers initialData over stale enriched field values during initializeForm', () => {
+    const stateManager = new FormStateManager()
+    const service = new FormDomainService(stateManager as any, createEventBus())
+
+    const fields = [
+      {
+        code: 'progress',
+        name: '完成进度',
+        widget: { type: 'slider' },
+        data: { type: 'int' }
+      }
+    ] as any
+
+    stateManager.setState({
+      data: new Map([
+        ['progress', { raw: 50, display: '50%', meta: {} }]
+      ]),
+      errors: new Map(),
+      submitting: false,
+      response: null,
+      metadata: null
+    } as any)
+
+    service.initializeForm(fields, { progress: 80 }, true)
+
+    expect(stateManager.getValue('progress')).toEqual({
+      raw: 80,
+      display: '80',
+      meta: {
+        fromInitialData: true
+      }
+    })
+  })
+
+  it('keeps enriched display metadata when initialData raw matches existing value', () => {
+    const stateManager = new FormStateManager()
+    const service = new FormDomainService(stateManager as any, createEventBus())
+
+    const fields = [
+      {
+        code: 'progress',
+        name: '完成进度',
+        widget: { type: 'slider' },
+        data: { type: 'int' }
+      }
+    ] as any
+
+    stateManager.setState({
+      data: new Map([
+        ['progress', { raw: 50, display: '50%', meta: { source: 'initializer' } }]
+      ]),
+      errors: new Map(),
+      submitting: false,
+      response: null,
+      metadata: null
+    } as any)
+
+    service.initializeForm(fields, { progress: 50 }, true)
+
+    expect(stateManager.getValue('progress')).toEqual({
+      raw: 50,
+      display: '50%',
+      meta: {
+        source: 'initializer',
+        fromInitialData: true
+      }
+    })
   })
 
   it('clears top-level dependent fields and nested subtrees on update', () => {

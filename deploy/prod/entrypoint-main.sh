@@ -40,6 +40,10 @@ SMTP_USERNAME="${SMTP_USERNAME-}"
 SMTP_PASSWORD="${SMTP_PASSWORD-}"
 SMTP_FROM="${SMTP_FROM-}"
 SMTP_FROM_NAME="${SMTP_FROM_NAME:-AI Agent OS}"
+ENABLE_HTTPS="${ENABLE_HTTPS:-0}"
+HTTPS_REDIRECT="${HTTPS_REDIRECT:-0}"
+TLS_CERT_FILE="${TLS_CERT_FILE:-/app/tls/fullchain.pem}"
+TLS_KEY_FILE="${TLS_KEY_FILE:-/app/tls/privkey.pem}"
 
 wait_tcp() {
   local host="$1" port="$2" label="$3"
@@ -80,11 +84,67 @@ CANONICAL_HOST=$(echo "$CANONICAL_BASE_URL" | sed -E 's|^https?://([^/]+).*|\1|'
 export CANONICAL_SCHEME
 export CANONICAL_HOST
 
-echo "==> 生成 Nginx（80，www → 裸域 301）canonical_host=${CANONICAL_HOST} scheme=${CANONICAL_SCHEME}"
-envsubst '${CANONICAL_HOST} ${CANONICAL_SCHEME}' < /app/deploy/prod/nginx/default.conf.template > /etc/nginx/sites-enabled/default
+case "$ENABLE_HTTPS" in
+  0|1) ;;
+  *)
+    echo "ERROR: ENABLE_HTTPS 仅支持 0 或 1，当前值: ${ENABLE_HTTPS}" >&2
+    exit 1
+    ;;
+esac
+
+case "$HTTPS_REDIRECT" in
+  0|1) ;;
+  *)
+    echo "ERROR: HTTPS_REDIRECT 仅支持 0 或 1，当前值: ${HTTPS_REDIRECT}" >&2
+    exit 1
+    ;;
+esac
+
+if [[ "$HTTPS_REDIRECT" == "1" && "$ENABLE_HTTPS" != "1" ]]; then
+  echo "ERROR: HTTPS_REDIRECT=1 需要同时设置 ENABLE_HTTPS=1" >&2
+  exit 1
+fi
+
+NGINX_TEMPLATE="/app/deploy/prod/nginx/default.conf.template"
+NGINX_MODE_DESC="80 HTTP"
+
+if [[ "$ENABLE_HTTPS" == "1" ]]; then
+  if [[ ! -f "$TLS_CERT_FILE" ]]; then
+    echo "ERROR: ENABLE_HTTPS=1 但证书文件不存在: ${TLS_CERT_FILE}" >&2
+    exit 1
+  fi
+  if [[ ! -f "$TLS_KEY_FILE" ]]; then
+    echo "ERROR: ENABLE_HTTPS=1 但私钥文件不存在: ${TLS_KEY_FILE}" >&2
+    exit 1
+  fi
+
+  if [[ "$CANONICAL_SCHEME" != "https" ]]; then
+    echo "WARN: ENABLE_HTTPS=1 但 CANONICAL_BASE_URL 不是 https://；Nginx 会提供 HTTPS，但 canonical scheme 仍按 ${CANONICAL_SCHEME} 生成"
+  fi
+
+  if [[ "$HTTPS_REDIRECT" == "1" ]]; then
+    if [[ "$CANONICAL_SCHEME" != "https" ]]; then
+      echo "ERROR: HTTPS_REDIRECT=1 时 CANONICAL_BASE_URL 必须使用 https://，当前为 ${CANONICAL_BASE_URL}" >&2
+      exit 1
+    fi
+    NGINX_TEMPLATE="/app/deploy/prod/nginx/default.https-redirect.conf.template"
+    NGINX_MODE_DESC="80 -> 443 重定向 + 443 HTTPS"
+  else
+    NGINX_TEMPLATE="/app/deploy/prod/nginx/default.https.conf.template"
+    NGINX_MODE_DESC="80 HTTP + 443 HTTPS"
+  fi
+fi
+
+mkdir -p /etc/nginx/snippets
+cp /app/deploy/prod/nginx/common.server.inc /etc/nginx/snippets/ai-agent-os-common.conf
+
+export TLS_CERT_FILE
+export TLS_KEY_FILE
+echo "==> 生成 Nginx（${NGINX_MODE_DESC}，www → 裸域 301）canonical_host=${CANONICAL_HOST} scheme=${CANONICAL_SCHEME}"
+envsubst '${CANONICAL_HOST} ${CANONICAL_SCHEME} ${TLS_CERT_FILE} ${TLS_KEY_FILE}' < "${NGINX_TEMPLATE}" > /etc/nginx/sites-enabled/default
 nginx -t
 
-echo "==> 启动 Nginx（host 网络直接监听 80）..."
+echo "==> 启动 Nginx（host 网络直接监听 ${NGINX_MODE_DESC}）..."
 nginx
 
 # Podman 需要明确的 runroot/graphroot（见 /etc/containers/storage.conf）；/run 每次启动需重建

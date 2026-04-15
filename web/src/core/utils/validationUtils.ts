@@ -51,7 +51,8 @@ export function hasAnyRequiredRule(field: FieldConfig): boolean {
     r.startsWith('required_if') || 
     r.startsWith('required_unless') ||
     r.startsWith('required_with') ||
-    r.startsWith('required_without')
+    r.startsWith('required_without') ||
+    r.startsWith('required_with_all') ||
+    r.startsWith('required_without_all')
   )
 }
-

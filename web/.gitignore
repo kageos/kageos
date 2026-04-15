@@ -12,6 +12,9 @@ node_modules
 dist
 dist-ssr
 coverage
+playwright-report
+test-results
+.playwright-mcp
 *.local
 
 # Editor directories and files
@@ -34,3 +37,6 @@ coverage
 
 # Vitest
 __screenshots__/
+tests/e2e/.auth/
+tests/e2e/.mcp-output/
+tests/e2e/.mcp-profile/

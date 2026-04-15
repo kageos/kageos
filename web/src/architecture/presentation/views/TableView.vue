@@ -80,40 +80,50 @@
 -->
 
 <template>
-  <div class="table-view">
+  <div class="table-view" data-testid="table-view">
     <!-- ⭐ 权限不足提示：使用 PermissionDeniedView 组件 -->
     <PermissionDeniedView v-if="permissionError" />
 
     <!-- 工具栏 -->
-    <div class="toolbar" v-if="hasAddCallback || hasDeleteCallback">
+    <div class="toolbar">
       <div class="toolbar-left">
-        <!-- 新增按钮：需要 table:write 权限，无权限时可点击跳转申请 -->
+        <!-- 新增按钮：支持时按权限控制；不支持时也展示禁用态，避免误以为缺按钮 -->
         <el-button 
-          v-if="hasAddCallback" 
-          :type="canCreate ? 'primary' : 'default'"
-          :plain="!canCreate"
-          @click="canCreate ? handleAdd() : handleApplyPermissionForAction(TablePermission.write)"
-          :icon="Plus"
+          :type="hasAddCallback && canCreate ? 'primary' : 'default'"
+          :plain="!hasAddCallback || !canCreate"
+          :disabled="!hasAddCallback || !canCreate"
+          @click="handleAdd"
+          :icon="hasAddCallback ? (canCreate ? Plus : Lock) : InfoFilled"
           class="action-btn"
-          :class="{ 'action-btn-no-permission': !canCreate }"
+          :class="{ 'action-btn-no-permission': !hasAddCallback || !canCreate }"
+          data-testid="table-add"
         >
-          <template v-if="!canCreate">
-            <el-icon><Lock /></el-icon>
-            新增（需{{ getPermissionShortName(TablePermission.write) }}）
-          </template>
-          <template v-else>新增</template>
+          {{
+            !hasAddCallback
+              ? '新增（当前表格不支持）'
+              : canCreate
+                ? '新增'
+                : `新增（需${getPermissionShortName(TablePermission.write)}）`
+          }}
         </el-button>
-        <!-- 批量删除按钮：需要 table:delete 权限，无权限时可点击跳转申请 -->
+        <!-- 批量删除按钮：支持时按权限控制；不支持时保留禁用提示 -->
         <el-button 
-          v-if="hasDeleteCallback && !isBatchDeleteMode" 
-          :type="canDelete ? 'danger' : 'default'"
-          :plain="!canDelete"
-          @click="canDelete ? enterBatchDeleteMode() : handleApplyPermissionForAction(TablePermission.delete)"
-          :icon="canDelete ? Delete : Lock"
+          v-if="!isBatchDeleteMode" 
+          :type="hasDeleteCallback && canDelete ? 'danger' : 'default'"
+          :plain="!hasDeleteCallback || !canDelete"
+          :disabled="!hasDeleteCallback"
+          @click="hasDeleteCallback ? (canDelete ? enterBatchDeleteMode() : handleApplyPermissionForAction(TablePermission.delete)) : undefined"
+          :icon="hasDeleteCallback ? (canDelete ? Delete : Lock) : InfoFilled"
           class="action-btn"
-          :class="{ 'action-btn-no-permission': !canDelete }"
+          :class="{ 'action-btn-no-permission': !hasDeleteCallback || !canDelete }"
         >
-          {{ canDelete ? '批量删除' : `批量删除（需${getPermissionShortName(TablePermission.delete)}）` }}
+          {{
+            !hasDeleteCallback
+              ? '批量删除（当前表格不支持）'
+              : canDelete
+                ? '批量删除'
+                : `批量删除（需${getPermissionShortName(TablePermission.delete)}）`
+          }}
         </el-button>
         <template v-if="hasDeleteCallback && isBatchDeleteMode">
           <el-button 
@@ -134,7 +144,7 @@
     </div>
 
     <!-- 搜索栏：科幻风折叠，默认收起 -->
-    <div v-if="searchableFields.length > 0" class="search-bar-wrapper">
+    <div v-if="searchableFields.length > 0" class="search-bar-wrapper" data-testid="table-search">
       <!-- 收起时：终端条样式 -->
       <div
         v-if="!searchBarExpanded"
@@ -246,6 +256,7 @@
       :stripe="false"
       style="width: 100%"
       class="table-with-fixed-column table-row-clickable"
+      data-testid="table-grid"
       @sort-change="handleSortChange"
       @selection-change="handleSelectionChange"
       @row-click="handleRowClick"
@@ -265,18 +276,21 @@
         :prop="idField.code"
         label=""
         fixed="left"
-        width="80"
+        width="120"
         class-name="control-column"
         :sortable="getSortableConfig(idField)"
         :sort-order="sortOrderMap[idField.code] || null"
       >
         <template #default="{ row }">
-          <span 
-            class="link-text"
+          <button
+            type="button"
+            class="detail-icon-button"
+            :title="`查看详情 ${row[idField.code]}`"
             @click.stop="handleDetail(row)"
           >
-            #{{ row[idField.code] }}
-          </span>
+            <el-icon><View /></el-icon>
+            <span class="detail-id-text">{{ row[idField.code] }}</span>
+          </button>
         </template>
       </el-table-column>
 
@@ -396,7 +410,7 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElIcon, ElTable, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElText, ElCard, ElSkeleton } from 'element-plus'
-import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right, Lock, Edit } from '@element-plus/icons-vue'
+import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right, Lock, Edit, View, InfoFilled } from '@element-plus/icons-vue'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../../presentation/widgets/WidgetComponent.vue'
 import SearchInput from '@/architecture/presentation/components/SearchInput.vue'
@@ -419,6 +433,7 @@ import type { TableRow } from '../../domain/services/TableDomainService'
 import { TablePermission, getPermissionShortName } from '@/utils/permission'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
+import { hasFunctionCallback } from './utils/tableViewActionRuntime'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -593,15 +608,15 @@ const getActionColumnWidth = (): number => {
 // ==================== 回调判断 ====================
 
 const hasAddCallback = computed(() => {
-  return props.functionDetail.callbacks?.includes('OnTableAddRow') || false
+  return hasFunctionCallback(props.functionDetail.callbacks, 'OnTableAddRow')
 })
 
 const hasDeleteCallback = computed(() => {
-  return props.functionDetail.callbacks?.includes('OnTableDeleteRows') || false
+  return hasFunctionCallback(props.functionDetail.callbacks, 'OnTableDeleteRows')
 })
 
 const hasUpdateCallback = computed(() => {
-  return props.functionDetail.callbacks?.includes('OnTableUpdateRow') || false
+  return hasFunctionCallback(props.functionDetail.callbacks, 'OnTableUpdateRow')
 })
 
 const {
@@ -1065,19 +1080,35 @@ useTableViewLifecycle({
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
-.link-text {
+.detail-icon-button {
+  min-width: 44px;
+  height: 32px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
   color: var(--el-color-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   cursor: pointer;
-  text-decoration: none;
-  font-weight: 500;
-  display: inline-block;
-  padding: 2px 4px;
-  border-radius: 4px;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-.link-text:hover {
-  text-decoration: underline;
+.detail-icon-button:hover {
   background-color: var(--el-color-primary-light-9);
+}
+
+.detail-icon-button:focus-visible {
+  outline: 2px solid var(--el-color-primary-light-5);
+  outline-offset: 2px;
+}
+
+.detail-id-text {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .action-more-btn {

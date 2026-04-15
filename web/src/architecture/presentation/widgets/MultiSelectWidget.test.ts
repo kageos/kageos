@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { defineComponent } from 'vue'
+import { defineComponent, h } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MultiSelectWidget from './MultiSelectWidget.vue'
 import { WidgetType } from '@/core/constants/widget'
@@ -47,7 +47,24 @@ const FuzzySearchDialogStub = defineComponent({
 
 const ElTagStub = defineComponent({
   name: 'ElTag',
-  template: '<span class="el-tag-stub"><slot /></span>'
+  props: {
+    type: {
+      type: String,
+      default: ''
+    },
+    color: {
+      type: String,
+      default: ''
+    }
+  },
+  setup(props, { attrs, slots }) {
+    return () => h('span', {
+      class: 'el-tag-stub',
+      'data-type': props.type || '',
+      'data-color': props.color || '',
+      'data-style': typeof attrs.style === 'string' ? attrs.style : JSON.stringify(attrs.style ?? {})
+    }, slots.default?.())
+  }
 })
 
 describe('MultiSelectWidget', () => {
@@ -105,6 +122,98 @@ describe('MultiSelectWidget', () => {
       raw: ['open', 'closed'],
       display: '开启, 关闭'
     })
+  })
+
+  it('renders high-contrast colored tags for static multiselect selections', async () => {
+    const wrapper = mount(MultiSelectWidget, {
+      props: {
+        field: {
+          code: 'status_list',
+          name: '状态',
+          widget: {
+            type: WidgetType.MULTI_SELECT,
+            config: {
+              options: [
+                { label: '开启', value: 'open' },
+                { label: '关闭', value: 'closed' }
+              ],
+              options_colors: ['danger', 'success']
+            }
+          }
+        } as any,
+        value: {
+          raw: ['open'],
+          display: '开启',
+          meta: {}
+        },
+        mode: 'edit',
+        fieldPath: 'status_list'
+      },
+      global: {
+        stubs: {
+          ElSelect: ElSelectStub,
+          ElOption: ElOptionStub,
+          FuzzySearchDialog: FuzzySearchDialogStub,
+          ElTag: ElTagStub,
+          ElIcon: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const tag = wrapper.find('.el-tag-stub')
+    expect(tag.exists()).toBe(true)
+    expect(tag.attributes('data-type')).toBe('danger')
+    expect(tag.attributes('data-style')).toContain('backgroundColor')
+    expect(tag.attributes('data-style')).toContain('var(--el-color-danger-light-9)')
+    expect(tag.attributes('data-style')).toContain('var(--el-color-danger)')
+  })
+
+  it('falls back to neutral tag style when options_colors uses default or invalid color', async () => {
+    const wrapper = mount(MultiSelectWidget, {
+      props: {
+        field: {
+          code: 'status_list',
+          name: '状态',
+          widget: {
+            type: WidgetType.MULTI_SELECT,
+            config: {
+              options: [
+                { label: '开启', value: 'open' },
+                { label: '关闭', value: 'closed' }
+              ],
+              options_colors: ['default', 'not-a-real-color']
+            }
+          }
+        } as any,
+        value: {
+          raw: ['open', 'closed'],
+          display: '开启, 关闭',
+          meta: {}
+        },
+        mode: 'edit',
+        fieldPath: 'status_list'
+      },
+      global: {
+        stubs: {
+          ElSelect: ElSelectStub,
+          ElOption: ElOptionStub,
+          FuzzySearchDialog: FuzzySearchDialogStub,
+          ElTag: ElTagStub,
+          ElIcon: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const tags = wrapper.findAll('.el-tag-stub')
+    expect(tags[0]?.attributes('data-type')).toBe('')
+    expect(tags[0]?.attributes('data-style')).toContain('var(--el-fill-color-light)')
+    expect(tags[0]?.attributes('data-style')).toContain('var(--el-text-color-regular)')
+    expect(tags[1]?.attributes('data-style')).toContain('var(--el-fill-color-light)')
+    expect(tags[1]?.attributes('data-style')).toContain('var(--el-text-color-regular)')
   })
 
   it('keeps fuzzy dialog for callback-driven multiselect search', async () => {

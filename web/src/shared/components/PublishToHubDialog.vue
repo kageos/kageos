@@ -12,6 +12,7 @@
       :rules="rules"
       label-width="120px"
       v-loading="loading"
+      data-testid="publish-to-hub-dialog"
     >
       <!-- 基本信息 -->
       <el-form-item label="目录名称" prop="name">
@@ -20,6 +21,7 @@
           placeholder="请输入目录名称"
           maxlength="100"
           show-word-limit
+          data-testid="publish-to-hub-name"
         />
       </el-form-item>
 
@@ -143,8 +145,8 @@
     </el-form>
 
     <template #footer>
-      <el-button @click="handleClose">取消</el-button>
-      <el-button type="primary" @click="handleSubmit" :loading="submitting">
+      <el-button data-testid="publish-to-hub-cancel" @click="handleClose">取消</el-button>
+      <el-button type="primary" data-testid="publish-to-hub-submit" @click="handleSubmit" :loading="submitting">
         发布
       </el-button>
     </template>

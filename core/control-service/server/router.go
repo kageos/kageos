@@ -13,13 +13,17 @@ func (s *Server) initRouter(ctx context.Context) error {
 	logger.Infof(ctx, "[Control Service] Initializing router...")
 
 	s.httpServer = serverx.NewGin(
-		serverx.WithDebug(false),
+		serverx.WithDebug(s.cfg.IsDebug()),
 		serverx.WithRecovery(),
 		serverx.WithLogger(),
 	)
 
+	s.httpServer.GET("/health", s.healthHandler)
+
 	// 注册 pprof 路由（性能分析）
-	pprof.RegisterPprofRoutes(s.httpServer)
+	if s.cfg.IsPprofEnabled() {
+		pprof.RegisterPprofRoutes(s.httpServer)
+	}
 
 	// Control 路由组（统一使用 /control/api/v1 开头，方便网关代理）
 	control := s.httpServer.Group("/control")
