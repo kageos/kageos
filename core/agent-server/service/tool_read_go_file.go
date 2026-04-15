@@ -57,13 +57,13 @@ func runReadGoFileTool(ctx context.Context, args readGoFileArgs, currentFullCode
 	targetPath := resolveDirectoryArg(args.Directory, args.FullCodePath, currentFullCodePath)
 	fileName := strings.TrimSpace(args.FileName)
 
-	// 降级：若 directory 是内置文档路径，用文档工具拉取内容并提示应使用 read_doc
-	if strings.HasPrefix(targetPath, "/builtin/") {
+	// 降级：若 directory 是提示词/文档路径，用文档工具拉取内容并提示应使用 read_doc
+	if prompt.IsPromptDocPath(targetPath) {
 		docPath := strings.TrimSpace(targetPath)
 		if !strings.HasPrefix(docPath, "/") {
 			docPath = "/" + docPath
 		}
-		docName, content := prompt.GetBuiltinDocContent(docPath)
+		docName, content := prompt.GetPromptDocContent(ctx, docPath)
 		if content != "" {
 			hint := "【提示】你当前用 read_go_file 读取的是文档路径。应使用 read_doc(directory: \"" + docPath + "\") 读取文档；已为你拉取内容，下次请用 read_doc。\n\n"
 			if docName == "" {
@@ -71,7 +71,7 @@ func runReadGoFileTool(ctx context.Context, args readGoFileArgs, currentFullCode
 			}
 			return toolResult(hint+"## "+docName+"\n\n"+content, false)
 		}
-		return toolResult("该路径是内置文档路径，请使用 read_doc(directory: \""+docPath+"\") 读取，不要用 read_go_file。", true)
+		return toolResult("该路径是文档路径，请使用 read_doc(directory: \""+docPath+"\") 读取，不要用 read_go_file。", true)
 	}
 
 	// 读代码文件时从 runtime 磁盘实时读，保证内容与当前磁盘一致（快照表可能不准）

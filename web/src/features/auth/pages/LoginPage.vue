@@ -72,7 +72,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
 </script>
 
 <template>
-  <div class="login-container" @keypress="handleKeyPress">
+  <div class="login-container" data-testid="login-page" @keypress="handleKeyPress">
     <!-- 背景装饰 -->
     <div class="background-decoration">
       <div class="decoration-circle circle-1"></div>
@@ -146,6 +146,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
           label-width="0"
           size="large"
           class="login-form"
+          data-testid="login-form"
         >
           <el-form-item prop="username">
             <el-input
@@ -155,6 +156,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
               clearable
               size="large"
               class="form-input"
+              data-testid="login-username"
             />
           </el-form-item>
 
@@ -168,6 +170,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
               clearable
               size="large"
               class="form-input"
+              data-testid="login-password"
               @keyup.enter="handleLogin"
             />
           </el-form-item>
@@ -178,6 +181,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
               size="large"
               :loading="loading"
               class="login-btn"
+              data-testid="login-submit"
               @click="handleLogin"
             >
               <template #loading>

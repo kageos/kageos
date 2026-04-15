@@ -18,7 +18,7 @@ type createScheduledTaskArgs struct {
 	Method          string `json:"method" schema_desc:"请求方法"`
 	Payload         string `json:"payload" schema_desc:"JSON 对象字符串"`
 	ScheduleType    string `json:"schedule_type" schema_desc:"调度类型" schema_required:"true" schema_enum:"atime,cron,every"`
-	RunAt           string `json:"run_at" schema_desc:"首次执行时间" schema_required:"true"`
+	RunAt           string `json:"run_at" schema_desc:"仅 atime 需要：首次执行时间"`
 	CronExpr        string `json:"cron_expr" schema_desc:"cron 表达式"`
 	IntervalSeconds *int   `json:"interval_seconds" schema_desc:"间隔秒数"`
 	MaxRuns         *int   `json:"max_runs" schema_desc:"最多执行次数"`
@@ -27,7 +27,7 @@ type createScheduledTaskArgs struct {
 
 var createScheduledTaskToolDef = toolDefinition[createScheduledTaskArgs](
 	"create_scheduled_task",
-	"创建定时任务。支持 execute/form（普通函数，form 会自动映射为 execute）、table_create（表格新增）、table_update（表格更新）、table_delete（表格删除）。full_code_path 可不传（默认当前目录）。table_update 的 payload 需包含 id 与 updates，执行时会自动补 old_values。run_at 建议用本地日期时间字符串（无 Z），与前端一致；也可用带时区偏移的 RFC3339。",
+	"创建定时任务。支持 execute/form（普通函数，form 会自动映射为 execute）、table_create（表格新增）、table_update（表格更新）、table_delete（表格删除）。full_code_path 可不传（默认当前目录）。table_update 的 payload 需包含 id 与 updates，执行时会自动补 old_values。atime 需传 run_at；cron/every 不要传 run_at，服务端会按创建时间自动生效，其中 cron 从下一次命中开始执行，every 创建后立即执行一次。",
 )
 
 func (t *CreateScheduledTaskTool) Definition() dto.ToolDef {
@@ -59,7 +59,7 @@ func runCreateScheduledTaskTool(ctx context.Context, args createScheduledTaskArg
 		return "create_scheduled_task 需传 schedule_type（atime/cron/every）。", true
 	}
 	runAt := strings.TrimSpace(args.RunAt)
-	if runAt == "" {
+	if scheduleType == "atime" && runAt == "" {
 		return "create_scheduled_task 需传 run_at（本地时间如 2006-01-02 15:04:05，或带偏移的 RFC3339）。", true
 	}
 
@@ -113,8 +113,10 @@ func runCreateScheduledTaskTool(ctx context.Context, args createScheduledTaskArg
 		"action":         item.Action,
 		"schedule_type":  item.ScheduleType,
 		"status":         item.Status,
-		"run_at":         item.RunAt,
 		"next_run_at":    item.NextRunAt,
+	}
+	if item.ScheduleType == "atime" {
+		out["run_at"] = item.RunAt
 	}
 	return formatJSONResult(out)
 }

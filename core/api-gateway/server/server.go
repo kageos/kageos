@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 
@@ -89,11 +90,11 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	// 启动 HTTP 服务器
-	port := fmt.Sprintf(":%d", s.cfg.GetPort())
-	logger.Infof(ctx, "[Server] HTTP server starting on port %s", port)
+	addr := net.JoinHostPort(s.cfg.GetListenHost(), strconv.Itoa(s.cfg.GetPort()))
+	logger.Infof(ctx, "[Server] HTTP server starting on %s", addr)
 
 	go func() {
-		if err := s.httpServer.Run(port); err != nil {
+		if err := s.httpServer.Run(addr); err != nil {
 			logger.Errorf(ctx, "[Server] HTTP server error: %v", err)
 		}
 	}()

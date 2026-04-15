@@ -135,6 +135,23 @@ export async function getWorkspaceTools(): Promise<WorkspaceToolDef[]> {
   return o?.tools ?? []
 }
 
+export interface WorkspaceCallToolReq {
+  full_code_path: string
+  tool_name: string
+  arguments?: Record<string, unknown>
+}
+
+export interface WorkspaceCallToolResp {
+  content: string
+  is_error: boolean
+  data?: unknown
+}
+
+/** 直接执行单个工作台工具（用于推荐动作、推荐阅读等快捷操作） */
+export async function callWorkspaceTool(req: WorkspaceCallToolReq): Promise<WorkspaceCallToolResp> {
+  return post<WorkspaceCallToolResp>('/agent/api/v1/workspace/call_tool', req)
+}
+
 /** 获取工作台模式详情（按 id） */
 export async function getWorkspaceMode(id: number): Promise<WorkspaceModeItem> {
   return get<WorkspaceModeItem>(`/agent/api/v1/workspace/modes/${id}`)

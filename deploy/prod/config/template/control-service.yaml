@@ -1,7 +1,9 @@
 server:
   port: 9096
+  listen_host: "127.0.0.1"
   log_level: "info"
   debug: false
+  enable_pprof: false
 
 license:
   path: "/app/data/license/license.json"

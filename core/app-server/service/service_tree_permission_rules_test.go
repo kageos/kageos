@@ -45,6 +45,16 @@ func TestPermissionActionsForNode_MapsFunctionTemplateType(t *testing.T) {
 	}
 }
 
+func TestPermissionActionsForNode_MapsDocsNodeType(t *testing.T) {
+	actions := permissionActionsForNode(model.ServiceTreeTypeDocs, "")
+	if len(actions) == 0 {
+		t.Fatal("expected docs node to expose permission actions")
+	}
+	if actions[0] != permission.BuildActionCode(permission.ResourceTypeDocs, "read") {
+		t.Fatalf("unexpected first docs action: %s", actions[0])
+	}
+}
+
 func TestApplyPermissionInheritance_DirectoryWriteMapsToChildResourceType(t *testing.T) {
 	nodePerms := initializeNodePermissions(permissionActionsForNode(model.ServiceTreeTypeFunction, "table"), nil)
 	parentPerms := map[string]bool{
@@ -73,5 +83,21 @@ func TestApplyPermissionInheritance_DirectoryAdminGrantsAllNodePermissions(t *te
 		if !granted {
 			t.Fatalf("expected %s to be granted by directory admin", actionCode)
 		}
+	}
+}
+
+func TestApplyPermissionInheritance_DirectoryReadMapsToDocsRead(t *testing.T) {
+	nodePerms := initializeNodePermissions(permissionActionsForNode(model.ServiceTreeTypeDocs, ""), nil)
+	parentPerms := map[string]bool{
+		permission.BuildActionCode(permission.ResourceTypeDirectory, "read"): true,
+	}
+
+	applyPermissionInheritance(model.ServiceTreeTypeDocs, "", parentPerms, nodePerms)
+
+	if !nodePerms[permission.BuildActionCode(permission.ResourceTypeDocs, "read")] {
+		t.Fatal("expected directory read to inherit docs read")
+	}
+	if nodePerms[permission.BuildActionCode(permission.ResourceTypeDocs, "write")] {
+		t.Fatal("did not expect directory read to inherit docs write")
 	}
 }

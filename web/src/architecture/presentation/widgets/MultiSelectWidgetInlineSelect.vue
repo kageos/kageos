@@ -21,8 +21,10 @@
           :key="String(value)"
           :type="getOptionColorType(value)"
           :color="getOptionColorValue(value)"
+          effect="light"
+          :style="getOptionTagStyle(value)"
           :closable="true"
-          class="search-selected-tag inline-selected-tag"
+          :class="['search-selected-tag', 'inline-selected-tag', { 'inline-selected-tag-neutral': !getOptionColor(value) }]"
           @close.stop="emit('remove-tag', value)"
         >
           {{ getOptionLabel(value) }}
@@ -82,6 +84,7 @@ defineProps<{
   getOptionColor: (value: any) => string | null
   getOptionColorType: (value: any) => StandardColorType | undefined
   getOptionColorValue: (value: any) => string | undefined
+  getOptionTagStyle: (value: any) => Record<string, string>
   getOptionColorStyle: (value: any) => Record<string, string>
   getOptionDisplayInfo: (option: MultiSelectOptionItem) => string
 }>()
@@ -149,17 +152,17 @@ const emit = defineEmits<{
   line-height: 22px;
   border-radius: 999px;
   padding: 0 10px;
-  border: 1px solid var(--el-border-color);
+  border-width: 1px;
+  border-style: solid;
   box-shadow: none;
-  background-color: #fff;
-  color: var(--el-text-color-primary);
   font-weight: 500;
 }
 
-.inline-selected-tag.el-tag--info {
-  background-color: #fff;
+.inline-selected-tag-neutral,
+.inline-summary-tag {
+  background-color: var(--el-fill-color-light);
   color: var(--el-text-color-primary);
-  border-color: var(--el-border-color);
+  border-color: var(--el-border-color-lighter);
 }
 
 .inline-selected-tag :deep(.el-tag__close) {

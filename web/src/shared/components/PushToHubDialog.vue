@@ -12,6 +12,7 @@
       :rules="rules"
       label-width="120px"
       v-loading="loading"
+      data-testid="push-to-hub-dialog"
     >
       <!-- 基本信息 -->
       <el-form-item label="目录名称" prop="name">
@@ -20,6 +21,7 @@
           placeholder="留空则保持原值"
           maxlength="100"
           show-word-limit
+          data-testid="push-to-hub-name"
         />
       </el-form-item>
 
@@ -159,8 +161,8 @@
     </el-form>
 
     <template #footer>
-      <el-button @click="handleClose">取消</el-button>
-      <el-button type="primary" @click="handleSubmit" :loading="submitting">
+      <el-button data-testid="push-to-hub-cancel" @click="handleClose">取消</el-button>
+      <el-button type="primary" data-testid="push-to-hub-submit" @click="handleSubmit" :loading="submitting">
         推送
       </el-button>
     </template>

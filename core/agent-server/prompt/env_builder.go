@@ -71,6 +71,10 @@ var packageContext = &app.PackageContext{
 // BuildWorkspaceEnvData 根据输入构建环境占位数据；in 为 nil 时用 directoryName/fullCodePath 填最小集，内部实现 ChildrenSection、FilesSection、DirectoryList 等。
 // 约定：所有构造内容均为完整输出，不截断、不省略（ChildrenSection/FilesSection/DirectoryList/InitGoSection 等）。
 func BuildWorkspaceEnvData(in *WorkspaceEnvInput, directoryName, fullCodePath string, now time.Time) *WorkspaceEnvData {
+	return BuildWorkspaceEnvDataWithCatalog(in, directoryName, fullCodePath, now, GetDocCatalog())
+}
+
+func BuildWorkspaceEnvDataWithCatalog(in *WorkspaceEnvInput, directoryName, fullCodePath string, now time.Time, catalog []DocCatalogEntry) *WorkspaceEnvData {
 	data := &WorkspaceEnvData{
 		CurrentTime:      now.Format("2006-01-02 15:04:05"),
 		CurrentDate:      now.Format("2006-01-02"),
@@ -98,7 +102,10 @@ func BuildWorkspaceEnvData(in *WorkspaceEnvInput, directoryName, fullCodePath st
 	} else {
 		data.HubSection = "未知（需进入工作目录后刷新环境）"
 	}
-	data.DirectoryList = buildDirectoryList(GetDocCatalog())
+	if len(catalog) == 0 {
+		catalog = GetDocCatalog()
+	}
+	data.DirectoryList = buildDirectoryList(catalog)
 	// 当前目录的 init_.go 完整内容（由 full_code_path + 目录名/描述构造，与 app-runtime 生成一致），便于模型知道已有该文件、无需再写
 	name, desc := "", ""
 	if in != nil {
@@ -251,9 +258,43 @@ func buildDirectoryList(catalog []DocCatalogEntry) string {
 }
 
 // BuildWorkspaceEnvBlock 根据环境数据生成最终 env 块字符串；hasWorkspaceCtx 为 false 时返回降级文案（仅目录名+路径+可读目录）
+func FillWorkspaceEnvTemplateWithTemplate(data *WorkspaceEnvData, template string) string {
+	if strings.TrimSpace(template) == "" {
+		template = WorkspaceEnvTemplate
+	}
+	m := map[string]string{
+		"USER":                      data.User,
+		"DEPARTMENT_FULL_PATH":      data.DepartmentFullPath,
+		"DEPARTMENT_FULL_NAME_PATH": data.DepartmentFullNamePath,
+		"CURRENT_TIME":              data.CurrentTime,
+		"CURRENT_DATE":              data.CurrentDate,
+		"TIMESTAMP":                 data.Timestamp,
+		"DIR_NAME":                  data.DirName,
+		"DIR_CODE":                  data.DirCode,
+		"FULL_CODE_PATH":            data.FullCodePath,
+		"DIR_TYPE":                  data.DirType,
+		"HUB_SECTION":               data.HubSection,
+		"DIR_DESCRIPTION":           data.DirDescription,
+		"CHILDREN_SECTION":          data.ChildrenSection,
+		"FUNCTIONS_SECTION":         data.FunctionsSection,
+		"FILES_SECTION":             data.FilesSection,
+		"DIRECTORY_LIST":            data.DirectoryList,
+		"INIT_GO_SECTION":           data.InitGoSection,
+	}
+	s := template
+	for k, v := range m {
+		s = strings.ReplaceAll(s, "{{"+k+"}}", v)
+	}
+	return s
+}
+
 func BuildWorkspaceEnvBlock(data *WorkspaceEnvData, hasWorkspaceCtx bool, directoryName, fullCodePath string) string {
+	return BuildWorkspaceEnvBlockWithTemplate(WorkspaceEnvTemplate, data, hasWorkspaceCtx, directoryName, fullCodePath)
+}
+
+func BuildWorkspaceEnvBlockWithTemplate(template string, data *WorkspaceEnvData, hasWorkspaceCtx bool, directoryName, fullCodePath string) string {
 	if hasWorkspaceCtx {
-		return FillWorkspaceEnvTemplate(data)
+		return FillWorkspaceEnvTemplateWithTemplate(data, template)
 	}
 	return fmt.Sprintf(`当前工作目录：
 - 目录名称：%s

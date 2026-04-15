@@ -15,6 +15,13 @@ export interface ValidationRule {
   value?: string | number
   /** 条件验证中引用的字段 code（如 required_if=MemberType vip 中的 member_type） */
   field?: string
+  /** 多字段条件中引用的字段 code 列表（如 required_with=Email Mobile） */
+  fields?: string[]
+  /** 条件验证中引用的字段和值列表（如 required_if=Type vip Status active） */
+  refs?: Array<{
+    field: string
+    value?: string
+  }>
 }
 
 /**
@@ -65,4 +72,3 @@ export interface Validator {
     context: ValidationContext
   ): ValidationResult
 }
-

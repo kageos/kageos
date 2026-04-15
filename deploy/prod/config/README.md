@@ -18,3 +18,9 @@
 - `${SMTP_PASSWORD}`
 - `${SMTP_FROM}`
 - `${SMTP_FROM_NAME}`
+
+常见服务端口模板字段：
+
+- `server.listen_host`：监听地址。生产模板默认 `127.0.0.1`，用于把内部服务收口到宿主机本地。
+- `server.enable_pprof`：是否启用 `/debug/pprof`。生产模板默认 `false`。
+- `runtime.listen_host`：`app-runtime` 的监听地址。生产模板默认 `127.0.0.1`。

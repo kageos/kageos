@@ -303,29 +303,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElDrawer, ElCard, ElIcon } from 'element-plus'
 import { View } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useTableWidget } from '@/architecture/presentation/widgets/composables/useTableWidget'
 import { useTableEditMode } from '@/architecture/presentation/widgets/composables/useTableEditMode'
-import { useTableResponseMode } from '@/architecture/presentation/widgets/composables/useTableResponseMode'
-import { useTableCellMode } from '@/architecture/presentation/widgets/composables/useTableCellMode'
-import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
-import type { FieldValue, FieldConfig } from '@/architecture/domain/types'
-import { useFormDataStore } from '@/core/stores-v2/formData'
-import { createEmptyFieldValue, createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import type { ValidationEngine, ValidationResult } from '@/core/validation'
-import { validateFieldValue as validateWidgetFieldValue, validateTableWidgetNestedFields, type WidgetValidationContext } from '@/architecture/presentation/widgets/composables/useWidgetValidation'
-import { Logger } from '@/core/utils/logger'
-import { renderTableCell } from '@/core/utils/tableCellRenderer'
-import { createPersistedFieldValue } from '@/core/widgetRuntime/persistedFieldValue'
-import {
-  clearFieldSubtree,
-  createClearedFieldValue,
-  shouldShowTableRowField,
-} from '@/architecture/presentation/widgets/utils/tableRowVisibility'
+import type { FieldValue } from '@/architecture/domain/types'
 import FieldStatistics from './FieldStatistics.vue'
+import { useTableWidgetDisplay } from '@/architecture/presentation/widgets/composables/useTableWidgetDisplay'
+import { useTableWidgetEditActions } from '@/architecture/presentation/widgets/composables/useTableWidgetEditActions'
 
 // 抽屉配置常量
 const DRAWER_CONFIG = {
@@ -344,408 +330,44 @@ const emit = defineEmits<WidgetComponentEmits>()
 // 使用组合式函数
 const { tableData, itemFields, getRowFieldValue, updateRowFieldValue, getAllRowsData } = useTableWidget(props)
 const editMode = useTableEditMode(props)
-const responseMode = useTableResponseMode()
 
-// table-cell 模式的公共逻辑
-const tableCellMode = useTableCellMode(props)
-
-// 获取 formDataStore
-const formDataStore = useFormDataStore()
-
-// 🔥 当前编辑行的字段统计信息（用于显示在表格下方）
-// 收集当前编辑行所有字段的 statistics 配置，合并成一个对象
-// 🔥 注意：保存后 editingIndex 会变成 null，但我们需要继续显示统计信息
-// 所以需要检查是否有保存后的行数据
-const editingRowStatistics = computed(() => {
-  // 🔥 优先使用当前编辑行的数据
-  let targetIndex = editMode.editingIndex.value
-  
-  // 如果不在编辑状态，尝试使用最后保存的行（通常是最后一行）
-  if (targetIndex === null || targetIndex === undefined) {
-    // 检查是否有数据行
-    if (tableData.value.length > 0) {
-      // 使用最后一行（通常是刚保存的）
-      targetIndex = tableData.value.length - 1
-    } else {
-      return {}
-    }
-  }
-  
-  // 收集当前编辑行所有字段的 statistics 配置
-  const rowStatistics: Record<string, string> = {}
-  
-  itemFields.value.forEach((itemField: any) => {
-    const fieldPath = `${props.fieldPath}[${targetIndex}].${itemField.code}`
-    const itemValue = formDataStore.getValue(fieldPath)
-    
-    // 如果该字段有 statistics 配置，收集它
-    if (itemValue?.meta?.statistics && typeof itemValue.meta.statistics === 'object') {
-      Object.entries(itemValue.meta.statistics).forEach(([label, expression]) => {
-        if (typeof expression === 'string') {
-          rowStatistics[label] = expression
-        }
-      })
-    }
-  })
-  
-  return rowStatistics
+const {
+  responseMode,
+  tableCellMode,
+  responseTableData,
+  getResponseRowFieldValue,
+  getEditRowFieldPresenceState,
+  isEditRowFieldVisible,
+  isResponseRowFieldVisible,
+  getVisibleResponseDetailFields,
+  getCellContent,
+  CellRenderer,
+  displayValue,
+  handleTableCellConfirm,
+  getColumnWidth,
+  getColumnAlign,
+  getWidgetComponent,
+  isNestedContainerField
+} = useTableWidgetDisplay(props, {
+  tableData,
+  itemFields
 })
 
-// 🔥 当前编辑行的字段值（用于 FieldStatistics 组件）
-// 构建一个包含所有字段 displayInfo 的对象，用于 FieldStatistics 计算
-// 🔥 注意：保存后 editingIndex 会变成 null，但我们需要继续显示统计信息
-// 所以需要检查是否有保存后的行数据
-const editingRowFieldValue = computed(() => {
-  // 🔥 优先使用当前编辑行的数据
-  let targetIndex = editMode.editingIndex.value
-  
-  // 如果不在编辑状态，尝试使用最后保存的行（通常是最后一行）
-  if (targetIndex === null || targetIndex === undefined) {
-    // 检查是否有数据行
-    if (tableData.value.length > 0) {
-      // 使用最后一行（通常是刚保存的）
-      targetIndex = tableData.value.length - 1
-    } else {
-      return null
-    }
-  }
-  
-  // 🔥 构建一个包含所有字段 displayInfo 的对象
-  // FieldStatistics 期望 value 是一个对象，包含 meta.displayInfo 或直接是 displayInfo
-  const rowData: Record<string, any> = {
-    meta: {
-      displayInfo: {}
-    }
-  }
-  
-  itemFields.value.forEach((itemField: any) => {
-    const fieldPath = `${props.fieldPath}[${targetIndex}].${itemField.code}`
-    const itemValue = formDataStore.getValue(fieldPath)
-    
-    // 🔥 合并 displayInfo（来自 Select 回调）
-    // FieldStatistics 会从 value.meta.displayInfo 中查找
-    if (itemValue?.meta?.displayInfo && typeof itemValue.meta.displayInfo === 'object') {
-      Object.assign(rowData.meta.displayInfo, itemValue.meta.displayInfo)
-    }
-  })
-  
-  // 如果没有任何 displayInfo，返回 null
-  if (Object.keys(rowData.meta.displayInfo).length === 0) {
-    return null
-  }
-  
-  return rowData
+const {
+  editingRowStatistics,
+  handleRowFieldModelUpdate,
+  getEditRowClassName,
+  handleSave,
+  handleDelete,
+  validate
+} = useTableWidgetEditActions(props, {
+  tableData,
+  itemFields,
+  editMode,
+  getRowFieldValue,
+  updateRowFieldValue,
+  getEditRowFieldPresenceState
 })
-
-// 响应模式下的表格数据（从 props.value.raw 读取）
-const responseTableData = computed(() => {
-  if (props.mode === 'response') {
-    return Array.isArray(props.value?.raw) ? props.value.raw : []
-  }
-  return []
-})
-
-// 响应模式下获取行的字段值（从 row 数据直接读取）
-function getResponseRowFieldValue(rowIndex: number, fieldCode: string): FieldValue {
-  // 🔥 查找对应的 itemField（优先使用 itemField，如果没有则使用 props.field）
-  const itemField = itemFields.value.find(f => f.code === fieldCode) || props.field
-  
-  if (props.mode !== 'response') {
-    // 🔥 使用 createEmptyFieldValue 确保结构一致
-    return createEmptyFieldValue(itemField)
-  }
-  
-  const tableData = responseTableData.value
-  if (!tableData || rowIndex < 0 || rowIndex >= tableData.length) {
-    // 🔥 使用 createEmptyFieldValue 确保结构一致
-    return createEmptyFieldValue(itemField)
-  }
-  
-  const row = tableData[rowIndex]
-  const rawValue = row?.[fieldCode]
-  
-  const display = rawValue !== null && rawValue !== undefined 
-    ? (typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue))
-    : ''
-  
-  // 🔥 使用 createFieldValue 确保结构一致
-  return createFieldValue(
-    itemField,
-    rawValue ?? null,
-    display
-  )
-}
-
-function getEditRowSource(rowIndex: number): Record<string, any> | null {
-  const row = tableData.value[rowIndex]
-  return row && typeof row === 'object' && !Array.isArray(row) ? row : null
-}
-
-function getResponseRowSource(rowIndex: number): Record<string, any> | null {
-  const row = responseTableData.value[rowIndex]
-  return row && typeof row === 'object' && !Array.isArray(row) ? row : null
-}
-
-function isEditRowFieldVisible(rowIndex: number, field: FieldConfig): boolean {
-  return shouldShowTableRowField(
-    formDataStore,
-    props.fieldPath,
-    rowIndex,
-    getEditRowSource(rowIndex),
-    field,
-    itemFields.value
-  )
-}
-
-function isResponseRowFieldVisible(rowIndex: number, field: FieldConfig): boolean {
-  return shouldShowTableRowField(
-    formDataStore,
-    props.fieldPath,
-    rowIndex,
-    getResponseRowSource(rowIndex),
-    field,
-    itemFields.value
-  )
-}
-
-function getVisibleResponseDetailFields(rowIndex: number): FieldConfig[] {
-  if (rowIndex < 0) {
-    return []
-  }
-
-  return itemFields.value.filter((field) => isResponseRowFieldVisible(rowIndex, field))
-}
-
-/**
- * 🔥 获取表格单元格内容（用于模板，与 TableRenderer 一致）
- * 
- * 使用共享的渲染函数，确保渲染逻辑一致
- */
-function getCellContent(field: FieldConfig, rawValue: any): { content: any, isString: boolean } {
-  return renderTableCell(field, rawValue, {
-    mode: 'table-cell',
-    fieldPath: field.code,
-    formRenderer: props.formRenderer,
-    formManager: props.formManager
-  })
-}
-
-// 🔥 VNode 渲染组件（用于在模板中渲染 VNode，避免循环引用）
-const CellRenderer = defineComponent({
-  props: {
-    vnode: {
-      type: Object,
-      required: true
-    }
-  },
-  setup(props: { vnode: any }) {
-    return () => props.vnode
-  }
-})
-
-// 显示值（用于 table-cell 模式）
-const displayValue = computed(() => {
-  const value = formDataStore.data.has(props.fieldPath)
-    ? formDataStore.getValue(props.fieldPath)
-    : props.value
-  if (!value) {
-    return '共 0 条记录'
-  }
-  
-  const raw = value.raw
-  if (raw === null || raw === undefined || raw === '') {
-    return '共 0 条记录'
-  }
-  
-  if (Array.isArray(raw)) {
-    return `共 ${raw.length} 条记录`
-  }
-  
-  // 避免序列化循环引用的对象
-  if (typeof raw === 'object') {
-    try {
-      return JSON.stringify(raw)
-    } catch (e) {
-      // 如果序列化失败（循环引用），返回简单描述
-      return `共 0 条记录`
-    }
-  }
-  
-  return String(raw)
-})
-
-// 处理 table-cell 模式的确认按钮
-function handleTableCellConfirm(): void {
-  tableCellMode.confirmDrawer()
-}
-
-
-// 获取列宽
-function getColumnWidth(field: any): number {
-  // 简单的列宽计算（可以根据需要扩展）
-  const type = field.widget?.type || 'input'
-  
-  if (type === 'timestamp') {
-    return 180
-  }
-  if (type === 'switch') {
-    return 100
-  }
-  if (type === 'number' || type === 'float') {
-    return 120
-  }
-  
-  return 150
-}
-
-// 获取列对齐方式
-function getColumnAlign(field: any): 'left' | 'center' | 'right' {
-  // 🔥 优先使用字段配置中的对齐方式
-  const configAlign = field.widget?.config?.align
-  if (configAlign === 'left' || configAlign === 'center' || configAlign === 'right') {
-    return configAlign
-  }
-  
-  // 🔥 所有列统一左对齐
-  return 'left'
-}
-
-// 获取组件
-function getWidgetComponent(type: string, widgetMode: string = props.mode) {
-  if (widgetMode === 'response') {
-    return widgetComponentFactory.getResponseComponent(type)
-  }
-  return widgetComponentFactory.getRequestComponent(type)
-}
-
-function handleRowFieldModelUpdate(index: number, fieldCode: string, value: FieldValue): void {
-  updateRowFieldValue(index, fieldCode, value)
-}
-
-/**
- * 判断字段是否为嵌套容器类型（form 或 table）
- */
-function isNestedContainerField(field: FieldConfig): boolean {
-  return field.widget?.type === 'form' || field.widget?.type === 'table'
-}
-
-function getEditRowClassName({ rowIndex }: { rowIndex: number }): string {
-  return editMode.editingIndex.value === rowIndex ? 'is-editing-row' : ''
-}
-
-// 保存行
-function handleSave(index: number): void {
-  try {
-    // 收集当前行的数据，并确保 formDataStore 中的值都被正确设置
-    const rowData: Record<string, any> = {}
-    
-    itemFields.value.forEach(itemField => {
-      const fieldPath = `${props.fieldPath}[${index}].${itemField.code}`
-      const currentValue = formDataStore.getValue(fieldPath)
-
-      if (!isEditRowFieldVisible(index, itemField)) {
-        clearFieldSubtree(formDataStore, fieldPath)
-        const clearedFieldValue = createClearedFieldValue(itemField, currentValue?.meta || {})
-        formDataStore.setValue(fieldPath, clearedFieldValue)
-        rowData[itemField.code] = clearedFieldValue.raw
-        return
-      }
-
-      const value = getRowFieldValue(index, itemField.code)
-      
-      // 确保值存在，如果不存在则使用默认值
-      const fieldValue: FieldValue = value || {
-        raw: null,
-        display: '',
-        meta: {}
-      }
-      
-      // 确保 formDataStore 中有这个值
-      formDataStore.setValue(fieldPath, fieldValue)
-      
-      // 收集到 rowData 中（只保存 raw 值）
-      rowData[itemField.code] = fieldValue.raw ?? null
-    })
-    
-    // 保存行（这会更新 tableData，从而更新 formDataStore 中的整个数组）
-    editMode.saveRow(rowData)
-    
-    // 保存后，再次确保 formDataStore 中每个字段路径的值都是最新的
-    // 🔥 无论新增还是编辑，都使用 index（因为 saveRow 已经把数据保存到正确位置了）
-    const finalIndex = index
-    
-    itemFields.value.forEach(itemField => {
-      const fieldPath = `${props.fieldPath}[${finalIndex}].${itemField.code}`
-      const rawValue = rowData[itemField.code]
-      
-      // 🔥 获取当前的值，保留 meta 和 display 信息
-      const currentValue = formDataStore.getValue(fieldPath)
-
-      const fieldValue = createPersistedFieldValue(itemField, rawValue, currentValue)
-      formDataStore.setValue(fieldPath, fieldValue)
-    })
-  } catch (error) {
-    Logger.error('TableWidget', 'handleSave 错误', error)
-    throw error
-  }
-}
-
-// 删除行
-function handleDelete(index: number): void {
-  editMode.deleteRow(index)
-}
-
-/**
- * 验证当前 Widget 及其嵌套字段
- * 
- * 符合依赖倒置原则：TableWidget 自己负责验证嵌套字段
- * 
- * @param validationEngine 验证引擎
- * @param allFields 所有字段配置
- * @param fieldErrors 错误存储 Map（用于存储嵌套字段的错误）
- * @returns 当前字段的错误列表
- */
-function validate(
-  validationEngine: ValidationEngine | null,
-  allFields: FieldConfig[],
-  fieldErrors: Map<string, ValidationResult[]>
-): ValidationResult[] {
-  const context: WidgetValidationContext = {
-    validationEngine,
-    allFields,
-    fieldErrors,
-    formDataStore
-  }
-  
-  // 1. 验证当前字段（如果有验证规则）
-  const currentFieldErrors = validateWidgetFieldValue(props.field, props.fieldPath, context)
-  updateFieldErrors(props.fieldPath, currentFieldErrors, fieldErrors)
-  
-  // 2. 验证嵌套字段（TableWidget 自己负责）
-  const nestedErrors = validateTableWidgetNestedFields(props.field, props.fieldPath, context)
-  
-  // 3. 将嵌套字段的错误存储到 fieldErrors 中
-  nestedErrors.forEach((errors, path) => {
-    updateFieldErrors(path, errors, fieldErrors)
-  })
-  
-  return currentFieldErrors
-}
-
-/**
- * 更新字段错误状态
- */
-function updateFieldErrors(
-  fieldPath: string,
-  errors: ValidationResult[],
-  fieldErrors: Map<string, ValidationResult[]>
-): void {
-  if (errors.length > 0) {
-    fieldErrors.set(fieldPath, errors)
-  } else {
-    fieldErrors.delete(fieldPath)
-  }
-}
 
 // 🔥 暴露验证方法给父组件
 defineExpose({

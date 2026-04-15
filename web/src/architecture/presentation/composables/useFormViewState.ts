@@ -3,7 +3,7 @@ import type { FormApplicationService } from '../../application/services/FormAppl
 import type { FormDomainService } from '../../domain/services/FormDomainService'
 import type { FieldConfig, FieldValue, FunctionDetail } from '../../domain/types'
 import type { FormStateManager } from '../../infrastructure/stateManager/FormStateManager'
-import { hasAnyRequiredRule } from '@/core/utils/validationUtils'
+import { getFieldPresenceState } from '@/core/utils/conditionEvaluator'
 import { createAutoFieldValue, createEmptyFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
 import { FORM_QUESTIONNAIRE_TRIGGER_CHARS } from '../utils/formLayout'
 
@@ -30,9 +30,24 @@ export function useFormViewState(options: UseFormViewStateOptions) {
 
   const requestFields = computed(() => (options.functionDetail.value?.request || []) as FieldConfig[])
   const responseFields = computed(() => (options.functionDetail.value?.response || []) as FieldConfig[])
+  const formManager = computed(() => {
+    const stateManager = options.stateManager as any
+    const formStore = stateManager?.formStore
+
+    return {
+      getValue: (fieldPath: string) => options.stateManager.getValue(fieldPath),
+      hasValue: (fieldPath: string) => Boolean(formStore?.data?.has(fieldPath) || options.stateManager.getState().data?.has(fieldPath))
+    }
+  })
+
+  const visibleRequestFields = computed(() =>
+    requestFields.value.filter((field) =>
+      getFieldPresenceState(field, formManager.value as any, requestFields.value, field.code).visible
+    )
+  )
 
   const requestLabelsOnTop = computed(() =>
-    requestFields.value.some((field) => (field.name?.length ?? 0) > FORM_QUESTIONNAIRE_TRIGGER_CHARS)
+    visibleRequestFields.value.some((field) => (field.name?.length ?? 0) > FORM_QUESTIONNAIRE_TRIGGER_CHARS)
   )
 
   const responseLabelsOnTop = computed(() =>
@@ -81,18 +96,7 @@ export function useFormViewState(options: UseFormViewStateOptions) {
     return {
       getFunctionMethod: () => options.functionDetail.value?.method || 'GET',
       getFunctionRouter: () => options.functionDetail.value?.router || '',
-      getSubmitData: () => {
-        const state = options.stateManager.getState()
-        const data: Record<string, any> = {}
-        if (state.data) {
-          state.data.forEach((value: FieldValue, key: string) => {
-            if (value) {
-              data[key] = value.raw
-            }
-          })
-        }
-        return data
-      },
+      getSubmitData: () => options.domainService.getSubmitData(requestFields.value),
       registerWidget: () => {},
       unregisterWidget: () => {},
       getFieldError: (fieldPath: string) => {
@@ -119,7 +123,7 @@ export function useFormViewState(options: UseFormViewStateOptions) {
   }
 
   const isFieldRequired = (field: FieldConfig): boolean => {
-    return hasAnyRequiredRule(field)
+    return getFieldPresenceState(field, formManager.value as any, requestFields.value, field.code).required
   }
 
   const handleFieldUpdate = (fieldCode: string, value: FieldValue): void => {
@@ -129,6 +133,7 @@ export function useFormViewState(options: UseFormViewStateOptions) {
   return {
     formData,
     requestFields,
+    visibleRequestFields,
     responseFields,
     requestLabelsOnTop,
     responseLabelsOnTop,

@@ -5,8 +5,8 @@
  * 
  * 特点：
  * - 只支持根据 full-code-path 加载函数详情
- * - 内置缓存机制
- * - 防抖和去重，避免重复调用
+ * - 不做持久化缓存，确保字段 schema 始终最新
+ * - 仅保留请求级防抖和并发去重，避免同一时刻重复调用
  * - 解决当前架构的重复调用问题
  */
 
@@ -19,8 +19,13 @@ import type { FunctionDetail } from '../../domain/types'
  * 函数加载器实现
  */
 export class FunctionLoaderImpl implements IFunctionLoader {
-  // 正在进行的请求（用于去重）
+  // 正在等待或执行中的请求（用于去重）
   private pendingRequests = new Map<string, Promise<FunctionDetail>>()
+
+  private pendingRequestResolvers = new Map<string, {
+    resolve: (value: FunctionDetail) => void
+    reject: (reason?: any) => void
+  }>()
 
   // 防抖定时器
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -35,88 +40,77 @@ export class FunctionLoaderImpl implements IFunctionLoader {
    * 根据路径加载函数详情（带防抖）
    */
   async loadByPath(path: string, funcType: string = 'table'): Promise<FunctionDetail> {
-    const cacheKey = `function:path:${path}`
-    
-    // 先检查缓存
-    const cached = this.cacheManager.get<FunctionDetail>(cacheKey)
-    if (cached) {
-      return cached
-    }
-
-    // 防抖处理
-    return new Promise<FunctionDetail>((resolve, reject) => {
-      const debounceKey = `path:${path}`
-      
-      // 清除之前的定时器
+    const debounceKey = `path:${path}`
+    const existingRequest = this.pendingRequests.get(debounceKey)
+    if (existingRequest) {
       const existingTimer = this.debounceTimers.get(debounceKey)
       if (existingTimer) {
         clearTimeout(existingTimer)
+        this.debounceTimers.set(
+          debounceKey,
+          this.createDebounceTimer(debounceKey, path, funcType)
+        )
       }
+      return existingRequest
+    }
 
-      // 检查是否有正在进行的请求（去重）
-      if (this.pendingRequests.has(debounceKey)) {
-        this.pendingRequests.get(debounceKey)!.then(resolve).catch(reject)
-        return
-      }
-
-      // 设置新的防抖定时器
-      const timer = setTimeout(async () => {
-        this.debounceTimers.delete(debounceKey)
-        
-        try {
-          const request = this.loadFunctionByPath(path, cacheKey, funcType)
-          this.pendingRequests.set(debounceKey, request)
-          
-          const result = await request
-          resolve(result)
-        } catch (error) {
-          reject(error)
-        } finally {
-          this.pendingRequests.delete(debounceKey)
-        }
-      }, this.debounceDelay)
-
-      this.debounceTimers.set(debounceKey, timer)
+    const requestPromise = new Promise<FunctionDetail>((resolve, reject) => {
+      this.pendingRequestResolvers.set(debounceKey, { resolve, reject })
     })
+
+    this.pendingRequests.set(debounceKey, requestPromise)
+    this.debounceTimers.set(
+      debounceKey,
+      this.createDebounceTimer(debounceKey, path, funcType)
+    )
+
+    return requestPromise
   }
 
   /**
    * 获取缓存的函数详情
    */
   getCached(path: string): FunctionDetail | null {
-    const cacheKey = `function:path:${path}`
-    return this.cacheManager.get<FunctionDetail>(cacheKey)
+    return null
   }
 
   /**
    * 清空缓存
    */
   clearCache(): void {
-    // 清空所有 function: 开头的缓存
-    const keys = this.cacheManager.getKeys?.() || []
-    keys.forEach(key => {
-      if (key.startsWith('function:')) {
-        this.cacheManager.delete(key)
-      }
-    })
+    // 已移除持久化缓存，保留接口仅用于兼容调用方。
   }
 
   /**
    * 根据路径加载函数详情（内部方法）
    * ⭐ 使用新的路由：/function/info/:func-type/*full-code-path
    * @param path 函数完整路径
-   * @param cacheKey 缓存键
    * @param funcType 函数类型：table、form、chart（可选，默认为 table）
    */
-  private async loadFunctionByPath(path: string, cacheKey: string, funcType: string = 'table'): Promise<FunctionDetail> {
+  private async loadFunctionByPath(path: string, funcType: string = 'table'): Promise<FunctionDetail> {
     // 确保路径以 / 开头
     const fullCodePath = path.startsWith('/') ? path : `/${path}`
     // ⭐ 函数类型作为路径参数，这样后端无需查询数据库即可构造权限点
-    const response = await this.apiClient.get<FunctionDetail>(`/workspace/api/v1/function/info/${funcType}${fullCodePath}`)
-    
-    // 缓存结果
-    this.cacheManager.set(cacheKey, response)
-    
-    return response
+    return await this.apiClient.get<FunctionDetail>(`/workspace/api/v1/function/info/${funcType}${fullCodePath}`)
+  }
+
+  private createDebounceTimer(
+    debounceKey: string,
+    path: string,
+    funcType: string
+  ): ReturnType<typeof setTimeout> {
+    return setTimeout(async () => {
+      this.debounceTimers.delete(debounceKey)
+
+      try {
+        const result = await this.loadFunctionByPath(path, funcType)
+        this.pendingRequestResolvers.get(debounceKey)?.resolve(result)
+      } catch (error) {
+        this.pendingRequestResolvers.get(debounceKey)?.reject(error)
+      } finally {
+        this.pendingRequestResolvers.delete(debounceKey)
+        this.pendingRequests.delete(debounceKey)
+      }
+    }, this.debounceDelay)
   }
 }

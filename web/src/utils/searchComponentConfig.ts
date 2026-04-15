@@ -65,6 +65,11 @@ export function createSearchComponentConfig(
     return createSelectComponentConfig(field, searchType, widgetConfig, functionMethod, functionRouter)
   }
 
+  // 单选组件在搜索栏中也统一走下拉逻辑，保证筛选区交互一致。
+  if (widgetType === WidgetType.RADIO) {
+    return createSelectComponentConfig(field, searchType, widgetConfig, functionMethod, functionRouter)
+  }
+
   // 多选组件
   if (widgetType === WidgetType.MULTI_SELECT) {
     return createMultiselectComponentConfig(field, widgetConfig)

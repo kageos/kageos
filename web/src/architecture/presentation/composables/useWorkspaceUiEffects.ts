@@ -27,7 +27,7 @@ export function useWorkspaceUiEffects(options: UseWorkspaceUiEffectsOptions) {
   let unsubscribeWorkspaceOpenWorkstation: (() => void) | null = null
 
   const handleGlobalPaste = async (event: ClipboardEvent) => {
-    const target = event.target as HTMLElement
+    const target = event.target instanceof HTMLElement ? event.target : null
     if (target && (
       target.tagName === 'INPUT' ||
       target.tagName === 'TEXTAREA' ||

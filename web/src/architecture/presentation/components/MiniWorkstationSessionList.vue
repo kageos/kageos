@@ -28,9 +28,6 @@
             <Loading />
           </el-icon>
           <span class="mini-session-card-title">{{ session.title || '未命名会话' }}</span>
-          <el-tag size="small" effect="plain" class="mini-session-mode-tag">
-            {{ session.mode_code || 'dev' }}
-          </el-tag>
         </div>
         <div v-if="session.user" class="mini-session-card-user">
           <UserDisplay :username="session.user" mode="simple" size="small" />
@@ -154,11 +151,6 @@ defineEmits<{
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
-}
-
-.mini-session-mode-tag {
-  flex-shrink: 0;
-  text-transform: lowercase;
 }
 
 .mini-session-card-user {

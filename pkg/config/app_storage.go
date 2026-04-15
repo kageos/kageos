@@ -10,9 +10,11 @@ import (
 // AppStorageConfig app-storage 配置
 type AppStorageConfig struct {
 	Server struct {
-		Port     int    `mapstructure:"port"`
-		LogLevel string `mapstructure:"log_level"`
-		Debug    bool   `mapstructure:"debug"`
+		Port        int    `mapstructure:"port"`
+		ListenHost  string `mapstructure:"listen_host"`
+		LogLevel    string `mapstructure:"log_level"`
+		Debug       bool   `mapstructure:"debug"`
+		EnablePprof *bool  `mapstructure:"enable_pprof"`
 	} `mapstructure:"server"`
 
 	// 注意：JWT 配置已移至全局配置，不再在此处配置
@@ -52,11 +54,11 @@ type AppStorageConfig struct {
 
 		AliyunOSS struct {
 			Endpoint        string `mapstructure:"endpoint"`
-			AccessKeyID      string `mapstructure:"access_key_id"`
-			AccessKeySecret  string `mapstructure:"access_key_secret"`
-			Region           string `mapstructure:"region"`
-			DefaultBucket    string `mapstructure:"default_bucket"`
-			CDNDomain        string `mapstructure:"cdn_domain"` // ✨ CDN 域名（可选）
+			AccessKeyID     string `mapstructure:"access_key_id"`
+			AccessKeySecret string `mapstructure:"access_key_secret"`
+			Region          string `mapstructure:"region"`
+			DefaultBucket   string `mapstructure:"default_bucket"`
+			CDNDomain       string `mapstructure:"cdn_domain"` // ✨ CDN 域名（可选）
 		} `mapstructure:"aliyunoss"`
 
 		AWSS3 struct {
@@ -142,6 +144,14 @@ func (c *AppStorageConfig) GetPort() int {
 	return c.Server.Port
 }
 
+// GetListenHost 获取监听地址
+func (c *AppStorageConfig) GetListenHost() string {
+	if c == nil {
+		return normalizeListenHost("")
+	}
+	return normalizeListenHost(c.Server.ListenHost)
+}
+
 // GetLogLevel 获取日志级别
 func (c *AppStorageConfig) GetLogLevel() string {
 	if c.Server.LogLevel == "" {
@@ -155,6 +165,15 @@ func (c *AppStorageConfig) IsDebug() bool {
 	return c.Server.Debug
 }
 
+// IsPprofEnabled 是否启用 pprof。
+// 默认为 true，保持开发环境向后兼容；生产模板应显式关闭。
+func (c *AppStorageConfig) IsPprofEnabled() bool {
+	if c == nil {
+		return true
+	}
+	return boolConfigValue(c.Server.EnablePprof, true)
+}
+
 // GetDB 获取数据库配置
 func (c *AppStorageConfig) GetDB() DBConfig {
 	return c.DB
@@ -164,4 +183,3 @@ func (c *AppStorageConfig) GetDB() DBConfig {
 func (c *AppStorageConfig) GetJWT() JWTConfig {
 	return GetGlobalSharedConfig().JWT
 }
-

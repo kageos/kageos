@@ -17,7 +17,9 @@ func (s *Server) setupRoutes() {
 	s.httpServer.GET("/health", s.healthHandler)
 
 	// 注册 pprof 路由（性能分析）
-	pprof.RegisterPprofRoutes(s.httpServer)
+	if s.cfg.IsPprofEnabled() {
+		pprof.RegisterPprofRoutes(s.httpServer)
+	}
 
 	// Swagger 文档路由
 	s.httpServer.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))

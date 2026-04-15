@@ -50,8 +50,10 @@ type SystemUserConfig struct {
 // HRServerServerConfig hr-server 服务器配置
 type HRServerServerConfig struct {
 	Port                     int    `mapstructure:"port"`
+	ListenHost               string `mapstructure:"listen_host"`
 	LogLevel                 string `mapstructure:"log_level"`
 	Debug                    bool   `mapstructure:"debug"`
+	EnablePprof              *bool  `mapstructure:"enable_pprof"`
 	AllowNATSDegradedStartup bool   `mapstructure:"allow_nats_degraded_startup"`
 }
 
@@ -70,8 +72,22 @@ func (c *HRServerConfig) GetLogLevel() string {
 	return c.Server.LogLevel
 }
 
+func (c *HRServerConfig) GetListenHost() string {
+	if c == nil {
+		return normalizeListenHost("")
+	}
+	return normalizeListenHost(c.Server.ListenHost)
+}
+
 func (c *HRServerConfig) IsDebug() bool {
 	return c.Server.Debug
+}
+
+func (c *HRServerConfig) IsPprofEnabled() bool {
+	if c == nil {
+		return true
+	}
+	return boolConfigValue(c.Server.EnablePprof, true)
 }
 
 // AllowNATSDegradedStartup 是否允许在 NATS 初始化失败时继续启动 HR 服务。

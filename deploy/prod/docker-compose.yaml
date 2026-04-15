@@ -17,6 +17,12 @@ services:
     volumes:
       - ${STORAGE_ROOT}/mysql:/var/lib/mysql
       - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks: [aos]
 
   nats:
@@ -43,7 +49,7 @@ services:
       - ${STORAGE_ROOT}/minio:/data
     networks: [aos]
 
-  # ─── 主服务（host 网络，容器内 Nginx 直接对外 80）─────────────
+  # ─── 主服务（host 网络，容器内 Nginx 直接对外 80 / 443）───────
   main:
     build:
       context: ../..
@@ -66,14 +72,25 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       SMTP_FROM: ${SMTP_FROM}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME}
+      ENABLE_HTTPS: ${ENABLE_HTTPS:-0}
+      HTTPS_REDIRECT: ${HTTPS_REDIRECT:-0}
+      TLS_CERT_FILE: ${TLS_CERT_FILE:-/app/tls/fullchain.pem}
+      TLS_KEY_FILE: ${TLS_KEY_FILE:-/app/tls/privkey.pem}
     volumes:
       - ${STORAGE_ROOT}/podman_storage:/var/lib/containers
       - ${STORAGE_ROOT}/logs:/app/logs
       - ${STORAGE_ROOT}/namespace:/app/namespace
       - ${STORAGE_ROOT}/data:/app/data
+      - ${TLS_CERTS_HOST_DIR:-./certs}:/app/tls:ro
     depends_on:
       - mysql
       - minio
+    healthcheck:
+      test: ["CMD", "/app/health/main.sh"]
+      interval: 20s
+      timeout: 10s
+      retries: 12
+      start_period: 90s
 
   scheduler:
     image: ${MAIN_IMAGE}
@@ -102,6 +119,12 @@ services:
       - mysql
       - nats
       - minio
+    healthcheck:
+      test: ["CMD", "/app/health/scheduler.sh"]
+      interval: 20s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
 
   backup:
     image: ${MAIN_IMAGE}
@@ -127,6 +150,12 @@ services:
       - mysql
       - nats
       - minio
+    healthcheck:
+      test: ["CMD", "/app/health/backup.sh"]
+      interval: 20s
+      timeout: 10s
+      retries: 6
+      start_period: 30s
     networks: [aos]
 
 networks:

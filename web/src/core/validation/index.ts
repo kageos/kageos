@@ -11,7 +11,10 @@ import { OneOfValidator } from './validators/OneOfValidator'
 import { RequiredIfValidator } from './validators/RequiredIfValidator'
 import { RequiredUnlessValidator } from './validators/RequiredUnlessValidator'
 import { RequiredWithValidator } from './validators/RequiredWithValidator'
+import { RequiredWithAllValidator } from './validators/RequiredWithAllValidator'
 import { RequiredWithoutValidator } from './validators/RequiredWithoutValidator'
+import { RequiredWithoutAllValidator } from './validators/RequiredWithoutAllValidator'
+import { ExcludedConditionalValidator } from './validators/ExcludedConditionalValidator'
 import { EmailValidator } from './validators/EmailValidator'
 
 // 导出类型和类
@@ -27,7 +30,10 @@ export { OneOfValidator } from './validators/OneOfValidator'
 export { RequiredIfValidator } from './validators/RequiredIfValidator'
 export { RequiredUnlessValidator } from './validators/RequiredUnlessValidator'
 export { RequiredWithValidator } from './validators/RequiredWithValidator'
+export { RequiredWithAllValidator } from './validators/RequiredWithAllValidator'
 export { RequiredWithoutValidator } from './validators/RequiredWithoutValidator'
+export { RequiredWithoutAllValidator } from './validators/RequiredWithoutAllValidator'
+export { ExcludedConditionalValidator } from './validators/ExcludedConditionalValidator'
 export { EmailValidator } from './validators/EmailValidator'
 
 // 导出验证工具函数
@@ -49,11 +55,18 @@ export function createDefaultValidatorRegistry(): ValidatorRegistry {
   registry.register(new RequiredIfValidator())
   registry.register(new RequiredUnlessValidator())
   registry.register(new RequiredWithValidator())
+  registry.register(new RequiredWithAllValidator())
   registry.register(new RequiredWithoutValidator())
+  registry.register(new RequiredWithoutAllValidator())
+  registry.register(new ExcludedConditionalValidator('excluded_if'))
+  registry.register(new ExcludedConditionalValidator('excluded_unless'))
+  registry.register(new ExcludedConditionalValidator('excluded_with'))
+  registry.register(new ExcludedConditionalValidator('excluded_with_all'))
+  registry.register(new ExcludedConditionalValidator('excluded_without'))
+  registry.register(new ExcludedConditionalValidator('excluded_without_all'))
   
   // 注册格式验证器
   registry.register(new EmailValidator())
   
   return registry
 }
-

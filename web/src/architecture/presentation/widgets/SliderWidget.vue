@@ -17,6 +17,7 @@
       :min="min"
       :max="max"
       :step="step"
+      :show-stops="showStops"
       :show-tooltip="true"
       :marks="marks"
       :format-tooltip="formatTooltipFunc"
@@ -24,10 +25,16 @@
       @change="handleChange"
     />
     
-    <!-- 响应模式（只读） -->
-    <span v-else-if="mode === 'response'" class="response-value">
-      {{ displayValue }}
-    </span>
+    <!-- 响应模式（只读）：显示为进度条 -->
+    <div v-else-if="mode === 'response'" class="response-progress">
+      <el-progress
+        :percentage="percentage"
+        :status="autoStatus"
+        :stroke-width="20"
+        :text-inside="true"
+        :format="formatProgressText"
+      />
+    </div>
     
     <!-- 表格单元格模式：进度条 -->
     <el-progress
@@ -77,11 +84,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElSlider, ElProgress, ElInputNumber } from 'element-plus'
+import 'element-plus/es/components/slider/style/css'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { Logger } from '@/core/utils/logger'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import type { SliderWidgetConfig } from '@/core/types/widget-configs'
+import { buildSliderMarks } from '@/architecture/presentation/widgets/utils/sliderMarks'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -136,6 +145,16 @@ const stepPrecision = computed(() => {
     return stepStr.split('.')[1]?.length ?? 0
   }
   return 0
+})
+
+const showStops = computed(() => {
+  const range = max.value - min.value
+  if (range <= 0 || step.value <= 0) {
+    return false
+  }
+
+  // 步长刻度过多时只保留关键标签，避免滑道被过密 stops 压垮。
+  return range / step.value <= 40
 })
 
 // 默认值
@@ -268,45 +287,12 @@ const formatTooltipFunc = computed(() => {
  * 标记点包括：最小值、最大值，以及中间的关键点（如果范围不太大）
  */
 const marks = computed(() => {
-  const marksObj: Record<number, string> = {}
-  const minVal = min.value
-  const maxVal = max.value
-  const stepVal = step.value
-  const unitValue = unit.value
-  
-  // 始终显示最小值和最大值
-  marksObj[minVal] = unitValue ? `${minVal}${unitValue}` : String(minVal)
-  marksObj[maxVal] = unitValue ? `${maxVal}${unitValue}` : String(maxVal)
-  
-  // 计算中间标记点（如果范围不太大，显示更多标记）
-  const range = maxVal - minVal
-  const stepCount = range / stepVal
-  
-  // 如果步数不太多（<= 20），显示所有步长点
-  // 如果步数较多，只显示关键点（每 25% 一个点）
-  if (stepCount <= 20) {
-    // 显示所有步长点
-    for (let i = minVal + stepVal; i < maxVal; i += stepVal) {
-      marksObj[i] = unitValue ? `${i}${unitValue}` : String(i)
-    }
-  } else {
-    // 只显示关键点：25%、50%、75%
-    const quarter1 = Math.round((minVal + range * 0.25) / stepVal) * stepVal
-    const half = Math.round((minVal + range * 0.5) / stepVal) * stepVal
-    const quarter3 = Math.round((minVal + range * 0.75) / stepVal) * stepVal
-    
-    if (quarter1 > minVal && quarter1 < maxVal) {
-      marksObj[quarter1] = unitValue ? `${quarter1}${unitValue}` : String(quarter1)
-    }
-    if (half > minVal && half < maxVal) {
-      marksObj[half] = unitValue ? `${half}${unitValue}` : String(half)
-    }
-    if (quarter3 > minVal && quarter3 < maxVal) {
-      marksObj[quarter3] = unitValue ? `${quarter3}${unitValue}` : String(quarter3)
-    }
-  }
-  
-  return marksObj
+  return buildSliderMarks({
+    min: min.value,
+    max: max.value,
+    step: step.value,
+    unit: unit.value
+  })
 })
 
 /**
@@ -469,8 +455,8 @@ watch(
   width: 100%;
 }
 
-.response-value {
-  color: var(--el-text-color-regular);
+.response-progress {
+  width: 100%;
 }
 
 .slider-search {

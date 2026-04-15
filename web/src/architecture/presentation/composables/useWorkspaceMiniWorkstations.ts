@@ -167,10 +167,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
     }
 
     if (route.path !== targetPath) {
-      const query = { ...route.query }
-      delete query.ws
-      delete query.ws_sid
-      router.push({ path: targetPath, query }).then(() => {
+      router.push({ path: targetPath, query: { ...route.query } }).then(() => {
         nextTick(() => openMini())
       })
     } else {
@@ -179,14 +176,6 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
   }
 
   function initializeFromRoute() {
-    if (route.query.ws === 'open') {
-      const sid = typeof route.query.ws_sid === 'string' ? route.query.ws_sid : ''
-      restoreMiniWorkstation({
-        sessionId: sid || undefined,
-        initialMaximized: false,
-      })
-    }
-
     if (route.query.mws === 'open') {
       const mwsSid = typeof route.query.mws_sid === 'string' ? route.query.mws_sid : ''
       const mwsPath = typeof route.query.mws_path === 'string' ? route.query.mws_path : ''

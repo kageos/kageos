@@ -23,6 +23,13 @@ export function resolveWidgetTypeForSearchRenderer(options: {
     return WidgetType.MULTI_SELECT
   }
 
+  // `radio` 在搜索栏里更适合统一降级为下拉：
+  // - `radio + eq` => 单选下拉
+  // - `radio + in` => 多选下拉
+  if (widgetType === WidgetType.RADIO) {
+    return hasSearchType(searchType, SearchType.IN) ? WidgetType.MULTI_SELECT : WidgetType.SELECT
+  }
+
   // 搜索栏优先使用紧凑单行控件，多行/富文本在筛选区没有展示价值。
   if (widgetType === WidgetType.TEXT_AREA || widgetType === WidgetType.RICH_TEXT) {
     return WidgetType.INPUT

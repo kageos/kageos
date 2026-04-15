@@ -1,5 +1,5 @@
 <template>
-  <div class="service-tree-panel" v-loading="loading">
+  <div class="service-tree-panel" data-testid="service-tree-panel" v-loading="loading">
     <div class="tree-header">
       <el-input
         v-model="searchKeyword"
@@ -7,10 +7,11 @@
         placeholder="搜索目录或名称…"
         clearable
         :prefix-icon="Search"
+        data-testid="service-tree-search"
       />
     </div>
 
-    <div class="tree-content">
+    <div class="tree-content" data-testid="service-tree-content">
       <el-tree
         v-if="groupedTreeData.length > 0"
         :key="treeKey"
@@ -35,6 +36,10 @@
           >
             <span
               class="tree-node"
+              :data-testid="`service-tree-node-${data.id}`"
+              :data-node-id="String(data.id)"
+              :data-node-type="data.type"
+              :data-root-node="isRootNode(data) ? 'true' : 'false'"
               :class="{ 'tree-node-draggable': data.type === 'function' || data.type === 'package' }"
               :draggable="data.type === 'function' || data.type === 'package'"
               @dragstart="onTreeNodeDragStart($event, data)"
@@ -123,24 +128,24 @@
               class="node-more-actions"
               @command="(command: string) => handleNodeAction(command, data)"
             >
-              <el-icon class="more-icon" @click.stop><MoreFilled /></el-icon>
+              <el-icon class="more-icon" :data-testid="`service-tree-more-${data.id}`" @click.stop><MoreFilled /></el-icon>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item command="apply-permission"><el-icon><Key /></el-icon>申请权限</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" command="create-directory"><el-icon><Plus /></el-icon>添加服务目录</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" command="create-docs"><el-icon><Document /></el-icon>创建文档</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" command="create-board"><el-icon><ChatDotSquare /></el-icon>新增讨论区</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package'" command="open-workstation"><el-icon><ChatDotRound /></el-icon>打开工作台</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && !isRootNode(data) && hasPermission(data, DirectoryPermission.delete)" command="delete-directory"><el-icon><Delete /></el-icon>删除目录</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.update)" command="rename"><el-icon><Edit /></el-icon>重命名</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.read)" command="copy"><el-icon><CopyDocument /></el-icon>复制</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && (copiedDirectory || copiedHubLink) && hasPermission(data, DirectoryPermission.write)" command="paste"><el-icon><DocumentChecked /></el-icon>粘贴</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'function' && hasPermission(data, TablePermission.delete)" command="delete-function"><el-icon><Delete /></el-icon>删除函数</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'docs' && hasPermission(data, DirectoryPermission.delete)" command="delete-doc"><el-icon><Delete /></el-icon>删除文档</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'board' && hasPermission(data, DirectoryPermission.delete)" command="delete-board"><el-icon><Delete /></el-icon>删除讨论区</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" command="import-go-files"><el-icon><Download /></el-icon>导入 Go 文件</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && !data.hub_full_code_path && hasPermission(data, DirectoryPermission.read)" command="publish-to-hub"><el-icon><Upload /></el-icon>发布到 Hub</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && data.hub_full_code_path && hasPermission(data, DirectoryPermission.write)" command="push-to-hub"><el-icon><Upload /></el-icon>推送到 Hub</el-dropdown-item>
+                  <el-dropdown-item :data-testid="`service-tree-action-apply-permission-${data.id}`" command="apply-permission"><el-icon><Key /></el-icon>申请权限</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-create-directory-${data.id}`" command="create-directory"><el-icon><Plus /></el-icon>添加服务目录</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-create-docs-${data.id}`" command="create-docs"><el-icon><Document /></el-icon>创建文档</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-create-board-${data.id}`" command="create-board"><el-icon><ChatDotSquare /></el-icon>新增讨论区</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package'" :data-testid="`service-tree-action-open-workstation-${data.id}`" command="open-workstation"><el-icon><ChatDotRound /></el-icon>打开工作台</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && !isRootNode(data) && hasPermission(data, DirectoryPermission.delete)" :data-testid="`service-tree-action-delete-directory-${data.id}`" command="delete-directory"><el-icon><Delete /></el-icon>删除目录</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.update)" :data-testid="`service-tree-action-rename-${data.id}`" command="rename"><el-icon><Edit /></el-icon>重命名</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.read)" :data-testid="`service-tree-action-copy-${data.id}`" command="copy"><el-icon><CopyDocument /></el-icon>复制</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && (copiedDirectory || copiedHubLink) && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-paste-${data.id}`" command="paste"><el-icon><DocumentChecked /></el-icon>粘贴</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'function' && hasPermission(data, TablePermission.delete)" :data-testid="`service-tree-action-delete-function-${data.id}`" command="delete-function"><el-icon><Delete /></el-icon>删除函数</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'docs' && hasPermission(data, DirectoryPermission.delete)" :data-testid="`service-tree-action-delete-doc-${data.id}`" command="delete-doc"><el-icon><Delete /></el-icon>删除文档</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'board' && hasPermission(data, DirectoryPermission.delete)" :data-testid="`service-tree-action-delete-board-${data.id}`" command="delete-board"><el-icon><Delete /></el-icon>删除讨论区</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-import-go-files-${data.id}`" command="import-go-files"><el-icon><Download /></el-icon>导入 Go 文件</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && !data.hub_full_code_path && hasPermission(data, DirectoryPermission.read)" :data-testid="`service-tree-action-publish-to-hub-${data.id}`" command="publish-to-hub"><el-icon><Upload /></el-icon>发布到 Hub</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && data.hub_full_code_path && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-push-to-hub-${data.id}`" command="push-to-hub"><el-icon><Upload /></el-icon>推送到 Hub</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>

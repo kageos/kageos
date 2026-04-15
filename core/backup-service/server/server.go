@@ -3,8 +3,10 @@ package server
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	backupservice "github.com/ai-agent-os/ai-agent-os/core/backup-service/service"
@@ -43,7 +45,7 @@ func NewServer(cfg *config.BackupServiceConfig) (*Server, error) {
 	)
 	s.setupRoutes()
 	s.httpSrv = &http.Server{
-		Addr:              fmt.Sprintf(":%d", cfg.GetPort()),
+		Addr:              net.JoinHostPort(cfg.GetListenHost(), strconv.Itoa(cfg.GetPort())),
 		Handler:           s.httpServer,
 		ReadHeaderTimeout: 5 * time.Second,
 	}

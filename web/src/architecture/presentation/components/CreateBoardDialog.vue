@@ -7,7 +7,7 @@
     @update:model-value="emit('update:modelValue', $event)"
     @close="handleClose"
   >
-    <el-form :model="form" label-width="90px">
+    <el-form :model="form" label-width="90px" data-testid="create-board-dialog">
       <el-form-item label="讨论区名称" required>
         <el-input
           v-model="form.name"
@@ -15,6 +15,7 @@
           maxlength="100"
           show-word-limit
           clearable
+          data-testid="create-board-name"
         />
       </el-form-item>
       <el-form-item label="讨论区代码" required>
@@ -24,6 +25,7 @@
           maxlength="50"
           show-word-limit
           clearable
+          data-testid="create-board-code"
           @input="form.code = form.code.toLowerCase().replace(/[^a-z0-9_]/g, '')"
         >
           <template #suffix>
@@ -56,8 +58,8 @@
     </el-form>
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="emit('update:modelValue', false)">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSubmit">
+        <el-button data-testid="create-board-cancel" @click="emit('update:modelValue', false)">取消</el-button>
+        <el-button type="primary" :loading="submitting" data-testid="create-board-submit" @click="handleSubmit">
           创建
         </el-button>
       </span>

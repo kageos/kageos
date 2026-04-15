@@ -1,9 +1,10 @@
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, nextTick } from 'vue'
 import { beforeEach, describe, expect, it } from 'vitest'
 import TimestampWidget from './TimestampWidget.vue'
 import { WidgetType } from '@/core/constants/widget'
+import { useFormDataStore } from '@/core/stores-v2/formData'
 
 const ElDatePickerStub = defineComponent({
   name: 'ElDatePicker',
@@ -43,6 +44,18 @@ const ElDatePickerStub = defineComponent({
             }
           },
           'emit-date'
+        ),
+        h(
+          'button',
+          {
+            type: 'button',
+            'data-testid': 'clear-date',
+            onClick: () => {
+              emit('update:modelValue', '')
+              emit('change', null)
+            }
+          },
+          'clear-date'
         )
       ])
   }
@@ -161,6 +174,66 @@ describe('TimestampWidget', () => {
     const secondEmitted = wrapper.emitted('update:modelValue')
     expect(secondEmitted?.[1]?.[0]).toMatchObject({
       raw: [1711929600000, 1712016000000],
+      widgetType: WidgetType.TIMESTAMP
+    })
+  })
+
+  it('normalizes zero timestamp to null in edit mode', async () => {
+    const wrapper = mount(TimestampWidget, {
+      props: {
+        field: buildField(),
+        value: { raw: 0, display: '0', meta: { fromInitialData: true } },
+        mode: 'edit',
+        fieldPath: 'created_at'
+      },
+      global: {
+        stubs: {
+          ElDatePicker: ElDatePickerStub,
+          ElTimePicker: ElTimePickerStub
+        }
+      }
+    })
+
+    await nextTick()
+
+    const emitted = wrapper.emitted('update:modelValue')
+    expect(emitted?.[0]?.[0]).toMatchObject({
+      raw: null,
+      display: '',
+      widgetType: WidgetType.TIMESTAMP,
+      meta: {
+        fromInitialData: true
+      }
+    })
+
+    expect(useFormDataStore().getValue('created_at')).toMatchObject({
+      raw: null,
+      display: ''
+    })
+  })
+
+  it('emits null when edit mode timestamp is cleared', async () => {
+    const wrapper = mount(TimestampWidget, {
+      props: {
+        field: buildField(),
+        value: { raw: 1711929600000, display: '2024-04-01 00:00:00', meta: {} },
+        mode: 'edit',
+        fieldPath: 'created_at'
+      },
+      global: {
+        stubs: {
+          ElDatePicker: ElDatePickerStub,
+          ElTimePicker: ElTimePickerStub
+        }
+      }
+    })
+
+    await wrapper.get('[data-testid="clear-date"]').trigger('click')
+
+    const emitted = wrapper.emitted('update:modelValue')
+    expect(emitted?.[0]?.[0]).toMatchObject({
+      raw: null,
+      display: '',
       widgetType: WidgetType.TIMESTAMP
     })
   })

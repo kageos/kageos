@@ -12,7 +12,7 @@ type CreateScheduledTaskReq struct {
 	RequestUser     string          `json:"request_user"`                      // 以谁执行，空则用当前用户
 	RequestUserDept string          `json:"request_user_dept"`                 // 请求用户部门路径（透传，空则用创建人部门）
 	ScheduleType    string          `json:"schedule_type" binding:"required"`  // atime / cron / every
-	RunAt           string          `json:"run_at" binding:"required"`         // 首次执行时间 RFC3339
+	RunAt           string          `json:"run_at"`                            // 仅 schedule_type=atime 时必填；cron/every 由服务端按创建时间自动补
 	CronExpr        string          `json:"cron_expr"`                         // schedule_type=cron 时必填
 	IntervalSeconds int64           `json:"interval_seconds"`                  // schedule_type=every 时必填
 	MaxRuns         int             `json:"max_runs"`                          // schedule_type=every 时可选，0=不限制
@@ -33,7 +33,7 @@ type ScheduledTaskItem struct {
 	RequestUserDept string  `json:"request_user_dept"`
 	CreatedBy       string  `json:"created_by"`
 	ScheduleType    string  `json:"schedule_type"`
-	RunAt           string  `json:"run_at"`
+	RunAt           string  `json:"run_at"` // atime 的执行时间；cron/every 的生效时间
 	NextRunAt       *string `json:"next_run_at,omitempty"`
 	CronExpr        string  `json:"cron_expr,omitempty"`
 	IntervalSeconds int64   `json:"interval_seconds,omitempty"`

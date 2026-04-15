@@ -38,9 +38,11 @@ type ControlServiceConfig struct {
 
 // ControlServiceServerConfig control-service 服务器配置
 type ControlServiceServerConfig struct {
-	Port     int    `mapstructure:"port"`
-	LogLevel string `mapstructure:"log_level"`
-	Debug    bool   `mapstructure:"debug"`
+	Port        int    `mapstructure:"port"`
+	ListenHost  string `mapstructure:"listen_host"`
+	LogLevel    string `mapstructure:"log_level"`
+	Debug       bool   `mapstructure:"debug"`
+	EnablePprof *bool  `mapstructure:"enable_pprof"`
 }
 
 // LicenseConfig License 配置
@@ -83,12 +85,7 @@ func (c *ControlServiceClientConfig) GetNatsURL() string {
 
 // GetEncryptionKey 获取加密密钥（用于AES-256-GCM加密传输）
 func (c *ControlServiceClientConfig) GetEncryptionKey() []byte {
-	key := c.EncryptionKey
-	if len(key) != 32 {
-		// 如果密钥长度不对，返回默认密钥（生产环境应该报错）
-		return []byte("ai-agent-os-license-key-32bytes!!")
-	}
-	return []byte(key)
+	return []byte(c.EncryptionKey)
 }
 
 // GetKeyPath 获取密钥文件路径
@@ -107,6 +104,13 @@ func (c *ControlServiceConfig) GetPort() int {
 	return c.Server.Port
 }
 
+func (c *ControlServiceConfig) GetListenHost() string {
+	if c == nil {
+		return normalizeListenHost("")
+	}
+	return normalizeListenHost(c.Server.ListenHost)
+}
+
 // GetLogLevel 获取日志级别
 func (c *ControlServiceConfig) GetLogLevel() string {
 	if c.Server.LogLevel == "" {
@@ -118,6 +122,13 @@ func (c *ControlServiceConfig) GetLogLevel() string {
 // IsDebug 是否调试模式
 func (c *ControlServiceConfig) IsDebug() bool {
 	return c.Server.Debug
+}
+
+func (c *ControlServiceConfig) IsPprofEnabled() bool {
+	if c == nil {
+		return true
+	}
+	return boolConfigValue(c.Server.EnablePprof, true)
 }
 
 // GetNatsURL 获取 NATS URL（从全局配置读取）
@@ -140,12 +151,7 @@ func (c *ControlServiceConfig) GetLicensePath() string {
 
 // GetEncryptionKey 获取加密密钥（用于AES-256-GCM加密传输）
 func (c *ControlServiceConfig) GetEncryptionKey() []byte {
-	key := c.License.EncryptionKey
-	if len(key) != 32 {
-		// 如果密钥长度不对，返回默认密钥（生产环境应该报错）
-		return []byte("ai-agent-os-license-key-32bytes!!")
-	}
-	return []byte(key)
+	return []byte(c.License.EncryptionKey)
 }
 
 // GetPublishInterval 获取发布间隔（秒）

@@ -12,9 +12,10 @@ import { computed } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
-import { shouldShowField } from '@/core/utils/conditionEvaluator'
+import { getFieldPresenceState } from '@/core/utils/conditionEvaluator'
 import { syncFormContainerValue } from '@/core/widgetRuntime/containerValue'
 import { clearScopedDependentFields } from '@/core/widgetRuntime/dependency'
+import { applyScopedPresenceEffects } from '@/core/widgetRuntime/presenceEffects'
 
 function isPlainObject(value: unknown): value is Record<string, any> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -130,12 +131,32 @@ export function useFormWidget(props: WidgetComponentProps) {
   const visibleSubFields = computed(() => {
     const scopedFormManager = {
       getValue: (fieldCodeOrPath: string) => getScopedFieldValue(fieldCodeOrPath),
+      hasValue: (fieldCodeOrPath: string) => formDataStore.data.has(resolveScopedPath(fieldCodeOrPath)),
     }
 
     return subFields.value.filter((subField) =>
-      shouldShowField(subField, scopedFormManager as any, subFields.value)
+      getFieldPresenceState(
+        subField,
+        scopedFormManager as any,
+        subFields.value,
+        `${props.fieldPath}.${subField.code}`
+      ).visible
     )
   })
+
+  function isSubFieldRequired(subField: any): boolean {
+    const scopedFormManager = {
+      getValue: (fieldCodeOrPath: string) => getScopedFieldValue(fieldCodeOrPath),
+      hasValue: (fieldCodeOrPath: string) => formDataStore.data.has(resolveScopedPath(fieldCodeOrPath)),
+    }
+
+    return getFieldPresenceState(
+      subField,
+      scopedFormManager as any,
+      subFields.value,
+      `${props.fieldPath}.${subField.code}`
+    ).required
+  }
   
   // 获取子字段的值
   function getSubFieldValue(subFieldCode: string): any {
@@ -168,6 +189,13 @@ export function useFormWidget(props: WidgetComponentProps) {
       props.formRenderer?.clearFieldErrors?.(fieldPath, { includeSubtree: true })
     })
 
+    applyScopedPresenceEffects({
+      fields: subFields.value,
+      formDataStore,
+      scopePath: props.fieldPath,
+      clearFieldErrors: props.formRenderer?.clearFieldErrors,
+    })
+
     syncFormContainerValue(formDataStore, props.field, props.fieldPath, props.value)
     props.formRenderer?.clearFieldErrors?.(props.fieldPath)
   }
@@ -175,6 +203,7 @@ export function useFormWidget(props: WidgetComponentProps) {
   return {
     subFields,
     visibleSubFields,
+    isSubFieldRequired,
     getSubFieldValue,
     updateSubFieldValue
   }

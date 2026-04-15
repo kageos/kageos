@@ -14,7 +14,7 @@ type ModeConfig struct {
 	ToolNames           []string `json:"tool_names"`
 	SystemPromptFile    string   `json:"system_prompt_file"`
 	FirstAssistantFile  string   `json:"first_assistant_file"`
-	OperationPromptFile string   `json:"operation_prompt_file"` // 可选，本模式专属「工作台操作提示词」；空则 buildLLMMessages 用公用 WorkspacePrompt
+	OperationPromptFile string   `json:"operation_prompt_file"` // 可选，本模式额外操作提示词；空则不追加额外文档
 }
 
 // WorkspaceModePromptProvider 工作台「模式提示词提供者」多态接口；每种模式一个实现，参数封装在内部
@@ -23,11 +23,11 @@ type WorkspaceModePromptProvider interface {
 	SystemPrompt(env *WorkspaceEnvData) string
 	FirstAssistantContent() string
 	ToolNames() []string
-	// OperationPrompt 本模式专属操作提示词（PRD/SOP/工具用法等）；空则调用方用公用 prompt.WorkspacePrompt
+	// OperationPrompt 本模式专属操作提示词（PRD/SOP/工具用法等）；空则调用方不追加额外提示词
 	OperationPrompt() string
 }
 
-// modeProvider 从 prompt/content/mode/<code>/ 加载的实现，内部持有所需内容
+// modeProvider 从本地 seed 的 prompt/system/prompt/mode/<code>/ 加载，内部持有所需内容。
 type modeProvider struct {
 	code            string
 	systemPrompt    string
@@ -54,6 +54,23 @@ func (p *modeProvider) OperationPrompt() string {
 	return strings.TrimSpace(p.operationPrompt)
 }
 
+func loadSeedModeConfig(code string) *ModeConfig {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return nil
+	}
+	cfgPath := "system/prompt/mode/" + code + "/config.json"
+	data, err := fs.ReadFile(promptFS, cfgPath)
+	if err != nil {
+		return nil
+	}
+	var cfg ModeConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return nil
+	}
+	return &cfg
+}
+
 var (
 	registry   = make(map[string]WorkspaceModePromptProvider)
 	registryMu sync.RWMutex
@@ -78,18 +95,13 @@ func GetModeProvider(code string) WorkspaceModePromptProvider {
 	return registry[code]
 }
 
-// loadModeProvider 从 embed 的 content/mode/<code>/ 加载 config + md，封装为 modeProvider
+// loadModeProvider 从 embed 的 system/prompt/mode/<code>/ 加载 config + md，封装为 modeProvider。
 func loadModeProvider(code string) *modeProvider {
-	prefix := "content/mode/" + code + "/"
-	cfgPath := prefix + "config.json"
-	data, err := fs.ReadFile(promptFS, cfgPath)
-	if err != nil {
+	cfg := loadSeedModeConfig(code)
+	if cfg == nil {
 		return nil
 	}
-	var cfg ModeConfig
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil
-	}
+	prefix := "system/prompt/mode/" + code + "/"
 	systemPrompt, _ := readModeFile(prefix + cfg.SystemPromptFile)
 	firstAssistant, _ := readModeFile(prefix + cfg.FirstAssistantFile)
 	var operationPrompt string

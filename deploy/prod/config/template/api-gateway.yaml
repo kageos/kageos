@@ -1,8 +1,10 @@
 # 客户主站交付：不包含 Hub 路由（Hub 为公司自建实例）
 server:
   port: 9090
+  listen_host: "127.0.0.1"
   log_level: "info"
   debug: false
+  enable_pprof: false
   allow_nats_degraded_startup: false
 
 routes:

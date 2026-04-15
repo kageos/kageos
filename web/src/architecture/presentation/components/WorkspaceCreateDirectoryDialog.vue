@@ -6,7 +6,7 @@
     :close-on-click-modal="false"
     @close="$emit('close')"
   >
-    <el-form :model="form" label-width="120px">
+    <el-form :model="form" label-width="120px" data-testid="create-directory-dialog">
       <el-form-item label="目录名称" required>
         <el-input
           v-model="form.name"
@@ -14,6 +14,7 @@
           maxlength="50"
           show-word-limit
           clearable
+          data-testid="create-directory-name"
         />
       </el-form-item>
       <el-form-item label="目录代码" required>
@@ -23,6 +24,7 @@
           maxlength="50"
           show-word-limit
           clearable
+          data-testid="create-directory-code"
           @input="form.code = form.code.toLowerCase()"
         />
         <div class="form-tip">
@@ -65,8 +67,8 @@
 
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="$emit('submit')" :loading="creating">
+        <el-button data-testid="create-directory-cancel" @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" data-testid="create-directory-submit" @click="$emit('submit')" :loading="creating">
           创建
         </el-button>
       </span>

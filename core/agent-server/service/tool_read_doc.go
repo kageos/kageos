@@ -19,7 +19,7 @@ type readDocArgs struct {
 
 var readDocToolDef = toolDefinition[readDocArgs](
 	"read_doc",
-	"读取文档内容。传 directory 定位文档（单路径如 /builtin/doc/sdk/agent-app-sdk-readme，或多路径逗号分隔如 /builtin/doc/a,/builtin/doc/b）。系统消息中会列出可读文档的 directory 及名称。",
+	"读取文档内容。传 directory 定位文档（单路径如 /system/prompt/sdk/agent-app-sdk-readme，或多路径逗号分隔如 /system/prompt/a,/system/prompt/b）。当 directory 指向文档目录时，会返回该目录下全部文档。系统消息中会列出可读文档的 directory 及名称。",
 )
 
 func (t *ReadDocTool) Definition() dto.ToolDef {
@@ -56,8 +56,8 @@ func runReadDocTool(ctx context.Context, args readDocArgs, currentFullCodePath s
 			fullCodePath = "/" + fullCodePath
 		}
 
-		if strings.HasPrefix(fullCodePath, "/builtin/") {
-			docName, content := prompt.GetBuiltinDocContent(fullCodePath)
+		if prompt.IsPromptDocPath(fullCodePath) {
+			docName, content := prompt.GetPromptDocContent(ctx, fullCodePath)
 			if content == "" {
 				if i > 0 {
 					sb.WriteString("\n\n")

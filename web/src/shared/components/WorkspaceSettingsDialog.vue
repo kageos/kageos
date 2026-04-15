@@ -6,7 +6,7 @@
     :close-on-click-modal="false"
     @close="handleClose"
   >
-    <div class="workspace-settings-dialog">
+    <div class="workspace-settings-dialog" data-testid="workspace-settings-dialog">
       <el-form label-width="120px">
         <el-form-item label="资源路径">
           <div class="workspace-info">
@@ -42,7 +42,7 @@
     <template #footer>
       <div class="dialog-footer">
         <el-button @click="handleClose">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="handleSave">
+        <el-button type="primary" :loading="saving" data-testid="workspace-settings-save" @click="handleSave">
           保存
         </el-button>
       </div>

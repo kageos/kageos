@@ -34,6 +34,7 @@ interface UseFormViewLifecycleOptions {
   workspaceDomainService: WorkspaceDomainService
   permissionErrorStore: { clearError: () => void }
   initializeParams: () => Promise<Record<string, any> | undefined>
+  hydrateCurrentWidgetDisplays?: (initSource?: 'url' | 'default' | 'initialData') => Promise<void>
   watchFormData: () => void
 }
 
@@ -125,6 +126,11 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
     try {
       if (hasNonEmptyInitialData(explicitInitialData)) {
         options.applicationService.initializeForm(fields, explicitInitialData, true)
+        await options.hydrateCurrentWidgetDisplays?.('initialData')
+        Logger.debug('FormView', '已完成 initialData 组件展示态 hydrate', {
+          fieldCount: fields.length,
+          initialDataKeys: Object.keys(explicitInitialData || {})
+        })
       } else {
         const metadata = await options.initializeParams()
         if (token !== latestFormInitializationToken) {

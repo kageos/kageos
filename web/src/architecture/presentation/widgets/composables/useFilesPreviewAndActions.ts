@@ -3,6 +3,7 @@ import { ElMessage } from 'element-plus'
 import { Document, Files, Folder, Picture, VideoPlay } from '@element-plus/icons-vue'
 import { Logger } from '@/core/utils/logger'
 import type { FileItem } from '../filesWidgetTypes'
+import { getFileDisplayUrl } from '../utils/fileDisplayUrl'
 
 interface UseFilesPreviewAndActionsOptions {
   currentFiles: Ref<FileItem[]>
@@ -20,11 +21,6 @@ export function useFilesPreviewAndActions(options: UseFilesPreviewAndActionsOpti
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
   }
 
-  function isDirectAccessUrl(url: string | undefined): boolean {
-    if (!url) return false
-    return url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')
-  }
-
   function isImageFile(file: FileItem): boolean {
     if (!file.name) return false
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico']
@@ -33,7 +29,7 @@ export function useFilesPreviewAndActions(options: UseFilesPreviewAndActionsOpti
   }
 
   function canPreviewInBrowser(file: FileItem): boolean {
-    if (!file.is_uploaded || !file.url) return false
+    if (!file.is_uploaded || !getFileDisplayUrl(file)) return false
 
     const fileName = (file.name || '').toLowerCase()
     const previewableExtensions = [
@@ -79,33 +75,22 @@ export function useFilesPreviewAndActions(options: UseFilesPreviewAndActionsOpti
   }
 
   function handlePreviewInNewWindow(file: FileItem): void {
-    if (!canPreviewInBrowser(file) || !file.url) {
+    const displayUrl = getFileDisplayUrl(file)
+    if (!canPreviewInBrowser(file) || !displayUrl) {
       return
     }
 
-    const previewURL = isDirectAccessUrl(file.url)
-      ? file.url
-      : `/storage/api/v1/download/${encodeURIComponent(file.url)}`
-
-    window.open(previewURL, '_blank')
+    window.open(displayUrl, '_blank')
   }
 
   const previewImageList = computed(() => {
     return options.currentFiles.value
-      .filter((file: FileItem) => isImageFile(file) && file.is_uploaded && file.url)
-      .map((file: FileItem) => file.url || '')
+      .filter((file: FileItem) => isImageFile(file) && file.is_uploaded && !!getFileDisplayUrl(file))
+      .map((file: FileItem) => getFileDisplayUrl(file))
   })
 
   function getPreviewImageIndex(file: FileItem): number {
-    return previewImageList.value.findIndex((url: string) => url === file.url)
-  }
-
-  async function getPreviewUrl(file: FileItem): Promise<string> {
-    if (isDirectAccessUrl(file.url)) {
-      return file.url!
-    }
-
-    return `/api/v1/storage/download/${encodeURIComponent(file.url)}`
+    return previewImageList.value.findIndex((url: string) => url === getFileDisplayUrl(file))
   }
 
   async function handlePreviewImage(file: FileItem): Promise<void> {
@@ -115,8 +100,12 @@ export function useFilesPreviewAndActions(options: UseFilesPreviewAndActionsOpti
     }
 
     try {
+      const displayUrl = getFileDisplayUrl(file)
+      if (!displayUrl) {
+        throw new Error('文件地址缺失')
+      }
       previewImageName.value = file.name || '预览图片'
-      previewImageUrl.value = await getPreviewUrl(file)
+      previewImageUrl.value = displayUrl
       previewVisible.value = true
     } catch (error: any) {
       Logger.error('[FilesWidget]', 'Preview failed', error)
@@ -135,9 +124,10 @@ export function useFilesPreviewAndActions(options: UseFilesPreviewAndActionsOpti
 
   async function handleDownloadFile(file: FileItem): Promise<void> {
     try {
-      const downloadURL = isDirectAccessUrl(file.url)
-        ? file.url
-        : `/storage/api/v1/download/${encodeURIComponent(file.url)}`
+      const downloadURL = getFileDisplayUrl(file)
+      if (!downloadURL) {
+        throw new Error('文件地址缺失')
+      }
 
       const token = localStorage.getItem('token') || ''
       const res = await fetch(downloadURL, {
@@ -176,6 +166,7 @@ export function useFilesPreviewAndActions(options: UseFilesPreviewAndActionsOpti
     formatSize,
     isImageFile,
     canPreviewInBrowser,
+    getFileDisplayUrl,
     getFileIcon,
     getFileIconColor,
     handlePreviewInNewWindow,

@@ -30,6 +30,8 @@ const (
 	ScheduledTaskActionForm        = "form" // 兼容别名：LLM 常用 form 表示普通函数执行
 )
 
+var scheduledTaskCronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+
 func normalizeScheduledTaskAction(action string) (string, error) {
 	action = strings.ToLower(strings.TrimSpace(action))
 	if action == "" {
@@ -42,6 +44,85 @@ func normalizeScheduledTaskAction(action string) (string, error) {
 		return ScheduledTaskActionExecute, nil
 	default:
 		return "", fmt.Errorf("action 不支持，必须是 execute/form/table_create/table_update/table_delete")
+	}
+}
+
+func parseScheduledTaskCron(expr string) (cron.Schedule, error) {
+	sch, err := scheduledTaskCronParser.Parse(expr)
+	if err != nil {
+		return nil, fmt.Errorf("cron_expr 解析失败: %w", err)
+	}
+	return sch, nil
+}
+
+func nextCronRunAfter(expr string, base time.Time) (time.Time, error) {
+	sch, err := parseScheduledTaskCron(expr)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return sch.Next(base), nil
+}
+
+func resolveScheduledTaskRunAt(scheduleType, rawRunAt string, now time.Time) (time.Time, error) {
+	switch scheduleType {
+	case "atime":
+		if strings.TrimSpace(rawRunAt) == "" {
+			return time.Time{}, fmt.Errorf("atime 类型需提供 run_at")
+		}
+		runAt, err := parseRunAt(rawRunAt)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("run_at 格式错误: %w", err)
+		}
+		return runAt, nil
+	case "cron", "every":
+		return now, nil
+	default:
+		return time.Time{}, fmt.Errorf("schedule_type 必须是 atime/cron/every")
+	}
+}
+
+func computeTaskNextState(task *model.ScheduledTask, scheduledAt time.Time, success bool) (string, *time.Time, string) {
+	if scheduledAt.IsZero() {
+		scheduledAt = time.Now()
+	}
+	switch task.ScheduleType {
+	case "atime":
+		if success {
+			return "done", nil, task.ErrorMessage
+		}
+		return "failed", nil, task.ErrorMessage
+	case "cron":
+		if task.CronExpr == "" {
+			if success {
+				return "done", nil, task.ErrorMessage
+			}
+			return "failed", nil, task.ErrorMessage
+		}
+		next, err := nextCronRunAfter(task.CronExpr, scheduledAt)
+		if err != nil {
+			return "failed", nil, err.Error()
+		}
+		return "pending", &next, task.ErrorMessage
+	case "every":
+		if task.IntervalSeconds <= 0 {
+			if success {
+				return "done", nil, task.ErrorMessage
+			}
+			return "failed", nil, task.ErrorMessage
+		}
+		if task.MaxRuns > 0 && task.RunCount >= task.MaxRuns {
+			if success {
+				return "done", nil, task.ErrorMessage
+			}
+			return "failed", nil, task.ErrorMessage
+		}
+		next := scheduledAt.Add(time.Duration(task.IntervalSeconds) * time.Second)
+		return "pending", &next, task.ErrorMessage
+	default:
+		if success {
+			return "done", nil, task.ErrorMessage
+		}
+		return "failed", nil, task.ErrorMessage
 	}
 }
 
@@ -152,15 +233,19 @@ func (s *ScheduledTaskService) Create(ctx context.Context, req *dto.CreateSchedu
 	if err != nil {
 		return nil, err
 	}
-	runAt, err := parseRunAt(req.RunAt)
-	if err != nil {
-		return nil, fmt.Errorf("run_at 格式错误: %w", err)
-	}
 	method := strings.ToUpper(req.Method)
 	if method == "" {
 		method = "POST"
 	}
+	scheduleType := strings.TrimSpace(req.ScheduleType)
+	if scheduleType == "" {
+		return nil, fmt.Errorf("schedule_type 必须是 atime/cron/every")
+	}
 	action, err := normalizeScheduledTaskAction(req.Action)
+	if err != nil {
+		return nil, err
+	}
+	runAt, err := resolveScheduledTaskRunAt(scheduleType, req.RunAt, time.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +269,7 @@ func (s *ScheduledTaskService) Create(ctx context.Context, req *dto.CreateSchedu
 		RequestUser:     reqUser,
 		RequestUserDept: reqUserDept,
 		CreatedBy:       requestUser,
-		ScheduleType:    req.ScheduleType,
+		ScheduleType:    scheduleType,
 		RunAt:           runAt,
 		CronExpr:        req.CronExpr,
 		IntervalSeconds: req.IntervalSeconds,
@@ -193,19 +278,17 @@ func (s *ScheduledTaskService) Create(ctx context.Context, req *dto.CreateSchedu
 		Timezone:        req.Timezone,
 	}
 
-	switch req.ScheduleType {
+	switch scheduleType {
 	case "atime":
 		task.NextRunAt = &runAt
 	case "cron":
 		if req.CronExpr == "" {
 			return nil, fmt.Errorf("cron 类型需提供 cron_expr")
 		}
-		parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-		sch, err := parser.Parse(req.CronExpr)
+		next, err := nextCronRunAfter(req.CronExpr, runAt)
 		if err != nil {
-			return nil, fmt.Errorf("cron_expr 解析失败: %w", err)
+			return nil, err
 		}
-		next := sch.Next(runAt)
 		task.NextRunAt = &next
 	case "every":
 		if req.IntervalSeconds <= 0 {
@@ -214,8 +297,6 @@ func (s *ScheduledTaskService) Create(ctx context.Context, req *dto.CreateSchedu
 		task.IntervalSeconds = req.IntervalSeconds
 		task.MaxRuns = req.MaxRuns
 		task.NextRunAt = &runAt
-	default:
-		return nil, fmt.Errorf("schedule_type 必须是 atime/cron/every")
 	}
 
 	if err := s.taskRepo.Create(task); err != nil {
@@ -327,6 +408,10 @@ func (s *ScheduledTaskService) runDueTasks(ctx context.Context) {
 func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.ScheduledTask) {
 	taskCtx := context.WithoutCancel(ctx)
 	executedAt := time.Now()
+	scheduledAt := executedAt
+	if task.NextRunAt != nil {
+		scheduledAt = *task.NextRunAt
+	}
 	elapsedMillis := func() int64 {
 		duration := time.Since(executedAt).Milliseconds()
 		if duration < 0 {
@@ -337,7 +422,7 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 	user, appName, routerPath, err := parseFullCodePath(task.FullCodePath)
 	if err != nil {
 		s.recordExecution(taskCtx, task, nil, nil, "failed", err.Error(), "", executedAt, elapsedMillis())
-		s.updateTaskAfterRun(task, task.LeaseOwner, executedAt, false, err.Error())
+		s.updateTaskAfterRun(task, task.LeaseOwner, scheduledAt, false, err.Error())
 		return
 	}
 	// 定时任务无 HTTP 请求，用 WithRequestInfo 一次性注入与 ToContext 一致的 context
@@ -367,7 +452,7 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 	if err != nil {
 		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, task.Payload, nil, err, traceId, elapsedMillis())
 		s.recordExecution(taskCtx, task, task.Payload, nil, "failed", err.Error(), traceId, executedAt, elapsedMillis())
-		s.updateTaskAfterRun(task, task.LeaseOwner, executedAt, false, err.Error())
+		s.updateTaskAfterRun(task, task.LeaseOwner, scheduledAt, false, err.Error())
 		return
 	}
 
@@ -381,14 +466,14 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 	if err != nil {
 		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, err, traceId, elapsedMillis())
 		s.recordExecution(taskCtx, task, reqBody, respBody, "failed", err.Error(), traceId, executedAt, elapsedMillis())
-		s.updateTaskAfterRun(task, task.LeaseOwner, executedAt, false, err.Error())
+		s.updateTaskAfterRun(task, task.LeaseOwner, scheduledAt, false, err.Error())
 		return
 	}
 	if resp == nil {
 		errMsg := "应用响应为空"
 		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, errors.New(errMsg), traceId, elapsedMillis())
 		s.recordExecution(taskCtx, task, reqBody, respBody, "failed", errMsg, traceId, executedAt, elapsedMillis())
-		s.updateTaskAfterRun(task, task.LeaseOwner, executedAt, false, errMsg)
+		s.updateTaskAfterRun(task, task.LeaseOwner, scheduledAt, false, errMsg)
 		return
 	}
 	if resp.Error != "" || resp.ErrCode != 0 {
@@ -400,12 +485,12 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 		}
 		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, nil, traceId, elapsedMillis())
 		s.recordExecution(taskCtx, task, reqBody, respBody, "failed", errMsg, traceId, executedAt, elapsedMillis())
-		s.updateTaskAfterRun(task, task.LeaseOwner, executedAt, false, errMsg)
+		s.updateTaskAfterRun(task, task.LeaseOwner, scheduledAt, false, errMsg)
 		return
 	}
 	s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, nil, traceId, elapsedMillis())
 	s.recordExecution(taskCtx, task, reqBody, respBody, "success", "", traceId, executedAt, elapsedMillis())
-	s.updateTaskAfterRun(task, task.LeaseOwner, executedAt, true, "")
+	s.updateTaskAfterRun(task, task.LeaseOwner, scheduledAt, true, "")
 }
 
 func (s *ScheduledTaskService) buildTaskRequest(ctx context.Context, task *model.ScheduledTask, user, appName, routerPath, traceID, token string, bodyBytes []byte) (*dto.RequestAppReq, error) {
@@ -653,97 +738,12 @@ func buildScheduledTaskOperateLogResponseBody(resp *dto.RequestAppResp, err erro
 	return data
 }
 
-func (s *ScheduledTaskService) updateTaskAfterRun(task *model.ScheduledTask, leaseOwner string, executedAt time.Time, success bool, errMsg string) {
+func (s *ScheduledTaskService) updateTaskAfterRun(task *model.ScheduledTask, leaseOwner string, scheduledAt time.Time, success bool, errMsg string) {
 	task.RunCount++
 	task.ErrorMessage = errMsg
 	task.LeaseOwner = ""
 	task.LeaseUntil = nil
-	if !success {
-		// 周期任务失败后继续调度，避免临时抖动导致任务永久停掉
-		switch task.ScheduleType {
-		case "cron":
-			if task.CronExpr == "" {
-				task.Status = "failed"
-				task.NextRunAt = nil
-			} else {
-				parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-				sch, err := parser.Parse(task.CronExpr)
-				if err != nil {
-					task.Status = "failed"
-					task.ErrorMessage = err.Error()
-					task.NextRunAt = nil
-				} else {
-					next := sch.Next(executedAt)
-					if next.IsZero() {
-						task.Status = "failed"
-						task.NextRunAt = nil
-					} else {
-						task.Status = "pending"
-						task.NextRunAt = &next
-					}
-				}
-			}
-		case "every":
-			if task.IntervalSeconds <= 0 || (task.MaxRuns > 0 && task.RunCount >= task.MaxRuns) {
-				task.Status = "failed"
-				task.NextRunAt = nil
-			} else {
-				next := executedAt.Add(time.Duration(task.IntervalSeconds) * time.Second)
-				task.Status = "pending"
-				task.NextRunAt = &next
-			}
-		default:
-			// atime 或未知类型：失败后结束
-			task.Status = "failed"
-			task.NextRunAt = nil
-		}
-		updated, err := s.taskRepo.UpdateAfterRun(task, leaseOwner)
-		if err != nil {
-			logger.Errorf(context.Background(), "[ScheduledTask] Update task err: %v", err)
-		} else if !updated {
-			logger.Warnf(context.Background(), "[ScheduledTask] Skip stale run result: task=%d worker=%s", task.ID, leaseOwner)
-		}
-		return
-	}
-	switch task.ScheduleType {
-	case "atime":
-		task.Status = "done"
-		task.NextRunAt = nil
-	case "cron":
-		if task.CronExpr == "" {
-			task.Status = "done"
-			task.NextRunAt = nil
-		} else {
-			parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-			sch, err := parser.Parse(task.CronExpr)
-			if err != nil {
-				task.Status = "failed"
-				task.ErrorMessage = err.Error()
-				task.NextRunAt = nil
-			} else {
-				next := sch.Next(executedAt)
-				if next.IsZero() {
-					task.Status = "done"
-					task.NextRunAt = nil
-				} else {
-					task.Status = "pending"
-					task.NextRunAt = &next
-				}
-			}
-		}
-	case "every":
-		if task.MaxRuns > 0 && task.RunCount >= task.MaxRuns {
-			task.Status = "done"
-			task.NextRunAt = nil
-		} else {
-			next := executedAt.Add(time.Duration(task.IntervalSeconds) * time.Second)
-			task.Status = "pending"
-			task.NextRunAt = &next
-		}
-	default:
-		task.Status = "done"
-		task.NextRunAt = nil
-	}
+	task.Status, task.NextRunAt, task.ErrorMessage = computeTaskNextState(task, scheduledAt, success)
 	updated, err := s.taskRepo.UpdateAfterRun(task, leaseOwner)
 	if err != nil {
 		logger.Errorf(context.Background(), "[ScheduledTask] Update task err: %v", err)

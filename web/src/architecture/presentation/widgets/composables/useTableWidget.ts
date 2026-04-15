@@ -8,6 +8,7 @@ import type { WidgetComponentProps } from '@/architecture/presentation/widgets/t
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { syncTableContainerValue } from '@/core/widgetRuntime/containerValue'
 import { clearScopedDependentFields } from '@/core/widgetRuntime/dependency'
+import { applyScopedPresenceEffects } from '@/core/widgetRuntime/presenceEffects'
 
 function toFieldValue(rawValue: any) {
   return {
@@ -101,6 +102,13 @@ export function useTableWidget(props: WidgetComponentProps) {
 
     clearedFieldPaths.forEach((clearedFieldPath) => {
       props.formRenderer?.clearFieldErrors?.(clearedFieldPath, { includeSubtree: true })
+    })
+
+    applyScopedPresenceEffects({
+      fields: itemFields.value,
+      formDataStore,
+      scopePath: `${props.fieldPath}[${rowIndex}]`,
+      clearFieldErrors: props.formRenderer?.clearFieldErrors,
     })
 
     const nextRows = [...tableData.value]

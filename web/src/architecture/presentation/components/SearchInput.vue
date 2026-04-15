@@ -52,6 +52,8 @@
         <SearchSelectOptionContent
           :label="getRenderedOptionLabel(option)"
           :user-info="getRenderedOptionUserInfo(option)"
+          :show-color-indicator="shouldShowColoredMultiFallbackOption"
+          :color-style="getOptionColorStyle(getRenderedOptionValue(option))"
         />
       </el-option>
     </el-select>
@@ -104,6 +106,7 @@
             :key="value"
             :type="getOptionColorType(value)"
             :color="getOptionColorValue(value)"
+            :style="getSelectTagStyle(value)"
             :closable="true"
             @close.stop="handleRemoveTag(value)"
             class="multiselect-tag"
@@ -555,10 +558,7 @@ const handleWidgetFieldUpdate = (value: any) => {
 
 /* 自定义颜色的 tag，确保文字清晰 */
 .multiselect-tag[style*="background-color"] {
-  color: #fff !important;
   font-weight: 500;
-  /* 🔥 降低亮度：使用 filter 降低饱和度和亮度 */
-  filter: brightness(0.95) saturate(0.9);
 }
 
 /* 🔥 单选组件的标签样式：使用空心样式（outline） */

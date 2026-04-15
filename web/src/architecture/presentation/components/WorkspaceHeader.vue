@@ -7,8 +7,8 @@
 -->
 
 <template>
-  <div class="workspace-header">
-    <div class="header-left">
+  <div class="workspace-header" data-testid="workspace-header">
+    <div class="header-left" data-testid="workspace-header-left">
       <AppSwitcher
         ref="appSwitcherRef"
         compact
@@ -23,19 +23,20 @@
         @load-apps="$emit('load-apps')"
       />
     </div>
-    <div class="header-right">
+    <div class="header-right" data-testid="workspace-header-right">
       <!-- 仅保留应用中心在栏上 -->
       <el-button
         type="primary"
         size="small"
         @click="navigateToHub"
         title="应用中心"
+        data-testid="workspace-header-hub"
       >
         应用中心
       </el-button>
 
       <el-dropdown @command="handleUserCommand" trigger="click">
-        <span class="user-profile">
+        <span class="user-profile" data-testid="workspace-header-user-menu">
           <el-avatar :size="32" :src="userAvatar || undefined">{{ userInitials }}</el-avatar>
           <span class="username">{{ userName }}</span>
           <el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -131,14 +132,14 @@ import UpgradeEnterpriseDialog from '@/shared/components/UpgradeEnterpriseDialog
 import { navigateToHub as navigateToHubUtil } from '@/utils/hub-navigation'
 import { Logger } from '@/core/utils/logger'
 
-const props = defineProps<{
+defineProps<{
   currentApp: App | null
   appList: App[]
   loadingApps: boolean
   serviceTree?: ServiceTree[]
 }>()
 
-const emit = defineEmits<{
+defineEmits<{
   (e: 'switch-app', app: App): void
   (e: 'create-app'): void
   (e: 'update-app', app: App): void
@@ -201,7 +202,7 @@ const handleLogout = async () => {
       type: 'warning'
     })
     await authStore.logout()
-  } catch (error) {
+  } catch {
     // 忽略取消操作
   }
 }
@@ -214,26 +215,9 @@ const isDevelopment = computed(() => {
 
 const showDebugDialog = ref(false)
 
-// 打开智能工作台管理（纯粹管理，不带目录）；工作台对话在详情里由服务目录 ⋮ → 打开工作台 带入 full_code_path
-const navigateToWorkstation = (fullCodePath?: string) => {
-  const q = typeof fullCodePath === 'string' && fullCodePath.trim() ? fullCodePath.trim() : ''
-  const url = window.location.origin + '/workspace/workstation' + (q ? '?full_code_path=' + encodeURIComponent(q) : '')
-  window.open(url, '_blank')
-}
-
 // 导航到 Hub
 const navigateToHub = () => {
   navigateToHubUtil('/')
-}
-
-// 导航到组织架构和用户管理
-const navigateToOrganization = () => {
-  router.push('/organization')
-}
-
-// 导航到角色管理
-const navigateToRoleManagement = () => {
-  router.push('/permissions/roles')
 }
 
 // 升级企业版对话框

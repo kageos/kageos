@@ -40,8 +40,10 @@ type APIGatewayConfig struct {
 // GatewayServerConfig 网关服务器配置
 type GatewayServerConfig struct {
 	Port                     int    `mapstructure:"port"`
+	ListenHost               string `mapstructure:"listen_host"`
 	LogLevel                 string `mapstructure:"log_level"`
 	Debug                    bool   `mapstructure:"debug"`
+	EnablePprof              *bool  `mapstructure:"enable_pprof"`
 	AllowNATSDegradedStartup bool   `mapstructure:"allow_nats_degraded_startup"`
 }
 
@@ -78,6 +80,14 @@ func (c *APIGatewayConfig) GetPort() int {
 	return c.Server.Port
 }
 
+// GetListenHost 获取监听地址
+func (c *APIGatewayConfig) GetListenHost() string {
+	if c == nil {
+		return normalizeListenHost("")
+	}
+	return normalizeListenHost(c.Server.ListenHost)
+}
+
 // GetLogLevel 获取日志级别
 func (c *APIGatewayConfig) GetLogLevel() string {
 	if c.Server.LogLevel == "" {
@@ -89,6 +99,15 @@ func (c *APIGatewayConfig) GetLogLevel() string {
 // IsDebug 是否调试模式
 func (c *APIGatewayConfig) IsDebug() bool {
 	return c.Server.Debug
+}
+
+// IsPprofEnabled 是否启用 pprof。
+// 默认为 true，保持开发环境向后兼容；生产模板应显式关闭。
+func (c *APIGatewayConfig) IsPprofEnabled() bool {
+	if c == nil {
+		return true
+	}
+	return boolConfigValue(c.Server.EnablePprof, true)
 }
 
 // AllowNATSDegradedStartup 是否允许在 NATS 初始化失败时继续启动 HTTP 网关。

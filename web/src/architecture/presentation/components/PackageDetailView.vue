@@ -71,125 +71,21 @@
 
     <!-- 主要内容区域 -->
     <div class="main-content">
-      <div class="detail-content">
-        <!-- ⭐ 权限不足提示：当目录没有任何权限时显示 -->
-        <div v-if="hasNoDirectoryPermissions" class="permission-error-wrapper">
-        <el-card class="permission-error-card" shadow="hover">
-          <template #header>
-            <div class="permission-error-header">
-              <el-icon class="permission-error-icon"><Lock /></el-icon>
-              <span class="permission-error-title">权限不足</span>
-            </div>
-          </template>
-          <div class="permission-error-content">
-            <div class="permission-error-message">
-              <p class="error-message-text">
-                您没有 <strong>访问该目录</strong> 的权限
-              </p>
-            </div>
-            <div v-if="packageNode?.full_code_path" class="permission-error-info">
-              <el-icon><Document /></el-icon>
-              <span class="info-label">资源路径：</span>
-              <span class="info-value">{{ packageNode.full_code_path }}</span>
-            </div>
-            <div class="permission-error-actions">
-              <el-button
-                type="primary"
-                size="default"
-                @click="handleApplyPermission"
-                :icon="Lock"
-              >
-                立即申请权限
-              </el-button>
-            </div>
-          </div>
-        </el-card>
-        </div>
-
-        <!-- ⭐ 权限申请 tab（仅管理员可见） -->
-        <div v-else-if="showPermissionRequestTab" class="permission-request-section">
-        <el-tabs v-model="activeTab" type="card" @tab-change="handleTabChange" class="detail-tabs">
-          <el-tab-pane name="info">
-            <template #label>
-              <span>目录信息</span>
-            </template>
-            <div class="tab-content">
-              <PackageDetailOverviewCard
-                :package-node="packageNode || null"
-                :total-run-count="totalRunCount"
-              />
-              <PackageDetailChildrenGrid
-                :children="packageNode?.children || []"
-                @select-child="handleChildClick"
-              />
-            </div>
-          </el-tab-pane>
-
-          <!-- 导入 Go 文件 tab（有写权限时显示） -->
-          <el-tab-pane v-if="canEdit && packageNode?.full_code_path" name="import">
-            <template #label>
-              <span>导入 Go 文件</span>
-            </template>
-            <div class="tab-content import-tab-content">
-              <div
-                class="import-go-drop-zone"
-                :class="{ 'import-go-drop-zone--dragover': isImportGoDragging }"
-                @dragover.prevent="isImportGoDragging = true"
-                @dragleave.prevent="isImportGoDragging = false"
-                @drop.prevent="onImportGoDrop"
-              >
-                <span>将 .go 文件拖到此处导入到「{{ packageNode?.name }}」</span>
-              </div>
-              <p class="import-tab-hint">支持多个 .go 文件，导入后可在工作台执行编译。</p>
-            </div>
-          </el-tab-pane>
-          
-          <!-- 权限申请 tab -->
-          <el-tab-pane name="permissionRequest">
-            <template #label>
-              <el-badge :value="packageNode?.pending_count || 0" :hidden="!packageNode?.pending_count || packageNode.pending_count === 0" :max="99">
-                <span>权限申请</span>
-              </el-badge>
-            </template>
-            <div class="tab-content">
-              <PermissionRequestList
-                ref="permissionRequestListRef"
-                :resource-path="packageNode?.full_code_path"
-                :resource-type="resourceType"
-                :auto-load="activeTab === 'permissionRequest'"
-              />
-            </div>
-          </el-tab-pane>
-
-          <!-- 权限管理 tab -->
-          <el-tab-pane name="permissionManage">
-            <template #label>
-              <span>权限管理</span>
-            </template>
-            <div class="tab-content">
-              <PermissionManageList
-                ref="permissionManageListRef"
-                :resource-path="packageNode?.full_code_path"
-                :resource-type="resourceType"
-                :auto-load="activeTab === 'permissionManage'"
-              />
-            </div>
-          </el-tab-pane>
-        </el-tabs>
-        </div>
-        
-        <!-- 非管理员或没有权限申请 tab 时，显示原来的内容 -->
-        <div v-else-if="packageNode">
-        <PackageDetailOverviewCard
-          :package-node="packageNode"
-          :total-run-count="totalRunCount"
-        />
-        <PackageDetailChildrenGrid
-          :children="packageNode.children || []"
-          @select-child="handleChildClick"
-        />
-        </div>
-      </div>
+      <PackageDetailContent
+        :package-node="packageNode || null"
+        :total-run-count="totalRunCount"
+        :has-no-directory-permissions="hasNoDirectoryPermissions"
+        :show-permission-request-tab="showPermissionRequestTab"
+        :can-edit="canEdit"
+        :active-tab="activeTab"
+        :is-import-go-dragging="isImportGoDragging"
+        :resource-type="resourceType"
+        @update:active-tab="activeTab = $event"
+        @apply-permission="handleApplyPermission"
+        @select-child="handleChildClick"
+        @import-go-drop="onImportGoDrop"
+        @set-import-go-dragging="isImportGoDragging = $event"
+      />
     </div>
 
     <!-- 变更记录对话框 -->
@@ -200,59 +96,23 @@
       :full-code-path="packageNode?.full_code_path || ''"
     />
 
-    <!-- 编辑对话框 -->
-    <el-dialog
-      v-model="editDialogVisible"
-      title="编辑目录"
-      width="600px"
-      :close-on-click-modal="false"
-    >
-      <el-form
-        ref="editFormRef"
-        :model="editForm"
-        label-width="100px"
-        label-position="left"
-      >
-        <el-form-item label="目录名称" prop="name" :rules="[{ required: true, message: '请输入目录名称', trigger: 'blur' }]">
-          <el-input
-            v-model="editForm.name"
-            placeholder="请输入目录名称"
-            maxlength="100"
-            show-word-limit
-          />
-        </el-form-item>
-        
-        <el-form-item label="管理员" prop="admins">
-          <UsersWidget
-            v-if="editDialogVisible"
-            :key="`admins-${editForm.admins || 'empty'}`"
-            :field="adminsField"
-            :value="editAdminsFieldValue"
-            :field-path="adminsField.code"
-            mode="edit"
-            @update:modelValue="handleEditAdminsChange"
-          />
-          <div class="form-item-tip">
-            可以添加多个管理员，管理员可以编辑目录信息
-          </div>
-        </el-form-item>
-      </el-form>
-      
-      <template #footer>
-        <el-button @click="editDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="editSubmitting" @click="handleSubmitEdit">
-          保存
-        </el-button>
-      </template>
-    </el-dialog>
+    <PackageDetailEditDialog
+      v-model:visible="editDialogVisible"
+      :form="editForm"
+      :submitting="editSubmitting"
+      :admins-field="adminsField"
+      :admins-field-value="editAdminsFieldValue"
+      @update-admins="handleEditAdminsChange"
+      @submit="handleSubmitEdit"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { LocationQueryValue } from 'vue-router'
-import { ArrowLeft, Folder, Document, CopyDocument, Link, Clock, Lock, Edit } from '@element-plus/icons-vue'
+import { ArrowLeft, Folder, CopyDocument, Link, Clock, Edit } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import { extractWorkspacePath } from '@/utils/route'
@@ -261,17 +121,16 @@ import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import DirectoryUpdateHistoryDialog from '@/shared/components/DirectoryUpdateHistoryDialog.vue'
 import { buildPermissionApplyURL, DirectoryPermission } from '@/utils/permission'
-import UsersWidget from '@/shared/components/UsersWidget.vue'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
 import { useAuthStore } from '@/stores/auth'
 import { updatePackage, addFunctionsToDirectory } from '@/api/service-tree'
-import PermissionRequestList from '@/shared/components/permission/PermissionRequestList.vue'
-import PermissionManageList from '@/shared/components/permission/PermissionManageList.vue'
 import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
 import { Logger } from '@/core/utils/logger'
-import PackageDetailOverviewCard from './PackageDetailOverviewCard.vue'
-import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
+import PackageDetailContent from './PackageDetailContent.vue'
+import PackageDetailEditDialog from './PackageDetailEditDialog.vue'
+
+type DetailTabName = 'info' | 'import' | 'permissionRequest' | 'permissionManage'
 
 interface Props {
   packageNode?: ServiceTree | null
@@ -288,11 +147,9 @@ const route = useRoute()
 const authStore = useAuthStore() // ⭐ 必须在 showPermissionRequestTab 之前初始化
 
 // Tab 相关
-const activeTab = ref('info')
-const permissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> | null>(null)
+const activeTab = ref<DetailTabName>('info')
 const isImportGoDragging = ref(false)
 const importGoLoading = ref(false)
-const permissionManageListRef = ref<InstanceType<typeof PermissionManageList> | null>(null)
 
 // ⭐ 判断是否显示权限申请 tab
 // 条件：1. 节点类型是 package 或 app  2. 用户是管理员
@@ -324,21 +181,6 @@ const totalRunCount = computed(() => {
     .reduce((sum: number, c: ServiceTree) => sum + (c.run_count ?? 0), 0)
 })
 
-// 处理 tab 切换
-const handleTabChange = (tabName: string) => {
-  if (tabName === 'permissionRequest' && permissionRequestListRef.value) {
-    // 切换到权限申请 tab 时，触发加载
-    nextTick(() => {
-      permissionRequestListRef.value?.loadRequests()
-    })
-  } else if (tabName === 'permissionManage' && permissionManageListRef.value) {
-    // 切换到权限管理 tab 时，触发加载
-    nextTick(() => {
-      permissionManageListRef.value?.loadPermissions()
-    })
-  }
-}
-
 function normalizeTabQuery(tab: LocationQueryValue | LocationQueryValue[] | undefined): string | null {
   if (Array.isArray(tab)) {
     return tab[0] ?? null
@@ -355,20 +197,8 @@ watch(
 
     if (normalizedTab === 'permissionRequest' && showPermissionRequestTab.value) {
       activeTab.value = 'permissionRequest'
-      // 切换 tab 时触发加载
-      nextTick(() => {
-        if (permissionRequestListRef.value) {
-          permissionRequestListRef.value.loadRequests()
-        }
-      })
     } else if (normalizedTab === 'permissionManage' && showPermissionRequestTab.value) {
       activeTab.value = 'permissionManage'
-      // 切换 tab 时触发加载
-      nextTick(() => {
-        if (permissionManageListRef.value) {
-          permissionManageListRef.value.loadPermissions()
-        }
-      })
     }
   },
   { immediate: true }
@@ -380,7 +210,6 @@ const updateHistoryDialogVisible = ref(false)
 // 编辑对话框
 const editDialogVisible = ref(false)
 const editSubmitting = ref(false)
-const editFormRef = ref()
 const editForm = ref({
   name: '',
   admins: ''
@@ -620,7 +449,7 @@ function handleEdit(): void {
 }
 
 // 提交编辑
-async function handleSubmitEdit(): Promise<void> {
+async function handleSubmitEdit(editFormRef: any): Promise<void> {
   if (!props.packageNode) {
     return
   }
@@ -877,196 +706,11 @@ function handleChildClick(child: ServiceTree): void {
   }
 
   // 主要内容区域
-  .main-content {
-    flex: 1;
-    display: flex;
-    overflow: hidden;
-
-    .detail-content {
-      flex: 1;
-      overflow-y: auto;
-      padding: 32px 40px;
-      min-width: 0;
-      width: 100%;
-
-      // ⭐ 权限不足提示样式
-      .permission-error-wrapper {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 400px;
-        padding: 40px 20px;
-      }
-
-      .permission-error-card {
-        max-width: 600px;
-        width: 100%;
-        border-radius: 16px;
-        border: none;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-        transition: all 0.3s ease;
-
-        &:hover {
-          box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
-          transform: translateY(-2px);
-        }
-      }
-
-      .permission-error-header {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-size: 18px;
-        font-weight: 600;
-        color: var(--el-color-warning);
-      }
-
-      .permission-error-icon {
-        font-size: 24px;
-      }
-
-      .permission-error-title {
-        font-size: 18px;
-      }
-
-      .permission-error-content {
-        padding: 8px 0;
-      }
-
-      .permission-error-message {
-        margin-bottom: 24px;
-        padding: 16px;
-        background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
-        border-radius: 12px;
-        border-left: 4px solid var(--el-color-warning);
-      }
-
-      .error-message-text {
-        margin: 0;
-        font-size: 15px;
-        line-height: 1.6;
-        color: var(--el-text-color-primary);
-
-        strong {
-          color: var(--el-color-warning);
-          font-weight: 600;
-        }
-      }
-
-      .permission-error-info {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 16px;
-        padding: 12px 16px;
-        background: var(--el-bg-color-page);
-        border-radius: 10px;
-        font-size: 14px;
-        transition: all 0.2s ease;
-
-        &:hover {
-          background: var(--el-fill-color-light);
-        }
-
-        .el-icon {
-          color: var(--el-color-info);
-          font-size: 18px;
-        }
-
-        .info-label {
-          color: var(--el-text-color-regular);
-          font-weight: 500;
-        }
-
-        .info-value {
-          color: var(--el-text-color-primary);
-          font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-          font-size: 13px;
-          word-break: break-all;
-        }
-      }
-
-      .permission-error-actions {
-        margin-top: 24px;
-        display: flex;
-        justify-content: center;
-        padding-top: 16px;
-        border-top: 1px solid var(--el-border-color-lighter);
-      }
-
-      // ⭐ Tab 样式（参考旧版本的 card 样式）
-      .detail-tabs {
-        :deep(.el-tabs__header) {
-          margin-bottom: 20px;
-          overflow: visible; /* 确保 badge 不被裁剪 */
-        }
-
-        :deep(.el-tabs__nav-wrap) {
-          overflow: visible !important; /* 确保 badge 不被裁剪 */
-        }
-
-        :deep(.el-tabs__nav-scroll) {
-          overflow: visible !important; /* 确保 badge 不被裁剪 */
-        }
-
-        :deep(.el-tabs__nav) {
-          border: none;
-          overflow: visible; /* 确保 badge 不被裁剪 */
-        }
-
-        :deep(.el-tabs__item) {
-          height: 40px;
-          line-height: 40px;
-          font-size: 14px;
-          color: var(--el-text-color-regular);
-          border: none;
-          background: var(--el-bg-color-overlay);
-          margin-right: 4px;
-          border-radius: 4px 4px 0 0;
-          transition: all 0.3s;
-          padding: 0 20px;
-          overflow: visible; /* 确保 badge 不被裁剪 */
-
-          &:hover {
-            color: var(--el-color-primary);
-            opacity: 0.8;
-          }
-
-          &.is-active {
-            color: var(--el-color-primary);
-            background: var(--el-bg-color);
-            font-weight: 500;
-            opacity: 1;
-          }
-        }
-
-        :deep(.el-tabs__active-bar) {
-          display: none; /* card 类型不需要 active-bar */
-        }
-
-        // Badge 样式
-        :deep(.el-badge) {
-          position: relative;
-          display: inline-block;
-          
-          .el-badge__content {
-            font-size: 11px;
-            height: 18px;
-            line-height: 18px;
-            padding: 0 6px;
-            min-width: 18px;
-            border-radius: 9px;
-            z-index: 10; /* 确保 badge 在最上层 */
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* 添加阴影，增强可见性 */
-          }
-        }
-      }
-
-      .tab-content {
-        padding: 0;
-      }
-    }
-  }
+.main-content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
 }
 
 // 响应式设计

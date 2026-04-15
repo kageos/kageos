@@ -7,7 +7,7 @@
     <el-tag
       v-if="currentOptionColor"
       :type="getTagType(currentOptionColor)"
-      :color="getTagColor(currentOptionColor)"
+      :style="getTagStyle(currentOptionColor)"
       size="small"
       class="select-tag select-tag-outline"
     >
@@ -20,7 +20,7 @@
     <el-tag
       v-if="currentOptionColor"
       :type="getTagType(currentOptionColor)"
-      :color="getTagColor(currentOptionColor)"
+      :style="getTagStyle(currentOptionColor)"
       class="select-tag select-tag-outline"
     >
       {{ displayValue }}
@@ -31,7 +31,7 @@
 
 <script setup lang="ts">
 import { ElTag } from 'element-plus'
-import { isStandardColor, type StandardColorType } from '@/core/constants/select'
+import { DefaultOptionColorPalette, getOptionSolidColor, isStandardColor, normalizeOptionColor, type StandardColorType } from '@/core/constants/select'
 
 defineProps<{
   mode: 'response' | 'table-cell' | 'detail'
@@ -40,11 +40,28 @@ defineProps<{
 }>()
 
 function getTagType(color: string | null): StandardColorType | undefined {
-  return color && isStandardColor(color) ? (color as StandardColorType) : undefined
+  const normalizedColor = normalizeOptionColor(color)
+  return normalizedColor && isStandardColor(normalizedColor) ? (normalizedColor as StandardColorType) : undefined
 }
 
-function getTagColor(color: string | null): string | undefined {
-  return color && !isStandardColor(color) ? color : undefined
+function getTagStyle(color: string | null): Record<string, string> {
+  const normalizedColor = normalizeOptionColor(color)
+  if (!normalizedColor || isStandardColor(normalizedColor)) {
+    return {}
+  }
+
+  if (normalizedColor === 'default') {
+    return {
+      color: DefaultOptionColorPalette.textColor,
+      borderColor: DefaultOptionColorPalette.borderColor
+    }
+  }
+
+  const solidColor = getOptionSolidColor(normalizedColor)
+  return {
+    color: solidColor,
+    borderColor: solidColor
+  }
 }
 </script>
 

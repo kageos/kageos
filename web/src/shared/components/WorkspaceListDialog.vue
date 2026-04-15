@@ -8,14 +8,15 @@
     :before-close="forceSelect ? handleBeforeClose : undefined"
     @close="handleClose"
   >
-    <div class="workspace-list-dialog">
+    <div class="workspace-list-dialog" data-testid="workspace-list-dialog">
       <p v-if="forceSelect" class="force-select-tip">请选择一个工作空间进入，或创建新工作空间。</p>
       <!-- 搜索栏 -->
-      <div class="search-bar">
+      <div class="search-bar" data-testid="workspace-list-search-wrap">
         <el-input
           v-model="searchKeyword"
           placeholder="搜索工作空间名称或代码"
           clearable
+          data-testid="workspace-list-search"
           @input="handleSearch"
         >
           <template #prefix>
@@ -25,7 +26,7 @@
       </div>
 
       <!-- 标签页：我的工作空间 / 全部工作空间 / 系统工作空间 -->
-      <el-tabs v-model="activeTab" @tab-change="handleTabChange">
+      <el-tabs v-model="activeTab" data-testid="workspace-list-tabs" @tab-change="handleTabChange">
         <el-tab-pane label="我的工作空间" name="mine">
           <div class="workspace-list-container">
             <div v-if="loading" class="loading-state">
@@ -34,7 +35,7 @@
             </div>
             <div v-else-if="myWorkspaces.length === 0" class="empty-state">
               <el-empty description="暂无工作空间">
-                <el-button type="primary" @click="$emit('create-app')">
+                <el-button type="primary" data-testid="workspace-list-create-empty" @click="$emit('create-app')">
                   <el-icon><Plus /></el-icon>
                   创建工作空间
                 </el-button>
@@ -45,6 +46,7 @@
                 v-for="app in myWorkspaces"
                 :key="app.id"
                 class="workspace-card"
+                :data-testid="`workspace-card-${app.id}`"
                 :class="{ 'is-active': currentApp && app.id === currentApp.id }"
                 @click="handleSelectWorkspace(app)"
               >
@@ -73,6 +75,7 @@
                       link
                       size="small"
                       title="重新编译"
+                      :data-testid="`workspace-card-refresh-${app.id}`"
                       @click.stop="handleUpdateApp(app)"
                     >
                       <el-icon><RefreshRight /></el-icon>
@@ -81,6 +84,7 @@
                       link
                       size="small"
                       title="删除"
+                      :data-testid="`workspace-card-delete-${app.id}`"
                       @click.stop="handleDeleteApp(app)"
                     >
                       <el-icon><Delete /></el-icon>
@@ -106,6 +110,7 @@
                 v-for="app in allWorkspaces"
                 :key="app.id"
                 class="workspace-card"
+                :data-testid="`workspace-card-public-${app.id}`"
                 :class="{ 'is-active': currentApp && app.id === currentApp.id }"
                 @click="handleSelectWorkspace(app)"
               >
@@ -169,6 +174,7 @@
                 v-for="app in systemWorkspaces"
                 :key="app.id"
                 class="workspace-card"
+                :data-testid="`workspace-card-system-${app.id}`"
                 :class="{ 'is-active': currentApp && app.id === currentApp.id }"
                 @click="handleSelectWorkspace(app)"
               >
@@ -221,8 +227,8 @@
 
     <template #footer>
       <div class="dialog-footer">
-        <el-button v-if="!forceSelect" @click="handleClose">关闭</el-button>
-        <el-button type="primary" @click="$emit('create-app')">
+        <el-button v-if="!forceSelect" data-testid="workspace-list-close" @click="handleClose">关闭</el-button>
+        <el-button type="primary" data-testid="workspace-list-create" @click="$emit('create-app')">
           <el-icon><Plus /></el-icon>
           创建新工作空间
         </el-button>

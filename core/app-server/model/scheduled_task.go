@@ -27,7 +27,7 @@ type ScheduledTask struct {
 	CreatedBy       string          `json:"created_by" gorm:"size:255;index;comment:创建人（用于列表筛选）"`
 
 	ScheduleType    string     `json:"schedule_type" gorm:"size:20;not null;index;comment:atime/cron/every"`
-	RunAt           time.Time  `json:"run_at" gorm:"comment:首次执行时间"`
+	RunAt           time.Time  `json:"run_at" gorm:"comment:atime 的执行时间；cron/every 的创建生效时间"`
 	NextRunAt       *time.Time `json:"next_run_at" gorm:"index;comment:下次执行时间"`
 	LeaseOwner      string     `json:"lease_owner" gorm:"size:128;index;comment:执行租约持有者"`
 	LeaseUntil      *time.Time `json:"lease_until" gorm:"index;comment:执行租约到期时间"`

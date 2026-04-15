@@ -40,3 +40,11 @@ license_enterprise_1year.json
 /agent/
 # 本地运行时 SQLite、备份产物等，勿入库
 data/
+
+# 根目录误装依赖、自动化临时截图
+node_modules/
+playwright-login-page.png
+
+# Playwright / MCP 本地产物
+tests/e2e/.mcp-profile/
+tests/e2e/.mcp-output/

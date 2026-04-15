@@ -23,6 +23,20 @@ describe('searchWidgetMode', () => {
     })).toBe(WidgetType.MULTI_SELECT)
   })
 
+  it('maps radio eq search to select renderer', () => {
+    expect(resolveWidgetTypeForSearchRenderer({
+      widgetType: WidgetType.RADIO,
+      searchType: 'eq'
+    })).toBe(WidgetType.SELECT)
+  })
+
+  it('maps radio in search to multiselect renderer', () => {
+    expect(resolveWidgetTypeForSearchRenderer({
+      widgetType: WidgetType.RADIO,
+      searchType: 'in'
+    })).toBe(WidgetType.MULTI_SELECT)
+  })
+
   it('maps textarea search to compact input renderer', () => {
     expect(resolveWidgetTypeForSearchRenderer({
       widgetType: WidgetType.TEXT_AREA,
@@ -80,20 +94,20 @@ describe('searchWidgetMode', () => {
     })).toBe(false)
   })
 
-  it('keeps users search on the dedicated search shell instead of widget renderer', () => {
+  it('keeps users search on the widget renderer path', () => {
     expect(shouldUseWidgetSearchRenderer({
       widgetType: WidgetType.USERS,
       searchType: 'in',
       hasRegisteredWidget: true
-    })).toBe(false)
+    })).toBe(true)
   })
 
-  it('keeps department search on the dedicated search shell instead of widget renderer', () => {
+  it('keeps department search on the widget renderer path', () => {
     expect(shouldUseWidgetSearchRenderer({
       widgetType: WidgetType.DEPARTMENT,
       searchType: 'eq',
       hasRegisteredWidget: true
-    })).toBe(false)
+    })).toBe(true)
   })
 
   it('adapts checkbox string values into arrays for widget search mode', () => {
