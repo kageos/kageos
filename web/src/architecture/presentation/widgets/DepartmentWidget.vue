@@ -33,6 +33,19 @@
           <Edit />
         </el-icon>
       </div>
+      <SearchSingleSelectDisplay
+        v-else-if="mode === 'search' && !supportsMultipleSelection"
+        :label="selectedDepartmentForDisplay ? formatDepartmentDisplayName(selectedDepartmentForDisplay) : ''"
+        :placeholder="field.desc || `搜索${field.name}`"
+        :has-value="!!selectedDepartmentForDisplay"
+        :show-clear="!!selectedDepartmentForDisplay"
+        @open="handleOpenDialog"
+        @clear="handleClearSingleDepartment"
+      >
+        <template v-if="selectedDepartmentForDisplay" #leading>
+          <img src="/组织架构.svg" alt="组织架构" class="search-selected-icon" />
+        </template>
+      </SearchSingleSelectDisplay>
       <!-- 单选模式或未选中时的显示 -->
       <div
         v-else-if="selectedDepartmentForDisplay"
@@ -51,7 +64,8 @@
       <!-- 未选中时显示按钮 -->
       <el-button
         v-else
-        class="department-search-trigger"
+        class="department-trigger"
+        :class="{ 'is-search-mode': mode === 'search' }"
         :disabled="false"
         :placeholder="field.desc || `请选择${field.name}`"
         @click="handleOpenDialog()"
@@ -112,6 +126,7 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import DepartmentDisplay from '@/shared/components/DepartmentDisplay.vue'
 import DepartmentPickerDialog from '@/shared/components/DepartmentPickerDialog.vue'
+import SearchSingleSelectDisplay from '@/shared/components/SearchSingleSelectDisplay.vue'
 import { ElButton, ElIcon } from 'element-plus'
 import { OfficeBuilding, Edit, Close } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
@@ -338,6 +353,18 @@ async function handleRemoveDepartment(dept: Department): Promise<void> {
   }
 }
 
+function handleClearSingleDepartment(): void {
+  const newFieldValue = createFieldValue(
+    props.field,
+    null,
+    '',
+    {}
+  )
+  formDataStore.setValue(props.fieldPath, newFieldValue)
+  emit('update:modelValue', newFieldValue)
+  departmentInfo.value = null
+}
+
 // 加载组织架构信息（用于显示）
 async function loadDepartmentInfo(fullCodePath: string | null): Promise<Department | null> {
   if (!fullCodePath) {
@@ -512,22 +539,30 @@ onMounted(async () => {
 
 .department-select-wrapper.is-search-mode .department-select-display,
 .department-select-wrapper.is-search-mode .departments-select-display {
-  padding: 5px 10px;
-  border-radius: 6px;
+  padding: 0 10px;
+  border-radius: var(--el-border-radius-base);
   min-height: 32px;
+  box-sizing: border-box;
 }
 
 .department-select-wrapper.is-search-mode .department-display-text {
   font-size: 13px;
+  line-height: 1.2;
 }
 
 .department-select-wrapper.is-search-mode .selected-department-tag {
-  padding: 2px 6px;
+  min-height: 20px;
+  padding: 0 6px;
 }
 
-.department-search-trigger {
+.department-trigger {
   width: 100%;
   justify-content: flex-start;
+  height: 40px;
+}
+
+.department-trigger.is-search-mode {
+  height: 32px;
 }
 
 /* 选中后的显示（可点击） */
@@ -535,12 +570,14 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  min-height: 40px;
+  padding: 0 12px;
   border: 1px solid var(--el-border-color);
   border-radius: 4px;
   background-color: var(--el-bg-color);
   cursor: pointer;
   transition: all 0.2s;
+  box-sizing: border-box;
 }
 
 .department-select-display:hover:not(.is-disabled) {
@@ -554,8 +591,8 @@ onMounted(async () => {
 }
 
 .department-icon-small {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
 }
 
@@ -584,12 +621,14 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  min-height: 40px;
+  padding: 0 12px;
   border: 1px solid var(--el-border-color);
   border-radius: 4px;
   background-color: var(--el-bg-color);
   cursor: pointer;
   transition: all 0.2s;
+  box-sizing: border-box;
 }
 
 .departments-select-display:hover {
@@ -600,7 +639,7 @@ onMounted(async () => {
 .selected-departments-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   flex: 1;
   align-items: center;
 }
@@ -609,11 +648,13 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
+  min-height: 20px;
+  padding: 0 6px;
   background-color: var(--el-fill-color-light);
   border: 1px solid var(--el-border-color);
   border-radius: 4px;
   font-size: 12px;
+  box-sizing: border-box;
 }
 
 .selected-department-tag .department-icon-small {

@@ -33,7 +33,8 @@
           :display-value="displayValue"
           :fallback-label="field.desc || `请选择${field.name}`"
           :display-info-text="displayInfoText"
-          :show-clear="props.value?.raw != null && props.value?.raw !== '' && !isFieldRequired(field)"
+          :has-value="hasCurrentValue"
+          :show-clear="shouldShowDialogClear"
           @open="openDialog"
           @clear="handleClear"
         />
@@ -76,11 +77,12 @@
         />
       </template>
       <template v-else>
-        <SelectWidgetDialogTrigger
-          :display-value="displayValue"
-          :fallback-label="`搜索${field.name}`"
-          :show-clear="props.value?.raw != null && props.value?.raw !== '' && !isFieldRequired(field)"
-          search-mode
+        <SearchSingleSelectDisplay
+          :label="displayValue"
+          :placeholder="`搜索${field.name}`"
+          :has-value="hasCurrentValue"
+          :show-clear="shouldShowDialogClear"
+          :display-info-text="displayInfoText"
           @open="openDialog"
           @clear="handleClear"
         />
@@ -110,6 +112,7 @@ import FieldStatistics from './FieldStatistics.vue'
 import SelectWidgetDialogTrigger from './SelectWidgetDialogTrigger.vue'
 import SelectWidgetInlineSelect from './SelectWidgetInlineSelect.vue'
 import SelectWidgetValueDisplay from './SelectWidgetValueDisplay.vue'
+import SearchSingleSelectDisplay from '@/shared/components/SearchSingleSelectDisplay.vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
@@ -360,6 +363,28 @@ const internalValue = computed({
 // 🔥 详情模式下通过回调获取的显示值（用于存储）
 const detailDisplayValue = ref<string | null>(null)
 
+function hasSelectedValue(raw: any): boolean {
+  return raw !== null && raw !== undefined && raw !== ''
+}
+
+function findSelectedOption(raw: any): SelectOptionItem | undefined {
+  if (!hasSelectedValue(raw)) {
+    return undefined
+  }
+
+  return options.value.find((opt: any) => {
+    return opt.value === raw || String(opt.value) === String(raw)
+  })
+}
+
+const hasCurrentValue = computed(() => {
+  return hasSelectedValue(props.value?.raw)
+})
+
+const shouldShowDialogClear = computed(() => {
+  return hasCurrentValue.value && (props.mode === 'search' || !isFieldRequired(props.field))
+})
+
 // 获取 display_info 的显示文本
 const displayInfoText = computed(() => {
   const value = props.value
@@ -396,6 +421,13 @@ const displayValue = computed(() => {
   if (!value) {
     return '-'
   }
+
+  const raw = value.raw
+  if (!hasSelectedValue(raw)) {
+    return '-'
+  }
+
+  const matchedOption = findSelectedOption(raw)
   
   // 🔥 在详情模式下，优先使用 detailDisplayValue（通过回调获取的）
   // 如果 value.display 为空或等于 raw（说明没有有意义的显示值），则使用 detailDisplayValue
@@ -405,38 +437,25 @@ const displayValue = computed(() => {
       return detailDisplayValue.value
     }
     // 如果 value.display 为空或等于 raw，说明没有有意义的显示值，尝试从 options 中查找
-    if ((!value.display || value.display === '' || String(value.display) === String(value.raw)) && value.raw !== null && value.raw !== undefined && value.raw !== '') {
-      const matchedOption = options.value.find((opt: any) => {
-        // 支持多种类型比较
-        return opt.value === value.raw || String(opt.value) === String(value.raw)
-      })
+    if (!value.display || value.display === '' || String(value.display) === String(raw)) {
       if (matchedOption) {
         return matchedOption.label
       }
       // 如果找不到匹配的选项，返回 raw 值（作为后备）
-      return String(value.raw)
+      return String(raw)
     }
     // 如果 value.display 有值且不等于 raw，使用 value.display
-    if (value.display && String(value.display) !== String(value.raw)) {
+    if (value.display && String(value.display) !== String(raw)) {
       return value.display
     }
     // 如果 value.display 为空，返回 raw 值
-    return value.raw !== null && value.raw !== undefined ? String(value.raw) : '-'
+    return String(raw)
   }
   
-  // 🔥 非详情模式下，优先使用 value.display
-  if (value.display) {
+  // 🔥 非详情模式下，优先使用有意义的 display；如果 display 只是 raw，则回退到 option.label
+  if (value.display && String(value.display) !== String(raw)) {
     return value.display
   }
-  
-  const raw = value.raw
-  if (raw === null || raw === undefined || raw === '') {
-    return '-'
-  }
-
-  const matchedOption = options.value.find((opt: any) => {
-    return opt.value === raw || String(opt.value) === String(raw)
-  })
   if (matchedOption?.label) {
     return matchedOption.label
   }
@@ -453,7 +472,7 @@ function initOptions(): void {
   // 🔥 如果有回调接口且有初始值，触发一次搜索（包括详情模式）
   // 详情模式下也需要触发回调，通过 by_value 查询来获取选项标签
   // ⚠️ 注意：详情模式下由 watch 处理，这里只处理非详情模式
-  if (hasCallback.value && props.value?.raw && props.mode !== 'detail' && callbackRouter.value) {
+  if (hasCallback.value && hasSelectedValue(props.value?.raw) && props.mode !== 'detail' && callbackRouter.value) {
     handleSearch(props.value.raw, true) // by_value
   }
   
@@ -656,7 +675,7 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
     if (response.statistics && typeof response.statistics === 'object') {
       currentStatistics.value = response.statistics
       // 如果当前已有选中值，立即更新 meta.statistics
-      if (props.value?.raw) {
+      if (hasSelectedValue(props.value?.raw)) {
         // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
         const newFieldValue = createFieldValue(
           props.field,
@@ -687,7 +706,7 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
       }))
       
       // 🔥 如果是通过 by_value 查询，找到匹配的选项并更新显示值
-      if (isByValue && props.value?.raw) {
+      if (isByValue && hasSelectedValue(props.value?.raw)) {
         const matchedOption = options.value.find((opt: any) => {
           // 支持多种类型比较
           return opt.value === props.value.raw || String(opt.value) === String(props.value.raw)

@@ -83,6 +83,41 @@ describe('tableViewURLRuntime', () => {
     })
   })
 
+  it('persists display labels for stored search field values alongside raw params', () => {
+    expect(
+      buildTableURLQueryParams({
+        functionDetail: {
+          request: [],
+          response: [
+            {
+              code: 'job_id',
+              name: '投递职位',
+              search: 'eq',
+              callbacks: ['OnSelectFuzzy'],
+              widget: { type: 'select' }
+            }
+          ]
+        } as any,
+        state: createState({
+          searchForm: {
+            job_id: {
+              raw: '1',
+              display: '前端开发工程师 - 技术 (北京, 20000-35000元)',
+              meta: {}
+            }
+          }
+        }),
+        buildDefaultSorts: () => [{ field: 'id', order: 'desc' }]
+      })
+    ).toEqual({
+      page: '2',
+      page_size: '50',
+      sorts: 'id:desc',
+      eq: 'job_id:1',
+      s_job_id__display: '前端开发工程师 - 技术 (北京, 20000-35000元)'
+    })
+  })
+
   it('preserves only state and custom params on non-link sync', () => {
     expect(
       preserveExistingTableQueryParams({

@@ -1,7 +1,6 @@
-import { isLinkNavigation } from './linkNavigation'
-
 export const FORM_DRAFT_QUERY_PREFIX = 'f_'
 export const SEARCH_FIELD_QUERY_PREFIX = 's_'
+export const SEARCH_FIELD_DISPLAY_QUERY_SUFFIX = '__display'
 
 type FieldQueryScope = 'form' | 'search'
 
@@ -17,12 +16,20 @@ export const getSearchFieldQueryKey = (fieldCode: string): string => {
   return `${SEARCH_FIELD_QUERY_PREFIX}${fieldCode}`
 }
 
+export const getSearchFieldDisplayQueryKey = (fieldCode: string): string => {
+  return `${getSearchFieldQueryKey(fieldCode)}${SEARCH_FIELD_DISPLAY_QUERY_SUFFIX}`
+}
+
 export const isFormDraftQueryKey = (key: string): boolean => {
   return key.startsWith(FORM_DRAFT_QUERY_PREFIX)
 }
 
 export const isSearchFieldQueryKey = (key: string): boolean => {
   return key.startsWith(SEARCH_FIELD_QUERY_PREFIX)
+}
+
+export const shouldUseRawFormQueryKeys = (query: Record<string, any>): boolean => {
+  return query._tab === 'OnTableAddRow'
 }
 
 export const getScopedFieldQueryValue = (
@@ -43,8 +50,8 @@ export const getScopedFieldQueryValue = (
   return query[fieldCode]
 }
 
-export const shouldAllowLegacyFormDraftFallback = (query: Record<string, any>): boolean => {
-  return query._tab !== 'OnTableAddRow' || isLinkNavigation(query)
+export const shouldAllowLegacyFormDraftFallback = (_query: Record<string, any>): boolean => {
+  return true
 }
 
 export const deleteScopedFieldQueryKey = (
@@ -53,5 +60,8 @@ export const deleteScopedFieldQueryKey = (
   scope: FieldQueryScope
 ): void => {
   delete query[`${getPrefixByScope(scope)}${fieldCode}`]
+  if (scope === 'search') {
+    delete query[getSearchFieldDisplayQueryKey(fieldCode)]
+  }
   delete query[fieldCode]
 }

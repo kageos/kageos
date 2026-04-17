@@ -16,19 +16,7 @@ cmd_init() {
     echo "==> .env 已存在，仅补齐空值 ..."
   fi
 
-  ensure_env_value MYSQL_ROOT_PASSWORD "$(generate_random_hex 32)"
-  ensure_env_value JWT_SECRET "$(generate_random_hex 64)"
-  ensure_env_value CONTROL_ENC_KEY "$(generate_random_hex 32)"
-  ensure_env_value MYSQL_IMAGE "mysql:8.0"
-  ensure_env_value NATS_IMAGE "nats:2.10-alpine"
-  ensure_env_value MINIO_IMAGE "minio/minio:latest"
-  ensure_env_value MINIO_ROOT_USER "minioadmin"
-  ensure_env_value MINIO_ROOT_PASSWORD "$(generate_random_hex 32)"
-  ensure_env_value BACKUP_BASIC_AUTH_USERNAME "admin"
-  ensure_env_value BACKUP_BASIC_AUTH_PASSWORD "$(generate_random_hex 48)"
-  ensure_env_value MAIN_IMAGE "agentos-main:latest"
-  ensure_env_value APP_BASE_IMAGE "agentos-app-runtime-base:latest"
-  validate_env >/dev/null
+  bootstrap_env_defaults
 
   echo ""
   echo "=============================="
@@ -37,8 +25,8 @@ cmd_init() {
   echo "  文件: $ENV_FILE"
   echo "  已自动生成: MySQL / JWT / CONTROL_ENC_KEY / MinIO / backup 基础凭据"
   echo "  下一步:"
-  echo "    1. 检查并修改 STORAGE_ROOT / CANONICAL_BASE_URL"
-  echo "    2. 如需 HTTPS，放入证书并修改 ENABLE_HTTPS"
+  echo "    1. 填写 CANONICAL_BASE_URL"
+  echo "    2. 如需 HTTPS，放入证书并按需调整 TLS_MODE"
   echo "    3. 执行: bash build.sh doctor"
   echo "    4. 执行: bash build.sh up"
   echo "=============================="
@@ -50,7 +38,6 @@ cmd_doctor() {
   local port80 port443 compose_version storage_parent certs_host_dir cert_host_path key_host_path cert_rel key_rel
   local compose_ready=0
 
-  ensure_env_file
   validate_env
 
   echo "==> 部署预检开始"
@@ -84,13 +71,13 @@ cmd_doctor() {
     fi
   fi
 
-  storage_parent="$(dirname "$STORAGE_ROOT")"
-  if [[ -d "$STORAGE_ROOT" ]]; then
-    doctor_ok "STORAGE_ROOT 已存在: $STORAGE_ROOT"
+  storage_parent="$(dirname "$FIXED_STORAGE_ROOT")"
+  if [[ -d "$FIXED_STORAGE_ROOT" ]]; then
+    doctor_ok "固定存储目录已存在: $FIXED_STORAGE_ROOT"
   elif [[ -d "$storage_parent" && -w "$storage_parent" ]]; then
-    doctor_ok "STORAGE_ROOT 的父目录可写: $storage_parent"
+    doctor_ok "固定存储目录的父目录可写: $storage_parent"
   else
-    doctor_fail "STORAGE_ROOT 不存在且父目录不可写: $STORAGE_ROOT" || true
+    doctor_fail "固定存储目录不存在且父目录不可写: $FIXED_STORAGE_ROOT" || true
     failures=$((failures + 1))
   fi
 
@@ -106,7 +93,7 @@ cmd_doctor() {
       doctor_ok "80 端口可用"
     fi
 
-    if [[ "$ENABLE_HTTPS" == "1" ]]; then
+    if tls_mode_uses_local_https "$TLS_MODE"; then
       port443="$(port_listener_snapshot 443)"
       if [[ -n "$port443" ]]; then
         doctor_fail "443 端口被占用" || true
@@ -118,20 +105,22 @@ cmd_doctor() {
     fi
   fi
 
-  if [[ "$ENABLE_HTTPS" == "1" ]]; then
+  if tls_mode_uses_local_https "$TLS_MODE"; then
     certs_host_dir="$(resolve_host_path "$TLS_CERTS_HOST_DIR")"
     cert_rel="${TLS_CERT_FILE#/app/tls/}"
     key_rel="${TLS_KEY_FILE#/app/tls/}"
     cert_host_path="${certs_host_dir}/${cert_rel}"
     key_host_path="${certs_host_dir}/${key_rel}"
     if [[ -f "$cert_host_path" && -f "$key_host_path" ]]; then
-      doctor_ok "HTTPS 证书存在: $cert_host_path / $key_host_path"
+      doctor_ok "TLS_MODE=${TLS_MODE} 的证书存在: $cert_host_path / $key_host_path"
     else
-      doctor_fail "HTTPS 已启用，但证书文件不存在" || true
+      doctor_fail "TLS_MODE=${TLS_MODE} 需要本地证书，但证书文件不存在" || true
       failures=$((failures + 1))
     fi
+  elif [[ "$TLS_MODE" == "external" ]]; then
+    doctor_ok "当前为 external 模式：容器仅提供 HTTP，由外部入口终止 TLS"
   else
-    doctor_ok "当前为 HTTP / 外部 TLS 终止模式"
+    doctor_ok "当前为 http 模式：容器仅提供 HTTP"
   fi
 
   if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet nginx 2>/dev/null; then
@@ -143,20 +132,6 @@ cmd_doctor() {
     warnings=$((warnings + 1))
   else
     doctor_ok "未检测到宿主机 nginx 冲突"
-  fi
-
-  if [[ "$APP_BASE_IMAGE" == "agentos-app-runtime-base:latest" ]]; then
-    doctor_warn "APP_BASE_IMAGE 仍是默认 tag: ${APP_BASE_IMAGE}"
-    warnings=$((warnings + 1))
-  else
-    doctor_ok "APP_BASE_IMAGE 已显式指定: ${APP_BASE_IMAGE}"
-  fi
-
-  if [[ "${MINIO_IMAGE:-minio/minio:latest}" == *:latest ]]; then
-    doctor_warn "MINIO_IMAGE 仍使用 latest，正式环境建议固定版本 tag"
-    warnings=$((warnings + 1))
-  else
-    doctor_ok "MINIO_IMAGE 已固定版本: ${MINIO_IMAGE}"
   fi
 
   echo ""
@@ -284,6 +259,9 @@ cmd_build_app_base() {
   fi
 
   echo "==> 在 main 容器内单独构建 ${APP_BASE_IMAGE} ..."
+  if [[ -n "$cache_flag" ]]; then
+    echo "==> 已启用 --no-cache：本次不复用 layer 缓存"
+  fi
   echo "==> 命令: podman build ${cache_flag} -t ${APP_BASE_IMAGE} /app/app-base"
   compose_run exec main bash -lc "set -euo pipefail; podman build ${cache_flag} -t '${APP_BASE_IMAGE}' /app/app-base"
 }

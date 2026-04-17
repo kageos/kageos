@@ -2,6 +2,7 @@
  * 表格用户信息收集工具函数
  */
 import type { FieldConfig } from '@/core/types/field'
+import { getSearchFieldRawValue } from '@/utils/searchFieldValue'
 
 /**
  * 从表格数据中收集用户名
@@ -38,7 +39,7 @@ export function collectUsernamesFromSearchForm(
   
   searchableFields.forEach((field: FieldConfig) => {
     if (field.widget?.type === 'user' && searchForm[field.code]) {
-      const value = searchForm[field.code]
+      const value = getSearchFieldRawValue(searchForm[field.code])
       if (Array.isArray(value)) {
         value.forEach(v => {
           if (v) usernames.add(String(v))
@@ -112,4 +113,3 @@ export function collectFilesUploadUsersFromRow(
   
   return Array.from(usernames)
 }
-

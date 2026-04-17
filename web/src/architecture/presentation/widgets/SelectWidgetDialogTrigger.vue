@@ -1,16 +1,40 @@
 <template>
-  <div class="select-container" :class="{ 'is-search-mode': searchMode }" @click="$emit('open')">
+  <div
+    class="select-container"
+    :class="{ 'is-search-mode': searchMode, 'has-value': hasValue }"
+    @click="$emit('open')"
+  >
     <div class="select-content">
       <div class="select-main">
-        <span class="select-label">{{ displayValue || fallbackLabel }}</span>
-        <el-icon
-          v-if="showClear"
-          class="clear-icon"
-          @click.stop="$emit('clear')"
-        >
-          <CircleClose />
-        </el-icon>
-        <el-icon class="input-icon"><ArrowDown /></el-icon>
+        <template v-if="searchMode && hasValue">
+          <div class="search-selected-tag">
+            <span class="search-selected-indicator" />
+            <span class="select-label">{{ displayValue }}</span>
+          </div>
+          <div class="select-actions">
+            <el-icon
+              v-if="showClear"
+              class="search-tag-remove"
+              @click.stop="$emit('clear')"
+            >
+              <Close />
+            </el-icon>
+            <el-icon class="input-icon input-icon-active"><ArrowDown /></el-icon>
+          </div>
+        </template>
+        <template v-else>
+          <span class="select-label">{{ hasValue ? displayValue : fallbackLabel }}</span>
+          <div class="select-actions">
+            <el-icon
+              v-if="showClear"
+              class="clear-icon"
+              @click.stop="$emit('clear')"
+            >
+              <CircleClose />
+            </el-icon>
+            <el-icon class="input-icon"><ArrowDown /></el-icon>
+          </div>
+        </template>
       </div>
       <div v-if="displayInfoText" class="display-info-text">
         {{ displayInfoText }}
@@ -21,13 +45,14 @@
 
 <script setup lang="ts">
 import { ElIcon } from 'element-plus'
-import { ArrowDown, CircleClose } from '@element-plus/icons-vue'
+import { ArrowDown, CircleClose, Close } from '@element-plus/icons-vue'
 
 defineProps<{
   displayValue: string
   fallbackLabel: string
   displayInfoText?: string
   showClear: boolean
+  hasValue: boolean
   searchMode?: boolean
 }>()
 
@@ -78,6 +103,13 @@ defineEmits<{
   gap: 8px;
 }
 
+.select-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .select-label {
   flex: 1;
   color: var(--el-text-color-primary);
@@ -90,6 +122,43 @@ defineEmits<{
 
 .select-container.is-search-mode .select-label {
   font-size: 13px;
+}
+
+.select-container.is-search-mode.has-value {
+  border-color: var(--el-color-primary-light-5);
+  background: linear-gradient(180deg, var(--el-color-primary-light-9) 0%, var(--el-fill-color-blank) 100%);
+}
+
+.select-container.is-search-mode.has-value:hover {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--el-color-primary) 16%, transparent);
+}
+
+.search-selected-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  flex: 1;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background-color: var(--el-color-primary-light-9);
+  border: 1px solid var(--el-color-primary-light-7);
+}
+
+.search-selected-tag .select-label {
+  font-weight: 500;
+  color: var(--el-color-primary-dark-2);
+}
+
+.search-selected-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background-color: var(--el-color-primary);
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--el-color-primary) 14%, transparent);
 }
 
 .display-info-text {
@@ -126,6 +195,25 @@ defineEmits<{
 .select-container.is-search-mode .clear-icon,
 .select-container.is-search-mode .input-icon {
   font-size: 14px;
+}
+
+.search-tag-remove {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  color: var(--el-color-primary);
+  background-color: color-mix(in srgb, var(--el-color-primary) 10%, white);
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.search-tag-remove:hover {
+  color: white;
+  background-color: var(--el-color-danger);
+}
+
+.input-icon-active {
+  color: var(--el-color-primary);
 }
 
 .select-container:hover .input-icon {

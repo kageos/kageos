@@ -353,10 +353,10 @@ export function getPermissionDisplayName(action: string): string {
     'docs:delete': '删除文档',
     'docs:admin': '所有权',
     // Board 操作
-    'board:read': '查看讨论区',
-    'board:write': '写入讨论区',
-    'board:update': '更新讨论区',
-    'board:delete': '删除讨论区',
+    'board:read': '查看帖子',
+    'board:write': '发帖',
+    'board:update': '更新帖子',
+    'board:delete': '删除帖子',
     'board:admin': '所有权',
     // ⭐ 兼容旧格式（function:read、function:write 等）
     'function:read': '查看函数',
@@ -552,10 +552,10 @@ export function getAvailablePermissions(
     )
   } else if (resourceType === 'board') {
     permissions.push(
-      { action: 'board:read', displayName: '查看讨论区', isMinimal: true },
-      { action: 'board:write', displayName: '写入讨论区', isMinimal: false },
-      { action: 'board:update', displayName: '更新讨论区', isMinimal: false },
-      { action: 'board:delete', displayName: '删除讨论区', isMinimal: false }
+      { action: 'board:read', displayName: '查看帖子', isMinimal: true },
+      { action: 'board:write', displayName: '发帖', isMinimal: false },
+      { action: 'board:update', displayName: '更新帖子', isMinimal: false },
+      { action: 'board:delete', displayName: '删除帖子', isMinimal: false }
     )
     permissions.push(
       { action: 'board:admin', displayName: '所有权', isMinimal: false, isManage: true }

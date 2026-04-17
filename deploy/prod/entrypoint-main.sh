@@ -6,17 +6,14 @@ source /app/entrypoint-common.sh
 ensure_main_runtime_dirs
 
 require_env CANONICAL_BASE_URL "环境变量 CANONICAL_BASE_URL 未设置或为空（须由 Compose 从宿主机 .env 注入）"
-require_env STORAGE_ROOT "环境变量 STORAGE_ROOT 未设置或为空（须由 Compose 从宿主机 .env 注入）"
 require_env MYSQL_ROOT_PASSWORD "环境变量 MYSQL_ROOT_PASSWORD 未设置或为空（须由 Compose 从宿主机 .env 注入）"
-require_env MINIO_ROOT_USER "环境变量 MINIO_ROOT_USER 未设置或为空（须由 Compose 从宿主机 .env 注入）"
 require_env MINIO_ROOT_PASSWORD "环境变量 MINIO_ROOT_PASSWORD 未设置或为空（须由 Compose 从宿主机 .env 注入）"
 require_env JWT_SECRET "环境变量 JWT_SECRET 未设置或为空（须由 Compose 从宿主机 .env 注入）"
 require_env CONTROL_ENC_KEY "环境变量 CONTROL_ENC_KEY 未设置或为空（须由 Compose 从宿主机 .env 注入）"
 
 mkdir -p /app/deploy/prod/config
 set_smtp_defaults
-ENABLE_HTTPS="${ENABLE_HTTPS:-0}"
-HTTPS_REDIRECT="${HTTPS_REDIRECT:-0}"
+TLS_MODE="${TLS_MODE:-http}"
 TLS_CERT_FILE="${TLS_CERT_FILE:-/app/tls/fullchain.pem}"
 TLS_KEY_FILE="${TLS_KEY_FILE:-/app/tls/privkey.pem}"
 APP_BASE_IMAGE="${APP_BASE_IMAGE:-agentos-app-runtime-base:latest}"
@@ -26,7 +23,7 @@ wait_tcp 127.0.0.1 3306 "MySQL"
 wait_tcp 127.0.0.1 4222 "NATS"
 wait_tcp 127.0.0.1 9000 "MinIO"
 
-PROD_TEMPLATE_VARS='${STORAGE_ROOT} ${MYSQL_ROOT_PASSWORD} ${JWT_SECRET} ${CONTROL_ENC_KEY} ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${SMTP_FROM} ${SMTP_FROM_NAME} ${APP_BASE_IMAGE}'
+PROD_TEMPLATE_VARS='${MYSQL_ROOT_PASSWORD} ${JWT_SECRET} ${CONTROL_ENC_KEY} ${MINIO_ROOT_PASSWORD} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${SMTP_FROM} ${SMTP_FROM_NAME} ${APP_BASE_IMAGE}'
 render_runtime_templates "$PROD_TEMPLATE_VARS"
 
 CANONICAL_BASE_URL="${CANONICAL_BASE_URL}"
@@ -38,47 +35,34 @@ CANONICAL_HOST=$(echo "$CANONICAL_BASE_URL" | sed -E 's|^https?://([^/]+).*|\1|'
 export CANONICAL_SCHEME
 export CANONICAL_HOST
 
-case "$ENABLE_HTTPS" in
-  0|1) ;;
+case "$TLS_MODE" in
+  http|https|redirect|external) ;;
   *)
-    echo "ERROR: ENABLE_HTTPS 仅支持 0 或 1，当前值: ${ENABLE_HTTPS}" >&2
+    echo "ERROR: TLS_MODE 仅支持 http / https / redirect / external，当前值: ${TLS_MODE}" >&2
     exit 1
     ;;
 esac
-
-case "$HTTPS_REDIRECT" in
-  0|1) ;;
-  *)
-    echo "ERROR: HTTPS_REDIRECT 仅支持 0 或 1，当前值: ${HTTPS_REDIRECT}" >&2
-    exit 1
-    ;;
-esac
-
-if [[ "$HTTPS_REDIRECT" == "1" && "$ENABLE_HTTPS" != "1" ]]; then
-  echo "ERROR: HTTPS_REDIRECT=1 需要同时设置 ENABLE_HTTPS=1" >&2
-  exit 1
-fi
 
 NGINX_TEMPLATE="/app/deploy/prod/nginx/default.conf.template"
 NGINX_MODE_DESC="80 HTTP"
 
-if [[ "$ENABLE_HTTPS" == "1" ]]; then
+if [[ "$TLS_MODE" == "https" || "$TLS_MODE" == "redirect" ]]; then
   if [[ ! -f "$TLS_CERT_FILE" ]]; then
-    echo "ERROR: ENABLE_HTTPS=1 但证书文件不存在: ${TLS_CERT_FILE}" >&2
+    echo "ERROR: TLS_MODE=${TLS_MODE} 但证书文件不存在: ${TLS_CERT_FILE}" >&2
     exit 1
   fi
   if [[ ! -f "$TLS_KEY_FILE" ]]; then
-    echo "ERROR: ENABLE_HTTPS=1 但私钥文件不存在: ${TLS_KEY_FILE}" >&2
+    echo "ERROR: TLS_MODE=${TLS_MODE} 但私钥文件不存在: ${TLS_KEY_FILE}" >&2
     exit 1
   fi
 
   if [[ "$CANONICAL_SCHEME" != "https" ]]; then
-    echo "WARN: ENABLE_HTTPS=1 但 CANONICAL_BASE_URL 不是 https://；Nginx 会提供 HTTPS，但 canonical scheme 仍按 ${CANONICAL_SCHEME} 生成"
+    echo "WARN: TLS_MODE=${TLS_MODE} 会在本机提供 HTTPS，但 CANONICAL_BASE_URL 不是 https://；canonical scheme 仍按 ${CANONICAL_SCHEME} 生成"
   fi
 
-  if [[ "$HTTPS_REDIRECT" == "1" ]]; then
+  if [[ "$TLS_MODE" == "redirect" ]]; then
     if [[ "$CANONICAL_SCHEME" != "https" ]]; then
-      echo "ERROR: HTTPS_REDIRECT=1 时 CANONICAL_BASE_URL 必须使用 https://，当前为 ${CANONICAL_BASE_URL}" >&2
+      echo "ERROR: TLS_MODE=redirect 时 CANONICAL_BASE_URL 必须使用 https://，当前为 ${CANONICAL_BASE_URL}" >&2
       exit 1
     fi
     NGINX_TEMPLATE="/app/deploy/prod/nginx/default.https-redirect.conf.template"
@@ -87,6 +71,13 @@ if [[ "$ENABLE_HTTPS" == "1" ]]; then
     NGINX_TEMPLATE="/app/deploy/prod/nginx/default.https.conf.template"
     NGINX_MODE_DESC="80 HTTP + 443 HTTPS"
   fi
+elif [[ "$TLS_MODE" == "external" ]]; then
+  if [[ "$CANONICAL_SCHEME" != "https" ]]; then
+    echo "WARN: TLS_MODE=external 通常建议配合 https:// 的 CANONICAL_BASE_URL；当前为 ${CANONICAL_BASE_URL}"
+  fi
+  NGINX_MODE_DESC="80 HTTP（外部 TLS 终止）"
+elif [[ "$CANONICAL_SCHEME" == "https" ]]; then
+  echo "WARN: TLS_MODE=http 但 CANONICAL_BASE_URL 使用 https://；如果前面有 TLS 终止，请改成 TLS_MODE=external"
 fi
 
 mkdir -p /etc/nginx/snippets

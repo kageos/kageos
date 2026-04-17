@@ -110,6 +110,22 @@ describe('searchWidgetMode', () => {
     })).toBe(true)
   })
 
+  it('keeps multi-user contains search on the widget renderer path', () => {
+    expect(shouldUseWidgetSearchRenderer({
+      widgetType: WidgetType.USERS,
+      searchType: 'contains',
+      hasRegisteredWidget: true
+    })).toBe(true)
+  })
+
+  it('keeps multi-department contains search on the widget renderer path', () => {
+    expect(shouldUseWidgetSearchRenderer({
+      widgetType: WidgetType.DEPARTMENTS,
+      searchType: 'contains',
+      hasRegisteredWidget: true
+    })).toBe(true)
+  })
+
   it('adapts checkbox string values into arrays for widget search mode', () => {
     expect(adaptSearchModelValueForWidget('a,b', WidgetType.CHECKBOX)).toEqual(['a', 'b'])
   })

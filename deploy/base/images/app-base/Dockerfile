@@ -60,7 +60,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ghostscript \
     poppler-utils \
     graphicsmagick \
+    imagemagick \
+    gifsicle \
+    libimage-exiftool-perl \
+    libraw-bin \
+    libvips-tools \
     lua5.4 \
+    ocrmypdf \
+    pngquant \
     python3 \
     python3-pip \
     python3-pandas \
@@ -83,12 +90,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     tesseract-ocr \
     tesseract-ocr-chi-sim \
+    unpaper \
+    webp \
     fonts-noto-cjk \
     fonts-dejavu-core \
     fonts-liberation \
     && fc-cache -fv \
     && rm -rf /var/lib/apt/lists/* /usr/share/man /usr/share/doc /usr/share/info \
-    && echo "✓ Runtime + FFmpeg + Tesseract + fonts"
+    && echo "✓ Runtime + image/PDF OCR tools + FFmpeg + Tesseract + fonts"
 
 # LibreOffice（单独一层：新增/变更 LO 时只重建本层及之后）
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -166,6 +175,16 @@ RUN echo "=== 验证安装 ===" && \
     echo "Python:" && python3 --version && \
     echo "pip:" && pip3 --version && \
     echo "FFmpeg:" && ffmpeg -version 2>/dev/null | head -n 1 && \
+    echo "GraphicsMagick:" && gm version | head -n 1 && \
+    echo "ImageMagick:" && convert --version | head -n 1 && \
+    echo "ExifTool:" && exiftool -ver && \
+    echo "OCRmyPDF:" && ocrmypdf --version 2>&1 | head -n 1 && \
+    echo "VIPS:" && vips --version && \
+    echo "WebP:" && cwebp -version && \
+    echo "pngquant:" && pngquant --version && \
+    echo "gifsicle:" && gifsicle --version 2>&1 | head -n 1 && \
+    echo "unpaper:" && unpaper --version 2>&1 | head -n 1 && \
+    echo "LibRaw:" && (dcraw_emu -v 2>&1 | head -n 1 || raw-identify -v 2>&1 | head -n 1) && \
     echo "Lua:" && lua -v && \
     echo "LibreOffice:" && libreoffice --version 2>/dev/null | head -n 1 && \
     echo "Pandoc:" && pandoc --version 2>/dev/null | head -n 1 && \

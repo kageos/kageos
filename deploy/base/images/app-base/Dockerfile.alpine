@@ -80,7 +80,8 @@ COPY --from=ffmpeg-builder /usr/local/bin/ffmpeg /usr/bin/ffmpeg
 # 安装处理工具（通过 cmd 调用，完全满足合规要求）
 # Ghostscript: PDF/PostScript 处理
 # Poppler-utils: PDF 工具（pdftotext, pdfinfo, pdfimages 等）
-# GraphicsMagick: 图像处理（ImageMagick 的轻量替代）
+# GraphicsMagick / ImageMagick: 图像处理工具
+# ExifTool / OCRmyPDF / VIPS / WebP / pngquant / gifsicle / unpaper / LibRaw: 图片、元数据、扫描 PDF 增强工具
 # Lua: 轻量级脚本语言（数据转换、验证、模板处理等）
 # Python 3: Python 解释器和 pip（用于执行 Python 代码）
 # FFmpeg 依赖库（虽然 FFmpeg 是静态链接的，但启用的编码器库是动态的）
@@ -88,9 +89,18 @@ RUN apk add --no-cache \
     ghostscript \
     poppler-utils \
     graphicsmagick \
+    imagemagick \
+    exiftool \
+    gifsicle \
+    libraw-tools \
+    libwebp-tools \
     lua5.4 \
+    ocrmypdf \
+    pngquant \
     python3 \
     py3-pip \
+    unpaper \
+    vips-tools \
     libass \
     libvpx \
     opus \
@@ -206,6 +216,15 @@ RUN ffmpeg -version | head -n 1 && \
     gs --version && \
     pdftotext -v 2>&1 | head -n 1 && \
     gm version | head -n 1 && \
+    (command -v magick >/dev/null 2>&1 && magick --version | head -n 1 || convert --version | head -n 1) && \
+    exiftool -ver && \
+    ocrmypdf --version 2>&1 | head -n 1 && \
+    vips --version && \
+    cwebp -version && \
+    pngquant --version && \
+    gifsicle --version 2>&1 | head -n 1 && \
+    unpaper --version 2>&1 | head -n 1 && \
+    (dcraw_emu -v 2>&1 | head -n 1 || raw-identify -v 2>&1 | head -n 1) && \
     lua -v && \
     python3 --version && \
     pip3 --version && \

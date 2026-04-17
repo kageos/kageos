@@ -241,6 +241,7 @@ import WidgetComponent from '@/architecture/presentation/widgets/WidgetComponent
 import { ErrorHandler } from '@/core/utils/ErrorHandler'
 import { convertToFieldValue } from '@/utils/field'
 import { normalizeSearchValue, denormalizeSearchValue } from '@/utils/searchValueNormalizer'
+import { getSearchFieldRawValue, isStoredSearchFieldValue } from '@/utils/searchFieldValue'
 import { createSearchComponentConfig } from '@/utils/searchComponentConfig'
 import { SearchConfig, SearchComponent, hasSearchType } from '@/core/constants/search'
 import { WidgetType } from '@/core/constants/widget'
@@ -313,16 +314,26 @@ const shouldUseWidgetSearchRenderer = computed(() => {
 })
 
 const widgetSearchFieldValue = computed(() => {
-  const denormalizedValue = denormalizeSearchValue(props.modelValue, {
+  const rawValue = getSearchFieldRawValue(props.modelValue)
+
+  const denormalizedValue = denormalizeSearchValue(rawValue, {
     widgetType: searchWidgetType.value,
     searchType: props.searchType,
     field: widgetSearchField.value
   })
 
-  return convertToFieldValue(
-    adaptSearchModelValueForWidget(denormalizedValue, searchWidgetType.value),
-    widgetSearchField.value
-  )
+  const adaptedValue = adaptSearchModelValueForWidget(denormalizedValue, searchWidgetType.value)
+
+  if (isStoredSearchFieldValue(props.modelValue)) {
+    return {
+      ...props.modelValue,
+      raw: adaptedValue,
+      display: props.modelValue.display || String(adaptedValue ?? ''),
+      meta: props.modelValue.meta || {}
+    }
+  }
+
+  return convertToFieldValue(adaptedValue, widgetSearchField.value)
 })
 
 const inputConfig = computed(() => {
@@ -434,6 +445,15 @@ const handleWidgetFieldUpdate = (value: any) => {
     searchType: props.searchType,
     field: widgetSearchField.value
   })
+
+  if (value && typeof value === 'object' && 'raw' in value && 'display' in value) {
+    emit('update:modelValue', {
+      ...value,
+      raw: normalizedValue,
+      meta: value.meta || {}
+    })
+    return
+  }
 
   emit('update:modelValue', normalizedValue)
 }

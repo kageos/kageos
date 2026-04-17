@@ -23,22 +23,34 @@
           </el-select>
         </el-form-item>
         <el-form-item label="用户搜索">
-          <el-input
-            v-model="filterForm.userSearch"
-            placeholder="搜索用户"
-            clearable
-            style="width: 200px"
-            @input="handleFilterChange"
-          />
+          <div class="subject-filter-control">
+            <UserWidget
+              :field="filterUserField"
+              :value="filterUserFieldValue"
+              :field-path="filterUserField.code"
+              mode="edit"
+              @update:modelValue="handleUserFilterChange"
+            />
+            <el-button
+              v-if="filterForm.userSearch"
+              link
+              type="danger"
+              size="small"
+              @click="handleClearUserFilter"
+            >
+              清空
+            </el-button>
+          </div>
         </el-form-item>
         <el-form-item label="组织架构搜索">
-          <el-input
-            v-model="filterForm.departmentSearch"
-            placeholder="搜索组织架构"
-            clearable
-            style="width: 200px"
-            @input="handleFilterChange"
-          />
+          <div class="subject-filter-control subject-filter-control-department">
+            <DepartmentSelector
+              v-model="filterForm.departmentSearch"
+              placeholder="选择组织架构"
+              style="width: 100%"
+              @update:modelValue="handleDepartmentFilterChange"
+            />
+          </div>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="loadPermissions">刷新</el-button>
@@ -150,12 +162,14 @@ import { removeRoleFromUser, removeRoleFromDepartment } from '@/api/role'
 import { useRoute, useRouter } from 'vue-router'
 import { extractWorkspacePath } from '@/utils/route'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
+import UserWidget from '@/shared/components/UserWidget.vue'
 import UsersWidget from '@/shared/components/UsersWidget.vue'
 import DepartmentsWidget from '@/shared/components/DepartmentsWidget.vue'
+import DepartmentSelector from '@/shared/components/DepartmentSelector.vue'
 import { WidgetType } from '@/core/constants/widget'
 import type { FieldValue } from '@/core/types/field'
 import { parseResourcePath } from '@/utils/resourcePath'
-import { createStringFieldValue, createWidgetFieldConfig } from '@/utils/widgetFieldHelpers'
+import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/utils/widgetFieldHelpers'
 import { buildPermissionApplyURL } from '@/utils/permission'
 import { DirectoryPermission, FunctionPermission } from '@/constants/permissions'
 
@@ -184,6 +198,19 @@ const filterForm = ref({
   userSearch: '', // 用户搜索
   departmentSearch: '' // 组织架构搜索
 })
+
+const filterUserField = createWidgetFieldConfig({
+  code: 'permission_manage_user_filter',
+  name: '用户',
+  widgetType: WidgetType.USER,
+  overrides: {
+    desc: '选择用户'
+  }
+})
+
+const filterUserFieldValue = computed(() =>
+  createStringFieldValue(filterUserField, filterForm.value.userSearch, { emptyRaw: '' })
+)
 
 // 当前资源路径
 const currentResourcePath = computed(() => getResourcePath.value)
@@ -301,29 +328,19 @@ const assignments = computed(() => {
   }
   // scope === 'all' 时不过滤
   
-  // 用户搜索（只筛选用户类型的权限）
-  if (filterForm.value.userSearch) {
-    const searchText = filterForm.value.userSearch.toLowerCase()
+  const selectedUser = String(filterForm.value.userSearch || '').trim()
+  const selectedDepartment = String(filterForm.value.departmentSearch || '').trim()
+
+  if (selectedUser || selectedDepartment) {
     result = result.filter(item => {
-      if (item.subject_type === 'user') {
-        return item.subject.toLowerCase().includes(searchText) ||
-               (item.subject_name && item.subject_name.toLowerCase().includes(searchText))
-      }
-      // 如果不是用户类型，不显示（因为用户搜索框有值，只显示用户）
-      return false
-    })
-  }
-  
-  // 组织架构搜索（只筛选组织架构类型的权限）
-  if (filterForm.value.departmentSearch) {
-    const searchText = filterForm.value.departmentSearch.toLowerCase()
-    result = result.filter(item => {
-      if (item.subject_type === 'department') {
-        return item.subject.toLowerCase().includes(searchText) ||
-               (item.subject_name && item.subject_name.toLowerCase().includes(searchText))
-      }
-      // 如果不是组织架构类型，不显示（因为组织架构搜索框有值，只显示组织架构）
-      return false
+      const matchedUser = selectedUser !== ''
+        && item.subject_type === 'user'
+        && item.subject === selectedUser
+      const matchedDepartment = selectedDepartment !== ''
+        && item.subject_type === 'department'
+        && item.subject === selectedDepartment
+
+      return matchedUser || matchedDepartment
     })
   }
   
@@ -333,6 +350,27 @@ const assignments = computed(() => {
 // 筛选条件变化处理
 const handleFilterChange = () => {
   // 筛选通过 computed 自动应用，这里可以添加其他逻辑
+}
+
+const handleUserFilterChange = (value: FieldValue) => {
+  filterForm.value.userSearch = extractStringFieldRaw(value)
+  if (filterForm.value.userSearch) {
+    filterForm.value.departmentSearch = ''
+  }
+  handleFilterChange()
+}
+
+const handleClearUserFilter = () => {
+  filterForm.value.userSearch = ''
+  handleFilterChange()
+}
+
+const handleDepartmentFilterChange = (value: string | null) => {
+  filterForm.value.departmentSearch = value || ''
+  if (filterForm.value.departmentSearch) {
+    filterForm.value.userSearch = ''
+  }
+  handleFilterChange()
 }
 
 // 删除权限
@@ -484,6 +522,17 @@ defineExpose({
 
     .filter-form {
       margin: 0;
+    }
+
+    .subject-filter-control {
+      width: 240px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .subject-filter-control-department {
+      display: block;
     }
   }
 

@@ -1,60 +1,48 @@
 validate_env() {
-  ensure_env_file
-  require_env_key CANONICAL_BASE_URL
-  require_env_key STORAGE_ROOT
+  ensure_env_bootstrapped
+  CANONICAL_BASE_URL="$(read_env_value CANONICAL_BASE_URL)"
+  if [[ -z "$CANONICAL_BASE_URL" ]]; then
+    echo "ERROR: 请先在 .env 中填写 CANONICAL_BASE_URL，例如 http://your-domain-or-ip 或 https://your-domain"
+    exit 1
+  fi
   require_env_key MYSQL_ROOT_PASSWORD
   require_env_key JWT_SECRET
   require_env_key CONTROL_ENC_KEY
-  require_env_key MINIO_ROOT_USER
   require_env_key MINIO_ROOT_PASSWORD
-  require_env_key BACKUP_BASIC_AUTH_USERNAME
   require_env_key BACKUP_BASIC_AUTH_PASSWORD
-  require_env_key MYSQL_IMAGE
-  require_env_key NATS_IMAGE
-  require_env_key MINIO_IMAGE
-  require_env_key MAIN_IMAGE
   require_env_key_min_length JWT_SECRET 32
   require_env_key_exact_length CONTROL_ENC_KEY 32
   require_env_key_min_length BACKUP_BASIC_AUTH_PASSWORD 16
-  STORAGE_ROOT="$(read_env_value STORAGE_ROOT)"
-  if [[ "$STORAGE_ROOT" != /* ]]; then
-    echo "ERROR: STORAGE_ROOT 必须是绝对路径，当前值: $STORAGE_ROOT"
+  if [[ "$FIXED_STORAGE_ROOT" != /* ]]; then
+    echo "ERROR: 固定存储目录必须是绝对路径，当前值: $FIXED_STORAGE_ROOT"
     exit 1
   fi
-  CANONICAL_BASE_URL="$(read_env_value CANONICAL_BASE_URL)"
-  ENABLE_HTTPS="$(read_env_value_or_default ENABLE_HTTPS 0)"
-  HTTPS_REDIRECT="$(read_env_value_or_default HTTPS_REDIRECT 0)"
+  case "$CANONICAL_BASE_URL" in
+    http://*|https://*) ;;
+    *)
+      echo "ERROR: CANONICAL_BASE_URL 必须以 http:// 或 https:// 开头，当前值: $CANONICAL_BASE_URL"
+      exit 1
+      ;;
+  esac
+  TLS_MODE="$(read_env_value_or_default TLS_MODE "$DEFAULT_TLS_MODE")"
   TLS_CERTS_HOST_DIR="$(read_env_value_or_default TLS_CERTS_HOST_DIR ./certs)"
   TLS_CERT_FILE="$(read_env_value_or_default TLS_CERT_FILE /app/tls/fullchain.pem)"
   TLS_KEY_FILE="$(read_env_value_or_default TLS_KEY_FILE /app/tls/privkey.pem)"
-  MYSQL_IMAGE="$(read_env_value_or_default MYSQL_IMAGE mysql:8.0)"
-  NATS_IMAGE="$(read_env_value_or_default NATS_IMAGE nats:2.10-alpine)"
-  MINIO_IMAGE="$(read_env_value_or_default MINIO_IMAGE minio/minio:latest)"
-  MAIN_IMAGE="$(read_env_value_or_default MAIN_IMAGE agentos-main:latest)"
-  APP_BASE_IMAGE="$(read_env_value_or_default APP_BASE_IMAGE agentos-app-runtime-base:latest)"
+  MYSQL_IMAGE="$(read_env_value_or_default MYSQL_IMAGE "$DEFAULT_MYSQL_IMAGE")"
+  NATS_IMAGE="$(read_env_value_or_default NATS_IMAGE "$DEFAULT_NATS_IMAGE")"
+  MINIO_IMAGE="$(read_env_value_or_default MINIO_IMAGE "$DEFAULT_MINIO_IMAGE")"
+  MAIN_IMAGE="$(read_env_value_or_default MAIN_IMAGE "$DEFAULT_MAIN_IMAGE")"
+  APP_BASE_IMAGE="$(read_env_value_or_default APP_BASE_IMAGE "$DEFAULT_APP_BASE_IMAGE")"
 
-  case "$ENABLE_HTTPS" in
-    0|1) ;;
+  case "$TLS_MODE" in
+    http|https|redirect|external) ;;
     *)
-      echo "ERROR: ENABLE_HTTPS 仅支持 0 或 1，当前值: $ENABLE_HTTPS"
-      exit 1
-      ;;
-  esac
-
-  case "$HTTPS_REDIRECT" in
-    0|1) ;;
-    *)
-      echo "ERROR: HTTPS_REDIRECT 仅支持 0 或 1，当前值: $HTTPS_REDIRECT"
-      exit 1
-      ;;
-  esac
-
-  if [[ "$HTTPS_REDIRECT" == "1" && "$ENABLE_HTTPS" != "1" ]]; then
-    echo "ERROR: HTTPS_REDIRECT=1 需要同时设置 ENABLE_HTTPS=1"
+      echo "ERROR: TLS_MODE 仅支持 http / https / redirect / external，当前值: $TLS_MODE"
     exit 1
-  fi
+    ;;
+  esac
 
-  if [[ "$ENABLE_HTTPS" == "1" ]]; then
+  if tls_mode_uses_local_https "$TLS_MODE"; then
     if [[ "$TLS_CERT_FILE" != /app/tls/* ]]; then
       echo "ERROR: TLS_CERT_FILE 必须位于 /app/tls/ 下，当前值: $TLS_CERT_FILE"
       exit 1
@@ -72,24 +60,26 @@ validate_env() {
     key_host_path="${certs_host_dir}/${key_rel}"
 
     if [[ ! -f "$cert_host_path" ]]; then
-      echo "ERROR: ENABLE_HTTPS=1 但证书文件不存在: $cert_host_path"
+      echo "ERROR: TLS_MODE=${TLS_MODE} 但证书文件不存在: $cert_host_path"
       exit 1
     fi
     if [[ ! -f "$key_host_path" ]]; then
-      echo "ERROR: ENABLE_HTTPS=1 但私钥文件不存在: $key_host_path"
+      echo "ERROR: TLS_MODE=${TLS_MODE} 但私钥文件不存在: $key_host_path"
       exit 1
     fi
 
-    if [[ "$HTTPS_REDIRECT" == "1" && "$CANONICAL_BASE_URL" != https://* ]]; then
-      echo "ERROR: HTTPS_REDIRECT=1 时 CANONICAL_BASE_URL 必须使用 https://，当前值: $CANONICAL_BASE_URL"
+    if tls_mode_requires_redirect "$TLS_MODE" && [[ "$CANONICAL_BASE_URL" != https://* ]]; then
+      echo "ERROR: TLS_MODE=redirect 时 CANONICAL_BASE_URL 必须使用 https://，当前值: $CANONICAL_BASE_URL"
       exit 1
     fi
 
     if [[ "$CANONICAL_BASE_URL" != https://* ]]; then
-      echo "WARN: ENABLE_HTTPS=1 但 CANONICAL_BASE_URL 不是 https://；将同时提供 HTTPS，但 canonical scheme 仍按当前值生成。"
+      echo "WARN: TLS_MODE=${TLS_MODE} 会在本机提供 HTTPS，但 CANONICAL_BASE_URL 不是 https://；canonical scheme 仍按当前值生成。"
     fi
-  elif [[ "$CANONICAL_BASE_URL" == https://* ]]; then
-    echo "WARN: CANONICAL_BASE_URL 当前是 https:// 但 ENABLE_HTTPS=0；如果不是外部 TLS 终止场景，请先补齐证书配置。"
+  elif [[ "$TLS_MODE" == "http" && "$CANONICAL_BASE_URL" == https://* ]]; then
+    echo "WARN: CANONICAL_BASE_URL 当前是 https:// 但 TLS_MODE=http；如果前面有 TLS 终止，请改成 TLS_MODE=external。"
+  elif [[ "$TLS_MODE" == "external" && "$CANONICAL_BASE_URL" != https://* ]]; then
+    echo "WARN: TLS_MODE=external 通常应配合 https:// 的 CANONICAL_BASE_URL；如果只想跑明文 HTTP，请改成 TLS_MODE=http。"
   fi
 }
 
@@ -133,7 +123,7 @@ ensure_required_ports_available_for_first_up() {
     exit 1
   fi
 
-  if [[ "$ENABLE_HTTPS" == "1" ]]; then
+  if tls_mode_uses_local_https "$TLS_MODE"; then
     listen443="$(port_listener_snapshot 443)"
     if [[ -n "$listen443" ]]; then
       echo "ERROR: 443 端口仍被占用，停止部署。"

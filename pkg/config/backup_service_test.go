@@ -11,7 +11,7 @@ func TestBackupServiceConfigNormalizeForHostStorageRoot(t *testing.T) {
 	storageRoot := filepath.Join(t.TempDir(), "storage-root")
 
 	cfg := &BackupServiceConfig{}
-	cfg.Storage.Root = "${STORAGE_ROOT}"
+	cfg.Storage.Root = fixedProdStorageRoot
 	cfg.Storage.NamespacePath = "/app/namespace"
 	cfg.Storage.DataPath = "/app/data"
 	cfg.Storage.LogsPath = "/app/logs"

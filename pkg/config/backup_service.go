@@ -77,6 +77,8 @@ var (
 	backupServiceConfigMu   sync.RWMutex
 )
 
+const fixedProdStorageRoot = "/data/ai-agent-os"
+
 func GetBackupServiceConfig() *BackupServiceConfig {
 	backupServiceConfigOnce.Do(func() {
 		bootstrapBackupServiceLocalEnv()
@@ -292,7 +294,7 @@ func (c *BackupServiceConfig) normalizeForLocalHost() {
 		return
 	}
 
-	storageRoot := resolveBackupServiceStorageRoot(root)
+	storageRoot := resolveBackupServiceStorageRoot()
 	if storageRoot == "" {
 		return
 	}
@@ -383,11 +385,8 @@ func bootstrapBackupServiceLocalEnv() {
 
 	envMap := readLocalProdEnvFile(root)
 	for _, key := range []string{
-		"STORAGE_ROOT",
 		"MYSQL_ROOT_PASSWORD",
-		"MINIO_ROOT_USER",
 		"MINIO_ROOT_PASSWORD",
-		"BACKUP_BASIC_AUTH_USERNAME",
 		"BACKUP_BASIC_AUTH_PASSWORD",
 		"BACKUP_BASIC_AUTH_REALM",
 	} {
@@ -400,21 +399,8 @@ func bootstrapBackupServiceLocalEnv() {
 	}
 }
 
-func resolveBackupServiceStorageRoot(root string) string {
-	if value := strings.TrimSpace(os.Getenv("STORAGE_ROOT")); value != "" {
-		if abs, err := filepath.Abs(value); err == nil {
-			return abs
-		}
-	}
-
-	envMap := readLocalProdEnvFile(root)
-	if value := strings.TrimSpace(envMap["STORAGE_ROOT"]); value != "" {
-		if abs, err := filepath.Abs(value); err == nil {
-			return abs
-		}
-	}
-
-	return filepath.Join(root, ".local", "ai-agent-os")
+func resolveBackupServiceStorageRoot() string {
+	return fixedProdStorageRoot
 }
 
 func readLocalProdEnvFile(root string) map[string]string {

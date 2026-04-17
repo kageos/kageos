@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 生产主站部署脚本：直接读取 .env，统一使用 STORAGE_ROOT 宿主机目录
+# 生产主站部署脚本：直接读取 .env，统一使用 /data/ai-agent-os 宿主机目录
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -10,9 +10,7 @@ SCRIPTS_DIR="$ROOT/scripts"
 ENV_FILE="$ROOT/.env"
 COMMAND="${1:-up}"
 ARG1="${2:-}"
-STORAGE_ROOT=""
-ENABLE_HTTPS="0"
-HTTPS_REDIRECT="0"
+TLS_MODE="http"
 TLS_CERTS_HOST_DIR="./certs"
 TLS_CERT_FILE="/app/tls/fullchain.pem"
 TLS_KEY_FILE="/app/tls/privkey.pem"

@@ -3,7 +3,13 @@ import type { SortItem, TableState } from '@/architecture/domain/services/TableD
 import { buildURLSearchParams } from '@/utils/searchParams'
 import { LINK_TYPE_QUERY_KEY } from '@/utils/linkNavigation'
 import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from '@/utils/urlParams'
-import { getSearchFieldQueryKey, isSearchFieldQueryKey } from '@/utils/queryFieldNamespace'
+import { getSearchFieldDisplayQueryKey, getSearchFieldQueryKey, isSearchFieldQueryKey } from '@/utils/queryFieldNamespace'
+import {
+  getSearchFieldDisplayValue,
+  getSearchFieldRawValue,
+  hasSearchFieldValue,
+  isStoredSearchFieldValue
+} from '@/utils/searchFieldValue'
 
 interface BuildTableURLQueryParamsOptions {
   functionDetail: FunctionDetail
@@ -23,19 +29,7 @@ interface BuildNextTableSyncQueryOptions extends BuildTableURLQueryParamsOptions
 }
 
 const hasSearchValue = (value: unknown): boolean => {
-  if (value === null || value === undefined) {
-    return false
-  }
-
-  if (Array.isArray(value)) {
-    return value.length > 0
-  }
-
-  if (typeof value === 'string') {
-    return value.trim() !== ''
-  }
-
-  return true
+  return hasSearchFieldValue(value)
 }
 
 const normalizeRouteQueryValue = (value: unknown): string | string[] | undefined => {
@@ -54,6 +48,24 @@ const normalizeRouteQueryValue = (value: unknown): string | string[] | undefined
 
 const getRequestFields = (functionDetail: FunctionDetail) => {
   return Array.isArray(functionDetail.request) ? functionDetail.request : []
+}
+
+const shouldPersistSearchDisplay = (field: any, value: unknown): boolean => {
+  if (!isStoredSearchFieldValue(value)) {
+    return false
+  }
+
+  const display = getSearchFieldDisplayValue(value).trim()
+  if (!display) {
+    return false
+  }
+
+  const rawValue = getSearchFieldRawValue(value)
+  if (Array.isArray(rawValue)) {
+    return display !== rawValue.join(',') && display !== rawValue.join(', ')
+  }
+
+  return display !== String(rawValue ?? '')
 }
 
 export const getTableRequestFieldCodes = (functionDetail: FunctionDetail): Set<string> => {
@@ -89,6 +101,10 @@ export const buildTableURLQueryParams = (
     return search && search !== '-' && search !== '' && search.trim() !== ''
   })
   const responseFieldsForURL = responseFields.filter(field => !requestFieldCodes.has(field.code))
+  const displayFields = [
+    ...getRequestFields(functionDetail),
+    ...responseFieldsForURL
+  ]
 
   Object.assign(query, buildURLSearchParams(state.searchForm, responseFieldsForURL))
 
@@ -98,7 +114,17 @@ export const buildTableURLQueryParams = (
       return
     }
 
-    query[getSearchFieldQueryKey(field.code)] = Array.isArray(value) ? value.join(',') : String(value)
+    const rawValue = getSearchFieldRawValue(value)
+    query[getSearchFieldQueryKey(field.code)] = Array.isArray(rawValue) ? rawValue.join(',') : String(rawValue)
+  })
+
+  displayFields.forEach(field => {
+    const value = state.searchForm[field.code]
+    if (!shouldPersistSearchDisplay(field, value)) {
+      return
+    }
+
+    query[getSearchFieldDisplayQueryKey(field.code)] = getSearchFieldDisplayValue(value)
   })
 
   Object.keys(query).forEach(key => {

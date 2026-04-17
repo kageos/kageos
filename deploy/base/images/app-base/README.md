@@ -49,50 +49,82 @@ APP_BASE_APT_CHECK_DATE=1 bash deploy/base/scripts/build-app-base-image.sh
 APP_BASE_IMAGE="agentos-app-runtime-base:latest" bash deploy/base/scripts/build-app-base-image.sh
 ```
 
+如果本地已存在同 tag 镜像，想强制重建：
+
+```bash
+bash deploy/base/scripts/build-app-base-image.sh --force
+```
+
+如果还想禁用 layer 缓存：
+
+```bash
+bash deploy/base/scripts/build-app-base-image.sh --force --no-cache
+```
+
 ## 镜像内容
 
 - **基础镜像**：Ubuntu 22.04
 - **Init 系统**：tini（处理 PID 1 问题）
-- **FFmpeg**：静态链接构建，LGPL-only 配置
+- **FFmpeg**：Ubuntu 仓库版本（可直接 `exec.Command` 调用）
 - **Ghostscript**：PDF/PostScript 处理
 - **Poppler-utils**：PDF 工具（pdftotext, pdfinfo, pdfimages 等）
 - **GraphicsMagick**：图像处理（ImageMagick 的轻量替代）
+- **ImageMagick**：通用图片处理（canonical Ubuntu 22.04 镜像内为 IM6，直接用 `convert` / `identify` / `mogrify` 等）
+- **ExifTool**：图片/视频/PDF 元数据读取、写入、清洗
+- **OCRmyPDF**：为扫描 PDF 添加可搜索文字层
+- **libvips-tools**：低内存、高性能图片处理与缩略图生成
+- **WebP tools**：`cwebp`/`dwebp`/`webpmux` 等 WebP 工具
+- **pngquant / gifsicle / unpaper / LibRaw**：PNG 压缩、GIF 优化、扫描件预处理、RAW 图片工具
 - **Lua**：轻量级脚本语言（数据转换、验证、模板处理等）
 - **Python 3**：Python 解释器和 pip（用于执行 Python 代码）
 - **启动脚本**：`/start.sh`（用于启动用户应用）
 
 ## FFmpeg 配置
 
-镜像中包含静态链接的 FFmpeg，配置如下：
+镜像中直接安装 Ubuntu 仓库提供的 FFmpeg，可在用户应用里通过 `exec.Command` 调用。
 
-- **许可证**：LGPL-only（`--enable-gpl=no --enable-nonfree=no`）
-- **构建方式**：静态链接（`--enable-static --disable-shared`）
-- **支持的编码器**：
-  - libvpx (VP8/VP9)
-  - libopus (Opus)
-  - libvorbis (Vorbis)
-  - libtheora (Theora)
-  - libass (字幕)
-  - libfreetype (字体)
-  - libfontconfig (字体配置)
+- **来源**：Ubuntu 22.04 仓库
+- **常见能力**：转码、抽帧、音频处理、字幕/滤镜处理、`drawtext` 中文
+- **中文支持**：镜像内已安装 `fontconfig` 和 `Noto CJK` 字体，可直接配合 `drawtext` 使用
 
-**注意**：不支持 H.264/H.265 编码（GPL 许可），但支持解码。
+**注意**：具体编译选项和编码器能力以镜像内 `ffmpeg -version`、`ffmpeg -encoders`、`ffmpeg -codecs` 的实际输出为准；分发时仍需遵守 FFmpeg 及其启用编解码器的许可证要求。
 
 ## 使用方式
 
-在用户生成的代码中，可以通过 `exec.Command` 调用这些工具：
+在用户生成的代码中，直接通过 `exec.Command` 调用 PATH 里的可执行程序即可。新增工具不再额外维护 `*_PATH` 环境变量，文档统一维护可执行程序调用方式。
+
+## 可执行程序表
+
+| 工具 | 可执行程序 | 典型调用 |
+| --- | --- | --- |
+| FFmpeg | `ffmpeg` | `ffmpeg -i input.mp4 output.mp3` |
+| Ghostscript | `gs` | `gs -sDEVICE=pdfwrite -o out.pdf in.ps` |
+| Poppler | `pdftotext` `pdfinfo` `pdfimages` `pdftoppm` | `pdftotext in.pdf -` |
+| GraphicsMagick | `gm` | `gm convert in.jpg -resize 800x600 out.png` |
+| ImageMagick | `convert` `identify` `mogrify` `composite` | `convert in.jpg -resize 800x600 out.png` |
+| ExifTool | `exiftool` | `exiftool -all= -overwrite_original image.jpg` |
+| OCRmyPDF | `ocrmypdf` | `ocrmypdf --skip-text -l chi_sim+eng in.pdf out.pdf` |
+| libvips | `vips` `vipsthumbnail` | `vipsthumbnail in.jpg --size 512x512 --path out.jpg` |
+| WebP tools | `cwebp` `dwebp` `webpmux` `img2webp` | `cwebp -q 80 in.png -o out.webp` |
+| pngquant | `pngquant` | `pngquant --quality=65-80 --output out.png --force in.png` |
+| gifsicle | `gifsicle` | `gifsicle -O3 in.gif -o out.gif` |
+| unpaper | `unpaper` | `unpaper in.pnm out.pnm` |
+| LibRaw | `dcraw_emu` `raw-identify` | `raw-identify photo.cr2` |
+| Lua | `lua` | `lua script.lua` |
+| Python | `python3` `pip3` | `python3 script.py` |
+
+说明：
+
+- canonical `app-base` 是 Ubuntu 22.04，所以 ImageMagick 这里默认按 IM6 记忆：直接调用 `convert` / `identify`，不要假设有 `magick`
+- `Dockerfile.alpine` 安装的通常是 IM7；那边既可用 `magick`，也兼容 `convert`，但 canonical 文档以 Ubuntu 为准
+
+下面是常见调用示例：
 
 ### FFmpeg（音视频处理）
 
 ```go
-import (
-    "os/exec"
-    "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/ffmpeg"
-)
-
 func ProcessVideo(input, output string) error {
-    ffmpegPath := ffmpeg.GetPath()  // 返回 "/usr/bin/ffmpeg"
-    cmd := exec.Command(ffmpegPath, "-i", input, output)
+    cmd := exec.Command("ffmpeg", "-i", input, output)
     return cmd.Run()
 }
 ```
@@ -128,6 +160,48 @@ func GetPDFInfo(pdfFile string) (string, error) {
 func ResizeImage(input, output string, width, height int) error {
     cmd := exec.Command("gm", "convert", input, "-resize", 
         fmt.Sprintf("%dx%d", width, height), output)
+    return cmd.Run()
+}
+```
+
+### ImageMagick（图像处理）
+
+```go
+func ResizeWithIM(input, output string, width, height int) error {
+    cmd := exec.Command("convert", input, "-resize",
+        fmt.Sprintf("%dx%d", width, height), output)
+    return cmd.Run()
+}
+```
+
+### OCRmyPDF（扫描 PDF OCR）
+
+```go
+func OCRScannedPDF(input, output string) error {
+    cmd := exec.Command("ocrmypdf", "--skip-text", "-l", "chi_sim+eng", input, output)
+    return cmd.Run()
+}
+```
+
+### ExifTool（元数据提取/清洗）
+
+```go
+func StripMetadata(file string) error {
+    cmd := exec.Command("exiftool", "-all=", "-overwrite_original", file)
+    return cmd.Run()
+}
+```
+
+### libvips / WebP / pngquant / gifsicle（增强图片工具）
+
+```go
+func MakeThumbnail(input, output string) error {
+    cmd := exec.Command("vipsthumbnail", input, "--size", "512x512", "--path", output)
+    return cmd.Run()
+}
+
+func ConvertToWebP(input, output string) error {
+    cmd := exec.Command("cwebp", "-q", "80", input, "-o", output)
     return cmd.Run()
 }
 ```
@@ -259,8 +333,10 @@ Python 包可以通过 `pip install` 动态安装，SDK 的 `WithPackages()` 方
 - **Ghostscript**：AGPL 3.0（通过 cmd 调用不影响你的代码）
 - **Poppler-utils**：GPL 2.0+（通过 cmd 调用不影响你的代码）
 - **GraphicsMagick**：MIT 许可证（非常宽松）
+- **ImageMagick**：请以项目官方许可证说明为准
 - **Lua**：MIT 许可证（非常宽松）
 - **Python 3**：PSF 许可证（非常宽松）
+- **新增工具**：ExifTool、OCRmyPDF、libvips、libwebp、pngquant、gifsicle、unpaper、LibRaw 请以各项目官方许可证说明为准
 
 用户代码可以保持闭源，详细的许可证信息请参考项目根目录的 `THIRD_PARTY_LICENSES.md`
 
@@ -276,6 +352,14 @@ podman run --rm agentos-app-runtime-base:latest sh -c "
     gs --version && \
     pdftotext -v 2>&1 | head -n 1 && \
     gm version | head -n 1 && \
+    convert --version | head -n 1 && \
+    exiftool -ver && \
+    ocrmypdf --version 2>&1 | head -n 1 && \
+    vips --version && \
+    cwebp -version && \
+    pngquant --version && \
+    gifsicle --version 2>&1 | head -n 1 && \
+    unpaper --version 2>&1 | head -n 1 && \
     lua -v && \
     python3 --version && \
     pip3 --version
@@ -291,4 +375,4 @@ podman run --rm agentos-app-runtime-base:latest sh -c "
 
 ---
 
-**最后更新**：2025-01-XX
+**最后更新**：2026-04-18

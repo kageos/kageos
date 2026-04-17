@@ -4,6 +4,7 @@ import {
   getFormDraftQueryKey,
   getScopedFieldQueryValue,
   getSearchFieldQueryKey,
+  shouldUseRawFormQueryKeys,
   shouldAllowLegacyFormDraftFallback
 } from './queryFieldNamespace'
 
@@ -51,12 +52,22 @@ describe('queryFieldNamespace', () => {
     ).toBe(true)
   })
 
-  it('disables legacy form draft fallback for normal add-dialog URLs', () => {
+  it('allows legacy form draft fallback for normal add-dialog URLs', () => {
     expect(
       shouldAllowLegacyFormDraftFallback({
         _tab: 'OnTableAddRow',
         job_id: '6'
       })
-    ).toBe(false)
+    ).toBe(true)
+  })
+
+  it('uses raw form query keys for add-dialog URLs', () => {
+    const query = {
+      _tab: 'OnTableAddRow',
+      job_id: '6'
+    }
+
+    expect(shouldUseRawFormQueryKeys(query)).toBe(true)
+    expect(shouldAllowLegacyFormDraftFallback(query)).toBe(true)
   })
 })

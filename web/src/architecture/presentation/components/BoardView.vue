@@ -6,7 +6,14 @@
     <div v-show="!permissionError" class="board-main">
     <div class="board-header">
       <h1 class="board-title">{{ node?.name || '讨论区' }}</h1>
-      <el-button type="primary" :icon="Plus" @click="showCreateForm = true">发帖</el-button>
+      <el-button
+        :type="canCreatePost ? 'primary' : 'default'"
+        :plain="!canCreatePost"
+        :icon="canCreatePost ? Plus : Lock"
+        @click="handleCreateButtonClick"
+      >
+        {{ canCreatePost ? '发帖' : `发帖（需${getPermissionShortName(BoardPermission.write)}）` }}
+      </el-button>
     </div>
 
     <!-- 搜索（仅列表页显示） -->
@@ -54,7 +61,14 @@
         </div>
         <div class="board-card-actions" @click.stop>
           <el-button link type="primary" size="small" @click="openPost(row.id)">查看</el-button>
-          <el-button link type="danger" size="small" @click="handleDeletePost(row)">删除</el-button>
+          <el-button
+            link
+            :type="canDeletePost ? 'danger' : 'info'"
+            size="small"
+            @click="canDeletePost ? handleDeletePost(row) : handleApplyPermission(BoardPermission.delete)"
+          >
+            {{ canDeletePost ? '删除' : `删除（需${getPermissionShortName(BoardPermission.delete)}）` }}
+          </el-button>
         </div>
       </div>
       <el-empty
@@ -78,7 +92,14 @@
     <div v-else class="post-detail">
       <div class="post-detail-header">
         <el-button link :icon="ArrowLeft" @click="selectedPostId = null">返回列表</el-button>
-        <el-button v-if="postDetail" link type="primary" @click="openEditForm">编辑</el-button>
+        <el-button
+          v-if="postDetail"
+          link
+          :type="canUpdatePost ? 'primary' : 'info'"
+          @click="canUpdatePost ? openEditForm() : handleApplyPermission(BoardPermission.update)"
+        >
+          {{ canUpdatePost ? '编辑' : `编辑（需${getPermissionShortName(BoardPermission.update)}）` }}
+        </el-button>
       </div>
       <div v-if="postDetail" class="post-detail-body post-detail-body-centered">
         <!-- 作者区 -->
@@ -207,8 +228,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, defineAsyncComponent } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, ArrowLeft, Search } from '@element-plus/icons-vue'
+import { Plus, ArrowLeft, Search, Lock } from '@element-plus/icons-vue'
 import type { ServiceTree, UserInfo } from '@/types'
 import { listPosts, getPost, createPost, updatePost, deletePost, type PostItem, type GetPostResp } from '@/api/board'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
@@ -217,6 +239,7 @@ import { useUserInfoStore } from '@/stores/userInfo'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import { sanitizeHtml } from '@/utils/sanitizeHtml'
 import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
+import { BoardPermission, buildPermissionApplyURL, getPermissionShortName, hasPermission } from '@/utils/permission'
 import PermissionDeniedView from './PermissionDeniedView.vue'
 
 const VditorEditor = defineAsyncComponent(() => import('@/shared/components/VditorEditor.vue'))
@@ -231,6 +254,7 @@ interface Props {
 
 const props = defineProps<Props>()
 
+const router = useRouter()
 const userInfoStore = useUserInfoStore()
 const permissionErrorStore = usePermissionErrorStore()
 const permissionError = computed(() => permissionErrorStore.currentError)
@@ -240,6 +264,9 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = 20
 const fullCodePath = computed(() => props.node?.full_code_path || '')
+const canCreatePost = computed(() => hasPermission(props.node, BoardPermission.write))
+const canUpdatePost = computed(() => hasPermission(props.node, BoardPermission.update))
+const canDeletePost = computed(() => hasPermission(props.node, BoardPermission.delete))
 /** 搜索关键词（按标题过滤） */
 const searchKeyword = ref('')
 /** 当前页帖子按关键词过滤后的列表 */
@@ -343,6 +370,33 @@ const onPageChange = (p: number) => {
   loadPosts()
 }
 
+const handleApplyPermission = (action: string) => {
+  if (!fullCodePath.value) {
+    ElMessage.warning('讨论区路径不存在，无法申请权限')
+    return
+  }
+
+  void router.push(buildPermissionApplyURL(fullCodePath.value, action))
+}
+
+const ensureBoardPermission = (allowed: boolean, action: string, message: string): boolean => {
+  if (allowed) {
+    return true
+  }
+
+  ElMessage.warning(message)
+  handleApplyPermission(action)
+  return false
+}
+
+const handleCreateButtonClick = () => {
+  if (!ensureBoardPermission(canCreatePost.value, BoardPermission.write, '您没有在该讨论区发帖的权限')) {
+    return
+  }
+
+  showCreateForm.value = true
+}
+
 // 详情富文本渲染（markdown -> html）
 const renderedContent = computed(() => {
   if (!postDetail.value?.content) return '（无正文）'
@@ -408,6 +462,9 @@ const handleCoverUpload = async (options: { file: File }) => {
 }
 
 const handleSubmitPost = async () => {
+  if (!ensureBoardPermission(canCreatePost.value, BoardPermission.write, '您没有在该讨论区发帖的权限')) {
+    return
+  }
   if (!createForm.value.title.trim()) {
     ElMessage.warning('请输入标题')
     return
@@ -439,6 +496,10 @@ const handleSubmitPost = async () => {
 }
 
 const handleDeletePost = async (row: PostItem) => {
+  if (!ensureBoardPermission(canDeletePost.value, BoardPermission.delete, '您没有删除该帖子的权限')) {
+    return
+  }
+
   try {
     await ElMessageBox.confirm('确定删除该帖子？', '提示', { type: 'warning' })
     await deletePost(row.id)
@@ -465,6 +526,9 @@ const editCoverFileList = computed(() =>
   editForm.value.cover.map((url, i) => ({ name: `封面${i + 1}`, url }))
 )
 const openEditForm = () => {
+  if (!ensureBoardPermission(canUpdatePost.value, BoardPermission.update, '您没有编辑该帖子的权限')) {
+    return
+  }
   if (!postDetail.value) return
   editForm.value = {
     title: postDetail.value.title,
@@ -514,6 +578,9 @@ const handleEditCoverUpload = async (options: { file: File }) => {
   }
 }
 const handleSubmitEdit = async () => {
+  if (!ensureBoardPermission(canUpdatePost.value, BoardPermission.update, '您没有编辑该帖子的权限')) {
+    return
+  }
   if (!postDetail.value || !editForm.value.title.trim()) {
     ElMessage.warning('请输入标题')
     return

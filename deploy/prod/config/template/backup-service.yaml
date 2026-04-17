@@ -5,7 +5,7 @@ server:
   debug: false
 
 storage:
-  root: "${STORAGE_ROOT}"
+  root: "/data/ai-agent-os"
   namespace_path: "/app/namespace"
   data_path: "/app/data"
   logs_path: "/app/logs"
@@ -35,11 +35,11 @@ mysql:
   password: "${MYSQL_ROOT_PASSWORD}"
 
 minio:
-  access_key: "${MINIO_ROOT_USER}"
+  access_key: "minioadmin"
   secret_key: "${MINIO_ROOT_PASSWORD}"
 
 auth:
-  username: "${BACKUP_BASIC_AUTH_USERNAME}"
+  username: "admin"
   password: "${BACKUP_BASIC_AUTH_PASSWORD}"
   realm: "Backup Control Plane"
 

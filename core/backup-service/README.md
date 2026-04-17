@@ -87,17 +87,17 @@ http://127.0.0.1:19088/backup
 
 - `backup-service` 是独立控制面
 - 监听 `127.0.0.1:19088`
-- 存储根目录统一走 `STORAGE_ROOT`
+- 存储根目录固定为 `/data/ai-agent-os`
 
 重要目录：
 
-- `${STORAGE_ROOT}/data/backup/repo`
-- `${STORAGE_ROOT}/data/backup/state`
-- `${STORAGE_ROOT}/data/backup/staging`
+- `/data/ai-agent-os/data/backup/repo`
+- `/data/ai-agent-os/data/backup/state`
+- `/data/ai-agent-os/data/backup/staging`
 
 状态库：
 
-- `${STORAGE_ROOT}/data/backup/state/backup-service.db`
+- `/data/ai-agent-os/data/backup/state/backup-service.db`
 
 ## 常用接口
 

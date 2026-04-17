@@ -27,6 +27,8 @@ import {
   parseCommaSeparatedString
 } from '@/core/tableRuntime/search'
 import { Logger } from '@/core/utils/logger'
+import { getSearchFieldDisplayQueryKey } from '@/utils/queryFieldNamespace'
+import { createStoredSearchFieldValue, getSearchFieldRawValue } from '@/utils/searchFieldValue'
 
 /**
  * 表格数据项类型
@@ -88,6 +90,19 @@ export interface TableState {
     pageSize: number
     total: number
   }
+}
+
+function restoreStoredSearchValue(
+  query: Record<string, string | string[]>,
+  fieldCode: string,
+  rawValue: any
+): any {
+  const displayValue = query[getSearchFieldDisplayQueryKey(fieldCode)]
+  if (displayValue === undefined || displayValue === null || displayValue === '') {
+    return rawValue
+  }
+
+  return createStoredSearchFieldValue(rawValue, String(displayValue))
 }
 
 /**
@@ -522,7 +537,7 @@ export class TableDomainService {
       if (!currentRequestFieldCodes.has(field.code)) return
       const value = getScopedFieldQueryValue(query, field.code, 'search')
       if (value !== undefined && value !== null && value !== '') {
-        searchForm[field.code] = String(value)
+        searchForm[field.code] = restoreStoredSearchValue(query, field.code, String(value))
       }
     })
     
@@ -553,7 +568,7 @@ export class TableDomainService {
                   searchType: field.search,
                   field
                 })
-                searchForm[field.code] = denormalizedValue
+                searchForm[field.code] = restoreStoredSearchValue(query, field.code, denormalizedValue)
                 break
               }
             }
@@ -568,7 +583,7 @@ export class TableDomainService {
             if (part.trim().startsWith(`${field.code}:`)) {
               const value = part.trim().substring(field.code.length + 1)
               if (value) {
-                searchForm[field.code] = value
+                searchForm[field.code] = restoreStoredSearchValue(query, field.code, value)
                 break
               }
             }
@@ -600,9 +615,13 @@ export class TableDomainService {
             if (valueStr) {
               const values = parseCommaSeparatedString(valueStr)
               if (field.widget?.type === WidgetType.MULTI_SELECT) {
-                searchForm[field.code] = values.length > 0 ? values : []
+                searchForm[field.code] = restoreStoredSearchValue(query, field.code, values.length > 0 ? values : [])
               } else {
-                searchForm[field.code] = values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
+                searchForm[field.code] = restoreStoredSearchValue(
+                  query,
+                  field.code,
+                  values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
+                )
               }
             }
           }
@@ -633,9 +652,13 @@ export class TableDomainService {
             if (valueStr) {
               const values = parseCommaSeparatedString(valueStr)
               if ((field.widget?.type === WidgetType.USER || field.widget?.type === WidgetType.MULTI_SELECT) && searchType.includes(SearchType.IN)) {
-                searchForm[field.code] = values.length > 0 ? values : []
+                searchForm[field.code] = restoreStoredSearchValue(query, field.code, values.length > 0 ? values : [])
               } else {
-                searchForm[field.code] = values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
+                searchForm[field.code] = restoreStoredSearchValue(
+                  query,
+                  field.code,
+                  values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
+                )
               }
             }
           }
@@ -683,12 +706,12 @@ export class TableDomainService {
               gte ? convertTimestamp(gte) : null,
               lte ? convertTimestamp(lte) : null
             ]
-            searchForm[field.code] = timestampRange
+            searchForm[field.code] = restoreStoredSearchValue(query, field.code, timestampRange)
           } else {
-            searchForm[field.code] = {
+            searchForm[field.code] = restoreStoredSearchValue(query, field.code, {
               min: gte ? String(gte) : undefined,
               max: lte ? String(lte) : undefined
-            }
+            })
           }
         }
       }
@@ -730,11 +753,11 @@ export class TableDomainService {
     
     // request 字段的搜索参数
     request.forEach((field: FieldConfig) => {
-      const value = searchForm[field.code]
-      if (value !== null && value !== undefined && 
-          !(Array.isArray(value) && value.length === 0) && 
-          !(typeof value === 'string' && value.trim() === '')) {
-        searchParams[field.code] = value
+      const rawValue = getSearchFieldRawValue(searchForm[field.code])
+      if (rawValue !== null && rawValue !== undefined && 
+          !(Array.isArray(rawValue) && rawValue.length === 0) && 
+          !(typeof rawValue === 'string' && rawValue.trim() === '')) {
+        searchParams[field.code] = rawValue
       }
     })
     

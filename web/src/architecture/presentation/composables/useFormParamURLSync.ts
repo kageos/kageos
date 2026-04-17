@@ -92,7 +92,11 @@ import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types
 import { Logger } from '@/core/utils/logger'
 import { isEmptyValue, shouldSkipURLSync, convertFieldValueToURLParam, mergeURLQueryParams } from './utils/urlSyncUtils'
 import { isLinkNavigation } from '@/utils/linkNavigation'
-import { deleteScopedFieldQueryKey, getFormDraftQueryKey } from '@/utils/queryFieldNamespace'
+import {
+  deleteScopedFieldQueryKey,
+  getFormDraftQueryKey,
+  shouldUseRawFormQueryKeys
+} from '@/utils/queryFieldNamespace'
 
 export interface UseFormParamURLSyncOptions {
   functionDetail: Ref<FunctionDetail | null> | ComputedRef<FunctionDetail | null>
@@ -113,7 +117,10 @@ export interface UseFormParamURLSyncOptions {
  */
 function buildFormQueryParams(
   requestFields: FieldConfig[],
-  formDataStore: UseFormParamURLSyncOptions['formDataStore']
+  formDataStore: UseFormParamURLSyncOptions['formDataStore'],
+  options?: {
+    useRawFormQueryKeys?: boolean
+  }
 ): Record<string, string> {
   const query: Record<string, string> = {}
 
@@ -133,7 +140,8 @@ function buildFormQueryParams(
     // 🔥 默认支持所有其他类型：转换为 URL 参数
     // 支持的类型包括：input, text, text_area, number, float, switch, select, multiselect,
     // radio, checkbox, timestamp, ID, rate, user, slider, color, richtext, link, progress 等
-    query[getFormDraftQueryKey(field.code)] = convertFieldValueToURLParam(fieldValue)
+    const queryKey = options?.useRawFormQueryKeys ? field.code : getFormDraftQueryKey(field.code)
+    query[queryKey] = convertFieldValueToURLParam(fieldValue)
   })
 
   return query
@@ -189,7 +197,10 @@ export function useFormParamURLSync(options: UseFormParamURLSyncOptions) {
     // 构建表单查询参数
     // 🔥 确保 requestFields 是数组，防止类型错误
     const requestFields = Array.isArray(detail.request) ? detail.request : []
-    const query = buildFormQueryParams(requestFields, options.formDataStore)
+    const useRawQueryKeys = shouldUseRawFormQueryKeys(route.query as Record<string, any>)
+    const query = buildFormQueryParams(requestFields, options.formDataStore, {
+      useRawFormQueryKeys: useRawQueryKeys
+    })
 
     // 获取当前 URL 的查询参数并合并
     const currentQuery = { ...route.query }

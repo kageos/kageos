@@ -9,6 +9,7 @@
 |------|------|------|
 | 本地开发 | [dev/README.md](dev/README.md) | 起本地 MySQL / NATS / MinIO，跑后端源码和前端 |
 | 单机生产部署 | [prod/README.md](prod/README.md) | 当前官方生产入口，基于 Compose |
+| 看启动顺序与依赖图 | [prod/DEPLOYMENT_FLOW.md](prod/DEPLOYMENT_FLOW.md) | 单机生产部署的依赖、启动顺序、流程图 |
 | 找共享资源 | [base/README.md](base/README.md) | canonical Dockerfile、init SQL、共享脚本都在这里 |
 | 做容器防删限制 | [security/README.md](security/README.md) | 可选的 AppArmor / SELinux 安装资源 |
 
