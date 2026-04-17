@@ -34,7 +34,6 @@ func GetAgentServerConfig() *AgentServerConfig {
 // AgentServerConfig agent-server 配置
 type AgentServerConfig struct {
 	Server AgentServerServerConfig `mapstructure:"server"`
-	Agent  AgentConfig             `mapstructure:"agent"`
 	DB     DBConfig                `mapstructure:"db"`
 	// 注意：Control Service 配置已移至全局配置，不再在此处配置
 	// 数据库配置保留在服务配置中，因为微服务后续每个服务一个库
@@ -47,12 +46,6 @@ type AgentServerServerConfig struct {
 	LogLevel    string `mapstructure:"log_level"`
 	Debug       bool   `mapstructure:"debug"`
 	EnablePprof *bool  `mapstructure:"enable_pprof"`
-}
-
-// AgentConfig 智能体配置
-type AgentConfig struct {
-	Timeout int `mapstructure:"timeout"`
-	// 注意：NATS 配置已移至全局配置，不再在此处配置
 }
 
 // 便捷访问方法
@@ -71,7 +64,6 @@ func (c *AgentServerConfig) IsPprofEnabled() bool {
 	}
 	return boolConfigValue(c.Server.EnablePprof, true)
 }
-func (c *AgentServerConfig) GetAgentTimeout() int { return c.Agent.Timeout }
 
 // 数据库配置便捷访问方法
 func (c *AgentServerConfig) GetDBLogLevel() string {

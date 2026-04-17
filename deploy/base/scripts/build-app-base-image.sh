@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
-# 构建用户应用基础镜像 ai-agent-os:latest（Podman）
+# 构建用户应用基础镜像（默认 agentos-app-runtime-base:latest，可由 APP_BASE_IMAGE 覆盖）
 # Canonical 位置：deploy/base/scripts/build-app-base-image.sh
 # 用法：在项目根目录执行 bash deploy/base/scripts/build-app-base-image.sh
 
-set -e
+set -euo pipefail
 cd "$(dirname "$0")/../../.."
+APP_BASE_IMAGE="${APP_BASE_IMAGE:-agentos-app-runtime-base:latest}"
+APP_BASE_APT_CHECK_DATE="${APP_BASE_APT_CHECK_DATE:-0}"
 
-if podman image exists ai-agent-os:latest 2>/dev/null; then
-echo "==> ai-agent-os:latest 已存在，跳过构建（如需重建请先 podman rmi ai-agent-os:latest）"
+if podman image exists "${APP_BASE_IMAGE}" 2>/dev/null; then
+  echo "==> ${APP_BASE_IMAGE} 已存在，跳过构建（如需重建请先 podman rmi ${APP_BASE_IMAGE}）"
   exit 0
 fi
 
-echo "==> 构建用户应用基础镜像 ai-agent-os:latest（首次约 10–20 分钟）..."
-podman build -t ai-agent-os:latest deploy/base/images/app-base
-echo "==> 完成：ai-agent-os:latest"
+echo "==> 构建用户应用基础镜像 ${APP_BASE_IMAGE}（首次约 10–20 分钟）..."
+podman build \
+  --build-arg APT_CHECK_DATE="${APP_BASE_APT_CHECK_DATE}" \
+  -t "${APP_BASE_IMAGE}" \
+  deploy/base/images/app-base
+echo "==> 完成：${APP_BASE_IMAGE}"

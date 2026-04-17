@@ -17,6 +17,3 @@ db:
   max_lifetime: 300
   log_level: "info"
   slow_threshold: 200
-
-agent:
-  timeout: 30

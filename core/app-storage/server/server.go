@@ -135,13 +135,14 @@ func (s *Server) initDatabase(ctx context.Context) error {
 
 // initStorage 初始化存储（抽象层）
 func (s *Server) initStorage(ctx context.Context) error {
-	logger.Infof(ctx, "[Server] Initializing storage (%s)...", s.cfg.Storage.Type)
+	storageType := s.cfg.GetStorageType()
+	logger.Infof(ctx, "[Server] Initializing storage (%s)...", storageType)
 
 	// 通过工厂创建存储实例
 	factory := storage.NewFactory()
 	storageConfig := config.NewStorageConfigAdapter(s.cfg)
 
-	storageInstance, err := factory.CreateStorage(s.cfg.Storage.Type, storageConfig)
+	storageInstance, err := factory.CreateStorage(storageType, storageConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create storage: %w", err)
 	}
@@ -154,7 +155,7 @@ func (s *Server) initStorage(ctx context.Context) error {
 		return fmt.Errorf("failed to ensure bucket: %w", err)
 	}
 
-	logger.Infof(ctx, "[Server] Storage initialized successfully (type: %s, bucket: %s)", s.cfg.Storage.Type, bucket)
+	logger.Infof(ctx, "[Server] Storage initialized successfully (type: %s, bucket: %s)", storageType, bucket)
 	return nil
 }
 

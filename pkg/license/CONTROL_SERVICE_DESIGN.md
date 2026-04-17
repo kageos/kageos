@@ -20,7 +20,7 @@ Control Service 负责集中管理 License，并通过 NATS 把 License 能力�
 | `license.v1.event.key.updated` | control-service -> services | 主动推送最新 License |
 | `license.v1.event.key.refresh` | control-service -> services | 通知重新拉取或停用 |
 
-命名规则统一遵循 [README.md](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/pkg/subjects/README.md)。
+命名规则统一遵循 [README.md](../subjects/README.md)。
 
 ## 组件职责
 

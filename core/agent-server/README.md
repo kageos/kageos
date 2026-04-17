@@ -50,12 +50,6 @@ db:
   user: "app"
   password: "app"
   name: "app_db"  # 共用 app-server 的数据库
-
-agent:
-  timeout: 30
-  retry:
-    max_attempts: 3
-    backoff: "exponential"
 ```
 
 **注意**：

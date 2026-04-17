@@ -145,7 +145,7 @@ func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageSe
 func (s *AppManageService) CreateApp(ctx context.Context, user, app string, opts ...*CreateOpts) (string, error) {
 	logger.Infof(ctx, "[CreateApp] *** ENTRY *** user=%s, app=%s", user, app)
 
-	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
+	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), user, app)
 	appDirRel := appPaths.AppDir()
 	absAppDir, err := filepath.Abs(appDirRel)
 	if err != nil {
@@ -160,7 +160,7 @@ func (s *AppManageService) CreateApp(ctx context.Context, user, app string, opts
 	}
 
 	// 添加配置中定义的目录结构
-	for _, dir := range s.config.AppDir.Structure {
+	for _, dir := range s.config.GetStructure() {
 		dirs = append(dirs, filepath.Join(absAppDir, dir))
 	}
 
@@ -202,7 +202,7 @@ func (s *AppManageService) BuildApp(ctx context.Context, user, app string, opts 
 
 	// 设置默认编译选项（平台由 builder 内部固定为 linux/当前架构）
 	buildOpts := &builder.BuildOpts{
-		BinaryNameFormat: s.config.Build.BinaryNameFormat,
+		BinaryNameFormat: s.config.GetBinaryNameFormat(),
 	}
 
 	if opts != nil {
@@ -288,7 +288,7 @@ func (s *AppManageService) DeleteApp(ctx context.Context, user, app string) erro
 	}
 
 	// 2. 删除应用目录
-	appDirRel := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app).AppDir()
+	appDirRel := newRuntimeAppPaths(s.config.GetBasePath(), user, app).AppDir()
 	absAppDir, err := filepath.Abs(appDirRel)
 	if err != nil {
 		logger.Warnf(ctx, "[DeleteApp] Failed to get absolute path: %v", err)
@@ -433,7 +433,7 @@ func (s *AppManageService) sendUpdateCallbackAndWait(ctx context.Context, user, 
 
 // GetAppInfo 获取应用信息
 func (s *AppManageService) GetAppInfo(ctx context.Context, user, app string) (map[string]interface{}, error) {
-	appDir := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app).AppDir()
+	appDir := newRuntimeAppPaths(s.config.GetBasePath(), user, app).AppDir()
 
 	// 检查应用是否存在
 	if _, err := os.Stat(appDir); os.IsNotExist(err) {
@@ -496,15 +496,15 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 		return fmt.Errorf("container operator not available")
 	}
 
-	// 使用自定义的 ai-agent-os 镜像启动容器，挂载应用目录
-	image := "ai-agent-os:latest"
+	// 使用 runtime 配置里的应用基础镜像启动容器，挂载应用目录。
+	image := s.runtimeConfig.GetContainerBaseImage()
 	// 将相对路径转换为绝对路径，避免 Podman 把它当成卷名
 	absHostPath, err := filepath.Abs(appDir)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to get absolute path: %v", err)
 		return fmt.Errorf("failed to get absolute path: %w", err)
 	}
-	containerPath := "/app"
+	containerPath := s.runtimeConfig.GetContainerPath()
 
 	logger.Infof(ctx, "[startAppContainer] Running container with mount: image=%s, name=%s, hostPath=%s, containerPath=%s", image, containerName, absHostPath, containerPath)
 
@@ -533,15 +533,15 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 	envVars = append(envVars, fmt.Sprintf("APP_VERSION=%s", version))
 	logger.Infof(ctx, "[startAppContainer] Injecting APP_VERSION=%s into container", version)
 
-	// 启动容器，使用 ai-agent-os 镜像的启动脚本
+	// 启动容器，使用 runtime base image 的启动脚本
 	// 启动脚本会优先读取 APP_VERSION 环境变量，如果没有则读取文件（向后兼容）
-	logger.Infof(ctx, "[startAppContainer] Creating container with ai-agent-os image: %s", containerName)
+	logger.Infof(ctx, "[startAppContainer] Creating container with runtime image=%s name=%s", image, containerName)
 	if err := s.containerService.RunContainerWithCommand(ctx, image, containerName, absHostPath, containerPath, []string{"/start.sh"}, envVars...); err != nil {
 		logger.Errorf(ctx, "[startAppContainer] Failed to start container: %v", err)
 		return fmt.Errorf("failed to start container: %w", err)
 	}
 
-	logger.Infof(ctx, "Container started successfully with ai-agent-os image")
+	logger.Infof(ctx, "Container started successfully with runtime image %s", image)
 	s.MarkContainerCleanupDirty() // 有新容器，下次巡检周期会做对账
 	return nil
 }
@@ -717,7 +717,7 @@ func (s *AppManageService) runWorkplaceTempCleanup(ctx context.Context) {
 		return
 	}
 	for _, app := range apps {
-		appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, app.User, app.App)
+		appPaths := newRuntimeAppPaths(s.config.GetBasePath(), app.User, app.App)
 		for _, subdir := range []string{"file-cache", "output", "uploads"} {
 			dir := appPaths.WorkplaceSubDir(subdir)
 			if _, err := os.Stat(dir); err != nil {
@@ -1102,7 +1102,7 @@ func (s *AppManageService) StartAppVersion(ctx context.Context, user, app, versi
 		logger.Infof(ctx, "[StartAppVersion] Container %s already exists and is running, waiting for startup notification", containerName)
 	} else {
 		// 容器不存在或已停止，需要创建或启动容器
-		appDirRel := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app).AppDir()
+		appDirRel := newRuntimeAppPaths(s.config.GetBasePath(), user, app).AppDir()
 
 		// 尝试启动已存在的容器（可能已停止）
 		if err := s.containerService.StartContainer(ctx, containerName); err != nil {
@@ -1180,7 +1180,7 @@ func (s *AppManageService) ReadAppLog(ctx context.Context, req *sharedDto.ReadAp
 		version = strings.TrimSpace(currentVersion)
 	}
 
-	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, req.User, req.App)
+	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), req.User, req.App)
 	logFileName := appPaths.LogFileName(version)
 	logFilePath := appPaths.LogFile(version)
 
@@ -1321,7 +1321,7 @@ func (s *AppManageService) commitToGit(
 	requirement, changeDescription string,
 ) (string, error) {
 	// 1. 获取应用代码目录
-	appCodeDir := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app).APIDir()
+	appCodeDir := newRuntimeAppPaths(s.config.GetBasePath(), user, app).APIDir()
 
 	// 2. 从 ctx 获取用户名称
 	authorName := contextx.GetRequestUser(ctx)
@@ -1330,7 +1330,7 @@ func (s *AppManageService) commitToGit(
 	}
 
 	// 3. 获取邮箱后缀（从配置读取）
-	emailSuffix := s.config.Git.EmailSuffix
+	emailSuffix := s.config.GetGitEmailSuffix()
 	if emailSuffix == "" {
 		emailSuffix = "ai-agent-os.com" // 默认后缀
 	}

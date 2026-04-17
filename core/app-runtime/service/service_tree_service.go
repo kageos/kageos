@@ -88,7 +88,7 @@ func (s *WorkspaceChangeService) BatchWriteFiles(
 		return nil, err
 	}
 
-	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, req.User, req.App)
+	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), req.User, req.App)
 	result, err := s.appManageService.finalizeWrittenAppChanges(ctx, req.User, req.App, appPaths)
 	if err != nil {
 		logger.Warnf(ctx, "[BatchWriteFiles] 编译失败，开始回滚已写入的文件: fileCount=%d", len(state.rollbackOrder))

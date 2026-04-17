@@ -1,12 +1,12 @@
 # 存储上传接口
 
-统一的上传接口，支持多种存储引擎（MinIO、腾讯云COS、阿里云OSS、AWS S3、七牛云等）。
+统一的上传接口，当前官方仅支持 MinIO。
 
 ## 设计理念
 
 1. **统一接口**：所有存储引擎实现相同的 `Uploader` 接口
-2. **工厂模式**：根据 `storage` 字段动态创建对应的上传器
-3. **可扩展性**：新增存储引擎只需实现 `Uploader` 接口并注册到工厂
+2. **工厂模式**：根据 `storage` 字段创建对应的上传器
+3. **收口原则**：未真正实现的存储后端不再对外宣称支持
 
 ## 关于 Hash 的处理
 
@@ -89,10 +89,8 @@ fmt.Printf("DownloadURL: %s\n", result.DownloadURL)
 ## 支持的存储引擎
 
 - ✅ **MinIO** (`minio`) - 使用 presigned_url 方式
-- ⏳ **七牛云** (`qiniu`) - 使用 form_upload 方式（待实现）
-- ⏳ **腾讯云COS** (`tencentcos`) - 使用 presigned_url 方式（待实现）
-- ⏳ **阿里云OSS** (`aliyunoss`) - 使用 presigned_url 方式（待实现）
-- ⏳ **AWS S3** (`awss3`) - 使用 presigned_url 方式（待实现）
+
+其余云厂商后端如果未来要做，应在实现完成后再重新开放配置入口。
 
 ## 扩展新的存储引擎
 
@@ -135,4 +133,3 @@ type UploadResult struct {
     DownloadURL string // 下载地址
 }
 ```
-

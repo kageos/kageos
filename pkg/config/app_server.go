@@ -37,7 +37,6 @@ type AppServerConfig struct {
 	Server    AppServerServerConfig    `mapstructure:"server"`
 	Scheduler AppServerSchedulerConfig `mapstructure:"scheduler"`
 	Timeouts  AppServerTimeoutCfg      `mapstructure:"timeouts"`
-	Email     EmailConfig              `mapstructure:"email"`
 	DB        DBConfig                 `mapstructure:"db"`
 	// 注意：NATS、JWT、Control Service 配置已移至全局配置，不再在此处配置
 	// 数据库配置保留在服务配置中，因为微服务后续每个服务一个库
@@ -64,34 +63,6 @@ type AppServerSchedulerConfig struct {
 type AppServerTimeoutCfg struct {
 	AppRequest  int `mapstructure:"app_request"`  // 应用请求超时（秒）
 	NatsRequest int `mapstructure:"nats_request"` // NATS 请求超时（秒）
-}
-
-// EmailConfig 邮箱配置
-type EmailConfig struct {
-	SMTP         EmailSMTPConfig         `mapstructure:"smtp"`
-	Verification EmailVerificationConfig `mapstructure:"verification"`
-	Register     EmailRegisterConfig     `mapstructure:"register"`
-}
-
-// EmailSMTPConfig SMTP配置
-type EmailSMTPConfig struct {
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	Username string `mapstructure:"username"`
-	Password string `mapstructure:"password"`
-	From     string `mapstructure:"from"`
-	FromName string `mapstructure:"from_name"`
-}
-
-// EmailVerificationConfig 邮箱验证配置
-type EmailVerificationConfig struct {
-	CodeLength int `mapstructure:"code_length"`
-	CodeExpire int `mapstructure:"code_expire"`
-}
-
-// EmailRegisterConfig 注册邮件配置
-// 注意：当前代码中未使用，保留结构体以保持向后兼容
-type EmailRegisterConfig struct {
 }
 
 // JWTConfig JWT配置

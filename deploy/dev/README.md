@@ -40,6 +40,12 @@ Podman 本地开发：
 podman compose -f deploy/dev/compose/docker-compose.infra.yml up -d
 ```
 
+两份 compose 都保留的原因很简单：
+
+- `docker-compose.dev.yml` 给 Docker 本地开发用，容器名和 volume 名更偏“项目隔离”，避免和你机器上别的容器混淆。
+- `docker-compose.infra.yml` 给 Podman 本地开发用，容器名必须固定为 `mysql8 / nats-server / minio`，这样 `app-runtime` 的基础设施探测逻辑才能直接识别。
+- 它们的服务内容基本一致，主要差异就是容器名和 volume 名；不要试图为了“只保留一份文件”把这层约束藏起来。
+
 ### 1.1 开发配置
 
 本地开发的 canonical 配置目录是：
@@ -74,7 +80,37 @@ bash deploy/dev/scripts/run-backend.sh
 
 - 脚本会默认设置 `APP_ENV=dev`
 - `APP_ENV=dev` 时启动预检会自动按本地 compose 基础设施模式处理，无需额外环境变量
+- 如果本地缺少用户应用基础镜像 `APP_BASE_IMAGE`（默认 `agentos-app-runtime-base:latest`），脚本会先自动触发一次构建
 - 如需手动控制，仍可直接执行 `go run ./core/cmd/main`
+
+### 2.1 构建用户应用运行时基础镜像
+
+默认情况下，`bash deploy/dev/scripts/run-backend.sh` 会在缺镜像时自动执行这一步。  
+如果你想手工提前构建，或想单独重建，请执行：
+
+```bash
+bash deploy/dev/scripts/build-app-base.sh
+```
+
+它实际会转到 canonical 脚本：
+
+```bash
+bash deploy/base/scripts/build-app-base-image.sh
+```
+
+如需自定义 tag，可临时指定：
+
+```bash
+APP_BASE_IMAGE="agentos-app-runtime-base:latest" bash deploy/dev/scripts/build-app-base.sh
+```
+
+但注意：dev 默认配置 [app-runtime.yaml](config/app-runtime.yaml) 里的 `container.image.base_image` 默认也是 `agentos-app-runtime-base:latest`。如果你真要用自定义 tag，记得同时改这里。
+
+如需跳过自动构建检查，可临时指定：
+
+```bash
+AOS_SKIP_APP_BASE_BUILD=1 bash deploy/dev/scripts/run-backend.sh
+```
 
 ### 3. 起前端
 
@@ -86,3 +122,8 @@ npm run dev
 若只跑前端、连线上后端，请在 `web/.env.development.local` 中配置 `VITE_PROXY_TARGET`。
 
 本地开发相关资源的 canonical 位置已收敛到本目录及 `deploy/base/`。
+
+## 开发配置约定
+
+- `deploy/dev/config/` 里的密钥、SMTP、系统用户密码都应视为**占位值**，不要提交真实凭据。
+- 如果你本地确实要联通真实 SMTP / 其他外部服务，请改你自己的本地配置，不要把真实账号密码写回仓库。

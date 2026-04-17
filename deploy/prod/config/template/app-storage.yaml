@@ -17,30 +17,14 @@ storage:
   type: "minio"
   minio:
     endpoint: "127.0.0.1:9000"
-    server_endpoint: ""
     access_key: "${MINIO_ROOT_USER}"
     secret_key: "${MINIO_ROOT_PASSWORD}"
     use_ssl: false
     region: "us-east-1"
     default_bucket: "ai-agent-os"
-    cdn_domain: ""
   upload:
     max_size: 4294967296
     token_expire: 3600
-    allowed_types:
-      - "image/*"
-      - "video/*"
-      - "application/pdf"
-      - "application/msword"
-      - "application/vnd.ms-excel"
-      - ".txt"
-      - ".csv"
-  deduplication:
-    enabled: false
-    hash_algorithm: "sha256"
-  cache:
-    enabled: true
-    max_age: 31536000
 
 db:
   type: "mysql"

@@ -67,7 +67,7 @@ func (s *AppManageService) prepareUpdateAppState(
 }
 
 func (s *AppManageService) prepareExistingAppPaths(user, app string) (runtimeAppPaths, string, error) {
-	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
+	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), user, app)
 	appDirRel := appPaths.AppDir()
 	absAppDir, err := filepath.Abs(appDirRel)
 	if err != nil {

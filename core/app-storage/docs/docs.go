@@ -746,7 +746,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "sdk_config": {
-                    "description": "SDK 上传（特殊云存储）",
+                    "description": "SDK 上传（预留，当前未使用）",
                     "type": "object",
                     "additionalProperties": true
                 },
@@ -759,7 +759,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "storage": {
-                    "description": "✨ 存储引擎（minio/qiniu/tencentcos/aliyunoss/awss3）",
+                    "description": "✨ 存储引擎（当前固定为 minio）",
                     "type": "string"
                 },
                 "upload_domain": {
@@ -771,7 +771,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "url": {
-                    "description": "预签名 URL 上传（MinIO、COS、OSS、S3）",
+                    "description": "预签名 URL 上传（当前官方仅 MinIO）",
                     "type": "string"
                 },
                 "username": {
@@ -866,14 +866,14 @@ const docTemplate = `{
                 "sdk_upload"
             ],
             "x-enum-comments": {
-                "UploadMethodFormUpload": "表单上传（七牛云等）",
-                "UploadMethodPresignedURL": "预签名 URL（标准 S3 协议）",
-                "UploadMethodSDKUpload": "SDK 上传（特殊云存储）"
+                "UploadMethodFormUpload": "表单上传（预留，当前未使用）",
+                "UploadMethodPresignedURL": "预签名 URL（当前官方实际使用）",
+                "UploadMethodSDKUpload": "SDK 上传（预留，当前未使用）"
             },
             "x-enum-descriptions": [
-                "预签名 URL（标准 S3 协议）",
-                "表单上传（七牛云等）",
-                "SDK 上传（特殊云存储）"
+                "预签名 URL（当前官方实际使用）",
+                "表单上传（预留，当前未使用）",
+                "SDK 上传（预留，当前未使用）"
             ],
             "x-enum-varnames": [
                 "UploadMethodPresignedURL",

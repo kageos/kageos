@@ -22,9 +22,9 @@ type GetUploadTokenReq struct {
 type UploadMethod string
 
 const (
-	UploadMethodPresignedURL UploadMethod = "presigned_url" // 预签名 URL（标准 S3 协议）
-	UploadMethodFormUpload   UploadMethod = "form_upload"   // 表单上传（七牛云等）
-	UploadMethodSDKUpload    UploadMethod = "sdk_upload"    // SDK 上传（特殊云存储）
+	UploadMethodPresignedURL UploadMethod = "presigned_url" // 预签名 URL（当前官方实际使用）
+	UploadMethodFormUpload   UploadMethod = "form_upload"   // 预留：当前未使用
+	UploadMethodSDKUpload    UploadMethod = "sdk_upload"    // 预留：当前未使用
 )
 
 // GetUploadTokenResp 获取上传凭证响应
@@ -34,10 +34,10 @@ type GetUploadTokenResp struct {
 	Bucket   string       `json:"bucket"`             // 存储桶
 	Expire   string       `json:"expire"`             // 过期时间
 	Method   UploadMethod `json:"method"`             // 上传方式 ✨ 新增
-	Storage  string       `json:"storage,omitempty"`  // ✨ 存储引擎（minio/qiniu/tencentcos/aliyunoss/awss3）
+	Storage  string       `json:"storage,omitempty"`  // ✨ 存储引擎（当前固定为 minio）
 	Username string       `json:"username,omitempty"` // ✨ 当前登录用户的用户名
 
-	// 预签名 URL 上传（MinIO、COS、OSS、S3）
+	// 预签名 URL 上传（当前官方仅 MinIO）
 	URL       string            `json:"url,omitempty"`        // ✨ 外部访问的预签名 URL（前端使用）
 	ServerURL string            `json:"server_url,omitempty"` // ✨ 内部访问的预签名 URL（服务端/SDK使用）
 	Headers   map[string]string `json:"headers,omitempty"`    // 请求头
@@ -46,11 +46,11 @@ type GetUploadTokenResp struct {
 	UploadHost   string `json:"upload_host,omitempty"`   // 上传目标 host（例如：localhost:9000，用于 CORS、进度监听）
 	UploadDomain string `json:"upload_domain,omitempty"` // 上传完整域名（例如：http://localhost:9000，用于日志、调试）
 
-	// 表单上传（七牛云、又拍云等）
+	// 表单上传（预留）
 	FormData map[string]string `json:"form_data,omitempty"` // 表单字段
 	PostURL  string            `json:"post_url,omitempty"`  // POST 地址
 
-	// SDK 上传（特殊云存储）
+	// SDK 上传（预留）
 	SDKConfig map[string]interface{} `json:"sdk_config,omitempty"` // SDK 配置
 
 	// CDN 域名（可选，用于下载访问）

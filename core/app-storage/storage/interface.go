@@ -10,34 +10,34 @@ import (
 type UploadMethod string
 
 const (
-	UploadMethodPresignedURL UploadMethod = "presigned_url" // 预签名 URL（标准 S3 协议）
-	UploadMethodFormUpload   UploadMethod = "form_upload"   // 表单上传（七牛云等）
-	UploadMethodSDKUpload    UploadMethod = "sdk_upload"    // SDK 上传（特殊云存储）
+	UploadMethodPresignedURL UploadMethod = "presigned_url" // 预签名 URL（当前官方实际使用）
+	UploadMethodFormUpload   UploadMethod = "form_upload"   // 预留：当前未使用
+	UploadMethodSDKUpload    UploadMethod = "sdk_upload"    // 预留：当前未使用
 )
 
 // UploadCredentials 上传凭证（统一结构）
 type UploadCredentials struct {
 	Method UploadMethod // 上传方式
-	
-	// 预签名 URL 上传（MinIO、COS、OSS、S3）
+
+	// 预签名 URL 上传（当前官方仅 MinIO）
 	URL       string            // 外部访问的预签名 URL（前端使用）
 	ServerURL string            // 内部访问的预签名 URL（服务端/SDK使用）
 	Headers   map[string]string // 请求头
-	
+
 	// 上传域名信息
 	UploadHost   string // 上传目标域名（例如：localhost:9000 或 cdn.example.com）
 	UploadDomain string // 上传完整域名（例如：http://localhost:9000 或 https://cdn.example.com）
-	
-	// 表单上传（七牛云、又拍云等）
+
+	// 表单上传（预留）
 	FormData map[string]string // 表单字段
 	PostURL  string            // POST 地址
-	
-	// SDK 上传（特殊云存储）
+
+	// SDK 上传（预留）
 	SDKConfig map[string]interface{} // SDK 配置
 }
 
 // Storage 存储接口（抽象层）
-// 所有存储实现（MinIO、腾讯云 COS、阿里云 OSS、AWS S3 等）都必须实现此接口
+// 当前官方只落地了 MinIO；接口保留是为了后续扩展时不重写业务层。
 type Storage interface {
 	// GetUploadMethod 获取上传方式
 	GetUploadMethod() UploadMethod
@@ -103,4 +103,3 @@ type Config interface {
 	GetCDNDomain() string
 	GetServerEndpoint() string // 获取服务端 endpoint（仅用于 MinIO，容器内访问）
 }
-

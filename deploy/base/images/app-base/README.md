@@ -1,6 +1,6 @@
 # 运行时容器镜像构建（Canonical App Base）
 
-本目录包含用于构建 `ai-agent-os:latest` 运行时容器镜像的 canonical Dockerfile。
+本目录包含用于构建用户应用运行时基础镜像的 canonical Dockerfile。默认标签是 `agentos-app-runtime-base:latest`，也可以在构建时自行改 tag。
 
 ## 镜像用途
 
@@ -10,13 +10,13 @@
 
 ```bash
 # 在项目根目录执行
-podman build -t ai-agent-os:latest deploy/base/images/app-base
+podman build -t agentos-app-runtime-base:latest deploy/base/images/app-base
 ```
 
 或者使用 Docker：
 
 ```bash
-docker build -t ai-agent-os:latest deploy/base/images/app-base
+docker build -t agentos-app-runtime-base:latest deploy/base/images/app-base
 ```
 
 如需显式覆盖 pip 源 / 超时 / 重试（例如网络较差的生产环境）：
@@ -26,8 +26,27 @@ podman build \
   --build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
   --build-arg PIP_DEFAULT_TIMEOUT=300 \
   --build-arg PIP_RETRIES=10 \
-  -t ai-agent-os:latest \
+  -t agentos-app-runtime-base:latest \
   deploy/base/images/app-base
+```
+
+如果本机 Podman / Docker 虚拟机时钟漂移，Ubuntu APT 可能报：
+
+```text
+Release file is not valid yet
+```
+
+canonical 构建脚本默认会传 `APT_CHECK_DATE=0` 关闭这类日期校验。  
+如需严格校验，可手工改成：
+
+```bash
+APP_BASE_APT_CHECK_DATE=1 bash deploy/base/scripts/build-app-base-image.sh
+```
+
+如果后面需要统一改名，也可以直接：
+
+```bash
+APP_BASE_IMAGE="agentos-app-runtime-base:latest" bash deploy/base/scripts/build-app-base-image.sh
 ```
 
 ## 镜像内容
@@ -252,7 +271,7 @@ Python 包可以通过 `pip install` 动态安装，SDK 的 `WithPackages()` 方
 构建完成后，可以验证所有工具是否正常安装：
 
 ```bash
-podman run --rm ai-agent-os:latest sh -c "
+podman run --rm agentos-app-runtime-base:latest sh -c "
     ffmpeg -version | head -n 1 && \
     gs --version && \
     pdftotext -v 2>&1 | head -n 1 && \

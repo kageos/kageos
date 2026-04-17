@@ -30,7 +30,7 @@ type AppStorageConfig struct {
 	} `mapstructure:"audit"`
 
 	Storage struct {
-		Type string `mapstructure:"type"` // 存储类型：minio | tencentcos | aliyunoss | awss3 | local
+		Type string `mapstructure:"type"` // 当前仅支持 minio
 
 		MinIO struct {
 			Endpoint       string `mapstructure:"endpoint"`        // 浏览器上传用的 endpoint（宿主机访问）
@@ -43,48 +43,10 @@ type AppStorageConfig struct {
 			CDNDomain      string `mapstructure:"cdn_domain"` // ✨ CDN 域名（可选，用于加速访问）
 		} `mapstructure:"minio"`
 
-		TencentCOS struct {
-			Endpoint      string `mapstructure:"endpoint"`
-			SecretID      string `mapstructure:"secret_id"`
-			SecretKey     string `mapstructure:"secret_key"`
-			Region        string `mapstructure:"region"`
-			DefaultBucket string `mapstructure:"default_bucket"`
-			CDNDomain     string `mapstructure:"cdn_domain"` // ✨ CDN 域名（可选）
-		} `mapstructure:"tencentcos"`
-
-		AliyunOSS struct {
-			Endpoint        string `mapstructure:"endpoint"`
-			AccessKeyID     string `mapstructure:"access_key_id"`
-			AccessKeySecret string `mapstructure:"access_key_secret"`
-			Region          string `mapstructure:"region"`
-			DefaultBucket   string `mapstructure:"default_bucket"`
-			CDNDomain       string `mapstructure:"cdn_domain"` // ✨ CDN 域名（可选）
-		} `mapstructure:"aliyunoss"`
-
-		AWSS3 struct {
-			Endpoint      string `mapstructure:"endpoint"`
-			AccessKey     string `mapstructure:"access_key"`
-			SecretKey     string `mapstructure:"secret_key"`
-			Region        string `mapstructure:"region"`
-			DefaultBucket string `mapstructure:"default_bucket"`
-			CDNDomain     string `mapstructure:"cdn_domain"` // ✨ CDN 域名（可选）
-		} `mapstructure:"awss3"`
-
 		Upload struct {
-			MaxSize      int64    `mapstructure:"max_size"`
-			TokenExpire  int      `mapstructure:"token_expire"`
-			AllowedTypes []string `mapstructure:"allowed_types"`
+			MaxSize     int64 `mapstructure:"max_size"`
+			TokenExpire int   `mapstructure:"token_expire"`
 		} `mapstructure:"upload"`
-
-		Deduplication struct {
-			Enabled       bool   `mapstructure:"enabled"`
-			HashAlgorithm string `mapstructure:"hash_algorithm"`
-		} `mapstructure:"deduplication"`
-
-		Cache struct {
-			Enabled bool `mapstructure:"enabled"`
-			MaxAge  int  `mapstructure:"max_age"`
-		} `mapstructure:"cache"`
 	} `mapstructure:"storage"`
 
 	DB DBConfig `mapstructure:"db"`
@@ -122,7 +84,7 @@ func loadAppStorageConfig() *AppStorageConfig {
 const EnvCanonicalBaseURL = "CANONICAL_BASE_URL"
 
 func applyCanonicalCDNToAppStorage(c *AppStorageConfig) {
-	if c == nil || c.Storage.Type != "minio" {
+	if c == nil || c.GetStorageType() != "minio" {
 		return
 	}
 	if strings.TrimSpace(c.Storage.MinIO.CDNDomain) != "" {
@@ -134,6 +96,16 @@ func applyCanonicalCDNToAppStorage(c *AppStorageConfig) {
 	}
 	c.Storage.MinIO.CDNDomain = v
 	fmt.Printf("[config] app-storage: storage.minio.cdn_domain empty, using %s=%s\n", EnvCanonicalBaseURL, v)
+}
+
+func (c *AppStorageConfig) GetStorageType() string {
+	if c == nil {
+		return "minio"
+	}
+	if v := strings.ToLower(strings.TrimSpace(c.Storage.Type)); v != "" {
+		return v
+	}
+	return "minio"
 }
 
 // GetPort 获取端口

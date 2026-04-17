@@ -1,11 +1,15 @@
-# Go 后端统一 Dockerfile
-# 构建核心服务（7个服务统一启动）+ Hub 服务
+# 旧后端大镜像 Dockerfile（Legacy）
+# 当前 deploy/prod 与 deploy/dev 主线都不依赖它；仅在维护历史大镜像链路时使用。
 # 构建: docker build -t ai-agent-os-backend:latest -f deploy/base/images/backend/Dockerfile .
 
 # ========== Stage 1: 编译 ==========
 FROM golang:1.24-bookworm AS builder
 
 WORKDIR /src
+ARG APT_USE_MIRROR=1
+
+COPY deploy/base/scripts/configure-debian-apt-mirror.sh /usr/local/bin/configure-debian-apt-mirror
+RUN chmod +x /usr/local/bin/configure-debian-apt-mirror && /usr/local/bin/configure-debian-apt-mirror
 
 # 安装编译依赖（podman bindings 的间接依赖可能需要）
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -39,8 +43,12 @@ RUN cd enterprise_impl/hub/backend && \
 # ========== Stage 2: 运行 ==========
 FROM debian:bookworm-slim
 
+ARG APT_USE_MIRROR=1
 ENV TZ=Asia/Shanghai
 ENV LANG=C.UTF-8
+
+COPY deploy/base/scripts/configure-debian-apt-mirror.sh /usr/local/bin/configure-debian-apt-mirror
+RUN chmod +x /usr/local/bin/configure-debian-apt-mirror && /usr/local/bin/configure-debian-apt-mirror
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates tzdata libgpgme11 libdevmapper1.02.1 git \

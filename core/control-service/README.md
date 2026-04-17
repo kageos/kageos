@@ -17,7 +17,7 @@ Control Service 负责 License 管理。
 - `license.v1.event.key.refresh`
   Control Service 通知各服务重新拉取或停用 License
 
-主题命名规范见 [README.md](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/pkg/subjects/README.md)。
+主题命名规范见 [README.md](../../pkg/subjects/README.md)。
 
 ## HTTP API
 

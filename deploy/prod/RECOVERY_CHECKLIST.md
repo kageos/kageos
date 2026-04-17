@@ -5,7 +5,7 @@
 ## 入口
 
 - 控制台：`http://127.0.0.1:19088/backup`
-- 长手册：[RECOVERY.md](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/deploy/prod/RECOVERY.md)
+- 长手册：[RECOVERY.md](RECOVERY.md)
 - 看 backup 日志：`bash build.sh logs backup`
 
 ## 10 步走完

@@ -1,5 +1,7 @@
 # 存储引擎解耦设计
 
+> 历史设计草案：本文讨论的是多存储后端扩展方向。当前官方实现与 `deploy/*` 主线只支持 **MinIO**，文中的 `TencentCOS / AliyunOSS / AWS S3` 方案均未落地。
+
 ## 🎯 设计目标
 
 **与底层存储引擎解耦，支持多种存储后端（MinIO、腾讯云 COS、阿里云 OSS、AWS S3 等），无需修改业务代码。**
@@ -404,4 +406,3 @@ func (f *Factory) CreateStorage(storageType string, cfg Config) (Storage, error)
 5. ✅ **未来可期**：为多存储、存储迁移等高级功能打下基础
 
 **这是企业级系统的标准架构！** 🎉
-

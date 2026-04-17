@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# AI Agent OS 后端启动脚本
+# AI Agent OS 旧后端大镜像启动脚本（Legacy）
 # 支持两种模式:
 #   1. 统一启动（默认）: 启动 core-server (7个服务) + hub-server
 #   2. 单服务启动: SERVICE=hub-server 只启动 hub-server
@@ -11,6 +11,8 @@ cd /app
 # ============================================
 # Podman 初始化（app-runtime 容器管理引擎）
 # ============================================
+
+APP_BASE_IMAGE="${APP_BASE_IMAGE:-agentos-app-runtime-base:latest}"
 
 echo "==> 启动 Podman 系统服务..."
 podman system service --time=0 unix:///run/podman/podman.sock &
@@ -25,10 +27,10 @@ else
 fi
 
 # 首次启动时构建用户应用基础镜像（后续使用 podman-storage 卷缓存）
-if ! podman image exists ai-agent-os:latest 2>/dev/null; then
-    echo "==> 首次启动: 构建用户应用基础镜像 (ai-agent-os:latest)..."
+if ! podman image exists "${APP_BASE_IMAGE}" 2>/dev/null; then
+    echo "==> 首次启动: 构建用户应用基础镜像 (${APP_BASE_IMAGE})..."
     echo "    包含 Python3/LibreOffice/Tesseract/中文字体等，约需 10-20 分钟..."
-    podman build -t ai-agent-os:latest -f /app/app-base/Dockerfile /app/app-base/
+    podman build -t "${APP_BASE_IMAGE}" -f /app/app-base/Dockerfile /app/app-base/
     echo "==> 基础镜像构建完成！"
 else
     echo "==> 用户应用基础镜像已存在，跳过构建"

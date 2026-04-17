@@ -134,23 +134,12 @@ func (s *StorageService) GetStorage() storage.Storage {
 
 // GetStorageType 获取存储引擎类型
 func (s *StorageService) GetStorageType() string {
-	return s.cfg.Storage.Type
+	return s.cfg.GetStorageType()
 }
 
 // getDefaultBucket 获取默认 Bucket（内部方法）
 func (s *StorageService) getDefaultBucket() string {
-	switch s.cfg.Storage.Type {
-	case "minio":
-		return s.cfg.Storage.MinIO.DefaultBucket
-	case "tencentcos":
-		return s.cfg.Storage.TencentCOS.DefaultBucket
-	case "aliyunoss":
-		return s.cfg.Storage.AliyunOSS.DefaultBucket
-	case "awss3":
-		return s.cfg.Storage.AWSS3.DefaultBucket
-	default:
-		return s.cfg.Storage.MinIO.DefaultBucket
-	}
+	return s.cfg.Storage.MinIO.DefaultBucket
 }
 
 // generateFileKey 生成文件存储路径

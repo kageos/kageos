@@ -25,7 +25,7 @@ func NewPackageScaffoldService(config *config.AppManageServiceConfig) *PackageSc
 func (s *PackageScaffoldService) DeleteServiceTree(ctx context.Context, user, app, packagePath string) error {
 	logger.Infof(ctx, "[PackageScaffoldService] Deleting service tree: %s/%s/%s", user, app, packagePath)
 
-	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
+	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), user, app)
 	cleanPath, err := validateRelativePackagePath(packagePath)
 	if err != nil {
 		return fmt.Errorf("invalid service tree path: %w", err)
@@ -57,7 +57,7 @@ func (s *PackageScaffoldService) BatchCreateDirectoryTree(
 	logger.Infof(ctx, "[PackageScaffoldService] 开始批量创建目录树: user=%s, app=%s, itemCount=%d",
 		req.User, req.App, len(req.Items))
 
-	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, req.User, req.App)
+	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), req.User, req.App)
 	apiDir := appPaths.APIDir()
 	if err := os.MkdirAll(apiDir, 0755); err != nil {
 		return nil, fmt.Errorf("创建 api 目录失败: %w", err)
@@ -107,7 +107,7 @@ func (s *PackageScaffoldService) BatchCreateDirectoryTree(
 
 // removeMainFileImport 从 main.go 中移除指定包的 import 行。
 func (s *PackageScaffoldService) removeMainFileImport(ctx context.Context, user, app, packagePath string) error {
-	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
+	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), user, app)
 	mainFilePath := appPaths.MainGoPath()
 	if _, err := os.Stat(mainFilePath); os.IsNotExist(err) {
 		return nil
@@ -132,7 +132,7 @@ func (s *PackageScaffoldService) removeMainFileImport(ctx context.Context, user,
 func (s *PackageScaffoldService) updateMainFileImports(ctx context.Context, user, app, packagePath string) error {
 	logger.Infof(ctx, "[PackageScaffoldService] Updating main file imports for package: %s", packagePath)
 
-	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
+	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), user, app)
 	mainFilePath := appPaths.MainGoPath()
 	if _, err := os.Stat(mainFilePath); os.IsNotExist(err) {
 		return fmt.Errorf("main file does not exist: %s", mainFilePath)

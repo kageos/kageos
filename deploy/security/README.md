@@ -39,17 +39,16 @@ cd deploy/security/selinux
 sudo bash install.sh /path/to/namespace
 ```
 
-### 第三步：配置 app-runtime
+### 第三步：重启 app-runtime
 
-在 `deploy/dev/config/app-runtime.yaml` 或 `deploy/prod/config/template/app-runtime.yaml` 中：
+默认配置已经内置：
 
-```yaml
-container:
-  lsm_mode: "auto"                          # 自动检测，通常不用改
-  apparmor_profile: "ai-agent-os-app"        # AppArmor 环境填写；SELinux 环境留空
-```
+- `container.lsm_mode = auto`
+- `container.apparmor_profile = ai-agent-os-app`
 
-重启 runtime 即可生效。
+通常不需要再改 `app-runtime.yaml`；安装好策略后直接重启 runtime 即可生效。
+
+只有在你自定义 AppArmor profile 名称，或明确想强制指定 `apparmor / selinux / none` 时，才需要手工在 `app-runtime.yaml` 里覆盖这些字段。
 
 ## 目录结构
 

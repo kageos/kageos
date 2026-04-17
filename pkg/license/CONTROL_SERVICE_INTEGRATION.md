@@ -114,4 +114,4 @@ control_service:
 ## 说明
 
 - 加密密钥必须与 Control Service 保持一致，长度固定 32 字节
-- 主题命名规范统一见 [README.md](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/pkg/subjects/README.md)
+- 主题命名规范统一见 [README.md](../subjects/README.md)

@@ -71,8 +71,8 @@ func (s *AppManageService) buildAppForWrittenChanges(
 ) (string, error) {
 	buildOpts := &BuildOpts{
 		SourceDir:        appPaths.CmdAppDir(),
-		OutputDir:        appPaths.BuildOutputDir(s.config.Build.OutputDir),
-		BinaryNameFormat: s.config.Build.BinaryNameFormat,
+		OutputDir:        appPaths.BuildOutputDir(s.config.GetBuildOutputDir()),
+		BinaryNameFormat: s.config.GetBinaryNameFormat(),
 	}
 
 	buildResult, err := s.BuildApp(ctx, user, app, buildOpts)
