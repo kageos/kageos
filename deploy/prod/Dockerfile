@@ -1,5 +1,5 @@
 # 生产单机一键部署：core-server + 内置 Nginx(8080) + Podman（需 --privileged）
-# 构建（仓库根）：docker build -f deploy/prod/Dockerfile -t ai-agent-os-main:latest .
+# 构建（仓库根）：docker build -f deploy/prod/Dockerfile -t agentos-main:latest .
 
 # ========== Go 编译 ==========
 FROM golang:1.24-bookworm AS gobuilder
@@ -10,19 +10,9 @@ ARG GOPROXY=https://goproxy.cn,direct
 ARG GOSUMDB=sum.golang.google.cn
 ENV GOPROXY=${GOPROXY}
 ENV GOSUMDB=${GOSUMDB}
-RUN set -eux; \
-    if [ "${APT_USE_MIRROR}" = "1" ]; then \
-      if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
-        sed -i \
-          -e 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' \
-          -e 's|https://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' \
-          -e 's|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' \
-          -e 's|https://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' \
-          /etc/apt/sources.list.d/debian.sources; \
-      elif [ -f /etc/apt/sources.list ]; then \
-        sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list; \
-      fi; \
-    fi
+# 共享 helper：把 Debian 官方源切到阿里云镜像，避免国内构建首包慢或 TLS 校验卡住。
+COPY deploy/base/scripts/configure-debian-apt-mirror.sh /usr/local/bin/configure-debian-apt-mirror
+RUN chmod +x /usr/local/bin/configure-debian-apt-mirror && /usr/local/bin/configure-debian-apt-mirror
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libc6-dev libgpgme-dev libdevmapper-dev pkg-config \
     && rm -rf /var/lib/apt/lists/*
@@ -64,19 +54,9 @@ ENV TZ=Asia/Shanghai
 ENV LANG=C.UTF-8
 ENV APP_ENV=prod
 
-RUN set -eux; \
-    if [ "${APT_USE_MIRROR}" = "1" ]; then \
-      if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
-        sed -i \
-          -e 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' \
-          -e 's|https://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' \
-          -e 's|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' \
-          -e 's|https://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' \
-          /etc/apt/sources.list.d/debian.sources; \
-      elif [ -f /etc/apt/sources.list ]; then \
-        sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list; \
-      fi; \
-    fi
+# 共享 helper：运行阶段依然沿用同一份 APT mirror 配置逻辑。
+COPY deploy/base/scripts/configure-debian-apt-mirror.sh /usr/local/bin/configure-debian-apt-mirror
+RUN chmod +x /usr/local/bin/configure-debian-apt-mirror && /usr/local/bin/configure-debian-apt-mirror
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates tzdata curl netcat-openbsd \
     nginx gettext-base default-mysql-client restic \
@@ -113,6 +93,7 @@ ENV GOCACHE="/tmp/go-cache"
 
 WORKDIR /app
 
+# Go 二进制与运行时源码
 COPY --from=gobuilder /out/core-server /app/core-server
 COPY --from=gobuilder /out/app-scheduler /app/app-scheduler
 COPY --from=gobuilder /out/backup-server /app/backup-server
@@ -125,18 +106,21 @@ COPY --from=gobuilder /src/enterprise_impl/ /app/enterprise_impl/
 COPY --from=gobuilder /src/enterprise/ /app/enterprise/
 COPY --from=gobuilder /go/pkg/mod /go/pkg/mod
 
+# 共享 canonical 资源：用户应用运行时基础镜像
 COPY deploy/base/images/app-base/Dockerfile /app/app-base/Dockerfile
 COPY deploy/base/images/app-base/start.sh /app/app-base/start.sh
 
-# 配置模板（每次启动从模板复制再 sed，避免重启破坏占位符）
+# prod 专属资源：配置模板、healthcheck、Nginx、entrypoint
 COPY deploy/prod/config/template/ /app/config.prod.template/
 COPY deploy/prod/health/ /app/health/
 COPY deploy/prod/nginx/ /app/deploy/prod/nginx/
+COPY deploy/prod/entrypoint-common.sh /app/entrypoint-common.sh
 COPY deploy/prod/entrypoint-main.sh /app/entrypoint-main.sh
 COPY deploy/prod/entrypoint-scheduler.sh /app/entrypoint-scheduler.sh
 COPY deploy/prod/entrypoint-backup.sh /app/entrypoint-backup.sh
-RUN chmod +x /app/entrypoint-main.sh /app/entrypoint-scheduler.sh /app/entrypoint-backup.sh /app/health/*.sh
+RUN chmod +x /app/entrypoint-common.sh /app/entrypoint-main.sh /app/entrypoint-scheduler.sh /app/entrypoint-backup.sh /app/health/*.sh
 
+# 运行期目录骨架与静态站点
 RUN mkdir -p /app/deploy /app/logs /app/namespace \
     /app/data/runtime/app-runtime /app/data/license /app/data/backup/repo \
     /app/data/backup/state /app/data/backup/staging /app/data/tmp \

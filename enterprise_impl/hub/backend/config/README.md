@@ -1,6 +1,6 @@
 # Hub 配置文件
 
-这个目录下的 [hub.yaml](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/enterprise_impl/hub/backend/config/hub.yaml) 可以作为配置结构参考，但 Hub 服务运行时实际走的是全局 `pkg/config` 配置加载逻辑。
+这个目录下的 [hub.yaml](hub.yaml) 可以作为配置结构参考，但 Hub 服务运行时实际走的是全局 `pkg/config` 配置加载逻辑。
 
 ## 实际加载路径
 
@@ -10,7 +10,7 @@
 
 当前仓库已提供的开发配置文件在：
 
-- [deploy/dev/config/hub.yaml](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/deploy/dev/config/hub.yaml)
+- [deploy/dev/config/hub.yaml](../../../../deploy/dev/config/hub.yaml)
 
 ## 字段说明
 

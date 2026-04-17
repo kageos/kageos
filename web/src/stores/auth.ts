@@ -7,6 +7,12 @@ import type { UserInfo, LoginRequest } from '@/types'
 import router from '@/router'
 
 export const useAuthStore = defineStore('auth', () => {
+  interface LogoutOptions {
+    callApi?: boolean
+    notify?: boolean
+    redirectToLogin?: boolean
+  }
+
   // 状态
   const token = ref<string>(localStorage.getItem('token') || '')
   const refreshToken = ref<string>(localStorage.getItem('refresh_token') || '')
@@ -22,6 +28,15 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!token.value)
   const userName = computed(() => user.value?.username || '')
   const userEmail = computed(() => user.value?.email || '')
+
+  function clearAuthState() {
+    token.value = ''
+    user.value = null
+    refreshToken.value = ''
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    localStorage.removeItem('refresh_token')
+  }
 
   // 登录
   async function login(credentials: LoginRequest) {
@@ -56,24 +71,29 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // 登出
-  async function logout() {
+  async function logout(options: LogoutOptions = {}) {
+    const {
+      callApi = true,
+      notify = true,
+      redirectToLogin = true,
+    } = options
+
     try {
-      await logoutApi()
+      if (callApi) {
+        await logoutApi()
+      }
     } catch (error) {
       console.error('登出请求失败:', error)
     } finally {
-      // 清理本地状态
-      token.value = ''
-      user.value = null
-      refreshToken.value = ''
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
-      localStorage.removeItem('refresh_token')
+      clearAuthState()
 
-      ElMessage.success('已退出登录')
+      if (notify) {
+        ElMessage.success('已退出登录')
+      }
 
-      // 跳转到登录页
-      await router.push('/login')
+      if (redirectToLogin && router.currentRoute.value.path !== '/login') {
+        await router.push('/login')
+      }
     }
   }
 
@@ -121,7 +141,7 @@ export const useAuthStore = defineStore('auth', () => {
         await fetchUserInfo()
       }
       return true
-    } catch (error) {
+    } catch {
       return false
     }
   }
@@ -163,6 +183,7 @@ export const useAuthStore = defineStore('auth', () => {
     // 方法
     login,
     logout,
+    clearAuthState,
     fetchUserInfo,
     refreshUserToken,
     checkAuthStatus,

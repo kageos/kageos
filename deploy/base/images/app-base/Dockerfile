@@ -16,6 +16,7 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 ARG PIP_DEFAULT_TIMEOUT=300
 ARG PIP_RETRIES=10
+ARG APT_CHECK_DATE=0
 
 # 配置完整 APT 源（main、restricted、universe、multiverse），按架构选镜像
 RUN ARCH=$(dpkg --print-architecture) && \
@@ -27,6 +28,13 @@ RUN ARCH=$(dpkg --print-architecture) && \
         echo "deb http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse" > /etc/apt/sources.list && \
         echo "deb http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse" >> /etc/apt/sources.list && \
         echo "deb http://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse" >> /etc/apt/sources.list; \
+    fi
+
+# 某些 Podman / Docker Desktop 虚拟机时钟会短暂漂移，导致 apt 报
+# "Release file is not valid yet"。默认关闭日期校验，避免 runtime base 首次构建被宿主机时钟问题卡死。
+# 如需严格校验，可在构建时传 --build-arg APT_CHECK_DATE=1。
+RUN if [ "${APT_CHECK_DATE}" = "0" ]; then \
+        printf 'Acquire::Check-Date "false";\nAcquire::Check-Valid-Until "false";\n' > /etc/apt/apt.conf.d/99disable-check-date; \
     fi
 
 # 安装 tini：用 Ubuntu universe 包，避免构建时访问 GitHub（国内/内网常导致 wget exit 8）

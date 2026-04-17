@@ -24,7 +24,7 @@ func NewWorkspaceFileService(config *config.AppManageServiceConfig) *WorkspaceFi
 }
 
 func (s *WorkspaceFileService) prepareWritableWorkspace(user, app string) (runtimeAppPaths, error) {
-	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
+	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), user, app)
 	if _, err := os.Stat(appPaths.AppDir()); err != nil {
 		if os.IsNotExist(err) {
 			return runtimeAppPaths{}, fmt.Errorf("app not found: %s/%s", user, app)
@@ -114,7 +114,7 @@ func (s *WorkspaceFileService) writeSourceFiles(
 func (s *WorkspaceFileService) ReadDirectoryFiles(ctx context.Context, user, app, fullCodePath string) ([]dto.DirectoryFileInfo, error) {
 	logger.Infof(ctx, "[WorkspaceFileService] 开始读取目录文件: user=%s, app=%s, path=%s", user, app, fullCodePath)
 
-	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
+	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), user, app)
 	directoryPath, err := resolveWorkspaceDirectoryPath(appPaths, fullCodePath)
 	if err != nil {
 		return nil, err
@@ -166,7 +166,7 @@ func (s *WorkspaceFileService) ReplaceInFileBatch(
 	replacements []dto.ReplaceItemRuntime,
 	allOrNothing, returnFullContent bool,
 ) (totalCount int, newContent string, details []dto.ReplaceItemResultRuntime, err error) {
-	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
+	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), user, app)
 	filePath, err := resolveWorkspaceFilePath(appPaths, directoryPath, fileName)
 	if err != nil {
 		return 0, "", nil, err
@@ -227,7 +227,7 @@ func (s *WorkspaceFileService) ReplaceInFileBatch(
 func (s *WorkspaceFileService) DeleteFile(ctx context.Context, user, app, directoryPath, fileName string) error {
 	logger.Infof(ctx, "[WorkspaceFileService] 删除文件: user=%s, app=%s, path=%s, file=%s", user, app, directoryPath, fileName)
 
-	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
+	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), user, app)
 	filePath, err := resolveWorkspaceFilePath(appPaths, directoryPath, fileName)
 	if err != nil {
 		return err

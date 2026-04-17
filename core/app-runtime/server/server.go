@@ -228,7 +228,7 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化应用发现服务（需要在 AppManageService 之前）
 	runtimeID := s.cfg.GetRuntimeInstanceID()
-	s.appDiscoveryService = service.NewAppDiscoveryServiceWithRuntimeID(s.natsConn, s.cfg.AppManage.AppDir.BasePath, runtimeID)
+	s.appDiscoveryService = service.NewAppDiscoveryServiceWithRuntimeID(s.natsConn, s.cfg.AppManage.GetBasePath(), runtimeID)
 	logger.Infof(ctx, "[Server] App discovery runtime_id=%s", runtimeID)
 
 	// 设置回调函数

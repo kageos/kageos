@@ -356,9 +356,8 @@ A: 使用 MinIO 的 Multipart Upload API，客户端需要记录已上传的分�
 
 ### Q4: 如何限制文件类型？
 
-A: 在后端配置 `allowed_types`，或在前端验证 `file.type`。
+A: 当前后端主要校验文件大小和上传凭证过期时间；如果要限制 MIME / 扩展名，请在前端或业务层自行校验。
 
 ### Q5: 如何生成缩略图？
 
 A: 可以在上传成功后，后端异步生成缩略图并保存到 MinIO，缩略图的 Key 可以是 `{original_key}_thumb.jpg`。
-

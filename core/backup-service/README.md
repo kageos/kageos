@@ -30,18 +30,18 @@
 
 ## 代码位置
 
-- 入口：[main.go](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/core/backup-service/cmd/app/main.go)
-- 运行器：[runner.go](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/core/backup-service/runner/runner.go)
-- HTTP 服务：[server.go](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/core/backup-service/server/server.go)
-- 路由：[router.go](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/core/backup-service/server/router.go)
-- 控制面核心逻辑：[control_plane.go](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/core/backup-service/service/control_plane.go)
-- 控制台前端：[console.html](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/core/backup-service/server/assets/console.html)
+- 入口：[main.go](cmd/app/main.go)
+- 运行器：[runner.go](runner/runner.go)
+- HTTP 服务：[server.go](server/server.go)
+- 路由：[router.go](server/router.go)
+- 控制面核心逻辑：[control_plane.go](service/control_plane.go)
+- 控制台前端：[console.html](server/assets/console.html)
 
 ## 开发环境
 
 开发环境配置在：
 
-- [backup-service.yaml](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/deploy/dev/config/backup-service.yaml)
+- [backup-service.yaml](../../deploy/dev/config/backup-service.yaml)
 
 先起基础设施：
 
@@ -75,13 +75,13 @@ http://127.0.0.1:19088/backup
 
 生产配置模板在：
 
-- [backup-service.yaml](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/deploy/prod/config/template/backup-service.yaml)
+- [backup-service.yaml](../../deploy/prod/config/template/backup-service.yaml)
 
 生产部署文档见：
 
-- [README.md](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/deploy/prod/README.md)
-- [RECOVERY.md](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/deploy/prod/RECOVERY.md)
-- [RECOVERY_CHECKLIST.md](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/deploy/prod/RECOVERY_CHECKLIST.md)
+- [README.md](../../deploy/prod/README.md)
+- [RECOVERY.md](../../deploy/prod/RECOVERY.md)
+- [RECOVERY_CHECKLIST.md](../../deploy/prod/RECOVERY_CHECKLIST.md)
 
 当前 prod 约定：
 

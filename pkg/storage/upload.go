@@ -9,12 +9,12 @@ import (
 
 // UploadResult 上传结果
 type UploadResult struct {
-	Key              string // 文件 Key
-	ETag             string // 存储服务返回的 ETag（可能为空，取决于存储引擎）
-	Hash             string // 文件 SHA256 hash（上传前计算）
-	Size             int64  // 文件大小
-	ContentType      string // 文件类型
-	DownloadURL      string // ✨ 外部访问的下载地址（前端使用）
+	Key               string // 文件 Key
+	ETag              string // 存储服务返回的 ETag（可能为空，取决于存储引擎）
+	Hash              string // 文件 SHA256 hash（上传前计算）
+	Size              int64  // 文件大小
+	ContentType       string // 文件类型
+	DownloadURL       string // ✨ 外部访问的下载地址（前端使用）
 	ServerDownloadURL string // ✨ 内部访问的下载地址（服务端使用）
 }
 
@@ -34,24 +34,12 @@ type Uploader interface {
 // UploaderFactory 上传器工厂（根据 storage 字段创建对应的上传器）
 type UploaderFactory struct{}
 
-// NewUploader 根据 storage 类型创建对应的上传器
-// storage: 存储引擎类型（minio/qiniu/tencentcos/aliyunoss/awss3等）
+// NewUploader 根据 storage 类型创建对应的上传器。
+// 当前仅支持 MinIO。
 func (f *UploaderFactory) NewUploader(storage string) (Uploader, error) {
 	switch storage {
-	case "minio":
+	case "", "minio":
 		return NewMinIOUploader(), nil
-	case "qiniu":
-		// TODO: 实现七牛云上传器
-		return nil, ErrNotImplemented
-	case "tencentcos":
-		// TODO: 实现腾讯云COS上传器
-		return nil, ErrNotImplemented
-	case "aliyunoss":
-		// TODO: 实现阿里云OSS上传器
-		return nil, ErrNotImplemented
-	case "awss3":
-		// TODO: 实现AWS S3上传器
-		return nil, ErrNotImplemented
 	default:
 		return nil, ErrUnsupportedStorage
 	}

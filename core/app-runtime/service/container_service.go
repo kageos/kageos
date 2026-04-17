@@ -118,7 +118,7 @@ func (s *PodmanService) Start(ctx context.Context) error {
 	// 背景：容器内代码为 AI 生成且可能引用会删除文件的第三方包，需在内核层限制删除 code/workplace。
 	// 宿主机可能是 AppArmor（如 Ubuntu）或 SELinux（如 Fedora CoreOS），只启用检测到的那一种。
 	s.detectedLSM = s.detectLSMOnce(ctx)
-	logger.Infof(ctx, "[LSM] 检测结果: %s (配置 lsm_mode=%s)", s.detectedLSM, s.config.LSMMode)
+	logger.Infof(ctx, "[LSM] 检测结果: %s (配置 lsm_mode=%s)", s.detectedLSM, s.config.GetLSMMode())
 
 	return nil
 }
@@ -153,10 +153,7 @@ func (s *PodmanService) GetDetectedLSM() string {
 // detectLSMOnce 在 runtime 启动时执行一次：若配置为 auto 则检测宿主机 LSM，否则使用配置值。
 // 同机 Linux 读 /sys/kernel/security/lsm；Mac/Win 无法直接读宿主机，通过起临时容器执行 cat /proc/self/attr/current 推断。
 func (s *PodmanService) detectLSMOnce(ctx context.Context) string {
-	mode := strings.ToLower(strings.TrimSpace(s.config.LSMMode))
-	if mode == "" {
-		mode = "auto"
-	}
+	mode := s.config.GetLSMMode()
 	switch mode {
 	case "apparmor", "selinux", "none":
 		return mode
@@ -191,10 +188,7 @@ func (s *PodmanService) detectLSMFromHost(ctx context.Context) string {
 // detectLSMFromProbeContainer 在 Mac/Windows 上起临时容器，用容器内 /proc/self/attr/current 推断宿主机 LSM。
 // 临时容器与后续用户容器同处 Podman VM，所见 LSM 一致。
 func (s *PodmanService) detectLSMFromProbeContainer(ctx context.Context) string {
-	image := s.config.Image.BaseImage
-	if image == "" {
-		image = "ai-agent-os:latest"
-	}
+	image := s.config.GetBaseImage()
 	// 使用本项目运行镜像执行一条命令并退出，避免引入额外镜像依赖
 	cmd := exec.CommandContext(ctx, "podman", "run", "--rm", image, "cat", "/proc/self/attr/current")
 	out, err := cmd.CombinedOutput()
@@ -601,8 +595,8 @@ func (s *PodmanService) connectToContainerRuntime() error {
 // getSocketURI 获取 Socket URI
 func (s *PodmanService) getSocketURI() string {
 	// 如果配置中指定了 Socket，使用配置的
-	if s.config.Socket != "" {
-		return s.config.Socket
+	if socket := s.config.GetSocket(); socket != "" {
+		return socket
 	}
 
 	// 根据平台返回默认 URI
@@ -781,7 +775,7 @@ func (s *PodmanService) RunContainerWithCommand(ctx context.Context, image, name
 	// 按 LSM 检测结果施加内核级安全策略（禁止容器内删除 code/workplace）
 	switch s.GetDetectedLSM() {
 	case LSMAppArmor:
-		if profile := s.config.AppArmorProfile; profile != "" {
+		if profile := s.config.GetAppArmorProfile(); profile != "" {
 			if isAppArmorProfileLoaded(profile) {
 				args = append(args, "--security-opt", "apparmor="+profile)
 				logger.Infof(ctx, "[LSM] AppArmor profile=%s 已应用到容器 %s", profile, name)

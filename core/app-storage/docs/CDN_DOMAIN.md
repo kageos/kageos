@@ -1,5 +1,7 @@
 # CDN 域名返回设计
 
+> 历史设计草案：本文包含多存储后端设想。当前官方实现与 `deploy/*` 主线只支持 **MinIO**，不要把文中的 `tencentcos / aliyunoss` 示例当成已落地能力。
+
 ## 🎯 为什么需要返回域名？
 
 ### 使用场景
@@ -299,4 +301,3 @@ const fileURL = cdnDomain
 - 前端根据 CDN 域名构建访问 URL（可选）
 
 🎉
-

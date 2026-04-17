@@ -53,6 +53,31 @@ type AppRuntimeConfig struct {
 	// 注意：NATS 配置已移至全局配置，不再在此处配置
 }
 
+var defaultRuntimeAppDirStructure = []string{
+	"code",
+	"code/api",
+	"code/cmd/app",
+	"workplace",
+	"workplace/bin",
+	"workplace/bin/releases",
+	"workplace/api-logs",
+	"workplace/data",
+	"workplace/logs",
+	"workplace/metadata",
+}
+
+const (
+	defaultRuntimeAppBasePath      = "namespace"
+	defaultRuntimeBuildOutputDir   = "workplace/bin/releases"
+	defaultRuntimeBinaryNameFormat = "{user}_{app}_{version}"
+	defaultRuntimeGitEmailSuffix   = "ai-agent-os.com"
+	defaultContainerRuntime        = "podman"
+	defaultContainerLSMMode        = "auto"
+	defaultAppArmorProfile         = "ai-agent-os-app"
+	defaultContainerBaseImage      = "agentos-app-runtime-base:latest"
+	defaultContainerPath           = "/app"
+)
+
 // AppRuntimeTimeoutConfig App Runtime 超时配置
 type AppRuntimeTimeoutConfig struct {
 	AppServerRequest int `mapstructure:"app_server_request"` // app-server 请求处理超时时间（秒）
@@ -94,9 +119,69 @@ type GitConfig struct {
 	EmailSuffix string `mapstructure:"email_suffix"` // Git 邮箱后缀（如 "ai-agent-os.com"）
 }
 
+func (c *AppManageServiceConfig) GetBasePath() string {
+	if c == nil {
+		return defaultRuntimeAppBasePath
+	}
+	if v := strings.TrimSpace(c.AppDir.BasePath); v != "" {
+		return filepath.Clean(v)
+	}
+	return defaultRuntimeAppBasePath
+}
+
+func (c *AppManageServiceConfig) GetStructure() []string {
+	source := defaultRuntimeAppDirStructure
+	if c != nil && len(c.AppDir.Structure) > 0 {
+		source = c.AppDir.Structure
+	}
+
+	normalized := make([]string, 0, len(source))
+	for _, dir := range source {
+		dir = strings.TrimSpace(dir)
+		if dir == "" {
+			continue
+		}
+		normalized = append(normalized, filepath.Clean(dir))
+	}
+	if len(normalized) == 0 {
+		return append([]string(nil), defaultRuntimeAppDirStructure...)
+	}
+	return normalized
+}
+
+func (c *AppManageServiceConfig) GetBuildOutputDir() string {
+	if c == nil {
+		return defaultRuntimeBuildOutputDir
+	}
+	if v := strings.TrimSpace(c.Build.OutputDir); v != "" {
+		return filepath.Clean(v)
+	}
+	return defaultRuntimeBuildOutputDir
+}
+
+func (c *AppManageServiceConfig) GetBinaryNameFormat() string {
+	if c == nil {
+		return defaultRuntimeBinaryNameFormat
+	}
+	if v := strings.TrimSpace(c.Build.BinaryNameFormat); v != "" {
+		return v
+	}
+	return defaultRuntimeBinaryNameFormat
+}
+
+func (c *AppManageServiceConfig) GetGitEmailSuffix() string {
+	if c == nil {
+		return defaultRuntimeGitEmailSuffix
+	}
+	if v := strings.TrimSpace(c.Git.EmailSuffix); v != "" {
+		return v
+	}
+	return defaultRuntimeGitEmailSuffix
+}
+
 // ContainerServiceConfig 容器服务配置
 type ContainerServiceConfig struct {
-	Runtime string `mapstructure:"runtime"` // podman, docker
+	Runtime string `mapstructure:"runtime"` // 当前仅支持 podman
 	Socket  string `mapstructure:"socket"`  // 容器运行时 socket 路径
 	Timeout int    `mapstructure:"timeout"` // 连接超时时间（秒）
 	// LSM 模式：为后续内核级安全（如防删 code/workplace）做准备。
@@ -104,16 +189,14 @@ type ContainerServiceConfig struct {
 	// - apparmor / selinux: 强制使用该 LSM（不检测）。
 	// - none: 不使用 LSM 相关安全选项。
 	LSMMode         string      `mapstructure:"lsm_mode"`         // auto / apparmor / selinux / none
-	AppArmorProfile string      `mapstructure:"apparmor_profile"` // AppArmor 环境下使用的 profile 名（如 ai-agent-os-app），空则不启用
+	AppArmorProfile string      `mapstructure:"apparmor_profile"` // AppArmor 环境下使用的 profile 名；未配置时默认 ai-agent-os-app
 	Image           ImageConfig `mapstructure:"image"`
 }
 
 // ImageConfig 镜像配置
 type ImageConfig struct {
-	BaseImage     string   `mapstructure:"base_image"`
-	ContainerPath string   `mapstructure:"container_path"`
-	Command       []string `mapstructure:"command"`
-	RestartPolicy string   `mapstructure:"restart_policy"`
+	BaseImage     string `mapstructure:"base_image"`
+	ContainerPath string `mapstructure:"container_path"`
 }
 
 // Validate 验证配置
@@ -127,26 +210,30 @@ func (c *AppRuntimeConfig) Validate() error {
 	}
 
 	// 验证容器配置
-	if c.Container.Runtime == "" {
-		return fmt.Errorf("container runtime cannot be empty")
+	runtimeName := c.Container.GetRuntime()
+	if runtimeName != defaultContainerRuntime {
+		return fmt.Errorf("unsupported container runtime: %s (only %s is supported)", runtimeName, defaultContainerRuntime)
 	}
 	if c.Container.Timeout <= 0 {
 		return fmt.Errorf("container timeout must be positive")
 	}
+	c.Container.Runtime = runtimeName
+	c.Container.Socket = c.Container.GetSocket()
+	c.Container.LSMMode = c.Container.GetLSMMode()
+	c.Container.AppArmorProfile = c.Container.GetAppArmorProfile()
+	c.Container.Image.BaseImage = c.Container.GetBaseImage()
+	c.Container.Image.ContainerPath = c.Container.GetContainerPath()
 
 	// 验证应用管理配置
-	if c.AppManage.AppDir.BasePath == "" {
-		return fmt.Errorf("app directory base path cannot be empty")
-	}
-
-	// 将相对路径转换为绝对路径
-	if !filepath.IsAbs(c.AppManage.AppDir.BasePath) {
-		absPath, err := filepath.Abs(c.AppManage.AppDir.BasePath)
+	basePath := c.AppManage.GetBasePath()
+	if !filepath.IsAbs(basePath) {
+		absPath, err := filepath.Abs(basePath)
 		if err != nil {
 			return fmt.Errorf("failed to get absolute path for base_path: %w", err)
 		}
-		c.AppManage.AppDir.BasePath = absPath
+		basePath = absPath
 	}
+	c.AppManage.AppDir.BasePath = filepath.Clean(basePath)
 
 	return nil
 }
@@ -199,6 +286,91 @@ func (c *AppRuntimeConfig) GetListenHost() string {
 		return normalizeListenHost("")
 	}
 	return normalizeListenHost(c.Runtime.ListenHost)
+}
+
+func (c *AppRuntimeConfig) GetContainerBaseImage() string {
+	if c == nil {
+		return (&ContainerServiceConfig{}).GetBaseImage()
+	}
+	return c.Container.GetBaseImage()
+}
+
+func (c *AppRuntimeConfig) GetContainerRuntime() string {
+	if c == nil {
+		return (&ContainerServiceConfig{}).GetRuntime()
+	}
+	return c.Container.GetRuntime()
+}
+
+func (c *AppRuntimeConfig) GetContainerSocket() string {
+	if c == nil {
+		return (&ContainerServiceConfig{}).GetSocket()
+	}
+	return c.Container.GetSocket()
+}
+
+func (c *AppRuntimeConfig) GetContainerPath() string {
+	if c == nil {
+		return (&ContainerServiceConfig{}).GetContainerPath()
+	}
+	return c.Container.GetContainerPath()
+}
+
+func (c *ContainerServiceConfig) GetRuntime() string {
+	if c == nil {
+		return defaultContainerRuntime
+	}
+	if v := strings.ToLower(strings.TrimSpace(c.Runtime)); v != "" {
+		return v
+	}
+	return defaultContainerRuntime
+}
+
+func (c *ContainerServiceConfig) GetSocket() string {
+	if c == nil {
+		return ""
+	}
+	return strings.TrimSpace(c.Socket)
+}
+
+func (c *ContainerServiceConfig) GetLSMMode() string {
+	if c == nil {
+		return defaultContainerLSMMode
+	}
+	if v := strings.ToLower(strings.TrimSpace(c.LSMMode)); v != "" {
+		return v
+	}
+	return defaultContainerLSMMode
+}
+
+func (c *ContainerServiceConfig) GetAppArmorProfile() string {
+	if c == nil {
+		return defaultAppArmorProfile
+	}
+	if v := strings.TrimSpace(c.AppArmorProfile); v != "" {
+		return v
+	}
+	return defaultAppArmorProfile
+}
+
+func (c *ContainerServiceConfig) GetBaseImage() string {
+	if c == nil {
+		return defaultContainerBaseImage
+	}
+	if v := strings.TrimSpace(c.Image.BaseImage); v != "" {
+		return v
+	}
+	return defaultContainerBaseImage
+}
+
+func (c *ContainerServiceConfig) GetContainerPath() string {
+	if c == nil {
+		return defaultContainerPath
+	}
+	if v := strings.TrimSpace(c.Image.ContainerPath); v != "" {
+		return v
+	}
+	return defaultContainerPath
 }
 
 // loadYAMLConfig 加载 YAML 配置文件。

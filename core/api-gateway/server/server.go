@@ -122,11 +122,7 @@ func (s *Server) printProxyRoutes(ctx context.Context) {
 			} else if len(route.Targets) == 1 {
 				targetStr = route.Targets[0].URL
 			} else {
-				strategy := "round_robin"
-				if route.LoadBalance != nil && route.LoadBalance.Strategy != "" {
-					strategy = route.LoadBalance.Strategy
-				}
-				targetStr = fmt.Sprintf("%d targets (%s)", len(route.Targets), strategy)
+				targetStr = fmt.Sprintf("%d targets (load balancing not implemented; using first target)", len(route.Targets))
 			}
 			logger.Infof(ctx, "  [%d] %-25s -> %-35s (timeout: %ds)",
 				i+1, route.Path+"/*", targetStr, timeout)

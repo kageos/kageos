@@ -98,15 +98,6 @@ server:
 minio:
   endpoint: "localhost:9000"
   default_bucket: "ai-agent-os"
-  
-  # 秒传功能（预留）
-  deduplication:
-    enabled: false             # ✅ 未启用（按需开启）
-  
-  # 缓存控制
-  cache:
-    enabled: true              # ✅ 已启用
-    max_age: 31536000          # 浏览器缓存 1 年
 
 # 数据库（共用 app-server 的数据库）
 db:

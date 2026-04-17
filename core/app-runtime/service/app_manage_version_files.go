@@ -44,7 +44,7 @@ func buildVersionMetadataPaths(appPaths runtimeAppPaths) versionMetadataPaths {
 }
 
 func (s *AppManageService) getVersionMetadataPaths(user, app string) versionMetadataPaths {
-	return buildVersionMetadataPaths(newRuntimeAppPaths(s.config.AppDir.BasePath, user, app))
+	return buildVersionMetadataPaths(newRuntimeAppPaths(s.config.GetBasePath(), user, app))
 }
 
 func (s *AppManageService) readVersionData(versionJSONPath string) (*VersionData, error) {
@@ -177,7 +177,7 @@ func (s *AppManageService) updateVersionJson(appDir, user, app, newVersion strin
 
 // updateCurrentVersionFiles 更新纯文本版本文件，用于极速启动
 func (s *AppManageService) updateCurrentVersionFiles(user, app, version string) error {
-	appPaths := newRuntimeAppPaths(s.config.AppDir.BasePath, user, app)
+	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), user, app)
 	paths := buildVersionMetadataPaths(appPaths)
 
 	if err := os.MkdirAll(paths.metadataDir, 0755); err != nil {

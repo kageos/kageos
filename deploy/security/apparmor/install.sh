@@ -25,4 +25,4 @@ apparmor_parser -r "$PROFILE_DST"
 
 echo "✅ AppArmor profile '$PROFILE_NAME' 已安装并加载"
 echo "   验证：sudo aa-status | grep $PROFILE_NAME"
-echo "   配置：在 app-runtime 的 container.apparmor_profile 中填写 '$PROFILE_NAME'"
+echo "   默认：app-runtime 会自动使用 '$PROFILE_NAME'；只有自定义 profile 名时才需要改 container.apparmor_profile"

@@ -317,7 +317,6 @@
 
       <!-- 操作列：统一为「更多」下拉，所有操作（链接 / 更新 / 删除）均放入下拉 -->
       <el-table-column 
-        v-if="hasDeleteCallback || hasUpdateCallback || linkFields.length > 0" 
         label="操作" 
         fixed="right" 
         :width="getActionColumnWidth()"
@@ -351,24 +350,32 @@
                 </el-dropdown-item>
                 <!-- 更新：需要 table:update 权限 -->
                 <el-dropdown-item
-                  v-if="hasUpdateCallback"
-                  :command="'update'"
+                  :command="hasUpdateCallback ? 'update' : undefined"
+                  :disabled="!hasUpdateCallback"
                   :divided="linkFields.length > 0"
                 >
                   <span class="dropdown-action-item">
-                    <el-icon><component :is="canUpdate ? Edit : Lock" /></el-icon>
-                    {{ canUpdate ? '更新' : `更新（需${getPermissionShortName(TablePermission.update)}）` }}
+                    <el-icon><component :is="hasUpdateCallback ? (canUpdate ? Edit : Lock) : InfoFilled" /></el-icon>
+                    {{
+                      hasUpdateCallback
+                        ? (canUpdate ? '更新' : `更新（需${getPermissionShortName(TablePermission.update)}）`)
+                        : '更新（当前表格不支持）'
+                    }}
                   </span>
                 </el-dropdown-item>
                 <!-- 删除：需要 table:delete 权限 -->
                 <el-dropdown-item
-                  v-if="hasDeleteCallback"
-                  :command="'delete'"
-                  :divided="linkFields.length > 0 || hasUpdateCallback"
+                  :command="hasDeleteCallback ? 'delete' : undefined"
+                  :disabled="!hasDeleteCallback"
+                  :divided="true"
                 >
-                  <span class="dropdown-action-item delete-action-text">
-                    <el-icon><component :is="canDelete ? Delete : Lock" /></el-icon>
-                    {{ canDelete ? '删除' : `删除（需${getPermissionShortName(TablePermission.delete)}）` }}
+                  <span class="dropdown-action-item" :class="{ 'delete-action-text': hasDeleteCallback }">
+                    <el-icon><component :is="hasDeleteCallback ? (canDelete ? Delete : Lock) : InfoFilled" /></el-icon>
+                    {{
+                      hasDeleteCallback
+                        ? (canDelete ? '删除' : `删除（需${getPermissionShortName(TablePermission.delete)}）`)
+                        : '删除（当前表格不支持）'
+                    }}
                   </span>
                 </el-dropdown-item>
               </el-dropdown-menu>

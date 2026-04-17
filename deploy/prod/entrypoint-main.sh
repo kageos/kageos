@@ -1,79 +1,33 @@
 #!/bin/bash
 set -euo pipefail
 
-cd /app
+source /app/entrypoint-common.sh
 
-# 确保持久化目录结构存在，便于备份与恢复编排
-mkdir -p \
-  /app/logs \
-  /app/namespace \
-  /app/data/runtime/app-runtime \
-  /app/data/license \
-  /app/data/backup/repo \
-  /app/data/backup/state \
-  /app/data/backup/staging \
-  /app/data/tmp
+ensure_main_runtime_dirs
 
-require_env() {
-  local n="$1"
-  if [[ -z "${!n:-}" ]]; then
-    echo "ERROR: 环境变量 ${n} 未设置或为空（须由 Compose 从宿主机 .env 注入）" >&2
-    exit 1
-  fi
-}
+require_env CANONICAL_BASE_URL "环境变量 CANONICAL_BASE_URL 未设置或为空（须由 Compose 从宿主机 .env 注入）"
+require_env STORAGE_ROOT "环境变量 STORAGE_ROOT 未设置或为空（须由 Compose 从宿主机 .env 注入）"
+require_env MYSQL_ROOT_PASSWORD "环境变量 MYSQL_ROOT_PASSWORD 未设置或为空（须由 Compose 从宿主机 .env 注入）"
+require_env MINIO_ROOT_USER "环境变量 MINIO_ROOT_USER 未设置或为空（须由 Compose 从宿主机 .env 注入）"
+require_env MINIO_ROOT_PASSWORD "环境变量 MINIO_ROOT_PASSWORD 未设置或为空（须由 Compose 从宿主机 .env 注入）"
+require_env JWT_SECRET "环境变量 JWT_SECRET 未设置或为空（须由 Compose 从宿主机 .env 注入）"
+require_env CONTROL_ENC_KEY "环境变量 CONTROL_ENC_KEY 未设置或为空（须由 Compose 从宿主机 .env 注入）"
 
-require_env CANONICAL_BASE_URL
-require_env STORAGE_ROOT
-require_env MYSQL_ROOT_PASSWORD
-require_env MINIO_ROOT_USER
-require_env MINIO_ROOT_PASSWORD
-require_env JWT_SECRET
-require_env CONTROL_ENC_KEY
-
-echo "==> 从模板刷新 deploy/prod/config/runtime（可安全重启）..."
-rm -rf /app/deploy/prod/config/runtime
 mkdir -p /app/deploy/prod/config
-
-SMTP_HOST="${SMTP_HOST:-smtp.qq.com}"
-SMTP_PORT="${SMTP_PORT:-587}"
-SMTP_USERNAME="${SMTP_USERNAME-}"
-SMTP_PASSWORD="${SMTP_PASSWORD-}"
-SMTP_FROM="${SMTP_FROM-}"
-SMTP_FROM_NAME="${SMTP_FROM_NAME:-AI Agent OS}"
+set_smtp_defaults
 ENABLE_HTTPS="${ENABLE_HTTPS:-0}"
 HTTPS_REDIRECT="${HTTPS_REDIRECT:-0}"
 TLS_CERT_FILE="${TLS_CERT_FILE:-/app/tls/fullchain.pem}"
 TLS_KEY_FILE="${TLS_KEY_FILE:-/app/tls/privkey.pem}"
-
-wait_tcp() {
-  local host="$1" port="$2" label="$3"
-  local i=1
-  while [ "$i" -le 90 ]; do
-    if nc -z "$host" "$port" 2>/dev/null; then
-      echo "==> ${label} (${host}:${port}) 就绪"
-      return 0
-    fi
-    echo "    等待 ${label} (${host}:${port}) ... ($i/90)"
-    sleep 2
-    i=$((i + 1))
-  done
-  echo "ERROR: 超时未连上 ${label} ${host}:${port}"
-  exit 1
-}
+APP_BASE_IMAGE="${APP_BASE_IMAGE:-agentos-app-runtime-base:latest}"
 
 echo "==> 等待依赖（MySQL / NATS / MinIO）..."
 wait_tcp 127.0.0.1 3306 "MySQL"
 wait_tcp 127.0.0.1 4222 "NATS"
 wait_tcp 127.0.0.1 9000 "MinIO"
 
-PROD_TEMPLATE_VARS='${STORAGE_ROOT} ${MYSQL_ROOT_PASSWORD} ${JWT_SECRET} ${CONTROL_ENC_KEY} ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${SMTP_FROM} ${SMTP_FROM_NAME}'
-
-echo "==> 渲染 deploy/prod/config/runtime 模板..."
-mkdir -p /app/deploy/prod/config/runtime
-for src in /app/config.prod.template/*.yaml; do
-  dst="/app/deploy/prod/config/runtime/$(basename "$src")"
-  envsubst "$PROD_TEMPLATE_VARS" < "$src" > "$dst"
-done
+PROD_TEMPLATE_VARS='${STORAGE_ROOT} ${MYSQL_ROOT_PASSWORD} ${JWT_SECRET} ${CONTROL_ENC_KEY} ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${SMTP_FROM} ${SMTP_FROM_NAME} ${APP_BASE_IMAGE}'
+render_runtime_templates "$PROD_TEMPLATE_VARS"
 
 CANONICAL_BASE_URL="${CANONICAL_BASE_URL}"
 export CANONICAL_BASE_URL
@@ -164,13 +118,13 @@ if [ ! -S /run/podman/podman.sock ]; then
   echo "WARN: /run/podman/podman.sock 未出现，app-runtime 可能仍失败"
 fi
 
-if ! podman image exists ai-agent-os:latest 2>/dev/null; then
-  echo "==> 首次构建用户应用基础镜像 ai-agent-os:latest（较久）..."
-  podman build -t ai-agent-os:latest -f /app/app-base/Dockerfile /app/app-base/ || {
+if ! podman image exists "${APP_BASE_IMAGE}" 2>/dev/null; then
+  echo "==> 首次构建用户应用基础镜像 ${APP_BASE_IMAGE}（较久）..."
+  podman build -t "${APP_BASE_IMAGE}" -f /app/app-base/Dockerfile /app/app-base/ || {
     echo "WARN: 基础镜像构建失败，app-runtime 可能不可用"
   }
 else
-  echo "==> 已存在 ai-agent-os:latest，跳过构建"
+  echo "==> 已存在 ${APP_BASE_IMAGE}，跳过构建"
 fi
 
 shutdown() {

@@ -4,7 +4,7 @@
 services:
   # ─── 中间件 ──────────────────────────────────────────────────
   mysql:
-    image: mysql:8.0
+    image: ${MYSQL_IMAGE:-mysql:8.0}
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -16,7 +16,7 @@ services:
       - "127.0.0.1:3306:3306"
     volumes:
       - ${STORAGE_ROOT}/mysql:/var/lib/mysql
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ../base/infra/mysql/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
@@ -26,17 +26,17 @@ services:
     networks: [aos]
 
   nats:
-    image: nats:2.10-alpine
+    image: ${NATS_IMAGE:-nats:2.10-alpine}
     restart: unless-stopped
     ports:
       - "127.0.0.1:4222:4222"
     volumes:
-      - ./nats-server.conf:/etc/nats/nats-server.conf:ro
+      - ../base/infra/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
     command: ["-c", "/etc/nats/nats-server.conf"]
     networks: [aos]
 
   minio:
-    image: minio/minio:latest
+    image: ${MINIO_IMAGE:-minio/minio:latest}
     restart: unless-stopped
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -76,6 +76,7 @@ services:
       HTTPS_REDIRECT: ${HTTPS_REDIRECT:-0}
       TLS_CERT_FILE: ${TLS_CERT_FILE:-/app/tls/fullchain.pem}
       TLS_KEY_FILE: ${TLS_KEY_FILE:-/app/tls/privkey.pem}
+      APP_BASE_IMAGE: ${APP_BASE_IMAGE:-agentos-app-runtime-base:latest}
     volumes:
       - ${STORAGE_ROOT}/podman_storage:/var/lib/containers
       - ${STORAGE_ROOT}/logs:/app/logs
@@ -110,6 +111,7 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       SMTP_FROM: ${SMTP_FROM}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME}
+      APP_BASE_IMAGE: ${APP_BASE_IMAGE:-agentos-app-runtime-base:latest}
     volumes:
       - ${STORAGE_ROOT}/logs:/app/logs
       - ${STORAGE_ROOT}/namespace:/app/namespace

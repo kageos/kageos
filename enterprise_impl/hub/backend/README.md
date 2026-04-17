@@ -85,9 +85,9 @@ Hub API 前缀：
 
 当前仓库内已经存在的开发配置文件是：
 
-- [deploy/dev/config/hub.yaml](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/deploy/dev/config/hub.yaml)
+- [deploy/dev/config/hub.yaml](../../../deploy/dev/config/hub.yaml)
 
-当前目录下的 [hub.yaml](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/enterprise_impl/hub/backend/config/hub.yaml) 更适合作为结构参考，不是主运行入口。
+当前目录下的 [hub.yaml](config/hub.yaml) 更适合作为结构参考，不是主运行入口。
 
 关键配置项：
 

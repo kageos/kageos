@@ -34,13 +34,17 @@ host 网络独立容器
 
 ```bash
 cd deploy/prod
-cp .env.example .env
-# 手写填写 .env（SMTP 相关可留空）
-
+bash build.sh init
+# 检查并修改 .env 里的 CANONICAL_BASE_URL / STORAGE_ROOT / HTTPS（SMTP 可留空）
+bash build.sh doctor
 bash build.sh        # 等价于: bash build.sh up
 ```
 
+`build.sh init` 会自动生成缺失的密钥和密码；`build.sh doctor` 会先检查宿主机平台、compose、端口、路径和证书。  
 `build.sh up` 会自动完成：校验 `.env` → 停宿主机 nginx → 检查 80/443 端口 → `compose up -d --build`。
+如果你已经有预构建好的 `MAIN_IMAGE`，可改用 `bash build.sh up-image`，这样目标机只拉镜像，不做本地源码构建。
+
+`init` 还会补齐一组默认中间件镜像 tag：`MYSQL_IMAGE`、`NATS_IMAGE`、`MINIO_IMAGE`。其中 `MINIO_IMAGE` 默认仍是 `latest`，`doctor` 会在正式环境提醒你改成固定版本。
 
 改配置：编辑 **`.env`** 后重跑 **`bash build.sh`** 即可。
 
@@ -91,13 +95,17 @@ TLS_KEY_FILE="/app/tls/privkey.pem"
 ## 常用命令
 
 ```bash
+bash build.sh init          # 初始化 .env；为空的密钥会自动生成
+bash build.sh doctor        # 执行部署前环境预检
 bash build.sh up            # 首次部署 / 全量重建（默认）
+bash build.sh up-image      # 基于 MAIN_IMAGE 拉取镜像并启动，不在目标机本地构建
 bash build.sh update        # 只重建并更新 main / scheduler / backup，不重启 MySQL / NATS / MinIO
+bash build.sh update-image  # 只拉取 MAIN_IMAGE 并更新 main / scheduler / backup，不在目标机本地构建
 bash build.sh pull-update   # git pull --ff-only 后执行 update
 bash build.sh restart-main  # 仅重启 main，不重建镜像
 bash build.sh restart-scheduler  # 仅重启 scheduler，不重建镜像
 bash build.sh verify        # 执行生产健康检查（mysql / main / scheduler / backup）
-bash build.sh build-app-base --no-cache  # 在 main 容器内单独重建 ai-agent-os:latest
+bash build.sh build-app-base --no-cache  # 在 main 容器内单独重建 APP_BASE_IMAGE（默认 agentos-app-runtime-base:latest）
 bash build.sh logs main     # 查看 main 日志
 bash build.sh status        # 查看服务状态
 bash build.sh down          # 停止服务（保留数据卷）
@@ -105,7 +113,9 @@ bash build.sh down          # 停止服务（保留数据卷）
 
 推荐升级路径：
 
+- 首次机器准备：`bash build.sh init && bash build.sh doctor`
 - 只升级主站代码：`bash build.sh update`
+- 已发布固定镜像：`bash build.sh up-image` / `bash build.sh update-image`
 - 先拉最新代码再升级：`bash build.sh pull-update`
 - 只改 `.env` 或想让主进程重启生效：`bash build.sh restart-main`
 - 只想重启独立调度器：`bash build.sh restart-scheduler`
@@ -118,6 +128,8 @@ bash build.sh down          # 停止服务（保留数据卷）
 - 生产模板里的 **`pprof`** 默认关闭；如需临时排障，必须显式在对应服务配置里把 `enable_pprof` 打开。
 - 公网入口仍然只应通过容器内 Nginx 暴露；生产 Nginx 不再转发 `/swagger/`。
 - `build.sh` 现在会校验：`JWT_SECRET` 至少 32 字符、`CONTROL_ENC_KEY` 必须正好 32 字符、`BACKUP_BASIC_AUTH_PASSWORD` 至少 16 字符。
+- MySQL / NATS / MinIO 镜像 tag 统一走 `.env` 里的 `MYSQL_IMAGE` / `NATS_IMAGE` / `MINIO_IMAGE`；建议正式环境固定版本，不要长期使用 `latest`。
+- 用户应用运行时基础镜像统一走 `.env` 里的 `APP_BASE_IMAGE`；默认仍是 `agentos-app-runtime-base:latest`。
 - 如果开启 HTTPS，`build.sh` 还会校验证书路径、宿主机证书文件、`80/443` 端口占用，以及 `HTTPS_REDIRECT=1` 时 `CANONICAL_BASE_URL` 必须是 `https://`。
 
 ## 构建加速（依赖与源，默认偏国内）
@@ -153,7 +165,7 @@ podman compose build --build-arg APT_USE_MIRROR=0 --build-arg NPM_REGISTRY=https
 |------|--------|------|
 | `${STORAGE_ROOT}/mysql` | `/var/lib/mysql` | MySQL 数据目录 |
 | `${STORAGE_ROOT}/minio` | `/data` | MinIO 数据目录 |
-| `${STORAGE_ROOT}/namespace` | `/app/namespace` | **用户应用空间**（`namespace/{user}/{app}/...` 等工作区，与配置里 `app_dir.base_path: namespace` 对应） |
+| `${STORAGE_ROOT}/namespace` | `/app/namespace` | **用户应用空间**（`namespace/{user}/{app}/...` 等工作区；`app-runtime` 默认固定使用这里作为工作区根目录） |
 | `${STORAGE_ROOT}/data` | `/app/data` | 应用侧其他本地数据目录（当前已用于 `app-runtime` SQLite、License、backup repo/state/tmp） |
 | `${STORAGE_ROOT}/logs` | `/app/logs` | 主站与 backup-service 日志 |
 | `${STORAGE_ROOT}/podman_storage` | `/var/lib/containers` | 容器内 Podman 存储 |
@@ -236,17 +248,19 @@ podman compose build --build-arg APT_USE_MIRROR=0 --build-arg NPM_REGISTRY=https
 |------|------|
 | **`.env.example`** | 配置模板；复制为 **`.env`** 后填写 |
 | **`.env`** | 唯一配置源；Compose 与 `build.sh` 直接读取（**勿提交**） |
-| **`build.sh`** | 运维入口：支持 `up / update / pull-update / restart-main / restart-scheduler / logs / status / down`（统一使用 `STORAGE_ROOT`） |
+| **`build.sh`** | 运维入口：外部命令保持不变，内部通过 `scripts/*.sh` 分拆校验、健康检查和命令实现 |
+| `scripts/` | `build.sh` 的内部实现拆分：`lib / validate / health / commands` |
 | `RECOVERY_CHECKLIST.md` | 值班恢复速查清单 |
 | `RECOVERY.md` | 误删数据后的恢复操作手册 |
 | `docker-compose.yaml` | 服务定义（main 使用 host 网络） |
-| `init-db.sql` | MySQL 首次启动建库（挂载 `docker-entrypoint-initdb.d`，**仅本目录**） |
-| `nats-server.conf` | NATS 容器配置（**仅本目录**） |
-| `Dockerfile` / `entrypoint-main.sh` / `entrypoint-scheduler.sh` / `entrypoint-backup.sh` / `nginx/` / `config/template/` | 镜像与内置模板 |
+| `../base/infra/mysql/init-db.sql` | MySQL 首次启动建库的 canonical SQL（由 `docker-compose.yaml` 挂载） |
+| `../base/infra/nats/nats-server.conf` | NATS canonical 配置（由 `docker-compose.yaml` 挂载） |
+| `Dockerfile` / `entrypoint-common.sh` / `entrypoint-main.sh` / `entrypoint-scheduler.sh` / `entrypoint-backup.sh` / `nginx/` / `config/template/` | 镜像与内置模板 |
 
 补充：
 
 - `.env` 中的 `MAIN_IMAGE` 只是 `main` 服务本地构建结果的镜像标签；当前默认流程仍会执行 `compose up -d --build`，不会跳过本地构建。
+- 如果你想把生产机切到“只拉镜像不本地构建”的模式，请直接设置 `MAIN_IMAGE` 为已发布 tag，并使用 `bash build.sh up-image` 或 `bash build.sh update-image`。
 - Compose 文件名实际为 **`docker-compose.yaml`**，不是 `docker-compose.yml`。
 
 ## 升级

@@ -173,7 +173,7 @@ Content-Type: application/json
 
 ## 配置说明
 
-配置文件：`configs/app-storage.yaml`
+当前官方仅支持 **MinIO**。配置文件：`deploy/dev/config/app-storage.yaml` 或生产模板 `deploy/prod/config/template/app-storage.yaml`
 
 ```yaml
 server:
@@ -181,31 +181,18 @@ server:
   log_level: "info"
   debug: true
 
-minio:
-  endpoint: "localhost:9000"
-  access_key: "minioadmin"
-  secret_key: "minioadmin123"
-  use_ssl: false
-  region: "us-east-1"
-  default_bucket: "ai-agent-os"
-  
+storage:
+  type: "minio"
+  minio:
+    endpoint: "localhost:9000"
+    access_key: "minioadmin"
+    secret_key: "minioadmin123"
+    use_ssl: false
+    region: "us-east-1"
+    default_bucket: "ai-agent-os"
   upload:
     max_size: 104857600        # 100MB
     token_expire: 3600         # 1小时
-    allowed_types:
-      - "image/*"
-      - "video/*"
-      - "application/pdf"
-  
-  # 秒传功能（预留，未来启用）
-  deduplication:
-    enabled: false             # 是否启用秒传
-    hash_algorithm: "sha256"   # 使用的 hash 算法
-  
-  # 缓存控制（已启用）
-  cache:
-    enabled: true              # 是否启用 HTTP 缓存
-    max_age: 31536000          # 浏览器缓存时间（秒，1年）
 
 # 数据库配置（可选，用于秒传功能）
 db:
@@ -334,7 +321,7 @@ Expires: Mon, 03 Nov 2026 12:00:00 GMT
 
 ### Q1: HTTP 缓存如何工作？
 
-A: 当用户首次下载文件时，MinIO 返回的文件会包含 `Cache-Control: max-age=31536000` 响应头，浏览器会将文件缓存 1 年。当用户再次访问同一文件时，浏览器直接从本地缓存读取，无需请求服务器。
+A: 当前下载链路会自动返回长期缓存相关响应头，浏览器会缓存静态文件；这部分目前不是通过 `app-storage.yaml` 的独立配置块控制的。
 
 ### Q2: 秒传何时启用？
 
@@ -361,8 +348,4 @@ POST /api/v1/storage/batch_delete
 
 ### Q5: 是否支持其他对象存储？
 
-A: 当前支持 MinIO（S3 协议），未来计划支持：
-- SeaweedFS（Apache 2.0，优先）
-- 阿里云 OSS
-- 七牛云
-- 腾讯云 COS
+A: 当前官方只支持 MinIO。其他对象存储如果后面真要支持，会在代码、配置模板和部署文档一起落地后再公开，不再提前对外承诺。

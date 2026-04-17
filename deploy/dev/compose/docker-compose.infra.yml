@@ -1,5 +1,6 @@
 # AI Agent OS - 基础设施（NATS / MySQL / MinIO）
 # 用于 Podman 本地开发：容器名必须为 mysql8、nats-server、minio，与 app-runtime InfraWatchdog 一致。
+# 因为这层约束，Podman 版本单独保留一份 compose，而不是和 Docker 版本强行复用。
 #
 # 基础设施账号（与 configs 中各服务 db/storage 配置一致）:
 #   MySQL  端口 3306  root / root           数据库由 deploy/base/infra/mysql/init-db.sql 首次启动时自动创建
@@ -41,7 +42,7 @@ services:
       start_period: 30s
 
   nats-server:
-    image: nats:latest
+    image: nats:2.10-alpine
     container_name: nats-server
     restart: unless-stopped
     ports:

@@ -373,12 +373,8 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 	}
 }
 
-// createLoadBalanceProxy 创建负载均衡代理
-// 当前实现：使用第一个目标（负载均衡功能待实现）
-// 未来实现：
-//   - 根据 strategy 选择负载均衡算法（round_robin, weighted, least_connections, ip_hash）
-//   - 健康检查（如果启用）
-//   - 失败重试和故障转移
+// createLoadBalanceProxy 处理多 target 路由。
+// 当前并未实现真正的负载均衡，只回退使用第一个 target。
 func (s *Server) createLoadBalanceProxy(route *config.RouteConfig) gin.HandlerFunc {
 	logger.Warnf(s.ctx, "[LoadBalance] Load balance not implemented yet, using first target: %s", route.Targets[0].URL)
 	timeout := s.getTimeout(route.Timeout)

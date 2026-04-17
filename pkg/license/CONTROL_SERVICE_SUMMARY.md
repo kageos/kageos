@@ -45,7 +45,7 @@ Control Service 是一个 License 管理服务。
 
 ## 边界说明
 
-- 如果未来增加新的控制类主题，必须先按 [README.md](/Users/beiluo/Documents/work/code/gitee.com/ai-agent-os/pkg/subjects/README.md) 定义
+- 如果未来增加新的控制类主题，必须先按 [README.md](../subjects/README.md) 定义
 
 ## 相关文档
 

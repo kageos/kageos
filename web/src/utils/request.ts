@@ -7,10 +7,14 @@ import { Logger } from '@/core/utils/logger'
 import router from '@/router'
 import type { ApiResponse } from '@/types'
 import type { PermissionInfo } from './permission'
-import { getPermissionDisplayName } from './permission'
+import { extractApiMessage, isAuthExpiredBusinessResponse, isRefreshRequestUrl } from './authSession'
 
 const CLIENT_SOURCE_HEADER = 'X-Client-Source'
 const CLIENT_SOURCE_BROWSER = 'browser'
+
+type AuthRetryAxiosRequestConfig = InternalAxiosRequestConfig & {
+  _retryAfterRefresh?: boolean
+}
 
 // 创建axios实例
 // 注意：使用相对路径，通过 Vite 代理转发到网关，避免跨域问题
@@ -23,27 +27,50 @@ const service = axios.create({
   }
 })
 
+function setHeader(config: InternalAxiosRequestConfig, key: string, value: string) {
+  if (!config.headers) {
+    config.headers = {} as any
+  }
+
+  if (typeof config.headers.set === 'function') {
+    config.headers.set(key, value)
+    return
+  }
+
+  ;(config.headers as any)[key] = value
+}
+
+function removeHeader(config: InternalAxiosRequestConfig, key: string) {
+  if (!config.headers) {
+    return
+  }
+
+  if (typeof (config.headers as any).delete === 'function') {
+    ;(config.headers as any).delete(key)
+    return
+  }
+
+  delete (config.headers as any)[key]
+}
+
+function getRefreshTokenValue(): string {
+  const authStore = useAuthStore()
+  const storeRefreshToken = authStore.refreshToken
+  return (typeof storeRefreshToken === 'string' ? storeRefreshToken : '') || localStorage.getItem('refresh_token') || ''
+}
+
 // 请求拦截器
 service.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const authStore = useAuthStore()
     const token = authStore.token || localStorage.getItem('token') || ''
+    const isRefreshRequest = isRefreshRequestUrl(config.url)
 
     // 添加token到请求头（后端使用X-Token头部）
-    if (token && typeof token === 'string' && token.trim()) {
-      // 确保headers对象存在
-      if (!config.headers) {
-        config.headers = {} as any
-      }
-      
-      // 设置X-Token头部
-      if (typeof config.headers.set === 'function') {
-        // AxiosHeaders对象
-        config.headers.set('X-Token', token)
-      } else {
-        // 普通对象，直接赋值
-        (config.headers as any)['X-Token'] = token
-      }
+    if (!isRefreshRequest && token && typeof token === 'string' && token.trim()) {
+      setHeader(config, 'X-Token', token)
+    } else if (isRefreshRequest) {
+      removeHeader(config, 'X-Token')
     } else {
       Logger.warn('Request', 'No token found', {
         storeToken: authStore.token,
@@ -52,13 +79,7 @@ service.interceptors.request.use(
       })
     }
 
-    if (config.headers) {
-      if (typeof config.headers.set === 'function') {
-        config.headers.set(CLIENT_SOURCE_HEADER, CLIENT_SOURCE_BROWSER)
-      } else {
-        ;(config.headers as any)[CLIENT_SOURCE_HEADER] = CLIENT_SOURCE_BROWSER
-      }
-    }
+    setHeader(config, CLIENT_SOURCE_HEADER, CLIENT_SOURCE_BROWSER)
 
     return config
   },
@@ -68,8 +89,58 @@ service.interceptors.request.use(
   }
 )
 
-// 无感刷新：401 时正在刷新的 Promise，避免多个请求并发刷新
+// 无感刷新：请求共享同一个 refresh Promise，避免并发重复刷新
 let refreshPromise: Promise<string> | null = null
+let sessionExpiredPromise: Promise<void> | null = null
+
+async function handleSessionExpired(): Promise<void> {
+  if (!sessionExpiredPromise) {
+    sessionExpiredPromise = (async () => {
+      const authStore = useAuthStore()
+      await authStore.logout({
+        callApi: false,
+        notify: false,
+        redirectToLogin: false,
+      })
+
+      if (router.currentRoute.value.path !== '/login') {
+        await router.push('/login')
+      }
+
+      ElMessage.warning('登录已过期，请重新登录')
+    })().finally(() => {
+      sessionExpiredPromise = null
+    })
+  }
+
+  return sessionExpiredPromise
+}
+
+async function retryWithFreshToken(
+  config?: AuthRetryAxiosRequestConfig,
+  originalError?: unknown
+): Promise<any> {
+  if (!config || config._retryAfterRefresh || isRefreshRequestUrl(config.url) || !getRefreshTokenValue()) {
+    await handleSessionExpired()
+    return Promise.reject(originalError)
+  }
+
+  const authStore = useAuthStore()
+  if (!refreshPromise) {
+    refreshPromise = authStore.refreshUserToken().finally(() => {
+      refreshPromise = null
+    })
+  }
+
+  try {
+    await refreshPromise
+    config._retryAfterRefresh = true
+    return await service.request(config)
+  } catch (refreshError) {
+    await handleSessionExpired()
+    return Promise.reject(refreshError)
+  }
+}
 
 // 响应拦截器
 service.interceptors.response.use(
@@ -82,7 +153,7 @@ service.interceptors.response.use(
     // 普通 JSON 响应处理
     const { code, data } = response.data as ApiResponse
     // 🔥 统一使用 msg 字段
-    const msg = (response.data as any).msg || '请求失败'
+    const msg = extractApiMessage(response.data as any) || '请求失败'
     // 🔥 获取 metadata（如 total_cost_mill、trace_id 等）
     const metadata = (response.data as any).metadata
 
@@ -109,6 +180,11 @@ service.interceptors.response.use(
     // 🔥 保留完整的错误信息，包括 response 对象
     const error = new Error(msg) as any
     error.response = response
+
+    if (isAuthExpiredBusinessResponse(response.data as any)) {
+      return retryWithFreshToken(response.config as AuthRetryAxiosRequestConfig, error)
+    }
+
     return Promise.reject(error)
   },
   async (error) => {
@@ -118,40 +194,7 @@ service.interceptors.response.use(
       const { status, data } = response
 
       if (status === 401) {
-        const authStore = useAuthStore()
-        const isRefreshRequest = config?.url && String(config.url).includes('/auth/refresh')
-        const refreshTokenValue =
-          (typeof authStore.refreshToken === 'object' && authStore.refreshToken && 'value' in authStore.refreshToken
-            ? (authStore.refreshToken as { value: string }).value
-            : (authStore.refreshToken as string)) ||
-          localStorage.getItem('refresh_token') ||
-          ''
-
-        // refresh 接口本身 401：说明 refresh_token 也过期了，直接登出
-        if (isRefreshRequest || !refreshTokenValue) {
-          authStore.logout()
-          router.push('/login')
-          ElMessage.warning('登录已过期，请重新登录')
-          return Promise.reject(error)
-        }
-
-        // 无感刷新：只允许一个 refresh 进行，其他 401 等待同一个结果后重试
-        if (!refreshPromise) {
-          refreshPromise = authStore.refreshUserToken()
-        }
-        try {
-          await refreshPromise
-          // 刷新成功，用新 token 重试原请求（请求拦截器会从 store 取新 token）
-          return service.request(config)
-        } catch (e) {
-          refreshPromise = null
-          authStore.logout()
-          router.push('/login')
-          ElMessage.warning('登录已过期，请重新登录')
-          return Promise.reject(error)
-        } finally {
-          refreshPromise = null
-        }
+        return retryWithFreshToken(config as AuthRetryAxiosRequestConfig, error)
       }
 
       switch (status) {
@@ -169,7 +212,7 @@ service.interceptors.response.use(
           break
 
         default:
-          ElMessage.error(data?.msg || '网络错误')
+          ElMessage.error(extractApiMessage(data) || '网络错误')
       }
     } else if (error.code === 'ECONNABORTED') {
       ElMessage.error('请求超时，请检查网络连接')
@@ -284,7 +327,7 @@ function getFilenameFromResponse(response: any): string | null {
     try {
       // URL 解码
       return decodeURIComponent(rfc5987Match[1])
-    } catch (e) {
+    } catch {
       // 解码失败，继续尝试其他格式
     }
   }
