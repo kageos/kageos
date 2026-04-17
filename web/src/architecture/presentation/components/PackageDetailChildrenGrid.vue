@@ -166,48 +166,64 @@ function getChildFunctionIcon(child: ServiceTree) {
 
 .children-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
   width: 100%;
 }
 
 .child-card {
   position: relative;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 12px;
-  padding: 20px;
+  background: var(--app-shell-panel-bg-strong);
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 24px;
+  padding: 22px 22px 50px;
   transition: all 0.3s ease;
   cursor: pointer;
   width: 100%;
   box-sizing: border-box;
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.child-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 22px;
+  right: 22px;
+  height: 1px;
+  background: var(--app-shell-panel-highlight);
+  opacity: 0.7;
+  pointer-events: none;
 }
 
 .child-card:hover {
-  border-color: var(--el-color-primary-light-7);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  transform: translateY(-2px);
+  border-color: rgba(var(--el-color-primary-rgb), 0.24);
+  box-shadow: 0 24px 42px rgba(15, 23, 42, 0.12);
+  transform: translateY(-3px);
 }
 
 .child-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
+  gap: 12px;
 }
 
 .child-icon-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
   flex-shrink: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
 }
 
 .child-icon-wrapper.package-type {
-  background: linear-gradient(135deg, var(--el-color-primary-light-8), var(--el-color-primary-light-9));
+  background: rgba(var(--el-color-primary-rgb), 0.12);
 }
 
 .child-icon-wrapper.package-type .child-icon-img {
@@ -217,7 +233,7 @@ function getChildFunctionIcon(child: ServiceTree) {
 }
 
 .child-icon-wrapper.function-type {
-  background: linear-gradient(135deg, var(--el-color-success-light-8), var(--el-color-success-light-9));
+  background: rgba(16, 185, 129, 0.12);
 }
 
 .child-icon-wrapper.function-type .child-icon {
@@ -233,10 +249,12 @@ function getChildFunctionIcon(child: ServiceTree) {
 
 .child-type-tag {
   font-weight: 500;
+  border-radius: 999px;
+  padding: 0 10px;
 }
 
 .child-name {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--el-text-color-primary);
   line-height: 1.5;
@@ -246,23 +264,28 @@ function getChildFunctionIcon(child: ServiceTree) {
 
 .child-description {
   font-size: 13px;
-  color: var(--el-text-color-secondary);
+  color: var(--el-text-color-regular);
   line-height: 1.6;
   word-break: break-word;
-  padding-top: 8px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  padding-top: 12px;
+  border-top: 1px solid var(--app-shell-panel-border);
 }
 
 .child-run-badge {
   position: absolute;
-  bottom: 14px;
-  right: 14px;
+  bottom: 16px;
+  right: 16px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  padding: 7px 10px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
   font-weight: 500;
+  background: var(--app-shell-panel-muted-bg);
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
 }
 
 .child-run-badge-icon {

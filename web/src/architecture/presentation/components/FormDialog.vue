@@ -1,6 +1,7 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
+    class="form-dialog-shell"
     :title="title"
     :width="width"
     :close-on-click-modal="false"
@@ -11,11 +12,13 @@
     <template v-if="dialogVisible">
     <FormView
         v-if="formFunctionDetail"
+      class="form-dialog-view"
       ref="formViewRef"
       :function-detail="formFunctionDetail"
       :show-submit-button="false"
       :show-reset-button="false"
       :initial-data="props.initialData"
+      flat-surface
     />
       <div v-else class="error-message">
         <el-alert
@@ -227,10 +230,78 @@ defineExpose({
 </script>
 
 <style scoped>
+:deep(.form-dialog-shell) {
+  border-radius: 22px;
+  background: var(--app-auth-card-bg);
+  border: none !important;
+  box-shadow: var(--app-auth-card-shadow);
+  backdrop-filter: blur(20px);
+  overflow: hidden;
+}
+
+:deep(.form-dialog-shell .el-dialog__header) {
+  padding: 32px 36px 14px;
+}
+
+:deep(.form-dialog-shell .el-dialog__title) {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+}
+
+:deep(.form-dialog-shell .el-dialog__body) {
+  padding: 0 36px 24px;
+  background: var(--app-auth-surface-bg);
+}
+
+:deep(.form-dialog-shell .el-dialog__footer) {
+  padding: 0 36px 32px;
+  background: var(--app-auth-surface-bg);
+}
+
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.dialog-footer :deep(.el-button) {
+  height: 44px;
+  border-radius: 12px;
+  padding: 0 18px;
+  font-weight: 600;
+  border: 1px solid var(--app-auth-input-border);
+  background: var(--app-auth-input-bg);
+  box-shadow: none;
+  transition: all 0.3s ease;
+}
+
+.dialog-footer :deep(.el-button:hover) {
+  transform: translateY(-1px);
+  border-color: rgba(var(--el-color-primary-rgb), 0.42);
+  color: var(--el-color-primary);
+  box-shadow: var(--app-auth-input-shadow-hover);
+}
+
+.dialog-footer :deep(.el-button--primary) {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary);
+  color: #fff;
+  box-shadow: var(--app-auth-primary-shadow);
+}
+
+.dialog-footer :deep(.el-button--primary:hover) {
+  color: #fff;
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary);
+  box-shadow: var(--app-auth-primary-shadow-hover);
+}
+
+:deep(.form-dialog-shell .form-actions-section),
+:deep(.form-dialog-shell .response-section),
+:deep(.form-dialog-shell .metadata-section) {
+  border-top-color: rgba(148, 163, 184, 0.16);
 }
 
 .error-message {

@@ -1,8 +1,10 @@
 <template>
   <el-dialog
     v-model="visible"
+    class="workspace-settings-dialog-shell"
     title="工作空间设置"
     width="600px"
+    :append-to-body="true"
     :close-on-click-modal="false"
     @close="handleClose"
   >
@@ -167,13 +169,76 @@ function handleClose() {
 
 <style scoped>
 .workspace-settings-dialog {
-  padding: 20px 0;
+  padding: 8px 0;
+}
+
+:deep(.workspace-settings-dialog-shell) {
+  border-radius: 28px;
+  background: var(--app-auth-card-bg);
+  border: 1px solid var(--app-auth-card-border);
+  box-shadow: var(--app-auth-card-shadow);
+  backdrop-filter: blur(20px);
+  overflow: hidden;
+}
+
+:deep(.workspace-settings-dialog-shell .el-dialog__header) {
+  padding: 28px 32px 12px;
+}
+
+:deep(.workspace-settings-dialog-shell .el-dialog__title) {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+:deep(.workspace-settings-dialog-shell .el-dialog__body) {
+  padding: 0 32px 24px;
+  background: var(--app-auth-surface-bg);
+}
+
+:deep(.workspace-settings-dialog-shell .el-dialog__footer) {
+  padding: 0 32px 28px;
+  background: var(--app-auth-surface-bg);
+}
+
+:deep(.workspace-settings-dialog-shell .el-form-item__label) {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+:deep(.workspace-settings-dialog-shell .el-input__wrapper),
+:deep(.workspace-settings-dialog-shell .el-select__wrapper),
+:deep(.workspace-settings-dialog-shell .el-textarea__inner) {
+  background: var(--app-auth-input-bg);
+  border-color: var(--app-auth-input-border);
+  border-radius: 12px;
+  box-shadow: none;
+  transition: all 0.3s ease;
+}
+
+:deep(.workspace-settings-dialog-shell .el-input__wrapper:hover),
+:deep(.workspace-settings-dialog-shell .el-select__wrapper:hover),
+:deep(.workspace-settings-dialog-shell .el-textarea__inner:hover) {
+  border-color: rgba(var(--el-color-primary-rgb), 0.42);
+  box-shadow: var(--app-auth-input-shadow-hover);
+}
+
+:deep(.workspace-settings-dialog-shell .el-input__wrapper.is-focus),
+:deep(.workspace-settings-dialog-shell .el-select__wrapper.is-focused),
+:deep(.workspace-settings-dialog-shell .el-textarea__inner:focus) {
+  border-color: var(--el-color-primary);
+  box-shadow: var(--app-auth-input-shadow-focus);
 }
 
 .workspace-info {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  padding: 14px 16px;
+  background: var(--app-auth-card-bg-strong);
+  border: 1px solid var(--app-auth-card-border);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
 .workspace-name {
@@ -197,5 +262,36 @@ function handleClose() {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.dialog-footer :deep(.el-button) {
+  height: 44px;
+  border-radius: 14px;
+  font-weight: 600;
+  border: 1px solid var(--app-auth-input-border);
+  background: var(--app-auth-input-bg);
+  box-shadow: none;
+  transition: all 0.3s ease;
+}
+
+.dialog-footer :deep(.el-button:hover) {
+  transform: translateY(-1px);
+  border-color: rgba(var(--el-color-primary-rgb), 0.42);
+  color: var(--el-color-primary);
+  box-shadow: var(--app-auth-input-shadow-hover);
+}
+
+.dialog-footer :deep(.el-button--primary) {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary);
+  color: #fff;
+  box-shadow: var(--app-auth-primary-shadow);
+}
+
+.dialog-footer :deep(.el-button--primary:hover) {
+  color: #fff;
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary);
+  box-shadow: var(--app-auth-primary-shadow-hover);
 }
 </style>

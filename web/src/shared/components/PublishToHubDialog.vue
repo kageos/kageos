@@ -122,7 +122,7 @@
           placeholder="0"
           style="width: 200px"
         />
-        <span style="margin-left: 10px; color: #909399">元</span>
+        <span class="price-unit">元</span>
         <el-text type="info" size="small" style="margin-left: 20px">
           个人用户克隆时收取的服务费
         </el-text>
@@ -137,7 +137,7 @@
           placeholder="0"
           style="width: 200px"
         />
-        <span style="margin-left: 10px; color: #909399">元</span>
+        <span class="price-unit">元</span>
         <el-text type="info" size="small" style="margin-left: 20px">
           企业用户克隆时收取的服务费
         </el-text>
@@ -371,6 +371,11 @@ const handleClose = () => {
 :deep(.el-divider__text) {
   font-size: 14px;
   font-weight: 500;
-  color: #606266;
+  color: var(--el-text-color-regular);
+}
+
+.price-unit {
+  margin-left: 10px;
+  color: var(--el-text-color-placeholder);
 }
 </style>

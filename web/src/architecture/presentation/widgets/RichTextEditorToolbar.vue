@@ -396,6 +396,12 @@ defineEmits<{
   flex-wrap: wrap;
 }
 
+:global(.form-view-flat) .editor-toolbar {
+  padding: 10px 12px;
+  background: transparent;
+  border-bottom: 1px solid var(--app-auth-input-border);
+}
+
 .toolbar-group {
   display: flex;
   align-items: center;
@@ -413,6 +419,10 @@ defineEmits<{
   margin: 0 8px;
 }
 
+:global(.form-view-flat) .toolbar-divider {
+  background-color: rgba(203, 213, 225, 0.7);
+}
+
 .toolbar-button {
   display: flex;
   align-items: center;
@@ -427,6 +437,10 @@ defineEmits<{
   cursor: pointer;
   font-size: 16px;
   transition: all 0.2s;
+}
+
+:global(.form-view-flat) .toolbar-button {
+  border-radius: 8px;
 }
 
 .toolbar-button:hover:not(:disabled) {

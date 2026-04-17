@@ -10,7 +10,23 @@
  */
 
 /* ─── 科幻配色变量（仅本主题内使用） ─── */
+html.light .workspace-container,
 .workspace-container {
+  --ws-sci-fi-bg: #edf2f7;
+  --ws-sci-fi-bg-panel: #f7f9fc;
+  --ws-sci-fi-bg-header: #e6edf6;
+  --ws-sci-fi-glow: #4558c8;
+  --ws-sci-fi-glow-rgb: 69, 88, 200;
+  --ws-sci-fi-border: rgba(69, 88, 200, 0.18);
+  --ws-sci-fi-border-strong: rgba(69, 88, 200, 0.34);
+  --ws-sci-fi-text: #0f172a;
+  --ws-sci-fi-text-muted: #475569;
+  --ws-sci-fi-grid-alpha: 0.014;
+  --ws-sci-fi-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+  --ws-sci-fi-shadow-strong: 0 20px 42px rgba(15, 23, 42, 0.12);
+}
+
+html.dark .workspace-container {
   --ws-sci-fi-bg: #0c1222;
   --ws-sci-fi-bg-panel: #131b2e;
   --ws-sci-fi-bg-header: #0f172a;
@@ -20,6 +36,7 @@
   --ws-sci-fi-border-strong: rgba(0, 212, 255, 0.55);
   --ws-sci-fi-text: #e2e8f0;
   --ws-sci-fi-text-muted: #94a3b8;
+  --ws-sci-fi-grid-alpha: 0.03;
   --ws-sci-fi-shadow: 0 0 20px rgba(0, 212, 255, 0.12);
   --ws-sci-fi-shadow-strong: 0 0 24px rgba(0, 212, 255, 0.2);
 }
@@ -66,11 +83,14 @@
   content: '';
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(rgba(var(--ws-sci-fi-glow-rgb), 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(var(--ws-sci-fi-glow-rgb), 0.03) 1px, transparent 1px);
+  background-image: linear-gradient(rgba(var(--ws-sci-fi-glow-rgb), var(--ws-sci-fi-grid-alpha)) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--ws-sci-fi-glow-rgb), var(--ws-sci-fi-grid-alpha)) 1px, transparent 1px);
   background-size: 24px 24px;
   pointer-events: none;
   z-index: 0;
+}
+html:not(.dark) .workspace-container .right-sidebar::before {
+  display: none;
 }
 .workspace-container .right-sidebar > *,
 .workspace-container .right-sidebar-session-panel {
@@ -117,7 +137,7 @@
 .workspace-container .mini-ws {
   background: var(--ws-sci-fi-bg-panel);
   border: 1px solid var(--ws-sci-fi-border);
-  box-shadow: var(--ws-sci-fi-shadow), 0 8px 32px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--ws-sci-fi-shadow), var(--app-panel-shadow);
   transition: box-shadow 0.25s ease, border-color 0.25s ease;
   position: relative;
   overflow: hidden;
@@ -151,7 +171,7 @@
 }
 .workspace-container .mini-ws:hover {
   border-color: var(--ws-sci-fi-border-strong);
-  box-shadow: var(--ws-sci-fi-shadow-strong), 0 8px 32px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--ws-sci-fi-shadow-strong), var(--app-panel-shadow);
 }
 .workspace-container .mini-ws:hover::before,
 .workspace-container .mini-ws:hover::after {
@@ -255,8 +275,8 @@
   content: '';
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(rgba(var(--ws-sci-fi-glow-rgb), 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(var(--ws-sci-fi-glow-rgb), 0.04) 1px, transparent 1px);
+  background-image: linear-gradient(rgba(var(--ws-sci-fi-glow-rgb), calc(var(--ws-sci-fi-grid-alpha) + 0.004)) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--ws-sci-fi-glow-rgb), calc(var(--ws-sci-fi-grid-alpha) + 0.004)) 1px, transparent 1px);
   background-size: 16px 16px;
   pointer-events: none;
   z-index: 0;
@@ -264,6 +284,20 @@
 .workspace-container .mini-ws-body > * {
   position: relative;
   z-index: 1;
+}
+html.light .workspace-container .mini-ws-title {
+  animation: none;
+  font-weight: 700;
+}
+html.light .workspace-container .mini-ws::before,
+html.light .workspace-container .mini-ws::after {
+  opacity: 0.22;
+}
+html.light .workspace-container .mini-ws-header::after {
+  display: none;
+}
+html.light .workspace-container .mini-ws-body::before {
+  display: none;
 }
 /* Mini 输出区 */
 .workspace-container .mini-ws-output {

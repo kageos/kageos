@@ -135,19 +135,24 @@ function updateSearchKeyword(value: string | number) {
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  padding: 10px 0 0;
 }
 
 .right-session-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--el-border-color-extra-light);
+  gap: 8px;
+  margin: 0 14px 10px;
+  padding: 14px 14px 12px;
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 18px;
+  background: var(--app-shell-panel-bg-strong);
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
   flex-shrink: 0;
 }
 
 .right-session-dir {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--el-text-color-primary);
   overflow: hidden;
@@ -158,29 +163,36 @@ function updateSearchKeyword(value: string | number) {
 .right-session-tabs {
   display: flex;
   align-items: center;
-  gap: 0;
-  padding: 0 6px;
-  border-bottom: 1px solid var(--el-border-color-extra-light);
+  gap: 8px;
+  padding: 0 14px 2px;
   flex-shrink: 0;
 }
 
 .right-tab {
-  padding: 8px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 13px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: all 0.2s;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  transition: all 0.2s ease;
   white-space: nowrap;
 
   &:hover {
     color: var(--el-color-primary);
+    background: rgba(var(--el-color-primary-rgb), 0.06);
   }
 
   &.active {
     color: var(--el-color-primary);
-    font-weight: 500;
-    border-bottom-color: var(--el-color-primary);
+    font-weight: 600;
+    border-color: rgba(var(--el-color-primary-rgb), 0.16);
+    background: rgba(var(--el-color-primary-rgb), 0.1);
+    box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
   }
 }
 
@@ -201,31 +213,38 @@ function updateSearchKeyword(value: string | number) {
 
 .right-session-search {
   flex-shrink: 0;
-  padding: 6px 8px 4px;
+  padding: 6px 14px 4px;
 }
 
 .right-session-search :deep(.el-input__wrapper) {
-  border-radius: 6px;
+  border-radius: 14px;
+  padding: 4px 12px;
+  background: var(--app-shell-panel-bg-strong);
+  border: 1px solid var(--app-shell-panel-border);
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
 }
 
 .right-session-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 10px 14px 18px;
 }
 
 .right-session-card {
-  padding: 10px 12px;
-  margin-bottom: 6px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--el-border-radius-base);
-  background: var(--el-bg-color);
+  padding: 14px 14px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 20px;
+  background: var(--app-shell-panel-bg-strong);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.07);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s ease;
 
   &:hover {
     border-color: var(--el-color-primary);
-    background: var(--el-fill-color-lighter);
+    background: var(--app-shell-panel-bg-strong);
+    box-shadow: 0 20px 36px rgba(15, 23, 42, 0.11);
+    transform: translateY(-2px);
   }
 
   &.generating {
@@ -236,12 +255,12 @@ function updateSearchKeyword(value: string | number) {
 .right-session-card-head {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-bottom: 6px;
+  gap: 6px;
+  margin-bottom: 8px;
 }
 
 .right-session-card-user {
-  margin-bottom: 4px;
+  margin-bottom: 8px;
   font-size: 11px;
   color: var(--el-text-color-secondary);
 }
@@ -252,7 +271,7 @@ function updateSearchKeyword(value: string | number) {
 
 .right-session-card-title {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--el-text-color-primary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -263,7 +282,8 @@ function updateSearchKeyword(value: string | number) {
 .right-session-card-meta {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  flex-wrap: wrap;
   font-size: 11px;
   color: var(--el-text-color-placeholder);
 }
@@ -276,21 +296,25 @@ function updateSearchKeyword(value: string | number) {
 .right-session-card-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 4px;
+  margin-top: 8px;
 }
 
 .right-session-empty {
-  padding: 24px 8px;
+  padding: 32px 8px;
   text-align: center;
 }
 
 .right-session-footer {
   flex-shrink: 0;
-  padding: 10px 12px;
-  border-top: 1px solid var(--el-border-color-extra-light);
+  padding: 12px 14px 16px;
+  border-top: 1px solid var(--app-shell-panel-border);
+  background: var(--app-shell-panel-bg);
 }
 
 .right-new-session-btn {
   width: 100%;
+  height: 44px;
+  border-radius: 16px;
+  box-shadow: 0 14px 30px rgba(var(--el-color-primary-rgb), 0.2);
 }
 </style>

@@ -309,6 +309,8 @@ import {
   hasPermission, 
   hasAnyPermissionForNode, 
   DirectoryPermission,
+  DocsPermission,
+  BoardPermission,
   FunctionPermission,
   TablePermission, 
   buildPermissionApplyURL 
@@ -442,12 +444,10 @@ const handleRename = async (node: ServiceTree) => {
 const handleNoPermissionClick = (data: ServiceTree) => {
   // 跳转到权限申请页面
   const resourcePath = data.full_code_path
-  // ⭐ 根据节点类型确定资源类型（package 统一为 directory）
-  const resourceType = data.type === 'package' ? 'directory' : 'function'
   const templateType = data.template_type
   
   // 构建权限申请 URL
-  const defaultAction = resourceType === 'directory' ? DirectoryPermission.read : FunctionPermission.read
+  const defaultAction = getDefaultPermissionApplyAction(data)
   const url = `/permissions/apply?resource=${encodeURIComponent(resourcePath)}&action=${encodeURIComponent(defaultAction)}`
   const finalUrl = templateType ? `${url}&templateType=${encodeURIComponent(templateType)}` : url
   
@@ -479,12 +479,26 @@ const isAdmin = (node: ServiceTree): boolean => {
   return isServiceTreeNodeAdmin(node, currentUsername.value)
 }
 
+const getDefaultPermissionApplyAction = (node: ServiceTree): string => {
+  if (node.type === 'package') {
+    return DirectoryPermission.read
+  }
+
+  if (node.type === 'docs') {
+    return DocsPermission.read
+  }
+
+  if (node.type === 'board') {
+    return BoardPermission.read
+  }
+
+  return FunctionPermission.read
+}
+
 // 处理申请权限
 const handleApplyPermission = (data: ServiceTree) => {
   const resourcePath = data.full_code_path
-  // ⭐ 根据节点类型确定资源类型（package 统一为 directory）
-  const resourceType = data.type === 'package' ? 'directory' : 'function'
-  const defaultAction = resourceType === 'directory' ? DirectoryPermission.read : FunctionPermission.read
+  const defaultAction = getDefaultPermissionApplyAction(data)
   const url = buildPermissionApplyURL(resourcePath, defaultAction, data.template_type)
   router.push(url)
 }
@@ -523,9 +537,7 @@ const handleApprovePermission = (data: ServiceTree) => {
 // 处理权限管理
 const handleManagePermission = (data: ServiceTree) => {
   const resourcePath = data.full_code_path
-  // ⭐ 根据节点类型确定资源类型（package 统一为 directory）
-  const resourceType = data.type === 'package' ? 'directory' : 'function'
-  const defaultAction = resourceType === 'directory' ? DirectoryPermission.read : FunctionPermission.read
+  const defaultAction = getDefaultPermissionApplyAction(data)
   // 权限管理页面，默认显示授权模式
   const url = buildPermissionApplyURL(resourcePath, defaultAction, data.template_type) + '&mode=grant'
   router.push(url)

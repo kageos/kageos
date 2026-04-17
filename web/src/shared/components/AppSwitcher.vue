@@ -34,7 +34,7 @@
         data-testid="app-switcher-empty"
       >
           <div class="app-avatar">
-            <div class="app-icon" style="background-color: #909399;">?</div>
+            <div class="app-icon app-icon--placeholder">?</div>
           </div>
           <div class="app-info">
             <div class="app-name">选择工作空间</div>
@@ -225,17 +225,18 @@ defineExpose({
   flex-shrink: 0;
   width: 34px;
   height: 34px;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-blank);
+  border: 1px solid var(--el-border-color-light);
   border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--box-shadow-sm);
   transition: all 0.2s ease;
   color: var(--el-text-color-secondary);
 
   &:hover {
     border-color: var(--el-color-primary);
     color: var(--el-color-primary);
-    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
+    background: var(--el-fill-color-light);
+    box-shadow: 0 8px 18px rgba(var(--el-color-primary-rgb, 69, 88, 200), 0.12);
   }
 
   &.settings-button-compact {
@@ -253,17 +254,18 @@ defineExpose({
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-blank);
+  border: 1px solid var(--el-border-color-light);
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--box-shadow-sm);
   min-width: 0;
 
   &:hover {
-    border-color: rgba(99, 102, 241, 0.35);
-    box-shadow: 0 2px 12px rgba(99, 102, 241, 0.12);
+    background: var(--el-fill-color-light);
+    border-color: rgba(var(--el-color-primary-rgb, 69, 88, 200), 0.38);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
   }
 }
 
@@ -279,10 +281,15 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--el-color-white, white);
   font-weight: 600;
   font-size: 14px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.16);
+}
+
+.app-icon--placeholder {
+  background: var(--el-fill-color-dark);
+  color: var(--el-text-color-secondary);
 }
 
 .status-indicator {

@@ -71,7 +71,7 @@
               :hidden="!packageNode?.pending_count || packageNode.pending_count === 0"
               :max="99"
             >
-              <span>权限申请</span>
+              <span>权限审批</span>
             </el-badge>
           </template>
           <div class="tab-content">
@@ -86,7 +86,7 @@
 
         <el-tab-pane name="permissionManage">
           <template #label>
-            <span>权限管理</span>
+            <span>授权记录</span>
           </template>
           <div class="tab-content">
             <PermissionManageList
@@ -226,7 +226,7 @@ watch(
 .permission-error-message {
   margin-bottom: 24px;
   padding: 16px;
-  background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
+  background: rgba(245, 158, 11, 0.08);
   border-radius: 12px;
   border-left: 4px solid var(--el-color-warning);
 }
@@ -286,7 +286,7 @@ watch(
 
 .detail-tabs {
   :deep(.el-tabs__header) {
-    margin-bottom: 20px;
+    margin-bottom: 24px;
     overflow: visible;
   }
 
@@ -294,39 +294,54 @@ watch(
     overflow: visible !important;
   }
 
+  :deep(.el-tabs__nav-wrap::after) {
+    display: none;
+  }
+
   :deep(.el-tabs__nav-scroll) {
     overflow: visible !important;
   }
 
   :deep(.el-tabs__nav) {
-    border: none;
+    padding: 6px;
+    border: 1px solid var(--app-shell-panel-border);
+    background: var(--app-shell-panel-muted-bg);
+    border-radius: 20px;
     overflow: visible;
+    box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
   }
 
   :deep(.el-tabs__item) {
-    height: 40px;
-    line-height: 40px;
+    height: 42px;
+    line-height: 42px;
     font-size: 14px;
     color: var(--el-text-color-regular);
     border: none;
-    background: var(--el-bg-color-overlay);
-    margin-right: 4px;
-    border-radius: 4px 4px 0 0;
-    transition: all 0.3s;
+    background: transparent;
+    margin-right: 0;
+    border-radius: 14px;
+    transition: all 0.2s ease;
     padding: 0 20px;
     overflow: visible;
+    font-weight: 500;
 
     &:hover {
       color: var(--el-color-primary);
-      opacity: 0.8;
+      background: rgba(var(--el-color-primary-rgb), 0.06);
     }
 
     &.is-active {
       color: var(--el-color-primary);
-      background: var(--el-bg-color);
-      font-weight: 500;
+      background: var(--app-shell-panel-bg-strong);
+      border: 1px solid rgba(var(--el-color-primary-rgb), 0.14);
+      font-weight: 600;
       opacity: 1;
+      box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08);
     }
+  }
+
+  :deep(.el-tabs__item + .el-tabs__item) {
+    margin-left: 6px;
   }
 
   :deep(.el-tabs__active-bar) {
@@ -359,19 +374,20 @@ watch(
 }
 
 .import-go-drop-zone {
-  padding: 24px 16px;
-  border: 1px dashed var(--el-border-color);
-  border-radius: 8px;
+  padding: 28px 18px;
+  border: 1px dashed rgba(var(--el-color-primary-rgb), 0.28);
+  border-radius: 20px;
   font-size: 14px;
   color: var(--el-color-primary);
   text-align: center;
   transition: border-color 0.2s, background 0.2s;
-  background: var(--el-fill-color-lighter);
+  background: var(--app-shell-panel-muted-bg);
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
 }
 
 .import-go-drop-zone--dragover {
   border-color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
+  background: rgba(var(--el-color-primary-rgb), 0.08);
 }
 
 .import-tab-hint {

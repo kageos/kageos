@@ -163,24 +163,36 @@ const adminsFieldValue = computed<FieldValue>(() => {
 
 <style scoped lang="scss">
 .overview-section {
-  margin-bottom: 32px;
+  margin-bottom: 28px;
 }
 
 .overview-card {
-  display: flex;
-  align-items: center;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
 }
 
 .overview-item {
-  flex: 1;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
+  min-height: 120px;
+  padding: 20px 20px 18px;
+  background: var(--app-shell-panel-bg-strong);
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 22px;
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: rgba(var(--el-color-primary-rgb), 0.22);
+    box-shadow: 0 22px 40px rgba(15, 23, 42, 0.11);
+  }
+}
+
+.overview-item.overview-item-run {
+  background: rgba(var(--el-color-primary-rgb), 0.06);
 }
 
 .overview-icon-wrapper {
@@ -188,13 +200,14 @@ const adminsFieldValue = computed<FieldValue>(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
 .overview-icon-wrapper.name-icon {
-  background: linear-gradient(135deg, var(--el-color-primary-light-8), var(--el-color-primary-light-9));
+  background: rgba(var(--el-color-primary-rgb), 0.12);
 }
 
 .overview-icon-wrapper.name-icon .overview-icon {
@@ -203,7 +216,7 @@ const adminsFieldValue = computed<FieldValue>(() => {
 }
 
 .overview-icon-wrapper.code-icon {
-  background: linear-gradient(135deg, var(--el-color-success-light-8), var(--el-color-success-light-9));
+  background: rgba(16, 185, 129, 0.12);
 }
 
 .overview-icon-wrapper.code-icon .overview-icon {
@@ -212,7 +225,7 @@ const adminsFieldValue = computed<FieldValue>(() => {
 }
 
 .overview-icon-wrapper.count-icon {
-  background: linear-gradient(135deg, var(--el-color-warning-light-8), var(--el-color-warning-light-9));
+  background: rgba(245, 158, 11, 0.12);
 }
 
 .overview-icon-wrapper.count-icon .overview-icon {
@@ -221,7 +234,7 @@ const adminsFieldValue = computed<FieldValue>(() => {
 }
 
 .overview-icon-wrapper.admins-icon {
-  background: linear-gradient(135deg, #f3e8ff, #e9d5ff);
+  background: rgba(147, 51, 234, 0.12);
 }
 
 .overview-icon-wrapper.admins-icon .overview-icon {
@@ -230,7 +243,7 @@ const adminsFieldValue = computed<FieldValue>(() => {
 }
 
 .overview-icon-wrapper.owner-icon {
-  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  background: rgba(37, 99, 235, 0.12);
 }
 
 .overview-icon-wrapper.owner-icon .overview-icon {
@@ -239,41 +252,45 @@ const adminsFieldValue = computed<FieldValue>(() => {
 }
 
 .overview-icon-wrapper.run-icon {
-  background: var(--el-fill-color-light);
+  background: rgba(var(--el-color-primary-rgb), 0.12);
 }
 
 .overview-icon-wrapper.run-icon .overview-icon {
   font-size: 24px;
-  color: var(--el-text-color-secondary);
+  color: var(--el-color-primary);
 }
 
 .overview-content {
   flex: 1;
   min-width: 0;
+  padding-top: 2px;
 }
 
 .overview-label {
   font-size: 13px;
   color: var(--el-text-color-secondary);
-  margin-bottom: 4px;
+  margin-bottom: 8px;
   font-weight: 500;
+  letter-spacing: 0.02em;
 }
 
 .overview-value {
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+  line-height: 1.25;
+  word-break: break-word;
 }
 
 .overview-value.code-text {
   font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
   color: var(--el-color-success);
-  font-size: 16px;
+  font-size: 18px;
 }
 
 .overview-value.overview-value-run .overview-run-num,
 .overview-value.overview-value-run .overview-run-unit {
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 600;
   color: var(--el-text-color-primary);
 }
@@ -281,26 +298,16 @@ const adminsFieldValue = computed<FieldValue>(() => {
 .overview-value.overview-value-run .overview-run-unit {
   font-weight: 500;
   color: var(--el-text-color-secondary);
-  margin-left: 2px;
+  margin-left: 4px;
 }
 
 .overview-divider {
-  width: 1px;
-  height: 48px;
-  background: var(--el-border-color-lighter);
-  margin: 0 24px;
+  display: none;
 }
 
 @media (max-width: 768px) {
   .overview-card {
-    flex-direction: column;
-    gap: 20px;
-  }
-
-  .overview-divider {
-    width: 100%;
-    height: 1px;
-    margin: 0;
+    grid-template-columns: 1fr;
   }
 }
 </style>
