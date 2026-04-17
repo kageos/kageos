@@ -114,6 +114,39 @@ describe('TableDomainService URL restore', () => {
     expect(restored.searchForm).toEqual({ status: 'legacy-open' })
   })
 
+  it('restores response search display labels from URL companion params and still builds raw search params', () => {
+    const service = createService()
+    const functionDetail = {
+      request: [],
+      response: [
+        {
+          code: 'job_id',
+          name: '投递职位',
+          search: 'eq',
+          callbacks: ['OnSelectFuzzy'],
+          widget: { type: 'select' },
+          data: { type: 'int' }
+        }
+      ]
+    } as any
+
+    const restored = service.restoreFromURL(functionDetail, {
+      eq: 'job_id:1',
+      s_job_id__display: '前端开发工程师 - 技术 (北京, 20000-35000元)'
+    })
+
+    expect(restored.searchForm).toEqual({
+      job_id: {
+        raw: '1',
+        display: '前端开发工程师 - 技术 (北京, 20000-35000元)',
+        meta: {}
+      }
+    })
+    expect(service.buildSearchParams(functionDetail, restored.searchForm)).toEqual({
+      eq: 'job_id:1'
+    })
+  })
+
   it('keeps only the latest load result when earlier requests finish later', async () => {
     const firstResponse = createDeferred<TableResponse>()
     const secondResponse = createDeferred<TableResponse>()

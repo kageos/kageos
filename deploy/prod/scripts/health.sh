@@ -1,26 +1,30 @@
 print_success() {
   local transport_mode="HTTP"
-  if [[ "$ENABLE_HTTPS" == "1" ]]; then
-    if [[ "$HTTPS_REDIRECT" == "1" ]]; then
-      transport_mode="HTTPS（80 -> 443 重定向）"
-    else
+  case "${TLS_MODE:-$DEFAULT_TLS_MODE}" in
+    https)
       transport_mode="HTTP + HTTPS"
-    fi
-  fi
+      ;;
+    redirect)
+      transport_mode="HTTPS（80 -> 443 重定向）"
+      ;;
+    external)
+      transport_mode="HTTP（外部 TLS 终止）"
+      ;;
+  esac
 
   echo ""
   echo "=============================="
   echo "  操作完成"
   echo "=============================="
   echo "  访问地址: ${CANONICAL_BASE_URL}"
-  echo "  存储根目录: ${STORAGE_ROOT}"
+  echo "  存储根目录: ${FIXED_STORAGE_ROOT}"
   echo "  传输模式: ${transport_mode}"
   echo ""
   echo "  查看日志: bash build.sh logs main"
   echo "  查看状态: bash build.sh status"
   echo "  健康检查: bash build.sh verify"
   echo "  停止服务: bash build.sh down"
-  echo "  ⚠ 切勿:  rm -rf ${STORAGE_ROOT}"
+  echo "  ⚠ 切勿:  rm -rf ${FIXED_STORAGE_ROOT}"
   echo "=============================="
 }
 

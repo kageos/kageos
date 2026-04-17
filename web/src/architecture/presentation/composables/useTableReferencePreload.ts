@@ -1,6 +1,7 @@
 import { useUserInfoStore } from '@/stores/userInfo'
 import { useDepartmentInfoStore } from '@/stores/departmentInfo'
 import type { FunctionDetail } from '../../domain/types'
+import { getSearchFieldRawValue } from '@/utils/searchFieldValue'
 
 export function useTableReferencePreload() {
   const userInfoStore = useUserInfoStore()
@@ -24,7 +25,7 @@ export function useTableReferencePreload() {
 
       const usernames = new Set<string>()
       userFields.forEach(field => {
-        const value = searchFormData[field.code]
+        const value = getSearchFieldRawValue(searchFormData[field.code])
         if (!value) {
           return
         }
@@ -67,7 +68,7 @@ export function useTableReferencePreload() {
 
       const paths = new Set<string>()
       departmentFields.forEach(field => {
-        const value = searchFormData[field.code]
+        const value = getSearchFieldRawValue(searchFormData[field.code])
         if (!value) {
           return
         }

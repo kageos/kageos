@@ -2,6 +2,10 @@
 
 > 官方生产入口：`deploy/prod/`
 
+如需先看“依赖什么、按什么顺序启动、整条链怎么流转”，先读：
+
+- [DEPLOYMENT_FLOW.md](DEPLOYMENT_FLOW.md)
+
 **范围**：主站 + 独立定时任务调度器 + 中间件（MySQL / NATS / MinIO）+ 内置 Nginx（默认 80，可选 443）+ **容器内 Podman**（跑用户应用）。**不包含 Hub**。
 
 ## 架构
@@ -34,55 +38,53 @@ host 网络独立容器
 
 ```bash
 cd deploy/prod
-bash build.sh init
-# 检查并修改 .env 里的 CANONICAL_BASE_URL / STORAGE_ROOT / HTTPS（SMTP 可留空）
-bash build.sh doctor
-bash build.sh        # 等价于: bash build.sh up
+bash build.sh doctor   # 首次会自动生成 .env
+# 填写 .env 里的 CANONICAL_BASE_URL；按需调整 TLS_MODE
+bash build.sh up
 ```
 
-`build.sh init` 会自动生成缺失的密钥和密码；`build.sh doctor` 会先检查宿主机平台、compose、端口、路径和证书。  
+首次执行 `bash build.sh up` / `bash build.sh doctor` 时，如果缺少 `.env`，脚本会先自动初始化它，并生成缺失的密钥和密码；你只需要补 `CANONICAL_BASE_URL`，如需本机 HTTPS 再补证书相关配置。存储目录固定为 `/data/ai-agent-os`。  
 `build.sh up` 会自动完成：校验 `.env` → 停宿主机 nginx → 检查 80/443 端口 → `compose up -d --build`。
 如果你已经有预构建好的 `MAIN_IMAGE`，可改用 `bash build.sh up-image`，这样目标机只拉镜像，不做本地源码构建。
 
-`init` 还会补齐一组默认中间件镜像 tag：`MYSQL_IMAGE`、`NATS_IMAGE`、`MINIO_IMAGE`。其中 `MINIO_IMAGE` 默认仍是 `latest`，`doctor` 会在正式环境提醒你改成固定版本。
+`init` 仍可手工执行，但现在主要作为显式初始化入口；标准路径不再要求先记住它。
 
 改配置：编辑 **`.env`** 后重跑 **`bash build.sh`** 即可。
 
 ## HTTP / HTTPS 模式
 
-默认模式是 **HTTP**，复制 `.env.example` 后直接填写即可启动。
+默认模式是 **HTTP**，只填 `CANONICAL_BASE_URL` 就能启动。
 
 ```env
-CANONICAL_BASE_URL="http://example.com"
-ENABLE_HTTPS="0"
-HTTPS_REDIRECT="0"
+CANONICAL_BASE_URL="http://your-domain-or-ip"
+TLS_MODE="http"
 ```
 
-如需启用容器内 HTTPS，补齐证书目录并打开开关：
+如需启用容器内 HTTPS，补齐证书目录并切到对应模式：
 
 ```env
-CANONICAL_BASE_URL="https://example.com"
-ENABLE_HTTPS="1"
-HTTPS_REDIRECT="1"
+CANONICAL_BASE_URL="https://your-domain"
+TLS_MODE="redirect"
 TLS_CERTS_HOST_DIR="./certs"
 TLS_CERT_FILE="/app/tls/fullchain.pem"
 TLS_KEY_FILE="/app/tls/privkey.pem"
 ```
 
-三种模式：
+四种模式：
 
-- `ENABLE_HTTPS=0`：仅监听 `80`，保持当前 HTTP 部署方式。
-- `ENABLE_HTTPS=1` 且 `HTTPS_REDIRECT=0`：同时监听 `80` 和 `443`，HTTP / HTTPS 都可访问。
-- `ENABLE_HTTPS=1` 且 `HTTPS_REDIRECT=1`：`80` 统一 `301 -> 443`。
+- `TLS_MODE=http`：仅监听 `80`，保持当前 HTTP 部署方式。
+- `TLS_MODE=https`：同时监听 `80` 和 `443`，HTTP / HTTPS 都可访问。
+- `TLS_MODE=redirect`：`80` 统一 `301 -> 443`，`443` 提供 HTTPS。
+- `TLS_MODE=external`：容器只跑 `80`，由外部 LB / CDN / 网关终止 TLS。
 
 证书路径说明：
 
 - `TLS_CERTS_HOST_DIR` 是宿主机证书目录，会整体挂载到容器内 `/app/tls`。
 - `TLS_CERTS_HOST_DIR` 支持绝对路径；如果写相对路径，则相对 `deploy/prod/` 目录解析。
 - `TLS_CERT_FILE` / `TLS_KEY_FILE` 必须是容器内路径，且位于 `/app/tls/` 下。
-- `build.sh` 会在启动前检查证书文件是否真实存在；缺文件直接失败，不会带着坏配置启动。
+- `build.sh` 只会在 `TLS_MODE=https` / `redirect` 时检查证书文件是否真实存在；缺文件直接失败，不会带着坏配置启动。
 
-如果你是云厂商 LB / CDN 做 TLS 终止，`main` 容器仍可保持 `ENABLE_HTTPS=0` 继续只跑 HTTP；这时 `CANONICAL_BASE_URL` 可以写成 `https://`，`build.sh` 只会给出提醒，不会阻断启动。
+如果你是云厂商 LB / CDN 做 TLS 终止，直接使用 `TLS_MODE=external` 即可；这时 `CANONICAL_BASE_URL` 通常写成 `https://`。
 
 生产配置说明：
 
@@ -95,8 +97,8 @@ TLS_KEY_FILE="/app/tls/privkey.pem"
 ## 常用命令
 
 ```bash
-bash build.sh init          # 初始化 .env；为空的密钥会自动生成
-bash build.sh doctor        # 执行部署前环境预检
+bash build.sh init          # 手工初始化 .env；为空的密钥会自动生成
+bash build.sh doctor        # 执行部署前环境预检（缺 .env 时会自动初始化）
 bash build.sh up            # 首次部署 / 全量重建（默认）
 bash build.sh up-image      # 基于 MAIN_IMAGE 拉取镜像并启动，不在目标机本地构建
 bash build.sh update        # 只重建并更新 main / scheduler / backup，不重启 MySQL / NATS / MinIO
@@ -127,10 +129,9 @@ bash build.sh down          # 停止服务（保留数据卷）
 - 生产模板里的内部 Go 服务现在默认监听 **`127.0.0.1`**，不再直接绑宿主机所有网卡。
 - 生产模板里的 **`pprof`** 默认关闭；如需临时排障，必须显式在对应服务配置里把 `enable_pprof` 打开。
 - 公网入口仍然只应通过容器内 Nginx 暴露；生产 Nginx 不再转发 `/swagger/`。
-- `build.sh` 现在会校验：`JWT_SECRET` 至少 32 字符、`CONTROL_ENC_KEY` 必须正好 32 字符、`BACKUP_BASIC_AUTH_PASSWORD` 至少 16 字符。
-- MySQL / NATS / MinIO 镜像 tag 统一走 `.env` 里的 `MYSQL_IMAGE` / `NATS_IMAGE` / `MINIO_IMAGE`；建议正式环境固定版本，不要长期使用 `latest`。
-- 用户应用运行时基础镜像统一走 `.env` 里的 `APP_BASE_IMAGE`；默认仍是 `agentos-app-runtime-base:latest`。
-- 如果开启 HTTPS，`build.sh` 还会校验证书路径、宿主机证书文件、`80/443` 端口占用，以及 `HTTPS_REDIRECT=1` 时 `CANONICAL_BASE_URL` 必须是 `https://`。
+- `build.sh` 现在会校验：`CANONICAL_BASE_URL` 必须以 `http://` 或 `https://` 开头、`JWT_SECRET` 至少 32 字符、`CONTROL_ENC_KEY` 必须正好 32 字符、`BACKUP_BASIC_AUTH_PASSWORD` 至少 16 字符。
+- 镜像 tag 与 SMTP 参数默认都有内置值；普通部署不需要填写，只有想覆盖默认行为时才手工在 `.env` 中增加对应项。
+- 如果 `TLS_MODE=https` / `redirect`，`build.sh` 还会校验证书路径、宿主机证书文件和 `80/443` 端口占用；其中 `TLS_MODE=redirect` 还要求 `CANONICAL_BASE_URL` 必须是 `https://`。
 
 ## 构建加速（依赖与源，默认偏国内）
 
@@ -159,25 +160,25 @@ podman compose build --build-arg APT_USE_MIRROR=0 --build-arg NPM_REGISTRY=https
 
 ### 持久卷（勿误删）
 
-生产环境统一使用 **`STORAGE_ROOT` 宿主机固定目录挂载**，避免核心数据落在容器层。
+生产环境统一使用 **`/data/ai-agent-os` 宿主机固定目录挂载**，避免核心数据落在容器层。
 
 | 宿主机目录 | 容器挂载点 | 用途 |
 |------|--------|------|
-| `${STORAGE_ROOT}/mysql` | `/var/lib/mysql` | MySQL 数据目录 |
-| `${STORAGE_ROOT}/minio` | `/data` | MinIO 数据目录 |
-| `${STORAGE_ROOT}/namespace` | `/app/namespace` | **用户应用空间**（`namespace/{user}/{app}/...` 等工作区；`app-runtime` 默认固定使用这里作为工作区根目录） |
-| `${STORAGE_ROOT}/data` | `/app/data` | 应用侧其他本地数据目录（当前已用于 `app-runtime` SQLite、License、backup repo/state/tmp） |
-| `${STORAGE_ROOT}/logs` | `/app/logs` | 主站与 backup-service 日志 |
-| `${STORAGE_ROOT}/podman_storage` | `/var/lib/containers` | 容器内 Podman 存储 |
+| `/data/ai-agent-os/mysql` | `/var/lib/mysql` | MySQL 数据目录 |
+| `/data/ai-agent-os/minio` | `/data` | MinIO 数据目录 |
+| `/data/ai-agent-os/namespace` | `/app/namespace` | **用户应用空间**（`namespace/{user}/{app}/...` 等工作区；`app-runtime` 默认固定使用这里作为工作区根目录） |
+| `/data/ai-agent-os/data` | `/app/data` | 应用侧其他本地数据目录（当前已用于 `app-runtime` SQLite、License、backup repo/state/tmp） |
+| `/data/ai-agent-os/logs` | `/app/logs` | 主站与 backup-service 日志 |
+| `/data/ai-agent-os/podman_storage` | `/var/lib/containers` | 容器内 Podman 存储 |
 
 `build.sh` 会自动创建以下目录结构：
 
-- `${STORAGE_ROOT}/mysql`
-- `${STORAGE_ROOT}/minio`
-- `${STORAGE_ROOT}/podman_storage`
-- `${STORAGE_ROOT}/logs`
-- `${STORAGE_ROOT}/namespace`
-- `${STORAGE_ROOT}/data`
+- `/data/ai-agent-os/mysql`
+- `/data/ai-agent-os/minio`
+- `/data/ai-agent-os/podman_storage`
+- `/data/ai-agent-os/logs`
+- `/data/ai-agent-os/namespace`
+- `/data/ai-agent-os/data`
 
 `/app/data` 当前推荐子目录：
 
@@ -191,8 +192,8 @@ podman compose build --build-arg APT_USE_MIRROR=0 --build-arg NPM_REGISTRY=https
 
 **备份 / 升级**：
 
-- 直接备份 `${STORAGE_ROOT}` 下对应目录即可。
-- 切勿对 `${STORAGE_ROOT}` 做 `rm -rf` 或未经验证的清理。
+- 直接备份 `/data/ai-agent-os` 下对应目录即可。
+- 切勿对 `/data/ai-agent-os` 做 `rm -rf` 或未经验证的清理。
 - `backup` 服务默认监听 `127.0.0.1:19088`，作为后续恢复控制面的独立入口。
 
 ### Backup 控制面
@@ -235,7 +236,7 @@ podman compose build --build-arg APT_USE_MIRROR=0 --build-arg NPM_REGISTRY=https
 
 - `namespace` / `MySQL` / `MinIO` 恢复目前都要求先开启维护模式。
 - 开启维护模式后，主站 Nginx 会自动对外返回 `503` 维护页，入口页内容来自 `/app/data/backup/state/maintenance.html`。
-- 如果你是在宿主机本地直接启动 `backup-service`，没有手工导出环境变量也没关系；它会优先读取 `deploy/prod/.env` 里的 `STORAGE_ROOT / MYSQL_ROOT_PASSWORD / MINIO_ROOT_USER / MINIO_ROOT_PASSWORD / BACKUP_BASIC_AUTH_USERNAME / BACKUP_BASIC_AUTH_PASSWORD`，并把容器内 `/app/...` 路径自动映射到宿主机 `${STORAGE_ROOT}`。
+- 如果你是在宿主机本地直接启动 `backup-service`，没有手工导出环境变量也没关系；它会优先读取 `deploy/prod/.env` 里的 `MYSQL_ROOT_PASSWORD / MINIO_ROOT_PASSWORD / BACKUP_BASIC_AUTH_PASSWORD`，并把容器内 `/app/...` 路径自动映射到宿主机 `/data/ai-agent-os`。
 - 当前 `namespace` 快照仓库存放在 `/app/data/backup/repo/namespace/`。
 - 当前 `MySQL` 快照仓库存放在 `/app/data/backup/repo/mysql/`。
 - 当前 `MinIO` 快照仓库存放在 `/app/data/backup/repo/minio/`。

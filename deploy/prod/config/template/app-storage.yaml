@@ -17,7 +17,7 @@ storage:
   type: "minio"
   minio:
     endpoint: "127.0.0.1:9000"
-    access_key: "${MINIO_ROOT_USER}"
+    access_key: "minioadmin"
     secret_key: "${MINIO_ROOT_PASSWORD}"
     use_ssl: false
     region: "us-east-1"

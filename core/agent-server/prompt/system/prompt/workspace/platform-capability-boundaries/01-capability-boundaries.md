@@ -79,7 +79,7 @@
 
 即使需求能映射到 Form/Table/Chart，实际执行时还需要底层工具支撑。判断方法：
 
-1. **工作台环境已装的工具**（可直接 exec.Command 调用）：FFmpeg、GraphicsMagick(gm)、Ghostscript、Poppler、Tesseract、LibreOffice、Pandoc、Graphviz、Python3（含 pandas/numpy/matplotlib/jieba 等）
+1. **工作台环境已装的工具**（可直接 exec.Command 调用）：FFmpeg、GraphicsMagick(gm)、ImageMagick（canonical Ubuntu 镜像内直接用 `convert` / `identify` 等）、ExifTool、OCRmyPDF、libvips、WebP tools（cwebp/dwebp/webpmux）、pngquant、gifsicle、unpaper、LibRaw、Ghostscript、Poppler、Tesseract、LibreOffice、Pandoc、Graphviz、Python3（含 pandas/numpy/matplotlib/jieba 等）
 2. **Go 生态有成熟库的**（可在代码中 import，build_workspace 会自动拉取依赖）：如 excelize（Excel）、imaging（图片基础操作）等标准开源库
 3. **Python 生态有成熟库的**（可通过 exec.Command 调 python3 脚本）：如 pandas、matplotlib、jieba 等已预装的库
 

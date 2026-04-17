@@ -303,7 +303,7 @@ vi.mock('@/architecture/presentation/widgets/WidgetComponent.vue', () => ({
         type="button"
         data-testid="widget-search"
         :data-search-type="searchType"
-        @click="$emit('update:modelValue', { raw: ['open', 'closed'], display: 'Open, Closed', meta: {} })"
+        @click="$emit('update:modelValue', { raw: 'open', display: '开启', meta: { source: 'widget' } })"
       >
         widget-search
       </button>
@@ -432,6 +432,30 @@ describe('SearchInput', () => {
     })
 
     expect(wrapper.find('[data-testid="widget-search"]').exists()).toBe(true)
+  })
+
+  it('uses widget renderer for users contains search in search bar', () => {
+    hasRequestComponent.mockReturnValue(true)
+
+    const wrapper = mountSearchInput({
+      field: createField(WidgetType.USERS),
+      searchType: SearchType.CONTAINS
+    })
+
+    expect(wrapper.find('[data-testid="widget-search"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="el-select"]').exists()).toBe(false)
+  })
+
+  it('uses widget renderer for departments contains search in search bar', () => {
+    hasRequestComponent.mockReturnValue(true)
+
+    const wrapper = mountSearchInput({
+      field: createField(WidgetType.DEPARTMENTS),
+      searchType: SearchType.CONTAINS
+    })
+
+    expect(wrapper.find('[data-testid="widget-search"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="el-select"]').exists()).toBe(false)
   })
 
   it('uses inline fallback select for static select options even when a widget renderer exists', () => {
@@ -597,6 +621,27 @@ describe('SearchInput', () => {
 
     expect(wrapper.find('[data-testid="widget-search"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="el-select"]').exists()).toBe(false)
+  })
+
+  it('preserves widget display metadata when widget search renderer updates the value', async () => {
+    hasRequestComponent.mockReturnValue(true)
+
+    const wrapper = mountSearchInput({
+      field: createField(WidgetType.SELECT, {
+        callbacks: ['OnSelectFuzzy']
+      }),
+      searchType: SearchType.EQ
+    })
+
+    await wrapper.get('[data-testid="widget-search"]').trigger('click')
+
+    expect(wrapper.emitted('update:modelValue')).toEqual([[
+      {
+        raw: 'open',
+        display: '开启',
+        meta: { source: 'widget' }
+      }
+    ]])
   })
 
   it('initializes remote select values from onInitOptions and matches option value types', async () => {

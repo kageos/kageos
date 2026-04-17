@@ -5,9 +5,7 @@ source /app/entrypoint-common.sh
 
 ensure_main_runtime_dirs
 
-require_env STORAGE_ROOT "环境变量 STORAGE_ROOT 未设置或为空（须由 Compose 从宿主机 .env 注入）"
 require_env MYSQL_ROOT_PASSWORD "环境变量 MYSQL_ROOT_PASSWORD 未设置或为空（须由 Compose 从宿主机 .env 注入）"
-require_env MINIO_ROOT_USER "环境变量 MINIO_ROOT_USER 未设置或为空（须由 Compose 从宿主机 .env 注入）"
 require_env MINIO_ROOT_PASSWORD "环境变量 MINIO_ROOT_PASSWORD 未设置或为空（须由 Compose 从宿主机 .env 注入）"
 require_env JWT_SECRET "环境变量 JWT_SECRET 未设置或为空（须由 Compose 从宿主机 .env 注入）"
 require_env CONTROL_ENC_KEY "环境变量 CONTROL_ENC_KEY 未设置或为空（须由 Compose 从宿主机 .env 注入）"
@@ -19,7 +17,7 @@ wait_tcp 127.0.0.1 3306 "MySQL"
 wait_tcp 127.0.0.1 4222 "NATS"
 wait_tcp 127.0.0.1 9090 "API Gateway"
 
-PROD_TEMPLATE_VARS='${STORAGE_ROOT} ${MYSQL_ROOT_PASSWORD} ${JWT_SECRET} ${CONTROL_ENC_KEY} ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${SMTP_FROM} ${SMTP_FROM_NAME} ${APP_BASE_IMAGE}'
+PROD_TEMPLATE_VARS='${MYSQL_ROOT_PASSWORD} ${JWT_SECRET} ${CONTROL_ENC_KEY} ${MINIO_ROOT_PASSWORD} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${SMTP_FROM} ${SMTP_FROM_NAME} ${APP_BASE_IMAGE}'
 render_runtime_templates "$PROD_TEMPLATE_VARS"
 
 shutdown() {

@@ -210,7 +210,7 @@
       </div>
     </el-tab-pane>
 
-    <el-tab-pane v-if="showPermissionRequestTab" label="权限申请" name="permissionRequest">
+    <el-tab-pane v-if="showPermissionRequestTab" label="权限审批" name="permissionRequest">
       <div class="tab-content">
         <PermissionRequestList
           ref="permissionRequestListRef"

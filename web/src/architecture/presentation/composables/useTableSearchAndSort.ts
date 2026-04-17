@@ -1,5 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import { WidgetType } from '@/core/constants/widget'
+import { hasSearchFieldValue } from '@/utils/searchFieldValue'
 import { resolveSearchFieldLayoutClass } from '../views/utils/searchFieldLayout'
 import type { FunctionDetail, FieldConfig } from '../../domain/types'
 import type { SortItem, TableState, TableDomainService } from '../../domain/services/TableDomainService'
@@ -66,13 +67,7 @@ export function useTableSearchAndSort(options: UseTableSearchAndSortOptions) {
   const activeSearchCount = computed(() => {
     const form = options.stateManager.getState().searchForm
     if (!form || typeof form !== 'object') return 0
-    return Object.keys(form).filter((key) => {
-      const value = form[key]
-      if (value === undefined || value === null) return false
-      if (typeof value === 'string' && value.trim() === '') return false
-      if (Array.isArray(value) && value.length === 0) return false
-      return true
-    }).length
+    return Object.keys(form).filter((key) => hasSearchFieldValue(form[key])).length
   })
 
   const visibleFields = computed(() => {
@@ -196,10 +191,7 @@ export function useTableSearchAndSort(options: UseTableSearchAndSortOptions) {
     const newSearchForm = { ...currentState.searchForm }
 
     if (
-      value === null ||
-      value === undefined ||
-      (Array.isArray(value) && value.length === 0) ||
-      (typeof value === 'string' && value.trim() === '')
+      !hasSearchFieldValue(value)
     ) {
       delete newSearchForm[field.code]
     } else {

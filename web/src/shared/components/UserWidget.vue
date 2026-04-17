@@ -9,9 +9,38 @@
   <div class="user-widget">
     <!-- 编辑模式：用户选择器（使用弹窗搜索） -->
     <div v-if="mode === 'edit' || mode === 'search'" class="user-select-wrapper">
+      <SearchSingleSelectDisplay
+        v-if="mode === 'search'"
+        :label="selectedUserForDisplay ? formatUserDisplayName(selectedUserForDisplay) : ''"
+        :placeholder="field.desc || `搜索${field.name}`"
+        :has-value="!!selectedUserForDisplay"
+        :show-clear="!!selectedUserForDisplay && !widgetConfig.disabled"
+        :disabled="!!widgetConfig.disabled"
+        @open="handleOpenDialog"
+        @clear="handleClearSelection"
+      >
+        <template v-if="selectedUserForDisplay" #leading>
+          <el-avatar 
+            v-if="selectedUserForDisplay.avatar" 
+            :src="selectedUserForDisplay.avatar" 
+            :size="16" 
+            class="search-selected-avatar"
+          >
+            {{ selectedUserForDisplay.username?.[0]?.toUpperCase() || 'U' }}
+          </el-avatar>
+          <el-avatar 
+            v-else
+            :size="16" 
+            class="search-selected-avatar"
+          >
+            {{ selectedUserForDisplay.username?.[0]?.toUpperCase() || 'U' }}
+          </el-avatar>
+        </template>
+      </SearchSingleSelectDisplay>
+
       <!-- 选中后的显示 -->
       <div
-        v-if="selectedUserForDisplay"
+        v-else-if="selectedUserForDisplay"
         class="user-select-display"
         :class="{ 'is-disabled': widgetConfig.disabled }"
         @click="!widgetConfig.disabled && handleOpenDialog()"
@@ -41,6 +70,8 @@
       <!-- 未选中时显示按钮 -->
       <el-button
         v-else
+        class="user-select-trigger"
+        :class="{ 'is-search-mode': mode === 'search' }"
         :disabled="widgetConfig.disabled"
         :placeholder="field.desc || `请选择${field.name}`"
         @click="!widgetConfig.disabled && handleOpenDialog()"
@@ -96,6 +127,7 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import UserDisplay from './UserDisplay.vue'
 import UserPickerDialog from './UserPickerDialog.vue'
+import SearchSingleSelectDisplay from './SearchSingleSelectDisplay.vue'
 import { ElAvatar, ElButton, ElIcon } from 'element-plus'
 import { User, Edit } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/shared/types/widget'
@@ -161,6 +193,19 @@ function handleUserSelected(user: UserInfo | null): void {
 
 function handleUsersConfirmed(users: UserInfo[]): void {
   handleUserSelected(users[0] ?? null)
+}
+
+function handleClearSelection(): void {
+  const emptyFieldValue = createFieldValue(
+    props.field,
+    null,
+    '',
+    {}
+  )
+
+  formDataStore.setValue(props.fieldPath, emptyFieldValue)
+  emit('update:modelValue', emptyFieldValue)
+  userInfo.value = null
 }
 
 // 显示名称：username(昵称) 或 username
@@ -394,12 +439,14 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  min-height: 40px;
+  padding: 0 12px;
   border: 1px solid var(--el-border-color);
   border-radius: 4px;
   background-color: var(--el-bg-color);
   cursor: pointer;
   transition: all 0.2s;
+  box-sizing: border-box;
 }
 
 .user-select-display:hover:not(.is-disabled) {
@@ -414,6 +461,8 @@ onMounted(async () => {
 
 .user-select-display .user-avatar-small {
   flex-shrink: 0;
+  width: 24px !important;
+  height: 24px !important;
 }
 
 .user-select-display .user-display-text {
@@ -434,6 +483,16 @@ onMounted(async () => {
 
 .user-select-display:hover:not(.is-disabled) .edit-icon {
   color: var(--el-color-primary);
+}
+
+.user-select-trigger {
+  width: 100%;
+  justify-content: flex-start;
+  height: 40px;
+}
+
+.user-select-trigger.is-search-mode {
+  height: 32px;
 }
 
 /* 显示模式样式 */

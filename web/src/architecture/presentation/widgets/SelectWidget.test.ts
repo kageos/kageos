@@ -133,7 +133,7 @@ describe('SelectWidget', () => {
         } as any,
         value: {
           raw: 1,
-          display: '',
+          display: '1',
           meta: {}
         },
         mode: 'search',
@@ -160,5 +160,68 @@ describe('SelectWidget', () => {
     expect(wrapper.find('[data-testid="fuzzy-dialog"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('前端开发工程师 - 技术 (北京, 20000-35000元)')
     expect(wrapper.text()).not.toContain('>1<')
+  })
+
+  it('allows clearing callback selections in search mode even when the field is required', async () => {
+    selectFuzzyMock.mockResolvedValue({
+      error_msg: '',
+      items: [
+        {
+          label: '前端开发工程师 - 技术 (北京, 20000-35000元)',
+          value: 1
+        }
+      ]
+    })
+
+    const wrapper = mount(SelectWidget, {
+      props: {
+        field: {
+          code: 'job_id',
+          name: '投递职位',
+          validation: 'required',
+          callbacks: ['OnSelectFuzzy'],
+          widget: {
+            type: WidgetType.SELECT,
+            config: {}
+          },
+          data: {
+            type: 'int'
+          }
+        } as any,
+        value: {
+          raw: 1,
+          display: '1',
+          meta: {}
+        },
+        mode: 'search',
+        fieldPath: 'job_id',
+        functionMethod: 'GET',
+        functionRouter: '/jobs'
+      },
+      global: {
+        stubs: {
+          ElSelect: ElSelectStub,
+          ElOption: ElOptionStub,
+          FuzzySearchDialog: FuzzySearchDialogStub,
+          FieldStatistics: true,
+          ElIcon: true,
+          ElTag: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.find('.search-selected-value').exists()).toBe(true)
+    expect(wrapper.find('.search-tag-remove').exists()).toBe(true)
+
+    await wrapper.get('.search-tag-remove').trigger('click')
+
+    const emitted = wrapper.emitted('update:modelValue')
+    expect(emitted).toBeTruthy()
+    expect(emitted?.at(-1)?.[0]).toMatchObject({
+      raw: null,
+      display: ''
+    })
   })
 })

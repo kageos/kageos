@@ -103,7 +103,7 @@ func runWriteDocCommand(ctx context.Context, cmd writeDocCommand, defaultFullCod
 		App:                app,
 		Name:               nodeName,
 		Code:               segmentCode,
-		ParentFullCodePath: pathForAPI,
+		ParentFullCodePath: parentPath,
 		Content:            docContent,
 		Format:             format,
 	}

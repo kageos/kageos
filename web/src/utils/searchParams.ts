@@ -7,6 +7,7 @@
 import type { FieldConfig } from '@/core/types/field'
 import type { SearchParams } from '@/types'
 import { SearchType } from '@/core/constants/search'
+import { getSearchFieldRawValue } from '@/utils/searchFieldValue'
 
 /**
  * 构建搜索参数字符串（用于 SearchParams，格式：eq=field:value）
@@ -22,7 +23,7 @@ export function buildSearchParamsString(
   const result: Partial<SearchParams> = {}
 
   searchableFields.forEach(field => {
-    const value = searchForm[field.code]
+    const value = getSearchFieldRawValue(searchForm[field.code])
     
     // 🔥 检查值是否为空（包括空数组、空字符串、null、undefined）
     // 注意：空数组 [] 是 truthy，需要单独检查
@@ -127,7 +128,7 @@ export function buildURLSearchParams(
   const result: Record<string, string> = {}
 
   searchableFields.forEach(field => {
-    const value = searchForm[field.code]
+    const value = getSearchFieldRawValue(searchForm[field.code])
     
     // 🔥 检查值是否为空（包括空数组、空字符串、null、undefined）
     // 注意：空数组 [] 是 truthy，需要单独检查
@@ -209,4 +210,3 @@ export function buildURLSearchParams(
 
   return result
 }
-

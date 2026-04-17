@@ -10,7 +10,6 @@
 - `${MYSQL_ROOT_PASSWORD}`
 - `${JWT_SECRET}`
 - `${CONTROL_ENC_KEY}`
-- `${MINIO_ROOT_USER}`
 - `${MINIO_ROOT_PASSWORD}`
 - `${APP_BASE_IMAGE}`
 - `${SMTP_HOST}`
@@ -22,6 +21,7 @@
 
 说明：
 
+- MinIO 管理员用户名固定为 `minioadmin`，backup Basic Auth 用户名固定为 `admin`，不再作为标准部署配置项暴露。
 - `app-server.yaml` 已不再消费 SMTP 变量；这组变量现在主要供 `hr-server.yaml` 的邮件验证码链路使用。
 - `${APP_BASE_IMAGE}` 用于渲染 `app-runtime.yaml` 里的 `container.image.base_image`。
 

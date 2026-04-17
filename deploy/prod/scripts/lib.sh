@@ -19,7 +19,7 @@ usage() {
                 在 main 容器内单独构建用户应用基础镜像（默认 agentos-app-runtime-base:latest）
   logs [svc]    查看日志，默认 main
   status        查看 compose 服务状态
-  down          停止所有服务（保留 STORAGE_ROOT 数据）
+  down          停止所有服务（保留 /data/ai-agent-os 数据）
   help          显示帮助
 
 示例：
@@ -35,6 +35,14 @@ usage() {
   bash build.sh logs main
 EOF
 }
+
+FIXED_STORAGE_ROOT="/data/ai-agent-os"
+DEFAULT_TLS_MODE="http"
+DEFAULT_MYSQL_IMAGE="mysql:8.0"
+DEFAULT_NATS_IMAGE="nats:2.10-alpine"
+DEFAULT_MINIO_IMAGE="minio/minio:latest"
+DEFAULT_MAIN_IMAGE="agentos-main:latest"
+DEFAULT_APP_BASE_IMAGE="agentos-app-runtime-base:latest"
 
 read_env_value() {
   local key="$1"
@@ -148,22 +156,22 @@ prepare_storage_layout() {
   local certs_host_dir
   certs_host_dir="$(resolve_host_path "$TLS_CERTS_HOST_DIR")"
   mkdir -p \
-    "$STORAGE_ROOT/mysql" \
-    "$STORAGE_ROOT/minio" \
-    "$STORAGE_ROOT/podman_storage" \
-    "$STORAGE_ROOT/logs" \
-    "$STORAGE_ROOT/namespace" \
-    "$STORAGE_ROOT/data/runtime/app-runtime" \
-    "$STORAGE_ROOT/data/license" \
-    "$STORAGE_ROOT/data/backup/repo" \
-    "$STORAGE_ROOT/data/backup/state" \
-    "$STORAGE_ROOT/data/backup/staging" \
-    "$STORAGE_ROOT/data/tmp" \
+    "$FIXED_STORAGE_ROOT/mysql" \
+    "$FIXED_STORAGE_ROOT/minio" \
+    "$FIXED_STORAGE_ROOT/podman_storage" \
+    "$FIXED_STORAGE_ROOT/logs" \
+    "$FIXED_STORAGE_ROOT/namespace" \
+    "$FIXED_STORAGE_ROOT/data/runtime/app-runtime" \
+    "$FIXED_STORAGE_ROOT/data/license" \
+    "$FIXED_STORAGE_ROOT/data/backup/repo" \
+    "$FIXED_STORAGE_ROOT/data/backup/state" \
+    "$FIXED_STORAGE_ROOT/data/backup/staging" \
+    "$FIXED_STORAGE_ROOT/data/tmp" \
     "$certs_host_dir"
 }
 
 print_storage_mode() {
-  echo "==> 存储模式: 宿主机固定目录 ($STORAGE_ROOT)"
+  echo "==> 存储模式: 宿主机固定目录 ($FIXED_STORAGE_ROOT)"
 }
 
 COMPOSE_CMD=()
@@ -289,12 +297,131 @@ ensure_env_value() {
   fi
 }
 
+delete_env_key() {
+  local key="$1"
+  local tmp
+  tmp="$(mktemp)"
+
+  awk -v key="$key" '
+  function trim(s) {
+    gsub(/^[ \t]+|[ \t]+$/, "", s)
+    return s
+  }
+  {
+    line = $0
+    raw = line
+    sub(/^[ \t]*/, "", raw)
+    if (raw == "" || raw ~ /^[ \t]*#/) {
+      print line
+      next
+    }
+    pos = index(raw, "=")
+    if (pos == 0) {
+      print line
+      next
+    }
+    lhs = trim(substr(raw, 1, pos - 1))
+    if (lhs == key) {
+      next
+    }
+    print line
+  }
+  ' "$ENV_FILE" > "$tmp"
+
+  mv "$tmp" "$ENV_FILE"
+}
+
 create_env_from_example() {
   local force="${1:-0}"
   if [[ -f "$ENV_FILE" && "$force" != "1" ]]; then
     return 0
   fi
   cp "$ROOT/.env.example" "$ENV_FILE"
+}
+
+bootstrap_env_defaults() {
+  local derived_tls_mode
+  delete_env_key STORAGE_ROOT
+  delete_env_key MINIO_ROOT_USER
+  delete_env_key BACKUP_BASIC_AUTH_USERNAME
+  derived_tls_mode="$(derive_tls_mode_from_env)"
+  ensure_env_value TLS_MODE "$derived_tls_mode"
+  delete_env_key ENABLE_HTTPS
+  delete_env_key HTTPS_REDIRECT
+  ensure_env_value MYSQL_ROOT_PASSWORD "$(generate_random_hex 32)"
+  ensure_env_value JWT_SECRET "$(generate_random_hex 64)"
+  ensure_env_value CONTROL_ENC_KEY "$(generate_random_hex 32)"
+  ensure_env_value MINIO_ROOT_PASSWORD "$(generate_random_hex 32)"
+  ensure_env_value BACKUP_BASIC_AUTH_PASSWORD "$(generate_random_hex 48)"
+}
+
+derive_tls_mode_from_env() {
+  local tls_mode legacy_https legacy_redirect canonical_base_url
+  tls_mode="$(read_env_value TLS_MODE)"
+  if [[ -n "$tls_mode" ]]; then
+    printf '%s' "$tls_mode"
+    return 0
+  fi
+
+  legacy_https="$(read_env_value_or_default ENABLE_HTTPS 0)"
+  legacy_redirect="$(read_env_value_or_default HTTPS_REDIRECT 0)"
+  canonical_base_url="$(read_env_value CANONICAL_BASE_URL)"
+
+  case "$legacy_https" in
+    0|1) ;;
+    *)
+      echo "ERROR: 旧配置 ENABLE_HTTPS 仅支持 0 或 1，当前值: ${legacy_https}"
+      exit 1
+      ;;
+  esac
+
+  case "$legacy_redirect" in
+    0|1) ;;
+    *)
+      echo "ERROR: 旧配置 HTTPS_REDIRECT 仅支持 0 或 1，当前值: ${legacy_redirect}"
+      exit 1
+      ;;
+  esac
+
+  if [[ "$legacy_redirect" == "1" && "$legacy_https" != "1" ]]; then
+    echo "ERROR: 旧配置 HTTPS_REDIRECT=1 需要同时设置 ENABLE_HTTPS=1"
+    exit 1
+  fi
+
+  if [[ "$legacy_https" == "1" ]]; then
+    if [[ "$legacy_redirect" == "1" ]]; then
+      printf '%s' "redirect"
+    else
+      printf '%s' "https"
+    fi
+    return 0
+  fi
+
+  if [[ "$canonical_base_url" == https://* ]]; then
+    printf '%s' "external"
+    return 0
+  fi
+
+  printf '%s' "$DEFAULT_TLS_MODE"
+}
+
+tls_mode_uses_local_https() {
+  local tls_mode="${1:-${TLS_MODE:-$DEFAULT_TLS_MODE}}"
+  [[ "$tls_mode" == "https" || "$tls_mode" == "redirect" ]]
+}
+
+tls_mode_requires_redirect() {
+  local tls_mode="${1:-${TLS_MODE:-$DEFAULT_TLS_MODE}}"
+  [[ "$tls_mode" == "redirect" ]]
+}
+
+ensure_env_bootstrapped() {
+  if [[ ! -f "$ENV_FILE" ]]; then
+    echo "==> 未找到 .env，自动初始化 ..."
+    create_env_from_example 1
+  fi
+
+  bootstrap_env_defaults
 }
 
 doctor_ok() {
