@@ -97,14 +97,6 @@
             </el-button>
           </div>
         </div>
-        <!-- 面包屑导航（只在显示函数详情时显示） -->
-        <FunctionBreadcrumb
-          v-if="currentFunction && currentFunction.type === 'function'"
-          :current-node="currentFunction"
-          :service-tree="serviceTree"
-          @node-click="handleBreadcrumbNodeClick"
-        />
-        
         <!-- 🔥 Create/Edit 模式：根据 queryTab 显示独立页面 -->
         <template v-if="queryTab === 'create' && currentFunction && currentFunctionDetail">
           <WorkspaceFormPage
@@ -133,7 +125,7 @@
         <!-- 注意：detail 模式使用抽屉显示，不需要单独的页面 -->
         
         <!-- 🔥 文档详情页面（可滚动） -->
-        <div v-if="currentFunction && currentFunction.type === 'docs'" class="main-content-scroll">
+        <div v-if="currentFunction && currentFunction.type === 'docs'" class="main-content-scroll docs-content-scroll">
           <DocView
             :node="currentFunction"
             @deleted="handleDocDeleted"
@@ -141,14 +133,14 @@
         </div>
 
         <!-- 🔥 版块/讨论区页面（可滚动） -->
-        <div v-else-if="currentFunction && currentFunction.type === 'board'" class="main-content-scroll">
+        <div v-else-if="currentFunction && currentFunction.type === 'board'" class="main-content-scroll board-content-scroll">
           <BoardView
             :node="currentFunction"
           />
         </div>
 
         <!-- 🔥 服务目录详情页面（可滚动） -->
-        <div v-else-if="currentFunction && currentFunction.type === 'package'" class="main-content-scroll">
+        <div v-else-if="currentFunction && currentFunction.type === 'package'" class="main-content-scroll package-content-scroll">
           <PackageDetailView
             :package-node="currentFunction"
             @refresh="handleRefreshTree"
@@ -161,11 +153,10 @@
             <WorkspaceFunctionTabsPanel
               v-if="showFunctionTabsWrapper"
               :active-tab="functionActiveTab"
-              :permission-tab="functionPermissionTab"
               :current-function="currentFunction"
               :current-function-detail="currentFunctionDetail"
               :has-permission-error="hasPermissionError"
-              :show-function-permission-request-tab="showFunctionPermissionRequestTab"
+              :show-function-permission-tabs="showFunctionPermissionTabs"
               :show-form-operate-log-tab="showFormOperateLogTab"
               :show-scheduled-task-tab="showScheduledTaskTab"
               :function-form-view-ref="setFunctionFormViewRef"
@@ -173,12 +164,10 @@
               :function-permission-manage-list-ref="setFunctionPermissionManageListRef"
               :form-operate-log-section-ref="setFormOperateLogSectionRef"
               :on-function-tab-change="handleFunctionTabChange"
-              :on-function-permission-tab-change="handleFunctionPermissionTabChange"
               :on-apply-form-operate-log="handleApplyFormOperateLog"
               :on-scheduled-task-total-change="onScheduledTaskTotalChange"
               :on-open-function-operate-log="openFunctionOperateLog"
               @update:active-tab="functionActiveTab = $event"
-              @update:permission-tab="functionPermissionTab = $event"
             />
 
             <!-- 没有函数 tabs 时，直接显示内容 -->
@@ -355,7 +344,6 @@ import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import ServiceTreePanel from '@/architecture/presentation/components/ServiceTreePanel.vue'
 import WorkspaceHeader from '../components/WorkspaceHeader.vue'
-import FunctionBreadcrumb from '../components/FunctionBreadcrumb.vue'
 import TableRowDetailDrawer from '../components/TableRowDetailDrawer.vue'
 import WorkspaceCreateAppDialog from '../components/WorkspaceCreateAppDialog.vue'
 import WorkspaceFormPage from '../components/WorkspaceFormPage.vue'
@@ -512,7 +500,6 @@ const currentFunctionDetail = ref<FunctionDetail | null>(null)
 const {
   buildWorkspacePath,
   handleNodeClick,
-  handleBreadcrumbNodeClick,
   backToList
 } = useWorkspaceNodeNavigation({
   route,
@@ -633,17 +620,15 @@ const showRightSidebar = ref(true)
 
 const {
   functionActiveTab,
-  functionPermissionTab,
   setFunctionFormViewRef,
   setFunctionPermissionRequestListRef,
   setFunctionPermissionManageListRef,
   setFormOperateLogSectionRef,
   showScheduledTaskTab,
-  showFunctionPermissionRequestTab,
+  showFunctionPermissionTabs,
   showFormOperateLogTab,
   showFunctionTabsWrapper,
   handleFunctionTabChange,
-  handleFunctionPermissionTabChange,
   handleApplyFormOperateLog,
   openFunctionOperateLog,
   onScheduledTaskTotalChange,
@@ -902,6 +887,11 @@ useWorkspaceUiEffects({
   display: flex;
   flex-direction: column;
   height: 100vh;
+  padding: 16px 18px 18px;
+  gap: 18px;
+  box-sizing: border-box;
+  background: var(--app-shell-bg);
+  background-attachment: fixed;
 }
 
 .workspace-view {
@@ -909,6 +899,8 @@ useWorkspaceUiEffects({
   flex: 1;
   overflow: hidden; /* 防止双滚动条 */
   position: relative;
+  min-height: 0;
+  gap: 18px;
 }
 
 .function-content-wrapper {
@@ -958,30 +950,32 @@ useWorkspaceUiEffects({
 /* 左下角：隐藏/显示目录按钮 */
 .sidebar-toggle-bottom-left {
   position: absolute;
-  bottom: 12px;
-  left: 12px;
+  bottom: 18px;
+  left: 18px;
   z-index: 100;
 }
 
 .sidebar-toggle-bottom-left .sidebar-toggle-btn {
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--el-text-color-secondary);
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background: var(--app-shell-panel-bg-strong);
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 16px;
+  box-shadow: var(--app-shell-panel-shadow-soft);
+  backdrop-filter: blur(18px);
   transition: all 0.2s;
 
   &:hover {
     color: var(--el-color-primary);
     border-color: var(--el-color-primary);
-    background: var(--el-fill-color-light);
+    background: var(--app-shell-panel-bg);
+    box-shadow: var(--app-shell-panel-shadow);
   }
 
   .el-icon {
@@ -992,17 +986,24 @@ useWorkspaceUiEffects({
 .left-sidebar {
   width: 300px;
   min-width: 300px;
-  border-right: 1px solid var(--el-border-color);
   transition: all 0.3s ease;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 22px;
+  background: var(--app-shell-panel-bg);
+  box-shadow: var(--app-shell-panel-shadow);
+  backdrop-filter: blur(18px);
 
   &.sidebar-collapsed {
     width: 0;
     min-width: 0;
     overflow: hidden;
-    border-right: none;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    margin-right: -18px;
   }
 }
 
@@ -1020,6 +1021,24 @@ useWorkspaceUiEffects({
   overflow: hidden;
   min-height: 0;
   position: relative;
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 24px;
+  background: var(--app-shell-panel-bg);
+  box-shadow: var(--app-shell-panel-shadow);
+  backdrop-filter: blur(20px);
+}
+
+.function-renderer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 28px;
+  right: 28px;
+  height: 1px;
+  background: var(--app-shell-panel-highlight);
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* 讨论区/文档/目录主内容区：可滚动；右侧留白避免被「板块说明」按钮挡住 */
@@ -1029,14 +1048,17 @@ useWorkspaceUiEffects({
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+}
+
+.board-content-scroll {
   padding-right: 130px; /* 为右上角「板块说明」按钮留出空间，避免挡住发帖等操作 */
 }
 
 // 右侧边栏控制按钮
 .sidebar-controls {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: 18px;
+  right: 18px;
   z-index: 10;
   
   .right-controls {
@@ -1045,23 +1067,32 @@ useWorkspaceUiEffects({
   }
   
   .sidebar-toggle {
-    background: var(--el-bg-color);
-    border: 1px solid var(--el-border-color);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    min-height: 40px;
+    padding: 0 14px;
+    color: var(--el-text-color-secondary);
+    background: var(--app-shell-panel-bg-strong);
+    border: 1px solid var(--app-shell-panel-border);
+    border-radius: 14px;
+    box-shadow: var(--app-shell-panel-shadow-soft);
+    backdrop-filter: blur(18px);
     
     &:hover {
-      background: var(--el-fill-color-light);
+      background: var(--app-shell-panel-bg);
       border-color: var(--el-color-primary);
+      box-shadow: var(--app-shell-panel-shadow);
     }
   }
 }
 
 // 右侧面板：工作台会话
 .right-sidebar {
-  width: 280px;
-  min-width: 280px;
-  background-color: var(--el-bg-color);
-  border-left: 1px solid var(--el-border-color-light);
+  width: 292px;
+  min-width: 292px;
+  background: var(--app-shell-panel-bg);
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 22px;
+  box-shadow: var(--app-shell-panel-shadow);
+  backdrop-filter: blur(18px);
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
@@ -1081,5 +1112,98 @@ useWorkspaceUiEffects({
 .function-loading {
   padding: 24px;
   width: 100%;
+}
+
+.left-sidebar :deep(.service-tree-panel) {
+  background: transparent;
+}
+
+.left-sidebar :deep(.tree-header) {
+  padding: 16px 16px 12px;
+  border-bottom-color: var(--app-shell-panel-border);
+  background: transparent;
+}
+
+.left-sidebar :deep(.tree-search-input .el-input__wrapper) {
+  min-height: 42px;
+  background: var(--app-shell-panel-bg-strong);
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
+}
+
+.left-sidebar :deep(.tree-content) {
+  padding: 12px;
+}
+
+.left-sidebar :deep(.el-tree),
+.left-sidebar :deep(.el-tree-node),
+.left-sidebar :deep(.el-tree-node__content) {
+  background: transparent;
+}
+
+.left-sidebar :deep(.el-tree-node__content) {
+  height: 36px;
+  margin-bottom: 2px;
+  border-radius: 12px;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.left-sidebar :deep(.el-tree-node__content:hover) {
+  background-color: rgba(var(--el-color-primary-rgb), 0.06);
+}
+
+.left-sidebar :deep(.el-tree-node.is-current > .el-tree-node__content) {
+  background-color: rgba(var(--el-color-primary-rgb), 0.12) !important;
+  border-left: none;
+  box-shadow: inset 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.14);
+}
+
+.function-renderer :deep(.package-detail-view) {
+  background: transparent;
+}
+
+.function-renderer :deep(.package-detail-view .hero-section) {
+  background: transparent;
+  border-bottom-color: var(--app-shell-panel-border);
+  padding: 30px 34px 20px;
+}
+
+.function-renderer :deep(.package-detail-view .hero-content) {
+  max-width: none;
+}
+
+.function-renderer :deep(.package-detail-view .back-button) {
+  background: var(--app-shell-panel-muted-bg);
+  border: 1px solid var(--app-shell-panel-border);
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
+}
+
+.function-renderer :deep(.package-detail-view .hero-description) {
+  background: var(--app-shell-panel-muted-bg);
+  border-left-color: rgba(var(--el-color-primary-rgb), 0.78);
+}
+
+.function-renderer :deep(.package-detail-view .detail-content) {
+  padding: 26px 34px 34px;
+}
+
+.function-renderer :deep(.package-detail-view .overview-item),
+.function-renderer :deep(.package-detail-view .child-card) {
+  border-color: var(--app-shell-panel-border);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.07);
+}
+
+.function-renderer :deep(.package-detail-view .overview-item:hover),
+.function-renderer :deep(.package-detail-view .child-card:hover) {
+  box-shadow: 0 20px 38px rgba(15, 23, 42, 0.11);
+}
+
+.function-renderer :deep(.package-detail-view .detail-tabs .el-tabs__nav-wrap::after) {
+  background-color: var(--app-shell-panel-border);
+}
+
+.function-renderer :deep(.package-detail-view .detail-tabs .el-tabs__item.is-active) {
+  font-weight: 600;
 }
 </style>

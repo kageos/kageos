@@ -2,10 +2,11 @@ import { computed, effectScope, nextTick, ref } from 'vue'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { useWorkspaceFunctionTabs } from './useWorkspaceFunctionTabs'
 
-const { successMock, warningMock, errorMock } = vi.hoisted(() => ({
+const { successMock, warningMock, errorMock, isAdminMock } = vi.hoisted(() => ({
   successMock: vi.fn(),
   warningMock: vi.fn(),
-  errorMock: vi.fn()
+  errorMock: vi.fn(),
+  isAdminMock: vi.fn(() => false)
 }))
 
 vi.mock('element-plus', () => ({
@@ -25,7 +26,7 @@ vi.mock('@/stores/auth', () => ({
 }))
 
 vi.mock('@/utils/permissionActors', () => ({
-  isServiceTreeNodeAdmin: () => false
+  isServiceTreeNodeAdmin: isAdminMock
 }))
 
 describe('useWorkspaceFunctionTabs', () => {
@@ -33,6 +34,8 @@ describe('useWorkspaceFunctionTabs', () => {
     successMock.mockReset()
     warningMock.mockReset()
     errorMock.mockReset()
+    isAdminMock.mockReset()
+    isAdminMock.mockReturnValue(false)
   })
 
   it('waits for the form view ref before applying an operate log', async () => {
@@ -141,6 +144,85 @@ describe('useWorkspaceFunctionTabs', () => {
       expect(successMock).toHaveBeenCalledWith('已将执行记录回填到表单')
       expect(warningMock).not.toHaveBeenCalled()
       expect(errorMock).not.toHaveBeenCalled()
+    } finally {
+      scope.stop()
+    }
+  })
+
+  it('keeps permission panel deep links compatible after flattening tabs', async () => {
+    const scope = effectScope()
+
+    try {
+      isAdminMock.mockReturnValue(true)
+
+      const route = {
+        path: '/workspace/demo/app/function',
+        query: {
+          _panel: 'permission'
+        }
+      } as any
+      const router = {
+        replace: vi.fn()
+      } as any
+      const currentFunction = computed(() => ({
+        type: 'function',
+        full_code_path: '/demo/app/function'
+      }) as any)
+      const currentFunctionDetail = ref({
+        template_type: 'table'
+      } as any)
+
+      const tabs = scope.run(() => useWorkspaceFunctionTabs({
+        route,
+        router,
+        currentFunction,
+        currentFunctionDetail
+      }))!
+
+      expect(tabs.showFunctionPermissionTabs.value).toBe(true)
+      expect(tabs.functionActiveTab.value).toBe('permissionRequest')
+    } finally {
+      scope.stop()
+    }
+  })
+
+  it('syncs flattened permission tabs back to route query values', async () => {
+    const scope = effectScope()
+
+    try {
+      isAdminMock.mockReturnValue(true)
+
+      const route = {
+        path: '/workspace/demo/app/function',
+        query: {}
+      } as any
+      const router = {
+        replace: vi.fn()
+      } as any
+      const currentFunction = computed(() => ({
+        type: 'function',
+        full_code_path: '/demo/app/function'
+      }) as any)
+      const currentFunctionDetail = ref({
+        template_type: 'table'
+      } as any)
+
+      const tabs = scope.run(() => useWorkspaceFunctionTabs({
+        route,
+        router,
+        currentFunction,
+        currentFunctionDetail
+      }))!
+
+      tabs.handleFunctionTabChange('permissionManage')
+
+      expect(tabs.functionActiveTab.value).toBe('permissionManage')
+      expect(router.replace).toHaveBeenCalledWith({
+        path: '/workspace/demo/app/function',
+        query: {
+          _panel: 'permissionManage'
+        }
+      })
     } finally {
       scope.stop()
     }

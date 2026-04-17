@@ -151,7 +151,7 @@ function renderContentBlock(text: string, msgIndex: number, blockIndex: number, 
 .mini-msg-badge {
   flex-shrink: 0;
   background: var(--el-color-primary);
-  color: #fff;
+  color: var(--el-color-white, #fff);
   font-size: 10px;
   padding: 1px 5px;
   border-radius: 4px;
@@ -207,8 +207,9 @@ function renderContentBlock(text: string, msgIndex: number, blockIndex: number, 
   font-family: 'SF Mono', 'Fira Code', monospace;
 }
 .mini-md-content :deep(pre) {
-  background: var(--el-fill-color-darker, #1e1e1e);
-  color: #d4d4d4;
+  background: var(--app-code-bg);
+  color: var(--app-code-text);
+  border: 1px solid var(--app-code-border);
   padding: 8px 10px;
   border-radius: 6px;
   overflow-x: auto;

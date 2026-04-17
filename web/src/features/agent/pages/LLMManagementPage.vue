@@ -586,12 +586,12 @@ onMounted(async () => {
       margin: 0;
       font-size: 24px;
       font-weight: 700;
-      color: #1f2937;
+      color: var(--el-text-color-primary);
     }
 
     .header-desc {
       margin: 8px 0 0;
-      color: #6b7280;
+      color: var(--el-text-color-secondary);
       font-size: 14px;
     }
   }
@@ -612,16 +612,17 @@ onMounted(async () => {
     padding: 18px 20px;
     border-radius: 14px;
     background:
-      linear-gradient(135deg, rgba(14, 116, 144, 0.1), rgba(217, 119, 6, 0.1)),
-      #f8fafc;
-    border: 1px solid rgba(148, 163, 184, 0.24);
+      linear-gradient(135deg, rgba(var(--el-color-primary-rgb, 69, 88, 200), 0.08), rgba(14, 165, 233, 0.04)),
+      var(--el-fill-color-blank);
+    border: 1px solid var(--el-border-color);
+    box-shadow: var(--box-shadow-sm);
   }
 
   .default-panel-label {
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.08em;
-    color: #0f766e;
+    color: var(--el-color-primary);
     text-transform: uppercase;
     margin-bottom: 10px;
   }
@@ -636,12 +637,12 @@ onMounted(async () => {
   .default-name {
     font-size: 20px;
     font-weight: 700;
-    color: #111827;
+    color: var(--el-text-color-primary);
   }
 
   .default-meta {
     margin-top: 4px;
-    color: #4b5563;
+    color: var(--el-text-color-regular);
   }
 
   .default-tags {
@@ -651,7 +652,7 @@ onMounted(async () => {
   }
 
   .default-empty {
-    color: #6b7280;
+    color: var(--el-text-color-secondary);
   }
 
   .scope-tabs {
@@ -671,7 +672,7 @@ onMounted(async () => {
   }
 
   .toolbar-summary {
-    color: #6b7280;
+    color: var(--el-text-color-secondary);
     font-size: 14px;
   }
 
@@ -690,18 +691,18 @@ onMounted(async () => {
 
   .config-name {
     font-weight: 600;
-    color: #111827;
+    color: var(--el-text-color-primary);
   }
 
   .meta-line,
   .muted-line {
-    color: #6b7280;
+    color: var(--el-text-color-secondary);
     font-size: 13px;
   }
 
   .form-suffix {
     margin-left: 12px;
-    color: #6b7280;
+    color: var(--el-text-color-secondary);
     font-size: 13px;
   }
 }

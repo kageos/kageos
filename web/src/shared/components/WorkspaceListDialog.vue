@@ -1,8 +1,10 @@
 <template>
   <el-dialog
     v-model="visible"
+    class="workspace-list-dialog-shell"
     :title="forceSelect ? '请选择工作空间' : '工作空间列表'"
     width="900px"
+    :append-to-body="true"
     :close-on-click-modal="false"
     :show-close="!forceSelect"
     :before-close="forceSelect ? handleBeforeClose : undefined"
@@ -373,17 +375,66 @@ watch(visible, (newVal: boolean) => {
   min-height: 400px;
 }
 
+:deep(.workspace-list-dialog-shell) {
+  border-radius: 28px;
+  background: var(--app-auth-card-bg);
+  border: 1px solid var(--app-auth-card-border);
+  box-shadow: var(--app-auth-card-shadow);
+  backdrop-filter: blur(20px);
+  overflow: hidden;
+}
+
+:deep(.workspace-list-dialog-shell .el-dialog__header) {
+  padding: 28px 32px 12px;
+}
+
+:deep(.workspace-list-dialog-shell .el-dialog__title) {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+:deep(.workspace-list-dialog-shell .el-dialog__body) {
+  padding: 0 32px 24px;
+  background: var(--app-auth-surface-bg);
+}
+
+:deep(.workspace-list-dialog-shell .el-dialog__footer) {
+  padding: 0 32px 28px;
+  background: var(--app-auth-surface-bg);
+}
+
 .force-select-tip {
-  margin: 0 0 16px;
-  padding: 8px 12px;
-  background: var(--el-color-info-light-9);
-  border-radius: 6px;
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  background: rgba(var(--el-color-primary-rgb), 0.08);
+  border: 1px solid rgba(var(--el-color-primary-rgb), 0.12);
+  border-radius: 16px;
   font-size: 13px;
   color: var(--el-text-color-regular);
 }
 
 .search-bar {
   margin-bottom: 20px;
+}
+
+.search-bar :deep(.el-input__wrapper) {
+  min-height: 46px;
+  border-radius: 16px;
+  background: var(--app-auth-input-bg);
+  border: 1px solid var(--app-auth-input-border);
+  box-shadow: none;
+  transition: all 0.3s ease;
+}
+
+.search-bar :deep(.el-input__wrapper:hover) {
+  border-color: rgba(var(--el-color-primary-rgb), 0.42);
+  box-shadow: var(--app-auth-input-shadow-hover);
+}
+
+.search-bar :deep(.el-input__wrapper.is-focus) {
+  border-color: var(--el-color-primary);
+  box-shadow: var(--app-auth-input-shadow-focus);
 }
 
 .workspace-list-container {
@@ -429,23 +480,23 @@ watch(visible, (newVal: boolean) => {
 }
 
 .workspace-card {
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 8px;
-  padding: 16px;
+  border: 1px solid var(--app-auth-card-border);
+  border-radius: 22px;
+  padding: 18px;
   cursor: pointer;
   transition: all 0.2s;
-  background: var(--el-bg-color);
+  background: var(--app-auth-card-bg-strong);
+  box-shadow: var(--app-auth-card-shadow-soft);
   
   &:hover {
-    border-color: var(--el-color-primary);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-color: rgba(var(--el-color-primary-rgb), 0.22);
+    box-shadow: var(--app-auth-card-shadow);
     transform: translateY(-2px);
   }
   
   &.is-active {
     border-color: var(--el-color-primary);
-    border-width: 2px;
-    box-shadow: 0 0 0 1px var(--el-color-primary), 0 2px 8px rgba(64, 158, 255, 0.2);
+    box-shadow: 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.22), var(--app-auth-card-shadow-soft);
   }
 }
 
@@ -463,7 +514,7 @@ watch(visible, (newVal: boolean) => {
 .avatar-icon {
   width: 40px;
   height: 40px;
-  border-radius: 8px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -517,7 +568,7 @@ watch(visible, (newVal: boolean) => {
   justify-content: space-between;
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: 1px solid var(--app-auth-card-border);
 }
 
 .footer-left {
@@ -537,6 +588,37 @@ watch(visible, (newVal: boolean) => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.dialog-footer :deep(.el-button) {
+  height: 44px;
+  border-radius: 14px;
+  font-weight: 600;
+  border: 1px solid var(--app-auth-input-border);
+  background: var(--app-auth-input-bg);
+  box-shadow: none;
+  transition: all 0.3s ease;
+}
+
+.dialog-footer :deep(.el-button:hover) {
+  transform: translateY(-1px);
+  border-color: rgba(var(--el-color-primary-rgb), 0.42);
+  color: var(--el-color-primary);
+  box-shadow: var(--app-auth-input-shadow-hover);
+}
+
+.dialog-footer :deep(.el-button--primary) {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary);
+  color: #fff;
+  box-shadow: var(--app-auth-primary-shadow);
+}
+
+.dialog-footer :deep(.el-button--primary:hover) {
+  color: #fff;
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary);
+  box-shadow: var(--app-auth-primary-shadow-hover);
 }
 
 .workspace-name {

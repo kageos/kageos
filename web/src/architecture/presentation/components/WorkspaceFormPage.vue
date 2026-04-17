@@ -89,7 +89,7 @@ const handleSubmit = async (): Promise<void> => {
   height: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 28px 28px 32px;
   overflow-y: auto;
 }
 
@@ -98,15 +98,14 @@ const handleSubmit = async (): Promise<void> => {
   align-items: center;
   gap: 16px;
   margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  padding: 0 0 8px;
 }
 
 .form-page-title {
   margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .form-page-content {
@@ -119,7 +118,40 @@ const handleSubmit = async (): Promise<void> => {
   justify-content: flex-end;
   gap: 12px;
   margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  padding-top: 20px;
+  border-top: 1px solid var(--app-auth-card-border);
+}
+
+.form-page-header :deep(.el-button),
+.form-page-footer :deep(.el-button) {
+  height: 44px;
+  border-radius: 14px;
+  font-weight: 600;
+  border: 1px solid var(--app-auth-input-border);
+  background: var(--app-auth-input-bg);
+  box-shadow: none;
+  transition: all 0.3s ease;
+}
+
+.form-page-header :deep(.el-button:hover),
+.form-page-footer :deep(.el-button:hover) {
+  transform: translateY(-1px);
+  border-color: rgba(var(--el-color-primary-rgb), 0.42);
+  color: var(--el-color-primary);
+  box-shadow: var(--app-auth-input-shadow-hover);
+}
+
+.form-page-footer :deep(.el-button--primary) {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary);
+  color: #fff;
+  box-shadow: var(--app-auth-primary-shadow);
+}
+
+.form-page-footer :deep(.el-button--primary:hover) {
+  color: #fff;
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary);
+  box-shadow: var(--app-auth-primary-shadow-hover);
 }
 </style>

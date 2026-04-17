@@ -8,8 +8,7 @@ import type { FunctionDetail } from '@/architecture/domain/types'
 import { Logger } from '@/core/utils/logger'
 import type { ServiceTree } from '../../domain/services/WorkspaceDomainService'
 
-type FunctionTabName = 'content' | 'permission' | 'operateLog' | 'scheduledTask'
-type FunctionPermissionTabName = 'request' | 'manage'
+type FunctionTabName = 'content' | 'permissionRequest' | 'permissionManage' | 'operateLog' | 'scheduledTask'
 type FormOperateLogApplyPayload = {
   requestBody?: Record<string, any> | null
   responseBody?: Record<string, any> | null
@@ -79,7 +78,6 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   const authStore = useAuthStore()
 
   const functionActiveTab = ref<FunctionTabName>('content')
-  const functionPermissionTab = ref<FunctionPermissionTabName>('request')
   const functionFormViewRef = ref<FunctionFormViewRef | null>(null)
   const functionPermissionRequestListRef = ref<PermissionRequestListRef | null>(null)
   const functionPermissionManageListRef = ref<PermissionManageListRef | null>(null)
@@ -115,7 +113,7 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     return functionFormViewRef.value
   }
 
-  const showFunctionPermissionRequestTab = computed(() => {
+  const showFunctionPermissionTabs = computed(() => {
     if (!currentFunction.value || currentFunction.value.type !== 'function') {
       return false
     }
@@ -132,26 +130,30 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   })
 
   const showFunctionTabsWrapper = computed(() => {
-    return showFunctionPermissionRequestTab.value || showFormOperateLogTab.value || showScheduledTaskTab.value
+    return showFunctionPermissionTabs.value || showFormOperateLogTab.value || showScheduledTaskTab.value
   })
 
-  const loadCurrentFunctionPermissionTab = () => {
-    if (functionPermissionTab.value === 'manage') {
+  const loadFunctionTab = (tabName: FunctionTabName) => {
+    if (tabName === 'permissionManage') {
       nextTick(() => {
         functionPermissionManageListRef.value?.loadPermissions()
       })
       return
     }
 
-    nextTick(() => {
-      functionPermissionRequestListRef.value?.loadRequests()
-    })
+    if (tabName === 'permissionRequest') {
+      nextTick(() => {
+        functionPermissionRequestListRef.value?.loadRequests()
+      })
+    }
   }
 
   const getFunctionTabQueryValue = () => {
     switch (functionActiveTab.value) {
-      case 'permission':
-        return functionPermissionTab.value === 'manage' ? 'permissionManage' : 'permissionRequest'
+      case 'permissionRequest':
+        return 'permissionRequest'
+      case 'permissionManage':
+        return 'permissionManage'
       case 'operateLog':
         return 'operateLog'
       case 'scheduledTask':
@@ -184,22 +186,14 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
 
   const handleFunctionTabChange = (tabName: string) => {
     functionActiveTab.value = (tabName as FunctionTabName) || 'content'
-    if (tabName === 'permission') {
-      loadCurrentFunctionPermissionTab()
+    if (tabName === 'permissionRequest' || tabName === 'permissionManage') {
+      loadFunctionTab(functionActiveTab.value)
     } else if (tabName === 'operateLog') {
       nextTick(() => {
         formOperateLogSectionRef.value?.loadLogs({ page: 1 })
       })
     }
     syncFunctionTabQuery()
-  }
-
-  const handleFunctionPermissionTabChange = (tabName: string) => {
-    functionPermissionTab.value = tabName === 'manage' ? 'manage' : 'request'
-    if (functionActiveTab.value === 'permission') {
-      loadCurrentFunctionPermissionTab()
-      syncFunctionTabQuery()
-    }
   }
 
   const handleApplyFormOperateLog = async (payload: FormOperateLogApplyPayload) => {
@@ -281,24 +275,21 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   const applyFunctionPanelQuery = (tab: LocationQueryValue | LocationQueryValue[] | undefined) => {
     const normalizedTab = normalizePanelQuery(tab)
 
-    if (normalizedTab === 'permissionRequest' && showFunctionPermissionRequestTab.value) {
-      functionActiveTab.value = 'permission'
-      functionPermissionTab.value = 'request'
-      loadCurrentFunctionPermissionTab()
+    if (normalizedTab === 'permissionRequest' && showFunctionPermissionTabs.value) {
+      functionActiveTab.value = 'permissionRequest'
+      loadFunctionTab('permissionRequest')
       return
     }
 
-    if (normalizedTab === 'permissionManage' && showFunctionPermissionRequestTab.value) {
-      functionActiveTab.value = 'permission'
-      functionPermissionTab.value = 'manage'
-      loadCurrentFunctionPermissionTab()
+    if (normalizedTab === 'permissionManage' && showFunctionPermissionTabs.value) {
+      functionActiveTab.value = 'permissionManage'
+      loadFunctionTab('permissionManage')
       return
     }
 
-    if (normalizedTab === 'permission' && showFunctionPermissionRequestTab.value) {
-      functionActiveTab.value = 'permission'
-      functionPermissionTab.value = 'request'
-      loadCurrentFunctionPermissionTab()
+    if (normalizedTab === 'permission' && showFunctionPermissionTabs.value) {
+      functionActiveTab.value = 'permissionRequest'
+      loadFunctionTab('permissionRequest')
       return
     }
 
@@ -323,7 +314,7 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     }
 
     if (
-      (functionActiveTab.value === 'permission' && !showFunctionPermissionRequestTab.value) ||
+      ((functionActiveTab.value === 'permissionRequest' || functionActiveTab.value === 'permissionManage') && !showFunctionPermissionTabs.value) ||
       (functionActiveTab.value === 'operateLog' && !showFormOperateLogTab.value) ||
       (functionActiveTab.value === 'scheduledTask' && !showScheduledTaskTab.value)
     ) {
@@ -332,9 +323,9 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   }
 
   watch(
-    () => [currentFunction.value?.full_code_path, showFunctionPermissionRequestTab.value, showFormOperateLogTab.value, showScheduledTaskTab.value] as const,
+    () => [currentFunction.value?.full_code_path, showFunctionPermissionTabs.value, showFormOperateLogTab.value, showScheduledTaskTab.value] as const,
     () => {
-      if (!showFunctionPermissionRequestTab.value && functionActiveTab.value === 'permission') {
+      if (!showFunctionPermissionTabs.value && (functionActiveTab.value === 'permissionRequest' || functionActiveTab.value === 'permissionManage')) {
         functionActiveTab.value = 'content'
         syncFunctionTabQuery()
       }
@@ -351,7 +342,7 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   )
 
   watch(
-    () => [route.query._panel, showFunctionPermissionRequestTab.value, showFormOperateLogTab.value, showScheduledTaskTab.value] as const,
+    () => [route.query._panel, showFunctionPermissionTabs.value, showFormOperateLogTab.value, showScheduledTaskTab.value] as const,
     ([tab]) => {
       applyFunctionPanelQuery(tab)
     },
@@ -360,7 +351,6 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
 
   return {
     functionActiveTab,
-    functionPermissionTab,
     functionFormViewRef,
     functionPermissionRequestListRef,
     functionPermissionManageListRef,
@@ -370,11 +360,10 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     setFunctionPermissionManageListRef,
     setFormOperateLogSectionRef,
     showScheduledTaskTab,
-    showFunctionPermissionRequestTab,
+    showFunctionPermissionTabs,
     showFormOperateLogTab,
     showFunctionTabsWrapper,
     handleFunctionTabChange,
-    handleFunctionPermissionTabChange,
     handleApplyFormOperateLog,
     openFunctionOperateLog,
     onScheduledTaskTotalChange,

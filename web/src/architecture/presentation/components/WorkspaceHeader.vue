@@ -83,8 +83,8 @@
               <span>开发调试 (Debug)</span>
             </el-dropdown-item>
             <el-dropdown-item divided command="theme">
-              <el-icon><Sunny /></el-icon>
-              <span>切换主题</span>
+              <el-icon><component :is="themeActionIcon" /></el-icon>
+              <span>{{ themeActionLabel }}</span>
             </el-dropdown-item>
             <el-dropdown-item divided command="logout">
               <el-icon><SwitchButton /></el-icon>
@@ -118,6 +118,7 @@ import {
   Key,
   Promotion,
   Setting,
+  Moon,
   Sunny,
   SwitchButton
 } from '@element-plus/icons-vue'
@@ -151,6 +152,9 @@ const router = useRouter()
 const authStore = useAuthStore()
 const licenseStore = useLicenseStore()
 const themeStore = useThemeStore()
+const isDarkTheme = computed(() => themeStore.currentTheme.mode === 'dark')
+const themeActionLabel = computed(() => (isDarkTheme.value ? '切换到浅色模式' : '切换到深色模式'))
+const themeActionIcon = computed(() => (isDarkTheme.value ? Sunny : Moon))
 
 // 用户相关
 const userName = computed(() => authStore.userName || 'User')
@@ -287,23 +291,42 @@ defineExpose({
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 60px;
-  padding: 0 24px;
-  background: var(--el-bg-color);
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  min-height: 72px;
+  padding: 14px 22px;
+  background: var(--app-shell-panel-bg);
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 22px;
+  box-shadow: var(--app-shell-panel-shadow);
+  backdrop-filter: blur(20px);
+  position: relative;
+  overflow: visible;
+  isolation: isolate;
+}
+
+.workspace-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 24px;
+  right: 24px;
+  height: 1px;
+  background: var(--app-shell-panel-highlight);
+  opacity: 0.7;
+  pointer-events: none;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  min-width: 0;
 }
 
 .header-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  flex-shrink: 0;
 }
 
 .user-profile {
@@ -311,17 +334,31 @@ defineExpose({
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+  padding: 7px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: var(--app-shell-panel-muted-bg);
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
+  transition: all 0.2s ease;
 
   &:hover {
-    background-color: var(--el-fill-color-light);
+    background: var(--app-shell-panel-bg-strong);
+    border-color: var(--app-shell-panel-border);
+    box-shadow: var(--app-shell-panel-shadow-soft);
   }
 }
 
 .username {
   font-size: 14px;
+  font-weight: 600;
   color: var(--el-text-color-primary);
+}
+
+.header-right :deep(.el-button--primary) {
+  height: 40px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 14px 32px rgba(var(--el-color-primary-rgb), 0.22);
 }
 </style>

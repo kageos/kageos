@@ -627,8 +627,22 @@ watch(
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+:global(.form-view-flat) .editor-container {
+  border: 1px solid var(--app-auth-input-border);
+  border-radius: 12px;
+  background: var(--app-auth-input-bg);
+  box-shadow: none;
+  transition: all 0.3s ease;
+}
+
 .editor-content {
   min-height: v-bind('editorHeight + "px"');
+}
+
+:global(.form-view-flat) .editor-content {
+  background: transparent;
+  border: none;
+  border-radius: 0;
 }
 
 .editor-content :deep(.ProseMirror) {
@@ -637,6 +651,10 @@ watch(
   padding: 16px;
   line-height: 1.6;
   color: var(--el-text-color-primary);
+}
+
+:global(.form-view-flat) .editor-content :deep(.ProseMirror) {
+  padding: 16px 18px;
 }
 
 .editor-content :deep(.ProseMirror p) {
@@ -878,6 +896,12 @@ watch(
   color: var(--el-text-color-secondary);
 }
 
+:global(.form-view-flat) .editor-footer {
+  padding: 8px 14px 10px;
+  background: transparent;
+  border-top: 1px solid var(--app-auth-input-border);
+}
+
 .word-count {
   user-select: none;
 }
@@ -895,6 +919,13 @@ watch(
   background-color: var(--el-bg-color);
   overflow-y: auto;
   max-height: 600px;
+}
+
+:global(.form-view-flat) .preview-content {
+  padding: 16px 18px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
 }
 
 .preview-content .html-content {

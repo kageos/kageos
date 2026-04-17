@@ -265,11 +265,24 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
 <style scoped>
 .forgot-password-container {
+  --auth-accent: #4f46e5;
+  --auth-accent-strong: #4338ca;
+  --auth-accent-soft: rgba(79, 70, 229, 0.14);
+  --auth-brand-start: #1e2f56;
+  --auth-brand-end: #35538f;
+  --auth-card-bg: rgba(255, 255, 255, 0.8);
+  --auth-card-border: rgba(148, 163, 184, 0.26);
+  --auth-input-bg: rgba(255, 255, 255, 0.96);
+  --auth-input-border: #cbd5e1;
+  --auth-text: #0f172a;
+  --auth-text-soft: #64748b;
   min-height: 100vh;
   display: flex;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  background:
+    linear-gradient(112deg, var(--auth-brand-start) 0%, var(--auth-brand-end) 47%, #e9eff6 47%, #f4f7fb 100%);
   position: relative;
   overflow: hidden;
+  isolation: isolate;
 }
 
 /* 背景装饰动画 */
@@ -286,8 +299,8 @@ const handleKeyPress = (event: KeyboardEvent) => {
 .decoration-circle {
   position: absolute;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px);
   animation: float 20s infinite ease-in-out;
 }
 
@@ -342,7 +355,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
 .brand-content {
   text-align: center;
-  color: white;
+  color: rgba(255, 255, 255, 0.96);
   max-width: 500px;
   animation: fadeInUp 0.8s ease-out;
 }
@@ -371,7 +384,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
   transform: translate(-50%, -50%);
   width: 120px;
   height: 120px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.14);
   border-radius: 50%;
   filter: blur(20px);
   animation: pulse 3s infinite;
@@ -414,7 +427,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
   font-size: 48px;
   font-weight: 800;
   margin: 0 0 16px 0;
-  letter-spacing: -1px;
+  letter-spacing: -1.5px;
 }
 
 .title-gradient {
@@ -428,8 +441,8 @@ const handleKeyPress = (event: KeyboardEvent) => {
   font-size: 18px;
   line-height: 1.8;
   margin: 0;
-  color: rgba(255, 255, 255, 0.95);
-  font-weight: 300;
+  color: rgba(226, 232, 240, 0.88);
+  font-weight: 400;
 }
 
 .forgot-password-form-section {
@@ -440,14 +453,20 @@ const handleKeyPress = (event: KeyboardEvent) => {
   padding: 80px 60px;
   position: relative;
   z-index: 1;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.1);
+  background:
+    linear-gradient(180deg, rgba(244, 247, 251, 0.78), rgba(236, 242, 248, 0.92));
+  backdrop-filter: blur(18px);
+  border-left: 1px solid rgba(148, 163, 184, 0.18);
 }
 
 .forgot-password-card {
   width: 100%;
   max-width: 440px;
+  padding: 40px 36px 34px;
+  background: var(--auth-card-bg);
+  border: 1px solid var(--auth-card-border);
+  border-radius: 28px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.14);
   animation: slideInRight 0.8s ease-out;
 }
 
@@ -474,9 +493,10 @@ const handleKeyPress = (event: KeyboardEvent) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--auth-accent) 0%, var(--auth-accent-strong) 100%);
   border-radius: 16px;
   color: white;
+  box-shadow: 0 12px 30px rgba(79, 70, 229, 0.26);
 }
 
 .header-icon .el-icon {
@@ -486,14 +506,14 @@ const handleKeyPress = (event: KeyboardEvent) => {
 .form-title {
   font-size: 32px;
   font-weight: 700;
-  color: #1a202c;
+  color: var(--auth-text);
   margin: 0 0 8px 0;
   letter-spacing: -0.5px;
 }
 
 .form-subtitle {
   font-size: 15px;
-  color: #718096;
+  color: var(--auth-text-soft);
   margin: 0;
   font-weight: 400;
 }
@@ -507,31 +527,32 @@ const handleKeyPress = (event: KeyboardEvent) => {
 }
 
 :deep(.el-input__wrapper) {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background: var(--auth-input-bg);
+  box-shadow: none;
   border-radius: 12px;
   padding: 0 16px;
   transition: all 0.3s ease;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--auth-input-border);
 }
 
 :deep(.el-input__wrapper:hover) {
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
-  border-color: #667eea;
+  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.1);
+  border-color: rgba(79, 70, 229, 0.42);
 }
 
 :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2);
-  border-color: #667eea;
+  box-shadow: 0 0 0 4px var(--auth-accent-soft);
+  border-color: var(--auth-accent);
 }
 
 :deep(.el-input__inner) {
   height: 52px;
   font-size: 15px;
-  color: #1a202c;
+  color: var(--auth-text);
 }
 
 :deep(.el-input__inner::placeholder) {
-  color: #a0aec0;
+  color: #94a3b8;
 }
 
 .code-input-wrapper {
@@ -549,6 +570,15 @@ const handleKeyPress = (event: KeyboardEvent) => {
   border-radius: 12px;
   height: 52px;
   padding: 0 20px;
+  background: linear-gradient(135deg, var(--auth-accent) 0%, var(--auth-accent-strong) 100%);
+  border: none;
+  color: white;
+  box-shadow: 0 12px 28px rgba(79, 70, 229, 0.18);
+}
+
+.code-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px rgba(79, 70, 229, 0.26);
 }
 
 .submit-btn-item {
@@ -561,15 +591,15 @@ const handleKeyPress = (event: KeyboardEvent) => {
   font-size: 16px;
   font-weight: 600;
   border-radius: 12px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--auth-accent) 0%, var(--auth-accent-strong) 100%);
   border: none;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 14px 30px rgba(79, 70, 229, 0.22);
 }
 
 .submit-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 18px 36px rgba(79, 70, 229, 0.28);
 }
 
 .submit-btn:active {
@@ -583,13 +613,13 @@ const handleKeyPress = (event: KeyboardEvent) => {
 .back-link {
   font-size: 15px;
   font-weight: 600;
-  color: #667eea;
+  color: var(--auth-accent);
   padding: 0;
   transition: all 0.3s ease;
 }
 
 .back-link:hover {
-  color: #764ba2;
+  color: var(--auth-accent-strong);
   transform: translateX(-2px);
 }
 
@@ -597,15 +627,15 @@ const handleKeyPress = (event: KeyboardEvent) => {
 :deep(.el-form-item__error) {
   padding-top: 6px;
   font-size: 13px;
-  color: #f56565;
+  color: #dc2626;
 }
 
 :deep(.el-input__prefix) {
-  color: #a0aec0;
+  color: #94a3b8;
 }
 
 :deep(.el-input__suffix) {
-  color: #a0aec0;
+  color: #94a3b8;
 }
 
 /* 响应式设计 */
@@ -643,7 +673,8 @@ const handleKeyPress = (event: KeyboardEvent) => {
   .forgot-password-form-section {
     width: 100%;
     padding: 60px 40px;
-    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.1);
+    border-left: none;
+    border-top: 1px solid rgba(148, 163, 184, 0.18);
   }
 }
 
@@ -662,6 +693,11 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
   .forgot-password-form-section {
     padding: 40px 24px;
+  }
+
+  .forgot-password-card {
+    padding: 32px 24px 26px;
+    border-radius: 24px;
   }
 
   .form-title {
@@ -692,4 +728,3 @@ const handleKeyPress = (event: KeyboardEvent) => {
   }
 }
 </style>
-

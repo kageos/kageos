@@ -144,7 +144,7 @@
           placeholder="留空则保持原值"
           style="width: 200px"
         />
-        <span style="margin-left: 10px; color: #909399">元</span>
+        <span class="price-unit">元</span>
       </el-form-item>
 
       <el-form-item label="企业用户服务费">
@@ -156,7 +156,7 @@
           placeholder="留空则保持原值"
           style="width: 200px"
         />
-        <span style="margin-left: 10px; color: #909399">元</span>
+        <span class="price-unit">元</span>
       </el-form-item>
     </el-form>
 
@@ -402,6 +402,11 @@ const handleClose = () => {
 :deep(.el-divider__text) {
   font-size: 14px;
   font-weight: 500;
-  color: #606266;
+  color: var(--el-text-color-regular);
+}
+
+.price-unit {
+  margin-left: 10px;
+  color: var(--el-text-color-placeholder);
 }
 </style>

@@ -141,29 +141,42 @@
           </el-button>
         </template>
       </div>
+
+      <div v-if="searchableFields.length > 0" class="toolbar-right">
+        <el-button
+          :type="searchBarExpanded ? 'primary' : 'default'"
+          class="toolbar-search-btn"
+          @click="searchBarExpanded ? handleSearch() : (searchBarExpanded = true)"
+        >
+          <el-icon><Search /></el-icon>
+          <span v-if="searchBarExpanded">搜索</span>
+          <span v-else>
+            {{ activeSearchCount > 0 ? `筛选 (${activeSearchCount})` : '筛选' }}
+          </span>
+        </el-button>
+        <el-button
+          v-if="searchBarExpanded"
+          class="toolbar-secondary-btn"
+          @click="handleReset"
+        >
+          <el-icon><Refresh /></el-icon>
+          重置
+        </el-button>
+        <el-button
+          v-if="searchBarExpanded"
+          text
+          class="toolbar-collapse-btn"
+          @click="searchBarExpanded = false"
+        >
+          <el-icon><ArrowUp /></el-icon>
+          收起
+        </el-button>
+      </div>
     </div>
 
-    <!-- 搜索栏：科幻风折叠，默认收起 -->
-    <div v-if="searchableFields.length > 0" class="search-bar-wrapper" data-testid="table-search">
-      <!-- 收起时：终端条样式 -->
-      <div
-        v-if="!searchBarExpanded"
-        class="search-bar-collapsed sci-fi-panel"
-        @click="searchBarExpanded = true"
-      >
-        <span class="sci-fi-accent-bar" />
-        <span class="sci-fi-dot" />
-        <span class="search-bar-toggle">
-          <el-icon class="sci-fi-icon"><ArrowDown /></el-icon>
-          <span class="sci-fi-label">展开搜索</span>
-          <span v-if="activeSearchCount > 0" class="sci-fi-badge">
-            {{ activeSearchCount }} 个筛选
-          </span>
-        </span>
-      </div>
-      <!-- 展开时：完整表单 + 收起控制 -->
-      <div v-else class="search-bar sci-fi-panel sci-fi-panel-expanded">
-        <span class="sci-fi-accent-bar" />
+    <!-- 搜索栏：字段区单独占位，动作并到工具栏 -->
+    <div v-if="searchableFields.length > 0 && searchBarExpanded" class="search-bar-wrapper" data-testid="table-search">
+      <div class="search-bar">
         <div class="search-bar-inner">
           <el-form
             :inline="false"
@@ -185,25 +198,6 @@
                 />
               </el-form-item>
             </template>
-
-            <div class="search-actions">
-              <el-button type="primary" @click="handleSearch" class="sci-fi-btn-primary">
-                <el-icon><Search /></el-icon>
-                搜索
-              </el-button>
-              <el-button @click="handleReset" class="sci-fi-btn-secondary">
-                <el-icon><Refresh /></el-icon>
-                重置
-              </el-button>
-              <button
-                type="button"
-                class="sci-fi-fold-btn"
-                @click.stop="searchBarExpanded = false"
-              >
-                <el-icon><ArrowUp /></el-icon>
-                <span>收起</span>
-              </button>
-            </div>
           </el-form>
         </div>
       </div>
@@ -699,8 +693,8 @@ useTableViewLifecycle({
 
 <style scoped>
 .table-view {
-  padding: 20px;
-  background: var(--el-bg-color);
+  padding: 10px 0 0;
+  background: transparent;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -712,121 +706,140 @@ useTableViewLifecycle({
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 0;
+  gap: 12px;
+  padding: 0;
+  border: none !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  flex-wrap: wrap;
 }
 
 .toolbar-left {
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
-/* ========== 科幻风搜索栏折叠 ========== */
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.toolbar :deep(.el-button) {
+  height: 42px;
+  border-radius: 12px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.toolbar .action-btn {
+  padding: 0 16px;
+  box-shadow: none;
+}
+
+.toolbar .action-btn:not(.el-button--primary) {
+  border: 1px solid var(--app-auth-input-border);
+  background: var(--app-auth-input-bg);
+}
+
+.toolbar .action-btn-no-permission {
+  box-shadow: none;
+}
+
+.toolbar-search-btn:not(.el-button--primary),
+.toolbar-secondary-btn {
+  padding: 0 14px;
+  border: 1px solid var(--app-auth-input-border);
+  background: var(--app-auth-input-bg);
+  box-shadow: none;
+}
+
+.toolbar .action-btn:not(.el-button--primary):hover,
+.toolbar-search-btn:not(.el-button--primary):hover,
+.toolbar-secondary-btn:hover {
+  border-color: rgba(var(--el-color-primary-rgb), 0.24);
+  color: var(--el-color-primary);
+  background: var(--app-auth-input-bg);
+  box-shadow: var(--app-auth-input-shadow-hover);
+  transform: translateY(-1px);
+}
+
+.toolbar .action-btn.el-button--primary {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary);
+  color: #fff;
+  box-shadow: var(--app-auth-primary-shadow);
+}
+
+.toolbar .action-btn.el-button--primary:hover {
+  color: #fff;
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary);
+  box-shadow: var(--app-auth-primary-shadow-hover);
+  transform: translateY(-1px);
+}
+
+.toolbar .action-btn.el-button--danger {
+  border-color: rgba(239, 68, 68, 0.26);
+  background: #fff1f2;
+  color: #dc2626;
+  box-shadow: none;
+}
+
+.toolbar .action-btn.el-button--danger:hover {
+  border-color: rgba(239, 68, 68, 0.38);
+  background: #ffe4e6;
+  color: #b91c1c;
+  box-shadow: 0 10px 24px rgba(239, 68, 68, 0.14);
+  transform: translateY(-1px);
+}
+
+.toolbar-search-btn.el-button--primary {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary);
+  color: #fff;
+  box-shadow: var(--app-auth-primary-shadow);
+}
+
+.toolbar-search-btn.el-button--primary:hover {
+  color: #fff;
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary);
+  box-shadow: var(--app-auth-primary-shadow-hover);
+  transform: translateY(-1px);
+}
+
+.toolbar-collapse-btn {
+  padding: 0 2px;
+  color: var(--el-text-color-secondary);
+}
+
+.toolbar-collapse-btn:hover {
+  color: var(--el-color-primary);
+}
+
 .search-bar-wrapper {
   margin-bottom: 16px;
 }
 
-/* 共用：带左边高亮条与微光的面板 */
-.sci-fi-panel {
-  position: relative;
-  border-radius: 8px;
-  border: 1px solid var(--el-border-color-lighter);
-  background: var(--el-fill-color-light);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  overflow: hidden;
-  transition: box-shadow 0.25s ease, border-color 0.25s ease;
-}
-
-
-/* 左侧高亮条（电源/状态条） */
-.sci-fi-accent-bar {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: linear-gradient(180deg, rgba(0, 212, 255, 0.9), rgba(0, 212, 255, 0.4));
-  box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
-}
-
-/* 收起态：终端条，可点击整行 */
-.search-bar-collapsed {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px 10px 20px;
-  cursor: pointer;
-  min-height: 40px;
-  transition: background 0.2s ease;
-}
-
-
-/* 状态小点（可选呼吸感） */
-.sci-fi-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(0, 212, 255, 0.8);
-  box-shadow: 0 0 8px rgba(0, 212, 255, 0.6);
-  flex-shrink: 0;
-  animation: sci-fi-pulse 2s ease-in-out infinite;
-}
-
-@keyframes sci-fi-pulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(0, 212, 255, 0.6); }
-  50% { opacity: 0.6; box-shadow: 0 0 4px rgba(0, 212, 255, 0.4); }
-}
-
-.search-bar-collapsed .search-bar-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-}
-
-.sci-fi-icon {
-  color: rgba(0, 212, 255, 0.9);
-  font-size: 16px;
-  transition: transform 0.2s ease;
-}
-
-.search-bar-collapsed:hover .sci-fi-icon {
-  transform: translateY(1px);
-  color: rgb(0, 212, 255);
-}
-
-.sci-fi-label {
-  letter-spacing: 0.5px;
-  font-weight: 500;
-}
-
-.sci-fi-badge {
-  margin-left: 8px;
-  padding: 2px 8px;
-  font-size: 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(0, 212, 255, 0.5);
-  background: rgba(0, 212, 255, 0.08);
-  color: rgba(0, 212, 255, 0.95);
-  letter-spacing: 0.3px;
-}
-
-/* 展开态面板 */
-.sci-fi-panel-expanded {
-  background: var(--el-bg-color);
-}
-
-.sci-fi-panel-expanded .sci-fi-accent-bar {
-  display: none;
+.search-bar {
+  margin-bottom: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 .search-bar-inner {
-  padding: 20px 20px 20px 24px;
-}
-
-.search-bar {
-  margin-bottom: 0;
+  padding: 18px 20px 20px;
+  border-radius: 18px;
+  border: 1px solid var(--app-auth-card-border);
+  background: var(--app-auth-card-bg);
+  box-shadow: var(--app-auth-card-shadow-soft);
 }
 
 .search-bar .search-form {
@@ -861,7 +874,7 @@ useTableViewLifecycle({
   justify-content: flex-start;
   padding: 0 0 6px;
   line-height: 1.25;
-  color: var(--el-text-color-regular);
+  color: var(--el-text-color-secondary);
   font-size: 12px;
   font-weight: 600;
 }
@@ -880,55 +893,50 @@ useTableViewLifecycle({
   min-width: 0;
 }
 
-.search-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  justify-content: flex-end;
-  grid-column: 1 / -1;
-  padding-top: 4px;
-  width: 100%;
-  min-width: 0;
+.search-bar :deep(.el-input__wrapper),
+.search-bar :deep(.el-select__wrapper),
+.search-bar :deep(.el-textarea__inner),
+.search-bar :deep(.el-date-editor .el-input__wrapper),
+.search-bar :deep(.department-select-display),
+.search-bar :deep(.user-search-display) {
+  background: var(--app-auth-input-bg);
+  border-color: var(--app-auth-input-border);
+  border-radius: 12px;
+  box-shadow: none;
+  transition: all 0.3s ease;
 }
 
-/* 收起按钮：终端风格 */
-.sci-fi-fold-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  margin-left: 4px;
-  font-size: 13px;
-  color: rgba(0, 212, 255, 0.9);
-  background: transparent;
-  border: 1px solid rgba(0, 212, 255, 0.4);
-  border-radius: 6px;
-  cursor: pointer;
-  letter-spacing: 0.3px;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+.search-bar :deep(.el-input__wrapper:hover),
+.search-bar :deep(.el-select__wrapper:hover),
+.search-bar :deep(.el-textarea__inner:hover),
+.search-bar :deep(.el-date-editor .el-input__wrapper:hover),
+.search-bar :deep(.department-select-display:hover),
+.search-bar :deep(.user-search-display:hover) {
+  border-color: rgba(var(--el-color-primary-rgb), 0.42);
+  box-shadow: var(--app-auth-input-shadow-hover);
 }
 
-.sci-fi-fold-btn:hover {
-  background: rgba(0, 212, 255, 0.1);
-  border-color: rgba(0, 212, 255, 0.7);
-  color: rgb(0, 212, 255);
-}
-
-.sci-fi-btn-primary {
+.search-bar :deep(.el-input__wrapper.is-focus),
+.search-bar :deep(.el-select__wrapper.is-focused),
+.search-bar :deep(.el-textarea__inner:focus),
+.search-bar :deep(.el-date-editor .el-input__wrapper.is-focus) {
   border-color: var(--el-color-primary);
+  box-shadow: var(--app-auth-input-shadow-focus);
 }
 
-.sci-fi-btn-secondary {
-  border-color: var(--el-border-color);
+.search-bar :deep(.el-input__inner::placeholder),
+.search-bar :deep(.el-textarea__inner::placeholder) {
+  color: #94a3b8;
 }
 
 /* 🔥 排序信息条样式 */
 .sort-info-bar {
   margin-bottom: 16px;
   padding: 12px 16px;
-  background: var(--el-fill-color-light);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 6px;
+  background: var(--app-auth-card-bg);
+  border: 1px solid var(--app-auth-card-border);
+  border-radius: 14px;
+  box-shadow: var(--app-auth-card-shadow-soft);
   display: flex;
   align-items: center;
 }
@@ -987,7 +995,7 @@ useTableViewLifecycle({
 /* 表格骨架屏（加载中） */
 .table-skeleton-wrap {
   min-height: 320px;
-  padding: 16px 0;
+  padding: 4px 0 16px;
 }
 
 .table-skeleton-wrap .table-skeleton {
@@ -1001,10 +1009,6 @@ useTableViewLifecycle({
 
   .search-bar :deep(.search-form > .el-form-item.search-field-layout--wide) {
     grid-column: 1 / -1;
-  }
-
-  .search-actions {
-    flex-wrap: wrap;
   }
 }
 
@@ -1020,14 +1024,21 @@ useTableViewLifecycle({
 
 /* 🔥 表格基础样式 */
 :deep(.el-table) {
-  background-color: var(--el-bg-color) !important;
-  border: none !important;
+  background-color: var(--app-shell-panel-bg-strong) !important;
+  border: 1px solid var(--app-shell-panel-border) !important;
+  border-radius: 18px !important;
+  box-shadow: var(--app-shell-panel-shadow-soft);
   flex: 1;
   overflow: auto;
 }
 
 :deep(.el-table__inner-wrapper) {
   border: none !important;
+  border-radius: 18px !important;
+}
+
+:deep(.el-table__inner-wrapper::before) {
+  display: none !important;
 }
 
 :deep(.el-table__header-wrapper) {
@@ -1055,19 +1066,19 @@ useTableViewLifecycle({
 }
 
 :deep(.el-table__body tr) {
-  background-color: var(--el-bg-color) !important;
+  background-color: transparent !important;
 }
 
 :deep(.el-table__body tr.el-table__row--striped) {
-  background-color: var(--el-bg-color) !important;
+  background-color: transparent !important;
 }
 
 :deep(.el-table__body tr.el-table__row--striped td) {
-  background-color: var(--el-bg-color) !important;
+  background-color: var(--app-shell-panel-bg-strong) !important;
 }
 
 :deep(.el-table__body tr:hover > td) {
-  background-color: var(--el-fill-color-light) !important;
+  background-color: rgba(var(--el-color-primary-rgb), 0.04) !important;
 }
 
 /* 整行可点击进入详情 */
@@ -1076,15 +1087,19 @@ useTableViewLifecycle({
 }
 
 :deep(.el-table__header th.el-table__cell) {
-  background-color: var(--el-fill-color-light);
-  color: var(--el-text-color-primary);
+  background-color: var(--app-shell-panel-muted-bg);
+  color: var(--el-text-color-secondary);
   font-weight: 600;
   border-top: none;
 }
 
 :deep(.el-table td.el-table__cell),
 :deep(.el-table th.el-table__cell.is-leaf) {
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--app-shell-panel-border);
+}
+
+:deep(.el-table td.el-table__cell) {
+  background: var(--app-shell-panel-bg-strong) !important;
 }
 
 .detail-icon-button {
