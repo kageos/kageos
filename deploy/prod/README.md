@@ -53,6 +53,7 @@ bash build.sh verify
 默认数据目录固定是 `/data/ai-agent-os`。  
 `build.sh init` 负责准备 `.env`、中间件镜像、`MAIN_IMAGE`、`APP_BASE_IMAGE`；`build.sh up` 只负责启动。  
 如果宿主机缺少 `podman` / `podman compose`，`build.sh init` 会先尝试自动安装。  
+如果 `/data/ai-agent-os` 还不存在，`build.sh init` 会按需用 `sudo` 自动创建。  
 想看显式预检，再手动执行 `bash build.sh doctor`。
 
 最小 `.env`：
