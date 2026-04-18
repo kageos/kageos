@@ -4,7 +4,7 @@
 
 - **类型**：单 Form，多个 POST，无 Table。
 - **路由**：convert.form、resize.form、colors.form；路由组 `/form/images`。
-- **适合参考**：files 上传、图片处理、多 POST 同目录。
+- **适合参考**：files 上传、ImageMagick/exec、`GetTraceOutputDir`、`ResponseFiles`、多 POST 同目录。
 
 ---
 
@@ -42,6 +42,8 @@
 
 ## 四、说明
 
+- canonical Ubuntu 运行时镜像里已安装 **ImageMagick** 与 **GraphicsMagick**；图片处理默认优先使用 **ImageMagick**，即 `convert` / `identify` / `mogrify`
+- `gm` 仍可兼容使用，但不再作为图片处理默认示例
 代码随本案例一起提供；read_doc 本案例路径（如 `/system/prompt/case_catalog/form/images`）即获得 PRD 与代码，无需再调用 read_go_file。
 
 
@@ -339,10 +341,10 @@ func DoImagesConvert(ctx *app.Context, req *ImagesConvertReq) (*ImagesConvertRes
 	}, nil
 }
 
-// convertImageFormat 转换图片格式（使用 GraphicsMagick）
+// convertImageFormat 转换图片格式（使用 ImageMagick）
 func convertImageFormat(ctx *app.Context, fs *app.FS, inputPath string, targetFormat string) (string, error) {
-	// 直接使用 gm，依赖 PATH（镜像中已安装 graphicsmagick）
-	gmPath := "gm"
+	// 直接使用 convert，依赖 PATH（canonical Ubuntu 镜像中已安装 imagemagick）
+	imCmd := "convert"
 
 	// 标准化格式名称（统一转为小写，JPG 统一为 jpeg）
 	normalizedTarget := strings.ToLower(targetFormat)
@@ -367,12 +369,12 @@ func convertImageFormat(ctx *app.Context, fs *app.FS, inputPath string, targetFo
 	baseName := strings.TrimSuffix(filepath.Base(inputPath), filepath.Ext(inputPath))
 	outputPath := filepath.Join(outputDir, baseName+"."+normalizedTarget)
 
-	// 使用 GraphicsMagick 转换图片格式
-	// gm convert input.jpg output.png
-	cmd := exec.Command(gmPath, "convert", inputPath, outputPath)
+	// 使用 ImageMagick 转换图片格式
+	// convert input.jpg output.png
+	cmd := exec.Command(imCmd, inputPath, outputPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("GraphicsMagick 转换失败: %v, output: %s", err, string(output))
+		return "", fmt.Errorf("ImageMagick 转换失败: %v, output: %s", err, string(output))
 	}
 
 	logger.Infof(ctx, "[convertImageFormat] 转换成功: %s -> %s", inputPath, outputPath)
@@ -383,7 +385,7 @@ func convertImageFormat(ctx *app.Context, fs *app.FS, inputPath string, targetFo
 var ImagesConvertTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "图片格式转换",
-		Desc:     "支持将图片转换为JPEG、PNG、GIF、BMP、TIFF等多种格式。可以批量处理多个图片文件。使用 GraphicsMagick 进行格式转换，支持更多格式和更好的质量。注意：JPEG和JPG是同一格式，统一使用jpeg。应用场景：图片格式统一、文件大小优化、兼容性转换等。",
+		Desc:     "支持将图片转换为JPEG、PNG、GIF、BMP、TIFF等多种格式。可以批量处理多个图片文件。默认使用 ImageMagick（`convert`）进行格式转换；环境中也保留了 gm 兼容旧脚本。注意：JPEG和JPG是同一格式，统一使用jpeg。应用场景：图片格式统一、文件大小优化、兼容性转换等。",
 		Tags:     []string{"图片处理", "格式转换", "工具"},
 		Request:  &ImagesConvertReq{},
 		Response: &ImagesConvertResp{},
@@ -481,8 +483,8 @@ func DoImagesResize(ctx *app.Context, req *ImagesResizeReq) (*ImagesResizeResp, 
 		return nil, fmt.Errorf("高度必须是数字: %s", height)
 	}
 
-	// 直接使用 gm，依赖 PATH（镜像中已安装 graphicsmagick）
-	gmPath := "gm"
+	// 直接使用 convert，依赖 PATH（canonical Ubuntu 镜像中已安装 imagemagick）
+	imCmd := "convert"
 
 	outputDir := fs.GetTraceOutputDir()
 
@@ -519,7 +521,7 @@ func DoImagesResize(ctx *app.Context, req *ImagesResizeReq) (*ImagesResizeResp, 
 
 		args = append(args, file.LocalPath, outputPath)
 
-		cmd := exec.Command(gmPath, args...)
+		cmd := exec.Command(imCmd, args...)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			logger.Errorf(ctx, "[ImagesResize] 处理图片失败 %s: %v, req: %+v, output: %s", file.Name, err, req, string(output))
@@ -555,7 +557,7 @@ func DoImagesResize(ctx *app.Context, req *ImagesResizeReq) (*ImagesResizeResp, 
 var ImagesResizeTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "图片裁剪/缩放",
-		Desc:     "调整图片尺寸，支持裁剪和缩放。可以设置目标尺寸和缩放模式（保持宽高比、拉伸填充、裁剪填充）。支持批量处理多个图片文件。使用 GraphicsMagick 进行处理。应用场景：生成缩略图、调整图片尺寸、适配不同设备、图片裁剪等。",
+		Desc:     "调整图片尺寸，支持裁剪和缩放。可以设置目标尺寸和缩放模式（保持宽高比、拉伸填充、裁剪填充）。支持批量处理多个图片文件。默认使用 ImageMagick（`convert`）进行处理；环境中也保留了 gm 兼容旧脚本。应用场景：生成缩略图、调整图片尺寸、适配不同设备、图片裁剪等。",
 		Tags:     []string{"图片处理", "裁剪缩放", "工具"},
 		Request:  &ImagesResizeReq{},
 		Response: &ImagesResizeResp{},
@@ -591,8 +593,8 @@ import (
 type ImagesRunCommandReq struct {
 	InputFiles *types.Files `json:"input_files" widget:"name:上传图片;type:files;accept:image/*,*/*;max_size:50MB;max_count:10" validate:"required"`
 
-	// 命令模板，占位符：{{input}}=当前输入文件路径，{{output}}=当前输出文件路径。环境有 gm（GraphicsMagick）等
-	CommandTemplate string `json:"command_template" widget:"name:命令模板;type:text_area;placeholder:gm convert {{input}} -resize 800x600 {{output}}" validate:"required"`
+	// 命令模板，占位符：{{input}}=当前输入文件路径，{{output}}=当前输出文件路径。环境有 convert（ImageMagick）、gm 等
+	CommandTemplate string `json:"command_template" widget:"name:命令模板;type:text_area;placeholder:convert {{input}} -resize 800x600 {{output}}" validate:"required"`
 
 	// 输出文件扩展名，用于生成 {{output}} 路径
 	OutputExtension string `json:"output_extension" widget:"name:输出扩展名;type:input;default:png" validate:"required"`
@@ -699,8 +701,8 @@ func splitCommandLine(s string) []string {
 var ImagesRunCommandTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name: "图片处理自定义命令",
-		Desc: "上传图片后，用自定义命令模板处理（占位符 {{input}}、{{output}} 会替换为实际路径后执行）。不经过 shell，安全。环境有 gm（GraphicsMagick）等；示例：gm convert {{input}} -resize 800x600 {{output}} 或 gm convert {{input}} -format png {{output}}。",
-		Tags:     []string{"图片处理", "GraphicsMagick", "自定义命令", "智能体"},
+		Desc: "上传图片后，用自定义命令模板处理（占位符 {{input}}、{{output}} 会替换为实际路径后执行）。不经过 shell，安全。环境有 convert（ImageMagick）、identify、mogrify，也保留 gm 兼容旧脚本；示例：convert {{input}} -resize 800x600 {{output}} 或 convert {{input}} -format png {{output}}。",
+		Tags:     []string{"图片处理", "ImageMagick", "自定义命令", "智能体"},
 		Request:  &ImagesRunCommandReq{},
 		Response: &ImagesRunCommandResp{},
 	},
@@ -710,4 +712,3 @@ func init() {
 	packageContext.POST("run_command.form", ImagesRunCommand, ImagesRunCommandTemplate)
 }
 ```
-

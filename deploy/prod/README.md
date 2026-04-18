@@ -2,6 +2,10 @@
 
 > 官方生产入口：`deploy/prod/`
 
+如果你只想照着命令部署，不想先看完整说明，直接看：
+
+- [DEPLOY_TUTORIAL.md](DEPLOY_TUTORIAL.md)
+
 如需先看“依赖什么、按什么顺序启动、整条链怎么流转”，先读：
 
 - [DEPLOYMENT_FLOW.md](DEPLOYMENT_FLOW.md)
@@ -38,18 +42,20 @@ host 网络独立容器
 
 ```bash
 cd deploy/prod
-bash build.sh doctor   # 首次会自动生成 .env
+bash build.sh init     # 或 bash build.sh init --image
 # 填写 .env 里的 CANONICAL_BASE_URL；按需调整 TLS_MODE
 bash build.sh up
 ```
 
-首次执行 `bash build.sh up` / `bash build.sh doctor` 时，如果缺少 `.env`，脚本会先自动初始化它，并生成缺失的密钥和密码；你只需要补 `CANONICAL_BASE_URL`，如需本机 HTTPS 再补证书相关配置。存储目录固定为 `/data/ai-agent-os`。  
-`build.sh up` 会自动完成：校验 `.env` → 停宿主机 nginx → 检查 80/443 端口 → `compose up -d --build`。
-如果你已经有预构建好的 `MAIN_IMAGE`，可改用 `bash build.sh up-image`，这样目标机只拉镜像，不做本地源码构建。
+首次执行 `bash build.sh init` 时，如果缺少 `.env`，脚本会先自动初始化它，并生成缺失的密钥和密码；然后预拉取中间件镜像、准备 `MAIN_IMAGE`，并在与 `main` 相同的 Podman 存储里初始化 `APP_BASE_IMAGE`。存储目录固定为 `/data/ai-agent-os`。  
+`build.sh up` 现在只负责启动：校验 `.env` → 停宿主机 nginx → 检查 80/443 端口 → `compose up -d --no-build`。
+如果你已经有预构建好的 `MAIN_IMAGE`，可改用 `bash build.sh init --image`，这样目标机只拉主镜像，不做本地源码构建。  
+如需在启动前看一份显式预检报告，再手动执行 `bash build.sh doctor`；主路径不再强制要求它。
 
-`init` 仍可手工执行，但现在主要作为显式初始化入口；标准路径不再要求先记住它。
+改配置：
 
-改配置：编辑 **`.env`** 后重跑 **`bash build.sh`** 即可。
+- 只改 `CANONICAL_BASE_URL` / `TLS_MODE` / SMTP 之类的运行参数：直接执行 `bash build.sh up`；如需显式预检，可先执行 `bash build.sh doctor`
+- 改了 `MAIN_IMAGE` / `APP_BASE_IMAGE` 这类镜像相关配置：先重新执行 `bash build.sh init` 或 `bash build.sh init --image`
 
 ## HTTP / HTTPS 模式
 
@@ -97,17 +103,15 @@ TLS_KEY_FILE="/app/tls/privkey.pem"
 ## 常用命令
 
 ```bash
-bash build.sh init          # 手工初始化 .env；为空的密钥会自动生成
-bash build.sh doctor        # 执行部署前环境预检（缺 .env 时会自动初始化）
-bash build.sh up            # 首次部署 / 全量重建（默认）
-bash build.sh up-image      # 基于 MAIN_IMAGE 拉取镜像并启动，不在目标机本地构建
-bash build.sh update        # 只重建并更新 main / scheduler / backup，不重启 MySQL / NATS / MinIO
-bash build.sh update-image  # 只拉取 MAIN_IMAGE 并更新 main / scheduler / backup，不在目标机本地构建
+bash build.sh init [--image]   # 初始化 .env，并准备中间件 / MAIN_IMAGE / APP_BASE_IMAGE
+bash build.sh up               # 启动已初始化服务（默认，不再构建镜像）
+bash build.sh update [--image] # 更新 main / scheduler / backup；加 --image 时直接拉取 MAIN_IMAGE
+bash build.sh verify           # 执行生产健康检查（mysql / main / scheduler / backup）
+bash build.sh doctor           # 显式预检；主路径可省略
 bash build.sh pull-update   # git pull --ff-only 后执行 update
 bash build.sh restart-main  # 仅重启 main，不重建镜像
 bash build.sh restart-scheduler  # 仅重启 scheduler，不重建镜像
-bash build.sh verify        # 执行生产健康检查（mysql / main / scheduler / backup）
-bash build.sh build-app-base --no-cache  # 在 main 容器内单独重建 APP_BASE_IMAGE（默认 agentos-app-runtime-base:latest）
+bash build.sh build-app-base --no-cache  # 在与 main 相同的运行环境里重建 APP_BASE_IMAGE
 bash build.sh logs main     # 查看 main 日志
 bash build.sh status        # 查看服务状态
 bash build.sh down          # 停止服务（保留数据卷）
@@ -115,14 +119,16 @@ bash build.sh down          # 停止服务（保留数据卷）
 
 推荐升级路径：
 
-- 首次机器准备：`bash build.sh init && bash build.sh doctor`
+- 首次机器准备：`bash build.sh init`
+- 已发布固定镜像的首次机器准备：`bash build.sh init --image`
 - 只升级主站代码：`bash build.sh update`
-- 已发布固定镜像：`bash build.sh up-image` / `bash build.sh update-image`
+- 已发布固定镜像更新：`bash build.sh update --image`
 - 先拉最新代码再升级：`bash build.sh pull-update`
 - 只改 `.env` 或想让主进程重启生效：`bash build.sh restart-main`
 - 只想重启独立调度器：`bash build.sh restart-scheduler`
 - 部署完成后补一轮健康检查：`bash build.sh verify`
 - 只想排查用户应用基础镜像：`bash build.sh build-app-base --no-cache`
+- 想在启动前看显式预检报告：`bash build.sh doctor`
 
 ## 安全默认值
 
@@ -260,8 +266,8 @@ podman compose build --build-arg APT_USE_MIRROR=0 --build-arg NPM_REGISTRY=https
 
 补充：
 
-- `.env` 中的 `MAIN_IMAGE` 只是 `main` 服务本地构建结果的镜像标签；当前默认流程仍会执行 `compose up -d --build`，不会跳过本地构建。
-- 如果你想把生产机切到“只拉镜像不本地构建”的模式，请直接设置 `MAIN_IMAGE` 为已发布 tag，并使用 `bash build.sh up-image` 或 `bash build.sh update-image`。
+- `.env` 中的 `MAIN_IMAGE` 只是主镜像 tag；`init` 会在目标机构建它，`init --image` 则会直接拉取它。
+- `APP_BASE_IMAGE` 不再由 `main` 启动时隐式构建；现在由 `init` / `init --image` 显式准备，`up` 只负责启动。
 - Compose 文件名实际为 **`docker-compose.yaml`**，不是 `docker-compose.yml`。
 
 ## 升级

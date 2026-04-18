@@ -24,22 +24,14 @@ validate_env() {
       exit 1
       ;;
   esac
-  TLS_MODE="$(read_env_value_or_default TLS_MODE "$DEFAULT_TLS_MODE")"
-  TLS_CERTS_HOST_DIR="$(read_env_value_or_default TLS_CERTS_HOST_DIR ./certs)"
-  TLS_CERT_FILE="$(read_env_value_or_default TLS_CERT_FILE /app/tls/fullchain.pem)"
-  TLS_KEY_FILE="$(read_env_value_or_default TLS_KEY_FILE /app/tls/privkey.pem)"
-  MYSQL_IMAGE="$(read_env_value_or_default MYSQL_IMAGE "$DEFAULT_MYSQL_IMAGE")"
-  NATS_IMAGE="$(read_env_value_or_default NATS_IMAGE "$DEFAULT_NATS_IMAGE")"
-  MINIO_IMAGE="$(read_env_value_or_default MINIO_IMAGE "$DEFAULT_MINIO_IMAGE")"
-  MAIN_IMAGE="$(read_env_value_or_default MAIN_IMAGE "$DEFAULT_MAIN_IMAGE")"
-  APP_BASE_IMAGE="$(read_env_value_or_default APP_BASE_IMAGE "$DEFAULT_APP_BASE_IMAGE")"
+  load_env_defaults
 
   case "$TLS_MODE" in
     http|https|redirect|external) ;;
     *)
       echo "ERROR: TLS_MODE 仅支持 http / https / redirect / external，当前值: $TLS_MODE"
-    exit 1
-    ;;
+      exit 1
+      ;;
   esac
 
   if tls_mode_uses_local_https "$TLS_MODE"; then

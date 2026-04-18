@@ -79,12 +79,12 @@
 
 即使需求能映射到 Form/Table/Chart，实际执行时还需要底层工具支撑。判断方法：
 
-1. **工作台环境已装的工具**（可直接 exec.Command 调用）：FFmpeg、GraphicsMagick(gm)、ImageMagick（canonical Ubuntu 镜像内直接用 `convert` / `identify` 等）、ExifTool、OCRmyPDF、libvips、WebP tools（cwebp/dwebp/webpmux）、pngquant、gifsicle、unpaper、LibRaw、Ghostscript、Poppler、Tesseract、LibreOffice、Pandoc、Graphviz、Python3（含 pandas/numpy/matplotlib/jieba 等）
+1. **工作台环境已装的工具**（可直接 exec.Command 调用）：FFmpeg、GraphicsMagick(gm)、ImageMagick（canonical Ubuntu 镜像内默认用 `convert` / `identify` / `mogrify`，不要假设有 `magick`）、ExifTool、OCRmyPDF、libvips、WebP tools（cwebp/dwebp/webpmux）、pngquant、gifsicle、unpaper、LibRaw、Ghostscript、Poppler、Tesseract、LibreOffice、Pandoc、Graphviz、Python3（含 pandas/numpy/matplotlib/jieba 等）
 2. **Go 生态有成熟库的**（可在代码中 import，build_workspace 会自动拉取依赖）：如 excelize（Excel）、imaging（图片基础操作）等标准开源库
 3. **Python 生态有成熟库的**（可通过 exec.Command 调 python3 脚本）：如 pandas、matplotlib、jieba 等已预装的库
 
 **判断方法**：用户想做的事，核心算法/处理逻辑能不能用上面这些工具或库实现？
-- ✅ 能 → 可以做（如用 FFmpeg 转码、用 gm 裁剪图片、用 excelize 解析 Excel）
+- ✅ 能 → 可以做（如用 FFmpeg 转码、用 `convert` 裁剪图片、用 excelize 解析 Excel）
 - ❌ 不能 → 需要进一步评估：有没有其他 Go/Python 开源库？如果找不到成熟可用的库，就做不了
 
 **做不了的典型原因**：
@@ -92,6 +92,33 @@
 - 需要**平台未安装的系统级工具** → 如某个专业软件只有桌面版、没有命令行版
 - 需要**大量第三方 API 对接**但平台未提供 → 如接入微信支付、调用某个未对接的 SaaS 接口
 - Go 和 Python 生态里**根本没有**能做这件事的成熟库 → 说明这件事本身就很专业/小众
+
+### 写代码时怎么用这些工具？
+
+默认做法是：**直接依赖 PATH**，在 Go 代码里写 `exec.Command("ffmpeg", ...)`、`exec.Command("convert", ...)`、`exec.Command("ocrmypdf", ...)`。
+
+- 不要为了这些 CLI 再额外设计一套 `*_PATH` 配置
+- 图片处理默认优先 **ImageMagick**（`convert` / `identify` / `mogrify`）
+- `gm` 仍可兼容使用，但不再作为图片处理默认示例
+
+### 文件输入输出最佳实践（强制遵循）
+
+涉及 `files` 上传、子进程处理、返回附件时，统一按这个模式：
+
+1. **下载输入文件**：`inputFiles := fs.DownloadFiles(req.InputFiles)`，并 `defer fs.RemoveFiles(inputFiles)`
+2. **写到输出目录**：`outputDir := fs.GetTraceOutputDir()`，所有产物都写到这个目录
+3. **返回用户附件**：`outputFiles := fs.ResponseFiles(outputPaths)`，并 `defer fs.RemoveFiles(outputFiles)`
+4. **输入文件不能直接当输出返回**：如果“格式相同/无需处理”也要返回给用户，先复制到 `outputDir`
+
+最常见的标准模式：
+
+- **视频/图片等 CLI 子进程**：`DownloadFiles -> exec.Command -> GetTraceOutputDir -> ResponseFiles`
+- **Python 产物输出**：Go 先生成**绝对路径**传给 Python，Python 写盘后 Go 再 `ResponseFiles`
+
+推荐直接参考：
+
+- 视频输出附件：`/system/prompt/case_catalog/form/videos`
+- Python 容器内产物输出：`/system/prompt/case_catalog/form/python_output`
 
 ### 维度三：复杂度是否超出「一次请求-响应」的范围？
 
@@ -197,7 +224,7 @@
 | 容易误判的需求 | 看起来能做？ | 实际分析 |
 |----------------|--------------|----------|
 | 「做个通用问卷系统」 | Table 管题目 + Form 填问卷？ | ❌ 做不了通用版（需要动态字段渲染）；**降级**：每份问卷单独生成一个 Form/Table（字段固定），或用第三方工具+Table 管理。见上方「动态字段类需求」 |
-| 「帮我去水印」 | 像是图片处理，Form 能做？ | 维度二不通过：gm 只能裁剪/覆盖，无法智能修复；降级方案：裁掉或遮挡 |
+| 「帮我去水印」 | 像是图片处理，Form 能做？ | 维度二不通过：ImageMagick / GraphicsMagick 只能裁剪/覆盖，无法智能修复；降级方案：裁掉或遮挡 |
 | 「做个聊天软件」 | 像是管理系统？ | 维度一不通过：需要实时双向通信，不是 Table/Form/Chart 能承载的 |
 | 「做个在线视频编辑器」 | 像是视频处理 Form？ | 维度一+三不通过：需要复杂前端交互 + 实时预览，不是一次提交一次返回 |
 | 「接入微信支付」 | 代码里调 API？ | 维度二不通过：平台未对接微信支付 API，无现成工具 |

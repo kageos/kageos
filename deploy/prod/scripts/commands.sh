@@ -1,13 +1,45 @@
-cmd_init() {
-  local force=0
-  if [[ -n "${ARG1:-}" ]]; then
-    if [[ "$ARG1" == "--force" ]]; then
-      force=1
-    else
-      echo "ERROR: init 仅支持可选参数 --force"
-      exit 1
-    fi
-  fi
+parse_init_options() {
+  INIT_FORCE=0
+  INIT_USE_IMAGE="${1:-0}"
+  local arg
+
+  for arg in "${COMMAND_ARGS[@]}"; do
+    case "$arg" in
+      --force)
+        INIT_FORCE=1
+        ;;
+      --image)
+        INIT_USE_IMAGE=1
+        ;;
+      *)
+        echo "ERROR: init 仅支持可选参数 --image / --force"
+        exit 1
+        ;;
+    esac
+  done
+}
+
+parse_update_options() {
+  UPDATE_USE_IMAGE="${1:-0}"
+  local arg
+
+  for arg in "${COMMAND_ARGS[@]}"; do
+    case "$arg" in
+      --image)
+        UPDATE_USE_IMAGE=1
+        ;;
+      *)
+        echo "ERROR: update 仅支持可选参数 --image"
+        exit 1
+        ;;
+    esac
+  done
+}
+
+prepare_init_context() {
+  local force="${1:-0}"
+
+  require_linux_host
 
   if [[ ! -f "$ENV_FILE" || "$force" == "1" ]]; then
     echo "==> 初始化 .env ..."
@@ -17,19 +49,92 @@ cmd_init() {
   fi
 
   bootstrap_env_defaults
+  load_env_defaults
+  ensure_compose_cmd
+
+  if ! compose_run config >/dev/null 2>&1; then
+    echo "ERROR: docker-compose.yaml 渲染失败，请先修正 .env 或 compose 配置"
+    exit 1
+  fi
+
+  print_storage_mode
+  prepare_storage_layout
+}
+
+pull_infra_images() {
+  echo "==> 预拉取中间件镜像（mysql / nats / minio）..."
+  compose_run pull mysql nats minio
+}
+
+build_main_image() {
+  echo "==> 构建主镜像: ${MAIN_IMAGE}"
+  compose_run build main
+}
+
+main_image_available() {
+  local engine="${COMPOSE_CMD[0]}"
+  if [[ "$engine" == "podman" ]]; then
+    podman image exists "${MAIN_IMAGE}" >/dev/null 2>&1
+  else
+    docker image inspect "${MAIN_IMAGE}" >/dev/null 2>&1
+  fi
+}
+
+run_app_base_tool() {
+  local action="$1"
+  local no_cache="${2:-0}"
+
+  compose_run run --rm --no-deps \
+    -e APP_BASE_ACTION="$action" \
+    -e APP_BASE_BUILD_NO_CACHE="$no_cache" \
+    --entrypoint /app/entrypoint-app-base.sh \
+    main
+}
+
+print_init_success() {
+  local main_mode="$1"
+  local canonical_hint="填写 CANONICAL_BASE_URL"
+
+  if [[ -n "$CANONICAL_BASE_URL" ]]; then
+    canonical_hint="检查 CANONICAL_BASE_URL / TLS_MODE / 证书是否正确"
+  fi
 
   echo ""
   echo "=============================="
-  echo "  .env 初始化完成"
+  echo "  初始化完成"
   echo "=============================="
   echo "  文件: $ENV_FILE"
-  echo "  已自动生成: MySQL / JWT / CONTROL_ENC_KEY / MinIO / backup 基础凭据"
+  echo "  已准备: mysql / nats / minio / ${main_mode} / ${APP_BASE_IMAGE}"
   echo "  下一步:"
-  echo "    1. 填写 CANONICAL_BASE_URL"
-  echo "    2. 如需 HTTPS，放入证书并按需调整 TLS_MODE"
-  echo "    3. 执行: bash build.sh doctor"
-  echo "    4. 执行: bash build.sh up"
+  echo "    1. ${canonical_hint}"
+  echo "    2. 执行: bash build.sh up"
+  echo "    3. 如需显式预检，可先执行: bash build.sh doctor"
   echo "=============================="
+}
+
+cmd_init() {
+  parse_init_options 0
+  prepare_init_context "$INIT_FORCE"
+  pull_infra_images
+  if [[ "$INIT_USE_IMAGE" == "1" ]]; then
+    pull_main_image
+  else
+    build_main_image
+  fi
+
+  echo "==> 准备用户应用基础镜像: ${APP_BASE_IMAGE}"
+  if ! run_app_base_tool ensure 0; then
+    echo "ERROR: 用户应用基础镜像初始化失败，请检查 MAIN_IMAGE 是否已准备好以及宿主机是否支持容器内 Podman。"
+    exit 1
+  fi
+
+  print_init_success "$MAIN_IMAGE"
+}
+
+cmd_init_image() {
+  echo "WARN: init-image 已兼容为 init --image；建议改用: bash build.sh init --image"
+  COMMAND_ARGS=("${COMMAND_ARGS[@]}" "--image")
+  cmd_init
 }
 
 cmd_doctor() {
@@ -134,6 +239,21 @@ cmd_doctor() {
     doctor_ok "未检测到宿主机 nginx 冲突"
   fi
 
+  if (( compose_ready == 1 )); then
+    if main_image_available; then
+      doctor_ok "主镜像已就绪: ${MAIN_IMAGE}"
+      if run_app_base_tool check 0 >/dev/null 2>&1; then
+        doctor_ok "用户应用基础镜像已就绪: ${APP_BASE_IMAGE}"
+      else
+        doctor_fail "用户应用基础镜像未初始化，请先执行 ${INIT_IMAGE_USAGE_HINT}" || true
+        failures=$((failures + 1))
+      fi
+    else
+      doctor_fail "主镜像未初始化，请先执行 ${INIT_IMAGE_USAGE_HINT}" || true
+      failures=$((failures + 1))
+    fi
+  fi
+
   echo ""
   if (( failures > 0 )); then
     echo "==> 预检失败: ${failures} 个阻断项，${warnings} 个警告"
@@ -147,13 +267,21 @@ cmd_doctor() {
 cmd_up() {
   validate_env
   ensure_compose_cmd
+  if ! main_image_available; then
+    echo "ERROR: 未找到主镜像 ${MAIN_IMAGE}，请先执行 ${INIT_IMAGE_USAGE_HINT}"
+    exit 1
+  fi
   echo "==> 使用: ${COMPOSE_CMD[*]}"
   print_storage_mode
-  stop_host_nginx_if_needed
   prepare_storage_layout
+  if ! run_app_base_tool check 0 >/dev/null 2>&1; then
+    echo "ERROR: 未找到用户应用基础镜像 ${APP_BASE_IMAGE}，请先执行 ${INIT_IMAGE_USAGE_HINT}"
+    exit 1
+  fi
+  stop_host_nginx_if_needed
   ensure_required_ports_available_for_first_up
-  echo "==> 全量启动并构建..."
-  compose_run up -d --build
+  echo "==> 启动已初始化服务（不再构建镜像）..."
+  compose_run up -d --no-build
   wait_for_stack_health
   print_success
 }
@@ -165,45 +293,34 @@ pull_main_image() {
 }
 
 cmd_up_image() {
-  validate_env
-  ensure_compose_cmd
-  echo "==> 使用: ${COMPOSE_CMD[*]}"
-  print_storage_mode
-  stop_host_nginx_if_needed
-  prepare_storage_layout
-  ensure_required_ports_available_for_first_up
-  pull_main_image
-  echo "==> 基于已发布镜像启动（不在目标机本地构建）..."
-  compose_run up -d --no-build
-  wait_for_stack_health
-  print_success
+  echo "WARN: up-image 已兼容为 up；建议改用: bash build.sh up"
+  cmd_up
 }
 
 cmd_update() {
+  parse_update_options 0
   validate_env
   ensure_compose_cmd
   echo "==> 使用: ${COMPOSE_CMD[*]}"
   print_storage_mode
   stop_host_nginx_if_needed
   prepare_storage_layout
-  echo "==> 仅重建并更新 main / scheduler / backup 服务（不重启中间件）..."
-  compose_run up -d --build --no-deps main scheduler backup
+  if [[ "$UPDATE_USE_IMAGE" == "1" ]]; then
+    pull_main_image
+    echo "==> 仅拉取镜像并更新 main / scheduler / backup 服务（不在目标机本地构建）..."
+    compose_run up -d --no-build --no-deps main scheduler backup
+  else
+    echo "==> 仅重建并更新 main / scheduler / backup 服务（不重启中间件）..."
+    compose_run up -d --build --no-deps main scheduler backup
+  fi
   wait_for_stack_health
   print_success
 }
 
 cmd_update_image() {
-  validate_env
-  ensure_compose_cmd
-  echo "==> 使用: ${COMPOSE_CMD[*]}"
-  print_storage_mode
-  stop_host_nginx_if_needed
-  prepare_storage_layout
-  pull_main_image
-  echo "==> 仅拉取镜像并更新 main / scheduler / backup 服务（不在目标机本地构建）..."
-  compose_run up -d --no-build --no-deps main scheduler backup
-  wait_for_stack_health
-  print_success
+  echo "WARN: update-image 已兼容为 update --image；建议改用: bash build.sh update --image"
+  COMMAND_ARGS=("${COMMAND_ARGS[@]}" "--image")
+  cmd_update
 }
 
 cmd_pull_update() {
@@ -239,31 +356,42 @@ cmd_restart_scheduler() {
 }
 
 cmd_build_app_base() {
-  validate_env
+  require_linux_host
+  ensure_env_bootstrapped
+  load_env_defaults
   ensure_compose_cmd
+  print_storage_mode
+  prepare_storage_layout
 
-  local cache_flag=""
+  local no_cache=0
   if [[ -n "${ARG1:-}" ]]; then
     if [[ "$ARG1" == "--no-cache" ]]; then
-      cache_flag="--no-cache"
+      no_cache=1
     else
       echo "ERROR: build-app-base 仅支持可选参数 --no-cache"
       exit 1
     fi
   fi
 
-  if ! compose_run exec main bash -lc 'true' >/dev/null 2>&1; then
-    echo "ERROR: main 服务未运行，无法进入容器单独构建 ${APP_BASE_IMAGE}"
-    echo "请先执行: bash build.sh up"
+  if ! compose_run config >/dev/null 2>&1; then
+    echo "ERROR: docker-compose.yaml 渲染失败，请先修正 .env 或 compose 配置"
     exit 1
   fi
 
-  echo "==> 在 main 容器内单独构建 ${APP_BASE_IMAGE} ..."
-  if [[ -n "$cache_flag" ]]; then
+  if ! main_image_available; then
+    echo "ERROR: 未找到主镜像 ${MAIN_IMAGE}，请先执行 ${INIT_IMAGE_USAGE_HINT}"
+    exit 1
+  fi
+
+  echo "==> 在与 main 相同的运行环境里重建 ${APP_BASE_IMAGE} ..."
+  if [[ "$no_cache" == "1" ]]; then
     echo "==> 已启用 --no-cache：本次不复用 layer 缓存"
   fi
-  echo "==> 命令: podman build ${cache_flag} -t ${APP_BASE_IMAGE} /app/app-base"
-  compose_run exec main bash -lc "set -euo pipefail; podman build ${cache_flag} -t '${APP_BASE_IMAGE}' /app/app-base"
+
+  if ! run_app_base_tool rebuild "$no_cache"; then
+    echo "ERROR: 用户应用基础镜像重建失败；请先执行 ${INIT_IMAGE_USAGE_HINT}，确保 MAIN_IMAGE 已准备好。"
+    exit 1
+  fi
 }
 
 cmd_logs() {
@@ -303,6 +431,9 @@ dispatch_command() {
       ;;
     init)
       cmd_init
+      ;;
+    init-image)
+      cmd_init_image
       ;;
     doctor)
       cmd_doctor

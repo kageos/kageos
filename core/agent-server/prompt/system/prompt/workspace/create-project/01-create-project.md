@@ -234,11 +234,11 @@ PRD 末尾必须问用户一句：
 |------|---------------|----------|
 | 工单管理（单 Table） | `/system/prompt/case_catalog/table/ticket` | `单表CRUD` `AutoCrudTable` `多种组件(input/select/switch/slider/rate/radio/number)` `search筛选` |
 | Excel/CSV 工具（单 Form） | `/system/prompt/case_catalog/form/excelorcsv` | `文件上传(files)` `excelize库` `多POST同目录` `文件转换` |
-| 图片工具（单 Form） | `/system/prompt/case_catalog/form/images` | `文件上传(files)` `GraphicsMagick(gm)` `exec.Command调用可执行程序` `图片处理` |
+| 图片工具（单 Form） | `/system/prompt/case_catalog/form/images` | `文件上传(files)` `ImageMagick(convert/identify)` `exec.Command调用可执行程序` `图片处理` `GetTraceOutputDir` `ResponseFiles` |
 | NLP 工具（单 Form） | `/system/prompt/case_catalog/form/nlp` | `pythonRuntime` `defer Close` `jieba` `响应中含table组件` `同机Python子进程` |
 | PDF 工具（单 Form） | `/system/prompt/case_catalog/form/pdf` | `文件上传(files)` `Poppler(pdftotext/pdftoppm)` `Ghostscript(gs)` `exec.Command调用可执行程序` |
 | Python 容器内产物输出（单 Form） | `/system/prompt/case_catalog/form/python_output` | `pythonRuntime` `defer Close` `绝对路径落盘` `output_json` `GetTraceOutputDir` `ResponseFiles` `响应types.Files` `用户可下载附件` `同机子进程` `非宿主机` |
-| 视频工具（单 Form） | `/system/prompt/case_catalog/form/videos` | `文件上传(files)` `FFmpeg(exec.Command)` `音视频处理` `GetFS文件存储` |
+| 视频工具（单 Form） | `/system/prompt/case_catalog/form/videos` | `文件上传(files)` `FFmpeg(exec.Command)` `音视频处理` `GetTraceOutputDir` `ResponseFiles` `输入文件复制到输出目录` |
 | 招聘投递系统（多 Table） | `/system/prompt/case_catalog/tables/hr` | `主从两表` `link跳转` `select关联另一表` `文件上传(files)` |
 | 会议室预约（多 Table） | `/system/prompt/case_catalog/tables/meeting` | `主从两表` `OnSelectFuzzy模糊搜索选择` `link跳转` `时间状态自动计算` `列表筛外表字段` |
 | 投票系统（Table + Form） | `/system/prompt/case_catalog/formandtable/vote` | `Table+Form混合` `multiselect+depend_on联动` `OnSelectFuzzy` `link按状态切换` `POST提交写多表` |

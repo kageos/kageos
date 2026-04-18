@@ -110,13 +110,11 @@ if [ ! -S /run/podman/podman.sock ]; then
 fi
 
 if ! podman image exists "${APP_BASE_IMAGE}" 2>/dev/null; then
-  echo "==> 首次构建用户应用基础镜像 ${APP_BASE_IMAGE}（较久）..."
-  podman build -t "${APP_BASE_IMAGE}" -f /app/app-base/Dockerfile /app/app-base/ || {
-    echo "WARN: 基础镜像构建失败，app-runtime 可能不可用"
-  }
-else
-  echo "==> 已存在 ${APP_BASE_IMAGE}，跳过构建"
+  echo "ERROR: 未找到用户应用基础镜像 ${APP_BASE_IMAGE}" >&2
+  echo "ERROR: 请先在宿主机执行 bash build.sh init；如需直接拉取已发布主镜像，用 bash build.sh init --image" >&2
+  exit 1
 fi
+echo "==> 用户应用基础镜像已就绪: ${APP_BASE_IMAGE}"
 
 shutdown() {
   echo "==> 停止..."
