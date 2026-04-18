@@ -1,5 +1,5 @@
 # 生产单机一键部署：core-server + 内置 Nginx(8080) + Podman（需 --privileged）
-# 构建（仓库根）：docker build -f deploy/prod/Dockerfile -t agentos-main:latest .
+# 构建（仓库根）：docker build -f deploy/prod/Dockerfile -t localhost/agentos-main:latest .
 
 # ========== Go 编译 ==========
 FROM docker.io/library/golang:1.24-bookworm AS gobuilder

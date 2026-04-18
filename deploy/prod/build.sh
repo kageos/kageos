@@ -18,7 +18,7 @@ TLS_MODE="http"
 TLS_CERTS_HOST_DIR="./certs"
 TLS_CERT_FILE="/app/tls/fullchain.pem"
 TLS_KEY_FILE="/app/tls/privkey.pem"
-APP_BASE_IMAGE="agentos-app-runtime-base:latest"
+APP_BASE_IMAGE="localhost/agentos-app-runtime-base:latest"
 
 source "$SCRIPTS_DIR/lib.sh"
 source "$SCRIPTS_DIR/validate.sh"

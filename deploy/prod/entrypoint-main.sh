@@ -16,7 +16,7 @@ set_smtp_defaults
 TLS_MODE="${TLS_MODE:-http}"
 TLS_CERT_FILE="${TLS_CERT_FILE:-/app/tls/fullchain.pem}"
 TLS_KEY_FILE="${TLS_KEY_FILE:-/app/tls/privkey.pem}"
-APP_BASE_IMAGE="${APP_BASE_IMAGE:-agentos-app-runtime-base:latest}"
+APP_BASE_IMAGE="${APP_BASE_IMAGE:-localhost/agentos-app-runtime-base:latest}"
 
 echo "==> 等待依赖（MySQL / NATS / MinIO）..."
 wait_tcp 127.0.0.1 3306 "MySQL"

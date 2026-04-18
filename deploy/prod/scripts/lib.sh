@@ -39,8 +39,8 @@ EOF
 
 FIXED_STORAGE_ROOT="/data/ai-agent-os"
 DEFAULT_TLS_MODE="http"
-DEFAULT_MAIN_IMAGE="agentos-main:latest"
-DEFAULT_APP_BASE_IMAGE="agentos-app-runtime-base:latest"
+DEFAULT_MAIN_IMAGE="localhost/agentos-main:latest"
+DEFAULT_APP_BASE_IMAGE="localhost/agentos-app-runtime-base:latest"
 INIT_IMAGE_USAGE_HINT="bash build.sh init；如需直接拉取已发布主镜像，用 bash build.sh init --image"
 
 read_env_value() {

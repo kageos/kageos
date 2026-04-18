@@ -55,7 +55,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/prod/Dockerfile
-    image: ${MAIN_IMAGE:-agentos-main:latest}
+    image: ${MAIN_IMAGE:-localhost/agentos-main:latest}
     network_mode: host
     privileged: true
     restart: unless-stopped
@@ -74,7 +74,7 @@ services:
       TLS_MODE: ${TLS_MODE:-http}
       TLS_CERT_FILE: ${TLS_CERT_FILE:-/app/tls/fullchain.pem}
       TLS_KEY_FILE: ${TLS_KEY_FILE:-/app/tls/privkey.pem}
-      APP_BASE_IMAGE: ${APP_BASE_IMAGE:-agentos-app-runtime-base:latest}
+      APP_BASE_IMAGE: ${APP_BASE_IMAGE:-localhost/agentos-app-runtime-base:latest}
     volumes:
       - /data/ai-agent-os/podman_storage:/var/lib/containers
       - /data/ai-agent-os/logs:/app/logs
@@ -92,7 +92,7 @@ services:
       start_period: 90s
 
   scheduler:
-    image: ${MAIN_IMAGE:-agentos-main:latest}
+    image: ${MAIN_IMAGE:-localhost/agentos-main:latest}
     entrypoint: ["/app/entrypoint-scheduler.sh"]
     network_mode: host
     restart: unless-stopped
@@ -107,7 +107,7 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-AI Agent OS}
-      APP_BASE_IMAGE: ${APP_BASE_IMAGE:-agentos-app-runtime-base:latest}
+      APP_BASE_IMAGE: ${APP_BASE_IMAGE:-localhost/agentos-app-runtime-base:latest}
     volumes:
       - /data/ai-agent-os/logs:/app/logs
       - /data/ai-agent-os/namespace:/app/namespace
@@ -125,7 +125,7 @@ services:
       start_period: 30s
 
   backup:
-    image: ${MAIN_IMAGE:-agentos-main:latest}
+    image: ${MAIN_IMAGE:-localhost/agentos-main:latest}
     entrypoint: ["/app/entrypoint-backup.sh"]
     restart: unless-stopped
     environment:
