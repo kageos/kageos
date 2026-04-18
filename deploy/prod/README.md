@@ -2,11 +2,11 @@
 
 > 官方生产入口：`deploy/prod/`
 
-如果你只想照着命令部署，不想先看完整说明，直接看：
+如果你只想一分钟内把服务拉起来，直接看：
 
 - [DEPLOY_TUTORIAL.md](DEPLOY_TUTORIAL.md)
 
-如需先看“依赖什么、按什么顺序启动、整条链怎么流转”，先读：
+如果你要看启动顺序和依赖链，再看：
 
 - [DEPLOYMENT_FLOW.md](DEPLOYMENT_FLOW.md)
 
@@ -34,28 +34,54 @@ host 网络独立容器
 
 ## 前置
 
-- Podman 4+（`podman compose`）或 Docker（`docker compose`）。
+- Linux 宿主机；缺少宿主机 `podman` / `podman compose` 时，`bash build.sh init` 会自动尝试安装。
+- 如果宿主机没有 root，请使用有 `sudo` 权限的账号执行 `bash build.sh init`。
 - `main` 服务 **`privileged: true`**。
 - 宿主机 **80 端口未被占用**；如果开启 HTTPS，**443 端口也必须空闲**（`build.sh` 会自动检测并停用宿主机 nginx）。
 
-## 快速开始
+## 一分钟部署
 
 ```bash
 cd deploy/prod
-bash build.sh init     # 或 bash build.sh init --image
-# 填写 .env 里的 CANONICAL_BASE_URL；按需调整 TLS_MODE
+bash build.sh init     # 已有发布镜像就改成: bash build.sh init --image
+# 编辑 .env，只看 CANONICAL_BASE_URL 和 TLS_MODE
 bash build.sh up
+bash build.sh verify
 ```
 
-首次执行 `bash build.sh init` 时，如果缺少 `.env`，脚本会先自动初始化它，并生成缺失的密钥和密码；然后预拉取中间件镜像、准备 `MAIN_IMAGE`，并在与 `main` 相同的 Podman 存储里初始化 `APP_BASE_IMAGE`。存储目录固定为 `/data/ai-agent-os`。  
-`build.sh up` 现在只负责启动：校验 `.env` → 停宿主机 nginx → 检查 80/443 端口 → `compose up -d --no-build`。
-如果你已经有预构建好的 `MAIN_IMAGE`，可改用 `bash build.sh init --image`，这样目标机只拉主镜像，不做本地源码构建。  
-如需在启动前看一份显式预检报告，再手动执行 `bash build.sh doctor`；主路径不再强制要求它。
+默认数据目录固定是 `/data/ai-agent-os`。  
+`build.sh init` 负责准备 `.env`、中间件镜像、`MAIN_IMAGE`、`APP_BASE_IMAGE`；`build.sh up` 只负责启动。  
+如果宿主机缺少 `podman` / `podman compose`，`build.sh init` 会先尝试自动安装。  
+想看显式预检，再手动执行 `bash build.sh doctor`。
+
+最小 `.env`：
+
+```env
+CANONICAL_BASE_URL="http://your-ip-or-domain"
+TLS_MODE="http"
+```
+
+如果前面已有 LB / CDN 做 HTTPS：
+
+```env
+CANONICAL_BASE_URL="https://your-domain"
+TLS_MODE="external"
+```
+
+如果容器自己做 HTTPS：
+
+```env
+CANONICAL_BASE_URL="https://your-domain"
+TLS_MODE="redirect"
+TLS_CERTS_HOST_DIR="./certs"
+TLS_CERT_FILE="/app/tls/fullchain.pem"
+TLS_KEY_FILE="/app/tls/privkey.pem"
+```
 
 改配置：
 
-- 只改 `CANONICAL_BASE_URL` / `TLS_MODE` / SMTP 之类的运行参数：直接执行 `bash build.sh up`；如需显式预检，可先执行 `bash build.sh doctor`
-- 改了 `MAIN_IMAGE` / `APP_BASE_IMAGE` 这类镜像相关配置：先重新执行 `bash build.sh init` 或 `bash build.sh init --image`
+- 只改运行参数：直接 `bash build.sh up`
+- 改了 `MAIN_IMAGE` / `APP_BASE_IMAGE`：重新执行 `bash build.sh init` 或 `bash build.sh init --image`
 
 ## HTTP / HTTPS 模式
 

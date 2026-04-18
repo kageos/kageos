@@ -40,7 +40,7 @@
         </div>
       </div>
       <!-- 结果显示（完整 JSON，可复制）；输出文件由父级在工具调用下方统一展示 -->
-      <div v-if="toolCall.result" class="tool-call-section">
+      <div v-if="resultContent" class="tool-call-section">
         <div class="section-title">
           <el-icon><CircleCheck /></el-icon>
           <span>结果</span>
@@ -50,7 +50,7 @@
           </el-button>
         </div>
         <div class="section-content">
-          <pre class="result-content">{{ formatJSON(toolCall.result) }}</pre>
+          <pre class="result-content">{{ resultContent }}</pre>
         </div>
       </div>
       <!-- 错误显示 -->
@@ -68,7 +68,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Check, Close, Loading, ArrowDown, Document, CircleCheck, Warning, CopyDocument } from '@element-plus/icons-vue'
 import type { WorkspaceChatToolCallSummary } from '@/api/workspace'
@@ -93,6 +93,16 @@ function formatJSON(jsonStr: string): string {
   }
 }
 
+const resultContent = computed(() => {
+  if (props.toolCall.result) return formatJSON(props.toolCall.result)
+  if (props.toolCall.result_data == null) return ''
+  try {
+    return JSON.stringify(props.toolCall.result_data, null, 2)
+  } catch {
+    return String(props.toolCall.result_data)
+  }
+})
+
 async function copyArguments() {
   if (!props.toolCall.arguments) return
   try {
@@ -104,9 +114,9 @@ async function copyArguments() {
 }
 
 async function copyResult() {
-  if (!props.toolCall.result) return
+  if (!resultContent.value) return
   try {
-    await navigator.clipboard.writeText(props.toolCall.result)
+    await navigator.clipboard.writeText(resultContent.value)
     ElMessage.success('结果已复制到剪贴板')
   } catch (e) {
     ElMessage.error('复制失败')

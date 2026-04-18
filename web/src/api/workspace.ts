@@ -309,6 +309,7 @@ export interface WorkspaceChatToolCallSummary {
   status: string     // ok / error
   arguments?: string // 参数（JSON 字符串，可选）
   result?: string    // 结果内容（从对应的 tool 消息中获取，可选）
+  result_data?: unknown // 结构化结果（优先供前端提取文件/展示字段）
   error?: string     // 错误信息（如果有，可选）
 }
 

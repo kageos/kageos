@@ -32,22 +32,21 @@ func (t *RunFormSubmitTool) Execute(ctx context.Context, call ToolCall) ToolResu
 	if err != nil {
 		return toolResult("run_form_submit 参数解析失败: "+err.Error(), true)
 	}
-	content, isError := runFormSubmitTool(ctx, args, call.FullCodePath)
-	return toolResult(content, isError)
+	return runFormSubmitTool(ctx, args, call.FullCodePath)
 }
 
 // runFormSubmitTool 执行 Form 提交。body 由模型按具体表单定义自行拼装。
-func runFormSubmitTool(ctx context.Context, args runFormSubmitArgs, currentFullCodePath string) (string, bool) {
+func runFormSubmitTool(ctx context.Context, args runFormSubmitArgs, currentFullCodePath string) ToolResult {
 	ctx = withAgentToolClientSource(ctx)
 	fullCodePath, pathNotice := resolveTypedFunctionFullCodePathArg(args.FullCodePath, currentFullCodePath, ".form")
 	if fullCodePath == "" {
-		return "run_form_submit 需传 full_code_path（表单函数路径，如 /luobei/myapp/plugins/cashier_desk.form）。", true
+		return toolResult("run_form_submit 需传 full_code_path（表单函数路径，如 /luobei/myapp/plugins/cashier_desk.form）。", true)
 	}
 	bodyStr := strings.TrimSpace(args.Body)
 	var body interface{}
 	if bodyStr != "" {
 		if err := json.Unmarshal([]byte(bodyStr), &body); err != nil {
-			return "run_form_submit 的 body 需为合法 JSON 字符串: " + err.Error(), true
+			return toolResult("run_form_submit 的 body 需为合法 JSON 字符串: "+err.Error(), true)
 		}
 	} else {
 		body = map[string]interface{}{}
@@ -55,11 +54,7 @@ func runFormSubmitTool(ctx context.Context, args runFormSubmitArgs, currentFullC
 	result, err := apicall.FormSubmit(ctx, fullCodePath, body)
 	if err != nil {
 		logger.Errorf(ctx, "[RunFormSubmit] FormSubmit 失败: %v", err)
-		return "run_form_submit 调用失败: " + err.Error(), true
+		return toolResult("run_form_submit 调用失败: "+err.Error(), true)
 	}
-	content, _ := formatJSONResult(result)
-	if pathNotice != "" {
-		return pathNotice + "\n\n" + content, false
-	}
-	return content, false
+	return toolResultWithStructuredData(result, false, pathNotice)
 }

@@ -31,27 +31,26 @@ func (t *RunTableCreateTool) Execute(ctx context.Context, call ToolCall) ToolRes
 	if err != nil {
 		return toolResult("run_table_create 参数解析失败: "+err.Error(), true)
 	}
-	content, isError := runTableCreateTool(ctx, args, call.FullCodePath)
-	return toolResult(content, isError)
+	return runTableCreateTool(ctx, args, call.FullCodePath)
 }
 
 // runTableCreateTool 执行 Table 新增；body 必须为 JSON 数组，逐条调用 table/create 触发 OnTableAddRow
-func runTableCreateTool(ctx context.Context, args runTableCreateArgs, currentFullCodePath string) (string, bool) {
+func runTableCreateTool(ctx context.Context, args runTableCreateArgs, currentFullCodePath string) ToolResult {
 	ctx = withAgentToolClientSource(ctx)
 	fullCodePath, pathNotice := resolveTypedFunctionFullCodePathArg(args.FullCodePath, currentFullCodePath, ".table")
 	if fullCodePath == "" {
-		return "run_table_create 需传 full_code_path（表格函数路径，如 /luobei/myapp/nps/nps_questionnaire_list.table）。", true
+		return toolResult("run_table_create 需传 full_code_path（表格函数路径，如 /luobei/myapp/nps/nps_questionnaire_list.table）。", true)
 	}
 	bodyStr := strings.TrimSpace(args.Body)
 	if bodyStr == "" {
-		return "run_table_create 需传 body（JSON 数组字符串，每项为一条记录）。", true
+		return toolResult("run_table_create 需传 body（JSON 数组字符串，每项为一条记录）。", true)
 	}
 	var bodyArr []interface{}
 	if err := json.Unmarshal([]byte(bodyStr), &bodyArr); err != nil {
-		return "run_table_create 的 body 需为合法 JSON 数组: " + err.Error(), true
+		return toolResult("run_table_create 的 body 需为合法 JSON 数组: "+err.Error(), true)
 	}
 	if len(bodyArr) == 0 {
-		return "run_table_create 的 body 不能为空数组。", true
+		return toolResult("run_table_create 的 body 不能为空数组。", true)
 	}
 
 	dataList := make([]interface{}, 0, len(bodyArr))
@@ -92,11 +91,7 @@ func runTableCreateTool(ctx context.Context, args runTableCreateArgs, currentFul
 	if len(errorsList) > 0 {
 		out["errors"] = errorsList
 	}
-	content, _ := formatJSONResult(out)
-	if pathNotice != "" {
-		return pathNotice + "\n\n" + content, false
-	}
-	return content, false
+	return toolResultWithStructuredData(out, false, pathNotice)
 }
 
 // extractTableCreateRecord 从 table/create 的返回值中提取单条记录。

@@ -1,6 +1,6 @@
 # Python Runtime SDK
 
-Python 代码执行 SDK，支持在 Go 代码中执行 Python 脚本，并自动解析 JSON 输出。
+Python 代码执行 SDK，支持在 Go 代码中执行 Python 脚本，并按固定入口函数协议解析结构化结果与输出文件。
 
 ## 🚀 快速开始
 
@@ -14,11 +14,12 @@ import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/runtime/python"
 ctx := context.Background()
 
 code := `
-# 从请求中获取参数（自动注入到全局命名空间）
-# a, b 已自动注入
-
-result = {"sum": a + b}
-output_json(result)  # 使用 output_json 输出，自动添加标记
+def agentos_entry(args, output_dir):
+    return {
+        "data": {
+            "sum": args["a"] + args["b"],
+        },
+    }
 `
 
 // 定义请求结构体
@@ -98,8 +99,9 @@ func (e *Executor) WithRequest(req interface{}) *Executor
 **返回**：`*Executor` 支持链式调用
 
 **说明**：
-- 请求结构体会自动序列化为 JSON，传递给 Python
-- Python 端可以通过 `request` 变量访问，或直接使用字段名（自动注入到全局命名空间）
+- 请求结构体会自动序列化为 JSON，作为 `agentos_entry(args, output_dir)` 的第一个参数传给 Python
+- Python 端必须定义固定入口函数 `agentos_entry(args, output_dir)`
+- 返回值必须为 dict，支持 `data`、`output_files`、`warnings` 三个字段
 - 支持嵌套结构体、数组、字典等复杂类型
 
 ### WithPackages

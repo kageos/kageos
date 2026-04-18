@@ -1,6 +1,7 @@
 package python
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,35 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
+type PythonArtifact struct {
+	Path        string `json:"path"`
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+const DefaultEntryFunctionName = "agentos_entry"
+
+type ExecutionResult struct {
+	OK          bool             `json:"ok"`
+	Stdout      string           `json:"stdout,omitempty"`
+	Stderr      string           `json:"stderr,omitempty"`
+	Data        interface{}      `json:"data,omitempty"`
+	OutputFiles []PythonArtifact `json:"output_files,omitempty"`
+	Warnings    []string         `json:"warnings,omitempty"`
+	Error       string           `json:"error,omitempty"`
+	WorkDir     string           `json:"work_dir,omitempty"`
+	OutputDir   string           `json:"output_dir,omitempty"`
+	DurationMs  int64            `json:"duration_ms,omitempty"`
+}
+
+type executionManifest struct {
+	OK          bool             `json:"ok"`
+	Data        json.RawMessage  `json:"data,omitempty"`
+	OutputFiles []PythonArtifact `json:"output_files,omitempty"`
+	Warnings    []string         `json:"warnings,omitempty"`
+	Error       string           `json:"error,omitempty"`
+}
+
 // Executor Python 代码执行器（Builder 模式）
 type Executor struct {
 	code       string
@@ -21,6 +51,7 @@ type Executor struct {
 	packages   []string
 	timeout    time.Duration
 	workDir    string
+	outputDir  string
 	pythonPath string
 
 	// managedTempDirs 由 MkdirTemp 创建的工作目录，由 Close 负责 RemoveAll（WithWorkDir 指定的目录不会加入此列表）
@@ -79,6 +110,13 @@ func (e *Executor) WithWorkDir(workDir string) *Executor {
 	return e
 }
 
+// WithOutputDir 设置产物输出目录。
+// 若传相对路径，则会在实际工作目录下解析；为空时默认使用 "<workDir>/output"。
+func (e *Executor) WithOutputDir(outputDir string) *Executor {
+	e.outputDir = outputDir
+	return e
+}
+
 // WithPythonPath 设置 Python 解释器路径
 // pythonPath: Python 解释器路径（如果为空，则自动检测）
 func (e *Executor) WithPythonPath(pythonPath string) *Executor {
@@ -116,6 +154,28 @@ func (e *Executor) Close() error {
 //
 // 使用默认临时工作目录（未 WithWorkDir）时，须在适当时机调用 Close() 释放磁盘（推荐创建 Executor 后 defer Close()）。
 func (e *Executor) Execute(ctx context.Context) ([]byte, error) {
+	result, err := e.ExecuteResult(ctx)
+	if result == nil {
+		return nil, err
+	}
+	return []byte(combineStdoutStderr(result.Stdout, result.Stderr)), err
+}
+
+// ExecuteResult 执行 Python 代码，返回结构化结果与输出文件声明。
+//
+// Python 代码必须定义固定入口函数:
+//
+//	def agentos_entry(args, output_dir): ...
+//
+// 其中:
+// - args: Go 侧 WithRequest 传入的对象（dict）
+// - output_dir: 受控输出目录，需将最终文件写到此目录
+//
+// 返回值必须为 dict，支持字段:
+// - data: 任意 JSON 可序列化对象
+// - output_files: []{path,name?,description?}
+// - warnings: []string
+func (e *Executor) ExecuteResult(ctx context.Context) (*ExecutionResult, error) {
 	if e.closed {
 		return nil, fmt.Errorf("python executor: already closed")
 	}
@@ -150,8 +210,17 @@ func (e *Executor) Execute(ctx context.Context) ([]byte, error) {
 		}
 	}
 
+	outputDir, err := e.resolveOutputDir(workDir)
+	if err != nil {
+		return nil, fmt.Errorf("创建输出目录失败: %w", err)
+	}
+	resultPath := filepath.Join(workDir, ".agentos", "result.json")
+
 	// 4. 生成 Python 包装脚本
-	wrapperScript := e.buildWrapperScript()
+	wrapperScript, err := e.buildWrapperScript()
+	if err != nil {
+		return nil, fmt.Errorf("生成 Python 包装脚本失败: %w", err)
+	}
 	scriptPath := filepath.Join(workDir, "script.py")
 	if err := os.WriteFile(scriptPath, []byte(wrapperScript), 0644); err != nil {
 		return nil, fmt.Errorf("写入 Python 脚本失败: %w", err)
@@ -173,17 +242,62 @@ func (e *Executor) Execute(ctx context.Context) ([]byte, error) {
 
 	cmd := exec.CommandContext(ctx, pythonPath, scriptPath, string(requestJSON))
 	cmd.Dir = workDir
+	cmd.Env = append(os.Environ(),
+		"AGENTOS_OUTPUT_DIR="+outputDir,
+		"AGENTOS_RESULT_PATH="+resultPath,
+	)
+	var stdoutBuf bytes.Buffer
+	var stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
 
 	// 6. 执行命令
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return output, fmt.Errorf("执行 Python 脚本失败: %w, 输出: %s", err, string(output))
+	start := time.Now()
+	runErr := cmd.Run()
+	result := &ExecutionResult{
+		Stdout:     stdoutBuf.String(),
+		Stderr:     stderrBuf.String(),
+		WorkDir:    workDir,
+		OutputDir:  outputDir,
+		DurationMs: time.Since(start).Milliseconds(),
 	}
 
-	return output, nil
+	if manifest, err := e.readExecutionManifest(resultPath); err == nil && manifest != nil {
+		result.OK = manifest.OK
+		result.OutputFiles = manifest.OutputFiles
+		result.Warnings = manifest.Warnings
+		result.Error = manifest.Error
+		if len(manifest.Data) > 0 {
+			var data interface{}
+			if err := json.Unmarshal(manifest.Data, &data); err == nil {
+				result.Data = data
+			}
+		}
+	} else if fallbackJSON, exErr := e.extractJSONFromOutput(result.Stdout); exErr == nil {
+		var data interface{}
+		if json.Unmarshal([]byte(fallbackJSON), &data) == nil {
+			result.Data = data
+			result.OK = runErr == nil
+		}
+	}
+
+	if runErr != nil {
+		if result.Error == "" {
+			if strings.TrimSpace(result.Stderr) != "" {
+				result.Error = strings.TrimSpace(result.Stderr)
+			} else {
+				result.Error = runErr.Error()
+			}
+		}
+		return result, fmt.Errorf("执行 Python 脚本失败: %w", runErr)
+	}
+	if result.Error == "" {
+		result.OK = true
+	}
+	return result, nil
 }
 
-// ExecuteJSON 执行 Python 代码，自动解析 JSON 输出到 result
+// ExecuteJSON 执行 Python 代码，自动解析 agentos_entry 返回的 data 字段到 result
 // ctx: 上下文（用于超时控制）
 // result: 结果结构体指针（必须是可 JSON 反序列化的类型）
 // 返回: 错误
@@ -197,25 +311,29 @@ func (e *Executor) Execute(ctx context.Context) ([]byte, error) {
 //
 // 使用默认临时工作目录时须配合 Close()，见 Execute。
 func (e *Executor) ExecuteJSON(ctx context.Context, result interface{}) error {
-	output, err := e.Execute(ctx)
+	_, err := e.ExecuteJSONWithResult(ctx, result)
+	return err
+}
+
+// ExecuteJSONWithResult 执行 Python 代码，解析结构化结果并返回完整执行信息。
+func (e *Executor) ExecuteJSONWithResult(ctx context.Context, result interface{}) (*ExecutionResult, error) {
+	execResult, err := e.ExecuteResult(ctx)
 	if err != nil {
-		return err
+		return execResult, err
 	}
 
-	// 尝试解析 JSON 输出
-	outputStr := string(output)
-
-	// 从标记中提取 JSON
-	jsonStr, err := e.extractJSONFromOutput(outputStr)
-	if err != nil {
-		return fmt.Errorf("Python 输出中未找到 JSON 数据: %w, 输出: %s", err, outputStr)
+	if execResult == nil || execResult.Data == nil {
+		return execResult, fmt.Errorf("Python 执行结果中没有结构化 data")
 	}
 
-	if err := json.Unmarshal([]byte(jsonStr), result); err != nil {
-		return fmt.Errorf("解析 Python JSON 输出失败: %w, JSON 字符串: %s", err, jsonStr)
+	dataBytes, marshalErr := json.Marshal(execResult.Data)
+	if marshalErr != nil {
+		return execResult, fmt.Errorf("序列化 Python data 失败: %w", marshalErr)
 	}
-
-	return nil
+	if err := json.Unmarshal(dataBytes, result); err != nil {
+		return execResult, fmt.Errorf("解析 Python data 失败: %w, data: %s", err, string(dataBytes))
+	}
+	return execResult, nil
 }
 
 // extractJSONFromOutput 从输出中提取 JSON（使用标记 <python-out>...</python-out>）
@@ -247,6 +365,111 @@ func (e *Executor) extractJSONFromOutput(output string) (string, error) {
 	}
 
 	return jsonStr, nil
+}
+
+func combineStdoutStderr(stdout string, stderr string) string {
+	stdout = strings.TrimRight(stdout, "\n")
+	stderr = strings.TrimRight(stderr, "\n")
+	switch {
+	case stdout == "":
+		return stderr
+	case stderr == "":
+		return stdout
+	default:
+		return stdout + "\n" + stderr
+	}
+}
+
+// CombinedOutput 返回 stdout/stderr 合并后的文本。
+func (r *ExecutionResult) CombinedOutput() string {
+	if r == nil {
+		return ""
+	}
+	return combineStdoutStderr(r.Stdout, r.Stderr)
+}
+
+// FormattedData 返回 data 的格式化 JSON 字符串，便于直接展示。
+func (r *ExecutionResult) FormattedData() string {
+	if r == nil || r.Data == nil {
+		return ""
+	}
+	b, err := json.MarshalIndent(r.Data, "", "  ")
+	if err != nil {
+		return fmt.Sprintf("%v", r.Data)
+	}
+	return string(b)
+}
+
+// OutputFilePaths 校验并返回 output_files 的绝对路径列表。
+// 若设置了 OutputDir，则所有输出文件都必须位于该目录内。
+func (r *ExecutionResult) OutputFilePaths() ([]string, error) {
+	if r == nil || len(r.OutputFiles) == 0 {
+		return nil, nil
+	}
+
+	outputDir := strings.TrimSpace(r.OutputDir)
+	if outputDir != "" {
+		outputDir = filepath.Clean(outputDir)
+	}
+
+	paths := make([]string, 0, len(r.OutputFiles))
+	for _, file := range r.OutputFiles {
+		path := strings.TrimSpace(file.Path)
+		if path == "" {
+			return nil, fmt.Errorf("python output_files.path 不能为空")
+		}
+		if !filepath.IsAbs(path) {
+			return nil, fmt.Errorf("python output_files.path 必须是绝对路径: %s", path)
+		}
+
+		cleanPath := filepath.Clean(path)
+		if outputDir != "" {
+			rel, err := filepath.Rel(outputDir, cleanPath)
+			if err != nil {
+				return nil, fmt.Errorf("校验 python 输出路径失败 %s: %w", cleanPath, err)
+			}
+			if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+				return nil, fmt.Errorf("python 输出文件必须位于 output_dir 内: %s", cleanPath)
+			}
+		}
+
+		info, err := os.Stat(cleanPath)
+		if err != nil {
+			return nil, fmt.Errorf("python 输出文件不存在: %s: %w", cleanPath, err)
+		}
+		if !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("python 输出路径不是普通文件: %s", cleanPath)
+		}
+
+		paths = append(paths, cleanPath)
+	}
+
+	return paths, nil
+}
+
+func (e *Executor) resolveOutputDir(workDir string) (string, error) {
+	outputDir := strings.TrimSpace(e.outputDir)
+	if outputDir == "" {
+		outputDir = filepath.Join(workDir, "output")
+	} else if !filepath.IsAbs(outputDir) {
+		outputDir = filepath.Join(workDir, outputDir)
+	}
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return "", err
+	}
+	return outputDir, nil
+}
+
+func (e *Executor) readExecutionManifest(resultPath string) (*executionManifest, error) {
+	data, err := os.ReadFile(resultPath)
+	if err != nil {
+		return nil, err
+	}
+	var manifest executionManifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return nil, err
+	}
+	return &manifest, nil
 }
 
 // createWorkDir 创建工作目录
@@ -437,10 +660,15 @@ func (e *Executor) extractPackageName(pkgSpec string) string {
 }
 
 // buildWrapperScript 构建 Python 包装脚本
-func (e *Executor) buildWrapperScript() string {
+func (e *Executor) buildWrapperScript() (string, error) {
+	userCode, err := json.Marshal(e.code)
+	if err != nil {
+		return "", err
+	}
 	wrapper := `import sys
 import json
 import traceback
+import os
 
 # 解析 JSON 请求结构体
 request = {}
@@ -451,19 +679,78 @@ if len(sys.argv) > 1:
         print(f"请求解析错误: {e}", file=sys.stderr)
         sys.exit(1)
 
-# 辅助函数：输出 JSON（带标记，便于 Go 端解析）
-def output_json(data):
-    """输出 JSON 数据，带标记以便 Go 端解析"""
-    json_str = json.dumps(data, ensure_ascii=False)
-    print("<python-out>")
-    print(json_str)
-    print("</python-out>")
+ENTRY_FUNCTION_NAME = "` + DefaultEntryFunctionName + `"
+output_dir = os.environ.get("AGENTOS_OUTPUT_DIR", "")
+result_path = os.environ.get("AGENTOS_RESULT_PATH", "")
 
-# 将请求字段注入到全局命名空间（方便直接使用）
-# 注意：JSON 的 true/false/null 会被 json.loads() 自动转换为 Python 的 True/False/None
-if isinstance(request, dict):
-    for key, value in request.items():
-        globals()[key] = value
+def output_file(path, name=None, description=None):
+    if path is None:
+        raise ValueError("output_file path 不能为空")
+    abs_path = os.path.abspath(path)
+    item = {"path": abs_path}
+    if name:
+        item["name"] = str(name)
+    if description:
+        item["description"] = str(description)
+    return item
+
+def _normalize_output_file(item):
+    if isinstance(item, str):
+        item = {"path": item}
+    if not isinstance(item, dict):
+        raise TypeError("output_files 的每一项必须是 dict 或 path 字符串")
+    path = item.get("path")
+    if not isinstance(path, str) or not path.strip():
+        raise ValueError("output_files[*].path 必须是非空字符串")
+    normalized = {"path": os.path.abspath(path)}
+    name = item.get("name")
+    if name not in (None, ""):
+        normalized["name"] = str(name)
+    description = item.get("description")
+    if description not in (None, ""):
+        normalized["description"] = str(description)
+    return normalized
+
+def _normalize_result(result):
+    if result is None:
+        result = {}
+    if not isinstance(result, dict):
+        raise TypeError(f"{ENTRY_FUNCTION_NAME}(args, output_dir) 必须返回 dict")
+    allowed_keys = {"data", "output_files", "warnings"}
+    unknown_keys = sorted(set(result.keys()) - allowed_keys)
+    if unknown_keys:
+        raise ValueError(f"{ENTRY_FUNCTION_NAME} 返回了不支持的字段: {', '.join(unknown_keys)}")
+    output_files_raw = result.get("output_files") or []
+    if not isinstance(output_files_raw, list):
+        raise TypeError("output_files 必须是 list")
+    warnings_raw = result.get("warnings") or []
+    if not isinstance(warnings_raw, list):
+        raise TypeError("warnings 必须是 list")
+    return {
+        "data": result.get("data"),
+        "output_files": [_normalize_output_file(item) for item in output_files_raw],
+        "warnings": [str(item) for item in warnings_raw],
+    }
+
+def _write_manifest(ok, normalized_result=None, error_message=""):
+    payload = {
+        "ok": bool(ok),
+        "data": None,
+        "output_files": [],
+        "warnings": [],
+        "error": str(error_message or ""),
+    }
+    if normalized_result is not None:
+        payload["data"] = normalized_result.get("data")
+        payload["output_files"] = normalized_result.get("output_files", [])
+        payload["warnings"] = normalized_result.get("warnings", [])
+    if not result_path:
+        return
+    result_dir = os.path.dirname(result_path)
+    if result_dir:
+        os.makedirs(result_dir, exist_ok=True)
+    with open(result_path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, ensure_ascii=False, default=str)
 
 # 为了兼容性，提供 true/false/null 的别名
 true = True
@@ -548,21 +835,23 @@ except ImportError:
     pass  # pandas 未安装，跳过自动转换
 
 # 执行用户代码
+user_code = ` + string(userCode) + `
 try:
-`
-	// 添加用户代码，每行缩进 4 个空格
-	lines := strings.Split(e.code, "\n")
-	for _, line := range lines {
-		wrapper += "    " + line + "\n"
-	}
-
-	wrapper += `except Exception as e:
+    compiled = compile(user_code, "<agentos-user-code>", "exec")
+    exec(compiled, globals(), globals())
+    entry = globals().get(ENTRY_FUNCTION_NAME)
+    if not callable(entry):
+        raise RuntimeError(f"python_code 必须定义函数 {ENTRY_FUNCTION_NAME}(args, output_dir)")
+    normalized_result = _normalize_result(entry(request, output_dir))
+    _write_manifest(True, normalized_result)
+except Exception as e:
+    _write_manifest(False, None, e)
     print(f"执行错误: {e}", file=sys.stderr)
     traceback.print_exc()
     sys.exit(1)
 `
 
-	return wrapper
+	return wrapper, nil
 }
 
 // detectPythonPath 检测 Python 解释器路径

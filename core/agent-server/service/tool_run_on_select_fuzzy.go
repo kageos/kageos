@@ -33,20 +33,19 @@ func (t *RunOnSelectFuzzyTool) Execute(ctx context.Context, call ToolCall) ToolR
 	if err != nil {
 		return toolResult("run_on_select_fuzzy 参数解析失败: "+err.Error(), true)
 	}
-	content, isError := runOnSelectFuzzyTool(ctx, args, call.FullCodePath)
-	return toolResult(content, isError)
+	return runOnSelectFuzzyTool(ctx, args, call.FullCodePath)
 }
 
 // runOnSelectFuzzyTool 执行 OnSelectFuzzy 回调；仅支持按关键词或空关键词
-func runOnSelectFuzzyTool(ctx context.Context, args runOnSelectFuzzyArgs, currentFullCodePath string) (string, bool) {
+func runOnSelectFuzzyTool(ctx context.Context, args runOnSelectFuzzyArgs, currentFullCodePath string) ToolResult {
 	ctx = withAgentToolClientSource(ctx)
 	fullCodePath := resolveFullCodePathArg(args.FullCodePath, currentFullCodePath)
 	if fullCodePath == "" {
-		return "run_on_select_fuzzy 需传 full_code_path（配置了 OnSelectFuzzy 的 Form/Table 路径，如 .../cashier_desk.form 或 .../member_list.table）。", true
+		return toolResult("run_on_select_fuzzy 需传 full_code_path（配置了 OnSelectFuzzy 的 Form/Table 路径，如 .../cashier_desk.form 或 .../member_list.table）。", true)
 	}
 	code := strings.TrimSpace(args.Code)
 	if code == "" {
-		return "run_on_select_fuzzy 需传 code（字段 code，与 OnSelectFuzzyMap 的键一致）。", true
+		return toolResult("run_on_select_fuzzy 需传 code（字段 code，与 OnSelectFuzzyMap 的键一致）。", true)
 	}
 
 	keyword := strings.TrimSpace(args.Keyword)
@@ -69,7 +68,7 @@ func runOnSelectFuzzyTool(ctx context.Context, args runOnSelectFuzzyArgs, curren
 	result, err := apicall.CallbackOnSelectFuzzy(ctx, fullCodePath, body)
 	if err != nil {
 		logger.Errorf(ctx, "[RunOnSelectFuzzy] CallbackOnSelectFuzzy 失败: %v", err)
-		return "run_on_select_fuzzy 调用失败: " + err.Error(), true
+		return toolResult("run_on_select_fuzzy 调用失败: "+err.Error(), true)
 	}
-	return formatJSONResult(result)
+	return toolResultWithStructuredData(result, false)
 }

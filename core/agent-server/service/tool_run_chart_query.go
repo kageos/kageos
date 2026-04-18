@@ -31,22 +31,21 @@ func (t *RunChartQueryTool) Execute(ctx context.Context, call ToolCall) ToolResu
 	if err != nil {
 		return toolResult("run_chart_query 参数解析失败: "+err.Error(), true)
 	}
-	content, isError := runChartQueryTool(ctx, args, call.FullCodePath)
-	return toolResult(content, isError)
+	return runChartQueryTool(ctx, args, call.FullCodePath)
 }
 
 // runChartQueryTool 执行 Chart 查询；图表参数不固定，由 handler 定义，可传 url_query
-func runChartQueryTool(ctx context.Context, args runChartQueryArgs, currentFullCodePath string) (string, bool) {
+func runChartQueryTool(ctx context.Context, args runChartQueryArgs, currentFullCodePath string) ToolResult {
 	ctx = withAgentToolClientSource(ctx)
 	fullCodePath, pathNotice := resolveTypedFunctionFullCodePathArg(args.FullCodePath, currentFullCodePath, ".chart")
 	if fullCodePath == "" {
-		return "run_chart_query 需传 full_code_path（图表函数路径，如 /luobei/myapp/charts/sales_trend.chart）。", true
+		return toolResult("run_chart_query 需传 full_code_path（图表函数路径，如 /luobei/myapp/charts/sales_trend.chart）。", true)
 	}
 	var params url.Values
 	if q := strings.TrimSpace(args.URLQuery); q != "" {
 		parsed, err := url.ParseQuery(q)
 		if err != nil {
-			return "run_chart_query 的 url_query 需为合法查询串: " + err.Error(), true
+			return toolResult("run_chart_query 的 url_query 需为合法查询串: "+err.Error(), true)
 		}
 		params = parsed
 	} else {
@@ -55,11 +54,7 @@ func runChartQueryTool(ctx context.Context, args runChartQueryArgs, currentFullC
 	result, err := apicall.ChartQuery(ctx, fullCodePath, params)
 	if err != nil {
 		logger.Errorf(ctx, "[RunChartQuery] ChartQuery 失败: %v", err)
-		return "run_chart_query 调用失败: " + err.Error(), true
+		return toolResult("run_chart_query 调用失败: "+err.Error(), true)
 	}
-	content, _ := formatJSONResult(result)
-	if pathNotice != "" {
-		return pathNotice + "\n\n" + content, false
-	}
-	return content, false
+	return toolResultWithStructuredData(result, false, pathNotice)
 }

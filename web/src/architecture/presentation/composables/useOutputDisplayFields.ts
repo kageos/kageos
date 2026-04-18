@@ -40,15 +40,19 @@ function valueToString(val: unknown): string {
  */
 export function extractDisplayFieldsFromToolCall(
   arguments_?: string,
-  result?: string
+  result?: string,
+  resultData?: unknown
 ): OutputDisplayField[] {
-  if (!result) return []
-
   let resultObj: Record<string, unknown>
-  try {
-    resultObj = JSON.parse(result) as Record<string, unknown>
-  } catch {
-    return []
+  if (resultData && typeof resultData === 'object' && !Array.isArray(resultData)) {
+    resultObj = resultData as Record<string, unknown>
+  } else {
+    if (!result) return []
+    try {
+      resultObj = JSON.parse(result) as Record<string, unknown>
+    } catch {
+      return []
+    }
   }
 
   const fields: OutputDisplayField[] = []
@@ -98,11 +102,11 @@ export function extractDisplayFieldsFromToolCall(
  * 批量：从多个 tool_call 中提取所有需要展示的字段。
  */
 export function extractAllDisplayFields(
-  calls: Array<{ arguments?: string; result?: string }>
+  calls: Array<{ arguments?: string; result?: string; result_data?: unknown }>
 ): OutputDisplayField[] {
   const all: OutputDisplayField[] = []
   for (const tc of calls) {
-    all.push(...extractDisplayFieldsFromToolCall(tc.arguments, tc.result))
+    all.push(...extractDisplayFieldsFromToolCall(tc.arguments, tc.result, tc.result_data))
   }
   return all
 }

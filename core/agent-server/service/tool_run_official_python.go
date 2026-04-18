@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -22,33 +23,42 @@ const runOfficialPythonPreinstallDoc = `**生产镜像已预装、可直接 impo
 **若 import 报错：** 优先改用上面列表或标准库；需要新依赖时请管理员更新 Dockerfile / 官方 requirements.txt 并重打镜像。不可在本工具参数里指定 pip 包。
 **环境差异：** 本地非 Docker 运行时以本机 python 为准，可能与镜像不一致。`
 
-const officialPythonFormPath = "/system/official/python/execute"
+const officialPythonFormPath = "/system/official/python/execute.form"
 
 type RunOfficialPythonTool struct{}
 
 type runOfficialPythonArgs struct {
-	PythonCode     string `json:"python_code" schema_desc:"完整 Python 源码" schema_required:"true"`
-	ArgsJSON       string `json:"args_json" schema_desc:"注入脚本的 JSON 对象字符串"`
-	TimeoutSeconds *int   `json:"timeout_seconds" schema_desc:"超时秒数"`
+	PythonCode     string                 `json:"python_code" schema_desc:"完整 Python 源码" schema_required:"true"`
+	Args           map[string]interface{} `json:"args" schema_desc:"注入脚本的对象参数（推荐）"`
+	ArgsJSON       string                 `json:"args_json" schema_desc:"注入脚本的 JSON 对象字符串（兼容旧调用方）"`
+	TimeoutSeconds *int                   `json:"timeout_seconds" schema_desc:"超时秒数"`
 }
 
 var runOfficialPythonToolDef = toolDefinition[runOfficialPythonArgs](
 	"run_official_python",
 	runOfficialPythonPreinstallDoc+`
 
-**执行环境：** Python 跑在 **应用运行时容器内**（Podman 等业务容器，**不是宿主机**）。本工具调用官方路径 **/system/official/python/execute**，由 **官方应用** 对应容器执行；脚本在 **临时目录** 中运行，不把工作区源码树当作工作目录。
+**执行环境：** Python 跑在 **应用运行时容器内**（Podman 等业务容器，**不是宿主机**）。本工具调用官方路径 **/system/official/python/execute.form**，由 **官方应用** 对应容器执行；脚本在 **临时目录** 中运行，不把工作区源码树当作工作目录。
 
-**无法输出文件到工作台供用户下载：** 本工具只能返回文本/JSON（output/json_result），**不能**把 Python 生成的 PNG/Excel 等变成工作台可下载附件。
+**固定入口协议：**
+- python_code **必须定义**：def agentos_entry(args, output_dir): ...
+- 第一个参数 args 为传入的对象参数；第二个参数 output_dir 为受控输出目录
+- 返回值 **必须是 dict**，仅允许：
+  - data: JSON 可序列化结果
+  - output_files: 输出文件列表，每项至少含 path
+  - warnings: 警告字符串列表
+- print(...) 只用于日志，不作为主结果协议
 
-**若需要「处理后的文件给用户下载」：** 请先用 **read_doc** 读取内置示例文档 **/system/prompt/case_catalog/form/python_output**（含 PRD 与完整 Go 示例），再按文档配合 **agent-app SDK** 在用户应用内新增 Form：**pythonRuntime.NewExecutor** → **defer executor.Close()**（默认临时目录）→ Go 用 **filepath.Abs** 得到 **绝对路径**（如 GetTraceOutputDir 下文件）经请求传给 Python → Python **直接写入该路径**（如 savefig，勿用相对路径互传，Go/Python **cwd 不同**）→ 响应 **types.Files**（ResponseFiles 使用同一绝对路径）。Go 与 Python 为**同机子进程**，非网络隔离。
+**输出结果：** 官方执行端会解析 agentos_entry 的返回值；若返回里有 **output_files**，Go 侧会负责校验、上传并构造成最终 types.Files，工作台自动展示可下载附件。
 
-**两种输出方式（二选一或组合）：**
-1. **结构化结果（推荐）**：脚本末尾调用 output_json(字典或列表)，键用双引号、值为 JSON 可序列化类型。返回里 json_result 为格式化后的 JSON，便于你后续取字段。
-2. **纯文本/报表**：用 print(...)。返回里以 output 为准；json_result 会提示「非 JSON」，属正常降级，不要误判为失败。
+**输出文件约束：**
+- 只能声明写在 output_dir 里的最终文件
+- 不要返回随机路径、临时缓存路径、相对路径拼猜出来的文件
+- 每个输出文件项建议形如：{"path": "/abs/path/in/output_dir/report.xlsx", "name": "report.xlsx"}
 
-**如何读返回：** status=成功 时，有结构化数据优先看 json_result；无则读 output。若 json_result 含「JSON解析失败」而 output 里已有 <python-out> 片段，以 output 内 JSON 为准或修正脚本后重试。
+**若你需要把字段、权限、命名规则固化为应用接口：** 请用 **read_doc** 读取内置示例文档 **/system/prompt/case_catalog/form/python_output**（含 PRD 与完整 Go 示例），再按文档配合 **agent-app SDK** 在用户应用内新增 Form：**pythonRuntime.NewExecutor** → **defer executor.Close()**（默认临时目录）→ Go 用 **filepath.Abs** 得到 **绝对路径**（如 GetTraceOutputDir 下文件）经请求传给 Python → Python **直接写入该路径**（如 savefig，勿用相对路径互传，Go/Python **cwd 不同**）→ 用 **OutputFilePaths + ResponseFiles** 下发附件。Go 与 Python 为**同机子进程**，非网络隔离。
 
-**参数：** args_json 为 JSON 对象字符串，字段注入脚本全局命名空间。timeout_seconds 默认 120、上限 300。
+**参数：** 推荐用 args 直接传对象参数；args_json 仅兼容旧调用方。timeout_seconds 默认 120、上限 300。
 
 返回中可能含 _model_guidance：面向你的纠错/降级说明，请优先阅读。`,
 )
@@ -62,18 +72,25 @@ func (t *RunOfficialPythonTool) Execute(ctx context.Context, call ToolCall) Tool
 	if err != nil {
 		return toolResult("run_official_python 参数解析失败: "+err.Error(), true)
 	}
-	content, isError := runOfficialPythonTool(ctx, args)
-	return toolResult(content, isError)
+	content, isError, data := runOfficialPythonTool(ctx, args)
+	return toolResultWithData(content, isError, data)
 }
 
 // runOfficialPythonTool 调用系统官方 Python 执行 Form
-func runOfficialPythonTool(ctx context.Context, args runOfficialPythonArgs) (string, bool) {
+func runOfficialPythonTool(ctx context.Context, args runOfficialPythonArgs) (string, bool, map[string]interface{}) {
 	code := strings.TrimSpace(args.PythonCode)
 	if code == "" {
-		return "run_official_python 需传 python_code。", true
+		return "run_official_python 需传 python_code。", true, nil
 	}
 	body := map[string]interface{}{
-		"python_code": code,
+		"python_code":          code,
+		"collect_output_files": true,
+	}
+	if len(args.Args) > 0 {
+		body["args"] = args.Args
+		if b, err := json.Marshal(args.Args); err == nil {
+			body["args_json"] = string(b)
+		}
 	}
 	if argsJSON := strings.TrimSpace(args.ArgsJSON); argsJSON != "" {
 		body["args_json"] = argsJSON
@@ -90,7 +107,7 @@ func runOfficialPythonTool(ctx context.Context, args runOfficialPythonArgs) (str
 	result, err := apicall.FormSubmit(ctx, officialPythonFormPath, body)
 	if err != nil {
 		logger.Errorf(ctx, "[RunOfficialPython] FormSubmit 失败: %v", err)
-		return "run_official_python 调用失败: " + err.Error() + "\n\n【给模型】可检查 python_code 是否过长、args_json 是否为合法 JSON 对象字符串；网络或权限问题可稍后重试。", true
+		return "run_official_python 调用失败: " + err.Error() + "\n\n【给模型】可检查 python_code 是否过长、args/args_json 是否为合法对象；网络或权限问题可稍后重试。", true, nil
 	}
 	out := make(map[string]interface{}, len(result)+1)
 	for k, v := range result {
@@ -99,7 +116,8 @@ func runOfficialPythonTool(ctx context.Context, args runOfficialPythonArgs) (str
 	if g := buildOfficialPythonModelGuidance(result); g != "" {
 		out["_model_guidance"] = g
 	}
-	return formatJSONResult(out)
+	content, isError := formatJSONResult(out)
+	return content, isError, out
 }
 
 func officialPythonFormPayload(m map[string]interface{}) map[string]interface{} {
@@ -169,16 +187,16 @@ func buildOfficialPythonModelGuidance(raw map[string]interface{}) string {
 		}
 	case "成功":
 		if strings.Contains(jr, "JSON解析失败") {
-			appendLine("【json_result 解析失败】执行已成功；结构化内容可能在 output 的 <python-out>...</python-out> 内。请以 output 为准，或改为 output_json(合法 dict/list)，避免在标记内输出非 JSON 文本。")
+			appendLine("【结构化结果解析失败】请确认 python_code 定义了 agentos_entry(args, output_dir)，并返回 {\"data\": ...} 这种合法 dict，而不是靠 print 输出 JSON。")
 		}
 		if strings.Contains(jr, "输出不是JSON格式") || strings.Contains(jr, "不是JSON格式") {
-			appendLine("【降级·正常】当前为纯文本输出（print）。若用户只需要报告/说明，无需改代码；若你需要程序取字段，请让脚本改用 output_json({...})。")
+			appendLine("【降级·正常】当前为纯文本日志输出（print）。若只需报告说明，可直接使用；若你需要程序取字段，请让 agentos_entry 返回 {\"data\": {...}}。")
 		}
 		if strings.Contains(jr, "标记内无 JSON") {
-			appendLine("【output_json 空内容】请确保 output_json 传入非空 dict/list；若本意是纯文本请改用 print。")
+			appendLine("【data 为空】请确保 agentos_entry 返回的 dict 中包含 data；若本意只是打印日志，可继续使用 print。")
 		}
 		if jr == "" && out != "" && !strings.Contains(out, "<python-out>") {
-			appendLine("【提示】未使用 output_json 时 json_result 常为空，以 output 为准即可。")
+			appendLine("【提示】当前没有结构化 data，先以 output 为准；若需要上层稳定解析，请改为让 agentos_entry 返回 {\"data\": ...}。")
 		}
 	default:
 		if status != "" {

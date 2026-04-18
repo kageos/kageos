@@ -114,6 +114,15 @@ function formatResultOrError(s: string): string {
   return unescapeNewlines(s.trim())
 }
 
+function formatResultData(val: unknown): string {
+  if (val == null) return ''
+  try {
+    return JSON.stringify(val, null, 2)
+  } catch {
+    return String(val)
+  }
+}
+
 /** 参数：多行展示（pretty JSON），仅还原换行，不截断，完整内容在视口内滚动查看 */
 function formatArgsPreview(argsStr: string | undefined): string {
   if (!argsStr || !argsStr.trim()) return ''
@@ -139,6 +148,9 @@ function getLinesForTool(tc: WorkspaceChatToolCallSummary): { text: string; type
   if (tc.result) {
     const preview = formatResultOrError(tc.result)
     if (preview) lines.push({ text: preview, type: 'result' })
+  } else if (tc.result_data != null) {
+    const preview = formatResultData(tc.result_data)
+    if (preview) lines.push({ text: preview, type: 'result' })
   }
   if (tc.error) {
     const preview = formatResultOrError(tc.error)
@@ -161,7 +173,10 @@ function scrollAllViewportsToBottom() {
 }
 
 watch(
-  () => props.toolCalls.map((t) => (t.arguments?.length ?? 0) + (t.result?.length ?? 0) + (t.error?.length ?? 0)),
+  () => props.toolCalls.map((t) => {
+    const resultDataLen = t.result_data == null ? 0 : formatResultData(t.result_data).length
+    return (t.arguments?.length ?? 0) + (t.result?.length ?? 0) + resultDataLen + (t.error?.length ?? 0)
+  }),
   () => scrollAllViewportsToBottom(),
   { deep: true }
 )

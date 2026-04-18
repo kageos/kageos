@@ -197,50 +197,46 @@ func DoJiebaSegment(ctx *app.Context, req *JiebaSegmentReq) (*JiebaSegmentResp, 
 func buildJiebaSegmentCode() string {
 	code := `import jieba
 import jieba.analyse
-import json
 
-# 从请求中获取参数（自动注入到全局命名空间）
-# text, cut_all, use_hmm, remove_stopwords, top_k 已自动注入
+def agentos_entry(args, output_dir):
+    text = args["text"]
+    cut_all = args["cut_all"]
+    use_hmm = args["use_hmm"]
+    remove_stopwords = args["remove_stopwords"]
+    top_k = args["top_k"]
 
-# 分词
-if cut_all:
-    words = list(jieba.cut(text, cut_all=True))
-elif not use_hmm:
-    words = list(jieba.cut(text, cut_all=False, HMM=False))
-else:
-    # 搜索引擎模式
-    words = list(jieba.cut_for_search(text))
+    if cut_all:
+        words = list(jieba.cut(text, cut_all=True))
+    elif not use_hmm:
+        words = list(jieba.cut(text, cut_all=False, HMM=False))
+    else:
+        words = list(jieba.cut_for_search(text))
 
-# 移除停用词（简单处理，移除单字符和空白）
-if remove_stopwords:
-    words = [w for w in words if len(w.strip()) > 1]
+    if remove_stopwords:
+        words = [w for w in words if len(w.strip()) > 1]
 
-# 关键词提取（TF-IDF）
-keywords = jieba.analyse.extract_tags(text, topK=top_k, withWeight=True)
+    keywords = jieba.analyse.extract_tags(text, topK=top_k, withWeight=True)
 
-# 词频统计
-word_freq = {}
-for word in words:
-    word = word.strip()
-    if word:
-        word_freq[word] = word_freq.get(word, 0) + 1
+    word_freq = {}
+    for word in words:
+        word = word.strip()
+        if word:
+            word_freq[word] = word_freq.get(word, 0) + 1
 
-# 按频次排序，取 Top 20
-sorted_word_freq = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:20]
+    sorted_word_freq = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:20]
 
-# 构建结果
-result = {
-    "words": words,
-    "keywords": [{"word": k, "weight": float(w)} for k, w in keywords],
-    "word_freq": [{"word": w, "count": c} for w, c in sorted_word_freq],
-    "statistics": {
-        "total_chars": len(text),
-        "total_words": len(words),
-        "unique_words": len(word_freq)
-    }
-}
-
-output_json(result)`
+    return {
+        "data": {
+            "words": words,
+            "keywords": [{"word": k, "weight": float(w)} for k, w in keywords],
+            "word_freq": [{"word": w, "count": c} for w, c in sorted_word_freq],
+            "statistics": {
+                "total_chars": len(text),
+                "total_words": len(words),
+                "unique_words": len(word_freq)
+            }
+        }
+    }`
 
 	return code
 }

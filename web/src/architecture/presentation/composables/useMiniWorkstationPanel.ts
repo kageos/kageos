@@ -13,15 +13,15 @@ export interface FilePanelItem {
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'])
 
 export function useMiniWorkstationPanel(messages: Ref<ChatMessage[]>) {
-  const getFileGroupsFromCalls = (calls: Array<{ result?: string }>): OutputFileGroup[] => {
+  const getFileGroupsFromCalls = (calls: Array<{ result?: string; result_data?: unknown }>): OutputFileGroup[] => {
     const groups: OutputFileGroup[] = []
     for (const toolCall of calls) {
-      groups.push(...extractFileGroupsFromResult(toolCall.result))
+      groups.push(...extractFileGroupsFromResult(toolCall.result_data ?? toolCall.result))
     }
     return groups
   }
 
-  const getDisplayFieldsFromCalls = (calls: Array<{ arguments?: string; result?: string }>): OutputDisplayField[] => {
+  const getDisplayFieldsFromCalls = (calls: Array<{ arguments?: string; result?: string; result_data?: unknown }>): OutputDisplayField[] => {
     return extractAllDisplayFields(calls)
   }
 

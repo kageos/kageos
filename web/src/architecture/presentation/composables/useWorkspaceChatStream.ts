@@ -16,7 +16,7 @@ export interface ChatMessageFile {
 }
 
 /** 单条 assistant 消息内的工具调用项（与 ChatMessage.tool_calls 元素同构） */
-export type ChatMessageToolCall = { name: string; status: string; arguments?: string; result?: string; error?: string }
+export type ChatMessageToolCall = { name: string; status: string; arguments?: string; result?: string; result_data?: unknown; error?: string }
 
 /** assistant 消息内的块：按事件顺序排列，用于「文本 → 工具调用 → 文本 → …」的层次展示 */
 export type AssistantBlock =
@@ -232,7 +232,7 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
         const existing = currentRoundPrev[i]
         const args = (item.arguments && item.arguments.trim()) ? item.arguments : (existing?.arguments ?? item.arguments)
         if (existing && ['running', 'ok', 'error'].includes(existing.status)) {
-          return { ...item, status: existing.status, arguments: args, result: existing.result, error: existing.error }
+          return { ...item, status: existing.status, arguments: args, result: existing.result, result_data: existing.result_data, error: existing.error }
         }
         return { ...item, arguments: args }
       })
@@ -248,6 +248,7 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
       const status = String(data.status || 'ok')
       const argumentsStr = (typeof data.arguments === 'string' && data.arguments.trim()) ? data.arguments : undefined
       const resultStr = typeof data.result === 'string' ? data.result : undefined
+      const resultData = Object.prototype.hasOwnProperty.call(data, 'result_data') ? data.result_data : undefined
       const errorStr = typeof data.error === 'string' ? data.error : undefined
       const blocks = m.blocks ?? []
       const prev = m.tool_calls || []
@@ -256,10 +257,10 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
         pendingIndex >= 0
           ? prev.map((t, i) =>
               i === pendingIndex
-                ? { name: data.name as string, status, arguments: argumentsStr ?? t.arguments, result: resultStr ?? t.result, error: errorStr ?? t.error }
+                ? { name: data.name as string, status, arguments: argumentsStr ?? t.arguments, result: resultStr ?? t.result, result_data: resultData ?? t.result_data, error: errorStr ?? t.error }
                 : t
             )
-          : [...prev, { name: data.name as string, status, arguments: argumentsStr, result: resultStr, error: errorStr }]
+          : [...prev, { name: data.name as string, status, arguments: argumentsStr, result: resultStr, result_data: resultData, error: errorStr }]
       const nextBlocks = updateLastToolCallsBlock(blocks, list)
       messages.value[lastIdx] = { ...m, tool_calls: list, blocks: nextBlocks }
     }
@@ -282,7 +283,14 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
         const merged = prev.map((t, i) => {
           const dc = doneList[i]
           if (!dc) return t
-          return { ...t, ...dc, arguments: dc.arguments ?? t.arguments, result: dc.result ?? t.result, error: dc.error ?? t.error }
+          return {
+            ...t,
+            ...dc,
+            arguments: dc.arguments ?? t.arguments,
+            result: dc.result ?? t.result,
+            result_data: dc.result_data ?? t.result_data,
+            error: dc.error ?? t.error
+          }
         })
         if (doneList.length > prev.length) {
           for (let i = prev.length; i < doneList.length; i++) {
