@@ -16,22 +16,22 @@
   --color-danger: #ef4444;
   --color-info: #3b82f6;
   
-  // 文字颜色 - 沉稳的板岩灰 (Slate)
-  --text-primary: #0f172a;
-  --text-regular: #334155;
-  --text-secondary: #475569;
-  --text-disabled: #94a3b8;
+  // 文字颜色 - 提高对比度，绝对清晰
+  --text-primary: #030712;    // 近乎纯黑，极致清晰
+  --text-regular: #1f2937;    // 深灰，清晰易读
+  --text-secondary: #4b5563;  // 中灰，辅助文字
+  --text-disabled: #9ca3af;
   
-  // 背景颜色 - 层次分明：底层柔和，表面纯白
-  --bg-primary: #ffffff;    // 卡片、主内容区的背景色，纯白以凸显内容
-  --bg-secondary: #f8fafc;  // 次要区域、表单项背景、侧边栏背景
-  --bg-tertiary: #f1f5f9;   // 悬浮、选中状态背景
-  --bg-page: #f4f7fb;       // 整个应用的底层背景色，非常柔和不刺眼的蓝灰
+  // 背景颜色 - 纯实心颜色，绝不使用半透明
+  --bg-primary: #ffffff;      // 面板、卡片、内容的背景必须是纯白
+  --bg-secondary: #f3f4f6;    // 侧边栏、背景底色
+  --bg-tertiary: #e5e7eb;     // 悬停、选中状态背景
+  --bg-page: #f9fafb;         // 整个应用的底层背景色
   
-  // 边框颜色 - 极其克制、细腻的边框
-  --border-base: #e2e8f0;
-  --border-light: #f1f5f9;
-  --border-lighter: #f8fafc;
+  // 边框颜色 - 加深边框颜色，让边界分明
+  --border-base: #d1d5db;     // 清晰可见的边框线
+  --border-light: #e5e7eb;
+  --border-lighter: #f3f4f6;
   
   // 字体
   --font-family-base: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -60,14 +60,14 @@
   --box-shadow-base: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
   --box-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
   --app-panel-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.05);
-  --app-shell-bg: #eef2f6;
-  --app-shell-panel-bg: rgba(255, 255, 255, 0.8);
-  --app-shell-panel-bg-strong: rgba(255, 255, 255, 0.95);
-  --app-shell-panel-muted-bg: rgba(244, 247, 251, 0.7);
-  --app-shell-panel-border: rgba(148, 163, 184, 0.26);
-  --app-shell-panel-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
-  --app-shell-panel-shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.04);
-  --app-shell-panel-highlight: rgba(255, 255, 255, 0.95);
+  --app-shell-bg: #f3f4f6;
+  --app-shell-panel-bg: #ffffff;
+  --app-shell-panel-bg-strong: #ffffff;
+  --app-shell-panel-muted-bg: #f9fafb;
+  --app-shell-panel-border: #d1d5db;
+  --app-shell-panel-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --app-shell-panel-shadow-soft: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --app-shell-panel-highlight: #ffffff;
   --app-auth-surface-bg: rgba(244, 247, 251, 0.88);
   --app-auth-card-bg: rgba(255, 255, 255, 0.9);
   --app-auth-card-bg-strong: rgba(255, 255, 255, 0.98);
@@ -92,30 +92,30 @@
   --el-color-danger: var(--color-danger);
   --el-color-info: var(--color-info);
   
-  --el-bg-color: rgba(255, 255, 255, 0.9);
-  --el-bg-color-page: var(--bg-page);
-  --el-bg-color-overlay: rgba(255, 255, 255, 0.95);
+  --el-bg-color: #ffffff;
+  --el-bg-color-page: #f3f4f6;
+  --el-bg-color-overlay: #ffffff;
   
   // 输入框背景色
-  --el-input-bg-color: var(--bg-secondary);
-  --el-input-border-color: var(--border-base);
-  --el-input-hover-border-color: #cbd5e1;
+  --el-input-bg-color: #ffffff;
+  --el-input-border-color: #d1d5db;
+  --el-input-hover-border-color: #9ca3af;
   --el-input-focus-border-color: var(--color-primary);
-  --el-text-color-primary: var(--text-primary);
-  --el-text-color-regular: var(--text-regular);
-  --el-text-color-secondary: var(--text-secondary);
-  --el-text-color-placeholder: var(--text-disabled);
-  --el-border-color: var(--border-base);
-  --el-border-color-light: var(--border-light);
-  --el-border-color-lighter: var(--border-lighter);
-  --el-border-color-extra-light: var(--border-lighter);
-  --el-border-color-darker: #cbd5e1;
-  --el-fill-color-blank: var(--bg-primary);
-  --el-fill-color-light: rgba(15, 23, 42, 0.04);
-  --el-fill-color-lighter: rgba(15, 23, 42, 0.02);
-  --el-fill-color: rgba(15, 23, 42, 0.06);
-  --el-fill-color-dark: rgba(15, 23, 42, 0.08);
-  --el-fill-color-darker: rgba(15, 23, 42, 0.12);
+  --el-text-color-primary: #030712;
+  --el-text-color-regular: #1f2937;
+  --el-text-color-secondary: #4b5563;
+  --el-text-color-placeholder: #9ca3af;
+  --el-border-color: #d1d5db;
+  --el-border-color-light: #e5e7eb;
+  --el-border-color-lighter: #f3f4f6;
+  --el-border-color-extra-light: #f9fafb;
+  --el-border-color-darker: #9ca3af;
+  --el-fill-color-blank: #ffffff;
+  --el-fill-color-light: #f3f4f6;
+  --el-fill-color-lighter: #f9fafb;
+  --el-fill-color: #e5e7eb;
+  --el-fill-color-dark: #d1d5db;
+  --el-fill-color-darker: #9ca3af;
   --el-mask-color: rgba(0, 0, 0, 0.6);
   --el-mask-color-extra-light: rgba(0, 0, 0, 0.2);
   
