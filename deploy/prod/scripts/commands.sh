@@ -260,6 +260,17 @@ cmd_doctor() {
     doctor_ok "未检测到宿主机 nginx 冲突"
   fi
 
+  if rootless_podman_compose; then
+    local unprivileged_start
+    unprivileged_start="$(unprivileged_port_start || true)"
+    if [[ -n "$unprivileged_start" && "$unprivileged_start" =~ ^[0-9]+$ && "$unprivileged_start" -le 80 ]]; then
+      doctor_ok "rootless podman 可绑定 80 端口（net.ipv4.ip_unprivileged_port_start=${unprivileged_start}）"
+    else
+      doctor_warn "当前是 rootless podman；80 端口绑定可能被内核拒绝。build.sh up 会自动尝试修复"
+      warnings=$((warnings + 1))
+    fi
+  fi
+
   if (( compose_ready == 1 )); then
     if main_image_available; then
       doctor_ok "主镜像已就绪: ${MAIN_IMAGE}"
@@ -295,6 +306,7 @@ cmd_up() {
   echo "==> 使用: ${COMPOSE_CMD[*]}"
   print_storage_mode
   prepare_storage_layout
+  ensure_rootless_podman_can_bind_http_ports
   if ! run_app_base_tool check 0 >/dev/null 2>&1; then
     echo "ERROR: 未找到用户应用基础镜像 ${APP_BASE_IMAGE}，请先执行 ${INIT_IMAGE_USAGE_HINT}"
     exit 1
@@ -326,6 +338,7 @@ cmd_update() {
   print_storage_mode
   stop_host_nginx_if_needed
   prepare_storage_layout
+  ensure_rootless_podman_can_bind_http_ports
   if [[ "$UPDATE_USE_IMAGE" == "1" ]]; then
     pull_main_image
     echo "==> 仅拉取镜像并更新 main / scheduler / backup 服务（不在目标机本地构建）..."

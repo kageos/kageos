@@ -217,6 +217,53 @@ host_podman_ready() {
   host_podman_installed && host_podman_compose_available
 }
 
+rootless_podman_compose() {
+  ensure_compose_cmd
+  [[ "${COMPOSE_CMD[0]}" == "podman" && "${EUID:-$(id -u)}" != "0" ]]
+}
+
+unprivileged_port_start() {
+  if [[ -r /proc/sys/net/ipv4/ip_unprivileged_port_start ]]; then
+    cat /proc/sys/net/ipv4/ip_unprivileged_port_start
+    return 0
+  fi
+
+  if command -v sysctl >/dev/null 2>&1; then
+    sysctl -n net.ipv4.ip_unprivileged_port_start 2>/dev/null
+    return 0
+  fi
+
+  return 1
+}
+
+ensure_rootless_podman_can_bind_http_ports() {
+  local current
+  local sysctl_file="/etc/sysctl.d/99-ai-agent-os-rootless-podman.conf"
+
+  if ! rootless_podman_compose; then
+    return 0
+  fi
+
+  current="$(unprivileged_port_start || true)"
+  if [[ -n "$current" ]] && (( current <= 80 )); then
+    return 0
+  fi
+
+  prepare_root_cmd
+
+  echo "==> 检测到 rootless podman；自动放开宿主机 80 端口绑定限制 ..."
+  if ! "${ROOT_CMD[@]}" sysctl -w net.ipv4.ip_unprivileged_port_start=80 >/dev/null; then
+    echo "ERROR: 无法放开 rootless podman 的低端口绑定限制。"
+    echo "请手动执行：sudo sysctl -w net.ipv4.ip_unprivileged_port_start=80"
+    exit 1
+  fi
+
+  if [[ -d /etc/sysctl.d ]]; then
+    printf 'net.ipv4.ip_unprivileged_port_start = 80\n' | "${ROOT_CMD[@]}" tee "$sysctl_file" >/dev/null
+    echo "==> 已写入持久化配置: ${sysctl_file}"
+  fi
+}
+
 host_podman_manual_install_hint() {
   if command -v apt-get >/dev/null 2>&1; then
     echo "手工安装可执行：sudo apt-get update && sudo apt-get install -y podman podman-compose"
