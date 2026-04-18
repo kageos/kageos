@@ -12,4 +12,8 @@ render_runtime_template_file \
   'backup-service.yaml' \
   'backup-service.yaml'
 
+echo "==> 等待依赖（MySQL / MinIO）..."
+wait_tcp mysql 3306 "MySQL"
+wait_tcp minio 9000 "MinIO"
+
 exec /app/backup-server

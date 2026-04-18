@@ -51,6 +51,7 @@ services:
     networks: [aos]
 
   # ─── 主服务（host 网络，容器内 Nginx 直接对外 80 / 443）───────
+  # 运行期依赖由各服务入口脚本自行等待，避免 podman-compose 注入 --requires 导致启动失败
   main:
     build:
       context: ../..
@@ -81,9 +82,6 @@ services:
       - /data/ai-agent-os/namespace:/app/namespace
       - /data/ai-agent-os/data:/app/data
       - ${TLS_CERTS_HOST_DIR:-./certs}:/app/tls:ro
-    depends_on:
-      - mysql
-      - minio
     healthcheck:
       test: ["CMD", "/app/health/main.sh"]
       interval: 20s
@@ -112,11 +110,6 @@ services:
       - /data/ai-agent-os/logs:/app/logs
       - /data/ai-agent-os/namespace:/app/namespace
       - /data/ai-agent-os/data:/app/data
-    depends_on:
-      - main
-      - mysql
-      - nats
-      - minio
     healthcheck:
       test: ["CMD", "/app/health/scheduler.sh"]
       interval: 20s
@@ -141,10 +134,6 @@ services:
       - /data/ai-agent-os/mysql:/storage/mysql:ro
       - /data/ai-agent-os/minio:/storage/minio:ro
       - /data/ai-agent-os/podman_storage:/storage/podman_storage:ro
-    depends_on:
-      - mysql
-      - nats
-      - minio
     healthcheck:
       test: ["CMD", "/app/health/backup.sh"]
       interval: 20s
