@@ -29,12 +29,13 @@ type WorkspaceChatResp struct {
 
 // WorkspaceChatToolCallSummary 工作台单次 tool 调用摘要（供前端展示）
 type WorkspaceChatToolCallSummary struct {
-	ID        string `json:"id"`        // tool_call_id（用于关联 tool 消息）
-	Name      string `json:"name"`      // 工具名称
-	Status    string `json:"status"`    // ok / error
-	Arguments string `json:"arguments"` // 参数（JSON 字符串，可选）
-	Result    string `json:"result"`    // 结果内容（从对应的 tool 消息中获取，可选）
-	Error     string `json:"error"`     // 错误信息（如果有，可选）
+	ID         string      `json:"id"`                    // tool_call_id（用于关联 tool 消息）
+	Name       string      `json:"name"`                  // 工具名称
+	Status     string      `json:"status"`                // ok / error
+	Arguments  string      `json:"arguments"`             // 参数（JSON 字符串，可选）
+	Result     string      `json:"result"`                // 结果内容（从对应的 tool 消息中获取，可选）
+	ResultData interface{} `json:"result_data,omitempty"` // 结构化结果（优先供前端展示/提取文件）
+	Error      string      `json:"error"`                 // 错误信息（如果有，可选）
 }
 
 // ListWorkspaceSessionsReq 获取工作台会话列表请求

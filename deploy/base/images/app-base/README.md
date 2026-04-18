@@ -265,15 +265,15 @@ import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/runtime/python"
 
 // 执行 Python 代码并自动解析 JSON 输出
 code := `
-import json
 import pandas as pd
 
-df = pd.DataFrame(data)
-summary = {
-    "total": len(df),
-    "columns": df.columns.tolist()
-}
-print(json.dumps(summary))
+def agentos_entry(args, output_dir):
+    df = pd.DataFrame(args["data"])
+    summary = {
+        "total": len(df),
+        "columns": df.columns.tolist()
+    }
+    return {"data": summary}
 `
 
 var result struct {
@@ -282,9 +282,11 @@ var result struct {
 }
 
 executor := python.NewExecutor(code).
-    WithArg("data", []map[string]interface{}{
+    WithRequest(map[string]interface{}{
+        "data": []map[string]interface{}{
         {"name": "Alice", "age": 30},
         {"name": "Bob", "age": 25},
+        },
     }).
     WithPackages("pandas").
     WithTimeout(2 * time.Minute)

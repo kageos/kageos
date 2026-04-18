@@ -23,12 +23,6 @@ usage() {
   build-app-base [--no-cache]
                 在与 main 相同的运行环境里重建用户应用基础镜像
 
-兼容别名（不再推荐）：
-  init-image [--force]
-                等同于 init --image
-  up-image      等同于 up
-  update-image  等同于 update --image
-
 示例：
   bash build.sh init
   bash build.sh init --image
@@ -197,6 +191,136 @@ detect_compose_cmd() {
 
   COMPOSE_CMD=()
   return 1
+}
+
+host_podman_installed() {
+  command -v podman >/dev/null 2>&1
+}
+
+host_podman_compose_available() {
+  host_podman_installed && podman compose version >/dev/null 2>&1
+}
+
+host_podman_ready() {
+  host_podman_installed && host_podman_compose_available
+}
+
+host_podman_manual_install_hint() {
+  if command -v apt-get >/dev/null 2>&1; then
+    echo "手工安装可执行：sudo apt-get update && sudo apt-get install -y podman podman-compose"
+  elif command -v dnf >/dev/null 2>&1; then
+    echo "手工安装可执行：sudo dnf install -y podman podman-compose"
+  elif command -v yum >/dev/null 2>&1; then
+    echo "手工安装可执行：sudo yum install -y podman podman-compose"
+  elif command -v pacman >/dev/null 2>&1; then
+    echo "手工安装可执行：sudo pacman -Sy --noconfirm --needed podman podman-compose"
+  else
+    echo "未识别到 apt-get / dnf / yum / pacman，请手工安装 podman 与 podman-compose。"
+  fi
+}
+
+prepare_root_cmd() {
+  ROOT_CMD=()
+  if [[ "${EUID:-$(id -u)}" == "0" ]]; then
+    return 0
+  fi
+
+  if command -v sudo >/dev/null 2>&1; then
+    ROOT_CMD=(sudo)
+    return 0
+  fi
+
+  echo "ERROR: 当前用户不是 root，且宿主机未安装 sudo，无法自动安装 podman。"
+  host_podman_manual_install_hint
+  exit 1
+}
+
+linux_distribution_id() {
+  local distro="unknown"
+  local like=""
+
+  if [[ -r /etc/os-release ]]; then
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    distro="${ID:-unknown}"
+    like="${ID_LIKE:-}"
+  fi
+
+  case "$distro" in
+    ubuntu|debian|fedora|centos|rhel|rocky|almalinux|arch|manjaro)
+      printf '%s' "$distro"
+      return 0
+      ;;
+  esac
+
+  case " $like " in
+    *" debian "*|*" ubuntu "*)
+      printf '%s' "debian"
+      ;;
+    *" rhel "*|*" fedora "*|*" centos "*)
+      printf '%s' "rhel"
+      ;;
+    *" arch "*)
+      printf '%s' "arch"
+      ;;
+    *)
+      printf '%s' "$distro"
+      ;;
+  esac
+}
+
+install_host_podman() {
+  require_linux_host
+
+  if host_podman_ready; then
+    echo "==> 宿主机 podman / podman compose 已就绪"
+    return 0
+  fi
+
+  prepare_root_cmd
+
+  local distro
+  distro="$(linux_distribution_id)"
+
+  echo "==> 检测到宿主机缺少 podman 或 podman compose，开始自动安装 ..."
+  case "$distro" in
+    ubuntu|debian)
+      "${ROOT_CMD[@]}" apt-get update
+      "${ROOT_CMD[@]}" apt-get install -y podman podman-compose
+      ;;
+    fedora)
+      "${ROOT_CMD[@]}" dnf install -y podman podman-compose
+      ;;
+    centos|rhel|rocky|almalinux)
+      if command -v dnf >/dev/null 2>&1; then
+        "${ROOT_CMD[@]}" dnf install -y podman podman-compose
+      else
+        "${ROOT_CMD[@]}" yum install -y podman podman-compose
+      fi
+      ;;
+    arch|manjaro)
+      "${ROOT_CMD[@]}" pacman -Sy --noconfirm --needed podman podman-compose
+      ;;
+    *)
+      echo "ERROR: 当前发行版暂未内置自动安装逻辑: ${distro}"
+      host_podman_manual_install_hint
+      exit 1
+      ;;
+  esac
+
+  if ! host_podman_installed; then
+    echo "ERROR: podman 安装后仍不可用。"
+    host_podman_manual_install_hint
+    exit 1
+  fi
+
+  if ! host_podman_compose_available; then
+    echo "ERROR: podman 已安装，但 podman compose 仍不可用。"
+    host_podman_manual_install_hint
+    exit 1
+  fi
+
+  echo "==> 宿主机 podman / podman compose 安装完成"
 }
 
 ensure_compose_cmd() {

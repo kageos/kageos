@@ -36,22 +36,21 @@ func (t *RunTableSearchTool) Execute(ctx context.Context, call ToolCall) ToolRes
 	if err != nil {
 		return toolResult("run_table_search 参数解析失败: "+err.Error(), true)
 	}
-	content, isError := runTableSearchTool(ctx, args, call.FullCodePath)
-	return toolResult(content, isError)
+	return runTableSearchTool(ctx, args, call.FullCodePath)
 }
 
 // runTableSearchTool 执行 Table 查询；参数遵循 pkg/gormx/query，可传 url_query 或 page/page_size/sorts
-func runTableSearchTool(ctx context.Context, args runTableSearchArgs, currentFullCodePath string) (string, bool) {
+func runTableSearchTool(ctx context.Context, args runTableSearchArgs, currentFullCodePath string) ToolResult {
 	ctx = withAgentToolClientSource(ctx)
 	fullCodePath, pathNotice := resolveTypedFunctionFullCodePathArg(args.FullCodePath, currentFullCodePath, ".table")
 	if fullCodePath == "" {
-		return "run_table_search 需传 full_code_path（表格函数路径，如 /luobei/myapp/tables/hr_resume_list.table）。", true
+		return toolResult("run_table_search 需传 full_code_path（表格函数路径，如 /luobei/myapp/tables/hr_resume_list.table）。", true)
 	}
 	var params url.Values
 	if q := strings.TrimSpace(args.URLQuery); q != "" {
 		parsed, err := url.ParseQuery(q)
 		if err != nil {
-			return "run_table_search 的 url_query 需为合法查询串: " + err.Error(), true
+			return toolResult("run_table_search 的 url_query 需为合法查询串: "+err.Error(), true)
 		}
 		params = parsed
 		if params.Get("page") == "" {
@@ -80,11 +79,7 @@ func runTableSearchTool(ctx context.Context, args runTableSearchArgs, currentFul
 	result, err := apicall.TableSearch(ctx, fullCodePath, params)
 	if err != nil {
 		logger.Errorf(ctx, "[RunTableSearch] TableSearch 失败: %v", err)
-		return "run_table_search 调用失败: " + err.Error(), true
+		return toolResult("run_table_search 调用失败: "+err.Error(), true)
 	}
-	content, _ := formatJSONResult(result)
-	if pathNotice != "" {
-		return pathNotice + "\n\n" + content, false
-	}
-	return content, false
+	return toolResultWithStructuredData(result, false, pathNotice)
 }

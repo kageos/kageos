@@ -145,11 +145,12 @@ type StreamEventSession struct {
 
 // StreamEventToolCall tool_call 事件数据
 type StreamEventToolCall struct {
-	Name      string `json:"name"`
-	Status    string `json:"status"`    // ok / error / running / streaming
-	Arguments string `json:"arguments"` // 流式或最终参数（streaming 时逐段推送，供前端实时展示）
-	Result    string `json:"result"`    // 工具返回结果（status=ok 时可选）
-	Error     string `json:"error"`     // 错误信息（status=error 时可选）
+	Name       string      `json:"name"`
+	Status     string      `json:"status"`                // ok / error / running / streaming
+	Arguments  string      `json:"arguments"`             // 流式或最终参数（streaming 时逐段推送，供前端实时展示）
+	Result     string      `json:"result"`                // 工具返回结果（status=ok 时可选）
+	ResultData interface{} `json:"result_data,omitempty"` // 结构化工具结果（供前端直接消费）
+	Error      string      `json:"error"`                 // 错误信息（status=error 时可选）
 }
 
 // StreamEventToolCallsStream 流式 tool_calls 列表（当前已合并的全部 tool_call，供前端实时展示）
@@ -703,21 +704,23 @@ func (s *WorkspaceChatService) executeToolCalls(
 		sendEvent(EventToolCall, StreamEventToolCall{Name: tc.Function.Name, Status: ToolCallStatusRunning, Arguments: tc.Function.Arguments})
 
 		args := s.parseToolCallArgs(ctx, tc)
-		res, st := s.callOtherTool(ctx, tc.Function.Name, args, fullCodePath, files, i+1, len(allToolCalls))
+		toolRes, st := s.callOtherTool(ctx, tc.Function.Name, args, fullCodePath, files, i+1, len(allToolCalls))
 
 		resultStr, errStr := "", ""
+		var resultData interface{}
 		if st == ToolCallStatusOK {
-			resultStr = res
+			resultStr = toolRes.Content
+			resultData = toolRes.Data
 		} else {
-			errStr = res
+			errStr = toolRes.Content
 		}
 		toolSummaries = append(toolSummaries, dto.WorkspaceChatToolCallSummary{
-			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, Error: errStr,
+			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, ResultData: resultData, Error: errStr,
 		})
 		sendEvent(EventToolCall, StreamEventToolCall{
-			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, Error: errStr,
+			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, ResultData: resultData, Error: errStr,
 		})
-		if err := s.saveToolMessage(ctx, sessionID, agentIDPtr, tc.ID, tc.Function.Name, res, user); err != nil {
+		if err := s.saveToolMessage(ctx, sessionID, agentIDPtr, tc.ID, tc.Function.Name, st, toolRes, user); err != nil {
 			logger.Warnf(ctx, "[WorkspaceChatStream] 保存 tool 消息失败 ToolCallID=%s: %v（若为 Error 1366 请将表转为 utf8mb4）", tc.ID, err)
 			return toolSummaries, fmt.Errorf("保存 tool 消息失败: %w", err)
 		}
@@ -752,22 +755,21 @@ func (s *WorkspaceChatService) parseToolCallArgs(ctx context.Context, tc llms.To
 }
 
 // callOtherTool 调用 ToolRegistry（read_go_file、read_doc、read_dir、write_doc、write_go_file、build_workspace、create_directory、插件等）
-func (s *WorkspaceChatService) callOtherTool(ctx context.Context, name string, args map[string]interface{}, fullCodePath string, files *types.Files, idx, total int) (res string, st string) {
+func (s *WorkspaceChatService) callOtherTool(ctx context.Context, name string, args map[string]interface{}, fullCodePath string, files *types.Files, idx, total int) (res ToolResult, st string) {
 	logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 调用工具 - ToolName: %s, FullCodePath: %s", idx, total, name, fullCodePath)
 	result := s.toolReg.CallTool(ctx, name, args, fullCodePath, files)
-	res = result.Content
 	isErr := result.IsError
 	st = ToolCallStatusOK
 	if isErr {
-		res = appendExecuteGuideHint(name, res)
+		result.Content = appendExecuteGuideHint(name, result.Content)
 		st = ToolCallStatusError
-		logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 工具调用失败 - ToolName: %s, Error: %s", idx, total, name, res)
-	} else if len(res) > 200 {
-		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 工具调用成功 - ToolName: %s, ResultLength: %d", idx, total, name, len(res))
+		logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 工具调用失败 - ToolName: %s, Error: %s", idx, total, name, result.Content)
+	} else if len(result.Content) > 200 {
+		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 工具调用成功 - ToolName: %s, ResultLength: %d", idx, total, name, len(result.Content))
 	} else {
-		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 工具调用成功 - ToolName: %s, Result: %s", idx, total, name, res)
+		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 工具调用成功 - ToolName: %s, Result: %s", idx, total, name, result.Content)
 	}
-	return res, st
+	return result, st
 }
 
 const executeGuideDocPath = "/system/prompt/workspace/execute"
@@ -805,13 +807,24 @@ func sanitizeContentForMySQLUtf8(s string) string {
 }
 
 // saveToolMessage 保存一条 role=tool 的消息。失败时返回 error，调用方应中止下一轮以免 400 insufficient tool messages。
-func (s *WorkspaceChatService) saveToolMessage(ctx context.Context, sessionID string, agentIDPtr *int64, toolCallID, toolName, content, user string) error {
+func (s *WorkspaceChatService) saveToolMessage(ctx context.Context, sessionID string, agentIDPtr *int64, toolCallID, toolName, status string, result ToolResult, user string) error {
+	var resultDataStr *string
+	if result.Data != nil {
+		if b, err := json.Marshal(result.Data); err == nil {
+			s := string(b)
+			resultDataStr = &s
+		} else {
+			logger.Warnf(ctx, "[WorkspaceChatStream] 保存 tool result_data 失败 ToolCallID=%s: %v", toolCallID, err)
+		}
+	}
 	toolMsg := &model.AgentChatMessage{
 		SessionID:  sessionID,
 		AgentID:    agentIDPtr,
 		Role:       RoleTool,
-		Content:    sanitizeContentForMySQLUtf8(content),
+		Content:    sanitizeContentForMySQLUtf8(result.Content),
 		ToolCallID: toolCallID,
+		ToolStatus: status,
+		ResultData: resultDataStr,
 		User:       user,
 	}
 	toolMsg.CreatedBy = user

@@ -114,6 +114,7 @@ print_init_success() {
 
 cmd_init() {
   parse_init_options 0
+  install_host_podman
   prepare_init_context "$INIT_FORCE"
   pull_infra_images
   if [[ "$INIT_USE_IMAGE" == "1" ]]; then
@@ -165,6 +166,13 @@ cmd_doctor() {
   else
     doctor_fail "Compose 不可用，请先安装 podman compose 或 docker compose" || true
     failures=$((failures + 1))
+  fi
+
+  if host_podman_ready; then
+    doctor_ok "宿主机 podman / podman compose 已就绪"
+  else
+    doctor_warn "宿主机 podman / podman compose 未就绪；首次执行 bash build.sh init 会自动尝试安装"
+    warnings=$((warnings + 1))
   fi
 
   if (( compose_ready == 1 )); then

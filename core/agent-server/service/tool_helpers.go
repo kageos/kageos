@@ -41,6 +41,29 @@ func formatJSONResult(m map[string]interface{}) (string, bool) {
 	return string(b), false
 }
 
+func formatStructuredToolData(data any) string {
+	if data == nil {
+		return "{}"
+	}
+	b, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return fmt.Sprintf("%v", data)
+	}
+	return string(b)
+}
+
+func toolResultWithStructuredData(data any, isError bool, notices ...string) ToolResult {
+	content := formatStructuredToolData(data)
+	for _, notice := range notices {
+		notice = strings.TrimSpace(notice)
+		if notice == "" {
+			continue
+		}
+		content = notice + "\n\n" + content
+	}
+	return toolResultWithData(content, isError, data)
+}
+
 // ToToolArgs 将 interface{} 转为 map[string]interface{}，供 CallTool 使用
 // JSON 反序列化后，object→map[string]interface{}；nil/null/缺省→nil，按空 map 处理
 func ToToolArgs(v interface{}) map[string]interface{} {

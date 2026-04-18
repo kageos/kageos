@@ -185,7 +185,20 @@ func (h *Workspace) ListMessages(c *gin.Context) {
 					}
 					// 查找对应的 tool 消息，获取结果
 					if toolMsg, ok := toolMessageMap[tc.ID]; ok {
-						toolCallSummary.Result = toolMsg.Content
+						if toolMsg.ToolStatus != "" {
+							toolCallSummary.Status = toolMsg.ToolStatus
+						}
+						if toolCallSummary.Status == "error" {
+							toolCallSummary.Error = toolMsg.Content
+						} else {
+							toolCallSummary.Result = toolMsg.Content
+						}
+						if toolMsg.ResultData != nil && *toolMsg.ResultData != "" {
+							var resultData interface{}
+							if err := json.Unmarshal([]byte(*toolMsg.ResultData), &resultData); err == nil {
+								toolCallSummary.ResultData = resultData
+							}
+						}
 						// 如果结果包含错误信息，可以判断状态（这里简化处理，实际可以根据内容判断）
 						// 或者从其他地方获取错误状态
 					}

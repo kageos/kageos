@@ -31,27 +31,26 @@ func (t *RunTableUpdateTool) Execute(ctx context.Context, call ToolCall) ToolRes
 	if err != nil {
 		return toolResult("run_table_update 参数解析失败: "+err.Error(), true)
 	}
-	content, isError := runTableUpdateTool(ctx, args, call.FullCodePath)
-	return toolResult(content, isError)
+	return runTableUpdateTool(ctx, args, call.FullCodePath)
 }
 
 // runTableUpdateTool 执行 Table 批量更新；body 为 JSON 数组，每项 { id, updates }
-func runTableUpdateTool(ctx context.Context, args runTableUpdateArgs, currentFullCodePath string) (string, bool) {
+func runTableUpdateTool(ctx context.Context, args runTableUpdateArgs, currentFullCodePath string) ToolResult {
 	ctx = withAgentToolClientSource(ctx)
 	fullCodePath, pathNotice := resolveTypedFunctionFullCodePathArg(args.FullCodePath, currentFullCodePath, ".table")
 	if fullCodePath == "" {
-		return "run_table_update 需传 full_code_path（表格函数路径，如 /luobei/myapp/nps/nps_questionnaire_list.table）。", true
+		return toolResult("run_table_update 需传 full_code_path（表格函数路径，如 /luobei/myapp/nps/nps_questionnaire_list.table）。", true)
 	}
 	bodyStr := strings.TrimSpace(args.Body)
 	if bodyStr == "" {
-		return "run_table_update 需传 body（JSON 数组字符串，每项为 { \"id\": 行ID, \"updates\": { \"字段\": 新值 } }）。", true
+		return toolResult("run_table_update 需传 body（JSON 数组字符串，每项为 { \"id\": 行ID, \"updates\": { \"字段\": 新值 } }）。", true)
 	}
 	var bodyArr []interface{}
 	if err := json.Unmarshal([]byte(bodyStr), &bodyArr); err != nil {
-		return "run_table_update 的 body 需为合法 JSON 数组: " + err.Error(), true
+		return toolResult("run_table_update 的 body 需为合法 JSON 数组: "+err.Error(), true)
 	}
 	if len(bodyArr) == 0 {
-		return "run_table_update 的 body 不能为空数组。", true
+		return toolResult("run_table_update 的 body 不能为空数组。", true)
 	}
 
 	dataList := make([]interface{}, 0, len(bodyArr))
@@ -97,9 +96,5 @@ func runTableUpdateTool(ctx context.Context, args runTableUpdateArgs, currentFul
 	if len(errorsList) > 0 {
 		out["errors"] = errorsList
 	}
-	content, _ := formatJSONResult(out)
-	if pathNotice != "" {
-		return pathNotice + "\n\n" + content, false
-	}
-	return content, false
+	return toolResultWithStructuredData(out, false, pathNotice)
 }
