@@ -5,7 +5,7 @@
 services:
   # ─── 中间件 ──────────────────────────────────────────────────
   mysql:
-    image: ${MYSQL_IMAGE:-mysql:8.0}
+    image: ${MYSQL_IMAGE:-docker.io/library/mysql:8.0}
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -27,7 +27,7 @@ services:
     networks: [aos]
 
   nats:
-    image: ${NATS_IMAGE:-nats:2.10-alpine}
+    image: ${NATS_IMAGE:-docker.io/library/nats:2.10-alpine}
     restart: unless-stopped
     ports:
       - "127.0.0.1:4222:4222"
@@ -37,7 +37,7 @@ services:
     networks: [aos]
 
   minio:
-    image: ${MINIO_IMAGE:-minio/minio:latest}
+    image: ${MINIO_IMAGE:-docker.io/minio/minio:latest}
     restart: unless-stopped
     environment:
       MINIO_ROOT_USER: minioadmin

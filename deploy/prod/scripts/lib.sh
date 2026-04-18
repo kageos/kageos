@@ -39,9 +39,9 @@ EOF
 
 FIXED_STORAGE_ROOT="/data/ai-agent-os"
 DEFAULT_TLS_MODE="http"
-DEFAULT_MYSQL_IMAGE="mysql:8.0"
-DEFAULT_NATS_IMAGE="nats:2.10-alpine"
-DEFAULT_MINIO_IMAGE="minio/minio:latest"
+DEFAULT_MYSQL_IMAGE="docker.io/library/mysql:8.0"
+DEFAULT_NATS_IMAGE="docker.io/library/nats:2.10-alpine"
+DEFAULT_MINIO_IMAGE="docker.io/minio/minio:latest"
 DEFAULT_MAIN_IMAGE="agentos-main:latest"
 DEFAULT_APP_BASE_IMAGE="agentos-app-runtime-base:latest"
 INIT_IMAGE_USAGE_HINT="bash build.sh init；如需直接拉取已发布主镜像，用 bash build.sh init --image"

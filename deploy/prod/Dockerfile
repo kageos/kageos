@@ -2,7 +2,7 @@
 # 构建（仓库根）：docker build -f deploy/prod/Dockerfile -t agentos-main:latest .
 
 # ========== Go 编译 ==========
-FROM golang:1.24-bookworm AS gobuilder
+FROM docker.io/library/golang:1.24-bookworm AS gobuilder
 WORKDIR /src
 # 国内构建：APT / Go 模块 / npm 可加速见 README；海外构建传 --build-arg APT_USE_MIRROR=0
 ARG APT_USE_MIRROR=1
@@ -36,7 +36,7 @@ RUN CGO_ENABLED=1 GOOS=linux go build \
     ./core/backup-service/cmd/app/main.go
 
 # ========== Web 静态 ==========
-FROM node:20-bookworm AS webbuilder
+FROM docker.io/library/node:20-bookworm AS webbuilder
 WORKDIR /src/web
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
@@ -46,7 +46,7 @@ COPY web/ ./
 RUN npm run build-only
 
 # ========== 运行 ==========
-FROM debian:bookworm-slim
+FROM docker.io/library/debian:bookworm-slim
 
 ARG APT_USE_MIRROR=1
 ENV DEBIAN_FRONTEND=noninteractive
