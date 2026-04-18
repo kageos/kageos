@@ -11,6 +11,7 @@
         :plain="!canCreatePost"
         :icon="canCreatePost ? Plus : Lock"
         @click="handleCreateButtonClick"
+        size="large"
       >
         {{ canCreatePost ? '发帖' : `发帖（需${getPermissionShortName(BoardPermission.write)}）` }}
       </el-button>
@@ -24,10 +25,11 @@
         clearable
         class="board-search-input"
         :prefix-icon="Search"
+        size="large"
       />
     </div>
 
-    <!-- 帖子列表：标题为主、用户信息弱化、摘要与标题分区、封面缩略 -->
+    <!-- 帖子列表：左侧大头像，右侧内容区（现代社区流式排版） -->
     <div class="post-list board-feed" v-if="!selectedPostId">
       <div
         v-for="row in filteredPosts"
@@ -35,40 +37,53 @@
         class="board-card"
         @click="openPost(row.id)"
       >
-        <!-- 用户信息：单行小字，不抢眼 -->
-        <div class="board-card-meta">
-          <el-avatar :size="24" :src="authorAvatar(row.author)" class="board-card-avatar">
+        <!-- 左侧：固定头像区 -->
+        <div class="board-card-left">
+          <el-avatar :size="44" :src="authorAvatar(row.author)" class="board-card-avatar">
             {{ authorInitial(row.author) }}
           </el-avatar>
-          <span class="board-card-meta-text">{{ authorDisplayName(row.author) }} · {{ formatTime(row.created_at) }}</span>
         </div>
-        <!-- 标题：突出显示 -->
-        <h2 class="board-card-title">{{ row.title }}</h2>
-        <!-- 摘要：与标题留白区分 -->
-        <p v-if="row.summary" class="board-card-summary">{{ row.summary }}</p>
-        <!-- 封面：缩略尺寸 -->
-        <div
-          v-if="row.cover && (row.cover as string[]).length"
-          :class="['board-card-covers', 'board-card-covers-' + Math.min((row.cover as string[]).length, 9)]"
-        >
-          <img
-            v-for="(url, i) in (row.cover as string[]).slice(0, 9)"
-            :key="i"
-            :src="url"
-            alt=""
-            class="board-card-cover-img"
-          />
-        </div>
-        <div class="board-card-actions" @click.stop>
-          <el-button link type="primary" size="small" @click="openPost(row.id)">查看</el-button>
-          <el-button
-            link
-            :type="canDeletePost ? 'danger' : 'info'"
-            size="small"
-            @click="canDeletePost ? handleDeletePost(row) : handleApplyPermission(BoardPermission.delete)"
+        
+        <!-- 右侧：主要内容区 -->
+        <div class="board-card-right">
+          <!-- 作者信息与时间 -->
+          <div class="board-card-meta">
+            <span class="board-card-author">{{ authorDisplayName(row.author) }}</span>
+            <span class="board-card-time">{{ formatTime(row.created_at) }}</span>
+          </div>
+          
+          <!-- 标题：突出显示 -->
+          <h2 class="board-card-title">{{ row.title }}</h2>
+          
+          <!-- 摘要：与标题留白区分 -->
+          <p v-if="row.summary" class="board-card-summary">{{ row.summary }}</p>
+          
+          <!-- 封面：缩略尺寸 -->
+          <div
+            v-if="row.cover && (row.cover as string[]).length"
+            :class="['board-card-covers', 'board-card-covers-' + Math.min((row.cover as string[]).length, 9)]"
           >
-            {{ canDeletePost ? '删除' : `删除（需${getPermissionShortName(BoardPermission.delete)}）` }}
-          </el-button>
+            <img
+              v-for="(url, i) in (row.cover as string[]).slice(0, 9)"
+              :key="i"
+              :src="url"
+              alt=""
+              class="board-card-cover-img"
+            />
+          </div>
+          
+          <!-- 底部操作区 -->
+          <div class="board-card-actions" @click.stop>
+            <div class="action-item" @click="openPost(row.id)">
+              <el-button link type="primary" size="small">查看讨论</el-button>
+            </div>
+            <div class="action-item" v-if="canDeletePost" @click="handleDeletePost(row)">
+              <el-button link type="danger" size="small">删除</el-button>
+            </div>
+            <div class="action-item" v-else @click="handleApplyPermission(BoardPermission.delete)">
+              <el-button link type="info" size="small">删除（需{{ getPermissionShortName(BoardPermission.delete) }}）</el-button>
+            </div>
+          </div>
         </div>
       </div>
       <el-empty
@@ -609,84 +624,125 @@ const handleSubmitEdit = async () => {
 
 <style scoped>
 .board-view {
-  padding: 16px;
+  padding: 24px; /* 增加内边距 */
   min-height: 200px;
+  box-sizing: border-box;
+}
+.board-main {
+  width: 100%;
+  max-width: 1024px;
+  margin: 0 auto;
 }
 .board-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 24px; /* 增加间距 */
+  width: 100%;
 }
 .board-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 24px; /* 标题变大，更加醒目 */
+  font-weight: 600;
 }
 .board-search {
-  margin-bottom: 12px;
+  margin-bottom: 20px; /* 增加搜索框与下方列表的间距 */
+  width: 100%;
 }
 .board-search-input {
-  max-width: 320px;
+  max-width: 480px; /* 搜索框变宽更易用 */
 }
 .post-list-empty {
-  padding: 24px 0;
+  padding: 40px 0;
+  background: var(--app-shell-panel-bg, #fff);
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
 }
 /* 讨论区列表：标题为主、用户信息弱化、摘要与标题分区、封面缩略 */
 .post-list.board-feed {
   margin-top: 8px;
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 16px; /* 卡片之间的间距改用 gap */
   width: 100%;
+  max-width: 1024px; /* 列表也限制最大宽度，与详情页一致 */
+  margin-left: auto;
+  margin-right: auto;
 }
 .board-card {
-  padding: 14px 16px 12px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  display: flex;
+  gap: 16px;
+  padding: 24px; /* 增大内边距，让卡片更加舒展 */
+  border: 1px solid transparent; /* 默认透明边框 */
+  border-bottom: 1px solid var(--el-border-color-extra-light, #f3f4f6); /* 列表底部分割线 */
+  border-radius: 16px; /* 圆角增加 */
+  background: transparent; /* 默认无背景 */
+  margin-bottom: 4px; 
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
 }
 .board-card:hover {
-  background: var(--el-fill-color-light);
+  background: var(--el-fill-color-light, #f9fafb); /* 悬浮时微妙的背景色 */
+  border-color: var(--el-border-color-extra-light, #f3f4f6);
+  transform: none; /* 移除之前的上浮，更现代 */
+  box-shadow: none; /* 移除之前的阴影 */
 }
 .board-card:last-of-type {
-  border-bottom: none;
+  border-bottom-color: transparent;
 }
-/* 用户信息：单行小字 */
+/* 左侧大头像 */
+.board-card-left {
+  flex-shrink: 0;
+}
+.board-card-avatar {
+  font-size: 18px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #7dd3fc 0%, #38bdf8 100%); /* 渐变头像背景更好看 */
+  color: #fff;
+  box-shadow: 0 2px 4px rgba(56, 189, 248, 0.2);
+}
+/* 右侧内容区 */
+.board-card-right {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* 头部信息：作者和时间 */
 .board-card-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   margin-bottom: 8px;
 }
-.board-card-avatar {
-  flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 500;
-  background: var(--el-fill-color);
-  color: var(--el-text-color-secondary);
+.board-card-author {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--el-text-color-primary, #111827);
 }
-.board-card-meta-text {
-  font-size: 12px;
-  color: var(--el-text-color-placeholder);
+.board-card-time {
+  font-size: 13px;
+  color: var(--el-text-color-placeholder, #9ca3af);
 }
 /* 标题：突出 */
 .board-card-title {
   margin: 0 0 8px;
-  font-size: 17px;
-  font-weight: 600;
+  font-size: 18px; /* 增大字号 */
+  font-weight: 700;
   line-height: 1.4;
-  color: var(--el-text-color-primary);
+  color: var(--el-text-color-primary, #111827);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  letter-spacing: -0.01em;
 }
 /* 摘要：与标题留白，不连在一起 */
 .board-card-summary {
-  margin: 0 0 10px;
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.5;
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: var(--el-text-color-regular, #4b5563); 
+  line-height: 1.6;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -755,39 +811,49 @@ const handleSubmitEdit = async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 .post-detail-body {
   padding: 20px 0;
-  max-width: 720px;
+  max-width: 1024px; /* 调整为1024px，提供更宽广的阅读区 */
+  width: 100%;
+  box-sizing: border-box;
 }
 /* 详情内容区居中，阅读更舒适 */
 .post-detail-body-centered {
   margin-left: auto;
   margin-right: auto;
-  max-width: 680px;
-  padding: 24px 20px 40px;
+  padding: 48px 56px; /* 增加内边距，呼应文档样式 */
+  background: var(--app-shell-panel-bg, #fff); /* 添加卡片背景 */
+  border-radius: 16px;
+  border: 1px solid var(--el-border-color-extra-light, #f0f2f5);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 20px 40px -10px rgba(0, 0, 0, 0.03); /* 高级弥散阴影 */
 }
-.post-detail-summary {
-  margin: 0 0 20px;
-  font-size: 15px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.6;
+/* 标题 */
+.post-detail-title {
+  margin: 0 0 24px;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  color: var(--el-text-color-primary, #111827);
 }
-/* 作者区（与列表一致） */
+/* 作者区（放置在标题下方，更现代） */
 .post-detail-author {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 20px;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--el-border-color-lighter, #f3f4f6);
 }
 .post-detail-author .detail-avatar {
   flex-shrink: 0;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 600;
   background: linear-gradient(135deg, #7dd3fc 0%, #38bdf8 100%);
+  box-shadow: 0 2px 4px rgba(56, 189, 248, 0.2);
 }
 .post-detail-user-block {
   flex: 1;
@@ -799,59 +865,61 @@ const handleSubmitEdit = async () => {
 .post-detail-name-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
 }
 .post-detail-name {
   font-size: 16px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--el-text-color-primary, #111827);
 }
 .post-detail-time {
-  font-size: 13px;
-  color: var(--el-text-color-placeholder);
+  font-size: 14px;
+  color: var(--el-text-color-placeholder, #9ca3af);
 }
 .post-detail-username {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
+  font-size: 14px;
+  color: var(--el-text-color-secondary, #6b7280);
 }
 .post-detail-signature {
-  font-size: 13px;
-  color: var(--el-text-color-placeholder);
+  font-size: 14px;
+  color: var(--el-text-color-placeholder, #9ca3af);
   line-height: 1.4;
+  margin-top: 2px;
 }
-/* 标题 */
-.post-detail-title {
-  margin: 0 0 20px;
-  font-size: 22px;
-  font-weight: 600;
-  line-height: 1.35;
-  color: var(--el-text-color-primary);
+.post-detail-summary {
+  margin: 0 0 32px;
+  padding: 16px 20px;
+  font-size: 15px;
+  color: var(--el-text-color-regular, #374151);
+  line-height: 1.6;
+  background: var(--el-fill-color-light, #f9fafb);
+  border-left: 4px solid var(--el-color-primary);
+  border-radius: 4px 8px 8px 4px;
 }
-/* 详情封面九宫格（与列表一致，略大） */
+/* 详情封面九宫格 */
 .post-detail-covers {
   display: grid;
   gap: 8px;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
   border-radius: 12px;
   overflow: hidden;
 }
 .post-detail-covers.moments-photos-1 {
   grid-template-columns: 1fr;
-  max-width: 360px;
-  max-height: 360px;
+  max-width: 480px;
+  max-height: 480px;
 }
 .post-detail-covers.moments-photos-2 {
   grid-template-columns: repeat(2, 1fr);
-  max-width: 360px;
+  max-width: 480px;
 }
 .post-detail-covers.moments-photos-3 {
   grid-template-columns: repeat(3, 1fr);
-  max-width: 360px;
+  max-width: 480px;
 }
 .post-detail-covers.moments-photos-4 {
   grid-template-columns: repeat(2, 1fr);
-  max-width: 360px;
+  max-width: 480px;
 }
 .post-detail-covers.moments-photos-5,
 .post-detail-covers.moments-photos-6,
@@ -859,7 +927,7 @@ const handleSubmitEdit = async () => {
 .post-detail-covers.moments-photos-8,
 .post-detail-covers.moments-photos-9 {
   grid-template-columns: repeat(3, 1fr);
-  max-width: 360px;
+  max-width: 480px;
 }
 .post-detail-cover-img {
   width: 100%;
@@ -867,98 +935,148 @@ const handleSubmitEdit = async () => {
   object-fit: cover;
   display: block;
   background: var(--el-fill-color-lighter);
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05);
 }
 .post-detail-covers.moments-photos-1 .post-detail-cover-img {
-  max-height: 360px;
+  max-height: 480px;
   aspect-ratio: auto;
 }
-/* 正文：居中阅读 + 完善 Markdown 样式 */
+/* 正文：居中阅读 + Tailwind Typography 高级排版 */
 .post-detail-content {
-  line-height: 1.8;
-  color: var(--el-text-color-regular);
+  font-size: 16px;
+  line-height: 1.75;
+  color: var(--el-text-color-regular, #374151);
   word-break: break-word;
 }
 .post-detail-content.markdown-content :deep(h1),
 .post-detail-content.markdown-content :deep(h2),
 .post-detail-content.markdown-content :deep(h3),
-.post-detail-content.markdown-content :deep(h4) {
-  margin-top: 1.5em;
-  margin-bottom: 0.5em;
-  color: var(--el-text-color-primary);
+.post-detail-content.markdown-content :deep(h4),
+.post-detail-content.markdown-content :deep(h5),
+.post-detail-content.markdown-content :deep(h6) {
+  color: var(--el-text-color-primary, #111827);
   font-weight: 600;
-}
-.post-detail-content.markdown-content :deep(h1) { font-size: 1.5em; }
-.post-detail-content.markdown-content :deep(h2) { font-size: 1.3em; }
-.post-detail-content.markdown-content :deep(h3) { font-size: 1.15em; }
-.post-detail-content.markdown-content :deep(p) {
+  line-height: 1.3;
+  margin-top: 2em;
   margin-bottom: 1em;
 }
-.post-detail-content.markdown-content :deep(pre),
+.post-detail-content.markdown-content :deep(h1) {
+  font-size: 2.25em;
+  font-weight: 700;
+  margin-top: 0;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--el-border-color-lighter, #e5e7eb);
+}
+.post-detail-content.markdown-content :deep(h2) {
+  font-size: 1.5em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--el-border-color-lighter, #e5e7eb);
+}
+.post-detail-content.markdown-content :deep(h3) { font-size: 1.25em; }
+.post-detail-content.markdown-content :deep(h4) { font-size: 1em; }
+.post-detail-content.markdown-content :deep(p) {
+  margin-top: 1.25em;
+  margin-bottom: 1.25em;
+}
 .post-detail-content.markdown-content :deep(code) {
-  background: var(--el-fill-color-light);
+  background: var(--el-fill-color-light, #f3f4f6);
+  color: var(--el-color-primary, #0369a1);
+  padding: 0.2em 0.4em;
   border-radius: 6px;
-  font-family: ui-monospace, monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875em;
+  font-weight: 500;
 }
 .post-detail-content.markdown-content :deep(pre) {
-  padding: 14px 16px;
+  background: #1f2937;
+  color: #e5e7eb;
+  padding: 1.25em 1.5em;
+  border-radius: 8px;
   overflow-x: auto;
-  margin: 1em 0;
-}
-.post-detail-content.markdown-content :deep(code) {
-  padding: 0.2em 0.4em;
-  font-size: 0.9em;
+  margin-top: 1.7em;
+  margin-bottom: 1.7em;
+  font-size: 0.875em;
+  line-height: 1.7142857;
+  max-width: 100%;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1);
 }
 .post-detail-content.markdown-content :deep(pre code) {
-  padding: 0;
   background: transparent;
+  color: inherit;
+  padding: 0;
+  font-weight: 400;
+  font-size: inherit;
+  border-radius: 0;
 }
 .post-detail-content.markdown-content :deep(blockquote) {
-  margin: 1em 0;
-  padding: 0.5em 0 0.5em 1em;
-  border-left: 4px solid var(--el-border-color);
-  color: var(--el-text-color-secondary);
-  background: var(--el-fill-color-lighter);
-  border-radius: 0 6px 6px 0;
+  font-weight: 400;
+  font-style: normal;
+  color: var(--el-text-color-secondary, #4b5563);
+  border-left: 4px solid var(--el-border-color, #d1d5db);
+  padding-left: 1rem;
+  margin-top: 1.6em;
+  margin-bottom: 1.6em;
+  background: transparent;
 }
 .post-detail-content.markdown-content :deep(ul),
 .post-detail-content.markdown-content :deep(ol) {
-  margin: 0.75em 0;
-  padding-left: 1.5em;
+  margin-top: 1.25em;
+  margin-bottom: 1.25em;
+  padding-left: 1.625em;
 }
 .post-detail-content.markdown-content :deep(li) {
-  margin: 0.25em 0;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
 }
 .post-detail-content.markdown-content :deep(table) {
-  border-collapse: collapse;
   width: 100%;
-  margin: 1em 0;
+  border-collapse: collapse;
+  margin-top: 2em;
+  margin-bottom: 2em;
+  font-size: 0.875em;
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
 }
 .post-detail-content.markdown-content :deep(th),
 .post-detail-content.markdown-content :deep(td) {
-  border: 1px solid var(--el-border-color);
-  padding: 8px 12px;
+  border: 1px solid var(--el-border-color-lighter, #e5e7eb);
+  padding: 0.75em 1em;
   text-align: left;
 }
 .post-detail-content.markdown-content :deep(th) {
-  background: var(--el-fill-color-light);
+  background: var(--el-fill-color-light, #f9fafb);
+  color: var(--el-text-color-primary, #111827);
   font-weight: 600;
+}
+.post-detail-content.markdown-content :deep(tr:nth-child(even)) {
+  background: var(--el-fill-color-blank, #ffffff);
 }
 .post-detail-content.markdown-content :deep(img) {
   max-width: 100%;
   height: auto;
-  border-radius: 6px;
+  border-radius: 8px;
+  margin-top: 2em;
+  margin-bottom: 2em;
+  display: block;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 .post-detail-content.markdown-content :deep(hr) {
   border: none;
-  border-top: 1px solid var(--el-border-color-lighter);
-  margin: 1.5em 0;
+  border-top: 1px solid var(--el-border-color-lighter, #e5e7eb);
+  margin-top: 3em;
+  margin-bottom: 3em;
 }
 .post-detail-content.markdown-content :deep(a) {
   color: var(--el-color-primary);
-  text-decoration: none;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  font-weight: 500;
+  transition: text-decoration-color 0.2s ease;
 }
 .post-detail-content.markdown-content :deep(a:hover) {
-  text-decoration: underline;
+  text-decoration-color: currentColor;
 }
 /* 发帖/编辑对话框：与 docs 一致的弹性布局，内容区自适应不溢出 */
 .board-dialog-with-editor :deep(.el-dialog) {

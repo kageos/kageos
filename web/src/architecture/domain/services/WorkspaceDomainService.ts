@@ -168,7 +168,7 @@ export class WorkspaceDomainService {
 
       // 🔥 注意：如果 app.id 是 0（临时值），应用信息的更新由 Application Service 层处理
       // 这里只更新服务树，应用信息的更新在 handleAppSwitch 中处理
-      let updatedApp = appInfo || app
+      const updatedApp = appInfo || app
       
       // 更新状态
       this.stateManager.setState({

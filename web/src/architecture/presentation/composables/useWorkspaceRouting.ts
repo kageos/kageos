@@ -172,7 +172,7 @@ export function useWorkspaceRouting(
       }
       
       // 标记已切换（用于后续处理）
-      let appSwitched = true
+      const appSwitched = true
 
       // ⭐ 处理根路径和子路径（统一逻辑）
       // 根路径：pathSegments.length === 2，如 /system/official
