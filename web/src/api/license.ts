@@ -1,4 +1,5 @@
 import { get, post } from '@/utils/request'
+import { getApiBaseURL } from '@/config/runtime'
 
 // License 状态接口
 export interface LicenseStatus {
@@ -44,7 +45,7 @@ export async function activateLicense(licenseFile: File): Promise<LicenseStatus>
   // 后端使用 c.GetRawData() 读取原始数据，需要发送原始 JSON 字符串
   // 使用 fetch 直接发送，避免被 axios 拦截器处理
   const token = localStorage.getItem('token') || ''
-  const baseURL = import.meta.env.VITE_API_BASE_URL || ''
+  const baseURL = getApiBaseURL()
   const url = `${baseURL}/control/api/v1/license/activate`
   
   const response = await fetch(url, {
@@ -71,4 +72,3 @@ export async function activateLicense(licenseFile: File): Promise<LicenseStatus>
 export function deactivateLicense(): Promise<LicenseStatus> {
   return post<LicenseStatus>('/control/api/v1/license/deactivate')
 }
-

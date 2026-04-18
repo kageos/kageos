@@ -267,37 +267,6 @@ func (r *ServiceTreeRepository) GetServiceTreeByFullPath(fullPath string) (*mode
 	return &serviceTree, nil
 }
 
-// GetServiceTreesByFullPaths 根据完整路径批量获取节点。
-// 使用 Find + IN 查询，未命中的路径不会返回记录，也不会触发 record not found 日志。
-func (r *ServiceTreeRepository) GetServiceTreesByFullPaths(fullPaths []string) ([]*model.ServiceTree, error) {
-	if len(fullPaths) == 0 {
-		return []*model.ServiceTree{}, nil
-	}
-
-	normalized := make([]string, 0, len(fullPaths))
-	seen := make(map[string]struct{}, len(fullPaths))
-	for _, fullPath := range fullPaths {
-		fullPath = normalizeFullCodePath(fullPath)
-		if fullPath == "" {
-			continue
-		}
-		if _, ok := seen[fullPath]; ok {
-			continue
-		}
-		seen[fullPath] = struct{}{}
-		normalized = append(normalized, fullPath)
-	}
-	if len(normalized) == 0 {
-		return []*model.ServiceTree{}, nil
-	}
-
-	var serviceTrees []*model.ServiceTree
-	if err := r.db.Where("full_code_path IN ?", normalized).Find(&serviceTrees).Error; err != nil {
-		return nil, err
-	}
-	return serviceTrees, nil
-}
-
 // IncrementRunCountByFullCodePath 将指定 full_code_path 的 function 节点运行次数 +1（用于 search_tools 按热度排序）
 func (r *ServiceTreeRepository) IncrementRunCountByFullCodePath(ctx context.Context, fullPath string) error {
 	fullPath = normalizeFullCodePath(fullPath)

@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/stores/auth'
+import { getApiBaseURL } from '@/config/runtime'
 import { del, get, post, put } from '@/utils/request'
 
 /** 工作台消息中上传文件：与后端 sdk/agent-app/types.Files 对齐，供后端注入到 <files> 并供大模型拼到 run_form_submit 的 body */
@@ -203,7 +204,7 @@ export async function workspaceChatStream(
   } catch {
     /* use localStorage default */
   }
-  const base = import.meta.env.VITE_API_BASE_URL || ''
+  const base = getApiBaseURL()
   const url = `${base}/agent/api/v1/workspace/chat/stream`
   const res = await fetch(url, {
     method: 'POST',

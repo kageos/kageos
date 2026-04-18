@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import { Logger } from '@/core/utils/logger'
+import { getApiBaseURL } from '@/config/runtime'
 import router from '@/router'
 import type { ApiResponse } from '@/types'
 import type { PermissionInfo } from './permission'
@@ -18,9 +19,8 @@ type AuthRetryAxiosRequestConfig = InternalAxiosRequestConfig & {
 
 // 创建axios实例
 // 注意：使用相对路径，通过 Vite 代理转发到网关，避免跨域问题
-// 在生产环境可以通过 VITE_API_BASE_URL 环境变量指定绝对路径
 const service = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '',  // 开发环境使用相对路径（走 Vite 代理），生产环境可配置绝对路径
+  baseURL: getApiBaseURL(),
   timeout: 300000, // 300 秒（5分钟），与后端超时时间保持一致
   headers: {
     'Content-Type': 'application/json'
