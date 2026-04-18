@@ -35,6 +35,7 @@ host 网络独立容器
 ## 前置
 
 - Linux 宿主机；缺少宿主机 `podman` / `podman compose` 时，`bash build.sh init` 会自动尝试安装。
+- Ubuntu 如果命中腾讯云 APT 镜像 `404`，`bash build.sh init` 会自动切到官方源并重试一次安装。
 - 如果宿主机没有 root，请使用有 `sudo` 权限的账号执行 `bash build.sh init`。
 - `main` 服务 **`privileged: true`**。
 - 宿主机 **80 端口未被占用**；如果开启 HTTPS，**443 端口也必须空闲**（`build.sh` 会自动检测并停用宿主机 nginx）。

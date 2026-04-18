@@ -5,7 +5,7 @@
 前提：
 
 - Linux
-- 有 `sudo` 或 root 权限；`bash build.sh init` 缺少宿主机 `podman` 时会自动安装
+- 有 `sudo` 或 root 权限；`bash build.sh init` 缺少宿主机 `podman` 时会自动安装，Ubuntu 腾讯云源 404 时会自动切官方源重试一次
 - `/data` 可写
 - `80` 端口空闲；如果容器自己做 HTTPS，`443` 也要空闲
 

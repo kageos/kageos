@@ -219,6 +219,56 @@ host_podman_manual_install_hint() {
   fi
 }
 
+apt_tencent_ubuntu_sources_present() {
+  grep -R -q 'mirrors\.tencentyun\.com/ubuntu' /etc/apt /etc/apt/sources.list.d 2>/dev/null
+}
+
+rewrite_tencent_ubuntu_sources_to_official() {
+  local file
+  local backup_path
+  local changed=0
+
+  while IFS= read -r file; do
+    [[ -z "$file" ]] && continue
+    backup_path="${file}.bak-ai-agent-os"
+    if [[ ! -f "$backup_path" ]]; then
+      "${ROOT_CMD[@]}" cp "$file" "$backup_path"
+    fi
+    "${ROOT_CMD[@]}" sed -i \
+      -e 's|http://mirrors.tencentyun.com/ubuntu/|http://archive.ubuntu.com/ubuntu/|g' \
+      -e 's|https://mirrors.tencentyun.com/ubuntu/|http://archive.ubuntu.com/ubuntu/|g' \
+      "$file"
+    changed=1
+  done < <(grep -R -l 'mirrors\.tencentyun\.com/ubuntu' /etc/apt /etc/apt/sources.list.d 2>/dev/null || true)
+
+  if [[ "$changed" == "1" ]]; then
+    echo "==> 已将 Ubuntu APT 源从腾讯云镜像切换到官方源，并保留备份 *.bak-ai-agent-os"
+    return 0
+  fi
+
+  return 1
+}
+
+apt_install_podman_with_retry() {
+  if "${ROOT_CMD[@]}" apt-get update && "${ROOT_CMD[@]}" apt-get install -y podman podman-compose; then
+    return 0
+  fi
+
+  echo "WARN: apt 安装 podman 失败，尝试自动诊断镜像源问题 ..."
+
+  if apt_tencent_ubuntu_sources_present; then
+    echo "==> 检测到腾讯云 Ubuntu APT 源，尝试切换到官方源后重试 ..."
+    if rewrite_tencent_ubuntu_sources_to_official; then
+      "${ROOT_CMD[@]}" apt-get clean
+      if "${ROOT_CMD[@]}" apt-get update && "${ROOT_CMD[@]}" apt-get install -y podman podman-compose; then
+        return 0
+      fi
+    fi
+  fi
+
+  return 1
+}
+
 prepare_root_cmd() {
   ROOT_CMD=()
   if [[ "${EUID:-$(id -u)}" == "0" ]]; then
@@ -285,8 +335,11 @@ install_host_podman() {
   echo "==> 检测到宿主机缺少 podman 或 podman compose，开始自动安装 ..."
   case "$distro" in
     ubuntu|debian)
-      "${ROOT_CMD[@]}" apt-get update
-      "${ROOT_CMD[@]}" apt-get install -y podman podman-compose
+      if ! apt_install_podman_with_retry; then
+        echo "ERROR: apt 安装 podman / podman-compose 失败。"
+        host_podman_manual_install_hint
+        exit 1
+      fi
       ;;
     fedora)
       "${ROOT_CMD[@]}" dnf install -y podman podman-compose
