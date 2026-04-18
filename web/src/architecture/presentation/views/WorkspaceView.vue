@@ -10,13 +10,6 @@
 
 <template>
   <div class="workspace-container" data-testid="workspace-view">
-    <!-- 背景装饰动画 (仅用作氛围点缀) -->
-    <div class="background-decoration">
-      <div class="decoration-circle circle-1"></div>
-      <div class="decoration-circle circle-2"></div>
-      <div class="decoration-circle circle-3"></div>
-    </div>
-    
     <!-- 顶部导航栏：工作空间切换 + 应用中心 同一行 -->
     <WorkspaceHeader
       ref="workspaceHeaderRef"
@@ -882,69 +875,6 @@ useWorkspaceUiEffects({
 </script>
 
 <style scoped lang="scss">
-/* 背景装饰动画 */
-.background-decoration {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  overflow: hidden;
-  z-index: 0;
-  pointer-events: none;
-}
-
-.decoration-circle {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(16px);
-  animation: float 20s infinite ease-in-out;
-}
-
-.circle-1 {
-  width: 500px;
-  height: 500px;
-  top: -150px;
-  left: -150px;
-  animation-delay: 0s;
-}
-
-.circle-2 {
-  width: 400px;
-  height: 400px;
-  bottom: -100px;
-  right: -100px;
-  animation-delay: 5s;
-}
-
-.circle-3 {
-  width: 350px;
-  height: 350px;
-  top: 50%;
-  right: 15%;
-  animation-delay: 10s;
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-    opacity: 0.3;
-  }
-  33% {
-    transform: translate(30px, -30px) scale(1.1);
-    opacity: 0.5;
-  }
-  66% {
-    transform: translate(-20px, 20px) scale(0.9);
-    opacity: 0.4;
-  }
-}
-
-html.dark .background-decoration {
-  opacity: 0.3; /* 在暗色模式下稍微降低亮度 */
-}
-
 .hidden {
   position: absolute;
   width: 0;
@@ -1196,10 +1126,10 @@ html.dark .background-decoration {
 
 .left-sidebar :deep(.tree-search-input .el-input__wrapper) {
   min-height: 42px;
-  background: var(--app-shell-panel-bg-strong);
-  border: 1px solid var(--app-shell-panel-border);
-  border-radius: 14px;
-  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
+  background: var(--app-shell-panel-muted-bg) !important;
+  border: 1px solid var(--app-shell-panel-border) !important;
+  border-radius: 14px !important;
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight) !important;
 }
 
 .left-sidebar :deep(.tree-content) {
