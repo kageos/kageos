@@ -2,7 +2,11 @@
 
 > 官方生产入口：`deploy/prod/`
 
-如果你只想一分钟内把服务拉起来，直接看：
+如果你只想一眼看懂并直接部署，直接看：
+
+- [QUICK_START.md](QUICK_START.md)
+
+如果你还想看一分钟版本，再看：
 
 - [DEPLOY_TUTORIAL.md](DEPLOY_TUTORIAL.md)
 

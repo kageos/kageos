@@ -1,9 +1,12 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
+    class="upgrade-enterprise-dialog-shell"
     title="升级企业版"
     width="600px"
+    :append-to-body="true"
     :close-on-click-modal="false"
+    :z-index="12000"
     @close="handleClose"
   >
     <el-form :model="formData" label-width="120px">
@@ -124,6 +127,12 @@ const handleClose = () => {
 </script>
 
 <style scoped lang="scss">
+:deep(.upgrade-enterprise-dialog-shell) {
+  .el-dialog {
+    max-width: calc(100vw - 32px);
+  }
+}
+
 .file-info {
   padding: 12px;
   background: var(--el-fill-color-lighter);

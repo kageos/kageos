@@ -9,6 +9,7 @@
 |------|------|------|
 | 本地开发 | [dev/README.md](dev/README.md) | 起本地 MySQL / NATS / MinIO，跑后端源码和前端 |
 | 单机生产部署 | [prod/README.md](prod/README.md) | 当前官方生产入口，基于 Compose |
+| 只想一眼看懂怎么部署 | [prod/QUICK_START.md](prod/QUICK_START.md) | 最短路径，直接照抄 |
 | 只想快速部署 | [prod/DEPLOY_TUTORIAL.md](prod/DEPLOY_TUTORIAL.md) | 一分钟部署版 |
 | 看启动顺序与依赖图 | [prod/DEPLOYMENT_FLOW.md](prod/DEPLOYMENT_FLOW.md) | 单机生产部署的依赖、启动顺序、流程图 |
 | 找共享资源 | [base/README.md](base/README.md) | canonical Dockerfile、init SQL、共享脚本都在这里 |
