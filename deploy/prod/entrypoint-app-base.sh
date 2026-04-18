@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-APP_BASE_IMAGE="${APP_BASE_IMAGE:-agentos-app-runtime-base:latest}"
+APP_BASE_IMAGE="${APP_BASE_IMAGE:-localhost/agentos-app-runtime-base:latest}"
 APP_BASE_ACTION="${APP_BASE_ACTION:-ensure}"
 APP_BASE_BUILD_NO_CACHE="${APP_BASE_BUILD_NO_CACHE:-0}"
 

@@ -84,6 +84,19 @@ run_app_base_tool() {
   local action="$1"
   local no_cache="${2:-0}"
 
+  if [[ "${COMPOSE_CMD[0]}" == "podman" ]]; then
+    podman run --rm \
+      --network host \
+      --privileged \
+      -e APP_BASE_IMAGE="$APP_BASE_IMAGE" \
+      -e APP_BASE_ACTION="$action" \
+      -e APP_BASE_BUILD_NO_CACHE="$no_cache" \
+      -v "$FIXED_STORAGE_ROOT/podman_storage:/var/lib/containers" \
+      --entrypoint /app/entrypoint-app-base.sh \
+      "$MAIN_IMAGE"
+    return 0
+  fi
+
   compose_run run --rm --no-deps \
     -e APP_BASE_ACTION="$action" \
     -e APP_BASE_BUILD_NO_CACHE="$no_cache" \
