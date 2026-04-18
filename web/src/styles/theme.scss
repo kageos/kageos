@@ -60,13 +60,13 @@
   --box-shadow-base: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
   --box-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
   --app-panel-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.05);
-  --app-shell-bg: linear-gradient(112deg, #1e2f56 0%, #35538f 35%, #e9eff6 35%, #f4f7fb 100%);
-  --app-shell-panel-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.92));
-  --app-shell-panel-bg-strong: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.98));
-  --app-shell-panel-muted-bg: rgba(248, 250, 252, 0.7);
-  --app-shell-panel-border: rgba(148, 163, 184, 0.26);
-  --app-shell-panel-shadow: 0 24px 60px -10px rgba(15, 23, 42, 0.08);
-  --app-shell-panel-shadow-soft: 0 10px 25px -5px rgba(15, 23, 42, 0.05);
+  --app-shell-bg: #f1f5f9;
+  --app-shell-panel-bg: #ffffff;
+  --app-shell-panel-bg-strong: #ffffff;
+  --app-shell-panel-muted-bg: #f8fafc;
+  --app-shell-panel-border: #e2e8f0;
+  --app-shell-panel-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+  --app-shell-panel-shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
   --app-shell-panel-highlight: rgba(255, 255, 255, 0.95);
   --app-auth-surface-bg: rgba(244, 247, 251, 0.88);
   --app-auth-card-bg: rgba(255, 255, 255, 0.9);
@@ -97,7 +97,7 @@
   --el-bg-color-overlay: rgba(255, 255, 255, 0.95);
   
   // 输入框背景色
-  --el-input-bg-color: var(--bg-primary);
+  --el-input-bg-color: var(--bg-secondary);
   --el-input-border-color: var(--border-base);
   --el-input-hover-border-color: #cbd5e1;
   --el-input-focus-border-color: var(--color-primary);
@@ -118,6 +118,27 @@
   --el-fill-color-darker: rgba(15, 23, 42, 0.12);
   --el-mask-color: rgba(0, 0, 0, 0.6);
   --el-mask-color-extra-light: rgba(0, 0, 0, 0.2);
+  
+  // Element Plus 组件全局圆角覆盖
+  --el-border-radius-base: var(--border-radius-input);
+  
+  // 浅色模式表单组件（与暗色模式保持一致的高级感）
+  .el-input__wrapper, .el-select__wrapper, .el-textarea__inner {
+    border-radius: var(--border-radius-input);
+    background-color: var(--el-input-bg-color);
+    box-shadow: none;
+    border: 1px solid var(--border-base);
+    transition: all 0.2s;
+    
+    &:hover {
+      border-color: #cbd5e1;
+    }
+    
+    &.is-focus, &.is-focused, &:focus {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+  }
 }
 
 // 暗色主题 - 完全照抄旧版本的现代深色主题
