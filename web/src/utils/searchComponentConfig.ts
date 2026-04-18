@@ -827,7 +827,7 @@ function createSelectFuzzyInitOptions(
       const values = isArray ? value : [value]
       
       // 🔥 类型转换：根据 value_type 将字符串转换为正确的类型
-      let convertedValues: any[] = []
+      const convertedValues: any[] = []
       for (const val of values) {
         let convertedValue: any = val
         // 🔥 处理字符串类型的值（可能来自 URL 参数）

@@ -1598,7 +1598,7 @@ const getSimplifiedPermissionName = (action: string): string => {
   }
   
   // 如果没有映射，尝试通用简化：去掉"表格"、"表单"、"目录"、"工作空间"等前缀
-  let simplified = fullName
+  const simplified = fullName
     .replace(/^新增表格记录$/, '新增')
     .replace(/^更新表格记录$/, '更新')
     .replace(/^删除表格记录$/, '删除')

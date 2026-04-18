@@ -545,7 +545,7 @@ function stripHtml(html: string): string {
   
   // 🔥 先过滤掉可能导致资源加载的标签（如 img、video、audio 等）
   // 这样可以避免浏览器尝试加载不存在的资源（如 localhost:63342 的 markdown 预览资源）
-  let cleanedHtml = html
+  const cleanedHtml = html
     // 移除 img 标签
     .replace(/<img[^>]*>/gi, '')
     // 移除 video 标签
