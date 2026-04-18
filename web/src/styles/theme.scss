@@ -3,35 +3,35 @@
  * 支持浅色和深色模式
  */
 
-// 主题变量 - 完全照抄旧版本的现代浅色主题
+// 主题变量 - 现代高级浅色主题 (对齐登录页设计)
 :root {
   // 主题模式
   --theme-mode: 'light';
   
-  // 主题色 - 收敛后的蓝靛色系，减少荧光感
-  --color-primary: #4558c8;
-  --color-primary-rgb: 69, 88, 200;
+  // 主题色 - 采用高级靛蓝色系 (Indigo)
+  --color-primary: #4f46e5;
+  --color-primary-rgb: 79, 70, 229;
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
   --color-info: #3b82f6;
   
-  // 文字颜色 - 拉高可读性，避免发灰发飘
+  // 文字颜色 - 沉稳的板岩灰 (Slate)
   --text-primary: #0f172a;
   --text-regular: #334155;
   --text-secondary: #475569;
   --text-disabled: #94a3b8;
   
-  // 背景颜色 - 降低刺眼程度，拉开页面与卡片层级
-  --bg-primary: #f9fbfd;
-  --bg-secondary: #eef2f6;
-  --bg-tertiary: #e2e8f0;
-  --bg-page: #e9eef5;
+  // 背景颜色 - 层次分明：底层柔和，表面纯白
+  --bg-primary: #ffffff;    // 卡片、主内容区的背景色，纯白以凸显内容
+  --bg-secondary: #f8fafc;  // 次要区域、表单项背景、侧边栏背景
+  --bg-tertiary: #f1f5f9;   // 悬浮、选中状态背景
+  --bg-page: #f4f7fb;       // 整个应用的底层背景色，非常柔和不刺眼的蓝灰
   
-  // 边框颜色 - 提升结构感，避免边界消失
-  --border-base: #c7d2de;
-  --border-light: #d6dee8;
-  --border-lighter: #e4ebf3;
+  // 边框颜色 - 极其克制、细腻的边框
+  --border-base: #e2e8f0;
+  --border-light: #f1f5f9;
+  --border-lighter: #f8fafc;
   
   // 字体
   --font-family-base: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -48,41 +48,41 @@
   --spacing-xl: 32px;
   
   // 圆角
-  --border-radius-sm: 2px;
-  --border-radius-base: 4px;
-  --border-radius-lg: 8px;
-  --border-radius-xl: 12px;
+  --border-radius-sm: 4px;
+  --border-radius-base: 6px;
+  --border-radius-lg: 10px;
+  --border-radius-xl: 16px;
   --border-radius-full: 9999px;
-  --border-radius-input: 6px;  /* 输入框统一圆角（参考旧版本设计） */
+  --border-radius-input: 8px;  /* 输入框统一圆角，更加现代 */
   
-  // 阴影
-  --box-shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
-  --box-shadow-base: 0 10px 24px rgba(15, 23, 42, 0.06), 0 2px 6px rgba(15, 23, 42, 0.04);
-  --box-shadow-lg: 0 20px 42px rgba(15, 23, 42, 0.1), 0 8px 18px rgba(15, 23, 42, 0.06);
-  --app-panel-shadow: 0 18px 40px rgba(15, 23, 42, 0.09);
-  --app-shell-bg: #eef3f8;
-  --app-shell-panel-bg: rgba(255, 255, 255, 0.86);
-  --app-shell-panel-bg-strong: rgba(255, 255, 255, 0.93);
-  --app-shell-panel-muted-bg: rgba(241, 245, 249, 0.88);
-  --app-shell-panel-border: rgba(148, 163, 184, 0.18);
-  --app-shell-panel-shadow: 0 24px 60px rgba(15, 23, 42, 0.14);
-  --app-shell-panel-shadow-soft: 0 16px 36px rgba(15, 23, 42, 0.1);
-  --app-shell-panel-highlight: rgba(255, 255, 255, 0.72);
+  // 阴影 - 采用极浅、高扩散的 macOS 风格阴影
+  --box-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  --box-shadow-base: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --box-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+  --app-panel-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.05);
+  --app-shell-bg: linear-gradient(112deg, #1e2f56 0%, #35538f 35%, #e9eff6 35%, #f4f7fb 100%);
+  --app-shell-panel-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.92));
+  --app-shell-panel-bg-strong: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.98));
+  --app-shell-panel-muted-bg: rgba(248, 250, 252, 0.7);
+  --app-shell-panel-border: rgba(148, 163, 184, 0.26);
+  --app-shell-panel-shadow: 0 24px 60px -10px rgba(15, 23, 42, 0.08);
+  --app-shell-panel-shadow-soft: 0 10px 25px -5px rgba(15, 23, 42, 0.05);
+  --app-shell-panel-highlight: rgba(255, 255, 255, 0.95);
   --app-auth-surface-bg: rgba(244, 247, 251, 0.88);
-  --app-auth-card-bg: rgba(255, 255, 255, 0.8);
-  --app-auth-card-bg-strong: rgba(255, 255, 255, 0.92);
-  --app-auth-card-border: rgba(148, 163, 184, 0.2);
-  --app-auth-card-shadow: 0 24px 60px rgba(15, 23, 42, 0.14);
-  --app-auth-card-shadow-soft: 0 16px 36px rgba(15, 23, 42, 0.1);
-  --app-auth-input-bg: rgba(255, 255, 255, 0.96);
-  --app-auth-input-border: #cbd5e1;
-  --app-auth-input-shadow-hover: 0 10px 24px rgba(69, 88, 200, 0.1);
-  --app-auth-input-shadow-focus: 0 0 0 4px rgba(69, 88, 200, 0.14);
-  --app-auth-primary-shadow: 0 14px 30px rgba(69, 88, 200, 0.22);
-  --app-auth-primary-shadow-hover: 0 18px 36px rgba(69, 88, 200, 0.28);
-  --app-code-bg: #e6edf5;
-  --app-code-text: #172033;
-  --app-code-border: #c4cfdb;
+  --app-auth-card-bg: rgba(255, 255, 255, 0.9);
+  --app-auth-card-bg-strong: rgba(255, 255, 255, 0.98);
+  --app-auth-card-border: rgba(226, 232, 240, 0.8);
+  --app-auth-card-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08);
+  --app-auth-card-shadow-soft: 0 10px 15px -3px rgba(0, 0, 0, 0.04);
+  --app-auth-input-bg: rgba(255, 255, 255, 0.98);
+  --app-auth-input-border: #e2e8f0;
+  --app-auth-input-shadow-hover: 0 10px 24px rgba(79, 70, 229, 0.08);
+  --app-auth-input-shadow-focus: 0 0 0 4px rgba(79, 70, 229, 0.12);
+  --app-auth-primary-shadow: 0 14px 30px rgba(79, 70, 229, 0.18);
+  --app-auth-primary-shadow-hover: 0 18px 36px rgba(79, 70, 229, 0.24);
+  --app-code-bg: #1e293b;
+  --app-code-text: #f8fafc;
+  --app-code-border: #334155;
 
   // Element Plus 变量
   --el-color-primary: var(--color-primary);
@@ -92,14 +92,14 @@
   --el-color-danger: var(--color-danger);
   --el-color-info: var(--color-info);
   
-  --el-bg-color: var(--bg-primary);
+  --el-bg-color: rgba(255, 255, 255, 0.9);
   --el-bg-color-page: var(--bg-page);
-  --el-bg-color-overlay: var(--bg-primary);
+  --el-bg-color-overlay: rgba(255, 255, 255, 0.95);
   
   // 输入框背景色
   --el-input-bg-color: var(--bg-primary);
   --el-input-border-color: var(--border-base);
-  --el-input-hover-border-color: #94a3b8;
+  --el-input-hover-border-color: #cbd5e1;
   --el-input-focus-border-color: var(--color-primary);
   --el-text-color-primary: var(--text-primary);
   --el-text-color-regular: var(--text-regular);
@@ -109,15 +109,15 @@
   --el-border-color-light: var(--border-light);
   --el-border-color-lighter: var(--border-lighter);
   --el-border-color-extra-light: var(--border-lighter);
-  --el-border-color-darker: var(--border-base);
+  --el-border-color-darker: #cbd5e1;
   --el-fill-color-blank: var(--bg-primary);
-  --el-fill-color-light: var(--bg-secondary);
-  --el-fill-color-lighter: #f3f6fa;
-  --el-fill-color: var(--bg-tertiary);
-  --el-fill-color-dark: #d6dee8;
-  --el-fill-color-darker: #cdd6e2;
-  --el-mask-color: rgba(0, 0, 0, 0.8);
-  --el-mask-color-extra-light: rgba(0, 0, 0, 0.3);
+  --el-fill-color-light: rgba(15, 23, 42, 0.04);
+  --el-fill-color-lighter: rgba(15, 23, 42, 0.02);
+  --el-fill-color: rgba(15, 23, 42, 0.06);
+  --el-fill-color-dark: rgba(15, 23, 42, 0.08);
+  --el-fill-color-darker: rgba(15, 23, 42, 0.12);
+  --el-mask-color: rgba(0, 0, 0, 0.6);
+  --el-mask-color-extra-light: rgba(0, 0, 0, 0.2);
 }
 
 // 暗色主题 - 完全照抄旧版本的现代深色主题
@@ -712,7 +712,7 @@ html.light {
   .el-select__wrapper {
     background-color: var(--bg-primary) !important;
     border: 1px solid var(--border-base) !important;
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85), 0 0 0 1px rgba(148, 163, 184, 0.08) inset !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02) !important;
 
     &:hover {
       border-color: var(--el-input-hover-border-color) !important;
@@ -721,14 +721,14 @@ html.light {
     &.is-focus,
     &.is-focused {
       border-color: var(--color-primary) !important;
-      box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.14) !important;
+      box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.1) !important;
     }
   }
 
   .el-textarea__inner {
     background-color: var(--bg-primary) !important;
     border: 1px solid var(--border-base) !important;
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85), 0 0 0 1px rgba(148, 163, 184, 0.08) inset !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02) !important;
 
     &:hover {
       border-color: var(--el-input-hover-border-color) !important;
@@ -736,7 +736,7 @@ html.light {
 
     &:focus {
       border-color: var(--color-primary) !important;
-      box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.14) !important;
+      box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.1) !important;
     }
   }
 }
