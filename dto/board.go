@@ -27,7 +27,7 @@ type CreateBoardResp struct {
 
 // UpdateBoardReq 更新版块请求（名称、描述、标签等，与目录通用）
 type UpdateBoardReq struct {
-	ID          int64  `json:"id" binding:"required"`
+	ID          int64  `json:"id,omitempty"` // 由 path 提供，body 可不传
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Tags        string `json:"tags"`
@@ -47,7 +47,7 @@ type CreatePostReq struct {
 
 // UpdatePostReq 更新帖子请求
 type UpdatePostReq struct {
-	ID            int64    `json:"id" binding:"required"`
+	ID            int64    `json:"id,omitempty"` // 由 path 提供，body 可不传
 	Title         string   `json:"title"`
 	Summary       string   `json:"summary"`
 	Cover         []string `json:"cover"`

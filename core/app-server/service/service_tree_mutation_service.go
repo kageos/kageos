@@ -36,6 +36,10 @@ func newServiceTreeMutationService(
 }
 
 func (m *serviceTreeMutationService) UpdateServiceTreeMetadata(ctx context.Context, req *dto.UpdateServiceTreeMetadataReq) error {
+	if req == nil || req.ID <= 0 {
+		return fmt.Errorf("服务目录ID不能为空")
+	}
+
 	serviceTree, err := m.serviceTreeRepo.GetServiceTreeByID(req.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get service tree: %w", err)
@@ -131,6 +135,10 @@ func (m *serviceTreeMutationService) UpdateDocs(ctx context.Context, req *dto.Up
 }
 
 func (m *serviceTreeMutationService) UpdateBoard(ctx context.Context, req *dto.UpdateBoardReq) error {
+	if req == nil || req.ID <= 0 {
+		return fmt.Errorf("版块ID不能为空")
+	}
+
 	serviceTree, err := m.serviceTreeRepo.GetServiceTreeByID(req.ID)
 	if err != nil {
 		return fmt.Errorf("获取节点失败: %w", err)
