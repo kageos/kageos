@@ -341,11 +341,11 @@ cmd_update() {
   ensure_rootless_podman_can_bind_http_ports
   if [[ "$UPDATE_USE_IMAGE" == "1" ]]; then
     pull_main_image
-    echo "==> 仅拉取镜像并更新 main / scheduler / backup 服务（不在目标机本地构建）..."
-    compose_run up -d --no-build --no-deps main scheduler backup
+    echo "==> 仅拉取镜像并强制重建 main / scheduler / backup 服务（不在目标机本地构建）..."
+    compose_run up -d --force-recreate --no-build --no-deps main scheduler backup
   else
-    echo "==> 仅重建并更新 main / scheduler / backup 服务（不重启中间件）..."
-    compose_run up -d --build --no-deps main scheduler backup
+    echo "==> 仅重建并强制重建 main / scheduler / backup 服务（不重启中间件）..."
+    compose_run up -d --force-recreate --build --no-deps main scheduler backup
   fi
   wait_for_stack_health
   print_success
