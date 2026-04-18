@@ -154,22 +154,37 @@ resolve_host_path() {
   fi
 }
 
+ensure_host_dir() {
+  local dir="$1"
+
+  if [[ -d "$dir" ]]; then
+    return 0
+  fi
+
+  if mkdir -p "$dir" 2>/dev/null; then
+    return 0
+  fi
+
+  prepare_root_cmd
+  "${ROOT_CMD[@]}" mkdir -p "$dir"
+  "${ROOT_CMD[@]}" chown "$(id -u):$(id -g)" "$dir"
+}
+
 prepare_storage_layout() {
   local certs_host_dir
   certs_host_dir="$(resolve_host_path "$TLS_CERTS_HOST_DIR")"
-  mkdir -p \
-    "$FIXED_STORAGE_ROOT/mysql" \
-    "$FIXED_STORAGE_ROOT/minio" \
-    "$FIXED_STORAGE_ROOT/podman_storage" \
-    "$FIXED_STORAGE_ROOT/logs" \
-    "$FIXED_STORAGE_ROOT/namespace" \
-    "$FIXED_STORAGE_ROOT/data/runtime/app-runtime" \
-    "$FIXED_STORAGE_ROOT/data/license" \
-    "$FIXED_STORAGE_ROOT/data/backup/repo" \
-    "$FIXED_STORAGE_ROOT/data/backup/state" \
-    "$FIXED_STORAGE_ROOT/data/backup/staging" \
-    "$FIXED_STORAGE_ROOT/data/tmp" \
-    "$certs_host_dir"
+  ensure_host_dir "$FIXED_STORAGE_ROOT/mysql"
+  ensure_host_dir "$FIXED_STORAGE_ROOT/minio"
+  ensure_host_dir "$FIXED_STORAGE_ROOT/podman_storage"
+  ensure_host_dir "$FIXED_STORAGE_ROOT/logs"
+  ensure_host_dir "$FIXED_STORAGE_ROOT/namespace"
+  ensure_host_dir "$FIXED_STORAGE_ROOT/data/runtime/app-runtime"
+  ensure_host_dir "$FIXED_STORAGE_ROOT/data/license"
+  ensure_host_dir "$FIXED_STORAGE_ROOT/data/backup/repo"
+  ensure_host_dir "$FIXED_STORAGE_ROOT/data/backup/state"
+  ensure_host_dir "$FIXED_STORAGE_ROOT/data/backup/staging"
+  ensure_host_dir "$FIXED_STORAGE_ROOT/data/tmp"
+  ensure_host_dir "$certs_host_dir"
 }
 
 print_storage_mode() {
