@@ -22,6 +22,7 @@ render_runtime_templates "$PROD_TEMPLATE_VARS"
 
 shutdown() {
   echo "==> 停止 scheduler..."
+  rm -f /run/app-scheduler.pid
   kill -TERM "$SCHEDULER_PID" 2>/dev/null || true
   wait "$SCHEDULER_PID" 2>/dev/null || true
   exit 0
@@ -29,8 +30,10 @@ shutdown() {
 trap shutdown SIGTERM SIGINT
 
 echo "==> 启动 app-scheduler..."
+rm -f /run/app-scheduler.pid
 /app/app-scheduler &
 SCHEDULER_PID=$!
+printf '%s\n' "$SCHEDULER_PID" > /run/app-scheduler.pid
 
 wait -n "$SCHEDULER_PID"
 echo "==> app-scheduler 退出，关闭中..."
