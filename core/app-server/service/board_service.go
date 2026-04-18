@@ -210,6 +210,10 @@ func (s *BoardService) CreatePost(ctx context.Context, req *dto.CreatePostReq) (
 
 // UpdatePost 更新帖子
 func (s *BoardService) UpdatePost(ctx context.Context, req *dto.UpdatePostReq) (*dto.GetPostResp, error) {
+	if req == nil || req.ID <= 0 {
+		return nil, fmt.Errorf("帖子ID不能为空")
+	}
+
 	post, err := s.boardPostRepo.GetByID(req.ID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
