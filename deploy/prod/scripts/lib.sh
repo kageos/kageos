@@ -39,9 +39,6 @@ EOF
 
 FIXED_STORAGE_ROOT="/data/ai-agent-os"
 DEFAULT_TLS_MODE="http"
-DEFAULT_MYSQL_IMAGE="docker.io/library/mysql:8.0"
-DEFAULT_NATS_IMAGE="docker.io/library/nats:2.10-alpine"
-DEFAULT_MINIO_IMAGE="docker.io/minio/minio:latest"
 DEFAULT_MAIN_IMAGE="agentos-main:latest"
 DEFAULT_APP_BASE_IMAGE="agentos-app-runtime-base:latest"
 INIT_IMAGE_USAGE_HINT="bash build.sh init；如需直接拉取已发布主镜像，用 bash build.sh init --image"
@@ -542,6 +539,9 @@ create_env_from_example() {
 bootstrap_env_defaults() {
   local derived_tls_mode
   delete_env_key STORAGE_ROOT
+  delete_env_key MYSQL_IMAGE
+  delete_env_key NATS_IMAGE
+  delete_env_key MINIO_IMAGE
   delete_env_key MINIO_ROOT_USER
   delete_env_key BACKUP_BASIC_AUTH_USERNAME
   derived_tls_mode="$(derive_tls_mode_from_env)"
@@ -630,9 +630,6 @@ load_env_defaults() {
   TLS_CERTS_HOST_DIR="$(read_env_value_or_default TLS_CERTS_HOST_DIR ./certs)"
   TLS_CERT_FILE="$(read_env_value_or_default TLS_CERT_FILE /app/tls/fullchain.pem)"
   TLS_KEY_FILE="$(read_env_value_or_default TLS_KEY_FILE /app/tls/privkey.pem)"
-  MYSQL_IMAGE="$(read_env_value_or_default MYSQL_IMAGE "$DEFAULT_MYSQL_IMAGE")"
-  NATS_IMAGE="$(read_env_value_or_default NATS_IMAGE "$DEFAULT_NATS_IMAGE")"
-  MINIO_IMAGE="$(read_env_value_or_default MINIO_IMAGE "$DEFAULT_MINIO_IMAGE")"
   MAIN_IMAGE="$(read_env_value_or_default MAIN_IMAGE "$DEFAULT_MAIN_IMAGE")"
   APP_BASE_IMAGE="$(read_env_value_or_default APP_BASE_IMAGE "$DEFAULT_APP_BASE_IMAGE")"
 }

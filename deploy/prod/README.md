@@ -164,7 +164,7 @@ bash build.sh down          # 停止服务（保留数据卷）
 - 生产模板里的 **`pprof`** 默认关闭；如需临时排障，必须显式在对应服务配置里把 `enable_pprof` 打开。
 - 公网入口仍然只应通过容器内 Nginx 暴露；生产 Nginx 不再转发 `/swagger/`。
 - `build.sh` 现在会校验：`CANONICAL_BASE_URL` 必须以 `http://` 或 `https://` 开头、`JWT_SECRET` 至少 32 字符、`CONTROL_ENC_KEY` 必须正好 32 字符、`BACKUP_BASIC_AUTH_PASSWORD` 至少 16 字符。
-- 镜像 tag 与 SMTP 参数默认都有内置值；普通部署不需要填写，只有想覆盖默认行为时才手工在 `.env` 中增加对应项。
+- 基础设施镜像（MySQL / NATS / MinIO）已经固定写死；普通部署只在确实需要时才覆盖 `MAIN_IMAGE` / `APP_BASE_IMAGE` 或 SMTP 行为。
 - 如果 `TLS_MODE=https` / `redirect`，`build.sh` 还会校验证书路径、宿主机证书文件和 `80/443` 端口占用；其中 `TLS_MODE=redirect` 还要求 `CANONICAL_BASE_URL` 必须是 `https://`。
 
 ## 构建加速（依赖与源，默认偏国内）
