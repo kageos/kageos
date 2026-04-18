@@ -1,34 +1,41 @@
 usage() {
   cat <<'EOF'
-用法: bash build.sh [命令]
+用法: bash build.sh [命令] [参数]
 
-命令：
-  init [--force]
-                初始化 .env；为空的密钥会自动生成
-  doctor        执行部署前环境预检（compose / 端口 / 路径 / 证书等）
-  up            首次部署 / 全量重建（默认）
-  up-image      基于 MAIN_IMAGE 拉取镜像并启动，不在目标机本地构建
-  update        仅重建并更新 main / scheduler / backup 服务，不重启 MySQL / NATS / MinIO
-  update-image  仅拉取 MAIN_IMAGE 并更新 main / scheduler / backup，不在目标机本地构建
-  pull-update   git pull --ff-only 后，仅重建并更新 main / scheduler / backup 服务
-  restart-main  仅重启 main 服务，不重建镜像
-  restart-scheduler
-                仅重启 scheduler 服务，不重建镜像
+标准命令：
+  init [--image] [--force]
+                初始化 .env，并准备中间件 / MAIN_IMAGE / APP_BASE_IMAGE
+  up            启动已初始化的服务（默认，不再构建镜像）
+  update [--image]
+                更新 main / scheduler / backup；加 --image 时直接拉取 MAIN_IMAGE
   verify        执行生产健康检查（mysql / main / scheduler / backup）
-  build-app-base [--no-cache]
-                在 main 容器内单独构建用户应用基础镜像（默认 agentos-app-runtime-base:latest）
   logs [svc]    查看日志，默认 main
   status        查看 compose 服务状态
   down          停止所有服务（保留 /data/ai-agent-os 数据）
   help          显示帮助
 
+排障 / 高级命令：
+  doctor        显式执行部署预检（主路径可省略；up 已覆盖核心检查）
+  pull-update   git pull --ff-only 后，仅重建并更新 main / scheduler / backup 服务
+  restart-main  仅重启 main 服务，不重建镜像
+  restart-scheduler
+                仅重启 scheduler 服务，不重建镜像
+  build-app-base [--no-cache]
+                在与 main 相同的运行环境里重建用户应用基础镜像
+
+兼容别名（不再推荐）：
+  init-image [--force]
+                等同于 init --image
+  up-image      等同于 up
+  update-image  等同于 update --image
+
 示例：
   bash build.sh init
-  bash build.sh doctor
-  bash build.sh
-  bash build.sh up-image
+  bash build.sh init --image
+  bash build.sh up
   bash build.sh update
-  bash build.sh update-image
+  bash build.sh update --image
+  bash build.sh doctor
   bash build.sh pull-update
   bash build.sh verify
   bash build.sh build-app-base --no-cache
@@ -43,6 +50,7 @@ DEFAULT_NATS_IMAGE="nats:2.10-alpine"
 DEFAULT_MINIO_IMAGE="minio/minio:latest"
 DEFAULT_MAIN_IMAGE="agentos-main:latest"
 DEFAULT_APP_BASE_IMAGE="agentos-app-runtime-base:latest"
+INIT_IMAGE_USAGE_HINT="bash build.sh init；如需直接拉取已发布主镜像，用 bash build.sh init --image"
 
 read_env_value() {
   local key="$1"
@@ -210,7 +218,7 @@ compose_run() {
 ensure_env_file() {
   if [[ ! -f "$ENV_FILE" ]]; then
     echo "ERROR: 未找到 $ENV_FILE"
-    echo "请先执行: bash build.sh init"
+    echo "请先执行: bash build.sh init；如需直接拉取已发布主镜像，用 bash build.sh init --image"
     exit 1
   fi
 }
@@ -422,6 +430,26 @@ ensure_env_bootstrapped() {
   fi
 
   bootstrap_env_defaults
+}
+
+load_env_defaults() {
+  CANONICAL_BASE_URL="$(read_env_value CANONICAL_BASE_URL)"
+  TLS_MODE="$(read_env_value_or_default TLS_MODE "$DEFAULT_TLS_MODE")"
+  TLS_CERTS_HOST_DIR="$(read_env_value_or_default TLS_CERTS_HOST_DIR ./certs)"
+  TLS_CERT_FILE="$(read_env_value_or_default TLS_CERT_FILE /app/tls/fullchain.pem)"
+  TLS_KEY_FILE="$(read_env_value_or_default TLS_KEY_FILE /app/tls/privkey.pem)"
+  MYSQL_IMAGE="$(read_env_value_or_default MYSQL_IMAGE "$DEFAULT_MYSQL_IMAGE")"
+  NATS_IMAGE="$(read_env_value_or_default NATS_IMAGE "$DEFAULT_NATS_IMAGE")"
+  MINIO_IMAGE="$(read_env_value_or_default MINIO_IMAGE "$DEFAULT_MINIO_IMAGE")"
+  MAIN_IMAGE="$(read_env_value_or_default MAIN_IMAGE "$DEFAULT_MAIN_IMAGE")"
+  APP_BASE_IMAGE="$(read_env_value_or_default APP_BASE_IMAGE "$DEFAULT_APP_BASE_IMAGE")"
+}
+
+require_linux_host() {
+  if [[ "$(uname -s)" != "Linux" ]]; then
+    echo "ERROR: prod 当前只支持 Linux 宿主机。"
+    exit 1
+  fi
 }
 
 doctor_ok() {

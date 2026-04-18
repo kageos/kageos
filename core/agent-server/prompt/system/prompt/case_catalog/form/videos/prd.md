@@ -4,7 +4,7 @@
 
 - **类型**：单 Form，POST，无 Table。
 - **路由**：convert.form（视频转换）；路由组 `/form/videos`。
-- **适合参考**：files 上传、GetFS、exec、响应 files。
+- **适合参考**：files 上传、`DownloadFiles`、`GetTraceOutputDir`、`exec.Command`、`ResponseFiles`、同格式文件复制到输出目录。
 
 ---
 
@@ -40,6 +40,42 @@
 
 - 运行镜像内为 **GPL FFmpeg**（含 libx264），视频转换（convert.form）及自定义命令（run_command.form）均可使用 libx264 做 H.264 编码（如 mov→mp4）。
 - 代码随本案例一起提供；read_doc 本案例路径（如 `/system/prompt/case_catalog/form/videos`）即获得 PRD 与代码，无需再调用 read_go_file。
+
+## 五、标准模式：上传视频 → FFmpeg 转换 → 输出附件
+
+涉及视频/音频文件处理时，优先按下面的固定模式写：
+
+1. 请求字段使用 `*types.Files`
+2. `inputFiles := fs.DownloadFiles(req.InputFiles)`，并 `defer fs.RemoveFiles(inputFiles)`
+3. 所有输出都写到 `outputDir := fs.GetTraceOutputDir()`
+4. 子进程直接调用 `exec.Command("ffmpeg", ...)`
+5. 用 `fs.ResponseFiles(outputPaths)` 返回给用户下载，并 `defer fs.RemoveFiles(outputFiles)`
+
+特别注意：
+
+- **不要直接返回输入临时文件**。如果输入格式和输出格式相同，先复制到 `outputDir` 再返回
+- 视频转换默认优先显式指定编码器，例如 MP4 用 `libx264 + aac`
+- 自定义命令模式下，只替换 `{{input}}` / `{{output}}`，不经过 shell
+
+最小骨架：
+
+```go
+fs := ctx.GetFS()
+inputFiles := fs.DownloadFiles(req.InputFiles)
+defer fs.RemoveFiles(inputFiles)
+
+outputDir := fs.GetTraceOutputDir()
+outputPath := filepath.Join(outputDir, "output.mp4")
+
+cmd := exec.Command("ffmpeg", "-i", inputPath, "-c:v", "libx264", "-c:a", "aac", "-y", outputPath)
+output, err := cmd.CombinedOutput()
+if err != nil {
+    return nil, fmt.Errorf("ffmpeg 执行失败: %v, output: %s", err, string(output))
+}
+
+outputFiles := fs.ResponseFiles([]string{outputPath})
+defer fs.RemoveFiles(outputFiles)
+```
 
 
 ---
@@ -110,7 +146,7 @@ func DoVideoConvert(ctx *app.Context, req *VideoConvertReq) (*VideoConvertResp, 
 		return nil, fmt.Errorf("没有找到输入文件")
 	}
 
-	// 直接使用 ffmpeg，依赖 PATH（镜像中 PATH 含 /opt/ffmpeg/bin）
+	// 直接使用 ffmpeg，依赖 PATH（canonical Ubuntu 运行时镜像中已安装）
 	ffmpegPath := "ffmpeg"
 
 	outputDir := fs.GetTraceOutputDir()
@@ -366,4 +402,3 @@ func init() {
 	packageContext.POST("run_command.form", VideoRunCommand, VideoRunCommandTemplate)
 }
 ```
-

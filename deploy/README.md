@@ -9,6 +9,7 @@
 |------|------|------|
 | 本地开发 | [dev/README.md](dev/README.md) | 起本地 MySQL / NATS / MinIO，跑后端源码和前端 |
 | 单机生产部署 | [prod/README.md](prod/README.md) | 当前官方生产入口，基于 Compose |
+| 只想照着命令部署 | [prod/DEPLOY_TUTORIAL.md](prod/DEPLOY_TUTORIAL.md) | 面向实际操作的单机生产部署教程 |
 | 看启动顺序与依赖图 | [prod/DEPLOYMENT_FLOW.md](prod/DEPLOYMENT_FLOW.md) | 单机生产部署的依赖、启动顺序、流程图 |
 | 找共享资源 | [base/README.md](base/README.md) | canonical Dockerfile、init SQL、共享脚本都在这里 |
 | 做容器防删限制 | [security/README.md](security/README.md) | 可选的 AppArmor / SELinux 安装资源 |
@@ -18,10 +19,11 @@
 | 方式 | 适合场景 | 入口 | 说明 |
 |------|------|------|------|
 | `deploy/dev` | 本地开发、联调、排查问题 | `bash deploy/dev/scripts/infra.sh up` + `bash deploy/dev/scripts/run-backend.sh` | 基础设施容器化，后端源码运行，前端本地 `npm run dev` |
-| `deploy/prod` 本地构建 | 单机测试环境、演示环境、还没有镜像发布链时的正式部署 | `bash deploy/prod/build.sh up` | 目标机本地构建 `agentos-main`，最省事，但发布一致性一般 |
-| `deploy/prod` 发布镜像 | 企业生产、固定 tag、需要可回滚的环境 | `bash deploy/prod/build.sh up-image` | 目标机不做源码构建，直接拉 `MAIN_IMAGE` 启动 |
-| `deploy/prod` HTTP | 内网部署、外层 LB/CDN/WAF 已做 TLS | `ENABLE_HTTPS=0` | 容器内只跑 HTTP，HTTPS 由外层代理处理 |
-| `deploy/prod` 内建 HTTPS | 单机公网直出、自己持有证书 | `ENABLE_HTTPS=1` | 证书路径写进 `.env`，容器内 Nginx 直接提供 HTTPS |
+| `deploy/prod` 本地构建 | 单机测试环境、演示环境、还没有镜像发布链时的正式部署 | `bash deploy/prod/build.sh init` → `up` | 目标机本地构建 `agentos-main`，再显式准备 `APP_BASE_IMAGE` 后启动；`doctor` 只在想看显式预检时再手动跑 |
+| `deploy/prod` 发布镜像 | 企业生产、固定 tag、需要可回滚的环境 | `bash deploy/prod/build.sh init --image` → `up` | 目标机不做主镜像源码构建，直接拉 `MAIN_IMAGE` 并初始化运行时底座；`doctor` 可选 |
+| `deploy/prod` HTTP | 内网部署、临时验证 | `TLS_MODE=http` | 容器内只跑 HTTP |
+| `deploy/prod` 外部 TLS | 已有 LB / CDN / WAF / Ingress 做 TLS 终止 | `TLS_MODE=external` | 容器内只跑 HTTP，HTTPS 由外层代理处理 |
+| `deploy/prod` 内建 HTTPS | 单机公网直出、自己持有证书 | `TLS_MODE=redirect` | 证书路径写进 `.env`，容器内 Nginx 直接提供 HTTPS |
 
 当前成熟主线只有两条：
 
@@ -90,3 +92,4 @@ deploy/
 
 - 只跑前端、连接远端网关：看仓库根目录的 `前端开发-本地与连线上.md`
 - 用户应用运行时基础镜像的 canonical 构建脚本：`deploy/base/scripts/build-app-base-image.sh`
+- 单机生产的直接操作教程：`deploy/prod/DEPLOY_TUTORIAL.md`

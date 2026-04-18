@@ -21,6 +21,33 @@
 - 应用中心（Hub）：{{HUB_SECTION}}
 {{DIR_DESCRIPTION}}
 
+### 运行环境速查
+
+- 当前应用运行时基础镜像：`agentos-app-runtime-base:latest`
+- 运行时内已预装大量开源 CLI，可直接在 Go 代码里通过 `exec.Command("<可执行程序>", ...)` 调用
+- 新增工具默认**直接依赖 PATH**，不要额外设计 `*_PATH` 环境变量
+- 图片处理默认优先 **ImageMagick**：canonical Ubuntu 22.04 镜像内使用 `convert` / `identify` / `mogrify`
+- `gm`（GraphicsMagick）仍保留兼容，但不再作为图片处理默认示例
+
+| 类别 | 默认可执行程序 | 常见用途 |
+|------|----------------|----------|
+| 视频处理 | `ffmpeg` | 转码、压缩、抽帧、水印、字幕 |
+| 图片处理 | `convert` `identify` `mogrify` | 格式转换、缩放、裁剪、信息查看 |
+| 图片兼容工具 | `gm` | 兼容历史脚本/已有示例 |
+| PDF/OCR | `ocrmypdf` `pdftotext` `pdftoppm` `pdfinfo` `pdfimages` `gs` `tesseract` | 可搜索 PDF、抽文本、转图片、OCR |
+| 元数据 | `exiftool` | 读取/清洗图片、视频、PDF 元数据 |
+| 图片优化 | `vips` `vipsthumbnail` `cwebp` `pngquant` `gifsicle` `unpaper` | 缩略图、WebP、PNG/GIF 优化、扫描件清理 |
+| 文档处理 | `libreoffice` `pandoc` | Office/PDF/Markdown 转换 |
+| 绘图 | `dot` | Graphviz 流程图、关系图 |
+| 脚本与数据 | `python3` `lua` | Python / Lua 子进程处理 |
+
+### 文件输入输出速记
+
+- 输入文件：表单字段用 `*types.Files`，代码里先 `inputFiles := fs.DownloadFiles(req.InputFiles)`，结束前 `defer fs.RemoveFiles(inputFiles)`
+- 输出文件：先写到 `outputDir := fs.GetTraceOutputDir()`，处理完成后用 `fs.ResponseFiles(outputPaths)` 返回给用户下载
+- 如果输入文件“无需转换但仍要输出”，先复制到 `outputDir` 再返回；不要直接把输入临时文件作为最终输出
+- Python 生成附件时，Go 侧先算**绝对路径**传给 Python；Python 写盘后再由 Go `ResponseFiles`
+
 ### 目录结构
 {{CHILDREN_SECTION}}
 {{FUNCTIONS_SECTION}}

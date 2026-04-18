@@ -1,5 +1,6 @@
 # 生产单机一键部署（不含 Hub）
-# 用法：手写 .env → bash build.sh（校验 .env + 停宿主机 nginx + compose up）
+# 用法：bash build.sh init [--image] → 填 .env → bash build.sh up
+# 如需显式预检，可在 up 前手动执行：bash build.sh doctor
 
 services:
   # ─── 中间件 ──────────────────────────────────────────────────

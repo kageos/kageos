@@ -241,7 +241,7 @@ Nginx 一旦起来，说明：
 
 ## 4.3 第三阶段：平台运行时能力建立
 
-然后 `main` 会启动内部 Podman API，并确认 `agentos-app-runtime-base` 存在。
+然后 `main` 会启动内部 Podman API，并确认初始化阶段已经准备好 `agentos-app-runtime-base`。
 
 这一阶段特别关键，因为它决定：
 
@@ -293,7 +293,7 @@ flowchart TD
     D --> E[main 渲染运行配置]
     E --> F[main 启动 Nginx]
     F --> G[main 启动 Podman API]
-    G --> H[main 准备 agentos-app-runtime-base]
+    G --> H[main 确认 agentos-app-runtime-base 已就绪]
     H --> I[main 启动 core-server]
     I --> J[core-server 拉起内部服务]
     J --> K[app-runtime ready]
@@ -444,4 +444,3 @@ flowchart LR
 - [README.md](README.md)
 - [docker-compose.yaml](docker-compose.yaml)
 - [build.sh](build.sh)
-

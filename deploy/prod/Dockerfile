@@ -118,7 +118,8 @@ COPY deploy/prod/entrypoint-common.sh /app/entrypoint-common.sh
 COPY deploy/prod/entrypoint-main.sh /app/entrypoint-main.sh
 COPY deploy/prod/entrypoint-scheduler.sh /app/entrypoint-scheduler.sh
 COPY deploy/prod/entrypoint-backup.sh /app/entrypoint-backup.sh
-RUN chmod +x /app/entrypoint-common.sh /app/entrypoint-main.sh /app/entrypoint-scheduler.sh /app/entrypoint-backup.sh /app/health/*.sh
+COPY deploy/prod/entrypoint-app-base.sh /app/entrypoint-app-base.sh
+RUN chmod +x /app/entrypoint-common.sh /app/entrypoint-main.sh /app/entrypoint-scheduler.sh /app/entrypoint-backup.sh /app/entrypoint-app-base.sh /app/health/*.sh
 
 # 运行期目录骨架与静态站点
 RUN mkdir -p /app/deploy /app/logs /app/namespace \
