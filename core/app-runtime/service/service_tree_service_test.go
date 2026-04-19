@@ -219,6 +219,37 @@ func TestDeleteServiceTreeRejectsPathTraversal(t *testing.T) {
 	}
 }
 
+func TestBuildBatchWriteFilesRuntimeResp(t *testing.T) {
+	t.Parallel()
+
+	service := &WorkspaceChangeService{}
+	state := &batchWriteState{
+		writtenPaths: []string{"/alice/demo/ticket/list", "/alice/demo/ticket/detail"},
+	}
+	release := &appReleaseResult{
+		oldVersion:    "v3",
+		newVersion:    "v4",
+		gitCommitHash: "abc123",
+	}
+
+	resp := service.buildBatchWriteFilesRuntimeResp(state, release)
+	if resp == nil {
+		t.Fatal("expected response, got nil")
+	}
+	if resp.FileCount != 2 {
+		t.Fatalf("unexpected file count: %d", resp.FileCount)
+	}
+	if len(resp.WrittenPaths) != 2 {
+		t.Fatalf("unexpected written paths: %#v", resp.WrittenPaths)
+	}
+	if resp.OldVersion != "v3" || resp.NewVersion != "v4" {
+		t.Fatalf("unexpected versions: old=%s new=%s", resp.OldVersion, resp.NewVersion)
+	}
+	if resp.GitCommitHash != "abc123" {
+		t.Fatalf("unexpected commit hash: %s", resp.GitCommitHash)
+	}
+}
+
 func TestBatchWriteFilesDoesNotMutateWhenAppManageServiceMissing(t *testing.T) {
 	t.Parallel()
 

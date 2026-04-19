@@ -230,6 +230,7 @@ type BatchWriteFilesResp struct {
 	OldVersion    string    `json:"old_version"`               // 旧版本号
 	NewVersion    string    `json:"new_version"`               // 新版本号
 	GitCommitHash string    `json:"git_commit_hash,omitempty"` // Git 提交哈希
+	Warnings      []string  `json:"warnings,omitempty"`        // 非阻断告警（如版本已更新但元数据同步失败）
 }
 
 // PullDirectoryFromHubReq 从 Hub 拉取目录请求

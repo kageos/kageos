@@ -137,6 +137,21 @@
     border: 1px solid #cbd5e1 !important;
     transition: all 0.3s ease !important;
     
+    .el-select__selected-item,
+    .el-select__input {
+      color: var(--text-primary) !important;
+      -webkit-text-fill-color: var(--text-primary) !important;
+    }
+
+    .el-select__placeholder:not(.is-transparent),
+    &::placeholder,
+    .el-input__inner::placeholder,
+    .el-textarea__inner::placeholder,
+    .el-select__input::placeholder {
+      color: var(--text-disabled) !important;
+      -webkit-text-fill-color: var(--text-disabled) !important;
+    }
+    
     &:hover {
       box-shadow: 0 10px 24px rgba(22, 119, 255, 0.1) !important;
       border-color: rgba(22, 119, 255, 0.42) !important;

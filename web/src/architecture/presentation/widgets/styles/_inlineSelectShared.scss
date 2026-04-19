@@ -65,7 +65,7 @@ $inline-select-hover-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
     font-weight: 500;
   }
 
-  #{$selector} :deep(.el-select__placeholder.is-transparent) {
+  #{$selector} :deep(.el-select__placeholder:not(.is-transparent)) {
     color: var(--el-text-color-placeholder) !important;
     font-weight: 400;
   }

@@ -33,25 +33,11 @@ func GetGlobalSharedConfig() *GlobalSharedConfig {
 // GlobalSharedConfig 全局共享配置
 type GlobalSharedConfig struct {
 	Gateway        GatewayConfig              `mapstructure:"gateway"`
-	Scheduler      SharedSchedulerConfig      `mapstructure:"scheduler"`
 	Nats           NatsConfig                 `mapstructure:"nats"`
 	JWT            JWTConfig                  `mapstructure:"jwt"`
 	ControlService ControlServiceClientConfig `mapstructure:"control_service"`
 	SDK            SDKConfig                  `mapstructure:"sdk"`
 	// 注意：数据库配置不在全局配置中，每个服务可以单独配置自己的数据库
-}
-
-// SharedSchedulerConfig 全局调度配置。
-// 这类开关影响的是部署拓扑而不是 app-server 单服务行为，因此放到 global.yaml。
-type SharedSchedulerConfig struct {
-	Embedded *bool `mapstructure:"embedded"`
-}
-
-func (c *GlobalSharedConfig) IsSchedulerEmbedded() bool {
-	if c == nil || c.Scheduler.Embedded == nil {
-		return true
-	}
-	return *c.Scheduler.Embedded
 }
 
 // GatewayConfig 网关配置

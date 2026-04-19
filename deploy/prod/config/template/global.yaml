@@ -6,9 +6,6 @@ gateway:
   base_url: "http://127.0.0.1:9090"
   internal_url: "http://127.0.0.1:9090"
 
-scheduler:
-  embedded: false
-
 nats:
   url: "nats://127.0.0.1:4222"
 

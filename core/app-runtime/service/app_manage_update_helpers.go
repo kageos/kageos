@@ -18,6 +18,39 @@ type updateAppState struct {
 	oldVersion string
 }
 
+func (s *AppManageService) noteUnknownUpdateVersion(state *updateAppState, logStr *strings.Builder) {
+	if state != nil && state.oldVersion == "unknown" {
+		logStr.WriteString("Failed to get current version\t")
+	}
+}
+
+func (s *AppManageService) buildWriteOnlyUpdateResp(
+	ctx context.Context,
+	user, app, version string,
+) *sharedDto.UpdateAppResp {
+	logger.Infof(ctx, "[UpdateApp] WriteOnly=true，仅写文件不编译不部署")
+	return &sharedDto.UpdateAppResp{
+		User:       user,
+		App:        app,
+		OldVersion: version,
+		NewVersion: version,
+	}
+}
+
+func (s *AppManageService) completeUpdatedRelease(
+	ctx context.Context,
+	user, app string,
+	release *appReleaseResult,
+) (*sharedDto.UpdateAppResp, error) {
+	diffData, err := s.requestRequiredVersionDiff(ctx, user, app, release.newVersion, "UpdateApp")
+	if err != nil {
+		logger.Warnf(ctx, "[UpdateApp] Aborting update result to avoid API state drift")
+		return nil, err
+	}
+
+	return s.buildUpdateAppResp(user, app, release, diffData), nil
+}
+
 func (s *AppManageService) writeSourceFilesForUpdate(
 	ctx context.Context,
 	user, app string,
@@ -109,6 +142,50 @@ func (s *AppManageService) deployUpdatedVersion(
 	logStr.WriteString(fmt.Sprintf("Update completed: %s->%s", state.oldVersion, newVersion))
 	logger.Infof(ctx, logStr.String())
 	return nil
+}
+
+func (s *AppManageService) buildAndDeployUpdatedRelease(
+	ctx context.Context,
+	user, app string,
+	state *updateAppState,
+	sourceWriteState *batchWriteState,
+	requirement string,
+	changeDescription string,
+	logStr *strings.Builder,
+) (*appReleaseResult, error) {
+	release, err := s.prepareAppRelease(
+		ctx,
+		user,
+		app,
+		state.absPaths,
+		state.oldVersion,
+		"UpdateApp",
+		requirement,
+		changeDescription,
+	)
+	if err != nil {
+		s.rollbackWrittenFilesAfterFailedBuild(ctx, "UpdateApp", sourceWriteState)
+		return nil, fmt.Errorf("failed to build app: %w", err)
+	}
+
+	if err := s.deployUpdatedVersion(ctx, user, app, state, release.newVersion, logStr); err != nil {
+		return nil, err
+	}
+
+	return release, nil
+}
+
+func (s *AppManageService) rollbackWrittenFilesAfterFailedBuild(
+	ctx context.Context,
+	logPrefix string,
+	sourceWriteState *batchWriteState,
+) {
+	if sourceWriteState == nil || len(sourceWriteState.writtenPaths) == 0 {
+		return
+	}
+
+	logger.Warnf(ctx, "[%s] 编译失败，开始回滚已写入的文件: fileCount=%d", logPrefix, len(sourceWriteState.writtenPaths))
+	s.workspaceFileService.rollbackWriteState(ctx, sourceWriteState)
 }
 
 func (s *AppManageService) waitForUpdatedVersionStartup(

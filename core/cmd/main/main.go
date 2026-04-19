@@ -88,7 +88,16 @@ func init() {
 		ReadyChannel: make(chan struct{}, 1),
 	})
 
-	// 7. API Gateway（API 网关，最后启动，因为依赖其他服务）
+	// 7. App Scheduler（定时任务调度器，独立于 app-server 运行）
+	// 注意：依赖 app-server 而不是直接依赖 app-runtime，避免多个服务同时消费同一个 ready channel。
+	services = append(services, &ServiceInfo{
+		Name:         "app-scheduler",
+		Main:         appServerRunner.SchedulerMain,
+		DependsOn:    []string{"app-server"},
+		ReadyChannel: make(chan struct{}, 1),
+	})
+
+	// 8. API Gateway（API 网关，最后启动，因为依赖其他服务）
 	services = append(services, &ServiceInfo{
 		Name:         "api-gateway",
 		Main:         apiGatewayRunner.Main,

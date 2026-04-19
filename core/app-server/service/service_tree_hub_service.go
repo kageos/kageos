@@ -131,7 +131,7 @@ func (h *serviceTreeHubService) batchWriteFiles(
 	ctx context.Context,
 	req *dto.BatchWriteFilesReq,
 ) (*dto.BatchWriteFilesResp, error) {
-	return executeBatchWriteFiles(ctx, h.runtimeWorkspace, h.appService, h.appRepo, req)
+	return executeBatchWriteFiles(ctx, h.runtimeWorkspace, h.appService, req)
 }
 
 func (h *serviceTreeHubService) getDirectoryFilesFromRuntimeRecursively(

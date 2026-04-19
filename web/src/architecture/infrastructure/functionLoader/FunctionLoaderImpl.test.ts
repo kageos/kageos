@@ -44,7 +44,7 @@ describe('FunctionLoaderImpl', () => {
   it('deduplicates concurrent requests for the same path while one request is in flight', async () => {
     vi.useFakeTimers()
 
-    let resolveRequest: ((value: any) => void) | null = null
+    let resolveRequest!: (value: any) => void
     const get = vi.fn().mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -67,7 +67,7 @@ describe('FunctionLoaderImpl', () => {
 
     await vi.advanceTimersByTimeAsync(0)
 
-    resolveRequest?.({
+    resolveRequest({
       router: '/demo/form',
       request: [{ code: 'progress', widget: { type: 'slider' } }]
     })

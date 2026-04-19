@@ -450,17 +450,53 @@ func (a *App) onAppUpdate(msg *nats.Msg) {
 		return
 	}
 
-	// 1. 获取当前所有API（只调用一次，避免重复遍历和文件读取）
+	if err := a.executeOnAppUpdate(ctx, msg); err != nil {
+		logger.Errorf(ctx, "[onAppUpdate] FAILED: %v", err)
+		a.respondUpdateError(msg, err.Error())
+		return
+	}
+
+	logger.Infof(ctx, "[onAppUpdate] ✅ All done! Response sent successfully")
+}
+
+func (a *App) executeOnAppUpdate(ctx context.Context, msg *nats.Msg) error {
+	currentApis, err := a.loadCurrentApisForUpdate(ctx)
+	if err != nil {
+		return err
+	}
+
+	if err := a.migrateUpdateDatabases(ctx, currentApis); err != nil {
+		return err
+	}
+
+	if err := a.persistCurrentUpdateVersion(ctx, currentApis); err != nil {
+		return err
+	}
+
+	diffData, err := a.buildUpdateDiffData(ctx, currentApis)
+	if err != nil {
+		return err
+	}
+
+	if err := a.runOnAPICreateCallbacks(ctx, diffData.Add); err != nil {
+		return err
+	}
+
+	return a.respondUpdateSuccess(ctx, msg, diffData)
+}
+
+func (a *App) loadCurrentApisForUpdate(ctx context.Context) ([]*ApiInfo, error) {
 	logger.Infof(ctx, "[onAppUpdate] Step 1: Getting current APIs...")
 	currentApis, _, err := a.getApis()
 	if err != nil {
 		logger.Errorf(ctx, "[onAppUpdate] Step 1 FAILED: %v", err)
-		a.respondUpdateError(msg, fmt.Sprintf("Failed to get current APIs: %v", err))
-		return
+		return nil, fmt.Errorf("Failed to get current APIs: %v", err)
 	}
 	logger.Infof(ctx, "[onAppUpdate] Step 1 OK: got %d APIs", len(currentApis))
+	return currentApis, nil
+}
 
-	// 2. 初始化数据库并自动迁移
+func (a *App) migrateUpdateDatabases(ctx context.Context, currentApis []*ApiInfo) error {
 	logger.Infof(ctx, "[onAppUpdate] Step 2: Initializing databases...")
 	for i, api := range currentApis {
 		if api.routerInfo.Options == nil {
@@ -472,59 +508,58 @@ func (a *App) onAppUpdate(msg *nats.Msg) {
 		db, err := getOrInitDB(name)
 		if err != nil {
 			logger.Errorf(ctx, "[onAppUpdate] Step 2 FAILED: getOrInitDB(%s): %v", name, err)
-			a.respondUpdateError(msg, fmt.Sprintf("Failed to getOrInitDB: %v", err))
-			return
+			return fmt.Errorf("Failed to getOrInitDB: %v", err)
 		}
 
 		for _, createTable := range api.CreateTableModels {
 			err = db.AutoMigrate(createTable)
 			if err != nil {
 				logger.Errorf(ctx, "[onAppUpdate] Step 2 FAILED: AutoMigrate: %v", err)
-				a.respondUpdateError(msg, fmt.Sprintf("Failed to migrate table: %v", err))
-				return
+				return fmt.Errorf("Failed to migrate table: %v", err)
 			}
 		}
 	}
 	logger.Infof(ctx, "[onAppUpdate] Step 2 OK: databases initialized")
+	return nil
+}
 
-	// 3. 保存当前版本到API日志
+func (a *App) persistCurrentUpdateVersion(ctx context.Context, currentApis []*ApiInfo) error {
 	logger.Infof(ctx, "[onAppUpdate] Step 3: Saving current version...")
 	if err := a.saveCurrentVersion(currentApis); err != nil {
 		logger.Errorf(ctx, "[onAppUpdate] Step 3 FAILED: %v", err)
-		a.respondUpdateError(msg, fmt.Sprintf("Failed to save current version: %v", err))
-		return
+		return fmt.Errorf("Failed to save current version: %v", err)
 	}
 	logger.Infof(ctx, "[onAppUpdate] Step 3 OK: version saved")
+	return nil
+}
 
-	// 4. 执行API差异对比（传入已获取的 currentApis，避免重复调用 getApis）
+func (a *App) buildUpdateDiffData(ctx context.Context, currentApis []*ApiInfo) (*DiffData, error) {
 	logger.Infof(ctx, "[onAppUpdate] Step 4: Diffing APIs...")
 	add, update, del, err := a.diffApiWithCurrentApis(currentApis)
 	if err != nil {
 		logger.Errorf(ctx, "[onAppUpdate] Step 4 FAILED: %v", err)
-		a.respondUpdateError(msg, fmt.Sprintf("Failed to diff APIs: %v", err))
-		return
+		return nil, fmt.Errorf("Failed to diff APIs: %v", err)
 	}
 	logger.Infof(ctx, "[onAppUpdate] Step 4 OK: add=%d, update=%d, delete=%d", len(add), len(update), len(del))
 
-	// 5. 构建差异结果 + 全量 package 列表（每次都返回，供 app-server 目录对账）
 	packages := a.collectPackageInfos()
 	logger.Infof(ctx, "[onAppUpdate] Step 5: collected %d packages for reconciliation", len(packages))
 
-	diffData := &DiffData{
+	return &DiffData{
 		Add:      add,
 		Update:   update,
 		Delete:   del,
 		Packages: packages,
-	}
+	}, nil
+}
 
-	// 6. 触发 OnApiCreate 回调
+func (a *App) runOnAPICreateCallbacks(ctx context.Context, addedApis []*ApiInfo) error {
 	logger.Infof(ctx, "[onAppUpdate] Step 5: Running OnApiCreate callbacks...")
-	for _, aa := range add {
+	for _, aa := range addedApis {
 		router, err := a.getRoute(aa.Router)
 		if err != nil {
 			logger.Errorf(ctx, "[onAppUpdate] Step 5 FAILED: getRoute(%s): %v", aa.Router, err)
-			a.respondUpdateError(msg, fmt.Sprintf("Failed to get router: %v", err))
-			return
+			return fmt.Errorf("Failed to get router: %v", err)
 		}
 		create := router.Template.GetBaseConfig().OnApiCreate
 		if create != nil {
@@ -532,20 +567,21 @@ func (a *App) onAppUpdate(msg *nats.Msg) {
 			_, err := create(newCallbackContext(router), &req)
 			if err != nil {
 				logger.Errorf(ctx, "[onAppUpdate] Step 5 FAILED: OnApiCreate(%s): %v", aa.Router, err)
-				a.respondUpdateError(msg, fmt.Sprintf("Failed to create api: %v", err))
-				return
+				return fmt.Errorf("Failed to create api: %v", err)
 			}
 		}
 	}
 	logger.Infof(ctx, "[onAppUpdate] Step 5 OK: callbacks done")
+	return nil
+}
 
-	// 7. 发送成功响应
+func (a *App) respondUpdateSuccess(ctx context.Context, msg *nats.Msg, diffData *DiffData) error {
 	logger.Infof(ctx, "[onAppUpdate] Step 6: Sending success response...")
 	if err := a.transport.RespondUpdateSuccess(msg, diffData); err != nil {
 		logger.Errorf(ctx, "[onAppUpdate] Step 6 FAILED: %v", err)
-		return
+		return err
 	}
-	logger.Infof(ctx, "[onAppUpdate] ✅ All done! Response sent successfully")
+	return nil
 }
 
 func (a *App) respondUpdateError(msg *nats.Msg, message string) {

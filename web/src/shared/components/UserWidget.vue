@@ -71,7 +71,6 @@
       <el-button
         v-else
         class="user-select-trigger"
-        :class="{ 'is-search-mode': mode === 'search' }"
         :disabled="widgetConfig.disabled"
         :placeholder="field.desc || `请选择${field.name}`"
         @click="!widgetConfig.disabled && handleOpenDialog()"

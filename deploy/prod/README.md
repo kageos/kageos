@@ -34,7 +34,7 @@ host 网络独立容器
        └─ app-scheduler（仅执行定时任务调度与投递）
 ```
 
-`main` 使用 `network_mode: host`，容器内 Nginx 默认直接监听宿主机 80 端口；开启 HTTPS 后会额外监听 443。`scheduler` 也使用 `network_mode: host`，通过数据库租约 claim 防止重复执行。中间件容器通过 `127.0.0.1` 暴露端口供 `main` / `scheduler` 访问，无需额外宿主机 Nginx。
+`main` 使用 `network_mode: host`，容器内 Nginx 默认直接监听宿主机 80 端口；开启 HTTPS 后会额外监听 443。`scheduler` 也使用 `network_mode: host`，通过数据库租约 claim 防止重复执行，并直接依赖 `app-runtime` 的 `127.0.0.1:9093` 就绪。中间件容器通过 `127.0.0.1` 暴露端口供 `main` / `scheduler` 访问，无需额外宿主机 Nginx。
 
 ## 前置
 
@@ -129,7 +129,7 @@ TLS_KEY_FILE="/app/tls/privkey.pem"
 
 - 版本库中的官方模板源在 `deploy/prod/config/template/`
 - 容器启动后会渲染到 `deploy/prod/config/runtime/`
-- 定时任务是否内嵌在 `main` 中由 `global.yaml` 的 `scheduler.embedded` 控制；prod 默认关闭，由独立 `scheduler` 容器执行
+- 定时任务固定由独立 `scheduler` 容器执行；`main` 不再内嵌调度器
 
 > 构建 Go 依赖默认使用 `GOPROXY=https://goproxy.cn,direct` 与 `GOSUMDB=sum.golang.google.cn`；如需覆盖，可在构建时传 `--build-arg GOPROXY=... --build-arg GOSUMDB=...`。
 

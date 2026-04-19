@@ -3,6 +3,7 @@ import { defineComponent, h, nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 
 import PullFromHubDialog from './PullFromHubDialog.vue'
+import type { App } from '@/types'
 
 vi.mock('@/api/hub', () => ({
   pullDirectoryFromHub: vi.fn(),
@@ -115,16 +116,27 @@ const ElIconStub = defineComponent({
   },
 })
 
+const currentApp: App = {
+  id: 1,
+  user: 'tester',
+  code: 'demo',
+  name: 'Demo',
+  nats_id: 1,
+  host_id: 1,
+  status: 'enabled',
+  version: 'v1',
+  is_public: false,
+  created_at: '2026-04-19T00:00:00Z',
+  updated_at: '2026-04-19T00:00:00Z',
+}
+
 describe('PullFromHubDialog', () => {
   it('hydrates initial hub link when mounted already visible', async () => {
     const wrapper = mount(PullFromHubDialog, {
       props: {
         modelValue: true,
         initialHubLink: 'hub://demo.example/workspace/sample_dir@1',
-        currentApp: {
-          id: 1,
-          name: 'Demo',
-        },
+        currentApp,
       },
       global: {
         stubs: {

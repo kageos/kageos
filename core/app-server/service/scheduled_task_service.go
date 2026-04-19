@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -15,11 +16,9 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/robfig/cron/v3"
-	"gorm.io/gorm"
 )
 
 const (
@@ -31,6 +30,17 @@ const (
 )
 
 var scheduledTaskCronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+
+const defaultSchedulerHeartbeatFile = "./logs/app-scheduler.heartbeat"
+
+type scheduledTaskAppClient interface {
+	RequestApp(ctx context.Context, req *dto.RequestAppReq) (*dto.RequestAppResp, error)
+	RecordFormOperateLog(ctx context.Context, req *dto.RecordFormOperateLogReq) error
+}
+
+type scheduledTaskTokenIssuer interface {
+	GenerateAccessTokenWithHR(userID int64, username, email string, departmentFullPath string, leaderUsername string) (string, error)
+}
 
 func normalizeScheduledTaskAction(action string) (string, error) {
 	action = strings.ToLower(strings.TrimSpace(action))
@@ -128,9 +138,8 @@ func computeTaskNextState(task *model.ScheduledTask, scheduledAt time.Time, succ
 
 // ScheduledTaskService 定时任务服务
 type ScheduledTaskService struct {
-	db            *gorm.DB
-	appService    *AppService
-	jwtService    *auth.JWTService
+	appClient     scheduledTaskAppClient
+	tokenIssuer   scheduledTaskTokenIssuer
 	taskRepo      *repository.ScheduledTaskRepository
 	executionRepo *repository.ScheduledTaskExecutionRepository
 	options       ScheduledTaskServiceOptions
@@ -144,6 +153,7 @@ type ScheduledTaskServiceOptions struct {
 	BatchSize      int
 	LeaseDuration  time.Duration
 	MaxConcurrency int
+	HeartbeatFile  string
 }
 
 func normalizeScheduledTaskServiceOptions(opts ScheduledTaskServiceOptions) ScheduledTaskServiceOptions {
@@ -159,6 +169,9 @@ func normalizeScheduledTaskServiceOptions(opts ScheduledTaskServiceOptions) Sche
 	if opts.MaxConcurrency <= 0 {
 		opts.MaxConcurrency = 4
 	}
+	if strings.TrimSpace(opts.HeartbeatFile) == "" {
+		opts.HeartbeatFile = defaultSchedulerHeartbeatFile
+	}
 	return opts
 }
 
@@ -171,18 +184,16 @@ func newSchedulerInstanceID() string {
 }
 
 func NewScheduledTaskService(
-	db *gorm.DB,
-	appService *AppService,
-	jwtService *auth.JWTService,
+	appClient scheduledTaskAppClient,
+	tokenIssuer scheduledTaskTokenIssuer,
 	taskRepo *repository.ScheduledTaskRepository,
 	executionRepo *repository.ScheduledTaskExecutionRepository,
 	opts ScheduledTaskServiceOptions,
 ) *ScheduledTaskService {
 	opts = normalizeScheduledTaskServiceOptions(opts)
 	return &ScheduledTaskService{
-		db:            db,
-		appService:    appService,
-		jwtService:    jwtService,
+		appClient:     appClient,
+		tokenIssuer:   tokenIssuer,
 		taskRepo:      taskRepo,
 		executionRepo: executionRepo,
 		options:       opts,
@@ -345,7 +356,9 @@ func (s *ScheduledTaskService) ListExecutions(ctx context.Context, taskID int64,
 func (s *ScheduledTaskService) StartScheduler(ctx context.Context) {
 	logger.Infof(ctx, "[ScheduledTask] Scheduler loop started: worker=%s poll_interval=%s batch_size=%d lease_duration=%s max_concurrency=%d",
 		s.schedulerID, s.options.PollInterval, s.options.BatchSize, s.options.LeaseDuration, s.options.MaxConcurrency)
+	s.writeHeartbeat(ctx, time.Now())
 	s.runDueTasks(ctx)
+	s.writeHeartbeat(ctx, time.Now())
 	ticker := time.NewTicker(s.options.PollInterval)
 	defer ticker.Stop()
 	for {
@@ -358,6 +371,7 @@ func (s *ScheduledTaskService) StartScheduler(ctx context.Context) {
 			return
 		case <-ticker.C:
 			s.runDueTasks(ctx)
+			s.writeHeartbeat(ctx, time.Now())
 		}
 	}
 }
@@ -428,8 +442,8 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 	// 定时任务无 HTTP 请求，用 WithRequestInfo 一次性注入与 ToContext 一致的 context
 	traceId := fmt.Sprintf("scheduled-%d-%d", task.ID, executedAt.UnixNano())
 	var token string
-	if s.jwtService != nil && task.RequestUser != "" {
-		if t, err := s.jwtService.GenerateAccessTokenWithHR(0, task.RequestUser, "", task.RequestUserDept, ""); err == nil {
+	if s.tokenIssuer != nil && task.RequestUser != "" {
+		if t, err := s.tokenIssuer.GenerateAccessTokenWithHR(0, task.RequestUser, "", task.RequestUserDept, ""); err == nil {
 			token = t
 		}
 	}
@@ -456,7 +470,7 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 		return
 	}
 
-	resp, err := s.appService.RequestApp(runCtx, req)
+	resp, err := s.appClient.RequestApp(runCtx, req)
 	var respBody []byte
 	if resp != nil {
 		// 存完整响应（trace_id、result、error、err_code），便于区分「成功但 result 为空」与真正失败
@@ -581,7 +595,7 @@ func (s *ScheduledTaskService) fillTableUpdateOldValues(ctx context.Context, tas
 		Token:           token,
 	}
 
-	searchResp, err := s.appService.RequestApp(ctx, searchReq)
+	searchResp, err := s.appClient.RequestApp(ctx, searchReq)
 	if err != nil {
 		return bodyBytes, fmt.Errorf("执行前查询当前行失败: %w", err)
 	}
@@ -688,8 +702,23 @@ func (s *ScheduledTaskService) recordFunctionOperateLog(ctx context.Context, tas
 		logReq.Version = resp.Version
 	}
 
-	if err := s.appService.RecordFormOperateLog(ctx, logReq); err != nil {
+	if err := s.appClient.RecordFormOperateLog(ctx, logReq); err != nil {
 		logger.Warnf(ctx, "[ScheduledTask] Record form operate log failed: task=%d err=%v", task.ID, err)
+	}
+}
+
+func (s *ScheduledTaskService) writeHeartbeat(ctx context.Context, now time.Time) {
+	path := strings.TrimSpace(s.options.HeartbeatFile)
+	if path == "" {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		logger.Warnf(ctx, "[ScheduledTask] Ensure heartbeat dir failed: file=%s err=%v", path, err)
+		return
+	}
+	data := []byte(strconv.FormatInt(now.Unix(), 10))
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		logger.Warnf(ctx, "[ScheduledTask] Write heartbeat failed: file=%s err=%v", path, err)
 	}
 }
 
