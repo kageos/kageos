@@ -676,7 +676,7 @@ defineExpose({
     color: #6366f1 !important; /* ✅ 与服务目录 fx 图标颜色一致（indigo-500） */
     
     &:hover {
-      color: #4f46e5 !important; /* indigo-600，更深的紫色 */
+      color: #1677ff !important; /* indigo-600，更深的紫色 */
       opacity: 1;
     }
     

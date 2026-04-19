@@ -213,9 +213,9 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
 <style scoped>
 .login-container {
-  --auth-accent: #4f46e5;
-  --auth-accent-strong: #4338ca;
-  --auth-accent-soft: rgba(79, 70, 229, 0.14);
+  --auth-accent: #1677ff;
+  --auth-accent-strong: #0958d9;
+  --auth-accent-soft: rgba(22, 119, 255, 0.14);
   --auth-brand-start: #1e2f56;
   --auth-brand-end: #35538f;
   --auth-surface: rgba(244, 247, 251, 0.88);
@@ -508,7 +508,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
   background: linear-gradient(135deg, var(--auth-accent) 0%, var(--auth-accent-strong) 100%);
   border-radius: 16px;
   color: white;
-  box-shadow: 0 12px 30px rgba(79, 70, 229, 0.26);
+  box-shadow: 0 12px 30px rgba(22, 119, 255, 0.26);
 }
 
 .header-icon .el-icon {
@@ -548,8 +548,8 @@ const handleKeyPress = (event: KeyboardEvent) => {
 }
 
 :deep(.el-input__wrapper:hover) {
-  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.1);
-  border-color: rgba(79, 70, 229, 0.42);
+  box-shadow: 0 10px 24px rgba(22, 119, 255, 0.1);
+  border-color: rgba(22, 119, 255, 0.42);
 }
 
 :deep(.el-input__wrapper.is-focus) {
@@ -580,12 +580,12 @@ const handleKeyPress = (event: KeyboardEvent) => {
   background: linear-gradient(135deg, var(--auth-accent) 0%, var(--auth-accent-strong) 100%);
   border: none;
   transition: all 0.3s ease;
-  box-shadow: 0 14px 30px rgba(79, 70, 229, 0.22);
+  box-shadow: 0 14px 30px rgba(22, 119, 255, 0.22);
 }
 
 .login-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 18px 36px rgba(79, 70, 229, 0.28);
+  box-shadow: 0 18px 36px rgba(22, 119, 255, 0.28);
 }
 
 .login-btn:active {
