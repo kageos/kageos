@@ -816,7 +816,6 @@ const lifecycle = useFormViewLifecycle({
   border: 1px solid var(--app-auth-card-border);
   border-radius: 22px;
   box-shadow: var(--app-auth-card-shadow);
-  backdrop-filter: blur(18px);
 }
 
 .form-view-flat .form-view-main {
@@ -825,7 +824,6 @@ const lifecycle = useFormViewLifecycle({
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  backdrop-filter: none;
 }
 
 .form-view-flat :deep(.editor-container) {

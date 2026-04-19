@@ -235,7 +235,6 @@ defineExpose({
   background: var(--app-auth-card-bg);
   border: none !important;
   box-shadow: var(--app-auth-card-shadow);
-  backdrop-filter: blur(20px);
   overflow: hidden;
 }
 
