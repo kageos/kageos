@@ -103,6 +103,29 @@ type UpdateAppReq struct {
 	SkipBuild         bool               `json:"skip_build,omitempty"`         // 兼容旧字段：等价于 write_only
 }
 
+// BuildSummary 返回本次更新的摘要信息，优先使用 Summary。
+func (r *UpdateAppReq) BuildSummary() string {
+	if r == nil {
+		return ""
+	}
+
+	if r.Summary != "" {
+		return r.Summary
+	}
+
+	if r.Requirement != "" && r.ChangeDescription != "" {
+		return "需求：" + r.Requirement + "\n\n变更描述：" + r.ChangeDescription
+	}
+	if r.Requirement != "" {
+		return r.Requirement
+	}
+	if r.ChangeDescription != "" {
+		return r.ChangeDescription
+	}
+
+	return ""
+}
+
 // RequestedSourceFiles 返回本次请求携带的源码文件列表，优先使用新字段 source_files。
 func (r *UpdateAppReq) RequestedSourceFiles() []*SourceFileWrite {
 	if r == nil {
@@ -131,6 +154,7 @@ type UpdateAppResp struct {
 	GitCommitHash string    `json:"git_commit_hash,omitempty"` // Git 提交哈希（用于回滚）
 	Diff          *DiffData `json:"diff,omitempty"`            // API diff 信息
 	Error         string    `json:"error,omitempty"`           // 回调过程中的错误信息
+	Warnings      []string  `json:"warnings,omitempty"`        // 非阻断告警（如发布成功但元数据同步失败）
 }
 
 // PackageInfo SDK 返回的 package 元信息，app-server 用于目录对账

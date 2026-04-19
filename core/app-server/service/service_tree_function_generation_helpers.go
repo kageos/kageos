@@ -66,6 +66,9 @@ func addFunctionsImpl(s *serviceTreeFunctionService, ctx context.Context, req *d
 			Error:   err.Error(),
 		}, err
 	}
+	if updateResp != nil && len(updateResp.Warnings) > 0 {
+		logger.Warnf(ctx, "[ServiceTreeService] AppService.UpdateApp warnings: %s", strings.Join(updateResp.Warnings, " | "))
+	}
 
 	addResp := &dto.AddFunctionsResp{
 		Success: true,
@@ -166,6 +169,9 @@ func processFunctionGenResultImpl(s *serviceTreeFunctionService, ctx context.Con
 	if err != nil {
 		logger.Errorf(ctx, "[ServiceTreeService] AppService.UpdateApp 失败: error=%v", err)
 		return err
+	}
+	if updateResp != nil && len(updateResp.Warnings) > 0 {
+		logger.Warnf(ctx, "[ServiceTreeService] AppService.UpdateApp warnings: %s", strings.Join(updateResp.Warnings, " | "))
 	}
 
 	logger.Infof(ctx, "[ServiceTreeService] 函数创建成功: DirectoryPath=%s, FileName=%s", packagePath, fileName)
