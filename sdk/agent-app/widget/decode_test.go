@@ -51,6 +51,11 @@ type NestedLevel1 struct {
 	Level2 []NestedLevel2 `json:"level2" widget:"name:第二层;type:table"`
 }
 
+type OmitEmptyFieldSample struct {
+	OutputFiles []string `json:"output_files,omitempty" widget:"name:输出文件;type:files"`
+	TraceID     string   `json:",omitempty" widget:"name:追踪ID;type:input"`
+}
+
 func TestDecodeForm(t *testing.T) {
 	t.Run("基础Form解析-包含table和form嵌套", func(t *testing.T) {
 		order := &Order{}
@@ -146,6 +151,25 @@ func TestDecodeForm(t *testing.T) {
 			if !detailChildNames[expected] {
 				t.Errorf("detail缺少子字段: %s", expected)
 			}
+		}
+	})
+
+	t.Run("json tag option不会污染字段code", func(t *testing.T) {
+		fields, _, err := DecodeForm(nil, &OmitEmptyFieldSample{}, nil)
+		if err != nil {
+			t.Fatalf("解析失败: %v", err)
+		}
+
+		if len(fields) != 2 {
+			t.Fatalf("期望2个字段，实际得到%d个", len(fields))
+		}
+
+		if fields[0].Code != "output_files" {
+			t.Fatalf("fields[0].Code = %q, want %q", fields[0].Code, "output_files")
+		}
+
+		if fields[1].Code != "TraceID" {
+			t.Fatalf("fields[1].Code = %q, want %q", fields[1].Code, "TraceID")
 		}
 	})
 

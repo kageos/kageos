@@ -430,6 +430,7 @@ func (s *StandardAPI) TableTemplate(c *gin.Context) {
 			response.FailWithMessage(c, "解析函数配置失败: "+err.Error())
 			return
 		}
+		widget.NormalizeFieldCodes(responseFields)
 	}
 
 	// 获取当前用户信息（用于创建用户字段的默认值）

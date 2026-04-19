@@ -10,6 +10,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 	"gorm.io/gorm"
 )
 
@@ -93,36 +94,30 @@ func (f *FunctionService) convertFunctionToResp(function *model.Function) *dto.G
 	// 将json.RawMessage转换为interface{}以便返回JSON对象
 	// 🔥 统一返回数组类型，符合前端类型定义 FieldConfig[]
 	if len(function.Request) > 0 {
-		var requestArray []interface{}
-		// 尝试解析为数组（request 字段应该是数组类型）
-		if err := json.Unmarshal(function.Request, &requestArray); err != nil {
-			// 解析失败，返回空数组
-			resp.Request = []interface{}{}
-		} else {
-			// 解析成功，返回数组
-			resp.Request = requestArray
-		}
+		resp.Request = decodeFunctionFields(function.Request)
 	} else {
 		// 🔥 空时返回空数组，而不是空对象
-		resp.Request = []interface{}{}
+		resp.Request = []*widget.Field{}
 	}
 
 	if len(function.Response) > 0 {
-		var responseArray []interface{}
-		// 尝试解析为数组（response 字段应该是数组类型）
-		if err := json.Unmarshal(function.Response, &responseArray); err != nil {
-			// 解析失败，返回空数组
-			resp.Response = []interface{}{}
-		} else {
-			// 解析成功，返回数组
-			resp.Response = responseArray
-		}
+		resp.Response = decodeFunctionFields(function.Response)
 	} else {
 		// 🔥 空时返回空数组，而不是空对象
-		resp.Response = []interface{}{}
+		resp.Response = []*widget.Field{}
 	}
 
 	return resp
+}
+
+func decodeFunctionFields(raw json.RawMessage) []*widget.Field {
+	var fields []*widget.Field
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return []*widget.Field{}
+	}
+
+	widget.NormalizeFieldCodes(fields)
+	return fields
 }
 
 // GetAppByUserAndCode 根据用户和应用代码获取应用信息（用于权限检查）
