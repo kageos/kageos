@@ -264,8 +264,15 @@ export function useWorkspaceApp(
   // 更新工作空间（重新编译）。统一通过 resource_path 标识目标工作空间
   const handleUpdateApp = async (app: AppType): Promise<void> => {
     try {
-      await updateApp(buildAppResourcePath(app.user, app.code))
-      ElMessage.success('工作空间更新成功')
+      const response = await updateApp(buildAppResourcePath(app.user, app.code))
+      if (response?.warnings?.length) {
+        ElNotification.warning({
+          title: '工作空间已更新',
+          message: response.warnings.join('\n')
+        })
+      } else {
+        ElMessage.success('工作空间更新成功')
+      }
     } catch (error: any) {
       // 🔥 统一使用 msg 字段
       const errorMessage = error?.response?.data?.msg || '更新工作空间失败'

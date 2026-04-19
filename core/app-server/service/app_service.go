@@ -50,18 +50,9 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 
 // UpdateApp 更新应用（更新应用代码并重新编译部署）
 func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto.UpdateAppResp, error) {
-	user, appCode, err := resolveUserAppFromResourcePath(req.ResourcePath, req.User, req.App)
-	if err != nil {
-		return nil, err
-	}
-	req.User = user
-	req.App = appCode
-
-	// 记录开始时间（用于计算变更耗时）
 	startTime := time.Now()
 
-	// 根据应用信息获取 NATS 连接，而不是根据当前用户
-	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
+	app, err := a.resolveUpdateTargetApp(req)
 	if err != nil {
 		return nil, err
 	}
@@ -72,26 +63,54 @@ func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto
 		return nil, err
 	}
 
-	// 更新数据库中的版本信息
-	app.Version = resp.NewVersion
-	err = a.appRepo.UpdateApp(app)
-	if err != nil {
+	if err := a.persistReleasedAppVersion(req.User, req.App, resp.NewVersion); err != nil {
 		return nil, err
 	}
 
-	// 计算变更耗时（毫秒）
 	duration := time.Since(startTime).Milliseconds()
-
-	// 处理API差异，将API信息入库到function表
-	if resp.Diff != nil {
-		err = a.processAPIDiff(ctx, app.ID, resp.Diff, req, duration, resp.GitCommitHash)
-		if err != nil {
-			// API入库失败不应该影响主流程，记录日志即可
-			fmt.Printf("API入库失败: %v\n", err)
-		}
+	if warning := a.syncUpdatedAppMetadata(ctx, app.ID, resp, req, duration); warning != "" {
+		resp.Warnings = append(resp.Warnings, warning)
+		logger.Warnf(ctx, "[AppService:UpdateApp] %s user=%s app=%s newVersion=%s",
+			warning, req.User, req.App, resp.NewVersion)
 	}
 
 	return resp, nil
+}
+
+func (a *AppService) resolveUpdateTargetApp(req *dto.UpdateAppReq) (*model.App, error) {
+	user, appCode, err := resolveUserAppFromResourcePath(req.ResourcePath, req.User, req.App)
+	if err != nil {
+		return nil, err
+	}
+	req.User = user
+	req.App = appCode
+
+	return a.appRepo.GetAppByUserName(req.User, req.App)
+}
+
+func (a *AppService) persistReleasedAppVersion(user, appCode, newVersion string) error {
+	if newVersion == "" {
+		return nil
+	}
+	return a.appRepo.UpdateAppVersion(user, appCode, newVersion)
+}
+
+func (a *AppService) syncUpdatedAppMetadata(
+	ctx context.Context,
+	appID int64,
+	resp *dto.UpdateAppResp,
+	req *dto.UpdateAppReq,
+	duration int64,
+) string {
+	if resp == nil || resp.Diff == nil {
+		return ""
+	}
+
+	if err := a.processAPIDiff(ctx, appID, resp.Diff, req, duration, resp.GitCommitHash); err != nil {
+		return fmt.Sprintf("应用已发布，但函数元数据同步失败: %v", err)
+	}
+
+	return ""
 }
 
 // extractVersionNum 从版本号字符串中提取数字部分（如 "v1" -> 1, "v20" -> 20）
@@ -934,17 +953,7 @@ func (a *AppService) GetFunctionByFullCodePath(ctx context.Context, fullCodePath
 
 // createDirectorySnapshots 创建目录快照（检测目录变更并创建快照）
 func (a *AppService) createDirectorySnapshots(ctx context.Context, appID int64, app *model.App, diffData *dto.DiffData, req *dto.UpdateAppReq, duration int64, gitCommitHash string) error {
-	// 构建 summary：优先使用 Summary，如果没有则组合 Requirement 和 ChangeDescription
-	summary := req.Summary
-	if summary == "" {
-		if req.Requirement != "" && req.ChangeDescription != "" {
-			summary = fmt.Sprintf("需求：%s\n\n变更描述：%s", req.Requirement, req.ChangeDescription)
-		} else if req.Requirement != "" {
-			summary = req.Requirement
-		} else if req.ChangeDescription != "" {
-			summary = req.ChangeDescription
-		}
-	}
+	summary := req.BuildSummary()
 	// 1. 按目录分组变更
 	directoryChanges := a.groupChangesByDirectory(diffData)
 	if len(directoryChanges) == 0 {

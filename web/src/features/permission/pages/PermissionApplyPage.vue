@@ -35,14 +35,14 @@
                   :data="serviceTree"
                   :props="treeProps"
                   :default-expand-all="true"
-                  :expand-on-click-node="true"
+                  :expand-on-click-node="false"
+                  :check-on-click-node="true"
                   :highlight-current="true"
                   node-key="full_code_path"
                   :default-expanded-keys="defaultExpandedKeys"
                   :current-node-key="selectedResourcePath"
                   show-checkbox
                   :check-strictly="true"
-                  :checked-keys="checkedNodeKeys"
                   @node-click="handleTreeNodeClick"
                   @check="handleTreeNodeCheck"
                   class="resource-tree"
@@ -496,47 +496,6 @@ const rules: FormRules = {
   ],
 }
 
-// 计算应该选中的节点（基于已有权限和用户选择的资源）
-const checkedNodeKeys = computed(() => {
-  const keys: string[] = []
-  // 遍历所有资源的已有权限
-  for (const [resourcePath, existingPerms] of existingPermissions.value.entries()) {
-    // 如果该资源有任何已有权限，则选中该节点
-    const hasAnyExistingPerm = Object.values(existingPerms).some(hasPerm => hasPerm === true)
-    if (hasAnyExistingPerm) {
-      keys.push(resourcePath)
-    }
-  }
-  // 添加用户选择的资源（用于申请权限）
-  for (const resourcePath of selectedResourcePaths.value) {
-    if (!keys.includes(resourcePath)) {
-      keys.push(resourcePath)
-    }
-  }
-  // 调试信息
-  if (import.meta.env.DEV && selectedResourcePaths.value.length > 0) {
-    console.log({
-      selectedPaths: [...selectedResourcePaths.value],
-      computedKeys: keys
-    })
-  }
-  return keys
-})
-
-// 计算应该禁用的节点（已有权限的节点）
-const disabledNodeKeys = computed(() => {
-  const keys: string[] = []
-  // 遍历所有资源的已有权限
-  for (const [resourcePath, existingPerms] of existingPermissions.value.entries()) {
-    // 如果该资源有任何已有权限，则禁用该节点
-    const hasAnyExistingPerm = Object.values(existingPerms).some(hasPerm => hasPerm === true)
-    if (hasAnyExistingPerm) {
-      keys.push(resourcePath)
-    }
-  }
-  return keys
-})
-
 // ==================== 赋权相关状态 ====================
 
 // 获取当前用户
@@ -866,7 +825,7 @@ onMounted(async () => {
         
         existingPermissions.value = permissionsMap
         
-        // ⭐ 更新树数据中的 disabled 字段（已有权限的节点应该禁用）
+        // ⭐ 更新树节点交互状态
         updateTreeDisabledState()
       }
       
@@ -900,14 +859,7 @@ onMounted(async () => {
             
             // ⭐ 设置所有子节点的复选框为选中状态
             childResources.forEach(childPath => {
-              // 检查子节点是否已有权限（已有权限的节点不应该被操作）
-              const childExistingPerms = existingPermissions.value.get(childPath)
-              const childHasAnyExistingPerm = childExistingPerms && Object.values(childExistingPerms).some(hasPerm => hasPerm === true)
-              
-              if (!childHasAnyExistingPerm) {
-                // 设置子节点为选中状态
-                tree.setChecked(childPath, true, false)
-              }
+              tree.setChecked(childPath, true, false)
             })
           }
         }, 300) // 延迟一点，确保树完全渲染（增加到 300ms 以确保子节点也能被正确选中）
@@ -1238,16 +1190,13 @@ const loadResourcePermissions = async (resourcePath: string, defaultAction?: str
   }
 }
 
-// 更新树数据中的 disabled 字段（只有已有权限的节点应该禁用，子节点不禁用以便可以点击）
+// 资源树复选框只表达“本次申请选择了哪些资源”。
+// 已有权限通过标签展示，不再把节点禁用，否则会挡住补申请更高权限的场景。
 const updateTreeDisabledState = () => {
   const updateNodeDisabled = (nodes: ServiceTree[]) => {
     for (const node of nodes) {
-      const existingPerms = existingPermissions.value.get(node.full_code_path)
-      const hasAnyExistingPerm = existingPerms && Object.values(existingPerms).some(hasPerm => hasPerm === true)
-      
-      // 只禁用已有权限的节点（不能取消选中），子节点不禁用以便可以点击查看权限
-      ;(node as any).disabled = hasAnyExistingPerm
-      
+      ;(node as any).disabled = false
+
       // 递归处理子节点
       if (node.children && node.children.length > 0) {
         updateNodeDisabled(node.children)
@@ -1507,22 +1456,9 @@ watch(() => selectedResourcePath.value, (newPath) => {
   })
 }, { immediate: false })
 
-// 监听已有权限变化，更新树节点的选中和禁用状态
+// 监听已有权限变化，更新节点的展示状态。
 watch([existingPermissions], () => {
-  // 更新树数据中的 disabled 字段
   updateTreeDisabledState()
-  
-  // 更新树节点的选中状态（仅基于已有权限）
-  nextTick(() => {
-    if (!treeRef.value) return
-    
-    // 遍历所有资源，设置选中状态
-    for (const [resourcePath, existingPerms] of existingPermissions.value.entries()) {
-      const hasAnyExistingPerm = Object.values(existingPerms).some(hasPerm => hasPerm === true)
-      // 设置选中状态（仅基于已有权限）
-      treeRef.value.setChecked(resourcePath, hasAnyExistingPerm, false)
-    }
-  })
 }, { deep: true })
 
 
@@ -1856,126 +1792,65 @@ const mapPermissionsForChild = (childPath: string, childNode: ServiceTree, paren
 // 处理树节点点击
 const handleTreeNodeClick = (data: ServiceTree) => {
   selectedResourcePath.value = data.full_code_path
-  // ⭐ 将选中的资源添加到选中数组中（用于复选框显示）
-  if (!selectedResourcePaths.value.includes(data.full_code_path)) {
-    selectedResourcePaths.value.push(data.full_code_path)
-  }
-    loadResourcePermissions(data.full_code_path)
+  loadResourcePermissions(data.full_code_path)
   // ⭐ 加载可用角色列表（根据资源类型过滤）
   loadAvailableRoles(data.type, data.template_type || '')
-  
-  // ⭐ 设置复选框为选中状态（在 nextTick 中执行，确保响应式更新完成）
-  nextTick(() => {
-    if (treeRef.value) {
-      // 使用 setChecked 方法确保复选框被选中
-      treeRef.value.setChecked(data.full_code_path, true, false)
-    }
-  })
 }
 
 // 处理树节点复选框变化（强制继承：父节点选中/取消时，子节点必须跟随）
 const handleTreeNodeCheck = (data: ServiceTree, checked: { checkedKeys: string[], halfCheckedKeys: string[] }) => {
   const resourcePath = data.full_code_path
   const isChecked = checked.checkedKeys.includes(resourcePath)
-  
-  // 检查节点是否已有权限（如果已有权限，不应该取消选中）
-  const existingPerms = existingPermissions.value.get(resourcePath)
-  const hasAnyExistingPerm = existingPerms && Object.values(existingPerms).some(hasPerm => hasPerm === true)
-  
-  // ⭐ 允许所有节点（包括目录节点）直接操作复选框
-  // 不再阻止有父节点的节点操作复选框，因为用户需要能够选中目录节点来申请权限
-  
-  // 如果节点已有权限，不允许取消选中（应该通过禁用来防止）
-  if (hasAnyExistingPerm && !isChecked) {
-    // 恢复选中状态
-    nextTick(() => {
-      if (treeRef.value) {
-        treeRef.value.setChecked(resourcePath, true, false)
-      }
-    })
-    return
-  }
-  
+
   if (isChecked) {
-    // 节点被选中：加载该节点的权限范围
-    // 如果节点已有权限，不需要做任何操作（因为已有权限的节点应该是禁用且选中的）
-    if (!hasAnyExistingPerm) {
-      // ⭐ 添加到选中数组
-      if (!selectedResourcePaths.value.includes(resourcePath)) {
-        selectedResourcePaths.value.push(resourcePath)
-      }
-      // 如果节点没有已有权限，加载该节点的权限范围
-      loadResourcePermissions(resourcePath)
-      
-      // ⭐ 强制继承：自动选中所有子节点（包括子目录和子函数）
-      const childResources = findAllChildResources(resourcePath)
-      if (childResources.length > 0) {
-        
-        nextTick(() => {
-          const tree = treeRef.value
-          if (tree) {
-            childResources.forEach(childPath => {
-              // 检查子节点是否已有权限（已有权限的节点不应该被操作）
-              const childExistingPerms = existingPermissions.value.get(childPath)
-              const childHasAnyExistingPerm = childExistingPerms && Object.values(childExistingPerms).some(hasPerm => hasPerm === true)
-              
-              if (!childHasAnyExistingPerm) {
-                // 设置子节点为选中状态
-                tree.setChecked(childPath, true, false)
-                // 添加到选中数组
-                if (!selectedResourcePaths.value.includes(childPath)) {
-                  selectedResourcePaths.value.push(childPath)
-                }
-              }
-            })
-          }
-        })
-      }
+    selectedResourcePath.value = resourcePath
+
+    if (!selectedResourcePaths.value.includes(resourcePath)) {
+      selectedResourcePaths.value.push(resourcePath)
+    }
+    loadResourcePermissions(resourcePath)
+
+    // ⭐ 强制继承：自动选中所有子节点（包括子目录和子函数）
+    const childResources = findAllChildResources(resourcePath)
+    if (childResources.length > 0) {
+      nextTick(() => {
+        const tree = treeRef.value
+        if (tree) {
+          childResources.forEach(childPath => {
+            tree.setChecked(childPath, true, false)
+            if (!selectedResourcePaths.value.includes(childPath)) {
+              selectedResourcePaths.value.push(childPath)
+            }
+          })
+        }
+      })
     }
   } else {
     // 父节点被取消选中：强制取消所有子节点
-    // 如果节点已有权限，不允许取消选中（应该通过禁用来防止）
-    if (!hasAnyExistingPerm) {
-      // ⭐ 从选中数组中移除
-      const index = selectedResourcePaths.value.indexOf(resourcePath)
-      if (index > -1) {
-        selectedResourcePaths.value.splice(index, 1)
+    const index = selectedResourcePaths.value.indexOf(resourcePath)
+    if (index > -1) {
+      selectedResourcePaths.value.splice(index, 1)
+    }
+    // 如果当前选中的资源就是这个节点，清空当前范围
+    if (selectedResourcePath.value === resourcePath) {
+      currentScope.value = null
+      selectedRoleId.value = null
+    }
+
+    // ⭐ 强制继承：取消所有子节点（包括子目录和子函数）
+    const childResources = findAllChildResources(resourcePath)
+
+    childResources.forEach(childPath => {
+      const childIndex = selectedResourcePaths.value.indexOf(childPath)
+      if (childIndex > -1) {
+        selectedResourcePaths.value.splice(childIndex, 1)
       }
-      // 如果当前选中的资源就是这个节点，清空当前范围
-      if (selectedResourcePath.value === resourcePath) {
-        currentScope.value = null
-        selectedRoleId.value = null
-      }
-      
-      // ⭐ 强制继承：取消所有子节点（包括子目录和子函数）
-      const childResources = findAllChildResources(resourcePath)
-      
-      childResources.forEach(childPath => {
-        // ⭐ 从选中数组中移除子节点
-        const childIndex = selectedResourcePaths.value.indexOf(childPath)
-        if (childIndex > -1) {
-          selectedResourcePaths.value.splice(childIndex, 1)
-        }
-        // 取消选中子节点的复选框
-        nextTick(() => {
-          if (treeRef.value) {
-            const childExistingPerms = existingPermissions.value.get(childPath)
-            const childHasAnyExistingPerm = childExistingPerms && Object.values(childExistingPerms).some(hasPerm => hasPerm === true)
-            // 只有非禁用的子节点才能取消选中
-            if (!childHasAnyExistingPerm) {
-              treeRef.value.setChecked(childPath, false, false)
-            }
-          }
-        })
-      })
-    } else {
-      // 如果节点已有权限但用户尝试取消选中，重新选中它
       nextTick(() => {
         if (treeRef.value) {
-          treeRef.value.setChecked(resourcePath, true, false)
+          treeRef.value.setChecked(childPath, false, false)
         }
       })
-    }
+    })
   }
 }
 

@@ -141,14 +141,16 @@
     .el-select__placeholder.is-transparent,
     &::placeholder,
     .el-input__inner::placeholder,
-    .el-textarea__inner::placeholder {
+    .el-textarea__inner::placeholder,
+    .el-select__input::placeholder {
       color: var(--text-disabled) !important;
       -webkit-text-fill-color: var(--text-disabled) !important;
     }
     
     // 确保选中的值是正常字体颜色
     .el-select__placeholder:not(.is-transparent),
-    .el-select__selected-item {
+    .el-select__selected-item,
+    .el-select__input {
       color: var(--text-primary) !important;
       -webkit-text-fill-color: var(--text-primary) !important;
     }

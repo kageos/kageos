@@ -2,6 +2,16 @@ import { get, post, put, del } from '@/utils/request'
 import type { App, CreateAppRequest, CreateAppResponse } from '@/types'
 import { buildAppResourcePath, normalizeResourcePath } from '@/utils/resourcePath'
 
+export interface UpdateAppResponse {
+  user: string
+  app: string
+  old_version: string
+  new_version: string
+  git_commit_hash?: string
+  error?: string
+  warnings?: string[]
+}
+
 // 获取工作空间列表
 export function getAppList(pageSize: number = 200, search?: string, includeAll: boolean = false, type?: number) {
   // 后端返回的是分页数据结构: { page, page_size, total_count, items: App[] }
@@ -62,7 +72,7 @@ export function createApp(data: CreateAppRequest) {
 
 // 更新工作空间（重新编译）
 export function updateApp(resourcePath: string) {
-  return post('/workspace/api/v1/app/update', {
+  return post<UpdateAppResponse>('/workspace/api/v1/app/update', {
     resource_path: normalizeResourcePath(resourcePath)
   })
 }
