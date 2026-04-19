@@ -82,9 +82,21 @@
               <el-icon><Setting /></el-icon>
               <span>开发调试 (Debug)</span>
             </el-dropdown-item>
-            <el-dropdown-item divided command="theme">
-              <el-icon><component :is="themeActionIcon" /></el-icon>
-              <span>{{ themeActionLabel }}</span>
+            <el-dropdown-item divided disabled>
+              <span>主题风格</span>
+            </el-dropdown-item>
+            <el-dropdown-item
+              v-for="theme in themeStore.getAvailableThemes()"
+              :key="theme.name"
+              :command="'theme_' + theme.name"
+              :class="{ 'is-active-theme': themeStore.currentTheme.name === theme.name }"
+            >
+              <el-icon>
+                <Check v-if="themeStore.currentTheme.name === theme.name" />
+                <Moon v-else-if="theme.mode === 'dark'" />
+                <Sunny v-else />
+              </el-icon>
+              <span>{{ theme.label }}</span>
             </el-dropdown-item>
             <el-dropdown-item divided command="logout">
               <el-icon><SwitchButton /></el-icon>
@@ -120,6 +132,7 @@ import {
   Setting,
   Moon,
   Sunny,
+  Check,
   SwitchButton
 } from '@element-plus/icons-vue'
 import AppSwitcher from '@/shared/components/AppSwitcher.vue'
@@ -152,9 +165,6 @@ const router = useRouter()
 const authStore = useAuthStore()
 const licenseStore = useLicenseStore()
 const themeStore = useThemeStore()
-const isDarkTheme = computed(() => themeStore.currentTheme.mode === 'dark')
-const themeActionLabel = computed(() => (isDarkTheme.value ? '切换到浅色模式' : '切换到深色模式'))
-const themeActionIcon = computed(() => (isDarkTheme.value ? Sunny : Moon))
 
 // 用户相关
 const userName = computed(() => authStore.userName || 'User')
@@ -165,6 +175,15 @@ const userInitials = computed(() => {
 })
 
 const handleUserCommand = (command: string) => {
+  if (command.startsWith('theme_')) {
+    const themeName = command.replace('theme_', '')
+    const theme = themeStore.getAvailableThemes().find(t => t.name === themeName)
+    if (theme) {
+      themeStore.setTheme(theme)
+    }
+    return
+  }
+
   switch (command) {
     case 'logout':
       handleLogout()
@@ -189,9 +208,6 @@ const handleUserCommand = (command: string) => {
       break
     case 'debug':
       showDebugDialog.value = true
-      break
-    case 'theme':
-      themeStore.toggleTheme()
       break
     default:
       break
@@ -359,5 +375,10 @@ defineExpose({
   border: none;
   border-radius: 12px;
   box-shadow: 0 14px 32px rgba(var(--el-color-primary-rgb), 0.22);
+}
+.is-active-theme {
+  color: var(--el-color-primary) !important;
+  background-color: var(--el-fill-color-light);
+  font-weight: 500;
 }
 </style>

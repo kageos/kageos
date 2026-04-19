@@ -44,8 +44,11 @@ export const useThemeStore = defineStore('theme', () => {
     // 移除所有主题类
     document.documentElement.classList.remove('light', 'dark')
     
-    // 添加新主题类
+    // 添加新模式类
     document.documentElement.classList.add(theme.mode)
+    
+    // 设置 data-theme 属性以供 CSS 变量区分
+    document.documentElement.setAttribute('data-theme', theme.name)
     
     // 保存到 localStorage
     localStorage.setItem(THEME_STORAGE_KEY, theme.name)
