@@ -297,7 +297,6 @@ defineExpose({
   border: 1px solid var(--app-shell-panel-border);
   border-radius: 22px;
   box-shadow: var(--app-shell-panel-shadow);
-  backdrop-filter: blur(20px);
   position: relative;
   overflow: visible;
   isolation: isolate;

@@ -26,7 +26,7 @@
   --bg-primary: #ffffff;
   --bg-secondary: #f8fafc;
   --bg-tertiary: #f1f5f9;
-  --bg-page: #f4f7fb;
+  --bg-page: #eef2f6;
   
   // 边框颜色 - 极其克制的高级半透明边框，拒绝生硬的灰色粗线
   --border-base: rgba(148, 163, 184, 0.26);
@@ -61,14 +61,14 @@
   --box-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
   --app-panel-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.05);
   
-  // 工作台大架构专属变量（完全 1:1 对标登录页的色泽）
-  --app-shell-bg: #f4f7fb; // 登录页右半部分的基底柔和蓝灰色
-  --app-shell-panel-bg: rgba(255, 255, 255, 0.85); // 面板采用微透感
-  --app-shell-panel-bg-strong: rgba(255, 255, 255, 0.95);
-  --app-shell-panel-muted-bg: rgba(244, 247, 251, 0.7);
-  --app-shell-panel-border: rgba(148, 163, 184, 0.26); // 登录页卡片边框
-  --app-shell-panel-shadow: 0 24px 60px rgba(15, 23, 42, 0.08); // 登录页大阴影
-  --app-shell-panel-shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.04);
+  // 工作台大架构专属变量（去掉毛玻璃，增强层次感）
+  --app-shell-bg: #eef2f6; // 加深背景色，增强与面板的对比度，避免死白
+  --app-shell-panel-bg: #ffffff; // 面板使用纯白实色，彻底去掉毛玻璃
+  --app-shell-panel-bg-strong: #f8fafc;
+  --app-shell-panel-muted-bg: #f1f5f9;
+  --app-shell-panel-border: rgba(148, 163, 184, 0.3); // 边框稍微加深
+  --app-shell-panel-shadow: 0 24px 60px rgba(15, 23, 42, 0.14); // 完全使用登录页的深投影
+  --app-shell-panel-shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.08);
   --app-shell-panel-highlight: rgba(255, 255, 255, 0.95);
   
   // Auth 变量保留
@@ -97,8 +97,8 @@
   --el-color-info: var(--color-info);
   
   --el-bg-color: #ffffff;
-  --el-bg-color-page: #f4f7fb;
-  --el-bg-color-overlay: rgba(255, 255, 255, 0.98);
+  --el-bg-color-page: #eef2f6;
+  --el-bg-color-overlay: #ffffff;
   
   // Element Plus 组件级颜色映射 (对齐登录表单空气感)
   --el-input-bg-color: rgba(255, 255, 255, 0.96);

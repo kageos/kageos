@@ -955,21 +955,20 @@ useWorkspaceUiEffects({
   z-index: 100;
 }
 
-.sidebar-toggle-bottom-left .sidebar-toggle-btn {
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--el-text-color-secondary);
-  background: var(--app-shell-panel-bg-strong);
-  border: 1px solid var(--app-shell-panel-border);
-  border-radius: 16px;
-  box-shadow: var(--app-shell-panel-shadow-soft);
-  backdrop-filter: blur(18px);
-  transition: all 0.2s;
+  .sidebar-toggle-bottom-left .sidebar-toggle-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--el-text-color-secondary);
+    background: var(--app-shell-panel-bg-strong);
+    border: 1px solid var(--app-shell-panel-border);
+    border-radius: 16px;
+    box-shadow: var(--app-shell-panel-shadow-soft);
+    transition: all 0.2s;
 
   &:hover {
     color: var(--el-color-primary);
@@ -983,18 +982,17 @@ useWorkspaceUiEffects({
   }
 }
 
-.left-sidebar {
-  width: 300px;
-  min-width: 300px;
-  transition: all 0.3s ease;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--app-shell-panel-border);
-  border-radius: 22px;
-  background: var(--app-shell-panel-bg);
-  box-shadow: var(--app-shell-panel-shadow);
-  backdrop-filter: blur(18px);
+  .left-sidebar {
+    width: 300px;
+    min-width: 300px;
+    transition: all 0.3s ease;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--app-shell-panel-border);
+    border-radius: 22px;
+    background: var(--app-shell-panel-bg);
+    box-shadow: var(--app-shell-panel-shadow);
 
   &.sidebar-collapsed {
     width: 0;
@@ -1025,7 +1023,6 @@ useWorkspaceUiEffects({
   border-radius: 24px;
   background: var(--app-shell-panel-bg);
   box-shadow: var(--app-shell-panel-shadow);
-  backdrop-filter: blur(20px);
 }
 
 .function-renderer::before {
@@ -1074,7 +1071,6 @@ useWorkspaceUiEffects({
     border: 1px solid var(--app-shell-panel-border);
     border-radius: 14px;
     box-shadow: var(--app-shell-panel-shadow-soft);
-    backdrop-filter: blur(18px);
     
     &:hover {
       background: var(--app-shell-panel-bg);
@@ -1092,7 +1088,6 @@ useWorkspaceUiEffects({
   border: 1px solid var(--app-shell-panel-border);
   border-radius: 22px;
   box-shadow: var(--app-shell-panel-shadow);
-  backdrop-filter: blur(18px);
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;

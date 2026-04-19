@@ -380,7 +380,6 @@ watch(visible, (newVal: boolean) => {
   background: var(--app-auth-card-bg);
   border: 1px solid var(--app-auth-card-border);
   box-shadow: var(--app-auth-card-shadow);
-  backdrop-filter: blur(20px);
   overflow: hidden;
 }
 
