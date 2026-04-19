@@ -7,6 +7,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 )
 
 func normalizeSearchFunctionsPagination(page, pageSize int) (int, int) {
@@ -160,15 +161,23 @@ func buildFunctionSearchResults(trees []*model.ServiceTree) []*dto.FunctionSearc
 			result.FullCodePath = tree.Function.Router
 			result.Callbacks = tree.Function.Callbacks
 			if len(tree.Function.Request) > 0 {
-				var reqArr []interface{}
-				if err := json.Unmarshal(tree.Function.Request, &reqArr); err == nil {
-					result.Request = reqArr
+				var reqFields []*widget.Field
+				if err := json.Unmarshal(tree.Function.Request, &reqFields); err == nil {
+					widget.NormalizeFieldCodes(reqFields)
+					result.Request = make([]interface{}, 0, len(reqFields))
+					for _, field := range reqFields {
+						result.Request = append(result.Request, field)
+					}
 				}
 			}
 			if len(tree.Function.Response) > 0 {
-				var respArr []interface{}
-				if err := json.Unmarshal(tree.Function.Response, &respArr); err == nil {
-					result.Response = respArr
+				var respFields []*widget.Field
+				if err := json.Unmarshal(tree.Function.Response, &respFields); err == nil {
+					widget.NormalizeFieldCodes(respFields)
+					result.Response = make([]interface{}, 0, len(respFields))
+					for _, field := range respFields {
+						result.Response = append(result.Response, field)
+					}
 				}
 			}
 		}

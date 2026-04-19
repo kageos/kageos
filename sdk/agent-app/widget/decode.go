@@ -34,7 +34,41 @@ type FieldTags struct {
 }
 
 func (t *FieldTags) GetCode() string {
-	return t.Json
+	return normalizeJSONFieldName(t.Json, t.FieldName)
+}
+
+func normalizeJSONFieldName(jsonTag string, fieldName string) string {
+	tag := strings.TrimSpace(jsonTag)
+	if tag == "" {
+		return fieldName
+	}
+
+	if idx := strings.Index(tag, ","); idx >= 0 {
+		tag = strings.TrimSpace(tag[:idx])
+	}
+
+	if tag == "" {
+		return fieldName
+	}
+
+	if tag == "-" {
+		return ""
+	}
+
+	return tag
+}
+
+func NormalizeFieldCodes(fields []*Field) {
+	for _, field := range fields {
+		if field == nil {
+			continue
+		}
+
+		field.Code = normalizeJSONFieldName(field.Code, field.FieldName)
+		if len(field.Children) > 0 {
+			NormalizeFieldCodes(field.Children)
+		}
+	}
 }
 
 // isJsonOmit 与 encoding/json 一致：json 标签中「名称」为 - 表示不参与序列化，解析模型时也应跳过（与 widget:"-" 等价）
