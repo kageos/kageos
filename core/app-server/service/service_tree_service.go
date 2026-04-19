@@ -59,7 +59,7 @@ func NewServiceTreeService(
 		specialNodeService: newServiceTreeSpecialNodeService(serviceTreeRepo, appRepo, docService),
 		functionService:    newServiceTreeFunctionService(serviceTreeRepo, appRepo, appService),
 		packageService:     newServiceTreePackageService(serviceTreeRepo, appRepo, runtimeWorkspace),
-		batchService:       newServiceTreeBatchService(serviceTreeRepo, runtimeWorkspace, appRepo, appService),
+		batchService:       newServiceTreeBatchService(serviceTreeRepo, runtimeWorkspace, appService),
 	}
 }
 

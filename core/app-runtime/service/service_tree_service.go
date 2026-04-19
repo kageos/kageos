@@ -91,19 +91,32 @@ func (s *WorkspaceChangeService) BatchWriteFiles(
 	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), req.User, req.App)
 	result, err := s.appManageService.finalizeWrittenAppChanges(ctx, req.User, req.App, appPaths)
 	if err != nil {
-		logger.Warnf(ctx, "[BatchWriteFiles] 编译失败，开始回滚已写入的文件: fileCount=%d", len(state.rollbackOrder))
-		s.workspaceFileService.rollbackWriteState(ctx, state)
+		s.appManageService.rollbackWrittenFilesAfterFailedBuild(ctx, "BatchWriteFiles", state)
 		return nil, err
 	}
 
 	logger.Infof(ctx, "[WorkspaceChangeService] 批量写文件并编译完成: oldVersion=%s, newVersion=%s", result.oldVersion, result.newVersion)
 
+	return s.buildBatchWriteFilesRuntimeResp(state, result), nil
+}
+
+func (s *WorkspaceChangeService) buildBatchWriteFilesRuntimeResp(
+	state *batchWriteState,
+	release *appReleaseResult,
+) *dto.BatchWriteFilesRuntimeResp {
+	fileCount := 0
+	writtenPaths := []string{}
+	if state != nil {
+		fileCount = len(state.writtenPaths)
+		writtenPaths = state.writtenPaths
+	}
+
 	return &dto.BatchWriteFilesRuntimeResp{
-		FileCount:     len(state.writtenPaths),
-		WrittenPaths:  state.writtenPaths,
-		Diff:          result.diff,
-		OldVersion:    result.oldVersion,
-		NewVersion:    result.newVersion,
-		GitCommitHash: result.gitCommitHash,
-	}, nil
+		FileCount:     fileCount,
+		WrittenPaths:  writtenPaths,
+		Diff:          release.diff,
+		OldVersion:    release.oldVersion,
+		NewVersion:    release.newVersion,
+		GitCommitHash: release.gitCommitHash,
+	}
 }

@@ -50,8 +50,6 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 
 // UpdateApp 更新应用（更新应用代码并重新编译部署）
 func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto.UpdateAppResp, error) {
-	startTime := time.Now()
-
 	app, err := a.resolveUpdateTargetApp(req)
 	if err != nil {
 		return nil, err
@@ -63,16 +61,11 @@ func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto
 		return nil, err
 	}
 
-	if err := a.persistReleasedAppVersion(req.User, req.App, resp.NewVersion); err != nil {
+	warnings, err := a.finalizeReleasedAppMetadata(ctx, "AppService:UpdateApp", app, req.User, req.App, resp.NewVersion, resp.Diff)
+	if err != nil {
 		return nil, err
 	}
-
-	duration := time.Since(startTime).Milliseconds()
-	if warning := a.syncUpdatedAppMetadata(ctx, app.ID, resp, req, duration); warning != "" {
-		resp.Warnings = append(resp.Warnings, warning)
-		logger.Warnf(ctx, "[AppService:UpdateApp] %s user=%s app=%s newVersion=%s",
-			warning, req.User, req.App, resp.NewVersion)
-	}
+	resp.Warnings = append(resp.Warnings, warnings...)
 
 	return resp, nil
 }
@@ -98,19 +91,42 @@ func (a *AppService) persistReleasedAppVersion(user, appCode, newVersion string)
 func (a *AppService) syncUpdatedAppMetadata(
 	ctx context.Context,
 	appID int64,
-	resp *dto.UpdateAppResp,
-	req *dto.UpdateAppReq,
-	duration int64,
+	diff *dto.DiffData,
 ) string {
-	if resp == nil || resp.Diff == nil {
+	if diff == nil {
 		return ""
 	}
 
-	if err := a.processAPIDiff(ctx, appID, resp.Diff, req, duration, resp.GitCommitHash); err != nil {
+	if err := a.processAPIDiff(ctx, appID, diff); err != nil {
 		return fmt.Sprintf("应用已发布，但函数元数据同步失败: %v", err)
 	}
 
 	return ""
+}
+
+func (a *AppService) finalizeReleasedAppMetadata(
+	ctx context.Context,
+	logPrefix string,
+	app *model.App,
+	user, appCode, newVersion string,
+	diff *dto.DiffData,
+) ([]string, error) {
+	if app == nil {
+		return nil, fmt.Errorf("应用不存在")
+	}
+
+	if err := a.persistReleasedAppVersion(user, appCode, newVersion); err != nil {
+		return nil, err
+	}
+
+	warning := a.syncUpdatedAppMetadata(ctx, app.ID, diff)
+	if warning == "" {
+		return nil, nil
+	}
+
+	logger.Warnf(ctx, "[%s] %s user=%s app=%s newVersion=%s",
+		logPrefix, warning, user, appCode, newVersion)
+	return []string{warning}, nil
 }
 
 // extractVersionNum 从版本号字符串中提取数字部分（如 "v1" -> 1, "v20" -> 20）
@@ -231,67 +247,29 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 }
 
 // processAPIDiff 处理API差异，包括新增、更新、删除
-func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *dto.DiffData, req *dto.UpdateAppReq, duration int64, gitCommitHash string) error {
-	// 校验应用存在
-	if _, err := a.appRepo.GetAppByID(appID); err != nil {
-		return fmt.Errorf("获取应用信息失败: %w", err)
+func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *dto.DiffData) error {
+	state, err := a.loadAppMetadataSyncState(ctx, appID)
+	if err != nil {
+		return err
 	}
 
 	// ⭐ 第一步：目录对账——SDK 返回全量 package 列表，先与数据库比对，缺失的统一创建
 	if len(diffData.Packages) > 0 {
-		if err := a.reconcilePackages(ctx, appID, diffData.Packages); err != nil {
+		if err := a.reconcilePackages(ctx, state, diffData.Packages); err != nil {
 			return fmt.Errorf("目录对账失败: %w", err)
 		}
 	}
 
-	// 从 context 获取当前用户名
-	username := contextx.GetRequestUser(ctx)
-
-	// 处理新增的API
-	if len(diffData.Add) > 0 {
-		// 1. 先转换API为Function模型（但不创建）
-		functions, err := a.convertApiInfoToFunctions(ctx, appID, diffData.Add, username)
-		if err != nil {
-			return fmt.Errorf("转换新增API失败: %w", err)
-		}
-
-		// 2. 创建Function记录
-		err = a.functionRepo.CreateFunctions(functions)
-		if err != nil {
-			return fmt.Errorf("创建function记录失败: %w", err)
-		}
-
-		// 4. 创建ServiceTree记录，使用Function的ID作为RefID
-		err = a.createServiceTreesForAPIs(ctx, appID, diffData.Add, functions)
-		if err != nil {
-			return fmt.Errorf("创建service_tree记录失败: %w", err)
-		}
+	if err := a.syncAddedAPIs(state, diffData.Add); err != nil {
+		return err
 	}
-
-	// 处理更新的API
-	if len(diffData.Update) > 0 {
-		// 1. 转换更新的API为Function模型
-		functions, err := a.convertApiInfoToFunctions(ctx, appID, diffData.Update, username)
-		if err != nil {
-			return fmt.Errorf("转换更新API失败: %w", err)
-		}
-
-		// 2. 更新Function记录
-		err = a.updateFunctionsForAPIs(ctx, appID, diffData.Update, functions)
-		if err != nil {
-			return fmt.Errorf("更新function记录失败: %w", err)
-		}
-
-		// 4. 更新ServiceTree记录
-		err = a.updateServiceTreesForAPIs(ctx, appID, diffData.Update, functions)
-		if err != nil {
-			return fmt.Errorf("更新service_tree记录失败: %w", err)
-		}
+	if err := a.syncUpdatedAPIs(state, diffData.Update); err != nil {
+		return err
 	}
 
 	// 处理删除的API
 	if len(diffData.Delete) > 0 {
-		err := a.deleteFunctionsForAPIs(ctx, appID, diffData.Delete)
+		err := a.deleteFunctionsForAPIs(state.app.ID, diffData.Delete)
 		if err != nil {
 			return fmt.Errorf("删除function和service_tree记录失败: %w", err)
 		}
@@ -303,8 +281,69 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 	return nil
 }
 
+type appMetadataSyncState struct {
+	app               *model.App
+	currentVersionNum int
+	requestUser       string
+}
+
+func (a *AppService) loadAppMetadataSyncState(ctx context.Context, appID int64) (*appMetadataSyncState, error) {
+	app, err := a.appRepo.GetAppByID(appID)
+	if err != nil {
+		return nil, fmt.Errorf("获取应用信息失败: %w", err)
+	}
+
+	return &appMetadataSyncState{
+		app:               app,
+		currentVersionNum: app.GetVersionNumber(),
+		requestUser:       contextx.GetRequestUser(ctx),
+	}, nil
+}
+
+func (a *AppService) syncAddedAPIs(state *appMetadataSyncState, apis []*dto.ApiInfo) error {
+	if len(apis) == 0 {
+		return nil
+	}
+
+	functions, err := a.convertApiInfoToFunctions(state.app.ID, apis, state.requestUser)
+	if err != nil {
+		return fmt.Errorf("转换新增API失败: %w", err)
+	}
+
+	if err := a.functionRepo.CreateFunctions(functions); err != nil {
+		return fmt.Errorf("创建function记录失败: %w", err)
+	}
+
+	if err := a.createServiceTreesForAPIs(state, apis, functions); err != nil {
+		return fmt.Errorf("创建service_tree记录失败: %w", err)
+	}
+
+	return nil
+}
+
+func (a *AppService) syncUpdatedAPIs(state *appMetadataSyncState, apis []*dto.ApiInfo) error {
+	if len(apis) == 0 {
+		return nil
+	}
+
+	functions, err := a.convertApiInfoToFunctions(state.app.ID, apis, state.requestUser)
+	if err != nil {
+		return fmt.Errorf("转换更新API失败: %w", err)
+	}
+
+	if err := a.updateFunctionsForAPIs(state.app.ID, apis, functions); err != nil {
+		return fmt.Errorf("更新function记录失败: %w", err)
+	}
+
+	if err := a.updateServiceTreesForAPIs(state, apis, functions); err != nil {
+		return fmt.Errorf("更新service_tree记录失败: %w", err)
+	}
+
+	return nil
+}
+
 // convertApiInfoToFunctions 将ApiInfo转换为Function模型
-func (a *AppService) convertApiInfoToFunctions(ctx context.Context, appID int64, apis []*dto.ApiInfo, username string) ([]*model.Function, error) {
+func (a *AppService) convertApiInfoToFunctions(appID int64, apis []*dto.ApiInfo, username string) ([]*model.Function, error) {
 	functions := make([]*model.Function, len(apis))
 
 	for i, api := range apis {
@@ -353,33 +392,14 @@ func (a *AppService) convertApiInfoToFunctions(ctx context.Context, appID int64,
 }
 
 // createServiceTreesForAPIs 为新增的API创建ServiceTree记录
-func (a *AppService) createServiceTreesForAPIs(ctx context.Context, appID int64, apis []*dto.ApiInfo, functions []*model.Function) error {
-	parentPaths := make(map[string]bool)
-	for _, api := range apis {
-		parentPath := api.GetParentFullCodePath()
-		if parentPath != "" {
-			parentPaths[parentPath] = true
-		}
-	}
-
-	parentPathList := make([]string, 0, len(parentPaths))
-	for path := range parentPaths {
-		parentPathList = append(parentPathList, path)
-	}
-
-	parentNodes, err := a.serviceTreeRepo.GetServiceTreeByFullPaths(parentPathList)
+func (a *AppService) createServiceTreesForAPIs(state *appMetadataSyncState, apis []*dto.ApiInfo, functions []*model.Function) error {
+	parentNodes, err := a.loadParentPackageNodes(apis)
 	if err != nil {
-		return fmt.Errorf("批量查询父级package节点失败: %w", err)
-	}
-
-	for path, node := range parentNodes {
-		if !node.IsPackage() {
-			return fmt.Errorf("路径 %s 已存在，但类型不是package，当前类型: %s", path, node.Type)
-		}
+		return err
 	}
 
 	for i, api := range apis {
-		var parentID int64 = 0
+		var parentAdmins string
 		parentPath := api.GetParentFullCodePath()
 
 		if parentPath != "" {
@@ -387,17 +407,10 @@ func (a *AppService) createServiceTreesForAPIs(ctx context.Context, appID int64,
 			if !exists {
 				return fmt.Errorf("父级package节点不存在: %s（目录对账可能未覆盖此路径）", parentPath)
 			}
-			parentID = parent.ID
+			parentAdmins = parent.Admins
 		}
 
-		var parentAdmins string
-		if parentID > 0 {
-			if parent, exists := parentNodes[parentPath]; exists {
-				parentAdmins = parent.Admins
-			}
-		}
-
-		treeID, err := a.createFunctionNode(ctx, appID, parentID, api, functions[i].ID, parentAdmins)
+		treeID, err := a.createFunctionNode(state, api, functions[i].ID, parentAdmins)
 		if err != nil {
 			return fmt.Errorf("创建function节点失败: %w", err)
 		}
@@ -409,19 +422,14 @@ func (a *AppService) createServiceTreesForAPIs(ctx context.Context, appID int64,
 // reconcilePackages 目录对账：拿 SDK 返回的全量 package 列表与数据库比对，缺失的统一创建
 // SDK 每次 update 都会返回当前应用注册的全量 package（已按深度从浅到深排序），
 // 所以按顺序遍历即可保证父节点先于子节点被创建
-func (a *AppService) reconcilePackages(ctx context.Context, appID int64, packages []*dto.PackageInfo) error {
+func (a *AppService) reconcilePackages(ctx context.Context, state *appMetadataSyncState, packages []*dto.PackageInfo) error {
 	// 1. 提取所有 fullPath，批量查库看哪些已存在
 	allPaths := make([]string, 0, len(packages)+1)
 	for _, pkg := range packages {
 		allPaths = append(allPaths, pkg.FullPath)
 	}
 
-	// 获取 app 信息，用于补充根节点路径
-	appModel, err := a.appRepo.GetAppByID(appID)
-	if err != nil {
-		return fmt.Errorf("获取应用信息失败: %w", err)
-	}
-	rootPath := fmt.Sprintf("/%s/%s", appModel.User, appModel.Code)
+	rootPath := fmt.Sprintf("/%s/%s", state.app.User, state.app.Code)
 	allPaths = append(allPaths, rootPath)
 
 	existingNodes, err := a.serviceTreeRepo.GetServiceTreeByFullPaths(allPaths)
@@ -444,8 +452,6 @@ func (a *AppService) reconcilePackages(ctx context.Context, appID int64, package
 
 	logger.Infof(ctx, "[reconcilePackages] 目录对账: 共 %d 个 package，其中 %d 个缺失，开始创建", len(packages), len(missing))
 
-	requestUser := contextx.GetRequestUser(ctx)
-
 	// 3. 按顺序创建缺失的 package（SDK 已按深度排序，父在前子在后）
 	for _, pkg := range missing {
 		parts := strings.Split(strings.Trim(pkg.FullPath, "/"), "/")
@@ -461,18 +467,18 @@ func (a *AppService) reconcilePackages(ctx context.Context, appID int64, package
 		}
 
 		node := &model.ServiceTree{
-			AppID:            appID,
+			AppID:            state.app.ID,
 			Type:             model.ServiceTreeTypePackage,
 			Code:             pkg.Code,
 			Name:             pkg.Name,
 			Description:      pkg.Desc,
 			FullCodePath:     pkg.FullPath,
-			AddVersionNum:    appModel.GetVersionNumber(),
+			AddVersionNum:    state.currentVersionNum,
 			UpdateVersionNum: 0,
 		}
-		if requestUser != "" {
-			node.CreatedBy = requestUser
-			node.Admins = requestUser
+		if state.requestUser != "" {
+			node.CreatedBy = state.requestUser
+			node.Admins = state.requestUser
 		}
 
 		if err := a.serviceTreeRepo.Create(node); err != nil {
@@ -487,24 +493,52 @@ func (a *AppService) reconcilePackages(ctx context.Context, appID int64, package
 	return nil
 }
 
+func (a *AppService) loadParentPackageNodes(apis []*dto.ApiInfo) (map[string]*model.ServiceTree, error) {
+	parentPaths := make(map[string]bool)
+	for _, api := range apis {
+		parentPath := api.GetParentFullCodePath()
+		if parentPath != "" {
+			parentPaths[parentPath] = true
+		}
+	}
+
+	parentPathList := make([]string, 0, len(parentPaths))
+	for path := range parentPaths {
+		parentPathList = append(parentPathList, path)
+	}
+
+	parentNodes, err := a.serviceTreeRepo.GetServiceTreeByFullPaths(parentPathList)
+	if err != nil {
+		return nil, fmt.Errorf("批量查询父级package节点失败: %w", err)
+	}
+
+	for path, node := range parentNodes {
+		if !node.IsPackage() {
+			return nil, fmt.Errorf("路径 %s 已存在，但类型不是package，当前类型: %s", path, node.Type)
+		}
+	}
+
+	return parentNodes, nil
+}
+
 // createFunctionNode 创建function节点，返回创建的TreeID
-func (a *AppService) createFunctionNode(ctx context.Context, appID int64, parentID int64, api *dto.ApiInfo, functionID int64, parentAdmins string) (int64, error) {
+func (a *AppService) createFunctionNode(
+	state *appMetadataSyncState,
+	api *dto.ApiInfo,
+	functionID int64,
+	parentAdmins string,
+) (int64, error) {
 	// 检查是否已存在（full_name_path全局唯一）
 	existingNode, err := a.serviceTreeRepo.GetServiceTreeByFullPath(api.FullCodePath)
 	if err == nil {
-		// 如果路径已存在，更新版本号而不是创建新节点
-		// 获取应用当前版本
-		app, err := a.appRepo.GetAppByID(appID)
-		if err != nil {
-			return 0, fmt.Errorf("获取应用信息失败: %w", err)
-		}
+		a.applyFunctionNodeMetadata(existingNode, api, functionID)
 
 		// 如果节点是新增的（AddVersionNum为0），设置添加版本号
 		if existingNode.AddVersionNum == 0 {
-			existingNode.AddVersionNum = app.GetVersionNumber()
+			existingNode.AddVersionNum = state.currentVersionNum
 		} else {
 			// 如果节点已存在，更新更新版本号
-			existingNode.UpdateVersionNum = app.GetVersionNumber()
+			existingNode.UpdateVersionNum = state.currentVersionNum
 		}
 
 		// 更新节点信息
@@ -521,14 +555,8 @@ func (a *AppService) createFunctionNode(ctx context.Context, appID int64, parent
 	}
 	// err是gorm.ErrRecordNotFound，说明路径不存在，可以继续创建
 
-	// 获取应用当前版本
-	app, err := a.appRepo.GetAppByID(appID)
-	if err != nil {
-		return 0, fmt.Errorf("获取应用信息失败: %w", err)
-	}
-
 	// 获取创建者用户名
-	requestUser := contextx.GetRequestUser(ctx)
+	requestUser := state.requestUser
 
 	// 确定 Admins 字段：优先使用父节点的 Admins，如果没有父节点或父节点没有 Admins，则使用当前用户
 	admins := parentAdmins
@@ -538,26 +566,18 @@ func (a *AppService) createFunctionNode(ctx context.Context, appID int64, parent
 
 	// 创建新的function节点
 	serviceTree := &model.ServiceTree{
-		AppID:            appID,
+		AppID:            state.app.ID,
 		Type:             model.ServiceTreeTypeFunction,
-		Code:             api.Code, // API的code作为ServiceTree的code
-		Name:             api.Name, // API的name作为ServiceTree的name
-		Description:      api.Desc,
-		TemplateType:     api.TemplateType,
-		RefID:            functionID,             // 指向Function记录的ID
-		FullCodePath:     api.FullCodePath,       // 直接使用api.FullCodePath，不需要重新计算
-		AddVersionNum:    app.GetVersionNumber(), // 设置添加版本号
-		UpdateVersionNum: 0,                      // 新增节点，更新版本号为0
-		Admins:           admins,                 // 设置管理员列表（从父节点继承，或使用当前用户）
+		FullCodePath:     api.FullCodePath,        // 直接使用api.FullCodePath，不需要重新计算
+		AddVersionNum:    state.currentVersionNum, // 设置添加版本号
+		UpdateVersionNum: 0,                       // 新增节点，更新版本号为0
+		Admins:           admins,                  // 设置管理员列表（从父节点继承，或使用当前用户）
 	}
+	a.applyFunctionNodeMetadata(serviceTree, api, functionID)
 
 	// 设置创建者
 	if requestUser != "" {
 		serviceTree.CreatedBy = requestUser
-	}
-
-	if len(api.Tags) > 0 {
-		serviceTree.Tags = strings.Join(api.Tags, ",")
 	}
 
 	// 创建ServiceTree节点（GORM Create会自动填充ID）
@@ -575,8 +595,17 @@ func (a *AppService) createFunctionNode(ctx context.Context, appID int64, parent
 	return serviceTree.ID, nil
 }
 
+func (a *AppService) applyFunctionNodeMetadata(tree *model.ServiceTree, api *dto.ApiInfo, functionID int64) {
+	tree.Code = api.Code
+	tree.Name = api.Name
+	tree.Description = api.Desc
+	tree.TemplateType = api.TemplateType
+	tree.RefID = functionID
+	tree.Tags = strings.Join(api.Tags, ",")
+}
+
 // updateFunctionsForAPIs 更新API对应的Function记录
-func (a *AppService) updateFunctionsForAPIs(ctx context.Context, appID int64, apis []*dto.ApiInfo, functions []*model.Function) error {
+func (a *AppService) updateFunctionsForAPIs(appID int64, apis []*dto.ApiInfo, functions []*model.Function) error {
 	// 对于每个要更新的API，先查找现有的Function记录获取ID
 	for i, api := range apis {
 		router := api.BuildFullCodePath()
@@ -604,39 +633,10 @@ func (a *AppService) updateFunctionsForAPIs(ctx context.Context, appID int64, ap
 }
 
 // updateServiceTreesForAPIs 更新API对应的ServiceTree记录
-func (a *AppService) updateServiceTreesForAPIs(ctx context.Context, appID int64, apis []*dto.ApiInfo, functions []*model.Function) error {
-	// 获取应用当前版本
-	app, err := a.appRepo.GetAppByID(appID)
+func (a *AppService) updateServiceTreesForAPIs(state *appMetadataSyncState, apis []*dto.ApiInfo, functions []*model.Function) error {
+	parentNodes, err := a.loadParentPackageNodes(apis)
 	if err != nil {
-		return fmt.Errorf("获取应用信息失败: %w", err)
-	}
-	currentVersionNum := extractVersionNum(app.Version)
-
-	// 收集所有需要查询的父级路径
-	parentPaths := make(map[string]bool)
-	for _, api := range apis {
-		parentPath := api.GetParentFullCodePath()
-		if parentPath != "" {
-			parentPaths[parentPath] = true
-		}
-	}
-
-	// 批量查询所有父级package节点
-	parentPathList := make([]string, 0, len(parentPaths))
-	for path := range parentPaths {
-		parentPathList = append(parentPathList, path)
-	}
-
-	parentNodes, err := a.serviceTreeRepo.GetServiceTreeByFullPaths(parentPathList)
-	if err != nil {
-		return fmt.Errorf("批量查询父级package节点失败: %w", err)
-	}
-
-	// 验证所有父级节点都是package类型
-	for path, node := range parentNodes {
-		if !node.IsPackage() {
-			return fmt.Errorf("路径 %s 已存在，但类型不是package，当前类型: %s", path, node.Type)
-		}
+		return err
 	}
 
 	// 更新function节点
@@ -646,17 +646,15 @@ func (a *AppService) updateServiceTreesForAPIs(ctx context.Context, appID int64,
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				// 如果不存在，创建新的节点（这种情况不应该发生，但为了容错处理）
-				var parentID int64 = 0
 				var parentAdmins string
 				parentPath := api.GetParentFullCodePath()
 				if parentPath != "" {
 					parent, exists := parentNodes[parentPath]
 					if exists {
-						parentID = parent.ID
 						parentAdmins = parent.Admins
 					}
 				}
-				treeID, err := a.createFunctionNode(ctx, appID, parentID, api, functions[i].ID, parentAdmins)
+				treeID, err := a.createFunctionNode(state, api, functions[i].ID, parentAdmins)
 				if err != nil {
 					return fmt.Errorf("创建function节点失败: %w", err)
 				}
@@ -668,18 +666,12 @@ func (a *AppService) updateServiceTreesForAPIs(ctx context.Context, appID int64,
 		}
 
 		// 更新节点信息并设置更新版本号
-		existingTree.RefID = functions[i].ID
-		existingTree.Name = api.Name
-		existingTree.Description = api.Desc
+		a.applyFunctionNodeMetadata(existingTree, api, functions[i].ID)
 		// 更新版本号：如果AddVersionNum为0，说明是新增的，设置为当前版本；否则更新UpdateVersionNum
 		if existingTree.AddVersionNum == 0 {
-			existingTree.AddVersionNum = currentVersionNum
+			existingTree.AddVersionNum = state.currentVersionNum
 		} else {
-			existingTree.UpdateVersionNum = currentVersionNum
-		}
-
-		if len(api.Tags) > 0 {
-			existingTree.Tags = strings.Join(api.Tags, ",")
+			existingTree.UpdateVersionNum = state.currentVersionNum
 		}
 
 		// 保存更新后的节点
@@ -693,7 +685,7 @@ func (a *AppService) updateServiceTreesForAPIs(ctx context.Context, appID int64,
 }
 
 // deleteFunctionsForAPIs 删除API对应的Function和ServiceTree记录
-func (a *AppService) deleteFunctionsForAPIs(ctx context.Context, appID int64, apis []*dto.ApiInfo) error {
+func (a *AppService) deleteFunctionsForAPIs(appID int64, apis []*dto.ApiInfo) error {
 	// 收集需要删除的router和method
 	routers := make([]string, 0, len(apis))
 	methods := make([]string, 0, len(apis))

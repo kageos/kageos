@@ -10,20 +10,17 @@ import (
 type serviceTreeBatchService struct {
 	serviceTreeRepo  *repository.ServiceTreeRepository
 	runtimeWorkspace *runtimeWorkspaceBridge
-	appRepo          *repository.AppRepository
 	appService       *AppService
 }
 
 func newServiceTreeBatchService(
 	serviceTreeRepo *repository.ServiceTreeRepository,
 	runtimeWorkspace *runtimeWorkspaceBridge,
-	appRepo *repository.AppRepository,
 	appService *AppService,
 ) *serviceTreeBatchService {
 	return &serviceTreeBatchService{
 		serviceTreeRepo:  serviceTreeRepo,
 		runtimeWorkspace: runtimeWorkspace,
-		appRepo:          appRepo,
 		appService:       appService,
 	}
 }
@@ -39,5 +36,5 @@ func (s *serviceTreeBatchService) BatchWriteFiles(
 	ctx context.Context,
 	req *dto.BatchWriteFilesReq,
 ) (*dto.BatchWriteFilesResp, error) {
-	return executeBatchWriteFiles(ctx, s.runtimeWorkspace, s.appService, s.appRepo, req)
+	return executeBatchWriteFiles(ctx, s.runtimeWorkspace, s.appService, req)
 }

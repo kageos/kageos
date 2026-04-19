@@ -64,34 +64,45 @@ type Server struct {
 	schedulerDone chan struct{}
 }
 
-// NewServer 创建新的服务器实例
-func NewServer(cfg *config.AppServerConfig) (*Server, error) {
+func newBaseServer(cfg *config.AppServerConfig) *Server {
 	ctx := context.Background()
-
-	s := &Server{
+	return &Server{
 		cfg: cfg,
 		ctx: ctx,
 	}
+}
 
+func (s *Server) initSharedComponents(ctx context.Context) error {
 	// ⭐ 1. 首先加载 License（必须在其他初始化之前）
 	if err := s.initLicense(ctx); err != nil {
 		// License 加载失败，记录警告但不中断启动（社区版可以继续运行）
 		logger.Warnf(ctx, "[Server] Failed to load license: %v, continuing with community edition", err)
 	}
 
-	// 初始化各个组件
 	if err := s.initDatabase(ctx); err != nil {
-		return nil, fmt.Errorf("failed to init database: %w", err)
+		return fmt.Errorf("failed to init database: %w", err)
 	}
 
 	if err := s.initNATS(ctx); err != nil {
-		return nil, fmt.Errorf("failed to init NATS: %w", err)
+		return fmt.Errorf("failed to init NATS: %w", err)
 	}
 
 	// ⭐ 初始化 License Client（在 NATS 初始化之后）
 	if err := s.initLicenseClient(ctx); err != nil {
 		// License Client 初始化失败，记录警告但不中断启动（社区版可以继续运行）
 		logger.Warnf(ctx, "[Server] Failed to init license client: %v, continuing with community edition", err)
+	}
+
+	return nil
+}
+
+// NewServer 创建新的 app-server 实例。
+func NewServer(cfg *config.AppServerConfig) (*Server, error) {
+	s := newBaseServer(cfg)
+	ctx := s.ctx
+
+	if err := s.initSharedComponents(ctx); err != nil {
+		return nil, err
 	}
 
 	// ⭐ 2. 初始化企业功能（在数据库和 NATS 初始化之后，在服务初始化之前）
@@ -119,19 +130,32 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 	return s, nil
 }
 
+// NewSchedulerServer 创建新的 scheduler 实例。
+func NewSchedulerServer(cfg *config.AppServerConfig) (*Server, error) {
+	s := newBaseServer(cfg)
+	ctx := s.ctx
+
+	if err := s.initSharedComponents(ctx); err != nil {
+		return nil, err
+	}
+
+	if err := s.initSchedulerEnterprise(); err != nil {
+		return nil, fmt.Errorf("failed to init scheduler enterprise features: %w", err)
+	}
+
+	if err := s.initSchedulerServices(ctx); err != nil {
+		return nil, fmt.Errorf("failed to init scheduler services: %w", err)
+	}
+
+	return s, nil
+}
+
 // Start 启动服务器
 func (s *Server) Start(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Starting app-server...")
 
 	if err := s.StartHTTP(ctx); err != nil {
 		return err
-	}
-	if s.cfg.IsSchedulerEmbedded() {
-		if err := s.StartScheduler(ctx); err != nil {
-			return err
-		}
-	} else {
-		logger.Infof(ctx, "[Server] Embedded scheduled task scheduler disabled")
 	}
 
 	logger.Infof(ctx, "[Server] App-server started successfully")
@@ -172,7 +196,7 @@ func (s *Server) StartScheduler(ctx context.Context) error {
 
 // Stop 停止服务器（优雅关闭）
 func (s *Server) Stop(ctx context.Context) error {
-	logger.Infof(ctx, "[Server] Stopping app-server...")
+	logger.Infof(ctx, "[Server] Stopping server...")
 
 	if s.schedulerDone != nil {
 		logger.Infof(ctx, "[Server] Waiting scheduled task scheduler to stop...")
@@ -217,7 +241,7 @@ func (s *Server) Stop(ctx context.Context) error {
 		}
 	}
 
-	logger.Infof(ctx, "[Server] App-server stopped")
+	logger.Infof(ctx, "[Server] Server stopped")
 	return nil
 }
 
@@ -402,7 +426,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 定时任务服务（注入 JWT 以便执行时按“请求用户”生成 Token 注入 context）
 	scheduledTaskRepo := repository.NewScheduledTaskRepository(s.db)
 	scheduledTaskExecutionRepo := repository.NewScheduledTaskExecutionRepository(s.db)
-	s.scheduledTaskService = service.NewScheduledTaskService(s.db, s.appService, s.jwtService, scheduledTaskRepo, scheduledTaskExecutionRepo, service.ScheduledTaskServiceOptions{
+	s.scheduledTaskService = service.NewScheduledTaskService(s.appService, s.jwtService, scheduledTaskRepo, scheduledTaskExecutionRepo, service.ScheduledTaskServiceOptions{
 		PollInterval:   s.cfg.GetSchedulerPollInterval(),
 		BatchSize:      s.cfg.GetSchedulerBatchSize(),
 		LeaseDuration:  s.cfg.GetSchedulerLeaseDuration(),
@@ -414,6 +438,46 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 在 initEnterprise 中会初始化 enterprise.GetPermissionService()，然后在这里创建 PermissionService
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
+	return nil
+}
+
+func (s *Server) initSchedulerServices(ctx context.Context) error {
+	logger.Infof(ctx, "[Server] Initializing scheduler services...")
+
+	if err := model.ReconcileNatsHostFromEnv(s.db); err != nil {
+		return fmt.Errorf("reconcile nats host from NATS_SEED_HOST: %w", err)
+	}
+
+	s.natsConnPool = service.NewNATSConnPoolWithDB(s.db)
+	s.appCall = appcall.New(appcall.Options{
+		ConnProvider:       s.natsConnPool,
+		NatsRequestTimeout: time.Duration(s.cfg.GetNatsRequestTimeout()) * time.Second,
+		AppRequestTimeout:  time.Duration(s.cfg.GetAppRequestTimeout()) * time.Second,
+		Waiter:             waiter.GetDefaultWaiter(),
+	})
+
+	if s.appRepo == nil {
+		s.appRepo = repository.NewAppRepository(s.db)
+	}
+	functionRepo := repository.NewFunctionRepository(s.db)
+	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
+	operateLogRepo := repository.NewOperateLogRepository(s.db)
+	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
+	directoryUpdateHistoryRepo := repository.NewDirectoryUpdateHistoryRepository(s.db)
+	s.appService = service.NewAppService(s.appCall, s.appRepo, functionRepo, serviceTreeRepo, operateLogRepo, fileSnapshotRepo, directoryUpdateHistoryRepo)
+
+	s.jwtService = auth.NewJWTService()
+
+	scheduledTaskRepo := repository.NewScheduledTaskRepository(s.db)
+	scheduledTaskExecutionRepo := repository.NewScheduledTaskExecutionRepository(s.db)
+	s.scheduledTaskService = service.NewScheduledTaskService(s.appService, s.jwtService, scheduledTaskRepo, scheduledTaskExecutionRepo, service.ScheduledTaskServiceOptions{
+		PollInterval:   s.cfg.GetSchedulerPollInterval(),
+		BatchSize:      s.cfg.GetSchedulerBatchSize(),
+		LeaseDuration:  s.cfg.GetSchedulerLeaseDuration(),
+		MaxConcurrency: s.cfg.GetSchedulerMaxConcurrency(),
+	})
+
+	logger.Infof(ctx, "[Server] Scheduler services initialized successfully")
 	return nil
 }
 

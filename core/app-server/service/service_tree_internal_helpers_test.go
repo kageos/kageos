@@ -149,3 +149,27 @@ func TestServiceTreeQueryViewCalculateExpandedKeys_ExpandsRootAndPendingAncestor
 		}
 	}
 }
+
+func TestBuildBatchWriteFilesResp(t *testing.T) {
+	runtimeResp := &dto.BatchWriteFilesRuntimeResp{
+		FileCount:     2,
+		WrittenPaths:  []string{"/alice/demo/a", "/alice/demo/b"},
+		OldVersion:    "v3",
+		NewVersion:    "v4",
+		GitCommitHash: "abc123",
+	}
+
+	resp := buildBatchWriteFilesResp(runtimeResp, []string{"metadata warning"})
+	if resp == nil {
+		t.Fatal("expected response, got nil")
+	}
+	if resp.FileCount != 2 || len(resp.WrittenPaths) != 2 {
+		t.Fatalf("unexpected file mapping: %+v", resp)
+	}
+	if resp.OldVersion != "v3" || resp.NewVersion != "v4" {
+		t.Fatalf("unexpected version mapping: %+v", resp)
+	}
+	if len(resp.Warnings) != 1 || resp.Warnings[0] != "metadata warning" {
+		t.Fatalf("unexpected warnings: %#v", resp.Warnings)
+	}
+}

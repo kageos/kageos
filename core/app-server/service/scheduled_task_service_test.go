@@ -1,6 +1,10 @@
 package service
 
 import (
+	"context"
+	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -64,5 +68,32 @@ func TestComputeTaskNextStateUsesScheduledTimeForCatchUp(t *testing.T) {
 	everyStatus, everyNext, everyErr := computeTaskNextState(everyTask, scheduledAt, false)
 	if everyStatus != "pending" || everyNext == nil || !everyNext.Equal(scheduledAt.Add(time.Minute)) || everyErr != "temporary failure" {
 		t.Fatalf("every next state = (%s, %v, %q), want pending, %s, original error", everyStatus, everyNext, everyErr, scheduledAt.Add(time.Minute).Format(time.RFC3339))
+	}
+}
+
+func TestNormalizeScheduledTaskServiceOptionsSetsDefaultHeartbeatFile(t *testing.T) {
+	opts := normalizeScheduledTaskServiceOptions(ScheduledTaskServiceOptions{})
+	if opts.HeartbeatFile != defaultSchedulerHeartbeatFile {
+		t.Fatalf("heartbeat file = %q, want %q", opts.HeartbeatFile, defaultSchedulerHeartbeatFile)
+	}
+}
+
+func TestScheduledTaskServiceWriteHeartbeat(t *testing.T) {
+	heartbeatFile := filepath.Join(t.TempDir(), "scheduler.heartbeat")
+	svc := &ScheduledTaskService{
+		options: ScheduledTaskServiceOptions{
+			HeartbeatFile: heartbeatFile,
+		},
+	}
+
+	ts := time.Date(2026, 4, 19, 13, 0, 0, 0, time.UTC)
+	svc.writeHeartbeat(context.Background(), ts)
+
+	data, err := os.ReadFile(heartbeatFile)
+	if err != nil {
+		t.Fatalf("read heartbeat file: %v", err)
+	}
+	if got, want := string(data), strconv.FormatInt(ts.Unix(), 10); got != want {
+		t.Fatalf("heartbeat content = %q, want %q", got, want)
 	}
 }

@@ -119,10 +119,6 @@ func (c *AppServerConfig) GetNatsRequestTimeout() int {
 	return c.Timeouts.NatsRequest
 }
 
-func (c *AppServerConfig) IsSchedulerEmbedded() bool {
-	return GetGlobalSharedConfig().IsSchedulerEmbedded()
-}
-
 func (c *AppServerConfig) GetSchedulerPollInterval() time.Duration {
 	if c.Scheduler.PollIntervalSeconds <= 0 {
 		return time.Second

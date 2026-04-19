@@ -9,22 +9,11 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
-func (s *AppManageService) requestVersionDiff(ctx context.Context, user, app, version string, logPrefix string) *sharedDto.DiffData {
-	updateCallbackResponse, callbackErr := s.sendUpdateCallbackAndWait(ctx, user, app, version)
-	if callbackErr != nil {
-		logger.Warnf(ctx, "[%s] ❌ 获取 diff 失败: %v", logPrefix, callbackErr)
-		return nil
-	}
-
-	logger.Infof(ctx, "[%s] ✅ 获取 diff 成功: %+v", logPrefix, updateCallbackResponse)
-	return s.parseDiffData(ctx, updateCallbackResponse.Data, logPrefix)
-}
-
-func (s *AppManageService) requestRequiredVersionDiff(
+func (s *AppManageService) fetchVersionDiffPayload(
 	ctx context.Context,
 	user, app, version string,
 	logPrefix string,
-) (*sharedDto.DiffData, error) {
+) (interface{}, error) {
 	updateCallbackResponse, callbackErr := s.sendUpdateCallbackAndWait(ctx, user, app, version)
 	if callbackErr != nil {
 		logger.Warnf(ctx, "[%s] ❌ 获取 diff 失败: %v", logPrefix, callbackErr)
@@ -32,7 +21,29 @@ func (s *AppManageService) requestRequiredVersionDiff(
 	}
 
 	logger.Infof(ctx, "[%s] ✅ 获取 diff 成功: %+v", logPrefix, updateCallbackResponse)
-	return s.parseDiffData(ctx, updateCallbackResponse.Data, logPrefix), nil
+	return updateCallbackResponse.Data, nil
+}
+
+func (s *AppManageService) requestVersionDiff(ctx context.Context, user, app, version string, logPrefix string) *sharedDto.DiffData {
+	diffPayload, err := s.fetchVersionDiffPayload(ctx, user, app, version, logPrefix)
+	if err != nil {
+		return nil
+	}
+
+	return s.parseDiffData(ctx, diffPayload, logPrefix)
+}
+
+func (s *AppManageService) requestRequiredVersionDiff(
+	ctx context.Context,
+	user, app, version string,
+	logPrefix string,
+) (*sharedDto.DiffData, error) {
+	diffPayload, err := s.fetchVersionDiffPayload(ctx, user, app, version, logPrefix)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.parseDiffData(ctx, diffPayload, logPrefix), nil
 }
 
 func (s *AppManageService) parseDiffData(ctx context.Context, data interface{}, logPrefix string) *sharedDto.DiffData {

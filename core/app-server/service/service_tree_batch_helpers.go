@@ -89,7 +89,6 @@ func executeBatchWriteFiles(
 	ctx context.Context,
 	runtimeWorkspace *runtimeWorkspaceBridge,
 	appService *AppService,
-	appRepo *repository.AppRepository,
 	req *dto.BatchWriteFilesReq,
 ) (*dto.BatchWriteFilesResp, error) {
 	app, runtimeResp, err := runtimeWorkspace.batchWriteFiles(ctx, req)
@@ -97,24 +96,28 @@ func executeBatchWriteFiles(
 		return nil, err
 	}
 
-	if runtimeResp.Diff != nil {
-		updateAppReq := &dto.UpdateAppReq{
-			User: req.User,
-			App:  req.App,
-		}
-		if err := appService.processAPIDiff(ctx, app.ID, runtimeResp.Diff, updateAppReq, 0, runtimeResp.GitCommitHash); err != nil {
-			logger.Warnf(ctx, "[BatchWriteFiles] 处理 API diff 失败: %v", err)
-		}
+	warnings, err := appService.finalizeReleasedAppMetadata(
+		ctx,
+		"BatchWriteFiles",
+		app,
+		req.User,
+		req.App,
+		runtimeResp.NewVersion,
+		runtimeResp.Diff,
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	if runtimeResp.NewVersion != "" {
-		if err := appRepo.UpdateAppVersion(req.User, req.App, runtimeResp.NewVersion); err != nil {
-			logger.Warnf(ctx, "[BatchWriteFiles] 更新应用版本失败: oldVersion=%s, newVersion=%s, error=%v",
-				runtimeResp.OldVersion, runtimeResp.NewVersion, err)
-		} else {
-			logger.Infof(ctx, "[BatchWriteFiles] 应用版本更新成功: oldVersion=%s, newVersion=%s",
-				runtimeResp.OldVersion, runtimeResp.NewVersion)
-		}
+	return buildBatchWriteFilesResp(runtimeResp, warnings), nil
+}
+
+func buildBatchWriteFilesResp(
+	runtimeResp *dto.BatchWriteFilesRuntimeResp,
+	warnings []string,
+) *dto.BatchWriteFilesResp {
+	if runtimeResp == nil {
+		return &dto.BatchWriteFilesResp{Warnings: warnings}
 	}
 
 	return &dto.BatchWriteFilesResp{
@@ -124,5 +127,6 @@ func executeBatchWriteFiles(
 		OldVersion:    runtimeResp.OldVersion,
 		NewVersion:    runtimeResp.NewVersion,
 		GitCommitHash: runtimeResp.GitCommitHash,
-	}, nil
+		Warnings:      warnings,
+	}
 }

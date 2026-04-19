@@ -313,7 +313,6 @@ func (s *AppManageService) DeleteApp(ctx context.Context, user, app string) erro
 // 如果提供了 sourceFiles，先执行源码文件写入。
 // writeOnly 为 true 时仅写文件，不编译不部署。
 func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, sourceFiles []*sharedDto.SourceFileWrite, requirement, changeDescription string, writeOnly bool) (*sharedDto.UpdateAppResp, error) {
-
 	logStr := strings.Builder{}
 	logStr.WriteString(fmt.Sprintf("[UpdateApp] Starting update: %s/%s\t", user, app))
 
@@ -321,9 +320,7 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, sour
 	if err != nil {
 		return nil, err
 	}
-	if state.oldVersion == "unknown" {
-		logStr.WriteString("Failed to get current version\t")
-	}
+	s.noteUnknownUpdateVersion(state, &logStr)
 
 	sourceWriteState, err := s.writeSourceFilesForUpdate(ctx, user, app, sourceFiles)
 	if err != nil {
@@ -331,54 +328,24 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, sour
 	}
 
 	if writeOnly {
-		logger.Infof(ctx, "[UpdateApp] WriteOnly=true，仅写文件不编译不部署")
-		return &sharedDto.UpdateAppResp{
-			User:       user,
-			App:        app,
-			OldVersion: state.oldVersion,
-			NewVersion: state.oldVersion,
-		}, nil
+		return s.buildWriteOnlyUpdateResp(ctx, user, app, state.oldVersion), nil
 	}
 
-	release, err := s.prepareAppRelease(
+	release, err := s.buildAndDeployUpdatedRelease(
 		ctx,
 		user,
 		app,
-		state.absPaths,
-		state.oldVersion,
-		"UpdateApp",
+		state,
+		sourceWriteState,
 		requirement,
 		changeDescription,
+		&logStr,
 	)
 	if err != nil {
-		if sourceWriteState != nil && len(sourceWriteState.writtenPaths) > 0 {
-			logger.Warnf(ctx, "[UpdateApp] 编译失败，开始回滚已写入的源码文件: fileCount=%d", len(sourceWriteState.writtenPaths))
-			s.workspaceFileService.rollbackWriteState(ctx, sourceWriteState)
-		}
-		return nil, fmt.Errorf("failed to build app: %w", err)
-	}
-
-	if err := s.deployUpdatedVersion(ctx, user, app, state, release.newVersion, &logStr); err != nil {
 		return nil, err
 	}
 
-	diffData, err := s.requestRequiredVersionDiff(ctx, user, app, release.newVersion, "UpdateApp")
-	if err != nil {
-		logger.Warnf(ctx, "[UpdateApp] Aborting update result to avoid API state drift")
-		return nil, err
-	}
-
-	result := &sharedDto.UpdateAppResp{
-		User:          user,
-		App:           app,
-		OldVersion:    release.oldVersion,
-		NewVersion:    release.newVersion,
-		GitCommitHash: release.gitCommitHash, // Git 提交哈希
-		Diff:          diffData,              // 转换后的 diff 信息
-		Error:         "",
-	}
-
-	return result, nil
+	return s.completeUpdatedRelease(ctx, user, app, release)
 }
 
 // updateAppStatusToActive 将应用状态更新为active（已激活）
@@ -395,6 +362,22 @@ func (s *AppManageService) updateAppStatusToActive(ctx context.Context, user, ap
 	}
 
 	return nil
+}
+
+func (s *AppManageService) buildUpdateAppResp(
+	user, app string,
+	release *appReleaseResult,
+	diffData *sharedDto.DiffData,
+) *sharedDto.UpdateAppResp {
+	return &sharedDto.UpdateAppResp{
+		User:          user,
+		App:           app,
+		OldVersion:    release.oldVersion,
+		NewVersion:    release.newVersion,
+		GitCommitHash: release.gitCommitHash, // Git 提交哈希
+		Diff:          diffData,              // 转换后的 diff 信息
+		Error:         "",
+	}
 }
 
 // sendUpdateCallbackAndWait 使用 NATS Request/Reply 模式发送 update 回调并等待响应

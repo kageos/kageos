@@ -105,7 +105,7 @@ func SchedulerMain(ctx context.Context, stopCh <-chan struct{}, readyCh chan<- s
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	srv, err := server.NewServer(cfg)
+	srv, err := server.NewSchedulerServer(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create scheduler server: %w", err)
 	}

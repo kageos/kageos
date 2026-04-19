@@ -114,7 +114,7 @@ flowchart LR
     main --> minio
     scheduler --> mysql
     scheduler --> nats
-    scheduler --> main
+    scheduler --> runtime[app-runtime]
     backup --> mysql
     backup --> minio
 ```
@@ -384,14 +384,14 @@ flowchart LR
 
 所以当前设计是：
 
-- 主站先完成平台控制面
+- 主站先完成平台控制面并拉起 `app-runtime`
 - scheduler 再作为独立执行者接入
 
 它依赖：
 
 - MySQL
 - NATS
-- API Gateway
+- app-runtime
 
 因此它的逻辑位置是：
 
