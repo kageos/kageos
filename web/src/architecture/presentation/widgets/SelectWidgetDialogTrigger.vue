@@ -23,7 +23,9 @@
           </div>
         </template>
         <template v-else>
-          <span class="select-label">{{ hasValue ? displayValue : fallbackLabel }}</span>
+          <span :class="hasValue ? 'select-label' : 'select-placeholder'">
+            {{ hasValue ? displayValue : fallbackLabel }}
+          </span>
           <div class="select-actions">
             <el-icon
               v-if="showClear"
@@ -110,9 +112,9 @@ defineEmits<{
   flex-shrink: 0;
 }
 
-.select-label {
+.select-label,
+.select-placeholder {
   flex: 1;
-  color: var(--el-text-color-primary);
   font-size: 14px;
   line-height: 1.5;
   overflow: hidden;
@@ -120,7 +122,16 @@ defineEmits<{
   white-space: nowrap;
 }
 
-.select-container.is-search-mode .select-label {
+.select-label {
+  color: var(--el-text-color-primary);
+}
+
+.select-placeholder {
+  color: var(--el-text-color-placeholder);
+}
+
+.select-container.is-search-mode .select-label,
+.select-container.is-search-mode .select-placeholder {
   font-size: 13px;
 }
 

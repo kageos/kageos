@@ -16,6 +16,8 @@
           v-for="option in options"
           :key="option.value"
           :label="option.value"
+          class="radio-option"
+          :class="{ 'is-selected': selectedValue === option.value }"
         >
           {{ option.label }}
         </el-radio>
@@ -47,6 +49,8 @@
           v-for="option in options"
           :key="option.value"
           :label="option.value"
+          class="radio-option"
+          :class="{ 'is-selected': selectedValue === option.value }"
         >
           {{ option.label }}
         </el-radio>
@@ -182,6 +186,63 @@ watch(
   gap: 12px;
 }
 
+.radio-group :deep(.el-radio-group) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.radio-group :deep(.radio-option) {
+  margin-right: 0;
+  min-height: 38px;
+  padding: 0 14px 0 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 10px;
+  background: var(--el-fill-color-blank);
+  transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+.radio-group :deep(.radio-option:hover) {
+  border-color: var(--el-color-primary-light-5);
+  background: var(--el-fill-color-light);
+  transform: translateY(-1px);
+}
+
+.radio-group :deep(.radio-option .el-radio__input) {
+  display: inline-flex;
+  align-items: center;
+}
+
+.radio-group :deep(.radio-option .el-radio__inner) {
+  border-color: var(--el-border-color-dark);
+}
+
+.radio-group :deep(.radio-option .el-radio__label) {
+  padding-left: 8px;
+  color: var(--el-text-color-regular);
+  font-weight: 500;
+}
+
+.radio-group :deep(.radio-option.is-selected) {
+  border-color: var(--el-color-primary);
+  background: linear-gradient(180deg, var(--el-color-primary-light-9) 0%, var(--el-fill-color-blank) 100%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--el-color-primary) 16%, transparent);
+}
+
+.radio-group :deep(.radio-option.is-selected .el-radio__label) {
+  color: var(--el-color-primary-dark-2);
+}
+
+.radio-group :deep(.radio-option.is-selected .el-radio__inner) {
+  border-color: var(--el-color-primary);
+}
+
+.radio-group :deep(.radio-option.is-disabled) {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .response-value {
   color: var(--el-text-color-regular);
 }
@@ -204,4 +265,3 @@ watch(
   color: var(--el-text-color-regular);
 }
 </style>
-

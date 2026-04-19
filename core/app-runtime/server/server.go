@@ -98,7 +98,7 @@ func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping app-runtime server...")
 
 	// 反向顺序关闭资源
-	// HTTP server 已经不需要特殊关闭，端口会自动释放
+	s.stopHTTP(ctx)
 
 	s.unsubscribeNATS(ctx)
 	s.stopServices(ctx)
@@ -344,7 +344,8 @@ func (s *Server) unsubscribeNATS(ctx context.Context) {
 }
 
 // startHTTP 检测是否重复启动（通过端口占用检测）
-// 如果端口已被占用，说明已有实例运行，直接 panic
+// 如果端口已被占用，说明已有实例运行，直接 panic。
+// 监听成功后提供一个极小的 /health 接口，作为 runtime 的就绪探针。
 func (s *Server) startHTTP(ctx context.Context) error {
 	addr := net.JoinHostPort(s.cfg.GetListenHost(), strconv.Itoa(s.cfg.Runtime.Port))
 
@@ -355,29 +356,50 @@ func (s *Server) startHTTP(ctx context.Context) error {
 		panic(fmt.Sprintf("启动失败：端口 %s 已被占用，可能有其他实例正在运行", addr))
 	}
 
-	// 保持端口监听，作为实例运行的标识
-	// 当进程退出时，端口会自动释放
-
-	// 将 listener 保存到 httpServer 的 Addr 字段，用于后续关闭
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", s.handleHealth)
 	s.httpServer = &http.Server{
-		Addr: addr,
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	// 启动一个 goroutine 保持监听
+	// 启动独立 HTTP 健康探针服务。
 	go func() {
-		// 简单接受连接但不处理，只是占住端口
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				// listener 关闭时会返回错误，正常退出
-				return
-			}
-			// 立即关闭连接
-			conn.Close()
+		if err := s.httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
+			logger.Errorf(ctx, "[Server] App-runtime health server exited unexpectedly: %v", err)
 		}
 	}()
 
 	return nil
+}
+
+func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("ok"))
+}
+
+func (s *Server) stopHTTP(ctx context.Context) {
+	if s.httpServer == nil {
+		return
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if deadline, ok := ctx.Deadline(); ok {
+		shutdownCtx, cancel = context.WithDeadline(context.Background(), deadline)
+		defer cancel()
+	}
+
+	if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
+		logger.Warnf(ctx, "[Server] Failed to stop app-runtime health server gracefully: %v", err)
+		if closeErr := s.httpServer.Close(); closeErr != nil {
+			logger.Warnf(ctx, "[Server] Force close app-runtime health server failed: %v", closeErr)
+		}
+	} else {
+		logger.Infof(ctx, "[Server] App-runtime health server stopped")
+	}
+	s.httpServer = nil
 }
 
 // GetAppManageService 获取应用管理服务（供 NATS handler 使用）

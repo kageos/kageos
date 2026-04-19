@@ -55,17 +55,18 @@ $inline-select-hover-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--el-color-primary) 18%, transparent);
   }
 
-  #{$selector} :deep(.el-select__selected-item),
+  #{$selector} :deep(.el-select__selected-item:not(.el-select__placeholder)),
   #{$selector} :deep(.el-select__placeholder) {
     font-size: $font-size;
   }
 
-  #{$selector} :deep(.el-select__selected-item) {
+  #{$selector} :deep(.el-select__selected-item:not(.el-select__placeholder)),
+  #{$selector} :deep(.el-select__placeholder:not(.is-transparent)) {
     color: var(--el-text-color-primary) !important;
     font-weight: 500;
   }
 
-  #{$selector} :deep(.el-select__placeholder:not(.is-transparent)) {
+  #{$selector} :deep(.el-select__placeholder.is-transparent) {
     color: var(--el-text-color-placeholder) !important;
     font-weight: 400;
   }

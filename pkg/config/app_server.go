@@ -57,6 +57,8 @@ type AppServerSchedulerConfig struct {
 	BatchSize            int `mapstructure:"batch_size"`
 	LeaseDurationSeconds int `mapstructure:"lease_duration_seconds"`
 	MaxConcurrency       int `mapstructure:"max_concurrency"`
+	HealthPort           int `mapstructure:"health_port"`
+	HealthMaxAgeSeconds  int `mapstructure:"health_max_age_seconds"`
 }
 
 // AppServerTimeoutCfg 超时配置
@@ -149,6 +151,26 @@ func (c *AppServerConfig) GetSchedulerMaxConcurrency() int {
 		return 4
 	}
 	return c.Scheduler.MaxConcurrency
+}
+
+func (c *AppServerConfig) GetSchedulerHealthPort() int {
+	if c == nil {
+		return 9098
+	}
+	if c.Scheduler.HealthPort <= 0 {
+		return 9098
+	}
+	return c.Scheduler.HealthPort
+}
+
+func (c *AppServerConfig) GetSchedulerHeartbeatMaxAge() time.Duration {
+	if c == nil {
+		return 30 * time.Second
+	}
+	if c.Scheduler.HealthMaxAgeSeconds <= 0 {
+		return 30 * time.Second
+	}
+	return time.Duration(c.Scheduler.HealthMaxAgeSeconds) * time.Second
 }
 
 // 数据库配置便捷访问方法

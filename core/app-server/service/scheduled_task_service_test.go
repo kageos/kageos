@@ -76,6 +76,9 @@ func TestNormalizeScheduledTaskServiceOptionsSetsDefaultHeartbeatFile(t *testing
 	if opts.HeartbeatFile != defaultSchedulerHeartbeatFile {
 		t.Fatalf("heartbeat file = %q, want %q", opts.HeartbeatFile, defaultSchedulerHeartbeatFile)
 	}
+	if opts.HeartbeatMaxAge != defaultSchedulerHeartbeatMaxAge {
+		t.Fatalf("heartbeat max age = %s, want %s", opts.HeartbeatMaxAge, defaultSchedulerHeartbeatMaxAge)
+	}
 }
 
 func TestScheduledTaskServiceWriteHeartbeat(t *testing.T) {
@@ -95,5 +98,38 @@ func TestScheduledTaskServiceWriteHeartbeat(t *testing.T) {
 	}
 	if got, want := string(data), strconv.FormatInt(ts.Unix(), 10); got != want {
 		t.Fatalf("heartbeat content = %q, want %q", got, want)
+	}
+}
+
+func TestScheduledTaskServiceHealthStatusUsesHeartbeatAge(t *testing.T) {
+	heartbeatFile := filepath.Join(t.TempDir(), "scheduler.heartbeat")
+	svc := &ScheduledTaskService{
+		options: ScheduledTaskServiceOptions{
+			HeartbeatFile:   heartbeatFile,
+			HeartbeatMaxAge: 30 * time.Second,
+		},
+	}
+
+	base := time.Date(2026, 4, 19, 13, 0, 0, 0, time.UTC)
+	if healthy, age := svc.HealthStatus(base); healthy || age != 0 {
+		t.Fatalf("health status without heartbeat = (%t, %s), want false, 0", healthy, age)
+	}
+
+	svc.writeHeartbeat(context.Background(), base)
+
+	healthy, age := svc.HealthStatus(base.Add(10 * time.Second))
+	if !healthy {
+		t.Fatalf("health status after fresh heartbeat = false, want true")
+	}
+	if age != 10*time.Second {
+		t.Fatalf("heartbeat age = %s, want %s", age, 10*time.Second)
+	}
+
+	healthy, age = svc.HealthStatus(base.Add(31 * time.Second))
+	if healthy {
+		t.Fatalf("health status after stale heartbeat = true, want false")
+	}
+	if age != 31*time.Second {
+		t.Fatalf("stale heartbeat age = %s, want %s", age, 31*time.Second)
 	}
 }

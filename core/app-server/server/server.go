@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -33,9 +34,10 @@ type Server struct {
 	cfg *config.AppServerConfig
 
 	// 核心组件
-	db         *gorm.DB
-	natsConn   *nats.Conn
-	httpServer *gin.Engine
+	db                  *gorm.DB
+	natsConn            *nats.Conn
+	httpServer          *gin.Engine
+	schedulerHealthHTTP *http.Server
 
 	// 服务
 	appService                    *service.AppService
@@ -63,6 +65,8 @@ type Server struct {
 	licenseClient *license.Client
 	schedulerDone chan struct{}
 }
+
+const schedulerHealthListenHost = "127.0.0.1"
 
 func newBaseServer(cfg *config.AppServerConfig) *Server {
 	ctx := context.Background()
@@ -185,6 +189,9 @@ func (s *Server) StartScheduler(ctx context.Context) error {
 	if s.schedulerDone != nil {
 		return fmt.Errorf("scheduled task scheduler is already running")
 	}
+	if err := s.startSchedulerHealthHTTP(ctx); err != nil {
+		return err
+	}
 	s.schedulerDone = make(chan struct{})
 	go func() {
 		defer close(s.schedulerDone)
@@ -197,6 +204,10 @@ func (s *Server) StartScheduler(ctx context.Context) error {
 // Stop 停止服务器（优雅关闭）
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping server...")
+
+	if s.schedulerHealthHTTP != nil {
+		s.stopSchedulerHealthHTTP(ctx)
+	}
 
 	if s.schedulerDone != nil {
 		logger.Infof(ctx, "[Server] Waiting scheduled task scheduler to stop...")
@@ -427,10 +438,11 @@ func (s *Server) initServices(ctx context.Context) error {
 	scheduledTaskRepo := repository.NewScheduledTaskRepository(s.db)
 	scheduledTaskExecutionRepo := repository.NewScheduledTaskExecutionRepository(s.db)
 	s.scheduledTaskService = service.NewScheduledTaskService(s.appService, s.jwtService, scheduledTaskRepo, scheduledTaskExecutionRepo, service.ScheduledTaskServiceOptions{
-		PollInterval:   s.cfg.GetSchedulerPollInterval(),
-		BatchSize:      s.cfg.GetSchedulerBatchSize(),
-		LeaseDuration:  s.cfg.GetSchedulerLeaseDuration(),
-		MaxConcurrency: s.cfg.GetSchedulerMaxConcurrency(),
+		PollInterval:    s.cfg.GetSchedulerPollInterval(),
+		BatchSize:       s.cfg.GetSchedulerBatchSize(),
+		LeaseDuration:   s.cfg.GetSchedulerLeaseDuration(),
+		MaxConcurrency:  s.cfg.GetSchedulerMaxConcurrency(),
+		HeartbeatMaxAge: s.cfg.GetSchedulerHeartbeatMaxAge(),
 	})
 
 	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
@@ -471,10 +483,11 @@ func (s *Server) initSchedulerServices(ctx context.Context) error {
 	scheduledTaskRepo := repository.NewScheduledTaskRepository(s.db)
 	scheduledTaskExecutionRepo := repository.NewScheduledTaskExecutionRepository(s.db)
 	s.scheduledTaskService = service.NewScheduledTaskService(s.appService, s.jwtService, scheduledTaskRepo, scheduledTaskExecutionRepo, service.ScheduledTaskServiceOptions{
-		PollInterval:   s.cfg.GetSchedulerPollInterval(),
-		BatchSize:      s.cfg.GetSchedulerBatchSize(),
-		LeaseDuration:  s.cfg.GetSchedulerLeaseDuration(),
-		MaxConcurrency: s.cfg.GetSchedulerMaxConcurrency(),
+		PollInterval:    s.cfg.GetSchedulerPollInterval(),
+		BatchSize:       s.cfg.GetSchedulerBatchSize(),
+		LeaseDuration:   s.cfg.GetSchedulerLeaseDuration(),
+		MaxConcurrency:  s.cfg.GetSchedulerMaxConcurrency(),
+		HeartbeatMaxAge: s.cfg.GetSchedulerHeartbeatMaxAge(),
 	})
 
 	logger.Infof(ctx, "[Server] Scheduler services initialized successfully")
@@ -510,6 +523,75 @@ func (s *Server) healthHandler(c *gin.Context) {
 		"timestamp": time.Now().Format(time.DateTime),
 		"service":   "app-server",
 	})
+}
+
+func (s *Server) startSchedulerHealthHTTP(ctx context.Context) error {
+	if s.schedulerHealthHTTP != nil {
+		return fmt.Errorf("scheduler health server is already running")
+	}
+
+	addr := net.JoinHostPort(schedulerHealthListenHost, strconv.Itoa(s.cfg.GetSchedulerHealthPort()))
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("listen scheduler health server on %s: %w", addr, err)
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", s.handleSchedulerHealth)
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	s.schedulerHealthHTTP = server
+
+	go func() {
+		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+			logger.Errorf(ctx, "[Server] Scheduler health server exited unexpectedly: %v", err)
+		}
+	}()
+
+	logger.Infof(ctx, "[Server] Scheduler health server started on %s", addr)
+	return nil
+}
+
+func (s *Server) handleSchedulerHealth(w http.ResponseWriter, _ *http.Request) {
+	if s.scheduledTaskService == nil {
+		http.Error(w, "scheduler service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	healthy, age := s.scheduledTaskService.HealthStatus(time.Now())
+	if !healthy {
+		http.Error(w, fmt.Sprintf("scheduler heartbeat stale: age=%s", age.Round(time.Second)), http.StatusServiceUnavailable)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("ok"))
+}
+
+func (s *Server) stopSchedulerHealthHTTP(ctx context.Context) {
+	if s.schedulerHealthHTTP == nil {
+		return
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if deadline, ok := ctx.Deadline(); ok {
+		cancel()
+		shutdownCtx, cancel = context.WithDeadline(context.Background(), deadline)
+	}
+	defer cancel()
+
+	if err := s.schedulerHealthHTTP.Shutdown(shutdownCtx); err != nil {
+		logger.Warnf(ctx, "[Server] Failed to stop scheduler health server gracefully: %v", err)
+		if closeErr := s.schedulerHealthHTTP.Close(); closeErr != nil {
+			logger.Warnf(ctx, "[Server] Force close scheduler health server failed: %v", closeErr)
+		}
+	} else {
+		logger.Infof(ctx, "[Server] Scheduler health server stopped")
+	}
+	s.schedulerHealthHTTP = nil
 }
 
 // GetDB 获取数据库连接

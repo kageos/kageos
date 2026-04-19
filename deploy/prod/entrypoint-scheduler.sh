@@ -15,7 +15,7 @@ set_smtp_defaults
 echo "==> 等待依赖（MySQL / NATS / app-runtime）..."
 wait_tcp 127.0.0.1 3306 "MySQL"
 wait_tcp 127.0.0.1 4222 "NATS"
-wait_tcp 127.0.0.1 9093 "app-runtime"
+wait_http "http://127.0.0.1:9093/health" "app-runtime"
 
 PROD_TEMPLATE_VARS='${MYSQL_ROOT_PASSWORD} ${JWT_SECRET} ${CONTROL_ENC_KEY} ${MINIO_ROOT_PASSWORD} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${SMTP_FROM} ${SMTP_FROM_NAME} ${APP_BASE_IMAGE}'
 render_runtime_templates "$PROD_TEMPLATE_VARS"

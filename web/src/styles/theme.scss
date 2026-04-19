@@ -137,13 +137,14 @@
     border: 1px solid #cbd5e1 !important;
     transition: all 0.3s ease !important;
     
-    .el-select__selected-item,
+    .el-select__selected-item:not(.el-select__placeholder),
+    .el-select__placeholder:not(.is-transparent),
     .el-select__input {
       color: var(--text-primary) !important;
       -webkit-text-fill-color: var(--text-primary) !important;
     }
 
-    .el-select__placeholder:not(.is-transparent),
+    .el-select__placeholder.is-transparent,
     &::placeholder,
     .el-input__inner::placeholder,
     .el-textarea__inner::placeholder,
@@ -463,13 +464,14 @@ html.dark {
     border-radius: var(--border-radius-input) !important;
     box-shadow: none !important;
     
-    .el-select__selected-item,
+    .el-select__selected-item:not(.el-select__placeholder),
+    .el-select__placeholder:not(.is-transparent),
     .el-select__input {
       color: var(--text-primary) !important;
       -webkit-text-fill-color: var(--text-primary) !important;
     }
 
-    .el-select__placeholder:not(.is-transparent),
+    .el-select__placeholder.is-transparent,
     .el-select__input::placeholder {
       color: var(--text-secondary) !important;
       -webkit-text-fill-color: var(--text-secondary) !important;
