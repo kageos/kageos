@@ -28,6 +28,22 @@ wait_tcp() {
   exit 1
 }
 
+wait_http() {
+  local url="$1" label="$2"
+  local i=1
+  while [ "$i" -le 90 ]; do
+    if curl --silent --show-error --fail "$url" >/dev/null 2>&1; then
+      echo "==> ${label} (${url}) 就绪"
+      return 0
+    fi
+    echo "    等待 ${label} (${url}) ... ($i/90)"
+    sleep 2
+    i=$((i + 1))
+  done
+  echo "ERROR: 超时未连上 ${label} ${url}" >&2
+  exit 1
+}
+
 ensure_main_runtime_dirs() {
   mkdir -p \
     /app/logs \

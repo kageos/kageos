@@ -1141,7 +1141,8 @@ const lifecycle = useFormViewLifecycle({
 
 .form-view-main :deep(.el-input__inner),
 .form-view-main :deep(.el-textarea__inner),
-.form-view-main :deep(.el-select__selected-item),
+.form-view-main :deep(.el-select__selected-item:not(.el-select__placeholder)),
+.form-view-main :deep(.el-select__placeholder:not(.is-transparent)),
 .form-view-main :deep(.department-select-display),
 .form-view-main :deep(.user-search-display) {
   color: var(--text-primary);
@@ -1149,7 +1150,7 @@ const lifecycle = useFormViewLifecycle({
 
 .form-view-main :deep(.el-input__inner::placeholder),
 .form-view-main :deep(.el-textarea__inner::placeholder),
-.form-view-main :deep(.el-select__placeholder:not(.is-transparent)),
+.form-view-main :deep(.el-select__placeholder.is-transparent),
 .form-view-main :deep(.el-select__input::placeholder) {
   color: var(--text-disabled);
   -webkit-text-fill-color: var(--text-disabled);

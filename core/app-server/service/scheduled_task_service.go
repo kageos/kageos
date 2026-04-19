@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
@@ -31,7 +32,10 @@ const (
 
 var scheduledTaskCronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 
-const defaultSchedulerHeartbeatFile = "./logs/app-scheduler.heartbeat"
+const (
+	defaultSchedulerHeartbeatFile   = "./logs/app-scheduler.heartbeat"
+	defaultSchedulerHeartbeatMaxAge = 30 * time.Second
+)
 
 type scheduledTaskAppClient interface {
 	RequestApp(ctx context.Context, req *dto.RequestAppReq) (*dto.RequestAppResp, error)
@@ -146,14 +150,16 @@ type ScheduledTaskService struct {
 	schedulerID   string
 	workerSlots   chan struct{}
 	runWG         sync.WaitGroup
+	lastHeartbeat atomic.Int64
 }
 
 type ScheduledTaskServiceOptions struct {
-	PollInterval   time.Duration
-	BatchSize      int
-	LeaseDuration  time.Duration
-	MaxConcurrency int
-	HeartbeatFile  string
+	PollInterval    time.Duration
+	BatchSize       int
+	LeaseDuration   time.Duration
+	MaxConcurrency  int
+	HeartbeatFile   string
+	HeartbeatMaxAge time.Duration
 }
 
 func normalizeScheduledTaskServiceOptions(opts ScheduledTaskServiceOptions) ScheduledTaskServiceOptions {
@@ -171,6 +177,16 @@ func normalizeScheduledTaskServiceOptions(opts ScheduledTaskServiceOptions) Sche
 	}
 	if strings.TrimSpace(opts.HeartbeatFile) == "" {
 		opts.HeartbeatFile = defaultSchedulerHeartbeatFile
+	}
+	if opts.HeartbeatMaxAge <= 0 {
+		opts.HeartbeatMaxAge = defaultSchedulerHeartbeatMaxAge
+	}
+	minHeartbeatMaxAge := opts.PollInterval * 3
+	if minHeartbeatMaxAge <= 0 {
+		minHeartbeatMaxAge = 3 * time.Second
+	}
+	if opts.HeartbeatMaxAge < minHeartbeatMaxAge {
+		opts.HeartbeatMaxAge = minHeartbeatMaxAge
 	}
 	return opts
 }
@@ -707,8 +723,23 @@ func (s *ScheduledTaskService) recordFunctionOperateLog(ctx context.Context, tas
 	}
 }
 
+func (s *ScheduledTaskService) HealthStatus(now time.Time) (bool, time.Duration) {
+	lastHeartbeatUnix := s.lastHeartbeat.Load()
+	if lastHeartbeatUnix <= 0 {
+		return false, 0
+	}
+
+	lastHeartbeatAt := time.Unix(lastHeartbeatUnix, 0)
+	age := now.Sub(lastHeartbeatAt)
+	if age < 0 {
+		age = 0
+	}
+	return age <= s.options.HeartbeatMaxAge, age
+}
+
 func (s *ScheduledTaskService) writeHeartbeat(ctx context.Context, now time.Time) {
 	path := strings.TrimSpace(s.options.HeartbeatFile)
+	s.lastHeartbeat.Store(now.Unix())
 	if path == "" {
 		return
 	}
