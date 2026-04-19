@@ -139,12 +139,18 @@
     
     // 修复 select/input placeholder 颜色过深的问题
     .el-select__placeholder.is-transparent,
-    .el-select__placeholder,
     &::placeholder,
     .el-input__inner::placeholder,
     .el-textarea__inner::placeholder {
       color: var(--text-disabled) !important;
       -webkit-text-fill-color: var(--text-disabled) !important;
+    }
+    
+    // 确保选中的值是正常字体颜色
+    .el-select__placeholder:not(.is-transparent),
+    .el-select__selected-item {
+      color: var(--text-primary) !important;
+      -webkit-text-fill-color: var(--text-primary) !important;
     }
     
     &:hover {
