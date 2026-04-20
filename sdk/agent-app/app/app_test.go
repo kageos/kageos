@@ -1,0 +1,45 @@
+package app
+
+import (
+	"testing"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
+)
+
+func TestResolveNATSURL(t *testing.T) {
+	t.Setenv("NATS_URL", "")
+	if got := resolveNATSURL(); got != "nats://127.0.0.1:4222" {
+		t.Fatalf("expected default NATS URL, got %s", got)
+	}
+
+	t.Setenv("NATS_URL", "nats://example:4222")
+	if got := resolveNATSURL(); got != "nats://example:4222" {
+		t.Fatalf("expected env NATS URL, got %s", got)
+	}
+}
+
+func TestBuildAppSubjects(t *testing.T) {
+	oldUser, oldApp, oldVersion := env.User, env.App, env.Version
+	env.User, env.App, env.Version = "alice", "demo", "v7"
+	defer func() {
+		env.User, env.App, env.Version = oldUser, oldApp, oldVersion
+	}()
+
+	got := buildAppSubjects()
+	if got.InvokeCommand != subjects.BuildAppInvokeSubject("alice", "demo", "v7") {
+		t.Fatalf("unexpected invoke command subject: %s", got.InvokeCommand)
+	}
+	if got.InvokeReply != subjects.BuildAppServerAppInvokeReplySubject("alice", "demo", "v7") {
+		t.Fatalf("unexpected invoke reply subject: %s", got.InvokeReply)
+	}
+	if got.ControlCommand != subjects.BuildAppControlSubject("alice", "demo", "v7") {
+		t.Fatalf("unexpected control command subject: %s", got.ControlCommand)
+	}
+	if got.LifecycleEvent != subjects.BuildRuntimeLifecycleEventSubject("alice", "demo", "v7") {
+		t.Fatalf("unexpected lifecycle event subject: %s", got.LifecycleEvent)
+	}
+	if got.DiscoveryRequest != subjects.AppDiscoveryRequestSubject {
+		t.Fatalf("unexpected discovery request subject: %s", got.DiscoveryRequest)
+	}
+}

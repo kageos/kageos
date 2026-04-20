@@ -120,7 +120,28 @@ type Subjects struct {
 
 // NewApp 创建新的应用实例
 func NewApp() (*App, error) {
+	if err := initAppLogger(); err != nil {
+		return nil, err
+	}
 
+	conn, err := connectAppNATS()
+	if err != nil {
+		return nil, err
+	}
+
+	newApp := newAppInstance(conn)
+	if err := initializeAppRuntime(newApp); err != nil {
+		return nil, err
+	}
+
+	startPprofServer()
+	newApp.notifyStartupBestEffort()
+
+	logger.Infof(context.Background(), "NewApp() completed successfully")
+	return newApp, nil
+}
+
+func initAppLogger() error {
 	cfg := logger.Config{
 		Level:      "info",
 		Filename:   fmt.Sprintf("/app/workplace/logs/%s_%s_%s.log", env.User, env.App, env.Version),
@@ -130,17 +151,11 @@ func NewApp() (*App, error) {
 		Compress:   true,
 		IsDev:      false,
 	}
-	err := logger.Init(cfg)
-	if err != nil {
-		return nil, err
-	}
+	return logger.Init(cfg)
+}
 
-	// 连接 NATS（优先使用环境变量）
-	natsURL := os.Getenv("NATS_URL")
-	if natsURL == "" {
-		natsURL = "nats://127.0.0.1:4222"
-	}
-
+func connectAppNATS() (*nats.Conn, error) {
+	natsURL := resolveNATSURL()
 	logger.Infof(context.Background(), "Connecting to NATS: %s", natsURL)
 
 	conn, err := natsx.ConnectNamedWithOptions(
@@ -156,7 +171,18 @@ func NewApp() (*App, error) {
 	}
 
 	logger.Infof(context.Background(), "NATS connected successfully to %s", conn.ConnectedUrl())
+	return conn, nil
+}
 
+func resolveNATSURL() string {
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL == "" {
+		natsURL = "nats://127.0.0.1:4222"
+	}
+	return natsURL
+}
+
+func newAppInstance(conn *nats.Conn) *App {
 	newApp := &App{
 		Context:         context.Background(),
 		exit:            make(chan struct{}),
@@ -164,25 +190,35 @@ func NewApp() (*App, error) {
 		startTime:       time.Now(), // 记录启动时间
 		routerInfo:      make(map[string]*routerInfo),
 		packageContexts: make(map[string]*PackageContext),
-		subjects: &Subjects{
-			InvokeCommand:    subjects.BuildAppInvokeSubject(env.User, env.App, env.Version),
-			InvokeReply:      subjects.BuildAppServerAppInvokeReplySubject(env.User, env.App, env.Version),
-			ControlCommand:   subjects.BuildAppControlSubject(env.User, env.App, env.Version),
-			LifecycleEvent:   subjects.BuildRuntimeLifecycleEventSubject(env.User, env.App, env.Version),
-			DiscoveryRequest: subjects.AppDiscoveryRequestSubject,
-		},
+		subjects:        buildAppSubjects(),
 	}
 	newApp.transport = NewAppTransport(newApp.conn, newApp.subjects)
+	return newApp
+}
 
+func buildAppSubjects() *Subjects {
+	return &Subjects{
+		InvokeCommand:    subjects.BuildAppInvokeSubject(env.User, env.App, env.Version),
+		InvokeReply:      subjects.BuildAppServerAppInvokeReplySubject(env.User, env.App, env.Version),
+		ControlCommand:   subjects.BuildAppControlSubject(env.User, env.App, env.Version),
+		LifecycleEvent:   subjects.BuildRuntimeLifecycleEventSubject(env.User, env.App, env.Version),
+		DiscoveryRequest: subjects.AppDiscoveryRequestSubject,
+	}
+}
+
+func initializeAppRuntime(newApp *App) error {
 	logger.Infof(context.Background(), "Initializing router...")
 	initRouter(newApp)
 	logger.Infof(context.Background(), "Router initialized")
 
 	// 注册 NATS 订阅（subject 硬编码在 nats_router.go，方便阅读）
 	if err := registerNATS(newApp); err != nil {
-		return nil, err
+		return err
 	}
+	return nil
+}
 
+func startPprofServer() {
 	// 启动 pprof HTTP 服务器（用于性能分析）
 	// 监听在 6060 端口，可以通过 http://localhost:6060/debug/pprof/ 访问
 	go func() {
@@ -192,19 +228,18 @@ func NewApp() (*App, error) {
 			logger.Warnf(context.Background(), "pprof server failed: %v", err)
 		}
 	}()
+}
 
+func (a *App) notifyStartupBestEffort() {
 	// 发送启动完成通知给 runtime
 	// 通知 runtime 新版本已经成功启动并准备好接收请求
 	logger.Infof(context.Background(), "Sending startup notification...")
-	if err := newApp.sendStartupNotification(); err != nil {
+	if err := a.sendStartupNotification(); err != nil {
 		logger.Warnf(context.Background(), "Failed to send startup notification: %v", err)
 		// 不返回错误，启动通知失败不应阻止应用运行
 	} else {
 		logger.Infof(context.Background(), "Startup notification sent successfully")
 	}
-
-	logger.Infof(context.Background(), "NewApp() completed successfully")
-	return newApp, nil
 }
 
 // Start 启动应用
