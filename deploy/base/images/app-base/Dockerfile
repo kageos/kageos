@@ -93,6 +93,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unpaper \
     webp \
     fonts-noto-cjk \
+    fonts-wqy-zenhei \
     fonts-dejavu-core \
     fonts-liberation \
     && fc-cache -fv \
@@ -120,13 +121,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && echo "✓ Graphviz"
 
-# matplotlib 中文字体：apt 的 fonts-noto-cjk 提供的是泛 CJK .ttc（内含 SC/TC/JP/KR 字形），
-# 但 matplotlib.font_manager 在 Ubuntu 上常把该 TTC 注册名为「Noto Sans CJK JP」，与「SC」字面不匹配。
-# 故 sans-serif 优先写 JP，再写 SC/TC 作兼容；简体中文仍走同一套 Noto 字形，并非改用日文汉字字体文件。
-RUN mkdir -p /etc/matplotlib \
-    && printf 'font.family: sans-serif\nfont.sans-serif: Noto Sans CJK JP, Noto Sans CJK SC, Noto Sans CJK TC, DejaVu Sans\naxes.unicode_minus: False\n' > /etc/matplotlib/matplotlibrc \
+# matplotlib 中文字体：优先使用简体中文 Noto CJK，注册名因系统/字体缓存差异可能表现为 SC/JP/TC。
+RUN mkdir -p /etc/matplotlib /tmp/matplotlib \
+    && chmod 1777 /tmp/matplotlib \
+    && printf 'font.family: sans-serif\nfont.sans-serif: Noto Sans CJK SC, Noto Sans CJK JP, Noto Sans CJK TC, WenQuanYi Zen Hei, DejaVu Sans\naxes.unicode_minus: False\n' > /etc/matplotlib/matplotlibrc \
     && echo "✓ matplotlib matplotlibrc (CJK) configured"
-ENV MPLCONFIGDIR=/etc/matplotlib
+ENV MATPLOTLIBRC=/etc/matplotlib/matplotlibrc \
+    MPLCONFIGDIR=/tmp/matplotlib
 
 # 创建 lua 命令的符号链接
 RUN ln -sf /usr/bin/lua5.4 /usr/bin/lua
@@ -142,7 +143,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         --index-url "${PIP_INDEX_URL}" \
         --timeout "${PIP_DEFAULT_TIMEOUT}" \
         --retries "${PIP_RETRIES}" \
-        seaborn python-docx PyPDF2 pdfplumber jieba \
+        seaborn python-docx PyPDF2 pdfplumber reportlab cryptography jieba snownlp \
+        xlsxwriter python-pptx plotly pyecharts \
+        beautifulsoup4 lxml aiohttp \
+        PyYAML qrcode python-barcode xlrd xlwt toml \
+        tabulate arrow python-dateutil wordcloud pymysql \
     && rm -rf /tmp/* /root/.cache /var/lib/apt/lists/* \
     && echo "✓ Python packages installed"
 
@@ -203,9 +208,28 @@ RUN echo "=== 验证安装 ===" && \
     python3 -c "import scipy; print('  scipy', scipy.__version__)" && \
     python3 -c "import matplotlib; print('  matplotlib', matplotlib.__version__)" && \
     python3 -c "import jieba; print('  jieba OK')" && \
+    python3 -c "import snownlp; print('  snownlp OK')" && \
     python3 -c "import requests; print('  requests OK')" && \
     python3 -c "import openpyxl; print('  openpyxl OK')" && \
     python3 -c "import seaborn; print('  seaborn OK')" && \
+    python3 -c "import xlsxwriter; print('  xlsxwriter OK')" && \
+    python3 -c "import pptx; print('  python-pptx OK')" && \
+    python3 -c "import plotly; print('  plotly OK')" && \
+    python3 -c "import pyecharts; print('  pyecharts OK')" && \
+    python3 -c "import bs4; print('  beautifulsoup4 OK')" && \
+    python3 -c "import lxml; print('  lxml OK')" && \
+    python3 -c "import aiohttp; print('  aiohttp OK')" && \
+    python3 -c "import yaml; print('  PyYAML OK')" && \
+    python3 -c "import qrcode; print('  qrcode OK')" && \
+    python3 -c "import barcode; print('  python-barcode OK')" && \
+    python3 -c "import xlrd; print('  xlrd OK')" && \
+    python3 -c "import xlwt; print('  xlwt OK')" && \
+    python3 -c "import toml; print('  toml OK')" && \
+    python3 -c "import tabulate; print('  tabulate OK')" && \
+    python3 -c "import arrow; print('  arrow OK')" && \
+    python3 -c "import dateutil; print('  python-dateutil OK')" && \
+    python3 -c "import wordcloud; print('  wordcloud OK')" && \
+    python3 -c "import pymysql; print('  pymysql OK')" && \
     echo "FFmpeg drawtext + 中文字体:" && \
     (ffmpeg -filters 2>/dev/null | grep -q "drawtext") && echo "  drawtext 滤镜 OK" || (echo "  drawtext 缺失"; exit 1) && \
     (test -f /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc || test -f /usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc) && echo "  Noto CJK 字体 OK（drawtext 中文可用 fontfile= 指向该路径）" || echo "  Noto CJK 路径可能不同，请用 fc-list :lang=zh 查看" && \

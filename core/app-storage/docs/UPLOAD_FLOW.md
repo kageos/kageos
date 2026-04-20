@@ -55,7 +55,7 @@
 │              后端返回上传凭证（包含域名）                           │
 │        {                                                         │
 │          method: "presigned_url",                               │
-│          url: "http://localhost:9000/...?X-Amz-Signature=...",  │
+│          upload_url: "http://localhost:9000/...?X-Amz-Signature=...",  │
 │          upload_host: "localhost:9000",        ✨ 上传 host      │
 │          upload_domain: "http://localhost:9000", ✨ 上传域名      │
 │          headers: { "Content-Type": "application/pdf" },         │
@@ -78,7 +78,7 @@
 │        ✨ Step 3: 执行上传（此时已知道上传域名）                   │
 │        uploader.upload(credentials, file, onProgress)          │
 │                                                                   │
-│        xhr.open('PUT', credentials.url)  // 使用预签名 URL         │
+│        xhr.open('PUT', credentials.upload_url)  // 使用预签名 URL         │
 │        xhr.upload.onprogress = (e) => {                          │
 │          console.log(`上传到 ${credentials.upload_domain} ...`)  │
 │          onProgress({                                            │
@@ -143,7 +143,7 @@ export async function uploadFile(router, file, onProgress) {
   const credentials = await getUploadCredentials(router, file)
   // credentials = {
   //   method: "presigned_url",
-  //   url: "http://localhost:9000/...",
+  //   upload_url: "http://localhost:9000/...",
   //   upload_host: "localhost:9000",
   //   upload_domain: "http://localhost:9000",  // ✨ 此时已知道上传域名
   //   ...
@@ -183,7 +183,7 @@ async function getUploadCredentials(router, file) {
   //   method: "presigned_url",
   //   upload_host: "localhost:9000",
   //   upload_domain: "http://localhost:9000",
-  //   url: "http://localhost:9000/...?X-Amz-Signature=...",
+  //   upload_url: "http://localhost:9000/...?X-Amz-Signature=...",
   //   ...
   // }
   
@@ -211,7 +211,7 @@ export class PresignedURLUploader implements Uploader {
     }
     
     // 使用预签名 URL（包含完整域名）
-    xhr.open('PUT', credentials.url)
+    xhr.open('PUT', credentials.upload_url)
     xhr.send(file)
   }
 }

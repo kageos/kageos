@@ -9,9 +9,10 @@
 import { ref, watch, onUnmounted, type Ref } from 'vue'
 
 export interface ChatMessageFile {
+  ref?: string
   name: string
   source_name?: string
-  url: string
+  download_url?: string
   [key: string]: unknown
 }
 

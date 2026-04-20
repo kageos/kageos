@@ -155,7 +155,7 @@ const docTemplate = `{
         },
         "/storage/api/v1/download/{key}": {
             "get": {
-                "description": "直接代理下载文件，返回文件流（无需复杂的预签名 URL 参数）",
+                "description": "重定向到对象存储直连地址，避免服务端转发文件流",
                 "consumes": [
                     "application/json"
                 ],
@@ -224,6 +224,52 @@ const docTemplate = `{
                         "description": "获取成功",
                         "schema": {
                             "$ref": "#/definitions/dto.ListFilesResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/storage/api/v1/files/description": {
+            "post": {
+                "description": "更新文件引用对应的描述元数据",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "存储管理"
+                ],
+                "summary": "更新文件描述",
+                "parameters": [
+                    {
+                        "description": "更新文件描述请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateFileDescriptionReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateFileDescriptionResp"
                         }
                     },
                     "400": {
@@ -510,8 +556,16 @@ const docTemplate = `{
                 "key"
             ],
             "properties": {
+                "bucket": {
+                    "description": "存储桶；为空时使用默认桶",
+                    "type": "string"
+                },
                 "content_type": {
                     "description": "✨ 文件类型（上传成功后需要，用于记录）",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "文件描述",
                     "type": "string"
                 },
                 "error": {
@@ -576,6 +630,14 @@ const docTemplate = `{
         "dto.BatchUploadCompleteResult": {
             "type": "object",
             "properties": {
+                "bucket": {
+                    "description": "存储桶",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "文件描述",
+                    "type": "string"
+                },
                 "download_url": {
                     "description": "✨ 外部访问的下载地址（前端使用）",
                     "type": "string"
@@ -590,6 +652,10 @@ const docTemplate = `{
                 },
                 "key": {
                     "description": "文件 Key",
+                    "type": "string"
+                },
+                "ref": {
+                    "description": "稳定文件引用：bucket/object_key",
                     "type": "string"
                 },
                 "server_download_url": {
@@ -669,6 +735,10 @@ const docTemplate = `{
                 "file_name"
             ],
             "properties": {
+                "bucket": {
+                    "description": "存储桶；为空时使用 storage 默认桶",
+                    "type": "string"
+                },
                 "content_type": {
                     "type": "string"
                 },
@@ -716,7 +786,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "form_data": {
-                    "description": "表单上传（七牛云、又拍云等）",
+                    "description": "表单上传（预留）",
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
@@ -745,8 +815,12 @@ const docTemplate = `{
                     "description": "POST 地址",
                     "type": "string"
                 },
+                "ref": {
+                    "description": "稳定文件引用：bucket/object_key",
+                    "type": "string"
+                },
                 "sdk_config": {
-                    "description": "SDK 上传（预留，当前未使用）",
+                    "description": "SDK 上传（预留）",
                     "type": "object",
                     "additionalProperties": true
                 },
@@ -754,8 +828,8 @@ const docTemplate = `{
                     "description": "✨ 内部访问的下载地址（服务端/SDK使用）",
                     "type": "string"
                 },
-                "server_url": {
-                    "description": "✨ 内部访问的预签名 URL（服务端/SDK使用）",
+                "server_upload_url": {
+                    "description": "内部访问的预签名上传地址（服务端/SDK使用）",
                     "type": "string"
                 },
                 "storage": {
@@ -770,7 +844,7 @@ const docTemplate = `{
                     "description": "上传域名信息 ✨ 新增",
                     "type": "string"
                 },
-                "url": {
+                "upload_url": {
                     "description": "预签名 URL 上传（当前官方仅 MinIO）",
                     "type": "string"
                 },
@@ -797,14 +871,56 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.UpdateFileDescriptionReq": {
+            "type": "object",
+            "properties": {
+                "bucket": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "ref": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.UpdateFileDescriptionResp": {
+            "type": "object",
+            "properties": {
+                "bucket": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "ref": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.UploadCompleteReq": {
             "type": "object",
             "required": [
                 "key"
             ],
             "properties": {
+                "bucket": {
+                    "description": "存储桶；为空时使用默认桶",
+                    "type": "string"
+                },
                 "content_type": {
                     "description": "✨ 文件类型（上传成功后需要，用于记录）",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "文件描述",
                     "type": "string"
                 },
                 "error": {
@@ -840,6 +956,18 @@ const docTemplate = `{
         "dto.UploadCompleteResp": {
             "type": "object",
             "properties": {
+                "bucket": {
+                    "description": "存储桶",
+                    "type": "string"
+                },
+                "content_type": {
+                    "description": "文件类型",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "文件描述",
+                    "type": "string"
+                },
                 "download_url": {
                     "description": "✨ 外部访问的下载地址（前端使用）",
                     "type": "string"
@@ -848,12 +976,36 @@ const docTemplate = `{
                     "description": "过期时间",
                     "type": "string"
                 },
+                "file_name": {
+                    "description": "文件名",
+                    "type": "string"
+                },
+                "file_size": {
+                    "description": "文件大小",
+                    "type": "integer"
+                },
+                "hash": {
+                    "description": "文件hash",
+                    "type": "string"
+                },
+                "key": {
+                    "description": "文件 Key",
+                    "type": "string"
+                },
                 "message": {
                     "description": "消息",
                     "type": "string"
                 },
+                "ref": {
+                    "description": "稳定文件引用：bucket/object_key",
+                    "type": "string"
+                },
                 "server_download_url": {
                     "description": "✨ 内部访问的下载地址（服务端使用）",
+                    "type": "string"
+                },
+                "storage": {
+                    "description": "存储引擎",
                     "type": "string"
                 }
             }
@@ -866,14 +1018,14 @@ const docTemplate = `{
                 "sdk_upload"
             ],
             "x-enum-comments": {
-                "UploadMethodFormUpload": "表单上传（预留，当前未使用）",
+                "UploadMethodFormUpload": "预留：当前未使用",
                 "UploadMethodPresignedURL": "预签名 URL（当前官方实际使用）",
-                "UploadMethodSDKUpload": "SDK 上传（预留，当前未使用）"
+                "UploadMethodSDKUpload": "预留：当前未使用"
             },
             "x-enum-descriptions": [
                 "预签名 URL（当前官方实际使用）",
-                "表单上传（预留，当前未使用）",
-                "SDK 上传（预留，当前未使用）"
+                "预留：当前未使用",
+                "预留：当前未使用"
             ],
             "x-enum-varnames": [
                 "UploadMethodPresignedURL",

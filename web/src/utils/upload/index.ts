@@ -66,8 +66,11 @@ export class UploaderFactory {
  */
 export interface FileInfo {
   key: string
+  bucket: string
+  ref: string
   router: string
   file_name: string
+  description?: string
   file_size: number
   content_type: string
   hash?: string
@@ -88,7 +91,7 @@ export interface UploadFileResult extends UploadResult {
  * 流程：
  * 1. 用户拖文件/选择文件
  * 2. 调用此函数 → 先请求后端获取上传凭证（包含域名）
- * 3. 后端返回：{ method, url, upload_host, upload_domain, storage, ... }
+ * 3. 后端返回：{ method, upload_url, upload_host, upload_domain, storage, ... }
  * 4. 根据 method 创建对应的上传器
  * 5. 使用上传器执行上传（此时已知道上传域名）
  * 
@@ -142,11 +145,15 @@ export async function uploadFile(
     return {
       downloadURL: '', // 暂时为空，批量complete后会返回
       key: credentials.key,
+      bucket: credentials.bucket,
+      ref: credentials.ref || `${credentials.bucket}/${credentials.key}`,
       storage: credentials.storage, // ✨ 存储引擎类型
       uploader, // ✨ 上传器实例，用于取消上传
       // ✨ 新增：文件信息（用于批量complete）
       fileInfo: {
         key: credentials.key,
+        bucket: credentials.bucket,
+        ref: credentials.ref || `${credentials.bucket}/${credentials.key}`,
         router,
         file_name: file.name,
         file_size: file.size,
@@ -161,6 +168,8 @@ export async function uploadFile(
       ...error,
       fileInfo: {
         key: credentials.key,
+        bucket: credentials.bucket,
+        ref: credentials.ref || `${credentials.bucket}/${credentials.key}`,
         router,
         file_name: file.name,
         file_size: file.size,
@@ -178,7 +187,7 @@ export async function uploadFile(
  * 请求后端 API，后端会返回：
  * {
  *   method: "presigned_url",
- *   url: "http://localhost:9000/...",
+ *   upload_url: "http://localhost:9000/...",
  *   upload_host: "localhost:9000",      // ✨ 上传目标 host
  *   upload_domain: "http://localhost:9000", // ✨ 上传完整域名
  *   headers: {...},
@@ -245,10 +254,12 @@ async function getUploadCredentials(router: string, file: File): Promise<UploadC
  */
 interface UploadCompleteParams {
   key: string
+  bucket?: string
   success: boolean
   error?: string
   router: string
   file_name: string
+  description?: string
   file_size: number
   content_type: string
   hash?: string
@@ -261,7 +272,10 @@ export interface UploadCompleteResult {
   download_url: string              // 外部访问的下载地址（前端使用）
   server_download_url?: string      // 内部访问的下载地址（服务端使用）
   key: string                       // 文件 Key
+  bucket?: string                   // 存储桶
+  ref?: string                      // 稳定文件引用：bucket/object_key
   file_name: string                  // 文件名
+  description?: string               // 文件描述
   file_size: number                  // 文件大小
   content_type: string               // 文件类型
   hash?: string                      // 文件hash
@@ -280,10 +294,12 @@ export async function notifyUploadComplete(params: UploadCompleteParams): Promis
       },
       body: JSON.stringify({
         key: params.key,
+        bucket: params.bucket,
         success: params.success,
         error: params.error,
         router: params.router,
         file_name: params.file_name,
+        description: params.description || '',
         file_size: params.file_size,
         content_type: params.content_type,
         hash: params.hash,
@@ -303,7 +319,10 @@ export async function notifyUploadComplete(params: UploadCompleteParams): Promis
         download_url: response.data.download_url,
         server_download_url: response.data.server_download_url || '',
         key: params.key,
+        bucket: response.data.bucket || params.bucket || '',
+        ref: response.data.ref || '',
         file_name: params.file_name,
+        description: response.data.description || '',
         file_size: params.file_size,
         content_type: params.content_type,
         hash: params.hash || '',
@@ -323,10 +342,12 @@ export async function notifyUploadComplete(params: UploadCompleteParams): Promis
  */
 export interface BatchUploadCompleteItem {
   key: string
+  bucket?: string
   success: boolean
   error?: string
   router: string
   file_name: string
+  description?: string
   file_size: number
   content_type: string
   hash?: string
@@ -335,8 +356,11 @@ export interface BatchUploadCompleteItem {
 
 export interface BatchUploadCompleteResult {
   key: string
+  bucket?: string
+  ref?: string
   status: string
   download_url?: string      // ✨ 外部访问的下载地址（前端使用）
+  description?: string       // 文件描述
   server_download_url?: string // ✨ 内部访问的下载地址（服务端使用）
   hash?: string              // ✨ 文件hash（用于文件缓存去重）
   error?: string

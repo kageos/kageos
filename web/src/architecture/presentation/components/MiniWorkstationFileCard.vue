@@ -1,7 +1,7 @@
 <template>
   <div :class="['mini-ws-file-card', { 'mini-ws-file-card--compact': compact }]" @click="$emit('preview', file)">
     <div v-if="isImageFile" class="mini-ws-file-card__thumb">
-      <img :src="file.url" :alt="file.name" loading="lazy" />
+      <img :src="file.href" :alt="file.name" loading="lazy" />
     </div>
     <div v-else class="mini-ws-file-card__icon">
       <el-icon :size="compact ? 18 : 20"><Document /></el-icon>

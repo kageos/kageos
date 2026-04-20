@@ -77,7 +77,7 @@ import (
 // ImagesColorsReq 图片颜色提取请求结构体
 type ImagesColorsReq struct {
 	// 框架标签：widget:"type:files;accept:image/*;max_size:50MB;max_count:1" - 文件上传组件，只支持单文件上传
-	InputFiles *types.Files `json:"input_files" widget:"name:上传图片;type:files;accept:image/*;max_size:50MB;max_count:1" validate:"required"`
+	InputFiles string `json:"input_files" widget:"name:上传图片;type:files;accept:image/*;max_size:50MB;max_count:1" validate:"required"`
 
 	// 框架标签：widget:"type:number;min:0;max:1000;default:5;placeholder:0表示返回全部颜色" - 提取的颜色数量（0表示返回全部）
 	ColorCount int `json:"color_count" widget:"name:提取颜色数量;type:number;min:0;max:1000;default:5;placeholder:0表示返回全部颜色" validate:"min=0,max=1000"`
@@ -131,7 +131,7 @@ func DoImagesColors(ctx *app.Context, req *ImagesColorsReq) (*ImagesColorsResp, 
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	files := inputFiles.GetFiles()
+	files := inputFiles
 	if len(files) == 0 {
 		return nil, fmt.Errorf("请上传一张图片")
 	}
@@ -139,22 +139,22 @@ func DoImagesColors(ctx *app.Context, req *ImagesColorsReq) (*ImagesColorsResp, 
 		return nil, fmt.Errorf("只支持上传一张图片，当前上传了 %d 张", len(files))
 	}
 	file := files[0]
-	if file.LocalPath == "" {
-		return nil, fmt.Errorf("文件 %s 没有本地路径", file.Name)
+	if file == "" {
+		return nil, fmt.Errorf("文件 %s 没有本地路径", filepath.Base(file))
 	}
 
-	colors, err := extractColors(ctx, file.LocalPath, req.ColorCount)
+	colors, err := extractColors(ctx, file, req.ColorCount)
 	if err != nil {
-		logger.Errorf(ctx, "[系统错误]-[DoImagesColors] 提取颜色失败 %s: %v, req: %+v", file.Name, err, req)
+		logger.Errorf(ctx, "[系统错误]-[DoImagesColors] 提取颜色失败 %s: %v, req: %+v", filepath.Base(file), err, req)
 		return nil, fmt.Errorf("[系统错误]-[DoImagesColors]： 提取颜色失败, req: %+v, err: %v", req, err)
 	}
-	logger.Infof(ctx, "[ImagesColors] 提取成功: %s (提取了 %d 种颜色)", file.Name, len(colors))
+	logger.Infof(ctx, "[ImagesColors] 提取成功: %s (提取了 %d 种颜色)", filepath.Base(file), len(colors))
 
 	colorCountDesc := "全部"
 	if req.ColorCount > 0 {
 		colorCountDesc = fmt.Sprintf("%d 个", req.ColorCount)
 	}
-	stats := fmt.Sprintf("提取完成！\n文件名: %s\n提取颜色数量: %s\n实际提取: %d 种颜色", file.Name, colorCountDesc, len(colors))
+	stats := fmt.Sprintf("提取完成！\n文件名: %s\n提取颜色数量: %s\n实际提取: %d 种颜色", filepath.Base(file), colorCountDesc, len(colors))
 
 	return &ImagesColorsResp{Colors: colors, Stats: stats}, nil
 }
@@ -264,7 +264,7 @@ import (
 // ImagesConvertReq 图片格式转换请求结构体
 type ImagesConvertReq struct {
 	// 框架标签：widget:"type:files;accept:image/*;max_size:50MB;max_count:10" - 文件上传组件，支持多文件上传
-	InputFiles *types.Files `json:"input_files" widget:"name:上传图片;type:files;accept:image/*;max_size:50MB;max_count:10" validate:"required"`
+	InputFiles string `json:"input_files" widget:"name:上传图片;type:files;accept:image/*;max_size:50MB;max_count:10" validate:"required"`
 
 	// 框架标签：widget:"type:select;options:...;options_colors:..." - 下拉选择须配 options_colors，与 options 一一对应，前端用颜色区分选项
 	// 注意：jpeg 和 jpg 是同一格式，统一使用 jpeg
@@ -274,7 +274,7 @@ type ImagesConvertReq struct {
 // ImagesConvertResp 图片格式转换响应结构体
 type ImagesConvertResp struct {
 	// 转换后的文件列表
-	OutputFiles *types.Files `json:"output_files" widget:"name:转换后的图片;type:files"`
+	OutputFiles string `json:"output_files" widget:"name:转换后的图片;type:files"`
 
 	// 转换统计信息
 	ConvertStats string `json:"convert_stats" widget:"name:转换统计;type:text_area"`
@@ -304,19 +304,19 @@ func DoImagesConvert(ctx *app.Context, req *ImagesConvertReq) (*ImagesConvertRes
 	failCount := 0
 	var errors []string
 
-	for _, file := range inputFiles.GetFiles() {
-		if file.LocalPath == "" {
-			logger.Warnf(ctx, "[ImagesConvert] 文件 %s 没有本地路径，跳过", file.Name)
+	for _, file := range inputFiles {
+		if file == "" {
+			logger.Warnf(ctx, "[ImagesConvert] 文件 %s 没有本地路径，跳过", filepath.Base(file))
 			failCount++
-			errors = append(errors, fmt.Sprintf("文件 %s: 本地路径为空", file.Name))
+			errors = append(errors, fmt.Sprintf("文件 %s: 本地路径为空", filepath.Base(file)))
 			continue
 		}
 
-		outputPath, err := convertImageFormat(ctx, fs, file.LocalPath, req.TargetFormat)
+		outputPath, err := convertImageFormat(ctx, fs, file, req.TargetFormat)
 		if err != nil {
-			logger.Errorf(ctx, "[ImagesConvert] 转换图片失败 %s: %v, req: %+v", file.Name, err, req)
+			logger.Errorf(ctx, "[ImagesConvert] 转换图片失败 %s: %v, req: %+v", filepath.Base(file), err, req)
 			failCount++
-			errors = append(errors, fmt.Sprintf("文件 %s: %v", file.Name, err))
+			errors = append(errors, fmt.Sprintf("文件 %s: %v", filepath.Base(file), err))
 			continue
 		}
 
@@ -324,10 +324,9 @@ func DoImagesConvert(ctx *app.Context, req *ImagesConvertReq) (*ImagesConvertRes
 		successCount++
 	}
 
-	var outputFiles *types.Files
+	var outputFiles string
 	if len(outputFilePaths) > 0 {
 		outputFiles = fs.ResponseFiles(outputFilePaths)
-		defer fs.RemoveFiles(outputFiles)
 	}
 
 	stats := fmt.Sprintf("转换完成！\n成功: %d 个\n失败: %d 个", successCount, failCount)
@@ -421,7 +420,7 @@ import (
 // ImagesResizeReq 图片裁剪/缩放请求结构体
 type ImagesResizeReq struct {
 	// 框架标签：widget:"type:files;accept:image/*;max_size:50MB;max_count:10" - 文件上传组件，支持多文件上传
-	InputFiles *types.Files `json:"input_files" widget:"name:上传图片;type:files;accept:image/*;max_size:50MB;max_count:10" validate:"required"`
+	InputFiles string `json:"input_files" widget:"name:上传图片;type:files;accept:image/*;max_size:50MB;max_count:10" validate:"required"`
 
 	// 框架标签：select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
 	TargetSize string `json:"target_size" widget:"name:目标尺寸;type:select;options:1920x1080,1280x720,800x600,640x480,自定义;options_colors:primary,success,info,warning,#9E9E9E;default:1920x1080" validate:"required"`
@@ -436,7 +435,7 @@ type ImagesResizeReq struct {
 // ImagesResizeResp 图片裁剪/缩放响应结构体
 type ImagesResizeResp struct {
 	// 处理后的文件列表
-	OutputFiles *types.Files `json:"output_files" widget:"name:处理后的图片;type:files"`
+	OutputFiles string `json:"output_files" widget:"name:处理后的图片;type:files"`
 
 	// 处理统计信息
 	ResizeStats string `json:"resize_stats" widget:"name:处理统计;type:text_area"`
@@ -493,16 +492,16 @@ func DoImagesResize(ctx *app.Context, req *ImagesResizeReq) (*ImagesResizeResp, 
 	failCount := 0
 	var errors []string
 
-	for _, file := range inputFiles.GetFiles() {
-		if file.LocalPath == "" {
-			logger.Warnf(ctx, "[ImagesResize] 文件 %s 没有本地路径，跳过", file.Name)
+	for _, file := range inputFiles {
+		if file == "" {
+			logger.Warnf(ctx, "[ImagesResize] 文件 %s 没有本地路径，跳过", filepath.Base(file))
 			failCount++
-			errors = append(errors, fmt.Sprintf("文件 %s: 本地路径为空", file.Name))
+			errors = append(errors, fmt.Sprintf("文件 %s: 本地路径为空", filepath.Base(file)))
 			continue
 		}
 
-		baseName := strings.TrimSuffix(filepath.Base(file.LocalPath), filepath.Ext(file.LocalPath))
-		ext := filepath.Ext(file.LocalPath)
+		baseName := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
+		ext := filepath.Ext(file)
 		outputPath := filepath.Join(outputDir, baseName+"_resized"+ext)
 
 		var args []string
@@ -519,26 +518,25 @@ func DoImagesResize(ctx *app.Context, req *ImagesResizeReq) (*ImagesResizeResp, 
 			args = append(args, "-crop", fmt.Sprintf("%sx%s+0+0", width, height))
 		}
 
-		args = append(args, file.LocalPath, outputPath)
+		args = append(args, file, outputPath)
 
 		cmd := exec.Command(imCmd, args...)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			logger.Errorf(ctx, "[ImagesResize] 处理图片失败 %s: %v, req: %+v, output: %s", file.Name, err, req, string(output))
+			logger.Errorf(ctx, "[ImagesResize] 处理图片失败 %s: %v, req: %+v, output: %s", filepath.Base(file), err, req, string(output))
 			failCount++
-			errors = append(errors, fmt.Sprintf("文件 %s: %v", file.Name, err))
+			errors = append(errors, fmt.Sprintf("文件 %s: %v", filepath.Base(file), err))
 			continue
 		}
 
 		outputFilePaths = append(outputFilePaths, outputPath)
 		successCount++
-		logger.Infof(ctx, "[ImagesResize] 处理成功: %s -> %s (尺寸: %sx%s, 模式: %s)", file.Name, filepath.Base(outputPath), width, height, req.ResizeMode)
+		logger.Infof(ctx, "[ImagesResize] 处理成功: %s -> %s (尺寸: %sx%s, 模式: %s)", filepath.Base(file), filepath.Base(outputPath), width, height, req.ResizeMode)
 	}
 
-	var outputFiles *types.Files
+	var outputFiles string
 	if len(outputFilePaths) > 0 {
 		outputFiles = fs.ResponseFiles(outputFilePaths)
-		defer fs.RemoveFiles(outputFiles)
 	}
 
 	stats := fmt.Sprintf("处理完成！\n成功: %d 个\n失败: %d 个\n目标尺寸: %sx%s\n缩放模式: %s",
@@ -591,7 +589,7 @@ import (
 
 // ImagesRunCommandReq 自定义命令请求：上传图片 + 命令模板（占位符替换后执行），便于智能体灵活调用
 type ImagesRunCommandReq struct {
-	InputFiles *types.Files `json:"input_files" widget:"name:上传图片;type:files;accept:image/*,*/*;max_size:50MB;max_count:10" validate:"required"`
+	InputFiles string `json:"input_files" widget:"name:上传图片;type:files;accept:image/*,*/*;max_size:50MB;max_count:10" validate:"required"`
 
 	// 命令模板，占位符：{{input}}=当前输入文件路径，{{output}}=当前输出文件路径。环境有 convert（ImageMagick）、gm 等
 	CommandTemplate string `json:"command_template" widget:"name:命令模板;type:text_area;placeholder:convert {{input}} -resize 800x600 {{output}}" validate:"required"`
@@ -602,7 +600,7 @@ type ImagesRunCommandReq struct {
 
 // ImagesRunCommandResp 自定义命令响应
 type ImagesRunCommandResp struct {
-	OutputFile *types.Files `json:"output_file" widget:"name:输出文件;type:files"`
+	OutputFile string `json:"output_file" widget:"name:输出文件;type:files"`
 	RunInfo    string       `json:"run_info" widget:"name:执行信息;type:text_area"`
 }
 
@@ -625,7 +623,7 @@ func DoImagesRunCommand(ctx *app.Context, req *ImagesRunCommandReq) (*ImagesRunC
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	files := inputFiles.GetFiles()
+	files := inputFiles
 	if len(files) == 0 {
 		return nil, fmt.Errorf("没有找到输入文件")
 	}
@@ -641,46 +639,45 @@ func DoImagesRunCommand(ctx *app.Context, req *ImagesRunCommandReq) (*ImagesRunC
 	var outputPaths []string
 	var runInfos []string
 	for i, file := range files {
-		if file.LocalPath == "" {
-			logger.Warnf(ctx, "[ImagesRunCommand] 文件 %s 无本地路径，跳过", file.Name)
-			runInfos = append(runInfos, fmt.Sprintf("跳过 %s: 无本地路径", file.Name))
+		if file == "" {
+			logger.Warnf(ctx, "[ImagesRunCommand] 文件 %s 无本地路径，跳过", filepath.Base(file))
+			runInfos = append(runInfos, fmt.Sprintf("跳过 %s: 无本地路径", filepath.Base(file)))
 			continue
 		}
-		baseName := strings.TrimSuffix(filepath.Base(file.LocalPath), filepath.Ext(file.LocalPath))
+		baseName := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
 		outputPath := filepath.Join(outputDir, baseName+"."+outputExt)
 
 		args := splitCommandLine(req.CommandTemplate)
 		for j := range args {
 			if args[j] == "{{input}}" {
-				args[j] = file.LocalPath
+				args[j] = file
 			} else if args[j] == "{{output}}" {
 				args[j] = outputPath
 			}
 		}
 		if len(args) == 0 {
-			runInfos = append(runInfos, fmt.Sprintf("文件 %s: 命令为空", file.Name))
+			runInfos = append(runInfos, fmt.Sprintf("文件 %s: 命令为空", filepath.Base(file)))
 			continue
 		}
 		cmd := exec.Command(args[0], args[1:]...)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			logger.Errorf(ctx, "[ImagesRunCommand] 执行失败 %s: %v, output: %s", file.Name, err, string(out))
-			runInfos = append(runInfos, fmt.Sprintf("失败 %s: %v\n%s", file.Name, err, string(out)))
+			logger.Errorf(ctx, "[ImagesRunCommand] 执行失败 %s: %v, output: %s", filepath.Base(file), err, string(out))
+			runInfos = append(runInfos, fmt.Sprintf("失败 %s: %v\n%s", filepath.Base(file), err, string(out)))
 			continue
 		}
 		if hasOutputPlaceholder {
 			outputPaths = append(outputPaths, outputPath)
 		}
-		runInfos = append(runInfos, fmt.Sprintf("成功 %s -> %s", file.Name, outputPath))
+		runInfos = append(runInfos, fmt.Sprintf("成功 %s -> %s", filepath.Base(file), outputPath))
 		if i == 0 && len(out) > 0 {
 			runInfos = append(runInfos, "命令输出:\n"+strings.TrimSpace(string(out)))
 		}
 	}
 
-	var outputFiles *types.Files
+	var outputFiles string
 	if len(outputPaths) > 0 {
 		outputFiles = fs.ResponseFiles(outputPaths)
-		defer fs.RemoveFiles(outputFiles)
 	}
 
 	return &ImagesRunCommandResp{

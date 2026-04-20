@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-storage/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-storage/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/app-storage/storage"
+	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/google/uuid"
@@ -37,7 +39,7 @@ func NewStorageService(storage storage.Storage, cfg *config.AppStorageConfig, fi
 
 // GenerateUploadToken 生成上传凭证
 // uploadSource: 上传来源（browser 或 server），默认为 browser
-func (s *StorageService) GenerateUploadToken(ctx context.Context, router string, fileName string, contentType string, fileSize int64, uploadSource string) (creds *storage.UploadCredentials, key string, expire time.Time, err error) {
+func (s *StorageService) GenerateUploadToken(ctx context.Context, bucket string, router string, fileName string, contentType string, fileSize int64, uploadSource string) (creds *storage.UploadCredentials, key string, expire time.Time, err error) {
 	// 校验文件大小
 	if fileSize > s.cfg.Storage.Upload.MaxSize {
 		return nil, "", time.Time{}, fmt.Errorf("文件大小超过限制（最大 %d MB）", s.cfg.Storage.Upload.MaxSize/BytesPerMB)
@@ -47,7 +49,7 @@ func (s *StorageService) GenerateUploadToken(ctx context.Context, router string,
 	key = s.generateFileKey(router, fileName)
 
 	// 通过存储接口生成上传凭证
-	bucket := s.getDefaultBucket()
+	bucket = s.normalizeBucket(bucket)
 	expiry := time.Duration(s.cfg.Storage.Upload.TokenExpire) * time.Second
 
 	// 通过存储接口生成上传凭证（统一接口，所有存储引擎都必须实现）
@@ -64,16 +66,41 @@ func (s *StorageService) GenerateUploadToken(ctx context.Context, router string,
 	return creds, key, expire, nil
 }
 
+func (s *StorageService) BuildFileRef(bucket string, key string) string {
+	bucket = s.normalizeBucket(bucket)
+	key = normalizeObjectKey(key)
+	if bucket == "" {
+		return key
+	}
+	return bucket + "/" + key
+}
+
+func (s *StorageService) ParseFileRef(ref string) (bucket string, key string, err error) {
+	ref = normalizeObjectKey(ref)
+	if ref == "" {
+		return "", "", fmt.Errorf("文件引用不能为空")
+	}
+	parts := strings.SplitN(ref, "/", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", fmt.Errorf("文件引用必须是 bucket/object_key 格式")
+	}
+	return s.normalizeBucket(parts[0]), normalizeObjectKey(parts[1]), nil
+}
+
 // GetFileURL 获取文件访问 URL（返回外部访问URL，用于兼容旧接口）
 func (s *StorageService) GetFileURL(ctx context.Context, key string) (downloadURL string, expire time.Time, err error) {
-	externalURL, _, _, err := s.GetFileURLs(ctx, key)
+	externalURL, _, expire, err := s.GetFileURLs(ctx, key)
 	return externalURL, expire, err
 }
 
 // GetFileURLs 获取文件访问 URL（同时返回外部和内部访问的URL）
 func (s *StorageService) GetFileURLs(ctx context.Context, key string) (externalURL string, serverURL string, expire time.Time, err error) {
+	return s.GetFileURLsInBucket(ctx, "", key)
+}
+
+func (s *StorageService) GetFileURLsInBucket(ctx context.Context, bucket string, key string) (externalURL string, serverURL string, expire time.Time, err error) {
 	// 生成下载 URL（使用默认过期时间）
-	bucket := s.getDefaultBucket()
+	bucket = s.normalizeBucket(bucket)
 	expiry := storage.DefaultDownloadURLExpiry
 
 	// 注意：MinIO/S3 不支持 response-cache-control 和 response-expires 作为查询参数
@@ -92,6 +119,106 @@ func (s *StorageService) GetFileURLs(ctx context.Context, key string) (externalU
 	expire = time.Now().Add(expiry)
 	logger.Infof(ctx, "Generated download URLs for key: %s (external: %s, server: %s)", key, externalURL, serverURL)
 	return externalURL, serverURL, expire, nil
+}
+
+func (s *StorageService) ResolveFileRefs(ctx context.Context, refs []string, audience string) ([]dto.ResolvedFile, error) {
+	out := make([]dto.ResolvedFile, 0, len(refs))
+	for _, rawRef := range refs {
+		bucket, key, err := s.ParseFileRef(rawRef)
+		item := dto.ResolvedFile{
+			Ref:    rawRef,
+			Bucket: bucket,
+			Key:    key,
+		}
+		if err != nil {
+			item.Error = err.Error()
+			out = append(out, item)
+			continue
+		}
+		item.Ref = s.BuildFileRef(bucket, key)
+
+		if s.fileRepo != nil {
+			if record, e := s.fileRepo.GetUploadRecordByBucketKey(ctx, bucket, key); e == nil && record != nil {
+				item.Name = record.FileName
+				item.SourceName = record.FileName
+				item.Description = record.Description
+				item.Size = record.FileSize
+				item.ContentType = record.ContentType
+				item.Hash = record.Hash
+				item.UploadUser = record.Username
+				item.UploadTs = record.UploadedAt.UnixMilli()
+				item.Storage = s.GetStorageType()
+			}
+		}
+
+		info, infoErr := s.storage.GetObjectInfo(ctx, bucket, key)
+		if infoErr == nil && info != nil {
+			if item.Name == "" {
+				item.Name = filepath.Base(key)
+			}
+			if item.SourceName == "" {
+				item.SourceName = item.Name
+			}
+			if item.Size == 0 {
+				item.Size = info.Size
+			}
+			if item.ContentType == "" {
+				item.ContentType = info.ContentType
+			}
+			if item.Hash == "" {
+				item.Hash = strings.Trim(info.ETag, "\"")
+			}
+		} else if item.Name == "" {
+			item.Name = filepath.Base(key)
+			item.SourceName = item.Name
+		}
+
+		browserURL, serverURL, _, urlErr := s.GetFileURLsInBucket(ctx, bucket, key)
+		if urlErr != nil {
+			item.Error = urlErr.Error()
+		} else {
+			switch strings.ToLower(strings.TrimSpace(audience)) {
+			case "browser":
+				item.DownloadURL = browserURL
+			case "server":
+				item.ServerDownloadURL = serverURL
+			default:
+				item.DownloadURL = browserURL
+				item.ServerDownloadURL = serverURL
+			}
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+func (s *StorageService) UpdateFileDescription(ctx context.Context, ref string, bucket string, key string, description string) (*dto.UpdateFileDescriptionResp, error) {
+	if ref != "" {
+		parsedBucket, parsedKey, err := s.ParseFileRef(ref)
+		if err != nil {
+			return nil, err
+		}
+		bucket = parsedBucket
+		key = parsedKey
+	} else {
+		bucket = s.normalizeBucket(bucket)
+		key = normalizeObjectKey(key)
+	}
+	if bucket == "" || key == "" {
+		return nil, fmt.Errorf("文件引用不能为空")
+	}
+	if s.fileRepo == nil {
+		return nil, fmt.Errorf("文件元数据服务未初始化")
+	}
+	if err := s.fileRepo.UpdateDescriptionByBucketKey(ctx, bucket, key, description); err != nil {
+		return nil, fmt.Errorf("更新文件描述失败: %w", err)
+	}
+	return &dto.UpdateFileDescriptionResp{
+		Ref:         s.BuildFileRef(bucket, key),
+		Bucket:      bucket,
+		Key:         key,
+		Description: description,
+	}, nil
 }
 
 // DeleteFile 删除文件
@@ -142,6 +269,15 @@ func (s *StorageService) getDefaultBucket() string {
 	return s.cfg.Storage.MinIO.DefaultBucket
 }
 
+func (s *StorageService) normalizeBucket(bucket string) string {
+	bucket = strings.TrimSpace(bucket)
+	bucket = strings.Trim(bucket, "/")
+	if bucket == "" {
+		return s.getDefaultBucket()
+	}
+	return bucket
+}
+
 // generateFileKey 生成文件存储路径
 // 格式：{router}/{date}/{uuid}.{ext}
 // 例如：luobei/test88888/plugins/cashier_desk/2025/01/03/xxx-xxx.jpg
@@ -175,6 +311,15 @@ func trimLeadingSlash(s string) string {
 		s = s[1:]
 	}
 	return s
+}
+
+func normalizeObjectKey(key string) string {
+	key = strings.TrimSpace(key)
+	key = strings.TrimPrefix(key, "/")
+	for strings.Contains(key, "//") {
+		key = strings.ReplaceAll(key, "//", "/")
+	}
+	return key
 }
 
 // ListFilesByRouter 列举某个函数路径下的所有文件
@@ -242,6 +387,9 @@ func (s *StorageService) DeleteFilesByRouter(ctx context.Context, router string)
 
 // RecordUpload 记录上传
 func (s *StorageService) RecordUpload(ctx context.Context, record *model.FileUpload) error {
+	if record != nil {
+		record.Bucket = s.normalizeBucket(record.Bucket)
+	}
 	// 检查是否启用了上传记录
 	if !s.cfg.Audit.UploadTracking.Enabled {
 		logger.Debugf(ctx, "[StorageService] Upload tracking disabled, skipping record")
@@ -270,6 +418,13 @@ func (s *StorageService) UpdateUploadStatus(ctx context.Context, fileKey string,
 		return nil // 审计功能未启用
 	}
 	return s.fileRepo.UpdateUploadStatus(ctx, fileKey, status)
+}
+
+func (s *StorageService) UpdateUploadStatusByBucketKey(ctx context.Context, bucket string, fileKey string, status string) error {
+	if s.fileRepo == nil {
+		return nil
+	}
+	return s.fileRepo.UpdateUploadStatusByBucketKey(ctx, s.normalizeBucket(bucket), fileKey, status)
 }
 
 // RecordDownload 记录下载

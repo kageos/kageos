@@ -368,8 +368,13 @@ func ConvertTagsToField(tags *FieldTags) *Field {
 		field.Widget.Config = widget.Config()
 	}
 
-	// 根据Go类型推断数据类型，完全基于Go类型，与widget type无关
-	field.Data.Type = inferDataType(tags.Type)
+	// files 的表单协议与落库协议都是字符串 refs，Go 字段也应定义为 string。
+	if widgetType == TypeFiles {
+		field.Data.Type = DataTypeString
+	} else {
+		// 根据Go类型推断数据类型，完全基于Go类型，与widget type无关
+		field.Data.Type = inferDataType(tags.Type)
+	}
 	if format := strings.TrimSpace(tags.DataParsed["format"]); format != "" {
 		field.Data.Format = format
 	}

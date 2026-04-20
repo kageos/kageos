@@ -22,6 +22,7 @@ func getDefaultUploadSource(uploadSource dto.UploadSource) string {
 // buildUploadTokenResponse 构建上传凭证响应
 func buildUploadTokenResponse(
 	creds *storage.UploadCredentials,
+	bucket string,
 	key string,
 	expire time.Time,
 	cdnDomain string,
@@ -30,14 +31,19 @@ func buildUploadTokenResponse(
 	serverDownloadURL string,
 	username string,
 ) *dto.GetUploadTokenResp {
+	ref := ""
+	if bucket != "" && key != "" {
+		ref = strings.Trim(bucket, "/") + "/" + strings.TrimLeft(key, "/")
+	}
 	return &dto.GetUploadTokenResp{
 		Key:               key,
-		Bucket:            "", // 会在调用处设置
+		Bucket:            bucket,
+		Ref:               ref,
 		Expire:            expire.Format(storage.TimeFormat),
 		Method:            dto.UploadMethod(creds.Method),
 		Storage:           storageType,
-		URL:               creds.URL,
-		ServerURL:         creds.ServerURL,
+		UploadURL:         creds.UploadURL,
+		ServerUploadURL:   creds.ServerUploadURL,
 		Headers:           creds.Headers,
 		UploadHost:        creds.UploadHost,
 		UploadDomain:      creds.UploadDomain,
@@ -55,9 +61,11 @@ func buildUploadTokenResponse(
 func createUploadRecord(
 	storageService *service.StorageService,
 	ctx context.Context,
+	bucket string,
 	key string,
 	router string,
 	fileName string,
+	description string,
 	fileSize int64,
 	contentType string,
 	hash string,
@@ -65,9 +73,11 @@ func createUploadRecord(
 ) error {
 	tenant := extractTenantFromRouter(router)
 	uploadRecord := &model.FileUpload{
+		Bucket:      bucket,
 		FileKey:     key,
 		Router:      router,
 		FileName:    fileName,
+		Description: description,
 		FileSize:    fileSize,
 		ContentType: contentType,
 		Hash:        hash,
@@ -86,4 +96,3 @@ func extractTenantFromRouter(router string) string {
 	}
 	return ""
 }
-

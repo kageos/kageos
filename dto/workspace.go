@@ -1,9 +1,6 @@
 package dto
 
-import (
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
-)
+import "github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 
 // WorkspaceChatReq 工作台对话请求（只认 LLM，单模式）
 type WorkspaceChatReq struct {
@@ -16,8 +13,8 @@ type WorkspaceChatReq struct {
 
 // WorkspaceMsg 工作台单条消息
 type WorkspaceMsg struct {
-	Content string       `json:"content" binding:"required"`
-	Files   *types.Files `json:"files,omitempty"`
+	Content string `json:"content" binding:"required"`
+	Files   string `json:"files,omitempty"` // 文件引用字符串，格式 bucket/object_key，多文件逗号分隔
 }
 
 // WorkspaceChatResp 工作台对话响应
@@ -89,7 +86,7 @@ type WorkspaceMessageInfo struct {
 	AgentID   int64                          `json:"agent_id"`             // 智能体ID（0表示未关联）
 	Role      string                         `json:"role"`                 // 角色：user/assistant/tool
 	Content   string                         `json:"content"`              // 消息内容（user 仅存用户文字，不含 <files> 块）
-	Files     *string                        `json:"files,omitempty"`      // 用户消息附带的文件列表 JSON（与 sdk types.Files 一致），仅 user 角色可能有
+	Files     *string                        `json:"files,omitempty"`      // 用户消息附带的文件引用字符串，仅 user 角色可能有
 	ToolCalls []WorkspaceChatToolCallSummary `json:"tool_calls,omitempty"` // 工具调用列表（仅assistant角色）
 	CreatedAt models.Time                    `json:"created_at"`           // 创建时间
 }

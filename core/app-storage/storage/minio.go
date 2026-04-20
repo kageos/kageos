@@ -196,9 +196,9 @@ func (s *MinIOStorage) GenerateUploadCredentials(ctx context.Context, bucket, ke
 	uploadHost, uploadDomain := s.extractDomainInfo(uploadURLStr)
 
 	creds := &UploadCredentials{
-		Method:    UploadMethodPresignedURL,
-		URL:       uploadURLStr, // 外部访问URL
-		ServerURL: serverURL,    // 内部访问URL
+		Method:          UploadMethodPresignedURL,
+		UploadURL:       uploadURLStr,
+		ServerUploadURL: serverURL,
 		Headers: map[string]string{
 			ContentTypeHeader: contentType,
 		},
@@ -250,7 +250,7 @@ func (s *MinIOStorage) GenerateUploadURL(ctx context.Context, bucket, key, conte
 	if err != nil {
 		return "", err
 	}
-	return creds.URL, nil
+	return creds.UploadURL, nil
 }
 
 // GenerateDownloadURL 生成下载 URL（返回外部访问URL，用于兼容旧接口）

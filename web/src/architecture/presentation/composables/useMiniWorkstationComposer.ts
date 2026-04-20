@@ -75,7 +75,7 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
       full_code_path: fullCodePath.value,
       message: {
         content: text || '',
-        ...(files?.length ? { files: { files, widget_type: 'files', data_type: 'struct' } } : {})
+        ...(files?.length ? { files: files.map(file => file.ref).filter(Boolean).join(',') } : {})
       },
       session_id: sessionId.value
     }

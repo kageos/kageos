@@ -18,9 +18,9 @@ export function normalizeFileDisplayUrl(rawUrl?: string): string {
     return value
   }
 
-  return `/storage/api/v1/download/${encodeURIComponent(value)}`
+  return ''
 }
 
-export function getFileDisplayUrl(file: Pick<FileItem, 'url' | 'server_url'>): string {
-  return normalizeFileDisplayUrl(file.url || file.server_url || '')
+export function getFileDisplayUrl(file: Pick<FileItem, 'download_url' | 'server_download_url' | 'ref'>): string {
+  return normalizeFileDisplayUrl(file.download_url || file.server_download_url || file.ref || '')
 }

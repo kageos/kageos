@@ -194,7 +194,7 @@ async function uploadFileWithDedup(router: string, file: File) {
   
   // 5. 上传到 MinIO
   const tokenData = await tokenRes.json();
-  await fetch(tokenData.data.url, {
+  await fetch(tokenData.data.upload_url, {
     method: 'PUT',
     body: file,
   });

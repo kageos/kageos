@@ -2,7 +2,7 @@
   <div v-if="attachedFiles.length > 0" class="mini-ws-files">
     <el-tag
       v-for="(file, idx) in attachedFiles"
-      :key="`${file.url || file.name}-${idx}`"
+      :key="`${file.ref || file.name}-${idx}`"
       size="small"
       closable
       @close="removeFile(idx)"

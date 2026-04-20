@@ -75,7 +75,7 @@
           <el-icon :size="12" class="description-icon">
             <Edit />
           </el-icon>
-          <span class="description-hint">直接在当前文件卡片里补充备注</span>
+          <span class="description-hint">直接在当前文件卡片里补充描述</span>
         </div>
 
         <div class="file-meta">
@@ -118,7 +118,7 @@
           :icon="Edit"
           @click.stop="emit('edit-description')"
         >
-          {{ showInlineDescriptionEditor ? '收起备注' : file.description?.trim() ? '编辑备注' : '添加备注' }}
+          {{ showInlineDescriptionEditor ? '收起描述' : file.description?.trim() ? '编辑描述' : '添加描述' }}
         </el-button>
         <el-button
           v-if="showDownloadAction && file.is_uploaded"
@@ -145,7 +145,7 @@
 
     <div v-if="showInlineDescriptionEditor" class="file-description-editor" @click.stop>
       <div class="description-editor-header">
-        <div class="description-editor-title">文件备注</div>
+        <div class="description-editor-title">文件描述</div>
         <div class="description-editor-tip">和文件一起保存，后续查看也会直接展示在卡片里。</div>
       </div>
       <el-input
@@ -159,7 +159,7 @@
       />
       <div class="description-editor-actions">
         <el-button size="small" @click="emit('cancel-description')">取消</el-button>
-        <el-button size="small" type="primary" @click="emit('save-description')">保存备注</el-button>
+        <el-button size="small" type="primary" @click="emit('save-description')">保存描述</el-button>
       </div>
     </div>
   </div>

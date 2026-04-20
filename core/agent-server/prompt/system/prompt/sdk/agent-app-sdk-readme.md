@@ -126,13 +126,11 @@ List 可在 **Build 前**对 `queryDB` 做 Where、Preload 等，**Build 后**�
 3. **配置 FormTemplate**：`BaseConfig`（Name、Request、Response）+ 可选 `OnSelectFuzzyMap` 等。
 4. **注册**：`init()` 中 `packageContext.POST("路由名", Handler, FormTemplate)`。
 
-最小可用片段示例（使用 files 时需 import `github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types`）：
+最小可用片段示例：
 
 ```go
-import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
-
 type ExcelOrCsvReq struct {
-    File *types.Files `json:"file" widget:"name:上传文件;type:files" validate:"required"`
+    File string `json:"file" widget:"name:上传文件;type:files" validate:"required"`
 }
 type ExcelOrCsvResp struct {
     Rows int `json:"rows" widget:"name:解析行数;type:number"`
@@ -263,7 +261,7 @@ Content        string       `widget:"name:详细内容;type:richtext;height:360"
 ResultCSV      string       `widget:"name:消费明细;type:text;format:csv" permission:"read"`
 Percentage     float64      `widget:"name:完成率;type:progress;min:0;max:100;unit:%" permission:"read"`
 Deadline       int64        `widget:"name:截止时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"`
-Attachment     *types.Files `gorm:"type:json" widget:"name:附件;type:files"`
+Attachment     string `gorm:"type:text" widget:"name:附件;type:files"`
 DetailLink     string       `widget:"name:查看详情;type:link;target:_blank" permission:"read"`
 ```
 
@@ -285,7 +283,7 @@ DetailLink     string       `widget:"name:查看详情;type:link;target:_blank" 
 | `switch` | — | 布尔开关；不要写未实现的 `default` / `true_label` / `false_label` | 是否启用、是否匿名 |
 | `timestamp` | `format`、`default`、`disabled` | 日期时间；**严格要求毫秒时间戳** | 创建时间、截止时间 |
 | `color` | `format`、`default`、`show_alpha` | 颜色选择 | 主题色、颜色值 |
-| `files` | `accept`、`max_size`、`max_count` | 文件上传/下载；字段类型必须为 `*types.Files` | 附件、图片、视频 |
+| `files` | `accept`、`max_size`、`max_count` | 文件上传/下载；字段类型必须为 `string` | 附件、图片、视频 |
 | `user / users` | `default`、`disabled`、`max_count` | 用户选择 | 负责人、抄送人 |
 | `department / departments` | `default`、`max_count` | 部门选择 | 所属部门、关联部门 |
 | `progress` | `min`、`max`、`unit` | 只读进度展示 | 得票率、完成率 |
@@ -310,7 +308,7 @@ DetailLink     string       `widget:"name:查看详情;type:link;target:_blank" 
   - 基本信息：`type BasicInfoStruct struct { Format string \`json:"format" widget:"name:图片格式;type:text"\`; Width string \`...\`; Height string \`...\`; ... }`，字段类型用 `BasicInfoStruct`。
   - 文件信息：`type FileInfoStruct struct { FileName string \`json:"file_name" widget:"name:文件名;type:text"\`; FileSize string \`...\`; ... }`，字段类型用 `FileInfoStruct`。
 
-**files 类型约定**：使用 `type:files` 时字段类型必须为 `*types.Files`，需在文件顶部 **import** 包：`import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"`。否则会编译报错「undefined: types」。完整上传、下载与存储流程见第六节「文件上传、下载与存储」。
+**files 类型约定**：使用 `type:files` 时字段类型为 `string`。字段值是稳定文件引用：`bucket/object_key`，多文件用英文逗号分隔。完整上传、下载与存储流程见第六节「文件上传、下载与存储」。
 
 #### link 组件（跳转链接，多函数联动）
 
@@ -549,7 +547,7 @@ CostPrice    float64 `json:"cost_price" gorm:"column:cost_price" widget:"name:�
 ## 四、Table 模式要点
 
 - **TableTemplate**：`BaseConfig` 含 Name、Request、Response、CreateTables；**`AutoCrudTable` 必配**（指向列表结构体，前端据此展示列表与增删改入口）。**不需要哪种操作就删掉对应回调**：不想要新增 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`（如消费记录、支付流水、操作日志通常应直接只读）。前端根据是否配置回调来显示或隐藏「新增」「编辑」「删除」按钮；工作台和服务端也会据此判断表是否允许写入。可选 `OnTableAddRow`、`OnTableUpdateRow`、`OnTableDeleteRows`；若新增/编辑表单中有 select 需后端动态选项，配 `OnSelectFuzzyMap`（用法见「六、Form 模式要点 → OnSelectFuzzy」）。
-- **AutoCrudTable 的 model 可落库字段类型**：model 里凡是有 **gorm 列**（会被 GORM 写入数据库）的字段，**只能是**以下可落库类型：**基础类型**（int、string、bool、int64、float64 等）、**files.Files**（`gorm:"type:json"`）、**gorm.DeletedAt**（软删除，GORM 特例）。除此以外，**其他 struct、slice（如 type:table / type:form）不能作为一列写入数据库**；若在 model 里出现这类 struct/slice，须为：**外键关联**（如 `Room *MeetingRoom` 配 `gorm:"foreignKey:RoomID;references:ID"`，实际存的是 RoomID，不占一列）或 **gorm:"-"**（不落库，仅展示/表单用，如 RoomName、Status、Options、link 等）。否则 GORM 无法把该列写进数据库。
+- **AutoCrudTable 的 model 可落库字段类型**：model 里凡是有 **gorm 列**（会被 GORM 写入数据库）的字段，**只能是**以下可落库类型：**基础类型**（int、string、bool、int64、float64 等）、**string**（`gorm:"type:text"`，实际存 `bucket/object_key` 字符串，多文件逗号分隔）、**gorm.DeletedAt**（软删除，GORM 特例）。除此以外，**其他 struct、slice（如 type:table / type:form）不能作为一列写入数据库**；若在 model 里出现这类 struct/slice，须为：**外键关联**（如 `Room *MeetingRoom` 配 `gorm:"foreignKey:RoomID;references:ID"`，实际存的是 RoomID，不占一列）或 **gorm:"-"**（不落库，仅展示/表单用，如 RoomName、Status、Options、link 等）。否则 GORM 无法把该列写进数据库。
 - **List 函数**：请求体包含 `*query.SearchFilterPageReq`，使用 `resp.Table(&lists).AutoSearchFilterPaged(db, &Model{}, req.SearchFilterPageReq).Build()`；Build 后可在内存中给计算字段赋值（如剩余时间、**link 跳转 URL**，见「三、结构体与标签 → link 组件」）。若列表需要**按外表或计算字段筛选**（如按「会议室名称」筛预约、按「预约状态：待开始/进行中/已结束」筛），这些字段**不是主表的列**，应在 **Request 结构体**（TableTemplate.BaseConfig.Request）中定义：带 `form:"xxx"` 便于绑定，带 `widget` 让前端展示筛选控件；在 List 函数里**手写 Where**（外表筛先查关联表得 ID 再 `Where 外键 IN ?`，计算字段筛用主表时间等与当前时间比较），再传 `AutoSearchFilterPaged`。详见下「4. List 函数」中会议室预约示例。
 - 主键、CreatedAt、UpdatedAt、DeletedAt、DeletedBy 等系统字段约定见案例；init_.go 由脚手架生成，不要手写。
 
@@ -838,9 +836,9 @@ return resp.Form(&respStruct).Build()
 
 #### 文件上传、下载与存储
 
-- **上传**：请求或 Table 新增/编辑里用 `*types.Files` 字段，widget `type:files`；可选 `accept:.csv`、`max_size:50MB`、`max_count:10` 等。**Table 模式**下该字段落库用 `gorm:"column:xxx;type:json"`，Create/Update 时直接写入 model 即可，框架负责存储与列表/详情展示、下载。
-- **读上传的文件（Form 内）**：需要访问文件内容时（如解析 CSV、转 Excel），用 `fs := ctx.GetFS()`，`inputFiles := fs.DownloadFiles(req.xxx)` 得到带本地路径的 `*types.Files`；遍历 `inputFiles.GetFiles()`，用 `file.LocalPath`（如 `os.Open(file.LocalPath)`）读内容；用完后 **必须** `defer fs.RemoveFiles(inputFiles)` 清理临时文件。
-- **响应里返回文件（供下载）**：业务生成文件到本地路径后，用 `outputFiles := fs.ResponseFiles([]string{outputPath})` 得到 `*types.Files` 填到响应结构体，前端即可下载；用完后可 `defer fs.RemoveFiles(outputFiles)`。**路径建议始终用 `filepath.Abs` 得到绝对路径**再交给 `ResponseFiles` 或与 Python 互传（双方进程 cwd 不同）。若无上传、仅生成文件给用户（如 CSV 文本转 Excel），可先用 `ctx.GetFS().GetTraceOutputDir()` 得到当前 Trace 输出目录，在该目录下生成文件再 `ResponseFiles`。
+- **上传**：请求或 Table 新增/编辑里用 `string` 字段，widget `type:files`；可选 `accept:.csv`、`max_size:50MB`、`max_count:10` 等。`string` 的持久化值是字符串：`bucket/object_key`，多文件用英文逗号分隔。Table 字段建议用 `gorm:"column:xxx;type:text"`。
+- **读上传的文件（Form 内）**：需要访问文件内容时（如解析 CSV、转 Excel），用 `fs := ctx.GetFS()`，`inputFiles := fs.DownloadFiles(req.xxx)` 得到运行时文件列表；遍历 `inputFiles`，用 `file`（如 `os.Open(file)`）读内容；用完后 **必须** `defer fs.RemoveFiles(inputFiles)` 清理临时文件。
+- **响应里返回文件（供下载）**：业务生成文件到本地路径后，用 `outputFiles := fs.ResponseFiles([]string{outputPath})` 得到 `string` 填到响应结构体；返回值本身是 `bucket/object_key` 字符串，前端会通过 storage resolve 拿直连 URL 展示/下载。**路径建议始终用 `filepath.Abs` 得到绝对路径**再交给 `ResponseFiles` 或与 Python 互传（双方进程 cwd 不同）。若无上传、仅生成文件给用户（如 CSV 文本转 Excel），可先用 `ctx.GetFS().GetTraceOutputDir()` 得到当前 Trace 输出目录，在该目录下生成文件再 `ResponseFiles`。
 - **Python runtime 生成可下载文件**：read_doc `/system/prompt/case_catalog/form/python_output`；Go 将 **绝对路径** 放入请求传给 Python（如 `savefig` 目标路径），**不要**再用 base64 绕一圈；须 **`defer executor.Close()`**。
 - **参考实现**：Table 存储文件字段：read_doc `/system/prompt/case_catalog/tables/hr`（见 hr_resume_list.go 的 `ResumeFile`）；Form 上传读文件 + 响应返回文件：read_doc `/system/prompt/case_catalog/form/excelorcsv`（见 `DoCsvToExcel`、`DoCsvTextToExcel`）。
 
@@ -852,17 +850,16 @@ func DoCsvToExcel(ctx *app.Context, req *CsvToExcelReq) (*CsvToExcelResp, error)
     defer fs.RemoveFiles(inputFiles)
 
     var outputFilePaths []string
-    for _, file := range inputFiles.GetFiles() {
-        if file.LocalPath == "" { continue }
-        outPath, err := csvToExcel(ctx, file.LocalPath)
+    for _, file := range inputFiles {
+        if file == "" { continue }
+        outPath, err := csvToExcel(ctx, file)
         if err != nil { /* 记录错误 */ continue }
         outputFilePaths = append(outputFilePaths, outPath)
     }
 
-    var outputFiles *types.Files
+    var outputFiles string
     if len(outputFilePaths) > 0 {
         outputFiles = fs.ResponseFiles(outputFilePaths)
-        defer fs.RemoveFiles(outputFiles)
     }
     return &CsvToExcelResp{OutputFiles: outputFiles, ...}, nil
 }
@@ -871,9 +868,9 @@ func DoCsvToExcel(ctx *app.Context, req *CsvToExcelReq) (*CsvToExcelResp, error)
 ```go
 // Table 模式：文件字段落库，无需 GetFS/Download/Remove
 type HrResume struct {
-    ResumeFile *types.Files `json:"resume_file" gorm:"column:resume_file;type:json" widget:"name:简历附件;type:files"`
+    ResumeFile string `json:"resume_file" gorm:"column:resume_file;type:text" widget:"name:简历附件;type:files"`
 }
-// OnTableAddRow/OnTableUpdateRow 里直接 db.Create(&row) / db.Updates(updates)，ResumeFile 会按 json 存储
+// OnTableAddRow/OnTableUpdateRow 里直接 db.Create(&row) / db.Updates(updates)，ResumeFile 会按 bucket/object_key 字符串存储
 ```
 
 #### OnSelectFuzzy（下拉联动后端数据）

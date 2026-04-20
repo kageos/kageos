@@ -37,6 +37,8 @@ func (s *Server) setupRoutes() {
 	storageGroup.POST("/batch_upload_token", storageHandler.BatchGetUploadToken)    // ✨ 批量获取上传凭证
 	storageGroup.POST("/upload_complete", storageHandler.UploadComplete)            // 上传完成通知
 	storageGroup.POST("/batch_upload_complete", storageHandler.BatchUploadComplete) // ✨ 批量上传完成通知
+	storageGroup.POST("/files/resolve", storageHandler.ResolveFileRefs)             // 批量解析 files ref，返回元数据和直连 URL
+	storageGroup.POST("/files/description", storageHandler.UpdateFileDescription)   // 更新文件描述元数据
 
 	// 文件操作（key 包含斜杠，使用 *key 匹配）
 	storageGroup.GET("/download/*key", storageHandler.GetFileURL)

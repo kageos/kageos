@@ -19,9 +19,9 @@
             class="output-files-item"
           >
             <div class="output-files-preview" v-if="isImageFile(file)">
-              <a :href="file.url" target="_blank" rel="noopener noreferrer" class="output-files-preview-link">
+              <a :href="file.download_url" target="_blank" rel="noopener noreferrer" class="output-files-preview-link">
                 <img
-                  :src="file.url"
+                  :src="file.download_url"
                   :alt="fileDisplayName(file)"
                   loading="lazy"
                   class="output-files-img"
@@ -33,7 +33,7 @@
               <el-icon><Document /></el-icon>
             </div>
             <div class="output-files-info">
-              <a :href="file.url" target="_blank" rel="noopener noreferrer" class="output-files-name">
+              <a :href="file.download_url" target="_blank" rel="noopener noreferrer" class="output-files-name">
                 {{ fileDisplayName(file) }}
               </a>
               <span class="output-files-meta">
@@ -41,8 +41,8 @@
                 <span v-if="file.size != null" class="output-files-size">{{ formatFileSize(file.size) }}</span>
               </span>
               <div class="output-files-actions">
-                <el-link type="primary" :href="file.url" target="_blank" rel="noopener noreferrer">打开</el-link>
-                <el-link type="primary" :href="file.url" target="_blank" rel="noopener noreferrer" download>下载</el-link>
+                <el-link type="primary" :href="file.download_url" target="_blank" rel="noopener noreferrer">打开</el-link>
+                <el-link type="primary" :href="file.download_url" target="_blank" rel="noopener noreferrer" download>下载</el-link>
               </div>
             </div>
           </div>
@@ -53,8 +53,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Document, FolderOpened } from '@element-plus/icons-vue'
+import { resolveFileRefs } from '@/api/storage'
 import { extractFileGroupsFromResult, type OutputFileGroup, type OutputFileItem } from '@/architecture/presentation/composables/useOutputFileGroups'
 
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'])
@@ -71,11 +72,44 @@ const props = withDefaults(
   { sectionTitle: '输出文件' }
 )
 
-/** 展示用的文件组：优先 fileGroups，否则从 result 解析 */
-const displayGroups = computed((): OutputFileGroup[] => {
+const sourceGroups = computed((): OutputFileGroup[] => {
   if (props.fileGroups != null && props.fileGroups.length > 0) return props.fileGroups
   return extractFileGroupsFromResult(props.result)
 })
+
+const resolvedGroups = ref<OutputFileGroup[]>([])
+
+watch(sourceGroups, async (groups) => {
+  resolvedGroups.value = groups
+  const refs = Array.from(new Set(groups.flatMap(group => group.files.map(file => file.ref).filter(Boolean)))) as string[]
+  if (refs.length === 0) {
+    return
+  }
+  try {
+    const resolved = await resolveFileRefs(refs, 'browser')
+    const byRef = new Map(resolved.map(file => [file.ref, file]))
+    resolvedGroups.value = groups.map(group => ({
+      ...group,
+      files: group.files.map((file) => {
+        if (!file.ref) return file
+        const item = byRef.get(file.ref)
+        if (!item) return file
+        return {
+          ...file,
+          name: item.name || file.name,
+          source_name: item.source_name || file.source_name || item.name,
+          size: item.size ?? file.size,
+          download_url: item.download_url || file.download_url,
+        }
+      })
+    }))
+  } catch {
+    resolvedGroups.value = groups
+  }
+}, { immediate: true, deep: true })
+
+/** 展示用的文件组：优先 fileGroups，否则从 result 解析 */
+const displayGroups = computed((): OutputFileGroup[] => resolvedGroups.value)
 
 function isImageFile(file: OutputFileItem): boolean {
   const name = (file.source_name ?? file.name ?? '') as string

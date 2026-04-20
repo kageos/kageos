@@ -7,19 +7,6 @@ import type { WorkspaceChatMessageFile } from '@/api/workspace'
 
 const UPLOAD_ROUTER = 'workspace/chat'
 
-function toPathOnlyUrl(url: string): string {
-  if (!url) return url
-  try {
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      const parsed = new URL(url)
-      return parsed.pathname + parsed.search + parsed.hash
-    }
-  } catch {
-    // noop
-  }
-  return url
-}
-
 export interface UseMiniWorkstationUploadsOptions {
   fullCodePath: Ref<string>
   inputText: Ref<string>
@@ -50,6 +37,7 @@ export function useMiniWorkstationUploads(options: UseMiniWorkstationUploadsOpti
 
       const completeResult = await notifyUploadComplete({
         key: uploadResult.fileInfo.key,
+        bucket: uploadResult.fileInfo.bucket,
         success: true,
         router: uploadResult.fileInfo.router,
         file_name: uploadResult.fileInfo.file_name,
@@ -64,6 +52,9 @@ export function useMiniWorkstationUploads(options: UseMiniWorkstationUploadsOpti
       }
 
       attachedFiles.value.push({
+        ref: completeResult.ref || uploadResult.fileInfo.ref,
+        bucket: completeResult.bucket || uploadResult.fileInfo.bucket,
+        key: uploadResult.fileInfo.key,
         name: completeResult.file_name,
         source_name: file.name,
         storage: completeResult.storage || uploadResult.storage,
@@ -71,8 +62,8 @@ export function useMiniWorkstationUploads(options: UseMiniWorkstationUploadsOpti
         size: completeResult.file_size,
         upload_ts: Math.floor(Date.now() / 1000),
         is_uploaded: true,
-        url: toPathOnlyUrl(completeResult.download_url),
-        server_url: completeResult.server_download_url,
+        download_url: completeResult.download_url,
+        server_download_url: completeResult.server_download_url,
         upload_user: authStore.userName || undefined
       })
       ElMessage.success(`已添加：${file.name}`)

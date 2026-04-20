@@ -52,8 +52,8 @@ type NestedLevel1 struct {
 }
 
 type OmitEmptyFieldSample struct {
-	OutputFiles []string `json:"output_files,omitempty" widget:"name:输出文件;type:files"`
-	TraceID     string   `json:",omitempty" widget:"name:追踪ID;type:input"`
+	OutputFiles string `json:"output_files,omitempty" widget:"name:输出文件;type:files"`
+	TraceID     string `json:",omitempty" widget:"name:追踪ID;type:input"`
 }
 
 func TestDecodeForm(t *testing.T) {
