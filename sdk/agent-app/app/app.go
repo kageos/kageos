@@ -304,45 +304,60 @@ func (a *App) handleDiscovery(msg *nats.Msg) {
 func (a *App) Close() error {
 	logger.Infof(context.Background(), "App.Close() called")
 
-	// 检查是否已经关闭过（使用原子操作避免重复清理）
-	a.shutdownMu.Lock()
-	alreadyClosed := a.shutdownRequested
-	if alreadyClosed {
-		// 如果已经在关闭过程中，避免重复关闭
-		logger.Infof(context.Background(), "Shutdown already in progress, skipping cleanup")
-		a.shutdownMu.Unlock()
+	if !a.markShutdownRequested() {
 		return nil
 	}
-	// 设置关闭请求标志
-	a.shutdownRequested = true
-	a.shutdownMu.Unlock()
 
-	// 1. 先发送关闭通知（在连接关闭前）
+	a.notifyCloseBestEffort()
+	a.unsubscribeAll()
+	a.closeNATSConnection()
+	a.cleanupRuntimeResources()
+	a.closeExitSignal()
+
+	logger.Infof(context.Background(), "App.Close() completed, all resources released")
+
+	return nil
+}
+
+func (a *App) markShutdownRequested() bool {
+	a.shutdownMu.Lock()
+	defer a.shutdownMu.Unlock()
+
+	if a.shutdownRequested {
+		logger.Infof(context.Background(), "Shutdown already in progress, skipping cleanup")
+		return false
+	}
+
+	a.shutdownRequested = true
+	return true
+}
+
+func (a *App) notifyCloseBestEffort() {
 	if err := a.sendCloseNotification(); err != nil {
 		logger.Warnf(context.Background(), "Failed to send close notification: %v", err)
 		// 不返回错误，通知失败不应阻止关闭流程
 	}
+}
 
-	// 2. 取消所有订阅
+func (a *App) unsubscribeAll() {
 	for _, sub := range a.subs {
 		sub.Unsubscribe()
 	}
+}
 
-	// 3. 关闭NATS连接
+func (a *App) closeNATSConnection() {
 	if a.conn != nil {
 		a.conn.Close()
 	}
+}
 
-	// 4. 关闭所有数据库连接
+func (a *App) cleanupRuntimeResources() {
 	closeAllDatabases()
-
-	// 5. 清理文件缓存（立即删除所有无引用的待删除文件）
 	GetFileCache().CleanupOnShutdown()
-
-	// 6. 强制 GC 并释放内存回操作系统
 	forceGCAndFreeMemory()
+}
 
-	// 7. 安全地关闭退出channel
+func (a *App) closeExitSignal() {
 	a.shutdownMu.Lock()
 	defer a.shutdownMu.Unlock()
 
@@ -355,10 +370,6 @@ func (a *App) Close() error {
 		close(a.exit)
 		logger.Infof(context.Background(), "Exit channel closed")
 	}
-
-	logger.Infof(context.Background(), "App.Close() completed, all resources released")
-
-	return nil
 }
 
 func Run() error {

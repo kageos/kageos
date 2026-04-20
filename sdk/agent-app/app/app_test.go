@@ -43,3 +43,37 @@ func TestBuildAppSubjects(t *testing.T) {
 		t.Fatalf("unexpected discovery request subject: %s", got.DiscoveryRequest)
 	}
 }
+
+func TestMarkShutdownRequestedIsIdempotent(t *testing.T) {
+	app := &App{}
+
+	if ok := app.markShutdownRequested(); !ok {
+		t.Fatal("expected first shutdown mark to succeed")
+	}
+	if ok := app.markShutdownRequested(); ok {
+		t.Fatal("expected second shutdown mark to be skipped")
+	}
+	if !app.shutdownRequested {
+		t.Fatal("expected shutdownRequested to stay true")
+	}
+}
+
+func TestCloseExitSignalIsIdempotent(t *testing.T) {
+	app := &App{
+		exit: make(chan struct{}),
+	}
+
+	app.closeExitSignal()
+	select {
+	case <-app.exit:
+	default:
+		t.Fatal("expected exit channel to be closed")
+	}
+
+	app.closeExitSignal()
+	select {
+	case <-app.exit:
+	default:
+		t.Fatal("expected exit channel to remain closed")
+	}
+}
