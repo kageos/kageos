@@ -204,3 +204,50 @@ export function searchFunctions(req: SearchFunctionsReq) {
     page_size: req.page_size.toString()
   })
 }
+
+// 全站资源搜索
+export type SearchResourceType = 'all' | 'package' | 'function' | 'docs' | 'board'
+
+export interface SearchResourcesReq {
+  user?: string
+  app?: string
+  keyword: string
+  resource_type?: SearchResourceType
+  page?: number
+  page_size?: number
+}
+
+export interface ResourceSearchResult {
+  id: number
+  name: string
+  code: string
+  type: 'package' | 'function' | 'docs' | 'board'
+  full_code_path: string
+  description?: string
+  tags?: string
+  template_type?: string
+  app_id?: number
+  app_user?: string
+  app_code?: string
+  run_count?: number
+  match_source?: string
+  snippet?: string
+}
+
+export interface SearchResourcesResp {
+  items: ResourceSearchResult[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export function searchResources(req: SearchResourcesReq) {
+  return get<SearchResourcesResp>('/workspace/api/v1/service_tree/search_resources', {
+    user: req.user || '',
+    app: req.app || '',
+    keyword: req.keyword || '',
+    resource_type: req.resource_type || 'all',
+    page: String(req.page || 1),
+    page_size: String(req.page_size || 20)
+  })
+}

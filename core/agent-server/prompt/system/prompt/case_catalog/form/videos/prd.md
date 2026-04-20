@@ -248,7 +248,7 @@ func copyFile(src, dst string) error {
 var VideoConvertTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "视频格式转换",
-		Desc:     "支持将视频转换为MP4、WebM、AVI、MKV等多种格式，支持批量处理。运行环境为 GPL FFmpeg（含 libx264）。MP4 使用 H.264+AAC（mov/录屏等转 mp4 兼容性好）；WebM 使用 VP8/Opus。应用场景：视频格式统一、兼容性转换、文件大小优化等。",
+		Desc:     `支持将视频转换为MP4、WebM、AVI、MKV等多种格式，支持批量处理。运行环境为 GPL FFmpeg（含 libx264）。MP4 使用 H.264+AAC（mov/录屏等转 mp4 兼容性好）；WebM 使用 VP8/Opus。应用场景：视频格式统一、兼容性转换、文件大小优化等。`,
 		Tags:     []string{"视频处理", "格式转换", "工具"},
 		Request:  &VideoConvertReq{},
 		Response: &VideoConvertResp{},
@@ -391,7 +391,7 @@ func splitCommandLine(s string) []string {
 var VideoRunCommandTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name: "视频格式转换自定义命令",
-		Desc: "上传视频/媒体文件后，用自定义命令模板处理（占位符 {{input}}、{{output}} 会替换为实际路径后执行）。不经过 shell，安全。运行环境为 GPL FFmpeg（含 libx264），可用 -c copy 或 -c:v libx264 -c:a aac 等；示例：ffmpeg -i {{input}} -c:v libx264 -c:a aac -y {{output}}。",
+		Desc: `上传视频/媒体文件后，用自定义命令模板处理（占位符 {{input}}、{{output}} 会替换为实际路径后执行）。不经过 shell，安全。运行环境为 GPL FFmpeg（含 libx264），可用 -c copy 或 -c:v libx264 -c:a aac 等；示例：ffmpeg -i {{input}} -c:v libx264 -c:a aac -y {{output}}。`,
 		Tags:     []string{"视频处理", "ffmpeg", "自定义命令", "智能体"},
 		Request:  &VideoRunCommandReq{},
 		Response: &VideoRunCommandResp{},

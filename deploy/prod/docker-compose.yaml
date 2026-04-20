@@ -76,6 +76,7 @@ services:
       TLS_CERT_FILE: ${TLS_CERT_FILE:-/app/tls/fullchain.pem}
       TLS_KEY_FILE: ${TLS_KEY_FILE:-/app/tls/privkey.pem}
       APP_BASE_IMAGE: ${APP_BASE_IMAGE:-localhost/agentos-app-runtime-base:latest}
+      AOS_SCHEDULER_HEALTH_PORT: ${AOS_SCHEDULER_HEALTH_PORT:-9098}
     volumes:
       - /data/ai-agent-os/podman_storage:/var/lib/containers
       - /data/ai-agent-os/logs:/app/logs
@@ -106,6 +107,7 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-AI Agent OS}
       APP_BASE_IMAGE: ${APP_BASE_IMAGE:-localhost/agentos-app-runtime-base:latest}
+      AOS_SCHEDULER_HEALTH_PORT: ${AOS_SCHEDULER_HEALTH_PORT:-9098}
     volumes:
       - /data/ai-agent-os/logs:/app/logs
       - /data/ai-agent-os/namespace:/app/namespace

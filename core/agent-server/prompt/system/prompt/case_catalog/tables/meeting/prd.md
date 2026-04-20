@@ -156,7 +156,7 @@ func MeetingRoomList(ctx *app.Context, resp response.Response) error {
 var MeetingRoomListTemplate = &app.TableTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:         "会议室管理",
-		Desc:         "会议室信息的增删改查管理，包括会议室名称、类型、容纳人数、设备配置、位置信息、状态等",
+		Desc:         `会议室信息的增删改查管理，包括会议室名称、类型、容纳人数、设备配置、位置信息、状态等`,
 		Tags:         []string{"会议室系统", "会议室管理"},
 		Request:      &MeetingRoomListReq{},
 		Response:     query.PaginatedTable[[]MeetingRoom]{},
@@ -387,7 +387,7 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
 var MeetingRoomBookingListTemplate = &app.TableTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:         "会议室预约管理",
-		Desc:         "会议室预约的增删改查管理，包括会议室选择、预约人、会议主题、时间安排、参会人数、预约状态等",
+		Desc:         `会议室预约的增删改查管理，包括会议室选择、预约人、会议主题、时间安排、参会人数、预约状态等`,
 		Tags:         []string{"会议室系统", "预约管理"},
 		Request:      &MeetingRoomBookingListReq{},
 		Response:     query.PaginatedTable[[]MeetingRoomBooking]{},
@@ -692,7 +692,7 @@ func init() {
 	packageContext.POST("meeting_room_notify_soon.form", MeetingRoomNotifySoon, &app.FormTemplate{
 		BaseConfig: app.BaseConfig{
 			Name:     "会议即将开始提醒（定时任务）",
-			Desc:     "巡检未来N分钟内将开始的会议，并给预约人和参会人发送提醒消息。只注册函数不会自动巡检，需再配置平台定时任务调用。",
+			Desc:     `巡检未来N分钟内将开始的会议，并给预约人和参会人发送提醒消息。只注册函数不会自动巡检，需再配置平台定时任务调用。`,
 			Tags:     []string{"会议室系统", "消息提醒", "定时任务"},
 			Request:  &MeetingRoomNotifySoonReq{},
 			Response: &MeetingRoomNotifySoonResp{},

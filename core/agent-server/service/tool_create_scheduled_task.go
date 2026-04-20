@@ -12,17 +12,20 @@ import (
 type CreateScheduledTaskTool struct{}
 
 type createScheduledTaskArgs struct {
-	Name            string `json:"name" schema_desc:"任务名称" schema_required:"true"`
-	FullCodePath    string `json:"full_code_path" schema_desc:"函数完整路径，不传默认当前目录"`
-	Action          string `json:"action" schema_desc:"任务动作" schema_enum:"execute,form,table_create,table_update,table_delete"`
-	Method          string `json:"method" schema_desc:"请求方法"`
-	Payload         string `json:"payload" schema_desc:"JSON 对象字符串"`
-	ScheduleType    string `json:"schedule_type" schema_desc:"调度类型" schema_required:"true" schema_enum:"atime,cron,every"`
-	RunAt           string `json:"run_at" schema_desc:"仅 atime 需要：首次执行时间"`
-	CronExpr        string `json:"cron_expr" schema_desc:"cron 表达式"`
-	IntervalSeconds *int   `json:"interval_seconds" schema_desc:"间隔秒数"`
-	MaxRuns         *int   `json:"max_runs" schema_desc:"最多执行次数"`
-	Timezone        string `json:"timezone" schema_desc:"时区"`
+	Name              string   `json:"name" schema_desc:"任务名称" schema_required:"true"`
+	FullCodePath      string   `json:"full_code_path" schema_desc:"函数完整路径，不传默认当前目录"`
+	Action            string   `json:"action" schema_desc:"任务动作" schema_enum:"execute,form,table_create,table_update,table_delete"`
+	Method            string   `json:"method" schema_desc:"请求方法"`
+	Payload           string   `json:"payload" schema_desc:"JSON 对象字符串"`
+	ScheduleType      string   `json:"schedule_type" schema_desc:"调度类型" schema_required:"true" schema_enum:"atime,cron,every"`
+	RunAt             string   `json:"run_at" schema_desc:"仅 atime 需要：首次执行时间"`
+	CronExpr          string   `json:"cron_expr" schema_desc:"cron 表达式"`
+	IntervalSeconds   *int     `json:"interval_seconds" schema_desc:"间隔秒数"`
+	MaxRuns           *int     `json:"max_runs" schema_desc:"最多执行次数"`
+	Timezone          string   `json:"timezone" schema_desc:"时区"`
+	NotifyUsers       []string `json:"notify_users" schema_desc:"执行完成后通知的用户名列表"`
+	NotifyDepartments []string `json:"notify_departments" schema_desc:"执行完成后通知的部门 full_code_path 列表"`
+	NotifyOn          string   `json:"notify_on" schema_desc:"通知条件" schema_enum:"none,all,success,failed"`
 }
 
 var createScheduledTaskToolDef = toolDefinition[createScheduledTaskArgs](
@@ -85,15 +88,18 @@ func runCreateScheduledTaskTool(ctx context.Context, args createScheduledTaskArg
 	}
 
 	req := &dto.CreateScheduledTaskReq{
-		Name:         name,
-		FullCodePath: fullCodePath,
-		Action:       action,
-		Method:       method,
-		Payload:      payloadRaw,
-		ScheduleType: scheduleType,
-		RunAt:        runAt,
-		CronExpr:     strings.TrimSpace(args.CronExpr),
-		Timezone:     strings.TrimSpace(args.Timezone),
+		Name:              name,
+		FullCodePath:      fullCodePath,
+		Action:            action,
+		Method:            method,
+		Payload:           payloadRaw,
+		ScheduleType:      scheduleType,
+		RunAt:             runAt,
+		CronExpr:          strings.TrimSpace(args.CronExpr),
+		Timezone:          strings.TrimSpace(args.Timezone),
+		NotifyUsers:       args.NotifyUsers,
+		NotifyDepartments: args.NotifyDepartments,
+		NotifyOn:          strings.TrimSpace(args.NotifyOn),
 	}
 	if args.IntervalSeconds != nil {
 		req.IntervalSeconds = int64(*args.IntervalSeconds)

@@ -52,6 +52,7 @@ func (s *Server) setupRoutes() {
 	serviceTreeAuth.Use(middleware2.JWTAuth())                                              // 服务目录管理需要JWT认证
 	serviceTreeAuth.GET("/detail", serviceTreeHandler.GetServiceTreeDetail)                 // ⭐ 获取服务目录详情（包含权限，兼容旧接口）
 	serviceTreeAuth.GET("/search_functions", serviceTreeHandler.SearchFunctions)            // ⭐ 搜索函数
+	serviceTreeAuth.GET("/search_resources", serviceTreeHandler.SearchResources)            // 全站资源搜索（目录/函数/文档/讨论区）
 	serviceTreeAuth.POST("/copy", serviceTreeHandler.CopyServiceTree)                       // 复制服务目录
 	serviceTreeAuth.POST("/publish_to_hub", serviceTreeHandler.PublishDirectoryToHub)       // 发布目录到 Hub
 	serviceTreeAuth.POST("/push_to_hub", serviceTreeHandler.PushDirectoryToHub)             // 推送目录到 Hub（更新已发布的目录）
@@ -212,8 +213,10 @@ func (s *Server) setupRoutes() {
 	scheduledTask := apiV1.Group("/scheduled_tasks")
 	scheduledTask.Use(middleware2.JWTAuth())
 	scheduledTaskHandler := v1.NewScheduledTask(s.scheduledTaskService)
-	scheduledTask.POST("", scheduledTaskHandler.Create)                       // 创建定时任务
-	scheduledTask.GET("", scheduledTaskHandler.List)                          // 列表
-	scheduledTask.DELETE("/:id", scheduledTaskHandler.Cancel)                 // 取消
-	scheduledTask.GET("/:id/executions", scheduledTaskHandler.ListExecutions) // 执行记录
+	scheduledTask.POST("", scheduledTaskHandler.Create)                                   // 创建定时任务
+	scheduledTask.GET("", scheduledTaskHandler.List)                                      // 列表
+	scheduledTask.GET("/:id", scheduledTaskHandler.Get)                                   // 详情
+	scheduledTask.DELETE("/:id", scheduledTaskHandler.Cancel)                             // 取消
+	scheduledTask.GET("/:id/executions", scheduledTaskHandler.ListExecutions)             // 执行记录
+	scheduledTask.GET("/:id/executions/:execution_id", scheduledTaskHandler.GetExecution) // 执行记录详情
 }

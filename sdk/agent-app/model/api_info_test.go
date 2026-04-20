@@ -10,7 +10,7 @@ func TestApiInfoBindingMethods(t *testing.T) {
 	apiInfo := &app.ApiInfo{
 		Code:         "createUser",
 		Name:         "创建用户",
-		Desc:         "创建新用户",
+		Desc:         `创建新用户`,
 		Router:       "/api/user/create",
 		Method:       "POST",
 		User:         "testuser",

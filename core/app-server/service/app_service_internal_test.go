@@ -60,7 +60,7 @@ func TestApplyFunctionNodeMetadataOverwritesStaleFields(t *testing.T) {
 	api := &dto.ApiInfo{
 		Code:         "ticket_list",
 		Name:         "工单列表",
-		Desc:         "新的描述",
+		Desc:         `新的描述`,
 		TemplateType: "table",
 	}
 

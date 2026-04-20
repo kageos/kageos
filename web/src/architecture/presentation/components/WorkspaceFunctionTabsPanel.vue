@@ -74,6 +74,7 @@
           <div class="tab-content">
             <ScheduledTaskList
               :resource-path="currentFunction?.full_code_path"
+              :function-detail="currentFunctionDetail"
               :auto-load="activeTab === 'scheduledTask'"
               @total-change="onScheduledTaskTotalChange"
               @open-function-operate-log="onOpenFunctionOperateLog"

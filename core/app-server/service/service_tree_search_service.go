@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 )
@@ -43,4 +44,62 @@ func (s *serviceTreeSearchService) SearchFunctions(
 		Page:      page,
 		PageSize:  pageSize,
 	}, nil
+}
+
+func (s *serviceTreeSearchService) SearchResources(
+	_ context.Context,
+	req *dto.SearchResourcesReq,
+) (*dto.SearchResourcesResp, error) {
+	page, pageSize := normalizeSearchResourcesPagination(req.Page, req.PageSize)
+	fetchSize := calculateSearchResourcesFetchSize(page, pageSize, req.Keyword)
+	nodeTypes := parseSearchResourceTypes(req.ResourceType)
+
+	trees, total, err := s.serviceTreeRepo.SearchResources(
+		req.CurrentUser,
+		req.User,
+		req.App,
+		req.Keyword,
+		nodeTypes,
+		page,
+		fetchSize,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("搜索资源失败: %w", err)
+	}
+
+	trees = rankAndLimitSearchResources(trees, req.Keyword, page, pageSize)
+
+	return &dto.SearchResourcesResp{
+		Items:    buildResourceSearchResults(trees, req.Keyword),
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	}, nil
+}
+
+func parseSearchResourceTypes(resourceType string) []string {
+	switch resourceType {
+	case "", "all":
+		return []string{
+			model.ServiceTreeTypePackage,
+			model.ServiceTreeTypeFunction,
+			model.ServiceTreeTypeDocs,
+			model.ServiceTreeTypeBoard,
+		}
+	case "directory", "package":
+		return []string{model.ServiceTreeTypePackage}
+	case model.ServiceTreeTypeFunction:
+		return []string{model.ServiceTreeTypeFunction}
+	case model.ServiceTreeTypeDocs, "doc", "document":
+		return []string{model.ServiceTreeTypeDocs}
+	case model.ServiceTreeTypeBoard:
+		return []string{model.ServiceTreeTypeBoard}
+	default:
+		return []string{
+			model.ServiceTreeTypePackage,
+			model.ServiceTreeTypeFunction,
+			model.ServiceTreeTypeDocs,
+			model.ServiceTreeTypeBoard,
+		}
+	}
 }

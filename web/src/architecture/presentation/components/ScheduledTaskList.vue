@@ -220,6 +220,18 @@
             <span class="overview-label">已执行次数</span>
             <span class="overview-value">{{ currentTask.run_count || 0 }}</span>
           </div>
+          <div class="overview-item">
+            <span class="overview-label">通知条件</span>
+            <span class="overview-value">{{ notifyOnLabel(currentTask.notify_on) }}</span>
+          </div>
+          <div class="overview-item">
+            <span class="overview-label">通知用户</span>
+            <span class="overview-value">{{ formatNotifyTargets(currentTask.notify_users) }}</span>
+          </div>
+          <div class="overview-item">
+            <span class="overview-label">通知组织</span>
+            <span class="overview-value">{{ formatNotifyTargets(currentTask.notify_departments) }}</span>
+          </div>
         </div>
 
         <el-alert
@@ -348,7 +360,7 @@
     <el-dialog
       v-model="executionDetailVisible"
       title="执行详情"
-      width="720px"
+      width="1040px"
       destroy-on-close
     >
       <template v-if="currentExecution">
@@ -386,6 +398,12 @@
           :closable="false"
           class="detail-alert"
         />
+        <FunctionExecutionResultReadonly
+          :function-detail="props.functionDetail"
+          :request-payload="currentExecutionRequestPayload"
+          :response-payload="currentExecutionResponsePayload"
+          :response-metadata="currentExecutionResponseMetadata"
+        />
       </template>
       <template #footer>
         <div class="dialog-footer">
@@ -407,14 +425,17 @@
 import { withDefaults } from 'vue'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import ExecutionDurationTag from '@/architecture/presentation/components/ExecutionDurationTag.vue'
+import FunctionExecutionResultReadonly from '@/architecture/presentation/components/FunctionExecutionResultReadonly.vue'
 import { useScheduledTaskList } from '@/architecture/presentation/composables/useScheduledTaskList'
+import type { FunctionDetail } from '@/architecture/domain/types'
 
 const props = withDefaults(
   defineProps<{
     resourcePath?: string
     autoLoad?: boolean
+    functionDetail?: FunctionDetail | null
   }>(),
-  { autoLoad: false }
+  { autoLoad: false, functionDetail: null }
 )
 const emit = defineEmits<{
   (e: 'total-change', total: number): void
@@ -442,10 +463,15 @@ const {
   executionFilterForm,
   executionDetailVisible,
   currentExecution,
+  currentExecutionRequestPayload,
+  currentExecutionResponsePayload,
+  currentExecutionResponseMetadata,
   scheduleTypeLabel,
   actionLabel,
   statusTagType,
   statusLabel,
+  notifyOnLabel,
+  formatNotifyTargets,
   formatDateTime,
   formatPayload,
   getScheduleSummary,
@@ -696,6 +722,27 @@ const {
 
 .execution-overview {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.execution-overview .overview-item {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background:
+    linear-gradient(135deg, rgba(64, 158, 255, 0.09), rgba(255, 255, 255, 0)),
+    var(--el-fill-color-blank);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.execution-overview .overview-item::after {
+  position: absolute;
+  right: -18px;
+  bottom: -24px;
+  width: 64px;
+  height: 64px;
+  content: '';
+  border-radius: 999px;
+  background: rgba(64, 158, 255, 0.08);
 }
 
 @media (max-width: 960px) {

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -438,11 +439,13 @@ func (s *Server) initServices(ctx context.Context) error {
 	scheduledTaskRepo := repository.NewScheduledTaskRepository(s.db)
 	scheduledTaskExecutionRepo := repository.NewScheduledTaskExecutionRepository(s.db)
 	s.scheduledTaskService = service.NewScheduledTaskService(s.appService, s.jwtService, scheduledTaskRepo, scheduledTaskExecutionRepo, service.ScheduledTaskServiceOptions{
-		PollInterval:    s.cfg.GetSchedulerPollInterval(),
-		BatchSize:       s.cfg.GetSchedulerBatchSize(),
-		LeaseDuration:   s.cfg.GetSchedulerLeaseDuration(),
-		MaxConcurrency:  s.cfg.GetSchedulerMaxConcurrency(),
-		HeartbeatMaxAge: s.cfg.GetSchedulerHeartbeatMaxAge(),
+		PollInterval:        s.cfg.GetSchedulerPollInterval(),
+		BatchSize:           s.cfg.GetSchedulerBatchSize(),
+		LeaseDuration:       s.cfg.GetSchedulerLeaseDuration(),
+		MaxConcurrency:      s.cfg.GetSchedulerMaxConcurrency(),
+		HeartbeatMaxAge:     s.cfg.GetSchedulerHeartbeatMaxAge(),
+		MessagePublisher:    service.NewNATSMessagePublisher(s.natsConn),
+		NotificationBaseURL: config.GetGlobalSharedConfig().Gateway.GetBaseURL(),
 	})
 
 	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
@@ -483,11 +486,13 @@ func (s *Server) initSchedulerServices(ctx context.Context) error {
 	scheduledTaskRepo := repository.NewScheduledTaskRepository(s.db)
 	scheduledTaskExecutionRepo := repository.NewScheduledTaskExecutionRepository(s.db)
 	s.scheduledTaskService = service.NewScheduledTaskService(s.appService, s.jwtService, scheduledTaskRepo, scheduledTaskExecutionRepo, service.ScheduledTaskServiceOptions{
-		PollInterval:    s.cfg.GetSchedulerPollInterval(),
-		BatchSize:       s.cfg.GetSchedulerBatchSize(),
-		LeaseDuration:   s.cfg.GetSchedulerLeaseDuration(),
-		MaxConcurrency:  s.cfg.GetSchedulerMaxConcurrency(),
-		HeartbeatMaxAge: s.cfg.GetSchedulerHeartbeatMaxAge(),
+		PollInterval:        s.cfg.GetSchedulerPollInterval(),
+		BatchSize:           s.cfg.GetSchedulerBatchSize(),
+		LeaseDuration:       s.cfg.GetSchedulerLeaseDuration(),
+		MaxConcurrency:      s.cfg.GetSchedulerMaxConcurrency(),
+		HeartbeatMaxAge:     s.cfg.GetSchedulerHeartbeatMaxAge(),
+		MessagePublisher:    service.NewNATSMessagePublisher(s.natsConn),
+		NotificationBaseURL: config.GetGlobalSharedConfig().Gateway.GetBaseURL(),
 	})
 
 	logger.Infof(ctx, "[Server] Scheduler services initialized successfully")
@@ -556,19 +561,81 @@ func (s *Server) startSchedulerHealthHTTP(ctx context.Context) error {
 }
 
 func (s *Server) handleSchedulerHealth(w http.ResponseWriter, _ *http.Request) {
+	now := time.Now()
 	if s.scheduledTaskService == nil {
-		http.Error(w, "scheduler service unavailable", http.StatusServiceUnavailable)
+		s.writeSchedulerHealthResponse(w, http.StatusServiceUnavailable, schedulerHealthResponse{
+			Status:    "unavailable",
+			Service:   "app-scheduler",
+			Healthy:   false,
+			Timestamp: now.Format(time.RFC3339),
+			Message:   "scheduler service unavailable",
+		})
 		return
 	}
 
-	healthy, age := s.scheduledTaskService.HealthStatus(time.Now())
-	if !healthy {
-		http.Error(w, fmt.Sprintf("scheduler heartbeat stale: age=%s", age.Round(time.Second)), http.StatusServiceUnavailable)
-		return
+	snapshot := s.scheduledTaskService.HealthSnapshot(now)
+	statusCode := http.StatusOK
+	status := "ok"
+	message := ""
+	if !snapshot.HasHeartbeat {
+		statusCode = http.StatusServiceUnavailable
+		status = "starting"
+		message = "scheduler heartbeat not observed yet"
+	} else if !snapshot.Healthy {
+		statusCode = http.StatusServiceUnavailable
+		status = "stale"
+		message = fmt.Sprintf("scheduler heartbeat stale: age=%s", snapshot.HeartbeatAge.Round(time.Second))
 	}
 
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("ok"))
+	resp := schedulerHealthResponse{
+		Status:                 status,
+		Service:                "app-scheduler",
+		Healthy:                snapshot.Healthy,
+		Timestamp:              now.Format(time.RFC3339),
+		Message:                message,
+		SchedulerID:            snapshot.SchedulerID,
+		PollIntervalSeconds:    int64(snapshot.PollInterval / time.Second),
+		HeartbeatMaxAgeSeconds: int64(snapshot.HeartbeatMaxAge / time.Second),
+		HeartbeatAgeSeconds:    int64(snapshot.HeartbeatAge / time.Second),
+		InflightWorkers:        snapshot.InflightWorkers,
+		AvailableWorkers:       snapshot.AvailableWorkers,
+		MaxConcurrency:         snapshot.MaxConcurrency,
+	}
+	if snapshot.HasHeartbeat {
+		lastHeartbeatAt := snapshot.LastHeartbeatAt.Format(time.RFC3339)
+		resp.LastHeartbeatAt = &lastHeartbeatAt
+	}
+	if snapshot.HasPoll {
+		lastPollAt := snapshot.LastPollAt.Format(time.RFC3339)
+		resp.LastPollAt = &lastPollAt
+	}
+
+	s.writeSchedulerHealthResponse(w, statusCode, resp)
+}
+
+type schedulerHealthResponse struct {
+	Status                 string  `json:"status"`
+	Service                string  `json:"service"`
+	Healthy                bool    `json:"healthy"`
+	Timestamp              string  `json:"timestamp"`
+	Message                string  `json:"message,omitempty"`
+	SchedulerID            string  `json:"scheduler_id,omitempty"`
+	LastHeartbeatAt        *string `json:"last_heartbeat_at,omitempty"`
+	LastPollAt             *string `json:"last_poll_at,omitempty"`
+	PollIntervalSeconds    int64   `json:"poll_interval_seconds"`
+	HeartbeatMaxAgeSeconds int64   `json:"heartbeat_max_age_seconds"`
+	HeartbeatAgeSeconds    int64   `json:"heartbeat_age_seconds"`
+	InflightWorkers        int     `json:"inflight_workers"`
+	AvailableWorkers       int     `json:"available_workers"`
+	MaxConcurrency         int     `json:"max_concurrency"`
+}
+
+func (s *Server) writeSchedulerHealthResponse(w http.ResponseWriter, statusCode int, resp schedulerHealthResponse) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		logger.Warnf(s.ctx, "[Server] Encode scheduler health response failed: %v", err)
+	}
 }
 
 func (s *Server) stopSchedulerHealthHTTP(ctx context.Context) {

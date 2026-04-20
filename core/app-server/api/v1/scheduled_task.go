@@ -24,33 +24,51 @@ func NewScheduledTask(scheduledTaskService *service.ScheduledTaskService) *Sched
 
 func buildScheduledTaskItem(t *model.ScheduledTask) dto.ScheduledTaskItem {
 	item := dto.ScheduledTaskItem{
-		ID:              t.ID,
-		Name:            t.Name,
-		User:            t.User,
-		App:             t.App,
-		FullCodePath:    t.FullCodePath,
-		Action:          t.Action,
-		Method:          t.Method,
-		Payload:         string(t.Payload),
-		RequestUser:     t.RequestUser,
-		RequestUserDept: t.RequestUserDept,
-		CreatedBy:       t.CreatedBy,
-		ScheduleType:    t.ScheduleType,
-		RunAt:           t.RunAt.Format(time.RFC3339),
-		CronExpr:        t.CronExpr,
-		IntervalSeconds: t.IntervalSeconds,
-		MaxRuns:         t.MaxRuns,
-		Timezone:        t.Timezone,
-		Status:          t.Status,
-		RunCount:        t.RunCount,
-		ErrorMessage:    t.ErrorMessage,
-		CreatedAt:       t.CreatedAt.Format(time.RFC3339),
+		ID:                t.ID,
+		Name:              t.Name,
+		User:              t.User,
+		App:               t.App,
+		FullCodePath:      t.FullCodePath,
+		Action:            t.Action,
+		Method:            t.Method,
+		Payload:           string(t.Payload),
+		RequestUser:       t.RequestUser,
+		RequestUserDept:   t.RequestUserDept,
+		CreatedBy:         t.CreatedBy,
+		ScheduleType:      t.ScheduleType,
+		RunAt:             t.RunAt.Format(time.RFC3339),
+		CronExpr:          t.CronExpr,
+		IntervalSeconds:   t.IntervalSeconds,
+		MaxRuns:           t.MaxRuns,
+		Timezone:          t.Timezone,
+		Status:            t.Status,
+		RunCount:          t.RunCount,
+		ErrorMessage:      t.ErrorMessage,
+		NotifyUsers:       service.SplitScheduledTaskRecipientsForAPI(t.NotifyUsers),
+		NotifyDepartments: service.SplitScheduledTaskRecipientsForAPI(t.NotifyDepartments),
+		NotifyOn:          t.NotifyOn,
+		CreatedAt:         t.CreatedAt.Format(time.RFC3339),
 	}
 	if t.NextRunAt != nil {
 		next := t.NextRunAt.Format(time.RFC3339)
 		item.NextRunAt = &next
 	}
 	return item
+}
+
+func buildScheduledTaskExecutionItem(e *model.ScheduledTaskExecution) dto.ScheduledTaskExecutionItem {
+	return dto.ScheduledTaskExecutionItem{
+		ID:              e.ID,
+		TaskID:          e.TaskID,
+		ExecutedAt:      e.ExecutedAt.Format(time.RFC3339),
+		Status:          e.Status,
+		DurationMillis:  e.DurationMillis,
+		RequestPayload:  string(e.RequestPayload),
+		ResponsePayload: string(e.ResponsePayload),
+		ErrorMessage:    e.ErrorMessage,
+		TraceID:         e.TraceID,
+		CreatedAt:       e.CreatedAt.Format(time.RFC3339),
+	}
 }
 
 // Create 创建定时任务
@@ -93,6 +111,28 @@ func (s *ScheduledTask) List(c *gin.Context) {
 		items = append(items, buildScheduledTaskItem(t))
 	}
 	response.OkWithData(c, gin.H{"list": items, "total": total})
+}
+
+// Get 获取定时任务详情
+func (s *ScheduledTask) Get(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.FailWithMessage(c, "无效的任务ID")
+		return
+	}
+	requestUser := contextx.GetRequestUser(c)
+	if requestUser == "" {
+		response.FailWithMessage(c, "请先登录")
+		return
+	}
+	ctx := contextx.ToContext(c)
+	task, err := s.scheduledTaskService.Get(ctx, id, requestUser)
+	if err != nil {
+		response.FailWithMessage(c, "获取任务失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, buildScheduledTaskItem(task))
 }
 
 // Cancel 取消定时任务
@@ -140,18 +180,35 @@ func (s *ScheduledTask) ListExecutions(c *gin.Context) {
 	}
 	items := make([]dto.ScheduledTaskExecutionItem, 0, len(list))
 	for _, e := range list {
-		items = append(items, dto.ScheduledTaskExecutionItem{
-			ID:              e.ID,
-			TaskID:          e.TaskID,
-			ExecutedAt:      e.ExecutedAt.Format(time.RFC3339),
-			Status:          e.Status,
-			DurationMillis:  e.DurationMillis,
-			RequestPayload:  string(e.RequestPayload),
-			ResponsePayload: string(e.ResponsePayload),
-			ErrorMessage:    e.ErrorMessage,
-			TraceID:         e.TraceID,
-			CreatedAt:       e.CreatedAt.Format(time.RFC3339),
-		})
+		items = append(items, buildScheduledTaskExecutionItem(e))
 	}
 	response.OkWithData(c, gin.H{"list": items, "total": total})
+}
+
+// GetExecution 获取单条执行记录
+func (s *ScheduledTask) GetExecution(c *gin.Context) {
+	idStr := c.Param("id")
+	taskID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.FailWithMessage(c, "无效的任务ID")
+		return
+	}
+	executionIDStr := c.Param("execution_id")
+	executionID, err := strconv.ParseInt(executionIDStr, 10, 64)
+	if err != nil {
+		response.FailWithMessage(c, "无效的执行记录ID")
+		return
+	}
+	requestUser := contextx.GetRequestUser(c)
+	if requestUser == "" {
+		response.FailWithMessage(c, "请先登录")
+		return
+	}
+	ctx := contextx.ToContext(c)
+	execution, err := s.scheduledTaskService.GetExecution(ctx, taskID, executionID, requestUser)
+	if err != nil {
+		response.FailWithMessage(c, "获取执行记录失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, buildScheduledTaskExecutionItem(execution))
 }

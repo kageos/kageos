@@ -720,6 +720,53 @@ func (s *ServiceTree) SearchFunctions(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
+// SearchResources 全站资源搜索
+// @Summary 全站资源搜索
+// @Description 根据关键词搜索目录、函数、文档和讨论区，支持分页
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param user query string false "用户名（可选，用于过滤应用）"
+// @Param app query string false "应用名（可选，用于过滤应用）"
+// @Param keyword query string false "搜索关键词"
+// @Param resource_type query string false "资源类型（all/package/function/docs/board）"
+// @Param page query int true "页码" default(1)
+// @Param page_size query int true "每页数量" default(20)
+// @Success 200 {object} dto.SearchResourcesResp "搜索成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /workspace/api/v1/service_tree/search_resources [get]
+func (s *ServiceTree) SearchResources(c *gin.Context) {
+	var req dto.SearchResourcesReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.PageSize <= 0 {
+		req.PageSize = 20
+	}
+	if req.PageSize > 100 {
+		req.PageSize = 100
+	}
+
+	ctx := contextx.ToContext(c)
+	req.CurrentUser = contextx.GetRequestUser(ctx)
+	resp, err := s.serviceTreeService.SearchResources(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, "搜索资源失败: "+err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}
+
 // GetWorkspaceContext 获取工作台环境信息
 // GET /workspace/api/v1/workspace/context?full_code_path=...&file_source=snapshot|runtime
 func (s *ServiceTree) GetWorkspaceContext(c *gin.Context) {

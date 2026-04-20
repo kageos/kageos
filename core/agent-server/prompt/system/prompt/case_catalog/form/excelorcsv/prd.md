@@ -263,7 +263,7 @@ func csvToExcel(ctx *app.Context, inputPath string) (string, error) {
 var CsvToExcelTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "CSV转Excel",
-		Desc:     "支持将CSV文件转换为Excel格式（.xlsx）。自动检测并处理UTF-8 BOM，确保中文内容正确读取。转换后的Excel文件使用文件名作为工作表名称。应用场景：数据导入、格式转换、数据分析等。",
+		Desc:     `支持将CSV文件转换为Excel格式（.xlsx）。自动检测并处理UTF-8 BOM，确保中文内容正确读取。转换后的Excel文件使用文件名作为工作表名称。应用场景：数据导入、格式转换、数据分析等。`,
 		Tags:     []string{"Office工具", "格式转换", "CSV", "Excel"},
 		Request:  &CsvToExcelReq{},
 		Response: &CsvToExcelResp{},
@@ -425,7 +425,7 @@ func init() {
 var CsvTextToExcelTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "CSV文本转Excel",
-		Desc:     "支持将CSV文本内容转换为Excel格式（.xlsx）。自动检测并处理UTF-8 BOM，确保中文内容正确读取。可以自定义工作表名称。应用场景：数据导入、格式转换、数据分析等。",
+		Desc:     `支持将CSV文本内容转换为Excel格式（.xlsx）。自动检测并处理UTF-8 BOM，确保中文内容正确读取。可以自定义工作表名称。应用场景：数据导入、格式转换、数据分析等。`,
 		Tags:     []string{"Office工具", "格式转换", "CSV", "Excel"},
 		Request:  &CsvTextToExcelReq{},
 		Response: &CsvTextToExcelResp{},
@@ -659,7 +659,7 @@ func excelFillColumn(ctx *app.Context, inputPath string, sheetName string, fillI
 var ExcelFillColumnTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "Excel列值填充",
-		Desc:     "支持批量填充Excel指定列的值。使用表头列名（第一行的列名，如：lottery_id、数量、状态等）来指定要填充的列，支持一次配置多个列的填充规则，自动从指定起始行开始填充。应用场景：批量数据填充、数据初始化、模板填充等。",
+		Desc:     `支持批量填充Excel指定列的值。使用表头列名（第一行的列名，如：lottery_id、数量、状态等）来指定要填充的列，支持一次配置多个列的填充规则，自动从指定起始行开始填充。应用场景：批量数据填充、数据初始化、模板填充等。`,
 		Tags:     []string{"Office工具", "Excel", "数据填充"},
 		Request:  &ExcelFillColumnReq{},
 		Response: &ExcelFillColumnResp{},
@@ -841,7 +841,7 @@ func excelToCsv(ctx *app.Context, inputPath string) (string, error) {
 var ExcelToCsvTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "Excel转CSV",
-		Desc:     "支持将Excel文件（.xlsx、.xls）转换为CSV格式。转换后的CSV文件使用UTF-8编码并包含BOM，确保在Excel中打开时中文显示正常。如果Excel文件包含多个工作表，只转换第一个工作表。应用场景：数据导出、格式转换、数据迁移等。",
+		Desc:     `支持将Excel文件（.xlsx、.xls）转换为CSV格式。转换后的CSV文件使用UTF-8编码并包含BOM，确保在Excel中打开时中文显示正常。如果Excel文件包含多个工作表，只转换第一个工作表。应用场景：数据导出、格式转换、数据迁移等。`,
 		Tags:     []string{"Office工具", "格式转换", "Excel", "CSV"},
 		Request:  &ExcelToCsvReq{},
 		Response: &ExcelToCsvResp{},
@@ -970,7 +970,7 @@ func excelToCsvText(ctx *app.Context, inputPath string) (string, error) {
 var ExcelToCsvTextTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "Excel转CSV文本",
-		Desc:     "支持将Excel文件（.xlsx、.xls）转换为CSV文本内容。转换后的CSV文本使用UTF-8编码并包含BOM，确保在Excel中打开时中文显示正常。如果Excel文件包含多个工作表，只转换第一个工作表。应用场景：数据导出、格式转换、数据迁移等。",
+		Desc:     `支持将Excel文件（.xlsx、.xls）转换为CSV文本内容。转换后的CSV文本使用UTF-8编码并包含BOM，确保在Excel中打开时中文显示正常。如果Excel文件包含多个工作表，只转换第一个工作表。应用场景：数据导出、格式转换、数据迁移等。`,
 		Tags:     []string{"Office工具", "格式转换", "Excel", "CSV"},
 		Request:  &ExcelToCsvTextReq{},
 		Response: &ExcelToCsvTextResp{},
@@ -1410,7 +1410,7 @@ func parseColumnIndex(column string) (int, error) {
 var ExcelToJsonTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "Excel转JSON",
-		Desc:     "支持将Excel文件（.xlsx、.xls）转换为JSON格式。可以选择使用第一行作为键名，支持跳过空行，可以指定工作表名称。应用场景：数据导出、格式转换、API数据准备等。",
+		Desc:     `支持将Excel文件（.xlsx、.xls）转换为JSON格式。可以选择使用第一行作为键名，支持跳过空行，可以指定工作表名称。应用场景：数据导出、格式转换、API数据准备等。`,
 		Tags:     []string{"Office工具", "格式转换", "Excel", "JSON"},
 		Request:  &ExcelToJsonReq{},
 		Response: &ExcelToJsonResp{},
@@ -1421,7 +1421,7 @@ var ExcelToJsonTemplate = &app.FormTemplate{
 var ExcelExtractColumnTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "Excel提取指定列",
-		Desc:     "支持从Excel文件（.xlsx、.xls）中提取指定列的数据，返回JSON字符串数组。可以指定第一行的列名（如username、email等）、列字母（A、B、C...）或列索引（1、2、3...），支持跳过空行和表头。应用场景：数据提取、批量处理、数据筛选等。",
+		Desc:     `支持从Excel文件（.xlsx、.xls）中提取指定列的数据，返回JSON字符串数组。可以指定第一行的列名（如username、email等）、列字母（A、B、C...）或列索引（1、2、3...），支持跳过空行和表头。应用场景：数据提取、批量处理、数据筛选等。`,
 		Tags:     []string{"Office工具", "数据提取", "Excel", "JSON"},
 		Request:  &ExcelExtractColumnReq{},
 		Response: &ExcelExtractColumnResp{},

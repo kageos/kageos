@@ -289,6 +289,43 @@ type SearchFunctionsResp struct {
 	PageSize  int                     `json:"page_size"` // 每页数量
 }
 
+// SearchResourcesReq 全站资源搜索请求
+type SearchResourcesReq struct {
+	User         string `json:"user" form:"user"`                        // 用户名（可选，用于过滤应用）
+	App          string `json:"app" form:"app"`                          // 应用名（可选，用于过滤应用）
+	Keyword      string `json:"keyword" form:"keyword"`                  // 搜索关键词
+	ResourceType string `json:"resource_type" form:"resource_type"`      // 资源类型：all/package/function/docs/board
+	Page         int    `json:"page" form:"page" example:"1"`            // 页码
+	PageSize     int    `json:"page_size" form:"page_size" example:"20"` // 每页数量
+	CurrentUser  string `json:"-" form:"-"`                              // 当前登录用户（后端注入，用于默认可见范围）
+}
+
+// SearchResourcesResp 全站资源搜索响应
+type SearchResourcesResp struct {
+	Items    []*ResourceSearchResult `json:"items"`     // 搜索结果
+	Total    int64                   `json:"total"`     // 总数
+	Page     int                     `json:"page"`      // 当前页码
+	PageSize int                     `json:"page_size"` // 每页数量
+}
+
+// ResourceSearchResult 全站资源搜索结果
+type ResourceSearchResult struct {
+	ID           int64  `json:"id" example:"1"`                         // ServiceTree 节点 ID
+	Name         string `json:"name" example:"表格解析"`                    // 资源名称
+	Code         string `json:"code" example:"table_parse"`             // 资源代码
+	Type         string `json:"type" example:"function"`                // 资源类型
+	FullCodePath string `json:"full_code_path" example:"/system/app/a"` // 完整路径
+	Description  string `json:"description,omitempty"`                  // 描述
+	Tags         string `json:"tags,omitempty"`                         // 标签
+	TemplateType string `json:"template_type,omitempty"`                // 函数模板类型
+	AppID        int64  `json:"app_id,omitempty"`                       // 应用 ID
+	AppUser      string `json:"app_user,omitempty"`                     // 应用所属用户
+	AppCode      string `json:"app_code,omitempty"`                     // 应用代码
+	RunCount     int    `json:"run_count,omitempty"`                    // 运行次数
+	MatchSource  string `json:"match_source,omitempty"`                 // 命中来源：node/doc
+	Snippet      string `json:"snippet,omitempty"`                      // 命中摘要
+}
+
 // FunctionSearchResult 函数搜索结果（含请求/响应参数信息，便于调用方构造 body）
 type FunctionSearchResult struct {
 	ID           int64         `json:"id" example:"1"`                                                                  // 函数ID
