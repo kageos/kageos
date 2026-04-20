@@ -226,10 +226,10 @@ func (u *MinIOUploader) uploadWithHTTP(ctx context.Context, creds *dto.GetUpload
 }
 
 func resolveUploadURL(creds *dto.GetUploadTokenResp) string {
-	if creds.ServerURL != "" {
-		return creds.ServerURL
+	if creds.ServerUploadURL != "" {
+		return creds.ServerUploadURL
 	}
-	return creds.URL
+	return creds.UploadURL
 }
 
 func getUploadContentType(creds *dto.GetUploadTokenResp) string {

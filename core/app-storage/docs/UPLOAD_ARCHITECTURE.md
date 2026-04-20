@@ -196,7 +196,7 @@ func (s *MinIOStorage) GenerateUploadCredentials(...) (*UploadCredentials, error
     
     return &UploadCredentials{
         Method: UploadMethodPresignedURL,
-        URL:    presignedURL.String(),
+        UploadURL: presignedURL.String(),
         Headers: map[string]string{
             "Content-Type": contentType,
         },
@@ -237,7 +237,7 @@ type GetUploadTokenResp struct {
     Method UploadMethod `json:"method"`  // ✅ 告诉前端用哪种方式上传
     
     // 预签名 URL 字段
-    URL     string            `json:"url,omitempty"`
+    UploadURL string `json:"upload_url,omitempty"`
     Headers map[string]string `json:"headers,omitempty"`
     
     // 表单上传字段
@@ -311,7 +311,7 @@ export class PresignedURLUploader implements Uploader {
       this.xhr.onerror = () => reject(new Error('上传失败'))
       
       // HTTP PUT 上传（MinIO、COS、OSS、S3）
-      this.xhr.open('PUT', credentials.url)
+      this.xhr.open('PUT', credentials.upload_url)
       this.xhr.setRequestHeader('Content-Type', file.type)
       this.xhr.send(file)
     })
@@ -441,7 +441,7 @@ const uploader = UploaderFactory.create(credentials.method)
 #### 预签名 URL 上传：
 
 ```typescript
-xhr.open('PUT', credentials.url)
+xhr.open('PUT', credentials.upload_url)
 xhr.setRequestHeader('Content-Type', file.type)
 xhr.send(file)
 ```

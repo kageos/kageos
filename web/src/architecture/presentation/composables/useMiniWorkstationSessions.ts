@@ -4,6 +4,7 @@ import { cancelWorkspaceChat, getWorkspaceMessages, getWorkspaceSessionSSEStatus
 import { eventBus } from '@/architecture/infrastructure/eventBus'
 import type { ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import { Logger } from '@/core/utils/logger'
+import { fileNameFromRef, parseFileRefs } from '@/architecture/presentation/widgets/filesWidgetTypes'
 
 export interface UseMiniWorkstationSessionsOptions {
   fullCodePath: Ref<string>
@@ -22,14 +23,7 @@ function normalizeSessionMessages(rawMessages: any[]): ChatMessage[] {
       role: message.role as 'user' | 'assistant',
       content: message.content || '',
       files: message.files
-        ? (() => {
-            try {
-              const parsed = JSON.parse(message.files)
-              return parsed?.files || []
-            } catch {
-              return []
-            }
-          })()
+        ? parseFileRefs(message.files).map(ref => ({ ref, name: fileNameFromRef(ref), source_name: fileNameFromRef(ref) }))
         : [],
       tool_calls: message.tool_calls || [],
       blocks: (() => {

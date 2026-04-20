@@ -601,28 +601,49 @@ func (e *Executor) mapPackageToImport(pkgName string) string {
 		"opencv-python-headless": "cv2",
 		// 文档处理
 		"python-docx": "docx",
+		"python-pptx": "pptx",
 		"py-pdf2":     "PyPDF2",
 		"pypdf2":      "PyPDF2",
 		"pdfplumber":  "pdfplumber",
+		"reportlab":   "reportlab",
 		"openpyxl":    "openpyxl",
+		"xlsxwriter":  "xlsxwriter",
+		"xlrd":        "xlrd",
+		"xlwt":        "xlwt",
 		// OCR（光学字符识别）
 		"easyocr":      "easyocr",
 		"paddleocr":    "paddleocr", // 如果使用 Python 3.11 可以安装
 		"paddlepaddle": "paddle",    // 如果使用 Python 3.11 可以安装
 		// 数据科学
-		"pandas": "pandas",
-		"numpy":  "numpy",
-		"scipy":  "scipy",
+		"pandas":  "pandas",
+		"numpy":   "numpy",
+		"scipy":   "scipy",
+		"pymysql": "pymysql",
 		// 数据可视化
 		"matplotlib": "matplotlib",
 		"seaborn":    "seaborn",
+		"plotly":     "plotly",
+		"pyecharts":  "pyecharts",
+		"wordcloud":  "wordcloud",
 		// NLP
-		"jieba": "jieba",
+		"jieba":   "jieba",
+		"snownlp": "snownlp",
 		// HTTP
 		"requests": "requests",
+		"aiohttp":  "aiohttp",
 		// 其他常用包
-		"beautifulsoup4": "bs4",
-		"scikit-learn":   "sklearn",
+		"beautifulsoup4":  "bs4",
+		"scikit-learn":    "sklearn",
+		"pyyaml":          "yaml",
+		"qrcode":          "qrcode",
+		"python-barcode":  "barcode",
+		"toml":            "toml",
+		"tabulate":        "tabulate",
+		"arrow":           "arrow",
+		"dateutil":        "dateutil",
+		"python-dateutil": "dateutil",
+		"lxml":            "lxml",
+		"cryptography":    "cryptography",
 	}
 
 	if importName, ok := packageMap[strings.ToLower(pkgName)]; ok {

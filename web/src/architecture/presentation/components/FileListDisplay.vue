@@ -1,7 +1,7 @@
 <!--
   FileListDisplay - 通用文件列表展示组件
   用于工作台消息附件、表单响应文件等场景，支持 tag（紧凑标签）与 list（列表带图标/大小/链接）两种展示模式。
-  文件数据与 workspace API / sdk types.Files 对齐：name, url, size, source_name 等。
+  文件数据来自 storage resolve 后的展示元信息。
 -->
 <template>
   <div :class="['file-list-display', `file-list-display--${mode}`]">
@@ -47,7 +47,7 @@
 import { computed } from 'vue'
 import { Document, Picture, VideoPlay } from '@element-plus/icons-vue'
 
-/** 与 workspace / sdk types.Files 中单条文件结构对齐 */
+/** storage resolve 后的单条文件展示信息 */
 export interface DisplayFileItem {
   name: string
   source_name?: string

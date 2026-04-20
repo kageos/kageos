@@ -45,11 +45,11 @@
 
 涉及视频/音频文件处理时，优先按下面的固定模式写：
 
-1. 请求字段使用 `*types.Files`
+1. 请求字段使用 `string`
 2. `inputFiles := fs.DownloadFiles(req.InputFiles)`，并 `defer fs.RemoveFiles(inputFiles)`
 3. 所有输出都写到 `outputDir := fs.GetTraceOutputDir()`
 4. 子进程直接调用 `exec.Command("ffmpeg", ...)`
-5. 用 `fs.ResponseFiles(outputPaths)` 返回给用户下载，并 `defer fs.RemoveFiles(outputFiles)`
+5. 用 `fs.ResponseFiles(outputPaths)` 返回给用户下载
 
 特别注意：
 
@@ -74,7 +74,6 @@ if err != nil {
 }
 
 outputFiles := fs.ResponseFiles([]string{outputPath})
-defer fs.RemoveFiles(outputFiles)
 ```
 
 
@@ -108,7 +107,7 @@ import (
 // VideoConvertReq 视频格式转换请求结构体
 type VideoConvertReq struct {
 	// 框架标签：widget:"type:files;accept:video/*;max_size:500MB;max_count:10" - 文件上传组件，支持多文件上传
-	InputFiles *types.Files `json:"input_files" widget:"name:上传视频文件;type:files;accept:video/*;max_size:500MB;max_count:10" validate:"required"`
+	InputFiles string `json:"input_files" widget:"name:上传视频文件;type:files;accept:video/*;max_size:500MB;max_count:10" validate:"required"`
 
 	// 框架标签：select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
 	OutputFormat string `json:"output_format" widget:"name:目标格式;type:select;options:mp4,webm,avi,mkv;options_colors:primary,success,info,warning;default:mp4" validate:"required,oneof=mp4 webm avi mkv"`
@@ -117,7 +116,7 @@ type VideoConvertReq struct {
 // VideoConvertResp 视频格式转换响应结构体
 type VideoConvertResp struct {
 	// 转换后的视频文件
-	OutputFile *types.Files `json:"output_file" widget:"name:转换后的视频;type:files"`
+	OutputFile string `json:"output_file" widget:"name:转换后的视频;type:files"`
 
 	// 转换信息
 	ConvertInfo string `json:"convert_info" widget:"name:转换信息;type:text_area"`
@@ -142,7 +141,7 @@ func DoVideoConvert(ctx *app.Context, req *VideoConvertReq) (*VideoConvertResp, 
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	if len(inputFiles.GetFiles()) == 0 {
+	if len(inputFiles) == 0 {
 		return nil, fmt.Errorf("没有找到输入文件")
 	}
 
@@ -156,29 +155,29 @@ func DoVideoConvert(ctx *app.Context, req *VideoConvertReq) (*VideoConvertResp, 
 	failCount := 0
 	var errors []string
 
-	for _, file := range inputFiles.GetFiles() {
-		if file.LocalPath == "" {
-			logger.Warnf(ctx, "[VideoConvert] 文件 %s 没有本地路径，跳过", file.Name)
+	for _, file := range inputFiles {
+		if file == "" {
+			logger.Warnf(ctx, "[VideoConvert] 文件 %s 没有本地路径，跳过", filepath.Base(file))
 			failCount++
-			errors = append(errors, fmt.Sprintf("文件 %s: 本地路径为空", file.Name))
+			errors = append(errors, fmt.Sprintf("文件 %s: 本地路径为空", filepath.Base(file)))
 			continue
 		}
 
-		inputExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(file.LocalPath), "."))
-		baseName := strings.TrimSuffix(filepath.Base(file.LocalPath), filepath.Ext(file.LocalPath))
+		inputExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(file), "."))
+		baseName := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
 		outputPath := filepath.Join(outputDir, baseName+"."+req.OutputFormat)
 
 		if inputExt == req.OutputFormat {
-			logger.Infof(ctx, "[VideoConvert] 文件 %s 格式相同，复制到输出目录: %s", file.Name, inputExt)
-			if err := copyFile(file.LocalPath, outputPath); err != nil {
-				logger.Errorf(ctx, "[VideoConvert] 复制失败 %s: %v", file.Name, err)
+			logger.Infof(ctx, "[VideoConvert] 文件 %s 格式相同，复制到输出目录: %s", filepath.Base(file), inputExt)
+			if err := copyFile(file, outputPath); err != nil {
+				logger.Errorf(ctx, "[VideoConvert] 复制失败 %s: %v", filepath.Base(file), err)
 				failCount++
-				errors = append(errors, fmt.Sprintf("文件 %s: 复制失败 %v", file.Name, err))
+				errors = append(errors, fmt.Sprintf("文件 %s: 复制失败 %v", filepath.Base(file), err))
 				continue
 			}
 		} else {
 			var args []string
-			args = append(args, "-i", file.LocalPath)
+			args = append(args, "-i", file)
 
 			switch req.OutputFormat {
 			case "webm":
@@ -195,23 +194,22 @@ func DoVideoConvert(ctx *app.Context, req *VideoConvertReq) (*VideoConvertResp, 
 			cmd := exec.Command(ffmpegPath, args...)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
-				logger.Errorf(ctx, "[VideoConvert] 转换失败 %s: %v, req: %+v, output: %s", file.Name, err, req, string(output))
+				logger.Errorf(ctx, "[VideoConvert] 转换失败 %s: %v, req: %+v, output: %s", filepath.Base(file), err, req, string(output))
 				failCount++
-				errors = append(errors, fmt.Sprintf("文件 %s: %v", file.Name, err))
+				errors = append(errors, fmt.Sprintf("文件 %s: %v", filepath.Base(file), err))
 				continue
 			}
 
-			logger.Infof(ctx, "[VideoConvert] 转换成功: %s -> %s", file.LocalPath, outputPath)
+			logger.Infof(ctx, "[VideoConvert] 转换成功: %s -> %s", file, outputPath)
 		}
 
 		outputFilePaths = append(outputFilePaths, outputPath)
 		successCount++
 	}
 
-	var outputFiles *types.Files
+	var outputFiles string
 	if len(outputFilePaths) > 0 {
 		outputFiles = fs.ResponseFiles(outputFilePaths)
-		defer fs.RemoveFiles(outputFiles)
 	}
 
 	convertInfo := fmt.Sprintf("转换完成！\n成功: %d 个\n失败: %d 个\n输出格式: %s", successCount, failCount, req.OutputFormat)
@@ -282,7 +280,7 @@ import (
 
 // VideoRunCommandReq 自定义命令请求：上传文件 + 命令模板（占位符替换后执行），便于智能体灵活调用
 type VideoRunCommandReq struct {
-	InputFiles *types.Files `json:"input_files" widget:"name:上传视频/媒体文件;type:files;accept:video/*,*/*;max_size:500MB;max_count:10" validate:"required"`
+	InputFiles string `json:"input_files" widget:"name:上传视频/媒体文件;type:files;accept:video/*,*/*;max_size:500MB;max_count:10" validate:"required"`
 
 	// 命令模板，占位符：{{input}}=当前输入文件路径，{{output}}=当前输出文件路径。运行环境为 GPL FFmpeg（含 libx264），可用 -c copy 或 -c:v libx264 -c:a aac 等
 	CommandTemplate string `json:"command_template" widget:"name:命令模板;type:text_area;placeholder:ffmpeg -i {{input}} -c:v libx264 -c:a aac -y {{output}}" validate:"required"`
@@ -293,7 +291,7 @@ type VideoRunCommandReq struct {
 
 // VideoRunCommandResp 自定义命令响应
 type VideoRunCommandResp struct {
-	OutputFile *types.Files `json:"output_file" widget:"name:输出文件;type:files"`
+	OutputFile string `json:"output_file" widget:"name:输出文件;type:files"`
 	RunInfo    string       `json:"run_info" widget:"name:执行信息;type:text_area"`
 }
 
@@ -316,7 +314,7 @@ func DoVideoRunCommand(ctx *app.Context, req *VideoRunCommandReq) (*VideoRunComm
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	files := inputFiles.GetFiles()
+	files := inputFiles
 	if len(files) == 0 {
 		return nil, fmt.Errorf("没有找到输入文件")
 	}
@@ -331,45 +329,44 @@ func DoVideoRunCommand(ctx *app.Context, req *VideoRunCommandReq) (*VideoRunComm
 	var outputPaths []string
 	var runInfos []string
 	for i, file := range files {
-		if file.LocalPath == "" {
-			logger.Warnf(ctx, "[VideoRunCommand] 文件 %s 无本地路径，跳过", file.Name)
-			runInfos = append(runInfos, fmt.Sprintf("跳过 %s: 无本地路径", file.Name))
+		if file == "" {
+			logger.Warnf(ctx, "[VideoRunCommand] 文件 %s 无本地路径，跳过", filepath.Base(file))
+			runInfos = append(runInfos, fmt.Sprintf("跳过 %s: 无本地路径", filepath.Base(file)))
 			continue
 		}
-		baseName := strings.TrimSuffix(filepath.Base(file.LocalPath), filepath.Ext(file.LocalPath))
+		baseName := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
 		outputPath := filepath.Join(outputDir, baseName+"."+outputExt)
 
 		// 先按空格拆成参数，再替换占位符，这样路径中含空格时仍为单个参数
 		args := splitCommandLine(req.CommandTemplate)
 		for j := range args {
 			if args[j] == "{{input}}" {
-				args[j] = file.LocalPath
+				args[j] = file
 			} else if args[j] == "{{output}}" {
 				args[j] = outputPath
 			}
 		}
 		if len(args) == 0 {
-			runInfos = append(runInfos, fmt.Sprintf("文件 %s: 命令为空", file.Name))
+			runInfos = append(runInfos, fmt.Sprintf("文件 %s: 命令为空", filepath.Base(file)))
 			continue
 		}
 		cmd := exec.Command(args[0], args[1:]...)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			logger.Errorf(ctx, "[VideoRunCommand] 执行失败 %s: %v, output: %s", file.Name, err, string(out))
-			runInfos = append(runInfos, fmt.Sprintf("失败 %s: %v\n%s", file.Name, err, string(out)))
+			logger.Errorf(ctx, "[VideoRunCommand] 执行失败 %s: %v, output: %s", filepath.Base(file), err, string(out))
+			runInfos = append(runInfos, fmt.Sprintf("失败 %s: %v\n%s", filepath.Base(file), err, string(out)))
 			continue
 		}
 		outputPaths = append(outputPaths, outputPath)
-		runInfos = append(runInfos, fmt.Sprintf("成功 %s -> %s", file.Name, outputPath))
+		runInfos = append(runInfos, fmt.Sprintf("成功 %s -> %s", filepath.Base(file), outputPath))
 		if i == 0 && len(out) > 0 {
 			runInfos = append(runInfos, "命令输出:\n"+strings.TrimSpace(string(out)))
 		}
 	}
 
-	var outputFiles *types.Files
+	var outputFiles string
 	if len(outputPaths) > 0 {
 		outputFiles = fs.ResponseFiles(outputPaths)
-		defer fs.RemoveFiles(outputFiles)
 	}
 
 	return &VideoRunCommandResp{

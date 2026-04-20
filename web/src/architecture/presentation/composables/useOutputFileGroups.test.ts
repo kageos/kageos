@@ -2,14 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { extractFileGroupsFromResult } from './useOutputFileGroups'
 
 describe('extractFileGroupsFromResult', () => {
-  it('extracts a root-level files object and normalizes server_url to url', () => {
+  it('extracts a root-level files ref string', () => {
     const groups = extractFileGroupsFromResult({
-      files: [
-        {
-          source_name: 'report.xlsx',
-          server_url: 'https://example.com/report.xlsx'
-        }
-      ]
+      output_files: 'ai-agent-os/output/report.xlsx'
     })
 
     expect(groups).toEqual([
@@ -17,37 +12,22 @@ describe('extractFileGroupsFromResult', () => {
         label: 'Output Files',
         files: [
           {
-            source_name: 'report.xlsx',
-            server_url: 'https://example.com/report.xlsx',
-            url: 'https://example.com/report.xlsx'
+            ref: 'ai-agent-os/output/report.xlsx',
+            name: 'report.xlsx',
           }
         ]
       }
     ])
   })
 
-  it('recursively extracts nested file groups from objects and arrays', () => {
+  it('recursively extracts nested file ref strings from objects and arrays', () => {
     const groups = extractFileGroupsFromResult({
       data: {
-        preview_files: {
-          files: [
-            {
-              name: 'preview.png',
-              url: 'https://example.com/preview.png'
-            }
-          ]
-        }
+        preview_files: 'ai-agent-os/output/preview.png'
       },
       variants: [
         {
-          rendered_files: {
-            files: [
-              {
-                name: 'clip.mp4',
-                url: 'https://example.com/clip.mp4'
-              }
-            ]
-          }
+          rendered_files: 'ai-agent-os/output/clip.mp4'
         }
       ]
     })
@@ -57,8 +37,8 @@ describe('extractFileGroupsFromResult', () => {
         label: 'Data / Preview Files',
         files: [
           {
+            ref: 'ai-agent-os/output/preview.png',
             name: 'preview.png',
-            url: 'https://example.com/preview.png'
           }
         ]
       },
@@ -66,28 +46,17 @@ describe('extractFileGroupsFromResult', () => {
         label: 'Variants / #1 / Rendered Files',
         files: [
           {
+            ref: 'ai-agent-os/output/clip.mp4',
             name: 'clip.mp4',
-            url: 'https://example.com/clip.mp4'
           }
         ]
       }
     ])
   })
 
-  it('supports JSON-string results and skips invalid file entries', () => {
+  it('supports JSON-string results with comma-separated refs', () => {
     const groups = extractFileGroupsFromResult(JSON.stringify({
-      output_files: {
-        files: [
-          null,
-          {
-            name: 'audio.wav',
-            url: 'https://example.com/audio.wav'
-          },
-          {
-            name: 'broken-item'
-          }
-        ]
-      }
+      output_files: 'ai-agent-os/output/audio.wav,ai-agent-os/output/subtitle.srt'
     }))
 
     expect(groups).toEqual([
@@ -95,8 +64,12 @@ describe('extractFileGroupsFromResult', () => {
         label: 'Output Files',
         files: [
           {
+            ref: 'ai-agent-os/output/audio.wav',
             name: 'audio.wav',
-            url: 'https://example.com/audio.wav'
+          },
+          {
+            ref: 'ai-agent-os/output/subtitle.srt',
+            name: 'subtitle.srt',
           }
         ]
       }

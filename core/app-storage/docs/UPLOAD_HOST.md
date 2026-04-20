@@ -87,7 +87,7 @@ export class PresignedURLUploader implements Uploader {
       console.log(`[Upload] ${uploadDomain} - 进度: ${percent}%`)
     })
     
-    xhr.open('PUT', credentials.url)
+    xhr.open('PUT', credentials.upload_url)
     xhr.send(file)
   }
 }

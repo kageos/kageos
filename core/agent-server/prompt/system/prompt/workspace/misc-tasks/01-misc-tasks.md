@@ -57,33 +57,17 @@
 
 ---
 
-## files 组件传参（易错）
+## files 组件传参
 
-**表单（run_form_submit）的 request 与表格（run_table_create、run_table_update）的 model** 里凡是 `widget.type === "files"` 的字段，传参时须为**对象**（不是数组），内含 `files` 数组：
+**表单（run_form_submit）的 request 与表格（run_table_create、run_table_update）的 model** 里凡是 `widget.type === "files"` 的字段，传参时须为**字符串文件引用**，格式为 `bucket/object_key`；多文件用英文逗号分隔。
 
-**正确**：
+示例：
 ```json
 {
-  "input_files": {
-    "files": [
-      { "name": "xxx", "source_name": "原始文件名.mp4", "storage": "minio", "url": "https://...", "server_url": "http://...", "size": 12345, "is_uploaded": true }
-    ],
-    "widget_type": "files",
-    "data_type": "struct"
-  },
+  "input_files": "ai-agent-os/workspace/chat/2026/04/20/xxx.mp4",
   "output_format": "mp4"
 }
 ```
-
-**错误**（直接传数组，会报 unmarshal 错误）：
-```json
-{
-  "input_files": [ { "name": "xxx", "url": "..." } ],
-  "output_format": "mp4"
-}
-```
-
----
 
 ## search_tools 返回格式
 

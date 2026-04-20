@@ -59,21 +59,6 @@
           <span>已达到上传上限（{{ currentFiles.length }}/{{ maxCount }}），请先删除已有文件</span>
         </div>
 
-        <div class="files-remark-panel">
-          <div class="files-remark-header">
-            <div class="files-remark-title">文件说明</div>
-            <div class="files-remark-tip">和上传文件一起保存，适合补充用途、来源或注意事项。</div>
-          </div>
-          <el-input
-            v-model="remark"
-            type="textarea"
-            :rows="2"
-            placeholder="补充这批文件的说明（可选）"
-            :maxlength="500"
-            show-word-limit
-            @blur="handleUpdateRemark"
-          />
-        </div>
       </div>
 
       <!-- 上传中的文件 -->
@@ -132,7 +117,7 @@
         <div class="files-list">
           <FilesWidgetFileCard
             v-for="(file, index) in currentFiles"
-            :key="file.url || file.name || index"
+            :key="file.ref || file.download_url || file.name || index"
             :file="file"
             :icon-component="getFileIcon(file.name)"
             :icon-color="getFileIconColor(file.name)"
@@ -178,7 +163,7 @@
           <div class="files-list">
             <FilesWidgetFileCard
               v-for="(file, index) in currentFiles"
-              :key="file.url || file.name || index"
+              :key="file.ref || file.download_url || file.name || index"
               :file="file"
               :icon-component="getFileIcon(file.name)"
               :icon-color="getFileIconColor(file.name)"
@@ -197,9 +182,6 @@
         </div>
         <div v-else class="empty-files">暂无文件</div>
 
-        <div v-if="remark" class="files-remark">
-          <div class="remark-content">{{ remark }}</div>
-        </div>
       </div>
     </template>
 
@@ -240,13 +222,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   ElUpload,
   ElButton,
   ElIcon,
   ElProgress,
-  ElInput,
   ElDialog,
   ElImage,
 } from 'element-plus'
@@ -259,6 +240,7 @@ import type { FilesWidgetConfig } from '@/core/types/widget-configs'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { useAuthStore } from '@/stores/auth'
 import { useUserInfoStore } from '@/stores/userInfo'
+import { resolveFileRefs, updateFileDescription } from '@/api/storage'
 import { Logger } from '@/core/utils/logger'
 import { formatTimestamp } from '@/utils/date'
 import { useFilesDescriptionDialog } from './composables/useFilesDescriptionDialog'
@@ -267,15 +249,12 @@ import { useFilesUploadManager } from './composables/useFilesUploadManager'
 import { useFilesUploadUsers } from './composables/useFilesUploadUsers'
 import { useFilesValueSync } from './composables/useFilesValueSync'
 import FilesWidgetFileCard from './FilesWidgetFileCard.vue'
-import type { FileItem, FilesData } from './filesWidgetTypes'
+import type { FileItem } from './filesWidgetTypes'
+import { fileNameFromRef, parseFileRefs } from './filesWidgetTypes'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
-    raw: {
-      files: [],
-      remark: '',
-      metadata: {},
-    },
+    raw: '',
     display: '0 个文件',
     meta: {},
   }),
@@ -295,27 +274,61 @@ const maxSize = computed(() => filesConfig.value.max_size)
 const maxCount = computed(() => filesConfig.value.max_count || 5)
 const isReadonlyMode = computed(() => props.mode === 'response' || props.mode === 'detail')
 
-// 计算属性
-const currentFiles = computed(() => {
-  const raw = props.value?.raw
-  if (raw && typeof raw === 'object' && 'files' in raw) {
-    return (raw as FilesData).files || []
-  }
-  return []
-})
+const currentRefs = computed(() => parseFileRefs(props.value?.raw))
+const resolvedFiles = ref<FileItem[]>([])
 
-const remark = computed({
-  get: () => {
-    const raw = props.value?.raw
-    if (raw && typeof raw === 'object' && 'remark' in raw) {
-      return (raw as FilesData).remark || ''
-    }
-    return ''
-  },
-  set: (val: string) => {
-    updateRemark(val)
-  },
-})
+const currentFiles = computed<FileItem[]>(() => resolvedFiles.value)
+
+function buildPlaceholderFile(refValue: string): FileItem {
+  const parts = refValue.split('/')
+  return {
+    ref: refValue,
+    bucket: parts[0] || '',
+    key: parts.slice(1).join('/'),
+    name: fileNameFromRef(refValue),
+    source_name: fileNameFromRef(refValue),
+    size: 0,
+    is_uploaded: true,
+  }
+}
+
+watch(currentRefs, async (refs) => {
+  if (refs.length === 0) {
+    resolvedFiles.value = []
+    return
+  }
+
+  resolvedFiles.value = refs.map(buildPlaceholderFile)
+
+  try {
+    const resolved = await resolveFileRefs(refs, 'browser')
+    const byRef = new Map(resolved.map(item => [item.ref, item]))
+    resolvedFiles.value = refs.map((refValue) => {
+      const item = byRef.get(refValue)
+      if (!item) return buildPlaceholderFile(refValue)
+      return {
+        ref: item.ref,
+        bucket: item.bucket,
+        key: item.key,
+        name: item.name || fileNameFromRef(refValue),
+        source_name: item.source_name || item.name || fileNameFromRef(refValue),
+        storage: item.storage,
+        description: item.description || '',
+        hash: item.hash || '',
+        size: item.size || 0,
+        upload_ts: item.upload_ts,
+        content_type: item.content_type,
+        is_uploaded: true,
+        download_url: item.download_url || '',
+        server_download_url: item.server_download_url || '',
+        upload_user: item.upload_user,
+        error: item.error,
+      }
+    })
+  } catch (error) {
+    Logger.error('FilesWidget', '解析文件引用失败', error)
+  }
+}, { immediate: true })
 
 const isDisabled = computed(() => {
   if (props.mode !== 'edit') return true
@@ -374,14 +387,23 @@ const {
   updateFiles,
   handleDeleteFile,
   handleUpdateDescription,
-  updateRemark,
 } = useFilesValueSync({
   value: () => props.value,
   fieldPath: () => props.fieldPath,
   currentFiles: () => currentFiles.value,
+  setCurrentFiles: (files) => {
+    resolvedFiles.value = files
+  },
+  persistDescription: async (file, description) => {
+    try {
+      await updateFileDescription(file.ref, description)
+    } catch (error) {
+      Logger.error('FilesWidget', '保存文件描述失败', error)
+      throw error
+    }
+  },
   formDataStore,
   emitUpdateModelValue: (value) => emit('update:modelValue', value),
-  resolveUploadUser: resolveCurrentUploadUser,
 })
 
 const {
@@ -435,9 +457,6 @@ const {
   handleUpdateDescription,
 })
 
-function handleUpdateRemark(): void {
-  updateRemark(remark.value)
-}
 </script>
 
 <style scoped>
@@ -730,42 +749,6 @@ function handleUpdateRemark(): void {
   color: var(--el-text-color-secondary);
 }
 
-.files-remark-panel {
-  padding: 16px 20px 18px;
-  background: color-mix(in srgb, var(--el-color-primary) 2%, var(--el-bg-color));
-}
-
-.files-remark-header {
-  margin-bottom: 10px;
-}
-
-.files-remark-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.files-remark-tip {
-  margin-top: 4px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--el-text-color-secondary);
-}
-
-/* 备注（作为文件列表的补充说明，不显示为独立字段） */
-.files-remark {
-  margin-top: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 10px;
-  background: var(--el-fill-color-light);
-}
-
-.files-remark :deep(.el-textarea__inner) {
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-}
-
 /* 响应模式 */
 .response-files {
   width: 100%;
@@ -775,12 +758,6 @@ function handleUpdateRemark(): void {
   padding: 20px;
   text-align: center;
   color: var(--el-text-color-secondary);
-}
-
-.remark-content {
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-  white-space: pre-wrap;
 }
 
 /* 表格单元格模式 */

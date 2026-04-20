@@ -226,11 +226,38 @@
           </div>
           <div class="overview-item">
             <span class="overview-label">通知用户</span>
-            <span class="overview-value">{{ formatNotifyTargets(currentTask.notify_users) }}</span>
+            <span class="overview-value">
+              <span v-if="!currentTask.notify_users?.length">-</span>
+              <span v-else class="notify-inline-list">
+                <UserDisplay
+                  v-for="username in currentTask.notify_users"
+                  :key="`detail-user-${username}`"
+                  :username="username"
+                  mode="card"
+                  layout="horizontal"
+                  size="small"
+                  class="notify-inline-item"
+                />
+              </span>
+            </span>
           </div>
           <div class="overview-item">
             <span class="overview-label">通知组织</span>
-            <span class="overview-value">{{ formatNotifyTargets(currentTask.notify_departments) }}</span>
+            <span class="overview-value">
+              <span v-if="!currentTask.notify_departments?.length">-</span>
+              <span v-else class="notify-inline-list">
+                <DepartmentDisplay
+                  v-for="departmentPath in currentTask.notify_departments"
+                  :key="`detail-dept-${departmentPath}`"
+                  :full-code-path="departmentPath"
+                  mode="card"
+                  layout="horizontal"
+                  size="small"
+                  show-full-path
+                  class="notify-inline-item"
+                />
+              </span>
+            </span>
           </div>
         </div>
 
@@ -424,6 +451,7 @@
 <script setup lang="ts">
 import { withDefaults } from 'vue'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
+import DepartmentDisplay from '@/shared/components/DepartmentDisplay.vue'
 import ExecutionDurationTag from '@/architecture/presentation/components/ExecutionDurationTag.vue'
 import FunctionExecutionResultReadonly from '@/architecture/presentation/components/FunctionExecutionResultReadonly.vue'
 import { useScheduledTaskList } from '@/architecture/presentation/composables/useScheduledTaskList'
@@ -471,7 +499,6 @@ const {
   statusTagType,
   statusLabel,
   notifyOnLabel,
-  formatNotifyTargets,
   formatDateTime,
   formatPayload,
   getScheduleSummary,
@@ -648,6 +675,23 @@ const {
   word-break: break-all;
 }
 
+.notify-inline-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.notify-inline-item {
+  max-width: 100%;
+}
+
+.notify-inline-item :deep(.user-name),
+.notify-inline-item :deep(.department-name) {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .detail-alert {
   margin-top: 16px;
 }
@@ -725,24 +769,8 @@ const {
 }
 
 .execution-overview .overview-item {
-  position: relative;
-  overflow: hidden;
   border: 1px solid rgba(148, 163, 184, 0.16);
-  background:
-    linear-gradient(135deg, rgba(64, 158, 255, 0.09), rgba(255, 255, 255, 0)),
-    var(--el-fill-color-blank);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
-}
-
-.execution-overview .overview-item::after {
-  position: absolute;
-  right: -18px;
-  bottom: -24px;
-  width: 64px;
-  height: 64px;
-  content: '';
-  border-radius: 999px;
-  background: rgba(64, 158, 255, 0.08);
+  background: var(--el-fill-color-light);
 }
 
 @media (max-width: 960px) {

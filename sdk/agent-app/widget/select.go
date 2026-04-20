@@ -7,7 +7,7 @@ type Select struct {
 	OptionsColors []string `json:"options_colors,omitempty"` // 选项的颜色，支持warning，info，success，danger，primary 还支持自定义颜色例如：#FF9800 橙色，#9C27B0 紫色，每个颜色都可以可以重复
 	Placeholder   string   `json:"placeholder,omitempty"`    // 占位符文本
 	Default       string   `json:"default,omitempty"`        // 默认值
-	Creatable     bool     `json:"creatable,omitempty"`      // 是否支持创建新选项
+	Creatable     bool     `json:"creatable"`                // 是否支持创建新选项
 }
 
 func (s *Select) Config() interface{} {

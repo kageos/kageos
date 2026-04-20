@@ -43,8 +43,9 @@
 
 ### 文件输入输出速记
 
-- 输入文件：表单字段用 `*types.Files`，代码里先 `inputFiles := fs.DownloadFiles(req.InputFiles)`，结束前 `defer fs.RemoveFiles(inputFiles)`
+- 输入文件：表单字段用 `string`，代码里先 `inputFiles := fs.DownloadFiles(req.InputFiles)`，结束前 `defer fs.RemoveFiles(inputFiles)`
 - 输出文件：先写到 `outputDir := fs.GetTraceOutputDir()`，处理完成后用 `fs.ResponseFiles(outputPaths)` 返回给用户下载
+- files 字段保存 `bucket/object_key` 字符串；多文件用英文逗号分隔
 - 如果输入文件“无需转换但仍要输出”，先复制到 `outputDir` 再返回；不要直接把输入临时文件作为最终输出
 - Python 生成附件时，Go 侧先算**绝对路径**传给 Python；Python 写盘后再由 Go `ResponseFiles`
 

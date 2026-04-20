@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
@@ -40,24 +39,20 @@ type FS struct {
 }
 
 // ResponseDirFiles 把指定文件夹下的所有文件都给上传了
-func (c *FS) ResponseDirFiles(dir string) *types.Files {
+func (c *FS) ResponseDirFiles(dir string) string {
 	// 1. 读取目录下的所有文件
 	files, err := readDirFiles(dir)
 	if err != nil {
 		logger.Errorf(c.ctx, "[ResponseDirFiles] Failed to read directory: %v", err)
-		return &types.Files{
-			Files:    []*types.File{},
-			Remark:   fmt.Sprintf("读取目录失败: %v", err),
-			Metadata: make(map[string]interface{}),
-		}
+		return ""
 	}
 
 	// 2. 批量上传
 	return c.ctx.batchUploadFiles(files)
 }
 
-// ResponseFiles 上传多个文件
-func (c *FS) ResponseFiles(filePaths []string) *types.Files {
+// ResponseFiles 上传多个文件，返回 bucket/object_key 字符串；多文件用逗号分隔。
+func (c *FS) ResponseFiles(filePaths []string) string {
 	// 转换为文件信息列表
 	files := make([]string, 0, len(filePaths))
 	for _, path := range filePaths {
@@ -83,12 +78,13 @@ func (c *FS) GetTraceOutputDir() string {
 	return outputDir
 }
 
-// DownloadFiles 下载文件到本地
+// DownloadFiles 下载 files 字符串中的文件到本地，返回本地文件路径列表。
 // 根据TraceId创建目录，使用文件缓存机制避免重复下载相同hash的文件
-func (c *FS) DownloadFiles(files *types.Files) *types.Files {
-	if files == nil || len(files.Files) == 0 {
+func (c *FS) DownloadFiles(fileRefs string) []string {
+	refs := types.ParseFileRefs(fileRefs)
+	if len(refs) == 0 {
 		logger.Warnf(c.ctx, "[DownloadFiles] 文件列表为空，跳过下载")
-		return files
+		return nil
 	}
 
 	// 根据TraceId创建下载目录
@@ -100,89 +96,116 @@ func (c *FS) DownloadFiles(files *types.Files) *types.Files {
 	downloadDir := filepath.Join("/app/workplace/uploads", traceID)
 	if err := os.MkdirAll(downloadDir, 0755); err != nil {
 		logger.Errorf(c.ctx, "[DownloadFiles] 创建下载目录失败: %v", err)
-		return files
+		return nil
 	}
 
-	logger.Infof(c.ctx, "[DownloadFiles] 开始下载文件，TraceId=%s, 目录=%s, 文件数量=%d", traceID, downloadDir, len(files.Files))
+	logger.Infof(c.ctx, "[DownloadFiles] 开始下载文件，TraceId=%s, 目录=%s, 文件数量=%d", traceID, downloadDir, len(refs))
+
+	ctx := apicall.NewContext(c.ctx.token, c.ctx.msg.TraceId)
+	resolveResp, err := apicall.ResolveFileRefs(ctx, &dto.ResolveFileRefsReq{
+		Refs:     refs,
+		Audience: "server",
+	})
+	if err != nil {
+		logger.Errorf(c.ctx, "[DownloadFiles] 解析文件引用失败: %v", err)
+		return nil
+	}
+
+	type resolvedFile struct {
+		name              string
+		key               string
+		hash              string
+		downloadURL       string
+		serverDownloadURL string
+	}
+
+	resolvedFiles := make([]resolvedFile, 0, len(resolveResp.Files))
+	for _, item := range resolveResp.Files {
+		resolvedFiles = append(resolvedFiles, resolvedFile{
+			name:              item.Name,
+			key:               item.Key,
+			hash:              item.Hash,
+			downloadURL:       item.DownloadURL,
+			serverDownloadURL: item.ServerDownloadURL,
+		})
+	}
 
 	// 并发下载所有文件
 	var wg sync.WaitGroup
-	var mu sync.Mutex
+	localPaths := make([]string, len(resolvedFiles))
 
 	downloadCount := 0
 	skipCount := 0
 
-	for _, file := range files.Files {
-		if file.Downloaded {
-			logger.Debugf(c.ctx, "[DownloadFiles] 文件 %s 已下载，跳过 (LocalPath: %s)", file.Name, file.LocalPath)
-			skipCount++
-			continue
-		}
-
-		// 确定下载URL（优先使用ServerUrl，服务端下载）
-		downloadURL := file.ServerUrl
+	for i, file := range resolvedFiles {
+		// 容器内优先使用服务端下载地址。
+		downloadURL := file.serverDownloadURL
 		if downloadURL == "" {
-			downloadURL = file.Url
+			downloadURL = file.downloadURL
 		}
 		if downloadURL == "" {
-			logger.Warnf(c.ctx, "[DownloadFiles] 文件 %s 没有下载URL (ServerUrl=%s, Url=%s)，跳过", file.Name, file.ServerUrl, file.Url)
+			logger.Warnf(c.ctx, "[DownloadFiles] 文件 %s 没有可用下载地址，跳过", file.name)
 			skipCount++
 			continue
 		}
 
 		downloadCount++
-		hasHash := file.Hash != ""
+		hasHash := file.hash != ""
 
 		wg.Add(1)
-		go func(f *types.File, url string, useCache bool) {
+		go func(idx int, f resolvedFile, url string, useCache bool) {
 			defer wg.Done()
 
-			targetPath := filepath.Join(downloadDir, f.Name)
+			fileName := f.name
+			if fileName == "" {
+				fileName = filepath.Base(f.key)
+			}
+			targetPath := filepath.Join(downloadDir, fileName)
 			var localPath string
 			var err error
 
 			if useCache {
-				localPath, _, err = c.fileCache.GetOrDownload(c.ctx, f.Hash, url, targetPath)
+				localPath, _, err = c.fileCache.GetOrDownload(c.ctx, f.hash, url, targetPath)
 			} else {
 				localPath, err = c.fileCache.DownloadOnly(c.ctx, url, targetPath)
 			}
 			if err != nil {
-				logger.Errorf(c.ctx, "[DownloadFiles] 下载文件失败 %s: %v", f.Name, err)
+				logger.Errorf(c.ctx, "[DownloadFiles] 下载文件失败 %s: %v", f.name, err)
 				return
 			}
 
-			mu.Lock()
-			f.LocalPath = localPath
-			f.Downloaded = true
-			mu.Unlock()
+			localPaths[idx] = localPath
 
 			if useCache {
-				logger.Infof(c.ctx, "[DownloadFiles] 下载文件完成(缓存): %s", f.Name)
+				logger.Infof(c.ctx, "[DownloadFiles] 下载文件完成(缓存): %s", f.name)
 			} else {
-				logger.Infof(c.ctx, "[DownloadFiles] 下载文件完成(无hash不缓存): %s", f.Name)
+				logger.Infof(c.ctx, "[DownloadFiles] 下载文件完成(无hash不缓存): %s", f.name)
 			}
-		}(file, downloadURL, hasHash)
+		}(i, file, downloadURL, hasHash)
 	}
 
 	wg.Wait()
 
-	logger.Infof(c.ctx, "[DownloadFiles] 下载完成: 总文件数=%d, 下载=%d, 跳过=%d", len(files.Files), downloadCount, skipCount)
-	return files
+	logger.Infof(c.ctx, "[DownloadFiles] 下载完成: 总文件数=%d, 下载=%d, 跳过=%d", len(resolvedFiles), downloadCount, skipCount)
+	downloadedPaths := make([]string, 0, len(localPaths))
+	for _, path := range localPaths {
+		if path != "" {
+			downloadedPaths = append(downloadedPaths, path)
+		}
+	}
+	return downloadedPaths
 }
 
-// RemoveFiles 删除下载到本地的所有文件
-// 根据TraceId删除对应的下载目录，并释放文件缓存引用
-func (c *FS) RemoveFiles(files *types.Files) {
-	if files == nil || len(files.Files) == 0 {
+// RemoveFiles 删除 DownloadFiles 下载到本地的文件。
+func (c *FS) RemoveFiles(files []string) {
+	if len(files) == 0 {
 		return
 	}
 
 	// 释放文件缓存引用（减少引用计数）
-	for _, file := range files.Files {
-		if file.LocalPath != "" {
-			c.fileCache.Release(file.LocalPath)
-			file.Downloaded = false
-			file.LocalPath = ""
+	for _, localPath := range files {
+		if localPath != "" {
+			c.fileCache.Release(localPath)
 		}
 	}
 
@@ -229,13 +252,9 @@ func readDirFiles(dir string) ([]string, error) {
 }
 
 // batchUploadFiles 批量上传文件（核心实现）
-func (c *Context) batchUploadFiles(filePaths []string) *types.Files {
+func (c *Context) batchUploadFiles(filePaths []string) string {
 	if len(filePaths) == 0 {
-		return &types.Files{
-			Files:    []*types.File{},
-			Remark:   "没有文件需要上传",
-			Metadata: make(map[string]interface{}),
-		}
+		return ""
 	}
 
 	// 限制批量大小（最多100个）
@@ -249,19 +268,11 @@ func (c *Context) batchUploadFiles(filePaths []string) *types.Files {
 	fileInfos, err := c.collectFileInfos(filePaths)
 	if err != nil {
 		logger.Errorf(c, "[batchUploadFiles] Failed to collect file infos: %v", err)
-		return &types.Files{
-			Files:    []*types.File{},
-			Remark:   fmt.Sprintf("收集文件信息失败: %v", err),
-			Metadata: make(map[string]interface{}),
-		}
+		return ""
 	}
 
 	if len(fileInfos) == 0 {
-		return &types.Files{
-			Files:    []*types.File{},
-			Remark:   "没有有效的文件",
-			Metadata: make(map[string]interface{}),
-		}
+		return ""
 	}
 
 	// 2. 批量获取上传凭证
@@ -287,11 +298,7 @@ func (c *Context) batchUploadFiles(filePaths []string) *types.Files {
 	credsResp, err := apicall.BatchGetUploadToken(ctx, batchTokenReq)
 	if err != nil {
 		logger.Errorf(c, "[batchUploadFiles] Failed to get batch upload tokens: %v", err)
-		return &types.Files{
-			Files:    []*types.File{},
-			Remark:   fmt.Sprintf("获取上传凭证失败: %v", err),
-			Metadata: make(map[string]interface{}),
-		}
+		return ""
 	}
 
 	if len(credsResp.Tokens) != len(fileInfos) {
@@ -365,8 +372,7 @@ func (c *Context) batchUploadFiles(filePaths []string) *types.Files {
 
 	// 5. 构建批量完成通知请求
 	completeItems := make([]dto.BatchUploadCompleteItem, 0, len(uploadResults))
-	uploadResultMap := make(map[string]*uploadResult) // key -> uploadResult，用于后续更新DownloadURL
-	now := time.Now().Unix()
+	uploadResultMap := make(map[string]*uploadResult) // key -> uploadResult，用于后续回填 ref
 
 	for _, uploadRes := range uploadResults {
 		if uploadRes.err != nil {
@@ -375,6 +381,7 @@ func (c *Context) batchUploadFiles(filePaths []string) *types.Files {
 			if uploadRes.cred != nil {
 				completeItems = append(completeItems, dto.BatchUploadCompleteItem{
 					Key:     uploadRes.cred.Key,
+					Bucket:  uploadRes.cred.Bucket,
 					Success: false,
 					Error:   uploadRes.err.Error(),
 					Router:  c.msg.GetFullRouter(),
@@ -389,6 +396,7 @@ func (c *Context) batchUploadFiles(filePaths []string) *types.Files {
 		// 添加到完成通知列表
 		completeItems = append(completeItems, dto.BatchUploadCompleteItem{
 			Key:         uploadRes.result.Key,
+			Bucket:      uploadRes.cred.Bucket,
 			Success:     true,
 			Router:      c.msg.GetFullRouter(),
 			FileName:    uploadRes.fileInfo.FileName,
@@ -398,8 +406,8 @@ func (c *Context) batchUploadFiles(filePaths []string) *types.Files {
 		})
 	}
 
-	// 6. 批量通知上传完成（并使用响应中的DownloadURL更新文件对象）
-	successFiles := make([]*types.File, 0, len(uploadResultMap))
+	// 6. 批量通知上传完成（最终只返回稳定 ref 字符串）
+	successRefs := make([]string, 0, len(uploadResultMap))
 	if len(completeItems) > 0 {
 		// 分批通知（每批最多100个）
 		const batchSize = 100
@@ -419,65 +427,33 @@ func (c *Context) batchUploadFiles(filePaths []string) *types.Files {
 			completeResp, err := apicall.BatchUploadComplete(ctx, batchReq)
 			if err != nil {
 				logger.Warnf(c, "[batchUploadFiles] Failed to notify batch upload complete (batch %d-%d): %v", i, end-1, err)
-				// 如果通知失败，使用上传时的DownloadURL
+				// 如果通知失败，使用上传 token 中的 ref
 				for _, item := range completeItems[i:end] {
 					if item.Success {
 						if uploadRes, ok := uploadResultMap[item.Key]; ok {
-							fileObj := &types.File{
-								Name:        uploadRes.fileInfo.FileName,
-								SourceName:  uploadRes.fileInfo.FileName,
-								Storage:     uploadRes.cred.Storage,
-								Description: "",
-								Hash:        uploadRes.fileInfo.Hash,
-								Size:        uploadRes.fileInfo.FileSize,
-								UploadTs:    now,
-								LocalPath:   "", // 上传后LocalPath为空，只有调用DownloadFiles后才有值
-								IsUploaded:  true,
-								Url:         uploadRes.result.DownloadURL,
-								ServerUrl:   uploadRes.result.ServerDownloadURL,
-								Downloaded:  false, // 上传后文件还未下载到本地，需要调用DownloadFiles
+							if uploadRes.cred.Ref != "" {
+								successRefs = append(successRefs, uploadRes.cred.Ref)
+							} else {
+								successRefs = append(successRefs, types.JoinRef(uploadRes.cred.Bucket, uploadRes.cred.Key))
 							}
-							successFiles = append(successFiles, fileObj)
 						}
 					}
 				}
 				continue
 			}
 
-			// 使用批量完成接口返回的DownloadURL更新文件对象
+			// 使用批量完成接口返回的 ref 更新文件对象
 			if completeResp != nil && len(completeResp.Results) > 0 {
 				for _, result := range completeResp.Results {
 					if result.Status == "completed" {
 						if uploadRes, ok := uploadResultMap[result.Key]; ok {
-							// 使用批量完成接口返回的DownloadURL（更准确）
-							downloadURL := result.DownloadURL
-							if downloadURL == "" {
-								// 如果响应中没有URL，使用上传时的URL作为fallback
-								downloadURL = uploadRes.result.DownloadURL
+							if result.Ref != "" {
+								successRefs = append(successRefs, result.Ref)
+							} else if uploadRes.cred.Ref != "" {
+								successRefs = append(successRefs, uploadRes.cred.Ref)
+							} else {
+								successRefs = append(successRefs, types.JoinRef(uploadRes.cred.Bucket, uploadRes.cred.Key))
 							}
-
-							// 使用批量完成接口返回的ServerDownloadURL（更准确）
-							serverDownloadURL := result.ServerDownloadURL
-							if serverDownloadURL == "" {
-								// 如果响应中没有ServerURL，使用上传时的URL作为fallback
-								serverDownloadURL = uploadRes.result.ServerDownloadURL
-							}
-
-							fileObj := &types.File{
-								Name:        uploadRes.fileInfo.FileName,
-								SourceName:  uploadRes.fileInfo.FileName,
-								Storage:     uploadRes.cred.Storage,
-								Description: "",
-								Hash:        uploadRes.fileInfo.Hash,
-								Size:        uploadRes.fileInfo.FileSize,
-								UploadTs:    now,
-								LocalPath:   "", // 上传后LocalPath为空，只有调用DownloadFiles后才有值
-								IsUploaded:  true,
-								Url:         downloadURL,
-								ServerUrl:   serverDownloadURL,
-								Downloaded:  false, // 上传后文件还未下载到本地，需要调用DownloadFiles
-							}
-							successFiles = append(successFiles, fileObj)
 						}
 					}
 				}
@@ -492,16 +468,8 @@ func (c *Context) batchUploadFiles(filePaths []string) *types.Files {
 		}
 	}
 
-	for i := range successFiles {
-		successFiles[i].UploadUser = c.msg.RequestUser
-		successFiles[i].UploadTs = time.Now().UnixMilli()
-	}
 	// 8. 构建返回结果
-	return &types.Files{
-		Files:    successFiles,
-		Remark:   fmt.Sprintf("成功上传 %d/%d 个文件", len(successFiles), len(filePaths)),
-		Metadata: make(map[string]interface{}),
-	}
+	return types.JoinFileRefs(successRefs)
 }
 
 // collectFileInfos 收集文件信息（并行计算hash）

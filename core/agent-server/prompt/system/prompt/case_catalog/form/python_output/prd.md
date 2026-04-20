@@ -6,7 +6,7 @@
 - **路由**：`sandbox_file_out_demo.form`；路由组 `/form/python_output`。
 - **适合参考**：`pythonRuntime.NewExecutor`、**`defer executor.Close()`**（默认临时工作目录须释放）、固定入口 `agentos_entry(args, output_dir)`、`ExecuteJSONWithResult`；Go 计算 **`filepath.Abs` 输出绝对路径** 经请求传给 Python，Python **直接写入该路径**（如 `savefig`），再通过 `output_files` 声明该文件，Go 再 **`OutputFilePaths()` + `ResponseFiles(...)`** 下发给用户下载。勿用**相对路径**在 Go/Python 之间互传（**双方进程 cwd 不同**）。
 - **运行关系**：Go 调用 Python 为**同一运行时环境内**拉起子进程（同机、非网络隔离），Python 只要写 Go 给出的绝对路径，Go 即可读同一文件。
-- **与 `run_official_python` 区别**：官方工具链路现在也支持 `output_files` 下发附件；但本类 Form 仍适合需要**固化字段、沉淀业务接口、控制响应结构/权限/命名规则**的场景（跑在**应用运行时容器内**，非宿主机）。
+- **与 `run_official_python` 区别**：官方工具链路现在支持输入附件自动下载为 `args.input_files` 本地路径列表，也支持 `output_files` 下发附件；但本类 Form 仍适合需要**固化字段、沉淀业务接口、控制响应结构/权限/命名规则**的场景（跑在**应用运行时容器内**，非宿主机）。
 
 ---
 
@@ -32,7 +32,7 @@
 
 1. Go：`GetTraceOutputDir()` → `MkdirAll` → 拼文件名 → **`filepath.Abs`** 得到 **`image_output_path`**，随 `WithRequest` 传给 Python。
 2. Python：`matplotlib` 非交互后端（Agg），在 `agentos_entry(args, output_dir)` 中校验绝对路径后 **`plt.savefig(image_output_path)`**，返回 `{"data": {...}, "output_files": [...]}`（**不再经 base64 传图**）。
-3. Go：`ExecuteJSONWithResult` 后用 **`OutputFilePaths()`** 校验 `output_files`，再 `ResponseFiles(...)`；`defer RemoveFiles`；**`defer executor.Close()`** 释放 Python 临时工作区。
+3. Go：`ExecuteJSONWithResult` 后用 **`OutputFilePaths()`** 校验 `output_files`，再 `ResponseFiles(...)`；**`defer executor.Close()`** 释放 Python 临时工作区。
 4. 依赖：生产镜像预装 matplotlib 等（见 `deploy/base/images/app-base/Dockerfile`）。
 
 ---
@@ -63,7 +63,8 @@
 //<文件名>sandbox_file_out_demo.go</文件名>
 //
 // 标准模式说明：
-// 1) run_official_python 现在也支持 output_files 下发附件；若你要把字段、权限、命名规则固化到应用接口，仍建议在 **本应用** 做 Form。
+// 1) run_official_python 现在支持输入附件自动下载为 args.input_files，也支持 output_files 下发附件；
+//    若你要把字段、权限、命名规则固化到应用接口，仍建议在 **本应用** 做 Form。
 // 2) 若既要 Python 处理能力又要可下载文件：在 **本应用** Form 里调 pythonRuntime.NewExecutor；
 //    执行发生在 **应用运行时容器内**（工作空间容器，非宿主机）。Go 与 Python **同机**（子进程），非网络隔离。
 // 3) Go 将 **绝对路径**（filepath.Abs + GetTraceOutputDir）通过请求字段传给 Python，Python 在固定入口
@@ -85,7 +86,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
 	pythonRuntime "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/runtime/python"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 )
 
 // SandboxFileOutDemoReq 请求：用户只传标题，由 Python 生成一张说明图
@@ -95,7 +95,7 @@ type SandboxFileOutDemoReq struct {
 
 // SandboxFileOutDemoResp 响应：可下载 PNG + 说明文案
 type SandboxFileOutDemoResp struct {
-	OutputPNG *types.Files `json:"output_png" widget:"name:生成的 PNG;type:files" permission:"read"`
+	OutputPNG string `json:"output_png" widget:"name:生成的 PNG;type:files" permission:"read"`
 	Info      string       `json:"info" widget:"name:说明;type:text_area" permission:"read"`
 	Status    string       `json:"status" widget:"name:状态;type:text" permission:"read"`
 }
@@ -150,7 +150,6 @@ func SandboxFileOutDemo(ctx *app.Context, resp response.Response) error {
 	}
 
 	files := fs.ResponseFiles(outputPaths)
-	defer fs.RemoveFiles(files)
 
 	return resp.Form(&SandboxFileOutDemoResp{
 		OutputPNG: files,

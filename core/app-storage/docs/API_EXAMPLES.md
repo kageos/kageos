@@ -60,7 +60,7 @@ UPLOAD_URL=$(curl -s -X POST "$BASE_URL/upload_token" \
     "file_name": "test.txt",
     "content_type": "text/plain",
     "file_size": 100
-  }' | jq -r '.data.url')
+  }' | jq -r '.data.upload_url')
 
 # 上传文件
 echo "Hello, MinIO!" > /tmp/test.txt
@@ -89,7 +89,7 @@ curl -X GET "$BASE_URL/download/$FILE_KEY" \
 
 ```bash
 DOWNLOAD_URL=$(curl -s -X GET "$BASE_URL/download/$FILE_KEY" \
-  -H "X-Token: $JWT_TOKEN" | jq -r '.data.url')
+  -H "X-Token: $JWT_TOKEN" | jq -r '.data.upload_url')
 
 curl -s "$DOWNLOAD_URL"
 ```
@@ -313,7 +313,7 @@ function FileUploader({ router }: { router: string }) {
       const { data } = await tokenRes.json();
       
       // 上传到 MinIO
-      await fetch(data.url, {
+      await fetch(data.upload_url, {
         method: 'PUT',
         headers: { 'Content-Type': file.type },
         body: file,

@@ -1,14 +1,16 @@
-import type { FilesData, FileItem } from '../filesWidgetTypes'
+import type { FileItem } from '../filesWidgetTypes'
+import { stringifyFileRefs } from '../filesWidgetTypes'
 
 interface UseFilesValueSyncOptions {
   value: () => any
   fieldPath: () => string
   currentFiles: () => FileItem[]
+  setCurrentFiles?: (files: FileItem[]) => void
+  persistDescription?: (file: FileItem, description: string) => Promise<void>
   formDataStore: {
     setValue: (path: string, value: any) => void
   }
   emitUpdateModelValue: (value: any) => void
-  resolveUploadUser: () => string
 }
 
 export function useFilesValueSync(options: UseFilesValueSyncOptions) {
@@ -18,28 +20,11 @@ export function useFilesValueSync(options: UseFilesValueSyncOptions) {
   }
 
   const updateFiles = async (files: FileItem[]): Promise<void> => {
-    const currentValue = options.value()
-    const data = (currentValue?.raw as FilesData) || {
-      files: [],
-      remark: '',
-      metadata: {},
-      upload_user: '',
-      widget_type: 'files',
-      data_type: 'struct',
-    }
-
-    const uploadUser = data.upload_user || options.resolveUploadUser()
-
-    const newData: FilesData = {
-      ...data,
-      files,
-      upload_user: uploadUser,
-      widget_type: 'files',
-      data_type: 'struct',
-    }
+    const refs = files.map(file => file.ref).filter(Boolean)
+    const raw = stringifyFileRefs(refs)
 
     emitFieldValue({
-      raw: newData,
+      raw,
       display: `${files.length} 个文件`,
       meta: {},
     })
@@ -62,34 +47,18 @@ export function useFilesValueSync(options: UseFilesValueSyncOptions) {
     const fileToUpdate = newFiles[index]
     if (fileToUpdate) {
       newFiles[index] = { ...fileToUpdate, description }
-      void updateFiles(newFiles)
+      options.setCurrentFiles?.(newFiles)
+      if (options.persistDescription) {
+        void options.persistDescription(fileToUpdate, description).catch(() => {
+          options.setCurrentFiles?.(currentFilesList)
+        })
+      }
     }
-  }
-
-  const updateRemark = (remarkValue: string): void => {
-    const currentValue = options.value()
-    const data = (currentValue?.raw as FilesData) || {
-      files: [],
-      remark: '',
-      metadata: {},
-    }
-
-    const newData: FilesData = {
-      ...data,
-      remark: remarkValue,
-    }
-
-    emitFieldValue({
-      raw: newData,
-      display: `${data.files.length} 个文件`,
-      meta: {},
-    })
   }
 
   return {
     updateFiles,
     handleDeleteFile,
     handleUpdateDescription,
-    updateRemark,
   }
 }

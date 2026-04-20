@@ -65,92 +65,102 @@
       <el-form-item v-if="form.schedule_type === 'every'" label="最多执行次数">
         <el-input-number v-model="form.max_runs" :min="0" placeholder="0 表示不限制" style="width: 100%" />
       </el-form-item>
-      <section class="notify-panel" :class="{ 'is-muted': form.notify_on === 'none' }">
-        <div class="notify-panel-header">
-          <div class="notify-heading">
-            <span class="notify-icon">
-              <el-icon><Bell /></el-icon>
-            </span>
-            <span>
-              <span class="notify-title">执行完成通知</span>
-              <span class="notify-subtitle">只发布消息事件，投递渠道交给消息系统处理。</span>
-            </span>
-          </div>
-          <el-tag :type="form.notify_on === 'none' ? 'info' : 'success'" effect="light" round>
-            {{ notifyConditionLabel(form.notify_on) }}
-          </el-tag>
-        </div>
+      <el-form-item label="完成通知">
+        <div class="notify-form-block">
+          <el-radio-group v-model="form.notify_on" class="notify-radio-group">
+            <el-radio-button
+              v-for="option in notifyOptions"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ option.label }}
+            </el-radio-button>
+          </el-radio-group>
+          <div class="form-tip">只发布消息事件，通知渠道由消息系统处理。</div>
 
-        <div class="notify-condition-grid">
-          <button
-            v-for="option in notifyOptions"
-            :key="option.value"
-            type="button"
-            class="notify-condition-card"
-            :class="{ 'is-active': form.notify_on === option.value }"
-            @click="form.notify_on = option.value"
-          >
-            <span class="notify-condition-main">{{ option.label }}</span>
-            <span class="notify-condition-desc">{{ option.desc }}</span>
-          </button>
-        </div>
-
-        <div v-if="form.notify_on !== 'none'" class="notify-recipient-area">
-          <div class="recipient-grid">
-            <button type="button" class="recipient-card" @click="showUserPicker = true">
-              <span class="recipient-card-icon">
-                <el-icon><User /></el-icon>
-              </span>
-              <span class="recipient-card-copy">
-                <span class="recipient-card-title">通知用户</span>
-                <span class="recipient-card-desc">已选 {{ form.notify_users.length }} 人</span>
-              </span>
-              <span class="recipient-card-action">选择</span>
-            </button>
-            <button type="button" class="recipient-card" @click="showDepartmentPicker = true">
-              <span class="recipient-card-icon">
-                <el-icon><OfficeBuilding /></el-icon>
-              </span>
-              <span class="recipient-card-copy">
-                <span class="recipient-card-title">通知组织架构</span>
-                <span class="recipient-card-desc">已选 {{ form.notify_departments.length }} 个组织</span>
-              </span>
-              <span class="recipient-card-action">选择</span>
-            </button>
-          </div>
-
-          <div v-if="notifyTargetCount > 0" class="notify-selected">
-            <span class="notify-selected-label">接收对象</span>
-            <div class="notify-tags">
-              <el-tag
-                v-for="username in form.notify_users"
-                :key="`user-${username}`"
-                class="notify-tag"
-                closable
-                effect="plain"
-                @close="removeNotifyUser(username)"
-              >
-                用户：{{ username }}
-              </el-tag>
-              <el-tag
-                v-for="departmentPath in form.notify_departments"
-                :key="`dept-${departmentPath}`"
-                class="notify-tag"
-                type="success"
-                closable
-                effect="plain"
-                @close="removeNotifyDepartment(departmentPath)"
-              >
-                组织：{{ departmentLabel(departmentPath) }}
-              </el-tag>
+          <div v-if="form.notify_on !== 'none'" class="notify-recipient-area">
+            <div class="recipient-block">
+              <div class="recipient-block-header">
+                <div>
+                  <div class="recipient-title">通知用户</div>
+                  <div class="recipient-desc">任务执行完成后通知指定用户</div>
+                </div>
+                <el-button size="small" plain @click="showUserPicker = true">
+                  选择用户
+                </el-button>
+              </div>
+              <div v-if="form.notify_users.length > 0" class="recipient-list">
+                <div
+                  v-for="username in form.notify_users"
+                  :key="`user-${username}`"
+                  class="recipient-item"
+                >
+                  <UserDisplay
+                    :username="username"
+                    mode="card"
+                    layout="horizontal"
+                    size="small"
+                  />
+                  <button
+                    type="button"
+                    class="recipient-remove"
+                    aria-label="移除用户"
+                    @click="removeNotifyUser(username)"
+                  >
+                    &times;
+                  </button>
+                </div>
+              </div>
+              <div v-else class="recipient-empty">未选择用户</div>
             </div>
-          </div>
-          <div v-else class="notify-empty">
-            <el-icon><WarningFilled /></el-icon>
-            <span>请选择至少一个用户或组织架构。</span>
+
+            <div class="recipient-block">
+              <div class="recipient-block-header">
+                <div>
+                  <div class="recipient-title">通知组织架构</div>
+                  <div class="recipient-desc">通知组织下的相关成员</div>
+                </div>
+                <el-button size="small" plain @click="showDepartmentPicker = true">
+                  选择组织
+                </el-button>
+              </div>
+              <div v-if="form.notify_departments.length > 0" class="recipient-list">
+                <div
+                  v-for="departmentPath in form.notify_departments"
+                  :key="`dept-${departmentPath}`"
+                  class="recipient-item"
+                >
+                  <DepartmentDisplay
+                    :full-code-path="departmentPath"
+                    mode="card"
+                    layout="horizontal"
+                    size="small"
+                    show-full-path
+                  />
+                  <button
+                    type="button"
+                    class="recipient-remove"
+                    aria-label="移除组织"
+                    @click="removeNotifyDepartment(departmentPath)"
+                  >
+                    &times;
+                  </button>
+                </div>
+              </div>
+              <div v-else class="recipient-empty">未选择组织架构</div>
+            </div>
+
+            <el-alert
+              v-if="notifyTargetCount === 0"
+              title="开启通知后至少选择一个用户或组织架构"
+              type="warning"
+              show-icon
+              :closable="false"
+              class="notify-warning"
+            />
           </div>
         </div>
-      </section>
+      </el-form-item>
     </el-form>
     <UserPickerDialog
       v-model="showUserPicker"
@@ -188,9 +198,10 @@ import {
 import { getErrorMessage } from '@/utils/apiError'
 import UserPickerDialog from '@/shared/components/UserPickerDialog.vue'
 import DepartmentPickerDialog from '@/shared/components/DepartmentPickerDialog.vue'
+import UserDisplay from '@/shared/components/UserDisplay.vue'
+import DepartmentDisplay from '@/shared/components/DepartmentDisplay.vue'
 import type { UserInfo } from '@/types'
 import type { Department } from '@/api/department'
-import { Bell, OfficeBuilding, User, WarningFilled } from '@element-plus/icons-vue'
 
 const props = withDefaults(
   defineProps<{
@@ -228,11 +239,11 @@ const submitting = ref(false)
 const showUserPicker = ref(false)
 const showDepartmentPicker = ref(false)
 
-const notifyOptions: Array<{ value: ScheduledTaskNotifyOn; label: string; desc: string }> = [
-  { value: 'none', label: '不通知', desc: '任务完成后不触发消息' },
-  { value: 'all', label: '每次完成', desc: '成功或失败都通知' },
-  { value: 'success', label: '仅成功', desc: '只有执行成功才通知' },
-  { value: 'failed', label: '仅失败', desc: '只在失败时提醒处理' }
+const notifyOptions: Array<{ value: ScheduledTaskNotifyOn; label: string }> = [
+  { value: 'none', label: '不通知' },
+  { value: 'all', label: '每次完成' },
+  { value: 'success', label: '仅成功' },
+  { value: 'failed', label: '仅失败' }
 ]
 
 const form = ref({
@@ -459,15 +470,6 @@ function getRunAtValue(): string {
   return form.value.run_at.trim()
 }
 
-function departmentLabel(path: string): string {
-  const parts = path.split('/').filter(Boolean)
-  return parts[parts.length - 1] || path
-}
-
-function notifyConditionLabel(value: ScheduledTaskNotifyOn): string {
-  return notifyOptions.find((option) => option.value === value)?.label || '不通知'
-}
-
 function removeNotifyUser(username: string) {
   form.value.notify_users = form.value.notify_users.filter((item) => item !== username)
 }
@@ -558,35 +560,32 @@ async function handleSubmit() {
 
 <style scoped>
 :deep(.scheduled-task-dialog) {
-  border-radius: 18px;
+  border-radius: 12px;
   overflow: hidden;
 }
 
 :deep(.scheduled-task-dialog .el-dialog__header) {
-  padding: 22px 26px 10px;
-  background:
-    radial-gradient(circle at 18% 0%, rgba(64, 158, 255, 0.14), transparent 34%),
-    linear-gradient(135deg, rgba(15, 23, 42, 0.03), rgba(64, 158, 255, 0.05));
+  padding: 20px 24px 10px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 :deep(.scheduled-task-dialog .el-dialog__title) {
   font-size: 18px;
-  font-weight: 750;
-  letter-spacing: 0.01em;
+  font-weight: 600;
 }
 
 :deep(.scheduled-task-dialog .el-dialog__body) {
-  padding: 20px 26px 8px;
+  padding: 20px 24px 8px;
 }
 
 :deep(.scheduled-task-dialog .el-dialog__footer) {
-  padding: 14px 26px 22px;
+  padding: 14px 24px 20px;
   border-top: 1px solid var(--el-border-color-lighter);
-  background: var(--el-fill-color-blank);
+  background: var(--el-bg-color);
 }
 
 :deep(.scheduled-task-dialog .el-form-item__label) {
-  font-weight: 650;
+  font-weight: 600;
   color: var(--el-text-color-primary);
 }
 
@@ -602,236 +601,108 @@ async function handleSubmit() {
   margin: -8px 0 12px 0;
 }
 
-.notify-panel {
-  margin-top: 20px;
-  padding: 18px;
-  border: 1px solid rgba(64, 158, 255, 0.18);
-  border-radius: 18px;
-  background:
-    linear-gradient(135deg, rgba(64, 158, 255, 0.08), rgba(103, 194, 58, 0.04)),
-    var(--el-fill-color-blank);
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+.notify-form-block {
+  width: 100%;
 }
 
-.notify-panel.is-muted {
-  border-color: var(--el-border-color-lighter);
-  background:
-    linear-gradient(135deg, rgba(148, 163, 184, 0.08), rgba(255, 255, 255, 0.02)),
-    var(--el-fill-color-blank);
-  box-shadow: none;
-}
-
-.notify-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 16px;
-}
-
-.notify-heading {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.notify-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 14px;
-  color: var(--el-color-primary);
-  background: rgba(64, 158, 255, 0.13);
-  box-shadow: inset 0 0 0 1px rgba(64, 158, 255, 0.16);
-}
-
-.notify-title,
-.notify-subtitle {
-  display: block;
-}
-
-.notify-title {
-  font-size: 15px;
-  font-weight: 750;
-  color: var(--el-text-color-primary);
-}
-
-.notify-subtitle {
-  margin-top: 2px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.45;
-}
-
-.notify-condition-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.notify-condition-card,
-.recipient-card {
-  border: 0;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.notify-condition-card {
-  min-height: 78px;
-  padding: 12px;
-  border-radius: 14px;
-  color: var(--el-text-color-regular);
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: inset 0 0 0 1px var(--el-border-color-lighter);
-  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
-}
-
-.notify-condition-card:hover {
-  transform: translateY(-1px);
-  box-shadow: inset 0 0 0 1px rgba(64, 158, 255, 0.36), 0 10px 22px rgba(15, 23, 42, 0.08);
-}
-
-.notify-condition-card.is-active {
-  background:
-    linear-gradient(135deg, rgba(64, 158, 255, 0.18), rgba(64, 158, 255, 0.06)),
-    var(--el-fill-color-blank);
-  box-shadow: inset 0 0 0 1px rgba(64, 158, 255, 0.55), 0 12px 26px rgba(64, 158, 255, 0.14);
-}
-
-.notify-condition-main,
-.notify-condition-desc {
-  display: block;
-}
-
-.notify-condition-main {
-  font-size: 13px;
-  font-weight: 750;
-  color: var(--el-text-color-primary);
-}
-
-.notify-condition-desc {
-  margin-top: 7px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--el-text-color-secondary);
+.notify-radio-group {
+  flex-wrap: wrap;
 }
 
 .notify-recipient-area {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px dashed rgba(64, 158, 255, 0.24);
-}
-
-.recipient-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  margin-top: 12px;
 }
 
-.recipient-card {
+.recipient-block {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 14px;
-  border-radius: 16px;
-  color: var(--el-text-color-primary);
-  background: var(--el-fill-color-blank);
-  box-shadow: inset 0 0 0 1px var(--el-border-color-lighter);
-  transition: transform 0.16s ease, box-shadow 0.16s ease;
-}
-
-.recipient-card:hover {
-  transform: translateY(-1px);
-  box-shadow: inset 0 0 0 1px rgba(64, 158, 255, 0.38), 0 10px 22px rgba(15, 23, 42, 0.08);
-}
-
-.recipient-card-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  color: var(--el-color-primary);
-  background: rgba(64, 158, 255, 0.1);
-}
-
-.recipient-card-copy {
-  display: flex;
-  flex: 1;
   min-width: 0;
   flex-direction: column;
-  gap: 3px;
-}
-
-.recipient-card-title {
-  font-size: 13px;
-  font-weight: 750;
-}
-
-.recipient-card-desc {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.recipient-card-action {
-  flex: 0 0 auto;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--el-color-primary);
-}
-
-.notify-selected {
-  margin-top: 14px;
   padding: 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.7);
-  box-shadow: inset 0 0 0 1px var(--el-border-color-extra-light);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-fill-color-light);
 }
 
-.notify-selected-label {
-  display: block;
-  margin-bottom: 9px;
+.recipient-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.recipient-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.recipient-desc,
+.recipient-empty {
   font-size: 12px;
-  font-weight: 700;
   color: var(--el-text-color-secondary);
+  line-height: 1.5;
 }
 
-.notify-tags {
+.recipient-list {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.notify-tag {
+.recipient-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   max-width: 100%;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 999px;
+  background: var(--el-bg-color);
 }
 
-.notify-empty {
-  display: flex;
+.recipient-item :deep(.user-display-wrapper),
+.recipient-item :deep(.department-display-wrapper) {
+  min-width: 0;
+}
+
+.recipient-item :deep(.user-name),
+.recipient-item :deep(.department-name) {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recipient-remove {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 14px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  color: var(--el-color-warning);
-  background: rgba(230, 162, 60, 0.1);
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--el-text-color-secondary);
+  background: transparent;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.recipient-remove:hover {
+  color: var(--el-color-danger);
+  background: var(--el-fill-color);
+}
+
+.notify-warning {
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 760px) {
-  .notify-panel-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .notify-condition-grid,
-  .recipient-grid {
+  .notify-recipient-area {
     grid-template-columns: 1fr;
   }
 }
