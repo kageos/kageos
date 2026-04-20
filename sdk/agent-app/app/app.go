@@ -418,19 +418,31 @@ func (a *App) handleShutdownCommand(message subjects.Message) {
 	ctx := context.Background()
 	logger.Infof(ctx, "Received shutdown command from runtime: %s/%s/%s", message.User, message.App, message.Version)
 
-	// 检查是否已经在关闭过程中
-	a.shutdownMu.Lock()
-	if a.shutdownRequested {
-		// 如果已经在关闭过程中，忽略重复的关闭命令
-		logger.Infof(ctx, "Shutdown already in progress, ignoring duplicate shutdown command")
-		a.shutdownMu.Unlock()
+	if !a.markRuntimeShutdownRequested(ctx) {
 		return
 	}
-	// 先设置标志，防止并发关闭
-	a.shutdownRequested = true
-	a.shutdownMu.Unlock()
 
-	// 等待所有运行中的函数完成
+	a.waitForRuntimeShutdownDrain(ctx)
+	a.resetShutdownRequestedForCleanup()
+	a.closeAfterRuntimeShutdown(ctx)
+
+	logger.Infof(ctx, "Application shutdown initiated by runtime command")
+}
+
+func (a *App) markRuntimeShutdownRequested(ctx context.Context) bool {
+	a.shutdownMu.Lock()
+	defer a.shutdownMu.Unlock()
+
+	if a.shutdownRequested {
+		logger.Infof(ctx, "Shutdown already in progress, ignoring duplicate shutdown command")
+		return false
+	}
+
+	a.shutdownRequested = true
+	return true
+}
+
+func (a *App) waitForRuntimeShutdownDrain(ctx context.Context) {
 	shutdownCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
@@ -439,19 +451,18 @@ func (a *App) handleShutdownCommand(message subjects.Message) {
 	} else {
 		logger.Infof(ctx, "All functions completed successfully")
 	}
+}
 
-	// 调用 Close() 方法清理所有资源（NATS连接、订阅、文件缓存、强制GC等）
-	// Close() 会检查 shutdownRequested，如果已经设置会跳过清理
-	// 但我们已经设置了，所以需要临时重置让 Close() 执行清理
+func (a *App) resetShutdownRequestedForCleanup() {
 	a.shutdownMu.Lock()
 	a.shutdownRequested = false // 临时重置，让 Close() 执行清理
 	a.shutdownMu.Unlock()
+}
 
+func (a *App) closeAfterRuntimeShutdown(ctx context.Context) {
 	if err := a.Close(); err != nil {
 		logger.Warnf(ctx, "Error during Close(): %v", err)
 	}
-
-	logger.Infof(ctx, "Application shutdown initiated by runtime command")
 }
 
 // incrementRunningCount 增加运行中函数计数

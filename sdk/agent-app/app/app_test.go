@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
@@ -75,5 +76,25 @@ func TestCloseExitSignalIsIdempotent(t *testing.T) {
 	case <-app.exit:
 	default:
 		t.Fatal("expected exit channel to remain closed")
+	}
+}
+
+func TestRuntimeShutdownRequestedCanBeResetForCleanup(t *testing.T) {
+	app := &App{}
+	ctx := context.Background()
+
+	if ok := app.markRuntimeShutdownRequested(ctx); !ok {
+		t.Fatal("expected first runtime shutdown mark to succeed")
+	}
+	if ok := app.markRuntimeShutdownRequested(ctx); ok {
+		t.Fatal("expected duplicate runtime shutdown mark to be skipped")
+	}
+	if !app.shutdownRequested {
+		t.Fatal("expected shutdownRequested to be true")
+	}
+
+	app.resetShutdownRequestedForCleanup()
+	if app.shutdownRequested {
+		t.Fatal("expected shutdownRequested to be reset before cleanup")
 	}
 }
