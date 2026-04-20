@@ -469,7 +469,7 @@ func processPaymentTransaction(db *gorm.DB, member CashierMember, req CashierDes
 var CashierDeskTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:         "收银台",
-		Desc:         "商品搜索选择、数量输入、会员卡支付一体化收银系统。支持商品快速搜索、会员9折优惠、余额支付、库存管理等功能。应用场景：小商店收银、便利店结算、会员消费等。",
+		Desc:         `商品搜索选择、数量输入、会员卡支付一体化收银系统。支持商品快速搜索、会员9折优惠、余额支付、库存管理等功能。应用场景：小商店收银、便利店结算、会员消费等。`,
 		Tags:         []string{"收银系统", "商品管理", "会员服务"},
 		Request:      &CashierDeskReq{},
 		Response:     &CashierDeskResp{},
@@ -653,7 +653,7 @@ func CashierMemberList(ctx *app.Context, resp response.Response) error {
 var CashierMemberListTemplate = &app.TableTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:         "会员管理",
-		Desc:         "会员信息的增删改查管理，包括会员卡号、客户姓名、账户余额、状态等信息",
+		Desc:         `会员信息的增删改查管理，包括会员卡号、客户姓名、账户余额、状态等信息`,
 		Tags:         []string{"收银系统", "会员管理"},
 		Request:      &CashierMemberListReq{},
 		Response:     query.PaginatedTable[[]CashierMember]{},
@@ -787,7 +787,7 @@ func CashierPaymentRecordList(ctx *app.Context, resp response.Response) error {
 var CashierPaymentRecordListTemplate = &app.TableTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:         "支付记录",
-		Desc:         "收银支付记录查询，仅允许查看，不允许手工新增、编辑或删除",
+		Desc:         `收银支付记录查询，仅允许查看，不允许手工新增、编辑或删除`,
 		Tags:         []string{"收银系统", "支付记录"},
 		Request:      &CashierPaymentRecordListReq{},
 		Response:     query.PaginatedTable[[]CashierPaymentRecord]{},
@@ -860,7 +860,7 @@ func CashierProductList(ctx *app.Context, resp response.Response) error {
 var CashierProductListTemplate = &app.TableTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:         "商品管理",
-		Desc:         "商品信息的增删改查管理，包括商品名称、分类、价格、库存、状态等信息",
+		Desc:         `商品信息的增删改查管理，包括商品名称、分类、价格、库存、状态等信息`,
 		Tags:         []string{"收银系统", "商品管理"},
 		Request:      &CashierProductListReq{},
 		Response:     query.PaginatedTable[[]CashierProduct]{},
@@ -1308,7 +1308,7 @@ var CashierSalesTrendStatisticsTemplate = &app.ChartTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "销售额趋势统计",
 		Tags:     []string{"BI", "销售分析"},
-		Desc:     "展示销售额和订单数的时间趋势（折线图）",
+		Desc:     `展示销售额和订单数的时间趋势（折线图）`,
 		Request:  &CashierSalesStatisticsReq{},
 		Response: &chart.LineChart{},
 	},
@@ -1320,7 +1320,7 @@ var CashierSalesBarStatisticsTemplate = &app.ChartTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "每日销售额柱状图",
 		Tags:     []string{"BI", "销售分析"},
-		Desc:     "按日期展示每日销售额和订单数（柱状图）",
+		Desc:     `按日期展示每日销售额和订单数（柱状图）`,
 		Request:  &CashierSalesStatisticsReq{},
 		Response: &chart.BarChart{},
 	},
@@ -1332,7 +1332,7 @@ var CashierCategorySalesStatisticsTemplate = &app.ChartTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "商品分类销售额统计",
 		Tags:     []string{"BI", "销售分析"},
-		Desc:     "展示各商品分类的销售额占比（饼图）",
+		Desc:     `展示各商品分类的销售额占比（饼图）`,
 		Request:  &CashierSalesStatisticsReq{},
 		Response: &chart.PieChart{},
 	},
@@ -1344,7 +1344,7 @@ var CashierAverageOrderAmountStatisticsTemplate = &app.ChartTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "平均订单金额统计",
 		Tags:     []string{"BI", "经营分析"},
-		Desc:     "展示平均订单金额、总销售额、最高/最低订单金额等关键指标（仪表盘）",
+		Desc:     `展示平均订单金额、总销售额、最高/最低订单金额等关键指标（仪表盘）`,
 		Request:  &CashierSalesStatisticsReq{},
 		Response: &chart.GaugeChart{},
 	},

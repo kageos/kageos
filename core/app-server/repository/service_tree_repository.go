@@ -514,3 +514,82 @@ func (r *ServiceTreeRepository) SearchFunctions(user, app, keyword, templateType
 	}
 	return list, total, nil
 }
+
+// SearchResources 搜索服务树资源节点：目录、函数、文档、讨论区。
+// 文档节点额外 JOIN docs 表，支持按文档摘要/正文命中。
+func (r *ServiceTreeRepository) SearchResources(currentUser, user, app, keyword string, nodeTypes []string, page, pageSize int) ([]*model.ServiceTree, int64, error) {
+	query := r.db.Model(&model.ServiceTree{}).
+		Joins("LEFT JOIN docs ON docs.tree_id = service_tree.id")
+
+	if len(nodeTypes) > 0 {
+		query = query.Where("service_tree.type IN ?", nodeTypes)
+	}
+
+	if user != "" {
+		subq := r.db.Model(&model.App{}).Select("id").Where("user = ?", user)
+		if app != "" {
+			subq = subq.Where("code = ?", app)
+		}
+		query = query.Where("service_tree.app_id IN (?)", subq)
+	} else if currentUser != "" {
+		subq := r.db.Model(&model.App{}).Select("id").Where(
+			"is_public = ? OR user = ? OR admins = ? OR admins LIKE ? OR admins LIKE ? OR admins LIKE ?",
+			true,
+			currentUser,
+			currentUser,
+			currentUser+",%",
+			"%,"+currentUser+",%",
+			"%,"+currentUser,
+		)
+		if app != "" {
+			subq = subq.Where("code = ?", app)
+		}
+		query = query.Where("service_tree.app_id IN (?)", subq)
+	}
+
+	if keyword != "" {
+		keywords := splitSearchKeywords(keyword)
+		if len(keywords) > 0 {
+			var orConditions []string
+			var args []interface{}
+			for _, k := range keywords {
+				pattern := "%" + k + "%"
+				orConditions = append(orConditions, `(
+					service_tree.code LIKE ?
+					OR service_tree.name LIKE ?
+					OR service_tree.description LIKE ?
+					OR service_tree.tags LIKE ?
+					OR service_tree.full_code_path LIKE ?
+					OR docs.name LIKE ?
+					OR docs.summary LIKE ?
+					OR docs.content LIKE ?
+					OR docs.category LIKE ?
+				)`)
+				args = append(args, pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern)
+			}
+			query = query.Where(strings.Join(orConditions, " OR "), args...)
+		}
+	}
+
+	var total int64
+	if err := query.Session(&gorm.Session{}).Distinct("service_tree.id").Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if total == 0 {
+		return nil, 0, nil
+	}
+
+	offset := (page - 1) * pageSize
+	var list []*model.ServiceTree
+	if err := query.
+		Select("service_tree.*, docs.summary AS search_doc_summary").
+		Preload("App").
+		Offset(offset).
+		Limit(pageSize).
+		Order("service_tree.run_count DESC, service_tree.updated_at DESC, service_tree.created_at DESC").
+		Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return list, total, nil
+}

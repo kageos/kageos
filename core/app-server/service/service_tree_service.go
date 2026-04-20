@@ -129,3 +129,7 @@ func (s *ServiceTreeService) GetHubInfo(ctx context.Context, req *dto.GetHubInfo
 func (s *ServiceTreeService) SearchFunctions(ctx context.Context, req *dto.SearchFunctionsReq) (*dto.SearchFunctionsResp, error) {
 	return s.searchService.SearchFunctions(ctx, req)
 }
+
+func (s *ServiceTreeService) SearchResources(ctx context.Context, req *dto.SearchResourcesReq) (*dto.SearchResourcesResp, error) {
+	return s.searchService.SearchResources(ctx, req)
+}

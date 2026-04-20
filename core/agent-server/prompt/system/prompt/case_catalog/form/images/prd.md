@@ -228,7 +228,7 @@ func extractColors(ctx *app.Context, imagePath string, k int) ([]ColorInfo, erro
 var ImagesColorsTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "图片颜色提取",
-		Desc:     "从图片中提取主要颜色。使用 K-means 聚类算法分析图片中的主要颜色，返回颜色的十六进制值、RGB 值和占比。支持指定提取数量（1-100），或设置为 0 返回全部颜色。应用场景：图片主题色分析、配色方案生成、图片风格分析、UI 设计参考等。",
+		Desc:     `从图片中提取主要颜色。使用 K-means 聚类算法分析图片中的主要颜色，返回颜色的十六进制值、RGB 值和占比。支持指定提取数量（1-100），或设置为 0 返回全部颜色。应用场景：图片主题色分析、配色方案生成、图片风格分析、UI 设计参考等。`,
 		Tags:     []string{"图片处理", "颜色提取", "工具"},
 		Request:  &ImagesColorsReq{},
 		Response: &ImagesColorsResp{},
@@ -385,7 +385,7 @@ func convertImageFormat(ctx *app.Context, fs *app.FS, inputPath string, targetFo
 var ImagesConvertTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "图片格式转换",
-		Desc:     "支持将图片转换为JPEG、PNG、GIF、BMP、TIFF等多种格式。可以批量处理多个图片文件。默认使用 ImageMagick（`convert`）进行格式转换；环境中也保留了 gm 兼容旧脚本。注意：JPEG和JPG是同一格式，统一使用jpeg。应用场景：图片格式统一、文件大小优化、兼容性转换等。",
+		Desc:     `支持将图片转换为JPEG、PNG、GIF、BMP、TIFF等多种格式。可以批量处理多个图片文件。默认使用 ImageMagick（'convert'）进行格式转换；环境中也保留了 gm 兼容旧脚本。注意：JPEG和JPG是同一格式，统一使用jpeg。应用场景：图片格式统一、文件大小优化、兼容性转换等。`,
 		Tags:     []string{"图片处理", "格式转换", "工具"},
 		Request:  &ImagesConvertReq{},
 		Response: &ImagesConvertResp{},
@@ -557,7 +557,7 @@ func DoImagesResize(ctx *app.Context, req *ImagesResizeReq) (*ImagesResizeResp, 
 var ImagesResizeTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "图片裁剪/缩放",
-		Desc:     "调整图片尺寸，支持裁剪和缩放。可以设置目标尺寸和缩放模式（保持宽高比、拉伸填充、裁剪填充）。支持批量处理多个图片文件。默认使用 ImageMagick（`convert`）进行处理；环境中也保留了 gm 兼容旧脚本。应用场景：生成缩略图、调整图片尺寸、适配不同设备、图片裁剪等。",
+		Desc:     `调整图片尺寸，支持裁剪和缩放。可以设置目标尺寸和缩放模式（保持宽高比、拉伸填充、裁剪填充）。支持批量处理多个图片文件。默认使用 ImageMagick（'convert'）进行处理；环境中也保留了 gm 兼容旧脚本。应用场景：生成缩略图、调整图片尺寸、适配不同设备、图片裁剪等。`,
 		Tags:     []string{"图片处理", "裁剪缩放", "工具"},
 		Request:  &ImagesResizeReq{},
 		Response: &ImagesResizeResp{},
@@ -701,7 +701,7 @@ func splitCommandLine(s string) []string {
 var ImagesRunCommandTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name: "图片处理自定义命令",
-		Desc: "上传图片后，用自定义命令模板处理（占位符 {{input}}、{{output}} 会替换为实际路径后执行）。不经过 shell，安全。环境有 convert（ImageMagick）、identify、mogrify，也保留 gm 兼容旧脚本；示例：convert {{input}} -resize 800x600 {{output}} 或 convert {{input}} -format png {{output}}。",
+		Desc: `上传图片后，用自定义命令模板处理（占位符 {{input}}、{{output}} 会替换为实际路径后执行）。不经过 shell，安全。环境有 convert（ImageMagick）、identify、mogrify，也保留 gm 兼容旧脚本；示例：convert {{input}} -resize 800x600 {{output}} 或 convert {{input}} -format png {{output}}。`,
 		Tags:     []string{"图片处理", "ImageMagick", "自定义命令", "智能体"},
 		Request:  &ImagesRunCommandReq{},
 		Response: &ImagesRunCommandResp{},

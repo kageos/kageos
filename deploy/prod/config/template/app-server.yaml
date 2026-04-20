@@ -11,7 +11,7 @@ scheduler:
   batch_size: 50
   lease_duration_seconds: 360
   max_concurrency: 4
-  health_port: 9098
+  health_port: ${AOS_SCHEDULER_HEALTH_PORT}
   health_max_age_seconds: 30
 
 db:

@@ -169,7 +169,7 @@ func DoPdfExtractText(ctx *app.Context, req *PdfExtractTextReq) (*PdfExtractText
 var PdfExtractTextTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "PDF文本提取",
-		Desc:     "从PDF文件中提取文本内容。支持批量处理多个PDF文件。支持文本型PDF，如果是扫描版PDF或图片PDF可能无法提取文本。使用 Poppler-utils 的 pdftotext 工具。",
+		Desc:     `从PDF文件中提取文本内容。支持批量处理多个PDF文件。支持文本型PDF，如果是扫描版PDF或图片PDF可能无法提取文本。使用 Poppler-utils 的 pdftotext 工具。`,
 		Tags:     []string{"PDF处理", "文本提取", "工具"},
 		Request:  &PdfExtractTextReq{},
 		Response: &PdfExtractTextResp{},
@@ -304,7 +304,7 @@ func DoPdfMerge(ctx *app.Context, req *PdfMergeReq) (*PdfMergeResp, error) {
 var PdfMergeTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "PDF合并",
-		Desc:     "将多个PDF文件合并为一个PDF文件。支持批量合并，按上传顺序合并。使用 Ghostscript 进行合并，保持原PDF的质量和格式。应用场景：合并多个PDF文档、报告生成、批量处理等。",
+		Desc:     `将多个PDF文件合并为一个PDF文件。支持批量合并，按上传顺序合并。使用 Ghostscript 进行合并，保持原PDF的质量和格式。应用场景：合并多个PDF文档、报告生成、批量处理等。`,
 		Tags:     []string{"PDF处理", "合并", "工具"},
 		Request:  &PdfMergeReq{},
 		Response: &PdfMergeResp{},
@@ -448,7 +448,7 @@ func splitCommandLine(s string) []string {
 var PdfRunCommandTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name: "PDF处理自定义命令",
-		Desc: "上传 PDF 后，用自定义命令模板处理（占位符 {{input}}、{{output}} 会替换为实际路径后执行）。不经过 shell，安全。环境有 gs、pdftotext、pdftoppm、pdfinfo、pdfimages 等；示例：pdftotext {{input}} - 或 pdftoppm -png {{input}} {{output}}。",
+		Desc: `上传 PDF 后，用自定义命令模板处理（占位符 {{input}}、{{output}} 会替换为实际路径后执行）。不经过 shell，安全。环境有 gs、pdftotext、pdftoppm、pdfinfo、pdfimages 等；示例：pdftotext {{input}} - 或 pdftoppm -png {{input}} {{output}}。`,
 		Tags:     []string{"PDF处理", "自定义命令", "智能体"},
 		Request:  &PdfRunCommandReq{},
 		Response: &PdfRunCommandResp{},
@@ -598,7 +598,7 @@ func DoPdfToImages(ctx *app.Context, req *PdfToImagesReq) (*PdfToImagesResp, err
 var PdfToImagesTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "PDF转图片",
-		Desc:     "将PDF文件的每一页转换为图片。支持批量处理多个PDF文件。支持PNG和JPEG格式输出。使用 Poppler-utils 的 pdftoppm 工具。应用场景：PDF预览、PDF页面截图、PDF内容提取等。",
+		Desc:     `将PDF文件的每一页转换为图片。支持批量处理多个PDF文件。支持PNG和JPEG格式输出。使用 Poppler-utils 的 pdftoppm 工具。应用场景：PDF预览、PDF页面截图、PDF内容提取等。`,
 		Tags:     []string{"PDF处理", "图片转换", "工具"},
 		Request:  &PdfToImagesReq{},
 		Response: &PdfToImagesResp{},

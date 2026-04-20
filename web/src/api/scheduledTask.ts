@@ -11,6 +11,8 @@ export type ScheduledTaskAction =
   | 'table_update'
   | 'table_delete'
 
+export type ScheduledTaskNotifyOn = 'none' | 'all' | 'success' | 'failed'
+
 export interface CreateScheduledTaskReq {
   name: string
   full_code_path: string
@@ -25,6 +27,9 @@ export interface CreateScheduledTaskReq {
   interval_seconds?: number
   max_runs?: number
   timezone?: string
+  notify_users?: string[]
+  notify_departments?: string[]
+  notify_on?: ScheduledTaskNotifyOn
 }
 
 export interface ScheduledTaskItem {
@@ -49,6 +54,9 @@ export interface ScheduledTaskItem {
   status: string
   run_count: number
   error_message?: string
+  notify_users?: string[]
+  notify_departments?: string[]
+  notify_on?: ScheduledTaskNotifyOn
   created_at: string
 }
 
@@ -91,8 +99,15 @@ export function createScheduledTask(data: CreateScheduledTaskReq): Promise<Sched
     cron_expr: data.cron_expr,
     interval_seconds: data.interval_seconds,
     max_runs: data.max_runs ?? 0,
-    timezone: data.timezone
+    timezone: data.timezone,
+    notify_users: data.notify_users ?? [],
+    notify_departments: data.notify_departments ?? [],
+    notify_on: data.notify_on ?? 'none'
   })
+}
+
+export function getScheduledTask(id: number): Promise<ScheduledTaskItem> {
+  return get<ScheduledTaskItem>(`/workspace/api/v1/scheduled_tasks/${id}`)
 }
 
 /** full_code_path 为前缀：返回该路径及子路径下的任务（目录节点可看到子表单的定时任务） */
@@ -116,5 +131,11 @@ export function listScheduledTaskExecutions(
   return get<ListScheduledTaskExecutionsResp>(
     `/workspace/api/v1/scheduled_tasks/${taskId}/executions`,
     params
+  )
+}
+
+export function getScheduledTaskExecution(taskId: number, executionId: number): Promise<ScheduledTaskExecutionItem> {
+  return get<ScheduledTaskExecutionItem>(
+    `/workspace/api/v1/scheduled_tasks/${taskId}/executions/${executionId}`
   )
 }

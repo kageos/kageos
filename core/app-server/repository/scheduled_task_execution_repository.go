@@ -18,6 +18,14 @@ func (r *ScheduledTaskExecutionRepository) Create(exec *model.ScheduledTaskExecu
 	return r.db.Create(exec).Error
 }
 
+func (r *ScheduledTaskExecutionRepository) GetByID(taskID int64, id int64) (*model.ScheduledTaskExecution, error) {
+	var exec model.ScheduledTaskExecution
+	if err := r.db.Where("task_id = ? AND id = ?", taskID, id).First(&exec).Error; err != nil {
+		return nil, err
+	}
+	return &exec, nil
+}
+
 // ListByTaskID 某任务的执行记录列表，按 executed_at 倒序，分页
 func (r *ScheduledTaskExecutionRepository) ListByTaskID(taskID int64, status string, offset, limit int) ([]*model.ScheduledTaskExecution, int64, error) {
 	var list []*model.ScheduledTaskExecution

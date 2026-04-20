@@ -260,7 +260,7 @@ func voteOnSelectFuzzyTopicForOptionList(ctx *app.Context, req *callback.OnSelec
 var VoteOptionListTemplate = &app.TableTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:         "投票选项管理",
-		Desc:         "查看和管理投票选项，包括得票数、百分比等统计信息",
+		Desc:         `查看和管理投票选项，包括得票数、百分比等统计信息`,
 		Tags:         []string{"投票系统", "选项管理"},
 		Request:      &VoteOptionListReq{},
 		Response:     query.PaginatedTable[[]VoteOption]{},
@@ -498,7 +498,7 @@ func VoteRecordList(ctx *app.Context, resp response.Response) error {
 var VoteRecordListTemplate = &app.TableTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:         "投票记录查询",
-		Desc:         "投票记录查询管理，支持按主题、选项、投票人等条件筛选",
+		Desc:         `投票记录查询管理，支持按主题、选项、投票人等条件筛选`,
 		Tags:         []string{"投票系统", "记录管理"},
 		Request:      &VoteRecordListReq{},
 		Response:     query.PaginatedTable[[]VoteRecord]{},
@@ -640,7 +640,7 @@ func DoVoteResult(ctx *app.Context, req *VoteResultReq) (*VoteResultResp, error)
 var VoteResultTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "投票结果查询",
-		Desc:     "查看投票统计结果，包括各选项得票数、百分比等信息",
+		Desc:     `查看投票统计结果，包括各选项得票数、百分比等信息`,
 		Tags:     []string{"投票系统", "结果统计"},
 		Request:  &VoteResultReq{},
 		Response: &VoteResultResp{},
@@ -1033,7 +1033,7 @@ func DoVoteSubmit(ctx *app.Context, req *VoteSubmitReq) (*VoteSubmitResp, error)
 var VoteSubmitTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "参与投票",
-		Desc:     "选择投票主题和选项，提交投票，支持单选/多选，防止重复投票",
+		Desc:     `选择投票主题和选项，提交投票，支持单选/多选，防止重复投票`,
 		Tags:     []string{"投票系统", "投票参与"},
 		Request:  &VoteSubmitReq{},
 		Response: &VoteSubmitResp{},
@@ -1265,7 +1265,7 @@ func VoteTopicList(ctx *app.Context, resp response.Response) error {
 var VoteTopicListTemplate = &app.TableTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:         "投票主题管理",
-		Desc:         "投票主题的增删改查管理，支持创建投票、设置选项、时间控制",
+		Desc:         `投票主题的增删改查管理，支持创建投票、设置选项、时间控制`,
 		Tags:         []string{"投票系统", "主题管理"},
 		Request:      &VoteTopicListReq{},
 		Response:     query.PaginatedTable[[]VoteTopic]{},

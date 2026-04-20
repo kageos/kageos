@@ -13,24 +13,27 @@ func TestBuildScheduledTaskItem(t *testing.T) {
 	nextRunAt := runAt.Add(time.Minute)
 	createdAt := runAt.Add(-time.Hour)
 	task := &model.ScheduledTask{
-		ID:              3,
-		Name:            "提醒系统-检查并发送提醒",
-		User:            "liubeiluo",
-		App:             "work",
-		FullCodePath:    "/liubeiluo/work/reminder/reminder_check.form",
-		Action:          "execute",
-		Method:          "POST",
-		Payload:         json.RawMessage(`{"window_seconds":60}`),
-		RequestUser:     "liubeiluo",
-		RequestUserDept: "/org/unassigned",
-		CreatedBy:       "liubeiluo",
-		ScheduleType:    "cron",
-		RunAt:           runAt,
-		NextRunAt:       &nextRunAt,
-		CronExpr:        "*/1 * * * *",
-		Timezone:        "Asia/Shanghai",
-		Status:          "pending",
-		CreatedAt:       createdAt,
+		ID:                3,
+		Name:              "提醒系统-检查并发送提醒",
+		User:              "liubeiluo",
+		App:               "work",
+		FullCodePath:      "/liubeiluo/work/reminder/reminder_check.form",
+		Action:            "execute",
+		Method:            "POST",
+		Payload:           json.RawMessage(`{"window_seconds":60}`),
+		RequestUser:       "liubeiluo",
+		RequestUserDept:   "/org/unassigned",
+		CreatedBy:         "liubeiluo",
+		ScheduleType:      "cron",
+		RunAt:             runAt,
+		NextRunAt:         &nextRunAt,
+		CronExpr:          "*/1 * * * *",
+		Timezone:          "Asia/Shanghai",
+		Status:            "pending",
+		NotifyUsers:       "alice,bob",
+		NotifyDepartments: "/org/engineering",
+		NotifyOn:          "failed",
+		CreatedAt:         createdAt,
 	}
 
 	item := buildScheduledTaskItem(task)
@@ -46,5 +49,14 @@ func TestBuildScheduledTaskItem(t *testing.T) {
 	}
 	if item.NextRunAt == nil || *item.NextRunAt != nextRunAt.Format(time.RFC3339) {
 		t.Fatalf("next_run_at = %v, want %q", item.NextRunAt, nextRunAt.Format(time.RFC3339))
+	}
+	if len(item.NotifyUsers) != 2 || item.NotifyUsers[0] != "alice" || item.NotifyUsers[1] != "bob" {
+		t.Fatalf("notify_users = %#v, want alice,bob", item.NotifyUsers)
+	}
+	if len(item.NotifyDepartments) != 1 || item.NotifyDepartments[0] != "/org/engineering" {
+		t.Fatalf("notify_departments = %#v, want /org/engineering", item.NotifyDepartments)
+	}
+	if item.NotifyOn != "failed" {
+		t.Fatalf("notify_on = %q, want failed", item.NotifyOn)
 	}
 }

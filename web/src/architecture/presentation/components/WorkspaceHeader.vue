@@ -24,6 +24,17 @@
       />
     </div>
     <div class="header-right" data-testid="workspace-header-right">
+      <el-button
+        size="small"
+        class="header-search-button"
+        @click="showGlobalSearchDialog = true"
+        title="全站搜索"
+        data-testid="workspace-header-search"
+      >
+        <el-icon><Search /></el-icon>
+        搜索
+      </el-button>
+
       <!-- 仅保留应用中心在栏上 -->
       <el-button
         type="primary"
@@ -110,6 +121,8 @@
     <!-- Debug 弹窗 -->
     <DebugDialog v-model="showDebugDialog" />
 
+    <GlobalResourceSearchDialog v-model:visible="showGlobalSearchDialog" />
+
     <!-- 升级企业版对话框 -->
     <UpgradeEnterpriseDialog
       v-model="showUpgradeDialog"
@@ -130,6 +143,7 @@ import {
   Key,
   Promotion,
   Setting,
+  Search,
   Moon,
   Sunny,
   Check,
@@ -142,6 +156,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useLicenseStore } from '@/stores/license'
 import { useThemeStore } from '@/stores/theme'
 import DebugDialog from './DebugDialog.vue'
+import GlobalResourceSearchDialog from './GlobalResourceSearchDialog.vue'
 import UpgradeEnterpriseDialog from '@/shared/components/UpgradeEnterpriseDialog.vue'
 import { navigateToHub as navigateToHubUtil } from '@/utils/hub-navigation'
 import { Logger } from '@/core/utils/logger'
@@ -234,6 +249,7 @@ const isDevelopment = computed(() => {
 })
 
 const showDebugDialog = ref(false)
+const showGlobalSearchDialog = ref(false)
 
 // 导航到 Hub
 const navigateToHub = () => {
@@ -376,6 +392,28 @@ defineExpose({
   border-radius: 12px;
   box-shadow: 0 14px 32px rgba(var(--el-color-primary-rgb), 0.22);
 }
+
+.header-search-button {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: var(--app-shell-panel-muted-bg);
+  border-color: var(--app-shell-panel-border);
+  color: var(--el-text-color-primary);
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
+
+  .el-icon {
+    margin-right: 4px;
+  }
+
+  &:hover {
+    color: var(--el-color-primary);
+    border-color: var(--el-color-primary-light-5);
+    background: var(--el-color-primary-light-9);
+  }
+}
+
 .is-active-theme {
   color: var(--el-color-primary) !important;
   background-color: var(--el-fill-color-light);

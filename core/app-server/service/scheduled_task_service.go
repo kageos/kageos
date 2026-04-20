@@ -37,6 +37,13 @@ const (
 	defaultSchedulerHeartbeatMaxAge = 30 * time.Second
 )
 
+const (
+	ScheduledTaskNotifyNone    = "none"
+	ScheduledTaskNotifyAll     = "all"
+	ScheduledTaskNotifySuccess = "success"
+	ScheduledTaskNotifyFailed  = "failed"
+)
+
 type scheduledTaskAppClient interface {
 	RequestApp(ctx context.Context, req *dto.RequestAppReq) (*dto.RequestAppResp, error)
 	RecordFormOperateLog(ctx context.Context, req *dto.RecordFormOperateLogReq) error
@@ -44,6 +51,10 @@ type scheduledTaskAppClient interface {
 
 type scheduledTaskTokenIssuer interface {
 	GenerateAccessTokenWithHR(userID int64, username, email string, departmentFullPath string, leaderUsername string) (string, error)
+}
+
+type scheduledTaskMessagePublisher interface {
+	PublishMessage(ctx context.Context, payload *dto.MessageSendPayload) error
 }
 
 func normalizeScheduledTaskAction(action string) (string, error) {
@@ -59,6 +70,54 @@ func normalizeScheduledTaskAction(action string) (string, error) {
 	default:
 		return "", fmt.Errorf("action 不支持，必须是 execute/form/table_create/table_update/table_delete")
 	}
+}
+
+func normalizeScheduledTaskNotifyOn(raw string, hasRecipients bool) (string, error) {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	if value == "" {
+		if hasRecipients {
+			return ScheduledTaskNotifyAll, nil
+		}
+		return ScheduledTaskNotifyNone, nil
+	}
+	switch value {
+	case ScheduledTaskNotifyNone, ScheduledTaskNotifyAll, ScheduledTaskNotifySuccess, ScheduledTaskNotifyFailed:
+		return value, nil
+	default:
+		return "", fmt.Errorf("notify_on 不支持，必须是 none/all/success/failed")
+	}
+}
+
+func normalizeScheduledTaskStringList(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		normalized := strings.TrimSpace(value)
+		if normalized == "" {
+			continue
+		}
+		if _, exists := seen[normalized]; exists {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		out = append(out, normalized)
+	}
+	return out
+}
+
+func joinScheduledTaskStringList(values []string) string {
+	return strings.Join(normalizeScheduledTaskStringList(values), ",")
+}
+
+func splitScheduledTaskStringList(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	return normalizeScheduledTaskStringList(strings.Split(raw, ","))
+}
+
+func SplitScheduledTaskRecipientsForAPI(raw string) []string {
+	return splitScheduledTaskStringList(raw)
 }
 
 func parseScheduledTaskCron(expr string) (cron.Schedule, error) {
@@ -151,15 +210,33 @@ type ScheduledTaskService struct {
 	workerSlots   chan struct{}
 	runWG         sync.WaitGroup
 	lastHeartbeat atomic.Int64
+	lastPollAt    atomic.Int64
 }
 
 type ScheduledTaskServiceOptions struct {
-	PollInterval    time.Duration
-	BatchSize       int
-	LeaseDuration   time.Duration
-	MaxConcurrency  int
-	HeartbeatFile   string
-	HeartbeatMaxAge time.Duration
+	PollInterval        time.Duration
+	BatchSize           int
+	LeaseDuration       time.Duration
+	MaxConcurrency      int
+	HeartbeatFile       string
+	HeartbeatMaxAge     time.Duration
+	MessagePublisher    scheduledTaskMessagePublisher
+	NotificationBaseURL string
+}
+
+type ScheduledTaskHealthSnapshot struct {
+	Healthy          bool
+	SchedulerID      string
+	LastHeartbeatAt  time.Time
+	HasHeartbeat     bool
+	LastPollAt       time.Time
+	HasPoll          bool
+	HeartbeatAge     time.Duration
+	HeartbeatMaxAge  time.Duration
+	PollInterval     time.Duration
+	InflightWorkers  int
+	AvailableWorkers int
+	MaxConcurrency   int
 }
 
 func normalizeScheduledTaskServiceOptions(opts ScheduledTaskServiceOptions) ScheduledTaskServiceOptions {
@@ -284,25 +361,38 @@ func (s *ScheduledTaskService) Create(ctx context.Context, req *dto.CreateSchedu
 	if reqUserDept == "" {
 		reqUserDept = contextx.GetRequestDepartmentFullPath(ctx)
 	}
+	notifyUsers := normalizeScheduledTaskStringList(req.NotifyUsers)
+	notifyDepartments := normalizeScheduledTaskStringList(req.NotifyDepartments)
+	hasNotifyRecipients := len(notifyUsers) > 0 || len(notifyDepartments) > 0
+	notifyOn, err := normalizeScheduledTaskNotifyOn(req.NotifyOn, hasNotifyRecipients)
+	if err != nil {
+		return nil, err
+	}
+	if notifyOn != ScheduledTaskNotifyNone && !hasNotifyRecipients {
+		return nil, fmt.Errorf("notify_on 启用时必须提供 notify_users 或 notify_departments")
+	}
 
 	task := &model.ScheduledTask{
-		User:            user,
-		App:             appName,
-		Name:            strings.TrimSpace(req.Name),
-		FullCodePath:    req.FullCodePath,
-		Action:          action,
-		Method:          method,
-		Payload:         req.Payload,
-		RequestUser:     reqUser,
-		RequestUserDept: reqUserDept,
-		CreatedBy:       requestUser,
-		ScheduleType:    scheduleType,
-		RunAt:           runAt,
-		CronExpr:        req.CronExpr,
-		IntervalSeconds: req.IntervalSeconds,
-		MaxRuns:         req.MaxRuns,
-		Status:          "pending",
-		Timezone:        req.Timezone,
+		User:              user,
+		App:               appName,
+		Name:              strings.TrimSpace(req.Name),
+		FullCodePath:      req.FullCodePath,
+		Action:            action,
+		Method:            method,
+		Payload:           req.Payload,
+		RequestUser:       reqUser,
+		RequestUserDept:   reqUserDept,
+		CreatedBy:         requestUser,
+		ScheduleType:      scheduleType,
+		RunAt:             runAt,
+		CronExpr:          req.CronExpr,
+		IntervalSeconds:   req.IntervalSeconds,
+		MaxRuns:           req.MaxRuns,
+		Status:            "pending",
+		Timezone:          req.Timezone,
+		NotifyUsers:       strings.Join(notifyUsers, ","),
+		NotifyDepartments: strings.Join(notifyDepartments, ","),
+		NotifyOn:          notifyOn,
 	}
 
 	switch scheduleType {
@@ -345,6 +435,10 @@ func (s *ScheduledTaskService) List(ctx context.Context, createdBy string, statu
 	return s.taskRepo.ListByUser(createdBy, status, fullCodePath, offset, pageSize)
 }
 
+func (s *ScheduledTaskService) Get(ctx context.Context, id int64, _ string) (*model.ScheduledTask, error) {
+	return s.taskRepo.GetByID(id)
+}
+
 // Cancel 取消任务（仅创建人可取消）
 func (s *ScheduledTaskService) Cancel(ctx context.Context, id int64, createdBy string) error {
 	return s.taskRepo.Cancel(id, createdBy)
@@ -366,6 +460,13 @@ func (s *ScheduledTaskService) ListExecutions(ctx context.Context, taskID int64,
 	return s.executionRepo.ListByTaskID(taskID, status, offset, pageSize)
 }
 
+func (s *ScheduledTaskService) GetExecution(ctx context.Context, taskID int64, executionID int64, _ string) (*model.ScheduledTaskExecution, error) {
+	if _, err := s.taskRepo.GetByID(taskID); err != nil {
+		return nil, err
+	}
+	return s.executionRepo.GetByID(taskID, executionID)
+}
+
 // StartScheduler 启动调度器，应在 worker 或 app-server 启动时调用。
 // 调度源以 DB 为准：每次轮询查询到点且无有效租约的任务，再用原子更新抢占租约，
 // 这样即使多实例并发运行，也只有抢到租约的实例会实际执行该任务。
@@ -374,7 +475,9 @@ func (s *ScheduledTaskService) StartScheduler(ctx context.Context) {
 		s.schedulerID, s.options.PollInterval, s.options.BatchSize, s.options.LeaseDuration, s.options.MaxConcurrency)
 	s.writeHeartbeat(ctx, time.Now())
 	s.runDueTasks(ctx)
-	s.writeHeartbeat(ctx, time.Now())
+	pollCompletedAt := time.Now()
+	s.markPollCompleted(pollCompletedAt)
+	s.writeHeartbeat(ctx, pollCompletedAt)
 	ticker := time.NewTicker(s.options.PollInterval)
 	defer ticker.Stop()
 	for {
@@ -387,7 +490,9 @@ func (s *ScheduledTaskService) StartScheduler(ctx context.Context) {
 			return
 		case <-ticker.C:
 			s.runDueTasks(ctx)
-			s.writeHeartbeat(ctx, time.Now())
+			pollCompletedAt := time.Now()
+			s.markPollCompleted(pollCompletedAt)
+			s.writeHeartbeat(ctx, pollCompletedAt)
 		}
 	}
 }
@@ -451,8 +556,7 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 	}
 	user, appName, routerPath, err := parseFullCodePath(task.FullCodePath)
 	if err != nil {
-		s.recordExecution(taskCtx, task, nil, nil, "failed", err.Error(), "", executedAt, elapsedMillis())
-		s.updateTaskAfterRun(task, task.LeaseOwner, scheduledAt, false, err.Error())
+		s.finishExecution(taskCtx, task, nil, nil, "failed", err.Error(), "", executedAt, elapsedMillis(), scheduledAt, false)
 		return
 	}
 	// 定时任务无 HTTP 请求，用 WithRequestInfo 一次性注入与 ToContext 一致的 context
@@ -480,9 +584,9 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 	}
 	req, err := s.buildTaskRequest(runCtx, task, user, appName, routerPath, traceId, token, bodyBytes)
 	if err != nil {
-		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, task.Payload, nil, err, traceId, elapsedMillis())
-		s.recordExecution(taskCtx, task, task.Payload, nil, "failed", err.Error(), traceId, executedAt, elapsedMillis())
-		s.updateTaskAfterRun(task, task.LeaseOwner, scheduledAt, false, err.Error())
+		duration := elapsedMillis()
+		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, task.Payload, nil, err, traceId, duration)
+		s.finishExecution(taskCtx, task, task.Payload, nil, "failed", err.Error(), traceId, executedAt, duration, scheduledAt, false)
 		return
 	}
 
@@ -494,16 +598,16 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 	}
 	reqBody := req.Body
 	if err != nil {
-		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, err, traceId, elapsedMillis())
-		s.recordExecution(taskCtx, task, reqBody, respBody, "failed", err.Error(), traceId, executedAt, elapsedMillis())
-		s.updateTaskAfterRun(task, task.LeaseOwner, scheduledAt, false, err.Error())
+		duration := elapsedMillis()
+		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, err, traceId, duration)
+		s.finishExecution(taskCtx, task, reqBody, respBody, "failed", err.Error(), traceId, executedAt, duration, scheduledAt, false)
 		return
 	}
 	if resp == nil {
 		errMsg := "应用响应为空"
-		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, errors.New(errMsg), traceId, elapsedMillis())
-		s.recordExecution(taskCtx, task, reqBody, respBody, "failed", errMsg, traceId, executedAt, elapsedMillis())
-		s.updateTaskAfterRun(task, task.LeaseOwner, scheduledAt, false, errMsg)
+		duration := elapsedMillis()
+		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, errors.New(errMsg), traceId, duration)
+		s.finishExecution(taskCtx, task, reqBody, respBody, "failed", errMsg, traceId, executedAt, duration, scheduledAt, false)
 		return
 	}
 	if resp.Error != "" || resp.ErrCode != 0 {
@@ -513,14 +617,14 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 		} else if resp.ErrCode != 0 {
 			errMsg = fmt.Sprintf("%s (err_code=%d)", errMsg, resp.ErrCode)
 		}
-		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, nil, traceId, elapsedMillis())
-		s.recordExecution(taskCtx, task, reqBody, respBody, "failed", errMsg, traceId, executedAt, elapsedMillis())
-		s.updateTaskAfterRun(task, task.LeaseOwner, scheduledAt, false, errMsg)
+		duration := elapsedMillis()
+		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, nil, traceId, duration)
+		s.finishExecution(taskCtx, task, reqBody, respBody, "failed", errMsg, traceId, executedAt, duration, scheduledAt, false)
 		return
 	}
-	s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, nil, traceId, elapsedMillis())
-	s.recordExecution(taskCtx, task, reqBody, respBody, "success", "", traceId, executedAt, elapsedMillis())
-	s.updateTaskAfterRun(task, task.LeaseOwner, scheduledAt, true, "")
+	duration := elapsedMillis()
+	s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, nil, traceId, duration)
+	s.finishExecution(taskCtx, task, reqBody, respBody, "success", "", traceId, executedAt, duration, scheduledAt, true)
 }
 
 func (s *ScheduledTaskService) buildTaskRequest(ctx context.Context, task *model.ScheduledTask, user, appName, routerPath, traceID, token string, bodyBytes []byte) (*dto.RequestAppReq, error) {
@@ -679,7 +783,15 @@ func (s *ScheduledTaskService) buildTableCallbackReq(user, appName, routerPath, 
 	}, nil
 }
 
-func (s *ScheduledTaskService) recordExecution(ctx context.Context, task *model.ScheduledTask, requestPayload, responsePayload []byte, status, errMsg, traceID string, executedAt time.Time, durationMillis int64) {
+func (s *ScheduledTaskService) finishExecution(ctx context.Context, task *model.ScheduledTask, requestPayload, responsePayload []byte, status, errMsg, traceID string, executedAt time.Time, durationMillis int64, scheduledAt time.Time, success bool) {
+	exec := s.recordExecution(ctx, task, requestPayload, responsePayload, status, errMsg, traceID, executedAt, durationMillis)
+	s.updateTaskAfterRun(task, task.LeaseOwner, scheduledAt, success, errMsg)
+	if exec != nil {
+		s.notifyExecutionFinished(ctx, task, exec, success)
+	}
+}
+
+func (s *ScheduledTaskService) recordExecution(ctx context.Context, task *model.ScheduledTask, requestPayload, responsePayload []byte, status, errMsg, traceID string, executedAt time.Time, durationMillis int64) *model.ScheduledTaskExecution {
 	exec := &model.ScheduledTaskExecution{
 		TaskID:          task.ID,
 		ExecutedAt:      executedAt,
@@ -692,7 +804,143 @@ func (s *ScheduledTaskService) recordExecution(ctx context.Context, task *model.
 	}
 	if err := s.executionRepo.Create(exec); err != nil {
 		logger.Errorf(ctx, "[ScheduledTask] Create execution record err: %v", err)
+		return nil
 	}
+	return exec
+}
+
+func (s *ScheduledTaskService) notifyExecutionFinished(ctx context.Context, task *model.ScheduledTask, exec *model.ScheduledTaskExecution, success bool) {
+	if !shouldNotifyScheduledTask(task, success) {
+		return
+	}
+	if s.options.MessagePublisher == nil {
+		logger.Warnf(ctx, "[ScheduledTask] Message publisher unavailable, skip notification: task=%d execution=%d", task.ID, exec.ID)
+		return
+	}
+
+	link := s.buildExecutionResultURL(task, exec)
+	statusLabel := "成功"
+	if !success {
+		statusLabel = "失败"
+	}
+	title := fmt.Sprintf("定时任务执行%s：%s", statusLabel, scheduledTaskDisplayName(task))
+	content := buildScheduledTaskNotificationContent(task, exec, statusLabel, link)
+
+	from := strings.TrimSpace(task.RequestUser)
+	if from == "" {
+		from = strings.TrimSpace(task.CreatedBy)
+	}
+	if from == "" {
+		from = "scheduled-task"
+	}
+
+	payload := &dto.MessageSendPayload{
+		From:          from,
+		FullCodePath:  task.FullCodePath,
+		ToUsers:       task.NotifyUsers,
+		ToDepartments: task.NotifyDepartments,
+		Title:         title,
+		Content:       content,
+		ContentType:   "markdown",
+	}
+	if err := s.options.MessagePublisher.PublishMessage(ctx, payload); err != nil {
+		logger.Errorf(ctx, "[ScheduledTask] Publish notification failed: task=%d execution=%d err=%v", task.ID, exec.ID, err)
+	}
+}
+
+func shouldNotifyScheduledTask(task *model.ScheduledTask, success bool) bool {
+	if task == nil {
+		return false
+	}
+	if strings.TrimSpace(task.NotifyUsers) == "" && strings.TrimSpace(task.NotifyDepartments) == "" {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(task.NotifyOn)) {
+	case ScheduledTaskNotifyAll, "":
+		return true
+	case ScheduledTaskNotifySuccess:
+		return success
+	case ScheduledTaskNotifyFailed:
+		return !success
+	default:
+		return false
+	}
+}
+
+func scheduledTaskDisplayName(task *model.ScheduledTask) string {
+	if task == nil {
+		return "未命名任务"
+	}
+	if name := strings.TrimSpace(task.Name); name != "" {
+		return name
+	}
+	return "未命名任务"
+}
+
+func buildScheduledTaskNotificationContent(task *model.ScheduledTask, exec *model.ScheduledTaskExecution, statusLabel string, link string) string {
+	var b strings.Builder
+	b.WriteString("## 定时任务执行")
+	b.WriteString(statusLabel)
+	b.WriteString("\n\n")
+	b.WriteString("- 任务：")
+	b.WriteString(scheduledTaskDisplayName(task))
+	b.WriteString("\n")
+	b.WriteString("- 函数：`")
+	b.WriteString(task.FullCodePath)
+	b.WriteString("`\n")
+	b.WriteString("- 执行时间：")
+	b.WriteString(exec.ExecutedAt.Format(time.RFC3339))
+	b.WriteString("\n")
+	b.WriteString("- 耗时：")
+	b.WriteString(strconv.FormatInt(exec.DurationMillis, 10))
+	b.WriteString(" ms\n")
+	if exec.TraceID != "" {
+		b.WriteString("- Trace ID：`")
+		b.WriteString(exec.TraceID)
+		b.WriteString("`\n")
+	}
+	if exec.ErrorMessage != "" {
+		b.WriteString("- 错误：")
+		b.WriteString(exec.ErrorMessage)
+		b.WriteString("\n")
+	}
+	if link != "" {
+		b.WriteString("\n[查看执行结果](")
+		b.WriteString(link)
+		b.WriteString(")\n")
+	}
+	return b.String()
+}
+
+func (s *ScheduledTaskService) buildExecutionResultURL(task *model.ScheduledTask, exec *model.ScheduledTaskExecution) string {
+	workspacePath := "/workspace" + escapeScheduledTaskFullCodePath(task.FullCodePath)
+	query := url.Values{}
+	query.Set("_panel", "scheduledTask")
+	query.Set("_scheduled_task_id", strconv.FormatInt(task.ID, 10))
+	query.Set("_scheduled_execution_id", strconv.FormatInt(exec.ID, 10))
+
+	resultPath := workspacePath
+	if encoded := query.Encode(); encoded != "" {
+		resultPath += "?" + encoded
+	}
+
+	baseURL := strings.TrimRight(strings.TrimSpace(s.options.NotificationBaseURL), "/")
+	if baseURL == "" {
+		return resultPath
+	}
+	return baseURL + resultPath
+}
+
+func escapeScheduledTaskFullCodePath(fullCodePath string) string {
+	trimmed := strings.Trim(fullCodePath, "/")
+	if trimmed == "" {
+		return ""
+	}
+	parts := strings.Split(trimmed, "/")
+	for i, part := range parts {
+		parts[i] = url.PathEscape(part)
+	}
+	return "/" + strings.Join(parts, "/")
 }
 
 func (s *ScheduledTaskService) recordFunctionOperateLog(ctx context.Context, task *model.ScheduledTask, user, appName, routerPath string, requestPayload []byte, resp *dto.RequestAppResp, requestErr error, traceID string, durationMillis int64) {
@@ -735,6 +983,45 @@ func (s *ScheduledTaskService) HealthStatus(now time.Time) (bool, time.Duration)
 		age = 0
 	}
 	return age <= s.options.HeartbeatMaxAge, age
+}
+
+func (s *ScheduledTaskService) HealthSnapshot(now time.Time) ScheduledTaskHealthSnapshot {
+	healthy, age := s.HealthStatus(now)
+	maxConcurrency := cap(s.workerSlots)
+	if maxConcurrency <= 0 {
+		maxConcurrency = s.options.MaxConcurrency
+	}
+	inflightWorkers := len(s.workerSlots)
+	availableWorkers := maxConcurrency - inflightWorkers
+	if availableWorkers < 0 {
+		availableWorkers = 0
+	}
+
+	snapshot := ScheduledTaskHealthSnapshot{
+		Healthy:          healthy,
+		SchedulerID:      s.schedulerID,
+		HeartbeatAge:     age,
+		HeartbeatMaxAge:  s.options.HeartbeatMaxAge,
+		PollInterval:     s.options.PollInterval,
+		InflightWorkers:  inflightWorkers,
+		AvailableWorkers: availableWorkers,
+		MaxConcurrency:   maxConcurrency,
+	}
+
+	if lastHeartbeatUnix := s.lastHeartbeat.Load(); lastHeartbeatUnix > 0 {
+		snapshot.HasHeartbeat = true
+		snapshot.LastHeartbeatAt = time.Unix(lastHeartbeatUnix, 0)
+	}
+	if lastPollUnix := s.lastPollAt.Load(); lastPollUnix > 0 {
+		snapshot.HasPoll = true
+		snapshot.LastPollAt = time.Unix(lastPollUnix, 0)
+	}
+
+	return snapshot
+}
+
+func (s *ScheduledTaskService) markPollCompleted(now time.Time) {
+	s.lastPollAt.Store(now.Unix())
 }
 
 func (s *ScheduledTaskService) writeHeartbeat(ctx context.Context, now time.Time) {

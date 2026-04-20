@@ -223,6 +223,10 @@ func (a *App) diffApiWithCurrentApis(currentApis []*ApiInfo) (add []*ApiInfo, up
 		}
 	}
 
+	sortApiInfosByKey(add)
+	sortApiInfosByKey(update)
+	sortApiInfosByKey(delete)
+
 	logger.Infof(context.Background(), "=== API diff analysis completed ===")
 	logger.Infof(context.Background(), "Added: %d, Updated: %d, Deleted: %d", len(add), len(update), len(delete))
 	for i, api := range update {
@@ -231,6 +235,14 @@ func (a *App) diffApiWithCurrentApis(currentApis []*ApiInfo) (add []*ApiInfo, up
 	}
 
 	return add, update, delete, nil
+}
+
+func sortApiInfosByKey(apis []*ApiInfo) {
+	sort.Slice(apis, func(i, j int) bool {
+		left := fmt.Sprintf("%s:%s", apis[i].Method, apis[i].Router)
+		right := fmt.Sprintf("%s:%s", apis[j].Method, apis[j].Router)
+		return left < right
+	})
 }
 
 // 执行API差异对比（兼容旧接口，内部调用 diffApiWithCurrentApis）
@@ -424,7 +436,12 @@ func (a *App) collectPackageInfos() []*PackageInfo {
 	}
 
 	sort.Slice(result, func(i, j int) bool {
-		return strings.Count(result[i].FullPath, "/") < strings.Count(result[j].FullPath, "/")
+		leftDepth := strings.Count(result[i].FullPath, "/")
+		rightDepth := strings.Count(result[j].FullPath, "/")
+		if leftDepth != rightDepth {
+			return leftDepth < rightDepth
+		}
+		return result[i].FullPath < result[j].FullPath
 	})
 
 	return result
@@ -499,27 +516,35 @@ func (a *App) loadCurrentApisForUpdate(ctx context.Context) ([]*ApiInfo, error) 
 func (a *App) migrateUpdateDatabases(ctx context.Context, currentApis []*ApiInfo) error {
 	logger.Infof(ctx, "[onAppUpdate] Step 2: Initializing databases...")
 	for i, api := range currentApis {
-		if api.routerInfo.Options == nil {
-			logger.Infof(ctx, "[onAppUpdate] Step 2: API %d (%s) has no options, skipping DB init", i, api.Name)
-			continue
-		}
-		name := api.routerInfo.Options.GetDBName(env.User, env.App)
-		logger.Infof(ctx, "[onAppUpdate] Step 2: API %d (%s) opening DB: %s", i, api.Name, name)
-		db, err := getOrInitDB(name)
-		if err != nil {
-			logger.Errorf(ctx, "[onAppUpdate] Step 2 FAILED: getOrInitDB(%s): %v", name, err)
-			return fmt.Errorf("Failed to getOrInitDB: %v", err)
-		}
-
-		for _, createTable := range api.CreateTableModels {
-			err = db.AutoMigrate(createTable)
-			if err != nil {
-				logger.Errorf(ctx, "[onAppUpdate] Step 2 FAILED: AutoMigrate: %v", err)
-				return fmt.Errorf("Failed to migrate table: %v", err)
-			}
+		if err := a.migrateUpdateDatabaseForAPI(ctx, i, api); err != nil {
+			return err
 		}
 	}
 	logger.Infof(ctx, "[onAppUpdate] Step 2 OK: databases initialized")
+	return nil
+}
+
+func (a *App) migrateUpdateDatabaseForAPI(ctx context.Context, index int, api *ApiInfo) error {
+	if api.routerInfo.Options == nil {
+		logger.Infof(ctx, "[onAppUpdate] Step 2: API %d (%s) has no options, skipping DB init", index, api.Name)
+		return nil
+	}
+
+	name := api.routerInfo.Options.GetDBName(env.User, env.App)
+	logger.Infof(ctx, "[onAppUpdate] Step 2: API %d (%s) opening DB: %s", index, api.Name, name)
+	db, err := getOrInitDB(name)
+	if err != nil {
+		logger.Errorf(ctx, "[onAppUpdate] Step 2 FAILED: getOrInitDB(%s): %v", name, err)
+		return fmt.Errorf("Failed to getOrInitDB: %v", err)
+	}
+
+	for _, createTable := range api.CreateTableModels {
+		if err := db.AutoMigrate(createTable); err != nil {
+			logger.Errorf(ctx, "[onAppUpdate] Step 2 FAILED: AutoMigrate: %v", err)
+			return fmt.Errorf("Failed to migrate table: %v", err)
+		}
+	}
+
 	return nil
 }
 
@@ -556,22 +581,32 @@ func (a *App) buildUpdateDiffData(ctx context.Context, currentApis []*ApiInfo) (
 func (a *App) runOnAPICreateCallbacks(ctx context.Context, addedApis []*ApiInfo) error {
 	logger.Infof(ctx, "[onAppUpdate] Step 5: Running OnApiCreate callbacks...")
 	for _, aa := range addedApis {
-		router, err := a.getRoute(aa.Router)
-		if err != nil {
-			logger.Errorf(ctx, "[onAppUpdate] Step 5 FAILED: getRoute(%s): %v", aa.Router, err)
-			return fmt.Errorf("Failed to get router: %v", err)
-		}
-		create := router.Template.GetBaseConfig().OnApiCreate
-		if create != nil {
-			var req callback.OnApiCreateReq
-			_, err := create(newCallbackContext(router), &req)
-			if err != nil {
-				logger.Errorf(ctx, "[onAppUpdate] Step 5 FAILED: OnApiCreate(%s): %v", aa.Router, err)
-				return fmt.Errorf("Failed to create api: %v", err)
-			}
+		if err := a.runOnAPICreateCallback(ctx, aa); err != nil {
+			return err
 		}
 	}
 	logger.Infof(ctx, "[onAppUpdate] Step 5 OK: callbacks done")
+	return nil
+}
+
+func (a *App) runOnAPICreateCallback(ctx context.Context, api *ApiInfo) error {
+	router, err := a.getRoute(api.Router)
+	if err != nil {
+		logger.Errorf(ctx, "[onAppUpdate] Step 5 FAILED: getRoute(%s): %v", api.Router, err)
+		return fmt.Errorf("Failed to get router: %v", err)
+	}
+
+	create := router.Template.GetBaseConfig().OnApiCreate
+	if create == nil {
+		return nil
+	}
+
+	var req callback.OnApiCreateReq
+	if _, err := create(newCallbackContext(router), &req); err != nil {
+		logger.Errorf(ctx, "[onAppUpdate] Step 5 FAILED: OnApiCreate(%s): %v", api.Router, err)
+		return fmt.Errorf("Failed to create api: %v", err)
+	}
+
 	return nil
 }
 

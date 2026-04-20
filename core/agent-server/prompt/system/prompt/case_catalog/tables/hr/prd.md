@@ -185,7 +185,7 @@ func HrJobList(ctx *app.Context, resp response.Response) error {
 var HrJobListTemplate = &app.TableTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:         "职位管理",
-		Desc:         "职位信息的增删改查管理，包括职位名称、部门、工作类型、薪资范围、职位描述、任职要求、招聘状态等",
+		Desc:         `职位信息的增删改查管理，包括职位名称、部门、工作类型、薪资范围、职位描述、任职要求、招聘状态等`,
 		Tags:         []string{"招聘系统", "职位管理"},
 		Request:      &HrJobListReq{},
 		Response:     query.PaginatedTable[[]HrJob]{},
@@ -435,7 +435,7 @@ func HrResumeList(ctx *app.Context, resp response.Response) error {
 var HrResumeListTemplate = &app.TableTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:         "投递管理",
-		Desc:         "简历投递的增删改查管理，包括职位选择、投递人信息、简历内容、投递状态等",
+		Desc:         `简历投递的增删改查管理，包括职位选择、投递人信息、简历内容、投递状态等`,
 		Tags:         []string{"招聘系统", "投递管理"},
 		Request:      &HrResumeListReq{},
 		Response:     query.PaginatedTable[[]HrResume]{},

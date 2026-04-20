@@ -39,6 +39,10 @@ type ScheduledTask struct {
 	Status       string `json:"status" gorm:"size:20;not null;index;comment:pending/done/failed/cancelled"`
 	Timezone     string `json:"timezone" gorm:"size:64;comment:时区"`
 	ErrorMessage string `json:"error_message" gorm:"type:text;comment:最近一次失败信息"`
+
+	NotifyUsers       string `json:"notify_users" gorm:"type:text;comment:执行完成通知用户，逗号分隔"`
+	NotifyDepartments string `json:"notify_departments" gorm:"type:text;comment:执行完成通知部门 full_code_path，逗号分隔"`
+	NotifyOn          string `json:"notify_on" gorm:"size:20;default:none;comment:通知触发条件:none/all/success/failed"`
 }
 
 func (ScheduledTask) TableName() string {

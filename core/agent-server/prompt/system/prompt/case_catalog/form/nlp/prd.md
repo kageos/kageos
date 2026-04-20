@@ -245,7 +245,7 @@ def agentos_entry(args, output_dir):
 var JiebaSegmentTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "中文分词与关键词提取",
-		Desc:     "使用 jieba 进行中文分词和关键词提取。支持精确模式、全模式、搜索引擎模式三种分词方式，自动提取关键词（TF-IDF），提供词频统计。应用场景：文本分析、内容提取、搜索优化、关键词挖掘等。",
+		Desc:     `使用 jieba 进行中文分词和关键词提取。支持精确模式、全模式、搜索引擎模式三种分词方式，自动提取关键词（TF-IDF），提供词频统计。应用场景：文本分析、内容提取、搜索优化、关键词挖掘等。`,
 		Tags:     []string{"自然语言处理", "中文分词", "关键词提取", "文本分析"},
 		Request:  &JiebaSegmentReq{},
 		Response: &JiebaSegmentResp{},

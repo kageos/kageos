@@ -254,7 +254,7 @@ var TicketTemplate = &app.TableTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "工单管理",
 		Tags:     []string{"工单管理系统"},
-		Desc:     "一个简单的工单管理系统 ........",
+		Desc:     `一个简单的工单管理系统 ........`,
 		Request:  &TicketListReq{},
 		Response: []*Ticket{},
 		CreateTables: []interface{}{

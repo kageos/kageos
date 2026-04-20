@@ -215,7 +215,7 @@ func sanitizeDemoFileName(name string) string {
 var sandboxFileOutDemoTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "Python 容器内产物输出（示例）",
-		Desc:     "演示：同机 Python 按 **绝对路径** 落盘并声明 output_files，Go 用 **OutputFilePaths + ResponseFiles** 下发附件。须 defer executor.Close()。大模型请先 read_doc /system/prompt/case_catalog/form/python_output。",
+		Desc:     `演示：同机 Python 按 **绝对路径** 落盘并声明 output_files，Go 用 **OutputFilePaths + ResponseFiles** 下发附件。须 defer executor.Close()。大模型请先 read_doc /system/prompt/case_catalog/form/python_output。`,
 		Tags:     []string{"Python", "示例", "文件输出", "matplotlib"},
 		Request:  &SandboxFileOutDemoReq{},
 		Response: &SandboxFileOutDemoResp{},

@@ -1,10 +1,13 @@
-import { onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import {
   listScheduledTasks,
+  getScheduledTask,
   cancelScheduledTask,
   listScheduledTaskExecutions,
+  getScheduledTaskExecution,
   type ScheduledTaskItem,
   type ScheduledTaskExecutionItem
 } from '@/api/scheduledTask'
@@ -36,6 +39,7 @@ export function useScheduledTaskList(
   emit: ScheduledTaskListEmit
 ) {
   const authStore = useAuthStore()
+  const route = useRoute()
 
   const loading = ref(false)
   const list = ref<ScheduledTaskItem[]>([])
@@ -66,6 +70,8 @@ export function useScheduledTaskList(
 
   const executionDetailVisible = ref(false)
   const currentExecution = ref<ScheduledTaskExecutionItem | null>(null)
+  const appliedDeepLinkKey = ref('')
+  const applyingDeepLink = ref(false)
 
   function scheduleTypeLabel(type: string) {
     const mapping: Record<string, string> = {
@@ -124,6 +130,23 @@ export function useScheduledTaskList(
 
   function parseObjectPayload(raw?: string | null): Record<string, unknown> | null {
     return parseExecutionObject(raw)
+  }
+
+  function notifyOnLabel(notifyOn?: string) {
+    const mapping: Record<string, string> = {
+      none: '不通知',
+      all: '每次完成',
+      success: '仅成功',
+      failed: '仅失败'
+    }
+    return mapping[notifyOn || 'none'] ?? notifyOn
+  }
+
+  function formatNotifyTargets(values?: string[] | null) {
+    if (!values || values.length === 0) {
+      return '-'
+    }
+    return values.join('，')
   }
 
   function getScheduleSummary(task: ScheduledTaskItem) {
@@ -199,13 +222,12 @@ export function useScheduledTaskList(
         list.value = filteredRes.list ?? []
         total.value = filteredRes.total ?? 0
         emitResourceTotal(baseRes.total ?? 0)
-        return
+      } else {
+        const res = await listScheduledTasks(filteredParams)
+        list.value = res.list ?? []
+        total.value = res.total ?? 0
+        emitResourceTotal(res.total ?? 0)
       }
-
-      const res = await listScheduledTasks(filteredParams)
-      list.value = res.list ?? []
-      total.value = res.total ?? 0
-      emitResourceTotal(res.total ?? 0)
     } catch {
       list.value = []
       total.value = 0
@@ -213,6 +235,7 @@ export function useScheduledTaskList(
     } finally {
       loading.value = false
     }
+    await applyExecutionDeepLink()
   }
 
   function handleFilterChange() {
@@ -301,22 +324,22 @@ export function useScheduledTaskList(
     handleCancel(currentTask.value)
   }
 
-  function openExecutionsFromDetail() {
+  async function openExecutionsFromDetail() {
     if (!currentTask.value) {
       return
     }
     taskDetailVisible.value = false
-    openExecutions(currentTask.value)
+    await openExecutions(currentTask.value)
   }
 
-  function openExecutions(row: ScheduledTaskItem) {
+  async function openExecutions(row: ScheduledTaskItem) {
     currentTaskId.value = row.id
     currentTaskName.value = row.name || '未命名任务'
     currentExecutionTask.value = row
     executionsPage.value = 1
     executionFilterForm.value.status = ''
     executionsVisible.value = true
-    loadExecutions()
+    await loadExecutions()
   }
 
   async function loadExecutions() {
@@ -359,6 +382,89 @@ export function useScheduledTaskList(
     executionDetailVisible.value = true
   }
 
+  function normalizeQueryValue(value: unknown): string {
+    if (Array.isArray(value)) {
+      return value[0] ? String(value[0]) : ''
+    }
+    return value ? String(value) : ''
+  }
+
+  function readQueryID(...keys: string[]): number {
+    for (const key of keys) {
+      const raw = normalizeQueryValue(route.query[key])
+      if (!raw) {
+        continue
+      }
+      const parsed = Number(raw)
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return parsed
+      }
+    }
+    return 0
+  }
+
+  async function applyExecutionDeepLink() {
+    if (!props.autoLoad || !props.resourcePath) {
+      return
+    }
+    if (normalizeQueryValue(route.query._panel) !== 'scheduledTask') {
+      return
+    }
+    const taskID = readQueryID('_scheduled_task_id', '_task_id')
+    if (!taskID || applyingDeepLink.value) {
+      return
+    }
+    const executionID = readQueryID('_scheduled_execution_id', '_execution_id')
+    const linkKey = `${props.resourcePath}:${taskID}:${executionID}`
+    if (appliedDeepLinkKey.value === linkKey) {
+      return
+    }
+
+    applyingDeepLink.value = true
+    appliedDeepLinkKey.value = linkKey
+    try {
+      const task = list.value.find((item) => item.id === taskID) || await getScheduledTask(taskID)
+      await openExecutions(task)
+      if (!executionID) {
+        return
+      }
+      const execution = executions.value.find((item) => item.id === executionID) ||
+        await getScheduledTaskExecution(taskID, executionID)
+      openExecutionDetail(execution)
+    } catch (error: unknown) {
+      ElMessage.error(getErrorMessage(error, '打开执行结果失败'))
+    } finally {
+      applyingDeepLink.value = false
+    }
+  }
+
+  const currentExecutionRequestPayload = computed(() => parseObjectPayload(currentExecution.value?.request_payload))
+
+  const currentExecutionResponseEnvelope = computed(() => parseObjectPayload(currentExecution.value?.response_payload))
+
+  const currentExecutionResponsePayload = computed(() => {
+    const envelope = currentExecutionResponseEnvelope.value
+    if (!envelope) {
+      return null
+    }
+    const result = envelope.result
+    if (result !== undefined && result !== null) {
+      return result
+    }
+    return envelope
+  })
+
+  const currentExecutionResponseMetadata = computed(() => {
+    const envelope = currentExecutionResponseEnvelope.value || {}
+    return {
+      version: envelope.version,
+      total_cost_mill: envelope.total_cost_mill ?? currentExecution.value?.duration_millis,
+      err_code: envelope.err_code,
+      error: envelope.error || currentExecution.value?.error_message,
+      trace_id: envelope.trace_id || currentExecution.value?.trace_id
+    }
+  })
+
   function normalizeTaskAction(action?: string) {
     const normalized = (action || 'execute').trim().toLowerCase()
     return normalized === 'form' ? 'execute' : normalized
@@ -376,6 +482,22 @@ export function useScheduledTaskList(
     executionDetailVisible.value = false
     executionsVisible.value = false
   }
+
+  watch(
+    () => [
+      props.resourcePath,
+      props.autoLoad,
+      route.query._panel,
+      route.query._scheduled_task_id,
+      route.query._scheduled_execution_id,
+      route.query._task_id,
+      route.query._execution_id
+    ] as const,
+    () => {
+      applyExecutionDeepLink()
+    },
+    { immediate: true }
+  )
 
   return {
     loading,
@@ -399,10 +521,15 @@ export function useScheduledTaskList(
     executionFilterForm,
     executionDetailVisible,
     currentExecution,
+    currentExecutionRequestPayload,
+    currentExecutionResponsePayload,
+    currentExecutionResponseMetadata,
     scheduleTypeLabel,
     actionLabel,
     statusTagType,
     statusLabel,
+    notifyOnLabel,
+    formatNotifyTargets,
     formatDateTime,
     formatPayload,
     getScheduleSummary,
