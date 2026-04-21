@@ -29,7 +29,7 @@
         />
         <div class="form-tip">
           <el-icon><InfoFilled /></el-icon>
-          目录代码只能包含小写字母、数字和下划线
+          目录代码必须是合法 Go package 名称：以小写字母开头，只能包含小写字母、数字和下划线，不能使用中划线或 Go 保留关键字
         </div>
       </el-form-item>
       <el-form-item label="描述">

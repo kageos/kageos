@@ -50,7 +50,10 @@ podman image exists agentos-app-runtime-base:latest
 podman images | grep agentos-app-runtime-base
 
 # 在 app-base 镜像内验证常用 Python 包是否可 import。
-podman run --rm --entrypoint /bin/sh agentos-app-runtime-base:latest -lc 'python3 -c "import pandas, numpy, matplotlib, openpyxl, xlsxwriter, pptx, plotly, pyecharts, bs4, yaml, qrcode, barcode, xlrd, xlwt, aiohttp, toml, snownlp, tabulate, arrow, dateutil, wordcloud, pymysql; print(\"python packages OK\")"'
+podman run --rm --entrypoint /bin/sh agentos-app-runtime-base:latest -lc 'python3 -c "import pandas, numpy, matplotlib, openpyxl, xlsxwriter, pptx, plotly, pyecharts, bs4, yaml, qrcode, barcode, xlrd, xlwt, aiohttp, toml, snownlp, tabulate, arrow, dateutil, wordcloud, pymysql, pytesseract; print(\"python packages OK\")"'
+
+# 在 app-base 镜像内验证 Tesseract 命令和中英文语言包。
+podman run --rm --entrypoint /bin/sh agentos-app-runtime-base:latest -lc 'tesseract --version | head -n 1 && tesseract --list-langs | tee /tmp/tesseract-langs.txt && grep -x eng /tmp/tesseract-langs.txt && grep -x chi_sim /tmp/tesseract-langs.txt'
 
 # 在 app-base 镜像内验证中文字体和 matplotlib 配置。
 podman run --rm --entrypoint /bin/sh agentos-app-runtime-base:latest -lc 'fc-match "Noto Sans CJK SC"; python3 -c "import matplotlib; print(matplotlib.matplotlib_fname())"'

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/naming"
 )
 
 func validateBatchWritePathSegment(segment string) error {
@@ -28,8 +29,24 @@ func validateBatchWritePathSegment(segment string) error {
 	return nil
 }
 
+func validateGoPackagePathSegment(segment string) error {
+	if segment != strings.TrimSpace(segment) {
+		return fmt.Errorf("路径片段不能包含首尾空格: %s", segment)
+	}
+	if err := validateBatchWritePathSegment(segment); err != nil {
+		return err
+	}
+	if err := naming.ValidateGoPackageName(segment, "目录代码"); err != nil {
+		return err
+	}
+	return nil
+}
+
 func validateBatchWritePackagePath(user, app, fullCodePath string) (string, error) {
-	trimmed := strings.Trim(strings.TrimSpace(fullCodePath), "/")
+	if fullCodePath != strings.TrimSpace(fullCodePath) {
+		return "", fmt.Errorf("full_code_path 不能包含首尾空格: %s", fullCodePath)
+	}
+	trimmed := strings.Trim(fullCodePath, "/")
 	if trimmed == "" {
 		return "", fmt.Errorf("full_code_path 不能为空")
 	}
@@ -44,7 +61,7 @@ func validateBatchWritePackagePath(user, app, fullCodePath string) (string, erro
 
 	packageParts := parts[2:]
 	for _, part := range packageParts {
-		if err := validateBatchWritePathSegment(part); err != nil {
+		if err := validateGoPackagePathSegment(part); err != nil {
 			return "", fmt.Errorf("非法目录路径 %s: %w", fullCodePath, err)
 		}
 	}
@@ -147,14 +164,17 @@ func resolveBatchWriteTarget(user, app, apiDir string, item *dto.FileWriteItem) 
 }
 
 func validateRelativePackagePath(packagePath string) (string, error) {
-	cleanPath := strings.Trim(strings.TrimSpace(packagePath), "/")
+	if packagePath != strings.TrimSpace(packagePath) {
+		return "", fmt.Errorf("package_path 不能包含首尾空格: %s", packagePath)
+	}
+	cleanPath := strings.Trim(packagePath, "/")
 	if cleanPath == "" {
 		return "", fmt.Errorf("package_path 不能为空")
 	}
 
 	parts := strings.Split(cleanPath, "/")
 	for _, part := range parts {
-		if err := validateBatchWritePathSegment(part); err != nil {
+		if err := validateGoPackagePathSegment(part); err != nil {
 			return "", fmt.Errorf("非法 package_path %s: %w", packagePath, err)
 		}
 	}

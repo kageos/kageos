@@ -9,7 +9,10 @@
 1. **确认路径**：环境信息中的「可执行函数」已列出 table/form/chart 的 full_code_path，可直接用。
 2. **选对工具**：查列表 → `run_table_search`；新增 → `run_table_create`；更新 → `run_table_update`；提交表单 → `run_form_submit`；查图表 → `run_chart_query`；**测试下拉模糊搜索/回调查询** → `run_on_select_fuzzy`（仅支持按关键词或空关键词：传 full_code_path、code、可选 keyword；不支持 by_value/by_values，用于验证 OnSelectFuzzy 回调是否正常）。
 3. **传参**：full_code_path 须到**具体函数名**（如 `.../nps_questionnaire_list.table`），不能只填包路径。路由名带类型后缀：`.table` / `.form` / `.chart`。
-4. 调用即可。
+4. **确认参数结构**：执行前必须已有该函数的字段摘要或源码定义。环境列表只提供路径，不提供完整参数；若上下文没有字段名、必填项、枚举值、文件字段和默认值行为，先用 `search_tools` 获取字段摘要，或 `read_go_file` 查看 Request/model 定义。
+5. 调用执行工具。
+
+**禁止猜参**：不要根据函数名、路由名、相似工具或底层命令行工具习惯拼 body/url_query。遇到 `参数校验失败`、`required`、`oneof`、字段不存在、url_query 格式错误时，先读取字段摘要/源码/本文档，再按定义重试。
 
 ---
 
@@ -58,6 +61,8 @@
 ```
 无额外字段时传 `{}`。
 
+提交前先确认该 Form 的 Request 字段：看字段的 `json` 名、`validate:"required"`、`oneof`/`widget` options。字段摘要里有【必填】就必须显式传入；前端默认值只是界面初始值，不会自动进入 body。
+
 **带上传文件时**：**表单（run_form_submit）和表格（run_table_create、run_table_update）** 里若有 `widget.type === "files"` 的字段（如 input_files、attachment、resume_file），该字段传**字符串**，值为 `bucket/object_key` 文件引用；多文件用英文逗号分隔。示例：`{"input_files":"ai-agent-os/workspace/chat/2026/04/20/xxx.png"}`，多文件：`{"attachment":"ai-agent-os/a.pdf,ai-agent-os/b.xlsx"}`。
 
 ### 4. run_chart_query：url_query 由该 Chart 的 Request 决定
@@ -85,3 +90,5 @@
 2. **Table 可搜字段**：`read_go_file` 看 model 的 search 标签和 Req 的 form 标签。
 3. **Chart 参数**：`read_go_file` 看 Chart 的 Request 结构。
 4. **Form 字段**：`read_go_file` 看 Request 的 json 标签。
+
+若通过 `search_tools` 找到函数，并且返回里已有字段摘要，可直接按摘要传参；若只有名称、路径、描述，必须继续读源码或请求更完整的 request 输出后再执行。批量测试多个函数时，先把每个函数的参数结构确认完，再进入提交阶段。

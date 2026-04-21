@@ -50,8 +50,10 @@ func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, r
 	childrenNodes := make([]dto.WorkspaceContextNode, 0, len(children))
 	for _, child := range children {
 		callbacks := ""
+		var request []interface{}
 		if child.Function != nil {
 			callbacks = child.Function.Callbacks
+			request = decodeFunctionWidgetFields(child.Function.Request)
 		}
 		childrenNodes = append(childrenNodes, dto.WorkspaceContextNode{
 			ID:           child.ID,
@@ -62,6 +64,7 @@ func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, r
 			FullCodePath: child.FullCodePath,
 			TemplateType: child.TemplateType,
 			Callbacks:    callbacks,
+			Request:      request,
 		})
 	}
 

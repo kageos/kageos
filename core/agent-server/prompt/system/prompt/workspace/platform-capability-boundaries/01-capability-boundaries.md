@@ -79,9 +79,9 @@
 
 即使需求能映射到 Form/Table/Chart，实际执行时还需要底层工具支撑。判断方法：
 
-1. **工作台环境已装的工具**（可直接 exec.Command 调用）：FFmpeg、GraphicsMagick(gm)、ImageMagick（canonical Ubuntu 镜像内默认用 `convert` / `identify` / `mogrify`，不要假设有 `magick`）、ExifTool、OCRmyPDF、libvips、WebP tools（cwebp/dwebp/webpmux）、pngquant、gifsicle、unpaper、LibRaw、Ghostscript、Poppler、Tesseract、LibreOffice、Pandoc、Graphviz、Python3（含 pandas/numpy/matplotlib/plotly/pyecharts/openpyxl/xlsxwriter/python-pptx/bs4/tabulate/arrow/jieba/snownlp/wordcloud 等）
+1. **工作台环境已装的工具**（可直接 exec.Command 调用）：FFmpeg、GraphicsMagick(gm)、ImageMagick（canonical Ubuntu 镜像内默认用 `convert` / `identify` / `mogrify`，不要假设有 `magick`）、ExifTool、OCRmyPDF、libvips、WebP tools（cwebp/dwebp/webpmux）、pngquant、gifsicle、unpaper、LibRaw、Ghostscript、Poppler、Tesseract、LibreOffice、Pandoc、Graphviz、Python3（含 pandas/numpy/matplotlib/plotly/pyecharts/openpyxl/xlsxwriter/python-pptx/bs4/tabulate/arrow/jieba/snownlp/wordcloud/pytesseract 等）
 2. **Go 生态有成熟库的**（可在代码中 import，build_workspace 会自动拉取依赖）：如 excelize（Excel）、imaging（图片基础操作）等标准开源库
-3. **Python 生态有成熟库的**（可通过 exec.Command 调 python3 脚本）：如 pandas、matplotlib、plotly、pyecharts、openpyxl、xlsxwriter、python-pptx、bs4、tabulate、arrow、jieba、snownlp、wordcloud 等已预装的库
+3. **Python 生态有成熟库的**（可通过 exec.Command 调 python3 脚本）：如 pandas、matplotlib、plotly、pyecharts、openpyxl、xlsxwriter、python-pptx、bs4、tabulate、arrow、jieba、snownlp、wordcloud、pytesseract 等已预装的库
 
 **判断方法**：用户想做的事，核心算法/处理逻辑能不能用上面这些工具或库实现？
 - ✅ 能 → 可以做（如用 FFmpeg 转码、用 `convert` 裁剪图片、用 excelize 解析 Excel）

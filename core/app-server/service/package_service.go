@@ -9,6 +9,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/naming"
 )
 
 type serviceTreePackageService struct {
@@ -30,6 +31,14 @@ func newServiceTreePackageService(
 }
 
 func (s *serviceTreePackageService) CreatePackage(ctx context.Context, req *dto.CreatePackageReq) (*dto.CreatePackageResp, error) {
+	if req == nil {
+		return nil, fmt.Errorf("创建目录请求不能为空")
+	}
+	req.Code = naming.NormalizeGoPackageName(req.Code)
+	if err := naming.ValidateGoPackageName(req.Code, "目录代码"); err != nil {
+		return nil, err
+	}
+
 	app, err := s.appRepo.GetAppByUserName(req.User, req.App)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get app: %w", err)
@@ -40,6 +49,9 @@ func (s *serviceTreePackageService) CreatePackage(ctx context.Context, req *dto.
 		parentTree, err = s.serviceTreeRepo.GetServiceTreeByFullPath(req.ParentFullCodePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get parent node: %w", err)
+		}
+		if parentTree.AppID != app.ID {
+			return nil, fmt.Errorf("父目录不属于目标应用: %s", req.ParentFullCodePath)
 		}
 	}
 
