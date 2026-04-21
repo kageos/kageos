@@ -32,10 +32,42 @@ func (r *FileRepository) UpdateUploadStatus(ctx context.Context, fileKey string,
 		Update("status", status).Error
 }
 
+func (r *FileRepository) UpdateUploadStatusByBucketKey(ctx context.Context, bucket string, fileKey string, status string) error {
+	return r.db.WithContext(ctx).
+		Model(&model.FileUpload{}).
+		Where("bucket = ? AND file_key = ?", bucket, fileKey).
+		Update("status", status).Error
+}
+
+func (r *FileRepository) UpdateDescriptionByBucketKey(ctx context.Context, bucket string, fileKey string, description string) error {
+	result := r.db.WithContext(ctx).
+		Model(&model.FileUpload{}).
+		Where("bucket = ? AND file_key = ?", bucket, fileKey).
+		Update("description", description)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
 // GetUploadRecord 获取上传记录
 func (r *FileRepository) GetUploadRecord(ctx context.Context, fileKey string) (*model.FileUpload, error) {
 	var record model.FileUpload
 	err := r.db.WithContext(ctx).Where("file_key = ?", fileKey).First(&record).Error
+	if err != nil {
+		return nil, err
+	}
+	return &record, nil
+}
+
+func (r *FileRepository) GetUploadRecordByBucketKey(ctx context.Context, bucket string, fileKey string) (*model.FileUpload, error) {
+	var record model.FileUpload
+	err := r.db.WithContext(ctx).
+		Where("bucket = ? AND file_key = ?", bucket, fileKey).
+		First(&record).Error
 	if err != nil {
 		return nil, err
 	}
@@ -108,4 +140,3 @@ func (r *FileRepository) GetStorageStatsByRouter(ctx context.Context, router str
 func (r *FileRepository) CreateDownloadRecord(ctx context.Context, record *model.FileDownload) error {
 	return r.db.WithContext(ctx).Create(record).Error
 }
-

@@ -13,13 +13,18 @@ import (
 
 // runOfficialPythonPreinstallDoc 与 deploy/base/images/app-base/Dockerfile 中 apt/python3-* 与 pip3 install 预装保持一致；改镜像时请同步更新本文案
 const runOfficialPythonPreinstallDoc = `**生产镜像已预装、可直接 import 的第三方库（对应 deploy/base/images/app-base/Dockerfile）：**
-- 数据与图表：pandas、numpy、scipy、matplotlib、seaborn
-- 网络与表格：requests、openpyxl
-- 图像：PIL（Pillow，如 from PIL import Image）
-- 文档与 PDF：docx（python-docx）、PyPDF2、pdfplumber
-- 中文分词：jieba
+- 数据与图表：pandas、numpy、scipy、matplotlib、seaborn、plotly、pyecharts
+- 数据展示与日期：tabulate、arrow、dateutil（python-dateutil）
+- 网络与网页解析：requests、aiohttp、bs4（beautifulsoup4）、lxml
+- 表格与 Office：openpyxl、xlsxwriter、xlrd、xlwt、pptx（python-pptx）
+- 图像、OCR 与码图：PIL（Pillow，如 from PIL import Image）、pytesseract、qrcode、barcode（python-barcode）
+- 文档与 PDF：docx（python-docx）、PyPDF2、pdfplumber、reportlab
+- 中文处理：jieba、snownlp、wordcloud
+- 数据库：pymysql
+- 配置与安全：yaml（PyYAML）、toml、cryptography
 - 另有 **Python 标准库**（json、re、collections、datetime、itertools、math、random 等）
 
+**matplotlib 中文：** 生产镜像已配置中文字体（优先 Noto CJK / WenQuanYi Zen Hei）并关闭 unicode minus 问题；普通标题、坐标轴、图例里的中文不需要脚本额外设置字体。
 **若 import 报错：** 优先改用上面列表或标准库；需要新依赖时请管理员更新 Dockerfile / 官方 requirements.txt 并重打镜像。不可在本工具参数里指定 pip 包。
 **环境差异：** 本地非 Docker 运行时以本机 python 为准，可能与镜像不一致。`
 
@@ -31,6 +36,7 @@ type runOfficialPythonArgs struct {
 	PythonCode     string                 `json:"python_code" schema_desc:"完整 Python 源码" schema_required:"true"`
 	Args           map[string]interface{} `json:"args" schema_desc:"注入脚本的对象参数（推荐）"`
 	ArgsJSON       string                 `json:"args_json" schema_desc:"注入脚本的 JSON 对象字符串（兼容旧调用方）"`
+	InputFiles     string                 `json:"input_files" schema_desc:"可选文件引用字符串，格式 bucket/object_key，多文件用英文逗号分隔；不传时自动使用当前用户消息上传的附件"`
 	TimeoutSeconds *int                   `json:"timeout_seconds" schema_desc:"超时秒数"`
 }
 
@@ -43,13 +49,23 @@ var runOfficialPythonToolDef = toolDefinition[runOfficialPythonArgs](
 **固定入口协议：**
 - python_code **必须定义**：def agentos_entry(args, output_dir): ...
 - 第一个参数 args 为传入的对象参数；第二个参数 output_dir 为受控输出目录
+- 若本轮用户上传了附件，系统会在执行前自动下载到容器本地，并注入 args["input_files"]：本地文件路径列表。单文件取 args["input_files"][0]。Python 代码应直接 open 本地路径，不要 requests.get 文件引用或猜 URL；不要把文件引用数组再塞进 args["input_files"]。
 - 返回值 **必须是 dict**，仅允许：
   - data: JSON 可序列化结果
   - output_files: 输出文件列表，每项至少含 path
   - warnings: 警告字符串列表
 - print(...) 只用于日志，不作为主结果协议
 
-**输出结果：** 官方执行端会解析 agentos_entry 的返回值；若返回里有 **output_files**，Go 侧会负责校验、上传并构造成最终 types.Files，工作台自动展示可下载附件。
+**Python 代码书写规范（非常重要）：**
+- python_code 会按原文传给执行端，平台不做 BOM、控制字符、缩进的隐式修复；请直接输出干净的 UTF-8 源码，并从 def agentos_entry(args, output_dir): 开始。
+- 使用 4 个空格缩进，不要使用 Tab；不要混用空格和 Tab。
+- 不要把 ANSI 颜色控制符、终端转义字符或 NUL 等不可见控制字符写进 python_code；这类字符会导致 SyntaxError 或 IndentationError。
+- 优先生成短脚本、少嵌套脚本。Excel/CSV 分析优先用 pandas；只有确实要精细 Excel 样式时才用 openpyxl，避免逐单元格大段样式代码。
+- 生成图表时不要手动设置 matplotlib 中文字体（不要写 font.sans-serif/SimHei/Arial Unicode MS）；镜像已配置中文字体，只保留 axes.unicode_minus=False 即可。
+- 输出图片、Excel、PDF 等文件时，统一写到 output_dir，再在 output_files 里声明绝对路径。
+- 如果上一轮出现 SyntaxError 或 IndentationError，不要局部修补旧长脚本；请重新生成一份更短、更扁平、缩进完整的 python_code。
+
+**输出结果：** 官方执行端会解析 agentos_entry 的返回值；若返回里有 **output_files**，Go 侧会负责校验、上传并构造成最终 string，工作台自动展示可下载附件。
 
 **输出文件约束：**
 - 只能声明写在 output_dir 里的最终文件
@@ -72,14 +88,16 @@ func (t *RunOfficialPythonTool) Execute(ctx context.Context, call ToolCall) Tool
 	if err != nil {
 		return toolResult("run_official_python 参数解析失败: "+err.Error(), true)
 	}
-	content, isError, data := runOfficialPythonTool(ctx, args)
+	content, isError, data := runOfficialPythonTool(ctx, args, call.Files)
 	return toolResultWithData(content, isError, data)
 }
 
 // runOfficialPythonTool 调用系统官方 Python 执行 Form
-func runOfficialPythonTool(ctx context.Context, args runOfficialPythonArgs) (string, bool, map[string]interface{}) {
-	code := strings.TrimSpace(args.PythonCode)
-	if code == "" {
+func runOfficialPythonTool(ctx context.Context, args runOfficialPythonArgs, attachedFiles string) (string, bool, map[string]interface{}) {
+	// python_code 必须按原文透传。历史上尝试清理 BOM/控制字符/缩进会让真实错误更难定位，
+	// 也可能改变 Python 源码语义；这里仅判空，不做任何隐式修复。
+	code := args.PythonCode
+	if strings.TrimSpace(code) == "" {
 		return "run_official_python 需传 python_code。", true, nil
 	}
 	body := map[string]interface{}{
@@ -94,6 +112,9 @@ func runOfficialPythonTool(ctx context.Context, args runOfficialPythonArgs) (str
 	}
 	if argsJSON := strings.TrimSpace(args.ArgsJSON); argsJSON != "" {
 		body["args_json"] = argsJSON
+	}
+	if inputFiles := resolveOfficialPythonInputFiles(args.InputFiles, attachedFiles); inputFiles != "" {
+		body["input_files"] = inputFiles
 	}
 	timeoutSec := 120
 	if args.TimeoutSeconds != nil && *args.TimeoutSeconds > 0 {
@@ -118,6 +139,13 @@ func runOfficialPythonTool(ctx context.Context, args runOfficialPythonArgs) (str
 	}
 	content, isError := formatJSONResult(out)
 	return content, isError, out
+}
+
+func resolveOfficialPythonInputFiles(explicit string, attached string) string {
+	if s := strings.TrimSpace(explicit); s != "" {
+		return s
+	}
+	return strings.TrimSpace(attached)
 }
 
 func officialPythonFormPayload(m map[string]interface{}) map[string]interface{} {
@@ -177,10 +205,11 @@ func buildOfficialPythonModelGuidance(raw map[string]interface{}) string {
 	case "失败":
 		appendLine("【状态为失败】请阅读 output 中的 traceback/错误信息，修正 python_code 后重试。")
 		if strings.Contains(out, "ModuleNotFoundError") || strings.Contains(out, "No module named") {
-			appendLine("【依赖】ModuleNotFoundError：请优先使用工具说明里已列出的预装库（pandas、numpy、jieba、requests、openpyxl、matplotlib…）或仅用标准库；若必须新库，请管理员更新 deploy/base/images/app-base/Dockerfile 或官方 requirements.txt 并重打镜像。")
+			appendLine("【依赖】ModuleNotFoundError：请优先使用工具说明里已列出的预装库（pandas、numpy、jieba、snownlp、requests、openpyxl、xlsxwriter、python-pptx、matplotlib、plotly、pyecharts、bs4、tabulate、arrow、wordcloud、pytesseract、PyYAML…）或仅用标准库；若必须新库，请管理员更新 deploy/base/images/app-base/Dockerfile 或官方 requirements.txt 并重打镜像。")
 		}
 		if strings.Contains(out, "SyntaxError") || strings.Contains(out, "IndentationError") {
 			appendLine("【语法】请检查引号、缩进、括号是否匹配；字符串内换行需用三引号或 \\n。")
+			appendLine("【重写建议】遇到 SyntaxError/IndentationError 时，不要局部修补旧长脚本；请重新生成一份更短、更扁平、统一 4 空格缩进的完整 python_code。")
 		}
 		if strings.Contains(lowOut, "timeout") || strings.Contains(out, "deadline exceeded") || strings.Contains(out, "context deadline") {
 			appendLine("【超时】可适当增大 timeout_seconds（最大 300），或拆分计算、减少数据量。")

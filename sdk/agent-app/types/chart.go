@@ -32,7 +32,7 @@ type Chart struct {
 	// 元数据（可选，用于扩展）
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 
-	// 标识字段（用于类型识别，类似 types.Files 的 WidgetType）
+	// 标识字段（用于类型识别，类似 string 的 WidgetType）
 	WidgetType string `json:"widget_type,omitempty"` // 固定为 "chart"
 	DataType   string `json:"data_type,omitempty"`   // 固定为 "chart"
 }

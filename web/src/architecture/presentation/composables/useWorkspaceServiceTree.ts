@@ -17,6 +17,7 @@ import { createPackage } from '@/api/service-tree'
 import type { ServiceTree as ServiceTreeType, CreateServiceTreeRequest } from '@/types'
 import ServiceTreePanel from '@/architecture/presentation/components/ServiceTreePanel.vue'
 import { useAuthStore } from '@/stores/auth'
+import { normalizeGoPackageName, validateGoPackageName } from '@/utils/goPackageName'
 
 export function useWorkspaceServiceTree(
   serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性
@@ -102,7 +103,10 @@ export function useWorkspaceServiceTree(
       return
     }
     
-    if (!createDirectoryForm.value.name || !createDirectoryForm.value.code) {
+    const name = createDirectoryForm.value.name.trim()
+    const code = normalizeGoPackageName(createDirectoryForm.value.code)
+
+    if (!name || !code) {
       ElNotification.warning({
         title: '提示',
         message: '请输入目录名称和代码'
@@ -110,11 +114,11 @@ export function useWorkspaceServiceTree(
       return
     }
     
-    // 验证代码格式
-    if (!/^[a-z0-9_]+$/.test(createDirectoryForm.value.code)) {
+    const codeError = validateGoPackageName(code, '目录代码')
+    if (codeError) {
       ElNotification.warning({
         title: '提示',
-        message: '目录代码只能包含小写字母、数字和下划线'
+        message: codeError
       })
       return
     }
@@ -124,8 +128,8 @@ export function useWorkspaceServiceTree(
       const requestData: CreateServiceTreeRequest = {
         user: currentApp().user,
         app: currentApp().code,
-        name: createDirectoryForm.value.name,
-        code: createDirectoryForm.value.code,
+        name,
+        code,
         parent_full_code_path: createDirectoryForm.value.parent_full_code_path || '',
         description: createDirectoryForm.value.description || '',
         tags: createDirectoryForm.value.tags || '',

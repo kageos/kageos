@@ -360,30 +360,28 @@ func buildFunctionSearchResults(trees []*model.ServiceTree) []*dto.FunctionSearc
 			result.ID = tree.Function.ID
 			result.FullCodePath = tree.Function.Router
 			result.Callbacks = tree.Function.Callbacks
-			if len(tree.Function.Request) > 0 {
-				var reqFields []*widget.Field
-				if err := json.Unmarshal(tree.Function.Request, &reqFields); err == nil {
-					widget.NormalizeFieldCodes(reqFields)
-					result.Request = make([]interface{}, 0, len(reqFields))
-					for _, field := range reqFields {
-						result.Request = append(result.Request, field)
-					}
-				}
-			}
-			if len(tree.Function.Response) > 0 {
-				var respFields []*widget.Field
-				if err := json.Unmarshal(tree.Function.Response, &respFields); err == nil {
-					widget.NormalizeFieldCodes(respFields)
-					result.Response = make([]interface{}, 0, len(respFields))
-					for _, field := range respFields {
-						result.Response = append(result.Response, field)
-					}
-				}
-			}
+			result.Request = decodeFunctionWidgetFields(tree.Function.Request)
+			result.Response = decodeFunctionWidgetFields(tree.Function.Response)
 		}
 		functionResults = append(functionResults, result)
 	}
 	return functionResults
+}
+
+func decodeFunctionWidgetFields(raw json.RawMessage) []interface{} {
+	if len(raw) == 0 {
+		return nil
+	}
+	var fields []*widget.Field
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil
+	}
+	widget.NormalizeFieldCodes(fields)
+	out := make([]interface{}, 0, len(fields))
+	for _, field := range fields {
+		out = append(out, field)
+	}
+	return out
 }
 
 func buildResourceSearchResults(trees []*model.ServiceTree, keyword string) []*dto.ResourceSearchResult {

@@ -14,13 +14,15 @@ export interface UploadCredentials {
   // 通用字段
   key: string           // 文件 Key
   bucket: string        // 存储桶
+  ref: string           // 稳定文件引用：bucket/object_key
   expire: string        // 过期时间
   method: UploadMethod  // 上传方式
   storage?: string      // ✨ 存储引擎（minio/qiniu/tencentcos/aliyunoss/awss3）
   
   // 预签名 URL 上传（MinIO、COS、OSS、S3）
-  url?: string                      // 预签名 URL
-  headers?: Record<string, string>  // 请求头
+  upload_url?: string                 // 浏览器上传地址
+  server_upload_url?: string          // 服务端上传地址
+  headers?: Record<string, string>    // 请求头
   
   // 上传域名信息 ✨ 新增
   upload_host?: string   // 上传目标 host（例如：localhost:9000，用于 CORS、进度监听）
@@ -53,6 +55,7 @@ export interface UploadProgress {
 export interface UploadResult {
   downloadURL: string  // 下载 URL
   key: string          // 文件 Key
+  bucket?: string      // 存储桶
+  ref?: string         // 稳定文件引用：bucket/object_key
   storage?: string     // ✨ 存储引擎类型（minio/qiniu/tencentcos/aliyunoss/awss3）
 }
-

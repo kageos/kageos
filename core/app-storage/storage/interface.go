@@ -20,9 +20,9 @@ type UploadCredentials struct {
 	Method UploadMethod // 上传方式
 
 	// 预签名 URL 上传（当前官方仅 MinIO）
-	URL       string            // 外部访问的预签名 URL（前端使用）
-	ServerURL string            // 内部访问的预签名 URL（服务端/SDK使用）
-	Headers   map[string]string // 请求头
+	UploadURL       string            // 外部访问的预签名上传地址（前端使用）
+	ServerUploadURL string            // 内部访问的预签名上传地址（服务端/SDK使用）
+	Headers         map[string]string // 请求头
 
 	// 上传域名信息
 	UploadHost   string // 上传目标域名（例如：localhost:9000 或 cdn.example.com）

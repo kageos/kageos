@@ -82,13 +82,13 @@ import (
 // CsvToExcelReq CSV转Excel请求结构体
 type CsvToExcelReq struct {
 	// 框架标签：widget:"type:files;accept:.csv;max_size:50MB;max_count:10" - 文件上传组件，支持多文件上传
-	InputFiles *types.Files `json:"input_files" widget:"name:上传CSV文件;type:files;accept:.csv;max_size:50MB;max_count:10" validate:"required"`
+	InputFiles string `json:"input_files" widget:"name:上传CSV文件;type:files;accept:.csv;max_size:50MB;max_count:10" validate:"required"`
 }
 
 // CsvToExcelResp CSV转Excel响应结构体
 type CsvToExcelResp struct {
 	// 转换后的文件列表
-	OutputFiles *types.Files `json:"output_files" widget:"name:转换后的Excel文件;type:files"`
+	OutputFiles string `json:"output_files" widget:"name:转换后的Excel文件;type:files"`
 
 	// 转换统计信息
 	ConvertStats string `json:"convert_stats" widget:"name:转换统计;type:text_area"`
@@ -118,19 +118,19 @@ func DoCsvToExcel(ctx *app.Context, req *CsvToExcelReq) (*CsvToExcelResp, error)
 	failCount := 0
 	var errors []string
 
-	for _, file := range inputFiles.GetFiles() {
-		if file.LocalPath == "" {
-			logger.Warnf(ctx, "[CsvToExcel] 文件 %s 没有本地路径，跳过", file.Name)
+	for _, file := range inputFiles {
+		if file == "" {
+			logger.Warnf(ctx, "[CsvToExcel] 文件 %s 没有本地路径，跳过", filepath.Base(file))
 			failCount++
-			errors = append(errors, fmt.Sprintf("文件 %s: 本地路径为空", file.Name))
+			errors = append(errors, fmt.Sprintf("文件 %s: 本地路径为空", filepath.Base(file)))
 			continue
 		}
 
-		outputPath, err := csvToExcel(ctx, file.LocalPath)
+		outputPath, err := csvToExcel(ctx, file)
 		if err != nil {
-			logger.Errorf(ctx, "[CsvToExcel] 转换CSV失败 %s: %v", file.Name, err)
+			logger.Errorf(ctx, "[CsvToExcel] 转换CSV失败 %s: %v", filepath.Base(file), err)
 			failCount++
-			errors = append(errors, fmt.Sprintf("文件 %s: %v", file.Name, err))
+			errors = append(errors, fmt.Sprintf("文件 %s: %v", filepath.Base(file), err))
 			continue
 		}
 
@@ -138,10 +138,9 @@ func DoCsvToExcel(ctx *app.Context, req *CsvToExcelReq) (*CsvToExcelResp, error)
 		successCount++
 	}
 
-	var outputFiles *types.Files
+	var outputFiles string
 	if len(outputFilePaths) > 0 {
 		outputFiles = fs.ResponseFiles(outputFilePaths)
-		defer fs.RemoveFiles(outputFiles)
 	}
 
 	stats := fmt.Sprintf("转换完成！\n成功: %d 个\n失败: %d 个", successCount, failCount)
@@ -282,7 +281,7 @@ type CsvTextToExcelReq struct {
 // CsvTextToExcelResp CSV文本转Excel响应结构体
 type CsvTextToExcelResp struct {
 	// 转换后的文件列表
-	OutputFiles *types.Files `json:"output_files" widget:"name:转换后的Excel文件;type:files"`
+	OutputFiles string `json:"output_files" widget:"name:转换后的Excel文件;type:files"`
 
 	// 转换统计信息
 	ConvertStats string `json:"convert_stats" widget:"name:转换统计;type:text_area"`
@@ -312,7 +311,6 @@ func DoCsvTextToExcel(ctx *app.Context, req *CsvTextToExcelReq) (*CsvTextToExcel
 	}
 
 	outputFiles := fs.ResponseFiles([]string{outputPath})
-	defer fs.RemoveFiles(outputFiles)
 
 	stats := fmt.Sprintf("转换完成！\nCSV文本已成功转换为Excel文件。")
 	return &CsvTextToExcelResp{OutputFiles: outputFiles, ConvertStats: stats}, nil
@@ -468,7 +466,7 @@ type ExcelFillColumnItem struct {
 // ExcelFillColumnReq Excel列值填充请求结构体
 type ExcelFillColumnReq struct {
 	// 框架标签：widget:"type:files;accept:.xlsx,.xls;max_size:50MB;max_count:1" - 文件上传组件
-	InputFiles *types.Files `json:"input_files" widget:"name:上传Excel文件;type:files;accept:.xlsx,.xls;max_size:50MB;max_count:1" validate:"required"`
+	InputFiles string `json:"input_files" widget:"name:上传Excel文件;type:files;accept:.xlsx,.xls;max_size:50MB;max_count:1" validate:"required"`
 
 	// 框架标签：widget:"type:input" - 工作表名称（可选，默认第一个工作表）
 	SheetName string `json:"sheet_name" widget:"name:工作表名称（可选）;type:input;placeholder:留空则使用第一个工作表"`
@@ -483,7 +481,7 @@ type ExcelFillColumnReq struct {
 // ExcelFillColumnResp Excel列值填充响应结构体
 type ExcelFillColumnResp struct {
 	// 填充后的文件列表
-	OutputFiles *types.Files `json:"output_files" widget:"name:填充后的Excel文件;type:files"`
+	OutputFiles string `json:"output_files" widget:"name:填充后的Excel文件;type:files"`
 
 	// 填充统计信息
 	FillStats string `json:"fill_stats" widget:"name:填充统计;type:text_area"`
@@ -514,23 +512,22 @@ func DoExcelFillColumn(ctx *app.Context, req *ExcelFillColumnReq) (*ExcelFillCol
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	if len(inputFiles.GetFiles()) == 0 {
+	if len(inputFiles) == 0 {
 		return &ExcelFillColumnResp{OutputFiles: nil, FillStats: "错误: 没有找到输入文件"}, nil
 	}
 
-	file := inputFiles.GetFiles()[0]
-	if file.LocalPath == "" {
-		return &ExcelFillColumnResp{OutputFiles: nil, FillStats: fmt.Sprintf("错误: 文件 %s 没有本地路径", file.Name)}, nil
+	file := inputFiles[0]
+	if file == "" {
+		return &ExcelFillColumnResp{OutputFiles: nil, FillStats: fmt.Sprintf("错误: 文件 %s 没有本地路径", filepath.Base(file))}, nil
 	}
 
-	outputPath, stats, err := excelFillColumn(ctx, file.LocalPath, req.SheetName, req.FillItems, startRow)
+	outputPath, stats, err := excelFillColumn(ctx, file, req.SheetName, req.FillItems, startRow)
 	if err != nil {
-		logger.Errorf(ctx, "[ExcelFillColumn] 填充列值失败 %s: %v", file.Name, err)
+		logger.Errorf(ctx, "[ExcelFillColumn] 填充列值失败 %s: %v", filepath.Base(file), err)
 		return &ExcelFillColumnResp{OutputFiles: nil, FillStats: fmt.Sprintf("填充失败: %v", err)}, nil
 	}
 
 	outputFiles := fs.ResponseFiles([]string{outputPath})
-	defer fs.RemoveFiles(outputFiles)
 
 	return &ExcelFillColumnResp{OutputFiles: outputFiles, FillStats: stats}, nil
 }
@@ -697,13 +694,13 @@ import (
 // ExcelToCsvReq Excel转CSV请求结构体
 type ExcelToCsvReq struct {
 	// 框架标签：widget:"type:files;accept:.xlsx,.xls;max_size:50MB;max_count:10" - 文件上传组件，支持多文件上传
-	InputFiles *types.Files `json:"input_files" widget:"name:上传Excel文件;type:files;accept:.xlsx,.xls;max_size:50MB;max_count:10" validate:"required"`
+	InputFiles string `json:"input_files" widget:"name:上传Excel文件;type:files;accept:.xlsx,.xls;max_size:50MB;max_count:10" validate:"required"`
 }
 
 // ExcelToCsvResp Excel转CSV响应结构体
 type ExcelToCsvResp struct {
 	// 转换后的文件列表
-	OutputFiles *types.Files `json:"output_files" widget:"name:转换后的CSV文件;type:files"`
+	OutputFiles string `json:"output_files" widget:"name:转换后的CSV文件;type:files"`
 
 	// 转换统计信息
 	ConvertStats string `json:"convert_stats" widget:"name:转换统计;type:text_area"`
@@ -733,19 +730,19 @@ func DoExcelToCsv(ctx *app.Context, req *ExcelToCsvReq) (*ExcelToCsvResp, error)
 	failCount := 0
 	var errors []string
 
-	for _, file := range inputFiles.GetFiles() {
-		if file.LocalPath == "" {
-			logger.Warnf(ctx, "[ExcelToCsv] 文件 %s 没有本地路径，跳过", file.Name)
+	for _, file := range inputFiles {
+		if file == "" {
+			logger.Warnf(ctx, "[ExcelToCsv] 文件 %s 没有本地路径，跳过", filepath.Base(file))
 			failCount++
-			errors = append(errors, fmt.Sprintf("文件 %s: 本地路径为空", file.Name))
+			errors = append(errors, fmt.Sprintf("文件 %s: 本地路径为空", filepath.Base(file)))
 			continue
 		}
 
-		outputPath, err := excelToCsv(ctx, file.LocalPath)
+		outputPath, err := excelToCsv(ctx, file)
 		if err != nil {
-			logger.Errorf(ctx, "[ExcelToCsv] 转换Excel失败 %s: %v", file.Name, err)
+			logger.Errorf(ctx, "[ExcelToCsv] 转换Excel失败 %s: %v", filepath.Base(file), err)
 			failCount++
-			errors = append(errors, fmt.Sprintf("文件 %s: %v", file.Name, err))
+			errors = append(errors, fmt.Sprintf("文件 %s: %v", filepath.Base(file), err))
 			continue
 		}
 
@@ -753,10 +750,9 @@ func DoExcelToCsv(ctx *app.Context, req *ExcelToCsvReq) (*ExcelToCsvResp, error)
 		successCount++
 	}
 
-	var outputFiles *types.Files
+	var outputFiles string
 	if len(outputFilePaths) > 0 {
 		outputFiles = fs.ResponseFiles(outputFilePaths)
-		defer fs.RemoveFiles(outputFiles)
 	}
 
 	stats := fmt.Sprintf("转换完成！\n成功: %d 个\n失败: %d 个", successCount, failCount)
@@ -851,7 +847,7 @@ var ExcelToCsvTemplate = &app.FormTemplate{
 // ExcelToCsvTextReq Excel转CSV文本请求结构体
 type ExcelToCsvTextReq struct {
 	// 框架标签：widget:"type:files;accept:.xlsx,.xls;max_size:50MB;max_count:1" - 文件上传组件
-	InputFiles *types.Files `json:"input_files" widget:"name:上传Excel文件;type:files;accept:.xlsx,.xls;max_size:50MB;max_count:1" validate:"required"`
+	InputFiles string `json:"input_files" widget:"name:上传Excel文件;type:files;accept:.xlsx,.xls;max_size:50MB;max_count:1" validate:"required"`
 }
 
 // ExcelToCsvTextResp Excel转CSV文本响应结构体
@@ -882,22 +878,22 @@ func DoExcelToCsvText(ctx *app.Context, req *ExcelToCsvTextReq) (*ExcelToCsvText
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	if len(inputFiles.GetFiles()) == 0 {
+	if len(inputFiles) == 0 {
 		return &ExcelToCsvTextResp{CsvText: "", ConvertStats: "错误: 没有找到输入文件"}, nil
 	}
 
-	file := inputFiles.GetFiles()[0]
-	if file.LocalPath == "" {
-		return &ExcelToCsvTextResp{CsvText: "", ConvertStats: fmt.Sprintf("错误: 文件 %s 没有本地路径", file.Name)}, nil
+	file := inputFiles[0]
+	if file == "" {
+		return &ExcelToCsvTextResp{CsvText: "", ConvertStats: fmt.Sprintf("错误: 文件 %s 没有本地路径", filepath.Base(file))}, nil
 	}
 
-	csvText, err := excelToCsvText(ctx, file.LocalPath)
+	csvText, err := excelToCsvText(ctx, file)
 	if err != nil {
-		logger.Errorf(ctx, "[ExcelToCsvText] 转换Excel失败 %s: %v", file.Name, err)
+		logger.Errorf(ctx, "[ExcelToCsvText] 转换Excel失败 %s: %v", filepath.Base(file), err)
 		return &ExcelToCsvTextResp{CsvText: "", ConvertStats: fmt.Sprintf("转换失败: %v", err)}, nil
 	}
 
-	stats := fmt.Sprintf("转换完成！\n文件: %s\n行数: %d", file.Name, strings.Count(csvText, "\n")+1)
+	stats := fmt.Sprintf("转换完成！\n文件: %s\n行数: %d", filepath.Base(file), strings.Count(csvText, "\n")+1)
 	return &ExcelToCsvTextResp{CsvText: csvText, ConvertStats: stats}, nil
 }
 
@@ -1008,7 +1004,7 @@ import (
 // ExcelToJsonReq Excel转JSON请求结构体
 type ExcelToJsonReq struct {
 	// 框架标签：widget:"type:files;accept:.xlsx,.xls;max_size:50MB;max_count:1" - 文件上传组件
-	InputFiles *types.Files `json:"input_files" widget:"name:上传Excel文件;type:files;accept:.xlsx,.xls;max_size:50MB;max_count:1" validate:"required"`
+	InputFiles string `json:"input_files" widget:"name:上传Excel文件;type:files;accept:.xlsx,.xls;max_size:50MB;max_count:1" validate:"required"`
 
 	// 框架标签：widget:"type:input" - 工作表名称（可选，默认第一个工作表）
 	SheetName string `json:"sheet_name" widget:"name:工作表名称（可选）;type:input;placeholder:留空则使用第一个工作表"`
@@ -1048,18 +1044,18 @@ func DoExcelToJson(ctx *app.Context, req *ExcelToJsonReq) (*ExcelToJsonResp, err
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	if len(inputFiles.GetFiles()) == 0 {
+	if len(inputFiles) == 0 {
 		return &ExcelToJsonResp{JsonText: "", ConvertStats: "错误: 没有找到输入文件"}, nil
 	}
 
-	file := inputFiles.GetFiles()[0]
-	if file.LocalPath == "" {
-		return &ExcelToJsonResp{JsonText: "", ConvertStats: fmt.Sprintf("错误: 文件 %s 没有本地路径", file.Name)}, nil
+	file := inputFiles[0]
+	if file == "" {
+		return &ExcelToJsonResp{JsonText: "", ConvertStats: fmt.Sprintf("错误: 文件 %s 没有本地路径", filepath.Base(file))}, nil
 	}
 
-	jsonText, stats, err := excelToJson(ctx, file.LocalPath, req.SheetName, req.UseFirstRowAsKeys, req.SkipEmptyRows)
+	jsonText, stats, err := excelToJson(ctx, file, req.SheetName, req.UseFirstRowAsKeys, req.SkipEmptyRows)
 	if err != nil {
-		logger.Errorf(ctx, "[ExcelToJson] 转换Excel失败 %s: %v", file.Name, err)
+		logger.Errorf(ctx, "[ExcelToJson] 转换Excel失败 %s: %v", filepath.Base(file), err)
 		return &ExcelToJsonResp{JsonText: "", ConvertStats: fmt.Sprintf("转换失败: %v", err)}, nil
 	}
 
@@ -1181,7 +1177,7 @@ func excelToJson(ctx *app.Context, inputPath string, sheetName string, useFirstR
 // ExcelExtractColumnReq Excel提取指定列请求结构体
 type ExcelExtractColumnReq struct {
 	// 框架标签：widget:"type:files;accept:.xlsx,.xls;max_size:50MB;max_count:1" - 文件上传组件
-	InputFiles *types.Files `json:"input_files" widget:"name:上传Excel文件;type:files;accept:.xlsx,.xls;max_size:50MB;max_count:1" validate:"required"`
+	InputFiles string `json:"input_files" widget:"name:上传Excel文件;type:files;accept:.xlsx,.xls;max_size:50MB;max_count:1" validate:"required"`
 
 	// 框架标签：widget:"type:input" - 工作表名称（可选，默认第一个工作表）
 	SheetName string `json:"sheet_name" widget:"name:工作表名称（可选）;type:input;placeholder:留空则使用第一个工作表"`
@@ -1224,18 +1220,18 @@ func DoExcelExtractColumn(ctx *app.Context, req *ExcelExtractColumnReq) (*ExcelE
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	if len(inputFiles.GetFiles()) == 0 {
+	if len(inputFiles) == 0 {
 		return &ExcelExtractColumnResp{JsonArray: "", ExtractStats: "错误: 没有找到输入文件"}, nil
 	}
 
-	file := inputFiles.GetFiles()[0]
-	if file.LocalPath == "" {
-		return &ExcelExtractColumnResp{JsonArray: "", ExtractStats: fmt.Sprintf("错误: 文件 %s 没有本地路径", file.Name)}, nil
+	file := inputFiles[0]
+	if file == "" {
+		return &ExcelExtractColumnResp{JsonArray: "", ExtractStats: fmt.Sprintf("错误: 文件 %s 没有本地路径", filepath.Base(file))}, nil
 	}
 
-	jsonArray, stats, err := excelExtractColumn(ctx, file.LocalPath, req.SheetName, req.Column, req.SkipEmptyRows, req.SkipFirstRow)
+	jsonArray, stats, err := excelExtractColumn(ctx, file, req.SheetName, req.Column, req.SkipEmptyRows, req.SkipFirstRow)
 	if err != nil {
-		logger.Errorf(ctx, "[ExcelExtractColumn] 提取列失败 %s: %v", file.Name, err)
+		logger.Errorf(ctx, "[ExcelExtractColumn] 提取列失败 %s: %v", filepath.Base(file), err)
 		return &ExcelExtractColumnResp{JsonArray: "", ExtractStats: fmt.Sprintf("提取失败: %v", err)}, nil
 	}
 

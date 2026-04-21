@@ -20,7 +20,7 @@ type runFormSubmitArgs struct {
 
 var runFormSubmitToolDef = toolDefinition[runFormSubmitArgs](
 	"run_form_submit",
-	"执行工作区内 Form 函数的提交接口，提交表单数据。full_code_path 必须为带 `.form` 后缀的具体表单函数完整路径，如 /luobei/myapp/plugins/cashier_desk.form。body 为 JSON 对象字符串，包含表单字段（如 {\"name\":\"张三\",\"amount\":100}）；字段摘要中标记为【必填】的字段必须显式传入，若表单无【必填】字段可传 {}。字段摘要中的“前端默认值”仅表示前端界面初始值，不会自动写入 body；如需使用该值，也必须在 body 中显式传入。output_display 可选，用于标记结果中需要在前端直接展示给用户的字段（避免大模型重复输出大段内容），key 为展示标签，value 为结果 JSON 中的字段名。返回中若有输出文件 URL（多为内部地址如 host.containers.internal），勿在回复用户时贴出或写「可通过以下链接访问」；文件已在工作台展示。",
+	"执行工作区内 Form 函数的提交接口，提交表单数据。执行前必须已通过 search_tools 字段摘要或 read_go_file 确认该 Form 的 Request 字段名、必填项、枚举值、文件字段和默认值行为；不要根据函数名、路由名、相似工具或命令行习惯猜 body。full_code_path 必须为带 `.form` 后缀的具体表单函数完整路径，如 /luobei/myapp/plugins/cashier_desk.form。body 为 JSON 对象字符串，包含表单字段（如 {\"name\":\"张三\",\"amount\":100}）；字段摘要中标记为【必填】的字段必须显式传入，若表单无【必填】字段可传 {}。字段摘要中的“前端默认值”仅表示前端界面初始值，不会自动写入 body；如需使用该值，也必须在 body 中显式传入。files 字段传 bucket/object_key 字符串，多文件用英文逗号分隔。output_display 可选，用于标记结果中需要在前端直接展示给用户的字段（避免大模型重复输出大段内容），key 为展示标签，value 为结果 JSON 中的字段名。返回中若有输出文件引用，文件已在工作台展示，不要编造 URL。",
 )
 
 func (t *RunFormSubmitTool) Definition() dto.ToolDef {

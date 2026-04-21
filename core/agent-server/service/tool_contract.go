@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 )
 
 type Tool interface {
@@ -15,7 +14,7 @@ type Tool interface {
 type ToolCall struct {
 	Args         map[string]interface{}
 	FullCodePath string
-	Files        *types.Files
+	Files        string
 }
 
 type ToolResult struct {

@@ -1,67 +1,89 @@
 package types
 
-import (
-	"database/sql/driver"
-	"encoding/json"
-	"fmt"
-)
+import "strings"
 
-type Files struct {
-	Files      []*File                `json:"files"`
-	WidgetType string                 `json:"widget_type"`
-	DataType   string                 `json:"data_type"`
-	Remark     string                 `json:"remark,omitempty"`
-	Metadata   map[string]interface{} `json:"metadata,omitempty"`
-}
-
-func (f *Files) GetFiles() []*File {
-	return f.Files
-}
-
-type File struct {
-	Name        string `json:"name"`
-	SourceName  string `json:"source_name"` //源文件名称
-	Storage     string `json:"storage"`     //minio/qiniu/xxxxx 存储引擎
-	Description string `json:"description,omitempty"`
-	Hash        string `json:"hash"`
-	Size        int64  `json:"size"`
-	UploadTs    int64  `json:"upload_ts"`
-	LocalPath   string `json:"local_path"`
-	IsUploaded  bool   `json:"is_uploaded"`          //是否已经上传到云端
-	Url         string `json:"url"`                  // ✨ 外部访问地址（前端下载使用）
-	ServerUrl   string `json:"server_url"`           // ✨ 内部访问地址（服务端下载使用）
-	Downloaded  bool   `json:"downloaded,omitempty"` //是否已经下载到本地
-	UploadUser  string `json:"upload_user"`
-}
-
-func (f *File) GetLocalPath() string {
-	return f.LocalPath
-}
-
-// Scan 实现 sql.Scanner 接口，用于从数据库读取
-func (fc *Files) Scan(value interface{}) error {
-	if value == nil {
-		*fc = Files{}
+// ParseFileRefs parses the files widget string protocol.
+//
+// A files field is persisted and transported as "bucket/object_key"; multiple
+// files use comma separation.
+func ParseFileRefs(value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
 		return nil
 	}
-
-	var data []byte
-	switch v := value.(type) {
-	case string:
-		data = []byte(v)
-	case []byte:
-		data = v
-	default:
-		return fmt.Errorf("cannot scan %T into Files", value)
-	}
-
-	return json.Unmarshal(data, fc)
+	return NormalizeFileRefs(strings.Split(value, ","))
 }
 
-// Value 实现 driver.Valuer 接口，用于存储到数据库
-func (fc Files) Value() (driver.Value, error) {
-	if len(fc.Files) == 0 {
-		return nil, nil
+func ParseRefs(value string) []string {
+	return ParseFileRefs(value)
+}
+
+func NormalizeFileRefs(refs []string) []string {
+	out := make([]string, 0, len(refs))
+	seen := make(map[string]struct{}, len(refs))
+	for _, ref := range refs {
+		ref = NormalizeFileRef(ref)
+		if ref == "" {
+			continue
+		}
+		if _, ok := seen[ref]; ok {
+			continue
+		}
+		seen[ref] = struct{}{}
+		out = append(out, ref)
 	}
-	return json.Marshal(fc)
+	return out
+}
+
+func NormalizeRefs(refs []string) []string {
+	return NormalizeFileRefs(refs)
+}
+
+func NormalizeFileRef(ref string) string {
+	ref = strings.TrimSpace(ref)
+	ref = strings.TrimPrefix(ref, "/")
+	for strings.Contains(ref, "//") {
+		ref = strings.ReplaceAll(ref, "//", "/")
+	}
+	return ref
+}
+
+func NormalizeRef(ref string) string {
+	return NormalizeFileRef(ref)
+}
+
+func JoinFileRef(bucket, key string) string {
+	bucket = NormalizeFileRef(bucket)
+	key = NormalizeFileRef(key)
+	if bucket == "" {
+		return key
+	}
+	if key == "" {
+		return bucket
+	}
+	return bucket + "/" + key
+}
+
+func JoinRef(bucket, key string) string {
+	return JoinFileRef(bucket, key)
+}
+
+func SplitFileRef(ref string) (bucket string, key string) {
+	ref = NormalizeFileRef(ref)
+	if ref == "" {
+		return "", ""
+	}
+	parts := strings.SplitN(ref, "/", 2)
+	if len(parts) == 1 {
+		return "", parts[0]
+	}
+	return parts[0], parts[1]
+}
+
+func SplitRef(ref string) (bucket string, key string) {
+	return SplitFileRef(ref)
+}
+
+func JoinFileRefs(refs []string) string {
+	return strings.Join(NormalizeFileRefs(refs), ",")
 }

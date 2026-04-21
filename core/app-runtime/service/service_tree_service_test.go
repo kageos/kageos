@@ -149,6 +149,21 @@ func TestValidateRelativePackagePathRejectsTraversal(t *testing.T) {
 	}
 }
 
+func TestValidateRelativePackagePathRejectsInvalidGoPackageName(t *testing.T) {
+	t.Parallel()
+
+	invalidPaths := []string{"ticket-system", "ticket/type", "ticket/1order"}
+	for _, packagePath := range invalidPaths {
+		packagePath := packagePath
+		t.Run(packagePath, func(t *testing.T) {
+			t.Parallel()
+			if _, err := validateRelativePackagePath(packagePath); err == nil {
+				t.Fatalf("expected invalid package path %q to be rejected", packagePath)
+			}
+		})
+	}
+}
+
 func TestBatchCreateDirectoryTreeRejectsPathTraversal(t *testing.T) {
 	t.Parallel()
 
@@ -167,6 +182,27 @@ func TestBatchCreateDirectoryTreeRejectsPathTraversal(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatalf("expected invalid directory path to be rejected")
+	}
+}
+
+func TestBatchCreateDirectoryTreeRejectsInvalidGoPackageName(t *testing.T) {
+	t.Parallel()
+
+	basePath := t.TempDir()
+	service := newServiceTreeTestService(basePath)
+
+	_, err := service.BatchCreateDirectoryTree(context.Background(), &dto.BatchCreateDirectoryTreeRuntimeReq{
+		User: "luobei",
+		App:  "demo",
+		Items: []*dto.DirectoryScaffoldItem{
+			{
+				FullCodePath: "/luobei/demo/ticket-system",
+				Name:         "bad",
+			},
+		},
+	})
+	if err == nil {
+		t.Fatalf("expected invalid go package name to be rejected")
 	}
 }
 

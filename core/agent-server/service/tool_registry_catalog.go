@@ -7,7 +7,6 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 )
 
 // ToolRegistry 工作台工具注册与调用（仅内置工具，已移除插件）
@@ -84,8 +83,8 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 	return out, nil
 }
 
-// CallTool 执行工具；full_code_path 从会话上下文传入；files 为当前用户消息附件，供插件 InputFiles，可为 nil
-func (r *ToolRegistry) CallTool(ctx context.Context, name string, args map[string]interface{}, fullCodePath string, files *types.Files) ToolResult {
+// CallTool 执行工具；full_code_path 从会话上下文传入；files 为当前用户消息附件 refs。
+func (r *ToolRegistry) CallTool(ctx context.Context, name string, args map[string]interface{}, fullCodePath string, files string) ToolResult {
 	tool, ok := r.tools[name]
 	if !ok {
 		return toolResult("tool not found: "+name, true)

@@ -1,11 +1,8 @@
 package callback
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 )
 
 type OnTableAddRowReq struct {
@@ -28,7 +25,7 @@ type OnTableDeleteRowsResp struct {
 }
 type OnTableUpdateRowReq struct {
 	ID             int                    `json:"id"`
-	BindUpdatesMap map[string]interface{} `json:"bind_updates_map"` //原先的值，Updates会经过处理，为啥？因为例如附件这种json字段，Updates更新时候需要转换成字符串，但是我们通过BindUpdates的时候如果转换成字符串会导致这个字段无法序列化到结构体，所以我们BindUpdatesMap保存备份用于绑定结构体
+	BindUpdatesMap map[string]interface{} `json:"bind_updates_map"` // 前端提交的原始更新值备份，用于需要按原始表单值绑定结构体的场景。
 
 	Updates   map[string]interface{} `json:"updates"`
 	OldValues map[string]interface{} `json:"old_values"`
@@ -51,28 +48,6 @@ func (c *OnTableUpdateRowReq) GetId() int {
 func (c *OnTableUpdateRowReq) GetUpdates() map[string]interface{} {
 	if c.Updates == nil {
 		return make(map[string]interface{})
-	}
-
-	// 处理文件类型组件，将文件数据序列化为 JSON 字符串
-	for k, v := range c.Updates {
-		switch v.(type) {
-		case map[string]interface{}: //说明是文件类型的组件，
-			widgetType, ok := v.(map[string]interface{})["widget_type"]
-			if !ok {
-				continue
-			}
-			switch widgetType.(type) {
-			case string:
-				if widgetType == widget.TypeFiles {
-					marshal, err := json.Marshal(v)
-					if err != nil {
-						logger.Infof(context.Background(), "Marshal failed: %v", err)
-						continue
-					}
-					c.Updates[k] = string(marshal)
-				}
-			}
-		}
 	}
 
 	// ⚠️ 不再移除 id 字段，因为：
@@ -141,8 +116,7 @@ func (c *OnTableUpdateRowReq) BindUpdates(target interface{}) error {
 
 	// 反序列化到目标结构体
 	if err := json.Unmarshal(jsonData, target); err != nil {
-		logger.Infof(context.Background(), "Unmarshal failed: %v jsonData ：%s", err, jsonData)
-		return fmt.Errorf("反序列化到目标结构体失败: %w", err)
+		return fmt.Errorf("反序列化到目标结构体失败, json: %s, err: %w", string(jsonData), err)
 	}
 
 	return nil
@@ -158,9 +132,9 @@ type OnTableCreateInBatchesReq struct {
 
 // OnTableCreateInBatchesResp 批量创建响应
 type OnTableCreateInBatchesResp struct {
-	SuccessCount int                      `json:"success_count"` // 成功数量
-	FailCount    int                      `json:"fail_count"`    // 失败数量
-	Errors       []OnTableCreateBatchError `json:"errors"`       // 错误详情
+	SuccessCount int                       `json:"success_count"` // 成功数量
+	FailCount    int                       `json:"fail_count"`    // 失败数量
+	Errors       []OnTableCreateBatchError `json:"errors"`        // 错误详情
 }
 
 // OnTableCreateBatchError 批量创建错误信息

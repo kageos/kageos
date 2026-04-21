@@ -72,7 +72,7 @@ import (
 // PdfExtractTextReq PDF 文本提取请求结构体
 type PdfExtractTextReq struct {
 	// 框架标签：widget:"type:files;accept:.pdf;max_size:100MB;max_count:10" - 文件上传组件，支持多文件上传
-	InputFiles *types.Files `json:"input_files" widget:"name:上传PDF文件;type:files;accept:.pdf;max_size:100MB;max_count:10" validate:"required"`
+	InputFiles string `json:"input_files" widget:"name:上传PDF文件;type:files;accept:.pdf;max_size:100MB;max_count:10" validate:"required"`
 }
 
 // PdfExtractTextResp PDF 文本提取响应结构体
@@ -103,7 +103,7 @@ func DoPdfExtractText(ctx *app.Context, req *PdfExtractTextReq) (*PdfExtractText
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	if len(inputFiles.GetFiles()) == 0 {
+	if len(inputFiles) == 0 {
 		return nil, fmt.Errorf("没有找到输入文件")
 	}
 
@@ -115,35 +115,35 @@ func DoPdfExtractText(ctx *app.Context, req *PdfExtractTextReq) (*PdfExtractText
 	failCount := 0
 	var errors []string
 
-	for _, file := range inputFiles.GetFiles() {
-		if file.LocalPath == "" {
-			logger.Warnf(ctx, "[PdfExtractText] 文件 %s 没有本地路径，跳过", file.Name)
+	for _, file := range inputFiles {
+		if file == "" {
+			logger.Warnf(ctx, "[PdfExtractText] 文件 %s 没有本地路径，跳过", filepath.Base(file))
 			failCount++
-			errors = append(errors, fmt.Sprintf("文件 %s: 本地路径为空", file.Name))
+			errors = append(errors, fmt.Sprintf("文件 %s: 本地路径为空", filepath.Base(file)))
 			continue
 		}
 
-		cmd := exec.Command(pdftotextPath, file.LocalPath, "-")
+		cmd := exec.Command(pdftotextPath, file, "-")
 		output, err := cmd.CombinedOutput()
 
 		if err != nil {
 			extractedText := strings.TrimSpace(string(output))
 			if extractedText == "" {
-				logger.Errorf(ctx, "[PdfExtractText] 提取文本失败 %s: %v, output: %s", file.Name, err, string(output))
+				logger.Errorf(ctx, "[PdfExtractText] 提取文本失败 %s: %v, output: %s", filepath.Base(file), err, string(output))
 				failCount++
-				errors = append(errors, fmt.Sprintf("文件 %s: 提取失败 - %v", file.Name, err))
+				errors = append(errors, fmt.Sprintf("文件 %s: 提取失败 - %v", filepath.Base(file), err))
 				continue
 			}
-			logger.Warnf(ctx, "[PdfExtractText] 文件 %s 提取时出现警告: %v, 但已提取到文本", file.Name, err)
+			logger.Warnf(ctx, "[PdfExtractText] 文件 %s 提取时出现警告: %v, 但已提取到文本", filepath.Base(file), err)
 		}
 
 		extractedText := strings.TrimSpace(string(output))
 		if extractedText == "" {
-			allTexts = append(allTexts, fmt.Sprintf("=== %s ===\n（未提取到文本内容，可能是扫描版PDF或图片PDF）", file.Name))
-			logger.Warnf(ctx, "[PdfExtractText] 文件 %s 未提取到文本内容，可能是扫描版PDF", file.Name)
+			allTexts = append(allTexts, fmt.Sprintf("=== %s ===\n（未提取到文本内容，可能是扫描版PDF或图片PDF）", filepath.Base(file)))
+			logger.Warnf(ctx, "[PdfExtractText] 文件 %s 未提取到文本内容，可能是扫描版PDF", filepath.Base(file))
 		} else {
-			allTexts = append(allTexts, fmt.Sprintf("=== %s ===\n%s", file.Name, extractedText))
-			logger.Infof(ctx, "[PdfExtractText] 成功提取文件 %s 的文本，长度: %d 字符", file.Name, len(extractedText))
+			allTexts = append(allTexts, fmt.Sprintf("=== %s ===\n%s", filepath.Base(file), extractedText))
+			logger.Infof(ctx, "[PdfExtractText] 成功提取文件 %s 的文本，长度: %d 字符", filepath.Base(file), len(extractedText))
 		}
 
 		successCount++
@@ -204,13 +204,13 @@ import (
 // PdfMergeReq PDF合并请求结构体
 type PdfMergeReq struct {
 	// 框架标签：widget:"type:files;accept:.pdf;max_size:100MB;max_count:20" - 文件上传组件，支持多文件上传
-	InputFiles *types.Files `json:"input_files" widget:"name:上传PDF文件;type:files;accept:.pdf;max_size:100MB;max_count:20" validate:"required"`
+	InputFiles string `json:"input_files" widget:"name:上传PDF文件;type:files;accept:.pdf;max_size:100MB;max_count:20" validate:"required"`
 }
 
 // PdfMergeResp PDF合并响应结构体
 type PdfMergeResp struct {
 	// 合并后的PDF文件
-	OutputFile *types.Files `json:"output_file" widget:"name:合并后的PDF;type:files"`
+	OutputFile string `json:"output_file" widget:"name:合并后的PDF;type:files"`
 
 	// 合并信息
 	MergeInfo string `json:"merge_info" widget:"name:合并信息;type:text_area"`
@@ -236,11 +236,11 @@ func DoPdfMerge(ctx *app.Context, req *PdfMergeReq) (*PdfMergeResp, error) {
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	if len(inputFiles.GetFiles()) == 0 {
+	if len(inputFiles) == 0 {
 		return nil, fmt.Errorf("没有找到输入文件")
 	}
 
-	if len(inputFiles.GetFiles()) < 2 {
+	if len(inputFiles) < 2 {
 		return nil, fmt.Errorf("至少需要 2 个PDF文件才能合并")
 	}
 
@@ -259,12 +259,12 @@ func DoPdfMerge(ctx *app.Context, req *PdfMergeReq) (*PdfMergeResp, error) {
 		"-sOutputFile="+outputPath,
 	)
 
-	for _, file := range inputFiles.GetFiles() {
-		if file.LocalPath == "" {
-			logger.Warnf(ctx, "[PdfMerge] 文件 %s 没有本地路径，跳过", file.Name)
+	for _, file := range inputFiles {
+		if file == "" {
+			logger.Warnf(ctx, "[PdfMerge] 文件 %s 没有本地路径，跳过", filepath.Base(file))
 			continue
 		}
-		args = append(args, file.LocalPath)
+		args = append(args, file)
 	}
 
 	if len(args) <= 5 {
@@ -279,18 +279,17 @@ func DoPdfMerge(ctx *app.Context, req *PdfMergeReq) (*PdfMergeResp, error) {
 		return nil, fmt.Errorf("[系统错误]-[DoPdfMerge]： 合并PDF失败, req: %+v, err: %v", req, err)
 	}
 
-	logger.Infof(ctx, "[PdfMerge] 成功合并 %d 个PDF文件", len(inputFiles.GetFiles()))
+	logger.Infof(ctx, "[PdfMerge] 成功合并 %d 个PDF文件", len(inputFiles))
 
 	outputFiles := fs.ResponseFiles([]string{outputPath})
-	defer fs.RemoveFiles(outputFiles)
 
 	fileNames := make([]string, 0)
-	for _, file := range inputFiles.GetFiles() {
-		fileNames = append(fileNames, file.Name)
+	for _, file := range inputFiles {
+		fileNames = append(fileNames, filepath.Base(file))
 	}
 
 	mergeInfo := fmt.Sprintf("合并完成！\n合并文件数: %d 个\n文件列表:\n%s\n输出文件: %s",
-		len(inputFiles.GetFiles()),
+		len(inputFiles),
 		strings.Join(fileNames, "\n"),
 		filepath.Base(outputPath))
 
@@ -338,7 +337,7 @@ import (
 
 // PdfRunCommandReq 自定义命令请求：上传 PDF + 命令模板（占位符替换后执行），便于智能体灵活调用
 type PdfRunCommandReq struct {
-	InputFiles *types.Files `json:"input_files" widget:"name:上传PDF文件;type:files;accept:.pdf,*/*;max_size:100MB;max_count:20" validate:"required"`
+	InputFiles string `json:"input_files" widget:"name:上传PDF文件;type:files;accept:.pdf,*/*;max_size:100MB;max_count:20" validate:"required"`
 
 	// 命令模板，占位符：{{input}}=当前输入文件路径，{{output}}=当前输出文件路径。环境有 gs、pdftotext、pdftoppm、pdfinfo、pdfimages 等
 	CommandTemplate string `json:"command_template" widget:"name:命令模板;type:text_area;placeholder:pdftotext {{input}} -" validate:"required"`
@@ -349,7 +348,7 @@ type PdfRunCommandReq struct {
 
 // PdfRunCommandResp 自定义命令响应
 type PdfRunCommandResp struct {
-	OutputFile *types.Files `json:"output_file" widget:"name:输出文件;type:files"`
+	OutputFile string `json:"output_file" widget:"name:输出文件;type:files"`
 	RunInfo    string       `json:"run_info" widget:"name:执行信息;type:text_area"`
 }
 
@@ -372,7 +371,7 @@ func DoPdfRunCommand(ctx *app.Context, req *PdfRunCommandReq) (*PdfRunCommandRes
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	files := inputFiles.GetFiles()
+	files := inputFiles
 	if len(files) == 0 {
 		return nil, fmt.Errorf("没有找到输入文件")
 	}
@@ -388,46 +387,45 @@ func DoPdfRunCommand(ctx *app.Context, req *PdfRunCommandReq) (*PdfRunCommandRes
 	var outputPaths []string
 	var runInfos []string
 	for i, file := range files {
-		if file.LocalPath == "" {
-			logger.Warnf(ctx, "[PdfRunCommand] 文件 %s 无本地路径，跳过", file.Name)
-			runInfos = append(runInfos, fmt.Sprintf("跳过 %s: 无本地路径", file.Name))
+		if file == "" {
+			logger.Warnf(ctx, "[PdfRunCommand] 文件 %s 无本地路径，跳过", filepath.Base(file))
+			runInfos = append(runInfos, fmt.Sprintf("跳过 %s: 无本地路径", filepath.Base(file)))
 			continue
 		}
-		baseName := strings.TrimSuffix(filepath.Base(file.LocalPath), filepath.Ext(file.LocalPath))
+		baseName := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
 		outputPath := filepath.Join(outputDir, baseName+"."+outputExt)
 
 		args := splitCommandLine(req.CommandTemplate)
 		for j := range args {
 			if args[j] == "{{input}}" {
-				args[j] = file.LocalPath
+				args[j] = file
 			} else if args[j] == "{{output}}" {
 				args[j] = outputPath
 			}
 		}
 		if len(args) == 0 {
-			runInfos = append(runInfos, fmt.Sprintf("文件 %s: 命令为空", file.Name))
+			runInfos = append(runInfos, fmt.Sprintf("文件 %s: 命令为空", filepath.Base(file)))
 			continue
 		}
 		cmd := exec.Command(args[0], args[1:]...)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			logger.Errorf(ctx, "[PdfRunCommand] 执行失败 %s: %v, output: %s", file.Name, err, string(out))
-			runInfos = append(runInfos, fmt.Sprintf("失败 %s: %v\n%s", file.Name, err, string(out)))
+			logger.Errorf(ctx, "[PdfRunCommand] 执行失败 %s: %v, output: %s", filepath.Base(file), err, string(out))
+			runInfos = append(runInfos, fmt.Sprintf("失败 %s: %v\n%s", filepath.Base(file), err, string(out)))
 			continue
 		}
 		if hasOutputPlaceholder {
 			outputPaths = append(outputPaths, outputPath)
 		}
-		runInfos = append(runInfos, fmt.Sprintf("成功 %s", file.Name))
+		runInfos = append(runInfos, fmt.Sprintf("成功 %s", filepath.Base(file)))
 		if i == 0 && len(out) > 0 {
 			runInfos = append(runInfos, "命令输出:\n"+strings.TrimSpace(string(out)))
 		}
 	}
 
-	var outputFiles *types.Files
+	var outputFiles string
 	if len(outputPaths) > 0 {
 		outputFiles = fs.ResponseFiles(outputPaths)
-		defer fs.RemoveFiles(outputFiles)
 	}
 
 	return &PdfRunCommandResp{
@@ -482,7 +480,7 @@ import (
 // PdfToImagesReq PDF转图片请求结构体
 type PdfToImagesReq struct {
 	// 框架标签：widget:"type:files;accept:.pdf;max_size:100MB;max_count:10" - 文件上传组件，支持多文件上传
-	InputFiles *types.Files `json:"input_files" widget:"name:上传PDF文件;type:files;accept:.pdf;max_size:100MB;max_count:10" validate:"required"`
+	InputFiles string `json:"input_files" widget:"name:上传PDF文件;type:files;accept:.pdf;max_size:100MB;max_count:10" validate:"required"`
 
 	// 框架标签：select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
 	OutputFormat string `json:"output_format" widget:"name:输出格式;type:select;options:png,jpeg;options_colors:primary,success;default:png" validate:"required,oneof=png jpeg"`
@@ -491,7 +489,7 @@ type PdfToImagesReq struct {
 // PdfToImagesResp PDF转图片响应结构体
 type PdfToImagesResp struct {
 	// 转换后的图片文件列表
-	OutputFiles *types.Files `json:"output_files" widget:"name:转换后的图片;type:files"`
+	OutputFiles string `json:"output_files" widget:"name:转换后的图片;type:files"`
 
 	// 转换统计信息
 	ConvertStats string `json:"convert_stats" widget:"name:转换统计;type:text_area"`
@@ -516,7 +514,7 @@ func DoPdfToImages(ctx *app.Context, req *PdfToImagesReq) (*PdfToImagesResp, err
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	if len(inputFiles.GetFiles()) == 0 {
+	if len(inputFiles) == 0 {
 		return nil, fmt.Errorf("没有找到输入文件")
 	}
 
@@ -536,51 +534,50 @@ func DoPdfToImages(ctx *app.Context, req *PdfToImagesReq) (*PdfToImagesResp, err
 	totalPages := 0
 	var errors []string
 
-	for _, file := range inputFiles.GetFiles() {
-		if file.LocalPath == "" {
-			logger.Warnf(ctx, "[PdfToImages] 文件 %s 没有本地路径，跳过", file.Name)
+	for _, file := range inputFiles {
+		if file == "" {
+			logger.Warnf(ctx, "[PdfToImages] 文件 %s 没有本地路径，跳过", filepath.Base(file))
 			failCount++
-			errors = append(errors, fmt.Sprintf("文件 %s: 本地路径为空", file.Name))
+			errors = append(errors, fmt.Sprintf("文件 %s: 本地路径为空", filepath.Base(file)))
 			continue
 		}
 
-		baseName := strings.TrimSuffix(filepath.Base(file.LocalPath), filepath.Ext(file.LocalPath))
+		baseName := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
 		outputPrefix := filepath.Join(outputDir, baseName+"_page")
 
-		cmd := exec.Command(pdftoppmPath, formatFlag, file.LocalPath, outputPrefix)
+		cmd := exec.Command(pdftoppmPath, formatFlag, file, outputPrefix)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			logger.Errorf(ctx, "[PdfToImages] 转换失败 %s: %v, output: %s", file.Name, err, string(output))
+			logger.Errorf(ctx, "[PdfToImages] 转换失败 %s: %v, output: %s", filepath.Base(file), err, string(output))
 			failCount++
-			errors = append(errors, fmt.Sprintf("文件 %s: %v", file.Name, err))
+			errors = append(errors, fmt.Sprintf("文件 %s: %v", filepath.Base(file), err))
 			continue
 		}
 
 		outputDirFiles, err := filepath.Glob(outputPrefix + "*")
 		if err != nil {
-			logger.Errorf(ctx, "[PdfToImages] 查找输出文件失败 %s: %v", file.Name, err)
+			logger.Errorf(ctx, "[PdfToImages] 查找输出文件失败 %s: %v", filepath.Base(file), err)
 			failCount++
-			errors = append(errors, fmt.Sprintf("文件 %s: 查找输出文件失败: %v", file.Name, err))
+			errors = append(errors, fmt.Sprintf("文件 %s: 查找输出文件失败: %v", filepath.Base(file), err))
 			continue
 		}
 
 		if len(outputDirFiles) == 0 {
-			logger.Warnf(ctx, "[PdfToImages] 文件 %s 未生成任何图片", file.Name)
+			logger.Warnf(ctx, "[PdfToImages] 文件 %s 未生成任何图片", filepath.Base(file))
 			failCount++
-			errors = append(errors, fmt.Sprintf("文件 %s: 未生成任何图片", file.Name))
+			errors = append(errors, fmt.Sprintf("文件 %s: 未生成任何图片", filepath.Base(file)))
 			continue
 		}
 
 		outputFilePaths = append(outputFilePaths, outputDirFiles...)
 		totalPages += len(outputDirFiles)
 		successCount++
-		logger.Infof(ctx, "[PdfToImages] 成功转换文件 %s，生成 %d 张图片", file.Name, len(outputDirFiles))
+		logger.Infof(ctx, "[PdfToImages] 成功转换文件 %s，生成 %d 张图片", filepath.Base(file), len(outputDirFiles))
 	}
 
-	var outputFiles *types.Files
+	var outputFiles string
 	if len(outputFilePaths) > 0 {
 		outputFiles = fs.ResponseFiles(outputFilePaths)
-		defer fs.RemoveFiles(outputFiles)
 	}
 
 	stats := fmt.Sprintf("转换完成！\n成功: %d 个文件\n失败: %d 个文件\n总图片数: %d 张\n输出格式: %s", successCount, failCount, totalPages, req.OutputFormat)

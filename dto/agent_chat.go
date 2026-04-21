@@ -1,9 +1,5 @@
 package dto
 
-import (
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
-)
-
 // AgentChatReq 智能体聊天请求
 type AgentChatReq struct {
 	AgentID   int64  `json:"agent_id" binding:"required" example:"1"` // 智能体ID
@@ -30,8 +26,8 @@ type ExistingDirectoryInfo struct {
 
 // Message 对话消息
 type Message struct {
-	Content string       `json:"content" binding:"required" example:"你好"` // 消息内容
-	Files   *types.Files `json:"files,omitempty"`                         // 文件列表（直接使用 types.Files）
+	Content string `json:"content" binding:"required" example:"你好"` // 消息内容
+	Files   string `json:"files,omitempty"`                         // 文件引用字符串，格式 bucket/object_key，多文件逗号分隔
 }
 
 // AgentChatResp 智能体聊天响应
@@ -102,8 +98,8 @@ type AddFunctionsAsyncResp struct {
 
 // PluginRunReq 插件执行请求
 type PluginRunReq struct {
-	Content string       `json:"content" binding:"required" example:"请处理这个Excel文件"` // 用户消息内容
-	Files   *types.Files `json:"files,omitempty"`                                   // 文件列表（直接使用 types.Files）
+	Content string `json:"content" binding:"required" example:"请处理这个Excel文件"` // 用户消息内容
+	Files   string `json:"files,omitempty"`                                   // 文件引用字符串，格式 bucket/object_key，多文件逗号分隔
 }
 
 // PluginRunResp 插件执行响应
@@ -115,8 +111,8 @@ type PluginRunResp struct {
 // AgentPluginFormReq 智能体插件场景的 Form API 请求（固定格式）
 // 用于调用 Form API 时的请求结构
 type AgentPluginFormReq struct {
-	Content    string       `json:"content,omitempty"`     // 文本输入（可选）
-	InputFiles *types.Files `json:"input_files,omitempty"` // 文件输入（可选）
+	Content    string `json:"content,omitempty"`     // 文本输入（可选）
+	InputFiles string `json:"input_files,omitempty"` // 文件引用字符串，格式 bucket/object_key，多文件逗号分隔
 }
 
 // AgentPluginFormResp 智能体插件场景的 Form API 响应（固定格式）
@@ -159,14 +155,14 @@ type ChatMessageListReq struct {
 
 // ChatMessageInfo 消息信息
 type ChatMessageInfo struct {
-	ID        int64  `json:"id" example:"1"`                                                   // 消息ID
-	SessionID string `json:"session_id" example:"550e8400-e29b-41d4-a716-446655440000"`        // 会话ID
-	AgentID   int64  `json:"agent_id" example:"1"`                                             // 处理该消息的智能体ID
-	Role      string `json:"role" example:"user"`                                              // 消息角色：user/assistant/system
-	Content   string `json:"content" example:"你好"`                                             // 消息内容
-	Files     string `json:"files,omitempty" example:"[{\"url\":\"...\",\"remark\":\"...\"}]"` // 文件列表（JSON字符串，可选）
-	User      string `json:"user" example:"beiluo"`                                            // 创建用户
-	CreatedAt string `json:"created_at" example:"2006-01-02T15:04:05Z"`                        // 创建时间
+	ID        int64  `json:"id" example:"1"`                                                // 消息ID
+	SessionID string `json:"session_id" example:"550e8400-e29b-41d4-a716-446655440000"`     // 会话ID
+	AgentID   int64  `json:"agent_id" example:"1"`                                          // 处理该消息的智能体ID
+	Role      string `json:"role" example:"user"`                                           // 消息角色：user/assistant/system
+	Content   string `json:"content" example:"你好"`                                          // 消息内容
+	Files     string `json:"files,omitempty" example:"bucket/path/a.png,bucket/path/b.pdf"` // 文件引用字符串（可选）
+	User      string `json:"user" example:"beiluo"`                                         // 创建用户
+	CreatedAt string `json:"created_at" example:"2006-01-02T15:04:05Z"`                     // 创建时间
 }
 
 // ChatMessageListResp 获取消息列表响应

@@ -1,10 +1,7 @@
 <template>
   <div class="function-execution-result">
-    <div class="result-hero">
-      <div>
-        <div class="result-eyebrow">Execution Result</div>
-        <div class="result-hero-title">本次执行结果</div>
-      </div>
+    <div v-if="metadataEntries.length > 0" class="result-summary">
+      <span class="result-summary-title">执行结果摘要</span>
       <div v-if="metadataEntries.length > 0" class="metadata-tags">
         <el-tag v-for="entry in metadataEntries" :key="entry.key" size="small" effect="plain">
           {{ entry.label }}：{{ entry.value }}
@@ -173,37 +170,26 @@ function formatJSON(value: unknown): string {
 .function-execution-result {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  margin-top: 18px;
+  gap: 16px;
+  margin-top: 16px;
 }
 
-.result-hero {
+.result-summary {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  padding: 18px 20px;
-  border-radius: 18px;
-  background:
-    radial-gradient(circle at 8% 0%, rgba(64, 158, 255, 0.22), transparent 34%),
-    linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 64, 175, 0.84));
-  color: #fff;
-  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.16);
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-fill-color-light);
 }
 
-.result-eyebrow {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.66);
-}
-
-.result-hero-title {
-  margin-top: 4px;
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: 0.01em;
+.result-summary-title {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 
 .metadata-tags {
@@ -214,36 +200,17 @@ function formatJSON(value: unknown): string {
 }
 
 .metadata-tags :deep(.el-tag) {
-  border-color: rgba(255, 255, 255, 0.26);
-  color: rgba(255, 255, 255, 0.92);
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--el-bg-color);
 }
 
 .result-section {
-  position: relative;
-  overflow: hidden;
   padding: 18px;
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: 18px;
-  background: var(--el-fill-color-blank);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
-}
-
-.result-section::before {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  content: '';
-  background: linear-gradient(135deg, rgba(64, 158, 255, 0.08), transparent 32%);
-}
-
-.response-section::before {
-  background: linear-gradient(135deg, rgba(103, 194, 58, 0.09), transparent 34%);
+  border-radius: 12px;
+  background: var(--el-bg-color);
 }
 
 .result-section-header {
-  position: relative;
-  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -263,25 +230,25 @@ function formatJSON(value: unknown): string {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 38px;
-  height: 38px;
-  border-radius: 14px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.26);
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
 }
 
 .request-icon {
   color: var(--el-color-primary);
-  background: rgba(64, 158, 255, 0.12);
+  background: var(--el-color-primary-light-9);
 }
 
 .response-icon {
   color: var(--el-color-success);
-  background: rgba(103, 194, 58, 0.12);
+  background: var(--el-color-success-light-9);
 }
 
 .result-section-title {
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--el-text-color-primary);
   line-height: 1.4;
 }
@@ -293,8 +260,6 @@ function formatJSON(value: unknown): string {
 }
 
 .field-grid {
-  position: relative;
-  z-index: 1;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
@@ -303,10 +268,9 @@ function formatJSON(value: unknown): string {
 .field-card {
   min-width: 0;
   padding: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.74);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76), 0 8px 20px rgba(15, 23, 42, 0.04);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-fill-color-light);
 }
 
 .field-label {
@@ -316,7 +280,7 @@ function formatJSON(value: unknown): string {
   gap: 8px;
   margin-bottom: 10px;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 600;
   color: var(--el-text-color-primary);
 }
 
@@ -340,11 +304,9 @@ function formatJSON(value: unknown): string {
   z-index: 1;
   margin: 0;
   padding: 16px 18px;
-  border-radius: 14px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background:
-    linear-gradient(180deg, rgba(15, 23, 42, 0.04), rgba(15, 23, 42, 0.02)),
-    var(--el-fill-color-lighter);
+  border-radius: 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-light);
   color: var(--el-text-color-primary);
   font-size: 12px;
   line-height: 1.7;
@@ -355,7 +317,7 @@ function formatJSON(value: unknown): string {
 }
 
 @media (max-width: 960px) {
-  .result-hero,
+  .result-summary,
   .result-section-header {
     flex-direction: column;
     align-items: stretch;

@@ -136,11 +136,6 @@
   justify-content: flex-end;
 }
 
-/* 备注 */
-.files-remark {
-  width: 100%;
-}
-
 /* 表格单元格 */
 .files-table-cell {
   display: flex;

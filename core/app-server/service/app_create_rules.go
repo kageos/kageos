@@ -3,8 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"regexp"
-	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/dto"
@@ -13,6 +11,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/naming"
 )
 
 func (a *AppService) validateCreateAppRequest(ctx context.Context, req *dto.CreateAppReq) (string, string, error) {
@@ -43,7 +42,8 @@ func (a *AppService) validateCreateAppRequest(ctx context.Context, req *dto.Crea
 		}
 	}
 
-	if err := validateGoPackageName(req.Code); err != nil {
+	req.Code = naming.NormalizeGoPackageName(req.Code)
+	if err := naming.ValidateGoPackageNameLength(req.Code, "工作空间英文标识", 2, naming.MaxGoPackageNameLength); err != nil {
 		return "", "", err
 	}
 
@@ -116,36 +116,5 @@ func (a *AppService) persistCreatedApp(ctx context.Context, app *model.App, root
 
 	logger.Infof(ctx, "[AppService] 创建 service_tree 根节点成功: app_id=%d, root_id=%d, full_code_path=%s",
 		app.ID, rootNode.ID, rootNode.FullCodePath)
-	return nil
-}
-
-// goPackageNameRegex 合法的 Go package 名称：以小写字母开头，后续可跟小写字母、数字、下划线。
-var goPackageNameRegex = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
-
-// goKeywords Go 保留关键字，不能作为 package 名。
-var goKeywords = map[string]bool{
-	"break": true, "case": true, "chan": true, "const": true, "continue": true,
-	"default": true, "defer": true, "else": true, "fallthrough": true, "for": true,
-	"func": true, "go": true, "goto": true, "if": true, "import": true,
-	"interface": true, "map": true, "package": true, "range": true, "return": true,
-	"select": true, "struct": true, "switch": true, "type": true, "var": true,
-}
-
-// validateGoPackageName 校验字符串是否为合法的 Go package 名称。
-// 规则：以小写字母开头，只能包含小写字母、数字、下划线，长度 2-50，不能是 Go 关键字。
-func validateGoPackageName(code string) error {
-	code = strings.TrimSpace(code)
-	if code == "" {
-		return fmt.Errorf("工作空间英文标识不能为空")
-	}
-	if len(code) < 2 || len(code) > 50 {
-		return fmt.Errorf("工作空间英文标识长度须为 2-50 个字符")
-	}
-	if !goPackageNameRegex.MatchString(code) {
-		return fmt.Errorf("工作空间英文标识必须是合法的 Go package 名称：以小写字母开头，只能包含小写字母、数字和下划线")
-	}
-	if goKeywords[code] {
-		return fmt.Errorf("工作空间英文标识不能使用 Go 保留关键字：%s", code)
-	}
 	return nil
 }

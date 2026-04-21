@@ -161,7 +161,7 @@ type GetServiceTreeDetailResp struct {
 type UpdateServiceTreeMetadataReq struct {
 	ID          int64   `json:"id" binding:"required" example:"1"`          // 服务目录ID
 	Name        *string `json:"name,omitempty" example:"用户管理"`              // 服务目录名称（指针类型，nil=不更新，""=清空）
-	Code        *string `json:"code,omitempty" example:"user"`              // 服务目录代码（指针类型，nil=不更新，""=清空）
+	Code        *string `json:"code,omitempty" example:"user"`              // 服务目录代码（暂不支持修改；nil=不更新）
 	Description *string `json:"description,omitempty" example:"用户相关的API接口"` // 描述（指针类型，nil=不更新，""=清空）
 	Tags        *string `json:"tags,omitempty" example:"user,management"`   // 标签（指针类型，nil=不更新，""=清空）
 	Admins      *string `json:"admins,omitempty" example:"user1,user2"`     // 管理员列表（指针类型，nil=不更新，""=清空）
@@ -173,7 +173,7 @@ type UpdateServiceTreeMetadataReq struct {
 type UpdatePackageReq struct {
 	ID          int64   `json:"id,omitempty" example:"1"`                   // 目录ID（由 path 提供，body 可不传）
 	Name        *string `json:"name,omitempty" example:"用户管理"`              // 目录名称（指针类型，nil=不更新，""=清空）
-	Code        *string `json:"code,omitempty" example:"user"`              // 目录代码（指针类型，nil=不更新，""=清空）
+	Code        *string `json:"code,omitempty" example:"user"`              // 目录代码（暂不支持修改；nil=不更新）
 	Description *string `json:"description,omitempty" example:"用户相关的API接口"` // 描述（指针类型，nil=不更新，""=清空）
 	Tags        *string `json:"tags,omitempty" example:"user,management"`   // 标签（指针类型，nil=不更新，""=清空）
 	Admins      *string `json:"admins,omitempty" example:"user1,user2"`     // 管理员列表（指针类型，nil=不更新，""=清空）
@@ -183,7 +183,7 @@ type UpdatePackageReq struct {
 type UpdateFunctionReq struct {
 	ID          int64   `json:"id,omitempty" example:"1"`               // 函数ID（由 path 提供，body 可不传）
 	Name        *string `json:"name,omitempty" example:"用户列表"`          // 函数名称（指针类型，nil=不更新，""=清空）
-	Code        *string `json:"code,omitempty" example:"user_list"`     // 函数代码（指针类型，nil=不更新，""=清空）
+	Code        *string `json:"code,omitempty" example:"user_list"`     // 函数代码（暂不支持修改；nil=不更新）
 	Description *string `json:"description,omitempty" example:"获取用户列表"` // 描述（指针类型，nil=不更新，""=清空）
 	Tags        *string `json:"tags,omitempty" example:"user,list"`     // 标签（指针类型，nil=不更新，""=清空）
 }
@@ -192,7 +192,7 @@ type UpdateFunctionReq struct {
 type UpdateDocsReq struct {
 	ID          int64   `json:"id,omitempty" example:"1"`                // 文档ID（由 path 提供，body 可不传）
 	Name        *string `json:"name,omitempty" example:"API文档"`          // 文档名称（指针类型，nil=不更新，""=清空）
-	Code        *string `json:"code,omitempty" example:"api_docs"`       // 文档代码（指针类型，nil=不更新，""=清空）
+	Code        *string `json:"code,omitempty" example:"api_docs"`       // 文档代码（暂不支持修改；nil=不更新）
 	Description *string `json:"description,omitempty" example:"API接口文档"` // 描述（指针类型，nil=不更新，""=清空）
 	Tags        *string `json:"tags,omitempty" example:"api,docs"`       // 标签（指针类型，nil=不更新，""=清空）
 	Admins      *string `json:"admins,omitempty" example:"user1,user2"`  // 管理员列表（指针类型，nil=不更新，""=清空）

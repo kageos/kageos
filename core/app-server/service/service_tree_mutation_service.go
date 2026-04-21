@@ -51,18 +51,10 @@ func (m *serviceTreeMutationService) UpdateServiceTreeMetadata(ctx context.Conte
 		serviceTree.Name = *req.Name
 	}
 	if req.Code != nil {
-		newCode := *req.Code
-		if newCode != serviceTree.Code && newCode != "" {
-			renameParentPath := serviceTree.GetParentFullPath()
-			exists, err := m.serviceTreeRepo.CheckNameExistsByPath(renameParentPath, newCode, serviceTree.AppID)
-			if err != nil {
-				return fmt.Errorf("failed to check name exists: %w", err)
-			}
-			if exists {
-				return fmt.Errorf("service tree name '%s' already exists in this parent directory", newCode)
-			}
+		newCode := strings.TrimSpace(*req.Code)
+		if newCode != serviceTree.Code {
+			return fmt.Errorf("节点 code 暂不支持修改，请新建节点后迁移内容")
 		}
-		serviceTree.Code = newCode
 	}
 	if req.Description != nil {
 		serviceTree.Description = *req.Description

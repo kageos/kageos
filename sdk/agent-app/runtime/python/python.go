@@ -1,7 +1,6 @@
 package python
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -159,142 +158,6 @@ func (e *Executor) Execute(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 	return []byte(combineStdoutStderr(result.Stdout, result.Stderr)), err
-}
-
-// ExecuteResult 执行 Python 代码，返回结构化结果与输出文件声明。
-//
-// Python 代码必须定义固定入口函数:
-//
-//	def agentos_entry(args, output_dir): ...
-//
-// 其中:
-// - args: Go 侧 WithRequest 传入的对象（dict）
-// - output_dir: 受控输出目录，需将最终文件写到此目录
-//
-// 返回值必须为 dict，支持字段:
-// - data: 任意 JSON 可序列化对象
-// - output_files: []{path,name?,description?}
-// - warnings: []string
-func (e *Executor) ExecuteResult(ctx context.Context) (*ExecutionResult, error) {
-	if e.closed {
-		return nil, fmt.Errorf("python executor: already closed")
-	}
-
-	// 创建带超时的上下文
-	if e.timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, e.timeout)
-		defer cancel()
-	}
-
-	// 1. 检测 Python 路径
-	pythonPath := e.detectPythonPath()
-	if pythonPath == "" {
-		return nil, fmt.Errorf("未找到 Python 解释器，请确保已安装 Python 3")
-	}
-
-	// 2. 创建工作目录
-	workDir, err := e.createWorkDir()
-	if err != nil {
-		return nil, fmt.Errorf("创建工作目录失败: %w", err)
-	}
-	if e.workDir == "" {
-		e.managedTempDirs = append(e.managedTempDirs, workDir)
-	}
-
-	// 3. 安装依赖包（如果需要）
-	if len(e.packages) > 0 {
-		if err := e.installPackages(ctx, workDir, pythonPath); err != nil {
-			logger.Warnf(ctx, "[Python] 安装包失败: %v", err)
-			// 不阻止执行，继续运行
-		}
-	}
-
-	outputDir, err := e.resolveOutputDir(workDir)
-	if err != nil {
-		return nil, fmt.Errorf("创建输出目录失败: %w", err)
-	}
-	resultPath := filepath.Join(workDir, ".agentos", "result.json")
-
-	// 4. 生成 Python 包装脚本
-	wrapperScript, err := e.buildWrapperScript()
-	if err != nil {
-		return nil, fmt.Errorf("生成 Python 包装脚本失败: %w", err)
-	}
-	scriptPath := filepath.Join(workDir, "script.py")
-	if err := os.WriteFile(scriptPath, []byte(wrapperScript), 0644); err != nil {
-		return nil, fmt.Errorf("写入 Python 脚本失败: %w", err)
-	}
-
-	// 5. 构建执行命令
-	// 将请求结构体序列化为 JSON
-	var requestJSON []byte
-	if e.request != nil {
-		var err error
-		requestJSON, err = json.Marshal(e.request)
-		if err != nil {
-			return nil, fmt.Errorf("序列化请求结构体失败: %w", err)
-		}
-	} else {
-		// 如果没有请求，传递空对象
-		requestJSON = []byte("{}")
-	}
-
-	cmd := exec.CommandContext(ctx, pythonPath, scriptPath, string(requestJSON))
-	cmd.Dir = workDir
-	cmd.Env = append(os.Environ(),
-		"AGENTOS_OUTPUT_DIR="+outputDir,
-		"AGENTOS_RESULT_PATH="+resultPath,
-	)
-	var stdoutBuf bytes.Buffer
-	var stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-
-	// 6. 执行命令
-	start := time.Now()
-	runErr := cmd.Run()
-	result := &ExecutionResult{
-		Stdout:     stdoutBuf.String(),
-		Stderr:     stderrBuf.String(),
-		WorkDir:    workDir,
-		OutputDir:  outputDir,
-		DurationMs: time.Since(start).Milliseconds(),
-	}
-
-	if manifest, err := e.readExecutionManifest(resultPath); err == nil && manifest != nil {
-		result.OK = manifest.OK
-		result.OutputFiles = manifest.OutputFiles
-		result.Warnings = manifest.Warnings
-		result.Error = manifest.Error
-		if len(manifest.Data) > 0 {
-			var data interface{}
-			if err := json.Unmarshal(manifest.Data, &data); err == nil {
-				result.Data = data
-			}
-		}
-	} else if fallbackJSON, exErr := e.extractJSONFromOutput(result.Stdout); exErr == nil {
-		var data interface{}
-		if json.Unmarshal([]byte(fallbackJSON), &data) == nil {
-			result.Data = data
-			result.OK = runErr == nil
-		}
-	}
-
-	if runErr != nil {
-		if result.Error == "" {
-			if strings.TrimSpace(result.Stderr) != "" {
-				result.Error = strings.TrimSpace(result.Stderr)
-			} else {
-				result.Error = runErr.Error()
-			}
-		}
-		return result, fmt.Errorf("执行 Python 脚本失败: %w", runErr)
-	}
-	if result.Error == "" {
-		result.OK = true
-	}
-	return result, nil
 }
 
 // ExecuteJSON 执行 Python 代码，自动解析 agentos_entry 返回的 data 字段到 result
@@ -601,28 +464,49 @@ func (e *Executor) mapPackageToImport(pkgName string) string {
 		"opencv-python-headless": "cv2",
 		// 文档处理
 		"python-docx": "docx",
+		"python-pptx": "pptx",
 		"py-pdf2":     "PyPDF2",
 		"pypdf2":      "PyPDF2",
 		"pdfplumber":  "pdfplumber",
+		"reportlab":   "reportlab",
 		"openpyxl":    "openpyxl",
+		"xlsxwriter":  "xlsxwriter",
+		"xlrd":        "xlrd",
+		"xlwt":        "xlwt",
 		// OCR（光学字符识别）
 		"easyocr":      "easyocr",
 		"paddleocr":    "paddleocr", // 如果使用 Python 3.11 可以安装
 		"paddlepaddle": "paddle",    // 如果使用 Python 3.11 可以安装
 		// 数据科学
-		"pandas": "pandas",
-		"numpy":  "numpy",
-		"scipy":  "scipy",
+		"pandas":  "pandas",
+		"numpy":   "numpy",
+		"scipy":   "scipy",
+		"pymysql": "pymysql",
 		// 数据可视化
 		"matplotlib": "matplotlib",
 		"seaborn":    "seaborn",
+		"plotly":     "plotly",
+		"pyecharts":  "pyecharts",
+		"wordcloud":  "wordcloud",
 		// NLP
-		"jieba": "jieba",
+		"jieba":   "jieba",
+		"snownlp": "snownlp",
 		// HTTP
 		"requests": "requests",
+		"aiohttp":  "aiohttp",
 		// 其他常用包
-		"beautifulsoup4": "bs4",
-		"scikit-learn":   "sklearn",
+		"beautifulsoup4":  "bs4",
+		"scikit-learn":    "sklearn",
+		"pyyaml":          "yaml",
+		"qrcode":          "qrcode",
+		"python-barcode":  "barcode",
+		"toml":            "toml",
+		"tabulate":        "tabulate",
+		"arrow":           "arrow",
+		"dateutil":        "dateutil",
+		"python-dateutil": "dateutil",
+		"lxml":            "lxml",
+		"cryptography":    "cryptography",
 	}
 
 	if importName, ok := packageMap[strings.ToLower(pkgName)]; ok {

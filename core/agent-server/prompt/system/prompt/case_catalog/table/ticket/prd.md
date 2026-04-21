@@ -228,7 +228,7 @@ type Ticket struct {
 	ThemeColor string `json:"theme_color" gorm:"column:theme_color" widget:"name:主题颜色;type:color;format:hex;default:#409EFF" search:"like"`
 
 	//请求参数里是文件上传组件，如果要存数据库必须是type:json类型
-	Attachment *types.Files `json:"attachment" gorm:"column:attachment;type:json"  widget:"name:附件;type:files" search:"like"`
+	Attachment string `json:"attachment" gorm:"column:attachment;type:text"  widget:"name:附件;type:files" search:"like"`
 
 	// 这个字段非必要，纯粹展示怎么获取当前用户的组织架构，正常来讲CreateBy是非常必要的字段
 	// 所属部门：工单提单的部门，默认是创建用户所在部门
