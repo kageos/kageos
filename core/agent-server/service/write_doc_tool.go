@@ -10,6 +10,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/naming"
 )
 
 type writeDocCommand struct {
@@ -142,9 +143,12 @@ func runCreateDirectoryCommand(ctx context.Context, cmd createDirectoryCommand, 
 		return "create_directory 需要 directory（或当前目录上下文）", true
 	}
 	name := strings.TrimSpace(cmd.Name)
-	code := strings.TrimSpace(cmd.Code)
+	code := naming.NormalizeGoPackageName(cmd.Code)
 	if name == "" || code == "" {
 		return "create_directory 缺少必需参数 name 或 code（目录名称与代码，如 name=\"文档\" code=\"docs\"）", true
+	}
+	if err := naming.ValidateGoPackageName(code, "目录代码"); err != nil {
+		return "create_directory 目录代码不合法: " + err.Error(), true
 	}
 	description := cmd.Description
 	tags := strings.TrimSpace(cmd.Tags)

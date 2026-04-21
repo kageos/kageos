@@ -17,7 +17,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/llms"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -54,54 +53,62 @@ const (
 	EventError           = "error"
 )
 
-const filesInstruction = "以上 <files> 标签中的 JSON 为本轮用户上传的文件数据，可作为表单函数的 files 参数使用。"
+const filesInstruction = "以上 <files> 标签中的 JSON 为本轮用户上传的文件引用。files 字段的新标准是 bucket/object_key 字符串；提交表单或表格时，直接把 refs 字符串填到对应 files 字段。"
 
 // buildUserMessageContentWithFiles 当用户上传了文件时，将消息内容格式化为：
-// <files>\n{JSON}\n</files> + 说明 + 用户需求，便于 Agent 把 <files> 内的 JSON 当作 run_form_submit 的 input_files 使用。
+// <files>\n{JSON}\n</files> + 说明 + 用户需求，便于 Agent 把 <files> 内的 refs 当作 run_form_submit 的 input_files 使用。
 // 仅用于拼装发给 LLM 的完整内容，不入库。
-func buildUserMessageContentWithFiles(files *types.Files, userContent string) string {
-	if files == nil || len(files.Files) == 0 {
-		return userContent
-	}
-	raw, err := json.Marshal(files)
-	if err != nil {
+func buildUserMessageContentWithFiles(files string, userContent string) string {
+	files = strings.TrimSpace(files)
+	if files == "" {
 		return userContent
 	}
 	demand := strings.TrimSpace(userContent)
 	if demand == "" {
 		demand = "用户需求：请处理上述文件"
 	}
-	return "<files>\n" + string(raw) + "\n</files>\n\n" + filesInstruction + "\n\n" + demand
+	return "<files>\n" + filesPayloadForLLM(files) + "\n</files>\n\n" + filesInstruction + "\n\n" + demand
 }
 
-// userContentForStorage 入库用：只保留用户文字到 Content，文件单独到 Files（JSON）。
-// 返回 (content, filesJSON)；无文件时 filesJSON 为 nil。
-func userContentForStorage(files *types.Files, userContent string) (content string, filesJSON *string) {
+// userContentForStorage 入库用：只保留用户文字到 Content，文件引用字符串单独到 Files。
+// 返回 (content, filesRefs)；无文件时 filesRefs 为 nil。
+func userContentForStorage(files string, userContent string) (content string, filesRefs *string) {
 	demand := strings.TrimSpace(userContent)
-	if files == nil || len(files.Files) == 0 {
-		return demand, nil
-	}
-	raw, err := json.Marshal(files)
-	if err != nil {
+	files = strings.TrimSpace(files)
+	if files == "" {
 		return demand, nil
 	}
 	if demand == "" {
 		demand = "用户需求：请处理上述文件"
 	}
-	s := string(raw)
-	return demand, &s
+	return demand, &files
 }
 
 // userContentForLLM 从库中取出的 user 消息：若有 Files 则拼出完整内容（<files>+说明+content）供 LLM 使用。
-func userContentForLLM(content string, filesJSON *string) string {
-	if filesJSON == nil || *filesJSON == "" {
+func userContentForLLM(content string, filesRefs *string) string {
+	if filesRefs == nil || *filesRefs == "" {
 		return content
 	}
 	demand := strings.TrimSpace(content)
 	if demand == "" {
 		demand = "用户需求：请处理上述文件"
 	}
-	return "<files>\n" + *filesJSON + "\n</files>\n\n" + filesInstruction + "\n\n" + demand
+	return "<files>\n" + filesPayloadForLLM(*filesRefs) + "\n</files>\n\n" + filesInstruction + "\n\n" + demand
+}
+
+func filesPayloadForLLM(files string) string {
+	files = strings.TrimSpace(files)
+	if files == "" {
+		return "{}"
+	}
+	payload := map[string]interface{}{
+		"refs": files,
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Sprintf(`{"refs":%q}`, files)
+	}
+	return string(raw)
 }
 
 // WorkspaceChatService 工作台对话编排：会话、历史、LLM、Tool 循环；只认 LLM + 单模式（dev）
@@ -525,6 +532,7 @@ func workspaceCtxToEnvInput(c *dto.GetWorkspaceContextResp) *prompt.WorkspaceEnv
 			FullCodePath: n.FullCodePath,
 			TemplateType: n.TemplateType,
 			Callbacks:    n.Callbacks,
+			Request:      n.Request,
 		})
 	}
 	files := make([]prompt.WorkspaceEnvFile, 0, len(c.Files))
@@ -689,7 +697,7 @@ func (s *WorkspaceChatService) executeToolCalls(
 	sessionID, fullCodePath string,
 	agentIDPtr *int64,
 	user string,
-	files *types.Files,
+	files string,
 	sendEvent func(string, interface{}),
 ) ([]dto.WorkspaceChatToolCallSummary, error) {
 	// 注入 session_id 到 context，供 record_workspace_event 等工具追溯
@@ -755,7 +763,7 @@ func (s *WorkspaceChatService) parseToolCallArgs(ctx context.Context, tc llms.To
 }
 
 // callOtherTool 调用 ToolRegistry（read_go_file、read_doc、read_dir、write_doc、write_go_file、build_workspace、create_directory、插件等）
-func (s *WorkspaceChatService) callOtherTool(ctx context.Context, name string, args map[string]interface{}, fullCodePath string, files *types.Files, idx, total int) (res ToolResult, st string) {
+func (s *WorkspaceChatService) callOtherTool(ctx context.Context, name string, args map[string]interface{}, fullCodePath string, files string, idx, total int) (res ToolResult, st string) {
 	logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 调用工具 - ToolName: %s, FullCodePath: %s", idx, total, name, fullCodePath)
 	result := s.toolReg.CallTool(ctx, name, args, fullCodePath, files)
 	isErr := result.IsError

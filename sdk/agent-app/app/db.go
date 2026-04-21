@@ -95,82 +95,23 @@ func getOrInitDB(dbName string) (*gorm.DB, error) {
 		return db, nil
 	}
 
-	// 确保数据目录存在
-	dataDir := filepath.Dir(dbName)
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		logger.Errorf(context.Background(), "创建数据目录失败: %v", err)
+	if err := ensureDBDataDir(dbName); err != nil {
 		return nil, err
 	}
 
-	// 🔥 创建日志文件，使用数据库文件名来命名日志文件
-	// 例如：luobei_demo_crm_ticket.db -> luobei_demo_crm_ticket.log
-	logFileName := strings.TrimSuffix(filepath.Base(dbName), ".db") + ".log"
-	logFilePath := filepath.Join(dataDir, logFileName)
+	logFile := openDBLogFile(dbName)
+	dbLogger := newGormDBLogger(logFile)
 
-	// 打开日志文件（追加模式）
-	logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	db, err := openSQLiteDB(dbName, dbLogger)
 	if err != nil {
-		logger.Errorf(context.Background(), "打开日志文件失败 %s: %v", logFilePath, err)
-		// 如果打开日志文件失败，使用标准输出作为降级方案
-		logFile = os.Stdout
-	}
-
-	// 🔥 只写入文件，不输出到控制台
-	// 设置GORM日志配置
-	gormLogger := gormLogger.New(
-		log.New(logFile, "\r\n", log.LstdFlags),
-		gormLogger.Config{
-			SlowThreshold:             200 * time.Millisecond,
-			LogLevel:                  gormLogger.Info, // 记录所有 SQL 语句到文件
-			IgnoreRecordNotFoundError: true,
-			Colorful:                  false,
-		},
-	)
-
-	// 创建数据库连接 - 使用纯 Go SQLite 驱动
-	// 使用 github.com/glebarez/sqlite 驱动，无需 CGO
-	// 注意：需要在编译时设置 CGO_ENABLED=0 来使用纯 Go 驱动
-	db, err := gorm.Open(sqlite.Open(dbName), &gorm.Config{
-		Logger: gormLogger,
-	})
-
-	if err != nil {
-		logger.Errorf(context.Background(), "打开数据库失败 %s: %v", dbName, err)
 		return nil, err
 	}
 	logger.Infof(context.Background(), "打开数据库成功 %s", dbName)
 
-	// 设置SQLite优化参数（提升并发读写性能）
-	// WAL 模式：提升并发读写性能
-	db.Exec("PRAGMA journal_mode=WAL;")
-	// 临时存储到内存：提升性能
-	db.Exec("PRAGMA temp_store=MEMORY;")
-	// 同步模式：NORMAL 平衡性能和安全性
-	db.Exec("PRAGMA synchronous=NORMAL;")
-	// ✅ 优化：设置忙等待超时 5 秒，减少 "database is locked" 错误
-	db.Exec("PRAGMA busy_timeout=5000;")
-	// ✅ 优化：设置缓存大小 64MB，提升查询性能（负值表示 KB）
-	db.Exec("PRAGMA cache_size=-64000;")
-	// ✅ 优化：限制 WAL 日志文件大小 64MB，防止日志文件无限增长
-	db.Exec("PRAGMA journal_size_limit=67108864;")
-
-	// 设置连接池参数
-	sqlDB, err := db.DB()
-	if err != nil {
-		logger.Errorf(context.Background(), "获取原生数据库连接失败: %v", err)
+	configureSQLitePragmas(db)
+	if err := configureDBConnectionPool(db); err != nil {
 		return nil, err
 	}
-
-	// ✅ 优化：增加连接池大小，支持更高并发
-	// SQLite 是文件数据库，并发能力有限，建议不超过 20
-	maxOpenConns := 10
-	maxIdleConns := 5
-	sqlDB.SetMaxOpenConns(maxOpenConns) // ✅ 从 5 增加到 10，支持更高并发
-	sqlDB.SetMaxIdleConns(maxIdleConns) // ✅ 从 2 增加到 5，保持更多空闲连接
-	sqlDB.SetConnMaxLifetime(time.Hour) // 连接最长生命周期 1 小时（合理）
-
-	logger.Infof(context.Background(), "数据库连接池已配置: MaxOpenConns=%d, MaxIdleConns=%d, MaxLifetime=%v",
-		maxOpenConns, maxIdleConns, time.Hour)
 
 	// 🔥 注意：SQLite 不支持 FIND_IN_SET 函数
 	// 我们已经在 query1.go 中使用 SQLite 兼容的方式（instr 函数）来实现相同功能
@@ -181,6 +122,80 @@ func getOrInitDB(dbName string) (*gorm.DB, error) {
 	logger.Infof(context.Background(), "数据库连接已创建: %s", dbName)
 
 	return db, nil
+}
+
+func ensureDBDataDir(dbName string) error {
+	dataDir := filepath.Dir(dbName)
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		logger.Errorf(context.Background(), "创建数据目录失败: %v", err)
+		return err
+	}
+	return nil
+}
+
+func dbLogFilePath(dbName string) string {
+	logFileName := strings.TrimSuffix(filepath.Base(dbName), ".db") + ".log"
+	return filepath.Join(filepath.Dir(dbName), logFileName)
+}
+
+func openDBLogFile(dbName string) *os.File {
+	logFilePath := dbLogFilePath(dbName)
+	logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		logger.Errorf(context.Background(), "打开日志文件失败 %s: %v", logFilePath, err)
+		return os.Stdout
+	}
+	return logFile
+}
+
+func newGormDBLogger(logFile *os.File) gormLogger.Interface {
+	return gormLogger.New(
+		log.New(logFile, "\r\n", log.LstdFlags),
+		gormLogger.Config{
+			SlowThreshold:             200 * time.Millisecond,
+			LogLevel:                  gormLogger.Info, // 记录所有 SQL 语句到文件
+			IgnoreRecordNotFoundError: true,
+			Colorful:                  false,
+		},
+	)
+}
+
+func openSQLiteDB(dbName string, dbLogger gormLogger.Interface) (*gorm.DB, error) {
+	db, err := gorm.Open(sqlite.Open(dbName), &gorm.Config{
+		Logger: dbLogger,
+	})
+	if err != nil {
+		logger.Errorf(context.Background(), "打开数据库失败 %s: %v", dbName, err)
+		return nil, err
+	}
+	return db, nil
+}
+
+func configureSQLitePragmas(db *gorm.DB) {
+	db.Exec("PRAGMA journal_mode=WAL;")
+	db.Exec("PRAGMA temp_store=MEMORY;")
+	db.Exec("PRAGMA synchronous=NORMAL;")
+	db.Exec("PRAGMA busy_timeout=5000;")
+	db.Exec("PRAGMA cache_size=-64000;")
+	db.Exec("PRAGMA journal_size_limit=67108864;")
+}
+
+func configureDBConnectionPool(db *gorm.DB) error {
+	sqlDB, err := db.DB()
+	if err != nil {
+		logger.Errorf(context.Background(), "获取原生数据库连接失败: %v", err)
+		return err
+	}
+
+	maxOpenConns := 10
+	maxIdleConns := 5
+	sqlDB.SetMaxOpenConns(maxOpenConns)
+	sqlDB.SetMaxIdleConns(maxIdleConns)
+	sqlDB.SetConnMaxLifetime(time.Hour)
+
+	logger.Infof(context.Background(), "数据库连接池已配置: MaxOpenConns=%d, MaxIdleConns=%d, MaxLifetime=%v",
+		maxOpenConns, maxIdleConns, time.Hour)
+	return nil
 }
 
 // closeAllDatabases 关闭所有数据库连接

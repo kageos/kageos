@@ -155,7 +155,7 @@ type CrmTicket struct {
     ID          int       `json:"id" gorm:"primaryKey;autoIncrement;column:id"`
     Title       string    `json:"title" gorm:"column:title"`
     Priority    string    `json:"priority" gorm:"column:priority"`
-    Attachments *Files    `json:"attachments" gorm:"type:json;column:attachments"` // 新增字段
+    Attachments *Files    `json:"attachments" gorm:"type:text;column:attachments"` // 新增字段
 }
 
 func (CrmTicket) TableName() string {

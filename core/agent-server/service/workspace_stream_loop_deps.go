@@ -8,7 +8,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/llms"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 )
 
 // workspaceStreamLoopDeps 工作台对流式工具对话循环的依赖实现（只认 LLM，单模式）
@@ -22,7 +21,7 @@ type workspaceStreamLoopDeps struct {
 	modeProvider         prompt.WorkspaceModePromptProvider
 	toolNames            []string
 	systemPromptFragment string
-	files                *types.Files
+	files                string
 	service              *WorkspaceChatService
 }
 

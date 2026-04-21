@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
@@ -81,7 +80,11 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 	logger.Infof(c, "[GetUploadToken] presign host for upload: X-Forwarded-Host=%q, Request.Host=%q => presignHost=%q", c.GetHeader("X-Forwarded-Host"), c.Request.Host, presignHost)
 
 	// 生成上传凭证
-	creds, key, expire, err := s.storageService.GenerateUploadToken(ctx, router, req.FileName, req.ContentType, req.FileSize, uploadSource)
+	bucket := req.Bucket
+	if bucket == "" {
+		bucket = s.storageService.GetBucketName()
+	}
+	creds, key, expire, err := s.storageService.GenerateUploadToken(ctx, bucket, router, req.FileName, req.ContentType, req.FileSize, uploadSource)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -94,7 +97,7 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 	storageType := s.storageService.GetStorageType()
 
 	// 构建预期的下载URL
-	downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLs(ctx, key)
+	downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLsInBucket(ctx, bucket, key)
 	if err != nil {
 		logger.Errorf(c, "Failed to generate download URLs: %v", err)
 		// 下载URL生成失败不影响上传，设置为空
@@ -103,12 +106,11 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 	}
 
 	// 构建响应
-	resp = buildUploadTokenResponse(creds, key, expire, cdnDomain, storageType, downloadURL, serverDownloadURL, username)
-	resp.Bucket = s.storageService.GetBucketName()
+	resp = buildUploadTokenResponse(creds, bucket, key, expire, cdnDomain, storageType, downloadURL, serverDownloadURL, username)
 
 	// 线上排查 403：确认返回的 URL 的 host 与浏览器 PUT 时的 Host 一致
-	if resp.URL != "" {
-		if u, e := url.Parse(resp.URL); e == nil {
+	if resp.UploadURL != "" {
+		if u, e := url.Parse(resp.UploadURL); e == nil {
 			logger.Infof(c, "[GetUploadToken] upload URL host=%q (browser PUT must use same Host)", u.Host)
 		}
 	}
@@ -151,9 +153,9 @@ func (s *Storage) BatchGetUploadToken(c *gin.Context) {
 	tokens := make([]dto.GetUploadTokenResp, 0, len(req.Files))
 	for _, fileReq := range req.Files {
 		// 优先使用文件项中的上传来源，如果没有则使用顶层的
-		uploadSource := getDefaultUploadSource(fileReq.UploadSource)
-		if uploadSource == "" {
-			uploadSource = defaultUploadSource
+		uploadSource := defaultUploadSource
+		if fileReq.UploadSource != "" {
+			uploadSource = getDefaultUploadSource(fileReq.UploadSource)
 		}
 
 		// 如果未提供 Router，使用默认路由：/{username}/default
@@ -164,7 +166,11 @@ func (s *Storage) BatchGetUploadToken(c *gin.Context) {
 		}
 
 		// 生成上传凭证
-		creds, key, expire, err := s.storageService.GenerateUploadToken(ctx, router, fileReq.FileName, fileReq.ContentType, fileReq.FileSize, uploadSource)
+		bucket := fileReq.Bucket
+		if bucket == "" {
+			bucket = s.storageService.GetBucketName()
+		}
+		creds, key, expire, err := s.storageService.GenerateUploadToken(ctx, bucket, router, fileReq.FileName, fileReq.ContentType, fileReq.FileSize, uploadSource)
 		if err != nil {
 			// 单个文件失败，记录错误但继续处理其他文件
 			logger.Errorf(c, "Failed to generate upload token for file %s: %v", fileReq.FileName, err)
@@ -176,7 +182,7 @@ func (s *Storage) BatchGetUploadToken(c *gin.Context) {
 		storageType := s.storageService.GetStorageType()
 
 		// 构建预期的下载URL
-		downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLs(ctx, key)
+		downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLsInBucket(ctx, bucket, key)
 		if err != nil {
 			logger.Errorf(c, "Failed to generate download URLs for key %s: %v", key, err)
 			// 下载URL生成失败不影响上传，设置为空
@@ -185,8 +191,7 @@ func (s *Storage) BatchGetUploadToken(c *gin.Context) {
 		}
 
 		// 构建响应
-		token := buildUploadTokenResponse(creds, key, expire, cdnDomain, storageType, downloadURL, serverDownloadURL, username)
-		token.Bucket = s.storageService.GetBucketName()
+		token := buildUploadTokenResponse(creds, bucket, key, expire, cdnDomain, storageType, downloadURL, serverDownloadURL, username)
 		tokens = append(tokens, *token)
 	}
 
@@ -220,15 +225,22 @@ func (s *Storage) UploadComplete(c *gin.Context) {
 	var downloadURL string
 	var serverDownloadURL string
 	var expireStr string
+	bucket := req.Bucket
+	if bucket == "" {
+		bucket = s.storageService.GetBucketName()
+	}
+	ref := s.storageService.BuildFileRef(bucket, req.Key)
 	if req.Success {
 		// 获取用户信息并创建上传记录
 		requestUser := contextx.GetRequestUser(c)
 		if err := createUploadRecord(
 			s.storageService,
 			ctx,
+			bucket,
 			req.Key,
 			req.Router,
 			req.FileName,
+			req.Description,
 			req.FileSize,
 			req.ContentType,
 			req.Hash,
@@ -241,7 +253,7 @@ func (s *Storage) UploadComplete(c *gin.Context) {
 		// 构建下载URL
 		var expire time.Time
 		var err error
-		downloadURL, serverDownloadURL, expire, err = s.storageService.GetFileURLs(ctx, req.Key)
+		downloadURL, serverDownloadURL, expire, err = s.storageService.GetFileURLsInBucket(ctx, bucket, req.Key)
 		if err != nil {
 			logger.Errorf(c, "Failed to generate download URLs: %v", err)
 			downloadURL = ""
@@ -266,6 +278,15 @@ func (s *Storage) UploadComplete(c *gin.Context) {
 	// 构建响应（包含下载 URL）
 	resp := &dto.UploadCompleteResp{
 		Message:           "上传完成通知已处理",
+		Key:               req.Key,
+		Bucket:            bucket,
+		Ref:               ref,
+		FileName:          req.FileName,
+		Description:       req.Description,
+		FileSize:          req.FileSize,
+		ContentType:       req.ContentType,
+		Hash:              req.Hash,
+		Storage:           s.storageService.GetStorageType(),
 		DownloadURL:       downloadURL,
 		ServerDownloadURL: serverDownloadURL,
 		Expire:            expireStr,
@@ -301,14 +322,21 @@ func (s *Storage) BatchUploadComplete(c *gin.Context) {
 	// 批量创建上传记录（仅成功时）
 	results := make([]dto.BatchUploadCompleteResult, 0, len(req.Items))
 	for _, item := range req.Items {
+		bucket := item.Bucket
+		if bucket == "" {
+			bucket = s.storageService.GetBucketName()
+		}
+		ref := s.storageService.BuildFileRef(bucket, item.Key)
 		if item.Success {
 			// 只有上传成功时才创建记录
 			if err := createUploadRecord(
 				s.storageService,
 				ctx,
+				bucket,
 				item.Key,
 				item.Router,
 				item.FileName,
+				item.Description,
 				item.FileSize,
 				item.ContentType,
 				item.Hash,
@@ -324,7 +352,7 @@ func (s *Storage) BatchUploadComplete(c *gin.Context) {
 			}
 
 			// 构建下载URL
-			downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLs(ctx, item.Key)
+			downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLsInBucket(ctx, bucket, item.Key)
 			if err != nil {
 				logger.Errorf(c, "Failed to generate download URLs for key %s: %v", item.Key, err)
 				downloadURL = ""
@@ -335,8 +363,11 @@ func (s *Storage) BatchUploadComplete(c *gin.Context) {
 
 			results = append(results, dto.BatchUploadCompleteResult{
 				Key:               item.Key,
+				Bucket:            bucket,
+				Ref:               ref,
 				Status:            "completed",
-				DownloadURL:       downloadURL,       // ✨ 外部访问的下载地址（前端使用）
+				DownloadURL:       downloadURL, // ✨ 外部访问的下载地址（前端使用）
+				Description:       item.Description,
 				ServerDownloadURL: serverDownloadURL, // ✨ 内部访问的下载地址（服务端使用）
 				Hash:              item.Hash,         // ✨ 文件hash（用于文件缓存去重）
 			})
@@ -345,6 +376,8 @@ func (s *Storage) BatchUploadComplete(c *gin.Context) {
 			logger.Warnf(c, "Upload failed: key=%s, error=%s", item.Key, item.Error)
 			results = append(results, dto.BatchUploadCompleteResult{
 				Key:    item.Key,
+				Bucket: bucket,
+				Ref:    ref,
 				Status: "failed",
 				Error:  item.Error,
 			})
@@ -356,9 +389,54 @@ func (s *Storage) BatchUploadComplete(c *gin.Context) {
 	})
 }
 
-// GetFileURL 获取文件（直接代理下载，返回简洁 URL）
+// ResolveFileRefs 批量解析文件引用，返回元数据和直连 URL。
+// 前端使用 download_url 直连对象存储；SDK/容器使用 server_download_url 直连内部对象存储。
+func (s *Storage) ResolveFileRefs(c *gin.Context) {
+	var req dto.ResolveFileRefsReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	files, err := s.storageService.ResolveFileRefs(ctx, req.Refs, req.Audience)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, dto.ResolveFileRefsResp{Files: files})
+}
+
+// UpdateFileDescription 更新文件描述
+// @Summary 更新文件描述
+// @Description 更新文件引用对应的描述元数据
+// @Tags 存储管理
+// @Accept json
+// @Produce json
+// @Param request body dto.UpdateFileDescriptionReq true "更新文件描述请求"
+// @Success 200 {object} dto.UpdateFileDescriptionResp "更新成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /storage/api/v1/files/description [post]
+func (s *Storage) UpdateFileDescription(c *gin.Context) {
+	var req dto.UpdateFileDescriptionReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	resp, err := s.storageService.UpdateFileDescription(ctx, req.Ref, req.Bucket, req.Key, req.Description)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, resp)
+}
+
+// GetFileURL 获取文件（重定向到对象存储直连地址）
 // @Summary 下载文件
-// @Description 直接代理下载文件，返回文件流（无需复杂的预签名 URL 参数）
+// @Description 重定向到对象存储直连地址，避免服务端转发文件流
 // @Tags 存储管理
 // @Accept json
 // @Produce application/octet-stream
@@ -380,7 +458,7 @@ func (s *Storage) GetFileURL(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 
 	// 获取文件信息
-	info, err := s.storageService.GetFileInfo(ctx, key)
+	_, err := s.storageService.GetFileInfo(ctx, key)
 	if err != nil {
 		response.FailWithMessage(c, "文件不存在或无法访问")
 		return
@@ -417,28 +495,14 @@ func (s *Storage) GetFileURL(c *gin.Context) {
 		}
 	}()
 
-	// 直接代理文件下载（流式传输）
-	bucket := s.storageService.GetBucketName()
-	reader, err := s.storageService.GetStorage().DownloadObject(ctx, bucket, key)
-	if err != nil {
-		logger.Errorf(c, "Failed to download file: %v", err)
-		response.FailWithMessage(c, "下载文件失败")
+	downloadURL, _, _, err := s.storageService.GetFileURLs(ctx, key)
+	if err != nil || downloadURL == "" {
+		logger.Errorf(c, "Failed to resolve download URL: %v", err)
+		response.FailWithMessage(c, "生成下载链接失败")
 		return
 	}
-	defer reader.Close()
 
-	// 设置响应头
-	fileName := key
-	if lastSlash := strings.LastIndex(key, "/"); lastSlash != -1 {
-		fileName = key[lastSlash+1:]
-	}
-
-	c.Header("Content-Type", info.ContentType)
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fileName))
-	c.Header("Content-Length", fmt.Sprintf("%d", info.Size))
-
-	// 流式传输文件内容
-	c.DataFromReader(http.StatusOK, info.Size, info.ContentType, reader, nil)
+	c.Redirect(http.StatusTemporaryRedirect, downloadURL)
 }
 
 // DeleteFile 删除文件

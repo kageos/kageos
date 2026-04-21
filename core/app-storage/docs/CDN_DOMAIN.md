@@ -228,17 +228,17 @@ const response = await fetch('/api/v1/storage/upload_token', {
   })
 })
 
-const { key, cdn_domain, url } = await response.json()
+const { key, cdn_domain, upload_url } = await response.json()
 // key: "luobei/test88888/plugins/cashier_desk/2025/11/03/xxx.pdf"
 // cdn_domain: "https://cdn.example.com"
-// url: "http://localhost:9000/...?X-Amz-Signature=..."（预签名上传 URL）
+// upload_url: "http://localhost:9000/...?X-Amz-Signature=..."（预签名上传地址）
 ```
 
 ### 2. 执行上传
 
 ```typescript
-// 使用预签名 URL 上传
-await uploadFile(url, file)
+// 使用预签名上传地址上传
+await uploadFile(upload_url, file)
 ```
 
 ### 3. 上传成功后显示文件

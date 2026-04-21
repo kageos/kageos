@@ -2,8 +2,11 @@ import { useAuthStore } from '@/stores/auth'
 import { getApiBaseURL } from '@/config/runtime'
 import { del, get, post, put } from '@/utils/request'
 
-/** 工作台消息中上传文件：与后端 sdk/agent-app/types.Files 对齐，供后端注入到 <files> 并供大模型拼到 run_form_submit 的 body */
+/** 工作台消息中上传文件：稳定引用 bucket/object_key */
 export interface WorkspaceChatMessageFile {
+  ref: string
+  bucket?: string
+  key?: string
   name: string
   source_name?: string
   storage?: string
@@ -11,25 +14,20 @@ export interface WorkspaceChatMessageFile {
   hash?: string
   size?: number
   upload_ts?: number
-  local_path?: string
   is_uploaded?: boolean
-  url: string
-  server_url?: string
+  download_url?: string
+  server_download_url?: string
   upload_user?: string
 }
 
 export interface WorkspaceChatMessageFiles {
-  files: WorkspaceChatMessageFile[]
-  widget_type?: string
-  data_type?: string
-  remark?: string
-  metadata?: Record<string, unknown>
+  refs: string
 }
 
 /** 工作台对话请求（只认 LLM，单模式） */
 export interface WorkspaceChatReq {
   full_code_path: string
-  message: { content: string; files?: WorkspaceChatMessageFiles }
+  message: { content: string; files?: string }
   session_id?: string
   mode_code?: string
   /** LLM 配置 ID，0 表示使用默认 LLM */

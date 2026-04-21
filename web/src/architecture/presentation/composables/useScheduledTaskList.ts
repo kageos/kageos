@@ -142,13 +142,6 @@ export function useScheduledTaskList(
     return mapping[notifyOn || 'none'] ?? notifyOn
   }
 
-  function formatNotifyTargets(values?: string[] | null) {
-    if (!values || values.length === 0) {
-      return '-'
-    }
-    return values.join('，')
-  }
-
   function getScheduleSummary(task: ScheduledTaskItem) {
     switch (task.schedule_type) {
       case 'cron':
@@ -529,7 +522,6 @@ export function useScheduledTaskList(
     statusTagType,
     statusLabel,
     notifyOnLabel,
-    formatNotifyTargets,
     formatDateTime,
     formatPayload,
     getScheduleSummary,

@@ -17,7 +17,7 @@
 ```
 前端请求上传凭证
   ↓
-后端返回：{ method: "presigned_url", url: "...", ... }
+后端返回：{ method: "presigned_url", upload_url: "...", ... }
   ↓
 前端根据 method 创建对应的上传器
   ↓
@@ -62,7 +62,7 @@ type GetUploadTokenResp struct {
     Method UploadMethod `json:"method"`  // ✨ 关键：告诉前端用哪种方式
     
     // 预签名 URL 上传（MinIO、COS、OSS、S3）
-    URL     string            `json:"url,omitempty"`
+    UploadURL string `json:"upload_url,omitempty"`
     Headers map[string]string `json:"headers,omitempty"`
     
     // 表单上传（七牛云、又拍云）
@@ -97,7 +97,7 @@ export async function uploadFile(
   const credentials = await getUploadCredentials(router, file)
   // credentials = {
   //   method: "presigned_url",  // ← 后端告诉前端用哪种方式
-  //   url: "http://localhost:9000/...",
+  //   upload_url: "http://localhost:9000/...",
   //   headers: { "Content-Type": "..." }
   // }
   
@@ -187,7 +187,7 @@ export class PresignedURLUploader implements Uploader {
     }
     
     // 使用预签名 URL 上传（HTTP PUT）
-    this.xhr.open('PUT', credentials.url)
+    this.xhr.open('PUT', credentials.upload_url)
     
     // 设置请求头
     Object.entries(credentials.headers).forEach(([key, value]) => {
@@ -264,7 +264,7 @@ func (s *AliyunOSSStorage) GenerateUploadCredentials(...) (*UploadCredentials, e
     // 阿里云 OSS 支持预签名 URL，返回 presigned_url
     return &UploadCredentials{
         Method: UploadMethodPresignedURL,
-        URL:    presignedURL,
+        UploadURL: presignedURL,
         Headers: map[string]string{
             "Content-Type": contentType,
         },
@@ -393,7 +393,7 @@ utils/upload/index.ts
   ↓ getUploadCredentials(router, file)
   
 后端 API: /api/v1/storage/upload_token
-  ↓ 返回 { method: "presigned_url", url: "...", ... }
+  ↓ 返回 { method: "presigned_url", upload_url: "...", ... }
   
 UploaderFactory.create("presigned_url")
   ↓ 创建 PresignedURLUploader

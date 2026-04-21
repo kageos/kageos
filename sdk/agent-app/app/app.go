@@ -120,7 +120,28 @@ type Subjects struct {
 
 // NewApp 创建新的应用实例
 func NewApp() (*App, error) {
+	if err := initAppLogger(); err != nil {
+		return nil, err
+	}
 
+	conn, err := connectAppNATS()
+	if err != nil {
+		return nil, err
+	}
+
+	newApp := newAppInstance(conn)
+	if err := initializeAppRuntime(newApp); err != nil {
+		return nil, err
+	}
+
+	startPprofServer()
+	newApp.notifyStartupBestEffort()
+
+	logger.Infof(context.Background(), "NewApp() completed successfully")
+	return newApp, nil
+}
+
+func initAppLogger() error {
 	cfg := logger.Config{
 		Level:      "info",
 		Filename:   fmt.Sprintf("/app/workplace/logs/%s_%s_%s.log", env.User, env.App, env.Version),
@@ -130,17 +151,11 @@ func NewApp() (*App, error) {
 		Compress:   true,
 		IsDev:      false,
 	}
-	err := logger.Init(cfg)
-	if err != nil {
-		return nil, err
-	}
+	return logger.Init(cfg)
+}
 
-	// 连接 NATS（优先使用环境变量）
-	natsURL := os.Getenv("NATS_URL")
-	if natsURL == "" {
-		natsURL = "nats://127.0.0.1:4222"
-	}
-
+func connectAppNATS() (*nats.Conn, error) {
+	natsURL := resolveNATSURL()
 	logger.Infof(context.Background(), "Connecting to NATS: %s", natsURL)
 
 	conn, err := natsx.ConnectNamedWithOptions(
@@ -156,7 +171,18 @@ func NewApp() (*App, error) {
 	}
 
 	logger.Infof(context.Background(), "NATS connected successfully to %s", conn.ConnectedUrl())
+	return conn, nil
+}
 
+func resolveNATSURL() string {
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL == "" {
+		natsURL = "nats://127.0.0.1:4222"
+	}
+	return natsURL
+}
+
+func newAppInstance(conn *nats.Conn) *App {
 	newApp := &App{
 		Context:         context.Background(),
 		exit:            make(chan struct{}),
@@ -164,25 +190,35 @@ func NewApp() (*App, error) {
 		startTime:       time.Now(), // 记录启动时间
 		routerInfo:      make(map[string]*routerInfo),
 		packageContexts: make(map[string]*PackageContext),
-		subjects: &Subjects{
-			InvokeCommand:    subjects.BuildAppInvokeSubject(env.User, env.App, env.Version),
-			InvokeReply:      subjects.BuildAppServerAppInvokeReplySubject(env.User, env.App, env.Version),
-			ControlCommand:   subjects.BuildAppControlSubject(env.User, env.App, env.Version),
-			LifecycleEvent:   subjects.BuildRuntimeLifecycleEventSubject(env.User, env.App, env.Version),
-			DiscoveryRequest: subjects.AppDiscoveryRequestSubject,
-		},
+		subjects:        buildAppSubjects(),
 	}
 	newApp.transport = NewAppTransport(newApp.conn, newApp.subjects)
+	return newApp
+}
 
+func buildAppSubjects() *Subjects {
+	return &Subjects{
+		InvokeCommand:    subjects.BuildAppInvokeSubject(env.User, env.App, env.Version),
+		InvokeReply:      subjects.BuildAppServerAppInvokeReplySubject(env.User, env.App, env.Version),
+		ControlCommand:   subjects.BuildAppControlSubject(env.User, env.App, env.Version),
+		LifecycleEvent:   subjects.BuildRuntimeLifecycleEventSubject(env.User, env.App, env.Version),
+		DiscoveryRequest: subjects.AppDiscoveryRequestSubject,
+	}
+}
+
+func initializeAppRuntime(newApp *App) error {
 	logger.Infof(context.Background(), "Initializing router...")
 	initRouter(newApp)
 	logger.Infof(context.Background(), "Router initialized")
 
 	// 注册 NATS 订阅（subject 硬编码在 nats_router.go，方便阅读）
 	if err := registerNATS(newApp); err != nil {
-		return nil, err
+		return err
 	}
+	return nil
+}
 
+func startPprofServer() {
 	// 启动 pprof HTTP 服务器（用于性能分析）
 	// 监听在 6060 端口，可以通过 http://localhost:6060/debug/pprof/ 访问
 	go func() {
@@ -192,19 +228,18 @@ func NewApp() (*App, error) {
 			logger.Warnf(context.Background(), "pprof server failed: %v", err)
 		}
 	}()
+}
 
+func (a *App) notifyStartupBestEffort() {
 	// 发送启动完成通知给 runtime
 	// 通知 runtime 新版本已经成功启动并准备好接收请求
 	logger.Infof(context.Background(), "Sending startup notification...")
-	if err := newApp.sendStartupNotification(); err != nil {
+	if err := a.sendStartupNotification(); err != nil {
 		logger.Warnf(context.Background(), "Failed to send startup notification: %v", err)
 		// 不返回错误，启动通知失败不应阻止应用运行
 	} else {
 		logger.Infof(context.Background(), "Startup notification sent successfully")
 	}
-
-	logger.Infof(context.Background(), "NewApp() completed successfully")
-	return newApp, nil
 }
 
 // Start 启动应用
@@ -269,45 +304,60 @@ func (a *App) handleDiscovery(msg *nats.Msg) {
 func (a *App) Close() error {
 	logger.Infof(context.Background(), "App.Close() called")
 
-	// 检查是否已经关闭过（使用原子操作避免重复清理）
-	a.shutdownMu.Lock()
-	alreadyClosed := a.shutdownRequested
-	if alreadyClosed {
-		// 如果已经在关闭过程中，避免重复关闭
-		logger.Infof(context.Background(), "Shutdown already in progress, skipping cleanup")
-		a.shutdownMu.Unlock()
+	if !a.markShutdownRequested() {
 		return nil
 	}
-	// 设置关闭请求标志
-	a.shutdownRequested = true
-	a.shutdownMu.Unlock()
 
-	// 1. 先发送关闭通知（在连接关闭前）
+	a.notifyCloseBestEffort()
+	a.unsubscribeAll()
+	a.closeNATSConnection()
+	a.cleanupRuntimeResources()
+	a.closeExitSignal()
+
+	logger.Infof(context.Background(), "App.Close() completed, all resources released")
+
+	return nil
+}
+
+func (a *App) markShutdownRequested() bool {
+	a.shutdownMu.Lock()
+	defer a.shutdownMu.Unlock()
+
+	if a.shutdownRequested {
+		logger.Infof(context.Background(), "Shutdown already in progress, skipping cleanup")
+		return false
+	}
+
+	a.shutdownRequested = true
+	return true
+}
+
+func (a *App) notifyCloseBestEffort() {
 	if err := a.sendCloseNotification(); err != nil {
 		logger.Warnf(context.Background(), "Failed to send close notification: %v", err)
 		// 不返回错误，通知失败不应阻止关闭流程
 	}
+}
 
-	// 2. 取消所有订阅
+func (a *App) unsubscribeAll() {
 	for _, sub := range a.subs {
 		sub.Unsubscribe()
 	}
+}
 
-	// 3. 关闭NATS连接
+func (a *App) closeNATSConnection() {
 	if a.conn != nil {
 		a.conn.Close()
 	}
+}
 
-	// 4. 关闭所有数据库连接
+func (a *App) cleanupRuntimeResources() {
 	closeAllDatabases()
-
-	// 5. 清理文件缓存（立即删除所有无引用的待删除文件）
 	GetFileCache().CleanupOnShutdown()
-
-	// 6. 强制 GC 并释放内存回操作系统
 	forceGCAndFreeMemory()
+}
 
-	// 7. 安全地关闭退出channel
+func (a *App) closeExitSignal() {
 	a.shutdownMu.Lock()
 	defer a.shutdownMu.Unlock()
 
@@ -320,10 +370,6 @@ func (a *App) Close() error {
 		close(a.exit)
 		logger.Infof(context.Background(), "Exit channel closed")
 	}
-
-	logger.Infof(context.Background(), "App.Close() completed, all resources released")
-
-	return nil
 }
 
 func Run() error {
@@ -372,19 +418,31 @@ func (a *App) handleShutdownCommand(message subjects.Message) {
 	ctx := context.Background()
 	logger.Infof(ctx, "Received shutdown command from runtime: %s/%s/%s", message.User, message.App, message.Version)
 
-	// 检查是否已经在关闭过程中
-	a.shutdownMu.Lock()
-	if a.shutdownRequested {
-		// 如果已经在关闭过程中，忽略重复的关闭命令
-		logger.Infof(ctx, "Shutdown already in progress, ignoring duplicate shutdown command")
-		a.shutdownMu.Unlock()
+	if !a.markRuntimeShutdownRequested(ctx) {
 		return
 	}
-	// 先设置标志，防止并发关闭
-	a.shutdownRequested = true
-	a.shutdownMu.Unlock()
 
-	// 等待所有运行中的函数完成
+	a.waitForRuntimeShutdownDrain(ctx)
+	a.resetShutdownRequestedForCleanup()
+	a.closeAfterRuntimeShutdown(ctx)
+
+	logger.Infof(ctx, "Application shutdown initiated by runtime command")
+}
+
+func (a *App) markRuntimeShutdownRequested(ctx context.Context) bool {
+	a.shutdownMu.Lock()
+	defer a.shutdownMu.Unlock()
+
+	if a.shutdownRequested {
+		logger.Infof(ctx, "Shutdown already in progress, ignoring duplicate shutdown command")
+		return false
+	}
+
+	a.shutdownRequested = true
+	return true
+}
+
+func (a *App) waitForRuntimeShutdownDrain(ctx context.Context) {
 	shutdownCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
@@ -393,19 +451,18 @@ func (a *App) handleShutdownCommand(message subjects.Message) {
 	} else {
 		logger.Infof(ctx, "All functions completed successfully")
 	}
+}
 
-	// 调用 Close() 方法清理所有资源（NATS连接、订阅、文件缓存、强制GC等）
-	// Close() 会检查 shutdownRequested，如果已经设置会跳过清理
-	// 但我们已经设置了，所以需要临时重置让 Close() 执行清理
+func (a *App) resetShutdownRequestedForCleanup() {
 	a.shutdownMu.Lock()
 	a.shutdownRequested = false // 临时重置，让 Close() 执行清理
 	a.shutdownMu.Unlock()
+}
 
+func (a *App) closeAfterRuntimeShutdown(ctx context.Context) {
 	if err := a.Close(); err != nil {
 		logger.Warnf(ctx, "Error during Close(): %v", err)
 	}
-
-	logger.Infof(ctx, "Application shutdown initiated by runtime command")
 }
 
 // incrementRunningCount 增加运行中函数计数

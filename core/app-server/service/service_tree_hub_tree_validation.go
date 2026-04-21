@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/naming"
 )
 
 type hubDirectoryTreeValidationOptions struct {
@@ -36,12 +37,9 @@ func validateHubDirectoryTreeNodeImpl(node *dto.DirectoryTreeNode, parentPath, l
 		return fmt.Errorf("%s 节点不能为空", location)
 	}
 
-	code := strings.TrimSpace(node.Code)
-	if code == "" {
-		return fmt.Errorf("%s 目录 code 不能为空", location)
-	}
-	if strings.Contains(code, "/") {
-		return fmt.Errorf("%s 目录 code 不能包含 /: %s", location, code)
+	code, err := validateHubDirectoryCode(node.Code, location)
+	if err != nil {
+		return err
 	}
 	if node.Type != "" && node.Type != "package" {
 		return fmt.Errorf("%s 目录节点类型无效: %s", location, node.Type)
@@ -65,9 +63,9 @@ func validateHubDirectoryTreeNodeImpl(node *dto.DirectoryTreeNode, parentPath, l
 			return fmt.Errorf("%s 节点不能为空", childLocation)
 		}
 
-		childCode := strings.TrimSpace(child.Code)
-		if childCode == "" {
-			return fmt.Errorf("%s 目录 code 不能为空", childLocation)
+		childCode, err := validateHubDirectoryCode(child.Code, childLocation)
+		if err != nil {
+			return err
 		}
 		if _, exists := seenCodes[childCode]; exists {
 			return fmt.Errorf("%s 下存在重复子目录 code: %s", location, childCode)
@@ -80,4 +78,21 @@ func validateHubDirectoryTreeNodeImpl(node *dto.DirectoryTreeNode, parentPath, l
 	}
 
 	return nil
+}
+
+func validateHubDirectoryCode(rawCode, location string) (string, error) {
+	code := strings.TrimSpace(rawCode)
+	if code == "" {
+		return "", fmt.Errorf("%s 目录 code 不能为空", location)
+	}
+	if code != rawCode {
+		return "", fmt.Errorf("%s 目录 code 不能包含首尾空格: %s", location, rawCode)
+	}
+	if strings.Contains(code, "/") {
+		return "", fmt.Errorf("%s 目录 code 不能包含 /: %s", location, code)
+	}
+	if err := naming.ValidateGoPackageName(code, "目录 code"); err != nil {
+		return "", fmt.Errorf("%s 目录 code 不是合法 Go package 名称: %w", location, err)
+	}
+	return code, nil
 }

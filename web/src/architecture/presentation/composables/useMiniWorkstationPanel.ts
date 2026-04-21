@@ -6,7 +6,7 @@ import type { ChatMessage } from '@/architecture/presentation/composables/useWor
 
 export interface FilePanelItem {
   name: string
-  url: string
+  href: string
   source: 'upload' | 'output'
 }
 
@@ -30,15 +30,15 @@ export function useMiniWorkstationPanel(messages: Ref<ChatMessage[]>) {
     for (const msg of messages.value) {
       if (msg.role === 'user' && msg.files?.length) {
         for (const file of msg.files) {
-          const url = file.url || ''
-          list.push({ name: file.source_name || file.name || '未命名文件', url, source: 'upload' })
+          const href = file.download_url || ''
+          list.push({ name: file.source_name || file.name || '未命名文件', href, source: 'upload' })
         }
       }
       if (msg.role === 'assistant' && msg.tool_calls?.length) {
         const groups = getFileGroupsFromCalls(msg.tool_calls)
         for (const group of groups) {
           for (const file of group.files) {
-            list.push({ name: file.source_name || file.name || '输出文件', url: file.url, source: 'output' })
+            list.push({ name: file.source_name || file.name || '输出文件', href: file.download_url || '', source: 'output' })
           }
         }
       }
@@ -111,12 +111,12 @@ export function useMiniWorkstationPanel(messages: Ref<ChatMessage[]>) {
   }
 
   function previewFile(file: FilePanelItem) {
-    window.open(file.url, '_blank', 'noopener,noreferrer')
+    window.open(file.href, '_blank', 'noopener,noreferrer')
   }
 
   function downloadFile(file: FilePanelItem) {
     const link = document.createElement('a')
-    link.href = file.url
+    link.href = file.href
     link.download = file.name
     link.target = '_blank'
     link.rel = 'noopener noreferrer'

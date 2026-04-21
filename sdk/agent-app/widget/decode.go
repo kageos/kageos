@@ -92,11 +92,26 @@ type ParseModelResult struct {
 // ParseModelWithType 解析结构体模型，返回字段的标签信息和类型信息
 // 避免重复反射，一次性获取所有需要的信息
 func ParseModelWithType(model interface{}) (*ParseModelResult, error) {
+	typ, err := parseModelStructType(model)
+	if err != nil {
+		return nil, err
+	}
+
+	fields, err := parseStructFields(typ)
+	if err != nil {
+		return nil, err
+	}
+	return &ParseModelResult{
+		Tags: fields,
+		Type: typ,
+	}, nil
+}
+
+func parseModelStructType(model interface{}) (reflect.Type, error) {
 	if model == nil {
 		return nil, fmt.Errorf("model is nil")
 	}
 
-	// 获取model的反射值
 	val := reflect.ValueOf(model)
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()
@@ -105,77 +120,7 @@ func ParseModelWithType(model interface{}) (*ParseModelResult, error) {
 	if val.Kind() != reflect.Struct {
 		return nil, fmt.Errorf("model must be a struct or pointer to struct")
 	}
-
-	// 获取类型信息
-	typ := val.Type()
-	var fields []*FieldTags
-
-	// 遍历所有字段
-	for i := 0; i < typ.NumField(); i++ {
-		field := typ.Field(i)
-
-		// 跳过非导出字段
-		if !field.IsExported() {
-			continue
-		}
-
-		// 提取所有标签
-		tags := &FieldTags{
-			Json:         field.Tag.Get("json"),
-			Gorm:         field.Tag.Get("gorm"),
-			Widget:       field.Tag.Get("widget"),
-			Search:       field.Tag.Get("search"),
-			Validate:     field.Tag.Get("validate"),
-			Data:         field.Tag.Get("data"),
-			Callback:     field.Tag.Get("callback"),
-			Permission:   field.Tag.Get("permission"),
-			WidgetParsed: make(map[string]string),
-			DataParsed:   make(map[string]string),
-			Type:         field.Type, // 保存字段类型
-			FieldName:    field.Name, // 保存字段名称
-			Children:     nil,        // 初始化Children为nil
-		}
-
-		// 与 widget:"-" 等价：json:"-" 的字段不参与表单/表格元数据解析
-		if tags.Widget == "-" || isJsonOmit(tags.Json) {
-			continue
-		}
-
-		// 先检查是否是 table 或 form 类型
-		// 如果是，解析标签后直接递归，不需要其他处理
-		if tags.Widget != "" && tags.Widget != "-" {
-			// 先解析 widget 标签获取类型
-			if err := parseTagValue(tags.Widget, tags.WidgetParsed); err != nil {
-				return nil, fmt.Errorf("failed to parse widget tag for field %s: %w", field.Name, err)
-			}
-
-			// 判断是否是 table 或 form 类型
-			widgetType := tags.WidgetParsed["type"]
-			if widgetType == TypeTable || widgetType == TypeForm {
-				// 是 table/form，直接递归解析子结构
-				if err := parseNestedStructOrSlice(field.Type, tags); err != nil {
-					return nil, fmt.Errorf("failed to parse nested struct for field %s: %w", field.Name, err)
-				}
-				// table/form 不需要解析 data 标签，直接添加到字段列表
-				fields = append(fields, tags)
-				continue
-			}
-		}
-
-		// 不是 table/form 类型，正常解析 data 标签
-		if tags.Data != "" {
-			if err := parseTagValue(tags.Data, tags.DataParsed); err != nil {
-				return nil, fmt.Errorf("failed to parse data tag for field %s: %w", field.Name, err)
-			}
-		}
-
-		fields = append(fields, tags)
-	}
-
-	return &ParseModelResult{
-		Tags: fields,
-		Type: typ,
-	}, nil
+	return val.Type(), nil
 }
 
 // parseTagValue 解析标签值，例如 "name:工单标题;type:input" -> {"name": "工单标题", "type": "input"}
@@ -256,69 +201,71 @@ func parseNestedStructOrSlice(fieldType reflect.Type, parentTags *FieldTags) err
 
 // parseStructFields 解析结构体的所有字段
 func parseStructFields(structType reflect.Type) ([]*FieldTags, error) {
-	var children []*FieldTags
+	fields := make([]*FieldTags, 0, structType.NumField())
 
 	for i := 0; i < structType.NumField(); i++ {
 		field := structType.Field(i)
-
-		// 跳过非导出字段
-		if !field.IsExported() {
+		tags, ok, err := parseStructField(field)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
 			continue
 		}
-
-		// 提取所有标签
-		childTags := &FieldTags{
-			Json:         field.Tag.Get("json"),
-			Gorm:         field.Tag.Get("gorm"),
-			Widget:       field.Tag.Get("widget"),
-			Search:       field.Tag.Get("search"),
-			Validate:     field.Tag.Get("validate"),
-			Data:         field.Tag.Get("data"),
-			Callback:     field.Tag.Get("callback"),
-			Permission:   field.Tag.Get("permission"),
-			WidgetParsed: make(map[string]string),
-			DataParsed:   make(map[string]string),
-			Type:         field.Type,
-			FieldName:    field.Name,
-			Children:     nil,
-		}
-
-		// 与 widget:"-" 等价：json:"-" 一并跳过
-		if childTags.Widget == "-" || isJsonOmit(childTags.Json) {
-			continue
-		}
-
-		// 先检查是否是 table 或 form 类型
-		if childTags.Widget != "" && childTags.Widget != "-" {
-			// 先解析 widget 标签获取类型
-			if err := parseTagValue(childTags.Widget, childTags.WidgetParsed); err != nil {
-				return nil, fmt.Errorf("failed to parse widget tag for field %s: %w", field.Name, err)
-			}
-
-			// 判断是否是 table 或 form 类型
-			widgetType := childTags.WidgetParsed["type"]
-			if widgetType == TypeTable || widgetType == TypeForm {
-				// 是 table/form，直接递归解析子结构
-				if err := parseNestedStructOrSlice(field.Type, childTags); err != nil {
-					return nil, fmt.Errorf("failed to parse nested struct for field %s: %w", field.Name, err)
-				}
-				// table/form 不需要解析 data 标签，直接添加到children列表
-				children = append(children, childTags)
-				continue
-			}
-		}
-
-		// 不是 table/form 类型，正常解析 data 标签
-		if childTags.Data != "" {
-			if err := parseTagValue(childTags.Data, childTags.DataParsed); err != nil {
-				return nil, fmt.Errorf("failed to parse data tag for field %s: %w", field.Name, err)
-			}
-		}
-
-		children = append(children, childTags)
+		fields = append(fields, tags)
 	}
 
-	return children, nil
+	return fields, nil
+}
+
+func parseStructField(field reflect.StructField) (*FieldTags, bool, error) {
+	if !field.IsExported() {
+		return nil, false, nil
+	}
+
+	tags := newFieldTags(field)
+	if tags.Widget == "-" || isJsonOmit(tags.Json) {
+		return nil, false, nil
+	}
+
+	if tags.Widget != "" {
+		if err := parseTagValue(tags.Widget, tags.WidgetParsed); err != nil {
+			return nil, false, fmt.Errorf("failed to parse widget tag for field %s: %w", field.Name, err)
+		}
+
+		widgetType := tags.WidgetParsed["type"]
+		if widgetType == TypeTable || widgetType == TypeForm {
+			if err := parseNestedStructOrSlice(field.Type, tags); err != nil {
+				return nil, false, fmt.Errorf("failed to parse nested struct for field %s: %w", field.Name, err)
+			}
+			return tags, true, nil
+		}
+	}
+
+	if tags.Data != "" {
+		if err := parseTagValue(tags.Data, tags.DataParsed); err != nil {
+			return nil, false, fmt.Errorf("failed to parse data tag for field %s: %w", field.Name, err)
+		}
+	}
+
+	return tags, true, nil
+}
+
+func newFieldTags(field reflect.StructField) *FieldTags {
+	return &FieldTags{
+		Json:         field.Tag.Get("json"),
+		Gorm:         field.Tag.Get("gorm"),
+		Widget:       field.Tag.Get("widget"),
+		Search:       field.Tag.Get("search"),
+		Validate:     field.Tag.Get("validate"),
+		Data:         field.Tag.Get("data"),
+		Callback:     field.Tag.Get("callback"),
+		Permission:   field.Tag.Get("permission"),
+		WidgetParsed: make(map[string]string),
+		DataParsed:   make(map[string]string),
+		Type:         field.Type,
+		FieldName:    field.Name,
+	}
 }
 
 // IsSkipField 检查是否应该跳过该字段的解析
@@ -368,8 +315,13 @@ func ConvertTagsToField(tags *FieldTags) *Field {
 		field.Widget.Config = widget.Config()
 	}
 
-	// 根据Go类型推断数据类型，完全基于Go类型，与widget type无关
-	field.Data.Type = inferDataType(tags.Type)
+	// files 的表单协议与落库协议都是字符串 refs，Go 字段也应定义为 string。
+	if widgetType == TypeFiles {
+		field.Data.Type = DataTypeString
+	} else {
+		// 根据Go类型推断数据类型，完全基于Go类型，与widget type无关
+		field.Data.Type = inferDataType(tags.Type)
+	}
 	if format := strings.TrimSpace(tags.DataParsed["format"]); format != "" {
 		field.Data.Format = format
 	}

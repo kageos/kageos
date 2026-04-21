@@ -83,6 +83,19 @@ func TestValidateHubDirectoryTreeForPublish_RejectsDuplicateSiblingCodes(t *test
 	}
 }
 
+func TestValidateHubDirectoryTreeRejectsInvalidGoPackageCode(t *testing.T) {
+	tree := buildValidNestedAppDirectoryTree()
+	tree.Subdirectories[0].Code = "job-center"
+
+	err := validateHubDirectoryTreeForInstallImpl(tree)
+	if err == nil {
+		t.Fatal("expected invalid package code validation error")
+	}
+	if !strings.Contains(err.Error(), "合法 Go package 名称") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestValidateHubDirectoryTreeForInstall_RejectsEmptyNestedCode(t *testing.T) {
 	tree := buildValidNestedAppDirectoryTree()
 	tree.Subdirectories[0].Subdirectories[0].Code = ""

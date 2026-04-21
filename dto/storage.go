@@ -14,6 +14,7 @@ type GetUploadTokenReq struct {
 	ContentType  string       `json:"content_type"`
 	FileSize     int64        `json:"file_size"`
 	Router       string       `json:"router,omitempty"`        // 函数路径，例如：luobei/test88888/plugins/cashier_desk（可选，未提供时使用默认路由：/{username}/default）
+	Bucket       string       `json:"bucket,omitempty"`        // 存储桶；为空时使用 storage 默认桶
 	Hash         string       `json:"hash,omitempty"`          // 文件 hash（预留，用于秒传）
 	UploadSource UploadSource `json:"upload_source,omitempty"` // ✨ 上传来源：browser（浏览器）或 server（服务端），默认为 browser
 }
@@ -32,15 +33,16 @@ type GetUploadTokenResp struct {
 	// 通用字段
 	Key      string       `json:"key"`                // 文件 Key
 	Bucket   string       `json:"bucket"`             // 存储桶
+	Ref      string       `json:"ref"`                // 稳定文件引用：bucket/object_key
 	Expire   string       `json:"expire"`             // 过期时间
 	Method   UploadMethod `json:"method"`             // 上传方式 ✨ 新增
 	Storage  string       `json:"storage,omitempty"`  // ✨ 存储引擎（当前固定为 minio）
 	Username string       `json:"username,omitempty"` // ✨ 当前登录用户的用户名
 
 	// 预签名 URL 上传（当前官方仅 MinIO）
-	URL       string            `json:"url,omitempty"`        // ✨ 外部访问的预签名 URL（前端使用）
-	ServerURL string            `json:"server_url,omitempty"` // ✨ 内部访问的预签名 URL（服务端/SDK使用）
-	Headers   map[string]string `json:"headers,omitempty"`    // 请求头
+	UploadURL       string            `json:"upload_url,omitempty"`        // 外部访问的预签名上传地址（前端使用）
+	ServerUploadURL string            `json:"server_upload_url,omitempty"` // 内部访问的预签名上传地址（服务端/SDK使用）
+	Headers         map[string]string `json:"headers,omitempty"`           // 请求头
 
 	// 上传域名信息 ✨ 新增
 	UploadHost   string `json:"upload_host,omitempty"`   // 上传目标 host（例如：localhost:9000，用于 CORS、进度监听）
@@ -61,12 +63,12 @@ type GetUploadTokenResp struct {
 	ServerDownloadURL string `json:"server_download_url,omitempty"` // ✨ 内部访问的下载地址（服务端/SDK使用）
 }
 
-// GetFileURLResp 获取文件 URL 响应
+// GetFileURLResp 获取文件下载地址响应
 type GetFileURLResp struct {
-	URL       string `json:"url"`                  // 预签名下载 URL
-	Key       string `json:"key"`                  // 文件 Key
-	Expire    string `json:"expire"`               // 过期时间
-	CDNDomain string `json:"cdn_domain,omitempty"` // ✨ CDN 域名（可选，用于前端构建 CDN URL）
+	DownloadURL string `json:"download_url"`         // 预签名下载地址
+	Key         string `json:"key"`                  // 文件 Key
+	Expire      string `json:"expire"`               // 过期时间
+	CDNDomain   string `json:"cdn_domain,omitempty"` // CDN 域名（可选，用于前端构建 CDN URL）
 }
 
 // GetFileInfoResp 获取文件信息响应
@@ -97,10 +99,12 @@ type BatchUploadCompleteReq struct {
 // BatchUploadCompleteItem 批量上传完成项
 type BatchUploadCompleteItem struct {
 	Key         string `json:"key" binding:"required"` // 文件 Key
+	Bucket      string `json:"bucket,omitempty"`       // 存储桶；为空时使用默认桶
 	Success     bool   `json:"success"`                // 是否成功
 	Error       string `json:"error,omitempty"`        // 错误信息（如果失败）
 	Router      string `json:"router,omitempty"`       // ✨ 函数路径（上传成功后需要，用于记录）
 	FileName    string `json:"file_name,omitempty"`    // ✨ 文件名（上传成功后需要，用于记录）
+	Description string `json:"description,omitempty"`  // 文件描述
 	FileSize    int64  `json:"file_size,omitempty"`    // ✨ 文件大小（上传成功后需要，用于记录）
 	ContentType string `json:"content_type,omitempty"` // ✨ 文件类型（上传成功后需要，用于记录）
 	Hash        string `json:"hash,omitempty"`         // ✨ 文件hash（可选，用于秒传）
@@ -114,9 +118,53 @@ type BatchUploadCompleteResp struct {
 // BatchUploadCompleteResult 批量上传完成结果
 type BatchUploadCompleteResult struct {
 	Key               string `json:"key"`                           // 文件 Key
+	Bucket            string `json:"bucket,omitempty"`              // 存储桶
+	Ref               string `json:"ref,omitempty"`                 // 稳定文件引用：bucket/object_key
 	Status            string `json:"status"`                        // 状态：completed/failed
 	DownloadURL       string `json:"download_url,omitempty"`        // ✨ 外部访问的下载地址（前端使用）
+	Description       string `json:"description,omitempty"`         // 文件描述
 	ServerDownloadURL string `json:"server_download_url,omitempty"` // ✨ 内部访问的下载地址（服务端使用）
 	Hash              string `json:"hash,omitempty"`                // ✨ 文件hash（用于文件缓存去重）
 	Error             string `json:"error,omitempty"`               // 错误信息（如果失败）
+}
+
+type ResolveFileRefsReq struct {
+	Refs     []string `json:"refs" binding:"required,min=1,max=100"`
+	Audience string   `json:"audience,omitempty"` // browser/server/all；为空时返回 browser 和 server URL
+}
+
+type ResolveFileRefsResp struct {
+	Files []ResolvedFile `json:"files"`
+}
+
+type UpdateFileDescriptionReq struct {
+	Ref         string `json:"ref,omitempty"`
+	Bucket      string `json:"bucket,omitempty"`
+	Key         string `json:"key,omitempty"`
+	Description string `json:"description"`
+}
+
+type UpdateFileDescriptionResp struct {
+	Ref         string `json:"ref"`
+	Bucket      string `json:"bucket"`
+	Key         string `json:"key"`
+	Description string `json:"description"`
+}
+
+type ResolvedFile struct {
+	Ref               string `json:"ref"`
+	Bucket            string `json:"bucket"`
+	Key               string `json:"key"`
+	Name              string `json:"name,omitempty"`
+	SourceName        string `json:"source_name,omitempty"`
+	Storage           string `json:"storage,omitempty"`
+	Description       string `json:"description,omitempty"`
+	Size              int64  `json:"size,omitempty"`
+	ContentType       string `json:"content_type,omitempty"`
+	Hash              string `json:"hash,omitempty"`
+	UploadUser        string `json:"upload_user,omitempty"`
+	UploadTs          int64  `json:"upload_ts,omitempty"`
+	DownloadURL       string `json:"download_url,omitempty"`
+	ServerDownloadURL string `json:"server_download_url,omitempty"`
+	Error             string `json:"error,omitempty"`
 }

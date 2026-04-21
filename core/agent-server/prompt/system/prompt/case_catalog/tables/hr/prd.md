@@ -354,7 +354,7 @@ type HrResume struct {
 	CurrentCompany  string       `json:"current_company" gorm:"column:current_company;comment:当前公司" widget:"name:当前公司;type:input" search:"like"`
 	CurrentPosition string       `json:"current_position" gorm:"column:current_position;comment:当前职位" widget:"name:当前职位;type:input" search:"like"`
 	ResumeContent   string       `json:"resume_content" gorm:"column:resume_content;type:text;comment:简历内容" widget:"name:简历内容;type:text_area" search:"like" validate:"required,min=10"`
-	ResumeFile      *types.Files `json:"resume_file" gorm:"column:resume_file;type:json;comment:简历附件" widget:"name:简历附件;type:files"`
+	ResumeFile      string `json:"resume_file" gorm:"column:resume_file;type:text;comment:简历附件" widget:"name:简历附件;type:files"`
 	Status          string       `json:"status" gorm:"column:status;comment:投递状态;default:待筛选" widget:"name:投递状态;type:select;options:待筛选,已通过,已拒绝,待面试,已录用;options_colors:info,success,danger,warning,success;default:待筛选" search:"in" validate:"required,oneof=待筛选 已通过 已拒绝 待面试 已录用"`
 	Remark          string       `json:"remark" gorm:"column:remark;type:text;comment:备注" widget:"name:备注;type:text_area" search:"like"`
 	Applicant       string       `json:"applicant" gorm:"column:applicant;comment:投递人" widget:"name:投递人;type:user;default:Me()" search:"in" permission:"read"`

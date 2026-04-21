@@ -105,7 +105,7 @@ func (h *Workspace) CallTool(c *gin.Context) {
 	}
 	ctx := contextx.ToContext(c)
 	args := service.ToToolArgs(req.Arguments)
-	result := h.toolReg.CallTool(ctx, req.ToolName, args, req.FullCodePath, nil)
+	result := h.toolReg.CallTool(ctx, req.ToolName, args, req.FullCodePath, "")
 	response.OkWithData(c, &dto.CallToolResp{Content: result.Content, IsError: result.IsError, Data: result.Data})
 }
 

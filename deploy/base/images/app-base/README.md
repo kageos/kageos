@@ -85,7 +85,7 @@ bash deploy/base/scripts/build-app-base-image.sh --force --no-cache
 
 - **来源**：Ubuntu 22.04 仓库
 - **常见能力**：转码、抽帧、音频处理、字幕/滤镜处理、`drawtext` 中文
-- **中文支持**：镜像内已安装 `fontconfig` 和 `Noto CJK` 字体，可直接配合 `drawtext` 使用
+- **中文支持**：镜像内已安装 `fontconfig`、`Noto CJK`、`WenQuanYi Zen Hei` 字体，可直接配合 `drawtext` 使用；matplotlib 默认也会优先使用中文字体，避免标题、坐标轴、图例出现方框。
 
 **注意**：具体编译选项和编码器能力以镜像内 `ffmpeg -version`、`ffmpeg -encoders`、`ffmpeg -codecs` 的实际输出为准；分发时仍需遵守 FFmpeg 及其启用编解码器的许可证要求。
 
@@ -318,15 +318,28 @@ func ExecutePythonScript(scriptPath string, args map[string]interface{}) ([]byte
 
 Python 包可以通过 `pip install` 动态安装，SDK 的 `WithPackages()` 方法会自动安装依赖包。
 
-**常用 Python 包**（需要时自动安装）：
+**常用 Python 包**（基础镜像预装；SDK 仍支持按需安装额外包）：
 
 - `pandas` - 数据分析
 - `numpy` - 数值计算
 - `matplotlib` - 数据可视化
 - `requests` - HTTP 请求
 - `Pillow` - 图像处理
+- `pytesseract` - Tesseract OCR 的 Python 封装
 - `PyPDF2` - PDF 处理
 - `openpyxl` - Excel 处理
+- `xlsxwriter` / `xlrd` - Excel 写入增强 / 老版 Excel 读取
+- `xlwt` - 老版 Excel `.xls` 写入
+- `python-pptx` - PPT 生成
+- `plotly` / `pyecharts` - 交互图表 / 中文图表
+- `beautifulsoup4` / `lxml` / `aiohttp` - 网页解析 / 异步 HTTP
+- `jieba` / `snownlp` - 中文分词 / 中文情感分析
+- `wordcloud` - 词云图
+- `tabulate` - 终端/Markdown 表格输出
+- `arrow` / `python-dateutil` - 日期处理 / 智能日期解析
+- `pymysql` - MySQL 连接
+- `PyYAML` / `toml` - 配置文件解析
+- `qrcode` / `python-barcode` - 二维码 / 条形码生成
 
 ## 许可证合规性
 

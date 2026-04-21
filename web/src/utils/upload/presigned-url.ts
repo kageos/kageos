@@ -56,7 +56,12 @@ export class PresignedURLUploader implements Uploader {
       // 发起上传（HTTP PUT）
       // presigned URL 可能指向内部地址（如 localhost:9000），需要替换为当前浏览器 origin
       // 通过 Nginx 反向代理 /ai-agent-os/ 转发到 MinIO
-      const uploadUrl = this.rewritePresignedUrl(credentials.url!)
+      if (!credentials.upload_url) {
+        reject(new Error('上传凭证缺少 upload_url'))
+        return
+      }
+
+      const uploadUrl = this.rewritePresignedUrl(credentials.upload_url)
       this.xhr.open('PUT', uploadUrl)
       
       // 设置请求头
@@ -107,4 +112,3 @@ export class PresignedURLUploader implements Uploader {
     return `${(speed / (1024 * 1024)).toFixed(2)} MB/s`
   }
 }
-

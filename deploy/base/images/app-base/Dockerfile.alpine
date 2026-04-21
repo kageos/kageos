@@ -99,6 +99,9 @@ RUN apk add --no-cache \
     pngquant \
     python3 \
     py3-pip \
+    tesseract-ocr \
+    tesseract-ocr-data-eng \
+    tesseract-ocr-data-chi_sim \
     unpaper \
     vips-tools \
     libass \
@@ -107,10 +110,21 @@ RUN apk add --no-cache \
     libvorbis \
     libtheora \
     freetype \
-    fontconfig
+    fontconfig \
+    font-noto-cjk \
+    ttf-dejavu
 
 # 创建 lua 命令的符号链接（Alpine 安装的是 lua5.4）
 RUN ln -sf /usr/bin/lua5.4 /usr/bin/lua
+
+# matplotlib 中文字体默认配置
+RUN fc-cache -fv \
+    && mkdir -p /etc/matplotlib /tmp/matplotlib \
+    && chmod 1777 /tmp/matplotlib \
+    && printf 'font.family: sans-serif\nfont.sans-serif: Noto Sans CJK SC, Noto Sans CJK JP, Noto Sans CJK TC, DejaVu Sans\naxes.unicode_minus: False\n' > /etc/matplotlib/matplotlibrc \
+    && echo "✓ matplotlib matplotlibrc (CJK) configured"
+ENV MATPLOTLIBRC=/etc/matplotlib/matplotlibrc \
+    MPLCONFIGDIR=/tmp/matplotlib
 
 # 创建 python 命令的符号链接（Alpine 安装的是 python3）
 # 使用 -sf 强制创建，如果已存在则覆盖
@@ -155,8 +169,30 @@ RUN pip3 install --no-cache-dir --break-system-packages \
     python-docx \
     PyPDF2 \
     pdfplumber \
+    reportlab \
+    cryptography \
+    xlsxwriter \
+    python-pptx \
+    plotly \
+    pyecharts \
+    beautifulsoup4 \
+    lxml \
+    aiohttp \
+    PyYAML \
+    qrcode \
+    python-barcode \
+    xlrd \
+    xlwt \
+    toml \
+    tabulate \
+    arrow \
+    python-dateutil \
+    wordcloud \
+    pymysql \
+    pytesseract \
     # NLP（推荐，中文分词）
     jieba \
+    snownlp \
     # HTTP 请求（必装）
     requests \
     && echo "✓ Python core packages installed"
@@ -189,7 +225,6 @@ RUN pip3 install --no-cache-dir --break-system-packages \
     --no-deps \
     paddleocr \
     && pip3 install --no-cache-dir --break-system-packages \
-    PyYAML>=6 \
     paddlex \
     && echo "✓ PaddleOCR installed"
 
@@ -228,7 +263,12 @@ RUN ffmpeg -version | head -n 1 && \
     lua -v && \
     python3 --version && \
     pip3 --version && \
-    python3 -c "import pandas, numpy, matplotlib, jieba, requests, paddleocr; print('✓ Core Python packages verified (including PaddleOCR)')" && \
+    tesseract --version | head -n 1 && \
+    tesseract --list-langs | tee /tmp/tesseract-langs.txt && \
+    grep -x eng /tmp/tesseract-langs.txt && \
+    grep -x chi_sim /tmp/tesseract-langs.txt && \
+    python3 -c "import pandas, numpy, matplotlib, jieba, snownlp, requests, paddleocr, pytesseract; print('✓ Core Python packages verified (including PaddleOCR and pytesseract)')" && \
+    python3 -c "import xlsxwriter, pptx, plotly, pyecharts, bs4, yaml, qrcode, barcode, xlrd, xlwt, aiohttp, toml, tabulate, arrow, dateutil, wordcloud, pymysql; print('✓ Extended Python packages verified')" && \
     echo "✓ All tools installed successfully"
 
 # 设置时区

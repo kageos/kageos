@@ -141,19 +141,22 @@ export function useFilesUploadManager(options: UseFilesUploadManagerOptions) {
         if (result && item.success && result.status === 'completed') {
           if (uploadingFile && uploadingFile.fileInfo) {
             uploadingFile.downloadURL = result.download_url || ''
+            const ref = result.ref || uploadingFile.fileInfo.ref || `${result.bucket || uploadingFile.fileInfo.bucket}/${item.key}`
 
             newFiles.push({
+              ref,
+              bucket: result.bucket || uploadingFile.fileInfo.bucket,
+              key: item.key,
               name: uploadingFile.name,
               source_name: uploadingFile.name,
               storage: uploadingFile.storage || '',
-              description: '',
+              description: result.description || '',
               hash: result.hash || uploadingFile.fileInfo.hash || '',
               size: uploadingFile.size,
               upload_ts: Date.now(),
-              local_path: '',
               is_uploaded: true,
-              url: result.download_url || '',
-              server_url: result.server_download_url || '',
+              download_url: result.download_url || '',
+              server_download_url: result.server_download_url || '',
               downloaded: false,
               upload_user: item.upload_user || '',
             })
@@ -295,6 +298,7 @@ export function useFilesUploadManager(options: UseFilesUploadManagerOptions) {
         }
         addToCompleteQueue({
           key: uploadResult.fileInfo.key,
+          bucket: uploadResult.fileInfo.bucket,
           success: true,
           router: uploadResult.fileInfo.router,
           file_name: uploadResult.fileInfo.file_name,
@@ -316,6 +320,7 @@ export function useFilesUploadManager(options: UseFilesUploadManagerOptions) {
       if (error.fileInfo) {
         addToCompleteQueue({
           key: error.fileInfo.key,
+          bucket: error.fileInfo.bucket,
           success: false,
           error: error.fileInfo.error || error.message || '上传失败',
           router: error.fileInfo.router,

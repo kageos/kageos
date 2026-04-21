@@ -129,29 +129,15 @@ export function useFilesPreviewAndActions(options: UseFilesPreviewAndActionsOpti
         throw new Error('文件地址缺失')
       }
 
-      const token = localStorage.getItem('token') || ''
-      const res = await fetch(downloadURL, {
-        headers: {
-          'X-Token': token,
-        },
-      })
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ msg: res.statusText }))
-        throw new Error(errorData.msg || `下载失败: ${res.statusText}`)
-      }
-
-      const blob = await res.blob()
-      const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
-      link.href = url
+      link.href = downloadURL
       link.download = file.name || 'download'
+      link.rel = 'noopener'
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
 
-      ElMessage.success('下载成功')
+      ElMessage.success('已开始下载')
     } catch (error: any) {
       Logger.error('[FilesWidget]', 'Download failed', error)
       ElMessage.error(`下载失败: ${error.message}`)

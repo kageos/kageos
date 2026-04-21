@@ -18,6 +18,7 @@ import type { App } from '../../domain/services/WorkspaceDomainService'
 import type { App as AppType, CreateAppRequest } from '@/types'
 import { deleteApp, getAppWithServiceTree, updateApp } from '@/api/app'
 import { useAuthStore } from '@/stores/auth'
+import { normalizeGoPackageName, validateGoPackageName } from '@/utils/goPackageName'
 import { buildAppResourcePath } from '@/utils/resourcePath'
 import { Logger } from '@/core/utils/logger'
 
@@ -166,35 +167,22 @@ export function useWorkspaceApp(
       return
     }
 
-    // 校验英文标识必须是合法的 Go package 名称
-    const code = createAppForm.value.code.trim()
-    const goPackageRegex = /^[a-z][a-z0-9_]*$/
-    const goKeywords = new Set(['break', 'case', 'chan', 'const', 'continue', 'default', 'defer', 'else', 'fallthrough', 'for', 'func', 'go', 'goto', 'if', 'import', 'interface', 'map', 'package', 'range', 'return', 'select', 'struct', 'switch', 'type', 'var'])
-    if (code.length < 2 || code.length > 50) {
+    const code = normalizeGoPackageName(createAppForm.value.code)
+    const codeError = validateGoPackageName(code, '英文标识', { minLength: 2 })
+    if (codeError) {
       ElNotification.warning({
         title: '提示',
-        message: '英文标识长度须为 2-50 个字符'
-      })
-      return
-    }
-    if (!goPackageRegex.test(code)) {
-      ElNotification.warning({
-        title: '提示',
-        message: '英文标识必须是合法的 Go package 名称：以小写字母开头，只能包含小写字母、数字和下划线'
-      })
-      return
-    }
-    if (goKeywords.has(code)) {
-      ElNotification.warning({
-        title: '提示',
-        message: `英文标识不能使用 Go 保留关键字：${code}`
+        message: codeError
       })
       return
     }
 
     try {
       creatingApp.value = true
-      const createResponse = await apiClient.post<{ user: string; app: string; app_dir: string }>('/workspace/api/v1/app/create', createAppForm.value)
+      const createResponse = await apiClient.post<{ user: string; app: string; app_dir: string }>('/workspace/api/v1/app/create', {
+        ...createAppForm.value,
+        code
+      })
       ElNotification.success({
         title: '成功',
         message: '工作空间创建成功'

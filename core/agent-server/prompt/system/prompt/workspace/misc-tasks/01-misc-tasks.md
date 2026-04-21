@@ -40,9 +40,11 @@
 - **keyword**（必填）：多关键词用 `|` 分隔（OR 语义），如 `折线图|chart|画图`、`图片|png|转换`。
 - **template_type**（可选，建议传）：按函数类型过滤。**绝大部分杂活、画图、转格式、解析文件等都由 form 完成**，应传 `template_type=form` 缩小范围、避免混入大量 table/chart。仅当用户明确是「表格增删改查」或「图表数据查询」时才传 `table` 或 `chart`；不传则返回全部类型。
 
-### 2. 有则直接执行
+### 2. 有则确认参数后执行
 
-若返回中有**已注册函数**，根据类型选用工具直接执行（form 用 `run_form_submit`、table 用 `run_table_search` 等），无需询问用户。
+若返回中有**已注册函数**，根据类型选用工具执行（form 用 `run_form_submit`、table 用 `run_table_search` 等），无需询问用户。
+
+执行前必须已有权威参数结构：如果 `search_tools` 返回的字段摘要已经包含字段名、必填项、枚举值、文件字段和默认值行为，就按摘要传参；如果只有名称、路径或描述，先读取对应源码或请求更完整的 request 输出。不要根据函数名、路由名、相似工具或底层命令行工具习惯猜 body/url_query。
 
 ### 3. 无则：纯展示类可试 HTML，否则先问再建
 
@@ -57,38 +59,22 @@
 
 ---
 
-## files 组件传参（易错）
+## files 组件传参
 
-**表单（run_form_submit）的 request 与表格（run_table_create、run_table_update）的 model** 里凡是 `widget.type === "files"` 的字段，传参时须为**对象**（不是数组），内含 `files` 数组：
+**表单（run_form_submit）的 request 与表格（run_table_create、run_table_update）的 model** 里凡是 `widget.type === "files"` 的字段，传参时须为**字符串文件引用**，格式为 `bucket/object_key`；多文件用英文逗号分隔。
 
-**正确**：
+示例：
 ```json
 {
-  "input_files": {
-    "files": [
-      { "name": "xxx", "source_name": "原始文件名.mp4", "storage": "minio", "url": "https://...", "server_url": "http://...", "size": 12345, "is_uploaded": true }
-    ],
-    "widget_type": "files",
-    "data_type": "struct"
-  },
+  "input_files": "ai-agent-os/workspace/chat/2026/04/20/xxx.mp4",
   "output_format": "mp4"
 }
 ```
-
-**错误**（直接传数组，会报 unmarshal 错误）：
-```json
-{
-  "input_files": [ { "name": "xxx", "url": "..." } ],
-  "output_format": "mp4"
-}
-```
-
----
 
 ## search_tools 返回格式
 
 本工具用于**搜索可用工具**，返回包含：
 - **【内置工具】**：匹配到的内置工具，每条为「名称：描述」。
-- **【已注册函数】**：仅限 **system 用户下**已注册的表单/表格/图表函数；含一句统一调用方式说明；每条为 name、full_code_path、已使用 N 次（若有）、description、type、request（JSON）。不返回 response，减少冗余。
+- **【已注册函数】**：仅限 **system 用户下**已注册的表单/表格/图表函数；含一句统一调用方式说明；每条为 name、full_code_path、已使用 N 次（若有）、description、type、字段摘要；需要原始 request 时传 `request_output="json"` 或 `"both"`。
 
-从已注册函数中取 full_code_path 作为 `run_form_submit` 的第一个参数，按 request 各字段的 code 构造 body。
+从已注册函数中取 full_code_path 作为执行工具的路径参数，按字段摘要或 request 中的字段 code/json 名构造 body/url_query。

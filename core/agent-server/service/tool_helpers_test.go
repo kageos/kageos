@@ -40,14 +40,7 @@ func TestResolveTypedFunctionFullCodePathArg(t *testing.T) {
 func TestToolResultWithStructuredData(t *testing.T) {
 	t.Run("stores raw structured data for frontend consumption", func(t *testing.T) {
 		payload := map[string]interface{}{
-			"output_files": map[string]interface{}{
-				"files": []interface{}{
-					map[string]interface{}{
-						"name": "clip.mp4",
-						"url":  "https://example.com/clip.mp4",
-					},
-				},
-			},
+			"output_files": "ai-agent-os/workspace/output/clip.mp4",
 		}
 
 		result := toolResultWithStructuredData(payload, false)
@@ -55,7 +48,7 @@ func TestToolResultWithStructuredData(t *testing.T) {
 		if result.IsError {
 			t.Fatal("expected success result")
 		}
-		if !containsAll(result.Content, "output_files", "clip.mp4") {
+		if !containsAll(result.Content, "output_files", "ai-agent-os/workspace/output/clip.mp4") {
 			t.Fatalf("unexpected content: %s", result.Content)
 		}
 		got, ok := result.Data.(map[string]interface{})
