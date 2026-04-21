@@ -9,6 +9,7 @@ import { buildEditFunctionDetail, filterDetailInitialData, getEditableFieldCodes
 import { createFormViewRuntime, buildInitialDataFromFormDataStore } from './formViewRuntime'
 import { buildTableDetailRowPayload } from './tableViewRouteRuntime'
 import { buildNextTableSyncQuery } from './tableViewURLRuntime'
+import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
 
 function createMockEventBus(): IEventBus {
   const listeners = new Map<string, Set<(payload?: any) => void>>()
@@ -77,42 +78,48 @@ describe('table detail edit flow runtime', () => {
       name: '用户列表',
       router: '/workspace/demo/users',
       template_type: TEMPLATE_TYPE.TABLE,
-      request: [
-        {
-          code: 'status',
-          name: '状态',
-          widget: { type: 'select' }
+      schema: {
+        version: 1,
+        type: 'table',
+        table: {
+          request: [
+            {
+              code: 'status',
+              name: '状态',
+              widget: { type: 'select' }
+            }
+          ],
+          fields: [
+            {
+              code: 'id',
+              name: 'ID',
+              widget: { type: 'ID' },
+              display: { scenes: ['list'] }
+            },
+            {
+              code: 'name',
+              name: '姓名',
+              widget: { type: 'input', config: {} },
+              data: { type: 'string' },
+              display: { scenes: ['update'] }
+            },
+            {
+              code: 'status',
+              name: '状态',
+              widget: { type: 'select', config: {} },
+              data: { type: 'string' },
+              display: { scenes: ['update'] }
+            },
+            {
+              code: 'created_by',
+              name: '创建人',
+              widget: { type: 'input', config: {} },
+              data: { type: 'string' },
+              display: { scenes: ['list'] }
+            }
+          ]
         }
-      ],
-      response: [
-        {
-          code: 'id',
-          name: 'ID',
-          widget: { type: 'id' },
-          table_permission: 'read'
-        },
-        {
-          code: 'name',
-          name: '姓名',
-          widget: { type: 'input', config: {} },
-          data: { type: 'string' },
-          table_permission: 'update'
-        },
-        {
-          code: 'status',
-          name: '状态',
-          widget: { type: 'select', config: {} },
-          data: { type: 'string' },
-          table_permission: 'update'
-        },
-        {
-          code: 'created_by',
-          name: '创建人',
-          widget: { type: 'input', config: {} },
-          data: { type: 'string' },
-          table_permission: 'read'
-        }
-      ]
+      }
     } as any
 
     const tableData = [
@@ -175,30 +182,38 @@ describe('table detail edit flow runtime', () => {
       name: '用户编辑',
       router: '/workspace/demo/users',
       template_type: TEMPLATE_TYPE.FORM,
-      request: [
-        {
-          code: 'name',
-          name: '姓名',
-          widget: { type: 'input', config: {} },
-          data: { type: 'string' }
-        },
-        {
-          code: 'status',
-          name: '状态',
-          widget: { type: 'select', config: {} },
-          data: { type: 'string' }
+      schema: {
+        version: 1,
+        type: 'form',
+        form: {
+          request: [
+            {
+              code: 'name',
+              name: '姓名',
+              widget: { type: 'input', config: {} },
+              data: { type: 'string' }
+            },
+            {
+              code: 'status',
+              name: '状态',
+              widget: { type: 'select', config: {} },
+              data: { type: 'string' }
+            }
+          ],
+          response: []
         }
-      ]
+      }
     } as any
+    const editRequestFields = getFormRequestFields(editFunctionDetail)
 
     const initialData = {
       name: 'Bob',
       status: 'closed'
     }
 
-    runtime.applicationService.initializeForm(editFunctionDetail.request, initialData, true)
+    runtime.applicationService.initializeForm(editRequestFields, initialData, true)
 
-    expect(runtime.domainService.getSubmitData(editFunctionDetail.request)).toEqual(initialData)
+    expect(runtime.domainService.getSubmitData(editRequestFields)).toEqual(initialData)
 
     runtime.applicationService.updateFieldValue('name', {
       raw: 'Bobby',
@@ -206,10 +221,10 @@ describe('table detail edit flow runtime', () => {
       meta: {}
     })
 
-    const currentSubmitData = runtime.domainService.getSubmitData(editFunctionDetail.request)
+    const currentSubmitData = runtime.domainService.getSubmitData(editRequestFields)
 
     expect(buildInitialDataFromFormDataStore({
-      fields: editFunctionDetail.request,
+      fields: editRequestFields,
       formDataStore: runtime.formDataStore
     })).toEqual({
       name: 'Bobby',
@@ -228,36 +243,42 @@ describe('table detail edit flow runtime', () => {
       router: '/workspace/demo/users',
       method: 'PUT',
       template_type: TEMPLATE_TYPE.TABLE,
-      request: [
-        {
-          code: 'status',
-          name: '状态',
-          widget: { type: 'select', config: {} }
+      schema: {
+        version: 1,
+        type: 'table',
+        table: {
+          request: [
+            {
+              code: 'status',
+              name: '状态',
+              widget: { type: 'select', config: {} }
+            }
+          ],
+          fields: [
+            {
+              code: 'id',
+              name: 'ID',
+              widget: { type: 'ID' },
+              display: { scenes: ['list'] }
+            },
+            {
+              code: 'name',
+              name: '姓名',
+              widget: { type: 'input', config: {} },
+              data: { type: 'string' },
+              search: 'like',
+              display: { scenes: ['update'] }
+            },
+            {
+              code: 'status',
+              name: '状态',
+              widget: { type: 'select', config: {} },
+              data: { type: 'string' },
+              display: { scenes: ['update'] }
+            }
+          ]
         }
-      ],
-      response: [
-        {
-          code: 'id',
-          name: 'ID',
-          widget: { type: 'id' },
-          table_permission: 'read'
-        },
-        {
-          code: 'name',
-          name: '姓名',
-          widget: { type: 'input', config: {} },
-          data: { type: 'string' },
-          search: 'like',
-          table_permission: 'update'
-        },
-        {
-          code: 'status',
-          name: '状态',
-          widget: { type: 'select', config: {} },
-          data: { type: 'string' },
-          table_permission: 'update'
-        }
-      ]
+      }
     } as any
 
     const tableState = {
@@ -327,7 +348,7 @@ describe('table detail edit flow runtime', () => {
       rowData: detailPayload.row,
       editFunctionDetail
     })
-    const editRequest = editFunctionDetail?.request ?? []
+    const editRequest = getFormRequestFields(editFunctionDetail)
 
     const formRuntime = createFormViewRuntime({
       eventBus: createMockEventBus(),

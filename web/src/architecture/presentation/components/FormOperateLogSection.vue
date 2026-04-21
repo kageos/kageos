@@ -331,7 +331,7 @@ import {
   ElTag,
   ElTooltip
 } from 'element-plus'
-import type { FieldConfig } from '@/architecture/domain/types'
+import type { FunctionDetail } from '@/architecture/domain/types'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import UserPickerDialog from '@/shared/components/UserPickerDialog.vue'
 import ExecutionDurationTag from '@/architecture/presentation/components/ExecutionDurationTag.vue'
@@ -342,7 +342,7 @@ import {
 
 interface Props {
   fullCodePath: string
-  functionDetail?: { request?: FieldConfig[] } | null
+  functionDetail?: FunctionDetail | null
   autoLoad?: boolean
 }
 const props = withDefaults(defineProps<Props>(), {

@@ -6,10 +6,10 @@ import (
 )
 
 type Number struct {
-	Placeholder string `json:"placeholder,omitempty"` // 占位符文本
-	Step        string `json:"step,omitempty"`        // 步长（点击增减按钮的步进值）
-	Default     int    `json:"default,omitempty"`     // 默认值
-	Unit        string `json:"unit,omitempty"`        // 单位（如：件、个、元、kg等）
+	Placeholder   string `json:"placeholder,omitempty"`    // 占位符文本
+	Step          string `json:"step,omitempty"`           // 步长（点击增减按钮的步进值）
+	RenderDefault *int   `json:"render_default,omitempty"` // 前端渲染默认值
+	Unit          string `json:"unit,omitempty"`           // 单位（如：件、个、元、kg等）
 }
 
 func (n *Number) Config() interface{} {
@@ -25,8 +25,8 @@ func (n *Number) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticFac
 	if fact, ok := placeholderFact(n.Placeholder); ok {
 		facts = append(facts, fact)
 	}
-	if n.Default != 0 {
-		defaultValue := fmt.Sprintf("%d", n.Default)
+	if n.RenderDefault != nil {
+		defaultValue := fmt.Sprintf("%d", *n.RenderDefault)
 		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: defaultValue})
 		if field != nil && field.Data != nil && field.Data.Example == "" {
 			facts = append(facts, SemanticFact{Key: "example", Value: defaultValue})
@@ -51,9 +51,9 @@ func newNumber(widgetParsed map[string]string) *Number {
 	if step, exists := widgetParsed["step"]; exists {
 		number.Step = step
 	}
-	if defaultValue, exists := widgetParsed["default"]; exists {
+	if defaultValue, exists := getRenderDefault(widgetParsed); exists {
 		if val, err := strconv.Atoi(defaultValue); err == nil {
-			number.Default = val
+			number.RenderDefault = &val
 		}
 	}
 	if unit, exists := widgetParsed["unit"]; exists {

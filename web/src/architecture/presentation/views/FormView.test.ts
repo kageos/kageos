@@ -124,18 +124,28 @@ const sliderField = {
   }
 } as any
 
+function createFormDetail() {
+  return {
+    id: 1,
+    router: '/demo/form',
+    template_type: 'form',
+    method: 'POST',
+    schema: {
+      version: 1,
+      type: 'form',
+      form: {
+        request: [sliderField],
+        response: []
+      }
+    }
+  } as any
+}
+
 describe('FormView', () => {
   it('renders slider fields in the request form', () => {
     const wrapper = mount(FormView, {
       props: {
-        functionDetail: {
-          id: 1,
-          router: '/demo/form',
-          template_type: 'form',
-          method: 'POST',
-          request: [sliderField],
-          response: []
-        }
+        functionDetail: createFormDetail()
       },
       global: {
         plugins: [createPinia()],
@@ -171,14 +181,7 @@ describe('FormView', () => {
 
     const wrapper = mount(FormView, {
       props: {
-        functionDetail: {
-          id: 1,
-          router: '/demo/form',
-          template_type: 'form',
-          method: 'POST',
-          request: [sliderField],
-          response: []
-        }
+        functionDetail: createFormDetail()
       },
       global: {
         plugins: [createPinia()],

@@ -1,0 +1,390 @@
+package functionschema
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
+)
+
+const Version = 1
+
+const (
+	TypeForm  = "form"
+	TypeTable = "table"
+	TypeChart = "chart"
+)
+
+const (
+	// SceneList 表示前端仅在表格列表中展示该字段，不渲染到新增/编辑表单。
+	SceneList = "list"
+	// SceneCreate 表示前端仅在新增表单中展示该字段，不渲染到列表/编辑表单。
+	SceneCreate = "create"
+	// SceneUpdate 表示前端仅在编辑表单中展示该字段，不渲染到列表/新增表单。
+	SceneUpdate = "update"
+)
+
+type FunctionSchema struct {
+	Version   int          `json:"version"`
+	Type      string       `json:"type"`
+	Form      *FormSchema  `json:"form,omitempty"`
+	Table     *TableSchema `json:"table,omitempty"`
+	Chart     *ChartSchema `json:"chart,omitempty"`
+	Callbacks []string     `json:"callbacks,omitempty"`
+}
+
+type FormSchema struct {
+	Request  []*widget.Field `json:"request"`
+	Response []*widget.Field `json:"response"`
+}
+
+type TableSchema struct {
+	Request []*widget.Field `json:"request"`
+	Fields  []*widget.Field `json:"fields"`
+}
+
+type ChartSchema struct {
+	Request  []*widget.Field `json:"request"`
+	Response []*widget.Field `json:"response,omitempty"`
+}
+
+func NewForm(request, response []*widget.Field, callbacks []string) *FunctionSchema {
+	return &FunctionSchema{
+		Version: Version,
+		Type:    TypeForm,
+		Form: &FormSchema{
+			Request:  nonNilFields(request),
+			Response: nonNilFields(response),
+		},
+		Callbacks: normalizeCallbacks(callbacks),
+	}
+}
+
+func NewTable(request, fields []*widget.Field, callbacks []string) *FunctionSchema {
+	return &FunctionSchema{
+		Version: Version,
+		Type:    TypeTable,
+		Table: &TableSchema{
+			Request: nonNilFields(request),
+			Fields:  nonNilFields(fields),
+		},
+		Callbacks: normalizeCallbacks(callbacks),
+	}
+}
+
+func NewChart(request, response []*widget.Field, callbacks []string) *FunctionSchema {
+	return &FunctionSchema{
+		Version: Version,
+		Type:    TypeChart,
+		Chart: &ChartSchema{
+			Request:  nonNilFields(request),
+			Response: nonNilFields(response),
+		},
+		Callbacks: normalizeCallbacks(callbacks),
+	}
+}
+
+func Marshal(schema *FunctionSchema) (json.RawMessage, error) {
+	if err := Validate(schema); err != nil {
+		return nil, err
+	}
+	data, err := json.Marshal(schema)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(data), nil
+}
+
+func Parse(raw json.RawMessage) (*FunctionSchema, error) {
+	if len(raw) == 0 {
+		return nil, fmt.Errorf("function schema is empty")
+	}
+	var schema FunctionSchema
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		return nil, err
+	}
+	if err := Validate(&schema); err != nil {
+		return nil, err
+	}
+	return &schema, nil
+}
+
+func Validate(schema *FunctionSchema) error {
+	if schema == nil {
+		return fmt.Errorf("function schema is nil")
+	}
+	normalizeSchema(schema)
+	if schema.Version != Version {
+		return fmt.Errorf("unsupported function schema version: %d", schema.Version)
+	}
+	switch schema.Type {
+	case TypeForm:
+		if schema.Form == nil {
+			return fmt.Errorf("form schema is required")
+		}
+		return validateFields(append(nonNilFields(schema.Form.Request), nonNilFields(schema.Form.Response)...))
+	case TypeTable:
+		if schema.Table == nil {
+			return fmt.Errorf("table schema is required")
+		}
+		return validateFields(append(nonNilFields(schema.Table.Request), nonNilFields(schema.Table.Fields)...))
+	case TypeChart:
+		if schema.Chart == nil {
+			return fmt.Errorf("chart schema is required")
+		}
+		return validateFields(append(nonNilFields(schema.Chart.Request), nonNilFields(schema.Chart.Response)...))
+	default:
+		return fmt.Errorf("unsupported function schema type: %s", schema.Type)
+	}
+}
+
+func normalizeSchema(schema *FunctionSchema) {
+	if schema == nil {
+		return
+	}
+	schema.Callbacks = normalizeCallbacks(schema.Callbacks)
+	if schema.Form != nil {
+		schema.Form.Request = nonNilFields(schema.Form.Request)
+		schema.Form.Response = nonNilFields(schema.Form.Response)
+		widget.NormalizeFieldCodes(schema.Form.Request)
+		widget.NormalizeFieldCodes(schema.Form.Response)
+	}
+	if schema.Table != nil {
+		schema.Table.Request = nonNilFields(schema.Table.Request)
+		schema.Table.Fields = nonNilFields(schema.Table.Fields)
+		widget.NormalizeFieldCodes(schema.Table.Request)
+		widget.NormalizeFieldCodes(schema.Table.Fields)
+	}
+	if schema.Chart != nil {
+		schema.Chart.Request = nonNilFields(schema.Chart.Request)
+		schema.Chart.Response = nonNilFields(schema.Chart.Response)
+		widget.NormalizeFieldCodes(schema.Chart.Request)
+		widget.NormalizeFieldCodes(schema.Chart.Response)
+	}
+}
+
+func Type(raw json.RawMessage) string {
+	schema, err := Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return schema.Type
+}
+
+func Callbacks(raw json.RawMessage) []string {
+	schema, err := Parse(raw)
+	if err != nil {
+		return nil
+	}
+	return normalizeCallbacks(schema.Callbacks)
+}
+
+func HasCallback(raw json.RawMessage, target string) bool {
+	for _, callback := range Callbacks(raw) {
+		if callback == target {
+			return true
+		}
+	}
+	return false
+}
+
+func FormRequestFields(raw json.RawMessage) []*widget.Field {
+	schema, err := Parse(raw)
+	if err != nil || schema.Form == nil {
+		return nil
+	}
+	return nonNilFields(schema.Form.Request)
+}
+
+func FormResponseFields(raw json.RawMessage) []*widget.Field {
+	schema, err := Parse(raw)
+	if err != nil || schema.Form == nil {
+		return nil
+	}
+	return nonNilFields(schema.Form.Response)
+}
+
+func ChartRequestFields(raw json.RawMessage) []*widget.Field {
+	schema, err := Parse(raw)
+	if err != nil || schema.Chart == nil {
+		return nil
+	}
+	return nonNilFields(schema.Chart.Request)
+}
+
+func TableRequestFields(raw json.RawMessage) []*widget.Field {
+	schema, err := Parse(raw)
+	if err != nil || schema.Table == nil {
+		return nil
+	}
+	return nonNilFields(schema.Table.Request)
+}
+
+func TableListFields(raw json.RawMessage) []*widget.Field {
+	schema, err := Parse(raw)
+	if err != nil || schema.Table == nil {
+		return nil
+	}
+	return filterVisibleInScene(schema.Table.Fields, SceneList)
+}
+
+func TableCreateFields(raw json.RawMessage) []*widget.Field {
+	schema, err := Parse(raw)
+	if err != nil || schema.Table == nil {
+		return nil
+	}
+	return filterEditableFields(filterVisibleInScene(schema.Table.Fields, SceneCreate))
+}
+
+func TableUpdateFields(raw json.RawMessage) []*widget.Field {
+	schema, err := Parse(raw)
+	if err != nil || schema.Table == nil {
+		return nil
+	}
+	return filterEditableFields(filterVisibleInScene(schema.Table.Fields, SceneUpdate))
+}
+
+func TableSearchFields(raw json.RawMessage) []*widget.Field {
+	schema, err := Parse(raw)
+	if err != nil || schema.Table == nil {
+		return nil
+	}
+	fields := make([]*widget.Field, 0, len(schema.Table.Request)+len(schema.Table.Fields))
+	seen := make(map[string]struct{})
+	for _, field := range schema.Table.Fields {
+		if field == nil || strings.TrimSpace(field.Code) == "" {
+			continue
+		}
+		search := strings.TrimSpace(field.Search)
+		if search == "" || search == "-" {
+			continue
+		}
+		fields = append(fields, field)
+		seen[field.Code] = struct{}{}
+	}
+	for _, field := range schema.Table.Request {
+		if field == nil || strings.TrimSpace(field.Code) == "" || strings.TrimSpace(field.Search) == "-" {
+			continue
+		}
+		if _, ok := seen[field.Code]; ok {
+			continue
+		}
+		fields = append(fields, field)
+	}
+	return fields
+}
+
+func HasDisplayScene(field *widget.Field, scene string) bool {
+	if field == nil {
+		return false
+	}
+	// table/form 是表单容器组件，不作为表格列表列渲染；即便误配了 list，也静默忽略，避免阻断 onAppUpdate。
+	if scene == SceneList && isContainerWidget(field) {
+		return false
+	}
+	if field.Display == nil {
+		return true
+	}
+	for _, item := range field.Display.Scenes {
+		if item == scene {
+			return true
+		}
+	}
+	return false
+}
+
+func validateFields(fields []*widget.Field) error {
+	for _, field := range fields {
+		if field == nil {
+			continue
+		}
+		if err := validateFieldDisplay(field); err != nil {
+			return err
+		}
+		if err := validateFields(field.Children); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateFieldDisplay(field *widget.Field) error {
+	if field.Display == nil {
+		return nil
+	}
+	if len(field.Display.Scenes) == 0 {
+		return fmt.Errorf("field %q display.scenes must not be empty", field.Code)
+	}
+	for _, scene := range field.Display.Scenes {
+		switch scene {
+		case SceneList, SceneCreate, SceneUpdate:
+		default:
+			return fmt.Errorf("field %q has unsupported display scene: %s", field.Code, scene)
+		}
+	}
+	return nil
+}
+
+func isContainerWidget(field *widget.Field) bool {
+	if field == nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(field.Widget.Type)) {
+	case widget.TypeTable, widget.TypeForm:
+		return true
+	default:
+		return false
+	}
+}
+
+func filterVisibleInScene(fields []*widget.Field, scene string) []*widget.Field {
+	result := make([]*widget.Field, 0, len(fields))
+	for _, field := range fields {
+		if HasDisplayScene(field, scene) {
+			result = append(result, field)
+		}
+	}
+	return result
+}
+
+func filterEditableFields(fields []*widget.Field) []*widget.Field {
+	result := make([]*widget.Field, 0, len(fields))
+	for _, field := range fields {
+		if field == nil {
+			continue
+		}
+		if strings.EqualFold(field.Widget.Type, widget.TypeID) {
+			continue
+		}
+		result = append(result, field)
+	}
+	return result
+}
+
+func nonNilFields(fields []*widget.Field) []*widget.Field {
+	if fields == nil {
+		return []*widget.Field{}
+	}
+	return fields
+}
+
+func normalizeCallbacks(callbacks []string) []string {
+	if len(callbacks) == 0 {
+		return []string{}
+	}
+	result := make([]string, 0, len(callbacks))
+	seen := make(map[string]struct{}, len(callbacks))
+	for _, callback := range callbacks {
+		callback = strings.TrimSpace(callback)
+		if callback == "" {
+			continue
+		}
+		if _, ok := seen[callback]; ok {
+			continue
+		}
+		seen[callback] = struct{}{}
+		result = append(result, callback)
+	}
+	return result
+}

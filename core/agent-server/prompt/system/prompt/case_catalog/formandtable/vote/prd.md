@@ -149,15 +149,15 @@ import (
 
 // VoteOption 投票选项表
 type VoteOption struct {
-	ID         int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:选项ID;type:ID" permission:"read" search:"eq"`
-	CreatedAt  int64          `json:"created_at" gorm:"autoCreateTime:milli;column:created_at" widget:"name:创建时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" permission:"read"`
+	ID         int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:选项ID;type:ID" display:"scenes:list" search:"eq"` // 前端仅在列表展示，不进入新增/编辑表单。
+	CreatedAt  types.Time          `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt  gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
 	TopicID    int            `json:"topic_id" gorm:"column:topic_id;comment:主题ID;index" widget:"name:投票主题ID;type:select" search:"in" validate:"required" callback:"OnSelectFuzzy"`
 	Content    string         `json:"content" gorm:"column:content;comment:选项内容" widget:"name:选项内容;type:input" search:"like" validate:"required"`
-	VoteCount  int            `json:"vote_count" gorm:"column:vote_count;comment:得票人数;default:0" widget:"name:得票人数;type:number;unit:人" search:"gte,lte" permission:"read"`
-	Percentage float64        `json:"percentage" gorm:"column:percentage;comment:得票率;default:0;type:decimal(5,2)" widget:"name:得票率%;type:progress;min:0;max:100;unit:%" search:"gte,lte" permission:"read"`
+	VoteCount  int            `json:"vote_count" gorm:"column:vote_count;comment:得票人数;default:0" widget:"name:得票人数;type:number;unit:人" search:"gte,lte"`
+	Percentage float64        `json:"percentage" gorm:"column:percentage;comment:得票率;default:0;type:decimal(5,2)" widget:"name:得票率%;type:progress;min:0;max:100;unit:%" search:"gte,lte"`
 	Topic      *VoteTopic     `json:"-" widget:"-" gorm:"foreignKey:TopicID"`
-	TopicTitle string         `json:"topic_title" gorm:"-" widget:"name:投票主题;type:text" permission:"read"`
+	TopicTitle string         `json:"topic_title" gorm:"-" widget:"name:投票主题;type:text" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
 }
 
 func (VoteOption) TableName() string {
@@ -406,16 +406,16 @@ import (
 
 // VoteRecord 投票记录表
 type VoteRecord struct {
-	ID            int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:记录ID;type:ID" permission:"read" search:"eq"`
-	CreatedAt     int64          `json:"created_at" gorm:"autoCreateTime:milli;column:created_at" widget:"name:投票时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
+	ID            int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:记录ID;type:ID" display:"scenes:list" search:"eq"` // 前端仅在列表展示，不进入新增/编辑表单。
+	CreatedAt     types.Time          `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:投票时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt     gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
-	TopicID       int            `json:"topic_id" gorm:"column:topic_id;comment:主题ID;index" widget:"name:投票主题ID;type:select" search:"in" callback:"OnSelectFuzzy" validate:"required" permission:"read"`
-	TopicTitle    string         `json:"topic_title" gorm:"-" widget:"name:投票标题;type:input" permission:"read"`
-	OptionID      int            `json:"option_id" gorm:"column:option_id;comment:选项ID;index" widget:"name:选项ID;type:number" permission:"read"`
-	OptionContent string         `json:"option_content" gorm:"-" widget:"name:选项内容;type:input" permission:"read"`
-	VoterName     string         `json:"voter_name" gorm:"column:voter_name;comment:投票人" widget:"name:投票人;type:user" search:"in" permission:"read"`
-	IsAnonymous   bool           `json:"is_anonymous" gorm:"column:is_anonymous;comment:是否匿名;default:false" widget:"name:是否匿名;type:switch" permission:"read"`
-	Remark        string         `json:"remark" gorm:"column:remark;comment:投票备注" widget:"name:投票备注;type:text_area" search:"like" permission:"read"`
+	TopicID       int            `json:"topic_id" gorm:"column:topic_id;comment:主题ID;index" widget:"name:投票主题ID;type:select" search:"in" callback:"OnSelectFuzzy" validate:"required"`
+	TopicTitle    string         `json:"topic_title" gorm:"-" widget:"name:投票标题;type:input" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
+	OptionID      int            `json:"option_id" gorm:"column:option_id;comment:选项ID;index" widget:"name:选项ID;type:number"`
+	OptionContent string         `json:"option_content" gorm:"-" widget:"name:选项内容;type:input" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
+	VoterName     string         `json:"voter_name" gorm:"column:voter_name;comment:投票人" widget:"name:投票人;type:user" search:"in"`
+	IsAnonymous   bool           `json:"is_anonymous" gorm:"column:is_anonymous;comment:是否匿名;default:false" widget:"name:是否匿名;type:switch"`
+	Remark        string         `json:"remark" gorm:"column:remark;comment:投票备注" widget:"name:投票备注;type:text_area" search:"like"`
 	Topic         *VoteTopic     `json:"-" widget:"-" gorm:"foreignKey:TopicID"`
 	Option        *VoteOption    `json:"-" widget:"-" gorm:"foreignKey:OptionID"`
 }
@@ -557,8 +557,8 @@ type VoteResultResp struct {
 	Status      string              `json:"status" widget:"name:投票状态;type:select;options:未开始,进行中,已结束;options_colors:info,primary,success"`
 	TotalVotes  int                 `json:"total_votes" widget:"name:总选择次数;type:number;unit:次"`
 	Options     []*VoteOptionResult `json:"options" widget:"name:投票选项统计;type:table"`
-	StartTime   string              `json:"start_time" widget:"name:开始时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"`
-	EndTime     string              `json:"end_time" widget:"name:结束时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"`
+	StartTime   string              `json:"start_time" widget:"name:开始时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
+	EndTime     string              `json:"end_time" widget:"name:结束时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
 }
 
 // ================ 查看投票结果 ================
@@ -631,8 +631,8 @@ func DoVoteResult(ctx *app.Context, req *VoteResultReq) (*VoteResultResp, error)
 		Status:      status,
 		TotalVotes:  topic.TotalVotes,
 		Options:     optionResults,
-		StartTime:   time.UnixMilli(topic.StartTime).Format("2006-01-02 15:04:05"),
-		EndTime:     time.UnixMilli(topic.EndTime).Format("2006-01-02 15:04:05"),
+		StartTime:   topic.StartTime.Time().Format("2006-01-02 15:04:05"),
+		EndTime:     topic.EndTime.Time().Format("2006-01-02 15:04:05"),
 	}, nil
 }
 
@@ -693,7 +693,7 @@ type VoteSubmitResp struct {
 	Message         string `json:"message" widget:"name:处理结果;type:text_area"`
 	TopicTitle      string `json:"topic_title" widget:"name:投票标题;type:input"`
 	SelectedOptions string `json:"selected_options" widget:"name:已选选项;type:text_area"`
-	VoteTime        string `json:"vote_time" widget:"name:投票时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"`
+	VoteTime        string `json:"vote_time" widget:"name:投票时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
 	IsAnonymous     bool   `json:"is_anonymous" widget:"name:投票类型;type:switch"`
 	FunctionLink    string `json:"function_link" widget:"name:查看结果;type:link;target:_blank"`
 }
@@ -786,7 +786,7 @@ func voteOnSelectFuzzyTopicForSubmit(ctx *app.Context, req *callback.OnSelectFuz
 	}
 
 	var topics []VoteTopic
-	now := time.Now().UnixMilli()
+	now := time.Now()
 
 	if req.IsByValue() {
 		db = db.Where("id = ?", req.GetValue()).Limit(1)
@@ -1076,29 +1076,29 @@ import (
 
 // VoteTopic 投票主题表
 type VoteTopic struct {
-	ID          int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:主题ID;type:ID" permission:"read" search:"eq"`
-	CreatedAt   int64          `json:"created_at" gorm:"autoCreateTime:milli;column:created_at" widget:"name:创建时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
-	UpdatedAt   int64          `json:"updated_at" gorm:"autoUpdateTime:milli;column:updated_at" widget:"name:更新时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
+	ID          int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:主题ID;type:ID" display:"scenes:list" search:"eq"` // 前端仅在列表展示，不进入新增/编辑表单。
+	CreatedAt   types.Time          `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
+	UpdatedAt   types.Time          `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt   gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
 	Title       string         `json:"title" gorm:"column:title;comment:投票标题" widget:"name:投票标题;type:input" search:"like" validate:"required,min=2,max=100"`
 	Description string         `json:"description" gorm:"column:description;comment:投票描述" widget:"name:投票描述;type:text_area" search:"like" validate:"required,min=5,max=500"`
 	// select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
-	VoteType        string           `json:"vote_type" gorm:"column:vote_type;comment:投票类型" widget:"name:投票类型;type:select;options:单选,多选;options_colors:primary,success;default:单选" search:"in" validate:"required,oneof=单选 多选"`
+	VoteType        string           `json:"vote_type" gorm:"column:vote_type;comment:投票类型" widget:"name:投票类型;type:select;options:单选,多选;options_colors:primary,success;render_default:单选" search:"in" validate:"required,oneof=单选 多选"`
 	// required_if 不只是后端校验；前端也会按条件动态处理：
 	// 当 VoteType=多选 时，显示 MaxSelections 且标记为必填；否则隐藏该字段。
 	// 同类场景还可用 required_unless、required_with、required_without、excluded_* 等规则，详见 SDK 文档的 validate 标签说明。
-	MaxSelections   int              `json:"max_selections" gorm:"column:max_selections;comment:最多选择数" widget:"name:最多选择数;type:number;unit:个;default:1" validate:"required_if=VoteType 多选,min=1,max=10"`
+	MaxSelections   int              `json:"max_selections" gorm:"column:max_selections;comment:最多选择数" widget:"name:最多选择数;type:number;unit:个;render_default:1" validate:"required_if=VoteType 多选,min=1,max=10"`
 	IsAnonymous     bool             `json:"is_anonymous" gorm:"column:is_anonymous;comment:是否匿名;default:false" widget:"name:是否匿名投票;type:switch"`
 	ShowResult      bool             `json:"show_result" gorm:"column:show_result;comment:是否显示结果;default:true" widget:"name:是否显示实时结果;type:switch"`
-	StartTime       int64            `json:"start_time" gorm:"column:start_time;comment:开始时间;index" widget:"name:开始时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" validate:"required"`
-	EndTime         int64            `json:"end_time" gorm:"column:end_time;comment:结束时间;index" widget:"name:结束时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" validate:"required,gtfield=StartTime"`
-	Options         []VoteOptionItem `json:"options" gorm:"-" widget:"name:投票选项;type:table" permission:"create" validate:"required,min=2"`
+	StartTime       types.Time            `json:"start_time" gorm:"column:start_time;type:datetime;comment:开始时间;index" widget:"name:开始时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" validate:"required"`
+	EndTime         types.Time            `json:"end_time" gorm:"column:end_time;type:datetime;comment:结束时间;index" widget:"name:结束时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" validate:"required,gtfield=StartTime"`
+	Options         []VoteOptionItem `json:"options" gorm:"-" widget:"name:投票选项;type:table" display:"scenes:create" validate:"required,min=2"` // 前端仅在新增表单展示，列表和编辑不展示。
 	Content         string           `json:"content" gorm:"column:content;type:text" widget:"name:详细内容;type:richtext;height:420" search:"like"`
-	OptionsLink     string           `json:"options_link" gorm:"-" widget:"name:选项列表;type:link;target:_blank" permission:"read"`
-	Status          string           `json:"status" gorm:"-" widget:"name:状态;type:select;options:未开始,进行中,已结束;options_colors:info,primary,success" permission:"read"`
-	TotalVotes      int              `json:"total_votes" gorm:"column:total_votes;comment:总选择次数;default:0" widget:"name:总选择次数;type:number;unit:次" permission:"read"`
-	CreateBy        string           `json:"create_by" gorm:"column:create_by;comment:创建人" widget:"name:创建人;type:user" search:"in" permission:"read"`
-	VoteActionLink  string           `json:"vote_action_link" gorm:"-" widget:"name:投票操作;type:link;target:_blank" permission:"read"`
+	OptionsLink     string           `json:"options_link" gorm:"-" widget:"name:选项列表;type:link;target:_blank" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
+	Status          string           `json:"status" gorm:"-" widget:"name:状态;type:select;options:未开始,进行中,已结束;options_colors:info,primary,success" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
+	TotalVotes      int              `json:"total_votes" gorm:"column:total_votes;comment:总选择次数;default:0" widget:"name:总选择次数;type:number;unit:次"`
+	CreateBy        string           `json:"create_by" gorm:"column:create_by;comment:创建人" widget:"name:创建人;type:user" search:"in" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
+	VoteActionLink  string           `json:"vote_action_link" gorm:"-" widget:"name:投票操作;type:link;target:_blank" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
 	UserVoteRecords []*VoteRecord    `json:"-" widget:"-" gorm:"foreignKey:TopicID"`
 }
 
@@ -1114,11 +1114,11 @@ type VoteOptionItem struct {
 // ================ 辅助函数 ================
 
 // getTopicStatus 获取投票状态（计算属性）
-func getTopicStatus(startTime, endTime int64) string {
-	now := time.Now().UnixMilli()
-	if now < startTime {
+func getTopicStatus(startTime, endTime types.Time) string {
+	now := time.Now()
+	if now.Before(startTime.Time()) {
 		return "未开始"
-	} else if now > endTime {
+	} else if now.After(endTime.Time()) {
 		return "已结束"
 	}
 	return "进行中"
@@ -1165,8 +1165,8 @@ func voteOnSelectFuzzyTopic(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*
 					return fmt.Sprintf("%d个", topic.MaxSelections)
 				}(),
 				"时间范围": fmt.Sprintf("%s - %s",
-					time.UnixMilli(topic.StartTime).Format("2006-01-02 15:04"),
-					time.UnixMilli(topic.EndTime).Format("2006-01-02 15:04")),
+					topic.StartTime.Time().Format("2006-01-02 15:04"),
+					topic.EndTime.Time().Format("2006-01-02 15:04")),
 				"是否匿名": func() string {
 					if topic.IsAnonymous {
 						return "匿名投票"
@@ -1215,7 +1215,7 @@ func VoteTopicList(ctx *app.Context, resp response.Response) error {
 
 	queryDB := db.Model(&VoteTopic{}).Preload("UserVoteRecords", "voter_name = ?", userInfo)
 
-	now := time.Now().UnixMilli()
+	now := time.Now()
 	if req.Status != "" {
 		switch req.Status {
 		case "未开始":

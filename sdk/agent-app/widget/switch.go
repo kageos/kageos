@@ -1,8 +1,9 @@
 package widget
 
-type Switch struct {
+import "strconv"
 
-	//大道至简，先mvp产品，无关紧要的字段都先砍掉
+type Switch struct {
+	RenderDefault *bool `json:"render_default,omitempty"` // 前端渲染默认值
 }
 
 func (s *Switch) Config() interface{} {
@@ -15,5 +16,10 @@ func (s *Switch) Type() string {
 
 func newSwitch(widgetParsed map[string]string) *Switch {
 	switchWidget := &Switch{}
+	if defaultValue, exists := getRenderDefault(widgetParsed); exists {
+		if val, err := strconv.ParseBool(defaultValue); err == nil {
+			switchWidget.RenderDefault = &val
+		}
+	}
 	return switchWidget
 }

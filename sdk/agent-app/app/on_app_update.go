@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
 
@@ -327,8 +328,6 @@ func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error)
 			if err != nil {
 				return nil, nil, err
 			}
-			api.Request = requestFields
-			api.Response = responseFields
 			var callback []string
 			if template.OnTableAddRow != nil {
 				callback = append(callback, CallbackTypeOnTableAddRow)
@@ -341,33 +340,31 @@ func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error)
 			if template.OnTableDeleteRows != nil {
 				callback = append(callback, CallbackTypeOnTableDeleteRows)
 			}
-			if len(callback) > 0 {
-				api.Callback = callback
-			}
+			api.Schema = functionschema.NewTable(requestFields, responseFields, callback)
 
 		case TemplateTypeForm:
 			fields, responseFields, err := widget.DecodeForm(fieldsCallback, base.Request, base.Response)
 			if err != nil {
 				return nil, nil, err
 			}
-			api.Request = fields
-			api.Response = responseFields
+			api.Schema = functionschema.NewForm(fields, responseFields, nil)
 
 		case TemplateTypeChart:
 			fields, responseFields, err := widget.DecodeForm(fieldsCallback, base.Request, base.Response)
 			if err != nil {
 				return nil, nil, err
 			}
-			api.Request = fields
-			api.Response = responseFields
+			api.Schema = functionschema.NewChart(fields, responseFields, nil)
 		default:
 			//默认走form
 			fields, responseFields, err := widget.DecodeForm(fieldsCallback, base.Request, base.Response)
 			if err != nil {
 				return nil, nil, err
 			}
-			api.Request = fields
-			api.Response = responseFields
+			api.Schema = functionschema.NewForm(fields, responseFields, nil)
+		}
+		if err := functionschema.Validate(api.Schema); err != nil {
+			return nil, nil, err
 		}
 
 		api.CreateTableModels = base.CreateTables

@@ -16,6 +16,7 @@ import { TableDomainService } from '../../domain/services/TableDomainService'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { WorkspaceEvent, TableEvent } from '../../domain/interfaces/IEventBus'
 import type { FunctionDetail } from '../../domain/types'
+import { getTableListFields } from '@/utils/functionSchemaSelectors'
 import type { SearchParams, SortParams, TableRow } from '../../domain/services/TableDomainService'
 import { Logger } from '@/core/utils/logger'
 
@@ -114,8 +115,8 @@ export class TableApplicationService {
   private async preloadUserInfoFromTableData(functionDetail: FunctionDetail, tableData: TableRow[]): Promise<void> {
     try {
       // 1. 识别所有用户字段（response 字段）
-      const responseFields = Array.isArray(functionDetail.response) ? functionDetail.response : []
-      const userFields = responseFields.filter(f => f.widget?.type === 'user')
+      const listFields = getTableListFields(functionDetail)
+      const userFields = listFields.filter(f => f.widget?.type === 'user')
       
       if (userFields.length === 0 || !tableData || tableData.length === 0) {
         return
@@ -153,8 +154,8 @@ export class TableApplicationService {
   private async preloadDepartmentInfoFromTableData(functionDetail: FunctionDetail, tableData: TableRow[]): Promise<void> {
     try {
       // 1. 识别所有部门字段（response 字段）
-      const responseFields = Array.isArray(functionDetail.response) ? functionDetail.response : []
-      const departmentFields = responseFields.filter(f => f.widget?.type === 'department' || f.widget?.type === 'departments')
+      const listFields = getTableListFields(functionDetail)
+      const departmentFields = listFields.filter(f => f.widget?.type === 'department' || f.widget?.type === 'departments')
       
       if (departmentFields.length === 0 || !tableData || tableData.length === 0) {
         return

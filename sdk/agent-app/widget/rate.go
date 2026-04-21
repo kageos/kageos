@@ -7,9 +7,9 @@ type Rate struct {
 	Max int `json:"max,omitempty"` // 最大星级（默认5）
 
 	// 可选参数（有合理默认值）
-	AllowHalf bool     `json:"allow_half,omitempty"` // 是否允许半星（默认false）
-	Default   float64  `json:"default,omitempty"`    // 默认评分（可选）
-	Texts     []string `json:"texts,omitempty"`      // 自定义文字数组（可选，如：["很差", "差", "一般", "好", "很好"]）
+	AllowHalf     bool     `json:"allow_half,omitempty"`     // 是否允许半星（默认false）
+	RenderDefault *float64 `json:"render_default,omitempty"` // 前端渲染默认评分（可选）
+	Texts         []string `json:"texts,omitempty"`          // 自定义文字数组（可选，如：["很差", "差", "一般", "好", "很好"]）
 	// 注意：如果配置了 texts，会自动显示文字；如果没有配置 texts，则不显示文字
 }
 
@@ -37,9 +37,9 @@ func newRate(widgetParsed map[string]string) *Rate {
 	if allowHalf, exists := widgetParsed["allow_half"]; exists {
 		rate.AllowHalf = allowHalf == "true"
 	}
-	if defaultValue, exists := widgetParsed["default"]; exists {
+	if defaultValue, exists := getRenderDefault(widgetParsed); exists {
 		if val, err := strconv.ParseFloat(defaultValue, 64); err == nil {
-			rate.Default = val
+			rate.RenderDefault = &val
 		}
 	}
 	if texts, exists := widgetParsed["texts"]; exists {
@@ -49,4 +49,3 @@ func newRate(widgetParsed map[string]string) *Rate {
 
 	return rate
 }
-

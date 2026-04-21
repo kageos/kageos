@@ -1,13 +1,12 @@
 package service
 
 import (
-	"encoding/json"
 	"sort"
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 )
 
 func normalizeSearchFunctionsPagination(page, pageSize int) (int, int) {
@@ -359,29 +358,14 @@ func buildFunctionSearchResults(trees []*model.ServiceTree) []*dto.FunctionSearc
 		if tree.Function != nil {
 			result.ID = tree.Function.ID
 			result.FullCodePath = tree.Function.Router
-			result.Callbacks = tree.Function.Callbacks
-			result.Request = decodeFunctionWidgetFields(tree.Function.Request)
-			result.Response = decodeFunctionWidgetFields(tree.Function.Response)
+			result.Callbacks = tree.Function.GetCallbacks()
+			if schema, err := functionschema.Parse(tree.Function.Schema); err == nil {
+				result.Schema = schema
+			}
 		}
 		functionResults = append(functionResults, result)
 	}
 	return functionResults
-}
-
-func decodeFunctionWidgetFields(raw json.RawMessage) []interface{} {
-	if len(raw) == 0 {
-		return nil
-	}
-	var fields []*widget.Field
-	if err := json.Unmarshal(raw, &fields); err != nil {
-		return nil
-	}
-	widget.NormalizeFieldCodes(fields)
-	out := make([]interface{}, 0, len(fields))
-	for _, field := range fields {
-		out = append(out, field)
-	}
-	return out
 }
 
 func buildResourceSearchResults(trees []*model.ServiceTree, keyword string) []*dto.ResourceSearchResult {

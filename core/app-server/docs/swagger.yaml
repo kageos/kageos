@@ -89,10 +89,6 @@ definitions:
         type: string
       app:
         type: string
-      callback:
-        items:
-          type: string
-        type: array
       code:
         type: string
       create_tables:
@@ -107,16 +103,11 @@ definitions:
         type: string
       name:
         type: string
-      request:
-        items:
-          $ref: '#/definitions/widget.Field'
-        type: array
-      response:
-        items:
-          $ref: '#/definitions/widget.Field'
-        type: array
       router:
         type: string
+      schema:
+        description: 统一函数 Schema
+        type: object
       source_code:
         type: string
       source_code_file_path:
@@ -1015,17 +1006,17 @@ definitions:
         description: 函数名称
         example: 表格解析
         type: string
-      request:
-        description: 请求参数（表单/接口入参结构，便于构造 run_form_submit 的 body）
-        items: {}
-        type: array
-      response:
-        description: 响应参数（返回结构说明）
-        items: {}
+      callbacks:
+        description: 函数级回调能力摘要
+        items:
+          type: string
         type: array
       run_count:
         description: 运行次数（用于 search_tools 按热度排序）
         type: integer
+      schema:
+        description: 统一函数 Schema
+        type: object
       template_type:
         description: 模板类型（form、table、chart）
         example: form
@@ -1189,10 +1180,6 @@ definitions:
         description: 应用ID
         example: 1
         type: integer
-      callbacks:
-        description: 回调函数
-        example: onCreate,onUpdate
-        type: string
       create_tables:
         description: 创建的表
         example: users,orders
@@ -1225,14 +1212,13 @@ definitions:
           type: boolean
         description: ⭐ 权限标识（企业版功能）：权限点 -> 是否有权限（按需查询，不在服务树中查询）
         type: object
-      request:
-        description: 请求配置（JSON对象）
-      response:
-        description: 响应配置（JSON对象）
       router:
         description: 路由路径
         example: /crm/crm_ticket
         type: string
+      schema:
+        description: 统一函数 Schema
+        type: object
       template_type:
         description: 模板类型
         example: default
@@ -2457,9 +2443,15 @@ definitions:
       search:
         description: 搜索类型，如 "like", "eq", "in" 等
         type: string
-      table_permission:
-        description: 表格权限：read,update,create
-        type: string
+      display:
+        description: 字段展示场景配置；不存在表示 list/create/update 全部展示
+        properties:
+          scenes:
+            description: 展示场景：list,create,update
+            items:
+              type: string
+            type: array
+        type: object
       validation:
         description: 验证规则，完全照搬 github.com/go-playground/validator/v10
         type: string

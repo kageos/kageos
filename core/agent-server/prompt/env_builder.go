@@ -1,11 +1,13 @@
 package prompt
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 )
 
@@ -31,10 +33,10 @@ type WorkspaceEnvNode struct {
 	Code         string
 	Description  string
 	Type         string
-	FullCodePath string // 完整路径（执行模式 run_table_search/run_form_submit/run_chart_query 用）
-	TemplateType string // 函数类型（仅 function 有效）：table、form、chart
-	Callbacks    string // 函数回调能力（仅 function 有效），逗号分隔
-	Request      []interface{}
+	FullCodePath string   // 完整路径（执行模式 run_table_search/run_form_submit/run_chart_query 用）
+	TemplateType string   // 函数类型（仅 function 有效）：table、form、chart
+	Callbacks    []string // 函数回调能力摘要（仅 function 有效）
+	Schema       *functionschema.FunctionSchema
 }
 
 // WorkspaceEnvFile 环境中的代码文件
@@ -196,8 +198,8 @@ func buildFunctionsSection(children []WorkspaceEnvNode) string {
 		if caps := formatWorkspaceFunctionCapabilities(f.TemplateType, f.Callbacks); caps != "" {
 			b.WriteString(fmt.Sprintf("  - 能力：%s\n", caps))
 		}
-		if summaryLines, err := summarizeWorkspaceFunctionRequestFields(f.Request); err == nil && len(summaryLines) > 0 {
-			b.WriteString("  - 字段摘要：\n")
+		if summaryLines := summarizeWorkspaceFunctionSchema(f.Schema); len(summaryLines) > 0 {
+			b.WriteString("  - Schema 摘要：\n")
 			for _, line := range summaryLines {
 				b.WriteString("    ")
 				b.WriteString(line)
@@ -208,28 +210,58 @@ func buildFunctionsSection(children []WorkspaceEnvNode) string {
 	return b.String()
 }
 
-func summarizeWorkspaceFunctionRequestFields(raw []interface{}) ([]string, error) {
-	if len(raw) == 0 {
-		return nil, nil
+func summarizeWorkspaceFunctionSchema(schema *functionschema.FunctionSchema) []string {
+	if schema == nil {
+		return nil
 	}
-	fields, err := widget.DecodeFields(raw)
-	if err != nil {
-		return nil, err
+	switch schema.Type {
+	case functionschema.TypeForm:
+		if schema.Form == nil {
+			return nil
+		}
+		return summarizeWorkspaceFields("输入字段", schema.Form.Request)
+	case functionschema.TypeTable:
+		if schema.Table == nil {
+			return nil
+		}
+		lines := summarizeWorkspaceFields("搜索字段", functionschema.TableSearchFields(mustMarshalSchema(schema)))
+		lines = append(lines, summarizeWorkspaceFields("列表字段", functionschema.TableListFields(mustMarshalSchema(schema)))...)
+		lines = append(lines, summarizeWorkspaceFields("新增字段", functionschema.TableCreateFields(mustMarshalSchema(schema)))...)
+		lines = append(lines, summarizeWorkspaceFields("编辑字段", functionschema.TableUpdateFields(mustMarshalSchema(schema)))...)
+		return lines
+	case functionschema.TypeChart:
+		if schema.Chart == nil {
+			return nil
+		}
+		return summarizeWorkspaceFields("查询字段", schema.Chart.Request)
+	default:
+		return nil
 	}
-	if len(fields) == 0 {
-		return nil, nil
-	}
-	lines := make([]string, 0, len(fields)*2)
-	for _, field := range fields {
-		lines = append(lines, field.LLMSummaryLines(widget.SummaryOptions{
-			Mode:     widget.SummaryCompact,
-			MaxDepth: 1,
-		})...)
-	}
-	return lines, nil
 }
 
-func formatWorkspaceFunctionCapabilities(templateType, callbacks string) string {
+func summarizeWorkspaceFields(label string, fields []*widget.Field) []string {
+	if len(fields) == 0 {
+		return nil
+	}
+	lines := make([]string, 0, len(fields)*2+1)
+	lines = append(lines, label+"：")
+	for _, field := range fields {
+		for _, line := range field.LLMSummaryLines(widget.SummaryOptions{
+			Mode:     widget.SummaryCompact,
+			MaxDepth: 1,
+		}) {
+			lines = append(lines, "  "+line)
+		}
+	}
+	return lines
+}
+
+func mustMarshalSchema(schema *functionschema.FunctionSchema) json.RawMessage {
+	raw, _ := functionschema.Marshal(schema)
+	return raw
+}
+
+func formatWorkspaceFunctionCapabilities(templateType string, callbacks []string) string {
 	switch templateType {
 	case "table":
 		caps := []string{"查询"}
@@ -258,9 +290,9 @@ func formatWorkspaceFunctionCapabilities(templateType, callbacks string) string 
 	}
 }
 
-func hasWorkspaceCallback(callbacks, target string) bool {
-	for _, callback := range strings.Split(callbacks, ",") {
-		if strings.TrimSpace(callback) == target {
+func hasWorkspaceCallback(callbacks []string, target string) bool {
+	for _, callback := range callbacks {
+		if callback == target {
 			return true
 		}
 	}

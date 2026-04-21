@@ -3,8 +3,8 @@ package widget
 import "strings"
 
 type Checkbox struct {
-	Options []string `json:"options,omitempty"` // 选项列表
-	Default []string `json:"default,omitempty"` // 默认选中项（逗号分隔）
+	Options       []string `json:"options,omitempty"`        // 选项列表
+	RenderDefault []string `json:"render_default,omitempty"` // 前端渲染默认选中项（逗号分隔）
 }
 
 func (c *Checkbox) Config() interface{} {
@@ -20,9 +20,9 @@ func (c *Checkbox) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticF
 	if len(c.Options) > 0 {
 		facts = append(facts, SemanticFact{Key: "enum", Value: strings.Join(c.Options, "|")})
 	}
-	if len(c.Default) > 0 {
-		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: strings.Join(c.Default, "|")})
-		facts = append(facts, SemanticFact{Key: "example", Value: quoteJSONArrayExample(c.Default)})
+	if len(c.RenderDefault) > 0 {
+		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: strings.Join(c.RenderDefault, "|")})
+		facts = append(facts, SemanticFact{Key: "example", Value: quoteJSONArrayExample(c.RenderDefault)})
 	} else if len(c.Options) > 0 {
 		limit := 2
 		if len(c.Options) < limit {
@@ -41,9 +41,9 @@ func newCheckbox(widgetParsed map[string]string) *Checkbox {
 		// 解析逗号分隔的选项
 		checkbox.Options = parseOptions(options)
 	}
-	if defaultValue, exists := widgetParsed["default"]; exists {
+	if defaultValue, exists := getRenderDefault(widgetParsed); exists {
 		// 解析默认选中项（逗号分隔）
-		checkbox.Default = parseOptions(defaultValue)
+		checkbox.RenderDefault = parseOptions(defaultValue)
 	}
 
 	return checkbox

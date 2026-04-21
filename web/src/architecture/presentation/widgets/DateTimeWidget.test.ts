@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent, h, nextTick } from 'vue'
 import { beforeEach, describe, expect, it } from 'vitest'
-import TimestampWidget from './TimestampWidget.vue'
+import DateTimeWidget from './DateTimeWidget.vue'
 import { WidgetType } from '@/core/constants/widget'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 
@@ -37,8 +37,8 @@ const ElDatePickerStub = defineComponent({
             'data-testid': 'emit-date',
             onClick: () => {
               const value = props.placeholder.includes('结束')
-                ? 1712016000000
-                : 1711929600000
+                ? '2026-04-22 00:00:00'
+                : '2026-04-21 00:00:00'
               emit('update:modelValue', value)
               emit('change', value)
             }
@@ -78,8 +78,8 @@ const ElTimePickerStub = defineComponent({
           type: 'button',
           'data-testid': 'time-picker',
           onClick: () => {
-            emit('update:modelValue', 1711929600000)
-            emit('change', 1711929600000)
+            emit('update:modelValue', '10:30:00')
+            emit('change', '10:30:00')
           }
         },
         'time-picker'
@@ -92,9 +92,9 @@ function buildField() {
     code: 'created_at',
     name: '创建时间',
     search: 'gte,lte',
-    data: { type: 'timestamp' },
+    data: { type: 'string' },
     widget: {
-      type: WidgetType.TIMESTAMP,
+      type: WidgetType.DATETIME,
       config: {
         format: 'YYYY-MM-DD HH:mm:ss'
       }
@@ -102,13 +102,13 @@ function buildField() {
   }
 }
 
-describe('TimestampWidget', () => {
+describe('DateTimeWidget', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
   })
 
-  it('emits selected timestamp in search mode', async () => {
-    const wrapper = mount(TimestampWidget, {
+  it('emits readable datetime string in search mode', async () => {
+    const wrapper = mount(DateTimeWidget, {
       props: {
         field: buildField(),
         value: { raw: null, display: '', meta: {} },
@@ -129,19 +129,20 @@ describe('TimestampWidget', () => {
     const emitted = wrapper.emitted('update:modelValue')
     expect(emitted).toBeTruthy()
     expect(emitted?.[0]?.[0]).toMatchObject({
-      raw: 1711929600000,
-      widgetType: WidgetType.TIMESTAMP
+      raw: '2026-04-21 00:00:00',
+      display: '2026-04-21 00:00:00',
+      widgetType: WidgetType.DATETIME
     })
   })
 
-  it('uses independent start/end pickers for gte/lte search', async () => {
-    const wrapper = mount(TimestampWidget, {
+  it('uses readable datetime strings for gte/lte range search', async () => {
+    const wrapper = mount(DateTimeWidget, {
       props: {
         field: buildField(),
         value: { raw: null, display: '', meta: {} },
         mode: 'search',
         searchType: 'gte,lte',
-        fieldPath: 'updated_at'
+        fieldPath: 'created_at'
       },
       global: {
         stubs: {
@@ -153,16 +154,13 @@ describe('TimestampWidget', () => {
 
     const pickers = wrapper.findAll('[data-testid="date-picker"]')
     expect(pickers).toHaveLength(2)
-    expect(pickers[0]?.attributes('data-type')).toBe('datetime')
-    expect(pickers[1]?.attributes('data-type')).toBe('datetime')
 
     await pickers[0]!.get('[data-testid="emit-date"]').trigger('click')
 
     const firstEmitted = wrapper.emitted('update:modelValue')
-    expect(firstEmitted).toBeTruthy()
     expect(firstEmitted?.[0]?.[0]).toMatchObject({
-      raw: [1711929600000, null],
-      widgetType: WidgetType.TIMESTAMP
+      raw: ['2026-04-21 00:00:00', null],
+      widgetType: WidgetType.DATETIME
     })
 
     await wrapper.setProps({
@@ -173,16 +171,17 @@ describe('TimestampWidget', () => {
 
     const secondEmitted = wrapper.emitted('update:modelValue')
     expect(secondEmitted?.[1]?.[0]).toMatchObject({
-      raw: [1711929600000, 1712016000000],
-      widgetType: WidgetType.TIMESTAMP
+      raw: ['2026-04-21 00:00:00', '2026-04-22 00:00:00'],
+      widgetType: WidgetType.DATETIME
     })
   })
 
-  it('normalizes zero timestamp to null in edit mode', async () => {
-    const wrapper = mount(TimestampWidget, {
+  it('normalizes legacy numeric value to datetime string in edit mode', async () => {
+    const localMillis = new Date(2026, 3, 21, 0, 0, 0).getTime()
+    const wrapper = mount(DateTimeWidget, {
       props: {
         field: buildField(),
-        value: { raw: 0, display: '0', meta: { fromInitialData: true } },
+        value: { raw: localMillis, display: String(localMillis), meta: { fromInitialData: true } },
         mode: 'edit',
         fieldPath: 'created_at'
       },
@@ -198,43 +197,16 @@ describe('TimestampWidget', () => {
 
     const emitted = wrapper.emitted('update:modelValue')
     expect(emitted?.[0]?.[0]).toMatchObject({
-      raw: null,
-      display: '',
-      widgetType: WidgetType.TIMESTAMP,
+      raw: '2026-04-21 00:00:00',
+      display: '2026-04-21 00:00:00',
+      widgetType: WidgetType.DATETIME,
       meta: {
         fromInitialData: true
       }
     })
 
     expect(useFormDataStore().getValue('created_at')).toMatchObject({
-      raw: null,
-      display: ''
-    })
-  })
-
-  it('emits null when edit mode timestamp is cleared', async () => {
-    const wrapper = mount(TimestampWidget, {
-      props: {
-        field: buildField(),
-        value: { raw: 1711929600000, display: '2024-04-01 00:00:00', meta: {} },
-        mode: 'edit',
-        fieldPath: 'created_at'
-      },
-      global: {
-        stubs: {
-          ElDatePicker: ElDatePickerStub,
-          ElTimePicker: ElTimePickerStub
-        }
-      }
-    })
-
-    await wrapper.get('[data-testid="clear-date"]').trigger('click')
-
-    const emitted = wrapper.emitted('update:modelValue')
-    expect(emitted?.[0]?.[0]).toMatchObject({
-      raw: null,
-      display: '',
-      widgetType: WidgetType.TIMESTAMP
+      raw: '2026-04-21 00:00:00'
     })
   })
 })

@@ -9,12 +9,12 @@ export const SearchFieldLayoutClass = {
 export function resolveSearchFieldLayoutClass(field: FieldConfig): string {
   const widgetType = field.widget?.type || WidgetType.INPUT
   const searchType = field.search || ''
-  const isRangeTimestamp =
-    widgetType === WidgetType.TIMESTAMP &&
+  const isRangeDateTime =
+    widgetType === WidgetType.DATETIME &&
     hasSearchType(searchType, SearchType.GTE) &&
     hasSearchType(searchType, SearchType.LTE)
 
-  if (isRangeTimestamp) {
+  if (isRangeDateTime) {
     return SearchFieldLayoutClass.WIDE
   }
 

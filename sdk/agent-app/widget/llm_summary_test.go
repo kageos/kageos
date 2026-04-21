@@ -15,7 +15,7 @@ func TestFieldLLMSummaryLinesIncludeTypeFormatAndExample(t *testing.T) {
 			Config interface{} `json:"config,omitempty"`
 		}{
 			Type:   TypeUsers,
-			Config: &Users{Default: "Me()"},
+			Config: &Users{RenderDefault: "Me()"},
 		},
 	}
 
@@ -28,8 +28,40 @@ func TestFieldLLMSummaryLinesIncludeTypeFormatAndExample(t *testing.T) {
 		"widget=users",
 		"type=string",
 		"format=comma-separated usernames",
-		"前端默认值=Me()",
+		"渲染默认值=Me()",
 		`example="beiluo,zhangsan"`,
+	} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("summary line %q should contain %q", line, want)
+		}
+	}
+}
+
+func TestFieldLLMSummaryLinesDatetimeUsesReadableTime(t *testing.T) {
+	field := &Field{
+		Code: "created_at",
+		Name: "创建时间",
+		Data: &FieldData{Type: DataTypeString},
+		Widget: struct {
+			Type   string      `json:"type"`
+			Config interface{} `json:"config,omitempty"`
+		}{
+			Type:   TypeDatetime,
+			Config: &DateTime{Format: "YYYY-MM-DD HH:mm:ss"},
+		},
+	}
+
+	lines := field.LLMSummaryLines(SummaryOptions{Mode: SummaryCompact, MaxDepth: 1})
+	if len(lines) != 1 {
+		t.Fatalf("expected 1 line, got %d: %v", len(lines), lines)
+	}
+	line := lines[0]
+	for _, want := range []string{
+		"widget=datetime",
+		"type=string",
+		"format=YYYY-MM-DD HH:mm:ss",
+		`example="2026-04-21 16:30:00"`,
+		"storage=database datetime",
 	} {
 		if !strings.Contains(line, want) {
 			t.Fatalf("summary line %q should contain %q", line, want)
@@ -108,9 +140,9 @@ func TestDecodeFieldsRoundTrip(t *testing.T) {
 			"widget": map[string]interface{}{
 				"type": "select",
 				"config": map[string]interface{}{
-					"options":     []interface{}{"低", "中", "高"},
-					"placeholder": "请选择优先级",
-					"default":     "中",
+					"options":        []interface{}{"低", "中", "高"},
+					"placeholder":    "请选择优先级",
+					"render_default": "中",
 				},
 			},
 			"validation": "required,oneof=低 中 高",

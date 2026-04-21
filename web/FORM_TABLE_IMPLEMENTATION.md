@@ -9,7 +9,7 @@
 - ✅ **number** - 数字输入框（支持 min/max/step/precision）
 - ✅ **text_area** - 多行文本框（支持 rows 配置）
 - ✅ **select** - 下拉选择（支持单选/多选）
-- ✅ **timestamp** - 时间选择器（支持自定义格式）
+- ✅ **datetime** - 时间选择器（支持自定义格式）
 - ✅ **switch** - 开关
 - ✅ **checkbox** - 多选框组
 - ✅ **radio** - 单选框组
@@ -22,24 +22,24 @@
 
 #### 功能特性
 - ✅ 根据 `request` 字段自动渲染表单
-- ✅ 支持字段默认值（`widget.config.default`）
+- ✅ 支持字段渲染默认值（`widget.config.render_default`）
 - ✅ 支持字段描述（`desc` 字段）
 - ✅ 提交时调用 `/api/v1/run/{router}` 接口
 - ✅ 支持 GET/POST/PUT 等不同的 HTTP 方法
 - ✅ 自动显示执行结果（基于 `response` 字段）
-- ✅ 结果支持时间戳格式化
+- ✅ 结果支持 datetime 字符串时间展示
 - ✅ 支持表单重置功能
 
 ### ✅ Table 函数渲染 (TableRenderer + FormDialog)
 
 #### 列表功能
 - ✅ 根据 `response` 字段自动渲染表格列
-- ✅ 根据 `table_permission` 控制列显示
-  - 空或 `''` - 显示（全部权限）
-  - `read` - 显示（只读字段）
-  - `update` - 不显示（只在编辑时显示）
-  - `create` - 不显示（只在新增时显示）
-- ✅ 时间戳自动格式化显示
+- ✅ 根据 `display.scenes` 控制列显示
+  - 不配置 `display` - 显示
+  - `list` - 显示
+  - `create` - 不显示（只在新增表单展示）
+  - `update` - 不显示（只在编辑表单展示）
+- ✅ 时间字段自动格式化显示
 - ✅ 支持分页（page、page_size）
 - ✅ 支持排序（点击列头排序）
 
@@ -54,13 +54,13 @@
 - ✅ **新增功能**
   - 根据 `callbacks` 判断是否显示"新增"按钮
   - 点击后弹出表单对话框
-  - 根据 `table_permission` 控制字段显示（`create` 和空权限的字段可填写）
+  - 根据 `display.scenes` 控制字段显示（包含 `create` 或未配置 `display` 的字段会进入新增表单）
   - 调用 `/api/v1/callback{router}?_type=OnTableAddRow`
 
 - ✅ **编辑功能**
   - 根据 `callbacks` 判断是否显示"编辑"按钮
   - 点击后弹出表单对话框，预填当前数据
-  - 根据 `table_permission` 控制字段显示（`update` 和空权限的字段可修改）
+  - 根据 `display.scenes` 控制字段显示（包含 `update` 或未配置 `display` 的字段会进入编辑表单）
   - 调用 `/api/v1/callback{router}?_type=OnTableUpdateRow`
 
 - ✅ **删除功能**
@@ -87,14 +87,14 @@
    - `OnTableUpdateRow` → 显示"编辑"按钮
    - `OnTableDeleteRows` → 显示"删除"按钮
 
-## 🔐 权限系统 (table_permission)
+## 🔐 展示场景 (display.scenes)
 
 | 值 | 列表显示 | 新增时 | 编辑时 | 说明 |
 |---|---|---|---|---|
-| 空 `''` | ✅ | ✅ | ✅ | 全部权限 |
-| `read` | ✅ | ❌ | ❌ | 只读（如 ID、创建时间） |
-| `update` | ❌ | ❌ | ✅ | 只能编辑时修改（如 appkey） |
-| `create` | ❌ | ✅ | ❌ | 只能新增时填写 |
+| 不配置 `display` | ✅ | ✅ | ✅ | 前端三个场景都展示 |
+| `list` | ✅ | ❌ | ❌ | 前端仅在列表展示，不进入新增/编辑表单 |
+| `create` | ❌ | ✅ | ❌ | 前端仅在新增表单展示 |
+| `update` | ❌ | ❌ | ✅ | 前端仅在编辑表单展示 |
 
 ## 📝 API 接口
 
@@ -209,14 +209,13 @@ Workspace (工作区)
 
 ## 💡 注意事项
 
-1. **时间戳格式**：后端返回的时间戳应为毫秒级（13位）
+1. **时间字段格式**：时间字段统一使用 `datetime` 字符串时间
 2. **分页数据结构**：后端应返回 `{ items: [], paginated: { current_page, page_size, total_count, total_pages } }` 结构
 3. **回调接口**：回调接口使用函数本身的 `method`（GET/POST/PUT）
 4. **ID 字段**：Table 的编辑和删除功能依赖于每行数据必须有 `id` 字段
-5. **权限判断**：`table_permission` 字段为空或空字符串时表示全部权限
+5. **展示场景判断**：未配置 `display` 表示列表/新增/编辑均展示；配置 `display.scenes` 后只在指定场景展示
 
 ---
 
 **实现完成时间**：2025-10-30  
 **实现功能**：Form 函数渲染 + Table 完整 CRUD 功能
-

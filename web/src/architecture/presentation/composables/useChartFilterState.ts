@@ -8,6 +8,7 @@ import { convertValueByFieldType } from '@/architecture/presentation/widgets/uti
 import { getWidgetDefaultValue } from '@/architecture/presentation/widgets/composables/useWidgetDefaultValue'
 import { useAuthStore } from '@/stores/auth'
 import { createEmptyFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
+import { getChartRequestFields } from '@/utils/functionSchemaSelectors'
 
 interface UseChartFilterStateOptions {
   functionDetail: ComputedRef<FunctionDetail>
@@ -18,9 +19,7 @@ export function useChartFilterState(options: UseChartFilterStateOptions) {
   const route = useRoute()
 
   const requestFields = computed(() => {
-    const request = options.functionDetail.value.request
-    if (!request) return []
-    return (request as FieldConfig[])
+    return getChartRequestFields(options.functionDetail.value)
       .filter((field) => field.widget && field.widget.type)
       .map((field) => {
         if (field.widget && (field.widget.type === 'select' || field.widget.type === 'multiselect')) {

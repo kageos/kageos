@@ -69,20 +69,27 @@ describe('useFunctionParamInitialization', () => {
           id: 105,
           method: 'GET',
           router: '/liubeiluo/work/component_test/test_all_components.form',
-          request: [
-            {
-              code: 'bank_id',
-              name: '银行卡',
-              callbacks: ['OnSelectFuzzy'],
-              widget: {
-                type: 'select',
-                config: {}
-              },
-              data: {
-                type: 'int'
-              }
+          schema: {
+            version: 1,
+            type: 'form',
+            form: {
+              request: [
+                {
+                  code: 'bank_id',
+                  name: '银行卡',
+                  callbacks: ['OnSelectFuzzy'],
+                  widget: {
+                    type: 'select',
+                    config: {}
+                  },
+                  data: {
+                    type: 'int'
+                  }
+                }
+              ],
+              response: []
             }
-          ]
+          }
         }) as any),
         formDataStore: {
           getValue: (fieldCode: string) => formDataStore.getValue(fieldCode),

@@ -1,6 +1,9 @@
 package dto
 
-import "github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+import (
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
+	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+)
 
 // WorkspaceChatReq 工作台对话请求（只认 LLM，单模式）
 type WorkspaceChatReq struct {
@@ -93,13 +96,13 @@ type WorkspaceMessageInfo struct {
 
 // ToolDef 工具定义（list_tools 返回、LLM tools 入参，即 MCP tool schema）
 //
-// 与 function 表的关系：function 表的 Request（请求参数）、Response（响应参数）为 []*widget.Field 的 JSON。
-// 后续由适配层 FunctionToMCPToolDef 将 Request → InputSchema、Response → OutputSchema，直接得到 MCP ToolDef。
+// 与 function 表的关系：function 表的 schema 内保存 form/table/chart 的字段配置。
+// 后续由适配层 FunctionToMCPToolDef 将 schema 中的输入/输出字段转换为 MCP ToolDef。
 type ToolDef struct {
 	Name         string                 `json:"name"`
 	Description  string                 `json:"description"`
 	InputSchema  map[string]interface{} `json:"input_schema"`            // 请求参数 → JSON Schema
-	OutputSchema map[string]interface{} `json:"output_schema,omitempty"` // 响应参数 → JSON Schema（可选，后续从 function.Response 转换）
+	OutputSchema map[string]interface{} `json:"output_schema,omitempty"` // 响应参数 → JSON Schema（可选，后续从 function schema 转换）
 }
 
 // ListToolsResp 工作台 list_tools 响应
@@ -202,15 +205,15 @@ type GetWorkspaceContextReq struct {
 
 // WorkspaceContextNode 工作台环境节点信息
 type WorkspaceContextNode struct {
-	ID           int64         `json:"id"`
-	Name         string        `json:"name"`              // 节点名称
-	Code         string        `json:"code"`              // 节点代码
-	Type         string        `json:"type"`              // 节点类型：package（目录）或 function（函数）
-	Description  string        `json:"description"`       // 节点描述
-	FullCodePath string        `json:"full_code_path"`    // 完整路径
-	TemplateType string        `json:"template_type"`     // 函数类型（仅 function 有效）：table、form、chart
-	Callbacks    string        `json:"callbacks"`         // 函数回调能力（仅 function 有效），逗号分隔
-	Request      []interface{} `json:"request,omitempty"` // 请求参数字段（仅 function 有效，用于构造执行参数）
+	ID           int64                          `json:"id"`
+	Name         string                         `json:"name"`                // 节点名称
+	Code         string                         `json:"code"`                // 节点代码
+	Type         string                         `json:"type"`                // 节点类型：package（目录）或 function（函数）
+	Description  string                         `json:"description"`         // 节点描述
+	FullCodePath string                         `json:"full_code_path"`      // 完整路径
+	TemplateType string                         `json:"template_type"`       // 函数类型（仅 function 有效）：table、form、chart
+	Callbacks    []string                       `json:"callbacks,omitempty"` // 函数回调能力摘要（仅 function 有效）
+	Schema       *functionschema.FunctionSchema `json:"schema,omitempty"`    // 函数 schema 摘要（仅 function 有效）
 }
 
 // WorkspaceContextDirectory 工作台环境目录信息

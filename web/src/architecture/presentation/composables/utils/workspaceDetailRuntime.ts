@@ -2,6 +2,11 @@ import type { FieldConfig } from '@/architecture/domain/types'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { deleteScopedFieldQueryKey } from '@/utils/queryFieldNamespace'
+import {
+  buildTableUpdateFormDetail,
+  getFormRequestFields,
+  getTableIdField
+} from '@/utils/functionSchemaSelectors'
 
 export type DetailEditFormReadiness =
   | 'missing-edit-detail'
@@ -37,18 +42,7 @@ export function buildEditFunctionDetail(current: FunctionDetail | null): Functio
   if (!current) return null
 
   if (current.template_type === TEMPLATE_TYPE.TABLE) {
-    const fields = (current.response || []) as FieldConfig[]
-    const editableFields = fields.filter(field => {
-      const permission = field.table_permission
-      return !permission || permission === '' || permission === 'update'
-    })
-
-    return {
-      ...current,
-      template_type: TEMPLATE_TYPE.FORM,
-      request: editableFields,
-      response: []
-    }
+    return buildTableUpdateFormDetail(current)
   }
 
   if (current.template_type === TEMPLATE_TYPE.FORM) {
@@ -59,11 +53,7 @@ export function buildEditFunctionDetail(current: FunctionDetail | null): Functio
 }
 
 export function getEditableFieldCodes(editFunctionDetail: FunctionDetail | null): string[] {
-  if (!editFunctionDetail?.request) {
-    return []
-  }
-
-  return editFunctionDetail.request.map((field: FieldConfig) => field.code)
+  return getFormRequestFields(editFunctionDetail).map((field: FieldConfig) => field.code)
 }
 
 export function filterDetailInitialData(options: {
@@ -71,12 +61,13 @@ export function filterDetailInitialData(options: {
   editFunctionDetail: FunctionDetail | null
 }): Record<string, any> {
   const { rowData, editFunctionDetail } = options
-  if (!rowData || !editFunctionDetail?.request) {
+  const requestFields = getFormRequestFields(editFunctionDetail)
+  if (!rowData || requestFields.length === 0) {
     return {}
   }
 
   const editableFieldCodes = new Set(
-    editFunctionDetail.request.map((field: FieldConfig) => field.code)
+    requestFields.map((field: FieldConfig) => field.code)
   )
 
   const filtered: Record<string, any> = {}
@@ -95,7 +86,7 @@ export function buildDetailEditFormState(options: {
 }): DetailEditFormState {
   const editableFieldCodes = getEditableFieldCodes(options.editFunctionDetail)
 
-  if (!options.editFunctionDetail?.request) {
+  if (!options.editFunctionDetail) {
     return {
       readiness: 'missing-edit-detail',
       editableFieldCodes,
@@ -206,12 +197,7 @@ export function shouldWaitForDetailTableData(options: {
 }
 
 export function findDetailIdField(detail: FunctionDetail | null): FieldConfig | null {
-  const fields = Array.isArray(detail?.response) ? detail.response : []
-
-  return fields.find((field: FieldConfig) => {
-    const code = String(field.code || '').toLowerCase()
-    return code === 'id' || code === '_id'
-  }) || null
+  return getTableIdField(detail)
 }
 
 export function buildDetailLookupSearchRequest(options: {

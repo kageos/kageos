@@ -6,7 +6,7 @@ type Select struct {
 	Options       []string `json:"options,omitempty"`        // 选项列表
 	OptionsColors []string `json:"options_colors,omitempty"` // 选项的颜色，支持warning，info，success，danger，primary 还支持自定义颜色例如：#FF9800 橙色，#9C27B0 紫色，每个颜色都可以可以重复
 	Placeholder   string   `json:"placeholder,omitempty"`    // 占位符文本
-	Default       string   `json:"default,omitempty"`        // 默认值
+	RenderDefault string   `json:"render_default,omitempty"` // 前端渲染默认值
 	Creatable     bool     `json:"creatable"`                // 是否支持创建新选项
 }
 
@@ -26,10 +26,10 @@ func (s *Select) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticFac
 	if fact, ok := placeholderFact(s.Placeholder); ok {
 		facts = append(facts, fact)
 	}
-	if strings.TrimSpace(s.Default) != "" {
-		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: s.Default})
+	if strings.TrimSpace(s.RenderDefault) != "" {
+		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: s.RenderDefault})
 		if field != nil && field.Data != nil && strings.TrimSpace(field.Data.Example) == "" {
-			facts = append(facts, SemanticFact{Key: "example", Value: quoteExampleValue(s.Default)})
+			facts = append(facts, SemanticFact{Key: "example", Value: quoteExampleValue(s.RenderDefault)})
 		}
 	} else if len(s.Options) > 0 {
 		facts = append(facts, SemanticFact{Key: "example", Value: quoteExampleValue(s.Options[0])})
@@ -51,8 +51,8 @@ func newSelect(widgetParsed map[string]string) *Select {
 	if placeholder, exists := widgetParsed["placeholder"]; exists {
 		selectWidget.Placeholder = placeholder
 	}
-	if defaultValue, exists := widgetParsed["default"]; exists {
-		selectWidget.Default = defaultValue
+	if defaultValue, exists := getRenderDefault(widgetParsed); exists {
+		selectWidget.RenderDefault = defaultValue
 	}
 	if creatable, exists := widgetParsed["creatable"]; exists {
 		selectWidget.Creatable = creatable == "true"

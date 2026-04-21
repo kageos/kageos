@@ -2,7 +2,10 @@ package widget
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
+
+	apptypes "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 )
 
 // 测试用的嵌套结构体
@@ -54,6 +57,23 @@ type NestedLevel1 struct {
 type OmitEmptyFieldSample struct {
 	OutputFiles string `json:"output_files,omitempty" widget:"name:输出文件;type:files"`
 	TraceID     string `json:",omitempty" widget:"name:追踪ID;type:input"`
+}
+
+type DateTimeFieldSample struct {
+	CreatedAt apptypes.Time `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"`
+}
+
+type RenderDefaultFieldSample struct {
+	Priority string `json:"priority" widget:"name:优先级;type:select;options:低,中,高;render_default:中"`
+}
+
+type VoteOptionItemSample struct {
+	Content string `json:"content" widget:"name:选项内容;type:input"`
+	Sort    int    `json:"sort" widget:"name:排序;type:number"`
+}
+
+type DisplayCreateTableFieldSample struct {
+	Options []VoteOptionItemSample `json:"options" widget:"name:投票选项;type:table" display:"scenes:create"`
 }
 
 func TestDecodeForm(t *testing.T) {
@@ -170,6 +190,77 @@ func TestDecodeForm(t *testing.T) {
 
 		if fields[1].Code != "TraceID" {
 			t.Fatalf("fields[1].Code = %q, want %q", fields[1].Code, "TraceID")
+		}
+	})
+
+	t.Run("datetime字段按字符串协议输出schema", func(t *testing.T) {
+		fields, _, err := DecodeForm(nil, &DateTimeFieldSample{}, nil)
+		if err != nil {
+			t.Fatalf("解析失败: %v", err)
+		}
+		if len(fields) != 1 {
+			t.Fatalf("期望1个字段，实际得到%d个", len(fields))
+		}
+		field := fields[0]
+		if field.Widget.Type != TypeDatetime {
+			t.Fatalf("widget type = %q, want %q", field.Widget.Type, TypeDatetime)
+		}
+		if field.Data.Type != DataTypeString {
+			t.Fatalf("data type = %q, want %q", field.Data.Type, DataTypeString)
+		}
+		config, ok := field.Widget.Config.(*DateTime)
+		if !ok {
+			t.Fatalf("config type = %T, want *DateTime", field.Widget.Config)
+		}
+		if config.Format != "YYYY-MM-DD HH:mm:ss" {
+			t.Fatalf("format = %q", config.Format)
+		}
+	})
+
+	t.Run("render_default只输出新schema", func(t *testing.T) {
+		fields, _, err := DecodeForm(nil, &RenderDefaultFieldSample{}, nil)
+		if err != nil {
+			t.Fatalf("解析失败: %v", err)
+		}
+		if len(fields) != 1 {
+			t.Fatalf("期望1个字段，实际得到%d个", len(fields))
+		}
+
+		priorityConfig, ok := fields[0].Widget.Config.(*Select)
+		if !ok {
+			t.Fatalf("priority config type = %T, want *Select", fields[0].Widget.Config)
+		}
+		if priorityConfig.RenderDefault != "中" {
+			t.Fatalf("priority render_default = %q", priorityConfig.RenderDefault)
+		}
+		data, err := json.Marshal(fields)
+		if err != nil {
+			t.Fatalf("marshal fields: %v", err)
+		}
+		if string(data) == "" || !strings.Contains(string(data), `"render_default"`) {
+			t.Fatalf("schema should contain render_default, got %s", string(data))
+		}
+		if strings.Contains(string(data), `"default"`) {
+			t.Fatalf("schema should not emit legacy default, got %s", string(data))
+		}
+	})
+
+	t.Run("table字段保留create display scenes", func(t *testing.T) {
+		fields, _, err := DecodeForm(nil, &DisplayCreateTableFieldSample{}, nil)
+		if err != nil {
+			t.Fatalf("解析失败: %v", err)
+		}
+		if len(fields) != 1 {
+			t.Fatalf("期望1个字段，实际得到%d个", len(fields))
+		}
+		if fields[0].Display == nil {
+			t.Fatal("Display should not be nil")
+		}
+		if got, want := strings.Join(fields[0].Display.Scenes, ","), "create"; got != want {
+			t.Fatalf("display scenes = %q, want %q", got, want)
+		}
+		if len(fields[0].Children) != 2 {
+			t.Fatalf("table children = %d, want 2", len(fields[0].Children))
 		}
 	})
 

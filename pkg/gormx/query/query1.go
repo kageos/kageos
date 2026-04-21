@@ -238,10 +238,10 @@ func parseFieldValues(input string) (map[string]string, error) {
 	}
 
 	result := make(map[string]string)
-	pairs := strings.Split(input, ",")
+	pairs := splitCommaOutsideParens(input)
 
 	for _, pair := range pairs {
-		parts := strings.Split(pair, ":")
+		parts := strings.SplitN(pair, ":", 2)
 		if len(parts) != 2 {
 			return nil, fmt.Errorf("参数格式错误：%s，应为 field:value 格式", pair)
 		}
@@ -257,6 +257,40 @@ func parseFieldValues(input string) (map[string]string, error) {
 	}
 
 	return result, nil
+}
+
+func splitCommaOutsideParens(input string) []string {
+	parts := make([]string, 0, 2)
+	start := 0
+	depth := 0
+	var quote rune
+
+	for i, r := range input {
+		if quote != 0 {
+			if r == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch r {
+		case '\'', '"':
+			quote = r
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				parts = append(parts, input[start:i])
+				start = i + 1
+			}
+		}
+	}
+
+	parts = append(parts, input[start:])
+	return parts
 }
 
 // parseInValues 解析IN查询的字段和值

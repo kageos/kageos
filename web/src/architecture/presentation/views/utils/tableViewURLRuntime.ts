@@ -10,6 +10,10 @@ import {
   hasSearchFieldValue,
   isStoredSearchFieldValue
 } from '@/utils/searchFieldValue'
+import {
+  getTableRequestFields,
+  getTableSearchFields
+} from '@/utils/functionSchemaSelectors'
 
 interface BuildTableURLQueryParamsOptions {
   functionDetail: FunctionDetail
@@ -47,7 +51,7 @@ const normalizeRouteQueryValue = (value: unknown): string | string[] | undefined
 }
 
 const getRequestFields = (functionDetail: FunctionDetail) => {
-  return Array.isArray(functionDetail.request) ? functionDetail.request : []
+  return getTableRequestFields(functionDetail)
 }
 
 const shouldPersistSearchDisplay = (field: any, value: unknown): boolean => {
@@ -96,10 +100,7 @@ export const buildTableURLQueryParams = (
   }
 
   const requestFieldCodes = getTableRequestFieldCodes(functionDetail)
-  const responseFields = (functionDetail.response || []).filter(field => {
-    const search = field.search
-    return search && search !== '-' && search !== '' && search.trim() !== ''
-  })
+  const responseFields = getTableSearchFields(functionDetail)
   const responseFieldsForURL = responseFields.filter(field => !requestFieldCodes.has(field.code))
   const displayFields = [
     ...getRequestFields(functionDetail),

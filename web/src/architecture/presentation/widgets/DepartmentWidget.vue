@@ -138,6 +138,7 @@ import { Logger } from '@/core/utils/logger'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import { SearchType, hasSearchType } from '@/core/constants/search'
 import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/utils/searchType'
+import { getRenderDefaultFromConfig } from '@/core/widgetRuntime/defaultValue'
 
 const COMPONENT_NAME = 'DepartmentWidget'
 
@@ -479,8 +480,8 @@ onMounted(async () => {
     // 情况1：value.raw 是 "MyDepartment()" 字符串（FormDomainService 还没有解析）
     // 情况2：value.raw 是 null/undefined/空字符串，且配置中有 "MyDepartment()" 默认值
     const needsResolveMyDepartment = currentRaw === 'MyDepartment()' || 
-      ((!currentRaw || currentRaw === '') && 
-       props.field.widget?.config?.default === 'MyDepartment()')
+      ((!currentRaw || currentRaw === '') &&
+       getRenderDefaultFromConfig(props.field.widget?.config) === 'MyDepartment()')
     
     if (needsResolveMyDepartment) {
       // ⚠️ 检查是否是编辑模式：

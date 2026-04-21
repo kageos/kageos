@@ -11,11 +11,16 @@ type Field struct {
 		Type   string      `json:"type"`             // 组件类型，必需
 		Config interface{} `json:"config,omitempty"` // 组件配置，可以为空
 	} `json:"widget"`
-	Children        []*Field `json:"children,omitempty"`         // 嵌套字段（用于 list/struct 类型）
-	Callbacks       []string `json:"callbacks,omitempty"`        // 字段级别的回调，如 ['OnSelectFuzzy']
-	TablePermission string   `json:"table_permission,omitempty"` // 表格权限：read,update,create
-	Validation      string   `json:"validation,omitempty"`       // 验证规则，完全照搬 github.com/go-playground/validator/v10
-	DependOn        string   `json:"depend_on,omitempty"`        // 依赖的字段 code，当依赖字段值变化时，该字段会被清空
+	Children   []*Field      `json:"children,omitempty"`   // 嵌套字段（用于 list/struct 类型）
+	Callbacks  []string      `json:"callbacks,omitempty"`  // 字段级别的回调，如 ['OnSelectFuzzy']
+	Display    *FieldDisplay `json:"display,omitempty"`    // 前端展示场景；不配置表示列表/新增/编辑均展示，如 {"scenes":["list"]}
+	Validation string        `json:"validation,omitempty"` // 验证规则，完全照搬 github.com/go-playground/validator/v10
+	DependOn   string        `json:"depend_on,omitempty"`  // 依赖的字段 code，当依赖字段值变化时，该字段会被清空
+}
+
+type FieldDisplay struct {
+	// Scenes 控制前端在哪些界面渲染字段：list=列表，create=新增表单，update=编辑表单。
+	Scenes []string `json:"scenes,omitempty"`
 }
 
 // FieldData 字段数据类型信息

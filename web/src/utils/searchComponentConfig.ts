@@ -55,9 +55,9 @@ export function createSearchComponentConfig(
     return createDepartmentsComponentConfig(field, searchType)
   }
 
-  // 时间戳组件
-  if (widgetType === WidgetType.TIMESTAMP) {
-    return createTimestampComponentConfig(field, searchType)
+  // 时间组件
+  if (widgetType === WidgetType.DATETIME) {
+    return createDateTimeComponentConfig(field, searchType)
   }
 
   // 选择组件
@@ -210,9 +210,12 @@ function createUsersComponentConfig(field: FieldConfig, searchType: string | und
 }
 
 /**
- * 创建时间戳组件配置
+ * 创建日期时间组件配置
  */
-function createTimestampComponentConfig(field: FieldConfig, searchType: string | undefined): ComponentConfig {
+function createDateTimeComponentConfig(field: FieldConfig, searchType: string | undefined): ComponentConfig {
+  const format = field.widget?.config?.format || 'YYYY-MM-DD HH:mm:ss'
+  const valueFormat = format
+
   // 范围搜索（gte/lte）
   if (hasAllSearchTypes(searchType, [SearchType.GTE, SearchType.LTE])) {
     return {
@@ -222,8 +225,8 @@ function createTimestampComponentConfig(field: FieldConfig, searchType: string |
         rangeSeparator: '至',
         startPlaceholder: generatePlaceholder(field.name, 'start'),
         endPlaceholder: generatePlaceholder(field.name, 'end'),
-        format: 'YYYY-MM-DD HH:mm:ss',
-        valueFormat: 'x', // 毫秒级时间戳格式
+        format,
+        valueFormat,
         clearable: true,
         style: { width: SearchConfig.DEFAULT_RANGE_WIDTH },
         shortcuts: createDateShortcuts()
@@ -237,8 +240,8 @@ function createTimestampComponentConfig(field: FieldConfig, searchType: string |
     props: {
       type: 'datetime',
       placeholder: generatePlaceholder(field.name, 'select'),
-      format: 'YYYY-MM-DD HH:mm:ss',
-      valueFormat: 'x', // 毫秒级时间戳格式
+      format,
+      valueFormat,
       clearable: true,
       style: { width: SearchConfig.DEFAULT_INPUT_WIDTH }
     }

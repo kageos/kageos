@@ -4550,12 +4550,6 @@ const docTemplate = `{
                 "app": {
                     "type": "string"
                 },
-                "callback": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
                 "code": {
                     "type": "string"
                 },
@@ -4577,20 +4571,12 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "request": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/widget.Field"
-                    }
-                },
-                "response": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/widget.Field"
-                    }
-                },
                 "router": {
                     "type": "string"
+                },
+                "schema": {
+                    "description": "统一函数 Schema",
+                    "type": "object"
                 },
                 "source_code": {
                     "type": "string"
@@ -5790,19 +5776,20 @@ const docTemplate = `{
                     "type": "string",
                     "example": "表格解析"
                 },
-                "request": {
-                    "description": "请求参数（表单/接口入参结构，便于构造 run_form_submit 的 body）",
+                "callbacks": {
+                    "description": "函数级回调能力摘要",
                     "type": "array",
-                    "items": {}
-                },
-                "response": {
-                    "description": "响应参数（返回结构说明）",
-                    "type": "array",
-                    "items": {}
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "run_count": {
                     "description": "运行次数（用于 search_tools 按热度排序）",
                     "type": "integer"
+                },
+                "schema": {
+                    "description": "统一函数 Schema",
+                    "type": "object"
                 },
                 "template_type": {
                     "description": "模板类型（form、table、chart）",
@@ -6034,11 +6021,6 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 1
                 },
-                "callbacks": {
-                    "description": "回调函数",
-                    "type": "string",
-                    "example": "onCreate,onUpdate"
-                },
                 "create_tables": {
                     "description": "创建的表",
                     "type": "string",
@@ -6080,16 +6062,14 @@ const docTemplate = `{
                         "type": "boolean"
                     }
                 },
-                "request": {
-                    "description": "请求配置（JSON对象）"
-                },
-                "response": {
-                    "description": "响应配置（JSON对象）"
-                },
                 "router": {
                     "description": "路由路径",
                     "type": "string",
                     "example": "/crm/crm_ticket"
+                },
+                "schema": {
+                    "description": "统一函数 Schema",
+                    "type": "object"
                 },
                 "template_type": {
                     "description": "模板类型",
@@ -7804,9 +7784,18 @@ const docTemplate = `{
                     "description": "搜索类型，如 \"like\", \"eq\", \"in\" 等",
                     "type": "string"
                 },
-                "table_permission": {
-                    "description": "表格权限：read,update,create",
-                    "type": "string"
+                "display": {
+                    "description": "字段展示场景配置；不存在表示 list/create/update 全部展示",
+                    "type": "object",
+                    "properties": {
+                        "scenes": {
+                            "description": "展示场景：list,create,update",
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
                 },
                 "validation": {
                     "description": "验证规则，完全照搬 github.com/go-playground/validator/v10",

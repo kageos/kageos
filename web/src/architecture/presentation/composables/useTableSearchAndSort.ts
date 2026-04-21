@@ -5,6 +5,7 @@ import { resolveSearchFieldLayoutClass } from '../views/utils/searchFieldLayout'
 import type { FunctionDetail, FieldConfig } from '../../domain/types'
 import type { SortItem, TableState, TableDomainService } from '../../domain/services/TableDomainService'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'
+import { getTableIdField, getTableListFields } from '@/utils/functionSchemaSelectors'
 
 interface UseTableSearchAndSortOptions {
   functionDetail: () => FunctionDetail
@@ -57,7 +58,7 @@ export function useTableSearchAndSort(options: UseTableSearchAndSortOptions) {
   watch(searchBarExpanded, (value) => saveSearchBarExpanded(value))
 
   const idField = computed(() => {
-    return (options.functionDetail().response || []).find((field: FieldConfig) => field.widget?.type === WidgetType.ID)
+    return getTableIdField(options.functionDetail())
   })
 
   const searchableFields = computed(() => {
@@ -71,10 +72,7 @@ export function useTableSearchAndSort(options: UseTableSearchAndSortOptions) {
   })
 
   const visibleFields = computed(() => {
-    return (options.functionDetail().response || []).filter((field: FieldConfig) => {
-      const permission = field.table_permission || ''
-      return permission === '' || permission === 'read'
-    })
+    return getTableListFields(options.functionDetail())
   })
 
   const getSearchFieldLayoutClass = (field: FieldConfig): string => {

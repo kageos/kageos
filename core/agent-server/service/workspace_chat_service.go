@@ -532,7 +532,7 @@ func workspaceCtxToEnvInput(c *dto.GetWorkspaceContextResp) *prompt.WorkspaceEnv
 			FullCodePath: n.FullCodePath,
 			TemplateType: n.TemplateType,
 			Callbacks:    n.Callbacks,
-			Request:      n.Request,
+			Schema:       n.Schema,
 		})
 	}
 	files := make([]prompt.WorkspaceEnvFile, 0, len(c.Files))

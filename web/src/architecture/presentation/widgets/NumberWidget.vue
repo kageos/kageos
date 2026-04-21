@@ -102,7 +102,7 @@ const placeholder = computed(() => {
 
 // 默认值（从配置中读取）
 const defaultValue = computed(() => {
-  const def = config.value.default
+  const def = config.value.render_default
   return def !== undefined ? Number(def) : undefined
 })
 
@@ -224,4 +224,3 @@ function handleBlur(): void {
   color: var(--el-text-color-regular);
 }
 </style>
-

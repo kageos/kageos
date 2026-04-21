@@ -396,7 +396,7 @@
       v-if="hasAddCallback"
       v-model="createDialogVisible"
       title="新增"
-      :fields="props.functionDetail.response || []"
+      :fields="getTableCreateFields(props.functionDetail)"
       mode="create"
       :router="props.functionDetail.router ?? ''"
       :method="props.functionDetail.method || 'POST'"
@@ -434,7 +434,7 @@ import type { TableRow } from '../../domain/services/TableDomainService'
 import { TablePermission, getPermissionShortName } from '@/utils/permission'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
-import { hasFunctionCallback } from './utils/tableViewActionRuntime'
+import { getFunctionCallbacks, getTableCreateFields } from '@/utils/functionSchemaSelectors'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -585,7 +585,7 @@ const {
   router,
   functionDetail: () => props.functionDetail,
   currentFunctionNode: () => currentFunctionNode.value,
-  idField: () => idField.value,
+  idField: () => idField.value || undefined,
   loadTableData
 })
 
@@ -609,15 +609,15 @@ const getActionColumnWidth = (): number => {
 // ==================== 回调判断 ====================
 
 const hasAddCallback = computed(() => {
-  return hasFunctionCallback(props.functionDetail.callbacks, 'OnTableAddRow')
+  return getFunctionCallbacks(props.functionDetail).includes('OnTableAddRow')
 })
 
 const hasDeleteCallback = computed(() => {
-  return hasFunctionCallback(props.functionDetail.callbacks, 'OnTableDeleteRows')
+  return getFunctionCallbacks(props.functionDetail).includes('OnTableDeleteRows')
 })
 
 const hasUpdateCallback = computed(() => {
-  return hasFunctionCallback(props.functionDetail.callbacks, 'OnTableUpdateRow')
+  return getFunctionCallbacks(props.functionDetail).includes('OnTableUpdateRow')
 })
 
 const {

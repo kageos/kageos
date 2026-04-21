@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -698,14 +697,8 @@ func buildDirectoryTreeNodeImpl(s *serviceTreeHubService, tree *model.ServiceTre
 					info.Method = refFn.Method
 					info.Router = refFn.Router
 					info.CreateTables = refFn.CreateTables
-					info.Callbacks = refFn.Callbacks
-					schemaObj := map[string]interface{}{
-						"request":  refFn.Request,
-						"response": refFn.Response,
-					}
-					if schemaBytes, err := json.Marshal(schemaObj); err == nil {
-						info.Schema = schemaBytes
-					}
+					info.Callbacks = refFn.GetCallbacks()
+					info.Schema = refFn.Schema
 				}
 			}
 			functions = append(functions, info)

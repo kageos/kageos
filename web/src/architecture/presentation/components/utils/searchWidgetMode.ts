@@ -76,7 +76,7 @@ export function shouldUseWidgetSearchRenderer(options: {
     case WidgetType.MULTI_SELECT:
       return !hasLikeSearch && !hasRangeSearch
     case WidgetType.CHECKBOX:
-    case WidgetType.TIMESTAMP:
+    case WidgetType.DATETIME:
     case WidgetType.SLIDER:
     case WidgetType.RATE:
       return true

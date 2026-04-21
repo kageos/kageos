@@ -3,8 +3,8 @@ package widget
 import "strings"
 
 type Radio struct {
-	Options []string `json:"options,omitempty"` // 选项列表
-	Default string   `json:"default,omitempty"` // 默认选中项
+	Options       []string `json:"options,omitempty"`        // 选项列表
+	RenderDefault string   `json:"render_default,omitempty"` // 前端渲染默认选中项
 }
 
 func (r *Radio) Config() interface{} {
@@ -20,9 +20,9 @@ func (r *Radio) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticFact
 	if len(r.Options) > 0 {
 		facts = append(facts, SemanticFact{Key: "enum", Value: strings.Join(r.Options, "|")})
 	}
-	if strings.TrimSpace(r.Default) != "" {
-		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: r.Default})
-		facts = append(facts, SemanticFact{Key: "example", Value: quoteExampleValue(r.Default)})
+	if strings.TrimSpace(r.RenderDefault) != "" {
+		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: r.RenderDefault})
+		facts = append(facts, SemanticFact{Key: "example", Value: quoteExampleValue(r.RenderDefault)})
 	} else if len(r.Options) > 0 {
 		facts = append(facts, SemanticFact{Key: "example", Value: quoteExampleValue(r.Options[0])})
 	}
@@ -37,8 +37,8 @@ func newRadio(widgetParsed map[string]string) *Radio {
 		// 解析逗号分隔的选项
 		radio.Options = parseOptions(options)
 	}
-	if defaultValue, exists := widgetParsed["default"]; exists {
-		radio.Default = defaultValue
+	if defaultValue, exists := getRenderDefault(widgetParsed); exists {
+		radio.RenderDefault = defaultValue
 	}
 
 	return radio

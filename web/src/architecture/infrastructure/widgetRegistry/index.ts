@@ -92,7 +92,7 @@ import MultiSelectWidget from '@/architecture/presentation/widgets/MultiSelectWi
 import CheckboxWidget from '@/architecture/presentation/widgets/CheckboxWidget.vue'
 import RadioWidget from '@/architecture/presentation/widgets/RadioWidget.vue'
 import TextWidget from '@/architecture/presentation/widgets/TextWidget.vue'
-import TimestampWidget from '@/architecture/presentation/widgets/TimestampWidget.vue'
+import DateTimeWidget from '@/architecture/presentation/widgets/DateTimeWidget.vue'
 import SliderWidget from '@/architecture/presentation/widgets/SliderWidget.vue'
 import RateWidget from '@/architecture/presentation/widgets/RateWidget.vue'
 import ColorWidget from '@/architecture/presentation/widgets/ColorWidget.vue'
@@ -132,7 +132,7 @@ function registerBasicComponents(): void {
   widgetComponentFactory.registerRequestComponent(WidgetType.CHECKBOX, CheckboxWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.RADIO, RadioWidget)
   
-  widgetComponentFactory.registerRequestComponent(WidgetType.TIMESTAMP, TimestampWidget)
+  widgetComponentFactory.registerRequestComponent(WidgetType.DATETIME, DateTimeWidget)
   
   widgetComponentFactory.registerRequestComponent(WidgetType.SLIDER, SliderWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.RATE, RateWidget)

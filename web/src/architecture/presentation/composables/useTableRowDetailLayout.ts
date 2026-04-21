@@ -59,8 +59,8 @@ export function useTableRowDetailLayout({
     })
 
     const userFields = fieldsToGroup.filter((field: FieldConfig) => field.widget?.type === WidgetType.USER)
-    const timestampFields = fieldsToGroup.filter(
-      (field: FieldConfig) => field.widget?.type === WidgetType.TIMESTAMP
+    const dateTimeFields = fieldsToGroup.filter(
+      (field: FieldConfig) => field.widget?.type === WidgetType.DATETIME
     )
     const richTextFields = fieldsToGroup.filter(
       (field: FieldConfig) => field.widget?.type === WidgetType.RICH_TEXT
@@ -80,7 +80,7 @@ export function useTableRowDetailLayout({
         widgetType !== WidgetType.CHECKBOX &&
         widgetType !== WidgetType.SWITCH &&
         widgetType !== WidgetType.USER &&
-        widgetType !== WidgetType.TIMESTAMP &&
+        widgetType !== WidgetType.DATETIME &&
         widgetType !== WidgetType.FORM &&
         widgetType !== WidgetType.TABLE
       )
@@ -90,7 +90,7 @@ export function useTableRowDetailLayout({
       idField,
       statusFields,
       userFields,
-      timestampFields,
+      dateTimeFields,
       richTextFields,
       complexFields,
       mainContentFields

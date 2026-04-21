@@ -1,5 +1,5 @@
 import { get, post, put, del } from '@/utils/request'
-import type { ServiceTree, CreateServiceTreeRequest } from '@/types'
+import type { ServiceTree, CreateServiceTreeRequest, FunctionSchema } from '@/types'
 
 // ⭐ 创建 package 类型节点（推荐使用）
 export function createPackage(data: CreateServiceTreeRequest) {
@@ -181,10 +181,10 @@ export interface FunctionSearchResult {
   app_id: number
   app_user: string
   app_code: string
-  /** 请求参数（表单/接口入参结构），便于构造 run_form_submit 的 body */
-  request?: unknown[]
-  /** 响应参数（返回结构说明） */
-  response?: unknown[]
+  /** 函数 Schema，包含 form/table/chart 的字段结构 */
+  schema?: FunctionSchema
+  /** 函数级回调能力 */
+  callbacks?: string[]
 }
 
 export interface SearchFunctionsResp {

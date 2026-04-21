@@ -41,7 +41,7 @@
 | 精确查 ID | `eq=id:123` | |
 | 模糊搜标题 | `like=title:会议` | model 需有 search:"like" |
 | 状态多选 | `in=status:待处理,已完成` | |
-| 时间范围 | `gte=created_at:Now(-7d)&lte=created_at:Now()` | 时间函数：Now()、Today()、Now(-7d)、Now(2026-02-01) |
+| datetime 时间范围 | `gte=created_at:DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)&lte=created_at:CURRENT_TIMESTAMP` | `datetime` 字段传 `YYYY-MM-DD HH:mm:ss`，可用 SQL 风格白名单表达式：`CURRENT_TIMESTAMP`、`CURRENT_DATE`、`DATE_ADD/DATE_SUB(..., INTERVAL n DAY/HOUR/...)` |
 | 组合 | `eq=id:1&like=title:问卷&in=status:进行中,已结束` | |
 
 **Req 自定义 form 字段**也拼进 url_query（如 `status=未开始`），与 model 的 search 操作符并存。
@@ -52,7 +52,7 @@
 ```json
 [{"title":"问卷A","description":"描述","target_group":"全部用户"}]
 ```
-键名与 model 的 json 标签一致。create_by、created_at、updated_at 由系统自动填充。业务时间字段须为**毫秒时间戳**。若 model 有 files 类型字段（如 attachment、resume_file），该字段须传文件引用字符串，见下方「带上传文件时」。
+键名与 model 的 json 标签一致。create_by、created_at、updated_at 由系统自动填充。`datetime` 字段传 `YYYY-MM-DD HH:mm:ss` 字符串。若 model 有 files 类型字段（如 attachment、resume_file），该字段须传文件引用字符串，见下方「带上传文件时」。
 
 ### 3. run_form_submit：body 为 JSON 对象
 
@@ -61,7 +61,7 @@
 ```
 无额外字段时传 `{}`。
 
-提交前先确认该 Form 的 Request 字段：看字段的 `json` 名、`validate:"required"`、`oneof`/`widget` options。字段摘要里有【必填】就必须显式传入；前端默认值只是界面初始值，不会自动进入 body。
+提交前先确认该 Form 的 Request 字段：看字段的 `json` 名、`validate:"required"`、`oneof`/`widget` options。字段摘要里的「渲染默认值」只是前端界面初始值，不会自动进入 body。
 
 **带上传文件时**：**表单（run_form_submit）和表格（run_table_create、run_table_update）** 里若有 `widget.type === "files"` 的字段（如 input_files、attachment、resume_file），该字段传**字符串**，值为 `bucket/object_key` 文件引用；多文件用英文逗号分隔。示例：`{"input_files":"ai-agent-os/workspace/chat/2026/04/20/xxx.png"}`，多文件：`{"attachment":"ai-agent-os/a.pdf,ai-agent-os/b.xlsx"}`。
 

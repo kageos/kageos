@@ -13,6 +13,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
@@ -423,40 +424,10 @@ func (s *StandardAPI) TableTemplate(c *gin.Context) {
 		return
 	}
 
-	// 解析 response 字段为 widget.Field（已经解析好的结构）
-	var responseFields []*widget.Field
-	if len(function.Response) > 0 {
-		if err := json.Unmarshal(function.Response, &responseFields); err != nil {
-			response.FailWithMessage(c, "解析函数配置失败: "+err.Error())
-			return
-		}
-		widget.NormalizeFieldCodes(responseFields)
-	}
-
 	// 获取当前用户信息（用于创建用户字段的默认值）
 	username := contextx.GetRequestUser(c)
 
-	// 过滤可编辑字段（table_permission 为空或 update，排除 ID 字段）
-	// 同时包含系统字段（created_at, create_by 等，即使 permission="read" 也导出）
-	editableFields := make([]*widget.Field, 0)
-	for _, field := range responseFields {
-		// 检查是否是 ID 字段
-		if field.Widget.Type == widget.TypeID {
-			continue // 跳过 ID 字段
-		}
-
-		// 检查是否是系统字段（created_at, create_by 等）
-		isSystemField := false
-		if field.Code == "created_at" || field.Code == "create_by" ||
-			field.Code == "updated_at" || field.Code == "updated_by" {
-			isSystemField = true
-		}
-
-		// 包含可编辑字段或系统字段
-		if isSystemField || field.TablePermission == "" || field.TablePermission == "update" {
-			editableFields = append(editableFields, field)
-		}
-	}
+	editableFields := functionschema.TableCreateFields(function.Schema)
 
 	if len(editableFields) == 0 {
 		response.FailWithMessage(c, "没有可编辑的字段")
@@ -648,19 +619,6 @@ func generateExampleValueForRow(field *widget.Field, rowIndex int, maxRows int, 
 			}
 		}
 		return 123
-
-	case widget.TypeTimestamp:
-		// 日期类型：如果是创建时间/更新时间字段，使用当前时间；否则使用默认值或示例日期
-		if field.Code == "created_at" || field.Code == "updated_at" {
-			now := time.Now()
-			return now.Format("2006-01-02 15:04:05")
-		}
-		if ok {
-			if defaultVal, ok := config["default"]; ok {
-				return defaultVal
-			}
-		}
-		return "2024-01-01"
 
 	case widget.TypeTextArea:
 		// 多行文本：使用默认值或示例文本

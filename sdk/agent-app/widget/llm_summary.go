@@ -24,7 +24,7 @@ type SemanticFact struct {
 }
 
 const llmRequiredLabel = "【必填】"
-const llmUIDefaultLabel = "前端默认值"
+const llmUIDefaultLabel = "渲染默认值"
 
 type FieldSemanticProvider interface {
 	LLMFacts(opts SummaryOptions) []SemanticFact
@@ -268,8 +268,8 @@ func fieldInputFormat(f *Field) string {
 		return "department full_code_path"
 	case TypeDepartments:
 		return "comma-separated department full_code_path"
-	case TypeTimestamp:
-		return "unix ms timestamp"
+	case TypeDatetime:
+		return "YYYY-MM-DD HH:mm:ss"
 	}
 	switch strings.TrimSpace(f.Data.Type) {
 	case DataTypeStrings, DataTypeInts, DataTypeFloats:
@@ -302,8 +302,8 @@ func fieldExample(f *Field) string {
 		return `"/org/hr"`
 	case TypeDepartments:
 		return `"/org/hr,/org/finance"`
-	case TypeTimestamp:
-		return "1775882690000"
+	case TypeDatetime:
+		return `"2026-04-21 16:30:00"`
 	}
 	switch strings.TrimSpace(f.Data.Type) {
 	case DataTypeStrings:
@@ -395,8 +395,8 @@ func decodeWidgetSemanticProvider(f *Field) WidgetSemanticProvider {
 		if cfg, ok := decodeWidgetConfig[Departments](f.Widget.Config); ok {
 			return cfg
 		}
-	case TypeTimestamp:
-		if cfg, ok := decodeWidgetConfig[Timestamp](f.Widget.Config); ok {
+	case TypeDatetime:
+		if cfg, ok := decodeWidgetConfig[DateTime](f.Widget.Config); ok {
 			return cfg
 		}
 	case TypeFiles:

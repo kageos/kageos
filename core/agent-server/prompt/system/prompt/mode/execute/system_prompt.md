@@ -21,6 +21,7 @@ type Example struct {
     Name   string `json:"name" search:"like"`  // → like=name:tencent（名称模糊）
     Title  string `json:"title" search:"like"` // → like=title:会议（标题模糊）
     Status string `json:"status" search:"in"`  // → in=status:待处理,已完成（多选）
+    CreatedAt types.Time `json:"created_at" widget:"type:datetime" search:"gte,lte"` // → gte=created_at:DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)&lte=created_at:CURRENT_TIMESTAMP
 }
 
 func (Example) TableName() string { return "example" }

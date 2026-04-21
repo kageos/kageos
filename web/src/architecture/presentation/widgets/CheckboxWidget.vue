@@ -116,7 +116,7 @@ const options = computed(() => {
 
 // 默认值
 const defaultValues = computed(() => {
-  const def = config.value.default
+  const def = config.value.render_default
   if (Array.isArray(def)) {
     return def
   }
@@ -236,4 +236,3 @@ watch(
   margin-bottom: 4px;
 }
 </style>
-

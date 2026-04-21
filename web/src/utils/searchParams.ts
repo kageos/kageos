@@ -81,7 +81,7 @@ export function buildSearchParamsString(
     else if (searchType.includes(SearchType.GTE) && searchType.includes(SearchType.LTE)) {
       if (typeof value === 'object') {
         if (Array.isArray(value) && value.length === 2) {
-          // 日期范围数组（时间戳类型）
+          // 日期/时间范围数组
           if (value[0]) {
             result.gte = result.gte ? `${result.gte},${field.code}:${value[0]}` : `${field.code}:${value[0]}`
           }
@@ -186,7 +186,7 @@ export function buildURLSearchParams(
     else if (searchType.includes(SearchType.GTE) && searchType.includes(SearchType.LTE)) {
       if (typeof value === 'object') {
         if (Array.isArray(value) && value.length === 2) {
-          // 日期范围数组（时间戳类型）
+          // 日期/时间范围数组
           if (value[0]) {
             result.gte = result.gte ? `${result.gte},${field.code}:${String(value[0])}` : `${field.code}:${String(value[0])}`
           }

@@ -66,9 +66,9 @@
           <span class="label">请求方法：</span>
           <span class="value">{{ mergedFunctionData.method }}</span>
         </div>
-        <div class="usage-item" v-if="mergedFunctionData.callbacks">
+        <div class="usage-item" v-if="mergedFunctionData.callbacksText">
           <span class="label">回调函数：</span>
-          <span class="value">{{ mergedFunctionData.callbacks }}</span>
+          <span class="value">{{ mergedFunctionData.callbacksText }}</span>
         </div>
       </div>
     </div>
@@ -80,7 +80,7 @@ import { computed } from 'vue'
 import { ElAvatar, ElText, ElTag, ElDivider, ElIcon } from 'element-plus'
 import { User, Clock } from '@element-plus/icons-vue'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
-import type { ServiceTree } from '@/types'
+import type { FunctionSchema, ServiceTree } from '@/types'
 
 interface FunctionInfoSource {
   name?: string
@@ -89,7 +89,7 @@ interface FunctionInfoSource {
   created_at?: string
   router?: string
   method?: string
-  callbacks?: string
+  schema?: FunctionSchema
   run_count?: number | null
 }
 
@@ -100,6 +100,10 @@ interface Props {
 
 const props = defineProps<Props>()
 
+function formatCallbacks(schema?: FunctionSchema): string {
+  return Array.isArray(schema?.callbacks) ? schema.callbacks.join(', ') : ''
+}
+
 interface FunctionInfoDisplayData {
   name: string
   description: string
@@ -108,7 +112,7 @@ interface FunctionInfoDisplayData {
   created_at: string
   router: string
   method: string
-  callbacks: string
+  callbacksText: string
   run_count: number | null
 }
 
@@ -127,7 +131,7 @@ const mergedFunctionData = computed<FunctionInfoDisplayData>(() => {
     created_at: detail?.created_at || node?.created_at || '',
     router: detail?.router || node?.full_code_path || '',
     method: detail?.method || 'GET',
-    callbacks: detail?.callbacks || '',
+    callbacksText: formatCallbacks(detail?.schema),
     run_count: node?.run_count ?? null
   }
 })
@@ -158,7 +162,7 @@ function formatDate(date: string | Date | undefined): string {
 
 // 检查是否有使用说明信息
 const hasUsageInfo = computed(() => {
-  return !!(mergedFunctionData.value.router || mergedFunctionData.value.method || mergedFunctionData.value.callbacks)
+  return !!(mergedFunctionData.value.router || mergedFunctionData.value.method || mergedFunctionData.value.callbacksText)
 })
 </script>
 
