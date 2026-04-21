@@ -30,27 +30,33 @@ function createState(overrides: Partial<TableState> = {}): TableState {
 
 function createFunctionDetail() {
   return {
-    request: [
-      {
-        code: 'status',
-        name: '状态',
-        widget: { type: 'select' }
+    schema: {
+      version: 1,
+      type: 'table',
+      table: {
+        request: [
+          {
+            code: 'status',
+            name: '状态',
+            widget: { type: 'select' }
+          }
+        ],
+        fields: [
+          {
+            code: 'keyword',
+            name: '关键词',
+            search: 'like',
+            widget: { type: 'input' }
+          },
+          {
+            code: 'created_at',
+            name: '创建时间',
+            search: 'gte,lte',
+            widget: { type: 'datetime' }
+          }
+        ]
       }
-    ],
-    response: [
-      {
-        code: 'keyword',
-        name: '关键词',
-        search: 'like',
-        widget: { type: 'input' }
-      },
-      {
-        code: 'created_at',
-        name: '创建时间',
-        search: 'gte,lte',
-        widget: { type: 'timestamp' }
-      }
-    ]
+    }
   } as any
 }
 
@@ -87,16 +93,22 @@ describe('tableViewURLRuntime', () => {
     expect(
       buildTableURLQueryParams({
         functionDetail: {
-          request: [],
-          response: [
-            {
-              code: 'job_id',
-              name: '投递职位',
-              search: 'eq',
-              callbacks: ['OnSelectFuzzy'],
-              widget: { type: 'select' }
+          schema: {
+            version: 1,
+            type: 'table',
+            table: {
+              request: [],
+              fields: [
+                {
+                  code: 'job_id',
+                  name: '投递职位',
+                  search: 'eq',
+                  callbacks: ['OnSelectFuzzy'],
+                  widget: { type: 'select' }
+                }
+              ]
             }
-          ]
+          }
         } as any,
         state: createState({
           searchForm: {

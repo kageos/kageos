@@ -5,29 +5,27 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/pkg/jsonx"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 )
 
 // ApiInfo API信息结构
 type ApiInfo struct {
-	Code              string   `json:"code"`
-	Name              string   `json:"name"`
-	Desc              string   `json:"desc"`
-	Tags              []string `json:"tags"`
-	Router            string   `json:"router"`
-	Method            string   `json:"method"`
-	CreateTables      []string `json:"create_tables"`
-	Callback          []string `json:"callback"`
+	Code         string   `json:"code"`
+	Name         string   `json:"name"`
+	Desc         string   `json:"desc"`
+	Tags         []string `json:"tags"`
+	Router       string   `json:"router"`
+	Method       string   `json:"method"`
+	CreateTables []string `json:"create_tables"`
 
-	Request        []*widget.Field `json:"request"`
-	Response       []*widget.Field `json:"response"`
-	AddedVersion   string          `json:"added_version"`   // API首次添加的版本
-	UpdateVersions []string        `json:"update_versions"` // API更新过的版本列表
-	TemplateType   string          `json:"template_type"`
-	User           string          `json:"user"`
-	App            string          `json:"app"`
-	FullCodePath   string          `json:"full_code_path"`
+	Schema         *functionschema.FunctionSchema `json:"schema"`
+	AddedVersion   string                         `json:"added_version"`   // API首次添加的版本
+	UpdateVersions []string                       `json:"update_versions"` // API更新过的版本列表
+	TemplateType   string                         `json:"template_type"`
+	User           string                         `json:"user"`
+	App            string                         `json:"app"`
+	FullCodePath   string                         `json:"full_code_path"`
 
 	CreateTableModels []interface{} `json:"-"`
 
@@ -115,7 +113,7 @@ func (a *ApiInfo) GetPackageChain() []string {
 }
 
 // IsEqual 比较当前API与另一个API是否相等（排除版本信息）
-// 比较的字段包括：Name, Desc, Tags, CreateTables, Callback, TemplateType, Request, Response
+// 比较的字段包括：Name, Desc, Tags, CreateTables, TemplateType, Schema
 func (a *ApiInfo) IsEqual(other *ApiInfo) bool {
 	if other == nil {
 		return false
@@ -126,14 +124,11 @@ func (a *ApiInfo) IsEqual(other *ApiInfo) bool {
 		a.Desc != other.Desc ||
 		!equalStrings(a.Tags, other.Tags) ||
 		!equalStrings(a.CreateTables, other.CreateTables) ||
-		!equalStrings(a.Callback, other.Callback) ||
 		a.TemplateType != other.TemplateType {
 		return false
 	}
 
-	// 比较请求参数和响应参数
-	return jsonx.DeepEqual(a.Request, other.Request) &&
-		jsonx.DeepEqual(a.Response, other.Response)
+	return jsonx.DeepEqual(a.Schema, other.Schema)
 }
 
 // equalStrings 比较两个字符串切片是否相等

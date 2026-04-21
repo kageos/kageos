@@ -18,6 +18,11 @@ import type { IEventBus } from '../interfaces/IEventBus'
 import { TableEvent } from '../interfaces/IEventBus'
 import type { FunctionDetail, FieldConfig } from '../types'
 import {
+  getTableListFields,
+  getTableRequestFields,
+  getTableSearchFields
+} from '@/utils/functionSchemaSelectors'
+import {
   SearchType,
   WidgetType,
   buildSearchParamsString,
@@ -429,42 +434,7 @@ export class TableDomainService {
    * 获取可搜索字段（遵循依赖倒置原则，业务逻辑在 Domain Layer）
    */
   getSearchableFields(functionDetail: FunctionDetail): FieldConfig[] {
-    const response = Array.isArray(functionDetail.response) ? functionDetail.response : []
-    const request = Array.isArray(functionDetail.request) ? functionDetail.request : []
-    
-    // 从 response 中获取可搜索字段（主表字段，必须有明确的 search 标签值）
-    const responseSearchableFields = response.filter((field: FieldConfig) => {
-      const search = field.search
-      return search && search !== '-' && search !== '' && search.trim() !== ''
-    })
-    
-    // 从 request 中获取所有字段（扩展字段，用于搜索，不需要 search 标签）
-    const requestAllFields = request.filter((field: FieldConfig) => {
-      return field.search !== '-' // 排除明确表示不支持搜索的字段
-    })
-    
-    // 合并：使用 Map 去重
-    const fieldMap = new Map<string, FieldConfig>()
-    responseSearchableFields.forEach((field: FieldConfig) => {
-      fieldMap.set(field.code, field)
-    })
-    requestAllFields.forEach((field: FieldConfig) => {
-      const existingField = fieldMap.get(field.code)
-      if (existingField) {
-        // 智能合并
-        const mergedField: FieldConfig = {
-          ...field,
-          search: (field.search && field.search !== '-' && field.search !== '') 
-            ? field.search 
-            : (existingField.search || undefined),
-        }
-        fieldMap.set(field.code, mergedField)
-      } else {
-        fieldMap.set(field.code, field)
-      }
-    })
-    
-    return Array.from(fieldMap.values())
+    return getTableSearchFields(functionDetail)
   }
 
   /**
@@ -487,8 +457,8 @@ export class TableDomainService {
     const sorts: Array<{ field: string; order: 'asc' | 'desc' }> = []
     
     // 获取当前函数的所有字段 code
-    const requestFields = Array.isArray(functionDetail.request) ? functionDetail.request : []
-    const responseFields = Array.isArray(functionDetail.response) ? functionDetail.response : []
+    const requestFields = getTableRequestFields(functionDetail)
+    const responseFields = getTableListFields(functionDetail)
     
     const currentRequestFieldCodes = new Set<string>()
     const currentResponseFieldCodes = new Set<string>()
@@ -542,15 +512,22 @@ export class TableDomainService {
     })
     
     // 恢复搜索条件（response 字段）
-    const responseSearchableFields = responseFields.filter((field: FieldConfig) => {
+    const searchableFields = this.getSearchableFields(functionDetail)
+    const currentSearchFieldCodes = new Set<string>()
+    searchableFields.forEach((field: FieldConfig) => {
+      currentSearchFieldCodes.add(field.code)
+    })
+
+    const responseSearchableFields = searchableFields.filter((field: FieldConfig) => {
+      if (currentRequestFieldCodes.has(field.code)) {
+        return false
+      }
       const search = field.search
       return search && search !== '-' && search !== '' && search.trim() !== ''
     })
-    
-    const searchableFields = this.getSearchableFields(functionDetail)
-    
+
     responseSearchableFields.forEach((field: FieldConfig) => {
-      if (!currentResponseFieldCodes.has(field.code)) return
+      if (!currentSearchFieldCodes.has(field.code)) return
       
       const searchType = field.search || ''
       
@@ -689,24 +666,13 @@ export class TableDomainService {
           }
         }
         if (gte || lte) {
-          const fieldType = field.data?.type
           const widgetType = field.widget?.type
-          const isTimestamp = fieldType === 'timestamp' || widgetType === 'timestamp'
-          if (isTimestamp) {
-            const SECONDS_THRESHOLD = 9999999999
-            const convertTimestamp = (ts: string | null): number | null => {
-              if (!ts) return null
-              const num = Number(ts)
-              if (num > 0 && num < SECONDS_THRESHOLD) {
-                return num * 1000
-              }
-              return num
-            }
-            const timestampRange = [
-              gte ? convertTimestamp(gte) : null,
-              lte ? convertTimestamp(lte) : null
-            ]
-            searchForm[field.code] = restoreStoredSearchValue(query, field.code, timestampRange)
+          const isDateTime = widgetType === 'datetime'
+          if (isDateTime) {
+            searchForm[field.code] = restoreStoredSearchValue(query, field.code, [
+              gte ? String(gte) : null,
+              lte ? String(lte) : null
+            ])
           } else {
             searchForm[field.code] = restoreStoredSearchValue(query, field.code, {
               min: gte ? String(gte) : undefined,
@@ -731,14 +697,9 @@ export class TableDomainService {
     const searchParams: SearchParams = {}
     
     // response 字段的搜索参数
-    const response = Array.isArray(functionDetail.response) ? functionDetail.response : []
-    const request = Array.isArray(functionDetail.request) ? functionDetail.request : []
-    
-    const responseFields = response.filter((field: FieldConfig) => {
-      const search = field.search
-      return search && search !== '-' && search !== '' && search.trim() !== ''
-    })
-    
+    const request = getTableRequestFields(functionDetail)
+    const responseFields = getTableSearchFields(functionDetail)
+
     const requestFieldCodes = new Set<string>()
     request.forEach((field: FieldConfig) => {
       requestFieldCodes.add(field.code)

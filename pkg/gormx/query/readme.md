@@ -107,10 +107,10 @@
 ### 组合示例（分页 + 排序 + 多条件）
 
 ```
-?page=2&page_size=10&sorts=-created_at,id:asc&eq=status:已发布&like=title:会议&gte=created_at:1704067200&lte=created_at:1704153600
+?page=2&page_size=10&sorts=-created_at,id:asc&eq=status:已发布&like=title:会议&gte=created_at:2026-04-21 00:00:00&lte=created_at:2026-04-21 23:59:59
 ```
 
-对应含义：第 2 页、每页 10 条；按 `created_at` 降序、`id` 升序；`status` 精确为「已发布」；`title` 模糊包含「会议」；`created_at` 在给定时间戳范围内。
+对应含义：第 2 页、每页 10 条；按 `created_at` 降序、`id` 升序；`status` 精确为「已发布」；`title` 模糊包含「会议」；`created_at` 在给定日期时间范围内。datetime 字段直接传 `YYYY-MM-DD HH:mm:ss`，工作台也支持 `CURRENT_TIMESTAMP`、`CURRENT_DATE`、`DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)` 等白名单表达式。
 
 ### 完整 URL 示例
 

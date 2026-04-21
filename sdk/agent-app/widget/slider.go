@@ -8,9 +8,9 @@ type Slider struct {
 	Max float64 `json:"max"` // 最大值（必需）
 
 	// 可选参数（有合理默认值）
-	Step    float64 `json:"step,omitempty"`    // 步长（可选，默认1）
-	Default float64 `json:"default,omitempty"` // 默认值（可选）
-	Unit    string  `json:"unit,omitempty"`    // 单位（可选，如：%、元、kg等）
+	Step          float64  `json:"step,omitempty"`           // 步长（可选，默认1）
+	RenderDefault *float64 `json:"render_default,omitempty"` // 前端渲染默认值（可选）
+	Unit          string   `json:"unit,omitempty"`           // 单位（可选，如：%、元、kg等）
 
 	// 注意：以下参数都有合理的默认值，前端自动处理，不需要配置
 	// - show_input: 默认 false（简单场景不需要输入框）
@@ -53,9 +53,9 @@ func newSlider(widgetParsed map[string]string) *Slider {
 			slider.Step = val
 		}
 	}
-	if defaultValue, exists := widgetParsed["default"]; exists {
+	if defaultValue, exists := getRenderDefault(widgetParsed); exists {
 		if val, err := strconv.ParseFloat(defaultValue, 64); err == nil {
-			slider.Default = val
+			slider.RenderDefault = &val
 		}
 	}
 	if unit, exists := widgetParsed["unit"]; exists {
@@ -64,4 +64,3 @@ func newSlider(widgetParsed map[string]string) *Slider {
 
 	return slider
 }
-

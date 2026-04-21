@@ -6,7 +6,7 @@ const (
 	TypeTextArea    = "text_area"
 	TypeSelect      = "select"
 	TypeSwitch      = "switch"
-	TypeTimestamp   = "timestamp"
+	TypeDatetime    = "datetime"
 	TypeUser        = "user"
 	TypeUsers       = "users"
 	TypeDepartment  = "department"
@@ -67,8 +67,8 @@ func NewWidget(widgetType string, widgetParsed map[string]string) Widget {
 		return newMultiSelect(widgetParsed)
 	case TypeSwitch:
 		return newSwitch(widgetParsed)
-	case TypeTimestamp:
-		return newTimestamp(widgetParsed)
+	case TypeDatetime:
+		return newDateTime(widgetParsed)
 	case TypeUser:
 		return newUser(widgetParsed)
 	case TypeUsers:

@@ -137,6 +137,7 @@ import { Logger } from '@/core/utils/logger'
 import { createFieldValue } from '@/core/utils/createFieldValue'
 import { useAuthStore } from '@/stores/auth'
 import { useUserInfoStore } from '@/stores/userInfo'
+import { getRenderDefaultFromConfig } from '@/core/widgetRuntime/defaultValue'
 
 const COMPONENT_NAME = 'UserWidget'
 
@@ -333,7 +334,7 @@ onMounted(async () => {
     // 🔥 检查是否需要解析 Me() 或 MyLeader() 函数调用
     // 情况1：value.raw 是 "Me()" 或 "MyLeader()" 字符串（FormDomainService 还没有解析）
     // 情况2：value.raw 是 null/undefined/空字符串，且配置中有 "Me()" 或 "MyLeader()" 默认值
-    const defaultValue = props.field.widget?.config?.default
+    const defaultValue = getRenderDefaultFromConfig(props.field.widget?.config)
     const needsResolveMe = currentRaw === 'Me()' || 
       ((!currentRaw || currentRaw === '') && defaultValue === 'Me()')
     const needsResolveMyLeader = currentRaw === 'MyLeader()' || 

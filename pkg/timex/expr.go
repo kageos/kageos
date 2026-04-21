@@ -7,152 +7,168 @@ import (
 	"time"
 )
 
-// ResolveTimestampExpr 将时间表达式解析为毫秒时间戳字符串。
-// 用于 run_table_search 等工具中 url_query 的 gte/lte 等参数，大模型无需手写时间戳。
+const dateTimeLayout = "2006-01-02 15:04:05"
+
+// ResolveDateTimeExpr 将 SQL 风格时间表达式解析为 "YYYY-MM-DD HH:mm:ss" 字符串。
 //
-// 支持形式（与 sdk/agent-app/widget/timestamp 约定一致）：
-//   - Now()：当前时间（毫秒）
-//   - Today()：今天 00:00:00（毫秒）
-//   - Yesterday()：昨天 00:00:00（毫秒）
-//   - Tomorrow()：明天 00:00:00（毫秒）
-//   - Now(+1h)、Now(-2d)、Now(-7d) 等：相对当前时间的偏移（单位 s/h/d/w/m/y）
-//   - Now(2026-02-01 13:05:05)、Now(2026-02-01)：指定日期时间，解析为本地时间（毫秒）
-//
-// 若 value 不是上述形式，返回 (value, false)，调用方保持原样。
-func ResolveTimestampExpr(value string) (string, bool) {
+// 支持形式：
+//   - CURRENT_TIMESTAMP、CURRENT_DATE
+//   - DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 1 HOUR)
+//   - DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY)
+func ResolveDateTimeExpr(value string) (string, bool) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return value, false
 	}
 
-	// Now() 当前时间
-	if value == "Now()" {
-		return strconv.FormatInt(time.Now().UnixMilli(), 10), true
-	}
-	// Today() 今天 00:00:00
-	if value == "Today()" {
-		t := time.Now()
-		start := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
-		return strconv.FormatInt(start.UnixMilli(), 10), true
-	}
-	// Yesterday() 昨天 00:00:00
-	if value == "Yesterday()" {
-		t := time.Now().AddDate(0, 0, -1)
-		start := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
-		return strconv.FormatInt(start.UnixMilli(), 10), true
-	}
-	// Tomorrow() 明天 00:00:00
-	if value == "Tomorrow()" {
-		t := time.Now().AddDate(0, 0, 1)
-		start := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
-		return strconv.FormatInt(start.UnixMilli(), 10), true
-	}
-
-	// Now(相对偏移) 如 Now(+1h), Now(-2d), Now(-7d)
-	if strings.HasPrefix(value, "Now(") && strings.HasSuffix(value, ")") {
-		inner := strings.TrimSpace(value[4 : len(value)-1])
-		if inner == "" {
-			return strconv.FormatInt(time.Now().UnixMilli(), 10), true
-		}
-		// 相对偏移：+1h, -2d, -7d, +3600s 等
-		if d, ok := parseRelativeDuration(inner); ok {
-			return strconv.FormatInt(time.Now().Add(d).UnixMilli(), 10), true
-		}
-		// 绝对日期时间：2026-02-01 13:05:05 或 2026-02-01
-		if ms, ok := parseAbsoluteDatetime(inner); ok {
-			return strconv.FormatInt(ms, 10), true
-		}
+	if parsed, ok := resolveSQLTemporalExpr(value); ok {
+		return parsed.Format(dateTimeLayout), true
 	}
 
 	return value, false
 }
 
-// parseRelativeDuration 解析相对时间偏移，如 +1h, -2d, -7d, +3600s
-func parseRelativeDuration(s string) (time.Duration, bool) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return 0, false
+func resolveSQLTemporalExpr(value string) (time.Time, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, false
 	}
-	sign := int64(1)
-	if s[0] == '+' {
-		s = strings.TrimSpace(s[1:])
-	} else if s[0] == '-' {
-		sign = -1
-		s = strings.TrimSpace(s[1:])
+
+	if parsed, ok := resolveSQLBaseTime(value); ok {
+		return parsed, true
 	}
-	if s == "" {
-		return 0, false
+
+	name, args, ok := parseFunctionArgs(value)
+	if !ok || len(args) != 2 {
+		return time.Time{}, false
 	}
-	// 数字 + 可选单位（如 7d, 3600s, 1h）
-	var n int64
-	var unit string
-	for i, r := range s {
-		if r >= '0' && r <= '9' {
+
+	name = strings.ToUpper(name)
+	if name != "DATE_ADD" && name != "DATE_SUB" {
+		return time.Time{}, false
+	}
+
+	base, ok := resolveSQLBaseTime(args[0])
+	if !ok {
+		return time.Time{}, false
+	}
+	amount, unit, ok := parseSQLInterval(args[1])
+	if !ok {
+		return time.Time{}, false
+	}
+	if name == "DATE_SUB" {
+		amount = -amount
+	}
+
+	return addSQLInterval(base, amount, unit), true
+}
+
+func resolveSQLBaseTime(value string) (time.Time, bool) {
+	keyword := strings.ToUpper(strings.Join(strings.Fields(strings.TrimSpace(value)), " "))
+	now := time.Now()
+
+	switch keyword {
+	case "CURRENT_TIMESTAMP", "CURRENT_TIMESTAMP()":
+		return now, true
+	case "CURRENT_DATE", "CURRENT_DATE()":
+		return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()), true
+	default:
+		return time.Time{}, false
+	}
+}
+
+var reSQLInterval = regexp.MustCompile(`(?i)^INTERVAL\s+([+-]?\d+)\s+(SECOND|MINUTE|HOUR|DAY|WEEK|MONTH|YEAR)S?$`)
+
+func parseSQLInterval(value string) (int, string, bool) {
+	matches := reSQLInterval.FindStringSubmatch(strings.TrimSpace(value))
+	if matches == nil {
+		return 0, "", false
+	}
+	amount, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return 0, "", false
+	}
+	return amount, strings.ToUpper(matches[2]), true
+}
+
+func addSQLInterval(base time.Time, amount int, unit string) time.Time {
+	switch strings.ToUpper(unit) {
+	case "SECOND":
+		return base.Add(time.Duration(amount) * time.Second)
+	case "MINUTE":
+		return base.Add(time.Duration(amount) * time.Minute)
+	case "HOUR":
+		return base.Add(time.Duration(amount) * time.Hour)
+	case "DAY":
+		return base.AddDate(0, 0, amount)
+	case "WEEK":
+		return base.AddDate(0, 0, amount*7)
+	case "MONTH":
+		return base.AddDate(0, amount, 0)
+	case "YEAR":
+		return base.AddDate(amount, 0, 0)
+	default:
+		return base
+	}
+}
+
+func parseFunctionArgs(value string) (string, []string, bool) {
+	value = strings.TrimSpace(value)
+	open := strings.Index(value, "(")
+	if open <= 0 || !strings.HasSuffix(value, ")") {
+		return "", nil, false
+	}
+	name := strings.TrimSpace(value[:open])
+	if name == "" {
+		return "", nil, false
+	}
+	argsRaw := strings.TrimSpace(value[open+1 : len(value)-1])
+	args := splitCommaOutsideParens(argsRaw)
+	for i := range args {
+		args[i] = strings.TrimSpace(args[i])
+	}
+	return name, args, true
+}
+
+func splitCommaOutsideParens(value string) []string {
+	parts := make([]string, 0, 2)
+	start := 0
+	depth := 0
+	var quote rune
+
+	for i, r := range value {
+		if quote != 0 {
+			if r == quote {
+				quote = 0
+			}
 			continue
 		}
-		if i > 0 {
-			n, _ = strconv.ParseInt(s[:i], 10, 64)
-			unit = strings.ToLower(strings.TrimSpace(s[i:]))
+		switch r {
+		case '\'', '"':
+			quote = r
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				parts = append(parts, value[start:i])
+				start = i + len(string(r))
+			}
 		}
-		break
 	}
-	if unit == "" {
-		n, _ = strconv.ParseInt(s, 10, 64)
-		unit = "h" // 默认小时
-	}
-	n *= sign
-	var d time.Duration
-	switch unit {
-	case "s":
-		d = time.Duration(n) * time.Second
-	case "h":
-		d = time.Duration(n) * time.Hour
-	case "d":
-		d = time.Duration(n) * 24 * time.Hour
-	case "w":
-		d = time.Duration(n) * 7 * 24 * time.Hour
-	case "m":
-		d = time.Duration(n) * 30 * 24 * time.Hour // 近似月
-	case "y":
-		d = time.Duration(n) * 365 * 24 * time.Hour // 近似年
-	default:
-		return 0, false
-	}
-	return d, true
+	parts = append(parts, value[start:])
+	return parts
 }
 
-// 支持 2026-02-01 13:05:05 或 2026-02-01
-var reAbsoluteDatetime = regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$`)
-
-func parseAbsoluteDatetime(s string) (int64, bool) {
-	s = strings.TrimSpace(s)
-	matches := reAbsoluteDatetime.FindStringSubmatch(s)
-	if matches == nil {
-		return 0, false
-	}
-	year, _ := strconv.Atoi(matches[1])
-	month, _ := strconv.Atoi(matches[2])
-	day, _ := strconv.Atoi(matches[3])
-	hour, min, sec := 0, 0, 0
-	if len(matches) > 4 && matches[4] != "" {
-		hour, _ = strconv.Atoi(matches[4])
-	}
-	if len(matches) > 5 && matches[5] != "" {
-		min, _ = strconv.Atoi(matches[5])
-	}
-	if len(matches) > 6 && matches[6] != "" {
-		sec, _ = strconv.Atoi(matches[6])
-	}
-	t := time.Date(year, time.Month(month), day, hour, min, sec, 0, time.Local)
-	return t.UnixMilli(), true
-}
-
-// ReplaceTimeExprsInParamValue 将 param 值串中的时间表达式替换为时间戳。
-// param 值格式为 field:value 或 field1:v1,field2:v2（如 gte=created_at:Now(-7d),updated_at:Now()）。
-// 只替换冒号后的 value 部分若匹配时间表达式则替换为毫秒时间戳。
+// ReplaceTimeExprsInParamValue 将 param 值串中的时间表达式替换为查询协议值。
+// param 值格式为 field:value 或 field1:v1,field2:v2。
+// SQL 风格表达式输出 "YYYY-MM-DD HH:mm:ss"，适用于 datetime 字段。
 func ReplaceTimeExprsInParamValue(paramValue string) string {
 	// 按逗号分割成多段 field:value
-	parts := strings.Split(paramValue, ",")
+	parts := splitCommaOutsideParens(paramValue)
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {
 		p = strings.TrimSpace(p)
@@ -162,7 +178,7 @@ func ReplaceTimeExprsInParamValue(paramValue string) string {
 			continue
 		}
 		field, val := p[:idx], strings.TrimSpace(p[idx+1:])
-		if resolved, ok := ResolveTimestampExpr(val); ok {
+		if resolved, ok := ResolveDateTimeExpr(val); ok {
 			out = append(out, field+":"+resolved)
 		} else {
 			out = append(out, p)

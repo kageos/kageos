@@ -129,10 +129,10 @@
                 </div>
               </div>
 
-              <div v-if="groupedFields.timestampFields.length > 0" class="metadata-section">
+              <div v-if="groupedFields.dateTimeFields.length > 0" class="metadata-section">
                 <div class="metadata-section-title">时间信息</div>
                 <div
-                  v-for="field in groupedFields.timestampFields"
+                  v-for="field in groupedFields.dateTimeFields"
                   :key="field.code"
                   class="field-row metadata-field"
                 >
@@ -236,7 +236,7 @@ interface GroupedFields {
   mainContentFields: FieldConfig[]
   idField?: FieldConfig | null
   userFields: FieldConfig[]
-  timestampFields: FieldConfig[]
+  dateTimeFields: FieldConfig[]
   complexFields: FieldConfig[]
 }
 

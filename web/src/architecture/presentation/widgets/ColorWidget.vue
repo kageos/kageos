@@ -119,7 +119,7 @@ const showAlpha = computed(() => {
 
 // 默认值
 const defaultValue = computed(() => {
-  const def = config.value.default
+  const def = config.value.render_default
   if (def && typeof def === 'string') {
     return def
   }

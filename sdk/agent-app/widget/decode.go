@@ -9,19 +9,21 @@ import (
 // FieldTags 包含字段的所有标签信息
 type FieldTags struct {
 	// 基础标签
-	Json       string // json tag value
-	Gorm       string // gorm tag value
-	Widget     string // widget tag value
-	Search     string // search tag value
-	Validate   string // validate tag value
-	Data       string // data tag value
-	Permission string // permission tag value
+	Json     string // json tag value
+	Gorm     string // gorm tag value
+	Widget   string // widget tag value
+	Search   string // search tag value
+	Validate string // validate tag value
+	Data     string // data tag value
+	Display  string // display tag value
 
 	// 解析后的widget标签
 	WidgetParsed map[string]string
 	// 解析后的data标签
 	DataParsed map[string]string
-	Callback   string
+	// 解析后的display标签
+	DisplayParsed map[string]string
+	Callback      string
 
 	// 反射类型信息
 	Type      reflect.Type // 字段的Go类型
@@ -151,6 +153,27 @@ func parseTagValue(tagValue string, result map[string]string) error {
 	return nil
 }
 
+func buildFieldDisplay(tags *FieldTags) *FieldDisplay {
+	if tags == nil || strings.TrimSpace(tags.Display) == "" {
+		return nil
+	}
+
+	rawScenes, ok := tags.DisplayParsed["scenes"]
+	if !ok {
+		return &FieldDisplay{Scenes: []string{}}
+	}
+
+	parts := strings.Split(rawScenes, ",")
+	scenes := make([]string, 0, len(parts))
+	for _, part := range parts {
+		scene := strings.TrimSpace(part)
+		if scene != "" {
+			scenes = append(scenes, scene)
+		}
+	}
+	return &FieldDisplay{Scenes: scenes}
+}
+
 // parseNestedStructOrSlice 递归解析嵌套的结构体或切片
 // 只有明确指定 widget type 为 table 或 form 时才进行递归解析
 func parseNestedStructOrSlice(fieldType reflect.Type, parentTags *FieldTags) error {
@@ -232,14 +255,6 @@ func parseStructField(field reflect.StructField) (*FieldTags, bool, error) {
 		if err := parseTagValue(tags.Widget, tags.WidgetParsed); err != nil {
 			return nil, false, fmt.Errorf("failed to parse widget tag for field %s: %w", field.Name, err)
 		}
-
-		widgetType := tags.WidgetParsed["type"]
-		if widgetType == TypeTable || widgetType == TypeForm {
-			if err := parseNestedStructOrSlice(field.Type, tags); err != nil {
-				return nil, false, fmt.Errorf("failed to parse nested struct for field %s: %w", field.Name, err)
-			}
-			return tags, true, nil
-		}
 	}
 
 	if tags.Data != "" {
@@ -248,23 +263,38 @@ func parseStructField(field reflect.StructField) (*FieldTags, bool, error) {
 		}
 	}
 
+	if tags.Display != "" {
+		if err := parseTagValue(tags.Display, tags.DisplayParsed); err != nil {
+			return nil, false, fmt.Errorf("failed to parse display tag for field %s: %w", field.Name, err)
+		}
+	}
+
+	widgetType := tags.WidgetParsed["type"]
+	if widgetType == TypeTable || widgetType == TypeForm {
+		if err := parseNestedStructOrSlice(field.Type, tags); err != nil {
+			return nil, false, fmt.Errorf("failed to parse nested struct for field %s: %w", field.Name, err)
+		}
+		return tags, true, nil
+	}
+
 	return tags, true, nil
 }
 
 func newFieldTags(field reflect.StructField) *FieldTags {
 	return &FieldTags{
-		Json:         field.Tag.Get("json"),
-		Gorm:         field.Tag.Get("gorm"),
-		Widget:       field.Tag.Get("widget"),
-		Search:       field.Tag.Get("search"),
-		Validate:     field.Tag.Get("validate"),
-		Data:         field.Tag.Get("data"),
-		Callback:     field.Tag.Get("callback"),
-		Permission:   field.Tag.Get("permission"),
-		WidgetParsed: make(map[string]string),
-		DataParsed:   make(map[string]string),
-		Type:         field.Type,
-		FieldName:    field.Name,
+		Json:          field.Tag.Get("json"),
+		Gorm:          field.Tag.Get("gorm"),
+		Widget:        field.Tag.Get("widget"),
+		Search:        field.Tag.Get("search"),
+		Validate:      field.Tag.Get("validate"),
+		Data:          field.Tag.Get("data"),
+		Callback:      field.Tag.Get("callback"),
+		Display:       field.Tag.Get("display"),
+		WidgetParsed:  make(map[string]string),
+		DataParsed:    make(map[string]string),
+		DisplayParsed: make(map[string]string),
+		Type:          field.Type,
+		FieldName:     field.Name,
 	}
 }
 
@@ -288,15 +318,15 @@ func IsSkipField(fieldName string, fieldType reflect.Type, fieldTags *FieldTags)
 // ConvertTagsToField 将 FieldTags 转换为 Field 结构体
 func ConvertTagsToField(tags *FieldTags) *Field {
 	field := &Field{
-		Code:            tags.GetCode(),
-		Name:            tags.WidgetParsed["name"], // 从widget标签中获取显示名称
-		Desc:            tags.WidgetParsed["desc"], // 从widget标签中获取详细说明
-		FieldName:       tags.FieldName,
-		Search:          tags.Search,
-		Validation:      tags.Validate,
-		TablePermission: tags.Permission,
-		Data:            &FieldData{},
-		DependOn:        tags.WidgetParsed["depend_on"], // 从widget标签中获取依赖字段
+		Code:       tags.GetCode(),
+		Name:       tags.WidgetParsed["name"], // 从widget标签中获取显示名称
+		Desc:       tags.WidgetParsed["desc"], // 从widget标签中获取详细说明
+		FieldName:  tags.FieldName,
+		Search:     tags.Search,
+		Validation: tags.Validate,
+		Display:    buildFieldDisplay(tags),
+		Data:       &FieldData{},
+		DependOn:   tags.WidgetParsed["depend_on"], // 从widget标签中获取依赖字段
 	}
 	if tags.Callback != "" {
 		field.Callbacks = strings.Split(tags.Callback, ",")
@@ -316,7 +346,8 @@ func ConvertTagsToField(tags *FieldTags) *Field {
 	}
 
 	// files 的表单协议与落库协议都是字符串 refs，Go 字段也应定义为 string。
-	if widgetType == TypeFiles {
+	// datetime 的 API/schema 协议是 "YYYY-MM-DD HH:mm:ss" 字符串；数据库侧用 types.Time 落真实时间列。
+	if widgetType == TypeFiles || widgetType == TypeDatetime {
 		field.Data.Type = DataTypeString
 	} else {
 		// 根据Go类型推断数据类型，完全基于Go类型，与widget type无关

@@ -159,7 +159,7 @@ const showStops = computed(() => {
 
 // 默认值
 const defaultValue = computed(() => {
-  const def = config.value.default
+  const def = config.value.render_default
   if (def !== undefined && def !== null) {
     const num = Number(def)
     return isNaN(num) ? undefined : num

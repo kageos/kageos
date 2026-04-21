@@ -140,6 +140,7 @@ import { buildMultiSelectRawValue } from '@/architecture/presentation/widgets/ut
 import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/utils/searchType'
 import { buildSearchTagSummary } from '@/architecture/presentation/widgets/utils/searchTagSummary'
 import type { MultiSelectOptionItem } from './multiSelectWidgetTypes'
+import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -829,7 +830,7 @@ watch(
     }
 
     if (!newValue || !newValue.raw) {
-      const defaultValue = config.value.default
+      const defaultValue = config.value.render_default
       if (Array.isArray(defaultValue) && defaultValue.length > 0) {
         selectedValues.value = defaultValue
       }
@@ -861,7 +862,7 @@ onMounted(() => {
     nextTick(() => {
       // 🔥 检查 functionDetail 是否已准备好
       const functionDetail = props.formRenderer?.getFunctionDetail?.()
-      if (props.mode === 'edit' && (!functionDetail || !functionDetail.request || functionDetail.request.length === 0)) {
+      if (props.mode === 'edit' && (!functionDetail || getFormRequestFields(functionDetail).length === 0)) {
         return
       }
       
@@ -882,7 +883,7 @@ watch(
     if (!hasInitialized.value && hasCallback && rawValue && router) {
       // 🔥 检查 functionDetail 是否已准备好
       const functionDetail = formRenderer?.getFunctionDetail?.()
-      if (props.mode === 'edit' && (!functionDetail || !functionDetail.request || functionDetail.request.length === 0)) {
+      if (props.mode === 'edit' && (!functionDetail || getFormRequestFields(functionDetail).length === 0)) {
         return
       }
       

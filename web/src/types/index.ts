@@ -124,6 +124,7 @@ export type {
   FieldValue,
   FieldMeta,
   FunctionDetail,
+  FunctionSchema,
   WidgetMode,
   ValidationRule,
   PermissionConfig
@@ -135,15 +136,13 @@ export type { WidgetTypes } from './field'
 // 函数相关类型
 export interface Function {
   id: number
-  request: any
-  response: import('./field').FieldConfig[]  // 使用统一的 FieldConfig 类型
   app_id: number
   tree_id: number
   method: string
   router: string
   has_config: boolean
   create_tables: string
-  callbacks: string
+  schema: import('./field').FunctionSchema
   template_type: string
   created_at: string
   updated_at: string
@@ -170,8 +169,8 @@ export interface SearchParams {
   like?: string     // 模糊匹配 like=title:xxx
   in?: string       // 包含查询 in=status:待处理,处理中
   contains?: string // 包含查询（用于多选场景，使用 FIND_IN_SET）contains=tags:高,中
-  gte?: string      // 大于等于 gte=created_at:timestamp
-  lte?: string      // 小于等于 lte=created_at:timestamp
+  gte?: string      // 大于等于 gte=created_at:2026-04-21 00:00:00
+  lte?: string      // 小于等于 lte=created_at:2026-04-21 23:59:59
   sorts?: string    // 排序 sorts=category:asc,price:desc（支持多列排序，格式：field:order,field:order）
   page?: number     // 页码
   page_size?: number // 页大小

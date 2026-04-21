@@ -67,8 +67,8 @@
  *    - 组件自治初始化最后，可以覆盖 URL 参数和默认值
  * 
  * 2. **字段类型检查**：
- *    - 确保 `functionDetail.request` 是数组
- *    - 使用 `Array.isArray` 检查，避免类型错误
+ *    - 从 `functionDetail.schema.form.request` 读取表单字段
+ *    - selector 统一兜底为空数组，避免类型错误
  * 
  * 3. **组件自治初始化**：
  *    - 组件可以决定是否需要初始化（返回 null）
@@ -95,6 +95,7 @@ import { useAuthStore } from '@/stores/auth'
 import { FieldValueMeta } from '@/core/constants/field'
 import { convertValueByFieldType } from '../../presentation/widgets/utils/typeConverter'
 import { getScopedFieldQueryValue, shouldAllowLegacyFormDraftFallback } from '@/utils/queryFieldNamespace'
+import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
 
 /**
  * 初始化源接口
@@ -147,8 +148,7 @@ class URLParamsInitSource implements InitSource {
 
     // 从 URL 解析参数
     const formData: Record<string, FieldValue> = {}
-    // 🔥 确保 requestFields 是数组，防止类型错误
-    const requestFields = Array.isArray(functionDetail.request) ? functionDetail.request : []
+    const requestFields = getFormRequestFields(functionDetail)
     const fallbackToLegacyRaw = shouldAllowLegacyFormDraftFallback(query as Record<string, any>)
     
     requestFields.forEach(field => {
@@ -196,7 +196,7 @@ class URLParamsInitSource implements InitSource {
  * 默认值初始化源
  * 
  * 职责：
- * - 处理 widget.config.default 默认值
+ * - 处理 widget.config.render_default 渲染默认值
  * - 对于没有 URL 参数和初始值的字段，使用默认值
  */
 class DefaultInitSource implements InitSource {
@@ -207,8 +207,7 @@ class DefaultInitSource implements InitSource {
     const { functionDetail, currentFormData } = context
 
     const formData: Record<string, FieldValue> = {}
-    // 🔥 确保 requestFields 是数组，防止类型错误
-    const requestFields = Array.isArray(functionDetail.request) ? functionDetail.request : []
+    const requestFields = getFormRequestFields(functionDetail)
     
     // 遍历所有字段，对于没有初始值的字段，使用默认值
     requestFields.forEach(field => {
@@ -269,7 +268,7 @@ export function useFunctionParamInitialization(
       return
     }
 
-    const fields = Array.isArray(detail.request) ? detail.request : []
+    const fields = getFormRequestFields(detail)
 
     for (const field of fields) {
       const currentValue = options.formDataStore.getValue(field.code)

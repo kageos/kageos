@@ -81,6 +81,7 @@ import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { WorkspaceEvent, FormEvent } from '../../domain/interfaces/IEventBus'
 import type { FieldConfig, FunctionDetail } from '../../domain/types'
 import type { IApiClient } from '../../domain/interfaces/IApiClient'
+import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
 
 /**
  * 表单应用服务
@@ -120,7 +121,7 @@ export class FormApplicationService {
   async handleFunctionLoaded(detail: FunctionDetail): Promise<void> {
     // 初始化表单
     // 🔥 确保 fields 是数组，防止类型错误
-    const fields = (Array.isArray(detail.request) ? detail.request : []) as FieldConfig[]
+    const fields = getFormRequestFields(detail) as FieldConfig[]
     const initialData = {} // 从 URL 或其他地方获取初始数据
     
     this.domainService.setFields(fields)
@@ -131,7 +132,7 @@ export class FormApplicationService {
    * 提交表单
    */
   async submitForm(functionDetail: FunctionDetail): Promise<any> {
-    const fields = (Array.isArray(functionDetail.request) ? functionDetail.request : []) as FieldConfig[]
+    const fields = getFormRequestFields(functionDetail) as FieldConfig[]
     // 主提交链路也要先跑前端校验，保证顶层 form 与弹窗/抽屉场景行为一致。
     const isValid = this.domainService.validateForm(fields)
     if (!isValid) {

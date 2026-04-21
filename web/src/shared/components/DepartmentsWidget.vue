@@ -196,6 +196,7 @@ import type { Department } from '@/api/department'
 import { getDepartmentTree } from '@/api/department'
 import { Logger } from '@/core/utils/logger'
 import { createFieldValue } from '@/core/utils/createFieldValue'
+import { getRenderDefaultFromConfig } from '@/core/widgetRuntime/defaultValue'
 
 const COMPONENT_NAME = 'DepartmentsWidget'
 
@@ -232,7 +233,7 @@ const maxCount = computed(() => {
 })
 
 interface DepartmentsWidgetConfig {
-  default?: string
+  render_default?: string
   max_count?: number
 }
 
@@ -427,10 +428,7 @@ onMounted(async () => {
     
     const currentRaw = props.value?.raw
     const existingValue = formDataStore.getValue(props.fieldPath)
-    const config = props.field.widget?.config
-    const defaultValue = config && typeof config === 'object' && 'default' in config 
-      ? (config as Record<string, any>).default 
-      : undefined
+    const defaultValue = getRenderDefaultFromConfig(props.field.widget?.config)
     
     // 🔥 检查是否需要解析 MyDepartment() 函数调用
     // 情况1：value.raw 是 "MyDepartment()" 字符串（FormDomainService 还没有解析）

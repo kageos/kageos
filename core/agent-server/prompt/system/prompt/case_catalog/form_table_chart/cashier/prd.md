@@ -123,8 +123,8 @@
 
 | 字段     | 类型   | 必填 | 说明 |
 |----------|--------|------|------|
-| 开始时间 | 时间戳 | ✗   | 默认 30 天前 |
-| 结束时间 | 时间戳 | ✗   | 默认当前时间 |
+| 开始时间 | 日期时间 | ✗   | 默认 30 天前 |
+| 结束时间 | 日期时间 | ✗   | 默认当前时间 |
 
 **图表列表**
 
@@ -181,19 +181,19 @@ import (
 
 // CashierCartItem 购物车商品（响应结构）
 type CashierCartItem struct {
-	ProductID     int     `json:"product_id" widget:"name:商品ID;type:ID" permission:"read"`
-	ProductName   string  `json:"product_name" widget:"name:商品名称;type:input" permission:"read"`
-	Price         float64 `json:"price" widget:"name:单价;type:float" permission:"read"`
-	Quantity      int     `json:"quantity" widget:"name:数量;type:number" permission:"read"`
-	TotalPrice    float64 `json:"total_price" widget:"name:小计;type:float" permission:"read"`
-	DiscountRate  float64 `json:"discount_rate" widget:"name:折扣率;type:float" permission:"read"`
-	DiscountPrice float64 `json:"discount_price" widget:"name:折扣后金额;type:float" permission:"read"`
+	ProductID     int     `json:"product_id" widget:"name:商品ID;type:ID"`
+	ProductName   string  `json:"product_name" widget:"name:商品名称;type:input"`
+	Price         float64 `json:"price" widget:"name:单价;type:float"`
+	Quantity      int     `json:"quantity" widget:"name:数量;type:number"`
+	TotalPrice    float64 `json:"total_price" widget:"name:小计;type:float"`
+	DiscountRate  float64 `json:"discount_rate" widget:"name:折扣率;type:float"`
+	DiscountPrice float64 `json:"discount_price" widget:"name:折扣后金额;type:float"`
 }
 
 // CashierProductQuantity 商品数量结构体（用于购物车）
 type CashierProductQuantity struct {
 	ProductID int `json:"product_id" widget:"name:商品;type:select" validate:"required" callback:"OnSelectFuzzy"`
-	Quantity  int `json:"quantity" widget:"name:数量;type:number;default:1" validate:"required,min=1"`
+	Quantity  int `json:"quantity" widget:"name:数量;type:number;render_default:1" validate:"required,min=1"`
 }
 
 // CashierDeskReq 收银台请求
@@ -205,13 +205,13 @@ type CashierDeskReq struct {
 
 // CashierDeskResp 收银台响应
 type CashierDeskResp struct {
-	PaymentResult  string            `json:"payment_result" widget:"name:支付结果;type:text_area" permission:"read"`
-	OrderNumber    string            `json:"order_number" widget:"name:订单号;type:input" permission:"read"`
-	TotalAmount    float64           `json:"total_amount" widget:"name:商品总额;type:float" permission:"read"`
-	DiscountAmount float64           `json:"discount_amount" widget:"name:折扣金额;type:float" permission:"read"`
-	FinalAmount    float64           `json:"final_amount" widget:"name:实付金额;type:float" permission:"read"`
-	ProductList    []CashierCartItem `json:"product_list" widget:"name:商品清单;type:table" permission:"read"`
-	MemberInfo     *CashierMember    `json:"member_info" widget:"name:会员信息;type:form" permission:"read"`
+	PaymentResult  string            `json:"payment_result" widget:"name:支付结果;type:text_area"`
+	OrderNumber    string            `json:"order_number" widget:"name:订单号;type:input"`
+	TotalAmount    float64           `json:"total_amount" widget:"name:商品总额;type:float"`
+	DiscountAmount float64           `json:"discount_amount" widget:"name:折扣金额;type:float"`
+	FinalAmount    float64           `json:"final_amount" widget:"name:实付金额;type:float"`
+	ProductList    []CashierCartItem `json:"product_list" widget:"name:商品清单;type:table"`
+	MemberInfo     *CashierMember    `json:"member_info" widget:"name:会员信息;type:form"`
 }
 
 // roundMoney 金额精度处理，保留2位小数
@@ -614,14 +614,14 @@ import (
 
 // CashierMember 会员信息表
 type CashierMember struct {
-	ID           int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:会员ID;type:ID" permission:"read" search:"eq"`
-	CreatedAt    int64          `json:"created_at" gorm:"autoCreateTime:milli;column:created_at" widget:"name:创建时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
-	UpdatedAt    int64          `json:"updated_at" gorm:"autoUpdateTime:milli;column:updated_at" widget:"name:更新时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
+	ID           int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:会员ID;type:ID" display:"scenes:list" search:"eq"` // 前端仅在列表展示，不进入新增/编辑表单。
+	CreatedAt    types.Time          `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
+	UpdatedAt    types.Time          `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt    gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
 	CardNumber   string         `json:"card_number" gorm:"column:card_number;comment:会员卡号;uniqueIndex" widget:"name:会员卡号;type:input" search:"like" validate:"required,min=6,max=20"`
 	CustomerName string         `json:"customer_name" gorm:"column:customer_name;comment:客户姓名" widget:"name:客户姓名;type:input" search:"like" validate:"required,min=2,max=20"`
 	Balance      float64        `json:"balance" gorm:"column:balance;comment:余额(元)" widget:"name:余额;type:float" search:"gte,lte" validate:"gte=0"`
-	Status       string         `json:"status" gorm:"column:status;comment:状态" widget:"name:状态;type:select;options:正常,冻结;options_colors:success,danger;default:正常" search:"in" validate:"required"`
+	Status       string         `json:"status" gorm:"column:status;comment:状态" widget:"name:状态;type:select;options:正常,冻结;options_colors:success,danger;render_default:正常" search:"in" validate:"required"`
 }
 
 func (CashierMember) TableName() string {
@@ -723,9 +723,9 @@ import (
 
 // CashierPaymentRecord 支付记录表（订单主表）
 type CashierPaymentRecord struct {
-	ID             int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:ID;type:ID" permission:"read" search:"eq"`
-	CreatedAt      int64          `json:"created_at" gorm:"autoCreateTime:milli;column:created_at" widget:"name:创建时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
-	UpdatedAt      int64          `json:"updated_at" gorm:"autoUpdateTime:milli;column:updated_at" widget:"name:更新时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
+	ID             int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:ID;type:ID" display:"scenes:list" search:"eq"` // 前端仅在列表展示，不进入新增/编辑表单。
+	CreatedAt      types.Time          `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
+	UpdatedAt      types.Time          `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt      gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
 	OrderNumber    string         `json:"order_number" gorm:"column:order_number;comment:订单号" widget:"name:订单号;type:input" search:"like"`
 	CardNumber     string         `json:"card_number" gorm:"column:card_number;comment:会员卡号" widget:"name:会员卡号;type:input" search:"like"`
@@ -743,9 +743,9 @@ func (CashierPaymentRecord) TableName() string {
 
 // CashierPaymentRecordItem 支付记录明细表（每个商品一条记录）
 type CashierPaymentRecordItem struct {
-	ID            int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:ID;type:ID" permission:"read" search:"eq"`
-	CreatedAt     int64          `json:"created_at" gorm:"autoCreateTime:milli;column:created_at" widget:"name:创建时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
-	UpdatedAt     int64          `json:"updated_at" gorm:"autoUpdateTime:milli;column:updated_at" widget:"name:更新时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
+	ID            int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:ID;type:ID" display:"scenes:list" search:"eq"` // 前端仅在列表展示，不进入新增/编辑表单。
+	CreatedAt     types.Time          `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
+	UpdatedAt     types.Time          `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt     gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
 	OrderNumber   string         `json:"order_number" gorm:"column:order_number;comment:订单号;index" widget:"name:订单号;type:input" search:"like"`
 	ProductID     int            `json:"product_id" gorm:"column:product_id;comment:商品ID;index" widget:"name:商品;type:select" search:"eq" callback:"OnSelectFuzzy"`
@@ -819,16 +819,16 @@ import (
 
 // CashierProduct 商品信息表
 type CashierProduct struct {
-	ID           int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:商品ID;type:ID" permission:"read" search:"eq"`
-	CreatedAt    int64          `json:"created_at" gorm:"autoCreateTime:milli;column:created_at" widget:"name:创建时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
-	UpdatedAt    int64          `json:"updated_at" gorm:"autoUpdateTime:milli;column:updated_at" widget:"name:更新时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
+	ID           int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:商品ID;type:ID" display:"scenes:list" search:"eq"` // 前端仅在列表展示，不进入新增/编辑表单。
+	CreatedAt    types.Time          `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
+	UpdatedAt    types.Time          `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt    gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
 	Name         string         `json:"name" gorm:"column:name;comment:商品名称" widget:"name:商品名称;type:input" search:"like" validate:"required,min=2,max=50"`
 	Category     string         `json:"category" gorm:"column:category;comment:商品分类" widget:"name:商品分类;type:select;options:饮料,零食,日用品,其他;options_colors:info,primary,success,warning" search:"in" validate:"required"`
 	Price        float64        `json:"price" gorm:"column:price;comment:售价(元)" widget:"name:售价;type:float" search:"gte,lte" validate:"required,gt=0"`
 	Stock        int            `json:"stock" gorm:"column:stock;comment:库存(件)" widget:"name:库存;type:number" search:"gte,lte" validate:"required,gte=0"`
-	DiscountRate float64        `json:"discount_rate" gorm:"column:discount_rate;comment:折扣率;default:0.9" widget:"name:折扣率;type:float;default:0.9" search:"gte,lte" validate:"gte=0,lte=1"`
-	Status       string         `json:"status" gorm:"column:status;comment:状态" widget:"name:状态;type:select;options:上架,下架;options_colors:success,danger;default:上架" search:"in" validate:"required"`
+	DiscountRate float64        `json:"discount_rate" gorm:"column:discount_rate;comment:折扣率;default:0.9" widget:"name:折扣率;type:float;render_default:0.9" search:"gte,lte" validate:"gte=0,lte=1"`
+	Status       string         `json:"status" gorm:"column:status;comment:状态" widget:"name:状态;type:select;options:上架,下架;options_colors:success,danger;render_default:上架" search:"in" validate:"required"`
 }
 
 func (CashierProduct) TableName() string {
@@ -923,15 +923,16 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/chart"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 	"gorm.io/gorm"
 )
 
 // CashierSalesStatisticsReq 销售统计请求参数
 type CashierSalesStatisticsReq struct {
-	StartTime int64 `json:"start_time" form:"start_time" widget:"name:开始时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"`
-	EndTime   int64 `json:"end_time" form:"end_time" widget:"name:结束时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"`
+	StartTime types.Time `json:"start_time" form:"start_time" widget:"name:开始时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
+	EndTime   types.Time `json:"end_time" form:"end_time" widget:"name:结束时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
 }
 
 // 图表设计建议：
@@ -941,7 +942,7 @@ type CashierSalesStatisticsReq struct {
 
 // CashierGetDateFormatSQL 直接复用 SDK 的时间分组 helper，避免在业务代码里重复写 mysql/sqlite 分支。
 func CashierGetDateFormatSQL(db *gorm.DB) (dateFormatExpr, groupByExpr string) {
-	return app.UnixMilliTimeBucketExpr(db, "created_at", app.TimeBucketDay)
+	return app.DateTimeBucketExpr(db, "created_at", app.TimeBucketDay)
 }
 
 func cashierMax(a, b int) int {
@@ -964,11 +965,11 @@ func CashierSalesTrendStatistics(ctx *app.Context, resp response.Response) error
 		return fmt.Errorf("数据库连接失败")
 	}
 
-	if req.StartTime == 0 {
-		req.StartTime = time.Now().AddDate(0, 0, -30).UnixMilli()
+	if req.StartTime.IsZero() {
+		req.StartTime = types.Time(time.Now().AddDate(0, 0, -30))
 	}
-	if req.EndTime == 0 {
-		req.EndTime = time.Now().UnixMilli()
+	if req.EndTime.IsZero() {
+		req.EndTime = types.Time(time.Now())
 	}
 
 	baseQuery := db.Model(&CashierPaymentRecord{}).
@@ -1066,11 +1067,11 @@ func CashierSalesBarStatistics(ctx *app.Context, resp response.Response) error {
 		return fmt.Errorf("数据库连接失败")
 	}
 
-	if req.StartTime == 0 {
-		req.StartTime = time.Now().AddDate(0, 0, -30).UnixMilli()
+	if req.StartTime.IsZero() {
+		req.StartTime = types.Time(time.Now().AddDate(0, 0, -30))
 	}
-	if req.EndTime == 0 {
-		req.EndTime = time.Now().UnixMilli()
+	if req.EndTime.IsZero() {
+		req.EndTime = types.Time(time.Now())
 	}
 
 	var trendStats []struct {
@@ -1140,11 +1141,11 @@ func CashierCategorySalesStatistics(ctx *app.Context, resp response.Response) er
 		return fmt.Errorf("数据库连接失败")
 	}
 
-	if req.StartTime == 0 {
-		req.StartTime = time.Now().AddDate(0, 0, -30).UnixMilli()
+	if req.StartTime.IsZero() {
+		req.StartTime = types.Time(time.Now().AddDate(0, 0, -30))
 	}
-	if req.EndTime == 0 {
-		req.EndTime = time.Now().UnixMilli()
+	if req.EndTime.IsZero() {
+		req.EndTime = types.Time(time.Now())
 	}
 
 	queryDB := db.Model(&CashierPaymentRecordItem{}).
@@ -1237,11 +1238,11 @@ func CashierAverageOrderAmountStatistics(ctx *app.Context, resp response.Respons
 		return fmt.Errorf("数据库连接失败")
 	}
 
-	if req.StartTime == 0 {
-		req.StartTime = time.Now().AddDate(0, 0, -30).UnixMilli()
+	if req.StartTime.IsZero() {
+		req.StartTime = types.Time(time.Now().AddDate(0, 0, -30))
 	}
-	if req.EndTime == 0 {
-		req.EndTime = time.Now().UnixMilli()
+	if req.EndTime.IsZero() {
+		req.EndTime = types.Time(time.Now())
 	}
 
 	baseQuery := db.Model(&CashierPaymentRecord{}).

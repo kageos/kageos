@@ -11,6 +11,7 @@ import type { FieldConfig } from '@/types'
 import { getFunctionByPath } from '@/api/function'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import { Logger } from '@/core/utils/logger'
+import { getTableListFields } from '@/utils/functionSchemaSelectors'
 
 interface UseOperateLogSectionOptions {
   fullCodePath: Ref<string>
@@ -85,7 +86,7 @@ export function useOperateLogSection({
 
   const loadFunctionDetail = async () => {
     if (functionDetail.value) {
-      const hasResponse = Array.isArray(functionDetail.value.response) && functionDetail.value.response.length > 0
+      const hasResponse = getTableListFields(functionDetail.value as FunctionDetail).length > 0
       if (hasResponse) {
         functionDetailCache.value = functionDetail.value as FunctionDetail
         return
@@ -95,7 +96,7 @@ export function useOperateLogSection({
     if (fullCodePath.value && !functionDetailCache.value) {
       try {
         const detail = await getFunctionByPath(fullCodePath.value)
-        if (detail && Array.isArray(detail.response) && detail.response.length > 0) {
+        if (detail && getTableListFields(detail as unknown as FunctionDetail).length > 0) {
           functionDetailCache.value = detail as unknown as FunctionDetail
         }
       } catch (error) {
@@ -214,10 +215,8 @@ export function useOperateLogSection({
       return null
     }
 
-    let fields: FieldConfig[] | null = null
-    if (Array.isArray(detail.response) && detail.response.length > 0) {
-      fields = detail.response
-    } else if (Array.isArray(detail)) {
+    let fields: FieldConfig[] | null = getTableListFields(detail as FunctionDetail)
+    if (fields.length === 0 && Array.isArray(detail)) {
       fields = detail
     }
 

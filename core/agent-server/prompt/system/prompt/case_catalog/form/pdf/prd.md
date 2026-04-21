@@ -343,7 +343,7 @@ type PdfRunCommandReq struct {
 	CommandTemplate string `json:"command_template" widget:"name:命令模板;type:text_area;placeholder:pdftotext {{input}} -" validate:"required"`
 
 	// 输出文件扩展名，用于生成 {{output}} 路径（若命令中不用 {{output}} 可随意填）
-	OutputExtension string `json:"output_extension" widget:"name:输出扩展名;type:input;default:txt" validate:"required"`
+	OutputExtension string `json:"output_extension" widget:"name:输出扩展名;type:input;render_default:txt" validate:"required"`
 }
 
 // PdfRunCommandResp 自定义命令响应
@@ -483,7 +483,7 @@ type PdfToImagesReq struct {
 	InputFiles string `json:"input_files" widget:"name:上传PDF文件;type:files;accept:.pdf;max_size:100MB;max_count:10" validate:"required"`
 
 	// 框架标签：select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
-	OutputFormat string `json:"output_format" widget:"name:输出格式;type:select;options:png,jpeg;options_colors:primary,success;default:png" validate:"required,oneof=png jpeg"`
+	OutputFormat string `json:"output_format" widget:"name:输出格式;type:select;options:png,jpeg;options_colors:primary,success;render_default:png" validate:"required,oneof=png jpeg"`
 }
 
 // PdfToImagesResp PDF转图片响应结构体

@@ -11,7 +11,7 @@ import "fmt"
 //
 // 使用示例：
 //
-//	widget:"name:关联部门;type:departments;default:MyDepartment()"
+//	widget:"name:关联部门;type:departments;render_default:MyDepartment()"
 //	widget:"name:管理部门;type:departments;max_count:5"
 //
 // 动态默认值函数说明：
@@ -19,13 +19,13 @@ import "fmt"
 //   - 支持多个默认值，用逗号分隔：MyDepartment(),/dept2
 //
 // 注意：
-//   - default 参数支持函数调用（如 MyDepartment()）
+//   - render_default 参数支持函数调用（如 MyDepartment()）
 //   - 如果用户未登录或没有部门，MyDepartment() 会返回 null
 //   - 值存储格式：逗号分隔的 full_code_path（如 "/dept1,/dept2"），便于存储到数据库
 //   - 前端会自动处理字符串和数组之间的转换
 type Departments struct {
-	Default  string `json:"default,omitempty"`   // 默认值，支持函数调用 MyDepartment()，多个值用逗号分隔
-	MaxCount int    `json:"max_count,omitempty"` // 最大选择数量，0表示不限制
+	RenderDefault string `json:"render_default,omitempty"` // 前端渲染默认值，支持函数调用 MyDepartment()，多个值用逗号分隔
+	MaxCount      int    `json:"max_count,omitempty"`      // 最大选择数量，0表示不限制
 }
 
 func (d *Departments) Config() interface{} {
@@ -40,8 +40,8 @@ func (d *Departments) WidgetLLMFacts(field *Field, opts SummaryOptions) []Semant
 	facts := []SemanticFact{
 		{Key: "example", Value: `"/org/hr,/org/finance"`},
 	}
-	if d.Default != "" {
-		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: d.Default})
+	if d.RenderDefault != "" {
+		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: d.RenderDefault})
 	}
 	if d.MaxCount > 0 && opts.Mode == SummaryFull {
 		facts = append(facts, SemanticFact{Key: "max_count", Value: fmt.Sprintf("%d", d.MaxCount)})
@@ -53,8 +53,8 @@ func newDepartments(widgetParsed map[string]string) *Departments {
 	departments := &Departments{}
 
 	// 从widgetParsed中解析配置
-	if defaultValue, exists := widgetParsed["default"]; exists {
-		departments.Default = defaultValue
+	if defaultValue, exists := getRenderDefault(widgetParsed); exists {
+		departments.RenderDefault = defaultValue
 	}
 	if maxCount, exists := widgetParsed["max_count"]; exists {
 		// 解析最大选择数量，支持 "0" 或 "" 表示不限制

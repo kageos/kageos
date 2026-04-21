@@ -136,7 +136,7 @@ export function useTableRowActions(options: UseTableRowActionsOptions) {
   }
 
   const getColumnWidth = (field: FieldConfig): number => {
-    if (field.widget?.type === WidgetType.TIMESTAMP) return 180
+    if (field.widget?.type === WidgetType.DATETIME) return 180
     if (field.widget?.type === WidgetType.TEXT_AREA) return 300
     if (field.widget?.type === 'department' || field.widget?.type === 'departments') return 300
     if (field.widget?.type === 'user' || field.widget?.type === 'users') return 250

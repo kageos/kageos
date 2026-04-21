@@ -3,8 +3,8 @@ package widget
 import "strings"
 
 type TextArea struct {
-	Placeholder string `json:"placeholder,omitempty"` // 占位符文本
-	Default     string `json:"default,omitempty"`     // 默认值
+	Placeholder   string `json:"placeholder,omitempty"`    // 占位符文本
+	RenderDefault string `json:"render_default,omitempty"` // 前端渲染默认值
 }
 
 func (t *TextArea) Config() interface{} {
@@ -20,10 +20,10 @@ func (t *TextArea) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticF
 	if fact, ok := placeholderFact(t.Placeholder); ok {
 		facts = append(facts, fact)
 	}
-	if strings.TrimSpace(t.Default) != "" {
-		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: t.Default})
+	if strings.TrimSpace(t.RenderDefault) != "" {
+		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: t.RenderDefault})
 		if field != nil && field.Data != nil && strings.TrimSpace(field.Data.Example) == "" {
-			facts = append(facts, SemanticFact{Key: "example", Value: quoteExampleValue(t.Default)})
+			facts = append(facts, SemanticFact{Key: "example", Value: quoteExampleValue(t.RenderDefault)})
 		}
 	}
 	return facts
@@ -36,8 +36,8 @@ func newTextArea(widgetParsed map[string]string) *TextArea {
 	if placeholder, exists := widgetParsed["placeholder"]; exists {
 		textArea.Placeholder = placeholder
 	}
-	if defaultValue, exists := widgetParsed["default"]; exists {
-		textArea.Default = defaultValue
+	if defaultValue, exists := getRenderDefault(widgetParsed); exists {
+		textArea.RenderDefault = defaultValue
 	}
 
 	return textArea

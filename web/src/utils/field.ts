@@ -3,7 +3,7 @@
  */
 
 import type { FieldConfig, FieldValue } from '@/core/types/field'
-import { formatTimestamp } from './date'
+import { formatDateTimeValue } from './date'
 import { WidgetType } from '@/core/constants/widget'
 
 /**
@@ -20,9 +20,6 @@ import { WidgetType } from '@/core/constants/widget'
  * @param field 字段配置
  * @returns FieldValue 格式的数据
  * 
- * @example
- * convertToFieldValue(1640995200000, { widget: { type: 'timestamp' } })
- * // { raw: 1640995200000, display: '2022-01-01 00:00:00', meta: {} }
  */
 export function convertToFieldValue(rawValue: any, field: FieldConfig): FieldValue {
   // 如果已经是 FieldValue 格式，直接返回
@@ -44,9 +41,8 @@ export function convertToFieldValue(rawValue: any, field: FieldConfig): FieldVal
   // 根据 widget 类型进行转换
   let display = String(rawValue)
   
-  // 时间戳类型：格式化日期
-  if (widgetType === WidgetType.TIMESTAMP) {
-    display = formatTimestamp(rawValue, field.widget.config?.format)
+  if (widgetType === WidgetType.DATETIME) {
+    display = formatDateTimeValue(rawValue, field.widget.config?.format)
   }
   
   // 数组类型：连接为字符串

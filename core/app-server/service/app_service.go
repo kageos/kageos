@@ -16,6 +16,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"gorm.io/gorm"
 )
@@ -347,37 +348,21 @@ func (a *AppService) convertApiInfoToFunctions(appID int64, apis []*dto.ApiInfo,
 	functions := make([]*model.Function, len(apis))
 
 	for i, api := range apis {
-		// 序列化request字段
-		var requestJSON json.RawMessage
-		if len(api.Request) > 0 {
-			requestData, err := json.Marshal(api.Request)
-			if err != nil {
-				return nil, fmt.Errorf("序列化request字段失败: %w", err)
-			}
-			requestJSON = requestData
+		schemaJSON, err := functionschema.Marshal(api.Schema)
+		if err != nil {
+			return nil, fmt.Errorf("序列化function schema失败: %w", err)
 		}
-
-		// 序列化response字段
-		var responseJSON json.RawMessage
-		if len(api.Response) > 0 {
-			responseData, err := json.Marshal(api.Response)
-			if err != nil {
-				return nil, fmt.Errorf("序列化response字段失败: %w", err)
-			}
-			responseJSON = responseData
+		if api.TemplateType != "" && api.Schema != nil && api.TemplateType != api.Schema.Type {
+			return nil, fmt.Errorf("template_type 与 schema.type 不一致: template_type=%s schema.type=%s", api.TemplateType, api.Schema.Type)
 		}
-
-		// 序列化create_tables字段
 
 		function := &model.Function{
 			AppID:        appID,
 			Method:       api.Method,
 			Router:       api.BuildFullCodePath(),
-			Request:      requestJSON,
-			Response:     responseJSON,
+			Schema:       schemaJSON,
 			HasConfig:    false, // 预留字段，默认为false
 			TemplateType: api.TemplateType,
-			Callbacks:    strings.Join(api.Callback, ","),
 		}
 		// 设置创建者用户名（通过嵌入的 Base 结构体）
 		function.CreatedBy = username

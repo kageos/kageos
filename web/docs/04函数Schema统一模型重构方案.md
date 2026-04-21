@@ -161,7 +161,7 @@ AI 工具可以基于 schema 生成更准确的 input/output schema
 schema 是唯一配置源
 旧 request/response 不作为运行时配置源保留
 旧 callbacks 不作为运行时配置源保留
-旧 table_permission 不作为字段展示策略保留
+字段展示策略统一使用 display.scenes
 前端业务组件不直接访问 schema 深层结构，只通过 selector
 不做旧数据刷新，不做存量数据迁移，不做历史兼容分支
 新分支直接重写模型、接口、前端类型和调用链
@@ -182,7 +182,7 @@ AI 工具和 Hub 直接切到新 schema 结构
 ```text
 后端主链路同时长期支持 schema 和 request/response
 前端组件散落 schema.form.request/schema.table.fields 深层读取
-字段展示继续依赖 table_permission
+字段展示绕过 display.scenes
 新增功能继续向 request/response 写配置
 Hub 或 AI 工具继续以 request/response 作为主结构
 为了旧数据保留任何兼容路径
@@ -580,8 +580,7 @@ create_tables 先作为顶层元信息保留，是否进入 schema 另行确认
       "code": "id",
       "name": "ID",
       "search": "eq",
-      "widget": { "type": "ID", "config": {} },
-      "table_permission": "read"
+      "widget": { "type": "ID", "config": {} }
     },
     {
       "code": "title",
@@ -634,7 +633,7 @@ create_tables 先作为顶层元信息保留，是否进入 schema 另行确认
 旧 table.request -> 新 schema.table.request
 旧 table.response -> 新 schema.table.fields
 旧 callbacks 字符串 -> 新 schema.callbacks 数组
-旧 table_permission: read -> 新 display.scenes: ["list"]
+列表专用字段使用 display.scenes: ["list"]
 旧 search 原样保留，不进入 display.scenes
 旧 validation/data/widget/children/callbacks 等字段级配置原样保留
 ```
@@ -659,8 +658,7 @@ create_tables 先作为顶层元信息保留，是否进入 schema 另行确认
     {
       "code": "order_number",
       "name": "订单号",
-      "widget": { "type": "input", "config": {} },
-      "table_permission": "read"
+      "widget": { "type": "input", "config": {} }
     }
   ],
   "callbacks": ""
@@ -704,7 +702,7 @@ create_tables 先作为顶层元信息保留，是否进入 schema 另行确认
 旧 form.request -> 新 schema.form.request
 旧 form.response -> 新 schema.form.response
 旧 callbacks 空字符串 -> 新 schema.callbacks = []
-旧 response 内 table_permission: read 删除，因为 form.response 天然只读
+form.response 天然只读，不额外配置展示权限
 字段级 callbacks 继续保留在字段内部
 字段级 children 原样保留
 ```
@@ -716,7 +714,7 @@ create_tables 先作为顶层元信息保留，是否进入 schema 另行确认
 | `request` | form 入参 / table 查询条件，语义混用 | `schema.form.request` / `schema.table.request` | 按类型拆分后的请求字段 |
 | `response` | form 出参 / table 列，语义混用 | `schema.form.response` / `schema.table.fields` | 按类型拆分后的输出字段或表格字段 |
 | `callbacks` | 顶层逗号字符串 | `schema.callbacks` | 顶层数组 |
-| `table_permission: read` | 只读/只展示的混合标记 | `display.scenes: ["list"]` 或删除 | table list-only 字段用 display；form response 直接删除 |
+| `display.scenes` | 字段展示场景白名单 | `display.scenes: ["list"]` | table list-only 字段用 display；form response 天然只读，不需要展示权限标签 |
 | `search` | 字段搜索标签 | `search` | 原样保留，不进入 display |
 | `permissions` | 当前用户资源权限 | `permissions` | 原样保留，不进入 schema |
 
@@ -762,10 +760,10 @@ create_tables 先作为顶层元信息保留，是否进入 schema 另行确认
             "field_name": "CreatedAt",
             "search": "gte,lte",
             "data": {
-              "type": "int"
+              "type": "datetime"
             },
             "widget": {
-              "type": "timestamp",
+              "type": "datetime",
               "config": {
                 "format": "YYYY-MM-DD HH:mm:ss"
               }
@@ -780,10 +778,10 @@ create_tables 先作为顶层元信息保留，是否进入 schema 另行确认
             "field_name": "UpdatedAt",
             "search": "gte,lte",
             "data": {
-              "type": "int"
+              "type": "datetime"
             },
             "widget": {
-              "type": "timestamp",
+              "type": "datetime",
               "config": {
                 "format": "YYYY-MM-DD HH:mm:ss"
               }
@@ -881,10 +879,10 @@ create_tables 先作为顶层元信息保留，是否进入 schema 另行确认
             "field_name": "Deadline",
             "search": "gte,lte",
             "data": {
-              "type": "int"
+              "type": "datetime"
             },
             "widget": {
-              "type": "timestamp",
+              "type": "datetime",
               "config": {
                 "format": "YYYY-MM-DD HH:mm:ss"
               }
@@ -984,7 +982,7 @@ Table 新结构落地说明：
 旧 response 对应 schema.table.fields
 旧 request 对应 schema.table.request
 当前 callbacks 字符串拆分为 schema.callbacks
-当前 table_permission: read 不再保留，read-only/list-only 字段改成 display.scenes: ["list"]
+列表专用字段统一使用 display.scenes: ["list"]
 没有 display 的字段表示不限制，默认可用于 list/create/update，再由 readonly/disabled/validation 等配置决定是否可编辑
 search 字段原样保留，搜索逻辑继续根据 search 标签判断
 ```
@@ -1350,7 +1348,7 @@ Form 新结构落地说明：
 旧 request 对应 schema.form.request
 旧 response 对应 schema.form.response
 当前 callbacks 字符串拆分为 schema.callbacks；空字符串变成 []
-form.response 中原 table_permission: read 不再保留，因为 response 天然是只读展示配置
+form.response 天然是只读展示配置，不需要展示权限标签
 字段级 callbacks 继续保留在字段内部，例如 OnSelectFuzzy
 ```
 
@@ -1608,7 +1606,7 @@ interface FieldConfig {
   name: string
   widget: WidgetConfig
   display?: FieldDisplayConfig
-  // table_permission 删除，不再作为字段展示策略
+  // display.scenes 是唯一字段展示策略
 }
 
 interface FunctionSchema {
@@ -1681,8 +1679,8 @@ useFormViewState/useFormViewLifecycle/useFunctionParamInitialization：统一使
 TableView：列表列、ID 列、链接列、搜索字段全部从 table selector 获取。
 TableDomainService：getSearchableFields、restoreFromURL、buildSearchParams 改成使用 getTableSearchFields/getTableListFields。
 TableApplicationService：表格数据处理继续不关心 schema 内部，只接收 selector 结果。
-FormDialog：不再自己按 table_permission 过滤；父级或 selector 直接传 create/update 场景字段。
-TableRowDetailDrawer/useWorkspaceDetail：详情用 list 字段，编辑用 update 字段，去掉 table_permission 逻辑。
+FormDialog：不再自己做展示过滤；父级或 selector 直接传 create/update 场景字段。
+TableRowDetailDrawer/useWorkspaceDetail：详情用 list 字段，编辑用 update 字段。
 FormOperateLogSection/useOperateLogSection：字段映射从 schema selector 取，不再猜 request/response。
 Chart 相关 URL 同步：短期保持 chart request selector，后续 chart schema 成型后再细化。
 ```
@@ -1719,7 +1717,7 @@ ScheduledTaskList 需要把 currentExecutionTask.action 传给只读渲染组件
 第四步：Table 链路切到 selector，重点处理 list/create/update/search/detail 五类字段来源。
 第五步：定时任务和执行记录切到 action-aware readonly model。
 第六步：删除前端所有旧 request/response 读取点。
-第七步：删除 table_permission 相关逻辑和测试数据，测试全部改成 display.scenes。
+第七步：展示场景逻辑和测试数据全部统一为 display.scenes。
 ```
 
 前端风险点：
@@ -1728,7 +1726,7 @@ ScheduledTaskList 需要把 currentExecutionTask.action 传给只读渲染组件
 风险一：一次性把所有组件都改成 schema 深层路径，会造成大面积脆弱耦合。
 控制方式：业务组件只调 selector。
 
-风险二：table_permission 现在混用了展示和编辑语义，直接删除会影响新增/编辑/列表。
+风险二：展示和编辑语义混用会影响新增/编辑/列表。
 控制方式：先用 display.scenes 表达 list/create/update，再用 readonly/disabled/widget config 表达是否可编辑。
 
 风险三：搜索字段不能被 display.scenes 误伤。
@@ -1862,14 +1860,14 @@ UI 大改版
 - [ ] 确认详情默认复用 list 可见字段，不进入 `display.scenes`。
 - [ ] 确认完全隐藏字段不进入 schema。
 - [ ] 确认本分支不保留旧模型兼容。
-- [ ] 确认 `request/response/callbacks/table_permission` 的退出边界。
+- [ ] 确认 `request/response/callbacks` 的退出边界。
 
 ### 阶段 2：新增类型和 selector
 
 - [ ] 后端定义 `FunctionSchema`、`FormFunctionSchema`、`TableFunctionSchema`。
 - [ ] 前端定义 `FunctionSchema` TypeScript 类型。
 - [ ] 前端给 `FieldConfig` 增加 `display?: { scenes?: Array<"list" | "create" | "update"> }`。
-- [ ] 前端删除 `FieldConfig.table_permission`。
+- [ ] 前端 `FieldConfig` 只保留 `display?: { scenes?: Array<"list" | "create" | "update"> }`。
 - [ ] 前端新增 `functionSchemaSelectors.ts`。
 - [ ] selector 支持 `visibleInScene`、`getFunctionType`、`getFunctionCallbacks`。
 - [ ] selector 支持 Form 字段读取：`getFormRequestFields`、`getFormResponseFields`。
@@ -1903,14 +1901,14 @@ UI 大改版
 - [ ] `TableView` 的列表列、ID 列、链接列、搜索字段改为通过 table selector 获取。
 - [ ] `TableDomainService` 的 `getSearchableFields/restoreFromURL/buildSearchParams` 改为通过 table selector 获取字段。
 - [ ] `TableApplicationService` 中依赖 `response` 的展示字段逻辑改为 table list fields。
-- [ ] `FormDialog` 删除 `table_permission` 过滤逻辑，改为接收 selector 过滤后的 create/update 字段。
-- [ ] `TableRowDetailDrawer/useWorkspaceDetail/workspaceDetailRuntime` 删除 `table_permission` 逻辑，详情使用 list 字段，编辑使用 update 字段。
+- [ ] `FormDialog` 接收 selector 过滤后的 create/update 字段。
+- [ ] `TableRowDetailDrawer/useWorkspaceDetail/workspaceDetailRuntime` 详情使用 list 字段，编辑使用 update 字段。
 - [ ] `useTableCreateAndPermissions` 中创建 payload 的字段范围改为 create fields。
 - [ ] `useTableReferencePreload` 从 form/table selector 收集 user/departments 字段。
 - [ ] `useOperateLogSection/FormOperateLogSection` 通过 selector 找字段配置。
 - [ ] `useFormParamURLSync/useChartParamURLSync/tableViewURLRuntime` 通过 selector 获取 URL 同步字段。
 - [ ] 替换所有业务组件里的直接 `functionDetail.request/response` 读取。
-- [ ] 删除前端旧 `table_permission` 测试数据，改成 `display.scenes`。
+- [ ] 前端测试数据统一使用 `display.scenes`。
 
 ### 阶段 5：AI 工具和 Hub 同步
 
@@ -1961,7 +1959,7 @@ function 配置唯一来源是 schema
 后端运行时不再读取 request/response/callbacks 旧配置字段
 前端业务组件不直接依赖 request/response
 前端 selector 不再保留旧 request/response 兼容逻辑
-字段展示不再依赖 table_permission
+字段展示统一依赖 display.scenes
 form/table 基础链路能正常使用
 定时任务执行记录可以按 schema 只读渲染
 旧 request/response 语义不再继续扩散

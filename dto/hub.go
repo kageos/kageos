@@ -30,7 +30,7 @@ type DirectoryTreeNode struct {
 }
 
 // HubFunctionInfo 函数信息（用于 Hub 目录树与快照函数定义）
-// Schema 为统一扩展字段：内含 request/response，后续可按 template_type 放不同结构（如 form/table/chart 各自 schema）
+// Schema 为统一函数配置，按 template_type 保存 form/table/chart 各自 schema。
 type HubFunctionInfo struct {
 	ID           int64    `json:"id"`             // ServiceTree 节点ID
 	Name         string   `json:"name"`           // 函数名称
@@ -43,12 +43,12 @@ type HubFunctionInfo struct {
 	Version      string   `json:"version"`        // 函数版本号
 	VersionNum   int      `json:"version_num"`    // 版本号数字部分
 	// 函数完整定义，推送到 Hub 时存入 SnapshotFunctionDefs JSON
-	Method       string `json:"method,omitempty"`        // HTTP 方法
-	Router       string `json:"router,omitempty"`        // 路由（full-code-path）
-	CreateTables string `json:"create_tables,omitempty"` // 创建表配置
-	Callbacks    string `json:"callbacks,omitempty"`     // 回调配置
-	// Schema：统一扩展字段，内含 request/response，可按 template_type 放不同结构（JSON 对象）
-	Schema json.RawMessage `json:"schema,omitempty" swaggertype:"string" example:"{}"` // 如 {"request":...,"response":...} 或按类型扩展
+	Method       string   `json:"method,omitempty"`        // HTTP 方法
+	Router       string   `json:"router,omitempty"`        // 路由（full-code-path）
+	CreateTables string   `json:"create_tables,omitempty"` // 创建表配置
+	Callbacks    []string `json:"callbacks,omitempty"`     // 回调能力摘要
+	// Schema：统一函数配置，按 template_type 放 form/table/chart 结构（JSON 对象）
+	Schema json.RawMessage `json:"schema,omitempty" swaggertype:"string" example:"{}"` // 如 {"version":1,"type":"form","form":...}
 }
 
 // FileSnapshotInfo 文件快照信息

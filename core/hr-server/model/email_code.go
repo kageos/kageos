@@ -24,4 +24,3 @@ type EmailCode struct {
 func (EmailCode) TableName() string {
 	return "email_code"
 }
-

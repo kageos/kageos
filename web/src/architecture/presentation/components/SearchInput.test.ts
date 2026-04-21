@@ -766,7 +766,7 @@ describe('SearchInput', () => {
     }))
 
     const wrapper = mountSearchInput({
-      field: createField(WidgetType.TIMESTAMP),
+      field: createField(WidgetType.DATETIME),
       searchType: `${SearchType.GTE},${SearchType.LTE}`,
       modelValue: ['1710000000000', '1710086400000']
     })

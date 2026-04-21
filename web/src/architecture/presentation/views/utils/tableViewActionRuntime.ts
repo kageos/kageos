@@ -16,22 +16,10 @@ interface PermissionNodeLike {
 export type TableDetailEditAccess = 'unsupported' | 'no-permission' | 'allowed'
 
 export function hasFunctionCallback(
-  callbacks: string[] | string | null | undefined,
+  callbacks: string[] | null | undefined,
   callbackName: string
 ): boolean {
-  if (Array.isArray(callbacks)) {
-    return callbacks.includes(callbackName)
-  }
-
-  if (typeof callbacks !== 'string') {
-    return false
-  }
-
-  return callbacks
-    .split(',')
-    .map(item => item.trim())
-    .filter(Boolean)
-    .includes(callbackName)
+  return Array.isArray(callbacks) && callbacks.includes(callbackName)
 }
 
 export function resolveTableDetailEditAccess(options: {

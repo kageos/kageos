@@ -9,10 +9,8 @@ import {
 } from './tableViewActionRuntime'
 
 describe('tableViewActionRuntime', () => {
-  it('detects function callbacks from array or comma-separated string values', () => {
+  it('detects function callbacks from schema callback arrays', () => {
     expect(hasFunctionCallback(['OnTableAddRow', 'OnTableUpdateRow'], 'OnTableUpdateRow')).toBe(true)
-    expect(hasFunctionCallback('OnTableAddRow, OnTableUpdateRow', 'OnTableUpdateRow')).toBe(true)
-    expect(hasFunctionCallback('OnTableAddRow', 'OnTableUpdateRow')).toBe(false)
     expect(hasFunctionCallback(undefined, 'OnTableUpdateRow')).toBe(false)
   })
 

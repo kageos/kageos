@@ -375,7 +375,7 @@ import { useAfterCreateNode } from '../composables/useAfterCreateNode'
 import { hasPermission, TablePermission } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/utils/widgetFieldHelpers'
-import { hasFunctionCallback } from './utils/tableViewActionRuntime'
+import { getFormRequestFields, getFunctionCallbacks } from '@/utils/functionSchemaSelectors'
 
 const route = useRoute()
 const router = useRouter()
@@ -563,8 +563,9 @@ const editInitialData = computed(() => {
   const query = route.query
   
   // 如果有 id 参数，添加到 initialData
+  const requestFields = getFormRequestFields(editFunctionDetail.value || currentFunctionDetail.value)
   if (editRowId.value) {
-    const idField = currentFunctionDetail.value?.request?.find((f: FieldConfig) => 
+    const idField = requestFields.find((f: FieldConfig) => 
       f.code.toLowerCase() === 'id' || f.widget?.type === 'number'
     )
     if (idField) {
@@ -573,8 +574,8 @@ const editInitialData = computed(() => {
   }
   
   // 遍历所有查询参数，如果字段在 request 中，添加到 initialData
-  if (currentFunctionDetail.value?.request) {
-    currentFunctionDetail.value.request.forEach((field: FieldConfig) => {
+  if (requestFields.length > 0) {
+    requestFields.forEach((field: FieldConfig) => {
       const fieldCode = field.code
       // 跳过 _ 开头的参数（系统参数）
       if (fieldCode.startsWith('_')) return
@@ -737,7 +738,7 @@ const canUpdateTable = computed(() => {
 })
 
 const supportsUpdateTable = computed(() => {
-  return hasFunctionCallback(currentFunctionDetail.value?.callbacks, 'OnTableUpdateRow')
+  return getFunctionCallbacks(currentFunctionDetail.value).includes('OnTableUpdateRow')
 })
 
 // ⭐ 权限错误状态

@@ -13,6 +13,7 @@ import {
   resolveDetailRouteRequest,
   shouldWaitForDetailTableData
 } from './workspaceDetailRuntime'
+import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
 
 const tableFunctionDetail: FunctionDetail = {
   id: 1,
@@ -20,32 +21,38 @@ const tableFunctionDetail: FunctionDetail = {
   name: '成员表',
   template_type: TEMPLATE_TYPE.TABLE,
   router: '/members',
-  response: [
-    {
-      code: 'id',
-      name: 'ID',
-      table_permission: 'read',
-      widget: { type: 'input' }
-    },
-    {
-      code: 'name',
-      name: '姓名',
-      table_permission: 'update',
-      widget: { type: 'input' }
-    },
-    {
-      code: 'title',
-      name: '标题',
-      table_permission: '',
-      widget: { type: 'input' }
-    },
-    {
-      code: 'created_at',
-      name: '创建时间',
-      table_permission: 'read',
-      widget: { type: 'timestamp' }
+  schema: {
+    version: 1,
+    type: 'table',
+    table: {
+      request: [],
+      fields: [
+        {
+          code: 'id',
+          name: 'ID',
+          display: { scenes: ['list'] },
+          widget: { type: 'ID' }
+        },
+        {
+          code: 'name',
+          name: '姓名',
+          display: { scenes: ['update'] },
+          widget: { type: 'input' }
+        },
+        {
+          code: 'title',
+          name: '标题',
+          widget: { type: 'input' }
+        },
+        {
+          code: 'created_at',
+          name: '创建时间',
+          display: { scenes: ['list'] },
+          widget: { type: 'datetime' }
+        }
+      ]
     }
-  ]
+  }
 }
 
 describe('workspaceDetailRuntime', () => {
@@ -53,8 +60,8 @@ describe('workspaceDetailRuntime', () => {
     const result = buildEditFunctionDetail(tableFunctionDetail)
 
     expect(result?.template_type).toBe(TEMPLATE_TYPE.FORM)
-    expect(result?.response).toEqual([])
-    expect(result?.request?.map(field => field.code)).toEqual(['name', 'title'])
+    expect(result?.schema?.form?.response).toEqual([])
+    expect(getFormRequestFields(result).map(field => field.code)).toEqual(['name', 'title'])
   })
 
   it('keeps form function detail unchanged', () => {
@@ -63,13 +70,20 @@ describe('workspaceDetailRuntime', () => {
       code: 'profile',
       name: '资料',
       template_type: TEMPLATE_TYPE.FORM,
-      request: [
-        {
-          code: 'name',
-          name: '姓名',
-          widget: { type: 'input' }
+      schema: {
+        version: 1,
+        type: 'form',
+        form: {
+          request: [
+            {
+              code: 'name',
+              name: '姓名',
+              widget: { type: 'input' }
+            }
+          ],
+          response: []
         }
-      ]
+      }
     }
 
     expect(buildEditFunctionDetail(formDetail)).toBe(formDetail)
@@ -138,7 +152,14 @@ describe('workspaceDetailRuntime', () => {
       code: 'readonly-members',
       name: '只读成员表',
       template_type: TEMPLATE_TYPE.FORM,
-      request: []
+      schema: {
+        version: 1,
+        type: 'form',
+        form: {
+          request: [],
+          response: []
+        }
+      }
     }
 
     expect(buildDetailEditFormState({

@@ -10,8 +10,14 @@ function createFunctionDetail() {
     id: 1,
     router: '/test',
     method: 'POST',
-    request: [],
-    response: []
+    schema: {
+      version: 1,
+      type: 'form',
+      form: {
+        request: [],
+        response: []
+      }
+    }
   } as any
 }
 

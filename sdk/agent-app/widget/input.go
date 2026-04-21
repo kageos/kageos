@@ -3,11 +3,11 @@ package widget
 import "strings"
 
 type Input struct {
-	Placeholder string `json:"placeholder,omitempty"` // 占位符文本
-	Password    bool   `json:"password,omitempty"`    // 密码框
-	Prepend     string `json:"prepend,omitempty"`     // 前置
-	Append      string `json:"append,omitempty"`      // 后置
-	Default     string `json:"default,omitempty"`     // 默认值
+	Placeholder   string `json:"placeholder,omitempty"`    // 占位符文本
+	Password      bool   `json:"password,omitempty"`       // 密码框
+	Prepend       string `json:"prepend,omitempty"`        // 前置
+	Append        string `json:"append,omitempty"`         // 后置
+	RenderDefault string `json:"render_default,omitempty"` // 前端渲染默认值
 }
 
 func (i *Input) Config() interface{} {
@@ -23,10 +23,10 @@ func (i *Input) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticFact
 	if fact, ok := placeholderFact(i.Placeholder); ok {
 		facts = append(facts, fact)
 	}
-	if strings.TrimSpace(i.Default) != "" {
-		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: i.Default})
+	if strings.TrimSpace(i.RenderDefault) != "" {
+		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: i.RenderDefault})
 		if field != nil && field.Data != nil && strings.TrimSpace(field.Data.Example) == "" {
-			facts = append(facts, SemanticFact{Key: "example", Value: quoteExampleValue(i.Default)})
+			facts = append(facts, SemanticFact{Key: "example", Value: quoteExampleValue(i.RenderDefault)})
 		}
 	}
 	if i.Password && opts.Mode == SummaryFull {
@@ -51,8 +51,8 @@ func newInput(widgetParsed map[string]string) *Input {
 	if append, exists := widgetParsed["append"]; exists {
 		input.Append = append
 	}
-	if defaultValue, exists := widgetParsed["default"]; exists {
-		input.Default = defaultValue
+	if defaultValue, exists := getRenderDefault(widgetParsed); exists {
+		input.RenderDefault = defaultValue
 	}
 
 	return input

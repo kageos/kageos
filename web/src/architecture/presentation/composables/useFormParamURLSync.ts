@@ -97,6 +97,7 @@ import {
   getFormDraftQueryKey,
   shouldUseRawFormQueryKeys
 } from '@/utils/queryFieldNamespace'
+import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
 
 export interface UseFormParamURLSyncOptions {
   functionDetail: Ref<FunctionDetail | null> | ComputedRef<FunctionDetail | null>
@@ -139,7 +140,7 @@ function buildFormQueryParams(
 
     // 🔥 默认支持所有其他类型：转换为 URL 参数
     // 支持的类型包括：input, text, text_area, number, float, switch, select, multiselect,
-    // radio, checkbox, timestamp, ID, rate, user, slider, color, richtext, link, progress 等
+    // radio, checkbox, datetime, ID, rate, user, slider, color, richtext, link, progress 等
     const queryKey = options?.useRawFormQueryKeys ? field.code : getFormDraftQueryKey(field.code)
     query[queryKey] = convertFieldValueToURLParam(fieldValue)
   })
@@ -195,8 +196,7 @@ export function useFormParamURLSync(options: UseFormParamURLSyncOptions) {
     // 如果某个场景不需要 URL 同步，可以通过 enabled 参数控制
 
     // 构建表单查询参数
-    // 🔥 确保 requestFields 是数组，防止类型错误
-    const requestFields = Array.isArray(detail.request) ? detail.request : []
+    const requestFields = getFormRequestFields(detail)
     const useRawQueryKeys = shouldUseRawFormQueryKeys(route.query as Record<string, any>)
     const query = buildFormQueryParams(requestFields, options.formDataStore, {
       useRawFormQueryKeys: useRawQueryKeys

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 )
 
 type NamespaceCreateReq struct {
@@ -288,18 +288,16 @@ type ApiInfo struct {
 	Router       string   `json:"router"`
 	Method       string   `json:"method"`
 	CreateTables []string `json:"create_tables"`
-	Callback     []string `json:"callback"`
 	// FunctionGroupCode 和 FunctionGroupName 已移除，不再需要
 
-	Request        []*widget.Field `json:"request"`
-	Response       []*widget.Field `json:"response"`
-	AddedVersion   string          `json:"added_version"`   // API首次添加的版本
-	UpdateVersions []string        `json:"update_versions"` // API更新过的版本列表
-	TemplateType   string          `json:"template_type"`
-	User           string          `json:"user"`
-	App            string          `json:"app"`
-	FullCodePath   string          `json:"full_code_path"`
-	TreeID         int64           `json:"tree_id"` // ServiceTree节点ID，创建tree后赋值，方便后续写快照时入库
+	Schema         *functionschema.FunctionSchema `json:"schema"`
+	AddedVersion   string                         `json:"added_version"`   // API首次添加的版本
+	UpdateVersions []string                       `json:"update_versions"` // API更新过的版本列表
+	TemplateType   string                         `json:"template_type"`
+	User           string                         `json:"user"`
+	App            string                         `json:"app"`
+	FullCodePath   string                         `json:"full_code_path"`
+	TreeID         int64                          `json:"tree_id"` // ServiceTree节点ID，创建tree后赋值，方便后续写快照时入库
 
 	SourceCodeFilePath string        `json:"source_code_file_path"`
 	SourceCode         string        `json:"source_code"`

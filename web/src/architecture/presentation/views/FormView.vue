@@ -7,7 +7,7 @@
   ============================================
   
   1. **表单渲染**：
-     - 根据字段配置（`functionDetail.request`）渲染表单
+     - 根据字段配置（`functionDetail.schema.form.request`）渲染表单
      - 支持多种字段类型（input、select、form、table 等）
      - 支持嵌套结构（form 嵌套 table，table 嵌套 form）
   
@@ -379,6 +379,7 @@ import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import ScheduledTaskDialog from '../components/ScheduledTaskDialog.vue'
 import { createFormViewRuntime } from './utils/formViewRuntime'
 import { FORM_LABEL_WIDTH } from '../utils/formLayout'
+import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
 
 const props = withDefaults(defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取
@@ -573,8 +574,8 @@ const handleReset = (): void => {
  * @returns 提交数据对象（包含所有字段）
  */
 function prepareSubmitDataWithTypeConversion(): Record<string, any> {
-  const request = functionDetail.value?.request
-  if (!Array.isArray(request) || request.length === 0) {
+  const request = getFormRequestFields(functionDetail.value)
+  if (request.length === 0) {
     return {}
   }
   
@@ -611,8 +612,8 @@ function prepareSubmitDataWithTypeConversion(): Record<string, any> {
  * @returns 只包含变更字段的数据对象
  */
 async function prepareUpdateData(oldValues: Record<string, any>): Promise<Record<string, any>> {
-  const request = functionDetail.value?.request
-  if (!Array.isArray(request) || request.length === 0) {
+  const request = getFormRequestFields(functionDetail.value)
+  if (request.length === 0) {
     return {}
   }
   
@@ -643,7 +644,7 @@ function validateForm(): boolean {
     return false
   }
   
-  const fields = (Array.isArray(functionDetail.value.request) ? functionDetail.value.request : []) as FieldConfig[]
+  const fields = getFormRequestFields(functionDetail.value) as FieldConfig[]
   const isValid = domainService.validateForm(fields)
   
   Logger.debug('[FormView]', '表单验证结果', {

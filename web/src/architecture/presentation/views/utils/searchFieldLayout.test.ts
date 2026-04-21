@@ -3,13 +3,13 @@ import { resolveSearchFieldLayoutClass, SearchFieldLayoutClass } from './searchF
 import { WidgetType } from '@/core/constants/widget'
 
 describe('searchFieldLayout', () => {
-  it('marks timestamp gte/lte fields as wide', () => {
+  it('marks datetime gte/lte fields as wide', () => {
     expect(
       resolveSearchFieldLayoutClass({
         code: 'created_at',
         name: '创建时间',
         search: 'gte,lte',
-        widget: { type: WidgetType.TIMESTAMP }
+        widget: { type: WidgetType.DATETIME }
       } as any)
     ).toBe(SearchFieldLayoutClass.WIDE)
   })

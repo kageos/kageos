@@ -74,14 +74,20 @@ describe('TableDomainService URL restore', () => {
   it('restores request search fields from namespaced query keys', () => {
     const service = createService()
     const functionDetail = {
-      request: [
-        {
-          code: 'status',
-          name: '状态',
-          widget: { type: 'select' }
+      schema: {
+        version: 1,
+        type: 'table',
+        table: {
+          request: [
+            {
+              code: 'status',
+              name: '状态',
+              widget: { type: 'select' }
+            }
+          ],
+          fields: []
         }
-      ],
-      response: []
+      }
     } as any
 
     const restored = service.restoreFromURL(functionDetail, {
@@ -97,14 +103,20 @@ describe('TableDomainService URL restore', () => {
   it('keeps compatibility with legacy raw request search keys', () => {
     const service = createService()
     const functionDetail = {
-      request: [
-        {
-          code: 'status',
-          name: '状态',
-          widget: { type: 'select' }
+      schema: {
+        version: 1,
+        type: 'table',
+        table: {
+          request: [
+            {
+              code: 'status',
+              name: '状态',
+              widget: { type: 'select' }
+            }
+          ],
+          fields: []
         }
-      ],
-      response: []
+      }
     } as any
 
     const restored = service.restoreFromURL(functionDetail, {
@@ -117,17 +129,23 @@ describe('TableDomainService URL restore', () => {
   it('restores response search display labels from URL companion params and still builds raw search params', () => {
     const service = createService()
     const functionDetail = {
-      request: [],
-      response: [
-        {
-          code: 'job_id',
-          name: '投递职位',
-          search: 'eq',
-          callbacks: ['OnSelectFuzzy'],
-          widget: { type: 'select' },
-          data: { type: 'int' }
+      schema: {
+        version: 1,
+        type: 'table',
+        table: {
+          request: [],
+          fields: [
+            {
+              code: 'job_id',
+              name: '投递职位',
+              search: 'eq',
+              callbacks: ['OnSelectFuzzy'],
+              widget: { type: 'select' },
+              data: { type: 'int' }
+            }
+          ]
         }
-      ]
+      }
     } as any
 
     const restored = service.restoreFromURL(functionDetail, {
@@ -144,6 +162,41 @@ describe('TableDomainService URL restore', () => {
     })
     expect(service.buildSearchParams(functionDetail, restored.searchForm)).toEqual({
       eq: 'job_id:1'
+    })
+  })
+
+  it('restores datetime range search as readable string range', () => {
+    const service = createService()
+    const functionDetail = {
+      schema: {
+        version: 1,
+        type: 'table',
+        table: {
+          request: [],
+          fields: [
+            {
+              code: 'created_at',
+              name: '创建时间',
+              search: 'gte,lte',
+              widget: { type: 'datetime' },
+              data: { type: 'string' }
+            }
+          ]
+        }
+      }
+    } as any
+
+    const restored = service.restoreFromURL(functionDetail, {
+      gte: 'created_at:2026-04-21 00:00:00',
+      lte: 'created_at:2026-04-21 23:59:59'
+    })
+
+    expect(restored.searchForm).toEqual({
+      created_at: ['2026-04-21 00:00:00', '2026-04-21 23:59:59']
+    })
+    expect(service.buildSearchParams(functionDetail, restored.searchForm)).toEqual({
+      gte: 'created_at:2026-04-21 00:00:00',
+      lte: 'created_at:2026-04-21 23:59:59'
     })
   })
 
@@ -169,8 +222,14 @@ describe('TableDomainService URL restore', () => {
     const service = new TableDomainService(apiClient as any, stateManager as any, eventBus as any)
     const functionDetail = {
       router: '/orders',
-      request: [],
-      response: []
+      schema: {
+        version: 1,
+        type: 'table',
+        table: {
+          request: [],
+          fields: []
+        }
+      }
     } as any
 
     const oldLoad = service.loadData(functionDetail, { status: 'old' }, undefined, {

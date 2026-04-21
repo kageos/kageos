@@ -87,7 +87,7 @@ err := ctx.SendMessage(&app.SendMessageOpts{
 // 结构体（系统字段 + 业务字段，此处省略系统字段）
 type CrmTicket struct {
     Title    string `json:"title" gorm:"column:title" widget:"name:标题;type:input" search:"like" validate:"required,min=2,max=200"`
-    Status   string `json:"status" gorm:"column:status" widget:"name:状态;type:select;options:待处理,已完成;options_colors:warning,success;default:待处理" search:"in"`
+    Status   string `json:"status" gorm:"column:status" widget:"name:状态;type:select;options:待处理,已完成;options_colors:warning,success;render_default:待处理" search:"in"`
     // ... ID, CreatedAt, DeletedAt 等见案例
 }
 
@@ -177,8 +177,8 @@ func init() {
 import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/chart"
 
 type SalesStatisticsReq struct {
-    StartTime int64  `json:"start_time" form:"start_time" widget:"name:开始时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"`
-    EndTime   int64  `json:"end_time" form:"end_time" widget:"name:结束时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"`
+    StartTime string `json:"start_time" form:"start_time" widget:"name:开始时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
+    EndTime   string `json:"end_time" form:"end_time" widget:"name:结束时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
 }
 
 func SalesTrendChart(ctx *app.Context, resp response.Response) error {
@@ -206,8 +206,8 @@ func init() {
 
 ```go
 type TicketTrendReq struct {
-    StartTime int64 `json:"start_time" form:"start_time" widget:"name:开始时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"`
-    EndTime   int64 `json:"end_time" form:"end_time" widget:"name:结束时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"`
+    StartTime string `json:"start_time" form:"start_time" widget:"name:开始时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
+    EndTime   string `json:"end_time" form:"end_time" widget:"name:结束时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
 }
 
 func TicketTrendChart(ctx *app.Context, resp response.Response) error {
@@ -234,72 +234,70 @@ func TicketTrendChart(ctx *app.Context, resp response.Response) error {
 
 ### 1. widget 标签
 
-格式：`widget:"name:显示名;type:组件类型;配置项:值"`。生成代码时只使用**当前已支持**的组件类型；`type` 大小写敏感，主键/ID 展示必须写 `type:ID`，不要写成 `type:id`。常用配置：`default`、`placeholder`、`options`、`options_colors`、`min`/`max`/`step`/`unit`、`format`、`precision`、`accept`、`max_size`、`max_count`、`height`、`disabled`、`creatable` 等。
+格式：`widget:"name:显示名;type:组件类型;配置项:值"`。生成代码时只使用**当前已支持**的组件类型；`type` 大小写敏感，主键/ID 展示必须写 `type:ID`，不要写成 `type:id`。常用配置：`render_default`、`placeholder`、`options`、`options_colors`、`min`/`max`/`step`/`unit`、`format`、`precision`、`accept`、`max_size`、`max_count`、`height`、`disabled`、`creatable` 等。`render_default` 是前端渲染默认值，只在新增/初始化界面填充，不等于 `gorm:"default:..."` 或数据库默认值。
 
 **select / multiselect 与 options_colors（提示词约定，按必填处理）**：在生成业务代码时，使用 `select` 或 `multiselect` 时一律同时配置 `options_colors`，与 `options` 一一对应（逗号分隔，顺序一致），前端会用颜色标签区分选项。支持**预设**：`default`、`primary`、`success`、`warning`、`danger`、`info`；也支持**自定义十六进制颜色**，如 `#FF9800`、`#9C27B0`、`#4CAF50`。示例：`options:待处理,进行中,已完成` 对应 `options_colors:warning,primary,success`；`options:VIP,普通,体验` 对应 `options_colors:#E91E63,#9E9E9E,#4CAF50`。
 
 **静态枚举值一致性（重要）**：当前 widget tag 里的静态 `options`（包括 `select` / `multiselect` / `radio` / `checkbox`）默认就是**字符串列表**，前端实际提交值就是选项文本本身。生成 `validate:"oneof=..."`、`required_if`、`required_unless`、`excluded_if`、`excluded_unless` 等规则时，条件值必须与实际提交值**逐字一致**。不要写成“界面展示中文选项，但校验/条件值用英文 code”的混搭形式。
 
-**switch 组件限制（必读）**：当前 `switch` 没有额外 widget 配置，提示词和示例里**不要写** `default`、`true_label`、`false_label` 这类未实现参数；布尔默认值请通过数据库默认值、业务初始化或响应预填处理。
+**switch 组件限制（必读）**：当前 `switch` 只支持 `render_default`，提示词和示例里**不要写** `true_label`、`false_label` 这类未实现参数。
 
-**不要生成未支持的组件类型**：当前没有独立 `date`、`datetime`、`time`、`range`、`image`、`tag`、`tree`、`cascader`、`code` 等 widget type。日期/时间统一使用 `timestamp + format`；图片/媒体上传统一先用 `files`；标签类输入优先用 `multiselect` 或 `checkbox`。
+**不要生成未支持的组件类型**：当前没有独立 `date`、`time`、`range`、`image`、`tag`、`tree`、`cascader`、`code` 等 widget type。日期时间统一使用 `datetime + types.Time`（真实数据库时间类型）。图片/媒体上传统一先用 `files`；标签类输入优先用 `multiselect` 或 `checkbox`。
 
 片段示例：
 
 ```go
-ID             int          `widget:"name:ID;type:ID" permission:"read" search:"eq"`
+ID             int          `widget:"name:ID;type:ID" search:"eq"`
 Title          string       `widget:"name:标题;type:input;placeholder:请输入标题" search:"like" validate:"required,min=2,max=200"`
 Description    string       `widget:"name:描述;type:text_area;placeholder:请输入详细描述" validate:"required,min=10"`
-Source         string       `widget:"name:来源;type:radio;options:电话,邮件,在线;default:在线" search:"in"`
-NotifyChannels []string     `widget:"name:通知渠道;type:checkbox;options:站内信,短信,邮件;default:站内信,邮件"`
-Status         string       `widget:"name:状态;type:select;options:待处理,已完成;options_colors:warning,success;default:待处理" search:"in" validate:"oneof=待处理 已完成"`
+Source         string       `widget:"name:来源;type:radio;options:电话,邮件,在线;render_default:在线" search:"in"`
+NotifyChannels []string     `widget:"name:通知渠道;type:checkbox;options:站内信,短信,邮件;render_default:站内信,邮件"`
+Status         string       `widget:"name:状态;type:select;options:待处理,已完成;options_colors:warning,success;render_default:待处理" search:"in" validate:"oneof=待处理 已完成"`
 Tags           string       `widget:"name:标签;type:multiselect;options:紧急,重要;options_colors:danger,warning" search:"contains"`
 Amount         float64      `widget:"name:金额;type:float;precision:2;step:0.01;unit:元"`
 Progress       int          `widget:"name:进度;type:slider;min:0;max:100;unit:%" search:"gte,lte"`
-Handler        string       `widget:"name:处理人;type:user;default:Me()" search:"in"`
+Handler        string       `widget:"name:处理人;type:user;render_default:Me()" search:"in"`
 Content        string       `widget:"name:详细内容;type:richtext;height:360"`
-ResultCSV      string       `widget:"name:消费明细;type:text;format:csv" permission:"read"`
-Percentage     float64      `widget:"name:完成率;type:progress;min:0;max:100;unit:%" permission:"read"`
-Deadline       int64        `widget:"name:截止时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"`
+ResultCSV      string       `widget:"name:消费明细;type:text;format:csv"`
+Percentage     float64      `widget:"name:完成率;type:progress;min:0;max:100;unit:%"`
+Deadline       types.Time   `widget:"name:截止时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"`
 Attachment     string `gorm:"type:text" widget:"name:附件;type:files"`
-DetailLink     string       `widget:"name:查看详情;type:link;target:_blank" permission:"read"`
+DetailLink     string       `widget:"name:查看详情;type:link;target:_blank"`
 ```
 
 | 组件类型 | 常用配置 | 说明 | 典型用法 |
 |----------|----------|------|----------|
 | `ID` | — | 只读主键/标识；`type` 必须写大写 `ID` | 列表主键、详情 ID |
-| `input` | `placeholder`、`password`、`prepend`、`append`、`default` | 单行文本输入 | 标题、电话、邮箱 |
+| `input` | `placeholder`、`password`、`prepend`、`append`、`render_default` | 单行文本输入 | 标题、电话、邮箱 |
 | `text` | `format` | 只读文本展示 | JSON、Markdown、CSV、HTML 输出 |
-| `text_area` | `placeholder`、`default` | 多行文本输入 | 描述、备注 |
+| `text_area` | `placeholder`、`render_default` | 多行文本输入 | 描述、备注 |
 | `richtext` | `height` | 富文本编辑 | 详细内容、公告正文 |
-| `select` | `options`、`options_colors`、`default`、`placeholder`、`creatable` | 下拉单选 | 状态、优先级 |
-| `radio` | `options`、`default` | 单选按钮 | 来源、性别（2-5 个选项） |
-| `checkbox` | `options`、`default` | 固定选项复选 | 通知渠道、权限项 |
-| `multiselect` | `options`、`options_colors`、`default`、`max_count`、`placeholder`、`creatable` | 下拉多选 | 标签、选项集合 |
-| `number` | `placeholder`、`step`、`default`、`unit` | 整数输入 | 数量、工时 |
-| `float` | `placeholder`、`precision`、`step`、`default`、`unit` | 小数输入 | 价格、金额、折扣率 |
-| `slider` | `min`、`max`、`step`、`default`、`unit` | 可编辑滑块 | 进度、评分、百分比 |
-| `rate` | `max`、`allow_half`、`default`、`texts` | 星级评分 | 服务评价、满意度 |
-| `switch` | — | 布尔开关；不要写未实现的 `default` / `true_label` / `false_label` | 是否启用、是否匿名 |
-| `timestamp` | `format`、`default`、`disabled` | 日期时间；**严格要求毫秒时间戳** | 创建时间、截止时间 |
-| `color` | `format`、`default`、`show_alpha` | 颜色选择 | 主题色、颜色值 |
+| `select` | `options`、`options_colors`、`render_default`、`placeholder`、`creatable` | 下拉单选 | 状态、优先级 |
+| `radio` | `options`、`render_default` | 单选按钮 | 来源、性别（2-5 个选项） |
+| `checkbox` | `options`、`render_default` | 固定选项复选 | 通知渠道、权限项 |
+| `multiselect` | `options`、`options_colors`、`render_default`、`max_count`、`placeholder`、`creatable` | 下拉多选 | 标签、选项集合 |
+| `number` | `placeholder`、`step`、`render_default`、`unit` | 整数输入 | 数量、工时 |
+| `float` | `placeholder`、`precision`、`step`、`render_default`、`unit` | 小数输入 | 价格、金额、折扣率 |
+| `slider` | `min`、`max`、`step`、`render_default`、`unit` | 可编辑滑块 | 进度、评分、百分比 |
+| `rate` | `max`、`allow_half`、`render_default`、`texts` | 星级评分 | 服务评价、满意度 |
+| `switch` | `render_default` | 布尔开关；不要写未实现的 `true_label` / `false_label` | 是否启用、是否匿名 |
+| `datetime` | `format`、`render_default`、`disabled` | 日期时间；raw value 为 `"YYYY-MM-DD HH:mm:ss"`，数据库推荐 `types.Time` + `type:datetime`；默认值推荐 `CURRENT_TIMESTAMP` / `DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 1 HOUR)` | 创建时间、截止时间 |
+| `color` | `format`、`render_default`、`show_alpha` | 颜色选择 | 主题色、颜色值 |
 | `files` | `accept`、`max_size`、`max_count` | 文件上传/下载；字段类型必须为 `string` | 附件、图片、视频 |
-| `user / users` | `default`、`disabled`、`max_count` | 用户选择 | 负责人、抄送人 |
-| `department / departments` | `default`、`max_count` | 部门选择 | 所属部门、关联部门 |
+| `user / users` | `render_default`、`disabled`、`max_count` | 用户选择 | 负责人、抄送人 |
+| `department / departments` | `render_default`、`max_count` | 部门选择 | 所属部门、关联部门 |
 | `progress` | `min`、`max`、`unit` | 只读进度展示 | 得票率、完成率 |
 | `link` | `text`、`target`、`type`、`icon` | 只读跳转链接 | 查看详情、关联函数跳转 |
 | `table` | — | Form 请求中的子表 | 明细行、商品清单 |
 | `form` | — | Form 响应中的子表单 | 嵌套结构体展示 |
 
-- `text`、`progress`、`link`、`ID` 多用于只读字段或响应字段，通常配 `permission:"read"`。
+- `text`、`progress`、`link`、`ID` 多用于列表展示字段或响应字段；Table 中若只希望前端列表展示、不进入新增/编辑表单，配 `display:"scenes:list"`。
 - `select` / `multiselect` 的实际值类型由 Go 字段类型决定，SDK 会按字段类型推断 `string`、`int`、`[]string`、`[]int`、`[]float` 等。
 - `checkbox` 更适合固定数量的勾选项；需要下拉式多选、远程搜索或可创建选项时优先使用 `multiselect`。
 
-**timestamp 组件约定（必读）**：**timestamp 组件严格要求使用毫秒时间戳（毫秒级 Unix 时间戳），禁止使用秒级时间戳。** 后端无需在代码里做日期格式化，直接使用 **int64** 类型存、传**毫秒时间戳**即可，前端会根据 widget 的 `format` 自动格式化展示；若误用秒级时间戳，前端展示、筛选、排序会错误。
+**datetime 组件约定（新业务必读）**：新建业务表默认使用 `types.Time` + `gorm:"type:datetime"` + `widget:"type:datetime"`。API/工作台/前端 raw value 都是 `"YYYY-MM-DD HH:mm:ss"` 字符串，数据库存真实时间类型。系统字段示例：`CreatedAt types.Time \`json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"\``。普通业务时间字段需要在新增/编辑填写时，不要加 `display:"scenes:list"`。
 
-- **正确**：`BidTime int64 \`json:"bid_time" widget:"name:出价时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"\`` —— 字段类型为 int64，值为毫秒时间戳，后端只读写时间戳，不转字符串。
-- **错误**：`BidTime string \`json:"bid_time" widget:"name:出价时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"\`` —— 不要用 string 类型，也不要后端格式化成 "YYYY-MM-DD HH:mm:ss" 等字符串；timestamp 的 format 仅用于前端展示，后端只返回时间戳。
-- **错误**：使用秒级时间戳（如 `time.Now().Unix()`）—— 必须用毫秒级（如 `time.Now().UnixMilli()` 或 gorm 的 `autoCreateTime:milli` / `autoUpdateTime:milli`）。
+**datetime 组件约定**：日期时间字段使用 `types.Time`，数据库列使用真实时间类型，API/schema 协议为 `"YYYY-MM-DD HH:mm:ss"`。
 
 **form / table 结构约定（禁止 map，必读）**：使用 `type:form`（子表单）或 `type:table`（子表）时，**字段必须是具名、固定字段的结构体类型**，**禁止使用 `map[string]interface{}`**。前端和 SDK 依赖结构体标签（如 `widget`、`json`）来生成表单/表格列；map 的键在编译期不确定，无法解析出固定 schema，会导致展示异常或无法正确渲染。
 
@@ -312,7 +310,7 @@ DetailLink     string       `widget:"name:查看详情;type:link;target:_blank" 
 
 #### link 组件（跳转链接，多函数联动）
 
-用于在**列表**或**表单**中展示可点击链接，点击后**跳转到另一个函数**（Table 或 Form）或打开**外链**，实现多函数联动与带参跳转。字段通常**不落库**（`gorm:"-"`）、**只读**（`permission:"read"`），值由后端在 **List 函数 Build 之后**或 **Form 响应**里用 `ctx.BuildFunctionUrlWithText(target, params, linkText)` 赋值。
+用于在**列表**或**表单**中展示可点击链接，点击后**跳转到另一个函数**（Table 或 Form）或打开**外链**，实现多函数联动与带参跳转。Table 列表链接字段通常**不落库**（`gorm:"-"`），并配 `display:"scenes:list"`，前端仅在列表展示，不进入新增/编辑表单；值由后端在 **List 函数 Build 之后**或 **Form 响应**里用 `ctx.BuildFunctionUrlWithText(target, params, linkText)` 赋值。
 
 - **widget 配置**：`type:link`；可选 `target:_blank`（新窗口）或 `_self`（当前窗口）；可选 `text`、`type`（样式 primary/success 等）、`icon`。
 - **赋值 API**：
@@ -342,7 +340,7 @@ DetailLink     string       `widget:"name:查看详情;type:link;target:_blank" 
 
 ```go
 // Table 列表：不落库、只读，List Build 之后对每条记录赋值
-RoomLink string `json:"room_link" gorm:"-" widget:"name:会议室详情;type:link;target:_blank" permission:"read"`
+RoomLink string `json:"room_link" gorm:"-" widget:"name:会议室详情;type:link;target:_blank" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
 
 // List 函数内，Build 之后：跳转到 Table 必须用目标表的 Model
 // meeting_room_list.table 的 AutoCrudTable 是 MeetingRoom，故 params 用 MeetingRoom{ID: ...}
@@ -365,7 +363,7 @@ return resp.Form(&VoteSubmitResp{..., FunctionLink: functionLink}).Build()
 完整示例：read_doc `/system/prompt/case_catalog/tables/meeting`（预约列表会议室详情 link）、`/system/prompt/case_catalog/tables/hr`（职位/简历列表 link、_tab=OnTableAddRow）、`/system/prompt/case_catalog/formandtable/vote`（投票操作/选项列表/提交结果 link）。
 
 - **隐藏字段**：`widget:"-"` 表示该字段**被前端直接忽略**，不参与列表/表单的渲染，也不会被提交；常用于系统字段（如 DeletedAt、DeletedBy）或内部关联（如 `json:"-"` 的关联表）。
-- **只读/仅创建等**：用 `permission` 控制，见下节。
+- **展示场景**：用 `display.scenes` 控制前端渲染位置，例如 `list` 仅列表展示、`create` 仅新增表单展示，见下节。
 
 ### 2. validate 标签
 
@@ -446,7 +444,7 @@ type InvoiceReq struct {
 | in | 精确 IN | select、radio、user、department |
 | contains | FIND_IN_SET | multiselect、users、departments |
 | eq | 精确 = | ID、switch |
-| gte,lte | 范围 | timestamp、number、float、slider |
+| gte,lte | 范围 | datetime、number、float、slider |
 
 **组件值使用说明（重要）**：
 - `type:user`、`type:users`、`type:department`、`type:departments` 这些组件提交到后端后，值可以直接当业务参数使用，不需要额外做组件层转换。
@@ -457,15 +455,15 @@ type InvoiceReq struct {
 
 ```go
 type CrmTicket struct {
-    // 系统字段：仅列表展示，新增/修改表单不展示；配 search 后列表可搜索
-    ID        int   `json:"id" gorm:"primaryKey;column:id" widget:"name:ID;type:ID" permission:"read" search:"eq"`           // 仅列表展示、不可编辑，列表支持按 ID 精确搜索
-    CreatedAt int64 `json:"created_at" gorm:"autoCreateTime:milli;column:created_at" widget:"name:创建时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"` // 仅列表展示、不可编辑，列表支持按创建时间范围搜索
-    UpdatedAt int64 `json:"updated_at" gorm:"autoUpdateTime:milli;column:updated_at" widget:"name:更新时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"` // 仅列表展示、不可编辑，列表支持按更新时间范围搜索
+    // 系统字段：前端仅在列表展示，不进入新增/编辑表单；配 search 后列表可搜索。
+    ID        int   `json:"id" gorm:"primaryKey;column:id" widget:"name:ID;type:ID" display:"scenes:list" search:"eq"`           // 前端仅在列表展示，不进入新增/编辑表单；列表支持按 ID 精确搜索。
+    CreatedAt types.Time `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单；列表支持按创建时间范围搜索。
+    UpdatedAt types.Time `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单；列表支持按更新时间范围搜索。
     // 软删除：gorm.DeletedAt + widget:"-" 不在前端展示，GORM 查询时自动过滤已删除记录
     DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"` // 不做展示
     DeletedBy string         `json:"deleted_by" gorm:"column:deleted_by" widget:"-"`       // 删除操作人，不做展示（可选）
 
-    // 业务字段：配 search 的列表可搜索，未配则不可搜（展示/可编辑由 permission 或不设置决定，见下方 permission 标签）
+    // 业务字段：配 search 的列表可搜索，未配则不可搜；未配 display 时前端会在列表/新增/编辑三个场景都展示。
     Title       string `json:"title" gorm:"column:title" widget:"name:工单标题;type:input" search:"like"`           // 列表支持模糊搜索
     Description string `json:"description" gorm:"column:description" widget:"name:问题描述;type:text_area" search:"like"` // 列表支持模糊搜索
     Priority    string `json:"priority" gorm:"column:priority" widget:"name:优先级;type:select;options:低,中,高;options_colors:success,warning,danger" search:"in"`   // 列表支持精确筛选
@@ -474,73 +472,73 @@ type CrmTicket struct {
     Progress    int    `json:"progress" gorm:"column:progress" widget:"name:完成进度;type:slider;min:0;max:100;unit:%" search:"gte,lte"` // 列表支持范围搜索
     Handler     string `json:"handler" gorm:"column:handler" widget:"name:处理人;type:user" search:"in"`           // 列表支持精确筛选
     CcUsers     string `json:"cc_users" gorm:"column:cc_users" widget:"name:抄送人;type:users" search:"contains"`  // 列表支持 FIND_IN_SET 搜索
-    Deadline    int64  `json:"deadline" gorm:"column:deadline" widget:"name:截止时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"` // 列表支持范围搜索
+    Deadline    types.Time `json:"deadline" gorm:"column:deadline;type:datetime" widget:"name:截止时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"` // 列表支持范围搜索
     Remark      string `json:"remark" gorm:"column:remark" widget:"name:备注;type:text_area"`                     // 未配 search，列表不可搜索
 }
 ```
 
-### 4. permission 标签
+### 4. display.scenes 标签
 
-用于控制字段在**新增表单、更新表单、列表**中的展示与编辑权限，务必按业务需要设置，避免用户改不该改的字段。
+用于控制字段在前端哪些界面渲染。它不是权限控制：`display:"scenes:list"` 表示前端只把字段渲染到列表列中，不会渲染到新增/编辑表单；不配置 `display` 表示列表、新增表单、编辑表单都展示。
 
-| 权限值 | 新增表单 | 更新表单 | 列表展示 | 适用场景 |
-|--------|----------|----------|----------|----------|
-| `read` | ❌ 不展示可编辑 | ❌ 不展示可编辑 | ✅ 展示 | 仅展示、后端赋值或计算字段 |
-| `create` | ✅ 可编辑 | ❌ 不展示 | ❌ 不展示 | 仅创建时填写，编辑/列表不可改 |
-| `update` | ❌ 不展示 | ✅ 可编辑 | ❌ 不展示 | 仅编辑时可改 |
-| `create,update` | ✅ 可编辑 | ✅ 可编辑 | ❌ 不展示 | 敏感信息，列表不展示 |
-| 不设置 | ✅ 可编辑 | ✅ 可编辑 | ✅ 展示 | 普通业务字段 |
+| scenes 值 | 新增表单 | 编辑表单 | 列表展示 | 适用场景 |
+|-----------|----------|----------|----------|----------|
+| `list` | ❌ 不展示 | ❌ 不展示 | ✅ 展示 | 主键、创建/更新时间、后端计算字段、列表链接 |
+| `create` | ✅ 展示 | ❌ 不展示 | ❌ 不展示 | 仅创建时填写，创建后不再编辑 |
+| `update` | ❌ 不展示 | ✅ 展示 | ❌ 不展示 | 仅编辑时填写 |
+| `create,update` | ✅ 展示 | ✅ 展示 | ❌ 不展示 | 新增/编辑可填，但列表不展示 |
+| 不设置 | ✅ 展示 | ✅ 展示 | ✅ 展示 | 普通业务字段 |
 
-#### permission 最佳实践场景
+#### display.scenes 最佳实践场景
 
-**场景 1：仅列表展示、不落库的计算字段（permission: read + gorm:"-"）**
+**场景 1：仅列表展示、不落库的计算字段（display:"scenes:list" + gorm:"-"）**
 
-列表需要展示「剩余时间」等由后端根据其它字段计算出的值，不落库、表单不需要编辑。用 `gorm:"-"` 不落库，`permission:"read"` 仅列表展示。
+列表需要展示「剩余时间」等由后端根据其它字段计算出的值，不落库，且不进入新增/编辑表单。用 `gorm:"-"` 不落库，`display:"scenes:list"` 表示前端仅在列表展示。
 
 ```go
-RemainingTime string `json:"remaining_time" gorm:"-" widget:"name:剩余时间;type:text" permission:"read"`
+RemainingTime string `json:"remaining_time" gorm:"-" widget:"name:剩余时间;type:text" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
 ```
 
 在 List 函数 Build 之后遍历 `lists`，根据截止时间等计算并赋值给 `RemainingTime`。
 
-**场景 2：仅展示、由后端在回调中赋值的字段（permission: read）**
+**场景 2：后端在回调中赋值的字段**
 
-创建人、提单部门等只读，不允许用户在前端选择，必须在 OnTableAddRow 里用 `ctx.GetRequestUser()`、`ctx.GetRequestUserDept()` 等赋值。若业务字段本身就是 `user/users/department/departments` 组件，提交值也可直接用于入库或发消息等业务逻辑。
+创建人、提单部门等如果不希望用户在前端填写，通常不放到新增/编辑表单里，由 OnTableAddRow 用 `ctx.GetRequestUser()`、`ctx.GetRequestUserDept()` 等赋值。若业务字段本身就是 `user/users/department/departments` 组件，提交值也可直接用于入库或发消息等业务逻辑。
 
 ```go
-Department string `json:"department" gorm:"column:department" widget:"name:提单部门;type:department" search:"in" permission:"read"`
-CreateBy   string `json:"create_by" gorm:"column:create_by" widget:"name:创建用户;type:user" search:"in" permission:"read"`
+Department string `json:"department" gorm:"column:department" widget:"name:提单部门;type:department" search:"in" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
+CreateBy   string `json:"create_by" gorm:"column:create_by" widget:"name:创建用户;type:user" search:"in" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
 ```
 
 在 OnTableAddRow 中：`row.Department = ctx.GetRequestUserDept()`；`row.CreateBy = ctx.GetRequestUser()`。
 
-**场景 3：仅新增时可编辑、编辑/列表不展示（permission: create）**
+**场景 3：仅新增时展示、编辑/列表不展示（display:"scenes:create"）**
 
-某些字段只在「新增」时填写，编辑时不允许改（如投票主题的选项列表，创建后不可改）。用 `permission:"create"`，新增表单可编辑，更新表单和列表不展示该字段。
-
-```go
-Options []VoteOptionItem `json:"options" gorm:"-" widget:"name:投票选项;type:table" permission:"create" validate:"required,min=2"`
-```
-
-**场景 4：仅编辑时可改、新增/列表不展示（permission: update）**
-
-某些字段只在「更新」时填写，新增时没有或不需要填。例如：实际完成时间（创建时未知）、关闭原因/处理备注（仅在结单或更新时填）、审核意见（仅审核人在更新时填）。用 `permission:"update"`，更新表单可编辑，新增表单和列表不展示该字段。
+某些字段只在「新增」时填写，编辑时不允许改（如投票主题的选项列表，创建后不可改）。用 `display:"scenes:create"`，前端仅在新增表单展示，编辑表单和列表不展示该字段。
 
 ```go
-ClosedReason  string `json:"closed_reason" gorm:"column:closed_reason" widget:"name:关闭原因;type:text_area" permission:"update"`
-FinishedAt   int64  `json:"finished_at" gorm:"column:finished_at" widget:"name:实际完成时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" permission:"update"`
+Options []VoteOptionItem `json:"options" gorm:"-" widget:"name:投票选项;type:table" display:"scenes:create" validate:"required,min=2"` // 前端仅在新增表单展示，列表和编辑不展示。
 ```
 
-**场景 5：新增和更新都可编辑、但列表不展示（permission: create,update）**
+**场景 4：仅编辑时展示、新增/列表不展示（display:"scenes:update"）**
 
-敏感或内部信息需要在新/改表单里编辑，但不在列表里展示，避免列表信息过载或泄露。例如：内部备注、成本价、二次确认密码等。用 `permission:"create,update"`，新增和更新表单都可编辑，列表不展示。
+某些字段只在「更新」时填写，新增时没有或不需要填。例如：实际完成时间（创建时未知）、关闭原因/处理备注（仅在结单或更新时填）、审核意见（仅审核人在更新时填）。用 `display:"scenes:update"`，前端仅在编辑表单展示，新增表单和列表不展示该字段。
 
 ```go
-InternalNote string `json:"internal_note" gorm:"column:internal_note" widget:"name:内部备注;type:text_area" permission:"create,update"`
-CostPrice    float64 `json:"cost_price" gorm:"column:cost_price" widget:"name:成本价;type:float;precision:2;unit:元" permission:"create,update"`
+ClosedReason  string `json:"closed_reason" gorm:"column:closed_reason" widget:"name:关闭原因;type:text_area" display:"scenes:update"` // 前端仅在编辑表单展示，列表和新增不展示。
+FinishedAt   types.Time  `json:"finished_at" gorm:"column:finished_at;type:datetime" widget:"name:实际完成时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" display:"scenes:update"` // 前端仅在编辑表单展示，列表和新增不展示。
 ```
 
-**小结**：`read` = 只展示不编辑（含计算字段与后端赋值字段）；`create` = 仅新增时填；`update` = 仅编辑时填；`create,update` = 新/改可编辑、列表不展示；不设 = 正常可编辑且列表展示。配合 `widget:"-"` 可完全隐藏字段。
+**场景 5：新增和编辑都展示、但列表不展示（display:"scenes:create,update"）**
+
+敏感或内部信息需要在新增/编辑表单里填写，但不在列表里展示，避免列表信息过载或泄露。例如：内部备注、成本价、二次确认密码等。用 `display:"scenes:create,update"`，前端会在新增和编辑表单展示，列表不展示。
+
+```go
+InternalNote string  `json:"internal_note" gorm:"column:internal_note" widget:"name:内部备注;type:text_area" display:"scenes:create,update"` // 前端在新增/编辑表单展示，列表不展示。
+CostPrice    float64 `json:"cost_price" gorm:"column:cost_price" widget:"name:成本价;type:float;precision:2;unit:元" display:"scenes:create,update"` // 前端在新增/编辑表单展示，列表不展示。
+```
+
+**小结**：`list` = 前端仅列表展示；`create` = 前端仅新增表单展示；`update` = 前端仅编辑表单展示；`create,update` = 新增/编辑表单展示、列表不展示；不设 = 三个场景均展示。配合 `widget:"-"` 可完全隐藏字段。
 
 ---
 
@@ -561,7 +559,7 @@ Table 的增删改由三个**可选**回调实现；**不配某个回调则对�
 
 ### 1. OnTableAddRow（新增行）
 
-- **作用**：绑定并校验请求体，填充只读字段（如创建人、部门），落库，可选调用第三方。
+- **作用**：绑定并校验请求体，填充后端负责赋值的字段（如创建人、部门），落库，可选调用第三方。
 - **关键 API**：`ctx.ShouldBindValidate(&row)`、`ctx.GetRequestUser()`、`ctx.GetRequestUserDept()`、`ctx.GetGormDB()`。
 - **返回**：`&callback.OnTableAddRowResp{Data: &row}`。
 
@@ -600,7 +598,7 @@ OnTableUpdateRow: func(ctx *app.Context, req *callback.OnTableUpdateRowReq) (*ca
         if err := db.First(&current, req.GetId()).Error; err != nil {
             return nil, err
         }
-        durationMinutes := float64(time.Now().UnixMilli()-current.CreatedAt) / 1000 / 60
+        durationMinutes := time.Since(current.CreatedAt.Time()).Minutes()
         updates["handle_duration"] = float64(int(durationMinutes*100+0.5)) / 100
     }
     err := db.Model(&CrmTicket{}).Where("id = ?", req.GetId()).Updates(updates).Error
@@ -652,10 +650,10 @@ List 函数可在 **Build 之前** 和 **Build 之后** 两处做自定义处理
 ```go
 // 结构体：ID、标题、截止时间（落库），剩余时间（不落库，仅展示）
 type Task struct {
-    ID             int    `json:"id" gorm:"primaryKey;autoIncrement" widget:"name:ID;type:ID" permission:"read"`
+    ID             int    `json:"id" gorm:"primaryKey;autoIncrement" widget:"name:ID;type:ID" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
     Title          string `json:"title" gorm:"column:title" widget:"name:标题;type:input" search:"like"`
-    Deadline       int64  `json:"deadline" gorm:"column:deadline" widget:"name:截止时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"`
-    RemainingTime  string `json:"remaining_time" gorm:"-" widget:"name:剩余时间;type:input" permission:"read"` // gorm:"-" 不落库
+    Deadline       types.Time `json:"deadline" gorm:"column:deadline;type:datetime" widget:"name:截止时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"`
+    RemainingTime  string `json:"remaining_time" gorm:"-" widget:"name:剩余时间;type:input" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单；gorm:"-" 不落库。
 }
 
 func TaskList(ctx *app.Context, resp response.Response) error {
@@ -667,18 +665,19 @@ func TaskList(ctx *app.Context, resp response.Response) error {
         return err
     }
     // Build 之后：按截止时间计算「剩余时间」展示
-    now := time.Now().UnixMilli()
+    now := time.Now()
     for _, item := range lists {
-        if item.Deadline <= 0 {
+        deadline := item.Deadline.Time()
+        if deadline.IsZero() {
             item.RemainingTime = "-"
             continue
         }
-        if now >= item.Deadline {
+        if !now.Before(deadline) {
             item.RemainingTime = "已过期"
             continue
         }
-        diffMs := item.Deadline - now
-        d, h := diffMs/86400/1000, (diffMs/3600/1000)%24
+        diff := deadline.Sub(now)
+        d, h := int(diff.Hours())/24, int(diff.Hours())%24
         if d > 0 {
             item.RemainingTime = fmt.Sprintf("%d天%d小时", d, h)
         } else {
@@ -689,7 +688,7 @@ func TaskList(ctx *app.Context, resp response.Response) error {
 }
 ```
 
-要点：计算字段用 `gorm:"-"`，不写库；`permission:"read"` 表示仅列表展示、表单不编辑。
+要点：计算字段用 `gorm:"-"`，不写库；`display:"scenes:list"` 表示前端仅在列表展示，不进入新增/编辑表单。
 
 **示例二：Build 前处理 + 后处理（会议室预约）**
 
@@ -698,14 +697,14 @@ func TaskList(ctx *app.Context, resp response.Response) error {
 ```go
 // 列表结构体：RoomName、Status、RoomLink 为不落库展示字段（gorm:"-"）
 type MeetingRoomBooking struct {
-    ID        int    `json:"id" gorm:"primaryKey;column:id" widget:"name:预约ID;type:ID" permission:"read" search:"eq"`
+    ID        int    `json:"id" gorm:"primaryKey;column:id" widget:"name:预约ID;type:ID" display:"scenes:list" search:"eq"` // 前端仅在列表展示，不进入新增/编辑表单。
     RoomID    int    `json:"room_id" gorm:"column:room_id" widget:"name:会议室;type:select" callback:"OnSelectFuzzy"`
     Room      *MeetingRoom `json:"-" gorm:"foreignKey:RoomID"`
-    RoomName  string `json:"room_name" gorm:"-" widget:"name:会议室名称;type:text" permission:"read"`   // 后处理从 Room 取
-    RoomLink  string `json:"room_link" gorm:"-" widget:"name:会议室详情;type:link" permission:"read"`  // 后处理 BuildFunctionUrlWithText
-    StartTime int64  `json:"start_time" gorm:"column:start_time" widget:"name:开始时间;type:timestamp" search:"gte,lte"`
-    EndTime   int64  `json:"end_time" gorm:"column:end_time" widget:"name:结束时间;type:timestamp" search:"gte,lte"`
-    Status    string `json:"status" gorm:"-" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:info,primary,success" permission:"read"` // 后处理按时间计算
+    RoomName  string `json:"room_name" gorm:"-" widget:"name:会议室名称;type:text" display:"scenes:list"`   // 前端仅在列表展示，不进入新增/编辑表单；后处理从 Room 取。
+    RoomLink  string `json:"room_link" gorm:"-" widget:"name:会议室详情;type:link" display:"scenes:list"`  // 前端仅在列表展示，不进入新增/编辑表单；后处理 BuildFunctionUrlWithText。
+    StartTime types.Time `json:"start_time" gorm:"column:start_time;type:datetime" widget:"name:开始时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"`
+    EndTime   types.Time `json:"end_time" gorm:"column:end_time;type:datetime" widget:"name:结束时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"`
+    Status    string `json:"status" gorm:"-" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:info,primary,success" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单；后处理按时间计算。
 }
 
 // 列表请求：RoomName、Status 为筛选条件，非主表字段（RoomName 来自外表，Status 为计算字段），
@@ -736,7 +735,7 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
 
     // Build 前处理 2：按预约状态筛选（计算字段：用 start_time/end_time 与当前时间比较；多表时建议加表名前缀如 crm_meeting_room_booking.start_time）
     if req.Status != "" {
-        now := time.Now().UnixMilli()
+        now := time.Now()
         switch req.Status {
         case "待开始": queryDB = queryDB.Where("start_time > ?", now)
         case "进行中": queryDB = queryDB.Where("start_time <= ? AND end_time > ?", now, now)
@@ -761,10 +760,10 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
     return nil
 }
 
-func calculateBookingStatus(startTime, endTime int64) string {
-    now := time.Now().UnixMilli()
-    if now < startTime { return "待开始" }
-    if now < endTime { return "进行中" }
+func calculateBookingStatus(startTime, endTime types.Time) string {
+    now := time.Now()
+    if now.Before(startTime.Time()) { return "待开始" }
+    if now.Before(endTime.Time()) { return "进行中" }
     return "已结束"
 }
 ```
@@ -778,7 +777,7 @@ func calculateBookingStatus(startTime, endTime int64) string {
 - **请求/响应结构体**：字段加 `widget`、`validate`；请求可含 `type:table`（子表）、`type:select` + `callback:"OnSelectFuzzy"` 等。
 - **处理函数**：`ctx.ShouldBindValidate(&req)`；业务逻辑；成功 `return resp.Form(&respStruct).Build()`。涉及文件读写时见下「文件上传、下载与存储」。
 - **事务要求**：一次提交若会同时改动多张表，尤其是余额、库存、数量、状态、流水这类强一致数据，必须使用 `db.Transaction(...)`，并在事务内做条件更新或再次校验，避免并发下超卖、透支或部分成功部分失败。
-- **数据库兼容**：工作区应用默认是 **SQLite**；若后续可能切到 MySQL，涉及 Raw SQL、日期格式化、字符串拼接、upsert、JSON 函数时，必须先看 `db.Dialector.Name()` 分支处理，不要写死单一数据库语法。优先用 GORM 和 Go 代码做计算，实在需要 SQL 方言时再分支。**时间分组优先复用 SDK helper**：`app.UnixMilliTimeBucketExpr(db, "created_at", app.TimeBucketDay)`。
+- **数据库兼容**：工作区应用默认是 **SQLite**；若后续可能切到 MySQL，涉及 Raw SQL、日期格式化、字符串拼接、upsert、JSON 函数时，必须先看 `db.Dialector.Name()` 分支处理，不要写死单一数据库语法。优先用 GORM 和 Go 代码做计算，实在需要 SQL 方言时再分支。**时间分组优先复用 SDK helper**：`app.DateTimeBucketExpr(db, "created_at", app.TimeBucketDay)`。
 - **FormTemplate**：`BaseConfig` 含 Name、Request、Response；若请求中有下拉需联动后端数据，配 `OnSelectFuzzyMap`。
 - **注册**：`packageContext.POST("路由名", Handler, FormTemplate)`。
 
@@ -795,8 +794,8 @@ func calculateBookingStatus(startTime, endTime int64) string {
 **典型差异**
 
 - **按天分组/时间格式化**
-  - MySQL：`DATE_FORMAT(FROM_UNIXTIME(created_at/1000), '%Y-%m-%d')`
-  - SQLite：`strftime('%Y-%m-%d', created_at/1000, 'unixepoch')`
+  - MySQL：`DATE_FORMAT(created_at, '%Y-%m-%d')`
+  - SQLite：`strftime('%Y-%m-%d', created_at)`
 - **字符串拼接**
   - MySQL：`CONCAT(a, b)`
   - SQLite：`a || b`
@@ -810,7 +809,7 @@ func calculateBookingStatus(startTime, endTime int64) string {
 
 ```go
 // dateExpr 用于 Select(... as date)，groupExpr 用于 Group(...)
-dateExpr, groupExpr := app.UnixMilliTimeBucketExpr(db, "created_at", app.TimeBucketDay)
+dateExpr, groupExpr := app.DateTimeBucketExpr(db, "created_at", app.TimeBucketDay)
 err := queryDB.
 	Select(fmt.Sprintf("%s as date, COUNT(*) as count", dateExpr)).
 	Group(groupExpr).
@@ -1030,7 +1029,7 @@ Statistics: map[string]interface{}{
 type MeetingRoomBooking struct {
     // ...
     RoomID   int    `json:"room_id" gorm:"column:room_id" widget:"name:会议室;type:select" validate:"required" callback:"OnSelectFuzzy"`
-    RoomName string `json:"room_name" gorm:"-" widget:"name:会议室名称;type:text" permission:"read"`
+    RoomName string `json:"room_name" gorm:"-" widget:"name:会议室名称;type:text" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
     // ...
 }
 

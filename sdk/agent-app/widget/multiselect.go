@@ -9,7 +9,7 @@ type MultiSelect struct {
 	Options       []string `json:"options,omitempty"`        // 选项列表
 	OptionsColors []string `json:"options_colors,omitempty"` // 选项的颜色，支持warning，info，success，danger，primary 还支持自定义颜色例如：#FF9800 橙色，#9C27B0 紫色，每个颜色都可以可以重复
 	Placeholder   string   `json:"placeholder,omitempty"`    // 占位符文本
-	Default       []string `json:"default,omitempty"`        // 默认选中的值（多个，逗号分隔）
+	RenderDefault []string `json:"render_default,omitempty"` // 前端渲染默认选中的值（多个，逗号分隔）
 	MaxCount      int      `json:"max_count,omitempty"`      // 最大选择数量，0表示不限制
 	Creatable     bool     `json:"creatable,omitempty"`      // 是否支持创建新选项
 }
@@ -30,9 +30,9 @@ func (m *MultiSelect) WidgetLLMFacts(field *Field, opts SummaryOptions) []Semant
 	if fact, ok := placeholderFact(m.Placeholder); ok {
 		facts = append(facts, fact)
 	}
-	if len(m.Default) > 0 {
-		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: strings.Join(m.Default, "|")})
-		facts = append(facts, SemanticFact{Key: "example", Value: quoteJSONArrayExample(m.Default)})
+	if len(m.RenderDefault) > 0 {
+		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: strings.Join(m.RenderDefault, "|")})
+		facts = append(facts, SemanticFact{Key: "example", Value: quoteJSONArrayExample(m.RenderDefault)})
 	} else if len(m.Options) > 0 {
 		limit := 2
 		if len(m.Options) < limit {
@@ -60,10 +60,10 @@ func newMultiSelect(widgetParsed map[string]string) *MultiSelect {
 	if placeholder, exists := widgetParsed["placeholder"]; exists {
 		multiSelect.Placeholder = placeholder
 	}
-	if defaultValue, exists := widgetParsed["default"]; exists {
+	if defaultValue, exists := getRenderDefault(widgetParsed); exists {
 		// 解析默认值，支持多个值用逗号分隔
 		if defaultValue != "" {
-			multiSelect.Default = parseOptions(defaultValue)
+			multiSelect.RenderDefault = parseOptions(defaultValue)
 		}
 	}
 	if maxCount, exists := widgetParsed["max_count"]; exists {

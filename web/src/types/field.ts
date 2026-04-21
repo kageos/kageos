@@ -44,6 +44,13 @@ export namespace WidgetTypes {
   /**
    * 字段配置（完整版）
    */
+  export type DisplayScene = 'list' | 'create' | 'update'
+
+  export interface FieldDisplayConfig {
+    /** 前端展示场景：list=列表，create=新增表单，update=编辑表单。未配置表示三个场景均展示。 */
+    scenes?: DisplayScene[]
+  }
+
   export interface FieldConfig {
     code: string
     name: string
@@ -58,7 +65,7 @@ export namespace WidgetTypes {
       example?: string
     }
     callbacks?: string[]  // 字段级别的回调，如 ['OnSelectFuzzy']
-    table_permission?: string  // 'read', 'update', 'create', '' (全部权限)
+    display?: FieldDisplayConfig  // 前端展示场景，不存在表示列表/新增/编辑均展示
     field_name?: string  // Go 字段名（用于验证规则中的字段引用，如 required_if=MemberType vip）
     depend_on?: string  // 依赖的字段 code，当依赖字段值变化时，该字段会被清空
 
@@ -115,10 +122,36 @@ export namespace WidgetTypes {
 export type WidgetMode = WidgetTypes.WidgetMode
 export type WidgetConfig = WidgetTypes.WidgetConfig
 export type FieldConfig = WidgetTypes.FieldConfig
+export type DisplayScene = WidgetTypes.DisplayScene
+export type FieldDisplayConfig = WidgetTypes.FieldDisplayConfig
 export type FieldValue = WidgetTypes.FieldValue
 export type FieldMeta = WidgetTypes.FieldMeta
 export type ValidationRule = WidgetTypes.ValidationRule
 export type PermissionConfig = WidgetTypes.PermissionConfig
+
+export interface FormFunctionSchema {
+  request: FieldConfig[]
+  response: FieldConfig[]
+}
+
+export interface TableFunctionSchema {
+  request: FieldConfig[]
+  fields: FieldConfig[]
+}
+
+export interface ChartFunctionSchema {
+  request: FieldConfig[]
+  response?: FieldConfig[]
+}
+
+export interface FunctionSchema {
+  version: number
+  type: 'form' | 'table' | 'chart'
+  form?: FormFunctionSchema
+  table?: TableFunctionSchema
+  chart?: ChartFunctionSchema
+  callbacks?: string[]
+}
 
 /**
  * 函数详情
@@ -135,9 +168,7 @@ export interface FunctionDetail {
   has_config?: boolean
   create_tables?: string
   template_type?: string  // 'form', 'table', 'chart'
-  request?: FieldConfig[]  // 请求参数（表单字段）
-  response?: FieldConfig[]  // 响应参数（表格列）
-  callbacks?: string[] | string  // 回调类型，如 ['OnTableAddRow', 'OnSelectFuzzy']
+  schema?: FunctionSchema  // 函数配置唯一来源
   permissions?: Record<string, boolean>  // 权限信息（企业版功能）：权限点 -> 是否有权限
   created_by?: string  // 创建者用户名
   created_at?: string
