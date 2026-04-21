@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
@@ -82,6 +83,22 @@ func TestRunWriteDocToolUsesDirectoryAsParentPathWhenCreatingDoc(t *testing.T) {
 	}
 	if createReq.Name != docName {
 		t.Fatalf("Name = %q, want %q", createReq.Name, docName)
+	}
+}
+
+func TestRunCreateDirectoryCommandRejectsInvalidGoPackageCode(t *testing.T) {
+	t.Parallel()
+
+	content, isError := runCreateDirectoryCommand(context.Background(), createDirectoryCommand{
+		Directory: "/liubeiluo/work",
+		Name:      "用户中心",
+		Code:      "user-center",
+	}, "")
+	if !isError {
+		t.Fatalf("expected invalid directory code to be rejected, got content=%s", content)
+	}
+	if !strings.Contains(content, "Go package") {
+		t.Fatalf("unexpected error content: %s", content)
 	}
 }
 

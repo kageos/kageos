@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 )
 
 // WorkspaceEnvInput 构建环境数据所需的输入，调用方从 workspaceCtx 等填充后传入；nil 表示无上下文，仅用 directoryName/fullCodePath 做降级
@@ -32,6 +34,7 @@ type WorkspaceEnvNode struct {
 	FullCodePath string // 完整路径（执行模式 run_table_search/run_form_submit/run_chart_query 用）
 	TemplateType string // 函数类型（仅 function 有效）：table、form、chart
 	Callbacks    string // 函数回调能力（仅 function 有效），逗号分隔
+	Request      []interface{}
 }
 
 // WorkspaceEnvFile 环境中的代码文件
@@ -50,7 +53,11 @@ func BuildInitGoContent(fullCodePath string, name, desc string) string {
 	}
 	parts := strings.Split(fullCodePath, "/")
 	pkg := parts[len(parts)-1]
-	routerGroup := "/" + fullCodePath // 直接用完整路径，不去掉前两段
+	routerParts := parts
+	if len(parts) > 2 {
+		routerParts = parts[2:]
+	}
+	routerGroup := "/" + strings.Join(routerParts, "/")
 	if name == "" {
 		name = pkg
 	}
@@ -189,8 +196,37 @@ func buildFunctionsSection(children []WorkspaceEnvNode) string {
 		if caps := formatWorkspaceFunctionCapabilities(f.TemplateType, f.Callbacks); caps != "" {
 			b.WriteString(fmt.Sprintf("  - 能力：%s\n", caps))
 		}
+		if summaryLines, err := summarizeWorkspaceFunctionRequestFields(f.Request); err == nil && len(summaryLines) > 0 {
+			b.WriteString("  - 字段摘要：\n")
+			for _, line := range summaryLines {
+				b.WriteString("    ")
+				b.WriteString(line)
+				b.WriteString("\n")
+			}
+		}
 	}
 	return b.String()
+}
+
+func summarizeWorkspaceFunctionRequestFields(raw []interface{}) ([]string, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	fields, err := widget.DecodeFields(raw)
+	if err != nil {
+		return nil, err
+	}
+	if len(fields) == 0 {
+		return nil, nil
+	}
+	lines := make([]string, 0, len(fields)*2)
+	for _, field := range fields {
+		lines = append(lines, field.LLMSummaryLines(widget.SummaryOptions{
+			Mode:     widget.SummaryCompact,
+			MaxDepth: 1,
+		})...)
+	}
+	return lines, nil
 }
 
 func formatWorkspaceFunctionCapabilities(templateType, callbacks string) string {

@@ -99,6 +99,9 @@ RUN apk add --no-cache \
     pngquant \
     python3 \
     py3-pip \
+    tesseract-ocr \
+    tesseract-ocr-data-eng \
+    tesseract-ocr-data-chi_sim \
     unpaper \
     vips-tools \
     libass \
@@ -186,6 +189,7 @@ RUN pip3 install --no-cache-dir --break-system-packages \
     python-dateutil \
     wordcloud \
     pymysql \
+    pytesseract \
     # NLP（推荐，中文分词）
     jieba \
     snownlp \
@@ -259,7 +263,11 @@ RUN ffmpeg -version | head -n 1 && \
     lua -v && \
     python3 --version && \
     pip3 --version && \
-    python3 -c "import pandas, numpy, matplotlib, jieba, snownlp, requests, paddleocr; print('✓ Core Python packages verified (including PaddleOCR)')" && \
+    tesseract --version | head -n 1 && \
+    tesseract --list-langs | tee /tmp/tesseract-langs.txt && \
+    grep -x eng /tmp/tesseract-langs.txt && \
+    grep -x chi_sim /tmp/tesseract-langs.txt && \
+    python3 -c "import pandas, numpy, matplotlib, jieba, snownlp, requests, paddleocr, pytesseract; print('✓ Core Python packages verified (including PaddleOCR and pytesseract)')" && \
     python3 -c "import xlsxwriter, pptx, plotly, pyecharts, bs4, yaml, qrcode, barcode, xlrd, xlwt, aiohttp, toml, tabulate, arrow, dateutil, wordcloud, pymysql; print('✓ Extended Python packages verified')" && \
     echo "✓ All tools installed successfully"
 

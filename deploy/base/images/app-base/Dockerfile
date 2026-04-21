@@ -147,7 +147,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         xlsxwriter python-pptx plotly pyecharts \
         beautifulsoup4 lxml aiohttp \
         PyYAML qrcode python-barcode xlrd xlwt toml \
-        tabulate arrow python-dateutil wordcloud pymysql \
+        tabulate arrow python-dateutil wordcloud pymysql pytesseract \
     && rm -rf /tmp/* /root/.cache /var/lib/apt/lists/* \
     && echo "✓ Python packages installed"
 
@@ -194,6 +194,9 @@ RUN echo "=== 验证安装 ===" && \
     echo "LibreOffice:" && libreoffice --version 2>/dev/null | head -n 1 && \
     echo "Pandoc:" && pandoc --version 2>/dev/null | head -n 1 && \
     echo "Tesseract:" && tesseract --version 2>/dev/null | head -n 1 && \
+    tesseract --list-langs 2>/dev/null | tee /tmp/tesseract-langs.txt && \
+    grep -x eng /tmp/tesseract-langs.txt && \
+    grep -x chi_sim /tmp/tesseract-langs.txt && \
     echo "Graphviz:" && dot -V 2>&1 | head -n 1 && \
     echo "CLI (子进程常用):" && \
     jq --version && \
@@ -230,6 +233,7 @@ RUN echo "=== 验证安装 ===" && \
     python3 -c "import dateutil; print('  python-dateutil OK')" && \
     python3 -c "import wordcloud; print('  wordcloud OK')" && \
     python3 -c "import pymysql; print('  pymysql OK')" && \
+    python3 -c "import pytesseract; print('  pytesseract OK')" && \
     echo "FFmpeg drawtext + 中文字体:" && \
     (ffmpeg -filters 2>/dev/null | grep -q "drawtext") && echo "  drawtext 滤镜 OK" || (echo "  drawtext 缺失"; exit 1) && \
     (test -f /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc || test -f /usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc) && echo "  Noto CJK 字体 OK（drawtext 中文可用 fontfile= 指向该路径）" || echo "  Noto CJK 路径可能不同，请用 fc-list :lang=zh 查看" && \

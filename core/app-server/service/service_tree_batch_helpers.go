@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/naming"
 )
 
 func executeBatchCreateDirectoryTree(
@@ -17,6 +19,13 @@ func executeBatchCreateDirectoryTree(
 	runtimeWorkspace *runtimeWorkspaceBridge,
 	req *dto.BatchCreateDirectoryTreeReq,
 ) (*dto.BatchCreateDirectoryTreeResp, error) {
+	if req == nil {
+		return nil, fmt.Errorf("批量创建目录树请求不能为空")
+	}
+	if err := validateDirectoryScaffoldItemsForGoPackages(req); err != nil {
+		return nil, err
+	}
+
 	app, runtimeResp, err := runtimeWorkspace.batchCreateDirectoryTree(ctx, req)
 	if err != nil {
 		return nil, err
@@ -73,6 +82,44 @@ func executeBatchCreateDirectoryTree(
 		FileCount:      runtimeResp.FileCount,
 		CreatedPaths:   runtimeResp.CreatedPaths,
 	}, nil
+}
+
+func validateDirectoryScaffoldItemsForGoPackages(req *dto.BatchCreateDirectoryTreeReq) error {
+	if len(req.Items) == 0 {
+		return fmt.Errorf("目录脚手架项不能为空")
+	}
+
+	for index, item := range req.Items {
+		if item == nil {
+			return fmt.Errorf("目录脚手架项不能为空: items[%d]", index)
+		}
+		if item.FullCodePath != strings.TrimSpace(item.FullCodePath) {
+			return fmt.Errorf("目录 full_code_path 不能包含首尾空格: %s", item.FullCodePath)
+		}
+
+		trimmed := strings.Trim(item.FullCodePath, "/")
+		if trimmed == "" {
+			return fmt.Errorf("目录 full_code_path 不能为空: items[%d]", index)
+		}
+
+		parts := strings.Split(trimmed, "/")
+		if len(parts) < 3 {
+			return fmt.Errorf("目录 full_code_path 必须至少包含 user/app/directory: %s", item.FullCodePath)
+		}
+		if parts[0] != req.User || parts[1] != req.App {
+			return fmt.Errorf("目录 full_code_path 与目标应用不匹配: %s", item.FullCodePath)
+		}
+
+		for _, code := range parts[2:] {
+			if code != naming.NormalizeGoPackageName(code) {
+				return fmt.Errorf("目录 code 不能包含首尾空格: %s", item.FullCodePath)
+			}
+			if err := naming.ValidateGoPackageName(code, "目录代码"); err != nil {
+				return fmt.Errorf("目录 full_code_path 包含非法 Go package 名称 %q: %w", code, err)
+			}
+		}
+	}
+	return nil
 }
 
 func getParentPathForBatch(fullCodePath string) string {

@@ -17,7 +17,7 @@ const runOfficialPythonPreinstallDoc = `**生产镜像已预装、可直接 impo
 - 数据展示与日期：tabulate、arrow、dateutil（python-dateutil）
 - 网络与网页解析：requests、aiohttp、bs4（beautifulsoup4）、lxml
 - 表格与 Office：openpyxl、xlsxwriter、xlrd、xlwt、pptx（python-pptx）
-- 图像与码图：PIL（Pillow，如 from PIL import Image）、qrcode、barcode（python-barcode）
+- 图像、OCR 与码图：PIL（Pillow，如 from PIL import Image）、pytesseract、qrcode、barcode（python-barcode）
 - 文档与 PDF：docx（python-docx）、PyPDF2、pdfplumber、reportlab
 - 中文处理：jieba、snownlp、wordcloud
 - 数据库：pymysql
@@ -57,7 +57,9 @@ var runOfficialPythonToolDef = toolDefinition[runOfficialPythonArgs](
 - print(...) 只用于日志，不作为主结果协议
 
 **Python 代码书写规范（非常重要）：**
+- python_code 会按原文传给执行端，平台不做 BOM、控制字符、缩进的隐式修复；请直接输出干净的 UTF-8 源码，并从 def agentos_entry(args, output_dir): 开始。
 - 使用 4 个空格缩进，不要使用 Tab；不要混用空格和 Tab。
+- 不要把 ANSI 颜色控制符、终端转义字符或 NUL 等不可见控制字符写进 python_code；这类字符会导致 SyntaxError 或 IndentationError。
 - 优先生成短脚本、少嵌套脚本。Excel/CSV 分析优先用 pandas；只有确实要精细 Excel 样式时才用 openpyxl，避免逐单元格大段样式代码。
 - 生成图表时不要手动设置 matplotlib 中文字体（不要写 font.sans-serif/SimHei/Arial Unicode MS）；镜像已配置中文字体，只保留 axes.unicode_minus=False 即可。
 - 输出图片、Excel、PDF 等文件时，统一写到 output_dir，再在 output_files 里声明绝对路径。
@@ -92,8 +94,10 @@ func (t *RunOfficialPythonTool) Execute(ctx context.Context, call ToolCall) Tool
 
 // runOfficialPythonTool 调用系统官方 Python 执行 Form
 func runOfficialPythonTool(ctx context.Context, args runOfficialPythonArgs, attachedFiles string) (string, bool, map[string]interface{}) {
-	code := strings.TrimSpace(normalizeOfficialPythonCode(args.PythonCode))
-	if code == "" {
+	// python_code 必须按原文透传。历史上尝试清理 BOM/控制字符/缩进会让真实错误更难定位，
+	// 也可能改变 Python 源码语义；这里仅判空，不做任何隐式修复。
+	code := args.PythonCode
+	if strings.TrimSpace(code) == "" {
 		return "run_official_python 需传 python_code。", true, nil
 	}
 	body := map[string]interface{}{
@@ -142,10 +146,6 @@ func resolveOfficialPythonInputFiles(explicit string, attached string) string {
 		return s
 	}
 	return strings.TrimSpace(attached)
-}
-
-func normalizeOfficialPythonCode(code string) string {
-	return strings.TrimPrefix(code, "\ufeff")
 }
 
 func officialPythonFormPayload(m map[string]interface{}) map[string]interface{} {
@@ -205,7 +205,7 @@ func buildOfficialPythonModelGuidance(raw map[string]interface{}) string {
 	case "失败":
 		appendLine("【状态为失败】请阅读 output 中的 traceback/错误信息，修正 python_code 后重试。")
 		if strings.Contains(out, "ModuleNotFoundError") || strings.Contains(out, "No module named") {
-			appendLine("【依赖】ModuleNotFoundError：请优先使用工具说明里已列出的预装库（pandas、numpy、jieba、snownlp、requests、openpyxl、xlsxwriter、python-pptx、matplotlib、plotly、pyecharts、bs4、tabulate、arrow、wordcloud、PyYAML…）或仅用标准库；若必须新库，请管理员更新 deploy/base/images/app-base/Dockerfile 或官方 requirements.txt 并重打镜像。")
+			appendLine("【依赖】ModuleNotFoundError：请优先使用工具说明里已列出的预装库（pandas、numpy、jieba、snownlp、requests、openpyxl、xlsxwriter、python-pptx、matplotlib、plotly、pyecharts、bs4、tabulate、arrow、wordcloud、pytesseract、PyYAML…）或仅用标准库；若必须新库，请管理员更新 deploy/base/images/app-base/Dockerfile 或官方 requirements.txt 并重打镜像。")
 		}
 		if strings.Contains(out, "SyntaxError") || strings.Contains(out, "IndentationError") {
 			appendLine("【语法】请检查引号、缩进、括号是否匹配；字符串内换行需用三引号或 \\n。")

@@ -325,6 +325,7 @@ Python 包可以通过 `pip install` 动态安装，SDK 的 `WithPackages()` 方
 - `matplotlib` - 数据可视化
 - `requests` - HTTP 请求
 - `Pillow` - 图像处理
+- `pytesseract` - Tesseract OCR 的 Python 封装
 - `PyPDF2` - PDF 处理
 - `openpyxl` - Excel 处理
 - `xlsxwriter` / `xlrd` - Excel 写入增强 / 老版 Excel 读取

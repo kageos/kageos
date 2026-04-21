@@ -202,14 +202,15 @@ type GetWorkspaceContextReq struct {
 
 // WorkspaceContextNode 工作台环境节点信息
 type WorkspaceContextNode struct {
-	ID           int64  `json:"id"`
-	Name         string `json:"name"`           // 节点名称
-	Code         string `json:"code"`           // 节点代码
-	Type         string `json:"type"`           // 节点类型：package（目录）或 function（函数）
-	Description  string `json:"description"`    // 节点描述
-	FullCodePath string `json:"full_code_path"` // 完整路径
-	TemplateType string `json:"template_type"`  // 函数类型（仅 function 有效）：table、form、chart
-	Callbacks    string `json:"callbacks"`      // 函数回调能力（仅 function 有效），逗号分隔
+	ID           int64         `json:"id"`
+	Name         string        `json:"name"`              // 节点名称
+	Code         string        `json:"code"`              // 节点代码
+	Type         string        `json:"type"`              // 节点类型：package（目录）或 function（函数）
+	Description  string        `json:"description"`       // 节点描述
+	FullCodePath string        `json:"full_code_path"`    // 完整路径
+	TemplateType string        `json:"template_type"`     // 函数类型（仅 function 有效）：table、form、chart
+	Callbacks    string        `json:"callbacks"`         // 函数回调能力（仅 function 有效），逗号分隔
+	Request      []interface{} `json:"request,omitempty"` // 请求参数字段（仅 function 有效，用于构造执行参数）
 }
 
 // WorkspaceContextDirectory 工作台环境目录信息

@@ -9,14 +9,17 @@ import (
 )
 
 func normalizeWorkspaceRelativePath(relativePath string) (string, error) {
-	trimmed := strings.Trim(strings.TrimSpace(relativePath), "/")
+	if relativePath != strings.TrimSpace(relativePath) {
+		return "", fmt.Errorf("路径不能包含首尾空格: %s", relativePath)
+	}
+	trimmed := strings.Trim(relativePath, "/")
 	if trimmed == "" {
 		return "", nil
 	}
 
 	parts := strings.Split(trimmed, "/")
 	for _, part := range parts {
-		if err := validateBatchWritePathSegment(part); err != nil {
+		if err := validateGoPackagePathSegment(part); err != nil {
 			return "", fmt.Errorf("非法路径 %s: %w", relativePath, err)
 		}
 	}
