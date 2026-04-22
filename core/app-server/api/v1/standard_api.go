@@ -359,7 +359,7 @@ func (s *StandardAPI) TableCreate(c *gin.Context) {
 
 // TableBatchCreate Table 批量导入接口
 // @Summary Table 批量导入
-// @Description 批量导入表格记录（直接批量插入数据库，不触发 OnTableAddRow 回调）
+// @Description 批量导入表格记录（触发 OnTableCreateInBatches 回调）
 // @Tags 标准接口
 // @Accept json
 // @Produce json
@@ -384,6 +384,13 @@ func (s *StandardAPI) TableBatchCreate(c *gin.Context) {
 		return
 	}
 
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		response.FailWithMessage(c, "读取请求体失败: "+err.Error())
+		return
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
 	// 构建回调请求对象（调用 OnTableCreateInBatches）
 	req, err := s.buildCallbackAppReq(c, fullCodePath, "OnTableCreateInBatches")
 	if err != nil {
@@ -391,8 +398,27 @@ func (s *StandardAPI) TableBatchCreate(c *gin.Context) {
 		return
 	}
 
-	// 调用服务层
+	user, app, router, _ := parseFullCodePath(fullCodePath)
+	logReq := &dto.RecordTableOperateLogReq{
+		TenantUser:  user,
+		RequestUser: req.RequestUser,
+		App:         app,
+		Router:      router,
+		Action:      "OnTableCreateInBatches",
+		Source:      c.GetHeader(contextx.ClientSourceHeader),
+		Body:        bodyBytes,
+		IPAddress:   c.ClientIP(),
+		UserAgent:   c.GetHeader("User-Agent"),
+		TraceID:     req.TraceId,
+	}
 	ctx := contextx.ToContext(c)
+	go func() {
+		if err := s.appService.RecordTableOperateLog(ctx, logReq); err != nil {
+			logger.Warnf(ctx, "[TableBatchCreate] 记录 Table 批量导入操作日志失败: %v", err)
+		}
+	}()
+
+	// 调用服务层
 	now := time.Now()
 	resp, err := s.appService.RequestApp(ctx, req)
 	mill := time.Since(now).Milliseconds()
@@ -416,6 +442,7 @@ func (s *StandardAPI) TableBatchCreate(c *gin.Context) {
 		return
 	}
 
+	s.appService.IncrementFunctionRunCount(ctx, "/"+strings.TrimPrefix(fullCodePath, "/"))
 	response.OkWithData(c, resp.Result, metadata)
 }
 
@@ -965,6 +992,7 @@ func (s *StandardAPI) TableDelete(c *gin.Context) {
 		return
 	}
 
+	s.appService.IncrementFunctionRunCount(ctx, "/"+strings.TrimPrefix(fullCodePath, "/"))
 	response.OkWithData(c, resp.Result, metadata)
 }
 

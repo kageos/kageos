@@ -1816,7 +1816,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "操作类型：OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows",
+                        "description": "操作类型：OnTableAddRow, OnTableCreateInBatches, OnTableUpdateRow, OnTableDeleteRows",
                         "name": "action",
                         "in": "query"
                     },
@@ -4072,7 +4072,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "批量导入表格记录（直接批量插入数据库，不触发 OnTableAddRow 回调）",
+                "description": "批量导入表格记录（触发 OnTableCreateInBatches 回调）",
                 "consumes": [
                     "application/json"
                 ],

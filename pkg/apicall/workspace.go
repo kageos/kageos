@@ -122,11 +122,25 @@ func TableCreate(ctx context.Context, fullCodePath string, body interface{}) (ma
 	return PostAPI[interface{}, map[string]interface{}](ctx, path, body)
 }
 
+// TableBatchCreate 调用工作区 Table 批量导入接口（POST table/batch-create/{full-code-path}）
+// fullCodePath 为表格函数完整路径；body 为 { "data": [{ "field": "value" }] }，会触发 OnTableCreateInBatches 回调。
+func TableBatchCreate(ctx context.Context, fullCodePath string, body interface{}) (map[string]interface{}, error) {
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/table/batch-create", fullCodePath)
+	return PostAPI[interface{}, map[string]interface{}](ctx, path, body)
+}
+
 // TableUpdate 调用工作区 Table 更新接口（PUT table/update/{full-code-path}）
 // fullCodePath 为表格函数完整路径；body 为 { "id": 行ID, "updates": { "field": "value", ... } }，不传 old_values 时由 app-server 自动查表填充
 func TableUpdate(ctx context.Context, fullCodePath string, body interface{}) (map[string]interface{}, error) {
 	path := buildWorkspaceFunctionPath("/workspace/api/v1/table/update", fullCodePath)
 	return PutAPI[interface{}, map[string]interface{}](ctx, path, body)
+}
+
+// TableDelete 调用工作区 Table 删除接口（DELETE table/delete/{full-code-path}）
+// fullCodePath 为表格函数完整路径；body 为 { "ids": [1, 2, 3] }，会触发 OnTableDeleteRows 回调。
+func TableDelete(ctx context.Context, fullCodePath string, body interface{}) (map[string]interface{}, error) {
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/table/delete", fullCodePath)
+	return DeleteBodyAPI[interface{}, map[string]interface{}](ctx, path, body)
 }
 
 // CallbackOnSelectFuzzy 调用工作区 OnSelectFuzzy 回调（POST callback/on_select_fuzzy/{full-code-path}）

@@ -69,6 +69,17 @@ func DeleteAPI[T any](ctx context.Context, path string) (T, error) {
 	return result.Data, nil
 }
 
+// DeleteBodyAPI 发送 DELETE 请求（带请求体）
+// 用于需要 body 的接口，例如 Table 批量删除：{"ids":[1,2,3]}。
+func DeleteBodyAPI[TReq, TResp any](ctx context.Context, path string, req TReq) (TResp, error) {
+	result, err := callAPI[TResp](ctx, http.MethodDelete, path, req)
+	if err != nil {
+		var zero TResp
+		return zero, err
+	}
+	return result.Data, nil
+}
+
 func buildPathWithQuery(path string, queryParams url.Values) string {
 	if len(queryParams) == 0 {
 		return path

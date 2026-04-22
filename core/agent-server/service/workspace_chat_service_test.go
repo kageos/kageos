@@ -12,6 +12,12 @@ func TestShouldSuggestExecuteGuide(t *testing.T) {
 	if !shouldSuggestExecuteGuide("run_table_search") {
 		t.Fatal("expected run_table_search to suggest execute guide")
 	}
+	if !shouldSuggestExecuteGuide("run_table_batch_create") {
+		t.Fatal("expected run_table_batch_create to suggest execute guide")
+	}
+	if !shouldSuggestExecuteGuide("run_table_delete") {
+		t.Fatal("expected run_table_delete to suggest execute guide")
+	}
 	if shouldSuggestExecuteGuide("read_doc") {
 		t.Fatal("did not expect read_doc to suggest execute guide")
 	}

@@ -78,6 +78,19 @@ func TestValidateDirectoryTreeForPersistence_RejectsPathMismatch(t *testing.T) {
 	}
 }
 
+func TestValidateDirectoryTreeForPersistence_RejectsInvalidFunctionSchema(t *testing.T) {
+	tree := buildValidNestedHubDirectoryTree()
+	tree.Functions[0].Schema = []byte(`{"version":1,"type":"form","form":{"request":[],"response":[]}}`)
+
+	err := validateDirectoryTreeForPersistence(tree, "/luobei/demo/vendors")
+	if err == nil {
+		t.Fatal("expected invalid function schema validation error")
+	}
+	if !strings.Contains(err.Error(), "template_type 与 schema.type 不一致") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestSplitAndMergeSnapshotParts_PreservesNestedStructureAndFileContent(t *testing.T) {
 	tree := buildValidNestedHubDirectoryTree()
 
