@@ -18,8 +18,8 @@ export interface OutputFileGroup {
 }
 
 /**
- * 从 result（字符串或对象）中递归提取所有文件引用字符串，返回文件组列表。
- * 可用于 run_form_submit、run_official_python、ffmpeg 等任意返回 string 的工具结果。
+ * 从结构化 result（对象或 JSON 字符串）中递归提取文件引用字符串，返回文件组列表。
+ * 普通文本结果不做启发式解析，避免把 full_code_path、字体路径、通配符等说明文本误判为输出文件。
  */
 export function extractFileGroupsFromResult(
   result: string | object | undefined
@@ -30,8 +30,7 @@ export function extractFileGroupsFromResult(
     try {
       obj = JSON.parse(result) as unknown
     } catch {
-      const refs = parseRefs(result)
-      return refs.length > 0 ? [{ label: 'Output Files', files: refsToItems(refs) }] : []
+      return []
     }
   } else if (typeof result === 'object' && result !== null) {
     obj = result
@@ -69,14 +68,35 @@ export function extractFileGroupsFromResult(
 }
 
 function isFileLikeKey(key: string): boolean {
-  return /file|files|attachment|附件/i.test(key)
+  return /(^|_)(files?|attachments?|附件)$/i.test(key)
 }
 
 function parseRefs(value: string): string[] {
-  return value
+  const refs = value
     .split(',')
-    .map(item => item.trim().replace(/^\/+/, ''))
-    .filter(item => item.includes('/'))
+    .map(normalizeRef)
+
+  if (refs.length === 0 || refs.some(ref => !isValidFileRef(ref))) {
+    return []
+  }
+  return refs
+}
+
+function normalizeRef(value: string): string {
+  return value.trim().replace(/^\/+/, '')
+}
+
+function isValidFileRef(ref: string): boolean {
+  if (!ref || ref.includes('*')) return false
+  if (/[,\s]/.test(ref)) return false
+  const slashIndex = ref.indexOf('/')
+  if (slashIndex <= 0 || slashIndex === ref.length - 1) return false
+
+  const bucket = ref.slice(0, slashIndex)
+  const key = ref.slice(slashIndex + 1)
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$/.test(bucket)) return false
+  if (key.split('/').some(segment => segment.length === 0)) return false
+  return true
 }
 
 function refsToItems(refs: string[]): OutputFileItem[] {

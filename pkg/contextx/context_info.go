@@ -230,7 +230,21 @@ func ToContext(c *gin.Context) context.Context {
 		c.Request.Header.Set(DepartmentFullPathHeader, deptPath)
 	}
 
-	// 5. PresignHost：优先 X-Forwarded-Host（含端口），无端口时用 X-Forwarded-Port 或 PresignDefaultPort 补全，与浏览器 PUT 的 Host 一致避免 403
+	// 5. ClientSource：header 或 context，取到后 set 回 header + context，供操作日志和下游调用链识别入口来源
+	clientSource := c.GetHeader(ClientSourceHeader)
+	if clientSource == "" {
+		if v, exists := c.Get(ClientSourceHeader); exists {
+			if s, ok := v.(string); ok && s != "" {
+				clientSource = s
+			}
+		}
+	}
+	if clientSource != "" {
+		ctx = context.WithValue(ctx, ClientSourceHeader, clientSource)
+		c.Request.Header.Set(ClientSourceHeader, clientSource)
+	}
+
+	// 6. PresignHost：优先 X-Forwarded-Host（含端口），无端口时用 X-Forwarded-Port 或 PresignDefaultPort 补全，与浏览器 PUT 的 Host 一致避免 403
 	presignHost := c.GetHeader("X-Forwarded-Host")
 	if presignHost == "" {
 		presignHost = c.Request.Host
@@ -256,6 +270,9 @@ func NatsTraceContext(msg *nats.Msg) context.Context {
 	ctx = context.WithValue(ctx, TokenHeader, msg.Header.Get(TokenHeader))
 	ctx = context.WithValue(ctx, TraceIdHeader, msg.Header.Get(TraceIdHeader))
 	ctx = context.WithValue(ctx, DepartmentFullPathHeader, msg.Header.Get(DepartmentFullPathHeader))
+	if clientSource := msg.Header.Get(ClientSourceHeader); clientSource != "" {
+		ctx = context.WithValue(ctx, ClientSourceHeader, clientSource)
+	}
 
 	return ctx
 }
@@ -269,6 +286,9 @@ func CtxToTraceNats(c context.Context, subject string) *nats.Msg {
 	msg.Header.Set(TraceIdHeader, trace)
 	msg.Header.Set(TokenHeader, token)
 	msg.Header.Set(RequestUserHeader, user)
+	if clientSource := GetClientSource(c); clientSource != "" {
+		msg.Header.Set(ClientSourceHeader, clientSource)
+	}
 	return msg
 
 }
@@ -279,6 +299,7 @@ type RequestInfo struct {
 	RequestUser        string
 	Token              string
 	DepartmentFullPath string
+	ClientSource       string
 }
 
 // WithRequestInfo 一次性注入与 ToContext 一致的 context（用于定时任务等无 HTTP 请求场景）
@@ -294,6 +315,9 @@ func WithRequestInfo(ctx context.Context, info RequestInfo) context.Context {
 	}
 	if info.DepartmentFullPath != "" {
 		ctx = context.WithValue(ctx, DepartmentFullPathHeader, info.DepartmentFullPath)
+	}
+	if info.ClientSource != "" {
+		ctx = context.WithValue(ctx, ClientSourceHeader, info.ClientSource)
 	}
 	return ctx
 }

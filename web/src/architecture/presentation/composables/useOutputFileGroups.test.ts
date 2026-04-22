@@ -75,4 +75,25 @@ describe('extractFileGroupsFromResult', () => {
       }
     ])
   })
+
+  it('does not extract refs from non-json text results', () => {
+    const groups = extractFileGroupsFromResult(`
+      搜索结果：未传 keyword
+      full_code_path: /system/official/python/execute.form
+      - input_files: widget=files, accept=image/*,*/*
+      - font /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
+    `)
+
+    expect(groups).toEqual([])
+  })
+
+  it('rejects file-like fields when the whole string is not refs only', () => {
+    const groups = extractFileGroupsFromResult({
+      output_files: '执行完成，文件: ai-agent-os/output/report.xlsx',
+      preview_files: 'ai-agent-os/output/preview.png, image/*',
+      file_name: 'report.xlsx'
+    })
+
+    expect(groups).toEqual([])
+  })
 })

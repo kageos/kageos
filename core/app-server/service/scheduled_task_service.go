@@ -734,6 +734,7 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 		RequestUser:        requestUser,
 		Token:              token,
 		DepartmentFullPath: task.RequestUserDept,
+		ClientSource:       "scheduled_task",
 	})
 	action, err := normalizeScheduledTaskAction(task.Action)
 	if err != nil {
