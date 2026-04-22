@@ -78,6 +78,7 @@
               :auto-load="activeTab === 'scheduledTask'"
               @total-change="onScheduledTaskTotalChange"
               @open-function-operate-log="onOpenFunctionOperateLog"
+              @apply-execution="onApplyFormOperateLog"
             />
           </div>
         </el-tab-pane>
@@ -117,6 +118,14 @@ const props = withDefaults(defineProps<{
     requestBody?: Record<string, any> | null
     responseBody?: Record<string, any> | null
     responseMetadata?: Record<string, any> | null
+    replayContext?: {
+      source: 'scheduled_task' | 'operate_log'
+      title?: string
+      taskId?: number
+      executionId?: number
+      traceId?: string
+      executedAt?: string
+    } | null
   }) => void
   onScheduledTaskTotalChange: (total: number) => void
   onOpenFunctionOperateLog: (filters?: {

@@ -388,7 +388,7 @@ export function useFormOperateLogSection({
       ElMessage.warning('这条记录没有可回填的输入参数')
       return
     }
-    Logger.debug('FormOperateLogSection', '准备重放执行记录到表单', {
+    Logger.debug('FormOperateLogSection', '准备回填执行记录到表单', {
       logId: log.id,
       requestKeys: Object.keys(payload.requestBody || {}),
       hasResponseBody: !!payload.responseBody,

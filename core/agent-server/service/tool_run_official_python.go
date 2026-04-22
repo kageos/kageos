@@ -36,7 +36,7 @@ type runOfficialPythonArgs struct {
 	PythonCode     string                 `json:"python_code" schema_desc:"完整 Python 源码" schema_required:"true"`
 	Args           map[string]interface{} `json:"args" schema_desc:"注入脚本的对象参数（推荐）"`
 	ArgsJSON       string                 `json:"args_json" schema_desc:"注入脚本的 JSON 对象字符串（兼容旧调用方）"`
-	InputFiles     string                 `json:"input_files" schema_desc:"可选文件引用字符串，格式 bucket/object_key，多文件用英文逗号分隔；不传时自动使用当前用户消息上传的附件"`
+	InputFiles     string                 `json:"input_files" schema_desc:"可选文件引用字符串，格式 bucket/object_key，多文件用英文逗号分隔；不传时自动使用当前用户消息上传的附件；支持直接填入上一步 output_files 返回的路径，实现 output -> input 文件流转"`
 	TimeoutSeconds *int                   `json:"timeout_seconds" schema_desc:"超时秒数"`
 }
 
@@ -50,6 +50,7 @@ var runOfficialPythonToolDef = toolDefinition[runOfficialPythonArgs](
 - python_code **必须定义**：def agentos_entry(args, output_dir): ...
 - 第一个参数 args 为传入的对象参数；第二个参数 output_dir 为受控输出目录
 - 若本轮用户上传了附件，系统会在执行前自动下载到容器本地，并注入 args["input_files"]：本地文件路径列表。单文件取 args["input_files"][0]。Python 代码应直接 open 本地路径，不要 requests.get 文件引用或猜 URL；不要把文件引用数组再塞进 args["input_files"]。
+- input_files 也可以直接传入上一步工具返回的 output_files 文件引用（bucket/object_key，如 ai-agent-os/system/official/python/execute.form/.../result.csv）。平台会像处理用户上传附件一样自动从 COS/对象存储下载到容器本地，并注入 args["input_files"] 本地路径列表；这用于多步骤流水线，避免手动下载再上传。
 - 返回值 **必须是 dict**，仅允许：
   - data: JSON 可序列化结果
   - output_files: 输出文件列表，每项至少含 path
@@ -66,6 +67,12 @@ var runOfficialPythonToolDef = toolDefinition[runOfficialPythonArgs](
 - 如果上一轮出现 SyntaxError 或 IndentationError，不要局部修补旧长脚本；请重新生成一份更短、更扁平、缩进完整的 python_code。
 
 **输出结果：** 官方执行端会解析 agentos_entry 的返回值；若返回里有 **output_files**，Go 侧会负责校验、上传并构造成最终 string，工作台自动展示可下载附件。
+
+**文件流转能力（重要）：**
+- output_files 返回的文件引用可以直接作为下一次 run_official_python 的 input_files 参数。
+- 多个文件引用仍用英文逗号分隔。
+- 下一步 Python 代码里不要读取 bucket/object_key 字符串本身；应读取平台注入的本地路径 args["input_files"][0] / args["input_files"][i]。
+- 示例流水线：步骤1 清洗 Excel -> output_files 返回 CSV；步骤2 input_files 填该 CSV 路径并读取 pd.read_csv(args["input_files"][0]) -> 输出 XLSX；步骤3 input_files 填该 XLSX 路径 -> 生成图表图片。
 
 **输出文件约束：**
 - 只能声明写在 output_dir 里的最终文件

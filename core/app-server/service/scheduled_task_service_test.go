@@ -233,6 +233,68 @@ func TestScheduledTaskExecutionResultURL(t *testing.T) {
 	}
 }
 
+func TestScheduledTaskExecutionReplayURL(t *testing.T) {
+	svc := &ScheduledTaskService{
+		options: ScheduledTaskServiceOptions{
+			NotificationBaseURL: "https://example.com/",
+		},
+	}
+	task := &model.ScheduledTask{
+		ID:           7,
+		FullCodePath: "/alice/demo/report.form",
+	}
+	exec := &model.ScheduledTaskExecution{ID: 11}
+
+	got := svc.buildExecutionReplayURL(task, exec)
+	want := "https://example.com/workspace/alice/demo/report.form?_replay=scheduled_execution&_scheduled_execution_id=11&_scheduled_task_id=7"
+	if got != want {
+		t.Fatalf("execution replay url = %q, want %q", got, want)
+	}
+}
+
+func TestScheduledTaskFormFunctionDetection(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{name: "form path", path: "/alice/demo/report.form", want: true},
+		{name: "form path with spaces", path: " /alice/demo/report.form ", want: true},
+		{name: "table path", path: "/alice/demo/report.table", want: false},
+		{name: "chart path", path: "/alice/demo/report.chart", want: false},
+		{name: "empty path", path: "", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isScheduledTaskFormFunction(&model.ScheduledTask{FullCodePath: tt.path})
+			if got != tt.want {
+				t.Fatalf("isScheduledTaskFormFunction(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+
+	if isScheduledTaskFormFunction(nil) {
+		t.Fatalf("nil task must not be treated as form")
+	}
+}
+
+func TestScheduledTaskExecutionTraceURL(t *testing.T) {
+	svc := &ScheduledTaskService{
+		options: ScheduledTaskServiceOptions{
+			NotificationBaseURL: "https://example.com/",
+		},
+	}
+	task := &model.ScheduledTask{FullCodePath: "/alice/demo/report.form"}
+	exec := &model.ScheduledTaskExecution{TraceID: "trace-1"}
+
+	got := svc.buildExecutionTraceURL(task, exec)
+	want := "https://example.com/workspace/alice/demo/report.form?_panel=operateLog&_trace_id=trace-1"
+	if got != want {
+		t.Fatalf("execution trace url = %q, want %q", got, want)
+	}
+}
+
 func TestNormalizeScheduledTaskServiceOptionsSetsDefaultHeartbeatFile(t *testing.T) {
 	opts := normalizeScheduledTaskServiceOptions(ScheduledTaskServiceOptions{})
 	if opts.HeartbeatFile != defaultSchedulerHeartbeatFile {

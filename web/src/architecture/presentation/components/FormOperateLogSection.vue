@@ -5,7 +5,7 @@
         <div class="section-header">
           <div class="section-title-block">
             <div class="section-title">执行记录</div>
-            <div class="section-subtitle">支持筛选、预览详情和直接重放到当前表单。</div>
+            <div class="section-subtitle">支持筛选、预览详情和直接回填到当前表单。</div>
           </div>
           <div class="section-count">共 {{ total }} 条记录</div>
         </div>
@@ -160,7 +160,7 @@
               <template #default="{ row }">
                 <div class="action-cell">
                   <el-button @click.stop="openPreviewDialog(row)">详情</el-button>
-                  <el-button type="primary" @click.stop="handleApplyLog(row)">重放</el-button>
+                  <el-button type="primary" @click.stop="handleApplyLog(row)">回填</el-button>
                 </div>
               </template>
             </el-table-column>
@@ -265,7 +265,7 @@
             <div class="preview-panel-header">
               <div class="preview-panel-title">输入参数</div>
               <div class="preview-panel-desc">
-                本次提交 {{ getRequestFieldCount(previewLog) }} 个字段，可直接重放回当前表单。
+                本次提交 {{ getRequestFieldCount(previewLog) }} 个字段，可直接回填到当前表单。
               </div>
             </div>
             <el-input
@@ -297,7 +297,7 @@
       <template #footer>
         <div class="preview-footer">
           <el-button @click="previewDialogVisible = false">关闭</el-button>
-          <el-button type="primary" @click="handlePreviewApply">重放到表单</el-button>
+          <el-button type="primary" @click="handlePreviewApply">回填到表单</el-button>
         </div>
       </template>
     </el-dialog>
