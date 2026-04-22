@@ -1,8 +1,11 @@
 package service
 
 import (
+	"context"
 	"strings"
 	"testing"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 )
 
 func TestShouldSuggestExecuteGuide(t *testing.T) {
@@ -35,5 +38,18 @@ func TestAppendExecuteGuideHint(t *testing.T) {
 	plain := appendExecuteGuideHint("read_doc", "读取失败")
 	if plain != "读取失败" {
 		t.Fatalf("expected non execute tool error unchanged, got %q", plain)
+	}
+}
+
+func TestWithAgentToolExecutionContextMarksSourceAndSession(t *testing.T) {
+	base := contextx.WithClientSource(context.Background(), "browser")
+
+	ctx := withAgentToolExecutionContext(base, "session-1")
+
+	if got := contextx.GetClientSource(ctx); got != "agent" {
+		t.Fatalf("client source = %q, want agent", got)
+	}
+	if got := getWorkspaceSessionID(ctx); got != "session-1" {
+		t.Fatalf("session id = %q, want session-1", got)
 	}
 }

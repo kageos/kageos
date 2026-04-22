@@ -700,8 +700,7 @@ func (s *WorkspaceChatService) executeToolCalls(
 	files string,
 	sendEvent func(string, interface{}),
 ) ([]dto.WorkspaceChatToolCallSummary, error) {
-	// 注入 session_id 到 context，供 record_workspace_event 等工具追溯
-	ctx = context.WithValue(ctx, WorkspaceSessionIDKey, sessionID)
+	ctx = withAgentToolExecutionContext(ctx, sessionID)
 	toolSummaries := make([]dto.WorkspaceChatToolCallSummary, 0, len(allToolCalls))
 	logger.Infof(ctx, "[WorkspaceChatStream] 开始执行工具调用 - 工具数量: %d, SessionID: %s", len(allToolCalls), sessionID)
 
@@ -745,6 +744,15 @@ func (s *WorkspaceChatService) executeToolCalls(
 	logger.Infof(ctx, "[WorkspaceChatStream] 工具调用执行完成 - 总数量: %d, 成功: %d, 失败: %d, SessionID: %s",
 		len(allToolCalls), successCount, errorCount, sessionID)
 	return toolSummaries, nil
+}
+
+func withAgentToolExecutionContext(ctx context.Context, sessionID string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	// 注入 session_id 供 record_workspace_event 等工具追溯，同时统一标记 agent 工具入口来源。
+	ctx = context.WithValue(ctx, WorkspaceSessionIDKey, sessionID)
+	return withAgentToolClientSource(ctx)
 }
 
 // parseToolCallArgs 解析 tool_call 的 arguments JSON，解析失败时返回空 map

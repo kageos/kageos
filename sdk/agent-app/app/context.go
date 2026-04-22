@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/trace"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
 	"github.com/go-playground/form/v4"
@@ -44,13 +45,16 @@ func (a *App) NewContext(ctx context.Context, req *dto.RequestAppReq) (*Context,
 		Router:          req.Router,
 		RequestUser:     req.RequestUser,
 		RequestUserDept: req.RequestUserDept,
+		ClientSource:    strings.TrimSpace(req.ClientSource),
 		TraceId:         req.TraceId,
 	}
 	//var req dto.RequestAppReq
 	//if err := json.Unmarshal(msg.Data, &req); err != nil {
 	//	return nil, err
 	//}
-
+	if msgInfo.ClientSource != "" {
+		ctx = contextx.WithClientSource(ctx, msgInfo.ClientSource)
+	}
 	return &Context{
 		body:     req.Body,
 		urlQuery: req.UrlQuery,

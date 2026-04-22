@@ -126,6 +126,7 @@ func (s *StandardAPI) buildRequestAppReq(c *gin.Context, fullCodePath string) (*
 		RequestUser:     contextx.GetRequestUser(c),
 		RequestUserDept: contextx.GetRequestDepartmentFullPath(c),
 		Token:           contextx.GetToken(c),
+		ClientSource:    contextx.GetClientSource(c),
 	}
 
 	// 绑定请求体（POST、PUT、PATCH、DELETE 等方法通常有请求体）
@@ -160,6 +161,7 @@ func (s *StandardAPI) buildCallbackAppReq(c *gin.Context, fullCodePath string, c
 		RequestUser:     contextx.GetRequestUser(c),
 		RequestUserDept: contextx.GetRequestDepartmentFullPath(c),
 		Token:           contextx.GetToken(c),
+		ClientSource:    contextx.GetClientSource(c),
 	}
 
 	// 读取请求体
