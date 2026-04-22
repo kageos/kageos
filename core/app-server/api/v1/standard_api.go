@@ -194,7 +194,7 @@ func (s *StandardAPI) ensureTableCallbackEnabled(c *gin.Context, fullCodePath, c
 	if err != nil {
 		return err
 	}
-	if function.GetTemplateType() != "table" {
+	if functionschema.Type(function.Schema) != functionschema.TypeTable {
 		return fmt.Errorf("目标函数不是 Table 类型，不支持该操作")
 	}
 	if !function.HasCallback(callbackType) {
@@ -295,6 +295,13 @@ func (s *StandardAPI) TableCreate(c *gin.Context) {
 		return
 	}
 
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		response.FailWithMessage(c, "读取请求体失败: "+err.Error())
+		return
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
 	// 构建回调请求对象（调用 OnTableAddRow）
 	req, err := s.buildCallbackAppReq(c, fullCodePath, "OnTableAddRow")
 	if err != nil {
@@ -302,8 +309,27 @@ func (s *StandardAPI) TableCreate(c *gin.Context) {
 		return
 	}
 
-	// 调用服务层
+	user, app, router, _ := parseFullCodePath(fullCodePath)
+	logReq := &dto.RecordTableOperateLogReq{
+		TenantUser:  user,
+		RequestUser: req.RequestUser,
+		App:         app,
+		Router:      router,
+		Action:      "OnTableAddRow",
+		Source:      c.GetHeader(contextx.ClientSourceHeader),
+		Body:        bodyBytes,
+		IPAddress:   c.ClientIP(),
+		UserAgent:   c.GetHeader("User-Agent"),
+		TraceID:     req.TraceId,
+	}
 	ctx := contextx.ToContext(c)
+	go func() {
+		if err := s.appService.RecordTableOperateLog(ctx, logReq); err != nil {
+			logger.Warnf(ctx, "[TableCreate] 记录 Table 新增操作日志失败: %v", err)
+		}
+	}()
+
+	// 调用服务层
 	now := time.Now()
 	resp, err := s.appService.RequestApp(ctx, req)
 	mill := time.Since(now).Milliseconds()
@@ -774,6 +800,7 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 			App:         app,
 			Router:      router,
 			Action:      "OnTableUpdateRow",
+			Source:      c.GetHeader(contextx.ClientSourceHeader),
 			IPAddress:   c.ClientIP(),
 			UserAgent:   c.GetHeader("User-Agent"),
 			TraceID:     req.TraceId,
@@ -887,6 +914,7 @@ func (s *StandardAPI) TableDelete(c *gin.Context) {
 			App:         app,
 			Router:      router,
 			Action:      "OnTableDeleteRows",
+			Source:      c.GetHeader(contextx.ClientSourceHeader),
 			IPAddress:   c.ClientIP(),
 			UserAgent:   c.GetHeader("User-Agent"),
 			TraceID:     req.TraceId,

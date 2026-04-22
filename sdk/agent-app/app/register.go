@@ -164,6 +164,9 @@ func (a *App) CallbackRouter(ctx *Context, resp response.Response) error {
 		if !ok {
 			return errors.New("invalid type of TableTemplate")
 		}
+		if v.OnTableAddRow == nil {
+			return errors.New("callback OnTableAddRow is not registered")
+		}
 		var onTableReq callback.OnTableAddRowReq
 		onTableResp, err := v.OnTableAddRow(ctx, &onTableReq)
 		if err != nil {
@@ -181,6 +184,9 @@ func (a *App) CallbackRouter(ctx *Context, resp response.Response) error {
 		v, ok := router.Template.(*TableTemplate)
 		if !ok {
 			return errors.New("invalid type of TableTemplate")
+		}
+		if v.OnTableUpdateRow == nil {
+			return errors.New("callback OnTableUpdateRow is not registered")
 		}
 		var onTableReq callback.OnTableUpdateRowReq
 		// ⚠️ 关键：现在解析整个结构，包括 id、updates、old_values
@@ -210,6 +216,9 @@ func (a *App) CallbackRouter(ctx *Context, resp response.Response) error {
 		v, ok := router.Template.(*TableTemplate)
 		if !ok {
 			return errors.New("invalid type of TableTemplate")
+		}
+		if v.OnTableDeleteRows == nil {
+			return errors.New("callback OnTableDeleteRows is not registered")
 		}
 		var onTableReq callback.OnTableDeleteRowsReq
 		err := json.Unmarshal(ctx.body, &onTableReq)

@@ -185,7 +185,7 @@ type Ticket struct {
 	// 抄送人：type:users 前端会自动在输入时候渲染成多用户选择器，输出时候渲染成多个用户展示
 	// 值使用逗号分隔的字符串存储（如 "user1,user2"），便于存储到数据库
 	// 框架标签：search:"contains" - 使用 FIND_IN_SET 进行包含查询（用于多选场景）
-	// 框架标签：default:Me(),MyLeader() - 默认抄送当前用户和上级领导
+	// 框架标签：render_default:Me(),MyLeader() - 前端新增时默认抄送当前用户和上级领导
 	CcUsers string `json:"cc_users" gorm:"column:cc_users" widget:"name:抄送人;type:users;render_default:Me(),MyLeader()" search:"contains"`
 
 	// 处理部门：处理这个工单的组织架构，默认是创建用户所在部门
@@ -196,11 +196,11 @@ type Ticket struct {
 	// 关联部门：工单关联的多个部门（用于跨部门协作）
 	// 框架标签：widget:"type:departments;max_count:5" - 多组织架构选择器组件，最多选择5个部门
 	// 可选参数：
-	//   - default:MyDepartment() - 默认值，支持函数调用 MyDepartment()（当前用户所在部门），多个值用逗号分隔
+	//   - render_default:MyDepartment() - 前端新增时默认当前用户所在部门，多个值用逗号分隔
 	//   - max_count:5 - 最大选择数量，0表示不限制（例如：max_count:5 表示最多选择5个部门）
 	// 值使用逗号分隔的字符串存储（如 "/dept1,/dept2"），便于存储到数据库
 	// 框架标签：search:"contains" - 使用 FIND_IN_SET 进行包含查询（用于多选场景）
-	RelatedDepartments string `json:"related_departments" gorm:"column:related_departments" widget:"name:关联部门;type:departments;max_count:5" search:"contains"`
+	RelatedDepartments string `json:"related_departments" gorm:"column:related_departments" widget:"name:关联部门;type:departments;render_default:MyDepartment();max_count:5" search:"contains"`
 
 	// 框架标签：widget:"type:text_area" - 多行文本区域组件
 	Remark string `json:"remark" gorm:"column:remark"  widget:"name:备注;type:text_area" search:"like"`

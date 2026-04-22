@@ -18,6 +18,7 @@ export function hasFunctionSchemaCallback(functionDetail: FunctionDetail | null 
 }
 
 export function visibleInScene(field: FieldConfig, scene: DisplayScene): boolean {
+  if (scene === 'list' && isContainerWidget(field)) return false
   const scenes = field.display?.scenes
   if (!Array.isArray(scenes)) return true
   return scenes.includes(scene)
@@ -110,6 +111,11 @@ function buildFormDetailFromFields(functionDetail: FunctionDetail, fields: Field
 function hasSearchConfig(field: FieldConfig): boolean {
   const search = field.search?.trim()
   return !!search && search !== '-'
+}
+
+function isContainerWidget(field: FieldConfig): boolean {
+  const type = field.widget?.type?.toLowerCase()
+  return type === WidgetType.TABLE || type === WidgetType.FORM
 }
 
 function isEditableTableField(field: FieldConfig): boolean {

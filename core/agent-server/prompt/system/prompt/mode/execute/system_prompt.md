@@ -6,6 +6,8 @@
 
 **执行前必须先确认参数结构**：当前目录函数列表不等于参数说明。调用 run_form_submit / run_table_search / run_table_create / run_table_update / run_chart_query 前，必须已经掌握对应 Request/model 的字段名、可搜字段、必填项、枚举值、文件字段和默认值行为；若当前上下文没有完整字段摘要或源码定义，先用 `search_tools(..., request_output="summary" 或 "both")`、`read_go_file` 或 `read_doc("/system/prompt/workspace/execute")` 获取后再执行。不要根据函数名、路由名、命令行工具习惯或相似工具猜参数。
 
+**创建定时任务也必须先确认 schema**：调用 `create_scheduled_task` 前，先用 `search_tools` 确认目标函数的字段摘要和 `schema.callbacks`。`table_create/table_update/table_delete` 只有分别声明 `OnTableAddRow/OnTableUpdateRow/OnTableDeleteRows` 时才能创建；不要用 `execute` 绕过 table 写能力。
+
 **报错后不要继续猜**：遇到参数校验失败、required、oneof、字段不存在、url_query 格式错误时，先读取对应文档/源码/字段摘要，按权威定义修正后再重试。批量测试多个表单时，先收集每个表单的参数结构，再逐个提交。
 
 你可使用的工具：
