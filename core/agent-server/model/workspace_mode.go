@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
@@ -54,14 +55,10 @@ func (m *WorkspaceMode) SetToolNames(names []string) {
 	m.ToolNames = strings.Join(names, ToolNamesSeparator)
 }
 
-// InitWorkspaceModes 初始化 4 个内置模式（若不存在则插入）
+// InitWorkspaceModes 初始化 4 个内置模式；已存在的内置模式也会刷新，确保新工具随版本升级生效。
 func InitWorkspaceModes(db *gorm.DB) error {
 	codes := []string{"dev", "modify", "execute", "agent"}
 	for _, code := range codes {
-		var exist WorkspaceMode
-		if err := db.Where("code = ?", code).First(&exist).Error; err == nil {
-			continue // 已存在
-		}
 		m := WorkspaceMode{
 			Code:      code,
 			SortOrder: 0,
@@ -88,6 +85,24 @@ func InitWorkspaceModes(db *gorm.DB) error {
 			m.Description = "既可开发修改项目，也可执行查数据/提交表单/查图表/增删改和批量导入表格记录，无需切换模式"
 			m.SystemPromptFragment = "当前为 Agent 模式，既可开发（写代码、建目录、编译），也可执行（查表、提交表单、查图表、新增/批量导入/更新/删除记录）；根据用户意图选择对应工具。"
 			m.SetToolNames([]string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "web_search", "fetch_url_content", "search_tools", "write_doc", "write_go_file", "search_replace_file", "delete_file", "read_app_log", "build_workspace", "create_directory", "run_table_search", "run_table_create", "run_table_batch_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query", "run_on_select_fuzzy", "create_scheduled_task", "list_scheduled_tasks", "cancel_scheduled_task", "list_scheduled_task_executions", "run_official_python"})
+		}
+
+		var exist WorkspaceMode
+		err := db.Where("code = ?", code).First(&exist).Error
+		if err == nil {
+			exist.Name = m.Name
+			exist.Description = m.Description
+			exist.SystemPromptFragment = m.SystemPromptFragment
+			exist.ToolNames = m.ToolNames
+			exist.SortOrder = m.SortOrder
+			exist.IsBuiltin = true
+			if err := db.Save(&exist).Error; err != nil {
+				return err
+			}
+			continue
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
 		}
 		if err := db.Create(&m).Error; err != nil {
 			return err
