@@ -17,8 +17,12 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
+	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	permissionconstants "github.com/ai-agent-os/ai-agent-os/pkg/permission"
 	"github.com/robfig/cron/v3"
 )
 
@@ -27,7 +31,6 @@ const (
 	ScheduledTaskActionTableCreate = "table_create"
 	ScheduledTaskActionTableUpdate = "table_update"
 	ScheduledTaskActionTableDelete = "table_delete"
-	ScheduledTaskActionForm        = "form" // 兼容别名：LLM 常用 form 表示普通函数执行
 )
 
 var scheduledTaskCronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
@@ -46,7 +49,10 @@ const (
 
 type scheduledTaskAppClient interface {
 	RequestApp(ctx context.Context, req *dto.RequestAppReq) (*dto.RequestAppResp, error)
+	GetFunctionByFullCodePath(ctx context.Context, fullCodePath string) (*model.Function, error)
+	IncrementFunctionRunCount(ctx context.Context, fullCodePath string)
 	RecordFormOperateLog(ctx context.Context, req *dto.RecordFormOperateLogReq) error
+	RecordTableOperateLog(ctx context.Context, req *dto.RecordTableOperateLogReq) error
 }
 
 type scheduledTaskTokenIssuer interface {
@@ -65,10 +71,8 @@ func normalizeScheduledTaskAction(action string) (string, error) {
 	switch action {
 	case ScheduledTaskActionExecute, ScheduledTaskActionTableCreate, ScheduledTaskActionTableUpdate, ScheduledTaskActionTableDelete:
 		return action, nil
-	case ScheduledTaskActionForm:
-		return ScheduledTaskActionExecute, nil
 	default:
-		return "", fmt.Errorf("action 不支持，必须是 execute/form/table_create/table_update/table_delete")
+		return "", fmt.Errorf("action 不支持，必须是 execute/table_create/table_update/table_delete")
 	}
 }
 
@@ -331,25 +335,174 @@ func parseFullCodePath(fullCodePath string) (user, app, router string, err error
 	return user, app, router, nil
 }
 
-// Create 创建定时任务，计算 next_run_at
-func (s *ScheduledTaskService) Create(ctx context.Context, req *dto.CreateScheduledTaskReq, requestUser string) (*model.ScheduledTask, error) {
-	user, appName, _, err := parseFullCodePath(req.FullCodePath)
+func normalizeScheduledTaskFullCodePath(fullCodePath string) string {
+	fullCodePath = strings.TrimSpace(fullCodePath)
+	if fullCodePath == "" {
+		return ""
+	}
+	if !strings.HasPrefix(fullCodePath, "/") {
+		return "/" + fullCodePath
+	}
+	return fullCodePath
+}
+
+func scheduledTaskCallbackForAction(action string) (string, bool) {
+	switch action {
+	case ScheduledTaskActionTableCreate:
+		return "OnTableAddRow", true
+	case ScheduledTaskActionTableUpdate:
+		return "OnTableUpdateRow", true
+	case ScheduledTaskActionTableDelete:
+		return "OnTableDeleteRows", true
+	default:
+		return "", false
+	}
+}
+
+func scheduledTaskMethodForAction(action, requestedMethod string, function *model.Function) string {
+	switch action {
+	case ScheduledTaskActionTableCreate:
+		return "POST"
+	case ScheduledTaskActionTableUpdate:
+		return "PUT"
+	case ScheduledTaskActionTableDelete:
+		return "DELETE"
+	}
+	method := strings.ToUpper(strings.TrimSpace(requestedMethod))
+	if method == "" && function != nil {
+		method = strings.ToUpper(strings.TrimSpace(function.Method))
+	}
+	if method == "" {
+		method = "POST"
+	}
+	return method
+}
+
+func scheduledTaskTemplateType(function *model.Function) string {
+	if function == nil {
+		return ""
+	}
+	if schemaType := functionschema.Type(function.Schema); schemaType != "" {
+		return schemaType
+	}
+	return strings.TrimSpace(function.TemplateType)
+}
+
+func scheduledTaskPermissionAction(templateType, action, method string) (string, error) {
+	switch action {
+	case ScheduledTaskActionTableCreate:
+		return permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, permissionconstants.ActionWrite), nil
+	case ScheduledTaskActionTableUpdate:
+		return permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, permissionconstants.ActionUpdate), nil
+	case ScheduledTaskActionTableDelete:
+		return permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, permissionconstants.ActionDelete), nil
+	case ScheduledTaskActionExecute:
+		switch templateType {
+		case functionschema.TypeForm:
+			return permissionconstants.BuildActionCode(permissionconstants.ResourceTypeForm, permissionconstants.ActionWrite), nil
+		case functionschema.TypeChart:
+			return permissionconstants.BuildActionCode(permissionconstants.ResourceTypeChart, permissionconstants.ActionRead), nil
+		case functionschema.TypeTable:
+			if strings.EqualFold(method, "GET") {
+				return permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, permissionconstants.ActionRead), nil
+			}
+			return "", fmt.Errorf("table 函数写操作必须使用 table_create/table_update/table_delete，不允许用 execute 绕过 schema 回调能力")
+		default:
+			return "", fmt.Errorf("不支持的函数类型: %s", templateType)
+		}
+	default:
+		return "", fmt.Errorf("未知 action: %s", action)
+	}
+}
+
+func scheduledTaskTableCallbackError(callbackType string) string {
+	switch callbackType {
+	case "OnTableAddRow":
+		return "该表未开启新增能力，通常是只读查询表，不支持定时新增"
+	case "OnTableUpdateRow":
+		return "该表未开启编辑能力，通常是只读查询表，不支持定时更新"
+	case "OnTableDeleteRows":
+		return "该表未开启删除能力，不支持定时删除"
+	default:
+		return "该表未开启对应回调能力"
+	}
+}
+
+func (s *ScheduledTaskService) resolveScheduledTaskFunction(ctx context.Context, fullCodePath string) (*model.Function, error) {
+	if s.appClient == nil {
+		return nil, fmt.Errorf("app service 未初始化，无法校验定时任务目标函数")
+	}
+	function, err := s.appClient.GetFunctionByFullCodePath(ctx, fullCodePath)
 	if err != nil {
 		return nil, err
 	}
-	method := strings.ToUpper(req.Method)
-	if method == "" {
-		method = "POST"
+	if function == nil {
+		return nil, fmt.Errorf("函数不存在: %s", fullCodePath)
+	}
+	if _, err := functionschema.Parse(function.Schema); err != nil {
+		return nil, fmt.Errorf("函数 schema 非法: %w", err)
+	}
+	return function, nil
+}
+
+func (s *ScheduledTaskService) validateScheduledTaskTarget(ctx context.Context, fullCodePath, action, method, requestUser string) (*model.Function, string, error) {
+	fullCodePath = normalizeScheduledTaskFullCodePath(fullCodePath)
+	function, err := s.resolveScheduledTaskFunction(ctx, fullCodePath)
+	if err != nil {
+		return nil, "", err
+	}
+	templateType := scheduledTaskTemplateType(function)
+	effectiveMethod := scheduledTaskMethodForAction(action, method, function)
+
+	if callbackType, ok := scheduledTaskCallbackForAction(action); ok {
+		if templateType != functionschema.TypeTable {
+			return nil, "", fmt.Errorf("%s 只支持 table 函数，当前函数类型为 %s", action, templateType)
+		}
+		if !function.HasCallback(callbackType) {
+			return nil, "", fmt.Errorf("%s: %s", scheduledTaskTableCallbackError(callbackType), callbackType)
+		}
+	}
+
+	permissionAction, err := scheduledTaskPermissionAction(templateType, action, effectiveMethod)
+	if err != nil {
+		return nil, "", err
+	}
+	if err := ensureScheduledTaskPermission(ctx, requestUser, fullCodePath, permissionAction); err != nil {
+		return nil, "", err
+	}
+	return function, effectiveMethod, nil
+}
+
+func ensureScheduledTaskPermission(ctx context.Context, requestUser, fullCodePath, action string) error {
+	requestUser = strings.TrimSpace(requestUser)
+	if requestUser == "" {
+		return fmt.Errorf("缺少 request_user，无法校验定时任务权限")
+	}
+	if !license.GetManager().HasFeature(enterprise.FeaturePermission) {
+		return nil
+	}
+	hasPermission, err := enterprise.GetPermissionService().CheckPermission(ctx, requestUser, fullCodePath, action)
+	if err != nil {
+		return fmt.Errorf("权限检查失败: %w", err)
+	}
+	if !hasPermission {
+		return fmt.Errorf("无权限创建或执行该定时任务: resource=%s action=%s user=%s", fullCodePath, action, requestUser)
+	}
+	return nil
+}
+
+// Create 创建定时任务，计算 next_run_at
+func (s *ScheduledTaskService) Create(ctx context.Context, req *dto.CreateScheduledTaskReq, requestUser string) (*model.ScheduledTask, error) {
+	fullCodePath := normalizeScheduledTaskFullCodePath(req.FullCodePath)
+	user, appName, _, err := parseFullCodePath(fullCodePath)
+	if err != nil {
+		return nil, err
 	}
 	scheduleType := strings.TrimSpace(req.ScheduleType)
 	if scheduleType == "" {
 		return nil, fmt.Errorf("schedule_type 必须是 atime/cron/every")
 	}
 	action, err := normalizeScheduledTaskAction(req.Action)
-	if err != nil {
-		return nil, err
-	}
-	runAt, err := resolveScheduledTaskRunAt(scheduleType, req.RunAt, time.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -360,6 +513,14 @@ func (s *ScheduledTaskService) Create(ctx context.Context, req *dto.CreateSchedu
 	reqUserDept := strings.TrimSpace(req.RequestUserDept)
 	if reqUserDept == "" {
 		reqUserDept = contextx.GetRequestDepartmentFullPath(ctx)
+	}
+	_, method, err := s.validateScheduledTaskTarget(ctx, fullCodePath, action, req.Method, reqUser)
+	if err != nil {
+		return nil, err
+	}
+	runAt, err := resolveScheduledTaskRunAt(scheduleType, req.RunAt, time.Now())
+	if err != nil {
+		return nil, err
 	}
 	notifyUsers := normalizeScheduledTaskStringList(req.NotifyUsers)
 	notifyDepartments := normalizeScheduledTaskStringList(req.NotifyDepartments)
@@ -376,7 +537,7 @@ func (s *ScheduledTaskService) Create(ctx context.Context, req *dto.CreateSchedu
 		User:              user,
 		App:               appName,
 		Name:              strings.TrimSpace(req.Name),
-		FullCodePath:      req.FullCodePath,
+		FullCodePath:      fullCodePath,
 		Action:            action,
 		Method:            method,
 		Payload:           req.Payload,
@@ -561,18 +722,32 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 	}
 	// 定时任务无 HTTP 请求，用 WithRequestInfo 一次性注入与 ToContext 一致的 context
 	traceId := fmt.Sprintf("scheduled-%d-%d", task.ID, executedAt.UnixNano())
+	requestUser := strings.TrimSpace(task.RequestUser)
+	if requestUser == "" {
+		requestUser = strings.TrimSpace(task.CreatedBy)
+	}
 	var token string
-	if s.tokenIssuer != nil && task.RequestUser != "" {
-		if t, err := s.tokenIssuer.GenerateAccessTokenWithHR(0, task.RequestUser, "", task.RequestUserDept, ""); err == nil {
+	if s.tokenIssuer != nil && requestUser != "" {
+		if t, err := s.tokenIssuer.GenerateAccessTokenWithHR(0, requestUser, "", task.RequestUserDept, ""); err == nil {
 			token = t
 		}
 	}
 	runCtx := contextx.WithRequestInfo(taskCtx, contextx.RequestInfo{
 		TraceId:            traceId,
-		RequestUser:        task.RequestUser,
+		RequestUser:        requestUser,
 		Token:              token,
 		DepartmentFullPath: task.RequestUserDept,
 	})
+	action, err := normalizeScheduledTaskAction(task.Action)
+	if err != nil {
+		s.finishExecution(taskCtx, task, nil, nil, "failed", err.Error(), traceId, executedAt, elapsedMillis(), scheduledAt, false)
+		return
+	}
+	_, effectiveMethod, err := s.validateScheduledTaskTarget(runCtx, task.FullCodePath, action, task.Method, requestUser)
+	if err != nil {
+		s.finishExecution(taskCtx, task, nil, nil, "failed", err.Error(), traceId, executedAt, elapsedMillis(), scheduledAt, false)
+		return
+	}
 	// 若 Payload 是「JSON 字符串」（前端曾用 JSON.stringify(payload) 导致存成 "{\"a\":1}"），
 	// 解一层再作为 body，否则表单侧 json.Unmarshal(body, &struct) 会报 cannot unmarshal string into Go value of type ...
 	bodyBytes := task.Payload
@@ -582,13 +757,14 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 			bodyBytes = []byte(inner)
 		}
 	}
-	req, err := s.buildTaskRequest(runCtx, task, user, appName, routerPath, traceId, token, bodyBytes)
+	req, callbackType, tableBodyBytes, err := s.buildTaskRequest(runCtx, task, user, appName, routerPath, effectiveMethod, traceId, token, requestUser, bodyBytes)
 	if err != nil {
 		duration := elapsedMillis()
 		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, task.Payload, nil, err, traceId, duration)
 		s.finishExecution(taskCtx, task, task.Payload, nil, "failed", err.Error(), traceId, executedAt, duration, scheduledAt, false)
 		return
 	}
+	s.recordScheduledTableOperateLog(taskCtx, task, user, appName, routerPath, callbackType, tableBodyBytes, traceId)
 
 	resp, err := s.appClient.RequestApp(runCtx, req)
 	var respBody []byte
@@ -623,14 +799,15 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 		return
 	}
 	duration := elapsedMillis()
+	s.incrementScheduledFunctionRunCount(taskCtx, task.FullCodePath)
 	s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, nil, traceId, duration)
 	s.finishExecution(taskCtx, task, reqBody, respBody, "success", "", traceId, executedAt, duration, scheduledAt, true)
 }
 
-func (s *ScheduledTaskService) buildTaskRequest(ctx context.Context, task *model.ScheduledTask, user, appName, routerPath, traceID, token string, bodyBytes []byte) (*dto.RequestAppReq, error) {
+func (s *ScheduledTaskService) buildTaskRequest(ctx context.Context, task *model.ScheduledTask, user, appName, routerPath, method, traceID, token, requestUser string, bodyBytes []byte) (*dto.RequestAppReq, string, []byte, error) {
 	action, err := normalizeScheduledTaskAction(task.Action)
 	if err != nil {
-		return nil, err
+		return nil, "", nil, err
 	}
 
 	switch action {
@@ -639,30 +816,33 @@ func (s *ScheduledTaskService) buildTaskRequest(ctx context.Context, task *model
 			User:            user,
 			App:             appName,
 			Router:          routerPath,
-			Method:          task.Method,
+			Method:          method,
 			Body:            bodyBytes,
-			RequestUser:     task.RequestUser,
+			RequestUser:     requestUser,
 			RequestUserDept: task.RequestUserDept,
 			TraceId:         traceID,
 			Token:           token,
-		}, nil
+		}, "", bodyBytes, nil
 	case ScheduledTaskActionTableCreate:
-		return s.buildTableCallbackReq(user, appName, routerPath, task.Method, "OnTableAddRow", traceID, token, task.RequestUser, task.RequestUserDept, bodyBytes)
+		req, err := s.buildTableCallbackReq(user, appName, routerPath, method, "OnTableAddRow", traceID, token, requestUser, task.RequestUserDept, bodyBytes)
+		return req, "OnTableAddRow", bodyBytes, err
 	case ScheduledTaskActionTableUpdate:
-		bodyBytes, err := s.fillTableUpdateOldValues(ctx, task, user, appName, routerPath, traceID, token, bodyBytes)
+		bodyBytes, err := s.fillTableUpdateOldValues(ctx, task, user, appName, routerPath, traceID, token, requestUser, bodyBytes)
 		if err != nil {
-			return nil, err
+			return nil, "", nil, err
 		}
-		return s.buildTableCallbackReq(user, appName, routerPath, task.Method, "OnTableUpdateRow", traceID, token, task.RequestUser, task.RequestUserDept, bodyBytes)
+		req, err := s.buildTableCallbackReq(user, appName, routerPath, method, "OnTableUpdateRow", traceID, token, requestUser, task.RequestUserDept, bodyBytes)
+		return req, "OnTableUpdateRow", bodyBytes, err
 	case ScheduledTaskActionTableDelete:
-		return s.buildTableCallbackReq(user, appName, routerPath, task.Method, "OnTableDeleteRows", traceID, token, task.RequestUser, task.RequestUserDept, bodyBytes)
+		req, err := s.buildTableCallbackReq(user, appName, routerPath, method, "OnTableDeleteRows", traceID, token, requestUser, task.RequestUserDept, bodyBytes)
+		return req, "OnTableDeleteRows", bodyBytes, err
 	default:
-		return nil, fmt.Errorf("未知 action: %s", task.Action)
+		return nil, "", nil, fmt.Errorf("未知 action: %s", task.Action)
 	}
 }
 
 // fillTableUpdateOldValues 在执行前实时补齐 old_values，避免创建任务时缓存的旧值变脏。
-func (s *ScheduledTaskService) fillTableUpdateOldValues(ctx context.Context, task *model.ScheduledTask, user, appName, routerPath, traceID, token string, bodyBytes []byte) ([]byte, error) {
+func (s *ScheduledTaskService) fillTableUpdateOldValues(ctx context.Context, task *model.ScheduledTask, user, appName, routerPath, traceID, token, requestUser string, bodyBytes []byte) ([]byte, error) {
 	if len(bodyBytes) == 0 {
 		return bodyBytes, fmt.Errorf("table_update payload 不能为空")
 	}
@@ -710,7 +890,7 @@ func (s *ScheduledTaskService) fillTableUpdateOldValues(ctx context.Context, tas
 		Method:          "GET",
 		UrlQuery:        "eq=id:" + url.QueryEscape(strconv.FormatInt(rowID, 10)) + "&page=1&page_size=1",
 		TraceId:         traceID,
-		RequestUser:     task.RequestUser,
+		RequestUser:     requestUser,
 		RequestUserDept: task.RequestUserDept,
 		Token:           token,
 	}
@@ -943,7 +1123,109 @@ func escapeScheduledTaskFullCodePath(fullCodePath string) string {
 	return "/" + strings.Join(parts, "/")
 }
 
+func (s *ScheduledTaskService) incrementScheduledFunctionRunCount(ctx context.Context, fullCodePath string) {
+	if s.appClient == nil {
+		return
+	}
+	s.appClient.IncrementFunctionRunCount(ctx, normalizeScheduledTaskFullCodePath(fullCodePath))
+}
+
+func (s *ScheduledTaskService) recordScheduledTableOperateLog(ctx context.Context, task *model.ScheduledTask, user, appName, routerPath, callbackType string, bodyBytes []byte, traceID string) {
+	if s.appClient == nil || callbackType == "" {
+		return
+	}
+	logReq := &dto.RecordTableOperateLogReq{
+		TenantUser:  user,
+		RequestUser: strings.TrimSpace(task.RequestUser),
+		App:         appName,
+		Router:      routerPath,
+		Action:      callbackType,
+		Source:      "scheduled_task",
+		IPAddress:   "scheduled-task",
+		UserAgent:   "scheduled-task",
+		TraceID:     traceID,
+	}
+	if logReq.RequestUser == "" {
+		logReq.RequestUser = strings.TrimSpace(task.CreatedBy)
+	}
+
+	var bodyData map[string]interface{}
+	_ = json.Unmarshal(bodyBytes, &bodyData)
+	switch callbackType {
+	case "OnTableAddRow":
+		logReq.Body = append(json.RawMessage(nil), bodyBytes...)
+	case "OnTableUpdateRow":
+		if id, ok := scheduledTaskBodyIDInt64(bodyData); ok {
+			logReq.RowID = id
+		}
+		if updatesData, ok := bodyData["updates"].(map[string]interface{}); ok {
+			logReq.Updates, _ = json.Marshal(updatesData)
+		}
+		if oldValuesData, ok := bodyData["old_values"].(map[string]interface{}); ok {
+			logReq.OldValues, _ = json.Marshal(oldValuesData)
+		}
+	case "OnTableDeleteRows":
+		logReq.RowIDs = scheduledTaskBodyIDs(bodyData)
+	}
+
+	if err := s.appClient.RecordTableOperateLog(ctx, logReq); err != nil {
+		logger.Warnf(ctx, "[ScheduledTask] Record table operate log failed: task=%d action=%s err=%v", task.ID, callbackType, err)
+	}
+}
+
+func scheduledTaskBodyIDInt64(bodyData map[string]interface{}) (int64, bool) {
+	if bodyData == nil {
+		return 0, false
+	}
+	idValue, ok := bodyData["id"]
+	if !ok {
+		return 0, false
+	}
+	switch v := idValue.(type) {
+	case float64:
+		return int64(v), true
+	case int64:
+		return v, true
+	case int:
+		return int64(v), true
+	case string:
+		id, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		return id, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func scheduledTaskBodyIDs(bodyData map[string]interface{}) []int64 {
+	if bodyData == nil {
+		return nil
+	}
+	rawIDs, ok := bodyData["ids"].([]interface{})
+	if !ok {
+		return nil
+	}
+	rowIDs := make([]int64, 0, len(rawIDs))
+	for _, rawID := range rawIDs {
+		switch v := rawID.(type) {
+		case float64:
+			rowIDs = append(rowIDs, int64(v))
+		case int64:
+			rowIDs = append(rowIDs, v)
+		case int:
+			rowIDs = append(rowIDs, int64(v))
+		case string:
+			if id, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64); err == nil {
+				rowIDs = append(rowIDs, id)
+			}
+		}
+	}
+	return rowIDs
+}
+
 func (s *ScheduledTaskService) recordFunctionOperateLog(ctx context.Context, task *model.ScheduledTask, user, appName, routerPath string, requestPayload []byte, resp *dto.RequestAppResp, requestErr error, traceID string, durationMillis int64) {
+	if s.appClient == nil {
+		return
+	}
 	action, err := normalizeScheduledTaskAction(task.Action)
 	if err != nil || action != ScheduledTaskActionExecute {
 		return
@@ -951,7 +1233,7 @@ func (s *ScheduledTaskService) recordFunctionOperateLog(ctx context.Context, tas
 
 	logReq := &dto.RecordFormOperateLogReq{
 		TenantUser:     user,
-		RequestUser:    task.RequestUser,
+		RequestUser:    strings.TrimSpace(task.RequestUser),
 		App:            appName,
 		Router:         routerPath,
 		Source:         "scheduled_task",
@@ -964,6 +1246,9 @@ func (s *ScheduledTaskService) recordFunctionOperateLog(ctx context.Context, tas
 	}
 	if resp != nil {
 		logReq.Version = resp.Version
+	}
+	if logReq.RequestUser == "" {
+		logReq.RequestUser = strings.TrimSpace(task.CreatedBy)
 	}
 
 	if err := s.appClient.RecordFormOperateLog(ctx, logReq); err != nil {

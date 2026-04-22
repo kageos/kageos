@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -9,7 +10,53 @@ import (
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
+	"github.com/ai-agent-os/ai-agent-os/dto"
 )
+
+type fakeScheduledTaskAppClient struct {
+	function *model.Function
+}
+
+func (f *fakeScheduledTaskAppClient) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*dto.RequestAppResp, error) {
+	return &dto.RequestAppResp{}, nil
+}
+
+func (f *fakeScheduledTaskAppClient) GetFunctionByFullCodePath(ctx context.Context, fullCodePath string) (*model.Function, error) {
+	return f.function, nil
+}
+
+func (f *fakeScheduledTaskAppClient) IncrementFunctionRunCount(ctx context.Context, fullCodePath string) {
+}
+
+func (f *fakeScheduledTaskAppClient) RecordFormOperateLog(ctx context.Context, req *dto.RecordFormOperateLogReq) error {
+	return nil
+}
+
+func (f *fakeScheduledTaskAppClient) RecordTableOperateLog(ctx context.Context, req *dto.RecordTableOperateLogReq) error {
+	return nil
+}
+
+func scheduledTaskSchema(t *testing.T, templateType string, callbacks ...string) json.RawMessage {
+	t.Helper()
+	raw := map[string]interface{}{
+		"version":   1,
+		"type":      templateType,
+		"callbacks": callbacks,
+	}
+	switch templateType {
+	case "table":
+		raw["table"] = map[string]interface{}{"request": []interface{}{}, "fields": []interface{}{}}
+	case "form":
+		raw["form"] = map[string]interface{}{"request": []interface{}{}, "response": []interface{}{}}
+	case "chart":
+		raw["chart"] = map[string]interface{}{"request": []interface{}{}, "response": []interface{}{}}
+	}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		t.Fatalf("marshal schema: %v", err)
+	}
+	return data
+}
 
 func TestResolveScheduledTaskRunAt(t *testing.T) {
 	now := time.Date(2026, 4, 15, 10, 0, 0, 0, time.FixedZone("CST", 8*60*60))
@@ -90,6 +137,55 @@ func TestNormalizeScheduledTaskNotifyOnDefaults(t *testing.T) {
 
 	if _, err := normalizeScheduledTaskNotifyOn("bad", true); err == nil {
 		t.Fatalf("normalize notify_on should reject unsupported value")
+	}
+}
+
+func TestNormalizeScheduledTaskActionRejectsLegacyFormAlias(t *testing.T) {
+	if _, err := normalizeScheduledTaskAction("form"); err == nil {
+		t.Fatalf("legacy form action should be rejected")
+	}
+}
+
+func TestValidateScheduledTaskTargetUsesSchemaCallbacksAndMethodMapping(t *testing.T) {
+	fn := &model.Function{
+		Method:       "GET",
+		TemplateType: "table",
+		Schema:       scheduledTaskSchema(t, "table", "OnTableUpdateRow"),
+	}
+	svc := &ScheduledTaskService{appClient: &fakeScheduledTaskAppClient{function: fn}}
+
+	_, method, err := svc.validateScheduledTaskTarget(context.Background(), "/alice/demo/tickets.table", ScheduledTaskActionTableUpdate, "POST", "alice")
+	if err != nil {
+		t.Fatalf("validate table update returned error: %v", err)
+	}
+	if method != "PUT" {
+		t.Fatalf("table update method = %q, want PUT", method)
+	}
+}
+
+func TestValidateScheduledTaskTargetRejectsMissingTableCallback(t *testing.T) {
+	fn := &model.Function{
+		Method:       "GET",
+		TemplateType: "table",
+		Schema:       scheduledTaskSchema(t, "table", "OnTableAddRow"),
+	}
+	svc := &ScheduledTaskService{appClient: &fakeScheduledTaskAppClient{function: fn}}
+
+	if _, _, err := svc.validateScheduledTaskTarget(context.Background(), "/alice/demo/tickets.table", ScheduledTaskActionTableDelete, "", "alice"); err == nil {
+		t.Fatalf("table delete without OnTableDeleteRows should be rejected")
+	}
+}
+
+func TestValidateScheduledTaskTargetRejectsExecuteTableWrite(t *testing.T) {
+	fn := &model.Function{
+		Method:       "POST",
+		TemplateType: "table",
+		Schema:       scheduledTaskSchema(t, "table"),
+	}
+	svc := &ScheduledTaskService{appClient: &fakeScheduledTaskAppClient{function: fn}}
+
+	if _, _, err := svc.validateScheduledTaskTarget(context.Background(), "/alice/demo/tickets.table", ScheduledTaskActionExecute, "POST", "alice"); err == nil {
+		t.Fatalf("execute must not be allowed to write table functions")
 	}
 }
 

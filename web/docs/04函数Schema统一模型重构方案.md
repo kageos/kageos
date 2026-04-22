@@ -298,13 +298,7 @@ callbacks 删除，不再作为配置源，改为 schema.callbacks
         },
         "validation": "required,min=2,max=100"
       }
-    ],
-    "actions": {
-      "create": true,
-      "batch_create": true,
-      "update": true,
-      "batch_delete": true
-    }
+    ]
   },
   "callbacks": [
     "OnTableAddRow",
@@ -403,13 +397,7 @@ callbacks = 表单级回调能力
   "type": "table",
   "table": {
     "request": [],
-    "fields": [],
-    "actions": {
-      "create": true,
-      "update": true,
-      "delete": true,
-      "batch_delete": true
-    }
+    "fields": []
   },
   "callbacks": []
 }
@@ -420,8 +408,7 @@ callbacks = 表单级回调能力
 ```text
 table.request = 查询/筛选字段
 table.fields = 表格字段唯一配置源
-table.actions = 表格支持的动作
-callbacks = 函数回调能力，例如 OnTableUpdateRow、OnTableDeleteRows、OnSelectFuzzy
+schema.callbacks = 表格支持的回调能力，例如 OnTableAddRow、OnTableCreateInBatches、OnTableUpdateRow、OnTableDeleteRows、OnSelectFuzzy
 ```
 
 字段场景控制使用 `display.scenes`：
@@ -469,7 +456,7 @@ detail：不单独作为 scene，默认复用 list 可见字段
 create：默认使用 table.fields 中可编辑、非只读字段
 update：默认使用 table.fields 中可编辑、非只读字段
 search：不走 display.scenes，使用 table.request 和字段已有 search 标签/配置
-actions 未配置时按后端能力或模板默认值处理
+table 写能力只看 schema.callbacks，不再使用 actions 配置
 ```
 
 selector 逻辑：
@@ -832,7 +819,7 @@ form.response 天然只读，不额外配置展示权限
               "type": "select",
               "config": {
                 "creatable": false,
-                "default": "中",
+                "render_default": "中",
                 "options": ["低", "中", "高"],
                 "options_colors": ["success", "warning", "danger"]
               }
@@ -851,7 +838,7 @@ form.response 天然只读，不额外配置展示权限
               "type": "select",
               "config": {
                 "creatable": false,
-                "default": "待处理",
+                "render_default": "待处理",
                 "options": ["待处理", "处理中", "已完成"],
                 "options_colors": ["info", "warning", "success"]
               }
@@ -869,7 +856,7 @@ form.response 天然只读，不额外配置展示权限
             "widget": {
               "type": "user",
               "config": {
-                "default": "Me()"
+                "render_default": "Me()"
               }
             }
           },
@@ -943,13 +930,7 @@ form.response 天然只读，不额外配置展示权限
               "scenes": ["list"]
             }
           }
-        ],
-        "actions": {
-          "create": true,
-          "batch_create": true,
-          "update": true,
-          "batch_delete": true
-        }
+        ]
       },
       "callbacks": [
         "OnTableAddRow",
@@ -1059,7 +1040,7 @@ search 字段原样保留，搜索逻辑继续根据 search 标签判断
                 "widget": {
                   "type": "number",
                   "config": {
-                    "default": 1
+                    "render_default": 1
                   }
                 },
                 "validation": "required,min=1"

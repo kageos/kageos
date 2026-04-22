@@ -197,6 +197,26 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 
 	// 根据操作类型处理不同的记录逻辑
 	switch req.Action {
+	case "OnTableAddRow":
+		operateLogReq := &dto.CreateOperateLoggerReq{
+			User:       req.RequestUser,
+			Action:     req.Action,
+			Resource:   "table",
+			ResourceID: fmt.Sprintf("%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/")),
+			Source:     req.Source,
+			RowID:      req.RowID,
+			Updates:    req.Body,
+			Version:    app.Version,
+			TraceID:    req.TraceID,
+			IPAddress:  req.IPAddress,
+			UserAgent:  req.UserAgent,
+		}
+		go func() {
+			if _, err := operateLogger.CreateOperateLogger(operateLogReq); err != nil {
+				logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 新增操作日志失败: %v", err)
+			}
+		}()
+
 	case "OnTableUpdateRow":
 		// 更新操作：记录 updates 和 old_values
 		operateLogReq := &dto.CreateOperateLoggerReq{
@@ -204,6 +224,7 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 			Action:     req.Action,
 			Resource:   "table",
 			ResourceID: fmt.Sprintf("%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/")),
+			Source:     req.Source,
 			RowID:      req.RowID,
 			Updates:    req.Updates,
 			OldValues:  req.OldValues,
@@ -228,6 +249,7 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 				Action:     req.Action,
 				Resource:   "table",
 				ResourceID: fmt.Sprintf("%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/")),
+				Source:     req.Source,
 				RowID:      rowID,
 				Version:    app.Version,
 				TraceID:    req.TraceID,

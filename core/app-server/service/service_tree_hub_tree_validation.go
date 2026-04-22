@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/pkg/naming"
 )
 
@@ -57,6 +58,11 @@ func validateHubDirectoryTreeNodeImpl(node *dto.DirectoryTreeNode, parentPath, l
 	}
 
 	seenCodes := make(map[string]struct{}, len(node.Subdirectories))
+	for index, function := range node.Functions {
+		if err := validateHubFunctionInfoImpl(function, fmt.Sprintf("%s -> functions[%d]", location, index)); err != nil {
+			return err
+		}
+	}
 	for index, child := range node.Subdirectories {
 		childLocation := fmt.Sprintf("%s -> subdirectories[%d]", location, index)
 		if child == nil {
@@ -77,6 +83,23 @@ func validateHubDirectoryTreeNodeImpl(node *dto.DirectoryTreeNode, parentPath, l
 		}
 	}
 
+	return nil
+}
+
+func validateHubFunctionInfoImpl(function *dto.HubFunctionInfo, location string) error {
+	if function == nil {
+		return fmt.Errorf("%s 函数不能为空", location)
+	}
+	if len(function.Schema) == 0 {
+		return nil
+	}
+	schema, err := functionschema.Parse(function.Schema)
+	if err != nil {
+		return fmt.Errorf("%s 函数 schema 非法: %w", location, err)
+	}
+	if function.TemplateType != "" && schema.Type != function.TemplateType {
+		return fmt.Errorf("%s 函数 template_type 与 schema.type 不一致: template_type=%s schema.type=%s", location, function.TemplateType, schema.Type)
+	}
 	return nil
 }
 

@@ -191,6 +191,7 @@ import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
   createScheduledTask,
+  methodForScheduledTaskAction,
   type CreateScheduledTaskReq,
   type ScheduledTaskAction,
   type ScheduledTaskNotifyOn
@@ -528,7 +529,7 @@ async function handleSubmit() {
         name: form.value.name.trim(),
         full_code_path: props.fullCodePath,
         action,
-        method: 'POST',
+        method: methodForScheduledTaskAction(action),
         payload: taskPayload,
         schedule_type: form.value.schedule_type,
         max_runs: form.value.max_runs ?? 0,

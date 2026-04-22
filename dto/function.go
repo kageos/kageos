@@ -38,19 +38,19 @@ type GetFunctionsByAppResp struct {
 
 // FunctionInfo 函数信息
 type FunctionInfo struct {
-	ID           int64    `json:"id" example:"1"`                                  // 函数ID
-	AppID        int64    `json:"app_id" example:"1"`                              // 应用ID
-	TreeID       int64    `json:"tree_id" example:"1"`                             // 服务目录ID
-	Method       string   `json:"method" example:"GET"`                            // HTTP方法
-	Router       string   `json:"router" example:"/users"`                         // 路由路径
-	HasConfig    bool     `json:"has_config" example:"true"`                       // 是否有配置
-	CreateTables string   `json:"create_tables" example:"users,orders"`            // 创建的表
-	Callbacks    []string `json:"callbacks,omitempty" example:"onCreate,onUpdate"` // 回调函数摘要
-	TemplateType string   `json:"template_type" example:"default"`                 // 模板类型
-	CreatedAt    string   `json:"created_at" example:"2024-01-01T00:00:00Z"`       // 创建时间
-	UpdatedAt    string   `json:"updated_at" example:"2024-01-01T00:00:00Z"`       // 更新时间
-	Name         string   `json:"name" example:"工单管理"`                             // 函数名称（从 ServiceTree 获取）
-	Description  string   `json:"description" example:"用于管理工单的创建、更新、删除等功能"`        // 函数描述（从 ServiceTree 获取）
+	ID           int64    `json:"id" example:"1"`                                               // 函数ID
+	AppID        int64    `json:"app_id" example:"1"`                                           // 应用ID
+	TreeID       int64    `json:"tree_id" example:"1"`                                          // 服务目录ID
+	Method       string   `json:"method" example:"GET"`                                         // HTTP方法
+	Router       string   `json:"router" example:"/users"`                                      // 路由路径
+	HasConfig    bool     `json:"has_config" example:"true"`                                    // 是否有配置
+	CreateTables string   `json:"create_tables" example:"users,orders"`                         // 创建的表
+	Callbacks    []string `json:"callbacks,omitempty" example:"OnTableAddRow,OnTableUpdateRow"` // 回调函数摘要
+	TemplateType string   `json:"template_type" example:"default"`                              // 模板类型
+	CreatedAt    string   `json:"created_at" example:"2024-01-01T00:00:00Z"`                    // 创建时间
+	UpdatedAt    string   `json:"updated_at" example:"2024-01-01T00:00:00Z"`                    // 更新时间
+	Name         string   `json:"name" example:"工单管理"`                                          // 函数名称（从 ServiceTree 获取）
+	Description  string   `json:"description" example:"用于管理工单的创建、更新、删除等功能"`                     // 函数描述（从 ServiceTree 获取）
 }
 
 // GetFunctionGroupInfoResp 获取函数组信息响应（用于 Hub 发布）
