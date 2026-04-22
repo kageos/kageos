@@ -4,15 +4,25 @@ import { ElMessage } from 'element-plus'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
 import { useAuthStore } from '@/stores/auth'
+import { getScheduledTaskExecution, type ScheduledTaskExecutionItem } from '@/api/scheduledTask'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import { Logger } from '@/core/utils/logger'
 import type { ServiceTree } from '../../domain/services/WorkspaceDomainService'
 
 type FunctionTabName = 'content' | 'permissionRequest' | 'permissionManage' | 'operateLog' | 'scheduledTask'
+type ReplayContext = {
+  source: 'scheduled_task' | 'operate_log'
+  title?: string
+  taskId?: number
+  executionId?: number
+  traceId?: string
+  executedAt?: string
+}
 type FormOperateLogApplyPayload = {
   requestBody?: Record<string, any> | null
   responseBody?: Record<string, any> | null
   responseMetadata?: Record<string, any> | null
+  replayContext?: ReplayContext | null
 }
 
 type FunctionFormViewRef = {
@@ -61,7 +71,8 @@ function cloneOperateLogPayload(payload: FormOperateLogApplyPayload): FormOperat
   return {
     requestBody: cloneOperateLogObject(payload.requestBody),
     responseBody: cloneOperateLogObject(payload.responseBody),
-    responseMetadata: cloneOperateLogObject(payload.responseMetadata)
+    responseMetadata: cloneOperateLogObject(payload.responseMetadata),
+    replayContext: payload.replayContext ? { ...payload.replayContext } : payload.replayContext
   }
 }
 
@@ -73,6 +84,82 @@ function normalizePanelQuery(tab: LocationQueryValue | LocationQueryValue[] | un
   return typeof tab === 'string' ? tab : null
 }
 
+function normalizeQueryString(value: LocationQueryValue | LocationQueryValue[] | undefined): string {
+  const normalized = normalizePanelQuery(value)
+  return normalized ? normalized.trim() : ''
+}
+
+function readPositiveQueryID(value: LocationQueryValue | LocationQueryValue[] | undefined): number {
+  const raw = normalizeQueryString(value)
+  if (!raw) {
+    return 0
+  }
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+}
+
+function parseScheduledExecutionObject(raw?: string | null): Record<string, any> | null {
+  if (!raw) {
+    return null
+  }
+  try {
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, any>
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+function buildScheduledExecutionReplayPayload(
+  execution: ScheduledTaskExecutionItem,
+  taskID: number
+): FormOperateLogApplyPayload {
+  const requestBody = parseScheduledExecutionObject(execution.request_payload)
+  const responseEnvelope = parseScheduledExecutionObject(execution.response_payload)
+  const result = responseEnvelope?.result
+  const responseBody = result !== undefined && result !== null
+    ? (typeof result === 'object' && !Array.isArray(result) ? result as Record<string, any> : { result })
+    : responseEnvelope
+
+  const responseMetadata: Record<string, any> = {
+    scheduled_task_id: taskID,
+    scheduled_task_execution_id: execution.id,
+    replay_source: 'scheduled_task'
+  }
+  if (responseEnvelope?.version) {
+    responseMetadata.version = responseEnvelope.version
+  }
+  if (responseEnvelope?.total_cost_mill !== undefined || execution.duration_millis !== undefined) {
+    responseMetadata.total_cost_mill = responseEnvelope?.total_cost_mill ?? execution.duration_millis
+  }
+  if (responseEnvelope?.err_code !== undefined) {
+    responseMetadata.err_code = responseEnvelope.err_code
+  }
+  if (responseEnvelope?.error || execution.error_message) {
+    responseMetadata.error = responseEnvelope?.error || execution.error_message
+  }
+  if (responseEnvelope?.trace_id || execution.trace_id) {
+    responseMetadata.trace_id = responseEnvelope?.trace_id || execution.trace_id
+  }
+
+  return {
+    requestBody,
+    responseBody,
+    responseMetadata,
+    replayContext: {
+      source: 'scheduled_task',
+      title: '定时任务记录回填',
+      taskId: taskID,
+      executionId: execution.id,
+      traceId: execution.trace_id || responseMetadata.trace_id,
+      executedAt: execution.executed_at
+    }
+  }
+}
+
 export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOptions) {
   const { route, router, currentFunction, currentFunctionDetail } = options
   const authStore = useAuthStore()
@@ -82,6 +169,8 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   const functionPermissionRequestListRef = ref<PermissionRequestListRef | null>(null)
   const functionPermissionManageListRef = ref<PermissionManageListRef | null>(null)
   const formOperateLogSectionRef = ref<FormOperateLogSectionRef | null>(null)
+  const applyingScheduledReplay = ref(false)
+  const appliedScheduledReplayKey = ref('')
 
   const setFunctionFormViewRef = (instance: FunctionFormViewRef | null) => {
     functionFormViewRef.value = instance
@@ -200,7 +289,7 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     functionActiveTab.value = 'content'
     syncFunctionTabQuery()
 
-    Logger.debug('WorkspaceFunctionTabs', '收到执行记录重放请求', {
+    Logger.debug('WorkspaceFunctionTabs', '收到执行记录回填请求', {
       requestKeys: Object.keys(payload.requestBody || {}),
       hasResponseBody: !!payload.responseBody,
       hasResponseMetadata: !!payload.responseMetadata,
@@ -227,7 +316,7 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
       }
 
       if (!applied) {
-        Logger.warn('WorkspaceFunctionTabs', '执行记录重放失败：FormView 引用不可用', {
+        Logger.warn('WorkspaceFunctionTabs', '执行记录回填失败：FormView 引用不可用', {
           requestKeys: Object.keys(payload.requestBody || {})
         })
         ElMessage.warning('当前表单尚未加载完成，请稍后重试')
@@ -272,6 +361,37 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     syncFunctionTabQuery()
   }
 
+  const applyScheduledExecutionReplayFromQuery = async () => {
+    if (normalizeQueryString(route.query._replay) !== 'scheduled_execution') {
+      return
+    }
+    if (!showFormOperateLogTab.value || currentFunctionDetail.value?.template_type !== TEMPLATE_TYPE.FORM) {
+      return
+    }
+
+    const taskID = readPositiveQueryID(route.query._scheduled_task_id || route.query._task_id)
+    const executionID = readPositiveQueryID(route.query._scheduled_execution_id || route.query._execution_id)
+    if (!taskID || !executionID || applyingScheduledReplay.value) {
+      return
+    }
+
+    const replayKey = `${currentFunction.value?.full_code_path || route.path}:${taskID}:${executionID}`
+    if (appliedScheduledReplayKey.value === replayKey) {
+      return
+    }
+
+    applyingScheduledReplay.value = true
+    try {
+      const execution = await getScheduledTaskExecution(taskID, executionID)
+      await handleApplyFormOperateLog(buildScheduledExecutionReplayPayload(execution, taskID))
+      appliedScheduledReplayKey.value = replayKey
+    } catch (error: any) {
+      ElMessage.error(error?.message || '回填定时任务执行记录失败')
+    } finally {
+      applyingScheduledReplay.value = false
+    }
+  }
+
   const applyFunctionPanelQuery = (tab: LocationQueryValue | LocationQueryValue[] | undefined) => {
     const normalizedTab = normalizePanelQuery(tab)
 
@@ -296,6 +416,11 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     if (normalizedTab === 'operateLog' && showFormOperateLogTab.value) {
       functionActiveTab.value = 'operateLog'
       nextTick(() => {
+        const traceId = normalizeQueryString(route.query._trace_id)
+        if (traceId && formOperateLogSectionRef.value?.openWithFilters) {
+          formOperateLogSectionRef.value.openWithFilters({ traceId })
+          return
+        }
         formOperateLogSectionRef.value?.loadLogs({ page: 1 })
       })
       return
@@ -342,9 +467,26 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   )
 
   watch(
-    () => [route.query._panel, showFunctionPermissionTabs.value, showFormOperateLogTab.value, showScheduledTaskTab.value] as const,
+    () => [route.query._panel, route.query._trace_id, showFunctionPermissionTabs.value, showFormOperateLogTab.value, showScheduledTaskTab.value] as const,
     ([tab]) => {
       applyFunctionPanelQuery(tab)
+    },
+    { immediate: true }
+  )
+
+  watch(
+    () => [
+      route.query._replay,
+      route.query._scheduled_task_id,
+      route.query._scheduled_execution_id,
+      route.query._task_id,
+      route.query._execution_id,
+      currentFunction.value?.full_code_path,
+      currentFunctionDetail.value?.id,
+      showFormOperateLogTab.value
+    ] as const,
+    () => {
+      applyScheduledExecutionReplayFromQuery()
     },
     { immediate: true }
   )

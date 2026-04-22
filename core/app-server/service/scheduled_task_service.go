@@ -995,13 +995,18 @@ func (s *ScheduledTaskService) notifyExecutionFinished(ctx context.Context, task
 		return
 	}
 
-	link := s.buildExecutionResultURL(task, exec)
+	resultLink := s.buildExecutionResultURL(task, exec)
+	replayLink := ""
+	if isScheduledTaskFormFunction(task) {
+		replayLink = s.buildExecutionReplayURL(task, exec)
+	}
+	traceLink := s.buildExecutionTraceURL(task, exec)
 	statusLabel := "成功"
 	if !success {
 		statusLabel = "失败"
 	}
 	title := fmt.Sprintf("定时任务执行%s：%s", statusLabel, scheduledTaskDisplayName(task))
-	content := buildScheduledTaskNotificationContent(task, exec, statusLabel, link)
+	content := buildScheduledTaskNotificationContent(task, exec, statusLabel, resultLink, replayLink, traceLink)
 
 	from := strings.TrimSpace(task.RequestUser)
 	if from == "" {
@@ -1054,7 +1059,14 @@ func scheduledTaskDisplayName(task *model.ScheduledTask) string {
 	return "未命名任务"
 }
 
-func buildScheduledTaskNotificationContent(task *model.ScheduledTask, exec *model.ScheduledTaskExecution, statusLabel string, link string) string {
+func isScheduledTaskFormFunction(task *model.ScheduledTask) bool {
+	if task == nil {
+		return false
+	}
+	return strings.HasSuffix(strings.ToLower(strings.TrimSpace(task.FullCodePath)), ".form")
+}
+
+func buildScheduledTaskNotificationContent(task *model.ScheduledTask, exec *model.ScheduledTaskExecution, statusLabel string, resultLink string, replayLink string, traceLink string) string {
 	var b strings.Builder
 	b.WriteString("## 定时任务执行")
 	b.WriteString(statusLabel)
@@ -1081,20 +1093,52 @@ func buildScheduledTaskNotificationContent(task *model.ScheduledTask, exec *mode
 		b.WriteString(exec.ErrorMessage)
 		b.WriteString("\n")
 	}
-	if link != "" {
+	if resultLink != "" {
 		b.WriteString("\n[查看执行结果](")
-		b.WriteString(link)
+		b.WriteString(resultLink)
+		b.WriteString(")\n")
+	}
+	if replayLink != "" {
+		b.WriteString("[回填到表单](")
+		b.WriteString(replayLink)
+		b.WriteString(")\n")
+	}
+	if traceLink != "" {
+		b.WriteString("[查看函数执行记录](")
+		b.WriteString(traceLink)
 		b.WriteString(")\n")
 	}
 	return b.String()
 }
 
 func (s *ScheduledTaskService) buildExecutionResultURL(task *model.ScheduledTask, exec *model.ScheduledTaskExecution) string {
-	workspacePath := "/workspace" + escapeScheduledTaskFullCodePath(task.FullCodePath)
 	query := url.Values{}
 	query.Set("_panel", "scheduledTask")
 	query.Set("_scheduled_task_id", strconv.FormatInt(task.ID, 10))
 	query.Set("_scheduled_execution_id", strconv.FormatInt(exec.ID, 10))
+	return s.buildWorkspaceFunctionURL(task, query)
+}
+
+func (s *ScheduledTaskService) buildExecutionReplayURL(task *model.ScheduledTask, exec *model.ScheduledTaskExecution) string {
+	query := url.Values{}
+	query.Set("_replay", "scheduled_execution")
+	query.Set("_scheduled_task_id", strconv.FormatInt(task.ID, 10))
+	query.Set("_scheduled_execution_id", strconv.FormatInt(exec.ID, 10))
+	return s.buildWorkspaceFunctionURL(task, query)
+}
+
+func (s *ScheduledTaskService) buildExecutionTraceURL(task *model.ScheduledTask, exec *model.ScheduledTaskExecution) string {
+	if strings.TrimSpace(exec.TraceID) == "" {
+		return ""
+	}
+	query := url.Values{}
+	query.Set("_panel", "operateLog")
+	query.Set("_trace_id", exec.TraceID)
+	return s.buildWorkspaceFunctionURL(task, query)
+}
+
+func (s *ScheduledTaskService) buildWorkspaceFunctionURL(task *model.ScheduledTask, query url.Values) string {
+	workspacePath := "/workspace" + escapeScheduledTaskFullCodePath(task.FullCodePath)
 
 	resultPath := workspacePath
 	if encoded := query.Encode(); encoded != "" {

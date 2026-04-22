@@ -29,9 +29,37 @@ export interface ScheduledTaskOperateLogPayload {
   traceId?: string
 }
 
+export interface ScheduledTaskReplayContext {
+  source: 'scheduled_task'
+  title?: string
+  taskId?: number
+  executionId?: number
+  traceId?: string
+  executedAt?: string
+}
+
+export interface ScheduledTaskReplayPayload {
+  requestBody?: Record<string, any> | null
+  responseBody?: Record<string, any> | null
+  responseMetadata?: Record<string, any> | null
+  replayContext?: ScheduledTaskReplayContext | null
+}
+
 export interface ScheduledTaskListEmit {
   (e: 'total-change', total: number): void
   (e: 'open-function-operate-log', payload: ScheduledTaskOperateLogPayload): void
+  (e: 'apply-execution', payload: ScheduledTaskReplayPayload): void
+}
+
+interface InlineExecutionState {
+  loading: boolean
+  loaded: boolean
+  list: ScheduledTaskExecutionItem[]
+  total: number
+  page: number
+  pageSize: number
+  status: string
+  error: string
 }
 
 export function useScheduledTaskList(
@@ -64,6 +92,7 @@ export function useScheduledTaskList(
   const currentTaskId = ref(0)
   const currentTaskName = ref('')
   const currentExecutionTask = ref<ScheduledTaskItem | null>(null)
+  const inlineExecutionStates = ref<Record<number, InlineExecutionState>>({})
   const executionFilterForm = ref({
     status: ''
   })
@@ -272,10 +301,6 @@ export function useScheduledTaskList(
     unsubscribeScheduledTaskCreated()
   })
 
-  function handleTaskRowClick(row: ScheduledTaskItem) {
-    openTaskDetail(row)
-  }
-
   function canCancelTask(task?: ScheduledTaskItem | null): boolean {
     if (!task || task.status !== 'pending') {
       return false
@@ -308,6 +333,85 @@ export function useScheduledTaskList(
     currentTask.value = row
     taskDetailTitle.value = row.name ? `任务详情：${row.name}` : '任务详情'
     taskDetailVisible.value = true
+  }
+
+  function createInlineExecutionState(): InlineExecutionState {
+    return {
+      loading: false,
+      loaded: false,
+      list: [],
+      total: 0,
+      page: 1,
+      pageSize: 5,
+      status: '',
+      error: ''
+    }
+  }
+
+  function ensureInlineExecutionState(taskID: number): InlineExecutionState {
+    if (!inlineExecutionStates.value[taskID]) {
+      inlineExecutionStates.value[taskID] = createInlineExecutionState()
+    }
+    return inlineExecutionStates.value[taskID]
+  }
+
+  function getInlineExecutionState(taskID: number): InlineExecutionState {
+    return ensureInlineExecutionState(taskID)
+  }
+
+  async function loadInlineExecutions(row: ScheduledTaskItem, force = false) {
+    const state = ensureInlineExecutionState(row.id)
+    if (state.loading || (state.loaded && !force)) {
+      return
+    }
+
+    state.loading = true
+    state.error = ''
+    try {
+      const res = await listScheduledTaskExecutions(row.id, {
+        status: state.status || undefined,
+        page: state.page,
+        page_size: state.pageSize
+      })
+      state.list = res.list ?? []
+      state.total = res.total ?? 0
+      state.loaded = true
+    } catch (error: unknown) {
+      state.list = []
+      state.total = 0
+      state.error = getErrorMessage(error, '执行记录加载失败')
+    } finally {
+      state.loading = false
+    }
+  }
+
+  function handleTaskExpandChange(row: ScheduledTaskItem, expandedRows: ScheduledTaskItem[] | boolean) {
+    if (!Array.isArray(expandedRows)) {
+      return
+    }
+    const expanded = expandedRows.some((item) => item.id === row.id)
+    if (expanded) {
+      loadInlineExecutions(row)
+    }
+  }
+
+  function refreshInlineExecutions(row: ScheduledTaskItem) {
+    loadInlineExecutions(row, true)
+  }
+
+  function handleInlineExecutionStatusChange(row: ScheduledTaskItem) {
+    const state = ensureInlineExecutionState(row.id)
+    state.page = 1
+    loadInlineExecutions(row, true)
+  }
+
+  function handleInlineExecutionPageChange(row: ScheduledTaskItem, nextPage: number) {
+    const state = ensureInlineExecutionState(row.id)
+    if (!Number.isFinite(nextPage) || nextPage < 1 || state.page === nextPage) {
+      return
+    }
+    state.page = nextPage
+    loadInlineExecutions(row, true)
   }
 
   function handleCancelFromDetail() {
@@ -370,9 +474,18 @@ export function useScheduledTaskList(
     openExecutionDetail(row)
   }
 
-  function openExecutionDetail(row: ScheduledTaskExecutionItem) {
+  function openExecutionDetail(row: ScheduledTaskExecutionItem, task?: ScheduledTaskItem) {
+    if (task) {
+      currentTaskId.value = task.id
+      currentTaskName.value = task.name || '未命名任务'
+      currentExecutionTask.value = task
+    }
     currentExecution.value = row
     executionDetailVisible.value = true
+  }
+
+  function openInlineExecutionDetail(task: ScheduledTaskItem, execution: ScheduledTaskExecutionItem) {
+    openExecutionDetail(execution, task)
   }
 
   function normalizeQueryValue(value: unknown): string {
@@ -476,6 +589,60 @@ export function useScheduledTaskList(
     executionsVisible.value = false
   }
 
+  function buildScheduledTaskReplayPayload(
+    task: ScheduledTaskItem | null | undefined,
+    execution: ScheduledTaskExecutionItem
+  ): ScheduledTaskReplayPayload {
+    const requestBody = parseObjectPayload(execution.request_payload)
+    const responseEnvelope = parseObjectPayload(execution.response_payload)
+    const result = responseEnvelope?.result
+    const responseBody = result !== undefined && result !== null
+      ? (result && typeof result === 'object' && !Array.isArray(result) ? result as Record<string, any> : { result })
+      : responseEnvelope
+
+    const responseMetadata: Record<string, any> = {
+      scheduled_task_id: task?.id || execution.task_id,
+      scheduled_task_execution_id: execution.id,
+      replay_source: 'scheduled_task'
+    }
+    if (responseEnvelope?.version) {
+      responseMetadata.version = responseEnvelope.version
+    }
+    if (responseEnvelope?.total_cost_mill !== undefined || execution.duration_millis !== undefined) {
+      responseMetadata.total_cost_mill = responseEnvelope?.total_cost_mill ?? execution.duration_millis
+    }
+    if (responseEnvelope?.err_code !== undefined) {
+      responseMetadata.err_code = responseEnvelope.err_code
+    }
+    if (responseEnvelope?.error || execution.error_message) {
+      responseMetadata.error = responseEnvelope?.error || execution.error_message
+    }
+    if (responseEnvelope?.trace_id || execution.trace_id) {
+      responseMetadata.trace_id = responseEnvelope?.trace_id || execution.trace_id
+    }
+
+    return {
+      requestBody,
+      responseBody,
+      responseMetadata,
+      replayContext: {
+        source: 'scheduled_task',
+        title: '定时任务记录回填',
+        taskId: task?.id || execution.task_id,
+        executionId: execution.id,
+        traceId: execution.trace_id || responseMetadata.trace_id,
+        executedAt: execution.executed_at
+      }
+    }
+  }
+
+  function applyExecutionToForm(execution: ScheduledTaskExecutionItem, task?: ScheduledTaskItem | null) {
+    const sourceTask = task || currentExecutionTask.value
+    emit('apply-execution', buildScheduledTaskReplayPayload(sourceTask, execution))
+    executionDetailVisible.value = false
+    executionsVisible.value = false
+  }
+
   watch(
     () => [
       props.resourcePath,
@@ -511,6 +678,7 @@ export function useScheduledTaskList(
     executionsLoading,
     currentTaskName,
     currentExecutionTask,
+    getInlineExecutionState,
     executionFilterForm,
     executionDetailVisible,
     currentExecution,
@@ -531,19 +699,24 @@ export function useScheduledTaskList(
     handleFilterChange,
     handlePageSizeChange,
     resetFilters,
-    handleTaskRowClick,
     canCancelTask,
     handleCancel,
     openTaskDetail,
     handleCancelFromDetail,
     openExecutionsFromDetail,
+    handleTaskExpandChange,
+    refreshInlineExecutions,
+    handleInlineExecutionStatusChange,
+    handleInlineExecutionPageChange,
     openExecutions,
     loadExecutions,
     handleExecutionFilterChange,
     handleExecutionPageSizeChange,
     handleExecutionRowClick,
     openExecutionDetail,
+    openInlineExecutionDetail,
     canOpenFunctionOperateLog,
-    openFunctionOperateLog
+    openFunctionOperateLog,
+    applyExecutionToForm
   }
 }

@@ -46,11 +46,187 @@
       <el-table
         v-else
         :data="list"
+        row-key="id"
+        :preserve-expanded-content="true"
         stripe
         style="width: 100%"
         class="task-table"
-        @row-click="handleTaskRowClick"
+        @expand-change="handleTaskExpandChange"
       >
+        <el-table-column type="expand" width="48">
+          <template #default="{ row }">
+            <div
+              class="task-execution-expand"
+              v-loading="getInlineExecutionState(row.id).loading"
+              @click.stop
+            >
+              <div class="inline-execution-panel">
+                <div class="inline-execution-filter">
+                  <div class="inline-execution-title">执行记录</div>
+                  <el-form
+                    :inline="true"
+                    :model="getInlineExecutionState(row.id)"
+                    class="inline-filter-form"
+                  >
+                    <el-form-item label="状态">
+                      <el-select
+                        v-model="getInlineExecutionState(row.id).status"
+                        placeholder="全部状态"
+                        clearable
+                        size="small"
+                        class="inline-status-select"
+                        @change="handleInlineExecutionStatusChange(row)"
+                      >
+                        <el-option label="全部状态" value="" />
+                        <el-option label="成功" value="success" />
+                        <el-option label="失败" value="failed" />
+                      </el-select>
+                    </el-form-item>
+                    <el-form-item>
+                      <el-button
+                        size="small"
+                        :icon="Refresh"
+                        @click.stop="refreshInlineExecutions(row)"
+                      >
+                        刷新
+                      </el-button>
+                    </el-form-item>
+                  </el-form>
+                </div>
+
+                <el-alert
+                  v-if="getInlineExecutionState(row.id).error"
+                  :title="getInlineExecutionState(row.id).error"
+                  type="error"
+                  show-icon
+                  :closable="false"
+                  class="inline-execution-alert"
+                />
+                <el-empty
+                  v-else-if="
+                    getInlineExecutionState(row.id).loaded &&
+                    getInlineExecutionState(row.id).list.length === 0
+                  "
+                  description="暂无执行记录"
+                  :image-size="56"
+                  class="inline-execution-empty"
+                />
+                <el-table
+                  v-else-if="getInlineExecutionState(row.id).loaded"
+                  :data="getInlineExecutionState(row.id).list"
+                  stripe
+                  size="small"
+                  class="inline-execution-table"
+                  @row-click="openInlineExecutionDetail(row, $event)"
+                >
+                  <el-table-column prop="executed_at" label="执行时间" width="180">
+                    <template #default="{ row: execution }">
+                      {{ formatDateTime(execution.executed_at) }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="status" label="状态" width="100">
+                    <template #default="{ row: execution }">
+                      <el-tag :type="execution.status === 'success' ? 'success' : 'danger'" size="small">
+                        {{ statusLabel(execution.status) }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="error_message" label="错误信息" min-width="240" show-overflow-tooltip>
+                    <template #default="{ row: execution }">{{ execution.error_message || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="耗时" width="120" align="center">
+                    <template #default="{ row: execution }">
+                      <ExecutionDurationTag :duration="getExecutionDuration(execution)" />
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="trace_id" label="Trace ID" min-width="180" show-overflow-tooltip>
+                    <template #default="{ row: execution }">{{ execution.trace_id || '-' }}</template>
+                  </el-table-column>
+                  <el-table-column
+                    label="操作"
+                    :width="canReplayExecution ? 132 : 104"
+                    align="center"
+                    fixed="right"
+                  >
+                    <template #default="{ row: execution }">
+                      <div class="table-row-actions">
+                        <el-tooltip content="执行详情" placement="top" effect="light">
+                          <el-button
+                            class="icon-action-button"
+                            type="primary"
+                            text
+                            :icon="View"
+                            aria-label="执行详情"
+                            @click.stop="openExecutionDetail(execution, row)"
+                          />
+                        </el-tooltip>
+                        <el-tooltip
+                          v-if="canReplayExecution"
+                          content="回填到表单"
+                          placement="top"
+                          effect="light"
+                        >
+                          <el-button
+                            class="icon-action-button"
+                            type="primary"
+                            text
+                            :icon="RefreshLeft"
+                            aria-label="回填到表单"
+                            @click.stop="applyExecutionToForm(execution, row)"
+                          />
+                        </el-tooltip>
+                        <el-tooltip
+                          v-if="canOpenFunctionOperateLog(row)"
+                          content="函数执行记录"
+                          placement="top"
+                          effect="light"
+                        >
+                          <el-button
+                            class="icon-action-button"
+                            type="primary"
+                            text
+                            :icon="Tickets"
+                            aria-label="函数执行记录"
+                            @click.stop="openFunctionOperateLog(execution)"
+                          />
+                        </el-tooltip>
+                      </div>
+                    </template>
+                  </el-table-column>
+                </el-table>
+                <div
+                  v-if="
+                    getInlineExecutionState(row.id).loaded &&
+                    !getInlineExecutionState(row.id).error &&
+                    getInlineExecutionState(row.id).total > 0
+                  "
+                  class="inline-execution-footer"
+                >
+                  <span class="inline-execution-summary">
+                    第 {{ getInlineExecutionState(row.id).page }} 页 / 共
+                    {{ getInlineExecutionState(row.id).total }} 条
+                  </span>
+                  <el-pagination
+                    v-if="getInlineExecutionState(row.id).total > getInlineExecutionState(row.id).pageSize"
+                    small
+                    :current-page="getInlineExecutionState(row.id).page"
+                    :page-size="getInlineExecutionState(row.id).pageSize"
+                    :total="getInlineExecutionState(row.id).total"
+                    :pager-count="5"
+                    layout="prev, pager, next"
+                    class="inline-execution-pagination"
+                    @current-change="handleInlineExecutionPageChange(row, $event)"
+                  />
+                </div>
+                <div
+                  v-if="!getInlineExecutionState(row.id).loaded && !getInlineExecutionState(row.id).error"
+                  class="inline-execution-placeholder"
+                />
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+
         <el-table-column prop="name" label="任务名称" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="task-name">{{ row.name || '未命名任务' }}</span>
@@ -115,23 +291,40 @@
           <template #default="{ row }">{{ formatDateTime(row.created_at) }}</template>
         </el-table-column>
 
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="132" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click.stop="openTaskDetail(row)">
-              详情
-            </el-button>
-            <el-button type="primary" link size="small" @click.stop="openExecutions(row)">
-              执行记录
-            </el-button>
-            <el-button
-              v-if="canCancelTask(row)"
-              type="danger"
-              link
-              size="small"
-              @click.stop="handleCancel(row)"
-            >
-              取消
-            </el-button>
+            <div class="table-row-actions">
+              <el-tooltip content="任务详情" placement="top" effect="light">
+                <el-button
+                  class="icon-action-button"
+                  type="primary"
+                  text
+                  :icon="View"
+                  aria-label="任务详情"
+                  @click.stop="openTaskDetail(row)"
+                />
+              </el-tooltip>
+              <el-tooltip content="全部执行记录" placement="top" effect="light">
+                <el-button
+                  class="icon-action-button"
+                  type="primary"
+                  text
+                  :icon="Tickets"
+                  aria-label="全部执行记录"
+                  @click.stop="openExecutions(row)"
+                />
+              </el-tooltip>
+              <el-tooltip v-if="canCancelTask(row)" content="取消任务" placement="top" effect="light">
+                <el-button
+                  class="icon-action-button"
+                  type="danger"
+                  text
+                  :icon="Close"
+                  aria-label="取消任务"
+                  @click.stop="handleCancel(row)"
+                />
+              </el-tooltip>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -282,7 +475,7 @@
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="taskDetailVisible = false">关闭</el-button>
-          <el-button type="primary" @click="openExecutionsFromDetail">查看执行记录</el-button>
+          <el-button type="primary" @click="openExecutionsFromDetail">查看全部记录</el-button>
           <el-button
             v-if="canCancelTask(currentTask)"
             type="danger"
@@ -355,20 +548,55 @@
         <el-table-column prop="trace_id" label="Trace ID" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">{{ row.trace_id || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column
+          label="操作"
+          :width="canReplayExecution ? 132 : 104"
+          align="center"
+          fixed="right"
+        >
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click.stop="openExecutionDetail(row)">
-              详情
-            </el-button>
-            <el-button
-              v-if="canOpenFunctionOperateLog(currentExecutionTask)"
-              type="primary"
-              link
-              size="small"
-              @click.stop="openFunctionOperateLog(row)"
-            >
-              函数记录
-            </el-button>
+            <div class="table-row-actions">
+              <el-tooltip content="执行详情" placement="top" effect="light">
+                <el-button
+                  class="icon-action-button"
+                  type="primary"
+                  text
+                  :icon="View"
+                  aria-label="执行详情"
+                  @click.stop="openExecutionDetail(row)"
+                />
+              </el-tooltip>
+              <el-tooltip
+                v-if="canReplayExecution"
+                content="回填到表单"
+                placement="top"
+                effect="light"
+              >
+                <el-button
+                  class="icon-action-button"
+                  type="primary"
+                  text
+                  :icon="RefreshLeft"
+                  aria-label="回填到表单"
+                  @click.stop="applyExecutionToForm(row, currentExecutionTask)"
+                />
+              </el-tooltip>
+              <el-tooltip
+                v-if="canOpenFunctionOperateLog(currentExecutionTask)"
+                content="函数执行记录"
+                placement="top"
+                effect="light"
+              >
+                <el-button
+                  class="icon-action-button"
+                  type="primary"
+                  text
+                  :icon="Tickets"
+                  aria-label="函数执行记录"
+                  @click.stop="openFunctionOperateLog(row)"
+                />
+              </el-tooltip>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -442,6 +670,13 @@
           >
             查看函数执行记录
           </el-button>
+          <el-button
+            v-if="currentExecution && canReplayExecution"
+            type="primary"
+            @click="applyExecutionToForm(currentExecution, currentExecutionTask)"
+          >
+            回填到表单
+          </el-button>
         </div>
       </template>
     </el-dialog>
@@ -449,13 +684,15 @@
 </template>
 
 <script setup lang="ts">
-import { withDefaults } from 'vue'
+import { computed, withDefaults } from 'vue'
+import { Close, Refresh, RefreshLeft, Tickets, View } from '@element-plus/icons-vue'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import DepartmentDisplay from '@/shared/components/DepartmentDisplay.vue'
 import ExecutionDurationTag from '@/architecture/presentation/components/ExecutionDurationTag.vue'
 import FunctionExecutionResultReadonly from '@/architecture/presentation/components/FunctionExecutionResultReadonly.vue'
 import { useScheduledTaskList } from '@/architecture/presentation/composables/useScheduledTaskList'
 import type { FunctionDetail } from '@/architecture/domain/types'
+import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 
 const props = withDefaults(
   defineProps<{
@@ -468,7 +705,21 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: 'total-change', total: number): void
   (e: 'open-function-operate-log', payload: { source: 'scheduled_task'; traceId?: string }): void
+  (e: 'apply-execution', payload: {
+    requestBody?: Record<string, any> | null
+    responseBody?: Record<string, any> | null
+    responseMetadata?: Record<string, any> | null
+    replayContext?: {
+      source: 'scheduled_task'
+      title?: string
+      taskId?: number
+      executionId?: number
+      traceId?: string
+      executedAt?: string
+    } | null
+  }): void
 }>()
+const canReplayExecution = computed(() => props.functionDetail?.template_type === TEMPLATE_TYPE.FORM)
 const {
   loading,
   list,
@@ -508,20 +759,26 @@ const {
   handleFilterChange,
   handlePageSizeChange,
   resetFilters,
-  handleTaskRowClick,
   canCancelTask,
   handleCancel,
   openTaskDetail,
   handleCancelFromDetail,
   openExecutionsFromDetail,
+  handleTaskExpandChange,
+  refreshInlineExecutions,
+  handleInlineExecutionStatusChange,
+  handleInlineExecutionPageChange,
+  getInlineExecutionState,
   openExecutions,
   loadExecutions,
   handleExecutionFilterChange,
   handleExecutionPageSizeChange,
   handleExecutionRowClick,
   openExecutionDetail,
+  openInlineExecutionDetail,
   canOpenFunctionOperateLog,
-  openFunctionOperateLog
+  openFunctionOperateLog,
+  applyExecutionToForm
 } = useScheduledTaskList(props, emit)
 </script>
 
@@ -601,8 +858,9 @@ const {
   background: var(--el-bg-color);
 }
 
-.task-table :deep(.el-table__row) {
-  cursor: pointer;
+.task-table :deep(.el-table__expanded-cell) {
+  padding: 0;
+  background: var(--el-fill-color);
 }
 
 .task-name {
@@ -645,6 +903,207 @@ const {
 .executions-pagination {
   margin-top: 16px;
   justify-content: flex-end;
+}
+
+.task-execution-expand {
+  position: relative;
+  min-height: 72px;
+  padding: 10px 14px 10px 58px;
+  background: var(--el-fill-color-light);
+  box-shadow: inset 0 1px 0 var(--el-border-color-lighter);
+}
+
+.task-execution-expand::before {
+  content: '';
+  position: absolute;
+  left: 30px;
+  top: 14px;
+  bottom: 14px;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--el-border-color);
+}
+
+.inline-execution-panel {
+  overflow: hidden;
+  border: 1px solid var(--app-auth-card-border, var(--el-border-color-lighter));
+  border-radius: 12px;
+  background: var(--app-auth-card-bg, var(--el-bg-color));
+  box-shadow: var(--app-auth-card-shadow-soft, 0 8px 24px rgba(15, 23, 42, 0.06));
+}
+
+.inline-execution-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 46px;
+  padding: 8px 12px;
+  margin: 0;
+  border-bottom: 1px solid var(--app-auth-card-border, var(--el-border-color-lighter));
+  background: var(--app-auth-card-bg, var(--el-bg-color));
+}
+
+.inline-execution-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.inline-filter-form {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.inline-filter-form :deep(.el-form-item) {
+  margin: 0;
+}
+
+.inline-filter-form :deep(.el-form-item__label) {
+  padding-right: 6px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.inline-filter-form :deep(.el-form-item__content) {
+  line-height: 1;
+}
+
+.inline-status-select {
+  width: 136px;
+}
+
+.inline-filter-form :deep(.el-select__wrapper) {
+  min-height: 30px;
+  border-radius: 10px;
+  background: var(--app-auth-input-bg, var(--el-bg-color));
+  border-color: var(--app-auth-input-border, var(--el-border-color));
+  box-shadow: none;
+}
+
+.inline-filter-form :deep(.el-button) {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--app-auth-input-border, var(--el-border-color));
+  border-radius: 10px;
+  background: var(--app-auth-input-bg, var(--el-bg-color));
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.inline-filter-form :deep(.el-button:hover),
+.inline-filter-form :deep(.el-select__wrapper:hover) {
+  border-color: rgba(var(--el-color-primary-rgb), 0.42);
+  box-shadow: var(--app-auth-input-shadow-hover, none);
+}
+
+.inline-execution-summary {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+
+.inline-execution-placeholder {
+  min-height: 40px;
+}
+
+.inline-execution-alert,
+.inline-execution-empty {
+  background: transparent;
+}
+
+.inline-execution-alert {
+  margin: 10px 12px;
+}
+
+.inline-execution-empty {
+  padding: 10px 0 14px;
+}
+
+.inline-execution-table {
+  --el-table-bg-color: var(--app-auth-card-bg, var(--el-bg-color));
+  --el-table-tr-bg-color: var(--app-auth-card-bg, var(--el-bg-color));
+  --el-table-header-bg-color: var(--app-shell-panel-muted-bg, var(--el-fill-color-lighter));
+  --el-table-row-hover-bg-color: var(--el-fill-color-light);
+  border-top: 0;
+  border-bottom: 0;
+  border-radius: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.inline-execution-table :deep(.el-table__header-wrapper th.el-table__cell) {
+  background: var(--app-shell-panel-muted-bg, var(--el-fill-color-lighter));
+  color: var(--el-text-color-secondary);
+  font-weight: 500;
+}
+
+.inline-execution-table :deep(.el-table__cell) {
+  padding: 7px 0;
+}
+
+.inline-execution-table :deep(td.el-table__cell) {
+  background: var(--app-auth-card-bg, var(--el-bg-color));
+}
+
+.inline-execution-table :deep(td.el-table-fixed-column--right) {
+  background: var(--app-auth-card-bg, var(--el-bg-color));
+}
+
+.inline-execution-table :deep(th.el-table-fixed-column--right) {
+  background: var(--app-shell-panel-muted-bg, var(--el-fill-color-lighter));
+}
+
+.inline-execution-table :deep(.el-table__row) {
+  cursor: pointer;
+}
+
+.inline-execution-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+  padding: 4px 12px;
+  border-top: 1px solid var(--app-auth-card-border, var(--el-border-color-lighter));
+  background: var(--app-shell-panel-muted-bg, var(--el-fill-color-lighter));
+}
+
+.inline-execution-pagination {
+  --el-pagination-bg-color: transparent;
+  --el-pagination-button-bg-color: transparent;
+}
+
+.table-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.table-row-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
+.icon-action-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+}
+
+.icon-action-button:hover {
+  background: var(--el-fill-color);
 }
 
 .detail-overview {
@@ -780,6 +1239,7 @@ const {
 
   .section-header,
   .filter-section,
+  .inline-execution-filter,
   .execution-toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -787,6 +1247,34 @@ const {
 
   .section-actions {
     justify-content: space-between;
+  }
+
+  .task-execution-expand {
+    padding: 8px 8px 8px 28px;
+  }
+
+  .task-execution-expand::before {
+    left: 14px;
+    top: 10px;
+    bottom: 10px;
+  }
+
+  .inline-filter-form {
+    justify-content: flex-start;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .inline-status-select {
+    width: 100%;
+  }
+
+  .inline-execution-title {
+    flex-wrap: wrap;
+  }
+
+  .inline-execution-summary {
+    width: 100%;
   }
 
   .filter-summary {
