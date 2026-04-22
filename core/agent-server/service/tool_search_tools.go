@@ -162,7 +162,7 @@ func formatSearchToolsOutput(keywordRaw string, matchedTools []dto.ToolDef, func
 		if keywordRaw == "" {
 			buf.WriteString("按调用次数从高到低，仅 system 用户下。\n")
 		} else {
-			buf.WriteString("调用方式：form → run_form_submit，table → 默认先 run_table_search，仅在函数能力摘要明确支持写入时再用 run_table_create/run_table_update，chart → run_chart_query。\n")
+			buf.WriteString("调用方式：form → run_form_submit，table → 默认先 run_table_search，仅在函数能力摘要明确支持写入时再用 run_table_create/run_table_batch_create/run_table_update/run_table_delete，chart → run_chart_query。\n")
 		}
 		for i, fn := range functions {
 			buf.WriteString(formatSearchToolFunctionSummary(i, fn))
@@ -194,7 +194,7 @@ func formatSearchToolsLegacyOutput(keywordRaw string, matchedTools []dto.ToolDef
 		if keywordRaw == "" {
 			buf.WriteString("【已注册函数】（按调用次数从高到低，仅 system 用户下）\n")
 		} else {
-			buf.WriteString("【已注册函数】（仅 system 用户下）调用方式：form → run_form_submit，table → 默认先 run_table_search，仅在函数能力摘要明确支持写入时再用 run_table_create/run_table_update，chart → run_chart_query。\n")
+			buf.WriteString("【已注册函数】（仅 system 用户下）调用方式：form → run_form_submit，table → 默认先 run_table_search，仅在函数能力摘要明确支持写入时再用 run_table_create/run_table_batch_create/run_table_update/run_table_delete，chart → run_chart_query。\n")
 		}
 		buf.WriteString(formatSearchToolsLegacyFunctionRequests(functions))
 	}

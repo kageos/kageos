@@ -76,6 +76,10 @@ type DisplayCreateTableFieldSample struct {
 	Options []VoteOptionItemSample `json:"options" widget:"name:投票选项;type:table" display:"scenes:create"`
 }
 
+type EmptyDisplayScenesFieldSample struct {
+	Title string `json:"title" widget:"name:标题;type:input" display:"scenes:"`
+}
+
 func TestDecodeForm(t *testing.T) {
 	t.Run("基础Form解析-包含table和form嵌套", func(t *testing.T) {
 		order := &Order{}
@@ -261,6 +265,19 @@ func TestDecodeForm(t *testing.T) {
 		}
 		if len(fields[0].Children) != 2 {
 			t.Fatalf("table children = %d, want 2", len(fields[0].Children))
+		}
+	})
+
+	t.Run("空display scenes按未配置处理", func(t *testing.T) {
+		fields, _, err := DecodeForm(nil, &EmptyDisplayScenesFieldSample{}, nil)
+		if err != nil {
+			t.Fatalf("解析失败: %v", err)
+		}
+		if len(fields) != 1 {
+			t.Fatalf("期望1个字段，实际得到%d个", len(fields))
+		}
+		if fields[0].Display != nil {
+			t.Fatalf("Display = %#v, want nil", fields[0].Display)
 		}
 	})
 

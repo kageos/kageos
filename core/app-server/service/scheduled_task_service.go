@@ -382,10 +382,7 @@ func scheduledTaskTemplateType(function *model.Function) string {
 	if function == nil {
 		return ""
 	}
-	if schemaType := functionschema.Type(function.Schema); schemaType != "" {
-		return schemaType
-	}
-	return strings.TrimSpace(function.TemplateType)
+	return functionschema.Type(function.Schema)
 }
 
 func scheduledTaskPermissionAction(templateType, action, method string) (string, error) {
@@ -743,7 +740,7 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 		s.finishExecution(taskCtx, task, nil, nil, "failed", err.Error(), traceId, executedAt, elapsedMillis(), scheduledAt, false)
 		return
 	}
-	_, effectiveMethod, err := s.validateScheduledTaskTarget(runCtx, task.FullCodePath, action, task.Method, requestUser)
+	function, effectiveMethod, err := s.validateScheduledTaskTarget(runCtx, task.FullCodePath, action, task.Method, requestUser)
 	if err != nil {
 		s.finishExecution(taskCtx, task, nil, nil, "failed", err.Error(), traceId, executedAt, elapsedMillis(), scheduledAt, false)
 		return
@@ -760,7 +757,7 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 	req, callbackType, tableBodyBytes, err := s.buildTaskRequest(runCtx, task, user, appName, routerPath, effectiveMethod, traceId, token, requestUser, bodyBytes)
 	if err != nil {
 		duration := elapsedMillis()
-		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, task.Payload, nil, err, traceId, duration)
+		s.recordFunctionOperateLog(taskCtx, task, function, user, appName, routerPath, task.Payload, nil, err, traceId, duration)
 		s.finishExecution(taskCtx, task, task.Payload, nil, "failed", err.Error(), traceId, executedAt, duration, scheduledAt, false)
 		return
 	}
@@ -775,14 +772,14 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 	reqBody := req.Body
 	if err != nil {
 		duration := elapsedMillis()
-		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, err, traceId, duration)
+		s.recordFunctionOperateLog(taskCtx, task, function, user, appName, routerPath, reqBody, resp, err, traceId, duration)
 		s.finishExecution(taskCtx, task, reqBody, respBody, "failed", err.Error(), traceId, executedAt, duration, scheduledAt, false)
 		return
 	}
 	if resp == nil {
 		errMsg := "应用响应为空"
 		duration := elapsedMillis()
-		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, errors.New(errMsg), traceId, duration)
+		s.recordFunctionOperateLog(taskCtx, task, function, user, appName, routerPath, reqBody, resp, errors.New(errMsg), traceId, duration)
 		s.finishExecution(taskCtx, task, reqBody, respBody, "failed", errMsg, traceId, executedAt, duration, scheduledAt, false)
 		return
 	}
@@ -794,13 +791,13 @@ func (s *ScheduledTaskService) executeOne(ctx context.Context, task *model.Sched
 			errMsg = fmt.Sprintf("%s (err_code=%d)", errMsg, resp.ErrCode)
 		}
 		duration := elapsedMillis()
-		s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, nil, traceId, duration)
+		s.recordFunctionOperateLog(taskCtx, task, function, user, appName, routerPath, reqBody, resp, nil, traceId, duration)
 		s.finishExecution(taskCtx, task, reqBody, respBody, "failed", errMsg, traceId, executedAt, duration, scheduledAt, false)
 		return
 	}
 	duration := elapsedMillis()
 	s.incrementScheduledFunctionRunCount(taskCtx, task.FullCodePath)
-	s.recordFunctionOperateLog(taskCtx, task, user, appName, routerPath, reqBody, resp, nil, traceId, duration)
+	s.recordFunctionOperateLog(taskCtx, task, function, user, appName, routerPath, reqBody, resp, nil, traceId, duration)
 	s.finishExecution(taskCtx, task, reqBody, respBody, "success", "", traceId, executedAt, duration, scheduledAt, true)
 }
 
@@ -1222,12 +1219,15 @@ func scheduledTaskBodyIDs(bodyData map[string]interface{}) []int64 {
 	return rowIDs
 }
 
-func (s *ScheduledTaskService) recordFunctionOperateLog(ctx context.Context, task *model.ScheduledTask, user, appName, routerPath string, requestPayload []byte, resp *dto.RequestAppResp, requestErr error, traceID string, durationMillis int64) {
+func (s *ScheduledTaskService) recordFunctionOperateLog(ctx context.Context, task *model.ScheduledTask, function *model.Function, user, appName, routerPath string, requestPayload []byte, resp *dto.RequestAppResp, requestErr error, traceID string, durationMillis int64) {
 	if s.appClient == nil {
 		return
 	}
 	action, err := normalizeScheduledTaskAction(task.Action)
 	if err != nil || action != ScheduledTaskActionExecute {
+		return
+	}
+	if scheduledTaskTemplateType(function) != functionschema.TypeForm {
 		return
 	}
 

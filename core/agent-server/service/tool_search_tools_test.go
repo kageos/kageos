@@ -107,6 +107,12 @@ func TestFormatSearchToolFunctionSummaryIncludesTableCapabilities(t *testing.T) 
 	if !strings.Contains(out, "capabilities: read-only") {
 		t.Fatalf("expected read-only capabilities, got:\n%s", out)
 	}
+
+	fn.Callbacks = []string{"OnTableAddRow", "OnTableCreateInBatches", "OnTableUpdateRow", "OnTableDeleteRows"}
+	out = formatSearchToolFunctionSummary(0, fn)
+	if !strings.Contains(out, "capabilities: read, create, batch-create, update, delete") {
+		t.Fatalf("expected executable table capabilities with batch-create, got:\n%s", out)
+	}
 }
 
 func testSearchToolField(code, name, widgetType string, config map[string]interface{}, validation string) *widget.Field {

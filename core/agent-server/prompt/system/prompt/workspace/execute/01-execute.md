@@ -1,13 +1,13 @@
 # 操作项目
 
-当用户要**查列表数据、提交表单、查图表、新增/更新表格记录**等执行类操作时，按本文档执行。不写代码、不落盘，只调用执行类工具。
+当用户要**查列表数据、提交表单、查图表、新增/批量导入/更新/删除表格记录**等执行类操作时，按本文档执行。不写代码、不落盘，只调用执行类工具。
 
 ---
 
 ## 操作 SOP
 
 1. **确认路径**：环境信息中的「可执行函数」已列出 table/form/chart 的 full_code_path，可直接用。
-2. **选对工具**：查列表 → `run_table_search`；新增 → `run_table_create`；更新 → `run_table_update`；提交表单 → `run_form_submit`；查图表 → `run_chart_query`；**测试下拉模糊搜索/回调查询** → `run_on_select_fuzzy`（仅支持按关键词或空关键词：传 full_code_path、code、可选 keyword；不支持 by_value/by_values，用于验证 OnSelectFuzzy 回调是否正常）。
+2. **选对工具**：查列表 → `run_table_search`；新增 → `run_table_create`；批量导入 → `run_table_batch_create`；更新 → `run_table_update`；删除 → `run_table_delete`；提交表单 → `run_form_submit`；查图表 → `run_chart_query`；**测试下拉模糊搜索/回调查询** → `run_on_select_fuzzy`（仅支持按关键词或空关键词：传 full_code_path、code、可选 keyword；不支持 by_value/by_values，用于验证 OnSelectFuzzy 回调是否正常）。
 3. **传参**：full_code_path 须到**具体函数名**（如 `.../nps_questionnaire_list.table`），不能只填包路径。路由名带类型后缀：`.table` / `.form` / `.chart`。
 4. **确认参数结构**：执行前必须已有该函数的字段摘要或源码定义。环境列表只提供路径，不提供完整参数；若上下文没有字段名、必填项、枚举值、文件字段和默认值行为，先用 `search_tools` 获取字段摘要，或 `read_go_file` 查看 Request/model 定义。
 5. 调用执行工具。
@@ -54,7 +54,15 @@
 ```
 键名与 model 的 json 标签一致。create_by、created_at、updated_at 由系统自动填充。`datetime` 字段传 `YYYY-MM-DD HH:mm:ss` 字符串。若 model 有 files 类型字段（如 attachment、resume_file），该字段须传文件引用字符串，见下方「带上传文件时」。
 
-### 3. run_form_submit：body 为 JSON 对象
+### 3. run_table_batch_create：body 必须是 JSON 对象
+
+仅当能力摘要包含 `batch-create`（`schema.callbacks` 包含 `OnTableCreateInBatches`）时使用：
+```json
+{"data":[{"title":"问卷A","description":"描述"},{"title":"问卷B","description":"描述"}]}
+```
+普通逐条新增优先用 `run_table_create`；批量导入会把整个 `data` 数组一次性交给后端回调处理。
+
+### 4. run_form_submit：body 为 JSON 对象
 
 ```json
 {"questionnaire_id":1,"score":8,"comment":"满意"}
@@ -63,9 +71,9 @@
 
 提交前先确认该 Form 的 Request 字段：看字段的 `json` 名、`validate:"required"`、`oneof`/`widget` options。字段摘要里的「渲染默认值」只是前端界面初始值，不会自动进入 body。
 
-**带上传文件时**：**表单（run_form_submit）和表格（run_table_create、run_table_update）** 里若有 `widget.type === "files"` 的字段（如 input_files、attachment、resume_file），该字段传**字符串**，值为 `bucket/object_key` 文件引用；多文件用英文逗号分隔。示例：`{"input_files":"ai-agent-os/workspace/chat/2026/04/20/xxx.png"}`，多文件：`{"attachment":"ai-agent-os/a.pdf,ai-agent-os/b.xlsx"}`。
+**带上传文件时**：**表单（run_form_submit）和表格（run_table_create、run_table_batch_create、run_table_update）** 里若有 `widget.type === "files"` 的字段（如 input_files、attachment、resume_file），该字段传**字符串**，值为 `bucket/object_key` 文件引用；多文件用英文逗号分隔。示例：`{"input_files":"ai-agent-os/workspace/chat/2026/04/20/xxx.png"}`，多文件：`{"attachment":"ai-agent-os/a.pdf,ai-agent-os/b.xlsx"}`。
 
-### 4. run_chart_query：url_query 由该 Chart 的 Request 决定
+### 5. run_chart_query：url_query 由该 Chart 的 Request 决定
 
 一个 Chart 路由一次只返回一张图。full_code_path 须到具体图表函数名，多张图需分别调用。参数看对应 .go 的 Request 结构。
 
@@ -74,13 +82,21 @@
 - 更推荐的模式是：时间范围作为主筛选，`status/department/store` 这类业务维度直接展开成多组 `series` 做对比。
 - 例如“工单趋势统计”可以直接同时展示 `待处理/处理中/已完成` 三条折线，而不是先让用户选一个状态。
 
-### 5. run_table_update：body 为 JSON 数组
+### 6. run_table_update：body 为 JSON 数组
 
 每项为 `{ "id": 行ID, "updates": { "字段名": 新值 } }`：
 ```json
 [{"id":1,"updates":{"status":"已处理","title":"新标题"}}]
 ```
 若 updates 中含 files 类型字段，该字段须传文件引用字符串，见上方「带上传文件时」。
+
+### 7. run_table_delete：body 为 JSON 数组
+
+每项为要删除的行 ID：
+```json
+[1,2,3]
+```
+执行前必须确认该表能力摘要里有删除能力（`schema.callbacks` 包含 `OnTableDeleteRows`）。删除是破坏性操作，除非用户明确要求删除，否则不要主动调用。
 
 ---
 

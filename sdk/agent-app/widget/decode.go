@@ -160,7 +160,7 @@ func buildFieldDisplay(tags *FieldTags) *FieldDisplay {
 
 	rawScenes, ok := tags.DisplayParsed["scenes"]
 	if !ok {
-		return &FieldDisplay{Scenes: []string{}}
+		return nil
 	}
 
 	parts := strings.Split(rawScenes, ",")
@@ -170,6 +170,9 @@ func buildFieldDisplay(tags *FieldTags) *FieldDisplay {
 		if scene != "" {
 			scenes = append(scenes, scene)
 		}
+	}
+	if len(scenes) == 0 {
+		return nil
 	}
 	return &FieldDisplay{Scenes: scenes}
 }

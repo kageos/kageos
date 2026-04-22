@@ -13,7 +13,7 @@
 | 类型 | 用途 | 交互方式 | 典型场景 | 调用方式 |
 |------|------|----------|----------|----------|
 | **form** | **干一件事、算一个结果**：一次提交、一次返回，不管理「一堆记录」。 | 用户填参数（输入框、选择、上传文件等）→ 提交 → 得到一份结果（文件、文本、图片等）。 | 图片/视频转格式、解析 Excel、根据内容生成文档、**根据数据生成一张图**（如「帮我画个折线图」且用户给了数据或要你算数据再出图）、调用某个 API、压缩文件。 | `run_form_submit(full_code_path, body)` |
-| **table** | **管理一批记录**：增删改查「行数据」，有 id、多行、可筛选。 | 查列表（run_table_search）、新增行（run_table_create）、改行（run_table_update）、删行。数据持久在库里。 | 问卷列表、工单、客户表、订单、任何「要查列表 / 加一条 / 改一条 / 删一条」的业务。 | `run_table_search` / `run_table_create` / `run_table_update` |
+| **table** | **管理一批记录**：增删改查「行数据」，有 id、多行、可筛选。 | 查列表（run_table_search）、新增行（run_table_create）、批量导入（run_table_batch_create）、改行（run_table_update）、删行（run_table_delete）。数据持久在库里。 | 问卷列表、工单、客户表、订单、任何「要查列表 / 加一条 / 批量导入 / 改一条 / 删一条」的业务。 | `run_table_search` / `run_table_create` / `run_table_batch_create` / `run_table_update` / `run_table_delete` |
 | **chart** | **把已有数据画成图表展示**：数据通常来自某张 table 或已配置的数据源，用户是「看图表」「查图表」。 | 传查询条件 → 返回图表配置或数据（用于前端渲染折线/饼图等）。**不**是「用户给一串数据请你生成一张图」那种。 | 销售趋势图、占比饼图、某张业务表的统计图表；用户说「看一下 XX 的图表」「查一下 XX 数据图」时。 | `run_chart_query(full_code_path, body)` |
 
 **结构约束**：Form 的 Request/Response 不能使用 Chart 结构（如 chart_type、series、x_axis 等）；若需返回图表数据，必须用 Chart 路由（ChartTemplate + run_chart_query），不得在 Form 里塞图表结构。
@@ -61,7 +61,7 @@
 
 ## files 组件传参
 
-**表单（run_form_submit）的 request 与表格（run_table_create、run_table_update）的 model** 里凡是 `widget.type === "files"` 的字段，传参时须为**字符串文件引用**，格式为 `bucket/object_key`；多文件用英文逗号分隔。
+**表单（run_form_submit）的 request 与表格（run_table_create、run_table_batch_create、run_table_update）的 model** 里凡是 `widget.type === "files"` 的字段，传参时须为**字符串文件引用**，格式为 `bucket/object_key`；多文件用英文逗号分隔。
 
 示例：
 ```json
