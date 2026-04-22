@@ -3963,6 +3963,101 @@
                 }
             }
         },
+        "/workspace/api/v1/service_tree/search_resources": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "根据关键词搜索目录、函数、文档和讨论区，支持分页",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务目录"
+                ],
+                "summary": "全站资源搜索",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "用户名（可选，用于过滤应用）",
+                        "name": "user",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "应用名（可选，用于过滤应用）",
+                        "name": "app",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索关键词",
+                        "name": "keyword",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "资源类型（all/package/function/docs/board）",
+                        "name": "resource_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "搜索成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SearchResourcesResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/workspace/api/v1/table/batch-create/{full-code-path}": {
             "post": {
                 "security": [
@@ -4568,8 +4663,7 @@
                     "type": "string"
                 },
                 "schema": {
-                    "description": "统一函数 Schema",
-                    "type": "object"
+                    "$ref": "#/definitions/functionschema.FunctionSchema"
                 },
                 "source_code": {
                     "type": "string"
@@ -5744,6 +5838,17 @@
                     "type": "string",
                     "example": "system"
                 },
+                "callbacks": {
+                    "description": "函数回调能力摘要",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "OnTableAddRow",
+                        "OnTableUpdateRow"
+                    ]
+                },
                 "code": {
                     "description": "函数代码",
                     "type": "string",
@@ -5769,20 +5874,17 @@
                     "type": "string",
                     "example": "表格解析"
                 },
-                "callbacks": {
-                    "description": "函数级回调能力摘要",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
                 "run_count": {
                     "description": "运行次数（用于 search_tools 按热度排序）",
                     "type": "integer"
                 },
                 "schema": {
-                    "description": "统一函数 Schema",
-                    "type": "object"
+                    "description": "函数 schema 摘要",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/functionschema.FunctionSchema"
+                        }
+                    ]
                 },
                 "template_type": {
                     "description": "模板类型（form、table、chart）",
@@ -6061,13 +6163,17 @@
                     "example": "/crm/crm_ticket"
                 },
                 "schema": {
-                    "description": "统一函数 Schema",
-                    "type": "object"
+                    "description": "函数配置 schema",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/functionschema.FunctionSchema"
+                        }
+                    ]
                 },
                 "template_type": {
-                    "description": "模板类型",
+                    "description": "模板类型（form、table、chart）",
                     "type": "string",
-                    "example": "default"
+                    "example": "table"
                 },
                 "tree_id": {
                     "description": "服务目录ID",
@@ -7119,6 +7225,72 @@
                 }
             }
         },
+        "dto.ResourceSearchResult": {
+            "type": "object",
+            "properties": {
+                "app_code": {
+                    "description": "应用代码",
+                    "type": "string"
+                },
+                "app_id": {
+                    "description": "应用 ID",
+                    "type": "integer"
+                },
+                "app_user": {
+                    "description": "应用所属用户",
+                    "type": "string"
+                },
+                "code": {
+                    "description": "资源代码",
+                    "type": "string",
+                    "example": "table_parse"
+                },
+                "description": {
+                    "description": "描述",
+                    "type": "string"
+                },
+                "full_code_path": {
+                    "description": "完整路径",
+                    "type": "string",
+                    "example": "/system/app/a"
+                },
+                "id": {
+                    "description": "ServiceTree 节点 ID",
+                    "type": "integer",
+                    "example": 1
+                },
+                "match_source": {
+                    "description": "命中来源：node/doc",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "资源名称",
+                    "type": "string",
+                    "example": "表格解析"
+                },
+                "run_count": {
+                    "description": "运行次数",
+                    "type": "integer"
+                },
+                "snippet": {
+                    "description": "命中摘要",
+                    "type": "string"
+                },
+                "tags": {
+                    "description": "标签",
+                    "type": "string"
+                },
+                "template_type": {
+                    "description": "函数模板类型",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "资源类型",
+                    "type": "string",
+                    "example": "function"
+                }
+            }
+        },
         "dto.SearchDocsResp": {
             "type": "object",
             "properties": {
@@ -7151,6 +7323,30 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/dto.FunctionSearchResult"
+                    }
+                },
+                "page": {
+                    "description": "当前页码",
+                    "type": "integer"
+                },
+                "page_size": {
+                    "description": "每页数量",
+                    "type": "integer"
+                },
+                "total": {
+                    "description": "总数",
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.SearchResourcesResp": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "description": "搜索结果",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ResourceSearchResult"
                     }
                 },
                 "page": {
@@ -7273,14 +7469,18 @@
                     "description": "用户名",
                     "type": "string",
                     "example": "beiluo"
+                },
+                "warnings": {
+                    "description": "非阻断告警（如发布成功但元数据同步失败）",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
         "dto.UpdateBoardReq": {
             "type": "object",
-            "required": [
-                "id"
-            ],
             "properties": {
                 "admins": {
                     "type": "string"
@@ -7289,6 +7489,7 @@
                     "type": "string"
                 },
                 "id": {
+                    "description": "由 path 提供，body 可不传",
                     "type": "integer"
                 },
                 "name": {
@@ -7332,7 +7533,7 @@
                     "example": "user1,user2"
                 },
                 "code": {
-                    "description": "文档代码（指针类型，nil=不更新，\"\"=清空）",
+                    "description": "文档代码（暂不支持修改；nil=不更新）",
                     "type": "string",
                     "example": "api_docs"
                 },
@@ -7377,7 +7578,7 @@
             "type": "object",
             "properties": {
                 "code": {
-                    "description": "函数代码（指针类型，nil=不更新，\"\"=清空）",
+                    "description": "函数代码（暂不支持修改；nil=不更新）",
                     "type": "string",
                     "example": "user_list"
                 },
@@ -7412,7 +7613,7 @@
                     "example": "user1,user2"
                 },
                 "code": {
-                    "description": "目录代码（指针类型，nil=不更新，\"\"=清空）",
+                    "description": "目录代码（暂不支持修改；nil=不更新）",
                     "type": "string",
                     "example": "user"
                 },
@@ -7440,9 +7641,6 @@
         },
         "dto.UpdatePostReq": {
             "type": "object",
-            "required": [
-                "id"
-            ],
             "properties": {
                 "content": {
                     "type": "string"
@@ -7457,6 +7655,7 @@
                     }
                 },
                 "id": {
+                    "description": "由 path 提供，body 可不传",
                     "type": "integer"
                 },
                 "status": {
@@ -7534,6 +7733,83 @@
                 },
                 "user": {
                     "type": "string"
+                }
+            }
+        },
+        "functionschema.ChartSchema": {
+            "type": "object",
+            "properties": {
+                "request": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/widget.Field"
+                    }
+                },
+                "response": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/widget.Field"
+                    }
+                }
+            }
+        },
+        "functionschema.FormSchema": {
+            "type": "object",
+            "properties": {
+                "request": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/widget.Field"
+                    }
+                },
+                "response": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/widget.Field"
+                    }
+                }
+            }
+        },
+        "functionschema.FunctionSchema": {
+            "type": "object",
+            "properties": {
+                "callbacks": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "chart": {
+                    "$ref": "#/definitions/functionschema.ChartSchema"
+                },
+                "form": {
+                    "$ref": "#/definitions/functionschema.FormSchema"
+                },
+                "table": {
+                    "$ref": "#/definitions/functionschema.TableSchema"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "functionschema.TableSchema": {
+            "type": "object",
+            "properties": {
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/widget.Field"
+                    }
+                },
+                "request": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/widget.Field"
+                    }
                 }
             }
         },
@@ -7765,6 +8041,14 @@
                     "description": "字段描述，用于 placeholder 等",
                     "type": "string"
                 },
+                "display": {
+                    "description": "前端展示场景；不配置表示列表/新增/编辑均展示，如 {\"scenes\":[\"list\"]}",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/widget.FieldDisplay"
+                        }
+                    ]
+                },
                 "field_name": {
                     "description": "Go 字段名，用于验证规则中的字段引用（如 required_if=MemberType vip）",
                     "type": "string"
@@ -7776,19 +8060,6 @@
                 "search": {
                     "description": "搜索类型，如 \"like\", \"eq\", \"in\" 等",
                     "type": "string"
-                },
-                "display": {
-                    "description": "字段展示场景配置；不存在表示 list/create/update 全部展示",
-                    "type": "object",
-                    "properties": {
-                        "scenes": {
-                            "description": "展示场景：list,create,update",
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
                 },
                 "validation": {
                     "description": "验证规则，完全照搬 github.com/go-playground/validator/v10",
@@ -7822,6 +8093,18 @@
                 "type": {
                     "description": "数据类型（string/int/float/bool等），建议保留用于类型判断",
                     "type": "string"
+                }
+            }
+        },
+        "widget.FieldDisplay": {
+            "type": "object",
+            "properties": {
+                "scenes": {
+                    "description": "Scenes 控制前端在哪些界面渲染字段：list=列表，create=新增表单，update=编辑表单。",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         }

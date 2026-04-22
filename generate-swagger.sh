@@ -25,7 +25,11 @@ if ! command -v swag &> /dev/null; then
 fi
 
 # 显示swag版本
-echo -e "${BLUE}使用swag版本: $(swag version)${NC}"
+swag_version() {
+    swag --version 2>/dev/null || swag -v 2>/dev/null || echo "unknown"
+}
+
+echo -e "${BLUE}使用swag版本: $(swag_version)${NC}"
 echo ""
 
 # 定义需要生成Swagger的服务列表

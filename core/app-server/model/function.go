@@ -69,14 +69,6 @@ func (f *Function) HasCallback(target string) bool {
 	return false
 }
 
-// GetTemplateType 获取模板类型
-func (f *Function) GetTemplateType() string {
-	if f.TemplateType == "" {
-		return "default"
-	}
-	return f.TemplateType
-}
-
 // IsGET 判断是否为GET请求
 func (f *Function) IsGET() bool {
 	return f.Method == "GET"

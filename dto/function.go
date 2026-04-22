@@ -16,7 +16,7 @@ type GetFunctionResp struct {
 	Router       string                         `json:"router" example:"/crm/crm_ticket"`                          // 路由路径
 	HasConfig    bool                           `json:"has_config" example:"true"`                                 // 是否有配置
 	CreateTables string                         `json:"create_tables" example:"users,orders"`                      // 创建的表
-	TemplateType string                         `json:"template_type" example:"default"`                           // 模板类型
+	TemplateType string                         `json:"template_type" example:"table"`                             // 模板类型（form、table、chart）
 	Schema       *functionschema.FunctionSchema `json:"schema"`                                                    // 函数配置 schema
 	CreatedAt    string                         `json:"created_at" example:"2024-01-01T00:00:00Z"`                 // 创建时间
 	UpdatedAt    string                         `json:"updated_at" example:"2024-01-01T00:00:00Z"`                 // 更新时间
@@ -46,7 +46,7 @@ type FunctionInfo struct {
 	HasConfig    bool     `json:"has_config" example:"true"`                                    // 是否有配置
 	CreateTables string   `json:"create_tables" example:"users,orders"`                         // 创建的表
 	Callbacks    []string `json:"callbacks,omitempty" example:"OnTableAddRow,OnTableUpdateRow"` // 回调函数摘要
-	TemplateType string   `json:"template_type" example:"default"`                              // 模板类型
+	TemplateType string   `json:"template_type" example:"table"`                                // 模板类型（form、table、chart）
 	CreatedAt    string   `json:"created_at" example:"2024-01-01T00:00:00Z"`                    // 创建时间
 	UpdatedAt    string   `json:"updated_at" example:"2024-01-01T00:00:00Z"`                    // 更新时间
 	Name         string   `json:"name" example:"工单管理"`                                          // 函数名称（从 ServiceTree 获取）

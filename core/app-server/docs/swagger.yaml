@@ -106,8 +106,7 @@ definitions:
       router:
         type: string
       schema:
-        description: 统一函数 Schema
-        type: object
+        $ref: '#/definitions/functionschema.FunctionSchema'
       source_code:
         type: string
       source_code_file_path:
@@ -986,6 +985,14 @@ definitions:
         description: 应用所属用户
         example: system
         type: string
+      callbacks:
+        description: 函数回调能力摘要
+        example:
+        - OnTableAddRow
+        - OnTableUpdateRow
+        items:
+          type: string
+        type: array
       code:
         description: 函数代码
         example: table_parse
@@ -1006,17 +1013,13 @@ definitions:
         description: 函数名称
         example: 表格解析
         type: string
-      callbacks:
-        description: 函数级回调能力摘要
-        items:
-          type: string
-        type: array
       run_count:
         description: 运行次数（用于 search_tools 按热度排序）
         type: integer
       schema:
-        description: 统一函数 Schema
-        type: object
+        allOf:
+        - $ref: '#/definitions/functionschema.FunctionSchema'
+        description: 函数 schema 摘要
       template_type:
         description: 模板类型（form、table、chart）
         example: form
@@ -1217,11 +1220,12 @@ definitions:
         example: /crm/crm_ticket
         type: string
       schema:
-        description: 统一函数 Schema
-        type: object
+        allOf:
+        - $ref: '#/definitions/functionschema.FunctionSchema'
+        description: 函数配置 schema
       template_type:
-        description: 模板类型
-        example: default
+        description: 模板类型（form、table、chart）
+        example: table
         type: string
       tree_id:
         description: 服务目录ID
@@ -1985,6 +1989,56 @@ definitions:
         example: user
         type: string
     type: object
+  dto.ResourceSearchResult:
+    properties:
+      app_code:
+        description: 应用代码
+        type: string
+      app_id:
+        description: 应用 ID
+        type: integer
+      app_user:
+        description: 应用所属用户
+        type: string
+      code:
+        description: 资源代码
+        example: table_parse
+        type: string
+      description:
+        description: 描述
+        type: string
+      full_code_path:
+        description: 完整路径
+        example: /system/app/a
+        type: string
+      id:
+        description: ServiceTree 节点 ID
+        example: 1
+        type: integer
+      match_source:
+        description: 命中来源：node/doc
+        type: string
+      name:
+        description: 资源名称
+        example: 表格解析
+        type: string
+      run_count:
+        description: 运行次数
+        type: integer
+      snippet:
+        description: 命中摘要
+        type: string
+      tags:
+        description: 标签
+        type: string
+      template_type:
+        description: 函数模板类型
+        type: string
+      type:
+        description: 资源类型
+        example: function
+        type: string
+    type: object
   dto.SearchDocsResp:
     properties:
       docs:
@@ -2008,6 +2062,23 @@ definitions:
         description: 函数列表
         items:
           $ref: '#/definitions/dto.FunctionSearchResult'
+        type: array
+      page:
+        description: 当前页码
+        type: integer
+      page_size:
+        description: 每页数量
+        type: integer
+      total:
+        description: 总数
+        type: integer
+    type: object
+  dto.SearchResourcesResp:
+    properties:
+      items:
+        description: 搜索结果
+        items:
+          $ref: '#/definitions/dto.ResourceSearchResult'
         type: array
       page:
         description: 当前页码
@@ -2096,6 +2167,11 @@ definitions:
         description: 用户名
         example: beiluo
         type: string
+      warnings:
+        description: 非阻断告警（如发布成功但元数据同步失败）
+        items:
+          type: string
+        type: array
     type: object
   dto.UpdateBoardReq:
     properties:
@@ -2104,13 +2180,12 @@ definitions:
       description:
         type: string
       id:
+        description: 由 path 提供，body 可不传
         type: integer
       name:
         type: string
       tags:
         type: string
-    required:
-    - id
     type: object
   dto.UpdateDocReq:
     properties:
@@ -2136,7 +2211,7 @@ definitions:
         example: user1,user2
         type: string
       code:
-        description: 文档代码（指针类型，nil=不更新，""=清空）
+        description: 文档代码（暂不支持修改；nil=不更新）
         example: api_docs
         type: string
       content:
@@ -2171,7 +2246,7 @@ definitions:
   dto.UpdateFunctionReq:
     properties:
       code:
-        description: 函数代码（指针类型，nil=不更新，""=清空）
+        description: 函数代码（暂不支持修改；nil=不更新）
         example: user_list
         type: string
       description:
@@ -2198,7 +2273,7 @@ definitions:
         example: user1,user2
         type: string
       code:
-        description: 目录代码（指针类型，nil=不更新，""=清空）
+        description: 目录代码（暂不支持修改；nil=不更新）
         example: user
         type: string
       description:
@@ -2229,6 +2304,7 @@ definitions:
           type: string
         type: array
       id:
+        description: 由 path 提供，body 可不传
         type: integer
       status:
         type: string
@@ -2236,8 +2312,6 @@ definitions:
         type: string
       title:
         type: string
-    required:
-    - id
     type: object
   dto.UpdateRoleReq:
     properties:
@@ -2284,6 +2358,56 @@ definitions:
         type: string
       user:
         type: string
+    type: object
+  functionschema.ChartSchema:
+    properties:
+      request:
+        items:
+          $ref: '#/definitions/widget.Field'
+        type: array
+      response:
+        items:
+          $ref: '#/definitions/widget.Field'
+        type: array
+    type: object
+  functionschema.FormSchema:
+    properties:
+      request:
+        items:
+          $ref: '#/definitions/widget.Field'
+        type: array
+      response:
+        items:
+          $ref: '#/definitions/widget.Field'
+        type: array
+    type: object
+  functionschema.FunctionSchema:
+    properties:
+      callbacks:
+        items:
+          type: string
+        type: array
+      chart:
+        $ref: '#/definitions/functionschema.ChartSchema'
+      form:
+        $ref: '#/definitions/functionschema.FormSchema'
+      table:
+        $ref: '#/definitions/functionschema.TableSchema'
+      type:
+        type: string
+      version:
+        type: integer
+    type: object
+  functionschema.TableSchema:
+    properties:
+      fields:
+        items:
+          $ref: '#/definitions/widget.Field'
+        type: array
+      request:
+        items:
+          $ref: '#/definitions/widget.Field'
+        type: array
     type: object
   model.Action:
     properties:
@@ -2434,6 +2558,10 @@ definitions:
       desc:
         description: 字段描述，用于 placeholder 等
         type: string
+      display:
+        allOf:
+        - $ref: '#/definitions/widget.FieldDisplay'
+        description: 前端展示场景；不配置表示列表/新增/编辑均展示，如 {"scenes":["list"]}
       field_name:
         description: Go 字段名，用于验证规则中的字段引用（如 required_if=MemberType vip）
         type: string
@@ -2443,15 +2571,6 @@ definitions:
       search:
         description: 搜索类型，如 "like", "eq", "in" 等
         type: string
-      display:
-        description: 字段展示场景配置；不存在表示 list/create/update 全部展示
-        properties:
-          scenes:
-            description: 展示场景：list,create,update
-            items:
-              type: string
-            type: array
-        type: object
       validation:
         description: 验证规则，完全照搬 github.com/go-playground/validator/v10
         type: string
@@ -2475,6 +2594,14 @@ definitions:
       type:
         description: 数据类型（string/int/float/bool等），建议保留用于类型判断
         type: string
+    type: object
+  widget.FieldDisplay:
+    properties:
+      scenes:
+        description: Scenes 控制前端在哪些界面渲染字段：list=列表，create=新增表单，update=编辑表单。
+        items:
+          type: string
+        type: array
     type: object
 externalDocs:
   description: OpenAPI
@@ -5063,6 +5190,69 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: 搜索函数
+      tags:
+      - 服务目录
+  /workspace/api/v1/service_tree/search_resources:
+    get:
+      consumes:
+      - application/json
+      description: 根据关键词搜索目录、函数、文档和讨论区，支持分页
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 用户名（可选，用于过滤应用）
+        in: query
+        name: user
+        type: string
+      - description: 应用名（可选，用于过滤应用）
+        in: query
+        name: app
+        type: string
+      - description: 搜索关键词
+        in: query
+        name: keyword
+        type: string
+      - description: 资源类型（all/package/function/docs/board）
+        in: query
+        name: resource_type
+        type: string
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        required: true
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 搜索成功
+          schema:
+            $ref: '#/definitions/dto.SearchResourcesResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 全站资源搜索
       tags:
       - 服务目录
   /workspace/api/v1/table/batch-create/{full-code-path}:
