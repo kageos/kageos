@@ -71,6 +71,48 @@ const formatSeriesTooltip = (params: any): string => {
     </div>`
 }
 
+const STRUCTURAL_SERIES_CONFIG_KEYS = new Set([
+  'id',
+  'type',
+  'name',
+  'data',
+  'coordinateSystem',
+  'xAxisIndex',
+  'xAxisId',
+  'yAxisIndex',
+  'yAxisId',
+  'gridIndex',
+  'gridId',
+  'datasetIndex',
+  'datasetId',
+  'encode',
+  'dimensions',
+  'seriesLayoutBy',
+])
+
+const createCartesianGridOption = () => ({
+  id: 'main-grid',
+  left: '3%',
+  right: '4%',
+  bottom: '3%',
+  top: '15%',
+  outerBoundsContain: 'axisLabel'
+})
+
+const createSeriesId = (chartType: string, series: ChartSeries, index: number): string => {
+  return `${chartType}-${index}-${series.name || 'series'}`
+}
+
+const getSafeSeriesConfig = (config?: Record<string, any>): Record<string, any> => {
+  if (!config) {
+    return {}
+  }
+
+  return Object.fromEntries(
+    Object.entries(config).filter(([key]) => !STRUCTURAL_SERIES_CONFIG_KEYS.has(key))
+  )
+}
+
 const hasRenderableSeriesData = (series: ChartSeries, chartType: string): boolean => {
   if (!series || !Array.isArray(series.data) || series.data.length === 0) {
     return false
@@ -215,6 +257,11 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
 
   const option: EChartsCoreOption = {
     backgroundColor: '#ffffff',
+    animation: true,
+    animationDuration: 700,
+    animationDurationUpdate: 500,
+    animationEasing: 'cubicOut',
+    animationEasingUpdate: 'cubicOut',
     title: chart.title ? {
       text: chart.title,
       left: 'center',
@@ -234,18 +281,15 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
       },
       itemWidth: 20,
       itemHeight: 14
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
-      top: chart.title ? '15%' : '10%',
-      containLabel: true
     }
   }
 
   switch (chart.chart_type) {
     case 'bar':
+      option.grid = {
+        ...createCartesianGridOption(),
+        top: chart.title ? '15%' : '10%',
+      }
       option.tooltip = {
         show: true,
         trigger: 'item',
@@ -261,6 +305,8 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
         formatter: formatSeriesTooltip
       }
       option.xAxis = {
+        id: 'main-x-axis',
+        gridIndex: 0,
         type: 'category',
         data: chart.x_axis || [],
         axisLabel: {
@@ -274,6 +320,8 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
         }
       }
       option.yAxis = {
+        id: 'main-y-axis',
+        gridIndex: 0,
         type: 'value',
         axisLabel: {
           fontSize: 12,
@@ -292,15 +340,23 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
           }
         }
       }
-      option.series = chart.series.map((series) => ({
+      option.series = chart.series.map((series, index) => ({
         name: series.name,
+        id: createSeriesId('bar', series, index),
         type: 'bar',
+        coordinateSystem: 'cartesian2d',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
         data: series.data,
-        ...series.config
+        ...getSafeSeriesConfig(series.config),
       }))
       break
 
     case 'line':
+      option.grid = {
+        ...createCartesianGridOption(),
+        top: chart.title ? '15%' : '10%',
+      }
       option.tooltip = {
         show: true,
         trigger: 'item',
@@ -318,12 +374,18 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
       if (!chart.x_axis || chart.x_axis.length === 0) {
         return {
           ...option,
-          xAxis: { type: 'category', data: [] },
-          yAxis: { type: 'value' },
+          grid: {
+            ...createCartesianGridOption(),
+            top: chart.title ? '15%' : '10%',
+          },
+          xAxis: { id: 'main-x-axis', gridIndex: 0, type: 'category', data: [] },
+          yAxis: { id: 'main-y-axis', gridIndex: 0, type: 'value' },
           series: []
         }
       }
       option.xAxis = {
+        id: 'main-x-axis',
+        gridIndex: 0,
         type: 'category',
         data: chart.x_axis,
         axisLabel: {
@@ -337,6 +399,8 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
         }
       }
       option.yAxis = {
+        id: 'main-y-axis',
+        gridIndex: 0,
         type: 'value',
         axisLabel: {
           fontSize: 12,
@@ -355,10 +419,15 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
           }
         }
       }
-      option.series = chart.series.map((series) => ({
+      option.series = chart.series.map((series, index) => ({
         name: series.name,
+        id: createSeriesId('line', series, index),
         type: 'line',
-        data: series.data || []
+        coordinateSystem: 'cartesian2d',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        data: series.data || [],
+        ...getSafeSeriesConfig(series.config),
       }))
       break
 
@@ -416,7 +485,7 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
             shadowColor: 'rgba(0, 0, 0, 0.5)'
           }
         },
-        ...series.config
+        ...getSafeSeriesConfig(series.config),
       }))
       break
 
@@ -449,6 +518,7 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
         }
       }
       option.series = chart.series.map((series) => {
+        const safeConfig = getSafeSeriesConfig(series.config)
         let gaugeData: any[] = []
         if (series.data.length > 0) {
           const firstItem = series.data[0]
@@ -477,18 +547,18 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
           }
         }
 
-        if (series.config) {
-          Object.assign(defaultConfig, series.config)
-          if (series.config.detail) {
+        if (Object.keys(safeConfig).length > 0) {
+          Object.assign(defaultConfig, safeConfig)
+          if (safeConfig.detail) {
             defaultConfig.detail = {
               ...defaultConfig.detail,
-              ...series.config.detail
+              ...safeConfig.detail
             }
           }
-          if (series.config.axisLabel) {
+          if (safeConfig.axisLabel) {
             defaultConfig.axisLabel = {
               ...defaultConfig.axisLabel,
-              ...series.config.axisLabel
+              ...safeConfig.axisLabel
             }
           }
         }

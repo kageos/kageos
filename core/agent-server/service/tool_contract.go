@@ -18,9 +18,10 @@ type ToolCall struct {
 }
 
 type ToolResult struct {
-	Content string `json:"content" schema_desc:"工具执行结果内容" schema_required:"true"`
-	IsError bool   `json:"is_error" schema_desc:"是否为错误结果" schema_required:"true"`
-	Data    any    `json:"data,omitempty" schema_ignore:"true"`
+	Content  string                  `json:"content" schema_desc:"工具执行结果内容" schema_required:"true"`
+	IsError  bool                    `json:"is_error" schema_desc:"是否为错误结果" schema_required:"true"`
+	Data     any                     `json:"data,omitempty" schema_ignore:"true"`
+	Metadata *dto.ToolResultMetadata `json:"metadata,omitempty" schema_ignore:"true"`
 }
 
 type structuredToolResultSchema[T any] struct {
@@ -35,4 +36,8 @@ func toolResult(content string, isError bool) ToolResult {
 
 func toolResultWithData(content string, isError bool, data any) ToolResult {
 	return ToolResult{Content: content, IsError: isError, Data: data}
+}
+
+func toolResultWithDataAndMetadata(content string, isError bool, data any, metadata *dto.ToolResultMetadata) ToolResult {
+	return ToolResult{Content: content, IsError: isError, Data: data, Metadata: metadata}
 }

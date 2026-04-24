@@ -40,6 +40,14 @@
 
 - 运行镜像内为 **GPL FFmpeg**（含 libx264），视频转换（convert.form）及自定义命令（run_command.form）均可使用 libx264 做 H.264 编码（如 mov→mp4）。
 - 代码随本案例一起提供；read_doc 本案例路径（如 `/system/prompt/case_catalog/form/videos`）即获得 PRD 与代码，无需再调用 read_go_file。
+- 若要给视频添加中文文字水印，`ffmpeg drawtext` 必须显式指定 `fontfile`，否则中文常显示为方框。当前镜像优先可用：
+  - `/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc`
+  - `/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc`
+- 中文水印示例：
+
+```bash
+ffmpeg -i input.mov -vf "drawtext=text='千幻智能':fontfile=/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc:fontsize=40:fontcolor=white:x=w-tw-30:y=h-th-30:borderw=2:bordercolor=black@0.8" -c:a copy -y output.mp4
+```
 
 ## 五、标准模式：上传视频 → FFmpeg 转换 → 输出附件
 

@@ -25,6 +25,13 @@ const runOfficialPythonPreinstallDoc = `**生产镜像已预装、可直接 impo
 - 另有 **Python 标准库**（json、re、collections、datetime、itertools、math、random 等）
 
 **matplotlib 中文：** 生产镜像已配置中文字体（优先 Noto CJK / WenQuanYi Zen Hei）并关闭 unicode minus 问题；普通标题、坐标轴、图例里的中文不需要脚本额外设置字体。
+**FFmpeg 中文水印：** 使用 ffmpeg drawtext 渲染中文时，必须显式指定 fontfile，否则常见现象是中文变成方框。当前镜像可优先使用：
+- /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
+- /usr/share/fonts/truetype/wqy/wqy-zenhei.ttc
+
+典型写法：
+drawtext=text='千幻智能':fontfile=/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc:fontsize=40:fontcolor=white:x=w-tw-30:y=h-th-30:borderw=2:bordercolor=black@0.8
+
 **若 import 报错：** 优先改用上面列表或标准库；需要新依赖时请管理员更新 Dockerfile / 官方 requirements.txt 并重打镜像。不可在本工具参数里指定 pip 包。
 **环境差异：** 本地非 Docker 运行时以本机 python 为准，可能与镜像不一致。`
 
@@ -63,6 +70,11 @@ var runOfficialPythonToolDef = toolDefinition[runOfficialPythonArgs](
 - 不要把 ANSI 颜色控制符、终端转义字符或 NUL 等不可见控制字符写进 python_code；这类字符会导致 SyntaxError 或 IndentationError。
 - 优先生成短脚本、少嵌套脚本。Excel/CSV 分析优先用 pandas；只有确实要精细 Excel 样式时才用 openpyxl，避免逐单元格大段样式代码。
 - 生成图表时不要手动设置 matplotlib 中文字体（不要写 font.sans-serif/SimHei/Arial Unicode MS）；镜像已配置中文字体，只保留 axes.unicode_minus=False 即可。
+- import 语句放在文件开头，或至少放在 agentos_entry 函数体开头；不要先使用名字再在后面 import。
+- 避免长的多层嵌套块，尤其是 for 里再套 if/else、try、with。能用 pandas 向量化、groupby、assign、map、apply、to_dict('records')、zip、列表推导式解决的，就不要写多层块。
+- 返回值里的 data 必须保持 JSON 可序列化：dict key 只能是字符串；不要把 tuple、Timestamp、numpy 标量、集合直接塞进 data。pandas 聚合后优先用 as_index=False 或 reset_index()，最终用 to_dict('records') 返回。
+- 构造复杂返回值时，先把中间结果赋给变量，再 return；不要在 return 里塞很长的多层字典/列表字面量。
+- 删除 DataFrame 列前先确认列存在；不确定时优先显式选择需要的列，而不是 drop 一组临时列。
 - 输出图片、Excel、PDF 等文件时，统一写到 output_dir，再在 output_files 里声明绝对路径。
 - 如果上一轮出现 SyntaxError 或 IndentationError，不要局部修补旧长脚本；请重新生成一份更短、更扁平、缩进完整的 python_code。
 
@@ -96,7 +108,7 @@ func (t *RunOfficialPythonTool) Execute(ctx context.Context, call ToolCall) Tool
 		return toolResult("run_official_python 参数解析失败: "+err.Error(), true)
 	}
 	content, isError, data := runOfficialPythonTool(ctx, args, call.Files)
-	return toolResultWithData(content, isError, data)
+	return toolResultWithDataAndMetadata(content, isError, data, metadataForDisplayFileFields("output_files"))
 }
 
 // runOfficialPythonTool 调用系统官方 Python 执行 Form
@@ -217,6 +229,16 @@ func buildOfficialPythonModelGuidance(raw map[string]interface{}) string {
 		if strings.Contains(out, "SyntaxError") || strings.Contains(out, "IndentationError") {
 			appendLine("【语法】请检查引号、缩进、括号是否匹配；字符串内换行需用三引号或 \\n。")
 			appendLine("【重写建议】遇到 SyntaxError/IndentationError 时，不要局部修补旧长脚本；请重新生成一份更短、更扁平、统一 4 空格缩进的完整 python_code。")
+			appendLine("【缩进策略】优先减少 for/if/else 多层嵌套；能改成 pandas API、zip、列表推导式或先算中间变量再 return 的，就不要继续堆块。")
+		}
+		if strings.Contains(out, "UnboundLocalError") {
+			appendLine("【作用域】请检查变量是否先使用后赋值；import 语句请放到文件顶部或函数体开头。")
+		}
+		if strings.Contains(out, "keys must be str, int, float, bool or None, not tuple") {
+			appendLine("【JSON 序列化】data 中的 dict key 不能是 tuple。pandas groupby/agg 后请先 reset_index() 或 as_index=False，再用 to_dict('records')。")
+		}
+		if strings.Contains(out, "not found in axis") {
+			appendLine("【列处理】删除列前先确认列存在；不确定时优先显式选择要保留的列，而不是 drop 一组临时列。")
 		}
 		if strings.Contains(lowOut, "timeout") || strings.Contains(out, "deadline exceeded") || strings.Contains(out, "context deadline") {
 			appendLine("【超时】可适当增大 timeout_seconds（最大 300），或拆分计算、减少数据量。")

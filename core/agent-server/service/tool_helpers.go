@@ -53,6 +53,10 @@ func formatStructuredToolData(data any) string {
 }
 
 func toolResultWithStructuredData(data any, isError bool, notices ...string) ToolResult {
+	return toolResultWithStructuredDataAndMetadata(data, isError, nil, notices...)
+}
+
+func toolResultWithStructuredDataAndMetadata(data any, isError bool, metadata *dto.ToolResultMetadata, notices ...string) ToolResult {
 	content := formatStructuredToolData(data)
 	for _, notice := range notices {
 		notice = strings.TrimSpace(notice)
@@ -61,7 +65,7 @@ func toolResultWithStructuredData(data any, isError bool, notices ...string) Too
 		}
 		content = notice + "\n\n" + content
 	}
-	return toolResultWithData(content, isError, data)
+	return toolResultWithDataAndMetadata(content, isError, data, metadata)
 }
 
 // ToToolArgs 将 interface{} 转为 map[string]interface{}，供 CallTool 使用
