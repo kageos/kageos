@@ -34,10 +34,11 @@ func GetAppServerConfig() *AppServerConfig {
 
 // AppServerConfig app-server 配置
 type AppServerConfig struct {
-	Server    AppServerServerConfig    `mapstructure:"server"`
-	Scheduler AppServerSchedulerConfig `mapstructure:"scheduler"`
-	Timeouts  AppServerTimeoutCfg      `mapstructure:"timeouts"`
-	DB        DBConfig                 `mapstructure:"db"`
+	Server      AppServerServerConfig    `mapstructure:"server"`
+	Scheduler   AppServerSchedulerConfig `mapstructure:"scheduler"`
+	Timeouts    AppServerTimeoutCfg      `mapstructure:"timeouts"`
+	DB          DBConfig                 `mapstructure:"db"`
+	SchedulerDB DBConfig                 `mapstructure:"scheduler_db"`
 	// 注意：NATS、JWT、Control Service 配置已移至全局配置，不再在此处配置
 	// 数据库配置保留在服务配置中，因为微服务后续每个服务一个库
 }
@@ -195,6 +196,48 @@ func (c *AppServerConfig) IsDBLogEnabled() bool {
 // GetDB 获取数据库配置
 func (c *AppServerConfig) GetDB() DBConfig {
 	return c.DB
+}
+
+// GetSchedulerDB 获取定时任务数据库配置。
+// 默认复用 app-server 的 MySQL 实例，仅切到独立 database，方便后续迁移到独立实例。
+func (c *AppServerConfig) GetSchedulerDB() DBConfig {
+	db := c.DB
+	if c.SchedulerDB.Type != "" {
+		db.Type = c.SchedulerDB.Type
+	}
+	if c.SchedulerDB.Host != "" {
+		db.Host = c.SchedulerDB.Host
+	}
+	if c.SchedulerDB.Port > 0 {
+		db.Port = c.SchedulerDB.Port
+	}
+	if c.SchedulerDB.User != "" {
+		db.User = c.SchedulerDB.User
+	}
+	if c.SchedulerDB.Password != "" {
+		db.Password = c.SchedulerDB.Password
+	}
+	if c.SchedulerDB.Name != "" {
+		db.Name = c.SchedulerDB.Name
+	} else {
+		db.Name = "app-scheduler"
+	}
+	if c.SchedulerDB.MaxIdleConns > 0 {
+		db.MaxIdleConns = c.SchedulerDB.MaxIdleConns
+	}
+	if c.SchedulerDB.MaxOpenConns > 0 {
+		db.MaxOpenConns = c.SchedulerDB.MaxOpenConns
+	}
+	if c.SchedulerDB.MaxLifetime > 0 {
+		db.MaxLifetime = c.SchedulerDB.MaxLifetime
+	}
+	if c.SchedulerDB.LogLevel != "" {
+		db.LogLevel = c.SchedulerDB.LogLevel
+	}
+	if c.SchedulerDB.SlowThreshold > 0 {
+		db.SlowThreshold = c.SchedulerDB.SlowThreshold
+	}
+	return db
 }
 
 // GetNats 获取 NATS 配置（从全局配置获取）

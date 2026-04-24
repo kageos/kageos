@@ -108,6 +108,12 @@ func applyCommonHeaders(req *http.Request, ctx context.Context) {
 	if clientSource := contextx.GetClientSource(ctx); clientSource != "" {
 		req.Header.Set(contextx.ClientSourceHeader, clientSource)
 	}
+	if sourceType := contextx.GetSourceType(ctx); sourceType != "" {
+		req.Header.Set(contextx.SourceTypeHeader, sourceType)
+	}
+	if sourceRef := contextx.GetSourceRef(ctx); sourceRef != "" {
+		req.Header.Set(contextx.SourceRefHeader, sourceRef)
+	}
 }
 
 func doAPIRequest[T any](req *http.Request) (*ApiResult[T], error) {

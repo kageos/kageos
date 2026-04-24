@@ -36,6 +36,7 @@ type Server struct {
 
 	// 核心组件
 	db                  *gorm.DB
+	schedulerDB         *gorm.DB
 	natsConn            *nats.Conn
 	httpServer          *gin.Engine
 	schedulerHealthHTTP *http.Server
@@ -245,6 +246,13 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 
 	// 关闭数据库连接
+	if s.schedulerDB != nil {
+		sqlDB, err := s.schedulerDB.DB()
+		if err == nil {
+			sqlDB.Close()
+			logger.Infof(ctx, "[Server] Scheduler database connection closed")
+		}
+	}
 	if s.db != nil {
 		sqlDB, err := s.db.DB()
 		if err == nil {
@@ -351,8 +359,87 @@ func (s *Server) initDatabase(ctx context.Context) error {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
 
+	schedulerDBCfg := s.cfg.GetSchedulerDB()
+	if schedulerDBCfg.Type != "mysql" {
+		return fmt.Errorf("unsupported scheduler database type: %s", schedulerDBCfg.Type)
+	}
+	if schedulerDBCfg.Name != dbCfg.Name {
+		if err := dbx.EnsureMySQLDatabase(schedulerDBCfg); err != nil {
+			logger.Warnf(ctx, "[Server] Ensure scheduler database failed: name=%s err=%v", schedulerDBCfg.Name, err)
+		}
+	}
+	schedulerDB, err := dbx.OpenMySQL(schedulerDBCfg, dbx.OpenOptions{
+		DisableForeignKeyConstraintWhenMigrating: true,
+		DefaultMaxLifetime:                       5 * time.Minute,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to connect to scheduler MySQL: %w", err)
+	}
+	s.schedulerDB = schedulerDB
+	if err := model.InitSchedulerTables(s.schedulerDB); err != nil {
+		return fmt.Errorf("failed to migrate scheduler database: %w", err)
+	}
+	if schedulerDBCfg.Name != dbCfg.Name {
+		if err := s.migrateLegacyScheduledTaskTables(ctx); err != nil {
+			return fmt.Errorf("failed to migrate legacy scheduler tables: %w", err)
+		}
+	}
+
 	logger.Infof(ctx, "[Server] Database initialized successfully")
 	return nil
+}
+
+func (s *Server) migrateLegacyScheduledTaskTables(ctx context.Context) error {
+	if !s.db.Migrator().HasTable(&model.ScheduledTask{}) {
+		return nil
+	}
+
+	var targetCount int64
+	if err := s.schedulerDB.Model(&model.ScheduledTask{}).Count(&targetCount).Error; err != nil {
+		return err
+	}
+	if targetCount > 0 {
+		return nil
+	}
+
+	var sourceCount int64
+	if err := s.db.Model(&model.ScheduledTask{}).Count(&sourceCount).Error; err != nil {
+		return err
+	}
+	if sourceCount == 0 {
+		return nil
+	}
+
+	logger.Infof(ctx, "[Server] Migrating legacy scheduled tasks to scheduler database: count=%d", sourceCount)
+	return s.schedulerDB.Transaction(func(tx *gorm.DB) error {
+		if err := copyScheduledTasks(s.db, tx); err != nil {
+			return err
+		}
+		if s.db.Migrator().HasTable(&model.ScheduledTaskExecution{}) {
+			return copyScheduledTaskExecutions(s.db, tx)
+		}
+		return nil
+	})
+}
+
+func copyScheduledTasks(source, target *gorm.DB) error {
+	var tasks []model.ScheduledTask
+	return source.Model(&model.ScheduledTask{}).FindInBatches(&tasks, 500, func(tx *gorm.DB, _ int) error {
+		if len(tasks) == 0 {
+			return nil
+		}
+		return target.Create(&tasks).Error
+	}).Error
+}
+
+func copyScheduledTaskExecutions(source, target *gorm.DB) error {
+	var executions []model.ScheduledTaskExecution
+	return source.Model(&model.ScheduledTaskExecution{}).FindInBatches(&executions, 500, func(tx *gorm.DB, _ int) error {
+		if len(executions) == 0 {
+			return nil
+		}
+		return target.Create(&executions).Error
+	}).Error
 }
 
 // initNATS 初始化 NATS 连接
@@ -436,8 +523,8 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.directoryUpdateHistoryService = service.NewDirectoryUpdateHistoryService(directoryUpdateHistoryRepo, serviceTreeRepo)
 
 	// 定时任务服务（注入 JWT 以便执行时按“请求用户”生成 Token 注入 context）
-	scheduledTaskRepo := repository.NewScheduledTaskRepository(s.db)
-	scheduledTaskExecutionRepo := repository.NewScheduledTaskExecutionRepository(s.db)
+	scheduledTaskRepo := repository.NewScheduledTaskRepository(s.schedulerDB)
+	scheduledTaskExecutionRepo := repository.NewScheduledTaskExecutionRepository(s.schedulerDB)
 	s.scheduledTaskService = service.NewScheduledTaskService(s.appService, s.jwtService, scheduledTaskRepo, scheduledTaskExecutionRepo, service.ScheduledTaskServiceOptions{
 		PollInterval:        s.cfg.GetSchedulerPollInterval(),
 		BatchSize:           s.cfg.GetSchedulerBatchSize(),
@@ -483,8 +570,8 @@ func (s *Server) initSchedulerServices(ctx context.Context) error {
 
 	s.jwtService = auth.NewJWTService()
 
-	scheduledTaskRepo := repository.NewScheduledTaskRepository(s.db)
-	scheduledTaskExecutionRepo := repository.NewScheduledTaskExecutionRepository(s.db)
+	scheduledTaskRepo := repository.NewScheduledTaskRepository(s.schedulerDB)
+	scheduledTaskExecutionRepo := repository.NewScheduledTaskExecutionRepository(s.schedulerDB)
 	s.scheduledTaskService = service.NewScheduledTaskService(s.appService, s.jwtService, scheduledTaskRepo, scheduledTaskExecutionRepo, service.ScheduledTaskServiceOptions{
 		PollInterval:        s.cfg.GetSchedulerPollInterval(),
 		BatchSize:           s.cfg.GetSchedulerBatchSize(),

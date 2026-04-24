@@ -13,14 +13,14 @@ import (
 )
 
 const (
-	EventContent            = "content"
-	EventToolCallsStream    = "tool_calls_stream"    // 保留兼容，新协议用 delta
+	EventContent              = "content"
+	EventToolCallsStream      = "tool_calls_stream"       // 保留兼容，新协议用 delta
 	EventToolCallsStreamDelta = "tool_calls_stream_delta" // 增量+节流，节省带宽
-	EventError              = "error"
-	MaxToolRounds           = 100 // 最大工具调用轮数，防止无限循环；过小易中断，过大增加耗时与成本
+	EventError                = "error"
+	MaxToolRounds             = 100 // 最大工具调用轮数，防止无限循环；过小易中断，过大增加耗时与成本
 
 	// 节流参数：满足任一条件即 flush
-	throttleIntervalMs = 100  // 距上次发送超过 100ms
+	throttleIntervalMs = 100 // 距上次发送超过 100ms
 	throttleSizeChars  = 200 // 累积 delta 超过 200 字
 )
 
@@ -234,9 +234,9 @@ func appendToolCallArgs(cur, delta string) string {
 	if delta == "" {
 		return cur
 	}
-	cur = strings.TrimSpace(cur)
-	if cur != "" && json.Valid([]byte(cur)) {
-		return cur
+	trimmed := strings.TrimSpace(cur)
+	if trimmed != "" && json.Valid([]byte(trimmed)) {
+		return trimmed
 	}
 	return cur + delta
 }
