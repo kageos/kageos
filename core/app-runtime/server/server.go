@@ -324,7 +324,7 @@ func (s *Server) subscribeNATS(ctx context.Context) error {
 	appH := v1.NewAppHandler(s.appManageService)
 	workspaceChangeH := v1.NewWorkspaceChangeHandler(s.workspaceChangeService)
 	workspaceH := v1.NewWorkspaceHandler(s.appManageService, s.workspaceFileService)
-	requestTransport := NewAppRequestTransport(s.natsConn, s.containerService, s.appManageService, s.appDiscoveryService)
+	requestTransport := NewAppRequestTransport(s.natsConn, s.appManageService, s.appDiscoveryService)
 	requestH := v1.NewRequestHandler(s.appManageService, requestTransport)
 	if err := RegisterNATS(ctx, s.natsConn, &s.subscriptions, appH, workspaceChangeH, workspaceH, requestH); err != nil {
 		return err
@@ -433,8 +433,8 @@ func (s *Server) GetServiceTreeService() *service.WorkspaceChangeService {
 }
 
 // reconcileAppContainers 对账应用容器
-// Podman 重启后，内存中标记为 running 的应用容器实际已停止。
-// 遍历内存中 running 的应用，检查容器是否真的在跑，没跑就拉起来。
+// Podman 重启后，内存中标记为 running 的应用运行时实例实际已停止。
+// 遍历内存中 running 的应用，检查运行时实例是否真的在跑，没跑就拉起来。
 func (s *Server) reconcileAppContainers(ctx context.Context) {
 	runningApps := s.appDiscoveryService.GetRunningApps()
 	if len(runningApps) == 0 {
@@ -450,11 +450,11 @@ func (s *Server) reconcileAppContainers(ctx context.Context) {
 
 	for appKey, appInfo := range runningApps {
 		for _, version := range appInfo.Versions {
-			containerName := service.BuildContainerName(appInfo.User, appInfo.App, version.Version)
+			runtimeName := service.BuildContainerName(appInfo.User, appInfo.App, version.Version)
 
-			running, err := s.containerService.IsContainerRunning(ctx, containerName)
+			running, err := s.appManageService.IsAppVersionRuntimeRunning(ctx, appInfo.User, appInfo.App, version.Version)
 			if err != nil {
-				logger.Warnf(ctx, "[Reconcile] 无法检查容器 %s: %v", containerName, err)
+				logger.Warnf(ctx, "[Reconcile] 无法检查运行时实例 %s: %v", runtimeName, err)
 				failed++
 				continue
 			}
@@ -464,17 +464,17 @@ func (s *Server) reconcileAppContainers(ctx context.Context) {
 				continue
 			}
 
-			// 容器没在跑，拉起来
-			logger.Infof(ctx, "[Reconcile] 重启应用容器 | 应用=%s | 版本=%s | 容器=%s",
-				appKey, version.Version, containerName)
+			// 运行时实例没在跑，拉起来
+			logger.Infof(ctx, "[Reconcile] 重启应用运行时实例 | 应用=%s | 版本=%s | 实例=%s",
+				appKey, version.Version, runtimeName)
 			startTime := time.Now()
 
-			if err := s.containerService.StartContainer(ctx, containerName); err != nil {
-				logger.Warnf(ctx, "[Reconcile] ❌ 重启失败 | 容器=%s | 错误=%v", containerName, err)
+			if err := s.appManageService.EnsureAppVersionRuntimeRunning(ctx, appInfo.User, appInfo.App, version.Version); err != nil {
+				logger.Warnf(ctx, "[Reconcile] ❌ 重启失败 | 实例=%s | 错误=%v", runtimeName, err)
 				failed++
 			} else {
-				logger.Infof(ctx, "[Reconcile] ✅ 重启成功 | 容器=%s | 耗时=%s",
-					containerName, time.Since(startTime).Round(time.Millisecond))
+				logger.Infof(ctx, "[Reconcile] ✅ 重启成功 | 实例=%s | 耗时=%s",
+					runtimeName, time.Since(startTime).Round(time.Millisecond))
 				restarted++
 			}
 		}

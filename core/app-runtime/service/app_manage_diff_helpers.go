@@ -70,7 +70,7 @@ func (s *AppManageService) collectVersionDiffFromTemporaryContainer(
 	ctx context.Context,
 	user, app, version, appDir string,
 ) *sharedDto.DiffData {
-	if s.containerService == nil {
+	if s.runtimeDriver == nil {
 		return nil
 	}
 
