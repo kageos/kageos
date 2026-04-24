@@ -56,5 +56,5 @@ func runFormSubmitTool(ctx context.Context, args runFormSubmitArgs, currentFullC
 		logger.Errorf(ctx, "[RunFormSubmit] FormSubmit 失败: %v", err)
 		return toolResult("run_form_submit 调用失败: "+err.Error(), true)
 	}
-	return toolResultWithStructuredData(result, false, pathNotice)
+	return toolResultWithStructuredDataAndMetadata(result, false, metadataForDisplayFileFields(formResponseDisplayFileFields(ctx, fullCodePath)...), pathNotice)
 }

@@ -1,5 +1,6 @@
 import { computed, ref, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import type { ToolResultMetadata } from '@/api/workspace'
 import { extractFileGroupsFromResult, type OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { extractAllDisplayFields, type OutputDisplayField } from '@/architecture/presentation/composables/useOutputDisplayFields'
 import type { ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
@@ -12,17 +13,32 @@ export interface FilePanelItem {
 
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'])
 
+type FileGroupToolCall = { result?: string; result_data?: unknown; metadata?: ToolResultMetadata }
+type DisplayFieldToolCall = { arguments?: string; result?: string; result_data?: unknown }
+
 export function useMiniWorkstationPanel(messages: Ref<ChatMessage[]>) {
-  const getFileGroupsFromCalls = (calls: Array<{ result?: string; result_data?: unknown }>): OutputFileGroup[] => {
+  const fileGroupsCache = new WeakMap<FileGroupToolCall[], OutputFileGroup[]>()
+  const displayFieldsCache = new WeakMap<DisplayFieldToolCall[], OutputDisplayField[]>()
+
+  const getFileGroupsFromCalls = (calls: FileGroupToolCall[]): OutputFileGroup[] => {
+    const cached = fileGroupsCache.get(calls)
+    if (cached) return cached
+
     const groups: OutputFileGroup[] = []
     for (const toolCall of calls) {
-      groups.push(...extractFileGroupsFromResult(toolCall.result_data ?? toolCall.result))
+      groups.push(...extractFileGroupsFromResult(toolCall.result_data ?? toolCall.result, toolCall.metadata))
     }
+    fileGroupsCache.set(calls, groups)
     return groups
   }
 
-  const getDisplayFieldsFromCalls = (calls: Array<{ arguments?: string; result?: string; result_data?: unknown }>): OutputDisplayField[] => {
-    return extractAllDisplayFields(calls)
+  const getDisplayFieldsFromCalls = (calls: DisplayFieldToolCall[]): OutputDisplayField[] => {
+    const cached = displayFieldsCache.get(calls)
+    if (cached) return cached
+
+    const fields = extractAllDisplayFields(calls)
+    displayFieldsCache.set(calls, fields)
+    return fields
   }
 
   const allPanelFiles = computed<FilePanelItem[]>(() => {

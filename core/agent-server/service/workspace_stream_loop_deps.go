@@ -68,7 +68,7 @@ func (d *workspaceStreamLoopDeps) ExecuteToolCalls(ctx context.Context, allToolC
 	for i := range summaries {
 		out[i] = streamloop.ToolCallSummary{
 			Name: summaries[i].Name, Status: summaries[i].Status,
-			Arguments: summaries[i].Arguments, Result: summaries[i].Result, ResultData: summaries[i].ResultData, Error: summaries[i].Error,
+			Arguments: summaries[i].Arguments, Result: summaries[i].Result, ResultData: summaries[i].ResultData, Metadata: summaries[i].Metadata, Error: summaries[i].Error,
 		}
 	}
 	return out, nil
@@ -79,7 +79,7 @@ func (d *workspaceStreamLoopDeps) OnDone(summaries []streamloop.ToolCallSummary)
 	for i := range summaries {
 		toolCalls[i] = dto.WorkspaceChatToolCallSummary{
 			Name: summaries[i].Name, Status: summaries[i].Status,
-			Arguments: summaries[i].Arguments, Result: summaries[i].Result, ResultData: summaries[i].ResultData, Error: summaries[i].Error,
+			Arguments: summaries[i].Arguments, Result: summaries[i].Result, ResultData: summaries[i].ResultData, Metadata: summaries[i].Metadata, Error: summaries[i].Error,
 		}
 	}
 	d.sendEvent(EventDone, StreamEventDone{SessionID: d.sessionID, ToolCalls: toolCalls})

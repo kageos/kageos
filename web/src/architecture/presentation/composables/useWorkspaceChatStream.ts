@@ -7,6 +7,7 @@
  */
 
 import { ref, watch, onUnmounted, type Ref } from 'vue'
+import type { ToolResultMetadata } from '@/api/workspace'
 
 export interface ChatMessageFile {
   ref?: string
@@ -17,7 +18,7 @@ export interface ChatMessageFile {
 }
 
 /** 单条 assistant 消息内的工具调用项（与 ChatMessage.tool_calls 元素同构） */
-export type ChatMessageToolCall = { name: string; status: string; arguments?: string; result?: string; result_data?: unknown; error?: string }
+export type ChatMessageToolCall = { name: string; status: string; arguments?: string; result?: string; result_data?: unknown; metadata?: ToolResultMetadata; error?: string }
 
 /** assistant 消息内的块：按事件顺序排列，用于「文本 → 工具调用 → 文本 → …」的层次展示 */
 export type AssistantBlock =
@@ -250,6 +251,7 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
       const argumentsStr = (typeof data.arguments === 'string' && data.arguments.trim()) ? data.arguments : undefined
       const resultStr = typeof data.result === 'string' ? data.result : undefined
       const resultData = Object.prototype.hasOwnProperty.call(data, 'result_data') ? data.result_data : undefined
+      const metadata = Object.prototype.hasOwnProperty.call(data, 'metadata') ? data.metadata as ToolResultMetadata : undefined
       const errorStr = typeof data.error === 'string' ? data.error : undefined
       const blocks = m.blocks ?? []
       const prev = m.tool_calls || []
@@ -258,10 +260,10 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
         pendingIndex >= 0
           ? prev.map((t, i) =>
               i === pendingIndex
-                ? { name: data.name as string, status, arguments: argumentsStr ?? t.arguments, result: resultStr ?? t.result, result_data: resultData ?? t.result_data, error: errorStr ?? t.error }
+                ? { name: data.name as string, status, arguments: argumentsStr ?? t.arguments, result: resultStr ?? t.result, result_data: resultData ?? t.result_data, metadata: metadata ?? t.metadata, error: errorStr ?? t.error }
                 : t
             )
-          : [...prev, { name: data.name as string, status, arguments: argumentsStr, result: resultStr, result_data: resultData, error: errorStr }]
+          : [...prev, { name: data.name as string, status, arguments: argumentsStr, result: resultStr, result_data: resultData, metadata, error: errorStr }]
       const nextBlocks = updateLastToolCallsBlock(blocks, list)
       messages.value[lastIdx] = { ...m, tool_calls: list, blocks: nextBlocks }
     }

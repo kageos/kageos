@@ -152,12 +152,13 @@ type StreamEventSession struct {
 
 // StreamEventToolCall tool_call 事件数据
 type StreamEventToolCall struct {
-	Name       string      `json:"name"`
-	Status     string      `json:"status"`                // ok / error / running / streaming
-	Arguments  string      `json:"arguments"`             // 流式或最终参数（streaming 时逐段推送，供前端实时展示）
-	Result     string      `json:"result"`                // 工具返回结果（status=ok 时可选）
-	ResultData interface{} `json:"result_data,omitempty"` // 结构化工具结果（供前端直接消费）
-	Error      string      `json:"error"`                 // 错误信息（status=error 时可选）
+	Name       string                  `json:"name"`
+	Status     string                  `json:"status"`                // ok / error / running / streaming
+	Arguments  string                  `json:"arguments"`             // 流式或最终参数（streaming 时逐段推送，供前端实时展示）
+	Result     string                  `json:"result"`                // 工具返回结果（status=ok 时可选）
+	ResultData interface{}             `json:"result_data,omitempty"` // 结构化工具结果（供前端直接消费）
+	Metadata   *dto.ToolResultMetadata `json:"metadata,omitempty"`    // 工具结果元数据（供前端按字段渲染）
+	Error      string                  `json:"error"`                 // 错误信息（status=error 时可选）
 }
 
 // StreamEventToolCallsStream 流式 tool_calls 列表（当前已合并的全部 tool_call，供前端实时展示）
@@ -722,10 +723,10 @@ func (s *WorkspaceChatService) executeToolCalls(
 			errStr = toolRes.Content
 		}
 		toolSummaries = append(toolSummaries, dto.WorkspaceChatToolCallSummary{
-			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, ResultData: resultData, Error: errStr,
+			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, ResultData: resultData, Metadata: toolRes.Metadata, Error: errStr,
 		})
 		sendEvent(EventToolCall, StreamEventToolCall{
-			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, ResultData: resultData, Error: errStr,
+			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, ResultData: resultData, Metadata: toolRes.Metadata, Error: errStr,
 		})
 		if err := s.saveToolMessage(ctx, sessionID, agentIDPtr, tc.ID, tc.Function.Name, st, toolRes, user); err != nil {
 			logger.Warnf(ctx, "[WorkspaceChatStream] 保存 tool 消息失败 ToolCallID=%s: %v（若为 Error 1366 请将表转为 utf8mb4）", tc.ID, err)
@@ -822,26 +823,31 @@ func sanitizeContentForMySQLUtf8(s string) string {
 	return b.String()
 }
 
+func marshalToolResultField(ctx context.Context, toolCallID, fieldName string, value any) *string {
+	if value == nil {
+		return nil
+	}
+	b, err := json.Marshal(value)
+	if err != nil {
+		logger.Warnf(ctx, "[WorkspaceChatStream] 保存 tool %s 失败 ToolCallID=%s: %v", fieldName, toolCallID, err)
+		return nil
+	}
+	out := string(b)
+	return &out
+}
+
 // saveToolMessage 保存一条 role=tool 的消息。失败时返回 error，调用方应中止下一轮以免 400 insufficient tool messages。
 func (s *WorkspaceChatService) saveToolMessage(ctx context.Context, sessionID string, agentIDPtr *int64, toolCallID, toolName, status string, result ToolResult, user string) error {
-	var resultDataStr *string
-	if result.Data != nil {
-		if b, err := json.Marshal(result.Data); err == nil {
-			s := string(b)
-			resultDataStr = &s
-		} else {
-			logger.Warnf(ctx, "[WorkspaceChatStream] 保存 tool result_data 失败 ToolCallID=%s: %v", toolCallID, err)
-		}
-	}
 	toolMsg := &model.AgentChatMessage{
-		SessionID:  sessionID,
-		AgentID:    agentIDPtr,
-		Role:       RoleTool,
-		Content:    sanitizeContentForMySQLUtf8(result.Content),
-		ToolCallID: toolCallID,
-		ToolStatus: status,
-		ResultData: resultDataStr,
-		User:       user,
+		SessionID:      sessionID,
+		AgentID:        agentIDPtr,
+		Role:           RoleTool,
+		Content:        sanitizeContentForMySQLUtf8(result.Content),
+		ToolCallID:     toolCallID,
+		ToolStatus:     status,
+		ResultData:     marshalToolResultField(ctx, toolCallID, "result_data", result.Data),
+		ResultMetadata: marshalToolResultField(ctx, toolCallID, "result_metadata", result.Metadata),
+		User:           user,
 	}
 	toolMsg.CreatedBy = user
 	toolMsg.UpdatedBy = user

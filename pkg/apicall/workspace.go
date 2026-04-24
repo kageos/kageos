@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 )
@@ -36,6 +37,12 @@ func SearchFunctions(ctx context.Context, req *dto.SearchFunctionsReq) (*dto.Sea
 		withTrimmedQueryValue("keyword", req.Keyword),
 		withTrimmedQueryValue("template_type", req.TemplateType),
 	))
+}
+
+// GetFunctionInfo 根据 full_code_path 获取函数详情（agent-server -> app-server）。
+func GetFunctionInfo(ctx context.Context, funcType string, fullCodePath string) (*dto.GetFunctionResp, error) {
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/function/info/"+strings.Trim(strings.TrimSpace(funcType), "/"), fullCodePath)
+	return GetAPI[*dto.GetFunctionResp](ctx, path, nil)
 }
 
 // GetWorkspaceContext 获取工作台环境信息（agent-server -> app-server）

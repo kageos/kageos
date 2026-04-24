@@ -36,12 +36,15 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
     if (!fullCodePath) return
 
     const dirName = overrideName || ctx?.dirName || fullCodePath.split('/').filter(Boolean).pop() || '工作台'
-    const existing = miniWsList.value.find(
-      (mini: MiniWsInstance) => mini.fullCodePath === fullCodePath && mini.initialSessionId === (initialSessionId || '')
-    )
-    if (existing) {
-      existing.visible = true
-      return
+    const normalizedSessionId = (initialSessionId || '').trim()
+    if (normalizedSessionId) {
+      const existing = miniWsList.value.find(
+        (mini: MiniWsInstance) => mini.fullCodePath === fullCodePath && mini.initialSessionId === normalizedSessionId
+      )
+      if (existing) {
+        existing.visible = true
+        return
+      }
     }
 
     const offset = miniWsList.value.filter((mini: MiniWsInstance) => mini.visible).length * 40
@@ -49,7 +52,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
       id: String(++miniIdCounter),
       fullCodePath,
       dirName,
-      initialSessionId: initialSessionId || '',
+      initialSessionId: normalizedSessionId,
       visible: true,
       offset: initialMaximized ? 0 : offset,
       initialPosition: initialMaximized ? undefined : 'center',

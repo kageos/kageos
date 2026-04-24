@@ -55,15 +55,18 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Document, FolderOpened } from '@element-plus/icons-vue'
-import { resolveFileRefs } from '@/api/storage'
+import { resolveFileRefs, type ResolvedFile } from '@/api/storage'
+import type { ToolResultMetadata } from '@/api/workspace'
 import { extractFileGroupsFromResult, type OutputFileGroup, type OutputFileItem } from '@/architecture/presentation/composables/useOutputFileGroups'
 
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'])
 
 const props = withDefaults(
   defineProps<{
-    /** 原始返回（JSON 字符串或对象），内部会解析并提取含 files 的字段 */
+    /** 原始结构化返回（JSON 字符串或对象），需配合 metadata.display_file_fields 解析文件字段 */
     result?: string | object
+    /** 工具结果元数据，声明哪些 result 字段按文件展示 */
+    metadata?: ToolResultMetadata
     /** 已解析的文件组，若传入则优先使用，不解析 result */
     fileGroups?: OutputFileGroup[]
     /** 区块标题，如「输出文件」「上传的文件」 */
@@ -74,42 +77,73 @@ const props = withDefaults(
 
 const sourceGroups = computed((): OutputFileGroup[] => {
   if (props.fileGroups != null && props.fileGroups.length > 0) return props.fileGroups
-  return extractFileGroupsFromResult(props.result)
+  return extractFileGroupsFromResult(props.result, props.metadata)
 })
 
 const resolvedGroups = ref<OutputFileGroup[]>([])
+const resolvedByRef = new Map<string, ResolvedFile>()
+let resolveSeq = 0
 
-watch(sourceGroups, async (groups) => {
-  resolvedGroups.value = groups
+const sourceGroupsSignature = computed(() => {
+  return JSON.stringify(sourceGroups.value.map(group => ({
+    label: group.label,
+    files: group.files.map(file => ({
+      ref: file.ref ?? '',
+      name: file.name ?? '',
+      source_name: file.source_name ?? '',
+      download_url: file.download_url ?? '',
+      size: file.size ?? null,
+    })),
+  })))
+})
+
+watch(sourceGroupsSignature, async () => {
+  const seq = ++resolveSeq
+  const groups = sourceGroups.value
   const refs = Array.from(new Set(groups.flatMap(group => group.files.map(file => file.ref).filter(Boolean)))) as string[]
+  resolvedGroups.value = mergeResolvedGroups(groups)
   if (refs.length === 0) {
     return
   }
-  try {
-    const resolved = await resolveFileRefs(refs, 'browser')
-    const byRef = new Map(resolved.map(file => [file.ref, file]))
-    resolvedGroups.value = groups.map(group => ({
-      ...group,
-      files: group.files.map((file) => {
-        if (!file.ref) return file
-        const item = byRef.get(file.ref)
-        if (!item) return file
-        return {
-          ...file,
-          name: item.name || file.name,
-          source_name: item.source_name || file.source_name || item.name,
-          size: item.size ?? file.size,
-          download_url: item.download_url || file.download_url,
-        }
-      })
-    }))
-  } catch {
-    resolvedGroups.value = groups
+  const unresolvedRefs = refs.filter(ref => !resolvedByRef.has(ref))
+  if (unresolvedRefs.length === 0) {
+    return
   }
-}, { immediate: true, deep: true })
+  try {
+    const resolved = await resolveFileRefs(unresolvedRefs, 'browser')
+    for (const file of resolved) {
+      resolvedByRef.set(file.ref, file)
+    }
+    if (seq === resolveSeq) {
+      resolvedGroups.value = mergeResolvedGroups(sourceGroups.value)
+    }
+  } catch {
+    if (seq === resolveSeq) {
+      resolvedGroups.value = groups
+    }
+  }
+}, { immediate: true })
 
 /** 展示用的文件组：优先 fileGroups，否则从 result 解析 */
 const displayGroups = computed((): OutputFileGroup[] => resolvedGroups.value)
+
+function mergeResolvedGroups(groups: OutputFileGroup[]): OutputFileGroup[] {
+  return groups.map(group => ({
+    ...group,
+    files: group.files.map((file) => {
+      if (!file.ref) return file
+      const item = resolvedByRef.get(file.ref)
+      if (!item) return file
+      return {
+        ...file,
+        name: item.name || file.name,
+        source_name: item.source_name || file.source_name || item.name,
+        size: item.size ?? file.size,
+        download_url: item.download_url || file.download_url,
+      }
+    })
+  }))
+}
 
 function isImageFile(file: OutputFileItem): boolean {
   const name = (file.source_name ?? file.name ?? '') as string
