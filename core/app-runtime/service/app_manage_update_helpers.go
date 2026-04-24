@@ -125,8 +125,8 @@ func (s *AppManageService) deployUpdatedVersion(
 	waiterChan := s.registerStartupWaiter(user, app, newVersion)
 	defer s.unregisterStartupWaiter(user, app, newVersion)
 
-	if s.containerService == nil {
-		return fmt.Errorf("container operator not available")
+	if s.runtimeDriver == nil {
+		return fmt.Errorf("app runtime driver not available")
 	}
 
 	logger.Infof(ctx, "[UpdateApp] Creating new version container for %s/%s/%s", user, app, newVersion)
