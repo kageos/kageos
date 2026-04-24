@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
@@ -33,6 +34,25 @@ func OpenMySQL(cfg appconfig.DBConfig, opts OpenOptions) (*gorm.DB, error) {
 		return nil, err
 	}
 	return db, nil
+}
+
+func EnsureMySQLDatabase(cfg appconfig.DBConfig) error {
+	if cfg.Name == "" {
+		return fmt.Errorf("database name is required")
+	}
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/?charset=utf8mb4&parseTime=True&loc=Local",
+		cfg.User, cfg.Password, cfg.Host, cfg.Port)
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		return err
+	}
+	sqlDB, err := db.DB()
+	if err == nil {
+		defer sqlDB.Close()
+	}
+	return db.Exec("CREATE DATABASE IF NOT EXISTS " + quoteMySQLIdentifier(cfg.Name) + " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci").Error
 }
 
 func OpenSQLite(path string, opts OpenOptions) (*gorm.DB, error) {
@@ -87,4 +107,8 @@ func applyPoolConfig(db *gorm.DB, cfg appconfig.DBConfig, opts OpenOptions) erro
 	sqlDB.SetMaxIdleConns(maxIdleConns)
 	sqlDB.SetConnMaxLifetime(maxLifetime)
 	return nil
+}
+
+func quoteMySQLIdentifier(name string) string {
+	return "`" + strings.ReplaceAll(name, "`", "``") + "`"
 }

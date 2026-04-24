@@ -113,10 +113,11 @@ func filesPayloadForLLM(files string) string {
 
 // WorkspaceChatService 工作台对话编排：会话、历史、LLM、Tool 循环；只认 LLM + 单模式（dev）
 type WorkspaceChatService struct {
-	toolReg     *ToolRegistry
-	sessionRepo *repository.ChatSessionRepository
-	messageRepo *repository.ChatMessageRepository
-	llmRepo     *repository.LLMRepository
+	toolReg      *ToolRegistry
+	sessionRepo  *repository.ChatSessionRepository
+	messageRepo  *repository.ChatMessageRepository
+	llmRepo      *repository.LLMRepository
+	runtimeState RuntimeStateStore
 
 	// runningCancels 维护「正在执行的 session → cancelFunc」映射，供手动取消使用
 	runningCancels sync.Map // key: sessionID (string), value: context.CancelFunc
@@ -130,12 +131,18 @@ func NewWorkspaceChatService(
 	sessionRepo *repository.ChatSessionRepository,
 	messageRepo *repository.ChatMessageRepository,
 	llmRepo *repository.LLMRepository,
+	runtimeState ...RuntimeStateStore,
 ) *WorkspaceChatService {
+	var stateStore RuntimeStateStore
+	if len(runtimeState) > 0 {
+		stateStore = runtimeState[0]
+	}
 	return &WorkspaceChatService{
-		toolReg:     toolReg,
-		sessionRepo: sessionRepo,
-		messageRepo: messageRepo,
-		llmRepo:     llmRepo,
+		toolReg:      toolReg,
+		sessionRepo:  sessionRepo,
+		messageRepo:  messageRepo,
+		llmRepo:      llmRepo,
+		runtimeState: stateStore,
 	}
 }
 
@@ -143,6 +150,17 @@ func NewWorkspaceChatService(
 type StreamEvent struct {
 	Event string      `json:"event"` // session|agent_id|tool_call|content|done|error
 	Data  interface{} `json:"data"`  // 对应负载（具体类型见下方各事件结构体）
+}
+
+// WorkspaceChatEventSink 接收工作台执行事件。SSE 与后台任务共用同一执行链路。
+type WorkspaceChatEventSink interface {
+	Send(event string, data interface{})
+}
+
+type workspaceChatEventSinkFunc func(event string, data interface{})
+
+func (f workspaceChatEventSinkFunc) Send(event string, data interface{}) {
+	f(event, data)
 }
 
 // StreamEventSession session 事件数据
@@ -200,8 +218,11 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 			}
 		}
 	}()
+	var runtimeStateKey string
+	var runtimeStateBase dto.RuntimeStateItem
 	// 非阻塞发送事件：写不进 eventChan 时直接丢弃（刷新后无人读也不会卡死 goroutine）
 	sendEvent := func(event string, data interface{}) {
+		s.updateWorkspaceRuntimeStateFromEvent(ctx, runtimeStateKey, runtimeStateBase, event, data)
 		select {
 		case eventChan <- StreamEvent{Event: event, Data: data}:
 		default:
@@ -299,6 +320,11 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 				logger.Warnf(ctx, "[WorkspaceChatStream] 恢复 active 失败: %v", e)
 			}
 		}
+		finalStatus := ""
+		if e == nil && latest != nil && latest.Status == model.ChatSessionStatusCancelled {
+			finalStatus = RuntimeStateStatusCancelled
+		}
+		s.finishWorkspaceRuntimeState(context.Background(), runtimeStateKey, runtimeStateBase, err, finalStatus)
 	}()
 
 	llmConfigID := req.LLMConfigID
@@ -334,6 +360,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		}
 	}
 
+	runtimeStateKey, runtimeStateBase = s.startWorkspaceRuntimeState(ctx, session, fullCodePath, modeCode, user)
 	sendEvent(EventSession, StreamEventSession{SessionID: sessionID})
 
 	deps := &workspaceStreamLoopDeps{
@@ -350,6 +377,23 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		service:              s,
 	}
 	return streamloop.RunStreamLoop(runCtx, deps)
+}
+
+// RunWorkspaceChat 后台执行工作台对话；用于定时 Agent 会话等无浏览器连接场景。
+func (s *WorkspaceChatService) RunWorkspaceChat(ctx context.Context, req *dto.WorkspaceChatReq, sink WorkspaceChatEventSink) error {
+	if sink == nil {
+		sink = workspaceChatEventSinkFunc(func(string, interface{}) {})
+	}
+	eventChan := make(chan StreamEvent, 100)
+	done := make(chan error, 1)
+	go func() {
+		done <- s.WorkspaceChatStream(ctx, req, eventChan)
+		close(eventChan)
+	}()
+	for ev := range eventChan {
+		sink.Send(ev.Event, ev.Data)
+	}
+	return <-done
 }
 
 // CancelSession 手动取消正在执行的会话
@@ -375,6 +419,7 @@ func (s *WorkspaceChatService) CancelSession(ctx context.Context, sessionID stri
 		cancelFn.(context.CancelFunc)()
 		logger.Infof(ctx, "[WorkspaceChatStream] 会话已取消 - SessionID: %s", sessionID)
 	}
+	s.deleteWorkspaceRuntimeState(ctx, sessionID)
 	return nil
 }
 

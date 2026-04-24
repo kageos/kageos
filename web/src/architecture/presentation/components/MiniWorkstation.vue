@@ -37,6 +37,11 @@
           {{ dirName || displayPath }}{{ firstUserMessagePreview ? ' · ' + firstUserMessagePreview : '' }}
         </span>
         <div class="mini-ws-header-actions" @mousedown.stop>
+          <el-tooltip content="定时执行" placement="bottom" effect="light">
+            <el-button link size="small" title="定时执行" @click="showScheduledAgentTaskDialog = true">
+              <el-icon :size="14"><Timer /></el-icon>
+            </el-button>
+          </el-tooltip>
           <el-dropdown
             ref="keyInfoDropdownRef"
             v-if="panelHasContent"
@@ -162,17 +167,27 @@
     @copy="copyDfPreviewContent"
     @update:content="dfPreviewContent = $event"
   />
+
+  <ScheduledAgentTaskDialog
+    v-model="showScheduledAgentTaskDialog"
+    :full-code-path="fullCodePath"
+    :initial-goal="scheduledInitialGoal"
+    :initial-files="scheduledInitialFiles"
+    :initial-l-l-m-config-id="selectedLLMConfigId"
+    @success="handleScheduledAgentTaskCreated"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, onUnmounted, computed, watch } from 'vue'
-import { Loading, Close, Minus, FullScreen, CopyDocument, FolderOpened, UploadFilled, Document as DocumentIcon } from '@element-plus/icons-vue'
+import { Loading, Close, Minus, FullScreen, CopyDocument, FolderOpened, UploadFilled, Document as DocumentIcon, Timer } from '@element-plus/icons-vue'
 import { useWorkspaceChatStream } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import MiniWorkstationDisplayFieldPreviewDialog from './MiniWorkstationDisplayFieldPreviewDialog.vue'
 import MiniWorkstationComposer from './MiniWorkstationComposer.vue'
 import MiniWorkstationKeyInfoSection from './MiniWorkstationKeyInfoSection.vue'
 import MiniWorkstationMessages from './MiniWorkstationMessages.vue'
 import MiniWorkstationSessionList from './MiniWorkstationSessionList.vue'
+import ScheduledAgentTaskDialog from './ScheduledAgentTaskDialog.vue'
 import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
 import { useMiniWorkstationPanel } from '../composables/useMiniWorkstationPanel'
 import { useMiniWorkstationWindow } from '../composables/useMiniWorkstationWindow'
@@ -180,6 +195,7 @@ import { useMiniWorkstationSessions } from '../composables/useMiniWorkstationSes
 import { useMiniWorkstationUploads } from '../composables/useMiniWorkstationUploads'
 import { useMiniWorkstationComposer } from '../composables/useMiniWorkstationComposer'
 import { useMiniWorkstationEffects } from '../composables/useMiniWorkstationEffects'
+import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
 
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
@@ -209,6 +225,7 @@ const { messages, sending, sessionId, streamingDisplayLength, send: sendMessage,
 const outputRef = ref<HTMLElement>()
 const inputText = ref('')
 const inputRef = ref<HTMLTextAreaElement>()
+const showScheduledAgentTaskDialog = ref(false)
 
 function registerInputRef(element: HTMLTextAreaElement | null) {
   inputRef.value = element || undefined
@@ -332,6 +349,17 @@ const {
   inputRef
 })
 
+const scheduledInitialGoal = computed(() => {
+  return inputText.value.trim() || firstUserMessageFull.value
+})
+
+const scheduledInitialFiles = computed(() => {
+  return attachedFiles.value
+    .map((file) => file.ref)
+    .filter(Boolean)
+    .join(',')
+})
+
 const {
   llmList,
   llmLoading,
@@ -373,6 +401,10 @@ watch(
 /** 双击标题栏切换最大化 */
 function onHeaderDblClick() {
   toggleMaximize()
+}
+
+function handleScheduledAgentTaskCreated() {
+  eventBus.emit(WorkspaceEvent.scheduledAgentTaskCreated, { full_code_path: props.fullCodePath })
 }
 
 useMiniWorkstationEffects({

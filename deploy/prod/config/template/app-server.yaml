@@ -27,6 +27,9 @@ db:
   log_level: "warn"
   slow_threshold: 200
 
+scheduler_db:
+  name: "app-scheduler"
+
 timeouts:
   app_request: 300
   nats_request: 300

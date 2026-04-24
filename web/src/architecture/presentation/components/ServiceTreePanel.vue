@@ -98,6 +98,15 @@
             <!-- 其他类型：显示 fx 文本 -->
             <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
             <span class="node-label" :class="{ 'no-permission': !hasAnyPermissionForNode(data) }">{{ node.label }}</span>
+
+            <!-- 运行态 badge：来自 agent-server state 接口，表示当前目录及子目录正在运行的会话数 -->
+            <el-badge
+              v-if="getRuntimeSummary(data)?.running_count"
+              :value="getRuntimeSummary(data)?.running_count"
+              :max="99"
+              class="runtime-state-badge"
+              :title="getRuntimeSummaryTitle(data)"
+            />
             
             <!-- 无权限标识 - 没有权限的节点显示 -->
             <img 
@@ -294,7 +303,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, MoreFilled, CopyDocument, Document, Upload, Download, Delete, Key, DocumentChecked, Edit, ChatDotRound, ChatDotSquare, Search } from '@element-plus/icons-vue'
 import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
@@ -305,6 +314,7 @@ import type { ServiceTree } from '@/types'
 import { isRootNode } from '@/utils/tree-utils'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { updatePackage, updateServiceTreeFunction, updateDocs } from '@/api/service-tree'
+import { getRuntimeStateSummary, type RuntimeStateSummary } from '@/api/state'
 import { 
   hasPermission, 
   hasAnyPermissionForNode, 
@@ -350,6 +360,8 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const router = useRouter()
+const runtimeSummaries = ref<Record<string, RuntimeStateSummary>>({})
+let runtimeSummaryTimer: ReturnType<typeof setInterval> | null = null
 
 // 获取当前用户信息
 const authStore = useAuthStore()
@@ -382,6 +394,59 @@ const {
     emit('pull-from-hub', initialLink, targetFullCodePath, targetName)
   }
 })
+
+const rootFullCodePath = computed(() => props.treeData[0]?.full_code_path || '')
+
+const stopRuntimeSummaryPolling = () => {
+  if (runtimeSummaryTimer) {
+    clearInterval(runtimeSummaryTimer)
+    runtimeSummaryTimer = null
+  }
+}
+
+const refreshRuntimeSummary = async () => {
+  const root = rootFullCodePath.value
+  if (!root) {
+    runtimeSummaries.value = {}
+    return
+  }
+  try {
+    const resp = await getRuntimeStateSummary({ root_full_code_path: root })
+    runtimeSummaries.value = resp.summaries || {}
+  } catch {
+    // 运行态仅用于提示，不影响服务树主流程。
+  }
+}
+
+const startRuntimeSummaryPolling = () => {
+  stopRuntimeSummaryPolling()
+  if (!rootFullCodePath.value) return
+  runtimeSummaryTimer = setInterval(refreshRuntimeSummary, 5000)
+}
+
+watch(rootFullCodePath, () => {
+  runtimeSummaries.value = {}
+  refreshRuntimeSummary()
+  startRuntimeSummaryPolling()
+}, { immediate: true })
+
+onBeforeUnmount(stopRuntimeSummaryPolling)
+
+const getRuntimeSummary = (node: ServiceTree): RuntimeStateSummary | undefined => {
+  if (!node.full_code_path) return undefined
+  return runtimeSummaries.value[node.full_code_path]
+}
+
+const getRuntimeSummaryTitle = (node: ServiceTree): string => {
+  const summary = getRuntimeSummary(node)
+  if (!summary) return ''
+  const parts = [`运行中 ${summary.running_count}`]
+  if (summary.thinking_count > 0) parts.push(`思考中 ${summary.thinking_count}`)
+  if (summary.tool_running_count > 0) parts.push(`工具执行 ${summary.tool_running_count}`)
+  if (summary.scheduled_running_count > 0) parts.push(`定时会话 ${summary.scheduled_running_count}`)
+  if (summary.failed_recent_count > 0) parts.push(`最近失败 ${summary.failed_recent_count}`)
+  return parts.join('，')
+}
 
 // 重命名目录
 const handleRename = async (node: ServiceTree) => {
@@ -836,6 +901,17 @@ defineExpose({
     flex-shrink: 0;
     margin-left: 6px;
     cursor: pointer;
+  }
+
+  .runtime-state-badge {
+    flex-shrink: 0;
+    margin-left: 6px;
+  }
+
+  .runtime-state-badge :deep(.el-badge__content) {
+    border: none;
+    background: #0ea5e9;
+    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.12);
   }
 
   .node-more-actions {

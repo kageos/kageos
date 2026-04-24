@@ -193,15 +193,21 @@
         <WorkspaceSidebarSessionsPanel
           :dir-name="workstationContext.dirName"
           :loading="rightSidebarSessionsLoading"
+          :scheduled-loading="rightSidebarScheduledLoading"
           :active-tab="rightTab"
           :search-keyword="rightSessionSearchKeyword"
           :running-count="rightSidebarRunningCount"
+          :scheduled-count="rightSidebarScheduledCount"
           :sessions="filteredRightSessions"
+          :scheduled-tasks="filteredRightScheduledTasks"
+          :scheduled-executions="filteredRightScheduledExecutions"
           :cancelling-task-id="cancellingTaskId"
           :format-relative-time="formatRelativeTime"
           @update:active-tab="rightTab = $event"
           @update:search-keyword="rightSessionSearchKeyword = $event"
           @open-session="openSessionInMini"
+          @open-scheduled-session="openScheduledAgentTaskSession"
+          @open-scheduled-execution="openScheduledAgentExecutionSession"
           @cancel-task="handleCancelTask"
           @create-session="openNewMiniWs()"
         />
@@ -714,12 +720,18 @@ const {
 
 const {
   sessionsLoading: rightSidebarSessionsLoading,
+  scheduledAgentTasksLoading: rightSidebarScheduledLoading,
   activeTab: rightTab,
   sessionSearchKeyword: rightSessionSearchKeyword,
   cancellingTaskId,
   runningCount: rightSidebarRunningCount,
+  scheduledAgentTaskCount: rightSidebarScheduledCount,
   filteredSessions: filteredRightSessions,
+  filteredScheduledAgentTasks: filteredRightScheduledTasks,
+  filteredScheduledAgentExecutions: filteredRightScheduledExecutions,
   openSession: openSessionInMini,
+  openScheduledAgentTask: openScheduledAgentTaskSession,
+  openScheduledAgentExecution: openScheduledAgentExecutionSession,
   formatRelativeTime,
   handleCancelTask
 } = useWorkspaceSidebarSessions({

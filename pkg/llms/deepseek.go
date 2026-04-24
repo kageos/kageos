@@ -128,6 +128,7 @@ func (d *DeepSeekClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespo
 		"max_tokens":  req.MaxTokens,
 		"temperature": req.Temperature,
 	}
+	applyDeepSeekThinking(apiReq, req)
 
 	// 添加 tools 参数（如果提供）
 	if len(req.Tools) > 0 {
@@ -241,6 +242,7 @@ func (d *DeepSeekClient) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 			"temperature": req.Temperature,
 			"stream":      true, // 启用流式
 		}
+		applyDeepSeekThinking(apiReq, req)
 
 		// 添加 tools 参数（如果提供）
 		if len(req.Tools) > 0 {
@@ -407,4 +409,13 @@ func (d *DeepSeekClient) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 	}()
 
 	return chunkChan, nil
+}
+
+func applyDeepSeekThinking(apiReq map[string]interface{}, req *ChatRequest) {
+	thinkingType := "disabled"
+	if req.UseThinking != nil && *req.UseThinking {
+		thinkingType = "enabled"
+		apiReq["reasoning_effort"] = "high"
+	}
+	apiReq["thinking"] = map[string]string{"type": thinkingType}
 }

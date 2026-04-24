@@ -5,6 +5,13 @@ server:
   debug: false
   enable_pprof: false
 
+scheduler:
+  poll_interval_seconds: 5
+  batch_size: 20
+  lease_duration_seconds: 600
+  max_concurrency: 3
+  default_timeout_seconds: 300
+
 db:
   type: "mysql"
   host: "127.0.0.1"

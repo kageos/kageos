@@ -26,6 +26,11 @@ const TokenHeader = "X-Token"
 // ClientSourceHeader HTTP Header 中的客户端来源 key（统一使用此名称）
 const ClientSourceHeader = "X-Client-Source"
 
+// SourceTypeHeader / SourceRefHeader 标记后台自动化、函数触发等调用来源。
+// 定时 Agent 会话先埋 ref，后续工具白名单可基于这些字段在工具入口统一控制。
+const SourceTypeHeader = "X-Source-Type"
+const SourceRefHeader = "X-Source-Ref"
+
 const PubKeyHerder = "X-Pub-Key"
 
 // PresignHostKey 用于生成预签名 URL 时使用的 Host（与请求 Host 一致，避免 Nginx 代理后签名 403）
@@ -116,6 +121,34 @@ func GetClientSource(c context.Context) string {
 		}
 	}
 
+	return ""
+}
+
+// GetSourceType 获取调用来源类型。
+func GetSourceType(c context.Context) string {
+	v, ok := c.(*gin.Context)
+	if ok {
+		return v.GetHeader(SourceTypeHeader)
+	}
+	if value := c.Value(SourceTypeHeader); value != nil {
+		if sourceType, ok := value.(string); ok && sourceType != "" {
+			return sourceType
+		}
+	}
+	return ""
+}
+
+// GetSourceRef 获取调用来源引用。
+func GetSourceRef(c context.Context) string {
+	v, ok := c.(*gin.Context)
+	if ok {
+		return v.GetHeader(SourceRefHeader)
+	}
+	if value := c.Value(SourceRefHeader); value != nil {
+		if sourceRef, ok := value.(string); ok && sourceRef != "" {
+			return sourceRef
+		}
+	}
 	return ""
 }
 
@@ -244,7 +277,19 @@ func ToContext(c *gin.Context) context.Context {
 		c.Request.Header.Set(ClientSourceHeader, clientSource)
 	}
 
-	// 6. PresignHost：优先 X-Forwarded-Host（含端口），无端口时用 X-Forwarded-Port 或 PresignDefaultPort 补全，与浏览器 PUT 的 Host 一致避免 403
+	// 6. Source ref：后台自动化/函数触发来源，供工具调用链审计和后续白名单使用
+	sourceType := c.GetHeader(SourceTypeHeader)
+	if sourceType != "" {
+		ctx = context.WithValue(ctx, SourceTypeHeader, sourceType)
+		c.Request.Header.Set(SourceTypeHeader, sourceType)
+	}
+	sourceRef := c.GetHeader(SourceRefHeader)
+	if sourceRef != "" {
+		ctx = context.WithValue(ctx, SourceRefHeader, sourceRef)
+		c.Request.Header.Set(SourceRefHeader, sourceRef)
+	}
+
+	// 7. PresignHost：优先 X-Forwarded-Host（含端口），无端口时用 X-Forwarded-Port 或 PresignDefaultPort 补全，与浏览器 PUT 的 Host 一致避免 403
 	presignHost := c.GetHeader("X-Forwarded-Host")
 	if presignHost == "" {
 		presignHost = c.Request.Host
@@ -273,6 +318,12 @@ func NatsTraceContext(msg *nats.Msg) context.Context {
 	if clientSource := msg.Header.Get(ClientSourceHeader); clientSource != "" {
 		ctx = context.WithValue(ctx, ClientSourceHeader, clientSource)
 	}
+	if sourceType := msg.Header.Get(SourceTypeHeader); sourceType != "" {
+		ctx = context.WithValue(ctx, SourceTypeHeader, sourceType)
+	}
+	if sourceRef := msg.Header.Get(SourceRefHeader); sourceRef != "" {
+		ctx = context.WithValue(ctx, SourceRefHeader, sourceRef)
+	}
 
 	return ctx
 }
@@ -289,6 +340,12 @@ func CtxToTraceNats(c context.Context, subject string) *nats.Msg {
 	if clientSource := GetClientSource(c); clientSource != "" {
 		msg.Header.Set(ClientSourceHeader, clientSource)
 	}
+	if sourceType := GetSourceType(c); sourceType != "" {
+		msg.Header.Set(SourceTypeHeader, sourceType)
+	}
+	if sourceRef := GetSourceRef(c); sourceRef != "" {
+		msg.Header.Set(SourceRefHeader, sourceRef)
+	}
 	return msg
 
 }
@@ -300,6 +357,8 @@ type RequestInfo struct {
 	Token              string
 	DepartmentFullPath string
 	ClientSource       string
+	SourceType         string
+	SourceRef          string
 }
 
 // WithRequestInfo 一次性注入与 ToContext 一致的 context（用于定时任务等无 HTTP 请求场景）
@@ -318,6 +377,12 @@ func WithRequestInfo(ctx context.Context, info RequestInfo) context.Context {
 	}
 	if info.ClientSource != "" {
 		ctx = context.WithValue(ctx, ClientSourceHeader, info.ClientSource)
+	}
+	if info.SourceType != "" {
+		ctx = context.WithValue(ctx, SourceTypeHeader, info.SourceType)
+	}
+	if info.SourceRef != "" {
+		ctx = context.WithValue(ctx, SourceRefHeader, info.SourceRef)
 	}
 	return ctx
 }

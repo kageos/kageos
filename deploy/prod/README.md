@@ -34,7 +34,7 @@ host 网络独立容器
        └─ app-scheduler（仅执行定时任务调度与投递）
 ```
 
-`main` 使用 `network_mode: host`，容器内 Nginx 默认直接监听宿主机 80 端口；开启 HTTPS 后会额外监听 443。`scheduler` 也使用 `network_mode: host`，通过数据库租约 claim 防止重复执行，并直接依赖 `app-runtime` 的 `http://127.0.0.1:9093/health` 就绪；自身会在 `http://127.0.0.1:9098/health` 暴露进程内健康探针和最近轮询状态。中间件容器通过 `127.0.0.1` 暴露端口供 `main` / `scheduler` 访问，无需额外宿主机 Nginx。
+`main` 使用 `network_mode: host`，容器内 Nginx 默认直接监听宿主机 80 端口；开启 HTTPS 后会额外监听 443。`scheduler` 也使用 `network_mode: host`，通过数据库租约 claim 防止重复执行，并直接依赖 `app-runtime` 的 `http://127.0.0.1:9093/health` 就绪；自身会在 `http://127.0.0.1:9098/health` 暴露进程内健康探针和最近轮询状态。中间件容器通过 `127.0.0.1` 暴露端口供 `main` / `scheduler` 访问，无需额外宿主机 Nginx。定时任务默认复用同一个 MySQL 实例，但使用独立的 `app-scheduler` database，方便后续迁移到独立实例。
 
 ## 前置
 
@@ -89,6 +89,27 @@ TLS_KEY_FILE="/app/tls/privkey.pem"
 
 - 只改运行参数：直接 `bash build.sh up`
 - 改了 `MAIN_IMAGE` / `APP_BASE_IMAGE`：重新执行 `bash build.sh init` 或 `bash build.sh init --image`
+
+## Go 部署器 aosctl（实验入口）
+
+`aosctl` 是新的部署控制入口，目标是把越来越复杂的 Compose 部署参数收敛成一个可执行程序。第一版只负责生成配置，不替代现有 `build.sh` 稳定路径。
+
+```bash
+# 在仓库根目录执行
+go run ./cmd/aosctl init --base-url http://your-ip-or-domain
+go run ./cmd/aosctl doctor --config deploy/prod/aos.yaml
+go run ./cmd/aosctl render --config deploy/prod/aos.yaml
+
+cd deploy/prod/.generated
+podman compose up -d
+```
+
+生成物说明：
+
+- `deploy/prod/aos.yaml` 是本机私有部署配置，包含数据库密码、JWT 密钥、备份口令等敏感信息，默认不入库。
+- `deploy/prod/.generated/` 是渲染后的 Compose、运行时配置和中间件配置，默认不入库。
+- `deploy/prod/aos.example.yaml` 是无密钥示例；真实部署建议用 `aosctl init` 生成随机密钥后再编辑。
+- `mysql.mode` / `nats.mode` / `minio.mode` 支持 `bundled` 和 `external`。`bundled` 会由 Compose 拉起中间件，`external` 则连接你填写的外部服务。
 
 ## HTTP / HTTPS 模式
 
@@ -319,7 +340,7 @@ bash build.sh update
 
 ### `panic: nats: no servers available for connection`
 
-`app_db` 里 **`nats` 表** 的 **`host`** 须能被 `main` 容器解析。由于 `main` 使用 `network_mode: host`，中间件端口通过 `127.0.0.1` 暴露，进程会在连接前把仍为 **`localhost` / `127.0.0.1`** 的行自动改为 **`nats`**（Compose 服务名），**无需额外配置环境变量**。
+`app_db` 里 **`nats` 表** 的 **`host`** 须能被 `main` 容器解析。由于 `main` 使用 `network_mode: host`，中间件端口通过 `127.0.0.1` 暴露，进程会在连接前把仍为 **`localhost` / `nats`** 的行自动改为 **`127.0.0.1`**，**无需额外配置环境变量**。
 
 **本机开发**：连本机 NATS 时请设 **`APP_ENV=dev`**（与 `deploy/dev/config` 约定一致）。
 
@@ -327,7 +348,7 @@ bash build.sh update
 
 ```sql
 USE app_db;
-UPDATE nats SET host = 'nats' WHERE host IN ('localhost', '127.0.0.1');
+UPDATE nats SET host = '127.0.0.1' WHERE host IN ('localhost', 'nats');
 ```
 
 ### 外网无法访问

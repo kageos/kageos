@@ -24,6 +24,7 @@
 
 - MinIO 管理员用户名固定为 `minioadmin`，backup Basic Auth 用户名固定为 `admin`，不再作为标准部署配置项暴露。
 - `app-server.yaml` 已不再消费 SMTP 变量；这组变量现在主要供 `hr-server.yaml` 的邮件验证码链路使用。
+- `app-server.yaml` 的 `scheduler_db.name` 默认是 `app-scheduler`，与 `db` 复用同一个 MySQL 实例，只隔离定时任务表。
 - `${APP_BASE_IMAGE}` 用于渲染 `app-runtime.yaml` 里的 `container.image.base_image`。
 - `${AOS_SCHEDULER_HEALTH_PORT}` 用于同步渲染 `scheduler.health_port` 与容器 healthcheck 探测端口，默认 `9098`。
 
