@@ -3,6 +3,7 @@
  */
 
 import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from './urlParams'
+import { isPersistentPlatformStateQueryKey } from './queryParamKeys'
 
 /**
  * 保留查询参数
@@ -39,8 +40,8 @@ export function preserveQueryParams(
     // 检查是否应该保留这个参数
     let shouldPreserve = false
 
-    // 保留状态参数（以 _ 开头）
-    if (preserveStateParams && key.startsWith('_')) {
+    // 保留平台状态参数（以 _ 开头），但不保留 link/display 等临时或废弃参数
+    if (preserveStateParams && isPersistentPlatformStateQueryKey(key)) {
       shouldPreserve = true
     }
     // 保留 table 参数

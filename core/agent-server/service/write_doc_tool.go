@@ -11,6 +11,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/naming"
+	"github.com/ai-agent-os/ai-agent-os/pkg/servicetree"
 )
 
 type writeDocCommand struct {
@@ -60,7 +61,7 @@ func runWriteDocCommand(ctx context.Context, cmd writeDocCommand, defaultFullCod
 
 	// 先查节点是否已存在且为 docs 类型
 	detail, err := apicall.GetServiceTreeDetailByFullCodePath(ctx, pathForAPI)
-	if err == nil && detail != nil && detail.Type == "docs" {
+	if err == nil && detail != nil && detail.Type == servicetree.TypeDocs {
 		// 已存在 docs 节点：更新内容
 		contentPtr := &docContent
 		formatPtr := &format
@@ -114,7 +115,7 @@ func runWriteDocCommand(ctx context.Context, cmd writeDocCommand, defaultFullCod
 		if strings.Contains(err.Error(), "already exists") {
 			existDetail, getErr := apicall.GetServiceTreeDetailByFullCodePath(ctx, pathForAPI)
 			if getErr == nil && existDetail != nil {
-				if existDetail.Type == "docs" {
+				if existDetail.Type == servicetree.TypeDocs {
 					contentPtr := &docContent
 					formatPtr := &format
 					updateErr := apicall.UpdateDocs(ctx, existDetail.ID, &dto.UpdateDocsReq{Content: contentPtr, Format: formatPtr})

@@ -6,8 +6,15 @@
       :class="['mini-msg', msg.role]"
     >
       <div v-if="msg.role === 'user'" class="mini-msg-user">
-        <span class="mini-msg-badge">你</span>
-        <span class="mini-msg-time">{{ msg.created_at ? formatMessageTime(msg.created_at) : '—' }}</span>
+        <div class="mini-msg-user-header">
+          <UserDisplay
+            :username="msg.user || currentUsername || null"
+            mode="simple"
+            size="small"
+            class="mini-msg-user-display"
+          />
+          <span class="mini-msg-time">{{ msg.created_at ? formatMessageTime(msg.created_at) : '—' }}</span>
+        </div>
         <div class="mini-msg-user-body">
           <OutputFilesDisplay
             v-if="msg.files?.length"
@@ -109,6 +116,11 @@ import type { ChatMessage, ChatMessageToolCall } from '@/architecture/presentati
 import MessageToolCalls from './MessageToolCalls.vue'
 import OutputDisplayFields from './OutputDisplayFields.vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
+import UserDisplay from '@/shared/components/UserDisplay.vue'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
+const currentUsername = authStore.user?.username || authStore.userName || ''
 
 const props = defineProps<{
   messages: ChatMessage[]
@@ -138,29 +150,54 @@ function renderContentBlock(text: string, msgIndex: number, blockIndex: number, 
   justify-content: center;
   height: 100%;
   min-height: 80px;
-  color: var(--el-text-color-placeholder);
+  color: var(--mini-cyber-dim, rgba(143, 187, 204, 0.48));
   font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.mini-msg { margin-bottom: 8px; }
+.mini-msg {
+  margin-bottom: 12px;
+  animation: miniMsgEnter 0.22s ease-out;
+}
 .mini-msg-user {
   display: flex;
-  gap: 6px;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 7px;
+  align-items: flex-end;
+}
+.mini-msg-user-header {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  max-width: 100%;
+}
+.mini-msg-user-display {
+  flex-shrink: 1;
+  min-width: 0;
+}
+.mini-msg-user-display :deep(.user-display-wrapper) {
+  display: inline-flex;
+  color: var(--mini-cyber-text, #d8f8ff);
 }
 .mini-msg-badge {
   flex-shrink: 0;
-  background: var(--el-color-primary);
-  color: var(--el-color-white, #fff);
+  border: 1px solid rgba(96, 231, 255, 0.28);
+  background: rgba(34, 211, 238, 0.16);
+  color: var(--mini-cyber-text, #d8f8ff);
   font-size: 10px;
-  padding: 1px 5px;
-  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 999px;
   margin-top: 1px;
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.12);
 }
 .mini-msg-time {
   flex-shrink: 0;
   font-size: 11px;
-  color: var(--el-text-color-secondary);
+  color: var(--mini-cyber-dim, rgba(143, 187, 204, 0.48));
   margin-top: 2px;
 }
 .mini-msg-assistant-header {
@@ -170,11 +207,18 @@ function renderContentBlock(text: string, msgIndex: number, blockIndex: number, 
   margin-bottom: 4px;
 }
 .mini-msg-assistant-header .mini-msg-badge {
-  background: var(--el-color-info-light-5, #909399);
-  color: var(--el-text-color-primary);
+  border-color: rgba(246, 199, 107, 0.3);
+  background: rgba(246, 199, 107, 0.12);
+  color: #ffe7ad;
 }
 .mini-msg-assistant {
-  padding-left: 2px;
+  padding: 8px 10px;
+  border: 1px solid rgba(96, 231, 255, 0.14);
+  border-radius: 13px;
+  background:
+    linear-gradient(145deg, rgba(9, 28, 48, 0.72), rgba(4, 12, 24, 0.48)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .mini-content-block {
@@ -182,7 +226,7 @@ function renderContentBlock(text: string, msgIndex: number, blockIndex: number, 
   font-size: 12px;
   line-height: 1.6;
   font-family: inherit;
-  color: var(--el-text-color-primary);
+  color: var(--mini-cyber-text, #d8f8ff);
   word-break: break-word;
 }
 .mini-md-content :deep(p) {
@@ -200,22 +244,27 @@ function renderContentBlock(text: string, msgIndex: number, blockIndex: number, 
   margin: 2px 0;
 }
 .mini-md-content :deep(code) {
-  background: var(--el-fill-color-light);
+  background: rgba(34, 211, 238, 0.1);
+  border: 1px solid rgba(96, 231, 255, 0.13);
   padding: 1px 4px;
   border-radius: 3px;
   font-size: 11px;
   font-family: 'SF Mono', 'Fira Code', monospace;
+  color: #bff8ff;
 }
 .mini-md-content :deep(pre) {
-  background: var(--app-code-bg);
-  color: var(--app-code-text);
-  border: 1px solid var(--app-code-border);
+  background:
+    linear-gradient(180deg, rgba(2, 8, 18, 0.94), rgba(4, 13, 24, 0.9)),
+    repeating-linear-gradient(90deg, rgba(96, 231, 255, 0.035) 0 1px, transparent 1px 20px);
+  color: #d8f8ff;
+  border: 1px solid rgba(96, 231, 255, 0.16);
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: 10px;
   overflow-x: auto;
   margin: 6px 0;
   font-size: 11px;
   line-height: 1.5;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.26);
 }
 .mini-md-content :deep(pre code) {
   background: none;
@@ -236,8 +285,9 @@ function renderContentBlock(text: string, msgIndex: number, blockIndex: number, 
 .mini-md-content :deep(blockquote) {
   margin: 4px 0;
   padding: 2px 8px;
-  border-left: 3px solid var(--el-border-color);
-  color: var(--el-text-color-secondary);
+  border-left: 3px solid rgba(34, 211, 238, 0.42);
+  color: var(--mini-cyber-muted, rgba(184, 225, 235, 0.68));
+  background: rgba(34, 211, 238, 0.06);
 }
 .mini-md-content :deep(table) {
   border-collapse: collapse;
@@ -247,20 +297,20 @@ function renderContentBlock(text: string, msgIndex: number, blockIndex: number, 
 }
 .mini-md-content :deep(th),
 .mini-md-content :deep(td) {
-  border: 1px solid var(--el-border-color-lighter);
+  border: 1px solid rgba(96, 231, 255, 0.16);
   padding: 3px 6px;
 }
 .mini-md-content :deep(th) {
-  background: var(--el-fill-color-light);
+  background: rgba(34, 211, 238, 0.1);
   font-weight: 600;
 }
 .mini-md-content :deep(a) {
-  color: var(--el-color-primary);
+  color: var(--mini-cyber-accent, #22d3ee);
   text-decoration: none;
 }
 .mini-md-content :deep(hr) {
   border: none;
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: 1px solid rgba(96, 231, 255, 0.16);
   margin: 8px 0;
 }
 .mini-tools-block {
@@ -274,10 +324,11 @@ function renderContentBlock(text: string, msgIndex: number, blockIndex: number, 
   align-items: center;
   gap: 3px;
   font-size: 11px;
-  color: var(--el-text-color-secondary);
-  background: var(--el-fill-color-light);
+  color: var(--mini-cyber-muted, rgba(184, 225, 235, 0.68));
+  border: 1px solid rgba(96, 231, 255, 0.16);
+  background: rgba(34, 211, 238, 0.08);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 999px;
 }
 
 .mini-msg-user-body {
@@ -286,6 +337,13 @@ function renderContentBlock(text: string, msgIndex: number, blockIndex: number, 
   display: flex;
   flex-direction: column;
   gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  border-radius: 13px;
+  background:
+    linear-gradient(135deg, rgba(34, 211, 238, 0.14), rgba(8, 22, 38, 0.48)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
+  color: var(--mini-cyber-text, #d8f8ff);
 }
 .mini-msg-files {
   margin: 4px 0;
@@ -296,11 +354,15 @@ function renderContentBlock(text: string, msgIndex: number, blockIndex: number, 
 }
 .mini-msg-files :deep(.output-files-wrap) {
   padding: 6px;
+  border-color: rgba(96, 231, 255, 0.14);
+  background: rgba(2, 8, 18, 0.34);
 }
 .mini-msg-files :deep(.output-files-item) {
   padding: 6px;
   min-width: 120px;
   max-width: 200px;
+  border-color: rgba(96, 231, 255, 0.14);
+  background: rgba(8, 22, 38, 0.62);
 }
 .mini-msg-files :deep(.output-files-preview) {
   width: 40px;
@@ -340,5 +402,16 @@ function renderContentBlock(text: string, msgIndex: number, blockIndex: number, 
 }
 .mini-msg-display-fields :deep(.odf-pre) {
   font-size: 11px;
+}
+
+@keyframes miniMsgEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

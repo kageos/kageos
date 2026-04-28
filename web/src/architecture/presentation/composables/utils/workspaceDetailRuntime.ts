@@ -1,7 +1,7 @@
 import type { FieldConfig } from '@/architecture/domain/types'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
-import { deleteScopedFieldQueryKey } from '@/utils/queryFieldNamespace'
+import { deleteFieldQueryKey } from '@/utils/queryParamKeys'
 import {
   buildTableUpdateFormDetail,
   getFormRequestFields,
@@ -222,8 +222,10 @@ export function buildDetailLookupSearchRequest(options: {
 export function buildDetailBaseQuery(options: {
   query: Record<string, any>
   editableFieldCodes: string[]
+  preserveRawFieldCodes?: string[]
 }): Record<string, string | string[]> {
   const nextQuery: Record<string, string | string[]> = {}
+  const preserveRawFieldCodes = new Set(options.preserveRawFieldCodes || [])
 
   Object.keys(options.query).forEach(key => {
     if (key === '_tab' || key === '_id') {
@@ -239,7 +241,11 @@ export function buildDetailBaseQuery(options: {
   })
 
   options.editableFieldCodes.forEach(fieldCode => {
-    deleteScopedFieldQueryKey(nextQuery, fieldCode, 'form')
+    // 可编辑表单字段只拥有原始 request key。必要时保留同名 table request
+    // 搜索参数，但不要清理别名/display key，因为这些 key 不属于 URL 协议。
+    deleteFieldQueryKey(nextQuery, fieldCode, {
+      deleteRaw: !preserveRawFieldCodes.has(fieldCode)
+    })
   })
 
   return nextQuery

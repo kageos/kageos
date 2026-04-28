@@ -20,6 +20,8 @@ import type { FunctionDetail, FieldConfig } from '../types'
 import {
   getTableListFields,
   getTableRequestFields,
+  getTableRequestSearchFields,
+  getTableResponseSearchFields,
   getTableSearchFields
 } from '@/utils/functionSchemaSelectors'
 import {
@@ -28,12 +30,11 @@ import {
   buildSearchParamsString,
   denormalizeSearchValue,
   getChangedFields,
-  getScopedFieldQueryValue,
+  getSearchOperatorFieldValue,
   parseCommaSeparatedString
 } from '@/core/tableRuntime/search'
 import { Logger } from '@/core/utils/logger'
-import { getSearchFieldDisplayQueryKey } from '@/utils/queryFieldNamespace'
-import { createStoredSearchFieldValue, getSearchFieldRawValue } from '@/utils/searchFieldValue'
+import { getSearchFieldRawValue } from '@/utils/searchFieldValue'
 
 /**
  * 表格数据项类型
@@ -95,19 +96,6 @@ export interface TableState {
     pageSize: number
     total: number
   }
-}
-
-function restoreStoredSearchValue(
-  query: Record<string, string | string[]>,
-  fieldCode: string,
-  rawValue: any
-): any {
-  const displayValue = query[getSearchFieldDisplayQueryKey(fieldCode)]
-  if (displayValue === undefined || displayValue === null || displayValue === '') {
-    return rawValue
-  }
-
-  return createStoredSearchFieldValue(rawValue, String(displayValue))
 }
 
 /**
@@ -457,13 +445,14 @@ export class TableDomainService {
     const sorts: Array<{ field: string; order: 'asc' | 'desc' }> = []
     
     // 获取当前函数的所有字段 code
-    const requestFields = getTableRequestFields(functionDetail)
+    const allRequestFields = getTableRequestFields(functionDetail)
+    const requestFields = getTableRequestSearchFields(functionDetail)
     const responseFields = getTableListFields(functionDetail)
     
     const currentRequestFieldCodes = new Set<string>()
     const currentResponseFieldCodes = new Set<string>()
     
-    requestFields.forEach((field: FieldConfig) => {
+    allRequestFields.forEach((field: FieldConfig) => {
       currentRequestFieldCodes.add(field.code)
     })
     responseFields.forEach((field: FieldConfig) => {
@@ -503,28 +492,27 @@ export class TableDomainService {
     }
     
     // 恢复搜索条件（request 字段）
+    // request 字段是 sdk-app 入参，只读取原始 field.code，例如 `genre=诗`。
+    // 不支持 `s_`/`f_` 命名空间，也不读取 `__display` 伴随参数。
     requestFields.forEach((field: FieldConfig) => {
       if (!currentRequestFieldCodes.has(field.code)) return
-      const value = getScopedFieldQueryValue(query, field.code, 'search')
+      const value = query[field.code]
       if (value !== undefined && value !== null && value !== '') {
-        searchForm[field.code] = restoreStoredSearchValue(query, field.code, String(value))
+        searchForm[field.code] = String(value)
       }
     })
     
     // 恢复搜索条件（response 字段）
+    // response 字段从表格结果集搜索，走后端操作符参数，例如
+    // `in=style:律诗`、`like=title:李白`。
     const searchableFields = this.getSearchableFields(functionDetail)
     const currentSearchFieldCodes = new Set<string>()
     searchableFields.forEach((field: FieldConfig) => {
       currentSearchFieldCodes.add(field.code)
     })
 
-    const responseSearchableFields = searchableFields.filter((field: FieldConfig) => {
-      if (currentRequestFieldCodes.has(field.code)) {
-        return false
-      }
-      const search = field.search
-      return search && search !== '-' && search !== '' && search.trim() !== ''
-    })
+    const responseSearchableFields = getTableResponseSearchFields(functionDetail)
+    const responseSearchFieldCodes = responseSearchableFields.map((field: FieldConfig) => field.code)
 
     responseSearchableFields.forEach((field: FieldConfig) => {
       if (!currentSearchFieldCodes.has(field.code)) return
@@ -532,152 +520,56 @@ export class TableDomainService {
       const searchType = field.search || ''
       
       if (searchType.includes(SearchType.EQ)) {
-        const eqValue = query.eq
-        if (eqValue) {
-          const eqStr = String(eqValue)
-          const parts = eqStr.split(',')
-          for (const part of parts) {
-            if (part.trim().startsWith(`${field.code}:`)) {
-              const value = part.trim().substring(field.code.length + 1)
-              if (value) {
-                const denormalizedValue = denormalizeSearchValue(value, {
-                  widgetType: field.widget?.type,
-                  searchType: field.search,
-                  field
-                })
-                searchForm[field.code] = restoreStoredSearchValue(query, field.code, denormalizedValue)
-                break
-              }
-            }
-          }
+        const value = getSearchOperatorFieldValue(query.eq, field.code, responseSearchFieldCodes)
+        if (value) {
+          const denormalizedValue = denormalizeSearchValue(value, {
+            widgetType: field.widget?.type,
+            searchType: field.search,
+            field
+          })
+          searchForm[field.code] = denormalizedValue
         }
       } else if (searchType.includes(SearchType.LIKE)) {
-        const likeValue = query.like
-        if (likeValue) {
-          const likeStr = String(likeValue)
-          const parts = likeStr.split(',')
-          for (const part of parts) {
-            if (part.trim().startsWith(`${field.code}:`)) {
-              const value = part.trim().substring(field.code.length + 1)
-              if (value) {
-                searchForm[field.code] = restoreStoredSearchValue(query, field.code, value)
-                break
-              }
-            }
-          }
+        const value = getSearchOperatorFieldValue(query.like, field.code, responseSearchFieldCodes)
+        if (value) {
+          searchForm[field.code] = value
         }
       } else if (searchType.includes(SearchType.CONTAINS)) {
-        const containsValue = query.contains
-        if (containsValue) {
-          const containsStr = String(containsValue)
-          const fieldPrefix = `${field.code}:`
-          const fieldIndex = containsStr.indexOf(fieldPrefix)
-          if (fieldIndex >= 0) {
-            const valueStart = fieldIndex + fieldPrefix.length
-            let valueEnd = containsStr.length
-            const allFieldCodes = searchableFields.map((f: FieldConfig) => f.code)
-            let nextFieldIndex = -1
-            for (const otherFieldCode of allFieldCodes) {
-              if (otherFieldCode === field.code) continue
-              const otherFieldPrefix = `${otherFieldCode}:`
-              const index = containsStr.indexOf(otherFieldPrefix, valueStart)
-              if (index >= 0 && (nextFieldIndex < 0 || index < nextFieldIndex)) {
-                nextFieldIndex = index
-              }
-            }
-            if (nextFieldIndex >= 0) {
-              valueEnd = nextFieldIndex
-            }
-            const valueStr = containsStr.substring(valueStart, valueEnd).trim()
-            if (valueStr) {
-              const values = parseCommaSeparatedString(valueStr)
-              if (field.widget?.type === WidgetType.MULTI_SELECT) {
-                searchForm[field.code] = restoreStoredSearchValue(query, field.code, values.length > 0 ? values : [])
-              } else {
-                searchForm[field.code] = restoreStoredSearchValue(
-                  query,
-                  field.code,
-                  values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
-                )
-              }
-            }
+        const valueStr = getSearchOperatorFieldValue(query.contains, field.code, responseSearchFieldCodes)
+        if (valueStr) {
+          const values = parseCommaSeparatedString(valueStr)
+          if (field.widget?.type === WidgetType.MULTI_SELECT) {
+            searchForm[field.code] = values.length > 0 ? values : []
+          } else {
+            searchForm[field.code] = values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
           }
         }
       } else if (searchType.includes(SearchType.IN)) {
-        const inValue = query.in
-        if (inValue) {
-          const inStr = String(inValue)
-          const fieldPrefix = `${field.code}:`
-          const fieldIndex = inStr.indexOf(fieldPrefix)
-          if (fieldIndex >= 0) {
-            const valueStart = fieldIndex + fieldPrefix.length
-            let valueEnd = inStr.length
-            const allFieldCodes = searchableFields.map((f: FieldConfig) => f.code)
-            let nextFieldIndex = -1
-            for (const otherFieldCode of allFieldCodes) {
-              if (otherFieldCode === field.code) continue
-              const otherFieldPrefix = `${otherFieldCode}:`
-              const index = inStr.indexOf(otherFieldPrefix, valueStart)
-              if (index >= 0 && (nextFieldIndex < 0 || index < nextFieldIndex)) {
-                nextFieldIndex = index
-              }
-            }
-            if (nextFieldIndex >= 0) {
-              valueEnd = nextFieldIndex
-            }
-            const valueStr = inStr.substring(valueStart, valueEnd).trim()
-            if (valueStr) {
-              const values = parseCommaSeparatedString(valueStr)
-              if ((field.widget?.type === WidgetType.USER || field.widget?.type === WidgetType.MULTI_SELECT) && searchType.includes(SearchType.IN)) {
-                searchForm[field.code] = restoreStoredSearchValue(query, field.code, values.length > 0 ? values : [])
-              } else {
-                searchForm[field.code] = restoreStoredSearchValue(
-                  query,
-                  field.code,
-                  values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
-                )
-              }
-            }
+        const valueStr = getSearchOperatorFieldValue(query.in, field.code, responseSearchFieldCodes)
+        if (valueStr) {
+          const values = parseCommaSeparatedString(valueStr)
+          if ((field.widget?.type === WidgetType.USER || field.widget?.type === WidgetType.MULTI_SELECT) && searchType.includes(SearchType.IN)) {
+            searchForm[field.code] = values.length > 0 ? values : []
+          } else {
+            searchForm[field.code] = values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
           }
         }
       } else if (searchType.includes(SearchType.GTE) && searchType.includes(SearchType.LTE)) {
-        const gteValue = query.gte
-        const lteValue = query.lte
-        let gte: string | null = null
-        if (gteValue) {
-          const gteStr = String(gteValue)
-          const parts = gteStr.split(',')
-          for (const part of parts) {
-            if (part.trim().startsWith(`${field.code}:`)) {
-              gte = part.trim().substring(field.code.length + 1)
-              break
-            }
-          }
-        }
-        let lte: string | null = null
-        if (lteValue) {
-          const lteStr = String(lteValue)
-          const parts = lteStr.split(',')
-          for (const part of parts) {
-            if (part.trim().startsWith(`${field.code}:`)) {
-              lte = part.trim().substring(field.code.length + 1)
-              break
-            }
-          }
-        }
+        const gte = getSearchOperatorFieldValue(query.gte, field.code, responseSearchFieldCodes)
+        const lte = getSearchOperatorFieldValue(query.lte, field.code, responseSearchFieldCodes)
         if (gte || lte) {
           const widgetType = field.widget?.type
           const isDateTime = widgetType === 'datetime'
           if (isDateTime) {
-            searchForm[field.code] = restoreStoredSearchValue(query, field.code, [
+            searchForm[field.code] = [
               gte ? String(gte) : null,
               lte ? String(lte) : null
-            ])
+            ]
           } else {
-            searchForm[field.code] = restoreStoredSearchValue(query, field.code, {
+            searchForm[field.code] = {
               min: gte ? String(gte) : undefined,
               max: lte ? String(lte) : undefined
-            })
+            }
           }
         }
       }
@@ -696,18 +588,10 @@ export class TableDomainService {
   buildSearchParams(functionDetail: FunctionDetail, searchForm: Record<string, any>): SearchParams {
     const searchParams: SearchParams = {}
     
-    // response 字段的搜索参数
-    const request = getTableRequestFields(functionDetail)
-    const responseFields = getTableSearchFields(functionDetail)
-
-    const requestFieldCodes = new Set<string>()
-    request.forEach((field: FieldConfig) => {
-      requestFieldCodes.add(field.code)
-    })
-    
-    const responseFieldsForParams = responseFields.filter(
-      (field: FieldConfig) => !requestFieldCodes.has(field.code)
-    )
+    // response 字段走后端操作符参数；request 字段直传给 sdk-app。
+    // 这里不要引入 `s_`/`f_` 或显示值伴随参数，否则 URL 会污染用户函数入参。
+    const request = getTableRequestSearchFields(functionDetail)
+    const responseFieldsForParams = getTableResponseSearchFields(functionDetail)
     
     // 使用工具函数构建 response 字段的搜索参数
     Object.assign(searchParams, buildSearchParamsString(searchForm, responseFieldsForParams))

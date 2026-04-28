@@ -256,7 +256,7 @@ var TicketTemplate = &app.TableTemplate{
 		Tags:     []string{"工单管理系统"},
 		Desc:     `一个简单的工单管理系统 ........`,
 		Request:  &TicketListReq{},
-		Response: []*Ticket{},
+		Response: query.PaginatedTable[[]*Ticket]{},
 		CreateTables: []interface{}{
 			&Ticket{},
 		},
@@ -324,7 +324,7 @@ var TicketTemplate = &app.TableTemplate{
 }
 
 type TicketListReq struct {
-	*query.SearchFilterPageReq //前端会传递符合框架规范的查询字符串，里面包含AutoCrudTable这里这张表的字段相关的 查询，排序，分页等等参数，后端无需关心这些
+	query.SearchFilterPageReq `widget:"-"` //前端会传递符合框架规范的查询字符串，里面包含AutoCrudTable这里这张表的字段相关的 查询，排序，分页等等参数，后端无需关心这些
 }
 
 func TicketList(ctx *app.Context, resp response.Response) error {
@@ -335,7 +335,7 @@ func TicketList(ctx *app.Context, resp response.Response) error {
 	}
 	db := ctx.GetGormDB()
 	var lists []*Ticket
-	err := resp.Table(&lists).AutoSearchFilterPaged(db, &Ticket{}, req.SearchFilterPageReq).Build()
+	err := resp.Table(&lists).AutoSearchFilterPaged(db, &Ticket{}, &req.SearchFilterPageReq).Build()
 	if err != nil {
 		logger.Errorf(ctx, "TicketSearch err: %v", err)
 		return err

@@ -272,7 +272,7 @@ func (r *NodePermissionResolver) checkAppLevelPermissions(nodePath string, nodeP
 	}
 
 	appPerms := r.rolePermissionMap.Get(appPath, permission.ResourceTypeApp)
-	appAdminCode := permission.BuildActionCode(permission.ResourceTypeApp, "admin")
+	appAdminCode := permission.BuildActionCode(permission.ResourceTypeApp, permission.ActionAdmin)
 	if appPerms[appAdminCode] {
 		// app:admin -> 所有权限
 		for _, requiredAction := range r.requiredActions {

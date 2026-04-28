@@ -18,10 +18,6 @@
 - `infra/nats/`：NATS 配置
 - `scripts/`：共享构建脚本与构建辅助脚本（例如 app-base 构建、APT mirror 配置）
 
-历史产物：
-
-- `images/backend/`：旧的后端大镜像实验目录，当前 `deploy/dev` / `deploy/prod` 主线都不依赖它；除非你明确在维护这条老链路，否则不要优先改这里。
-
 新增和维护时，请只修改 `deploy/base/` 下的 canonical 资源。
 
 

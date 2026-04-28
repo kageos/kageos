@@ -66,15 +66,35 @@ export function getTableUpdateFields(functionDetail?: FunctionDetail | null): Fi
 
 export function getTableSearchFields(functionDetail?: FunctionDetail | null): FieldConfig[] {
   const fields = new Map<string, FieldConfig>()
+  // table.request 字段是 sdk-app 入参，URL 保持原始 key（`genre=诗`）。
+  // table.fields 字段是结果集搜索，URL 走后端操作符（`in=style:律诗`）。
+  // 如果 code 重复，request 字段优先，避免同一个字段同时走两套协议。
+  getTableRequestFields(functionDetail)
+    .filter((field) => isRequestSearchEnabled(field))
+    .forEach((field) => fields.set(field.code, field))
   getTableRawFields(functionDetail)
     .filter((field) => hasSearchConfig(field))
-    .forEach((field) => fields.set(field.code, field))
-  getTableRequestFields(functionDetail)
-    .filter((field) => field.search !== '-')
     .forEach((field) => {
       if (!fields.has(field.code)) fields.set(field.code, field)
     })
   return [...fields.values()]
+}
+
+export function getTableRequestSearchFields(functionDetail?: FunctionDetail | null): FieldConfig[] {
+  return getTableRequestFields(functionDetail)
+    .filter((field) => isRequestSearchEnabled(field))
+}
+
+export function getTableResponseSearchFields(functionDetail?: FunctionDetail | null): FieldConfig[] {
+  const requestSearchFieldCodes = new Set(
+    getTableRequestSearchFields(functionDetail).map((field) => field.code)
+  )
+
+  // 排除 request 搜索字段：这些参数归 sdk-app 入参所有，必须保持原始 key，
+  // 不能再包进 `eq`/`in` 等操作符参数。
+  return getTableRawFields(functionDetail)
+    .filter((field) => hasSearchConfig(field))
+    .filter((field) => !requestSearchFieldCodes.has(field.code))
 }
 
 export function getTableIdField(functionDetail?: FunctionDetail | null): FieldConfig | null {
@@ -111,6 +131,10 @@ function buildFormDetailFromFields(functionDetail: FunctionDetail, fields: Field
 function hasSearchConfig(field: FieldConfig): boolean {
   const search = field.search?.trim()
   return !!search && search !== '-'
+}
+
+function isRequestSearchEnabled(field: FieldConfig): boolean {
+  return field.search?.trim() !== '-'
 }
 
 function isContainerWidget(field: FieldConfig): boolean {

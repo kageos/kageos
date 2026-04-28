@@ -135,6 +135,10 @@ export function listScheduledTasks(params: {
 }
 
 export function cancelScheduledTask(id: number): Promise<void> {
+  return post<void>(`/workspace/api/v1/scheduled_tasks/${id}/cancel`)
+}
+
+export function deleteScheduledTask(id: number): Promise<void> {
   return del<void>(`/workspace/api/v1/scheduled_tasks/${id}`)
 }
 

@@ -9,6 +9,79 @@ import type { SearchParams } from '@/types'
 import { SearchType } from '@/core/constants/search'
 import { getSearchFieldRawValue } from '@/utils/searchFieldValue'
 
+const escapeRegExp = (value: string): string => {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+const normalizeOperatorParamValue = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return normalizeOperatorParamValue(value[0])
+  }
+
+  if (value === undefined || value === null) {
+    return ''
+  }
+
+  return String(value)
+}
+
+/**
+ * 解析后端搜索操作符参数。
+ *
+ * 当前协议仍然是 `operator=field:value,other:value`。这里按“已知字段前缀”
+ * 定位字段边界，而不是直接 split(',')，避免字段值里包含逗号时前端回填被误切。
+ * 这只是 parser 收口，不改变发给后端的协议格式。
+ */
+export function parseSearchOperatorParams(
+  value: unknown,
+  fieldCodes: string[]
+): Record<string, string> {
+  const source = normalizeOperatorParamValue(value)
+  if (!source.trim() || fieldCodes.length === 0) {
+    return {}
+  }
+
+  const matches: Array<{
+    fieldCode: string
+    start: number
+    valueStart: number
+  }> = []
+
+  Array.from(new Set(fieldCodes)).forEach(fieldCode => {
+    if (!fieldCode) return
+
+    const pattern = new RegExp(`(^|,)${escapeRegExp(fieldCode)}:`, 'g')
+    let match: RegExpExecArray | null
+    while ((match = pattern.exec(source)) !== null) {
+      matches.push({
+        fieldCode,
+        start: match.index,
+        valueStart: match.index + match[0].length
+      })
+    }
+  })
+
+  matches.sort((left, right) => left.start - right.start)
+
+  return matches.reduce<Record<string, string>>((result, match, index) => {
+    const next = matches[index + 1]
+    const valueEnd = next ? next.start : source.length
+    const rawValue = source.substring(match.valueStart, valueEnd).trim()
+    if (rawValue) {
+      result[match.fieldCode] = rawValue
+    }
+    return result
+  }, {})
+}
+
+export function getSearchOperatorFieldValue(
+  value: unknown,
+  fieldCode: string,
+  fieldCodes: string[]
+): string | null {
+  return parseSearchOperatorParams(value, fieldCodes)[fieldCode] || null
+}
+
 /**
  * 构建搜索参数字符串（用于 SearchParams，格式：eq=field:value）
  * 

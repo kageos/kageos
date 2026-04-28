@@ -10,6 +10,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/servicetree"
 )
 
 func copyServiceTreeImpl(s *serviceTreeHubService, ctx context.Context, req *dto.CopyDirectoryReq) (*dto.CopyDirectoryResp, error) {
@@ -716,7 +717,7 @@ func buildDirectoryTreeNodeImpl(s *serviceTreeHubService, tree *model.ServiceTre
 	}
 
 	return &dto.DirectoryTreeNode{
-		Type:           "package",
+		Type:           servicetree.TypePackage,
 		Name:           tree.Name,
 		Code:           tree.Code,
 		Path:           tree.FullCodePath,

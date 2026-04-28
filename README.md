@@ -430,6 +430,8 @@ AI-Agent-OS 后续最重要的产品判断之一，是把企业应用里的通�
 6. `app-server`
 7. `api-gateway`
 
+`APP_ENV=dev` 的本地开发启动会额外编排 `timer-scheduler`，方便 GoLand 直接启动统一入口后完成定时任务联调；生产部署仍由独立 scheduler 服务启动 `timer-scheduler`。
+
 可以简单理解为下面的分层。
 
 ### 5.1 Web 前端

@@ -2,7 +2,7 @@
 
 ## 一、项目概要
 
-- **类型**：多 Table（商品、会员、支付记录）+ 收银台 Form（请求里 table 子项 + 会员 select）+ 多个统计 Form（销售趋势、分类销售、客单价等折线图）。适合单店、小门店、理发店这类轻量收银场景。
+- **类型**：多 Table（商品、会员、支付记录）+ 收银台 Form（请求里 table 子项 + 会员 select）+ 多个统计 Chart（销售趋势、分类销售、客单价等图表）。适合单店、小门店、理发店这类轻量收银场景。
 - **路由**：POST `cashier_desk.form`，GET 多个 list.table + 多个 statistics.chart；路由组 `/form_table_chart/cashier`。
 - **适合参考**：FormTemplate 请求中 table 子组件、OnSelectFuzzy、主从表、统计/图表。
 

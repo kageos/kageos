@@ -103,7 +103,7 @@ import {
   shouldWaitForDetailTableData,
   type DetailRestoreTrigger
 } from './utils/workspaceDetailRuntime'
-import { getFunctionCallbacks, getTableDetailFields } from '@/utils/functionSchemaSelectors'
+import { getFunctionCallbacks, getTableDetailFields, getTableRequestFields } from '@/utils/functionSchemaSelectors'
 
 export function useWorkspaceDetail(
   options: {
@@ -146,9 +146,13 @@ export function useWorkspaceDetail(
   }
 
   const buildDetailBaseQuery = (): Record<string, string | string[]> => {
+    const requestFieldCodes = getTableRequestFields(options.currentFunctionDetail())
+      .map(field => field.code)
+
     return buildDetailBaseQueryHelper({
       query: route.query as Record<string, any>,
-      editableFieldCodes: getEditableFieldCodes()
+      editableFieldCodes: getEditableFieldCodes(),
+      preserveRawFieldCodes: requestFieldCodes
     })
   }
 

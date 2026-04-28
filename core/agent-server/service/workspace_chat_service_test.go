@@ -41,6 +41,52 @@ func TestAppendExecuteGuideHint(t *testing.T) {
 	}
 }
 
+func TestGuideDocGateBlocksRuntimeToolsBeforeReadingExecuteDoc(t *testing.T) {
+	res, blocked := guideDocGateResult("run_table_search", map[string]struct{}{})
+	if !blocked {
+		t.Fatal("expected run_table_search to be blocked before execute doc is read")
+	}
+	if !res.IsError {
+		t.Fatal("expected blocked result to be an error")
+	}
+	if !strings.Contains(res.Content, executeGuideDocPath) {
+		t.Fatalf("expected execute doc path in gate message, got %q", res.Content)
+	}
+}
+
+func TestGuideDocGateAllowsRuntimeToolsAfterReadingExecuteDoc(t *testing.T) {
+	loaded := map[string]struct{}{executeGuideDocPath: {}}
+	_, blocked := guideDocGateResult("run_table_search", loaded)
+	if blocked {
+		t.Fatal("expected run_table_search to be allowed after execute doc is read")
+	}
+}
+
+func TestGuideDocGateAllowsSearchToolsAfterReadingMiscDoc(t *testing.T) {
+	loaded := map[string]struct{}{miscTasksGuideDocPath: {}}
+	_, blocked := guideDocGateResult("search_tools", loaded)
+	if blocked {
+		t.Fatal("expected search_tools to be allowed after misc-tasks doc is read")
+	}
+}
+
+func TestGuideDocPathsFromReadDocArgsSupportsCommaSeparatedPaths(t *testing.T) {
+	paths := guideDocPathsFromReadDocArgs(map[string]interface{}{
+		"directory": "/system/prompt/workspace/execute,/system/prompt/workspace/misc-tasks/",
+	})
+	loaded := make(map[string]struct{}, len(paths))
+	for _, path := range paths {
+		loaded[path] = struct{}{}
+	}
+
+	if _, ok := loaded[executeGuideDocPath]; !ok {
+		t.Fatalf("expected %s to be marked loaded: %#v", executeGuideDocPath, loaded)
+	}
+	if _, ok := loaded[miscTasksGuideDocPath]; !ok {
+		t.Fatalf("expected %s to be marked loaded: %#v", miscTasksGuideDocPath, loaded)
+	}
+}
+
 func TestWithAgentToolExecutionContextMarksSourceAndSession(t *testing.T) {
 	base := contextx.WithClientSource(context.Background(), "browser")
 

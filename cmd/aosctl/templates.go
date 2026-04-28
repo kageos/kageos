@@ -72,6 +72,7 @@ services:
       MINIO_ROOT_PASSWORD: {{ q .MinIO.SecretKey }}
       NATS_HOST: {{ q .NATSHostForMain }}
       NATS_PORT: {{ q .NATSPortForMain }}
+      NATS_URL: {{ q .NATSURL }}
       NATS_SEED_HOST: {{ q .NATSHostForMain }}
       NATS_SEED_PORT: {{ q .NATSPortForMain }}
       NATS_SEED_USER: {{ q .NATSAuthUser }}
@@ -88,7 +89,6 @@ services:
       TLS_CERT_FILE: {{ q .Site.CertFile }}
       TLS_KEY_FILE: {{ q .Site.KeyFile }}
       APP_BASE_IMAGE: {{ q .Images.AppBase }}
-      AOS_SCHEDULER_HEALTH_PORT: {{ q .Scheduler.HealthPort }}
     volumes:
       - {{ .Storage.Root }}/podman_storage:/var/lib/containers
       - {{ .Storage.Root }}/logs:/app/logs
@@ -115,6 +115,11 @@ services:
       MINIO_ROOT_PASSWORD: {{ q .MinIO.SecretKey }}
       NATS_HOST: {{ q .NATSHostForMain }}
       NATS_PORT: {{ q .NATSPortForMain }}
+      NATS_URL: {{ q .NATSURL }}
+      NATS_SEED_HOST: {{ q .NATSHostForMain }}
+      NATS_SEED_PORT: {{ q .NATSPortForMain }}
+      NATS_SEED_USER: {{ q .NATSAuthUser }}
+      NATS_SEED_PASSWORD: {{ q .NATSAuthPassword }}
       JWT_SECRET: {{ q .Secrets.JWTSecret }}
       CONTROL_ENC_KEY: {{ q .Secrets.ControlEncKey }}
       SMTP_HOST: {{ q .SMTP.Host }}
@@ -124,7 +129,6 @@ services:
       SMTP_FROM: {{ q .SMTP.From }}
       SMTP_FROM_NAME: {{ q .SMTP.FromName }}
       APP_BASE_IMAGE: {{ q .Images.AppBase }}
-      AOS_SCHEDULER_HEALTH_PORT: {{ q .Scheduler.HealthPort }}
     volumes:
       - {{ .Storage.Root }}/logs:/app/logs
       - {{ .Storage.Root }}/namespace:/app/namespace
@@ -200,7 +204,8 @@ authorization {
 
 const mysqlInitTemplate = `
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.AppDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.SchedulerDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.ScheduledTaskDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.TimerSchedulerDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.StorageDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.AgentDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.HRDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -242,6 +247,10 @@ sdk:
     LUA_PATH: "/usr/bin/lua"
     PYTHON_PATH: "/usr/bin/python3"
     PIP_PATH: "/usr/bin/pip3"
+
+timer_scheduler:
+  base_url: "http://127.0.0.1:9108/timer/api/v1"
+
 `
 
 const apiGatewayConfigTemplate = `
@@ -310,13 +319,8 @@ server:
   debug: false
   enable_pprof: false
 
-scheduler:
-  poll_interval_seconds: 1
-  batch_size: 50
-  lease_duration_seconds: 360
+timer_worker:
   max_concurrency: 4
-  health_port: {{ .Scheduler.HealthPort }}
-  health_max_age_seconds: 30
 
 db:
   type: "mysql"
@@ -331,8 +335,8 @@ db:
   log_level: "warn"
   slow_threshold: 200
 
-scheduler_db:
-  name: {{ q .MySQL.SchedulerDatabase }}
+scheduled_task_db:
+  name: {{ q .MySQL.ScheduledTaskDatabase }}
 
 timeouts:
   app_request: 300
@@ -389,6 +393,10 @@ server:
   debug: false
   enable_pprof: false
 
+timer_worker:
+  max_concurrency: 3
+  default_timeout_seconds: 1800
+
 db:
   type: "mysql"
   host: {{ q .MySQLHostForMain }}
@@ -400,6 +408,33 @@ db:
   max_open_conns: 100
   max_lifetime: 300
   log_level: "info"
+  slow_threshold: 200
+`
+
+const timerSchedulerConfigTemplate = `
+server:
+  port: 9108
+  listen_host: "127.0.0.1"
+  log_level: "info"
+  debug: false
+
+scheduler:
+  poll_interval_seconds: 1
+  batch_size: 50
+  dispatch_lease_seconds: 30
+  execution_lease_seconds: 3600
+
+db:
+  type: "mysql"
+  host: {{ q .MySQLHostForMain }}
+  port: {{ .MySQLPortForMain }}
+  user: {{ q .MySQL.User }}
+  password: {{ q .MySQL.Password }}
+  name: {{ q .MySQL.TimerSchedulerDatabase }}
+  max_idle_conns: 30
+  max_open_conns: 200
+  max_lifetime: 300
+  log_level: "warn"
   slow_threshold: 200
 `
 

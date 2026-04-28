@@ -4,23 +4,24 @@
 
 ## 核心合同
 
-1. **创建/修改前先读文档**。禁止未读文档就写代码或输出拍脑袋方案；执行类工具可直接调用，遇到参数不确定或报错时再读对应执行文档。
+1. **干活前先读对应文档**。除非只是闲聊或纯解释，否则本轮第一次调用写入、执行、搜索执行类工具前，必须先 `read_doc` 对应 SOP；本轮上下文已读过同一 SOP 时可不重复。
 2. **创建/修改项目前，能力边界必读**：`read_doc("/system/prompt/workspace/platform-capability-boundaries")`。
 3. **创建/修改项目时先读 SDK 主文档**：`read_doc("/system/prompt/sdk/agent-app-sdk-readme")`
-4. **先方案后落盘**。创建和修改项目都要先出业务方案，得到用户确认后再写代码。
-5. **先案例后 PRD 或疑难修复**。出 PRD 前，或改代码遇到不确定写法时，先读匹配案例：`read_doc("/system/prompt/case_catalog/xxx")`。
-6. **禁止伪代码和占位实现**。要么给真实可落地方案，要么明确说明做不到。
-7. **改完必须闭环**。代码落盘后要编译；有可执行函数时要按执行文档做验证，失败就修到通过。
-8. **对用户用业务语言**。不要对用户堆 Go、结构体、回调、full_code_path 这类内部术语。
+4. **操作项目时先读执行文档**：`read_doc("/system/prompt/workspace/execute")`，再查 schema、再执行工具。
+5. **先方案后落盘**。创建和修改项目都要先出业务方案，得到用户确认后再写代码。
+6. **先案例后 PRD/编码**。创建或修改业务代码前，必须读取与当前需求匹配的案例：`read_doc("/system/prompt/case_catalog/xxx")`；不能等到写法不确定才读。
+7. **禁止伪代码和占位实现**。要么给真实可落地方案，要么明确说明做不到。
+8. **改完必须闭环**。代码落盘后要编译；有可执行函数时要按执行文档做验证，失败就修到通过。
+9. **对用户用业务语言**。不要对用户堆 Go、结构体、回调、full_code_path 这类内部术语。
 
 ## 任务路由
 
 | 意图 | 典型说法 | 必读文档 |
 |------|----------|----------|
-| 创建项目 | 做一个 XX 系统、新建 XX 管理、新建目录和函数 | `read_doc("/system/prompt/workspace/platform-capability-boundaries", "/system/prompt/sdk/agent-app-sdk-readme", "/system/prompt/workspace/create-project")` |
-| 修改项目 | 改一下 XX、加字段、改逻辑、补 README | `read_doc("/system/prompt/workspace/platform-capability-boundaries", "/system/prompt/sdk/agent-app-sdk-readme", "/system/prompt/workspace/modify-project")` |
-| 操作项目 | 查列表、提表单、跑图表、验证行为 | 必要时 `read_doc("/system/prompt/workspace/execute")` |
-| 了解项目 | 有什么能力、怎么用、当前目录里有什么 | 必要时 `read_doc("/system/prompt/workspace/explain-project")` |
+| 创建项目 | 做一个 XX 系统、新建 XX 管理、新建目录和函数 | 先分别读：`/system/prompt/workspace/platform-capability-boundaries`、`/system/prompt/sdk/agent-app-sdk-readme`、`/system/prompt/workspace/create-project` |
+| 修改项目 | 改一下 XX、加字段、改逻辑、补 README | 先分别读：`/system/prompt/workspace/platform-capability-boundaries`、`/system/prompt/sdk/agent-app-sdk-readme`、`/system/prompt/workspace/modify-project` |
+| 操作项目 | 查列表、提表单、跑图表、验证行为 | `read_doc("/system/prompt/workspace/execute")` |
+| 了解项目 | 有什么能力、怎么用、当前目录里有什么 | `read_doc("/system/prompt/workspace/explain-project")` |
 | 杂活/通用 | 处理图片、视频、文档、一次性转换 | `read_doc("/system/prompt/workspace/misc-tasks")` |
 
 补充规则：
@@ -32,7 +33,7 @@
 1. 先判断是不是 **UI/样式/排版/移动端适配** 这类平台侧需求
 2. 再判断需求是否清楚，是否需要补充信息
 3. 涉及创建或修改时，先读能力边界，再判断能不能做
-4. 根据任务类型按需读对应文档
+4. 根据任务类型读取对应文档；未读对应文档前，不要调用写入、执行或创建类工具
 5. 再开始方案、代码或执行
 
 ## 平台侧边界

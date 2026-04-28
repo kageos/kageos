@@ -216,7 +216,8 @@ func (s *Server) setupRoutes() {
 	scheduledTask.POST("", scheduledTaskHandler.Create)                                   // 创建定时任务
 	scheduledTask.GET("", scheduledTaskHandler.List)                                      // 列表
 	scheduledTask.GET("/:id", scheduledTaskHandler.Get)                                   // 详情
-	scheduledTask.DELETE("/:id", scheduledTaskHandler.Cancel)                             // 取消
+	scheduledTask.POST("/:id/cancel", scheduledTaskHandler.Cancel)                        // 取消
+	scheduledTask.DELETE("/:id", scheduledTaskHandler.Delete)                             // 删除
 	scheduledTask.GET("/:id/executions", scheduledTaskHandler.ListExecutions)             // 执行记录
 	scheduledTask.GET("/:id/executions/:execution_id", scheduledTaskHandler.GetExecution) // 执行记录详情
 }

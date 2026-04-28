@@ -9,6 +9,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
 )
 
 func parseAdminUserSet(admins string) map[string]bool {
@@ -45,8 +46,8 @@ func assignDirectoryAdminRoleToUser(ctx context.Context, user, app, username, re
 		User:         user,
 		App:          app,
 		Username:     username,
-		RoleCode:     "admin",
-		ResourceType: "directory",
+		RoleCode:     permission.RoleCodeAdmin,
+		ResourceType: permission.ResourceTypeDirectory,
 		ResourcePath: resourcePath,
 		StartTime:    nil,
 		EndTime:      nil,
@@ -84,8 +85,8 @@ func removeDirectoryAdminRoleFromUserWithUserApp(ctx context.Context, user, app,
 		User:         user,
 		App:          app,
 		Username:     username,
-		RoleCode:     "admin",
-		ResourceType: "directory",
+		RoleCode:     permission.RoleCodeAdmin,
+		ResourceType: permission.ResourceTypeDirectory,
 		ResourcePath: resourcePath,
 	}
 

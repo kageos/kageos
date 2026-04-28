@@ -10,10 +10,12 @@
 先在仓库根目录启动后端，再在 `web/` 启前端：
 
 ```bash
-bash deploy/dev/scripts/run-backend.sh
+APP_ENV=dev go run ./core/cmd/main
 cd web
 npm run dev -- --host 127.0.0.1
 ```
+
+日常本地开发也可以直接用 GoLand 启动 `core/cmd/main/main.go`，环境变量设置为 `APP_ENV=dev`。
 
 首次使用需要安装 Playwright 浏览器：
 

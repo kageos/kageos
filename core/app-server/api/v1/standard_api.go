@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -130,7 +131,7 @@ func (s *StandardAPI) buildRequestAppReq(c *gin.Context, fullCodePath string) (*
 	}
 
 	// 绑定请求体（POST、PUT、PATCH、DELETE 等方法通常有请求体）
-	if c.Request.ContentLength > 0 && (c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "PATCH" || c.Request.Method == "DELETE") {
+	if c.Request.ContentLength > 0 && (c.Request.Method == http.MethodPost || c.Request.Method == http.MethodPut || c.Request.Method == http.MethodPatch || c.Request.Method == http.MethodDelete) {
 		all, err := io.ReadAll(c.Request.Body)
 		if err != nil {
 			return nil, err
@@ -780,7 +781,7 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 			User:            user,
 			App:             app,
 			Router:          router,
-			Method:          "GET",
+			Method:          http.MethodGet,
 			UrlQuery:        "eq=id:" + url.QueryEscape(idStr) + "&page=1&page_size=1",
 			TraceId:         contextx.GetTraceId(c),
 			RequestUser:     contextx.GetRequestUser(c),

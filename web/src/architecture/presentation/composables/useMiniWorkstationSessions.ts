@@ -21,11 +21,13 @@ function normalizeSessionMessages(rawMessages: any[]): ChatMessage[] {
     .filter(message => message.role === 'user' || message.role === 'assistant')
     .map((message: any) => ({
       role: message.role as 'user' | 'assistant',
+      user: message.user || message.created_by || '',
       content: message.content || '',
       files: message.files
         ? parseFileRefs(message.files).map(ref => ({ ref, name: fileNameFromRef(ref), source_name: fileNameFromRef(ref) }))
         : [],
       tool_calls: message.tool_calls || [],
+      created_at: message.created_at,
       blocks: (() => {
         const content = message.content || ''
         const toolCalls = message.tool_calls || []

@@ -9,6 +9,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
+	"github.com/ai-agent-os/ai-agent-os/pkg/scheduledsdk"
 	"github.com/gin-gonic/gin"
 )
 
@@ -41,6 +42,7 @@ func buildScheduledAgentTaskItem(t *model.ScheduledAgentTask) dto.ScheduledAgent
 		MaxRuns:           t.MaxRuns,
 		Timezone:          t.Timezone,
 		Status:            t.Status,
+		TimerTaskID:       t.TimerTaskID,
 		RunCount:          t.RunCount,
 		LastSessionID:     t.LastSessionID,
 		LastExecutionID:   t.LastExecutionID,
@@ -67,6 +69,7 @@ func buildScheduledAgentExecutionItem(e *model.ScheduledAgentExecution) dto.Sche
 		StartedAt:      e.StartedAt,
 		FinishedAt:     e.FinishedAt,
 		Status:         e.Status,
+		WorkerID:       e.WorkerID,
 		DurationMillis: e.DurationMillis,
 		InputGoal:      e.InputGoal,
 		OutputSummary:  e.OutputSummary,
@@ -79,6 +82,17 @@ func buildScheduledAgentExecutionItem(e *model.ScheduledAgentExecution) dto.Sche
 		CreatedAt:      time.Time(e.CreatedAt),
 		UpdatedAt:      time.Time(e.UpdatedAt),
 	}
+}
+
+func buildScheduledAgentRunNowResp(taskID int64, e *scheduledsdk.Execution) dto.ScheduledAgentRunNowResp {
+	resp := dto.ScheduledAgentRunNowResp{TaskID: taskID}
+	if e != nil {
+		resp.TimerTaskID = e.TaskID
+		resp.TimerExecutionID = e.ID
+		resp.Status = string(e.Status)
+		resp.ScheduledAt = e.ScheduledAt
+	}
+	return resp
 }
 
 func parseScheduledAgentID(c *gin.Context, name string) (int64, bool) {
@@ -166,7 +180,7 @@ func (h *ScheduledAgentTask) Delete(c *gin.Context) {
 		return
 	}
 	ctx := contextx.ToContext(c)
-	if err := h.service.Cancel(ctx, id, contextx.GetRequestUser(ctx)); err != nil {
+	if err := h.service.Delete(ctx, id, contextx.GetRequestUser(ctx)); err != nil {
 		response.FailWithMessage(c, "删除失败: "+err.Error())
 		return
 	}
@@ -184,7 +198,7 @@ func (h *ScheduledAgentTask) RunNow(c *gin.Context) {
 		response.FailWithMessage(c, "启动失败: "+err.Error())
 		return
 	}
-	response.OkWithData(c, buildScheduledAgentExecutionItem(exec))
+	response.OkWithData(c, buildScheduledAgentRunNowResp(id, exec))
 }
 
 func (h *ScheduledAgentTask) Pause(c *gin.Context) {

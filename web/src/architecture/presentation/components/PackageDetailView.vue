@@ -85,6 +85,7 @@
         @select-child="handleChildClick"
         @import-go-drop="onImportGoDrop"
         @set-import-go-dragging="isImportGoDragging = $event"
+        @open-session="$emit('open-session', $event)"
       />
     </div>
 
@@ -129,8 +130,9 @@ import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
 import { Logger } from '@/core/utils/logger'
 import PackageDetailContent from './PackageDetailContent.vue'
 import PackageDetailEditDialog from './PackageDetailEditDialog.vue'
+import type { WorkspaceSessionItem } from '@/api/workspace'
 
-type DetailTabName = 'info' | 'import' | 'permissionRequest' | 'permissionManage'
+type DetailTabName = 'info' | 'import' | 'permissionRequest' | 'permissionManage' | 'scheduledAgentTask'
 
 interface Props {
   packageNode?: ServiceTree | null
@@ -140,6 +142,7 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   'refresh': []
+  'open-session': [session: WorkspaceSessionItem]
 }>()
 
 const router = useRouter()
@@ -172,6 +175,10 @@ const resourceType = computed<'directory'>(() => {
   return 'directory'
 })
 
+const showScheduledAgentTaskTab = computed(() => {
+  return props.packageNode?.type === 'package' && !!props.packageNode.full_code_path
+})
+
 // ⭐ 本目录下所有函数调用次数之和（仅统计直接子节点中的 function）
 const totalRunCount = computed(() => {
   const children = props.packageNode?.children
@@ -195,7 +202,9 @@ watch(
   (tab) => {
     const normalizedTab = normalizeTabQuery(tab)
 
-    if (normalizedTab === 'permissionRequest' && showPermissionRequestTab.value) {
+    if (normalizedTab === 'scheduledAgentTask' && showScheduledAgentTaskTab.value) {
+      activeTab.value = 'scheduledAgentTask'
+    } else if (normalizedTab === 'permissionRequest' && showPermissionRequestTab.value) {
       activeTab.value = 'permissionRequest'
     } else if (normalizedTab === 'permissionManage' && showPermissionRequestTab.value) {
       activeTab.value = 'permissionManage'
@@ -238,6 +247,29 @@ const canEdit = computed(() => {
   
   return false
 })
+
+watch(
+  () => [
+    props.packageNode?.full_code_path,
+    showPermissionRequestTab.value,
+    showScheduledAgentTaskTab.value,
+    canEdit.value
+  ] as const,
+  () => {
+    if ((activeTab.value === 'permissionRequest' || activeTab.value === 'permissionManage') && !showPermissionRequestTab.value) {
+      activeTab.value = showScheduledAgentTaskTab.value ? 'scheduledAgentTask' : 'info'
+      return
+    }
+    if (activeTab.value === 'scheduledAgentTask' && !showScheduledAgentTaskTab.value) {
+      activeTab.value = 'info'
+      return
+    }
+    if (activeTab.value === 'import' && (!canEdit.value || !props.packageNode?.full_code_path)) {
+      activeTab.value = 'info'
+    }
+  },
+  { immediate: true }
+)
 
 // 管理员字段配置（用于 UsersWidget）
 const adminsField = computed<FieldConfig>(() => ({

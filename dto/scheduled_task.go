@@ -25,6 +25,7 @@ type CreateScheduledTaskReq struct {
 // ScheduledTaskItem 定时任务列表项
 type ScheduledTaskItem struct {
 	ID                int64    `json:"id"`
+	TimerTaskID       int64    `json:"timer_task_id,omitempty"`
 	Name              string   `json:"name"`
 	User              string   `json:"user"`
 	App               string   `json:"app"`

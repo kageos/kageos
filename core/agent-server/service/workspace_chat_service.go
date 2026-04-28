@@ -749,6 +749,7 @@ func (s *WorkspaceChatService) executeToolCalls(
 	ctx = withAgentToolExecutionContext(ctx, sessionID)
 	toolSummaries := make([]dto.WorkspaceChatToolCallSummary, 0, len(allToolCalls))
 	logger.Infof(ctx, "[WorkspaceChatStream] 开始执行工具调用 - 工具数量: %d, SessionID: %s", len(allToolCalls), sessionID)
+	loadedGuideDocs := s.loadedGuideDocsForSession(ctx, sessionID)
 
 	for i, tc := range allToolCalls {
 		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 执行工具调用 - ToolCallID: %s, ToolName: %s, Arguments: %q",
@@ -757,7 +758,15 @@ func (s *WorkspaceChatService) executeToolCalls(
 		sendEvent(EventToolCall, StreamEventToolCall{Name: tc.Function.Name, Status: ToolCallStatusRunning, Arguments: tc.Function.Arguments})
 
 		args := s.parseToolCallArgs(ctx, tc)
-		toolRes, st := s.callOtherTool(ctx, tc.Function.Name, args, fullCodePath, files, i+1, len(allToolCalls))
+		var toolRes ToolResult
+		var st string
+		if gateRes, blocked := guideDocGateResult(tc.Function.Name, loadedGuideDocs); blocked {
+			toolRes = gateRes
+			st = ToolCallStatusError
+			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 工具调用被文档闸门拦截 - ToolName: %s, Error: %s", i+1, len(allToolCalls), tc.Function.Name, toolRes.Content)
+		} else {
+			toolRes, st = s.callOtherTool(ctx, tc.Function.Name, args, fullCodePath, files, i+1, len(allToolCalls))
+		}
 
 		resultStr, errStr := "", ""
 		var resultData interface{}
@@ -835,6 +844,136 @@ func (s *WorkspaceChatService) callOtherTool(ctx context.Context, name string, a
 }
 
 const executeGuideDocPath = "/system/prompt/workspace/execute"
+const miscTasksGuideDocPath = "/system/prompt/workspace/misc-tasks"
+
+type guideDocRequirement struct {
+	AnyOf []string
+}
+
+func guideDocRequirementForTool(toolName string) (guideDocRequirement, bool) {
+	switch strings.TrimSpace(toolName) {
+	case "run_table_search", "run_table_create", "run_table_batch_create", "run_table_update", "run_table_delete",
+		"run_form_submit", "run_chart_query", "run_on_select_fuzzy",
+		"create_scheduled_task", "create_scheduled_agent_task":
+		return guideDocRequirement{AnyOf: []string{executeGuideDocPath}}, true
+	case "search_tools", "run_official_python":
+		return guideDocRequirement{AnyOf: []string{executeGuideDocPath, miscTasksGuideDocPath}}, true
+	default:
+		return guideDocRequirement{}, false
+	}
+}
+
+func guideDocGateResult(toolName string, loadedGuideDocs map[string]struct{}) (ToolResult, bool) {
+	req, ok := guideDocRequirementForTool(toolName)
+	if !ok || guideDocRequirementSatisfied(req, loadedGuideDocs) {
+		return ToolResult{}, false
+	}
+	return toolResult(guideDocGateMessage(toolName, req), true), true
+}
+
+func guideDocRequirementSatisfied(req guideDocRequirement, loadedGuideDocs map[string]struct{}) bool {
+	for _, docPath := range req.AnyOf {
+		if hasLoadedGuideDoc(loadedGuideDocs, docPath) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasLoadedGuideDoc(loadedGuideDocs map[string]struct{}, docPath string) bool {
+	required := normalizeGuideDocPath(docPath)
+	for loaded := range loadedGuideDocs {
+		if loaded == required || strings.HasPrefix(required, loaded+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func guideDocGateMessage(toolName string, req guideDocRequirement) string {
+	commands := make([]string, 0, len(req.AnyOf))
+	for _, docPath := range req.AnyOf {
+		commands = append(commands, fmt.Sprintf("`read_doc(\"%s\")`", docPath))
+	}
+	return fmt.Sprintf("已拦截工具调用：%s 属于执行/搜索类工具，必须先读取对应 SOP。请先调用 %s 后再重试。", toolName, strings.Join(commands, " 或 "))
+}
+
+func (s *WorkspaceChatService) loadedGuideDocsForSession(ctx context.Context, sessionID string) map[string]struct{} {
+	loaded := make(map[string]struct{})
+	if s == nil || s.messageRepo == nil || strings.TrimSpace(sessionID) == "" {
+		return loaded
+	}
+	messages, err := s.messageRepo.ListBySessionID(sessionID)
+	if err != nil {
+		logger.Warnf(ctx, "[WorkspaceChatStream] 查询会话已读 SOP 失败 SessionID=%s: %v", sessionID, err)
+		return loaded
+	}
+
+	readDocCalls := make(map[string][]string)
+	for _, msg := range messages {
+		if msg == nil {
+			continue
+		}
+		switch msg.Role {
+		case RoleAssistant:
+			if msg.ToolCalls == nil || strings.TrimSpace(*msg.ToolCalls) == "" {
+				continue
+			}
+			var toolCalls []llms.ToolCall
+			if err := json.Unmarshal([]byte(*msg.ToolCalls), &toolCalls); err != nil {
+				logger.Warnf(ctx, "[WorkspaceChatStream] 解析历史 tool_calls 失败 MessageID=%d: %v", msg.ID, err)
+				continue
+			}
+			for _, tc := range toolCalls {
+				if tc.Function.Name != "read_doc" || strings.TrimSpace(tc.ID) == "" {
+					continue
+				}
+				var args map[string]interface{}
+				if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+					logger.Warnf(ctx, "[WorkspaceChatStream] 解析历史 read_doc 参数失败 ToolCallID=%s: %v", tc.ID, err)
+					continue
+				}
+				readDocCalls[tc.ID] = guideDocPathsFromReadDocArgs(args)
+			}
+		case RoleTool:
+			if msg.ToolStatus != ToolCallStatusOK {
+				continue
+			}
+			for _, docPath := range readDocCalls[msg.ToolCallID] {
+				loaded[docPath] = struct{}{}
+			}
+		}
+	}
+	return loaded
+}
+
+func guideDocPathsFromReadDocArgs(args map[string]interface{}) []string {
+	dirArg, _ := args["directory"].(string)
+	if strings.TrimSpace(dirArg) == "" {
+		dirArg, _ = args["full_code_path"].(string)
+	}
+	rawPaths := splitDirectoryPaths(dirArg)
+	paths := make([]string, 0, len(rawPaths))
+	for _, rawPath := range rawPaths {
+		path := normalizeGuideDocPath(rawPath)
+		if path == "" {
+			continue
+		}
+		paths = append(paths, path)
+	}
+	return paths
+}
+
+func normalizeGuideDocPath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return strings.TrimRight(path, "/")
+}
 
 func shouldSuggestExecuteGuide(toolName string) bool {
 	switch strings.TrimSpace(toolName) {

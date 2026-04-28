@@ -32,6 +32,10 @@ type RuntimeStateSummary struct {
 	WaitingApprovalCount  int       `json:"waiting_approval_count"`
 	FailedRecentCount     int       `json:"failed_recent_count"`
 	LastActivityAt        time.Time `json:"last_activity_at"`
+	DominantStatus        string    `json:"dominant_status,omitempty"`
+	BadgeText             string    `json:"badge_text,omitempty"`
+	BadgeTone             string    `json:"badge_tone,omitempty"`
+	Tooltip               string    `json:"tooltip,omitempty"`
 }
 
 type RuntimeStateSummaryResp struct {

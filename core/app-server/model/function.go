@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"net/http"
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
@@ -71,22 +72,22 @@ func (f *Function) HasCallback(target string) bool {
 
 // IsGET 判断是否为GET请求
 func (f *Function) IsGET() bool {
-	return f.Method == "GET"
+	return f.Method == http.MethodGet
 }
 
 // IsPOST 判断是否为POST请求
 func (f *Function) IsPOST() bool {
-	return f.Method == "POST"
+	return f.Method == http.MethodPost
 }
 
 // IsPUT 判断是否为PUT请求
 func (f *Function) IsPUT() bool {
-	return f.Method == "PUT"
+	return f.Method == http.MethodPut
 }
 
 // IsDELETE 判断是否为DELETE请求
 func (f *Function) IsDELETE() bool {
-	return f.Method == "DELETE"
+	return f.Method == http.MethodDelete
 }
 
 // GetRouterSegments 获取路由段

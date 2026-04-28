@@ -61,11 +61,11 @@ function createFunctionDetail() {
 }
 
 describe('tableViewURLRuntime', () => {
-  it('collects request field codes for filtering and namespaced search params', () => {
+  it('collects request field codes for filtering raw request search params', () => {
     expect(Array.from(getTableRequestFieldCodes(createFunctionDetail()))).toEqual(['status'])
   })
 
-  it('builds table query params from scoped state, default sorts and namespaced request search', () => {
+  it('builds table query params from scoped state, default sorts and raw request search', () => {
     expect(
       buildTableURLQueryParams({
         functionDetail: createFunctionDetail(),
@@ -85,11 +85,60 @@ describe('tableViewURLRuntime', () => {
       like: 'keyword:alice',
       gte: 'created_at:1700000000',
       lte: 'created_at:1800000000',
-      s_status: 'open'
+      status: 'open'
     })
   })
 
-  it('persists display labels for stored search field values alongside raw params', () => {
+  it('keeps request fields aligned with backend form tags when a table field has the same code', () => {
+    expect(
+      buildTableURLQueryParams({
+        functionDetail: {
+          schema: {
+            version: 1,
+            type: 'table',
+            table: {
+              request: [
+                {
+                  code: 'genre',
+                  name: '体裁',
+                  widget: { type: 'select' }
+                }
+              ],
+              fields: [
+                {
+                  code: 'genre',
+                  name: '体裁',
+                  search: 'in',
+                  widget: { type: 'select' }
+                },
+                {
+                  code: 'style',
+                  name: '格律形式',
+                  search: 'in',
+                  widget: { type: 'select' }
+                }
+              ]
+            }
+          }
+        } as any,
+        state: createState({
+          searchForm: {
+            genre: '诗',
+            style: '律诗'
+          }
+        }),
+        buildDefaultSorts: () => [{ field: 'id', order: 'desc' }]
+      })
+    ).toEqual({
+      page: '2',
+      page_size: '50',
+      sorts: 'id:desc',
+      genre: '诗',
+      in: 'style:律诗'
+    })
+  })
+
+  it('builds only backend search params for stored search field values', () => {
     expect(
       buildTableURLQueryParams({
         functionDetail: {
@@ -125,8 +174,7 @@ describe('tableViewURLRuntime', () => {
       page: '2',
       page_size: '50',
       sorts: 'id:desc',
-      eq: 'job_id:1',
-      s_job_id__display: '前端开发工程师 - 技术 (北京, 20000-35000元)'
+      eq: 'job_id:1'
     })
   })
 
@@ -138,11 +186,33 @@ describe('tableViewURLRuntime', () => {
           _link_type: 'table',
           page: '9',
           like: 'keyword:legacy',
-          s_status: 'legacy-open',
           status: 'legacy-open',
           topic_id: '42'
         },
         requestFieldCodes: new Set(['status']),
+        isLinkNavigation: false
+      })
+    ).toEqual({
+      _tab: 'detail',
+      topic_id: '42'
+    })
+  })
+
+  it('drops stale generated field params instead of preserving old URL aliases', () => {
+    expect(
+      preserveExistingTableQueryParams({
+        routeQuery: {
+          _tab: 'detail',
+          s_genre: '诗',
+          f_genre: '诗',
+          s_style: '律诗',
+          s_style__display: '律诗',
+          _genre__display: '诗',
+          genre: 'legacy-raw',
+          topic_id: '42'
+        },
+        requestFieldCodes: new Set(['genre']),
+        generatedFieldCodes: new Set(['genre', 'style']),
         isLinkNavigation: false
       })
     ).toEqual({
@@ -186,7 +256,7 @@ describe('tableViewURLRuntime', () => {
       page_size: '50',
       sorts: 'id:desc',
       like: 'keyword:alice',
-      s_status: 'open'
+      status: 'open'
     })
   })
 
@@ -212,7 +282,7 @@ describe('tableViewURLRuntime', () => {
       page_size: '50',
       sorts: 'id:desc',
       like: 'keyword:alice',
-      s_status: 'open'
+      status: 'open'
     })
   })
 })

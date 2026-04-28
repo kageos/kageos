@@ -426,13 +426,13 @@ flowchart LR
 
 ## 10. 如果再回到部署操作，它只是这套逻辑的壳
 
-现在再看 `build.sh`、Compose、entrypoint，就容易多了。
+现在再看 `aosctl`、Compose 生成物、entrypoint，就容易多了。
 
 它们只是把上面这套逻辑变成可执行动作：
 
 - Compose：把角色摆到机器上
 - entrypoint：把每个角色内部启动顺序串起来
-- `build.sh`：把初始化、预检、启动动作包起来
+- `aosctl`：把初始化、预检、配置渲染、启动动作包起来
 
 所以：
 
@@ -442,5 +442,4 @@ flowchart LR
 如果你想继续往下看“具体入口文件如何对应这套逻辑”，再看：
 
 - [README.md](README.md)
-- [docker-compose.yaml](docker-compose.yaml)
-- [build.sh](build.sh)
+- [../../cmd/aosctl](../../cmd/aosctl)

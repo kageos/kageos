@@ -34,7 +34,7 @@ type UpdateScheduledAgentTaskReq struct {
 	FullCodePath      string          `json:"full_code_path,omitempty"`
 	Goal              string          `json:"goal,omitempty"`
 	ModeCode          string          `json:"mode_code,omitempty"`
-	Files             string          `json:"files,omitempty"`
+	Files             *string         `json:"files,omitempty"`
 	LLMConfigID       *int64          `json:"llm_config_id,omitempty"`
 	ContextPolicy     json.RawMessage `json:"context_policy,omitempty"`
 	ToolPolicy        json.RawMessage `json:"tool_policy,omitempty"`
@@ -73,6 +73,7 @@ type ScheduledAgentTaskItem struct {
 	MaxRuns           int             `json:"max_runs,omitempty"`
 	Timezone          string          `json:"timezone,omitempty"`
 	Status            string          `json:"status"`
+	TimerTaskID       int64           `json:"timer_task_id,omitempty"`
 	RunCount          int             `json:"run_count"`
 	LastSessionID     string          `json:"last_session_id,omitempty"`
 	LastExecutionID   int64           `json:"last_execution_id,omitempty"`
@@ -97,6 +98,7 @@ type ScheduledAgentExecutionItem struct {
 	StartedAt      *time.Time      `json:"started_at,omitempty"`
 	FinishedAt     *time.Time      `json:"finished_at,omitempty"`
 	Status         string          `json:"status"`
+	WorkerID       string          `json:"worker_id,omitempty"`
 	DurationMillis int64           `json:"duration_millis"`
 	InputGoal      string          `json:"input_goal,omitempty"`
 	OutputSummary  string          `json:"output_summary,omitempty"`
@@ -108,4 +110,12 @@ type ScheduledAgentExecutionItem struct {
 	SourceRef      string          `json:"source_ref,omitempty"`
 	CreatedAt      time.Time       `json:"created_at"`
 	UpdatedAt      time.Time       `json:"updated_at"`
+}
+
+type ScheduledAgentRunNowResp struct {
+	TaskID           int64     `json:"task_id"`
+	TimerTaskID      int64     `json:"timer_task_id"`
+	TimerExecutionID int64     `json:"timer_execution_id"`
+	Status           string    `json:"status"`
+	ScheduledAt      time.Time `json:"scheduled_at"`
 }

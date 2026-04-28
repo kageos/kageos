@@ -92,11 +92,7 @@ import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types
 import { Logger } from '@/core/utils/logger'
 import { isEmptyValue, shouldSkipURLSync, convertFieldValueToURLParam, mergeURLQueryParams } from './utils/urlSyncUtils'
 import { isLinkNavigation } from '@/utils/linkNavigation'
-import {
-  deleteScopedFieldQueryKey,
-  getFormDraftQueryKey,
-  shouldUseRawFormQueryKeys
-} from '@/utils/queryFieldNamespace'
+import { deleteFieldQueryKey } from '@/utils/queryParamKeys'
 import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
 
 export interface UseFormParamURLSyncOptions {
@@ -118,10 +114,7 @@ export interface UseFormParamURLSyncOptions {
  */
 function buildFormQueryParams(
   requestFields: FieldConfig[],
-  formDataStore: UseFormParamURLSyncOptions['formDataStore'],
-  options?: {
-    useRawFormQueryKeys?: boolean
-  }
+  formDataStore: UseFormParamURLSyncOptions['formDataStore']
 ): Record<string, string> {
   const query: Record<string, string> = {}
 
@@ -141,8 +134,9 @@ function buildFormQueryParams(
     // 🔥 默认支持所有其他类型：转换为 URL 参数
     // 支持的类型包括：input, text, text_area, number, float, switch, select, multiselect,
     // radio, checkbox, datetime, ID, rate, user, slider, color, richtext, link, progress 等
-    const queryKey = options?.useRawFormQueryKeys ? field.code : getFormDraftQueryKey(field.code)
-    query[queryKey] = convertFieldValueToURLParam(fieldValue)
+    // Form request 参数是 sdk-app 入参，query key 必须保持 schema 原始
+    // field.code，并和 sdk-app json/form tag 对齐。
+    query[field.code] = convertFieldValueToURLParam(fieldValue)
   })
 
   return query
@@ -197,15 +191,14 @@ export function useFormParamURLSync(options: UseFormParamURLSyncOptions) {
 
     // 构建表单查询参数
     const requestFields = getFormRequestFields(detail)
-    const useRawQueryKeys = shouldUseRawFormQueryKeys(route.query as Record<string, any>)
-    const query = buildFormQueryParams(requestFields, options.formDataStore, {
-      useRawFormQueryKeys: useRawQueryKeys
-    })
+    const query = buildFormQueryParams(requestFields, options.formDataStore)
 
     // 获取当前 URL 的查询参数并合并
     const currentQuery = { ...route.query }
     requestFields.forEach(field => {
-      deleteScopedFieldQueryKey(currentQuery, field.code, 'form')
+      // 重写前只删除 request 字段的原始 key；平台状态统一放在 `_` key 下，
+      // 由 RouteManager 的 preserve 规则处理。
+      deleteFieldQueryKey(currentQuery, field.code)
     })
     const newQuery = mergeURLQueryParams(currentQuery, query, 'form')
 

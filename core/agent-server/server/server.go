@@ -17,6 +17,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
 	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/scheduledsdk"
 	"github.com/ai-agent-os/ai-agent-os/pkg/serverx"
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
@@ -55,6 +56,7 @@ type Server struct {
 
 	schedulerCancel context.CancelFunc
 	schedulerDone   chan struct{}
+	timerWorker     *scheduledsdk.Worker
 }
 
 // NewServer 创建新的服务器实例
@@ -71,19 +73,17 @@ func NewServer(cfg *config.AgentServerConfig) (*Server, error) {
 		return nil, fmt.Errorf("failed to init database: %w", err)
 	}
 
+	if err := s.initNATS(ctx); err != nil {
+		return nil, fmt.Errorf("failed to init NATS: %w", err)
+	}
+
 	controlCfg := s.cfg.GetControlService()
 	if controlCfg.IsEnabled() {
-		if err := s.initNATS(ctx); err != nil {
-			return nil, fmt.Errorf("failed to init NATS: %w", err)
-		}
-
 		// ⭐ 初始化 License Client（在 NATS 初始化之后）
 		if err := s.initLicenseClient(ctx); err != nil {
 			// License Client 初始化失败，记录警告但不中断启动（社区版可以继续运行）
 			logger.Warnf(ctx, "[Server] Failed to init license client: %v, continuing with community edition", err)
 		}
-	} else {
-		logger.Infof(ctx, "[Server] Control Service client disabled, skipping NATS initialization")
 	}
 
 	if err := s.initServices(ctx); err != nil {
@@ -117,7 +117,7 @@ func (s *Server) Start(ctx context.Context) error {
 	// 等待一小段时间确保服务器启动
 	time.Sleep(100 * time.Millisecond)
 
-	if err := s.StartScheduler(ctx); err != nil {
+	if err := s.StartTimerWorker(ctx); err != nil {
 		return err
 	}
 
@@ -125,7 +125,7 @@ func (s *Server) Start(ctx context.Context) error {
 	return nil
 }
 
-func (s *Server) StartScheduler(ctx context.Context) error {
+func (s *Server) StartTimerWorker(ctx context.Context) error {
 	if s.scheduledAgentTaskService == nil {
 		return nil
 	}
@@ -133,11 +133,34 @@ func (s *Server) StartScheduler(ctx context.Context) error {
 		return fmt.Errorf("scheduled agent task scheduler is already running")
 	}
 	runCtx, cancel := context.WithCancel(ctx)
+	worker, err := scheduledsdk.NewWorker(scheduledsdk.WorkerOptions{
+		Client:      scheduledsdk.NewClient(scheduledsdk.Options{BaseURL: config.GetGlobalSharedConfig().TimerScheduler.GetBaseURL()}),
+		NATSConn:    s.natsConn,
+		ExecutorKey: "agent.session",
+		WorkerID:    "agent-server",
+		Handler:     s.scheduledAgentTaskService.HandleTimerExecution,
+		OnError: func(ctx context.Context, err error) {
+			logger.Errorf(ctx, "[Server] Scheduled agent timer worker error: %v", err)
+		},
+	})
+	if err != nil {
+		cancel()
+		return fmt.Errorf("create scheduled agent timer worker: %w", err)
+	}
+	if err := worker.Start(runCtx); err != nil {
+		cancel()
+		return fmt.Errorf("start scheduled agent timer worker: %w", err)
+	}
+	s.timerWorker = worker
 	s.schedulerCancel = cancel
 	s.schedulerDone = make(chan struct{})
 	go func() {
 		defer close(s.schedulerDone)
-		s.scheduledAgentTaskService.StartScheduler(runCtx)
+		logger.Infof(runCtx, "[Server] Scheduled agent timer worker started")
+		<-runCtx.Done()
+		if s.timerWorker != nil {
+			_ = s.timerWorker.Stop()
+		}
 	}()
 	logger.Infof(ctx, "[Server] Scheduled agent task scheduler started")
 	return nil
@@ -307,15 +330,14 @@ func (s *Server) initServices(ctx context.Context) error {
 		scheduledAgentExecutionRepo,
 		auth.NewJWTService(),
 		service.ScheduledAgentTaskServiceOptions{
-			PollInterval:        s.cfg.GetSchedulerPollInterval(),
-			BatchSize:           s.cfg.GetSchedulerBatchSize(),
-			LeaseDuration:       s.cfg.GetSchedulerLeaseDuration(),
-			MaxConcurrency:      s.cfg.GetSchedulerMaxConcurrency(),
-			DefaultTimeout:      s.cfg.GetSchedulerDefaultTimeout(),
+			MaxConcurrency:      s.cfg.GetTimerWorkerMaxConcurrency(),
+			DefaultTimeout:      s.cfg.GetTimerWorkerDefaultTimeout(),
 			MessagePublisher:    service.NewNATSMessagePublisher(s.natsConn),
 			NotificationBaseURL: config.GetGlobalSharedConfig().Gateway.GetBaseURL(),
+			TimerClient:         scheduledsdk.NewClient(scheduledsdk.Options{BaseURL: config.GetGlobalSharedConfig().TimerScheduler.GetBaseURL()}),
 		},
 	)
+	s.toolRegistry.SetScheduledAgentTaskService(s.scheduledAgentTaskService)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil

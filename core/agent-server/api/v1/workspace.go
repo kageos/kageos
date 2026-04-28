@@ -164,6 +164,7 @@ func (h *Workspace) ListMessages(c *gin.Context) {
 			ID:        msg.ID,
 			SessionID: msg.SessionID,
 			Role:      msg.Role,
+			User:      msg.User,
 			Content:   msg.Content,
 			Files:     msg.Files,
 			CreatedAt: msg.CreatedAt,

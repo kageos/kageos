@@ -5,13 +5,14 @@ import (
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+	"github.com/ai-agent-os/ai-agent-os/pkg/servicetree"
 )
 
 const (
-	ServiceTreeTypePackage  = "package"
-	ServiceTreeTypeFunction = "function"
-	ServiceTreeTypeDocs     = "docs"
-	ServiceTreeTypeBoard    = "board" // 版块/讨论区，下挂多条帖子（board_posts）
+	ServiceTreeTypePackage  = servicetree.TypePackage
+	ServiceTreeTypeFunction = servicetree.TypeFunction
+	ServiceTreeTypeDocs     = servicetree.TypeDocs
+	ServiceTreeTypeBoard    = servicetree.TypeBoard // 版块/讨论区，下挂多条帖子（board_posts）
 )
 
 // ServiceTree 表示服务树模型，一个app下可以有无数个package，一个package下面有无数个function，ServiceTree是一个抽象的树干，这个树干上可以挂载各种实体
@@ -263,13 +264,13 @@ func (st *ServiceTree) GetHierarchyType() string {
 	switch st.Type {
 	case ServiceTreeTypePackage:
 		if st.IsRoot() {
-			return "root"
+			return servicetree.HierarchyTypeRoot
 		}
-		return "package"
+		return servicetree.HierarchyTypePackage
 	case ServiceTreeTypeFunction:
-		return "function"
+		return servicetree.HierarchyTypeFunction
 	default:
-		return "unknown"
+		return servicetree.HierarchyTypeUnknown
 	}
 }
 

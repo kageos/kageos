@@ -9,7 +9,7 @@ import type { FunctionDetail } from '@/architecture/domain/types'
 import { Logger } from '@/core/utils/logger'
 import type { ServiceTree } from '../../domain/services/WorkspaceDomainService'
 
-type FunctionTabName = 'content' | 'permissionRequest' | 'permissionManage' | 'operateLog' | 'scheduledTask'
+type FunctionTabName = 'content' | 'permissionRequest' | 'permissionManage' | 'operateLog' | 'scheduledTask' | 'scheduledAgentTask'
 type ReplayContext = {
   source: 'scheduled_task' | 'operate_log'
   title?: string
@@ -218,8 +218,12 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     return currentFunction.value?.type === 'function' && !!currentFunction.value?.full_code_path
   })
 
+  const showScheduledAgentTaskTab = computed(() => {
+    return currentFunction.value?.type === 'function' && !!currentFunction.value?.full_code_path
+  })
+
   const showFunctionTabsWrapper = computed(() => {
-    return showFunctionPermissionTabs.value || showFormOperateLogTab.value || showScheduledTaskTab.value
+    return showFunctionPermissionTabs.value || showFormOperateLogTab.value || showScheduledTaskTab.value || showScheduledAgentTaskTab.value
   })
 
   const loadFunctionTab = (tabName: FunctionTabName) => {
@@ -247,6 +251,8 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
         return 'operateLog'
       case 'scheduledTask':
         return 'scheduledTask'
+      case 'scheduledAgentTask':
+        return 'scheduledAgentTask'
       default:
         return undefined
     }
@@ -356,6 +362,9 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   function onScheduledTaskTotalChange(_total: number) {
   }
 
+  function onScheduledAgentTaskTotalChange(_total: number) {
+  }
+
   const activateScheduledTaskTab = () => {
     functionActiveTab.value = 'scheduledTask'
     syncFunctionTabQuery()
@@ -431,8 +440,13 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
       return
     }
 
+    if (normalizedTab === 'scheduledAgentTask' && showScheduledAgentTaskTab.value) {
+      functionActiveTab.value = 'scheduledAgentTask'
+      return
+    }
+
     if (normalizedTab) {
-      if (functionActiveTab.value !== 'scheduledTask') {
+      if (functionActiveTab.value !== 'scheduledTask' && functionActiveTab.value !== 'scheduledAgentTask') {
         functionActiveTab.value = 'content'
       }
       return
@@ -441,14 +455,15 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     if (
       ((functionActiveTab.value === 'permissionRequest' || functionActiveTab.value === 'permissionManage') && !showFunctionPermissionTabs.value) ||
       (functionActiveTab.value === 'operateLog' && !showFormOperateLogTab.value) ||
-      (functionActiveTab.value === 'scheduledTask' && !showScheduledTaskTab.value)
+      (functionActiveTab.value === 'scheduledTask' && !showScheduledTaskTab.value) ||
+      (functionActiveTab.value === 'scheduledAgentTask' && !showScheduledAgentTaskTab.value)
     ) {
       functionActiveTab.value = 'content'
     }
   }
 
   watch(
-    () => [currentFunction.value?.full_code_path, showFunctionPermissionTabs.value, showFormOperateLogTab.value, showScheduledTaskTab.value] as const,
+    () => [currentFunction.value?.full_code_path, showFunctionPermissionTabs.value, showFormOperateLogTab.value, showScheduledTaskTab.value, showScheduledAgentTaskTab.value] as const,
     () => {
       if (!showFunctionPermissionTabs.value && (functionActiveTab.value === 'permissionRequest' || functionActiveTab.value === 'permissionManage')) {
         functionActiveTab.value = 'content'
@@ -462,12 +477,16 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
         functionActiveTab.value = 'content'
         syncFunctionTabQuery()
       }
+      if (!showScheduledAgentTaskTab.value && functionActiveTab.value === 'scheduledAgentTask') {
+        functionActiveTab.value = 'content'
+        syncFunctionTabQuery()
+      }
     },
     { immediate: true }
   )
 
   watch(
-    () => [route.query._panel, route.query._trace_id, showFunctionPermissionTabs.value, showFormOperateLogTab.value, showScheduledTaskTab.value] as const,
+    () => [route.query._panel, route.query._trace_id, showFunctionPermissionTabs.value, showFormOperateLogTab.value, showScheduledTaskTab.value, showScheduledAgentTaskTab.value] as const,
     ([tab]) => {
       applyFunctionPanelQuery(tab)
     },
@@ -502,6 +521,7 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     setFunctionPermissionManageListRef,
     setFormOperateLogSectionRef,
     showScheduledTaskTab,
+    showScheduledAgentTaskTab,
     showFunctionPermissionTabs,
     showFormOperateLogTab,
     showFunctionTabsWrapper,
@@ -509,6 +529,7 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     handleApplyFormOperateLog,
     openFunctionOperateLog,
     onScheduledTaskTotalChange,
+    onScheduledAgentTaskTotalChange,
     syncFunctionTabQuery,
     activateScheduledTaskTab
   }
