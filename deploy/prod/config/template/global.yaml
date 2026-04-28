@@ -7,7 +7,7 @@ gateway:
   internal_url: "http://127.0.0.1:9090"
 
 nats:
-  url: "nats://127.0.0.1:4222"
+  url: "${NATS_URL}"
 
 jwt:
   secret: "${JWT_SECRET}"
@@ -21,7 +21,7 @@ control_service:
   key_path: "/app/data/license/license.key"
 
 sdk:
-  nats_url: "nats://127.0.0.1:4222"
+  nats_url: "${NATS_URL}"
   gateway_url: "http://127.0.0.1:9090"
   env_vars:
     FFMPEG_PATH: "/usr/bin/ffmpeg"
@@ -34,3 +34,6 @@ sdk:
     LUA_PATH: "/usr/bin/lua"
     PYTHON_PATH: "/usr/bin/python3"
     PIP_PATH: "/usr/bin/pip3"
+
+timer_scheduler:
+  base_url: "http://127.0.0.1:9108/timer/api/v1"

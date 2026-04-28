@@ -191,8 +191,8 @@ func ListScheduledTasks(ctx context.Context, fullCodePath, status string, page, 
 
 // CancelScheduledTask 取消定时任务（agent-server -> app-server）
 func CancelScheduledTask(ctx context.Context, taskID int64) error {
-	path := fmt.Sprintf("/workspace/api/v1/scheduled_tasks/%d", taskID)
-	_, err := DeleteAPI[map[string]interface{}](ctx, path)
+	path := fmt.Sprintf("/workspace/api/v1/scheduled_tasks/%d/cancel", taskID)
+	_, err := PostAPI[map[string]interface{}, map[string]interface{}](ctx, path, map[string]interface{}{})
 	return err
 }
 

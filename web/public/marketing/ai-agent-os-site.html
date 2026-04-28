@@ -1210,7 +1210,7 @@
               <div class="hero-actions">
                 <a class="button primary" href="#start">开始部署</a>
                 <a class="button secondary" href="#workbench">了解工作台</a>
-                <span class="command">bash build.sh init → bash build.sh up</span>
+                <span class="command">aosctl init → aosctl up</span>
               </div>
               <div class="hero-proof">
                 <div class="proof-item">
@@ -1611,9 +1611,8 @@
                   <span class="window-dot"></span>
                 </div>
                 <div class="terminal-body">
-                  <div><span class="muted">$</span> cd deploy/prod</div>
-                  <div><span class="muted">$</span> bash build.sh init</div>
-                  <div><span class="muted">$</span> bash build.sh up</div>
+                  <div><span class="muted">$</span> go run ./cmd/aosctl init --base-url http://your-domain</div>
+                  <div><span class="muted">$</span> go run ./cmd/aosctl up --config deploy/prod/aos.yaml</div>
                   <br />
                   <div><span class="muted">工作台输入：</span></div>
                   <div>帮我生成一个百姓呼声工单管理系统</div>

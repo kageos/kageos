@@ -154,19 +154,19 @@ describe('table detail edit flow runtime', () => {
         query: {
           page: '2',
           page_size: '20',
-          s_status: 'closed',
+          status: 'closed',
           like: 'name:Bob',
           _tab: 'detail',
           _id: '2',
-          f_name: 'draft-name',
-          f_status: 'draft-status'
+          name: 'draft-name'
         },
-        editableFieldCodes: getEditableFieldCodes(editFunctionDetail)
+        editableFieldCodes: getEditableFieldCodes(editFunctionDetail),
+        preserveRawFieldCodes: ['status']
       })
     ).toEqual({
       page: '2',
       page_size: '20',
-      s_status: 'closed',
+      status: 'closed',
       like: 'name:Bob'
     })
   })
@@ -318,7 +318,7 @@ describe('table detail edit flow runtime', () => {
       page_size: '20',
       sorts: 'id:desc',
       like: 'name:Bob',
-      s_status: 'closed'
+      status: 'closed'
     })
 
     const restoreService = new TableDomainService(

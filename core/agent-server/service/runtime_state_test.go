@@ -43,6 +43,9 @@ func TestInMemoryRuntimeStateStoreSummaryAggregatesToAncestors(t *testing.T) {
 	if root.RunningCount != 2 || root.ManualRunningCount != 1 || root.ScheduledRunningCount != 1 {
 		t.Fatalf("root summary = %+v, want running=2 manual=1 scheduled=1", root)
 	}
+	if root.BadgeText != "2" || root.BadgeTone != "tool" || root.DominantStatus != RuntimeStateStatusToolRunning {
+		t.Fatalf("root display summary = %+v, want badge_text=2 badge_tone=tool dominant=tool_running", root)
+	}
 	ticket := summaries["/u/app/ticket"]
 	if ticket.ThinkingCount != 1 || ticket.ToolRunningCount != 1 {
 		t.Fatalf("ticket summary = %+v, want thinking=1 tool_running=1", ticket)

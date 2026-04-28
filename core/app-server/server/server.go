@@ -2,10 +2,8 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
-	"net/http"
 	"strconv"
 	"time"
 
@@ -22,6 +20,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
 	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/scheduledsdk"
 	"github.com/ai-agent-os/ai-agent-os/pkg/serverx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/waiter"
 	"github.com/gin-gonic/gin"
@@ -35,11 +34,10 @@ type Server struct {
 	cfg *config.AppServerConfig
 
 	// 核心组件
-	db                  *gorm.DB
-	schedulerDB         *gorm.DB
-	natsConn            *nats.Conn
-	httpServer          *gin.Engine
-	schedulerHealthHTTP *http.Server
+	db              *gorm.DB
+	scheduledTaskDB *gorm.DB
+	natsConn        *nats.Conn
+	httpServer      *gin.Engine
 
 	// 服务
 	appService                    *service.AppService
@@ -64,11 +62,11 @@ type Server struct {
 	operateLogger enterprise.OperateLogger
 
 	// License Client
-	licenseClient *license.Client
-	schedulerDone chan struct{}
+	licenseClient   *license.Client
+	schedulerCancel context.CancelFunc
+	schedulerDone   chan struct{}
+	timerWorker     *scheduledsdk.Worker
 }
-
-const schedulerHealthListenHost = "127.0.0.1"
 
 func newBaseServer(cfg *config.AppServerConfig) *Server {
 	ctx := context.Background()
@@ -136,32 +134,17 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 	return s, nil
 }
 
-// NewSchedulerServer 创建新的 scheduler 实例。
-func NewSchedulerServer(cfg *config.AppServerConfig) (*Server, error) {
-	s := newBaseServer(cfg)
-	ctx := s.ctx
-
-	if err := s.initSharedComponents(ctx); err != nil {
-		return nil, err
-	}
-
-	if err := s.initSchedulerEnterprise(); err != nil {
-		return nil, fmt.Errorf("failed to init scheduler enterprise features: %w", err)
-	}
-
-	if err := s.initSchedulerServices(ctx); err != nil {
-		return nil, fmt.Errorf("failed to init scheduler services: %w", err)
-	}
-
-	return s, nil
-}
-
 // Start 启动服务器
 func (s *Server) Start(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Starting app-server...")
 
 	if err := s.StartHTTP(ctx); err != nil {
 		return err
+	}
+	if s.scheduledTaskService != nil {
+		if err := s.StartTimerWorker(ctx); err != nil {
+			return err
+		}
 	}
 
 	logger.Infof(ctx, "[Server] App-server started successfully")
@@ -184,20 +167,42 @@ func (s *Server) StartHTTP(ctx context.Context) error {
 	return nil
 }
 
-func (s *Server) StartScheduler(ctx context.Context) error {
+func (s *Server) StartTimerWorker(ctx context.Context) error {
 	if s.scheduledTaskService == nil {
 		return fmt.Errorf("scheduled task service is not initialized")
 	}
 	if s.schedulerDone != nil {
 		return fmt.Errorf("scheduled task scheduler is already running")
 	}
-	if err := s.startSchedulerHealthHTTP(ctx); err != nil {
-		return err
+	runCtx, cancel := context.WithCancel(ctx)
+	worker, err := scheduledsdk.NewWorker(scheduledsdk.WorkerOptions{
+		Client:      scheduledsdk.NewClient(scheduledsdk.Options{BaseURL: config.GetGlobalSharedConfig().TimerScheduler.GetBaseURL()}),
+		NATSConn:    s.natsConn,
+		ExecutorKey: "app.function",
+		WorkerID:    "app-server",
+		Handler:     s.scheduledTaskService.HandleTimerExecution,
+		OnError: func(ctx context.Context, err error) {
+			logger.Errorf(ctx, "[Server] Scheduled task timer worker error: %v", err)
+		},
+	})
+	if err != nil {
+		cancel()
+		return fmt.Errorf("create scheduled task timer worker: %w", err)
 	}
+	if err := worker.Start(runCtx); err != nil {
+		cancel()
+		return fmt.Errorf("start scheduled task timer worker: %w", err)
+	}
+	s.timerWorker = worker
+	s.schedulerCancel = cancel
 	s.schedulerDone = make(chan struct{})
 	go func() {
 		defer close(s.schedulerDone)
-		s.scheduledTaskService.StartScheduler(ctx)
+		logger.Infof(runCtx, "[Server] Scheduled task timer worker started")
+		<-runCtx.Done()
+		if s.timerWorker != nil {
+			_ = s.timerWorker.Stop()
+		}
 	}()
 	logger.Infof(ctx, "[Server] Scheduled task scheduler started")
 	return nil
@@ -207,10 +212,10 @@ func (s *Server) StartScheduler(ctx context.Context) error {
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping server...")
 
-	if s.schedulerHealthHTTP != nil {
-		s.stopSchedulerHealthHTTP(ctx)
+	if s.schedulerCancel != nil {
+		s.schedulerCancel()
+		s.schedulerCancel = nil
 	}
-
 	if s.schedulerDone != nil {
 		logger.Infof(ctx, "[Server] Waiting scheduled task scheduler to stop...")
 		<-s.schedulerDone
@@ -246,11 +251,11 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 
 	// 关闭数据库连接
-	if s.schedulerDB != nil {
-		sqlDB, err := s.schedulerDB.DB()
+	if s.scheduledTaskDB != nil {
+		sqlDB, err := s.scheduledTaskDB.DB()
 		if err == nil {
 			sqlDB.Close()
-			logger.Infof(ctx, "[Server] Scheduler database connection closed")
+			logger.Infof(ctx, "[Server] Scheduled task database connection closed")
 		}
 	}
 	if s.db != nil {
@@ -359,87 +364,29 @@ func (s *Server) initDatabase(ctx context.Context) error {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
 
-	schedulerDBCfg := s.cfg.GetSchedulerDB()
-	if schedulerDBCfg.Type != "mysql" {
-		return fmt.Errorf("unsupported scheduler database type: %s", schedulerDBCfg.Type)
+	scheduledTaskDBCfg := s.cfg.GetScheduledTaskDB()
+	if scheduledTaskDBCfg.Type != "mysql" {
+		return fmt.Errorf("unsupported scheduled task database type: %s", scheduledTaskDBCfg.Type)
 	}
-	if schedulerDBCfg.Name != dbCfg.Name {
-		if err := dbx.EnsureMySQLDatabase(schedulerDBCfg); err != nil {
-			logger.Warnf(ctx, "[Server] Ensure scheduler database failed: name=%s err=%v", schedulerDBCfg.Name, err)
+	if scheduledTaskDBCfg.Name != dbCfg.Name {
+		if err := dbx.EnsureMySQLDatabase(scheduledTaskDBCfg); err != nil {
+			logger.Warnf(ctx, "[Server] Ensure scheduled task database failed: name=%s err=%v", scheduledTaskDBCfg.Name, err)
 		}
 	}
-	schedulerDB, err := dbx.OpenMySQL(schedulerDBCfg, dbx.OpenOptions{
+	scheduledTaskDB, err := dbx.OpenMySQL(scheduledTaskDBCfg, dbx.OpenOptions{
 		DisableForeignKeyConstraintWhenMigrating: true,
 		DefaultMaxLifetime:                       5 * time.Minute,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to connect to scheduler MySQL: %w", err)
+		return fmt.Errorf("failed to connect to scheduled task MySQL: %w", err)
 	}
-	s.schedulerDB = schedulerDB
-	if err := model.InitSchedulerTables(s.schedulerDB); err != nil {
-		return fmt.Errorf("failed to migrate scheduler database: %w", err)
-	}
-	if schedulerDBCfg.Name != dbCfg.Name {
-		if err := s.migrateLegacyScheduledTaskTables(ctx); err != nil {
-			return fmt.Errorf("failed to migrate legacy scheduler tables: %w", err)
-		}
+	s.scheduledTaskDB = scheduledTaskDB
+	if err := model.InitScheduledTaskTables(s.scheduledTaskDB); err != nil {
+		return fmt.Errorf("failed to migrate scheduled task database: %w", err)
 	}
 
 	logger.Infof(ctx, "[Server] Database initialized successfully")
 	return nil
-}
-
-func (s *Server) migrateLegacyScheduledTaskTables(ctx context.Context) error {
-	if !s.db.Migrator().HasTable(&model.ScheduledTask{}) {
-		return nil
-	}
-
-	var targetCount int64
-	if err := s.schedulerDB.Model(&model.ScheduledTask{}).Count(&targetCount).Error; err != nil {
-		return err
-	}
-	if targetCount > 0 {
-		return nil
-	}
-
-	var sourceCount int64
-	if err := s.db.Model(&model.ScheduledTask{}).Count(&sourceCount).Error; err != nil {
-		return err
-	}
-	if sourceCount == 0 {
-		return nil
-	}
-
-	logger.Infof(ctx, "[Server] Migrating legacy scheduled tasks to scheduler database: count=%d", sourceCount)
-	return s.schedulerDB.Transaction(func(tx *gorm.DB) error {
-		if err := copyScheduledTasks(s.db, tx); err != nil {
-			return err
-		}
-		if s.db.Migrator().HasTable(&model.ScheduledTaskExecution{}) {
-			return copyScheduledTaskExecutions(s.db, tx)
-		}
-		return nil
-	})
-}
-
-func copyScheduledTasks(source, target *gorm.DB) error {
-	var tasks []model.ScheduledTask
-	return source.Model(&model.ScheduledTask{}).FindInBatches(&tasks, 500, func(tx *gorm.DB, _ int) error {
-		if len(tasks) == 0 {
-			return nil
-		}
-		return target.Create(&tasks).Error
-	}).Error
-}
-
-func copyScheduledTaskExecutions(source, target *gorm.DB) error {
-	var executions []model.ScheduledTaskExecution
-	return source.Model(&model.ScheduledTaskExecution{}).FindInBatches(&executions, 500, func(tx *gorm.DB, _ int) error {
-		if len(executions) == 0 {
-			return nil
-		}
-		return target.Create(&executions).Error
-	}).Error
 }
 
 // initNATS 初始化 NATS 连接
@@ -523,16 +470,13 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.directoryUpdateHistoryService = service.NewDirectoryUpdateHistoryService(directoryUpdateHistoryRepo, serviceTreeRepo)
 
 	// 定时任务服务（注入 JWT 以便执行时按“请求用户”生成 Token 注入 context）
-	scheduledTaskRepo := repository.NewScheduledTaskRepository(s.schedulerDB)
-	scheduledTaskExecutionRepo := repository.NewScheduledTaskExecutionRepository(s.schedulerDB)
+	scheduledTaskRepo := repository.NewScheduledTaskRepository(s.scheduledTaskDB)
+	scheduledTaskExecutionRepo := repository.NewScheduledTaskExecutionRepository(s.scheduledTaskDB)
 	s.scheduledTaskService = service.NewScheduledTaskService(s.appService, s.jwtService, scheduledTaskRepo, scheduledTaskExecutionRepo, service.ScheduledTaskServiceOptions{
-		PollInterval:        s.cfg.GetSchedulerPollInterval(),
-		BatchSize:           s.cfg.GetSchedulerBatchSize(),
-		LeaseDuration:       s.cfg.GetSchedulerLeaseDuration(),
-		MaxConcurrency:      s.cfg.GetSchedulerMaxConcurrency(),
-		HeartbeatMaxAge:     s.cfg.GetSchedulerHeartbeatMaxAge(),
+		MaxConcurrency:      s.cfg.GetTimerWorkerMaxConcurrency(),
 		MessagePublisher:    service.NewNATSMessagePublisher(s.natsConn),
 		NotificationBaseURL: config.GetGlobalSharedConfig().Gateway.GetBaseURL(),
+		TimerClient:         scheduledsdk.NewClient(scheduledsdk.Options{BaseURL: config.GetGlobalSharedConfig().TimerScheduler.GetBaseURL()}),
 	})
 
 	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
@@ -540,49 +484,6 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 在 initEnterprise 中会初始化 enterprise.GetPermissionService()，然后在这里创建 PermissionService
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
-	return nil
-}
-
-func (s *Server) initSchedulerServices(ctx context.Context) error {
-	logger.Infof(ctx, "[Server] Initializing scheduler services...")
-
-	if err := model.ReconcileNatsHostFromEnv(s.db); err != nil {
-		return fmt.Errorf("reconcile nats host from NATS_SEED_HOST: %w", err)
-	}
-
-	s.natsConnPool = service.NewNATSConnPoolWithDB(s.db)
-	s.appCall = appcall.New(appcall.Options{
-		ConnProvider:       s.natsConnPool,
-		NatsRequestTimeout: time.Duration(s.cfg.GetNatsRequestTimeout()) * time.Second,
-		AppRequestTimeout:  time.Duration(s.cfg.GetAppRequestTimeout()) * time.Second,
-		Waiter:             waiter.GetDefaultWaiter(),
-	})
-
-	if s.appRepo == nil {
-		s.appRepo = repository.NewAppRepository(s.db)
-	}
-	functionRepo := repository.NewFunctionRepository(s.db)
-	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
-	operateLogRepo := repository.NewOperateLogRepository(s.db)
-	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
-	directoryUpdateHistoryRepo := repository.NewDirectoryUpdateHistoryRepository(s.db)
-	s.appService = service.NewAppService(s.appCall, s.appRepo, functionRepo, serviceTreeRepo, operateLogRepo, fileSnapshotRepo, directoryUpdateHistoryRepo)
-
-	s.jwtService = auth.NewJWTService()
-
-	scheduledTaskRepo := repository.NewScheduledTaskRepository(s.schedulerDB)
-	scheduledTaskExecutionRepo := repository.NewScheduledTaskExecutionRepository(s.schedulerDB)
-	s.scheduledTaskService = service.NewScheduledTaskService(s.appService, s.jwtService, scheduledTaskRepo, scheduledTaskExecutionRepo, service.ScheduledTaskServiceOptions{
-		PollInterval:        s.cfg.GetSchedulerPollInterval(),
-		BatchSize:           s.cfg.GetSchedulerBatchSize(),
-		LeaseDuration:       s.cfg.GetSchedulerLeaseDuration(),
-		MaxConcurrency:      s.cfg.GetSchedulerMaxConcurrency(),
-		HeartbeatMaxAge:     s.cfg.GetSchedulerHeartbeatMaxAge(),
-		MessagePublisher:    service.NewNATSMessagePublisher(s.natsConn),
-		NotificationBaseURL: config.GetGlobalSharedConfig().Gateway.GetBaseURL(),
-	})
-
-	logger.Infof(ctx, "[Server] Scheduler services initialized successfully")
 	return nil
 }
 
@@ -615,137 +516,6 @@ func (s *Server) healthHandler(c *gin.Context) {
 		"timestamp": time.Now().Format(time.DateTime),
 		"service":   "app-server",
 	})
-}
-
-func (s *Server) startSchedulerHealthHTTP(ctx context.Context) error {
-	if s.schedulerHealthHTTP != nil {
-		return fmt.Errorf("scheduler health server is already running")
-	}
-
-	addr := net.JoinHostPort(schedulerHealthListenHost, strconv.Itoa(s.cfg.GetSchedulerHealthPort()))
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		return fmt.Errorf("listen scheduler health server on %s: %w", addr, err)
-	}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", s.handleSchedulerHealth)
-	server := &http.Server{
-		Addr:              addr,
-		Handler:           mux,
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-	s.schedulerHealthHTTP = server
-
-	go func() {
-		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
-			logger.Errorf(ctx, "[Server] Scheduler health server exited unexpectedly: %v", err)
-		}
-	}()
-
-	logger.Infof(ctx, "[Server] Scheduler health server started on %s", addr)
-	return nil
-}
-
-func (s *Server) handleSchedulerHealth(w http.ResponseWriter, _ *http.Request) {
-	now := time.Now()
-	if s.scheduledTaskService == nil {
-		s.writeSchedulerHealthResponse(w, http.StatusServiceUnavailable, schedulerHealthResponse{
-			Status:    "unavailable",
-			Service:   "app-scheduler",
-			Healthy:   false,
-			Timestamp: now.Format(time.RFC3339),
-			Message:   "scheduler service unavailable",
-		})
-		return
-	}
-
-	snapshot := s.scheduledTaskService.HealthSnapshot(now)
-	statusCode := http.StatusOK
-	status := "ok"
-	message := ""
-	if !snapshot.HasHeartbeat {
-		statusCode = http.StatusServiceUnavailable
-		status = "starting"
-		message = "scheduler heartbeat not observed yet"
-	} else if !snapshot.Healthy {
-		statusCode = http.StatusServiceUnavailable
-		status = "stale"
-		message = fmt.Sprintf("scheduler heartbeat stale: age=%s", snapshot.HeartbeatAge.Round(time.Second))
-	}
-
-	resp := schedulerHealthResponse{
-		Status:                 status,
-		Service:                "app-scheduler",
-		Healthy:                snapshot.Healthy,
-		Timestamp:              now.Format(time.RFC3339),
-		Message:                message,
-		SchedulerID:            snapshot.SchedulerID,
-		PollIntervalSeconds:    int64(snapshot.PollInterval / time.Second),
-		HeartbeatMaxAgeSeconds: int64(snapshot.HeartbeatMaxAge / time.Second),
-		HeartbeatAgeSeconds:    int64(snapshot.HeartbeatAge / time.Second),
-		InflightWorkers:        snapshot.InflightWorkers,
-		AvailableWorkers:       snapshot.AvailableWorkers,
-		MaxConcurrency:         snapshot.MaxConcurrency,
-	}
-	if snapshot.HasHeartbeat {
-		lastHeartbeatAt := snapshot.LastHeartbeatAt.Format(time.RFC3339)
-		resp.LastHeartbeatAt = &lastHeartbeatAt
-	}
-	if snapshot.HasPoll {
-		lastPollAt := snapshot.LastPollAt.Format(time.RFC3339)
-		resp.LastPollAt = &lastPollAt
-	}
-
-	s.writeSchedulerHealthResponse(w, statusCode, resp)
-}
-
-type schedulerHealthResponse struct {
-	Status                 string  `json:"status"`
-	Service                string  `json:"service"`
-	Healthy                bool    `json:"healthy"`
-	Timestamp              string  `json:"timestamp"`
-	Message                string  `json:"message,omitempty"`
-	SchedulerID            string  `json:"scheduler_id,omitempty"`
-	LastHeartbeatAt        *string `json:"last_heartbeat_at,omitempty"`
-	LastPollAt             *string `json:"last_poll_at,omitempty"`
-	PollIntervalSeconds    int64   `json:"poll_interval_seconds"`
-	HeartbeatMaxAgeSeconds int64   `json:"heartbeat_max_age_seconds"`
-	HeartbeatAgeSeconds    int64   `json:"heartbeat_age_seconds"`
-	InflightWorkers        int     `json:"inflight_workers"`
-	AvailableWorkers       int     `json:"available_workers"`
-	MaxConcurrency         int     `json:"max_concurrency"`
-}
-
-func (s *Server) writeSchedulerHealthResponse(w http.ResponseWriter, statusCode int, resp schedulerHealthResponse) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		logger.Warnf(s.ctx, "[Server] Encode scheduler health response failed: %v", err)
-	}
-}
-
-func (s *Server) stopSchedulerHealthHTTP(ctx context.Context) {
-	if s.schedulerHealthHTTP == nil {
-		return
-	}
-
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	if deadline, ok := ctx.Deadline(); ok {
-		cancel()
-		shutdownCtx, cancel = context.WithDeadline(context.Background(), deadline)
-	}
-	defer cancel()
-
-	if err := s.schedulerHealthHTTP.Shutdown(shutdownCtx); err != nil {
-		logger.Warnf(ctx, "[Server] Failed to stop scheduler health server gracefully: %v", err)
-		if closeErr := s.schedulerHealthHTTP.Close(); closeErr != nil {
-			logger.Warnf(ctx, "[Server] Force close scheduler health server failed: %v", closeErr)
-		}
-	} else {
-		logger.Infof(ctx, "[Server] Scheduler health server stopped")
-	}
-	s.schedulerHealthHTTP = nil
 }
 
 // GetDB 获取数据库连接

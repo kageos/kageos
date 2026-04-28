@@ -291,7 +291,7 @@
           <template #default="{ row }">{{ formatDateTime(row.created_at) }}</template>
         </el-table-column>
 
-        <el-table-column label="操作" width="132" align="center" fixed="right">
+        <el-table-column label="操作" width="168" align="center" fixed="right">
           <template #default="{ row }">
             <div class="table-row-actions">
               <el-tooltip content="任务详情" placement="top" effect="light">
@@ -322,6 +322,16 @@
                   :icon="Close"
                   aria-label="取消任务"
                   @click.stop="handleCancel(row)"
+                />
+              </el-tooltip>
+              <el-tooltip v-if="canDeleteTask(row)" content="删除任务" placement="top" effect="light">
+                <el-button
+                  class="icon-action-button"
+                  type="danger"
+                  text
+                  :icon="Delete"
+                  aria-label="删除任务"
+                  @click.stop="handleDelete(row)"
                 />
               </el-tooltip>
             </div>
@@ -479,9 +489,17 @@
           <el-button
             v-if="canCancelTask(currentTask)"
             type="danger"
+            plain
             @click="handleCancelFromDetail"
           >
             取消任务
+          </el-button>
+          <el-button
+            v-if="canDeleteTask(currentTask)"
+            type="danger"
+            @click="handleDeleteFromDetail"
+          >
+            删除任务
           </el-button>
         </div>
       </template>
@@ -685,7 +703,7 @@
 
 <script setup lang="ts">
 import { computed, withDefaults } from 'vue'
-import { Close, Refresh, RefreshLeft, Tickets, View } from '@element-plus/icons-vue'
+import { Close, Delete, Refresh, RefreshLeft, Tickets, View } from '@element-plus/icons-vue'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import DepartmentDisplay from '@/shared/components/DepartmentDisplay.vue'
 import ExecutionDurationTag from '@/architecture/presentation/components/ExecutionDurationTag.vue'
@@ -760,9 +778,12 @@ const {
   handlePageSizeChange,
   resetFilters,
   canCancelTask,
+  canDeleteTask,
   handleCancel,
+  handleDelete,
   openTaskDetail,
   handleCancelFromDetail,
+  handleDeleteFromDetail,
   openExecutionsFromDetail,
   handleTaskExpandChange,
   refreshInlineExecutions,

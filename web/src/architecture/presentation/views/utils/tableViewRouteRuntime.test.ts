@@ -44,13 +44,13 @@ describe('tableViewRouteRuntime', () => {
     expect(
       buildTableAddDialogOpenRequest({
         page: 3,
-        s_status: 'open',
+        status: 'open',
         _node_type: 'table'
       })
     ).toEqual({
       query: {
         page: '3',
-        s_status: 'open',
+        status: 'open',
         _node_type: 'table',
         _tab: 'OnTableAddRow'
       },
@@ -67,17 +67,16 @@ describe('tableViewRouteRuntime', () => {
         routeQuery: {
           _tab: 'OnTableAddRow',
           page: '2',
-          s_status: 'open',
-          f_name: 'alice',
-          name: 'legacy-alice',
-          f_email: 'a@example.com'
+          status: 'open',
+          name: 'alice',
+          email: 'a@example.com'
         },
         responseFieldCodes: ['name', 'email']
       })
     ).toEqual({
       query: {
         page: '2',
-        s_status: 'open'
+        status: 'open'
       },
       replace: true,
       preserveParams: {

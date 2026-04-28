@@ -7,6 +7,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/pkg/naming"
+	"github.com/ai-agent-os/ai-agent-os/pkg/servicetree"
 )
 
 type hubDirectoryTreeValidationOptions struct {
@@ -42,7 +43,7 @@ func validateHubDirectoryTreeNodeImpl(node *dto.DirectoryTreeNode, parentPath, l
 	if err != nil {
 		return err
 	}
-	if node.Type != "" && node.Type != "package" {
+	if node.Type != "" && node.Type != servicetree.TypePackage {
 		return fmt.Errorf("%s 目录节点类型无效: %s", location, node.Type)
 	}
 

@@ -101,10 +101,10 @@
 
             <!-- 运行态 badge：来自 agent-server state 接口，表示当前目录及子目录正在运行的会话数 -->
             <el-badge
-              v-if="getRuntimeSummary(data)?.running_count"
-              :value="getRuntimeSummary(data)?.running_count"
+              v-if="hasRuntimeBadge(data)"
+              :value="getRuntimeBadgeText(data)"
               :max="99"
-              class="runtime-state-badge"
+              :class="getRuntimeBadgeClass(data)"
               :title="getRuntimeSummaryTitle(data)"
             />
             
@@ -326,7 +326,7 @@ import {
   buildPermissionApplyURL 
 } from '@/utils/permission'
 import { useAuthStore } from '@/stores/auth'
-import { eventBus, RouteEvent } from '@/architecture/infrastructure/eventBus'
+import { eventBus, RouteEvent, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
 import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
 import { useServiceTreeClipboard } from '../composables/useServiceTreeClipboard'
 import { useServiceTreeSearchExpand } from '../composables/useServiceTreeSearchExpand'
@@ -396,12 +396,18 @@ const {
 })
 
 const rootFullCodePath = computed(() => props.treeData[0]?.full_code_path || '')
+let unsubscribeRuntimeRefresh: (() => void) | null = null
 
 const stopRuntimeSummaryPolling = () => {
   if (runtimeSummaryTimer) {
     clearInterval(runtimeSummaryTimer)
     runtimeSummaryTimer = null
   }
+  if (unsubscribeRuntimeRefresh) {
+    unsubscribeRuntimeRefresh()
+    unsubscribeRuntimeRefresh = null
+  }
+  window.removeEventListener('focus', refreshRuntimeSummary)
 }
 
 const refreshRuntimeSummary = async () => {
@@ -421,7 +427,9 @@ const refreshRuntimeSummary = async () => {
 const startRuntimeSummaryPolling = () => {
   stopRuntimeSummaryPolling()
   if (!rootFullCodePath.value) return
-  runtimeSummaryTimer = setInterval(refreshRuntimeSummary, 5000)
+  runtimeSummaryTimer = setInterval(refreshRuntimeSummary, 3000)
+  unsubscribeRuntimeRefresh = eventBus.on(WorkspaceEvent.scheduledAgentTaskCreated, refreshRuntimeSummary)
+  window.addEventListener('focus', refreshRuntimeSummary)
 }
 
 watch(rootFullCodePath, () => {
@@ -437,9 +445,25 @@ const getRuntimeSummary = (node: ServiceTree): RuntimeStateSummary | undefined =
   return runtimeSummaries.value[node.full_code_path]
 }
 
+const hasRuntimeBadge = (node: ServiceTree): boolean => {
+  const summary = getRuntimeSummary(node)
+  return !!summary?.badge_text || !!summary?.running_count || !!summary?.failed_recent_count
+}
+
+const getRuntimeBadgeText = (node: ServiceTree): string | number => {
+  const summary = getRuntimeSummary(node)
+  return summary?.badge_text || summary?.running_count || ''
+}
+
+const getRuntimeBadgeClass = (node: ServiceTree): string => {
+  const tone = getRuntimeSummary(node)?.badge_tone || 'running'
+  return `runtime-state-badge runtime-state-badge-${tone}`
+}
+
 const getRuntimeSummaryTitle = (node: ServiceTree): string => {
   const summary = getRuntimeSummary(node)
   if (!summary) return ''
+  if (summary.tooltip) return summary.tooltip
   const parts = [`运行中 ${summary.running_count}`]
   if (summary.thinking_count > 0) parts.push(`思考中 ${summary.thinking_count}`)
   if (summary.tool_running_count > 0) parts.push(`工具执行 ${summary.tool_running_count}`)
@@ -914,6 +938,26 @@ defineExpose({
     box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.12);
   }
 
+  .runtime-state-badge-thinking :deep(.el-badge__content) {
+    background: #38bdf8;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
+  }
+
+  .runtime-state-badge-tool :deep(.el-badge__content) {
+    background: #f59e0b;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.42);
+  }
+
+  .runtime-state-badge-approval :deep(.el-badge__content) {
+    background: #a855f7;
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.42);
+  }
+
+  .runtime-state-badge-failed :deep(.el-badge__content) {
+    background: #ef4444;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.42);
+  }
+
   .node-more-actions {
     flex-shrink: 0;
     margin-left: auto; /* 靠右对齐 */
@@ -973,7 +1017,7 @@ defineExpose({
 :global(.service-tree-contextmenu-popper .el-dropdown-menu),
 :global(.service-tree-dropdown-popper .el-dropdown-menu) {
   min-width: 160px;
-  z-index: 9999 !important;
+  z-index: var(--aos-z-floating-popper) !important;
 }
 
 :deep(.el-dropdown-menu__item),

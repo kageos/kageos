@@ -17,6 +17,7 @@ type ScheduledTask struct {
 
 	User            string          `json:"user" gorm:"size:255;not null;index;comment:归属用户"`
 	App             string          `json:"app" gorm:"size:255;not null;index;comment:归属应用"`
+	TimerTaskID     int64           `json:"timer_task_id" gorm:"default:0;index;comment:timer-scheduler 中对应的通用任务 ID"`
 	Name            string          `json:"name" gorm:"size:255;comment:任务名称（用户可编辑）"`
 	FullCodePath    string          `json:"full_code_path" gorm:"size:500;not null;comment:要执行的表单路径"`
 	Action          string          `json:"action" gorm:"size:32;default:execute;comment:执行动作：execute/table_create/table_update/table_delete"`
@@ -29,8 +30,6 @@ type ScheduledTask struct {
 	ScheduleType    string     `json:"schedule_type" gorm:"size:20;not null;index;comment:atime/cron/every"`
 	RunAt           time.Time  `json:"run_at" gorm:"comment:atime 的执行时间；cron/every 的创建生效时间"`
 	NextRunAt       *time.Time `json:"next_run_at" gorm:"index;comment:下次执行时间"`
-	LeaseOwner      string     `json:"lease_owner" gorm:"size:128;index;comment:执行租约持有者"`
-	LeaseUntil      *time.Time `json:"lease_until" gorm:"index;comment:执行租约到期时间"`
 	CronExpr        string     `json:"cron_expr" gorm:"size:100;comment:cron表达式"`
 	IntervalSeconds int64      `json:"interval_seconds" gorm:"comment:every 时间间隔秒"`
 	MaxRuns         int        `json:"max_runs" gorm:"default:0;comment:every 最多执行次数,0不限制"`

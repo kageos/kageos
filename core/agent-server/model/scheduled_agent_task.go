@@ -39,20 +39,19 @@ type ScheduledAgentTask struct {
 	MaxRuns         int        `json:"max_runs" gorm:"default:0;comment:最多自动执行次数，0 不限制"`
 	Timezone        string     `json:"timezone" gorm:"type:varchar(64);comment:时区"`
 
-	Status            string     `json:"status" gorm:"type:varchar(20);not null;index;comment:pending/paused/done/failed/cancelled"`
-	RunCount          int        `json:"run_count" gorm:"default:0;comment:已自动执行次数"`
-	LastSessionID     string     `json:"last_session_id" gorm:"type:varchar(64);index;comment:最近一次工作台会话 ID"`
-	LastExecutionID   int64      `json:"last_execution_id" gorm:"index;comment:最近一次执行记录 ID"`
-	LastErrorMessage  string     `json:"last_error_message" gorm:"type:text;comment:最近一次失败信息"`
-	RequestUser       string     `json:"request_user" gorm:"type:varchar(255);comment:以谁的身份执行"`
-	RequestUserDept   string     `json:"request_user_dept" gorm:"type:varchar(500);comment:请求用户部门路径"`
-	NotifyUsers       string     `json:"notify_users" gorm:"type:text;comment:通知用户，逗号分隔"`
-	NotifyDepartments string     `json:"notify_departments" gorm:"type:text;comment:通知部门 full_code_path，逗号分隔"`
-	NotifyOn          string     `json:"notify_on" gorm:"type:varchar(20);default:none;comment:通知触发条件:none/all/success/failed"`
-	SourceType        string     `json:"source_type" gorm:"type:varchar(64);comment:来源类型"`
-	SourceRef         string     `json:"source_ref" gorm:"type:varchar(255);index;comment:来源引用，供后续工具白名单使用"`
-	LeaseOwner        string     `json:"lease_owner" gorm:"type:varchar(128);index;comment:执行租约持有者"`
-	LeaseUntil        *time.Time `json:"lease_until" gorm:"index;comment:执行租约到期时间"`
+	Status            string `json:"status" gorm:"type:varchar(20);not null;index;comment:pending/paused/done/failed/cancelled"`
+	TimerTaskID       int64  `json:"timer_task_id" gorm:"default:0;index;comment:timer-scheduler 中对应的通用任务 ID"`
+	RunCount          int    `json:"run_count" gorm:"default:0;comment:已自动执行次数"`
+	LastSessionID     string `json:"last_session_id" gorm:"type:varchar(64);index;comment:最近一次工作台会话 ID"`
+	LastExecutionID   int64  `json:"last_execution_id" gorm:"index;comment:最近一次执行记录 ID"`
+	LastErrorMessage  string `json:"last_error_message" gorm:"type:text;comment:最近一次失败信息"`
+	RequestUser       string `json:"request_user" gorm:"type:varchar(255);comment:以谁的身份执行"`
+	RequestUserDept   string `json:"request_user_dept" gorm:"type:varchar(500);comment:请求用户部门路径"`
+	NotifyUsers       string `json:"notify_users" gorm:"type:text;comment:通知用户，逗号分隔"`
+	NotifyDepartments string `json:"notify_departments" gorm:"type:text;comment:通知部门 full_code_path，逗号分隔"`
+	NotifyOn          string `json:"notify_on" gorm:"type:varchar(20);default:none;comment:通知触发条件:none/all/success/failed"`
+	SourceType        string `json:"source_type" gorm:"type:varchar(64);comment:来源类型"`
+	SourceRef         string `json:"source_ref" gorm:"type:varchar(512);index;comment:来源引用，供后续工具白名单使用"`
 }
 
 func (ScheduledAgentTask) TableName() string {

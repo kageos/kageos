@@ -249,10 +249,8 @@ describe('workspaceDetailRuntime', () => {
       _tab: 'detail',
       _id: '10',
       page: '2',
-      s_name: 'alice',
-      f_name: 'draft-name',
-      f_title: 'draft-title',
-      title: 'legacy-title',
+      name: 'alice',
+      title: 'draft-title',
       extra: ['a', 'b']
     }
 
@@ -261,7 +259,6 @@ describe('workspaceDetailRuntime', () => {
       editableFieldCodes: getEditableFieldCodes(editFunctionDetail)
     })).toEqual({
       page: '2',
-      s_name: 'alice',
       extra: ['a', 'b']
     })
   })

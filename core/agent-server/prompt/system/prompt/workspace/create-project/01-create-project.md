@@ -4,7 +4,8 @@
 
 ## 入口规则
 
-- 先读 SDK：`read_doc("/system/prompt/sdk/agent-app-sdk-readme")`
+- 先读能力边界：`read_doc("/system/prompt/workspace/platform-capability-boundaries")`
+- 再读 SDK：`read_doc("/system/prompt/sdk/agent-app-sdk-readme")`
 - 再读本目录：`read_doc("/system/prompt/workspace/create-project")`
 - 出 PRD 前必须先读 1～2 个匹配案例
 

@@ -1,0 +1,25 @@
+# Timer Scheduler（客户）
+server:
+  port: 9108
+  listen_host: "127.0.0.1"
+  log_level: "info"
+  debug: false
+
+scheduler:
+  poll_interval_seconds: 1
+  batch_size: 50
+  dispatch_lease_seconds: 30
+  execution_lease_seconds: 3600
+
+db:
+  type: "mysql"
+  host: "127.0.0.1"
+  port: 3306
+  user: "root"
+  password: "${MYSQL_ROOT_PASSWORD}"
+  name: "timer-scheduler"
+  max_idle_conns: 30
+  max_open_conns: 200
+  max_lifetime: 300
+  log_level: "warn"
+  slow_threshold: 200

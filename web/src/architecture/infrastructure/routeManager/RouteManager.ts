@@ -94,6 +94,11 @@ import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { RouteEvent } from '../../domain/interfaces/IEventBus'
 import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from '@/utils/urlParams'
 import { isLinkNavigation as isLinkNavCheck } from '@/utils/linkNavigation'
+import {
+  NODE_TYPE_QUERY_KEY,
+  isLinkMarkerQueryKey,
+  isPersistentPlatformStateQueryKey
+} from '@/utils/queryParamKeys'
 import { Logger } from '@/core/utils/logger'
 
 export interface RouteUpdateRequest {
@@ -355,14 +360,14 @@ export class RouteManager {
           result: { ...result } 
         })
         
-        // 然后保留当前路由的参数（除了 _link_type、_node_type、table 参数和已在 request.query 中的参数）
+        // 然后保留当前路由的参数（除了临时平台参数、table 参数和已在 request.query 中的参数）
         // 🔥 这样确保 link URL 中的参数优先级最高，不会被当前路由的参数覆盖
         Object.keys(currentQuery).forEach(key => {
           // 跳过已在 request.query 中的参数（避免覆盖 link URL 中的参数）
           if (normalizedQuery.hasOwnProperty(key)) {
             return
           }
-          if (key !== '_link_type' && key !== '_node_type' && !TABLE_PARAM_KEYS.includes(key as any)) {
+          if (!isLinkMarkerQueryKey(key) && key !== NODE_TYPE_QUERY_KEY && !TABLE_PARAM_KEYS.includes(key as any)) {
             const value = currentQuery[key]
             if (value !== null && value !== undefined) {
               result[key] = Array.isArray(value) 
@@ -455,9 +460,9 @@ export class RouteManager {
     // link 跳转：保留参数（除了临时参数和 table 参数）
     // 🔥 修复：link 跳转到 form 函数时，不应该保留 table 参数（page, page_size, sorts）
     if (preserve.linkNavigation) {
-      this.log('link 跳转：保留参数（除了 _link_type、_node_type 和 table 参数）')
+      this.log('link 跳转：保留参数（除了临时平台参数和 table 参数）')
       Object.keys(currentQuery).forEach(key => {
-        if (key !== '_link_type' && key !== '_node_type' && !TABLE_PARAM_KEYS.includes(key as any)) {
+        if (!isLinkMarkerQueryKey(key) && key !== NODE_TYPE_QUERY_KEY && !TABLE_PARAM_KEYS.includes(key as any)) {
           const value = currentQuery[key]
           if (value !== null && value !== undefined) {
             newQuery[key] = Array.isArray(value) 
@@ -475,15 +480,15 @@ export class RouteManager {
       if (value === null || value === undefined) return
       
       // 🔥 排除 _node_type 参数（函数组专用参数，不应该被保留）
-      if (key === '_node_type') {
+      if (key === NODE_TYPE_QUERY_KEY) {
         return
       }
       
       let shouldPreserve = false
       
-      // 保留状态参数（_ 开头，但排除 _node_type）
+      // 保留持久平台状态参数（_ 开头，但排除临时/废弃参数和 _node_type）
       // 🔥 修复：只有当 preserve.state 明确为 true 时才保留，false 时不保留
-      if (preserve.state === true && key.startsWith('_')) {
+      if (preserve.state === true && isPersistentPlatformStateQueryKey(key)) {
         shouldPreserve = true
       }
       // 保留 table 参数

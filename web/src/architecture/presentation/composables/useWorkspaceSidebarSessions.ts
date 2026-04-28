@@ -4,6 +4,7 @@ import { cancelWorkspaceChat, getWorkspaceSessions, type WorkspaceSessionItem } 
 import {
   listScheduledAgentExecutions,
   listScheduledAgentTasks,
+  runScheduledAgentTaskNow,
   type ScheduledAgentExecutionItem,
   type ScheduledAgentTaskItem
 } from '@/api/scheduledAgentTask'
@@ -42,6 +43,7 @@ export function useWorkspaceSidebarSessions(options: UseWorkspaceSidebarSessions
   const activeTab = ref<SidebarTab>('all')
   const sessionSearchKeyword = ref('')
   const cancellingTaskId = ref<string | null>(null)
+  const scheduledAgentTaskActionId = ref<number | null>(null)
 
   let pollTimer: ReturnType<typeof setInterval> | null = null
 
@@ -211,19 +213,36 @@ export function useWorkspaceSidebarSessions(options: UseWorkspaceSidebarSessions
   })
 
   const filteredScheduledAgentTasks = computed(() => {
-    const waitingTasks = scheduledAgentTasks.value.filter((task: ScheduledAgentTaskItem) =>
-      task.status === 'pending' || task.status === 'paused'
-    ).slice().sort((a, b) => {
-      const left = a.next_run_at ? new Date(a.next_run_at).getTime() : Number.MAX_SAFE_INTEGER
-      const right = b.next_run_at ? new Date(b.next_run_at).getTime() : Number.MAX_SAFE_INTEGER
-      return left - right || b.id - a.id
+    const orderedTasks = scheduledAgentTasks.value.slice().sort((a, b) => {
+      const statusOrder: Record<string, number> = {
+        pending: 0,
+        paused: 1,
+        failed: 2,
+        done: 3,
+        cancelled: 4
+      }
+      const leftOrder = statusOrder[a.status] ?? 9
+      const rightOrder = statusOrder[b.status] ?? 9
+      if (leftOrder !== rightOrder) {
+        return leftOrder - rightOrder
+      }
+
+      if (a.status === 'pending' || a.status === 'paused') {
+        const leftNext = a.next_run_at ? new Date(a.next_run_at).getTime() : Number.MAX_SAFE_INTEGER
+        const rightNext = b.next_run_at ? new Date(b.next_run_at).getTime() : Number.MAX_SAFE_INTEGER
+        return leftNext - rightNext || b.id - a.id
+      }
+
+      const leftUpdated = new Date(a.updated_at || a.created_at).getTime()
+      const rightUpdated = new Date(b.updated_at || b.created_at).getTime()
+      return rightUpdated - leftUpdated || b.id - a.id
     })
     const keyword = sessionSearchKeyword.value.trim().toLowerCase()
     if (!keyword) {
-      return waitingTasks
+      return orderedTasks
     }
 
-    return waitingTasks.filter((task: ScheduledAgentTaskItem) => {
+    return orderedTasks.filter((task: ScheduledAgentTaskItem) => {
       return [
         task.name,
         task.goal,
@@ -302,6 +321,19 @@ export function useWorkspaceSidebarSessions(options: UseWorkspaceSidebarSessions
     }
   }
 
+  async function handleRunScheduledAgentTaskNow(task: ScheduledAgentTaskItem) {
+    scheduledAgentTaskActionId.value = task.id
+    try {
+      await runScheduledAgentTaskNow(task.id)
+      ElMessage.success('已触发执行')
+      await loadScheduledAgentTasks()
+    } catch (e: any) {
+      ElMessage.error(e?.message || '触发失败')
+    } finally {
+      scheduledAgentTaskActionId.value = null
+    }
+  }
+
   watch(
     [() => workstationContext.value?.fullCodePath, sidebarVisible],
     ([path, visible]) => {
@@ -341,6 +373,7 @@ export function useWorkspaceSidebarSessions(options: UseWorkspaceSidebarSessions
     activeTab,
     sessionSearchKeyword,
     cancellingTaskId,
+    scheduledAgentTaskActionId,
     runningCount,
     scheduledAgentTaskCount,
     filteredSessions,
@@ -351,6 +384,7 @@ export function useWorkspaceSidebarSessions(options: UseWorkspaceSidebarSessions
     openScheduledAgentExecution,
     formatRelativeTime,
     handleCancelTask,
+    handleRunScheduledAgentTaskNow,
     loadSessions,
     loadScheduledAgentTasks
   }

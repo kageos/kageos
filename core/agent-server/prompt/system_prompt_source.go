@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
+	"github.com/ai-agent-os/ai-agent-os/pkg/servicetree"
 )
 
 const (
@@ -239,9 +240,9 @@ func collectSDKCatalogEntriesFromTree(ctx context.Context, fullCodePath string) 
 	var entries []DocCatalogEntry
 	for _, child := range workspaceCtx.Children {
 		switch child.Type {
-		case "package":
+		case servicetree.TypePackage:
 			entries = append(entries, collectSDKCatalogEntriesFromTree(ctx, child.FullCodePath)...)
-		case "docs":
+		case servicetree.TypeDocs:
 			if strings.EqualFold(child.Code, "index.docs") {
 				continue
 			}
@@ -266,7 +267,7 @@ func collectCaseCatalogEntriesFromTree(ctx context.Context, fullCodePath string,
 		hasPackageChilds bool
 	)
 	for _, child := range workspaceCtx.Children {
-		if child.Type != "package" {
+		if child.Type != servicetree.TypePackage {
 			continue
 		}
 		hasPackageChilds = true

@@ -16,6 +16,7 @@ const runOfficialPythonPreinstallDoc = `**生产镜像已预装、可直接 impo
 - 数据与图表：pandas、numpy、scipy、matplotlib、seaborn、plotly、pyecharts
 - 数据展示与日期：tabulate、arrow、dateutil（python-dateutil）
 - 网络与网页解析：requests、aiohttp、bs4（beautifulsoup4）、lxml
+- 在线媒体：yt_dlp（yt-dlp CLI 也可直接调用）
 - 表格与 Office：openpyxl、xlsxwriter、xlrd、xlwt、pptx（python-pptx）
 - 图像、OCR 与码图：PIL（Pillow，如 from PIL import Image）、pytesseract、qrcode、barcode（python-barcode）
 - 文档与 PDF：docx（python-docx）、PyPDF2、pdfplumber、reportlab
@@ -224,7 +225,7 @@ func buildOfficialPythonModelGuidance(raw map[string]interface{}) string {
 	case "失败":
 		appendLine("【状态为失败】请阅读 output 中的 traceback/错误信息，修正 python_code 后重试。")
 		if strings.Contains(out, "ModuleNotFoundError") || strings.Contains(out, "No module named") {
-			appendLine("【依赖】ModuleNotFoundError：请优先使用工具说明里已列出的预装库（pandas、numpy、jieba、snownlp、requests、openpyxl、xlsxwriter、python-pptx、matplotlib、plotly、pyecharts、bs4、tabulate、arrow、wordcloud、pytesseract、PyYAML…）或仅用标准库；若必须新库，请管理员更新 deploy/base/images/app-base/Dockerfile 或官方 requirements.txt 并重打镜像。")
+			appendLine("【依赖】ModuleNotFoundError：请优先使用工具说明里已列出的预装库（pandas、numpy、jieba、snownlp、requests、openpyxl、xlsxwriter、python-pptx、matplotlib、plotly、pyecharts、bs4、tabulate、arrow、wordcloud、pytesseract、yt_dlp、PyYAML…）或仅用标准库；若必须新库，请管理员更新 deploy/base/images/app-base/Dockerfile 或官方 requirements.txt 并重打镜像。")
 		}
 		if strings.Contains(out, "SyntaxError") || strings.Contains(out, "IndentationError") {
 			appendLine("【语法】请检查引号、缩进、括号是否匹配；字符串内换行需用三引号或 \\n。")

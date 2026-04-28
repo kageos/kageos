@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
+	"github.com/ai-agent-os/ai-agent-os/pkg/servicetree"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 )
 
@@ -136,9 +137,9 @@ func buildChildrenSection(children []WorkspaceEnvNode) string {
 	}
 	var packages, functions []WorkspaceEnvNode
 	for _, c := range children {
-		if c.Type == "package" {
+		if c.Type == servicetree.TypePackage {
 			packages = append(packages, c)
-		} else if c.Type == "function" {
+		} else if c.Type == servicetree.TypeFunction {
 			functions = append(functions, c)
 		}
 	}
@@ -158,7 +159,7 @@ func buildChildrenSection(children []WorkspaceEnvNode) string {
 		for _, f := range functions {
 			tpl := f.TemplateType
 			if tpl == "" {
-				tpl = "function"
+				tpl = servicetree.TypeFunction
 			}
 			b.WriteString(fmt.Sprintf("- %s（%s）", f.Name, f.Code))
 			if f.FullCodePath != "" {
@@ -177,7 +178,7 @@ func buildChildrenSection(children []WorkspaceEnvNode) string {
 func buildFunctionsSection(children []WorkspaceEnvNode) string {
 	var functions []WorkspaceEnvNode
 	for _, c := range children {
-		if c.Type == "function" && c.FullCodePath != "" {
+		if c.Type == servicetree.TypeFunction && c.FullCodePath != "" {
 			functions = append(functions, c)
 		}
 	}
@@ -189,7 +190,7 @@ func buildFunctionsSection(children []WorkspaceEnvNode) string {
 	for _, f := range functions {
 		tpl := f.TemplateType
 		if tpl == "" {
-			tpl = "function"
+			tpl = servicetree.TypeFunction
 		}
 		b.WriteString(fmt.Sprintf("- **%s** %s（%s）：`%s`\n", tpl, f.Name, f.Code, f.FullCodePath))
 		if f.Description != "" {
@@ -263,7 +264,7 @@ func mustMarshalSchema(schema *functionschema.FunctionSchema) json.RawMessage {
 
 func formatWorkspaceFunctionCapabilities(templateType string, callbacks []string) string {
 	switch templateType {
-	case "table":
+	case functionschema.TypeTable:
 		caps := []string{"查询"}
 		if hasWorkspaceCallback(callbacks, "OnTableAddRow") {
 			caps = append(caps, "新增")
@@ -281,9 +282,9 @@ func formatWorkspaceFunctionCapabilities(templateType string, callbacks []string
 			return "只读查询"
 		}
 		return strings.Join(caps, "、")
-	case "form":
+	case functionschema.TypeForm:
 		return "表单提交"
-	case "chart":
+	case functionschema.TypeChart:
 		return "图表查询"
 	default:
 		return ""

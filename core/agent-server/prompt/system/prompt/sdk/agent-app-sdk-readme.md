@@ -4,6 +4,8 @@
 
 本文件就是 **SDK 主入口**。
 
+**重要**：读 SDK 只解决“框架有哪些能力”，不等于已读最佳实践。创建或修改具体业务代码前，必须再读取至少一个与当前需求匹配的案例文档（如单表读 `/system/prompt/case_catalog/table/ticket`，多表读 `/system/prompt/case_catalog/tables/meeting` 或 `/system/prompt/case_catalog/tables/hr`，Form/文件处理读 `/system/prompt/case_catalog/form/...`，Chart 读 `/system/prompt/case_catalog/form_table_chart/cashier`），再按案例风格写代码。
+
 ---
 
 ## 一、定位与文档分工
@@ -78,7 +80,7 @@ err := ctx.SendMessage(&app.SendMessageOpts{
 
 1. **定义结构体**：业务字段加 `gorm`、`widget`、`search`、`validate` 等标签；主键、CreatedAt、DeletedAt 等系统字段按约定写。
 2. **配置 TableTemplate**：`BaseConfig`（Name、Request、Response、CreateTables）+ **`AutoCrudTable`**（必配，指向列表结构体，前端据此显示列表与增删改入口）+ 可选 `OnTableAddRow` / `OnTableUpdateRow` / `OnTableDeleteRows`。**不需要哪种操作就删掉对应回调**：不想要新增和批量导入 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`。前端会根据是否配置回调来显示或隐藏对应按钮；`OnTableCreateInBatches` 是系统内置批量导入能力，配置 `OnTableAddRow` 时自动暴露。**支付记录、消费流水、操作日志这类审计/流水表默认应只读**，通常只保留查询，不给手工新增、编辑、删除入口。
-3. **写 List 函数**：请求体嵌 `*query.SearchFilterPageReq`，用 `queryDB := ctx.GetGormDB().Model(&Model{})` 后可在 Build 前对 `queryDB` 做 Where、Preload 等，再 `resp.Table(&lists).AutoSearchFilterPaged(queryDB, &Model{}, req.SearchFilterPageReq).Build()`；Build 后可遍历 `lists` 填计算字段、关联展示字段、link 等。
+3. **写 List 函数**：请求体值嵌入 `query.SearchFilterPageReq`，并用 `widget:"-"` 隐藏分页字段；用 `queryDB := ctx.GetGormDB().Model(&Model{})` 后可在 Build 前对 `queryDB` 做 Where、Preload 等，再 `resp.Table(&lists).AutoSearchFilterPaged(queryDB, &Model{}, &req.SearchFilterPageReq).Build()`；Build 后可遍历 `lists` 填计算字段、关联展示字段、link 等。
 4. **注册**：`init()` 中 `packageContext.GET("路由名", ListFunc, TableTemplate)`。
 
 最小可用片段示例：
@@ -97,11 +99,15 @@ var CrmTicketTemplate = &app.TableTemplate{
 }
 
 func CrmTicketList(ctx *app.Context, resp response.Response) error {
-    var req struct{ *query.SearchFilterPageReq }
-    ctx.ShouldBind(&req)
+    var req struct {
+        query.SearchFilterPageReq `widget:"-"`
+    }
+    if err := ctx.ShouldBind(&req); err != nil {
+        return err
+    }
     queryDB := ctx.GetGormDB().Model(&CrmTicket{}) // Build 前可对 queryDB 做 Where、Preload("关联名") 等
     var lists []*CrmTicket
-    if err := resp.Table(&lists).AutoSearchFilterPaged(queryDB, &CrmTicket{}, req.SearchFilterPageReq).Build(); err != nil {
+    if err := resp.Table(&lists).AutoSearchFilterPaged(queryDB, &CrmTicket{}, &req.SearchFilterPageReq).Build(); err != nil {
         return err
     }
     // Build 后可遍历 lists，填计算字段、关联表展示字段（需先在 Build 前 Preload）、link 等
@@ -115,7 +121,7 @@ func init() {
 
 List 可在 **Build 前**对 `queryDB` 做 Where、Preload 等，**Build 后**遍历 `lists` 做后处理；详见「五、Table 回调函数 → 4. List 函数」。
 
-单表完整示例（含所有常用组件与回调）：read_doc ` /system/prompt/case_catalog/table/ticket`。
+单表完整示例（含所有常用组件与回调）：`read_doc("/system/prompt/case_catalog/table/ticket")`。
 
 ### Form 模式（POST，无 Table）
 
@@ -152,7 +158,7 @@ func init() {
 }
 ```
 
-单 Form 完整示例：read_doc ` /system/prompt/case_catalog/form/excelorcsv`。
+单 Form 完整示例：`read_doc("/system/prompt/case_catalog/form/excelorcsv")`。
 
 ### Chart 模式（GET，统计/图表）
 
@@ -226,7 +232,7 @@ func TicketTrendChart(ctx *app.Context, resp response.Response) error {
 }
 ```
 
-完整 Chart 示例（折线图/饼图/仪表盘、时间筛选、多图表同包）：read_doc ` /system/prompt/case_catalog/form_table_chart/cashier`。
+完整 Chart 示例（折线图/饼图/仪表盘、时间筛选、多图表同包）：`read_doc("/system/prompt/case_catalog/form_table_chart/cashier")`。
 
 ---
 
@@ -295,9 +301,34 @@ DetailLink     string       `widget:"name:查看详情;type:link;target:_blank"`
 - `select` / `multiselect` 的实际值类型由 Go 字段类型决定，SDK 会按字段类型推断 `string`、`int`、`[]string`、`[]int`、`[]float` 等。
 - `checkbox` 更适合固定数量的勾选项；需要下拉式多选、远程搜索或可创建选项时优先使用 `multiselect`。
 
-**datetime 组件约定（新业务必读）**：新建业务表默认使用 `types.Time` + `gorm:"type:datetime"` + `widget:"type:datetime"`。API/工作台/前端 raw value 都是 `"YYYY-MM-DD HH:mm:ss"` 字符串，数据库存真实时间类型。系统字段示例：`CreatedAt types.Time \`json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"\``。普通业务时间字段需要在新增/编辑填写时，不要加 `display:"scenes:list"`。
+**datetime / types.Time 约定（新业务必读）**：新建业务表默认使用 `types.Time` + `gorm:"type:datetime"` + `widget:"type:datetime"`。API/工作台/前端 raw value 都是 `"YYYY-MM-DD HH:mm:ss"` 字符串，数据库存真实时间类型。系统字段示例：`CreatedAt types.Time \`json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"\``。普通业务时间字段需要在新增/编辑填写时，不要加 `display:"scenes:list"`。
 
-**datetime 组件约定**：日期时间字段使用 `types.Time`，数据库列使用真实时间类型，API/schema 协议为 `"YYYY-MM-DD HH:mm:ss"`。
+`types.Time` 是对 `time.Time` 的包装类型，给结构体字段赋值时必须显式转换，不能直接把 `time.Now()` 赋给 `types.Time` 字段。
+
+```go
+// 正确：当前时间赋给 types.Time 字段
+row.ExpenseDate = types.Time(time.Now())
+
+// 正确：字符串转 types.Time，适合后端生成或解析固定时间
+expenseDate, err := types.ParseTime("2026-04-26 10:30:00")
+if err != nil {
+    return nil, err
+}
+row.ExpenseDate = expenseDate
+
+// 正确：取出原生 time.Time 做比较、格式化、计算
+if row.ExpenseDate.Time().Before(time.Now()) {
+    // ...
+}
+
+// 正确：置空 types.Time 字段
+row.ExpenseDate = types.Time{}
+
+// 错误：time.Now() 是 time.Time，不能直接赋给 types.Time 字段
+row.ExpenseDate = time.Now()
+```
+
+只有 `gorm.DeletedAt` 这类 GORM 软删除字段才常见 `deleted_at: time.Now()`；如果目标字段本身是 `types.Time`，优先写 `types.Time(time.Now())`，避免类型不匹配。
 
 **form / table 结构约定（禁止 map，必读）**：使用 `type:form`（子表单）或 `type:table`（子表）时，**字段必须是具名、固定字段的结构体类型**，**禁止使用 `map[string]interface{}`**。前端和 SDK 依赖结构体标签（如 `widget`、`json`）来生成表单/表格列；map 的键在编译期不确定，无法解析出固定 schema，会导致展示异常或无法正确渲染。
 
@@ -360,7 +391,7 @@ functionLink, _ := ctx.BuildFunctionUrlWithText("vote_result.form", params, "查
 return resp.Form(&VoteSubmitResp{..., FunctionLink: functionLink}).Build()
 ```
 
-完整示例：read_doc `/system/prompt/case_catalog/tables/meeting`（预约列表会议室详情 link）、`/system/prompt/case_catalog/tables/hr`（职位/简历列表 link、_tab=OnTableAddRow）、`/system/prompt/case_catalog/formandtable/vote`（投票操作/选项列表/提交结果 link）。
+完整示例：`read_doc("/system/prompt/case_catalog/tables/meeting")`（预约列表会议室详情 link）、`read_doc("/system/prompt/case_catalog/tables/hr")`（职位/简历列表 link、_tab=OnTableAddRow）、`read_doc("/system/prompt/case_catalog/formandtable/vote")`（投票操作/选项列表/提交结果 link）。
 
 - **隐藏字段**：`widget:"-"` 表示该字段**被前端直接忽略**，不参与列表/表单的渲染，也不会被提交；常用于系统字段（如 DeletedAt、DeletedBy）或内部关联（如 `json:"-"` 的关联表）。
 - **展示场景**：用 `display.scenes` 控制前端渲染位置，例如 `list` 仅列表展示、`create` 仅新增表单展示，见下节。
@@ -546,10 +577,10 @@ CostPrice    float64 `json:"cost_price" gorm:"column:cost_price" widget:"name:�
 
 - **TableTemplate**：`BaseConfig` 含 Name、Request、Response、CreateTables；**`AutoCrudTable` 必配**（指向列表结构体，前端据此展示列表与增删改入口）。**不需要哪种操作就删掉对应回调**：不想要新增和批量导入 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`（如消费记录、支付流水、操作日志通常应直接只读）。前端根据是否配置回调来显示或隐藏「新增」「编辑」「删除」按钮；工作台和服务端也会据此判断表是否允许写入。`OnTableCreateInBatches` 是系统内置批量导入能力，配置 `OnTableAddRow` 时自动暴露，不需要手写；若新增/编辑表单中有 select 需后端动态选项，配 `OnSelectFuzzyMap`（用法见「六、Form 模式要点 → OnSelectFuzzy」）。
 - **AutoCrudTable 的 model 可落库字段类型**：model 里凡是有 **gorm 列**（会被 GORM 写入数据库）的字段，**只能是**以下可落库类型：**基础类型**（int、string、bool、int64、float64 等）、**string**（`gorm:"type:text"`，实际存 `bucket/object_key` 字符串，多文件逗号分隔）、**gorm.DeletedAt**（软删除，GORM 特例）。除此以外，**其他 struct、slice（如 type:table / type:form）不能作为一列写入数据库**；若在 model 里出现这类 struct/slice，须为：**外键关联**（如 `Room *MeetingRoom` 配 `gorm:"foreignKey:RoomID;references:ID"`，实际存的是 RoomID，不占一列）或 **gorm:"-"**（不落库，仅展示/表单用，如 RoomName、Status、Options、link 等）。否则 GORM 无法把该列写进数据库。
-- **List 函数**：请求体包含 `*query.SearchFilterPageReq`，使用 `resp.Table(&lists).AutoSearchFilterPaged(db, &Model{}, req.SearchFilterPageReq).Build()`；Build 后可在内存中给计算字段赋值（如剩余时间、**link 跳转 URL**，见「三、结构体与标签 → link 组件」）。若列表需要**按外表或计算字段筛选**（如按「会议室名称」筛预约、按「预约状态：待开始/进行中/已结束」筛），这些字段**不是主表的列**，应在 **Request 结构体**（TableTemplate.BaseConfig.Request）中定义：带 `form:"xxx"` 便于绑定，带 `widget` 让前端展示筛选控件；在 List 函数里**手写 Where**（外表筛先查关联表得 ID 再 `Where 外键 IN ?`，计算字段筛用主表时间等与当前时间比较），再传 `AutoSearchFilterPaged`。详见下「4. List 函数」中会议室预约示例。
+- **List 函数**：请求体值嵌入 `query.SearchFilterPageReq`，并用 `widget:"-"` 隐藏分页字段；使用 `resp.Table(&lists).AutoSearchFilterPaged(db, &Model{}, &req.SearchFilterPageReq).Build()`；Build 后可在内存中给计算字段赋值（如剩余时间、**link 跳转 URL**，见「三、结构体与标签 → link 组件」）。若列表需要**按外表或计算字段筛选**（如按「会议室名称」筛预约、按「预约状态：待开始/进行中/已结束」筛），这些字段**不是主表的列**，应在 **Request 结构体**（TableTemplate.BaseConfig.Request）中定义：带 `form:"xxx"` 便于绑定，带 `widget` 让前端展示筛选控件；在 List 函数里**手写 Where**（外表筛先查关联表得 ID 再 `Where 外键 IN ?`，计算字段筛用主表时间等与当前时间比较），再传 `AutoSearchFilterPaged`。详见下「4. List 函数」中会议室预约示例。
 - 主键、CreatedAt、UpdatedAt、DeletedAt、DeletedBy 等系统字段约定见案例；init_.go 由脚手架生成，不要手写。
 
-完整 Table 示例（单表/多表/回调/OnSelectFuzzy/link）：read_doc ` /system/prompt/case_catalog/table/ticket`、`/system/prompt/case_catalog/tables/meeting`、`/system/prompt/case_catalog/tables/hr`。
+完整 Table 示例（单表/多表/回调/OnSelectFuzzy/link）：`read_doc("/system/prompt/case_catalog/table/ticket")`、`read_doc("/system/prompt/case_catalog/tables/meeting")`、`read_doc("/system/prompt/case_catalog/tables/hr")`。
 
 ---
 
@@ -657,11 +688,15 @@ type Task struct {
 }
 
 func TaskList(ctx *app.Context, resp response.Response) error {
-    var req struct{ *query.SearchFilterPageReq }
-    ctx.ShouldBind(&req)
+    var req struct {
+        query.SearchFilterPageReq `widget:"-"`
+    }
+    if err := ctx.ShouldBind(&req); err != nil {
+        return err
+    }
     db := ctx.GetGormDB()
     var lists []*Task
-    if err := resp.Table(&lists).AutoSearchFilterPaged(db, &Task{}, req.SearchFilterPageReq).Build(); err != nil {
+    if err := resp.Table(&lists).AutoSearchFilterPaged(db, &Task{}, &req.SearchFilterPageReq).Build(); err != nil {
         return err
     }
     // Build 之后：按截止时间计算「剩余时间」展示
@@ -692,7 +727,7 @@ func TaskList(ctx *app.Context, resp response.Response) error {
 
 **示例二：Build 前处理 + 后处理（会议室预约）**
 
-请求里包含**外表筛选**（会议室名称）和**计算字段筛选**（预约状态：待开始/进行中/已结束，由开始/结束时间与当前时间算出）。需在 Build 前对 `queryDB` 做 Where；Build 后填充不落库字段（会议室名称、状态、详情 link）。参考：read_doc `/system/prompt/case_catalog/tables/meeting`（见 meeting_room_booking.go）。
+请求里包含**外表筛选**（会议室名称）和**计算字段筛选**（预约状态：待开始/进行中/已结束，由开始/结束时间与当前时间算出）。需在 Build 前对 `queryDB` 做 Where；Build 后填充不落库字段（会议室名称、状态、详情 link）。参考：`read_doc("/system/prompt/case_catalog/tables/meeting")`（见 meeting_room_booking.go）。
 
 ```go
 // 列表结构体：RoomName、Status、RoomLink 为不落库展示字段（gorm:"-"）
@@ -712,7 +747,7 @@ type MeetingRoomBooking struct {
 type MeetingRoomBookingListReq struct {
     RoomName string `json:"room_name" form:"room_name" gorm:"-" widget:"name:会议室名称;type:input"`
     Status   string `json:"status" form:"status" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:info,primary,success"`
-    query.SearchFilterPageReq
+    query.SearchFilterPageReq `widget:"-"`
 }
 
 func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
@@ -821,7 +856,7 @@ err := queryDB.
 系统错误（数据库异常、网络超时、Python/外部调用失败、未预期的 panic 等）需要**统一加上 `[系统错误]` 前缀**，并带上**报错信息和详细参数**（如请求体 `req`），方便大模型定位和排查问题。
 
 - **规范写法**：`return nil, fmt.Errorf("[系统错误]-[函数名] 简短描述, req: %+v, err: %w", req, err)`；打日志时同样加上 `[系统错误]-[函数名]` 并输出 req、err。
-- **参考实现**：read_doc `/system/prompt/case_catalog/form/nlp`（见 `jieba_segment.go` / `runJiebaOnText` 中 Python 执行失败分支）；使用 `pythonRuntime` 时须 **`defer executor.Close()`**，Go 与 Python 为同机子进程。
+- **参考实现**：`read_doc("/system/prompt/case_catalog/form/nlp")`（见 `jieba_segment.go` / `runJiebaOnText` 中 Python 执行失败分支）；使用 `pythonRuntime` 时须 **`defer executor.Close()`**，Go 与 Python 为同机子进程。
 
 ```go
 // 系统错误：必须带 [系统错误]、函数名、req 与 err，方便大模型排查
@@ -838,8 +873,8 @@ return resp.Form(&respStruct).Build()
 - **上传**：请求或 Table 新增/编辑里用 `string` 字段，widget `type:files`；可选 `accept:.csv`、`max_size:50MB`、`max_count:10` 等。`string` 的持久化值是字符串：`bucket/object_key`，多文件用英文逗号分隔。Table 字段建议用 `gorm:"column:xxx;type:text"`。
 - **读上传的文件（Form 内）**：需要访问文件内容时（如解析 CSV、转 Excel），用 `fs := ctx.GetFS()`，`inputFiles := fs.DownloadFiles(req.xxx)` 得到运行时文件列表；遍历 `inputFiles`，用 `file`（如 `os.Open(file)`）读内容；用完后 **必须** `defer fs.RemoveFiles(inputFiles)` 清理临时文件。
 - **响应里返回文件（供下载）**：业务生成文件到本地路径后，用 `outputFiles := fs.ResponseFiles([]string{outputPath})` 得到 `string` 填到响应结构体；返回值本身是 `bucket/object_key` 字符串，前端会通过 storage resolve 拿直连 URL 展示/下载。**路径建议始终用 `filepath.Abs` 得到绝对路径**再交给 `ResponseFiles` 或与 Python 互传（双方进程 cwd 不同）。若无上传、仅生成文件给用户（如 CSV 文本转 Excel），可先用 `ctx.GetFS().GetTraceOutputDir()` 得到当前 Trace 输出目录，在该目录下生成文件再 `ResponseFiles`。
-- **Python runtime 生成可下载文件**：read_doc `/system/prompt/case_catalog/form/python_output`；Go 将 **绝对路径** 放入请求传给 Python（如 `savefig` 目标路径），**不要**再用 base64 绕一圈；须 **`defer executor.Close()`**。
-- **参考实现**：Table 存储文件字段：read_doc `/system/prompt/case_catalog/tables/hr`（见 hr_resume_list.go 的 `ResumeFile`）；Form 上传读文件 + 响应返回文件：read_doc `/system/prompt/case_catalog/form/excelorcsv`（见 `DoCsvToExcel`、`DoCsvTextToExcel`）。
+- **Python runtime 生成可下载文件**：`read_doc("/system/prompt/case_catalog/form/python_output")`；Go 将 **绝对路径** 放入请求传给 Python（如 `savefig` 目标路径），**不要**再用 base64 绕一圈；须 **`defer executor.Close()`**。
+- **参考实现**：Table 存储文件字段：`read_doc("/system/prompt/case_catalog/tables/hr")`（见 hr_resume_list.go 的 `ResumeFile`）；Form 上传读文件 + 响应返回文件：`read_doc("/system/prompt/case_catalog/form/excelorcsv")`（见 `DoCsvToExcel`、`DoCsvTextToExcel`）。
 
 ```go
 // Form 内：读上传文件 → 处理 → 返回生成的文件
@@ -1020,7 +1055,7 @@ Statistics: map[string]interface{}{
 
 键值对可直接写字符串，如 `"配送说明": "满99元包邮，不满99元运费10元"`，无需 statistics 包。
 
-完整收银台示例（商品清单 Sum/Count、会员卡 Value、表达式格式）：read_doc `/system/prompt/case_catalog/form_table_chart/cashier`。
+完整收银台示例（商品清单 Sum/Count、会员卡 Value、表达式格式）：`read_doc("/system/prompt/case_catalog/form_table_chart/cashier")`。
 
 **Table 模式**下同样可用 OnSelectFuzzy：在**列表结构体**（AutoCrudTable 指向的模型）里给需要后端动态选项的 select 字段加 `callback:"OnSelectFuzzy"`，在 **TableTemplate** 的 `BaseConfig.OnSelectFuzzyMap` 里按「字段 json 名」注册回调即可。例如会议室预约表：新增/编辑时「会议室」下拉从后端查库且只显示「可用」的会议室。
 
@@ -1071,9 +1106,9 @@ func onSelectFuzzyMeetingRoom(ctx *app.Context, req *callback.OnSelectFuzzyReq) 
 }
 ```
 
-完整示例：read_doc ` /system/prompt/case_catalog/form_table_chart/cashier`（Form + table 子表 OnSelectFuzzy + 聚合计算）、`/system/prompt/case_catalog/tables/meeting`（**Table 模式**预约选会议室 OnSelectFuzzy，见 meeting_room_booking.go）。
+完整示例：`read_doc("/system/prompt/case_catalog/form_table_chart/cashier")`（Form + table 子表 OnSelectFuzzy + 聚合计算）、`read_doc("/system/prompt/case_catalog/tables/meeting")`（**Table 模式**预约选会议室 OnSelectFuzzy，见 meeting_room_booking.go）。
 
-Form 请求中 table 子表、OnSelectFuzzy、多 POST 同目录等：read_doc ` /system/prompt/case_catalog/form/excelorcsv`、`/system/prompt/case_catalog/form_table_chart/cashier`（收银台）、`/system/prompt/case_catalog/formandtable/vote`（投票提交：**BindCurrentFormData** 先选主题再选选项的依赖下拉示例）。
+Form 请求中 table 子表、OnSelectFuzzy、多 POST 同目录等：`read_doc("/system/prompt/case_catalog/form/excelorcsv")`、`read_doc("/system/prompt/case_catalog/form_table_chart/cashier")`（收银台）、`read_doc("/system/prompt/case_catalog/formandtable/vote")`（投票提交：**BindCurrentFormData** 先选主题再选选项的依赖下拉示例）。
 
 ---
 
@@ -1098,7 +1133,7 @@ Chart 用于**只读的统计/图表**（BI），GET 请求。ChartTemplate、�
    - **正确**：查询/分页等应使用 `github.com/ai-agent-os/ai-agent-os/pkg/gormx/query`（或项目内实际提供的 query 包），不要使用 `sdk/agent-app/query`。
 
 4. **不确定时先看案例**  
-   - 图表个数、路由拆分、返回格式，以收银台案例为准：read_doc `/system/prompt/case_catalog/form_table_chart/cashier`，看每个图表是如何「一个 GET 路由 + 一个具体图表类型返回值」实现的。
+   - 图表个数、路由拆分、返回格式，以收银台案例为准：`read_doc("/system/prompt/case_catalog/form_table_chart/cashier")`，看每个图表是如何「一个 GET 路由 + 一个具体图表类型返回值」实现的。
 
 #### 图表类型说明（4 种，唯一参考表）
 
@@ -1171,7 +1206,7 @@ c := &chart.GaugeChart{
 return resp.Chart(c).Build()
 ```
 
-完整示例：收银台统计（LineChart/BarChart/PieChart/GaugeChart）read_doc `/system/prompt/case_catalog/form_table_chart/cashier`。
+完整示例：收银台统计（LineChart/BarChart/PieChart/GaugeChart）`read_doc("/system/prompt/case_catalog/form_table_chart/cashier")`。
 
 ---
 

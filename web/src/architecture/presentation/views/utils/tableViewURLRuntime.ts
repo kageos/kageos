@@ -1,19 +1,22 @@
 import type { FunctionDetail } from '@/architecture/domain/types'
 import type { SortItem, TableState } from '@/architecture/domain/services/TableDomainService'
 import { buildURLSearchParams } from '@/utils/searchParams'
-import { LINK_TYPE_QUERY_KEY } from '@/utils/linkNavigation'
-import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from '@/utils/urlParams'
-import { getSearchFieldDisplayQueryKey, getSearchFieldQueryKey, isSearchFieldQueryKey } from '@/utils/queryFieldNamespace'
 import {
-  getSearchFieldDisplayValue,
   getSearchFieldRawValue,
-  hasSearchFieldValue,
-  isStoredSearchFieldValue
+  hasSearchFieldValue
 } from '@/utils/searchFieldValue'
 import {
   getTableRequestFields,
-  getTableSearchFields
+  getTableRequestSearchFields,
+  getTableResponseSearchFields
 } from '@/utils/functionSchemaSelectors'
+import {
+  isBackendSearchOperatorQueryKey,
+  isPersistentPlatformStateQueryKey,
+  isPlatformStateQueryKey,
+  isTableControlQueryKey,
+  isUnsupportedGeneratedFieldQueryKey
+} from '@/utils/queryParamKeys'
 
 interface BuildTableURLQueryParamsOptions {
   functionDetail: FunctionDetail
@@ -24,6 +27,7 @@ interface BuildTableURLQueryParamsOptions {
 interface PreserveExistingTableQueryParamsOptions {
   routeQuery: Record<string, any>
   requestFieldCodes: Set<string>
+  generatedFieldCodes?: Set<string>
   isLinkNavigation: boolean
 }
 
@@ -54,22 +58,8 @@ const getRequestFields = (functionDetail: FunctionDetail) => {
   return getTableRequestFields(functionDetail)
 }
 
-const shouldPersistSearchDisplay = (field: any, value: unknown): boolean => {
-  if (!isStoredSearchFieldValue(value)) {
-    return false
-  }
-
-  const display = getSearchFieldDisplayValue(value).trim()
-  if (!display) {
-    return false
-  }
-
-  const rawValue = getSearchFieldRawValue(value)
-  if (Array.isArray(rawValue)) {
-    return display !== rawValue.join(',') && display !== rawValue.join(', ')
-  }
-
-  return display !== String(rawValue ?? '')
+const getRequestSearchFields = (functionDetail: FunctionDetail) => {
+  return getTableRequestSearchFields(functionDetail)
 }
 
 export const getTableRequestFieldCodes = (functionDetail: FunctionDetail): Set<string> => {
@@ -99,33 +89,23 @@ export const buildTableURLQueryParams = (
     query.sorts = finalSorts.map((item: SortItem) => `${item.field}:${item.order}`).join(',')
   }
 
-  const requestFieldCodes = getTableRequestFieldCodes(functionDetail)
-  const responseFields = getTableSearchFields(functionDetail)
-  const responseFieldsForURL = responseFields.filter(field => !requestFieldCodes.has(field.code))
-  const displayFields = [
-    ...getRequestFields(functionDetail),
-    ...responseFieldsForURL
-  ]
+  const requestFieldsForURL = getRequestSearchFields(functionDetail)
+  const responseFieldsForURL = getTableResponseSearchFields(functionDetail)
 
+  // response 字段搜索表格结果集，使用后端操作符参数，
+  // 例如 `in=style:律诗`、`like=title:李白`。
   Object.assign(query, buildURLSearchParams(state.searchForm, responseFieldsForURL))
 
-  getRequestFields(functionDetail).forEach(field => {
+  requestFieldsForURL.forEach(field => {
     const value = state.searchForm[field.code]
     if (!hasSearchValue(value)) {
       return
     }
 
     const rawValue = getSearchFieldRawValue(value)
-    query[getSearchFieldQueryKey(field.code)] = Array.isArray(rawValue) ? rawValue.join(',') : String(rawValue)
-  })
-
-  displayFields.forEach(field => {
-    const value = state.searchForm[field.code]
-    if (!shouldPersistSearchDisplay(field, value)) {
-      return
-    }
-
-    query[getSearchFieldDisplayQueryKey(field.code)] = getSearchFieldDisplayValue(value)
+    // request 字段是 sdk-app 入参，key 必须等于 schema 的 field.code。
+    // 不要加 `s_`/`f_`、`_` 前缀，也不要加显示值伴随参数。
+    query[field.code] = Array.isArray(rawValue) ? rawValue.join(',') : String(rawValue)
   })
 
   Object.keys(query).forEach(key => {
@@ -144,6 +124,7 @@ export const preserveExistingTableQueryParams = (
 ): Record<string, string | string[]> => {
   const result: Record<string, string | string[]> = {}
   const { routeQuery, requestFieldCodes, isLinkNavigation } = options
+  const generatedFieldCodes = options.generatedFieldCodes || requestFieldCodes
 
   Object.keys(routeQuery).forEach(key => {
     const normalizedValue = normalizeRouteQueryValue(routeQuery[key])
@@ -151,25 +132,30 @@ export const preserveExistingTableQueryParams = (
       return
     }
 
-    if (key.startsWith('_')) {
-      if (key !== LINK_TYPE_QUERY_KEY) {
-        result[key] = normalizedValue
-      }
+    if (isUnsupportedGeneratedFieldQueryKey(key, generatedFieldCodes)) {
       return
     }
 
-    if (SEARCH_PARAM_KEYS.includes(key as any)) {
+    if (isPersistentPlatformStateQueryKey(key)) {
+      // `_` key 是前端/平台状态，例如 `_tab`、`_id`、`_mws`。
+      // 这类 key 不会和 sdk-app 业务参数冲突；临时态 key 由 helper 过滤。
+      result[key] = normalizedValue
+      return
+    }
+
+    if (isPlatformStateQueryKey(key)) {
+      return
+    }
+
+    if (isBackendSearchOperatorQueryKey(key)) {
+      // 后端操作符参数会从当前 table state 重建；只有显式 link 跳转时才透传。
       if (isLinkNavigation) {
         result[key] = normalizedValue
       }
       return
     }
 
-    if (isSearchFieldQueryKey(key)) {
-      return
-    }
-
-    if (!TABLE_PARAM_KEYS.includes(key as any) && !requestFieldCodes.has(key)) {
+    if (!isTableControlQueryKey(key) && !requestFieldCodes.has(key)) {
       result[key] = normalizedValue
     }
   })
@@ -192,6 +178,10 @@ export const buildNextTableSyncQuery = (
     ...preserveExistingTableQueryParams({
       routeQuery,
       requestFieldCodes: getTableRequestFieldCodes(functionDetail),
+      generatedFieldCodes: new Set([
+        ...getTableRequestSearchFields(functionDetail).map(field => field.code),
+        ...getTableResponseSearchFields(functionDetail).map(field => field.code)
+      ]),
       isLinkNavigation
     }),
     ...nextTableQuery

@@ -2,6 +2,8 @@
 
 当用户要**查列表数据、提交表单、查图表、新增/批量导入/更新/删除表格记录**等执行类操作时，按本文档执行。不写代码、不落盘，只调用执行类工具。
 
+**文档闸门**：本轮第一次调用执行类工具前必须已读本文档；本轮上下文已读过时可不重复。未读本文档时，不要先调用 `run_table_search`、`run_table_create`、`run_table_batch_create`、`run_table_update`、`run_table_delete`、`run_form_submit`、`run_chart_query`、`create_scheduled_task`。
+
 ---
 
 ## 操作 SOP

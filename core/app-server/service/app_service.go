@@ -201,7 +201,7 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 		operateLogReq := &dto.CreateOperateLoggerReq{
 			User:       req.RequestUser,
 			Action:     req.Action,
-			Resource:   "table",
+			Resource:   functionschema.TypeTable,
 			ResourceID: fmt.Sprintf("%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/")),
 			Source:     req.Source,
 			RowID:      req.RowID,
@@ -222,7 +222,7 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 		operateLogReq := &dto.CreateOperateLoggerReq{
 			User:       req.RequestUser,
 			Action:     req.Action,
-			Resource:   "table",
+			Resource:   functionschema.TypeTable,
 			ResourceID: fmt.Sprintf("%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/")),
 			Source:     req.Source,
 			RowID:      req.RowID,
@@ -247,7 +247,7 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 			operateLogReq := &dto.CreateOperateLoggerReq{
 				User:       req.RequestUser,
 				Action:     req.Action,
-				Resource:   "table",
+				Resource:   functionschema.TypeTable,
 				ResourceID: fmt.Sprintf("%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/")),
 				Source:     req.Source,
 				RowID:      rowID,

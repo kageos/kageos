@@ -51,6 +51,7 @@ export interface ScheduledAgentTaskItem {
   max_runs?: number
   timezone?: string
   status: ScheduledAgentTaskStatus
+  timer_task_id?: number
   run_count: number
   last_session_id?: string
   last_execution_id?: number
@@ -75,6 +76,7 @@ export interface ScheduledAgentExecutionItem {
   started_at?: string
   finished_at?: string
   status: ScheduledAgentExecutionStatus
+  worker_id?: string
   duration_millis: number
   input_goal?: string
   output_summary?: string
@@ -86,6 +88,14 @@ export interface ScheduledAgentExecutionItem {
   source_ref?: string
   created_at: string
   updated_at: string
+}
+
+export interface ScheduledAgentRunNowResp {
+  task_id: number
+  timer_task_id: number
+  timer_execution_id: number
+  status: string
+  scheduled_at: string
 }
 
 export interface ListScheduledAgentTasksResp {
@@ -121,9 +131,11 @@ export function listScheduledAgentTasks(params?: {
   return get<ListScheduledAgentTasksResp>(BASE_URL, params || {})
 }
 
-export function cancelScheduledAgentTask(id: number): Promise<void> {
+export function deleteScheduledAgentTask(id: number): Promise<void> {
   return del<void>(`${BASE_URL}/${id}`)
 }
+
+export const cancelScheduledAgentTask = deleteScheduledAgentTask
 
 export function pauseScheduledAgentTask(id: number): Promise<void> {
   return post<void>(`${BASE_URL}/${id}/pause`)
@@ -133,8 +145,8 @@ export function resumeScheduledAgentTask(id: number): Promise<void> {
   return post<void>(`${BASE_URL}/${id}/resume`)
 }
 
-export function runScheduledAgentTaskNow(id: number): Promise<ScheduledAgentExecutionItem> {
-  return post<ScheduledAgentExecutionItem>(`${BASE_URL}/${id}/run`)
+export function runScheduledAgentTaskNow(id: number): Promise<ScheduledAgentRunNowResp> {
+  return post<ScheduledAgentRunNowResp>(`${BASE_URL}/${id}/run`)
 }
 
 export function listScheduledAgentExecutions(

@@ -6,6 +6,7 @@ import {
   listScheduledTasks,
   getScheduledTask,
   cancelScheduledTask,
+  deleteScheduledTask,
   listScheduledTaskExecutions,
   getScheduledTaskExecution,
   type ScheduledTaskItem,
@@ -310,6 +311,15 @@ export function useScheduledTaskList(
     return !!currentUser && currentUser === createdBy
   }
 
+  function canDeleteTask(task?: ScheduledTaskItem | null): boolean {
+    if (!task) {
+      return false
+    }
+    const currentUser = authStore.userName?.trim()
+    const createdBy = task.created_by?.trim()
+    return !!currentUser && currentUser === createdBy
+  }
+
   function handleCancel(row: ScheduledTaskItem) {
     ElMessageBox.confirm(`确定取消定时任务「${row.name}」？`, '取消任务', {
       type: 'warning'
@@ -324,6 +334,28 @@ export function useScheduledTaskList(
           await loadList()
         } catch (error: unknown) {
           ElMessage.error(getErrorMessage(error, '取消失败'))
+        }
+      })
+      .catch(() => {})
+  }
+
+  function handleDelete(row: ScheduledTaskItem) {
+    ElMessageBox.confirm(`确定删除定时任务「${row.name || '未命名任务'}」？删除后任务将从列表移除。`, '删除任务', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      confirmButtonClass: 'el-button--danger'
+    })
+      .then(async () => {
+        try {
+          await deleteScheduledTask(row.id)
+          ElMessage.success('已删除')
+          if (currentTask.value?.id === row.id) {
+            taskDetailVisible.value = false
+          }
+          await loadList()
+        } catch (error: unknown) {
+          ElMessage.error(getErrorMessage(error, '删除失败'))
         }
       })
       .catch(() => {})
@@ -419,6 +451,13 @@ export function useScheduledTaskList(
       return
     }
     handleCancel(currentTask.value)
+  }
+
+  function handleDeleteFromDetail() {
+    if (!currentTask.value) {
+      return
+    }
+    handleDelete(currentTask.value)
   }
 
   async function openExecutionsFromDetail() {
@@ -700,9 +739,12 @@ export function useScheduledTaskList(
     handlePageSizeChange,
     resetFilters,
     canCancelTask,
+    canDeleteTask,
     handleCancel,
+    handleDelete,
     openTaskDetail,
     handleCancelFromDetail,
+    handleDeleteFromDetail,
     openExecutionsFromDetail,
     handleTaskExpandChange,
     refreshInlineExecutions,

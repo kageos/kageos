@@ -40,18 +40,31 @@
     >
       <div class="scheduled-section">
         <div class="scheduled-section-title">
-          <span>等待执行</span>
-          <span>{{ scheduledTasks.length }}</span>
+          <span>定时任务</span>
+          <div class="scheduled-section-title-actions">
+            <span>{{ scheduledTasks.length }}</span>
+            <el-button link size="small" type="primary" @click="$emit('manage-scheduled-tasks')">
+              管理
+            </el-button>
+          </div>
         </div>
         <div
           v-for="task in scheduledTasks"
           :key="task.id"
           class="right-session-card scheduled-task-card"
-          @click="$emit('open-scheduled-session', task)"
+          @click="toggleScheduledTaskRecords(task.id)"
         >
           <div class="right-session-card-head">
             <el-icon :size="12" color="var(--el-color-primary)"><Timer /></el-icon>
             <span class="right-session-card-title">{{ task.name || '未命名定时会话' }}</span>
+            <el-button
+              class="scheduled-card-expand"
+              text
+              size="small"
+              @click.stop="toggleScheduledTaskRecords(task.id)"
+            >
+              {{ isScheduledTaskExpanded(task.id) ? '收起' : '记录' }}
+            </el-button>
           </div>
 
           <div class="scheduled-task-goal">{{ task.goal }}</div>
@@ -67,9 +80,55 @@
             <span>{{ scheduleTypeLabel(task.schedule_type) }}</span>
             <span>{{ task.run_count }} 次</span>
           </div>
+
+          <div class="scheduled-task-actions" @click.stop>
+            <el-button
+              v-if="task.last_session_id"
+              link
+              size="small"
+              type="primary"
+              @click="$emit('open-scheduled-session', task)"
+            >
+              最近会话
+            </el-button>
+            <el-button
+              link
+              size="small"
+              type="primary"
+              :loading="scheduledTaskActionId === task.id"
+              @click="$emit('run-scheduled-task-now', task)"
+            >
+              立即执行
+            </el-button>
+          </div>
+
+          <div v-if="isScheduledTaskExpanded(task.id)" class="scheduled-task-records" @click.stop>
+            <div
+              v-for="record in getScheduledTaskRecords(task.id)"
+              :key="`${record.task.id}-${record.execution.id}`"
+              :class="['scheduled-task-record', { disabled: !record.execution.session_id }]"
+              @click="$emit('open-scheduled-execution', record)"
+            >
+              <div class="scheduled-task-record-head">
+                <el-tag :type="executionStatusTag(record.execution.status)" size="small" effect="plain">
+                  {{ executionStatusLabel(record.execution.status) }}
+                </el-tag>
+                <span>{{ formatRelativeTime(record.execution.started_at || record.execution.scheduled_at || record.execution.created_at) }}</span>
+              </div>
+              <div class="scheduled-task-record-timestamp">
+                {{ formatTimestamp(record.execution.started_at || record.execution.scheduled_at || record.execution.created_at) }}
+              </div>
+              <div class="scheduled-task-record-summary">
+                {{ record.execution.output_summary || record.execution.error_message || record.execution.input_goal || '暂无摘要' }}
+              </div>
+            </div>
+            <div v-if="getScheduledTaskRecords(task.id).length === 0" class="scheduled-task-record-empty">
+              暂无该任务的执行会话记录
+            </div>
+          </div>
         </div>
         <div v-if="scheduledTasks.length === 0 && !scheduledLoading" class="scheduled-section-empty">
-          暂无等待执行的定时会话
+          暂无定时会话
         </div>
       </div>
 
@@ -108,6 +167,9 @@
             <span class="right-session-time">
               {{ formatRelativeTime(record.execution.started_at || record.execution.scheduled_at || record.execution.created_at) }}
             </span>
+          </div>
+          <div class="right-session-card-timestamp">
+            {{ formatTimestamp(record.execution.started_at || record.execution.scheduled_at || record.execution.created_at) }}
           </div>
 
           <div class="scheduled-task-foot">
@@ -156,6 +218,9 @@
           <el-tag v-else-if="session.status === 'cancelled'" type="info" size="small" effect="plain">已取消</el-tag>
           <span class="right-session-time">{{ formatRelativeTime(session.updated_at) }}</span>
         </div>
+        <div class="right-session-card-timestamp">
+          {{ formatTimestamp(session.updated_at || session.created_at) }}
+        </div>
 
         <div v-if="session.status === 'generating'" class="right-session-card-actions">
           <el-button
@@ -185,7 +250,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { ChatDotRound, FolderOpened, Loading, Search, Timer } from '@element-plus/icons-vue'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import type { WorkspaceSessionItem } from '@/api/workspace'
@@ -206,6 +271,7 @@ const props = defineProps<{
   scheduledTasks: ScheduledAgentTaskItem[]
   scheduledExecutions: ScheduledAgentExecutionRecord[]
   cancellingTaskId: string | null
+  scheduledTaskActionId: number | null
   formatRelativeTime: (timeStr: string) => string
 }>()
 
@@ -215,9 +281,13 @@ const emit = defineEmits<{
   (e: 'open-session', session: WorkspaceSessionItem): void
   (e: 'open-scheduled-session', task: ScheduledAgentTaskItem): void
   (e: 'open-scheduled-execution', record: ScheduledAgentExecutionRecord): void
+  (e: 'run-scheduled-task-now', task: ScheduledAgentTaskItem): void
+  (e: 'manage-scheduled-tasks'): void
   (e: 'cancel-task', session: WorkspaceSessionItem): void
   (e: 'create-session'): void
 }>()
+
+const expandedScheduledTaskIds = ref<Set<number>>(new Set())
 
 const emptyDescription = computed(() => {
   if (props.searchKeyword) return '无匹配会话'
@@ -233,6 +303,24 @@ function updateActiveTab(value: SidebarTab) {
 
 function updateSearchKeyword(value: string | number) {
   emit('update:searchKeyword', String(value ?? ''))
+}
+
+function isScheduledTaskExpanded(taskId: number): boolean {
+  return expandedScheduledTaskIds.value.has(taskId)
+}
+
+function toggleScheduledTaskRecords(taskId: number) {
+  const next = new Set(expandedScheduledTaskIds.value)
+  if (next.has(taskId)) {
+    next.delete(taskId)
+  } else {
+    next.add(taskId)
+  }
+  expandedScheduledTaskIds.value = next
+}
+
+function getScheduledTaskRecords(taskId: number): ScheduledAgentExecutionRecord[] {
+  return props.scheduledExecutions.filter((record) => record.task.id === taskId)
 }
 
 function scheduledStatusLabel(status: string): string {
@@ -300,6 +388,19 @@ function nextRunLabel(value?: string): string {
     hour: '2-digit',
     minute: '2-digit'
   })}`
+}
+
+function formatTimestamp(value?: string): string {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  const y = date.getFullYear()
+  const M = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  const h = String(date.getHours()).padStart(2, '0')
+  const m = String(date.getMinutes()).padStart(2, '0')
+  const s = String(date.getSeconds()).padStart(2, '0')
+  return `${y}-${M}-${d} ${h}:${m}:${s}`
 }
 </script>
 
@@ -455,6 +556,18 @@ function nextRunLabel(value?: string): string {
   font-weight: 700;
 }
 
+.scheduled-section-title-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scheduled-section-title-actions :deep(.el-button) {
+  margin-left: 0;
+  padding: 0;
+  font-size: 12px;
+}
+
 .scheduled-section-empty {
   padding: 10px 4px;
   color: var(--el-text-color-secondary);
@@ -489,6 +602,12 @@ function nextRunLabel(value?: string): string {
   flex: 1;
 }
 
+.scheduled-card-expand {
+  flex-shrink: 0;
+  padding: 0 2px;
+  font-size: 11px;
+}
+
 .scheduled-task-goal {
   display: -webkit-box;
   margin-top: 6px;
@@ -508,6 +627,87 @@ function nextRunLabel(value?: string): string {
   margin-top: 8px;
   color: var(--el-text-color-secondary);
   font-size: 11px;
+}
+
+.scheduled-task-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--app-shell-panel-border);
+}
+
+.scheduled-task-actions :deep(.el-button) {
+  margin-left: 0;
+  font-size: 11px;
+}
+
+.scheduled-task-records {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 14px;
+  background: rgba(var(--el-color-primary-rgb), 0.035);
+}
+
+.scheduled-task-record {
+  padding: 8px;
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 12px;
+  background: var(--app-shell-panel-bg);
+  cursor: pointer;
+  transition: all 0.18s ease;
+
+  &:hover {
+    border-color: var(--el-color-primary);
+    transform: translateY(-1px);
+  }
+
+  &.disabled {
+    cursor: default;
+    opacity: 0.72;
+  }
+}
+
+.scheduled-task-record-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--el-text-color-placeholder);
+  font-size: 11px;
+}
+
+.scheduled-task-record-timestamp,
+.right-session-card-timestamp {
+  margin-top: 4px;
+  color: var(--el-text-color-placeholder);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+.scheduled-task-record-summary {
+  display: -webkit-box;
+  margin-top: 6px;
+  overflow: hidden;
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+  line-height: 1.45;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.scheduled-task-record-empty {
+  padding: 8px 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  text-align: center;
 }
 
 .right-session-card-meta {

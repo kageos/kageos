@@ -289,6 +289,7 @@ export interface WorkspaceMessageInfo {
   session_id: string
   agent_id: number
   role: 'user' | 'assistant' | 'tool'
+  user?: string
   content: string
   /** 用户消息附带的文件列表 JSON，解析后为 { files: WorkspaceChatMessageFile[] } */
   files?: string | null

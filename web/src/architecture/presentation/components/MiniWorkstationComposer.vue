@@ -124,9 +124,15 @@ function bindInputRef(element: unknown) {
 .mini-ws-files {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px 12px;
-  border-top: 1px solid var(--el-border-color-extra-light);
+  gap: 6px;
+  padding: 7px 12px;
+  border-top: 1px solid rgba(96, 231, 255, 0.12);
+  background: rgba(4, 12, 24, 0.46);
+}
+.mini-ws-files :deep(.el-tag) {
+  border-color: rgba(34, 211, 238, 0.32);
+  background: rgba(34, 211, 238, 0.1);
+  color: var(--mini-cyber-text, #d8f8ff);
 }
 
 .mini-ws-model-row {
@@ -134,9 +140,11 @@ function bindInputRef(element: unknown) {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 6px 10px;
-  border-top: 1px solid var(--el-border-color-lighter);
-  background: var(--el-fill-color-light);
+  padding: 8px 12px;
+  border-top: 1px solid rgba(96, 231, 255, 0.12);
+  background:
+    linear-gradient(90deg, rgba(9, 28, 48, 0.72), rgba(4, 12, 24, 0.56)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
 }
 .mini-ws-control {
   display: flex;
@@ -147,47 +155,94 @@ function bindInputRef(element: unknown) {
 }
 .mini-ws-model-label {
   font-size: 12px;
-  color: var(--el-text-color-regular);
+  color: var(--mini-cyber-muted, rgba(184, 225, 235, 0.68));
   flex-shrink: 0;
+  font-weight: 700;
+  letter-spacing: 0.1em;
 }
 .mini-ws-model-select {
   flex: 1;
   min-width: 0;
 }
+.mini-ws-model-select :deep(.el-select__wrapper) {
+  min-height: 30px;
+  border: 1px solid rgba(96, 231, 255, 0.18);
+  border-radius: 10px;
+  background: rgba(3, 10, 22, 0.66);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03), 0 0 18px rgba(34, 211, 238, 0.06);
+}
+.mini-ws-model-select :deep(.el-select__placeholder),
+.mini-ws-model-select :deep(.el-select__selected-item) {
+  color: var(--mini-cyber-text, #d8f8ff);
+}
 .mini-ws-input {
   display: flex;
   align-items: flex-end;
-  gap: 6px;
-  padding: 8px 10px;
-  border-top: 1px solid var(--el-border-color-lighter);
-  background: var(--el-fill-color-blank);
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(96, 231, 255, 0.16);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(34, 211, 238, 0.1), transparent 32%),
+    linear-gradient(180deg, rgba(9, 28, 48, 0.82), rgba(4, 12, 24, 0.9));
 }
 .mini-upload-btn {
   flex-shrink: 0;
   align-self: center;
+}
+.mini-upload-btn :deep(.el-button) {
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(96, 231, 255, 0.2);
+  border-radius: 10px;
+  color: var(--mini-cyber-accent, #22d3ee);
+  background: rgba(34, 211, 238, 0.08);
+}
+.mini-upload-btn :deep(.el-button:hover) {
+  color: #ffffff;
+  background: rgba(34, 211, 238, 0.16);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.16);
 }
 .mini-input {
   flex: 1;
   min-width: 0;
   min-height: 56px;
   max-height: 120px;
-  padding: 8px 10px;
-  border: none;
+  padding: 10px 12px;
+  border: 1px solid rgba(96, 231, 255, 0.16);
+  border-radius: 12px;
   outline: none;
   font-size: 13px;
   line-height: 1.5;
   font-family: inherit;
-  background: transparent;
-  color: var(--el-text-color-primary);
+  background:
+    linear-gradient(180deg, rgba(3, 10, 22, 0.76), rgba(3, 10, 22, 0.46)),
+    repeating-linear-gradient(90deg, rgba(96, 231, 255, 0.035) 0 1px, transparent 1px 18px);
+  color: var(--mini-cyber-text, #d8f8ff);
   resize: none;
   overflow-y: auto;
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.24);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+.mini-input:focus {
+  border-color: rgba(34, 211, 238, 0.56);
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.24), 0 0 0 3px rgba(34, 211, 238, 0.1);
 }
 .mini-input::placeholder {
-  color: var(--el-text-color-placeholder);
+  color: var(--mini-cyber-dim, rgba(143, 187, 204, 0.48));
 }
 .mini-send-btn {
   flex-shrink: 0;
   align-self: flex-end;
+  min-height: 32px;
+  border-radius: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.16);
+}
+.mini-send-btn.el-button--primary {
+  border-color: rgba(34, 211, 238, 0.68);
+  background: linear-gradient(135deg, #0891b2, #22d3ee);
+  color: #03111d;
 }
 
 :deep(.mini-ws--maximized) .mini-ws-input {
@@ -195,5 +250,39 @@ function bindInputRef(element: unknown) {
 }
 :deep(.mini-ws--maximized) .mini-ws-files {
   padding: 6px 24px;
+}
+</style>
+
+<style lang="scss">
+.mini-ws-model-select-popper.el-select__popper {
+  border: 1px solid rgba(96, 231, 255, 0.18);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.12), transparent 34%),
+    linear-gradient(150deg, rgba(6, 18, 33, 0.98), rgba(11, 30, 49, 0.96));
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.36), 0 0 24px rgba(34, 211, 238, 0.1);
+}
+
+.mini-ws-model-select-popper.el-select__popper .el-select-dropdown {
+  background: transparent;
+}
+
+.mini-ws-model-select-popper.el-select__popper .el-select-dropdown__item {
+  color: rgba(216, 248, 255, 0.78);
+}
+
+.mini-ws-model-select-popper.el-select__popper .el-select-dropdown__item.is-hovering,
+.mini-ws-model-select-popper.el-select__popper .el-select-dropdown__item:hover {
+  background: rgba(34, 211, 238, 0.1);
+  color: #d8f8ff;
+}
+
+.mini-ws-model-select-popper.el-select__popper .el-select-dropdown__item.is-selected {
+  color: #22d3ee;
+  background: rgba(34, 211, 238, 0.14);
+}
+
+.mini-ws-model-select-popper.el-select__popper .el-popper__arrow::before {
+  background: rgba(8, 22, 38, 0.98);
+  border-color: rgba(96, 231, 255, 0.18);
 }
 </style>

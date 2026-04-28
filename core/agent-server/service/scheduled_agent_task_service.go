@@ -15,6 +15,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/scheduledsdk"
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 )
@@ -30,27 +31,28 @@ const (
 	ScheduledAgentNotifyFailed  = "failed"
 
 	ScheduledAgentSourceType = "scheduled_agent_task"
+
+	defaultScheduledAgentTaskTimeout = 30 * time.Minute
 )
 
 var scheduledAgentCronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 
 type ScheduledAgentTaskServiceOptions struct {
-	PollInterval        time.Duration
-	BatchSize           int
-	LeaseDuration       time.Duration
 	MaxConcurrency      int
 	DefaultTimeout      time.Duration
 	MessagePublisher    scheduledAgentMessagePublisher
 	NotificationBaseURL string
+	TimerClient         *scheduledsdk.Client
 }
 
 type ScheduledAgentTaskService struct {
 	workspaceChat *WorkspaceChatService
+	chatRunner    scheduledAgentWorkspaceChatRunner
 	taskRepo      *repository.ScheduledAgentTaskRepository
 	executionRepo *repository.ScheduledAgentExecutionRepository
 	tokenIssuer   *auth.JWTService
 	options       ScheduledAgentTaskServiceOptions
-	schedulerID   string
+	workerID      string
 	workerSlots   chan struct{}
 	runWG         sync.WaitGroup
 }
@@ -59,6 +61,10 @@ type scheduledAgentBudgetPolicy struct {
 	MaxDurationSeconds int `json:"max_duration_seconds"`
 	MaxToolRounds      int `json:"max_tool_rounds"`
 	MaxTokens          int `json:"max_tokens"`
+}
+
+type scheduledAgentWorkspaceChatRunner interface {
+	RunWorkspaceChat(ctx context.Context, req *dto.WorkspaceChatReq, sink WorkspaceChatEventSink) error
 }
 
 type scheduledAgentEventCollector struct {
@@ -75,20 +81,11 @@ func (c *scheduledAgentEventCollector) Send(event string, data interface{}) {
 }
 
 func normalizeScheduledAgentTaskOptions(opts ScheduledAgentTaskServiceOptions) ScheduledAgentTaskServiceOptions {
-	if opts.PollInterval <= 0 {
-		opts.PollInterval = 5 * time.Second
-	}
-	if opts.BatchSize <= 0 {
-		opts.BatchSize = 20
-	}
-	if opts.LeaseDuration <= 0 {
-		opts.LeaseDuration = 10 * time.Minute
-	}
 	if opts.MaxConcurrency <= 0 {
 		opts.MaxConcurrency = 3
 	}
 	if opts.DefaultTimeout <= 0 {
-		opts.DefaultTimeout = 5 * time.Minute
+		opts.DefaultTimeout = defaultScheduledAgentTaskTimeout
 	}
 	return opts
 }
@@ -103,11 +100,12 @@ func NewScheduledAgentTaskService(
 	opts = normalizeScheduledAgentTaskOptions(opts)
 	return &ScheduledAgentTaskService{
 		workspaceChat: workspaceChat,
+		chatRunner:    workspaceChat,
 		taskRepo:      taskRepo,
 		executionRepo: executionRepo,
 		tokenIssuer:   tokenIssuer,
 		options:       opts,
-		schedulerID:   "scheduled-agent-" + uuid.NewString(),
+		workerID:      "scheduled-agent-worker-" + uuid.NewString(),
 		workerSlots:   make(chan struct{}, opts.MaxConcurrency),
 	}
 }
@@ -216,8 +214,15 @@ func parseScheduledAgentRunAt(raw string, loc *time.Location) (time.Time, error)
 }
 
 func computeScheduledAgentNextRun(task *model.ScheduledAgentTask, scheduledAt time.Time, success bool) (string, *time.Time, string) {
+	return computeScheduledAgentNextRunAt(task, scheduledAt, time.Now(), success)
+}
+
+func computeScheduledAgentNextRunAt(task *model.ScheduledAgentTask, scheduledAt, completedAt time.Time, success bool) (string, *time.Time, string) {
 	if scheduledAt.IsZero() {
-		scheduledAt = time.Now()
+		scheduledAt = completedAt
+	}
+	if completedAt.IsZero() {
+		completedAt = time.Now()
 	}
 	if task.MaxRuns > 0 && task.RunCount >= task.MaxRuns {
 		if success {
@@ -243,7 +248,11 @@ func computeScheduledAgentNextRun(task *model.ScheduledAgentTask, scheduledAt ti
 		if err != nil {
 			return model.ScheduledAgentTaskStatusFailed, nil, err.Error()
 		}
-		next := schedule.Next(scheduledAt)
+		nextBase := scheduledAt
+		if completedAt.After(nextBase) {
+			nextBase = completedAt
+		}
+		next := schedule.Next(nextBase)
 		return model.ScheduledAgentTaskStatusPending, &next, task.LastErrorMessage
 	case ScheduledAgentScheduleEvery:
 		if task.IntervalSeconds <= 0 {
@@ -252,7 +261,11 @@ func computeScheduledAgentNextRun(task *model.ScheduledAgentTask, scheduledAt ti
 			}
 			return model.ScheduledAgentTaskStatusFailed, nil, task.LastErrorMessage
 		}
-		next := scheduledAt.Add(time.Duration(task.IntervalSeconds) * time.Second)
+		nextBase := scheduledAt
+		if completedAt.After(nextBase) {
+			nextBase = completedAt
+		}
+		next := nextBase.Add(time.Duration(task.IntervalSeconds) * time.Second)
 		return model.ScheduledAgentTaskStatusPending, &next, task.LastErrorMessage
 	default:
 		if success {
@@ -275,7 +288,8 @@ func (s *ScheduledAgentTaskService) Create(ctx context.Context, req *dto.CreateS
 	if scheduleType != ScheduledAgentScheduleAtime && scheduleType != ScheduledAgentScheduleCron && scheduleType != ScheduledAgentScheduleEvery {
 		return nil, fmt.Errorf("schedule_type 必须是 atime/cron/every")
 	}
-	runAt := time.Now().In(loc)
+	now := time.Now().In(loc)
+	runAt := now
 	if scheduleType == ScheduledAgentScheduleAtime {
 		runAt, err = parseScheduledAgentRunAt(req.RunAt, loc)
 		if err != nil {
@@ -335,7 +349,7 @@ func (s *ScheduledAgentTaskService) Create(ctx context.Context, req *dto.CreateS
 	task.CreatedBy = requestUser
 	task.UpdatedBy = requestUser
 
-	next, err := s.initialNextRunAt(task, runAt)
+	next, err := s.initialNextRunAt(task, now)
 	if err != nil {
 		return nil, err
 	}
@@ -350,13 +364,24 @@ func (s *ScheduledAgentTaskService) Create(ctx context.Context, req *dto.CreateS
 			return nil, err
 		}
 	}
+	if err := s.createTimerTask(ctx, task); err != nil {
+		_ = s.taskRepo.Delete(task.ID, requestUser)
+		return nil, fmt.Errorf("注册 timer-scheduler 任务失败: %w", err)
+	}
 	return task, nil
 }
 
 func (s *ScheduledAgentTaskService) initialNextRunAt(task *model.ScheduledAgentTask, runAt time.Time) (*time.Time, error) {
 	switch task.ScheduleType {
 	case ScheduledAgentScheduleAtime:
-		return &runAt, nil
+		next := task.RunAt
+		if next.IsZero() {
+			next = runAt
+		}
+		if !next.After(runAt) {
+			return nil, fmt.Errorf("run_at 必须晚于当前时间")
+		}
+		return &next, nil
 	case ScheduledAgentScheduleCron:
 		if strings.TrimSpace(task.CronExpr) == "" {
 			return nil, fmt.Errorf("cron 类型需提供 cron_expr")
@@ -371,7 +396,8 @@ func (s *ScheduledAgentTaskService) initialNextRunAt(task *model.ScheduledAgentT
 		if task.IntervalSeconds <= 0 {
 			return nil, fmt.Errorf("every 类型 interval_seconds 必须大于 0")
 		}
-		return &runAt, nil
+		next := runAt.Add(time.Duration(task.IntervalSeconds) * time.Second)
+		return &next, nil
 	default:
 		return nil, fmt.Errorf("schedule_type 必须是 atime/cron/every")
 	}
@@ -382,6 +408,7 @@ func (s *ScheduledAgentTaskService) Update(ctx context.Context, id int64, req *d
 	if err != nil {
 		return nil, err
 	}
+	scheduleChanged := false
 	if v := strings.TrimSpace(req.Name); v != "" {
 		task.Name = v
 	}
@@ -397,7 +424,9 @@ func (s *ScheduledAgentTaskService) Update(ctx context.Context, id int64, req *d
 	if req.LLMConfigID != nil {
 		task.LLMConfigID = *req.LLMConfigID
 	}
-	task.Files = strings.TrimSpace(req.Files)
+	if req.Files != nil {
+		task.Files = strings.TrimSpace(*req.Files)
+	}
 	if raw := normalizeScheduledAgentRawJSON(req.ContextPolicy); raw != nil {
 		task.ContextPolicy = raw
 	}
@@ -426,32 +455,53 @@ func (s *ScheduledAgentTaskService) Update(ctx context.Context, id int64, req *d
 		task.NotifyOn = notifyOn
 	}
 	if strings.TrimSpace(req.Timezone) != "" {
-		task.Timezone = strings.TrimSpace(req.Timezone)
+		timezone := strings.TrimSpace(req.Timezone)
+		if timezone != task.Timezone {
+			scheduleChanged = true
+		}
+		task.Timezone = timezone
 	}
 	loc, err := resolveScheduledAgentLocation(task.Timezone)
 	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(req.ScheduleType) != "" {
-		task.ScheduleType = strings.ToLower(strings.TrimSpace(req.ScheduleType))
+		scheduleType := strings.ToLower(strings.TrimSpace(req.ScheduleType))
+		if scheduleType != ScheduledAgentScheduleAtime && scheduleType != ScheduledAgentScheduleCron && scheduleType != ScheduledAgentScheduleEvery {
+			return nil, fmt.Errorf("schedule_type 必须是 atime/cron/every")
+		}
+		if scheduleType != task.ScheduleType {
+			scheduleChanged = true
+		}
+		task.ScheduleType = scheduleType
 	}
 	if strings.TrimSpace(req.RunAt) != "" {
 		runAt, err := parseScheduledAgentRunAt(req.RunAt, loc)
 		if err != nil {
 			return nil, err
 		}
+		if !runAt.Equal(task.RunAt) {
+			scheduleChanged = true
+		}
 		task.RunAt = runAt
 	}
 	if strings.TrimSpace(req.CronExpr) != "" {
-		task.CronExpr = strings.TrimSpace(req.CronExpr)
+		cronExpr := strings.TrimSpace(req.CronExpr)
+		if cronExpr != task.CronExpr {
+			scheduleChanged = true
+		}
+		task.CronExpr = cronExpr
 	}
 	if req.IntervalSeconds != nil {
+		if *req.IntervalSeconds != task.IntervalSeconds {
+			scheduleChanged = true
+		}
 		task.IntervalSeconds = *req.IntervalSeconds
 	}
 	if req.MaxRuns != nil {
 		task.MaxRuns = *req.MaxRuns
 	}
-	if task.Status == model.ScheduledAgentTaskStatusPending {
+	if scheduleChanged && (task.Status == model.ScheduledAgentTaskStatusPending || task.Status == model.ScheduledAgentTaskStatusPaused) {
 		next, err := s.initialNextRunAt(task, time.Now().In(loc))
 		if err != nil {
 			return nil, err
@@ -461,6 +511,9 @@ func (s *ScheduledAgentTaskService) Update(ctx context.Context, id int64, req *d
 	task.UpdatedBy = requestUser
 	if err := s.taskRepo.Update(task); err != nil {
 		return nil, err
+	}
+	if err := s.updateTimerTask(ctx, task); err != nil {
+		return nil, fmt.Errorf("同步 timer-scheduler 任务失败: %w", err)
 	}
 	return task, nil
 }
@@ -484,6 +537,9 @@ func (s *ScheduledAgentTaskService) Get(ctx context.Context, id int64, _ string)
 }
 
 func (s *ScheduledAgentTaskService) Pause(ctx context.Context, id int64, requestUser string) error {
+	if err := s.pauseTimerTask(ctx, id); err != nil {
+		return err
+	}
 	return s.taskRepo.Pause(id, requestUser)
 }
 
@@ -500,11 +556,24 @@ func (s *ScheduledAgentTaskService) Resume(ctx context.Context, id int64, reques
 	if err != nil {
 		return err
 	}
+	if err := s.resumeTimerTask(ctx, id); err != nil {
+		return err
+	}
 	return s.taskRepo.Resume(id, next, requestUser)
 }
 
 func (s *ScheduledAgentTaskService) Cancel(ctx context.Context, id int64, requestUser string) error {
+	if err := s.cancelTimerTask(ctx, id); err != nil {
+		return err
+	}
 	return s.taskRepo.Cancel(id, requestUser)
+}
+
+func (s *ScheduledAgentTaskService) Delete(ctx context.Context, id int64, requestUser string) error {
+	if err := s.cancelTimerTask(ctx, id); err != nil {
+		return err
+	}
+	return s.taskRepo.Delete(id, requestUser)
 }
 
 func (s *ScheduledAgentTaskService) ListExecutions(ctx context.Context, taskID int64, _ string, status string, page, pageSize int) ([]*model.ScheduledAgentExecution, int64, error) {
@@ -525,45 +594,18 @@ func (s *ScheduledAgentTaskService) GetExecution(ctx context.Context, taskID, ex
 	return s.executionRepo.GetByID(taskID, executionID)
 }
 
-func (s *ScheduledAgentTaskService) RunNow(ctx context.Context, id int64, requestUser string) (*model.ScheduledAgentExecution, error) {
+func (s *ScheduledAgentTaskService) RunNow(ctx context.Context, id int64, _ string) (*scheduledsdk.Execution, error) {
 	task, err := s.taskRepo.GetByID(id)
 	if err != nil {
 		return nil, err
 	}
-	if !s.tryAcquireWorkerSlot() {
-		return nil, fmt.Errorf("后台执行并发已满，请稍后重试")
+	if task.TimerTaskID <= 0 {
+		return nil, fmt.Errorf("timer_task_id 为空，无法通过 timer-scheduler 立即运行")
 	}
-	exec, err := s.createExecution(ctx, task, time.Now(), requestUser)
-	if err != nil {
-		s.releaseWorkerSlot()
-		return nil, err
+	if s == nil || s.options.TimerClient == nil {
+		return nil, fmt.Errorf("timer-scheduler client 未配置")
 	}
-	s.runWG.Add(1)
-	go func() {
-		defer s.runWG.Done()
-		defer s.releaseWorkerSlot()
-		s.executeOne(ctx, task, exec, false, "")
-	}()
-	return exec, nil
-}
-
-func (s *ScheduledAgentTaskService) StartScheduler(ctx context.Context) {
-	logger.Infof(ctx, "[ScheduledAgentTask] Scheduler started: worker=%s poll=%s batch=%d lease=%s concurrency=%d",
-		s.schedulerID, s.options.PollInterval, s.options.BatchSize, s.options.LeaseDuration, s.options.MaxConcurrency)
-	s.runDueTasks(ctx)
-	ticker := time.NewTicker(s.options.PollInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Infof(ctx, "[ScheduledAgentTask] Scheduler stopping: worker=%s inflight=%d", s.schedulerID, len(s.workerSlots))
-			s.runWG.Wait()
-			logger.Infof(ctx, "[ScheduledAgentTask] Scheduler stopped: worker=%s", s.schedulerID)
-			return
-		case <-ticker.C:
-			s.runDueTasks(ctx)
-		}
-	}
+	return s.options.TimerClient.RunNow(ctx, task.TimerTaskID)
 }
 
 func (s *ScheduledAgentTaskService) tryAcquireWorkerSlot() bool {
@@ -582,59 +624,17 @@ func (s *ScheduledAgentTaskService) releaseWorkerSlot() {
 	}
 }
 
-func (s *ScheduledAgentTaskService) runDueTasks(ctx context.Context) {
-	availableSlots := s.options.MaxConcurrency - len(s.workerSlots)
-	if availableSlots <= 0 {
-		return
-	}
-	limit := s.options.BatchSize
-	if limit <= 0 || limit > availableSlots {
-		limit = availableSlots
-	}
+func (s *ScheduledAgentTaskService) newExecution(task *model.ScheduledAgentTask, scheduledAt time.Time, requestUser string, status string) *model.ScheduledAgentExecution {
 	now := time.Now()
-	tasks, err := s.taskRepo.ListPendingDue(now, limit)
-	if err != nil {
-		logger.Errorf(ctx, "[ScheduledAgentTask] ListPendingDue err: %v", err)
-		return
+	startedAt := (*time.Time)(nil)
+	workerID := ""
+	if status == "" {
+		status = model.ScheduledAgentExecutionStatusRunning
 	}
-	for _, task := range tasks {
-		if !s.tryAcquireWorkerSlot() {
-			return
-		}
-		leaseUntil := now.Add(s.options.LeaseDuration)
-		acquired, err := s.taskRepo.TryAcquireLease(task.ID, s.schedulerID, now, leaseUntil)
-		if err != nil {
-			logger.Errorf(ctx, "[ScheduledAgentTask] TryAcquireLease err: task=%d err=%v", task.ID, err)
-			s.releaseWorkerSlot()
-			continue
-		}
-		if !acquired {
-			s.releaseWorkerSlot()
-			continue
-		}
-		task.LeaseOwner = s.schedulerID
-		task.LeaseUntil = &leaseUntil
-		scheduledAt := now
-		if task.NextRunAt != nil {
-			scheduledAt = *task.NextRunAt
-		}
-		exec, err := s.createExecution(ctx, task, scheduledAt, task.RequestUser)
-		if err != nil {
-			logger.Errorf(ctx, "[ScheduledAgentTask] Create execution err: task=%d err=%v", task.ID, err)
-			s.releaseWorkerSlot()
-			continue
-		}
-		s.runWG.Add(1)
-		go func(task *model.ScheduledAgentTask, exec *model.ScheduledAgentExecution) {
-			defer s.runWG.Done()
-			defer s.releaseWorkerSlot()
-			s.executeOne(ctx, task, exec, true, s.schedulerID)
-		}(task, exec)
+	if status == model.ScheduledAgentExecutionStatusRunning {
+		startedAt = &now
+		workerID = s.workerID
 	}
-}
-
-func (s *ScheduledAgentTaskService) createExecution(ctx context.Context, task *model.ScheduledAgentTask, scheduledAt time.Time, requestUser string) (*model.ScheduledAgentExecution, error) {
-	now := time.Now()
 	sourceType := strings.TrimSpace(task.SourceType)
 	if sourceType == "" {
 		sourceType = ScheduledAgentSourceType
@@ -646,8 +646,9 @@ func (s *ScheduledAgentTaskService) createExecution(ctx context.Context, task *m
 	exec := &model.ScheduledAgentExecution{
 		TaskID:      task.ID,
 		ScheduledAt: scheduledAt,
-		StartedAt:   &now,
-		Status:      model.ScheduledAgentExecutionStatusRunning,
+		StartedAt:   startedAt,
+		Status:      status,
+		WorkerID:    workerID,
 		InputGoal:   task.Goal,
 		SourceType:  sourceType,
 		SourceRef:   sourceRef,
@@ -658,6 +659,11 @@ func (s *ScheduledAgentTaskService) createExecution(ctx context.Context, task *m
 		exec.CreatedBy = task.RequestUser
 		exec.UpdatedBy = task.RequestUser
 	}
+	return exec
+}
+
+func (s *ScheduledAgentTaskService) createExecution(ctx context.Context, task *model.ScheduledAgentTask, scheduledAt time.Time, requestUser string, status string) (*model.ScheduledAgentExecution, error) {
+	exec := s.newExecution(task, scheduledAt, requestUser, status)
 	if err := s.executionRepo.Create(exec); err != nil {
 		return nil, err
 	}
@@ -668,12 +674,17 @@ func (s *ScheduledAgentTaskService) createExecution(ctx context.Context, task *m
 	return exec, nil
 }
 
-func (s *ScheduledAgentTaskService) executeOne(parent context.Context, task *model.ScheduledAgentTask, exec *model.ScheduledAgentExecution, updateSchedule bool, leaseOwner string) {
+func (s *ScheduledAgentTaskService) executeOne(parent context.Context, task *model.ScheduledAgentTask, exec *model.ScheduledAgentExecution, updateSchedule bool) {
 	started := time.Now()
 	requestUser := strings.TrimSpace(task.RequestUser)
 	if requestUser == "" {
 		requestUser = strings.TrimSpace(task.CreatedBy)
 	}
+	if exec.StartedAt == nil {
+		exec.StartedAt = &started
+	}
+	exec.Status = model.ScheduledAgentExecutionStatusRunning
+	exec.WorkerID = s.workerID
 	timeout := s.executionTimeout(task)
 	runCtx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
@@ -690,7 +701,12 @@ func (s *ScheduledAgentTaskService) executeOne(parent context.Context, task *mod
 		LLMConfigID: task.LLMConfigID,
 	}
 
-	err := s.workspaceChat.RunWorkspaceChat(runCtx, req, collector)
+	var err error
+	if s.chatRunner == nil {
+		err = fmt.Errorf("workspace chat runner 未配置")
+	} else {
+		err = s.chatRunner.RunWorkspaceChat(runCtx, req, collector)
+	}
 	finished := time.Now()
 	status := model.ScheduledAgentExecutionStatusSuccess
 	errMsg := ""
@@ -721,6 +737,7 @@ func (s *ScheduledAgentTaskService) executeOne(parent context.Context, task *mod
 	exec.UpdatedBy = requestUser
 	if err := s.executionRepo.Update(exec); err != nil {
 		logger.Errorf(parent, "[ScheduledAgentTask] Update execution failed: task=%d execution=%d err=%v", task.ID, exec.ID, err)
+		return
 	}
 
 	task.LastSessionID = collector.sessionID
@@ -729,13 +746,13 @@ func (s *ScheduledAgentTaskService) executeOne(parent context.Context, task *mod
 	task.UpdatedBy = requestUser
 	if updateSchedule {
 		task.RunCount++
-		nextStatus, nextRunAt, stateErr := computeScheduledAgentNextRun(task, exec.ScheduledAt, success)
+		nextStatus, nextRunAt, stateErr := computeScheduledAgentNextRunAt(task, exec.ScheduledAt, finished, success)
 		task.Status = nextStatus
 		task.NextRunAt = nextRunAt
 		if stateErr != "" && errMsg == "" {
 			task.LastErrorMessage = stateErr
 		}
-		if _, err := s.taskRepo.UpdateAfterScheduledRun(task, leaseOwner); err != nil {
+		if _, err := s.taskRepo.UpdateAfterTimerRun(task); err != nil {
 			logger.Errorf(parent, "[ScheduledAgentTask] Update scheduled task failed: task=%d err=%v", task.ID, err)
 		}
 	} else {

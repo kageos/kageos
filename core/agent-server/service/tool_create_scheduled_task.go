@@ -30,7 +30,7 @@ type createScheduledTaskArgs struct {
 
 var createScheduledTaskToolDef = toolDefinition[createScheduledTaskArgs](
 	"create_scheduled_task",
-	"创建定时任务。支持 execute（普通函数/图表查询）、table_create（表格新增）、table_update（表格更新）、table_delete（表格删除）。创建前必须已通过 search_tools 确认目标函数 schema 字段与 callbacks 能力；table_* 只有 schema.callbacks 声明对应 OnTableAddRow/OnTableUpdateRow/OnTableDeleteRows 时才能创建。full_code_path 可不传（默认当前目录）。table_update 的 payload 需包含 id 与 updates，执行时会自动补 old_values。atime 需传 run_at；cron/every 不要传 run_at，服务端会按创建时间自动生效，其中 cron 从下一次命中开始执行，every 创建后立即执行一次。",
+	"创建定时任务。支持 execute（普通函数/图表查询）、table_create（表格新增）、table_update（表格更新）、table_delete（表格删除）。创建前必须已通过 search_tools 确认目标函数 schema 字段与 callbacks 能力；table_* 只有 schema.callbacks 声明对应 OnTableAddRow/OnTableUpdateRow/OnTableDeleteRows 时才能创建。full_code_path 可不传（默认当前目录）。table_update 的 payload 需包含 id 与 updates，执行时会自动补 old_values。atime 需传 run_at；cron/every 不要传 run_at，服务端会按创建时间自动生效，其中 cron 从下一次命中开始执行，every 从创建时间加 interval_seconds 后首次执行。",
 )
 
 func (t *CreateScheduledTaskTool) Definition() dto.ToolDef {

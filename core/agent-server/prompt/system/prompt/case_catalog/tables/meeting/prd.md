@@ -559,7 +559,7 @@ func MeetingRoomNotifySoon(ctx *app.Context, resp response.Response) error {
 			Where("id = ?", booking.ID).
 			Updates(map[string]interface{}{
 				"reminder_sent": true,
-				"reminded_at":   time.Now(),
+				"reminded_at":   types.Time(time.Now()),
 			}).Error; err != nil {
 			logger.Errorf(ctx, "Update reminder status failed, booking_id=%d, err=%v", booking.ID, err)
 			continue

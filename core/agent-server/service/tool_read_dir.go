@@ -7,6 +7,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
+	"github.com/ai-agent-os/ai-agent-os/pkg/servicetree"
 )
 
 type ReadDirTool struct{}
@@ -168,9 +169,9 @@ func buildListFormat(workspaceCtx *dto.GetWorkspaceContextResp, targetPath strin
 	var directories []dto.WorkspaceContextNode
 	var functions []dto.WorkspaceContextNode
 	for _, child := range workspaceCtx.Children {
-		if child.Type == "package" || child.Type == "docs" {
+		if child.Type == servicetree.TypePackage || child.Type == servicetree.TypeDocs {
 			directories = append(directories, child)
-		} else if child.Type == "function" && includeFunctions {
+		} else if child.Type == servicetree.TypeFunction && includeFunctions {
 			functions = append(functions, child)
 		}
 	}
@@ -207,7 +208,7 @@ func buildListFormat(workspaceCtx *dto.GetWorkspaceContextResp, targetPath strin
 		for i, fn := range functions {
 			tpl := fn.TemplateType
 			if tpl == "" {
-				tpl = "function"
+				tpl = servicetree.TypeFunction
 			}
 			funcsSection += fmt.Sprintf(`#### 函数 %d: %s
 - 函数代码：%s
@@ -289,9 +290,9 @@ func buildTreeLines(ctx context.Context, workspaceCtx *dto.GetWorkspaceContextRe
 	directories := make([]dto.WorkspaceContextNode, 0)
 	functions := make([]dto.WorkspaceContextNode, 0)
 	for _, child := range children {
-		if child.Type == "package" || child.Type == "docs" {
+		if child.Type == servicetree.TypePackage || child.Type == servicetree.TypeDocs {
 			directories = append(directories, child)
-		} else if child.Type == "function" && includeFunctions {
+		} else if child.Type == servicetree.TypeFunction && includeFunctions {
 			functions = append(functions, child)
 		}
 	}
@@ -328,7 +329,7 @@ func buildTreeLines(ctx context.Context, workspaceCtx *dto.GetWorkspaceContextRe
 			}
 			tpl := fn.TemplateType
 			if tpl == "" {
-				tpl = "function"
+				tpl = servicetree.TypeFunction
 			}
 			descPart := ""
 			if fn.Description != "" {
@@ -395,11 +396,11 @@ func buildReadDirResultData(originalPath string, targetPath string, degraded boo
 			FullCodePath: child.FullCodePath,
 			TemplateType: child.TemplateType,
 		}
-		if child.Type == "package" || child.Type == "docs" {
+		if child.Type == servicetree.TypePackage || child.Type == servicetree.TypeDocs {
 			data.Directories = append(data.Directories, node)
 			continue
 		}
-		if child.Type == "function" && includeFunctions {
+		if child.Type == servicetree.TypeFunction && includeFunctions {
 			data.Functions = append(data.Functions, node)
 		}
 	}

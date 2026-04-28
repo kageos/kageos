@@ -8,6 +8,7 @@
 
 import { ref, watch, onUnmounted, type Ref } from 'vue'
 import type { ToolResultMetadata } from '@/api/workspace'
+import { useAuthStore } from '@/stores/auth'
 
 export interface ChatMessageFile {
   ref?: string
@@ -28,6 +29,7 @@ export type AssistantBlock =
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  user?: string
   /** 仅 user 消息：附带文件列表（发送时展示、加载会话时由接口解析） */
   files?: ChatMessageFile[]
   tool_calls?: ChatMessageToolCall[]
@@ -58,6 +60,7 @@ export interface UseWorkspaceChatStreamReturn {
 }
 
 export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
+  const authStore = useAuthStore()
   const messages = ref<ChatMessage[]>([])
   const sending = ref(false)
   const sessionId = ref<string | undefined>(undefined)
@@ -331,8 +334,9 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
     if (sending.value) return
     streamingDisplayLength.value = 0
     const now = new Date().toISOString()
-    messages.value.push({ role: 'user', content, files: files?.length ? files : undefined, created_at: now })
-    messages.value.push({ role: 'assistant', content: '', tool_calls: [], blocks: [], created_at: now })
+    const currentUser = authStore.user?.username || authStore.userName || ''
+    messages.value.push({ role: 'user', user: currentUser, content, files: files?.length ? files : undefined, created_at: now })
+    messages.value.push({ role: 'assistant', user: currentUser, content: '', tool_calls: [], blocks: [], created_at: now })
     sending.value = true
     const idx = messages.value.length - 1
     try {

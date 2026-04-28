@@ -276,7 +276,7 @@ func formatSearchToolFunctionSummary(index int, fn *dto.FunctionSearchResult) st
 
 func formatSearchToolFunctionCapabilities(templateType string, callbacks []string) string {
 	switch templateType {
-	case "table":
+	case functionschema.TypeTable:
 		caps := []string{"read"}
 		if hasSearchToolCallback(callbacks, "OnTableAddRow") {
 			caps = append(caps, "create")
@@ -294,9 +294,9 @@ func formatSearchToolFunctionCapabilities(templateType string, callbacks []strin
 			return "read-only"
 		}
 		return strings.Join(caps, ", ")
-	case "form":
+	case functionschema.TypeForm:
 		return "submit"
-	case "chart":
+	case functionschema.TypeChart:
 		return "query"
 	default:
 		return ""

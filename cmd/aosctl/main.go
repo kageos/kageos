@@ -6,7 +6,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -34,15 +36,14 @@ const (
 )
 
 type Config struct {
-	Site      SiteConfig      `yaml:"site"`
-	Images    ImageConfig     `yaml:"images"`
-	Storage   StorageConfig   `yaml:"storage"`
-	MySQL     MySQLConfig     `yaml:"mysql"`
-	NATS      NATSConfig      `yaml:"nats"`
-	MinIO     MinIOConfig     `yaml:"minio"`
-	Secrets   SecretsConfig   `yaml:"secrets"`
-	SMTP      SMTPConfig      `yaml:"smtp"`
-	Scheduler SchedulerConfig `yaml:"scheduler"`
+	Site    SiteConfig    `yaml:"site"`
+	Images  ImageConfig   `yaml:"images"`
+	Storage StorageConfig `yaml:"storage"`
+	MySQL   MySQLConfig   `yaml:"mysql"`
+	NATS    NATSConfig    `yaml:"nats"`
+	MinIO   MinIOConfig   `yaml:"minio"`
+	Secrets SecretsConfig `yaml:"secrets"`
+	SMTP    SMTPConfig    `yaml:"smtp"`
 }
 
 type SiteConfig struct {
@@ -66,19 +67,20 @@ type StorageConfig struct {
 }
 
 type MySQLConfig struct {
-	Mode              string `yaml:"mode"`
-	Host              string `yaml:"host"`
-	Port              int    `yaml:"port"`
-	User              string `yaml:"user"`
-	Password          string `yaml:"password"`
-	AppDatabase       string `yaml:"app_database"`
-	SchedulerDatabase string `yaml:"scheduler_database"`
-	AgentDatabase     string `yaml:"agent_database"`
-	StorageDatabase   string `yaml:"storage_database"`
-	HRDatabase        string `yaml:"hr_database"`
-	BackupAdminUser   string `yaml:"backup_admin_user"`
-	BackupAdminPass   string `yaml:"backup_admin_password"`
-	CreateBundledSQL  bool   `yaml:"create_bundled_sql"`
+	Mode                   string `yaml:"mode"`
+	Host                   string `yaml:"host"`
+	Port                   int    `yaml:"port"`
+	User                   string `yaml:"user"`
+	Password               string `yaml:"password"`
+	AppDatabase            string `yaml:"app_database"`
+	ScheduledTaskDatabase  string `yaml:"scheduled_task_database"`
+	TimerSchedulerDatabase string `yaml:"timer_scheduler_database"`
+	AgentDatabase          string `yaml:"agent_database"`
+	StorageDatabase        string `yaml:"storage_database"`
+	HRDatabase             string `yaml:"hr_database"`
+	BackupAdminUser        string `yaml:"backup_admin_user"`
+	BackupAdminPass        string `yaml:"backup_admin_password"`
+	CreateBundledSQL       bool   `yaml:"create_bundled_sql"`
 }
 
 type NATSConfig struct {
@@ -119,10 +121,6 @@ type SMTPConfig struct {
 	Password string `yaml:"password"`
 	From     string `yaml:"from"`
 	FromName string `yaml:"from_name"`
-}
-
-type SchedulerConfig struct {
-	HealthPort int `yaml:"health_port"`
 }
 
 type Paths struct {
@@ -195,6 +193,16 @@ func run(args []string) error {
 		return cmdRender(paths)
 	case "doctor":
 		return cmdDoctor(paths)
+	case "up":
+		return cmdUp(paths, rest)
+	case "verify":
+		return cmdVerify(paths)
+	case "status", "ps":
+		return cmdStatus(paths)
+	case "logs":
+		return cmdLogs(paths, rest)
+	case "down":
+		return cmdDown(paths)
 	default:
 		return fmt.Errorf("unknown command %q", cmd)
 	}
@@ -237,9 +245,13 @@ Usage:
   aosctl init [--force] [--base-url URL] [--mysql-mode bundled|external]
   aosctl render [--config deploy/prod/aos.yaml]
   aosctl doctor [--config deploy/prod/aos.yaml]
+  aosctl up [--config deploy/prod/aos.yaml] [--image|--no-build]
+  aosctl verify [--config deploy/prod/aos.yaml]
+  aosctl status [--config deploy/prod/aos.yaml]
+  aosctl logs [--config deploy/prod/aos.yaml] [service]
+  aosctl down [--config deploy/prod/aos.yaml]
 
-The first version renders Compose/config files into deploy/prod/.generated.
-Compose remains the container orchestration engine.`)
+Compose remains the container execution engine; aosctl owns config rendering and deployment orchestration.`)
 }
 
 func resolvePaths(opts commonOptions) (Paths, error) {
@@ -346,7 +358,7 @@ func cmdInit(paths Paths, args []string) error {
 	}
 
 	fmt.Printf("created config: %s\n", paths.ConfigPath)
-	fmt.Println("next: edit site.base_url and run `aosctl doctor`, then `aosctl render`")
+	fmt.Println("next: edit site.base_url and run `aosctl doctor`, then `aosctl up`")
 	return nil
 }
 
@@ -404,6 +416,127 @@ func cmdDoctor(paths Paths) error {
 	return nil
 }
 
+func cmdUp(paths Paths, args []string) error {
+	useImage := false
+	noBuild := false
+	for _, arg := range args {
+		switch arg {
+		case "--image":
+			useImage = true
+		case "--no-build":
+			noBuild = true
+		default:
+			return fmt.Errorf("up does not support argument %q", arg)
+		}
+	}
+	if useImage && noBuild {
+		return fmt.Errorf("--image and --no-build cannot be used together")
+	}
+	if err := checkLinuxHost(); err != nil {
+		return err
+	}
+	rt, err := loadRuntimeConfig(paths)
+	if err != nil {
+		return err
+	}
+	if err := validateConfig(rt); err != nil {
+		return err
+	}
+	if err := ensureRuntimeLayout(rt); err != nil {
+		return err
+	}
+	if err := renderAll(rt); err != nil {
+		return err
+	}
+
+	switch {
+	case useImage:
+		if err := runCompose(rt.Paths.GeneratedDir, "pull", "main"); err != nil {
+			return err
+		}
+	case noBuild:
+		fmt.Println("skip main image build/pull (--no-build)")
+	default:
+		if err := runCompose(rt.Paths.GeneratedDir, "build", "main"); err != nil {
+			return err
+		}
+	}
+
+	if err := runCompose(rt.Paths.GeneratedDir, "run", "--rm", "--no-deps", "-e", "APP_BASE_ACTION=ensure", "-e", "APP_BASE_BUILD_NO_CACHE=0", "--entrypoint", "/app/entrypoint-app-base.sh", "main"); err != nil {
+		return err
+	}
+	if err := runCompose(rt.Paths.GeneratedDir, "up", "-d", "--no-build"); err != nil {
+		return err
+	}
+	fmt.Println("deployment started")
+	return nil
+}
+
+func cmdVerify(paths Paths) error {
+	rt, err := loadRuntimeConfig(paths)
+	if err != nil {
+		return err
+	}
+	if err := validateConfig(rt); err != nil {
+		return err
+	}
+	checks := []struct {
+		name string
+		url  string
+	}{
+		{name: "api-gateway", url: "http://127.0.0.1:9090/health"},
+		{name: "app-server", url: "http://127.0.0.1:9091/health"},
+		{name: "app-storage", url: "http://127.0.0.1:9092/health"},
+		{name: "app-runtime", url: "http://127.0.0.1:9093/health"},
+		{name: "agent-server", url: "http://127.0.0.1:9095/health"},
+		{name: "control-service", url: "http://127.0.0.1:9096/health"},
+		{name: "hr-server", url: "http://127.0.0.1:9097/health"},
+		{name: "timer-scheduler", url: "http://127.0.0.1:9108/health"},
+	}
+	failures := 0
+	for _, check := range checks {
+		if err := checkHTTP(check.url); err != nil {
+			failures++
+			fmt.Printf("[FAIL] %s: %v\n", check.name, err)
+		} else {
+			fmt.Printf("[ OK ] %s\n", check.name)
+		}
+	}
+	if failures > 0 {
+		return fmt.Errorf("verify failed with %d issue(s)", failures)
+	}
+	fmt.Println("verify passed")
+	return nil
+}
+
+func cmdStatus(paths Paths) error {
+	if err := requireGeneratedCompose(paths); err != nil {
+		return err
+	}
+	return runCompose(paths.GeneratedDir, "ps")
+}
+
+func cmdLogs(paths Paths, args []string) error {
+	if err := requireGeneratedCompose(paths); err != nil {
+		return err
+	}
+	service := "main"
+	if len(args) > 1 {
+		return fmt.Errorf("logs accepts at most one service name")
+	}
+	if len(args) == 1 {
+		service = args[0]
+	}
+	return runCompose(paths.GeneratedDir, "logs", "-f", service)
+}
+
+func cmdDown(paths Paths) error {
+	if err := requireGeneratedCompose(paths); err != nil {
+		return err
+	}
+	return runCompose(paths.GeneratedDir, "down")
+}
+
 type doctorCheck struct {
 	name string
 	fn   func() error
@@ -420,6 +553,45 @@ func loadConfig(paths Paths) (Config, error) {
 	}
 	applyDefaults(&cfg)
 	return cfg, nil
+}
+
+func loadRuntimeConfig(paths Paths) (RuntimeConfig, error) {
+	cfg, err := loadConfig(paths)
+	if err != nil {
+		return RuntimeConfig{}, err
+	}
+	return buildRuntimeConfig(paths, cfg)
+}
+
+func ensureRuntimeLayout(rt RuntimeConfig) error {
+	dirs := []string{
+		filepath.Join(rt.Storage.Root, "mysql"),
+		filepath.Join(rt.Storage.Root, "minio"),
+		filepath.Join(rt.Storage.Root, "podman_storage"),
+		filepath.Join(rt.Storage.Root, "logs"),
+		filepath.Join(rt.Storage.Root, "namespace"),
+		filepath.Join(rt.Storage.Root, "data", "runtime", "app-runtime"),
+		filepath.Join(rt.Storage.Root, "data", "license"),
+		filepath.Join(rt.Storage.Root, "data", "backup", "repo"),
+		filepath.Join(rt.Storage.Root, "data", "backup", "state"),
+		filepath.Join(rt.Storage.Root, "data", "backup", "staging"),
+		filepath.Join(rt.Storage.Root, "data", "tmp"),
+		rt.TLSCertsHostDir,
+	}
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("create runtime directory %s: %w", dir, err)
+		}
+	}
+	return nil
+}
+
+func requireGeneratedCompose(paths Paths) error {
+	composePath := filepath.Join(paths.GeneratedDir, "docker-compose.yaml")
+	if !fileExists(composePath) {
+		return fmt.Errorf("generated compose not found: %s; run `aosctl render` or `aosctl up` first", composePath)
+	}
+	return nil
 }
 
 func defaultConfig() (Config, error) {
@@ -464,25 +636,26 @@ func defaultConfig() (Config, error) {
 		},
 		Storage: StorageConfig{Root: defaultStorageRoot},
 		MySQL: MySQLConfig{
-			Mode:              "bundled",
-			Host:              "127.0.0.1",
-			Port:              3306,
-			User:              "root",
-			Password:          mysqlPass,
-			AppDatabase:       "app_db",
-			SchedulerDatabase: "app-scheduler",
-			AgentDatabase:     "agent-server",
-			StorageDatabase:   "app-storage",
-			HRDatabase:        "hr-server",
-			BackupAdminUser:   "root",
-			BackupAdminPass:   mysqlPass,
-			CreateBundledSQL:  true,
+			Mode:                   "bundled",
+			Host:                   "127.0.0.1",
+			Port:                   3306,
+			User:                   "root",
+			Password:               mysqlPass,
+			AppDatabase:            "app_db",
+			ScheduledTaskDatabase:  "app-scheduled-task",
+			TimerSchedulerDatabase: "timer-scheduler",
+			AgentDatabase:          "agent-server",
+			StorageDatabase:        "app-storage",
+			HRDatabase:             "hr-server",
+			BackupAdminUser:        "root",
+			BackupAdminPass:        mysqlPass,
+			CreateBundledSQL:       true,
 		},
 		NATS: NATSConfig{
 			Mode:        "bundled",
 			Host:        "127.0.0.1",
 			Port:        4222,
-			AuthEnabled: false,
+			AuthEnabled: true,
 			User:        "aos",
 			Password:    natsPass,
 		},
@@ -510,7 +683,6 @@ func defaultConfig() (Config, error) {
 			Port:     587,
 			FromName: "AI Agent OS",
 		},
-		Scheduler: SchedulerConfig{HealthPort: 9098},
 	}
 	return cfg, nil
 }
@@ -555,8 +727,11 @@ func applyDefaults(cfg *Config) {
 	if cfg.MySQL.AppDatabase == "" {
 		cfg.MySQL.AppDatabase = "app_db"
 	}
-	if cfg.MySQL.SchedulerDatabase == "" {
-		cfg.MySQL.SchedulerDatabase = "app-scheduler"
+	if cfg.MySQL.ScheduledTaskDatabase == "" {
+		cfg.MySQL.ScheduledTaskDatabase = "app-scheduled-task"
+	}
+	if cfg.MySQL.TimerSchedulerDatabase == "" {
+		cfg.MySQL.TimerSchedulerDatabase = "timer-scheduler"
 	}
 	if cfg.MySQL.AgentDatabase == "" {
 		cfg.MySQL.AgentDatabase = "agent-server"
@@ -608,9 +783,6 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.SMTP.FromName == "" {
 		cfg.SMTP.FromName = "AI Agent OS"
-	}
-	if cfg.Scheduler.HealthPort == 0 {
-		cfg.Scheduler.HealthPort = 9098
 	}
 }
 
@@ -784,6 +956,7 @@ func renderAll(rt RuntimeConfig) error {
 		"config/agent-server.yaml":    renderTemplate(agentServerConfigTemplate, rt),
 		"config/hr-server.yaml":       renderTemplate(hrServerConfigTemplate, rt),
 		"config/control-service.yaml": renderTemplate(controlServiceConfigTemplate, rt),
+		"config/timer-scheduler.yaml": renderTemplate(timerSchedulerConfigTemplate, rt),
 		"config/backup-service.yaml":  renderTemplate(backupServiceConfigTemplate, rt),
 	}
 	for rel, content := range files {
@@ -814,18 +987,51 @@ func mysqlIdent(v string) string {
 	return "`" + strings.ReplaceAll(v, "`", "``") + "`"
 }
 
-func checkComposeCommand() error {
+func detectComposeCommand() ([]string, error) {
 	if _, err := exec.LookPath("podman"); err == nil {
 		if err := exec.Command("podman", "compose", "version").Run(); err == nil {
-			return nil
+			return []string{"podman", "compose"}, nil
 		}
 	}
 	if _, err := exec.LookPath("docker"); err == nil {
 		if err := exec.Command("docker", "compose", "version").Run(); err == nil {
-			return nil
+			return []string{"docker", "compose"}, nil
 		}
 	}
-	return fmt.Errorf("podman compose or docker compose is required")
+	return nil, fmt.Errorf("podman compose or docker compose is required")
+}
+
+func checkComposeCommand() error {
+	_, err := detectComposeCommand()
+	return err
+}
+
+func runCompose(workDir string, args ...string) error {
+	compose, err := detectComposeCommand()
+	if err != nil {
+		return err
+	}
+	cmdArgs := append(compose[1:], args...)
+	cmd := exec.Command(compose[0], cmdArgs...)
+	cmd.Dir = workDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
+
+func checkHTTP(rawURL string) error {
+	client := http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(rawURL)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("%s returned HTTP %d", rawURL, resp.StatusCode)
+	}
+	return nil
 }
 
 func checkLinuxHost() error {

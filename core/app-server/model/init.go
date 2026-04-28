@@ -73,7 +73,7 @@ func InitTables(db *gorm.DB) error {
 	return initDefaultData(db)
 }
 
-func InitSchedulerTables(db *gorm.DB) error {
+func InitScheduledTaskTables(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&ScheduledTask{},
 		&ScheduledTaskExecution{},

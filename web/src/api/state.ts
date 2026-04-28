@@ -30,6 +30,10 @@ export interface RuntimeStateSummary {
   waiting_approval_count: number
   failed_recent_count: number
   last_activity_at: string
+  dominant_status?: RuntimeStateStatus | string
+  badge_text?: string
+  badge_tone?: string
+  tooltip?: string
 }
 
 export interface RuntimeStateSummaryResp {

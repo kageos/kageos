@@ -58,36 +58,9 @@ func (r *ScheduledAgentTaskRepository) List(createdBy, status, fullCodePath stri
 	return list, total, nil
 }
 
-func (r *ScheduledAgentTaskRepository) ListPendingDue(now time.Time, limit int) ([]*model.ScheduledAgentTask, error) {
-	var list []*model.ScheduledAgentTask
-	query := r.db.
-		Where("status = ? AND next_run_at IS NOT NULL AND next_run_at <= ? AND (lease_until IS NULL OR lease_until < ?)", model.ScheduledAgentTaskStatusPending, now, now).
-		Order("next_run_at ASC, id ASC")
-	if limit > 0 {
-		query = query.Limit(limit)
-	}
-	if err := query.Find(&list).Error; err != nil {
-		return nil, err
-	}
-	return list, nil
-}
-
-func (r *ScheduledAgentTaskRepository) TryAcquireLease(id int64, owner string, now, leaseUntil time.Time) (bool, error) {
+func (r *ScheduledAgentTaskRepository) UpdateAfterTimerRun(task *model.ScheduledAgentTask) (bool, error) {
 	result := r.db.Model(&model.ScheduledAgentTask{}).
-		Where("id = ? AND status = ? AND next_run_at IS NOT NULL AND next_run_at <= ? AND (lease_until IS NULL OR lease_until < ?)", id, model.ScheduledAgentTaskStatusPending, now, now).
-		Updates(map[string]interface{}{
-			"lease_owner": owner,
-			"lease_until": leaseUntil,
-		})
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected > 0, nil
-}
-
-func (r *ScheduledAgentTaskRepository) UpdateAfterScheduledRun(task *model.ScheduledAgentTask, leaseOwner string) (bool, error) {
-	result := r.db.Model(&model.ScheduledAgentTask{}).
-		Where("id = ? AND lease_owner = ?", task.ID, leaseOwner).
+		Where("id = ? AND status = ?", task.ID, model.ScheduledAgentTaskStatusPending).
 		Updates(map[string]interface{}{
 			"run_count":          task.RunCount,
 			"status":             task.Status,
@@ -95,8 +68,6 @@ func (r *ScheduledAgentTaskRepository) UpdateAfterScheduledRun(task *model.Sched
 			"last_session_id":    task.LastSessionID,
 			"last_execution_id":  task.LastExecutionID,
 			"last_error_message": task.LastErrorMessage,
-			"lease_owner":        "",
-			"lease_until":        nil,
 			"updated_by":         task.UpdatedBy,
 		})
 	if result.Error != nil {
@@ -120,10 +91,8 @@ func (r *ScheduledAgentTaskRepository) Pause(id int64, updatedBy string) error {
 	return r.db.Model(&model.ScheduledAgentTask{}).
 		Where("id = ? AND status = ?", id, model.ScheduledAgentTaskStatusPending).
 		Updates(map[string]interface{}{
-			"status":      model.ScheduledAgentTaskStatusPaused,
-			"lease_owner": "",
-			"lease_until": nil,
-			"updated_by":  updatedBy,
+			"status":     model.ScheduledAgentTaskStatusPaused,
+			"updated_by": updatedBy,
 		}).Error
 }
 
@@ -143,8 +112,20 @@ func (r *ScheduledAgentTaskRepository) Cancel(id int64, updatedBy string) error 
 		Updates(map[string]interface{}{
 			"status":      model.ScheduledAgentTaskStatusCancelled,
 			"next_run_at": nil,
-			"lease_owner": "",
-			"lease_until": nil,
 			"updated_by":  updatedBy,
 		}).Error
+}
+
+func (r *ScheduledAgentTaskRepository) Delete(id int64, deletedBy string) error {
+	if err := r.db.Model(&model.ScheduledAgentTask{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":      model.ScheduledAgentTaskStatusCancelled,
+			"next_run_at": nil,
+			"updated_by":  deletedBy,
+			"deleted_by":  deletedBy,
+		}).Error; err != nil {
+		return err
+	}
+	return r.db.Where("id = ?", id).Delete(&model.ScheduledAgentTask{}).Error
 }

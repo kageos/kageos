@@ -10,9 +10,14 @@ const (
 	ActionWrite  = "write"  // 写权限（创建、提交）
 	ActionUpdate = "update" // 更新权限（修改）
 	ActionDelete = "delete" // 删除权限
-	ActionAdmin  = "admin" // 管理员权限（拥有所有权限）
+	ActionAdmin  = "admin"  // 管理员权限（拥有所有权限）
 )
 
+const (
+	RoleCodeViewer    = "viewer"
+	RoleCodeDeveloper = "developer"
+	RoleCodeAdmin     = "admin"
+)
 
 // 权限点列表（用于批量查询）
 var (
@@ -37,7 +42,7 @@ var (
 	// AppActions 工作空间权限点列表（简化版）
 	AppActions = []string{
 		ActionRead,
-		ActionWrite,  // create 使用 write
+		ActionWrite, // create 使用 write
 		ActionUpdate,
 		ActionDelete,
 		ActionAdmin,
@@ -52,4 +57,3 @@ var (
 		ActionAdmin,
 	}
 )
-

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
+	"github.com/ai-agent-os/ai-agent-os/pkg/servicetree"
 	"github.com/ai-agent-os/hub/backend/dto"
 )
 
@@ -34,7 +35,7 @@ func validatePersistedDirectoryTreeNode(node *dto.DirectoryTreeNode, parentPath,
 	if strings.Contains(code, "/") {
 		return fmt.Errorf("%s 目录 code 不能包含 /: %s", location, code)
 	}
-	if node.Type != "" && node.Type != "package" {
+	if node.Type != "" && node.Type != servicetree.TypePackage {
 		return fmt.Errorf("%s 目录节点类型无效: %s", location, node.Type)
 	}
 

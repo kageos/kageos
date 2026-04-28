@@ -5,12 +5,9 @@ server:
   debug: false
   enable_pprof: false
 
-scheduler:
-  poll_interval_seconds: 5
-  batch_size: 20
-  lease_duration_seconds: 600
+timer_worker:
   max_concurrency: 3
-  default_timeout_seconds: 300
+  default_timeout_seconds: 1800
 
 db:
   type: "mysql"

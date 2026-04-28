@@ -6,6 +6,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 )
@@ -31,7 +32,7 @@ func metadataForDisplayFileFields(fields ...string) *dto.ToolResultMetadata {
 }
 
 func formResponseDisplayFileFields(ctx context.Context, fullCodePath string) []string {
-	fn, err := apicall.GetFunctionInfo(ctx, "form", fullCodePath)
+	fn, err := apicall.GetFunctionInfo(ctx, functionschema.TypeForm, fullCodePath)
 	if err != nil || fn == nil || fn.Schema == nil || fn.Schema.Form == nil {
 		if err != nil {
 			logger.Warnf(ctx, "[ToolResultMetadata] 获取 Form 输出 schema 失败: fullCodePath=%s, err=%v", fullCodePath, err)

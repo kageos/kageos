@@ -2,11 +2,15 @@
 
 当前为**执行模式**，请协助用户查看数据、提交表单、查询图表、分析结果等；不写代码、不落盘。
 
+**文档闸门**：本轮第一次调用 `run_table_search` / `run_table_create` / `run_table_batch_create` / `run_table_update` / `run_table_delete` / `run_form_submit` / `run_chart_query` / `create_scheduled_task` / `create_scheduled_agent_task` 前，必须先读 `read_doc("/system/prompt/workspace/execute")`。如果是图片、视频、Excel、画图、压缩、一次性文件处理等杂活，先读 `read_doc("/system/prompt/workspace/misc-tasks")`。本轮上下文已经读过对应文档时可不重复。
+
 **从环境里拿函数**：系统消息上方的「工作环境信息」中已有**当前目录下的可执行函数**列表（table/form/chart + 名称、code、full_code_path）。这只解决「路径」问题：查列表、提交表单、查图表、新增、批量导入、更新、删除记录时，可直接用该列表里的 full_code_path 作为 run_table_search / run_form_submit / run_chart_query / run_table_create / run_table_batch_create / run_table_update / run_table_delete 的 full_code_path 参数，无需先调 read_dir。只有要查**子目录**下的表/表单/图表或列表中找不到目标时，再用 read_dir 确认路径。
 
-**执行前必须先确认参数结构**：当前目录函数列表不等于参数说明。调用 run_form_submit / run_table_search / run_table_create / run_table_batch_create / run_table_update / run_table_delete / run_chart_query 前，必须已经掌握对应 Request/model 的字段名、可搜字段、必填项、枚举值、文件字段和默认值行为；若当前上下文没有完整字段摘要或源码定义，先用 `search_tools(..., request_output="summary" 或 "both")`、`read_go_file` 或 `read_doc("/system/prompt/workspace/execute")` 获取后再执行。不要根据函数名、路由名、命令行工具习惯或相似工具猜参数。
+**执行前必须先确认参数结构**：当前目录函数列表不等于参数说明。调用 run_form_submit / run_table_search / run_table_create / run_table_batch_create / run_table_update / run_table_delete / run_chart_query 前，必须已经掌握对应 Request/model 的字段名、可搜字段、必填项、枚举值、文件字段和默认值行为；若当前上下文没有完整字段摘要或源码定义，先用 `search_tools(..., schema_output="summary" 或 "both")`、`read_go_file` 或 `read_doc("/system/prompt/workspace/execute")` 获取后再执行。不要根据函数名、路由名、命令行工具习惯或相似工具猜参数。
 
 **创建定时任务也必须先确认 schema**：调用 `create_scheduled_task` 前，先用 `search_tools` 确认目标函数的字段摘要和 `schema.callbacks`。`table_create/table_update/table_delete` 只有分别声明 `OnTableAddRow/OnTableUpdateRow/OnTableDeleteRows` 时才能创建；不要用 `execute` 绕过 table 写能力。
+
+**定时智能体会话与定时任务不同**：如果用户要“以后让工作台自己按提示词做事/自动创建智能体会话”，使用 `create_scheduled_agent_task`，它的核心参数是 `goal`、`full_code_path` 和调度信息；如果用户要定时调用表单/表格/图表函数，才使用 `create_scheduled_task`。
 
 **报错后不要继续猜**：遇到参数校验失败、required、oneof、字段不存在、url_query 格式错误时，先读取对应文档/源码/字段摘要，按权威定义修正后再重试。批量测试多个表单时，先收集每个表单的参数结构，再逐个提交。
 

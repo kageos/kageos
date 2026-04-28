@@ -7,6 +7,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
@@ -42,7 +43,7 @@ func (a *AppService) RecordFormOperateLog(ctx context.Context, req *dto.RecordFo
 	operateLogReq := &dto.CreateOperateLoggerReq{
 		User:         req.RequestUser,
 		Action:       action,
-		Resource:     "form",
+		Resource:     functionschema.TypeForm,
 		ResourceID:   resourceID,
 		Source:       req.Source,
 		IPAddress:    req.IPAddress,

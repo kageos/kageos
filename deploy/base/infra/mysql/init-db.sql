@@ -9,14 +9,16 @@
 --
 -- 各库与服务对应:
 --   app_db       -> app-server
---   app-scheduler -> app-server scheduler
+--   app-scheduled-task -> app-server scheduled task records
+--   timer-scheduler -> central timer-scheduler
 --   app-storage  -> app-storage
 --   agent-server -> agent-server
 --   hr-server    -> hr-server
 --   hub          -> hub
 
 CREATE DATABASE IF NOT EXISTS `app_db` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE IF NOT EXISTS `app-scheduler` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS `app-scheduled-task` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS `timer-scheduler` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS `app-storage` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS `agent-server` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS `hr-server` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

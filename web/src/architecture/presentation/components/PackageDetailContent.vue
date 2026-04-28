@@ -28,7 +28,7 @@
       </el-card>
     </div>
 
-    <div v-else-if="showPermissionRequestTab" class="permission-request-section">
+    <div v-else-if="showDirectoryTabs" class="permission-request-section">
       <el-tabs v-model="currentActiveTab" type="card" class="detail-tabs">
         <el-tab-pane name="info">
           <template #label>
@@ -64,7 +64,20 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane name="permissionRequest">
+        <el-tab-pane v-if="showScheduledAgentTaskTab" name="scheduledAgentTask">
+          <template #label>
+            <span>定时会话</span>
+          </template>
+          <div class="tab-content scheduled-agent-tab-content">
+            <ScheduledAgentTaskList
+              :resource-path="packageNode?.full_code_path"
+              :auto-load="currentActiveTab === 'scheduledAgentTask'"
+              @open-session="$emit('open-session', $event)"
+            />
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane v-if="showPermissionRequestTab" name="permissionRequest">
           <template #label>
             <el-badge
               :value="packageNode?.pending_count || 0"
@@ -84,7 +97,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane name="permissionManage">
+        <el-tab-pane v-if="showPermissionRequestTab" name="permissionManage">
           <template #label>
             <span>授权记录</span>
           </template>
@@ -121,8 +134,10 @@ import PermissionRequestList from '@/shared/components/permission/PermissionRequ
 import PermissionManageList from '@/shared/components/permission/PermissionManageList.vue'
 import PackageDetailOverviewCard from './PackageDetailOverviewCard.vue'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
+import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
+import type { WorkspaceSessionItem } from '@/api/workspace'
 
-type DetailTabName = 'info' | 'import' | 'permissionRequest' | 'permissionManage'
+type DetailTabName = 'info' | 'import' | 'permissionRequest' | 'permissionManage' | 'scheduledAgentTask'
 
 const props = defineProps<{
   packageNode: ServiceTree | null
@@ -141,6 +156,7 @@ const emit = defineEmits<{
   (e: 'select-child', child: ServiceTree): void
   (e: 'import-go-drop', event: DragEvent): void
   (e: 'set-import-go-dragging', value: boolean): void
+  (e: 'open-session', session: WorkspaceSessionItem): void
 }>()
 
 const permissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> | null>(null)
@@ -149,6 +165,14 @@ const permissionManageListRef = ref<InstanceType<typeof PermissionManageList> | 
 const currentActiveTab = computed({
   get: () => props.activeTab,
   set: (value: DetailTabName) => emit('update:activeTab', value)
+})
+
+const showScheduledAgentTaskTab = computed(() => {
+  return props.packageNode?.type === 'package' && !!props.packageNode.full_code_path
+})
+
+const showDirectoryTabs = computed(() => {
+  return props.showPermissionRequestTab || showScheduledAgentTaskTab.value
 })
 
 watch(

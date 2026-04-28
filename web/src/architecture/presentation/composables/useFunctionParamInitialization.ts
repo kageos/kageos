@@ -94,7 +94,6 @@ import { getWidgetDefaultValue } from '../../presentation/widgets/composables/us
 import { useAuthStore } from '@/stores/auth'
 import { FieldValueMeta } from '@/core/constants/field'
 import { convertValueByFieldType } from '../../presentation/widgets/utils/typeConverter'
-import { getScopedFieldQueryValue, shouldAllowLegacyFormDraftFallback } from '@/utils/queryFieldNamespace'
 import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
 
 /**
@@ -149,12 +148,11 @@ class URLParamsInitSource implements InitSource {
     // 从 URL 解析参数
     const formData: Record<string, FieldValue> = {}
     const requestFields = getFormRequestFields(functionDetail)
-    const fallbackToLegacyRaw = shouldAllowLegacyFormDraftFallback(query as Record<string, any>)
     
     requestFields.forEach(field => {
-      const queryValue = getScopedFieldQueryValue(query, field.code, 'form', {
-        fallbackToLegacyRaw
-      })
+      // URL 初始化只读取 request 字段的原始 key。`_` key 是前端/平台状态；
+      // `s_foo`、`f_foo`、`_foo__display` 这类生成名不属于本协议。
+      const queryValue = query[field.code]
       if (queryValue !== undefined && queryValue !== null) {
         let value = Array.isArray(queryValue) ? queryValue[0] : queryValue
         

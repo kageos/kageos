@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"path"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -188,6 +190,56 @@ func applyRuntimeStateToSummary(summary *dto.RuntimeStateSummary, item dto.Runti
 	if item.UpdatedAt.After(summary.LastActivityAt) {
 		summary.LastActivityAt = item.UpdatedAt
 	}
+	refreshRuntimeSummaryDisplay(summary)
+}
+
+func refreshRuntimeSummaryDisplay(summary *dto.RuntimeStateSummary) {
+	switch {
+	case summary.WaitingApprovalCount > 0:
+		summary.DominantStatus = RuntimeStateStatusWaitingApproval
+		summary.BadgeTone = "approval"
+	case summary.ToolRunningCount > 0:
+		summary.DominantStatus = RuntimeStateStatusToolRunning
+		summary.BadgeTone = "tool"
+	case summary.ThinkingCount > 0:
+		summary.DominantStatus = RuntimeStateStatusThinking
+		summary.BadgeTone = "thinking"
+	case summary.RunningCount > 0:
+		summary.DominantStatus = RuntimeStateStatusRunning
+		summary.BadgeTone = "running"
+	case summary.FailedRecentCount > 0:
+		summary.DominantStatus = RuntimeStateStatusFailed
+		summary.BadgeTone = "failed"
+	default:
+		summary.DominantStatus = ""
+		summary.BadgeTone = ""
+	}
+
+	if summary.RunningCount > 0 {
+		summary.BadgeText = strconv.Itoa(summary.RunningCount)
+	} else if summary.FailedRecentCount > 0 {
+		summary.BadgeText = "!"
+	} else {
+		summary.BadgeText = ""
+	}
+
+	parts := make([]string, 0, 5)
+	if summary.RunningCount > 0 {
+		parts = append(parts, fmt.Sprintf("运行中 %d", summary.RunningCount))
+	}
+	if summary.ThinkingCount > 0 {
+		parts = append(parts, fmt.Sprintf("思考中 %d", summary.ThinkingCount))
+	}
+	if summary.ToolRunningCount > 0 {
+		parts = append(parts, fmt.Sprintf("工具执行 %d", summary.ToolRunningCount))
+	}
+	if summary.ScheduledRunningCount > 0 {
+		parts = append(parts, fmt.Sprintf("定时会话 %d", summary.ScheduledRunningCount))
+	}
+	if summary.FailedRecentCount > 0 {
+		parts = append(parts, fmt.Sprintf("最近失败 %d", summary.FailedRecentCount))
+	}
+	summary.Tooltip = strings.Join(parts, "，")
 }
 
 func normalizeRuntimeFullCodePath(raw string) string {

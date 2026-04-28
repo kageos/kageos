@@ -82,6 +82,17 @@
             />
           </div>
         </el-tab-pane>
+
+        <el-tab-pane v-if="showScheduledAgentTaskTab" name="scheduledAgentTask" label="定时会话">
+          <div class="tab-content">
+            <ScheduledAgentTaskList
+              :resource-path="currentFunction?.full_code_path"
+              :auto-load="activeTab === 'scheduledAgentTask'"
+              @total-change="onScheduledAgentTaskTotalChange"
+              @open-session="onOpenWorkspaceSession"
+            />
+          </div>
+        </el-tab-pane>
       </el-tabs>
     </div>
   </div>
@@ -94,10 +105,12 @@ import PermissionManageList from '@/shared/components/permission/PermissionManag
 import type { FunctionDetail } from '@/architecture/domain/types'
 import type { ServiceTree as ServiceTreeType } from '@/types'
 import FormOperateLogSection from './FormOperateLogSection.vue'
+import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
 import ScheduledTaskList from './ScheduledTaskList.vue'
 import WorkspaceFunctionRenderer from './WorkspaceFunctionRenderer.vue'
+import type { WorkspaceSessionItem } from '@/api/workspace'
 
-type FunctionTabName = 'content' | 'permissionRequest' | 'permissionManage' | 'operateLog' | 'scheduledTask'
+type FunctionTabName = 'content' | 'permissionRequest' | 'permissionManage' | 'operateLog' | 'scheduledTask' | 'scheduledAgentTask'
 
 const props = withDefaults(defineProps<{
   activeTab: FunctionTabName
@@ -108,6 +121,7 @@ const props = withDefaults(defineProps<{
   showFunctionPermissionRequestTab?: boolean
   showFormOperateLogTab?: boolean
   showScheduledTaskTab?: boolean
+  showScheduledAgentTaskTab?: boolean
   permissionTab?: string
   functionFormViewRef?: (instance: any | null) => void
   functionPermissionRequestListRef?: (instance: any | null) => void
@@ -128,6 +142,8 @@ const props = withDefaults(defineProps<{
     } | null
   }) => void
   onScheduledTaskTotalChange: (total: number) => void
+  onScheduledAgentTaskTotalChange: (total: number) => void
+  onOpenWorkspaceSession: (session: WorkspaceSessionItem) => void
   onOpenFunctionOperateLog: (filters?: {
     requestUser?: string
     traceId?: string
@@ -140,6 +156,7 @@ const props = withDefaults(defineProps<{
   showFunctionPermissionRequestTab: false,
   showFormOperateLogTab: false,
   showScheduledTaskTab: false,
+  showScheduledAgentTaskTab: false,
   permissionTab: undefined
 })
 

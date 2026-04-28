@@ -71,7 +71,7 @@ function createDeferred<T>() {
 }
 
 describe('TableDomainService URL restore', () => {
-  it('restores request search fields from namespaced query keys', () => {
+  it('restores request search fields from raw query keys', () => {
     const service = createService()
     const functionDetail = {
       schema: {
@@ -91,7 +91,7 @@ describe('TableDomainService URL restore', () => {
     } as any
 
     const restored = service.restoreFromURL(functionDetail, {
-      s_status: 'open',
+      status: 'open',
       page: '2',
       page_size: '50'
     })
@@ -100,33 +100,7 @@ describe('TableDomainService URL restore', () => {
     expect(restored.pagination).toEqual({ page: 2, pageSize: 50 })
   })
 
-  it('keeps compatibility with legacy raw request search keys', () => {
-    const service = createService()
-    const functionDetail = {
-      schema: {
-        version: 1,
-        type: 'table',
-        table: {
-          request: [
-            {
-              code: 'status',
-              name: '状态',
-              widget: { type: 'select' }
-            }
-          ],
-          fields: []
-        }
-      }
-    } as any
-
-    const restored = service.restoreFromURL(functionDetail, {
-      status: 'legacy-open'
-    })
-
-    expect(restored.searchForm).toEqual({ status: 'legacy-open' })
-  })
-
-  it('restores response search display labels from URL companion params and still builds raw search params', () => {
+  it('restores response search raw values and still builds raw search params', () => {
     const service = createService()
     const functionDetail = {
       schema: {
@@ -149,16 +123,11 @@ describe('TableDomainService URL restore', () => {
     } as any
 
     const restored = service.restoreFromURL(functionDetail, {
-      eq: 'job_id:1',
-      s_job_id__display: '前端开发工程师 - 技术 (北京, 20000-35000元)'
+      eq: 'job_id:1'
     })
 
     expect(restored.searchForm).toEqual({
-      job_id: {
-        raw: '1',
-        display: '前端开发工程师 - 技术 (北京, 20000-35000元)',
-        meta: {}
-      }
+      job_id: '1'
     })
     expect(service.buildSearchParams(functionDetail, restored.searchForm)).toEqual({
       eq: 'job_id:1'
@@ -197,6 +166,89 @@ describe('TableDomainService URL restore', () => {
     expect(service.buildSearchParams(functionDetail, restored.searchForm)).toEqual({
       gte: 'created_at:2026-04-21 00:00:00',
       lte: 'created_at:2026-04-21 23:59:59'
+    })
+  })
+
+  it('uses raw request params for request fields that share a code with searchable table fields', () => {
+    const service = createService()
+    const functionDetail = {
+      schema: {
+        version: 1,
+        type: 'table',
+        table: {
+          request: [
+            {
+              code: 'genre',
+              name: '体裁',
+              widget: { type: 'select' }
+            }
+          ],
+          fields: [
+            {
+              code: 'genre',
+              name: '体裁',
+              search: 'in',
+              widget: { type: 'select' }
+            },
+            {
+              code: 'style',
+              name: '格律形式',
+              search: 'in',
+              widget: { type: 'select' }
+            }
+          ]
+        }
+      }
+    } as any
+
+    const restored = service.restoreFromURL(functionDetail, {
+      genre: '诗',
+      in: 'style:律诗'
+    })
+
+    expect(restored.searchForm).toEqual({
+      genre: '诗',
+      style: '律诗'
+    })
+    expect(service.buildSearchParams(functionDetail, restored.searchForm)).toEqual({
+      genre: '诗',
+      in: 'style:律诗'
+    })
+  })
+
+  it('restores response operator params without cutting values at every comma', () => {
+    const service = createService()
+    const functionDetail = {
+      schema: {
+        version: 1,
+        type: 'table',
+        table: {
+          request: [],
+          fields: [
+            {
+              code: 'title',
+              name: '标题',
+              search: 'like',
+              widget: { type: 'input' }
+            },
+            {
+              code: 'author',
+              name: '作者',
+              search: 'like',
+              widget: { type: 'input' }
+            }
+          ]
+        }
+      }
+    } as any
+
+    const restored = service.restoreFromURL(functionDetail, {
+      like: 'title:春风,又绿江南岸,author:王安石'
+    })
+
+    expect(restored.searchForm).toEqual({
+      title: '春风,又绿江南岸',
+      author: '王安石'
     })
   })
 
