@@ -7,7 +7,7 @@
     <div
       v-if="visible"
       ref="rootRef"
-      :class="['mini-ws', { 'mini-ws--maximized': maximized, 'mini-ws--sending': sending }]"
+      :class="['mini-ws', { 'mini-ws--maximized': maximized, 'mini-ws--sending': sending, 'mini-ws--interaction-open': interactionOpen }]"
       data-testid="mini-workstation"
       :data-full-code-path="fullCodePath"
       :style="windowStyle"
@@ -44,6 +44,31 @@
           {{ sending ? 'RUNNING' : 'READY' }}
         </span>
         <div class="mini-ws-header-actions" @mousedown.stop>
+          <el-dropdown
+            split-button
+            size="small"
+            trigger="click"
+            placement="bottom-end"
+            class="mini-copy-split"
+            popper-class="mini-copy-dropdown-popper"
+            title="复制调试对话"
+            @click.stop="copyDebugConversation('all')"
+            @command="handleCopyDebugCommand"
+            @visible-change="copyDropdownOpen = $event"
+            @mousedown.stop
+          >
+            <el-icon :size="14"><CopyDocument /></el-icon>
+            <span>复制</span>
+            <template #dropdown>
+              <el-dropdown-menu class="mini-copy-dropdown-menu">
+                <el-dropdown-item command="all">复制全部对话</el-dropdown-item>
+                <el-dropdown-item command="last-turn">复制最后一轮</el-dropdown-item>
+                <el-dropdown-item command="all-tools">复制全部工具调用</el-dropdown-item>
+                <el-dropdown-item command="error-tools">复制失败工具调用</el-dropdown-item>
+                <el-dropdown-item command="success-tools">复制成功工具调用</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <el-tooltip content="定时执行" placement="bottom" effect="light">
             <el-button link size="small" title="定时执行" @click="openNewScheduledAgentTaskDialog">
               <el-icon :size="14"><Timer /></el-icon>
@@ -190,7 +215,13 @@
 <script setup lang="ts">
 import { ref, onUnmounted, computed, watch } from 'vue'
 import { Loading, Close, Minus, FullScreen, CopyDocument, FolderOpened, UploadFilled, Document as DocumentIcon, Timer } from '@element-plus/icons-vue'
-import { useWorkspaceChatStream } from '@/architecture/presentation/composables/useWorkspaceChatStream'
+import { ElMessage } from 'element-plus'
+import {
+  useWorkspaceChatStream,
+  type AssistantBlock,
+  type ChatMessage,
+  type ChatMessageToolCall
+} from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import MiniWorkstationDisplayFieldPreviewDialog from './MiniWorkstationDisplayFieldPreviewDialog.vue'
 import MiniWorkstationComposer from './MiniWorkstationComposer.vue'
 import MiniWorkstationKeyInfoSection from './MiniWorkstationKeyInfoSection.vue'
@@ -238,6 +269,9 @@ const showScheduledAgentTaskDialog = ref(false)
 const scheduledDialogKey = ref(0)
 const scheduledDraftGoal = ref('')
 const scheduledDraftFiles = ref('')
+const llmSelectOpen = ref(false)
+const copyDropdownOpen = ref(false)
+const interactionOpen = computed(() => llmSelectOpen.value || copyDropdownOpen.value)
 
 function registerInputRef(element: HTMLTextAreaElement | null) {
   inputRef.value = element || undefined
@@ -375,11 +409,281 @@ function openNewScheduledAgentTaskDialog() {
   showScheduledAgentTaskDialog.value = true
 }
 
+type CopyDebugMode = 'all' | 'last-turn' | 'all-tools' | 'error-tools' | 'success-tools'
+
+function handleCopyDebugCommand(command: string | number | object) {
+  if (typeof command !== 'string') return
+  void copyDebugConversation(command as CopyDebugMode)
+}
+
+async function copyDebugConversation(mode: CopyDebugMode) {
+  const text = buildDebugCopyText(mode)
+  if (!text.trim()) {
+    ElMessage.warning('当前没有可复制的调试内容')
+    return
+  }
+
+  try {
+    await copyTextToClipboard(text)
+    ElMessage.success(getCopySuccessLabel(mode))
+  } catch {
+    ElMessage.error('复制失败')
+  }
+}
+
+function buildDebugCopyText(mode: CopyDebugMode) {
+  const list = messages.value || []
+  if (list.length === 0) return ''
+
+  const header = [
+    '# Mini 工作台调试对话',
+    `目录: ${props.fullCodePath || '-'}`,
+    `目录名: ${props.dirName || displayPath.value || '-'}`,
+    `会话ID: ${sessionId.value || '-'}`,
+    `复制范围: ${getCopyModeLabel(mode)}`,
+    `复制时间: ${new Date().toISOString()}`,
+    ''
+  ].join('\n')
+
+  if (mode === 'all') {
+    return header + formatMessagesForCopy(list, { includeContent: true, includeToolCalls: true })
+  }
+
+  if (mode === 'last-turn') {
+    return header + formatMessagesForCopy(getLastTurnMessages(list), { includeContent: true, includeToolCalls: true })
+  }
+
+  const statusFilter = getToolStatusFilter(mode)
+  return header + formatMessagesWithToolFilter(list, statusFilter)
+}
+
+function getLastTurnMessages(list: ChatMessage[]) {
+  const lastUserIndex = [...list].reverse().findIndex(item => item.role === 'user')
+  if (lastUserIndex < 0) return list.slice(-1)
+  const start = list.length - 1 - lastUserIndex
+  return list.slice(start)
+}
+
+function getToolStatusFilter(mode: CopyDebugMode): ((call: ChatMessageToolCall) => boolean) | null {
+  if (mode === 'error-tools') {
+    return (call) => call.status === 'error' || call.status === 'failed'
+  }
+  if (mode === 'success-tools') {
+    return (call) => call.status === 'ok' || call.status === 'success'
+  }
+  if (mode === 'all-tools') {
+    return () => true
+  }
+  return null
+}
+
+function formatMessagesWithToolFilter(
+  list: ChatMessage[],
+  filter: ((call: ChatMessageToolCall) => boolean) | null
+) {
+  if (!filter) return ''
+
+  const chunks: string[] = []
+  let lastUser: ChatMessage | null = null
+  for (const msg of list) {
+    if (msg.role === 'user') {
+      lastUser = msg
+      continue
+    }
+    const calls = collectMessageToolCalls(msg).filter(filter)
+    if (calls.length === 0) continue
+
+    if (lastUser) {
+      chunks.push(formatMessageForCopy(lastUser, { includeContent: true, includeToolCalls: false }))
+    }
+    chunks.push(formatMessageForCopy(msg, {
+      includeContent: true,
+      includeToolCalls: true,
+      toolCallFilter: filter
+    }))
+    lastUser = null
+  }
+
+  return chunks.join('\n').trim()
+}
+
+function formatMessagesForCopy(
+  list: ChatMessage[],
+  options: {
+    includeContent: boolean
+    includeToolCalls: boolean
+    toolCallFilter?: (call: ChatMessageToolCall) => boolean
+  }
+) {
+  return list
+    .map((message) => formatMessageForCopy(message, options))
+    .filter(Boolean)
+    .join('\n')
+    .trim()
+}
+
+function formatMessageForCopy(
+  message: ChatMessage,
+  options: {
+    includeContent: boolean
+    includeToolCalls: boolean
+    toolCallFilter?: (call: ChatMessageToolCall) => boolean
+  }
+) {
+  const title = message.role === 'user' ? '## User' : '## Assistant'
+  const meta = [
+    message.user ? `用户: ${message.user}` : '',
+    message.created_at ? `时间: ${message.created_at}` : ''
+  ].filter(Boolean)
+
+  const parts: string[] = [meta.length ? `${title} (${meta.join('，')})` : title]
+  if (message.role === 'user') {
+    if (options.includeContent && message.content) {
+      parts.push('', message.content.trim())
+    }
+    if (message.files?.length) {
+      parts.push('', '### 上传文件')
+      for (const file of message.files) {
+        parts.push(`- ${file.name}${file.ref ? ` (${file.ref})` : ''}`)
+      }
+    }
+    return parts.join('\n').trim()
+  }
+
+  if (message.blocks?.length) {
+    const blockText = formatAssistantBlocksForCopy(message.blocks, options)
+    if (blockText) parts.push('', blockText)
+  } else {
+    if (options.includeContent && message.content) {
+      parts.push('', message.content.trim())
+    }
+    if (options.includeToolCalls && message.tool_calls?.length) {
+      const toolText = formatToolCallsForCopy(message.tool_calls, options.toolCallFilter)
+      if (toolText) parts.push('', toolText)
+    }
+  }
+
+  return parts.join('\n').trim()
+}
+
+function formatAssistantBlocksForCopy(
+  blocks: AssistantBlock[],
+  options: {
+    includeContent: boolean
+    includeToolCalls: boolean
+    toolCallFilter?: (call: ChatMessageToolCall) => boolean
+  }
+) {
+  const parts: string[] = []
+  for (const block of blocks) {
+    if (block.type === 'content' && options.includeContent && block.text.trim()) {
+      parts.push(block.text.trim())
+    }
+    if (block.type === 'tool_calls' && options.includeToolCalls) {
+      const toolText = formatToolCallsForCopy(block.calls, options.toolCallFilter)
+      if (toolText) parts.push(toolText)
+    }
+  }
+  return parts.join('\n\n').trim()
+}
+
+function collectMessageToolCalls(message: ChatMessage) {
+  if (message.blocks?.length) {
+    return message.blocks.flatMap((block) => block.type === 'tool_calls' ? block.calls : [])
+  }
+  return message.tool_calls || []
+}
+
+function formatToolCallsForCopy(
+  calls: ChatMessageToolCall[],
+  filter?: (call: ChatMessageToolCall) => boolean
+) {
+  const targetCalls = filter ? calls.filter(filter) : calls
+  if (targetCalls.length === 0) return ''
+
+  const parts: string[] = ['### 工具调用']
+  targetCalls.forEach((call, index) => {
+    parts.push('', `#### ${index + 1}. ${call.name || '(unknown)'} [${call.status || '-'}]`)
+    if (call.arguments) {
+      parts.push('', '参数:', fenceContent(formatMaybeJson(call.arguments), 'json'))
+    }
+    if (call.result) {
+      parts.push('', '结果:', fenceContent(formatLooseText(call.result)))
+    }
+    if (call.result_data != null) {
+      parts.push('', '结果数据:', fenceContent(formatJsonValue(call.result_data), 'json'))
+    }
+    if (call.error) {
+      parts.push('', '错误:', fenceContent(formatLooseText(call.error)))
+    }
+  })
+  return parts.join('\n')
+}
+
+function formatMaybeJson(value: string) {
+  const text = formatLooseText(value)
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2)
+  } catch {
+    return text
+  }
+}
+
+function formatJsonValue(value: unknown) {
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
+function formatLooseText(value: string) {
+  return String(value || '').replace(/\\n/g, '\n').replace(/\\r/g, '\r').trim()
+}
+
+function fenceContent(value: string, lang = '') {
+  const body = value || ''
+  const fence = body.includes('```') ? '````' : '```'
+  return `${fence}${lang}\n${body}\n${fence}`
+}
+
+async function copyTextToClipboard(text: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', 'true')
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const ok = document.execCommand('copy')
+  document.body.removeChild(textarea)
+  if (!ok) throw new Error('copy failed')
+}
+
+function getCopyModeLabel(mode: CopyDebugMode) {
+  const map: Record<CopyDebugMode, string> = {
+    all: '全部对话',
+    'last-turn': '最后一轮',
+    'all-tools': '全部工具调用',
+    'error-tools': '失败工具调用',
+    'success-tools': '成功工具调用'
+  }
+  return map[mode]
+}
+
+function getCopySuccessLabel(mode: CopyDebugMode) {
+  return `已复制${getCopyModeLabel(mode)}`
+}
+
 const {
   llmList,
   llmLoading,
   selectedLLMConfigId,
-  onLLMSelectVisibleChange,
+  onLLMSelectVisibleChange: loadLLMOptionsOnVisibleChange,
   onInputEnter,
   handleSend
 } = useMiniWorkstationComposer({
@@ -402,6 +706,11 @@ const {
     emit('maximize-change', { maximized: true, sessionId: startedSessionId })
   }
 })
+
+function onLLMSelectVisibleChange(visible: boolean) {
+  llmSelectOpen.value = visible
+  loadLLMOptionsOnVisibleChange(visible)
+}
 
 watch(
   () => [props.visible, props.fullCodePath] as const,
@@ -472,7 +781,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, height 0.3s ease, max-height 0.3s ease, border-radius 0.3s ease;
+  transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, height 0.3s ease, max-height 0.3s ease, border-radius 0.3s ease, box-shadow 0.2s ease;
 }
 .mini-ws::before {
   content: '';
@@ -516,6 +825,19 @@ onUnmounted(() => {
     0 0 58px rgba(34, 211, 238, 0.26);
 }
 
+.mini-ws:not(.mini-ws--maximized):not(.mini-ws--interaction-open):not(:hover):not(:focus-within) {
+  border-radius: 14px;
+  box-shadow:
+    0 14px 38px rgba(0, 0, 0, 0.34),
+    0 0 0 1px rgba(138, 232, 255, 0.06),
+    0 0 24px rgba(34, 211, 238, 0.1);
+}
+.mini-ws:not(.mini-ws--maximized):is(:hover, :focus-within),
+.mini-ws:not(.mini-ws--maximized).mini-ws--interaction-open {
+  width: min(calc(var(--mini-ws-base-width, 320px) + 96px), calc(100vw - 32px)) !important;
+  height: min(calc(var(--mini-ws-base-height, 220px) + 168px), calc(100vh - 40px)) !important;
+}
+
 /* ── Resize 手柄 ── */
 .mini-resize-handle { position: absolute; z-index: 6; }
 .mini-resize-n  { top: -3px; left: 6px; right: 6px; height: 6px; cursor: n-resize; }
@@ -542,6 +864,11 @@ onUnmounted(() => {
     linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent);
   flex-shrink: 0;
   box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+  transition: padding 0.2s ease, border-color 0.2s ease;
+}
+.mini-ws:not(.mini-ws--maximized):not(.mini-ws--interaction-open):not(:hover):not(:focus-within) .mini-ws-header {
+  padding: 8px 10px;
+  border-bottom-color: rgba(96, 231, 255, 0.08);
 }
 .mini-ws--maximized .mini-ws-header {
   cursor: default;
@@ -579,6 +906,12 @@ onUnmounted(() => {
   line-height: 1;
   letter-spacing: 0.16em;
   color: rgba(216, 248, 255, 0.74);
+  transition: opacity 0.16s ease, width 0.16s ease;
+}
+.mini-ws:not(.mini-ws--maximized):not(.mini-ws--interaction-open):not(:hover):not(:focus-within) .mini-ws-title-label {
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
 }
 .mini-ws-dir-name {
   flex: 1;
@@ -606,6 +939,14 @@ onUnmounted(() => {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.12em;
+  transition: opacity 0.16s ease, width 0.16s ease, padding 0.16s ease, border-color 0.16s ease;
+}
+.mini-ws:not(.mini-ws--maximized):not(.mini-ws--interaction-open):not(:hover):not(:focus-within) .mini-ws-state:not(.is-running) {
+  width: 0;
+  padding: 0;
+  border-color: transparent;
+  opacity: 0;
+  overflow: hidden;
 }
 .mini-ws-state-dot {
   width: 6px;
@@ -627,6 +968,14 @@ onUnmounted(() => {
   display: flex;
   gap: 4px;
   align-items: center;
+  transition: opacity 0.16s ease, width 0.16s ease, margin 0.16s ease;
+}
+.mini-ws:not(.mini-ws--maximized):not(.mini-ws--interaction-open):not(:hover):not(:focus-within) .mini-ws-header-actions {
+  width: 0;
+  margin-left: -4px;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 .mini-ws-header-actions :deep(.el-button) {
   min-height: 24px;
@@ -637,6 +986,39 @@ onUnmounted(() => {
   color: #ffffff;
   background: rgba(34, 211, 238, 0.12);
   box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.18);
+}
+.mini-copy-split {
+  display: inline-flex;
+  align-items: center;
+}
+.mini-copy-split :deep(.el-button-group) {
+  display: inline-flex;
+}
+.mini-copy-split :deep(.el-button) {
+  height: 24px;
+  min-height: 24px;
+  padding: 0 7px;
+  border-color: rgba(96, 231, 255, 0.18);
+  background: rgba(34, 211, 238, 0.08);
+  color: var(--mini-cyber-muted);
+  font-size: 12px;
+}
+.mini-copy-split :deep(.el-button:first-child) {
+  gap: 4px;
+  border-radius: 8px 0 0 8px;
+}
+.mini-copy-split :deep(.el-button:last-child) {
+  width: 23px;
+  padding: 0;
+  border-left-color: rgba(96, 231, 255, 0.12);
+  border-radius: 0 8px 8px 0;
+}
+.mini-copy-split :deep(.el-button:hover),
+.mini-copy-split :deep(.el-button:focus) {
+  border-color: rgba(96, 231, 255, 0.34);
+  background: rgba(34, 211, 238, 0.14);
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.16);
 }
 .mini-header-files-btn {
   display: inline-flex;
@@ -656,6 +1038,41 @@ onUnmounted(() => {
   color: var(--mini-cyber-accent);
   font-size: 10px;
   font-weight: 800;
+}
+
+:global(.mini-copy-dropdown-popper.el-popper) {
+  border: 1px solid rgba(96, 231, 255, 0.22);
+  background:
+    linear-gradient(145deg, rgba(6, 18, 32, 0.98), rgba(8, 25, 42, 0.96)),
+    radial-gradient(circle at 12% 0%, rgba(34, 211, 238, 0.18), transparent 34%);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.36), 0 0 24px rgba(34, 211, 238, 0.12);
+  backdrop-filter: blur(18px) saturate(1.14);
+}
+
+:global(.mini-copy-dropdown-popper .el-popper__arrow::before) {
+  border-color: rgba(96, 231, 255, 0.22);
+  background: rgba(6, 18, 32, 0.98);
+}
+
+.mini-copy-dropdown-menu {
+  min-width: 176px;
+  padding: 6px;
+  border: 0;
+  background: transparent;
+}
+
+.mini-copy-dropdown-menu :deep(.el-dropdown-menu__item) {
+  min-height: 32px;
+  border-radius: 9px;
+  color: var(--mini-cyber-muted);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.mini-copy-dropdown-menu :deep(.el-dropdown-menu__item:not(.is-disabled):hover) {
+  background: rgba(34, 211, 238, 0.12);
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.16);
 }
 
 /* ── 标题栏文件下拉（不遮挡内容区） ── */
@@ -719,6 +1136,16 @@ onUnmounted(() => {
     radial-gradient(circle at 90% 8%, rgba(34, 211, 238, 0.1), transparent 26%),
     linear-gradient(180deg, rgba(2, 8, 18, 0.18), rgba(2, 8, 18, 0.42));
   scrollbar-color: rgba(34, 211, 238, 0.36) transparent;
+  transition: padding 0.2s ease, font-size 0.2s ease;
+}
+.mini-ws:not(.mini-ws--maximized):not(.mini-ws--interaction-open):not(:hover):not(:focus-within) .mini-ws-output {
+  padding: 6px 10px 10px;
+  font-size: 11px;
+}
+.mini-ws:not(.mini-ws--maximized):not(.mini-ws--interaction-open):not(:hover):not(:focus-within) :deep(.mini-ws-files),
+.mini-ws:not(.mini-ws--maximized):not(.mini-ws--interaction-open):not(:hover):not(:focus-within) :deep(.mini-ws-model-row),
+.mini-ws:not(.mini-ws--maximized):not(.mini-ws--interaction-open):not(:hover):not(:focus-within) :deep(.mini-ws-input) {
+  display: none;
 }
 .mini-ws--maximized .mini-ws-output {
   padding: 16px 24px;

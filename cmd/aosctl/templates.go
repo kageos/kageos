@@ -278,6 +278,11 @@ routes:
     targets:
       - url: "http://127.0.0.1:9096"
     timeout: 300
+  - path: "/message"
+    service_name: "message"
+    targets:
+      - url: "http://127.0.0.1:9109"
+    timeout: 300
   - path: "/workspace"
     service_name: "workspace"
     targets:
@@ -447,6 +452,41 @@ server:
   enable_pprof: false
   allow_nats_degraded_startup: false
 
+db:
+  type: "mysql"
+  host: {{ q .MySQLHostForMain }}
+  port: {{ .MySQLPortForMain }}
+  user: {{ q .MySQL.User }}
+  password: {{ q .MySQL.Password }}
+  name: {{ q .MySQL.HRDatabase }}
+  max_idle_conns: 10
+  max_open_conns: 100
+  max_lifetime: 300
+  log_level: "warn"
+  slow_threshold: 200
+
+email:
+  smtp:
+    host: {{ q .SMTP.Host }}
+    port: {{ .SMTP.Port }}
+    username: {{ q .SMTP.Username }}
+    password: {{ q .SMTP.Password }}
+    from: {{ q .SMTP.From }}
+    from_name: {{ q .SMTP.FromName }}
+  verification:
+    code_length: 6
+    code_expire: 300
+`
+
+const messageServerConfigTemplate = `
+server:
+  port: 9109
+  listen_host: "127.0.0.1"
+  log_level: "info"
+  debug: false
+  allow_nats_degraded_startup: false
+
+# 当前用于解析收件人用户/部门，指向 hr-server 数据库。
 db:
   type: "mysql"
   host: {{ q .MySQLHostForMain }}

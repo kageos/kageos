@@ -11,14 +11,11 @@ import (
 )
 
 const (
-	apiRoot              = "namespace/luobei/demos/code/api"
-	builtinDir           = "core/agent-server/prompt/system/prompt/case_catalog"
-	createProjectDocPath = "core/agent-server/prompt/system/prompt/workspace/create-project/01-create-project.md"
-	caseCatalogBegin     = "<!-- BEGIN CASE CATALOG -->"
-	caseCatalogEnd       = "<!-- END CASE CATALOG -->"
+	apiRoot    = "namespace/luobei/demos/code/api"
+	builtinDir = "core/agent-server/prompt/system/prompt/case_catalog"
 )
 
-// caseInfo 用于生成 create-project 中的案例索引表
+// caseInfo 表示一个已同步的案例目录。
 type caseInfo struct {
 	Rel         string // 相对路径，如 form/excelorcsv，与目录对齐
 	Name        string // 案例名（含类型）
@@ -36,6 +33,11 @@ func main() {
 	apiRootAbs := filepath.Join(repoRoot, apiRoot)
 	builtinAbs := filepath.Join(repoRoot, builtinDir)
 
+	if err := validateSyncInputs(apiRootAbs); err != nil {
+		fmt.Fprintf(os.Stderr, "validate inputs: %v\n", err)
+		os.Exit(1)
+	}
+
 	cleanOldFlatCaseDocs(builtinAbs)
 
 	caseInfos, err := collectCaseEntries(apiRootAbs, builtinAbs)
@@ -44,14 +46,18 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Printf("sync ok: %d case entries\n", len(caseInfos))
+}
 
-	// 根据摘要生成「案例按类型归类」段落并写回 create-project/01-create-project.md
-	section := buildCaseCatalogSection(caseInfos)
-	if err := patchDoc(repoRoot, createProjectDocPath, caseCatalogBegin, caseCatalogEnd, section); err != nil {
-		fmt.Fprintf(os.Stderr, "patch create-project case catalog: %v\n", err)
-		os.Exit(1)
+func validateSyncInputs(apiRootAbs string) error {
+	info, err := os.Stat(apiRootAbs)
+	if err != nil {
+		return fmt.Errorf("%s not found; restore the demos source directory before running sync-case-catalog", apiRoot)
 	}
-	fmt.Printf("01-create-project.md case catalog section updated\n")
+	if !info.IsDir() {
+		return fmt.Errorf("%s is not a directory", apiRoot)
+	}
+
+	return nil
 }
 
 // cleanOldFlatCaseDocs 删除 system/prompt/case_catalog 下旧的扁平 .md（如 form_excelorcsv.md），只保留与目录对齐的子路径文档
@@ -215,82 +221,4 @@ func parseSummary(b []byte) (name, moduleDesc, keyFeatures, category string) {
 		name = "案例：" + name
 	}
 	return name, moduleDesc, keyFeatures, category
-}
-
-// categoryOrder 用于「案例按类型归类」的段落顺序
-var categoryOrder = []struct {
-	Key   string
-	Title string
-}{
-	{"单 Table", "### 1. 单 Table（仅一个 GET Table、一个 .go、纯列表 CRUD）"},
-	{"单 Form", "### 2. 单 Form（仅 FormTemplate POST，无 Table）"},
-	{"多 Table", "### 3. 多 Table（多个 GET Table、多 .go、主从表等，无 POST Form 或 Form 仅辅助）"},
-	{"Table + Form", "### 4. Table + Form（GET Table + POST Form，无图表统计）"},
-	{"Table + Form + Chart", "### 5. Table + Form + Chart（Table + Form + 统计图表）"},
-}
-
-// categoryTableLabel 类型列在表格中的显示（1. 单 Table 等）
-var categoryTableLabel = map[string]string{
-	"单 Table":              "1. 单 Table",
-	"单 Form":               "2. 单 Form",
-	"多 Table":              "3. 多 Table",
-	"Table + Form":         "4. Table + Form",
-	"Table + Form + Chart": "5. Table + Form + Chart",
-}
-
-// escapeTableCell 去掉单元格内换行和管道符，避免破坏 Markdown 表格
-func escapeTableCell(s string) string {
-	s = strings.ReplaceAll(s, "\n", " ")
-	s = strings.ReplaceAll(s, "|", "｜")
-	return strings.TrimSpace(s)
-}
-
-func buildCaseCatalogSection(infos []caseInfo) string {
-	byCat := make(map[string][]caseInfo)
-	for _, c := range infos {
-		byCat[c.Category] = append(byCat[c.Category], c)
-	}
-	var b strings.Builder
-	b.WriteString("| 案例 | read_doc 路径 | 关键特性 |\n")
-	b.WriteString("|------|---------------|----------|\n")
-	for _, co := range categoryOrder {
-		cases := byCat[co.Key]
-		if len(cases) == 0 {
-			continue
-		}
-		for _, c := range cases {
-			docPath := "/system/prompt/case_catalog/" + c.Rel
-			caseName := strings.TrimPrefix(c.Name, "案例：")
-			features := c.KeyFeatures
-			if features == "" {
-				features = "见 read_doc"
-			}
-			b.WriteString("| ")
-			b.WriteString(escapeTableCell(caseName))
-			b.WriteString(" | `")
-			b.WriteString(docPath)
-			b.WriteString("` | ")
-			b.WriteString(escapeTableCell(features))
-			b.WriteString(" |\n")
-		}
-	}
-	return strings.TrimSuffix(b.String(), "\n")
-}
-
-// patchDoc 在指定文档中替换 beginMarker 与 endMarker 之间的内容为 section
-func patchDoc(repoRoot, relPath, beginMarker, endMarker, section string) error {
-	path := filepath.Join(repoRoot, relPath)
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	content := string(raw)
-	begin := strings.Index(content, beginMarker)
-	end := strings.Index(content, endMarker)
-	if begin == -1 || end == -1 || end <= begin {
-		return fmt.Errorf("%s: 未找到 %s / %s", relPath, beginMarker, endMarker)
-	}
-	afterBegin := begin + len(beginMarker)
-	newContent := content[:afterBegin] + "\n" + section + "\n" + content[end:]
-	return os.WriteFile(path, []byte(newContent), 0644)
 }

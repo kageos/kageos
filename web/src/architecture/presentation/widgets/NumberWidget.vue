@@ -106,17 +106,13 @@ const defaultValue = computed(() => {
   return def !== undefined ? Number(def) : undefined
 })
 
-// 最小值/最大值（从验证规则中提取）
+// 最小值/最大值（优先使用 SDK widget config，兼容 validate 中的 min/max/gte/lte）
 const minValue = computed(() => {
-  const validation = props.field.validation || ''
-  const minMatch = validation.match(/min=(\d+)/)
-  return minMatch ? Number(minMatch[1]) : undefined
+  return parseConfigNumber(config.value.min) ?? parseValidationNumber(props.field.validation, ['min', 'gte'])
 })
 
 const maxValue = computed(() => {
-  const validation = props.field.validation || ''
-  const maxMatch = validation.match(/max=(\d+)/)
-  return maxMatch ? Number(maxMatch[1]) : undefined
+  return parseConfigNumber(config.value.max) ?? parseValidationNumber(props.field.validation, ['max', 'lte'])
 })
 
 // 内部值（用于 v-model）
@@ -137,7 +133,7 @@ const internalValue = computed({
     return undefined
   },
   set: (newValue: number | undefined) => {
-    if (props.mode === 'edit') {
+    if (props.mode === 'edit' || props.mode === 'search') {
       const formatted = newValue !== undefined ? String(newValue) : ''
       const display = unit.value ? `${formatted} ${unit.value}` : formatted
       
@@ -148,7 +144,9 @@ const internalValue = computed({
         display
       )
       
-      formDataStore.setValue(props.fieldPath, newFieldValue)
+      if (props.mode === 'edit') {
+        formDataStore.setValue(props.fieldPath, newFieldValue)
+      }
       emit('update:modelValue', newFieldValue)
     }
   }
@@ -182,6 +180,30 @@ onMounted(() => {
 
 function handleBlur(): void {
   // 可以在这里添加验证逻辑
+}
+
+function parseConfigNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined
+  }
+  const num = Number(value)
+  return Number.isFinite(num) ? num : undefined
+}
+
+function parseValidationNumber(validation: string | undefined, keys: string[]): number | undefined {
+  if (!validation) {
+    return undefined
+  }
+  for (const key of keys) {
+    const match = validation.match(new RegExp(`(?:^|,)${key}=(-?\\d+(?:\\.\\d+)?)`))
+    if (match?.[1] !== undefined) {
+      const value = Number(match[1])
+      if (Number.isFinite(value)) {
+        return value
+      }
+    }
+  }
+  return undefined
 }
 </script>
 

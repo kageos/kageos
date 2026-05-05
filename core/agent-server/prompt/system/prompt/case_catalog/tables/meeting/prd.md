@@ -121,11 +121,11 @@ type MeetingRoom struct {
 	DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
 
 	Name      string `json:"name" gorm:"column:name;comment:会议室名称" widget:"name:会议室名称;type:input" search:"like" validate:"required,min=2,max=50"`
-	Type      string `json:"type" gorm:"column:type;comment:会议室类型" widget:"name:会议室类型;type:select;options:小型,中型,大型,会议室,培训室,多功能厅;options_colors:info,primary,success,warning,danger,#9C27B0" search:"in" validate:"required"`
+	Type      string `json:"type" gorm:"column:type;comment:会议室类型" widget:"name:会议室类型;type:select;options:小型,中型,大型,会议室,培训室,多功能厅;options_colors:909399,409EFF,67C23A,E6A23C,F56C6C,9C27B0" search:"in" validate:"required"`
 	Capacity  int    `json:"capacity" gorm:"column:capacity;comment:容纳人数" widget:"name:容纳人数;type:number" search:"gte,lte" validate:"required,min=1,max=1000"`
 	Equipment string `json:"equipment" gorm:"column:equipment;type:text;comment:设备配置" widget:"name:设备配置;type:text_area" search:"like"`
 	Location  string `json:"location" gorm:"column:location;comment:位置信息" widget:"name:位置信息;type:input" search:"like" validate:"required,min=2,max=100"`
-	Status    string `json:"status" gorm:"column:status;comment:状态;default:可用" widget:"name:状态;type:select;options:可用,维护中,停用;options_colors:success,warning,danger;render_default:可用" search:"in" validate:"required,oneof=可用 维护中 停用"`
+	Status    string `json:"status" gorm:"column:status;comment:状态;default:可用" widget:"name:状态;type:select;options:可用,维护中,停用;options_colors:67C23A,E6A23C,F56C6C;render_default:可用" search:"in" validate:"required,oneof=可用 维护中 停用"`
 }
 
 func (MeetingRoom) TableName() string {
@@ -306,7 +306,7 @@ type MeetingRoomBooking struct {
 	StartTime     types.Time  `json:"start_time" gorm:"column:start_time;type:datetime;comment:开始时间;index" widget:"name:开始时间;type:datetime;format:YYYY-MM-DD HH:mm:ss;render_default:CURRENT_TIMESTAMP" search:"gte,lte" validate:"required"`
 	EndTime       types.Time  `json:"end_time" gorm:"column:end_time;type:datetime;comment:结束时间;index" widget:"name:结束时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" validate:"required"`
 	AttendeeCount int    `json:"attendee_count" gorm:"column:attendee_count;comment:参会人数" widget:"name:参会人数;type:number" search:"gte,lte" validate:"required,min=1"`
-	Status        string `json:"status" gorm:"-" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:info,primary,success" search:"-" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
+	Status        string `json:"status" gorm:"-" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:909399,409EFF,67C23A" search:"-" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
 	ReminderSent  bool   `json:"reminder_sent" gorm:"column:reminder_sent;default:false;comment:是否已发送会前提醒" widget:"name:是否已提醒;type:switch" search:"eq"`
 	RemindedAt    types.Time  `json:"reminded_at" gorm:"column:reminded_at;type:datetime;comment:提醒发送时间" widget:"name:提醒时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"`
 	Remark        string `json:"remark" gorm:"column:remark;type:text;comment:备注" widget:"name:备注;type:text_area" search:"like"`
@@ -318,10 +318,11 @@ func (MeetingRoomBooking) TableName() string {
 
 // MeetingRoomBookingListReq 预约列表请求
 //
-// 注意：RoomName 为外表字段（来自 crm_meeting_room），Status 为计算字段，需在 Handler 中手动处理。
+// 注意：RoomName 为外表字段（来自 crm_meeting_room），StatusFilter 为计算字段筛选，需在 Handler 中手动处理。
+// Request 字段 code 不能和 Model 任意字段重复；Model 已有列表展示字段 status，所以筛选字段用 status_filter。
 type MeetingRoomBookingListReq struct {
 	RoomName                  string `json:"room_name" form:"room_name" gorm:"-" widget:"name:会议室名称;type:input"`
-	Status                    string `json:"status" form:"status" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:info,primary,success"`
+	StatusFilter              string `json:"status_filter" form:"status_filter" gorm:"-" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:909399,409EFF,67C23A"`
 	query.SearchFilterPageReq `widget:"-"`
 }
 
@@ -350,9 +351,9 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
 		}
 	}
 
-	if req.Status != "" {
+	if req.StatusFilter != "" {
 		now := time.Now()
-		switch req.Status {
+		switch req.StatusFilter {
 		case "待开始":
 			queryDB = queryDB.Where("crm_meeting_room_booking.start_time > ?", now)
 		case "进行中":

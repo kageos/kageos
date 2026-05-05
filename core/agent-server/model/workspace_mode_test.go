@@ -43,6 +43,20 @@ func TestInitWorkspaceModesRefreshesExistingBuiltinTools(t *testing.T) {
 	if !got.IsBuiltin {
 		t.Fatal("execute mode should be marked builtin after refresh")
 	}
+
+	var qa WorkspaceMode
+	if err := db.Where("code = ?", "qa").First(&qa).Error; err != nil {
+		t.Fatalf("query qa mode: %v", err)
+	}
+	qaTools := qa.GetToolNames()
+	if !containsToolName(qaTools, "read_doc") {
+		t.Fatalf("qa tools missing read_doc: %v", qaTools)
+	}
+	for _, blocked := range []string{"write_go_file", "build_workspace", "run_form_submit", "run_table_create"} {
+		if containsToolName(qaTools, blocked) {
+			t.Fatalf("qa tools should not include %s: %v", blocked, qaTools)
+		}
+	}
 }
 
 func containsToolName(tools []string, target string) bool {

@@ -1,6 +1,14 @@
 package widget
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+	"strconv"
+)
+
+func init() {
+	RegisterWidgetValidator(TypeDepartments, validateDepartmentsWidget)
+}
 
 // Departments 多组织架构选择器组件
 //
@@ -23,6 +31,12 @@ import "fmt"
 //   - 如果用户未登录或没有部门，MyDepartment() 会返回 null
 //   - 值存储格式：逗号分隔的 full_code_path（如 "/dept1,/dept2"），便于存储到数据库
 //   - 前端会自动处理字符串和数组之间的转换
+//
+// 校验规则：
+// - Go 字段可以是 string/*string，也可以是 []string/[N]string；
+// - max_count 必须是非负整数；
+// - 不允许 []int/[]struct，因为部门标识协议是 full_code_path 字符串；
+// - render_default 里的 MyDepartment() 由前端动态默认值逻辑解析。
 type Departments struct {
 	RenderDefault string `json:"render_default,omitempty"` // 前端渲染默认值，支持函数调用 MyDepartment()，多个值用逗号分隔
 	MaxCount      int    `json:"max_count,omitempty"`      // 最大选择数量，0表示不限制
@@ -60,12 +74,24 @@ func newDepartments(widgetParsed map[string]string) *Departments {
 		// 解析最大选择数量，支持 "0" 或 "" 表示不限制
 		if maxCount == "0" || maxCount == "" {
 			departments.MaxCount = 0 // 0表示不限制
-		} else {
-			// 注意：如果需要在 widget 标签中设置具体数值，前端会解析字符串
-			// Go 端只需要知道是否有限制即可，具体数值由前端处理
-			departments.MaxCount = 0 // 默认不限制，具体数值由前端解析
+		} else if val, err := strconv.Atoi(maxCount); err == nil && val > 0 {
+			departments.MaxCount = val
 		}
 	}
 
 	return departments
+}
+
+// validateDepartmentsWidget 校验多部门组件的字符串协议。
+//
+// 推荐落库字段使用 string，值为逗号分隔 full_code_path；如果只是接口 DTO，也可以使用 []string。
+func validateDepartmentsWidget(ctx ValidateContext) error {
+	var errs []error
+	if err := requireStringOrStringSliceGoType(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateNonNegativeIntTag(ctx, "max_count"); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }

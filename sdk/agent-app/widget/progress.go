@@ -1,7 +1,27 @@
 package widget
 
-import "strconv"
+import (
+	"errors"
+	"strconv"
+)
 
+func init() {
+	RegisterWidgetValidator(TypeProgress, validateProgressWidget)
+}
+
+// Progress 进度展示组件。
+//
+// 使用示例：
+//
+//	Completion float64 `json:"completion" widget:"name:完成率;type:progress;min:0;max:100;unit:%"`
+//
+// 校验规则：
+// - 注册的是本文件的 validateProgressWidget；
+// - Go 字段必须是任意数值类型；
+// - min/max/unit 只影响前端展示区间和单位；
+// - min/max 必须能解析为 float64；
+// - 同时配置 min/max 时，min 不能大于 max；
+// - 业务需要时仍应在 handler 或 validate tag 中约束实际数值。
 type Progress struct {
 	Min  float64 `json:"min,omitempty"`  // 最小值，默认 0
 	Max  float64 `json:"max,omitempty"`  // 最大值，默认 100
@@ -14,6 +34,25 @@ func (p *Progress) Config() interface{} {
 
 func (p *Progress) Type() string {
 	return TypeProgress
+}
+
+// validateProgressWidget 校验 progress 的数值协议。
+//
+// progress 是展示型数值组件，只要求 Go 字段为数值；展示区间配置由 newProgress 解析默认值。
+func validateProgressWidget(ctx ValidateContext) error {
+	var errs []error
+	if err := requireNumericGoType(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	for _, key := range []string{"min", "max"} {
+		if err := validateFloatTag(ctx, key); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if err := validateNumberRange(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }
 
 func newProgress(widgetParsed map[string]string) *Progress {
@@ -47,4 +86,3 @@ func parseFloat(s string) (float64, error) {
 	// 暂时使用简单的 strconv.ParseFloat
 	return strconv.ParseFloat(s, 64)
 }
-

@@ -42,7 +42,7 @@ func TestModeToolNamesResolveInRegistry(t *testing.T) {
 		specs[def.Name] = struct{}{}
 	}
 
-	for _, mode := range []string{"dev", "modify", "execute"} {
+	for _, mode := range []string{"qa", "dev", "modify", "execute", "agent"} {
 		provider := prompt.GetModeProvider(mode)
 		if provider == nil {
 			t.Fatalf("mode provider %q is nil", mode)

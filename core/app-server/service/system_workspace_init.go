@@ -24,8 +24,8 @@ type systemAppDefinition struct {
 	Name string
 }
 
-// InitSystemWorkspace 初始化系统工作空间（只初始化 official 工作空间）
-// 在 app-server 启动时调用，确保 system/official 工作空间存在
+// InitSystemWorkspace 初始化系统工作空间。
+// 在 app-server 启动时调用，确保 system 下的内置工作空间存在。
 // 注意：system 用户应该在 hr-server 中初始化，这里只初始化工作空间
 func InitSystemWorkspace(ctx context.Context, appService *AppService, serviceTreeService *ServiceTreeService) error {
 	logger.Infof(ctx, "[SystemWorkspace] 开始初始化系统工作空间...")
@@ -44,19 +44,24 @@ func InitSystemWorkspace(ctx context.Context, appService *AppService, serviceTre
 	return nil
 }
 
-// initSystemApps 初始化内置应用
-// 初始化 system 下的内置应用。
+// initSystemApps 初始化 system 下的内置应用。
 // 通过 AppService.CreateApp 创建应用，会调用 runtime
 func initSystemApps(ctx context.Context, appService *AppService) error {
-	for _, appDef := range []systemAppDefinition{
-		{Code: "official", Name: "官方库"},
-		{Code: "prompt", Name: "提示词"},
-	} {
+	for _, appDef := range systemAppDefinitions() {
 		if err := ensureSystemApp(ctx, appService, appDef); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func systemAppDefinitions() []systemAppDefinition {
+	return []systemAppDefinition{
+		{Code: "official", Name: "官方库"},
+		{Code: "tools", Name: "官方工具"},
+		{Code: "openapi", Name: "平台接口"},
+		{Code: "prompt", Name: "提示词"},
+	}
 }
 
 func ensureSystemApp(ctx context.Context, appService *AppService, appDef systemAppDefinition) error {

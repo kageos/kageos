@@ -1,5 +1,11 @@
 package widget
 
+import "errors"
+
+func init() {
+	RegisterWidgetValidator(TypeUser, validateUserWidget)
+}
+
 // User 用户选择器组件
 //
 // 功能：
@@ -22,6 +28,13 @@ package widget
 //   - 如果用户未登录，Me() 会返回 null
 //   - 如果用户没有上级领导，MyLeader() 会返回 null
 //   - disabled: 是否禁用（只读模式，Form 中展示但不可编辑）
+//
+// 校验规则：
+// - 注册的是本文件的 validateUserWidget；
+// - Go 字段必须是 string 或 *string；
+// - disabled 必须显式写 true/false；
+// - 字段值存储用户名/用户标识字符串；
+// - render_default 里的 Me()/MyLeader() 在前端动态默认值逻辑中解析，SDK 只透传配置。
 type User struct {
 	RenderDefault string `json:"render_default,omitempty"` // 前端渲染默认值，支持函数调用 Me()（当前登录用户）、MyLeader()（当前用户的上级领导）
 	Disabled      bool   `json:"disabled,omitempty"`       // 是否禁用（只读模式）
@@ -46,6 +59,20 @@ func (u *User) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticFact 
 		facts = append(facts, SemanticFact{Key: "disabled", Value: "true"})
 	}
 	return facts
+}
+
+// validateUserWidget 校验 user 的单用户字符串协议。
+//
+// 用户选择器存储的是用户名/用户标识，不允许绑定 int 或结构体。
+func validateUserWidget(ctx ValidateContext) error {
+	var errs []error
+	if err := requireStringLikeGoType(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateBoolTag(ctx, "disabled"); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }
 
 func newUser(widgetParsed map[string]string) *User {

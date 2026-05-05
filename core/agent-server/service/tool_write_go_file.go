@@ -19,7 +19,7 @@ type writeGoFileArgs struct {
 
 var writeGoFileToolDef = toolDefinition[writeGoFileArgs](
 	"write_go_file",
-	"在当前工作目录或指定 directory 下写入一个 .go 代码文件。必填：file_name（如 attendance.go）、content（Go 源码）。可选：directory（目标目录）。注意：write_go_file 只落盘、不编译；可连续多次写入多个文件，全部写完后统一调用一次 build_workspace 完成编译与部署，无需每写一次就编译。",
+	"在当前工作目录或指定 directory 下写入一个 .go 代码文件。必填：file_name（如 attendance.go）、content（Go 源码）。可选：directory（目标目录）。注意：write_go_file 只落盘、不编译；复杂系统按阶段写入和构建，先主 Table、再 Form、最后 Chart，每阶段写完后 build_workspace。若本工具返回 error，本次文件未落盘，必须先修正参数或内容，不要声称文件已创建。",
 )
 
 func (t *WriteGoFileTool) Definition() dto.ToolDef {
@@ -39,14 +39,14 @@ func (t *WriteGoFileTool) Execute(ctx context.Context, call ToolCall) ToolResult
 func runWriteGoFileTool(ctx context.Context, args writeGoFileArgs, currentFullCodePath string) (string, bool) {
 	fileName := strings.TrimSpace(args.FileName)
 	if fileName == "" {
-		return "write_go_file 缺少参数 file_name。", true
+		return "write_go_file 缺少参数 file_name，本次未落盘。请补充普通 Go 文件名（如 nps_statistics.go），不要继续假设该文件已创建。", true
 	}
 	content := args.Content
 	if content == "" {
 		content = args.SourceCode
 	}
 	if content == "" {
-		return "write_go_file 缺少参数 content。", true
+		return "write_go_file 缺少参数 content，本次未落盘。请补充完整 Go 源码后重试，不要继续假设该文件已创建。", true
 	}
 	if !strings.HasSuffix(fileName, ".go") {
 		fileName += ".go"

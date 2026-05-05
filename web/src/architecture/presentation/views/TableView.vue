@@ -131,11 +131,13 @@
             @click="handleBatchDelete"
             :icon="Delete"
             :disabled="selectedRows.length === 0"
+            class="action-btn action-btn-danger"
           >
             删除选中 ({{ selectedRows.length }})
           </el-button>
           <el-button 
             @click="exitBatchDeleteMode"
+            class="toolbar-secondary-btn"
           >
             取消
           </el-button>
@@ -193,6 +195,37 @@
             收起
           </el-button>
         </template>
+
+        <div v-if="viewMode === 'card' && sortableFields.length > 0" class="card-sort-controls">
+          <span class="card-sort-label">排序</span>
+          <el-select
+            :model-value="cardSortField"
+            size="small"
+            class="card-sort-select"
+            popper-class="table-action-dropdown"
+            @update:model-value="handleCardSortFieldChange"
+          >
+            <el-option
+              v-for="field in sortableFields"
+              :key="field.code"
+              :label="field.name"
+              :value="field.code"
+            />
+          </el-select>
+          <el-radio-group
+            :model-value="cardSortOrder"
+            size="small"
+            class="card-sort-order"
+            @update:model-value="handleCardSortOrderChange"
+          >
+            <el-radio-button value="asc">
+              <el-icon><ArrowUp /></el-icon>
+            </el-radio-button>
+            <el-radio-button value="desc">
+              <el-icon><ArrowDown /></el-icon>
+            </el-radio-button>
+          </el-radio-group>
+        </div>
       </div>
     </div>
 
@@ -249,13 +282,12 @@
         </div>
         <el-button
           v-if="sorts.length > 0"
-          link
-          type="primary"
           size="small"
           @click="handleClearAllSorts"
-          class="clear-all-sorts-btn"
+          class="table-clear-sorts-btn"
         >
-          清除所有排序
+          <el-icon><Refresh /></el-icon>
+          清除排序
         </el-button>
       </div>
     </div>
@@ -294,6 +326,7 @@
         fixed="left"
         width="120"
         class-name="control-column"
+        :label-class-name="getSortHeaderClass(idField.code)"
         :sortable="getSortableConfig(idField)"
         :sort-order="sortOrderMap[idField.code] || null"
       >
@@ -318,6 +351,7 @@
         :label="field.name"
         :sortable="getSortableConfig(field)"
         :sort-order="sortOrderMap[field.code] || null"
+        :label-class-name="getSortHeaderClass(field.code)"
         :min-width="getColumnWidth(field)"
         show-overflow-tooltip
       >
@@ -342,9 +376,10 @@
           <el-dropdown
             trigger="click"
             placement="bottom-end"
+            popper-class="table-action-dropdown"
             @command="(cmd: string) => handleActionCommand(cmd, row)"
           >
-            <el-button link type="primary" size="small" class="action-more-btn">
+            <el-button size="small" class="action-more-btn">
               <el-icon><More /></el-icon>
               更多
             </el-button>
@@ -427,9 +462,33 @@
               @click.stop
               @change="handleCardSelectionChange(row, $event)"
             />
+            <div
+              v-if="cardMediaField"
+              class="table-card-media"
+              :class="{ 'has-image': Boolean(getCardMediaPreviewUrl(row)) }"
+              @click.stop="handleDetail(row)"
+            >
+              <img
+                v-if="getCardMediaPreviewUrl(row)"
+                :src="getCardMediaPreviewUrl(row)"
+                :alt="getCardMediaLabel(row)"
+                class="table-card-media-image"
+                loading="lazy"
+              />
+              <el-icon v-else class="table-card-media-icon">
+                <Picture v-if="isCardImageMedia(row)" />
+                <Document v-else />
+              </el-icon>
+              <span v-if="getCardMediaCount(row) > 1" class="table-card-media-count">
+                {{ getCardMediaCount(row) }}
+              </span>
+            </div>
             <div class="table-card-title-wrap">
               <div class="table-card-kicker">
-                {{ cardTitleField?.name || idField?.name || '记录' }}
+                <span>{{ cardTitleField?.name || idField?.name || '记录' }}</span>
+                <span v-if="idField && row[idField.code] !== undefined" class="table-card-id-chip">
+                  #{{ row[idField.code] }}
+                </span>
               </div>
               <div class="table-card-title">
                 <WidgetComponent
@@ -442,15 +501,51 @@
                 <span v-else-if="idField">{{ row[idField.code] }}</span>
                 <span v-else>未命名记录</span>
               </div>
+              <div
+                v-if="cardSubtitleField && hasRowFieldValue(row, cardSubtitleField)"
+                class="table-card-subtitle"
+              >
+                <WidgetComponent
+                  :field="cardSubtitleField"
+                  :value="getRowFieldValue(row, cardSubtitleField)"
+                  mode="table-cell"
+                  :row-data="row"
+                />
+              </div>
+              <div
+                v-if="hasCardRowStatusMeta(row)"
+                class="table-card-status-badges"
+                @click.stop
+              >
+                <div
+                  v-for="field in getCardFilledStatusFields(row)"
+                  :key="field.code"
+                  class="table-card-status-item"
+                >
+                  <span class="table-card-status-label">{{ field.name }}</span>
+                  <span class="table-card-status-tags">
+                    <el-tag
+                      v-for="tag in getCardStatusTags(row, field)"
+                      :key="tag.key"
+                      size="small"
+                      effect="light"
+                      class="table-card-status-tag"
+                      :style="tag.style"
+                    >
+                      {{ tag.label }}
+                    </el-tag>
+                  </span>
+                </div>
+              </div>
             </div>
             <button
               type="button"
-              class="table-card-id-btn"
+              class="table-card-view-btn"
               :title="idField ? `查看详情 ${row[idField.code]}` : '查看详情'"
               @click.stop="handleDetail(row)"
             >
               <el-icon><View /></el-icon>
-              <span v-if="idField" class="table-card-id-text">{{ row[idField.code] }}</span>
+              <span>查看</span>
             </button>
           </div>
 
@@ -469,32 +564,6 @@
                   :row-data="row"
                 />
               </div>
-            </div>
-          </div>
-
-          <div
-            v-if="hasCardRowStatusMeta(row)"
-            class="table-card-status-strip"
-            @click.stop
-          >
-            <div
-              v-for="field in getCardFilledStatusFields(row)"
-              :key="field.code"
-              class="table-card-status-item"
-            >
-              <span class="table-card-status-label">{{ field.name }}</span>
-              <span class="table-card-status-tags">
-                <el-tag
-                  v-for="tag in getCardStatusTags(row, field)"
-                  :key="tag.key"
-                  size="small"
-                  effect="light"
-                  class="table-card-status-tag"
-                  :style="tag.style"
-                >
-                  {{ tag.label }}
-                </el-tag>
-              </span>
             </div>
           </div>
 
@@ -582,9 +651,10 @@
               <el-dropdown
                 trigger="click"
                 placement="bottom-end"
+                popper-class="table-action-dropdown"
                 @command="(cmd: string) => handleActionCommand(cmd, row)"
               >
-                <el-button link type="primary" size="small" class="action-more-btn" @click.stop>
+                <el-button size="small" class="action-more-btn" @click.stop>
                   <el-icon><More /></el-icon>
                   更多
                 </el-button>
@@ -672,7 +742,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElIcon, ElTable, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElText, ElCard, ElSkeleton } from 'element-plus'
-import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right, Lock, Edit, View, InfoFilled, Grid, List, Clock } from '@element-plus/icons-vue'
+import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right, Lock, Edit, View, InfoFilled, Grid, List, Clock, Picture, Document } from '@element-plus/icons-vue'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../../presentation/widgets/WidgetComponent.vue'
 import SearchInput from '@/architecture/presentation/components/SearchInput.vue'
@@ -697,6 +767,7 @@ import { TablePermission, getPermissionShortName } from '@/utils/permission'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
 import { getFunctionCallbacks, getTableCreateFields } from '@/utils/functionSchemaSelectors'
+import { normalizeStorageFileDisplayUrl } from '@/architecture/presentation/utils/storageFileUrl'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -721,6 +792,35 @@ const CARD_STATUS_WIDGET_TYPES = new Set<string>([
   WidgetType.CHECKBOX,
   WidgetType.SWITCH
 ])
+const CARD_SUBTITLE_FIELD_HINTS = [
+  'subtitle',
+  'summary',
+  'description',
+  'desc',
+  'remark',
+  'note',
+  '摘要',
+  '描述',
+  '说明',
+  '备注',
+  '简介'
+]
+const CARD_MEDIA_FIELD_HINTS = [
+  'cover',
+  'image',
+  'avatar',
+  'photo',
+  'picture',
+  'thumbnail',
+  'logo',
+  '封面',
+  '图片',
+  '图像',
+  '头像',
+  '照片',
+  '缩略图'
+]
+const CARD_IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'avif'])
 
 interface CardStatusTag {
   key: string
@@ -815,6 +915,51 @@ watch(viewMode, (mode) => {
     window.localStorage.setItem(getViewModeStorageKey(), mode)
   }
 })
+
+const sortableFields = computed(() => {
+  return visibleFields.value.filter(field => getSortableConfig(field) !== false)
+})
+
+const cardSortField = computed(() => {
+  return displaySorts.value[0]?.field || idField.value?.code || sortableFields.value[0]?.code || ''
+})
+
+const cardSortOrder = computed<'asc' | 'desc'>(() => {
+  return displaySorts.value[0]?.order || 'desc'
+})
+
+function applyCardSort(fieldCode: string, order: 'asc' | 'desc'): void {
+  if (!fieldCode) return
+
+  const currentState = stateManager.getState()
+  stateManager.setState({
+    ...currentState,
+    sorts: [{ field: fieldCode, order }],
+    hasManualSort: true,
+    pagination: {
+      ...currentState.pagination,
+      currentPage: 1
+    }
+  })
+  syncToURL()
+  void loadTableDataRef()
+}
+
+function handleCardSortFieldChange(value: string | number | boolean | Record<string, any> | undefined): void {
+  if (typeof value !== 'string') return
+  applyCardSort(value, cardSortOrder.value)
+}
+
+function handleCardSortOrderChange(value: string | number | boolean | undefined): void {
+  if (value !== 'asc' && value !== 'desc') return
+  applyCardSort(cardSortField.value, value)
+}
+
+const getSortHeaderClass = (fieldCode: string): string => {
+  const order = sortOrderMap.value[fieldCode]
+  if (!order) return ''
+  return `sort-header-active sort-header-${order === 'ascending' ? 'asc' : 'desc'}`
+}
 
 // ==================== 对话框相关 ====================
 
@@ -943,6 +1088,112 @@ const hasRowFieldValue = (row: TableRow, field: FieldConfig): boolean => {
   return value !== null && value !== undefined && value !== ''
 }
 
+const getCardFieldIdentity = (field: FieldConfig): string => {
+  return `${field.code || ''} ${field.name || ''}`.trim().toLowerCase()
+}
+
+const fieldMatchesHints = (field: FieldConfig, hints: string[]): boolean => {
+  const identity = getCardFieldIdentity(field)
+  return hints.some(hint => identity.includes(hint))
+}
+
+const isCardMediaField = (field: FieldConfig): boolean => {
+  return field.widget?.type === WidgetType.FILES || fieldMatchesHints(field, CARD_MEDIA_FIELD_HINTS)
+}
+
+const normalizeCardMediaEntry = (entry: unknown): string => {
+  if (entry === null || entry === undefined) {
+    return ''
+  }
+
+  if (typeof entry === 'string') {
+    return entry.trim()
+  }
+
+  if (typeof entry === 'object') {
+    const file = entry as Record<string, any>
+    return String(
+      file.download_url ||
+      file.server_download_url ||
+      file.url ||
+      file.href ||
+      file.ref ||
+      file.key ||
+      ''
+    ).trim()
+  }
+
+  return String(entry).trim()
+}
+
+const parseCardMediaEntries = (raw: unknown): string[] => {
+  if (raw === null || raw === undefined || raw === '') {
+    return []
+  }
+
+  if (Array.isArray(raw)) {
+    return raw.map(normalizeCardMediaEntry).filter(Boolean)
+  }
+
+  if (typeof raw === 'object') {
+    return [normalizeCardMediaEntry(raw)].filter(Boolean)
+  }
+
+  const text = String(raw).trim()
+  if (!text) {
+    return []
+  }
+
+  if (text.startsWith('[') || text.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(text)
+      return parseCardMediaEntries(parsed)
+    } catch {
+      // Fall through to comma-separated refs.
+    }
+  }
+
+  return text.split(',').map(item => item.trim()).filter(Boolean)
+}
+
+const getCardMediaEntries = (row: TableRow): string[] => {
+  const field = cardMediaField.value
+  return field ? parseCardMediaEntries(row[field.code]) : []
+}
+
+const getCardMediaExtension = (value: string): string => {
+  const clean = value.split('?')[0]?.split('#')[0] || value
+  const filename = clean.split('/').filter(Boolean).pop() || clean
+  const ext = filename.includes('.') ? filename.split('.').pop() || '' : ''
+  return ext.toLowerCase()
+}
+
+const isImageMediaValue = (value: string): boolean => {
+  if (value.startsWith('data:image/')) {
+    return true
+  }
+  return CARD_IMAGE_EXTENSIONS.has(getCardMediaExtension(value))
+}
+
+const getCardMediaPreviewUrl = (row: TableRow): string => {
+  const imageEntry = getCardMediaEntries(row).find(isImageMediaValue)
+  return imageEntry ? normalizeStorageFileDisplayUrl(imageEntry) : ''
+}
+
+const getCardMediaCount = (row: TableRow): number => {
+  return getCardMediaEntries(row).length
+}
+
+const isCardImageMedia = (row: TableRow): boolean => {
+  return getCardMediaEntries(row).some(isImageMediaValue)
+}
+
+const getCardMediaLabel = (row: TableRow): string => {
+  const count = getCardMediaCount(row)
+  const fieldName = cardMediaField.value?.name || '附件'
+  return count > 0 ? `${fieldName} ${count} 项` : fieldName
+}
+
 const cardCreatorField = computed(() => findVisibleFieldByCode(CARD_CREATOR_FIELD_CODES))
 const cardCreatedAtField = computed(() => findVisibleFieldByCode(CARD_CREATED_AT_FIELD_CODES))
 const cardUpdatedAtField = computed(() => findVisibleFieldByCode(CARD_UPDATED_AT_FIELD_CODES))
@@ -961,21 +1212,47 @@ const cardContentFields = computed(() => {
 
 const cardTitleField = computed(() => {
   const nameLikeField = cardContentFields.value.find((field) => {
-    const fieldIdentity = `${field.code} ${field.name}`.toLowerCase()
+    const fieldIdentity = getCardFieldIdentity(field)
     return fieldIdentity.includes('name') || fieldIdentity.includes('title') || field.name.includes('名称') || field.name.includes('标题')
   })
 
   return nameLikeField || cardContentFields.value[0] || idField.value || null
 })
 
+const cardMediaField = computed(() => {
+  const hintedMediaField = cardBusinessFields.value.find(field => fieldMatchesHints(field, CARD_MEDIA_FIELD_HINTS))
+  return hintedMediaField || cardBusinessFields.value.find(isCardMediaField) || null
+})
+
+const cardSubtitleField = computed(() => {
+  const excludedCodes = new Set([
+    cardTitleField.value?.code,
+    cardMediaField.value?.code
+  ].filter(Boolean))
+
+  return cardContentFields.value.find((field) => {
+    if (excludedCodes.has(field.code)) {
+      return false
+    }
+    return fieldMatchesHints(field, CARD_SUBTITLE_FIELD_HINTS) || field.widget?.type === WidgetType.TEXT_AREA
+  }) || null
+})
+
 const cardBodyFields = computed(() => {
-  const titleCode = cardTitleField.value?.code
-  return cardContentFields.value.filter(field => field.code !== titleCode).slice(0, 4)
+  const excludedCodes = new Set([
+    cardTitleField.value?.code,
+    cardSubtitleField.value?.code,
+    cardMediaField.value?.code
+  ].filter(Boolean))
+
+  return cardContentFields.value.filter(field => !excludedCodes.has(field.code)).slice(0, 4)
 })
 
 const cardExtraFields = computed(() => {
   const pinnedCodes = new Set([
     cardTitleField.value?.code,
+    cardSubtitleField.value?.code,
+    cardMediaField.value?.code,
     ...cardBodyFields.value.map(field => field.code)
   ].filter(Boolean))
 
@@ -1240,6 +1517,11 @@ useTableViewLifecycle({
 
 <style scoped>
 .table-view {
+  --table-control-bg: var(--app-shell-panel-bg-strong);
+  --table-control-bg-hover: rgba(var(--el-color-primary-rgb), 0.06);
+  --table-control-border: var(--app-shell-panel-border);
+  --table-control-border-hover: rgba(var(--el-color-primary-rgb), 0.28);
+  --table-control-shadow-hover: 0 8px 18px rgba(15, 23, 42, 0.08);
   padding: 10px 0 0;
   background: transparent;
   position: relative;
@@ -1282,12 +1564,12 @@ useTableViewLifecycle({
 }
 
 .view-mode-toggle :deep(.el-radio-button__inner) {
-  height: 34px;
+  height: 36px;
   padding: 0 12px;
   display: inline-flex;
   align-items: center;
-  border-color: var(--app-auth-input-border);
-  background: var(--app-auth-input-bg);
+  border-color: var(--table-control-border);
+  background: var(--table-control-bg);
   font-weight: 600;
 }
 
@@ -1307,20 +1589,20 @@ useTableViewLifecycle({
 }
 
 .toolbar :deep(.el-button) {
-  height: 42px;
-  border-radius: 12px;
+  height: 36px;
+  border-radius: 8px;
   font-weight: 600;
-  transition: all 0.3s ease;
+  transition: border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
 .toolbar .action-btn {
-  padding: 0 16px;
+  padding: 0 14px;
   box-shadow: none;
 }
 
 .toolbar .action-btn:not(.el-button--primary) {
-  border: 1px solid var(--app-auth-input-border);
-  background: var(--app-auth-input-bg);
+  border: 1px solid var(--table-control-border);
+  background: var(--table-control-bg);
 }
 
 .toolbar .action-btn-no-permission {
@@ -1330,18 +1612,18 @@ useTableViewLifecycle({
 .toolbar-search-btn:not(.el-button--primary),
 .toolbar-secondary-btn {
   padding: 0 14px;
-  border: 1px solid var(--app-auth-input-border);
-  background: var(--app-auth-input-bg);
+  border: 1px solid var(--table-control-border);
+  background: var(--table-control-bg);
   box-shadow: none;
 }
 
 .toolbar .action-btn:not(.el-button--primary):hover,
 .toolbar-search-btn:not(.el-button--primary):hover,
 .toolbar-secondary-btn:hover {
-  border-color: rgba(var(--el-color-primary-rgb), 0.24);
+  border-color: var(--table-control-border-hover);
   color: var(--el-color-primary);
-  background: var(--app-auth-input-bg);
-  box-shadow: var(--app-auth-input-shadow-hover);
+  background: var(--table-control-bg-hover);
+  box-shadow: var(--table-control-shadow-hover);
   transform: translateY(-1px);
 }
 
@@ -1360,14 +1642,16 @@ useTableViewLifecycle({
   transform: translateY(-1px);
 }
 
-.toolbar .action-btn.el-button--danger {
+.toolbar .action-btn.el-button--danger,
+.toolbar .action-btn-danger {
   border-color: rgba(239, 68, 68, 0.26);
   background: #fff1f2;
   color: #dc2626;
   box-shadow: none;
 }
 
-.toolbar .action-btn.el-button--danger:hover {
+.toolbar .action-btn.el-button--danger:hover,
+.toolbar .action-btn-danger:hover {
   border-color: rgba(239, 68, 68, 0.38);
   background: #ffe4e6;
   color: #b91c1c;
@@ -1399,6 +1683,62 @@ useTableViewLifecycle({
   color: var(--el-color-primary);
 }
 
+.card-sort-controls {
+  min-height: 36px;
+  padding: 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--table-control-border);
+  border-radius: 8px;
+  background: var(--table-control-bg);
+}
+
+.card-sort-label {
+  padding: 0 7px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.card-sort-select {
+  width: 138px;
+}
+
+.card-sort-select :deep(.el-select__wrapper) {
+  min-height: 28px;
+  border-radius: 6px;
+  background: var(--app-shell-panel-muted-bg);
+  box-shadow: none;
+}
+
+.card-sort-order :deep(.el-radio-button__inner) {
+  min-width: 32px;
+  height: 28px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-color: var(--table-control-border);
+  background: transparent;
+}
+
+.card-sort-order :deep(.el-radio-button:first-child .el-radio-button__inner) {
+  border-radius: 6px 0 0 6px;
+}
+
+.card-sort-order :deep(.el-radio-button:last-child .el-radio-button__inner) {
+  border-radius: 0 6px 6px 0;
+}
+
+.card-sort-order :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary);
+  color: #fff;
+  box-shadow: none;
+}
+
 .search-bar-wrapper {
   margin-bottom: 16px;
 }
@@ -1411,10 +1751,10 @@ useTableViewLifecycle({
 }
 
 .search-bar-inner {
-  padding: 18px 20px 20px;
-  border-radius: 18px;
-  border: 1px solid var(--app-auth-card-border);
-  background: var(--app-auth-card-bg);
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--table-control-border);
+  background: var(--app-shell-panel-bg-strong);
   box-shadow: var(--app-auth-card-shadow-soft);
 }
 
@@ -1477,7 +1817,7 @@ useTableViewLifecycle({
 .search-bar :deep(.user-search-display) {
   background: var(--app-auth-input-bg);
   border-color: var(--app-auth-input-border);
-  border-radius: 12px;
+  border-radius: 8px;
   box-shadow: none;
   transition: all 0.3s ease;
 }
@@ -1508,10 +1848,10 @@ useTableViewLifecycle({
 /* 🔥 排序信息条样式 */
 .sort-info-bar {
   margin-bottom: 16px;
-  padding: 12px 16px;
-  background: var(--app-auth-card-bg);
-  border: 1px solid var(--app-auth-card-border);
-  border-radius: 14px;
+  padding: 10px 12px;
+  background: var(--app-shell-panel-bg-strong);
+  border: 1px solid var(--table-control-border);
+  border-radius: 8px;
   box-shadow: var(--app-auth-card-shadow-soft);
   display: flex;
   align-items: center;
@@ -1526,9 +1866,15 @@ useTableViewLifecycle({
 }
 
 .sort-label {
-  font-size: 14px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 8px;
+  background: var(--app-shell-panel-muted-bg);
+  font-size: 12px;
   color: var(--el-text-color-secondary);
-  font-weight: 500;
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -1563,9 +1909,22 @@ useTableViewLifecycle({
   margin: 0 4px;
 }
 
-.clear-all-sorts-btn {
+.table-clear-sorts-btn {
   margin-left: auto;
   white-space: nowrap;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--table-control-border);
+  border-radius: 8px;
+  background: var(--table-control-bg);
+  color: var(--el-text-color-regular);
+  font-weight: 600;
+}
+
+.table-clear-sorts-btn:hover {
+  border-color: var(--table-control-border-hover);
+  background: var(--table-control-bg-hover);
+  color: var(--el-color-primary);
 }
 
 /* 表格骨架屏（加载中） */
@@ -1594,7 +1953,7 @@ useTableViewLifecycle({
 
 .table-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
   gap: 16px;
   align-items: stretch;
 }
@@ -1610,16 +1969,18 @@ useTableViewLifecycle({
 
 .table-card-item {
   min-width: 0;
-  min-height: 300px;
+  min-height: 292px;
   padding: 16px;
   border: 1px solid var(--app-shell-panel-border);
   border-radius: 8px;
-  background: var(--app-shell-panel-bg-strong);
+  background:
+    linear-gradient(180deg, rgba(var(--el-color-primary-rgb), 0.035), transparent 34%),
+    var(--app-shell-panel-bg-strong);
   box-shadow: var(--app-shell-panel-shadow-soft);
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 13px;
   overflow: hidden;
   cursor: pointer;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
@@ -1662,6 +2023,55 @@ useTableViewLifecycle({
   flex: 0 0 auto;
 }
 
+.table-card-media {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(var(--el-color-primary-rgb), 0.14), rgba(14, 165, 233, 0.08)),
+    var(--app-shell-panel-muted-bg);
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.table-card-media.has-image {
+  background: var(--app-shell-panel-muted-bg);
+}
+
+.table-card-media-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.table-card-media-icon {
+  color: var(--el-color-primary);
+  font-size: 24px;
+}
+
+.table-card-media-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.74);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+}
+
 .table-card-title-wrap {
   min-width: 0;
   flex: 1 1 auto;
@@ -1673,6 +2083,28 @@ useTableViewLifecycle({
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.table-card-id-chip {
+  max-width: 100px;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 999px;
+  background: var(--app-shell-panel-muted-bg);
+  color: var(--el-text-color-secondary);
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .table-card-title {
@@ -1688,73 +2120,82 @@ useTableViewLifecycle({
   max-width: 100%;
 }
 
-.table-card-id-btn {
-  max-width: 108px;
+.table-card-subtitle {
+  min-width: 0;
+  max-height: 38px;
+  margin-top: 5px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.table-card-subtitle :deep(*) {
+  max-width: 100%;
+}
+
+.table-card-view-btn {
+  flex: 0 0 auto;
   height: 30px;
   padding: 0 9px;
-  border: 1px solid rgba(37, 99, 235, 0.38);
-  border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border: 1px solid var(--table-control-border);
+  border-radius: 8px;
+  background: var(--table-control-bg);
+  color: var(--el-color-primary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
   cursor: pointer;
   flex: 0 0 auto;
-  transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-.table-card-id-btn:hover {
-  border-color: rgba(37, 99, 235, 0.52);
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.table-card-id-text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  transition: border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
   font-size: 12px;
   font-weight: 700;
+}
+
+.table-card-view-btn:hover {
+  border-color: var(--table-control-border-hover);
+  background: var(--table-control-bg-hover);
+  color: var(--el-color-primary);
+  box-shadow: var(--table-control-shadow-hover);
 }
 
 .table-card-fields {
   min-width: 0;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 10px;
+  gap: 8px;
   flex: 1 1 auto;
 }
 
 .table-card-field {
   min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(76px, 28%) minmax(0, 1fr);
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
   align-items: start;
+  padding: 9px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 8px;
+  background: rgba(var(--el-color-primary-rgb), 0.025);
 }
 
 .table-card-field-label {
   min-width: 0;
-  padding-top: 2px;
   color: var(--el-text-color-placeholder);
   font-size: 12px;
   font-weight: 700;
-  line-height: 1.35;
-  text-align: right;
+  line-height: 1.2;
   overflow-wrap: anywhere;
 }
 
 .table-card-field-value {
   min-width: 0;
-  max-height: 54px;
-  padding-left: 10px;
-  border-left: 2px solid var(--app-shell-panel-border);
+  max-height: 42px;
   color: var(--el-text-color-primary);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.35;
   overflow: hidden;
   overflow-wrap: anywhere;
@@ -1764,11 +2205,10 @@ useTableViewLifecycle({
   max-width: 100%;
 }
 
+.table-card-status-badges,
 .table-card-status-strip {
   min-width: 0;
-  margin-top: auto;
-  padding: 10px 0 0;
-  border-top: 1px dashed var(--app-shell-panel-border);
+  margin-top: 9px;
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -1821,16 +2261,20 @@ useTableViewLifecycle({
 
 .table-card-more-section {
   min-width: 0;
-  border-top: 1px dashed var(--app-shell-panel-border);
-  padding-top: 8px;
+  border-top: 1px solid var(--app-shell-panel-border);
+  padding-top: 6px;
 }
 
 .table-card-more-summary {
-  min-height: 28px;
+  width: 100%;
+  min-height: 30px;
+  padding: 0 8px;
   color: var(--el-color-primary);
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  border-radius: 8px;
+  background: rgba(var(--el-color-primary-rgb), 0.045);
   cursor: pointer;
   user-select: none;
   font-size: 12px;
@@ -1857,6 +2301,7 @@ useTableViewLifecycle({
 }
 
 .table-card-more-count {
+  margin-left: auto;
   min-width: 20px;
   height: 20px;
   padding: 0 6px;
@@ -1871,21 +2316,21 @@ useTableViewLifecycle({
 
 .table-card-more-fields-panel {
   margin-top: 8px;
-  padding: 10px;
-  border: 1px solid var(--app-shell-panel-border);
-  border-radius: 8px;
-  background: var(--app-shell-panel-muted-bg);
+  padding: 4px 0 0;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 9px;
+  gap: 8px;
 }
 
 .table-card-more-field {
   min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(76px, 28%) minmax(0, 1fr);
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
   align-items: start;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--app-shell-panel-muted-bg);
 }
 
 .table-card-more-field .table-card-field-value {
@@ -2003,7 +2448,7 @@ useTableViewLifecycle({
 :deep(.el-table) {
   background-color: var(--app-shell-panel-bg-strong) !important;
   border: 1px solid var(--app-shell-panel-border) !important;
-  border-radius: 18px !important;
+  border-radius: 8px !important;
   box-shadow: var(--app-shell-panel-shadow-soft);
   flex: 1;
   overflow: auto;
@@ -2011,7 +2456,7 @@ useTableViewLifecycle({
 
 :deep(.el-table__inner-wrapper) {
   border: none !important;
-  border-radius: 18px !important;
+  border-radius: 8px !important;
 }
 
 :deep(.el-table__inner-wrapper::before) {
@@ -2070,6 +2515,26 @@ useTableViewLifecycle({
   border-top: none;
 }
 
+:deep(.el-table__header th.el-table__cell.sort-header-active) {
+  color: var(--el-color-primary);
+}
+
+:deep(.el-table__header th.el-table__cell.sort-header-active .cell) {
+  font-weight: 700;
+}
+
+:deep(.el-table__header th.el-table__cell.sort-header-asc .sort-caret.ascending) {
+  border-bottom-color: var(--el-color-primary) !important;
+}
+
+:deep(.el-table__header th.el-table__cell.sort-header-desc .sort-caret.descending) {
+  border-top-color: var(--el-color-primary) !important;
+}
+
+:deep(.el-table__header th.el-table__cell.sort-header-active .caret-wrapper) {
+  opacity: 1;
+}
+
 :deep(.el-table td.el-table__cell),
 :deep(.el-table th.el-table__cell.is-leaf) {
   border-bottom: 1px solid var(--app-shell-panel-border);
@@ -2112,7 +2577,22 @@ useTableViewLifecycle({
 
 .action-more-btn {
   margin: 0;
-  padding: 0 4px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--table-control-border);
+  border-radius: 8px;
+  background: var(--table-control-bg);
+  color: var(--el-text-color-regular);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.action-more-btn:hover,
+.action-more-btn:focus {
+  border-color: var(--table-control-border-hover);
+  background: var(--table-control-bg-hover);
+  color: var(--el-color-primary);
+  box-shadow: var(--table-control-shadow-hover);
 }
 
 .dropdown-link-content,
@@ -2152,4 +2632,28 @@ useTableViewLifecycle({
   }
 }
 
+</style>
+
+<style lang="scss">
+.table-action-dropdown.el-popper {
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 8px;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.14);
+}
+
+.table-action-dropdown .el-dropdown-menu {
+  padding: 6px;
+  border-radius: 8px;
+}
+
+.table-action-dropdown .el-dropdown-menu__item {
+  min-height: 34px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.table-action-dropdown .el-dropdown-menu__item:not(.is-disabled):hover {
+  background: rgba(var(--el-color-primary-rgb), 0.07);
+  color: var(--el-color-primary);
+}
 </style>

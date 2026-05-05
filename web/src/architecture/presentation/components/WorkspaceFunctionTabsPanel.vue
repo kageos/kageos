@@ -21,6 +21,15 @@
           </div>
         </el-tab-pane>
 
+        <el-tab-pane name="detail" label="详情">
+          <div class="tab-content">
+            <FunctionInfoPanel
+              :function-data="currentFunctionDetail"
+              :function-node="currentFunction"
+            />
+          </div>
+        </el-tab-pane>
+
         <el-tab-pane v-if="showPermissionTabs" name="permissionRequest">
           <template #label>
             <el-badge
@@ -108,9 +117,10 @@ import FormOperateLogSection from './FormOperateLogSection.vue'
 import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
 import ScheduledTaskList from './ScheduledTaskList.vue'
 import WorkspaceFunctionRenderer from './WorkspaceFunctionRenderer.vue'
+import FunctionInfoPanel from './FunctionInfoPanel.vue'
 import type { WorkspaceSessionItem } from '@/api/workspace'
 
-type FunctionTabName = 'content' | 'permissionRequest' | 'permissionManage' | 'operateLog' | 'scheduledTask' | 'scheduledAgentTask'
+type FunctionTabName = 'content' | 'detail' | 'permissionRequest' | 'permissionManage' | 'operateLog' | 'scheduledTask' | 'scheduledAgentTask'
 
 const props = withDefaults(defineProps<{
   activeTab: FunctionTabName

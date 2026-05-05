@@ -12,22 +12,22 @@ import (
 func ExampleDecodeTable() {
 	// 模拟CrmTicketSearchReq结构体
 	type CrmTicketSearchReq struct {
-		SelfOnly string `json:"self_only" widget:"name:只看我的;type:switch"`
+		SelfOnly bool `json:"self_only" widget:"name:只看我的;type:switch"`
 	}
 
 	// 模拟CrmTicket结构体（适配MVP简化后的widget组件）
 	// 含截止时间、剩余时间：剩余时间为只读计算字段，在 GORM AfterFind 中根据当前时间与截止时间计算，仅用于列表/详情展示。
 	type CrmTicket struct {
-		ID            int           `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:ID;type:ID" display:"scenes:list"`                                                        // 前端仅在列表展示，不进入新增/编辑表单。
-		CreatedAt     apptypes.Time `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
-		UpdatedAt     apptypes.Time `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
-		DeletedAt     string        `json:"deleted_at" gorm:"column:deleted_at" widget:"-"`                                                                                                     // 隐藏字段
+		ID            int           `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:ID;type:ID" search:"eq" display:"scenes:list"`                                                             // 前端仅在列表展示，不进入新增/编辑表单。
+		CreatedAt     apptypes.Time `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
+		UpdatedAt     apptypes.Time `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
+		DeletedAt     string        `json:"deleted_at" gorm:"column:deleted_at" widget:"-"`                                                                                                                      // 隐藏字段
 		Title         string        `json:"title" gorm:"column:title" widget:"name:工单标题;type:input" search:"like" validate:"required,min=2,max=200"`
 		Description   string        `json:"description" gorm:"column:description" widget:"name:问题描述;type:text_area" validate:"required,min=10"`
 		Priority      string        `json:"priority" gorm:"column:priority" widget:"name:优先级;type:select;options:低,中,高;render_default:中" validate:"required,oneof=低 中 高"`
 		Status        string        `json:"status" gorm:"column:status" widget:"name:工单状态;type:select;options:待处理,处理中,已完成,已关闭;render_default:待处理" validate:"required,oneof=待处理 处理中 已完成 已关闭"`
 		Phone         string        `json:"phone" gorm:"column:phone" widget:"name:联系电话;type:input" validate:"required,min=11,max=20"`
-		CreateBy      string        `json:"create_by" gorm:"column:create_by" widget:"name:创建用户;type:user" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
+		CreateBy      string        `json:"create_by" gorm:"column:create_by" widget:"name:创建用户;type:user" search:"in" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
 		Deadline      apptypes.Time `json:"deadline" gorm:"column:deadline;type:datetime" widget:"name:截止时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
 		RemainingTime string        `json:"remaining_time" gorm:"-" widget:"name:剩余时间;type:input" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单；AfterFind 计算
 	}

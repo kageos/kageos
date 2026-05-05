@@ -337,6 +337,9 @@ func CtxToTraceNats(c context.Context, subject string) *nats.Msg {
 	msg.Header.Set(TraceIdHeader, trace)
 	msg.Header.Set(TokenHeader, token)
 	msg.Header.Set(RequestUserHeader, user)
+	if departmentFullPath := GetRequestDepartmentFullPath(c); departmentFullPath != "" {
+		msg.Header.Set(DepartmentFullPathHeader, departmentFullPath)
+	}
 	if clientSource := GetClientSource(c); clientSource != "" {
 		msg.Header.Set(ClientSourceHeader, clientSource)
 	}

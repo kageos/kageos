@@ -17,6 +17,7 @@ import (
 	appStorageRunner "github.com/ai-agent-os/ai-agent-os/core/app-storage/runner"
 	controlServiceRunner "github.com/ai-agent-os/ai-agent-os/core/control-service/runner"
 	hrServerRunner "github.com/ai-agent-os/ai-agent-os/core/hr-server/runner"
+	messageServerRunner "github.com/ai-agent-os/ai-agent-os/core/message-server/runner"
 	timerSchedulerRunner "github.com/ai-agent-os/ai-agent-os/core/timer-scheduler/runner"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/infra"
@@ -80,15 +81,7 @@ func init() {
 		ReadyChannel: make(chan struct{}, 1),
 	})
 
-	// 4. Agent Server（Agent 服务）
-	services = append(services, &ServiceInfo{
-		Name:         "agent-server",
-		Main:         agentServerRunner.Main,
-		DependsOn:    timerSchedulerDependsOn,
-		ReadyChannel: make(chan struct{}, 1),
-	})
-
-	// 5. HR Server（HR 服务，用户管理、组织架构）
+	// 4. HR Server（HR 服务，用户管理、组织架构）
 	services = append(services, &ServiceInfo{
 		Name:         "hr-server",
 		Main:         hrServerRunner.Main,
@@ -96,19 +89,51 @@ func init() {
 		ReadyChannel: make(chan struct{}, 1),
 	})
 
-	// 6. App Server（应用服务，依赖 app-runtime；dev 下还等待 timer-scheduler 就绪）
+	// 5. Message Server（系统通知/业务消息）
 	services = append(services, &ServiceInfo{
-		Name:         "app-server",
-		Main:         appServerRunner.Main,
-		DependsOn:    append([]string{"app-runtime"}, timerSchedulerDependsOn...),
+		Name:         "message-server",
+		Main:         messageServerRunner.Main,
+		DependsOn:    []string{"hr-server"},
 		ReadyChannel: make(chan struct{}, 1),
 	})
 
-	// 7. API Gateway（API 网关，最后启动，因为依赖其他服务）
+	agentServerDependsOn := append([]string{}, timerSchedulerDependsOn...)
+	agentServerDependsOn = append(agentServerDependsOn, "message-server")
+
+	// 6. Agent Server（Agent 服务；通知发布前等待 message-server）
+	services = append(services, &ServiceInfo{
+		Name:         "agent-server",
+		Main:         agentServerRunner.Main,
+		DependsOn:    agentServerDependsOn,
+		ReadyChannel: make(chan struct{}, 1),
+	})
+
+	appServerDependsOn := append([]string{"app-runtime", "message-server"}, timerSchedulerDependsOn...)
+
+	// 7. App Server（应用服务，依赖 app-runtime/message-server；dev 下还等待 timer-scheduler 就绪）
+	services = append(services, &ServiceInfo{
+		Name:         "app-server",
+		Main:         appServerRunner.Main,
+		DependsOn:    appServerDependsOn,
+		ReadyChannel: make(chan struct{}, 1),
+	})
+
+	apiGatewayDependsOn := []string{
+		"control-service",
+		"app-runtime",
+		"app-storage",
+		"hr-server",
+		"message-server",
+		"agent-server",
+		"app-server",
+	}
+	apiGatewayDependsOn = append(apiGatewayDependsOn, timerSchedulerDependsOn...)
+
+	// 8. API Gateway（API 网关，最后启动，因为依赖其他服务）
 	services = append(services, &ServiceInfo{
 		Name:         "api-gateway",
 		Main:         apiGatewayRunner.Main,
-		DependsOn:    nil, // 无依赖
+		DependsOn:    apiGatewayDependsOn,
 		ReadyChannel: make(chan struct{}, 1),
 	})
 }

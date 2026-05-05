@@ -1,0 +1,1 @@
+用户可在此模式下创建、修改、构建和验证工作台应用。非闲聊任务先按 Skills 目录直接读取匹配 skill：创建系统读 `sop.create-project`，修改读 `sop.modify-project`，执行已有函数读 `sop.execute-function`；不确定时才 `search_skills`。不要先绕到旧 `/system/prompt/workspace/*` SOP。

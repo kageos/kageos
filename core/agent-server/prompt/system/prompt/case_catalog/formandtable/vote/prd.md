@@ -554,7 +554,7 @@ type VoteResultResp struct {
 	TopicTitle  string              `json:"topic_title" widget:"name:投票标题;type:input"`
 	Description string              `json:"description" widget:"name:投票描述;type:text_area"`
 	VoteType    string              `json:"vote_type" widget:"name:投票类型;type:input"`
-	Status      string              `json:"status" widget:"name:投票状态;type:select;options:未开始,进行中,已结束;options_colors:info,primary,success"`
+	Status      string              `json:"status" widget:"name:投票状态;type:select;options:未开始,进行中,已结束;options_colors:909399,409EFF,67C23A"`
 	TotalVotes  int                 `json:"total_votes" widget:"name:总选择次数;type:number;unit:次"`
 	Options     []*VoteOptionResult `json:"options" widget:"name:投票选项统计;type:table"`
 	StartTime   string              `json:"start_time" widget:"name:开始时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
@@ -1083,7 +1083,7 @@ type VoteTopic struct {
 	Title       string         `json:"title" gorm:"column:title;comment:投票标题" widget:"name:投票标题;type:input" search:"like" validate:"required,min=2,max=100"`
 	Description string         `json:"description" gorm:"column:description;comment:投票描述" widget:"name:投票描述;type:text_area" search:"like" validate:"required,min=5,max=500"`
 	// select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
-	VoteType        string           `json:"vote_type" gorm:"column:vote_type;comment:投票类型" widget:"name:投票类型;type:select;options:单选,多选;options_colors:primary,success;render_default:单选" search:"in" validate:"required,oneof=单选 多选"`
+	VoteType        string           `json:"vote_type" gorm:"column:vote_type;comment:投票类型" widget:"name:投票类型;type:select;options:单选,多选;options_colors:409EFF,67C23A;render_default:单选" search:"in" validate:"required,oneof=单选 多选"`
 	// required_if 不只是后端校验；前端也会按条件动态处理：
 	// 当 VoteType=多选 时，显示 MaxSelections 且标记为必填；否则隐藏该字段。
 	// 同类场景还可用 required_unless、required_with、required_without、excluded_* 等规则，详见 SDK 文档的 validate 标签说明。
@@ -1095,7 +1095,7 @@ type VoteTopic struct {
 	Options         []VoteOptionItem `json:"options" gorm:"-" widget:"name:投票选项;type:table" display:"scenes:create" validate:"required,min=2"` // 前端仅在新增表单展示，列表和编辑不展示。
 	Content         string           `json:"content" gorm:"column:content;type:text" widget:"name:详细内容;type:richtext;height:420" search:"like"`
 	OptionsLink     string           `json:"options_link" gorm:"-" widget:"name:选项列表;type:link;target:_blank" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
-	Status          string           `json:"status" gorm:"-" widget:"name:状态;type:select;options:未开始,进行中,已结束;options_colors:info,primary,success" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
+	Status          string           `json:"status" gorm:"-" widget:"name:状态;type:select;options:未开始,进行中,已结束;options_colors:909399,409EFF,67C23A" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
 	TotalVotes      int              `json:"total_votes" gorm:"column:total_votes;comment:总选择次数;default:0" widget:"name:总选择次数;type:number;unit:次"`
 	CreateBy        string           `json:"create_by" gorm:"column:create_by;comment:创建人" widget:"name:创建人;type:user" search:"in" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
 	VoteActionLink  string           `json:"vote_action_link" gorm:"-" widget:"name:投票操作;type:link;target:_blank" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
@@ -1195,7 +1195,7 @@ func voteOnSelectFuzzyTopic(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*
 
 // VoteTopicListReq 投票主题列表请求
 type VoteTopicListReq struct {
-	Status                    string `json:"status" form:"status" widget:"name:投票状态;type:select;options:未开始,进行中,已结束;options_colors:info,primary,success"`
+	StatusFilter              string `json:"status_filter" form:"status_filter" gorm:"-" widget:"name:投票状态;type:select;options:未开始,进行中,已结束;options_colors:909399,409EFF,67C23A"`
 	query.SearchFilterPageReq `widget:"-"`
 }
 
@@ -1216,8 +1216,8 @@ func VoteTopicList(ctx *app.Context, resp response.Response) error {
 	queryDB := db.Model(&VoteTopic{}).Preload("UserVoteRecords", "voter_name = ?", userInfo)
 
 	now := time.Now()
-	if req.Status != "" {
-		switch req.Status {
+	if req.StatusFilter != "" {
+		switch req.StatusFilter {
 		case "未开始":
 			queryDB = queryDB.Where("start_time > ?", now)
 		case "进行中":

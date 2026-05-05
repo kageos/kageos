@@ -40,16 +40,6 @@
                 title="复制路径"
               />
               <el-button
-                text
-                :icon="Clock"
-                @click="handleShowUpdateHistory"
-                class="path-history-btn"
-                size="small"
-                title="查看变更记录"
-              >
-                变更记录
-              </el-button>
-              <el-button
                 v-if="canEdit"
                 text
                 :icon="Edit"
@@ -60,9 +50,6 @@
               >
                 编辑
               </el-button>
-            </p>
-            <p class="hero-description" v-if="packageNode?.description">
-              {{ packageNode.description }}
             </p>
           </div>
         </div>
@@ -89,14 +76,6 @@
       />
     </div>
 
-    <!-- 变更记录对话框 -->
-    <DirectoryUpdateHistoryDialog
-      v-model="updateHistoryDialogVisible"
-      mode="directory"
-      :app-id="packageNode?.app_id || 0"
-      :full-code-path="packageNode?.full_code_path || ''"
-    />
-
     <PackageDetailEditDialog
       v-model:visible="editDialogVisible"
       :form="editForm"
@@ -113,14 +92,13 @@
 import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { LocationQueryValue } from 'vue-router'
-import { ArrowLeft, Folder, CopyDocument, Link, Clock, Edit } from '@element-plus/icons-vue'
+import { ArrowLeft, Folder, CopyDocument, Link, Edit } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import { extractWorkspacePath } from '@/utils/route'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
-import DirectoryUpdateHistoryDialog from '@/shared/components/DirectoryUpdateHistoryDialog.vue'
 import { buildPermissionApplyURL, DirectoryPermission } from '@/utils/permission'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
@@ -212,9 +190,6 @@ watch(
   },
   { immediate: true }
 )
-
-// 变更记录对话框
-const updateHistoryDialogVisible = ref(false)
 
 // 编辑对话框
 const editDialogVisible = ref(false)
@@ -431,11 +406,6 @@ async function onImportGoDrop(e: DragEvent) {
   } finally {
     importGoLoading.value = false
   }
-}
-
-// 处理显示变更记录
-function handleShowUpdateHistory(): void {
-  updateHistoryDialogVisible.value = true
 }
 
 // 编辑表单的管理员字段值
@@ -711,7 +681,6 @@ function handleChildClick(child: ServiceTree): void {
             }
 
             .path-copy-btn,
-            .path-history-btn,
             .path-edit-btn {
               flex-shrink: 0;
               color: var(--el-text-color-secondary);
@@ -722,16 +691,6 @@ function handleChildClick(child: ServiceTree): void {
             }
           }
 
-          .hero-description {
-            margin: 0;
-            font-size: 15px;
-            color: var(--el-text-color-regular);
-            line-height: 1.6;
-            padding: 12px 16px;
-            background: var(--el-fill-color-lighter);
-            border-radius: 8px;
-            border-left: 3px solid var(--el-color-primary);
-          }
         }
       }
     }

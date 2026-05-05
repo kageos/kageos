@@ -1,4 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { ElNotification } from 'element-plus'
 import { createPinia } from 'pinia'
 import { computed, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
@@ -172,7 +173,9 @@ describe('FormView', () => {
     expect(wrapper.find('.el-slider').exists()).toBe(true)
   })
 
-  it('shows inline error feedback when submit returns a business error', async () => {
+  it('shows inline and viewport error feedback when submit returns a business error', async () => {
+    const notificationErrorSpy = vi.spyOn(ElNotification, 'error').mockImplementation(() => undefined as any)
+
     vi.mocked(apiClient.post).mockResolvedValueOnce({
       code: -1,
       data: null,
@@ -207,5 +210,12 @@ describe('FormView', () => {
     await flushPromises()
 
     expect(wrapper.find('.el-alert').text()).toContain('余额不足，请充值后重试')
+    expect(notificationErrorSpy).toHaveBeenCalledWith(expect.objectContaining({
+      title: '提交失败',
+      message: '余额不足，请充值后重试',
+      position: 'top-right'
+    }))
+
+    notificationErrorSpy.mockRestore()
   })
 })

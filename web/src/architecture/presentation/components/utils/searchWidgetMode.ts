@@ -74,6 +74,7 @@ export function shouldUseWidgetSearchRenderer(options: {
     case WidgetType.DEPARTMENTS:
       return hasSearchType(searchType, SearchType.EQ) || hasInSearch || hasContainsSearch
     case WidgetType.MULTI_SELECT:
+    case WidgetType.LIST:
       return !hasLikeSearch && !hasRangeSearch
     case WidgetType.CHECKBOX:
     case WidgetType.DATETIME:

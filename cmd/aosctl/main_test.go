@@ -78,6 +78,27 @@ func TestRenderBundledConfig(t *testing.T) {
 		t.Fatalf("generated global config should include timer scheduler base url, got:\n%s", globalConfig)
 	}
 
+	apiGatewayConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "api-gateway.yaml"))
+	for _, want := range []string{
+		`path: "/message"`,
+		`service_name: "message"`,
+		`url: "http://127.0.0.1:9109"`,
+	} {
+		if !strings.Contains(apiGatewayConfig, want) {
+			t.Fatalf("generated api-gateway config missing %q, got:\n%s", want, apiGatewayConfig)
+		}
+	}
+
+	messageServerConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "message-server.yaml"))
+	for _, want := range []string{
+		`port: 9109`,
+		`name: "hr-server"`,
+	} {
+		if !strings.Contains(messageServerConfig, want) {
+			t.Fatalf("generated message-server config missing %q, got:\n%s", want, messageServerConfig)
+		}
+	}
+
 	timerSchedulerConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "timer-scheduler.yaml"))
 	for _, want := range []string{
 		`port: 9108`,

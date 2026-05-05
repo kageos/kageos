@@ -96,6 +96,7 @@ export class FieldExtractorRegistry implements IFieldExtractorRegistry {
     this.registerExtractor('form', new FormFieldExtractor())
     this.registerExtractor('table', new TableFieldExtractor())
     this.registerExtractor('multiselect', new MultiSelectFieldExtractor())
+    this.registerExtractor('list', new BasicFieldExtractor())
   }
   
   /**

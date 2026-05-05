@@ -120,27 +120,27 @@ type Ticket struct {
 	// 框架标签：validate:"required,min=10" - 必填字段，至少10字符
 	Description string `json:"description" gorm:"column:description" widget:"name:问题描述;type:text_area" search:"like" validate:"required,min=10"`
 
-	// 框架标签：widget:"type:select;options:低,中,高;options_colors:success,warning,danger;render_default:中" - 下拉选择组件（选项：低/中/高）
-	// options_colors 支持预设颜色（warning,info,success,danger,primary）和自定义颜色（如：#FF9800 橙色，#9C27B0 紫色）
+	// 框架标签：widget:"type:select;options:低,中,高;options_colors:67C23A,E6A23C,F56C6C;render_default:中" - 下拉选择组件（选项：低/中/高）
+	// options_colors 只支持不带 # 的 6 位十六进制 RRGGBB，且数量必须和 options 一致。
 	// 框架标签：validate:"required,oneof=低 中 高" - 必填字段，值必须是选项之一
 	// 注意：oneof 使用空格分隔选项，如果选项值包含空格，需要用单引号括起来，例如：oneof='选项 1' '选项 2'
-	Priority string `json:"priority" gorm:"column:priority" widget:"name:优先级;type:select;options:低,中,高;options_colors:success,warning,danger;render_default:中" search:"in" validate:"required,oneof=低 中 高"`
+	Priority string `json:"priority" gorm:"column:priority" widget:"name:优先级;type:select;options:低,中,高;options_colors:67C23A,E6A23C,F56C6C;render_default:中" search:"in" validate:"required,oneof=低 中 高"`
 
-	// 框架标签：widget:"type:select;options:待处理,处理中,已完成,已关闭;options_colors:info,warning,success,danger;render_default:待处理" - 下拉选择组件
-	// options_colors 支持预设颜色（warning,info,success,danger,primary）和自定义颜色（如：#FF9800 橙色，#9C27B0 紫色）
+	// 框架标签：widget:"type:select;options:待处理,处理中,已完成,已关闭;options_colors:909399,E6A23C,67C23A,F56C6C;render_default:待处理" - 下拉选择组件
+	// options_colors 只支持不带 # 的 6 位十六进制 RRGGBB，且数量必须和 options 一致。
 	// 框架标签：validate:"required,oneof=待处理 处理中 已完成 已关闭" - 值必须是有效状态
 	// 注意：oneof 使用空格分隔选项，如果选项值包含空格，需要用单引号括起来，例如：oneof='选项 1' '选项 2'
-	Status string `json:"status" gorm:"column:status"  widget:"name:工单状态;type:select;options:待处理,处理中,已完成,已关闭;options_colors:info,warning,success,danger;render_default:待处理" search:"in" validate:"required,oneof=待处理 处理中 已完成 已关闭"`
+	Status string `json:"status" gorm:"column:status"  widget:"name:工单状态;type:select;options:待处理,处理中,已完成,已关闭;options_colors:909399,E6A23C,67C23A,F56C6C;render_default:待处理" search:"in" validate:"required,oneof=待处理 处理中 已完成 已关闭"`
 
-	Classify string `json:"classify" gorm:"column:classify"  widget:"name:问题分类;type:select;options:民生,交通,医疗,就业,建议,其他;options_colors:info,warning,success,danger,#FF9800,#9C27B0" search:"in" validate:"required,oneof=民生 交通 医疗 就业 建议 其他"`
+	Classify string `json:"classify" gorm:"column:classify"  widget:"name:问题分类;type:select;options:民生,交通,医疗,就业,建议,其他;options_colors:909399,E6A23C,67C23A,F56C6C,FF9800,9C27B0" search:"in" validate:"required,oneof=民生 交通 医疗 就业 建议 其他"`
 
-	// 框架标签：widget:"type:switch" - 开关组件；当前 switch 不支持 widget default，默认值走字段零值/数据库默认值
+	// 框架标签：widget:"type:switch" - 开关组件；当前 switch 不支持 render_default，默认值走字段零值/数据库默认值
 	// 开关组件支持 bool 类型，true 表示开启，false 表示关闭
 	IsUrgent bool `json:"is_urgent" gorm:"column:is_urgent;default:false" widget:"name:是否紧急;type:switch" search:"eq"`
 
 	// 框架标签：widget:"type:slider;min:0;max:100;unit:%" - 滑块/进度条组件
 	// 输入模式：显示为滑块，用于编辑/新增表单
-	// 输出模式：显示为进度条，自动显示百分比和状态颜色（>80% success, 50-80% warning, <50% danger）
+	// 输出模式：显示为进度条，自动显示百分比和状态颜色（>80% 67C23A, 50-80% E6A23C, <50% F56C6C）
 	// 搜索模式：自动支持范围搜索（gte/lte）
 	// 参数说明：min（最小值，必需）、max（最大值，必需）、unit（单位，可选）
 	// 其他功能（提示、百分比、状态颜色等）自动处理，无需配置
@@ -212,19 +212,19 @@ type Ticket struct {
 	// 参数说明：height（编辑器高度，单位px，默认300）
 	Content string `json:"content" gorm:"column:content;type:text" widget:"name:详细内容;type:richtext;height:400" search:"like"`
 
-	// 框架标签：widget:"type:multiselect;options:紧急,重要,普通,低优先级;options_colors:#FF5722,#FF9800,#4CAF50,#9E9E9E" - 多选标签组件
-	// options_colors 支持预设颜色（warning,info,success,danger,primary）和自定义颜色（如：#FF5722 深橙，#FF9800 橙色，#4CAF50 绿色，#9C27B0 紫色）
+	// 框架标签：widget:"type:multiselect;options:紧急,重要,普通,低优先级;options_colors:FF5722,FF9800,4CAF50,9E9E9E" - 多选标签组件
+	// options_colors 只支持不带 # 的 6 位十六进制 RRGGBB，且数量必须和 options 一致。
 	// 每个颜色对应一个选项，可以重复使用相同颜色
 	// 注意：multiselect 字段使用 string 类型而非 []string，因为 []string 无法直接写入数据库
 	// 前端会通过逗号分隔选项来传递多选的值，例如："紧急,重要" 表示选择了"紧急"和"重要"两个选项
 	// 框架标签：search:"contains" - 使用 FIND_IN_SET 进行包含查询（用于多选场景）
-	Tags string `json:"tags" gorm:"column:tags" widget:"name:标签;type:multiselect;options:紧急,重要,普通,低优先级;options_colors:#FF5722,#FF9800,#4CAF50,#9E9E9E" search:"contains"`
+	Tags string `json:"tags" gorm:"column:tags" widget:"name:标签;type:multiselect;options:紧急,重要,普通,低优先级;options_colors:FF5722,FF9800,4CAF50,9E9E9E" search:"contains"`
 
 	// 框架标签：widget:"type:color;format:hex;render_default:#409EFF" - 颜色选择器组件
 	// 输入模式：显示为颜色选择器（支持 hex、rgb、rgba 格式）
 	// 输出模式：显示颜色块和颜色值
 	// 搜索模式：支持文本搜索
-	// 参数说明：format（颜色格式：hex/rgb/rgba，默认hex）、default（默认颜色，可选）、show_alpha（是否显示透明度选择器，默认false）
+	// 参数说明：format（颜色格式：hex/rgb/rgba，默认hex）、render_default（默认颜色，可选）、show_alpha（是否显示透明度选择器，默认false）
 	ThemeColor string `json:"theme_color" gorm:"column:theme_color" widget:"name:主题颜色;type:color;format:hex;render_default:#409EFF" search:"like"`
 
 	//请求参数里是文件上传组件，如果要存数据库必须是type:json类型

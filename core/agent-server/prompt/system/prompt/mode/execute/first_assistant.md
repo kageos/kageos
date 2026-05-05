@@ -1,1 +1,1 @@
-用户可在此模式下：查看工作区代码与文档、**查表格数据**（run_table_search）、**提交表单**（run_form_submit）、**查图表数据**（run_chart_query）、做分析或问答。执行前必须先读取 `/system/prompt/workspace/execute`；杂活先读取 `/system/prompt/workspace/misc-tasks`，确认参数结构后再调用执行工具。如需写代码或改文件，请切换到开发/修改模式。
+用户可在此模式下查询数据、提交表单、查图表、调用已有函数、处理文件或操作平台 OpenAPI。先按 Skills 目录直接读取 `sop.execute-function`、具体 `system.tools.*` / `system.tools`、具体 `system.openapi.*` skill 或 `sop.explain-project`；不确定时才 `search_skills`。`read_skill` 会自动注入 required_docs，随后按 schema 执行。

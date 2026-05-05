@@ -53,11 +53,10 @@ export interface SelectWidgetConfig {
   
   /** 
    * 选项的颜色配置
-   * 支持标准颜色：default、warning、info、success、danger、primary
-   * 支持自定义颜色：如 #FF9800（橙色）、#9C27B0（紫色）
+   * 仅支持 6 位十六进制 RRGGBB，不带 #
    * 每个颜色可以重复使用
-   * 未识别颜色会降级为 default 的中性灰
-   * 示例：["success", "warning", "#FF9800"]
+   * 未识别颜色会降级为中性灰
+   * 示例：["67C23A", "E6A23C", "F56C6C"]
    */
   options_colors?: string[]
   
@@ -85,10 +84,9 @@ export interface MultiSelectWidgetConfig {
   
   /** 
    * 选项的颜色配置
-   * 支持标准颜色：default、warning、info、success、danger、primary
-   * 支持自定义颜色：如 #FF9800（橙色）、#9C27B0（紫色）
+   * 仅支持 6 位十六进制 RRGGBB，不带 #
    * 每个颜色可以重复使用
-   * 未识别颜色会降级为 default 的中性灰
+   * 未识别颜色会降级为中性灰
    */
   options_colors?: string[]
   
@@ -110,6 +108,33 @@ export interface MultiSelectWidgetConfig {
 }
 
 /**
+ * List Widget 配置
+ * 对应后端：sdk/agent-app/widget/list.go
+ */
+export interface ListWidgetConfig {
+  /** 元素类型：number 表示数字列表，text 表示文本列表 */
+  item_type?: 'number' | 'text'
+
+  /** 输入分隔符，默认逗号；组件也会兼容空白、换行和中文逗号 */
+  separator?: string
+
+  /** 占位符文本 */
+  placeholder?: string
+
+  /** 是否禁用 */
+  disabled?: boolean
+
+  /** 前端渲染默认值，如 "1,2,3" 或 "a,b,c" */
+  render_default?: string | Array<string | number>
+
+  /** 是否去重 */
+  unique?: boolean
+
+  /** 最大数量，0 表示不限制 */
+  max_count?: number
+}
+
+/**
  * Number Widget 配置
  * 对应后端：sdk/agent-app/widget/number.go
  */
@@ -119,6 +144,12 @@ export interface NumberWidgetConfig {
 
   /** 是否禁用 */
   disabled?: boolean
+
+  /** 最小值 */
+  min?: number
+
+  /** 最大值 */
+  max?: number
   
   /** 步长（点击增减按钮的步进值，字符串或数字） */
   step?: string | number
@@ -141,6 +172,12 @@ export interface FloatWidgetConfig {
 
   /** 是否禁用 */
   disabled?: boolean
+
+  /** 最小值 */
+  min?: number
+
+  /** 最大值 */
+  max?: number
   
   /** 小数位数（显示和输入精度，字符串或数字） */
   precision?: string | number
@@ -523,6 +560,7 @@ export type WidgetConfigMap = {
   input: InputWidgetConfig
   select: SelectWidgetConfig
   multiselect: MultiSelectWidgetConfig
+  list: ListWidgetConfig
   number: NumberWidgetConfig
   float: FloatWidgetConfig
   text_area: TextAreaWidgetConfig
@@ -565,6 +603,7 @@ export type AnyWidgetConfig =
   | InputWidgetConfig
   | SelectWidgetConfig
   | MultiSelectWidgetConfig
+  | ListWidgetConfig
   | NumberWidgetConfig
   | FloatWidgetConfig
   | TextAreaWidgetConfig

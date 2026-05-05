@@ -1246,7 +1246,9 @@ useWorkspaceUiEffects({
 }
 
 .function-renderer :deep(.package-detail-view .detail-tabs .el-tabs__nav-wrap::after) {
-  background-color: var(--app-shell-panel-border);
+  display: none;
+  height: 0;
+  background-color: transparent;
 }
 
 .function-renderer :deep(.package-detail-view .detail-tabs .el-tabs__item.is-active) {

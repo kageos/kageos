@@ -34,8 +34,8 @@ type Order struct {
 // 测试没有明确指定 type 的结构体
 type OrderNoWidget struct {
 	ID     int          `json:"id" widget:"name:订单ID;type:ID"`
-	Items  []OrderItem  `json:"items" widget:"name:订单项"`   // 没有指定type，不会递归
-	Detail *OrderDetail `json:"detail" widget:"name:订单详情"` // 没有指定type，不会递归
+	Items  []OrderItem  `json:"items" widget:"name:订单项"`   // 缺少 type，启动期应报错
+	Detail *OrderDetail `json:"detail" widget:"name:订单详情"` // 缺少 type，启动期应报错
 }
 
 // 测试多层嵌套
@@ -60,7 +60,7 @@ type OmitEmptyFieldSample struct {
 }
 
 type DateTimeFieldSample struct {
-	CreatedAt apptypes.Time `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"`
+	CreatedAt apptypes.Time `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"`
 }
 
 type RenderDefaultFieldSample struct {
@@ -268,64 +268,24 @@ func TestDecodeForm(t *testing.T) {
 		}
 	})
 
-	t.Run("空display scenes按未配置处理", func(t *testing.T) {
-		fields, _, err := DecodeForm(nil, &EmptyDisplayScenesFieldSample{}, nil)
-		if err != nil {
-			t.Fatalf("解析失败: %v", err)
+	t.Run("空display scenes启动期报错", func(t *testing.T) {
+		_, _, err := DecodeForm(nil, &EmptyDisplayScenesFieldSample{}, nil)
+		if err == nil {
+			t.Fatal("DecodeForm() error = nil, want error")
 		}
-		if len(fields) != 1 {
-			t.Fatalf("期望1个字段，实际得到%d个", len(fields))
-		}
-		if fields[0].Display != nil {
-			t.Fatalf("Display = %#v, want nil", fields[0].Display)
+		if !strings.Contains(err.Error(), `display tag "scenes" must not be empty`) {
+			t.Fatalf("DecodeForm() error = %v, want empty scenes error", err)
 		}
 	})
 
-	t.Run("没有明确指定type-不进行递归", func(t *testing.T) {
+	t.Run("widget标签缺少type启动期报错", func(t *testing.T) {
 		order := &OrderNoWidget{}
-		requestFields, _, err := DecodeForm(nil, order, nil)
-		if err != nil {
-			t.Fatalf("解析失败: %v", err)
+		_, _, err := DecodeForm(nil, order, nil)
+		if err == nil {
+			t.Fatal("DecodeForm() error = nil, want error")
 		}
-
-		// 打印完整的JSON结构
-		jsonData, _ := json.MarshalIndent(requestFields, "", "  ")
-		t.Logf("解析结果:\n%s", string(jsonData))
-
-		// 验证 Items 字段
-		var itemsField *Field
-		for _, field := range requestFields {
-			if field.Code == "items" {
-				itemsField = field
-				break
-			}
-		}
-
-		if itemsField == nil {
-			t.Fatal("未找到items字段")
-		}
-
-		// 没有指定type，不应该有Children
-		if len(itemsField.Children) != 0 {
-			t.Errorf("items字段没有指定type:table，不应该有Children，但实际有%d个", len(itemsField.Children))
-		}
-
-		// 验证 Detail 字段
-		var detailField *Field
-		for _, field := range requestFields {
-			if field.Code == "detail" {
-				detailField = field
-				break
-			}
-		}
-
-		if detailField == nil {
-			t.Fatal("未找到detail字段")
-		}
-
-		// 没有指定type，不应该有Children
-		if len(detailField.Children) != 0 {
-			t.Errorf("detail字段没有指定type:form，不应该有Children，但实际有%d个", len(detailField.Children))
+		if !strings.Contains(err.Error(), "widget tag must include type") {
+			t.Fatalf("DecodeForm() error = %v, want missing type error", err)
 		}
 	})
 

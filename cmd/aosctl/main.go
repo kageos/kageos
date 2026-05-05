@@ -492,6 +492,7 @@ func cmdVerify(paths Paths) error {
 		{name: "control-service", url: "http://127.0.0.1:9096/health"},
 		{name: "hr-server", url: "http://127.0.0.1:9097/health"},
 		{name: "timer-scheduler", url: "http://127.0.0.1:9108/health"},
+		{name: "message-server", url: "http://127.0.0.1:9109/health"},
 	}
 	failures := 0
 	for _, check := range checks {
@@ -955,6 +956,7 @@ func renderAll(rt RuntimeConfig) error {
 		"config/app-storage.yaml":     renderTemplate(appStorageConfigTemplate, rt),
 		"config/agent-server.yaml":    renderTemplate(agentServerConfigTemplate, rt),
 		"config/hr-server.yaml":       renderTemplate(hrServerConfigTemplate, rt),
+		"config/message-server.yaml":  renderTemplate(messageServerConfigTemplate, rt),
 		"config/control-service.yaml": renderTemplate(controlServiceConfigTemplate, rt),
 		"config/timer-scheduler.yaml": renderTemplate(timerSchedulerConfigTemplate, rt),
 		"config/backup-service.yaml":  renderTemplate(backupServiceConfigTemplate, rt),

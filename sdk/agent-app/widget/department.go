@@ -1,5 +1,9 @@
 package widget
 
+func init() {
+	RegisterWidgetValidator(TypeDepartment, validateDepartmentWidget)
+}
+
 // Department 组织架构选择器组件
 //
 // 功能：
@@ -19,6 +23,12 @@ package widget
 //   - 如果用户未登录或没有部门，MyDepartment() 会返回 null
 //   - 值存储格式：full_code_path（如 "/dept/subdept"）
 //   - show_full_path: 是否显示全路径（默认 false，显示最后一段名称）
+//
+// 校验规则：
+// - 注册的是本文件的 validateDepartmentWidget；
+// - Go 字段必须是 string 或 *string；
+// - 字段值存储部门 full_code_path；
+// - render_default 里的 MyDepartment() 由前端动态默认值逻辑解析。
 type Department struct {
 	RenderDefault string `json:"render_default,omitempty"` // 前端渲染默认值，支持函数调用 MyDepartment()（当前用户所在部门）
 }
@@ -39,6 +49,13 @@ func (d *Department) WidgetLLMFacts(field *Field, opts SummaryOptions) []Semanti
 		facts = append(facts, SemanticFact{Key: llmUIDefaultLabel, Value: d.RenderDefault})
 	}
 	return facts
+}
+
+// validateDepartmentWidget 校验 department 的单部门字符串协议。
+//
+// 部门值使用 full_code_path 字符串，不能绑定到 int、slice 或结构体。
+func validateDepartmentWidget(ctx ValidateContext) error {
+	return requireStringLikeGoType(ctx)
 }
 
 func newDepartment(widgetParsed map[string]string) *Department {

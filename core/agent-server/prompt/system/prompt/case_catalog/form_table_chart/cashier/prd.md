@@ -621,7 +621,7 @@ type CashierMember struct {
 	CardNumber   string         `json:"card_number" gorm:"column:card_number;comment:会员卡号;uniqueIndex" widget:"name:会员卡号;type:input" search:"like" validate:"required,min=6,max=20"`
 	CustomerName string         `json:"customer_name" gorm:"column:customer_name;comment:客户姓名" widget:"name:客户姓名;type:input" search:"like" validate:"required,min=2,max=20"`
 	Balance      float64        `json:"balance" gorm:"column:balance;comment:余额(元)" widget:"name:余额;type:float" search:"gte,lte" validate:"gte=0"`
-	Status       string         `json:"status" gorm:"column:status;comment:状态" widget:"name:状态;type:select;options:正常,冻结;options_colors:success,danger;render_default:正常" search:"in" validate:"required"`
+	Status       string         `json:"status" gorm:"column:status;comment:状态" widget:"name:状态;type:select;options:正常,冻结;options_colors:67C23A,F56C6C;render_default:正常" search:"in" validate:"required"`
 }
 
 func (CashierMember) TableName() string {
@@ -734,7 +734,7 @@ type CashierPaymentRecord struct {
 	TotalAmount    float64        `json:"total_amount" gorm:"column:total_amount;comment:商品总额(打折前)" widget:"name:商品总额;type:float" search:"gte,lte"`
 	DiscountAmount float64        `json:"discount_amount" gorm:"column:discount_amount;comment:折扣金额" widget:"name:折扣金额;type:float" search:"gte,lte"`
 	FinalAmount    float64        `json:"final_amount" gorm:"column:final_amount;comment:实付金额(打折后)" widget:"name:实付金额;type:float" search:"gte,lte"`
-	Status         string         `json:"status" gorm:"column:status;comment:状态" widget:"name:状态;type:select;options:支付成功,已退款;options_colors:success,danger" search:"in"`
+	Status         string         `json:"status" gorm:"column:status;comment:状态" widget:"name:状态;type:select;options:支付成功,已退款;options_colors:67C23A,F56C6C" search:"in"`
 }
 
 func (CashierPaymentRecord) TableName() string {
@@ -824,11 +824,11 @@ type CashierProduct struct {
 	UpdatedAt    types.Time          `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt    gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
 	Name         string         `json:"name" gorm:"column:name;comment:商品名称" widget:"name:商品名称;type:input" search:"like" validate:"required,min=2,max=50"`
-	Category     string         `json:"category" gorm:"column:category;comment:商品分类" widget:"name:商品分类;type:select;options:饮料,零食,日用品,其他;options_colors:info,primary,success,warning" search:"in" validate:"required"`
+	Category     string         `json:"category" gorm:"column:category;comment:商品分类" widget:"name:商品分类;type:select;options:饮料,零食,日用品,其他;options_colors:909399,409EFF,67C23A,E6A23C" search:"in" validate:"required"`
 	Price        float64        `json:"price" gorm:"column:price;comment:售价(元)" widget:"name:售价;type:float" search:"gte,lte" validate:"required,gt=0"`
 	Stock        int            `json:"stock" gorm:"column:stock;comment:库存(件)" widget:"name:库存;type:number" search:"gte,lte" validate:"required,gte=0"`
 	DiscountRate float64        `json:"discount_rate" gorm:"column:discount_rate;comment:折扣率;default:0.9" widget:"name:折扣率;type:float;render_default:0.9" search:"gte,lte" validate:"gte=0,lte=1"`
-	Status       string         `json:"status" gorm:"column:status;comment:状态" widget:"name:状态;type:select;options:上架,下架;options_colors:success,danger;render_default:上架" search:"in" validate:"required"`
+	Status       string         `json:"status" gorm:"column:status;comment:状态" widget:"name:状态;type:select;options:上架,下架;options_colors:67C23A,F56C6C;render_default:上架" search:"in" validate:"required"`
 }
 
 func (CashierProduct) TableName() string {
@@ -1283,7 +1283,7 @@ func CashierAverageOrderAmountStatistics(ctx *app.Context, resp response.Respons
 					"detail": map[string]interface{}{
 						"formatter":  "¥{value}",
 						"fontSize":   20,
-						"color":      "#1f2937",
+						"color":      "1f2937",
 						"fontWeight": "bold",
 					},
 					"axisLabel": map[string]interface{}{

@@ -1,10 +1,12 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 )
 
 // SendMessageOpts 发送消息参数
@@ -15,16 +17,12 @@ import (
 //   - "text"：纯文本，不做任何格式解析
 //
 // ToUsers / ToDepartments 为逗号分隔字符串，与 user / departments 组件的存储格式一致
-// From 可选：不填时用当前请求用户，无用户上下文（如定时任务）时为 "system"
-// FullCodePath 可选：不填时由 SDK 从当前请求路由推导
 type SendMessageOpts struct {
 	ToUsers       string `json:"to_users"`       // 接收用户，逗号分隔，如 "zhangsan,lisi"
 	ToDepartments string `json:"to_departments"` // 接收部门（full_code_path），逗号分隔
 	Title         string `json:"title"`          // 标题/摘要（可选）
 	Content       string `json:"content"`        // 正文（默认 markdown 格式）
 	ContentType   string `json:"content_type"`   // "markdown"(默认) | "html" | "text"
-	From          string `json:"from"`           // 发送人（可选）
-	FullCodePath  string `json:"full_code_path"` // 来源目录/函数路径（可选）
 }
 
 // SendMessage 发送消息：接收结构体参数，渠道由消息服务内部决定
@@ -35,29 +33,45 @@ func (c *Context) SendMessage(opts *SendMessageOpts) error {
 	if opts == nil {
 		return fmt.Errorf("SendMessageOpts 不能为 nil")
 	}
-	from := strings.TrimSpace(opts.From)
-	if from == "" {
-		from = c.GetRequestUser()
-		if from == "" {
-			from = "system"
-		}
-	}
 	contentType := strings.TrimSpace(opts.ContentType)
 	if contentType == "" {
 		contentType = "markdown"
 	}
-	fullCodePath := strings.TrimSpace(opts.FullCodePath)
-	if fullCodePath == "" && c.msg != nil {
-		fullCodePath = c.msg.GetFullRouter()
+	envelope := &dto.MessageSendEnvelope{
+		Meta: c.messageSendMeta(),
+		Message: dto.MessageSendPayload{
+			ToUsers:       strings.TrimSpace(opts.ToUsers),
+			ToDepartments: strings.TrimSpace(opts.ToDepartments),
+			Title:         opts.Title,
+			Content:       opts.Content,
+			ContentType:   contentType,
+		},
 	}
-	payload := &dto.MessageSendPayload{
-		From:          from,
-		FullCodePath:  fullCodePath,
-		ToUsers:       strings.TrimSpace(opts.ToUsers),
-		ToDepartments: strings.TrimSpace(opts.ToDepartments),
-		Title:         opts.Title,
-		Content:       opts.Content,
-		ContentType:   contentType,
+	return app.PublishMessage(envelope)
+}
+
+func (c *Context) messageSendMeta() dto.MessageSendMeta {
+	if c == nil {
+		return dto.MessageSendMeta{From: "system"}
 	}
-	return app.PublishMessage(payload)
+	requestUser := strings.TrimSpace(c.GetRequestUser())
+	from := requestUser
+	if from == "" {
+		from = "system"
+	}
+
+	sourceCtx := c.Context
+	if sourceCtx == nil {
+		sourceCtx = context.Background()
+	}
+	return dto.MessageSendMeta{
+		From:               from,
+		RequestUser:        requestUser,
+		DepartmentFullPath: strings.TrimSpace(c.GetRequestUserDept()),
+		FullCodePath:       strings.TrimSpace(c.GetFullCodePath()),
+		TraceID:            strings.TrimSpace(c.GetTraceId()),
+		ClientSource:       strings.TrimSpace(c.GetClientSource()),
+		SourceType:         strings.TrimSpace(contextx.GetSourceType(sourceCtx)),
+		SourceRef:          strings.TrimSpace(contextx.GetSourceRef(sourceCtx)),
+	}
 }

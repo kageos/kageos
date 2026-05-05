@@ -19,11 +19,11 @@ func NewNATSMessagePublisher(conn *nats.Conn) *NATSMessagePublisher {
 	return &NATSMessagePublisher{conn: conn}
 }
 
-func (p *NATSMessagePublisher) PublishMessage(ctx context.Context, payload *dto.MessageSendPayload) error {
+func (p *NATSMessagePublisher) PublishMessage(ctx context.Context, envelope *dto.MessageSendEnvelope) error {
 	if p == nil || p.conn == nil {
 		return fmt.Errorf("NATS connection is nil")
 	}
-	msg, err := msgx.BuildJSONRequest(ctx, subjects.MessageSendCommandSubject, payload)
+	msg, err := msgx.BuildJSONRequest(ctx, subjects.MessageSendCommandSubject, envelope)
 	if err != nil {
 		return err
 	}

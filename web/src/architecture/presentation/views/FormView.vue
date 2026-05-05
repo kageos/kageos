@@ -605,6 +605,14 @@ const submitForm = async (): Promise<boolean> => {
       message: errorMessage
     }
 
+    ElNotification.error({
+      title: '提交失败',
+      message: errorMessage,
+      duration: 8000,
+      position: 'top-right',
+      showClose: true
+    })
+
     Logger.debug('FormView', '已展示表单提交失败提示', {
       message: errorMessage,
     })

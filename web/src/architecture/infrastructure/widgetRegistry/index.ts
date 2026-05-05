@@ -106,6 +106,7 @@ import DepartmentWidget from '@/architecture/presentation/widgets/DepartmentWidg
 import DepartmentsWidget from '@/shared/components/DepartmentsWidget.vue'
 import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import ProgressWidget from '@/architecture/presentation/widgets/ProgressWidget.vue'
+import ListWidget from '@/architecture/presentation/widgets/ListWidget.vue'
 
 const FilesWidget = defineAsyncComponent(() => import('@/architecture/presentation/widgets/FilesWidget.vue'))
 const RichTextWidget = defineAsyncComponent(() => import('@/architecture/presentation/widgets/RichTextWidget.vue'))
@@ -154,6 +155,10 @@ function registerBasicComponents(): void {
   // 进度条组件（主要用于响应模式展示）
   widgetComponentFactory.registerRequestComponent(WidgetType.PROGRESS, ProgressWidget)
   widgetComponentFactory.registerResponseComponent(WidgetType.PROGRESS, ProgressWidget)
+
+  // 自由输入列表组件
+  widgetComponentFactory.registerRequestComponent(WidgetType.LIST, ListWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.LIST, ListWidget)
   
   // 响应参数组件（Text 主要用于响应模式）
   widgetComponentFactory.registerResponseComponent(WidgetType.TEXT, TextWidget)

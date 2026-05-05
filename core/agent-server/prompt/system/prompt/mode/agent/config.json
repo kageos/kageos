@@ -1,0 +1,8 @@
+{
+  "name": "Agent 模式",
+  "description": "既可开发修改项目，也可执行查数据、提交表单、查图表、增删改和批量导入表格记录，无需切换模式",
+  "tool_names": ["read_go_file", "read_go_file_lines", "read_doc", "read_dir", "web_search", "fetch_url_content", "search_tools", "write_doc", "write_go_file", "search_replace_file", "delete_file", "read_app_log", "build_workspace", "create_directory", "publish_to_hub", "push_to_hub", "search_hub_directory", "copy_directory", "record_workspace_event", "run_table_search", "run_table_create", "run_table_batch_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query", "run_on_select_fuzzy", "create_scheduled_task", "list_scheduled_tasks", "cancel_scheduled_task", "list_scheduled_task_executions", "create_scheduled_agent_task", "list_scheduled_agent_tasks", "list_scheduled_agent_task_executions", "run_scheduled_agent_task_now", "run_official_python"],
+  "system_prompt_file": "system_prompt.md",
+  "system_prompt_append_files": ["/system/prompt/doc/workbench-all-in-one-system-prompt"],
+  "first_assistant_file": "first_assistant.md"
+}

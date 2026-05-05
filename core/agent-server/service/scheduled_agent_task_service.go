@@ -865,16 +865,26 @@ func (s *ScheduledAgentTaskService) notifyExecutionFinished(ctx context.Context,
 	if from == "" {
 		from = ScheduledAgentSourceType
 	}
-	payload := &dto.MessageSendPayload{
-		From:          from,
-		FullCodePath:  task.FullCodePath,
-		ToUsers:       task.NotifyUsers,
-		ToDepartments: task.NotifyDepartments,
-		Title:         title,
-		Content:       content,
-		ContentType:   "markdown",
+	envelope := &dto.MessageSendEnvelope{
+		Meta: dto.MessageSendMeta{
+			From:               from,
+			RequestUser:        from,
+			DepartmentFullPath: strings.TrimSpace(task.RequestUserDept),
+			FullCodePath:       strings.TrimSpace(task.FullCodePath),
+			TraceID:            strings.TrimSpace(exec.TraceID),
+			ClientSource:       ScheduledAgentSourceType,
+			SourceType:         ScheduledAgentSourceType,
+			SourceRef:          scheduledAgentExecutionRef(exec.ID),
+		},
+		Message: dto.MessageSendPayload{
+			ToUsers:       task.NotifyUsers,
+			ToDepartments: task.NotifyDepartments,
+			Title:         title,
+			Content:       content,
+			ContentType:   "markdown",
+		},
 	}
-	if err := s.options.MessagePublisher.PublishMessage(ctx, payload); err != nil {
+	if err := s.options.MessagePublisher.PublishMessage(ctx, envelope); err != nil {
 		logger.Errorf(ctx, "[ScheduledAgentTask] Publish notification failed: task=%d execution=%d err=%v", task.ID, exec.ID, err)
 	}
 }

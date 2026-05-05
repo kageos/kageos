@@ -31,7 +31,7 @@
 
 <script setup lang="ts">
 import { ElTag } from 'element-plus'
-import { DefaultOptionColorPalette, getOptionSolidColor, isStandardColor, normalizeOptionColor, type StandardColorType } from '@/core/constants/select'
+import { getOptionSolidColor, normalizeOptionColor, type StandardColorType } from '@/core/constants/select'
 
 defineProps<{
   mode: 'response' | 'table-cell' | 'detail'
@@ -40,21 +40,14 @@ defineProps<{
 }>()
 
 function getTagType(color: string | null): StandardColorType | undefined {
-  const normalizedColor = normalizeOptionColor(color)
-  return normalizedColor && isStandardColor(normalizedColor) ? (normalizedColor as StandardColorType) : undefined
+  void color
+  return undefined
 }
 
 function getTagStyle(color: string | null): Record<string, string> {
   const normalizedColor = normalizeOptionColor(color)
-  if (!normalizedColor || isStandardColor(normalizedColor)) {
+  if (!normalizedColor) {
     return {}
-  }
-
-  if (normalizedColor === 'default') {
-    return {
-      color: DefaultOptionColorPalette.textColor,
-      borderColor: DefaultOptionColorPalette.borderColor
-    }
   }
 
   const solidColor = getOptionSolidColor(normalizedColor)
