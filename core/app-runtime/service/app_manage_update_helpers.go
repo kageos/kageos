@@ -136,7 +136,9 @@ func (s *AppManageService) deployUpdatedVersion(
 	}
 	logStr.WriteString("New version container created\t")
 
-	s.waitForUpdatedVersionStartup(ctx, user, app, newVersion, waiterChan, logStr)
+	if err := s.waitForUpdatedVersionStartup(ctx, user, app, newVersion, waiterChan, logStr); err != nil {
+		return err
+	}
 	s.stopPreviousVersionAfterUpdate(ctx, user, app, state.oldVersion, logStr)
 
 	logStr.WriteString(fmt.Sprintf("Update completed: %s->%s", state.oldVersion, newVersion))
@@ -193,11 +195,17 @@ func (s *AppManageService) waitForUpdatedVersionStartup(
 	user, app, newVersion string,
 	waiterChan <-chan *StartupNotification,
 	logStr *strings.Builder,
-) {
+) error {
 	logger.Infof(ctx, "[UpdateApp] Waiting for startup notification for %s/%s/%s (first handshake)", user, app, newVersion)
 
 	select {
 	case notification := <-waiterChan:
+		if notification.Status != "" && notification.Status != "running" {
+			if notification.Error != "" {
+				return fmt.Errorf("app startup failed: %s", notification.Error)
+			}
+			return fmt.Errorf("app startup failed with status: %s", notification.Status)
+		}
 		logStr.WriteString(fmt.Sprintf("Startup confirmed at %s\t", notification.StartTime.Format(time.DateTime)))
 		logger.Infof(ctx, "[UpdateApp] ✅ Startup confirmed: %s/%s/%s (first handshake completed)", user, app, newVersion)
 		if err := s.updateAppStatusToActive(ctx, user, app); err != nil {
@@ -205,9 +213,10 @@ func (s *AppManageService) waitForUpdatedVersionStartup(
 		} else {
 			logger.Infof(ctx, "[UpdateApp] App status updated to active: %s/%s", user, app)
 		}
+		return nil
 	case <-time.After(60 * time.Second):
 		logStr.WriteString("Startup timeout\t")
-		logger.Warnf(ctx, "[UpdateApp] ⚠️ Startup notification timeout for %s/%s/%s, but continue anyway", user, app, newVersion)
+		return fmt.Errorf("timeout waiting for app startup notification: %s/%s/%s", user, app, newVersion)
 	}
 }
 

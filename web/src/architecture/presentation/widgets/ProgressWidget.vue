@@ -137,9 +137,7 @@ const percentage = computed(() => {
 
 // 格式化后的显示值
 const formattedValue = computed(() => {
-  const value = rawValue.value
-  const formatted = value.toFixed(2)
-  return unit.value ? `${formatted} ${unit.value}` : formatted
+  return formatProgressValue(rawValue.value)
 })
 
 // 格式化进度条文字
@@ -156,15 +154,18 @@ const internalValue = computed({
     return undefined
   },
   set: (newValue: number | undefined) => {
-    if (props.mode === 'edit') {
+    if (props.mode === 'edit' || props.mode === 'search') {
+      const display = newValue !== undefined ? formatProgressValue(newValue) : ''
       // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
       const newFieldValue = createFieldValue(
         props.field,
         newValue ?? null,
-        newValue !== undefined ? formattedValue.value : ''
+        display
       )
       
-      formDataStore.setValue(props.fieldPath, newFieldValue)
+      if (props.mode === 'edit') {
+        formDataStore.setValue(props.fieldPath, newFieldValue)
+      }
       emit('update:modelValue', newFieldValue)
     }
   }
@@ -172,6 +173,11 @@ const internalValue = computed({
 
 function handleBlur(): void {
   // 可以在这里添加验证逻辑
+}
+
+function formatProgressValue(value: number): string {
+  const formatted = value.toFixed(2)
+  return unit.value ? `${formatted} ${unit.value}` : formatted
 }
 </script>
 
@@ -212,4 +218,3 @@ function handleBlur(): void {
 }
 
 </style>
-

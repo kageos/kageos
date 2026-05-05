@@ -53,7 +53,7 @@ type scheduledTaskTokenIssuer interface {
 }
 
 type scheduledTaskMessagePublisher interface {
-	PublishMessage(ctx context.Context, payload *dto.MessageSendPayload) error
+	PublishMessage(ctx context.Context, envelope *dto.MessageSendEnvelope) error
 }
 
 func normalizeScheduledTaskAction(action string) (string, error) {
@@ -890,16 +890,26 @@ func (s *ScheduledTaskService) notifyExecutionFinished(ctx context.Context, task
 		from = "scheduled-task"
 	}
 
-	payload := &dto.MessageSendPayload{
-		From:          from,
-		FullCodePath:  task.FullCodePath,
-		ToUsers:       task.NotifyUsers,
-		ToDepartments: task.NotifyDepartments,
-		Title:         title,
-		Content:       content,
-		ContentType:   "markdown",
+	envelope := &dto.MessageSendEnvelope{
+		Meta: dto.MessageSendMeta{
+			From:               from,
+			RequestUser:        from,
+			DepartmentFullPath: strings.TrimSpace(task.RequestUserDept),
+			FullCodePath:       strings.TrimSpace(task.FullCodePath),
+			TraceID:            strings.TrimSpace(exec.TraceID),
+			ClientSource:       "scheduled_task",
+			SourceType:         "scheduled_task",
+			SourceRef:          fmt.Sprintf("scheduled_task_execution:%d", exec.ID),
+		},
+		Message: dto.MessageSendPayload{
+			ToUsers:       task.NotifyUsers,
+			ToDepartments: task.NotifyDepartments,
+			Title:         title,
+			Content:       content,
+			ContentType:   "markdown",
+		},
 	}
-	if err := s.options.MessagePublisher.PublishMessage(ctx, payload); err != nil {
+	if err := s.options.MessagePublisher.PublishMessage(ctx, envelope); err != nil {
 		logger.Errorf(ctx, "[ScheduledTask] Publish notification failed: task=%d execution=%d err=%v", task.ID, exec.ID, err)
 	}
 }

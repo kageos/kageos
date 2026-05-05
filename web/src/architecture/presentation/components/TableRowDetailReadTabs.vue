@@ -210,15 +210,6 @@
       </div>
     </el-tab-pane>
 
-    <el-tab-pane v-if="showPermissionRequestTab" label="权限审批" name="permissionRequest">
-      <div class="tab-content">
-        <PermissionRequestList
-          ref="permissionRequestListRef"
-          :resource-path="fullCodePath"
-          :auto-load="activeTabModel === 'permissionRequest'"
-        />
-      </div>
-    </el-tab-pane>
   </el-tabs>
 </template>
 
@@ -228,7 +219,6 @@ import type { FieldConfig, FunctionDetail } from '../../domain/types'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import OperateLogSection from './OperateLogSection.vue'
-import PermissionRequestList from '@/shared/components/permission/PermissionRequestList.vue'
 import { WidgetType } from '@/core/constants/widget'
 
 interface GroupedFields {
@@ -244,13 +234,8 @@ interface LoadableOperateLogSection {
   load: () => void
 }
 
-interface LoadablePermissionRequestList {
-  loadRequests: () => void
-}
-
 const props = defineProps<{
   modelValue: string
-  showPermissionRequestTab: boolean
   fields: FieldConfig[]
   linkFields: FieldConfig[]
   groupedFields: GroupedFields
@@ -271,7 +256,6 @@ const emit = defineEmits<{
 }>()
 
 const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
-const permissionRequestListRef = ref<LoadablePermissionRequestList | null>(null)
 
 const activeTabModel = computed({
   get: () => props.modelValue,
@@ -281,17 +265,13 @@ const activeTabModel = computed({
 function loadTab(tabName: string) {
   if (tabName === 'operateLog') {
     operateLogSectionRef.value?.load()
-    return
-  }
-  if (tabName === 'permissionRequest') {
-    permissionRequestListRef.value?.loadRequests()
   }
 }
 
 watch(
   () => props.modelValue,
   (tabName) => {
-    if (tabName === 'operateLog' || tabName === 'permissionRequest') {
+    if (tabName === 'operateLog') {
       nextTick(() => loadTab(tabName))
     }
   },

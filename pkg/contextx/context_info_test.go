@@ -46,3 +46,13 @@ func TestCtxToTraceNatsPreservesClientSource(t *testing.T) {
 		t.Fatalf("nats header = %q, want scheduled_task", got)
 	}
 }
+
+func TestCtxToTraceNatsPreservesDepartment(t *testing.T) {
+	ctx := WithDepartmentFullPath(context.Background(), "/org/dev")
+
+	msg := CtxToTraceNats(ctx, "demo")
+
+	if got := msg.Header.Get(DepartmentFullPathHeader); got != "/org/dev" {
+		t.Fatalf("nats department header = %q, want /org/dev", got)
+	}
+}

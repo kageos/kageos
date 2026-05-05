@@ -31,8 +31,8 @@ func TestAppendExecuteGuideHint(t *testing.T) {
 	if !strings.Contains(msg, "创建失败：字段缺失") {
 		t.Fatalf("expected original error message, got %q", msg)
 	}
-	if !strings.Contains(msg, "`read_doc(\""+executeGuideDocPath+"\")`") {
-		t.Fatalf("expected guide hint, got %q", msg)
+	if !strings.Contains(msg, "read_skill(\"sop.execute-function\")") {
+		t.Fatalf("expected skill hint, got %q", msg)
 	}
 
 	plain := appendExecuteGuideHint("read_doc", "读取失败")
@@ -41,49 +41,27 @@ func TestAppendExecuteGuideHint(t *testing.T) {
 	}
 }
 
-func TestGuideDocGateBlocksRuntimeToolsBeforeReadingExecuteDoc(t *testing.T) {
-	res, blocked := guideDocGateResult("run_table_search", map[string]struct{}{})
-	if !blocked {
-		t.Fatal("expected run_table_search to be blocked before execute doc is read")
-	}
-	if !res.IsError {
-		t.Fatal("expected blocked result to be an error")
-	}
-	if !strings.Contains(res.Content, executeGuideDocPath) {
-		t.Fatalf("expected execute doc path in gate message, got %q", res.Content)
-	}
-}
-
-func TestGuideDocGateAllowsRuntimeToolsAfterReadingExecuteDoc(t *testing.T) {
-	loaded := map[string]struct{}{executeGuideDocPath: {}}
-	_, blocked := guideDocGateResult("run_table_search", loaded)
-	if blocked {
-		t.Fatal("expected run_table_search to be allowed after execute doc is read")
-	}
-}
-
-func TestGuideDocGateAllowsSearchToolsAfterReadingMiscDoc(t *testing.T) {
-	loaded := map[string]struct{}{miscTasksGuideDocPath: {}}
-	_, blocked := guideDocGateResult("search_tools", loaded)
-	if blocked {
-		t.Fatal("expected search_tools to be allowed after misc-tasks doc is read")
+func TestAppendExecuteGuideHintDoesNotDuplicateSkillHint(t *testing.T) {
+	msg := appendExecuteGuideHint("run_table_create", "请先 read_skill(\"sop.execute-function\")")
+	if msg != "请先 read_skill(\"sop.execute-function\")" {
+		t.Fatalf("expected existing skill hint unchanged, got %q", msg)
 	}
 }
 
 func TestGuideDocPathsFromReadDocArgsSupportsCommaSeparatedPaths(t *testing.T) {
 	paths := guideDocPathsFromReadDocArgs(map[string]interface{}{
-		"directory": "/system/prompt/workspace/execute,/system/prompt/workspace/misc-tasks/",
+		"directory": "/system/prompt/platform-overview,/system/prompt/sdk/agent-app-sdk-readme/",
 	})
 	loaded := make(map[string]struct{}, len(paths))
 	for _, path := range paths {
 		loaded[path] = struct{}{}
 	}
 
-	if _, ok := loaded[executeGuideDocPath]; !ok {
-		t.Fatalf("expected %s to be marked loaded: %#v", executeGuideDocPath, loaded)
+	if _, ok := loaded["/system/prompt/platform-overview"]; !ok {
+		t.Fatalf("expected platform overview to be marked loaded: %#v", loaded)
 	}
-	if _, ok := loaded[miscTasksGuideDocPath]; !ok {
-		t.Fatalf("expected %s to be marked loaded: %#v", miscTasksGuideDocPath, loaded)
+	if _, ok := loaded["/system/prompt/sdk/agent-app-sdk-readme"]; !ok {
+		t.Fatalf("expected sdk readme to be marked loaded: %#v", loaded)
 	}
 }
 

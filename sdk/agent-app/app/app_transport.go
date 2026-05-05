@@ -61,14 +61,17 @@ func (t *AppTransport) PublishInvokeResponse(resp *dto.RequestAppResp, success b
 	return nil
 }
 
-func (t *AppTransport) PublishMessageCommand(payload *dto.MessageSendPayload) error {
+func (t *AppTransport) PublishMessageCommand(envelope *dto.MessageSendEnvelope) error {
 	if t.conn == nil {
 		return fmt.Errorf("NATS connection is nil")
 	}
+	if envelope == nil {
+		return fmt.Errorf("message envelope is nil")
+	}
 
-	data, err := json.Marshal(payload)
+	data, err := json.Marshal(envelope)
 	if err != nil {
-		return fmt.Errorf("marshal message payload: %w", err)
+		return fmt.Errorf("marshal message envelope: %w", err)
 	}
 
 	subject := subjects.MessageSendCommandSubject
@@ -76,7 +79,8 @@ func (t *AppTransport) PublishMessageCommand(payload *dto.MessageSendPayload) er
 		return fmt.Errorf("publish message to %s: %w", subject, err)
 	}
 
-	logger.Infof(context.Background(), "[PublishMessage] published to %s, to_users=%s title=%s", subject, payload.ToUsers, payload.Title)
+	logger.Infof(context.Background(), "[PublishMessage] published to %s, from=%s full_code_path=%s to_users=%s title=%s",
+		subject, envelope.Meta.From, envelope.Meta.FullCodePath, envelope.Message.ToUsers, envelope.Message.Title)
 	return nil
 }
 
@@ -94,8 +98,16 @@ func (t *AppTransport) PublishDiscoveryResponse(runtimeID string, startTime time
 
 func (t *AppTransport) PublishStartup(startTime time.Time) error {
 	return t.publishLifecycleEvent(subjects.MessageTypeStatusStartup, map[string]interface{}{
-		"status":     "started",
+		"status":     "running",
 		"start_time": startTime,
+	})
+}
+
+func (t *AppTransport) PublishStartupFailure(startTime time.Time, message string) error {
+	return t.publishLifecycleEvent(subjects.MessageTypeStatusStartup, map[string]interface{}{
+		"status":        "failed",
+		"start_time":    startTime,
+		"error_message": message,
 	})
 }
 

@@ -2,7 +2,28 @@
 
 本文档说明**框架的用法与能力**。完整业务示例（PRD + 代码）在案例文档中，按需 `read_doc("/system/prompt/case_catalog/xxx")` 对应路径即可。
 
-本文件就是 **SDK 主入口**。
+本文件是 **SDK 主入口** 和权威主文档。Skills 不替代本文件，Skills 只负责按用户任务导航到正确的 SDK 文档、案例和验收清单。
+
+## SDK 文档与 Skills 分工
+
+- **SDK 文档**：权威知识源，沉淀稳定契约、API、组件、schema、校验和代码示例。
+- **SDK Skills**：模型执行入口，按场景告诉模型该读哪些文档、怎么写、怎么 build、怎么验收。
+- **Prompt**：只保留极简总规则，不承载长篇 SDK 细节。
+
+当前 SDK 场景 skill：
+
+- `sdk.widget-selection`：字段建模、Go 类型和 widget 选择。
+- `sdk.create-form-table-chart`：创建或修改 Form/Table/Chart。
+- `sdk.build-validation`：分析和修复 build/startup/schema 校验错误。
+- `sdk.openapi-apicall`：在 SDK 或 `/system/openapi` 中调用平台 API。
+- `sdk.message`：在业务函数中发送消息通知。
+
+快速参考文档：
+
+- `/system/prompt/sdk/widget-reference`
+- `/system/prompt/sdk/form-table-chart-reference`
+- `/system/prompt/sdk/build-validation-reference`
+- `/system/prompt/sdk/platform-api-reference`
 
 **重要**：读 SDK 只解决“框架有哪些能力”，不等于已读最佳实践。创建或修改具体业务代码前，必须再读取至少一个与当前需求匹配的案例文档（如单表读 `/system/prompt/case_catalog/table/ticket`，多表读 `/system/prompt/case_catalog/tables/meeting` 或 `/system/prompt/case_catalog/tables/hr`，Form/文件处理读 `/system/prompt/case_catalog/form/...`，Chart 读 `/system/prompt/case_catalog/form_table_chart/cashier`），再按案例风格写代码。
 
@@ -74,12 +95,45 @@ err := ctx.SendMessage(&app.SendMessageOpts{
 
 ---
 
+## 平台 OpenAPI（APICall）
+
+`/system/openapi` 下的官方平台接口函数通过 `ctx.APICall(...)` 调用平台 Web API。它和前端调用 API 是同一条逻辑：SDK 只负责把当前请求的 token、trace、request_user、department、client_source 带下去，平台侧按统一 API 权限逻辑校验。
+
+规则：
+
+- 只使用 `ctx.APICall(method, path, reqBody, respData)` 这一种入口。
+- `path` 使用平台网关路径，例如 `/hub/api/v1/directories/search`。
+- `respData` 传响应 `data` 对应的结构体指针；SDK 会解析统一响应里的 `data` 字段。
+- 不要在业务代码里裸写 HTTP、硬编码 token、直连数据库或绕过平台权限。
+- `/system/openapi` 不代表超级权限；平台服务端仍按当前 token 和用户身份校验。
+
+示例：
+
+```go
+var result HubSearchResp
+err := ctx.APICall(http.MethodPost, "/hub/api/v1/directories/search", map[string]interface{}{
+    "keyword": keyword,
+}, &result)
+if err != nil {
+    return fmt.Errorf("[系统错误] 调用平台 Hub 搜索失败: %w", err)
+}
+```
+
+禁止写法：
+
+```go
+// 禁止：不要在业务函数里直接拼 HTTP 客户端、硬编码 token 或绕过平台权限。
+// http.Post("http://app-server/internal/hub/search?token=xxx", ...)
+```
+
+---
+
 ## 二、快速开始
 
 ### Table 模式（单表 CRUD，GET）
 
-1. **定义结构体**：业务字段加 `gorm`、`widget`、`search`、`validate` 等标签；主键、CreatedAt、DeletedAt 等系统字段按约定写。
-2. **配置 TableTemplate**：`BaseConfig`（Name、Request、Response、CreateTables）+ **`AutoCrudTable`**（必配，指向列表结构体，前端据此显示列表与增删改入口）+ 可选 `OnTableAddRow` / `OnTableUpdateRow` / `OnTableDeleteRows`。**不需要哪种操作就删掉对应回调**：不想要新增和批量导入 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`。前端会根据是否配置回调来显示或隐藏对应按钮；`OnTableCreateInBatches` 是系统内置批量导入能力，配置 `OnTableAddRow` 时自动暴露。**支付记录、消费流水、操作日志这类审计/流水表默认应只读**，通常只保留查询，不给手工新增、编辑、删除入口。
+1. **定义结构体**：业务字段加 `gorm`、`widget`、`search`、`validate` 等标签；主键、CreatedAt、DeletedAt 等系统字段按约定写。Table 的 Request 字段 `json` 名不要和 AutoCrudTable / Response 表字段重名，否则 request 原始 query 参数会和表字段搜索参数产生覆盖歧义，SDK 启动期会失败。
+2. **配置 TableTemplate**：`BaseConfig`（Name、Request、Response、CreateTables）+ **`AutoCrudTable`**（建议显式配置，指向列表结构体，前端据此渲染列表字段、搜索、分页和表格 schema）+ 可选 `OnTableAddRow` / `OnTableUpdateRow` / `OnTableDeleteRows`。**不需要哪种操作就删掉对应回调**：不想要新增和批量导入 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`。前端会根据是否配置回调来显示或隐藏对应按钮；`OnTableCreateInBatches` 是系统内置批量导入能力，配置 `OnTableAddRow` 时自动暴露。**支付记录、消费流水、操作日志这类审计/流水表默认应只读**，建议显式配置 `AutoCrudTable`，但不配置新增、编辑、删除回调。
 3. **写 List 函数**：请求体值嵌入 `query.SearchFilterPageReq`，并用 `widget:"-"` 隐藏分页字段；用 `queryDB := ctx.GetGormDB().Model(&Model{})` 后可在 Build 前对 `queryDB` 做 Where、Preload 等，再 `resp.Table(&lists).AutoSearchFilterPaged(queryDB, &Model{}, &req.SearchFilterPageReq).Build()`；Build 后可遍历 `lists` 填计算字段、关联展示字段、link 等。
 4. **注册**：`init()` 中 `packageContext.GET("路由名", ListFunc, TableTemplate)`。
 
@@ -89,7 +143,7 @@ err := ctx.SendMessage(&app.SendMessageOpts{
 // 结构体（系统字段 + 业务字段，此处省略系统字段）
 type CrmTicket struct {
     Title    string `json:"title" gorm:"column:title" widget:"name:标题;type:input" search:"like" validate:"required,min=2,max=200"`
-    Status   string `json:"status" gorm:"column:status" widget:"name:状态;type:select;options:待处理,已完成;options_colors:warning,success;render_default:待处理" search:"in"`
+    Status   string `json:"status" gorm:"column:status" widget:"name:状态;type:select;options:待处理,已完成;options_colors:E6A23C,67C23A;render_default:待处理" search:"in"`
     // ... ID, CreatedAt, DeletedAt 等见案例
 }
 
@@ -165,8 +219,8 @@ func init() {
 **⚠️ 一个 GET 路由只能返回一张图表**，多张图时每张单独一个路由。图表只支持 4 种类型（`LineChart`/`BarChart`/`PieChart`/`GaugeChart`），详见第七节「图表类型说明」。
 
 1. **定义请求结构体**：筛选条件加 `widget` 标签。
-2. **写统计函数**：`ctx.ShouldBind(&req)` → 查库聚合 → 构造具体图表类型（只填 Title、XAxis、Series、Metadata，**无需填 ChartType 或 Series[].Type**）→ `return resp.Chart(chart).Build()`。
-3. **配置 ChartTemplate**：`BaseConfig`（Name、Request、Response 填**与返回值一致的具体类型**，如 `Response: &chart.LineChart{}`）。图表类型请使用 **`sdk/agent-app/chart`** 包（`chart.LineChart`、`chart.BarChart` 等），勿使用 `types` 包下的图表类型。
+2. **写统计函数**：`ctx.ShouldBind(&req)` → 查库聚合 → 构造具体图表类型（只填 Title、XAxis、Series、Metadata，**响应体里的 ChartType 和 Series[].Type 由 `resp.Chart(...)` 注入，业务无需填**）→ `return resp.Chart(chart).Build()`。
+3. **配置 ChartTemplate**：`BaseConfig`（Name、Request、Response 填**与返回值一致的具体类型**，如 `Response: &chart.LineChart{}`）+ `ChartType`（必须填 `app.ChartTypeLine` / `app.ChartTypeBar` / `app.ChartTypePie` / `app.ChartTypeGauge`，不要写死字符串）。图表类型请使用 **`sdk/agent-app/chart`** 包（`chart.LineChart`、`chart.BarChart` 等），勿使用 `types` 包下的图表类型。
 4. **注册**：`init()` 中 `packageContext.GET("路由名", ChartHandler, ChartTemplate)`。
 
 **多维图表推荐模式（重要）**：
@@ -240,11 +294,24 @@ func TicketTrendChart(ctx *app.Context, resp response.Response) error {
 
 ### 1. widget 标签
 
-格式：`widget:"name:显示名;type:组件类型;配置项:值"`。生成代码时只使用**当前已支持**的组件类型；`type` 大小写敏感，主键/ID 展示必须写 `type:ID`，不要写成 `type:id`。常用配置：`render_default`、`placeholder`、`options`、`options_colors`、`min`/`max`/`step`/`unit`、`format`、`precision`、`accept`、`max_size`、`max_count`、`height`、`disabled`、`creatable` 等。`render_default` 是前端渲染默认值，只在新增/初始化界面填充，不等于 `gorm:"default:..."` 或数据库默认值。
+widget tag 内部格式是 `name:显示名;type:已支持组件类型;配置项:值`。生成代码时只使用**当前已支持**的组件类型；只要写了 `widget` 标签，就必须显式写 `type`。`type` 大小写敏感，主键/ID 展示必须写 `type:ID`，不要写成 `type:id`。常用配置：`render_default`、`placeholder`、`options`、`options_colors`、`min`/`max`/`step`/`unit`、`format`、`precision`、`accept`、`max_size`、`max_count`、`height`、`disabled`、`creatable` 等。`render_default` 是前端渲染默认值，只在新增/初始化界面填充，不等于 `gorm:"default:..."` 或数据库默认值。
 
-**select / multiselect 与 options_colors（提示词约定，按必填处理）**：在生成业务代码时，使用 `select` 或 `multiselect` 时一律同时配置 `options_colors`，与 `options` 一一对应（逗号分隔，顺序一致），前端会用颜色标签区分选项。支持**预设**：`default`、`primary`、`success`、`warning`、`danger`、`info`；也支持**自定义十六进制颜色**，如 `#FF9800`、`#9C27B0`、`#4CAF50`。示例：`options:待处理,进行中,已完成` 对应 `options_colors:warning,primary,success`；`options:VIP,普通,体验` 对应 `options_colors:#E91E63,#9E9E9E,#4CAF50`。
+同一层结构体字段的 `json` code 不能重复。可选 `data` 标签只允许 `format`、`example`，用于补充 schema 数据格式和示例，不替代 widget 配置。
+
+**select / multiselect 与 options_colors（提示词约定，按必填处理）**：生成静态 `select` 或静态 `multiselect` 时配置 `options_colors`，与 `options` 一一对应（逗号分隔，顺序一致），前端会用颜色标签区分选项。动态 OnSelectFuzzy 下拉不写 `options`，也不要写 `options_colors`。`options_colors` 只支持 6 位十六进制 `RRGGBB`，不带 `#`，如 `FF9800`、`9C27B0`、`4CAF50`。不要生成 `primary`、`success`、`warning`、`danger`、`info`、`default`、`secondary`、`#FF9800` 或 `rgb(...)`。示例：`options:待处理,进行中,已完成` 对应 `options_colors:E6A23C,409EFF,67C23A`；`options:VIP,普通,体验` 对应 `options_colors:E91E63,9E9E9E,4CAF50`。
+
+**select / multiselect 选项来源校验**：`select` 和 `multiselect` 必须至少有一种选项来源：静态 `options`，或字段 `callback:"OnSelectFuzzy"` + 模板 `OnSelectFuzzyMap`。`creatable:true` 只表示允许创建新选项，不能替代选项来源；配置了 `callback:"OnSelectFuzzy"` 时，字段必须是 `select` / `multiselect`，且 `OnSelectFuzzyMap` 的 key 必须和字段 `json` 名一致。
 
 **静态枚举值一致性（重要）**：当前 widget tag 里的静态 `options`（包括 `select` / `multiselect` / `radio` / `checkbox`）默认就是**字符串列表**，前端实际提交值就是选项文本本身。生成 `validate:"oneof=..."`、`required_if`、`required_unless`、`excluded_if`、`excluded_unless` 等规则时，条件值必须与实际提交值**逐字一致**。不要写成“界面展示中文选项，但校验/条件值用英文 code”的混搭形式。
+
+**自由输入列表**：当用户需要直接输入多个值（如 `1,2,3` 或多行文本列表）时使用 `type:list`，并显式指定 `item_type`：
+
+```go
+Numbers []int    `json:"numbers" widget:"name:数字列表;type:list;item_type:number;placeholder:例如 1,2,3"`
+Names   []string `json:"names" widget:"name:文本列表;type:list;item_type:text;placeholder:例如 张三,李四"`
+```
+
+`type:list;item_type:number` 适配 `[]int`、`[]float64` 等数字切片；`type:list;item_type:text` 适配 `[]string`。如果是从候选项里选择多个值，仍然用 `multiselect`；如果是少量固定枚举平铺勾选，用 `checkbox`。
 
 **switch 组件限制（必读）**：当前 `switch` 只支持 `render_default`，提示词和示例里**不要写** `true_label`、`false_label` 这类未实现参数。
 
@@ -253,22 +320,22 @@ func TicketTrendChart(ctx *app.Context, resp response.Response) error {
 片段示例：
 
 ```go
-ID             int          `widget:"name:ID;type:ID" search:"eq"`
-Title          string       `widget:"name:标题;type:input;placeholder:请输入标题" search:"like" validate:"required,min=2,max=200"`
-Description    string       `widget:"name:描述;type:text_area;placeholder:请输入详细描述" validate:"required,min=10"`
-Source         string       `widget:"name:来源;type:radio;options:电话,邮件,在线;render_default:在线" search:"in"`
-NotifyChannels []string     `widget:"name:通知渠道;type:checkbox;options:站内信,短信,邮件;render_default:站内信,邮件"`
-Status         string       `widget:"name:状态;type:select;options:待处理,已完成;options_colors:warning,success;render_default:待处理" search:"in" validate:"oneof=待处理 已完成"`
-Tags           string       `widget:"name:标签;type:multiselect;options:紧急,重要;options_colors:danger,warning" search:"contains"`
-Amount         float64      `widget:"name:金额;type:float;precision:2;step:0.01;unit:元"`
-Progress       int          `widget:"name:进度;type:slider;min:0;max:100;unit:%" search:"gte,lte"`
-Handler        string       `widget:"name:处理人;type:user;render_default:Me()" search:"in"`
-Content        string       `widget:"name:详细内容;type:richtext;height:360"`
-ResultCSV      string       `widget:"name:消费明细;type:text;format:csv"`
-Percentage     float64      `widget:"name:完成率;type:progress;min:0;max:100;unit:%"`
-Deadline       types.Time   `widget:"name:截止时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"`
-Attachment     string `gorm:"type:text" widget:"name:附件;type:files"`
-DetailLink     string       `widget:"name:查看详情;type:link;target:_blank"`
+ID             int        `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:ID;type:ID" search:"eq" display:"scenes:list"`
+Title          string     `json:"title" gorm:"column:title" widget:"name:标题;type:input;placeholder:请输入标题" search:"like" validate:"required,min=2,max=200"`
+Description    string     `json:"description" gorm:"column:description" widget:"name:描述;type:text_area;placeholder:请输入详细描述" validate:"required,min=10"`
+Source         string     `json:"source" gorm:"column:source" widget:"name:来源;type:radio;options:电话,邮件,在线;render_default:在线" search:"in"`
+NotifyChannels []string   `json:"notify_channels" gorm:"-" widget:"name:通知渠道;type:checkbox;options:站内信,短信,邮件;render_default:站内信,邮件"`
+Status         string     `json:"status" gorm:"column:status" widget:"name:状态;type:select;options:待处理,已完成;options_colors:E6A23C,67C23A;render_default:待处理" search:"in" validate:"oneof=待处理 已完成"`
+Tags           string     `json:"tags" gorm:"column:tags" widget:"name:标签;type:multiselect;options:紧急,重要;options_colors:F56C6C,E6A23C" search:"contains"`
+Amount         float64    `json:"amount" gorm:"column:amount" widget:"name:金额;type:float;precision:2;step:0.01;unit:元"`
+Progress       int        `json:"progress" gorm:"column:progress" widget:"name:进度;type:slider;min:0;max:100;unit:%" search:"gte,lte"`
+Handler        string     `json:"handler" gorm:"column:handler" widget:"name:处理人;type:user;render_default:Me()" search:"in"`
+Content        string     `json:"content" gorm:"type:text;column:content" widget:"name:详细内容;type:richtext;height:360"`
+ResultCSV      string     `json:"result_csv" gorm:"-" widget:"name:消费明细;type:text;format:csv"`
+Percentage     float64    `json:"percentage" gorm:"-" widget:"name:完成率;type:progress;min:0;max:100;unit:%"`
+Deadline       types.Time `json:"deadline" gorm:"column:deadline;type:datetime" widget:"name:截止时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"`
+Attachment     string     `json:"attachment" gorm:"type:text;column:attachment" widget:"name:附件;type:files"`
+DetailLink     string     `json:"detail_link" gorm:"-" widget:"name:查看详情;type:link;target:_blank"`
 ```
 
 | 组件类型 | 常用配置 | 说明 | 典型用法 |
@@ -282,8 +349,9 @@ DetailLink     string       `widget:"name:查看详情;type:link;target:_blank"`
 | `radio` | `options`、`render_default` | 单选按钮 | 来源、性别（2-5 个选项） |
 | `checkbox` | `options`、`render_default` | 固定选项复选 | 通知渠道、权限项 |
 | `multiselect` | `options`、`options_colors`、`render_default`、`max_count`、`placeholder`、`creatable` | 下拉多选 | 标签、选项集合 |
-| `number` | `placeholder`、`step`、`render_default`、`unit` | 整数输入 | 数量、工时 |
-| `float` | `placeholder`、`precision`、`step`、`render_default`、`unit` | 小数输入 | 价格、金额、折扣率 |
+| `list` | `item_type`、`separator`、`placeholder`、`render_default`、`unique`、`max_count` | 自由输入列表 | `[]int` 数字数组、`[]string` 文本数组 |
+| `number` | `placeholder`、`min`、`max`、`step`、`render_default`、`unit` | 整数输入 | 数量、工时 |
+| `float` | `placeholder`、`min`、`max`、`precision`、`step`、`render_default`、`unit` | 小数输入 | 价格、金额、折扣率 |
 | `slider` | `min`、`max`、`step`、`render_default`、`unit` | 可编辑滑块 | 进度、评分、百分比 |
 | `rate` | `max`、`allow_half`、`render_default`、`texts` | 星级评分 | 服务评价、满意度 |
 | `switch` | `render_default` | 布尔开关；不要写未实现的 `true_label` / `false_label` | 是否启用、是否匿名 |
@@ -293,17 +361,23 @@ DetailLink     string       `widget:"name:查看详情;type:link;target:_blank"`
 | `user / users` | `render_default`、`disabled`、`max_count` | 用户选择 | 负责人、抄送人 |
 | `department / departments` | `render_default`、`max_count` | 部门选择 | 所属部门、关联部门 |
 | `progress` | `min`、`max`、`unit` | 只读进度展示 | 得票率、完成率 |
-| `link` | `text`、`target`、`type`、`icon` | 只读跳转链接 | 查看详情、关联函数跳转 |
+| `link` | `text`、`target`、`link_type`、`icon` | 只读跳转链接；`type` 是组件类型保留 key，链接样式使用 `link_type` | 查看详情、关联函数跳转 |
 | `table` | — | Form 请求中的子表 | 明细行、商品清单 |
 | `form` | — | Form 响应中的子表单 | 嵌套结构体展示 |
 
 - `text`、`progress`、`link`、`ID` 多用于列表展示字段或响应字段；Table 中若只希望前端列表展示、不进入新增/编辑表单，配 `display:"scenes:list"`。
 - `select` / `multiselect` 的实际值类型由 Go 字段类型决定，SDK 会按字段类型推断 `string`、`int`、`[]string`、`[]int`、`[]float` 等。
 - `checkbox` 更适合固定数量的勾选项；需要下拉式多选、远程搜索或可创建选项时优先使用 `multiselect`。
+- `list` 表示自由输入多个值，不表示候选项选择；数字数组写 `item_type:number`，文本数组写 `item_type:text`。
 
 **datetime / types.Time 约定（新业务必读）**：新建业务表默认使用 `types.Time` + `gorm:"type:datetime"` + `widget:"type:datetime"`。API/工作台/前端 raw value 都是 `"YYYY-MM-DD HH:mm:ss"` 字符串，数据库存真实时间类型。系统字段示例：`CreatedAt types.Time \`json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"\``。普通业务时间字段需要在新增/编辑填写时，不要加 `display:"scenes:list"`。
 
+`datetime` 的 `render_default` 可以写静态时间字符串（如 `2026-05-01 10:30:00`），也可以写前端可解析的动态表达式：`CURRENT_TIMESTAMP`、`CURRENT_DATE`、`DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 1 HOUR)`、`DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY)`。不要写 `NOW()` 或缺少 `INTERVAL` 的表达式，启动期会失败。
+
+**系统审计字段启动期约束**：`id` 主键字段必须 `type:ID`、`search:"eq"`、`display:"scenes:list"`，且 `gorm` 包含 `primaryKey`、`autoIncrement`、`column:id`；`created_at` / `updated_at` 必须是 `datetime` + `format:YYYY-MM-DD HH:mm:ss` + `search:"gte,lte"` + `display:"scenes:list"`，并分别包含 `autoCreateTime` / `autoUpdateTime`；`create_by` / `created_by` / `update_by` / `updated_by` 必须是 `type:user` + `search:"in"` + `display:"scenes:list"`，且 `gorm column` 与 `json` 名一致；`deleted_at` 必须 `widget:"-"` 或 `json:"-"`，不要进入前端 schema。
+
 `types.Time` 是对 `time.Time` 的包装类型，给结构体字段赋值时必须显式转换，不能直接把 `time.Now()` 赋给 `types.Time` 字段。
+不要生成未在当前已读文档、案例或 SDK 源码中确认存在的 SDK 类型、函数、常量或结构体字段；遇到 `undefined: <sdk package>.<symbol>` 先回到对应知识点或源码确认真实 API。
 
 ```go
 // 正确：当前时间赋给 types.Time 字段
@@ -436,7 +510,7 @@ Email string `validate:"required,email"`
 
 ```go
 type VoteSubmitReq struct {
-    VoteType      string `json:"vote_type" widget:"name:投票类型;type:select;options:单选,多选;options_colors:primary,success" validate:"required,oneof=单选 多选"`
+    VoteType      string `json:"vote_type" widget:"name:投票类型;type:select;options:单选,多选;options_colors:409EFF,67C23A" validate:"required,oneof=单选 多选"`
     MaxSelections int    `json:"max_selections" widget:"name:最多选择数;type:number" validate:"required_if=VoteType 多选,min=1,max=10"`
 }
 ```
@@ -450,7 +524,7 @@ type VoteSubmitReq struct {
 
 ```go
 type InvoiceReq struct {
-    InvoiceType string `json:"invoice_type" widget:"name:发票类型;type:select;options:个人,企业;options_colors:info,primary" validate:"required,oneof=个人 企业"`
+    InvoiceType string `json:"invoice_type" widget:"name:发票类型;type:select;options:个人,企业;options_colors:909399,409EFF" validate:"required,oneof=个人 企业"`
     TaxNo       string `json:"tax_no" widget:"name:税号;type:input" validate:"excluded_unless=InvoiceType 企业"`
 }
 ```
@@ -477,6 +551,8 @@ type InvoiceReq struct {
 | eq | 精确 = | ID、switch |
 | gte,lte | 范围 | datetime、number、float、slider |
 
+SDK 启动期只允许上表这些搜索写法；不要写 `gt`、`lt`、`not_eq`、`not_like`、`not_in`，当前前端 Table 搜索栏不会生成这些查询串。
+
 **组件值使用说明（重要）**：
 - `type:user`、`type:users`、`type:department`、`type:departments` 这些组件提交到后端后，值可以直接当业务参数使用，不需要额外做组件层转换。
 - 常见形态：`user/department` 通常是单值字符串；`users/departments` 通常是逗号分隔字符串（可直接用于 `search:"contains"` 或你自己的拆分逻辑）。
@@ -487,7 +563,7 @@ type InvoiceReq struct {
 ```go
 type CrmTicket struct {
     // 系统字段：前端仅在列表展示，不进入新增/编辑表单；配 search 后列表可搜索。
-    ID        int   `json:"id" gorm:"primaryKey;column:id" widget:"name:ID;type:ID" display:"scenes:list" search:"eq"`           // 前端仅在列表展示，不进入新增/编辑表单；列表支持按 ID 精确搜索。
+    ID        int   `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:ID;type:ID" display:"scenes:list" search:"eq"`           // 前端仅在列表展示，不进入新增/编辑表单；列表支持按 ID 精确搜索。
     CreatedAt types.Time `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单；列表支持按创建时间范围搜索。
     UpdatedAt types.Time `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单；列表支持按更新时间范围搜索。
     // 软删除：gorm.DeletedAt + widget:"-" 不在前端展示，GORM 查询时自动过滤已删除记录
@@ -497,8 +573,8 @@ type CrmTicket struct {
     // 业务字段：配 search 的列表可搜索，未配则不可搜；未配 display 时前端会在列表/新增/编辑三个场景都展示。
     Title       string `json:"title" gorm:"column:title" widget:"name:工单标题;type:input" search:"like"`           // 列表支持模糊搜索
     Description string `json:"description" gorm:"column:description" widget:"name:问题描述;type:text_area" search:"like"` // 列表支持模糊搜索
-    Priority    string `json:"priority" gorm:"column:priority" widget:"name:优先级;type:select;options:低,中,高;options_colors:success,warning,danger" search:"in"`   // 列表支持精确筛选
-    Status      string `json:"status" gorm:"column:status" widget:"name:状态;type:select;options:待处理,处理中,已完成;options_colors:info,warning,success" search:"in"` // 列表支持精确筛选
+    Priority    string `json:"priority" gorm:"column:priority" widget:"name:优先级;type:select;options:低,中,高;options_colors:67C23A,E6A23C,F56C6C" search:"in"`   // 列表支持精确筛选
+    Status      string `json:"status" gorm:"column:status" widget:"name:状态;type:select;options:待处理,处理中,已完成;options_colors:909399,E6A23C,67C23A" search:"in"` // 列表支持精确筛选
     IsUrgent    bool   `json:"is_urgent" gorm:"column:is_urgent" widget:"name:是否紧急;type:switch" search:"eq"`   // 列表支持精确筛选
     Progress    int    `json:"progress" gorm:"column:progress" widget:"name:完成进度;type:slider;min:0;max:100;unit:%" search:"gte,lte"` // 列表支持范围搜索
     Handler     string `json:"handler" gorm:"column:handler" widget:"name:处理人;type:user" search:"in"`           // 列表支持精确筛选
@@ -510,7 +586,7 @@ type CrmTicket struct {
 
 ### 4. display.scenes 标签
 
-用于控制字段在前端哪些界面渲染。它不是权限控制：`display:"scenes:list"` 表示前端只把字段渲染到列表列中，不会渲染到新增/编辑表单；不配置 `display` 表示列表、新增表单、编辑表单都展示。`table` / `form` 是容器组件，不要标成 `display:"scenes:list"`，前端不会把它们当列表列展示。
+用于控制字段在前端哪些界面渲染。它不是权限控制：`display:"scenes:list"` 表示前端只把字段渲染到列表列中，不会渲染到新增/编辑表单；不配置 `display` 表示列表、新增表单、编辑表单都展示。`display` 只允许 `scenes` 这个 key，值只能是 `list/create/update`，不能为空、不能重复。`table` / `form` 是容器组件，不要标成 `display:"scenes:list"`，启动期会失败。
 
 | scenes 值 | 新增表单 | 编辑表单 | 列表展示 | 适用场景 |
 |-----------|----------|----------|----------|----------|
@@ -575,7 +651,7 @@ CostPrice    float64 `json:"cost_price" gorm:"column:cost_price" widget:"name:�
 
 ## 四、Table 模式要点
 
-- **TableTemplate**：`BaseConfig` 含 Name、Request、Response、CreateTables；**`AutoCrudTable` 必配**（指向列表结构体，前端据此展示列表与增删改入口）。**不需要哪种操作就删掉对应回调**：不想要新增和批量导入 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`（如消费记录、支付流水、操作日志通常应直接只读）。前端根据是否配置回调来显示或隐藏「新增」「编辑」「删除」按钮；工作台和服务端也会据此判断表是否允许写入。`OnTableCreateInBatches` 是系统内置批量导入能力，配置 `OnTableAddRow` 时自动暴露，不需要手写；若新增/编辑表单中有 select 需后端动态选项，配 `OnSelectFuzzyMap`（用法见「六、Form 模式要点 → OnSelectFuzzy」）。
+- **TableTemplate**：`BaseConfig` 含 Name、Request、Response、CreateTables；**`AutoCrudTable` 建议显式配置**（指向列表结构体，前端据此渲染列表字段、搜索、分页和表格 schema）。**不需要哪种操作就删掉对应回调**：不想要新增和批量导入 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`（如消费记录、支付流水、操作日志通常应直接只读）。前端根据是否配置回调来显示或隐藏「新增」「编辑」「删除」按钮；工作台和服务端也会据此判断表是否允许写入。`OnTableCreateInBatches` 是系统内置批量导入能力，配置 `OnTableAddRow` 时自动暴露，不需要手写；若新增/编辑表单中有 select 需后端动态选项，配 `OnSelectFuzzyMap`（用法见「六、Form 模式要点 → OnSelectFuzzy」）。
 - **AutoCrudTable 的 model 可落库字段类型**：model 里凡是有 **gorm 列**（会被 GORM 写入数据库）的字段，**只能是**以下可落库类型：**基础类型**（int、string、bool、int64、float64 等）、**string**（`gorm:"type:text"`，实际存 `bucket/object_key` 字符串，多文件逗号分隔）、**gorm.DeletedAt**（软删除，GORM 特例）。除此以外，**其他 struct、slice（如 type:table / type:form）不能作为一列写入数据库**；若在 model 里出现这类 struct/slice，须为：**外键关联**（如 `Room *MeetingRoom` 配 `gorm:"foreignKey:RoomID;references:ID"`，实际存的是 RoomID，不占一列）或 **gorm:"-"**（不落库，仅展示/表单用，如 RoomName、Status、Options、link 等）。否则 GORM 无法把该列写进数据库。
 - **List 函数**：请求体值嵌入 `query.SearchFilterPageReq`，并用 `widget:"-"` 隐藏分页字段；使用 `resp.Table(&lists).AutoSearchFilterPaged(db, &Model{}, &req.SearchFilterPageReq).Build()`；Build 后可在内存中给计算字段赋值（如剩余时间、**link 跳转 URL**，见「三、结构体与标签 → link 组件」）。若列表需要**按外表或计算字段筛选**（如按「会议室名称」筛预约、按「预约状态：待开始/进行中/已结束」筛），这些字段**不是主表的列**，应在 **Request 结构体**（TableTemplate.BaseConfig.Request）中定义：带 `form:"xxx"` 便于绑定，带 `widget` 让前端展示筛选控件；在 List 函数里**手写 Where**（外表筛先查关联表得 ID 再 `Where 外键 IN ?`，计算字段筛用主表时间等与当前时间比较），再传 `AutoSearchFilterPaged`。详见下「4. List 函数」中会议室预约示例。
 - 主键、CreatedAt、UpdatedAt、DeletedAt、DeletedBy 等系统字段约定见案例；init_.go 由脚手架生成，不要手写。
@@ -681,7 +757,7 @@ List 函数可在 **Build 之前** 和 **Build 之后** 两处做自定义处理
 ```go
 // 结构体：ID、标题、截止时间（落库），剩余时间（不落库，仅展示）
 type Task struct {
-    ID             int    `json:"id" gorm:"primaryKey;autoIncrement" widget:"name:ID;type:ID" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
+    ID             int    `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:ID;type:ID" search:"eq" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单。
     Title          string `json:"title" gorm:"column:title" widget:"name:标题;type:input" search:"like"`
     Deadline       types.Time `json:"deadline" gorm:"column:deadline;type:datetime" widget:"name:截止时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"`
     RemainingTime  string `json:"remaining_time" gorm:"-" widget:"name:剩余时间;type:input" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单；gorm:"-" 不落库。
@@ -732,21 +808,23 @@ func TaskList(ctx *app.Context, resp response.Response) error {
 ```go
 // 列表结构体：RoomName、Status、RoomLink 为不落库展示字段（gorm:"-"）
 type MeetingRoomBooking struct {
-    ID        int    `json:"id" gorm:"primaryKey;column:id" widget:"name:预约ID;type:ID" display:"scenes:list" search:"eq"` // 前端仅在列表展示，不进入新增/编辑表单。
+    ID        int    `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:预约ID;type:ID" display:"scenes:list" search:"eq"` // 前端仅在列表展示，不进入新增/编辑表单。
     RoomID    int    `json:"room_id" gorm:"column:room_id" widget:"name:会议室;type:select" callback:"OnSelectFuzzy"`
     Room      *MeetingRoom `json:"-" gorm:"foreignKey:RoomID"`
     RoomName  string `json:"room_name" gorm:"-" widget:"name:会议室名称;type:text" display:"scenes:list"`   // 前端仅在列表展示，不进入新增/编辑表单；后处理从 Room 取。
     RoomLink  string `json:"room_link" gorm:"-" widget:"name:会议室详情;type:link" display:"scenes:list"`  // 前端仅在列表展示，不进入新增/编辑表单；后处理 BuildFunctionUrlWithText。
     StartTime types.Time `json:"start_time" gorm:"column:start_time;type:datetime" widget:"name:开始时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"`
     EndTime   types.Time `json:"end_time" gorm:"column:end_time;type:datetime" widget:"name:结束时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"`
-    Status    string `json:"status" gorm:"-" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:info,primary,success" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单；后处理按时间计算。
+    Status    string `json:"status" gorm:"-" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:909399,409EFF,67C23A" display:"scenes:list"` // 前端仅在列表展示，不进入新增/编辑表单；后处理按时间计算。
 }
 
-// 列表请求：RoomName、Status 为筛选条件，非主表字段（RoomName 来自外表，Status 为计算字段），
+// 列表请求：RoomName、StatusFilter 为筛选条件，非主表字段（RoomName 来自外表，StatusFilter 为计算字段筛选），
 // 需在 List 内手写 Where。字段要有 form 绑定 + widget 供前端展示筛选控件；非表字段可加 gorm:"-"。
+// 注意：Request 字段 json/form code 不能和 Model 任意字段重复，即使 Model 字段是 gorm:"-" 的列表计算字段也会冲突。
+// 因此 Model 展示字段用 json:"status"，Request 筛选字段用 json:"status_filter"。
 type MeetingRoomBookingListReq struct {
     RoomName string `json:"room_name" form:"room_name" gorm:"-" widget:"name:会议室名称;type:input"`
-    Status   string `json:"status" form:"status" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:info,primary,success"`
+    StatusFilter string `json:"status_filter" form:"status_filter" gorm:"-" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:909399,409EFF,67C23A"`
     query.SearchFilterPageReq `widget:"-"`
 }
 
@@ -769,9 +847,9 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
     }
 
     // Build 前处理 2：按预约状态筛选（计算字段：用 start_time/end_time 与当前时间比较；多表时建议加表名前缀如 crm_meeting_room_booking.start_time）
-    if req.Status != "" {
+    if req.StatusFilter != "" {
         now := time.Now()
-        switch req.Status {
+        switch req.StatusFilter {
         case "待开始": queryDB = queryDB.Where("start_time > ?", now)
         case "进行中": queryDB = queryDB.Where("start_time <= ? AND end_time > ?", now, now)
         case "已结束": queryDB = queryDB.Where("end_time <= ?", now)
@@ -1057,7 +1135,7 @@ Statistics: map[string]interface{}{
 
 完整收银台示例（商品清单 Sum/Count、会员卡 Value、表达式格式）：`read_doc("/system/prompt/case_catalog/form_table_chart/cashier")`。
 
-**Table 模式**下同样可用 OnSelectFuzzy：在**列表结构体**（AutoCrudTable 指向的模型）里给需要后端动态选项的 select 字段加 `callback:"OnSelectFuzzy"`，在 **TableTemplate** 的 `BaseConfig.OnSelectFuzzyMap` 里按「字段 json 名」注册回调即可。例如会议室预约表：新增/编辑时「会议室」下拉从后端查库且只显示「可用」的会议室。
+**Table 模式**下同样可用 OnSelectFuzzy：在**列表结构体**（AutoCrudTable 指向的模型）里给需要后端动态选项的 select 字段加 `callback:"OnSelectFuzzy"`，在 **TableTemplate** 的 `BaseConfig.OnSelectFuzzyMap` 里按「字段 json 名」注册回调即可。例如会议室预约表新增/编辑时选择会议室，评价记录表搜索区按评价对象筛选。外键字段 code 可以叫 `room_id` / `object_id`，但 `widget name` 应写“会议室”/“评价对象”，不要写“会议室ID”/“评价对象ID”；用户按名称搜索，前端实际提交 ID。
 
 ```go
 // Table 模式：列表结构体（预约表）里会议室字段加 callback:"OnSelectFuzzy"
@@ -1214,7 +1292,7 @@ return resp.Chart(c).Build()
 
 - **init()**：在业务 .go 中写；`packageContext.GET("路由名", ListFunc, TableTemplate)` 或 `packageContext.POST("路由名", Handler, FormTemplate)` 或 `packageContext.GET("路由名", ChartHandler, ChartTemplate)`。`packageContext` 由脚手架生成，不要重复声明。
 - **init_.go**：由系统生成，不要用 write_go_file 创建或修改。
-- **目录**：一个包一个目录，路由名与业务含义对应；多表/多 Form 可在同包多文件，各自 GET/POST 注册。参考「可读的目录」中案例路径或 read_doc("/system/prompt/workspace/create-project") 文档末尾的案例分类。
+- **目录**：一个包一个目录，路由名与业务含义对应；多表/多 Form 可在同包多文件，各自 GET/POST 注册。创建类流程先读 `sop.create-project`，案例分类以该 skill 的推荐案例和 `/system/prompt/case_catalog/*` 为准。
 
 ### 路由命名约定（类型后缀，必须）
 

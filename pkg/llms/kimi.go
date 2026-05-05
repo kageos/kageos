@@ -18,6 +18,12 @@ const (
 	kimiDefaultModel   = "kimi-k2-0711-preview"
 )
 
+type kimiUsage struct {
+	PromptTokens     float64 `json:"prompt_tokens"`
+	CompletionTokens float64 `json:"completion_tokens"`
+	TotalTokens      float64 `json:"total_tokens"`
+}
+
 // KimiAPIResponse Kimi / Moonshot OpenAI 兼容响应
 type KimiAPIResponse struct {
 	Error *struct {
@@ -32,11 +38,7 @@ type KimiAPIResponse struct {
 		} `json:"message"`
 		FinishReason string `json:"finish_reason,omitempty"`
 	} `json:"choices,omitempty"`
-	Usage *struct {
-		PromptTokens     float64 `json:"prompt_tokens"`
-		CompletionTokens float64 `json:"completion_tokens"`
-		TotalTokens      float64 `json:"total_tokens"`
-	} `json:"usage,omitempty"`
+	Usage *kimiUsage `json:"usage,omitempty"`
 }
 
 // KimiStreamResponse Kimi 流式 SSE 分片（OpenAI 兼容）
@@ -52,13 +54,10 @@ type KimiStreamResponse struct {
 			Content   string     `json:"content"`
 			ToolCalls []ToolCall `json:"tool_calls,omitempty"`
 		} `json:"delta"`
-		FinishReason *string `json:"finish_reason,omitempty"`
+		FinishReason *string    `json:"finish_reason,omitempty"`
+		Usage        *kimiUsage `json:"usage,omitempty"`
 	} `json:"choices,omitempty"`
-	Usage *struct {
-		PromptTokens     float64 `json:"prompt_tokens"`
-		CompletionTokens float64 `json:"completion_tokens"`
-		TotalTokens      float64 `json:"total_tokens"`
-	} `json:"usage,omitempty"`
+	Usage *kimiUsage `json:"usage,omitempty"`
 }
 
 // KimiClient Kimi（Moonshot）OpenAI 兼容客户端
@@ -136,14 +135,74 @@ func kimiSanitizeMessages(msgs []Message) []Message {
 	return out
 }
 
+func kimiResolvedModel(reqModel, defaultModel string) string {
+	if model := strings.TrimSpace(reqModel); model != "" {
+		return model
+	}
+	return defaultModel
+}
+
+func kimiUsesFixedSampling(model string) bool {
+	model = strings.ToLower(strings.TrimSpace(model))
+	return strings.HasPrefix(model, "kimi-k2") ||
+		strings.HasPrefix(model, "kimi-latest") ||
+		strings.HasPrefix(model, "kimi-thinking")
+}
+
+func kimiSupportsThinkingControl(model string) bool {
+	model = strings.ToLower(strings.TrimSpace(model))
+	if strings.Contains(model, "thinking") {
+		return false
+	}
+	return strings.HasPrefix(model, "kimi-k2.6") ||
+		strings.HasPrefix(model, "kimi-k2.5") ||
+		strings.HasPrefix(model, "kimi-latest")
+}
+
+func applyKimiTemperature(apiReq map[string]interface{}, model string, temperature float64) {
+	if temperature == 0 || kimiUsesFixedSampling(model) {
+		return
+	}
+	apiReq["temperature"] = temperature
+}
+
+func applyKimiThinking(apiReq map[string]interface{}, model string, req *ChatRequest) {
+	if req == nil || !kimiSupportsThinkingControl(model) {
+		return
+	}
+	if len(req.Tools) > 0 {
+		apiReq["thinking"] = map[string]string{"type": "disabled"}
+		return
+	}
+	if req.UseThinking == nil {
+		return
+	}
+	thinkingType := "disabled"
+	if *req.UseThinking {
+		thinkingType = "enabled"
+	}
+	apiReq["thinking"] = map[string]string{"type": thinkingType}
+}
+
+func kimiUsageToUsage(usage *kimiUsage) *Usage {
+	if usage == nil {
+		return nil
+	}
+	return &Usage{
+		PromptTokens:     int(usage.PromptTokens),
+		CompletionTokens: int(usage.CompletionTokens),
+		TotalTokens:      int(usage.TotalTokens),
+	}
+}
+
 // Chat 实现 LLMClient 接口（OpenAI 兼容：tools / tool_calls）
 func (c *KimiClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
 	msgs := kimiSanitizeMessages(req.Messages)
+	model := kimiResolvedModel(req.Model, c.Model)
 	apiReq := map[string]interface{}{
-		"model":       req.Model,
-		"messages":    msgs,
-		"max_tokens":  req.MaxTokens,
-		"temperature": req.Temperature,
+		"model":      model,
+		"messages":   msgs,
+		"max_tokens": req.MaxTokens,
 	}
 	if len(req.Tools) > 0 {
 		apiReq["tools"] = req.Tools
@@ -151,15 +210,11 @@ func (c *KimiClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse,
 			apiReq["tool_choice"] = req.ToolChoice
 		}
 	}
-	if apiReq["model"] == "" || apiReq["model"] == nil {
-		apiReq["model"] = c.Model
-	}
 	if req.MaxTokens <= 0 {
 		apiReq["max_tokens"] = 4096
 	}
-	if req.Temperature == 0 {
-		apiReq["temperature"] = 0.1
-	}
+	applyKimiTemperature(apiReq, model, req.Temperature)
+	applyKimiThinking(apiReq, model, req)
 
 	httpClient := createHTTPClient(c.Options, resolveRequestTimeout(c.Options, req))
 
@@ -204,18 +259,10 @@ func (c *KimiClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse,
 	}
 
 	choice := apiResp.Choices[0]
-	var usage *Usage
-	if apiResp.Usage != nil {
-		usage = &Usage{
-			PromptTokens:     int(apiResp.Usage.PromptTokens),
-			CompletionTokens: int(apiResp.Usage.CompletionTokens),
-			TotalTokens:      int(apiResp.Usage.TotalTokens),
-		}
-	}
 	return &ChatResponse{
 		Content:   choice.Message.Content,
 		ToolCalls: choice.Message.ToolCalls,
-		Usage:     usage,
+		Usage:     kimiUsageToUsage(apiResp.Usage),
 	}, nil
 }
 
@@ -225,12 +272,12 @@ func (c *KimiClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *
 	chunkChan := make(chan *StreamChunk, 10)
 	go func() {
 		defer close(chunkChan)
+		model := kimiResolvedModel(req.Model, c.Model)
 		apiReq := map[string]interface{}{
-			"model":       req.Model,
-			"messages":    msgs,
-			"max_tokens":  req.MaxTokens,
-			"temperature": req.Temperature,
-			"stream":      true,
+			"model":      model,
+			"messages":   msgs,
+			"max_tokens": req.MaxTokens,
+			"stream":     true,
 		}
 		if len(req.Tools) > 0 {
 			apiReq["tools"] = req.Tools
@@ -238,15 +285,11 @@ func (c *KimiClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *
 				apiReq["tool_choice"] = req.ToolChoice
 			}
 		}
-		if apiReq["model"] == "" || apiReq["model"] == nil {
-			apiReq["model"] = c.Model
-		}
 		if req.MaxTokens <= 0 {
 			apiReq["max_tokens"] = 4096
 		}
-		if req.Temperature == 0 {
-			apiReq["temperature"] = 0.1
-		}
+		applyKimiTemperature(apiReq, model, req.Temperature)
+		applyKimiThinking(apiReq, model, req)
 
 		httpClient := createHTTPClient(c.Options, resolveRequestTimeout(c.Options, req))
 
@@ -275,6 +318,7 @@ func (c *KimiClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *
 
 		scanner := bufio.NewScanner(resp.Body)
 		var finalUsage *Usage
+		doneReceived := false
 		for scanner.Scan() {
 			line := scanner.Text()
 			if line == "" || strings.HasPrefix(line, ":") {
@@ -285,6 +329,7 @@ func (c *KimiClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *
 			}
 			data := strings.TrimPrefix(line, "data: ")
 			if data == "[DONE]" {
+				doneReceived = true
 				chunkChan <- &StreamChunk{Usage: finalUsage, Done: true}
 				break
 			}
@@ -311,16 +356,19 @@ func (c *KimiClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *
 				}
 				if choice.FinishReason != nil && *choice.FinishReason != "" {
 					if streamResp.Usage != nil {
-						finalUsage = &Usage{
-							PromptTokens:     int(streamResp.Usage.PromptTokens),
-							CompletionTokens: int(streamResp.Usage.CompletionTokens),
-							TotalTokens:      int(streamResp.Usage.TotalTokens),
-						}
+						finalUsage = kimiUsageToUsage(streamResp.Usage)
+					} else if choice.Usage != nil {
+						finalUsage = kimiUsageToUsage(choice.Usage)
 					}
-					chunkChan <- &StreamChunk{ToolCalls: choice.Delta.ToolCalls, Usage: finalUsage, Done: true}
-					break
 				}
 			}
+		}
+		if err := scanner.Err(); err != nil {
+			chunkChan <- &StreamChunk{Error: fmt.Sprintf("读取流式响应失败: %v", err), Done: true}
+			return
+		}
+		if !doneReceived {
+			chunkChan <- &StreamChunk{Error: "流式响应未收到结束标志 [DONE]", Done: true}
 		}
 	}()
 	return chunkChan, nil

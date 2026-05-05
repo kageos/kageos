@@ -25,7 +25,7 @@
 说明：
 
 - MinIO 管理员用户名固定为 `minioadmin`，backup Basic Auth 用户名固定为 `admin`，不再作为标准部署配置项暴露。
-- `app-server.yaml` 已不再消费 SMTP 变量；这组变量现在主要供 `hr-server.yaml` 的邮件验证码链路使用。
+- `app-server.yaml` 已不再消费 SMTP 变量；这组变量现在主要供 `hr-server.yaml` 的邮件验证码链路和 `message-server.yaml` 的系统通知/业务消息链路使用。
 - `timer-scheduler.yaml` 的 `db.name` 默认是 `timer-scheduler`，中心调度服务独立保存通用 task、execution、outbox。
 - `app-server.yaml` 的 `scheduled_task_db.name` 默认是 `app-scheduled-task`，只保存 app-server 侧业务任务和执行记录；调度状态统一在 `timer-scheduler`。
 - `${APP_BASE_IMAGE}` 用于渲染 `app-runtime.yaml` 里的 `container.image.base_image`。

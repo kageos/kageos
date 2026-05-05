@@ -152,15 +152,31 @@ export interface Function {
 // 组件类型枚举
 export enum WidgetType {
   INPUT = 'input',
-  SELECT = 'select',
+  TEXT = 'text',
   TEXT_AREA = 'text_area',
-  FILE_UPLOAD = 'file_upload',
-  USER = 'user',
-  DATETIME = 'datetime',
-  NUMBER = 'number',
+  SELECT = 'select',
   SWITCH = 'switch',
+  DATETIME = 'datetime',
+  USER = 'user',
+  USERS = 'users',
+  DEPARTMENT = 'department',
+  DEPARTMENTS = 'departments',
+  ID = 'ID',
+  NUMBER = 'number',
+  FLOAT = 'float',
+  FILES = 'files',
   CHECKBOX = 'checkbox',
-  RADIO = 'radio'
+  RADIO = 'radio',
+  MULTI_SELECT = 'multiselect',
+  SLIDER = 'slider',
+  RATE = 'rate',
+  COLOR = 'color',
+  RICH_TEXT = 'richtext',
+  TABLE = 'table',
+  FORM = 'form',
+  LINK = 'link',
+  PROGRESS = 'progress',
+  LIST = 'list'
 }
 
 // 搜索类型

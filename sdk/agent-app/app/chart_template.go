@@ -24,4 +24,3 @@ func (t *ChartTemplate) GetBaseConfig() *BaseConfig {
 func (t *ChartTemplate) TemplateType() TemplateType {
 	return TemplateTypeChart
 }
-

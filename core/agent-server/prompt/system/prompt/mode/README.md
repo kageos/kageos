@@ -1,13 +1,13 @@
 # 工作台模式
 
-本目录按模式组织各模式自己的配置与提示词，每个子目录对应一种工作台模式（如 `dev`、`modify`、`execute`）。公用文档在上一级 `doc/` 与 `workspace/` 中统一维护。
+本目录按模式组织各模式自己的配置与提示词，每个子目录对应一种工作台模式（如 `qa`、`dev`、`modify`、`execute`、`agent`）。当前工作台只以 `core/agent-server/skills` 为 SOP 入口；模式提示词只保留模式边界和 skill 路由，长文档在上一级 `doc/`、`sdk/`、`case_catalog/` 和平台顶层文档中按 skill 的 `required_docs` 读取。
 
 ## 目录约定
 
-- `mode/<code>/`：如 `dev`、`modify`、`execute`
+- `mode/<code>/`：如 `qa`、`dev`、`modify`、`execute`、`agent`
 - 每个模式目录内建议：
   - **config.json**：该模式的元信息与行为配置（name、description、tool_names、引用的 md 文件名等）
-  - **system_prompt.md**：该模式拼进 system 的片段（身份/规则/工具说明等）
+  - **system_prompt.md**：该模式拼进 system 的片段（身份、模式边界、skill 路由等）
   - **first_assistant.md**（可选）：该模式首条 assistant 内容
 
 ## 配置文件说明（config.json）

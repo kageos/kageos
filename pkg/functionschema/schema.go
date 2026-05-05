@@ -2,6 +2,7 @@ package functionschema
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -115,28 +116,39 @@ func Validate(schema *FunctionSchema) error {
 		return fmt.Errorf("function schema is nil")
 	}
 	normalizeSchema(schema)
+	var errs []error
 	if schema.Version != Version {
-		return fmt.Errorf("unsupported function schema version: %d", schema.Version)
+		errs = append(errs, fmt.Errorf("unsupported function schema version: %d", schema.Version))
 	}
 	switch schema.Type {
 	case TypeForm:
 		if schema.Form == nil {
-			return fmt.Errorf("form schema is required")
+			errs = append(errs, fmt.Errorf("form schema is required"))
+			break
 		}
-		return validateFields(append(nonNilFields(schema.Form.Request), nonNilFields(schema.Form.Response)...))
+		if err := validateFields(append(nonNilFields(schema.Form.Request), nonNilFields(schema.Form.Response)...)); err != nil {
+			errs = append(errs, err)
+		}
 	case TypeTable:
 		if schema.Table == nil {
-			return fmt.Errorf("table schema is required")
+			errs = append(errs, fmt.Errorf("table schema is required"))
+			break
 		}
-		return validateFields(append(nonNilFields(schema.Table.Request), nonNilFields(schema.Table.Fields)...))
+		if err := validateFields(append(nonNilFields(schema.Table.Request), nonNilFields(schema.Table.Fields)...)); err != nil {
+			errs = append(errs, err)
+		}
 	case TypeChart:
 		if schema.Chart == nil {
-			return fmt.Errorf("chart schema is required")
+			errs = append(errs, fmt.Errorf("chart schema is required"))
+			break
 		}
-		return validateFields(append(nonNilFields(schema.Chart.Request), nonNilFields(schema.Chart.Response)...))
+		if err := validateFields(append(nonNilFields(schema.Chart.Request), nonNilFields(schema.Chart.Response)...)); err != nil {
+			errs = append(errs, err)
+		}
 	default:
-		return fmt.Errorf("unsupported function schema type: %s", schema.Type)
+		errs = append(errs, fmt.Errorf("unsupported function schema type: %s", schema.Type))
 	}
+	return errors.Join(errs...)
 }
 
 func normalizeSchema(schema *FunctionSchema) {
@@ -295,16 +307,31 @@ func HasDisplayScene(field *widget.Field, scene string) bool {
 }
 
 func validateFields(fields []*widget.Field) error {
+	var errs []error
 	for _, field := range fields {
 		if field == nil {
 			continue
 		}
+		if err := validateFieldWidget(field); err != nil {
+			errs = append(errs, err)
+		}
 		if err := validateFieldDisplay(field); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 		if err := validateFields(field.Children); err != nil {
-			return err
+			errs = append(errs, err)
 		}
+	}
+	return errors.Join(errs...)
+}
+
+func validateFieldWidget(field *widget.Field) error {
+	widgetType := strings.TrimSpace(field.Widget.Type)
+	if widgetType == "" {
+		return nil
+	}
+	if !widget.IsSupportedType(widgetType) {
+		return fmt.Errorf("field %q has unsupported widget type: %s", field.Code, widgetType)
 	}
 	return nil
 }
@@ -313,17 +340,18 @@ func validateFieldDisplay(field *widget.Field) error {
 	if field.Display == nil {
 		return nil
 	}
+	var errs []error
 	if len(field.Display.Scenes) == 0 {
-		return fmt.Errorf("field %q display.scenes must not be empty", field.Code)
+		errs = append(errs, fmt.Errorf("field %q display.scenes must not be empty", field.Code))
 	}
 	for _, scene := range field.Display.Scenes {
 		switch scene {
 		case SceneList, SceneCreate, SceneUpdate:
 		default:
-			return fmt.Errorf("field %q has unsupported display scene: %s", field.Code, scene)
+			errs = append(errs, fmt.Errorf("field %q has unsupported display scene: %s", field.Code, scene))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func isContainerWidget(field *widget.Field) bool {

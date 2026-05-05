@@ -119,7 +119,7 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 		return nil, fmt.Errorf("failed to init services: %w", err)
 	}
 
-	// ⭐ 初始化系统工作空间（只初始化 official 工作空间）
+	// ⭐ 初始化系统工作空间
 	// 注意：system 用户应该在 hr-server 中初始化
 	// 在服务初始化之后，路由初始化之前
 	if err := service.InitSystemWorkspace(ctx, s.appService, s.serviceTreeService); err != nil {

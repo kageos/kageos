@@ -26,6 +26,10 @@
   z-index: var(--aos-z-floating-popper) !important;
 }
 
+.mini-copy-dropdown-popper.el-dropdown__popper {
+  z-index: var(--aos-z-floating-popper) !important;
+}
+
 .mini-ws-model-select-popper {
   z-index: var(--aos-z-floating-popper) !important;
 }

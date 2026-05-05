@@ -4,6 +4,7 @@ import type { ToolResultMetadata } from '@/api/workspace'
 import { extractFileGroupsFromResult, type OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { extractAllDisplayFields, type OutputDisplayField } from '@/architecture/presentation/composables/useOutputDisplayFields'
 import type { ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
+import { normalizeStorageFileDisplayUrl } from '@/architecture/presentation/utils/storageFileUrl'
 
 export interface FilePanelItem {
   name: string
@@ -15,6 +16,8 @@ const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.
 
 type FileGroupToolCall = { result?: string; result_data?: unknown; metadata?: ToolResultMetadata }
 type DisplayFieldToolCall = { arguments?: string; result?: string; result_data?: unknown }
+
+export { normalizeStorageFileDisplayUrl as normalizeMiniFileDisplayUrl }
 
 export function useMiniWorkstationPanel(messages: Ref<ChatMessage[]>) {
   const fileGroupsCache = new WeakMap<FileGroupToolCall[], OutputFileGroup[]>()
@@ -46,7 +49,7 @@ export function useMiniWorkstationPanel(messages: Ref<ChatMessage[]>) {
     for (const msg of messages.value) {
       if (msg.role === 'user' && msg.files?.length) {
         for (const file of msg.files) {
-          const href = file.download_url || ''
+          const href = normalizeStorageFileDisplayUrl(file.download_url || file.ref || '')
           list.push({ name: file.source_name || file.name || '未命名文件', href, source: 'upload' })
         }
       }
@@ -54,7 +57,8 @@ export function useMiniWorkstationPanel(messages: Ref<ChatMessage[]>) {
         const groups = getFileGroupsFromCalls(msg.tool_calls)
         for (const group of groups) {
           for (const file of group.files) {
-            list.push({ name: file.source_name || file.name || '输出文件', href: file.download_url || '', source: 'output' })
+            const href = normalizeStorageFileDisplayUrl(file.download_url || file.ref || '')
+            list.push({ name: file.source_name || file.name || '输出文件', href, source: 'output' })
           }
         }
       }

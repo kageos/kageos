@@ -29,7 +29,8 @@ export const WidgetType = {
   TABLE: 'table',
   FORM: 'form',
   LINK: 'link',
-  PROGRESS: 'progress'
+  PROGRESS: 'progress',
+  LIST: 'list'
 } as const
 
 /**
@@ -44,7 +45,6 @@ export const DataType = {
   INTS: '[]int',
   FLOATS: '[]float',
   FLOAT: 'float',
-  FILES: 'files',
   STRUCT: 'struct',
   STRUCTS: '[]struct'
 } as const
@@ -82,9 +82,7 @@ export function getMultiSelectDefaultDataType(): string {
  * Widget 类型别名映射（用于兼容不同的命名）
  */
 export const WidgetTypeAliases: Record<string, string> = {
-  'text': WidgetType.INPUT,      // text 别名 input
-  'textarea': WidgetType.TEXT_AREA,  // textarea 别名 text_area
-  'ID': WidgetType.INPUT         // ID 字段使用 input 组件
+  'textarea': WidgetType.TEXT_AREA
 }
 
 /**

@@ -52,7 +52,7 @@ func (ctx *Context) BuildFunctionUrlWithText(
 	if idx := strings.Index(target, "?"); idx >= 0 {
 		functionPath = target[:idx]
 		existingQuery = target[idx+1:]
-		
+
 		// 检查是否存在 _tab 参数
 		existingValues, err := url.ParseQuery(existingQuery)
 		if err == nil {

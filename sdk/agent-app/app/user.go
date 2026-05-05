@@ -3,10 +3,16 @@ package app
 import "github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 
 func (c *Context) GetRequestUser() string {
+	if c == nil || c.msg == nil {
+		return ""
+	}
 	return c.msg.RequestUser
 }
 
 func (c *Context) GetRequestUserDept() string {
+	if c == nil || c.msg == nil {
+		return ""
+	}
 	return c.msg.RequestUserDept
 }
 

@@ -188,7 +188,7 @@ def agentos_entry(args, output_dir):
 
     return {
         "data": {
-            "info": "本图由 matplotlib 在本应用容器内写入 Go 指定的绝对路径；Go 用 ResponseFiles 下发。勿用相对路径在 Go/Python 间互传 cwd 不同。详阅 read_doc /system/prompt/case_catalog/form/python_output。"
+            "909399": "本图由 matplotlib 在本应用容器内写入 Go 指定的绝对路径；Go 用 ResponseFiles 下发。勿用相对路径在 Go/Python 间互传 cwd 不同。详阅 read_doc /system/prompt/case_catalog/form/python_output。"
         },
         "output_files": [
             {"path": image_output_path, "name": os.path.basename(image_output_path)}

@@ -132,7 +132,7 @@ import { Logger } from '@/core/utils/logger'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { ExpressionParserAdapter } from '@/core/utils/ExpressionParserAdapter'
 import { getMultiSelectDefaultDataType } from '@/core/constants/widget'
-import { SelectFuzzyQueryType, getOptionLightPalette, getOptionSolidColor, isStandardColor, normalizeOptionColor, type StandardColorType } from '@/core/constants/select'
+import { SelectFuzzyQueryType, getOptionLightPalette, getOptionSolidColor, normalizeOptionColor, type StandardColorType } from '@/core/constants/select'
 import { convertFormDataToRequestByType, convertArrayType } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import type { MultiSelectWidgetConfig, SelectOptionConfig } from '@/core/types/widget-configs'
@@ -168,12 +168,8 @@ const config = computed(() => {
 /**
  * 🔥 选项颜色配置
  * 
- * 支持两种颜色格式：
- * 1. Element Plus 标准颜色类型：success, warning, danger, info, primary
- *    使用 el-tag 的 type 属性
- * 2. 自定义颜色（hex 格式）：如 #FF5722, #4CAF50
- *    使用 el-tag 的 color 属性
- * 
+ * 颜色值只接受 options_colors 的 RRGGBB 格式，内部渲染时转换为 CSS hex。
+ *
  * options_colors 数组与 options 数组的索引对齐，通过索引获取对应选项的颜色
  */
 const optionColors = computed(() => {
@@ -485,11 +481,6 @@ function getOptionLabel(value: any): string {
 }
 
 /**
- * 判断是否是 Element Plus 标准颜色类型
- */
-// isStandardColor 已从 constants/select 导入
-
-/**
  * 获取选项的颜色
  * 🔥 注意：options_colors 数组与 staticOptions 数组的索引对齐
  * 即使 options 可能包含 dynamicOptions，颜色配置仍然基于 staticOptions 的索引
@@ -508,10 +499,8 @@ function getOptionColor(value: any): string | null {
  * 获取选项的颜色类型（用于 el-tag 的 type 属性）
  */
 function getOptionColorType(value: any): StandardColorType | undefined {
-  const color = getOptionColor(value)
-  if (!color) return undefined
-  const isStandard = isStandardColor(color)
-  return isStandard ? (color as StandardColorType) : undefined
+  void value
+  return undefined
 }
 
 /**

@@ -130,7 +130,7 @@ const ElTagStub = defineComponent({
     }
   },
   emits: ['close'],
-  setup(props, { emit, slots }) {
+  setup(props, { attrs, emit, slots }) {
     return () =>
       h(
         'div',
@@ -138,7 +138,7 @@ const ElTagStub = defineComponent({
           class: 'el-tag-stub',
           'data-type': props.type ?? '',
           'data-color': props.color ?? '',
-          'data-style': JSON.stringify(props.style ?? null),
+          'data-style': JSON.stringify(props.style ?? attrs.style ?? null),
           'data-closable': String(props.closable)
         },
         [
@@ -530,7 +530,7 @@ describe('SearchInput', () => {
           type: WidgetType.RADIO,
           config: {
             options: ['是', '否', '不确定'],
-            options_colors: ['danger', 'success', 'warning']
+            options_colors: ['F56C6C', '67C23A', 'E6A23C']
           }
         }
       }),
@@ -541,9 +541,9 @@ describe('SearchInput', () => {
     const tag = wrapper.find('.multiselect-tag.el-tag-stub')
 
     expect(tag.exists()).toBe(true)
-    expect(tag.attributes('data-type')).toBe('danger')
-    expect(tag.attributes('data-style')).toContain('var(--el-color-danger-light-9)')
-    expect(tag.attributes('data-style')).toContain('var(--el-color-danger)')
+    expect(tag.attributes('data-type')).toBe('')
+    expect(tag.attributes('data-style')).toContain('rgba(245, 108, 108, 0.12)')
+    expect(tag.attributes('data-style')).toContain('#F56C6C')
   })
 
   it('falls back to neutral tag style for unsupported search option colors', () => {
@@ -566,7 +566,7 @@ describe('SearchInput', () => {
           type: WidgetType.RADIO,
           config: {
             options: ['是', '否'],
-            options_colors: ['default', 'not-a-real-color']
+            options_colors: ['not-a-real-color', '12345G']
           }
         }
       }),
@@ -576,8 +576,7 @@ describe('SearchInput', () => {
 
     const tag = wrapper.find('.multiselect-tag.el-tag-stub')
     expect(tag.attributes('data-type')).toBe('')
-    expect(tag.attributes('data-style')).toContain('var(--el-fill-color-light)')
-    expect(tag.attributes('data-style')).toContain('var(--el-text-color-regular)')
+    expect(tag.attributes('data-style')).toBe('{}')
   })
 
   it('keeps widget renderer for callback-driven select search', () => {

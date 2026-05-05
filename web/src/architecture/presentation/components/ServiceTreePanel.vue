@@ -746,7 +746,39 @@ defineExpose({
   }
 
   .tree-search-input :deep(.el-input__wrapper) {
-    border-radius: 6px;
+    min-height: 34px;
+    border: 1px solid rgba(var(--el-color-primary-rgb), 0.14);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.045);
+    box-shadow: none;
+    backdrop-filter: blur(14px) saturate(1.15);
+    -webkit-backdrop-filter: blur(14px) saturate(1.15);
+    transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+  }
+
+  .tree-search-input :deep(.el-input__wrapper:hover) {
+    border-color: rgba(var(--el-color-primary-rgb), 0.24);
+    background: rgba(255, 255, 255, 0.065);
+  }
+
+  .tree-search-input :deep(.el-input__wrapper.is-focus) {
+    border-color: rgba(var(--el-color-primary-rgb), 0.38);
+    background: rgba(255, 255, 255, 0.075);
+    box-shadow: 0 0 0 3px rgba(var(--el-color-primary-rgb), 0.08);
+  }
+
+  .tree-search-input :deep(.el-input__inner) {
+    color: var(--el-text-color-primary);
+    background: transparent;
+  }
+
+  .tree-search-input :deep(.el-input__inner::placeholder) {
+    color: var(--el-text-color-placeholder);
+  }
+
+  .tree-search-input :deep(.el-input__prefix),
+  .tree-search-input :deep(.el-input__suffix) {
+    color: var(--el-text-color-secondary);
   }
   
   .header-actions {

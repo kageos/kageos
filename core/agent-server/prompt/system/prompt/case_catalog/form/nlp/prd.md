@@ -73,12 +73,12 @@ type JiebaSegmentReq struct {
 	Text string `json:"text" widget:"name:待分词文本;type:text_area;placeholder:请输入待分词的中文文本..." validate:"required"`
 
 	// 框架标签：select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
-	Mode string `json:"mode" widget:"name:分词模式;type:select;options:精确模式,全模式,搜索引擎模式;options_colors:success,primary,info;render_default:精确模式"`
+	Mode string `json:"mode" widget:"name:分词模式;type:select;options:精确模式,全模式,搜索引擎模式;options_colors:67C23A,409EFF,909399;render_default:精确模式"`
 
 	// 框架标签：widget:"type:number;placeholder:10" - 关键词数量
 	TopK int `json:"top_k" widget:"name:关键词数量;type:number;placeholder:10（默认10个）"`
 
-	// 框架标签：widget:"type:switch" - 是否移除停用词；当前 switch 不支持 widget default，默认 true 需在业务逻辑里兜底
+	// 框架标签：widget:"type:switch" - 是否移除停用词；当前 switch 不支持 render_default，默认 true 需在业务逻辑里兜底
 	RemoveStopwords bool `json:"remove_stopwords" widget:"name:移除停用词;type:switch"`
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/prompt"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
+	agentosskills "github.com/ai-agent-os/ai-agent-os/core/agent-server/skills"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/streamloop"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
@@ -24,6 +25,8 @@ import (
 const (
 	SourceWorkspace = "workspace"
 	MaxToolRounds   = 100 // 与 streamloop.MaxToolRounds 保持一致，仅作注释/文档用，实际以 streamloop 为准
+
+	maxWriteGoFilesPerToolBatch = 3
 )
 
 // 工作台系统提示词与文档统一来自 /system/prompt；运行时优先读树，缺失时回落到本地 seed。
@@ -622,13 +625,12 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 	var systemPromptFragment string
 	var firstAssistantContent string
 	if modeProvider != nil {
-		toolNames = modeProvider.ToolNames()
 		systemPromptFragment = "" // 在 env 填好后由 provider.SystemPrompt(data) 产出
 		firstAssistantContent = modeProvider.FirstAssistantContent()
 	} else {
-		toolNames = fallbackToolNames
 		systemPromptFragment = fallbackSystemPrompt
 	}
+	toolNames = workspaceToolNamesForMode(modeProvider, fallbackToolNames)
 	toolsDesc, _ := s.toolReg.ListTools(ctx, toolNames)
 	llmTools := convertToLLMTools(toolsDesc)
 
@@ -652,13 +654,12 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 	if systemPromptFragment != "" {
 		system += "\n\n" + systemPromptFragment
 	}
-	// 额外操作提示词：仅 modeProvider 明确提供时才追加；默认所有规则都放在 system_prompt 与子文档里。
-	var operationPrompt string
+	var modeCode string
 	if modeProvider != nil {
-		operationPrompt = strings.TrimSpace(modeProvider.OperationPrompt())
+		modeCode = modeProvider.Code()
 	}
-	if operationPrompt != "" {
-		system += "\n\n" + operationPrompt
+	if skillsPrompt := workspaceSkillsPrompt(modeCode); skillsPrompt != "" {
+		system += "\n\n" + skillsPrompt
 	}
 
 	msgs := []llms.Message{{Role: "system", Content: system}}
@@ -744,12 +745,17 @@ func (s *WorkspaceChatService) executeToolCalls(
 	agentIDPtr *int64,
 	user string,
 	files string,
+	allowedToolNames []string,
 	sendEvent func(string, interface{}),
 ) ([]dto.WorkspaceChatToolCallSummary, error) {
 	ctx = withAgentToolExecutionContext(ctx, sessionID)
 	toolSummaries := make([]dto.WorkspaceChatToolCallSummary, 0, len(allToolCalls))
 	logger.Infof(ctx, "[WorkspaceChatStream] 开始执行工具调用 - 工具数量: %d, SessionID: %s", len(allToolCalls), sessionID)
 	loadedGuideDocs := s.loadedGuideDocsForSession(ctx, sessionID)
+	loadedSkills := s.loadedSkillsForSession(ctx, sessionID)
+	skillGateBlockedInBatch := false
+	writeMutationFailedInBatch := false
+	successfulWriteGoFilesInBatch := 0
 
 	for i, tc := range allToolCalls {
 		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 执行工具调用 - ToolCallID: %s, ToolName: %s, Arguments: %q",
@@ -760,10 +766,27 @@ func (s *WorkspaceChatService) executeToolCalls(
 		args := s.parseToolCallArgs(ctx, tc)
 		var toolRes ToolResult
 		var st string
-		if gateRes, blocked := guideDocGateResult(tc.Function.Name, loadedGuideDocs); blocked {
+		if writeMutationFailedInBatch && shouldSkipAfterWriteMutationFailure(tc.Function.Name) {
+			toolRes = writeMutationFailureBatchSkipResult(tc.Function.Name)
+			st = ToolCallStatusError
+			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 同批工具调用因落盘失败跳过 - ToolName: %s, Error: %s", i+1, len(allToolCalls), tc.Function.Name, toolRes.Content)
+		} else if shouldGateWriteAfterBatchLimit(tc.Function.Name, successfulWriteGoFilesInBatch) {
+			toolRes = writeGoFileBatchLimitResult(tc.Function.Name, successfulWriteGoFilesInBatch)
+			st = ToolCallStatusError
+			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 同批 write_go_file 超过分阶段上限 - ToolName: %s, Error: %s", i+1, len(allToolCalls), tc.Function.Name, toolRes.Content)
+		} else if skillGateBlockedInBatch && shouldSkipAfterSkillGateBlock(tc.Function.Name) {
+			toolRes = skillGateBatchSkipResult(tc.Function.Name)
+			st = ToolCallStatusError
+			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 同批工具调用因 skill 策略跳过 - ToolName: %s, Error: %s", i+1, len(allToolCalls), tc.Function.Name, toolRes.Content)
+		} else if gateRes, blocked := workspaceModeToolGateResult(tc.Function.Name, allowedToolNames); blocked {
 			toolRes = gateRes
 			st = ToolCallStatusError
-			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 工具调用被文档闸门拦截 - ToolName: %s, Error: %s", i+1, len(allToolCalls), tc.Function.Name, toolRes.Content)
+			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 工具调用被模式策略拦截 - ToolName: %s, Error: %s", i+1, len(allToolCalls), tc.Function.Name, toolRes.Content)
+		} else if gateRes, blocked := workspaceSkillToolGateResult(tc.Function.Name, args, loadedSkills, loadedGuideDocs); blocked {
+			toolRes = gateRes
+			st = ToolCallStatusError
+			skillGateBlockedInBatch = true
+			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 工具调用被 skill 策略拦截 - ToolName: %s, Error: %s", i+1, len(allToolCalls), tc.Function.Name, toolRes.Content)
 		} else {
 			toolRes, st = s.callOtherTool(ctx, tc.Function.Name, args, fullCodePath, files, i+1, len(allToolCalls))
 		}
@@ -786,6 +809,14 @@ func (s *WorkspaceChatService) executeToolCalls(
 			logger.Warnf(ctx, "[WorkspaceChatStream] 保存 tool 消息失败 ToolCallID=%s: %v（若为 Error 1366 请将表转为 utf8mb4）", tc.ID, err)
 			return toolSummaries, fmt.Errorf("保存 tool 消息失败: %w", err)
 		}
+		if st == ToolCallStatusOK && strings.TrimSpace(tc.Function.Name) == "write_go_file" {
+			successfulWriteGoFilesInBatch++
+		}
+		if st != ToolCallStatusOK && isWriteMutationTool(tc.Function.Name) {
+			writeMutationFailedInBatch = true
+		}
+		updateLoadedSkillsAfterToolCall(ctx, loadedSkills, tc.Function.Name, args, st)
+		updateLoadedGuideDocsAfterToolCall(ctx, loadedGuideDocs, tc.Function.Name, args, st)
 	}
 
 	successCount, errorCount := 0, 0
@@ -843,43 +874,6 @@ func (s *WorkspaceChatService) callOtherTool(ctx context.Context, name string, a
 	return result, st
 }
 
-const executeGuideDocPath = "/system/prompt/workspace/execute"
-const miscTasksGuideDocPath = "/system/prompt/workspace/misc-tasks"
-
-type guideDocRequirement struct {
-	AnyOf []string
-}
-
-func guideDocRequirementForTool(toolName string) (guideDocRequirement, bool) {
-	switch strings.TrimSpace(toolName) {
-	case "run_table_search", "run_table_create", "run_table_batch_create", "run_table_update", "run_table_delete",
-		"run_form_submit", "run_chart_query", "run_on_select_fuzzy",
-		"create_scheduled_task", "create_scheduled_agent_task":
-		return guideDocRequirement{AnyOf: []string{executeGuideDocPath}}, true
-	case "search_tools", "run_official_python":
-		return guideDocRequirement{AnyOf: []string{executeGuideDocPath, miscTasksGuideDocPath}}, true
-	default:
-		return guideDocRequirement{}, false
-	}
-}
-
-func guideDocGateResult(toolName string, loadedGuideDocs map[string]struct{}) (ToolResult, bool) {
-	req, ok := guideDocRequirementForTool(toolName)
-	if !ok || guideDocRequirementSatisfied(req, loadedGuideDocs) {
-		return ToolResult{}, false
-	}
-	return toolResult(guideDocGateMessage(toolName, req), true), true
-}
-
-func guideDocRequirementSatisfied(req guideDocRequirement, loadedGuideDocs map[string]struct{}) bool {
-	for _, docPath := range req.AnyOf {
-		if hasLoadedGuideDoc(loadedGuideDocs, docPath) {
-			return true
-		}
-	}
-	return false
-}
-
 func hasLoadedGuideDoc(loadedGuideDocs map[string]struct{}, docPath string) bool {
 	required := normalizeGuideDocPath(docPath)
 	for loaded := range loadedGuideDocs {
@@ -888,14 +882,6 @@ func hasLoadedGuideDoc(loadedGuideDocs map[string]struct{}, docPath string) bool
 		}
 	}
 	return false
-}
-
-func guideDocGateMessage(toolName string, req guideDocRequirement) string {
-	commands := make([]string, 0, len(req.AnyOf))
-	for _, docPath := range req.AnyOf {
-		commands = append(commands, fmt.Sprintf("`read_doc(\"%s\")`", docPath))
-	}
-	return fmt.Sprintf("已拦截工具调用：%s 属于执行/搜索类工具，必须先读取对应 SOP。请先调用 %s 后再重试。", toolName, strings.Join(commands, " 或 "))
 }
 
 func (s *WorkspaceChatService) loadedGuideDocsForSession(ctx context.Context, sessionID string) map[string]struct{} {
@@ -908,8 +894,13 @@ func (s *WorkspaceChatService) loadedGuideDocsForSession(ctx context.Context, se
 		logger.Warnf(ctx, "[WorkspaceChatStream] 查询会话已读 SOP 失败 SessionID=%s: %v", sessionID, err)
 		return loaded
 	}
+	return loadedGuideDocsFromMessages(ctx, messages, agentosskills.DefaultRegistry())
+}
 
+func loadedGuideDocsFromMessages(ctx context.Context, messages []*model.AgentChatMessage, registry *agentosskills.Registry) map[string]struct{} {
+	loaded := make(map[string]struct{})
 	readDocCalls := make(map[string][]string)
+	readSkillCalls := make(map[string]string)
 	for _, msg := range messages {
 		if msg == nil {
 			continue
@@ -925,15 +916,22 @@ func (s *WorkspaceChatService) loadedGuideDocsForSession(ctx context.Context, se
 				continue
 			}
 			for _, tc := range toolCalls {
-				if tc.Function.Name != "read_doc" || strings.TrimSpace(tc.ID) == "" {
+				if strings.TrimSpace(tc.ID) == "" {
 					continue
 				}
 				var args map[string]interface{}
 				if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-					logger.Warnf(ctx, "[WorkspaceChatStream] 解析历史 read_doc 参数失败 ToolCallID=%s: %v", tc.ID, err)
+					logger.Warnf(ctx, "[WorkspaceChatStream] 解析历史 %s 参数失败 ToolCallID=%s: %v", tc.Function.Name, tc.ID, err)
 					continue
 				}
-				readDocCalls[tc.ID] = guideDocPathsFromReadDocArgs(args)
+				switch tc.Function.Name {
+				case "read_doc":
+					readDocCalls[tc.ID] = guideDocPathsFromReadDocArgs(args)
+				case "read_skill":
+					if id := skillIDFromReadSkillArgs(args); id != "" {
+						readSkillCalls[tc.ID] = id
+					}
+				}
 			}
 		case RoleTool:
 			if msg.ToolStatus != ToolCallStatusOK {
@@ -941,6 +939,9 @@ func (s *WorkspaceChatService) loadedGuideDocsForSession(ctx context.Context, se
 			}
 			for _, docPath := range readDocCalls[msg.ToolCallID] {
 				loaded[docPath] = struct{}{}
+			}
+			if id := readSkillCalls[msg.ToolCallID]; id != "" {
+				markLoadedRequiredDocsForSkill(ctx, loaded, registry, id)
 			}
 		}
 	}
@@ -964,6 +965,22 @@ func guideDocPathsFromReadDocArgs(args map[string]interface{}) []string {
 	return paths
 }
 
+func updateLoadedGuideDocsAfterToolCall(ctx context.Context, loaded map[string]struct{}, toolName string, args map[string]interface{}, status string) {
+	if status != ToolCallStatusOK || loaded == nil {
+		return
+	}
+	switch strings.TrimSpace(toolName) {
+	case "read_doc":
+		for _, docPath := range guideDocPathsFromReadDocArgs(args) {
+			loaded[docPath] = struct{}{}
+		}
+	case "read_skill":
+		if id := skillIDFromReadSkillArgs(args); id != "" {
+			markLoadedRequiredDocsForSkill(ctx, loaded, agentosskills.DefaultRegistry(), id)
+		}
+	}
+}
+
 func normalizeGuideDocPath(path string) string {
 	path = strings.TrimSpace(path)
 	if path == "" {
@@ -985,10 +1002,10 @@ func shouldSuggestExecuteGuide(toolName string) bool {
 }
 
 func appendExecuteGuideHint(toolName, message string) string {
-	if !shouldSuggestExecuteGuide(toolName) || strings.Contains(message, executeGuideDocPath) {
+	if !shouldSuggestExecuteGuide(toolName) || strings.Contains(message, "sop.execute-function") {
 		return message
 	}
-	hint := fmt.Sprintf("提示：如需该工具的 SOP、参数规范和易错点，可先 `read_doc(\"%s\")` 再重试。", executeGuideDocPath)
+	hint := "提示：执行类工具的 SOP 已迁移到 Skills。请先 `read_skill(\"sop.execute-function\")`，再按该 skill 的 schema 和参数规范重试。"
 	message = strings.TrimSpace(message)
 	if message == "" {
 		return hint

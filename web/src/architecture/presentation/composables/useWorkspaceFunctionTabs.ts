@@ -9,7 +9,7 @@ import type { FunctionDetail } from '@/architecture/domain/types'
 import { Logger } from '@/core/utils/logger'
 import type { ServiceTree } from '../../domain/services/WorkspaceDomainService'
 
-type FunctionTabName = 'content' | 'permissionRequest' | 'permissionManage' | 'operateLog' | 'scheduledTask' | 'scheduledAgentTask'
+type FunctionTabName = 'content' | 'detail' | 'permissionRequest' | 'permissionManage' | 'operateLog' | 'scheduledTask' | 'scheduledAgentTask'
 type ReplayContext = {
   source: 'scheduled_task' | 'operate_log'
   title?: string
@@ -223,7 +223,7 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   })
 
   const showFunctionTabsWrapper = computed(() => {
-    return showFunctionPermissionTabs.value || showFormOperateLogTab.value || showScheduledTaskTab.value || showScheduledAgentTaskTab.value
+    return currentFunction.value?.type === 'function'
   })
 
   const loadFunctionTab = (tabName: FunctionTabName) => {
@@ -243,6 +243,8 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
 
   const getFunctionTabQueryValue = () => {
     switch (functionActiveTab.value) {
+      case 'detail':
+        return 'detail'
       case 'permissionRequest':
         return 'permissionRequest'
       case 'permissionManage':
@@ -403,6 +405,11 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
 
   const applyFunctionPanelQuery = (tab: LocationQueryValue | LocationQueryValue[] | undefined) => {
     const normalizedTab = normalizePanelQuery(tab)
+
+    if (normalizedTab === 'detail' && currentFunction.value?.type === 'function') {
+      functionActiveTab.value = 'detail'
+      return
+    }
 
     if (normalizedTab === 'permissionRequest' && showFunctionPermissionTabs.value) {
       functionActiveTab.value = 'permissionRequest'

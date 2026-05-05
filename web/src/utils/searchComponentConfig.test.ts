@@ -11,7 +11,7 @@ function createRadioField() {
       type: WidgetType.RADIO,
       config: {
         options: ['是', '否', '不确定'],
-        options_colors: ['danger', 'success', 'warning']
+        options_colors: ['F56C6C', '67C23A', 'E6A23C']
       }
     }
   } as any

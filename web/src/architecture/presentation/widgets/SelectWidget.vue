@@ -179,19 +179,13 @@ const staticOptions = computed<SelectOptionItem[]>(() => {
 /**
  * 🔥 选项颜色配置
  * 
- * 支持两种颜色格式：
- * 1. Element Plus 标准颜色类型：success, warning, danger, info, primary
- *    使用 el-tag 的 type 属性
- * 2. 自定义颜色（hex 格式）：如 #FF5722, #4CAF50
- *    使用 el-tag 的 color 属性
+ * 只支持不带 # 的 6 位十六进制 RRGGBB，例如 FF5722、4CAF50。
  * 
  * options_colors 数组与 staticOptions 数组的索引对齐，通过索引获取对应选项的颜色
  */
 const optionColors = computed(() => {
   return widgetConfig.value.options_colors || []
 })
-
-// isStandardColor 已从 constants/select 导入
 
 /**
  * 获取当前选中值的颜色

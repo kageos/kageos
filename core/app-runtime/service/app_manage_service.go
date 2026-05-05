@@ -49,6 +49,7 @@ type StartupNotification struct {
 	Version   string
 	Status    string
 	StartTime time.Time
+	Error     string
 }
 
 // CloseNotification 关闭通知
@@ -1137,6 +1138,9 @@ func (s *AppManageService) StartAppVersion(ctx context.Context, user, app, versi
 		if notification.Status == "running" {
 			logger.Infof(ctx, "[StartAppVersion] Version %s started successfully", version)
 			return nil
+		}
+		if notification.Error != "" {
+			return fmt.Errorf("app startup failed: %s", notification.Error)
 		}
 		return fmt.Errorf("app started but status is not running: %s", notification.Status)
 

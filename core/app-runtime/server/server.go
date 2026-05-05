@@ -275,17 +275,21 @@ func (s *Server) initServices(ctx context.Context) error {
 }
 
 // handleAppStartupFromDiscovery 处理来自 AppDiscoveryService 的启动通知
-func (s *Server) handleAppStartupFromDiscovery(user, app, version string, startTime time.Time) {
+func (s *Server) handleAppStartupFromDiscovery(user, app, version, status, errorMessage string, startTime time.Time) {
 	//ctx := context.Background()
 	//logger.Infof(ctx, "[Server] Received startup notification from discovery: %s/%s/%s", user, app, version)
+	if status == "" || status == "started" {
+		status = "running"
+	}
 
 	// 构建通知对象
 	notification := &service.StartupNotification{
 		User:      user,
 		App:       app,
 		Version:   version,
-		Status:    "started",
+		Status:    status,
 		StartTime: startTime,
+		Error:     errorMessage,
 	}
 
 	// 通知应用管理服务

@@ -19,9 +19,9 @@
             class="output-files-item"
           >
             <div class="output-files-preview" v-if="isImageFile(file)">
-              <a :href="file.download_url" target="_blank" rel="noopener noreferrer" class="output-files-preview-link">
+              <a :href="fileDisplayUrl(file)" target="_blank" rel="noopener noreferrer" class="output-files-preview-link">
                 <img
-                  :src="file.download_url"
+                  :src="fileDisplayUrl(file)"
                   :alt="fileDisplayName(file)"
                   loading="lazy"
                   class="output-files-img"
@@ -33,7 +33,7 @@
               <el-icon><Document /></el-icon>
             </div>
             <div class="output-files-info">
-              <a :href="file.download_url" target="_blank" rel="noopener noreferrer" class="output-files-name">
+              <a :href="fileDisplayUrl(file)" target="_blank" rel="noopener noreferrer" class="output-files-name">
                 {{ fileDisplayName(file) }}
               </a>
               <span class="output-files-meta">
@@ -41,8 +41,8 @@
                 <span v-if="file.size != null" class="output-files-size">{{ formatFileSize(file.size) }}</span>
               </span>
               <div class="output-files-actions">
-                <el-link type="primary" :href="file.download_url" target="_blank" rel="noopener noreferrer">打开</el-link>
-                <el-link type="primary" :href="file.download_url" target="_blank" rel="noopener noreferrer" download>下载</el-link>
+                <el-link type="primary" :href="fileDisplayUrl(file)" target="_blank" rel="noopener noreferrer">打开</el-link>
+                <el-link type="primary" :href="fileDisplayUrl(file)" target="_blank" rel="noopener noreferrer" download>下载</el-link>
               </div>
             </div>
           </div>
@@ -58,6 +58,7 @@ import { Document, FolderOpened } from '@element-plus/icons-vue'
 import { resolveFileRefs, type ResolvedFile } from '@/api/storage'
 import type { ToolResultMetadata } from '@/api/workspace'
 import { extractFileGroupsFromResult, type OutputFileGroup, type OutputFileItem } from '@/architecture/presentation/composables/useOutputFileGroups'
+import { normalizeStorageFileDisplayUrl } from '@/architecture/presentation/utils/storageFileUrl'
 
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'])
 
@@ -153,6 +154,10 @@ function isImageFile(file: OutputFileItem): boolean {
 
 function fileDisplayName(file: OutputFileItem): string {
   return (file.source_name ?? file.name ?? '文件') as string
+}
+
+function fileDisplayUrl(file: OutputFileItem): string {
+  return normalizeStorageFileDisplayUrl(file.download_url || file.ref || '')
 }
 
 /** 从文件名解析扩展名，用于展示格式（如 PDF、PNG、XLSX） */

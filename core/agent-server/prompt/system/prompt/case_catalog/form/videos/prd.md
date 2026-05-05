@@ -118,7 +118,7 @@ type VideoConvertReq struct {
 	InputFiles string `json:"input_files" widget:"name:上传视频文件;type:files;accept:video/*;max_size:500MB;max_count:10" validate:"required"`
 
 	// 框架标签：select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
-	OutputFormat string `json:"output_format" widget:"name:目标格式;type:select;options:mp4,webm,avi,mkv;options_colors:primary,success,info,warning;render_default:mp4" validate:"required,oneof=mp4 webm avi mkv"`
+	OutputFormat string `json:"output_format" widget:"name:目标格式;type:select;options:mp4,webm,avi,mkv;options_colors:409EFF,67C23A,909399,E6A23C;render_default:mp4" validate:"required,oneof=mp4 webm avi mkv"`
 }
 
 // VideoConvertResp 视频格式转换响应结构体

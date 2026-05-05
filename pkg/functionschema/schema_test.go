@@ -2,6 +2,7 @@ package functionschema
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
@@ -62,6 +63,34 @@ func TestValidateRejectsInvalidDisplayScenes(t *testing.T) {
 				t.Fatal("Validate() error = nil, want error")
 			}
 		})
+	}
+}
+
+func TestValidateRejectsUnsupportedWidgetType(t *testing.T) {
+	schema := NewForm([]*widget.Field{testField("record_date", "date")}, nil, nil)
+
+	if err := Validate(schema); err == nil {
+		t.Fatal("Validate() error = nil, want error")
+	}
+}
+
+func TestValidateAggregatesFieldErrors(t *testing.T) {
+	schema := NewForm([]*widget.Field{
+		testField("record_date", "date"),
+		testField("title", widget.TypeInput, "detail"),
+	}, nil, nil)
+
+	err := Validate(schema)
+	if err == nil {
+		t.Fatal("Validate() error = nil, want error")
+	}
+	for _, want := range []string{
+		`field "record_date" has unsupported widget type: date`,
+		`field "title" has unsupported display scene: detail`,
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("Validate() error = %v, want substring %q", err, want)
+		}
 	}
 }
 

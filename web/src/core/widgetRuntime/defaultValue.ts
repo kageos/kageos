@@ -126,8 +126,6 @@ function getDefaultValueByType(fieldType: string): FieldValue {
       return { raw: [], display: '[]', meta: {} }
     case DataType.STRUCT.toLowerCase():
       return { raw: {}, display: '{}', meta: {} }
-    case DataType.FILES.toLowerCase():
-      return { raw: null, display: '', meta: {} }
     case DataType.STRING.toLowerCase():
     default:
       return { raw: '', display: '', meta: {} }

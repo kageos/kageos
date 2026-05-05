@@ -31,14 +31,12 @@ type Server struct {
 	natsConn   *nats.Conn
 
 	// 服务
-	authService            *service.AuthService
-	emailService           *service.EmailService
-	userService            *service.UserService
-	departmentService      *service.DepartmentService
-	tokenPublisher         service.TokenPublisher
-	messageConsumerService *service.MessageConsumerService
-	messageCommandHandler  *service.MessageCommandHandler
-	subscriptions          []*nats.Subscription
+	authService       *service.AuthService
+	emailService      *service.EmailService
+	userService       *service.UserService
+	departmentService *service.DepartmentService
+	tokenPublisher    service.TokenPublisher
+	subscriptions     []*nats.Subscription
 
 	// 上下文
 	ctx context.Context
@@ -200,19 +198,13 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	s.departmentService = service.NewDepartmentService(deptRepo, userRepo)
 
-	s.messageConsumerService = service.NewMessageConsumerService(s.emailService, s.userService)
-	s.messageCommandHandler = service.NewMessageCommandHandler(s.messageConsumerService)
-
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil
 }
 
 // subscribeNATS 注册所有 NATS 订阅
 func (s *Server) subscribeNATS(ctx context.Context) error {
-	if s.natsConn == nil || s.messageCommandHandler == nil {
-		return nil
-	}
-	return RegisterNATS(ctx, s.natsConn, &s.subscriptions, s.messageCommandHandler)
+	return RegisterNATS(ctx, s.natsConn, &s.subscriptions)
 }
 
 // unsubscribeNATS 取消所有 NATS 订阅

@@ -6,7 +6,6 @@ import { buildSearchTagSummary } from '@/architecture/presentation/widgets/utils
 import {
   getOptionLightPalette,
   getOptionSolidColor,
-  isStandardColor,
   normalizeOptionColor,
   type StandardColorType
 } from '@/core/constants/select'
@@ -127,9 +126,8 @@ export function useSearchInputFallbackSelect({
   }
 
   function getOptionColorType(value: any): StandardColorType | undefined {
-    const color = getOptionColor(value)
-    if (!color) return undefined
-    return isStandardColor(color) ? (color as StandardColorType) : undefined
+    void value
+    return undefined
   }
 
   function getOptionColorValue(value: any): string | undefined {

@@ -52,9 +52,13 @@ func (a *App) NewContext(ctx context.Context, req *dto.RequestAppReq) (*Context,
 	//if err := json.Unmarshal(msg.Data, &req); err != nil {
 	//	return nil, err
 	//}
-	if msgInfo.ClientSource != "" {
-		ctx = contextx.WithClientSource(ctx, msgInfo.ClientSource)
-	}
+	ctx = contextx.WithRequestInfo(ctx, contextx.RequestInfo{
+		TraceId:            msgInfo.TraceId,
+		RequestUser:        msgInfo.RequestUser,
+		Token:              req.Token,
+		DepartmentFullPath: msgInfo.RequestUserDept,
+		ClientSource:       msgInfo.ClientSource,
+	})
 	return &Context{
 		body:     req.Body,
 		urlQuery: req.UrlQuery,
@@ -131,6 +135,14 @@ func wrapValidationError(err error) error {
 func (ctx *Context) GetTraceId() string {
 	if ctx.msg != nil {
 		return ctx.msg.TraceId
+	}
+	return ""
+}
+
+// GetFullCodePath 获取当前函数的完整目录路径，用于审计和消息来源标记。
+func (ctx *Context) GetFullCodePath() string {
+	if ctx != nil && ctx.msg != nil {
+		return ctx.msg.GetFullRouter()
 	}
 	return ""
 }

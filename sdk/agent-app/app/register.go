@@ -291,10 +291,11 @@ func (a *App) CallbackRouter(ctx *Context, resp response.Response) error {
 }
 
 // handleTableCreateInBatches 系统内置的批量创建处理函数
-// 通过反射获取 AutoCrudTable 结构类型，批量插入数据库
+// 通过反射获取有效 AutoCrudTable 结构类型，批量插入数据库
 func handleTableCreateInBatches(ctx *Context, template *TableTemplate, req *callback.OnTableCreateInBatchesReq) (*callback.OnTableCreateInBatchesResp, error) {
-	if template.AutoCrudTable == nil {
-		return nil, errors.New("AutoCrudTable 不能为空")
+	tableModel := template.EffectiveAutoCrudTable()
+	if tableModel == nil {
+		return nil, errors.New("AutoCrudTable 不能为空，且 CreateTables 中没有可降级使用的表模型")
 	}
 
 	// 获取数据库连接
@@ -303,8 +304,8 @@ func handleTableCreateInBatches(ctx *Context, template *TableTemplate, req *call
 		return nil, errors.New("获取数据库连接失败")
 	}
 
-	// 获取 AutoCrudTable 的结构类型
-	tableType := reflect.TypeOf(template.AutoCrudTable)
+	// 获取有效 AutoCrudTable 的结构类型
+	tableType := reflect.TypeOf(tableModel)
 	if tableType.Kind() == reflect.Ptr {
 		tableType = tableType.Elem()
 	}

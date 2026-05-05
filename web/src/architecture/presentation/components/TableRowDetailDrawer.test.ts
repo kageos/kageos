@@ -23,8 +23,7 @@ vi.mock('@/stores/auth', () => ({
 
 vi.mock('@/architecture/presentation/composables/useTableRowDetailTabs', () => ({
   useTableRowDetailTabs: () => ({
-    activeTab: ref('detail'),
-    showPermissionRequestTab: computed(() => false)
+    activeTab: ref('detail')
   })
 }))
 

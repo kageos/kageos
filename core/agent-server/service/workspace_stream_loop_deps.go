@@ -60,7 +60,8 @@ func (d *workspaceStreamLoopDeps) SaveAssistantMessageWithToolCalls(ctx context.
 }
 
 func (d *workspaceStreamLoopDeps) ExecuteToolCalls(ctx context.Context, allToolCalls []llms.ToolCall, currentAssistantContent string, sendEvent func(string, interface{})) ([]streamloop.ToolCallSummary, error) {
-	summaries, err := d.service.executeToolCalls(ctx, allToolCalls, currentAssistantContent, d.sessionID, d.fullCodePath, nil, d.user, d.files, sendEvent)
+	allowedToolNames := workspaceToolNamesForMode(d.modeProvider, d.toolNames)
+	summaries, err := d.service.executeToolCalls(ctx, allToolCalls, currentAssistantContent, d.sessionID, d.fullCodePath, nil, d.user, d.files, allowedToolNames, sendEvent)
 	if err != nil {
 		return nil, err
 	}
