@@ -99,39 +99,10 @@ const submitting = ref(false)
 const showScheduledTaskDialog = ref(false)
 
 /**
- * 根据 table_permission 过滤字段
- */
-const filteredFields = computed(() => {
-  return props.fields.filter(field => {
-    const permission = field.table_permission
-    
-    // 新增模式
-    if (props.mode === 'create') {
-      // read: 不显示（后端自动生成）
-      // update: 不显示（只能编辑时修改）
-      // create: 显示（只能新增时填写）
-      // 空: 显示（全部权限）
-      return !permission || permission === '' || permission === 'create'
-    }
-    
-    // 编辑模式
-    if (props.mode === 'update') {
-      // read: 不显示（只读）
-      // update: 显示（只能编辑时修改）
-      // create: 不显示（只能新增时填写）
-      // 空: 显示（全部权限）
-      return !permission || permission === '' || permission === 'update'
-    }
-    
-    return true
-  })
-})
-
-/**
  * 🔥 将 fields 包装成 FunctionDetail 格式，供 FormRenderer 使用
  * 
  * ⚠️ 关键说明：
- * - 对于 table 函数的新增表单：fields 来自 functionDetail.response（新增时需要填写的字段）
+ * - 对于 table 函数的新增表单：fields 来自 table schema 的 create 场景字段
  * - request 字段用于 FormRenderer 渲染可编辑的表单字段
  * - response 字段为空数组（新增表单不需要显示响应参数）
  * - id 设置为 0（FormRenderer 需要正确处理 id === 0 的情况）
@@ -156,8 +127,15 @@ const formFunctionDetail = computed<FunctionDetail | null>(() => {
     create_tables: '',
     callbacks: [],
     template_type: 'form',
-    request: filteredFields.value,  // 🔥 使用过滤后的字段（对于 table 函数，这是 response 字段）
-    response: [],  // 🔥 新增表单不需要显示响应参数
+    schema: {
+      version: 1,
+      type: 'form',
+      callbacks: [],
+      form: {
+        request: props.fields,
+        response: []
+      }
+    },
     created_at: '',
     updated_at: '',
     full_code_path: ''

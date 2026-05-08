@@ -70,44 +70,36 @@ export APP_ENV=dev
 
 ### 2. 起后端
 
-推荐在仓库根目录：
+本地开发后端统一从 GoLand 启动：
 
-```bash
-bash deploy/dev/scripts/run-backend.sh
-```
+- Run target：`core/cmd/main/main.go`
+- Working directory：仓库根目录
+- Environment：`APP_ENV=dev`
 
 说明：
 
-- 脚本会默认设置 `APP_ENV=dev`
 - `APP_ENV=dev` 时启动预检会自动按本地 compose 基础设施模式处理，无需额外环境变量
-- 如果本地缺少用户应用基础镜像 `APP_BASE_IMAGE`（默认 `agentos-app-runtime-base:latest`），脚本会先自动触发一次构建
-- 如需手动控制，仍可直接执行 `go run ./core/cmd/main`
+- GoLand 本地开发直接启动 `core/cmd/main/main.go` 也需要设置 `APP_ENV=dev`；此时统一入口会编排本地 `timer-scheduler`
+- 如需命令行临时启动，等价命令是 `APP_ENV=dev go run ./core/cmd/main`
 
 ### 2.1 构建用户应用运行时基础镜像
 
-默认情况下，`bash deploy/dev/scripts/run-backend.sh` 会在缺镜像时自动执行这一步。  
-如果你想手工提前构建，或想单独重建，请执行：
-
-```bash
-bash deploy/dev/scripts/build-app-base.sh
-```
-
-如需即使 tag 已存在也重建：
-
-```bash
-bash deploy/dev/scripts/build-app-base.sh --force
-```
-
-它实际会转到 canonical 脚本：
+如果本地缺少用户应用运行时基础镜像，或想单独重建，请执行 canonical 脚本：
 
 ```bash
 bash deploy/base/scripts/build-app-base-image.sh
 ```
 
+如需即使 tag 已存在也重建：
+
+```bash
+bash deploy/base/scripts/build-app-base-image.sh --force
+```
+
 如需自定义 tag，可临时指定：
 
 ```bash
-APP_BASE_IMAGE="agentos-app-runtime-base:latest" bash deploy/dev/scripts/build-app-base.sh
+APP_BASE_IMAGE="agentos-app-runtime-base:latest" bash deploy/base/scripts/build-app-base-image.sh
 ```
 
 如需强制重建且不复用缓存：
@@ -117,12 +109,6 @@ bash deploy/base/scripts/build-app-base-image.sh --force --no-cache
 ```
 
 但注意：dev 默认配置 [app-runtime.yaml](config/app-runtime.yaml) 里的 `container.image.base_image` 默认也是 `agentos-app-runtime-base:latest`。如果你真要用自定义 tag，记得同时改这里。
-
-如需跳过自动构建检查，可临时指定：
-
-```bash
-AOS_SKIP_APP_BASE_BUILD=1 bash deploy/dev/scripts/run-backend.sh
-```
 
 ### 3. 起前端
 

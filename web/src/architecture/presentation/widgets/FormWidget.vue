@@ -209,7 +209,7 @@
         :title="field.name"
         :size="DRAWER_CONFIG.size"
         destroy-on-close
-        append-to-body
+        :append-to-body="shouldAppendOverlayToBody"
         @close="tableCellMode.handleDrawerClose()"
       >
         <template #default>
@@ -305,7 +305,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, inject, ref } from 'vue'
 import { ElForm, ElFormItem, ElButton, ElDrawer, ElIcon, ElCard } from 'element-plus'
 import { View } from '@element-plus/icons-vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
@@ -317,6 +317,7 @@ import type { ValidationEngine, ValidationResult } from '@/core/validation'
 import { validateFieldValue, validateFormWidgetNestedFields, type WidgetValidationContext } from '@/architecture/presentation/widgets/composables/useWidgetValidation'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { FORM_LABEL_WIDTH, FORM_QUESTIONNAIRE_TRIGGER_CHARS } from '@/architecture/presentation/utils/formLayout'
+import { prdPreviewContextKey } from '@/architecture/presentation/components/prdPreviewContext'
 
 // 抽屉配置常量
 const DRAWER_CONFIG = {
@@ -325,6 +326,8 @@ const DRAWER_CONFIG = {
 
 const props = defineProps<WidgetComponentProps>()
 const formDataStore = useFormDataStore()
+const prdPreviewContext = inject(prdPreviewContextKey, null)
+const shouldAppendOverlayToBody = computed(() => !prdPreviewContext?.interactive)
 
 // 使用组合式函数
 const { visibleSubFields, isSubFieldRequired, getSubFieldValue, updateSubFieldValue } = useFormWidget(props)

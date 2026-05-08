@@ -55,14 +55,19 @@ const ElTagStub = defineComponent({
     color: {
       type: String,
       default: ''
+    },
+    style: {
+      type: [String, Array, Object],
+      default: undefined
     }
   },
   setup(props, { attrs, slots }) {
+    const styleValue = props.style ?? attrs.style ?? {}
     return () => h('span', {
       class: 'el-tag-stub',
       'data-type': props.type || '',
       'data-color': props.color || '',
-      'data-style': typeof attrs.style === 'string' ? attrs.style : JSON.stringify(attrs.style ?? {})
+      'data-style': typeof styleValue === 'string' ? styleValue : JSON.stringify(styleValue)
     }, slots.default?.())
   }
 })
@@ -137,7 +142,7 @@ describe('MultiSelectWidget', () => {
                 { label: '开启', value: 'open' },
                 { label: '关闭', value: 'closed' }
               ],
-              options_colors: ['danger', 'success']
+              options_colors: ['F56C6C', '67C23A']
             }
           }
         } as any,
@@ -164,13 +169,13 @@ describe('MultiSelectWidget', () => {
 
     const tag = wrapper.find('.el-tag-stub')
     expect(tag.exists()).toBe(true)
-    expect(tag.attributes('data-type')).toBe('danger')
+    expect(tag.attributes('data-type')).toBe('')
     expect(tag.attributes('data-style')).toContain('backgroundColor')
-    expect(tag.attributes('data-style')).toContain('var(--el-color-danger-light-9)')
-    expect(tag.attributes('data-style')).toContain('var(--el-color-danger)')
+    expect(tag.attributes('data-style')).toContain('rgba(245, 108, 108, 0.12)')
+    expect(tag.attributes('data-style')).toContain('#F56C6C')
   })
 
-  it('falls back to neutral tag style when options_colors uses default or invalid color', async () => {
+  it('falls back to neutral tag style when options_colors uses invalid color', async () => {
     const wrapper = mount(MultiSelectWidget, {
       props: {
         field: {
@@ -183,7 +188,7 @@ describe('MultiSelectWidget', () => {
                 { label: '开启', value: 'open' },
                 { label: '关闭', value: 'closed' }
               ],
-              options_colors: ['default', 'not-a-real-color']
+              options_colors: ['not-a-real-color', '12345G']
             }
           }
         } as any,
@@ -210,10 +215,8 @@ describe('MultiSelectWidget', () => {
 
     const tags = wrapper.findAll('.el-tag-stub')
     expect(tags[0]?.attributes('data-type')).toBe('')
-    expect(tags[0]?.attributes('data-style')).toContain('var(--el-fill-color-light)')
-    expect(tags[0]?.attributes('data-style')).toContain('var(--el-text-color-regular)')
-    expect(tags[1]?.attributes('data-style')).toContain('var(--el-fill-color-light)')
-    expect(tags[1]?.attributes('data-style')).toContain('var(--el-text-color-regular)')
+    expect(tags[0]?.attributes('data-style')).toBe('{}')
+    expect(tags[1]?.attributes('data-style')).toBe('{}')
   })
 
   it('keeps fuzzy dialog for callback-driven multiselect search', async () => {

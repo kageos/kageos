@@ -10,7 +10,7 @@ export const WidgetType = {
   TEXT_AREA: 'text_area',
   SELECT: 'select',
   SWITCH: 'switch',
-  TIMESTAMP: 'timestamp',
+  DATETIME: 'datetime',
   USER: 'user',
   USERS: 'users',
   DEPARTMENT: 'department',
@@ -29,7 +29,8 @@ export const WidgetType = {
   TABLE: 'table',
   FORM: 'form',
   LINK: 'link',
-  PROGRESS: 'progress'
+  PROGRESS: 'progress',
+  LIST: 'list'
 } as const
 
 /**
@@ -43,9 +44,7 @@ export const DataType = {
   STRINGS: '[]string',
   INTS: '[]int',
   FLOATS: '[]float',
-  TIMESTAMP: 'timestamp',
   FLOAT: 'float',
-  FILES: 'files',
   STRUCT: 'struct',
   STRUCTS: '[]struct'
 } as const
@@ -83,9 +82,7 @@ export function getMultiSelectDefaultDataType(): string {
  * Widget 类型别名映射（用于兼容不同的命名）
  */
 export const WidgetTypeAliases: Record<string, string> = {
-  'text': WidgetType.INPUT,      // text 别名 input
-  'textarea': WidgetType.TEXT_AREA,  // textarea 别名 text_area
-  'ID': WidgetType.INPUT         // ID 字段使用 input 组件
+  'textarea': WidgetType.TEXT_AREA
 }
 
 /**
@@ -101,15 +98,9 @@ export function normalizeWidgetType(type: string | undefined | null): string {
  * 🔥 用于动态默认值解析，避免硬编码
  */
 export const DynamicFunctionName = {
-  // 时间函数
-  NOW: 'now',
-  TODAY: 'today',
-  TOMORROW: 'tomorrow',
-  YESTERDAY: 'yesterday',
   // 用户函数
   ME: 'me',
   MY_LEADER: 'myleader',
   // 组织架构函数
   MY_DEPARTMENT: 'mydepartment'
 } as const
-

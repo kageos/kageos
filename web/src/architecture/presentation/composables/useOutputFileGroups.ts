@@ -1,7 +1,10 @@
 /**
- * 从任意「工具/接口返回的 result」中解析出文件组，供工作台工具结果、或其他输出文件展示复用。
+ * 从工具结构化结果中解析输出文件组，供工作台展示复用。
  * 约定：任意文件字段返回 bucket/object_key 字符串；多文件用英文逗号分隔。
+ * 文件字段必须由 metadata.display_file_fields 显式声明，不从普通结果里猜。
  */
+
+import type { ToolResultMetadata } from '@/api/workspace'
 
 export interface OutputFileItem {
   ref?: string
@@ -18,11 +21,12 @@ export interface OutputFileGroup {
 }
 
 /**
- * 从 result（字符串或对象）中递归提取所有文件引用字符串，返回文件组列表。
- * 可用于 run_form_submit、run_official_python、ffmpeg 等任意返回 string 的工具结果。
+ * 从结构化 result（对象或 JSON 字符串）的显式文件字段中提取文件引用字符串。
+ * 普通文本结果不做启发式解析，避免把 full_code_path、字体路径、通配符等说明文本误判为输出文件。
  */
 export function extractFileGroupsFromResult(
-  result: string | object | undefined
+  result: string | object | undefined,
+  metadata?: ToolResultMetadata
 ): OutputFileGroup[] {
   if (result == null) return []
   let obj: unknown
@@ -30,8 +34,7 @@ export function extractFileGroupsFromResult(
     try {
       obj = JSON.parse(result) as unknown
     } catch {
-      const refs = parseRefs(result)
-      return refs.length > 0 ? [{ label: 'Output Files', files: refsToItems(refs) }] : []
+      return []
     }
   } else if (typeof result === 'object' && result !== null) {
     obj = result
@@ -39,44 +42,67 @@ export function extractFileGroupsFromResult(
     return []
   }
 
+  return metadata == null ? [] : extractDeclaredFileGroups(obj, metadata)
+}
+
+function extractDeclaredFileGroups(obj: unknown, metadata: ToolResultMetadata): OutputFileGroup[] {
+  if (!obj || typeof obj !== 'object') return []
+
+  const fields = Array.isArray(metadata.display_file_fields) ? metadata.display_file_fields : []
   const groups: OutputFileGroup[] = []
-  const visited = new WeakSet<object>()
+  for (const field of fields) {
+    const path = field.trim()
+    if (!path) continue
 
-  const visit = (node: unknown, path: Array<string | number>) => {
-    if (!node || typeof node !== 'object') return
-    if (visited.has(node)) return
-    visited.add(node)
+    const value = getValueByPath(obj, path)
+    if (typeof value !== 'string') continue
 
-    if (Array.isArray(node)) {
-      node.forEach((item, index) => visit(item, [...path, index]))
-      return
-    }
-
-    for (const [key, value] of Object.entries(node)) {
-      if (typeof value === 'string' && isFileLikeKey(key)) {
-        const refs = parseRefs(value)
-        if (refs.length > 0) {
-          groups.push({ label: buildGroupLabel([...path, key]), files: refsToItems(refs) })
-          continue
-        }
-      }
-      visit(value, [...path, key])
-    }
+    const refs = parseRefs(value)
+    if (refs.length === 0) continue
+    groups.push({ label: buildGroupLabel(path.split('.')), files: refsToItems(refs) })
   }
-
-  visit(obj, [])
   return groups
 }
 
-function isFileLikeKey(key: string): boolean {
-  return /file|files|attachment|附件/i.test(key)
+function getValueByPath(obj: unknown, path: string): unknown {
+  if (!obj || typeof obj !== 'object') return undefined
+  const direct = (obj as Record<string, unknown>)[path]
+  if (direct !== undefined) return direct
+
+  let current: unknown = obj
+  for (const segment of path.split('.')) {
+    if (!current || typeof current !== 'object') return undefined
+    current = (current as Record<string, unknown>)[segment]
+  }
+  return current
 }
 
 function parseRefs(value: string): string[] {
-  return value
+  const refs = value
     .split(',')
-    .map(item => item.trim().replace(/^\/+/, ''))
-    .filter(item => item.includes('/'))
+    .map(normalizeRef)
+
+  if (refs.length === 0 || refs.some(ref => !isValidFileRef(ref))) {
+    return []
+  }
+  return refs
+}
+
+function normalizeRef(value: string): string {
+  return value.trim().replace(/^\/+/, '')
+}
+
+function isValidFileRef(ref: string): boolean {
+  if (!ref || ref.includes('*')) return false
+  if (/[,\s]/.test(ref)) return false
+  const slashIndex = ref.indexOf('/')
+  if (slashIndex <= 0 || slashIndex === ref.length - 1) return false
+
+  const bucket = ref.slice(0, slashIndex)
+  const key = ref.slice(slashIndex + 1)
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$/.test(bucket)) return false
+  if (key.split('/').some(segment => segment.length === 0)) return false
+  return true
 }
 
 function refsToItems(refs: string[]): OutputFileItem[] {

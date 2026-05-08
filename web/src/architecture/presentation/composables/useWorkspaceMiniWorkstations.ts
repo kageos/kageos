@@ -36,12 +36,15 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
     if (!fullCodePath) return
 
     const dirName = overrideName || ctx?.dirName || fullCodePath.split('/').filter(Boolean).pop() || '工作台'
-    const existing = miniWsList.value.find(
-      (mini: MiniWsInstance) => mini.fullCodePath === fullCodePath && mini.initialSessionId === (initialSessionId || '')
-    )
-    if (existing) {
-      existing.visible = true
-      return
+    const normalizedSessionId = (initialSessionId || '').trim()
+    if (normalizedSessionId) {
+      const existing = miniWsList.value.find(
+        (mini: MiniWsInstance) => mini.fullCodePath === fullCodePath && mini.initialSessionId === normalizedSessionId
+      )
+      if (existing) {
+        existing.visible = true
+        return
+      }
     }
 
     const offset = miniWsList.value.filter((mini: MiniWsInstance) => mini.visible).length * 40
@@ -49,7 +52,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
       id: String(++miniIdCounter),
       fullCodePath,
       dirName,
-      initialSessionId: initialSessionId || '',
+      initialSessionId: normalizedSessionId,
       visible: true,
       offset: initialMaximized ? 0 : offset,
       initialPosition: initialMaximized ? undefined : 'center',
@@ -60,22 +63,24 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
   function syncMiniWsQueryParam(open: boolean, sid?: string) {
     const query = { ...route.query }
     if (open) {
-      query.mws = 'open'
+      // mini 工作台状态只给前端/平台使用，必须用 `_` key，
+      // 不能占用 sdk-app 业务参数名。
+      query._mws = 'open'
       if (sid) {
-        query.mws_sid = sid
+        query._mws_sid = sid
       } else {
-        delete query.mws_sid
+        delete query._mws_sid
       }
       const ctx = workstationContext.value
       if (ctx) {
-        query.mws_path = ctx.fullCodePath
-        query.mws_name = ctx.dirName
+        query._mws_path = ctx.fullCodePath
+        query._mws_name = ctx.dirName
       }
     } else {
-      delete query.mws
-      delete query.mws_sid
-      delete query.mws_path
-      delete query.mws_name
+      delete query._mws
+      delete query._mws_sid
+      delete query._mws_path
+      delete query._mws_name
     }
     router.replace({ path: route.path, query })
   }
@@ -176,10 +181,10 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
   }
 
   function initializeFromRoute() {
-    if (route.query.mws === 'open') {
-      const mwsSid = typeof route.query.mws_sid === 'string' ? route.query.mws_sid : ''
-      const mwsPath = typeof route.query.mws_path === 'string' ? route.query.mws_path : ''
-      const mwsName = typeof route.query.mws_name === 'string' ? route.query.mws_name : ''
+    if (route.query._mws === 'open') {
+      const mwsSid = typeof route.query._mws_sid === 'string' ? route.query._mws_sid : ''
+      const mwsPath = typeof route.query._mws_path === 'string' ? route.query._mws_path : ''
+      const mwsName = typeof route.query._mws_name === 'string' ? route.query._mws_name : ''
       restoreMiniWorkstation({
         fullCodePath: mwsPath || undefined,
         dirName: mwsName || undefined,

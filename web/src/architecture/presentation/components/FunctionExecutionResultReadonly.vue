@@ -87,6 +87,7 @@ import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
 import WidgetComponent from '@/architecture/presentation/widgets/WidgetComponent.vue'
 import { convertToFieldValue } from '@/utils/field'
 import { DataAnalysis, Upload } from '@element-plus/icons-vue'
+import { getFormRequestFields, getFormResponseFields } from '@/utils/functionSchemaSelectors'
 
 const props = withDefaults(defineProps<{
   functionDetail?: FunctionDetail | null
@@ -100,8 +101,8 @@ const props = withDefaults(defineProps<{
   responseTitle: '输出结果'
 })
 
-const requestFields = computed<FieldConfig[]>(() => props.functionDetail?.request || [])
-const responseFields = computed<FieldConfig[]>(() => props.functionDetail?.response || [])
+const requestFields = computed<FieldConfig[]>(() => getFormRequestFields(props.functionDetail))
+const responseFields = computed<FieldConfig[]>(() => getFormResponseFields(props.functionDetail))
 
 const metadataEntries = computed(() => {
   const metadata = props.responseMetadata || {}

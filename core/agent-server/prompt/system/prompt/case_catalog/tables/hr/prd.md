@@ -9,7 +9,7 @@
 
 ---
 
-## 二、PRD 要点（表格格式）
+## 二、旧版 PRD 要点（仅实现参考，不作为 app.plan 输出格式）
 
 ### 1. 职位表（hr_job_list）
 
@@ -108,6 +108,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 	"gorm.io/gorm"
 )
 
@@ -115,27 +116,27 @@ import (
 
 // HrJob 职位信息表
 type HrJob struct {
-	ID        int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:职位ID;type:ID" permission:"read" search:"eq"`
-	CreatedAt int64          `json:"created_at" gorm:"autoCreateTime:milli;column:created_at" widget:"name:创建时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
-	UpdatedAt int64          `json:"updated_at" gorm:"autoUpdateTime:milli;column:updated_at" widget:"name:更新时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
+	ID        int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:职位ID;type:ID" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
+	CreatedAt types.Time          `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
+	UpdatedAt types.Time          `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
 
-	Title        string `json:"title" gorm:"column:title;comment:职位名称" widget:"name:职位名称;type:input" search:"like" validate:"required,min=2,max=100"`
-	Department   string `json:"department" gorm:"column:department;comment:部门" widget:"name:部门;type:select;options:技术,产品,设计,运营,市场,销售,人事,财务,其他;options_colors:primary,success,warning,info,danger,#9C27B0,#FF9800,#607D8B" search:"in" validate:"required"`
-	JobType      string `json:"job_type" gorm:"column:job_type;comment:工作类型;default:全职" widget:"name:工作类型;type:select;options:全职,兼职,实习,外包;options_colors:primary,success,warning,info;default:全职" search:"in" validate:"required,oneof=全职 兼职 实习 外包"`
-	Experience   string `json:"experience" gorm:"column:experience;comment:工作经验;default:不限" widget:"name:工作经验;type:select;options:1-3年,3-5年,5-10年,10年以上,不限;options_colors:info,primary,success,warning,#9E9E9E;default:不限" search:"in" validate:"required"`
-	Education    string `json:"education" gorm:"column:education;comment:学历要求;default:不限" widget:"name:学历要求;type:select;options:本科,硕士,博士,不限;options_colors:info,primary,success,#9E9E9E;default:不限" search:"in" validate:"required"`
-	Location     string `json:"location" gorm:"column:location;comment:工作地点" widget:"name:工作地点;type:input" search:"like" validate:"required,min=2,max=100"`
-	MinSalary    int    `json:"min_salary" gorm:"column:min_salary;comment:最低薪资(元)" widget:"name:最低薪资;type:number" search:"gte,lte" validate:"gte=0"`
-	MaxSalary    int    `json:"max_salary" gorm:"column:max_salary;comment:最高薪资(元)" widget:"name:最高薪资;type:number" search:"gte,lte" validate:"gte=0"`
-	Description  string `json:"description" gorm:"column:description;type:text;comment:职位描述" widget:"name:职位描述;type:text_area" search:"like" validate:"required,min=10"`
-	Requirements string `json:"requirements" gorm:"column:requirements;type:text;comment:任职要求" widget:"name:任职要求;type:text_area" search:"like"`
-	RecruitCount int    `json:"recruit_count" gorm:"column:recruit_count;comment:招聘人数;default:1" widget:"name:招聘人数;type:number" search:"gte,lte" validate:"required,min=1"`
-	Status       string `json:"status" gorm:"column:status;comment:招聘状态;default:招聘中" widget:"name:招聘状态;type:select;options:招聘中,已暂停,已关闭,已招满;options_colors:success,warning,danger,info;default:招聘中" search:"in" validate:"required,oneof=招聘中 已暂停 已关闭 已招满"`
-	PublishTime  int64  `json:"publish_time" gorm:"column:publish_time;comment:发布时间" widget:"name:发布时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" validate:"required"`
-	Deadline     int64  `json:"deadline" gorm:"column:deadline;comment:截止时间" widget:"name:截止时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"`
-	CreateBy     string `json:"create_by" gorm:"column:create_by" widget:"name:发布人;type:user" search:"in" permission:"read"`
-	ApplyLink    string `json:"apply_link" gorm:"-" widget:"name:投递简历;type:link;target:_blank" permission:"read"`
+	Title        string `json:"title" gorm:"column:title;comment:职位名称" widget:"name:职位名称;type:input" validate:"required,min=2,max=100"`
+	Department   string `json:"department" gorm:"column:department;comment:部门" widget:"name:部门;type:select;options:技术,产品,设计,运营,市场,销售,人事,财务,其他;options_colors:409EFF,67C23A,E6A23C,909399,F56C6C,9C27B0,FF9800,607D8B" validate:"required"`
+	JobType      string `json:"job_type" gorm:"column:job_type;comment:工作类型;default:全职" widget:"name:工作类型;type:select;options:全职,兼职,实习,外包;options_colors:409EFF,67C23A,E6A23C,909399;render_default:全职" validate:"required,oneof=全职 兼职 实习 外包"`
+	Experience   string `json:"experience" gorm:"column:experience;comment:工作经验;default:不限" widget:"name:工作经验;type:select;options:1-3年,3-5年,5-10年,10年以上,不限;options_colors:909399,409EFF,67C23A,E6A23C,9E9E9E;render_default:不限" validate:"required"`
+	Education    string `json:"education" gorm:"column:education;comment:学历要求;default:不限" widget:"name:学历要求;type:select;options:本科,硕士,博士,不限;options_colors:909399,409EFF,67C23A,9E9E9E;render_default:不限" validate:"required"`
+	Location     string `json:"location" gorm:"column:location;comment:工作地点" widget:"name:工作地点;type:input" validate:"required,min=2,max=100"`
+	MinSalary    int    `json:"min_salary" gorm:"column:min_salary;comment:最低薪资(元)" widget:"name:最低薪资;type:number" validate:"gte=0"`
+	MaxSalary    int    `json:"max_salary" gorm:"column:max_salary;comment:最高薪资(元)" widget:"name:最高薪资;type:number" validate:"gte=0"`
+	Description  string `json:"description" gorm:"column:description;type:text;comment:职位描述" widget:"name:职位描述;type:text_area" validate:"required,min=10"`
+	Requirements string `json:"requirements" gorm:"column:requirements;type:text;comment:任职要求" widget:"name:任职要求;type:text_area"`
+	RecruitCount int    `json:"recruit_count" gorm:"column:recruit_count;comment:招聘人数;default:1" widget:"name:招聘人数;type:number" validate:"required,min=1"`
+	Status       string `json:"status" gorm:"column:status;comment:招聘状态;default:招聘中" widget:"name:招聘状态;type:select;options:招聘中,已暂停,已关闭,已招满;options_colors:67C23A,E6A23C,F56C6C,909399;render_default:招聘中" validate:"required,oneof=招聘中 已暂停 已关闭 已招满"`
+	PublishTime  types.Time  `json:"publish_time" gorm:"column:publish_time;type:datetime;comment:发布时间" widget:"name:发布时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" validate:"required"`
+	Deadline     types.Time  `json:"deadline" gorm:"column:deadline;type:datetime;comment:截止时间" widget:"name:截止时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
+	CreateBy     string `json:"create_by" gorm:"column:create_by" widget:"name:发布人;type:user" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
+	ApplyLink    string `json:"apply_link" gorm:"-" widget:"name:投递简历;type:link;target:_blank" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 }
 
 func (HrJob) TableName() string {
@@ -144,7 +145,12 @@ func (HrJob) TableName() string {
 
 // HrJobListReq 职位列表请求
 type HrJobListReq struct {
-	query.SearchFilterPageReq `widget:"-"`
+	Title      string `json:"title" form:"title" widget:"name:职位名称;type:input"`
+	Department string `json:"department" form:"department" widget:"name:部门;type:select;options:技术,产品,设计,运营,市场,销售,人事,财务,其他;options_colors:409EFF,67C23A,E6A23C,909399,F56C6C,9C27B0,FF9800,607D8B"`
+	JobType    string `json:"job_type" form:"job_type" widget:"name:工作类型;type:select;options:全职,兼职,实习,外包;options_colors:409EFF,67C23A,E6A23C,909399"`
+	Status     string `json:"status" form:"status" widget:"name:招聘状态;type:select;options:招聘中,已暂停,已关闭,已招满;options_colors:67C23A,E6A23C,F56C6C,909399"`
+
+	query.PageSortReq `widget:"-"`
 }
 
 // HrJobList 职位管理
@@ -159,8 +165,22 @@ func HrJobList(ctx *app.Context, resp response.Response) error {
 		return err
 	}
 
+	queryDB := db.Model(&HrJob{})
+	if req.Title != "" {
+		queryDB = queryDB.Where("title LIKE ?", "%"+req.Title+"%")
+	}
+	if req.Department != "" {
+		queryDB = queryDB.Where("department = ?", req.Department)
+	}
+	if req.JobType != "" {
+		queryDB = queryDB.Where("job_type = ?", req.JobType)
+	}
+	if req.Status != "" {
+		queryDB = queryDB.Where("status = ?", req.Status)
+	}
+
 	var jobs []HrJob
-	builder := resp.Table(&jobs).AutoSearchFilterPaged(db, &HrJob{}, &req.SearchFilterPageReq)
+	builder := resp.Table(&jobs, queryDB, &HrJob{}, &req.PageSortReq)
 
 	if err := builder.Build(); err != nil {
 		return err
@@ -168,8 +188,8 @@ func HrJobList(ctx *app.Context, resp response.Response) error {
 
 	for i := range jobs {
 		if jobs[i].Status == "招聘中" {
-			now := time.Now().UnixMilli()
-			if jobs[i].Deadline == 0 || jobs[i].Deadline > now {
+			now := time.Now()
+			if jobs[i].Deadline.IsZero() || jobs[i].Deadline.Time().After(now) {
 				params := HrResume{
 					JobID: jobs[i].ID,
 				}
@@ -188,7 +208,6 @@ var HrJobListTemplate = &app.TableTemplate{
 		Desc:         `职位信息的增删改查管理，包括职位名称、部门、工作类型、薪资范围、职位描述、任职要求、招聘状态等`,
 		Tags:         []string{"招聘系统", "职位管理"},
 		Request:      &HrJobListReq{},
-		Response:     query.PaginatedTable[[]HrJob]{},
 		CreateTables: []interface{}{&HrJob{}},
 	},
 	AutoCrudTable: &HrJob{},
@@ -203,14 +222,14 @@ var HrJobListTemplate = &app.TableTemplate{
 			return nil, fmt.Errorf("最高薪资不能低于最低薪资")
 		}
 
-		if row.Deadline > 0 && row.PublishTime > 0 && row.Deadline <= row.PublishTime {
+		if !row.Deadline.IsZero() && !row.PublishTime.IsZero() && !row.Deadline.Time().After(row.PublishTime.Time()) {
 			return nil, fmt.Errorf("截止时间必须晚于发布时间")
 		}
 
 		row.CreateBy = ctx.GetRequestUser()
 
-		if row.PublishTime == 0 {
-			row.PublishTime = time.Now().UnixMilli()
+		if row.PublishTime.IsZero() {
+			row.PublishTime = types.Time(time.Now())
 		}
 
 		err := db.Create(&row).Error
@@ -224,11 +243,11 @@ var HrJobListTemplate = &app.TableTemplate{
 		db := ctx.GetGormDB()
 
 		var updateFields HrJob
-		if err := req.BindUpdates(&updateFields); err != nil {
+		if err := req.BindChangedFields(&updateFields); err != nil {
 			return nil, fmt.Errorf("绑定更新字段失败: %w", err)
 		}
 
-		updates := req.GetUpdates()
+		updates := req.ChangedFields()
 
 		if req.IsFieldUpdated("min_salary") || req.IsFieldUpdated("max_salary") {
 			var currentJob HrJob
@@ -271,7 +290,7 @@ var HrJobListTemplate = &app.TableTemplate{
 				tempJob.Deadline = updateFields.Deadline
 			}
 
-			if tempJob.Deadline > 0 && tempJob.PublishTime > 0 && tempJob.Deadline <= tempJob.PublishTime {
+			if !tempJob.Deadline.IsZero() && !tempJob.PublishTime.IsZero() && !tempJob.Deadline.Time().After(tempJob.PublishTime.Time()) {
 				return nil, fmt.Errorf("截止时间必须晚于发布时间")
 			}
 		}
@@ -324,6 +343,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/statistics"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 	"gorm.io/gorm"
@@ -333,31 +353,31 @@ import (
 
 // HrResume 简历投递表
 type HrResume struct {
-	ID        int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:投递ID;type:ID" permission:"read" search:"eq"`
-	CreatedAt int64          `json:"created_at" gorm:"autoCreateTime:milli;column:created_at" widget:"name:投递时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
-	UpdatedAt int64          `json:"updated_at" gorm:"autoUpdateTime:milli;column:updated_at" widget:"name:更新时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
+	ID        int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:投递ID;type:ID" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
+	CreatedAt types.Time          `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:投递时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
+	UpdatedAt types.Time          `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
 
-	JobID         int    `json:"job_id" gorm:"column:job_id;comment:职位ID;index" widget:"name:投递职位;type:select" validate:"required" callback:"OnSelectFuzzy" search:"eq"`
+	JobID         int    `json:"job_id" gorm:"column:job_id;comment:职位ID;index" widget:"name:投递职位;type:select" validate:"required" callback:"OnSelectFuzzy"`
 	Job           *HrJob `json:"-" widget:"-" gorm:"foreignKey:JobID;references:ID"`
-	JobTitle      string `json:"job_title" gorm:"-" widget:"name:职位名称;type:text" permission:"read"`
-	JobDepartment string `json:"job_department" gorm:"-" widget:"name:部门;type:text" permission:"read"`
-	JobLink       string `json:"job_link" gorm:"-" widget:"name:职位详情;type:link;target:_blank" permission:"read"`
+	JobTitle      string `json:"job_title" gorm:"-" widget:"name:职位名称;type:text" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
+	JobDepartment string `json:"job_department" gorm:"-" widget:"name:部门;type:text" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
+	JobLink       string `json:"job_link" gorm:"-" widget:"name:职位详情;type:link;target:_blank" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 
-	Name            string       `json:"name" gorm:"column:name;comment:姓名" widget:"name:姓名;type:input" search:"like" validate:"required,min=2,max=20"`
-	Phone           string       `json:"phone" gorm:"column:phone;comment:联系电话" widget:"name:联系电话;type:input" search:"like" validate:"required,min=11,max=20"`
-	Email           string       `json:"email" gorm:"column:email;comment:邮箱" widget:"name:邮箱;type:input" search:"like" validate:"required,email"`
-	Gender          string       `json:"gender" gorm:"column:gender;comment:性别" widget:"name:性别;type:select;options:男,女,其他;options_colors:primary,success,info" search:"in"`
-	Age             int          `json:"age" gorm:"column:age;comment:年龄" widget:"name:年龄;type:number" search:"gte,lte" validate:"min=18,max=100"`
-	Education       string       `json:"education" gorm:"column:education;comment:学历" widget:"name:学历;type:select;options:本科,硕士,博士,其他;options_colors:info,primary,success,#9E9E9E" search:"in"`
-	Experience      string       `json:"experience" gorm:"column:experience;comment:工作经验" widget:"name:工作经验;type:select;options:1-3年,3-5年,5-10年,10年以上,应届生;options_colors:info,primary,success,warning,#9E9E9E" search:"in"`
-	CurrentCompany  string       `json:"current_company" gorm:"column:current_company;comment:当前公司" widget:"name:当前公司;type:input" search:"like"`
-	CurrentPosition string       `json:"current_position" gorm:"column:current_position;comment:当前职位" widget:"name:当前职位;type:input" search:"like"`
-	ResumeContent   string       `json:"resume_content" gorm:"column:resume_content;type:text;comment:简历内容" widget:"name:简历内容;type:text_area" search:"like" validate:"required,min=10"`
+	Name            string       `json:"name" gorm:"column:name;comment:姓名" widget:"name:姓名;type:input" validate:"required,min=2,max=20"`
+	Phone           string       `json:"phone" gorm:"column:phone;comment:联系电话" widget:"name:联系电话;type:input" validate:"required,min=11,max=20"`
+	Email           string       `json:"email" gorm:"column:email;comment:邮箱" widget:"name:邮箱;type:input" validate:"required,email"`
+	Gender          string       `json:"gender" gorm:"column:gender;comment:性别" widget:"name:性别;type:select;options:男,女,其他;options_colors:409EFF,67C23A,909399"`
+	Age             int          `json:"age" gorm:"column:age;comment:年龄" widget:"name:年龄;type:number" validate:"min=18,max=100"`
+	Education       string       `json:"education" gorm:"column:education;comment:学历" widget:"name:学历;type:select;options:本科,硕士,博士,其他;options_colors:909399,409EFF,67C23A,9E9E9E"`
+	Experience      string       `json:"experience" gorm:"column:experience;comment:工作经验" widget:"name:工作经验;type:select;options:1-3年,3-5年,5-10年,10年以上,应届生;options_colors:909399,409EFF,67C23A,E6A23C,9E9E9E"`
+	CurrentCompany  string       `json:"current_company" gorm:"column:current_company;comment:当前公司" widget:"name:当前公司;type:input"`
+	CurrentPosition string       `json:"current_position" gorm:"column:current_position;comment:当前职位" widget:"name:当前职位;type:input"`
+	ResumeContent   string       `json:"resume_content" gorm:"column:resume_content;type:text;comment:简历内容" widget:"name:简历内容;type:text_area" validate:"required,min=10"`
 	ResumeFile      string `json:"resume_file" gorm:"column:resume_file;type:text;comment:简历附件" widget:"name:简历附件;type:files"`
-	Status          string       `json:"status" gorm:"column:status;comment:投递状态;default:待筛选" widget:"name:投递状态;type:select;options:待筛选,已通过,已拒绝,待面试,已录用;options_colors:info,success,danger,warning,success;default:待筛选" search:"in" validate:"required,oneof=待筛选 已通过 已拒绝 待面试 已录用"`
-	Remark          string       `json:"remark" gorm:"column:remark;type:text;comment:备注" widget:"name:备注;type:text_area" search:"like"`
-	Applicant       string       `json:"applicant" gorm:"column:applicant;comment:投递人" widget:"name:投递人;type:user;default:Me()" search:"in" permission:"read"`
+	Status          string       `json:"status" gorm:"column:status;comment:投递状态;default:待筛选" widget:"name:投递状态;type:select;options:待筛选,已通过,已拒绝,待面试,已录用;options_colors:909399,67C23A,F56C6C,E6A23C,67C23A;render_default:待筛选" validate:"required,oneof=待筛选 已通过 已拒绝 待面试 已录用"`
+	Remark          string       `json:"remark" gorm:"column:remark;type:text;comment:备注" widget:"name:备注;type:text_area"`
+	Applicant       string       `json:"applicant" gorm:"column:applicant;comment:投递人" widget:"name:投递人;type:user;render_default:Me()" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 }
 
 func (HrResume) TableName() string {
@@ -366,9 +386,13 @@ func (HrResume) TableName() string {
 
 // HrResumeListReq 简历投递列表请求
 type HrResumeListReq struct {
-	JobTitle                  string `json:"job_title" form:"job_title" gorm:"-" widget:"name:职位名称;type:input"`
-	JobDepartment             string `json:"job_department" form:"job_department" widget:"name:部门;type:select;options:技术,产品,设计,运营,市场,销售,人事,财务,其他;options_colors:primary,success,warning,info,danger,#9C27B0,#FF9800,#607D8B"`
-	query.SearchFilterPageReq `widget:"-"`
+	JobTitle      string `json:"job_title" form:"job_title" gorm:"-" widget:"name:职位名称;type:input"`
+	JobDepartment string `json:"job_department" form:"job_department" widget:"name:部门;type:select;options:技术,产品,设计,运营,市场,销售,人事,财务,其他;options_colors:409EFF,67C23A,E6A23C,909399,F56C6C,9C27B0,FF9800,607D8B"`
+	Name          string `json:"name" form:"name" widget:"name:姓名;type:input"`
+	Phone         string `json:"phone" form:"phone" widget:"name:联系电话;type:input"`
+	Status        string `json:"status" form:"status" widget:"name:投递状态;type:select;options:待筛选,已通过,已拒绝,待面试,已录用;options_colors:909399,67C23A,F56C6C,E6A23C,67C23A"`
+
+	query.PageSortReq `widget:"-"`
 }
 
 // HrResumeList 投递管理
@@ -392,7 +416,7 @@ func HrResumeList(ctx *app.Context, resp response.Response) error {
 			Pluck("id", &jobIDs).Error; err == nil && len(jobIDs) > 0 {
 			queryDB = queryDB.Where("job_id IN ?", jobIDs)
 		} else {
-			return resp.Table(&[]HrResume{}).Build()
+			queryDB = queryDB.Where("1 = 0")
 		}
 	}
 
@@ -403,14 +427,23 @@ func HrResumeList(ctx *app.Context, resp response.Response) error {
 			Pluck("id", &jobIDs).Error; err == nil && len(jobIDs) > 0 {
 			queryDB = queryDB.Where("job_id IN ?", jobIDs)
 		} else {
-			return resp.Table(&[]HrResume{}).Build()
+			queryDB = queryDB.Where("1 = 0")
 		}
+	}
+	if req.Name != "" {
+		queryDB = queryDB.Where("name LIKE ?", "%"+req.Name+"%")
+	}
+	if req.Phone != "" {
+		queryDB = queryDB.Where("phone LIKE ?", "%"+req.Phone+"%")
+	}
+	if req.Status != "" {
+		queryDB = queryDB.Where("status = ?", req.Status)
 	}
 
 	queryDB = queryDB.Preload("Job")
 
 	var resumes []HrResume
-	builder := resp.Table(&resumes).AutoSearchFilterPaged(queryDB, &HrResume{}, &req.SearchFilterPageReq)
+	builder := resp.Table(&resumes, queryDB, &HrResume{}, &req.PageSortReq)
 
 	if err := builder.Build(); err != nil {
 		return err
@@ -438,7 +471,6 @@ var HrResumeListTemplate = &app.TableTemplate{
 		Desc:         `简历投递的增删改查管理，包括职位选择、投递人信息、简历内容、投递状态等`,
 		Tags:         []string{"招聘系统", "投递管理"},
 		Request:      &HrResumeListReq{},
-		Response:     query.PaginatedTable[[]HrResume]{},
 		CreateTables: []interface{}{&HrResume{}},
 		OnSelectFuzzyMap: map[string]app.OnSelectFuzzy{
 			"job_id": onSelectFuzzyJob,
@@ -464,7 +496,7 @@ var HrResumeListTemplate = &app.TableTemplate{
 			return nil, fmt.Errorf("职位 %s 当前状态为 %s，无法投递简历", job.Title, job.Status)
 		}
 
-		if job.Deadline > 0 && job.Deadline < time.Now().UnixMilli() {
+		if !job.Deadline.IsZero() && !job.Deadline.Time().After(time.Now()) {
 			return nil, fmt.Errorf("职位 %s 已过期，无法投递简历", job.Title)
 		}
 
@@ -491,11 +523,11 @@ var HrResumeListTemplate = &app.TableTemplate{
 		db := ctx.GetGormDB()
 
 		var updateFields HrResume
-		if err := req.BindUpdates(&updateFields); err != nil {
+		if err := req.BindChangedFields(&updateFields); err != nil {
 			return nil, fmt.Errorf("绑定更新字段失败: %w", err)
 		}
 
-		updates := req.GetUpdates()
+		updates := req.ChangedFields()
 
 		if req.IsFieldUpdated("job_id") {
 			var job HrJob
@@ -541,8 +573,8 @@ func onSelectFuzzyJob(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*callba
 	db = db.Model(&HrJob{}).
 		Where("status = ?", "招聘中")
 
-	now := time.Now().UnixMilli()
-	db = db.Where("(deadline = 0 OR deadline > ?)", now)
+	now := time.Now()
+	db = db.Where("(deadline IS NULL OR deadline > ?)", now)
 
 	if req.IsByValue() {
 		db = db.Where("id = ?", req.GetValue()).Limit(1)

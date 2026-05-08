@@ -61,7 +61,7 @@ describe('UserWidget', () => {
     expect(wrapper.find('.search-selected-value').exists()).toBe(true)
     expect(wrapper.text()).toContain('alice(艾丽丝)')
 
-    await wrapper.get('.search-tag-remove').trigger('click')
+    await wrapper.get('.selected-value-remove').trigger('click')
 
     const emitted = wrapper.emitted('update:modelValue')
     expect(emitted).toBeTruthy()

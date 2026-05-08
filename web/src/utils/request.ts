@@ -266,6 +266,11 @@ export function put<T = any>(url: string, data?: any, config?: AxiosRequestConfi
   return service.put(url, data, config)
 }
 
+// 封装PATCH请求
+export function patch<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  return service.patch(url, data, config)
+}
+
 // 封装DELETE请求
 // 支持两种模式：
 // 1. 无参数 - 标准 DELETE（默认）

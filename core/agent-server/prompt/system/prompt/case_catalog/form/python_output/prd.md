@@ -10,7 +10,7 @@
 
 ---
 
-## 二、PRD 要点（表格格式）
+## 二、旧版 PRD 要点（仅实现参考，不作为 app.plan 输出格式）
 
 ### 容器内 Python 生成 PNG（sandbox_file_out_demo.form，POST）
 
@@ -95,9 +95,9 @@ type SandboxFileOutDemoReq struct {
 
 // SandboxFileOutDemoResp 响应：可下载 PNG + 说明文案
 type SandboxFileOutDemoResp struct {
-	OutputPNG string `json:"output_png" widget:"name:生成的 PNG;type:files" permission:"read"`
-	Info      string       `json:"info" widget:"name:说明;type:text_area" permission:"read"`
-	Status    string       `json:"status" widget:"name:状态;type:text" permission:"read"`
+	OutputPNG string `json:"output_png" widget:"name:生成的 PNG;type:files"`
+	Info      string       `json:"info" widget:"name:说明;type:text_area"`
+	Status    string       `json:"status" widget:"name:状态;type:text"`
 }
 
 // SandboxFileOutDemo Form：同机 Python 按绝对路径落盘 → Go ResponseFiles
@@ -188,7 +188,7 @@ def agentos_entry(args, output_dir):
 
     return {
         "data": {
-            "info": "本图由 matplotlib 在本应用容器内写入 Go 指定的绝对路径；Go 用 ResponseFiles 下发。勿用相对路径在 Go/Python 间互传 cwd 不同。详阅 read_doc /system/prompt/case_catalog/form/python_output。"
+            "909399": "本图由 matplotlib 在本应用容器内写入 Go 指定的绝对路径；Go 用 ResponseFiles 下发。勿用相对路径在 Go/Python 间互传 cwd 不同。详阅 read_doc /system/prompt/case_catalog/form/python_output。"
         },
         "output_files": [
             {"path": image_output_path, "name": os.path.basename(image_output_path)}

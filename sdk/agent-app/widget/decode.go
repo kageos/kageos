@@ -1,6 +1,7 @@
 package widget
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -9,13 +10,13 @@ import (
 // FieldTags 包含字段的所有标签信息
 type FieldTags struct {
 	// 基础标签
-	Json       string // json tag value
-	Gorm       string // gorm tag value
-	Widget     string // widget tag value
-	Search     string // search tag value
-	Validate   string // validate tag value
-	Data       string // data tag value
-	Permission string // permission tag value
+	Json     string // json tag value
+	Gorm     string // gorm tag value
+	Widget   string // widget tag value
+	Validate string // validate tag value
+	Data     string // data tag value
+	Hide     string // hide tag value
+	HideSet  bool   // hide tag is present, even when empty
 
 	// 解析后的widget标签
 	WidgetParsed map[string]string
@@ -98,13 +99,14 @@ func ParseModelWithType(model interface{}) (*ParseModelResult, error) {
 	}
 
 	fields, err := parseStructFields(typ)
-	if err != nil {
-		return nil, err
-	}
-	return &ParseModelResult{
+	result := &ParseModelResult{
 		Tags: fields,
 		Type: typ,
-	}, nil
+	}
+	if err != nil {
+		return result, err
+	}
+	return result, nil
 }
 
 func parseModelStructType(model interface{}) (reflect.Type, error) {
@@ -151,6 +153,30 @@ func parseTagValue(tagValue string, result map[string]string) error {
 	return nil
 }
 
+func parseSceneList(raw string) []string {
+	parts := strings.Split(raw, ",")
+	scenes := make([]string, 0, len(parts))
+	for _, part := range parts {
+		scene := strings.TrimSpace(part)
+		if scene != "" {
+			scenes = append(scenes, scene)
+		}
+	}
+	return scenes
+}
+
+func buildFieldHide(tags *FieldTags) *FieldHide {
+	if tags == nil || !tags.HideSet || strings.TrimSpace(tags.Hide) == "" {
+		return nil
+	}
+
+	scenes := parseSceneList(tags.Hide)
+	if len(scenes) == 0 {
+		return nil
+	}
+	return &FieldHide{Scenes: scenes}
+}
+
 // parseNestedStructOrSlice 递归解析嵌套的结构体或切片
 // 只有明确指定 widget type 为 table 或 form 时才进行递归解析
 func parseNestedStructOrSlice(fieldType reflect.Type, parentTags *FieldTags) error {
@@ -165,34 +191,34 @@ func parseNestedStructOrSlice(fieldType reflect.Type, parentTags *FieldTags) err
 			// 如果切片元素是结构体，递归解析
 			if elemType.Kind() == reflect.Struct {
 				children, err := parseStructFields(elemType)
+				parentTags.Children = children
 				if err != nil {
 					return fmt.Errorf("failed to parse slice element struct: %w", err)
 				}
-				parentTags.Children = children
 			} else if elemType.Kind() == reflect.Ptr && elemType.Elem().Kind() == reflect.Struct {
 				// 处理指针切片 []*Struct
 				children, err := parseStructFields(elemType.Elem())
+				parentTags.Children = children
 				if err != nil {
 					return fmt.Errorf("failed to parse slice element struct pointer: %w", err)
 				}
-				parentTags.Children = children
 			}
 		}
 	} else if widgetType == TypeForm {
 		// 只有明确指定为 form 时，才解析结构体
 		if fieldType.Kind() == reflect.Struct {
 			children, err := parseStructFields(fieldType)
+			parentTags.Children = children
 			if err != nil {
 				return fmt.Errorf("failed to parse struct fields: %w", err)
 			}
-			parentTags.Children = children
 		} else if fieldType.Kind() == reflect.Ptr && fieldType.Elem().Kind() == reflect.Struct {
 			// 处理指针类型的结构体
 			children, err := parseStructFields(fieldType.Elem())
+			parentTags.Children = children
 			if err != nil {
 				return fmt.Errorf("failed to parse struct pointer fields: %w", err)
 			}
-			parentTags.Children = children
 		}
 	}
 
@@ -202,12 +228,14 @@ func parseNestedStructOrSlice(fieldType reflect.Type, parentTags *FieldTags) err
 // parseStructFields 解析结构体的所有字段
 func parseStructFields(structType reflect.Type) ([]*FieldTags, error) {
 	fields := make([]*FieldTags, 0, structType.NumField())
+	var errs []error
 
 	for i := 0; i < structType.NumField(); i++ {
 		field := structType.Field(i)
 		tags, ok, err := parseStructField(field)
 		if err != nil {
-			return nil, err
+			errs = append(errs, fmt.Errorf("field %s: %w", field.Name, err))
+			continue
 		}
 		if !ok {
 			continue
@@ -215,7 +243,7 @@ func parseStructFields(structType reflect.Type) ([]*FieldTags, error) {
 		fields = append(fields, tags)
 	}
 
-	return fields, nil
+	return fields, errors.Join(errs...)
 }
 
 func parseStructField(field reflect.StructField) (*FieldTags, bool, error) {
@@ -232,14 +260,6 @@ func parseStructField(field reflect.StructField) (*FieldTags, bool, error) {
 		if err := parseTagValue(tags.Widget, tags.WidgetParsed); err != nil {
 			return nil, false, fmt.Errorf("failed to parse widget tag for field %s: %w", field.Name, err)
 		}
-
-		widgetType := tags.WidgetParsed["type"]
-		if widgetType == TypeTable || widgetType == TypeForm {
-			if err := parseNestedStructOrSlice(field.Type, tags); err != nil {
-				return nil, false, fmt.Errorf("failed to parse nested struct for field %s: %w", field.Name, err)
-			}
-			return tags, true, nil
-		}
 	}
 
 	if tags.Data != "" {
@@ -248,19 +268,28 @@ func parseStructField(field reflect.StructField) (*FieldTags, bool, error) {
 		}
 	}
 
+	widgetType := tags.WidgetParsed["type"]
+	if widgetType == TypeTable || widgetType == TypeForm {
+		if err := parseNestedStructOrSlice(field.Type, tags); err != nil {
+			return nil, false, fmt.Errorf("failed to parse nested struct for field %s: %w", field.Name, err)
+		}
+		return tags, true, nil
+	}
+
 	return tags, true, nil
 }
 
 func newFieldTags(field reflect.StructField) *FieldTags {
+	hideValue, hideSet := field.Tag.Lookup("hide")
 	return &FieldTags{
 		Json:         field.Tag.Get("json"),
 		Gorm:         field.Tag.Get("gorm"),
 		Widget:       field.Tag.Get("widget"),
-		Search:       field.Tag.Get("search"),
 		Validate:     field.Tag.Get("validate"),
 		Data:         field.Tag.Get("data"),
 		Callback:     field.Tag.Get("callback"),
-		Permission:   field.Tag.Get("permission"),
+		Hide:         hideValue,
+		HideSet:      hideSet,
 		WidgetParsed: make(map[string]string),
 		DataParsed:   make(map[string]string),
 		Type:         field.Type,
@@ -270,9 +299,9 @@ func newFieldTags(field reflect.StructField) *FieldTags {
 
 // IsSkipField 检查是否应该跳过该字段的解析
 func IsSkipField(fieldName string, fieldType reflect.Type, fieldTags *FieldTags) bool {
-	// 跳过 SearchFilterPageReq 嵌套结构体
-	if strings.Contains(fieldName, "SearchFilterPageReq") &&
-		strings.Contains(fieldType.String(), "SearchFilterPageReq") {
+	// 跳过分页请求嵌套结构体
+	if strings.Contains(fieldType.String(), "PageSortReq") &&
+		strings.Contains(fieldName, "PageSortReq") {
 		return true
 	}
 
@@ -288,18 +317,17 @@ func IsSkipField(fieldName string, fieldType reflect.Type, fieldTags *FieldTags)
 // ConvertTagsToField 将 FieldTags 转换为 Field 结构体
 func ConvertTagsToField(tags *FieldTags) *Field {
 	field := &Field{
-		Code:            tags.GetCode(),
-		Name:            tags.WidgetParsed["name"], // 从widget标签中获取显示名称
-		Desc:            tags.WidgetParsed["desc"], // 从widget标签中获取详细说明
-		FieldName:       tags.FieldName,
-		Search:          tags.Search,
-		Validation:      tags.Validate,
-		TablePermission: tags.Permission,
-		Data:            &FieldData{},
-		DependOn:        tags.WidgetParsed["depend_on"], // 从widget标签中获取依赖字段
+		Code:       tags.GetCode(),
+		Name:       tags.WidgetParsed["name"], // 从widget标签中获取显示名称
+		Desc:       tags.WidgetParsed["desc"], // 从widget标签中获取详细说明
+		FieldName:  tags.FieldName,
+		Validation: tags.Validate,
+		Hide:       buildFieldHide(tags),
+		Data:       &FieldData{},
+		DependOn:   tags.WidgetParsed["depend_on"], // 从widget标签中获取依赖字段
 	}
 	if tags.Callback != "" {
-		field.Callbacks = strings.Split(tags.Callback, ",")
+		field.Callbacks = parseCallbackTag(tags.Callback)
 	}
 
 	// 获取widget类型（必须明确指定，不自动推断）
@@ -316,7 +344,8 @@ func ConvertTagsToField(tags *FieldTags) *Field {
 	}
 
 	// files 的表单协议与落库协议都是字符串 refs，Go 字段也应定义为 string。
-	if widgetType == TypeFiles {
+	// datetime 的 API/schema 协议是 "YYYY-MM-DD HH:mm:ss" 字符串；数据库侧用 types.Time 落真实时间列。
+	if widgetType == TypeFiles || widgetType == TypeDatetime {
 		field.Data.Type = DataTypeString
 	} else {
 		// 根据Go类型推断数据类型，完全基于Go类型，与widget type无关
@@ -391,24 +420,22 @@ func inferDataType(goType reflect.Type) string {
 
 // DecodeTable table
 func DecodeTable(fieldsCallback map[string][]string, request, tableModel interface{}) (requestFields []*Field, responseTableFields []*Field, err error) {
+	var requestTags []*FieldTags
+	var responseTags []*FieldTags
+	var errs []error
+
 	// 解析request模型
 	if request != nil {
 		requestResult, err := ParseModelWithType(request)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to parse request model: %w", err)
+			errs = append(errs, fmt.Errorf("failed to parse request model: %w", err))
 		}
-
-		// 遍历request字段并转换为Field结构
-		for _, fieldTags := range requestResult.Tags {
-			// 检查是否应该跳过该字段
-			if IsSkipField(fieldTags.FieldName, fieldTags.Type, fieldTags) {
-				continue
+		if requestResult != nil {
+			requestTags = requestResult.Tags
+			if err := ValidateFieldTags(requestTags, fieldsCallback); err != nil {
+				errs = append(errs, fmt.Errorf("failed to validate request model: %w", err))
 			}
-			fieldTags.FieldsCallbackMap = fieldsCallback
-			// 转换为Field结构
-			field := ConvertTagsToField(fieldTags)
-
-			requestFields = append(requestFields, field)
+			requestFields = convertTagsToFields(requestResult.Tags, fieldsCallback, true, false)
 		}
 	}
 
@@ -416,48 +443,112 @@ func DecodeTable(fieldsCallback map[string][]string, request, tableModel interfa
 	if tableModel != nil {
 		responseResult, err := ParseModelWithType(tableModel)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to parse table model: %w", err)
+			errs = append(errs, fmt.Errorf("failed to parse table model: %w", err))
 		}
-
-		// 遍历tableModel字段并转换为Field结构
-		for _, fieldTags := range responseResult.Tags {
-			// 检查是否应该跳过该字段
-			if IsSkipField(fieldTags.FieldName, fieldTags.Type, fieldTags) {
-				continue
+		if responseResult != nil {
+			responseTags = responseResult.Tags
+			if err := ValidateFieldTags(responseTags, fieldsCallback); err != nil {
+				errs = append(errs, fmt.Errorf("failed to validate table model: %w", err))
 			}
-			fieldTags.FieldsCallbackMap = fieldsCallback
-
-			// 转换为Field结构
-			field := ConvertTagsToField(fieldTags)
-			responseTableFields = append(responseTableFields, field)
+			responseTableFields = convertTagsToFields(responseResult.Tags, fieldsCallback, true, false)
 		}
+	}
+
+	if err := ValidateFieldCallbackTargets(append(requestTags, responseTags...), fieldsCallback); err != nil {
+		errs = append(errs, fmt.Errorf("failed to validate table callbacks: %w", err))
+	}
+	if shouldValidateTableRequestFieldConflicts(request) {
+		if err := ValidateTableRequestFieldConflicts(requestTags, responseTags); err != nil {
+			errs = append(errs, fmt.Errorf("failed to validate table request fields: %w", err))
+		}
+	}
+	if err := errors.Join(errs...); err != nil {
+		return requestFields, responseTableFields, err
 	}
 
 	return requestFields, responseTableFields, nil
 }
 
+func shouldValidateTableRequestFieldConflicts(request interface{}) bool {
+	if request == nil {
+		return false
+	}
+	if requestEmbedsType(request, "PageSortReq") {
+		return false
+	}
+	return true
+}
+
+func requestEmbedsType(model interface{}, typeName string) bool {
+	t := reflect.TypeOf(model)
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		return false
+	}
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		fieldType := field.Type
+		for fieldType.Kind() == reflect.Ptr {
+			fieldType = fieldType.Elem()
+		}
+		if field.Anonymous && fieldType.Name() == typeName {
+			return true
+		}
+	}
+	return false
+}
+
+func ValidateTableRequestFieldConflicts(requestTags []*FieldTags, tableTags []*FieldTags) error {
+	if len(requestTags) == 0 || len(tableTags) == 0 {
+		return nil
+	}
+	tableCodes := make(map[string]string, len(tableTags))
+	for _, tags := range tableTags {
+		if tags == nil {
+			continue
+		}
+		code := tags.GetCode()
+		if code == "" {
+			continue
+		}
+		tableCodes[code] = tags.FieldName
+	}
+	var errs []error
+	for _, tags := range requestTags {
+		if tags == nil {
+			continue
+		}
+		code := tags.GetCode()
+		if code == "" {
+			continue
+		}
+		if tableFieldName, exists := tableCodes[code]; exists {
+			errs = append(errs, fmt.Errorf("table request field %q (%s) conflicts with table model field %q (%s); request fields must not duplicate table field codes", code, tags.FieldName, code, tableFieldName))
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // DecodeForm form 函数有两个，request是对应前端的提交表单参数，response是提交后后端处理后返回的响应参数
 func DecodeForm(fieldsCallback map[string][]string, request, response interface{}) (requestFields []*Field, responseFields []*Field, err error) {
+	var requestTags []*FieldTags
+	var responseTags []*FieldTags
+	var errs []error
+
 	// 解析request模型（表单提交参数）
 	if request != nil {
 		requestResult, err := ParseModelWithType(request)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to parse request model: %w", err)
+			errs = append(errs, fmt.Errorf("failed to parse request model: %w", err))
 		}
-
-		// 遍历request字段并转换为Field结构
-		for _, fieldTags := range requestResult.Tags {
-			// 检查是否应该跳过该字段
-			if IsSkipField(fieldTags.FieldName, fieldTags.Type, fieldTags) {
-				continue
+		if requestResult != nil {
+			requestTags = requestResult.Tags
+			if err := ValidateFieldTags(requestTags, fieldsCallback); err != nil {
+				errs = append(errs, fmt.Errorf("failed to validate request model: %w", err))
 			}
-			//todo
-			field := ConvertTagsToField(fieldTags)
-			calls, ok := fieldsCallback[field.Code]
-			if ok {
-				field.Callbacks = calls
-			}
-			requestFields = append(requestFields, field)
+			requestFields = convertTagsToFields(requestResult.Tags, fieldsCallback, false, true)
 		}
 	}
 
@@ -465,21 +556,46 @@ func DecodeForm(fieldsCallback map[string][]string, request, response interface{
 	if response != nil {
 		responseResult, err := ParseModelWithType(response)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to parse response model: %w", err)
+			errs = append(errs, fmt.Errorf("failed to parse response model: %w", err))
 		}
-
-		// 遍历response字段并转换为Field结构
-		for _, fieldTags := range responseResult.Tags {
-			// 检查是否应该跳过该字段
-			if IsSkipField(fieldTags.FieldName, fieldTags.Type, fieldTags) {
-				continue
+		if responseResult != nil {
+			responseTags = responseResult.Tags
+			if err := ValidateFieldTags(responseTags, fieldsCallback); err != nil {
+				errs = append(errs, fmt.Errorf("failed to validate response model: %w", err))
 			}
-
-			// 转换为Field结构
-			field := ConvertTagsToField(fieldTags)
-			responseFields = append(responseFields, field)
+			responseFields = convertTagsToFields(responseResult.Tags, fieldsCallback, false, false)
 		}
 	}
 
+	if err := ValidateFieldCallbackTargets(append(requestTags, responseTags...), fieldsCallback); err != nil {
+		errs = append(errs, fmt.Errorf("failed to validate form callbacks: %w", err))
+	}
+	if err := errors.Join(errs...); err != nil {
+		return requestFields, responseFields, err
+	}
+
 	return requestFields, responseFields, nil
+}
+
+func convertTagsToFields(tags []*FieldTags, fieldsCallback map[string][]string, assignCallbackMap bool, attachCallbacks bool) []*Field {
+	fields := make([]*Field, 0, len(tags))
+	for _, fieldTags := range tags {
+		if fieldTags == nil {
+			continue
+		}
+		if IsSkipField(fieldTags.FieldName, fieldTags.Type, fieldTags) {
+			continue
+		}
+		if assignCallbackMap {
+			fieldTags.FieldsCallbackMap = fieldsCallback
+		}
+		field := ConvertTagsToField(fieldTags)
+		if attachCallbacks {
+			if calls, ok := fieldsCallback[field.Code]; ok {
+				field.Callbacks = normalizeCallbackList(calls)
+			}
+		}
+		fields = append(fields, field)
+	}
+	return fields
 }

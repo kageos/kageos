@@ -2,15 +2,14 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 	"gorm.io/gorm"
 )
 
@@ -83,7 +82,6 @@ func (f *FunctionService) convertFunctionToResp(function *model.Function) *dto.G
 		Router:       function.Router,
 		HasConfig:    function.HasConfig,
 		CreateTables: function.CreateTables,
-		Callbacks:    function.Callbacks,
 		TemplateType: function.TemplateType,
 		CreatedAt:    time.Time(function.CreatedAt).Format("2006-01-02T15:04:05Z"),
 		UpdatedAt:    time.Time(function.UpdatedAt).Format("2006-01-02T15:04:05Z"),
@@ -91,33 +89,12 @@ func (f *FunctionService) convertFunctionToResp(function *model.Function) *dto.G
 		FullCodePath: function.Router,    // Router 存储的就是 full-code-path
 	}
 
-	// 将json.RawMessage转换为interface{}以便返回JSON对象
-	// 🔥 统一返回数组类型，符合前端类型定义 FieldConfig[]
-	if len(function.Request) > 0 {
-		resp.Request = decodeFunctionFields(function.Request)
-	} else {
-		// 🔥 空时返回空数组，而不是空对象
-		resp.Request = []*widget.Field{}
-	}
-
-	if len(function.Response) > 0 {
-		resp.Response = decodeFunctionFields(function.Response)
-	} else {
-		// 🔥 空时返回空数组，而不是空对象
-		resp.Response = []*widget.Field{}
+	schema, err := functionschema.Parse(function.Schema)
+	if err == nil {
+		resp.Schema = schema
 	}
 
 	return resp
-}
-
-func decodeFunctionFields(raw json.RawMessage) []*widget.Field {
-	var fields []*widget.Field
-	if err := json.Unmarshal(raw, &fields); err != nil {
-		return []*widget.Field{}
-	}
-
-	widget.NormalizeFieldCodes(fields)
-	return fields
 }
 
 // GetAppByUserAndCode 根据用户和应用代码获取应用信息（用于权限检查）
@@ -144,7 +121,7 @@ func (f *FunctionService) GetFunctionsByApp(ctx context.Context, appID int64) (*
 			Router:       function.Router,
 			HasConfig:    function.HasConfig,
 			CreateTables: function.CreateTables,
-			Callbacks:    function.Callbacks,
+			Callbacks:    function.GetCallbacks(),
 			TemplateType: function.TemplateType,
 			CreatedAt:    time.Time(function.CreatedAt).Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:    time.Time(function.UpdatedAt).Format("2006-01-02T15:04:05Z"),

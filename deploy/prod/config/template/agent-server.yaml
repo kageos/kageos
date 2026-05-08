@@ -5,6 +5,10 @@ server:
   debug: false
   enable_pprof: false
 
+timer_worker:
+  max_concurrency: 3
+  default_timeout_seconds: 1800
+
 db:
   type: "mysql"
   host: "127.0.0.1"

@@ -22,7 +22,7 @@ type AppDiscoveryService struct {
 	basePath  string // 应用基础路径
 
 	// 回调函数，用于通知其他服务
-	onStartup func(user, app, version string, startTime time.Time)
+	onStartup func(user, app, version, status, errorMessage string, startTime time.Time)
 	onClose   func(user, app, version string)
 }
 
@@ -45,7 +45,7 @@ func NewAppDiscoveryServiceWithRuntimeID(natsConn *nats.Conn, basePath, runtimeI
 }
 
 // SetCallbacks 设置回调函数
-func (s *AppDiscoveryService) SetCallbacks(onStartup func(user, app, version string, startTime time.Time), onClose func(user, app, version string)) {
+func (s *AppDiscoveryService) SetCallbacks(onStartup func(user, app, version, status, errorMessage string, startTime time.Time), onClose func(user, app, version string)) {
 	s.onStartup = onStartup
 	s.onClose = onClose
 }
@@ -239,13 +239,23 @@ func (s *AppDiscoveryService) readCurrentVersion(user, app string) string {
 	return strings.TrimSpace(string(data))
 }
 
-func (s *AppDiscoveryService) applyStartupNotification(user, app, version, status string, startTime time.Time) {
+func (s *AppDiscoveryService) applyStartupNotification(user, app, version, status string, startTime time.Time, errorMessage string) {
 	ctx := context.Background()
-	_ = status
 
 	// 如果 StartTime 为零值，使用当前时间
 	if startTime.IsZero() {
 		startTime = time.Now()
+	}
+	if status == "" || status == "started" {
+		status = "running"
+	}
+
+	if status == "failed" {
+		logger.Warnf(ctx, "[AppDiscoveryService] App startup failed: %s/%s %s error=%s", user, app, version, errorMessage)
+		if s.onStartup != nil {
+			s.onStartup(user, app, version, status, errorMessage, startTime)
+		}
+		return
 	}
 
 	// 更新应用状态
@@ -283,7 +293,7 @@ func (s *AppDiscoveryService) applyStartupNotification(user, app, version, statu
 
 	// 通知其他服务
 	if s.onStartup != nil {
-		s.onStartup(user, app, version, startTime)
+		s.onStartup(user, app, version, status, errorMessage, startTime)
 	}
 }
 

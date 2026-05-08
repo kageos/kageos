@@ -16,7 +16,8 @@ func initSystemPromptSeed(ctx context.Context, serviceTreeService *ServiceTreeSe
 		return nil
 	}
 	if !shouldSyncSystemPromptSeed(ctx, serviceTreeService) {
-		logger.Infof(ctx, "[SystemWorkspace] APP_ENV 非 dev 且 prompt 已初始化，跳过 system/prompt upsert")
+		prunedCount := pruneRetiredSystemPromptSeedNodes(ctx, serviceTreeService)
+		logger.Infof(ctx, "[SystemWorkspace] APP_ENV 非 dev 且 prompt 已初始化，跳过 system/prompt upsert，清理 %d 个废弃节点", prunedCount)
 		return nil
 	}
 
@@ -39,7 +40,8 @@ func initSystemPromptSeed(ctx context.Context, serviceTreeService *ServiceTreeSe
 			return err
 		}
 	}
-	logger.Infof(ctx, "[SystemWorkspace] system/prompt 已同步 %d 个目录、%d 篇种子文档", len(seedPackages), len(seedDocs))
+	prunedCount := pruneRetiredSystemPromptSeedNodes(ctx, serviceTreeService)
+	logger.Infof(ctx, "[SystemWorkspace] system/prompt 已同步 %d 个目录、%d 篇种子文档，清理 %d 个废弃节点", len(seedPackages), len(seedDocs), prunedCount)
 	return nil
 }
 
@@ -125,4 +127,97 @@ func upsertPromptSeedPackage(ctx context.Context, serviceTreeService *ServiceTre
 		return err
 	}
 	return nil
+}
+
+func pruneRetiredSystemPromptSeedNodes(ctx context.Context, serviceTreeService *ServiceTreeService) int {
+	if serviceTreeService == nil {
+		return 0
+	}
+	pruned := 0
+	for _, fullCodePath := range retiredSystemPromptSeedPathsForPruneOnly() {
+		fullCodePath = strings.TrimSpace(fullCodePath)
+		if fullCodePath == "" {
+			continue
+		}
+		detail, err := serviceTreeService.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{FullCodePath: fullCodePath})
+		if err != nil || detail == nil {
+			cleanupRetiredSystemPromptRuntimePackage(ctx, serviceTreeService, fullCodePath)
+			continue
+		}
+		if err := serviceTreeService.DeleteServiceTree(ctx, detail.ID); err != nil {
+			logger.Warnf(ctx, "[SystemWorkspace] 清理废弃 system/prompt 节点失败: path=%s, id=%d, error=%v", fullCodePath, detail.ID, err)
+			cleanupRetiredSystemPromptRuntimePackage(ctx, serviceTreeService, fullCodePath)
+			continue
+		}
+		cleanupRetiredSystemPromptRuntimePackage(ctx, serviceTreeService, fullCodePath)
+		pruned++
+	}
+	return pruned
+}
+
+func cleanupRetiredSystemPromptRuntimePackage(ctx context.Context, serviceTreeService *ServiceTreeService, fullCodePath string) {
+	packagePath := retiredSystemPromptRuntimePackagePath(fullCodePath)
+	if packagePath == "" || serviceTreeService == nil || serviceTreeService.mutationService == nil || serviceTreeService.mutationService.runtimeWorkspace == nil {
+		return
+	}
+	runtimeWorkspace := serviceTreeService.mutationService.runtimeWorkspace
+	appModel, err := runtimeWorkspace.getRuntimeBoundAppByUserApp(SystemUsername, "prompt", "清理废弃 system/prompt 目录脚手架")
+	if err != nil {
+		logger.Warnf(ctx, "[SystemWorkspace] 清理废弃 runtime prompt 目录失败: path=%s, package=%s, error=%v", fullCodePath, packagePath, err)
+		return
+	}
+	_, resp, err := runtimeWorkspace.deleteDirectoryScaffold(ctx, appModel.ID, packagePath)
+	if err != nil {
+		logger.Warnf(ctx, "[SystemWorkspace] 清理废弃 runtime prompt 目录失败: path=%s, package=%s, error=%v", fullCodePath, packagePath, err)
+		return
+	}
+	if resp == nil || !resp.Success {
+		errText := ""
+		if resp != nil {
+			errText = resp.Error
+		}
+		logger.Warnf(ctx, "[SystemWorkspace] 清理废弃 runtime prompt 目录失败: path=%s, package=%s, error=%s", fullCodePath, packagePath, errText)
+	}
+}
+
+func retiredSystemPromptRuntimePackagePath(fullCodePath string) string {
+	fullCodePath = strings.TrimRight(strings.TrimSpace(fullCodePath), "/")
+	switch fullCodePath {
+	case agentprompt.SystemPromptRootPath + "/workspace":
+		return "workspace"
+	default:
+		return ""
+	}
+}
+
+// retiredSystemPromptSeedPathsForPruneOnly lists historical system prompt nodes that should be
+// deleted from the service tree after the local seed has been simplified. It is not an injection
+// list and must not be used by agent prompts.
+func retiredSystemPromptSeedPathsForPruneOnly() []string {
+	return []string{
+		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/platform-overview"),
+		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/platform-function-architecture"),
+		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/platform-cross-cutting-capabilities"),
+		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/sdk/widget-reference"),
+		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/sdk/workbench-tools-sdk-relationship"),
+		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/sdk/widget-system"),
+		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/sdk/form-submit-basic"),
+		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/sdk/table-crud-basic"),
+		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/sdk/combo-table-form"),
+		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/sdk/combo-table-form-chart"),
+		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/sdk/form-table-chart-reference"),
+		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/sdk/sdk"),
+		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/sdk/build-validation-reference"),
+		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/sdk/common-runtime-capabilities"),
+		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/sdk/platform-api-reference"),
+		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/doc/workbench-all-in-one-system-prompt"),
+		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/intents/publish-hub"),
+		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/mode/dev/first_assistant"),
+		agentprompt.PromptDocIndexPath(agentprompt.SystemPromptRootPath + "/mode"),
+		agentprompt.SystemPromptRootPath + "/mode/agent",
+		agentprompt.SystemPromptRootPath + "/mode/execute",
+		agentprompt.SystemPromptRootPath + "/mode/modify",
+		agentprompt.SystemPromptRootPath + "/mode/qa",
+		agentprompt.SystemPromptRootPath + "/workspace",
+	}
 }

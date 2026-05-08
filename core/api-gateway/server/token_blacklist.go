@@ -112,4 +112,3 @@ func (b *TokenBlacklist) cleanupExpired() {
 		}
 	}
 }
-

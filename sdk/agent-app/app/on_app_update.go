@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
 
@@ -257,135 +259,169 @@ func (a *App) diffApi() (add []*ApiInfo, update []*ApiInfo, delete []*ApiInfo, e
 
 // 获取当前所有API信息
 func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error) {
-	for _, info := range a.routerInfo {
-		if info.IsDefaultRouter() {
+	var errs []error
+	for _, info := range sortedRouterInfos(a.routerInfo) {
+		if info == nil || info.IsDefaultRouter() {
 			continue
 		}
-		base := info.Template.GetBaseConfig()
-		// 构建源代码文件路径
-		sourceCodeFilePath := info.BuildSourceCodeFilePath()
-
-		// 读取源代码文件内容
-		var sourceCode string
-		if sourceCodeFilePath != "" && info.Options != nil {
-			// 直接使用 PackagePath 构建文件路径
-			// 不再需要 groupCode，目录本身就是管理单元
-			packagePath := strings.Trim(info.Options.PackagePath, "/")
-
-			// 文件路径：/app/code/api/{package}/init_.go（目录的 init_.go 文件）
-			// 或者可以根据实际需求调整，例如读取目录下的所有 .go 文件
-			var filePath string
-			if packagePath == "" {
-				filePath = "/app/code/api/init_.go"
-			} else {
-				filePath = fmt.Sprintf("/app/code/api/%s/init_.go", packagePath)
-			}
-
-			// 读取文件内容
-			if content, err := os.ReadFile(filePath); err == nil {
-				sourceCode = string(content)
-				logger.Infof(context.Background(), "Successfully read source code file %s, length: %d", filePath, len(sourceCode))
-			} else {
-				logger.Warnf(context.Background(), "Failed to read source code file %s: %v", filePath, err)
-			}
-		} else {
-			logger.Warnf(context.Background(), "Cannot read source code: sourceCodeFilePath=%s, Options=%v",
-				sourceCodeFilePath, info.Options != nil)
+		api, tables, err := a.buildApiInfo(info)
+		if err != nil {
+			errs = append(errs, err)
+			continue
 		}
-
-		api := &ApiInfo{
-			Code:               info.getCode(),
-			Name:               base.Name,
-			Desc:               base.Desc,
-			Tags:               base.Tags,
-			Router:             info.Router,
-			Method:             info.Method,
-			User:               env.User,
-			App:                env.App,
-			FullCodePath:       fmt.Sprintf("/%s/%s/%s", env.User, env.App, strings.Trim(info.Router, "/")),
-			AddedVersion:       "",         // 不预设版本，让diff逻辑来正确设置
-			UpdateVersions:     []string{}, // 初始化空的更新版本列表
-			routerInfo:         info,
-			SourceCodeFilePath: sourceCodeFilePath,
-			SourceCode:         sourceCode,
-		}
-		fieldsCallback := make(map[string][]string)
-		fuzzyMap := base.OnSelectFuzzyMap
-		if len(fuzzyMap) > 0 {
-			for field, _ := range fuzzyMap {
-				fieldsCallback[field] = append(fieldsCallback[field], CallbackTypeOnSelectFuzzy)
-			}
-		}
-		templateType := info.Template.TemplateType()
-		api.TemplateType = string(templateType)
-
-		switch templateType {
-		case TemplateTypeTable:
-			template := info.Template.(*TableTemplate)
-			table := template.AutoCrudTable
-			requestFields, responseFields, err := widget.DecodeTable(fieldsCallback, base.Request, table)
-			if err != nil {
-				return nil, nil, err
-			}
-			api.Request = requestFields
-			api.Response = responseFields
-			var callback []string
-			if template.OnTableAddRow != nil {
-				callback = append(callback, CallbackTypeOnTableAddRow)
-				// 只有可新增的表才暴露批量导入能力，避免只读查询表被误判为可写。
-				callback = append(callback, CallbackTypeOnTableCreateInBatches)
-			}
-			if template.OnTableUpdateRow != nil {
-				callback = append(callback, CallbackTypeOnTableUpdateRow)
-			}
-			if template.OnTableDeleteRows != nil {
-				callback = append(callback, CallbackTypeOnTableDeleteRows)
-			}
-			if len(callback) > 0 {
-				api.Callback = callback
-			}
-
-		case TemplateTypeForm:
-			fields, responseFields, err := widget.DecodeForm(fieldsCallback, base.Request, base.Response)
-			if err != nil {
-				return nil, nil, err
-			}
-			api.Request = fields
-			api.Response = responseFields
-
-		case TemplateTypeChart:
-			fields, responseFields, err := widget.DecodeForm(fieldsCallback, base.Request, base.Response)
-			if err != nil {
-				return nil, nil, err
-			}
-			api.Request = fields
-			api.Response = responseFields
-		default:
-			//默认走form
-			fields, responseFields, err := widget.DecodeForm(fieldsCallback, base.Request, base.Response)
-			if err != nil {
-				return nil, nil, err
-			}
-			api.Request = fields
-			api.Response = responseFields
-		}
-
-		api.CreateTableModels = base.CreateTables
-		// 提取创建表的名称
-		for _, createTable := range base.CreateTables {
-			if createTable != nil {
-				createTables = append(createTables, createTable)
-
-				// 使用GORM的Tabler接口获取表名
-				if tabler, ok := createTable.(interface{ TableName() string }); ok {
-					api.CreateTables = append(api.CreateTables, tabler.TableName())
-				}
-			}
-		}
-
 		apis = append(apis, api)
+		createTables = append(createTables, tables...)
+	}
+	if err := errors.Join(errs...); err != nil {
+		return apis, createTables, err
 	}
 	return apis, createTables, nil
+}
+
+func (a *App) buildApiInfo(info *routerInfo) (*ApiInfo, []interface{}, error) {
+	if info == nil {
+		return nil, nil, fmt.Errorf("router info is nil")
+	}
+	if info.Template == nil {
+		return nil, nil, fmt.Errorf("router %s template is nil", info.Router)
+	}
+	base := info.Template.GetBaseConfig()
+	if base == nil {
+		return nil, nil, fmt.Errorf("router %s base config is nil", info.Router)
+	}
+
+	// 构建源代码文件路径
+	sourceCodeFilePath := info.BuildSourceCodeFilePath()
+	sourceCode := readRouterSourceCode(info, sourceCodeFilePath)
+
+	api := &ApiInfo{
+		Code:               info.getCode(),
+		Name:               base.Name,
+		Desc:               base.Desc,
+		Tags:               base.Tags,
+		Router:             info.Router,
+		Method:             info.Method,
+		User:               env.User,
+		App:                env.App,
+		FullCodePath:       fmt.Sprintf("/%s/%s/%s", env.User, env.App, strings.Trim(info.Router, "/")),
+		AddedVersion:       "",         // 不预设版本，让diff逻辑来正确设置
+		UpdateVersions:     []string{}, // 初始化空的更新版本列表
+		routerInfo:         info,
+		SourceCodeFilePath: sourceCodeFilePath,
+		SourceCode:         sourceCode,
+	}
+
+	fieldsCallback := make(map[string][]string)
+	fuzzyMap := base.OnSelectFuzzyMap
+	if len(fuzzyMap) > 0 {
+		for field := range fuzzyMap {
+			fieldsCallback[field] = append(fieldsCallback[field], CallbackTypeOnSelectFuzzy)
+		}
+	}
+
+	templateType := info.Template.TemplateType()
+	api.TemplateType = string(templateType)
+
+	var errs []error
+	switch templateType {
+	case TemplateTypeTable:
+		template, ok := info.Template.(*TableTemplate)
+		if !ok {
+			errs = append(errs, fmt.Errorf("router %s declares template type %q but template is not *TableTemplate", info.Router, templateType))
+			break
+		}
+		table := template.EffectiveAutoCrudTable()
+		requestFields, responseFields, err := widget.DecodeTable(fieldsCallback, base.Request, table)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("router %s table schema decode failed: %w", info.Router, err))
+		}
+		var callback []string
+		if template.OnTableAddRow != nil {
+			callback = append(callback, CallbackTypeOnTableAddRow)
+			// 只有可新增的表才暴露批量导入能力，避免只读查询表被误判为可写。
+			callback = append(callback, CallbackTypeOnTableCreateInBatches)
+		}
+		if template.OnTableUpdateRow != nil {
+			callback = append(callback, CallbackTypeOnTableUpdateRow)
+		}
+		if template.OnTableDeleteRows != nil {
+			callback = append(callback, CallbackTypeOnTableDeleteRows)
+		}
+		api.Schema = functionschema.NewTable(requestFields, responseFields, callback)
+
+	case TemplateTypeForm:
+		fields, responseFields, err := widget.DecodeForm(fieldsCallback, base.Request, base.Response)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("router %s form schema decode failed: %w", info.Router, err))
+		}
+		api.Schema = functionschema.NewForm(fields, responseFields, nil)
+
+	case TemplateTypeChart:
+		fields, responseFields, err := widget.DecodeForm(fieldsCallback, base.Request, base.Response)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("router %s chart schema decode failed: %w", info.Router, err))
+		}
+		api.Schema = functionschema.NewChart(fields, responseFields, nil)
+	default:
+		errs = append(errs, fmt.Errorf("router %s has unsupported template type: %s", info.Router, templateType))
+	}
+
+	if api.Schema != nil {
+		if err := functionschema.Validate(api.Schema); err != nil {
+			errs = append(errs, fmt.Errorf("router %s schema validation failed: %w", info.Router, err))
+		}
+	}
+	if err := errors.Join(errs...); err != nil {
+		return nil, nil, err
+	}
+
+	api.CreateTableModels = base.CreateTables
+	// 提取创建表的名称
+	createTables := make([]interface{}, 0, len(base.CreateTables))
+	for _, createTable := range base.CreateTables {
+		if createTable == nil {
+			continue
+		}
+		createTables = append(createTables, createTable)
+
+		// 使用GORM的Tabler接口获取表名
+		if tabler, ok := createTable.(interface{ TableName() string }); ok {
+			api.CreateTables = append(api.CreateTables, tabler.TableName())
+		}
+	}
+
+	return api, createTables, nil
+}
+
+func readRouterSourceCode(info *routerInfo, sourceCodeFilePath string) string {
+	// 读取源代码文件内容
+	if sourceCodeFilePath == "" || info.Options == nil {
+		logger.Warnf(context.Background(), "Cannot read source code: sourceCodeFilePath=%s, Options=%v",
+			sourceCodeFilePath, info.Options != nil)
+		return ""
+	}
+
+	// 直接使用 PackagePath 构建文件路径
+	// 不再需要 groupCode，目录本身就是管理单元
+	packagePath := strings.Trim(info.Options.PackagePath, "/")
+
+	// 文件路径：/app/code/api/{package}/init_.go（目录的 init_.go 文件）
+	// 或者可以根据实际需求调整，例如读取目录下的所有 .go 文件
+	var filePath string
+	if packagePath == "" {
+		filePath = "/app/code/api/init_.go"
+	} else {
+		filePath = fmt.Sprintf("/app/code/api/%s/init_.go", packagePath)
+	}
+
+	// 读取文件内容
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		logger.Warnf(context.Background(), "Failed to read source code file %s: %v", filePath, err)
+		return ""
+	}
+	logger.Infof(context.Background(), "Successfully read source code file %s, length: %d", filePath, len(content))
+	return string(content)
 }
 
 // collectPackageInfos 收集当前应用的全量 package 信息

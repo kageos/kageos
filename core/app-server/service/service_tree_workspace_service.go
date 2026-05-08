@@ -10,6 +10,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
@@ -49,11 +50,13 @@ func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, r
 
 	childrenNodes := make([]dto.WorkspaceContextNode, 0, len(children))
 	for _, child := range children {
-		callbacks := ""
-		var request []interface{}
+		callbacks := []string(nil)
+		var schema *functionschema.FunctionSchema
 		if child.Function != nil {
-			callbacks = child.Function.Callbacks
-			request = decodeFunctionWidgetFields(child.Function.Request)
+			callbacks = child.Function.GetCallbacks()
+			if parsed, err := functionschema.Parse(child.Function.Schema); err == nil {
+				schema = parsed
+			}
 		}
 		childrenNodes = append(childrenNodes, dto.WorkspaceContextNode{
 			ID:           child.ID,
@@ -64,7 +67,7 @@ func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, r
 			FullCodePath: child.FullCodePath,
 			TemplateType: child.TemplateType,
 			Callbacks:    callbacks,
-			Request:      request,
+			Schema:       schema,
 		})
 	}
 

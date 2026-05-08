@@ -42,37 +42,37 @@ func (r *RoleAssignmentRepository) GetRoleAssignmentsBySubjects(
 	if len(subjects) == 0 {
 		return []*model.RoleAssignment{}, nil
 	}
-	
+
 	if user == "" || app == "" {
 		return []*model.RoleAssignment{}, nil
 	}
-	
+
 	var assignments []*model.RoleAssignment
 	query := r.db.WithContext(ctx).Where("user = ? AND app = ?", user, app)
-	
+
 	// 构建 (subject_type, subject) 的查询条件
 	var conditions []string
 	var args []interface{}
-	
+
 	for _, subject := range subjects {
 		conditions = append(conditions, "(subject_type = ? AND subject = ?)")
 		args = append(args, subject.Type, subject.Value)
 	}
-	
+
 	if len(conditions) > 0 {
 		query = query.Where("("+joinRoleAssignmentStrings(conditions, " OR ")+")", args...)
 	}
-	
+
 	// 只查询未过期的角色分配
 	now := time.Now()
 	query = query.Where("start_time <= ?", now).
 		Where("(end_time IS NULL OR end_time > ?)", now)
-	
+
 	err := query.Find(&assignments).Error
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return assignments, nil
 }
 
@@ -129,8 +129,8 @@ func (r *RoleAssignmentRepository) DeleteRoleAssignmentByDepartment(ctx context.
 
 // GetRoleAssignmentsByResourcePath 根据资源路径查询角色分配
 // ⭐ 只返回当前节点和父节点的权限，不返回子节点的权限
-//   1. 精确匹配：resource_path = /a/b/c （当前节点）
-//   2. 向上继承：resource_path = /a/b 或 /a （父目录权限，/a/b/c 继承 /a/b 和 /a 的权限）
+//  1. 精确匹配：resource_path = /a/b/c （当前节点）
+//  2. 向上继承：resource_path = /a/b 或 /a （父目录权限，/a/b/c 继承 /a/b 和 /a 的权限）
 func (r *RoleAssignmentRepository) GetRoleAssignmentsByResourcePath(ctx context.Context, user string, app string, resourcePath string) ([]*model.RoleAssignment, error) {
 	if user == "" || app == "" || resourcePath == "" {
 		return []*model.RoleAssignment{}, nil
@@ -168,10 +168,10 @@ func (r *RoleAssignmentRepository) GetRoleAssignmentsByResourcePath(ctx context.
 		Where("("+joinRoleAssignmentStrings(conditions, " OR ")+")", args...).
 		Preload("Role").
 		Order("created_at DESC")
-	
+
 	logger.Infof(ctx, "[RoleAssignmentRepository] 查询资源权限: user=%s, app=%s, resourcePath=%s, conditions=%v, args=%v",
 		user, app, resourcePath, conditions, args)
-	
+
 	err := query.Find(&assignments).Error
 
 	if err != nil {
@@ -188,7 +188,8 @@ func (r *RoleAssignmentRepository) GetRoleAssignmentsByResourcePath(ctx context.
 
 // getAllParentPaths 获取资源路径的所有父路径
 // 例如：/a/b/c -> [/a/b, /a]
-//      /user/app/dir/function -> [/user/app/dir, /user/app, /user]
+//
+//	/user/app/dir/function -> [/user/app/dir, /user/app, /user]
 func getAllParentPaths(resourcePath string) []string {
 	if resourcePath == "" || resourcePath == "/" {
 		return []string{}

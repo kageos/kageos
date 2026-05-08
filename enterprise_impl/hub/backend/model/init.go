@@ -21,7 +21,7 @@ import (
 func InitTables(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&HubDirectory{},     // 1. 已发布目录元信息
-		&HubSnapshot{},     // 2. 每版本一条，三字段为单源；SnapshotData 仅作历史兜底
+		&HubSnapshot{},      // 2. 每版本一条，三字段为单源；SnapshotData 仅作历史兜底
 		&HubDirectoryStar{}, // 3. 目录星星记录（类似 GitHub star）
 		&PubKey{},           // 4. 发布密钥（跨站发布认证）
 	)

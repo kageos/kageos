@@ -56,7 +56,7 @@ describe('DepartmentWidget', () => {
     expect(wrapper.find('.search-selected-value').exists()).toBe(true)
     expect(wrapper.text()).toContain('前端研发')
 
-    await wrapper.get('.search-tag-remove').trigger('click')
+    await wrapper.get('.selected-value-remove').trigger('click')
 
     const emitted = wrapper.emitted('update:modelValue')
     expect(emitted).toBeTruthy()

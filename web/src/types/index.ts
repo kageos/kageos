@@ -124,6 +124,7 @@ export type {
   FieldValue,
   FieldMeta,
   FunctionDetail,
+  FunctionSchema,
   WidgetMode,
   ValidationRule,
   PermissionConfig
@@ -135,15 +136,13 @@ export type { WidgetTypes } from './field'
 // 函数相关类型
 export interface Function {
   id: number
-  request: any
-  response: import('./field').FieldConfig[]  // 使用统一的 FieldConfig 类型
   app_id: number
   tree_id: number
   method: string
   router: string
   has_config: boolean
   create_tables: string
-  callbacks: string
+  schema: import('./field').FunctionSchema
   template_type: string
   created_at: string
   updated_at: string
@@ -153,28 +152,39 @@ export interface Function {
 // 组件类型枚举
 export enum WidgetType {
   INPUT = 'input',
-  SELECT = 'select',
+  TEXT = 'text',
   TEXT_AREA = 'text_area',
-  FILE_UPLOAD = 'file_upload',
-  USER = 'user',
-  DATETIME = 'datetime',
-  NUMBER = 'number',
+  SELECT = 'select',
   SWITCH = 'switch',
+  DATETIME = 'datetime',
+  USER = 'user',
+  USERS = 'users',
+  DEPARTMENT = 'department',
+  DEPARTMENTS = 'departments',
+  ID = 'ID',
+  NUMBER = 'number',
+  FLOAT = 'float',
+  FILES = 'files',
   CHECKBOX = 'checkbox',
-  RADIO = 'radio'
+  RADIO = 'radio',
+  MULTI_SELECT = 'multiselect',
+  SLIDER = 'slider',
+  RATE = 'rate',
+  COLOR = 'color',
+  RICH_TEXT = 'richtext',
+  TABLE = 'table',
+  FORM = 'form',
+  LINK = 'link',
+  PROGRESS = 'progress',
+  LIST = 'list'
 }
 
-// 搜索类型
+// Table 查询参数
 export interface SearchParams {
-  eq?: string       // 精确匹配 eq=id:1
-  like?: string     // 模糊匹配 like=title:xxx
-  in?: string       // 包含查询 in=status:待处理,处理中
-  contains?: string // 包含查询（用于多选场景，使用 FIND_IN_SET）contains=tags:高,中
-  gte?: string      // 大于等于 gte=created_at:timestamp
-  lte?: string      // 小于等于 lte=created_at:timestamp
-  sorts?: string    // 排序 sorts=category:asc,price:desc（支持多列排序，格式：field:order,field:order）
+  sorts?: string    // 排序 sorts=-price,category（支持多列排序，减号表示倒序）
   page?: number     // 页码
   page_size?: number // 页大小
+  [key: string]: any
 }
 
 // 表格响应类型

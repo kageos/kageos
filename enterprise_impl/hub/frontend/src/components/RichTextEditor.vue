@@ -390,7 +390,7 @@ const editor = useEditor({
   },
   editorProps: {
     // 优化粘贴处理：检测粘贴的文件，自动上传而不是使用 base64
-    handlePaste: async (view, event, slice) => {
+    handlePaste: (view, event, slice) => {
       const clipboardData = event.clipboardData
       if (!clipboardData) {
         return false
@@ -401,60 +401,62 @@ const editor = useEditor({
       
       if (fileItems.length > 0) {
         event.preventDefault()
-        
-        for (const item of fileItems) {
-          const file = item.getAsFile()
-          if (!file) continue
-          
-          try {
-            ElMessage.info(`正在上传 ${file.name}...`)
-            
-            const uploadResult = await uploadFile(
-              fileUploadRouter.value,
-              file,
-              () => {}
-            )
-            
-            if (uploadResult.fileInfo) {
-              const downloadUrl = await notifyUploadComplete({
-                key: uploadResult.fileInfo.key,
-                success: true,
-                router: uploadResult.fileInfo.router,
-                file_name: uploadResult.fileInfo.file_name,
-                file_size: uploadResult.fileInfo.file_size,
-                content_type: uploadResult.fileInfo.content_type,
-                hash: uploadResult.fileInfo.hash,
-              })
-              
-              if (downloadUrl && editor.value) {
-                const isImage = file.type.startsWith('image/')
-                const isVideo = file.type.startsWith('video/')
-                
-                if (isImage) {
-                  editor.value.chain().focus().setImage({ src: downloadUrl, alt: file.name }).run()
-                } else if (isVideo) {
-                  editor.value.chain().focus().setLink({ href: downloadUrl }).insertContent(file.name).run()
+
+        void (async () => {
+          for (const item of fileItems) {
+            const file = item.getAsFile()
+            if (!file) continue
+
+            try {
+              ElMessage.info(`正在上传 ${file.name}...`)
+
+              const uploadResult = await uploadFile(
+                fileUploadRouter.value,
+                file,
+                () => {}
+              )
+
+              if (uploadResult.fileInfo) {
+                const downloadUrl = await notifyUploadComplete({
+                  key: uploadResult.fileInfo.key,
+                  success: true,
+                  router: uploadResult.fileInfo.router,
+                  file_name: uploadResult.fileInfo.file_name,
+                  file_size: uploadResult.fileInfo.file_size,
+                  content_type: uploadResult.fileInfo.content_type,
+                  hash: uploadResult.fileInfo.hash,
+                })
+
+                if (downloadUrl && editor.value) {
+                  const isImage = file.type.startsWith('image/')
+                  const isVideo = file.type.startsWith('video/')
+
+                  if (isImage) {
+                    editor.value.chain().focus().setImage({ src: downloadUrl, alt: file.name }).run()
+                  } else if (isVideo) {
+                    editor.value.chain().focus().setLink({ href: downloadUrl }).insertContent(file.name).run()
+                  } else {
+                    editor.value.chain().focus().setLink({ href: downloadUrl }).insertContent(file.name).run()
+                  }
+
+                  ElMessage.success(`${file.name} 上传成功`)
                 } else {
-                  editor.value.chain().focus().setLink({ href: downloadUrl }).insertContent(file.name).run()
+                  throw new Error('获取下载地址失败')
                 }
-                
-                ElMessage.success(`${file.name} 上传成功`)
-              } else {
-                throw new Error('获取下载地址失败')
               }
+            } catch (error: any) {
+              ElMessage.error(`上传 ${file.name} 失败: ${error?.message || '未知错误'}`)
             }
-          } catch (error: any) {
-            ElMessage.error(`上传 ${file.name} 失败: ${error?.message || '未知错误'}`)
           }
-        }
-        
+        })()
+
         return true
       }
       
       return false
     },
     // 支持拖拽粘贴文件，自动上传
-    handleDrop: async (view, event, slice, moved) => {
+    handleDrop: (view, event, slice, moved) => {
       if (moved) {
         return false
       }
@@ -467,48 +469,51 @@ const editor = useEditor({
       event.preventDefault()
       
       const files = Array.from(dataTransfer.files)
-      for (const file of files) {
-        try {
-          ElMessage.info(`正在上传 ${file.name}...`)
-          
-          const uploadResult = await uploadFile(
-            fileUploadRouter.value,
-            file,
-            () => {}
-          )
-          
-          if (uploadResult.fileInfo) {
-            const downloadUrl = await notifyUploadComplete({
-              key: uploadResult.fileInfo.key,
-              success: true,
-              router: uploadResult.fileInfo.router,
-              file_name: uploadResult.fileInfo.file_name,
-              file_size: uploadResult.fileInfo.file_size,
-              content_type: uploadResult.fileInfo.content_type,
-              hash: uploadResult.fileInfo.hash,
-            })
-            
-            if (downloadUrl && editor.value) {
-              const isImage = file.type.startsWith('image/')
-              const isVideo = file.type.startsWith('video/')
-              
-              if (isImage) {
-                editor.value.chain().focus().setImage({ src: downloadUrl, alt: file.name }).run()
-              } else if (isVideo) {
-                editor.value.chain().focus().setLink({ href: downloadUrl }).insertContent(file.name).run()
+
+      void (async () => {
+        for (const file of files) {
+          try {
+            ElMessage.info(`正在上传 ${file.name}...`)
+
+            const uploadResult = await uploadFile(
+              fileUploadRouter.value,
+              file,
+              () => {}
+            )
+
+            if (uploadResult.fileInfo) {
+              const downloadUrl = await notifyUploadComplete({
+                key: uploadResult.fileInfo.key,
+                success: true,
+                router: uploadResult.fileInfo.router,
+                file_name: uploadResult.fileInfo.file_name,
+                file_size: uploadResult.fileInfo.file_size,
+                content_type: uploadResult.fileInfo.content_type,
+                hash: uploadResult.fileInfo.hash,
+              })
+
+              if (downloadUrl && editor.value) {
+                const isImage = file.type.startsWith('image/')
+                const isVideo = file.type.startsWith('video/')
+
+                if (isImage) {
+                  editor.value.chain().focus().setImage({ src: downloadUrl, alt: file.name }).run()
+                } else if (isVideo) {
+                  editor.value.chain().focus().setLink({ href: downloadUrl }).insertContent(file.name).run()
+                } else {
+                  editor.value.chain().focus().setLink({ href: downloadUrl }).insertContent(file.name).run()
+                }
+
+                ElMessage.success(`${file.name} 上传成功`)
               } else {
-                editor.value.chain().focus().setLink({ href: downloadUrl }).insertContent(file.name).run()
+                throw new Error('获取下载地址失败')
               }
-              
-              ElMessage.success(`${file.name} 上传成功`)
-            } else {
-              throw new Error('获取下载地址失败')
             }
+          } catch (error: any) {
+            ElMessage.error(`上传 ${file.name} 失败: ${error?.message || '未知错误'}`)
           }
-        } catch (error: any) {
-          ElMessage.error(`上传 ${file.name} 失败: ${error?.message || '未知错误'}`)
         }
-      }
+      })()
       
       return true
     }
@@ -669,4 +674,3 @@ onBeforeUnmount(() => {
   padding: 16px;
 }
 </style>
-

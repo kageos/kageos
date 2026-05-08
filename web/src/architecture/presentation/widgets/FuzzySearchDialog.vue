@@ -5,7 +5,7 @@
     width="680px"
     :close-on-click-modal="false"
     :close-on-press-escape="true"
-    append-to-body
+    :append-to-body="appendToBody"
     @close="handleClose"
   >
     <template #header>
@@ -207,6 +207,7 @@ interface Props {
   maxSelections?: number // 最大选择数量，0 表示不限制
   selectedValues?: any[] // 已选中的值（多选模式）
   getItemColor?: (value: any) => string | null // 获取选项颜色的函数
+  appendToBody?: boolean
 }
 
 interface Emits {
@@ -224,7 +225,8 @@ const props = withDefaults(defineProps<Props>(), {
   isMultiselect: false,
   maxSelections: 0,
   selectedValues: () => [],
-  getItemColor: () => null
+  getItemColor: () => null,
+  appendToBody: true
 })
 
 const emit = defineEmits<Emits>()

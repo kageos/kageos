@@ -1,16 +1,36 @@
 package widget
 
-import "strconv"
+import (
+	"errors"
+	"strconv"
+)
 
+func init() {
+	RegisterWidgetValidator(TypeSlider, validateSliderWidget)
+}
+
+// Slider 滑块输入组件。
+//
+// 使用示例：
+//
+//	Progress int `json:"progress" widget:"name:进度;type:slider;min:0;max:100;step:5;unit:%"`
+//
+// 校验规则：
+// - 注册的是本文件的 validateSliderWidget；
+// - Go 字段必须是任意数值类型，整数和浮点数都可以；
+// - min/max/step/render_default 必须能解析为 float64；
+// - step 必须是正数；
+// - 同时配置 min/max 时，min 不能大于 max；
+// - render_default 必须落在 min/max 范围内，未配置 min/max 时按默认 0-100 校验。
 type Slider struct {
 	// 核心参数（必需）
 	Min float64 `json:"min"` // 最小值（必需）
 	Max float64 `json:"max"` // 最大值（必需）
 
 	// 可选参数（有合理默认值）
-	Step    float64 `json:"step,omitempty"`    // 步长（可选，默认1）
-	Default float64 `json:"default,omitempty"` // 默认值（可选）
-	Unit    string  `json:"unit,omitempty"`    // 单位（可选，如：%、元、kg等）
+	Step          float64  `json:"step,omitempty"`           // 步长（可选，默认1）
+	RenderDefault *float64 `json:"render_default,omitempty"` // 前端渲染默认值（可选）
+	Unit          string   `json:"unit,omitempty"`           // 单位（可选，如：%、元、kg等）
 
 	// 注意：以下参数都有合理的默认值，前端自动处理，不需要配置
 	// - show_input: 默认 false（简单场景不需要输入框）
@@ -27,6 +47,32 @@ func (s *Slider) Config() interface{} {
 
 func (s *Slider) Type() string {
 	return TypeSlider
+}
+
+// validateSliderWidget 校验 slider 的数值协议。
+//
+// slider 允许绑定整数或浮点数字段；范围配置是前端交互约束，不替代业务校验。
+func validateSliderWidget(ctx ValidateContext) error {
+	var errs []error
+	if err := requireNumericGoType(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	for _, key := range []string{"min", "max", "step", renderDefaultTagKey} {
+		if err := validateFloatTag(ctx, key); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if err := validatePositiveFloatTag(ctx, "step"); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateNumberRange(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	defaultMin, defaultMax := 0.0, 100.0
+	if err := validateRenderDefaultNumberRange(ctx, &defaultMin, &defaultMax); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }
 
 func newSlider(widgetParsed map[string]string) *Slider {
@@ -53,9 +99,9 @@ func newSlider(widgetParsed map[string]string) *Slider {
 			slider.Step = val
 		}
 	}
-	if defaultValue, exists := widgetParsed["default"]; exists {
+	if defaultValue, exists := getRenderDefault(widgetParsed); exists {
 		if val, err := strconv.ParseFloat(defaultValue, 64); err == nil {
-			slider.Default = val
+			slider.RenderDefault = &val
 		}
 	}
 	if unit, exists := widgetParsed["unit"]; exists {
@@ -64,4 +110,3 @@ func newSlider(widgetParsed map[string]string) *Slider {
 
 	return slider
 }
-

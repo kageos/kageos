@@ -161,8 +161,10 @@ const requestData = convertFormDataToRequestByType(submitData, functionDetail ||
 
 ```typescript
 // ✅ 正确：检查 functionDetail 是否已准备好
+import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
+
 const functionDetail = props.formRenderer?.getFunctionDetail?.()
-if (!functionDetail || !functionDetail.request || functionDetail.request.length === 0) {
+if (!functionDetail || getFormRequestFields(functionDetail).length === 0) {
   // functionDetail 还没准备好，等待下次触发
   return
 }
@@ -225,4 +227,3 @@ const initializedValue = createFieldValue(
 ## 总结
 
 **记住：类型转换是硬性要求，必须使用统一工具函数，确保所有字段都根据 `field.data.type` 正确转换！**
-

@@ -29,7 +29,7 @@ type searchReplaceFileArgs struct {
 
 var searchReplaceFileToolDef = toolDefinition[searchReplaceFileArgs](
 	"search_replace_file",
-	"在指定目录下的 .go 文件中做「查找并替换」：只改匹配到的片段，不重写整文件。必填：directory（或当前目录）、file_name、replacements（替换列表，每项含 search_string、replace_string、expected_count 可选默认 1）。all_or_nothing 默认 true：仅当所有项的实际匹配次数等于 expected_count 时才落盘，否则不写入。search_string 必须与文件内容完全一致（含空格、制表符、换行）；使用前建议先用 read_go_file 读取后从实际内容复制。示例：replacements: [{ \"search_string\": \"原文\", \"replace_string\": \"新文\", \"expected_count\": 1 }]。仅修改代码、不编译工作空间；若需生效改完后需调用 build_workspace。",
+	"在指定目录下的 .go 文件中做「查找并替换」：只改匹配到的片段，不重写整文件。必填：directory（或当前目录）、file_name、replacements（替换列表，每项含 search_string、replace_string、expected_count 可选默认 1）。all_or_nothing 默认 true：仅当所有项的实际匹配次数等于 expected_count 时才落盘，否则不写入。search_string 必须与文件内容完全一致（含空格、制表符、换行）；使用前建议先用 read_go_file 读取后从实际内容复制。示例：replacements: [{ \"search_string\": \"原文\", \"replace_string\": \"新文\", \"expected_count\": 1 }]。仅修改代码、不编译工作空间；写入成功后会自动附带文件级非阻断代码诊断。创建或修改复杂系统时，不要因单个文件的非阻断诊断中断后续文件写入；先完整落盘，再批量修复诊断并统一 build。",
 )
 
 func (t *SearchReplaceFileTool) Definition() dto.ToolDef {
@@ -96,7 +96,7 @@ func runSearchReplaceFileTool(ctx context.Context, args searchReplaceFileArgs, c
 		FileName:          fileName,
 		Replacements:      replacements,
 		AllOrNothing:      allOrNothing,
-		ReturnFullContent: returnFullContent,
+		ReturnFullContent: returnFullContent || isGoFileName(fileName),
 	}
 	resp, err := apicall.ReplaceFileContent(ctx, req)
 	if err != nil {
@@ -114,6 +114,9 @@ func runSearchReplaceFileTool(ctx context.Context, args searchReplaceFileArgs, c
 	}
 	msg := fmt.Sprintf("已替换: 目录=%s, 文件=%s, 共 %d 处。修改已落盘，但未编译工作空间；若需生效请调用 build_workspace 更新工作空间。", targetPath, fileName, resp.ReplaceCount)
 	if resp.FullContent != "" {
+		msg = appendGoFileDiagnostics(msg, targetPath, fileName, resp.FullContent)
+	}
+	if returnFullContent && resp.FullContent != "" {
 		msg += "\n\n替换后完整内容：\n```go\n" + resp.FullContent + "\n```"
 	}
 	return msg, false

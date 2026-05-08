@@ -18,6 +18,7 @@ type RequestMeta struct {
 	RequestUser     string
 	RequestUserDept string
 	Token           string
+	ClientSource    string
 	User            string
 	App             string
 	Version         string
@@ -41,6 +42,7 @@ func BuildRuntimeRequestMsg(req *dto.RequestAppReq) (*nats.Msg, error) {
 		RequestUser:     req.RequestUser,
 		RequestUserDept: req.RequestUserDept,
 		Token:           req.Token,
+		ClientSource:    req.ClientSource,
 		User:            req.User,
 		App:             req.App,
 		Version:         req.Version,
@@ -68,6 +70,7 @@ func ParseRuntimeRequest(msg *nats.Msg) (*RequestMeta, error) {
 		RequestUser:     msg.Header.Get(contextx.RequestUserHeader),
 		RequestUserDept: msg.Header.Get(contextx.DepartmentFullPathHeader),
 		Token:           msg.Header.Get(contextx.TokenHeader),
+		ClientSource:    msg.Header.Get(contextx.ClientSourceHeader),
 		User:            msg.Header.Get("user"),
 		App:             msg.Header.Get("app"),
 		Version:         msg.Header.Get("version"),
@@ -130,5 +133,8 @@ func (m *RequestMeta) ApplyHeaders(header nats.Header) {
 	header.Set("version", m.Version)
 	if m.Token != "" {
 		header.Set(contextx.TokenHeader, m.Token)
+	}
+	if m.ClientSource != "" {
+		header.Set(contextx.ClientSourceHeader, m.ClientSource)
 	}
 }

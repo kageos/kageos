@@ -17,8 +17,9 @@ import (
 //   - feature: 功能名称（使用 enterprise.FeatureXXX 常量）
 //
 // 使用示例：
-//   operateLog := apiV1.Group("/operate_log")
-//   operateLog.Use(middleware.RequireFeature(enterprise.FeatureOperateLog))
+//
+//	operateLog := apiV1.Group("/operate_log")
+//	operateLog.Use(middleware.RequireFeature(enterprise.FeatureOperateLog))
 //
 // 说明：
 //   - 替代原有的 OperateLogAuth()、OrganizationAuth() 等中间件
@@ -33,7 +34,7 @@ func RequireFeature(feature string) gin.HandlerFunc {
 		if !licenseMgr.HasFeature(feature) {
 			// 获取功能名称（用于错误提示）
 			featureName := getFeatureDisplayName(feature)
-			
+
 			logger.Warnf(c, "[RequireFeature] 访问功能被拒绝：功能=%s，原因=未激活企业版 License 或 License 不支持该功能", feature)
 			response.FailWithMessage(c, fmt.Sprintf("此功能需要企业版 License：%s，请升级到企业版", featureName))
 			c.Abort()
@@ -82,4 +83,3 @@ func getFeatureDisplayName(feature string) string {
 func OperateLogAuth() gin.HandlerFunc {
 	return RequireFeature(enterprise.FeatureOperateLog)
 }
-

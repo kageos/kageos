@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/servicetree"
 )
 
 func copyServiceTreeImpl(s *serviceTreeHubService, ctx context.Context, req *dto.CopyDirectoryReq) (*dto.CopyDirectoryResp, error) {
@@ -698,14 +698,8 @@ func buildDirectoryTreeNodeImpl(s *serviceTreeHubService, tree *model.ServiceTre
 					info.Method = refFn.Method
 					info.Router = refFn.Router
 					info.CreateTables = refFn.CreateTables
-					info.Callbacks = refFn.Callbacks
-					schemaObj := map[string]interface{}{
-						"request":  refFn.Request,
-						"response": refFn.Response,
-					}
-					if schemaBytes, err := json.Marshal(schemaObj); err == nil {
-						info.Schema = schemaBytes
-					}
+					info.Callbacks = refFn.GetCallbacks()
+					info.Schema = refFn.Schema
 				}
 			}
 			functions = append(functions, info)
@@ -723,7 +717,7 @@ func buildDirectoryTreeNodeImpl(s *serviceTreeHubService, tree *model.ServiceTre
 	}
 
 	return &dto.DirectoryTreeNode{
-		Type:           "package",
+		Type:           servicetree.TypePackage,
 		Name:           tree.Name,
 		Code:           tree.Code,
 		Path:           tree.FullCodePath,

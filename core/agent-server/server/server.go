@@ -10,12 +10,14 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/service"
+	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/dbx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
 	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/scheduledsdk"
 	"github.com/ai-agent-os/ai-agent-os/pkg/serverx"
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
@@ -33,20 +35,28 @@ type Server struct {
 	natsConn   *nats.Conn // NATS 连接，当前主要供 license client 使用
 
 	// Repository
-	llmRepo     *repository.LLMRepository
-	sessionRepo *repository.ChatSessionRepository
-	messageRepo *repository.ChatMessageRepository
+	llmRepo                     *repository.LLMRepository
+	sessionRepo                 *repository.ChatSessionRepository
+	messageRepo                 *repository.ChatMessageRepository
+	scheduledAgentTaskRepo      *repository.ScheduledAgentTaskRepository
+	scheduledAgentExecutionRepo *repository.ScheduledAgentExecutionRepository
 
 	// 服务
-	llmService           *service.LLMService
-	toolRegistry         *service.ToolRegistry
-	workspaceChatService *service.WorkspaceChatService
+	llmService                *service.LLMService
+	toolRegistry              *service.ToolRegistry
+	runtimeStateStore         service.RuntimeStateStore
+	workspaceChatService      *service.WorkspaceChatService
+	scheduledAgentTaskService *service.ScheduledAgentTaskService
 
 	// 上下文
 	ctx context.Context
 
 	// License Client
 	licenseClient *license.Client
+
+	schedulerCancel context.CancelFunc
+	schedulerDone   chan struct{}
+	timerWorker     *scheduledsdk.Worker
 }
 
 // NewServer 创建新的服务器实例
@@ -63,19 +73,17 @@ func NewServer(cfg *config.AgentServerConfig) (*Server, error) {
 		return nil, fmt.Errorf("failed to init database: %w", err)
 	}
 
+	if err := s.initNATS(ctx); err != nil {
+		return nil, fmt.Errorf("failed to init NATS: %w", err)
+	}
+
 	controlCfg := s.cfg.GetControlService()
 	if controlCfg.IsEnabled() {
-		if err := s.initNATS(ctx); err != nil {
-			return nil, fmt.Errorf("failed to init NATS: %w", err)
-		}
-
 		// ⭐ 初始化 License Client（在 NATS 初始化之后）
 		if err := s.initLicenseClient(ctx); err != nil {
 			// License Client 初始化失败，记录警告但不中断启动（社区版可以继续运行）
 			logger.Warnf(ctx, "[Server] Failed to init license client: %v, continuing with community edition", err)
 		}
-	} else {
-		logger.Infof(ctx, "[Server] Control Service client disabled, skipping NATS initialization")
 	}
 
 	if err := s.initServices(ctx); err != nil {
@@ -109,13 +117,69 @@ func (s *Server) Start(ctx context.Context) error {
 	// 等待一小段时间确保服务器启动
 	time.Sleep(100 * time.Millisecond)
 
+	if err := s.StartTimerWorker(ctx); err != nil {
+		return err
+	}
+
 	logger.Infof(ctx, "[Server] Agent-server started successfully")
+	return nil
+}
+
+func (s *Server) StartTimerWorker(ctx context.Context) error {
+	if s.scheduledAgentTaskService == nil {
+		return nil
+	}
+	if s.schedulerDone != nil {
+		return fmt.Errorf("scheduled agent task scheduler is already running")
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	worker, err := scheduledsdk.NewWorker(scheduledsdk.WorkerOptions{
+		Client:      scheduledsdk.NewClient(scheduledsdk.Options{BaseURL: config.GetGlobalSharedConfig().TimerScheduler.GetBaseURL()}),
+		NATSConn:    s.natsConn,
+		ExecutorKey: "agent.session",
+		WorkerID:    "agent-server",
+		Handler:     s.scheduledAgentTaskService.HandleTimerExecution,
+		OnError: func(ctx context.Context, err error) {
+			logger.Errorf(ctx, "[Server] Scheduled agent timer worker error: %v", err)
+		},
+	})
+	if err != nil {
+		cancel()
+		return fmt.Errorf("create scheduled agent timer worker: %w", err)
+	}
+	if err := worker.Start(runCtx); err != nil {
+		cancel()
+		return fmt.Errorf("start scheduled agent timer worker: %w", err)
+	}
+	s.timerWorker = worker
+	s.schedulerCancel = cancel
+	s.schedulerDone = make(chan struct{})
+	go func() {
+		defer close(s.schedulerDone)
+		logger.Infof(runCtx, "[Server] Scheduled agent timer worker started")
+		<-runCtx.Done()
+		if s.timerWorker != nil {
+			_ = s.timerWorker.Stop()
+		}
+	}()
+	logger.Infof(ctx, "[Server] Scheduled agent task scheduler started")
 	return nil
 }
 
 // Stop 停止服务器（优雅关闭）
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping agent-server...")
+
+	if s.schedulerCancel != nil {
+		s.schedulerCancel()
+		s.schedulerCancel = nil
+	}
+	if s.schedulerDone != nil {
+		logger.Infof(ctx, "[Server] Waiting scheduled agent task scheduler to stop...")
+		<-s.schedulerDone
+		s.schedulerDone = nil
+		logger.Infof(ctx, "[Server] Scheduled agent task scheduler stopped")
+	}
 
 	// 关闭数据库连接
 	if s.db != nil {
@@ -246,15 +310,34 @@ func (s *Server) initServices(ctx context.Context) error {
 	sessionRepo := repository.NewChatSessionRepository(s.db)
 	messageRepo := repository.NewChatMessageRepository(s.db)
 	workspaceEventRepo := repository.NewWorkspaceEventRepository(s.db)
+	scheduledAgentTaskRepo := repository.NewScheduledAgentTaskRepository(s.db)
+	scheduledAgentExecutionRepo := repository.NewScheduledAgentExecutionRepository(s.db)
 	s.sessionRepo = sessionRepo
 	s.messageRepo = messageRepo
+	s.scheduledAgentTaskRepo = scheduledAgentTaskRepo
+	s.scheduledAgentExecutionRepo = scheduledAgentExecutionRepo
 
 	// 初始化 Service
 	s.llmService = service.NewLLMService(s.llmRepo)
+	s.runtimeStateStore = service.NewInMemoryRuntimeStateStore()
 
 	// 智能工作台 ToolRegistry、WorkspaceChatService（只认 LLM，单模式；已移除插件）
 	s.toolRegistry = service.NewToolRegistry(workspaceEventRepo)
-	s.workspaceChatService = service.NewWorkspaceChatService(s.toolRegistry, sessionRepo, messageRepo, s.llmRepo)
+	s.workspaceChatService = service.NewWorkspaceChatService(s.toolRegistry, sessionRepo, messageRepo, s.llmRepo, s.runtimeStateStore)
+	s.scheduledAgentTaskService = service.NewScheduledAgentTaskService(
+		s.workspaceChatService,
+		scheduledAgentTaskRepo,
+		scheduledAgentExecutionRepo,
+		auth.NewJWTService(),
+		service.ScheduledAgentTaskServiceOptions{
+			MaxConcurrency:      s.cfg.GetTimerWorkerMaxConcurrency(),
+			DefaultTimeout:      s.cfg.GetTimerWorkerDefaultTimeout(),
+			MessagePublisher:    service.NewNATSMessagePublisher(s.natsConn),
+			NotificationBaseURL: config.GetGlobalSharedConfig().Gateway.GetBaseURL(),
+			TimerClient:         scheduledsdk.NewClient(scheduledsdk.Options{BaseURL: config.GetGlobalSharedConfig().TimerScheduler.GetBaseURL()}),
+		},
+	)
+	s.toolRegistry.SetScheduledAgentTaskService(s.scheduledAgentTaskService)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil

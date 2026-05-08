@@ -973,43 +973,42 @@ html.dark {
   color-scheme: dark;
 }
 
-/* 🔥 全局样式：确保图片预览器显示在抽屉上方 */
-/* Element Plus 图片预览器 z-index 设置 - 必须高于 Drawer (2999) */
+/* 图片预览器必须高于 Drawer，但低于 mini/dialog 等业务浮层。 */
 .el-image-viewer__wrapper {
-  z-index: 3000 !important;
+  z-index: var(--aos-z-image-preview) !important;
 }
 
 .el-image-viewer__mask {
-  z-index: 3000 !important;
+  z-index: var(--aos-z-image-preview) !important;
 }
 
 .el-image-viewer__canvas {
-  z-index: 3001 !important;
+  z-index: calc(var(--aos-z-image-preview) + 1) !important;
 }
 
 .el-image-viewer__actions {
-  z-index: 3002 !important;
+  z-index: calc(var(--aos-z-image-preview) + 2) !important;
 }
 
 .el-image-viewer__close {
-  z-index: 3002 !important;
+  z-index: calc(var(--aos-z-image-preview) + 2) !important;
 }
 
 /* 确保预览器的遮罩层也高于抽屉 */
 .el-image-viewer__mask.el-overlay {
-  z-index: 3000 !important;
+  z-index: var(--aos-z-image-preview) !important;
 }
 
 /* 确保预览器容器高于所有抽屉相关元素 */
 .el-image-viewer__wrapper.el-overlay {
-  z-index: 3000 !important;
+  z-index: var(--aos-z-image-preview) !important;
 }
 
 /* 覆盖所有可能的图片预览器相关元素（使用 body > 选择器提高优先级） */
 body > .el-image-viewer__wrapper {
-  z-index: 3000 !important;
+  z-index: var(--aos-z-image-preview) !important;
 }
 
 body > .el-image-viewer__mask {
-  z-index: 3000 !important;
+  z-index: var(--aos-z-image-preview) !important;
 }

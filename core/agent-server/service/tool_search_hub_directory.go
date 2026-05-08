@@ -21,7 +21,7 @@ type searchHubDirectoryArgs struct {
 
 var searchHubDirectoryToolDef = toolDefinition[searchHubDirectoryArgs](
 	"search_hub_directory",
-	"在应用中心（Hub）搜索应用，或按路径查询单个目录在 Hub 上的信息。① 按关键词搜索：传 search（可选，不传或传空则返回全部应用）；支持多关键字「或」搜索，用 | 分隔，例如：美发|理发|美容|预约，表示匹配其中任意一词即可；可传 page、page_size（可选）。② 按路径查当前目录在 Hub 上的信息：传 full_code_path（如 /user/app/plugins/xxx），可查看该路径是否已上架、copy_url、star_count 等。返回含 copy_url（用于 copy_directory）、star_count、download_count 等。",
+	"在应用中心（Hub）搜索应用，或按路径查询单个目录在应用中心的信息。① 按关键词搜索：传 search（可选，不传或传空则返回全部应用）；支持多关键字「或」搜索，用 | 分隔，例如：美发|理发|美容|预约，表示匹配其中任意一词即可；可传 page、page_size（可选）。② 按路径查当前目录在应用中心的信息：传 full_code_path（如 /user/app/plugins/xxx），可查看 copy_url、star_count 等。返回含 copy_url（用于 copy_directory）、star_count、download_count 等。",
 )
 
 func (t *SearchHubDirectoryTool) Definition() dto.ToolDef {
@@ -45,10 +45,10 @@ func runSearchHubDirectoryTool(ctx context.Context, args searchHubDirectoryArgs)
 			IncludeTree:  false,
 		})
 		if err != nil {
-			return fmt.Sprintf("该路径在应用中心未找到或未上架：%s。可先用 publish_to_hub 发布后再查询。", fullCodePath), false
+			return fmt.Sprintf("该路径在应用中心未找到：%s。", fullCodePath), false
 		}
 		if detail == nil {
-			return fmt.Sprintf("路径 %s 在应用中心暂无信息（可能未上架）。", fullCodePath), false
+			return fmt.Sprintf("路径 %s 在应用中心暂无信息。", fullCodePath), false
 		}
 		var b strings.Builder
 		b.WriteString(fmt.Sprintf("应用中心 - 路径 %s 的信息：\n\n", detail.FullCodePath))

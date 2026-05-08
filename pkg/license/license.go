@@ -50,26 +50,27 @@ func (ft FlexibleTime) MarshalJSON() ([]byte, error) {
 //   - License 文件是 JSON 格式，包含 RSA 签名防止篡改
 //
 // License 文件格式：
-//   {
-//     "license": {
-//       "id": "license-xxx",
-//       "edition": "enterprise",
-//       "issued_at": "2025-01-01T00:00:00Z",
-//       "expires_at": "2026-01-01T00:00:00Z",
-//       "customer": "Company Name",
-//       "max_apps": 100,
-//       "max_users": 50,
-//       "features": {
-//         "operate_log": true
-//       },
-//       "hardware_id": "optional-hardware-binding"
-//     },
-//     "signature": "RSA签名..."
-//   }
+//
+//	{
+//	  "license": {
+//	    "id": "license-xxx",
+//	    "edition": "enterprise",
+//	    "issued_at": "2025-01-01T00:00:00Z",
+//	    "expires_at": "2026-01-01T00:00:00Z",
+//	    "customer": "Company Name",
+//	    "max_apps": 100,
+//	    "max_users": 50,
+//	    "features": {
+//	      "operate_log": true
+//	    },
+//	    "hardware_id": "optional-hardware-binding"
+//	  },
+//	  "signature": "RSA签名..."
+//	}
 type License struct {
 	// License 基本信息
 	ID        string       `json:"id"`         // License ID
-	Edition   string       `json:"edition"`     // 版本：community, professional, enterprise, flagship
+	Edition   string       `json:"edition"`    // 版本：community, professional, enterprise, flagship
 	IssuedAt  FlexibleTime `json:"issued_at"`  // 签发时间
 	ExpiresAt FlexibleTime `json:"expires_at"` // 过期时间（零值表示永久）
 
@@ -80,7 +81,7 @@ type License struct {
 	Description string `json:"description,omitempty"` // License 描述（可选，用于展示）
 
 	// 资源限制
-	MaxApps int `json:"max_apps"` // 最大应用数量（0 表示无限制）
+	MaxApps  int `json:"max_apps"`  // 最大应用数量（0 表示无限制）
 	MaxUsers int `json:"max_users"` // 最大用户数量（0 表示无限制）
 
 	// 功能开关
@@ -141,10 +142,10 @@ type LicenseFile struct {
 type Edition string
 
 const (
-	EditionCommunity   Edition = "community"   // 社区版（开源，不需要 License）
+	EditionCommunity    Edition = "community"    // 社区版（开源，不需要 License）
 	EditionProfessional Edition = "professional" // 专业版
-	EditionEnterprise  Edition = "enterprise"  // 企业版
-	EditionFlagship    Edition = "flagship"    // 旗舰版
+	EditionEnterprise   Edition = "enterprise"   // 企业版
+	EditionFlagship     Edition = "flagship"     // 旗舰版
 )
 
 // IsValid 检查 License 是否有效

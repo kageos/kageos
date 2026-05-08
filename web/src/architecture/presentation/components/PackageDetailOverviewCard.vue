@@ -13,30 +13,6 @@
 
       <div class="overview-divider"></div>
 
-      <div class="overview-item">
-        <div class="overview-icon-wrapper code-icon">
-          <el-icon class="overview-icon"><Key /></el-icon>
-        </div>
-        <div class="overview-content">
-          <div class="overview-label">目录代码</div>
-          <div class="overview-value code-text">{{ packageNode.code }}</div>
-        </div>
-      </div>
-
-      <div class="overview-divider"></div>
-
-      <div class="overview-item">
-        <div class="overview-icon-wrapper count-icon">
-          <el-icon class="overview-icon"><Files /></el-icon>
-        </div>
-        <div class="overview-content">
-          <div class="overview-label">子项数量</div>
-          <div class="overview-value">{{ packageNode.children?.length || 0 }} 项</div>
-        </div>
-      </div>
-
-      <div class="overview-divider"></div>
-
       <div class="overview-item overview-item-run">
         <div class="overview-icon-wrapper run-icon">
           <el-icon class="overview-icon"><DataLine /></el-icon>
@@ -93,7 +69,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Avatar, DataLine, Document, Files, Key, Star } from '@element-plus/icons-vue'
+import { Avatar, DataLine, Document, Star } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
@@ -213,24 +189,6 @@ const adminsFieldValue = computed<FieldValue>(() => {
 .overview-icon-wrapper.name-icon .overview-icon {
   font-size: 24px;
   color: var(--el-color-primary);
-}
-
-.overview-icon-wrapper.code-icon {
-  background: rgba(16, 185, 129, 0.12);
-}
-
-.overview-icon-wrapper.code-icon .overview-icon {
-  font-size: 24px;
-  color: var(--el-color-success);
-}
-
-.overview-icon-wrapper.count-icon {
-  background: rgba(245, 158, 11, 0.12);
-}
-
-.overview-icon-wrapper.count-icon .overview-icon {
-  font-size: 24px;
-  color: var(--el-color-warning);
 }
 
 .overview-icon-wrapper.admins-icon {

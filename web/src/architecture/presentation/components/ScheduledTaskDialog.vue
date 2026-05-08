@@ -35,6 +35,14 @@
           <div class="form-tip">{{ tablePayloadTip }}</div>
         </el-form-item>
       </template>
+      <el-alert
+        v-else-if="props.tableMode && !props.fixedAction"
+        title="当前表格没有可定时执行的写操作"
+        type="warning"
+        show-icon
+        :closable="false"
+        class="table-action-empty"
+      />
       <el-form-item label="执行方式" prop="schedule_type">
         <el-radio-group v-model="form.schedule_type">
           <el-radio-button value="atime">指定时间一次</el-radio-button>
@@ -180,7 +188,7 @@
     />
     <template #footer>
       <el-button @click="handleClose">取消</el-button>
-      <el-button type="primary" :loading="submitting" @click="handleSubmit">确定</el-button>
+      <el-button type="primary" :loading="submitting" :disabled="cannotSubmitTableAction" @click="handleSubmit">确定</el-button>
     </template>
   </el-dialog>
 </template>
@@ -191,6 +199,7 @@ import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
   createScheduledTask,
+  methodForScheduledTaskAction,
   type CreateScheduledTaskReq,
   type ScheduledTaskAction,
   type ScheduledTaskNotifyOn
@@ -266,6 +275,10 @@ const allowedActions = computed(() =>
   (props.allowedTableActions || []).filter(
     (a) => a === 'table_create' || a === 'table_update' || a === 'table_delete'
   )
+)
+
+const cannotSubmitTableAction = computed(() =>
+  props.tableMode && !props.fixedAction && allowedActions.value.length === 0
 )
 
 function tableActionLabel(a: ScheduledTaskAction): string {
@@ -497,6 +510,10 @@ function handleClose() {
 
 async function handleSubmit() {
   if (!formRef.value || !props.fullCodePath) return
+  if (cannotSubmitTableAction.value) {
+    ElMessage.warning('当前表格没有可定时执行的写操作')
+    return
+  }
   await formRef.value.validate(async (valid) => {
     if (!valid) return
     if (form.value.schedule_type === 'every' && (form.value.interval_seconds == null || form.value.interval_seconds < 1)) {
@@ -528,7 +545,7 @@ async function handleSubmit() {
         name: form.value.name.trim(),
         full_code_path: props.fullCodePath,
         action,
-        method: 'POST',
+        method: methodForScheduledTaskAction(action),
         payload: taskPayload,
         schedule_type: form.value.schedule_type,
         max_runs: form.value.max_runs ?? 0,
@@ -599,6 +616,10 @@ async function handleSubmit() {
   font-size: 12px;
   color: var(--el-text-color-secondary);
   margin: -8px 0 12px 0;
+}
+
+.table-action-empty {
+  margin-bottom: 16px;
 }
 
 .notify-form-block {

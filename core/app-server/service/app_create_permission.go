@@ -9,6 +9,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
 )
 
 func (a *AppService) grantCreateAppAdmins(ctx context.Context, user, app, admins string) {
@@ -50,8 +51,8 @@ func (a *AppService) assignAppAdminRoleToUser(ctx context.Context, user, app, us
 
 	assignReq := &dto.AssignRoleToUserReq{
 		Username:     username,
-		RoleCode:     "admin",
-		ResourceType: "directory",
+		RoleCode:     permission.RoleCodeAdmin,
+		ResourceType: permission.ResourceTypeDirectory,
 		ResourcePath: resourcePath,
 		StartTime:    nil,
 		EndTime:      nil,
@@ -80,8 +81,8 @@ func (a *AppService) removeAppAdminRoleFromUser(ctx context.Context, user, app, 
 
 	removeReq := &dto.RemoveRoleFromUserReq{
 		Username:     username,
-		RoleCode:     "admin",
-		ResourceType: "directory",
+		RoleCode:     permission.RoleCodeAdmin,
+		ResourceType: permission.ResourceTypeDirectory,
 		ResourcePath: resourcePath,
 	}
 

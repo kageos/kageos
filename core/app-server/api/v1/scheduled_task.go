@@ -25,6 +25,7 @@ func NewScheduledTask(scheduledTaskService *service.ScheduledTaskService) *Sched
 func buildScheduledTaskItem(t *model.ScheduledTask) dto.ScheduledTaskItem {
 	item := dto.ScheduledTaskItem{
 		ID:                t.ID,
+		TimerTaskID:       t.TimerTaskID,
 		Name:              t.Name,
 		User:              t.User,
 		App:               t.App,
@@ -154,6 +155,27 @@ func (s *ScheduledTask) Cancel(c *gin.Context) {
 		return
 	}
 	response.OkWithMessage(c, "已取消")
+}
+
+// Delete 删除定时任务
+func (s *ScheduledTask) Delete(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.FailWithMessage(c, "无效的任务ID")
+		return
+	}
+	requestUser := contextx.GetRequestUser(c)
+	if requestUser == "" {
+		response.FailWithMessage(c, "请先登录")
+		return
+	}
+	ctx := contextx.ToContext(c)
+	if err := s.scheduledTaskService.Delete(ctx, id, requestUser); err != nil {
+		response.FailWithMessage(c, "删除失败: "+err.Error())
+		return
+	}
+	response.OkWithMessage(c, "已删除")
 }
 
 // ListExecutions 某任务的执行记录

@@ -7,10 +7,10 @@ import (
 
 // 测试 multiselect 组件的数据结构
 type MultiSelectTestStruct struct {
-	Tags       []string `json:"tags" widget:"name:标签;type:multiselect;options:前端,后端,全栈,DevOps,测试;default:前端,后端"`
+	Tags       []string `json:"tags" widget:"name:标签;type:multiselect;options:前端,后端,全栈,DevOps,测试;render_default:前端,后端"`
 	Categories []string `json:"categories" widget:"name:分类;type:multiselect;options:技术,产品,设计,运营;placeholder:请选择分类;max_count:3"`
-	Skills     []string `json:"skills" widget:"name:技能;type:multiselect;options:Go,Python,Java;creatable:true"` // 支持创建
-	Languages  []string `json:"languages" widget:"name:语言;type:multiselect;options:中文,英文,日文;creatable:false"`   // 不支持创建
+	Abilities  []string `json:"abilities" widget:"name:能力;type:multiselect;options:Go,Python,Java;creatable:true"` // 支持创建
+	Languages  []string `json:"languages" widget:"name:语言;type:multiselect;options:中文,英文,日文;creatable:false"`      // 不支持创建
 }
 
 func TestMultiSelect(t *testing.T) {
@@ -70,8 +70,8 @@ func TestMultiSelect(t *testing.T) {
 			}
 		}
 
-		if len(config.Default) != 2 {
-			t.Errorf("默认值数量错误，期望2，实际%d", len(config.Default))
+		if len(config.RenderDefault) != 2 {
+			t.Errorf("默认值数量错误，期望2，实际%d", len(config.RenderDefault))
 		}
 
 		// 验证 categories 字段
@@ -96,26 +96,26 @@ func TestMultiSelect(t *testing.T) {
 			t.Errorf("占位符错误，期望'请选择分类'，实际'%s'", catConfig.Placeholder)
 		}
 
-		// 验证 skills 字段（支持创建）
-		var skillsField *Field
+		// 验证 abilities 字段（支持创建）
+		var abilitiesField *Field
 		for _, field := range fields {
-			if field.Code == "skills" {
-				skillsField = field
+			if field.Code == "abilities" {
+				abilitiesField = field
 				break
 			}
 		}
 
-		if skillsField == nil {
-			t.Fatal("未找到 skills 字段")
+		if abilitiesField == nil {
+			t.Fatal("未找到 abilities 字段")
 		}
 
-		skillsConfig, ok := skillsField.Widget.Config.(*MultiSelect)
+		abilitiesConfig, ok := abilitiesField.Widget.Config.(*MultiSelect)
 		if !ok {
 			t.Fatal("无法转换配置为 MultiSelect")
 		}
 
-		if !skillsConfig.Creatable {
-			t.Errorf("skills字段应该支持创建，但creatable=%v", skillsConfig.Creatable)
+		if !abilitiesConfig.Creatable {
+			t.Errorf("abilities字段应该支持创建，但creatable=%v", abilitiesConfig.Creatable)
 		}
 
 		// 验证 languages 字段（不支持创建）
@@ -141,9 +141,9 @@ func TestMultiSelect(t *testing.T) {
 		}
 
 		t.Logf("✅ MultiSelect 组件测试通过")
-		t.Logf("  - Tags: %d个选项，%d个默认值", len(config.Options), len(config.Default))
+		t.Logf("  - Tags: %d个选项，%d个默认值", len(config.Options), len(config.RenderDefault))
 		t.Logf("  - Categories: 占位符='%s', 最大选择数=%d", catConfig.Placeholder, catConfig.MaxCount)
-		t.Logf("  - Skills: creatable=%v", skillsConfig.Creatable)
+		t.Logf("  - Abilities: creatable=%v", abilitiesConfig.Creatable)
 		t.Logf("  - Languages: creatable=%v", langConfig.Creatable)
 	})
 }

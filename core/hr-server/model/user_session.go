@@ -24,4 +24,3 @@ type UserSession struct {
 func (UserSession) TableName() string {
 	return "user_session"
 }
-

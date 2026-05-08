@@ -20,10 +20,10 @@ type RunFunctionResp struct {
 	//是否是业务错误？
 	BizError interface{}
 
-	// AutoSearchFilterPaged 参数（延迟到 Build 时执行）
-	autoPagedDB       *gorm.DB
-	autoPagedModel    interface{}
-	autoPagedPageInfo *query.SearchFilterPageReq
+	// Table 查询参数（延迟到 Build 时执行）
+	tableQueryDB       *gorm.DB
+	tableQueryModel    interface{}
+	tableQueryPageInfo *query.PageSortReq
 }
 
 func (r *RunFunctionResp) Data() interface{} {
@@ -39,18 +39,6 @@ func (r *RunFunctionResp) Data() interface{} {
 	return nil
 }
 
-func (t *RunFunctionResp) AutoSearchFilterPaged(dbAndWhere *gorm.DB, model interface{}, pageInfo *query.SearchFilterPageReq) Table {
-	// 只保存参数，延迟到 Build 时执行
-	t.autoPagedDB = dbAndWhere
-	t.autoPagedModel = model
-	if pageInfo == nil {
-		t.autoPagedPageInfo = new(query.SearchFilterPageReq)
-	} else {
-		t.autoPagedPageInfo = pageInfo
-	}
-	return t
-}
-
 type BizErr struct {
 	Msg string `json:"msg"`
 }
@@ -60,6 +48,10 @@ func (e *BizErr) Error() string {
 }
 
 func (r *RunFunctionResp) Build() error {
+	if r.err != nil {
+		return r.err
+	}
+
 	if r.BizError != nil {
 		return &BizErr{Msg: fmt.Sprintf("%v", r.BizError)}
 	}
@@ -72,12 +64,12 @@ func (r *RunFunctionResp) Build() error {
 		return nil
 	}
 
-	// 如果是 table 类型且有自动分页参数，执行查询
+	// 如果是 table 类型且有查询参数，执行分页查询
 	if r.Type == "table" {
-		if r.autoPagedDB != nil && r.autoPagedModel != nil {
-			return r.executeAutoSearchFilterPaged()
+		if r.tableQueryDB != nil && r.tableQueryModel != nil {
+			return r.executeTableQuery()
 		} else {
-			//todo 
+			//todo
 		}
 
 	}
@@ -85,40 +77,34 @@ func (r *RunFunctionResp) Build() error {
 	return nil
 }
 
-// executeAutoSearchFilterPaged 执行自动搜索、过滤和分页
-func (t *RunFunctionResp) executeAutoSearchFilterPaged() error {
-	if t.autoPagedPageInfo == nil {
-		t.autoPagedPageInfo = new(query.SearchFilterPageReq)
+// executeTableQuery 执行显式筛选后的分页查询，只处理 Count、排序、Offset、Limit、Find。
+func (t *RunFunctionResp) executeTableQuery() error {
+	if t.tableQueryPageInfo == nil {
+		t.tableQueryPageInfo = new(query.PageSortReq)
 	}
 
-	// 使用query库的公开方法应用搜索条件
-	dbWithConditions, err := query.ApplySearchConditions(t.autoPagedDB, t.autoPagedPageInfo)
-	if err != nil {
-		t.err = fmt.Errorf("AutoPaginated.ApplySearchConditions failed: %v", err)
-		return t.err
-	}
+	dbWithConditions := t.tableQueryDB.Session(&gorm.Session{})
 
 	// 获取分页大小
-	pageSize := t.autoPagedPageInfo.GetLimit()
-	offset := t.autoPagedPageInfo.GetOffset()
+	pageSize := t.tableQueryPageInfo.GetLimit()
+	offset := t.tableQueryPageInfo.GetOffset()
 
 	// 查询总数
 	var totalCount int64
-	if err := dbWithConditions.Model(t.autoPagedModel).Count(&totalCount).Error; err != nil {
-		t.err = fmt.Errorf("AutoPaginated.Count :%+v failed to count records: %v", t.TableData.Items, err)
+	if err := dbWithConditions.Session(&gorm.Session{}).Model(t.tableQueryModel).Count(&totalCount).Error; err != nil {
+		t.err = fmt.Errorf("Table.Count :%+v failed to count records: %v", t.TableData.Items, err)
 		return t.err
 	}
 
 	// 应用排序
-	if t.autoPagedPageInfo.GetSorts() != "" {
-		dbWithConditions = dbWithConditions.Order(t.autoPagedPageInfo.GetSorts())
+	if t.tableQueryPageInfo.GetSorts() != "" {
+		dbWithConditions = dbWithConditions.Order(t.tableQueryPageInfo.GetSorts())
 	}
 
 	// 查询当前页数据
 	queryDB := dbWithConditions.Offset(offset).Limit(pageSize)
-
 	if err := queryDB.Find(t.TableData.Items).Error; err != nil {
-		t.err = fmt.Errorf("AutoPaginated.Find :%+v failed to find records: %v", t.TableData.Items, err)
+		t.err = fmt.Errorf("Table.Find :%+v failed to find records: %v", t.TableData.Items, err)
 		return t.err
 	}
 
@@ -130,7 +116,7 @@ func (t *RunFunctionResp) executeAutoSearchFilterPaged() error {
 
 	// 构造分页结果
 	t.TableData.Paginated = &Paginated{
-		CurrentPage: t.autoPagedPageInfo.Page,
+		CurrentPage: t.tableQueryPageInfo.GetPage(),
 		TotalCount:  int(totalCount),
 		TotalPages:  totalPages,
 		PageSize:    pageSize,
@@ -158,7 +144,7 @@ type Builder interface {
 type Response interface {
 	Form(data interface{}) Form
 	BizErrorf(format string, a ...any) Form
-	Table(resultList interface{}) Table
+	Table(resultList interface{}, queryArgs ...interface{}) Table
 	Chart(c chart.Charter) Chart
 }
 

@@ -37,7 +37,7 @@ func SafeLogValue(v interface{}) string {
 	if v == nil {
 		return "<nil>"
 	}
-	
+
 	switch val := v.(type) {
 	case string:
 		if len(val) > MaxLogLength {
@@ -73,4 +73,3 @@ func LogAgentInfo(agents interface{}) string {
 	// 由于是 interface{}，我们只能返回一个提示
 	return fmt.Sprintf("<AgentInfo: use SafeLogValue for details>")
 }
-

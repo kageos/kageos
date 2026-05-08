@@ -18,17 +18,14 @@ import type { IEventBus } from '../interfaces/IEventBus'
 import { TableEvent } from '../interfaces/IEventBus'
 import type { FunctionDetail, FieldConfig } from '../types'
 import {
-  SearchType,
-  WidgetType,
-  buildSearchParamsString,
-  denormalizeSearchValue,
-  getChangedFields,
-  getScopedFieldQueryValue,
-  parseCommaSeparatedString
-} from '@/core/tableRuntime/search'
+  getTableListFields,
+  getTableRequestFields,
+  getTableRequestSearchFields,
+  getTableSearchFields
+} from '@/utils/functionSchemaSelectors'
+import { getChangedFields } from '@/core/tableRuntime/search'
 import { Logger } from '@/core/utils/logger'
-import { getSearchFieldDisplayQueryKey } from '@/utils/queryFieldNamespace'
-import { createStoredSearchFieldValue, getSearchFieldRawValue } from '@/utils/searchFieldValue'
+import { getSearchFieldRawValue } from '@/utils/searchFieldValue'
 
 /**
  * 表格数据项类型
@@ -74,6 +71,34 @@ export interface SortItem {
   order: 'asc' | 'desc'
 }
 
+const formatSortItemForRequest = (item: SortItem | SortParams): string => {
+  return item.order === 'desc' ? `-${item.field}` : item.field
+}
+
+const parseSortTokenFromRequest = (token: string): SortItem | null => {
+  const trimmed = token.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  if (trimmed.includes(':')) {
+    const parts = trimmed.split(':')
+    if (parts.length !== 2) {
+      return null
+    }
+    const field = parts[0]?.trim()
+    const order = parts[1]?.trim() as 'asc' | 'desc'
+    if (!field || (order !== 'asc' && order !== 'desc')) {
+      return null
+    }
+    return { field, order }
+  }
+
+  const order = trimmed.startsWith('-') ? 'desc' : 'asc'
+  const field = trimmed.replace(/^[-+]/, '').trim()
+  return field ? { field, order } : null
+}
+
 /**
  * 表格状态
  */
@@ -90,19 +115,6 @@ export interface TableState {
     pageSize: number
     total: number
   }
-}
-
-function restoreStoredSearchValue(
-  query: Record<string, string | string[]>,
-  fieldCode: string,
-  rawValue: any
-): any {
-  const displayValue = query[getSearchFieldDisplayQueryKey(fieldCode)]
-  if (displayValue === undefined || displayValue === null || displayValue === '') {
-    return rawValue
-  }
-
-  return createStoredSearchFieldValue(rawValue, String(displayValue))
 }
 
 /**
@@ -222,12 +234,12 @@ export class TableDomainService {
       // 添加排序参数
       // 🔥 优先使用 state.sorts（支持多列排序），如果没有则使用 sortParams（单个排序）
       if (state.sorts && state.sorts.length > 0) {
-        // 支持多列排序：sorts=field1:order1,field2:order2
-        params.sorts = state.sorts.map(item => `${item.field}:${item.order}`).join(',')
+        // 支持多列排序：sorts=-created_at,name
+        params.sorts = state.sorts.map(formatSortItemForRequest).join(',')
       } else if (sortParams || state.sortParams) {
         // 兼容单个排序参数
         const sort = sortParams || state.sortParams!
-        params.sorts = `${sort.field}:${sort.order}`
+        params.sorts = formatSortItemForRequest(sort)
       }
 
       // ⭐ 使用标准 API：/table/search/{full-code-path}
@@ -429,42 +441,7 @@ export class TableDomainService {
    * 获取可搜索字段（遵循依赖倒置原则，业务逻辑在 Domain Layer）
    */
   getSearchableFields(functionDetail: FunctionDetail): FieldConfig[] {
-    const response = Array.isArray(functionDetail.response) ? functionDetail.response : []
-    const request = Array.isArray(functionDetail.request) ? functionDetail.request : []
-    
-    // 从 response 中获取可搜索字段（主表字段，必须有明确的 search 标签值）
-    const responseSearchableFields = response.filter((field: FieldConfig) => {
-      const search = field.search
-      return search && search !== '-' && search !== '' && search.trim() !== ''
-    })
-    
-    // 从 request 中获取所有字段（扩展字段，用于搜索，不需要 search 标签）
-    const requestAllFields = request.filter((field: FieldConfig) => {
-      return field.search !== '-' // 排除明确表示不支持搜索的字段
-    })
-    
-    // 合并：使用 Map 去重
-    const fieldMap = new Map<string, FieldConfig>()
-    responseSearchableFields.forEach((field: FieldConfig) => {
-      fieldMap.set(field.code, field)
-    })
-    requestAllFields.forEach((field: FieldConfig) => {
-      const existingField = fieldMap.get(field.code)
-      if (existingField) {
-        // 智能合并
-        const mergedField: FieldConfig = {
-          ...field,
-          search: (field.search && field.search !== '-' && field.search !== '') 
-            ? field.search 
-            : (existingField.search || undefined),
-        }
-        fieldMap.set(field.code, mergedField)
-      } else {
-        fieldMap.set(field.code, field)
-      }
-    })
-    
-    return Array.from(fieldMap.values())
+    return getTableSearchFields(functionDetail)
   }
 
   /**
@@ -487,13 +464,14 @@ export class TableDomainService {
     const sorts: Array<{ field: string; order: 'asc' | 'desc' }> = []
     
     // 获取当前函数的所有字段 code
-    const requestFields = Array.isArray(functionDetail.request) ? functionDetail.request : []
-    const responseFields = Array.isArray(functionDetail.response) ? functionDetail.response : []
+    const allRequestFields = getTableRequestFields(functionDetail)
+    const requestFields = getTableRequestSearchFields(functionDetail)
+    const responseFields = getTableListFields(functionDetail)
     
     const currentRequestFieldCodes = new Set<string>()
     const currentResponseFieldCodes = new Set<string>()
     
-    requestFields.forEach((field: FieldConfig) => {
+    allRequestFields.forEach((field: FieldConfig) => {
       currentRequestFieldCodes.add(field.code)
     })
     responseFields.forEach((field: FieldConfig) => {
@@ -520,200 +498,24 @@ export class TableDomainService {
     if (query.sorts) {
       const sortsString = String(query.sorts)
       sortsString.split(',').forEach((sortStr: string) => {
-        const parts = sortStr.trim().split(':')
-        if (parts.length === 2) {
-          const field = parts[0] || ''
-          const order = parts[1] as 'asc' | 'desc'
-          if (field && (order === 'asc' || order === 'desc') && 
-              (currentRequestFieldCodes.has(field) || currentResponseFieldCodes.has(field))) {
-            sorts.push({ field, order })
-          }
+        const sort = parseSortTokenFromRequest(sortStr)
+        if (!sort) {
+          return
+        }
+        if (currentRequestFieldCodes.has(sort.field) || currentResponseFieldCodes.has(sort.field)) {
+          sorts.push(sort)
         }
       })
     }
     
     // 恢复搜索条件（request 字段）
+    // request 字段是 sdk-app 入参，只读取原始 field.code，例如 `genre=诗`。
+    // 不支持 `s_`/`f_` 命名空间，也不读取 `__display` 伴随参数。
     requestFields.forEach((field: FieldConfig) => {
       if (!currentRequestFieldCodes.has(field.code)) return
-      const value = getScopedFieldQueryValue(query, field.code, 'search')
+      const value = query[field.code]
       if (value !== undefined && value !== null && value !== '') {
-        searchForm[field.code] = restoreStoredSearchValue(query, field.code, String(value))
-      }
-    })
-    
-    // 恢复搜索条件（response 字段）
-    const responseSearchableFields = responseFields.filter((field: FieldConfig) => {
-      const search = field.search
-      return search && search !== '-' && search !== '' && search.trim() !== ''
-    })
-    
-    const searchableFields = this.getSearchableFields(functionDetail)
-    
-    responseSearchableFields.forEach((field: FieldConfig) => {
-      if (!currentResponseFieldCodes.has(field.code)) return
-      
-      const searchType = field.search || ''
-      
-      if (searchType.includes(SearchType.EQ)) {
-        const eqValue = query.eq
-        if (eqValue) {
-          const eqStr = String(eqValue)
-          const parts = eqStr.split(',')
-          for (const part of parts) {
-            if (part.trim().startsWith(`${field.code}:`)) {
-              const value = part.trim().substring(field.code.length + 1)
-              if (value) {
-                const denormalizedValue = denormalizeSearchValue(value, {
-                  widgetType: field.widget?.type,
-                  searchType: field.search,
-                  field
-                })
-                searchForm[field.code] = restoreStoredSearchValue(query, field.code, denormalizedValue)
-                break
-              }
-            }
-          }
-        }
-      } else if (searchType.includes(SearchType.LIKE)) {
-        const likeValue = query.like
-        if (likeValue) {
-          const likeStr = String(likeValue)
-          const parts = likeStr.split(',')
-          for (const part of parts) {
-            if (part.trim().startsWith(`${field.code}:`)) {
-              const value = part.trim().substring(field.code.length + 1)
-              if (value) {
-                searchForm[field.code] = restoreStoredSearchValue(query, field.code, value)
-                break
-              }
-            }
-          }
-        }
-      } else if (searchType.includes(SearchType.CONTAINS)) {
-        const containsValue = query.contains
-        if (containsValue) {
-          const containsStr = String(containsValue)
-          const fieldPrefix = `${field.code}:`
-          const fieldIndex = containsStr.indexOf(fieldPrefix)
-          if (fieldIndex >= 0) {
-            const valueStart = fieldIndex + fieldPrefix.length
-            let valueEnd = containsStr.length
-            const allFieldCodes = searchableFields.map((f: FieldConfig) => f.code)
-            let nextFieldIndex = -1
-            for (const otherFieldCode of allFieldCodes) {
-              if (otherFieldCode === field.code) continue
-              const otherFieldPrefix = `${otherFieldCode}:`
-              const index = containsStr.indexOf(otherFieldPrefix, valueStart)
-              if (index >= 0 && (nextFieldIndex < 0 || index < nextFieldIndex)) {
-                nextFieldIndex = index
-              }
-            }
-            if (nextFieldIndex >= 0) {
-              valueEnd = nextFieldIndex
-            }
-            const valueStr = containsStr.substring(valueStart, valueEnd).trim()
-            if (valueStr) {
-              const values = parseCommaSeparatedString(valueStr)
-              if (field.widget?.type === WidgetType.MULTI_SELECT) {
-                searchForm[field.code] = restoreStoredSearchValue(query, field.code, values.length > 0 ? values : [])
-              } else {
-                searchForm[field.code] = restoreStoredSearchValue(
-                  query,
-                  field.code,
-                  values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
-                )
-              }
-            }
-          }
-        }
-      } else if (searchType.includes(SearchType.IN)) {
-        const inValue = query.in
-        if (inValue) {
-          const inStr = String(inValue)
-          const fieldPrefix = `${field.code}:`
-          const fieldIndex = inStr.indexOf(fieldPrefix)
-          if (fieldIndex >= 0) {
-            const valueStart = fieldIndex + fieldPrefix.length
-            let valueEnd = inStr.length
-            const allFieldCodes = searchableFields.map((f: FieldConfig) => f.code)
-            let nextFieldIndex = -1
-            for (const otherFieldCode of allFieldCodes) {
-              if (otherFieldCode === field.code) continue
-              const otherFieldPrefix = `${otherFieldCode}:`
-              const index = inStr.indexOf(otherFieldPrefix, valueStart)
-              if (index >= 0 && (nextFieldIndex < 0 || index < nextFieldIndex)) {
-                nextFieldIndex = index
-              }
-            }
-            if (nextFieldIndex >= 0) {
-              valueEnd = nextFieldIndex
-            }
-            const valueStr = inStr.substring(valueStart, valueEnd).trim()
-            if (valueStr) {
-              const values = parseCommaSeparatedString(valueStr)
-              if ((field.widget?.type === WidgetType.USER || field.widget?.type === WidgetType.MULTI_SELECT) && searchType.includes(SearchType.IN)) {
-                searchForm[field.code] = restoreStoredSearchValue(query, field.code, values.length > 0 ? values : [])
-              } else {
-                searchForm[field.code] = restoreStoredSearchValue(
-                  query,
-                  field.code,
-                  values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
-                )
-              }
-            }
-          }
-        }
-      } else if (searchType.includes(SearchType.GTE) && searchType.includes(SearchType.LTE)) {
-        const gteValue = query.gte
-        const lteValue = query.lte
-        let gte: string | null = null
-        if (gteValue) {
-          const gteStr = String(gteValue)
-          const parts = gteStr.split(',')
-          for (const part of parts) {
-            if (part.trim().startsWith(`${field.code}:`)) {
-              gte = part.trim().substring(field.code.length + 1)
-              break
-            }
-          }
-        }
-        let lte: string | null = null
-        if (lteValue) {
-          const lteStr = String(lteValue)
-          const parts = lteStr.split(',')
-          for (const part of parts) {
-            if (part.trim().startsWith(`${field.code}:`)) {
-              lte = part.trim().substring(field.code.length + 1)
-              break
-            }
-          }
-        }
-        if (gte || lte) {
-          const fieldType = field.data?.type
-          const widgetType = field.widget?.type
-          const isTimestamp = fieldType === 'timestamp' || widgetType === 'timestamp'
-          if (isTimestamp) {
-            const SECONDS_THRESHOLD = 9999999999
-            const convertTimestamp = (ts: string | null): number | null => {
-              if (!ts) return null
-              const num = Number(ts)
-              if (num > 0 && num < SECONDS_THRESHOLD) {
-                return num * 1000
-              }
-              return num
-            }
-            const timestampRange = [
-              gte ? convertTimestamp(gte) : null,
-              lte ? convertTimestamp(lte) : null
-            ]
-            searchForm[field.code] = restoreStoredSearchValue(query, field.code, timestampRange)
-          } else {
-            searchForm[field.code] = restoreStoredSearchValue(query, field.code, {
-              min: gte ? String(gte) : undefined,
-              max: lte ? String(lte) : undefined
-            })
-          }
-        }
+        searchForm[field.code] = String(value)
       }
     })
     
@@ -730,28 +532,9 @@ export class TableDomainService {
   buildSearchParams(functionDetail: FunctionDetail, searchForm: Record<string, any>): SearchParams {
     const searchParams: SearchParams = {}
     
-    // response 字段的搜索参数
-    const response = Array.isArray(functionDetail.response) ? functionDetail.response : []
-    const request = Array.isArray(functionDetail.request) ? functionDetail.request : []
+    // request 字段直传给 sdk-app。
+    const request = getTableRequestSearchFields(functionDetail)
     
-    const responseFields = response.filter((field: FieldConfig) => {
-      const search = field.search
-      return search && search !== '-' && search !== '' && search.trim() !== ''
-    })
-    
-    const requestFieldCodes = new Set<string>()
-    request.forEach((field: FieldConfig) => {
-      requestFieldCodes.add(field.code)
-    })
-    
-    const responseFieldsForParams = responseFields.filter(
-      (field: FieldConfig) => !requestFieldCodes.has(field.code)
-    )
-    
-    // 使用工具函数构建 response 字段的搜索参数
-    Object.assign(searchParams, buildSearchParamsString(searchForm, responseFieldsForParams))
-    
-    // request 字段的搜索参数
     request.forEach((field: FieldConfig) => {
       const rawValue = getSearchFieldRawValue(searchForm[field.code])
       if (rawValue !== null && rawValue !== undefined && 

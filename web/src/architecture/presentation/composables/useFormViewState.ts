@@ -6,6 +6,7 @@ import type { FormStateManager } from '../../infrastructure/stateManager/FormSta
 import { getFieldPresenceState } from '@/core/utils/conditionEvaluator'
 import { createAutoFieldValue, createEmptyFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
 import { FORM_QUESTIONNAIRE_TRIGGER_CHARS } from '../utils/formLayout'
+import { getFormRequestFields, getFormResponseFields } from '@/utils/functionSchemaSelectors'
 
 interface UseFormViewStateOptions {
   functionDetail: Ref<FunctionDetail | null>
@@ -28,8 +29,8 @@ export function useFormViewState(options: UseFormViewStateOptions) {
     return data
   })
 
-  const requestFields = computed(() => (options.functionDetail.value?.request || []) as FieldConfig[])
-  const responseFields = computed(() => (options.functionDetail.value?.response || []) as FieldConfig[])
+  const requestFields = computed(() => getFormRequestFields(options.functionDetail.value) as FieldConfig[])
+  const responseFields = computed(() => getFormResponseFields(options.functionDetail.value) as FieldConfig[])
   const formManager = computed(() => {
     const stateManager = options.stateManager as any
     const formStore = stateManager?.formStore

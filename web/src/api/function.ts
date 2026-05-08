@@ -1,5 +1,5 @@
 import { get, post, put, del } from '@/utils/request'
-import type { Function, SearchParams } from '@/types'
+import type { FunctionDetail, SearchParams } from '@/types'
 
 // 获取函数详情（根据路径和函数类型）
 // ⭐ 使用新的路由：/function/info/:func-type/*full-code-path
@@ -9,7 +9,7 @@ export function getFunctionByPath(fullCodePath: string, funcType: string = 'tabl
   // 确保路径以 / 开头
   const path = fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`
   // ⭐ 函数类型作为路径参数，这样后端无需查询数据库即可构造权限点
-  return get<Function>(`/workspace/api/v1/function/info/${funcType}${path}`)
+  return get<FunctionDetail>(`/workspace/api/v1/function/info/${funcType}${path}`)
 }
 
 // 执行函数（标准接口）

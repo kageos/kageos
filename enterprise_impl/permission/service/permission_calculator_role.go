@@ -27,7 +27,7 @@ func (c *PermissionCalculator) getUserRolePermissions(
 	if departmentPath != "" {
 		deptPaths := getAllParentDeptPathsForRole(departmentPath)
 		// ⭐ 调试日志：确认所有父级路径都被正确计算和使用
-		// logger.Debugf(ctx, "[PermissionCalculator] 查询组织架构权限: departmentPath=%s, deptPaths=%v, subjects_count=%d", 
+		// logger.Debugf(ctx, "[PermissionCalculator] 查询组织架构权限: departmentPath=%s, deptPaths=%v, subjects_count=%d",
 		// 	departmentPath, deptPaths, len(subjects)+len(deptPaths))
 		for _, path := range deptPaths {
 			subjects = append(subjects, permissionrepo.SubjectInfo{

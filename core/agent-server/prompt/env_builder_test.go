@@ -4,6 +4,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 )
 
 func TestBuildInitGoContentUsesPackageRelativeRouterGroup(t *testing.T) {
@@ -32,21 +35,26 @@ func TestBuildWorkspaceEnvDataIncludesFunctionRequestSummary(t *testing.T) {
 				Type:         "function",
 				FullCodePath: "/system/tools/pdf/inspect.form",
 				TemplateType: "form",
-				Request: []interface{}{
-					map[string]interface{}{
-						"code":       "input_files",
-						"name":       "上传 PDF 文件",
-						"validation": "required",
-						"widget": map[string]interface{}{
-							"type": "files",
+				Schema: functionschema.NewForm(
+					[]*widget.Field{
+						{
+							Code:       "input_files",
+							Name:       "上传 PDF 文件",
+							Validation: "required",
+							Widget: struct {
+								Type   string      `json:"type"`
+								Config interface{} `json:"config,omitempty"`
+							}{Type: "files"},
 						},
 					},
-				},
+					nil,
+					nil,
+				),
 			},
 		},
 	}, "pdf", "/system/tools/pdf", timeNowForTest())
 
-	if !strings.Contains(data.FunctionsSection, "字段摘要") {
+	if !strings.Contains(data.FunctionsSection, "Schema 摘要") {
 		t.Fatalf("expected field summary in functions section: %s", data.FunctionsSection)
 	}
 	if !strings.Contains(data.FunctionsSection, "input_files") {

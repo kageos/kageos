@@ -9,7 +9,7 @@
 - ✅ **number** - 数字输入框（支持 min/max/step/precision）
 - ✅ **text_area** - 多行文本框（支持 rows 配置）
 - ✅ **select** - 下拉选择（支持单选/多选）
-- ✅ **timestamp** - 时间选择器（支持自定义格式）
+- ✅ **datetime** - 时间选择器（支持自定义格式）
 - ✅ **switch** - 开关
 - ✅ **checkbox** - 多选框组
 - ✅ **radio** - 单选框组
@@ -22,29 +22,29 @@
 
 #### 功能特性
 - ✅ 根据 `request` 字段自动渲染表单
-- ✅ 支持字段默认值（`widget.config.default`）
+- ✅ 支持字段渲染默认值（`widget.config.render_default`）
 - ✅ 支持字段描述（`desc` 字段）
-- ✅ 提交时调用 `/api/v1/run/{router}` 接口
+- ✅ 提交时调用 `/workspace/api/v1/form/submit{full_code_path}` 接口
 - ✅ 支持 GET/POST/PUT 等不同的 HTTP 方法
 - ✅ 自动显示执行结果（基于 `response` 字段）
-- ✅ 结果支持时间戳格式化
+- ✅ 结果支持 datetime 字符串时间展示
 - ✅ 支持表单重置功能
 
 ### ✅ Table 函数渲染 (TableRenderer + FormDialog)
 
 #### 列表功能
-- ✅ 根据 `response` 字段自动渲染表格列
-- ✅ 根据 `table_permission` 控制列显示
-  - 空或 `''` - 显示（全部权限）
-  - `read` - 显示（只读字段）
-  - `update` - 不显示（只在编辑时显示）
-  - `create` - 不显示（只在新增时显示）
-- ✅ 时间戳自动格式化显示
+- ✅ 根据 `schema.table.fields` 字段自动渲染表格列
+- ✅ 根据 `hide.scenes` 控制列显示
+  - 不配置 `hide` - 显示
+  - `list` - 显示
+  - `create` - 不显示（只在新增表单展示）
+  - `update` - 不显示（只在编辑表单展示）
+- ✅ 时间字段自动格式化显示
 - ✅ 支持分页（page、page_size）
 - ✅ 支持排序（点击列头排序）
 
 #### 搜索功能
-- ✅ 根据 `search` 字段自动生成搜索表单
+- ✅ 根据 Request 筛选字段自动生成搜索表单
 - ✅ `eq` - 精确匹配
 - ✅ `like` - 模糊查询
 - ✅ `in` - 包含查询（下拉选择）
@@ -52,21 +52,21 @@
 
 #### CRUD 操作
 - ✅ **新增功能**
-  - 根据 `callbacks` 判断是否显示"新增"按钮
+  - 根据 `schema.callbacks` 判断是否显示"新增"按钮
   - 点击后弹出表单对话框
-  - 根据 `table_permission` 控制字段显示（`create` 和空权限的字段可填写）
-  - 调用 `/api/v1/callback{router}?_type=OnTableAddRow`
+  - 根据 `hide.scenes` 控制字段显示（`hide.scenes` 不包含 `create` 或未配置 `hide` 的字段会进入新增表单）
+  - 调用 `/workspace/api/v1/table/create{full_code_path}`
 
 - ✅ **编辑功能**
-  - 根据 `callbacks` 判断是否显示"编辑"按钮
+  - 根据 `schema.callbacks` 判断是否显示"编辑"按钮
   - 点击后弹出表单对话框，预填当前数据
-  - 根据 `table_permission` 控制字段显示（`update` 和空权限的字段可修改）
-  - 调用 `/api/v1/callback{router}?_type=OnTableUpdateRow`
+  - 根据 `hide.scenes` 控制字段显示（`hide.scenes` 不包含 `update` 或未配置 `hide` 的字段会进入编辑表单）
+  - 调用 `/workspace/api/v1/table/update{full_code_path}`
 
 - ✅ **删除功能**
-  - 根据 `callbacks` 判断是否显示"删除"按钮
+  - 根据 `schema.callbacks` 判断是否显示"删除"按钮
   - 点击后二次确认
-  - 调用 `/api/v1/callback{router}?_type=OnTableDeleteRows`
+  - 调用 `/workspace/api/v1/table/delete{full_code_path}`
 
 ## 🎯 使用方式
 
@@ -74,60 +74,68 @@
 当函数详情的 `template_type` 为 `"form"` 时：
 1. 根据 `request` 字段渲染表单
 2. 用户填写表单后点击"提交"
-3. 调用 `/api/v1/run/{router}` 提交数据
+3. 调用 `/workspace/api/v1/form/submit{full_code_path}` 提交数据
 4. 如果有 `response` 字段，自动显示执行结果
 
 ### Table 函数
 当函数详情的 `template_type` 为 `"table"` 时：
-1. 自动调用 `/api/v1/run/{router}` 获取列表数据
-2. 根据 `response` 字段渲染表格
-3. 根据 `search` 字段生成搜索表单
-4. 根据 `callbacks` 字段决定显示哪些操作按钮：
+1. 自动调用 `/workspace/api/v1/table/search{full_code_path}` 获取列表数据
+2. 根据 `schema.table.fields` 字段渲染表格
+3. 根据 Request 筛选字段生成搜索表单
+4. 根据 `schema.callbacks` 字段决定显示哪些操作按钮：
    - `OnTableAddRow` → 显示"新增"按钮
    - `OnTableUpdateRow` → 显示"编辑"按钮
    - `OnTableDeleteRows` → 显示"删除"按钮
 
-## 🔐 权限系统 (table_permission)
+## 🔐 展示场景 (hide.scenes)
 
 | 值 | 列表显示 | 新增时 | 编辑时 | 说明 |
 |---|---|---|---|---|
-| 空 `''` | ✅ | ✅ | ✅ | 全部权限 |
-| `read` | ✅ | ❌ | ❌ | 只读（如 ID、创建时间） |
-| `update` | ❌ | ❌ | ✅ | 只能编辑时修改（如 appkey） |
-| `create` | ❌ | ✅ | ❌ | 只能新增时填写 |
+| 不配置 `hide` | ✅ | ✅ | ✅ | 前端三个场景都展示 |
+| `create,update` | ✅ | ❌ | ❌ | 前端仅在列表展示，不进入新增/编辑表单 |
+| `list,update` | ❌ | ✅ | ❌ | 前端仅在新增表单展示 |
+| `list,create` | ❌ | ❌ | ✅ | 前端仅在编辑表单展示 |
+
+`table` / `form` 是容器组件，不作为 table 列表列渲染；即便误配 `hide.scenes=list`，前后端都会静默忽略，避免影响应用注册。
 
 ## 📝 API 接口
 
-### 执行函数
+### Form / Table 标准接口
 ```typescript
-// Form 提交 或 Table 查询
-POST /api/v1/run/{router}
-GET /api/v1/run/{router}
+// Form 提交
+POST /workspace/api/v1/form/submit{full_code_path}
+
+// Table 查询
+GET /workspace/api/v1/table/search{full_code_path}
 ```
 
-### Table 回调
+### Table 写操作
 **重要说明**：
-- **统一使用 POST 方法**调用回调接口
-- **原函数的 method 通过 `_method` 查询参数传递**
-- **所有参数都放在 body 里**
+- 前端只调用标准 Table 接口；后端内部转成 `_callback` 请求。
+- 写操作是否可用只看 `schema.callbacks`，不再使用旧的 table_permission 标签。
+- `OnTableCreateInBatches` 是批量导入能力，触发系统内置批量创建回调。
 
 ```typescript
 // 新增记录
-POST /api/v1/callback{router}?_type=OnTableAddRow&_method={原函数的method}
+POST /workspace/api/v1/table/create{full_code_path}
 Body: { field1: value1, field2: value2, ... }
 
 // 更新记录
-POST /api/v1/callback{router}?_type=OnTableUpdateRow&_method={原函数的method}
-Body: { id: 记录ID, field1: value1, ... }
+PUT /workspace/api/v1/table/update{full_code_path}
+Body: { id: 记录ID, updates: { field1: value1, ... } }
 
 // 删除记录
-POST /api/v1/callback{router}?_type=OnTableDeleteRows&_method={原函数的method}
+DELETE /workspace/api/v1/table/delete{full_code_path}
 Body: { ids: [id1, id2, ...] }
+
+// 批量导入
+POST /workspace/api/v1/table/batch-create{full_code_path}
+Body: { data: [{ field1: value1, ... }] }
 ```
 
-**示例**：如果函数的 `method` 是 `"GET"`，那么：
+**示例**：
 ```
-POST /api/v1/callback/beiluo/testapi21/crm/crm_ticket?_type=OnTableAddRow&_method=GET
+POST /workspace/api/v1/table/create/beiluo/testapi21/crm/crm_ticket.table
 Content-Type: application/json
 
 Body:
@@ -139,9 +147,9 @@ Body:
 ```
 
 **设计原因**：
-- 统一使用 POST 方法，符合 HTTP 规范（POST 请求可以带 body）
-- 通过 `_method` 参数让后端知道原函数的 method
-- 避免了 GET 请求带 body 的兼容性问题
+- 前端对接稳定的标准接口，不感知底层 `_callback` 包装。
+- 服务端统一校验 `schema.callbacks`，避免只读表被误写。
+- Table 更新缺少 `old_values` 时，服务端会按 id 查询当前行并自动补齐。
 
 ## 🧪 测试步骤
 
@@ -209,14 +217,13 @@ Workspace (工作区)
 
 ## 💡 注意事项
 
-1. **时间戳格式**：后端返回的时间戳应为毫秒级（13位）
+1. **时间字段格式**：时间字段统一使用 `datetime` 字符串时间
 2. **分页数据结构**：后端应返回 `{ items: [], paginated: { current_page, page_size, total_count, total_pages } }` 结构
-3. **回调接口**：回调接口使用函数本身的 `method`（GET/POST/PUT）
+3. **回调接口**：前端调用标准 Table 接口，后端内部按 schema callbacks 转发回调
 4. **ID 字段**：Table 的编辑和删除功能依赖于每行数据必须有 `id` 字段
-5. **权限判断**：`table_permission` 字段为空或空字符串时表示全部权限
+5. **展示场景判断**：未配置 `hide` 表示列表/新增/编辑均展示；配置 `hide.scenes` 后只在指定场景展示
 
 ---
 
 **实现完成时间**：2025-10-30  
 **实现功能**：Form 函数渲染 + Table 完整 CRUD 功能
-

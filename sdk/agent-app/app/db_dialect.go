@@ -30,25 +30,14 @@ func DetectDBDialect(db *gorm.DB) DBDialect {
 	return detectDBDialectName(db.Dialector.Name())
 }
 
-// UnixMilliTimeBucketExpr returns the SQL expressions for grouping a Unix-millisecond timestamp column by time bucket.
-// The returned selectExpr is intended for Select, for example:
-//
-//	Select(fmt.Sprintf("%s as date, COUNT(*) as count", selectExpr))
-//
-// The returned groupExpr is intended for Group, for example:
-//
-//	Group(groupExpr)
-//
-// Workspace apps default to SQLite, so unknown dialects fall back to SQLite-compatible expressions.
-func UnixMilliTimeBucketExpr(db *gorm.DB, column string, bucket TimeBucket) (selectExpr, groupExpr string) {
-	return UnixMilliTimeBucketExprForDialect(DetectDBDialect(db), column, bucket)
+// DateTimeBucketExpr returns SQL expressions for grouping a native datetime column by time bucket.
+func DateTimeBucketExpr(db *gorm.DB, column string, bucket TimeBucket) (selectExpr, groupExpr string) {
+	return DateTimeBucketExprForDialect(DetectDBDialect(db), column, bucket)
 }
 
-// UnixMilliTimeBucketExprForDialect is the dialect-specific version of UnixMilliTimeBucketExpr.
-// It returns a pair of expressions:
-//   - selectExpr: use in Select(... as alias)
-//   - groupExpr: use in Group(...)
-func UnixMilliTimeBucketExprForDialect(dialect DBDialect, column string, bucket TimeBucket) (selectExpr, groupExpr string) {
+// DateTimeBucketExprForDialect is the dialect-specific version of DateTimeBucketExpr.
+// It expects the column to be a real datetime/time column, or SQLite text in "YYYY-MM-DD HH:mm:ss" format.
+func DateTimeBucketExprForDialect(dialect DBDialect, column string, bucket TimeBucket) (selectExpr, groupExpr string) {
 	column = strings.TrimSpace(column)
 	if column == "" {
 		column = "created_at"
@@ -59,23 +48,23 @@ func UnixMilliTimeBucketExprForDialect(dialect DBDialect, column string, bucket 
 	case TimeBucketHour:
 		switch dialect {
 		case DBDialectMySQL:
-			expr = "DATE_FORMAT(FROM_UNIXTIME(" + column + "/1000), '%Y-%m-%d %H:00:00')"
+			expr = "DATE_FORMAT(" + column + ", '%Y-%m-%d %H:00:00')"
 		default:
-			expr = "strftime('%Y-%m-%d %H:00:00', " + column + "/1000, 'unixepoch')"
+			expr = "strftime('%Y-%m-%d %H:00:00', " + column + ")"
 		}
 	case TimeBucketMonth:
 		switch dialect {
 		case DBDialectMySQL:
-			expr = "DATE_FORMAT(FROM_UNIXTIME(" + column + "/1000), '%Y-%m')"
+			expr = "DATE_FORMAT(" + column + ", '%Y-%m')"
 		default:
-			expr = "strftime('%Y-%m', " + column + "/1000, 'unixepoch')"
+			expr = "strftime('%Y-%m', " + column + ")"
 		}
 	default:
 		switch dialect {
 		case DBDialectMySQL:
-			expr = "DATE_FORMAT(FROM_UNIXTIME(" + column + "/1000), '%Y-%m-%d')"
+			expr = "DATE_FORMAT(" + column + ", '%Y-%m-%d')"
 		default:
-			expr = "strftime('%Y-%m-%d', " + column + "/1000, 'unixepoch')"
+			expr = "strftime('%Y-%m-%d', " + column + ")"
 		}
 	}
 

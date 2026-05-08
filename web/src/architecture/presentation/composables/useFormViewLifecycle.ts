@@ -9,6 +9,7 @@ import type { WorkspaceStateManager } from '../../infrastructure/stateManager/Wo
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { Logger } from '@/core/utils/logger'
 import type { FormDataStore } from '@/core/stores-v2/formData'
+import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
 import {
   buildInitialDataFromFormDataStore as buildInitialDataFromFormDataStoreHelper,
   syncFormDataStoreToStateManager as syncFormDataStoreToStateManagerHelper
@@ -102,7 +103,7 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
       force?: boolean
     } = {}
   ): Promise<void> {
-    const fields = (Array.isArray(detail.request) ? detail.request : []) as FieldConfig[]
+    const fields = getFormRequestFields(detail) as FieldConfig[]
     if (fields.length === 0) {
       return
     }
@@ -208,7 +209,7 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
       options.functionDetail.value = propFunctionDetail
       Logger.debug('FormView', 'onMounted 时使用 prop 提供的 functionDetail', {
         functionId: propFunctionDetail.id,
-        requestFieldsCount: Array.isArray(propFunctionDetail.request) ? propFunctionDetail.request.length : 0
+        requestFieldsCount: getFormRequestFields(propFunctionDetail).length
       })
     } else {
       const currentFunction = options.workspaceStateManager.getCurrentFunction()
@@ -226,7 +227,7 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
           Logger.info('FormView', 'onMounted 时成功加载 functionDetail', {
             functionId: detail.id,
             refId: currentFunction.ref_id,
-            requestFieldsCount: detail.request?.length || 0
+            requestFieldsCount: getFormRequestFields(detail).length
           })
         } catch (error) {
           Logger.error('FormView', 'onMounted 时加载 functionDetail 失败', error)
@@ -241,7 +242,12 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
       }
     }
 
-    if (options.functionDetail.value && options.functionDetail.value.id !== undefined && options.functionDetail.value.id !== null && options.functionDetail.value.request) {
+    if (
+      options.functionDetail.value &&
+      options.functionDetail.value.id !== undefined &&
+      options.functionDetail.value.id !== null &&
+      getFormRequestFields(options.functionDetail.value).length > 0
+    ) {
       await initializeFormForDetail(options.functionDetail.value, {
         resetRuntime: false
       })
@@ -270,7 +276,7 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
   watch(
     () => options.propsInitialData(),
     async (newInitialData: Record<string, any>, oldInitialData?: Record<string, any>) => {
-      if (!options.functionDetail.value?.request) {
+      if (!options.functionDetail.value || getFormRequestFields(options.functionDetail.value).length === 0) {
         return
       }
       if (oldInitialData === undefined) {
@@ -289,8 +295,8 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
   )
 
   watch(
-    () => [options.propsFunctionDetail()?.id, options.propsFunctionDetail()?.router, options.propsFunctionDetail()?.request],
-    async ([newId, newRouter, newRequest], [oldId, oldRouter, oldRequest]) => {
+    () => [options.propsFunctionDetail()?.id, options.propsFunctionDetail()?.router, options.propsFunctionDetail()?.schema],
+    async ([newId, newRouter, newSchema], [oldId, oldRouter, oldSchema]) => {
       options.permissionErrorStore.clearError()
 
       const propFunctionDetail = options.propsFunctionDetail()
@@ -298,7 +304,12 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
         options.functionDetail.value = propFunctionDetail
       }
 
-      if (!options.functionDetail.value?.request || options.functionDetail.value.id === undefined || options.functionDetail.value.id === null) {
+      if (
+        !options.functionDetail.value ||
+        getFormRequestFields(options.functionDetail.value).length === 0 ||
+        options.functionDetail.value.id === undefined ||
+        options.functionDetail.value.id === null
+      ) {
         return
       }
       if (oldId === undefined || oldId === null) {
@@ -308,7 +319,7 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
       const functionDetailChanged =
         newId !== oldId ||
         newRouter !== oldRouter ||
-        JSON.stringify(newRequest || []) !== JSON.stringify(oldRequest || [])
+        JSON.stringify(newSchema || null) !== JSON.stringify(oldSchema || null)
 
       if (!functionDetailChanged) {
         return

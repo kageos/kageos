@@ -33,6 +33,20 @@ function valueToString(val: unknown): string {
   }
 }
 
+function isRecordObject(val: unknown): val is Record<string, unknown> {
+  return val !== null && typeof val === 'object' && !Array.isArray(val)
+}
+
+function parseJSONRecord(json?: string): Record<string, unknown> | undefined {
+  if (!json) return undefined
+  try {
+    const parsed = JSON.parse(json) as unknown
+    return isRecordObject(parsed) ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /**
  * 从单次工具调用中提取需要展示的字段。
  * @param arguments_ 工具调用参数 JSON 字符串（含 output_display）
@@ -43,17 +57,8 @@ export function extractDisplayFieldsFromToolCall(
   result?: string,
   resultData?: unknown
 ): OutputDisplayField[] {
-  let resultObj: Record<string, unknown>
-  if (resultData && typeof resultData === 'object' && !Array.isArray(resultData)) {
-    resultObj = resultData as Record<string, unknown>
-  } else {
-    if (!result) return []
-    try {
-      resultObj = JSON.parse(result) as Record<string, unknown>
-    } catch {
-      return []
-    }
-  }
+  const resultObj = isRecordObject(resultData) ? resultData : parseJSONRecord(result)
+  if (!resultObj) return []
 
   const fields: OutputDisplayField[] = []
 
@@ -74,12 +79,9 @@ export function extractDisplayFieldsFromToolCall(
 
   // 来源 2：LLM 参数中的 output_display
   if (arguments_) {
-    let argsObj: Record<string, unknown>
-    try {
-      argsObj = JSON.parse(arguments_) as Record<string, unknown>
-    } catch {
-      return fields
-    }
+    const argsObj = parseJSONRecord(arguments_)
+    if (!argsObj) return fields
+
     const outputDisplay = argsObj['output_display']
     if (outputDisplay && typeof outputDisplay === 'object' && !Array.isArray(outputDisplay)) {
       const mapping = outputDisplay as Record<string, unknown>
@@ -102,10 +104,11 @@ export function extractDisplayFieldsFromToolCall(
  * 批量：从多个 tool_call 中提取所有需要展示的字段。
  */
 export function extractAllDisplayFields(
-  calls: Array<{ arguments?: string; result?: string; result_data?: unknown }>
+  calls?: Array<{ arguments?: string; result?: string; result_data?: unknown } | null> | null
 ): OutputDisplayField[] {
   const all: OutputDisplayField[] = []
-  for (const tc of calls) {
+  for (const tc of calls ?? []) {
+    if (!tc) continue
     all.push(...extractDisplayFieldsFromToolCall(tc.arguments, tc.result, tc.result_data))
   }
   return all

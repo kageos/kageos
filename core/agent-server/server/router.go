@@ -30,6 +30,12 @@ func (s *Server) setupRoutes() {
 	// 添加用户信息中间件
 	apiV1.Use(middleware2.WithUserInfo())
 
+	// 服务端运行态。当前由 agent-server 内存维护，后续可替换为分布式实现。
+	state := apiV1.Group("/state")
+	stateHandler := v1.NewState(s.runtimeStateStore)
+	state.GET("/runtime-summary", stateHandler.RuntimeSummary)
+	state.GET("/runtime-items", stateHandler.RuntimeItems)
+
 	// LLM 配置管理路由
 	llm := apiV1.Group("/llm")
 	llmHandler := v1.NewLLM(s.llmService)
@@ -54,4 +60,18 @@ func (s *Server) setupRoutes() {
 	workspace.GET("/messages", workspaceChatHandler.ListMessages)                               // 获取会话消息列表
 	workspace.POST("/chat/stream", workspaceChatHandler.ChatStream)
 	workspace.POST("/chat/cancel", workspaceChatHandler.CancelChat) // 取消执行中的任务
+
+	// 定时 Agent 会话任务。MVP 不做工具白名单，执行链路会透传 source_ref，后续在工具入口统一治理。
+	scheduledAgentTask := apiV1.Group("/scheduled_agent_tasks")
+	scheduledAgentTaskHandler := v1.NewScheduledAgentTask(s.scheduledAgentTaskService)
+	scheduledAgentTask.POST("", scheduledAgentTaskHandler.Create)
+	scheduledAgentTask.GET("", scheduledAgentTaskHandler.List)
+	scheduledAgentTask.GET("/:id", scheduledAgentTaskHandler.Get)
+	scheduledAgentTask.PUT("/:id", scheduledAgentTaskHandler.Update)
+	scheduledAgentTask.DELETE("/:id", scheduledAgentTaskHandler.Delete)
+	scheduledAgentTask.POST("/:id/run", scheduledAgentTaskHandler.RunNow)
+	scheduledAgentTask.POST("/:id/pause", scheduledAgentTaskHandler.Pause)
+	scheduledAgentTask.POST("/:id/resume", scheduledAgentTaskHandler.Resume)
+	scheduledAgentTask.GET("/:id/executions", scheduledAgentTaskHandler.ListExecutions)
+	scheduledAgentTask.GET("/:id/executions/:execution_id", scheduledAgentTaskHandler.GetExecution)
 }

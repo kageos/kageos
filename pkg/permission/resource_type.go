@@ -1,5 +1,7 @@
 package permission
 
+import "github.com/ai-agent-os/ai-agent-os/pkg/servicetree"
+
 // 资源类型常量
 const (
 	ResourceTypeDirectory = "directory" // 目录
@@ -13,24 +15,24 @@ const (
 
 // GetResourceType 根据节点类型和模板类型获取资源类型
 func GetResourceType(nodeType string, templateType string) string {
-	if nodeType == "package" || nodeType == "directory" {
+	if nodeType == servicetree.TypePackage || nodeType == ResourceTypeDirectory {
 		return ResourceTypeDirectory
-	} else if nodeType == "function" {
+	} else if nodeType == servicetree.TypeFunction {
 		switch templateType {
-		case "table":
+		case ResourceTypeTable:
 			return ResourceTypeTable
-		case "form":
+		case ResourceTypeForm:
 			return ResourceTypeForm
-		case "chart":
+		case ResourceTypeChart:
 			return ResourceTypeChart
 		default:
 			return ResourceTypeTable // 默认使用 table
 		}
-	} else if nodeType == "docs" {
+	} else if nodeType == servicetree.TypeDocs {
 		return ResourceTypeDocs
-	} else if nodeType == "board" {
+	} else if nodeType == servicetree.TypeBoard {
 		return ResourceTypeBoard
-	} else if nodeType == "app" {
+	} else if nodeType == ResourceTypeApp {
 		return ResourceTypeApp
 	}
 	return ""
@@ -41,59 +43,23 @@ func GetResourceType(nodeType string, templateType string) string {
 func GetActionsForResourceType(resourceType string) []string {
 	switch resourceType {
 	case ResourceTypeDirectory:
-		return []string{
-			BuildActionCode(ResourceTypeDirectory, "read"),
-			BuildActionCode(ResourceTypeDirectory, "write"),
-			BuildActionCode(ResourceTypeDirectory, "update"),
-			BuildActionCode(ResourceTypeDirectory, "delete"),
-			BuildActionCode(ResourceTypeDirectory, "admin"),
-		}
+		return BuildActionCodes(ResourceTypeDirectory, ActionRead, ActionWrite, ActionUpdate, ActionDelete, ActionAdmin)
 	case ResourceTypeTable:
-		return []string{
-			BuildActionCode(ResourceTypeTable, "read"),
-			BuildActionCode(ResourceTypeTable, "write"),
-			BuildActionCode(ResourceTypeTable, "update"),
-			BuildActionCode(ResourceTypeTable, "delete"),
-			BuildActionCode(ResourceTypeTable, "admin"),
-		}
+		return BuildActionCodes(ResourceTypeTable, ActionRead, ActionWrite, ActionUpdate, ActionDelete, ActionAdmin)
 	case ResourceTypeForm:
 		// Form 函数只支持 read、write、admin
-		return []string{
-			BuildActionCode(ResourceTypeForm, "read"),
-			BuildActionCode(ResourceTypeForm, "write"),
-			BuildActionCode(ResourceTypeForm, "admin"),
-		}
+		return BuildActionCodes(ResourceTypeForm, ActionRead, ActionWrite, ActionAdmin)
 	case ResourceTypeChart:
 		// Chart 函数只支持 read、admin
-		return []string{
-			BuildActionCode(ResourceTypeChart, "read"),
-			BuildActionCode(ResourceTypeChart, "admin"),
-		}
+		return BuildActionCodes(ResourceTypeChart, ActionRead, ActionAdmin)
 	case ResourceTypeDocs:
 		// Docs 文档支持 read、write、delete、admin
-		return []string{
-			BuildActionCode(ResourceTypeDocs, "read"),
-			BuildActionCode(ResourceTypeDocs, "write"),
-			BuildActionCode(ResourceTypeDocs, "delete"),
-			BuildActionCode(ResourceTypeDocs, "admin"),
-		}
+		return BuildActionCodes(ResourceTypeDocs, ActionRead, ActionWrite, ActionDelete, ActionAdmin)
 	case ResourceTypeBoard:
 		// Board 讨论区支持 read、write、update、delete、admin
-		return []string{
-			BuildActionCode(ResourceTypeBoard, "read"),
-			BuildActionCode(ResourceTypeBoard, "write"),
-			BuildActionCode(ResourceTypeBoard, "update"),
-			BuildActionCode(ResourceTypeBoard, "delete"),
-			BuildActionCode(ResourceTypeBoard, "admin"),
-		}
+		return BuildActionCodes(ResourceTypeBoard, ActionRead, ActionWrite, ActionUpdate, ActionDelete, ActionAdmin)
 	case ResourceTypeApp:
-		return []string{
-			BuildActionCode(ResourceTypeApp, "read"),
-			BuildActionCode(ResourceTypeApp, "write"),
-			BuildActionCode(ResourceTypeApp, "update"),
-			BuildActionCode(ResourceTypeApp, "delete"),
-			BuildActionCode(ResourceTypeApp, "admin"),
-		}
+		return BuildActionCodes(ResourceTypeApp, ActionRead, ActionWrite, ActionUpdate, ActionDelete, ActionAdmin)
 	default:
 		return []string{}
 	}
@@ -102,6 +68,15 @@ func GetActionsForResourceType(resourceType string) []string {
 // BuildActionCode 构建权限点编码（resource_type:action_type）
 func BuildActionCode(resourceType string, actionType string) string {
 	return resourceType + ":" + actionType
+}
+
+// BuildActionCodes 批量构建权限点编码。
+func BuildActionCodes(resourceType string, actionTypes ...string) []string {
+	result := make([]string, 0, len(actionTypes))
+	for _, actionType := range actionTypes {
+		result = append(result, BuildActionCode(resourceType, actionType))
+	}
+	return result
 }
 
 // ParseActionCode 解析权限点编码，返回资源类型和操作类型

@@ -14,6 +14,7 @@ import {
 } from '../views/utils/tableViewRouteRuntime'
 import { hasPermission, TablePermission } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
+import { getTableCreateFields } from '@/utils/functionSchemaSelectors'
 
 interface UseTableCreateAndPermissionsOptions {
   router: Router
@@ -79,9 +80,7 @@ export function useTableCreateAndPermissions(options: UseTableCreateAndPermissio
     const functionDetail = options.functionDetail()
     const request = buildTableCreateDialogCloseRequest({
       routeQuery: options.routeQuery(),
-      responseFieldCodes: Array.isArray(functionDetail?.response)
-        ? functionDetail.response.map(field => field.code)
-        : []
+      responseFieldCodes: getTableCreateFields(functionDetail).map(field => field.code)
     })
 
     if (!request) {

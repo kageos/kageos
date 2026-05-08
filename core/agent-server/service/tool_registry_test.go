@@ -29,6 +29,27 @@ func TestAllListedToolsHaveHandlers(t *testing.T) {
 	}
 }
 
+func TestDirectHubToolsAreNotInMainRegistry(t *testing.T) {
+	reg := NewToolRegistry(nil)
+	for _, name := range []string{"search_hub_directory", "copy_directory", "publish_to_hub", "push_to_hub"} {
+		if _, ok := reg.tools[name]; ok {
+			t.Fatalf("%s should be exposed through /system/openapi/hub, not the main tool registry", name)
+		}
+	}
+}
+
+func TestLegacyIntentToolsAreNotInMainRegistry(t *testing.T) {
+	reg := NewToolRegistry(nil)
+	for _, name := range []string{"classify_" + "intent", "handoff_" + "intent"} {
+		if _, ok := reg.tools[name]; ok {
+			t.Fatalf("%s should be folded into change_role, not exposed as a standalone tool", name)
+		}
+	}
+	if _, ok := reg.tools["change_role"]; !ok {
+		t.Fatal("change_role should be registered")
+	}
+}
+
 func TestModeToolNamesResolveInRegistry(t *testing.T) {
 	reg := NewToolRegistry(nil)
 
@@ -42,18 +63,16 @@ func TestModeToolNamesResolveInRegistry(t *testing.T) {
 		specs[def.Name] = struct{}{}
 	}
 
-	for _, mode := range []string{"dev", "modify", "execute"} {
-		provider := prompt.GetModeProvider(mode)
-		if provider == nil {
-			t.Fatalf("mode provider %q is nil", mode)
+	provider := prompt.GetModeProvider("dev")
+	if provider == nil {
+		t.Fatal("mode provider dev is nil")
+	}
+	for _, name := range provider.ToolNames() {
+		if _, ok := specs[name]; !ok {
+			t.Fatalf("dev mode references unknown tool spec %q", name)
 		}
-		for _, name := range provider.ToolNames() {
-			if _, ok := specs[name]; !ok {
-				t.Fatalf("mode %q references unknown tool spec %q", mode, name)
-			}
-			if _, ok := reg.tools[name]; !ok {
-				t.Fatalf("mode %q references missing tool handler %q", mode, name)
-			}
+		if _, ok := reg.tools[name]; !ok {
+			t.Fatalf("dev mode references missing tool handler %q", name)
 		}
 	}
 }

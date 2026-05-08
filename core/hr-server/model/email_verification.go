@@ -23,4 +23,3 @@ type EmailVerification struct {
 func (EmailVerification) TableName() string {
 	return "email_verification"
 }
-

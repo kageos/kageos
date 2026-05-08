@@ -45,14 +45,14 @@ func (ctx *Context) BuildFunctionUrlWithText(
 	}
 
 	// 2. 提取函数路径和检查是否存在 _tab 参数
-	// 如果 target 是 "meeting_room_list?eq=id:1&_tab=OnTableAddRow"，需要先提取 "meeting_room_list"
+	// 如果 target 是 "meeting_room_list?id=1&_tab=OnTableAddRow"，需要先提取 "meeting_room_list"
 	functionPath := target
 	var existingQuery string
 	var hasTabParam bool
 	if idx := strings.Index(target, "?"); idx >= 0 {
 		functionPath = target[:idx]
 		existingQuery = target[idx+1:]
-		
+
 		// 检查是否存在 _tab 参数
 		existingValues, err := url.ParseQuery(existingQuery)
 		if err == nil {
@@ -83,8 +83,7 @@ func (ctx *Context) BuildFunctionUrlWithText(
 			// 根据模板类型决定参数格式
 			switch template.TemplateType() {
 			case TemplateTypeTable:
-				// Table 函数：根据 search 标签转换为 search 格式
-				// 使用 AutoCrudTable 的 Model（包含 search 标签）
+				// Table 函数：使用 Request/Model 字段转换为普通查询参数。
 				newQueryString, err = query.StructToTableParams(params)
 				if err != nil {
 					return "", fmt.Errorf("转换 Table 参数失败: %w", err)
@@ -124,7 +123,7 @@ func (ctx *Context) BuildFunctionUrlWithText(
 	basePath = fmt.Sprintf("/%s/%s%s", ctx.msg.User, ctx.msg.App, basePath) //前面补充租户和app信息
 
 	// 6. 处理 target 中可能已存在的查询参数和 params 转换后的参数
-	// 如果 target 已经包含参数（如 "meeting_room_list?eq=id:1&_tab=OnTableAddRow"），需要合并参数
+	// 如果 target 已经包含参数（如 "meeting_room_list?id=1&_tab=OnTableAddRow"），需要合并参数
 	// 注意：existingQuery 已经在步骤 2 中提取了
 
 	// 合并查询参数

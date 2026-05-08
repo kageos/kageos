@@ -83,14 +83,28 @@ export interface ListScheduledTaskExecutionsResp {
   total: number
 }
 
+export function methodForScheduledTaskAction(action: ScheduledTaskAction = 'execute', fallback = 'POST'): string {
+  switch (action) {
+    case 'table_create':
+      return 'POST'
+    case 'table_update':
+      return 'PUT'
+    case 'table_delete':
+      return 'DELETE'
+    default:
+      return fallback || 'POST'
+  }
+}
+
 export function createScheduledTask(data: CreateScheduledTaskReq): Promise<ScheduledTaskItem> {
   // 直接传对象，后端存成 json.RawMessage 即 {"a":1} 的字节；不要 JSON.stringify(payload) 否则会变成字符串导致执行时 unmarshal 报错
   const payload = data.payload ?? {}
+  const action = data.action ?? 'execute'
   return post<ScheduledTaskItem>('/workspace/api/v1/scheduled_tasks', {
     name: data.name,
     full_code_path: data.full_code_path,
-    action: data.action ?? 'execute',
-    method: data.method || 'POST',
+    action,
+    method: data.method || methodForScheduledTaskAction(action),
     payload,
     request_user: data.request_user,
     request_user_dept: data.request_user_dept,
@@ -121,6 +135,10 @@ export function listScheduledTasks(params: {
 }
 
 export function cancelScheduledTask(id: number): Promise<void> {
+  return post<void>(`/workspace/api/v1/scheduled_tasks/${id}/cancel`)
+}
+
+export function deleteScheduledTask(id: number): Promise<void> {
   return del<void>(`/workspace/api/v1/scheduled_tasks/${id}`)
 }
 

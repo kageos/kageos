@@ -6,7 +6,7 @@
 
 - 控制台：`http://127.0.0.1:19088/backup`
 - 长手册：[RECOVERY.md](RECOVERY.md)
-- 看 backup 日志：`bash build.sh logs backup`
+- 看 backup 日志：`go run ./cmd/aosctl logs --config deploy/prod/aos.yaml backup`
 
 ## 10 步走完
 

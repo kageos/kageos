@@ -18,17 +18,17 @@ const (
 	// HTTP 状态码：401
 	// 前端处理：自动跳转到登录页面
 	CodeTokenExpired = "TOKEN_EXPIRED"
-	
+
 	// CodeTokenInvalid Token 无效（需要重新登录）
 	// HTTP 状态码：401
 	// 前端处理：自动跳转到登录页面
 	CodeTokenInvalid = "TOKEN_INVALID"
-	
+
 	// CodeTokenBlacklisted Token 已失效（被加入黑名单，需要重新登录）
 	// HTTP 状态码：401
 	// 前端处理：自动跳转到登录页面
 	CodeTokenBlacklisted = "TOKEN_BLACKLISTED"
-	
+
 	// CodePermissionDenied 权限不足（需要申请权限）
 	// HTTP 状态码：403
 	// 前端处理：显示权限申请页面
@@ -67,4 +67,3 @@ func GetTokenBlacklistedResponse() map[string]interface{} {
 		"data": nil,
 	}
 }
-

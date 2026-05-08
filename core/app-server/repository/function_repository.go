@@ -27,22 +27,20 @@ func (r *FunctionRepository) UpdateFunctions(functions []*model.Function) error 
 		return nil
 	}
 
-		for _, function := range functions {
-			updates := map[string]interface{}{
-				"request":       function.Request,
-				"response":      function.Response,
-				"has_config":    function.HasConfig,
-				"create_tables": function.CreateTables,
-				"callbacks":     function.Callbacks,
-				"template_type": function.TemplateType,
-			}
-			err := r.db.Model(&model.Function{}).
-				Where("app_id = ? AND method = ? AND router = ?", function.AppID, function.Method, function.Router).
-				Updates(updates).Error
-			if err != nil {
-				return err
-			}
+	for _, function := range functions {
+		updates := map[string]interface{}{
+			"schema":        function.Schema,
+			"has_config":    function.HasConfig,
+			"create_tables": function.CreateTables,
+			"template_type": function.TemplateType,
 		}
+		err := r.db.Model(&model.Function{}).
+			Where("app_id = ? AND method = ? AND router = ?", function.AppID, function.Method, function.Router).
+			Updates(updates).Error
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -126,4 +124,3 @@ func (r *FunctionRepository) GetFunctionByFullCodePath(fullCodePath string) (*mo
 	}
 	return &function, nil
 }
-

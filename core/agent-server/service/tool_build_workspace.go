@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
@@ -13,6 +14,8 @@ import (
 type BuildWorkspaceTool struct{}
 
 type buildWorkspaceArgs struct{}
+
+var undefinedSDKSelectorRe = regexp.MustCompile(`undefined:\s*((?:app|types|chart|response|callback|statistics)\.[A-Z][A-Za-z0-9_]*)`)
 
 var buildWorkspaceToolDef = toolDefinition[buildWorkspaceArgs](
 	"build_workspace",
@@ -39,10 +42,89 @@ func runBuildWorkspaceTool(ctx context.Context, currentFullCodePath string) (str
 		return "build_workspace 当前目录格式应为 /user/app 或更长路径（如 /luobei/demo）", true
 	}
 	user, app := parts[0], parts[1]
+	workspacePath := fmt.Sprintf("/%s/%s", user, app)
 	resp, err := apicall.UpdateAppBuild(ctx, user, app)
 	if err != nil {
 		logger.Errorf(ctx, "[WorkspaceBuild] UpdateAppBuild 失败: %v", err)
-		return "build_workspace 调用失败: " + err.Error(), true
+		return "build_workspace 调用失败: " + enrichWorkspaceBuildError(err.Error(), workspacePath), true
 	}
-	return fmt.Sprintf("工作空间已编译并部署: app=%s, 旧版本=%s, 新版本=%s", resp.App, resp.OldVersion, resp.NewVersion), false
+	return fmt.Sprintf("工作空间已编译并部署: workspace=%s, app=%s, 旧版本=%s, 新版本=%s", workspacePath, resp.App, resp.OldVersion, resp.NewVersion), false
+}
+
+func enrichWorkspaceBuildError(errText string, workspacePath ...string) string {
+	prefix := workspaceBuildScopeMessage(workspacePath...)
+	hints := workspaceBuildErrorHints(errText)
+	if len(hints) == 0 {
+		return prefix + errText
+	}
+	return prefix + errText + "\n\n常见修复建议:\n- " + strings.Join(hints, "\n- ")
+}
+
+func workspaceBuildScopeMessage(workspacePath ...string) string {
+	if len(workspacePath) == 0 {
+		return ""
+	}
+	scope := strings.TrimSpace(workspacePath[0])
+	if scope == "" {
+		return ""
+	}
+	return fmt.Sprintf("本次编译范围: %s。启动期校验只覆盖该工作空间内已注册路由；错误中的 router /xxx 是该工作空间内相对路由。\n", scope)
+}
+
+func workspaceBuildErrorHints(errText string) []string {
+	var hints []string
+	add := func(hint string) {
+		for _, existing := range hints {
+			if existing == hint {
+				return
+			}
+		}
+		hints = append(hints, hint)
+	}
+
+	if strings.Contains(errText, "options_colors") || strings.Contains(errText, "invalid color") || strings.Contains(errText, "contains invalid color") {
+		add("options_colors 只支持不带 # 的 6 位十六进制 RRGGBB，不能写 primary/success/default/rgb(...)，数量也必须和 options 一致。")
+	}
+	if strings.Contains(errText, "unsupported widget type") || strings.Contains(errText, "unsupported widget tag") || strings.Contains(errText, "invalid tag format") {
+		add("widget 的 type 和配置 key 必须来自 SDK 主文档组件速查和运行时白名单；不要写 file/readonly/multiple 等未支持类型或参数。文件上传用 type:files + string，多文件用 max_count；只读展示用 hide:\"create,update\" 或 widget:\"-\" 控制场景。")
+	}
+	if strings.Contains(errText, "number widget requires integer Go type") {
+		add("数值组件要和 Go 类型匹配：type:number 只配 int/int64 等整数；float64 金额、评分、均值、比例使用 type:float。")
+	}
+	if strings.Contains(errText, "as *int64 value in argument") && strings.Contains(errText, ".Count") {
+		add("GORM Count 的参数必须是 *int64；声明 var total int64，再 Count(&total)。需要业务 int 时在计算处显式 int(total)。")
+	}
+	if strings.Contains(errText, "DateTimeBucketExpr returns 2 values") || (strings.Contains(errText, "too many arguments in call") && strings.Contains(errText, ".Group")) {
+		add("app.DateTimeBucketExpr 返回 selectExpr 和 groupExpr 两个值：dateExpr, groupExpr := app.DateTimeBucketExpr(...); Select 用 dateExpr，Group 只传 groupExpr 一个参数。")
+	}
+	if strings.Contains(errText, "table request field") && strings.Contains(errText, "conflicts with table model field") {
+		add("Table 列表使用 query.PageSortReq：Request 显式声明筛选字段，并在 Handler 里手写 Where。")
+	}
+	if strings.Contains(errText, "undefined") && strings.Contains(errText, "Req has no field or method") {
+		add("调整 Table Request 字段后，要同步更新 Handler 里对 req.<字段> 的手写筛选。新 Table 默认把筛选字段写在 Request，分页嵌入 query.PageSortReq。")
+	}
+	if strings.Contains(errText, "OnSelectFuzzyMap field") || strings.Contains(errText, "must use select or multiselect widget") {
+		add("OnSelectFuzzyMap 的 key 必须对应 schema 中 type:select 或 type:multiselect 的字段；Table 新增/编辑要回调选择时，把外键字段定义在 Model 上并注册回调。")
+	}
+	if strings.Contains(errText, "GetPage undefined") || strings.Contains(errText, "GetPageSize undefined") ||
+		strings.Contains(errText, "unknown field Total") || strings.Contains(errText, "unknown field DataList") {
+		add("分页默认使用 resp.Table(&rows, queryDB, &Model{}, &req.PageSortReq).Build()；不要调用 req.GetPageSize()，也不要用 Total/DataList 手工构造 query.PaginatedTable。")
+	}
+	if strings.Contains(errText, "Time.Format undefined") || strings.Contains(errText, "has no field or method Format") ||
+		strings.Contains(errText, "type func() time.Time") || strings.Contains(errText, ".Time.Format") {
+		add("types.Time 做格式化或比较时先调用 Time() 方法，例如 t.Time().Format(...)、t.Time().After(...)，不要写 t.Format(...) 或 t.Time.Format(...)。")
+	}
+	for _, match := range undefinedSDKSelectorRe.FindAllStringSubmatch(errText, -1) {
+		add(fmt.Sprintf("代码使用了未确认的 SDK API %s；只允许使用已读文档、案例或源码中真实导出的符号，先读对应知识点或 SDK 源码，不要按命名猜 API。", match[1]))
+	}
+	if strings.Contains(errText, "does not implement chart.Charter") || strings.Contains(errText, "as chart.Charter value in argument to resp.Chart") {
+		add("Chart Handler 必须把 SDK chart 包里的具体图表对象传给 resp.Chart；不要把自定义业务响应结构体传给 resp.Chart，附加指标放到图表 Metadata，多个图拆多个 .chart 路由。")
+	}
+	if strings.Contains(errText, "resp.Charts undefined") {
+		add("SDK 没有 resp.Charts；一个 Chart 路由只返回一张图，用 resp.Chart(chart).Build()。多张图拆成多个 .chart 路由，汇总指标放 Metadata。")
+	}
+	if strings.Contains(errText, "redeclared in this block") {
+		add("同一个 Go package 里的模型、函数和方法只能定义一次；共享模型应放在一个文件中，其他文件直接复用。")
+	}
+	return hints
 }

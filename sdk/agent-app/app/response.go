@@ -24,9 +24,9 @@ type PackageInfo struct {
 
 // DiffData API差异数据
 type DiffData struct {
-	Add      []*ApiInfo     `json:"add"`                // 新增的API
-	Update   []*ApiInfo     `json:"update"`             // 修改的API
-	Delete   []*ApiInfo     `json:"delete"`             // 删除的API
+	Add      []*ApiInfo     `json:"add"`      // 新增的API
+	Update   []*ApiInfo     `json:"update"`   // 修改的API
+	Delete   []*ApiInfo     `json:"delete"`   // 删除的API
 	Packages []*PackageInfo `json:"packages"` // 全量 package 列表，每次 update 都返回，用于 app-server 目录对账
 }
 

@@ -111,4 +111,3 @@ func (u *UserAllocation) GetUsersByDepartment(c *gin.Context) {
 	}
 	response.OkWithData(c, resp)
 }
-

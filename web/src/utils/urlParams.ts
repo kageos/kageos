@@ -8,13 +8,12 @@
 export const TABLE_PARAM_KEYS = ['page', 'page_size', 'sorts'] as const
 
 /**
- * 搜索相关的 URL 参数
+ * Table 筛选参数由 Request 字段 code 动态决定。
  */
-export const SEARCH_PARAM_KEYS = ['eq', 'like', 'in', 'contains', 'gte', 'lte'] as const
+export const SEARCH_PARAM_KEYS = [] as const
 
 /**
  * 所有 URL 参数键的类型
  */
 export type TableParamKey = typeof TABLE_PARAM_KEYS[number]
 export type SearchParamKey = typeof SEARCH_PARAM_KEYS[number]
-

@@ -14,6 +14,7 @@ func TestBuildScheduledTaskItem(t *testing.T) {
 	createdAt := runAt.Add(-time.Hour)
 	task := &model.ScheduledTask{
 		ID:                3,
+		TimerTaskID:       99,
 		Name:              "提醒系统-检查并发送提醒",
 		User:              "liubeiluo",
 		App:               "work",
@@ -40,6 +41,9 @@ func TestBuildScheduledTaskItem(t *testing.T) {
 
 	if item.Payload != `{"window_seconds":60}` {
 		t.Fatalf("payload = %q, want JSON string", item.Payload)
+	}
+	if item.TimerTaskID != 99 {
+		t.Fatalf("timer_task_id = %d, want 99", item.TimerTaskID)
 	}
 	if item.Action != "execute" {
 		t.Fatalf("action = %q, want execute", item.Action)

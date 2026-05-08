@@ -90,4 +90,3 @@ func (r *DirectoryUpdateHistoryRepository) GetLatestUpdateHistory(
 	}
 	return &history, nil
 }
-

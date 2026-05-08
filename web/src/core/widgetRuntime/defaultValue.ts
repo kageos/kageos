@@ -2,14 +2,28 @@ import type { FieldConfig, FieldValue } from '@/core/types/field'
 import { DataType } from '@/core/constants/widget'
 import { resolveDynamicDefaultValue } from './dynamicDefaultValue'
 
+export function getRenderDefaultFromConfig(config: unknown): any {
+  if (!config || typeof config !== 'object') {
+    return undefined
+  }
+
+  const record = config as Record<string, any>
+  if ('render_default' in record) {
+    return record.render_default
+  }
+  return undefined
+}
+
 export function getWidgetDefaultValue(
   field: FieldConfig,
   customConverter?: (defaultValue: any, field: FieldConfig) => any,
   getAuthStore?: () => any
 ): FieldValue {
   const config = field.widget?.config
-  if (config && typeof config === 'object' && 'default' in config) {
-    let defaultValue = (config as Record<string, any>).default
+  const configRecord = config && typeof config === 'object' ? config as Record<string, any> : {}
+  const configuredRenderDefault = getRenderDefaultFromConfig(config)
+  if (configuredRenderDefault !== undefined) {
+    let defaultValue = configuredRenderDefault
 
     if (defaultValue !== undefined && defaultValue !== null && defaultValue !== '') {
       const widgetType = field.widget?.type || ''
@@ -19,8 +33,8 @@ export function getWidgetDefaultValue(
         ? customConverter(defaultValue, field)
         : convertDefaultValueByType(defaultValue, field.data?.type || DataType.STRING)
 
-      if (field.widget?.type === 'select' && Array.isArray(config.options)) {
-        const option = config.options.find((opt: any) => {
+      if (field.widget?.type === 'select' && Array.isArray(configRecord.options)) {
+        const option = configRecord.options.find((opt: any) => {
           if (typeof opt === 'string') {
             return opt === convertedValue
           }
@@ -78,6 +92,9 @@ function convertDefaultValueByType(defaultValue: any, fieldType: string): any {
       return isNaN(floatValue) ? defaultValue : floatValue
     }
     case DataType.BOOL.toLowerCase():
+      if (typeof defaultValue === 'string') {
+        return ['true', '1', 'yes', '是'].includes(defaultValue.trim().toLowerCase())
+      }
       return Boolean(defaultValue)
     case DataType.STRINGS.toLowerCase():
     case DataType.INTS.toLowerCase():
@@ -99,7 +116,6 @@ function getDefaultValueByType(fieldType: string): FieldValue {
     case DataType.INT.toLowerCase():
     case DataType.FLOAT.toLowerCase():
     case 'number':
-    case DataType.TIMESTAMP.toLowerCase():
       return { raw: null, display: '', meta: {} }
     case DataType.BOOL.toLowerCase():
       return { raw: false, display: '否', meta: {} }
@@ -110,8 +126,6 @@ function getDefaultValueByType(fieldType: string): FieldValue {
       return { raw: [], display: '[]', meta: {} }
     case DataType.STRUCT.toLowerCase():
       return { raw: {}, display: '{}', meta: {} }
-    case DataType.FILES.toLowerCase():
-      return { raw: null, display: '', meta: {} }
     case DataType.STRING.toLowerCase():
     default:
       return { raw: '', display: '', meta: {} }

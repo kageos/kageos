@@ -465,9 +465,9 @@ const {
 }
 
 .files-editor-shell {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: 14px;
+  border-radius: 10px;
   background: var(--el-bg-color);
   overflow: hidden;
 }
@@ -480,7 +480,7 @@ const {
   border: none;
   border-bottom: 1px solid var(--el-border-color-lighter);
   border-radius: 0;
-  padding: 18px 20px 20px;
+  padding: 12px 14px;
   transition: all 0.3s ease;
   cursor: pointer;
 }
@@ -498,8 +498,8 @@ const {
 .upload-area-summary {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: 6px;
+  margin-bottom: 9px;
 }
 
 .upload-area-title-row {
@@ -510,15 +510,15 @@ const {
 }
 
 .upload-area-title {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--el-text-color-primary);
 }
 
 .upload-area-count {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--el-text-color-secondary);
-  padding: 2px 10px;
+  padding: 1px 8px;
   border-radius: 999px;
   background: var(--el-fill-color-light);
 }
@@ -526,7 +526,7 @@ const {
 .upload-area-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .upload-meta-badge {
@@ -534,11 +534,11 @@ const {
   align-items: center;
   min-width: 0;
   max-width: 100%;
-  padding: 4px 10px;
+  padding: 2px 8px;
   border-radius: 999px;
   background: var(--el-fill-color-light);
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.2;
 }
 
@@ -561,16 +561,20 @@ const {
 }
 
 .upload-dragger-content {
+  min-height: 68px;
+  padding: 8px 10px;
+  box-sizing: border-box;
   text-align: center;
 }
 
 .upload-icon {
+  font-size: 32px !important;
   color: var(--el-text-color-secondary);
 }
 
 .el-upload__text {
-  margin-top: 12px;
-  font-size: 16px;
+  margin-top: 6px;
+  font-size: 13px;
   color: var(--el-text-color-primary);
   font-weight: 500;
 }
@@ -583,31 +587,31 @@ const {
 }
 
 .el-upload__tip {
-  margin-top: 8px;
-  font-size: 14px;
+  margin-top: 4px;
+  font-size: 12px;
   color: var(--el-text-color-secondary);
 }
 
 /* 上传中的文件 */
 .uploading-files {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .section-title {
   font-size: 14px;
   font-weight: 500;
   color: var(--el-text-color-primary);
-  margin-bottom: 12px;
-  padding-bottom: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 .uploading-file {
   background-color: var(--el-bg-color);
   border: 1px solid var(--el-border-color-light);
-  border-radius: 10px;
-  padding: 14px;
-  margin-bottom: 10px;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
 }
 
 .file-info {
@@ -723,7 +727,7 @@ const {
 .files-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 /* 🔥 表格单元格模式下的简化样式 */

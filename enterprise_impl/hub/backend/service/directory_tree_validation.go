@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
+	"github.com/ai-agent-os/ai-agent-os/pkg/servicetree"
 	"github.com/ai-agent-os/hub/backend/dto"
 )
 
@@ -33,7 +35,7 @@ func validatePersistedDirectoryTreeNode(node *dto.DirectoryTreeNode, parentPath,
 	if strings.Contains(code, "/") {
 		return fmt.Errorf("%s 目录 code 不能包含 /: %s", location, code)
 	}
-	if node.Type != "" && node.Type != "package" {
+	if node.Type != "" && node.Type != servicetree.TypePackage {
 		return fmt.Errorf("%s 目录节点类型无效: %s", location, node.Type)
 	}
 
@@ -45,6 +47,12 @@ func validatePersistedDirectoryTreeNode(node *dto.DirectoryTreeNode, parentPath,
 		expectedPath := strings.TrimSuffix(parentPath, "/") + "/" + code
 		if currentPath != expectedPath {
 			return fmt.Errorf("%s 目录 path 与父目录不一致: 期望 %s，实际 %s", location, expectedPath, currentPath)
+		}
+	}
+
+	for index, function := range node.Functions {
+		if err := validatePersistedHubFunctionInfo(function, fmt.Sprintf("%s -> functions[%d]", location, index)); err != nil {
+			return err
 		}
 	}
 
@@ -69,5 +77,22 @@ func validatePersistedDirectoryTreeNode(node *dto.DirectoryTreeNode, parentPath,
 		}
 	}
 
+	return nil
+}
+
+func validatePersistedHubFunctionInfo(function *dto.HubFunctionInfo, location string) error {
+	if function == nil {
+		return fmt.Errorf("%s 函数不能为空", location)
+	}
+	if len(function.Schema) == 0 {
+		return nil
+	}
+	schema, err := functionschema.Parse(function.Schema)
+	if err != nil {
+		return fmt.Errorf("%s 函数 schema 非法: %w", location, err)
+	}
+	if function.TemplateType != "" && schema.Type != function.TemplateType {
+		return fmt.Errorf("%s 函数 template_type 与 schema.type 不一致: template_type=%s schema.type=%s", location, function.TemplateType, schema.Type)
+	}
 	return nil
 }

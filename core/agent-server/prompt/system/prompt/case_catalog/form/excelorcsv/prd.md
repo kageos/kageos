@@ -8,7 +8,7 @@
 
 ---
 
-## 二、PRD 要点（表格格式）
+## 二、旧版 PRD 要点（仅实现参考，不作为 app.plan 输出格式）
 
 以 **Excel 转 JSON**（office_excel_to_json.form）为例，其余 POST 类似：请求为 files + 可选参数，响应为 text_area 或 table。
 
@@ -272,10 +272,10 @@ var CsvToExcelTemplate = &app.FormTemplate{
 // CsvTextToExcelReq CSV文本转Excel请求结构体
 type CsvTextToExcelReq struct {
 	// 框架标签：widget:"type:text_area" - 多行文本区域组件
-	CsvText string `json:"csv_text" widget:"name:CSV文本内容;type:text_area;rows:10" validate:"required"`
+	CsvText string `json:"csv_text" widget:"name:CSV文本内容;type:text_area" validate:"required"`
 
 	// 框架标签：widget:"type:input" - 文本输入组件
-	SheetName string `json:"sheet_name" widget:"name:工作表名称;type:input;default:Sheet1"`
+	SheetName string `json:"sheet_name" widget:"name:工作表名称;type:input;render_default:Sheet1"`
 }
 
 // CsvTextToExcelResp CSV文本转Excel响应结构体
@@ -460,7 +460,7 @@ type ExcelFillColumnItem struct {
 	Value string `json:"value" widget:"name:填充值;type:input;placeholder:例如: 1、文本、2024-01-01" validate:"required"`
 
 	// 框架标签：widget:"type:number" - 填充的行数
-	RowCount int `json:"row_count" widget:"name:填充行数;type:number;default:1;placeholder:从第2行开始填充（第1行通常是表头）" validate:"required,min=1"`
+	RowCount int `json:"row_count" widget:"name:填充行数;type:number;render_default:1;placeholder:从第2行开始填充（第1行通常是表头）" validate:"required,min=1"`
 }
 
 // ExcelFillColumnReq Excel列值填充请求结构体
@@ -475,7 +475,7 @@ type ExcelFillColumnReq struct {
 	FillItems []ExcelFillColumnItem `json:"fill_items" widget:"name:列填充配置;type:table" validate:"required,min=1"`
 
 	// 框架标签：widget:"type:number" - 起始行号（默认2，即从第2行开始填充，第1行通常是表头）
-	StartRow int `json:"start_row" widget:"name:起始行号;type:number;default:2;placeholder:默认从第2行开始填充（第1行通常是表头）"`
+	StartRow int `json:"start_row" widget:"name:起始行号;type:number;render_default:2;placeholder:默认从第2行开始填充（第1行通常是表头）"`
 }
 
 // ExcelFillColumnResp Excel列值填充响应结构体
@@ -853,7 +853,7 @@ type ExcelToCsvTextReq struct {
 // ExcelToCsvTextResp Excel转CSV文本响应结构体
 type ExcelToCsvTextResp struct {
 	// CSV文本内容
-	CsvText string `json:"csv_text" widget:"name:CSV文本内容;type:text_area;rows:20"`
+	CsvText string `json:"csv_text" widget:"name:CSV文本内容;type:text_area"`
 
 	// 转换统计信息
 	ConvertStats string `json:"convert_stats" widget:"name:转换统计;type:text_area"`
@@ -1019,7 +1019,7 @@ type ExcelToJsonReq struct {
 // ExcelToJsonResp Excel转JSON响应结构体
 type ExcelToJsonResp struct {
 	// JSON文本内容
-	JsonText string `json:"json_text" widget:"name:JSON文本内容;type:text_area;rows:20"`
+	JsonText string `json:"json_text" widget:"name:JSON文本内容;type:text_area"`
 
 	// 转换统计信息
 	ConvertStats string `json:"convert_stats" widget:"name:转换统计;type:text_area"`
@@ -1183,7 +1183,7 @@ type ExcelExtractColumnReq struct {
 	SheetName string `json:"sheet_name" widget:"name:工作表名称（可选）;type:input;placeholder:留空则使用第一个工作表"`
 
 	// 框架标签：widget:"type:input" - 列名或列索引（支持列名如username，或列索引如A、B、1、2）
-	Column string `json:"column" widget:"name:列名或列索引;type:input;placeholder:例如: username、A、B、1、2（支持第一行的列名）;validate:required" validate:"required"`
+	Column string `json:"column" widget:"name:列名或列索引;type:input;placeholder:例如: username、A、B、1、2（支持第一行的列名）" validate:"required"`
 
 	// 框架标签：widget:"type:switch" - 是否跳过空行
 	SkipEmptyRows bool `json:"skip_empty_rows" widget:"name:跳过空行;type:switch"`
@@ -1195,7 +1195,7 @@ type ExcelExtractColumnReq struct {
 // ExcelExtractColumnResp Excel提取指定列响应结构体
 type ExcelExtractColumnResp struct {
 	// JSON字符串数组
-	JsonArray string `json:"json_array" widget:"name:JSON字符串数组;type:text_area;rows:20"`
+	JsonArray string `json:"json_array" widget:"name:JSON字符串数组;type:text_area"`
 
 	// 提取统计信息
 	ExtractStats string `json:"extract_stats" widget:"name:提取统计;type:text_area"`

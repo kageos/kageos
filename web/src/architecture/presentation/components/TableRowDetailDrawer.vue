@@ -109,7 +109,6 @@
       <TableRowDetailReadTabs
         v-if="mode === 'read'"
         v-model="activeTab"
-        :show-permission-request-tab="showPermissionRequestTab"
         :fields="fields"
         :link-fields="linkFields"
         :grouped-fields="groupedFields"
@@ -182,7 +181,6 @@ import { buildPermissionApplyURL, getPermissionShortName, FunctionPermission } f
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import ScheduledTaskDialog from '@/architecture/presentation/components/ScheduledTaskDialog.vue'
 import TableRowDetailReadTabs from './TableRowDetailReadTabs.vue'
-import { useAuthStore } from '@/stores/auth'
 import type { FieldConfig, FunctionDetail } from '../../domain/types'
 import { buildDetailEditFormState } from '../composables/utils/workspaceDetailRuntime'
 import { useTableRowDetailTabs } from '@/architecture/presentation/composables/useTableRowDetailTabs'
@@ -227,7 +225,6 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>()
 
 const router = useRouter()
-const authStore = useAuthStore()
 
 const formViewRef = ref<InstanceType<typeof FormView> | null>(null)
 const showScheduledTaskDialog = ref(false)
@@ -238,11 +235,8 @@ const detailEditAccess = computed(() => {
   })
 })
 const {
-  activeTab,
-  showPermissionRequestTab
+  activeTab
 } = useTableRowDetailTabs({
-  currentFunction: toRef(props, 'currentFunction'),
-  currentUsername: computed(() => authStore.user?.username),
   rowData: toRef(props, 'rowData')
 })
 

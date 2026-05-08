@@ -8,7 +8,7 @@
 
 ---
 
-## 二、PRD 要点（表格格式）
+## 二、旧版 PRD 要点（仅实现参考，不作为 app.plan 输出格式）
 
 ### 分词（jieba_segment.form，POST）
 
@@ -73,40 +73,40 @@ type JiebaSegmentReq struct {
 	Text string `json:"text" widget:"name:待分词文本;type:text_area;placeholder:请输入待分词的中文文本..." validate:"required"`
 
 	// 框架标签：select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
-	Mode string `json:"mode" widget:"name:分词模式;type:select;options:精确模式,全模式,搜索引擎模式;options_colors:success,primary,info;default:精确模式"`
+	Mode string `json:"mode" widget:"name:分词模式;type:select;options:精确模式,全模式,搜索引擎模式;options_colors:67C23A,409EFF,909399;render_default:精确模式"`
 
 	// 框架标签：widget:"type:number;placeholder:10" - 关键词数量
 	TopK int `json:"top_k" widget:"name:关键词数量;type:number;placeholder:10（默认10个）"`
 
-	// 框架标签：widget:"type:switch" - 是否移除停用词；当前 switch 不支持 widget default，默认 true 需在业务逻辑里兜底
+	// 框架标签：widget:"type:switch" - 是否移除停用词；当前 switch 不支持 render_default，默认 true 需在业务逻辑里兜底
 	RemoveStopwords bool `json:"remove_stopwords" widget:"name:移除停用词;type:switch"`
 }
 
 // KeywordInfo 关键词信息
 type KeywordInfo struct {
-	Word   string  `json:"word" widget:"name:关键词;type:input" permission:"read"`
-	Weight float64 `json:"weight" widget:"name:权重;type:number" permission:"read"`
+	Word   string  `json:"word" widget:"name:关键词;type:input"`
+	Weight float64 `json:"weight" widget:"name:权重;type:number"`
 }
 
 // WordFreqInfo 词频信息
 type WordFreqInfo struct {
-	Word  string `json:"word" widget:"name:词语;type:input" permission:"read"`
-	Count int    `json:"count" widget:"name:频次;type:number" permission:"read"`
+	Word  string `json:"word" widget:"name:词语;type:input"`
+	Count int    `json:"count" widget:"name:频次;type:number"`
 }
 
 // JiebaSegmentResp 中文分词响应结构体
 type JiebaSegmentResp struct {
 	// 分词结果列表
-	Words []string `json:"words" widget:"name:分词结果;type:text_area" permission:"read"`
+	Words []string `json:"words" widget:"name:分词结果;type:text_area"`
 
 	// 关键词列表（带权重）
-	Keywords []KeywordInfo `json:"keywords" widget:"name:关键词列表;type:table" permission:"read"`
+	Keywords []KeywordInfo `json:"keywords" widget:"name:关键词列表;type:table"`
 
 	// 词频统计（Top 20）
-	WordFreq []WordFreqInfo `json:"word_freq" widget:"name:词频统计;type:table" permission:"read"`
+	WordFreq []WordFreqInfo `json:"word_freq" widget:"name:词频统计;type:table"`
 
 	// 统计信息
-	Statistics string `json:"statistics" widget:"name:统计信息;type:text_area" permission:"read"`
+	Statistics string `json:"statistics" widget:"name:统计信息;type:text_area"`
 }
 
 // JiebaSegment 中文分词与关键词提取入口（SDK 注册用）：解析请求 → 调 DoJiebaSegment → 写响应

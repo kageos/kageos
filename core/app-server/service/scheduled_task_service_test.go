@@ -2,14 +2,130 @@ package service
 
 import (
 	"context"
-	"os"
-	"path/filepath"
-	"strconv"
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
+	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/scheduledsdk"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
+
+type fakeScheduledTaskAppClient struct {
+	function *model.Function
+}
+
+func (f *fakeScheduledTaskAppClient) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*dto.RequestAppResp, error) {
+	return &dto.RequestAppResp{}, nil
+}
+
+func (f *fakeScheduledTaskAppClient) GetFunctionByFullCodePath(ctx context.Context, fullCodePath string) (*model.Function, error) {
+	return f.function, nil
+}
+
+func (f *fakeScheduledTaskAppClient) IncrementFunctionRunCount(ctx context.Context, fullCodePath string) {
+}
+
+func (f *fakeScheduledTaskAppClient) RecordFormOperateLog(ctx context.Context, req *dto.RecordFormOperateLogReq) error {
+	return nil
+}
+
+func (f *fakeScheduledTaskAppClient) RecordTableOperateLog(ctx context.Context, req *dto.RecordTableOperateLogReq) error {
+	return nil
+}
+
+type fakeScheduledTaskTimerAdapter struct {
+	createdReq CreateScheduledTaskReqForTimerTest
+	task       *scheduledsdk.Task
+	canceledID int64
+}
+
+type CreateScheduledTaskReqForTimerTest struct {
+	Title           string
+	ExecutorKey     string
+	ExecutorPayload string
+	Metadata        map[string]string
+	Schedule        scheduledsdk.Schedule
+	NotifyUsers     []string
+}
+
+func (f *fakeScheduledTaskTimerAdapter) CreateTask(_ context.Context, req scheduledsdk.CreateTaskRequest) (*scheduledsdk.Task, error) {
+	f.createdReq = CreateScheduledTaskReqForTimerTest{
+		Title:           req.Title,
+		ExecutorKey:     req.ExecutorKey,
+		ExecutorPayload: string(req.ExecutorPayload),
+		Metadata:        req.Metadata,
+		Schedule:        req.Schedule,
+		NotifyUsers:     req.NotifyUsers,
+	}
+	if f.task != nil {
+		return f.task, nil
+	}
+	return &scheduledsdk.Task{ID: 123, ExecutorKey: req.ExecutorKey}, nil
+}
+
+func (f *fakeScheduledTaskTimerAdapter) UpdateTask(context.Context, int64, scheduledsdk.UpdateTaskRequest) (*scheduledsdk.Task, error) {
+	return f.task, nil
+}
+
+func (f *fakeScheduledTaskTimerAdapter) PauseTask(context.Context, int64) error {
+	return nil
+}
+
+func (f *fakeScheduledTaskTimerAdapter) ResumeTask(context.Context, int64) error {
+	return nil
+}
+
+func (f *fakeScheduledTaskTimerAdapter) CancelTask(_ context.Context, taskID int64) error {
+	f.canceledID = taskID
+	return nil
+}
+
+func (f *fakeScheduledTaskTimerAdapter) RunNow(context.Context, int64) (*scheduledsdk.Execution, error) {
+	return nil, nil
+}
+
+func (f *fakeScheduledTaskTimerAdapter) GetTask(context.Context, int64) (*scheduledsdk.Task, error) {
+	return f.task, nil
+}
+
+func (f *fakeScheduledTaskTimerAdapter) ListTasks(context.Context, scheduledsdk.ListTasksRequest) (*scheduledsdk.ListTasksResponse, error) {
+	return &scheduledsdk.ListTasksResponse{}, nil
+}
+
+func (f *fakeScheduledTaskTimerAdapter) GetExecution(context.Context, int64, int64) (*scheduledsdk.Execution, error) {
+	return nil, nil
+}
+
+func (f *fakeScheduledTaskTimerAdapter) ListExecutions(context.Context, int64, scheduledsdk.ListExecutionsRequest) (*scheduledsdk.ListExecutionsResponse, error) {
+	return &scheduledsdk.ListExecutionsResponse{}, nil
+}
+
+func scheduledTaskSchema(t *testing.T, templateType string, callbacks ...string) json.RawMessage {
+	t.Helper()
+	raw := map[string]interface{}{
+		"version":   1,
+		"type":      templateType,
+		"callbacks": callbacks,
+	}
+	switch templateType {
+	case "table":
+		raw["table"] = map[string]interface{}{"request": []interface{}{}, "fields": []interface{}{}}
+	case "form":
+		raw["form"] = map[string]interface{}{"request": []interface{}{}, "response": []interface{}{}}
+	case "chart":
+		raw["chart"] = map[string]interface{}{"request": []interface{}{}, "response": []interface{}{}}
+	}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		t.Fatalf("marshal schema: %v", err)
+	}
+	return data
+}
 
 func TestResolveScheduledTaskRunAt(t *testing.T) {
 	now := time.Date(2026, 4, 15, 10, 0, 0, 0, time.FixedZone("CST", 8*60*60))
@@ -71,6 +187,186 @@ func TestComputeTaskNextStateUsesScheduledTimeForCatchUp(t *testing.T) {
 	}
 }
 
+func TestCreateEveryScheduledTaskDoesNotRunImmediately(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.ScheduledTask{}, &model.ScheduledTaskExecution{}); err != nil {
+		t.Fatalf("migrate scheduled task tables: %v", err)
+	}
+	fn := &model.Function{
+		Method:       "POST",
+		TemplateType: "form",
+		Schema:       scheduledTaskSchema(t, "form"),
+	}
+	svc := NewScheduledTaskService(
+		&fakeScheduledTaskAppClient{function: fn},
+		nil,
+		repository.NewScheduledTaskRepository(db),
+		repository.NewScheduledTaskExecutionRepository(db),
+		ScheduledTaskServiceOptions{
+			TimerClient: scheduledsdk.NewClient(scheduledsdk.Options{Adapter: &fakeScheduledTaskTimerAdapter{}}),
+		},
+	)
+
+	task, err := svc.Create(context.Background(), &dto.CreateScheduledTaskReq{
+		Name:            "every task",
+		FullCodePath:    "/alice/demo/report.form",
+		Action:          ScheduledTaskActionExecute,
+		Method:          "POST",
+		Payload:         json.RawMessage(`{}`),
+		ScheduleType:    "every",
+		IntervalSeconds: 60,
+	}, "alice")
+	if err != nil {
+		t.Fatalf("create every task: %v", err)
+	}
+	want := task.RunAt.Add(time.Minute)
+	if task.NextRunAt == nil || !task.NextRunAt.Equal(want) {
+		t.Fatalf("every next_run_at = %v, want %s", task.NextRunAt, want.Format(time.RFC3339))
+	}
+}
+
+func TestCreateScheduledTaskRegistersTimerTask(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.ScheduledTask{}, &model.ScheduledTaskExecution{}); err != nil {
+		t.Fatalf("migrate scheduled task tables: %v", err)
+	}
+	fn := &model.Function{
+		Method:       "POST",
+		TemplateType: "form",
+		Schema:       scheduledTaskSchema(t, "form"),
+	}
+	timerAdapter := &fakeScheduledTaskTimerAdapter{
+		task: &scheduledsdk.Task{ID: 456, ExecutorKey: scheduledTaskExecutorKey},
+	}
+	svc := NewScheduledTaskService(
+		&fakeScheduledTaskAppClient{function: fn},
+		nil,
+		repository.NewScheduledTaskRepository(db),
+		repository.NewScheduledTaskExecutionRepository(db),
+		ScheduledTaskServiceOptions{
+			TimerClient: scheduledsdk.NewClient(scheduledsdk.Options{Adapter: timerAdapter}),
+		},
+	)
+	runAt := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
+
+	task, err := svc.Create(context.Background(), &dto.CreateScheduledTaskReq{
+		Name:         "daily report",
+		FullCodePath: "/alice/demo/report.form",
+		Action:       ScheduledTaskActionExecute,
+		Method:       "POST",
+		Payload:      json.RawMessage(`{"foo":"bar"}`),
+		RequestUser:  "alice",
+		ScheduleType: "atime",
+		RunAt:        runAt.Format(time.RFC3339),
+		NotifyUsers:  []string{"alice", "bob", "alice"},
+		NotifyOn:     ScheduledTaskNotifySuccess,
+	}, "alice")
+	if err != nil {
+		t.Fatalf("create scheduled task: %v", err)
+	}
+	if task.TimerTaskID != 456 {
+		t.Fatalf("timer_task_id = %d, want 456", task.TimerTaskID)
+	}
+	if timerAdapter.createdReq.ExecutorKey != scheduledTaskExecutorKey {
+		t.Fatalf("timer executor_key = %q, want %q", timerAdapter.createdReq.ExecutorKey, scheduledTaskExecutorKey)
+	}
+	if timerAdapter.createdReq.Metadata["full_code_path"] != "/alice/demo/report.form" {
+		t.Fatalf("timer metadata full_code_path = %q", timerAdapter.createdReq.Metadata["full_code_path"])
+	}
+	if timerAdapter.createdReq.Schedule.Type != scheduledsdk.ScheduleAt || !timerAdapter.createdReq.Schedule.RunAt.Equal(runAt) {
+		t.Fatalf("timer schedule = %#v, want atime %s", timerAdapter.createdReq.Schedule, runAt.Format(time.RFC3339))
+	}
+	if timerAdapter.createdReq.ExecutorPayload == "" || !strings.Contains(timerAdapter.createdReq.ExecutorPayload, `"task_id":`) {
+		t.Fatalf("timer executor_payload = %q, want task_id", timerAdapter.createdReq.ExecutorPayload)
+	}
+
+	stored, err := repository.NewScheduledTaskRepository(db).GetByID(task.ID)
+	if err != nil {
+		t.Fatalf("load stored task: %v", err)
+	}
+	if stored.TimerTaskID != 456 {
+		t.Fatalf("stored timer_task_id = %d, want 456", stored.TimerTaskID)
+	}
+}
+
+func TestScheduledTaskHandleTimerExecutionRunsBusinessTask(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.ScheduledTask{}, &model.ScheduledTaskExecution{}); err != nil {
+		t.Fatalf("migrate scheduled task tables: %v", err)
+	}
+	fn := &model.Function{
+		Method:       "POST",
+		TemplateType: "form",
+		Schema:       scheduledTaskSchema(t, "form"),
+	}
+	svc := NewScheduledTaskService(
+		&fakeScheduledTaskAppClient{function: fn},
+		nil,
+		repository.NewScheduledTaskRepository(db),
+		repository.NewScheduledTaskExecutionRepository(db),
+		ScheduledTaskServiceOptions{
+			TimerClient: scheduledsdk.NewClient(scheduledsdk.Options{Adapter: &fakeScheduledTaskTimerAdapter{}}),
+		},
+	)
+	runAt := time.Now().Add(-time.Minute).UTC().Truncate(time.Second)
+	task, err := svc.Create(context.Background(), &dto.CreateScheduledTaskReq{
+		Name:         "once",
+		FullCodePath: "/alice/demo/report.form",
+		Action:       ScheduledTaskActionExecute,
+		Method:       "POST",
+		Payload:      json.RawMessage(`{"foo":"bar"}`),
+		RequestUser:  "alice",
+		ScheduleType: "atime",
+		RunAt:        runAt.Format(time.RFC3339),
+	}, "alice")
+	if err != nil {
+		t.Fatalf("create scheduled task: %v", err)
+	}
+	payload, _ := json.Marshal(scheduledTaskTimerPayload{TaskID: task.ID})
+	result, err := svc.HandleTimerExecution(context.Background(), scheduledsdk.ExecutionRequestedEvent{
+		TaskID:          987,
+		ExecutionID:     654,
+		ExecutorKey:     scheduledTaskExecutorKey,
+		ScheduledAt:     runAt,
+		ExecutorPayload: payload,
+	})
+	if err != nil {
+		t.Fatalf("HandleTimerExecution returned error: %v", err)
+	}
+	if result.Status != scheduledsdk.ExecutionStatusSuccess {
+		t.Fatalf("execution status = %q, want success", result.Status)
+	}
+	if result.ExecutorRunID == "" {
+		t.Fatalf("executor_run_id should contain local trace id")
+	}
+	stored, err := repository.NewScheduledTaskRepository(db).GetByID(task.ID)
+	if err != nil {
+		t.Fatalf("load stored task: %v", err)
+	}
+	if stored.Status != "done" || stored.RunCount != 1 {
+		t.Fatalf("stored status/run_count = %s/%d, want done/1", stored.Status, stored.RunCount)
+	}
+	executions, total, err := repository.NewScheduledTaskExecutionRepository(db).ListByTaskID(task.ID, "", 0, 10)
+	if err != nil {
+		t.Fatalf("list executions: %v", err)
+	}
+	if total != 1 || len(executions) != 1 {
+		t.Fatalf("executions total/list = %d/%d, want 1/1", total, len(executions))
+	}
+	if executions[0].Status != "success" {
+		t.Fatalf("local execution status = %q, want success", executions[0].Status)
+	}
+}
+
 func TestNormalizeScheduledTaskNotifyOnDefaults(t *testing.T) {
 	withRecipients, err := normalizeScheduledTaskNotifyOn("", true)
 	if err != nil {
@@ -90,6 +386,55 @@ func TestNormalizeScheduledTaskNotifyOnDefaults(t *testing.T) {
 
 	if _, err := normalizeScheduledTaskNotifyOn("bad", true); err == nil {
 		t.Fatalf("normalize notify_on should reject unsupported value")
+	}
+}
+
+func TestNormalizeScheduledTaskActionRejectsUnsupportedFormAlias(t *testing.T) {
+	if _, err := normalizeScheduledTaskAction("form"); err == nil {
+		t.Fatalf("unsupported form action should be rejected")
+	}
+}
+
+func TestValidateScheduledTaskTargetUsesSchemaCallbacksAndMethodMapping(t *testing.T) {
+	fn := &model.Function{
+		Method:       "GET",
+		TemplateType: "table",
+		Schema:       scheduledTaskSchema(t, "table", "OnTableUpdateRow"),
+	}
+	svc := &ScheduledTaskService{appClient: &fakeScheduledTaskAppClient{function: fn}}
+
+	_, method, err := svc.validateScheduledTaskTarget(context.Background(), "/alice/demo/tickets.table", ScheduledTaskActionTableUpdate, "POST", "alice")
+	if err != nil {
+		t.Fatalf("validate table update returned error: %v", err)
+	}
+	if method != "PUT" {
+		t.Fatalf("table update method = %q, want PUT", method)
+	}
+}
+
+func TestValidateScheduledTaskTargetRejectsMissingTableCallback(t *testing.T) {
+	fn := &model.Function{
+		Method:       "GET",
+		TemplateType: "table",
+		Schema:       scheduledTaskSchema(t, "table", "OnTableAddRow"),
+	}
+	svc := &ScheduledTaskService{appClient: &fakeScheduledTaskAppClient{function: fn}}
+
+	if _, _, err := svc.validateScheduledTaskTarget(context.Background(), "/alice/demo/tickets.table", ScheduledTaskActionTableDelete, "", "alice"); err == nil {
+		t.Fatalf("table delete without OnTableDeleteRows should be rejected")
+	}
+}
+
+func TestValidateScheduledTaskTargetRejectsExecuteTableWrite(t *testing.T) {
+	fn := &model.Function{
+		Method:       "POST",
+		TemplateType: "table",
+		Schema:       scheduledTaskSchema(t, "table"),
+	}
+	svc := &ScheduledTaskService{appClient: &fakeScheduledTaskAppClient{function: fn}}
+
+	if _, _, err := svc.validateScheduledTaskTarget(context.Background(), "/alice/demo/tickets.table", ScheduledTaskActionExecute, "POST", "alice"); err == nil {
+		t.Fatalf("execute must not be allowed to write table functions")
 	}
 }
 
@@ -137,106 +482,64 @@ func TestScheduledTaskExecutionResultURL(t *testing.T) {
 	}
 }
 
-func TestNormalizeScheduledTaskServiceOptionsSetsDefaultHeartbeatFile(t *testing.T) {
-	opts := normalizeScheduledTaskServiceOptions(ScheduledTaskServiceOptions{})
-	if opts.HeartbeatFile != defaultSchedulerHeartbeatFile {
-		t.Fatalf("heartbeat file = %q, want %q", opts.HeartbeatFile, defaultSchedulerHeartbeatFile)
+func TestScheduledTaskExecutionReplayURL(t *testing.T) {
+	svc := &ScheduledTaskService{
+		options: ScheduledTaskServiceOptions{
+			NotificationBaseURL: "https://example.com/",
+		},
 	}
-	if opts.HeartbeatMaxAge != defaultSchedulerHeartbeatMaxAge {
-		t.Fatalf("heartbeat max age = %s, want %s", opts.HeartbeatMaxAge, defaultSchedulerHeartbeatMaxAge)
+	task := &model.ScheduledTask{
+		ID:           7,
+		FullCodePath: "/alice/demo/report.form",
+	}
+	exec := &model.ScheduledTaskExecution{ID: 11}
+
+	got := svc.buildExecutionReplayURL(task, exec)
+	want := "https://example.com/workspace/alice/demo/report.form?_replay=scheduled_execution&_scheduled_execution_id=11&_scheduled_task_id=7"
+	if got != want {
+		t.Fatalf("execution replay url = %q, want %q", got, want)
 	}
 }
 
-func TestScheduledTaskServiceWriteHeartbeat(t *testing.T) {
-	heartbeatFile := filepath.Join(t.TempDir(), "scheduler.heartbeat")
-	svc := &ScheduledTaskService{
-		options: ScheduledTaskServiceOptions{
-			HeartbeatFile: heartbeatFile,
-		},
+func TestScheduledTaskFormFunctionDetection(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{name: "form path", path: "/alice/demo/report.form", want: true},
+		{name: "form path with spaces", path: " /alice/demo/report.form ", want: true},
+		{name: "table path", path: "/alice/demo/report.table", want: false},
+		{name: "chart path", path: "/alice/demo/report.chart", want: false},
+		{name: "empty path", path: "", want: false},
 	}
 
-	ts := time.Date(2026, 4, 19, 13, 0, 0, 0, time.UTC)
-	svc.writeHeartbeat(context.Background(), ts)
-
-	data, err := os.ReadFile(heartbeatFile)
-	if err != nil {
-		t.Fatalf("read heartbeat file: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isScheduledTaskFormFunction(&model.ScheduledTask{FullCodePath: tt.path})
+			if got != tt.want {
+				t.Fatalf("isScheduledTaskFormFunction(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
 	}
-	if got, want := string(data), strconv.FormatInt(ts.Unix(), 10); got != want {
-		t.Fatalf("heartbeat content = %q, want %q", got, want)
+
+	if isScheduledTaskFormFunction(nil) {
+		t.Fatalf("nil task must not be treated as form")
 	}
 }
 
-func TestScheduledTaskServiceHealthStatusUsesHeartbeatAge(t *testing.T) {
-	heartbeatFile := filepath.Join(t.TempDir(), "scheduler.heartbeat")
+func TestScheduledTaskExecutionTraceURL(t *testing.T) {
 	svc := &ScheduledTaskService{
 		options: ScheduledTaskServiceOptions{
-			HeartbeatFile:   heartbeatFile,
-			HeartbeatMaxAge: 30 * time.Second,
+			NotificationBaseURL: "https://example.com/",
 		},
 	}
+	task := &model.ScheduledTask{FullCodePath: "/alice/demo/report.form"}
+	exec := &model.ScheduledTaskExecution{TraceID: "trace-1"}
 
-	base := time.Date(2026, 4, 19, 13, 0, 0, 0, time.UTC)
-	if healthy, age := svc.HealthStatus(base); healthy || age != 0 {
-		t.Fatalf("health status without heartbeat = (%t, %s), want false, 0", healthy, age)
-	}
-
-	svc.writeHeartbeat(context.Background(), base)
-
-	healthy, age := svc.HealthStatus(base.Add(10 * time.Second))
-	if !healthy {
-		t.Fatalf("health status after fresh heartbeat = false, want true")
-	}
-	if age != 10*time.Second {
-		t.Fatalf("heartbeat age = %s, want %s", age, 10*time.Second)
-	}
-
-	healthy, age = svc.HealthStatus(base.Add(31 * time.Second))
-	if healthy {
-		t.Fatalf("health status after stale heartbeat = true, want false")
-	}
-	if age != 31*time.Second {
-		t.Fatalf("stale heartbeat age = %s, want %s", age, 31*time.Second)
-	}
-}
-
-func TestScheduledTaskServiceHealthSnapshotIncludesPollAndWorkerState(t *testing.T) {
-	svc := &ScheduledTaskService{
-		schedulerID: "scheduler-test",
-		options: ScheduledTaskServiceOptions{
-			PollInterval:    2 * time.Second,
-			MaxConcurrency:  4,
-			HeartbeatMaxAge: 30 * time.Second,
-		},
-		workerSlots: make(chan struct{}, 4),
-	}
-	svc.workerSlots <- struct{}{}
-	svc.workerSlots <- struct{}{}
-
-	base := time.Date(2026, 4, 19, 13, 0, 0, 0, time.UTC)
-	svc.writeHeartbeat(context.Background(), base)
-	svc.markPollCompleted(base.Add(2 * time.Second))
-
-	snapshot := svc.HealthSnapshot(base.Add(10 * time.Second))
-	if !snapshot.Healthy {
-		t.Fatalf("snapshot healthy = false, want true")
-	}
-	if snapshot.SchedulerID != "scheduler-test" {
-		t.Fatalf("scheduler id = %q, want %q", snapshot.SchedulerID, "scheduler-test")
-	}
-	if !snapshot.HasHeartbeat || !snapshot.LastHeartbeatAt.Equal(base) {
-		t.Fatalf("last heartbeat = (%t, %s), want true, %s", snapshot.HasHeartbeat, snapshot.LastHeartbeatAt.Format(time.RFC3339), base.Format(time.RFC3339))
-	}
-	if !snapshot.HasPoll || !snapshot.LastPollAt.Equal(base.Add(2*time.Second)) {
-		t.Fatalf("last poll = (%t, %s), want true, %s", snapshot.HasPoll, snapshot.LastPollAt.Format(time.RFC3339), base.Add(2*time.Second).Format(time.RFC3339))
-	}
-	if snapshot.HeartbeatAge != 10*time.Second {
-		t.Fatalf("heartbeat age = %s, want %s", snapshot.HeartbeatAge, 10*time.Second)
-	}
-	if snapshot.InflightWorkers != 2 || snapshot.AvailableWorkers != 2 || snapshot.MaxConcurrency != 4 {
-		t.Fatalf("worker snapshot = (%d inflight, %d available, %d max), want 2, 2, 4", snapshot.InflightWorkers, snapshot.AvailableWorkers, snapshot.MaxConcurrency)
-	}
-	if snapshot.PollInterval != 2*time.Second {
-		t.Fatalf("poll interval = %s, want %s", snapshot.PollInterval, 2*time.Second)
+	got := svc.buildExecutionTraceURL(task, exec)
+	want := "https://example.com/workspace/alice/demo/report.form?_panel=operateLog&_trace_id=trace-1"
+	if got != want {
+		t.Fatalf("execution trace url = %q, want %q", got, want)
 	}
 }

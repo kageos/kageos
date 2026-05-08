@@ -32,7 +32,7 @@ func NewOperateLog() *OperateLog {
 // @Param app query string false "应用名"
 // @Param full_code_path query string false "完整代码路径"
 // @Param row_id query int false "记录ID"
-// @Param action query string false "操作类型：OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows"
+// @Param action query string false "操作类型：OnTableAddRow, OnTableCreateInBatches, OnTableUpdateRow, OnTableDeleteRows"
 // @Param page query int false "页码（从1开始）" default(1)
 // @Param page_size query int false "每页数量" default(20)
 // @Param order_by query string false "排序字段（默认：created_at DESC）"

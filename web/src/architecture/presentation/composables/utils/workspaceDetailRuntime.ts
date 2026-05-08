@@ -1,7 +1,12 @@
 import type { FieldConfig } from '@/architecture/domain/types'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
-import { deleteScopedFieldQueryKey } from '@/utils/queryFieldNamespace'
+import { deleteFieldQueryKey } from '@/utils/queryParamKeys'
+import {
+  buildTableUpdateFormDetail,
+  getFormRequestFields,
+  getTableIdField
+} from '@/utils/functionSchemaSelectors'
 
 export type DetailEditFormReadiness =
   | 'missing-edit-detail'
@@ -37,18 +42,7 @@ export function buildEditFunctionDetail(current: FunctionDetail | null): Functio
   if (!current) return null
 
   if (current.template_type === TEMPLATE_TYPE.TABLE) {
-    const fields = (current.response || []) as FieldConfig[]
-    const editableFields = fields.filter(field => {
-      const permission = field.table_permission
-      return !permission || permission === '' || permission === 'update'
-    })
-
-    return {
-      ...current,
-      template_type: TEMPLATE_TYPE.FORM,
-      request: editableFields,
-      response: []
-    }
+    return buildTableUpdateFormDetail(current)
   }
 
   if (current.template_type === TEMPLATE_TYPE.FORM) {
@@ -59,11 +53,7 @@ export function buildEditFunctionDetail(current: FunctionDetail | null): Functio
 }
 
 export function getEditableFieldCodes(editFunctionDetail: FunctionDetail | null): string[] {
-  if (!editFunctionDetail?.request) {
-    return []
-  }
-
-  return editFunctionDetail.request.map((field: FieldConfig) => field.code)
+  return getFormRequestFields(editFunctionDetail).map((field: FieldConfig) => field.code)
 }
 
 export function filterDetailInitialData(options: {
@@ -71,12 +61,13 @@ export function filterDetailInitialData(options: {
   editFunctionDetail: FunctionDetail | null
 }): Record<string, any> {
   const { rowData, editFunctionDetail } = options
-  if (!rowData || !editFunctionDetail?.request) {
+  const requestFields = getFormRequestFields(editFunctionDetail)
+  if (!rowData || requestFields.length === 0) {
     return {}
   }
 
   const editableFieldCodes = new Set(
-    editFunctionDetail.request.map((field: FieldConfig) => field.code)
+    requestFields.map((field: FieldConfig) => field.code)
   )
 
   const filtered: Record<string, any> = {}
@@ -95,7 +86,7 @@ export function buildDetailEditFormState(options: {
 }): DetailEditFormState {
   const editableFieldCodes = getEditableFieldCodes(options.editFunctionDetail)
 
-  if (!options.editFunctionDetail?.request) {
+  if (!options.editFunctionDetail) {
     return {
       readiness: 'missing-edit-detail',
       editableFieldCodes,
@@ -206,12 +197,7 @@ export function shouldWaitForDetailTableData(options: {
 }
 
 export function findDetailIdField(detail: FunctionDetail | null): FieldConfig | null {
-  const fields = Array.isArray(detail?.response) ? detail.response : []
-
-  return fields.find((field: FieldConfig) => {
-    const code = String(field.code || '').toLowerCase()
-    return code === 'id' || code === '_id'
-  }) || null
+  return getTableIdField(detail)
 }
 
 export function buildDetailLookupSearchRequest(options: {
@@ -236,8 +222,10 @@ export function buildDetailLookupSearchRequest(options: {
 export function buildDetailBaseQuery(options: {
   query: Record<string, any>
   editableFieldCodes: string[]
+  preserveRawFieldCodes?: string[]
 }): Record<string, string | string[]> {
   const nextQuery: Record<string, string | string[]> = {}
+  const preserveRawFieldCodes = new Set(options.preserveRawFieldCodes || [])
 
   Object.keys(options.query).forEach(key => {
     if (key === '_tab' || key === '_id') {
@@ -253,7 +241,11 @@ export function buildDetailBaseQuery(options: {
   })
 
   options.editableFieldCodes.forEach(fieldCode => {
-    deleteScopedFieldQueryKey(nextQuery, fieldCode, 'form')
+    // 可编辑表单字段只拥有原始 request key。必要时保留同名 table request
+    // 搜索参数，但不要清理别名/display key，因为这些 key 不属于 URL 协议。
+    deleteFieldQueryKey(nextQuery, fieldCode, {
+      deleteRaw: !preserveRawFieldCodes.has(fieldCode)
+    })
   })
 
   return nextQuery

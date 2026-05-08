@@ -18,7 +18,6 @@
 - 完整路径：{{FULL_CODE_PATH}}
 - 目录类型：{{DIR_TYPE}}
 - Go package：`{{DIR_CODE}}`
-- 应用中心（Hub）：{{HUB_SECTION}}
 {{DIR_DESCRIPTION}}
 
 ### 运行环境速查

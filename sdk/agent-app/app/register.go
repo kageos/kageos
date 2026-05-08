@@ -164,6 +164,9 @@ func (a *App) CallbackRouter(ctx *Context, resp response.Response) error {
 		if !ok {
 			return errors.New("invalid type of TableTemplate")
 		}
+		if v.OnTableAddRow == nil {
+			return errors.New("callback OnTableAddRow is not registered")
+		}
 		var onTableReq callback.OnTableAddRowReq
 		onTableResp, err := v.OnTableAddRow(ctx, &onTableReq)
 		if err != nil {
@@ -182,6 +185,9 @@ func (a *App) CallbackRouter(ctx *Context, resp response.Response) error {
 		if !ok {
 			return errors.New("invalid type of TableTemplate")
 		}
+		if v.OnTableUpdateRow == nil {
+			return errors.New("callback OnTableUpdateRow is not registered")
+		}
 		var onTableReq callback.OnTableUpdateRowReq
 		// ⚠️ 关键：现在解析整个结构，包括 id、updates、old_values
 		// 前端传递格式：{"id": 2, "updates": {"name": "802"}, "old_values": {"name": "801"}}
@@ -189,11 +195,11 @@ func (a *App) CallbackRouter(ctx *Context, resp response.Response) error {
 		if err != nil {
 			return err
 		}
-		if onTableReq.BindUpdatesMap == nil {
-			onTableReq.BindUpdatesMap = make(map[string]interface{})
+		if onTableReq.ChangedFieldsBindMap == nil {
+			onTableReq.ChangedFieldsBindMap = make(map[string]interface{})
 		}
 		for k, vv := range onTableReq.Updates {
-			onTableReq.BindUpdatesMap[k] = vv
+			onTableReq.ChangedFieldsBindMap[k] = vv
 		}
 		onTableResp, err := v.OnTableUpdateRow(ctx, &onTableReq)
 		if err != nil {
@@ -210,6 +216,9 @@ func (a *App) CallbackRouter(ctx *Context, resp response.Response) error {
 		v, ok := router.Template.(*TableTemplate)
 		if !ok {
 			return errors.New("invalid type of TableTemplate")
+		}
+		if v.OnTableDeleteRows == nil {
+			return errors.New("callback OnTableDeleteRows is not registered")
 		}
 		var onTableReq callback.OnTableDeleteRowsReq
 		err := json.Unmarshal(ctx.body, &onTableReq)
@@ -282,10 +291,11 @@ func (a *App) CallbackRouter(ctx *Context, resp response.Response) error {
 }
 
 // handleTableCreateInBatches 系统内置的批量创建处理函数
-// 通过反射获取 AutoCrudTable 结构类型，批量插入数据库
+// 通过反射获取有效 AutoCrudTable 结构类型，批量插入数据库
 func handleTableCreateInBatches(ctx *Context, template *TableTemplate, req *callback.OnTableCreateInBatchesReq) (*callback.OnTableCreateInBatchesResp, error) {
-	if template.AutoCrudTable == nil {
-		return nil, errors.New("AutoCrudTable 不能为空")
+	tableModel := template.EffectiveAutoCrudTable()
+	if tableModel == nil {
+		return nil, errors.New("AutoCrudTable 不能为空，且 CreateTables 中没有可降级使用的表模型")
 	}
 
 	// 获取数据库连接
@@ -294,8 +304,8 @@ func handleTableCreateInBatches(ctx *Context, template *TableTemplate, req *call
 		return nil, errors.New("获取数据库连接失败")
 	}
 
-	// 获取 AutoCrudTable 的结构类型
-	tableType := reflect.TypeOf(template.AutoCrudTable)
+	// 获取有效 AutoCrudTable 的结构类型
+	tableType := reflect.TypeOf(tableModel)
 	if tableType.Kind() == reflect.Ptr {
 		tableType = tableType.Elem()
 	}

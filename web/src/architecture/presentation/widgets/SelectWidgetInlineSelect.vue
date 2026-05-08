@@ -9,6 +9,7 @@
       :filterable="true"
       :allow-create="creatable"
       :default-first-option="creatable"
+      :teleported="teleported"
       @update:model-value="emit('update:modelValue', $event)"
       @clear="emit('clear')"
     >
@@ -42,19 +43,22 @@
 import { ElOption, ElSelect } from 'element-plus'
 import type { SelectOptionItem } from './selectWidgetTypes'
 
-defineProps<{
+withDefaults(defineProps<{
   modelValue: any
   options: SelectOptionItem[]
   placeholder: string
   disabled: boolean
   clearable: boolean
   creatable: boolean
+  teleported?: boolean
   searchMode?: boolean
   displayInfoText?: string
   getOptionColor: (value: any) => string | null
   getOptionColorStyle: (value: any) => Record<string, string>
   getOptionDisplayInfo: (option: SelectOptionItem) => string
-}>()
+}>(), {
+  teleported: true,
+})
 
 const emit = defineEmits<{
   'update:modelValue': [value: any]

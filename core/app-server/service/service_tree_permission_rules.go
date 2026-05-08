@@ -8,7 +8,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
 )
 
-var appAdminActionCode = permission.BuildActionCode(permission.ResourceTypeApp, "admin")
+var appAdminActionCode = permission.BuildActionCode(permission.ResourceTypeApp, permission.ActionAdmin)
 
 func isWorkspaceAdmin(username, admins string) bool {
 	if username == "" || admins == "" {
@@ -42,9 +42,9 @@ func buildRawPermissions(records []dto.PermissionRecord) map[string]map[string]b
 func permissionActionsForNode(nodeType string, templateType string) []string {
 	var nodeTypeStr string
 	if nodeType == model.ServiceTreeTypePackage {
-		nodeTypeStr = "package"
+		nodeTypeStr = model.ServiceTreeTypePackage
 	} else if nodeType == model.ServiceTreeTypeFunction {
-		nodeTypeStr = "function"
+		nodeTypeStr = model.ServiceTreeTypeFunction
 	} else if nodeType == model.ServiceTreeTypeDocs {
 		nodeTypeStr = model.ServiceTreeTypeDocs
 	} else if nodeType == model.ServiceTreeTypeBoard {
@@ -116,7 +116,7 @@ func applyPermissionInheritance(
 		}
 
 		if parentResourceType == permission.ResourceTypeDirectory {
-			if actionType == "admin" {
+			if actionType == permission.ActionAdmin {
 				for actionCode := range nodePerms {
 					nodePerms[actionCode] = true
 				}
@@ -130,7 +130,7 @@ func applyPermissionInheritance(
 			continue
 		}
 
-		if parentResourceType == permission.ResourceTypeApp && actionType == "admin" {
+		if parentResourceType == permission.ResourceTypeApp && actionType == permission.ActionAdmin {
 			for actionCode := range nodePerms {
 				nodePerms[actionCode] = true
 			}

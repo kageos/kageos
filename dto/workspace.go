@@ -1,6 +1,9 @@
 package dto
 
-import "github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+import (
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
+	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+)
 
 // WorkspaceChatReq 工作台对话请求（只认 LLM，单模式）
 type WorkspaceChatReq struct {
@@ -26,13 +29,18 @@ type WorkspaceChatResp struct {
 
 // WorkspaceChatToolCallSummary 工作台单次 tool 调用摘要（供前端展示）
 type WorkspaceChatToolCallSummary struct {
-	ID         string      `json:"id"`                    // tool_call_id（用于关联 tool 消息）
-	Name       string      `json:"name"`                  // 工具名称
-	Status     string      `json:"status"`                // ok / error
-	Arguments  string      `json:"arguments"`             // 参数（JSON 字符串，可选）
-	Result     string      `json:"result"`                // 结果内容（从对应的 tool 消息中获取，可选）
-	ResultData interface{} `json:"result_data,omitempty"` // 结构化结果（优先供前端展示/提取文件）
-	Error      string      `json:"error"`                 // 错误信息（如果有，可选）
+	ID         string              `json:"id"`                    // tool_call_id（用于关联 tool 消息）
+	Name       string              `json:"name"`                  // 工具名称
+	Status     string              `json:"status"`                // ok / error
+	Arguments  string              `json:"arguments"`             // 参数（JSON 字符串，可选）
+	Result     string              `json:"result"`                // 结果内容（从对应的 tool 消息中获取，可选）
+	ResultData interface{}         `json:"result_data,omitempty"` // 结构化结果（优先供前端展示/提取文件）
+	Metadata   *ToolResultMetadata `json:"metadata,omitempty"`    // 工具结果元数据（如哪些输出字段是文件）
+	Error      string              `json:"error"`                 // 错误信息（如果有，可选）
+}
+
+type ToolResultMetadata struct {
+	DisplayFileFields []string `json:"display_file_fields,omitempty"` // data 中按文件引用展示的字段名，如 output_files
 }
 
 // ListWorkspaceSessionsReq 获取工作台会话列表请求
@@ -85,6 +93,7 @@ type WorkspaceMessageInfo struct {
 	SessionID string                         `json:"session_id"`           // 会话ID
 	AgentID   int64                          `json:"agent_id"`             // 智能体ID（0表示未关联）
 	Role      string                         `json:"role"`                 // 角色：user/assistant/tool
+	User      string                         `json:"user"`                 // 创建该消息的用户
 	Content   string                         `json:"content"`              // 消息内容（user 仅存用户文字，不含 <files> 块）
 	Files     *string                        `json:"files,omitempty"`      // 用户消息附带的文件引用字符串，仅 user 角色可能有
 	ToolCalls []WorkspaceChatToolCallSummary `json:"tool_calls,omitempty"` // 工具调用列表（仅assistant角色）
@@ -93,13 +102,13 @@ type WorkspaceMessageInfo struct {
 
 // ToolDef 工具定义（list_tools 返回、LLM tools 入参，即 MCP tool schema）
 //
-// 与 function 表的关系：function 表的 Request（请求参数）、Response（响应参数）为 []*widget.Field 的 JSON。
-// 后续由适配层 FunctionToMCPToolDef 将 Request → InputSchema、Response → OutputSchema，直接得到 MCP ToolDef。
+// 与 function 表的关系：function 表的 schema 内保存 form/table/chart 的字段配置。
+// 后续由适配层 FunctionToMCPToolDef 将 schema 中的输入/输出字段转换为 MCP ToolDef。
 type ToolDef struct {
 	Name         string                 `json:"name"`
 	Description  string                 `json:"description"`
 	InputSchema  map[string]interface{} `json:"input_schema"`            // 请求参数 → JSON Schema
-	OutputSchema map[string]interface{} `json:"output_schema,omitempty"` // 响应参数 → JSON Schema（可选，后续从 function.Response 转换）
+	OutputSchema map[string]interface{} `json:"output_schema,omitempty"` // 响应参数 → JSON Schema（可选，后续从 function schema 转换）
 }
 
 // ListToolsResp 工作台 list_tools 响应
@@ -168,9 +177,10 @@ type CallToolReq struct {
 
 // CallToolResp 工作台 call_tool 响应
 type CallToolResp struct {
-	Content string      `json:"content"`
-	IsError bool        `json:"is_error"`
-	Data    interface{} `json:"data,omitempty"`
+	Content  string              `json:"content"`
+	IsError  bool                `json:"is_error"`
+	Data     interface{}         `json:"data,omitempty"`
+	Metadata *ToolResultMetadata `json:"metadata,omitempty"`
 }
 
 // ----- 以下为 app-server 工作空间资源更新接口使用（canonical 标识为 resource_path=/user/app） -----
@@ -202,15 +212,15 @@ type GetWorkspaceContextReq struct {
 
 // WorkspaceContextNode 工作台环境节点信息
 type WorkspaceContextNode struct {
-	ID           int64         `json:"id"`
-	Name         string        `json:"name"`              // 节点名称
-	Code         string        `json:"code"`              // 节点代码
-	Type         string        `json:"type"`              // 节点类型：package（目录）或 function（函数）
-	Description  string        `json:"description"`       // 节点描述
-	FullCodePath string        `json:"full_code_path"`    // 完整路径
-	TemplateType string        `json:"template_type"`     // 函数类型（仅 function 有效）：table、form、chart
-	Callbacks    string        `json:"callbacks"`         // 函数回调能力（仅 function 有效），逗号分隔
-	Request      []interface{} `json:"request,omitempty"` // 请求参数字段（仅 function 有效，用于构造执行参数）
+	ID           int64                          `json:"id"`
+	Name         string                         `json:"name"`                // 节点名称
+	Code         string                         `json:"code"`                // 节点代码
+	Type         string                         `json:"type"`                // 节点类型：package（目录）或 function（函数）
+	Description  string                         `json:"description"`         // 节点描述
+	FullCodePath string                         `json:"full_code_path"`      // 完整路径
+	TemplateType string                         `json:"template_type"`       // 函数类型（仅 function 有效）：table、form、chart
+	Callbacks    []string                       `json:"callbacks,omitempty"` // 函数回调能力摘要（仅 function 有效）
+	Schema       *functionschema.FunctionSchema `json:"schema,omitempty"`    // 函数 schema 摘要（仅 function 有效）
 }
 
 // WorkspaceContextDirectory 工作台环境目录信息

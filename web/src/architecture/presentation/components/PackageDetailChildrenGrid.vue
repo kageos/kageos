@@ -2,8 +2,8 @@
   <div v-if="children.length > 0" class="children-section">
     <div class="section-header">
       <h3 class="section-title">
-        <el-icon class="section-icon"><Files /></el-icon>
-        子目录和函数
+        <el-icon class="section-icon"><Grid /></el-icon>
+        资源列表
       </h3>
       <el-tag class="section-badge" type="primary" size="small">
         {{ children.length }}
@@ -85,7 +85,7 @@
 </template>
 
 <script setup lang="ts">
-import { DataLine, Document, Files } from '@element-plus/icons-vue'
+import { DataLine, Document, Grid } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import ChartIcon from '@/shared/components/icons/ChartIcon.vue'

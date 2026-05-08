@@ -1,8 +1,10 @@
 import { computed, ref, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import type { ToolResultMetadata } from '@/api/workspace'
 import { extractFileGroupsFromResult, type OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { extractAllDisplayFields, type OutputDisplayField } from '@/architecture/presentation/composables/useOutputDisplayFields'
 import type { ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
+import { normalizeStorageFileDisplayUrl } from '@/architecture/presentation/utils/storageFileUrl'
 
 export interface FilePanelItem {
   name: string
@@ -12,17 +14,34 @@ export interface FilePanelItem {
 
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'])
 
+type FileGroupToolCall = { result?: string; result_data?: unknown; metadata?: ToolResultMetadata }
+type DisplayFieldToolCall = { arguments?: string; result?: string; result_data?: unknown }
+
+export { normalizeStorageFileDisplayUrl as normalizeMiniFileDisplayUrl }
+
 export function useMiniWorkstationPanel(messages: Ref<ChatMessage[]>) {
-  const getFileGroupsFromCalls = (calls: Array<{ result?: string; result_data?: unknown }>): OutputFileGroup[] => {
+  const fileGroupsCache = new WeakMap<FileGroupToolCall[], OutputFileGroup[]>()
+  const displayFieldsCache = new WeakMap<DisplayFieldToolCall[], OutputDisplayField[]>()
+
+  const getFileGroupsFromCalls = (calls: FileGroupToolCall[]): OutputFileGroup[] => {
+    const cached = fileGroupsCache.get(calls)
+    if (cached) return cached
+
     const groups: OutputFileGroup[] = []
     for (const toolCall of calls) {
-      groups.push(...extractFileGroupsFromResult(toolCall.result_data ?? toolCall.result))
+      groups.push(...extractFileGroupsFromResult(toolCall.result_data ?? toolCall.result, toolCall.metadata))
     }
+    fileGroupsCache.set(calls, groups)
     return groups
   }
 
-  const getDisplayFieldsFromCalls = (calls: Array<{ arguments?: string; result?: string; result_data?: unknown }>): OutputDisplayField[] => {
-    return extractAllDisplayFields(calls)
+  const getDisplayFieldsFromCalls = (calls: DisplayFieldToolCall[]): OutputDisplayField[] => {
+    const cached = displayFieldsCache.get(calls)
+    if (cached) return cached
+
+    const fields = extractAllDisplayFields(calls)
+    displayFieldsCache.set(calls, fields)
+    return fields
   }
 
   const allPanelFiles = computed<FilePanelItem[]>(() => {
@@ -30,7 +49,7 @@ export function useMiniWorkstationPanel(messages: Ref<ChatMessage[]>) {
     for (const msg of messages.value) {
       if (msg.role === 'user' && msg.files?.length) {
         for (const file of msg.files) {
-          const href = file.download_url || ''
+          const href = normalizeStorageFileDisplayUrl(file.download_url || file.ref || '')
           list.push({ name: file.source_name || file.name || '未命名文件', href, source: 'upload' })
         }
       }
@@ -38,7 +57,8 @@ export function useMiniWorkstationPanel(messages: Ref<ChatMessage[]>) {
         const groups = getFileGroupsFromCalls(msg.tool_calls)
         for (const group of groups) {
           for (const file of group.files) {
-            list.push({ name: file.source_name || file.name || '输出文件', href: file.download_url || '', source: 'output' })
+            const href = normalizeStorageFileDisplayUrl(file.download_url || file.ref || '')
+            list.push({ name: file.source_name || file.name || '输出文件', href, source: 'output' })
           }
         }
       }

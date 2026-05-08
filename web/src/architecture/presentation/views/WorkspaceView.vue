@@ -144,6 +144,7 @@
           <PackageDetailView
             :package-node="currentFunction"
             @refresh="handleRefreshTree"
+            @open-session="openWorkspaceSession"
           />
         </div>
         
@@ -159,6 +160,7 @@
               :show-function-permission-tabs="showFunctionPermissionTabs"
               :show-form-operate-log-tab="showFormOperateLogTab"
               :show-scheduled-task-tab="showScheduledTaskTab"
+              :show-scheduled-agent-task-tab="showScheduledAgentTaskTab"
               :function-form-view-ref="setFunctionFormViewRef"
               :function-permission-request-list-ref="setFunctionPermissionRequestListRef"
               :function-permission-manage-list-ref="setFunctionPermissionManageListRef"
@@ -166,6 +168,8 @@
               :on-function-tab-change="handleFunctionTabChange"
               :on-apply-form-operate-log="handleApplyFormOperateLog"
               :on-scheduled-task-total-change="onScheduledTaskTotalChange"
+              :on-scheduled-agent-task-total-change="onScheduledAgentTaskTotalChange"
+              :on-open-workspace-session="openWorkspaceSession"
               :on-open-function-operate-log="openFunctionOperateLog"
               @update:active-tab="functionActiveTab = $event"
             />
@@ -193,15 +197,24 @@
         <WorkspaceSidebarSessionsPanel
           :dir-name="workstationContext.dirName"
           :loading="rightSidebarSessionsLoading"
+          :scheduled-loading="rightSidebarScheduledLoading"
           :active-tab="rightTab"
           :search-keyword="rightSessionSearchKeyword"
           :running-count="rightSidebarRunningCount"
+          :scheduled-count="rightSidebarScheduledCount"
           :sessions="filteredRightSessions"
+          :scheduled-tasks="filteredRightScheduledTasks"
+          :scheduled-executions="filteredRightScheduledExecutions"
           :cancelling-task-id="cancellingTaskId"
+          :scheduled-task-action-id="scheduledAgentTaskActionId"
           :format-relative-time="formatRelativeTime"
           @update:active-tab="rightTab = $event"
           @update:search-keyword="rightSessionSearchKeyword = $event"
-          @open-session="openSessionInMini"
+          @open-session="openWorkspaceSession"
+          @open-scheduled-session="openScheduledAgentTaskSession"
+          @open-scheduled-execution="openScheduledAgentExecutionSession"
+          @run-scheduled-task-now="handleRunScheduledAgentTaskNow"
+          @manage-scheduled-tasks="openScheduledAgentTaskManager"
           @cancel-task="handleCancelTask"
           @create-session="openNewMiniWs()"
         />
@@ -370,12 +383,12 @@ import { useWorkspaceNodeToolActions } from '../composables/useWorkspaceNodeTool
 import { useWorkspaceUiEffects } from '../composables/useWorkspaceUiEffects'
 import { useWorkspaceViewLifecycle } from '../composables/useWorkspaceViewLifecycle'
 import { findNodeByPath, findNodeById } from '../utils/workspaceUtils'
-import { getScopedFieldQueryValue } from '@/utils/queryFieldNamespace'
 import { useAfterCreateNode } from '../composables/useAfterCreateNode'
 import { hasPermission, TablePermission } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/utils/widgetFieldHelpers'
-import { hasFunctionCallback } from './utils/tableViewActionRuntime'
+import { getFormRequestFields, getFunctionCallbacks } from '@/utils/functionSchemaSelectors'
+import type { WorkspaceSessionItem } from '@/api/workspace'
 
 const route = useRoute()
 const router = useRouter()
@@ -563,8 +576,9 @@ const editInitialData = computed(() => {
   const query = route.query
   
   // 如果有 id 参数，添加到 initialData
+  const requestFields = getFormRequestFields(editFunctionDetail.value || currentFunctionDetail.value)
   if (editRowId.value) {
-    const idField = currentFunctionDetail.value?.request?.find((f: FieldConfig) => 
+    const idField = requestFields.find((f: FieldConfig) => 
       f.code.toLowerCase() === 'id' || f.widget?.type === 'number'
     )
     if (idField) {
@@ -573,13 +587,13 @@ const editInitialData = computed(() => {
   }
   
   // 遍历所有查询参数，如果字段在 request 中，添加到 initialData
-  if (currentFunctionDetail.value?.request) {
-    currentFunctionDetail.value.request.forEach((field: FieldConfig) => {
+  if (requestFields.length > 0) {
+    requestFields.forEach((field: FieldConfig) => {
       const fieldCode = field.code
       // 跳过 _ 开头的参数（系统参数）
       if (fieldCode.startsWith('_')) return
       
-      const value = getScopedFieldQueryValue(query, fieldCode, 'form')
+      const value = query[fieldCode]
       if (value !== undefined && value !== null && value !== '') {
         // 🔥 类型转换：根据字段类型转换值
         if (field.data?.type === 'int' || field.data?.type === 'integer') {
@@ -625,6 +639,7 @@ const {
   setFunctionPermissionManageListRef,
   setFormOperateLogSectionRef,
   showScheduledTaskTab,
+  showScheduledAgentTaskTab,
   showFunctionPermissionTabs,
   showFormOperateLogTab,
   showFunctionTabsWrapper,
@@ -632,6 +647,7 @@ const {
   handleApplyFormOperateLog,
   openFunctionOperateLog,
   onScheduledTaskTotalChange,
+  onScheduledAgentTaskTotalChange,
   activateScheduledTaskTab
 } = useWorkspaceFunctionTabs({
   route,
@@ -711,23 +727,58 @@ const {
   buildWorkspacePath: (fullCodePath: string) => buildWorkspacePath(fullCodePath),
 })
 
+function openWorkspaceSession(session: WorkspaceSessionItem) {
+  const sessionID = (session.session_id || '').trim()
+  if (!sessionID) return
+
+  const fullCodePath = (session.full_code_path || workstationContext.value?.fullCodePath || '').trim()
+  if (!fullCodePath) {
+    openNewMiniWs(sessionID)
+    return
+  }
+
+  handleWorkspaceOpenWorkstation({
+    full_code_path: fullCodePath,
+    session_id: sessionID,
+    open_as_mini: true
+  })
+}
+
 const {
   sessionsLoading: rightSidebarSessionsLoading,
+  scheduledAgentTasksLoading: rightSidebarScheduledLoading,
   activeTab: rightTab,
   sessionSearchKeyword: rightSessionSearchKeyword,
   cancellingTaskId,
+  scheduledAgentTaskActionId,
   runningCount: rightSidebarRunningCount,
+  scheduledAgentTaskCount: rightSidebarScheduledCount,
   filteredSessions: filteredRightSessions,
-  openSession: openSessionInMini,
+  filteredScheduledAgentTasks: filteredRightScheduledTasks,
+  filteredScheduledAgentExecutions: filteredRightScheduledExecutions,
+  openScheduledAgentTask: openScheduledAgentTaskSession,
+  openScheduledAgentExecution: openScheduledAgentExecutionSession,
   formatRelativeTime,
-  handleCancelTask
+  handleCancelTask,
+  handleRunScheduledAgentTaskNow
 } = useWorkspaceSidebarSessions({
   workstationContext,
   sidebarVisible: showRightSidebar,
-  onOpenSession: (session) => {
-    openNewMiniWs(session.session_id, session.full_code_path)
-  }
+  onOpenSession: openWorkspaceSession
 })
+
+function openScheduledAgentTaskManager() {
+  if (currentFunction.value?.type === 'function' && showScheduledAgentTaskTab.value) {
+    functionActiveTab.value = 'scheduledAgentTask'
+  }
+  router.replace({
+    path: route.path,
+    query: {
+      ...route.query,
+      _panel: 'scheduledAgentTask'
+    }
+  })
+}
 
 // ⭐ 权限检查：是否有表格更新权限
 const canUpdateTable = computed(() => {
@@ -737,7 +788,7 @@ const canUpdateTable = computed(() => {
 })
 
 const supportsUpdateTable = computed(() => {
-  return hasFunctionCallback(currentFunctionDetail.value?.callbacks, 'OnTableUpdateRow')
+  return getFunctionCallbacks(currentFunctionDetail.value).includes('OnTableUpdateRow')
 })
 
 // ⭐ 权限错误状态
@@ -1195,7 +1246,9 @@ useWorkspaceUiEffects({
 }
 
 .function-renderer :deep(.package-detail-view .detail-tabs .el-tabs__nav-wrap::after) {
-  background-color: var(--app-shell-panel-border);
+  display: none;
+  height: 0;
+  background-color: transparent;
 }
 
 .function-renderer :deep(.package-detail-view .detail-tabs .el-tabs__item.is-active) {

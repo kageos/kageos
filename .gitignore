@@ -22,6 +22,8 @@ namespace/
 #configs/*.yaml
 #configs/*.yml
 #configs/*.json
+deploy/prod/aos.yaml
+deploy/prod/.generated/
 temp/
 plan/
 /note

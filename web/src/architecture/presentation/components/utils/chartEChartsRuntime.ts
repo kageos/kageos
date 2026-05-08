@@ -1,5 +1,8 @@
 import type { EChartsType } from 'echarts/core'
 
+type EChartsUseArgument = Parameters<(typeof import('echarts/core'))['use']>[0]
+type EChartsInstaller = Exclude<EChartsUseArgument, readonly unknown[]>
+
 type EChartsRuntime = {
   init: (typeof import('echarts/core'))['init']
   use: (typeof import('echarts/core'))['use']
@@ -9,16 +12,16 @@ let echartsRuntimePromise: Promise<EChartsRuntime> | null = null
 let echartsBaseRegistered = false
 const registeredChartTypes = new Set<string>()
 
-async function loadChartInstaller(chartType: string): Promise<{ install: (registers: unknown) => void } | null> {
+async function loadChartInstaller(chartType: string): Promise<EChartsInstaller | null> {
   switch (chartType) {
     case 'bar':
-      return import('echarts/lib/chart/bar/install.js')
+      return (await import('echarts/lib/chart/bar/install.js')).install
     case 'line':
-      return import('echarts/lib/chart/line/install.js')
+      return (await import('echarts/lib/chart/line/install.js')).install
     case 'pie':
-      return import('echarts/lib/chart/pie/install.js')
+      return (await import('echarts/lib/chart/pie/install.js')).install
     case 'gauge':
-      return import('echarts/lib/chart/gauge/install.js')
+      return (await import('echarts/lib/chart/gauge/install.js')).install
     default:
       return null
   }
@@ -36,6 +39,7 @@ export async function loadEChartsRuntime(chartType: string): Promise<{
         { install: AxisPointerComponent },
         { install: LegendComponent },
         { install: GridComponent },
+        { installLegacyGridContainLabel: LegacyGridContainLabel },
         { install: CanvasRenderer },
       ] = await Promise.all([
         import('echarts/core'),
@@ -44,6 +48,7 @@ export async function loadEChartsRuntime(chartType: string): Promise<{
         import('echarts/lib/component/axisPointer/install.js'),
         import('echarts/lib/component/legend/install.js'),
         import('echarts/lib/component/grid/install.js'),
+        import('echarts/lib/coord/cartesian/legacyContainLabel.js'),
         import('echarts/lib/renderer/installCanvasRenderer.js'),
       ])
 
@@ -54,6 +59,7 @@ export async function loadEChartsRuntime(chartType: string): Promise<{
           AxisPointerComponent,
           LegendComponent,
           GridComponent,
+          LegacyGridContainLabel,
           CanvasRenderer,
         ])
         echartsBaseRegistered = true
@@ -67,7 +73,7 @@ export async function loadEChartsRuntime(chartType: string): Promise<{
   if (!registeredChartTypes.has(chartType)) {
     const chartInstaller = await loadChartInstaller(chartType)
     if (chartInstaller) {
-      runtime.use([chartInstaller.install])
+      runtime.use([chartInstaller])
       registeredChartTypes.add(chartType)
     }
   }

@@ -64,7 +64,7 @@ const lineCount = computed(() => props.content.split('\n').length)
 .df-preview-overlay {
   position: fixed;
   inset: 0;
-  z-index: 99999;
+  z-index: var(--aos-z-critical-preview);
   background: rgba(0, 0, 0, 0.52);
   display: flex;
   align-items: center;

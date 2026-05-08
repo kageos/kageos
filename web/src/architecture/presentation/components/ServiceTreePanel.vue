@@ -98,6 +98,15 @@
             <!-- 其他类型：显示 fx 文本 -->
             <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
             <span class="node-label" :class="{ 'no-permission': !hasAnyPermissionForNode(data) }">{{ node.label }}</span>
+
+            <!-- 运行态 badge：来自 agent-server state 接口，表示当前目录及子目录正在运行的会话数 -->
+            <el-badge
+              v-if="hasRuntimeBadge(data)"
+              :value="getRuntimeBadgeText(data)"
+              :max="99"
+              :class="getRuntimeBadgeClass(data)"
+              :title="getRuntimeSummaryTitle(data)"
+            />
             
             <!-- 无权限标识 - 没有权限的节点显示 -->
             <img 
@@ -294,7 +303,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, MoreFilled, CopyDocument, Document, Upload, Download, Delete, Key, DocumentChecked, Edit, ChatDotRound, ChatDotSquare, Search } from '@element-plus/icons-vue'
 import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
@@ -305,6 +314,7 @@ import type { ServiceTree } from '@/types'
 import { isRootNode } from '@/utils/tree-utils'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { updatePackage, updateServiceTreeFunction, updateDocs } from '@/api/service-tree'
+import { getRuntimeStateSummary, type RuntimeStateSummary } from '@/api/state'
 import { 
   hasPermission, 
   hasAnyPermissionForNode, 
@@ -316,7 +326,7 @@ import {
   buildPermissionApplyURL 
 } from '@/utils/permission'
 import { useAuthStore } from '@/stores/auth'
-import { eventBus, RouteEvent } from '@/architecture/infrastructure/eventBus'
+import { eventBus, RouteEvent, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
 import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
 import { useServiceTreeClipboard } from '../composables/useServiceTreeClipboard'
 import { useServiceTreeSearchExpand } from '../composables/useServiceTreeSearchExpand'
@@ -350,6 +360,8 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const router = useRouter()
+const runtimeSummaries = ref<Record<string, RuntimeStateSummary>>({})
+let runtimeSummaryTimer: ReturnType<typeof setInterval> | null = null
 
 // 获取当前用户信息
 const authStore = useAuthStore()
@@ -382,6 +394,83 @@ const {
     emit('pull-from-hub', initialLink, targetFullCodePath, targetName)
   }
 })
+
+const rootFullCodePath = computed(() => props.treeData[0]?.full_code_path || '')
+let unsubscribeRuntimeRefresh: (() => void) | null = null
+
+const stopRuntimeSummaryPolling = () => {
+  if (runtimeSummaryTimer) {
+    clearInterval(runtimeSummaryTimer)
+    runtimeSummaryTimer = null
+  }
+  if (unsubscribeRuntimeRefresh) {
+    unsubscribeRuntimeRefresh()
+    unsubscribeRuntimeRefresh = null
+  }
+  window.removeEventListener('focus', refreshRuntimeSummary)
+}
+
+const refreshRuntimeSummary = async () => {
+  const root = rootFullCodePath.value
+  if (!root) {
+    runtimeSummaries.value = {}
+    return
+  }
+  try {
+    const resp = await getRuntimeStateSummary({ root_full_code_path: root })
+    runtimeSummaries.value = resp.summaries || {}
+  } catch {
+    // 运行态仅用于提示，不影响服务树主流程。
+  }
+}
+
+const startRuntimeSummaryPolling = () => {
+  stopRuntimeSummaryPolling()
+  if (!rootFullCodePath.value) return
+  runtimeSummaryTimer = setInterval(refreshRuntimeSummary, 3000)
+  unsubscribeRuntimeRefresh = eventBus.on(WorkspaceEvent.scheduledAgentTaskCreated, refreshRuntimeSummary)
+  window.addEventListener('focus', refreshRuntimeSummary)
+}
+
+watch(rootFullCodePath, () => {
+  runtimeSummaries.value = {}
+  refreshRuntimeSummary()
+  startRuntimeSummaryPolling()
+}, { immediate: true })
+
+onBeforeUnmount(stopRuntimeSummaryPolling)
+
+const getRuntimeSummary = (node: ServiceTree): RuntimeStateSummary | undefined => {
+  if (!node.full_code_path) return undefined
+  return runtimeSummaries.value[node.full_code_path]
+}
+
+const hasRuntimeBadge = (node: ServiceTree): boolean => {
+  const summary = getRuntimeSummary(node)
+  return !!summary?.badge_text || !!summary?.running_count || !!summary?.failed_recent_count
+}
+
+const getRuntimeBadgeText = (node: ServiceTree): string | number => {
+  const summary = getRuntimeSummary(node)
+  return summary?.badge_text || summary?.running_count || ''
+}
+
+const getRuntimeBadgeClass = (node: ServiceTree): string => {
+  const tone = getRuntimeSummary(node)?.badge_tone || 'running'
+  return `runtime-state-badge runtime-state-badge-${tone}`
+}
+
+const getRuntimeSummaryTitle = (node: ServiceTree): string => {
+  const summary = getRuntimeSummary(node)
+  if (!summary) return ''
+  if (summary.tooltip) return summary.tooltip
+  const parts = [`运行中 ${summary.running_count}`]
+  if (summary.thinking_count > 0) parts.push(`思考中 ${summary.thinking_count}`)
+  if (summary.tool_running_count > 0) parts.push(`工具执行 ${summary.tool_running_count}`)
+  if (summary.scheduled_running_count > 0) parts.push(`定时会话 ${summary.scheduled_running_count}`)
+  if (summary.failed_recent_count > 0) parts.push(`最近失败 ${summary.failed_recent_count}`)
+  return parts.join('，')
+}
 
 // 重命名目录
 const handleRename = async (node: ServiceTree) => {
@@ -657,7 +746,39 @@ defineExpose({
   }
 
   .tree-search-input :deep(.el-input__wrapper) {
-    border-radius: 6px;
+    min-height: 34px;
+    border: 1px solid rgba(var(--el-color-primary-rgb), 0.14);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.045);
+    box-shadow: none;
+    backdrop-filter: blur(14px) saturate(1.15);
+    -webkit-backdrop-filter: blur(14px) saturate(1.15);
+    transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+  }
+
+  .tree-search-input :deep(.el-input__wrapper:hover) {
+    border-color: rgba(var(--el-color-primary-rgb), 0.24);
+    background: rgba(255, 255, 255, 0.065);
+  }
+
+  .tree-search-input :deep(.el-input__wrapper.is-focus) {
+    border-color: rgba(var(--el-color-primary-rgb), 0.38);
+    background: rgba(255, 255, 255, 0.075);
+    box-shadow: 0 0 0 3px rgba(var(--el-color-primary-rgb), 0.08);
+  }
+
+  .tree-search-input :deep(.el-input__inner) {
+    color: var(--el-text-color-primary);
+    background: transparent;
+  }
+
+  .tree-search-input :deep(.el-input__inner::placeholder) {
+    color: var(--el-text-color-placeholder);
+  }
+
+  .tree-search-input :deep(.el-input__prefix),
+  .tree-search-input :deep(.el-input__suffix) {
+    color: var(--el-text-color-secondary);
   }
   
   .header-actions {
@@ -838,6 +959,37 @@ defineExpose({
     cursor: pointer;
   }
 
+  .runtime-state-badge {
+    flex-shrink: 0;
+    margin-left: 6px;
+  }
+
+  .runtime-state-badge :deep(.el-badge__content) {
+    border: none;
+    background: #0ea5e9;
+    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.12);
+  }
+
+  .runtime-state-badge-thinking :deep(.el-badge__content) {
+    background: #38bdf8;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
+  }
+
+  .runtime-state-badge-tool :deep(.el-badge__content) {
+    background: #f59e0b;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.42);
+  }
+
+  .runtime-state-badge-approval :deep(.el-badge__content) {
+    background: #a855f7;
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.42);
+  }
+
+  .runtime-state-badge-failed :deep(.el-badge__content) {
+    background: #ef4444;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.42);
+  }
+
   .node-more-actions {
     flex-shrink: 0;
     margin-left: auto; /* 靠右对齐 */
@@ -897,7 +1049,7 @@ defineExpose({
 :global(.service-tree-contextmenu-popper .el-dropdown-menu),
 :global(.service-tree-dropdown-popper .el-dropdown-menu) {
   min-width: 160px;
-  z-index: 9999 !important;
+  z-index: var(--aos-z-floating-popper) !important;
 }
 
 :deep(.el-dropdown-menu__item),
