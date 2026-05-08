@@ -394,7 +394,7 @@ type writePRDResultData struct {
 
 var writePRDToolDef = toolDefinitionWithOutput[writePRDArgs, structuredToolResultSchema[writePRDResultData]](
 	"write_prd",
-	"在 app.plan 阶段输出结构化 PRD 预览供前端渲染和用户确认。无副作用：不创建目录、不写文件、不 build。必填 project、models 与 functions；models 只写业务字段 name、widget、validate、hide、description，不写 go_source、Go 源码、字段 code、json_name、go_name、go_type、gorm 或 example。字段个性化参数统一写进 widget，是否必填和校验写进 validate，展示范围写进 hide。functions 必须直接传 JSON 数组，首层值是数组本身，不要把思考过程写进字段。functions 必须按业务流程排序并填写 order，从 1 开始；通常是基础资料/管理表 → 业务提交 Form → 产生的记录查询表 → 统计 Chart。functions 只允许 table、form、chart 三类，并且 type=table 只填 table，type=form 只填 form，type=chart 只填 chart。Table 必须区分 request_fields 搜索请求、columns 列表列和 sample_rows 示例行；request_fields 每项只写 name/type/required/desc，columns 只是列表表头，sample_rows 标准 key 使用 columns 的用户可见列名。Form 必须区分 request_fields 与 response_fields；字段同样优先使用 name/type/required/desc，响应字段可额外写 example。Chart 使用自己的轻量结构：chart_type 推荐 line/bar/pie，dimension 写维度，metrics 写指标，filters 写查询字段且每个字段只用 name/type/required/desc，时间范围必须拆成开始时间和结束时间两个 datetime 字段，preview_data 写可视化样例数据，summary 写摘要指标；兼容旧 field/default/description 和旧 chart.request_fields/response_fields，但新 PRD 优先用轻量字段。一个 chart 路由只表示一张图。前端会展示确认按钮和备注输入，确认后会把完整 PRD 作为新会话第一条消息交给 app.create 生成阶段；收到确认前不要继续 create_directory、write_go_file 或 build_workspace。",
+	"在 app.plan 阶段输出结构化 PRD 预览供前端渲染和用户确认。无副作用：不创建目录、不写文件、不 build。必填 project、models 与 functions；models 只写业务字段 name、widget、validate、hide、description，不写 go_source、Go 源码、字段 code、json_name、go_name、go_type、gorm 或 example。字段个性化参数统一写进 widget，是否必填和校验写进 validate，展示范围写进 hide。functions 必须直接传 JSON 数组，首层值是数组本身，不要把思考过程写进字段。functions 必须按业务流程排序并填写 order，从 1 开始；通常是基础资料/管理表 → 业务提交 Form → 产生的记录查询表 → 统计 Chart。Table 自带列表查询、新增、编辑、删除能力；如果同一个 model 已有可新增/编辑的 Table，普通提交/新增/创建不要再单独设计 Form，除非 Form 在 description 明确说明差异（外部/匿名/客户自助、批量导入、文件解析、计算生成、支付结算、审批流、跨多表事务、只提交不编辑等）。functions 只允许 table、form、chart 三类，并且 type=table 只填 table，type=form 只填 form，type=chart 只填 chart。Table 必须区分 request_fields 搜索请求、columns 列表列和 sample_rows 示例行；request_fields 每项只写 name/type/required/desc，columns 只是列表表头，sample_rows 标准 key 使用 columns 的用户可见列名。Form 必须区分 request_fields 与 response_fields；字段同样优先使用 name/type/required/desc，响应字段可额外写 example。Chart 使用自己的轻量结构：chart_type 推荐 line/bar/pie，dimension 写维度，metrics 写指标，filters 写查询字段且每个字段只用 name/type/required/desc，时间范围必须拆成开始时间和结束时间两个 datetime 字段，preview_data 写可视化样例数据，summary 写摘要指标；兼容旧 field/default/description 和旧 chart.request_fields/response_fields，但新 PRD 优先用轻量字段。一个 chart 路由只表示一张图。write_prd 成功后助手正文最多 1 句话提示用户确认，不要再复述 PRD 表格、字段、功能清单或确认问题。前端会展示确认按钮和备注输入，确认后会把完整 PRD 作为新会话第一条消息交给 app.create 生成阶段；收到确认前不要继续 create_directory、write_go_file 或 build_workspace。",
 )
 
 func (t *WritePRDTool) Definition() dto.ToolDef {
@@ -411,7 +411,7 @@ func (t *WritePRDTool) Execute(ctx context.Context, call ToolCall) ToolResult {
 	if len(result.Issues) > 0 {
 		return toolResultWithStructuredData(result, true, "write_prd 参数不完整，先修正 PRD 结构后再继续。")
 	}
-	return toolResultWithStructuredData(result, false, "PRD 预览已生成；请等待用户点击确认 PRD 或回复确认后，再创建目录、写 Go 文件和 build。")
+	return toolResultWithStructuredData(result, false, "PRD 预览已生成；请等待用户点击确认 PRD 或回复确认。不要再复述 PRD 细节。")
 }
 
 func normalizeWritePRDRawArgs(args map[string]interface{}) map[string]interface{} {
@@ -765,6 +765,7 @@ func validateWritePRDResult(result writePRDResultData) []string {
 			}
 		}
 	}
+	issues = append(issues, validateWritePRDNoRedundantCRUDForms(result.Functions)...)
 	for idx, item := range result.AcceptanceCases {
 		prefix := fmt.Sprintf("acceptance_cases[%d]", idx)
 		if item.Name == "" {
@@ -778,6 +779,71 @@ func validateWritePRDResult(result writePRDResultData) []string {
 		}
 	}
 	return issues
+}
+
+func validateWritePRDNoRedundantCRUDForms(functions []writePRDFunction) []string {
+	var issues []string
+	writableTableByModel := map[string]writePRDFunction{}
+	for _, fn := range functions {
+		if fn.Type != "table" || fn.Model == "" || !writePRDTableHasCRUD(fn.Table) {
+			continue
+		}
+		writableTableByModel[fn.Model] = fn
+	}
+	if len(writableTableByModel) == 0 {
+		return nil
+	}
+	for idx, fn := range functions {
+		if fn.Type != "form" || fn.Model == "" {
+			continue
+		}
+		tableFn, ok := writableTableByModel[fn.Model]
+		if !ok {
+			continue
+		}
+		text := strings.ToLower(strings.Join([]string{fn.Title, fn.Route, fn.Description}, " "))
+		if !writePRDLooksLikeCreateSubmitForm(text) {
+			continue
+		}
+		if writePRDFormHasExplicitDifference(text) {
+			continue
+		}
+		issues = append(issues, fmt.Sprintf(
+			"functions[%d] 看起来是重复的提交/新增 Form：同一 model %q 已有可新增/编辑的 Table %q。Table 自带 CRUD；只有外部/匿名/客户自助、批量导入、文件解析、计算生成、支付结算、审批流、跨多表事务、只提交不编辑等明确差异时才保留 Form，并必须在 description 说明差异。",
+			idx, fn.Model, tableFn.Route,
+		))
+	}
+	return issues
+}
+
+func writePRDTableHasCRUD(table *writePRDTable) bool {
+	if table == nil || table.ReadOnly {
+		return false
+	}
+	text := strings.ToLower(strings.Join(append([]string{table.Capability}, table.Operations...), " "))
+	return writePRDContainsAny(text, []string{"新增", "新建", "创建", "编辑", "修改", "删除", "add", "create", "edit", "update", "delete", "crud"})
+}
+
+func writePRDLooksLikeCreateSubmitForm(text string) bool {
+	return writePRDContainsAny(text, []string{"提交", "新增", "新建", "创建", "录入", "填报", "submit", "create", "add"})
+}
+
+func writePRDFormHasExplicitDifference(text string) bool {
+	return writePRDContainsAny(text, []string{
+		"外部", "匿名", "客户自助", "公开", "游客", "移动端", "只提交", "禁止编辑", "不允许编辑",
+		"批量", "导入", "文件", "解析", "计算", "生成", "支付", "结算", "审批", "跨表", "多表", "事务",
+		"问卷", "投票", "收集", "回调", "专门结果", "返回结果",
+		"external", "anonymous", "import", "parse", "calculate", "generate", "payment", "approval",
+	})
+}
+
+func writePRDContainsAny(text string, needles []string) bool {
+	for _, needle := range needles {
+		if strings.Contains(text, needle) {
+			return true
+		}
+	}
+	return false
 }
 
 func validateWritePRDModel(prefix string, model writePRDModel) []string {

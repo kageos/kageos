@@ -133,6 +133,23 @@ func (h *Workspace) ListSessions(c *gin.Context) {
 	})
 }
 
+// CreateSessionHandoff 创建阶段交接会话。
+// POST /agent/api/v1/workspace/sessions/handoff
+func (h *Workspace) CreateSessionHandoff(c *gin.Context) {
+	var req dto.WorkspaceHandoffReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	ctx := contextx.ToContext(c)
+	resp, err := h.wsChatSvc.CreateWorkspaceHandoff(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, resp)
+}
+
 // ListMessages 获取工作台会话消息列表
 // GET /agent/api/v1/workspace/messages
 func (h *Workspace) ListMessages(c *gin.Context) {
@@ -161,13 +178,16 @@ func (h *Workspace) ListMessages(c *gin.Context) {
 	messageInfos := make([]dto.WorkspaceMessageInfo, 0, len(messages))
 	for _, msg := range messages {
 		info := dto.WorkspaceMessageInfo{
-			ID:        msg.ID,
-			SessionID: msg.SessionID,
-			Role:      msg.Role,
-			User:      msg.User,
-			Content:   msg.Content,
-			Files:     msg.Files,
-			CreatedAt: msg.CreatedAt,
+			ID:             msg.ID,
+			SessionID:      msg.SessionID,
+			Role:           msg.Role,
+			User:           msg.User,
+			Content:        msg.Content,
+			DisplayContent: msg.DisplayContent,
+			Files:          msg.Files,
+			CreatedAt:      msg.CreatedAt,
+			ContextUsage:   msg.ContextUsage,
+			ArtifactKind:   msg.ArtifactKind,
 		}
 		if msg.AgentID != nil {
 			info.AgentID = *msg.AgentID

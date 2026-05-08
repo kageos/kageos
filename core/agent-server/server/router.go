@@ -54,6 +54,7 @@ func (s *Server) setupRoutes() {
 	workspace.GET("/tools/names", workspaceChatHandler.ListToolNames)                           // 工具名列表
 	workspace.POST("/call_tool", workspaceChatHandler.CallTool)                                 // 执行工具（临时）
 	workspace.GET("/sessions", workspaceChatHandler.ListSessions)                               // 获取会话列表
+	workspace.POST("/sessions/handoff", workspaceChatHandler.CreateSessionHandoff)              // 创建阶段交接会话
 	workspace.GET("/sessions/running", workspaceChatHandler.ListRunningSessions)                // 查询执行中的任务
 	workspace.GET("/sessions/finished", workspaceChatHandler.ListFinishedSessions)              // 查询已结束的任务
 	workspace.GET("/sessions/:session_id/sse-status", workspaceChatHandler.GetSessionSSEStatus) // SSE 存活检测

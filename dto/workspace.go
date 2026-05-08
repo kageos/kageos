@@ -1,6 +1,8 @@
 package dto
 
 import (
+	"encoding/json"
+
 	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 )
@@ -16,8 +18,11 @@ type WorkspaceChatReq struct {
 
 // WorkspaceMsg 工作台单条消息
 type WorkspaceMsg struct {
-	Content string `json:"content" binding:"required"`
-	Files   string `json:"files,omitempty"` // 文件引用字符串，格式 bucket/object_key，多文件逗号分隔
+	Content        string `json:"content" binding:"required"`
+	DisplayContent string `json:"display_content,omitempty"` // 前端展示内容，模型仍使用 content
+	Files          string `json:"files,omitempty"`           // 文件引用字符串，格式 bucket/object_key，多文件逗号分隔
+	ContextUsage   string `json:"context_usage,omitempty"`   // include/display_only/artifact
+	ArtifactKind   string `json:"artifact_kind,omitempty"`   // 结构化产物类型
 }
 
 // WorkspaceChatResp 工作台对话响应
@@ -60,16 +65,46 @@ type ListWorkspaceSessionsResp struct {
 
 // WorkspaceSessionItem 工作台会话项
 type WorkspaceSessionItem struct {
-	SessionID    string      `json:"session_id"`               // 会话ID
-	Title        string      `json:"title"`                    // 会话标题
-	User         string      `json:"user"`                     // 创建该会话的用户
-	AgentID      *int64      `json:"agent_id"`                 // 关联的智能体ID（可为空）
-	AgentName    string      `json:"agent_name"`               // 智能体名称（如果有）
-	ModeCode     string      `json:"mode_code"`                // 工作台模式代码
-	Status       string      `json:"status"`                   // 会话状态（active/generating/done/cancelled）
-	FullCodePath string      `json:"full_code_path,omitempty"` // 所属目录完整路径
-	CreatedAt    models.Time `json:"created_at"`               // 创建时间
-	UpdatedAt    models.Time `json:"updated_at"`               // 更新时间
+	SessionID         string      `json:"session_id"`                    // 会话ID
+	Title             string      `json:"title"`                         // 会话标题
+	User              string      `json:"user"`                          // 创建该会话的用户
+	AgentID           *int64      `json:"agent_id"`                      // 关联的智能体ID（可为空）
+	AgentName         string      `json:"agent_name"`                    // 智能体名称（如果有）
+	ModeCode          string      `json:"mode_code"`                     // 工作台模式代码
+	Status            string      `json:"status"`                        // 会话状态（active/generating/done/cancelled）
+	FullCodePath      string      `json:"full_code_path,omitempty"`      // 所属目录完整路径
+	ParentSessionID   string      `json:"parent_session_id,omitempty"`   // 阶段交接来源会话ID
+	HandoffKind       string      `json:"handoff_kind,omitempty"`        // 阶段交接产物类型
+	HandoffTargetRole string      `json:"handoff_target_role,omitempty"` // 阶段交接目标身份
+	ContextPolicy     string      `json:"context_policy,omitempty"`      // 模型上下文策略
+	ArchivedForModel  bool        `json:"archived_for_model,omitempty"`  // 是否已归档且不再进入模型上下文
+	ArchiveReason     string      `json:"archive_reason,omitempty"`      // 归档原因
+	CreatedAt         models.Time `json:"created_at"`                    // 创建时间
+	UpdatedAt         models.Time `json:"updated_at"`                    // 更新时间
+}
+
+// WorkspaceHandoffReq 创建阶段交接会话请求。
+type WorkspaceHandoffReq struct {
+	SourceSessionID string          `json:"source_session_id" binding:"required"`
+	FullCodePath    string          `json:"full_code_path" binding:"required"`
+	TargetRole      string          `json:"target_role" binding:"required"`
+	ArtifactKind    string          `json:"artifact_kind" binding:"required"`
+	Artifact        json.RawMessage `json:"artifact" binding:"required"`
+	Remark          string          `json:"remark,omitempty"`
+	ContextPolicy   string          `json:"context_policy,omitempty"`
+	Title           string          `json:"title,omitempty"`
+	DisplayContent  string          `json:"display_content,omitempty"`
+}
+
+// WorkspaceHandoffResp 阶段交接会话创建结果。
+type WorkspaceHandoffResp struct {
+	SessionID       string `json:"session_id"`
+	SourceSessionID string `json:"source_session_id"`
+	TargetRole      string `json:"target_role"`
+	ArtifactKind    string `json:"artifact_kind"`
+	ContextPolicy   string `json:"context_policy"`
+	Content         string `json:"content"`
+	DisplayContent  string `json:"display_content"`
 }
 
 // CancelWorkspaceChatReq 取消工作台会话执行请求
@@ -89,15 +124,18 @@ type ListWorkspaceMessagesResp struct {
 
 // WorkspaceMessageInfo 工作台消息信息
 type WorkspaceMessageInfo struct {
-	ID        int64                          `json:"id"`                   // 消息ID
-	SessionID string                         `json:"session_id"`           // 会话ID
-	AgentID   int64                          `json:"agent_id"`             // 智能体ID（0表示未关联）
-	Role      string                         `json:"role"`                 // 角色：user/assistant/tool
-	User      string                         `json:"user"`                 // 创建该消息的用户
-	Content   string                         `json:"content"`              // 消息内容（user 仅存用户文字，不含 <files> 块）
-	Files     *string                        `json:"files,omitempty"`      // 用户消息附带的文件引用字符串，仅 user 角色可能有
-	ToolCalls []WorkspaceChatToolCallSummary `json:"tool_calls,omitempty"` // 工具调用列表（仅assistant角色）
-	CreatedAt models.Time                    `json:"created_at"`           // 创建时间
+	ID             int64                          `json:"id"`                        // 消息ID
+	SessionID      string                         `json:"session_id"`                // 会话ID
+	AgentID        int64                          `json:"agent_id"`                  // 智能体ID（0表示未关联）
+	Role           string                         `json:"role"`                      // 角色：user/assistant/tool
+	User           string                         `json:"user"`                      // 创建该消息的用户
+	Content        string                         `json:"content"`                   // 消息内容（user 仅存用户文字，不含 <files> 块）
+	DisplayContent string                         `json:"display_content,omitempty"` // 前端展示内容，空则展示 content
+	Files          *string                        `json:"files,omitempty"`           // 用户消息附带的文件引用字符串，仅 user 角色可能有
+	ToolCalls      []WorkspaceChatToolCallSummary `json:"tool_calls,omitempty"`      // 工具调用列表（仅assistant角色）
+	ContextUsage   string                         `json:"context_usage,omitempty"`   // 模型上下文用途
+	ArtifactKind   string                         `json:"artifact_kind,omitempty"`   // 结构化产物类型
+	CreatedAt      models.Time                    `json:"created_at"`                // 创建时间
 }
 
 // ToolDef 工具定义（list_tools 返回、LLM tools 入参，即 MCP tool schema）
