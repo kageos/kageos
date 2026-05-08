@@ -55,9 +55,12 @@ func (a *App) handleMessage(msg *nats.Msg) {
 	if req.RequestUserDept == "" {
 		req.RequestUserDept = msg.Header.Get(contextx.DepartmentFullPathHeader)
 	}
+	if req.ClientSource == "" {
+		req.ClientSource = msg.Header.Get(contextx.ClientSourceHeader)
+	}
 
-	logger.Infof(ctx, "[SDK:handleMessage] received: traceId=%s, method=%s, router=%s, user=%s, bodyLen=%d",
-		req.TraceId, req.Method, req.Router, req.RequestUser, len(req.Body))
+	logger.Infof(ctx, "[SDK:handleMessage] received: traceId=%s, method=%s, router=%s, user=%s, source=%s, bodyLen=%d",
+		req.TraceId, req.Method, req.Router, req.RequestUser, req.ClientSource, len(req.Body))
 
 	// 增加运行中函数计数
 	a.incrementRunningCount()

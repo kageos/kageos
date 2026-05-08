@@ -2,6 +2,7 @@ import { useUserInfoStore } from '@/stores/userInfo'
 import { useDepartmentInfoStore } from '@/stores/departmentInfo'
 import type { FunctionDetail } from '../../domain/types'
 import { getSearchFieldRawValue } from '@/utils/searchFieldValue'
+import { getTableListFields, getTableSearchFields } from '@/utils/functionSchemaSelectors'
 
 export function useTableReferencePreload() {
   const userInfoStore = useUserInfoStore()
@@ -12,8 +13,8 @@ export function useTableReferencePreload() {
     searchFormData: Record<string, any>
   ): Promise<void> => {
     try {
-      const requestFields = Array.isArray(functionDetail.request) ? functionDetail.request : []
-      const responseFields = Array.isArray(functionDetail.response) ? functionDetail.response : []
+      const requestFields = getTableSearchFields(functionDetail)
+      const responseFields = getTableListFields(functionDetail)
       const userFields = [
         ...requestFields.filter(f => f.widget?.type === 'user'),
         ...responseFields.filter(f => f.widget?.type === 'user')
@@ -55,8 +56,8 @@ export function useTableReferencePreload() {
     searchFormData: Record<string, any>
   ): Promise<void> => {
     try {
-      const requestFields = Array.isArray(functionDetail.request) ? functionDetail.request : []
-      const responseFields = Array.isArray(functionDetail.response) ? functionDetail.response : []
+      const requestFields = getTableSearchFields(functionDetail)
+      const responseFields = getTableListFields(functionDetail)
       const departmentFields = [
         ...requestFields.filter(f => f.widget?.type === 'department' || f.widget?.type === 'departments'),
         ...responseFields.filter(f => f.widget?.type === 'department' || f.widget?.type === 'departments')

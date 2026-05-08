@@ -280,6 +280,7 @@ import { Logger } from '@/core/utils/logger'
 import { createEmptyRawFieldValue, createFieldValue } from '@/core/utils/createFieldValue'
 import { useAuthStore } from '@/stores/auth'
 import { useUserInfoStore } from '@/stores/userInfo'
+import { getRenderDefaultFromConfig } from '@/core/widgetRuntime/defaultValue'
 
 const COMPONENT_NAME = 'UsersWidget'
 
@@ -320,7 +321,7 @@ const maxDisplayCount = computed(() => {
 })
 
 interface UsersWidgetConfig {
-  default?: string
+  render_default?: string
   max_count?: number
   max_display_count?: number // 详情模式最多显示的头像数量
 }
@@ -507,10 +508,7 @@ onMounted(async () => {
     
     const currentRaw = effectiveValue.value?.raw
     const existingValue = formDataStore.getValue(props.fieldPath)
-    const config = props.field.widget?.config
-    const defaultValue = config && typeof config === 'object' && 'default' in config 
-      ? (config as Record<string, any>).default 
-      : undefined
+    const defaultValue = getRenderDefaultFromConfig(props.field.widget?.config)
     
     // 🔥 检查是否需要解析 Me() 或 MyLeader() 函数调用
     // 情况1：value.raw 是 "Me()" 或 "MyLeader()" 字符串（FormDomainService 还没有解析）

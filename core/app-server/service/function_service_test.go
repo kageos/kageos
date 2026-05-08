@@ -5,36 +5,54 @@ import (
 	"testing"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 )
 
 func TestConvertFunctionToRespNormalizesStoredFieldCodes(t *testing.T) {
 	svc := &FunctionService{}
+	schemaJSON, err := functionschema.Marshal(functionschema.NewForm(
+		[]*widget.Field{
+			{
+				Code:      "args_json,omitempty",
+				FieldName: "ArgsJSON",
+				Name:      "参数(JSON格式)",
+				Widget: struct {
+					Type   string      `json:"type"`
+					Config interface{} `json:"config,omitempty"`
+				}{Type: "text_area", Config: map[string]interface{}{}},
+			},
+		},
+		[]*widget.Field{
+			{
+				Code:      "output_files,omitempty",
+				FieldName: "OutputFiles",
+				Name:      "输出文件",
+				Widget: struct {
+					Type   string      `json:"type"`
+					Config interface{} `json:"config,omitempty"`
+				}{Type: "files", Config: map[string]interface{}{"max_count": 5}},
+			},
+		},
+		nil,
+	))
+	if err != nil {
+		t.Fatalf("marshal schema failed: %v", err)
+	}
 	function := &model.Function{
-		Request: json.RawMessage(`[
-			{"code":"args_json,omitempty","field_name":"ArgsJSON","name":"参数(JSON格式)","widget":{"type":"text_area","config":{}}}
-		]`),
-		Response: json.RawMessage(`[
-			{"code":"output_files,omitempty","field_name":"OutputFiles","name":"输出文件","widget":{"type":"files","config":{"max_count":5}}}
-		]`),
+		Schema: schemaJSON,
 	}
 
 	resp := svc.convertFunctionToResp(function)
 
-	requestFields, ok := resp.Request.([]*widget.Field)
-	if !ok {
-		t.Fatalf("request type = %T, want []*widget.Field", resp.Request)
-	}
-	responseFields, ok := resp.Response.([]*widget.Field)
-	if !ok {
-		t.Fatalf("response type = %T, want []*widget.Field", resp.Response)
-	}
+	requestFields := resp.Schema.Form.Request
+	responseFields := resp.Schema.Form.Response
 
-	requestJSON, err := json.Marshal(resp.Request)
+	requestJSON, err := json.Marshal(requestFields)
 	if err != nil {
 		t.Fatalf("marshal request failed: %v", err)
 	}
-	responseJSON, err := json.Marshal(resp.Response)
+	responseJSON, err := json.Marshal(responseFields)
 	if err != nil {
 		t.Fatalf("marshal response failed: %v", err)
 	}

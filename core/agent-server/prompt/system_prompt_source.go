@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
+	"github.com/ai-agent-os/ai-agent-os/pkg/servicetree"
 )
 
 const (
@@ -63,6 +64,18 @@ func NormalizePromptDocPath(fullCodePath string) string {
 	}
 }
 
+func IsLegacyWorkspacePromptPath(fullCodePath string) bool {
+	fullCodePath = strings.TrimSpace(fullCodePath)
+	if fullCodePath == "" {
+		return false
+	}
+	if !strings.HasPrefix(fullCodePath, "/") {
+		fullCodePath = "/" + fullCodePath
+	}
+	fullCodePath = strings.TrimRight(fullCodePath, "/")
+	return fullCodePath == SystemPromptRootPath+"/workspace" || strings.HasPrefix(fullCodePath, SystemPromptRootPath+"/workspace/")
+}
+
 func IsPromptDocPath(fullCodePath string) bool {
 	return NormalizePromptDocPath(fullCodePath) != ""
 }
@@ -86,6 +99,9 @@ func PromptDocIndexPath(fullCodePath string) string {
 func PromptDocCandidatePaths(fullCodePath string) []string {
 	logical := NormalizePromptDocPath(fullCodePath)
 	if logical == "" {
+		return nil
+	}
+	if IsLegacyWorkspacePromptPath(logical) {
 		return nil
 	}
 	candidates := make([]string, 0, 3)
@@ -140,6 +156,9 @@ func LoadModeConfig(ctx context.Context, code string) *ModeConfig {
 func GetPromptDocContent(ctx context.Context, fullCodePath string) (name, content string) {
 	logical := NormalizePromptDocPath(fullCodePath)
 	if logical == "" {
+		return "", ""
+	}
+	if IsLegacyWorkspacePromptPath(logical) {
 		return "", ""
 	}
 	for _, actualPath := range PromptDocCandidatePaths(logical) {
@@ -239,9 +258,9 @@ func collectSDKCatalogEntriesFromTree(ctx context.Context, fullCodePath string) 
 	var entries []DocCatalogEntry
 	for _, child := range workspaceCtx.Children {
 		switch child.Type {
-		case "package":
+		case servicetree.TypePackage:
 			entries = append(entries, collectSDKCatalogEntriesFromTree(ctx, child.FullCodePath)...)
-		case "docs":
+		case servicetree.TypeDocs:
 			if strings.EqualFold(child.Code, "index.docs") {
 				continue
 			}
@@ -266,7 +285,7 @@ func collectCaseCatalogEntriesFromTree(ctx context.Context, fullCodePath string,
 		hasPackageChilds bool
 	)
 	for _, child := range workspaceCtx.Children {
-		if child.Type != "package" {
+		if child.Type != servicetree.TypePackage {
 			continue
 		}
 		hasPackageChilds = true
@@ -289,22 +308,16 @@ func loadModeProviderFromTree(ctx context.Context, code string) *modeProvider {
 	}
 
 	systemPrompt := loadModeDocContent(ctx, code, cfg.SystemPromptFile)
-	firstAssistant := loadModeDocContent(ctx, code, cfg.FirstAssistantFile)
-	var operationPrompt string
-	if cfg.OperationPromptFile != "" {
-		operationPrompt = loadModeDocContent(ctx, code, cfg.OperationPromptFile)
-	}
+	systemPrompt = appendModeSystemPrompt(systemPrompt, loadTreePromptAppendFiles(ctx, code, modeSystemPromptAppendFiles(code, cfg.SystemPromptAppendFiles)))
 
 	toolNames := cfg.ToolNames
 	if toolNames == nil {
 		toolNames = []string{}
 	}
 	return &modeProvider{
-		code:            code,
-		systemPrompt:    systemPrompt,
-		firstAssistant:  firstAssistant,
-		operationPrompt: operationPrompt,
-		toolNames:       toolNames,
+		code:         code,
+		systemPrompt: systemPrompt,
+		toolNames:    toolNames,
 	}
 }
 
@@ -331,6 +344,30 @@ func loadModeDocContent(ctx context.Context, code, fileName string) string {
 	}
 	_, content := GetPromptDocContent(ctx, SystemPromptRootPath+"/mode/"+code+"/"+base)
 	return content
+}
+
+func loadTreePromptAppendFiles(ctx context.Context, code string, fileNames []string) []string {
+	contents := make([]string, 0, len(fileNames))
+	for _, fileName := range fileNames {
+		content := loadTreePromptAppendFile(ctx, code, fileName)
+		if strings.TrimSpace(content) == "" {
+			continue
+		}
+		contents = append(contents, content)
+	}
+	return contents
+}
+
+func loadTreePromptAppendFile(ctx context.Context, code, fileName string) string {
+	fileName = strings.TrimSpace(fileName)
+	if fileName == "" {
+		return ""
+	}
+	if strings.HasPrefix(fileName, SystemPromptRootPath+"/") || fileName == SystemPromptRootPath {
+		_, content := GetPromptDocContent(ctx, fileName)
+		return content
+	}
+	return loadModeDocContent(ctx, code, fileName)
 }
 
 func getSeedPromptDocContent(logicalPath string) (name, content string) {
@@ -368,7 +405,7 @@ func buildSystemPromptSeedDocs() ([]PromptSeedDoc, error) {
 		return nil, err
 	}
 
-	for _, rel := range []string{"platform-overview.md", "platform-cross-cutting-capabilities.md"} {
+	for _, rel := range []string{"platform-capability-boundaries.md"} {
 		logical := SystemPromptRootPath + "/" + strings.TrimSuffix(rel, path.Ext(rel))
 		if err := appendPromptSeedFileDoc(&docs, systemPromptSeedRoot+"/"+rel, logical, "markdown", "", ""); err != nil {
 			return nil, err
@@ -389,10 +426,10 @@ func buildSystemPromptSeedDocs() ([]PromptSeedDoc, error) {
 		}
 	}
 
-	if err := appendPromptSDKSeedDocs(&docs); err != nil {
+	if err := appendPromptIntentSeedDocs(&docs); err != nil {
 		return nil, err
 	}
-	if err := appendPromptWorkspaceSeedDocs(&docs); err != nil {
+	if err := appendPromptSDKSeedDocs(&docs); err != nil {
 		return nil, err
 	}
 	if err := appendPromptCaseCatalogSeedDocs(&docs); err != nil {
@@ -413,6 +450,12 @@ func buildSystemPromptSeedPackages() ([]PromptSeedPackage, error) {
 	err := fs.WalkDir(promptFS, systemPromptSeedRoot, func(current string, entry fs.DirEntry, err error) error {
 		if err != nil || !entry.IsDir() {
 			return err
+		}
+		if isLegacyWorkspaceSeedPath(current) {
+			if current == systemPromptSeedRoot+"/workspace" {
+				return fs.SkipDir
+			}
+			return nil
 		}
 		logical := SystemPromptRootPath
 		if current != systemPromptSeedRoot {
@@ -453,6 +496,12 @@ func appendPromptSeedReadmeDocs(docs *[]PromptSeedDoc) error {
 	return fs.WalkDir(promptFS, systemPromptSeedRoot, func(current string, entry fs.DirEntry, err error) error {
 		if err != nil || !entry.IsDir() {
 			return err
+		}
+		if isLegacyWorkspaceSeedPath(current) {
+			if current == systemPromptSeedRoot+"/workspace" {
+				return fs.SkipDir
+			}
+			return nil
 		}
 		if shouldSkipPromptReadmeIndexDoc(current) {
 			return nil
@@ -517,31 +566,22 @@ func appendPromptSDKSeedDocs(docs *[]PromptSeedDoc) error {
 	})
 }
 
-func appendPromptWorkspaceSeedDocs(docs *[]PromptSeedDoc) error {
-	root := systemPromptSeedRoot + "/workspace"
+func appendPromptIntentSeedDocs(docs *[]PromptSeedDoc) error {
+	root := systemPromptSeedRoot + "/intents"
 	return fs.WalkDir(promptFS, root, func(current string, entry fs.DirEntry, err error) error {
-		if err != nil || !entry.IsDir() || current == root {
+		if err != nil || entry.IsDir() {
 			return err
 		}
-		mdNames, readErr := listDirectMarkdownFiles(current)
-		if readErr != nil || len(mdNames) == 0 {
-			return readErr
+		name := entry.Name()
+		if !strings.HasSuffix(strings.ToLower(name), ".md") || strings.EqualFold(name, systemPromptReadmeFileName) {
+			return nil
 		}
-		content, concatErr := concatMarkdownFiles(current, mdNames)
-		if concatErr != nil {
-			return concatErr
+		dir := path.Dir(current)
+		logical := logicalPromptPathFromSeedDir(dir) + "/" + strings.TrimSuffix(name, path.Ext(name))
+		if strings.EqualFold(strings.TrimSuffix(name, path.Ext(name)), "index") {
+			logical = logicalPromptPathFromSeedDir(dir)
 		}
-		logical := logicalPromptPathFromSeedDir(current)
-		title, body, _ := loadPromptSeedReadmeMeta(current)
-		*docs = append(*docs, PromptSeedDoc{
-			Name:        firstNonEmpty(title, path.Base(logical)),
-			Description: body,
-			LogicalPath: logical,
-			ActualPath:  PromptDocIndexPath(logical),
-			Content:     content,
-			Format:      "markdown",
-		})
-		return nil
+		return appendPromptSeedFileDoc(docs, current, logical, "markdown", "", "")
 	})
 }
 
@@ -601,7 +641,7 @@ func appendPromptModeSeedDocs(docs *[]PromptSeedDoc) error {
 			return err
 		}
 
-		for _, fileName := range []string{"config.json", "system_prompt.md", "first_assistant.md"} {
+		for _, fileName := range []string{"config.json", "system_prompt.md"} {
 			filePath := modeRoot + "/" + modeCode + "/" + fileName
 			content, readErr := readPromptSeedFile(filePath)
 			if readErr != nil {
@@ -661,9 +701,6 @@ func resolveModeSeedDocMeta(cfg ModeConfig, fileName, content string) (name, des
 	case "system_prompt.md":
 		name, desc = extractMarkdownMeta(content, modeName+"系统提示词")
 		return name, desc
-	case "first_assistant.md":
-		name, desc = extractMarkdownMeta(content, modeName+"首条助手消息")
-		return name, desc
 	default:
 		return extractMarkdownMeta(content, path.Base(fileName))
 	}
@@ -696,6 +733,9 @@ func logicalPromptPathFromSeedDir(dir string) string {
 }
 
 func shouldSkipPromptReadmeIndexDoc(dir string) bool {
+	if isLegacyWorkspaceSeedPath(dir) {
+		return true
+	}
 	if strings.HasPrefix(dir, systemPromptSeedRoot+"/workspace/") {
 		return true
 	}
@@ -706,6 +746,11 @@ func shouldSkipPromptReadmeIndexDoc(dir string) bool {
 		return true
 	}
 	return false
+}
+
+func isLegacyWorkspaceSeedPath(seedPath string) bool {
+	seedPath = strings.TrimRight(seedPath, "/")
+	return seedPath == systemPromptSeedRoot+"/workspace" || strings.HasPrefix(seedPath, systemPromptSeedRoot+"/workspace/")
 }
 
 func listDirectMarkdownFiles(dir string) ([]string, error) {

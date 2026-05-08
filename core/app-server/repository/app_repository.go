@@ -206,11 +206,11 @@ func (r *AppRepository) UpdatePendingCount(appID int64, delta int) error {
 	err := r.db.Model(&model.App{}).
 		Where("id = ?", appID).
 		Update("pending_count", gorm.Expr("GREATEST(0, pending_count + ?)", delta)).Error
-	
+
 	if err != nil {
 		return err
 	}
-	
+
 	// 清理缓存，确保下次读取时获取最新值
 	// 先通过 appID 获取 app 信息，再清理 user:app 缓存
 	var app model.App
@@ -220,7 +220,7 @@ func (r *AppRepository) UpdatePendingCount(appID int64, delta int) error {
 		// 如果查询失败，至少清理 appID 缓存
 		r.InvalidateAppCacheByID(appID)
 	}
-	
+
 	return nil
 }
 

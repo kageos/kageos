@@ -2,7 +2,11 @@ package widget
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
+	apptypes "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 )
 
 // 测试用的嵌套结构体
@@ -31,8 +35,8 @@ type Order struct {
 // 测试没有明确指定 type 的结构体
 type OrderNoWidget struct {
 	ID     int          `json:"id" widget:"name:订单ID;type:ID"`
-	Items  []OrderItem  `json:"items" widget:"name:订单项"`   // 没有指定type，不会递归
-	Detail *OrderDetail `json:"detail" widget:"name:订单详情"` // 没有指定type，不会递归
+	Items  []OrderItem  `json:"items" widget:"name:订单项"`   // 缺少 type，启动期应报错
+	Detail *OrderDetail `json:"detail" widget:"name:订单详情"` // 缺少 type，启动期应报错
 }
 
 // 测试多层嵌套
@@ -54,6 +58,32 @@ type NestedLevel1 struct {
 type OmitEmptyFieldSample struct {
 	OutputFiles string `json:"output_files,omitempty" widget:"name:输出文件;type:files"`
 	TraceID     string `json:",omitempty" widget:"name:追踪ID;type:input"`
+}
+
+type DateTimeFieldSample struct {
+	CreatedAt apptypes.Time `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"`
+}
+
+type RenderDefaultFieldSample struct {
+	Priority string `json:"priority" widget:"name:优先级;type:select;options:低,中,高;render_default:中"`
+}
+
+type VoteOptionItemSample struct {
+	Content string `json:"content" widget:"name:选项内容;type:input"`
+	Sort    int    `json:"sort" widget:"name:排序;type:number"`
+}
+
+type HideCreateTableFieldSample struct {
+	Options []VoteOptionItemSample `json:"options" widget:"name:投票选项;type:table" hide:"list,update"`
+}
+
+type EmptyHideScenesFieldSample struct {
+	Title string `json:"title" widget:"name:标题;type:input" hide:""`
+}
+
+type PageSortReqSkipSample struct {
+	Name string `json:"name" widget:"name:名称;type:input"`
+	query.PageSortReq
 }
 
 func TestDecodeForm(t *testing.T) {
@@ -173,51 +203,108 @@ func TestDecodeForm(t *testing.T) {
 		}
 	})
 
-	t.Run("没有明确指定type-不进行递归", func(t *testing.T) {
-		order := &OrderNoWidget{}
-		requestFields, _, err := DecodeForm(nil, order, nil)
+	t.Run("datetime字段按字符串协议输出schema", func(t *testing.T) {
+		fields, _, err := DecodeForm(nil, &DateTimeFieldSample{}, nil)
 		if err != nil {
 			t.Fatalf("解析失败: %v", err)
 		}
+		if len(fields) != 1 {
+			t.Fatalf("期望1个字段，实际得到%d个", len(fields))
+		}
+		field := fields[0]
+		if field.Widget.Type != TypeDatetime {
+			t.Fatalf("widget type = %q, want %q", field.Widget.Type, TypeDatetime)
+		}
+		if field.Data.Type != DataTypeString {
+			t.Fatalf("data type = %q, want %q", field.Data.Type, DataTypeString)
+		}
+		config, ok := field.Widget.Config.(*DateTime)
+		if !ok {
+			t.Fatalf("config type = %T, want *DateTime", field.Widget.Config)
+		}
+		if config.Format != "YYYY-MM-DD HH:mm:ss" {
+			t.Fatalf("format = %q", config.Format)
+		}
+	})
 
-		// 打印完整的JSON结构
-		jsonData, _ := json.MarshalIndent(requestFields, "", "  ")
-		t.Logf("解析结果:\n%s", string(jsonData))
-
-		// 验证 Items 字段
-		var itemsField *Field
-		for _, field := range requestFields {
-			if field.Code == "items" {
-				itemsField = field
-				break
-			}
+	t.Run("render_default只输出新schema", func(t *testing.T) {
+		fields, _, err := DecodeForm(nil, &RenderDefaultFieldSample{}, nil)
+		if err != nil {
+			t.Fatalf("解析失败: %v", err)
+		}
+		if len(fields) != 1 {
+			t.Fatalf("期望1个字段，实际得到%d个", len(fields))
 		}
 
-		if itemsField == nil {
-			t.Fatal("未找到items字段")
+		priorityConfig, ok := fields[0].Widget.Config.(*Select)
+		if !ok {
+			t.Fatalf("priority config type = %T, want *Select", fields[0].Widget.Config)
 		}
-
-		// 没有指定type，不应该有Children
-		if len(itemsField.Children) != 0 {
-			t.Errorf("items字段没有指定type:table，不应该有Children，但实际有%d个", len(itemsField.Children))
+		if priorityConfig.RenderDefault != "中" {
+			t.Fatalf("priority render_default = %q", priorityConfig.RenderDefault)
 		}
-
-		// 验证 Detail 字段
-		var detailField *Field
-		for _, field := range requestFields {
-			if field.Code == "detail" {
-				detailField = field
-				break
-			}
+		data, err := json.Marshal(fields)
+		if err != nil {
+			t.Fatalf("marshal fields: %v", err)
 		}
-
-		if detailField == nil {
-			t.Fatal("未找到detail字段")
+		if string(data) == "" || !strings.Contains(string(data), `"render_default"`) {
+			t.Fatalf("schema should contain render_default, got %s", string(data))
 		}
+		if strings.Contains(string(data), `"default"`) {
+			t.Fatalf("schema should not emit legacy default, got %s", string(data))
+		}
+	})
 
-		// 没有指定type，不应该有Children
-		if len(detailField.Children) != 0 {
-			t.Errorf("detail字段没有指定type:form，不应该有Children，但实际有%d个", len(detailField.Children))
+	t.Run("table字段保留hide scenes", func(t *testing.T) {
+		fields, _, err := DecodeForm(nil, &HideCreateTableFieldSample{}, nil)
+		if err != nil {
+			t.Fatalf("解析失败: %v", err)
+		}
+		if len(fields) != 1 {
+			t.Fatalf("期望1个字段，实际得到%d个", len(fields))
+		}
+		if fields[0].Hide == nil {
+			t.Fatal("Hide should not be nil")
+		}
+		if got, want := strings.Join(fields[0].Hide.Scenes, ","), "list,update"; got != want {
+			t.Fatalf("hide scenes = %q, want %q", got, want)
+		}
+		if len(fields[0].Children) != 2 {
+			t.Fatalf("table children = %d, want 2", len(fields[0].Children))
+		}
+	})
+
+	t.Run("空hide scenes启动期报错", func(t *testing.T) {
+		_, _, err := DecodeForm(nil, &EmptyHideScenesFieldSample{}, nil)
+		if err == nil {
+			t.Fatal("DecodeForm() error = nil, want error")
+		}
+		if !strings.Contains(err.Error(), `hide tag must not be empty`) {
+			t.Fatalf("DecodeForm() error = %v, want empty hide error", err)
+		}
+	})
+
+	t.Run("PageSortReq不会渲染成业务字段", func(t *testing.T) {
+		fields, _, err := DecodeForm(nil, &PageSortReqSkipSample{}, nil)
+		if err != nil {
+			t.Fatalf("解析失败: %v", err)
+		}
+		if len(fields) != 1 {
+			t.Fatalf("期望1个字段，实际得到%d个", len(fields))
+		}
+		if fields[0].Code != "name" {
+			t.Fatalf("fields[0].Code = %q, want name", fields[0].Code)
+		}
+	})
+
+	t.Run("widget标签缺少type启动期报错", func(t *testing.T) {
+		order := &OrderNoWidget{}
+		_, _, err := DecodeForm(nil, order, nil)
+		if err == nil {
+			t.Fatal("DecodeForm() error = nil, want error")
+		}
+		if !strings.Contains(err.Error(), "widget tag must include type") {
+			t.Fatalf("DecodeForm() error = %v, want missing type error", err)
 		}
 	})
 

@@ -18,7 +18,7 @@
           <div
             v-for="(dept, index) in selectedDepartmentsForDisplay"
             :key="dept.full_code_path"
-            class="selected-department-tag"
+            class="selected-department-chip"
           >
             <img src="/组织架构.svg" alt="组织架构" class="department-icon-small" />
             <span class="department-display-text">
@@ -138,6 +138,7 @@ import { Logger } from '@/core/utils/logger'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import { SearchType, hasSearchType } from '@/core/constants/search'
 import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/utils/searchType'
+import { getRenderDefaultFromConfig } from '@/core/widgetRuntime/defaultValue'
 
 const COMPONENT_NAME = 'DepartmentWidget'
 
@@ -170,7 +171,7 @@ const supportsMultipleSelection = computed(() => {
   if (props.mode !== 'search') {
     return false
   }
-  const searchType = resolveWidgetSearchType(props.searchType, props.field.search)
+  const searchType = resolveWidgetSearchType(props.searchType)
   return hasSearchType(searchType, SearchType.IN)
 })
 
@@ -479,8 +480,8 @@ onMounted(async () => {
     // 情况1：value.raw 是 "MyDepartment()" 字符串（FormDomainService 还没有解析）
     // 情况2：value.raw 是 null/undefined/空字符串，且配置中有 "MyDepartment()" 默认值
     const needsResolveMyDepartment = currentRaw === 'MyDepartment()' || 
-      ((!currentRaw || currentRaw === '') && 
-       props.field.widget?.config?.default === 'MyDepartment()')
+      ((!currentRaw || currentRaw === '') &&
+       getRenderDefaultFromConfig(props.field.widget?.config) === 'MyDepartment()')
     
     if (needsResolveMyDepartment) {
       // ⚠️ 检查是否是编辑模式：
@@ -550,7 +551,7 @@ onMounted(async () => {
   line-height: 1.2;
 }
 
-.department-select-wrapper.is-search-mode .selected-department-tag {
+.department-select-wrapper.is-search-mode .selected-department-chip {
   min-height: 20px;
   padding: 0 6px;
 }
@@ -644,7 +645,7 @@ onMounted(async () => {
   align-items: center;
 }
 
-.selected-department-tag {
+.selected-department-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -657,18 +658,18 @@ onMounted(async () => {
   box-sizing: border-box;
 }
 
-.selected-department-tag .department-icon-small {
+.selected-department-chip .department-icon-small {
   width: 14px;
   height: 14px;
   flex-shrink: 0;
 }
 
-.selected-department-tag .department-display-text {
+.selected-department-chip .department-display-text {
   color: var(--el-text-color-primary);
   white-space: nowrap;
 }
 
-.selected-department-tag .remove-icon {
+.selected-department-chip .remove-icon {
   cursor: pointer;
   color: var(--el-text-color-secondary);
   font-size: 14px;
@@ -676,7 +677,7 @@ onMounted(async () => {
   transition: color 0.2s;
 }
 
-.selected-department-tag .remove-icon:hover {
+.selected-department-chip .remove-icon:hover {
   color: var(--el-color-primary);
 }
 

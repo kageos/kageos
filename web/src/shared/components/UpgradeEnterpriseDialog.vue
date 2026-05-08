@@ -6,7 +6,7 @@
     width="600px"
     :append-to-body="true"
     :close-on-click-modal="false"
-    :z-index="12000"
+    :z-index="Z_INDEX.enterpriseDialog"
     @close="handleClose"
   >
     <el-form :model="formData" label-width="120px">
@@ -58,6 +58,7 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { UploadFile } from 'element-plus'
 import { useLicenseStore } from '@/stores/license'
+import { Z_INDEX } from '@/utils/zIndex'
 
 const props = defineProps<{
   modelValue: boolean

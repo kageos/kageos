@@ -5,6 +5,7 @@ import type { IEventBus } from '@/architecture/domain/interfaces/IEventBus'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import { useFormViewState } from './useFormViewState'
 import { createFormViewRuntime } from '@/architecture/presentation/views/utils/formViewRuntime'
+import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
 
 function createMockEventBus(): IEventBus {
   const listeners = new Map<string, Set<(payload?: any) => void>>()
@@ -48,27 +49,36 @@ describe('useFormViewState', () => {
       apiClient: apiClientStub
     })
 
+    const fields = [
+      {
+        code: 'member_type',
+        field_name: 'MemberType',
+        name: '会员类型',
+        widget: { type: 'input' },
+        data: { type: 'string' }
+      },
+      {
+        code: 'card_no',
+        name: '卡号',
+        widget: { type: 'input' },
+        data: { type: 'string' },
+        validation: 'required_if=MemberType vip'
+      }
+    ]
     const functionDetail = ref<FunctionDetail | null>({
-      request: [
-        {
-          code: 'member_type',
-          field_name: 'MemberType',
-          name: '会员类型',
-          widget: { type: 'input' },
-          data: { type: 'string' }
-        },
-        {
-          code: 'card_no',
-          name: '卡号',
-          widget: { type: 'input' },
-          data: { type: 'string' },
-          validation: 'required_if=MemberType vip'
+      schema: {
+        version: 1,
+        type: 'form',
+        form: {
+          request: fields,
+          response: []
         }
-      ]
+      }
     })
     const detail = functionDetail.value!
+    const requestFields = getFormRequestFields(detail)
 
-    runtime.applicationService.initializeForm(detail.request || [], { member_type: 'normal', card_no: '' }, true)
+    runtime.applicationService.initializeForm(requestFields, { member_type: 'normal', card_no: '' }, true)
 
     const state = useFormViewState({
       functionDetail,
@@ -78,7 +88,7 @@ describe('useFormViewState', () => {
     })
 
     expect(state.visibleRequestFields.value.map((field) => field.code)).toEqual(['member_type'])
-    expect(state.isFieldRequired(detail.request![1]!)).toBe(false)
+    expect(state.isFieldRequired(requestFields[1]!)).toBe(false)
 
     runtime.applicationService.updateFieldValue('member_type', {
       raw: 'vip',
@@ -88,6 +98,6 @@ describe('useFormViewState', () => {
     await nextTick()
 
     expect(state.visibleRequestFields.value.map((field) => field.code)).toEqual(['member_type', 'card_no'])
-    expect(state.isFieldRequired(detail.request![1]!)).toBe(true)
+    expect(state.isFieldRequired(requestFields[1]!)).toBe(true)
   })
 })

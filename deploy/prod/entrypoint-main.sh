@@ -17,16 +17,32 @@ TLS_MODE="${TLS_MODE:-http}"
 TLS_CERT_FILE="${TLS_CERT_FILE:-/app/tls/fullchain.pem}"
 TLS_KEY_FILE="${TLS_KEY_FILE:-/app/tls/privkey.pem}"
 APP_BASE_IMAGE="${APP_BASE_IMAGE:-localhost/agentos-app-runtime-base:latest}"
-AOS_SCHEDULER_HEALTH_PORT="${AOS_SCHEDULER_HEALTH_PORT:-9098}"
+MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}"
+MYSQL_PORT="${MYSQL_PORT:-3306}"
+NATS_HOST="${NATS_HOST:-127.0.0.1}"
+NATS_PORT="${NATS_PORT:-4222}"
+MINIO_HOST="${MINIO_HOST:-127.0.0.1}"
+MINIO_PORT="${MINIO_PORT:-9000}"
+NATS_USER="${NATS_USER:-${NATS_SEED_USER:-aos}}"
+NATS_PASSWORD="${NATS_PASSWORD:-${NATS_SEED_PASSWORD:-}}"
+NATS_URL="${NATS_URL:-nats://${NATS_USER}:${NATS_PASSWORD}@${NATS_HOST}:${NATS_PORT}}"
 export APP_BASE_IMAGE
-export AOS_SCHEDULER_HEALTH_PORT
+export MYSQL_HOST
+export MYSQL_PORT
+export NATS_HOST
+export NATS_PORT
+export NATS_USER
+export NATS_PASSWORD
+export NATS_URL
+export MINIO_HOST
+export MINIO_PORT
 
 echo "==> 等待依赖（MySQL / NATS / MinIO）..."
-wait_tcp 127.0.0.1 3306 "MySQL"
-wait_tcp 127.0.0.1 4222 "NATS"
-wait_tcp 127.0.0.1 9000 "MinIO"
+wait_tcp "$MYSQL_HOST" "$MYSQL_PORT" "MySQL"
+wait_tcp "$NATS_HOST" "$NATS_PORT" "NATS"
+wait_tcp "$MINIO_HOST" "$MINIO_PORT" "MinIO"
 
-PROD_TEMPLATE_VARS='${MYSQL_ROOT_PASSWORD} ${JWT_SECRET} ${CONTROL_ENC_KEY} ${MINIO_ROOT_PASSWORD} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${SMTP_FROM} ${SMTP_FROM_NAME} ${APP_BASE_IMAGE} ${AOS_SCHEDULER_HEALTH_PORT}'
+PROD_TEMPLATE_VARS='${MYSQL_ROOT_PASSWORD} ${JWT_SECRET} ${CONTROL_ENC_KEY} ${MINIO_ROOT_PASSWORD} ${NATS_URL} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${SMTP_FROM} ${SMTP_FROM_NAME} ${APP_BASE_IMAGE}'
 render_runtime_templates "$PROD_TEMPLATE_VARS"
 
 CANONICAL_BASE_URL="${CANONICAL_BASE_URL}"
@@ -114,7 +130,7 @@ fi
 
 if ! podman image exists "${APP_BASE_IMAGE}" 2>/dev/null; then
   echo "ERROR: 未找到用户应用基础镜像 ${APP_BASE_IMAGE}" >&2
-  echo "ERROR: 请先在宿主机执行 bash build.sh init；如需直接拉取已发布主镜像，用 bash build.sh init --image" >&2
+  echo "ERROR: 请先在宿主机执行 go run ./cmd/aosctl up --config deploy/prod/aos.yaml" >&2
   exit 1
 fi
 echo "==> 用户应用基础镜像已就绪: ${APP_BASE_IMAGE}"

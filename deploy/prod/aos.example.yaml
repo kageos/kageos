@@ -1,0 +1,68 @@
+site:
+  base_url: "http://your-ip-or-domain"
+  tls_mode: "http"
+  certs_host_dir: "./certs"
+  cert_file: "/app/tls/fullchain.pem"
+  key_file: "/app/tls/privkey.pem"
+
+images:
+  main: "localhost/agentos-main:latest"
+  app_base: "localhost/agentos-app-runtime-base:latest"
+  mysql: "docker.io/library/mysql:8.0"
+  nats: "docker.io/library/nats:2.10-alpine"
+  minio: "docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"
+
+storage:
+  root: "/data/ai-agent-os"
+
+mysql:
+  mode: "bundled"
+  host: "127.0.0.1"
+  port: 3306
+  user: "root"
+  password: "replace-with-a-strong-mysql-password"
+  app_database: "app_db"
+  scheduled_task_database: "app-scheduled-task"
+  timer_scheduler_database: "timer-scheduler"
+  agent_database: "agent-server"
+  storage_database: "app-storage"
+  hr_database: "hr-server"
+  backup_admin_user: "root"
+  backup_admin_password: "replace-with-a-strong-mysql-password"
+  create_bundled_sql: true
+
+nats:
+  mode: "bundled"
+  host: "127.0.0.1"
+  port: 4222
+  auth_enabled: true
+  user: "aos"
+  password: "replace-with-a-strong-nats-password"
+  url: ""
+
+minio:
+  mode: "bundled"
+  endpoint: "127.0.0.1:9000"
+  root_user: "minioadmin"
+  root_password: "replace-with-a-strong-minio-password"
+  access_key: "minioadmin"
+  secret_key: "replace-with-a-strong-minio-password"
+  use_ssl: false
+  region: "us-east-1"
+  bucket: "ai-agent-os"
+
+secrets:
+  jwt_secret: "0123456789abcdef0123456789abcdef"
+  control_enc_key: "0123456789abcdef0123456789abcdef"
+  backup_basic_auth_username: "admin"
+  backup_basic_auth_password: "0123456789abcdef0123456789abcdef"
+  generated_by_aosctl: false
+  generated_at_unix_seconds: 0
+
+smtp:
+  host: "smtp.qq.com"
+  port: 587
+  username: ""
+  password: ""
+  from: ""
+  from_name: "AI Agent OS"

@@ -792,11 +792,11 @@ watch(() => props.node?.id, () => {
   min-height: 400px;
 }
 
-/* 图片预览弹层 (保持不变或微调) */
+/* 图片预览弹层：层级由全局浮层协议控制 */
 .doc-image-preview {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: var(--aos-z-critical-preview);
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(8px);
   display: flex;

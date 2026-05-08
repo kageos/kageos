@@ -30,44 +30,41 @@ function createState(overrides: Partial<TableState> = {}): TableState {
 
 function createFunctionDetail() {
   return {
-    request: [
-      {
-        code: 'status',
-        name: '状态',
-        widget: { type: 'select' }
+    schema: {
+      version: 1,
+      type: 'table',
+      table: {
+        request: [
+          {
+            code: 'status',
+            name: '状态',
+            widget: { type: 'select' }
+          },
+          {
+            code: 'keyword',
+            name: '关键词',
+            widget: { type: 'input' }
+          }
+        ],
+        fields: []
       }
-    ],
-    response: [
-      {
-        code: 'keyword',
-        name: '关键词',
-        search: 'like',
-        widget: { type: 'input' }
-      },
-      {
-        code: 'created_at',
-        name: '创建时间',
-        search: 'gte,lte',
-        widget: { type: 'timestamp' }
-      }
-    ]
+    }
   } as any
 }
 
 describe('tableViewURLRuntime', () => {
-  it('collects request field codes for filtering and namespaced search params', () => {
-    expect(Array.from(getTableRequestFieldCodes(createFunctionDetail()))).toEqual(['status'])
+  it('collects request field codes for filtering raw request search params', () => {
+    expect(Array.from(getTableRequestFieldCodes(createFunctionDetail()))).toEqual(['status', 'keyword'])
   })
 
-  it('builds table query params from scoped state, default sorts and namespaced request search', () => {
+  it('builds table query params from scoped state, default sorts and raw request search', () => {
     expect(
       buildTableURLQueryParams({
         functionDetail: createFunctionDetail(),
         state: createState({
           searchForm: {
             status: 'open',
-            keyword: 'alice',
-            created_at: ['1700000000', '1800000000']
+            keyword: 'alice'
           }
         }),
         buildDefaultSorts: () => [{ field: 'id', order: 'desc' }]
@@ -75,28 +72,72 @@ describe('tableViewURLRuntime', () => {
     ).toEqual({
       page: '2',
       page_size: '50',
-      sorts: 'id:desc',
-      like: 'keyword:alice',
-      gte: 'created_at:1700000000',
-      lte: 'created_at:1800000000',
-      s_status: 'open'
+      sorts: '-id',
+      keyword: 'alice',
+      status: 'open'
     })
   })
 
-  it('persists display labels for stored search field values alongside raw params', () => {
+  it('keeps request fields aligned with backend form tags when a table field has the same code', () => {
     expect(
       buildTableURLQueryParams({
         functionDetail: {
-          request: [],
-          response: [
-            {
-              code: 'job_id',
-              name: '投递职位',
-              search: 'eq',
-              callbacks: ['OnSelectFuzzy'],
-              widget: { type: 'select' }
+          schema: {
+            version: 1,
+            type: 'table',
+            table: {
+              request: [
+                {
+                  code: 'genre',
+                  name: '体裁',
+                  widget: { type: 'select' }
+                },
+                {
+                  code: 'style',
+                  name: '格律形式',
+                  widget: { type: 'select' }
+                }
+              ],
+              fields: []
             }
-          ]
+          }
+        } as any,
+        state: createState({
+          searchForm: {
+            genre: '诗',
+            style: '律诗'
+          }
+        }),
+        buildDefaultSorts: () => [{ field: 'id', order: 'desc' }]
+      })
+    ).toEqual({
+      page: '2',
+      page_size: '50',
+      sorts: '-id',
+      genre: '诗',
+      style: '律诗'
+    })
+  })
+
+  it('builds direct params for stored request field values', () => {
+    expect(
+      buildTableURLQueryParams({
+        functionDetail: {
+          schema: {
+            version: 1,
+            type: 'table',
+            table: {
+              request: [
+                {
+                  code: 'job_id',
+                  name: '投递职位',
+                  callbacks: ['OnSelectFuzzy'],
+                  widget: { type: 'select' }
+                }
+              ],
+              fields: []
+            }
+          }
         } as any,
         state: createState({
           searchForm: {
@@ -112,9 +153,8 @@ describe('tableViewURLRuntime', () => {
     ).toEqual({
       page: '2',
       page_size: '50',
-      sorts: 'id:desc',
-      eq: 'job_id:1',
-      s_job_id__display: '前端开发工程师 - 技术 (北京, 20000-35000元)'
+      sorts: '-id',
+      job_id: '1'
     })
   })
 
@@ -126,7 +166,6 @@ describe('tableViewURLRuntime', () => {
           _link_type: 'table',
           page: '9',
           like: 'keyword:legacy',
-          s_status: 'legacy-open',
           status: 'legacy-open',
           topic_id: '42'
         },
@@ -139,14 +178,37 @@ describe('tableViewURLRuntime', () => {
     })
   })
 
-  it('keeps backend search params from link navigation while removing _link_type', () => {
+  it('drops stale generated field params instead of preserving old URL aliases', () => {
+    expect(
+      preserveExistingTableQueryParams({
+        routeQuery: {
+          _tab: 'detail',
+          s_genre: '诗',
+          f_genre: '诗',
+          s_style: '律诗',
+          s_style__display: '律诗',
+          _genre__display: '诗',
+          genre: 'legacy-raw',
+          topic_id: '42'
+        },
+        requestFieldCodes: new Set(['genre']),
+        generatedFieldCodes: new Set(['genre', 'style']),
+        isLinkNavigation: false
+      })
+    ).toEqual({
+      _tab: 'detail',
+      topic_id: '42'
+    })
+  })
+
+  it('keeps raw business params from link navigation while removing _link_type', () => {
     expect(
       preserveExistingTableQueryParams({
         routeQuery: {
           _tab: 'detail',
           _link_type: 'table',
-          eq: 'owner:alice',
-          in: 'status:open,closed',
+          owner: 'alice',
+          priority: 'high',
           topic_id: '42'
         },
         requestFieldCodes: new Set(['status']),
@@ -154,8 +216,8 @@ describe('tableViewURLRuntime', () => {
       })
     ).toEqual({
       _tab: 'detail',
-      eq: 'owner:alice',
-      in: 'status:open,closed',
+      owner: 'alice',
+      priority: 'high',
       topic_id: '42'
     })
   })
@@ -172,9 +234,9 @@ describe('tableViewURLRuntime', () => {
     ).toEqual({
       page: '2',
       page_size: '50',
-      sorts: 'id:desc',
-      like: 'keyword:alice',
-      s_status: 'open'
+      sorts: '-id',
+      keyword: 'alice',
+      status: 'open'
     })
   })
 
@@ -184,7 +246,7 @@ describe('tableViewURLRuntime', () => {
         routeQuery: {
           _tab: 'detail',
           topic_id: '42',
-          eq: 'owner:bob',
+          owner: 'bob',
           page: '9'
         },
         functionDetail: createFunctionDetail(),
@@ -195,12 +257,12 @@ describe('tableViewURLRuntime', () => {
     ).toEqual({
       _tab: 'detail',
       topic_id: '42',
-      eq: 'owner:bob',
+      owner: 'bob',
       page: '2',
       page_size: '50',
-      sorts: 'id:desc',
-      like: 'keyword:alice',
-      s_status: 'open'
+      sorts: '-id',
+      keyword: 'alice',
+      status: 'open'
     })
   })
 })

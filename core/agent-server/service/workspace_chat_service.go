@@ -113,10 +113,11 @@ func filesPayloadForLLM(files string) string {
 
 // WorkspaceChatService 工作台对话编排：会话、历史、LLM、Tool 循环；只认 LLM + 单模式（dev）
 type WorkspaceChatService struct {
-	toolReg     *ToolRegistry
-	sessionRepo *repository.ChatSessionRepository
-	messageRepo *repository.ChatMessageRepository
-	llmRepo     *repository.LLMRepository
+	toolReg      *ToolRegistry
+	sessionRepo  *repository.ChatSessionRepository
+	messageRepo  *repository.ChatMessageRepository
+	llmRepo      *repository.LLMRepository
+	runtimeState RuntimeStateStore
 
 	// runningCancels 维护「正在执行的 session → cancelFunc」映射，供手动取消使用
 	runningCancels sync.Map // key: sessionID (string), value: context.CancelFunc
@@ -130,12 +131,18 @@ func NewWorkspaceChatService(
 	sessionRepo *repository.ChatSessionRepository,
 	messageRepo *repository.ChatMessageRepository,
 	llmRepo *repository.LLMRepository,
+	runtimeState ...RuntimeStateStore,
 ) *WorkspaceChatService {
+	var stateStore RuntimeStateStore
+	if len(runtimeState) > 0 {
+		stateStore = runtimeState[0]
+	}
 	return &WorkspaceChatService{
-		toolReg:     toolReg,
-		sessionRepo: sessionRepo,
-		messageRepo: messageRepo,
-		llmRepo:     llmRepo,
+		toolReg:      toolReg,
+		sessionRepo:  sessionRepo,
+		messageRepo:  messageRepo,
+		llmRepo:      llmRepo,
+		runtimeState: stateStore,
 	}
 }
 
@@ -145,6 +152,17 @@ type StreamEvent struct {
 	Data  interface{} `json:"data"`  // 对应负载（具体类型见下方各事件结构体）
 }
 
+// WorkspaceChatEventSink 接收工作台执行事件。SSE 与后台任务共用同一执行链路。
+type WorkspaceChatEventSink interface {
+	Send(event string, data interface{})
+}
+
+type workspaceChatEventSinkFunc func(event string, data interface{})
+
+func (f workspaceChatEventSinkFunc) Send(event string, data interface{}) {
+	f(event, data)
+}
+
 // StreamEventSession session 事件数据
 type StreamEventSession struct {
 	SessionID string `json:"session_id"`
@@ -152,12 +170,13 @@ type StreamEventSession struct {
 
 // StreamEventToolCall tool_call 事件数据
 type StreamEventToolCall struct {
-	Name       string      `json:"name"`
-	Status     string      `json:"status"`                // ok / error / running / streaming
-	Arguments  string      `json:"arguments"`             // 流式或最终参数（streaming 时逐段推送，供前端实时展示）
-	Result     string      `json:"result"`                // 工具返回结果（status=ok 时可选）
-	ResultData interface{} `json:"result_data,omitempty"` // 结构化工具结果（供前端直接消费）
-	Error      string      `json:"error"`                 // 错误信息（status=error 时可选）
+	Name       string                  `json:"name"`
+	Status     string                  `json:"status"`                // ok / error / running / streaming
+	Arguments  string                  `json:"arguments"`             // 流式或最终参数（streaming 时逐段推送，供前端实时展示）
+	Result     string                  `json:"result"`                // 工具返回结果（status=ok 时可选）
+	ResultData interface{}             `json:"result_data,omitempty"` // 结构化工具结果（供前端直接消费）
+	Metadata   *dto.ToolResultMetadata `json:"metadata,omitempty"`    // 工具结果元数据（供前端按字段渲染）
+	Error      string                  `json:"error"`                 // 错误信息（status=error 时可选）
 }
 
 // StreamEventToolCallsStream 流式 tool_calls 列表（当前已合并的全部 tool_call，供前端实时展示）
@@ -199,8 +218,11 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 			}
 		}
 	}()
+	var runtimeStateKey string
+	var runtimeStateBase dto.RuntimeStateItem
 	// 非阻塞发送事件：写不进 eventChan 时直接丢弃（刷新后无人读也不会卡死 goroutine）
 	sendEvent := func(event string, data interface{}) {
+		s.updateWorkspaceRuntimeStateFromEvent(ctx, runtimeStateKey, runtimeStateBase, event, data)
 		select {
 		case eventChan <- StreamEvent{Event: event, Data: data}:
 		default:
@@ -298,6 +320,11 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 				logger.Warnf(ctx, "[WorkspaceChatStream] 恢复 active 失败: %v", e)
 			}
 		}
+		finalStatus := ""
+		if e == nil && latest != nil && latest.Status == model.ChatSessionStatusCancelled {
+			finalStatus = RuntimeStateStatusCancelled
+		}
+		s.finishWorkspaceRuntimeState(context.Background(), runtimeStateKey, runtimeStateBase, err, finalStatus)
 	}()
 
 	llmConfigID := req.LLMConfigID
@@ -333,6 +360,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		}
 	}
 
+	runtimeStateKey, runtimeStateBase = s.startWorkspaceRuntimeState(ctx, session, fullCodePath, modeCode, user)
 	sendEvent(EventSession, StreamEventSession{SessionID: sessionID})
 
 	deps := &workspaceStreamLoopDeps{
@@ -349,6 +377,23 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		service:              s,
 	}
 	return streamloop.RunStreamLoop(runCtx, deps)
+}
+
+// RunWorkspaceChat 后台执行工作台对话；用于定时 Agent 会话等无浏览器连接场景。
+func (s *WorkspaceChatService) RunWorkspaceChat(ctx context.Context, req *dto.WorkspaceChatReq, sink WorkspaceChatEventSink) error {
+	if sink == nil {
+		sink = workspaceChatEventSinkFunc(func(string, interface{}) {})
+	}
+	eventChan := make(chan StreamEvent, 100)
+	done := make(chan error, 1)
+	go func() {
+		done <- s.WorkspaceChatStream(ctx, req, eventChan)
+		close(eventChan)
+	}()
+	for ev := range eventChan {
+		sink.Send(ev.Event, ev.Data)
+	}
+	return <-done
 }
 
 // CancelSession 手动取消正在执行的会话
@@ -374,6 +419,7 @@ func (s *WorkspaceChatService) CancelSession(ctx context.Context, sessionID stri
 		cancelFn.(context.CancelFunc)()
 		logger.Infof(ctx, "[WorkspaceChatStream] 会话已取消 - SessionID: %s", sessionID)
 	}
+	s.deleteWorkspaceRuntimeState(ctx, sessionID)
 	return nil
 }
 
@@ -532,7 +578,7 @@ func workspaceCtxToEnvInput(c *dto.GetWorkspaceContextResp) *prompt.WorkspaceEnv
 			FullCodePath: n.FullCodePath,
 			TemplateType: n.TemplateType,
 			Callbacks:    n.Callbacks,
-			Request:      n.Request,
+			Schema:       n.Schema,
 		})
 	}
 	files := make([]prompt.WorkspaceEnvFile, 0, len(c.Files))
@@ -552,8 +598,6 @@ func workspaceCtxToEnvInput(c *dto.GetWorkspaceContextResp) *prompt.WorkspaceEnv
 		FullCodePath:           c.Directory.FullCodePath,
 		DirType:                c.Directory.Type,
 		DirDescription:         dirDesc,
-		PublishedToHub:         c.Directory.PublishedToHub,
-		HubFullCodePath:        c.Directory.HubFullCodePath,
 		Children:               children,
 		Files:                  files,
 	}
@@ -574,15 +618,12 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 	}
 	var toolNames []string
 	var systemPromptFragment string
-	var firstAssistantContent string
 	if modeProvider != nil {
-		toolNames = modeProvider.ToolNames()
 		systemPromptFragment = "" // 在 env 填好后由 provider.SystemPrompt(data) 产出
-		firstAssistantContent = modeProvider.FirstAssistantContent()
 	} else {
-		toolNames = fallbackToolNames
 		systemPromptFragment = fallbackSystemPrompt
 	}
+	toolNames = workspaceToolNamesForMode(modeProvider, fallbackToolNames)
 	toolsDesc, _ := s.toolReg.ListTools(ctx, toolNames)
 	llmTools := convertToLLMTools(toolsDesc)
 
@@ -606,20 +647,8 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 	if systemPromptFragment != "" {
 		system += "\n\n" + systemPromptFragment
 	}
-	// 额外操作提示词：仅 modeProvider 明确提供时才追加；默认所有规则都放在 system_prompt 与子文档里。
-	var operationPrompt string
-	if modeProvider != nil {
-		operationPrompt = strings.TrimSpace(modeProvider.OperationPrompt())
-	}
-	if operationPrompt != "" {
-		system += "\n\n" + operationPrompt
-	}
 
 	msgs := []llms.Message{{Role: "system", Content: system}}
-	// 首条 assistant：多态时由 provider 提供，会话开始时注入
-	if firstAssistantContent != "" {
-		msgs = append(msgs, llms.Message{Role: RoleAssistant, Content: firstAssistantContent})
-	}
 	for _, m := range list {
 		switch m.Role {
 		case RoleUser:
@@ -698,12 +727,13 @@ func (s *WorkspaceChatService) executeToolCalls(
 	agentIDPtr *int64,
 	user string,
 	files string,
+	_ []string,
 	sendEvent func(string, interface{}),
 ) ([]dto.WorkspaceChatToolCallSummary, error) {
-	// 注入 session_id 到 context，供 record_workspace_event 等工具追溯
-	ctx = context.WithValue(ctx, WorkspaceSessionIDKey, sessionID)
+	ctx = withAgentToolExecutionContext(ctx, sessionID)
 	toolSummaries := make([]dto.WorkspaceChatToolCallSummary, 0, len(allToolCalls))
 	logger.Infof(ctx, "[WorkspaceChatStream] 开始执行工具调用 - 工具数量: %d, SessionID: %s", len(allToolCalls), sessionID)
+	loadedGuideDocs := s.loadedGuideDocsForSession(ctx, sessionID)
 
 	for i, tc := range allToolCalls {
 		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 执行工具调用 - ToolCallID: %s, ToolName: %s, Arguments: %q",
@@ -712,7 +742,9 @@ func (s *WorkspaceChatService) executeToolCalls(
 		sendEvent(EventToolCall, StreamEventToolCall{Name: tc.Function.Name, Status: ToolCallStatusRunning, Arguments: tc.Function.Arguments})
 
 		args := s.parseToolCallArgs(ctx, tc)
-		toolRes, st := s.callOtherTool(ctx, tc.Function.Name, args, fullCodePath, files, i+1, len(allToolCalls))
+		var toolRes ToolResult
+		var st string
+		toolRes, st = s.callOtherTool(ctx, tc.Function.Name, args, fullCodePath, files, i+1, len(allToolCalls))
 
 		resultStr, errStr := "", ""
 		var resultData interface{}
@@ -723,15 +755,16 @@ func (s *WorkspaceChatService) executeToolCalls(
 			errStr = toolRes.Content
 		}
 		toolSummaries = append(toolSummaries, dto.WorkspaceChatToolCallSummary{
-			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, ResultData: resultData, Error: errStr,
+			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, ResultData: resultData, Metadata: toolRes.Metadata, Error: errStr,
 		})
 		sendEvent(EventToolCall, StreamEventToolCall{
-			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, ResultData: resultData, Error: errStr,
+			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, ResultData: resultData, Metadata: toolRes.Metadata, Error: errStr,
 		})
 		if err := s.saveToolMessage(ctx, sessionID, agentIDPtr, tc.ID, tc.Function.Name, st, toolRes, user); err != nil {
 			logger.Warnf(ctx, "[WorkspaceChatStream] 保存 tool 消息失败 ToolCallID=%s: %v（若为 Error 1366 请将表转为 utf8mb4）", tc.ID, err)
 			return toolSummaries, fmt.Errorf("保存 tool 消息失败: %w", err)
 		}
+		updateLoadedGuideDocsAfterToolCall(loadedGuideDocs, tc.Function.Name, args, st)
 	}
 
 	successCount, errorCount := 0, 0
@@ -745,6 +778,15 @@ func (s *WorkspaceChatService) executeToolCalls(
 	logger.Infof(ctx, "[WorkspaceChatStream] 工具调用执行完成 - 总数量: %d, 成功: %d, 失败: %d, SessionID: %s",
 		len(allToolCalls), successCount, errorCount, sessionID)
 	return toolSummaries, nil
+}
+
+func withAgentToolExecutionContext(ctx context.Context, sessionID string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	// 注入 session_id 供 record_workspace_event 等工具追溯，同时统一标记 agent 工具入口来源。
+	ctx = context.WithValue(ctx, WorkspaceSessionIDKey, sessionID)
+	return withAgentToolClientSource(ctx)
 }
 
 // parseToolCallArgs 解析 tool_call 的 arguments JSON，解析失败时返回空 map
@@ -780,11 +822,115 @@ func (s *WorkspaceChatService) callOtherTool(ctx context.Context, name string, a
 	return result, st
 }
 
-const executeGuideDocPath = "/system/prompt/workspace/execute"
+func hasLoadedGuideDoc(loadedGuideDocs map[string]struct{}, docPath string) bool {
+	required := normalizeGuideDocPath(docPath)
+	for loaded := range loadedGuideDocs {
+		if loaded == required || strings.HasPrefix(required, loaded+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *WorkspaceChatService) loadedGuideDocsForSession(ctx context.Context, sessionID string) map[string]struct{} {
+	loaded := make(map[string]struct{})
+	if s == nil || s.messageRepo == nil || strings.TrimSpace(sessionID) == "" {
+		return loaded
+	}
+	messages, err := s.messageRepo.ListBySessionID(sessionID)
+	if err != nil {
+		logger.Warnf(ctx, "[WorkspaceChatStream] 查询会话已读 SOP 失败 SessionID=%s: %v", sessionID, err)
+		return loaded
+	}
+	return loadedGuideDocsFromMessages(ctx, messages)
+}
+
+func loadedGuideDocsFromMessages(ctx context.Context, messages []*model.AgentChatMessage) map[string]struct{} {
+	loaded := make(map[string]struct{})
+	readDocCalls := make(map[string][]string)
+	for _, msg := range messages {
+		if msg == nil {
+			continue
+		}
+		switch msg.Role {
+		case RoleAssistant:
+			if msg.ToolCalls == nil || strings.TrimSpace(*msg.ToolCalls) == "" {
+				continue
+			}
+			var toolCalls []llms.ToolCall
+			if err := json.Unmarshal([]byte(*msg.ToolCalls), &toolCalls); err != nil {
+				logger.Warnf(ctx, "[WorkspaceChatStream] 解析历史 tool_calls 失败 MessageID=%d: %v", msg.ID, err)
+				continue
+			}
+			for _, tc := range toolCalls {
+				if strings.TrimSpace(tc.ID) == "" {
+					continue
+				}
+				var args map[string]interface{}
+				if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+					logger.Warnf(ctx, "[WorkspaceChatStream] 解析历史 %s 参数失败 ToolCallID=%s: %v", tc.Function.Name, tc.ID, err)
+					continue
+				}
+				switch tc.Function.Name {
+				case "read_doc":
+					readDocCalls[tc.ID] = guideDocPathsFromReadDocArgs(args)
+				}
+			}
+		case RoleTool:
+			if msg.ToolStatus != ToolCallStatusOK {
+				continue
+			}
+			for _, docPath := range readDocCalls[msg.ToolCallID] {
+				loaded[docPath] = struct{}{}
+			}
+		}
+	}
+	return loaded
+}
+
+func guideDocPathsFromReadDocArgs(args map[string]interface{}) []string {
+	dirArg, _ := args["directory"].(string)
+	if strings.TrimSpace(dirArg) == "" {
+		dirArg, _ = args["full_code_path"].(string)
+	}
+	rawPaths := splitDirectoryPaths(dirArg)
+	paths := make([]string, 0, len(rawPaths))
+	for _, rawPath := range rawPaths {
+		path := normalizeGuideDocPath(rawPath)
+		if path == "" {
+			continue
+		}
+		paths = append(paths, path)
+	}
+	return paths
+}
+
+func updateLoadedGuideDocsAfterToolCall(loaded map[string]struct{}, toolName string, args map[string]interface{}, status string) {
+	if status != ToolCallStatusOK || loaded == nil {
+		return
+	}
+	switch strings.TrimSpace(toolName) {
+	case "read_doc":
+		for _, docPath := range guideDocPathsFromReadDocArgs(args) {
+			loaded[docPath] = struct{}{}
+		}
+	}
+}
+
+func normalizeGuideDocPath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return strings.TrimRight(path, "/")
+}
 
 func shouldSuggestExecuteGuide(toolName string) bool {
 	switch strings.TrimSpace(toolName) {
-	case "run_table_search", "run_table_create", "run_table_update", "run_form_submit", "run_chart_query", "run_on_select_fuzzy":
+	case "run_table_search", "run_table_create", "run_table_batch_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query", "run_on_select_fuzzy":
 		return true
 	default:
 		return false
@@ -792,15 +938,7 @@ func shouldSuggestExecuteGuide(toolName string) bool {
 }
 
 func appendExecuteGuideHint(toolName, message string) string {
-	if !shouldSuggestExecuteGuide(toolName) || strings.Contains(message, executeGuideDocPath) {
-		return message
-	}
-	hint := fmt.Sprintf("提示：如需该工具的 SOP、参数规范和易错点，可先 `read_doc(\"%s\")` 再重试。", executeGuideDocPath)
-	message = strings.TrimSpace(message)
-	if message == "" {
-		return hint
-	}
-	return message + "\n\n" + hint
+	return message
 }
 
 // sanitizeContentForMySQLUtf8 去掉 4 字节 UTF-8 字符（BMP 外），避免 MySQL utf8 列报 Error 1366；表为 utf8mb4 时无需此过滤。
@@ -814,26 +952,31 @@ func sanitizeContentForMySQLUtf8(s string) string {
 	return b.String()
 }
 
+func marshalToolResultField(ctx context.Context, toolCallID, fieldName string, value any) *string {
+	if value == nil {
+		return nil
+	}
+	b, err := json.Marshal(value)
+	if err != nil {
+		logger.Warnf(ctx, "[WorkspaceChatStream] 保存 tool %s 失败 ToolCallID=%s: %v", fieldName, toolCallID, err)
+		return nil
+	}
+	out := string(b)
+	return &out
+}
+
 // saveToolMessage 保存一条 role=tool 的消息。失败时返回 error，调用方应中止下一轮以免 400 insufficient tool messages。
 func (s *WorkspaceChatService) saveToolMessage(ctx context.Context, sessionID string, agentIDPtr *int64, toolCallID, toolName, status string, result ToolResult, user string) error {
-	var resultDataStr *string
-	if result.Data != nil {
-		if b, err := json.Marshal(result.Data); err == nil {
-			s := string(b)
-			resultDataStr = &s
-		} else {
-			logger.Warnf(ctx, "[WorkspaceChatStream] 保存 tool result_data 失败 ToolCallID=%s: %v", toolCallID, err)
-		}
-	}
 	toolMsg := &model.AgentChatMessage{
-		SessionID:  sessionID,
-		AgentID:    agentIDPtr,
-		Role:       RoleTool,
-		Content:    sanitizeContentForMySQLUtf8(result.Content),
-		ToolCallID: toolCallID,
-		ToolStatus: status,
-		ResultData: resultDataStr,
-		User:       user,
+		SessionID:      sessionID,
+		AgentID:        agentIDPtr,
+		Role:           RoleTool,
+		Content:        sanitizeContentForMySQLUtf8(result.Content),
+		ToolCallID:     toolCallID,
+		ToolStatus:     status,
+		ResultData:     marshalToolResultField(ctx, toolCallID, "result_data", result.Data),
+		ResultMetadata: marshalToolResultField(ctx, toolCallID, "result_metadata", result.Metadata),
+		User:           user,
 	}
 	toolMsg.CreatedBy = user
 	toolMsg.UpdatedBy = user

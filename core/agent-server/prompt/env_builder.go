@@ -1,11 +1,14 @@
 package prompt
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
+	"github.com/ai-agent-os/ai-agent-os/pkg/servicetree"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 )
 
@@ -19,8 +22,6 @@ type WorkspaceEnvInput struct {
 	FullCodePath           string
 	DirType                string
 	DirDescription         string
-	PublishedToHub         bool   // 当前目录是否已上架到应用中心（Hub）
-	HubFullCodePath        string // 已上架时在 Hub 的目录路径
 	Children               []WorkspaceEnvNode
 	Files                  []WorkspaceEnvFile
 }
@@ -31,10 +32,10 @@ type WorkspaceEnvNode struct {
 	Code         string
 	Description  string
 	Type         string
-	FullCodePath string // 完整路径（执行模式 run_table_search/run_form_submit/run_chart_query 用）
-	TemplateType string // 函数类型（仅 function 有效）：table、form、chart
-	Callbacks    string // 函数回调能力（仅 function 有效），逗号分隔
-	Request      []interface{}
+	FullCodePath string   // 完整路径（执行模式 run_table_search/run_form_submit/run_chart_query 用）
+	TemplateType string   // 函数类型（仅 function 有效）：table、form、chart
+	Callbacks    []string // 函数回调能力摘要（仅 function 有效）
+	Schema       *functionschema.FunctionSchema
 }
 
 // WorkspaceEnvFile 环境中的代码文件
@@ -98,16 +99,9 @@ func BuildWorkspaceEnvDataWithCatalog(in *WorkspaceEnvInput, directoryName, full
 		data.DirCode = in.DirCode
 		data.DirType = in.DirType
 		data.DirDescription = in.DirDescription
-		if in.PublishedToHub && in.HubFullCodePath != "" {
-			data.HubSection = fmt.Sprintf("已上架，路径：%s（可使用 push_to_hub 推送更新）", in.HubFullCodePath)
-		} else {
-			data.HubSection = "未上架（可使用 publish_to_hub 发布到应用中心）"
-		}
 		data.ChildrenSection = buildChildrenSection(in.Children)
 		data.FunctionsSection = buildFunctionsSection(in.Children)
 		data.FilesSection = buildFilesSection(in.Files)
-	} else {
-		data.HubSection = "未知（需进入工作目录后刷新环境）"
 	}
 	if len(catalog) == 0 {
 		catalog = GetDocCatalog()
@@ -134,9 +128,9 @@ func buildChildrenSection(children []WorkspaceEnvNode) string {
 	}
 	var packages, functions []WorkspaceEnvNode
 	for _, c := range children {
-		if c.Type == "package" {
+		if c.Type == servicetree.TypePackage {
 			packages = append(packages, c)
-		} else if c.Type == "function" {
+		} else if c.Type == servicetree.TypeFunction {
 			functions = append(functions, c)
 		}
 	}
@@ -156,7 +150,7 @@ func buildChildrenSection(children []WorkspaceEnvNode) string {
 		for _, f := range functions {
 			tpl := f.TemplateType
 			if tpl == "" {
-				tpl = "function"
+				tpl = servicetree.TypeFunction
 			}
 			b.WriteString(fmt.Sprintf("- %s（%s）", f.Name, f.Code))
 			if f.FullCodePath != "" {
@@ -175,7 +169,7 @@ func buildChildrenSection(children []WorkspaceEnvNode) string {
 func buildFunctionsSection(children []WorkspaceEnvNode) string {
 	var functions []WorkspaceEnvNode
 	for _, c := range children {
-		if c.Type == "function" && c.FullCodePath != "" {
+		if c.Type == servicetree.TypeFunction && c.FullCodePath != "" {
 			functions = append(functions, c)
 		}
 	}
@@ -183,11 +177,11 @@ func buildFunctionsSection(children []WorkspaceEnvNode) string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("\n**当前目录下的可执行函数（Table 默认先用 run_table_search；只有能力摘要明确支持写入时，才使用 run_table_create / run_table_update）：**\n")
+	b.WriteString("\n**当前目录下的可执行函数（Table 默认先用 run_table_search；只有能力摘要明确支持写入时，才使用 run_table_create / run_table_batch_create / run_table_update / run_table_delete）：**\n")
 	for _, f := range functions {
 		tpl := f.TemplateType
 		if tpl == "" {
-			tpl = "function"
+			tpl = servicetree.TypeFunction
 		}
 		b.WriteString(fmt.Sprintf("- **%s** %s（%s）：`%s`\n", tpl, f.Name, f.Code, f.FullCodePath))
 		if f.Description != "" {
@@ -196,8 +190,8 @@ func buildFunctionsSection(children []WorkspaceEnvNode) string {
 		if caps := formatWorkspaceFunctionCapabilities(f.TemplateType, f.Callbacks); caps != "" {
 			b.WriteString(fmt.Sprintf("  - 能力：%s\n", caps))
 		}
-		if summaryLines, err := summarizeWorkspaceFunctionRequestFields(f.Request); err == nil && len(summaryLines) > 0 {
-			b.WriteString("  - 字段摘要：\n")
+		if summaryLines := summarizeWorkspaceFunctionSchema(f.Schema); len(summaryLines) > 0 {
+			b.WriteString("  - Schema 摘要：\n")
 			for _, line := range summaryLines {
 				b.WriteString("    ")
 				b.WriteString(line)
@@ -208,30 +202,60 @@ func buildFunctionsSection(children []WorkspaceEnvNode) string {
 	return b.String()
 }
 
-func summarizeWorkspaceFunctionRequestFields(raw []interface{}) ([]string, error) {
-	if len(raw) == 0 {
-		return nil, nil
+func summarizeWorkspaceFunctionSchema(schema *functionschema.FunctionSchema) []string {
+	if schema == nil {
+		return nil
 	}
-	fields, err := widget.DecodeFields(raw)
-	if err != nil {
-		return nil, err
+	switch schema.Type {
+	case functionschema.TypeForm:
+		if schema.Form == nil {
+			return nil
+		}
+		return summarizeWorkspaceFields("输入字段", schema.Form.Request)
+	case functionschema.TypeTable:
+		if schema.Table == nil {
+			return nil
+		}
+		lines := summarizeWorkspaceFields("搜索字段", functionschema.TableSearchFields(mustMarshalSchema(schema)))
+		lines = append(lines, summarizeWorkspaceFields("列表字段", functionschema.TableListFields(mustMarshalSchema(schema)))...)
+		lines = append(lines, summarizeWorkspaceFields("新增字段", functionschema.TableCreateFields(mustMarshalSchema(schema)))...)
+		lines = append(lines, summarizeWorkspaceFields("编辑字段", functionschema.TableUpdateFields(mustMarshalSchema(schema)))...)
+		return lines
+	case functionschema.TypeChart:
+		if schema.Chart == nil {
+			return nil
+		}
+		return summarizeWorkspaceFields("查询字段", schema.Chart.Request)
+	default:
+		return nil
 	}
-	if len(fields) == 0 {
-		return nil, nil
-	}
-	lines := make([]string, 0, len(fields)*2)
-	for _, field := range fields {
-		lines = append(lines, field.LLMSummaryLines(widget.SummaryOptions{
-			Mode:     widget.SummaryCompact,
-			MaxDepth: 1,
-		})...)
-	}
-	return lines, nil
 }
 
-func formatWorkspaceFunctionCapabilities(templateType, callbacks string) string {
+func summarizeWorkspaceFields(label string, fields []*widget.Field) []string {
+	if len(fields) == 0 {
+		return nil
+	}
+	lines := make([]string, 0, len(fields)*2+1)
+	lines = append(lines, label+"：")
+	for _, field := range fields {
+		for _, line := range field.LLMSummaryLines(widget.SummaryOptions{
+			Mode:     widget.SummaryCompact,
+			MaxDepth: 1,
+		}) {
+			lines = append(lines, "  "+line)
+		}
+	}
+	return lines
+}
+
+func mustMarshalSchema(schema *functionschema.FunctionSchema) json.RawMessage {
+	raw, _ := functionschema.Marshal(schema)
+	return raw
+}
+
+func formatWorkspaceFunctionCapabilities(templateType string, callbacks []string) string {
 	switch templateType {
-	case "table":
+	case functionschema.TypeTable:
 		caps := []string{"查询"}
 		if hasWorkspaceCallback(callbacks, "OnTableAddRow") {
 			caps = append(caps, "新增")
@@ -249,18 +273,18 @@ func formatWorkspaceFunctionCapabilities(templateType, callbacks string) string 
 			return "只读查询"
 		}
 		return strings.Join(caps, "、")
-	case "form":
+	case functionschema.TypeForm:
 		return "表单提交"
-	case "chart":
+	case functionschema.TypeChart:
 		return "图表查询"
 	default:
 		return ""
 	}
 }
 
-func hasWorkspaceCallback(callbacks, target string) bool {
-	for _, callback := range strings.Split(callbacks, ",") {
-		if strings.TrimSpace(callback) == target {
+func hasWorkspaceCallback(callbacks []string, target string) bool {
+	for _, callback := range callbacks {
+		if callback == target {
 			return true
 		}
 	}
@@ -309,7 +333,6 @@ func FillWorkspaceEnvTemplateWithTemplate(data *WorkspaceEnvData, template strin
 		"DIR_CODE":                  data.DirCode,
 		"FULL_CODE_PATH":            data.FullCodePath,
 		"DIR_TYPE":                  data.DirType,
-		"HUB_SECTION":               data.HubSection,
 		"DIR_DESCRIPTION":           data.DirDescription,
 		"CHILDREN_SECTION":          data.ChildrenSection,
 		"FUNCTIONS_SECTION":         data.FunctionsSection,
@@ -344,5 +367,5 @@ func BuildWorkspaceEnvBlockWithTemplate(template string, data *WorkspaceEnvData,
 
 %s
 
-要生成系统/应用时，必须先 read_doc 拉取上述目录下的 SDK 文档，再按规范写 Go 代码；禁止用 HTML/CSS/JS、localStorage、纯前端等方案。`, directoryName, fullCodePath, data.DirectoryList)
+要生成或修改系统/应用时，先调用 change_role 进入对应身份；当前身份文档不足时再 read_doc 明确路径。业务能力写成 AgentOS SDK Go 应用，禁止用 HTML/CSS/JS、localStorage、纯前端等方案。`, directoryName, fullCodePath, data.DirectoryList)
 }

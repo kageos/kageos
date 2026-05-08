@@ -69,6 +69,15 @@ location /control/api/ {
     proxy_send_timeout 300s;
 }
 
+location /message/api/ {
+    proxy_pass http://127.0.0.1:9090;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_read_timeout 300s;
+    proxy_send_timeout 300s;
+}
+
 location /hr/api/ {
     proxy_pass http://127.0.0.1:9090;
     proxy_set_header Host $host;

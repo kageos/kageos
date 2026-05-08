@@ -43,17 +43,22 @@ const previewValue = computed(() => (
 <style scoped>
 .mini-ws-display-field-card {
   margin-bottom: 6px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--el-border-radius-base);
+  border: 1px solid rgba(96, 231, 255, 0.14);
+  border-radius: 12px;
+  background:
+    linear-gradient(145deg, rgba(9, 28, 48, 0.62), rgba(4, 12, 24, 0.46)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent);
   overflow: hidden;
 }
 
 .mini-ws-display-field-card--compact {
   padding: 6px 8px;
   margin-bottom: 4px;
-  border-color: var(--el-border-color-extra-light);
-  border-radius: var(--el-border-radius-small);
-  background: var(--el-bg-color);
+  border-color: rgba(96, 231, 255, 0.14);
+  border-radius: 12px;
+  background:
+    linear-gradient(145deg, rgba(9, 28, 48, 0.62), rgba(4, 12, 24, 0.46)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent);
 }
 
 .mini-ws-display-field-card__header,
@@ -69,14 +74,14 @@ const previewValue = computed(() => (
 
 .mini-ws-display-field-card__sidebar-header {
   padding: 6px 10px;
-  background: var(--el-fill-color-light);
-  border-bottom: 1px solid var(--el-border-color-extra-light);
+  background: rgba(34, 211, 238, 0.08);
+  border-bottom: 1px solid rgba(96, 231, 255, 0.12);
 }
 
 .mini-ws-display-field-card__label,
 .mini-ws-display-field-card__sidebar-label {
-  font-weight: 600;
-  color: var(--el-text-color-primary);
+  font-weight: 800;
+  color: var(--mini-cyber-text, #d8f8ff);
 }
 
 .mini-ws-display-field-card__label {
@@ -97,7 +102,7 @@ const previewValue = computed(() => (
 .mini-ws-display-field-card__value {
   font-size: 11px;
   line-height: 1.5;
-  color: var(--el-text-color-regular);
+  color: var(--mini-cyber-muted, rgba(184, 225, 235, 0.68));
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 4.5em;
@@ -108,6 +113,7 @@ const previewValue = computed(() => (
   padding: 6px 10px;
   max-height: 200px;
   overflow-y: auto;
+  background: rgba(2, 8, 18, 0.24);
 }
 
 .mini-ws-display-field-card__pre {
@@ -117,6 +123,14 @@ const previewValue = computed(() => (
   font-size: 11px;
   line-height: 1.5;
   font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-  color: var(--el-text-color-regular);
+  color: var(--mini-cyber-muted, rgba(184, 225, 235, 0.68));
+}
+.mini-ws-display-field-card__actions :deep(.el-button),
+.mini-ws-display-field-card__sidebar-actions :deep(.el-button) {
+  color: var(--mini-cyber-accent, #22d3ee);
+}
+.mini-ws-display-field-card__actions :deep(.el-button:hover),
+.mini-ws-display-field-card__sidebar-actions :deep(.el-button:hover) {
+  color: #ffffff;
 }
 </style>

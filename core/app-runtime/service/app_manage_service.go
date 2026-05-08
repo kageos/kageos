@@ -49,6 +49,7 @@ type StartupNotification struct {
 	Version   string
 	Status    string
 	StartTime time.Time
+	Error     string
 }
 
 // CloseNotification 关闭通知
@@ -64,7 +65,7 @@ type AppManageService struct {
 	builder              *builder.Builder
 	config               *appconfig.AppManageServiceConfig
 	runtimeConfig        *appconfig.AppRuntimeConfig // 运行时完整配置（用于获取网关地址等）
-	containerService     ContainerOperator           // 容器服务依赖
+	runtimeDriver        AppRuntimeDriver            // 应用版本运行时抽象
 	appRepo              *repository.AppRepository   // 应用数据访问层
 	appDiscoveryService  *AppDiscoveryService        // 应用发现服务，用于获取运行状态
 	appControlClient     *AppControlClient           // runtime -> app 控制调用
@@ -128,7 +129,7 @@ func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageSe
 		builder:              builder,
 		config:               config,
 		runtimeConfig:        runtimeConfig,
-		containerService:     containerService,
+		runtimeDriver:        NewPodmanAppRuntimeDriver(containerService),
 		appRepo:              appRepo,
 		appDiscoveryService:  appDiscoveryService,
 		appControlClient:     NewAppControlClient(natsConn),
@@ -253,38 +254,39 @@ func (s *AppManageService) ListApps(ctx context.Context, user string) ([]string,
 func (s *AppManageService) DeleteApp(ctx context.Context, user, app string) error {
 	logger.Infof(ctx, "[DeleteApp] *** ENTRY *** user=%s, app=%s", user, app)
 
-	// 1. 获取应用的所有版本，删除每个版本的容器
-	if s.containerService != nil {
+	// 1. 获取应用的所有版本，删除每个版本的运行时实例
+	if s.runtimeDriver != nil {
 		// 获取所有版本
 		versions, err := s.appRepo.GetAppVersions(user, app)
 		if err != nil {
-			logger.Warnf(ctx, "[DeleteApp] Failed to get app versions: %v, will try to delete containers by pattern", err)
-			// 如果获取版本失败，尝试通过容器名称模式查找并删除
-			// 这里可以扩展 ContainerOperator 接口支持按模式查找，暂时先跳过
+			logger.Warnf(ctx, "[DeleteApp] Failed to get app versions: %v, will try to delete runtime instances by pattern", err)
+			// 如果获取版本失败，尝试通过运行时名称模式查找并删除。
+			// 这里可以扩展 AppRuntimeDriver 接口支持按应用查找，暂时先跳过。
 		} else {
-			// 删除每个版本的容器
+			// 删除每个版本的运行时实例
 			for _, version := range versions {
-				containerName := buildContainerName(user, app, version.Version)
+				ref := AppVersionRef{User: user, App: app, Version: version.Version}
+				runtimeName := ref.RuntimeName()
 
-				// 先尝试停止容器（如果正在运行）
-				if err := s.containerService.StopContainer(ctx, containerName); err != nil {
-					logger.Warnf(ctx, "[DeleteApp] Failed to stop container %s (may not be running): %v", containerName, err)
+				// 先尝试停止运行时实例（如果正在运行）
+				if err := s.runtimeDriver.StopAppVersion(ctx, ref); err != nil {
+					logger.Warnf(ctx, "[DeleteApp] Failed to stop runtime instance %s (may not be running): %v", runtimeName, err)
 				} else {
-					logger.Infof(ctx, "[DeleteApp] Container %s stopped successfully", containerName)
+					logger.Infof(ctx, "[DeleteApp] Runtime instance %s stopped successfully", runtimeName)
 				}
 
-				// 强制删除容器（无论是否正在运行）
-				if err := s.containerService.RemoveContainer(ctx, containerName); err != nil {
-					logger.Warnf(ctx, "[DeleteApp] Failed to remove container %s: %v", containerName, err)
-					// 不返回错误，继续删除其他容器
+				// 强制删除运行时实例（无论是否正在运行）
+				if err := s.runtimeDriver.RemoveAppVersion(ctx, ref); err != nil {
+					logger.Warnf(ctx, "[DeleteApp] Failed to remove runtime instance %s: %v", runtimeName, err)
+					// 不返回错误，继续删除其他实例
 				} else {
-					logger.Infof(ctx, "[DeleteApp] Container %s removed successfully", containerName)
+					logger.Infof(ctx, "[DeleteApp] Runtime instance %s removed successfully", runtimeName)
 				}
 			}
-			s.MarkContainerCleanupDirty() // 有容器被删，下次巡检周期会做对账
+			s.MarkContainerCleanupDirty() // 有运行时实例被删，下次巡检周期会做对账
 		}
 	} else {
-		logger.Warnf(ctx, "[DeleteApp] Container operator is nil, skipping container deletion")
+		logger.Warnf(ctx, "[DeleteApp] App runtime driver is nil, skipping runtime deletion")
 	}
 
 	// 2. 删除应用目录
@@ -447,37 +449,73 @@ func (s *AppManageService) IsAppRunning(ctx context.Context, user, app string) (
 	return s.appDiscoveryService.IsAppRunning(user, app), nil
 }
 
+// IsAppVersionRuntimeRunning 检查指定应用版本的底层运行时实例是否正在运行。
+func (s *AppManageService) IsAppVersionRuntimeRunning(ctx context.Context, user, app, version string) (bool, error) {
+	if s.runtimeDriver == nil {
+		return false, fmt.Errorf("app runtime driver not available")
+	}
+	return s.runtimeDriver.IsAppVersionRunning(ctx, AppVersionRef{User: user, App: app, Version: version})
+}
+
+// EnsureAppVersionRuntimeRunning 只保证底层运行时实例已启动，不等待应用启动通知。
+func (s *AppManageService) EnsureAppVersionRuntimeRunning(ctx context.Context, user, app, version string) error {
+	if s.runtimeDriver == nil {
+		return fmt.Errorf("app runtime driver not available")
+	}
+
+	ref := AppVersionRef{User: user, App: app, Version: version}
+	appDirRel := newRuntimeAppPaths(s.config.GetBasePath(), user, app).AppDir()
+	spec, err := s.buildAppVersionSpec(ctx, ref, appDirRel)
+	if err != nil {
+		return err
+	}
+
+	if err := s.runtimeDriver.StartAppVersion(ctx, spec); err != nil {
+		return fmt.Errorf("failed to start app runtime version: %w", err)
+	}
+	logger.Infof(ctx, "[EnsureAppVersionRuntimeRunning] Runtime instance %s started successfully", ref.RuntimeName())
+	s.MarkContainerCleanupDirty()
+	return nil
+}
+
 // createVersionContainer 创建版本容器
 // 这是新架构的核心方法：每个版本使用独立的容器
 func (s *AppManageService) createVersionContainer(ctx context.Context, user, app, version, appDir string) error {
-	containerName := buildContainerName(user, app, version)
-	logger.Infof(ctx, "[createVersionContainer] Creating version container: %s for %s/%s/%s", containerName, user, app, version)
+	ref := AppVersionRef{User: user, App: app, Version: version}
+	runtimeName := ref.RuntimeName()
+	logger.Infof(ctx, "[createVersionContainer] Creating app runtime instance: %s for %s/%s/%s", runtimeName, user, app, version)
 
-	// 检查容器是否已存在
-	exists, err := s.containerService.IsContainerRunning(ctx, containerName)
+	if s.runtimeDriver == nil {
+		logger.Errorf(ctx, "App runtime driver not available")
+		return fmt.Errorf("app runtime driver not available")
+	}
+
+	// 检查运行时实例是否已存在
+	exists, err := s.runtimeDriver.IsAppVersionRunning(ctx, ref)
 	if err != nil {
-		return fmt.Errorf("failed to check container existence: %w", err)
+		return fmt.Errorf("failed to check app runtime instance existence: %w", err)
 	}
 
 	if exists {
-		logger.Warnf(ctx, "[createVersionContainer] Container %s already exists and is running", containerName)
-		return fmt.Errorf("container %s already exists and is running", containerName)
+		logger.Warnf(ctx, "[createVersionContainer] App runtime instance %s already exists and is running", runtimeName)
+		return fmt.Errorf("app runtime instance %s already exists and is running", runtimeName)
 	}
 
-	// 调用现有的 startAppContainer，但使用新的容器名
-	// startAppContainer 会创建并启动容器
-	return s.startAppContainer(ctx, containerName, appDir, version)
+	spec, err := s.buildAppVersionSpec(ctx, ref, appDir)
+	if err != nil {
+		return err
+	}
+	if err := s.runtimeDriver.CreateAppVersion(ctx, spec); err != nil {
+		return err
+	}
+	logger.Infof(ctx, "App runtime instance started successfully with runtime image %s", spec.Image)
+	s.MarkContainerCleanupDirty() // 有新运行时实例，下次巡检周期会做对账
+	return nil
 }
 
-// startAppContainer 启动应用容器
-func (s *AppManageService) startAppContainer(ctx context.Context, containerName, appDir, version string) error {
-	logger.Infof(ctx, "Starting container: %s, appDir: %s, version: %s", containerName, appDir, version)
-
-	// 获取容器操作器
-	if s.containerService == nil {
-		logger.Errorf(ctx, "Container operator not available")
-		return fmt.Errorf("container operator not available")
-	}
+// buildAppVersionSpec 构建应用版本运行时启动参数。
+func (s *AppManageService) buildAppVersionSpec(ctx context.Context, ref AppVersionRef, appDir string) (AppVersionSpec, error) {
+	logger.Infof(ctx, "Building app runtime spec: %s, appDir: %s, version: %s", ref.RuntimeName(), appDir, ref.Version)
 
 	// 使用 runtime 配置里的应用基础镜像启动容器，挂载应用目录。
 	image := s.runtimeConfig.GetContainerBaseImage()
@@ -485,11 +523,11 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 	absHostPath, err := filepath.Abs(appDir)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to get absolute path: %v", err)
-		return fmt.Errorf("failed to get absolute path: %w", err)
+		return AppVersionSpec{}, fmt.Errorf("failed to get absolute path: %w", err)
 	}
 	containerPath := s.runtimeConfig.GetContainerPath()
 
-	logger.Infof(ctx, "[startAppContainer] Running container with mount: image=%s, name=%s, hostPath=%s, containerPath=%s", image, containerName, absHostPath, containerPath)
+	logger.Infof(ctx, "[buildAppVersionSpec] Runtime mount: image=%s, name=%s, hostPath=%s, containerPath=%s", image, ref.RuntimeName(), absHostPath, containerPath)
 
 	// 设置环境变量
 	envVars := []string{}
@@ -508,41 +546,44 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 	sdkEnvVars := sdkConfig.GetEnvVars()
 	for key, value := range sdkEnvVars {
 		envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
-		logger.Infof(ctx, "[startAppContainer] Injecting %s=%s into container (SDK config)", key, value)
+		logger.Infof(ctx, "[buildAppVersionSpec] Injecting %s=%s into app runtime (SDK config)", key, value)
 	}
 
 	// 注入版本信息到环境变量（新架构：每个容器对应特定版本）
 	// 这样启动脚本可以通过环境变量读取版本，而不依赖可能被更新的文件
-	envVars = append(envVars, fmt.Sprintf("APP_VERSION=%s", version))
-	logger.Infof(ctx, "[startAppContainer] Injecting APP_VERSION=%s into container", version)
+	envVars = append(envVars, fmt.Sprintf("APP_VERSION=%s", ref.Version))
+	logger.Infof(ctx, "[buildAppVersionSpec] Injecting APP_VERSION=%s into app runtime", ref.Version)
 
-	// 启动容器，使用 runtime base image 的启动脚本
-	// 启动脚本会优先读取 APP_VERSION 环境变量，如果没有则读取文件（向后兼容）
-	logger.Infof(ctx, "[startAppContainer] Creating container with runtime image=%s name=%s", image, containerName)
-	if err := s.containerService.RunContainerWithCommand(ctx, image, containerName, absHostPath, containerPath, []string{"/start.sh"}, envVars...); err != nil {
-		logger.Errorf(ctx, "[startAppContainer] Failed to start container: %v", err)
-		return fmt.Errorf("failed to start container: %w", err)
-	}
-
-	logger.Infof(ctx, "Container started successfully with runtime image %s", image)
-	s.MarkContainerCleanupDirty() // 有新容器，下次巡检周期会做对账
-	return nil
+	return AppVersionSpec{
+		Ref:           ref,
+		Image:         image,
+		HostPath:      absHostPath,
+		ContainerPath: containerPath,
+		Command:       []string{"/start.sh"},
+		EnvVars:       envVars,
+	}, nil
 }
 
 // stopOldVersionContainer 优雅关闭旧版本容器（三次握手流程）
 // 这是新架构的核心方法：优雅关闭旧版本容器
 func (s *AppManageService) stopOldVersionContainer(ctx context.Context, user, app, oldVersion string) error {
-	containerName := buildContainerName(user, app, oldVersion)
-	logger.Infof(ctx, "[stopOldVersionContainer] Starting graceful shutdown for old container: %s", containerName)
+	ref := AppVersionRef{User: user, App: app, Version: oldVersion}
+	runtimeName := ref.RuntimeName()
+	logger.Infof(ctx, "[stopOldVersionContainer] Starting graceful shutdown for old runtime instance: %s", runtimeName)
 
-	// 1. 检查容器是否存在
-	exists, err := s.containerService.IsContainerRunning(ctx, containerName)
+	if s.runtimeDriver == nil {
+		logger.Warnf(ctx, "[stopOldVersionContainer] App runtime driver not available, skipping")
+		return nil
+	}
+
+	// 1. 检查运行时实例是否存在
+	exists, err := s.runtimeDriver.IsAppVersionRunning(ctx, ref)
 	if err != nil {
-		logger.Warnf(ctx, "[stopOldVersionContainer] Failed to check container existence: %v", err)
+		logger.Warnf(ctx, "[stopOldVersionContainer] Failed to check runtime instance existence: %v", err)
 		return nil // 不返回错误，继续执行
 	}
 	if !exists {
-		logger.Infof(ctx, "[stopOldVersionContainer] Old container %s not found, skipping", containerName)
+		logger.Infof(ctx, "[stopOldVersionContainer] Old runtime instance %s not found, skipping", runtimeName)
 		return nil
 	}
 
@@ -568,14 +609,14 @@ func (s *AppManageService) stopOldVersionContainer(ctx context.Context, user, ap
 		// 超时后强制停止
 	}
 
-	// 5. 停止容器（不删除，保留以便快速回滚）
-	logger.Infof(ctx, "[stopOldVersionContainer] Stopping container %s (not removing)", containerName)
-	if err := s.containerService.StopContainer(ctx, containerName); err != nil {
-		return fmt.Errorf("failed to stop container: %w", err)
+	// 5. 停止运行时实例（不删除，保留以便快速回滚）
+	logger.Infof(ctx, "[stopOldVersionContainer] Stopping runtime instance %s (not removing)", runtimeName)
+	if err := s.runtimeDriver.StopAppVersion(ctx, ref); err != nil {
+		return fmt.Errorf("failed to stop app runtime instance: %w", err)
 	}
 
-	logger.Infof(ctx, "[stopOldVersionContainer] Old container %s stopped successfully", containerName)
-	s.MarkContainerCleanupDirty() // 有容器被停，下次巡检周期会做对账
+	logger.Infof(ctx, "[stopOldVersionContainer] Old runtime instance %s stopped successfully", runtimeName)
+	s.MarkContainerCleanupDirty() // 有运行时实例被停，下次巡检周期会做对账
 	return nil
 }
 
@@ -809,12 +850,12 @@ func (s *AppManageService) MarkContainerCleanupDirty() {
 	s.containerCleanupDirty = true
 }
 
-// containerLevelCleanup 容器级对账巡检
+// containerLevelCleanup 运行时实例级对账巡检
 // 策略：仅处理 app 表中已注册的应用（runtime 构建的），每个应用保留最近 maxKeepVersions 个版本，更老的全部清理。
-// 非 runtime 构建的容器（未在 app 表注册的）一律不碰，保证基础设施等安全。
+// 非 runtime 构建的实例（未在 app 表注册的）一律不碰，保证基础设施等安全。
 func (s *AppManageService) containerLevelCleanup(ctx context.Context) {
-	if s.containerService == nil || !s.containerService.IsRunning() {
-		logger.Debugf(ctx, "[ContainerCleanup] 跳过巡检: containerService 不可用或未运行")
+	if s.runtimeDriver == nil || !s.runtimeDriver.IsAvailable() {
+		logger.Debugf(ctx, "[ContainerCleanup] 跳过巡检: runtimeDriver 不可用或未运行")
 		return
 	}
 
@@ -831,41 +872,29 @@ func (s *AppManageService) containerLevelCleanup(ctx context.Context) {
 		registeredAppKeys[a.User+"/"+a.App] = true
 	}
 
-	allContainers, err := s.containerService.ListContainers(ctx)
+	runtimeInstances, err := s.runtimeDriver.ListAppVersions(ctx)
 	if err != nil {
-		logger.Warnf(ctx, "[ContainerCleanup] 获取容器列表失败: %v", err)
+		logger.Warnf(ctx, "[ContainerCleanup] 获取运行时实例列表失败: %v", err)
 		return
 	}
 
-	// 2. 按 "user/app" 分组收集应用容器，且仅收集在 app 表中已注册的应用
+	// 2. 按 "user/app" 分组收集应用运行时实例，且仅收集在 app 表中已注册的应用
 	appContainers := make(map[string][]appContainerInfo) // key: "user/app"
-	infraCount := 0
 	unregisteredCount := 0
 
-	for _, c := range allContainers {
-		if len(c.Names) == 0 {
-			continue
-		}
-		containerName := c.Names[0]
-
-		user, app, version, parseErr := parseContainerName(containerName)
-		if parseErr != nil {
-			infraCount++
-			continue
-		}
-
-		appKey := user + "/" + app
+	for _, instance := range runtimeInstances {
+		appKey := instance.Ref.AppKey()
 		if !registeredAppKeys[appKey] {
 			unregisteredCount++
 			continue
 		}
 
-		vNum := parseVersionNumber(version)
+		vNum := parseVersionNumber(instance.Ref.Version)
 		appContainers[appKey] = append(appContainers[appKey], appContainerInfo{
-			containerName: containerName,
-			version:       version,
+			containerName: instance.RuntimeName,
+			version:       instance.Ref.Version,
 			versionNum:    vNum,
-			exited:        c.Exited,
+			exited:        !instance.Running,
 		})
 	}
 
@@ -874,8 +903,8 @@ func (s *AppManageService) containerLevelCleanup(ctx context.Context) {
 		totalAppContainers += len(cs)
 	}
 
-	logger.Infof(ctx, "[ContainerCleanup] 开始巡检 | 总容器=%d | 已注册应用容器=%d（%d个应用）| 未注册/其他=%d | 基础设施=%d | 保留策略=每应用最近%d版本",
-		len(allContainers), totalAppContainers, len(appContainers), unregisteredCount, infraCount, maxKeepVersions)
+	logger.Infof(ctx, "[ContainerCleanup] 开始巡检 | 总应用运行时实例=%d | 已注册应用实例=%d（%d个应用）| 未注册=%d | 保留策略=每应用最近%d版本",
+		len(runtimeInstances), totalAppContainers, len(appContainers), unregisteredCount, maxKeepVersions)
 
 	var cleanedExited, cleanedRunning, skippedTraffic, failedClean int
 
@@ -916,7 +945,8 @@ func (s *AppManageService) containerLevelCleanup(ctx context.Context) {
 		for _, info := range toRemove {
 			if info.exited {
 				removeStart := time.Now()
-				if rmErr := s.containerService.RemoveContainer(ctx, info.containerName); rmErr != nil {
+				ref := AppVersionRef{User: user, App: app, Version: info.version}
+				if rmErr := s.runtimeDriver.RemoveAppVersion(ctx, ref); rmErr != nil {
 					logger.Warnf(ctx, "[ContainerCleanup] ❌ 删除已停止容器失败 | 容器=%s | 错误=%v", info.containerName, rmErr)
 					failedClean++
 				} else {
@@ -928,19 +958,20 @@ func (s *AppManageService) containerLevelCleanup(ctx context.Context) {
 				if s.QPSTracker.IsSafeToShutdown(user, app, info.version) {
 					stopStart := time.Now()
 					logger.Infof(ctx, "[ContainerCleanup] 停止运行中的旧容器 | 容器=%s | 版本=%s（QPS=0，安全关闭）", info.containerName, info.version)
-					stopErr := s.containerService.StopContainer(ctx, info.containerName)
+					ref := AppVersionRef{User: user, App: app, Version: info.version}
+					stopErr := s.runtimeDriver.StopAppVersion(ctx, ref)
 					if stopErr != nil {
 						// 容器已不存在（可能已被外部删除或已退出），视为已清理，不记入失败
 						if strings.Contains(stopErr.Error(), "not found") {
 							logger.Infof(ctx, "[ContainerCleanup] 容器已不存在，视为已清理 | 容器=%s | 版本=%s", info.containerName, info.version)
-							_ = s.containerService.RemoveContainer(ctx, info.containerName) // 无则 no-op
+							_ = s.runtimeDriver.RemoveAppVersion(ctx, ref) // 无则 no-op
 						} else {
 							logger.Warnf(ctx, "[ContainerCleanup] ❌ 停止容器失败 | 容器=%s | 错误=%v", info.containerName, stopErr)
 							failedClean++
 						}
 						continue
 					}
-					if rmErr := s.containerService.RemoveContainer(ctx, info.containerName); rmErr != nil {
+					if rmErr := s.runtimeDriver.RemoveAppVersion(ctx, ref); rmErr != nil {
 						logger.Warnf(ctx, "[ContainerCleanup] ❌ 删除容器失败 | 容器=%s | 错误=%v", info.containerName, rmErr)
 						failedClean++
 					} else {
@@ -1026,19 +1057,20 @@ func (s *AppManageService) CleanupNonCurrentVersions(ctx context.Context, user, 
 			continue
 		}
 
-		// 先发优雅关闭（NATS），再强制停容器，确保非当前版本一定会被停掉
+		// 先发优雅关闭（NATS），再强制停运行时实例，确保非当前版本一定会被停掉
 		_ = s.ShutdownAppVersion(ctx, user, app, version.Version)
-		containerName := buildContainerName(user, app, version.Version)
-		if s.containerService != nil {
-			if err := s.containerService.StopContainer(ctx, containerName); err != nil {
+		ref := AppVersionRef{User: user, App: app, Version: version.Version}
+		runtimeName := ref.RuntimeName()
+		if s.runtimeDriver != nil {
+			if err := s.runtimeDriver.StopAppVersion(ctx, ref); err != nil {
 				if strings.Contains(err.Error(), "not found") {
-					logger.Infof(ctx, "[CleanupNonCurrentVersions] 容器已不存在，跳过 | %s/%s/%s", user, app, version.Version)
+					logger.Infof(ctx, "[CleanupNonCurrentVersions] 运行时实例已不存在，跳过 | %s/%s/%s", user, app, version.Version)
 				} else {
-					logger.Warnf(ctx, "[CleanupNonCurrentVersions] 停止容器失败 | %s | 错误=%v", containerName, err)
+					logger.Warnf(ctx, "[CleanupNonCurrentVersions] 停止运行时实例失败 | %s | 错误=%v", runtimeName, err)
 				}
 			} else {
-				logger.Infof(ctx, "[CleanupNonCurrentVersions] 已停止非当前版本容器 | %s/%s/%s", user, app, version.Version)
-				s.MarkContainerCleanupDirty() // 触发后续容器级巡检，可清理已退出的容器
+				logger.Infof(ctx, "[CleanupNonCurrentVersions] 已停止非当前版本运行时实例 | %s/%s/%s", user, app, version.Version)
+				s.MarkContainerCleanupDirty() // 触发后续运行时巡检，可清理已退出的实例
 			}
 		}
 	}
@@ -1065,38 +1097,34 @@ func (s *AppManageService) StartAppVersion(ctx context.Context, user, app, versi
 		}
 	}
 
-	// 使用新的容器命名格式：{user}-{app}-{version}
-	containerName := buildContainerName(user, app, version)
+	ref := AppVersionRef{User: user, App: app, Version: version}
+	runtimeName := ref.RuntimeName()
 
 	// 注册启动等待器（统一在外层注册）
 	waiterChan := s.registerStartupWaiter(user, app, version)
 	// 确保在方法结束时清理等待器
 	defer s.unregisterStartupWaiter(user, app, version)
 
-	// 检查容器是否存在且运行中
-	exists, err := s.containerService.IsContainerRunning(ctx, containerName)
+	if s.runtimeDriver == nil {
+		return fmt.Errorf("app runtime driver not available")
+	}
+
+	// 检查运行时实例是否存在且运行中
+	exists, err := s.runtimeDriver.IsAppVersionRunning(ctx, ref)
 	if err != nil {
-		logger.Warnf(ctx, "[StartAppVersion] Failed to check container status: %v, will try to create", err)
+		logger.Warnf(ctx, "[StartAppVersion] Failed to check runtime status: %v, will try to start", err)
 		exists = false
 	}
 
 	if exists {
-		// 容器已存在且运行中，应用应该已经启动，等待启动通知
-		logger.Infof(ctx, "[StartAppVersion] Container %s already exists and is running, waiting for startup notification", containerName)
+		// 运行时实例已存在且运行中，应用应该已经启动，等待启动通知
+		logger.Infof(ctx, "[StartAppVersion] Runtime instance %s already exists and is running, waiting for startup notification", runtimeName)
 	} else {
-		// 容器不存在或已停止，需要创建或启动容器
-		appDirRel := newRuntimeAppPaths(s.config.GetBasePath(), user, app).AppDir()
-
-		// 尝试启动已存在的容器（可能已停止）
-		if err := s.containerService.StartContainer(ctx, containerName); err != nil {
-			// 启动失败，可能容器不存在，创建新容器
-			logger.Infof(ctx, "[StartAppVersion] Container %s not found or failed to start, creating new container", containerName)
-			if err := s.createVersionContainer(ctx, user, app, version, appDirRel); err != nil {
-				return fmt.Errorf("failed to create version container: %w", err)
-			}
-		} else {
-			logger.Infof(ctx, "[StartAppVersion] Container %s started successfully", containerName)
+		// 运行时实例不存在或已停止，需要创建或启动实例
+		if err := s.EnsureAppVersionRuntimeRunning(ctx, user, app, version); err != nil {
+			return err
 		}
+		logger.Infof(ctx, "[StartAppVersion] Runtime instance %s started successfully", runtimeName)
 	}
 
 	// 等待启动完成通知（30秒超时）
@@ -1110,6 +1138,9 @@ func (s *AppManageService) StartAppVersion(ctx context.Context, user, app, versi
 		if notification.Status == "running" {
 			logger.Infof(ctx, "[StartAppVersion] Version %s started successfully", version)
 			return nil
+		}
+		if notification.Error != "" {
+			return fmt.Errorf("app startup failed: %s", notification.Error)
 		}
 		return fmt.Errorf("app started but status is not running: %s", notification.Status)
 

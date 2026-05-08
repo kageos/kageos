@@ -13,8 +13,9 @@ import (
 )
 
 type appStartupPayload struct {
-	Status    string    `json:"status"`
-	StartTime time.Time `json:"start_time"`
+	Status       string    `json:"status"`
+	StartTime    time.Time `json:"start_time"`
+	ErrorMessage string    `json:"error_message"`
 }
 
 type appClosePayload struct {
@@ -48,7 +49,7 @@ func (h *AppDiscoveryHandler) HandleRuntimeLifecycleEvent(msg *nats.Msg) {
 			logger.Errorf(ctx, "[AppDiscoveryHandler] Failed to decode startup payload: %v", err)
 			return
 		}
-		h.service.applyStartupNotification(message.User, message.App, message.Version, payload.Status, payload.StartTime)
+		h.service.applyStartupNotification(message.User, message.App, message.Version, payload.Status, payload.StartTime, payload.ErrorMessage)
 	case subjects.MessageTypeStatusClose:
 		payload, err := decodeLifecycleData[appClosePayload](message.Data)
 		if err != nil {

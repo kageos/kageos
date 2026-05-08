@@ -14,22 +14,138 @@ export function useChartInstanceLifecycle<TChart extends { chart_type: string }>
 ) {
   const chartInstance = ref<EChartsType | null>(null)
   let resizeObserver: ResizeObserver | null = null
+  let observedElement: HTMLElement | null = null
   let lastChartDataHash: string | null = null
+  let windowResizeRegistered = false
+  let renderedChartType: string | null = null
+  let hasRenderedOption = false
+  let resizeFrame: number | null = null
+  let renderVersion = 0
+  let lastRenderedWidth = 0
+  let lastRenderedHeight = 0
+
+  const getContainerSize = () => {
+    const element = options.chartContainerRef.value
+    if (!element) {
+      return { width: 0, height: 0 }
+    }
+
+    return {
+      width: Math.round(element.clientWidth),
+      height: Math.round(element.clientHeight),
+    }
+  }
+
+  const rememberContainerSize = () => {
+    const { width, height } = getContainerSize()
+    lastRenderedWidth = width
+    lastRenderedHeight = height
+  }
+
+  const hasContainerSizeChanged = () => {
+    const { width, height } = getContainerSize()
+    return width > 0
+      && height > 0
+      && (width !== lastRenderedWidth || height !== lastRenderedHeight)
+  }
 
   const handleResize = () => {
+    if (!hasRenderedOption || !hasContainerSizeChanged()) {
+      return
+    }
     chartInstance.value?.resize()
+    rememberContainerSize()
+  }
+
+  const scheduleResize = () => {
+    if (typeof window === 'undefined') {
+      handleResize()
+      return
+    }
+
+    if (resizeFrame !== null && typeof window.cancelAnimationFrame === 'function') {
+      window.cancelAnimationFrame(resizeFrame)
+    }
+    resizeFrame = window.requestAnimationFrame(() => {
+      resizeFrame = null
+      handleResize()
+    })
+  }
+
+  const ensureWindowResizeListener = () => {
+    if (windowResizeRegistered || typeof window === 'undefined') {
+      return
+    }
+    window.addEventListener('resize', handleResize)
+    windowResizeRegistered = true
+  }
+
+  const removeWindowResizeListener = () => {
+    if (!windowResizeRegistered || typeof window === 'undefined') {
+      return
+    }
+    window.removeEventListener('resize', handleResize)
+    windowResizeRegistered = false
+  }
+
+  const observeChartContainer = () => {
+    const nextElement = options.chartContainerRef.value
+    if (observedElement === nextElement) {
+      return
+    }
+
+    if (resizeObserver && observedElement) {
+      resizeObserver.unobserve(observedElement)
+    }
+    observedElement = nextElement
+
+    if (!nextElement || typeof ResizeObserver === 'undefined') {
+      return
+    }
+    if (!resizeObserver) {
+      resizeObserver = new ResizeObserver(() => {
+        scheduleResize()
+      })
+    }
+    resizeObserver.observe(nextElement)
+  }
+
+  const disconnectResizeObserver = () => {
+    if (resizeObserver) {
+      if (observedElement) {
+        resizeObserver.unobserve(observedElement)
+      }
+      resizeObserver.disconnect()
+      resizeObserver = null
+    }
+    observedElement = null
   }
 
   const renderChart = async () => {
     if (!options.chartContainerRef.value || !options.chartData.value) return
 
-    const { init } = await options.loadChartRuntime(options.chartData.value.chart_type)
+    const currentRenderVersion = ++renderVersion
+    const chartType = options.chartData.value.chart_type
+    const { init } = await options.loadChartRuntime(chartType)
+    if (currentRenderVersion !== renderVersion) return
     if (!options.chartContainerRef.value || !options.chartData.value) return
+    if (options.chartData.value.chart_type !== chartType) {
+      await renderChart()
+      return
+    }
 
-    const needRecreate = !chartInstance.value || chartInstance.value.getDom() !== options.chartContainerRef.value
+    observeChartContainer()
+
+    const needRecreate = !chartInstance.value
+      || chartInstance.value.getDom() !== options.chartContainerRef.value
+      || renderedChartType !== chartType
 
     if (needRecreate) {
       chartInstance.value?.dispose()
+      hasRenderedOption = false
+      renderedChartType = null
+      lastRenderedWidth = 0
+      lastRenderedHeight = 0
       chartInstance.value = init(options.chartContainerRef.value, null, {
         renderer: 'canvas',
         useDirtyRect: false
@@ -40,34 +156,59 @@ export function useChartInstanceLifecycle<TChart extends { chart_type: string }>
     if (!option || Object.keys(option).length === 0) {
       chartInstance.value?.dispose()
       chartInstance.value = null
+      hasRenderedOption = false
+      renderedChartType = null
+      lastRenderedWidth = 0
+      lastRenderedHeight = 0
       return
     }
 
-    chartInstance.value?.setOption(option)
-    window.addEventListener('resize', handleResize)
+    hasRenderedOption = false
+    chartInstance.value?.setOption(option, {
+      notMerge: false,
+      replaceMerge: ['grid', 'xAxis', 'yAxis', 'series'],
+      lazyUpdate: false,
+    })
+    hasRenderedOption = true
+    renderedChartType = chartType
+    rememberContainerSize()
+    ensureWindowResizeListener()
   }
 
   onMounted(() => {
     nextTick(() => {
-      if (options.chartContainerRef.value) {
-        resizeObserver = new ResizeObserver(() => {
-          chartInstance.value?.resize()
-        })
-        resizeObserver.observe(options.chartContainerRef.value)
-      }
+      observeChartContainer()
     })
   })
 
   onUnmounted(() => {
+    if (resizeFrame !== null && typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
+      window.cancelAnimationFrame(resizeFrame)
+      resizeFrame = null
+    }
     chartInstance.value?.dispose()
     chartInstance.value = null
-    window.removeEventListener('resize', handleResize)
-    if (resizeObserver && options.chartContainerRef.value) {
-      resizeObserver.unobserve(options.chartContainerRef.value)
-      resizeObserver.disconnect()
-      resizeObserver = null
-    }
+    hasRenderedOption = false
+    renderedChartType = null
+    lastRenderedWidth = 0
+    lastRenderedHeight = 0
+    removeWindowResizeListener()
+    disconnectResizeObserver()
   })
+
+  watch(
+    () => options.chartContainerRef.value,
+    (newElement) => {
+      observeChartContainer()
+      if (!newElement || !options.chartData.value) {
+        return
+      }
+      nextTick(() => {
+        void renderChart()
+      })
+    },
+    { flush: 'post' }
+  )
 
   watch(
     () => options.chartData.value,
@@ -75,7 +216,12 @@ export function useChartInstanceLifecycle<TChart extends { chart_type: string }>
       if (!newData) {
         chartInstance.value?.dispose()
         chartInstance.value = null
+        hasRenderedOption = false
+        renderedChartType = null
+        lastRenderedWidth = 0
+        lastRenderedHeight = 0
         lastChartDataHash = null
+        removeWindowResizeListener()
         return
       }
 

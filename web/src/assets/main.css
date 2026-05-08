@@ -1,5 +1,17 @@
 @import './base.css';
 
+:root {
+  /* 浮层层级协议：组件内不要散写魔法数字，新增层级先在这里登记。 */
+  --aos-z-mini-workstation: 2500;
+  --aos-z-image-preview: 3000;
+  --aos-z-floating-popper: 10010;
+  --aos-z-scheduled-agent-dialog-mask: 10019;
+  --aos-z-scheduled-agent-dialog: 10020;
+  --aos-z-scheduled-agent-dialog-popper: 10040;
+  --aos-z-critical-preview: 10060;
+  --aos-z-enterprise-dialog: 12000;
+}
+
 #app {
   width: 100%;
   min-height: 100vh;
@@ -9,14 +21,21 @@
   overflow: visible;
 }
 
-/* 迷你工作台「文件」下拉必须高于迷你窗 (z-index: 2500)，否则会被挡住 */
+/* 迷你工作台下拉必须高于 mini 窗，但低于全局 dialog。 */
 .mini-files-dropdown-popper.el-dropdown__popper {
-  z-index: 9999 !important;
+  z-index: var(--aos-z-floating-popper) !important;
 }
 
-/* 迷你工作台「模型」下拉同理，需高于迷你窗，否则无法点选 */
+.mini-copy-dropdown-popper.el-dropdown__popper {
+  z-index: var(--aos-z-floating-popper) !important;
+}
+
+.mini-debug-popover.el-popper {
+  z-index: var(--aos-z-floating-popper) !important;
+}
+
 .mini-ws-model-select-popper {
-  z-index: 9999 !important;
+  z-index: var(--aos-z-floating-popper) !important;
 }
 
 a,

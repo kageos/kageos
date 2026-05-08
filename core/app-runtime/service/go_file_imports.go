@@ -8,6 +8,8 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"strconv"
+	"strings"
 
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/imports"
@@ -23,6 +25,46 @@ func removeNamedImportFromGoFile(filePath, name, importPath string) (bool, error
 	return rewriteGoFileImports(filePath, func(fset *token.FileSet, file *ast.File) (bool, error) {
 		return astutil.DeleteNamedImport(fset, file, name, importPath), nil
 	})
+}
+
+func removeNamedImportsWithPathPrefixFromGoFile(filePath, name, importPathPrefix string) (bool, error) {
+	importPathPrefix = strings.TrimRight(strings.TrimSpace(importPathPrefix), "/")
+	if importPathPrefix == "" {
+		return false, nil
+	}
+	return rewriteGoFileImports(filePath, func(fset *token.FileSet, file *ast.File) (bool, error) {
+		paths := make([]string, 0)
+		for _, spec := range file.Imports {
+			if !importNameMatches(spec, name) {
+				continue
+			}
+			importPath, err := strconv.Unquote(spec.Path.Value)
+			if err != nil {
+				continue
+			}
+			if importPath == importPathPrefix || strings.HasPrefix(importPath, importPathPrefix+"/") {
+				paths = append(paths, importPath)
+			}
+		}
+		changed := false
+		for _, importPath := range paths {
+			if astutil.DeleteNamedImport(fset, file, name, importPath) {
+				changed = true
+			}
+		}
+		return changed, nil
+	})
+}
+
+func importNameMatches(spec *ast.ImportSpec, name string) bool {
+	if spec == nil {
+		return false
+	}
+	name = strings.TrimSpace(name)
+	if spec.Name == nil {
+		return name == ""
+	}
+	return spec.Name.Name == name
 }
 
 func rewriteGoFileImports(filePath string, edit func(fset *token.FileSet, file *ast.File) (bool, error)) (bool, error) {

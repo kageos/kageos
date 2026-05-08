@@ -25,7 +25,15 @@
             {{ statusLabel(tc.status) }}
           </el-tag>
         </div>
+        <div v-if="isRenderablePrdToolCall(tc)" class="message-tool-calls-prd">
+          <PrdPreview
+            :data="tc.result_data"
+            :confirm-disabled="confirmDisabled"
+            @confirm="emit('confirm-prd', $event)"
+          />
+        </div>
         <div
+          v-else
           :class="['message-tool-calls-viewport', { 'message-tool-calls-viewport--first': idx === 0 }]"
           :ref="(el) => setViewportRef(el as HTMLElement | null, idx)"
         >
@@ -65,13 +73,21 @@ import { computed, ref, watch, nextTick } from 'vue'
 import { Loading, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import OutputDisplayFields from './OutputDisplayFields.vue'
+import PrdPreview from './PrdPreview.vue'
 import type { WorkspaceChatToolCallSummary } from '@/api/workspace'
 import type { OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { extractAllDisplayFields } from '@/architecture/presentation/composables/useOutputDisplayFields'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   toolCalls: WorkspaceChatToolCallSummary[]
   fileGroups: OutputFileGroup[]
+  confirmDisabled?: boolean
+}>(), {
+  confirmDisabled: false,
+})
+
+const emit = defineEmits<{
+  (e: 'confirm-prd', payload: { remark: string; prd: unknown }): void
 }>()
 
 const displayFields = computed(() => extractAllDisplayFields(props.toolCalls))
@@ -101,6 +117,10 @@ function statusLabel(status: string): string {
   if (status === 'ok') return '成功'
   if (status === 'error') return '失败'
   return status
+}
+
+function isRenderablePrdToolCall(tc: WorkspaceChatToolCallSummary): boolean {
+  return tc.name === 'write_prd' && tc.status === 'ok' && tc.result_data != null
 }
 
 /** 把字符串里字面的 \n、\r 转成真实换行，这样嵌套 JSON 里的换行能正确展示 */
@@ -288,6 +308,14 @@ watch(hasRunning, (running) => {
 }
 .message-tool-calls-viewport--first {
   /* 紧接在块头下方，样式已由 border-top: none 体现 */
+}
+
+.message-tool-calls-prd {
+  :deep(.prd-preview) {
+    margin-top: 0;
+    border-top: none;
+    border-radius: 0 0 var(--el-border-radius-base) var(--el-border-radius-base);
+  }
 }
 
 .message-tool-calls-output {

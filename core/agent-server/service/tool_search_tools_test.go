@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 )
 
 func TestFormatSearchToolsOutputBothKeepsSummaryAndJSON(t *testing.T) {
@@ -21,37 +23,20 @@ func TestFormatSearchToolsOutputBothKeepsSummaryAndJSON(t *testing.T) {
 			FullCodePath: "/liubeiluo/work/ticket_system/ticket_list.table",
 			Description:  "一个简单的工单管理系统",
 			TemplateType: "table",
-			Request: []interface{}{
-				map[string]interface{}{
-					"code": "priority",
-					"name": "优先级",
-					"data": map[string]interface{}{
-						"type": "string",
-					},
-					"widget": map[string]interface{}{
-						"type": "select",
-						"config": map[string]interface{}{
-							"options":     []interface{}{"低", "中", "高"},
-							"placeholder": "请选择优先级",
-							"default":     "中",
-						},
-					},
-					"validation": "required,oneof=低 中 高",
+			Schema: functionschema.NewTable(
+				[]*widget.Field{
+					testSearchToolField("priority", "优先级", "select", map[string]interface{}{
+						"options":        []interface{}{"低", "中", "高"},
+						"placeholder":    "请选择优先级",
+						"render_default": "中",
+					}, "required,oneof=低 中 高"),
+					testSearchToolField("handler", "处理人", "users", map[string]interface{}{
+						"render_default": "Me()",
+					}, ""),
 				},
-				map[string]interface{}{
-					"code": "handler",
-					"name": "处理人",
-					"data": map[string]interface{}{
-						"type": "string",
-					},
-					"widget": map[string]interface{}{
-						"type": "users",
-						"config": map[string]interface{}{
-							"default": "Me()",
-						},
-					},
-				},
-			},
+				nil,
+				nil,
+			),
 		},
 	}
 
@@ -62,11 +47,11 @@ func TestFormatSearchToolsOutputBothKeepsSummaryAndJSON(t *testing.T) {
 		"run_table_search: 执行工作区内 Table 查询接口，返回分页表格数据",
 		"【已注册函数摘要】",
 		"字段摘要:",
-		`widget=select, type=string, 【必填】, enum=低|中|高, placeholder="请选择优先级", 前端默认值=中`,
+		`widget=select, type=string, 【必填】, enum=低|中|高, placeholder="请选择优先级", 渲染默认值=中`,
 		`widget=users, type=string, format=comma-separated usernames`,
-		`前端默认值=Me()`,
+		`渲染默认值=Me()`,
 		`example="beiluo,zhangsan"`,
-		"【已注册函数原始 request JSON】",
+		"【已注册函数 Schema JSON】",
 		`"code": "priority"`,
 	} {
 		if !strings.Contains(out, want) {
@@ -75,32 +60,24 @@ func TestFormatSearchToolsOutputBothKeepsSummaryAndJSON(t *testing.T) {
 	}
 }
 
-func TestSummarizeSearchToolRequestFieldsDoesNotTruncate(t *testing.T) {
-	raw := make([]interface{}, 0, 13)
+func TestSummarizeSearchToolSchemaDoesNotTruncate(t *testing.T) {
+	fields := make([]*widget.Field, 0, 13)
 	for i := 1; i <= 13; i++ {
-		raw = append(raw, map[string]interface{}{
-			"code": fmt.Sprintf("field_%d", i),
-			"data": map[string]interface{}{
-				"type": "string",
-			},
-			"widget": map[string]interface{}{
-				"type": "input",
-				"config": map[string]interface{}{
-					"placeholder": fmt.Sprintf("请输入字段%d", i),
-				},
-			},
-		})
+		fields = append(fields, testSearchToolField(
+			fmt.Sprintf("field_%d", i),
+			"",
+			"input",
+			map[string]interface{}{"placeholder": fmt.Sprintf("请输入字段%d", i)},
+			"",
+		))
 	}
 
-	lines, err := summarizeSearchToolRequestFields(raw)
-	if err != nil {
-		t.Fatalf("summarizeSearchToolRequestFields returned error: %v", err)
-	}
-	if len(lines) != 13 {
+	lines := summarizeSearchToolSchema(functionschema.NewForm(fields, nil, nil))
+	if len(lines) != 14 {
 		t.Fatalf("expected 13 lines, got %d: %v", len(lines), lines)
 	}
-	if !strings.Contains(lines[12], `field_13: widget=input, type=string, placeholder="请输入字段13"`) {
-		t.Fatalf("expected last field to be preserved, got %q", lines[12])
+	if !strings.Contains(lines[13], `field_13: widget=input, type=string, placeholder="请输入字段13"`) {
+		t.Fatalf("expected last field to be preserved, got %q", lines[13])
 	}
 }
 
@@ -124,10 +101,32 @@ func TestFormatSearchToolFunctionSummaryIncludesTableCapabilities(t *testing.T) 
 		Name:         "支付记录",
 		FullCodePath: "/liubeiluo/work/cashier/payment_record_list.table",
 		TemplateType: "table",
-		Callbacks:    "",
+		Callbacks:    nil,
 	}
 	out := formatSearchToolFunctionSummary(0, fn)
 	if !strings.Contains(out, "capabilities: read-only") {
 		t.Fatalf("expected read-only capabilities, got:\n%s", out)
+	}
+
+	fn.Callbacks = []string{"OnTableAddRow", "OnTableCreateInBatches", "OnTableUpdateRow", "OnTableDeleteRows"}
+	out = formatSearchToolFunctionSummary(0, fn)
+	if !strings.Contains(out, "capabilities: read, create, batch-create, update, delete") {
+		t.Fatalf("expected executable table capabilities with batch-create, got:\n%s", out)
+	}
+}
+
+func testSearchToolField(code, name, widgetType string, config map[string]interface{}, validation string) *widget.Field {
+	return &widget.Field{
+		Code:       code,
+		Name:       name,
+		Data:       &widget.FieldData{Type: "string"},
+		Validation: validation,
+		Widget: struct {
+			Type   string      `json:"type"`
+			Config interface{} `json:"config,omitempty"`
+		}{
+			Type:   widgetType,
+			Config: config,
+		},
 	}
 }

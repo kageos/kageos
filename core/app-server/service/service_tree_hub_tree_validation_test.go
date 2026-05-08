@@ -110,6 +110,26 @@ func TestValidateHubDirectoryTreeForInstall_RejectsEmptyNestedCode(t *testing.T)
 	}
 }
 
+func TestValidateHubDirectoryTreeRejectsInvalidFunctionSchema(t *testing.T) {
+	tree := buildValidNestedAppDirectoryTree()
+	tree.Functions = []*dto.HubFunctionInfo{
+		{
+			Name:         "坏 schema",
+			Code:         "bad_schema",
+			TemplateType: "table",
+			Schema:       []byte(`{"version":1,"type":"form","form":{"request":[],"response":[]}}`),
+		},
+	}
+
+	err := validateHubDirectoryTreeForInstallImpl(tree)
+	if err == nil {
+		t.Fatal("expected invalid function schema validation error")
+	}
+	if !strings.Contains(err.Error(), "template_type 与 schema.type 不一致") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestBuildItemsFromTree_ExpandsNestedDirectoriesRecursively(t *testing.T) {
 	service := &serviceTreeHubService{}
 	tree := buildValidNestedAppDirectoryTree()

@@ -111,7 +111,7 @@ const osAPI = createOSAPIInstance()
  */
 export async function getCurrentUser(): Promise<UserInfo | null> {
   try {
-    const response = await osAPI.get<UserInfo>('/hr/api/v1/user/info')
+    const response = await osAPI.get<UserInfo, UserInfo>('/hr/api/v1/user/info')
     return response || null
   } catch (error) {
     console.error('[getCurrentUser] 获取当前用户失败:', error)
@@ -130,7 +130,7 @@ export async function queryUser(username: string): Promise<UserInfo | null> {
   
   try {
     // ⭐ 调用主项目（5173端口）的 hr-server 接口
-    const response = await osAPI.get<QueryUserResp>('/hr/api/v1/user/query', {
+    const response = await osAPI.get<QueryUserResp, QueryUserResp>('/hr/api/v1/user/query', {
       params: { username }
     })
     return response.user || null
@@ -161,11 +161,10 @@ export async function getUsersByUsernames(usernames: string[]): Promise<UserInfo
   
   try {
     // ⭐ 调用主项目（5173端口）的 hr-server 接口
-    const response = await osAPI.post<GetUsersByUsernamesResp>('/hr/api/v1/users', { usernames })
+    const response = await osAPI.post<GetUsersByUsernamesResp, GetUsersByUsernamesResp>('/hr/api/v1/users', { usernames })
     return response.users || []
   } catch (error) {
     console.error('[getUsersByUsernames] 批量获取用户信息失败:', error)
     return []
   }
 }
-

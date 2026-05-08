@@ -2,11 +2,10 @@ import { computed, nextTick, ref, type ComputedRef, type Ref } from 'vue'
 import { parseCommaSeparatedString } from '@/utils/stringUtils'
 import { SearchComponent } from '@/core/constants/search'
 import { WidgetType } from '@/core/constants/widget'
-import { buildSearchTagSummary } from '@/architecture/presentation/widgets/utils/searchTagSummary'
+import { buildSelectionSummary } from '@/architecture/presentation/widgets/utils/selectionSummary'
 import {
   getOptionLightPalette,
   getOptionSolidColor,
-  isStandardColor,
   normalizeOptionColor,
   type StandardColorType
 } from '@/core/constants/select'
@@ -82,7 +81,7 @@ export function useSearchInputFallbackSelect({
 
   const fallbackTagSummary = computed(() => {
     const values = Array.isArray(localValue.value) ? localValue.value : []
-    return buildSearchTagSummary(values, 1)
+    return buildSelectionSummary(values, 1)
   })
 
   const optionColors = computed(() => {
@@ -127,9 +126,8 @@ export function useSearchInputFallbackSelect({
   }
 
   function getOptionColorType(value: any): StandardColorType | undefined {
-    const color = getOptionColor(value)
-    if (!color) return undefined
-    return isStandardColor(color) ? (color as StandardColorType) : undefined
+    void value
+    return undefined
   }
 
   function getOptionColorValue(value: any): string | undefined {

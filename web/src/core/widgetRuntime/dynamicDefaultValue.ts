@@ -2,58 +2,13 @@
  * 动态默认值解析工具
  *
  * 支持函数调用形式：
- * - 时间函数：Now()、Today()、Tomorrow()、Yesterday()
+ * - 时间函数：CURRENT_TIMESTAMP、CURRENT_DATE、DATE_ADD/DATE_SUB(..., INTERVAL n UNIT)
  * - 用户函数：Me()、MyLeader()
  * - 组织架构函数：MyDepartment()
- *
- * 函数参数格式（参数不需要引号）：
- * - Now(+1h): 一小时后
- * - Now(-2d): 两天前
- * - Now(+3600s): 3600秒后
- * - Now(+2): 2小时后（默认单位是小时）
- * - Now(24h): 24小时后（不带+号，默认为正）
- * - Now(-2): 2小时前
  */
 
 import { WidgetType, DynamicFunctionName } from '@/core/constants/widget'
-
-function parseTimeOffset(offset: string): number {
-  if (!offset) return 0
-
-  offset = offset.trim().replace(/^["']|["']$/g, '')
-
-  const sign = offset.startsWith('-') ? -1 : 1
-  const valueStr = offset.replace(/^[+-]/, '')
-
-  if (/^\d+$/.test(valueStr)) {
-    const hours = parseInt(valueStr, 10)
-    return sign * hours * 60 * 60 * 1000
-  }
-
-  const match = valueStr.match(/^(\d+)([smhdwy])?$/i)
-  if (!match) return 0
-
-  const numStr = match[1] ?? '0'
-  const unit = match[2] ?? 'h'
-  const num = parseInt(numStr, 10)
-
-  switch (unit.toLowerCase()) {
-    case 's':
-      return sign * num * 1000
-    case 'm':
-      return sign * num * 60 * 1000
-    case 'h':
-      return sign * num * 60 * 60 * 1000
-    case 'd':
-      return sign * num * 24 * 60 * 60 * 1000
-    case 'w':
-      return sign * num * 7 * 24 * 60 * 60 * 1000
-    case 'y':
-      return sign * num * 365 * 24 * 60 * 60 * 1000
-    default:
-      return 0
-  }
-}
+import { formatDateTimeValue } from '@/utils/date'
 
 function parseFunctionCall(funcCall: string): { name: string; args: string[] } | null {
   const match = funcCall.match(/^(\w+)\((.*)\)$/)
@@ -97,6 +52,111 @@ function parseFunctionCall(funcCall: string): { name: string; args: string[] } |
   }
 
   return { name, args }
+}
+
+function isTemporalWidget(widgetType: string): boolean {
+  return widgetType === WidgetType.DATETIME
+}
+
+function toSqlKeyword(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toUpperCase()
+}
+
+function resolveSqlBaseDate(value: string): Date | null {
+  const keyword = toSqlKeyword(value)
+  const now = new Date()
+
+  if (keyword === 'CURRENT_TIMESTAMP' || keyword === 'CURRENT_TIMESTAMP()') {
+    return now
+  }
+
+  if (keyword === 'CURRENT_DATE' || keyword === 'CURRENT_DATE()') {
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  }
+
+  return null
+}
+
+function parseSqlInterval(value: string): { amount: number; unit: string } | null {
+  const match = value.trim().match(/^INTERVAL\s+([+-]?\d+)\s+(SECOND|MINUTE|HOUR|DAY|WEEK|MONTH|YEAR)S?$/i)
+  if (!match) return null
+
+  return {
+    amount: Number(match[1]),
+    unit: (match[2] ?? '').toUpperCase()
+  }
+}
+
+function addSqlInterval(base: Date, interval: { amount: number; unit: string }, direction: 1 | -1): Date {
+  const result = new Date(base.getTime())
+  const amount = interval.amount * direction
+
+  switch (interval.unit) {
+    case 'SECOND':
+      result.setSeconds(result.getSeconds() + amount)
+      break
+    case 'MINUTE':
+      result.setMinutes(result.getMinutes() + amount)
+      break
+    case 'HOUR':
+      result.setHours(result.getHours() + amount)
+      break
+    case 'DAY':
+      result.setDate(result.getDate() + amount)
+      break
+    case 'WEEK':
+      result.setDate(result.getDate() + amount * 7)
+      break
+    case 'MONTH':
+      result.setMonth(result.getMonth() + amount)
+      break
+    case 'YEAR':
+      result.setFullYear(result.getFullYear() + amount)
+      break
+  }
+
+  return result
+}
+
+function formatTemporalDefault(date: Date): any {
+  return formatDateTimeValue(date)
+}
+
+function resolveSqlStyleTemporalDefault(defaultValue: string, widgetType: string): { resolved: boolean; value: any } {
+  if (!isTemporalWidget(widgetType)) {
+    return { resolved: false, value: defaultValue }
+  }
+
+  const base = resolveSqlBaseDate(defaultValue)
+  if (base) {
+    return { resolved: true, value: formatTemporalDefault(base) }
+  }
+
+  const funcCall = parseFunctionCall(defaultValue)
+  if (!funcCall) {
+    return { resolved: false, value: defaultValue }
+  }
+
+  const funcName = funcCall.name.toLowerCase()
+  if (funcName !== 'date_add' && funcName !== 'date_sub') {
+    return { resolved: false, value: defaultValue }
+  }
+
+  if (funcCall.args.length !== 2) {
+    return { resolved: false, value: defaultValue }
+  }
+
+  const baseDate = resolveSqlBaseDate(funcCall.args[0] ?? '')
+  const interval = parseSqlInterval(funcCall.args[1] ?? '')
+  if (!baseDate || !interval) {
+    return { resolved: false, value: defaultValue }
+  }
+
+  const direction = funcName === 'date_add' ? 1 : -1
+  return {
+    resolved: true,
+    value: formatTemporalDefault(addSqlInterval(baseDate, interval, direction))
+  }
 }
 
 export function resolveDynamicDefaultValue(
@@ -149,6 +209,11 @@ export function resolveDynamicDefaultValue(
     return resolvedParts.filter(Boolean).join(',')
   }
 
+  const sqlStyleDefault = resolveSqlStyleTemporalDefault(defaultValue, widgetType)
+  if (sqlStyleDefault.resolved) {
+    return sqlStyleDefault.value
+  }
+
   if (!defaultValue.includes('(') || !defaultValue.includes(')')) {
     return defaultValue
   }
@@ -158,40 +223,8 @@ export function resolveDynamicDefaultValue(
     return defaultValue
   }
 
-  const { name, args } = funcCall
+  const { name } = funcCall
   const funcName = name.toLowerCase()
-
-  if (widgetType === WidgetType.TIMESTAMP) {
-    const now = new Date()
-
-    switch (funcName) {
-      case DynamicFunctionName.NOW: {
-        if (args.length === 0) {
-          return now.getTime()
-        }
-        const offset = parseTimeOffset(args[0] ?? '')
-        return now.getTime() + offset
-      }
-      case DynamicFunctionName.TODAY: {
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-        if (args.length === 0) {
-          return today.getTime()
-        }
-        const offset = parseTimeOffset(args[0] ?? '')
-        return today.getTime() + offset
-      }
-      case DynamicFunctionName.TOMORROW: {
-        const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
-        return tomorrow.getTime()
-      }
-      case DynamicFunctionName.YESTERDAY: {
-        const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
-        return yesterday.getTime()
-      }
-      default:
-        return defaultValue
-    }
-  }
 
   if (widgetType === WidgetType.USER || widgetType === WidgetType.USERS) {
     if (funcName === DynamicFunctionName.ME) {

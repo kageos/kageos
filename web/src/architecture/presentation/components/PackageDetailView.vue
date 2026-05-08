@@ -40,16 +40,6 @@
                 title="复制路径"
               />
               <el-button
-                text
-                :icon="Clock"
-                @click="handleShowUpdateHistory"
-                class="path-history-btn"
-                size="small"
-                title="查看变更记录"
-              >
-                变更记录
-              </el-button>
-              <el-button
                 v-if="canEdit"
                 text
                 :icon="Edit"
@@ -60,9 +50,6 @@
               >
                 编辑
               </el-button>
-            </p>
-            <p class="hero-description" v-if="packageNode?.description">
-              {{ packageNode.description }}
             </p>
           </div>
         </div>
@@ -85,16 +72,9 @@
         @select-child="handleChildClick"
         @import-go-drop="onImportGoDrop"
         @set-import-go-dragging="isImportGoDragging = $event"
+        @open-session="$emit('open-session', $event)"
       />
     </div>
-
-    <!-- 变更记录对话框 -->
-    <DirectoryUpdateHistoryDialog
-      v-model="updateHistoryDialogVisible"
-      mode="directory"
-      :app-id="packageNode?.app_id || 0"
-      :full-code-path="packageNode?.full_code_path || ''"
-    />
 
     <PackageDetailEditDialog
       v-model:visible="editDialogVisible"
@@ -112,14 +92,13 @@
 import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { LocationQueryValue } from 'vue-router'
-import { ArrowLeft, Folder, CopyDocument, Link, Clock, Edit } from '@element-plus/icons-vue'
+import { ArrowLeft, Folder, CopyDocument, Link, Edit } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import { extractWorkspacePath } from '@/utils/route'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
-import DirectoryUpdateHistoryDialog from '@/shared/components/DirectoryUpdateHistoryDialog.vue'
 import { buildPermissionApplyURL, DirectoryPermission } from '@/utils/permission'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
@@ -129,8 +108,9 @@ import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
 import { Logger } from '@/core/utils/logger'
 import PackageDetailContent from './PackageDetailContent.vue'
 import PackageDetailEditDialog from './PackageDetailEditDialog.vue'
+import type { WorkspaceSessionItem } from '@/api/workspace'
 
-type DetailTabName = 'info' | 'import' | 'permissionRequest' | 'permissionManage'
+type DetailTabName = 'info' | 'import' | 'permissionRequest' | 'permissionManage' | 'scheduledAgentTask'
 
 interface Props {
   packageNode?: ServiceTree | null
@@ -140,6 +120,7 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   'refresh': []
+  'open-session': [session: WorkspaceSessionItem]
 }>()
 
 const router = useRouter()
@@ -172,6 +153,10 @@ const resourceType = computed<'directory'>(() => {
   return 'directory'
 })
 
+const showScheduledAgentTaskTab = computed(() => {
+  return props.packageNode?.type === 'package' && !!props.packageNode.full_code_path
+})
+
 // ⭐ 本目录下所有函数调用次数之和（仅统计直接子节点中的 function）
 const totalRunCount = computed(() => {
   const children = props.packageNode?.children
@@ -195,7 +180,9 @@ watch(
   (tab) => {
     const normalizedTab = normalizeTabQuery(tab)
 
-    if (normalizedTab === 'permissionRequest' && showPermissionRequestTab.value) {
+    if (normalizedTab === 'scheduledAgentTask' && showScheduledAgentTaskTab.value) {
+      activeTab.value = 'scheduledAgentTask'
+    } else if (normalizedTab === 'permissionRequest' && showPermissionRequestTab.value) {
       activeTab.value = 'permissionRequest'
     } else if (normalizedTab === 'permissionManage' && showPermissionRequestTab.value) {
       activeTab.value = 'permissionManage'
@@ -203,9 +190,6 @@ watch(
   },
   { immediate: true }
 )
-
-// 变更记录对话框
-const updateHistoryDialogVisible = ref(false)
 
 // 编辑对话框
 const editDialogVisible = ref(false)
@@ -238,6 +222,29 @@ const canEdit = computed(() => {
   
   return false
 })
+
+watch(
+  () => [
+    props.packageNode?.full_code_path,
+    showPermissionRequestTab.value,
+    showScheduledAgentTaskTab.value,
+    canEdit.value
+  ] as const,
+  () => {
+    if ((activeTab.value === 'permissionRequest' || activeTab.value === 'permissionManage') && !showPermissionRequestTab.value) {
+      activeTab.value = showScheduledAgentTaskTab.value ? 'scheduledAgentTask' : 'info'
+      return
+    }
+    if (activeTab.value === 'scheduledAgentTask' && !showScheduledAgentTaskTab.value) {
+      activeTab.value = 'info'
+      return
+    }
+    if (activeTab.value === 'import' && (!canEdit.value || !props.packageNode?.full_code_path)) {
+      activeTab.value = 'info'
+    }
+  },
+  { immediate: true }
+)
 
 // 管理员字段配置（用于 UsersWidget）
 const adminsField = computed<FieldConfig>(() => ({
@@ -399,11 +406,6 @@ async function onImportGoDrop(e: DragEvent) {
   } finally {
     importGoLoading.value = false
   }
-}
-
-// 处理显示变更记录
-function handleShowUpdateHistory(): void {
-  updateHistoryDialogVisible.value = true
 }
 
 // 编辑表单的管理员字段值
@@ -679,7 +681,6 @@ function handleChildClick(child: ServiceTree): void {
             }
 
             .path-copy-btn,
-            .path-history-btn,
             .path-edit-btn {
               flex-shrink: 0;
               color: var(--el-text-color-secondary);
@@ -690,16 +691,6 @@ function handleChildClick(child: ServiceTree): void {
             }
           }
 
-          .hero-description {
-            margin: 0;
-            font-size: 15px;
-            color: var(--el-text-color-regular);
-            line-height: 1.6;
-            padding: 12px 16px;
-            background: var(--el-fill-color-lighter);
-            border-radius: 8px;
-            border-left: 3px solid var(--el-color-primary);
-          }
         }
       }
     }

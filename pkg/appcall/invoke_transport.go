@@ -38,7 +38,14 @@ func (c *Client) RequestApp(ctx context.Context, natsID int64, req *dto.RequestA
 
 func (t *appInvokeTransport) requestApp(ctx context.Context, natsID int64, req *dto.RequestAppReq) (*dto.RequestAppResp, error) {
 	start := time.Now()
-	msg, err := appinvoke.BuildRuntimeRequestMsg(req)
+	if req == nil {
+		return nil, fmt.Errorf("request is nil")
+	}
+	invokeReq := *req
+	if invokeReq.ClientSource == "" {
+		invokeReq.ClientSource = contextx.GetClientSource(ctx)
+	}
+	msg, err := appinvoke.BuildRuntimeRequestMsg(&invokeReq)
 	if err != nil {
 		return nil, err
 	}

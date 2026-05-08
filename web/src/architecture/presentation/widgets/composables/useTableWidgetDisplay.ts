@@ -161,7 +161,7 @@ export function useTableWidgetDisplay(
   function getColumnWidth(field: any): number {
     const type = field.widget?.type || 'input'
 
-    if (type === 'timestamp') {
+    if (type === 'datetime') {
       return 180
     }
     if (type === 'switch') {

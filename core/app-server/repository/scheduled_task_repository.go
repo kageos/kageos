@@ -1,8 +1,8 @@
 package repository
 
 import (
+	"fmt"
 	"strings"
-	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"gorm.io/gorm"
@@ -27,19 +27,6 @@ func (r *ScheduledTaskRepository) GetByID(id int64) (*model.ScheduledTask, error
 		return nil, err
 	}
 	return &t, nil
-}
-
-// ListPendingDue 查询待执行且已到点、未被有效租约占用的任务。
-func (r *ScheduledTaskRepository) ListPendingDue(now time.Time, limit int) ([]*model.ScheduledTask, error) {
-	var list []*model.ScheduledTask
-	query := r.db.
-		Where("status = ? AND next_run_at IS NOT NULL AND next_run_at <= ? AND (lease_until IS NULL OR lease_until < ?)", "pending", now, now).
-		Order("next_run_at ASC, id ASC")
-	if limit > 0 {
-		query = query.Limit(limit)
-	}
-	err := query.Find(&list).Error
-	return list, err
 }
 
 // ListByUser 分页列表。
@@ -74,31 +61,15 @@ func (r *ScheduledTaskRepository) Update(task *model.ScheduledTask) error {
 	return r.db.Save(task).Error
 }
 
-// TryAcquireLease 为待执行任务抢占执行租约，返回是否抢占成功。
-func (r *ScheduledTaskRepository) TryAcquireLease(id int64, owner string, now, leaseUntil time.Time) (bool, error) {
+// UpdateAfterRun 落业务执行结果；中心 timer-scheduler 已负责调度 claim，这里只避免覆盖已取消任务。
+func (r *ScheduledTaskRepository) UpdateAfterRun(task *model.ScheduledTask) (bool, error) {
 	result := r.db.Model(&model.ScheduledTask{}).
-		Where("id = ? AND status = ? AND next_run_at IS NOT NULL AND next_run_at <= ? AND (lease_until IS NULL OR lease_until < ?)", id, "pending", now, now).
-		Updates(map[string]interface{}{
-			"lease_owner": owner,
-			"lease_until": leaseUntil,
-		})
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected > 0, nil
-}
-
-// UpdateAfterRun 按租约持有者落执行结果，避免取消/抢占后的旧执行覆盖最新状态。
-func (r *ScheduledTaskRepository) UpdateAfterRun(task *model.ScheduledTask, leaseOwner string) (bool, error) {
-	result := r.db.Model(&model.ScheduledTask{}).
-		Where("id = ? AND status = ? AND lease_owner = ?", task.ID, "pending", leaseOwner).
+		Where("id = ? AND status = ?", task.ID, "pending").
 		Updates(map[string]interface{}{
 			"run_count":     task.RunCount,
 			"error_message": task.ErrorMessage,
 			"status":        task.Status,
 			"next_run_at":   task.NextRunAt,
-			"lease_owner":   "",
-			"lease_until":   nil,
 		})
 	if result.Error != nil {
 		return false, result.Error
@@ -108,10 +79,27 @@ func (r *ScheduledTaskRepository) UpdateAfterRun(task *model.ScheduledTask, leas
 
 // Cancel 取消任务（status 改为 cancelled，仅创建人可取消）
 func (r *ScheduledTaskRepository) Cancel(id int64, createdBy string) error {
-	return r.db.Model(&model.ScheduledTask{}).Where("id = ? AND created_by = ?", id, createdBy).Updates(map[string]interface{}{
+	result := r.db.Model(&model.ScheduledTask{}).Where("id = ? AND created_by = ?", id, createdBy).Updates(map[string]interface{}{
 		"status":      "cancelled",
 		"next_run_at": nil,
-		"lease_owner": "",
-		"lease_until": nil,
-	}).Error
+	})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("任务不存在或无权限操作")
+	}
+	return nil
+}
+
+// Delete 删除任务（软删除，仅创建人可删除）
+func (r *ScheduledTaskRepository) Delete(id int64, createdBy string) error {
+	result := r.db.Where("id = ? AND created_by = ?", id, createdBy).Delete(&model.ScheduledTask{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("任务不存在或无权限操作")
+	}
+	return nil
 }

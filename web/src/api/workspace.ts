@@ -140,10 +140,15 @@ export interface WorkspaceCallToolReq {
   arguments?: Record<string, unknown>
 }
 
+export interface ToolResultMetadata {
+  display_file_fields?: string[]
+}
+
 export interface WorkspaceCallToolResp {
   content: string
   is_error: boolean
   data?: unknown
+  metadata?: ToolResultMetadata
 }
 
 /** 直接执行单个工作台工具（用于推荐动作、推荐阅读等快捷操作） */
@@ -284,6 +289,7 @@ export interface WorkspaceMessageInfo {
   session_id: string
   agent_id: number
   role: 'user' | 'assistant' | 'tool'
+  user?: string
   content: string
   /** 用户消息附带的文件列表 JSON，解析后为 { files: WorkspaceChatMessageFile[] } */
   files?: string | null
@@ -309,6 +315,7 @@ export interface WorkspaceChatToolCallSummary {
   arguments?: string // 参数（JSON 字符串，可选）
   result?: string    // 结果内容（从对应的 tool 消息中获取，可选）
   result_data?: unknown // 结构化结果（优先供前端提取文件/展示字段）
+  metadata?: ToolResultMetadata // 工具结果元数据
   error?: string     // 错误信息（如果有，可选）
 }
 

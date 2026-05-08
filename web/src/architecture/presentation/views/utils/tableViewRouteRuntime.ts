@@ -1,4 +1,4 @@
-import { deleteScopedFieldQueryKey } from '@/utils/queryFieldNamespace'
+import { deleteFieldQueryKey } from '@/utils/queryParamKeys'
 
 export interface TableViewRouteRequest {
   path?: string
@@ -80,7 +80,9 @@ export function buildTableCreateDialogCloseRequest(options: {
 
   delete query._tab
   options.responseFieldCodes.forEach(fieldCode => {
-    deleteScopedFieldQueryKey(query, fieldCode, 'form')
+    // 关闭新增弹窗只删除 raw form-field 参数；table 搜索操作符参数和 `_`
+    // 平台状态由 preserveParams 保留。
+    deleteFieldQueryKey(query, fieldCode)
   })
 
   return {

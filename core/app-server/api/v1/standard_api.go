@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
@@ -125,10 +127,11 @@ func (s *StandardAPI) buildRequestAppReq(c *gin.Context, fullCodePath string) (*
 		RequestUser:     contextx.GetRequestUser(c),
 		RequestUserDept: contextx.GetRequestDepartmentFullPath(c),
 		Token:           contextx.GetToken(c),
+		ClientSource:    contextx.GetClientSource(c),
 	}
 
 	// 绑定请求体（POST、PUT、PATCH、DELETE 等方法通常有请求体）
-	if c.Request.ContentLength > 0 && (c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "PATCH" || c.Request.Method == "DELETE") {
+	if c.Request.ContentLength > 0 && (c.Request.Method == http.MethodPost || c.Request.Method == http.MethodPut || c.Request.Method == http.MethodPatch || c.Request.Method == http.MethodDelete) {
 		all, err := io.ReadAll(c.Request.Body)
 		if err != nil {
 			return nil, err
@@ -159,6 +162,7 @@ func (s *StandardAPI) buildCallbackAppReq(c *gin.Context, fullCodePath string, c
 		RequestUser:     contextx.GetRequestUser(c),
 		RequestUserDept: contextx.GetRequestDepartmentFullPath(c),
 		Token:           contextx.GetToken(c),
+		ClientSource:    contextx.GetClientSource(c),
 	}
 
 	// 读取请求体
@@ -193,7 +197,7 @@ func (s *StandardAPI) ensureTableCallbackEnabled(c *gin.Context, fullCodePath, c
 	if err != nil {
 		return err
 	}
-	if function.GetTemplateType() != "table" {
+	if functionschema.Type(function.Schema) != functionschema.TypeTable {
 		return fmt.Errorf("目标函数不是 Table 类型，不支持该操作")
 	}
 	if !function.HasCallback(callbackType) {
@@ -217,7 +221,7 @@ func (s *StandardAPI) ensureTableCallbackEnabled(c *gin.Context, fullCodePath, c
 // @Param full-code-path path string true "函数完整路径，如：/luobei/operations/tools/pdftools/to_images"
 // @Param page query int false "页码（可选，默认 1）"
 // @Param page_size query int false "每页数量（可选，默认 20）"
-// @Param sorts query string false "排序（可选，格式：id:desc,name:asc）"
+// @Param sorts query string false "排序（可选，格式：-id,name）"
 // @Success 200 {object} dto.RequestAppResp "查询成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
@@ -294,6 +298,13 @@ func (s *StandardAPI) TableCreate(c *gin.Context) {
 		return
 	}
 
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		response.FailWithMessage(c, "读取请求体失败: "+err.Error())
+		return
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
 	// 构建回调请求对象（调用 OnTableAddRow）
 	req, err := s.buildCallbackAppReq(c, fullCodePath, "OnTableAddRow")
 	if err != nil {
@@ -301,8 +312,27 @@ func (s *StandardAPI) TableCreate(c *gin.Context) {
 		return
 	}
 
-	// 调用服务层
+	user, app, router, _ := parseFullCodePath(fullCodePath)
+	logReq := &dto.RecordTableOperateLogReq{
+		TenantUser:  user,
+		RequestUser: req.RequestUser,
+		App:         app,
+		Router:      router,
+		Action:      "OnTableAddRow",
+		Source:      c.GetHeader(contextx.ClientSourceHeader),
+		Body:        bodyBytes,
+		IPAddress:   c.ClientIP(),
+		UserAgent:   c.GetHeader("User-Agent"),
+		TraceID:     req.TraceId,
+	}
 	ctx := contextx.ToContext(c)
+	go func() {
+		if err := s.appService.RecordTableOperateLog(ctx, logReq); err != nil {
+			logger.Warnf(ctx, "[TableCreate] 记录 Table 新增操作日志失败: %v", err)
+		}
+	}()
+
+	// 调用服务层
 	now := time.Now()
 	resp, err := s.appService.RequestApp(ctx, req)
 	mill := time.Since(now).Milliseconds()
@@ -332,7 +362,7 @@ func (s *StandardAPI) TableCreate(c *gin.Context) {
 
 // TableBatchCreate Table 批量导入接口
 // @Summary Table 批量导入
-// @Description 批量导入表格记录（直接批量插入数据库，不触发 OnTableAddRow 回调）
+// @Description 批量导入表格记录（触发 OnTableCreateInBatches 回调）
 // @Tags 标准接口
 // @Accept json
 // @Produce json
@@ -357,6 +387,13 @@ func (s *StandardAPI) TableBatchCreate(c *gin.Context) {
 		return
 	}
 
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		response.FailWithMessage(c, "读取请求体失败: "+err.Error())
+		return
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
 	// 构建回调请求对象（调用 OnTableCreateInBatches）
 	req, err := s.buildCallbackAppReq(c, fullCodePath, "OnTableCreateInBatches")
 	if err != nil {
@@ -364,8 +401,27 @@ func (s *StandardAPI) TableBatchCreate(c *gin.Context) {
 		return
 	}
 
-	// 调用服务层
+	user, app, router, _ := parseFullCodePath(fullCodePath)
+	logReq := &dto.RecordTableOperateLogReq{
+		TenantUser:  user,
+		RequestUser: req.RequestUser,
+		App:         app,
+		Router:      router,
+		Action:      "OnTableCreateInBatches",
+		Source:      c.GetHeader(contextx.ClientSourceHeader),
+		Body:        bodyBytes,
+		IPAddress:   c.ClientIP(),
+		UserAgent:   c.GetHeader("User-Agent"),
+		TraceID:     req.TraceId,
+	}
 	ctx := contextx.ToContext(c)
+	go func() {
+		if err := s.appService.RecordTableOperateLog(ctx, logReq); err != nil {
+			logger.Warnf(ctx, "[TableBatchCreate] 记录 Table 批量导入操作日志失败: %v", err)
+		}
+	}()
+
+	// 调用服务层
 	now := time.Now()
 	resp, err := s.appService.RequestApp(ctx, req)
 	mill := time.Since(now).Milliseconds()
@@ -389,6 +445,7 @@ func (s *StandardAPI) TableBatchCreate(c *gin.Context) {
 		return
 	}
 
+	s.appService.IncrementFunctionRunCount(ctx, "/"+strings.TrimPrefix(fullCodePath, "/"))
 	response.OkWithData(c, resp.Result, metadata)
 }
 
@@ -423,40 +480,10 @@ func (s *StandardAPI) TableTemplate(c *gin.Context) {
 		return
 	}
 
-	// 解析 response 字段为 widget.Field（已经解析好的结构）
-	var responseFields []*widget.Field
-	if len(function.Response) > 0 {
-		if err := json.Unmarshal(function.Response, &responseFields); err != nil {
-			response.FailWithMessage(c, "解析函数配置失败: "+err.Error())
-			return
-		}
-		widget.NormalizeFieldCodes(responseFields)
-	}
-
 	// 获取当前用户信息（用于创建用户字段的默认值）
 	username := contextx.GetRequestUser(c)
 
-	// 过滤可编辑字段（table_permission 为空或 update，排除 ID 字段）
-	// 同时包含系统字段（created_at, create_by 等，即使 permission="read" 也导出）
-	editableFields := make([]*widget.Field, 0)
-	for _, field := range responseFields {
-		// 检查是否是 ID 字段
-		if field.Widget.Type == widget.TypeID {
-			continue // 跳过 ID 字段
-		}
-
-		// 检查是否是系统字段（created_at, create_by 等）
-		isSystemField := false
-		if field.Code == "created_at" || field.Code == "create_by" ||
-			field.Code == "updated_at" || field.Code == "updated_by" {
-			isSystemField = true
-		}
-
-		// 包含可编辑字段或系统字段
-		if isSystemField || field.TablePermission == "" || field.TablePermission == "update" {
-			editableFields = append(editableFields, field)
-		}
-	}
+	editableFields := functionschema.TableCreateFields(function.Schema)
 
 	if len(editableFields) == 0 {
 		response.FailWithMessage(c, "没有可编辑的字段")
@@ -649,19 +676,6 @@ func generateExampleValueForRow(field *widget.Field, rowIndex int, maxRows int, 
 		}
 		return 123
 
-	case widget.TypeTimestamp:
-		// 日期类型：如果是创建时间/更新时间字段，使用当前时间；否则使用默认值或示例日期
-		if field.Code == "created_at" || field.Code == "updated_at" {
-			now := time.Now()
-			return now.Format("2006-01-02 15:04:05")
-		}
-		if ok {
-			if defaultVal, ok := config["default"]; ok {
-				return defaultVal
-			}
-		}
-		return "2024-01-01"
-
 	case widget.TypeTextArea:
 		// 多行文本：使用默认值或示例文本
 		if ok {
@@ -767,7 +781,7 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 			User:            user,
 			App:             app,
 			Router:          router,
-			Method:          "GET",
+			Method:          http.MethodGet,
 			UrlQuery:        "eq=id:" + url.QueryEscape(idStr) + "&page=1&page_size=1",
 			TraceId:         contextx.GetTraceId(c),
 			RequestUser:     contextx.GetRequestUser(c),
@@ -816,6 +830,7 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 			App:         app,
 			Router:      router,
 			Action:      "OnTableUpdateRow",
+			Source:      c.GetHeader(contextx.ClientSourceHeader),
 			IPAddress:   c.ClientIP(),
 			UserAgent:   c.GetHeader("User-Agent"),
 			TraceID:     req.TraceId,
@@ -929,6 +944,7 @@ func (s *StandardAPI) TableDelete(c *gin.Context) {
 			App:         app,
 			Router:      router,
 			Action:      "OnTableDeleteRows",
+			Source:      c.GetHeader(contextx.ClientSourceHeader),
 			IPAddress:   c.ClientIP(),
 			UserAgent:   c.GetHeader("User-Agent"),
 			TraceID:     req.TraceId,
@@ -979,6 +995,7 @@ func (s *StandardAPI) TableDelete(c *gin.Context) {
 		return
 	}
 
+	s.appService.IncrementFunctionRunCount(ctx, "/"+strings.TrimPrefix(fullCodePath, "/"))
 	response.OkWithData(c, resp.Result, metadata)
 }
 

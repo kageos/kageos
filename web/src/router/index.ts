@@ -103,6 +103,17 @@ const router = createRouter({
       }
     },
 
+    // 平台定时任务总览
+    {
+      path: '/task-time-wheel',
+      name: 'task-time-wheel',
+      component: () => import('../features/schedule/pages/TaskTimeWheelPage.vue'),
+      meta: {
+        title: '任务时间轮',
+        requireAuth: true
+      }
+    },
+
     // 根路径：直接走工作空间链路，后续由全局守卫补齐登录态和 username
     {
       path: '/',

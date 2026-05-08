@@ -30,6 +30,10 @@ func defaultNatsSeedEndpoint() (host string, port int) {
 	return "127.0.0.1", port
 }
 
+func defaultNatsSeedCredentials() (user string, password string) {
+	return strings.TrimSpace(os.Getenv("NATS_SEED_USER")), strings.TrimSpace(os.Getenv("NATS_SEED_PASSWORD"))
+}
+
 func InitTables(db *gorm.DB) error {
 	// 先迁移外键父表，再迁移子表，避免外键约束错误
 	err := db.AutoMigrate(
@@ -60,9 +64,6 @@ func InitTables(db *gorm.DB) error {
 		&RoleAssignment{},
 		// 权限点表（企业版功能）
 		&Action{},
-		// 定时任务
-		&ScheduledTask{},
-		&ScheduledTaskExecution{},
 	)
 	if err != nil {
 		return err
@@ -70,6 +71,13 @@ func InitTables(db *gorm.DB) error {
 
 	// 创建默认的NATS和Host记录
 	return initDefaultData(db)
+}
+
+func InitScheduledTaskTables(db *gorm.DB) error {
+	return db.AutoMigrate(
+		&ScheduledTask{},
+		&ScheduledTaskExecution{},
+	)
 }
 
 // initDefaultData 初始化默认数据
@@ -83,9 +91,12 @@ func initDefaultData(db *gorm.DB) error {
 	// 如果没有 NATS 记录：显式 NATS_SEED_HOST 优先；否则 dev→localhost，其它→127.0.0.1（host 网络直连）
 	if natsCount == 0 {
 		seedHost, seedPort := defaultNatsSeedEndpoint()
+		seedUser, seedPassword := defaultNatsSeedCredentials()
 		defaultNats := &Nats{
-			Host: seedHost,
-			Port: seedPort,
+			Host:     seedHost,
+			Port:     seedPort,
+			User:     seedUser,
+			Password: seedPassword,
 		}
 		if err := db.Create(defaultNats).Error; err != nil {
 			return err
@@ -122,10 +133,13 @@ func initDefaultData(db *gorm.DB) error {
 
 // ReconcileNatsHostFromEnv 在 app-server 按 DB 连接 NATS 之前调用：
 //   - 若设置了 NATS_SEED_HOST：将历史遗留的 localhost/127.0.0.1/nats 更新为该主机；
+//   - 若设置了 NATS_SEED_USER / NATS_SEED_PASSWORD：同步认证字段；
 //   - 若未设置且非 dev：将 nats/localhost 更新为 127.0.0.1（main 容器 host 网络直连）；
 //   - dev 且未显式 NATS_SEED_HOST：不改动（保留本机 NATS）。
 func ReconcileNatsHostFromEnv(db *gorm.DB) error {
 	explicitHost := strings.TrimSpace(os.Getenv("NATS_SEED_HOST"))
+	explicitUser := strings.TrimSpace(os.Getenv("NATS_SEED_USER"))
+	explicitPassword := strings.TrimSpace(os.Getenv("NATS_SEED_PASSWORD"))
 	updates := map[string]interface{}{}
 
 	if explicitHost != "" {
@@ -137,9 +151,21 @@ func ReconcileNatsHostFromEnv(db *gorm.DB) error {
 		}
 	} else {
 		if isAppEnvDev() {
-			return nil
+			if explicitUser == "" && explicitPassword == "" {
+				return nil
+			}
+		} else {
+			updates["host"] = "127.0.0.1"
 		}
-		updates["host"] = "127.0.0.1"
+	}
+	if explicitUser != "" {
+		updates["user"] = explicitUser
+	}
+	if explicitPassword != "" {
+		updates["password"] = explicitPassword
+	}
+	if len(updates) == 0 {
+		return nil
 	}
 
 	return db.Model(&Nats{}).Where("host IN ?", []string{"localhost", "127.0.0.1", "nats"}).Updates(updates).Error

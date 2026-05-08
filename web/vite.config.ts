@@ -117,6 +117,11 @@ export default defineConfig(({ command, mode }) => {
         target: proxyTarget,
         changeOrigin: true,
       },
+      // Message API 通过网关代理（只代理 API 请求，不代理页面路由）
+      '/message/api': {
+        target: proxyTarget,
+        changeOrigin: true,
+      },
       // HR API 通过网关代理（只代理 API 请求，不代理页面路由）
       '/hr/api': {
         target: proxyTarget,

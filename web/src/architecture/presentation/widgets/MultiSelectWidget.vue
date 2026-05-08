@@ -13,6 +13,7 @@
           :placeholder="inlinePlaceholder"
           :disabled="!!config.disabled"
           :creatable="!!config.creatable"
+          :teleported="shouldTeleportPopper"
           :visible-values="inlineTagSummary.visibleValues"
           :hidden-count="inlineTagSummary.hiddenCount"
           :search-mode="mode === 'search'"
@@ -33,27 +34,27 @@
         <div class="select-container" @click="openDialog">
           <div class="select-content">
             <!-- 显示已选条目 -->
-            <div v-if="selectedValues.length > 0 && mode === 'search'" class="selected-search-tags">
+            <div v-if="selectedValues.length > 0 && mode === 'search'" class="selected-values">
               <el-tag
-                v-for="value in searchTagSummary.visibleValues"
+                v-for="value in selectionSummary.visibleValues"
                 :key="value"
                 :type="getOptionColorType(value)"
                 :color="getOptionColorValue(value)"
                 effect="light"
                 :style="getOptionTagStyle(value)"
                 :closable="true"
-                :class="['search-selected-tag', { 'search-selected-tag-neutral': !getOptionColor(value) }]"
+                :class="['filter-selected-value-chip', { 'filter-selected-value-chip-neutral': !getOptionColor(value) }]"
                 @close.stop="handleRemoveTag(value)"
               >
                 {{ getOptionLabel(value) }}
               </el-tag>
               <el-tag
-                v-if="searchTagSummary.hiddenCount > 0"
-                class="search-selected-tag search-summary-tag"
+                v-if="selectionSummary.hiddenCount > 0"
+                class="filter-selected-value-chip filter-summary-chip"
                 size="small"
                 disable-transitions
               >
-                +{{ searchTagSummary.hiddenCount }}
+                +{{ selectionSummary.hiddenCount }}
               </el-tag>
             </div>
             <div v-else-if="selectedValues.length > 0" class="selected-items-list">
@@ -98,6 +99,7 @@
         :max-selections="maxCount"
         :selected-values="selectedValues"
         :get-item-color="getOptionColor"
+        :append-to-body="shouldTeleportPopper"
         @search="handleDialogSearch"
         @select-multiple="handleDialogSelectMultiple"
         @select-all="handleDialogSelectAll"
@@ -118,7 +120,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElIcon } from 'element-plus'
 import { ArrowDown, Close } from '@element-plus/icons-vue'
 import FuzzySearchDialog from './FuzzySearchDialog.vue'
@@ -132,14 +134,16 @@ import { Logger } from '@/core/utils/logger'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { ExpressionParserAdapter } from '@/core/utils/ExpressionParserAdapter'
 import { getMultiSelectDefaultDataType } from '@/core/constants/widget'
-import { SelectFuzzyQueryType, getOptionLightPalette, getOptionSolidColor, isStandardColor, normalizeOptionColor, type StandardColorType } from '@/core/constants/select'
+import { SelectFuzzyQueryType, getOptionLightPalette, getOptionSolidColor, normalizeOptionColor, type StandardColorType } from '@/core/constants/select'
 import { convertFormDataToRequestByType, convertArrayType } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import type { MultiSelectWidgetConfig, SelectOptionConfig } from '@/core/types/widget-configs'
 import { buildMultiSelectRawValue } from '@/architecture/presentation/widgets/utils/multiSelectValue'
 import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/utils/searchType'
-import { buildSearchTagSummary } from '@/architecture/presentation/widgets/utils/searchTagSummary'
+import { buildSelectionSummary } from '@/architecture/presentation/widgets/utils/selectionSummary'
 import type { MultiSelectOptionItem } from './multiSelectWidgetTypes'
+import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
+import { prdPreviewContextKey } from '@/architecture/presentation/components/prdPreviewContext'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -152,12 +156,14 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 const emit = defineEmits<{
   'update:modelValue': [value: any]
 }>()
+const prdPreviewContext = inject(prdPreviewContextKey, null)
+const shouldTeleportPopper = computed(() => !prdPreviewContext?.interactive)
 
 const formDataStore = useFormDataStore()
 
 const callbackMethod = computed(() => props.formRenderer?.getFunctionMethod?.() || props.functionMethod || 'POST')
 const callbackRouter = computed(() => props.formRenderer?.getFunctionRouter?.() || props.functionRouter || '')
-const searchType = computed(() => resolveWidgetSearchType(props.searchType, props.field.search))
+const searchType = computed(() => resolveWidgetSearchType(props.searchType))
 
 // 获取配置（带类型）
 const config = computed(() => {
@@ -167,12 +173,8 @@ const config = computed(() => {
 /**
  * 🔥 选项颜色配置
  * 
- * 支持两种颜色格式：
- * 1. Element Plus 标准颜色类型：success, warning, danger, info, primary
- *    使用 el-tag 的 type 属性
- * 2. 自定义颜色（hex 格式）：如 #FF5722, #4CAF50
- *    使用 el-tag 的 color 属性
- * 
+ * 颜色值只接受 options_colors 的 RRGGBB 格式，内部渲染时转换为 CSS hex。
+ *
  * options_colors 数组与 options 数组的索引对齐，通过索引获取对应选项的颜色
  */
 const optionColors = computed(() => {
@@ -353,12 +355,12 @@ const inlineSelectedValues = computed({
   }
 })
 
-const searchTagSummary = computed(() => {
-  return buildSearchTagSummary(selectedValues.value, 1)
+const selectionSummary = computed(() => {
+  return buildSelectionSummary(selectedValues.value, 1)
 })
 
 const inlineTagSummary = computed(() => {
-  return buildSearchTagSummary(inlineSelectedValues.value, props.mode === 'search' ? 1 : 2)
+  return buildSelectionSummary(inlineSelectedValues.value, props.mode === 'search' ? 1 : 2)
 })
 
 // 当前统计信息（从回调接口获取）
@@ -484,11 +486,6 @@ function getOptionLabel(value: any): string {
 }
 
 /**
- * 判断是否是 Element Plus 标准颜色类型
- */
-// isStandardColor 已从 constants/select 导入
-
-/**
  * 获取选项的颜色
  * 🔥 注意：options_colors 数组与 staticOptions 数组的索引对齐
  * 即使 options 可能包含 dynamicOptions，颜色配置仍然基于 staticOptions 的索引
@@ -507,10 +504,8 @@ function getOptionColor(value: any): string | null {
  * 获取选项的颜色类型（用于 el-tag 的 type 属性）
  */
 function getOptionColorType(value: any): StandardColorType | undefined {
-  const color = getOptionColor(value)
-  if (!color) return undefined
-  const isStandard = isStandardColor(color)
-  return isStandard ? (color as StandardColorType) : undefined
+  void value
+  return undefined
 }
 
 /**
@@ -829,7 +824,7 @@ watch(
     }
 
     if (!newValue || !newValue.raw) {
-      const defaultValue = config.value.default
+      const defaultValue = config.value.render_default
       if (Array.isArray(defaultValue) && defaultValue.length > 0) {
         selectedValues.value = defaultValue
       }
@@ -861,7 +856,7 @@ onMounted(() => {
     nextTick(() => {
       // 🔥 检查 functionDetail 是否已准备好
       const functionDetail = props.formRenderer?.getFunctionDetail?.()
-      if (props.mode === 'edit' && (!functionDetail || !functionDetail.request || functionDetail.request.length === 0)) {
+      if (props.mode === 'edit' && (!functionDetail || getFormRequestFields(functionDetail).length === 0)) {
         return
       }
       
@@ -882,7 +877,7 @@ watch(
     if (!hasInitialized.value && hasCallback && rawValue && router) {
       // 🔥 检查 functionDetail 是否已准备好
       const functionDetail = formRenderer?.getFunctionDetail?.()
-      if (props.mode === 'edit' && (!functionDetail || !functionDetail.request || functionDetail.request.length === 0)) {
+      if (props.mode === 'edit' && (!functionDetail || getFormRequestFields(functionDetail).length === 0)) {
         return
       }
       
@@ -981,7 +976,7 @@ onUnmounted(() => {
   width: 100%;
 }
 
-.selected-search-tags {
+.selected-values {
   display: flex;
   flex-wrap: nowrap;
   gap: 6px;
@@ -991,7 +986,7 @@ onUnmounted(() => {
   align-items: center;
 }
 
-.search-selected-tag {
+.filter-selected-value-chip {
   margin: 0;
   max-width: min(100%, 160px);
   overflow: hidden;
@@ -1000,7 +995,7 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.search-selected-tag-neutral {
+.filter-selected-value-chip-neutral {
   border: 1px solid var(--el-border-color-lighter);
   background-color: var(--el-fill-color-light);
   color: var(--el-text-color-primary);
@@ -1033,7 +1028,7 @@ onUnmounted(() => {
   margin-left: 6px;
 }
 
-.search-summary-tag {
+.filter-summary-chip {
   flex-shrink: 0;
 }
 

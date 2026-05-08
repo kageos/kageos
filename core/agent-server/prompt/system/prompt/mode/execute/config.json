@@ -1,7 +1,0 @@
-{
-  "name": "执行模式",
-  "description": "操作已生成应用（查数据、提交表单、查图表等）",
-  "tool_names": ["read_go_file", "read_go_file_lines", "read_doc", "read_dir", "web_search", "fetch_url_content", "search_tools", "run_table_search", "run_table_create", "run_table_update", "run_form_submit", "run_chart_query", "run_on_select_fuzzy", "create_scheduled_task", "list_scheduled_tasks", "cancel_scheduled_task", "list_scheduled_task_executions", "run_official_python"],
-  "system_prompt_file": "system_prompt.md",
-  "first_assistant_file": "first_assistant.md"
-}

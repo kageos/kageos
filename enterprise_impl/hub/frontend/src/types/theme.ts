@@ -23,5 +23,4 @@ export const THEME_PRESETS: ThemeConfig[] = [
   }
 ]
 
-export const DEFAULT_THEME: ThemeConfig = THEME_PRESETS[0]
-
+export const DEFAULT_THEME: ThemeConfig = THEME_PRESETS[0]!

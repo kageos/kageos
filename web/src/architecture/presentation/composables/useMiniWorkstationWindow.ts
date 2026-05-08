@@ -9,9 +9,9 @@ export interface UseMiniWorkstationWindowOptions {
 }
 
 const MIN_W = 320
-const MIN_H = 260
-const DEFAULT_W = 380
-const DEFAULT_H = 480
+const MIN_H = 280
+const DEFAULT_W = 416
+const DEFAULT_H = 388
 
 export function useMiniWorkstationWindow(options: UseMiniWorkstationWindowOptions) {
   const { maximized, initialOffset, initialPosition } = options
@@ -53,6 +53,8 @@ export function useMiniWorkstationWindow(options: UseMiniWorkstationWindowOption
     }
 
     const base: Record<string, string> = {
+      '--mini-ws-base-width': `${winW.value}px`,
+      '--mini-ws-base-height': `${winH.value}px`,
       width: `${winW.value}px`,
       height: `${winH.value}px`
     }

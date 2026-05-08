@@ -190,4 +190,3 @@ func (r *HubDirectoryRepository) DecrementStarCount(ctx context.Context, hubDire
 	return r.db.WithContext(ctx).Model(&model.HubDirectory{}).Where("id = ?", hubDirectoryID).
 		UpdateColumn("star_count", gorm.Expr("GREATEST(0, star_count - 1)")).Error
 }
-

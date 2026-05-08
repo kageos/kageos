@@ -22,6 +22,9 @@ func InitTables(db *gorm.DB) error {
 		&WorkspaceMode{},
 		// 工作台埋点事件（便于追溯无法实现的需求等）
 		&WorkspaceEvent{},
+		// 定时 Agent 会话任务
+		&ScheduledAgentTask{},
+		&ScheduledAgentExecution{},
 	); err != nil {
 		return err
 	}

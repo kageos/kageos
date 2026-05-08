@@ -7,6 +7,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
 )
 
 type serviceTreeSearchService struct {
@@ -86,7 +87,7 @@ func parseSearchResourceTypes(resourceType string) []string {
 			model.ServiceTreeTypeDocs,
 			model.ServiceTreeTypeBoard,
 		}
-	case "directory", "package":
+	case permission.ResourceTypeDirectory, model.ServiceTreeTypePackage:
 		return []string{model.ServiceTreeTypePackage}
 	case model.ServiceTreeTypeFunction:
 		return []string{model.ServiceTreeTypeFunction}

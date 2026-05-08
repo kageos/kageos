@@ -76,6 +76,7 @@ defineEmits<{
   flex: 1;
   overflow-y: auto;
   padding: 8px;
+  scrollbar-color: rgba(34, 211, 238, 0.3) transparent;
 }
 
 .mini-key-info-body--compact {
@@ -87,10 +88,11 @@ defineEmits<{
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  font-weight: 500;
-  color: var(--el-text-color-secondary);
+  font-weight: 800;
+  color: var(--mini-cyber-muted, rgba(184, 225, 235, 0.68));
   padding: 6px 4px 4px;
   margin-top: 4px;
+  letter-spacing: 0.04em;
 }
 
 .mini-file-section-title:first-child {

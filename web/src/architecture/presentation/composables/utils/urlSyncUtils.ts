@@ -6,7 +6,12 @@
 import type { FieldConfig, FieldValue } from '../../../domain/types'
 import { Logger } from '@/core/utils/logger'
 import { WidgetType } from '@/core/constants/widget'
-import { LINK_TYPE_QUERY_KEY, LinkType, isLinkNavigation } from '@/utils/linkNavigation'
+import { LINK_TYPE_QUERY_KEY, isLinkNavigation } from '@/utils/linkNavigation'
+import {
+  isLinkMarkerQueryKey,
+  isPersistentPlatformStateQueryKey,
+  isPlatformStateQueryKey
+} from '@/utils/queryParamKeys'
 
 /**
  * 检查字段值是否为空
@@ -100,13 +105,17 @@ export function mergeURLQueryParams(
   // URL 有查询参数，保留现有参数（如 _link_type、_tab）并合并新的参数
   const mergedQuery: Record<string, string | string[]> = { ...currentQuery }
   
-  // 保留以 _ 开头的参数（前端状态参数，如 _tab=OnTableAddRow），但清除 _link_type（临时参数）
+  // 保留持久平台状态参数（如 _tab=OnTableAddRow），但清除 _link_type 等临时参数。
   Object.keys(mergedQuery).forEach(key => {
-    if (key.startsWith('_') && key === LINK_TYPE_QUERY_KEY) {
+    if (isLinkMarkerQueryKey(key)) {
       // 清除临时参数
       delete mergedQuery[key]
+      return
     }
-    // 其他以 _ 开头的参数保留（如 _tab）
+
+    if (isPlatformStateQueryKey(key) && !isPersistentPlatformStateQueryKey(key)) {
+      delete mergedQuery[key]
+    }
   })
   
   // 合并新的参数（覆盖旧的同名参数）

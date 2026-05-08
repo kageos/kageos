@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 )
 
 type NamespaceCreateReq struct {
@@ -34,16 +34,17 @@ type CreateAppResp struct {
 type RequestAppReq struct {
 	TraceId         string `json:"trace_id" example:"req-123456"` // 追踪ID（由中间件自动填充）
 	IsCallback      bool   `json:"is_callback" example:"true"`
-	RequestUser     string `json:"request_user" swaggerignore:"true"`          // 请求用户（由中间件自动填充）
-	RequestUserDept string `json:"request_user_dept" swaggerignore:"true"`     // 请求用户部门（由中间件自动填充）
-	Token           string `json:"token" swaggerignore:"true"`                 // 认证 Token（由中间件自动填充，透传到 SDK）
-	User            string `json:"user" binding:"required" example:"beiluo"`   // 租户用户名（应用所有者）
-	App             string `json:"app" binding:"required" example:"myapp"`     // 应用名
-	Version         string `json:"version" binding:"required" example:"v1"`    // 版本号
-	Router          string `json:"router" binding:"required" example:"/users"` // 路由路径
-	Method          string `json:"method" example:"GET"`                       // 应用内部方法名（可选）
-	Body            []byte `json:"body" example:"eyJpZCI6MX0="`                // 请求体（Base64编码）
-	UrlQuery        string `json:"url_query" example:"page=1&size=10"`         // URL 查询参数
+	RequestUser     string `json:"request_user" swaggerignore:"true"`            // 请求用户（由中间件自动填充）
+	RequestUserDept string `json:"request_user_dept" swaggerignore:"true"`       // 请求用户部门（由中间件自动填充）
+	Token           string `json:"token" swaggerignore:"true"`                   // 认证 Token（由中间件自动填充，透传到 SDK）
+	ClientSource    string `json:"client_source,omitempty" swaggerignore:"true"` // 客户端来源（browser、scheduled_task、agent、api）
+	User            string `json:"user" binding:"required" example:"beiluo"`     // 租户用户名（应用所有者）
+	App             string `json:"app" binding:"required" example:"myapp"`       // 应用名
+	Version         string `json:"version" binding:"required" example:"v1"`      // 版本号
+	Router          string `json:"router" binding:"required" example:"/users"`   // 路由路径
+	Method          string `json:"method" example:"GET"`                         // 应用内部方法名（可选）
+	Body            []byte `json:"body" example:"eyJpZCI6MX0="`                  // 请求体（Base64编码）
+	UrlQuery        string `json:"url_query" example:"page=1&size=10"`           // URL 查询参数
 }
 
 // CallbackAppReq 回调请求
@@ -288,18 +289,16 @@ type ApiInfo struct {
 	Router       string   `json:"router"`
 	Method       string   `json:"method"`
 	CreateTables []string `json:"create_tables"`
-	Callback     []string `json:"callback"`
 	// FunctionGroupCode 和 FunctionGroupName 已移除，不再需要
 
-	Request        []*widget.Field `json:"request"`
-	Response       []*widget.Field `json:"response"`
-	AddedVersion   string          `json:"added_version"`   // API首次添加的版本
-	UpdateVersions []string        `json:"update_versions"` // API更新过的版本列表
-	TemplateType   string          `json:"template_type"`
-	User           string          `json:"user"`
-	App            string          `json:"app"`
-	FullCodePath   string          `json:"full_code_path"`
-	TreeID         int64           `json:"tree_id"` // ServiceTree节点ID，创建tree后赋值，方便后续写快照时入库
+	Schema         *functionschema.FunctionSchema `json:"schema"`
+	AddedVersion   string                         `json:"added_version"`   // API首次添加的版本
+	UpdateVersions []string                       `json:"update_versions"` // API更新过的版本列表
+	TemplateType   string                         `json:"template_type"`
+	User           string                         `json:"user"`
+	App            string                         `json:"app"`
+	FullCodePath   string                         `json:"full_code_path"`
+	TreeID         int64                          `json:"tree_id"` // ServiceTree节点ID，创建tree后赋值，方便后续写快照时入库
 
 	SourceCodeFilePath string        `json:"source_code_file_path"`
 	SourceCode         string        `json:"source_code"`

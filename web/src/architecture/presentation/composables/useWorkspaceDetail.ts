@@ -11,7 +11,7 @@
  *    - 支持上一条/下一条导航
  * 
  * 2. **编辑功能**：
- *    - 编辑模式下显示可编辑字段（根据 `table_permission` 过滤）
+ *    - 编辑模式下显示可编辑字段（根据 `hide.scenes` 过滤）
  *    - 提交编辑时检查权限（`function:update`）
  *    - 提交成功后刷新表格数据
  * 
@@ -36,7 +36,7 @@
  * 
  * 3. **数据流**：
  *    - 从表格行数据构建编辑表单的初始数据
- *    - 编辑模式下只显示可编辑字段（`table_permission=update` 或为空）
+ *    - 编辑模式下只显示 update 场景可编辑字段
  *    - 提交时提取表单数据并调用 TableApplicationService.updateRow
  * 
  * ============================================
@@ -73,7 +73,7 @@
  *    - 关闭抽屉时清除所有相关参数
  * 
  * 3. **字段过滤**：
- *    - 编辑模式下只显示 `table_permission=update` 或为空的字段
+ *    - 编辑模式下隐藏 `hide.scenes` 包含 update 的字段
  *    - 通过 `editFunctionDetail` computed 过滤字段
  */
 
@@ -103,7 +103,7 @@ import {
   shouldWaitForDetailTableData,
   type DetailRestoreTrigger
 } from './utils/workspaceDetailRuntime'
-import { hasFunctionCallback } from '../views/utils/tableViewActionRuntime'
+import { getFunctionCallbacks, getTableDetailFields, getTableRequestFields } from '@/utils/functionSchemaSelectors'
 
 export function useWorkspaceDetail(
   options: {
@@ -138,7 +138,7 @@ export function useWorkspaceDetail(
   })
 
   const supportsDetailEdit = computed(() => {
-    return hasFunctionCallback(options.currentFunctionDetail()?.callbacks, 'OnTableUpdateRow')
+    return getFunctionCallbacks(options.currentFunctionDetail()).includes('OnTableUpdateRow')
   })
 
   const getEditableFieldCodes = (): string[] => {
@@ -146,9 +146,13 @@ export function useWorkspaceDetail(
   }
 
   const buildDetailBaseQuery = (): Record<string, string | string[]> => {
+    const requestFieldCodes = getTableRequestFields(options.currentFunctionDetail())
+      .map(field => field.code)
+
     return buildDetailBaseQueryHelper({
       query: route.query as Record<string, any>,
-      editableFieldCodes: getEditableFieldCodes()
+      editableFieldCodes: getEditableFieldCodes(),
+      preserveRawFieldCodes: requestFieldCodes
     })
   }
 
@@ -254,7 +258,7 @@ export function useWorkspaceDetail(
     index?: number
   }): void => {
     const { detail, row, tableData, mode = 'read', index } = options
-    const fields = (detail.response || []) as FieldConfig[]
+    const fields = getTableDetailFields(detail) as FieldConfig[]
 
     clearPendingDetailRestore()
     detailRowData.value = row
@@ -596,7 +600,7 @@ export function useWorkspaceDetail(
         row: refreshedMatch.row,
         tableData: currentTableData,
         mode: 'read',
-        index: resolveDetailIndex(refreshedMatch.row, (detail.response || []) as FieldConfig[], currentTableData)
+        index: resolveDetailIndex(refreshedMatch.row, getTableDetailFields(detail) as FieldConfig[], currentTableData)
       })
       clearPendingDetailRestore()
     } catch (error) {

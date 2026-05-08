@@ -1,4 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { ElNotification } from 'element-plus'
 import { createPinia } from 'pinia'
 import { computed, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
@@ -124,18 +125,28 @@ const sliderField = {
   }
 } as any
 
+function createFormDetail() {
+  return {
+    id: 1,
+    router: '/demo/form',
+    template_type: 'form',
+    method: 'POST',
+    schema: {
+      version: 1,
+      type: 'form',
+      form: {
+        request: [sliderField],
+        response: []
+      }
+    }
+  } as any
+}
+
 describe('FormView', () => {
   it('renders slider fields in the request form', () => {
     const wrapper = mount(FormView, {
       props: {
-        functionDetail: {
-          id: 1,
-          router: '/demo/form',
-          template_type: 'form',
-          method: 'POST',
-          request: [sliderField],
-          response: []
-        }
+        functionDetail: createFormDetail()
       },
       global: {
         plugins: [createPinia()],
@@ -162,7 +173,9 @@ describe('FormView', () => {
     expect(wrapper.find('.el-slider').exists()).toBe(true)
   })
 
-  it('shows inline error feedback when submit returns a business error', async () => {
+  it('shows inline and viewport error feedback when submit returns a business error', async () => {
+    const notificationErrorSpy = vi.spyOn(ElNotification, 'error').mockImplementation(() => undefined as any)
+
     vi.mocked(apiClient.post).mockResolvedValueOnce({
       code: -1,
       data: null,
@@ -171,14 +184,7 @@ describe('FormView', () => {
 
     const wrapper = mount(FormView, {
       props: {
-        functionDetail: {
-          id: 1,
-          router: '/demo/form',
-          template_type: 'form',
-          method: 'POST',
-          request: [sliderField],
-          response: []
-        }
+        functionDetail: createFormDetail()
       },
       global: {
         plugins: [createPinia()],
@@ -204,5 +210,12 @@ describe('FormView', () => {
     await flushPromises()
 
     expect(wrapper.find('.el-alert').text()).toContain('余额不足，请充值后重试')
+    expect(notificationErrorSpy).toHaveBeenCalledWith(expect.objectContaining({
+      title: '提交失败',
+      message: '余额不足，请充值后重试',
+      position: 'top-right'
+    }))
+
+    notificationErrorSpy.mockRestore()
   })
 })

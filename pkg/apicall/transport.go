@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
@@ -33,6 +34,27 @@ var httpClient = &http.Client{
 func callAPI[T any](ctx context.Context, method, path string, reqBody interface{}) (*ApiResult[T], error) {
 	fullURL := serviceconfig.BuildGatewayURL(path)
 	return callAPIWithOptions[T](ctx, method, fullURL, reqBody)
+}
+
+// CallAPI calls a gateway API and decodes only the response data field into
+// respData. It is the non-generic entry used by SDK code generated inside
+// workspaces.
+func CallAPI(ctx context.Context, method, path string, reqBody interface{}, respData interface{}) error {
+	fullURL := strings.TrimSpace(path)
+	if !isHTTPURL(fullURL) {
+		fullURL = serviceconfig.BuildGatewayURL(fullURL)
+	}
+	result, err := callAPIWithOptions[json.RawMessage](ctx, method, fullURL, reqBody)
+	if err != nil {
+		return err
+	}
+	if respData == nil || len(result.Data) == 0 || string(result.Data) == "null" {
+		return nil
+	}
+	if err := json.Unmarshal(result.Data, respData); err != nil {
+		return fmt.Errorf("解析响应 data 失败: %w", err)
+	}
+	return nil
 }
 
 // CallAPIWithURL 使用完整 URL 调用 API。
@@ -105,9 +127,26 @@ func applyCommonHeaders(req *http.Request, ctx context.Context) {
 	if traceID := contextx.GetTraceId(ctx); traceID != "" {
 		req.Header.Set(contextx.TraceIdHeader, traceID)
 	}
+	if requestUser := contextx.GetRequestUser(ctx); requestUser != "" {
+		req.Header.Set(contextx.RequestUserHeader, requestUser)
+	}
+	if departmentFullPath := contextx.GetRequestDepartmentFullPath(ctx); departmentFullPath != "" {
+		req.Header.Set(contextx.DepartmentFullPathHeader, departmentFullPath)
+	}
 	if clientSource := contextx.GetClientSource(ctx); clientSource != "" {
 		req.Header.Set(contextx.ClientSourceHeader, clientSource)
 	}
+	if sourceType := contextx.GetSourceType(ctx); sourceType != "" {
+		req.Header.Set(contextx.SourceTypeHeader, sourceType)
+	}
+	if sourceRef := contextx.GetSourceRef(ctx); sourceRef != "" {
+		req.Header.Set(contextx.SourceRefHeader, sourceRef)
+	}
+}
+
+func isHTTPURL(raw string) bool {
+	raw = strings.ToLower(strings.TrimSpace(raw))
+	return strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://")
 }
 
 func doAPIRequest[T any](req *http.Request) (*ApiResult[T], error) {

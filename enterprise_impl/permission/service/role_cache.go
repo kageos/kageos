@@ -30,23 +30,23 @@ type RoleCache struct {
 	expireDuration time.Duration
 
 	// 仓储依赖
-	roleRepo            *permissionrepo.RoleRepository
-	rolePermissionRepo  *permissionrepo.RolePermissionRepository
+	roleRepo           *permissionrepo.RoleRepository
+	rolePermissionRepo *permissionrepo.RolePermissionRepository
 }
 
 // Role 角色信息（缓存用）
 type Role struct {
-	ID          int64
-	Name        string
-	Code        string
+	ID           int64
+	Name         string
+	Code         string
 	ResourceType string // ⭐ 资源类型
-	Description string
-	IsSystem    bool
-	IsDefault   bool   // ⭐ 是否默认角色（用于权限申请时的默认推荐）
-	CreatedBy   string // ⭐ 创建者
-	CreatedAt   models.Time // ⭐ 创建时间
-	UpdatedAt   models.Time // ⭐ 更新时间
-	Permissions []string // 权限点列表（从 rolePermissions 获取）
+	Description  string
+	IsSystem     bool
+	IsDefault    bool        // ⭐ 是否默认角色（用于权限申请时的默认推荐）
+	CreatedBy    string      // ⭐ 创建者
+	CreatedAt    models.Time // ⭐ 创建时间
+	UpdatedAt    models.Time // ⭐ 更新时间
+	Permissions  []string    // 权限点列表（从 rolePermissions 获取）
 }
 
 // NewRoleCache 创建角色缓存
@@ -56,8 +56,8 @@ func NewRoleCache(roleRepo *permissionrepo.RoleRepository, rolePermissionRepo *p
 		rolePermissions:    make(map[int64]map[string]map[string]bool),
 		roleCodeIndex:      make(map[string]int64),
 		expireDuration:     5 * time.Minute,
-		roleRepo:            roleRepo,
-		rolePermissionRepo:  rolePermissionRepo,
+		roleRepo:           roleRepo,
+		rolePermissionRepo: rolePermissionRepo,
 	}
 }
 
@@ -107,10 +107,10 @@ func (c *RoleCache) LoadAllRoles(ctx context.Context) error {
 			logger.Warnf(ctx, "[RoleCache] 角色权限的 Action 关联未加载: role_id=%d, action_id=%d", rp.RoleID, rp.ActionID)
 			continue
 		}
-		
+
 		actionCode := rp.ActionModel.Code
 		resourceType := rp.ActionModel.ResourceType
-		
+
 		if c.rolePermissions[rp.RoleID] == nil {
 			c.rolePermissions[rp.RoleID] = make(map[string]map[string]bool)
 		}

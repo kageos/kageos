@@ -51,4 +51,3 @@ func RegisterPprofRoutesWithPrefix(router *gin.Engine, prefix string) {
 		pprofGroup.GET("/trace", gin.WrapH(http.HandlerFunc(pprof.Trace)))
 	}
 }
-

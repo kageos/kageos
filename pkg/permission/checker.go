@@ -24,8 +24,8 @@ import (
 //
 // 说明：
 //   - 新权限系统支持权限继承：
-//     * directory:admin 权限自动覆盖所有子资源的权限
-//     * app:admin 权限自动覆盖应用下所有资源的权限
+//   - directory:admin 权限自动覆盖所有子资源的权限
+//   - app:admin 权限自动覆盖应用下所有资源的权限
 //   - 调用 CheckPermission 会自动处理权限继承
 func CheckPermissionWithInheritance(
 	ctx context.Context,

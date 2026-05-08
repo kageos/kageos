@@ -55,6 +55,14 @@ func runReadDocTool(ctx context.Context, args readDocArgs, currentFullCodePath s
 		if !strings.HasPrefix(fullCodePath, "/") {
 			fullCodePath = "/" + fullCodePath
 		}
+		if prompt.IsLegacyWorkspacePromptPath(fullCodePath) {
+			if i > 0 {
+				sb.WriteString("\n\n")
+			}
+			sb.WriteString("## " + fullCodePath + "\n\n旧 `/system/prompt/workspace/*` SOP 路径已下线。请先 `change_role` 到匹配身份；上下文不足时直接读取明确路径的 SDK、平台边界或案例文档。")
+			hasError = true
+			continue
+		}
 
 		if prompt.IsPromptDocPath(fullCodePath) {
 			docName, content := prompt.GetPromptDocContent(ctx, fullCodePath)

@@ -34,6 +34,10 @@ declare module 'echarts/lib/component/grid/install.js' {
   export const install: (registers: unknown) => void
 }
 
+declare module 'echarts/lib/coord/cartesian/legacyContainLabel.js' {
+  export const installLegacyGridContainLabel: (registers: unknown) => void
+}
+
 declare module 'echarts/lib/renderer/installCanvasRenderer.js' {
   export const install: (registers: unknown) => void
 }

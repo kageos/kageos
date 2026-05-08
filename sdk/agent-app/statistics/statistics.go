@@ -178,4 +178,3 @@ func ListCount() string {
 func Value(field string) string {
 	return fmt.Sprintf("value(%s)", field)
 }
-

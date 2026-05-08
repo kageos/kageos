@@ -342,7 +342,7 @@ func (h *LLM) Update(c *gin.Context) {
 	}()
 
 	ctx := contextx.ToContext(c)
-	
+
 	// 先获取现有配置
 	cfg, err := h.service.GetLLMConfig(ctx, req.ID)
 	if err != nil {

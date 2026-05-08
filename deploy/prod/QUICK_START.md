@@ -1,35 +1,23 @@
 # Prod Quick Start
 
-只看这份就够了。
+生产部署入口是 Go 部署器 `aosctl`。Compose 仍是底层容器执行器，但用户不需要直接维护 Compose 文件。
 
-## 你只需要记住 2 个命令
+## 前提
 
-```bash
-bash build.sh init
-bash build.sh up
-```
+- Linux
+- 已安装 `podman compose` 或 `docker compose`
+- `/data` 可写
+- `80` 端口空闲；如果本机终止 HTTPS，`443` 也要空闲
 
 ## 首次部署
 
-```bash
-git clone <your-repo-url>
-cd ai-agent-os/deploy/prod
-
-bash build.sh init
-```
-
-编辑 `.env`，先只填这两个：
-
-```env
-CANONICAL_BASE_URL="http://your-ip-or-domain"
-TLS_MODE="http"
-```
-
-然后启动：
+在仓库根目录执行：
 
 ```bash
-bash build.sh up
-bash build.sh verify
+go run ./cmd/aosctl init --base-url http://your-ip-or-domain
+go run ./cmd/aosctl doctor --config deploy/prod/aos.yaml
+go run ./cmd/aosctl up --config deploy/prod/aos.yaml
+go run ./cmd/aosctl verify --config deploy/prod/aos.yaml
 ```
 
 访问：
@@ -38,41 +26,14 @@ bash build.sh verify
 http://your-ip-or-domain
 ```
 
-## 如果你已经有发布镜像
+## 常用命令
 
 ```bash
-bash build.sh init --image
-bash build.sh up
+go run ./cmd/aosctl status --config deploy/prod/aos.yaml
+go run ./cmd/aosctl logs --config deploy/prod/aos.yaml main
+go run ./cmd/aosctl down --config deploy/prod/aos.yaml
 ```
 
-## 以后升级
+## 生成物
 
-```bash
-git pull
-cd deploy/prod
-bash build.sh update
-```
-
-如果中间件没在运行，直接用：
-
-```bash
-bash build.sh up
-```
-
-## 最常用
-
-```bash
-bash build.sh status
-bash build.sh logs main
-bash build.sh verify
-bash build.sh down
-```
-
-## 就这几个前提
-
-- Linux
-- 有 `sudo` 或 root 权限
-- `80` 端口空闲
-- `/data` 可写
-
-想看完整说明，再看 [README.md](README.md)。
+生成物位于 `deploy/prod/.generated/`，不要手工编辑；需要变更时修改 `deploy/prod/aos.yaml` 后重新执行 `aosctl up`。

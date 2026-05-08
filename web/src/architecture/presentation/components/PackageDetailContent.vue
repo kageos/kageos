@@ -28,8 +28,8 @@
       </el-card>
     </div>
 
-    <div v-else-if="showPermissionRequestTab" class="permission-request-section">
-      <el-tabs v-model="currentActiveTab" type="card" class="detail-tabs">
+    <div v-else-if="showDirectoryTabs" class="permission-request-section">
+      <el-tabs v-model="currentActiveTab" class="detail-tabs">
         <el-tab-pane name="info">
           <template #label>
             <span>目录信息</span>
@@ -39,6 +39,13 @@
               :package-node="packageNode || null"
               :total-run-count="totalRunCount"
             />
+            <details v-if="directoryMarkdown" class="directory-markdown-detail">
+              <summary class="directory-markdown-summary">
+                <span>目录详情</span>
+                <span class="directory-markdown-summary-hint">展开</span>
+              </summary>
+              <div class="directory-markdown-body" v-html="renderMarkdown(directoryMarkdown)" />
+            </details>
             <PackageDetailChildrenGrid
               :children="packageNode?.children || []"
               @select-child="$emit('select-child', $event)"
@@ -64,7 +71,20 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane name="permissionRequest">
+        <el-tab-pane v-if="showScheduledAgentTaskTab" name="scheduledAgentTask">
+          <template #label>
+            <span>定时会话</span>
+          </template>
+          <div class="tab-content scheduled-agent-tab-content">
+            <ScheduledAgentTaskList
+              :resource-path="packageNode?.full_code_path"
+              :auto-load="currentActiveTab === 'scheduledAgentTask'"
+              @open-session="$emit('open-session', $event)"
+            />
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane v-if="showPermissionRequestTab" name="permissionRequest">
           <template #label>
             <el-badge
               :value="packageNode?.pending_count || 0"
@@ -84,7 +104,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane name="permissionManage">
+        <el-tab-pane v-if="showPermissionRequestTab" name="permissionManage">
           <template #label>
             <span>授权记录</span>
           </template>
@@ -105,6 +125,13 @@
         :package-node="packageNode"
         :total-run-count="totalRunCount"
       />
+      <details v-if="directoryMarkdown" class="directory-markdown-detail">
+        <summary class="directory-markdown-summary">
+          <span>目录详情</span>
+          <span class="directory-markdown-summary-hint">展开</span>
+        </summary>
+        <div class="directory-markdown-body" v-html="renderMarkdown(directoryMarkdown)" />
+      </details>
       <PackageDetailChildrenGrid
         :children="packageNode.children || []"
         @select-child="$emit('select-child', $event)"
@@ -121,8 +148,11 @@ import PermissionRequestList from '@/shared/components/permission/PermissionRequ
 import PermissionManageList from '@/shared/components/permission/PermissionManageList.vue'
 import PackageDetailOverviewCard from './PackageDetailOverviewCard.vue'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
+import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
+import type { WorkspaceSessionItem } from '@/api/workspace'
+import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
 
-type DetailTabName = 'info' | 'import' | 'permissionRequest' | 'permissionManage'
+type DetailTabName = 'info' | 'import' | 'permissionRequest' | 'permissionManage' | 'scheduledAgentTask'
 
 const props = defineProps<{
   packageNode: ServiceTree | null
@@ -141,14 +171,29 @@ const emit = defineEmits<{
   (e: 'select-child', child: ServiceTree): void
   (e: 'import-go-drop', event: DragEvent): void
   (e: 'set-import-go-dragging', value: boolean): void
+  (e: 'open-session', session: WorkspaceSessionItem): void
 }>()
 
 const permissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> | null>(null)
 const permissionManageListRef = ref<InstanceType<typeof PermissionManageList> | null>(null)
+const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
+void preloadMarkdown()
 
 const currentActiveTab = computed({
   get: () => props.activeTab,
   set: (value: DetailTabName) => emit('update:activeTab', value)
+})
+
+const showScheduledAgentTaskTab = computed(() => {
+  return props.packageNode?.type === 'package' && !!props.packageNode.full_code_path
+})
+
+const showDirectoryTabs = computed(() => {
+  return props.showPermissionRequestTab || showScheduledAgentTaskTab.value
+})
+
+const directoryMarkdown = computed(() => {
+  return props.packageNode?.description?.trim() || ''
 })
 
 watch(
@@ -286,7 +331,7 @@ watch(
 
 .detail-tabs {
   :deep(.el-tabs__header) {
-    margin-bottom: 24px;
+    margin: 10px 0 18px;
     overflow: visible;
   }
 
@@ -296,6 +341,8 @@ watch(
 
   :deep(.el-tabs__nav-wrap::after) {
     display: none;
+    height: 0;
+    background: transparent;
   }
 
   :deep(.el-tabs__nav-scroll) {
@@ -303,49 +350,51 @@ watch(
   }
 
   :deep(.el-tabs__nav) {
-    padding: 6px;
-    border: 1px solid var(--app-shell-panel-border);
-    background: var(--app-shell-panel-muted-bg);
-    border-radius: 20px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    border-radius: 0;
     overflow: visible;
-    box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
+    box-shadow: none;
   }
 
   :deep(.el-tabs__item) {
-    height: 42px;
-    line-height: 42px;
+    height: 38px;
+    line-height: 38px;
     font-size: 14px;
-    color: var(--el-text-color-regular);
+    color: var(--el-text-color-secondary);
     border: none;
     background: transparent;
     margin-right: 0;
-    border-radius: 14px;
+    border-radius: 0;
     transition: all 0.2s ease;
-    padding: 0 20px;
+    padding: 0 6px 2px;
     overflow: visible;
     font-weight: 500;
 
     &:hover {
       color: var(--el-color-primary);
-      background: rgba(var(--el-color-primary-rgb), 0.06);
+      background: transparent;
     }
 
     &.is-active {
       color: var(--el-color-primary);
-      background: var(--app-shell-panel-bg-strong);
-      border: 1px solid rgba(var(--el-color-primary-rgb), 0.14);
+      background: transparent;
+      border: none;
       font-weight: 600;
       opacity: 1;
-      box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08);
+      box-shadow: none;
     }
   }
 
   :deep(.el-tabs__item + .el-tabs__item) {
-    margin-left: 6px;
+    margin-left: 22px;
   }
 
   :deep(.el-tabs__active-bar) {
-    display: none;
+    height: 2px;
+    border-radius: 999px;
+    background: var(--el-color-primary);
   }
 
   :deep(.el-badge) {
@@ -367,6 +416,138 @@ watch(
 
 .tab-content {
   padding: 0;
+}
+
+.directory-markdown-detail {
+  margin: -8px 0 24px;
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 8px;
+  background: var(--app-shell-panel-bg-strong);
+  box-shadow: var(--app-shell-panel-shadow-soft);
+  overflow: hidden;
+}
+
+.directory-markdown-summary {
+  min-height: 44px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.directory-markdown-summary::-webkit-details-marker {
+  display: none;
+}
+
+.directory-markdown-summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 6px solid var(--el-color-primary);
+  transition: transform 0.18s ease;
+}
+
+.directory-markdown-detail[open] .directory-markdown-summary::before {
+  transform: rotate(90deg);
+}
+
+.directory-markdown-summary-hint {
+  margin-left: auto;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.directory-markdown-detail[open] .directory-markdown-summary-hint {
+  font-size: 0;
+}
+
+.directory-markdown-detail[open] .directory-markdown-summary-hint::after {
+  content: '收起';
+  font-size: 12px;
+}
+
+.directory-markdown-body {
+  padding: 0 18px 18px 36px;
+  color: var(--el-text-color-regular);
+  font-size: 14px;
+  line-height: 1.72;
+}
+
+.directory-markdown-body :deep(h1),
+.directory-markdown-body :deep(h2),
+.directory-markdown-body :deep(h3),
+.directory-markdown-body :deep(h4),
+.directory-markdown-body :deep(h5),
+.directory-markdown-body :deep(h6) {
+  margin: 18px 0 10px;
+  color: var(--el-text-color-primary);
+  line-height: 1.35;
+}
+
+.directory-markdown-body :deep(p) {
+  margin: 8px 0;
+}
+
+.directory-markdown-body :deep(ul),
+.directory-markdown-body :deep(ol) {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+
+.directory-markdown-body :deep(blockquote) {
+  margin: 12px 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--el-color-primary);
+  background: var(--app-shell-panel-muted-bg);
+  border-radius: 6px;
+}
+
+.directory-markdown-body :deep(code) {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: var(--app-shell-panel-muted-bg);
+  color: var(--el-color-primary);
+}
+
+.directory-markdown-body :deep(pre) {
+  padding: 12px;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e2e8f0;
+  overflow-x: auto;
+}
+
+.directory-markdown-body :deep(pre code) {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.directory-markdown-body :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+}
+
+.directory-markdown-body :deep(th),
+.directory-markdown-body :deep(td) {
+  padding: 8px 10px;
+  border: 1px solid var(--app-shell-panel-border);
+}
+
+.directory-markdown-body :deep(th) {
+  background: var(--app-shell-panel-muted-bg);
+  font-weight: 700;
 }
 
 .import-tab-content {

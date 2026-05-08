@@ -51,15 +51,22 @@ const isImageFile = computed(() => {
   gap: 8px;
   padding: 8px;
   margin-bottom: 6px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--el-border-radius-base);
-  transition: all 0.15s;
+  border: 1px solid rgba(96, 231, 255, 0.14);
+  border-radius: 12px;
+  background:
+    linear-gradient(145deg, rgba(9, 28, 48, 0.62), rgba(4, 12, 24, 0.46)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent);
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
   cursor: pointer;
 }
 
 .mini-ws-file-card:hover {
-  border-color: var(--el-color-primary-light-5);
-  background: var(--el-fill-color-lighter);
+  transform: translateY(-1px);
+  border-color: rgba(34, 211, 238, 0.46);
+  background:
+    linear-gradient(145deg, rgba(16, 46, 72, 0.72), rgba(5, 16, 30, 0.52)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18), 0 0 16px rgba(34, 211, 238, 0.08);
 }
 
 .mini-ws-file-card--compact {
@@ -71,9 +78,10 @@ const isImageFile = computed(() => {
   width: 48px;
   height: 48px;
   flex-shrink: 0;
-  border-radius: 4px;
+  border-radius: 10px;
   overflow: hidden;
-  border: 1px solid var(--el-border-color-extra-light);
+  border: 1px solid rgba(96, 231, 255, 0.18);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.08);
 }
 
 .mini-ws-file-card__thumb img {
@@ -96,9 +104,12 @@ const isImageFile = computed(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  background: var(--el-fill-color-light);
-  color: var(--el-text-color-secondary);
+  border: 1px solid rgba(96, 231, 255, 0.16);
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 50% 24%, rgba(34, 211, 238, 0.22), transparent 50%),
+    rgba(3, 10, 22, 0.56);
+  color: var(--mini-cyber-accent, #22d3ee);
 }
 
 .mini-ws-file-card--compact .mini-ws-file-card__icon {
@@ -109,7 +120,7 @@ const isImageFile = computed(() => {
 .mini-ws-file-card__ext {
   font-size: 9px;
   font-weight: 600;
-  color: var(--el-text-color-placeholder);
+  color: var(--mini-cyber-muted, rgba(184, 225, 235, 0.68));
   margin-top: 2px;
   text-transform: uppercase;
 }
@@ -124,7 +135,7 @@ const isImageFile = computed(() => {
 
 .mini-ws-file-card__name {
   font-size: 12px;
-  color: var(--el-text-color-primary);
+  color: var(--mini-cyber-text, #d8f8ff);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -143,5 +154,11 @@ const isImageFile = computed(() => {
 
 .mini-ws-file-card--compact .mini-ws-file-card__actions :deep(.el-button) {
   font-size: 11px;
+}
+.mini-ws-file-card__actions :deep(.el-button) {
+  color: var(--mini-cyber-accent, #22d3ee);
+}
+.mini-ws-file-card__actions :deep(.el-button:hover) {
+  color: #ffffff;
 }
 </style>

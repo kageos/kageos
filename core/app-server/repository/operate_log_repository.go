@@ -29,4 +29,3 @@ func (r *OperateLogRepository) CreateTableOperateLog(log *model.TableOperateLog)
 func (r *OperateLogRepository) CreateFormOperateLog(log *model.FormOperateLog) error {
 	return r.db.Create(log).Error
 }
-

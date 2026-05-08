@@ -172,7 +172,7 @@ func (c *PermissionCalculator) CalculateWorkspacePermissions(
 							}
 
 							// 如果是 admin 权限，直接给所有权限
-							if actionType == "admin" {
+							if actionType == permission.ActionAdmin {
 								for _, requiredAction := range requiredActions {
 									nodePerms[requiredAction] = true
 								}
@@ -219,7 +219,7 @@ func (c *PermissionCalculator) CalculateWorkspacePermissions(
 								}
 
 								// 如果是 admin 权限，直接给所有权限
-								if actionType == "admin" {
+								if actionType == permission.ActionAdmin {
 									for _, requiredAction := range requiredActions {
 										nodePerms[requiredAction] = true
 									}
@@ -255,7 +255,7 @@ func (c *PermissionCalculator) CalculateWorkspacePermissions(
 			if appPath != "" {
 				if rolePermsByType, ok := rolePermissionsByPath[appPath]; ok {
 					if appPerms, ok := rolePermsByType[permission.ResourceTypeApp]; ok {
-						appAdminCode := permission.BuildActionCode(permission.ResourceTypeApp, "admin")
+						appAdminCode := permission.BuildActionCode(permission.ResourceTypeApp, permission.ActionAdmin)
 						if appPerms[appAdminCode] {
 							// app:admin -> 所有权限
 							for _, requiredAction := range requiredActions {

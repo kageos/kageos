@@ -6,23 +6,26 @@ describe('FunctionLoaderImpl', () => {
     vi.useRealTimers()
   })
 
+  const formDetail = (widgetType: string) => ({
+    router: '/demo/form',
+    schema: {
+      version: 1,
+      type: 'form',
+      form: {
+        request: [{ code: 'progress', widget: { type: widgetType } }],
+        response: []
+      }
+    }
+  })
+
   it('always fetches fresh function detail instead of returning stale cached schema', async () => {
     const get = vi
       .fn()
-      .mockResolvedValueOnce({
-        router: '/demo/form',
-        request: [{ code: 'progress', widget: { type: 'input' } }]
-      })
-      .mockResolvedValueOnce({
-        router: '/demo/form',
-        request: [{ code: 'progress', widget: { type: 'slider' } }]
-      })
+      .mockResolvedValueOnce(formDetail('input'))
+      .mockResolvedValueOnce(formDetail('slider'))
 
     const cacheManager = {
-      get: vi.fn().mockReturnValue({
-        router: '/demo/form',
-        request: [{ code: 'progress', widget: { type: 'input' } }]
-      }),
+      get: vi.fn().mockReturnValue(formDetail('input')),
       set: vi.fn(),
       delete: vi.fn(),
       getKeys: vi.fn().mockReturnValue([]),
@@ -35,8 +38,8 @@ describe('FunctionLoaderImpl', () => {
     const second = await loader.loadByPath('/demo/form', 'form')
 
     expect(get).toHaveBeenCalledTimes(2)
-    expect(first.request?.[0]?.widget?.type).toBe('input')
-    expect(second.request?.[0]?.widget?.type).toBe('slider')
+    expect(first.schema?.form?.request?.[0]?.widget?.type).toBe('input')
+    expect(second.schema?.form?.request?.[0]?.widget?.type).toBe('slider')
     expect(cacheManager.get).not.toHaveBeenCalled()
     expect(cacheManager.set).not.toHaveBeenCalled()
   })
@@ -67,10 +70,7 @@ describe('FunctionLoaderImpl', () => {
 
     await vi.advanceTimersByTimeAsync(0)
 
-    resolveRequest({
-      router: '/demo/form',
-      request: [{ code: 'progress', widget: { type: 'slider' } }]
-    })
+    resolveRequest(formDetail('slider'))
 
     const [resultA, resultB] = await Promise.all([pendingA, pendingB])
 

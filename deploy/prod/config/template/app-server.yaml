@@ -6,13 +6,8 @@ server:
   debug: false
   enable_pprof: false
 
-scheduler:
-  poll_interval_seconds: 1
-  batch_size: 50
-  lease_duration_seconds: 360
+timer_worker:
   max_concurrency: 4
-  health_port: ${AOS_SCHEDULER_HEALTH_PORT}
-  health_max_age_seconds: 30
 
 db:
   type: "mysql"
@@ -26,6 +21,9 @@ db:
   max_lifetime: 300
   log_level: "warn"
   slow_threshold: 200
+
+scheduled_task_db:
+  name: "app-scheduled-task"
 
 timeouts:
   app_request: 300

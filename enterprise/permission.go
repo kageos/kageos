@@ -415,25 +415,26 @@ type PermissionRecord struct {
 // CheckPermission 检查指定资源路径和操作是否有权限
 //
 // ⭐ 权限判断逻辑（方式2：直接函数权限继承）：
-//   1. 精确路径匹配：检查当前资源路径是否有该权限点
-//      - 例如：检查 /user/app/dir/function 的 table:read 权限
-//      - 先检查 /user/app/dir/function 是否有 table:read 权限
 //
-//   2. 父目录继承：向上查找父目录，检查是否有相同的权限点（直接继承，不需要转换）
-//      - 如果没有，检查父目录 /user/app/dir 是否有 table:read 权限
-//      - 如果父目录配置了 table:read，子函数直接继承 table:read 权限
-//      - 继续向上检查父目录，直到应用级别
+//  1. 精确路径匹配：检查当前资源路径是否有该权限点
+//     - 例如：检查 /user/app/dir/function 的 table:read 权限
+//     - 先检查 /user/app/dir/function 是否有 table:read 权限
 //
-//   3. 前缀匹配：检查是否有前缀路径配置了该权限点
-//      - 例如：/user/app/* 配置了 table:read，那么 /user/app/dir/function 继承该权限
+//  2. 父目录继承：向上查找父目录，检查是否有相同的权限点（直接继承，不需要转换）
+//     - 如果没有，检查父目录 /user/app/dir 是否有 table:read 权限
+//     - 如果父目录配置了 table:read，子函数直接继承 table:read 权限
+//     - 继续向上检查父目录，直到应用级别
 //
-//   4. 应用级别：检查应用级别权限（app:admin）
-//      - 如果用户有 app:admin 权限，拥有该应用下所有资源的权限
+//  3. 前缀匹配：检查是否有前缀路径配置了该权限点
+//     - 例如：/user/app/* 配置了 table:read，那么 /user/app/dir/function 继承该权限
 //
-//   5. Admin 权限：检查是否有任何资源类型的 admin 权限
-//      - 如果用户有 table:admin 权限，拥有所有表格权限（table:read、table:write、table:update、table:delete）
-//      - 如果用户有 form:admin 权限，拥有所有表单权限（form:read、form:write）
-//      - 如果用户有 chart:admin 权限，拥有所有图表权限（chart:read）
+//  4. 应用级别：检查应用级别权限（app:admin）
+//     - 如果用户有 app:admin 权限，拥有该应用下所有资源的权限
+//
+//  5. Admin 权限：检查是否有任何资源类型的 admin 权限
+//     - 如果用户有 table:admin 权限，拥有所有表格权限（table:read、table:write、table:update、table:delete）
+//     - 如果用户有 form:admin 权限，拥有所有表单权限（form:read、form:write）
+//     - 如果用户有 chart:admin 权限，拥有所有图表权限（chart:read）
 //
 // ⭐ 权限继承方式：方式2（直接函数权限继承）
 //   - 不需要转换，直接匹配相同的权限点
@@ -444,8 +445,7 @@ type PermissionRecord struct {
 // ⭐ 已废弃的方式1（目录权限转换）：
 //   - directory:read → table:read（已删除）
 //   - directory:write → table:write（已删除）
-//   原因：方式1太混乱，只使用方式2（直接函数权限继承）
-//
+//     原因：方式1太混乱，只使用方式2（直接函数权限继承）
 func (r *GetUserWorkspacePermissionsResp) CheckPermission(resourcePath string, action string) bool {
 	// 构建所有需要检查的路径（当前资源 + 所有父目录 + 应用级别）
 	parts := strings.Split(strings.Trim(resourcePath, "/"), "/")
@@ -500,7 +500,6 @@ func (r *GetUserWorkspacePermissionsResp) CheckPermission(resourcePath string, a
 
 	return false
 }
-
 
 // 全局变量：存储当前实现
 var permissionServiceImpl PermissionService = &UnImplPermissionService{}

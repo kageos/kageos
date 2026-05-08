@@ -2,23 +2,24 @@ package model
 
 import (
 	"encoding/json"
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+	"net/http"
 	"strings"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
+	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 )
 
 type Function struct {
 	models.Base
-	Request      json.RawMessage `json:"request" gorm:"type:json"`
-	Response     json.RawMessage `json:"response" gorm:"type:json"`
+	Schema       json.RawMessage `json:"schema" gorm:"type:json"`
 	AppID        int64           `json:"app_id"`
 	TreeID       int64           `json:"tree_id"`
 	Method       string          `json:"method" gorm:"type:varchar(255);column:method"`
 	Router       string          `json:"router" gorm:"type:varchar(255);column:router"`
 	HasConfig    bool            `json:"has_config" gorm:"column:has_config;comment:是否存在配置"` // 是否存在配置
 	CreateTables string          `json:"create_tables"`                                      //创建该api时候会自动帮忙创建这个数据库表gorm的model列表
-	Callbacks    string          `json:"callbacks"`
-	TemplateType string          `json:"widget"`                                  // 渲染类型
-	App          *App            `json:"-" gorm:"foreignKey:AppID;references:ID"` // 预加载
+	TemplateType string          `json:"template_type"`                                      // 渲染类型
+	App          *App            `json:"-" gorm:"foreignKey:AppID;references:ID"`            // 预加载
 	// 不在此处关联 ServiceTree，避免 AutoMigrate 为 tree_id 建外键导致历史脏数据迁移失败；搜索函数改为查 ServiceTree 并 Preload Function
 }
 
@@ -41,16 +42,6 @@ func (f *Function) GetEndpoint() string {
 	return f.Method + " " + f.Router
 }
 
-// HasRequestConfig 是否有请求配置
-func (f *Function) HasRequestConfig() bool {
-	return len(f.Request) > 0 && f.Request != nil
-}
-
-// HasResponseConfig 是否有响应配置
-func (f *Function) HasResponseConfig() bool {
-	return len(f.Response) > 0 && f.Response != nil
-}
-
 // HasCreateTables 是否有创建表配置
 func (f *Function) HasCreateTables() bool {
 	return f.CreateTables != ""
@@ -58,24 +49,15 @@ func (f *Function) HasCreateTables() bool {
 
 // HasCallbacks 是否有回调配置
 func (f *Function) HasCallbacks() bool {
-	return f.Callbacks != ""
+	return len(f.GetCallbacks()) > 0
 }
 
-// GetCallbacks 获取回调列表（去重/顺序保持由写入方保证，这里只做 trim 和过滤空值）
+// GetCallbacks 获取回调列表
 func (f *Function) GetCallbacks() []string {
-	if f == nil || strings.TrimSpace(f.Callbacks) == "" {
+	if f == nil {
 		return nil
 	}
-	parts := strings.Split(f.Callbacks, ",")
-	callbacks := make([]string, 0, len(parts))
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		callbacks = append(callbacks, part)
-	}
-	return callbacks
+	return functionschema.Callbacks(f.Schema)
 }
 
 // HasCallback 判断是否声明了某个回调能力
@@ -88,32 +70,24 @@ func (f *Function) HasCallback(target string) bool {
 	return false
 }
 
-// GetTemplateType 获取模板类型
-func (f *Function) GetTemplateType() string {
-	if f.TemplateType == "" {
-		return "default"
-	}
-	return f.TemplateType
-}
-
 // IsGET 判断是否为GET请求
 func (f *Function) IsGET() bool {
-	return f.Method == "GET"
+	return f.Method == http.MethodGet
 }
 
 // IsPOST 判断是否为POST请求
 func (f *Function) IsPOST() bool {
-	return f.Method == "POST"
+	return f.Method == http.MethodPost
 }
 
 // IsPUT 判断是否为PUT请求
 func (f *Function) IsPUT() bool {
-	return f.Method == "PUT"
+	return f.Method == http.MethodPut
 }
 
 // IsDELETE 判断是否为DELETE请求
 func (f *Function) IsDELETE() bool {
-	return f.Method == "DELETE"
+	return f.Method == http.MethodDelete
 }
 
 // GetRouterSegments 获取路由段

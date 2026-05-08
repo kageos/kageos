@@ -36,10 +36,10 @@ export class PresignedURLUploader implements Uploader {
 
       // 上传完成
       this.xhr.addEventListener('load', () => {
-        if (this.xhr!.status === 200) {
+        if (this.xhr!.status >= 200 && this.xhr!.status < 300) {
           resolve()
         } else {
-          reject(new Error(`上传失败: ${this.xhr!.statusText}`))
+          reject(new Error(this.buildUploadErrorMessage(this.xhr!)))
         }
       })
 
@@ -53,15 +53,12 @@ export class PresignedURLUploader implements Uploader {
         reject(new Error('上传已取消'))
       })
 
-      // 发起上传（HTTP PUT）
-      // presigned URL 可能指向内部地址（如 localhost:9000），需要替换为当前浏览器 origin
-      // 通过 Nginx 反向代理 /ai-agent-os/ 转发到 MinIO
       if (!credentials.upload_url) {
         reject(new Error('上传凭证缺少 upload_url'))
         return
       }
 
-      const uploadUrl = this.rewritePresignedUrl(credentials.upload_url)
+      const uploadUrl = this.resolvePresignedUrl(credentials.upload_url)
       this.xhr.open('PUT', uploadUrl)
       
       // 设置请求头
@@ -85,13 +82,18 @@ export class PresignedURLUploader implements Uploader {
     }
   }
 
-  private rewritePresignedUrl(url: string): string {
+  private resolvePresignedUrl(url: string): string {
+    if (!this.shouldRewriteToCurrentOrigin()) {
+      return url
+    }
+
     try {
       const parsed = new URL(url)
       const currentOrigin = window.location.origin
       const urlOrigin = parsed.origin
-      // 如果 presigned URL 的 origin 与浏览器不同（如内部地址 localhost:9000），
-      // 替换为当前 origin，走 Nginx 代理
+
+      // 预签名 URL 的 Host 参与签名。只有显式开启兼容开关时，才允许改写到当前 origin。
+      // 默认必须使用后端返回的原始 upload_url，否则 MinIO/S3 可能返回 403 SignatureDoesNotMatch。
       if (urlOrigin !== currentOrigin) {
         return `${currentOrigin}${parsed.pathname}${parsed.search}`
       }
@@ -99,6 +101,16 @@ export class PresignedURLUploader implements Uploader {
       // URL 解析失败，原样返回
     }
     return url
+  }
+
+  private shouldRewriteToCurrentOrigin(): boolean {
+    return import.meta.env.VITE_REWRITE_PRESIGNED_URL_TO_CURRENT_ORIGIN === 'true'
+  }
+
+  private buildUploadErrorMessage(xhr: XMLHttpRequest): string {
+    const statusText = xhr.statusText || 'Unknown Error'
+    const responseText = xhr.responseText ? ` - ${xhr.responseText.slice(0, 300)}` : ''
+    return `上传失败: HTTP ${xhr.status} ${statusText}${responseText}`
   }
 
   private calculateSpeed(loaded: number): string {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 )
@@ -15,15 +16,15 @@ import (
 type SearchToolsTool struct{ registry *ToolRegistry }
 
 type searchToolsArgs struct {
-	Keyword       string `json:"keyword" schema_desc:"搜索关键词，支持竖线分隔多个关键词"`
-	TemplateType  string `json:"template_type" schema_desc:"函数类型过滤" schema_enum:"form,table,chart"`
-	Limit         *int   `json:"limit" schema_desc:"最多返回条数"`
-	RequestOutput string `json:"request_output" schema_desc:"request 输出方式：summary=字段摘要（默认），json=原始 JSON，both=同时输出" schema_enum:"summary,json,both"`
+	Keyword      string `json:"keyword" schema_desc:"搜索关键词，支持竖线分隔多个关键词"`
+	TemplateType string `json:"template_type" schema_desc:"函数类型过滤" schema_enum:"form,table,chart"`
+	Limit        *int   `json:"limit" schema_desc:"最多返回条数"`
+	SchemaOutput string `json:"schema_output" schema_desc:"schema 输出方式：summary=字段摘要（默认），json=原始 JSON，both=同时输出" schema_enum:"summary,json,both"`
 }
 
 var searchToolsToolDef = toolDefinition[searchToolsArgs](
 	"search_tools",
-	"按关键词搜索可用工具：返回「内置工具」与「system 用户下已注册的表单/表格/图表函数」。keyword 可选：不传则按调用次数返回高频已注册函数；传则按关键词匹配。多关键词用竖线 | 分隔（OR 语义），如 折线图|chart|画图。template_type 建议杂活传 form。执行表单/表格/图表前可用 request_output=summary 或 both 获取字段摘要，确认字段名、必填项、枚举值和文件字段后再调用执行工具。",
+	"按关键词搜索可用工具：返回「内置工具」与「system 用户下已注册的表单/表格/图表函数」。keyword 可选：不传则按调用次数返回高频已注册函数；传则按关键词匹配。多关键词用竖线 | 分隔（OR 语义），如 折线图|chart|画图。template_type 建议杂活传 form。执行表单/表格/图表前可用 schema_output=summary 或 both 获取字段摘要，确认字段名、必填项、枚举值和文件字段后再调用执行工具。",
 )
 
 func (t *SearchToolsTool) Definition() dto.ToolDef {
@@ -81,7 +82,7 @@ func runSearchToolsTool(ctx context.Context, registry *ToolRegistry, args search
 	keywordRaw := strings.TrimSpace(args.Keyword)
 	keywords := splitSearchKeywords(keywordRaw)
 	templateType := strings.TrimSpace(args.TemplateType)
-	requestOutput := normalizeSearchToolsRequestOutput(args.RequestOutput)
+	requestOutput := normalizeSearchToolsRequestOutput(args.SchemaOutput)
 	limit := 20
 	if args.Limit != nil && *args.Limit > 0 {
 		limit = *args.Limit
@@ -123,9 +124,9 @@ func runSearchToolsTool(ctx context.Context, registry *ToolRegistry, args search
 	}
 	if len(functions) == 0 && len(matchedTools) == 0 {
 		if keywordRaw == "" {
-			return "当前 system 用户下暂无已注册函数；可传 keyword 按关键词搜索，或使用 search_hub_directory 搜应用市场。", false
+			return "当前 system 用户下暂无已注册函数；可传 keyword 按关键词搜索。", false
 		}
-		return "未匹配到任何可用工具（内置工具或 system 用户下已注册函数），可考虑 search_hub_directory 搜应用市场，或创建新目录并按「创建项目」流程（先 PRD、用户确认后再写代码）。", false
+		return "未匹配到任何可用工具（内置工具或 system 用户下已注册函数）。如果用户要新建长期应用，先 change_role 到 app.plan，输出 PRD 并等用户确认后再进入 app.create 写代码。", false
 	}
 	return formatSearchToolsOutput(keywordRaw, matchedTools, functions, requestOutput), false
 }
@@ -161,7 +162,7 @@ func formatSearchToolsOutput(keywordRaw string, matchedTools []dto.ToolDef, func
 		if keywordRaw == "" {
 			buf.WriteString("按调用次数从高到低，仅 system 用户下。\n")
 		} else {
-			buf.WriteString("调用方式：form → run_form_submit，table → 默认先 run_table_search，仅在函数能力摘要明确支持写入时再用 run_table_create/run_table_update，chart → run_chart_query。\n")
+			buf.WriteString("调用方式：form → run_form_submit，table → 默认先 run_table_search，仅在函数能力摘要明确支持写入时再用 run_table_create/run_table_batch_create/run_table_update/run_table_delete，chart → run_chart_query。\n")
 		}
 		for i, fn := range functions {
 			buf.WriteString(formatSearchToolFunctionSummary(i, fn))
@@ -169,7 +170,7 @@ func formatSearchToolsOutput(keywordRaw string, matchedTools []dto.ToolDef, func
 	}
 
 	if requestOutput == searchToolsRequestOutputBoth {
-		buf.WriteString("\n【已注册函数原始 request JSON】\n")
+		buf.WriteString("\n【已注册函数 Schema JSON】\n")
 		buf.WriteString(formatSearchToolsLegacyFunctionRequests(functions))
 	}
 
@@ -193,7 +194,7 @@ func formatSearchToolsLegacyOutput(keywordRaw string, matchedTools []dto.ToolDef
 		if keywordRaw == "" {
 			buf.WriteString("【已注册函数】（按调用次数从高到低，仅 system 用户下）\n")
 		} else {
-			buf.WriteString("【已注册函数】（仅 system 用户下）调用方式：form → run_form_submit，table → 默认先 run_table_search，仅在函数能力摘要明确支持写入时再用 run_table_create/run_table_update，chart → run_chart_query。\n")
+			buf.WriteString("【已注册函数】（仅 system 用户下）调用方式：form → run_form_submit，table → 默认先 run_table_search，仅在函数能力摘要明确支持写入时再用 run_table_create/run_table_batch_create/run_table_update/run_table_delete，chart → run_chart_query。\n")
 		}
 		buf.WriteString(formatSearchToolsLegacyFunctionRequests(functions))
 	}
@@ -225,10 +226,10 @@ func formatSearchToolsLegacyFunctionRequests(functions []*dto.FunctionSearchResu
 			buf.WriteString(caps)
 			buf.WriteString("\n")
 		}
-		if len(fn.Request) > 0 {
-			if reqJSON, err := json.MarshalIndent(fn.Request, "   ", "  "); err == nil {
-				buf.WriteString("   request: ")
-				buf.Write(reqJSON)
+		if fn.Schema != nil {
+			if schemaJSON, err := json.MarshalIndent(fn.Schema, "   ", "  "); err == nil {
+				buf.WriteString("   schema: ")
+				buf.Write(schemaJSON)
 				buf.WriteString("\n")
 			}
 		}
@@ -261,11 +262,7 @@ func formatSearchToolFunctionSummary(index int, fn *dto.FunctionSearchResult) st
 		buf.WriteString("\n")
 	}
 
-	summaryLines, err := summarizeSearchToolRequestFields(fn.Request)
-	if err != nil {
-		buf.WriteString("   字段摘要解析失败，将回退使用原始 request JSON。\n")
-		return buf.String()
-	}
+	summaryLines := summarizeSearchToolSchema(fn.Schema)
 	if len(summaryLines) > 0 {
 		buf.WriteString("   字段摘要:\n")
 		for _, line := range summaryLines {
@@ -277,9 +274,9 @@ func formatSearchToolFunctionSummary(index int, fn *dto.FunctionSearchResult) st
 	return buf.String()
 }
 
-func formatSearchToolFunctionCapabilities(templateType, callbacks string) string {
+func formatSearchToolFunctionCapabilities(templateType string, callbacks []string) string {
 	switch templateType {
-	case "table":
+	case functionschema.TypeTable:
 		caps := []string{"read"}
 		if hasSearchToolCallback(callbacks, "OnTableAddRow") {
 			caps = append(caps, "create")
@@ -297,40 +294,66 @@ func formatSearchToolFunctionCapabilities(templateType, callbacks string) string
 			return "read-only"
 		}
 		return strings.Join(caps, ", ")
-	case "form":
+	case functionschema.TypeForm:
 		return "submit"
-	case "chart":
+	case functionschema.TypeChart:
 		return "query"
 	default:
 		return ""
 	}
 }
 
-func hasSearchToolCallback(callbacks, target string) bool {
-	for _, callback := range strings.Split(callbacks, ",") {
-		if strings.TrimSpace(callback) == target {
+func hasSearchToolCallback(callbacks []string, target string) bool {
+	for _, callback := range callbacks {
+		if callback == target {
 			return true
 		}
 	}
 	return false
 }
 
-func summarizeSearchToolRequestFields(raw []interface{}) ([]string, error) {
-	fields, err := widget.DecodeFields(raw)
-	if err != nil {
-		return nil, err
+func summarizeSearchToolSchema(schema *functionschema.FunctionSchema) []string {
+	if schema == nil {
+		return nil
 	}
+	switch schema.Type {
+	case functionschema.TypeForm:
+		if schema.Form == nil {
+			return nil
+		}
+		return summarizeSearchToolFields("输入字段", schema.Form.Request)
+	case functionschema.TypeTable:
+		raw, _ := functionschema.Marshal(schema)
+		lines := summarizeSearchToolFields("搜索字段", functionschema.TableSearchFields(raw))
+		lines = append(lines, summarizeSearchToolFields("列表字段", functionschema.TableListFields(raw))...)
+		lines = append(lines, summarizeSearchToolFields("新增字段", functionschema.TableCreateFields(raw))...)
+		lines = append(lines, summarizeSearchToolFields("编辑字段", functionschema.TableUpdateFields(raw))...)
+		return lines
+	case functionschema.TypeChart:
+		if schema.Chart == nil {
+			return nil
+		}
+		return summarizeSearchToolFields("查询字段", schema.Chart.Request)
+	default:
+		return nil
+	}
+}
+
+func summarizeSearchToolFields(label string, fields []*widget.Field) []string {
 	if len(fields) == 0 {
-		return nil, nil
+		return nil
 	}
-	lines := make([]string, 0, len(fields)*2)
+	lines := make([]string, 0, len(fields)*2+1)
+	lines = append(lines, label+"：")
 	for _, field := range fields {
-		lines = append(lines, field.LLMSummaryLines(widget.SummaryOptions{
+		for _, line := range field.LLMSummaryLines(widget.SummaryOptions{
 			Mode:     widget.SummaryCompact,
 			MaxDepth: 1,
-		})...)
+		}) {
+			lines = append(lines, "  "+line)
+		}
 	}
-	return lines, nil
+	return lines
 }
 
 func searchToolShortDescription(description string) string {

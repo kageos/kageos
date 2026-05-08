@@ -17,7 +17,7 @@ type CreateBoardResp struct {
 	ID           int64  `json:"id"`
 	Name         string `json:"name"`
 	Code         string `json:"code"`
-	Type         string `json:"type"`          // "board"
+	Type         string `json:"type"` // "board"
 	Description  string `json:"description"`
 	Tags         string `json:"tags"`
 	AppID        int64  `json:"app_id"`
@@ -39,10 +39,10 @@ type CreatePostReq struct {
 	FullCodePath  string   `json:"full_code_path" binding:"required"` // 版块完整路径
 	Title         string   `json:"title" binding:"required"`
 	Summary       string   `json:"summary"`        // 摘要，列表展示；可选，为空时从正文截取
-	Cover         []string `json:"cover"`           // 封面图 URL 数组（可多图）
+	Cover         []string `json:"cover"`          // 封面图 URL 数组（可多图）
 	Content       string   `json:"content"`        // 正文（富文本）
-	ContentFormat string   `json:"content_format"`  // markdown / html，默认 markdown
-	Status        string   `json:"status"`          // draft / published，默认 published
+	ContentFormat string   `json:"content_format"` // markdown / html，默认 markdown
+	Status        string   `json:"status"`         // draft / published，默认 published
 }
 
 // UpdatePostReq 更新帖子请求

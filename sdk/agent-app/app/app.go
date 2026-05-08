@@ -82,8 +82,8 @@ func (a *App) addRoute(router string, method string, handleFunc HandleFunc, temp
 
 	// 检查 URL 唯一性
 	if existing, exists := a.routerInfo[key]; exists {
-		logger.Errorf(context.Background(), fmt.Sprintf("路由 %s 已存在，不允许重复注册。已存在的路由信息: Router=%s, Method=%s",
-			router, existing.Router, existing.Method))
+		return fmt.Errorf("路由 %s 已存在，不允许重复注册。已存在的路由信息: Router=%s, Method=%s",
+			router, existing.Router, existing.Method)
 	}
 
 	a.routerInfo[key] = &routerInfo{
@@ -135,7 +135,6 @@ func NewApp() (*App, error) {
 	}
 
 	startPprofServer()
-	newApp.notifyStartupBestEffort()
 
 	logger.Infof(context.Background(), "NewApp() completed successfully")
 	return newApp, nil
@@ -276,9 +275,9 @@ func (a *App) sendResponse(resp *dto.RequestAppResp) {
 	}
 }
 
-// PublishMessage 将消息发送到 NATS 主题，由消息服务消费（渠道由消费方决定）
-func (a *App) PublishMessage(payload *dto.MessageSendPayload) error {
-	return a.transport.PublishMessageCommand(payload)
+// PublishMessage 将消息发送到 NATS 主题，由消息服务消费（渠道由消费方决定）。
+func (a *App) PublishMessage(envelope *dto.MessageSendEnvelope) error {
+	return a.transport.PublishMessageCommand(envelope)
 }
 
 func (a *App) sendErrResponse(resp *dto.RequestAppResp) {
@@ -394,6 +393,16 @@ func Run() error {
 			app.Close()
 		}
 	}()
+
+	if err := app.CompileAndValidate(); err != nil {
+		logger.Errorf(context.Background(), "App schema compile failed: %v", err)
+		if notifyErr := app.transport.PublishStartupFailure(app.startTime, err.Error()); notifyErr != nil {
+			logger.Errorf(context.Background(), "Failed to publish startup failure: %v", notifyErr)
+		}
+		return err
+	}
+
+	app.notifyStartupBestEffort()
 
 	err := app.Start(context.Background())
 	if err != nil {

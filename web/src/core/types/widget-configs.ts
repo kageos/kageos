@@ -38,8 +38,9 @@ export interface InputWidgetConfig {
   /** 输入框后置内容（如：.com、元） */
   append?: string
   
-  /** 默认值 */
-  default?: string
+  /** 前端渲染默认值 */
+  render_default?: string
+
 }
 
 /**
@@ -52,11 +53,10 @@ export interface SelectWidgetConfig {
   
   /** 
    * 选项的颜色配置
-   * 支持标准颜色：default、warning、info、success、danger、primary
-   * 支持自定义颜色：如 #FF9800（橙色）、#9C27B0（紫色）
+   * 仅支持 6 位十六进制 RRGGBB，不带 #
    * 每个颜色可以重复使用
-   * 未识别颜色会降级为 default 的中性灰
-   * 示例：["success", "warning", "#FF9800"]
+   * 未识别颜色会降级为中性灰
+   * 示例：["67C23A", "E6A23C", "F56C6C"]
    */
   options_colors?: string[]
   
@@ -66,8 +66,9 @@ export interface SelectWidgetConfig {
   /** 是否禁用 */
   disabled?: boolean
   
-  /** 默认选中的值 */
-  default?: string | number | boolean | null
+  /** 前端渲染默认选中的值 */
+  render_default?: string | number | boolean | null
+
   
   /** 是否支持创建新选项（用户可以在下拉框中输入新值） */
   creatable?: boolean
@@ -83,10 +84,9 @@ export interface MultiSelectWidgetConfig {
   
   /** 
    * 选项的颜色配置
-   * 支持标准颜色：default、warning、info、success、danger、primary
-   * 支持自定义颜色：如 #FF9800（橙色）、#9C27B0（紫色）
+   * 仅支持 6 位十六进制 RRGGBB，不带 #
    * 每个颜色可以重复使用
-   * 未识别颜色会降级为 default 的中性灰
+   * 未识别颜色会降级为中性灰
    */
   options_colors?: string[]
   
@@ -96,14 +96,42 @@ export interface MultiSelectWidgetConfig {
   /** 是否禁用 */
   disabled?: boolean
   
-  /** 默认选中的值（多个，逗号分隔） */
-  default?: Array<string | number | boolean> | string
+  /** 前端渲染默认选中的值（多个，逗号分隔） */
+  render_default?: Array<string | number | boolean> | string
+
   
   /** 最大选择数量（0 表示不限制） */
   max_count?: number
   
   /** 是否支持创建新选项 */
   creatable?: boolean
+}
+
+/**
+ * List Widget 配置
+ * 对应后端：sdk/agent-app/widget/list.go
+ */
+export interface ListWidgetConfig {
+  /** 元素类型：number 表示数字列表，text 表示文本列表 */
+  item_type?: 'number' | 'text'
+
+  /** 输入分隔符，默认逗号；组件也会兼容空白、换行和中文逗号 */
+  separator?: string
+
+  /** 占位符文本 */
+  placeholder?: string
+
+  /** 是否禁用 */
+  disabled?: boolean
+
+  /** 前端渲染默认值，如 "1,2,3" 或 "a,b,c" */
+  render_default?: string | Array<string | number>
+
+  /** 是否去重 */
+  unique?: boolean
+
+  /** 最大数量，0 表示不限制 */
+  max_count?: number
 }
 
 /**
@@ -116,12 +144,19 @@ export interface NumberWidgetConfig {
 
   /** 是否禁用 */
   disabled?: boolean
+
+  /** 最小值 */
+  min?: number
+
+  /** 最大值 */
+  max?: number
   
   /** 步长（点击增减按钮的步进值，字符串或数字） */
   step?: string | number
   
-  /** 默认值（整数） */
-  default?: number
+  /** 前端渲染默认值（整数） */
+  render_default?: number
+
   
   /** 单位（如：件、个、元、kg 等） */
   unit?: string
@@ -137,6 +172,12 @@ export interface FloatWidgetConfig {
 
   /** 是否禁用 */
   disabled?: boolean
+
+  /** 最小值 */
+  min?: number
+
+  /** 最大值 */
+  max?: number
   
   /** 小数位数（显示和输入精度，字符串或数字） */
   precision?: string | number
@@ -144,8 +185,9 @@ export interface FloatWidgetConfig {
   /** 步长（点击增减按钮的步进值，字符串或数字） */
   step?: string | number
   
-  /** 默认值（浮点数） */
-  default?: number
+  /** 前端渲染默认值（浮点数） */
+  render_default?: number
+
   
   /** 单位（如：元、kg、% 等） */
   unit?: string
@@ -162,8 +204,9 @@ export interface TextAreaWidgetConfig {
   /** 是否禁用 */
   disabled?: boolean
   
-  /** 默认值 */
-  default?: string
+  /** 前端渲染默认值 */
+  render_default?: string
+
 }
 
 /**
@@ -173,39 +216,33 @@ export interface TextAreaWidgetConfig {
  * 注意：当前 Switch 组件没有配置项（大道至简，MVP 产品）
  */
 export interface SwitchWidgetConfig {
-  // 当前无配置项
+  /** 前端渲染默认值；false 为默认空值时会被省略， */
+  render_default?: boolean
+
 }
 
 /**
- * Timestamp Widget 配置
- * 对应后端：sdk/agent-app/widget/timestamp.go
- * 
- * 功能：
- * - 支持日期时间选择
- * - 支持动态默认值：$now、$today、$tomorrow、$yesterday 等
- * 
- * 动态默认值说明：
- * - 基础时间：$now（当前时间）、$today（今天 00:00:00）、$tomorrow（明天 00:00:00）、$yesterday（昨天 00:00:00）
- * - 相对时间（小时）：$after_1h、$after_2h、$before_1h 等
- * - 相对时间（天）：$after_1d、$after_7d、$before_1d 等
- * - 相对时间（周/月/年）：$next_week、$last_month、$next_year 等
+ * DateTime Widget 配置
+ * 对应后端：sdk/agent-app/widget/datetime.go
+ *
+ * raw value 为 "YYYY-MM-DD HH:mm:ss" 字符串，后端推荐用 types.Time 写入数据库 datetime/time 列。
  */
-export interface TimestampWidgetConfig {
-  /** 
+export interface DateTimeWidgetConfig {
+  /**
    * 日期格式
    * 示例：YYYY-MM-DD HH:mm:ss、YYYY-MM-DD
    */
   format?: string
-  
+
   /** 是否禁用（只读模式） */
   disabled?: boolean
-  
-  /** 
-   * 默认值
-   * 支持动态变量（以 $ 开头）或具体时间戳
-   * 示例：$now、$today、$tomorrow、$yesterday
+
+  /**
+   * 前端渲染默认值
+   * 推荐 SQL 风格白名单表达式：CURRENT_TIMESTAMP、CURRENT_DATE、DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 1 HOUR)
    */
-  default?: string
+  render_default?: string
+
 }
 
 /**
@@ -258,8 +295,9 @@ export interface SliderWidgetConfig {
   /** 步长（可选，默认 1） */
   step?: number
   
-  /** 默认值（可选） */
-  default?: number
+  /** 前端渲染默认值（可选） */
+  render_default?: number
+
 
   /** 是否禁用 */
   disabled?: boolean
@@ -279,8 +317,9 @@ export interface RateWidgetConfig {
   /** 是否允许半星（默认 false） */
   allow_half?: boolean | 'true' | 'false'
   
-  /** 默认评分（可选） */
-  default?: number
+  /** 前端渲染默认评分（可选） */
+  render_default?: number
+
   
   /** 
    * 自定义文字数组
@@ -301,8 +340,9 @@ export interface ColorWidgetConfig {
    */
   format?: 'hex' | 'rgb' | 'rgba'
   
-  /** 默认颜色（可选，如：#409EFF） */
-  default?: string
+  /** 前端渲染默认颜色（可选，如：#409EFF） */
+  render_default?: string
+
   
   /** 
    * 是否显示透明度选择器
@@ -362,8 +402,9 @@ export interface CheckboxWidgetConfig {
   /** 选项列表（逗号分隔） */
   options?: string[]
   
-  /** 默认选中项（逗号分隔） */
-  default?: string[] | string
+  /** 前端渲染默认选中项（逗号分隔） */
+  render_default?: string[] | string
+
 }
 
 /**
@@ -374,8 +415,9 @@ export interface RadioWidgetConfig {
   /** 选项列表（逗号分隔） */
   options?: string[]
   
-  /** 默认选中项 */
-  default?: string
+  /** 前端渲染默认选中项 */
+  render_default?: string
+
 }
 
 /**
@@ -388,12 +430,13 @@ export interface RadioWidgetConfig {
  */
 export interface UserWidgetConfig {
   /** 
-   * 默认值
+   * 前端渲染默认值
    * 支持函数调用：
    * - Me()：当前登录用户，适用于预约人、创建人、负责人等字段
    * - MyLeader()：当前用户的上级领导，适用于审批人、抄送人、上级领导等字段
    */
-  default?: string
+  render_default?: string
+
   
   /** 是否禁用（只读模式，Form 中展示但不可编辑） */
   disabled?: boolean
@@ -410,13 +453,14 @@ export interface UserWidgetConfig {
  */
 export interface UsersWidgetConfig {
   /** 
-   * 默认值
+   * 前端渲染默认值
    * 支持函数调用：
    * - Me()：当前登录用户
    * - MyLeader()：当前用户的上级领导
    * 多个值用逗号分隔，如 "Me(),MyLeader(),user2"
    */
-  default?: string
+  render_default?: string
+
   
   /** 最大选择数量，0表示不限制 */
   max_count?: number
@@ -435,11 +479,12 @@ export interface UsersWidgetConfig {
  */
 export interface DepartmentWidgetConfig {
   /** 
-   * 默认值
+   * 前端渲染默认值
    * 支持函数调用 MyDepartment()（当前用户所在部门）
    * 适用于：所属部门、创建部门等字段
    */
-  default?: string
+  render_default?: string
+
 }
 
 /**
@@ -453,10 +498,11 @@ export interface DepartmentWidgetConfig {
  */
 export interface DepartmentsWidgetConfig {
   /** 
-   * 默认值
+   * 前端渲染默认值
    * 支持函数调用 MyDepartment()（当前用户所在部门），多个值用逗号分隔
    */
-  default?: string
+  render_default?: string
+
   
   /** 最大选择数量，0表示不限制 */
   max_count?: number
@@ -514,11 +560,12 @@ export type WidgetConfigMap = {
   input: InputWidgetConfig
   select: SelectWidgetConfig
   multiselect: MultiSelectWidgetConfig
+  list: ListWidgetConfig
   number: NumberWidgetConfig
   float: FloatWidgetConfig
   text_area: TextAreaWidgetConfig
   switch: SwitchWidgetConfig
-  timestamp: TimestampWidgetConfig
+  datetime: DateTimeWidgetConfig
   files: FilesWidgetConfig
   slider: SliderWidgetConfig
   rate: RateWidgetConfig
@@ -556,11 +603,12 @@ export type AnyWidgetConfig =
   | InputWidgetConfig
   | SelectWidgetConfig
   | MultiSelectWidgetConfig
+  | ListWidgetConfig
   | NumberWidgetConfig
   | FloatWidgetConfig
   | TextAreaWidgetConfig
   | SwitchWidgetConfig
-  | TimestampWidgetConfig
+  | DateTimeWidgetConfig
   | FilesWidgetConfig
   | SliderWidgetConfig
   | RateWidgetConfig

@@ -8,7 +8,7 @@
 
 ---
 
-## 二、PRD 要点（表格格式）
+## 二、旧版 PRD 要点（仅实现参考，不作为 app.plan 输出格式）
 
 ### 视频转换（convert.form，POST）
 
@@ -40,6 +40,14 @@
 
 - 运行镜像内为 **GPL FFmpeg**（含 libx264），视频转换（convert.form）及自定义命令（run_command.form）均可使用 libx264 做 H.264 编码（如 mov→mp4）。
 - 代码随本案例一起提供；read_doc 本案例路径（如 `/system/prompt/case_catalog/form/videos`）即获得 PRD 与代码，无需再调用 read_go_file。
+- 若要给视频添加中文文字水印，`ffmpeg drawtext` 必须显式指定 `fontfile`，否则中文常显示为方框。当前镜像优先可用：
+  - `/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc`
+  - `/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc`
+- 中文水印示例：
+
+```bash
+ffmpeg -i input.mov -vf "drawtext=text='千幻智能':fontfile=/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc:fontsize=40:fontcolor=white:x=w-tw-30:y=h-th-30:borderw=2:bordercolor=black@0.8" -c:a copy -y output.mp4
+```
 
 ## 五、标准模式：上传视频 → FFmpeg 转换 → 输出附件
 
@@ -110,7 +118,7 @@ type VideoConvertReq struct {
 	InputFiles string `json:"input_files" widget:"name:上传视频文件;type:files;accept:video/*;max_size:500MB;max_count:10" validate:"required"`
 
 	// 框架标签：select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
-	OutputFormat string `json:"output_format" widget:"name:目标格式;type:select;options:mp4,webm,avi,mkv;options_colors:primary,success,info,warning;default:mp4" validate:"required,oneof=mp4 webm avi mkv"`
+	OutputFormat string `json:"output_format" widget:"name:目标格式;type:select;options:mp4,webm,avi,mkv;options_colors:409EFF,67C23A,909399,E6A23C;render_default:mp4" validate:"required,oneof=mp4 webm avi mkv"`
 }
 
 // VideoConvertResp 视频格式转换响应结构体
@@ -286,7 +294,7 @@ type VideoRunCommandReq struct {
 	CommandTemplate string `json:"command_template" widget:"name:命令模板;type:text_area;placeholder:ffmpeg -i {{input}} -c:v libx264 -c:a aac -y {{output}}" validate:"required"`
 
 	// 输出文件扩展名，用于生成 {{output}} 路径
-	OutputExtension string `json:"output_extension" widget:"name:输出扩展名;type:input;default:mp4" validate:"required"`
+	OutputExtension string `json:"output_extension" widget:"name:输出扩展名;type:input;render_default:mp4" validate:"required"`
 }
 
 // VideoRunCommandResp 自定义命令响应

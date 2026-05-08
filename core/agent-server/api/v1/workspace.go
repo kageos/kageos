@@ -106,7 +106,7 @@ func (h *Workspace) CallTool(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	args := service.ToToolArgs(req.Arguments)
 	result := h.toolReg.CallTool(ctx, req.ToolName, args, req.FullCodePath, "")
-	response.OkWithData(c, &dto.CallToolResp{Content: result.Content, IsError: result.IsError, Data: result.Data})
+	response.OkWithData(c, &dto.CallToolResp{Content: result.Content, IsError: result.IsError, Data: result.Data, Metadata: result.Metadata})
 }
 
 // ListSessions 获取工作台会话列表（根据 full_code_path）
@@ -164,6 +164,7 @@ func (h *Workspace) ListMessages(c *gin.Context) {
 			ID:        msg.ID,
 			SessionID: msg.SessionID,
 			Role:      msg.Role,
+			User:      msg.User,
 			Content:   msg.Content,
 			Files:     msg.Files,
 			CreatedAt: msg.CreatedAt,
@@ -197,6 +198,12 @@ func (h *Workspace) ListMessages(c *gin.Context) {
 							var resultData interface{}
 							if err := json.Unmarshal([]byte(*toolMsg.ResultData), &resultData); err == nil {
 								toolCallSummary.ResultData = resultData
+							}
+						}
+						if toolMsg.ResultMetadata != nil && *toolMsg.ResultMetadata != "" {
+							var metadata dto.ToolResultMetadata
+							if err := json.Unmarshal([]byte(*toolMsg.ResultMetadata), &metadata); err == nil {
+								toolCallSummary.Metadata = &metadata
 							}
 						}
 						// 如果结果包含错误信息，可以判断状态（这里简化处理，实际可以根据内容判断）

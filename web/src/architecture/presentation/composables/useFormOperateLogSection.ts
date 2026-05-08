@@ -4,7 +4,7 @@ import type { TagProps } from 'element-plus'
 import { getFormOperateLogs, type FormOperateLog } from '@/api/operateLog'
 import { useLicenseStore } from '@/stores/license'
 import { useUserInfoStore } from '@/stores/userInfo'
-import type { FieldConfig } from '@/architecture/domain/types'
+import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
 import type { UserInfo } from '@/types'
 import {
   formatExecutionDateTime,
@@ -13,10 +13,7 @@ import {
   readExecutionNumber
 } from '@/architecture/presentation/utils/executionLog'
 import { Logger } from '@/core/utils/logger'
-
-interface FunctionDetailLike {
-  request?: FieldConfig[]
-}
+import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
 
 export interface ApplyOperateLogPayload {
   log: FormOperateLog
@@ -27,7 +24,7 @@ export interface ApplyOperateLogPayload {
 
 interface UseFormOperateLogSectionOptions {
   fullCodePath: Ref<string>
-  functionDetail: Ref<FunctionDetailLike | null | undefined>
+  functionDetail: Ref<FunctionDetail | null | undefined>
   autoLoad: Ref<boolean>
   emitApplyLog: (payload: ApplyOperateLogPayload) => void
 }
@@ -69,7 +66,7 @@ export function useFormOperateLogSection({
 
   const requestFieldMap = computed(() => {
     const map = new Map<string, FieldConfig>()
-    ;(functionDetail.value?.request || []).forEach((field) => {
+    getFormRequestFields(functionDetail.value).forEach((field) => {
       map.set(field.code, field)
     })
     return map
@@ -391,7 +388,7 @@ export function useFormOperateLogSection({
       ElMessage.warning('这条记录没有可回填的输入参数')
       return
     }
-    Logger.debug('FormOperateLogSection', '准备重放执行记录到表单', {
+    Logger.debug('FormOperateLogSection', '准备回填执行记录到表单', {
       logId: log.id,
       requestKeys: Object.keys(payload.requestBody || {}),
       hasResponseBody: !!payload.responseBody,

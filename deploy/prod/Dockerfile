@@ -1,4 +1,4 @@
-# 生产单机一键部署：core-server + 内置 Nginx(8080) + Podman（需 --privileged）
+# 生产单机镜像：core-server + timer-scheduler + backup-server + 内置 Nginx + Podman
 # 构建（仓库根）：docker build -f deploy/prod/Dockerfile -t localhost/agentos-main:latest .
 
 # ========== Go 编译 ==========
@@ -27,8 +27,8 @@ RUN CGO_ENABLED=1 GOOS=linux go build \
 RUN CGO_ENABLED=1 GOOS=linux go build \
     -tags "exclude_graphdriver_btrfs" \
     -ldflags="-s -w" \
-    -o /out/app-scheduler \
-    ./core/app-server/cmd/scheduler/main.go
+    -o /out/timer-scheduler \
+    ./core/timer-scheduler/cmd/app/main.go
 RUN CGO_ENABLED=1 GOOS=linux go build \
     -tags "exclude_graphdriver_btrfs" \
     -ldflags="-s -w" \
@@ -95,7 +95,7 @@ WORKDIR /app
 
 # Go 二进制与运行时源码
 COPY --from=gobuilder /out/core-server /app/core-server
-COPY --from=gobuilder /out/app-scheduler /app/app-scheduler
+COPY --from=gobuilder /out/timer-scheduler /app/timer-scheduler
 COPY --from=gobuilder /out/backup-server /app/backup-server
 COPY --from=gobuilder /src/go.mod /src/go.sum /app/
 COPY --from=gobuilder /src/sdk/ /app/sdk/

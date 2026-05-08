@@ -1,7 +1,6 @@
 package query
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -18,112 +17,14 @@ type PaginatedTable[T any] struct {
 	PageSize    int   `json:"page_size" runner:"search_cond"`                    // 每页数量
 }
 
-// SearchFilterPageReq 分页参数结构体
-type SearchFilterPageReq struct {
-	Page     int    `json:"page" form:"page"`
-	PageSize int    `json:"page_size" form:"page_size"`
-	Sorts    string `json:"sorts" form:"sorts"` //category:asc,price:desc
-
-	Keyword string `json:"keyword" form:"keyword"`
-	// 查询条件
-	Eq       []string `form:"eq" json:"eq"`             // 格式：field:value
-	Like     []string `form:"like" json:"like"`         // 格式：field:value
-	In       []string `form:"in" json:"in"`             // 格式：field:value
-	Contains []string `form:"contains" json:"contains"` // 格式：field:value1,value2（用于多选场景，使用 FIND_IN_SET）
-	Gt       []string `form:"gt" json:"gt"`             // 格式：field:value
-	Gte      []string `form:"gte" json:"gte"`           // 格式：field:value
-	Lt       []string `form:"lt" json:"lt"`             // 格式：field:value
-	Lte      []string `form:"lte" json:"lte"`           // 格式：field:value
-	// 否定查询条件
-	NotEq   []string `form:"not_eq" json:"not_eq"`     // 格式：field:value
-	NotLike []string `form:"not_like" json:"not_like"` // 格式：field:value
-	NotIn   []string `form:"not_in" json:"not_in"`     // 格式：field:value
-}
-
-// normalizeSortField 标准化排序字段格式
-func normalizeSortField(sort string) string {
-	sort = strings.TrimSpace(sort)
-
-	// 如果已经包含 :asc 或 :desc，直接返回
-	if strings.Contains(sort, ":asc") || strings.Contains(sort, ":desc") {
-		return sort
-	}
-
-	// 处理减号前缀格式
-	if strings.HasPrefix(sort, "-") {
-		return strings.ReplaceAll(sort, "-", "") + ":desc"
-	}
-
-	// 默认添加 :asc
-	return sort + ":asc"
-}
-
-func (r *SearchFilterPageReq) WithSorts(sorts string) *SearchFilterPageReq {
-	if sorts == "" {
-		return r
-	}
-
-	// 解析现有的排序条件
-	var existingFields []string
-	var existingMap = make(map[string]string)
-
-	if r.Sorts != "" {
-		existingSorts := strings.Split(r.Sorts, ",")
-		for _, sort := range existingSorts {
-			normalized := normalizeSortField(sort)
-			parts := strings.Split(normalized, ":")
-			if len(parts) == 2 {
-				field := parts[0]
-				existingMap[field] = normalized
-				existingFields = append(existingFields, field)
-			}
-		}
-	}
-
-	// 处理新的排序条件，只添加不存在的字段
-	var newFields []string
-	for _, sort := range strings.Split(sorts, ",") {
-		normalized := normalizeSortField(sort)
-		parts := strings.Split(normalized, ":")
-		if len(parts) == 2 {
-			field := parts[0]
-
-			// 检查字段是否已存在
-			found := false
-			for _, ef := range existingFields {
-				if ef == field {
-					found = true
-					break
-				}
-			}
-
-			// 只有不存在的字段才添加
-			if !found {
-				existingMap[field] = normalized
-				newFields = append(newFields, field)
-			}
-		}
-	}
-
-	// 重建排序列表，保持现有字段的顺序，然后添加新字段
-	var result []string
-
-	// 先添加现有字段（保持原有顺序）
-	for _, field := range existingFields {
-		if sort, exists := existingMap[field]; exists {
-			result = append(result, sort)
-		}
-	}
-
-	// 再添加新字段
-	for _, field := range newFields {
-		if sort, exists := existingMap[field]; exists {
-			result = append(result, sort)
-		}
-	}
-
-	r.Sorts = strings.Join(result, ",")
-	return r
+// PageSortReq 只负责分页和排序，不承载搜索协议。
+// 业务筛选字段应该显式写在业务 Request struct 中，并在 Handler 里手写 Where。
+type PageSortReq struct {
+	Page      int      `json:"page" form:"page"`
+	PageSize  int      `json:"page_size" form:"page_size"`
+	Sorts     string   `json:"sorts" form:"sorts"`   // -created_at,name
+	Sort      []string `json:"sort" form:"sort"`     // sort=-created_at&sort=name
+	SortArray []string `json:"sort[]" form:"sort[]"` // sort[]=-created_at&sort[]=name
 }
 
 // QueryConfig 查询配置
@@ -151,7 +52,7 @@ func (c *QueryConfig) DenyField(field string) {
 }
 
 // GetLimit 获取分页大小，支持默认值
-func (i *SearchFilterPageReq) GetLimit(defaultSize ...int) int {
+func (i *PageSortReq) GetLimit(defaultSize ...int) int {
 	if i.PageSize <= 0 {
 		if len(defaultSize) > 0 {
 			return defaultSize[0]
@@ -161,14 +62,29 @@ func (i *SearchFilterPageReq) GetLimit(defaultSize ...int) int {
 	return i.PageSize
 }
 
-// GetOffset 获取分页偏移量
-func (i *SearchFilterPageReq) GetOffset() int {
-	page := i.Page
-	if page < 1 {
-		page = 1
+// GetPage 获取规范化后的当前页码
+func (i *PageSortReq) GetPage() int {
+	if i.Page < 1 {
+		return 1
 	}
-	offset := (page - 1) * i.GetLimit()
-	return offset
+	return i.Page
+}
+
+// GetOffset 获取分页偏移量
+func (i *PageSortReq) GetOffset() int {
+	return (i.GetPage() - 1) * i.GetLimit()
+}
+
+// GetSorts 获取排序SQL
+func (i *PageSortReq) GetSorts() string {
+	sortExpr := i.Sorts
+	if strings.TrimSpace(sortExpr) == "" && len(i.Sort) > 0 {
+		sortExpr = strings.Join(i.Sort, ",")
+	}
+	if strings.TrimSpace(sortExpr) == "" && len(i.SortArray) > 0 {
+		sortExpr = strings.Join(i.SortArray, ",")
+	}
+	return buildSorts(sortExpr)
 }
 
 // SafeColumn 检查列名是否安全（防SQL注入）
@@ -189,7 +105,8 @@ func SafeColumnName(column string) string {
 	return "`" + column + "`"
 }
 
-// ParseSortFields 解析排序字段字符串
+// ParseSortFields 解析排序字段字符串。
+// 推荐格式：`-created_at,name`，减号表示 DESC，裸字段表示 ASC。
 func ParseSortFields(sortStr string) ([]string, error) {
 	if sortStr == "" {
 		return nil, nil
@@ -199,21 +116,12 @@ func ParseSortFields(sortStr string) ([]string, error) {
 	var sortFields []string
 
 	for _, part := range parts {
-		fieldOrder := strings.Split(part, ":")
-		if len(fieldOrder) != 2 {
-			return nil, fmt.Errorf("排序字段格式错误：%s，应为 field:order 格式", part)
+		field, order, err := parseSortPart(part)
+		if err != nil {
+			return nil, err
 		}
-
-		field := strings.TrimSpace(fieldOrder[0])
-		order := strings.TrimSpace(fieldOrder[1])
-
-		if !SafeColumn(field) {
-			return nil, fmt.Errorf("无效的排序字段名：%s", field)
-		}
-
-		order = strings.ToUpper(order)
-		if order != "ASC" && order != "DESC" {
-			return nil, fmt.Errorf("无效的排序方向：%s", order)
+		if field == "" {
+			continue
 		}
 
 		sortFields = append(sortFields, fmt.Sprintf("%s %s", SafeColumnName(field), order))
@@ -222,9 +130,44 @@ func ParseSortFields(sortStr string) ([]string, error) {
 	return sortFields, nil
 }
 
-// GetSorts 获取排序SQL
-func (i *SearchFilterPageReq) GetSorts() string {
-	sortFields, err := ParseSortFields(i.Sorts)
+func parseSortPart(part string) (field string, order string, err error) {
+	token := strings.TrimSpace(part)
+	if token == "" {
+		return "", "", nil
+	}
+
+	if strings.Contains(token, ":") {
+		fieldOrder := strings.Split(token, ":")
+		if len(fieldOrder) != 2 {
+			return "", "", fmt.Errorf("排序字段格式错误：%s，应为 -field 或 field 格式", token)
+		}
+		field = strings.TrimSpace(fieldOrder[0])
+		order = strings.ToUpper(strings.TrimSpace(fieldOrder[1]))
+	} else {
+		order = "ASC"
+		field = token
+		if strings.HasPrefix(token, "-") {
+			order = "DESC"
+			field = strings.TrimSpace(token[1:])
+		} else if strings.HasPrefix(token, "+") {
+			field = strings.TrimSpace(token[1:])
+		}
+	}
+
+	if field == "" {
+		return "", "", fmt.Errorf("排序字段不能为空：%s", token)
+	}
+	if !SafeColumn(field) {
+		return "", "", fmt.Errorf("无效的排序字段名：%s", field)
+	}
+	if order != "ASC" && order != "DESC" {
+		return "", "", fmt.Errorf("无效的排序方向：%s", order)
+	}
+	return field, order, nil
+}
+
+func buildSorts(sorts string) string {
+	sortFields, err := ParseSortFields(sorts)
 	if err != nil || len(sortFields) == 0 {
 		return ""
 	}
@@ -238,10 +181,10 @@ func parseFieldValues(input string) (map[string]string, error) {
 	}
 
 	result := make(map[string]string)
-	pairs := strings.Split(input, ",")
+	pairs := splitCommaOutsideParens(input)
 
 	for _, pair := range pairs {
-		parts := strings.Split(pair, ":")
+		parts := strings.SplitN(pair, ":", 2)
 		if len(parts) != 2 {
 			return nil, fmt.Errorf("参数格式错误：%s，应为 field:value 格式", pair)
 		}
@@ -257,6 +200,40 @@ func parseFieldValues(input string) (map[string]string, error) {
 	}
 
 	return result, nil
+}
+
+func splitCommaOutsideParens(input string) []string {
+	parts := make([]string, 0, 2)
+	start := 0
+	depth := 0
+	var quote rune
+
+	for i, r := range input {
+		if quote != 0 {
+			if r == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch r {
+		case '\'', '"':
+			quote = r
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				parts = append(parts, input[start:i])
+				start = i + 1
+			}
+		}
+	}
+
+	parts = append(parts, input[start:])
+	return parts
 }
 
 // parseInValues 解析IN查询的字段和值
@@ -679,292 +656,6 @@ func validateAndBuildCondition(db **gorm.DB, inputs []string, operator string, c
 				}
 			}
 		}
-	}
-
-	return nil
-}
-
-// AutoPaginateTable 自动分页查询
-func AutoPaginateTable[T any](
-	ctx context.Context,
-	db *gorm.DB,
-	model interface{},
-	data T,
-	pageInfo *SearchFilterPageReq,
-	configs ...*QueryConfig,
-) (*PaginatedTable[T], error) {
-	if pageInfo == nil {
-		pageInfo = new(SearchFilterPageReq)
-	}
-
-	// 修复：克隆数据库连接，避免污染原始连接
-	dbClone := db.Session(&gorm.Session{})
-
-	// 构建查询条件到克隆的连接
-	if err := buildWhereConditions(&dbClone, pageInfo, configs...); err != nil {
-		return nil, err
-	}
-
-	// 获取分页大小
-	pageSize := pageInfo.GetLimit()
-	offset := pageInfo.GetOffset()
-
-	// 查询总数
-	var totalCount int64
-	if err := dbClone.Model(model).Count(&totalCount).Error; err != nil {
-		return nil, fmt.Errorf("分页查询统计总数失败: %w", err)
-	}
-
-	// 应用排序条件
-	sortStr := pageInfo.GetSorts()
-	if sortStr != "" {
-		dbClone = dbClone.Order(sortStr)
-	}
-
-	// 查询当前页数据
-	if err := dbClone.Offset(offset).Limit(pageSize).Find(data).Error; err != nil {
-		return nil, fmt.Errorf("分页查询数据失败: %w", err)
-	}
-
-	// 计算总页数
-	totalPages := int(totalCount) / pageSize
-	if int(totalCount)%pageSize != 0 {
-		totalPages++
-	}
-
-	return &PaginatedTable[T]{
-		Items:       data,
-		CurrentPage: pageInfo.Page,
-		TotalCount:  totalCount,
-		TotalPages:  totalPages,
-		PageSize:    pageSize,
-	}, nil
-}
-
-// ApplySearchConditions 应用搜索条件到GORM查询（公开方法）
-// 这个方法可以被其他库调用，用于在任何GORM查询中应用搜索条件
-//
-// 使用示例：
-//
-//	db, err := query.ApplySearchConditions(db, pageInfo)
-//	if err != nil {
-//	    return err
-//	}
-//
-// 支持的搜索操作符：
-//   - eq: 精确匹配
-//   - like: 模糊匹配
-//   - in: 包含查询
-//   - gt/gte: 大于/大于等于
-//   - lt/lte: 小于/小于等于
-//   - not_eq: 不等于
-//   - not_like: 否定模糊匹配
-//   - not_in: 否定包含查询
-func ApplySearchConditions(db *gorm.DB, pageInfo *SearchFilterPageReq, configs ...*QueryConfig) (*gorm.DB, error) {
-	if pageInfo == nil {
-		return db, nil
-	}
-
-	// 修复：克隆数据库连接，避免污染原始连接
-	// 因为buildWhereConditions会直接修改传入的db指针，所以需要先克隆
-	dbClone := db.Session(&gorm.Session{})
-
-	// 应用搜索条件到克隆的连接
-	var dbPtr *gorm.DB = dbClone
-	err := buildWhereConditions(&dbPtr, pageInfo, configs...)
-	if err != nil {
-		return db, err
-	}
-
-	// 再次克隆，确保返回的连接完全独立
-	finalDB := dbPtr.Session(&gorm.Session{})
-	return finalDB, nil
-}
-
-// SimplePaginate 简单分页查询（公开方法）
-// 这是一个便捷方法，适用于不需要复杂配置的场景
-//
-// 使用示例：
-//
-//	var products []Product
-//	result, err := query.SimplePaginate(db, &Product{}, &products, pageInfo)
-//	if err != nil {
-//	    return err
-//	}
-//
-// 参数说明：
-//   - db: GORM数据库连接
-//   - model: 模型实例，用于获取表信息
-//   - dest: 查询结果存储的切片指针
-//   - pageInfo: 分页和搜索参数
-func SimplePaginate(db *gorm.DB, model interface{}, dest interface{}, pageInfo *SearchFilterPageReq) (*PaginatedTable[interface{}], error) {
-	if pageInfo == nil {
-		pageInfo = &SearchFilterPageReq{PageSize: 20}
-	}
-
-	// 应用搜索条件
-	dbWithConditions, err := ApplySearchConditions(db, pageInfo)
-	if err != nil {
-		return nil, fmt.Errorf("应用搜索条件失败: %w", err)
-	}
-
-	// 获取分页参数
-	pageSize := pageInfo.GetLimit()
-	offset := pageInfo.GetOffset()
-
-	// 查询总数
-	var totalCount int64
-	if err := dbWithConditions.Model(model).Count(&totalCount).Error; err != nil {
-		return nil, fmt.Errorf("查询总数失败: %w", err)
-	}
-
-	// 应用排序和分页
-	if pageInfo.GetSorts() != "" {
-		dbWithConditions = dbWithConditions.Order(pageInfo.GetSorts())
-	}
-
-	if err := dbWithConditions.Offset(offset).Limit(pageSize).Find(dest).Error; err != nil {
-		return nil, fmt.Errorf("分页查询数据失败: %w", err)
-	}
-
-	// 计算总页数
-	totalPages := int(totalCount) / pageSize
-	if int(totalCount)%pageSize != 0 {
-		totalPages++
-	}
-
-	return &PaginatedTable[interface{}]{
-		Items:       dest,
-		CurrentPage: pageInfo.Page,
-		TotalCount:  totalCount,
-		TotalPages:  totalPages,
-		PageSize:    pageSize,
-	}, nil
-}
-
-// buildWhereConditions 构建查询条件
-func buildWhereConditions(db **gorm.DB, pageInfo *SearchFilterPageReq, configs ...*QueryConfig) error {
-	// 如果没有配置，直接构建查询条件
-	if len(configs) == 0 {
-		return buildWhereConditionsWithoutConfig(db, pageInfo)
-	}
-
-	// 合并所有配置
-	config := mergeConfigs(configs...)
-
-	// 验证并构建等于条件
-	if err := validateAndBuildCondition(db, pageInfo.Eq, "eq", config); err != nil {
-		return err
-	}
-
-	// 验证并构建模糊匹配条件
-	if err := validateAndBuildCondition(db, pageInfo.Like, "like", config); err != nil {
-		return err
-	}
-
-	// 验证并构建IN查询条件
-	if err := validateAndBuildCondition(db, pageInfo.In, "in", config); err != nil {
-		return err
-	}
-
-	// 验证并构建CONTAINS查询条件（用于多选场景）
-	if err := validateAndBuildCondition(db, pageInfo.Contains, "contains", config); err != nil {
-		return err
-	}
-
-	// 验证并构建大于条件
-	if err := validateAndBuildCondition(db, pageInfo.Gt, "gt", config); err != nil {
-		return err
-	}
-
-	// 验证并构建大于等于条件
-	if err := validateAndBuildCondition(db, pageInfo.Gte, "gte", config); err != nil {
-		return err
-	}
-
-	// 验证并构建小于条件
-	if err := validateAndBuildCondition(db, pageInfo.Lt, "lt", config); err != nil {
-		return err
-	}
-
-	// 验证并构建小于等于条件
-	if err := validateAndBuildCondition(db, pageInfo.Lte, "lte", config); err != nil {
-		return err
-	}
-
-	// 验证并构建不等于条件
-	if err := validateAndBuildCondition(db, pageInfo.NotEq, "not_eq", config); err != nil {
-		return err
-	}
-
-	// 验证并构建不模糊匹配条件
-	if err := validateAndBuildCondition(db, pageInfo.NotLike, "not_like", config); err != nil {
-		return err
-	}
-
-	// 验证并构建NOT IN查询条件
-	if err := validateAndBuildCondition(db, pageInfo.NotIn, "not_in", config); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// buildWhereConditionsWithoutConfig 无配置构建查询条件
-func buildWhereConditionsWithoutConfig(db **gorm.DB, pageInfo *SearchFilterPageReq) error {
-	// 构建等于条件
-	if err := validateAndBuildCondition(db, pageInfo.Eq, "eq", nil); err != nil {
-		return err
-	}
-
-	// 构建模糊匹配条件
-	if err := validateAndBuildCondition(db, pageInfo.Like, "like", nil); err != nil {
-		return err
-	}
-
-	// 构建IN查询条件
-	if err := validateAndBuildCondition(db, pageInfo.In, "in", nil); err != nil {
-		return err
-	}
-
-	// 构建CONTAINS查询条件（用于多选场景）
-	if err := validateAndBuildCondition(db, pageInfo.Contains, "contains", nil); err != nil {
-		return err
-	}
-
-	// 构建大于条件
-	if err := validateAndBuildCondition(db, pageInfo.Gt, "gt", nil); err != nil {
-		return err
-	}
-
-	// 构建大于等于条件
-	if err := validateAndBuildCondition(db, pageInfo.Gte, "gte", nil); err != nil {
-		return err
-	}
-
-	// 构建小于条件
-	if err := validateAndBuildCondition(db, pageInfo.Lt, "lt", nil); err != nil {
-		return err
-	}
-
-	// 构建小于等于条件
-	if err := validateAndBuildCondition(db, pageInfo.Lte, "lte", nil); err != nil {
-		return err
-	}
-
-	// 验证并构建不等于条件
-	if err := validateAndBuildCondition(db, pageInfo.NotEq, "not_eq", nil); err != nil {
-		return err
-	}
-
-	// 验证并构建不模糊匹配条件
-	if err := validateAndBuildCondition(db, pageInfo.NotLike, "not_like", nil); err != nil {
-		return err
-	}
-
-	// 验证并构建NOT IN查询条件
-	if err := validateAndBuildCondition(db, pageInfo.NotIn, "not_in", nil); err != nil {
-		return err
 	}
 
 	return nil

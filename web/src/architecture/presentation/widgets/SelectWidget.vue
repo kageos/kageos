@@ -21,6 +21,7 @@
           :disabled="!!widgetConfig.disabled"
           :clearable="allowInlineClear"
           :creatable="!!widgetConfig.creatable"
+          :teleported="shouldTeleportPopper"
           :display-info-text="displayInfoText"
           :get-option-color="getOptionColor"
           :get-option-color-style="getOptionColorStyle"
@@ -70,6 +71,7 @@
           :clearable="allowInlineClear"
           :creatable="!!widgetConfig.creatable"
           :search-mode="true"
+          :teleported="shouldTeleportPopper"
           :get-option-color="getOptionColor"
           :get-option-color-style="getOptionColorStyle"
           :get-option-display-info="getOptionDisplayInfo"
@@ -98,6 +100,7 @@
       :loading="loading"
       :is-multiselect="false"
       :get-item-color="getOptionColor"
+      :append-to-body="shouldTeleportPopper"
       @search="handleDialogSearch"
       @select="handleDialogSelect"
     />
@@ -105,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import FuzzySearchDialog from './FuzzySearchDialog.vue'
 import FieldStatistics from './FieldStatistics.vue'
@@ -113,6 +116,7 @@ import SelectWidgetDialogTrigger from './SelectWidgetDialogTrigger.vue'
 import SelectWidgetInlineSelect from './SelectWidgetInlineSelect.vue'
 import SelectWidgetValueDisplay from './SelectWidgetValueDisplay.vue'
 import SearchSingleSelectDisplay from '@/shared/components/SearchSingleSelectDisplay.vue'
+import { prdPreviewContextKey } from '@/architecture/presentation/components/prdPreviewContext'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
@@ -135,6 +139,8 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
   })
 })
 const emit = defineEmits<WidgetComponentEmits>()
+const prdPreviewContext = inject(prdPreviewContextKey, null)
+const shouldTeleportPopper = computed(() => !prdPreviewContext?.interactive)
 
 const formDataStore = useFormDataStore()
 const callbackMethod = computed(() => props.formRenderer?.getFunctionMethod?.() || props.functionMethod || 'POST')
@@ -179,19 +185,13 @@ const staticOptions = computed<SelectOptionItem[]>(() => {
 /**
  * 🔥 选项颜色配置
  * 
- * 支持两种颜色格式：
- * 1. Element Plus 标准颜色类型：success, warning, danger, info, primary
- *    使用 el-tag 的 type 属性
- * 2. 自定义颜色（hex 格式）：如 #FF5722, #4CAF50
- *    使用 el-tag 的 color 属性
+ * 只支持不带 # 的 6 位十六进制 RRGGBB，例如 FF5722、4CAF50。
  * 
  * options_colors 数组与 staticOptions 数组的索引对齐，通过索引获取对应选项的颜色
  */
 const optionColors = computed(() => {
   return widgetConfig.value.options_colors || []
 })
-
-// isStandardColor 已从 constants/select 导入
 
 /**
  * 获取当前选中值的颜色

@@ -16,9 +16,10 @@
  * 4. 组件显示：需要正确匹配类型（数字 vs 字符串）
  */
 
-import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
+import type { FieldConfig, FieldValue, FunctionDetail } from '@/architecture/domain/types'
 import { DataType } from '@/core/constants/widget'
 import { convertValueToType } from './valueConverter'
+import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
 
 /**
  * 转换基础类型值（用于 URL 参数等场景）
@@ -143,7 +144,7 @@ export function convertValueByFieldType(value: any, field: FieldConfig): any {
  * - 确保所有字段都根据 `field.data.type` 正确转换
  * 
  * @param formData 表单数据（FieldValue 格式或 raw 值格式）
- * @param functionDetail 函数详情（必须包含 `request` 字段数组）
+ * @param functionDetail 函数详情（必须包含 `schema.form.request` 字段数组）
  * @returns 转换后的请求数据（所有值都根据字段类型转换）
  * 
  * @example
@@ -151,20 +152,16 @@ export function convertValueByFieldType(value: any, field: FieldConfig): any {
  *   topic_id: { raw: '1', display: '主题1', meta: {} },
  *   option_ids: { raw: '1,2', display: '选项1,选项2', meta: {} }
  * }
- * const functionDetail = {
- *   request: [
- *     { code: 'topic_id', data: { type: 'int' } },
- *     { code: 'option_ids', data: { type: '[]int' } }
- *   ]
- * }
+ * const functionDetail = { schema: { version: 1, type: 'form', form: { request: fields, response: [] } } }
  * convertFormDataToRequestByType(formData, functionDetail)
  * // { topic_id: 1, option_ids: [1, 2] }
  */
 export function convertFormDataToRequestByType(
   formData: Record<string, FieldValue | any>,
-  functionDetail: { request?: FieldConfig[] }
+  functionDetail?: FunctionDetail | null
 ): Record<string, any> {
-  if (!functionDetail || !functionDetail.request || !Array.isArray(functionDetail.request)) {
+  const requestFields = getFormRequestFields(functionDetail)
+  if (requestFields.length === 0) {
     // 没有字段配置，尝试直接提取 raw 值
     const result: Record<string, any> = {}
     Object.keys(formData).forEach(key => {
@@ -176,7 +173,6 @@ export function convertFormDataToRequestByType(
   }
   
   const request: Record<string, any> = {}
-  const requestFields = functionDetail.request
   
   // 构建字段配置映射（code -> field）
   const fieldMap = new Map<string, FieldConfig>()
@@ -314,4 +310,3 @@ export function getOptionLabelFromMap(optionMap: Map<any, string>, value: any): 
   // 如果都找不到，返回值的字符串形式
   return String(value)
 }
-

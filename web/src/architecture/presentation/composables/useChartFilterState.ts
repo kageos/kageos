@@ -8,6 +8,7 @@ import { convertValueByFieldType } from '@/architecture/presentation/widgets/uti
 import { getWidgetDefaultValue } from '@/architecture/presentation/widgets/composables/useWidgetDefaultValue'
 import { useAuthStore } from '@/stores/auth'
 import { createEmptyFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
+import { getChartRequestFields } from '@/utils/functionSchemaSelectors'
 
 interface UseChartFilterStateOptions {
   functionDetail: ComputedRef<FunctionDetail>
@@ -18,9 +19,7 @@ export function useChartFilterState(options: UseChartFilterStateOptions) {
   const route = useRoute()
 
   const requestFields = computed(() => {
-    const request = options.functionDetail.value.request
-    if (!request) return []
-    return (request as FieldConfig[])
+    return getChartRequestFields(options.functionDetail.value)
       .filter((field) => field.widget && field.widget.type)
       .map((field) => {
         if (field.widget && (field.widget.type === 'select' || field.widget.type === 'multiselect')) {
@@ -69,6 +68,8 @@ export function useChartFilterState(options: UseChartFilterStateOptions) {
   const initializeFieldValues = () => {
     const values: Record<string, FieldValue> = {}
     requestFields.value.forEach((field: FieldConfig) => {
+      // Chart 筛选是 sdk-app request 参数，URL 回填只读原始 field.code。
+      // 前端/平台状态必须放在 `_` key 下。
       const queryValue = route.query[field.code]
       const value = Array.isArray(queryValue) ? queryValue[0] : queryValue
 
@@ -132,6 +133,8 @@ export function useChartFilterState(options: UseChartFilterStateOptions) {
     Object.keys(fieldValues.value).forEach((key) => {
       const value = fieldValues.value[key]
       if (value && value.raw !== null && value.raw !== undefined) {
+        // 提交给 sdk-app 的数据 key 必须和 schema field.code 对齐，
+        // 不要使用平台侧别名。
         params[key] = value.raw
       }
     })

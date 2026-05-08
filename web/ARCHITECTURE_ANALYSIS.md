@@ -31,7 +31,7 @@
 
 ### 3. `renderTableCell()` - Table 列表单元格渲染
 - **场景**：Table 列表中的单元格展示
-- **实现**：✅ BaseWidget 提供默认，部分组件重写（FilesWidget, TimestampWidget 等）
+- **实现**：✅ BaseWidget 提供默认，部分组件重写（FilesWidget, DateTimeWidget 等）
 - **使用**：`TableRenderer.renderTableCell()` → `widget.renderTableCell()`
 
 ### 4. `renderSearchInput()` - 搜索输入框渲染
@@ -46,7 +46,7 @@
 
 ### 6. `loadFromRawData()` - 从原始数据加载
 - **场景**：从后端返回的原始数据转换为 FieldValue 格式
-- **实现**：✅ 部分组件有静态方法（FilesWidget, TimestampWidget 等）
+- **实现**：✅ 部分组件有静态方法（FilesWidget, DateTimeWidget 等）
 - **使用**：`convertToFieldValue()` → `WidgetClass.loadFromRawData()`
 
 ### 7. `getRawValueForSubmit()` - 获取提交值
@@ -232,4 +232,3 @@ importFromExcel(excelValue: any): FieldValue {
 1. **高优先级**：`renderForDetail()` - 直接影响依赖倒置原则
 2. **中优先级**：`onCopy()` - 影响组件自治和代码一致性
 3. **低优先级**：导出功能 - 文档中提到但当前功能可用，可以后续实现
-

@@ -55,9 +55,9 @@ export function createSearchComponentConfig(
     return createDepartmentsComponentConfig(field, searchType)
   }
 
-  // 时间戳组件
-  if (widgetType === WidgetType.TIMESTAMP) {
-    return createTimestampComponentConfig(field, searchType)
+  // 时间组件
+  if (widgetType === WidgetType.DATETIME) {
+    return createDateTimeComponentConfig(field, searchType)
   }
 
   // 选择组件
@@ -118,7 +118,7 @@ export function createSearchComponentConfig(
  * 创建用户组件配置
  */
 function createUserComponentConfig(field: FieldConfig, searchType: string | undefined): ComponentConfig {
-  // 如果 search 标签是 "in" 或 "eq"，使用统一的远程选择器兜底
+  // 多选筛选使用统一的远程选择器兜底
   if (hasSearchType(searchType, SearchType.IN) || hasSearchType(searchType, SearchType.EQ)) {
     const multiple = hasSearchType(searchType, SearchType.IN)
     return {
@@ -139,7 +139,7 @@ function createUserComponentConfig(field: FieldConfig, searchType: string | unde
     }
   }
 
-  // 如果 search 标签是 "like"，渲染普通文本输入框
+  // 文本筛选渲染普通文本输入框
   if (hasSearchType(searchType, SearchType.LIKE)) {
     return createDefaultInputConfig(field)
   }
@@ -165,7 +165,7 @@ function createUserComponentConfig(field: FieldConfig, searchType: string | unde
  */
 function createUsersComponentConfig(field: FieldConfig, searchType: string | undefined): ComponentConfig {
   // 多用户组件默认支持多选搜索（contains/in）
-  // 如果 search 标签是 "contains" 或 "in"，使用多选用户搜索
+  // 多值筛选使用多选用户搜索
   if (hasSearchType(searchType, SearchType.CONTAINS) || hasSearchType(searchType, SearchType.IN)) {
     return {
       component: SearchComponent.EL_SELECT,
@@ -185,7 +185,7 @@ function createUsersComponentConfig(field: FieldConfig, searchType: string | und
     }
   }
 
-  // 如果 search 标签是 "like"，渲染普通文本输入框
+  // 文本筛选渲染普通文本输入框
   if (hasSearchType(searchType, SearchType.LIKE)) {
     return createDefaultInputConfig(field)
   }
@@ -210,9 +210,12 @@ function createUsersComponentConfig(field: FieldConfig, searchType: string | und
 }
 
 /**
- * 创建时间戳组件配置
+ * 创建日期时间组件配置
  */
-function createTimestampComponentConfig(field: FieldConfig, searchType: string | undefined): ComponentConfig {
+function createDateTimeComponentConfig(field: FieldConfig, searchType: string | undefined): ComponentConfig {
+  const format = field.widget?.config?.format || 'YYYY-MM-DD HH:mm:ss'
+  const valueFormat = format
+
   // 范围搜索（gte/lte）
   if (hasAllSearchTypes(searchType, [SearchType.GTE, SearchType.LTE])) {
     return {
@@ -222,8 +225,8 @@ function createTimestampComponentConfig(field: FieldConfig, searchType: string |
         rangeSeparator: '至',
         startPlaceholder: generatePlaceholder(field.name, 'start'),
         endPlaceholder: generatePlaceholder(field.name, 'end'),
-        format: 'YYYY-MM-DD HH:mm:ss',
-        valueFormat: 'x', // 毫秒级时间戳格式
+        format,
+        valueFormat,
         clearable: true,
         style: { width: SearchConfig.DEFAULT_RANGE_WIDTH },
         shortcuts: createDateShortcuts()
@@ -237,8 +240,8 @@ function createTimestampComponentConfig(field: FieldConfig, searchType: string |
     props: {
       type: 'datetime',
       placeholder: generatePlaceholder(field.name, 'select'),
-      format: 'YYYY-MM-DD HH:mm:ss',
-      valueFormat: 'x', // 毫秒级时间戳格式
+      format,
+      valueFormat,
       clearable: true,
       style: { width: SearchConfig.DEFAULT_INPUT_WIDTH }
     }
@@ -523,7 +526,7 @@ function createUserRemoteMethod(): (query: string) => Promise<Array<{ label: str
  * 创建组织架构组件配置
  */
 function createDepartmentComponentConfig(field: FieldConfig, searchType: string | undefined): ComponentConfig {
-  // 如果 search 标签是 "in" 或 "eq"，使用组织架构搜索
+  // 多选筛选使用组织架构搜索
   if (hasSearchType(searchType, SearchType.IN) || hasSearchType(searchType, SearchType.EQ)) {
     return {
       component: SearchComponent.EL_SELECT,
@@ -539,7 +542,7 @@ function createDepartmentComponentConfig(field: FieldConfig, searchType: string 
     }
   }
 
-  // 如果 search 标签是 "like"，渲染普通文本输入框
+  // 文本筛选渲染普通文本输入框
   if (hasSearchType(searchType, SearchType.LIKE)) {
     return createDefaultInputConfig(field)
   }
@@ -563,7 +566,7 @@ function createDepartmentComponentConfig(field: FieldConfig, searchType: string 
  */
 function createDepartmentsComponentConfig(field: FieldConfig, searchType: string | undefined): ComponentConfig {
   // 多组织架构组件默认支持多选搜索（contains/in）
-  // 如果 search 标签是 "contains" 或 "in"，使用多选组织架构搜索
+  // 多值筛选使用多选组织架构搜索
   if (hasSearchType(searchType, SearchType.CONTAINS) || hasSearchType(searchType, SearchType.IN)) {
     return {
       component: SearchComponent.EL_SELECT,
@@ -582,7 +585,7 @@ function createDepartmentsComponentConfig(field: FieldConfig, searchType: string
     }
   }
 
-  // 如果 search 标签是 "like"，渲染普通文本输入框
+  // 文本筛选渲染普通文本输入框
   if (hasSearchType(searchType, SearchType.LIKE)) {
     return createDefaultInputConfig(field)
   }

@@ -16,6 +16,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
+	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"gorm.io/gorm"
 )
@@ -182,7 +183,7 @@ func (a *AppService) IncrementFunctionRunCount(ctx context.Context, fullCodePath
 	}
 }
 
-// RecordTableOperateLog 记录 Table 操作日志（OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows）
+// RecordTableOperateLog 记录 Table 操作日志（OnTableAddRow, OnTableCreateInBatches, OnTableUpdateRow, OnTableDeleteRows）
 // 策略：社区版和企业版都记录完整日志，但只有企业版可以查看
 func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordTableOperateLogReq) error {
 	// 获取应用信息（用于获取版本号）
@@ -196,13 +197,34 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 
 	// 根据操作类型处理不同的记录逻辑
 	switch req.Action {
+	case "OnTableAddRow", "OnTableCreateInBatches":
+		operateLogReq := &dto.CreateOperateLoggerReq{
+			User:       req.RequestUser,
+			Action:     req.Action,
+			Resource:   functionschema.TypeTable,
+			ResourceID: fmt.Sprintf("%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/")),
+			Source:     req.Source,
+			RowID:      req.RowID,
+			Updates:    req.Body,
+			Version:    app.Version,
+			TraceID:    req.TraceID,
+			IPAddress:  req.IPAddress,
+			UserAgent:  req.UserAgent,
+		}
+		go func() {
+			if _, err := operateLogger.CreateOperateLogger(operateLogReq); err != nil {
+				logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 新增操作日志失败: %v", err)
+			}
+		}()
+
 	case "OnTableUpdateRow":
 		// 更新操作：记录 updates 和 old_values
 		operateLogReq := &dto.CreateOperateLoggerReq{
 			User:       req.RequestUser,
 			Action:     req.Action,
-			Resource:   "table",
+			Resource:   functionschema.TypeTable,
 			ResourceID: fmt.Sprintf("%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/")),
+			Source:     req.Source,
 			RowID:      req.RowID,
 			Updates:    req.Updates,
 			OldValues:  req.OldValues,
@@ -225,8 +247,9 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 			operateLogReq := &dto.CreateOperateLoggerReq{
 				User:       req.RequestUser,
 				Action:     req.Action,
-				Resource:   "table",
+				Resource:   functionschema.TypeTable,
 				ResourceID: fmt.Sprintf("%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/")),
+				Source:     req.Source,
 				RowID:      rowID,
 				Version:    app.Version,
 				TraceID:    req.TraceID,
@@ -347,37 +370,21 @@ func (a *AppService) convertApiInfoToFunctions(appID int64, apis []*dto.ApiInfo,
 	functions := make([]*model.Function, len(apis))
 
 	for i, api := range apis {
-		// 序列化request字段
-		var requestJSON json.RawMessage
-		if len(api.Request) > 0 {
-			requestData, err := json.Marshal(api.Request)
-			if err != nil {
-				return nil, fmt.Errorf("序列化request字段失败: %w", err)
-			}
-			requestJSON = requestData
+		schemaJSON, err := functionschema.Marshal(api.Schema)
+		if err != nil {
+			return nil, fmt.Errorf("序列化function schema失败: %w", err)
 		}
-
-		// 序列化response字段
-		var responseJSON json.RawMessage
-		if len(api.Response) > 0 {
-			responseData, err := json.Marshal(api.Response)
-			if err != nil {
-				return nil, fmt.Errorf("序列化response字段失败: %w", err)
-			}
-			responseJSON = responseData
+		if api.TemplateType != "" && api.Schema != nil && api.TemplateType != api.Schema.Type {
+			return nil, fmt.Errorf("template_type 与 schema.type 不一致: template_type=%s schema.type=%s", api.TemplateType, api.Schema.Type)
 		}
-
-		// 序列化create_tables字段
 
 		function := &model.Function{
 			AppID:        appID,
 			Method:       api.Method,
 			Router:       api.BuildFullCodePath(),
-			Request:      requestJSON,
-			Response:     responseJSON,
+			Schema:       schemaJSON,
 			HasConfig:    false, // 预留字段，默认为false
 			TemplateType: api.TemplateType,
-			Callbacks:    strings.Join(api.Callback, ","),
 		}
 		// 设置创建者用户名（通过嵌入的 Base 结构体）
 		function.CreatedBy = username

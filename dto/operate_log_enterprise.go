@@ -5,7 +5,7 @@ import "encoding/json"
 // CreateOperateLoggerReq 创建操作日志请求（企业版）
 type CreateOperateLoggerReq struct {
 	User       string `json:"user"`                 // 操作用户
-	Action     string `json:"action"`               // 操作类型（如：OnTableUpdateRow, OnTableDeleteRows, form_submit, request_app 等）
+	Action     string `json:"action"`               // 操作类型（如：OnTableAddRow, OnTableCreateInBatches, OnTableUpdateRow, OnTableDeleteRows, form_submit, request_app 等）
 	Resource   string `json:"resource"`             // 资源类型（如：table, form, app 等）
 	ResourceID string `json:"resource_id"`          // 资源ID（格式：user/app 或 user/app/router）
 	Source     string `json:"source,omitempty"`     // 来源（如：browser、scheduled_task、agent、api）

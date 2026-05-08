@@ -8,7 +8,7 @@ export function getSearchFieldRawValue<T = any>(value: any): T {
   return isStoredSearchFieldValue(value) ? (value.raw as T) : (value as T)
 }
 
-export function getSearchFieldDisplayValue(value: any): string {
+export function getSearchFieldHideValue(value: any): string {
   if (!isStoredSearchFieldValue(value)) {
     return ''
   }

@@ -11,7 +11,7 @@
 
 ---
 
-## 二、PRD 要点（表格格式）
+## 二、旧版 PRD 要点（仅实现参考，不作为 app.plan 输出格式）
 
 ### 1. 会议室表（meeting_room_list）
 
@@ -106,6 +106,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/statistics"
 	"gorm.io/gorm"
 )
@@ -114,17 +115,17 @@ import (
 
 // MeetingRoom 会议室信息表
 type MeetingRoom struct {
-	ID        int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:会议室ID;type:ID" permission:"read" search:"eq"`
-	CreatedAt int64          `json:"created_at" gorm:"autoCreateTime:milli;column:created_at" widget:"name:创建时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
-	UpdatedAt int64          `json:"updated_at" gorm:"autoUpdateTime:milli;column:updated_at" widget:"name:更新时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
+	ID        int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:会议室ID;type:ID" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
+	CreatedAt types.Time          `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
+	UpdatedAt types.Time          `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
 
-	Name      string `json:"name" gorm:"column:name;comment:会议室名称" widget:"name:会议室名称;type:input" search:"like" validate:"required,min=2,max=50"`
-	Type      string `json:"type" gorm:"column:type;comment:会议室类型" widget:"name:会议室类型;type:select;options:小型,中型,大型,会议室,培训室,多功能厅;options_colors:info,primary,success,warning,danger,#9C27B0" search:"in" validate:"required"`
-	Capacity  int    `json:"capacity" gorm:"column:capacity;comment:容纳人数" widget:"name:容纳人数;type:number" search:"gte,lte" validate:"required,min=1,max=1000"`
-	Equipment string `json:"equipment" gorm:"column:equipment;type:text;comment:设备配置" widget:"name:设备配置;type:text_area" search:"like"`
-	Location  string `json:"location" gorm:"column:location;comment:位置信息" widget:"name:位置信息;type:input" search:"like" validate:"required,min=2,max=100"`
-	Status    string `json:"status" gorm:"column:status;comment:状态;default:可用" widget:"name:状态;type:select;options:可用,维护中,停用;options_colors:success,warning,danger;default:可用" search:"in" validate:"required,oneof=可用 维护中 停用"`
+	Name      string `json:"name" gorm:"column:name;comment:会议室名称" widget:"name:会议室名称;type:input" validate:"required,min=2,max=50"`
+	Type      string `json:"type" gorm:"column:type;comment:会议室类型" widget:"name:会议室类型;type:select;options:小型,中型,大型,会议室,培训室,多功能厅;options_colors:909399,409EFF,67C23A,E6A23C,F56C6C,9C27B0" validate:"required"`
+	Capacity  int    `json:"capacity" gorm:"column:capacity;comment:容纳人数" widget:"name:容纳人数;type:number" validate:"required,min=1,max=1000"`
+	Equipment string `json:"equipment" gorm:"column:equipment;type:text;comment:设备配置" widget:"name:设备配置;type:text_area"`
+	Location  string `json:"location" gorm:"column:location;comment:位置信息" widget:"name:位置信息;type:input" validate:"required,min=2,max=100"`
+	Status    string `json:"status" gorm:"column:status;comment:状态;default:可用" widget:"name:状态;type:select;options:可用,维护中,停用;options_colors:67C23A,E6A23C,F56C6C;render_default:可用" validate:"required,oneof=可用 维护中 停用"`
 }
 
 func (MeetingRoom) TableName() string {
@@ -133,7 +134,11 @@ func (MeetingRoom) TableName() string {
 
 // MeetingRoomListReq 会议室列表请求
 type MeetingRoomListReq struct {
-	query.SearchFilterPageReq `widget:"-"`
+	Name   string `json:"name" form:"name" widget:"name:会议室名称;type:input"`
+	Type   string `json:"type" form:"type" widget:"name:会议室类型;type:select;options:小型会议室,中型会议室,大型会议室,培训室,视频会议室"`
+	Status string `json:"status" form:"status" widget:"name:状态;type:select;options:可用,维护中,停用;options_colors:67C23A,E6A23C,F56C6C"`
+
+	query.PageSortReq `widget:"-"`
 }
 
 // MeetingRoomList 会议室管理
@@ -148,8 +153,19 @@ func MeetingRoomList(ctx *app.Context, resp response.Response) error {
 		return err
 	}
 
+	queryDB := db.Model(&MeetingRoom{})
+	if req.Name != "" {
+		queryDB = queryDB.Where("name LIKE ?", "%"+req.Name+"%")
+	}
+	if req.Type != "" {
+		queryDB = queryDB.Where("type = ?", req.Type)
+	}
+	if req.Status != "" {
+		queryDB = queryDB.Where("status = ?", req.Status)
+	}
+
 	var rooms []MeetingRoom
-	return resp.Table(&rooms).AutoSearchFilterPaged(db, &MeetingRoom{}, &req.SearchFilterPageReq).Build()
+	return resp.Table(&rooms, queryDB, &MeetingRoom{}, &req.PageSortReq).Build()
 }
 
 // MeetingRoomListTemplate 会议室管理配置
@@ -159,7 +175,6 @@ var MeetingRoomListTemplate = &app.TableTemplate{
 		Desc:         `会议室信息的增删改查管理，包括会议室名称、类型、容纳人数、设备配置、位置信息、状态等`,
 		Tags:         []string{"会议室系统", "会议室管理"},
 		Request:      &MeetingRoomListReq{},
-		Response:     query.PaginatedTable[[]MeetingRoom]{},
 		CreateTables: []interface{}{&MeetingRoom{}},
 	},
 	AutoCrudTable: &MeetingRoom{},
@@ -180,11 +195,11 @@ var MeetingRoomListTemplate = &app.TableTemplate{
 		db := ctx.GetGormDB()
 
 		var updateFields MeetingRoom
-		if err := req.BindUpdates(&updateFields); err != nil {
+		if err := req.BindChangedFields(&updateFields); err != nil {
 			return nil, fmt.Errorf("绑定更新字段失败: %w", err)
 		}
 
-		updates := req.GetUpdates()
+		updates := req.ChangedFields()
 		err := db.Model(&MeetingRoom{}).Where("id = ?", req.GetId()).Updates(updates).Error
 		if err != nil {
 			logger.Errorf(ctx, "Update meeting_room err: %v", err)
@@ -280,6 +295,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 	"gorm.io/gorm"
 )
 
@@ -287,27 +303,27 @@ import (
 
 // MeetingRoomBooking 会议室预约表
 type MeetingRoomBooking struct {
-	ID        int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:预约ID;type:ID" permission:"read" search:"eq"`
-	CreatedAt int64          `json:"created_at" gorm:"autoCreateTime:milli;column:created_at" widget:"name:创建时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
-	UpdatedAt int64          `json:"updated_at" gorm:"autoUpdateTime:milli;column:updated_at" widget:"name:更新时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
+	ID        int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:预约ID;type:ID" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
+	CreatedAt types.Time          `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
+	UpdatedAt types.Time          `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
 
 	RoomID   int          `json:"room_id" gorm:"column:room_id;comment:会议室ID;index" widget:"name:会议室;type:select" validate:"required" callback:"OnSelectFuzzy"`
 	Room     *MeetingRoom `json:"-" widget:"-" gorm:"foreignKey:RoomID;references:ID"`
-	RoomName string       `json:"room_name" gorm:"-" widget:"name:会议室名称;type:text" permission:"read"`
-	RoomLink string       `json:"room_link" gorm:"-" widget:"name:会议室详情;type:link;target:_blank" permission:"read"`
+	RoomName string       `json:"room_name" gorm:"-" widget:"name:会议室名称;type:text" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
+	RoomLink string       `json:"room_link" gorm:"-" widget:"name:会议室详情;type:link;target:_blank" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 
-	Booker        string `json:"booker" gorm:"column:booker;comment:预约人" widget:"name:预约人;type:user;default:Me()" search:"in" validate:"required"`
-	Attendees     string `json:"attendees" gorm:"column:attendees;type:text;comment:参会人（逗号分隔）" widget:"name:参会人;type:users" search:"in"`
-	Subject       string `json:"subject" gorm:"column:subject;comment:会议主题" widget:"name:会议主题;type:input" search:"like" validate:"required,min=2,max=200"`
-	Description   string `json:"description" gorm:"column:description;type:text;comment:会议描述" widget:"name:会议描述;type:text_area" search:"like"`
-	StartTime     int64  `json:"start_time" gorm:"column:start_time;comment:开始时间;index" widget:"name:开始时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss;default:Now()" search:"gte,lte" validate:"required"`
-	EndTime       int64  `json:"end_time" gorm:"column:end_time;comment:结束时间;index" widget:"name:结束时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" validate:"required"`
-	AttendeeCount int    `json:"attendee_count" gorm:"column:attendee_count;comment:参会人数" widget:"name:参会人数;type:number" search:"gte,lte" validate:"required,min=1"`
-	Status        string `json:"status" gorm:"-" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:info,primary,success" search:"-" permission:"read"`
-	ReminderSent  bool   `json:"reminder_sent" gorm:"column:reminder_sent;default:false;comment:是否已发送会前提醒" widget:"name:是否已提醒;type:switch" permission:"read" search:"eq"`
-	RemindedAt    int64  `json:"reminded_at" gorm:"column:reminded_at;default:0;comment:提醒发送时间" widget:"name:提醒时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" permission:"read" search:"gte,lte"`
-	Remark        string `json:"remark" gorm:"column:remark;type:text;comment:备注" widget:"name:备注;type:text_area" search:"like"`
+	Booker        string `json:"booker" gorm:"column:booker;comment:预约人" widget:"name:预约人;type:user;render_default:Me()" validate:"required"`
+	Attendees     string `json:"attendees" gorm:"column:attendees;type:text;comment:参会人（逗号分隔）" widget:"name:参会人;type:users"`
+	Subject       string `json:"subject" gorm:"column:subject;comment:会议主题" widget:"name:会议主题;type:input" validate:"required,min=2,max=200"`
+	Description   string `json:"description" gorm:"column:description;type:text;comment:会议描述" widget:"name:会议描述;type:text_area"`
+	StartTime     types.Time  `json:"start_time" gorm:"column:start_time;type:datetime;comment:开始时间;index" widget:"name:开始时间;type:datetime;format:YYYY-MM-DD HH:mm:ss;render_default:CURRENT_TIMESTAMP" validate:"required"`
+	EndTime       types.Time  `json:"end_time" gorm:"column:end_time;type:datetime;comment:结束时间;index" widget:"name:结束时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" validate:"required"`
+	AttendeeCount int    `json:"attendee_count" gorm:"column:attendee_count;comment:参会人数" widget:"name:参会人数;type:number" validate:"required,min=1"`
+	Status        string `json:"status" gorm:"-" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:909399,409EFF,67C23A" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
+	ReminderSent  bool   `json:"reminder_sent" gorm:"column:reminder_sent;default:false;comment:是否已发送会前提醒" widget:"name:是否已提醒;type:switch"`
+	RemindedAt    types.Time  `json:"reminded_at" gorm:"column:reminded_at;type:datetime;comment:提醒发送时间" widget:"name:提醒时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
+	Remark        string `json:"remark" gorm:"column:remark;type:text;comment:备注" widget:"name:备注;type:text_area"`
 }
 
 func (MeetingRoomBooking) TableName() string {
@@ -316,11 +332,12 @@ func (MeetingRoomBooking) TableName() string {
 
 // MeetingRoomBookingListReq 预约列表请求
 //
-// 注意：RoomName 为外表字段（来自 crm_meeting_room），Status 为计算字段，需在 Handler 中手动处理。
+// 注意：RoomName 为外表字段（来自 crm_meeting_room），Status 为计算字段筛选，需在 Handler 中手动处理。
 type MeetingRoomBookingListReq struct {
-	RoomName                  string `json:"room_name" form:"room_name" gorm:"-" widget:"name:会议室名称;type:input"`
-	Status                    string `json:"status" form:"status" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:info,primary,success"`
-	query.SearchFilterPageReq `widget:"-"`
+	RoomName string `json:"room_name" form:"room_name" gorm:"-" widget:"name:会议室名称;type:input"`
+	Status   string `json:"status" form:"status" gorm:"-" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:909399,409EFF,67C23A"`
+
+	query.PageSortReq `widget:"-"`
 }
 
 // MeetingRoomBookingList 会议室预约管理
@@ -344,12 +361,12 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
 			Pluck("id", &roomIDs).Error; err == nil && len(roomIDs) > 0 {
 			queryDB = queryDB.Where("room_id IN ?", roomIDs)
 		} else {
-			return resp.Table(&[]MeetingRoomBooking{}).Build()
+			queryDB = queryDB.Where("1 = 0")
 		}
 	}
 
 	if req.Status != "" {
-		now := time.Now().UnixMilli()
+		now := time.Now()
 		switch req.Status {
 		case "待开始":
 			queryDB = queryDB.Where("crm_meeting_room_booking.start_time > ?", now)
@@ -363,7 +380,7 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
 	queryDB = queryDB.Preload("Room")
 
 	var bookings []MeetingRoomBooking
-	builder := resp.Table(&bookings).AutoSearchFilterPaged(queryDB, &MeetingRoomBooking{}, &req.SearchFilterPageReq)
+	builder := resp.Table(&bookings, queryDB, &MeetingRoomBooking{}, &req.PageSortReq)
 
 	if err := builder.Build(); err != nil {
 		return err
@@ -390,7 +407,6 @@ var MeetingRoomBookingListTemplate = &app.TableTemplate{
 		Desc:         `会议室预约的增删改查管理，包括会议室选择、预约人、会议主题、时间安排、参会人数、预约状态等`,
 		Tags:         []string{"会议室系统", "预约管理"},
 		Request:      &MeetingRoomBookingListReq{},
-		Response:     query.PaginatedTable[[]MeetingRoomBooking]{},
 		CreateTables: []interface{}{&MeetingRoomBooking{}},
 		OnSelectFuzzyMap: map[string]app.OnSelectFuzzy{
 			"room_id": onSelectFuzzyMeetingRoom,
@@ -424,11 +440,11 @@ var MeetingRoomBookingListTemplate = &app.TableTemplate{
 		}
 
 		var updateFields MeetingRoomBooking
-		if err := req.BindUpdates(&updateFields); err != nil {
+		if err := req.BindChangedFields(&updateFields); err != nil {
 			return nil, fmt.Errorf("绑定更新字段失败: %w", err)
 		}
 
-		updates := req.GetUpdates()
+		updates := req.ChangedFields()
 
 		if req.IsFieldUpdated("start_time") || req.IsFieldUpdated("end_time") || req.IsFieldUpdated("room_id") {
 			tempBooking := MeetingRoomBooking{
@@ -453,7 +469,7 @@ var MeetingRoomBookingListTemplate = &app.TableTemplate{
 		if req.IsFieldUpdated("start_time") || req.IsFieldUpdated("end_time") || req.IsFieldUpdated("room_id") ||
 			req.IsFieldUpdated("booker") || req.IsFieldUpdated("attendees") || req.IsFieldUpdated("subject") {
 			updates["reminder_sent"] = false
-			updates["reminded_at"] = int64(0)
+			updates["reminded_at"] = types.Time{}
 		}
 
 		err := db.Model(&MeetingRoomBooking{}).Where("id = ?", req.GetId()).Updates(updates).Error
@@ -489,7 +505,7 @@ var MeetingRoomBookingListTemplate = &app.TableTemplate{
 
 // MeetingRoomNotifySoonReq 会议即将开始提醒请求
 type MeetingRoomNotifySoonReq struct {
-	LeadMinutes int `json:"lead_minutes" widget:"name:提前提醒分钟数;type:number;default:5"`
+	LeadMinutes int `json:"lead_minutes" widget:"name:提前提醒分钟数;type:number;render_default:5"`
 }
 
 // MeetingRoomNotifySoonResp 会议即将开始提醒响应
@@ -524,7 +540,7 @@ func MeetingRoomNotifySoon(ctx *app.Context, resp response.Response) error {
 	var bookings []MeetingRoomBooking
 	if err := db.Model(&MeetingRoomBooking{}).
 		Preload("Room").
-		Where("start_time > ? AND start_time <= ? AND reminder_sent = ? AND deleted_at IS NULL", now.UnixMilli(), windowEnd.UnixMilli(), false).
+		Where("start_time > ? AND start_time <= ? AND reminder_sent = ? AND deleted_at IS NULL", now, windowEnd, false).
 		Find(&bookings).Error; err != nil {
 		return err
 	}
@@ -541,7 +557,7 @@ func MeetingRoomNotifySoon(ctx *app.Context, resp response.Response) error {
 			roomName = booking.Room.Name
 		}
 
-		startAt := time.UnixMilli(booking.StartTime).Format("2006-01-02 15:04")
+		startAt := booking.StartTime.Time().Format("2006-01-02 15:04")
 		content := fmt.Sprintf("您预约/参与的会议《%s》将在 %s 开始，会议室：%s，请提前准备。", booking.Subject, startAt, roomName)
 		err := ctx.SendMessage(&app.SendMessageOpts{
 			ToUsers:     toUsers,
@@ -557,7 +573,7 @@ func MeetingRoomNotifySoon(ctx *app.Context, resp response.Response) error {
 			Where("id = ?", booking.ID).
 			Updates(map[string]interface{}{
 				"reminder_sent": true,
-				"reminded_at":   time.Now().UnixMilli(),
+				"reminded_at":   types.Time(time.Now()),
 			}).Error; err != nil {
 			logger.Errorf(ctx, "Update reminder status failed, booking_id=%d, err=%v", booking.ID, err)
 			continue
@@ -595,12 +611,12 @@ func joinUsers(users ...string) string {
 
 // validateBookingTime 验证预约时间（新增时使用）
 func validateBookingTime(db *gorm.DB, booking *MeetingRoomBooking) error {
-	if booking.StartTime >= booking.EndTime {
+	if !booking.EndTime.Time().After(booking.StartTime.Time()) {
 		return fmt.Errorf("结束时间必须晚于开始时间")
 	}
 
-	now := time.Now().UnixMilli()
-	if booking.StartTime < now {
+	now := time.Now()
+	if booking.StartTime.Time().Before(now) {
 		return fmt.Errorf("开始时间不能是过去时间")
 	}
 
@@ -640,7 +656,7 @@ func validateBookingTime(db *gorm.DB, booking *MeetingRoomBooking) error {
 
 // validateBookingTimeExclude 验证预约时间（更新时使用，排除指定ID）
 func validateBookingTimeExclude(db *gorm.DB, booking *MeetingRoomBooking, excludeID int) error {
-	if booking.StartTime >= booking.EndTime {
+	if !booking.EndTime.Time().After(booking.StartTime.Time()) {
 		return fmt.Errorf("结束时间必须晚于开始时间")
 	}
 
@@ -675,11 +691,11 @@ func validateBookingTimeExclude(db *gorm.DB, booking *MeetingRoomBooking, exclud
 }
 
 // calculateBookingStatus 计算预约状态（实时计算，不存储到数据库）
-func calculateBookingStatus(startTime, endTime int64) string {
-	now := time.Now().UnixMilli()
-	if now < startTime {
+func calculateBookingStatus(startTime, endTime types.Time) string {
+	now := time.Now()
+	if now.Before(startTime.Time()) {
 		return "待开始"
-	} else if now >= startTime && now < endTime {
+	} else if now.Before(endTime.Time()) {
 		return "进行中"
 	}
 	return "已结束"

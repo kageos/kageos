@@ -23,7 +23,7 @@
 如果控制台打不开，先看：
 
 ```bash
-bash build.sh logs backup
+go run ./cmd/aosctl logs --config deploy/prod/aos.yaml backup
 ```
 
 ## 恢复前确认

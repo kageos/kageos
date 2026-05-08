@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 )
@@ -36,6 +37,12 @@ func SearchFunctions(ctx context.Context, req *dto.SearchFunctionsReq) (*dto.Sea
 		withTrimmedQueryValue("keyword", req.Keyword),
 		withTrimmedQueryValue("template_type", req.TemplateType),
 	))
+}
+
+// GetFunctionInfo 根据 full_code_path 获取函数详情（agent-server -> app-server）。
+func GetFunctionInfo(ctx context.Context, funcType string, fullCodePath string) (*dto.GetFunctionResp, error) {
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/function/info/"+strings.Trim(strings.TrimSpace(funcType), "/"), fullCodePath)
+	return GetAPI[*dto.GetFunctionResp](ctx, path, nil)
 }
 
 // GetWorkspaceContext 获取工作台环境信息（agent-server -> app-server）
@@ -122,11 +129,25 @@ func TableCreate(ctx context.Context, fullCodePath string, body interface{}) (ma
 	return PostAPI[interface{}, map[string]interface{}](ctx, path, body)
 }
 
+// TableBatchCreate 调用工作区 Table 批量导入接口（POST table/batch-create/{full-code-path}）
+// fullCodePath 为表格函数完整路径；body 为 { "data": [{ "field": "value" }] }，会触发 OnTableCreateInBatches 回调。
+func TableBatchCreate(ctx context.Context, fullCodePath string, body interface{}) (map[string]interface{}, error) {
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/table/batch-create", fullCodePath)
+	return PostAPI[interface{}, map[string]interface{}](ctx, path, body)
+}
+
 // TableUpdate 调用工作区 Table 更新接口（PUT table/update/{full-code-path}）
 // fullCodePath 为表格函数完整路径；body 为 { "id": 行ID, "updates": { "field": "value", ... } }，不传 old_values 时由 app-server 自动查表填充
 func TableUpdate(ctx context.Context, fullCodePath string, body interface{}) (map[string]interface{}, error) {
 	path := buildWorkspaceFunctionPath("/workspace/api/v1/table/update", fullCodePath)
 	return PutAPI[interface{}, map[string]interface{}](ctx, path, body)
+}
+
+// TableDelete 调用工作区 Table 删除接口（DELETE table/delete/{full-code-path}）
+// fullCodePath 为表格函数完整路径；body 为 { "ids": [1, 2, 3] }，会触发 OnTableDeleteRows 回调。
+func TableDelete(ctx context.Context, fullCodePath string, body interface{}) (map[string]interface{}, error) {
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/table/delete", fullCodePath)
+	return DeleteBodyAPI[interface{}, map[string]interface{}](ctx, path, body)
 }
 
 // CallbackOnSelectFuzzy 调用工作区 OnSelectFuzzy 回调（POST callback/on_select_fuzzy/{full-code-path}）
@@ -170,8 +191,8 @@ func ListScheduledTasks(ctx context.Context, fullCodePath, status string, page, 
 
 // CancelScheduledTask 取消定时任务（agent-server -> app-server）
 func CancelScheduledTask(ctx context.Context, taskID int64) error {
-	path := fmt.Sprintf("/workspace/api/v1/scheduled_tasks/%d", taskID)
-	_, err := DeleteAPI[map[string]interface{}](ctx, path)
+	path := fmt.Sprintf("/workspace/api/v1/scheduled_tasks/%d/cancel", taskID)
+	_, err := PostAPI[map[string]interface{}, map[string]interface{}](ctx, path, map[string]interface{}{})
 	return err
 }
 

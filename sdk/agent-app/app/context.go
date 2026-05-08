@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/trace"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
 	"github.com/go-playground/form/v4"
@@ -44,13 +45,20 @@ func (a *App) NewContext(ctx context.Context, req *dto.RequestAppReq) (*Context,
 		Router:          req.Router,
 		RequestUser:     req.RequestUser,
 		RequestUserDept: req.RequestUserDept,
+		ClientSource:    strings.TrimSpace(req.ClientSource),
 		TraceId:         req.TraceId,
 	}
 	//var req dto.RequestAppReq
 	//if err := json.Unmarshal(msg.Data, &req); err != nil {
 	//	return nil, err
 	//}
-
+	ctx = contextx.WithRequestInfo(ctx, contextx.RequestInfo{
+		TraceId:            msgInfo.TraceId,
+		RequestUser:        msgInfo.RequestUser,
+		Token:              req.Token,
+		DepartmentFullPath: msgInfo.RequestUserDept,
+		ClientSource:       msgInfo.ClientSource,
+	})
 	return &Context{
 		body:     req.Body,
 		urlQuery: req.UrlQuery,
@@ -127,6 +135,14 @@ func wrapValidationError(err error) error {
 func (ctx *Context) GetTraceId() string {
 	if ctx.msg != nil {
 		return ctx.msg.TraceId
+	}
+	return ""
+}
+
+// GetFullCodePath 获取当前函数的完整目录路径，用于审计和消息来源标记。
+func (ctx *Context) GetFullCodePath() string {
+	if ctx != nil && ctx.msg != nil {
+		return ctx.msg.GetFullRouter()
 	}
 	return ""
 }

@@ -71,21 +71,27 @@ function createDeferred<T>() {
 }
 
 describe('TableDomainService URL restore', () => {
-  it('restores request search fields from namespaced query keys', () => {
+  it('restores request search fields from raw query keys', () => {
     const service = createService()
     const functionDetail = {
-      request: [
-        {
-          code: 'status',
-          name: '状态',
-          widget: { type: 'select' }
+      schema: {
+        version: 1,
+        type: 'table',
+        table: {
+          request: [
+            {
+              code: 'status',
+              name: '状态',
+              widget: { type: 'select' }
+            }
+          ],
+          fields: []
         }
-      ],
-      response: []
+      }
     } as any
 
     const restored = service.restoreFromURL(functionDetail, {
-      s_status: 'open',
+      status: 'open',
       page: '2',
       page_size: '50'
     })
@@ -94,56 +100,150 @@ describe('TableDomainService URL restore', () => {
     expect(restored.pagination).toEqual({ page: 2, pageSize: 50 })
   })
 
-  it('keeps compatibility with legacy raw request search keys', () => {
+  it('restores explicit request field values and builds direct params', () => {
     const service = createService()
     const functionDetail = {
-      request: [
-        {
-          code: 'status',
-          name: '状态',
-          widget: { type: 'select' }
+      schema: {
+        version: 1,
+        type: 'table',
+        table: {
+          request: [
+            {
+              code: 'job_id',
+              name: '投递职位',
+              callbacks: ['OnSelectFuzzy'],
+              widget: { type: 'select' },
+              data: { type: 'int' }
+            }
+          ]
         }
-      ],
-      response: []
+      }
     } as any
 
     const restored = service.restoreFromURL(functionDetail, {
-      status: 'legacy-open'
-    })
-
-    expect(restored.searchForm).toEqual({ status: 'legacy-open' })
-  })
-
-  it('restores response search display labels from URL companion params and still builds raw search params', () => {
-    const service = createService()
-    const functionDetail = {
-      request: [],
-      response: [
-        {
-          code: 'job_id',
-          name: '投递职位',
-          search: 'eq',
-          callbacks: ['OnSelectFuzzy'],
-          widget: { type: 'select' },
-          data: { type: 'int' }
-        }
-      ]
-    } as any
-
-    const restored = service.restoreFromURL(functionDetail, {
-      eq: 'job_id:1',
-      s_job_id__display: '前端开发工程师 - 技术 (北京, 20000-35000元)'
+      job_id: '1'
     })
 
     expect(restored.searchForm).toEqual({
-      job_id: {
-        raw: '1',
-        display: '前端开发工程师 - 技术 (北京, 20000-35000元)',
-        meta: {}
-      }
+      job_id: '1'
     })
     expect(service.buildSearchParams(functionDetail, restored.searchForm)).toEqual({
-      eq: 'job_id:1'
+      job_id: '1'
+    })
+  })
+
+  it('restores range request fields as direct values', () => {
+    const service = createService()
+    const functionDetail = {
+      schema: {
+        version: 1,
+        type: 'table',
+        table: {
+          request: [
+            {
+              code: 'created_start',
+              name: '创建开始时间',
+              widget: { type: 'datetime' },
+              data: { type: 'string' }
+            },
+            {
+              code: 'created_end',
+              name: '创建结束时间',
+              widget: { type: 'datetime' },
+              data: { type: 'string' }
+            }
+          ],
+          fields: []
+        }
+      }
+    } as any
+
+    const restored = service.restoreFromURL(functionDetail, {
+      created_start: '2026-04-21 00:00:00',
+      created_end: '2026-04-21 23:59:59'
+    })
+
+    expect(restored.searchForm).toEqual({
+      created_start: '2026-04-21 00:00:00',
+      created_end: '2026-04-21 23:59:59'
+    })
+    expect(service.buildSearchParams(functionDetail, restored.searchForm)).toEqual({
+      created_start: '2026-04-21 00:00:00',
+      created_end: '2026-04-21 23:59:59'
+    })
+  })
+
+  it('uses raw request params for request fields that share a code with searchable table fields', () => {
+    const service = createService()
+    const functionDetail = {
+      schema: {
+        version: 1,
+        type: 'table',
+        table: {
+          request: [
+            {
+              code: 'genre',
+              name: '体裁',
+              widget: { type: 'select' }
+            },
+            {
+              code: 'style',
+              name: '格律形式',
+              widget: { type: 'select' }
+            }
+          ],
+          fields: []
+        }
+      }
+    } as any
+
+    const restored = service.restoreFromURL(functionDetail, {
+      genre: '诗',
+      style: '律诗'
+    })
+
+    expect(restored.searchForm).toEqual({
+      genre: '诗',
+      style: '律诗'
+    })
+    expect(service.buildSearchParams(functionDetail, restored.searchForm)).toEqual({
+      genre: '诗',
+      style: '律诗'
+    })
+  })
+
+  it('restores request field values containing commas', () => {
+    const service = createService()
+    const functionDetail = {
+      schema: {
+        version: 1,
+        type: 'table',
+        table: {
+          request: [
+            {
+              code: 'title',
+              name: '标题',
+              widget: { type: 'input' }
+            },
+            {
+              code: 'author',
+              name: '作者',
+              widget: { type: 'input' }
+            }
+          ],
+          fields: []
+        }
+      }
+    } as any
+
+    const restored = service.restoreFromURL(functionDetail, {
+      title: '春风,又绿江南岸',
+      author: '王安石'
+    })
+
+    expect(restored.searchForm).toEqual({
+      title: '春风,又绿江南岸',
+      author: '王安石'
     })
   })
 
@@ -169,8 +269,14 @@ describe('TableDomainService URL restore', () => {
     const service = new TableDomainService(apiClient as any, stateManager as any, eventBus as any)
     const functionDetail = {
       router: '/orders',
-      request: [],
-      response: []
+      schema: {
+        version: 1,
+        type: 'table',
+        table: {
+          request: [],
+          fields: []
+        }
+      }
     } as any
 
     const oldLoad = service.loadData(functionDetail, { status: 'old' }, undefined, {

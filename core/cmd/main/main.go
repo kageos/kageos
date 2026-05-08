@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -16,6 +17,8 @@ import (
 	appStorageRunner "github.com/ai-agent-os/ai-agent-os/core/app-storage/runner"
 	controlServiceRunner "github.com/ai-agent-os/ai-agent-os/core/control-service/runner"
 	hrServerRunner "github.com/ai-agent-os/ai-agent-os/core/hr-server/runner"
+	messageServerRunner "github.com/ai-agent-os/ai-agent-os/core/message-server/runner"
+	timerSchedulerRunner "github.com/ai-agent-os/ai-agent-os/core/timer-scheduler/runner"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/infra"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -39,6 +42,20 @@ type ServiceInfo struct {
 var services []*ServiceInfo
 
 func init() {
+	devMode := strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "dev")
+	timerSchedulerDependsOn := []string(nil)
+	if devMode {
+		// GoLand 本地开发通常只启动这个统一入口；这里负责编排中心调度服务。
+		// 生产仍由独立 scheduler 容器/二进制启动 timer-scheduler，避免双实例。
+		services = append(services, &ServiceInfo{
+			Name:         "timer-scheduler",
+			Main:         timerSchedulerRunner.Main,
+			DependsOn:    nil,
+			ReadyChannel: make(chan struct{}, 1),
+		})
+		timerSchedulerDependsOn = []string{"timer-scheduler"}
+	}
+
 	// 注册要启动的服务（按依赖顺序）
 	// 1. Control Service（License 服务，其他服务可能依赖）
 	services = append(services, &ServiceInfo{
@@ -64,15 +81,7 @@ func init() {
 		ReadyChannel: make(chan struct{}, 1),
 	})
 
-	// 4. Agent Server（Agent 服务）
-	services = append(services, &ServiceInfo{
-		Name:         "agent-server",
-		Main:         agentServerRunner.Main,
-		DependsOn:    nil, // 无依赖
-		ReadyChannel: make(chan struct{}, 1),
-	})
-
-	// 5. HR Server（HR 服务，用户管理、组织架构）
+	// 4. HR Server（HR 服务，用户管理、组织架构）
 	services = append(services, &ServiceInfo{
 		Name:         "hr-server",
 		Main:         hrServerRunner.Main,
@@ -80,28 +89,51 @@ func init() {
 		ReadyChannel: make(chan struct{}, 1),
 	})
 
-	// 6. App Server（应用服务，依赖 app-runtime）
+	// 5. Message Server（系统通知/业务消息）
 	services = append(services, &ServiceInfo{
-		Name:         "app-server",
-		Main:         appServerRunner.Main,
-		DependsOn:    []string{"app-runtime"}, // ⭐ 依赖 app-runtime
+		Name:         "message-server",
+		Main:         messageServerRunner.Main,
+		DependsOn:    []string{"hr-server"},
 		ReadyChannel: make(chan struct{}, 1),
 	})
 
-	// 7. App Scheduler（定时任务调度器，独立于 app-server 运行）
-	// 注意：依赖 app-server 而不是直接依赖 app-runtime，避免多个服务同时消费同一个 ready channel。
+	agentServerDependsOn := append([]string{}, timerSchedulerDependsOn...)
+	agentServerDependsOn = append(agentServerDependsOn, "message-server")
+
+	// 6. Agent Server（Agent 服务；通知发布前等待 message-server）
 	services = append(services, &ServiceInfo{
-		Name:         "app-scheduler",
-		Main:         appServerRunner.SchedulerMain,
-		DependsOn:    []string{"app-server"},
+		Name:         "agent-server",
+		Main:         agentServerRunner.Main,
+		DependsOn:    agentServerDependsOn,
 		ReadyChannel: make(chan struct{}, 1),
 	})
+
+	appServerDependsOn := append([]string{"app-runtime", "message-server"}, timerSchedulerDependsOn...)
+
+	// 7. App Server（应用服务，依赖 app-runtime/message-server；dev 下还等待 timer-scheduler 就绪）
+	services = append(services, &ServiceInfo{
+		Name:         "app-server",
+		Main:         appServerRunner.Main,
+		DependsOn:    appServerDependsOn,
+		ReadyChannel: make(chan struct{}, 1),
+	})
+
+	apiGatewayDependsOn := []string{
+		"control-service",
+		"app-runtime",
+		"app-storage",
+		"hr-server",
+		"message-server",
+		"agent-server",
+		"app-server",
+	}
+	apiGatewayDependsOn = append(apiGatewayDependsOn, timerSchedulerDependsOn...)
 
 	// 8. API Gateway（API 网关，最后启动，因为依赖其他服务）
 	services = append(services, &ServiceInfo{
 		Name:         "api-gateway",
 		Main:         apiGatewayRunner.Main,
-		DependsOn:    nil, // 无依赖
+		DependsOn:    apiGatewayDependsOn,
 		ReadyChannel: make(chan struct{}, 1),
 	})
 }
@@ -115,7 +147,7 @@ func main() {
 	fmt.Println("========================================")
 	fmt.Println("  说明：")
 	fmt.Println("  - 生产默认 prod：优先读 deploy/prod/config/runtime，缺失时回退到 deploy/prod/config/template")
-	fmt.Println("  - 开发：APP_ENV=dev 读 deploy/dev/config")
+	fmt.Println("  - 开发：APP_ENV=dev 读 deploy/dev/config，并在本地统一入口编排 timer-scheduler")
 	fmt.Println("  - 正式部署入口：见 deploy/prod/README.md")
 	fmt.Println("  - 亦可拆分为各服务独立进程（各服务 cmd/app/main.go）或 K8s 分布式部署")
 	fmt.Println("========================================")
@@ -158,10 +190,15 @@ func main() {
 	var wg sync.WaitGroup
 	errors := make(chan error, len(services))
 
-	// 创建服务就绪映射（服务名称 -> 就绪通道）
-	serviceReadyMap := make(map[string]chan struct{})
+	// 创建服务就绪映射（服务名称 -> 广播式就绪通道）
+	serviceReadyMap := make(map[string]<-chan struct{})
 	for i := range services {
-		serviceReadyMap[services[i].Name] = services[i].ReadyChannel
+		readyDone := make(chan struct{})
+		serviceReadyMap[services[i].Name] = readyDone
+		go func(info *ServiceInfo, done chan<- struct{}) {
+			<-info.ReadyChannel
+			close(done)
+		}(services[i], readyDone)
 	}
 
 	fmt.Println("\n[启动服务]")

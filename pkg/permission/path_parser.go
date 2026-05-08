@@ -10,15 +10,16 @@ import (
 //   - pathParts: ["luobei", "operations", "procurement", "order", "cashier_product_list"]
 //   - user: "luobei"
 //   - app: "operations"
+//
 // ⭐ 注意：不返回 isFunction，因为无法通过路径深度判断资源类型，需要通过 ServiceTree 查询确定
 func ParseFullCodePath(fullCodePath string) (pathParts []string, user string, app string) {
 	pathParts = strings.Split(strings.Trim(fullCodePath, "/"), "/")
-	
+
 	if len(pathParts) >= 2 {
 		user = pathParts[0]
 		app = pathParts[1]
 	}
-	
+
 	return pathParts, user, app
 }
 
@@ -28,19 +29,19 @@ func ParseFullCodePath(fullCodePath string) (pathParts []string, user string, ap
 //   - ["/luobei/operations/procurement/order", "/luobei/operations/procurement", "/luobei/operations"]
 func GetParentPaths(fullCodePath string) []string {
 	pathParts := strings.Split(strings.Trim(fullCodePath, "/"), "/")
-	
+
 	if len(pathParts) < 4 {
 		// 路径深度 < 4，没有父目录（或父目录是应用级别）
 		return []string{}
 	}
-	
+
 	parentPaths := make([]string, 0)
 	// 从直接父目录开始，向上查找所有父目录（至少包含 user/app）
 	for i := len(pathParts) - 1; i >= 2; i-- {
 		parentPath := "/" + strings.Join(pathParts[:i], "/")
 		parentPaths = append(parentPaths, parentPath)
 	}
-	
+
 	return parentPaths
 }
 
@@ -69,4 +70,3 @@ func GetDirectoryPath(fullCodePath string) string {
 	}
 	return ""
 }
-

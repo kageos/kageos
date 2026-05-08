@@ -112,6 +112,8 @@ export interface HubFunctionInfo {
   full_code_path: string
   description: string
   template_type: string
+  callbacks?: string[]
+  schema?: unknown
   tags: string[]
   ref_id: number
   version: string

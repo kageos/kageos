@@ -40,7 +40,7 @@
       </div>
     </div>
 
-    <!-- 预览弹窗：Teleport 到 body，z-index 99999 -->
+    <!-- 预览弹窗：Teleport 到 body，层级由全局浮层协议控制 -->
     <Teleport to="body">
       <transition name="odf-preview-fade">
         <div

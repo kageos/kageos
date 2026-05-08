@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"sync"
-	"time"
 )
 
 var (
@@ -34,10 +33,11 @@ func GetAppServerConfig() *AppServerConfig {
 
 // AppServerConfig app-server 配置
 type AppServerConfig struct {
-	Server    AppServerServerConfig    `mapstructure:"server"`
-	Scheduler AppServerSchedulerConfig `mapstructure:"scheduler"`
-	Timeouts  AppServerTimeoutCfg      `mapstructure:"timeouts"`
-	DB        DBConfig                 `mapstructure:"db"`
+	Server          AppServerServerConfig      `mapstructure:"server"`
+	TimerWorker     AppServerTimerWorkerConfig `mapstructure:"timer_worker"`
+	Timeouts        AppServerTimeoutCfg        `mapstructure:"timeouts"`
+	DB              DBConfig                   `mapstructure:"db"`
+	ScheduledTaskDB DBConfig                   `mapstructure:"scheduled_task_db"`
 	// 注意：NATS、JWT、Control Service 配置已移至全局配置，不再在此处配置
 	// 数据库配置保留在服务配置中，因为微服务后续每个服务一个库
 }
@@ -51,14 +51,9 @@ type AppServerServerConfig struct {
 	EnablePprof *bool  `mapstructure:"enable_pprof"`
 }
 
-// AppServerSchedulerConfig app-server 定时任务调度配置
-type AppServerSchedulerConfig struct {
-	PollIntervalSeconds  int `mapstructure:"poll_interval_seconds"`
-	BatchSize            int `mapstructure:"batch_size"`
-	LeaseDurationSeconds int `mapstructure:"lease_duration_seconds"`
-	MaxConcurrency       int `mapstructure:"max_concurrency"`
-	HealthPort           int `mapstructure:"health_port"`
-	HealthMaxAgeSeconds  int `mapstructure:"health_max_age_seconds"`
+// AppServerTimerWorkerConfig app-server 定时任务执行器配置。
+type AppServerTimerWorkerConfig struct {
+	MaxConcurrency int `mapstructure:"max_concurrency"`
 }
 
 // AppServerTimeoutCfg 超时配置
@@ -121,56 +116,11 @@ func (c *AppServerConfig) GetNatsRequestTimeout() int {
 	return c.Timeouts.NatsRequest
 }
 
-func (c *AppServerConfig) GetSchedulerPollInterval() time.Duration {
-	if c.Scheduler.PollIntervalSeconds <= 0 {
-		return time.Second
-	}
-	return time.Duration(c.Scheduler.PollIntervalSeconds) * time.Second
-}
-
-func (c *AppServerConfig) GetSchedulerBatchSize() int {
-	if c.Scheduler.BatchSize <= 0 {
-		return 50
-	}
-	return c.Scheduler.BatchSize
-}
-
-func (c *AppServerConfig) GetSchedulerLeaseDuration() time.Duration {
-	seconds := c.Scheduler.LeaseDurationSeconds
-	if seconds <= 0 {
-		seconds = c.GetAppRequestTimeout() + 60
-		if seconds < 360 {
-			seconds = 360
-		}
-	}
-	return time.Duration(seconds) * time.Second
-}
-
-func (c *AppServerConfig) GetSchedulerMaxConcurrency() int {
-	if c.Scheduler.MaxConcurrency <= 0 {
+func (c *AppServerConfig) GetTimerWorkerMaxConcurrency() int {
+	if c.TimerWorker.MaxConcurrency <= 0 {
 		return 4
 	}
-	return c.Scheduler.MaxConcurrency
-}
-
-func (c *AppServerConfig) GetSchedulerHealthPort() int {
-	if c == nil {
-		return 9098
-	}
-	if c.Scheduler.HealthPort <= 0 {
-		return 9098
-	}
-	return c.Scheduler.HealthPort
-}
-
-func (c *AppServerConfig) GetSchedulerHeartbeatMaxAge() time.Duration {
-	if c == nil {
-		return 30 * time.Second
-	}
-	if c.Scheduler.HealthMaxAgeSeconds <= 0 {
-		return 30 * time.Second
-	}
-	return time.Duration(c.Scheduler.HealthMaxAgeSeconds) * time.Second
+	return c.TimerWorker.MaxConcurrency
 }
 
 // 数据库配置便捷访问方法
@@ -195,6 +145,47 @@ func (c *AppServerConfig) IsDBLogEnabled() bool {
 // GetDB 获取数据库配置
 func (c *AppServerConfig) GetDB() DBConfig {
 	return c.DB
+}
+
+// GetScheduledTaskDB 获取 app-server 业务定时任务数据库配置。
+func (c *AppServerConfig) GetScheduledTaskDB() DBConfig {
+	db := c.DB
+	if c.ScheduledTaskDB.Type != "" {
+		db.Type = c.ScheduledTaskDB.Type
+	}
+	if c.ScheduledTaskDB.Host != "" {
+		db.Host = c.ScheduledTaskDB.Host
+	}
+	if c.ScheduledTaskDB.Port > 0 {
+		db.Port = c.ScheduledTaskDB.Port
+	}
+	if c.ScheduledTaskDB.User != "" {
+		db.User = c.ScheduledTaskDB.User
+	}
+	if c.ScheduledTaskDB.Password != "" {
+		db.Password = c.ScheduledTaskDB.Password
+	}
+	if c.ScheduledTaskDB.Name != "" {
+		db.Name = c.ScheduledTaskDB.Name
+	} else {
+		db.Name = "app-scheduled-task"
+	}
+	if c.ScheduledTaskDB.MaxIdleConns > 0 {
+		db.MaxIdleConns = c.ScheduledTaskDB.MaxIdleConns
+	}
+	if c.ScheduledTaskDB.MaxOpenConns > 0 {
+		db.MaxOpenConns = c.ScheduledTaskDB.MaxOpenConns
+	}
+	if c.ScheduledTaskDB.MaxLifetime > 0 {
+		db.MaxLifetime = c.ScheduledTaskDB.MaxLifetime
+	}
+	if c.ScheduledTaskDB.LogLevel != "" {
+		db.LogLevel = c.ScheduledTaskDB.LogLevel
+	}
+	if c.ScheduledTaskDB.SlowThreshold > 0 {
+		db.SlowThreshold = c.ScheduledTaskDB.SlowThreshold
+	}
+	return db
 }
 
 // GetNats 获取 NATS 配置（从全局配置获取）
