@@ -181,7 +181,7 @@ const shortcuts = computed(() => {
 })
 
 const isRangeSearch = computed(() => {
-  const currentSearchType = resolveWidgetSearchType(props.searchType, props.field.search)
+  const currentSearchType = resolveWidgetSearchType(props.searchType)
   return currentSearchType.includes('gte') && currentSearchType.includes('lte')
 })
 

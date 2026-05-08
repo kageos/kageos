@@ -10,10 +10,10 @@ import (
 
 func TestTableSceneSelectors(t *testing.T) {
 	schema := NewTable(nil, []*widget.Field{
-		testField("id", widget.TypeID, SceneList),
+		testField("id", widget.TypeID, SceneCreate, SceneUpdate),
 		testField("title", widget.TypeInput),
-		testField("remaining_time", "", SceneList),
-		testField("create_note", "", SceneCreate),
+		testField("remaining_time", "", SceneCreate, SceneUpdate),
+		testField("create_note", "", SceneList, SceneUpdate),
 	}, []string{"OnTableAddRow", "OnTableAddRow", ""})
 
 	raw, err := json.Marshal(schema)
@@ -41,7 +41,7 @@ func TestTableSceneSelectors(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsInvalidDisplayScenes(t *testing.T) {
+func TestValidateRejectsInvalidHideScenes(t *testing.T) {
 	tests := []struct {
 		name   string
 		scenes []string
@@ -54,7 +54,7 @@ func TestValidateRejectsInvalidDisplayScenes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			schema := NewTable(nil, []*widget.Field{{
 				Code: "title",
-				Display: &widget.FieldDisplay{
+				Hide: &widget.FieldHide{
 					Scenes: tt.scenes,
 				},
 			}}, nil)
@@ -86,7 +86,7 @@ func TestValidateAggregatesFieldErrors(t *testing.T) {
 	}
 	for _, want := range []string{
 		`field "record_date" has unsupported widget type: date`,
-		`field "title" has unsupported display scene: detail`,
+		`field "title" has unsupported hide scene: detail`,
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("Validate() error = %v, want substring %q", err, want)
@@ -97,7 +97,7 @@ func TestValidateAggregatesFieldErrors(t *testing.T) {
 func TestListSceneForContainerWidgetIsIgnored(t *testing.T) {
 	schema := NewTable(nil, []*widget.Field{{
 		Code: "options",
-		Display: &widget.FieldDisplay{
+		Hide: &widget.FieldHide{
 			Scenes: []string{SceneList},
 		},
 	}}, nil)
@@ -134,7 +134,7 @@ func testField(code string, widgetType string, scenes ...string) *widget.Field {
 	field := &widget.Field{Code: code}
 	field.Widget.Type = widgetType
 	if scenes != nil {
-		field.Display = &widget.FieldDisplay{Scenes: scenes}
+		field.Hide = &widget.FieldHide{Scenes: scenes}
 	}
 	return field
 }

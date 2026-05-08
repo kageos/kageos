@@ -1,19 +1,17 @@
 import type { FunctionDetail } from '@/architecture/domain/types'
 import type { SortItem, TableState } from '@/architecture/domain/services/TableDomainService'
-import { buildURLSearchParams } from '@/utils/searchParams'
 import {
   getSearchFieldRawValue,
   hasSearchFieldValue
 } from '@/utils/searchFieldValue'
 import {
   getTableRequestFields,
-  getTableRequestSearchFields,
-  getTableResponseSearchFields
+  getTableRequestSearchFields
 } from '@/utils/functionSchemaSelectors'
 import {
-  isBackendSearchOperatorQueryKey,
   isPersistentPlatformStateQueryKey,
   isPlatformStateQueryKey,
+  isStaleTableFilterQueryKey,
   isTableControlQueryKey,
   isUnsupportedGeneratedFieldQueryKey
 } from '@/utils/queryParamKeys'
@@ -62,6 +60,10 @@ const getRequestSearchFields = (functionDetail: FunctionDetail) => {
   return getTableRequestSearchFields(functionDetail)
 }
 
+const formatSortItemForURL = (item: SortItem): string => {
+  return item.order === 'desc' ? `-${item.field}` : item.field
+}
+
 export const getTableRequestFieldCodes = (functionDetail: FunctionDetail): Set<string> => {
   const fieldCodes = new Set<string>()
 
@@ -86,17 +88,10 @@ export const buildTableURLQueryParams = (
     : (state.hasManualSort ? [] : buildDefaultSorts())
 
   if (finalSorts.length > 0) {
-    query.sorts = finalSorts.map((item: SortItem) => `${item.field}:${item.order}`).join(',')
+    query.sorts = finalSorts.map(formatSortItemForURL).join(',')
   }
 
-  const requestFieldsForURL = getRequestSearchFields(functionDetail)
-  const responseFieldsForURL = getTableResponseSearchFields(functionDetail)
-
-  // response 字段搜索表格结果集，使用后端操作符参数，
-  // 例如 `in=style:律诗`、`like=title:李白`。
-  Object.assign(query, buildURLSearchParams(state.searchForm, responseFieldsForURL))
-
-  requestFieldsForURL.forEach(field => {
+  getRequestSearchFields(functionDetail).forEach(field => {
     const value = state.searchForm[field.code]
     if (!hasSearchValue(value)) {
       return
@@ -147,11 +142,7 @@ export const preserveExistingTableQueryParams = (
       return
     }
 
-    if (isBackendSearchOperatorQueryKey(key)) {
-      // 后端操作符参数会从当前 table state 重建；只有显式 link 跳转时才透传。
-      if (isLinkNavigation) {
-        result[key] = normalizedValue
-      }
+    if (isStaleTableFilterQueryKey(key)) {
       return
     }
 
@@ -179,8 +170,7 @@ export const buildNextTableSyncQuery = (
       routeQuery,
       requestFieldCodes: getTableRequestFieldCodes(functionDetail),
       generatedFieldCodes: new Set([
-        ...getTableRequestSearchFields(functionDetail).map(field => field.code),
-        ...getTableResponseSearchFields(functionDetail).map(field => field.code)
+        ...getTableRequestSearchFields(functionDetail).map(field => field.code)
       ]),
       isLinkNavigation
     }),

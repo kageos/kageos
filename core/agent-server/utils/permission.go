@@ -18,4 +18,3 @@ func IsAdmin(adminList, user string) bool {
 	}
 	return false
 }
-

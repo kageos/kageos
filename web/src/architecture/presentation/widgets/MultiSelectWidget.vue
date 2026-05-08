@@ -13,6 +13,7 @@
           :placeholder="inlinePlaceholder"
           :disabled="!!config.disabled"
           :creatable="!!config.creatable"
+          :teleported="shouldTeleportPopper"
           :visible-values="inlineTagSummary.visibleValues"
           :hidden-count="inlineTagSummary.hiddenCount"
           :search-mode="mode === 'search'"
@@ -33,27 +34,27 @@
         <div class="select-container" @click="openDialog">
           <div class="select-content">
             <!-- 显示已选条目 -->
-            <div v-if="selectedValues.length > 0 && mode === 'search'" class="selected-search-tags">
+            <div v-if="selectedValues.length > 0 && mode === 'search'" class="selected-values">
               <el-tag
-                v-for="value in searchTagSummary.visibleValues"
+                v-for="value in selectionSummary.visibleValues"
                 :key="value"
                 :type="getOptionColorType(value)"
                 :color="getOptionColorValue(value)"
                 effect="light"
                 :style="getOptionTagStyle(value)"
                 :closable="true"
-                :class="['search-selected-tag', { 'search-selected-tag-neutral': !getOptionColor(value) }]"
+                :class="['filter-selected-value-chip', { 'filter-selected-value-chip-neutral': !getOptionColor(value) }]"
                 @close.stop="handleRemoveTag(value)"
               >
                 {{ getOptionLabel(value) }}
               </el-tag>
               <el-tag
-                v-if="searchTagSummary.hiddenCount > 0"
-                class="search-selected-tag search-summary-tag"
+                v-if="selectionSummary.hiddenCount > 0"
+                class="filter-selected-value-chip filter-summary-chip"
                 size="small"
                 disable-transitions
               >
-                +{{ searchTagSummary.hiddenCount }}
+                +{{ selectionSummary.hiddenCount }}
               </el-tag>
             </div>
             <div v-else-if="selectedValues.length > 0" class="selected-items-list">
@@ -98,6 +99,7 @@
         :max-selections="maxCount"
         :selected-values="selectedValues"
         :get-item-color="getOptionColor"
+        :append-to-body="shouldTeleportPopper"
         @search="handleDialogSearch"
         @select-multiple="handleDialogSelectMultiple"
         @select-all="handleDialogSelectAll"
@@ -118,7 +120,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElIcon } from 'element-plus'
 import { ArrowDown, Close } from '@element-plus/icons-vue'
 import FuzzySearchDialog from './FuzzySearchDialog.vue'
@@ -138,9 +140,10 @@ import { createFieldValue } from '@/architecture/presentation/widgets/utils/crea
 import type { MultiSelectWidgetConfig, SelectOptionConfig } from '@/core/types/widget-configs'
 import { buildMultiSelectRawValue } from '@/architecture/presentation/widgets/utils/multiSelectValue'
 import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/utils/searchType'
-import { buildSearchTagSummary } from '@/architecture/presentation/widgets/utils/searchTagSummary'
+import { buildSelectionSummary } from '@/architecture/presentation/widgets/utils/selectionSummary'
 import type { MultiSelectOptionItem } from './multiSelectWidgetTypes'
 import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
+import { prdPreviewContextKey } from '@/architecture/presentation/components/prdPreviewContext'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -153,12 +156,14 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 const emit = defineEmits<{
   'update:modelValue': [value: any]
 }>()
+const prdPreviewContext = inject(prdPreviewContextKey, null)
+const shouldTeleportPopper = computed(() => !prdPreviewContext?.interactive)
 
 const formDataStore = useFormDataStore()
 
 const callbackMethod = computed(() => props.formRenderer?.getFunctionMethod?.() || props.functionMethod || 'POST')
 const callbackRouter = computed(() => props.formRenderer?.getFunctionRouter?.() || props.functionRouter || '')
-const searchType = computed(() => resolveWidgetSearchType(props.searchType, props.field.search))
+const searchType = computed(() => resolveWidgetSearchType(props.searchType))
 
 // 获取配置（带类型）
 const config = computed(() => {
@@ -350,12 +355,12 @@ const inlineSelectedValues = computed({
   }
 })
 
-const searchTagSummary = computed(() => {
-  return buildSearchTagSummary(selectedValues.value, 1)
+const selectionSummary = computed(() => {
+  return buildSelectionSummary(selectedValues.value, 1)
 })
 
 const inlineTagSummary = computed(() => {
-  return buildSearchTagSummary(inlineSelectedValues.value, props.mode === 'search' ? 1 : 2)
+  return buildSelectionSummary(inlineSelectedValues.value, props.mode === 'search' ? 1 : 2)
 })
 
 // 当前统计信息（从回调接口获取）
@@ -971,7 +976,7 @@ onUnmounted(() => {
   width: 100%;
 }
 
-.selected-search-tags {
+.selected-values {
   display: flex;
   flex-wrap: nowrap;
   gap: 6px;
@@ -981,7 +986,7 @@ onUnmounted(() => {
   align-items: center;
 }
 
-.search-selected-tag {
+.filter-selected-value-chip {
   margin: 0;
   max-width: min(100%, 160px);
   overflow: hidden;
@@ -990,7 +995,7 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.search-selected-tag-neutral {
+.filter-selected-value-chip-neutral {
   border: 1px solid var(--el-border-color-lighter);
   background-color: var(--el-fill-color-light);
   color: var(--el-text-color-primary);
@@ -1023,7 +1028,7 @@ onUnmounted(() => {
   margin-left: 6px;
 }
 
-.search-summary-tag {
+.filter-summary-chip {
   flex-shrink: 0;
 }
 

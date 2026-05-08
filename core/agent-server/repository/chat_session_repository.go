@@ -115,4 +115,3 @@ func (r *ChatSessionRepository) ListFinishedByUser(user string, limit int) ([]*m
 	}
 	return sessions, nil
 }
-

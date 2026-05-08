@@ -10,7 +10,3 @@ func InitTables(db *gorm.DB) error {
 		&AppVersion{},
 	)
 }
-
-
-
-

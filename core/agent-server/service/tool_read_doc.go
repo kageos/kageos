@@ -59,7 +59,7 @@ func runReadDocTool(ctx context.Context, args readDocArgs, currentFullCodePath s
 			if i > 0 {
 				sb.WriteString("\n\n")
 			}
-			sb.WriteString("## " + fullCodePath + "\n\n旧 `/system/prompt/workspace/*` SOP 路径已下线。请使用 `read_skill` 读取匹配的 Skill，再按 skill 的 required_docs 读取 SDK、平台总览或案例文档。")
+			sb.WriteString("## " + fullCodePath + "\n\n旧 `/system/prompt/workspace/*` SOP 路径已下线。请先 `change_role` 到匹配身份；上下文不足时直接读取明确路径的 SDK、平台边界或案例文档。")
 			hasError = true
 			continue
 		}

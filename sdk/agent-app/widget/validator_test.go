@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
 	apptypes "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 )
 
@@ -35,27 +36,9 @@ type validatorOptionsSelectReq struct {
 	Status string `json:"status" widget:"name:状态;type:select;options:启用,禁用"`
 }
 
-type validatorBadSearchReq struct {
-	Age int `json:"age" widget:"name:年龄;type:number" search:"like"`
-}
-
-type validatorBadSearchCombinationReq struct {
-	Title string `json:"title" widget:"name:标题;type:input" search:"eq,like"`
-}
-
-type validatorUnsupportedSearchOperatorReq struct {
-	Score  int    `json:"score" widget:"name:分数;type:number" search:"gt"`
-	Status string `json:"status" widget:"name:状态;type:input" search:"not_in"`
-	Title  string `json:"title" widget:"name:标题;type:input" search:"not_like"`
-}
-
-type validatorBadSearchScalarReq struct {
-	Items []validatorFieldTagItem `json:"items" widget:"name:明细;type:table" search:"eq"`
-}
-
 type validatorAggregateReq struct {
 	InputFiles []string `json:"input_files" widget:"name:输入文件;type:files;max_count:-1"`
-	Age        int      `json:"age" widget:"name:年龄;type:number" search:"like,unknown"`
+	Age        int      `json:"age" widget:"name:年龄;type:number"`
 }
 
 type validatorAggregateResp struct {
@@ -168,16 +151,16 @@ type validatorBadCallbackMapSelectReq struct {
 }
 
 type validatorAuditGoodReq struct {
-	ID        int           `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:ID;type:ID" search:"eq" display:"scenes:list"`
-	CreatedAt apptypes.Time `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"`
-	UpdatedAt apptypes.Time `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"`
-	CreateBy  string        `json:"create_by" gorm:"column:create_by" widget:"name:创建人;type:user" search:"in" display:"scenes:list"`
+	ID        int           `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:ID;type:ID" hide:"create,update"`
+	CreatedAt apptypes.Time `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"`
+	UpdatedAt apptypes.Time `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"`
+	CreateBy  string        `json:"create_by" gorm:"column:create_by" widget:"name:创建人;type:user" hide:"create,update"`
 }
 
 type validatorBadAuditReq struct {
-	ID        int           `json:"id" gorm:"primaryKey;column:id" widget:"name:ID;type:number" search:"like" display:"scenes:create"`
-	CreatedAt apptypes.Time `json:"created_at" gorm:"column:created_on;type:datetime" widget:"name:创建时间;type:input;format:YYYY-MM-DD" search:"eq" display:"scenes:create"`
-	CreateBy  string        `json:"create_by" gorm:"column:creator" widget:"name:创建人;type:input" search:"like"`
+	ID        int           `json:"id" gorm:"primaryKey;column:id" widget:"name:ID;type:number" hide:"list,update"`
+	CreatedAt apptypes.Time `json:"created_at" gorm:"column:created_on;type:datetime" widget:"name:创建时间;type:input;format:YYYY-MM-DD" hide:"list,update"`
+	CreateBy  string        `json:"create_by" gorm:"column:creator" widget:"name:创建人;type:input"`
 	DeletedAt string        `json:"deleted_at" gorm:"column:deleted_at" widget:"name:删除时间;type:datetime"`
 }
 
@@ -189,11 +172,11 @@ type validatorBadFieldTagReq struct {
 	NameA         string                  `json:"name" widget:"name:名称A;type:input"`
 	NameB         string                  `json:"name" widget:"name:名称B;type:input"`
 	MissingType   string                  `json:"missing_type" widget:"name:缺少类型"`
-	BadDisplayKey string                  `json:"bad_display_key" widget:"name:展示;type:input" display:"scene:list"`
-	BadDisplay    string                  `json:"bad_display" widget:"name:展示;type:input" display:"scenes:detail"`
-	EmptyDisplay  string                  `json:"empty_display" widget:"name:展示;type:input" display:"scenes:"`
+	BadHide       string                  `json:"bad_hide" widget:"name:展示;type:input" hide:"detail"`
+	EmptyHide     string                  `json:"empty_hide" widget:"name:展示;type:input" hide:""`
+	DuplicateHide string                  `json:"duplicate_hide" widget:"name:展示;type:input" hide:"create,create"`
 	BadData       string                  `json:"bad_data" widget:"name:数据;type:input" data:"fmt:json"`
-	Items         []validatorFieldTagItem `json:"items" widget:"name:明细;type:table" display:"scenes:list"`
+	Items         []validatorFieldTagItem `json:"items" widget:"name:明细;type:table" hide:"create,update"`
 }
 
 type validatorBadDatetimeDefaultReq struct {
@@ -208,6 +191,11 @@ type validatorGoodDatetimeDefaultReq struct {
 
 type validatorTableConflictReq struct {
 	Status string `json:"status" widget:"name:状态入参;type:input"`
+}
+
+type validatorPageSortReqTableConflictReq struct {
+	Status string `json:"status" widget:"name:状态入参;type:input"`
+	query.PageSortReq
 }
 
 type validatorTableConflictModel struct {
@@ -236,11 +224,6 @@ func TestWidgetValidatorRejectsInvalidComponentParams(t *testing.T) {
 			name:  "depend_on target must exist",
 			model: &validatorBadDependOnReq{},
 			want:  `depend_on references unknown sibling field "province"`,
-		},
-		{
-			name:  "search operator must match type",
-			model: &validatorBadSearchReq{},
-			want:  `search operator "like" requires a string-like Go type`,
 		},
 		{
 			name:  "select needs options or callback",
@@ -346,17 +329,14 @@ func TestWidgetValidatorEnforcesAuditFieldConventions(t *testing.T) {
 	}
 	for _, want := range []string{
 		`audit field "id" must use widget type "ID"`,
-		`audit field "id" search tag must be "eq"`,
-		`audit field "id" display tag must be "scenes:list"`,
+		`audit field "id" hide tag must be "create,update"`,
 		`audit field "id" gorm tag must include autoIncrement`,
 		`audit field "created_at" must use widget type "datetime"`,
 		`audit field "created_at" datetime format must be "YYYY-MM-DD HH:mm:ss"`,
-		`audit field "created_at" search tag must be "gte,lte"`,
 		`audit field "created_at" gorm column must be "created_at"`,
 		`audit field "created_at" gorm tag must include autoCreateTime`,
 		`audit field "create_by" must use widget type "user"`,
-		`audit field "create_by" search tag must be "in"`,
-		`audit field "create_by" display tag must be "scenes:list"`,
+		`audit field "create_by" hide tag must be "create,update"`,
 		`audit field "create_by" gorm column must be "create_by"`,
 		`audit field "deleted_at" must be hidden with widget:"-" or json:"-"`,
 	} {
@@ -374,11 +354,10 @@ func TestWidgetValidatorRejectsInvalidFieldLevelTags(t *testing.T) {
 	for _, want := range []string{
 		`duplicate field code "name" in same level`,
 		`widget tag must include type`,
-		`unsupported display tag "scene"`,
-		`display scene must be one of list,create,update`,
-		`display tag "scenes" must not be empty`,
+		`hide scene must be one of list,create,update`,
+		`hide tag must not be empty`,
+		`hide scene "create" is duplicated`,
 		`unsupported data tag "fmt"`,
-		`container widget "table" cannot use display scene "list"`,
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("DecodeForm() error = %v, want substring %q", err, want)
@@ -404,11 +383,14 @@ func TestWidgetValidatorRejectsInvalidDatetimeDefaults(t *testing.T) {
 func TestDecodeTableRejectsRequestAndTableFieldCodeConflicts(t *testing.T) {
 	_, _, err := DecodeTable(nil, &validatorTableConflictReq{}, &validatorTableConflictModel{})
 	if err == nil {
-		t.Fatal("DecodeTable() error = nil, want error")
+		t.Fatal("DecodeTable() without PageSortReq error = nil, want error")
 	}
-	want := `table request field "status" (Status) conflicts with table model field "status" (Status)`
-	if !strings.Contains(err.Error(), want) {
-		t.Fatalf("DecodeTable() error = %v, want substring %q", err, want)
+}
+
+func TestDecodeTableAllowsPageSortReqRequestAndTableFieldCodeOverlap(t *testing.T) {
+	_, _, err := DecodeTable(nil, &validatorPageSortReqTableConflictReq{}, &validatorTableConflictModel{})
+	if err != nil {
+		t.Fatalf("DecodeTable() error = %v, want nil", err)
 	}
 }
 
@@ -424,44 +406,6 @@ func TestWidgetValidatorRejectsUnsupportedWidgetTags(t *testing.T) {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("DecodeForm() error = %v, want substring %q", err, want)
 		}
-	}
-}
-
-func TestWidgetValidatorRejectsInvalidSearchCombinations(t *testing.T) {
-	_, _, err := DecodeForm(nil, &validatorBadSearchCombinationReq{}, nil)
-	if err == nil {
-		t.Fatal("DecodeForm() error = nil, want error")
-	}
-	want := `search operators only support a single operator or range combination gte,lte`
-	if !strings.Contains(err.Error(), want) {
-		t.Fatalf("DecodeForm() error = %v, want substring %q", err, want)
-	}
-}
-
-func TestWidgetValidatorRejectsUnsupportedFrontendSearchOperators(t *testing.T) {
-	_, _, err := DecodeForm(nil, &validatorUnsupportedSearchOperatorReq{}, nil)
-	if err == nil {
-		t.Fatal("DecodeForm() error = nil, want error")
-	}
-	for _, want := range []string{
-		`unsupported search operator "gt"`,
-		`unsupported search operator "not_in"`,
-		`unsupported search operator "not_like"`,
-	} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("DecodeForm() error = %v, want substring %q", err, want)
-		}
-	}
-}
-
-func TestWidgetValidatorRejectsSearchOnNonScalarFields(t *testing.T) {
-	_, _, err := DecodeForm(nil, &validatorBadSearchScalarReq{}, nil)
-	if err == nil {
-		t.Fatal("DecodeForm() error = nil, want error")
-	}
-	want := `search operator "eq" requires scalar or datetime Go type`
-	if !strings.Contains(err.Error(), want) {
-		t.Fatalf("DecodeForm() error = %v, want substring %q", err, want)
 	}
 }
 
@@ -661,8 +605,6 @@ func TestDecodeFormAggregatesRequestAndResponseErrors(t *testing.T) {
 	for _, want := range []string{
 		"files widget uses comma-separated file refs and requires string Go type",
 		`widget tag "max_count" must be >= 0`,
-		`search operator "like" requires a string-like Go type`,
-		`unsupported search operator "unknown"`,
 		`widget "select" requires options or OnSelectFuzzyMap entry`,
 	} {
 		if !strings.Contains(err.Error(), want) {

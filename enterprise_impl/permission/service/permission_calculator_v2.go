@@ -153,27 +153,27 @@ func NewNodePermissionResolver(
 // Resolve 解析节点权限
 //
 // ⭐ 权限解析流程（按优先级）：
-//   1. checkExactPath：检查精确路径匹配
-//      - 检查当前资源路径是否有该权限点
-//      - 例如：检查 /user/app/dir/function 是否有 table:read 权限
 //
-//   2. checkParentPaths：检查父目录路径（权限继承 - 方式2：直接函数权限继承）
-//      - 向上查找父目录，检查是否有相同的权限点（直接继承，不需要转换）
-//      - 例如：父目录 /user/app/dir 配置了 table:write，子函数 /user/app/dir/function 直接继承 table:write
-//      - 例如：父目录配置了 table:admin，子函数继承 table:admin（拥有所有表格权限）
+//  1. checkExactPath：检查精确路径匹配
+//     - 检查当前资源路径是否有该权限点
+//     - 例如：检查 /user/app/dir/function 是否有 table:read 权限
 //
-//   3. checkPrefixMatch：检查前缀匹配（支持深层嵌套）
-//      - 检查是否有前缀路径配置了该权限点
-//      - 例如：/user/app/* 配置了 table:read，那么 /user/app/dir/function 继承该权限
+//  2. checkParentPaths：检查父目录路径（权限继承 - 方式2：直接函数权限继承）
+//     - 向上查找父目录，检查是否有相同的权限点（直接继承，不需要转换）
+//     - 例如：父目录 /user/app/dir 配置了 table:write，子函数 /user/app/dir/function 直接继承 table:write
+//     - 例如：父目录配置了 table:admin，子函数继承 table:admin（拥有所有表格权限）
 //
-//   4. checkAppLevelPermissions：检查应用级别权限
-//      - 如果用户有 app:admin 权限，拥有该应用下所有资源的权限
+//  3. checkPrefixMatch：检查前缀匹配（支持深层嵌套）
+//     - 检查是否有前缀路径配置了该权限点
+//     - 例如：/user/app/* 配置了 table:read，那么 /user/app/dir/function 继承该权限
+//
+//  4. checkAppLevelPermissions：检查应用级别权限
+//     - 如果用户有 app:admin 权限，拥有该应用下所有资源的权限
 //
 // ⭐ 权限继承方式：方式2（直接函数权限继承）
 //   - 不需要转换，直接匹配相同的权限点
 //   - 例如：父目录配置了 table:write → 子函数直接继承 table:write
 //   - 例如：父目录配置了 form:read → 子函数直接继承 form:read
-//
 func (r *NodePermissionResolver) Resolve(nodePath string) map[string]bool {
 	// 初始化节点权限（默认全部为 false）
 	nodePerms := make(map[string]bool)
@@ -332,7 +332,7 @@ func (a *PermissionInheritanceApplier) Apply(
 // RoleAssignmentLoader 角色分配加载器（负责加载和构建角色权限映射）
 type RoleAssignmentLoader struct {
 	roleAssignmentRepo *repository.RoleAssignmentRepository
-	roleCache           *RoleCache
+	roleCache          *RoleCache
 }
 
 // NewRoleAssignmentLoader 创建角色分配加载器
@@ -342,7 +342,7 @@ func NewRoleAssignmentLoader(
 ) *RoleAssignmentLoader {
 	return &RoleAssignmentLoader{
 		roleAssignmentRepo: roleAssignmentRepo,
-		roleCache:           roleCache,
+		roleCache:          roleCache,
 	}
 }
 
@@ -391,7 +391,7 @@ func (l *RoleAssignmentLoader) Load(
 // PermissionCalculatorV2 权限计算器 V2（结构化版本）
 type PermissionCalculatorV2 struct {
 	roleAssignmentLoader *RoleAssignmentLoader
-	inheritanceApplier    *PermissionInheritanceApplier
+	inheritanceApplier   *PermissionInheritanceApplier
 }
 
 // NewPermissionCalculatorV2 创建权限计算器 V2
@@ -401,7 +401,7 @@ func NewPermissionCalculatorV2(
 ) *PermissionCalculatorV2 {
 	return &PermissionCalculatorV2{
 		roleAssignmentLoader: NewRoleAssignmentLoader(roleAssignmentRepo, roleCache),
-		inheritanceApplier:    NewPermissionInheritanceApplier(),
+		inheritanceApplier:   NewPermissionInheritanceApplier(),
 	}
 }
 

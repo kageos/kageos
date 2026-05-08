@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
 	apptypes "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 )
 
@@ -60,7 +61,7 @@ type OmitEmptyFieldSample struct {
 }
 
 type DateTimeFieldSample struct {
-	CreatedAt apptypes.Time `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"`
+	CreatedAt apptypes.Time `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"`
 }
 
 type RenderDefaultFieldSample struct {
@@ -72,12 +73,17 @@ type VoteOptionItemSample struct {
 	Sort    int    `json:"sort" widget:"name:排序;type:number"`
 }
 
-type DisplayCreateTableFieldSample struct {
-	Options []VoteOptionItemSample `json:"options" widget:"name:投票选项;type:table" display:"scenes:create"`
+type HideCreateTableFieldSample struct {
+	Options []VoteOptionItemSample `json:"options" widget:"name:投票选项;type:table" hide:"list,update"`
 }
 
-type EmptyDisplayScenesFieldSample struct {
-	Title string `json:"title" widget:"name:标题;type:input" display:"scenes:"`
+type EmptyHideScenesFieldSample struct {
+	Title string `json:"title" widget:"name:标题;type:input" hide:""`
+}
+
+type PageSortReqSkipSample struct {
+	Name string `json:"name" widget:"name:名称;type:input"`
+	query.PageSortReq
 }
 
 func TestDecodeForm(t *testing.T) {
@@ -249,32 +255,45 @@ func TestDecodeForm(t *testing.T) {
 		}
 	})
 
-	t.Run("table字段保留create display scenes", func(t *testing.T) {
-		fields, _, err := DecodeForm(nil, &DisplayCreateTableFieldSample{}, nil)
+	t.Run("table字段保留hide scenes", func(t *testing.T) {
+		fields, _, err := DecodeForm(nil, &HideCreateTableFieldSample{}, nil)
 		if err != nil {
 			t.Fatalf("解析失败: %v", err)
 		}
 		if len(fields) != 1 {
 			t.Fatalf("期望1个字段，实际得到%d个", len(fields))
 		}
-		if fields[0].Display == nil {
-			t.Fatal("Display should not be nil")
+		if fields[0].Hide == nil {
+			t.Fatal("Hide should not be nil")
 		}
-		if got, want := strings.Join(fields[0].Display.Scenes, ","), "create"; got != want {
-			t.Fatalf("display scenes = %q, want %q", got, want)
+		if got, want := strings.Join(fields[0].Hide.Scenes, ","), "list,update"; got != want {
+			t.Fatalf("hide scenes = %q, want %q", got, want)
 		}
 		if len(fields[0].Children) != 2 {
 			t.Fatalf("table children = %d, want 2", len(fields[0].Children))
 		}
 	})
 
-	t.Run("空display scenes启动期报错", func(t *testing.T) {
-		_, _, err := DecodeForm(nil, &EmptyDisplayScenesFieldSample{}, nil)
+	t.Run("空hide scenes启动期报错", func(t *testing.T) {
+		_, _, err := DecodeForm(nil, &EmptyHideScenesFieldSample{}, nil)
 		if err == nil {
 			t.Fatal("DecodeForm() error = nil, want error")
 		}
-		if !strings.Contains(err.Error(), `display tag "scenes" must not be empty`) {
-			t.Fatalf("DecodeForm() error = %v, want empty scenes error", err)
+		if !strings.Contains(err.Error(), `hide tag must not be empty`) {
+			t.Fatalf("DecodeForm() error = %v, want empty hide error", err)
+		}
+	})
+
+	t.Run("PageSortReq不会渲染成业务字段", func(t *testing.T) {
+		fields, _, err := DecodeForm(nil, &PageSortReqSkipSample{}, nil)
+		if err != nil {
+			t.Fatalf("解析失败: %v", err)
+		}
+		if len(fields) != 1 {
+			t.Fatalf("期望1个字段，实际得到%d个", len(fields))
+		}
+		if fields[0].Code != "name" {
+			t.Fatalf("fields[0].Code = %q, want name", fields[0].Code)
 		}
 	})
 

@@ -32,13 +32,13 @@ describe('tableInitializationRuntime', () => {
     expect(
       normalizeTableRouteQuery({
         page: 2,
-        sorts: ['id:desc', null, 'name:asc'],
+        sorts: ['-id', null, 'name'],
         empty: null,
         keyword: 'alice'
       })
     ).toEqual({
       page: '2',
-      sorts: ['id:desc', 'name:asc'],
+      sorts: ['-id', 'name'],
       keyword: 'alice'
     })
   })

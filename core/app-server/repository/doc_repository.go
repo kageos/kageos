@@ -87,7 +87,7 @@ func (r *DocRepository) GetByIDs(ids []int64) ([]*model.Docs, error) {
 	if len(ids) == 0 {
 		return []*model.Docs{}, nil
 	}
-	
+
 	var docs []*model.Docs
 	if err := r.db.Where("id IN ?", ids).Find(&docs).Error; err != nil {
 		return nil, err
@@ -102,12 +102,12 @@ func (r *DocRepository) GetByFullCodePaths(paths []string) ([]*model.Docs, error
 	if len(paths) == 0 {
 		return []*model.Docs{}, nil
 	}
-	
+
 	var docs []*model.Docs
 	if err := r.db.Where("full_code_path IN ?", paths).Find(&docs).Error; err != nil {
 		return nil, err
 	}
-	
+
 	return docs, nil
 }
 

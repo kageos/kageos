@@ -44,11 +44,11 @@ export namespace WidgetTypes {
   /**
    * 字段配置（完整版）
    */
-  export type DisplayScene = 'list' | 'create' | 'update'
+  export type FieldScene = 'list' | 'create' | 'update'
 
-  export interface FieldDisplayConfig {
-    /** 前端展示场景：list=列表，create=新增表单，update=编辑表单。未配置表示三个场景均展示；table/form 容器组件不会作为列表列渲染。 */
-    scenes?: DisplayScene[]
+  export interface FieldHideConfig {
+    /** 前端隐藏场景：list=列表，create=新增表单，update=编辑表单。未配置表示三个场景均展示；table/form 容器组件不会作为列表列渲染。 */
+    scenes?: FieldScene[]
   }
 
   export interface FieldConfig {
@@ -65,7 +65,7 @@ export namespace WidgetTypes {
       example?: string
     }
     callbacks?: string[]  // 字段级别的回调，如 ['OnSelectFuzzy']
-    display?: FieldDisplayConfig  // 前端展示场景，不存在表示列表/新增/编辑均展示；table/form 容器不会作为列表列渲染
+    hide?: FieldHideConfig  // 前端隐藏场景，不存在表示列表/新增/编辑均展示；table/form 容器不会作为列表列渲染
     field_name?: string  // Go 字段名（用于验证规则中的字段引用，如 required_if=MemberType vip）
     depend_on?: string  // 依赖的字段 code，当依赖字段值变化时，该字段会被清空
 
@@ -122,8 +122,8 @@ export namespace WidgetTypes {
 export type WidgetMode = WidgetTypes.WidgetMode
 export type WidgetConfig = WidgetTypes.WidgetConfig
 export type FieldConfig = WidgetTypes.FieldConfig
-export type DisplayScene = WidgetTypes.DisplayScene
-export type FieldDisplayConfig = WidgetTypes.FieldDisplayConfig
+export type FieldScene = WidgetTypes.FieldScene
+export type FieldHideConfig = WidgetTypes.FieldHideConfig
 export type FieldValue = WidgetTypes.FieldValue
 export type FieldMeta = WidgetTypes.FieldMeta
 export type ValidationRule = WidgetTypes.ValidationRule

@@ -50,7 +50,7 @@ func (s *DirectoryUpdateHistoryService) GetAppVersionUpdateHistory(ctx context.C
 	for _, history := range histories {
 		directoryPaths = append(directoryPaths, history.FullCodePath)
 	}
-	
+
 	// 批量查询目录信息
 	directoryInfos, err := s.serviceTreeRepo.GetServiceTreeByFullPaths(directoryPaths)
 	if err != nil {
@@ -125,7 +125,7 @@ func (s *DirectoryUpdateHistoryService) GetAppVersionUpdateHistory(ctx context.C
 
 	resp := &dto.GetAppVersionUpdateHistoryResp{
 		AppID:      appID,
-		AppVersion: appVersion, // 如果为空，表示返回所有版本
+		AppVersion: appVersion,   // 如果为空，表示返回所有版本
 		Versions:   versionInfos, // 二维数组：版本列表，每个版本包含目录变更数组
 	}
 
@@ -195,8 +195,8 @@ func (s *DirectoryUpdateHistoryService) GetDirectoryUpdateHistory(ctx context.Co
 	}
 
 	resp := &dto.GetDirectoryUpdateHistoryResp{
-		AppID:         appID,
-		FullCodePath:  fullCodePath,
+		AppID:            appID,
+		FullCodePath:     fullCodePath,
 		DirectoryChanges: directoryChanges,
 		Paginated: &dto.PaginatedInfo{
 			CurrentPage: page,
@@ -209,4 +209,3 @@ func (s *DirectoryUpdateHistoryService) GetDirectoryUpdateHistory(ctx context.Co
 	logger.Infof(ctx, "[DirectoryUpdateHistoryService] GetDirectoryUpdateHistory success: appID=%d, fullCodePath=%s, count=%d, total=%d", appID, fullCodePath, len(histories), total)
 	return resp, nil
 }
-

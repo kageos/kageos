@@ -7,14 +7,14 @@
     <div class="select-content">
       <div class="select-main">
         <template v-if="searchMode && hasValue">
-          <div class="search-selected-tag">
+          <div class="filter-selected-value-chip">
             <span class="search-selected-indicator" />
             <span class="select-label">{{ displayValue }}</span>
           </div>
           <div class="select-actions">
             <el-icon
               v-if="showClear"
-              class="search-tag-remove"
+              class="selected-value-remove"
               @click.stop="$emit('clear')"
             >
               <Close />
@@ -145,7 +145,7 @@ defineEmits<{
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--el-color-primary) 16%, transparent);
 }
 
-.search-selected-tag {
+.filter-selected-value-chip {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -158,7 +158,7 @@ defineEmits<{
   border: 1px solid var(--el-color-primary-light-7);
 }
 
-.search-selected-tag .select-label {
+.filter-selected-value-chip .select-label {
   font-weight: 500;
   color: var(--el-color-primary-dark-2);
 }
@@ -208,7 +208,7 @@ defineEmits<{
   font-size: 14px;
 }
 
-.search-tag-remove {
+.selected-value-remove {
   width: 18px;
   height: 18px;
   border-radius: 999px;
@@ -218,7 +218,7 @@ defineEmits<{
   cursor: pointer;
 }
 
-.search-tag-remove:hover {
+.selected-value-remove:hover {
   color: white;
   background-color: var(--el-color-danger);
 }

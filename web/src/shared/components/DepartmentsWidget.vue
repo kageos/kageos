@@ -26,7 +26,7 @@
           >
             <template #reference>
               <div
-                class="selected-department-tag"
+                class="selected-department-chip"
                 @click.stop
               >
                 <img src="/组织架构.svg" alt="组织架构" class="department-icon-small" />
@@ -565,7 +565,7 @@ async function loadDepartmentTree(): Promise<void> {
   align-items: center;
 }
 
-.selected-department-tag {
+.selected-department-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;

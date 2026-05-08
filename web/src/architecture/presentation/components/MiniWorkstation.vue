@@ -39,41 +39,7 @@
         <span class="mini-ws-dir-name" :title="fullCodePath + (firstUserMessageFull ? '\n\n' + firstUserMessageFull : '')">
           {{ dirName || displayPath }}{{ firstUserMessagePreview ? ' · ' + firstUserMessagePreview : '' }}
         </span>
-        <span :class="['mini-ws-state', { 'is-running': sending }]">
-          <span class="mini-ws-state-dot"></span>
-          {{ sending ? 'RUNNING' : 'READY' }}
-        </span>
         <div class="mini-ws-header-actions" @mousedown.stop>
-          <el-dropdown
-            split-button
-            size="small"
-            trigger="click"
-            placement="bottom-end"
-            class="mini-copy-split"
-            popper-class="mini-copy-dropdown-popper"
-            title="复制调试对话"
-            @click.stop="copyDebugConversation('all')"
-            @command="handleCopyDebugCommand"
-            @visible-change="copyDropdownOpen = $event"
-            @mousedown.stop
-          >
-            <el-icon :size="14"><CopyDocument /></el-icon>
-            <span>复制</span>
-            <template #dropdown>
-              <el-dropdown-menu class="mini-copy-dropdown-menu">
-                <el-dropdown-item command="all">复制全部对话</el-dropdown-item>
-                <el-dropdown-item command="last-turn">复制最后一轮</el-dropdown-item>
-                <el-dropdown-item command="all-tools">复制全部工具调用</el-dropdown-item>
-                <el-dropdown-item command="error-tools">复制失败工具调用</el-dropdown-item>
-                <el-dropdown-item command="success-tools">复制成功工具调用</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-          <el-tooltip content="定时执行" placement="bottom" effect="light">
-            <el-button link size="small" title="定时执行" @click="openNewScheduledAgentTaskDialog">
-              <el-icon :size="14"><Timer /></el-icon>
-            </el-button>
-          </el-tooltip>
           <el-dropdown
             ref="keyInfoDropdownRef"
             v-if="panelHasContent"
@@ -140,6 +106,7 @@
           :format-message-time="formatMessageTime"
           :get-file-groups-from-calls="getFileGroupsFromCalls"
           :get-display-fields-from-calls="getDisplayFieldsFromCalls"
+          @confirm-prd="handleConfirmPrd"
         />
       </div>
 
@@ -176,9 +143,85 @@
         :on-input-enter="onInputEnter"
         @update:input-text="inputText = $event"
         @update:selected-l-l-m-config-id="selectedLLMConfigId = $event"
+        @schedule="openNewScheduledAgentTaskDialog"
         @stop="handleStopSession"
         @send="handleSend"
-      />
+      >
+        <template #left-actions>
+          <el-popover
+            trigger="click"
+            placement="top-start"
+            width="430"
+            popper-class="mini-settings-popover"
+            @visible-change="settingsPopoverOpen = $event"
+          >
+            <template #reference>
+              <el-button
+                link
+                size="small"
+                class="mini-settings-btn"
+                title="设置"
+                data-testid="mini-workstation-settings"
+                @mousedown.stop
+                @click.stop
+              >
+                <el-icon :size="15"><Setting /></el-icon>
+              </el-button>
+            </template>
+            <div class="mini-settings-panel" @mousedown.stop @click.stop>
+              <section class="mini-settings-section">
+                <div class="mini-settings-section-title">复制</div>
+                <div class="mini-settings-copy-grid">
+                  <button type="button" @click="copyDebugConversation('all')">全部对话</button>
+                  <button type="button" @click="copyDebugConversation('last-turn')">最后一轮</button>
+                  <button type="button" @click="copyDebugConversation('all-tools')">全部工具</button>
+                  <button type="button" @click="copyDebugConversation('error-tools')">失败工具</button>
+                  <button type="button" @click="copyDebugConversation('success-tools')">成功工具</button>
+                </div>
+              </section>
+              <section class="mini-settings-section">
+                <header class="mini-debug-head">
+                  <div>
+                    <span class="mini-debug-kicker">Tool Trace</span>
+                    <strong>调用摘要</strong>
+                  </div>
+                  <button
+                    type="button"
+                    class="mini-debug-copy-btn"
+                    :disabled="debugToolSteps.length === 0"
+                    @click="copyDebugToolSummary"
+                  >
+                    复制摘要
+                  </button>
+                </header>
+                <div class="mini-debug-stats">
+                  <span>{{ debugToolSteps.length }} 步</span>
+                  <span>{{ debugSuccessCount }} 成功</span>
+                  <span>{{ debugErrorCount }} 失败</span>
+                </div>
+                <div v-if="debugToolSteps.length" class="mini-debug-list">
+                  <article
+                    v-for="step in debugToolSteps"
+                    :key="step.key"
+                    class="mini-debug-step"
+                    :class="`is-${step.statusClass}`"
+                  >
+                    <div class="mini-debug-step-title">
+                      <span>第 {{ step.index }} 步</span>
+                      <strong>{{ step.name }}</strong>
+                      <em>{{ step.statusLabel }}</em>
+                    </div>
+                    <pre v-if="step.argumentsPreview" class="mini-debug-snippet">参数: {{ step.argumentsPreview }}</pre>
+                    <pre v-if="step.outputPreview" class="mini-debug-snippet">输出: {{ step.outputPreview }}</pre>
+                    <pre v-if="step.errorPreview" class="mini-debug-snippet mini-debug-snippet--error">错误: {{ step.errorPreview }}</pre>
+                  </article>
+                </div>
+                <div v-else class="mini-debug-empty">暂无工具调用记录</div>
+              </section>
+            </div>
+          </el-popover>
+        </template>
+      </MiniWorkstationComposer>
 
       <!-- 拖拽上传遮罩 -->
       <transition name="el-fade-in-linear">
@@ -214,7 +257,7 @@
 
 <script setup lang="ts">
 import { ref, onUnmounted, computed, watch } from 'vue'
-import { Loading, Close, Minus, FullScreen, CopyDocument, FolderOpened, UploadFilled, Document as DocumentIcon, Timer } from '@element-plus/icons-vue'
+import { Loading, Close, Minus, FullScreen, CopyDocument, FolderOpened, UploadFilled, Document as DocumentIcon, Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import {
   useWorkspaceChatStream,
@@ -270,8 +313,8 @@ const scheduledDialogKey = ref(0)
 const scheduledDraftGoal = ref('')
 const scheduledDraftFiles = ref('')
 const llmSelectOpen = ref(false)
-const copyDropdownOpen = ref(false)
-const interactionOpen = computed(() => llmSelectOpen.value || copyDropdownOpen.value)
+const settingsPopoverOpen = ref(false)
+const interactionOpen = computed(() => llmSelectOpen.value || settingsPopoverOpen.value)
 
 function registerInputRef(element: HTMLTextAreaElement | null) {
   inputRef.value = element || undefined
@@ -410,11 +453,56 @@ function openNewScheduledAgentTaskDialog() {
 }
 
 type CopyDebugMode = 'all' | 'last-turn' | 'all-tools' | 'error-tools' | 'success-tools'
-
-function handleCopyDebugCommand(command: string | number | object) {
-  if (typeof command !== 'string') return
-  void copyDebugConversation(command as CopyDebugMode)
+interface DebugToolStep {
+  key: string
+  index: number
+  name: string
+  status: string
+  statusLabel: string
+  statusClass: 'running' | 'ok' | 'error' | 'default'
+  argumentsPreview: string
+  outputPreview: string
+  errorPreview: string
+  copyText: string
 }
+
+const DEBUG_HEAD_LINES = 10
+const DEBUG_TAIL_LINES = 10
+const DEBUG_SINGLE_LINE_LIMIT = 220
+
+const debugToolSteps = computed<DebugToolStep[]>(() => {
+  const steps: DebugToolStep[] = []
+  for (const [messageIndex, message] of messages.value.entries()) {
+    const calls = collectMessageToolCalls(message)
+    calls.forEach((call, callIndex) => {
+      const index = steps.length + 1
+      const status = call.status || '-'
+      const argumentsPreview = buildDebugPreview(call.arguments, true)
+      const outputPreview = call.result
+        ? buildDebugPreview(call.result)
+        : call.result_data != null
+          ? buildDebugPreview(call.result_data, true)
+          : ''
+      const errorPreview = buildDebugPreview(call.error)
+      steps.push({
+        key: `${messageIndex}-${callIndex}-${call.name || 'tool'}-${index}`,
+        index,
+        name: call.name || '(unknown)',
+        status,
+        statusLabel: getToolStatusLabel(status),
+        statusClass: getToolStatusClass(status),
+        argumentsPreview,
+        outputPreview,
+        errorPreview,
+        copyText: formatDebugToolStepForCopy(index, call, argumentsPreview, outputPreview, errorPreview)
+      })
+    })
+  }
+  return steps
+})
+
+const debugSuccessCount = computed(() => debugToolSteps.value.filter(step => step.statusClass === 'ok').length)
+const debugErrorCount = computed(() => debugToolSteps.value.filter(step => step.statusClass === 'error').length)
 
 async function copyDebugConversation(mode: CopyDebugMode) {
   const text = buildDebugCopyText(mode)
@@ -429,6 +517,95 @@ async function copyDebugConversation(mode: CopyDebugMode) {
   } catch {
     ElMessage.error('复制失败')
   }
+}
+
+async function copyDebugToolSummary() {
+  const text = buildDebugToolSummaryText()
+  if (!text.trim()) {
+    ElMessage.warning('当前没有工具调用记录')
+    return
+  }
+
+  try {
+    await copyTextToClipboard(text)
+    ElMessage.success('已复制调用摘要')
+  } catch {
+    ElMessage.error('复制失败')
+  }
+}
+
+function buildDebugToolSummaryText() {
+  if (debugToolSteps.value.length === 0) return ''
+  return [
+    '# Mini 工具调用摘要',
+    `目录: ${props.fullCodePath || '-'}`,
+    `目录名: ${props.dirName || displayPath.value || '-'}`,
+    `会话ID: ${sessionId.value || '-'}`,
+    `工具调用: ${debugToolSteps.value.length} 步，成功 ${debugSuccessCount.value}，失败 ${debugErrorCount.value}`,
+    `复制时间: ${new Date().toISOString()}`,
+    '',
+    debugToolSteps.value.map(step => step.copyText).join('\n\n')
+  ].join('\n')
+}
+
+function formatDebugToolStepForCopy(
+  index: number,
+  call: ChatMessageToolCall,
+  argumentsPreview: string,
+  outputPreview: string,
+  errorPreview: string
+) {
+  const parts = [`## 第 ${index} 步 ${call.name || '(unknown)'} [${getToolStatusLabel(call.status || '-')}]`]
+  if (argumentsPreview) parts.push('', '参数:', fenceContent(argumentsPreview, 'json'))
+  if (outputPreview) parts.push('', '输出摘要:', fenceContent(outputPreview))
+  if (errorPreview) parts.push('', '错误摘要:', fenceContent(errorPreview))
+  return parts.join('\n')
+}
+
+function buildDebugPreview(value: unknown, preferJson = false) {
+  if (value == null) return ''
+  const raw = typeof value === 'string'
+    ? (preferJson ? formatMaybeJson(value) : formatLooseText(value))
+    : formatJsonValue(value)
+  return truncateDebugPreview(raw)
+}
+
+function truncateDebugPreview(value: string) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+
+  const lines = text.split(/\r?\n/)
+  if (lines.length > DEBUG_HEAD_LINES + DEBUG_TAIL_LINES) {
+    const omitted = lines.length - DEBUG_HEAD_LINES - DEBUG_TAIL_LINES
+    return [
+      ...lines.slice(0, DEBUG_HEAD_LINES),
+      `... 省略 ${omitted} 行 ...`,
+      ...lines.slice(-DEBUG_TAIL_LINES)
+    ].join('\n')
+  }
+
+  if (lines.length === 1 && text.length > DEBUG_SINGLE_LINE_LIMIT) {
+    const head = text.slice(0, 80)
+    const tail = text.slice(-80)
+    return `${head}\n... 省略 ${text.length - 160} 字符 ...\n${tail}`
+  }
+
+  return text
+}
+
+function getToolStatusLabel(status: string) {
+  if (status === 'streaming') return '解析中'
+  if (status === 'running') return '执行中'
+  if (status === 'ok' || status === 'success') return '成功'
+  if (status === 'error' || status === 'failed') return '失败'
+  return status || '-'
+}
+
+function getToolStatusClass(status: string): DebugToolStep['statusClass'] {
+  if (status === 'streaming' || status === 'running') return 'running'
+  if (status === 'ok' || status === 'success') return 'ok'
+  if (status === 'error' || status === 'failed') return 'error'
+  return 'default'
 }
 
 function buildDebugCopyText(mode: CopyDebugMode) {
@@ -685,7 +862,8 @@ const {
   selectedLLMConfigId,
   onLLMSelectVisibleChange: loadLLMOptionsOnVisibleChange,
   onInputEnter,
-  handleSend
+  handleSend,
+  sendTextInNewSession
 } = useMiniWorkstationComposer({
   fullCodePath: fullCodePathRef,
   sessionId,
@@ -710,6 +888,38 @@ const {
 function onLLMSelectVisibleChange(visible: boolean) {
   llmSelectOpen.value = visible
   loadLLMOptionsOnVisibleChange(visible)
+}
+
+function handleConfirmPrd(payload: { remark: string; prd: unknown }) {
+  const remark = payload.remark.trim()
+  const prdJson = stringifyPrdForHandoff(payload.prd)
+  const content = [
+    '已确认 PRD，开始创建目录和生成代码。',
+    '',
+    '这是确认后的开发执行阶段。请先调用 change_role，target_role 固定为 app.create。',
+    '生成阶段请忽略此前需求澄清历史，只以本消息中的 PRD JSON 和补充备注为准；不要重新输出 PRD，不要再次询问确认。',
+    '必须先读取 1 到多个匹配案例，再根据 PRD models.fields 自动生成 Go struct，创建目录、写 Go 文件、注册路由并 build；非常简单的需求才可跳过额外案例。',
+    '',
+    'PRD JSON:',
+    '```json',
+    prdJson,
+    '```',
+    remark ? `\n补充备注：\n${remark}` : '',
+  ].filter(Boolean).join('\n')
+  const displayContent = remark
+    ? `已确认 PRD，开始创建目录和生成代码。\n\n补充备注：\n${remark}`
+    : '已确认 PRD，开始创建目录和生成代码。'
+  setMessages([])
+  sessionId.value = undefined
+  void sendTextInNewSession(content, displayContent)
+}
+
+function stringifyPrdForHandoff(prd: unknown): string {
+  try {
+    return JSON.stringify(prd, null, 2)
+  } catch {
+    return '{}'
+  }
 }
 
 watch(
@@ -832,12 +1042,6 @@ onUnmounted(() => {
     0 0 0 1px rgba(138, 232, 255, 0.06),
     0 0 24px rgba(34, 211, 238, 0.1);
 }
-.mini-ws:not(.mini-ws--maximized):is(:hover, :focus-within),
-.mini-ws:not(.mini-ws--maximized).mini-ws--interaction-open {
-  width: min(calc(var(--mini-ws-base-width, 320px) + 96px), calc(100vw - 32px)) !important;
-  height: min(calc(var(--mini-ws-base-height, 220px) + 168px), calc(100vh - 40px)) !important;
-}
-
 /* ── Resize 手柄 ── */
 .mini-resize-handle { position: absolute; z-index: 6; }
 .mini-resize-n  { top: -3px; left: 6px; right: 6px; height: 6px; cursor: n-resize; }
@@ -926,43 +1130,6 @@ onUnmounted(() => {
   padding: 0 4px;
   text-shadow: 0 0 12px rgba(34, 211, 238, 0.22);
 }
-.mini-ws-state {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border: 1px solid rgba(125, 211, 252, 0.2);
-  border-radius: 999px;
-  background: rgba(8, 22, 38, 0.72);
-  color: var(--mini-cyber-muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  transition: opacity 0.16s ease, width 0.16s ease, padding 0.16s ease, border-color 0.16s ease;
-}
-.mini-ws:not(.mini-ws--maximized):not(.mini-ws--interaction-open):not(:hover):not(:focus-within) .mini-ws-state:not(.is-running) {
-  width: 0;
-  padding: 0;
-  border-color: transparent;
-  opacity: 0;
-  overflow: hidden;
-}
-.mini-ws-state-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #6ee7b7;
-  box-shadow: 0 0 10px rgba(110, 231, 183, 0.8);
-}
-.mini-ws-state.is-running {
-  border-color: rgba(34, 211, 238, 0.42);
-  color: #bff8ff;
-}
-.mini-ws-state.is-running .mini-ws-state-dot {
-  background: var(--mini-cyber-accent);
-  animation: miniStatePulse 1.2s ease-in-out infinite;
-}
 .mini-ws-header-actions {
   flex-shrink: 0;
   display: flex;
@@ -987,39 +1154,6 @@ onUnmounted(() => {
   background: rgba(34, 211, 238, 0.12);
   box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.18);
 }
-.mini-copy-split {
-  display: inline-flex;
-  align-items: center;
-}
-.mini-copy-split :deep(.el-button-group) {
-  display: inline-flex;
-}
-.mini-copy-split :deep(.el-button) {
-  height: 24px;
-  min-height: 24px;
-  padding: 0 7px;
-  border-color: rgba(96, 231, 255, 0.18);
-  background: rgba(34, 211, 238, 0.08);
-  color: var(--mini-cyber-muted);
-  font-size: 12px;
-}
-.mini-copy-split :deep(.el-button:first-child) {
-  gap: 4px;
-  border-radius: 8px 0 0 8px;
-}
-.mini-copy-split :deep(.el-button:last-child) {
-  width: 23px;
-  padding: 0;
-  border-left-color: rgba(96, 231, 255, 0.12);
-  border-radius: 0 8px 8px 0;
-}
-.mini-copy-split :deep(.el-button:hover),
-.mini-copy-split :deep(.el-button:focus) {
-  border-color: rgba(96, 231, 255, 0.34);
-  background: rgba(34, 211, 238, 0.14);
-  color: #ffffff;
-  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.16);
-}
 .mini-header-files-btn {
   display: inline-flex;
   align-items: center;
@@ -1040,39 +1174,243 @@ onUnmounted(() => {
   font-weight: 800;
 }
 
-:global(.mini-copy-dropdown-popper.el-popper) {
+.mini-settings-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(96, 231, 255, 0.2);
+  border-radius: 10px;
+  color: var(--mini-cyber-accent, #22d3ee);
+  background: rgba(34, 211, 238, 0.08);
+}
+.mini-settings-btn:hover,
+.mini-settings-btn:focus {
+  color: #ffffff;
+  background: rgba(34, 211, 238, 0.16);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.16);
+}
+
+:global(.mini-settings-popover.el-popper) {
+  padding: 0;
   border: 1px solid rgba(96, 231, 255, 0.22);
+  border-radius: 14px;
   background:
-    linear-gradient(145deg, rgba(6, 18, 32, 0.98), rgba(8, 25, 42, 0.96)),
-    radial-gradient(circle at 12% 0%, rgba(34, 211, 238, 0.18), transparent 34%);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.36), 0 0 24px rgba(34, 211, 238, 0.12);
-  backdrop-filter: blur(18px) saturate(1.14);
+    radial-gradient(circle at 14% 0%, rgba(34, 211, 238, 0.16), transparent 36%),
+    linear-gradient(150deg, rgba(5, 16, 30, 0.98), rgba(8, 27, 45, 0.97));
+  box-shadow: 0 20px 54px rgba(0, 0, 0, 0.42), 0 0 28px rgba(34, 211, 238, 0.14);
+  backdrop-filter: blur(18px) saturate(1.16);
 }
 
-:global(.mini-copy-dropdown-popper .el-popper__arrow::before) {
+:global(.mini-settings-popover .el-popper__arrow::before) {
   border-color: rgba(96, 231, 255, 0.22);
-  background: rgba(6, 18, 32, 0.98);
+  background: rgba(5, 16, 30, 0.98);
 }
 
-.mini-copy-dropdown-menu {
-  min-width: 176px;
-  padding: 6px;
-  border: 0;
-  background: transparent;
+.mini-settings-panel {
+  max-height: min(520px, calc(100vh - 110px));
+  overflow: auto;
+  color: var(--mini-cyber-text);
 }
 
-.mini-copy-dropdown-menu :deep(.el-dropdown-menu__item) {
-  min-height: 32px;
-  border-radius: 9px;
-  color: var(--mini-cyber-muted);
+.mini-settings-section + .mini-settings-section {
+  border-top: 1px solid rgba(96, 231, 255, 0.14);
+}
+
+.mini-settings-section-title {
+  padding: 12px 12px 0;
+  color: var(--mini-cyber-accent);
   font-size: 12px;
-  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: 0.08em;
 }
 
-.mini-copy-dropdown-menu :deep(.el-dropdown-menu__item:not(.is-disabled):hover) {
-  background: rgba(34, 211, 238, 0.12);
+.mini-settings-copy-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 12px 12px;
+}
+
+.mini-settings-copy-grid button {
+  min-width: 0;
+  height: 32px;
+  border: 1px solid rgba(96, 231, 255, 0.18);
+  border-radius: 9px;
+  background: rgba(34, 211, 238, 0.08);
+  color: var(--mini-cyber-muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.mini-settings-copy-grid button:hover {
+  border-color: rgba(96, 231, 255, 0.34);
+  background: rgba(34, 211, 238, 0.14);
   color: #ffffff;
   box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.16);
+}
+
+.mini-debug-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid rgba(96, 231, 255, 0.16);
+  background: rgba(34, 211, 238, 0.055);
+}
+
+.mini-debug-head strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 14px;
+}
+
+.mini-debug-kicker {
+  display: block;
+  color: var(--mini-cyber-accent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mini-debug-copy-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(96, 231, 255, 0.26);
+  border-radius: 9px;
+  background: rgba(34, 211, 238, 0.11);
+  color: var(--mini-cyber-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mini-debug-copy-btn:hover:not(:disabled) {
+  border-color: rgba(96, 231, 255, 0.46);
+  background: rgba(34, 211, 238, 0.17);
+}
+
+.mini-debug-copy-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.mini-debug-stats {
+  display: flex;
+  gap: 7px;
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(96, 231, 255, 0.12);
+}
+
+.mini-debug-stats span {
+  padding: 3px 7px;
+  border: 1px solid rgba(96, 231, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(34, 211, 238, 0.06);
+  color: var(--mini-cyber-muted);
+  font-size: 11px;
+}
+
+.mini-debug-list {
+  max-height: 390px;
+  overflow: auto;
+  padding: 10px 12px 12px;
+}
+
+.mini-debug-list::-webkit-scrollbar {
+  width: 7px;
+}
+
+.mini-debug-list::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(96, 231, 255, 0.26);
+  background-clip: padding-box;
+}
+
+.mini-debug-step {
+  padding: 9px;
+  border: 1px solid rgba(96, 231, 255, 0.14);
+  border-radius: 12px;
+  background:
+    linear-gradient(145deg, rgba(8, 22, 38, 0.7), rgba(3, 10, 20, 0.62)),
+    rgba(34, 211, 238, 0.04);
+}
+
+.mini-debug-step + .mini-debug-step {
+  margin-top: 8px;
+}
+
+.mini-debug-step.is-ok {
+  border-color: rgba(103, 194, 58, 0.28);
+}
+
+.mini-debug-step.is-error {
+  border-color: rgba(245, 108, 108, 0.34);
+}
+
+.mini-debug-step.is-running {
+  border-color: rgba(230, 162, 60, 0.3);
+}
+
+.mini-debug-step-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 7px;
+}
+
+.mini-debug-step-title span {
+  flex: 0 0 auto;
+  color: var(--mini-cyber-dim);
+  font-size: 11px;
+}
+
+.mini-debug-step-title strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--mini-cyber-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-debug-step-title em {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--mini-cyber-accent);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.mini-debug-snippet {
+  max-height: 190px;
+  margin: 6px 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 7px 8px;
+  border: 1px solid rgba(96, 231, 255, 0.12);
+  border-radius: 9px;
+  background: rgba(2, 8, 18, 0.46);
+  color: var(--mini-cyber-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.mini-debug-snippet--error {
+  border-color: rgba(245, 108, 108, 0.24);
+  color: #ffc7c7;
+}
+
+.mini-debug-empty {
+  padding: 42px 16px;
+  color: var(--mini-cyber-dim);
+  font-size: 13px;
+  text-align: center;
 }
 
 /* ── 标题栏文件下拉（不遮挡内容区） ── */
@@ -1141,11 +1479,6 @@ onUnmounted(() => {
 .mini-ws:not(.mini-ws--maximized):not(.mini-ws--interaction-open):not(:hover):not(:focus-within) .mini-ws-output {
   padding: 6px 10px 10px;
   font-size: 11px;
-}
-.mini-ws:not(.mini-ws--maximized):not(.mini-ws--interaction-open):not(:hover):not(:focus-within) :deep(.mini-ws-files),
-.mini-ws:not(.mini-ws--maximized):not(.mini-ws--interaction-open):not(:hover):not(:focus-within) :deep(.mini-ws-model-row),
-.mini-ws:not(.mini-ws--maximized):not(.mini-ws--interaction-open):not(:hover):not(:focus-within) :deep(.mini-ws-input) {
-  display: none;
 }
 .mini-ws--maximized .mini-ws-output {
   padding: 16px 24px;

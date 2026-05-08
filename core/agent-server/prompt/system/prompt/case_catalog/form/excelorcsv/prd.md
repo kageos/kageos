@@ -8,7 +8,7 @@
 
 ---
 
-## 二、PRD 要点（表格格式）
+## 二、旧版 PRD 要点（仅实现参考，不作为 app.plan 输出格式）
 
 以 **Excel 转 JSON**（office_excel_to_json.form）为例，其余 POST 类似：请求为 files + 可选参数，响应为 text_area 或 table。
 

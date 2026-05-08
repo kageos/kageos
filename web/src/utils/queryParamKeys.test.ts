@@ -2,16 +2,16 @@ import { describe, expect, it } from 'vitest'
 import {
   deleteFieldQueryKey,
   getLegacyFieldQueryKeys,
-  isBackendSearchOperatorQueryKey,
   isDisplayCompanionQueryKey,
   isPersistentPlatformStateQueryKey,
   isPlatformStateQueryKey,
+  isStaleTableFilterQueryKey,
   isTableControlQueryKey,
   isUnsupportedGeneratedFieldQueryKey
 } from './queryParamKeys'
 
 describe('queryParamKeys', () => {
-  it('classifies sdk-app params, backend operators and platform state separately', () => {
+  it('classifies sdk-app params and platform state separately', () => {
     expect(isPlatformStateQueryKey('_tab')).toBe(true)
     expect(isPersistentPlatformStateQueryKey('_tab')).toBe(true)
     expect(isPersistentPlatformStateQueryKey('_link_type')).toBe(false)
@@ -19,8 +19,8 @@ describe('queryParamKeys', () => {
 
     expect(isTableControlQueryKey('page')).toBe(true)
     expect(isTableControlQueryKey('genre')).toBe(false)
-    expect(isBackendSearchOperatorQueryKey('in')).toBe(true)
-    expect(isBackendSearchOperatorQueryKey('genre')).toBe(false)
+    expect(isStaleTableFilterQueryKey('in')).toBe(true)
+    expect(isStaleTableFilterQueryKey('genre')).toBe(false)
   })
 
   it('recognizes old generated field params without treating all s_/f_ keys as aliases', () => {

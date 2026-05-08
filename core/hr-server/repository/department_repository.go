@@ -122,4 +122,3 @@ func (r *DepartmentRepository) loadChildren(department *model.Department) error 
 
 	return nil
 }
-

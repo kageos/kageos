@@ -10,7 +10,7 @@
 
 ---
 
-## 二、PRD 要点（表格格式）
+## 二、旧版 PRD 要点（仅实现参考，不作为 app.plan 输出格式）
 
 ### 容器内 Python 生成 PNG（sandbox_file_out_demo.form，POST）
 

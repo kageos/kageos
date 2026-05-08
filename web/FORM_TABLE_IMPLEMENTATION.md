@@ -34,8 +34,8 @@
 
 #### 列表功能
 - ✅ 根据 `schema.table.fields` 字段自动渲染表格列
-- ✅ 根据 `display.scenes` 控制列显示
-  - 不配置 `display` - 显示
+- ✅ 根据 `hide.scenes` 控制列显示
+  - 不配置 `hide` - 显示
   - `list` - 显示
   - `create` - 不显示（只在新增表单展示）
   - `update` - 不显示（只在编辑表单展示）
@@ -44,7 +44,7 @@
 - ✅ 支持排序（点击列头排序）
 
 #### 搜索功能
-- ✅ 根据 `search` 字段自动生成搜索表单
+- ✅ 根据 Request 筛选字段自动生成搜索表单
 - ✅ `eq` - 精确匹配
 - ✅ `like` - 模糊查询
 - ✅ `in` - 包含查询（下拉选择）
@@ -54,13 +54,13 @@
 - ✅ **新增功能**
   - 根据 `schema.callbacks` 判断是否显示"新增"按钮
   - 点击后弹出表单对话框
-  - 根据 `display.scenes` 控制字段显示（包含 `create` 或未配置 `display` 的字段会进入新增表单）
+  - 根据 `hide.scenes` 控制字段显示（`hide.scenes` 不包含 `create` 或未配置 `hide` 的字段会进入新增表单）
   - 调用 `/workspace/api/v1/table/create{full_code_path}`
 
 - ✅ **编辑功能**
   - 根据 `schema.callbacks` 判断是否显示"编辑"按钮
   - 点击后弹出表单对话框，预填当前数据
-  - 根据 `display.scenes` 控制字段显示（包含 `update` 或未配置 `display` 的字段会进入编辑表单）
+  - 根据 `hide.scenes` 控制字段显示（`hide.scenes` 不包含 `update` 或未配置 `hide` 的字段会进入编辑表单）
   - 调用 `/workspace/api/v1/table/update{full_code_path}`
 
 - ✅ **删除功能**
@@ -81,22 +81,22 @@
 当函数详情的 `template_type` 为 `"table"` 时：
 1. 自动调用 `/workspace/api/v1/table/search{full_code_path}` 获取列表数据
 2. 根据 `schema.table.fields` 字段渲染表格
-3. 根据 `search` 字段生成搜索表单
+3. 根据 Request 筛选字段生成搜索表单
 4. 根据 `schema.callbacks` 字段决定显示哪些操作按钮：
    - `OnTableAddRow` → 显示"新增"按钮
    - `OnTableUpdateRow` → 显示"编辑"按钮
    - `OnTableDeleteRows` → 显示"删除"按钮
 
-## 🔐 展示场景 (display.scenes)
+## 🔐 展示场景 (hide.scenes)
 
 | 值 | 列表显示 | 新增时 | 编辑时 | 说明 |
 |---|---|---|---|---|
-| 不配置 `display` | ✅ | ✅ | ✅ | 前端三个场景都展示 |
-| `list` | ✅ | ❌ | ❌ | 前端仅在列表展示，不进入新增/编辑表单 |
-| `create` | ❌ | ✅ | ❌ | 前端仅在新增表单展示 |
-| `update` | ❌ | ❌ | ✅ | 前端仅在编辑表单展示 |
+| 不配置 `hide` | ✅ | ✅ | ✅ | 前端三个场景都展示 |
+| `create,update` | ✅ | ❌ | ❌ | 前端仅在列表展示，不进入新增/编辑表单 |
+| `list,update` | ❌ | ✅ | ❌ | 前端仅在新增表单展示 |
+| `list,create` | ❌ | ❌ | ✅ | 前端仅在编辑表单展示 |
 
-`table` / `form` 是容器组件，不作为 table 列表列渲染；即便误配 `display.scenes=list`，前后端都会静默忽略，避免影响应用注册。
+`table` / `form` 是容器组件，不作为 table 列表列渲染；即便误配 `hide.scenes=list`，前后端都会静默忽略，避免影响应用注册。
 
 ## 📝 API 接口
 
@@ -221,7 +221,7 @@ Workspace (工作区)
 2. **分页数据结构**：后端应返回 `{ items: [], paginated: { current_page, page_size, total_count, total_pages } }` 结构
 3. **回调接口**：前端调用标准 Table 接口，后端内部按 schema callbacks 转发回调
 4. **ID 字段**：Table 的编辑和删除功能依赖于每行数据必须有 `id` 字段
-5. **展示场景判断**：未配置 `display` 表示列表/新增/编辑均展示；配置 `display.scenes` 后只在指定场景展示
+5. **展示场景判断**：未配置 `hide` 表示列表/新增/编辑均展示；配置 `hide.scenes` 后只在指定场景展示
 
 ---
 

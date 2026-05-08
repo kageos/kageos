@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
@@ -28,11 +27,8 @@ func TestShouldSuggestExecuteGuide(t *testing.T) {
 
 func TestAppendExecuteGuideHint(t *testing.T) {
 	msg := appendExecuteGuideHint("run_table_create", "创建失败：字段缺失")
-	if !strings.Contains(msg, "创建失败：字段缺失") {
-		t.Fatalf("expected original error message, got %q", msg)
-	}
-	if !strings.Contains(msg, "read_skill(\"sop.execute-function\")") {
-		t.Fatalf("expected skill hint, got %q", msg)
+	if msg != "创建失败：字段缺失" {
+		t.Fatalf("expected original error unchanged, got %q", msg)
 	}
 
 	plain := appendExecuteGuideHint("read_doc", "读取失败")
@@ -41,24 +37,17 @@ func TestAppendExecuteGuideHint(t *testing.T) {
 	}
 }
 
-func TestAppendExecuteGuideHintDoesNotDuplicateSkillHint(t *testing.T) {
-	msg := appendExecuteGuideHint("run_table_create", "请先 read_skill(\"sop.execute-function\")")
-	if msg != "请先 read_skill(\"sop.execute-function\")" {
-		t.Fatalf("expected existing skill hint unchanged, got %q", msg)
-	}
-}
-
 func TestGuideDocPathsFromReadDocArgsSupportsCommaSeparatedPaths(t *testing.T) {
 	paths := guideDocPathsFromReadDocArgs(map[string]interface{}{
-		"directory": "/system/prompt/platform-overview,/system/prompt/sdk/agent-app-sdk-readme/",
+		"directory": "/system/prompt/platform-capability-boundaries,/system/prompt/sdk/agent-app-sdk-readme/",
 	})
 	loaded := make(map[string]struct{}, len(paths))
 	for _, path := range paths {
 		loaded[path] = struct{}{}
 	}
 
-	if _, ok := loaded["/system/prompt/platform-overview"]; !ok {
-		t.Fatalf("expected platform overview to be marked loaded: %#v", loaded)
+	if _, ok := loaded["/system/prompt/platform-capability-boundaries"]; !ok {
+		t.Fatalf("expected platform capability boundaries to be marked loaded: %#v", loaded)
 	}
 	if _, ok := loaded["/system/prompt/sdk/agent-app-sdk-readme"]; !ok {
 		t.Fatalf("expected sdk readme to be marked loaded: %#v", loaded)

@@ -15,8 +15,7 @@ func GetActionsForNode(nodeType string, templateType string) []string {
 	if resourceType == "" {
 		return []string{}
 	}
-	
+
 	// 返回该资源类型的权限点列表
 	return GetActionsForResourceType(resourceType)
 }
-

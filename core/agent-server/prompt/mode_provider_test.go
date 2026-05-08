@@ -5,62 +5,39 @@ import (
 	"testing"
 )
 
-func TestModeProviderAppendsAllInOnePromptForWriteModes(t *testing.T) {
-	for _, code := range []string{"dev", "agent", "modify"} {
-		provider := GetModeProvider(code)
-		if provider == nil {
-			t.Fatalf("mode provider %q is nil", code)
-		}
-		got := provider.SystemPrompt(nil)
-		for _, want := range []string{
-			"### 全部 widget 白名单",
-			"## 二十、Agent-App SDK README 全文",
-			"# Agent-App SDK 使用说明",
-		} {
-			if !strings.Contains(got, want) {
-				t.Fatalf("mode %q system prompt missing %q", code, want)
-			}
+func TestModeProviderOnlyRegistersDev(t *testing.T) {
+	if provider := GetModeProvider("dev"); provider == nil {
+		t.Fatal("dev mode provider is nil")
+	}
+	for _, code := range []string{"qa", "modify", "execute", "agent"} {
+		if provider := GetModeProvider(code); provider != nil {
+			t.Fatalf("mode provider %q should be unavailable", code)
 		}
 	}
 }
 
-func TestWriteModesAppendAllInOnePromptEvenWithoutConfigField(t *testing.T) {
-	for _, code := range []string{"dev", "agent", "modify"} {
-		got := modeSystemPromptAppendFiles(code, nil)
-		if len(got) != 1 || got[0] != allInOneSystemPromptPath {
-			t.Fatalf("mode %q append files = %#v, want all-in-one fallback", code, got)
-		}
+func TestDevModePromptIsShortAndDoesNotAppendAllInOne(t *testing.T) {
+	provider := GetModeProvider("dev")
+	if provider == nil {
+		t.Fatal("dev mode provider is nil")
 	}
-	if got := modeSystemPromptAppendFiles("execute", nil); len(got) != 0 {
-		t.Fatalf("execute append files = %#v, want none", got)
+	got := provider.SystemPrompt(nil)
+	if strings.Contains(got, "全家桶") || strings.Contains(got, "## 二十、Agent-App SDK README 全文") {
+		t.Fatalf("dev prompt should not append all-in-one prompt:\n%s", got)
 	}
-}
-
-func TestAllInOnePromptSeedDocReadable(t *testing.T) {
-	_, content := GetPromptDocContent(nil, allInOneSystemPromptPath)
-	for _, want := range []string{
-		"### 全部 widget 白名单",
-		"## 二十、Agent-App SDK README 全文",
-		"# Agent-App SDK 使用说明",
-	} {
-		if !strings.Contains(content, want) {
-			t.Fatalf("all-in-one prompt doc missing %q", want)
-		}
+	removedTerm := "sk" + "ill"
+	if strings.Contains(strings.ToLower(got), removedTerm) || strings.Contains(got, "read_"+removedTerm) || strings.Contains(got, "search_"+removedTerm+"s") {
+		t.Fatalf("dev prompt should not mention removed doc tools:\n%s", got)
 	}
 }
 
-func TestAllInOnePromptDoesNotTeachDuplicateStatusRequestField(t *testing.T) {
-	_, content := GetPromptDocContent(nil, allInOneSystemPromptPath)
-	for _, want := range []string{
-		`json:"status_filter"`,
-		"Request 字段 json/form code 不能和 Model 任意字段重复",
-	} {
-		if !strings.Contains(content, want) {
-			t.Fatalf("all-in-one prompt missing %q", want)
-		}
+func TestModeSystemPromptAppendFilesUsesOnlyConfig(t *testing.T) {
+	if got := modeSystemPromptAppendFiles("dev", nil); len(got) != 0 {
+		t.Fatalf("dev append files = %#v, want none", got)
 	}
-	if strings.Contains(content, `Status   string `+"`"+`json:"status" form:"status"`) ||
-		strings.Contains(content, `Status                    string `+"`"+`json:"status" form:"status"`) {
-		t.Fatalf("all-in-one prompt still contains duplicate status Request example")
+	configured := []string{"/system/prompt/sdk/agent-app-sdk-readme"}
+	got := modeSystemPromptAppendFiles("dev", configured)
+	if len(got) != 1 || got[0] != configured[0] {
+		t.Fatalf("append files = %#v, want configured only", got)
 	}
 }

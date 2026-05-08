@@ -1434,7 +1434,7 @@ const lifecycle = useFormViewLifecycle({
 .form-view-main :deep(.files-editor-shell),
 .form-view-main :deep(.upload-area),
 .form-view-main :deep(.file-upload-trigger) {
-  border-radius: 18px;
+  border-radius: 12px;
   border-color: var(--app-auth-input-border);
   background: var(--app-auth-input-bg);
 }

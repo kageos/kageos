@@ -45,7 +45,7 @@ func (r *PermissionRequestRepository) UpdateRequestStatus(
 	updates := map[string]interface{}{
 		"status": status,
 	}
-	
+
 	if status == model.PermissionRequestStatusApproved {
 		now := time.Now()
 		updates["approved_at"] = &now
@@ -95,4 +95,3 @@ func (r *PermissionRequestRepository) UpdateRoleAssignmentID(ctx context.Context
 		Where("id = ?", requestID).
 		Update("role_assignment_id", roleAssignmentID).Error
 }
-

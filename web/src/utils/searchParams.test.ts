@@ -1,31 +1,35 @@
 import { describe, expect, it } from 'vitest'
-import {
-  getSearchOperatorFieldValue,
-  parseSearchOperatorParams
-} from './searchParams'
+import { buildSearchParamsString } from './searchParams'
 
-describe('searchParams parser', () => {
-  it('parses operator params by known field boundaries instead of plain comma split', () => {
+describe('searchParams', () => {
+  it('builds direct request field params', () => {
     expect(
-      parseSearchOperatorParams('title:春风,又绿江南岸,author:王安石', ['title', 'author'])
+      buildSearchParamsString(
+        {
+          title: '春风',
+          status: '处理中',
+          empty: ''
+        },
+        [
+          { code: 'title' } as any,
+          { code: 'status' } as any,
+          { code: 'empty' } as any
+        ]
+      )
     ).toEqual({
-      title: '春风,又绿江南岸',
-      author: '王安石'
+      title: '春风',
+      status: '处理中'
     })
   })
 
-  it('handles field codes with shared prefixes', () => {
+  it('serializes array field values with comma separators', () => {
     expect(
-      parseSearchOperatorParams('style:律诗,style_id:7', ['style', 'style_id'])
+      buildSearchParamsString(
+        { departments: ['研发', '产品'] },
+        [{ code: 'departments' } as any]
+      )
     ).toEqual({
-      style: '律诗',
-      style_id: '7'
+      departments: '研发,产品'
     })
-  })
-
-  it('returns a single field value for restore callers', () => {
-    expect(
-      getSearchOperatorFieldValue('title:春风,又绿江南岸,author:王安石', 'title', ['title', 'author'])
-    ).toBe('春风,又绿江南岸')
   })
 })

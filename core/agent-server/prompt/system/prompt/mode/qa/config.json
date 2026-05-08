@@ -1,7 +1,0 @@
-{
-  "name": "问答模式",
-  "description": "只读分析、解释项目、阅读代码和文档，不执行函数、不写文件、不构建",
-  "tool_names": ["read_go_file", "read_go_file_lines", "read_doc", "read_dir", "web_search", "fetch_url_content", "search_tools"],
-  "system_prompt_file": "system_prompt.md",
-  "first_assistant_file": "first_assistant.md"
-}

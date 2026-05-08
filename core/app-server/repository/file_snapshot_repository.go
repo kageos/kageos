@@ -59,7 +59,7 @@ func (r *FileSnapshotRepository) GetLatestFileSnapshot(appID int64, fullCodePath
 		// 如果查询到结果，直接返回
 		return &snapshot, nil
 	}
-	
+
 	// 如果没有查询到结果（可能是旧数据还没有 IsCurrent 标记），回退到版本号排序查询
 	err = r.db.Where("app_id = ? AND full_code_path = ? AND file_name = ?",
 		appID, fullCodePath, fileName).
@@ -122,7 +122,7 @@ func (r *FileSnapshotRepository) GetCurrentVersionByDirectory(appID int64, fullC
 		// 如果查询到结果，直接返回
 		return currentSnapshots, nil
 	}
-	
+
 	// 如果没有查询到结果（可能是旧数据还没有 IsCurrent 标记），回退到版本号查询
 	// 先获取目录节点（ServiceTree）
 	serviceTree, err := serviceTreeRepo.GetServiceTreeByFullPath(fullCodePath)
@@ -231,7 +231,7 @@ func (r *FileSnapshotRepository) GetCurrentSnapshotsByServiceTreeIDs(serviceTree
 	if len(serviceTreeIDs) == 0 {
 		return []*model.FileSnapshot{}, nil
 	}
-	
+
 	var snapshots []*model.FileSnapshot
 	err := r.db.Where("service_tree_id IN ? AND is_current = ?", serviceTreeIDs, true).
 		Order("service_tree_id ASC, relative_path ASC").
@@ -241,5 +241,3 @@ func (r *FileSnapshotRepository) GetCurrentSnapshotsByServiceTreeIDs(serviceTree
 	}
 	return snapshots, nil
 }
-
-

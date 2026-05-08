@@ -24,14 +24,14 @@ describe('tableViewRouteRuntime', () => {
 
   it('keeps raw business params for add-dialog link navigation', () => {
     expect(
-      buildTableLinkRouteRequest('/workspace/demo/resume_list.table?_tab=OnTableAddRow&_link_type=table&job_id=2&eq=owner:alice')
+      buildTableLinkRouteRequest('/workspace/demo/resume_list.table?_tab=OnTableAddRow&_link_type=table&job_id=2&owner=alice')
     ).toEqual({
       path: '/workspace/demo/resume_list.table',
       query: {
         _tab: 'OnTableAddRow',
         _link_type: 'table',
         job_id: '2',
-        eq: 'owner:alice'
+        owner: 'alice'
       },
       replace: false,
       preserveParams: {

@@ -221,7 +221,7 @@ func (s *StandardAPI) ensureTableCallbackEnabled(c *gin.Context, fullCodePath, c
 // @Param full-code-path path string true "函数完整路径，如：/luobei/operations/tools/pdftools/to_images"
 // @Param page query int false "页码（可选，默认 1）"
 // @Param page_size query int false "每页数量（可选，默认 20）"
-// @Param sorts query string false "排序（可选，格式：id:desc,name:asc）"
+// @Param sorts query string false "排序（可选，格式：-id,name）"
 // @Success 200 {object} dto.RequestAppResp "查询成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"

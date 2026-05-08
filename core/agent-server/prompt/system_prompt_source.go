@@ -309,17 +309,15 @@ func loadModeProviderFromTree(ctx context.Context, code string) *modeProvider {
 
 	systemPrompt := loadModeDocContent(ctx, code, cfg.SystemPromptFile)
 	systemPrompt = appendModeSystemPrompt(systemPrompt, loadTreePromptAppendFiles(ctx, code, modeSystemPromptAppendFiles(code, cfg.SystemPromptAppendFiles)))
-	firstAssistant := loadModeDocContent(ctx, code, cfg.FirstAssistantFile)
 
 	toolNames := cfg.ToolNames
 	if toolNames == nil {
 		toolNames = []string{}
 	}
 	return &modeProvider{
-		code:           code,
-		systemPrompt:   systemPrompt,
-		firstAssistant: firstAssistant,
-		toolNames:      toolNames,
+		code:         code,
+		systemPrompt: systemPrompt,
+		toolNames:    toolNames,
 	}
 }
 
@@ -407,7 +405,7 @@ func buildSystemPromptSeedDocs() ([]PromptSeedDoc, error) {
 		return nil, err
 	}
 
-	for _, rel := range []string{"platform-overview.md", "platform-function-architecture.md", "platform-cross-cutting-capabilities.md", "platform-capability-boundaries.md"} {
+	for _, rel := range []string{"platform-capability-boundaries.md"} {
 		logical := SystemPromptRootPath + "/" + strings.TrimSuffix(rel, path.Ext(rel))
 		if err := appendPromptSeedFileDoc(&docs, systemPromptSeedRoot+"/"+rel, logical, "markdown", "", ""); err != nil {
 			return nil, err
@@ -421,12 +419,6 @@ func buildSystemPromptSeedDocs() ([]PromptSeedDoc, error) {
 		Desc     string
 	}{
 		{FileName: "workspace-env-template.md", Format: "markdown"},
-		{
-			FileName: strings.TrimPrefix(allInOneSystemPromptPath, SystemPromptRootPath+"/doc/") + ".md",
-			Format:   "markdown",
-			Name:     "工作台全家桶主链路提示词",
-			Desc:     "实验用：把主链路、SDK README、widget 白名单和生成约束合并进一个大提示词。",
-		},
 	} {
 		logical := SystemPromptRootPath + "/doc/" + strings.TrimSuffix(rel.FileName, path.Ext(rel.FileName))
 		if err := appendPromptSeedFileDoc(&docs, systemPromptSeedRoot+"/doc/"+rel.FileName, logical, rel.Format, rel.Name, rel.Desc); err != nil {
@@ -434,6 +426,9 @@ func buildSystemPromptSeedDocs() ([]PromptSeedDoc, error) {
 		}
 	}
 
+	if err := appendPromptIntentSeedDocs(&docs); err != nil {
+		return nil, err
+	}
 	if err := appendPromptSDKSeedDocs(&docs); err != nil {
 		return nil, err
 	}
@@ -571,6 +566,25 @@ func appendPromptSDKSeedDocs(docs *[]PromptSeedDoc) error {
 	})
 }
 
+func appendPromptIntentSeedDocs(docs *[]PromptSeedDoc) error {
+	root := systemPromptSeedRoot + "/intents"
+	return fs.WalkDir(promptFS, root, func(current string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		name := entry.Name()
+		if !strings.HasSuffix(strings.ToLower(name), ".md") || strings.EqualFold(name, systemPromptReadmeFileName) {
+			return nil
+		}
+		dir := path.Dir(current)
+		logical := logicalPromptPathFromSeedDir(dir) + "/" + strings.TrimSuffix(name, path.Ext(name))
+		if strings.EqualFold(strings.TrimSuffix(name, path.Ext(name)), "index") {
+			logical = logicalPromptPathFromSeedDir(dir)
+		}
+		return appendPromptSeedFileDoc(docs, current, logical, "markdown", "", "")
+	})
+}
+
 func appendPromptCaseCatalogSeedDocs(docs *[]PromptSeedDoc) error {
 	root := systemPromptSeedRoot + "/case_catalog"
 	return fs.WalkDir(promptFS, root, func(current string, entry fs.DirEntry, err error) error {
@@ -627,7 +641,7 @@ func appendPromptModeSeedDocs(docs *[]PromptSeedDoc) error {
 			return err
 		}
 
-		for _, fileName := range []string{"config.json", "system_prompt.md", "first_assistant.md"} {
+		for _, fileName := range []string{"config.json", "system_prompt.md"} {
 			filePath := modeRoot + "/" + modeCode + "/" + fileName
 			content, readErr := readPromptSeedFile(filePath)
 			if readErr != nil {
@@ -686,9 +700,6 @@ func resolveModeSeedDocMeta(cfg ModeConfig, fileName, content string) (name, des
 		return modeName + "配置", strings.TrimSpace(cfg.Description)
 	case "system_prompt.md":
 		name, desc = extractMarkdownMeta(content, modeName+"系统提示词")
-		return name, desc
-	case "first_assistant.md":
-		name, desc = extractMarkdownMeta(content, modeName+"首条助手消息")
 		return name, desc
 	default:
 		return extractMarkdownMeta(content, path.Base(fileName))

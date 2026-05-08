@@ -87,4 +87,3 @@ func (r *LLMRepository) SetDefault(id int64) error {
 	// 设置新的默认配置
 	return r.db.Model(&model.LLMConfig{}).Where("id = ?", id).Update("is_default", true).Error
 }
-

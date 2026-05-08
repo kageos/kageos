@@ -64,4 +64,3 @@ const (
 	// 支持版本：enterprise, flagship
 	FeatureQuickLink = "quick_link"
 )
-

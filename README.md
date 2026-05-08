@@ -389,7 +389,6 @@ AI-Agent-OS 后续最重要的产品判断之一，是把企业应用里的通�
 
 - `widget`
 - `validate`
-- `search`
 - `permission`
 - `callback`
 - `data`
@@ -596,7 +595,7 @@ AI-Agent-OS 后续最重要的产品判断之一，是把企业应用里的通�
 
 真实能力包括：
 
-- 按 Skills 目录读取 SOP
+- 按当前意图自动注入 SOP 和文档包
 - 读目录
 - 读代码
 - 读文档
@@ -720,7 +719,7 @@ AI-Agent-OS 后续最重要的产品判断之一，是把企业应用里的通�
 - GORM model 定义字段
 - `TableTemplate` 定义 request/response
 - `OnTableAddRow` / `OnTableUpdateRow` / `OnTableDeleteRows` 写业务回调
-- 列表查询走 `AutoSearchFilterPaged`
+- 列表查询默认用 `query.PageSortReq`，筛选字段写在 Request，Handler 里手写 `Where`
 
 ### 8.5 Form 负责“一次输入，一次输出”
 
@@ -1015,7 +1014,7 @@ AI-Agent-OS 试图把二者拼起来：
 | Docs / Board | 已形成骨架 | 文档与讨论区节点已经进入服务树体系。 |
 | SDK 协议 | 已形成骨架 | Go SDK 负责模板注册、字段 schema、callback、response 协议。 |
 | app-runtime | 已形成骨架 | 支持应用构建、版本、容器运行、NATS 调用。 |
-| AI 工作台 | 已形成骨架/持续优化 | 已支持会话、SSE、Skills 主链路、工具循环、读写代码、构建、执行函数。 |
+| AI 工作台 | 已形成骨架/持续优化 | 已支持会话、SSE、意图文档包、工具循环、读写代码、构建、执行函数。 |
 | 文件上传下载 | 已形成骨架 | 基于对象存储和 `bucket/object_key` 文件引用，支持表单与工具结果。 |
 | 官方工具库 | 已形成骨架 | `/system/tools` 和兼容的 system 官方函数已覆盖文件、文档、图片、视频、数据处理等方向。 |
 | 操作日志 | 已形成骨架/企业增强 | 平台已具备日志基础能力，企业版可继续增强审计查询、留存和合规报表。 |

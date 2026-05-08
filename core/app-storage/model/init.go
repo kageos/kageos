@@ -12,4 +12,3 @@ func InitTables(db *gorm.DB) error {
 		&FileDownload{},
 	)
 }
-

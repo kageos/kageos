@@ -21,18 +21,9 @@ import {
   getTableListFields,
   getTableRequestFields,
   getTableRequestSearchFields,
-  getTableResponseSearchFields,
   getTableSearchFields
 } from '@/utils/functionSchemaSelectors'
-import {
-  SearchType,
-  WidgetType,
-  buildSearchParamsString,
-  denormalizeSearchValue,
-  getChangedFields,
-  getSearchOperatorFieldValue,
-  parseCommaSeparatedString
-} from '@/core/tableRuntime/search'
+import { getChangedFields } from '@/core/tableRuntime/search'
 import { Logger } from '@/core/utils/logger'
 import { getSearchFieldRawValue } from '@/utils/searchFieldValue'
 
@@ -78,6 +69,34 @@ export interface SortParams {
 export interface SortItem {
   field: string
   order: 'asc' | 'desc'
+}
+
+const formatSortItemForRequest = (item: SortItem | SortParams): string => {
+  return item.order === 'desc' ? `-${item.field}` : item.field
+}
+
+const parseSortTokenFromRequest = (token: string): SortItem | null => {
+  const trimmed = token.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  if (trimmed.includes(':')) {
+    const parts = trimmed.split(':')
+    if (parts.length !== 2) {
+      return null
+    }
+    const field = parts[0]?.trim()
+    const order = parts[1]?.trim() as 'asc' | 'desc'
+    if (!field || (order !== 'asc' && order !== 'desc')) {
+      return null
+    }
+    return { field, order }
+  }
+
+  const order = trimmed.startsWith('-') ? 'desc' : 'asc'
+  const field = trimmed.replace(/^[-+]/, '').trim()
+  return field ? { field, order } : null
 }
 
 /**
@@ -215,12 +234,12 @@ export class TableDomainService {
       // 添加排序参数
       // 🔥 优先使用 state.sorts（支持多列排序），如果没有则使用 sortParams（单个排序）
       if (state.sorts && state.sorts.length > 0) {
-        // 支持多列排序：sorts=field1:order1,field2:order2
-        params.sorts = state.sorts.map(item => `${item.field}:${item.order}`).join(',')
+        // 支持多列排序：sorts=-created_at,name
+        params.sorts = state.sorts.map(formatSortItemForRequest).join(',')
       } else if (sortParams || state.sortParams) {
         // 兼容单个排序参数
         const sort = sortParams || state.sortParams!
-        params.sorts = `${sort.field}:${sort.order}`
+        params.sorts = formatSortItemForRequest(sort)
       }
 
       // ⭐ 使用标准 API：/table/search/{full-code-path}
@@ -479,14 +498,12 @@ export class TableDomainService {
     if (query.sorts) {
       const sortsString = String(query.sorts)
       sortsString.split(',').forEach((sortStr: string) => {
-        const parts = sortStr.trim().split(':')
-        if (parts.length === 2) {
-          const field = parts[0] || ''
-          const order = parts[1] as 'asc' | 'desc'
-          if (field && (order === 'asc' || order === 'desc') && 
-              (currentRequestFieldCodes.has(field) || currentResponseFieldCodes.has(field))) {
-            sorts.push({ field, order })
-          }
+        const sort = parseSortTokenFromRequest(sortStr)
+        if (!sort) {
+          return
+        }
+        if (currentRequestFieldCodes.has(sort.field) || currentResponseFieldCodes.has(sort.field)) {
+          sorts.push(sort)
         }
       })
     }
@@ -499,79 +516,6 @@ export class TableDomainService {
       const value = query[field.code]
       if (value !== undefined && value !== null && value !== '') {
         searchForm[field.code] = String(value)
-      }
-    })
-    
-    // 恢复搜索条件（response 字段）
-    // response 字段从表格结果集搜索，走后端操作符参数，例如
-    // `in=style:律诗`、`like=title:李白`。
-    const searchableFields = this.getSearchableFields(functionDetail)
-    const currentSearchFieldCodes = new Set<string>()
-    searchableFields.forEach((field: FieldConfig) => {
-      currentSearchFieldCodes.add(field.code)
-    })
-
-    const responseSearchableFields = getTableResponseSearchFields(functionDetail)
-    const responseSearchFieldCodes = responseSearchableFields.map((field: FieldConfig) => field.code)
-
-    responseSearchableFields.forEach((field: FieldConfig) => {
-      if (!currentSearchFieldCodes.has(field.code)) return
-      
-      const searchType = field.search || ''
-      
-      if (searchType.includes(SearchType.EQ)) {
-        const value = getSearchOperatorFieldValue(query.eq, field.code, responseSearchFieldCodes)
-        if (value) {
-          const denormalizedValue = denormalizeSearchValue(value, {
-            widgetType: field.widget?.type,
-            searchType: field.search,
-            field
-          })
-          searchForm[field.code] = denormalizedValue
-        }
-      } else if (searchType.includes(SearchType.LIKE)) {
-        const value = getSearchOperatorFieldValue(query.like, field.code, responseSearchFieldCodes)
-        if (value) {
-          searchForm[field.code] = value
-        }
-      } else if (searchType.includes(SearchType.CONTAINS)) {
-        const valueStr = getSearchOperatorFieldValue(query.contains, field.code, responseSearchFieldCodes)
-        if (valueStr) {
-          const values = parseCommaSeparatedString(valueStr)
-          if (field.widget?.type === WidgetType.MULTI_SELECT) {
-            searchForm[field.code] = values.length > 0 ? values : []
-          } else {
-            searchForm[field.code] = values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
-          }
-        }
-      } else if (searchType.includes(SearchType.IN)) {
-        const valueStr = getSearchOperatorFieldValue(query.in, field.code, responseSearchFieldCodes)
-        if (valueStr) {
-          const values = parseCommaSeparatedString(valueStr)
-          if ((field.widget?.type === WidgetType.USER || field.widget?.type === WidgetType.MULTI_SELECT) && searchType.includes(SearchType.IN)) {
-            searchForm[field.code] = values.length > 0 ? values : []
-          } else {
-            searchForm[field.code] = values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
-          }
-        }
-      } else if (searchType.includes(SearchType.GTE) && searchType.includes(SearchType.LTE)) {
-        const gte = getSearchOperatorFieldValue(query.gte, field.code, responseSearchFieldCodes)
-        const lte = getSearchOperatorFieldValue(query.lte, field.code, responseSearchFieldCodes)
-        if (gte || lte) {
-          const widgetType = field.widget?.type
-          const isDateTime = widgetType === 'datetime'
-          if (isDateTime) {
-            searchForm[field.code] = [
-              gte ? String(gte) : null,
-              lte ? String(lte) : null
-            ]
-          } else {
-            searchForm[field.code] = {
-              min: gte ? String(gte) : undefined,
-              max: lte ? String(lte) : undefined
-            }
-          }
-        }
       }
     })
     
@@ -588,15 +532,9 @@ export class TableDomainService {
   buildSearchParams(functionDetail: FunctionDetail, searchForm: Record<string, any>): SearchParams {
     const searchParams: SearchParams = {}
     
-    // response 字段走后端操作符参数；request 字段直传给 sdk-app。
-    // 这里不要引入 `s_`/`f_` 或显示值伴随参数，否则 URL 会污染用户函数入参。
+    // request 字段直传给 sdk-app。
     const request = getTableRequestSearchFields(functionDetail)
-    const responseFieldsForParams = getTableResponseSearchFields(functionDetail)
     
-    // 使用工具函数构建 response 字段的搜索参数
-    Object.assign(searchParams, buildSearchParamsString(searchForm, responseFieldsForParams))
-    
-    // request 字段的搜索参数
     request.forEach((field: FieldConfig) => {
       const rawValue = getSearchFieldRawValue(searchForm[field.code])
       if (rawValue !== null && rawValue !== undefined && 

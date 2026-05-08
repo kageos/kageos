@@ -94,28 +94,28 @@ describe('table detail edit flow runtime', () => {
               code: 'id',
               name: 'ID',
               widget: { type: 'ID' },
-              display: { scenes: ['list'] }
+              hide: { scenes: ['create', 'update'] }
             },
             {
               code: 'name',
               name: '姓名',
               widget: { type: 'input', config: {} },
               data: { type: 'string' },
-              display: { scenes: ['update'] }
+              hide: { scenes: ['list', 'create'] }
             },
             {
               code: 'status',
               name: '状态',
               widget: { type: 'select', config: {} },
               data: { type: 'string' },
-              display: { scenes: ['update'] }
+              hide: { scenes: ['list', 'create'] }
             },
             {
               code: 'created_by',
               name: '创建人',
               widget: { type: 'input', config: {} },
               data: { type: 'string' },
-              display: { scenes: ['list'] }
+              hide: { scenes: ['create', 'update'] }
             }
           ]
         }
@@ -252,6 +252,11 @@ describe('table detail edit flow runtime', () => {
               code: 'status',
               name: '状态',
               widget: { type: 'select', config: {} }
+            },
+            {
+              code: 'name',
+              name: '姓名',
+              widget: { type: 'input', config: {} }
             }
           ],
           fields: [
@@ -259,22 +264,21 @@ describe('table detail edit flow runtime', () => {
               code: 'id',
               name: 'ID',
               widget: { type: 'ID' },
-              display: { scenes: ['list'] }
+              hide: { scenes: ['create', 'update'] }
             },
             {
               code: 'name',
               name: '姓名',
               widget: { type: 'input', config: {} },
               data: { type: 'string' },
-              search: 'like',
-              display: { scenes: ['update'] }
+              hide: { scenes: ['list', 'create'] }
             },
             {
               code: 'status',
               name: '状态',
               widget: { type: 'select', config: {} },
               data: { type: 'string' },
-              display: { scenes: ['update'] }
+              hide: { scenes: ['list', 'create'] }
             }
           ]
         }
@@ -316,9 +320,9 @@ describe('table detail edit flow runtime', () => {
       topic_id: '42',
       page: '2',
       page_size: '20',
-      sorts: 'id:desc',
-      like: 'name:Bob',
-      status: 'closed'
+      sorts: '-id',
+      status: 'closed',
+      name: 'Bob'
     })
 
     const restoreService = new TableDomainService(
@@ -334,8 +338,8 @@ describe('table detail edit flow runtime', () => {
     })
 
     expect(restoreService.buildSearchParams(currentFunctionDetail, restored.searchForm)).toEqual({
-      like: 'name:Bob',
-      status: 'closed'
+      status: 'closed',
+      name: 'Bob'
     })
 
     const detailPayload = buildTableDetailRowPayload({

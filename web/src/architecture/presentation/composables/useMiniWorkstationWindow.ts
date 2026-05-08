@@ -8,10 +8,10 @@ export interface UseMiniWorkstationWindowOptions {
   initialPosition?: 'center'
 }
 
-const MIN_W = 220
-const MIN_H = 120
-const DEFAULT_W = 320
-const DEFAULT_H = 220
+const MIN_W = 320
+const MIN_H = 280
+const DEFAULT_W = 416
+const DEFAULT_H = 388
 
 export function useMiniWorkstationWindow(options: UseMiniWorkstationWindowOptions) {
   const { maximized, initialOffset, initialPosition } = options

@@ -11,11 +11,11 @@ func init() {
 // 使用场景：
 // - 表单里输入或展示日期时间；
 // - 表格里展示真实时间列；
-// - Table 搜索里配合 search:"gte,lte" 做时间范围查询。
+// - Table 筛选时在 Request 中显式声明开始/结束时间字段，并在 Handler 里手写范围查询。
 //
 // 推荐用法：
 //
-//	CreatedAt types.Time `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" display:"scenes:list"`
+//	CreatedAt types.Time `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"`
 //	Deadline  types.Time `json:"deadline" gorm:"column:deadline;type:datetime" widget:"name:截止时间;type:datetime;format:YYYY-MM-DD HH:mm:ss;render_default:DATE_ADD(CURRENT_DATE, INTERVAL 1 DAY)"`
 //
 // 协议约定：
@@ -42,7 +42,6 @@ func init() {
 // - 合法 Go 类型：string、time.Time、sdk/agent-app/types.Time，以及它们的指针；
 // - 不允许 int/float/bool/slice/struct 业务对象；
 // - disabled 必须显式写 true/false；
-// - search:"gte,lte" 的类型匹配由 validator.go 的 validateSearchOperatorType 统一校验；
 // - render_default 支持静态时间字符串，或前端可解析的 CURRENT_TIMESTAMP/CURRENT_DATE/DATE_ADD/DATE_SUB 表达式。
 type DateTime struct {
 	Format        string `json:"format,omitempty"`         // 日期格式，如 YYYY-MM-DD HH:mm:ss

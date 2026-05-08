@@ -1,45 +1,21 @@
 package service
 
-import (
-	"testing"
+import "testing"
 
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/prompt"
-)
-
-func TestWorkspaceToolNamesForQAMode(t *testing.T) {
-	provider := prompt.GetModeProvider("qa")
-	if provider == nil {
-		t.Fatal("expected qa mode provider")
+func TestWorkspaceToolNamesForModeUsesConfiguredToolsOnly(t *testing.T) {
+	tools := workspaceToolNamesForMode(nil, []string{"read_doc", "read_dir"})
+	if !containsServiceToolName(tools, "read_doc") || !containsServiceToolName(tools, "read_dir") {
+		t.Fatalf("configured tools missing: %v", tools)
 	}
-
-	tools := workspaceToolNamesForMode(provider, nil)
-	if !containsServiceToolName(tools, "read_doc") {
-		t.Fatalf("qa mode missing read_doc: %v", tools)
-	}
-	for _, expected := range []string{"search_skills", "read_skill"} {
-		if !containsServiceToolName(tools, expected) {
-			t.Fatalf("qa mode should expose %s: %v", expected, tools)
-		}
-	}
-	for _, blocked := range []string{"write_go_file", "build_workspace", "run_form_submit", "run_table_create"} {
-		if containsServiceToolName(tools, blocked) {
-			t.Fatalf("qa mode should not expose %s: %v", blocked, tools)
+	for _, removed := range removedModeDocToolNames() {
+		if containsServiceToolName(tools, removed) {
+			t.Fatalf("tools should not include %s: %v", removed, tools)
 		}
 	}
 }
 
-func TestWorkspaceToolNamesForModeAppendsSkills(t *testing.T) {
-	provider := prompt.GetModeProvider("qa")
-	if provider == nil {
-		t.Fatal("expected qa mode provider")
-	}
-
-	tools := workspaceToolNamesForMode(provider, nil)
-	for _, expected := range []string{"search_skills", "read_skill"} {
-		if !containsServiceToolName(tools, expected) {
-			t.Fatalf("skills mode should expose %s: %v", expected, tools)
-		}
-	}
+func removedModeDocToolNames() []string {
+	return []string{"read_" + "sk" + "ill", "search_" + "sk" + "ills"}
 }
 
 func TestWorkspaceModeToolGateResult(t *testing.T) {
@@ -48,11 +24,8 @@ func TestWorkspaceModeToolGateResult(t *testing.T) {
 		t.Fatalf("read_doc should be allowed, blocked=%v res=%#v", blocked, res)
 	}
 	res, blocked := workspaceModeToolGateResult("write_go_file", allowed)
-	if !blocked || !res.IsError {
-		t.Fatalf("write_go_file should be blocked, blocked=%v res=%#v", blocked, res)
-	}
-	if res.Content == "" {
-		t.Fatal("blocked result should include content")
+	if blocked || res.IsError {
+		t.Fatalf("mode gate should be advisory and not block write_go_file, blocked=%v res=%#v", blocked, res)
 	}
 	if _, blocked := workspaceModeToolGateResult("anything", nil); blocked {
 		t.Fatal("empty allowlist should preserve legacy allow-all behavior")

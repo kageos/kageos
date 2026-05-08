@@ -24,8 +24,8 @@ func (c *OnTableDeleteRowsReq) GetIds() []int {
 type OnTableDeleteRowsResp struct {
 }
 type OnTableUpdateRowReq struct {
-	ID             int                    `json:"id"`
-	BindUpdatesMap map[string]interface{} `json:"bind_updates_map"` // 前端提交的原始更新值备份，用于需要按原始表单值绑定结构体的场景。
+	ID                   int                    `json:"id"`
+	ChangedFieldsBindMap map[string]interface{} `json:"changed_fields_bind_map"` // 前端提交的原始更新值备份，用于需要按原始表单值绑定结构体的场景。
 
 	Updates   map[string]interface{} `json:"updates"`
 	OldValues map[string]interface{} `json:"old_values"`
@@ -33,7 +33,6 @@ type OnTableUpdateRowReq struct {
 
 func (c *OnTableUpdateRowReq) GetId() int {
 	// ⚠️ 关键：ID 现在由前端直接传递，不再从 Updates 中获取
-	// 保持向后兼容：如果 ID 为 0，尝试从 Updates 中获取（兼容旧版本）
 	if c.ID != 0 {
 		return c.ID
 	}
@@ -41,20 +40,16 @@ func (c *OnTableUpdateRowReq) GetId() int {
 	return 0
 }
 
-// GetUpdates 获取更新字段（只包含变更的字段）
-// ⚠️ 注意：Updates 中可以包含 id（虽然 id 不会被真正更新，但保持数据结构一致性）
-// 后端在使用 Updates 进行数据库更新时，GORM 的 Updates 方法会自动忽略 id 字段
-// 如果业务代码需要显式排除 id，可以使用 Omit("id") 方法
-func (c *OnTableUpdateRowReq) GetUpdates() map[string]interface{} {
+// ChangedFields 获取本次更新字段（只包含变更的字段）。
+//
+// 返回值适合直接配合 GORM Updates：
+//
+//	updates := req.ChangedFields()
+//	db.Model(&Model{}).Where("id = ?", req.GetId()).Updates(updates)
+func (c *OnTableUpdateRowReq) ChangedFields() map[string]interface{} {
 	if c.Updates == nil {
 		return make(map[string]interface{})
 	}
-
-	// ⚠️ 不再移除 id 字段，因为：
-	// 1. 保持数据结构一致性（所有变更字段都在 Updates 中）
-	// 2. GORM 的 Updates 方法会自动忽略 id 字段，不会真正更新 id
-	// 3. 如果业务代码需要排除 id，可以使用 Omit("id") 方法
-
 	return c.Updates
 }
 
@@ -86,7 +81,7 @@ func (c *OnTableUpdateRowReq) GetOldValues() map[string]interface{} {
 	return c.OldValues
 }
 
-// BindUpdates 将 Updates map 绑定到目标结构体
+// BindChangedFields 将本次变更字段绑定到目标结构体。
 //
 // ⚠️ 重要说明：
 //   - Updates 只包含此次更新中变更的字段，未更新的字段不在 Updates 中
@@ -98,18 +93,20 @@ func (c *OnTableUpdateRowReq) GetOldValues() map[string]interface{} {
 // 示例：
 //
 //	var updateFields CrmMeetingRoom
-//	if err := req.BindUpdates(&updateFields); err != nil {
+//	if err := req.BindChangedFields(&updateFields); err != nil {
 //	    return nil, err
 //	}
 //	// 此时 updateFields 中只有更新的字段有值，例如：
 //	// 如果只更新了 name，则 updateFields.Name 有值，其他字段为零值
-func (c *OnTableUpdateRowReq) BindUpdates(target interface{}) error {
-	if c.BindUpdatesMap == nil || len(c.BindUpdatesMap) == 0 {
+//
+// 判断字段是否参与本次更新时，应配合 IsFieldUpdated 使用，不要只看零值。
+func (c *OnTableUpdateRowReq) BindChangedFields(target interface{}) error {
+	if c.ChangedFieldsBindMap == nil || len(c.ChangedFieldsBindMap) == 0 {
 		return nil
 	}
 
 	// 将 map 序列化为 JSON
-	jsonData, err := json.Marshal(c.BindUpdatesMap)
+	jsonData, err := json.Marshal(c.ChangedFieldsBindMap)
 	if err != nil {
 		return fmt.Errorf("序列化 updates 失败: %w", err)
 	}

@@ -16,11 +16,11 @@ type App struct {
 	Status   string `gorm:"column:status;type:varchar(50)" json:"status"` // 应用状态: enabled(启用), disabled(禁用)
 	Version  string `gorm:"column:version;type:varchar(50)" json:"version"`
 	IsPublic bool   `gorm:"column:is_public;type:boolean;default:true" json:"is_public"` // 是否公开，默认公开
-	Admins   string `gorm:"column:admins;type:text" json:"admins"`                      // 管理员列表，逗号分隔的用户名
-	
+	Admins   string `gorm:"column:admins;type:text" json:"admins"`                       // 管理员列表，逗号分隔的用户名
+
 	// ⭐ 新增：应用类型（0:用户空间, 1:系统空间）
 	Type AppType `json:"type" gorm:"column:type;type:tinyint;default:0;index;comment:应用类型(0:用户空间,1:系统空间)"`
-	
+
 	// ⭐ app 级别的待审批权限申请数量
 	PendingCount int `json:"pending_count" gorm:"column:pending_count;default:0;comment:app级别待审批的权限申请数量"`
 

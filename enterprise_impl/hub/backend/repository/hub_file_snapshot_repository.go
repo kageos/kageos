@@ -69,4 +69,3 @@ func (r *HubFileSnapshotRepository) DeleteByHubDirectoryID(ctx context.Context, 
 		Where("hub_snapshot_id IN (SELECT id FROM hub_snapshots WHERE hub_directory_id = ?)", hubDirectoryID).
 		Delete(&model.HubFileSnapshot{}).Error
 }
-

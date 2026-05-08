@@ -38,7 +38,7 @@ type dueHeap []dueItem
 func (h dueHeap) Len() int           { return len(h) }
 func (h dueHeap) Less(i, j int) bool { return h[i].next.Before(h[j].next) }
 func (h dueHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
-func (h *dueHeap) Push(x any)       { *h = append(*h, x.(dueItem)) }
+func (h *dueHeap) Push(x any)        { *h = append(*h, x.(dueItem)) }
 func (h *dueHeap) Pop() any {
 	old := *h
 	n := len(old)

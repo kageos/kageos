@@ -23,7 +23,7 @@ type ValidateContext struct {
 // WidgetValidator 是每个 widget 组件的启动期契约校验函数。
 //
 // 校验发生在 DecodeForm/DecodeTable 解析 Go struct tag 之后、schema 输出之前：
-// 1. 先做字段级通用校验，例如 widget type 是否支持、depend_on 是否指向同级字段、search 操作符是否匹配 Go 类型；
+// 1. 先做字段级通用校验，例如 widget type 是否支持、depend_on 是否指向同级字段、字段筛选配置是否匹配 Go 类型；
 // 2. 再调用具体组件注册的 validator，校验该组件自己的 Go 类型、必填配置、数值范围等；
 // 3. 所有错误会通过 errors.Join 聚合返回，避免开发者一次只修一个字段。
 //
@@ -159,13 +159,10 @@ func validateFieldTag(ctx ValidateContext) error {
 	if err := validateDataTagKeys(ctx); err != nil {
 		errs = append(errs, err)
 	}
-	if err := validateDisplayTag(ctx); err != nil {
+	if err := validateHideTag(ctx); err != nil {
 		errs = append(errs, err)
 	}
 	if err := validateDependOn(ctx); err != nil {
-		errs = append(errs, err)
-	}
-	if err := validateSearch(ctx); err != nil {
 		errs = append(errs, err)
 	}
 	if err := validateFieldCallbackTag(ctx); err != nil {
@@ -207,10 +204,7 @@ func validateAuditIDField(ctx ValidateContext) error {
 	if ctx.WidgetType != TypeID {
 		errs = append(errs, fieldError(ctx, `audit field "id" must use widget type %q`, TypeID))
 	}
-	if err := requireSearchValue(ctx, "eq", `audit field "id"`); err != nil {
-		errs = append(errs, err)
-	}
-	if err := requireDisplayListOnly(ctx, `audit field "id"`); err != nil {
+	if err := requireHiddenInCreateUpdate(ctx, `audit field "id"`); err != nil {
 		errs = append(errs, err)
 	}
 	if !hasGormFlag(ctx.Field.Gorm, "autoIncrement") {
@@ -230,10 +224,7 @@ func validateAuditTimeField(ctx ValidateContext, code string, autoFlag string) e
 	if format := strings.TrimSpace(ctx.Field.WidgetParsed["format"]); format != "YYYY-MM-DD HH:mm:ss" {
 		errs = append(errs, fieldError(ctx, `audit field %q datetime format must be "YYYY-MM-DD HH:mm:ss", got %q`, code, format))
 	}
-	if err := requireSearchValue(ctx, "gte,lte", fmt.Sprintf("audit field %q", code)); err != nil {
-		errs = append(errs, err)
-	}
-	if err := requireDisplayListOnly(ctx, fmt.Sprintf("audit field %q", code)); err != nil {
+	if err := requireHiddenInCreateUpdate(ctx, fmt.Sprintf("audit field %q", code)); err != nil {
 		errs = append(errs, err)
 	}
 	if column := gormTagValue(ctx.Field.Gorm, "column"); column != code {
@@ -250,10 +241,7 @@ func validateAuditUserField(ctx ValidateContext, code string) error {
 	if ctx.WidgetType != TypeUser {
 		errs = append(errs, fieldError(ctx, `audit field %q must use widget type %q`, code, TypeUser))
 	}
-	if err := requireSearchValue(ctx, "in", fmt.Sprintf("audit field %q", code)); err != nil {
-		errs = append(errs, err)
-	}
-	if err := requireDisplayListOnly(ctx, fmt.Sprintf("audit field %q", code)); err != nil {
+	if err := requireHiddenInCreateUpdate(ctx, fmt.Sprintf("audit field %q", code)); err != nil {
 		errs = append(errs, err)
 	}
 	if column := gormTagValue(ctx.Field.Gorm, "column"); column != code {
@@ -262,31 +250,12 @@ func validateAuditUserField(ctx ValidateContext, code string) error {
 	return errors.Join(errs...)
 }
 
-func requireSearchValue(ctx ValidateContext, expected string, label string) error {
-	if strings.TrimSpace(ctx.Field.Search) != expected {
-		return fieldError(ctx, `%s search tag must be %q, got %q`, label, expected, ctx.Field.Search)
-	}
-	return nil
-}
-
-func requireDisplayListOnly(ctx ValidateContext, label string) error {
-	scenes := parseDisplayScenes(ctx.Field.DisplayParsed["scenes"])
-	if len(scenes) == 1 && scenes[0] == "list" {
+func requireHiddenInCreateUpdate(ctx ValidateContext, label string) error {
+	scenes := parseSceneList(ctx.Field.Hide)
+	if len(scenes) == 2 && hasStringItem(scenes, "create") && hasStringItem(scenes, "update") {
 		return nil
 	}
-	return fieldError(ctx, `%s display tag must be "scenes:list", got %q`, label, ctx.Field.Display)
-}
-
-func parseDisplayScenes(raw string) []string {
-	parts := strings.Split(raw, ",")
-	scenes := make([]string, 0, len(parts))
-	for _, part := range parts {
-		scene := strings.TrimSpace(part)
-		if scene != "" {
-			scenes = append(scenes, scene)
-		}
-	}
-	return scenes
+	return fieldError(ctx, `%s hide tag must be "create,update", got %q`, label, ctx.Field.Hide)
 }
 
 func validateDataTagKeys(ctx ValidateContext) error {
@@ -307,24 +276,14 @@ func validateDataTagKeys(ctx ValidateContext) error {
 	return errors.Join(errs...)
 }
 
-func validateDisplayTag(ctx ValidateContext) error {
-	if strings.TrimSpace(ctx.Field.Display) == "" {
+func validateHideTag(ctx ValidateContext) error {
+	if !ctx.Field.HideSet {
 		return nil
 	}
 	var errs []error
-	for key := range ctx.Field.DisplayParsed {
-		if key != "scenes" {
-			errs = append(errs, fieldError(ctx, "unsupported display tag %q", key))
-		}
-	}
-
-	rawScenes, ok := ctx.Field.DisplayParsed["scenes"]
-	if !ok {
-		return errors.Join(errs...)
-	}
-	scenes := parseDisplayScenes(rawScenes)
+	scenes := parseSceneList(ctx.Field.Hide)
 	if len(scenes) == 0 {
-		errs = append(errs, fieldError(ctx, `display tag "scenes" must not be empty`))
+		errs = append(errs, fieldError(ctx, `hide tag must not be empty`))
 		return errors.Join(errs...)
 	}
 	seen := make(map[string]struct{}, len(scenes))
@@ -332,17 +291,14 @@ func validateDisplayTag(ctx ValidateContext) error {
 		switch scene {
 		case "list", "create", "update":
 		default:
-			errs = append(errs, fieldError(ctx, `display scene must be one of list,create,update, got %q`, scene))
+			errs = append(errs, fieldError(ctx, `hide scene must be one of list,create,update, got %q`, scene))
 			continue
 		}
 		if _, exists := seen[scene]; exists {
-			errs = append(errs, fieldError(ctx, `display scene %q is duplicated`, scene))
+			errs = append(errs, fieldError(ctx, `hide scene %q is duplicated`, scene))
 			continue
 		}
 		seen[scene] = struct{}{}
-	}
-	if (ctx.WidgetType == TypeTable || ctx.WidgetType == TypeForm) && hasStringItem(scenes, "list") {
-		errs = append(errs, fieldError(ctx, `container widget %q cannot use display scene "list"`, ctx.WidgetType))
 	}
 	return errors.Join(errs...)
 }
@@ -486,77 +442,6 @@ func validateFieldCallbackTag(ctx ValidateContext) error {
 		}
 	}
 	return errors.Join(errs...)
-}
-
-func validateSearch(ctx ValidateContext) error {
-	search := strings.TrimSpace(ctx.Field.Search)
-	if search == "" || search == "-" {
-		return nil
-	}
-
-	var errs []error
-	operators := parseSearchOperators(search)
-	if err := validateSearchOperatorCombination(ctx, operators); err != nil {
-		errs = append(errs, err)
-	}
-	for _, op := range operators {
-		op = strings.TrimSpace(op)
-		if op == "" {
-			continue
-		}
-		if !isSupportedSearchOperator(op) {
-			errs = append(errs, fieldError(ctx, "unsupported search operator %q", op))
-			continue
-		}
-		if err := validateSearchOperatorType(ctx, op); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
-}
-
-func parseSearchOperators(search string) []string {
-	parts := strings.Split(search, ",")
-	operators := make([]string, 0, len(parts))
-	for _, part := range parts {
-		op := strings.TrimSpace(part)
-		if op != "" {
-			operators = append(operators, op)
-		}
-	}
-	return operators
-}
-
-func validateSearchOperatorCombination(ctx ValidateContext, operators []string) error {
-	if len(operators) <= 1 {
-		return nil
-	}
-	if len(operators) == 2 && operators[0] == "gte" && operators[1] == "lte" {
-		return nil
-	}
-	return fieldError(ctx, "search operators only support a single operator or range combination gte,lte, got %q", strings.Join(operators, ","))
-}
-
-func validateSearchOperatorType(ctx ValidateContext, op string) error {
-	switch op {
-	case "eq", "in":
-		if !isScalarType(ctx.GoType) && !isDatetimeCompatibleType(ctx.GoType) {
-			return fieldError(ctx, "search operator %q requires scalar or datetime Go type, got %s", op, typeName(ctx.GoType))
-		}
-	case "like":
-		if !isStringLikeType(ctx.GoType) {
-			return fieldError(ctx, "search operator %q requires a string-like Go type, got %s", op, typeName(ctx.GoType))
-		}
-	case "contains":
-		if !isStringLikeType(ctx.GoType) && !isSliceOrArray(ctx.GoType) {
-			return fieldError(ctx, "search operator %q requires string or slice Go type, got %s", op, typeName(ctx.GoType))
-		}
-	case "gte", "lte":
-		if !isNumericType(ctx.GoType) && !isDatetimeCompatibleType(ctx.GoType) {
-			return fieldError(ctx, "search operator %q requires numeric or datetime Go type, got %s", op, typeName(ctx.GoType))
-		}
-	}
-	return nil
 }
 
 func validateDatetimeRenderDefault(ctx ValidateContext) error {
@@ -1069,15 +954,6 @@ func hasStringItem(items []string, target string) bool {
 		}
 	}
 	return false
-}
-
-func isSupportedSearchOperator(op string) bool {
-	switch op {
-	case "eq", "like", "in", "contains", "gte", "lte":
-		return true
-	default:
-		return false
-	}
 }
 
 func isStringLikeType(typ reflect.Type) bool {

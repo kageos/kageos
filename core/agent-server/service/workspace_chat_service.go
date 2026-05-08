@@ -11,7 +11,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/prompt"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
-	agentosskills "github.com/ai-agent-os/ai-agent-os/core/agent-server/skills"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/streamloop"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
@@ -25,8 +24,6 @@ import (
 const (
 	SourceWorkspace = "workspace"
 	MaxToolRounds   = 100 // 与 streamloop.MaxToolRounds 保持一致，仅作注释/文档用，实际以 streamloop 为准
-
-	maxWriteGoFilesPerToolBatch = 3
 )
 
 // 工作台系统提示词与文档统一来自 /system/prompt；运行时优先读树，缺失时回落到本地 seed。
@@ -601,8 +598,6 @@ func workspaceCtxToEnvInput(c *dto.GetWorkspaceContextResp) *prompt.WorkspaceEnv
 		FullCodePath:           c.Directory.FullCodePath,
 		DirType:                c.Directory.Type,
 		DirDescription:         dirDesc,
-		PublishedToHub:         c.Directory.PublishedToHub,
-		HubFullCodePath:        c.Directory.HubFullCodePath,
 		Children:               children,
 		Files:                  files,
 	}
@@ -623,10 +618,8 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 	}
 	var toolNames []string
 	var systemPromptFragment string
-	var firstAssistantContent string
 	if modeProvider != nil {
 		systemPromptFragment = "" // 在 env 填好后由 provider.SystemPrompt(data) 产出
-		firstAssistantContent = modeProvider.FirstAssistantContent()
 	} else {
 		systemPromptFragment = fallbackSystemPrompt
 	}
@@ -654,19 +647,8 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 	if systemPromptFragment != "" {
 		system += "\n\n" + systemPromptFragment
 	}
-	var modeCode string
-	if modeProvider != nil {
-		modeCode = modeProvider.Code()
-	}
-	if skillsPrompt := workspaceSkillsPrompt(modeCode); skillsPrompt != "" {
-		system += "\n\n" + skillsPrompt
-	}
 
 	msgs := []llms.Message{{Role: "system", Content: system}}
-	// 首条 assistant：多态时由 provider 提供，会话开始时注入
-	if firstAssistantContent != "" {
-		msgs = append(msgs, llms.Message{Role: RoleAssistant, Content: firstAssistantContent})
-	}
 	for _, m := range list {
 		switch m.Role {
 		case RoleUser:
@@ -745,17 +727,13 @@ func (s *WorkspaceChatService) executeToolCalls(
 	agentIDPtr *int64,
 	user string,
 	files string,
-	allowedToolNames []string,
+	_ []string,
 	sendEvent func(string, interface{}),
 ) ([]dto.WorkspaceChatToolCallSummary, error) {
 	ctx = withAgentToolExecutionContext(ctx, sessionID)
 	toolSummaries := make([]dto.WorkspaceChatToolCallSummary, 0, len(allToolCalls))
 	logger.Infof(ctx, "[WorkspaceChatStream] 开始执行工具调用 - 工具数量: %d, SessionID: %s", len(allToolCalls), sessionID)
 	loadedGuideDocs := s.loadedGuideDocsForSession(ctx, sessionID)
-	loadedSkills := s.loadedSkillsForSession(ctx, sessionID)
-	skillGateBlockedInBatch := false
-	writeMutationFailedInBatch := false
-	successfulWriteGoFilesInBatch := 0
 
 	for i, tc := range allToolCalls {
 		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 执行工具调用 - ToolCallID: %s, ToolName: %s, Arguments: %q",
@@ -766,30 +744,7 @@ func (s *WorkspaceChatService) executeToolCalls(
 		args := s.parseToolCallArgs(ctx, tc)
 		var toolRes ToolResult
 		var st string
-		if writeMutationFailedInBatch && shouldSkipAfterWriteMutationFailure(tc.Function.Name) {
-			toolRes = writeMutationFailureBatchSkipResult(tc.Function.Name)
-			st = ToolCallStatusError
-			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 同批工具调用因落盘失败跳过 - ToolName: %s, Error: %s", i+1, len(allToolCalls), tc.Function.Name, toolRes.Content)
-		} else if shouldGateWriteAfterBatchLimit(tc.Function.Name, successfulWriteGoFilesInBatch) {
-			toolRes = writeGoFileBatchLimitResult(tc.Function.Name, successfulWriteGoFilesInBatch)
-			st = ToolCallStatusError
-			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 同批 write_go_file 超过分阶段上限 - ToolName: %s, Error: %s", i+1, len(allToolCalls), tc.Function.Name, toolRes.Content)
-		} else if skillGateBlockedInBatch && shouldSkipAfterSkillGateBlock(tc.Function.Name) {
-			toolRes = skillGateBatchSkipResult(tc.Function.Name)
-			st = ToolCallStatusError
-			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 同批工具调用因 skill 策略跳过 - ToolName: %s, Error: %s", i+1, len(allToolCalls), tc.Function.Name, toolRes.Content)
-		} else if gateRes, blocked := workspaceModeToolGateResult(tc.Function.Name, allowedToolNames); blocked {
-			toolRes = gateRes
-			st = ToolCallStatusError
-			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 工具调用被模式策略拦截 - ToolName: %s, Error: %s", i+1, len(allToolCalls), tc.Function.Name, toolRes.Content)
-		} else if gateRes, blocked := workspaceSkillToolGateResult(tc.Function.Name, args, loadedSkills, loadedGuideDocs); blocked {
-			toolRes = gateRes
-			st = ToolCallStatusError
-			skillGateBlockedInBatch = true
-			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 工具调用被 skill 策略拦截 - ToolName: %s, Error: %s", i+1, len(allToolCalls), tc.Function.Name, toolRes.Content)
-		} else {
-			toolRes, st = s.callOtherTool(ctx, tc.Function.Name, args, fullCodePath, files, i+1, len(allToolCalls))
-		}
+		toolRes, st = s.callOtherTool(ctx, tc.Function.Name, args, fullCodePath, files, i+1, len(allToolCalls))
 
 		resultStr, errStr := "", ""
 		var resultData interface{}
@@ -809,14 +764,7 @@ func (s *WorkspaceChatService) executeToolCalls(
 			logger.Warnf(ctx, "[WorkspaceChatStream] 保存 tool 消息失败 ToolCallID=%s: %v（若为 Error 1366 请将表转为 utf8mb4）", tc.ID, err)
 			return toolSummaries, fmt.Errorf("保存 tool 消息失败: %w", err)
 		}
-		if st == ToolCallStatusOK && strings.TrimSpace(tc.Function.Name) == "write_go_file" {
-			successfulWriteGoFilesInBatch++
-		}
-		if st != ToolCallStatusOK && isWriteMutationTool(tc.Function.Name) {
-			writeMutationFailedInBatch = true
-		}
-		updateLoadedSkillsAfterToolCall(ctx, loadedSkills, tc.Function.Name, args, st)
-		updateLoadedGuideDocsAfterToolCall(ctx, loadedGuideDocs, tc.Function.Name, args, st)
+		updateLoadedGuideDocsAfterToolCall(loadedGuideDocs, tc.Function.Name, args, st)
 	}
 
 	successCount, errorCount := 0, 0
@@ -894,13 +842,12 @@ func (s *WorkspaceChatService) loadedGuideDocsForSession(ctx context.Context, se
 		logger.Warnf(ctx, "[WorkspaceChatStream] 查询会话已读 SOP 失败 SessionID=%s: %v", sessionID, err)
 		return loaded
 	}
-	return loadedGuideDocsFromMessages(ctx, messages, agentosskills.DefaultRegistry())
+	return loadedGuideDocsFromMessages(ctx, messages)
 }
 
-func loadedGuideDocsFromMessages(ctx context.Context, messages []*model.AgentChatMessage, registry *agentosskills.Registry) map[string]struct{} {
+func loadedGuideDocsFromMessages(ctx context.Context, messages []*model.AgentChatMessage) map[string]struct{} {
 	loaded := make(map[string]struct{})
 	readDocCalls := make(map[string][]string)
-	readSkillCalls := make(map[string]string)
 	for _, msg := range messages {
 		if msg == nil {
 			continue
@@ -927,10 +874,6 @@ func loadedGuideDocsFromMessages(ctx context.Context, messages []*model.AgentCha
 				switch tc.Function.Name {
 				case "read_doc":
 					readDocCalls[tc.ID] = guideDocPathsFromReadDocArgs(args)
-				case "read_skill":
-					if id := skillIDFromReadSkillArgs(args); id != "" {
-						readSkillCalls[tc.ID] = id
-					}
 				}
 			}
 		case RoleTool:
@@ -939,9 +882,6 @@ func loadedGuideDocsFromMessages(ctx context.Context, messages []*model.AgentCha
 			}
 			for _, docPath := range readDocCalls[msg.ToolCallID] {
 				loaded[docPath] = struct{}{}
-			}
-			if id := readSkillCalls[msg.ToolCallID]; id != "" {
-				markLoadedRequiredDocsForSkill(ctx, loaded, registry, id)
 			}
 		}
 	}
@@ -965,7 +905,7 @@ func guideDocPathsFromReadDocArgs(args map[string]interface{}) []string {
 	return paths
 }
 
-func updateLoadedGuideDocsAfterToolCall(ctx context.Context, loaded map[string]struct{}, toolName string, args map[string]interface{}, status string) {
+func updateLoadedGuideDocsAfterToolCall(loaded map[string]struct{}, toolName string, args map[string]interface{}, status string) {
 	if status != ToolCallStatusOK || loaded == nil {
 		return
 	}
@@ -973,10 +913,6 @@ func updateLoadedGuideDocsAfterToolCall(ctx context.Context, loaded map[string]s
 	case "read_doc":
 		for _, docPath := range guideDocPathsFromReadDocArgs(args) {
 			loaded[docPath] = struct{}{}
-		}
-	case "read_skill":
-		if id := skillIDFromReadSkillArgs(args); id != "" {
-			markLoadedRequiredDocsForSkill(ctx, loaded, agentosskills.DefaultRegistry(), id)
 		}
 	}
 }
@@ -1002,15 +938,7 @@ func shouldSuggestExecuteGuide(toolName string) bool {
 }
 
 func appendExecuteGuideHint(toolName, message string) string {
-	if !shouldSuggestExecuteGuide(toolName) || strings.Contains(message, "sop.execute-function") {
-		return message
-	}
-	hint := "提示：执行类工具的 SOP 已迁移到 Skills。请先 `read_skill(\"sop.execute-function\")`，再按该 skill 的 schema 和参数规范重试。"
-	message = strings.TrimSpace(message)
-	if message == "" {
-		return hint
-	}
-	return message + "\n\n" + hint
+	return message
 }
 
 // sanitizeContentForMySQLUtf8 去掉 4 字节 UTF-8 字符（BMP 外），避免 MySQL utf8 列报 Error 1366；表为 utf8mb4 时无需此过滤。

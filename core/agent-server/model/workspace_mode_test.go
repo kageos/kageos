@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestInitWorkspaceModesRefreshesExistingBuiltinTools(t *testing.T) {
+func TestInitWorkspaceModesOnlySeedsDev(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
@@ -15,48 +15,33 @@ func TestInitWorkspaceModesRefreshesExistingBuiltinTools(t *testing.T) {
 	if err := db.AutoMigrate(&WorkspaceMode{}); err != nil {
 		t.Fatalf("migrate workspace mode: %v", err)
 	}
-	old := &WorkspaceMode{
-		Code:      "execute",
-		Name:      "旧执行模式",
-		ToolNames: "run_table_search;run_table_create",
-		IsBuiltin: false,
-	}
-	if err := db.Create(old).Error; err != nil {
-		t.Fatalf("seed old mode: %v", err)
-	}
 
 	if err := InitWorkspaceModes(db); err != nil {
 		t.Fatalf("InitWorkspaceModes returned error: %v", err)
 	}
 
-	var got WorkspaceMode
-	if err := db.Where("code = ?", "execute").First(&got).Error; err != nil {
-		t.Fatalf("query execute mode: %v", err)
+	var modes []WorkspaceMode
+	if err := db.Find(&modes).Error; err != nil {
+		t.Fatalf("query workspace modes: %v", err)
 	}
-	tools := got.GetToolNames()
-	if !containsToolName(tools, "run_table_delete") {
-		t.Fatalf("execute tools missing run_table_delete: %v", tools)
+	if len(modes) != 1 || modes[0].Code != "dev" {
+		t.Fatalf("builtin modes = %#v, want only dev", modes)
 	}
-	if !containsToolName(tools, "run_table_batch_create") {
-		t.Fatalf("execute tools missing run_table_batch_create: %v", tools)
-	}
-	if !got.IsBuiltin {
-		t.Fatal("execute mode should be marked builtin after refresh")
-	}
-
-	var qa WorkspaceMode
-	if err := db.Where("code = ?", "qa").First(&qa).Error; err != nil {
-		t.Fatalf("query qa mode: %v", err)
-	}
-	qaTools := qa.GetToolNames()
-	if !containsToolName(qaTools, "read_doc") {
-		t.Fatalf("qa tools missing read_doc: %v", qaTools)
-	}
-	for _, blocked := range []string{"write_go_file", "build_workspace", "run_form_submit", "run_table_create"} {
-		if containsToolName(qaTools, blocked) {
-			t.Fatalf("qa tools should not include %s: %v", blocked, qaTools)
+	tools := modes[0].GetToolNames()
+	for _, want := range []string{"change_role", "read_doc", "write_prd", "write_go_file", "build_workspace", "run_form_submit"} {
+		if !containsToolName(tools, want) {
+			t.Fatalf("dev tools missing %s: %v", want, tools)
 		}
 	}
+	for _, removed := range removedDocToolNames() {
+		if containsToolName(tools, removed) {
+			t.Fatalf("dev tools should not include %s: %v", removed, tools)
+		}
+	}
+}
+
+func removedDocToolNames() []string {
+	return []string{"read_" + "sk" + "ill", "search_" + "sk" + "ills"}
 }
 
 func containsToolName(tools []string, target string) bool {

@@ -83,9 +83,6 @@ func (f *Field) LLMFacts(opts SummaryOptions) []SemanticFact {
 	if strings.TrimSpace(f.DependOn) != "" && opts.Mode == SummaryFull {
 		facts = appendUniqueFact(facts, SemanticFact{Key: "depend_on", Value: strings.TrimSpace(f.DependOn)})
 	}
-	if strings.TrimSpace(f.Search) != "" && opts.Mode == SummaryFull {
-		facts = appendUniqueFact(facts, SemanticFact{Key: "search", Value: strings.TrimSpace(f.Search)})
-	}
 	return facts
 }
 

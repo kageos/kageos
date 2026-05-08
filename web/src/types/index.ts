@@ -179,17 +179,12 @@ export enum WidgetType {
   LIST = 'list'
 }
 
-// 搜索类型
+// Table 查询参数
 export interface SearchParams {
-  eq?: string       // 精确匹配 eq=id:1
-  like?: string     // 模糊匹配 like=title:xxx
-  in?: string       // 包含查询 in=status:待处理,处理中
-  contains?: string // 包含查询（用于多选场景，使用 FIND_IN_SET）contains=tags:高,中
-  gte?: string      // 大于等于 gte=created_at:2026-04-21 00:00:00
-  lte?: string      // 小于等于 lte=created_at:2026-04-21 23:59:59
-  sorts?: string    // 排序 sorts=category:asc,price:desc（支持多列排序，格式：field:order,field:order）
+  sorts?: string    // 排序 sorts=-price,category（支持多列排序，减号表示倒序）
   page?: number     // 页码
   page_size?: number // 页大小
+  [key: string]: any
 }
 
 // 表格响应类型

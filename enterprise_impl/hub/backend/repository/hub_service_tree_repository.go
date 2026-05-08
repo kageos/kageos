@@ -91,4 +91,3 @@ func (r *HubServiceTreeRepository) DeleteByHubDirectoryID(ctx context.Context, h
 func (r *HubServiceTreeRepository) Update(ctx context.Context, tree *model.HubServiceTree) error {
 	return r.db.WithContext(ctx).Save(tree).Error
 }
-
