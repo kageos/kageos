@@ -30,6 +30,10 @@
   z-index: var(--aos-z-floating-popper) !important;
 }
 
+.mini-debug-popover.el-popper {
+  z-index: var(--aos-z-floating-popper) !important;
+}
+
 .mini-ws-model-select-popper {
   z-index: var(--aos-z-floating-popper) !important;
 }

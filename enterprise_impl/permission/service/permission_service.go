@@ -47,14 +47,14 @@ type PermissionServiceImpl struct {
 	permissionRequestRepo *permissionrepo.PermissionRequestRepository
 	serviceTreeRepo       *repository.ServiceTreeRepository // ⭐ 使用社区版的 repository，不重复造轮子
 	appRepo               *repository.AppRepository         // ⭐ 用于检查 app.Admins 字段
-	approvalService       *ApprovalService                   // ⭐ 内部实现，不对外暴露
-	permissionCalculator  PermissionCalculatorInterface      // ⭐ 权限计算器接口（支持新旧版本）
+	approvalService       *ApprovalService                  // ⭐ 内部实现，不对外暴露
+	permissionCalculator  PermissionCalculatorInterface     // ⭐ 权限计算器接口（支持新旧版本）
 	// ⭐ 角色系统相关
-	roleRepo              *permissionrepo.RoleRepository
-	rolePermissionRepo    *permissionrepo.RolePermissionRepository
-	roleAssignmentRepo    *permissionrepo.RoleAssignmentRepository
-	roleCache             *RoleCache
-	roleService           *RoleService
+	roleRepo           *permissionrepo.RoleRepository
+	rolePermissionRepo *permissionrepo.RolePermissionRepository
+	roleAssignmentRepo *permissionrepo.RoleAssignmentRepository
+	roleCache          *RoleCache
+	roleService        *RoleService
 	// ⭐ 由 app-server 注入，用于 ApplyPermissionByResourcePath 从 resource_path 解析 app_id
 	appIDResolver enterprise.AppIDResolver
 }
@@ -242,7 +242,6 @@ func (s *PermissionServiceImpl) GetRolesForPermissionRequest(ctx context.Context
 	return s.roleService.GetRolesForPermissionRequest(ctx, req)
 }
 
-
 // PermissionCheck 权限检查项
 type PermissionCheck struct {
 	ResourcePath string // 资源路径
@@ -253,12 +252,12 @@ type PermissionCheck struct {
 // CheckPermission 检查用户权限（企业版实现）
 //
 // ⭐ 权限判断流程：
-//   1. 优先检查：如果用户是工作空间管理员（app.Admins），直接返回 true（拥有所有权限）
-//   2. 获取权限记录：调用 GetUserWorkspacePermissions 获取用户的所有角色权限记录
-//   3. 权限检查：调用 GetUserWorkspacePermissionsResp.CheckPermission 进行权限判断
-//      - 支持层级权限继承：自动向上查找父节点的权限（方式2：直接函数权限继承）
-//      - 如果父目录配置了 table:write，子函数直接继承 table:write 权限
-//      - 如果父目录配置了 table:admin，子函数继承 table:admin 权限（拥有所有表格权限）
+//  1. 优先检查：如果用户是工作空间管理员（app.Admins），直接返回 true（拥有所有权限）
+//  2. 获取权限记录：调用 GetUserWorkspacePermissions 获取用户的所有角色权限记录
+//  3. 权限检查：调用 GetUserWorkspacePermissionsResp.CheckPermission 进行权限判断
+//     - 支持层级权限继承：自动向上查找父节点的权限（方式2：直接函数权限继承）
+//     - 如果父目录配置了 table:write，子函数直接继承 table:write 权限
+//     - 如果父目录配置了 table:admin，子函数继承 table:admin 权限（拥有所有表格权限）
 //
 // ⭐ 权限继承方式：方式2（直接函数权限继承）
 //   - 不需要转换，直接匹配相同的权限点
@@ -266,12 +265,11 @@ type PermissionCheck struct {
 //   - 例如：父目录配置了 form:read → 子函数直接继承 form:read
 //
 // ⭐ 权限检查优先级（在 CheckPermission 方法中）：
-//   1. 精确路径匹配：检查当前资源路径是否有该权限点
-//   2. 父目录继承：向上查找父目录，检查是否有相同的权限点（方式2）
-//   3. 前缀匹配：检查是否有前缀路径配置了该权限点
-//   4. 应用级别：检查应用级别权限（app:admin）
-//   5. Admin 权限：检查是否有任何资源类型的 admin 权限（如 table:admin, form:admin）
-//
+//  1. 精确路径匹配：检查当前资源路径是否有该权限点
+//  2. 父目录继承：向上查找父目录，检查是否有相同的权限点（方式2）
+//  3. 前缀匹配：检查是否有前缀路径配置了该权限点
+//  4. 应用级别：检查应用级别权限（app:admin）
+//  5. Admin 权限：检查是否有任何资源类型的 admin 权限（如 table:admin, form:admin）
 func (s *PermissionServiceImpl) CheckPermission(ctx context.Context, username string, resourcePath string, action string) (bool, error) {
 	// 从 context 获取组织架构路径
 	departmentPath := contextx.GetRequestDepartmentFullPath(ctx)
@@ -393,7 +391,7 @@ func (s *PermissionServiceImpl) CreatePermissionRequest(ctx context.Context, req
 		SubjectType:       req.SubjectType,
 		Subject:           req.Subject,
 		ResourcePath:      req.ResourcePath,
-		RoleID:            req.RoleID, // ⭐ 角色ID（必填）
+		RoleID:            req.RoleID,    // ⭐ 角色ID（必填）
 		StartTime:         req.StartTime, // ⭐ 直接赋值，无需转换
 		EndTime:           req.EndTime,   // ⭐ 直接赋值，无需转换
 		Reason:            req.Reason,
@@ -469,14 +467,13 @@ func (s *PermissionServiceImpl) RejectPermissionRequest(ctx context.Context, req
 	return s.RejectApprovalRequest(ctx, requestID, approverUsername, reason)
 }
 
-
 // GetUserWorkspacePermissions 获取用户工作空间权限（服务树场景，实现 enterprise.PermissionService 接口）
 //
 // ⭐ 权限获取逻辑：
-//   1. 查询用户角色分配：从 role_assignment 表查询用户和组织架构的角色分配记录
-//   2. 获取角色权限：从内存缓存（roleCache）获取每个角色配置的权限点
-//   3. 构建权限记录：将角色权限转换为 PermissionRecord 列表
-//      - 每个记录包含：资源路径（resourcePath）、权限点（action）、是否授权（granted）
+//  1. 查询用户角色分配：从 role_assignment 表查询用户和组织架构的角色分配记录
+//  2. 获取角色权限：从内存缓存（roleCache）获取每个角色配置的权限点
+//  3. 构建权限记录：将角色权限转换为 PermissionRecord 列表
+//     - 每个记录包含：资源路径（resourcePath）、权限点（action）、是否授权（granted）
 //
 // ⭐ 角色权限系统：
 //   - 角色（Role）：按资源类型分组（directory、table、form、chart、app）

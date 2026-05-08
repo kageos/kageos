@@ -1,5 +1,5 @@
 import { WidgetType } from '@/core/constants/widget'
-import type { DisplayScene, FieldConfig, FunctionDetail, FunctionSchema } from '@/types/field'
+import type { FieldConfig, FieldScene, FunctionDetail, FunctionSchema } from '@/types/field'
 
 export function getFunctionSchema(functionDetail?: FunctionDetail | null): FunctionSchema | null {
   return functionDetail?.schema || null
@@ -17,11 +17,11 @@ export function hasFunctionSchemaCallback(functionDetail: FunctionDetail | null 
   return getFunctionCallbacks(functionDetail).includes(callback)
 }
 
-export function visibleInScene(field: FieldConfig, scene: DisplayScene): boolean {
+export function visibleInScene(field: FieldConfig, scene: FieldScene): boolean {
   if (scene === 'list' && isContainerWidget(field)) return false
-  const scenes = field.display?.scenes
-  if (!Array.isArray(scenes)) return true
-  return scenes.includes(scene)
+  const hiddenScenes = field.hide?.scenes
+  if (!Array.isArray(hiddenScenes)) return true
+  return !hiddenScenes.includes(scene)
 }
 
 export function getFormRequestFields(functionDetail?: FunctionDetail | null): FieldConfig[] {
@@ -66,17 +66,9 @@ export function getTableUpdateFields(functionDetail?: FunctionDetail | null): Fi
 
 export function getTableSearchFields(functionDetail?: FunctionDetail | null): FieldConfig[] {
   const fields = new Map<string, FieldConfig>()
-  // table.request 字段是 sdk-app 入参，URL 保持原始 key（`genre=诗`）。
-  // table.fields 字段是结果集搜索，URL 走后端操作符（`in=style:律诗`）。
-  // 如果 code 重复，request 字段优先，避免同一个字段同时走两套协议。
   getTableRequestFields(functionDetail)
     .filter((field) => isRequestSearchEnabled(field))
     .forEach((field) => fields.set(field.code, field))
-  getTableRawFields(functionDetail)
-    .filter((field) => hasSearchConfig(field))
-    .forEach((field) => {
-      if (!fields.has(field.code)) fields.set(field.code, field)
-    })
   return [...fields.values()]
 }
 
@@ -86,15 +78,7 @@ export function getTableRequestSearchFields(functionDetail?: FunctionDetail | nu
 }
 
 export function getTableResponseSearchFields(functionDetail?: FunctionDetail | null): FieldConfig[] {
-  const requestSearchFieldCodes = new Set(
-    getTableRequestSearchFields(functionDetail).map((field) => field.code)
-  )
-
-  // 排除 request 搜索字段：这些参数归 sdk-app 入参所有，必须保持原始 key，
-  // 不能再包进 `eq`/`in` 等操作符参数。
-  return getTableRawFields(functionDetail)
-    .filter((field) => hasSearchConfig(field))
-    .filter((field) => !requestSearchFieldCodes.has(field.code))
+  return []
 }
 
 export function getTableIdField(functionDetail?: FunctionDetail | null): FieldConfig | null {
@@ -128,13 +112,8 @@ function buildFormDetailFromFields(functionDetail: FunctionDetail, fields: Field
   }
 }
 
-function hasSearchConfig(field: FieldConfig): boolean {
-  const search = field.search?.trim()
-  return !!search && search !== '-'
-}
-
 function isRequestSearchEnabled(field: FieldConfig): boolean {
-  return field.search?.trim() !== '-'
+  return field.widget?.type !== WidgetType.TABLE && field.widget?.type !== WidgetType.FORM
 }
 
 function isContainerWidget(field: FieldConfig): boolean {

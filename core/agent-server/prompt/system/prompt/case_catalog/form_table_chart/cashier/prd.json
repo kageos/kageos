@@ -1,0 +1,583 @@
+{
+  "kind": "agent_app_prd",
+  "project": {
+    "name": "会员收银系统",
+    "code": "cashier",
+    "create_new_directory": true,
+    "parent_directory": "",
+    "target_directory": "",
+    "summary": "管理商品、会员、收银提交、支付记录和经营统计。",
+    "reason": "收银、库存、会员余额和支付统计属于独立业务域，需要单独目录承载多表和事务逻辑。"
+  },
+  "models": [
+    {
+      "name": "商品",
+      "description": "维护可售商品、价格、库存、折扣和上架状态。",
+      "fields": [
+        {
+          "name": "商品名称",
+          "widget": "name:商品名称;type:input",
+          "validate": "required,min=2,max=50"
+        },
+        {
+          "name": "商品分类",
+          "widget": "name:商品分类;type:select;options:饮料,零食,日用品,其他;options_colors:409EFF,E6A23C,67C23A,909399",
+          "validate": "required,oneof=饮料 零食 日用品 其他"
+        },
+        {
+          "name": "售价",
+          "widget": "name:售价;type:float;precision:2;unit:元",
+          "validate": "required,gt=0"
+        },
+        {
+          "name": "库存",
+          "widget": "name:库存;type:number;step:1;unit:件",
+          "validate": "required,min=0"
+        },
+        {
+          "name": "折扣率",
+          "widget": "name:折扣率;type:float;precision:2;render_default:0.90",
+          "validate": "min=0,max=1"
+        },
+        {
+          "name": "状态",
+          "widget": "name:状态;type:select;options:上架,下架;options_colors:67C23A,909399;render_default:上架",
+          "validate": "required,oneof=上架 下架"
+        }
+      ]
+    },
+    {
+      "name": "会员",
+      "description": "维护会员卡号、姓名、余额和状态。",
+      "fields": [
+        {
+          "name": "会员卡号",
+          "widget": "name:会员卡号;type:input",
+          "validate": "required,min=6,max=20",
+          "description": "业务上要求唯一。"
+        },
+        {
+          "name": "客户姓名",
+          "widget": "name:客户姓名;type:input",
+          "validate": "required,min=2,max=20"
+        },
+        {
+          "name": "余额",
+          "widget": "name:余额;type:float;precision:2;unit:元",
+          "validate": "min=0"
+        },
+        {
+          "name": "状态",
+          "widget": "name:状态;type:select;options:正常,冻结;options_colors:67C23A,F56C6C;render_default:正常",
+          "validate": "required,oneof=正常 冻结"
+        }
+      ]
+    },
+    {
+      "name": "支付记录",
+      "description": "收银台提交后生成的只读支付流水。",
+      "fields": [
+        {
+          "name": "订单号",
+          "widget": "name:订单号;type:input",
+          "hide": "create,update",
+          "description": "后端生成。"
+        },
+        {
+          "name": "会员卡号",
+          "widget": "name:会员卡号;type:input",
+          "hide": "create,update"
+        },
+        {
+          "name": "会员姓名",
+          "widget": "name:会员姓名;type:input",
+          "hide": "create,update"
+        },
+        {
+          "name": "消费明细",
+          "widget": "name:消费明细;type:text_area",
+          "hide": "create,update"
+        },
+        {
+          "name": "商品总额",
+          "widget": "name:商品总额;type:float;precision:2;unit:元",
+          "hide": "create,update"
+        },
+        {
+          "name": "折扣金额",
+          "widget": "name:折扣金额;type:float;precision:2;unit:元",
+          "hide": "create,update"
+        },
+        {
+          "name": "实付金额",
+          "widget": "name:实付金额;type:float;precision:2;unit:元",
+          "hide": "create,update"
+        },
+        {
+          "name": "状态",
+          "widget": "name:状态;type:select;options:支付成功,支付失败;options_colors:67C23A,F56C6C;render_default:支付成功",
+          "hide": "create,update"
+        },
+        {
+          "name": "备注",
+          "widget": "name:备注;type:text_area",
+          "hide": "create,update"
+        }
+      ]
+    }
+  ],
+  "functions": [
+    {
+      "title": "商品表",
+      "type": "table",
+      "route": "cashier_product_list.table",
+      "method": "GET",
+      "model": "商品",
+      "description": "维护商品基础信息，供收银台选择商品。",
+      "table": {
+        "capability": "支持商品列表查询、筛选、新增、编辑、删除。",
+        "readonly": false,
+        "operations": [
+          "列表查询",
+          "新增",
+          "编辑",
+          "删除"
+        ],
+        "request_fields": [
+          {
+            "type": "input",
+            "required": false,
+            "name": "商品名称",
+            "desc": "按商品名称模糊搜索。"
+          },
+          {
+            "type": "select",
+            "required": false,
+            "name": "商品分类",
+            "desc": "按分类筛选。"
+          },
+          {
+            "type": "select",
+            "required": false,
+            "name": "状态",
+            "desc": "按上架/下架筛选。"
+          }
+        ],
+        "columns": [
+          "商品名称",
+          "商品分类",
+          "售价",
+          "库存",
+          "折扣率",
+          "状态"
+        ],
+        "sample_rows": [
+          {
+            "商品名称": "可口可乐",
+            "商品分类": "饮料",
+            "售价": "3.50",
+            "库存": "100",
+            "折扣率": "0.90",
+            "状态": "上架"
+          },
+          {
+            "商品名称": "薯片",
+            "商品分类": "零食",
+            "售价": "8.00",
+            "库存": "50",
+            "折扣率": "0.85",
+            "状态": "上架"
+          }
+        ]
+      }
+    },
+    {
+      "title": "会员表",
+      "type": "table",
+      "route": "cashier_member_list.table",
+      "method": "GET",
+      "model": "会员",
+      "description": "维护会员卡信息，供收银台选择会员并扣减余额。",
+      "table": {
+        "capability": "支持会员列表查询、筛选、新增、编辑、删除。",
+        "readonly": false,
+        "operations": [
+          "列表查询",
+          "新增",
+          "编辑",
+          "删除"
+        ],
+        "request_fields": [
+          {
+            "type": "input",
+            "required": false,
+            "name": "会员卡号",
+            "desc": "按会员卡号模糊搜索。"
+          },
+          {
+            "type": "input",
+            "required": false,
+            "name": "客户姓名",
+            "desc": "按客户姓名模糊搜索。"
+          },
+          {
+            "type": "select",
+            "required": false,
+            "name": "状态",
+            "desc": "按正常/冻结筛选。"
+          }
+        ],
+        "columns": [
+          "会员卡号",
+          "客户姓名",
+          "余额",
+          "状态"
+        ],
+        "sample_rows": [
+          {
+            "会员卡号": "M001",
+            "客户姓名": "张三",
+            "余额": "200.00",
+            "状态": "正常"
+          },
+          {
+            "会员卡号": "M002",
+            "客户姓名": "李四",
+            "余额": "0.00",
+            "状态": "正常"
+          }
+        ]
+      }
+    },
+    {
+      "title": "支付记录表",
+      "type": "table",
+      "route": "cashier_payment_record_list.table",
+      "method": "GET",
+      "model": "支付记录",
+      "description": "只读查看支付流水；记录由收银台 Form 产生，不允许手工新增、编辑、删除。",
+      "table": {
+        "capability": "仅列表查询和筛选，禁止手工新增、编辑、删除。",
+        "readonly": true,
+        "operations": [
+          "列表查询"
+        ],
+        "request_fields": [
+          {
+            "type": "input",
+            "required": false,
+            "name": "订单号",
+            "desc": "按订单号搜索。"
+          },
+          {
+            "type": "input",
+            "required": false,
+            "name": "会员卡号",
+            "desc": "按会员卡号搜索。"
+          },
+          {
+            "type": "select",
+            "required": false,
+            "name": "状态",
+            "desc": "按支付状态筛选。"
+          }
+        ],
+        "columns": [
+          "创建时间",
+          "订单号",
+          "会员卡号",
+          "会员姓名",
+          "消费明细",
+          "商品总额",
+          "折扣金额",
+          "实付金额",
+          "状态"
+        ],
+        "sample_rows": [
+          {
+            "创建时间": "2025-01-20 11:30",
+            "订单号": "ORD202501200001",
+            "会员卡号": "M001",
+            "会员姓名": "张三",
+            "消费明细": "可口可乐×2, 薯片×1",
+            "商品总额": "15.00",
+            "折扣金额": "1.50",
+            "实付金额": "13.50",
+            "状态": "支付成功"
+          }
+        ]
+      }
+    },
+    {
+      "title": "收银台 Form",
+      "type": "form",
+      "route": "cashier_desk.form",
+      "method": "POST",
+      "model": "支付记录",
+      "description": "选择商品和会员后完成支付，写支付记录、扣减库存和会员余额。",
+      "form": {
+        "request_fields": [
+          {
+            "type": "table",
+            "required": true,
+            "name": "商品清单",
+            "desc": "type:table，至少 1 行；每行包含商品（OnSelectFuzzy 从商品表选）和数量（数字，≥1）。"
+          },
+          {
+            "type": "select",
+            "required": true,
+            "name": "会员卡",
+            "desc": "OnSelectFuzzy 从会员表选择正常会员。"
+          },
+          {
+            "type": "text_area",
+            "required": false,
+            "name": "备注",
+            "desc": "可选备注，写入支付记录。"
+          }
+        ],
+        "response_fields": [
+          {
+            "type": "text_area",
+            "example": "支付成功！订单号：ORD202501200001，实付金额：¥13.50",
+            "name": "支付结果",
+            "desc": "提交后的处理结果。"
+          },
+          {
+            "type": "input",
+            "example": "ORD202501200001",
+            "name": "订单号",
+            "desc": "后端生成的支付流水号。"
+          },
+          {
+            "type": "number",
+            "example": "15.00",
+            "name": "商品总额",
+            "desc": "打折前金额。"
+          },
+          {
+            "type": "number",
+            "example": "1.50",
+            "name": "折扣金额",
+            "desc": "折扣优惠金额。"
+          },
+          {
+            "type": "number",
+            "example": "13.50",
+            "name": "实付金额",
+            "desc": "最终支付金额。"
+          },
+          {
+            "type": "table",
+            "example": "商品名称、单价、数量、小计、折扣率、折扣后金额",
+            "name": "商品清单",
+            "desc": "展示本次支付的商品明细。"
+          },
+          {
+            "type": "form",
+            "example": "会员卡号、姓名、扣减后余额",
+            "name": "会员信息",
+            "desc": "展示支付后的会员信息。"
+          }
+        ]
+      }
+    },
+    {
+      "title": "销售趋势统计",
+      "type": "chart",
+      "route": "cashier_sales_trend_statistics.chart",
+      "method": "GET",
+      "model": "支付记录",
+      "description": "按日期统计销售额和订单数。",
+      "chart": {
+        "chart_type": "line",
+        "dimension": "日期",
+        "metrics": [
+          "销售额",
+          "订单数"
+        ],
+        "filters": [
+          {
+            "name": "开始时间",
+            "type": "datetime",
+            "required": false,
+            "desc": "统计开始时间。"
+          },
+          {
+            "name": "结束时间",
+            "type": "datetime",
+            "required": false,
+            "desc": "统计结束时间。"
+          }
+        ],
+        "preview_data": [
+          {
+            "日期": "2025-01-18",
+            "销售额": 860.5,
+            "订单数": 28
+          },
+          {
+            "日期": "2025-01-19",
+            "销售额": 1024,
+            "订单数": 34
+          },
+          {
+            "日期": "2025-01-20",
+            "销售额": 1280.5,
+            "订单数": 41
+          }
+        ],
+        "summary": [
+          {
+            "name": "总销售额",
+            "value": "3165.00",
+            "desc": "当前筛选范围内的销售额合计。"
+          },
+          {
+            "name": "总订单数",
+            "value": "103",
+            "desc": "当前筛选范围内的订单总数。"
+          }
+        ]
+      }
+    },
+    {
+      "title": "每日销售柱状图",
+      "type": "chart",
+      "route": "cashier_sales_bar_statistics.chart",
+      "method": "GET",
+      "model": "支付记录",
+      "description": "按日期展示每日销售额和订单数柱状图。",
+      "chart": {
+        "chart_type": "bar",
+        "dimension": "日期",
+        "metrics": [
+          "销售额",
+          "订单数"
+        ],
+        "filters": [
+          {
+            "name": "开始时间",
+            "type": "datetime",
+            "required": false,
+            "desc": "统计开始时间。"
+          },
+          {
+            "name": "结束时间",
+            "type": "datetime",
+            "required": false,
+            "desc": "统计结束时间。"
+          }
+        ],
+        "preview_data": [
+          {
+            "日期": "2025-01-18",
+            "销售额": 860.5,
+            "订单数": 28
+          },
+          {
+            "日期": "2025-01-19",
+            "销售额": 1024,
+            "订单数": 34
+          },
+          {
+            "日期": "2025-01-20",
+            "销售额": 1280.5,
+            "订单数": 41
+          }
+        ],
+        "summary": [
+          {
+            "name": "最高销售日",
+            "value": "2025-01-20",
+            "desc": "当前筛选范围内销售额最高的日期。"
+          }
+        ]
+      }
+    },
+    {
+      "title": "分类销售占比",
+      "type": "chart",
+      "route": "cashier_category_sales_statistics.chart",
+      "method": "GET",
+      "model": "支付记录",
+      "description": "按商品分类统计销售额占比。",
+      "chart": {
+        "chart_type": "pie",
+        "dimension": "商品分类",
+        "metrics": [
+          "销售额"
+        ],
+        "filters": [
+          {
+            "name": "开始时间",
+            "type": "datetime",
+            "required": false,
+            "desc": "统计开始时间。"
+          },
+          {
+            "name": "结束时间",
+            "type": "datetime",
+            "required": false,
+            "desc": "统计结束时间。"
+          }
+        ],
+        "preview_data": [
+          {
+            "name": "饮料",
+            "value": 520
+          },
+          {
+            "name": "零食",
+            "value": 390
+          },
+          {
+            "name": "日用品",
+            "value": 260
+          },
+          {
+            "name": "其他",
+            "value": 95
+          }
+        ],
+        "summary": [
+          {
+            "name": "总销售额",
+            "value": "1265.00",
+            "desc": "当前筛选范围内的分类销售额合计。"
+          }
+        ]
+      }
+    }
+  ],
+  "acceptance_cases": [
+    {
+      "name": "维护商品",
+      "action": "进入商品表，新增商品并修改库存。",
+      "expected": "商品保存成功，列表展示最新价格、库存和状态。"
+    },
+    {
+      "name": "维护会员",
+      "action": "进入会员表，新增会员卡并设置余额。",
+      "expected": "会员保存成功，收银台可以通过会员卡选择该会员。"
+    },
+    {
+      "name": "完成收银",
+      "action": "进入收银台 Form，选择商品、数量和会员后提交。",
+      "expected": "支付成功，库存和会员余额扣减，生成支付记录。"
+    },
+    {
+      "name": "查看支付记录",
+      "action": "进入支付记录表，按订单号或会员卡号搜索。",
+      "expected": "列表展示匹配支付流水，不能手工新增、编辑、删除。"
+    },
+    {
+      "name": "查看经营统计",
+      "action": "打开销售趋势折线图、每日销售柱状图和分类销售饼图。",
+      "expected": "每个图表独立渲染一张图，并展示对应摘要指标。"
+    }
+  ],
+  "confirmation": {
+    "question": "请确认是否按以上 PRD 创建目录和生成代码：\n- 是否创建新目录：是\n- 目录名称：会员收银系统\n- 目录 code：cashier\n- 将创建/修改的功能：cashier_product_list.table、cashier_member_list.table、cashier_payment_record_list.table、cashier_desk.form、cashier_sales_trend_statistics.chart、cashier_sales_bar_statistics.chart、cashier_category_sales_statistics.chart\n\n确认后我再进入开发阶段，按 PRD 直接创建目录、写 Go 文件并 build。"
+  }
+}

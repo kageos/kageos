@@ -83,6 +83,56 @@ func main() {
 	assertValidGoFile(t, mainFilePath)
 }
 
+func TestRemoveMainFileImportRemovesTargetSubtreeImports(t *testing.T) {
+	t.Parallel()
+
+	basePath := t.TempDir()
+	service := newPackageScaffoldTestService(basePath)
+	mainFilePath := writeMainGoFixture(t, basePath, `package main
+
+import (
+	_ "github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/keep/me"
+	_ "github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/workspace"
+	_ "github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/workspace/create-project"
+	_ "github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/workspace/execute"
+	_ "github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/workspace_extra/keep"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
+)
+
+func main() {
+	err := app.Run()
+	if err != nil {
+		panic(err)
+	}
+}
+`)
+
+	if err := service.removeMainFileImport(context.Background(), "alice", "demo", "/workspace"); err != nil {
+		t.Fatalf("removeMainFileImport: %v", err)
+	}
+
+	content := readMainGoFixture(t, mainFilePath)
+	for _, removed := range []string{
+		`github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/workspace"`,
+		`github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/workspace/create-project`,
+		`github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/workspace/execute`,
+	} {
+		if strings.Contains(content, removed) {
+			t.Fatalf("target subtree import still exists %s: %s", removed, content)
+		}
+	}
+	for _, kept := range []string{
+		`github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/keep/me`,
+		`github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/workspace_extra/keep`,
+	} {
+		if !strings.Contains(content, kept) {
+			t.Fatalf("non-target import was removed %s: %s", kept, content)
+		}
+	}
+
+	assertValidGoFile(t, mainFilePath)
+}
+
 func newServiceTreeTestService(basePath string) *ServiceTreeService {
 	cfg := &appconfig.AppManageServiceConfig{
 		AppDir: appconfig.AppDirConfig{

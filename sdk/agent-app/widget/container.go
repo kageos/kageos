@@ -20,7 +20,7 @@ func init() {
 // - Go 字段必须是 slice/array；
 // - slice/array 元素必须是 struct 或 *struct；
 // - 子字段必须能被 parseNestedStructOrSlice 解析出来；
-// - 子字段自己的 widget/search/display/validate 仍会递归走对应组件校验。
+// - 子字段自己的 widget/display/validate 仍会递归走对应组件校验。
 func validateTableWidget(ctx ValidateContext) error {
 	typ := derefType(ctx.GoType)
 	var errs []error

@@ -39,22 +39,14 @@ function createFunctionDetail() {
             code: 'status',
             name: '状态',
             widget: { type: 'select' }
-          }
-        ],
-        fields: [
+          },
           {
             code: 'keyword',
             name: '关键词',
-            search: 'like',
             widget: { type: 'input' }
-          },
-          {
-            code: 'created_at',
-            name: '创建时间',
-            search: 'gte,lte',
-            widget: { type: 'datetime' }
           }
-        ]
+        ],
+        fields: []
       }
     }
   } as any
@@ -62,7 +54,7 @@ function createFunctionDetail() {
 
 describe('tableViewURLRuntime', () => {
   it('collects request field codes for filtering raw request search params', () => {
-    expect(Array.from(getTableRequestFieldCodes(createFunctionDetail()))).toEqual(['status'])
+    expect(Array.from(getTableRequestFieldCodes(createFunctionDetail()))).toEqual(['status', 'keyword'])
   })
 
   it('builds table query params from scoped state, default sorts and raw request search', () => {
@@ -72,8 +64,7 @@ describe('tableViewURLRuntime', () => {
         state: createState({
           searchForm: {
             status: 'open',
-            keyword: 'alice',
-            created_at: ['1700000000', '1800000000']
+            keyword: 'alice'
           }
         }),
         buildDefaultSorts: () => [{ field: 'id', order: 'desc' }]
@@ -81,10 +72,8 @@ describe('tableViewURLRuntime', () => {
     ).toEqual({
       page: '2',
       page_size: '50',
-      sorts: 'id:desc',
-      like: 'keyword:alice',
-      gte: 'created_at:1700000000',
-      lte: 'created_at:1800000000',
+      sorts: '-id',
+      keyword: 'alice',
       status: 'open'
     })
   })
@@ -102,22 +91,14 @@ describe('tableViewURLRuntime', () => {
                   code: 'genre',
                   name: '体裁',
                   widget: { type: 'select' }
-                }
-              ],
-              fields: [
-                {
-                  code: 'genre',
-                  name: '体裁',
-                  search: 'in',
-                  widget: { type: 'select' }
                 },
                 {
                   code: 'style',
                   name: '格律形式',
-                  search: 'in',
                   widget: { type: 'select' }
                 }
-              ]
+              ],
+              fields: []
             }
           }
         } as any,
@@ -132,13 +113,13 @@ describe('tableViewURLRuntime', () => {
     ).toEqual({
       page: '2',
       page_size: '50',
-      sorts: 'id:desc',
+      sorts: '-id',
       genre: '诗',
-      in: 'style:律诗'
+      style: '律诗'
     })
   })
 
-  it('builds only backend search params for stored search field values', () => {
+  it('builds direct params for stored request field values', () => {
     expect(
       buildTableURLQueryParams({
         functionDetail: {
@@ -146,16 +127,15 @@ describe('tableViewURLRuntime', () => {
             version: 1,
             type: 'table',
             table: {
-              request: [],
-              fields: [
+              request: [
                 {
                   code: 'job_id',
                   name: '投递职位',
-                  search: 'eq',
                   callbacks: ['OnSelectFuzzy'],
                   widget: { type: 'select' }
                 }
-              ]
+              ],
+              fields: []
             }
           }
         } as any,
@@ -173,8 +153,8 @@ describe('tableViewURLRuntime', () => {
     ).toEqual({
       page: '2',
       page_size: '50',
-      sorts: 'id:desc',
-      eq: 'job_id:1'
+      sorts: '-id',
+      job_id: '1'
     })
   })
 
@@ -221,14 +201,14 @@ describe('tableViewURLRuntime', () => {
     })
   })
 
-  it('keeps backend search params from link navigation while removing _link_type', () => {
+  it('keeps raw business params from link navigation while removing _link_type', () => {
     expect(
       preserveExistingTableQueryParams({
         routeQuery: {
           _tab: 'detail',
           _link_type: 'table',
-          eq: 'owner:alice',
-          in: 'status:open,closed',
+          owner: 'alice',
+          priority: 'high',
           topic_id: '42'
         },
         requestFieldCodes: new Set(['status']),
@@ -236,8 +216,8 @@ describe('tableViewURLRuntime', () => {
       })
     ).toEqual({
       _tab: 'detail',
-      eq: 'owner:alice',
-      in: 'status:open,closed',
+      owner: 'alice',
+      priority: 'high',
       topic_id: '42'
     })
   })
@@ -254,8 +234,8 @@ describe('tableViewURLRuntime', () => {
     ).toEqual({
       page: '2',
       page_size: '50',
-      sorts: 'id:desc',
-      like: 'keyword:alice',
+      sorts: '-id',
+      keyword: 'alice',
       status: 'open'
     })
   })
@@ -266,7 +246,7 @@ describe('tableViewURLRuntime', () => {
         routeQuery: {
           _tab: 'detail',
           topic_id: '42',
-          eq: 'owner:bob',
+          owner: 'bob',
           page: '9'
         },
         functionDetail: createFunctionDetail(),
@@ -277,11 +257,11 @@ describe('tableViewURLRuntime', () => {
     ).toEqual({
       _tab: 'detail',
       topic_id: '42',
-      eq: 'owner:bob',
+      owner: 'bob',
       page: '2',
       page_size: '50',
-      sorts: 'id:desc',
-      like: 'keyword:alice',
+      sorts: '-id',
+      keyword: 'alice',
       status: 'open'
     })
   })

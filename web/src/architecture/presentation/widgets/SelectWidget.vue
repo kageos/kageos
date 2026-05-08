@@ -21,6 +21,7 @@
           :disabled="!!widgetConfig.disabled"
           :clearable="allowInlineClear"
           :creatable="!!widgetConfig.creatable"
+          :teleported="shouldTeleportPopper"
           :display-info-text="displayInfoText"
           :get-option-color="getOptionColor"
           :get-option-color-style="getOptionColorStyle"
@@ -70,6 +71,7 @@
           :clearable="allowInlineClear"
           :creatable="!!widgetConfig.creatable"
           :search-mode="true"
+          :teleported="shouldTeleportPopper"
           :get-option-color="getOptionColor"
           :get-option-color-style="getOptionColorStyle"
           :get-option-display-info="getOptionDisplayInfo"
@@ -98,6 +100,7 @@
       :loading="loading"
       :is-multiselect="false"
       :get-item-color="getOptionColor"
+      :append-to-body="shouldTeleportPopper"
       @search="handleDialogSearch"
       @select="handleDialogSelect"
     />
@@ -105,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import FuzzySearchDialog from './FuzzySearchDialog.vue'
 import FieldStatistics from './FieldStatistics.vue'
@@ -113,6 +116,7 @@ import SelectWidgetDialogTrigger from './SelectWidgetDialogTrigger.vue'
 import SelectWidgetInlineSelect from './SelectWidgetInlineSelect.vue'
 import SelectWidgetValueDisplay from './SelectWidgetValueDisplay.vue'
 import SearchSingleSelectDisplay from '@/shared/components/SearchSingleSelectDisplay.vue'
+import { prdPreviewContextKey } from '@/architecture/presentation/components/prdPreviewContext'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
@@ -135,6 +139,8 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
   })
 })
 const emit = defineEmits<WidgetComponentEmits>()
+const prdPreviewContext = inject(prdPreviewContextKey, null)
+const shouldTeleportPopper = computed(() => !prdPreviewContext?.interactive)
 
 const formDataStore = useFormDataStore()
 const callbackMethod = computed(() => props.formRenderer?.getFunctionMethod?.() || props.functionMethod || 'POST')

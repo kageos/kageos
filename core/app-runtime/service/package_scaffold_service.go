@@ -118,12 +118,12 @@ func (s *PackageScaffoldService) removeMainFileImport(ctx context.Context, user,
 	}
 	importPath := appPaths.NamespaceAPIImport(cleanPath)
 
-	changed, err := removeNamedImportFromGoFile(mainFilePath, "_", importPath)
+	changed, err := removeNamedImportsWithPathPrefixFromGoFile(mainFilePath, "_", importPath)
 	if err != nil {
 		return fmt.Errorf("failed to remove import from main file: %w", err)
 	}
 	if !changed {
-		logger.Infof(ctx, "[PackageScaffoldService] Import not found in main.go: %s", importPath)
+		logger.Infof(ctx, "[PackageScaffoldService] Import prefix not found in main.go: %s", importPath)
 	}
 	return nil
 }

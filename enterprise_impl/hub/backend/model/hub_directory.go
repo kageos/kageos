@@ -46,10 +46,10 @@ type HubDirectory struct {
 	ServiceFeeEnterprise float64 `gorm:"type:decimal(10,2)" json:"service_fee_enterprise"` // 企业用户服务费
 
 	// 统计信息（star_count 冗余在表内，便于排序与展示；加星/取消时由服务层维护）
-	StarCount      int     `gorm:"default:0" json:"star_count"`
-	DownloadCount  int     `gorm:"default:0" json:"download_count"`
-	TrialCount     int     `gorm:"default:0" json:"trial_count"`
-	Rating         float64 `gorm:"type:decimal(3,2)" json:"rating"`
+	StarCount     int     `gorm:"default:0" json:"star_count"`
+	DownloadCount int     `gorm:"default:0" json:"download_count"`
+	TrialCount    int     `gorm:"default:0" json:"trial_count"`
+	Rating        float64 `gorm:"type:decimal(3,2)" json:"rating"`
 
 	// 版本信息
 	Version    string `gorm:"type:varchar(50);not null" json:"version"` // 目录版本号（如 v1）

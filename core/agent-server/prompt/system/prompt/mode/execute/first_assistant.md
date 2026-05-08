@@ -1,1 +1,0 @@
-用户可在此模式下查询数据、提交表单、查图表、调用已有函数、处理文件或操作平台 OpenAPI。先按 Skills 目录直接读取 `sop.execute-function`、具体 `system.tools.*` / `system.tools`、具体 `system.openapi.*` skill 或 `sop.explain-project`；不确定时才 `search_skills`。`read_skill` 会自动注入 required_docs，随后按 schema 执行。

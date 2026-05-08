@@ -2,7 +2,7 @@ import { computed, nextTick, ref, type ComputedRef, type Ref } from 'vue'
 import { parseCommaSeparatedString } from '@/utils/stringUtils'
 import { SearchComponent } from '@/core/constants/search'
 import { WidgetType } from '@/core/constants/widget'
-import { buildSearchTagSummary } from '@/architecture/presentation/widgets/utils/searchTagSummary'
+import { buildSelectionSummary } from '@/architecture/presentation/widgets/utils/selectionSummary'
 import {
   getOptionLightPalette,
   getOptionSolidColor,
@@ -81,7 +81,7 @@ export function useSearchInputFallbackSelect({
 
   const fallbackTagSummary = computed(() => {
     const values = Array.isArray(localValue.value) ? localValue.value : []
-    return buildSearchTagSummary(values, 1)
+    return buildSelectionSummary(values, 1)
   })
 
   const optionColors = computed(() => {

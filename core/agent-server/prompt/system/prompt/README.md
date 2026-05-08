@@ -6,5 +6,4 @@
 - **mode/**：工作台各模式的配置与提示词。
 - **sdk/**：框架与平台使用手册。
 - **case_catalog/**：案例目录，按类型归档真实示例。
-- **platform-overview.md / platform-function-architecture.md / platform-cross-cutting-capabilities.md**：平台总览、Form/Table/Chart 组合架构与横切能力说明。
 - **platform-capability-boundaries.md**：平台能力边界说明。

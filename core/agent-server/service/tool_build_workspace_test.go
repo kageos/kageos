@@ -25,13 +25,12 @@ namespace/auction/auction_bid_list.go:15:6: AuctionBidRecord redeclared in this 
 	enriched := enrichWorkspaceBuildError(errText)
 	for _, want := range []string{
 		"options_colors 只支持不带 # 的 6 位十六进制 RRGGBB",
-		"widget 的 type 和配置 key 必须来自 widget-system 白名单",
+		"widget 的 type 和配置 key 必须来自 SDK 主文档组件速查和运行时白名单",
 		"type:number 只配 int/int64 等整数",
-		"Table Request 不要重复声明任何 Model 字段 code",
-		"gorm:\"-\" 的计算/列表展示字段也会冲突",
-		"删除或合并 Table Request 字段后",
+		"Table 列表使用 query.PageSortReq",
+		"调整 Table Request 字段后",
 		"OnSelectFuzzyMap 的 key 必须对应 schema",
-		"分页默认使用 resp.Table(&rows).AutoSearchFilterPaged",
+		"分页默认使用 resp.Table(&rows, queryDB",
 		"types.Time 做格式化或比较时先调用 Time() 方法",
 		"未确认的 SDK API chart.ComboChart",
 		"未确认的 SDK API types.EmptyRequest",

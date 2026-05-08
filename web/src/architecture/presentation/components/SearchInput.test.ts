@@ -345,7 +345,7 @@ function mountSearchInput(options?: {
         ElAvatar: true,
         ElIcon: true,
         ElTag: ElTagStub,
-        SearchUserTag: true,
+        UserFilterChip: true,
         Close: true
       }
     }

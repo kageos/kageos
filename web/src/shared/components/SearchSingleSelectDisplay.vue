@@ -19,7 +19,7 @@
       <div class="search-select-actions">
         <el-icon
           v-if="showClear && !disabled"
-          class="search-tag-remove"
+          class="selected-value-remove"
           @click.stop="emit('clear')"
         >
           <Close />
@@ -135,7 +135,7 @@ const emit = defineEmits<{
   flex-shrink: 0;
 }
 
-.search-tag-remove {
+.selected-value-remove {
   width: 18px;
   height: 18px;
   border-radius: 4px;
@@ -145,7 +145,7 @@ const emit = defineEmits<{
   cursor: pointer;
 }
 
-.search-tag-remove:hover {
+.selected-value-remove:hover {
   color: var(--el-color-danger);
   background-color: var(--el-fill-color-light);
 }

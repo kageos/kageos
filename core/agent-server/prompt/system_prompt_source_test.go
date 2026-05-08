@@ -25,31 +25,7 @@ func TestGetPromptDocContent_ForSDKDirectoryAndLeafDoc(t *testing.T) {
 		t.Fatalf("expected platform capability boundaries content, got: %q", boundaryContent)
 	}
 
-	architectureName, architectureContent := GetPromptDocContent(nil, "/system/prompt/platform-function-architecture")
-	if strings.TrimSpace(architectureName) == "" {
-		t.Fatal("expected platform function architecture doc name")
-	}
-	if !strings.Contains(architectureContent, "Form/Table/Chart 组合架构") {
-		t.Fatalf("expected platform function architecture content, got: %q", architectureContent)
-	}
-
-	widgetName, widgetContent := GetPromptDocContent(nil, "/system/prompt/sdk/widget-system")
-	if strings.TrimSpace(widgetName) == "" {
-		t.Fatal("expected widget system doc name")
-	}
-	if !strings.Contains(widgetContent, "SDK Widget 组件系统") {
-		t.Fatalf("expected widget system content, got: %q", widgetContent)
-	}
-
-	formName, formContent := GetPromptDocContent(nil, "/system/prompt/sdk/form-submit-basic")
-	if strings.TrimSpace(formName) == "" {
-		t.Fatal("expected form submit basic doc name")
-	}
-	if !strings.Contains(formContent, "SDK Form 提交任务包") {
-		t.Fatalf("expected form submit content, got: %q", formContent)
-	}
-
-	commonName, commonContent := GetPromptDocContent(nil, "/system/prompt/sdk/common-runtime-capabilities")
+	commonName, commonContent := GetPromptDocContent(nil, "/system/prompt/sdk/reference/runtime-capabilities")
 	if strings.TrimSpace(commonName) == "" {
 		t.Fatal("expected common runtime capabilities doc name")
 	}
@@ -68,28 +44,20 @@ func TestGetPromptDocContent_ForSDKDirectoryAndLeafDoc(t *testing.T) {
 		}
 	}
 
-	tableName, tableContent := GetPromptDocContent(nil, "/system/prompt/sdk/table-crud-basic")
-	if strings.TrimSpace(tableName) == "" {
-		t.Fatal("expected table crud basic doc name")
+	buildName, buildContent := GetPromptDocContent(nil, "/system/prompt/sdk/reference/build-validation")
+	if strings.TrimSpace(buildName) == "" {
+		t.Fatal("expected build validation doc name")
 	}
-	if !strings.Contains(tableContent, "SDK Table CRUD 基础任务包") {
-		t.Fatalf("expected table crud content, got: %q", tableContent)
-	}
-
-	comboTableFormName, comboTableFormContent := GetPromptDocContent(nil, "/system/prompt/sdk/combo-table-form")
-	if strings.TrimSpace(comboTableFormName) == "" {
-		t.Fatal("expected combo table form doc name")
-	}
-	if !strings.Contains(comboTableFormContent, "SDK Table/Form 组合任务包") {
-		t.Fatalf("expected combo table form content, got: %q", comboTableFormContent)
+	if !strings.Contains(buildContent, "build_workspace") {
+		t.Fatalf("expected build validation content, got: %q", buildContent)
 	}
 
-	comboName, comboContent := GetPromptDocContent(nil, "/system/prompt/sdk/combo-table-form-chart")
-	if strings.TrimSpace(comboName) == "" {
-		t.Fatal("expected combo table form chart doc name")
+	platformAPIName, platformAPIContent := GetPromptDocContent(nil, "/system/prompt/sdk/reference/platform-api")
+	if strings.TrimSpace(platformAPIName) == "" {
+		t.Fatal("expected platform api doc name")
 	}
-	if !strings.Contains(comboContent, "SDK Table/Form/Chart 组合任务包") {
-		t.Fatalf("expected combo content, got: %q", comboContent)
+	if !strings.Contains(platformAPIContent, "ctx.APICall") {
+		t.Fatalf("expected platform api content, got: %q", platformAPIContent)
 	}
 
 	legacyName, legacyContent := GetPromptDocContent(nil, "/system/prompt/workspace/create-project")
@@ -106,13 +74,11 @@ func TestPromptDocCandidatePaths_PreferSeedActualPath(t *testing.T) {
 		{path: "/system/prompt/doc/workspace-env-template", want: "/system/prompt/doc/workspace-env-template.docs"},
 		{path: "/system/prompt/mode/dev/config", want: "/system/prompt/mode/dev/config.docs"},
 		{path: "/system/prompt/platform-capability-boundaries", want: "/system/prompt/platform-capability-boundaries.docs"},
-		{path: "/system/prompt/platform-function-architecture", want: "/system/prompt/platform-function-architecture.docs"},
-		{path: "/system/prompt/sdk/widget-system", want: "/system/prompt/sdk/widget-system.docs"},
-		{path: "/system/prompt/sdk/common-runtime-capabilities", want: "/system/prompt/sdk/common-runtime-capabilities.docs"},
-		{path: "/system/prompt/sdk/form-submit-basic", want: "/system/prompt/sdk/form-submit-basic.docs"},
-		{path: "/system/prompt/sdk/table-crud-basic", want: "/system/prompt/sdk/table-crud-basic.docs"},
-		{path: "/system/prompt/sdk/combo-table-form", want: "/system/prompt/sdk/combo-table-form.docs"},
-		{path: "/system/prompt/sdk/combo-table-form-chart", want: "/system/prompt/sdk/combo-table-form-chart.docs"},
+		{path: "/system/prompt/sdk/agent-app-sdk-readme", want: "/system/prompt/sdk/agent-app-sdk-readme.docs"},
+		{path: "/system/prompt/sdk/reference", want: "/system/prompt/sdk/reference/index.docs"},
+		{path: "/system/prompt/sdk/reference/runtime-capabilities", want: "/system/prompt/sdk/reference/runtime-capabilities.docs"},
+		{path: "/system/prompt/sdk/reference/build-validation", want: "/system/prompt/sdk/reference/build-validation.docs"},
+		{path: "/system/prompt/sdk/reference/platform-api", want: "/system/prompt/sdk/reference/platform-api.docs"},
 	}
 
 	for _, tt := range tests {
@@ -132,69 +98,107 @@ func TestPromptDocCandidatePaths_DisablesLegacyWorkspaceSOP(t *testing.T) {
 	}
 }
 
-func TestScenarioTaskDocsContainClosedLoopSDKKnowledge(t *testing.T) {
-	commonNeedles := []string{
-		"必备 SDK 能力",
-		"自定义搜索参数",
-		"后置关联填充",
-		"BuildFunctionUrlWithText",
-		"display:\"scenes:list\"",
-		"OnSelectFuzzy",
-		"type:files",
-		"DownloadFiles",
-		"ResponseFiles",
-		"落地目录和函数清单",
-		"示例数据",
-		"确认后我将创建目录",
-	}
+func TestLeanPromptDocsMoveRedundantSDKTaskPacksOutOfSeed(t *testing.T) {
 	for _, path := range []string{
 		"/system/prompt/sdk/form-submit-basic",
 		"/system/prompt/sdk/table-crud-basic",
 		"/system/prompt/sdk/combo-table-form",
 		"/system/prompt/sdk/combo-table-form-chart",
+		"/system/prompt/sdk/form-table-chart-reference",
+		"/system/prompt/sdk/widget-system",
+		"/system/prompt/sdk/sdk",
+		"/system/prompt/sdk/common-runtime-capabilities",
+		"/system/prompt/sdk/build-validation-reference",
+		"/system/prompt/sdk/platform-api-reference",
+		"/system/prompt/platform-function-architecture",
+		"/system/prompt/platform-cross-cutting-capabilities",
+		"/system/prompt/intents/publish-hub",
+		"/system/prompt/mode/dev/first_assistant",
+		"/system/prompt/mode/dev/readme",
 	} {
-		_, content := GetPromptDocContent(nil, path)
-		for _, needle := range commonNeedles {
-			if !strings.Contains(content, needle) {
-				t.Fatalf("%s missing %q", path, needle)
-			}
+		name, content := GetPromptDocContent(nil, path)
+		if name != "" || content != "" {
+			t.Fatalf("redundant prompt doc should be unavailable: path=%s name=%q content=%q", path, name, content)
 		}
 	}
 
-	_, chartContent := GetPromptDocContent(nil, "/system/prompt/sdk/combo-table-form-chart")
-	if !strings.Contains(chartContent, "Chart Request 和聚合") {
-		t.Fatalf("combo table/form/chart doc missing Chart Request guidance")
-	}
+	_, sdkContent := GetPromptDocContent(nil, "/system/prompt/sdk/agent-app-sdk-readme")
 	for _, needle := range []string{
-		"事实记录表",
-		"OnTableAddRow",
-		"OnTableUpdateRow",
-		"OnTableDeleteRows",
-		"前端就不会出现新增、编辑、删除入口",
+		"WidgetLookupExample",
+		"Table/Form/Chart 模式",
+		"Chart 拆分规则（必读）",
+		"不支持 `resp.Chart(chart1, chart2)`",
+		"图表 `Metadata`",
+		"BuildFunctionUrlWithText",
+		"OnSelectFuzzy",
+		"type:files",
+		"hide:\"create,update\"",
 	} {
-		if !strings.Contains(chartContent, needle) {
-			t.Fatalf("combo table/form/chart doc missing readonly callback guidance %q", needle)
+		if !strings.Contains(sdkContent, needle) {
+			t.Fatalf("sdk readme should retain merged SDK knowledge %q", needle)
 		}
 	}
+}
 
-	_, tableContent := GetPromptDocContent(nil, "/system/prompt/sdk/table-crud-basic")
-	if !strings.Contains(tableContent, "三个回调都不配置") || !strings.Contains(tableContent, "收银记录") {
-		t.Fatalf("table crud doc missing readonly callback rule")
+func TestAppPlanSOPRequiresPRDTablesAndConfirmation(t *testing.T) {
+	_, content := GetPromptDocContent(nil, "/system/prompt/intents/app-plan")
+	for _, needle := range []string{
+		"应用设计 SOP",
+		"`write_prd` 必须包含",
+		"必须调用 `write_prd`",
+		"不要只发纯文本 PRD",
+		"「确认 PRD」按钮",
+		"目录确认",
+		"models 写法",
+		"只描述“用户看到什么、怎么填、在哪些界面展示”",
+		"每个字段只写 `name`、`widget`、`validate`、`hide`、`description`",
+		"不需要列出 `ID`、`CreatedAt`、`UpdatedAt`、`DeletedAt`",
+		"Table 写法",
+		"Table 是 Table",
+		"Table Request 是搜索/筛选请求",
+		"列表模式",
+		"用户可见预览只展示业务列表",
+		"Form 写法",
+		"必须明确 Request 和 Response",
+		"请求（表单字段五列：字段 | 类型 | 必填 | 默认值 | 说明）",
+		"支付记录表（cashier_payment_record_list.table）",
+		"一个 Chart 行就是一个 `.chart` 路由",
+		"Chart 也必须明确 Request 和 Response",
+		"是否创建新目录",
+		"确认后我再进入开发阶段",
+		"禁止调用 `create_directory`、`write_go_file`、`build_workspace`",
+	} {
+		if !strings.Contains(content, needle) {
+			t.Fatalf("app.plan SOP should contain %q, got: %q", needle, content)
+		}
 	}
-	if !strings.Contains(tableContent, "只读表也建议显式配置 `AutoCrudTable`") ||
-		strings.Contains(tableContent, "第一张非空表") ||
-		strings.Contains(tableContent, "降级") ||
-		strings.Contains(tableContent, "没有 `AutoCrudTable`") {
-		t.Fatalf("table crud doc should explain AutoCrudTable without exposing fallback details")
-	}
-	if !strings.Contains(tableContent, "不要写“评价对象ID”") ||
-		!strings.Contains(tableContent, "用户通过下拉搜索对象名称") {
-		t.Fatalf("table crud doc missing foreign-key fuzzy search guidance")
-	}
+}
 
-	_, widgetContent := GetPromptDocContent(nil, "/system/prompt/sdk/widget-system")
-	if !strings.Contains(widgetContent, "外键搜索也优先用 OnSelectFuzzy") ||
-		!strings.Contains(widgetContent, "已关闭对象也可能有历史记录") {
-		t.Fatalf("widget system doc missing foreign-key OnSelectFuzzy guidance")
+func TestAppCreateSOPExecutesConfirmedPRD(t *testing.T) {
+	_, content := GetPromptDocContent(nil, "/system/prompt/intents/app-create")
+	for _, needle := range []string{
+		"应用开发 SOP",
+		"已确认的 PRD artifact",
+		"不再重新设计 PRD",
+		"不再二次询问确认",
+		"如果用户只是提出新建系统但还没有确认 PRD，应切换到 `app.plan`",
+		"把 PRD JSON 作为唯一需求源",
+		"不要调用 `write_prd`",
+		"根据 `models.fields` 自动生成 Go struct",
+		"不要要求 PRD 提供字段 code、Go 类型或 `go_source`",
+		"`models[].fields` 只要求 `name/widget/validate/hide/description`",
+		"Table 有 Request",
+		"Form 有 Request 和 Response",
+		"Chart 有 Request 和 Response",
+		"写代码前必须先读取 1 到多个与当前需求匹配的案例",
+		"/system/prompt/case_catalog/table/ticket",
+		"/system/prompt/case_catalog/form_table_chart/cashier",
+		"/system/prompt/case_catalog/form/excelorcsv",
+		"/system/prompt/intents/modify/chart-metric",
+		"/system/prompt/sdk/reference/runtime-capabilities",
+	} {
+		if !strings.Contains(content, needle) {
+			t.Fatalf("app.create SOP should contain %q, got: %q", needle, content)
+		}
 	}
 }

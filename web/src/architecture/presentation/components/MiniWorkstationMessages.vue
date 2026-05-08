@@ -42,6 +42,8 @@
                 v-if="maximized"
                 :tool-calls="block.calls"
                 :file-groups="getFileGroupsFromCalls(block.calls)"
+                :confirm-disabled="sending"
+                @confirm-prd="emit('confirm-prd', $event)"
               />
               <template v-else>
                 <div class="mini-tools-block">
@@ -62,6 +64,14 @@
                     <span>{{ tc.name }}</span>
                   </div>
                 </div>
+                <PrdPreview
+                  v-for="(tc, pi) in getPrdCallsFromCalls(block.calls)"
+                  :key="`prd-${tc.name}-${pi}`"
+                  :data="tc.result_data"
+                  :confirm-disabled="sending"
+                  @confirm="emit('confirm-prd', $event)"
+                  class="mini-msg-prd-preview"
+                />
                 <OutputFilesDisplay
                   v-if="getFileGroupsFromCalls(block.calls).length"
                   :file-groups="getFileGroupsFromCalls(block.calls)"
@@ -86,8 +96,18 @@
             v-if="maximized && msg.tool_calls?.length"
             :tool-calls="msg.tool_calls"
             :file-groups="getFileGroupsFromCalls(msg.tool_calls)"
+            :confirm-disabled="sending"
+            @confirm-prd="emit('confirm-prd', $event)"
           />
           <template v-else-if="msg.tool_calls?.length">
+            <PrdPreview
+              v-for="(tc, pi) in getPrdCallsFromCalls(msg.tool_calls)"
+              :key="`msg-prd-${tc.name}-${pi}`"
+              :data="tc.result_data"
+              :confirm-disabled="sending"
+              @confirm="emit('confirm-prd', $event)"
+              class="mini-msg-prd-preview"
+            />
             <OutputFilesDisplay
               v-if="getFileGroupsFromCalls(msg.tool_calls).length"
               :file-groups="getFileGroupsFromCalls(msg.tool_calls)"
@@ -116,6 +136,7 @@ import type { ChatMessage, ChatMessageToolCall } from '@/architecture/presentati
 import MessageToolCalls from './MessageToolCalls.vue'
 import OutputDisplayFields from './OutputDisplayFields.vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
+import PrdPreview from './PrdPreview.vue'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -133,6 +154,10 @@ const props = defineProps<{
   getDisplayFieldsFromCalls: (calls: ChatMessageToolCall[]) => OutputDisplayField[]
 }>()
 
+const emit = defineEmits<{
+  (e: 'confirm-prd', payload: { remark: string; prd: unknown }): void
+}>()
+
 function renderContentBlock(text: string, msgIndex: number, blockIndex: number, blockCount: number): string {
   const isStreamingTail =
     props.sending &&
@@ -140,6 +165,10 @@ function renderContentBlock(text: string, msgIndex: number, blockIndex: number, 
     blockIndex === blockCount - 1
 
   return props.renderMarkdown(isStreamingTail ? text.slice(0, props.streamingDisplayLength) : text)
+}
+
+function getPrdCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall[] {
+  return calls.filter((call) => call.name === 'write_prd' && call.status === 'ok' && call.result_data != null)
 }
 </script>
 
@@ -348,6 +377,47 @@ function renderContentBlock(text: string, msgIndex: number, blockIndex: number, 
 .mini-msg-files {
   margin: 4px 0;
 }
+
+.mini-msg-prd-preview {
+  margin: 6px 0;
+}
+.mini-msg-prd-preview :deep(.prd-preview) {
+  --prd-bg: rgba(8, 22, 38, 0.66);
+  --prd-surface: rgba(12, 31, 50, 0.82);
+  --prd-surface-strong: rgba(10, 26, 43, 0.78);
+  --prd-control-bg: rgba(5, 17, 30, 0.72);
+  --prd-muted-bg: rgba(96, 231, 255, 0.10);
+  --prd-primary-bg: rgba(34, 211, 238, 0.14);
+  --prd-danger-bg: rgba(248, 113, 113, 0.14);
+  --prd-warning-bg: rgba(251, 191, 36, 0.13);
+  --prd-border: rgba(96, 231, 255, 0.18);
+  --prd-border-soft: rgba(96, 231, 255, 0.12);
+  --prd-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+  --el-text-color-primary: var(--mini-cyber-text, #d8f8ff);
+  --el-text-color-regular: rgba(216, 248, 255, 0.86);
+  --el-text-color-secondary: rgba(173, 220, 233, 0.68);
+  --el-text-color-placeholder: rgba(173, 220, 233, 0.42);
+  --el-border-color: rgba(96, 231, 255, 0.18);
+  --el-border-color-light: rgba(96, 231, 255, 0.14);
+  --el-border-color-lighter: rgba(96, 231, 255, 0.12);
+  --el-border-color-extra-light: rgba(96, 231, 255, 0.08);
+  --el-fill-color-blank: rgba(12, 31, 50, 0.82);
+  --el-fill-color-extra-light: rgba(8, 22, 38, 0.66);
+  --el-fill-color-light: rgba(12, 31, 50, 0.70);
+
+  margin-top: 0;
+  border-color: rgba(96, 231, 255, 0.16);
+  background: rgba(2, 8, 18, 0.34);
+  color: var(--mini-cyber-text, #d8f8ff);
+}
+.mini-msg-prd-preview :deep(.prd-preview-head),
+.mini-msg-prd-preview :deep(.prd-section) {
+  padding: 9px 10px;
+}
+.mini-msg-prd-preview :deep(.prd-table) {
+  font-size: 11px;
+}
+
 .mini-msg-files :deep(.output-files-head) {
   font-size: 11px;
   margin-bottom: 4px;

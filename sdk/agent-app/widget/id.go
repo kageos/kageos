@@ -18,7 +18,7 @@ func init() {
 // 校验规则：
 // - Go 字段必须是整数类型或字符串类型；
 // - 不允许 float/bool/struct/slice；
-// - 如果 ID 不希望出现在创建/编辑表单，应配合 display tag 控制场景，而不是改 widget 类型。
+// - 如果 ID 不希望出现在创建/编辑表单，应配合 hide tag 控制场景，而不是改 widget 类型。
 type ID struct {
 }
 

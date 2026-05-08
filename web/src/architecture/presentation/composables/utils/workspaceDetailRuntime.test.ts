@@ -30,13 +30,13 @@ const tableFunctionDetail: FunctionDetail = {
         {
           code: 'id',
           name: 'ID',
-          display: { scenes: ['list'] },
+          hide: { scenes: ['create', 'update'] },
           widget: { type: 'ID' }
         },
         {
           code: 'name',
           name: '姓名',
-          display: { scenes: ['update'] },
+          hide: { scenes: ['list', 'create'] },
           widget: { type: 'input' }
         },
         {
@@ -47,7 +47,7 @@ const tableFunctionDetail: FunctionDetail = {
         {
           code: 'created_at',
           name: '创建时间',
-          display: { scenes: ['list'] },
+          hide: { scenes: ['create', 'update'] },
           widget: { type: 'datetime' }
         }
       ]

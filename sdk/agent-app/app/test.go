@@ -45,7 +45,7 @@ func GetHandle(ctx *Context, resp response.Response) error {
 
 	var tests []*Test
 	db = db.Model(&Test{}).Where("name = ?", req.Name)
-	err = resp.Table(&tests).AutoSearchFilterPaged(db, &Test{}, &query.SearchFilterPageReq{PageSize: 20}).Build()
+	err = resp.Table(&tests, db, &Test{}, &query.PageSortReq{PageSize: 20}).Build()
 	if err != nil {
 		return err
 	}

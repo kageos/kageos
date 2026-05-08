@@ -22,14 +22,14 @@ type User struct {
 	Nickname      string         `json:"nickname" gorm:"column:nickname;type:varchar(100)"`                          // 昵称
 	Signature     string         `json:"signature" gorm:"column:signature;type:varchar(500)"`                        // 个人签名/简介
 	Gender        string         `json:"gender" gorm:"column:gender;type:varchar(20)"`                               // 性别: male(男), female(女), other(其他), 空字符串表示未设置
-	
+
 	// ⭐ 新增：组织架构相关字段（使用路径和用户名，不使用ID）
 	DepartmentFullPath string `json:"department_full_path" gorm:"type:varchar(500);index;comment:所属部门完整路径（可选，可以为空）"`
 	LeaderUsername     string `json:"leader_username" gorm:"type:varchar(255);index;comment:直接上级用户名（可选，可以为空）"`
-	
+
 	// ⭐ 新增：用户类型（0:普通用户, 1:系统用户, 2:智能体用户）
 	Type UserType `json:"type" gorm:"column:type;type:tinyint;default:0;index;comment:用户类型(0:普通用户,1:系统用户,2:智能体用户)"`
-	
+
 	// ⚠️ 注意：Host 和 Nats 绑定在 App 上，不在 User 上
 }
 
@@ -72,4 +72,3 @@ func (u *User) IsAgentUser() bool {
 func (u *User) IsNormalUser() bool {
 	return u.Type.IsNormal()
 }
-

@@ -18,11 +18,11 @@ const (
 )
 
 const (
-	// SceneList 表示前端仅在表格列表中展示该字段，不渲染到新增/编辑表单。
+	// SceneList 表示表格列表场景。
 	SceneList = "list"
-	// SceneCreate 表示前端仅在新增表单中展示该字段，不渲染到列表/编辑表单。
+	// SceneCreate 表示新增表单场景。
 	SceneCreate = "create"
-	// SceneUpdate 表示前端仅在编辑表单中展示该字段，不渲染到列表/新增表单。
+	// SceneUpdate 表示编辑表单场景。
 	SceneUpdate = "update"
 )
 
@@ -262,21 +262,10 @@ func TableSearchFields(raw json.RawMessage) []*widget.Field {
 	if err != nil || schema.Table == nil {
 		return nil
 	}
-	fields := make([]*widget.Field, 0, len(schema.Table.Request)+len(schema.Table.Fields))
+	fields := make([]*widget.Field, 0, len(schema.Table.Request))
 	seen := make(map[string]struct{})
-	for _, field := range schema.Table.Fields {
-		if field == nil || strings.TrimSpace(field.Code) == "" {
-			continue
-		}
-		search := strings.TrimSpace(field.Search)
-		if search == "" || search == "-" {
-			continue
-		}
-		fields = append(fields, field)
-		seen[field.Code] = struct{}{}
-	}
 	for _, field := range schema.Table.Request {
-		if field == nil || strings.TrimSpace(field.Code) == "" || strings.TrimSpace(field.Search) == "-" {
+		if field == nil || strings.TrimSpace(field.Code) == "" {
 			continue
 		}
 		if _, ok := seen[field.Code]; ok {
@@ -287,23 +276,23 @@ func TableSearchFields(raw json.RawMessage) []*widget.Field {
 	return fields
 }
 
-func HasDisplayScene(field *widget.Field, scene string) bool {
+func VisibleInScene(field *widget.Field, scene string) bool {
 	if field == nil {
 		return false
 	}
-	// table/form 是表单容器组件，不作为表格列表列渲染；即便误配了 list，也静默忽略，避免阻断 onAppUpdate。
+	// table/form 是表单容器组件，不作为表格列表列渲染。
 	if scene == SceneList && isContainerWidget(field) {
 		return false
 	}
-	if field.Display == nil {
+	if field.Hide == nil {
 		return true
 	}
-	for _, item := range field.Display.Scenes {
+	for _, item := range field.Hide.Scenes {
 		if item == scene {
-			return true
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 func validateFields(fields []*widget.Field) error {
@@ -315,7 +304,7 @@ func validateFields(fields []*widget.Field) error {
 		if err := validateFieldWidget(field); err != nil {
 			errs = append(errs, err)
 		}
-		if err := validateFieldDisplay(field); err != nil {
+		if err := validateFieldHide(field); err != nil {
 			errs = append(errs, err)
 		}
 		if err := validateFields(field.Children); err != nil {
@@ -336,20 +325,27 @@ func validateFieldWidget(field *widget.Field) error {
 	return nil
 }
 
-func validateFieldDisplay(field *widget.Field) error {
-	if field.Display == nil {
+func validateFieldHide(field *widget.Field) error {
+	if field.Hide == nil {
 		return nil
 	}
 	var errs []error
-	if len(field.Display.Scenes) == 0 {
-		errs = append(errs, fmt.Errorf("field %q display.scenes must not be empty", field.Code))
+	if len(field.Hide.Scenes) == 0 {
+		errs = append(errs, fmt.Errorf("field %q hide.scenes must not be empty", field.Code))
 	}
-	for _, scene := range field.Display.Scenes {
+	seen := make(map[string]struct{}, len(field.Hide.Scenes))
+	for _, scene := range field.Hide.Scenes {
 		switch scene {
 		case SceneList, SceneCreate, SceneUpdate:
 		default:
-			errs = append(errs, fmt.Errorf("field %q has unsupported display scene: %s", field.Code, scene))
+			errs = append(errs, fmt.Errorf("field %q has unsupported hide scene: %s", field.Code, scene))
+			continue
 		}
+		if _, exists := seen[scene]; exists {
+			errs = append(errs, fmt.Errorf("field %q has duplicated hide scene: %s", field.Code, scene))
+			continue
+		}
+		seen[scene] = struct{}{}
 	}
 	return errors.Join(errs...)
 }
@@ -369,7 +365,7 @@ func isContainerWidget(field *widget.Field) bool {
 func filterVisibleInScene(fields []*widget.Field, scene string) []*widget.Field {
 	result := make([]*widget.Field, 0, len(fields))
 	for _, field := range fields {
-		if HasDisplayScene(field, scene) {
+		if VisibleInScene(field, scene) {
 			result = append(result, field)
 		}
 	}

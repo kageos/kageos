@@ -54,7 +54,7 @@ func (r *RolePermissionRepository) GetPermissionsByRoleIDs(ctx context.Context, 
 	if len(roleIDs) == 0 {
 		return []*model.RolePermission{}, nil
 	}
-	
+
 	var perms []*model.RolePermission
 	err := r.db.WithContext(ctx).Where("role_id IN ?", roleIDs).Find(&perms).Error
 	if err != nil {

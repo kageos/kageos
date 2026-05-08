@@ -28,7 +28,7 @@
     <!-- 🔥 单选 fallback：统一走同一套下拉逻辑，避免样式/行为再继续分叉 -->
     <el-select
       v-else-if="isSingleFallbackSelect"
-      class="search-control user-select-search"
+      class="search-control user-select-filter"
       v-model="selectValue"
       :placeholder="inputConfig.props?.placeholder"
       :clearable="inputConfig.props?.clearable"
@@ -37,6 +37,7 @@
       :remote-method="handleRemoteMethod"
       :loading="selectLoading || inputConfig.props?.loading"
       :popper-class="inputConfig.props?.popperClass"
+      :teleported="shouldTeleportPopper"
       :style="controlStyle"
       :reserve-keyword="inputConfig.props?.remote"
       @change="handleInput"
@@ -60,7 +61,7 @@
     <!-- 🔥 多选组件 -->
     <el-select
       v-else-if="isMultipleFallbackSelect"
-      class="search-control user-select-search"
+      class="search-control user-select-filter"
       v-model="selectValue"
       :placeholder="inputConfig.props?.placeholder"
       :clearable="inputConfig.props?.clearable"
@@ -70,6 +71,7 @@
       :multiple="inputConfig.props?.multiple"
       :loading="selectLoading || inputConfig.props?.loading"
       :popper-class="inputConfig.props?.popperClass"
+      :teleported="shouldTeleportPopper"
       :style="controlStyle"
       :collapse-tags="inputConfig.props?.multiple"
       :max-collapse-tags="SearchConfig.MAX_COLLAPSE_TAGS"
@@ -82,7 +84,7 @@
       <template v-if="shouldUseCustomFallbackTags" #tag>
         <!-- 🔥 用户选择器：使用 user-cell 样式 -->
         <template v-if="shouldUseUserFallbackTags">
-          <SearchUserTag
+          <UserFilterChip
             v-for="value in fallbackTagSummary.visibleValues"
             :key="value"
             :label="getOptionLabel(value) || ''"
@@ -92,7 +94,7 @@
           />
           <el-tag
             v-if="fallbackTagSummary.hiddenCount > 0"
-            class="search-summary-tag"
+            class="filter-summary-chip"
             size="small"
             disable-transitions
           >
@@ -115,7 +117,7 @@
           </el-tag>
           <el-tag
             v-if="fallbackTagSummary.hiddenCount > 0"
-            class="search-summary-tag"
+            class="filter-summary-chip"
             size="small"
             disable-transitions
           >
@@ -134,7 +136,7 @@
           </el-tag>
           <el-tag
             v-if="fallbackTagSummary.hiddenCount > 0"
-            class="search-summary-tag"
+            class="filter-summary-chip"
             size="small"
             disable-transitions
           >
@@ -202,6 +204,7 @@
       :value-format="inputConfig.props?.valueFormat"
       :shortcuts="inputConfig.props?.shortcuts"
       :clearable="inputConfig.props?.clearable"
+      :teleported="shouldTeleportPopper"
       :style="controlStyle"
       @change="handleDateRangeChange"
       @clear="handleClear"
@@ -231,11 +234,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, onUnmounted, provide, toRef, type ComputedRef } from 'vue'
+import { computed, inject, watch, onUnmounted, provide, toRef, type ComputedRef } from 'vue'
 import { createPinia } from 'pinia'
 import { ElTag } from 'element-plus'
 import SearchSelectOptionContent from './SearchSelectOptionContent.vue'
-import SearchUserTag from './SearchUserTag.vue'
+import UserFilterChip from './UserFilterChip.vue'
+import { prdPreviewContextKey } from './prdPreviewContext'
 import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
 import WidgetComponent from '@/architecture/presentation/widgets/WidgetComponent.vue'
 import { ErrorHandler } from '@/core/utils/ErrorHandler'
@@ -274,6 +278,8 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+const prdPreviewContext = inject(prdPreviewContextKey, null)
+const shouldTeleportPopper = computed(() => !prdPreviewContext?.interactive)
 
 const scopedSearchPinia = createPinia()
 const scopedSearchFormDataStore = useFormDataStore(scopedSearchPinia)
@@ -541,7 +547,7 @@ const handleWidgetFieldUpdate = (value: any) => {
 }
 
 /* 🔥 用户选择器选中后的标签样式（multiple 模式，使用 user-cell 样式） */
-.user-select-search :deep(.el-select__tags) {
+.user-select-filter :deep(.el-select__tags) {
   display: flex;
   flex-wrap: nowrap;
   gap: 6px;
@@ -564,7 +570,7 @@ const handleWidgetFieldUpdate = (value: any) => {
   transition: opacity 0.2s;
 }
 
-.search-summary-tag {
+.filter-summary-chip {
   flex-shrink: 0;
   margin-right: 0;
   border: 1px solid var(--el-border-color-lighter);

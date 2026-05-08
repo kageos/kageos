@@ -19,8 +19,8 @@
      - 提交时再次检查权限，防止绕过 UI 检查
   
   3. **URL 参数同步**：
-     - 搜索条件同步到 URL（`like=field:value`）
-     - 排序条件同步到 URL（`sorts=field:order`）
+     - 搜索条件同步到 URL（`field=value`）
+     - 排序条件同步到 URL（`sorts=-created_at,name`）
      - 分页信息同步到 URL（`page=1&page_size=20`）
      - 新增弹窗状态同步到 URL（`_tab=OnTableAddRow`）
   
@@ -243,7 +243,7 @@
               <el-form-item :label="field.name" :class="getSearchFieldLayoutClass(field)">
                 <SearchInput
                   :field="field"
-                  :search-type="field.search || ''"
+                  search-type=""
                   :model-value="getSearchValue(field)"
                   :function-method="props.functionDetail.method || 'GET'"
                   :function-router="props.functionDetail.router"

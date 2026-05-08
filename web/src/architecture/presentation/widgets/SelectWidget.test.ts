@@ -213,9 +213,9 @@ describe('SelectWidget', () => {
     await flushPromises()
 
     expect(wrapper.find('.search-selected-value').exists()).toBe(true)
-    expect(wrapper.find('.search-tag-remove').exists()).toBe(true)
+    expect(wrapper.find('.selected-value-remove').exists()).toBe(true)
 
-    await wrapper.get('.search-tag-remove').trigger('click')
+    await wrapper.get('.selected-value-remove').trigger('click')
 
     const emitted = wrapper.emitted('update:modelValue')
     expect(emitted).toBeTruthy()

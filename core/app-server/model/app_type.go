@@ -6,7 +6,7 @@ type AppType int
 const (
 	// AppTypeUser 用户空间（默认）
 	AppTypeUser AppType = 0
-	
+
 	// AppTypeSystem 系统空间（内置官方库）
 	AppTypeSystem AppType = 1
 )

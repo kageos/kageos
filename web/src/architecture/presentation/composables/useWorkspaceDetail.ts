@@ -11,7 +11,7 @@
  *    - 支持上一条/下一条导航
  * 
  * 2. **编辑功能**：
- *    - 编辑模式下显示可编辑字段（根据 `display.scenes=update` 过滤）
+ *    - 编辑模式下显示可编辑字段（根据 `hide.scenes` 过滤）
  *    - 提交编辑时检查权限（`function:update`）
  *    - 提交成功后刷新表格数据
  * 
@@ -73,7 +73,7 @@
  *    - 关闭抽屉时清除所有相关参数
  * 
  * 3. **字段过滤**：
- *    - 编辑模式下只显示 `display.scenes` 包含 update 或未限制场景的字段
+ *    - 编辑模式下隐藏 `hide.scenes` 包含 update 的字段
  *    - 通过 `editFunctionDetail` computed 过滤字段
  */
 

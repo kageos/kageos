@@ -2,6 +2,53 @@ package query
 
 import "testing"
 
+func TestPageSortReqDefaults(t *testing.T) {
+	req := &PageSortReq{}
+
+	if got := req.GetLimit(); got != 20 {
+		t.Fatalf("GetLimit() = %d, want 20", got)
+	}
+	if got := req.GetLimit(50); got != 50 {
+		t.Fatalf("GetLimit(50) = %d, want 50", got)
+	}
+	if got := req.GetPage(); got != 1 {
+		t.Fatalf("GetPage() = %d, want 1", got)
+	}
+	if got := req.GetOffset(); got != 0 {
+		t.Fatalf("GetOffset() = %d, want 0", got)
+	}
+}
+
+func TestPageSortReqPagingAndSorts(t *testing.T) {
+	req := &PageSortReq{Page: 3, PageSize: 25, Sorts: "-created_at,name"}
+
+	if got := req.GetLimit(); got != 25 {
+		t.Fatalf("GetLimit() = %d, want 25", got)
+	}
+	if got := req.GetOffset(); got != 50 {
+		t.Fatalf("GetOffset() = %d, want 50", got)
+	}
+	if got := req.GetSorts(); got != "`created_at` DESC, `name` ASC" {
+		t.Fatalf("GetSorts() = %q", got)
+	}
+}
+
+func TestPageSortReqRepeatedSortValues(t *testing.T) {
+	req := &PageSortReq{Sort: []string{"-score", "id"}}
+
+	if got := req.GetSorts(); got != "`score` DESC, `id` ASC" {
+		t.Fatalf("GetSorts() = %q", got)
+	}
+}
+
+func TestPageSortReqBracketSortValues(t *testing.T) {
+	req := &PageSortReq{SortArray: []string{"-score", "id"}}
+
+	if got := req.GetSorts(); got != "`score` DESC, `id` ASC" {
+		t.Fatalf("GetSorts() = %q", got)
+	}
+}
+
 func TestParseFieldValuesAllowsDatetimeColon(t *testing.T) {
 	got, err := parseFieldValues("created_at:2026-04-21 16:30:05,status:处理中")
 	if err != nil {

@@ -256,7 +256,7 @@
         :title="field.name"
         :size="DRAWER_CONFIG.size"
         destroy-on-close
-        append-to-body
+        :append-to-body="shouldAppendOverlayToBody"
         @close="tableCellMode.handleDrawerClose()"
       >
         <template #default>
@@ -303,6 +303,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed, inject } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElDrawer, ElCard, ElIcon } from 'element-plus'
 import { View } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
@@ -312,6 +313,7 @@ import type { FieldValue } from '@/architecture/domain/types'
 import FieldStatistics from './FieldStatistics.vue'
 import { useTableWidgetDisplay } from '@/architecture/presentation/widgets/composables/useTableWidgetDisplay'
 import { useTableWidgetEditActions } from '@/architecture/presentation/widgets/composables/useTableWidgetEditActions'
+import { prdPreviewContextKey } from '@/architecture/presentation/components/prdPreviewContext'
 
 // 抽屉配置常量
 const DRAWER_CONFIG = {
@@ -326,6 +328,8 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
   } as FieldValue)
 })
 const emit = defineEmits<WidgetComponentEmits>()
+const prdPreviewContext = inject(prdPreviewContextKey, null)
+const shouldAppendOverlayToBody = computed(() => !prdPreviewContext?.interactive)
 
 // 使用组合式函数
 const { tableData, itemFields, getRowFieldValue, updateRowFieldValue, getAllRowsData } = useTableWidget(props)

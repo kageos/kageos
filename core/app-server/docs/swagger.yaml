@@ -2558,10 +2558,10 @@ definitions:
       desc:
         description: 字段描述，用于 placeholder 等
         type: string
-      display:
+      hide:
         allOf:
-        - $ref: '#/definitions/widget.FieldDisplay'
-        description: 前端展示场景；不配置表示列表/新增/编辑均展示，如 {"scenes":["list"]}
+        - $ref: '#/definitions/widget.FieldHide'
+        description: 前端隐藏场景；不配置表示列表/新增/编辑均展示，如 {"scenes":["create","update"]}
       field_name:
         description: Go 字段名，用于验证规则中的字段引用（如 required_if=MemberType vip）
         type: string
@@ -2595,10 +2595,10 @@ definitions:
         description: 数据类型（string/int/float/bool等），建议保留用于类型判断
         type: string
     type: object
-  widget.FieldDisplay:
+  widget.FieldHide:
     properties:
       scenes:
-        description: Scenes 控制前端在哪些界面渲染字段：list=列表，create=新增表单，update=编辑表单。
+        description: Scenes 控制前端在哪些界面隐藏字段：list=列表，create=新增表单，update=编辑表单。
         items:
           type: string
         type: array
@@ -5430,7 +5430,7 @@ paths:
         in: query
         name: page_size
         type: integer
-      - description: 排序（可选，格式：id:desc,name:asc）
+      - description: 排序（可选，格式：-id,name）
         in: query
         name: sorts
         type: string

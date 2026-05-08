@@ -100,19 +100,17 @@ describe('TableDomainService URL restore', () => {
     expect(restored.pagination).toEqual({ page: 2, pageSize: 50 })
   })
 
-  it('restores response search raw values and still builds raw search params', () => {
+  it('restores explicit request field values and builds direct params', () => {
     const service = createService()
     const functionDetail = {
       schema: {
         version: 1,
         type: 'table',
         table: {
-          request: [],
-          fields: [
+          request: [
             {
               code: 'job_id',
               name: '投递职位',
-              search: 'eq',
               callbacks: ['OnSelectFuzzy'],
               widget: { type: 'select' },
               data: { type: 'int' }
@@ -123,49 +121,55 @@ describe('TableDomainService URL restore', () => {
     } as any
 
     const restored = service.restoreFromURL(functionDetail, {
-      eq: 'job_id:1'
+      job_id: '1'
     })
 
     expect(restored.searchForm).toEqual({
       job_id: '1'
     })
     expect(service.buildSearchParams(functionDetail, restored.searchForm)).toEqual({
-      eq: 'job_id:1'
+      job_id: '1'
     })
   })
 
-  it('restores datetime range search as readable string range', () => {
+  it('restores range request fields as direct values', () => {
     const service = createService()
     const functionDetail = {
       schema: {
         version: 1,
         type: 'table',
         table: {
-          request: [],
-          fields: [
+          request: [
             {
-              code: 'created_at',
-              name: '创建时间',
-              search: 'gte,lte',
+              code: 'created_start',
+              name: '创建开始时间',
+              widget: { type: 'datetime' },
+              data: { type: 'string' }
+            },
+            {
+              code: 'created_end',
+              name: '创建结束时间',
               widget: { type: 'datetime' },
               data: { type: 'string' }
             }
-          ]
+          ],
+          fields: []
         }
       }
     } as any
 
     const restored = service.restoreFromURL(functionDetail, {
-      gte: 'created_at:2026-04-21 00:00:00',
-      lte: 'created_at:2026-04-21 23:59:59'
+      created_start: '2026-04-21 00:00:00',
+      created_end: '2026-04-21 23:59:59'
     })
 
     expect(restored.searchForm).toEqual({
-      created_at: ['2026-04-21 00:00:00', '2026-04-21 23:59:59']
+      created_start: '2026-04-21 00:00:00',
+      created_end: '2026-04-21 23:59:59'
     })
     expect(service.buildSearchParams(functionDetail, restored.searchForm)).toEqual({
-      gte: 'created_at:2026-04-21 00:00:00',
-      lte: 'created_at:2026-04-21 23:59:59'
+      created_start: '2026-04-21 00:00:00',
+      created_end: '2026-04-21 23:59:59'
     })
   })
 
@@ -181,29 +185,21 @@ describe('TableDomainService URL restore', () => {
               code: 'genre',
               name: '体裁',
               widget: { type: 'select' }
-            }
-          ],
-          fields: [
-            {
-              code: 'genre',
-              name: '体裁',
-              search: 'in',
-              widget: { type: 'select' }
             },
             {
               code: 'style',
               name: '格律形式',
-              search: 'in',
               widget: { type: 'select' }
             }
-          ]
+          ],
+          fields: []
         }
       }
     } as any
 
     const restored = service.restoreFromURL(functionDetail, {
       genre: '诗',
-      in: 'style:律诗'
+      style: '律诗'
     })
 
     expect(restored.searchForm).toEqual({
@@ -212,38 +208,37 @@ describe('TableDomainService URL restore', () => {
     })
     expect(service.buildSearchParams(functionDetail, restored.searchForm)).toEqual({
       genre: '诗',
-      in: 'style:律诗'
+      style: '律诗'
     })
   })
 
-  it('restores response operator params without cutting values at every comma', () => {
+  it('restores request field values containing commas', () => {
     const service = createService()
     const functionDetail = {
       schema: {
         version: 1,
         type: 'table',
         table: {
-          request: [],
-          fields: [
+          request: [
             {
               code: 'title',
               name: '标题',
-              search: 'like',
               widget: { type: 'input' }
             },
             {
               code: 'author',
               name: '作者',
-              search: 'like',
               widget: { type: 'input' }
             }
-          ]
+          ],
+          fields: []
         }
       }
     } as any
 
     const restored = service.restoreFromURL(functionDetail, {
-      like: 'title:春风,又绿江南岸,author:王安石'
+      title: '春风,又绿江南岸',
+      author: '王安石'
     })
 
     expect(restored.searchForm).toEqual({

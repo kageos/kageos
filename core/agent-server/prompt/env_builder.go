@@ -22,8 +22,6 @@ type WorkspaceEnvInput struct {
 	FullCodePath           string
 	DirType                string
 	DirDescription         string
-	PublishedToHub         bool   // 当前目录是否已上架到应用中心（Hub）
-	HubFullCodePath        string // 已上架时在 Hub 的目录路径
 	Children               []WorkspaceEnvNode
 	Files                  []WorkspaceEnvFile
 }
@@ -101,16 +99,9 @@ func BuildWorkspaceEnvDataWithCatalog(in *WorkspaceEnvInput, directoryName, full
 		data.DirCode = in.DirCode
 		data.DirType = in.DirType
 		data.DirDescription = in.DirDescription
-		if in.PublishedToHub && in.HubFullCodePath != "" {
-			data.HubSection = fmt.Sprintf("已上架，路径：%s（可使用 push_to_hub 推送更新）", in.HubFullCodePath)
-		} else {
-			data.HubSection = "未上架（可使用 publish_to_hub 发布到应用中心）"
-		}
 		data.ChildrenSection = buildChildrenSection(in.Children)
 		data.FunctionsSection = buildFunctionsSection(in.Children)
 		data.FilesSection = buildFilesSection(in.Files)
-	} else {
-		data.HubSection = "未知（需进入工作目录后刷新环境）"
 	}
 	if len(catalog) == 0 {
 		catalog = GetDocCatalog()
@@ -342,7 +333,6 @@ func FillWorkspaceEnvTemplateWithTemplate(data *WorkspaceEnvData, template strin
 		"DIR_CODE":                  data.DirCode,
 		"FULL_CODE_PATH":            data.FullCodePath,
 		"DIR_TYPE":                  data.DirType,
-		"HUB_SECTION":               data.HubSection,
 		"DIR_DESCRIPTION":           data.DirDescription,
 		"CHILDREN_SECTION":          data.ChildrenSection,
 		"FUNCTIONS_SECTION":         data.FunctionsSection,
@@ -377,5 +367,5 @@ func BuildWorkspaceEnvBlockWithTemplate(template string, data *WorkspaceEnvData,
 
 %s
 
-要生成系统/应用时，必须先 read_doc 拉取上述目录下的 SDK 文档，再按规范写 Go 代码；禁止用 HTML/CSS/JS、localStorage、纯前端等方案。`, directoryName, fullCodePath, data.DirectoryList)
+要生成或修改系统/应用时，先调用 change_role 进入对应身份；当前身份文档不足时再 read_doc 明确路径。业务能力写成 AgentOS SDK Go 应用，禁止用 HTML/CSS/JS、localStorage、纯前端等方案。`, directoryName, fullCodePath, data.DirectoryList)
 }

@@ -17,6 +17,11 @@ export interface UseMiniWorkstationComposerOptions {
   onMaximizedSessionStarted?: (sessionId: string) => void
 }
 
+interface SendWorkspaceMessageOptions {
+  newSession?: boolean
+  displayText?: string
+}
+
 export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOptions) {
   const {
     fullCodePath,
@@ -25,6 +30,7 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     inputText,
     inputRef,
     attachedFiles,
+    sending,
     sendMessage,
     onTaskStarted,
     onToolCallOk,
@@ -61,23 +67,16 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     void handleSend()
   }
 
-  async function handleSend() {
-    const text = inputText.value.trim()
-    const files = attachedFiles.value.length > 0 ? [...attachedFiles.value] : null
-    if (!fullCodePath.value || (!text && !files?.length)) {
-      return
-    }
-
-    inputText.value = ''
-    attachedFiles.value = []
-
+  async function sendWorkspaceMessage(text: string, files: WorkspaceChatMessageFile[] | null, options: SendWorkspaceMessageOptions = {}): Promise<boolean> {
     const payload: WorkspaceChatReq = {
       full_code_path: fullCodePath.value,
       message: {
         content: text || '',
         ...(files?.length ? { files: files.map(file => file.ref).filter(Boolean).join(',') } : {})
-      },
-      session_id: sessionId.value
+      }
+    }
+    if (!options.newSession && sessionId.value) {
+      payload.session_id = sessionId.value
     }
 
     if (selectedLLMConfigId.value > 0) {
@@ -104,10 +103,40 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     }
 
     try {
-      await sendMessage(text || (files?.length ? '已上传文件' : ''), streamFn, files?.length ? (files as any) : undefined)
+      await sendMessage(options.displayText || text || (files?.length ? '已上传文件' : ''), streamFn, files?.length ? (files as any) : undefined)
+      return true
     } catch {
       ElMessage.error('发送失败')
+      return false
     }
+  }
+
+  async function handleSend() {
+    const text = inputText.value.trim()
+    const files = attachedFiles.value.length > 0 ? [...attachedFiles.value] : null
+    if (!fullCodePath.value || (!text && !files?.length)) {
+      return
+    }
+
+    inputText.value = ''
+    attachedFiles.value = []
+    await sendWorkspaceMessage(text, files)
+  }
+
+  async function sendText(content: string): Promise<boolean> {
+    const text = content.trim()
+    if (!fullCodePath.value || !text || sending.value) {
+      return false
+    }
+    return sendWorkspaceMessage(text, null)
+  }
+
+  async function sendTextInNewSession(content: string, displayText?: string): Promise<boolean> {
+    const text = content.trim()
+    if (!fullCodePath.value || !text || sending.value) {
+      return false
+    }
+    return sendWorkspaceMessage(text, null, { newSession: true, displayText })
   }
 
   return {
@@ -118,6 +147,8 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     selectedLLMConfigId,
     onLLMSelectVisibleChange,
     onInputEnter,
-    handleSend
+    handleSend,
+    sendText,
+    sendTextInNewSession
   }
 }

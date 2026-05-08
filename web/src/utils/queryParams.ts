@@ -2,7 +2,7 @@
  * URL 查询参数工具函数
  */
 
-import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from './urlParams'
+import { TABLE_PARAM_KEYS } from './urlParams'
 import { isPersistentPlatformStateQueryKey } from './queryParamKeys'
 
 /**
@@ -15,21 +15,19 @@ export function preserveQueryParams(
   currentQuery: Record<string, any>,
   options: {
     preserveTableParams?: boolean  // 是否保留 table 参数（page, page_size, sorts）
-    preserveSearchParams?: boolean // 是否保留搜索参数（eq, like, in 等）
+    preserveSearchParams?: boolean // 是否保留显式声明的筛选参数
     preserveStateParams?: boolean  // 是否保留状态参数（以 _ 开头）
     preserveCustomParams?: string[] // 自定义要保留的参数列表
   } = {}
 ): Record<string, string | string[]> {
   const {
     preserveTableParams = false,
-    preserveSearchParams = false,
     preserveStateParams = true, // 默认保留状态参数
     preserveCustomParams = []
   } = options
 
   const preservedQuery: Record<string, string | string[]> = {}
   const tableParamKeys = TABLE_PARAM_KEYS
-  const searchParamKeys = SEARCH_PARAM_KEYS
 
   Object.keys(currentQuery).forEach(key => {
     const value = currentQuery[key]
@@ -46,10 +44,6 @@ export function preserveQueryParams(
     }
     // 保留 table 参数
     else if (preserveTableParams && tableParamKeys.includes(key as typeof tableParamKeys[number])) {
-      shouldPreserve = true
-    }
-    // 保留搜索参数
-    else if (preserveSearchParams && searchParamKeys.includes(key as typeof searchParamKeys[number])) {
       shouldPreserve = true
     }
     // 保留自定义参数

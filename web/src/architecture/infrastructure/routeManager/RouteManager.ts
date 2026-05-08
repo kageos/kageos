@@ -92,7 +92,7 @@ import { watch, nextTick } from 'vue'
 import type { Router, RouteLocationNormalized } from 'vue-router'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { RouteEvent } from '../../domain/interfaces/IEventBus'
-import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from '@/utils/urlParams'
+import { TABLE_PARAM_KEYS } from '@/utils/urlParams'
 import { isLinkNavigation as isLinkNavCheck } from '@/utils/linkNavigation'
 import {
   NODE_TYPE_QUERY_KEY,
@@ -107,7 +107,7 @@ export interface RouteUpdateRequest {
   replace?: boolean                // 是否使用 replace（默认 true）
   preserveParams?: {               // 参数保留策略
     table?: boolean                 // 保留 table 参数（page, page_size, sorts）
-    search?: boolean                // 保留搜索参数（eq, like, in 等）
+    search?: boolean                // 保留显式声明的筛选参数
     state?: boolean                 // 保留状态参数（_ 开头）
     custom?: string[]               // 自定义要保留的参数
     linkNavigation?: boolean        // 是否是 link 跳转（保留所有参数）
@@ -493,10 +493,6 @@ export class RouteManager {
       }
       // 保留 table 参数
       else if (preserve.table === true && TABLE_PARAM_KEYS.includes(key as any)) {
-        shouldPreserve = true
-      }
-      // 保留搜索参数
-      else if (preserve.search === true && SEARCH_PARAM_KEYS.includes(key as any)) {
         shouldPreserve = true
       }
       // 保留自定义参数

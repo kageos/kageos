@@ -1,6 +1,6 @@
 # 平台能力边界
 
-本文件是 Skills 新链路下的能力边界参考。旧 `/system/prompt/workspace/platform-capability-boundaries` 已下线；创建、修改、执行和解释任务必须先读取匹配 skill。
+本文件用于判断需求属于平台侧还是应用侧。平台侧能力由工作台统一提供，应用侧能力通过 AgentOS SDK Go 应用实现。
 
 ## 总原则
 
@@ -31,4 +31,4 @@
 
 ## 做不到时
 
-说明哪个判断维度不通过，给可行降级方案。纯展示、无后台、一次性数据可以考虑 `/system/tools` 的 HTML 或文件处理工具；长期业务能力再进入 `sop.create-project`。
+说明哪个判断维度不通过，给可行降级方案。纯展示、无后台、一次性数据可以考虑 `/system/tools` 的 HTML 或文件处理工具；长期业务能力先进入 `app.plan` 身份做 PRD。

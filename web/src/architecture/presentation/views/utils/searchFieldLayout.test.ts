@@ -1,17 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { resolveSearchFieldLayoutClass, SearchFieldLayoutClass } from './searchFieldLayout'
+import { resolveSearchFieldLayoutClass } from './searchFieldLayout'
 import { WidgetType } from '@/core/constants/widget'
 
 describe('searchFieldLayout', () => {
-  it('marks datetime gte/lte fields as wide', () => {
+  it('keeps datetime fields on default layout', () => {
     expect(
       resolveSearchFieldLayoutClass({
         code: 'created_at',
         name: '创建时间',
-        search: 'gte,lte',
         widget: { type: WidgetType.DATETIME }
       } as any)
-    ).toBe(SearchFieldLayoutClass.WIDE)
+    ).toBe('')
   })
 
   it('keeps normal text search on default layout', () => {
@@ -19,7 +18,6 @@ describe('searchFieldLayout', () => {
       resolveSearchFieldLayoutClass({
         code: 'title',
         name: '标题',
-        search: 'like',
         widget: { type: WidgetType.INPUT }
       } as any)
     ).toBe('')

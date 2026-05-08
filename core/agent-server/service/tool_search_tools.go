@@ -124,9 +124,9 @@ func runSearchToolsTool(ctx context.Context, registry *ToolRegistry, args search
 	}
 	if len(functions) == 0 && len(matchedTools) == 0 {
 		if keywordRaw == "" {
-			return "当前 system 用户下暂无已注册函数；可传 keyword 按关键词搜索，或使用 search_hub_directory 搜应用市场。", false
+			return "当前 system 用户下暂无已注册函数；可传 keyword 按关键词搜索。", false
 		}
-		return "未匹配到任何可用工具（内置工具或 system 用户下已注册函数），可考虑 search_hub_directory 搜应用市场，或创建新目录并按「创建项目」流程（先 PRD、用户确认后再写代码）。", false
+		return "未匹配到任何可用工具（内置工具或 system 用户下已注册函数）。如果用户要新建长期应用，先 change_role 到 app.plan，输出 PRD 并等用户确认后再进入 app.create 写代码。", false
 	}
 	return formatSearchToolsOutput(keywordRaw, matchedTools, functions, requestOutput), false
 }

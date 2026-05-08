@@ -62,7 +62,7 @@ func (a *Auth) SendEmailCode(c *gin.Context) {
 	if codeType == "" {
 		codeType = "register"
 	}
-	
+
 	err = a.emailService.SendVerificationCode(req.Email, codeType, ipAddress, userAgent)
 	if err != nil {
 		response.FailWithMessage(c, "发送验证码失败: "+err.Error())

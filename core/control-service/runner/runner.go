@@ -50,7 +50,7 @@ func Main(ctx context.Context, stopCh <-chan struct{}, readyCh chan<- struct{}) 
 	}
 
 	logger.Infof(ctx, "Control-service started successfully")
-	
+
 	// ⭐ 发送就绪信号（如果提供了 readyCh）
 	// 使用阻塞式发送，确保信号被接收（channel 容量为 1，不会阻塞太久）
 	if readyCh != nil {
@@ -76,4 +76,3 @@ func Main(ctx context.Context, stopCh <-chan struct{}, readyCh chan<- struct{}) 
 	logger.Infof(ctx, "Control-service stopped")
 	return nil
 }
-

@@ -4343,7 +4343,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "排序（可选，格式：id:desc,name:asc）",
+                        "description": "排序（可选，格式：-id,name）",
                         "name": "sorts",
                         "in": "query"
                     }
@@ -8048,11 +8048,11 @@ const docTemplate = `{
                     "description": "字段描述，用于 placeholder 等",
                     "type": "string"
                 },
-                "display": {
-                    "description": "前端展示场景；不配置表示列表/新增/编辑均展示，如 {\"scenes\":[\"list\"]}",
+                "hide": {
+                    "description": "前端隐藏场景；不配置表示列表/新增/编辑均展示，如 {\"scenes\":[\"create\",\"update\"]}",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/widget.FieldDisplay"
+                            "$ref": "#/definitions/widget.FieldHide"
                         }
                     ]
                 },
@@ -8103,11 +8103,11 @@ const docTemplate = `{
                 }
             }
         },
-        "widget.FieldDisplay": {
+        "widget.FieldHide": {
             "type": "object",
             "properties": {
                 "scenes": {
-                    "description": "Scenes 控制前端在哪些界面渲染字段：list=列表，create=新增表单，update=编辑表单。",
+                    "description": "Scenes 控制前端在哪些界面隐藏字段：list=列表，create=新增表单，update=编辑表单。",
                     "type": "array",
                     "items": {
                         "type": "string"

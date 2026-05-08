@@ -12,6 +12,7 @@
       :disabled="disabled"
       :allow-create="creatable"
       :default-first-option="creatable"
+      :teleported="teleported"
       @update:model-value="emit('update:modelValue', $event)"
       @clear="emit('clear')"
     >
@@ -24,14 +25,14 @@
           effect="light"
           :style="getOptionTagStyle(value)"
           :closable="true"
-          :class="['search-selected-tag', 'inline-selected-tag', { 'inline-selected-tag-neutral': !getOptionColor(value) }]"
+          :class="['filter-selected-chip', 'inline-selected-tag', { 'inline-selected-tag-neutral': !getOptionColor(value) }]"
           @close.stop="emit('remove-tag', value)"
         >
           {{ getOptionLabel(value) }}
         </el-tag>
         <el-tag
           v-if="hiddenCount > 0"
-          class="search-selected-tag search-summary-tag inline-summary-tag"
+          class="filter-selected-chip filter-summary-chip inline-summary-tag"
           size="small"
           disable-transitions
         >
@@ -70,12 +71,13 @@ import { ElOption, ElSelect, ElTag } from 'element-plus'
 import type { StandardColorType } from '@/core/constants/select'
 import type { MultiSelectOptionItem } from './multiSelectWidgetTypes'
 
-defineProps<{
+withDefaults(defineProps<{
   modelValue: any[]
   options: MultiSelectOptionItem[]
   placeholder: string
   disabled: boolean
   creatable: boolean
+  teleported?: boolean
   visibleValues: any[]
   hiddenCount: number
   searchMode?: boolean
@@ -87,7 +89,9 @@ defineProps<{
   getOptionTagStyle: (value: any) => Record<string, string>
   getOptionColorStyle: (value: any) => Record<string, string>
   getOptionDisplayInfo: (option: MultiSelectOptionItem) => string
-}>()
+}>(), {
+  teleported: true,
+})
 
 const emit = defineEmits<{
   'update:modelValue': [value: any[]]
@@ -133,7 +137,7 @@ const emit = defineEmits<{
   max-width: none;
 }
 
-.search-selected-tag {
+.filter-selected-chip {
   margin: 0;
   max-width: min(100%, 160px);
   overflow: hidden;
@@ -169,7 +173,7 @@ const emit = defineEmits<{
   margin-left: 6px;
 }
 
-.search-summary-tag {
+.filter-summary-chip {
   flex-shrink: 0;
 }
 

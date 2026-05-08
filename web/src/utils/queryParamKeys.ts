@@ -1,5 +1,5 @@
 import { LINK_TYPE_QUERY_KEY } from '@/utils/linkNavigation'
-import { SEARCH_PARAM_KEYS, TABLE_PARAM_KEYS } from '@/utils/urlParams'
+import { TABLE_PARAM_KEYS } from '@/utils/urlParams'
 
 /**
  * URL 参数键规则：
@@ -19,6 +19,7 @@ const LEGACY_FIELD_QUERY_PREFIXES = [
   LEGACY_FORM_DRAFT_QUERY_PREFIX,
   LEGACY_SEARCH_FIELD_QUERY_PREFIX
 ] as const
+const STALE_TABLE_FILTER_QUERY_KEYS = 'eq,like,in,contains,gte,lte'.split(',')
 
 export const isPlatformStateQueryKey = (key: string): boolean => {
   return key.startsWith('_')
@@ -32,8 +33,8 @@ export const isTableControlQueryKey = (key: string): boolean => {
   return TABLE_PARAM_KEYS.includes(key as typeof TABLE_PARAM_KEYS[number])
 }
 
-export const isBackendSearchOperatorQueryKey = (key: string): boolean => {
-  return SEARCH_PARAM_KEYS.includes(key as typeof SEARCH_PARAM_KEYS[number])
+export const isStaleTableFilterQueryKey = (key: string): boolean => {
+  return STALE_TABLE_FILTER_QUERY_KEYS.includes(key)
 }
 
 export const isDisplayCompanionQueryKey = (key: string): boolean => {

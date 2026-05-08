@@ -12,8 +12,8 @@ type compileTestReq struct {
 }
 
 type compileTestTableModel struct {
-	ID    int    `json:"id" widget:"name:ID;type:ID" display:"scenes:list" search:"eq"`
-	Title string `json:"title" widget:"name:标题;type:input" search:"like"`
+	ID    int    `json:"id" widget:"name:ID;type:ID" hide:"create,update"`
+	Title string `json:"title" widget:"name:标题;type:input"`
 }
 
 func (compileTestTableModel) TableName() string {

@@ -3,6 +3,7 @@ module github.com/ai-agent-os/ai-agent-os
 go 1.25.0
 
 require (
+	github.com/JohannesKaufmann/html-to-markdown v1.6.0
 	github.com/PuerkitoBio/goquery v1.12.0
 	github.com/containers/podman/v5 v5.6.2
 	github.com/gin-gonic/gin v1.11.0

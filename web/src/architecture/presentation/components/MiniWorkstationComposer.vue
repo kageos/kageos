@@ -41,15 +41,18 @@
   </div>
 
   <div class="mini-ws-input" data-testid="mini-workstation-composer">
-    <el-upload
-      :auto-upload="false"
-      :show-file-list="false"
-      :on-change="onFileChange"
-      :disabled="uploading"
-      class="mini-upload-btn"
-    >
-      <el-button :icon="Paperclip" link :loading="uploading" size="small" title="上传文件" />
-    </el-upload>
+    <div class="mini-composer-left-actions">
+      <slot name="left-actions" />
+      <el-upload
+        :auto-upload="false"
+        :show-file-list="false"
+        :on-change="onFileChange"
+        :disabled="uploading"
+        class="mini-upload-btn"
+      >
+        <el-button :icon="Paperclip" link :loading="uploading" size="small" title="上传文件" />
+      </el-upload>
+    </div>
     <textarea
       :ref="bindInputRef"
       :value="inputText"
@@ -124,35 +127,50 @@
         </button>
       </div>
     </div>
-    <el-button
-      v-if="sending"
-      type="danger"
-      size="small"
-      :loading="stopping"
-      data-testid="mini-workstation-stop"
-      @click="$emit('stop')"
-      class="mini-send-btn"
-    >
-      <el-icon><VideoPause /></el-icon>
-      停止
-    </el-button>
-    <el-button
-      v-else
-      type="primary"
-      size="small"
-      :disabled="!fullCodePath || (!inputText.trim() && attachedFiles.length === 0)"
-      data-testid="mini-workstation-send"
-      @click="$emit('send')"
-      class="mini-send-btn"
-    >
-      发送
-    </el-button>
+    <div class="mini-action-stack">
+      <el-tooltip content="定时执行" placement="top" effect="light">
+        <el-button
+          class="mini-schedule-btn"
+          link
+          size="small"
+          title="定时执行"
+          :disabled="sending || !fullCodePath"
+          data-testid="mini-workstation-schedule"
+          @click="$emit('schedule')"
+        >
+          <el-icon><Timer /></el-icon>
+        </el-button>
+      </el-tooltip>
+      <el-button
+        v-if="sending"
+        type="danger"
+        size="small"
+        :loading="stopping"
+        data-testid="mini-workstation-stop"
+        @click="$emit('stop')"
+        class="mini-send-btn"
+      >
+        <el-icon><VideoPause /></el-icon>
+        停止
+      </el-button>
+      <el-button
+        v-else
+        type="primary"
+        size="small"
+        :disabled="!fullCodePath || (!inputText.trim() && attachedFiles.length === 0)"
+        data-testid="mini-workstation-send"
+        @click="$emit('send')"
+        class="mini-send-btn"
+      >
+        发送
+      </el-button>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, ref, type Component } from 'vue'
-import { Document, Paperclip, VideoPause } from '@element-plus/icons-vue'
+import { Document, Paperclip, Timer, VideoPause } from '@element-plus/icons-vue'
 import type { LLMInfo } from '@/api/agent'
 import type { WorkspaceChatMessageFile } from '@/api/workspace'
 import { searchUsersFuzzy } from '@/api/user'
@@ -191,6 +209,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:inputText', value: string): void
   (e: 'update:selectedLLMConfigId', value: number): void
+  (e: 'schedule'): void
   (e: 'send'): void
   (e: 'stop'): void
 }>()
@@ -586,9 +605,16 @@ function cancelMentionClose() {
     radial-gradient(circle at 10% 0%, rgba(34, 211, 238, 0.1), transparent 32%),
     linear-gradient(180deg, rgba(9, 28, 48, 0.82), rgba(4, 12, 24, 0.9));
 }
+.mini-composer-left-actions {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  align-self: flex-end;
+  gap: 6px;
+}
 .mini-upload-btn {
   flex-shrink: 0;
-  align-self: center;
 }
 .mini-upload-btn :deep(.el-button) {
   width: 32px;
@@ -633,7 +659,7 @@ function cancelMentionClose() {
 }
 .mini-mention-panel {
   position: absolute;
-  left: 52px;
+  left: 92px;
   right: 76px;
   bottom: calc(100% - 4px);
   z-index: 12;
@@ -801,9 +827,31 @@ function cancelMentionClose() {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11.5px;
 }
+.mini-action-stack {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.mini-schedule-btn {
+  width: 100%;
+  min-height: 28px;
+  border: 1px solid rgba(96, 231, 255, 0.2);
+  border-radius: 10px;
+  color: var(--mini-cyber-accent, #22d3ee);
+  background: rgba(34, 211, 238, 0.08);
+}
+.mini-schedule-btn:hover {
+  color: #ffffff;
+  background: rgba(34, 211, 238, 0.16);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.16);
+}
 .mini-send-btn {
   flex-shrink: 0;
   align-self: flex-end;
+  width: 100%;
   min-height: 32px;
   border-radius: 10px;
   font-weight: 700;

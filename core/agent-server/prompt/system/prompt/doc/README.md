@@ -10,4 +10,4 @@
 ## 与 mode 的关系
 
 - **doc/**：公用内容，所有工作台模式共享。
-- **mode/<code>/**：各模式个性化（system_prompt、first_assistant、config.json 等）。
+- **mode/<code>/**：各模式个性化（system_prompt、config.json 等）。

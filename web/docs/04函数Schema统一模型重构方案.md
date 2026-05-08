@@ -71,7 +71,7 @@ Table 实际上至少有这些配置：
 
 同时也不应该把 Table 字段拆成多份完整数组，例如 `fields/create_fields/update_fields/detail_fields`。这样会让 schema 变大，同一个字段配置重复出现，字段名称、widget、校验规则、选项等改动时容易不一致。
 
-更合理的方式是：字段只定义一份，特殊字段通过轻量 `display.scenes` 白名单控制在哪些场景出现。
+更合理的方式是：字段只定义一份，特殊字段通过轻量 `hide.scenes` 黑名单控制在哪些场景隐藏。
 
 ### 3. 定时任务执行记录不好做只读渲染
 
@@ -161,7 +161,7 @@ AI 工具可以基于 schema 生成更准确的 input/output schema
 schema 是唯一配置源
 旧 request/response 不作为运行时配置源保留
 旧 callbacks 不作为运行时配置源保留
-字段展示策略统一使用 display.scenes
+字段展示策略统一使用 hide.scenes
 前端业务组件不直接访问 schema 深层结构，只通过 selector
 不做旧数据刷新，不做存量数据迁移，不做历史兼容分支
 新分支直接重写模型、接口、前端类型和调用链
@@ -182,7 +182,7 @@ AI 工具和 Hub 直接切到新 schema 结构
 ```text
 后端主链路同时长期支持 schema 和 request/response
 前端组件散落 schema.form.request/schema.table.fields 深层读取
-字段展示绕过 display.scenes
+字段展示绕过 hide.scenes
 新增功能继续向 request/response 写配置
 Hub 或 AI 工具继续以 request/response 作为主结构
 为了旧数据保留任何兼容路径
@@ -411,15 +411,15 @@ table.fields = 表格字段唯一配置源
 schema.callbacks = 表格支持的回调能力，例如 OnTableAddRow、OnTableCreateInBatches、OnTableUpdateRow、OnTableDeleteRows、OnSelectFuzzy
 ```
 
-字段场景控制使用 `display.scenes`：
+字段场景控制使用 `hide.scenes`：
 
 ```json
 {
   "code": "internal_note",
   "name": "内部备注",
   "widget": { "type": "textarea" },
-  "display": {
-    "scenes": ["list", "update"]
+  "hide": {
+    "scenes": ["list"]
   }
 }
 ```
@@ -427,17 +427,17 @@ schema.callbacks = 表格支持的回调能力，例如 OnTableAddRow、OnTableC
 规则：
 
 ```text
-display 不存在：不做场景限制，按默认规则展示/使用
-display.scenes 存在：白名单，仅在列出的场景展示/使用
-display.scenes 必须是非空数组
-display.scenes 空数组是非法配置，不支持
-display.scenes 只允许固定场景名：list/create/update
-display.scenes 出现未知场景名是非法配置
+hide 不存在：不做场景限制，按默认规则展示/使用
+hide.scenes 存在：黑名单，在列出的场景隐藏/不使用
+hide.scenes 必须是非空数组
+hide.scenes 空数组是非法配置，不支持
+hide.scenes 只允许固定场景名：list/create/update
+hide.scenes 出现未知场景名是非法配置
 字段完全不在任何场景展示：不要进入 schema，生成时直接排除
 不要使用 permissions 表达这个含义，避免和用户/角色/资源权限混淆
-这里的 display 是字段展示/使用策略，不是权限控制
-搜索不进入 display.scenes，继续使用字段已有 search 标签/配置判断
-详情不进入 display.scenes，能 list 的字段自然可以 detail 展示
+这里的 hide 是字段展示/使用策略，不是权限控制
+搜索不进入 hide.scenes，继续使用Request 显式筛选字段判断
+详情不进入 hide.scenes，能 list 的字段自然可以 detail 展示
 ```
 
 场景定义：
@@ -455,7 +455,7 @@ list：默认使用 table.fields
 detail：不单独作为 scene，默认复用 list 可见字段
 create：默认使用 table.fields 中可编辑、非只读字段
 update：默认使用 table.fields 中可编辑、非只读字段
-search：不走 display.scenes，使用 table.request 和字段已有 search 标签/配置
+筛选：不走 hide.scenes，使用 table.request 和Request 显式筛选字段
 table 写能力只看 schema.callbacks，不再使用 actions 配置
 ```
 
@@ -463,18 +463,18 @@ selector 逻辑：
 
 ```ts
 function visibleInScene(field, scene) {
-  const scenes = field.display?.scenes
+  const scenes = field.hide?.scenes
   if (!Array.isArray(scenes)) {
     return true
   }
-  return scenes.includes(scene)
+  return !scenes.includes(scene)
 }
 ```
 
 注意：
 
 ```text
-不要引入 display.scenes = [] 表达“任何场景都不展示”
+不要引入 hide.scenes = [] 表达“任何场景都不展示”
 如果字段所有场景都不用，类似 json:"-" / widget:"-"，它不应该出现在返回给前端的 schema 里
 ```
 
@@ -620,8 +620,8 @@ create_tables 先作为顶层元信息保留，是否进入 schema 另行确认
 旧 table.request -> 新 schema.table.request
 旧 table.response -> 新 schema.table.fields
 旧 callbacks 字符串 -> 新 schema.callbacks 数组
-列表专用字段使用 display.scenes: ["list"]
-旧 search 原样保留，不进入 display.scenes
+列表专用字段使用 hide.scenes: ["create", "update"]
+旧 search 原样保留，不进入 hide.scenes
 旧 validation/data/widget/children/callbacks 等字段级配置原样保留
 ```
 
@@ -701,8 +701,7 @@ form.response 天然只读，不额外配置展示权限
 | `request` | form 入参 / table 查询条件，语义混用 | `schema.form.request` / `schema.table.request` | 按类型拆分后的请求字段 |
 | `response` | form 出参 / table 列，语义混用 | `schema.form.response` / `schema.table.fields` | 按类型拆分后的输出字段或表格字段 |
 | `callbacks` | 顶层逗号字符串 | `schema.callbacks` | 顶层数组 |
-| `display.scenes` | 字段展示场景白名单 | `display.scenes: ["list"]` | table list-only 字段用 display；form response 天然只读，不需要展示权限标签 |
-| `search` | 字段搜索标签 | `search` | 原样保留，不进入 display |
+| `hide.scenes` | 字段隐藏场景黑名单 | `hide.scenes: ["create", "update"]` | table list-only 字段用 hide.scenes: ["create", "update"]；form response 天然只读，不需要展示权限标签 |
 | `permissions` | 当前用户资源权限 | `permissions` | 原样保留，不进入 schema |
 
 ### Table 完整示例
@@ -963,9 +962,9 @@ Table 新结构落地说明：
 旧 response 对应 schema.table.fields
 旧 request 对应 schema.table.request
 当前 callbacks 字符串拆分为 schema.callbacks
-列表专用字段统一使用 display.scenes: ["list"]
-没有 display 的字段表示不限制，默认可用于 list/create/update，再由 readonly/disabled/validation 等配置决定是否可编辑
-search 字段原样保留，搜索逻辑继续根据 search 标签判断
+列表专用字段统一使用 hide.scenes: ["create", "update"]
+没有 hide 的字段表示不限制，默认可用于 list/create/update，再由 readonly/disabled/validation 等配置决定是否可编辑
+筛选字段原样保留，搜索逻辑继续根据 Request 筛选字段判断
 ```
 
 ### Form 完整示例
@@ -1338,10 +1337,10 @@ Table 规则：
 ```text
 table.request = 独立查询条件
 table.fields = 表格字段唯一来源
-display.scenes 不存在 = 不限制，按默认规则使用
-display.scenes = 非空白名单，只允许 list/create/update
-search 不进入 display.scenes，继续使用字段已有 search 标签/配置
-detail 不进入 display.scenes，默认复用 list 可见字段
+hide.scenes 不存在 = 不限制，按默认规则使用
+hide.scenes = 非空黑名单，只允许 list/create/update
+筛选不进入 hide.scenes，继续使用Request 显式筛选字段
+detail 不进入 hide.scenes，默认复用 list 可见字段
 完全不展示的字段不进入 schema
 ```
 
@@ -1352,7 +1351,7 @@ detail 不进入 display.scenes，默认复用 list 可见字段
 详情字段 = 列表字段
 新增字段 = table.fields 中 visibleInScene(field, "create") 且字段非只读/非禁用的字段
 编辑字段 = table.fields 中 visibleInScene(field, "update") 且字段非只读/非禁用的字段
-搜索字段 = table.request + table.fields 中带 search 标签/配置的字段
+搜索字段 = table.request + table.request 字段
 ```
 
 说明：
@@ -1392,7 +1391,7 @@ getFunctionCallbacks(functionDetail)
 
 ```text
 getTableCreateFields / getTableUpdateFields 只是 selector 名称
-它们都从 table.fields 按 display.scenes 和默认规则过滤出来
+它们都从 table.fields 按 hide.scenes 和默认规则过滤出来
 schema 内不再存在 create_fields / update_fields / detail_fields 三份字段数组
 详情展示使用 getTableFields 的 list 可见结果
 ```
@@ -1449,23 +1448,23 @@ schema 缺失时展示格式化 JSON
 ### 通用字段过滤
 
 ```ts
-type DisplayScene = 'list' | 'create' | 'update'
+type FieldScene = 'list' | 'create' | 'update'
 
-function visibleInScene(field, scene: DisplayScene) {
-  const scenes = field.display?.scenes
+function visibleInScene(field, scene: FieldScene) {
+  const scenes = field.hide?.scenes
   if (!Array.isArray(scenes)) {
     return true
   }
-  return scenes.includes(scene)
+  return !scenes.includes(scene)
 }
 ```
 
 规则：
 
 ```text
-display 不存在：返回 true
-display.scenes 非空：只在命中的 scene 返回 true
-display.scenes 为空或包含未知 scene：schema 校验失败
+hide 不存在：返回 true
+hide.scenes 非空：命中的 scene 返回 false
+hide.scenes 为空或包含未知 scene：schema 校验失败
 ```
 
 ### Table 页面渲染
@@ -1475,7 +1474,7 @@ display.scenes 为空或包含未知 scene：schema 校验失败
 详情页：复用 getTableFields
 新增页：getTableCreateFields = fields 按 create 过滤，再排除只读/禁用字段
 编辑页：getTableUpdateFields = fields 按 update 过滤，再排除只读/禁用字段
-搜索区：getTableSearchFields = table.request + fields 中带 search 标签/配置的字段
+搜索区：getTableSearchFields = table.request + table.request 字段
 ```
 
 ### 执行记录只读渲染
@@ -1576,18 +1575,18 @@ WidgetComponent、UserDisplay、DepartmentDisplay、UserPickerDialog、Departmen
 前端类型层改造：
 
 ```ts
-type DisplayScene = 'list' | 'create' | 'update'
+type FieldScene = 'list' | 'create' | 'update'
 
-interface FieldDisplayConfig {
-  scenes?: DisplayScene[]
+interface FieldHideConfig {
+  scenes?: FieldScene[]
 }
 
 interface FieldConfig {
   code: string
   name: string
   widget: WidgetConfig
-  display?: FieldDisplayConfig
-  // display.scenes 是唯一字段展示策略
+  hide?: FieldHideConfig
+  // hide.scenes 是唯一字段展示策略
 }
 
 interface FunctionSchema {
@@ -1647,7 +1646,7 @@ getTableListFields = table.fields 过滤 visibleInScene(field, "list")
 getTableDetailFields = getTableListFields
 getTableCreateFields = table.fields 过滤 visibleInScene(field, "create")，再排除只读/禁用字段
 getTableUpdateFields = table.fields 过滤 visibleInScene(field, "update")，再排除只读/禁用字段
-getTableSearchFields = table.request + table.fields 中带 search 标签/配置的字段
+getTableSearchFields = table.request + table.request 字段
 getTableIdField = list fields 中 widget.type=ID 或 code=id/_id 的字段
 ```
 
@@ -1698,7 +1697,7 @@ ScheduledTaskList 需要把 currentExecutionTask.action 传给只读渲染组件
 第四步：Table 链路切到 selector，重点处理 list/create/update/search/detail 五类字段来源。
 第五步：定时任务和执行记录切到 action-aware readonly model。
 第六步：删除前端所有旧 request/response 读取点。
-第七步：展示场景逻辑和测试数据全部统一为 display.scenes。
+第七步：展示场景逻辑和测试数据全部统一为 hide.scenes。
 ```
 
 前端风险点：
@@ -1708,10 +1707,10 @@ ScheduledTaskList 需要把 currentExecutionTask.action 传给只读渲染组件
 控制方式：业务组件只调 selector。
 
 风险二：展示和编辑语义混用会影响新增/编辑/列表。
-控制方式：先用 display.scenes 表达 list/create/update，再用 readonly/disabled/widget config 表达是否可编辑。
+控制方式：先用 hide.scenes 表达 list/create/update，再用 readonly/disabled/widget config 表达是否可编辑。
 
-风险三：搜索字段不能被 display.scenes 误伤。
-控制方式：搜索只看 table.request 和 field.search。
+风险三：搜索字段不能被 hide.scenes 误伤。
+控制方式：搜索只看 table.request 和 table.request。
 
 风险四：执行记录 payload 和当前 schema 可能不匹配。
 控制方式：只读渲染永远保留 JSON 兜底。
@@ -1762,8 +1761,8 @@ schema 快照后续也会很别扭
 ```text
 函数配置语义更清晰，不再让 request/response 承担所有类型的含义
 table 字段只保留一份 fields，避免 create/update/detail 多份字段重复
-display.scenes 规则很轻，只解决 list/create/update 的展示差异
-搜索继续使用已有 search 标签，不引入额外复杂度
+hide.scenes 规则很轻，只解决 list/create/update 的展示差异
+搜索继续使用Request 显式筛选字段，不引入额外复杂度
 详情复用 list 字段，不额外增加 detail 场景
 定时任务执行记录可以按 schema 渲染，不再只能展示 JSON
 AI 工具可以从 schema 生成更准确的入参结构
@@ -1834,11 +1833,11 @@ UI 大改版
 - [ ] 确认 callbacks 统一放在 schema 顶层。
 - [ ] 确认 `template_type` 是否继续作为冗余字段保留。
 - [ ] 确认 table 只保留单 `fields` 数组。
-- [ ] 确认字段级 `display.scenes` 白名单语义。
-- [ ] 确认 `display.scenes` 空数组作为非法配置处理。
-- [ ] 确认 `display.scenes` 只允许 `list/create/update`。
-- [ ] 确认搜索继续走字段已有 search 标签/配置，不进入 `display.scenes`。
-- [ ] 确认详情默认复用 list 可见字段，不进入 `display.scenes`。
+- [ ] 确认字段级 `hide.scenes` 黑名单语义。
+- [ ] 确认 `hide.scenes` 空数组作为非法配置处理。
+- [ ] 确认 `hide.scenes` 只允许 `list/create/update`。
+- [ ] 确认搜索继续走Request 显式筛选字段，不进入 `hide.scenes`。
+- [ ] 确认详情默认复用 list 可见字段，不进入 `hide.scenes`。
 - [ ] 确认完全隐藏字段不进入 schema。
 - [ ] 确认本分支不保留旧模型兼容。
 - [ ] 确认 `request/response/callbacks` 的退出边界。
@@ -1870,7 +1869,7 @@ UI 大改版
 - [ ] 获取函数详情时返回 schema。
 - [ ] 服务树搜索结果返回必要 schema 摘要。
 - [ ] 标准 API 从 schema 读取 form/table 字段。
-- [ ] 新增 schema normalize/validate，校验 `display.scenes` 非空且只使用 `list/create/update`。
+- [ ] 新增 schema normalize/validate，校验 `hide.scenes` 非空且只使用 `list/create/update`。
 
 ### 阶段 4：前端业务切换
 
@@ -1889,7 +1888,7 @@ UI 大改版
 - [ ] `useOperateLogSection/FormOperateLogSection` 通过 selector 找字段配置。
 - [ ] `useFormParamURLSync/useChartParamURLSync/tableViewURLRuntime` 通过 selector 获取 URL 同步字段。
 - [ ] 替换所有业务组件里的直接 `functionDetail.request/response` 读取。
-- [ ] 前端测试数据统一使用 `display.scenes`。
+- [ ] 前端测试数据统一使用 `hide.scenes`。
 
 ### 阶段 5：AI 工具和 Hub 同步
 
@@ -1940,7 +1939,7 @@ function 配置唯一来源是 schema
 后端运行时不再读取 request/response/callbacks 旧配置字段
 前端业务组件不直接依赖 request/response
 前端 selector 不再保留旧 request/response 兼容逻辑
-字段展示统一依赖 display.scenes
+字段展示统一依赖 hide.scenes
 form/table 基础链路能正常使用
 定时任务执行记录可以按 schema 只读渲染
 旧 request/response 语义不再继续扩散
@@ -1954,7 +1953,7 @@ form/table 基础链路能正常使用
 ```text
 完全隐藏字段由哪一层排除？建议 schema 生成层直接排除。
 table.update 场景是否需要专门展示 old_values？
-未来是否需要增加更多 display scene？本轮先不做，避免模型膨胀。
+未来是否需要增加更多 hide scene？本轮先不做，避免模型膨胀。
 create_tables 是否进入 schema？
 template_type 是否保留为数据库冗余字段？
 Hub bundle 是否本轮同步升级？

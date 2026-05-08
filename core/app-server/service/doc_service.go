@@ -14,17 +14,17 @@ import (
 
 // DocService 文档服务
 type DocService struct {
-	docRepo        *repository.DocRepository
+	docRepo         *repository.DocRepository
 	serviceTreeRepo *repository.ServiceTreeRepository
-	appRepo        *repository.AppRepository
+	appRepo         *repository.AppRepository
 }
 
 // NewDocService 创建文档服务
 func NewDocService(docRepo *repository.DocRepository, serviceTreeRepo *repository.ServiceTreeRepository, appRepo *repository.AppRepository) *DocService {
 	return &DocService{
-		docRepo:        docRepo,
+		docRepo:         docRepo,
 		serviceTreeRepo: serviceTreeRepo,
-		appRepo:        appRepo,
+		appRepo:         appRepo,
 	}
 }
 
@@ -250,17 +250,17 @@ func (s *DocService) SearchDocs(ctx context.Context, req *dto.SearchDocsReq) (*d
 	if req.PageSize > 100 {
 		req.PageSize = 100 // 限制最大每页数量
 	}
-	
-	logger.Infof(ctx, "[DocService] 搜索文档 - Keyword: %s, Page: %d, PageSize: %d, IncludeContent: %v", 
+
+	logger.Infof(ctx, "[DocService] 搜索文档 - Keyword: %s, Page: %d, PageSize: %d, IncludeContent: %v",
 		req.Keyword, req.Page, req.PageSize, req.IncludeContent)
-	
+
 	// 调用 Repository 搜索文档
 	docs, total, err := s.docRepo.SearchDocs(req.Keyword, req.Page, req.PageSize)
 	if err != nil {
 		logger.Errorf(ctx, "[DocService] 搜索文档失败 - Keyword: %s, Error: %v", req.Keyword, err)
 		return nil, fmt.Errorf("搜索文档失败: %w", err)
 	}
-	
+
 	// 转换为 DTO
 	docItems := make([]*dto.DocItem, 0, len(docs))
 	for _, doc := range docs {
@@ -272,18 +272,18 @@ func (s *DocService) SearchDocs(ctx context.Context, req *dto.SearchDocsReq) (*d
 			Summary:      doc.Summary,
 			Category:     doc.Category,
 		}
-		
+
 		// 根据 include_content 决定是否包含内容（默认 true）
 		if req.IncludeContent {
 			item.Content = doc.Content
 		}
-		
+
 		docItems = append(docItems, item)
 	}
-	
-	logger.Infof(ctx, "[DocService] 搜索文档成功 - Keyword: %s, Total: %d, DocsCount: %d, IncludeContent: %v", 
+
+	logger.Infof(ctx, "[DocService] 搜索文档成功 - Keyword: %s, Total: %d, DocsCount: %d, IncludeContent: %v",
 		req.Keyword, total, len(docItems), req.IncludeContent)
-	
+
 	return &dto.SearchDocsResp{
 		Docs:     docItems,
 		Total:    total,
@@ -295,14 +295,14 @@ func (s *DocService) SearchDocs(ctx context.Context, req *dto.SearchDocsReq) (*d
 // BatchGetDocs 批量获取文档（精确查询）
 func (s *DocService) BatchGetDocs(ctx context.Context, req *dto.BatchGetDocsReq) (*dto.BatchGetDocsResp, error) {
 	logger.Infof(ctx, "[DocService] 批量获取文档 - Paths: %v, IncludeContent: %v", req.Paths, req.IncludeContent)
-	
+
 	// 直接根据 full_code_path 批量查询文档
 	docs, err := s.docRepo.GetByFullCodePaths(req.Paths)
 	if err != nil {
 		logger.Errorf(ctx, "[DocService] 批量获取文档失败 - Paths: %v, Error: %v", req.Paths, err)
 		return nil, fmt.Errorf("批量获取文档失败: %w", err)
 	}
-	
+
 	// 转换为 DTO
 	docItems := make([]*dto.DocItem, 0, len(docs))
 	for _, doc := range docs {
@@ -314,18 +314,18 @@ func (s *DocService) BatchGetDocs(ctx context.Context, req *dto.BatchGetDocsReq)
 			Summary:      doc.Summary,
 			Category:     doc.Category,
 		}
-		
+
 		// 根据 include_content 决定是否包含内容（默认 true）
 		if req.IncludeContent {
 			item.Content = doc.Content
 		}
-		
+
 		docItems = append(docItems, item)
 	}
-	
-	logger.Infof(ctx, "[DocService] 批量获取文档成功 - Paths: %v, DocsCount: %d, IncludeContent: %v", 
+
+	logger.Infof(ctx, "[DocService] 批量获取文档成功 - Paths: %v, DocsCount: %d, IncludeContent: %v",
 		req.Paths, len(docItems), req.IncludeContent)
-	
+
 	return &dto.BatchGetDocsResp{Docs: docItems}, nil
 }
 
@@ -336,18 +336,17 @@ func (s *DocService) GetDocsByPaths(ctx context.Context, paths []string) (*dto.G
 		Paths:          paths,
 		IncludeContent: true, // 默认包含内容
 	}
-	
+
 	resp, err := s.BatchGetDocs(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// 转换为旧格式
 	docItems := make([]*dto.DocItem, len(resp.Docs))
 	copy(docItems, resp.Docs)
-	
+
 	return &dto.GetDocsByPathsResp{Docs: docItems}, nil
 }
 
 // ==================== 基于路径的文档操作（新接口，用于 /docs/*full-code-path） ====================
-

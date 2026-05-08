@@ -99,4 +99,3 @@ func mergeControlServiceConfig(global ControlServiceClientConfig, service Contro
 	}
 	return result
 }
-

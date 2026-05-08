@@ -118,7 +118,7 @@ export function createSearchComponentConfig(
  * 创建用户组件配置
  */
 function createUserComponentConfig(field: FieldConfig, searchType: string | undefined): ComponentConfig {
-  // 如果 search 标签是 "in" 或 "eq"，使用统一的远程选择器兜底
+  // 多选筛选使用统一的远程选择器兜底
   if (hasSearchType(searchType, SearchType.IN) || hasSearchType(searchType, SearchType.EQ)) {
     const multiple = hasSearchType(searchType, SearchType.IN)
     return {
@@ -139,7 +139,7 @@ function createUserComponentConfig(field: FieldConfig, searchType: string | unde
     }
   }
 
-  // 如果 search 标签是 "like"，渲染普通文本输入框
+  // 文本筛选渲染普通文本输入框
   if (hasSearchType(searchType, SearchType.LIKE)) {
     return createDefaultInputConfig(field)
   }
@@ -165,7 +165,7 @@ function createUserComponentConfig(field: FieldConfig, searchType: string | unde
  */
 function createUsersComponentConfig(field: FieldConfig, searchType: string | undefined): ComponentConfig {
   // 多用户组件默认支持多选搜索（contains/in）
-  // 如果 search 标签是 "contains" 或 "in"，使用多选用户搜索
+  // 多值筛选使用多选用户搜索
   if (hasSearchType(searchType, SearchType.CONTAINS) || hasSearchType(searchType, SearchType.IN)) {
     return {
       component: SearchComponent.EL_SELECT,
@@ -185,7 +185,7 @@ function createUsersComponentConfig(field: FieldConfig, searchType: string | und
     }
   }
 
-  // 如果 search 标签是 "like"，渲染普通文本输入框
+  // 文本筛选渲染普通文本输入框
   if (hasSearchType(searchType, SearchType.LIKE)) {
     return createDefaultInputConfig(field)
   }
@@ -526,7 +526,7 @@ function createUserRemoteMethod(): (query: string) => Promise<Array<{ label: str
  * 创建组织架构组件配置
  */
 function createDepartmentComponentConfig(field: FieldConfig, searchType: string | undefined): ComponentConfig {
-  // 如果 search 标签是 "in" 或 "eq"，使用组织架构搜索
+  // 多选筛选使用组织架构搜索
   if (hasSearchType(searchType, SearchType.IN) || hasSearchType(searchType, SearchType.EQ)) {
     return {
       component: SearchComponent.EL_SELECT,
@@ -542,7 +542,7 @@ function createDepartmentComponentConfig(field: FieldConfig, searchType: string 
     }
   }
 
-  // 如果 search 标签是 "like"，渲染普通文本输入框
+  // 文本筛选渲染普通文本输入框
   if (hasSearchType(searchType, SearchType.LIKE)) {
     return createDefaultInputConfig(field)
   }
@@ -566,7 +566,7 @@ function createDepartmentComponentConfig(field: FieldConfig, searchType: string 
  */
 function createDepartmentsComponentConfig(field: FieldConfig, searchType: string | undefined): ComponentConfig {
   // 多组织架构组件默认支持多选搜索（contains/in）
-  // 如果 search 标签是 "contains" 或 "in"，使用多选组织架构搜索
+  // 多值筛选使用多选组织架构搜索
   if (hasSearchType(searchType, SearchType.CONTAINS) || hasSearchType(searchType, SearchType.IN)) {
     return {
       component: SearchComponent.EL_SELECT,
@@ -585,7 +585,7 @@ function createDepartmentsComponentConfig(field: FieldConfig, searchType: string
     }
   }
 
-  // 如果 search 标签是 "like"，渲染普通文本输入框
+  // 文本筛选渲染普通文本输入框
   if (hasSearchType(searchType, SearchType.LIKE)) {
     return createDefaultInputConfig(field)
   }

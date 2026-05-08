@@ -52,4 +52,3 @@ func AccessLog() gin.HandlerFunc {
 		)
 	}
 }
-

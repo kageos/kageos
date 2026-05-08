@@ -212,7 +212,7 @@ func searchResourcesMatchTier(tree *model.ServiceTree, keywords []string) int {
 			tier = maxSearchTier(tier, 4)
 		case strings.Contains(codeLower, k) || strings.Contains(pathLower, k):
 			tier = maxSearchTier(tier, 3)
-		case hasExactSearchTag(tagSlice, k):
+		case hasExactMatchedTag(tagSlice, k):
 			tier = maxSearchTier(tier, 3)
 		case strings.Contains(descLower, k) || strings.Contains(tagsLower, k):
 			tier = maxSearchTier(tier, 2)
@@ -230,7 +230,7 @@ func getSearchPathTail(path string) string {
 	return parts[len(parts)-1]
 }
 
-func hasExactSearchTag(tags []string, keyword string) bool {
+func hasExactMatchedTag(tags []string, keyword string) bool {
 	for _, t := range tags {
 		if strings.ToLower(strings.TrimSpace(t)) == keyword {
 			return true
