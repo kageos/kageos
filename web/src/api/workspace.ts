@@ -27,7 +27,13 @@ export interface WorkspaceChatMessageFiles {
 /** 工作台对话请求（只认 LLM，单模式） */
 export interface WorkspaceChatReq {
   full_code_path: string
-  message: { content: string; files?: string }
+  message: {
+    content: string
+    display_content?: string
+    files?: string
+    context_usage?: string
+    artifact_kind?: string
+  }
   session_id?: string
   mode_code?: string
   /** LLM 配置 ID，0 表示使用默认 LLM */
@@ -44,8 +50,36 @@ export interface WorkspaceSessionItem {
   mode_code?: string
   status: string // active | generating | done | cancelled
   full_code_path?: string
+  parent_session_id?: string
+  handoff_kind?: string
+  handoff_target_role?: string
+  context_policy?: string
+  archived_for_model?: boolean
+  archive_reason?: string
   created_at: string
   updated_at: string
+}
+
+export interface WorkspaceHandoffReq {
+  source_session_id: string
+  full_code_path: string
+  target_role: string
+  artifact_kind: string
+  artifact: unknown
+  remark?: string
+  context_policy?: string
+  title?: string
+  display_content?: string
+}
+
+export interface WorkspaceHandoffResp {
+  session_id: string
+  source_session_id: string
+  target_role: string
+  artifact_kind: string
+  context_policy: string
+  content: string
+  display_content: string
 }
 
 /** 获取工作台会话列表请求 */
@@ -154,6 +188,11 @@ export interface WorkspaceCallToolResp {
 /** 直接执行单个工作台工具（用于推荐动作、推荐阅读等快捷操作） */
 export async function callWorkspaceTool(req: WorkspaceCallToolReq): Promise<WorkspaceCallToolResp> {
   return post<WorkspaceCallToolResp>('/agent/api/v1/workspace/call_tool', req)
+}
+
+/** 创建阶段交接会话：旧会话保留展示，新会话只携带结构化产物进入目标阶段 */
+export async function createWorkspaceHandoff(req: WorkspaceHandoffReq): Promise<WorkspaceHandoffResp> {
+  return post<WorkspaceHandoffResp>('/agent/api/v1/workspace/sessions/handoff', req)
 }
 
 /** 获取工作台模式详情（按 id） */
@@ -291,9 +330,12 @@ export interface WorkspaceMessageInfo {
   role: 'user' | 'assistant' | 'tool'
   user?: string
   content: string
+  display_content?: string
   /** 用户消息附带的文件列表 JSON，解析后为 { files: WorkspaceChatMessageFile[] } */
   files?: string | null
   tool_calls?: WorkspaceChatToolCallSummary[]
+  context_usage?: string
+  artifact_kind?: string
   created_at: string
 }
 

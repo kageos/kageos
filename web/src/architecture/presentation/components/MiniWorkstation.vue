@@ -279,6 +279,7 @@ import { useMiniWorkstationUploads } from '../composables/useMiniWorkstationUplo
 import { useMiniWorkstationComposer } from '../composables/useMiniWorkstationComposer'
 import { useMiniWorkstationEffects } from '../composables/useMiniWorkstationEffects'
 import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
+import { createWorkspaceHandoff } from '@/api/workspace'
 
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
@@ -863,7 +864,7 @@ const {
   onLLMSelectVisibleChange: loadLLMOptionsOnVisibleChange,
   onInputEnter,
   handleSend,
-  sendTextInNewSession
+  sendTextToSession
 } = useMiniWorkstationComposer({
   fullCodePath: fullCodePathRef,
   sessionId,
@@ -890,36 +891,35 @@ function onLLMSelectVisibleChange(visible: boolean) {
   loadLLMOptionsOnVisibleChange(visible)
 }
 
-function handleConfirmPrd(payload: { remark: string; prd: unknown }) {
+async function handleConfirmPrd(payload: { remark: string; prd: unknown }) {
   const remark = payload.remark.trim()
-  const prdJson = stringifyPrdForHandoff(payload.prd)
-  const content = [
-    '已确认 PRD，开始创建目录和生成代码。',
-    '',
-    '这是确认后的开发执行阶段。请先调用 change_role，target_role 固定为 app.create。',
-    '生成阶段请忽略此前需求澄清历史，只以本消息中的 PRD JSON 和补充备注为准；不要重新输出 PRD，不要再次询问确认。',
-    '必须先读取 1 到多个匹配案例，再根据 PRD models.fields 自动生成 Go struct，创建目录、写 Go 文件、注册路由并 build；非常简单的需求才可跳过额外案例。',
-    '',
-    'PRD JSON:',
-    '```json',
-    prdJson,
-    '```',
-    remark ? `\n补充备注：\n${remark}` : '',
-  ].filter(Boolean).join('\n')
-  const displayContent = remark
-    ? `已确认 PRD，开始创建目录和生成代码。\n\n补充备注：\n${remark}`
-    : '已确认 PRD，开始创建目录和生成代码。'
-  setMessages([])
-  sessionId.value = undefined
-  void sendTextInNewSession(content, displayContent)
-}
-
-function stringifyPrdForHandoff(prd: unknown): string {
-  try {
-    return JSON.stringify(prd, null, 2)
-  } catch {
-    return '{}'
+  if (!sessionId.value || !props.fullCodePath || sending.value) {
+    ElMessage.warning('当前会话还未准备好，暂时不能确认 PRD')
+    return
   }
+  let handoff
+  try {
+    handoff = await createWorkspaceHandoff({
+      source_session_id: sessionId.value,
+      full_code_path: props.fullCodePath,
+      target_role: 'app.create',
+      artifact_kind: 'agent_app_prd',
+      artifact: payload.prd,
+      remark,
+      context_policy: 'artifact_only'
+    })
+  } catch (error: any) {
+    ElMessage.error(error?.message || '创建交接会话失败')
+    return
+  }
+  setMessages([])
+  sessionId.value = handoff.session_id
+  void sendTextToSession(
+    handoff.session_id,
+    handoff.content,
+    handoff.display_content,
+    { contextUsage: 'artifact', artifactKind: handoff.artifact_kind }
+  )
 }
 
 watch(

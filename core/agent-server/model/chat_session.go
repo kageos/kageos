@@ -7,15 +7,21 @@ import (
 // AgentChatSession 智能体聊天会话模型
 type AgentChatSession struct {
 	models.Base
-	TreeID       int64  `gorm:"type:bigint;not null;index;comment:服务目录ID" json:"tree_id"`
-	FullCodePath string `gorm:"type:varchar(512);index;comment:服务目录完整路径（workspace 用，有语意）" json:"full_code_path"`
-	Source       string `gorm:"type:varchar(32);index;comment:来源(workspace=工作台,空=function_gen)" json:"source"`
-	SessionID    string `gorm:"type:varchar(64);not null;uniqueIndex;comment:会话ID（UUID）" json:"session_id"`
-	AgentID      *int64 `gorm:"type:bigint;index;comment:智能体ID（已废弃，工作台恒为空）" json:"agent_id"`
-	Title        string `gorm:"type:varchar(255);comment:会话标题" json:"title"`
-	ModeCode     string `gorm:"type:varchar(32);not null;default:'dev';index;comment:工作台模式代码" json:"mode_code"`
-	Status       string `gorm:"type:varchar(32);not null;default:'active';index;comment:会话状态(active/generating/done)" json:"status"`
-	User         string `gorm:"type:varchar(128);not null;index;comment:创建用户" json:"user"`
+	TreeID            int64  `gorm:"type:bigint;not null;index;comment:服务目录ID" json:"tree_id"`
+	FullCodePath      string `gorm:"type:varchar(512);index;comment:服务目录完整路径（workspace 用，有语意）" json:"full_code_path"`
+	Source            string `gorm:"type:varchar(32);index;comment:来源(workspace=工作台,空=function_gen)" json:"source"`
+	SessionID         string `gorm:"type:varchar(64);not null;uniqueIndex;comment:会话ID（UUID）" json:"session_id"`
+	AgentID           *int64 `gorm:"type:bigint;index;comment:智能体ID（已废弃，工作台恒为空）" json:"agent_id"`
+	Title             string `gorm:"type:varchar(255);comment:会话标题" json:"title"`
+	ModeCode          string `gorm:"type:varchar(32);not null;default:'dev';index;comment:工作台模式代码" json:"mode_code"`
+	Status            string `gorm:"type:varchar(32);not null;default:'active';index;comment:会话状态(active/generating/done)" json:"status"`
+	ParentSessionID   string `gorm:"type:varchar(64);index;comment:阶段交接来源会话ID" json:"parent_session_id"`
+	HandoffKind       string `gorm:"type:varchar(64);index;comment:阶段交接产物类型" json:"handoff_kind"`
+	HandoffTargetRole string `gorm:"type:varchar(64);comment:阶段交接目标身份" json:"handoff_target_role"`
+	ContextPolicy     string `gorm:"type:varchar(64);not null;default:'full';index;comment:模型上下文策略(full/artifact_only/display_only)" json:"context_policy"`
+	ArchivedForModel  bool   `gorm:"not null;default:false;index;comment:是否已归档且不再进入模型上下文" json:"archived_for_model"`
+	ArchiveReason     string `gorm:"type:varchar(255);comment:会话归档原因" json:"archive_reason"`
+	User              string `gorm:"type:varchar(128);not null;index;comment:创建用户" json:"user"`
 }
 
 // 会话状态常量

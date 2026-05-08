@@ -19,33 +19,36 @@ export interface UseMiniWorkstationSessionsOptions {
 function normalizeSessionMessages(rawMessages: any[]): ChatMessage[] {
   return rawMessages
     .filter(message => message.role === 'user' || message.role === 'assistant')
-    .map((message: any) => ({
-      role: message.role as 'user' | 'assistant',
-      user: message.user || message.created_by || '',
-      content: message.content || '',
-      files: message.files
-        ? parseFileRefs(message.files).map(ref => ({ ref, name: fileNameFromRef(ref), source_name: fileNameFromRef(ref) }))
-        : [],
-      tool_calls: message.tool_calls || [],
-      created_at: message.created_at,
-      blocks: (() => {
-        const content = message.content || ''
-        const toolCalls = message.tool_calls || []
-        if (message.role !== 'assistant') {
+    .map((message: any) => {
+      const displayContent = message.display_content || message.content || ''
+      return {
+        role: message.role as 'user' | 'assistant',
+        user: message.user || message.created_by || '',
+        content: displayContent,
+        files: message.files
+          ? parseFileRefs(message.files).map(ref => ({ ref, name: fileNameFromRef(ref), source_name: fileNameFromRef(ref) }))
+          : [],
+        tool_calls: message.tool_calls || [],
+        created_at: message.created_at,
+        blocks: (() => {
+          const content = displayContent
+          const toolCalls = message.tool_calls || []
+          if (message.role !== 'assistant') {
+            return undefined
+          }
+          if (content && toolCalls.length) {
+            return [{ type: 'content' as const, text: content }, { type: 'tool_calls' as const, calls: toolCalls }]
+          }
+          if (content) {
+            return [{ type: 'content' as const, text: content }]
+          }
+          if (toolCalls.length) {
+            return [{ type: 'tool_calls' as const, calls: toolCalls }]
+          }
           return undefined
-        }
-        if (content && toolCalls.length) {
-          return [{ type: 'content' as const, text: content }, { type: 'tool_calls' as const, calls: toolCalls }]
-        }
-        if (content) {
-          return [{ type: 'content' as const, text: content }]
-        }
-        if (toolCalls.length) {
-          return [{ type: 'tool_calls' as const, calls: toolCalls }]
-        }
-        return undefined
-      })()
-    }))
+        })()
+      }
+    })
 }
 
 export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOptions) {

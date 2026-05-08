@@ -15,6 +15,13 @@ func NewChatSessionRepository(db *gorm.DB) *ChatSessionRepository {
 	return &ChatSessionRepository{db: db}
 }
 
+// Transaction 在同一个数据库事务内执行会话仓储操作。
+func (r *ChatSessionRepository) Transaction(fn func(tx *ChatSessionRepository) error) error {
+	return r.db.Transaction(func(db *gorm.DB) error {
+		return fn(&ChatSessionRepository{db: db})
+	})
+}
+
 // Create 创建会话
 func (r *ChatSessionRepository) Create(session *model.AgentChatSession) error {
 	return r.db.Create(session).Error

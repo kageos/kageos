@@ -2,9 +2,15 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 
+	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
+	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
+	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func TestShouldSuggestExecuteGuide(t *testing.T) {
@@ -64,5 +70,71 @@ func TestWithAgentToolExecutionContextMarksSourceAndSession(t *testing.T) {
 	}
 	if got := getWorkspaceSessionID(ctx); got != "session-1" {
 		t.Fatalf("session id = %q, want session-1", got)
+	}
+}
+
+func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	source := &model.AgentChatSession{
+		TreeID:        7,
+		FullCodePath:  "/liubeiluo/demo",
+		Source:        SourceWorkspace,
+		SessionID:     "source-session",
+		Title:         "PRD 讨论",
+		ModeCode:      "dev",
+		Status:        model.ChatSessionStatusActive,
+		ContextPolicy: ContextPolicyFull,
+		User:          "tester",
+	}
+	if err := sessionRepo.Create(source); err != nil {
+		t.Fatalf("create source: %v", err)
+	}
+
+	svc := &WorkspaceChatService{sessionRepo: sessionRepo}
+	ctx := context.WithValue(context.Background(), contextx.RequestUserHeader, "tester")
+	resp, err := svc.CreateWorkspaceHandoff(ctx, &dto.WorkspaceHandoffReq{
+		SourceSessionID: "source-session",
+		FullCodePath:    "/liubeiluo/demo",
+		TargetRole:      "app.create",
+		ArtifactKind:    "agent_app_prd",
+		Artifact:        []byte(`{"kind":"agent_app_prd","project":{"name":"工单管理"}}`),
+		Remark:          "优先做列表",
+	})
+	if err != nil {
+		t.Fatalf("handoff: %v", err)
+	}
+	if resp.SessionID == "" || resp.SessionID == source.SessionID {
+		t.Fatalf("unexpected target session id: %q", resp.SessionID)
+	}
+	if resp.ContextPolicy != ContextPolicyArtifactOnly {
+		t.Fatalf("context policy=%q want %q", resp.ContextPolicy, ContextPolicyArtifactOnly)
+	}
+	if !strings.Contains(resp.Content, "target_role 固定为 app.create") {
+		t.Fatalf("content should include target role, got %q", resp.Content)
+	}
+	if !strings.Contains(resp.Content, `"kind": "agent_app_prd"`) {
+		t.Fatalf("content should include formatted artifact JSON, got %q", resp.Content)
+	}
+
+	archived, err := sessionRepo.GetBySessionID("source-session")
+	if err != nil {
+		t.Fatalf("get source: %v", err)
+	}
+	if !archived.ArchivedForModel || archived.ContextPolicy != ContextPolicyDisplayOnly {
+		t.Fatalf("source not archived for model: %#v", archived)
+	}
+	target, err := sessionRepo.GetBySessionID(resp.SessionID)
+	if err != nil {
+		t.Fatalf("get target: %v", err)
+	}
+	if target.ParentSessionID != source.SessionID || target.HandoffKind != "agent_app_prd" || target.HandoffTargetRole != "app.create" {
+		t.Fatalf("target handoff metadata wrong: %#v", target)
 	}
 }

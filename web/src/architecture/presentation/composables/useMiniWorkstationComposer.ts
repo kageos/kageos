@@ -20,6 +20,9 @@ export interface UseMiniWorkstationComposerOptions {
 interface SendWorkspaceMessageOptions {
   newSession?: boolean
   displayText?: string
+  sessionIdOverride?: string
+  contextUsage?: string
+  artifactKind?: string
 }
 
 export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOptions) {
@@ -72,10 +75,15 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
       full_code_path: fullCodePath.value,
       message: {
         content: text || '',
+        ...(options.displayText ? { display_content: options.displayText } : {}),
+        ...(options.contextUsage ? { context_usage: options.contextUsage } : {}),
+        ...(options.artifactKind ? { artifact_kind: options.artifactKind } : {}),
         ...(files?.length ? { files: files.map(file => file.ref).filter(Boolean).join(',') } : {})
       }
     }
-    if (!options.newSession && sessionId.value) {
+    if (options.sessionIdOverride) {
+      payload.session_id = options.sessionIdOverride
+    } else if (!options.newSession && sessionId.value) {
       payload.session_id = sessionId.value
     }
 
@@ -139,6 +147,19 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     return sendWorkspaceMessage(text, null, { newSession: true, displayText })
   }
 
+  async function sendTextToSession(targetSessionId: string, content: string, displayText?: string, meta?: { contextUsage?: string; artifactKind?: string }): Promise<boolean> {
+    const text = content.trim()
+    if (!fullCodePath.value || !targetSessionId || !text || sending.value) {
+      return false
+    }
+    return sendWorkspaceMessage(text, null, {
+      sessionIdOverride: targetSessionId,
+      displayText,
+      contextUsage: meta?.contextUsage,
+      artifactKind: meta?.artifactKind
+    })
+  }
+
   return {
     inputText,
     inputRef,
@@ -149,6 +170,7 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     onInputEnter,
     handleSend,
     sendText,
-    sendTextInNewSession
+    sendTextInNewSession,
+    sendTextToSession
   }
 }

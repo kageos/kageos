@@ -408,6 +408,71 @@ func TestWritePRDToolRepairsJSONStringFunctionsWithPrematureObjectClose(t *testi
 	}
 }
 
+func TestWritePRDToolRejectsRedundantSubmitFormWhenTableAlreadyHasCRUD(t *testing.T) {
+	reg := NewToolRegistry(nil)
+	result := reg.CallTool(context.Background(), "write_prd", map[string]interface{}{
+		"project": map[string]interface{}{
+			"name":                 "工单管理",
+			"code":                 "ticket",
+			"create_new_directory": true,
+			"reason":               "工单是独立业务域",
+		},
+		"models": []map[string]interface{}{
+			{
+				"name": "工单",
+				"fields": []map[string]interface{}{
+					{"name": "工单标题", "widget": "name:工单标题;type:input", "validate": "required"},
+					{"name": "工单状态", "widget": "name:工单状态;type:select;options:待处理,处理中,已完成"},
+				},
+			},
+		},
+		"functions": []map[string]interface{}{
+			{
+				"title": "工单列表",
+				"type":  "table",
+				"route": "ticket_list.table",
+				"model": "工单",
+				"table": map[string]interface{}{
+					"capability":     "支持列表查询、新增、编辑、删除",
+					"readonly":       false,
+					"operations":     []string{"列表查询", "新增", "编辑", "删除"},
+					"request_fields": []map[string]interface{}{},
+					"columns":        []string{"工单标题", "工单状态"},
+					"sample_rows": []map[string]interface{}{
+						{"工单标题": "打印机无法连接", "工单状态": "处理中"},
+					},
+				},
+			},
+			{
+				"title":       "提交工单",
+				"type":        "form",
+				"route":       "ticket_submit.form",
+				"model":       "工单",
+				"description": "提交工单信息",
+				"form": map[string]interface{}{
+					"request_fields": []map[string]interface{}{
+						{"name": "工单标题", "type": "input", "required": true, "desc": "工单标题"},
+					},
+					"response_fields": []map[string]interface{}{},
+				},
+			},
+		},
+		"acceptance_cases": []map[string]interface{}{
+			{"name": "创建工单", "action": "在表格新增工单", "expected": "工单创建成功"},
+		},
+	}, "/liubeiluo/ccc", "")
+	if !result.IsError {
+		t.Fatal("write_prd should reject redundant submit form when table already has CRUD")
+	}
+	data, ok := result.Data.(writePRDResultData)
+	if !ok {
+		t.Fatalf("write_prd data type = %T, want writePRDResultData", result.Data)
+	}
+	if !strings.Contains(strings.Join(data.Issues, "\n"), "Table 自带 CRUD") {
+		t.Fatalf("issues should explain table CRUD duplication, got %#v", data.Issues)
+	}
+}
+
 func TestWritePRDToolRejectsInvalidPRDShape(t *testing.T) {
 	reg := NewToolRegistry(nil)
 	result := reg.CallTool(context.Background(), "write_prd", map[string]interface{}{
