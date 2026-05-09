@@ -105,6 +105,7 @@ func (h *LLM) List(c *gin.Context) {
 		apiKey, hasAPIKey := llmAPIKeyForResponse(cfg, false)
 		llmInfos = append(llmInfos, dto.LLMInfo{
 			ID:          cfg.ID,
+			Code:        cfg.Code,
 			Name:        cfg.Name,
 			Provider:    cfg.Provider,
 			Model:       cfg.Model,
@@ -182,6 +183,7 @@ func (h *LLM) Get(c *gin.Context) {
 	resp = &dto.LLMGetResp{
 		LLMInfo: dto.LLMInfo{
 			ID:          cfg.ID,
+			Code:        cfg.Code,
 			Name:        cfg.Name,
 			Provider:    cfg.Provider,
 			Model:       cfg.Model,
@@ -247,6 +249,7 @@ func (h *LLM) GetDefault(c *gin.Context) {
 	resp = &dto.LLMGetDefaultResp{
 		LLMInfo: dto.LLMInfo{
 			ID:          cfg.ID,
+			Code:        cfg.Code,
 			Name:        cfg.Name,
 			Provider:    cfg.Provider,
 			Model:       cfg.Model,

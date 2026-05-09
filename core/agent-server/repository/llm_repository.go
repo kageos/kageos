@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"strings"
+
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"gorm.io/gorm"
 )
@@ -24,6 +26,16 @@ func (r *LLMRepository) Create(cfg *model.LLMConfig) error {
 func (r *LLMRepository) GetByID(id int64) (*model.LLMConfig, error) {
 	var cfg model.LLMConfig
 	if err := r.db.Where("id = ?", id).First(&cfg).Error; err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+// GetByCode 根据稳定编码获取 LLM 配置，主要用于部署 seed 幂等初始化。
+func (r *LLMRepository) GetByCode(code string) (*model.LLMConfig, error) {
+	code = strings.TrimSpace(code)
+	var cfg model.LLMConfig
+	if err := r.db.Where("code = ?", code).First(&cfg).Error; err != nil {
 		return nil, err
 	}
 	return &cfg, nil

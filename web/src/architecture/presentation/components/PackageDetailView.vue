@@ -50,6 +50,17 @@
               >
                 编辑
               </el-button>
+              <el-button
+                v-if="canExport"
+                text
+                :icon="Download"
+                @click="handleExportJson"
+                class="path-export-btn"
+                size="small"
+                title="导出 JSON"
+              >
+                导出 JSON
+              </el-button>
             </p>
           </div>
         </div>
@@ -92,18 +103,19 @@
 import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { LocationQueryValue } from 'vue-router'
-import { ArrowLeft, Folder, CopyDocument, Link, Edit } from '@element-plus/icons-vue'
+import { ArrowLeft, Folder, CopyDocument, Link, Edit, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import { extractWorkspacePath } from '@/utils/route'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
-import { buildPermissionApplyURL, DirectoryPermission } from '@/utils/permission'
+import { buildPermissionApplyURL, DirectoryPermission, hasPermission } from '@/utils/permission'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
 import { useAuthStore } from '@/stores/auth'
-import { updatePackage, addFunctionsToDirectory } from '@/api/service-tree'
+import { updatePackage, addFunctionsToDirectory, exportDirectoryBundle } from '@/api/service-tree'
+import { downloadDirectoryBundleFile } from '@/utils/directoryBundleFile'
 import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
 import { Logger } from '@/core/utils/logger'
 import PackageDetailContent from './PackageDetailContent.vue'
@@ -221,6 +233,12 @@ const canEdit = computed(() => {
   }
   
   return false
+})
+
+const canExport = computed(() => {
+  return props.packageNode?.type === 'package'
+    && !!props.packageNode.full_code_path
+    && hasPermission(props.packageNode, DirectoryPermission.read)
 })
 
 watch(
@@ -349,6 +367,23 @@ async function handleCopyPath() {
       ElMessage.error('复制失败，请手动复制')
     }
     document.body.removeChild(textArea)
+  }
+}
+
+async function handleExportJson() {
+  const fullCodePath = props.packageNode?.full_code_path
+  if (!fullCodePath) {
+    ElMessage.warning('路径信息不可用')
+    return
+  }
+
+  try {
+    const bundle = await exportDirectoryBundle(fullCodePath)
+    downloadDirectoryBundleFile(bundle, fullCodePath)
+    ElMessage.success('已开始下载 JSON 文件')
+  } catch (error: any) {
+    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '导出失败'
+    ElMessage.error(message)
   }
 }
 
@@ -664,6 +699,7 @@ function handleChildClick(child: ServiceTree): void {
             margin: 0 0 8px 0;
             display: flex;
             align-items: center;
+            flex-wrap: wrap;
             gap: 8px;
             font-size: 14px;
             color: var(--el-text-color-secondary);
@@ -674,14 +710,16 @@ function handleChildClick(child: ServiceTree): void {
             }
 
             .path-text {
-              flex: 1;
+              flex: 1 1 320px;
+              min-width: 0;
               font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
               color: var(--el-text-color-regular);
               word-break: break-all;
             }
 
             .path-copy-btn,
-            .path-edit-btn {
+            .path-edit-btn,
+            .path-export-btn {
               flex-shrink: 0;
               color: var(--el-text-color-secondary);
 

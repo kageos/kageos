@@ -10,13 +10,16 @@ func workspaceRoleToolGateResult(roleID string, toolName string) (ToolResult, bo
 	if toolName == "" {
 		return toolResult("工具名为空，无法执行。", true), true
 	}
+	if isWorkspaceReadOnlyTool(toolName) {
+		return ToolResult{}, false
+	}
 	roleID = normalizeWorkspaceRole(roleID)
 	if roleID == "" {
 		if containsWorkspaceRoleString([]string{"change_role", "read_doc", "read_dir", "summarize_task_state"}, toolName) {
 			return ToolResult{}, false
 		}
 		return toolResult(fmt.Sprintf(
-			"当前还没有明确工作台角色，不能调用 %s。请先调用 change_role 选择产品经理、应用开发工程师、测试工程师等角色。",
+			"当前还没有明确工作台角色，不能调用 %s。请先调用 change_role 选择产品经理、应用开发工程师、应用操作员、测试工程师等角色。",
 			toolName,
 		), true), true
 	}
@@ -46,6 +49,23 @@ func normalizeWorkspaceToolName(toolName string) string {
 	return strings.TrimSpace(toolName)
 }
 
+func isWorkspaceReadOnlyTool(toolName string) bool {
+	return containsWorkspaceRoleString(workspaceRoleBaseReadOnlyTools(), toolName)
+}
+
+func workspaceRoleBaseReadOnlyTools() []string {
+	return []string{
+		"read_doc",
+		"read_dir",
+		"read_go_file",
+		"read_go_file_lines",
+		"read_app_log",
+		"search_tools",
+		"search_resources",
+		"summarize_task_state",
+	}
+}
+
 func workspaceRoleGateSuggestion(roleID string, toolName string) string {
 	switch toolName {
 	case "write_prd":
@@ -53,7 +73,7 @@ func workspaceRoleGateSuggestion(roleID string, toolName string) string {
 	case "create_directory", "write_go_file", "search_replace_file", "delete_file", "build_workspace":
 		return "如需创建或修改代码，请交接给「应用开发工程师」「应用维护工程师」或「构建修复工程师」。"
 	case "run_table_search", "run_table_create", "run_table_batch_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query", "run_on_select_fuzzy":
-		return "如需操作和验证应用，请交接给「测试工程师」。"
+		return "如需执行业务操作，请交接给「应用操作员」；如需验证功能，请交接给「测试工程师」。"
 	default:
 		if roleID == WorkspaceRoleProductManager {
 			return "产品经理只负责需求分析、PRD 和确认。"

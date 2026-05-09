@@ -5,6 +5,8 @@ import (
 	"io/fs"
 	"strings"
 	"sync"
+
+	workspaceroles "github.com/ai-agent-os/ai-agent-os/core/agent-server/workspace/roles"
 )
 
 // ModeConfig 模式目录下的 config.json 结构
@@ -90,6 +92,7 @@ func loadModeProvider(code string) *modeProvider {
 	prefix := "system/prompt/mode/" + code + "/"
 	systemPrompt, _ := readModeFile(prefix + cfg.SystemPromptFile)
 	systemPrompt = appendModeSystemPrompt(systemPrompt, loadSeedPromptAppendFiles(code, modeSystemPromptAppendFiles(code, cfg.SystemPromptAppendFiles)))
+	systemPrompt = finalizeModeSystemPrompt(systemPrompt)
 	toolNames := cfg.ToolNames
 	if toolNames == nil {
 		toolNames = []string{}
@@ -99,6 +102,10 @@ func loadModeProvider(code string) *modeProvider {
 		systemPrompt: systemPrompt,
 		toolNames:    toolNames,
 	}
+}
+
+func finalizeModeSystemPrompt(systemPrompt string) string {
+	return workspaceroles.ApplyRoutingMarkdown(systemPrompt)
 }
 
 func readModeFile(path string) (string, error) {

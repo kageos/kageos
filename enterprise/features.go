@@ -19,8 +19,8 @@ const (
 	// 支持版本：enterprise, flagship
 	FeatureOrganization = "organization"
 
-	// FeaturePermission 权限管理功能
-	// 支持基于组织的 RBAC、角色管理、权限检查等
+	// FeaturePermission 高级权限治理功能
+	// 基础用户授权和权限检查社区版可用；组织架构授权、权限申请审批、自定义角色等高级治理能力由该功能控制。
 	// 支持版本：enterprise, flagship
 	FeaturePermission = "permission"
 

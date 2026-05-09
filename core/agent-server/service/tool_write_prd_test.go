@@ -26,6 +26,13 @@ func TestWritePRDToolReturnsV2StructuredPreview(t *testing.T) {
 	if data.Project.Code != "nps" {
 		t.Fatalf("project code = %q, want nps", data.Project.Code)
 	}
+	if data.Interaction == nil || data.Interaction.Status != "pending_confirmation" || data.Interaction.TargetRoleOnConfirm != WorkspaceRoleAppDeveloper {
+		t.Fatalf("unexpected PRD interaction: %#v", data.Interaction)
+	}
+	if !containsWorkspaceRoleString(data.Interaction.AllowedActions, "confirm_prd") ||
+		!containsWorkspaceRoleString(data.Interaction.AllowedActions, "revise_prd") {
+		t.Fatalf("interaction should expose confirm/revise actions: %#v", data.Interaction)
+	}
 	if len(data.Tables) != 2 || len(data.Forms) != 1 || len(data.Charts) != 2 || len(data.Workflow) != 5 {
 		t.Fatalf("unexpected resource counts: tables=%d forms=%d charts=%d workflow=%d", len(data.Tables), len(data.Forms), len(data.Charts), len(data.Workflow))
 	}
@@ -41,7 +48,7 @@ func TestWritePRDToolReturnsV2StructuredPreview(t *testing.T) {
 	if got := data.Charts[0].Examples[0]["NPS分数"]; got != float64(35) {
 		t.Fatalf("chart example metric = %#v, want 35", got)
 	}
-	if !strings.Contains(result.Content, "PRD 预览已生成") {
+	if !strings.Contains(result.Content, "PRD 已生成") || !strings.Contains(result.Content, "确认 PRD") {
 		t.Fatalf("result content should contain preview notice, got %q", result.Content)
 	}
 }
@@ -353,6 +360,9 @@ func TestWritePRDToolSchemaExposesV2Shape(t *testing.T) {
 		if _, ok := dataProps[name]; !ok {
 			t.Fatalf("write_prd data schema should expose %q", name)
 		}
+	}
+	if _, ok := dataProps["interaction"]; !ok {
+		t.Fatalf("write_prd data schema should expose interaction")
 	}
 }
 

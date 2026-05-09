@@ -77,7 +77,7 @@ type MessageInboxItem struct {
 	ContentType        string                `json:"content_type"`
 	ReadAt             *time.Time            `json:"read_at"`
 	CreatedAt          time.Time             `json:"created_at"`
-	SourceDisplay      *MessageSourceDisplay `json:"source_display,omitempty"`
+	SourceDisplay      *MessageSourceDisplay `json:"source_display,omitempty" gorm:"-"`
 }
 
 // MessageSourceDisplay 是消息来源在服务树中的展示信息。

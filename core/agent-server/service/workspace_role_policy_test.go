@@ -7,6 +7,7 @@ func TestWorkspaceRoleAliasesResolveToCanonicalRoles(t *testing.T) {
 		"product-manager":      WorkspaceRoleProductManager,
 		"app-developer":        WorkspaceRoleAppDeveloper,
 		"qa-engineer":          WorkspaceRoleQAEngineer,
+		"app-operator":         WorkspaceRoleAppOperator,
 		"build-engineer":       WorkspaceRoleBuildEngineer,
 		"maintenance-engineer": WorkspaceRoleMaintenanceEngineer,
 		"data-operator":        WorkspaceRoleDataOperator,
@@ -44,8 +45,35 @@ func TestWorkspaceRoleToolGateBlocksWrongRoleTools(t *testing.T) {
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleQAEngineer, "run_form_submit"); blocked || res.IsError {
 		t.Fatalf("qa_engineer should allow run_form_submit, blocked=%v res=%#v", blocked, res)
 	}
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "run_table_create"); blocked || res.IsError {
+		t.Fatalf("app_operator should allow run_table_create, blocked=%v res=%#v", blocked, res)
+	}
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "write_go_file"); !blocked || !res.IsError {
+		t.Fatalf("app_operator should block write_go_file, blocked=%v res=%#v", blocked, res)
+	}
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleQAEngineer, "write_go_file"); !blocked || !res.IsError {
 		t.Fatalf("qa_engineer should block write_go_file, blocked=%v res=%#v", blocked, res)
+	}
+}
+
+func TestWorkspaceRoleToolGateAllowsReadOnlyToolsAcrossRoles(t *testing.T) {
+	cases := []struct {
+		role string
+		tool string
+	}{
+		{WorkspaceRoleProductManager, "read_go_file"},
+		{WorkspaceRoleQAEngineer, "read_go_file"},
+		{WorkspaceRolePlatformEngineer, "read_dir"},
+		{WorkspaceRolePlatformEngineer, "read_go_file_lines"},
+		{WorkspaceRoleDataOperator, "read_app_log"},
+		{WorkspaceRoleReviewer, "search_tools"},
+		{WorkspaceRoleReviewer, "search_resources"},
+		{"", "read_go_file"},
+	}
+	for _, tc := range cases {
+		if res, blocked := workspaceRoleToolGateResult(tc.role, tc.tool); blocked || res.IsError {
+			t.Fatalf("%s should allow read-only tool %s, blocked=%v res=%#v", tc.role, tc.tool, blocked, res)
+		}
 	}
 }
 

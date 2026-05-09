@@ -15,11 +15,23 @@ type BuildWorkspaceTool struct{}
 
 type buildWorkspaceArgs struct{}
 
+type buildWorkspaceResultData struct {
+	Kind          string                     `json:"kind" schema_desc:"阶段产物类型" schema_required:"true"`
+	WorkspacePath string                     `json:"workspace_path" schema_desc:"编译部署的工作空间路径" schema_required:"true"`
+	User          string                     `json:"user" schema_desc:"工作空间用户" schema_required:"true"`
+	App           string                     `json:"app" schema_desc:"应用 code" schema_required:"true"`
+	OldVersion    string                     `json:"old_version,omitempty" schema_desc:"编译前版本"`
+	NewVersion    string                     `json:"new_version,omitempty" schema_desc:"编译后版本"`
+	GitCommitHash string                     `json:"git_commit_hash,omitempty" schema_desc:"构建对应的 Git commit hash"`
+	Warnings      []string                   `json:"warnings,omitempty" schema_desc:"非阻断构建告警"`
+	Interaction   *workspaceStageInteraction `json:"interaction,omitempty" schema_desc:"构建成功后的测试交互状态"`
+}
+
 var undefinedSDKSelectorRe = regexp.MustCompile(`undefined:\s*((?:app|types|chart|response|callback|statistics)\.[A-Z][A-Za-z0-9_]*)`)
 
-var buildWorkspaceToolDef = toolDefinition[buildWorkspaceArgs](
+var buildWorkspaceToolDef = toolDefinitionWithOutput[buildWorkspaceArgs, structuredToolResultSchema[buildWorkspaceResultData]](
 	"build_workspace",
-	"编译当前工作空间（Go 应用）。不写文件，仅基于当前已落盘的代码触发一次编译并部署。无需传参。连续写多个文件后可调用一次 build_workspace 再编译。",
+	"编译当前工作空间（Go 应用）。不写文件，仅基于当前已落盘的代码触发一次编译并部署。无需传参。连续写多个文件后可调用一次 build_workspace 再编译。构建成功后返回 agent_app_build 阶段产物和 pending_test 交互状态，前端应提示用户确认是否交接给 qa_engineer 测试工程师；构建失败时不要交接测试，应修复后重新 build。",
 )
 
 func (t *BuildWorkspaceTool) Definition() dto.ToolDef {
@@ -27,28 +39,66 @@ func (t *BuildWorkspaceTool) Definition() dto.ToolDef {
 }
 
 func (t *BuildWorkspaceTool) Execute(ctx context.Context, call ToolCall) ToolResult {
-	content, isError := runBuildWorkspaceTool(ctx, call.FullCodePath)
-	return toolResult(content, isError)
+	result, content, isError := runBuildWorkspaceTool(ctx, call.FullCodePath)
+	if isError {
+		return toolResult(content, true)
+	}
+	return toolResultWithStructuredData(result, false, content)
 }
 
 // runBuildWorkspaceTool 编译当前工作空间（不写文件，仅触发编译并部署）；从当前工作目录解析 user/app，无需参数
-func runBuildWorkspaceTool(ctx context.Context, currentFullCodePath string) (string, bool) {
+func runBuildWorkspaceTool(ctx context.Context, currentFullCodePath string) (buildWorkspaceResultData, string, bool) {
 	dir := strings.Trim(strings.TrimSpace(currentFullCodePath), "/")
 	if dir == "" {
-		return "build_workspace 无法获取当前工作目录，请确保在有效的工作台会话中操作", true
+		return buildWorkspaceResultData{}, "build_workspace 无法获取当前工作目录，请确保在有效的工作台会话中操作", true
 	}
 	parts := strings.Split(dir, "/")
 	if len(parts) < 2 {
-		return "build_workspace 当前目录格式应为 /user/app 或更长路径（如 /luobei/demo）", true
+		return buildWorkspaceResultData{}, "build_workspace 当前目录格式应为 /user/app 或更长路径（如 /luobei/demo）", true
 	}
 	user, app := parts[0], parts[1]
 	workspacePath := fmt.Sprintf("/%s/%s", user, app)
 	resp, err := apicall.UpdateAppBuild(ctx, user, app)
 	if err != nil {
 		logger.Errorf(ctx, "[WorkspaceBuild] UpdateAppBuild 失败: %v", err)
-		return "build_workspace 调用失败: " + enrichWorkspaceBuildError(err.Error(), workspacePath), true
+		return buildWorkspaceResultData{}, "build_workspace 调用失败: " + enrichWorkspaceBuildError(err.Error(), workspacePath), true
 	}
-	return fmt.Sprintf("工作空间已编译并部署: workspace=%s, app=%s, 旧版本=%s, 新版本=%s", workspacePath, resp.App, resp.OldVersion, resp.NewVersion), false
+	result := buildWorkspaceSuccessResult(workspacePath, resp)
+	content := fmt.Sprintf("工作空间已编译并部署: workspace=%s, app=%s, 旧版本=%s, 新版本=%s。请确认是否进入测试；看不到按钮也可以直接回复：开始测试 / 测试 / 暂不测试。", workspacePath, resp.App, resp.OldVersion, resp.NewVersion)
+	return result, content, false
+}
+
+func buildWorkspaceSuccessResult(workspacePath string, resp *dto.UpdateAppResp) buildWorkspaceResultData {
+	user, app := splitWorkspacePath(workspacePath)
+	result := buildWorkspaceResultData{
+		Kind:          workspaceBuildArtifactKind,
+		WorkspacePath: strings.TrimSpace(workspacePath),
+		User:          user,
+		App:           app,
+		Interaction:   pendingBuildTestInteraction(),
+	}
+	if resp == nil {
+		return result
+	}
+	if strings.TrimSpace(resp.User) != "" {
+		result.User = resp.User
+	}
+	if strings.TrimSpace(resp.App) != "" {
+		result.App = resp.App
+	}
+	result.OldVersion = resp.OldVersion
+	result.NewVersion = resp.NewVersion
+	result.GitCommitHash = resp.GitCommitHash
+	result.Warnings = append([]string(nil), resp.Warnings...)
+	return result
+}
+
+func splitWorkspacePath(workspacePath string) (string, string) {
+	parts := strings.Split(strings.Trim(strings.TrimSpace(workspacePath), "/"), "/")
+	if len(parts) < 2 {
+		return "", ""
+	}
+	return parts[0], parts[1]
 }
 
 func enrichWorkspaceBuildError(errText string, workspacePath ...string) string {

@@ -431,6 +431,7 @@ function normalizeApp(app: Partial<AppType> & Pick<AppType, 'id' | 'user' | 'cod
     is_public: app.is_public ?? false,
     admins: app.admins ?? '',
     show_only_permitted: app.show_only_permitted,
+    permission_enforced: app.permission_enforced,
     created_at: app.created_at ?? '',
     updated_at: app.updated_at ?? ''
   }

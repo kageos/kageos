@@ -995,6 +995,11 @@ func defaultWorkspaceHandoffDisplayContent(artifactKind, targetRole, remark stri
 			return "已确认 PRD，开始创建目录和生成代码。\n\n补充备注：\n" + strings.TrimSpace(remark)
 		}
 		return "已确认 PRD，开始创建目录和生成代码。"
+	case workspaceBuildArtifactKind:
+		if strings.TrimSpace(remark) != "" {
+			return "已构建成功，开始测试验证。\n\n补充备注：\n" + strings.TrimSpace(remark)
+		}
+		return "已构建成功，开始测试验证。"
 	default:
 		label := strings.TrimSpace(artifactKind)
 		if label == "" {
@@ -1019,6 +1024,11 @@ func buildWorkspaceHandoffContent(input workspaceHandoffContentInput) string {
 	if input.ArtifactKind == "agent_app_prd" && normalizeWorkspaceRole(input.TargetRole) == WorkspaceRoleAppDeveloper {
 		lines = append(lines,
 			"生成阶段要求：不要重新输出 PRD，不要再次询问确认；先读取 1 到多个匹配案例，再根据 PRD tables/forms/charts/workflow/rules 创建目录、写 Go 文件、注册路由并 build。tables.fields 是业务模型字段，tables.search_fields 是查询请求字段；创建开始时间/创建结束时间/创建人等系统搜索字段不要生成业务列。route、method、widget tag、列表列和预览数据均从 PRD 派生。非常简单的需求才可跳过额外案例。",
+		)
+	}
+	if input.ArtifactKind == workspaceBuildArtifactKind && normalizeWorkspaceRole(input.TargetRole) == WorkspaceRoleQAEngineer {
+		lines = append(lines,
+			"测试阶段要求：不要修改代码，不要重新 build；先调用 change_role 进入 qa_engineer，再用 search_tools/read_dir 确认当前工作空间函数清单和 schema。按业务操作顺序验证：先主数据/配置表，再 Form 提交，再目标记录表，再 Chart；重点覆盖创建开始时间/创建结束时间和用户筛选。测试失败时判断是测试数据问题、业务 bug 还是构建/schema 问题，并交接给 maintenance_engineer 或 build_engineer。",
 		)
 	}
 	lines = append(lines,

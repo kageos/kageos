@@ -19,7 +19,8 @@ describe('permissionActors', () => {
     expect(canApprovePermissionRequest('alice', ['alice'], 'approved')).toBe(false)
   })
 
-  it('checks node admin access from explicit admin lists only', () => {
+  it('checks node admin access from owner and explicit admin lists', () => {
+    expect(isServiceTreeNodeAdmin({ admins: 'bob', owner: 'alice' } as ServiceTree, 'alice')).toBe(true)
     expect(isServiceTreeNodeAdmin({ admins: 'alice,bob' } as ServiceTree, 'alice')).toBe(true)
     expect(isServiceTreeNodeAdmin({ admins: 'bob' } as ServiceTree, 'alice')).toBe(false)
   })
@@ -61,6 +62,12 @@ describe('permissionActors', () => {
       currentApp,
       currentUsername: 'alice',
       serviceTree: treeWithAppAdmin
+    })).toBe(true)
+
+    expect(hasWorkspaceAdminAccess({
+      currentApp,
+      currentUsername: 'luobei',
+      serviceTree: []
     })).toBe(true)
 
     expect(hasWorkspaceAdminAccess({

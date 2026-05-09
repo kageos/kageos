@@ -173,6 +173,30 @@ export function copyDirectory(data: {
   }>('/workspace/api/v1/service_tree/copy', data)
 }
 
+export interface DirectoryBundleFile {
+  path: string
+  content: string
+}
+
+export interface DirectoryBundleNode {
+  code: string
+  name: string
+  description?: string
+  files?: DirectoryBundleFile[]
+  children?: DirectoryBundleNode[]
+}
+
+export interface DirectoryBundle {
+  schema_version: number
+  root: DirectoryBundleNode
+}
+
+export function exportDirectoryBundle(sourceDirectoryPath: string) {
+  return get<DirectoryBundle>('/workspace/api/v1/service_tree/export_bundle', {
+    source_directory_path: sourceDirectoryPath
+  })
+}
+
 // 搜索函数
 export interface SearchFunctionsReq {
   user: string

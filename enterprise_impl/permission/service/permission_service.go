@@ -281,20 +281,24 @@ func (s *PermissionServiceImpl) CheckPermission(ctx context.Context, username st
 		return false, nil
 	}
 
-	// ⭐ 优先检查：如果当前用户是工作空间管理员，直接返回 true
+	// ⭐ 优先检查：如果当前用户是工作空间 owner/创建者/管理员，直接返回 true
 	if s.appRepo != nil {
 		appModel, err := s.appRepo.GetAppByUserName(user, app)
-		if err == nil && appModel != nil && appModel.Admins != "" {
-			adminList := strings.Split(appModel.Admins, ",")
-			for _, admin := range adminList {
-				admin = strings.TrimSpace(admin)
-				if admin == username {
-					// 当前用户是管理员，直接返回 true（拥有所有权限）
-					logger.Debugf(ctx, "[PermissionService] 用户 %s 是工作空间管理员，直接返回 true", username)
-					return true, nil
-				}
+		if err == nil && appModel != nil {
+			if !appModel.PermissionEnforced {
+				logger.Debugf(ctx, "[PermissionService] 工作空间未启用权限管控，直接返回 true: resource=%s", resourcePath)
+				return true, nil
+			}
+			if appModel.IsOwnerOrAdmin(username) {
+				logger.Debugf(ctx, "[PermissionService] 用户 %s 是工作空间 owner/创建者/管理员，直接返回 true", username)
+				return true, nil
 			}
 		}
+	}
+
+	if s.hasServiceTreeOwnerOrAdmin(ctx, username, resourcePath) {
+		logger.Debugf(ctx, "[PermissionService] 用户 %s 是资源或父级节点 owner/管理员，直接返回 true: resource=%s", username, resourcePath)
+		return true, nil
 	}
 
 	// ⭐ 如果不是管理员，使用原有的权限查询逻辑
@@ -313,6 +317,33 @@ func (s *PermissionServiceImpl) CheckPermission(ctx context.Context, username st
 
 	// ⭐ 使用响应对象的辅助方法检查权限（自动处理权限继承）
 	return resp.CheckPermission(resourcePath, action), nil
+}
+
+func (s *PermissionServiceImpl) hasServiceTreeOwnerOrAdmin(ctx context.Context, username string, resourcePath string) bool {
+	if s.serviceTreeRepo == nil {
+		return false
+	}
+
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return false
+	}
+
+	paths := append([]string{resourcePath}, permissionpkg.GetParentPaths(resourcePath)...)
+	nodes, err := s.serviceTreeRepo.GetServiceTreeByFullPaths(paths)
+	if err != nil {
+		logger.Warnf(ctx, "[PermissionService] 查询资源管理员兜底失败: resource=%s, error=%v", resourcePath, err)
+		return false
+	}
+
+	for _, path := range paths {
+		node := nodes[path]
+		if node != nil && node.IsOwnerOrAdmin(username) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // AddPolicy 添加权限策略（已废弃，仅使用角色系统）

@@ -26,6 +26,7 @@ func (s *serviceTreeSearchService) SearchFunctions(
 	fetchSize := calculateSearchFunctionsFetchSize(page, pageSize, req.Keyword)
 
 	trees, total, err := s.serviceTreeRepo.SearchFunctions(
+		req.CurrentUser,
 		req.User,
 		req.App,
 		req.Keyword,

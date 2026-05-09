@@ -319,6 +319,9 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化 Service
 	s.llmService = service.NewLLMService(s.llmRepo)
+	if err := s.llmService.InitLLMSeeds(ctx, s.cfg.LLMs); err != nil {
+		return fmt.Errorf("failed to init LLM seeds: %w", err)
+	}
 	s.runtimeStateStore = service.NewInMemoryRuntimeStateStore()
 
 	// 智能工作台 ToolRegistry、WorkspaceChatService（只认 LLM，单模式；已移除插件）

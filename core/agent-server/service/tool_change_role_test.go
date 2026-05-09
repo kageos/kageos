@@ -111,8 +111,26 @@ func TestBuildChangeRoleSwitchesAndCarriesSummary(t *testing.T) {
 	if got.ContextPolicy == "" {
 		t.Fatal("expected context policy")
 	}
+	if !strings.Contains(got.Reason, "符合推荐流转") || !strings.Contains(got.Reason, "build 成功") {
+		t.Fatalf("expected recommended transition reason, got %q", got.Reason)
+	}
 	if !containsWorkspaceRoleString(got.RequiredDocs, "/system/prompt/roles/qa-engineer") {
 		t.Fatalf("required docs should include qa engineer doc: %v", got.RequiredDocs)
+	}
+}
+
+func TestBuildChangeRoleReportsBaseReadOnlyToolsForEveryRole(t *testing.T) {
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		TargetRole: WorkspaceRolePlatformEngineer,
+		UserInput:  "全链路测试 openapi",
+	})
+	for _, tool := range []string{"read_dir", "read_go_file", "read_go_file_lines", "read_app_log", "search_tools"} {
+		if !containsWorkspaceRoleString(got.AllowedNextTools, tool) {
+			t.Fatalf("platform engineer should report base read-only tool %s, tools=%v", tool, got.AllowedNextTools)
+		}
+	}
+	if containsWorkspaceRoleString(got.AllowedNextTools, "write_go_file") {
+		t.Fatalf("platform engineer should not report write_go_file, tools=%v", got.AllowedNextTools)
 	}
 }
 

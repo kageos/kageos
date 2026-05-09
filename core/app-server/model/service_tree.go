@@ -189,6 +189,30 @@ func (st *ServiceTree) GetLevel() int {
 	return st.GetDepth()
 }
 
+// IsOwnerOrAdmin reports whether username created the node or is listed as a node admin.
+func (st *ServiceTree) IsOwnerOrAdmin(username string) bool {
+	if st == nil {
+		return false
+	}
+
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return false
+	}
+
+	if strings.TrimSpace(st.CreatedBy) == username {
+		return true
+	}
+
+	for _, admin := range strings.Split(st.Admins, ",") {
+		if strings.TrimSpace(admin) == username {
+			return true
+		}
+	}
+
+	return false
+}
+
 // HasChildren 判断是否有子节点
 func (st *ServiceTree) HasChildren() bool {
 	return len(st.Children) > 0

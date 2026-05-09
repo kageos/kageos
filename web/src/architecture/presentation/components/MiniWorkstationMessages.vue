@@ -3,7 +3,7 @@
     <div
       v-for="(msg, i) in messages"
       :key="i"
-      :class="['mini-msg', msg.role]"
+      :class="['mini-msg', msg.role, { 'mini-msg--maximized': maximized }]"
     >
       <div v-if="msg.role === 'user'" class="mini-msg-user">
         <div class="mini-msg-user-header">
@@ -20,6 +20,7 @@
             v-if="msg.files?.length"
             :file-groups="[{ label: '', files: msg.files }]"
             section-title="上传的文件"
+            :archive-download="false"
             class="mini-msg-files"
           />
           <span>{{ msg.content }}</span>
@@ -336,6 +337,22 @@ function getPrdCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall
 .mini-md-content :deep(a) {
   color: var(--mini-cyber-accent, #22d3ee);
   text-decoration: none;
+}
+.mini-md-content :deep(img) {
+  display: block;
+  width: auto;
+  max-width: min(100%, 260px);
+  max-height: 180px;
+  margin: 6px 0;
+  object-fit: contain;
+  border: 1px solid rgba(96, 231, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(2, 8, 18, 0.34);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+.mini-msg--maximized .mini-md-content :deep(img) {
+  max-width: min(100%, 460px);
+  max-height: 300px;
 }
 .mini-md-content :deep(hr) {
   border: none;

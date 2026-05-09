@@ -24,6 +24,19 @@ func isWorkspaceAdmin(username, admins string) bool {
 	return false
 }
 
+func isUserNodeAdmin(username, admins string, createdBy string) bool {
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return false
+	}
+
+	if strings.TrimSpace(createdBy) == username {
+		return true
+	}
+
+	return isWorkspaceAdmin(username, admins)
+}
+
 func buildRawPermissions(records []dto.PermissionRecord) map[string]map[string]bool {
 	rawPermissions := make(map[string]map[string]bool)
 	for _, record := range records {

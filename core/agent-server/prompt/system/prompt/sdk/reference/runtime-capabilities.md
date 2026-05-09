@@ -45,16 +45,16 @@ if err := ctx.SendMessage(&app.SendMessageOpts{
 
 ```go
 var out SomeResp
-if err := ctx.APICall(http.MethodPost, "/hub/api/v1/directories/search", req, &out); err != nil {
-    logger.Errorf(ctx, "[SearchHub] APICall failed, req=%+v, err=%v", req, err)
-    return nil, fmt.Errorf("[系统错误]-[SearchHub] 调用平台接口失败: %w", err)
+if err := ctx.APICall(http.MethodGet, "/workspace/api/v1/permission/workspace?"+query.Encode(), nil, &out); err != nil {
+    logger.Errorf(ctx, "[WorkspacePermission] APICall failed, err=%v", err)
+    return nil, fmt.Errorf("[系统错误]-[WorkspacePermission] 调用平台接口失败: %w", err)
 }
 ```
 
 规则：
 
 - `method` 使用 `http.MethodGet`、`http.MethodPost` 等。
-- `path` 使用平台网关路径，例如 `/hub/api/v1/directories/search`。
+- `path` 使用平台网关路径，例如 `/workspace/api/v1/permission/workspace`。
 - `reqBody` 是请求体；GET 可传 `nil`。
 - `respData` 是响应 data 对应结构体指针。
 - SDK 会带上 token、trace、request_user、department、client_source、source_type、source_ref。
@@ -67,7 +67,7 @@ if err := ctx.APICall(http.MethodPost, "/hub/api/v1/directories/search", req, &o
 - 直连平台数据库。
 - 绕过 app-server 权限检查。
 
-权限、审批、审计、操作日志、消息、应用市场目录复用等平台领域，优先走 `platform_engineer` 角色和 `/system/openapi` 函数。
+权限、审批、审计、操作日志、消息等平台领域，优先走 `platform_engineer` 角色和 `/system/openapi` 函数。Hub 相关 OpenAPI 暂不暴露。
 
 ## 当前用户和上下文
 

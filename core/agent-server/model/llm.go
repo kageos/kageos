@@ -8,6 +8,7 @@ import (
 // LLMConfig LLM 配置模型
 type LLMConfig struct {
 	models.Base
+	Code        string  `gorm:"type:varchar(64);index" json:"code"` // 稳定配置编码，用于部署 seed 幂等同步
 	Name        string  `gorm:"type:varchar(255);not null" json:"name"`
 	Provider    string  `gorm:"type:varchar(32);not null;index" json:"provider"` // openai, claude, local, etc.
 	Model       string  `gorm:"type:varchar(128);not null" json:"model"`         // gpt-4, claude-3, etc.

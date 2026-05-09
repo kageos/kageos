@@ -67,6 +67,9 @@ export function createApp(data: CreateAppRequest) {
   if (data.show_only_permitted !== undefined) {
     payload.show_only_permitted = data.show_only_permitted
   }
+  if (data.permission_enforced !== undefined) {
+    payload.permission_enforced = data.permission_enforced
+  }
   return post<CreateAppResponse>('/workspace/api/v1/app/create', payload)
 }
 
@@ -107,12 +110,14 @@ export function getAppWithServiceTree(resourcePath: string, nodeType?: string) {
 // 更新工作空间配置（只更新 MySQL 记录，不涉及容器更新，canonical 标识为 resource_path）
 export function updateWorkspace(
   resourcePath: string,
-  data: { admins?: string; show_only_permitted?: boolean }
+  data: { admins?: string; show_only_permitted?: boolean; permission_enforced?: boolean }
 ) {
   return put<{
     user: string
     app: string
     admins: string
+    show_only_permitted: boolean
+    permission_enforced: boolean
   }>('/workspace/api/v1/app/workspace', {
     resource_path: normalizeResourcePath(resourcePath),
     ...data

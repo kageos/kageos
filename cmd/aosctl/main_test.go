@@ -25,6 +25,21 @@ func TestRenderBundledConfig(t *testing.T) {
 	}
 	cfg.Site.BaseURL = "http://127.0.0.1"
 	cfg.NATS.AuthEnabled = true
+	cfg.LLMs = LLMSeedsConfig{
+		Default: "main",
+		Configs: []LLMSeedConfig{
+			{
+				Code:      "main",
+				Name:      "默认模型",
+				Provider:  "qwen",
+				Model:     "qwen-plus",
+				APIKeyEnv: "QIANWEN_API_KEY",
+				Timeout:   300,
+				MaxTokens: 8192,
+				Admin:     "system",
+			},
+		},
+	}
 
 	rt, err := buildRuntimeConfig(paths, cfg)
 	if err != nil {
@@ -45,6 +60,8 @@ func TestRenderBundledConfig(t *testing.T) {
 		`NATS_URL: "nats://aos:`,
 		`NATS_SEED_USER: "aos"`,
 		`NATS_SEED_PASSWORD: "`,
+		`SYSTEM_USER_PASSWORD: "` + cfg.SystemUser.Password + `"`,
+		`QIANWEN_API_KEY: "${QIANWEN_API_KEY:-}"`,
 	} {
 		if !strings.Contains(compose, want) {
 			t.Fatalf("generated compose missing %q", want)
@@ -89,9 +106,32 @@ func TestRenderBundledConfig(t *testing.T) {
 		}
 	}
 
+	agentServerConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "agent-server.yaml"))
+	for _, want := range []string{
+		`llms:`,
+		`default: "main"`,
+		`code: "main"`,
+		`api_key_env: "QIANWEN_API_KEY"`,
+		`api_base: ""`,
+	} {
+		if !strings.Contains(agentServerConfig, want) {
+			t.Fatalf("generated agent-server config missing %q, got:\n%s", want, agentServerConfig)
+		}
+	}
+
 	appStorageConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "app-storage.yaml"))
 	if !strings.Contains(appStorageConfig, `server_endpoint: "host.containers.internal:9000"`) {
 		t.Fatalf("generated app-storage config should include container MinIO endpoint, got:\n%s", appStorageConfig)
+	}
+
+	hrServerConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "hr-server.yaml"))
+	for _, want := range []string{
+		`system_user:`,
+		`password: "` + cfg.SystemUser.Password + `"`,
+	} {
+		if !strings.Contains(hrServerConfig, want) {
+			t.Fatalf("generated hr-server config missing %q, got:\n%s", want, hrServerConfig)
+		}
 	}
 
 	apiGatewayConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "api-gateway.yaml"))
@@ -427,12 +467,41 @@ func TestWriteInitialConfig(t *testing.T) {
 	if cfg.Site.BaseURL != "http://example.com" {
 		t.Fatalf("unexpected base url: %s", cfg.Site.BaseURL)
 	}
+	if cfg.SystemUser.Password == "" {
+		t.Fatal("expected generated config to include system_user.password")
+	}
 	created, err = writeInitialConfig(paths, initOptions{BaseURL: "http://other.example.com", MySQLMode: "bundled"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if created {
 		t.Fatal("expected existing config to be preserved")
+	}
+}
+
+func TestValidateConfigRequiresSystemUserPassword(t *testing.T) {
+	t.Parallel()
+
+	prodDir := t.TempDir()
+	paths := Paths{
+		RepoRoot:     filepath.Dir(filepath.Dir(prodDir)),
+		ProdDir:      prodDir,
+		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
+		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
+	}
+	cfg, err := defaultConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Site.BaseURL = "http://127.0.0.1"
+	cfg.SystemUser.Password = ""
+
+	rt, err := buildRuntimeConfig(paths, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateConfig(rt); err == nil || !strings.Contains(err.Error(), "system_user.password is required") {
+		t.Fatalf("expected system_user.password validation error, got: %v", err)
 	}
 }
 

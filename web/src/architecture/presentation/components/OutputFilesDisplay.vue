@@ -6,8 +6,21 @@
 <template>
   <div v-if="displayGroups.length > 0" class="output-files-display">
     <div class="output-files-head">
-      <el-icon><FolderOpened /></el-icon>
-      <span>{{ sectionTitle }}</span>
+      <div class="output-files-head-title">
+        <el-icon><FolderOpened /></el-icon>
+        <span>{{ sectionTitle }}</span>
+      </div>
+      <el-button
+        v-if="canArchiveDownload"
+        class="output-files-archive-btn"
+        size="small"
+        text
+        :icon="Download"
+        :loading="archiveDownloading"
+        @click="downloadArchive"
+      >
+        打包下载
+      </el-button>
     </div>
     <div class="output-files-wrap">
       <div v-for="(group, gIdx) in displayGroups" :key="gIdx" class="output-files-group">
@@ -54,11 +67,13 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Document, FolderOpened } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { Document, Download, FolderOpened } from '@element-plus/icons-vue'
 import { resolveFileRefs, type ResolvedFile } from '@/api/storage'
 import type { ToolResultMetadata } from '@/api/workspace'
 import { extractFileGroupsFromResult, type OutputFileGroup, type OutputFileItem } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { normalizeStorageFileDisplayUrl } from '@/architecture/presentation/utils/storageFileUrl'
+import { createZipBlob, type ZipEntryInput } from '@/utils/downloadZip'
 
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.ico', '.avif'])
 
@@ -72,8 +87,12 @@ const props = withDefaults(
     fileGroups?: OutputFileGroup[]
     /** 区块标题，如「输出文件」「上传的文件」 */
     sectionTitle?: string
+    /** 是否展示多文件打包下载 */
+    archiveDownload?: boolean
+    /** 打包下载文件名 */
+    archiveFileName?: string
   }>(),
-  { sectionTitle: '输出文件' }
+  { sectionTitle: '输出文件', archiveDownload: true, archiveFileName: '' }
 )
 
 const sourceGroups = computed((): OutputFileGroup[] => {
@@ -127,6 +146,13 @@ watch(sourceGroupsSignature, async () => {
 
 /** 展示用的文件组：优先 fileGroups，否则从 result 解析 */
 const displayGroups = computed((): OutputFileGroup[] => resolvedGroups.value)
+const archiveDownloading = ref(false)
+const archiveSourceFiles = computed(() => {
+  return displayGroups.value.flatMap((group) =>
+    group.files.map((file, fileIndex) => ({ file, group, fileIndex }))
+  )
+})
+const canArchiveDownload = computed(() => props.archiveDownload && archiveSourceFiles.value.length > 1)
 
 function mergeResolvedGroups(groups: OutputFileGroup[]): OutputFileGroup[] {
   return groups.map(group => ({
@@ -172,6 +198,50 @@ function fileDisplayUrl(file: OutputFileItem): string {
   return normalizeStorageFileDisplayUrl(file.download_url || file.ref || '')
 }
 
+async function downloadArchive(): Promise<void> {
+  if (archiveDownloading.value) return
+
+  const sources = archiveSourceFiles.value
+  if (sources.length <= 1) return
+
+  archiveDownloading.value = true
+  try {
+    const usedNames = new Map<string, number>()
+    const entries: ZipEntryInput[] = []
+    for (const source of sources) {
+      const url = fileDisplayUrl(source.file)
+      const displayName = fileDisplayName(source.file) || `file-${source.fileIndex + 1}`
+      if (!url) {
+        throw new Error(`文件「${displayName}」缺少下载地址`)
+      }
+
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`文件「${displayName}」下载失败：HTTP ${response.status}`)
+      }
+
+      const folder = displayGroups.value.length > 1 ? sanitizeArchiveSegment(source.group.label) : ''
+      const entryName = uniqueArchiveEntryName(
+        folder ? `${folder}/${sanitizeArchiveSegment(displayName)}` : sanitizeArchiveSegment(displayName),
+        usedNames
+      )
+      entries.push({
+        name: entryName,
+        data: await response.blob(),
+      })
+    }
+
+    const zipBlob = await createZipBlob(entries)
+    triggerBlobDownload(zipBlob, archiveDownloadName())
+    ElMessage.success(`已打包 ${entries.length} 个文件`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '打包下载失败'
+    ElMessage.error(message)
+  } finally {
+    archiveDownloading.value = false
+  }
+}
+
 /** 从文件名解析扩展名，用于展示格式（如 PDF、PNG、XLSX） */
 function fileFormat(file: OutputFileItem): string {
   const name = (file.source_name ?? file.name ?? '') as string
@@ -190,6 +260,61 @@ function onImageError(e: Event) {
   const el = e.target as HTMLImageElement
   if (el) el.style.display = 'none'
 }
+
+function archiveDownloadName(): string {
+  const rawName = props.archiveFileName.trim() || `output-files-${formatTimestamp(new Date())}.zip`
+  const safeName = rawName.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').trim() || 'output-files.zip'
+  return safeName.toLowerCase().endsWith('.zip') ? safeName : `${safeName}.zip`
+}
+
+function formatTimestamp(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+    '-',
+    pad(date.getHours()),
+    pad(date.getMinutes()),
+    pad(date.getSeconds()),
+  ].join('')
+}
+
+function sanitizeArchiveSegment(value: string): string {
+  return String(value || 'file')
+    .replace(/[\\/:*?"<>|\x00-\x1f]/g, '_')
+    .replace(/^\.+$/, '_')
+    .trim() || 'file'
+}
+
+function uniqueArchiveEntryName(name: string, usedNames: Map<string, number>): string {
+  const normalized = name || 'file'
+  const used = usedNames.get(normalized) || 0
+  usedNames.set(normalized, used + 1)
+  if (used === 0) {
+    return normalized
+  }
+
+  const slashIndex = normalized.lastIndexOf('/')
+  const dir = slashIndex >= 0 ? normalized.slice(0, slashIndex + 1) : ''
+  const base = slashIndex >= 0 ? normalized.slice(slashIndex + 1) : normalized
+  const dotIndex = base.lastIndexOf('.')
+  if (dotIndex > 0) {
+    return `${dir}${base.slice(0, dotIndex)} (${used + 1})${base.slice(dotIndex)}`
+  }
+  return `${dir}${base} (${used + 1})`
+}
+
+function triggerBlobDownload(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
 </script>
 
 <style scoped lang="scss">
@@ -204,6 +329,7 @@ function onImageError(e: Event) {
 .output-files-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
   font-size: 13px;
   font-weight: 600;
@@ -213,6 +339,20 @@ function onImageError(e: Event) {
   .el-icon {
     font-size: 14px;
   }
+}
+
+.output-files-head-title {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.output-files-archive-btn {
+  flex-shrink: 0;
+  height: 24px;
+  padding: 0 6px;
+  font-size: 12px;
 }
 
 .output-files-wrap {

@@ -673,6 +673,42 @@ func (s *ServiceTree) ImportHubDirectoryBundle(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
+// ExportDirectoryBundle 导出最小目录树 JSON。
+func (s *ServiceTree) ExportDirectoryBundle(c *gin.Context) {
+	var req dto.ExportDirectoryBundleReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.ExportDirectoryBundle(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}
+
+// ImportDirectoryBundle 将最小目录树 JSON 粘贴到目标目录下。
+func (s *ServiceTree) ImportDirectoryBundle(c *gin.Context) {
+	var req dto.ImportDirectoryBundleReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.ImportDirectoryBundle(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}
+
 // SearchFunctions 搜索函数
 // @Summary 搜索函数
 // @Description 根据关键词、类型等条件搜索函数，支持分页
@@ -711,6 +747,7 @@ func (s *ServiceTree) SearchFunctions(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
+	req.CurrentUser = contextx.GetRequestUser(ctx)
 	resp, err := s.serviceTreeService.SearchFunctions(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, "搜索函数失败: "+err.Error())

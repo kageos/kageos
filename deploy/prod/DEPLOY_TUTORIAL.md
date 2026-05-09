@@ -21,7 +21,7 @@ go run ./cmd/aosctl up --config deploy/prod/aos.yaml
 go run ./cmd/aosctl verify --config deploy/prod/aos.yaml
 ```
 
-`aosctl init` 会生成 `deploy/prod/aos.yaml`，里面包含数据库密码、NATS 密码、JWT 密钥等敏感配置，默认不入库。
+`aosctl init` 会生成 `deploy/prod/aos.yaml`，里面包含数据库密码、NATS 密码、JWT 密钥、system 初始密码等敏感配置，默认不入库。
 
 ## 改公网地址或 TLS
 

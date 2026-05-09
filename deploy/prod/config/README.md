@@ -12,6 +12,7 @@
 - `${MYSQL_ROOT_PASSWORD}`
 - `${JWT_SECRET}`
 - `${CONTROL_ENC_KEY}`
+- `${SYSTEM_USER_PASSWORD}`
 - `${MINIO_ROOT_PASSWORD}`
 - `${NATS_URL}`
 - `${APP_BASE_IMAGE}`
@@ -25,6 +26,7 @@
 说明：
 
 - MinIO 管理员用户名固定为 `minioadmin`，backup Basic Auth 用户名固定为 `admin`，不再作为标准部署配置项暴露。
+- `hr-server.yaml` 会消费 `${SYSTEM_USER_PASSWORD}` 初始化 `system` / `test_user` 的密码；标准入口由 `aos.yaml` 的 `system_user.password` 渲染。
 - `app-server.yaml` 已不再消费 SMTP 变量；这组变量现在主要供 `hr-server.yaml` 的邮件验证码链路和 `message-server.yaml` 的系统通知/业务消息链路使用。
 - `timer-scheduler.yaml` 的 `db.name` 默认是 `timer-scheduler`，中心调度服务独立保存通用 task、execution、outbox。
 - `app-server.yaml` 的 `scheduled_task_db.name` 默认是 `app-scheduled-task`，只保存 app-server 侧业务任务和执行记录；调度状态统一在 `timer-scheduler`。

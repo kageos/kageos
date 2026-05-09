@@ -96,6 +96,56 @@ func TestNormalizeSearchToolsRequestOutput(t *testing.T) {
 	}
 }
 
+func TestResolveSearchScopeUserApp(t *testing.T) {
+	user, app, scope := resolveSearchScopeUserApp("current_app", "", "", "/beiluo/demo/pkg/ticket_list.table", searchScopeSystem)
+	if user != "beiluo" || app != "demo" || scope != searchScopeCurrentApp {
+		t.Fatalf("unexpected current_app scope: user=%q app=%q scope=%q", user, app, scope)
+	}
+
+	user, app, scope = resolveSearchScopeUserApp("visible", "system", "tools", "/beiluo/demo", searchScopeSystem)
+	if user != "system" || app != "tools" || scope != searchScopeVisible {
+		t.Fatalf("explicit user/app should win: user=%q app=%q scope=%q", user, app, scope)
+	}
+}
+
+func TestFilterSearchToolFunctionsByCapability(t *testing.T) {
+	functions := []*dto.FunctionSearchResult{
+		{Name: "只读表", TemplateType: "table"},
+		{Name: "可编辑表", TemplateType: "table", Callbacks: []string{"OnTableUpdateRow"}},
+		{Name: "表单", TemplateType: "form"},
+	}
+
+	got := filterSearchToolFunctionsByCapability(functions, "update")
+	if len(got) != 1 || got[0].Name != "可编辑表" {
+		t.Fatalf("expected only editable table, got %#v", got)
+	}
+
+	got = filterSearchToolFunctionsByCapability(functions, "read-only")
+	if len(got) != 1 || got[0].Name != "只读表" {
+		t.Fatalf("expected only read-only table, got %#v", got)
+	}
+
+	got = filterSearchToolFunctionsByCapability(functions, "submit")
+	if len(got) != 1 || got[0].Name != "表单" {
+		t.Fatalf("expected only form, got %#v", got)
+	}
+}
+
+func TestPaginateSearchToolFunctions(t *testing.T) {
+	functions := []*dto.FunctionSearchResult{
+		{Name: "A"},
+		{Name: "B"},
+		{Name: "C"},
+	}
+	got := paginateSearchToolFunctions(functions, 2, 2)
+	if len(got) != 1 || got[0].Name != "C" {
+		t.Fatalf("unexpected paginated functions: %#v", got)
+	}
+	if got := paginateSearchToolFunctions(functions, 3, 2); len(got) != 0 {
+		t.Fatalf("expected empty out-of-range page, got %#v", got)
+	}
+}
+
 func TestFormatSearchToolFunctionSummaryIncludesTableCapabilities(t *testing.T) {
 	fn := &dto.FunctionSearchResult{
 		Name:         "支付记录",

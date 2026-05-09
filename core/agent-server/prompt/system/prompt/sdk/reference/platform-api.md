@@ -13,7 +13,7 @@ err := ctx.APICall(method, path, reqBody, respData)
 规则：
 
 - `method` 使用 `http.MethodGet`、`http.MethodPost` 等。
-- `path` 使用平台网关路径，例如 `/hub/api/v1/directories`。
+- `path` 使用平台网关路径，例如 `/workspace/api/v1/permission/workspace`。
 - `reqBody` 是请求体；GET 可传 `nil`。
 - `respData` 是响应 `data` 对应结构体指针。
 - SDK 会带上 token、trace、request_user、department、client_source、source_type、source_ref。
@@ -52,7 +52,7 @@ err := ctx.SendMessage(&app.SendMessageOpts{
 
 `/system/openapi` 是官方平台接口工作空间。新增平台接口包装函数时：
 
-1. 按平台领域建目录，如 `hub`、`message`、`permission`。
+1. 按平台领域建目录，如 `message`、`permission`、`scheduled_task`。
 2. 每个目录自己隔离 helper，不建公共 utils 目录。
 3. 只通过 `ctx.APICall` 调平台 Web API。
 4. 副作用接口要在当前身份文档包中明确确认和审计要求。

@@ -67,20 +67,26 @@ func (a *AppService) buildInitialAppAndRoot(requestUser, tenantUser string, req 
 		showOnlyPermitted = *req.ShowOnlyPermitted
 	}
 
+	permissionEnforced := false
+	if req.PermissionEnforced != nil {
+		permissionEnforced = *req.PermissionEnforced
+	}
+
 	app := &model.App{
 		Base: models.Base{
 			CreatedBy: requestUser,
 		},
-		Version:           "v1",
-		Code:              req.Code,
-		Name:              req.Name,
-		User:              tenantUser,
-		NatsID:            selectedHost.NatsID,
-		HostID:            selectedHost.ID,
-		Status:            "enabled",
-		IsPublic:          isPublic,
-		Admins:            req.Admins,
-		ShowOnlyPermitted: showOnlyPermitted,
+		Version:            "v1",
+		Code:               req.Code,
+		Name:               req.Name,
+		User:               tenantUser,
+		NatsID:             selectedHost.NatsID,
+		HostID:             selectedHost.ID,
+		Status:             "enabled",
+		IsPublic:           isPublic,
+		Admins:             req.Admins,
+		ShowOnlyPermitted:  showOnlyPermitted,
+		PermissionEnforced: permissionEnforced,
 	}
 
 	rootNode := &model.ServiceTree{

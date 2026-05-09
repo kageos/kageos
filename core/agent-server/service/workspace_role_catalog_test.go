@@ -1,6 +1,9 @@
 package service
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestWorkspaceRoleSpecProductManager(t *testing.T) {
 	got, ok := workspaceRoleSpecFor(WorkspaceRoleProductManager)
@@ -12,6 +15,9 @@ func TestWorkspaceRoleSpecProductManager(t *testing.T) {
 	}
 	if !containsWorkspaceRoleString(got.AllowedTools, "write_prd") {
 		t.Fatalf("product_manager should allow write_prd, tools=%v", got.AllowedTools)
+	}
+	if strings.TrimSpace(got.RouteDescription) == "" {
+		t.Fatalf("product_manager should expose route description")
 	}
 }
 
@@ -25,6 +31,29 @@ func TestWorkspaceRoleSpecAppDeveloper(t *testing.T) {
 	}
 	if containsWorkspaceRoleString(got.AllowedTools, "write_prd") {
 		t.Fatalf("app_developer should not output PRD again, tools=%v", got.AllowedTools)
+	}
+	if !strings.Contains(got.RouteDescription, "`tables.fields` 是模型字段，`tables.search_fields` 是查询请求字段") {
+		t.Fatalf("app_developer route description should document PRD v2 field split: %q", got.RouteDescription)
+	}
+}
+
+func TestWorkspaceRoleSpecAppOperator(t *testing.T) {
+	got, ok := workspaceRoleSpecFor(WorkspaceRoleAppOperator)
+	if !ok {
+		t.Fatal("app_operator spec missing")
+	}
+	if !containsWorkspaceRoleString(got.Docs, "/system/prompt/roles/app-operator") {
+		t.Fatalf("app_operator should require role SOP, docs=%v", got.Docs)
+	}
+	if !containsWorkspaceRoleString(got.AllowedTools, "run_table_create") ||
+		!containsWorkspaceRoleString(got.AllowedTools, "run_form_submit") {
+		t.Fatalf("app_operator should allow business run tools, tools=%v", got.AllowedTools)
+	}
+	if containsWorkspaceRoleString(got.AllowedTools, "write_go_file") {
+		t.Fatalf("app_operator should not write code, tools=%v", got.AllowedTools)
+	}
+	if !strings.Contains(got.RouteDescription, "目的不是测试验证") {
+		t.Fatalf("app_operator route description should distinguish business operation from QA: %q", got.RouteDescription)
 	}
 }
 

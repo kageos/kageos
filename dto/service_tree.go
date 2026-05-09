@@ -281,6 +281,7 @@ type SearchFunctionsReq struct {
 	TemplateType string `json:"template_type" form:"template_type"`      // 模板类型过滤（可选，如：form、table、chart）
 	Page         int    `json:"page" form:"page"  example:"1"`           // 页码
 	PageSize     int    `json:"page_size" form:"page_size" example:"10"` // 每页数量
+	CurrentUser  string `json:"-" form:"-"`                              // 当前登录用户（后端注入，用于默认可见范围）
 }
 
 // SearchFunctionsResp 搜索函数响应

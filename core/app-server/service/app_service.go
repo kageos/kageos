@@ -758,20 +758,21 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 	appInfos := make([]*dto.AppInfo, len(apps))
 	for i, app := range apps {
 		appInfos[i] = &dto.AppInfo{
-			ID:                app.ID,
-			User:              app.User,
-			Code:              app.Code,
-			Name:              app.Name,
-			Status:            app.Status,
-			Version:           app.Version,
-			NatsID:            app.NatsID,
-			HostID:            app.HostID,
-			IsPublic:          app.IsPublic,
-			Admins:            app.Admins,
-			Type:              int(app.Type),
-			ShowOnlyPermitted: app.ShowOnlyPermitted,
-			CreatedAt:         time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
-			UpdatedAt:         time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
+			ID:                 app.ID,
+			User:               app.User,
+			Code:               app.Code,
+			Name:               app.Name,
+			Status:             app.Status,
+			Version:            app.Version,
+			NatsID:             app.NatsID,
+			HostID:             app.HostID,
+			IsPublic:           app.IsPublic,
+			Admins:             app.Admins,
+			Type:               int(app.Type),
+			ShowOnlyPermitted:  app.ShowOnlyPermitted,
+			PermissionEnforced: app.PermissionEnforced,
+			CreatedAt:          time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
+			UpdatedAt:          time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
 		}
 	}
 
@@ -804,20 +805,21 @@ func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq)
 
 	return &dto.GetAppDetailResp{
 		AppInfo: dto.AppInfo{
-			ID:                app.ID,
-			User:              app.User,
-			Code:              app.Code,
-			Name:              app.Name,
-			Status:            app.Status,
-			Version:           app.Version,
-			NatsID:            app.NatsID,
-			HostID:            app.HostID,
-			IsPublic:          app.IsPublic,
-			Admins:            app.Admins,
-			Type:              int(app.Type),
-			ShowOnlyPermitted: app.ShowOnlyPermitted,
-			CreatedAt:         time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
-			UpdatedAt:         time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
+			ID:                 app.ID,
+			User:               app.User,
+			Code:               app.Code,
+			Name:               app.Name,
+			Status:             app.Status,
+			Version:            app.Version,
+			NatsID:             app.NatsID,
+			HostID:             app.HostID,
+			IsPublic:           app.IsPublic,
+			Admins:             app.Admins,
+			Type:               int(app.Type),
+			ShowOnlyPermitted:  app.ShowOnlyPermitted,
+			PermissionEnforced: app.PermissionEnforced,
+			CreatedAt:          time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
+			UpdatedAt:          time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
 		},
 	}, nil
 }
@@ -873,6 +875,9 @@ func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspa
 	if req.ShowOnlyPermitted != nil {
 		app.ShowOnlyPermitted = *req.ShowOnlyPermitted
 	}
+	if req.PermissionEnforced != nil {
+		app.PermissionEnforced = *req.PermissionEnforced
+	}
 	if err := a.appRepo.UpdateApp(app); err != nil {
 		return nil, fmt.Errorf("更新工作空间失败: %w", err)
 	}
@@ -904,12 +909,15 @@ func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspa
 		}
 	}
 
-	logger.Infof(ctx, "[AppService] 更新工作空间成功: user=%s, app=%s, admins=%s", req.User, req.App, req.Admins)
+	logger.Infof(ctx, "[AppService] 更新工作空间成功: user=%s, app=%s, admins=%s, showOnlyPermitted=%v, permissionEnforced=%v",
+		req.User, req.App, req.Admins, app.ShowOnlyPermitted, app.PermissionEnforced)
 
 	return &dto.UpdateWorkspaceResp{
-		User:   req.User,
-		App:    req.App,
-		Admins: req.Admins,
+		User:               req.User,
+		App:                req.App,
+		Admins:             req.Admins,
+		ShowOnlyPermitted:  app.ShowOnlyPermitted,
+		PermissionEnforced: app.PermissionEnforced,
 	}, nil
 }
 

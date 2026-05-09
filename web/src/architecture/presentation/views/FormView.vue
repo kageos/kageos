@@ -811,12 +811,25 @@ const formDataStoreForURLSync = {
 
 /**
  * 🔥 判断是否应该启用 URL 同步
- * 只有新增模式（_tab=OnTableAddRow）才需要同步 URL 参数
- * 其他所有情况（编辑模式、详情模式等）都不需要同步
+ * 独立 Form 函数页面和 Table 新增模式需要同步 URL 参数。
+ * 编辑模式、详情模式、合成表单不需要同步。
  */
 const shouldSyncURL = computed(() => {
-  // 🔥 只有 _tab=OnTableAddRow 时才启用 URL 同步
-  return route.query._tab === 'OnTableAddRow'
+  const currentTab = Array.isArray(route.query._tab) ? route.query._tab[0] : route.query._tab
+  if (currentTab === 'OnTableAddRow') {
+    return true
+  }
+  if (currentTab) {
+    return false
+  }
+
+  const detail = functionDetail.value
+  const hasInitialData = Object.keys(props.initialData || {}).length > 0
+  return !hasInitialData &&
+    detail?.template_type === TEMPLATE_TYPE.FORM &&
+    detail.id !== undefined &&
+    detail.id !== null &&
+    detail.id !== 0
 })
 
 const { watchFormData } = useFormParamURLSync({

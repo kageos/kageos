@@ -17,7 +17,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
-	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	permissionconstants "github.com/ai-agent-os/ai-agent-os/pkg/permission"
 	"github.com/ai-agent-os/ai-agent-os/pkg/scheduledsdk"
@@ -407,9 +406,6 @@ func ensureScheduledTaskPermission(ctx context.Context, requestUser, fullCodePat
 	requestUser = strings.TrimSpace(requestUser)
 	if requestUser == "" {
 		return fmt.Errorf("缺少 request_user，无法校验定时任务权限")
-	}
-	if !license.GetManager().HasFeature(enterprise.FeaturePermission) {
-		return nil
 	}
 	hasPermission, err := enterprise.GetPermissionService().CheckPermission(ctx, requestUser, fullCodePath, action)
 	if err != nil {
