@@ -6,7 +6,7 @@
           <el-icon><Bell /></el-icon>
         </span>
         <div>
-          <span class="message-inbox-kicker">Message Console</span>
+          <span class="message-inbox-kicker">消息控制台</span>
           <h2>消息中心</h2>
           <p>{{ totalUnreadCount > 0 ? `${totalUnreadCount} 条未读消息待处理` : '当前消息链路已清空' }}</p>
         </div>
@@ -82,26 +82,20 @@
           @click="selectConversation(conversation)"
         >
           <span class="conversation-avatar">
-            {{ conversation.avatarText }}
+            <img
+              :src="getSourceIconSrc(conversation.sourceType, conversation.sourceTemplateType)"
+              :alt="getSourceIconAlt(conversation.sourceType, conversation.sourceTemplateType)"
+              class="message-source-icon"
+              :class="getSourceIconClass(conversation.sourceType, conversation.sourceTemplateType)"
+            />
           </span>
           <span class="conversation-main">
             <span class="conversation-title-row">
               <span class="conversation-title" :title="conversation.title">{{ conversation.title }}</span>
               <time>{{ formatConversationTime(conversation.updatedAt) }}</time>
             </span>
-            <span class="conversation-user-line">
-              <UserDisplay
-                :username="conversation.sender"
-                mode="simple"
-                size="small"
-                class="message-user-display"
-              />
-              <span v-if="conversation.sourceLabel" class="conversation-subtitle" :title="conversation.sourcePath || conversation.sourceLabel">
-                {{ conversation.sourceLabel }}
-              </span>
-            </span>
-            <span class="conversation-preview" :title="getMessagePreview(conversation.lastMessage)">
-              {{ getMessagePreview(conversation.lastMessage) }}
+            <span class="conversation-preview" :title="getMessageTitlePreview(conversation.lastMessage)">
+              {{ getMessageTitlePreview(conversation.lastMessage) }}
             </span>
           </span>
           <span v-if="conversation.unreadCount > 0" class="conversation-unread">{{ conversation.unreadCount }}</span>
@@ -111,20 +105,19 @@
       <main v-if="selectedConversation" class="chat-pane">
         <header class="chat-pane-header">
           <div class="chat-peer">
-            <span class="chat-peer-avatar">{{ selectedConversation.avatarText }}</span>
+            <span class="chat-peer-avatar">
+              <img
+                :src="getSourceIconSrc(selectedConversation.sourceType, selectedConversation.sourceTemplateType)"
+                :alt="getSourceIconAlt(selectedConversation.sourceType, selectedConversation.sourceTemplateType)"
+                class="message-source-icon"
+                :class="getSourceIconClass(selectedConversation.sourceType, selectedConversation.sourceTemplateType)"
+              />
+            </span>
             <div class="chat-peer-copy">
               <h3>{{ selectedConversation.title }}</h3>
-              <div class="chat-peer-subline">
-                <UserDisplay
-                  :username="selectedConversation.sender"
-                  mode="simple"
-                  size="small"
-                  class="message-user-display message-user-display--peer"
-                />
-                <span v-if="selectedConversation.sourceLabel" :title="selectedConversation.sourcePath || selectedConversation.sourceLabel">
-                  {{ selectedConversation.sourceLabel }}
-                </span>
-              </div>
+              <p :title="getMessageTitlePreview(selectedConversation.lastMessage)">
+                {{ getMessageTitlePreview(selectedConversation.lastMessage) }}
+              </p>
             </div>
           </div>
           <div class="chat-peer-meta">
@@ -133,7 +126,7 @@
           </div>
         </header>
 
-        <div class="chat-thread">
+        <div class="chat-thread" ref="chatThreadRef">
           <div
             v-for="message in selectedConversation.messages"
             :key="message.id"
@@ -153,22 +146,22 @@
                   <span v-if="!message.read_at" class="chat-message-status">未读</span>
                 </div>
               </header>
-              <div v-if="message.title || getSourceDisplay(message)" class="chat-message-context">
+              <div v-if="message.title || hasSourceContext(message)" class="chat-message-context">
                 <span v-if="message.title" class="chat-message-context-title">{{ message.title }}</span>
                 <span
-                  v-if="getSourceDisplay(message)"
+                  v-if="getSourceName(message)"
                   class="chat-message-context-source"
-                  :title="message.full_code_path || getSourceDisplay(message)"
+                  :title="getSourceName(message)"
                 >
-                  {{ getSourceDisplay(message) }}
+                  {{ getSourceName(message) }}
                 </span>
               </div>
               <div class="chat-message-content" v-html="renderMessageContent(message)" />
               <div v-if="hasMessageMeta(message)" class="chat-message-foot">
-                <span v-if="message.client_source">来源端 {{ message.client_source }}</span>
+                <span v-if="message.client_source">来源端 {{ getClientSourceLabel(message.client_source) }}</span>
                 <span v-if="message.source_type">类型 {{ getSourceTypeLabel(message.source_type) }}</span>
                 <span v-if="message.source_ref">引用 {{ message.source_ref }}</span>
-                <span v-if="message.trace_id">Trace {{ message.trace_id }}</span>
+                <span v-if="message.trace_id">链路 {{ message.trace_id }}</span>
               </div>
             </article>
           </div>
@@ -180,14 +173,14 @@
           <el-icon><Bell /></el-icon>
         </span>
         <strong>选择一个会话查看消息</strong>
-        <p>消息会按发送人和来源函数聚合，像聊天一样连续查看。</p>
+        <p>消息会按来源目录或函数聚合，像聊天一样连续查看。</p>
       </main>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { Bell, CircleCheck, Close, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
@@ -198,6 +191,7 @@ import {
   markInboxMessageRead,
   type MessageInboxItem
 } from '@/api/message'
+import { getServiceTreeDetail, type ServiceTreeDetailResp } from '@/api/service-tree'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import type { ServiceTree } from '@/types'
 import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
@@ -220,16 +214,21 @@ const emit = defineEmits<{
 interface MessageConversation {
   key: string
   title: string
-  subtitle: string
-  sourcePath: string
-  sourceLabel: string
-  sender: string
-  avatarText: string
+  sourceType: string
+  sourceTemplateType: string
   unreadCount: number
   updatedAt: string
   lastMessage: MessageInboxItem
   messages: MessageInboxItem[]
 }
+
+interface MessageSourceInfo {
+  name: string
+  type: string
+  templateType: string
+}
+
+type SourceDetailInfo = Pick<ServiceTreeDetailResp, 'name' | 'type' | 'full_code_path' | 'template_type'>
 
 const loading = ref(false)
 const onlyUnread = ref(false)
@@ -237,6 +236,9 @@ const messages = ref<MessageInboxItem[]>([])
 const activeConversationKey = ref<string | null>(null)
 const totalUnreadCount = ref(0)
 const markingConversationKey = ref<string | null>(null)
+const chatThreadRef = ref<HTMLElement | null>(null)
+const sourceDetailMap = ref<Record<string, SourceDetailInfo>>({})
+const loadingSourcePaths = new Set<string>()
 
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 
@@ -255,19 +257,13 @@ const allConversations = computed<MessageConversation[]>(() => {
   return Array.from(groups.entries()).map(([key, group]) => {
     const sorted = [...group].sort((a, b) => getMessageTime(a) - getMessageTime(b))
     const lastMessage = sorted[sorted.length - 1]!
-    const sender = getSenderLabel(lastMessage)
-    const sourcePath = getSourcePath(lastMessage)
+    const sourceInfo = getMessageSourceInfo(lastMessage)
     const title = getConversationTitle(lastMessage)
-    const sourceDisplay = getSourceDisplay(lastMessage)
-    const sourceLabel = sourceDisplay && sourceDisplay !== title ? sourceDisplay : ''
     return {
       key,
       title,
-      subtitle: sourceLabel || sender,
-      sourcePath,
-      sourceLabel,
-      sender,
-      avatarText: getAvatarText(title || sender),
+      sourceType: sourceInfo.type,
+      sourceTemplateType: sourceInfo.templateType,
       unreadCount: sorted.filter(item => !item.read_at).length,
       updatedAt: lastMessage.created_at,
       lastMessage,
@@ -291,9 +287,8 @@ const selectedConversation = computed(() => {
 })
 
 function getConversationKey(item: MessageInboxItem) {
-  const sender = getSenderLabel(item)
   const source = getSourcePath(item) || item.source_ref || item.source_type || 'system'
-  return `${sender}::${source}`
+  return source
 }
 
 function getSenderLabel(item: MessageInboxItem) {
@@ -301,42 +296,165 @@ function getSenderLabel(item: MessageInboxItem) {
 }
 
 function getSourcePath(item: MessageInboxItem) {
-  return String(item.full_code_path || '').trim()
+  const displayPath = String(item.source_display?.full_code_path || '').trim()
+  const explicitPath = String(item.full_code_path || '').trim()
+  const refPath = String(item.source_ref || '').trim()
+  return normalizeMessageSourcePath(displayPath || explicitPath || (refPath.startsWith('/') ? refPath : ''))
+}
+
+function getSourceLookupPaths(item: MessageInboxItem) {
+  const paths: string[] = []
+  const pushPath = (path: string) => {
+    const normalized = normalizeMessageSourcePath(path)
+    if (!normalized || paths.includes(normalized)) return
+    paths.push(normalized)
+  }
+
+  pushPath(item.source_display?.full_code_path || '')
+  pushPath(item.full_code_path || '')
+  const refPath = String(item.source_ref || '').trim()
+  if (refPath.startsWith('/')) pushPath(refPath)
+
+  const initialCount = paths.length
+  for (let index = 0; index < initialCount; index += 1) {
+    pushPath(stripFunctionPathSuffix(paths[index] || ''))
+  }
+  return paths
+}
+
+function getSourceDetail(item: MessageInboxItem) {
+  for (const path of getSourceLookupPaths(item)) {
+    const detail = sourceDetailMap.value[path]
+    if (detail) return detail
+  }
+  return undefined
+}
+
+function getMessageSourceInfo(item: MessageInboxItem): MessageSourceInfo {
+  const sourceDisplay = item.source_display || undefined
+  const sourceNode = getSourceNode(item)
+  const path = getSourcePath(item)
+  const sourceDetail = getSourceDetail(item)
+  const type = getSourceType(item, sourceNode, sourceDetail)
+  const templateType = getSourceTemplateType(item, sourceNode, sourceDetail)
+  const name = sourceDisplay?.name
+    || sourceNode?.name
+    || sourceDetail?.name
+    || getFallbackSourceName(type, templateType, path)
+
+  return {
+    name,
+    type,
+    templateType
+  }
 }
 
 function getConversationTitle(item: MessageInboxItem) {
-  const sourceNode = getSourceNode(item)
-  if (sourceNode?.name) return sourceNode.name
-  const title = String(item.title || '').trim()
-  if (title) return title
-  if (item.source_ref) return item.source_ref
-  if (item.source_type) return getSourceTypeLabel(item.source_type)
+  const sourceInfo = getMessageSourceInfo(item)
+  if (sourceInfo.name) return sourceInfo.name
   const sourcePath = getSourcePath(item)
-  if (sourcePath) return getReadablePathLabel(sourcePath)
-  return getSenderLabel(item)
+  if (sourcePath) return getFallbackSourceName(sourceInfo.type, sourceInfo.templateType, sourcePath)
+  return '未绑定服务目录'
 }
 
-function getSourceDisplay(item: MessageInboxItem) {
-  const sourceNode = getSourceNode(item)
-  if (sourceNode?.name) return sourceNode.name
-  const title = String(item.title || '').trim()
-  if (title) return title
-  if (item.source_ref) return String(item.source_ref)
-  if (item.source_type) return getSourceTypeLabel(item.source_type)
-  const sourcePath = getSourcePath(item)
-  if (sourcePath) return getReadablePathLabel(sourcePath)
-  return ''
+function getSourceName(item: MessageInboxItem) {
+  return getMessageSourceInfo(item).name
+}
+
+function hasSourceContext(item: MessageInboxItem) {
+  const sourceInfo = getMessageSourceInfo(item)
+  return Boolean(sourceInfo.name)
+}
+
+function getSourceType(
+  item: MessageInboxItem,
+  sourceNode = getSourceNode(item),
+  sourceDetail?: SourceDetailInfo
+) {
+  const templateType = getSourceTemplateType(item, sourceNode, sourceDetail)
+  const type = String(item.source_display?.type || sourceNode?.type || sourceDetail?.type || item.source_type || '').trim().toLowerCase()
+  if (!type && templateType) return 'function'
+  return type
+}
+
+function getSourceTemplateType(
+  item: MessageInboxItem,
+  sourceNode = getSourceNode(item),
+  sourceDetail?: SourceDetailInfo
+) {
+  const explicit = String(item.source_display?.template_type || sourceNode?.template_type || sourceDetail?.template_type || '').trim().toLowerCase()
+  if (explicit) return explicit
+  return inferTemplateTypeFromPath(getSourcePath(item))
+}
+
+function getSourceIconSrc(sourceType: string, sourceTemplateType = '') {
+  const type = String(sourceType || '').trim().toLowerCase()
+  const templateType = String(sourceTemplateType || '').trim().toLowerCase()
+  if (type === 'function') {
+    if (templateType === 'table') return '/service-tree/表格.svg'
+    if (templateType === 'form') return '/service-tree/编辑.svg'
+    if (templateType === 'chart') return '/service-tree/报表.svg'
+    return '/service-tree/编辑.svg'
+  }
+  if (type === 'docs') return '/文档.svg'
+  if (type === 'board') return '/讨论区.svg'
+  return '/service-tree/custom-folder.svg'
+}
+
+function getSourceIconAlt(sourceType: string, sourceTemplateType = '') {
+  return `${getFallbackSourceName(sourceType, sourceTemplateType, '') || '服务目录'}图标`
+}
+
+function getSourceIconClass(sourceType: string, sourceTemplateType = '') {
+  const type = String(sourceType || '').trim().toLowerCase() || 'service'
+  const templateType = String(sourceTemplateType || '').trim().toLowerCase()
+  return [
+    `message-source-icon--${type}`,
+    templateType ? `message-source-icon--${templateType}` : ''
+  ].filter(Boolean)
 }
 
 function getSourceNode(item: MessageInboxItem) {
-  const sourcePath = getSourcePath(item)
-  if (!sourcePath || !props.serviceTree?.length) return null
-  return findNodeByPath(props.serviceTree, sourcePath)
+  if (!props.serviceTree?.length) return null
+  for (const sourcePath of getSourceLookupPaths(item)) {
+    const node = findNodeByPath(props.serviceTree, sourcePath)
+    if (node) return node
+  }
+  return null
 }
 
-function getReadablePathLabel(path: string) {
-  const tail = getPathTail(path)
-  return tail ? `资源 ${tail}` : path
+function getFallbackSourceName(sourceType: string, templateType: string, path: string) {
+  const type = String(sourceType || '').trim().toLowerCase()
+  const template = String(templateType || '').trim().toLowerCase()
+  if (type === 'function' || template) {
+    if (template === 'form') return '表单'
+    if (template === 'table') return '表格'
+    if (template === 'chart') return '报表'
+    return '函数'
+  }
+  if (type === 'docs') return '文档'
+  if (type === 'board') return '讨论区'
+  if (type === 'scheduled_task') return '定时任务'
+  if (type === 'scheduled_agent_task') return '定时会话'
+  if (type === 'agent_tool') return '智能体工具'
+  if (type === 'system') return '系统'
+  if (!path) return ''
+  return '服务目录'
+}
+
+function normalizeMessageSourcePath(path: string) {
+  return String(path || '')
+    .trim()
+    .replace(/\/+$/, '')
+}
+
+function stripFunctionPathSuffix(path: string) {
+  return normalizeMessageSourcePath(path).replace(/\.(form|table|chart)$/i, '')
+}
+
+function inferTemplateTypeFromPath(path: string) {
+  const matched = String(path || '').match(/\.(table|form|chart)$/i)
+  return matched?.[1]?.toLowerCase() || ''
 }
 
 function getSourceTypeLabel(sourceType: string) {
@@ -346,29 +464,38 @@ function getSourceTypeLabel(sourceType: string) {
     service: '服务目录消息',
     directory: '目录消息',
     catalog: '目录消息',
+    scheduled_task: '定时任务',
+    scheduled_agent_task: '定时会话',
+    agent_tool: '智能体工具',
     system: '系统消息',
-    user: '用户消息'
+    user: '用户消息',
+    form: '表单消息',
+    table: '表格消息',
+    chart: '报表消息'
   }
   return sourceTypeMap[type] || type
 }
 
-function getPathTail(path: string) {
-  const parts = String(path || '').split('/').filter(Boolean)
-  return parts[parts.length - 1] || ''
-}
-
-function getAvatarText(value?: string) {
-  const text = String(value || '消息').trim()
-  if (!text) return '消息'
-  return text.slice(0, 2).toUpperCase()
+function getClientSourceLabel(clientSource: string) {
+  const source = String(clientSource || '').trim()
+  const clientSourceMap: Record<string, string> = {
+    browser: '浏览器',
+    agent: '智能体',
+    scheduled_task: '定时任务',
+    scheduled_agent_task: '定时会话',
+    server: '服务端',
+    api: '接口',
+    system: '系统'
+  }
+  return clientSourceMap[source] || source
 }
 
 function getMessageTime(item: MessageInboxItem) {
   return dayjs(item.created_at).valueOf() || 0
 }
 
-function getMessagePreview(item: MessageInboxItem) {
-  const raw = item.title || item.content || '暂无正文'
+function getMessageTitlePreview(item: MessageInboxItem) {
+  const raw = item.title || '暂无标题'
   return truncateDisplayText(raw.replace(/<[^>]*>/g, '').replace(/[#*_`>\-[\]]/g, ' '), 42)
 }
 
@@ -413,6 +540,56 @@ function syncActiveConversation() {
   activeConversationKey.value = displayConversations.value[0]?.key || allConversations.value[0]?.key || null
 }
 
+async function scrollChatToLatest() {
+  await nextTick()
+  const el = chatThreadRef.value
+  if (!el) return
+  el.scrollTop = el.scrollHeight
+}
+
+async function loadSourceDetailsForMessages(list: MessageInboxItem[]) {
+  const paths: string[] = []
+  const seen = new Set<string>()
+  for (const item of list) {
+    if (item.source_display?.name && item.source_display?.type) {
+      continue
+    }
+    for (const path of getSourceLookupPaths(item)) {
+      if (!path || seen.has(path) || sourceDetailMap.value[path] || loadingSourcePaths.has(path) || findNodeByPath(props.serviceTree || [], path)) {
+        continue
+      }
+      seen.add(path)
+      paths.push(path)
+    }
+  }
+  if (paths.length === 0) return
+
+  paths.forEach(path => loadingSourcePaths.add(path))
+  const settled = await Promise.allSettled(paths.map(async (path) => {
+    const detail = await getServiceTreeDetail(path)
+    return { path, detail }
+  }))
+
+  const next = { ...sourceDetailMap.value }
+  settled.forEach((result, index) => {
+    const path = paths[index]
+    if (!path) return
+    loadingSourcePaths.delete(path)
+    if (result.status === 'fulfilled') {
+      const detail = result.value.detail
+      if (detail?.name) {
+        next[path] = {
+          name: detail.name,
+          type: detail.type,
+          full_code_path: detail.full_code_path || path,
+          template_type: detail.template_type
+        }
+      }
+    }
+  })
+  sourceDetailMap.value = next
+}
+
 async function loadUnreadCount() {
   const resp = await getMessageUnreadCount()
   totalUnreadCount.value = resp.unread_count || 0
@@ -431,7 +608,9 @@ async function loadMessages() {
       loadUnreadCount()
     ])
     messages.value = listResp.list || []
+    await loadSourceDetailsForMessages(messages.value)
     syncActiveConversation()
+    await scrollChatToLatest()
   } catch (error: any) {
     ElMessage.error(error?.message || '加载消息失败')
   } finally {
@@ -488,6 +667,14 @@ watch(onlyUnread, () => {
 
 watch(displayConversations, () => {
   syncActiveConversation()
+})
+
+watch(() => selectedConversation.value?.key, () => {
+  void scrollChatToLatest()
+})
+
+watch(() => selectedConversation.value?.messages.map(item => `${item.id}:${item.created_at}:${item.read_at || ''}`).join('|'), () => {
+  void scrollChatToLatest()
 })
 
 onMounted(() => {
@@ -854,16 +1041,31 @@ onMounted(() => {
   font-size: 12px;
 }
 
-.conversation-main {
-  min-width: 0;
+.message-source-icon {
+  display: block;
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
 }
 
-.conversation-user-line {
-  display: flex;
+.message-source-icon--package,
+.message-source-icon--service,
+.message-source-icon--directory,
+.message-source-icon--catalog {
+  width: 26px;
+  height: 26px;
+}
+
+.message-source-icon--table {
+  width: 27px;
+}
+
+.message-source-icon--board {
+  width: 25px;
+}
+
+.conversation-main {
   min-width: 0;
-  align-items: center;
-  gap: 8px;
-  margin-top: 5px;
 }
 
 .message-user-display {
@@ -912,7 +1114,6 @@ onMounted(() => {
 }
 
 .conversation-title,
-.conversation-subtitle,
 .conversation-preview {
   display: block;
   overflow: hidden;
@@ -924,13 +1125,6 @@ onMounted(() => {
   color: var(--msg-text);
   font-size: 13px;
   font-weight: 800;
-}
-
-.conversation-subtitle {
-  min-width: 0;
-  flex: 1;
-  color: rgba(var(--msg-accent-rgb), 0.72);
-  font-size: 11px;
 }
 
 .conversation-preview {
@@ -984,6 +1178,7 @@ onMounted(() => {
 
 .chat-peer {
   display: flex;
+  flex: 1 1 auto;
   min-width: 0;
   align-items: center;
   gap: 12px;
@@ -997,12 +1192,29 @@ onMounted(() => {
   font-size: 13px;
 }
 
+.chat-peer-avatar .message-source-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.chat-peer-avatar .message-source-icon--package,
+.chat-peer-avatar .message-source-icon--service,
+.chat-peer-avatar .message-source-icon--directory,
+.chat-peer-avatar .message-source-icon--catalog {
+  width: 30px;
+  height: 30px;
+}
+
+.chat-peer-avatar .message-source-icon--table {
+  width: 31px;
+}
+
 .chat-peer-copy {
+  flex: 1 1 auto;
   min-width: 0;
 
   h3,
-  p,
-  .chat-peer-subline {
+  p {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1019,22 +1231,6 @@ onMounted(() => {
     margin: 5px 0 0;
     color: var(--msg-muted);
     font-size: 12px;
-  }
-}
-
-.chat-peer-subline {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 9px;
-  margin-top: 5px;
-  color: var(--msg-muted);
-  font-size: 12px;
-
-  > span {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 }
 

@@ -24,6 +24,20 @@ type validatorDynamicSelectReq struct {
 	ProductID int `json:"product_id" widget:"name:商品;type:select"`
 }
 
+type validatorDynamicNestedItem struct {
+	ProductID int `json:"product_id" widget:"name:商品;type:select"`
+	Quantity  int `json:"quantity" widget:"name:数量;type:number"`
+}
+
+type validatorDynamicNestedReq struct {
+	ProductID string                       `json:"product_id" widget:"name:外部商品;type:input"`
+	Items     []validatorDynamicNestedItem `json:"items" widget:"name:明细;type:table"`
+}
+
+type validatorDynamicTableReq struct {
+	ProductID int `json:"product_id" widget:"name:商品;type:select"`
+}
+
 type validatorCreatableOnlySelectReq struct {
 	Status string `json:"status" widget:"name:状态;type:select;creatable:true"`
 }
@@ -69,6 +83,14 @@ type validatorBadNumericReq struct {
 type validatorBadUnknownWidgetTagReq struct {
 	Title string `json:"title" widget:"name:标题;type:input;placehoder:请输入标题"`
 	Count int    `json:"count" widget:"name:数量;type:number;maxcount:10"`
+}
+
+type validatorTextAreaRowsReq struct {
+	Content string `json:"content" widget:"name:内容;type:text_area;rows:8"`
+}
+
+type validatorBadTextAreaRowsReq struct {
+	Content string `json:"content" widget:"name:内容;type:text_area;rows:0"`
 }
 
 type validatorBadNumericDefaultRangeReq struct {
@@ -409,6 +431,33 @@ func TestWidgetValidatorRejectsUnsupportedWidgetTags(t *testing.T) {
 	}
 }
 
+func TestWidgetValidatorAllowsTextAreaRows(t *testing.T) {
+	fields, _, err := DecodeForm(nil, &validatorTextAreaRowsReq{}, nil)
+	if err != nil {
+		t.Fatalf("DecodeForm() error = %v, want nil", err)
+	}
+	if len(fields) != 1 {
+		t.Fatalf("len(fields) = %d, want 1", len(fields))
+	}
+	cfg, ok := fields[0].Widget.Config.(*TextArea)
+	if !ok {
+		t.Fatalf("text_area config = %T, want *TextArea", fields[0].Widget.Config)
+	}
+	if cfg.Rows != 8 {
+		t.Fatalf("Rows = %d, want 8", cfg.Rows)
+	}
+}
+
+func TestWidgetValidatorRejectsInvalidTextAreaRows(t *testing.T) {
+	_, _, err := DecodeForm(nil, &validatorBadTextAreaRowsReq{}, nil)
+	if err == nil {
+		t.Fatal("DecodeForm() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), `widget tag "rows" must be > 0`) {
+		t.Fatalf("DecodeForm() error = %v, want rows validation error", err)
+	}
+}
+
 func TestWidgetValidatorRejectsNumericDefaultRangeDrift(t *testing.T) {
 	_, _, err := DecodeForm(nil, &validatorBadNumericDefaultRangeReq{}, nil)
 	if err == nil {
@@ -677,6 +726,55 @@ func TestWidgetValidatorAllowsDynamicSelect(t *testing.T) {
 	}
 	if len(fields) != 1 || fields[0].Code != "product_id" {
 		t.Fatalf("unexpected fields: %+v", fields)
+	}
+}
+
+func TestWidgetParserAttachesDynamicCallbacksRecursively(t *testing.T) {
+	fields, _, err := DecodeForm(map[string][]string{
+		"product_id": {"OnSelectFuzzy"},
+	}, &validatorDynamicNestedReq{}, nil)
+	if err != nil {
+		t.Fatalf("DecodeForm() error = %v, want nil", err)
+	}
+	if len(fields) != 2 {
+		t.Fatalf("DecodeForm() fields length = %d, want 2", len(fields))
+	}
+	if got := fields[0].Callbacks; len(got) != 0 {
+		t.Fatalf("top-level input callbacks = %#v, want empty", got)
+	}
+	if len(fields[1].Children) != 2 {
+		t.Fatalf("nested children length = %d, want 2", len(fields[1].Children))
+	}
+	if got := fields[1].Children[0].Callbacks; len(got) != 1 || got[0] != "OnSelectFuzzy" {
+		t.Fatalf("nested select callbacks = %#v, want %#v", got, []string{"OnSelectFuzzy"})
+	}
+}
+
+func TestWidgetParserAttachesDynamicCallbacksToTableFields(t *testing.T) {
+	requestFields, _, err := DecodeTable(map[string][]string{
+		"product_id": {"OnSelectFuzzy"},
+	}, &validatorDynamicTableReq{}, nil)
+	if err != nil {
+		t.Fatalf("DecodeTable() request error = %v, want nil", err)
+	}
+	if len(requestFields) != 1 {
+		t.Fatalf("unexpected request fields: %+v", requestFields)
+	}
+	if got := requestFields[0].Callbacks; len(got) != 1 || got[0] != "OnSelectFuzzy" {
+		t.Fatalf("request callbacks = %#v, want %#v", got, []string{"OnSelectFuzzy"})
+	}
+
+	_, responseFields, err := DecodeTable(map[string][]string{
+		"product_id": {"OnSelectFuzzy"},
+	}, nil, &validatorDynamicTableReq{})
+	if err != nil {
+		t.Fatalf("DecodeTable() response error = %v, want nil", err)
+	}
+	if len(responseFields) != 1 {
+		t.Fatalf("unexpected response fields: %+v", responseFields)
+	}
+	if got := responseFields[0].Callbacks; len(got) != 1 || got[0] != "OnSelectFuzzy" {
+		t.Fatalf("response callbacks = %#v, want %#v", got, []string{"OnSelectFuzzy"})
 	}
 }
 

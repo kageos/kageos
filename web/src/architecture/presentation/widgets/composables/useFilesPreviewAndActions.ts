@@ -22,9 +22,11 @@ export function useFilesPreviewAndActions(options: UseFilesPreviewAndActionsOpti
   }
 
   function isImageFile(file: FileItem): boolean {
-    if (!file.name) return false
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico']
-    const fileName = file.name.toLowerCase()
+    if (file.content_type?.toLowerCase().startsWith('image/')) return true
+    const name = file.name || file.source_name || ''
+    if (!name) return false
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico', '.avif']
+    const fileName = name.toLowerCase()
     return imageExtensions.some(ext => fileName.endsWith(ext))
   }
 
@@ -33,7 +35,7 @@ export function useFilesPreviewAndActions(options: UseFilesPreviewAndActionsOpti
 
     const fileName = (file.name || '').toLowerCase()
     const previewableExtensions = [
-      '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg',
+      '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico', '.avif',
       '.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm',
       '.pdf',
       '.txt', '.md', '.html', '.htm', '.css', '.js', '.json', '.xml', '.yaml', '.yml',
@@ -45,7 +47,7 @@ export function useFilesPreviewAndActions(options: UseFilesPreviewAndActionsOpti
 
   function getFileIcon(fileName: string): any {
     const ext = fileName.split('.').pop()?.toLowerCase() || ''
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif'].includes(ext)) {
       return Picture
     }
     if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm'].includes(ext)) {
@@ -62,7 +64,7 @@ export function useFilesPreviewAndActions(options: UseFilesPreviewAndActionsOpti
 
   function getFileIconColor(fileName: string): string {
     const ext = fileName.split('.').pop()?.toLowerCase() || ''
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif'].includes(ext)) {
       return '#409EFF'
     }
     if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm'].includes(ext)) {

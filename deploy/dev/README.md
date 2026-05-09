@@ -70,7 +70,15 @@ export APP_ENV=dev
 
 ### 2. 起后端
 
-本地开发后端统一从 GoLand 启动：
+本地开发后端由两个独立进程组成：
+
+1. 启动中心调度服务：
+
+```bash
+APP_ENV=dev go run ./core/timer-scheduler/cmd/app
+```
+
+2. 从 GoLand 启动平台主进程：
 
 - Run target：`core/cmd/main/main.go`
 - Working directory：仓库根目录
@@ -79,7 +87,8 @@ export APP_ENV=dev
 说明：
 
 - `APP_ENV=dev` 时启动预检会自动按本地 compose 基础设施模式处理，无需额外环境变量
-- GoLand 本地开发直接启动 `core/cmd/main/main.go` 也需要设置 `APP_ENV=dev`；此时统一入口会编排本地 `timer-scheduler`
+- GoLand 本地开发直接启动 `core/cmd/main/main.go` 也需要设置 `APP_ENV=dev`
+- `timer-scheduler` 已统一为独立服务，`core/cmd/main/main.go` 不再内嵌启动它
 - 如需命令行临时启动，等价命令是 `APP_ENV=dev go run ./core/cmd/main`
 
 ### 2.1 构建用户应用运行时基础镜像

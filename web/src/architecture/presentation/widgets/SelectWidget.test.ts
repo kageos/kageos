@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { defineComponent } from 'vue'
+import { defineComponent, h } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import SelectWidget from './SelectWidget.vue'
 import { WidgetType } from '@/core/constants/widget'
@@ -43,6 +43,23 @@ const ElOptionStub = defineComponent({
 const FuzzySearchDialogStub = defineComponent({
   name: 'FuzzySearchDialog',
   template: '<div data-testid="fuzzy-dialog" />'
+})
+
+const ElTagStub = defineComponent({
+  name: 'ElTag',
+  props: {
+    style: {
+      type: [String, Array, Object],
+      default: undefined
+    }
+  },
+  setup(props, { attrs, slots }) {
+    const styleValue = props.style ?? attrs.style ?? {}
+    return () => h('span', {
+      class: 'el-tag-stub',
+      'data-style': typeof styleValue === 'string' ? styleValue : JSON.stringify(styleValue)
+    }, slots.default?.())
+  }
 })
 
 describe('SelectWidget', () => {
@@ -223,5 +240,43 @@ describe('SelectWidget', () => {
       raw: null,
       display: ''
     })
+  })
+
+  it('renders options_colors as a colored tag in table-cell mode', async () => {
+    const wrapper = mount(SelectWidget, {
+      props: {
+        field: {
+          code: 'status',
+          name: '状态',
+          widget: {
+            type: WidgetType.SELECT,
+            config: {
+              options: ['开启', '关闭'],
+              options_colors: ['67C23A', 'F56C6C']
+            }
+          }
+        } as any,
+        value: {
+          raw: '关闭',
+          display: '',
+          meta: {}
+        },
+        mode: 'table-cell',
+        fieldPath: 'status'
+      },
+      global: {
+        stubs: {
+          ElTag: ElTagStub
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const tag = wrapper.find('.el-tag-stub')
+    expect(tag.exists()).toBe(true)
+    expect(tag.text()).toContain('关闭')
+    expect(tag.attributes('data-style')).toContain('rgb(254, 237, 237)')
+    expect(tag.attributes('data-style')).toContain('#B04E4E')
   })
 })

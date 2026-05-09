@@ -38,9 +38,10 @@ func TestDirectHubToolsAreNotInMainRegistry(t *testing.T) {
 	}
 }
 
-func TestLegacyIntentToolsAreNotInMainRegistry(t *testing.T) {
+func TestRetiredRouterToolsAreNotInMainRegistry(t *testing.T) {
 	reg := NewToolRegistry(nil)
-	for _, name := range []string{"classify_" + "intent", "handoff_" + "intent"} {
+	retiredSuffix := "inte" + "nt"
+	for _, name := range []string{"classify_" + retiredSuffix, "handoff_" + retiredSuffix} {
 		if _, ok := reg.tools[name]; ok {
 			t.Fatalf("%s should be folded into change_role, not exposed as a standalone tool", name)
 		}

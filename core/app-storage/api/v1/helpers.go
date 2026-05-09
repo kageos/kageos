@@ -69,21 +69,25 @@ func createUploadRecord(
 	fileSize int64,
 	contentType string,
 	hash string,
+	thumbnailRef string,
+	previewKind string,
 	username string,
 ) error {
 	tenant := extractTenantFromRouter(router)
 	uploadRecord := &model.FileUpload{
-		Bucket:      bucket,
-		FileKey:     key,
-		Router:      router,
-		FileName:    fileName,
-		Description: description,
-		FileSize:    fileSize,
-		ContentType: contentType,
-		Hash:        hash,
-		Username:    username,
-		Tenant:      tenant,
-		Status:      "completed",
+		Bucket:       bucket,
+		FileKey:      key,
+		Router:       router,
+		FileName:     fileName,
+		Description:  description,
+		FileSize:     fileSize,
+		ContentType:  contentType,
+		Hash:         hash,
+		ThumbnailRef: thumbnailRef,
+		PreviewKind:  previewKind,
+		Username:     username,
+		Tenant:       tenant,
+		Status:       "completed",
 	}
 	return storageService.RecordUpload(ctx, uploadRecord)
 }

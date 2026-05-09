@@ -434,7 +434,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	operateLogRepo := repository.NewOperateLogRepository(s.db)
 	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
 	directoryUpdateHistoryRepo := repository.NewDirectoryUpdateHistoryRepository(s.db)
-	s.appService = service.NewAppService(s.appCall, appRepo, functionRepo, serviceTreeRepo, operateLogRepo, fileSnapshotRepo, directoryUpdateHistoryRepo)
+	s.appService = service.NewAppService(s.appCall, appRepo, functionRepo, serviceTreeRepo, operateLogRepo)
 
 	// ⭐ 邮件服务已迁移到 hr-server，不再需要初始化
 

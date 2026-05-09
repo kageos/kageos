@@ -12,8 +12,6 @@ type DirectoryFileInfo struct {
 	FileName     string `json:"file_name" example:"attendance"`        // 文件名（不含 .go 后缀）
 	RelativePath string `json:"relative_path" example:"attendance.go"` // 相对路径（相对于目录）
 	Content      string `json:"content" example:"package hr\n..."`     // 文件内容
-	// 向后兼容：保留 group_code（如果存在，优先使用 file_name）
-	GroupCode string `json:"group_code,omitempty" example:"attendance"` // 函数组代码（已废弃，使用 file_name）
 }
 
 // ReadDirectoryFilesRuntimeResp 读取目录文件响应（app-runtime -> app-server）
@@ -55,26 +53,6 @@ type ReplaceInFileBatchResp struct {
 	ReplaceCount int                        `json:"replace_count"`
 	FullContent  string                     `json:"full_content,omitempty"`
 	Details      []ReplaceItemResultRuntime `json:"details,omitempty"` // 未落盘时哪几项不符
-}
-
-// ReplaceInFileRuntimeReq 已废弃，请使用 ReplaceInFileBatchReq
-type ReplaceInFileRuntimeReq struct {
-	User              string `json:"user" binding:"required"`
-	App               string `json:"app" binding:"required"`
-	DirectoryPath     string `json:"directory_path" binding:"required"`
-	FileName          string `json:"file_name" binding:"required"`
-	SearchString      string `json:"search_string" binding:"required"`
-	ReplaceString     string `json:"replace_string"`
-	ReplaceAll        bool   `json:"replace_all"`
-	ReturnFullContent bool   `json:"return_full_content"`
-}
-
-// ReplaceInFileRuntimeResp 已废弃，请使用 ReplaceInFileBatchResp
-type ReplaceInFileRuntimeResp struct {
-	Success      bool   `json:"success"`
-	Message      string `json:"message"`
-	ReplaceCount int    `json:"replace_count"`
-	FullContent  string `json:"full_content"`
 }
 
 // DeleteFileRuntimeReq 删除磁盘文件请求（app-server -> app-runtime）

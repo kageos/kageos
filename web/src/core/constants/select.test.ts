@@ -13,8 +13,9 @@ describe('select option colors', () => {
   it('builds display colors from normalized hex colors only', () => {
     expect(getOptionSolidColor('409EFF')).toBe('#409EFF')
     expect(getOptionLightPalette('409EFF')).toMatchObject({
-      backgroundColor: 'rgba(64, 158, 255, 0.12)',
-      borderColor: 'rgba(64, 158, 255, 0.28)'
+      backgroundColor: 'rgb(232, 243, 255)',
+      borderColor: 'rgb(202, 228, 255)',
+      color: '#2A68A8'
     })
     expect(getOptionLightPalette('success')).toBeNull()
   })

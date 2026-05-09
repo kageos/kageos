@@ -74,6 +74,9 @@ export interface FileInfo {
   file_size: number
   content_type: string
   hash?: string
+  thumbnail_ref?: string
+  thumbnail_url?: string
+  preview_kind?: string
   error?: string
 }
 
@@ -83,6 +86,11 @@ export interface FileInfo {
 export interface UploadFileResult extends UploadResult {
   uploader: Uploader  // ✨ 上传器实例，用于取消上传
   fileInfo?: FileInfo // ✨ 文件信息（用于批量complete）
+}
+
+export interface UploadFileOptions {
+  /** 原文件 object key；传入后后端会生成与原文件同路径的缩略图/封面 key */
+  previewForKey?: string
 }
 
 /**
@@ -100,7 +108,8 @@ export interface UploadFileResult extends UploadResult {
 export async function uploadFile(
   router: string,
   file: File,
-  onProgress: (progress: UploadProgress & { uploadDomain?: string }) => void
+  onProgress: (progress: UploadProgress & { uploadDomain?: string }) => void,
+  options: UploadFileOptions = {}
 ): Promise<UploadFileResult> {
   
   // ✨ Step 0: 计算文件 SHA256 hash（用于秒传和去重）
@@ -117,7 +126,7 @@ export async function uploadFile(
   
   // ✨ Step 1: 获取上传凭证（包含域名信息）
   // 这一步会请求后端 API，后端会根据配置的存储类型返回对应的上传凭证
-  const credentials = await getUploadCredentials(router, file)
+  const credentials = await getUploadCredentials(router, file, options)
   
   // ✨ Step 2: 根据上传方式创建对应的上传器
   // 此时已知道上传方式（presigned_url / form_upload / sdk_upload）
@@ -194,7 +203,7 @@ export async function uploadFile(
  *   ...
  * }
  */
-async function getUploadCredentials(router: string, file: File): Promise<UploadCredentials> {
+async function getUploadCredentials(router: string, file: File, options: UploadFileOptions = {}): Promise<UploadCredentials> {
   const token = localStorage.getItem('token') || ''
   
   // ✅ 处理文件类型（某些文件如 .dmg 可能没有 MIME 类型）
@@ -211,6 +220,7 @@ async function getUploadCredentials(router: string, file: File): Promise<UploadC
       file_name: file.name,
       content_type: contentType,
       file_size: file.size,
+      preview_for_key: options.previewForKey || undefined,
     }),
   })
   
@@ -265,6 +275,8 @@ interface UploadCompleteParams {
   hash?: string
   storage?: string      // ⭐ 存储引擎类型
   upload_user?: string  // 🔥 上传用户
+  thumbnail_ref?: string
+  preview_kind?: string
 }
 
 // ⭐ 上传完成响应（完整文件信息）
@@ -280,6 +292,9 @@ export interface UploadCompleteResult {
   content_type: string               // 文件类型
   hash?: string                      // 文件hash
   storage?: string                   // 存储引擎类型
+  thumbnail_ref?: string
+  thumbnail_url?: string
+  preview_kind?: string
 }
 
 export async function notifyUploadComplete(params: UploadCompleteParams): Promise<UploadCompleteResult | null> {
@@ -304,6 +319,8 @@ export async function notifyUploadComplete(params: UploadCompleteParams): Promis
         content_type: params.content_type,
         hash: params.hash,
         upload_user: params.upload_user,  // 🔥 传递上传用户
+        thumbnail_ref: params.thumbnail_ref || '',
+        preview_kind: params.preview_kind || '',
       }),
     })
     
@@ -327,6 +344,9 @@ export async function notifyUploadComplete(params: UploadCompleteParams): Promis
         content_type: params.content_type,
         hash: params.hash || '',
         storage: params.storage, // ⭐ 从参数中获取存储引擎类型
+        thumbnail_ref: response.data.thumbnail_ref || params.thumbnail_ref || '',
+        thumbnail_url: response.data.thumbnail_url || '',
+        preview_kind: response.data.preview_kind || params.preview_kind || '',
       }
     }
     
@@ -352,6 +372,8 @@ export interface BatchUploadCompleteItem {
   content_type: string
   hash?: string
   upload_user?: string  // 🔥 上传用户
+  thumbnail_ref?: string
+  preview_kind?: string
 }
 
 export interface BatchUploadCompleteResult {
@@ -363,6 +385,9 @@ export interface BatchUploadCompleteResult {
   description?: string       // 文件描述
   server_download_url?: string // ✨ 内部访问的下载地址（服务端使用）
   hash?: string              // ✨ 文件hash（用于文件缓存去重）
+  thumbnail_ref?: string
+  thumbnail_url?: string
+  preview_kind?: string
   error?: string
 }
 

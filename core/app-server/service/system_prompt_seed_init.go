@@ -185,6 +185,8 @@ func retiredSystemPromptRuntimePackagePath(fullCodePath string) string {
 	switch fullCodePath {
 	case agentprompt.SystemPromptRootPath + "/workspace":
 		return "workspace"
+	case agentprompt.SystemPromptRootPath + "/intents":
+		return "intents"
 	default:
 		return ""
 	}
@@ -211,7 +213,7 @@ func retiredSystemPromptSeedPathsForPruneOnly() []string {
 		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/sdk/common-runtime-capabilities"),
 		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/sdk/platform-api-reference"),
 		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/doc/workbench-all-in-one-system-prompt"),
-		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/intents/publish-hub"),
+		agentprompt.SystemPromptRootPath + "/intents",
 		agentprompt.PromptDocLeafPath(agentprompt.SystemPromptRootPath + "/mode/dev/first_assistant"),
 		agentprompt.PromptDocIndexPath(agentprompt.SystemPromptRootPath + "/mode"),
 		agentprompt.SystemPromptRootPath + "/mode/agent",

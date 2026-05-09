@@ -28,25 +28,6 @@ func TestFinalizeReleasedAppMetadataRequiresApp(t *testing.T) {
 	}
 }
 
-func TestExtractVersionNum(t *testing.T) {
-	tests := []struct {
-		version string
-		want    int
-	}{
-		{version: "", want: 0},
-		{version: "v1", want: 1},
-		{version: "V20", want: 20},
-		{version: "3", want: 3},
-		{version: "vx", want: 0},
-	}
-
-	for _, tt := range tests {
-		if got := extractVersionNum(tt.version); got != tt.want {
-			t.Fatalf("version %q: want %d, got %d", tt.version, tt.want, got)
-		}
-	}
-}
-
 func TestApplyFunctionNodeMetadataOverwritesStaleFields(t *testing.T) {
 	svc := &AppService{}
 	tree := &model.ServiceTree{

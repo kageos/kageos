@@ -13,6 +13,16 @@
       @update:model-value="emit('update:modelValue', $event)"
       @clear="emit('clear')"
     >
+      <template #label="{ label, value }">
+        <span class="selected-option-label">
+          <span
+            v-if="getOptionColor(value)"
+            class="option-color-indicator selected-option-color-indicator"
+            :style="getOptionColorStyle(value)"
+          />
+          <span class="selected-option-label-text">{{ label }}</span>
+        </span>
+      </template>
       <el-option
         v-for="option in options"
         :key="String(option.value)"
@@ -99,5 +109,23 @@ const emit = defineEmits<{
   vertical-align: middle !important;
   filter: brightness(0.95) saturate(0.9);
   opacity: 0.9;
+}
+
+.selected-option-label {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.selected-option-color-indicator {
+  margin-right: 6px !important;
+}
+
+.selected-option-label-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

@@ -13,15 +13,15 @@
       <div v-for="(group, gIdx) in displayGroups" :key="gIdx" class="output-files-group">
         <div v-if="displayGroups.length > 1" class="output-files-group-label">{{ group.label }}</div>
         <div class="output-files-list">
-          <div
-            v-for="(file, fIdx) in group.files"
-            :key="fIdx"
-            class="output-files-item"
-          >
-            <div class="output-files-preview" v-if="isImageFile(file)">
+            <div
+              v-for="(file, fIdx) in group.files"
+              :key="fIdx"
+              class="output-files-item"
+            >
+            <div class="output-files-preview" v-if="filePreviewUrl(file)">
               <a :href="fileDisplayUrl(file)" target="_blank" rel="noopener noreferrer" class="output-files-preview-link">
                 <img
-                  :src="fileDisplayUrl(file)"
+                  :src="filePreviewUrl(file)"
                   :alt="fileDisplayName(file)"
                   loading="lazy"
                   class="output-files-img"
@@ -60,7 +60,7 @@ import type { ToolResultMetadata } from '@/api/workspace'
 import { extractFileGroupsFromResult, type OutputFileGroup, type OutputFileItem } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { normalizeStorageFileDisplayUrl } from '@/architecture/presentation/utils/storageFileUrl'
 
-const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'])
+const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.ico', '.avif'])
 
 const props = withDefaults(
   defineProps<{
@@ -141,15 +141,27 @@ function mergeResolvedGroups(groups: OutputFileGroup[]): OutputFileGroup[] {
         source_name: item.source_name || file.source_name || item.name,
         size: item.size ?? file.size,
         download_url: item.download_url || file.download_url,
+        thumbnail_ref: item.thumbnail_ref || file.thumbnail_ref,
+        thumbnail_url: item.thumbnail_url || file.thumbnail_url,
+        preview_kind: item.preview_kind || file.preview_kind,
+        content_type: item.content_type || file.content_type,
       }
     })
   }))
 }
 
 function isImageFile(file: OutputFileItem): boolean {
+  const contentType = String(file.content_type || '').toLowerCase()
+  if (contentType.startsWith('image/')) return true
   const name = (file.source_name ?? file.name ?? '') as string
   const ext = name.includes('.') ? name.slice(name.lastIndexOf('.')).toLowerCase() : ''
   return IMAGE_EXT.has(ext)
+}
+
+function filePreviewUrl(file: OutputFileItem): string {
+  const thumbnailUrl = normalizeStorageFileDisplayUrl(String(file.thumbnail_url || ''))
+  if (thumbnailUrl) return thumbnailUrl
+  return isImageFile(file) ? fileDisplayUrl(file) : ''
 }
 
 function fileDisplayName(file: OutputFileItem): string {

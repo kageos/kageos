@@ -23,6 +23,7 @@ interface SendWorkspaceMessageOptions {
   sessionIdOverride?: string
   contextUsage?: string
   artifactKind?: string
+  resume?: boolean
 }
 
 export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOptions) {
@@ -90,6 +91,9 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     if (selectedLLMConfigId.value > 0) {
       payload.llm_config_id = selectedLLMConfigId.value
     }
+    if (options.resume) {
+      payload.resume = true
+    }
 
     const streamFn = async (onEvent: (event: string, data: Record<string, unknown>) => Promise<void> | void) => {
       await workspaceChatStream(payload, (event, data) => {
@@ -147,7 +151,7 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     return sendWorkspaceMessage(text, null, { newSession: true, displayText })
   }
 
-  async function sendTextToSession(targetSessionId: string, content: string, displayText?: string, meta?: { contextUsage?: string; artifactKind?: string }): Promise<boolean> {
+  async function sendTextToSession(targetSessionId: string, content: string, displayText?: string, meta?: { contextUsage?: string; artifactKind?: string; resume?: boolean }): Promise<boolean> {
     const text = content.trim()
     if (!fullCodePath.value || !targetSessionId || !text || sending.value) {
       return false
@@ -156,7 +160,8 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
       sessionIdOverride: targetSessionId,
       displayText,
       contextUsage: meta?.contextUsage,
-      artifactKind: meta?.artifactKind
+      artifactKind: meta?.artifactKind,
+      resume: meta?.resume
     })
   }
 

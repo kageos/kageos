@@ -1,17 +1,17 @@
 # AI-Agent-OS Agent 工作流流程图
 
-> 这张图描述的是工作台 Agent 的主流程：用户在当前目录提出需求后，Agent 如何识别意图、读取上下文、选择工具、生成或执行能力，并最终把结果沉淀为平台资产。
+> 这张图描述的是工作台 Agent 的主流程：用户在当前目录提出需求后，Agent 如何识别目标角色、读取上下文、选择工具、生成或执行能力，并最终把结果沉淀为平台资产。
 
 ```mermaid
 flowchart TD
     U[用户在工作台输入需求] --> Ctx[注入工作台上下文<br/>当前目录 / 可执行函数 / 附件 / 会话历史 / 模式]
-    Ctx --> Intent{识别任务类型}
+    Ctx --> Route{识别目标角色}
 
-    Intent -->|创建新系统| Create[创建应用流程]
-    Intent -->|修改已有系统| Modify[修改应用流程]
-    Intent -->|操作已有系统| Execute[执行应用流程]
-    Intent -->|临时杂活| Misc[通用工具流程]
-    Intent -->|了解项目| Explain[解释项目流程]
+    Route -->|product_manager / app_developer| Create[创建应用流程]
+    Route -->|maintenance_engineer| Modify[修改应用流程]
+    Route -->|qa_engineer| Execute[执行应用流程]
+    Route -->|data_operator| Misc[通用工具流程]
+    Route -->|reviewer| Explain[解释项目流程]
 
     Create --> Boundary[读取能力边界<br/>判断是否能映射到 Form / Table / Chart]
     Boundary --> CanBuild{平台能承载吗?}

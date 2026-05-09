@@ -15,6 +15,10 @@ export interface ResolvedFile {
   upload_ts?: number
   download_url?: string
   server_download_url?: string
+  thumbnail_ref?: string
+  thumbnail_url?: string
+  server_thumbnail_url?: string
+  preview_kind?: string
   error?: string
 }
 

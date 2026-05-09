@@ -542,8 +542,8 @@ describe('SearchInput', () => {
 
     expect(tag.exists()).toBe(true)
     expect(tag.attributes('data-type')).toBe('')
-    expect(tag.attributes('data-style')).toContain('rgba(245, 108, 108, 0.12)')
-    expect(tag.attributes('data-style')).toContain('#F56C6C')
+    expect(tag.attributes('data-style')).toContain('rgb(254, 237, 237)')
+    expect(tag.attributes('data-style')).toContain('#B04E4E')
   })
 
   it('falls back to neutral tag style for unsupported search option colors', () => {

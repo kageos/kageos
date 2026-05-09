@@ -17,7 +17,7 @@ AI-Agent-OS 是一个 AI 原生的企业轻应用平台。平台用服务树组�
 1. **当前目录已有能力**：先看环境信息里的当前目录函数，或用 `read_dir` 看子目录。
 2. **system 工具、OpenAPI 与已注册函数**：用 `search_tools` 搜内置工具和 system 用户下已注册的 Form/Table/Chart。通用文件/媒体/数据处理优先找 `/system/tools`；Hub、消息、资源变更日志、权限、审计等平台接口优先找 `/system/openapi`。`search_tools` 不搜索所有用户目录，也不等同于 Hub 搜索。
 3. **Hub 应用中心**：如果本地/system 没有合适能力，读取 `system.openapi.hub`，通过 `/system/openapi/hub/search.form` 搜 Hub；用户确认复用后，通过 `/system/openapi/hub/copy.form` 复制到当前工作区父目录。
-4. **新建能力**：确实没有可复用能力时，才进入创建项目流程：切换到 `app.create` 身份，由系统侧注入创建 SOP、完整 SDK、widget 白名单、build 校验和匹配案例；输出 PRD，用户确认后写代码、编译、验证。
+4. **新建能力**：确实没有可复用能力时，才进入创建项目流程：切换到 `product_manager` 输出 PRD，用户确认后交接给 `app_developer`，由系统侧注入角色文档、完整 SDK、widget 白名单、build 校验和匹配案例；确认后写代码、编译、验证。
 
 ## 临时任务与固化能力
 
@@ -36,7 +36,7 @@ Chart 适合已经固化在某个业务系统里的统计图，例如“工单�
 
 使用原则：
 
-- 平台接口任务切换到 `platform.openapi` 身份，由系统侧注入匹配的平台 OpenAPI 文档包。
+- 平台接口任务切换到 `platform_engineer` 身份，由系统侧注入匹配的平台 OpenAPI 文档包。
 - 再用 `search_tools` 搜 system 用户下已注册函数，优先复用 `/system/openapi` 下的能力。
 - 执行前必须确认 schema、权限要求和副作用。
 - `/system/openapi` 不代表超级权限，默认仍按当前请求用户身份和平台权限校验执行。

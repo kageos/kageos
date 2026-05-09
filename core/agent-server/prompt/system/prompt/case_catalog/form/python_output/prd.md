@@ -10,32 +10,9 @@
 
 ---
 
-## 二、旧版 PRD 要点（仅实现参考，不作为 app.plan 输出格式）
+## 二、结构化 PRD
 
-### 容器内 Python 生成 PNG（sandbox_file_out_demo.form，POST）
-
-**请求**（表单字段五列：字段 | 类型 | 必填 | 默认值 | 说明）
-
-| 字段     | 类型     | 必填 | 默认值 | 说明           |
-|----------|----------|------|--------|----------------|
-| 图片标题 | 文本输入 | ✓   | —      | 将绘制在图上，并用于生成文件名（非法字符会替换为 `_`） |
-
-**响应**
-
-| 字段     | 类型     | 说明 |
-|----------|----------|------|
-| 生成的 PNG | 文件     | 可下载；由 matplotlib 在容器内生成 |
-| 说明     | 多行文本 | 固定说明文案 |
-| 状态     | 文本     | 成功 |
-
-**业务规则简述**
-
-1. Go：`GetTraceOutputDir()` → `MkdirAll` → 拼文件名 → **`filepath.Abs`** 得到 **`image_output_path`**，随 `WithRequest` 传给 Python。
-2. Python：`matplotlib` 非交互后端（Agg），在 `agentos_entry(args, output_dir)` 中校验绝对路径后 **`plt.savefig(image_output_path)`**，返回 `{"data": {...}, "output_files": [...]}`（**不再经 base64 传图**）。
-3. Go：`ExecuteJSONWithResult` 后用 **`OutputFilePaths()`** 校验 `output_files`，再 `ResponseFiles(...)`；**`defer executor.Close()`** 释放 Python 临时工作区。
-4. 依赖：生产镜像预装 matplotlib 等（见 `deploy/base/images/app-base/Dockerfile`）。
-
----
+本案例的产品经理输出样例统一维护在同目录 `prd.json`，使用 PRD v2：`project/tables/forms/charts/workflow/rules`。本 Markdown 只保留实现参考、SDK 写法和注意事项，不再承载旧 PRD 表格。
 
 ## 三、文件与路由
 

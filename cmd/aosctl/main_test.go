@@ -1,10 +1,12 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRenderBundledConfig(t *testing.T) {
@@ -77,6 +79,20 @@ func TestRenderBundledConfig(t *testing.T) {
 	if !strings.Contains(globalConfig, `base_url: "http://127.0.0.1:9108/timer/api/v1"`) {
 		t.Fatalf("generated global config should include timer scheduler base url, got:\n%s", globalConfig)
 	}
+	for _, want := range []string{
+		`nats_url: "nats://aos:`,
+		`@host.containers.internal:4222"`,
+		`gateway_url: "http://host.containers.internal:9090"`,
+	} {
+		if !strings.Contains(globalConfig, want) {
+			t.Fatalf("generated global SDK config missing %q, got:\n%s", want, globalConfig)
+		}
+	}
+
+	appStorageConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "app-storage.yaml"))
+	if !strings.Contains(appStorageConfig, `server_endpoint: "host.containers.internal:9000"`) {
+		t.Fatalf("generated app-storage config should include container MinIO endpoint, got:\n%s", appStorageConfig)
+	}
 
 	apiGatewayConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "api-gateway.yaml"))
 	for _, want := range []string{
@@ -108,6 +124,401 @@ func TestRenderBundledConfig(t *testing.T) {
 			t.Fatalf("generated timer-scheduler config missing %q, got:\n%s", want, timerSchedulerConfig)
 		}
 	}
+}
+
+func TestRenderExternalNATSKeepsSDKURL(t *testing.T) {
+	t.Parallel()
+
+	prodDir := t.TempDir()
+	paths := Paths{
+		RepoRoot:     filepath.Dir(filepath.Dir(prodDir)),
+		ProdDir:      prodDir,
+		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
+		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
+	}
+	cfg, err := defaultConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Site.BaseURL = "http://127.0.0.1"
+	cfg.NATS.Mode = "external"
+	cfg.NATS.URL = "nats://nats.example.com:4222"
+
+	rt, err := buildRuntimeConfig(paths, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateConfig(rt); err != nil {
+		t.Fatal(err)
+	}
+	if err := renderAll(rt); err != nil {
+		t.Fatal(err)
+	}
+
+	globalConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "global.yaml"))
+	if !strings.Contains(globalConfig, `nats_url: "nats://nats.example.com:4222"`) {
+		t.Fatalf("generated SDK config should preserve external NATS URL, got:\n%s", globalConfig)
+	}
+}
+
+func TestDeploymentLayersExposeRuntimeBoundary(t *testing.T) {
+	t.Parallel()
+
+	prodDir := t.TempDir()
+	paths := Paths{
+		RepoRoot:     filepath.Dir(filepath.Dir(prodDir)),
+		ProdDir:      prodDir,
+		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
+		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
+	}
+	cfg, err := defaultConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Site.BaseURL = "http://127.0.0.1"
+
+	rt, err := buildRuntimeConfig(paths, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	components := deploymentComponents(rt)
+	for _, want := range []struct {
+		layer deploymentLayerID
+		name  string
+	}{
+		{layer: layerEdge, name: "nginx"},
+		{layer: layerPlatform, name: "core-server"},
+		{layer: layerRuntime, name: "podman-api"},
+		{layer: layerRuntime, name: defaultAppBaseImage},
+		{layer: layerApps, name: "user-app containers"},
+	} {
+		if !hasDeploymentComponent(components, want.layer, want.name) {
+			t.Fatalf("deployment components missing %s/%s: %#v", want.layer, want.name, components)
+		}
+	}
+}
+
+func TestComposeServicesByLayer(t *testing.T) {
+	t.Parallel()
+
+	prodDir := t.TempDir()
+	paths := Paths{
+		RepoRoot:     filepath.Dir(filepath.Dir(prodDir)),
+		ProdDir:      prodDir,
+		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
+		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
+	}
+	cfg, err := defaultConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Site.BaseURL = "http://127.0.0.1"
+
+	rt, err := buildRuntimeConfig(paths, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		layer deploymentLayerID
+		want  []string
+	}{
+		{layer: layerInfra, want: []string{"mysql", "nats", "minio"}},
+		{layer: layerEdge, want: []string{"main"}},
+		{layer: layerPlatform, want: []string{"main", "scheduler", "backup"}},
+		{layer: layerRuntime, want: []string{"main"}},
+		{layer: layerApps, want: nil},
+	} {
+		got := composeServicesForLayer(rt, tc.layer)
+		if strings.Join(got, ",") != strings.Join(tc.want, ",") {
+			t.Fatalf("unexpected compose services for %s: got=%v want=%v", tc.layer, got, tc.want)
+		}
+	}
+}
+
+func TestDeploymentReportIncludesComposeOwnership(t *testing.T) {
+	t.Parallel()
+
+	prodDir := t.TempDir()
+	paths := Paths{
+		RepoRoot:     filepath.Dir(filepath.Dir(prodDir)),
+		ProdDir:      prodDir,
+		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
+		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
+	}
+	cfg, err := defaultConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Site.BaseURL = "http://127.0.0.1"
+
+	rt, err := buildRuntimeConfig(paths, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	report := buildDeploymentReport(rt)
+	if len(report.Layers) != 6 {
+		t.Fatalf("unexpected layer count: %d", len(report.Layers))
+	}
+	for _, layer := range report.Layers {
+		if layer.ID == layerPlatform {
+			if strings.Join(layer.ComposeServices, ",") != "main,scheduler,backup" {
+				t.Fatalf("unexpected platform compose services: %#v", layer.ComposeServices)
+			}
+			return
+		}
+	}
+	t.Fatal("platform layer not found")
+}
+
+func TestParseDeploymentLayerAliases(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		value string
+		want  deploymentLayerID
+	}{
+		{value: "L0", want: layerControl},
+		{value: "infra", want: layerInfra},
+		{value: "edge", want: layerEdge},
+		{value: "platform", want: layerPlatform},
+		{value: "runtime", want: layerRuntime},
+		{value: "apps", want: layerApps},
+	} {
+		got, ok := parseDeploymentLayer(tc.value)
+		if !ok || got != tc.want {
+			t.Fatalf("parseDeploymentLayer(%q)=%q,%v want=%q,true", tc.value, got, ok, tc.want)
+		}
+	}
+}
+
+func TestParseOutputFlags(t *testing.T) {
+	t.Parallel()
+
+	opts, rest, err := parseOutputFlags("verify", []string{"--json"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !opts.JSON || len(rest) != 0 {
+		t.Fatalf("unexpected output opts: opts=%#v rest=%#v", opts, rest)
+	}
+
+	if _, _, err := parseOutputFlags("verify", []string{"--bad"}); err == nil {
+		t.Fatal("expected unknown output flag to fail")
+	}
+}
+
+func TestParseUpFlags(t *testing.T) {
+	t.Parallel()
+
+	opts, err := parseUpFlags([]string{"--image", "--skip-verify", "--wait-timeout", "30s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !opts.UseImage || !opts.SkipVerify || opts.VerifyTimeout != 30*time.Second {
+		t.Fatalf("unexpected up opts: %#v", opts)
+	}
+
+	if _, err := parseUpFlags([]string{"--image", "--no-build"}); err == nil {
+		t.Fatal("expected --image and --no-build conflict")
+	}
+	if _, err := parseUpFlags([]string{"--wait-timeout", "0s"}); err == nil {
+		t.Fatal("expected non-positive timeout to fail")
+	}
+}
+
+func TestParseInitAndBootstrapFlags(t *testing.T) {
+	t.Parallel()
+
+	initOpts, err := parseInitFlags("init", []string{"--force", "--base-url", "http://example.com", "--mysql-mode", "bundled"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !initOpts.Force || initOpts.BaseURL != "http://example.com" || initOpts.MySQLMode != "bundled" {
+		t.Fatalf("unexpected init opts: %#v", initOpts)
+	}
+
+	bootstrapOpts, err := parseBootstrapFlags([]string{"--base-url", "http://example.com", "--skip-verify", "--wait-timeout", "30s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bootstrapOpts.Init.BaseURL != "http://example.com" || strings.Join(bootstrapOpts.UpArgs, " ") != "--skip-verify --wait-timeout 30s" {
+		t.Fatalf("unexpected bootstrap opts: %#v", bootstrapOpts)
+	}
+
+	if _, err := parseBootstrapFlags([]string{"--image", "--no-build"}); err == nil {
+		t.Fatal("expected bootstrap to reject conflicting up flags")
+	}
+}
+
+func TestWriteInitialConfig(t *testing.T) {
+	t.Parallel()
+
+	prodDir := t.TempDir()
+	paths := Paths{
+		RepoRoot:     filepath.Dir(filepath.Dir(prodDir)),
+		ProdDir:      prodDir,
+		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
+		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
+	}
+	created, err := writeInitialConfig(paths, initOptions{BaseURL: "http://example.com", MySQLMode: "bundled"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !created {
+		t.Fatal("expected config to be created")
+	}
+	cfg, err := loadConfig(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Site.BaseURL != "http://example.com" {
+		t.Fatalf("unexpected base url: %s", cfg.Site.BaseURL)
+	}
+	created, err = writeInitialConfig(paths, initOptions{BaseURL: "http://other.example.com", MySQLMode: "bundled"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created {
+		t.Fatal("expected existing config to be preserved")
+	}
+}
+
+func TestRunLayerChecksReport(t *testing.T) {
+	t.Parallel()
+
+	report := runLayerChecksReport("unit", []layerCheck{
+		{Layer: layerControl, Name: "pass", Fn: func() error { return nil }},
+		{Layer: layerRuntime, Name: "fail", Target: "target", Fn: func() error { return errors.New("boom") }},
+	})
+	if report.OK {
+		t.Fatal("expected report to fail")
+	}
+	if report.Failures != 1 {
+		t.Fatalf("unexpected failure count: %d", report.Failures)
+	}
+	if len(report.Checks) != 2 || report.Checks[1].Error != "boom" {
+		t.Fatalf("unexpected checks: %#v", report.Checks)
+	}
+}
+
+func TestWaitLayerChecks(t *testing.T) {
+	t.Parallel()
+
+	attempts := 0
+	if err := waitLayerChecks("unit", []layerCheck{{
+		Layer: layerControl,
+		Name:  "eventual",
+		Fn: func() error {
+			attempts++
+			if attempts < 2 {
+				return errors.New("not yet")
+			}
+			return nil
+		},
+	}}, 100*time.Millisecond, time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+
+	err := waitLayerChecks("unit", []layerCheck{{
+		Layer: layerControl,
+		Name:  "always fail",
+		Fn:    func() error { return errors.New("boom") },
+	}}, time.Millisecond, time.Millisecond)
+	if err == nil {
+		t.Fatal("expected waitLayerChecks to time out")
+	}
+}
+
+func TestVerifyLayerChecksIncludeBundledSDKEndpoints(t *testing.T) {
+	t.Parallel()
+
+	prodDir := t.TempDir()
+	paths := Paths{
+		RepoRoot:     filepath.Dir(filepath.Dir(prodDir)),
+		ProdDir:      prodDir,
+		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
+		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
+	}
+	cfg, err := defaultConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Site.BaseURL = "http://127.0.0.1"
+
+	rt, err := buildRuntimeConfig(paths, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checks := verifyLayerChecks(rt)
+	for _, want := range []string{
+		"main edge probe",
+		"main platform probe",
+		"main runtime probe",
+		"sdk gateway endpoint",
+		"sdk nats endpoint",
+		"sdk minio endpoint",
+	} {
+		if !hasLayerCheckByName(checks, want) {
+			t.Fatalf("verify checks missing %s: %#v", want, checks)
+		}
+	}
+}
+
+func TestDeploymentLayersRedactSDKCredentials(t *testing.T) {
+	t.Parallel()
+
+	prodDir := t.TempDir()
+	paths := Paths{
+		RepoRoot:     filepath.Dir(filepath.Dir(prodDir)),
+		ProdDir:      prodDir,
+		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
+		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
+	}
+	cfg, err := defaultConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Site.BaseURL = "http://127.0.0.1"
+	cfg.NATS.AuthEnabled = true
+	cfg.NATS.User = "aos"
+	cfg.NATS.Password = "super-secret"
+
+	rt, err := buildRuntimeConfig(paths, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	components := deploymentComponents(rt)
+	for _, component := range components {
+		if strings.Contains(component.Role, "super-secret") {
+			t.Fatalf("deployment component leaked SDK credentials: %#v", component)
+		}
+	}
+	if got := redactURLCredentials("nats://aos:super-secret@host.containers.internal:4222"); got != "nats://aos:redacted@host.containers.internal:4222" {
+		t.Fatalf("unexpected redacted url: %s", got)
+	}
+}
+
+func hasDeploymentComponent(components []deploymentComponent, layer deploymentLayerID, name string) bool {
+	for _, component := range components {
+		if component.Layer == layer && component.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func hasLayerCheckByName(checks []layerCheck, name string) bool {
+	for _, check := range checks {
+		if check.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func mustReadFile(t *testing.T, path string) string {

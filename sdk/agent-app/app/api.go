@@ -29,9 +29,7 @@ type ApiInfo struct {
 
 	CreateTableModels []interface{} `json:"-"`
 
-	SourceCodeFilePath string `json:"source_code_file_path"`
-	SourceCode         string `json:"source_code"`
-	routerInfo         *routerInfo
+	routerInfo *routerInfo
 }
 
 func (a *ApiInfo) BuildFullCodePath() string {

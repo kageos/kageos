@@ -207,6 +207,9 @@ export interface TextAreaWidgetConfig {
   /** 前端渲染默认值 */
   render_default?: string
 
+  /** 文本域行数 */
+  rows?: number | string
+
 }
 
 /**
@@ -279,6 +282,12 @@ export interface FilesWidgetConfig {
 
   /** 是否禁用 */
   disabled?: boolean
+
+  /** 是否在浏览器上传时生成图片缩略图或视频封面 */
+  thumbnail?: boolean | 'true' | 'false' | '1' | '0' | 1 | 0
+
+  /** 是否在表格列表单元格内联展示缩略图或封面 */
+  list_preview?: boolean | 'true' | 'false' | '1' | '0' | 1 | 0
 }
 
 /**

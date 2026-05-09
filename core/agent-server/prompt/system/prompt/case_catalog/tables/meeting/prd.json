@@ -1,0 +1,201 @@
+{
+  "kind": "agent_app_prd",
+  "schema_version": "prd.v2",
+  "project": {
+    "name": "会议室预约",
+    "code": "meeting_room_booking",
+    "summary": "管理会议室资源和预约记录，校验预约时间冲突并按时间展示预约状态。"
+  },
+  "tables": [
+    {
+      "name": "会议室",
+      "title": "会议室管理",
+      "desc": "维护会议室名称、类型、容量、位置和状态。",
+      "fields": [
+        {
+          "name": "会议室名称",
+          "widget": "input",
+          "required": true,
+          "desc": "2-50 字，例如 A栋201。"
+        },
+        {
+          "name": "会议室类型",
+          "widget": "select",
+          "required": true,
+          "desc": "可选小型、中型、大型、会议室、培训室、多功能厅。"
+        },
+        {
+          "name": "容纳人数",
+          "widget": "number",
+          "required": true,
+          "desc": "会议室最多容纳人数，必须大于 0。"
+        },
+        {
+          "name": "设备配置",
+          "widget": "text_area",
+          "required": false,
+          "desc": "说明投影、白板、音响等设备。"
+        },
+        {
+          "name": "位置信息",
+          "widget": "input",
+          "required": true,
+          "desc": "2-100 字，描述楼栋、楼层和房间号。"
+        },
+        {
+          "name": "状态",
+          "widget": "select",
+          "required": true,
+          "desc": "有可用、维护中、停用三个选项，默认可用。"
+        }
+      ],
+      "search_fields": [
+        {
+          "name": "会议室名称",
+          "widget": "input",
+          "required": false,
+          "desc": "按会议室名称模糊搜索。"
+        },
+        {
+          "name": "状态",
+          "widget": "select",
+          "required": false,
+          "desc": "按可用、维护中、停用筛选。"
+        }
+      ],
+      "handlers": [
+        "OnTableAddRow",
+        "OnTableUpdateRow",
+        "OnTableDeleteRow"
+      ],
+      "examples": [
+        {
+          "会议室名称": "A栋201",
+          "会议室类型": "小型",
+          "容纳人数": 8,
+          "设备配置": "投影、白板",
+          "位置信息": "A栋2楼",
+          "状态": "可用"
+        }
+      ]
+    },
+    {
+      "name": "会议室预约",
+      "title": "预约管理",
+      "desc": "管理会议室预约记录，展示会议室名称和按时间计算的预约状态。",
+      "fields": [
+        {
+          "name": "会议室",
+          "widget": "select",
+          "required": true,
+          "desc": "从状态为可用的会议室中选择。"
+        },
+        {
+          "name": "预约人",
+          "widget": "user",
+          "required": true,
+          "desc": "默认当前用户。"
+        },
+        {
+          "name": "会议主题",
+          "widget": "input",
+          "required": true,
+          "desc": "2-200 字。"
+        },
+        {
+          "name": "会议描述",
+          "widget": "text_area",
+          "required": false,
+          "desc": "会议说明。"
+        },
+        {
+          "name": "开始时间",
+          "widget": "datetime",
+          "required": true,
+          "desc": "不能早于当前时间。"
+        },
+        {
+          "name": "结束时间",
+          "widget": "datetime",
+          "required": true,
+          "desc": "必须晚于开始时间。"
+        },
+        {
+          "name": "参会人数",
+          "widget": "number",
+          "required": true,
+          "desc": "不能超过所选会议室容纳人数。"
+        },
+        {
+          "name": "会议室名称",
+          "widget": "input",
+          "required": false,
+          "hide": "create,update",
+          "desc": "列表展示字段，来自关联会议室。"
+        },
+        {
+          "name": "预约状态",
+          "widget": "select",
+          "required": false,
+          "hide": "create,update",
+          "desc": "按当前时间计算，有待开始、进行中、已结束。"
+        },
+        {
+          "name": "备注",
+          "widget": "text_area",
+          "required": false,
+          "desc": "补充说明。"
+        }
+      ],
+      "search_fields": [
+        {
+          "name": "会议室名称",
+          "widget": "input",
+          "required": false,
+          "desc": "按会议室名称搜索预约。"
+        },
+        {
+          "name": "预约状态",
+          "widget": "select",
+          "required": false,
+          "desc": "按待开始、进行中、已结束筛选。"
+        }
+      ],
+      "handlers": [
+        "OnTableAddRow",
+        "OnTableUpdateRow",
+        "OnTableDeleteRow"
+      ],
+      "examples": [
+        {
+          "会议室": "A栋201",
+          "预约人": "张三",
+          "会议主题": "产品需求评审",
+          "会议描述": "评审 Q2 需求",
+          "开始时间": "2026-05-12 14:00",
+          "结束时间": "2026-05-12 16:00",
+          "参会人数": 6,
+          "会议室名称": "A栋201",
+          "预约状态": "待开始",
+          "备注": "需要投影。"
+        }
+      ]
+    }
+  ],
+  "rules": [
+    "预约新增和编辑时必须校验结束时间晚于开始时间。",
+    "同一会议室的预约时间段不能重叠。",
+    "预约状态按当前时间、开始时间和结束时间实时计算。",
+    "进行中的会议不允许删除。"
+  ],
+  "workflow": [
+    {
+      "type": "table",
+      "ref": "会议室"
+    },
+    {
+      "type": "table",
+      "ref": "会议室预约"
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"sort"
@@ -48,6 +49,13 @@ type goSourceFileForCheck struct {
 	Content string
 }
 
+type parsedGoSourceFileForCheck struct {
+	Source   goSourceFileForCheck
+	FileSet  *token.FileSet
+	Parsed   *ast.File
+	ParseErr error
+}
+
 var checkWorkspaceCodeToolDef = toolDefinitionWithOutput[checkWorkspaceCodeArgs, structuredToolResultSchema[checkWorkspaceCodeResultData]](
 	"check_workspace_code",
 	"对当前工作空间 Go 代码做 build 前轻量预检：语法、常见 import 问题、widget type、options_colors、筛选字段、错误文件名等。只读、无副作用，不能替代 build_workspace。",
@@ -84,19 +92,21 @@ func (t *CheckWorkspaceCodeTool) Execute(ctx context.Context, call ToolCall) Too
 func checkWorkspaceGoSources(directory string, files []goSourceFileForCheck) checkWorkspaceCodeResultData {
 	var issues []checkWorkspaceCodeIssue
 	for _, file := range files {
+		parsed := parseGoSourceFileForCheck(file)
 		issues = append(issues, checkGoFileName(file.Name)...)
-		issues = append(issues, checkGoFileSyntaxAndImports(file)...)
-		issues = append(issues, checkGoStructTags(file)...)
-		issues = append(issues, checkGoFileSchemaPatterns(file)...)
+		issues = append(issues, checkParsedGoFileSyntaxAndImports(parsed)...)
+		issues = append(issues, checkParsedGoStructTags(parsed)...)
+		issues = append(issues, checkParsedGoFileSchemaPatterns(parsed)...)
 	}
 	return buildCheckWorkspaceResult(directory, files, issues)
 }
 
 func checkGoFileLocalSource(directory string, file goSourceFileForCheck) checkWorkspaceCodeResultData {
+	parsed := parseGoSourceFileForCheck(file)
 	var issues []checkWorkspaceCodeIssue
 	issues = append(issues, checkGoFileName(file.Name)...)
-	issues = append(issues, checkGoFileSyntaxAndImports(file)...)
-	issues = append(issues, checkGoStructTags(file)...)
+	issues = append(issues, checkParsedGoFileSyntaxAndImports(parsed)...)
+	issues = append(issues, checkParsedGoStructTags(parsed)...)
 	return buildCheckWorkspaceResult(directory, []goSourceFileForCheck{file}, issues)
 }
 
@@ -131,23 +141,38 @@ func checkGoFileName(fileName string) []checkWorkspaceCodeIssue {
 	return nil
 }
 
-func checkGoFileSyntaxAndImports(file goSourceFileForCheck) []checkWorkspaceCodeIssue {
+func parseGoSourceFileForCheck(file goSourceFileForCheck) parsedGoSourceFileForCheck {
 	fset := token.NewFileSet()
-	parsed, err := parser.ParseFile(fset, file.Name, file.Content, parser.ParseComments)
-	if err != nil {
+	parsed, err := parser.ParseFile(fset, file.Name, file.Content, 0)
+	return parsedGoSourceFileForCheck{
+		Source:   file,
+		FileSet:  fset,
+		Parsed:   parsed,
+		ParseErr: err,
+	}
+}
+
+func checkGoFileSyntaxAndImports(file goSourceFileForCheck) []checkWorkspaceCodeIssue {
+	return checkParsedGoFileSyntaxAndImports(parseGoSourceFileForCheck(file))
+}
+
+func checkParsedGoFileSyntaxAndImports(file parsedGoSourceFileForCheck) []checkWorkspaceCodeIssue {
+	if file.ParseErr != nil {
 		line := 0
-		if pos, ok := err.(interface{ Pos() token.Position }); ok {
+		if pos, ok := file.ParseErr.(interface{ Pos() token.Position }); ok {
 			line = pos.Pos().Line
 		}
 		return []checkWorkspaceCodeIssue{{
-			File:     file.Name,
+			File:     file.Source.Name,
 			Line:     line,
 			Severity: "error",
 			Category: "go_syntax",
-			Message:  err.Error(),
+			Message:  file.ParseErr.Error(),
 		}}
 	}
 
+	fset := file.FileSet
+	parsed := file.Parsed
 	imports := map[string]goImportForCheck{}
 	for _, spec := range parsed.Imports {
 		importName := ""
@@ -187,11 +212,11 @@ func checkGoFileSyntaxAndImports(file goSourceFileForCheck) []checkWorkspaceCode
 		return true
 	})
 
-	issues := checkGoFileStructurePatterns(file.Name, parsed, fset)
+	issues := checkGoFileStructurePatterns(file.Source.Name, parsed, fset)
 	for name, imp := range imports {
 		if imp.Path == "github.com/ai-agent-os/ai-agent-os/sdk/agent-app" {
 			issues = append(issues, checkWorkspaceCodeIssue{
-				File:     file.Name,
+				File:     file.Source.Name,
 				Line:     imp.Line,
 				Severity: "warning",
 				Category: "sdk_import",
@@ -200,7 +225,7 @@ func checkGoFileSyntaxAndImports(file goSourceFileForCheck) []checkWorkspaceCode
 		}
 		if _, ok := idents[name]; !ok {
 			issues = append(issues, checkWorkspaceCodeIssue{
-				File:     file.Name,
+				File:     file.Source.Name,
 				Line:     imp.Line,
 				Severity: "warning",
 				Category: "go_import",
@@ -215,14 +240,14 @@ func checkGoFileSyntaxAndImports(file goSourceFileForCheck) []checkWorkspaceCode
 		}
 		if _, imported := imports[root]; !imported {
 			issues = append(issues, checkWorkspaceCodeIssue{
-				File:     file.Name,
+				File:     file.Source.Name,
 				Severity: "warning",
 				Category: "go_import",
 				Message:  fmt.Sprintf("代码使用了 %s. 但当前文件未导入对应包", root),
 			})
 		}
 	}
-	issues = append(issues, checkSDKSelectors(file.Name, imports, selectorUses)...)
+	issues = append(issues, checkSDKSelectors(file.Source.Name, imports, selectorUses)...)
 	return issues
 }
 
@@ -411,23 +436,25 @@ func exportedSymbolsInPackageDir(dir string) (map[string]struct{}, error) {
 }
 
 func checkGoStructTags(file goSourceFileForCheck) []checkWorkspaceCodeIssue {
-	fset := token.NewFileSet()
-	parsed, err := parser.ParseFile(fset, file.Name, file.Content, parser.ParseComments)
-	if err != nil {
+	return checkParsedGoStructTags(parseGoSourceFileForCheck(file))
+}
+
+func checkParsedGoStructTags(file parsedGoSourceFileForCheck) []checkWorkspaceCodeIssue {
+	if file.ParseErr != nil {
 		return nil
 	}
 	var issues []checkWorkspaceCodeIssue
-	ast.Inspect(parsed, func(n ast.Node) bool {
+	ast.Inspect(file.Parsed, func(n ast.Node) bool {
 		field, ok := n.(*ast.Field)
 		if !ok || field.Tag == nil {
 			return true
 		}
-		line := fset.Position(field.Tag.Pos()).Line
+		line := file.FileSet.Position(field.Tag.Pos()).Line
 		tag := strings.Trim(field.Tag.Value, "`")
 		widgetTag := structTagValue(tag, "widget")
 		callbackTag := structTagValue(tag, "callback")
 		if widgetTag != "" && widgetTag != "-" {
-			issues = append(issues, checkWidgetTag(file.Name, line, widgetTag, callbackTag)...)
+			issues = append(issues, checkWidgetTag(file.Source.Name, line, widgetTag, callbackTag)...)
 		}
 		return true
 	})
@@ -458,7 +485,7 @@ func checkWidgetTag(file string, line int, widgetTag string, callbackTag string)
 		return issues
 	}
 	if (widgetType == widget.TypeSelect || widgetType == widget.TypeMultiSelect) &&
-		parseSemicolonTag(widgetTag)["options"] == "" &&
+		parsed["options"] == "" &&
 		!strings.Contains(callbackTag, "OnSelectFuzzy") {
 		issues = append(issues, checkWorkspaceCodeIssue{
 			File:     file,
@@ -475,7 +502,7 @@ func checkWidgetTag(file string, line int, widgetTag string, callbackTag string)
 				Line:     line,
 				Severity: "error",
 				Category: "widget_tag",
-				Message:  fmt.Sprintf("widget 参数 %q 不在当前白名单中；只读用 hide 场景或回调控制，文件多选用 type:files + max_count", badKey),
+				Message:  fmt.Sprintf("widget 参数 %q 不在当前白名单中；只读用 hide 场景或回调控制，文件多选用 type:files + max_count，图片/视频列表预览用 thumbnail:true;list_preview:true", badKey),
 			})
 		}
 	}
@@ -498,7 +525,7 @@ func checkWidgetTag(file string, line int, widgetTag string, callbackTag string)
 				Line:     line,
 				Severity: "error",
 				Category: "widget_tag",
-				Message:  fmt.Sprintf("widget 参数 %q 不在 %q 的白名单中；只读用 hide 场景或回调控制，文件多选用 type:files + max_count", key, widgetType),
+				Message:  fmt.Sprintf("widget 参数 %q 不在 %q 的白名单中；只读用 hide 场景或回调控制，文件多选用 type:files + max_count，图片/视频列表预览用 thumbnail:true;list_preview:true", key, widgetType),
 			})
 		}
 	}
@@ -520,15 +547,17 @@ func checkWidgetTag(file string, line int, widgetTag string, callbackTag string)
 var hexColorRe = regexp.MustCompile(`^[0-9A-Fa-f]{6}$`)
 
 func checkGoFileSchemaPatterns(file goSourceFileForCheck) []checkWorkspaceCodeIssue {
-	fset := token.NewFileSet()
-	parsed, err := parser.ParseFile(fset, file.Name, file.Content, parser.ParseComments)
-	if err != nil {
+	return checkParsedGoFileSchemaPatterns(parseGoSourceFileForCheck(file))
+}
+
+func checkParsedGoFileSchemaPatterns(file parsedGoSourceFileForCheck) []checkWorkspaceCodeIssue {
+	if file.ParseErr != nil {
 		return nil
 	}
-	structs := collectStructTagFields(parsed, fset)
-	modelNames := collectTableModelNames(parsed)
-	issues := checkTableRequestModelDuplicateFields(file.Name, structs, modelNames)
-	issues = append(issues, checkOnSelectFuzzyMapKeys(file.Name, structs, parsed, fset)...)
+	structs := collectStructTagFields(file.Parsed, file.FileSet)
+	modelNames := collectTableModelNames(file.Parsed)
+	issues := checkTableRequestModelDuplicateFields(file.Source.Name, structs, modelNames)
+	issues = append(issues, checkOnSelectFuzzyMapKeys(file.Source.Name, structs, file.Parsed, file.FileSet)...)
 	return issues
 }
 
@@ -865,12 +894,7 @@ func firstNonEmpty(items ...string) string {
 }
 
 func structTagValue(tag string, key string) string {
-	re := regexp.MustCompile(regexp.QuoteMeta(key) + `:"([^"]*)"`)
-	match := re.FindStringSubmatch(tag)
-	if len(match) != 2 {
-		return ""
-	}
-	return match[1]
+	return reflect.StructTag(tag).Get(key)
 }
 
 func structTagCode(tag string, key string) string {

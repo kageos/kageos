@@ -1,0 +1,84 @@
+{
+  "kind": "agent_app_prd",
+  "schema_version": "prd.v2",
+  "project": {
+    "name": "NLP 文本分析工具",
+    "code": "nlp_tool",
+    "summary": "输入文本后进行中文分词、关键词提取和词频统计。"
+  },
+  "forms": [
+    {
+      "name": "中文分词分析",
+      "desc": "提交中文文本后返回分词结果、关键词和词频统计。",
+      "request_fields": [
+        {
+          "name": "待分词文本",
+          "widget": "text_area",
+          "required": true,
+          "desc": "输入要分析的中文文本。"
+        },
+        {
+          "name": "分词模式",
+          "widget": "select",
+          "required": false,
+          "desc": "可选精确模式、全模式、搜索引擎模式，默认精确模式。"
+        },
+        {
+          "name": "关键词数量",
+          "widget": "number",
+          "required": false,
+          "desc": "默认返回 10 个关键词。"
+        },
+        {
+          "name": "移除停用词",
+          "widget": "switch",
+          "required": false,
+          "desc": "默认开启，开启后过滤常见停用词。"
+        }
+      ],
+      "response_fields": [
+        {
+          "name": "分词结果",
+          "widget": "text_area",
+          "required": false,
+          "desc": "展示分词后的词语列表。"
+        },
+        {
+          "name": "关键词列表",
+          "widget": "table",
+          "required": false,
+          "desc": "展示关键词和权重。"
+        },
+        {
+          "name": "词频统计",
+          "widget": "table",
+          "required": false,
+          "desc": "展示词语和出现次数。"
+        }
+      ],
+      "example": {
+        "request": {
+          "待分词文本": "人工智能正在改变软件开发方式。",
+          "分词模式": "精确模式",
+          "关键词数量": 10,
+          "移除停用词": true
+        },
+        "response": {
+          "分词结果": "人工智能 / 改变 / 软件开发 / 方式",
+          "关键词列表": "人工智能 0.91",
+          "词频统计": "人工智能 1"
+        }
+      }
+    }
+  ],
+  "rules": [
+    "NLP 工具属于纯文本处理，不写 target_table。",
+    "Python 子进程必须 defer Close，避免临时目录泄漏。"
+  ],
+  "workflow": [
+    {
+      "type": "form",
+      "ref": "中文分词分析"
+    }
+  ]
+}

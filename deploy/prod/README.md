@@ -16,25 +16,47 @@
 
 **范围**：主站 + 独立定时任务调度器 + 中间件（MySQL / NATS / MinIO）+ 内置 Nginx（默认 80，可选 443）+ **容器内 Podman**（跑用户应用）。**不包含 Hub**。
 
-## 架构
+## 部署分层
 
+生产部署按 6 层理解和排障，完整定义见 [部署分层模型](../../docs/deployment-layers.md)。
+
+```mermaid
+flowchart TD
+  L0["L0 部署控制层<br/>aosctl / Compose / 配置生成"]
+  L1["L1 基础设施层<br/>MySQL / NATS / MinIO / 数据目录"]
+  L2["L2 入口接入层<br/>Nginx / TLS / 静态前端 / API 反代"]
+  L3["L3 平台服务层<br/>core-server / scheduler / backup"]
+  L4["L4 运行时管理层<br/>app-runtime / Podman API / app-base / namespace"]
+  L5["L5 用户应用层<br/>用户 App 容器 / SDK / 业务代码"]
+
+  L0 --> L1
+  L0 --> L2
+  L0 --> L3
+  L0 --> L4
+  L2 --> L3
+  L3 --> L1
+  L3 --> L4
+  L4 --> L5
 ```
-公网 :80 / :443（可选）
-  └─ main 容器（network_mode: host）
-       ├─ Nginx :80 / :443  → 静态文件 / SPA fallback
-       │             → proxy_pass API Gateway :9090
-       │             → proxy_pass MinIO 127.0.0.1:9000
-       └─ API Gateway :9090
-              ├─ MySQL  127.0.0.1:3306
-              ├─ NATS   127.0.0.1:4222
-              └─ MinIO  127.0.0.1:9000
 
-host 网络独立容器
-  └─ scheduler 容器
-       └─ timer-scheduler（中心调度、触发投递、execution 状态机）
+当前物理拓扑仍由 Compose 承载：
+
+```text
+Compose
+  ├─ mysql / nats / minio（bundled 时启用）
+  ├─ main 容器（network_mode: host）
+  │    ├─ Nginx :80 / :443
+  │    ├─ core-server
+  │    └─ Podman API
+  ├─ scheduler 容器
+  │    └─ timer-scheduler
+  └─ backup 容器
+       └─ backup-service
 ```
 
 `main` 使用 `network_mode: host`，容器内 Nginx 默认直接监听宿主机 80 端口；开启 HTTPS 后会额外监听 443。`scheduler` 也使用 `network_mode: host`，独立运行 `timer-scheduler`，自身在 `http://127.0.0.1:9108/health` 暴露健康检查。业务服务通过 SDK 连接 `http://127.0.0.1:9108/timer/api/v1` 创建任务，并通过 NATS 消费触发事件。中间件容器通过 `127.0.0.1` 暴露端口供 `main` / `scheduler` 访问，无需额外宿主机 Nginx。中心调度默认使用独立的 `timer-scheduler` database。
+
+`main` 容器的 Compose healthcheck 仍使用 `/app/health/main.sh` 聚合检查；实际子探针已经按层拆分为 `/app/health/edge.sh`、`/app/health/platform.sh`、`/app/health/runtime.sh`，`aosctl verify` 会按 L2/L3/L4 分层调用。
 
 ## 前置
 
@@ -48,14 +70,11 @@ host 网络独立容器
 ## 一分钟部署
 
 ```bash
-go run ./cmd/aosctl init --base-url http://your-ip-or-domain
-go run ./cmd/aosctl doctor --config deploy/prod/aos.yaml
-go run ./cmd/aosctl up --config deploy/prod/aos.yaml
-go run ./cmd/aosctl verify --config deploy/prod/aos.yaml
+go run ./cmd/aosctl bootstrap --base-url http://your-ip-or-domain
 ```
 
 默认数据目录固定是 `/data/ai-agent-os`。  
-`aosctl init` 负责生成 `deploy/prod/aos.yaml` 私有配置；`aosctl up` 负责渲染 Compose/config、准备运行目录、准备主镜像和用户应用基础镜像并启动服务。
+`aosctl bootstrap` 会在缺少 `deploy/prod/aos.yaml` 时生成私有配置，然后执行 `aosctl up` 的完整分层部署流程：预检、渲染 Compose/config、准备运行目录、准备主镜像和用户应用基础镜像、启动服务，并等待分层健康检查通过。
 
 最小 `aos.yaml` 配置：
 
@@ -96,6 +115,7 @@ site:
 ```bash
 # 在仓库根目录执行
 go run ./cmd/aosctl init --base-url http://your-ip-or-domain
+go run ./cmd/aosctl bootstrap --base-url http://your-ip-or-domain
 go run ./cmd/aosctl doctor --config deploy/prod/aos.yaml
 go run ./cmd/aosctl up --config deploy/prod/aos.yaml
 go run ./cmd/aosctl verify --config deploy/prod/aos.yaml
@@ -159,21 +179,31 @@ site:
 ```bash
 go run ./cmd/aosctl init --base-url http://your-ip-or-domain
 go run ./cmd/aosctl doctor --config deploy/prod/aos.yaml
+go run ./cmd/aosctl layers --config deploy/prod/aos.yaml
 go run ./cmd/aosctl up --config deploy/prod/aos.yaml
 go run ./cmd/aosctl up --config deploy/prod/aos.yaml --image
+go run ./cmd/aosctl up --config deploy/prod/aos.yaml --wait-timeout 10m
 go run ./cmd/aosctl verify --config deploy/prod/aos.yaml
+go run ./cmd/aosctl verify --config deploy/prod/aos.yaml --json
 go run ./cmd/aosctl status --config deploy/prod/aos.yaml
+go run ./cmd/aosctl status --config deploy/prod/aos.yaml --json
+go run ./cmd/aosctl logs --config deploy/prod/aos.yaml --layer L3
 go run ./cmd/aosctl logs --config deploy/prod/aos.yaml main
 go run ./cmd/aosctl down --config deploy/prod/aos.yaml
 ```
 
 推荐升级路径：
 
-- 首次部署：`aosctl init` -> `aosctl doctor` -> `aosctl up` -> `aosctl verify`
+- 首次部署：`aosctl bootstrap --base-url http://your-ip-or-domain`
+- 手工分步部署：`aosctl init` -> `aosctl doctor` -> `aosctl up`
 - 已发布固定镜像部署：在 `aos.yaml` 配好 `images.main` 后执行 `aosctl up --image`
+- 慢机器首次启动：执行 `aosctl up --wait-timeout 10m`
 - 改了站点、TLS、中间件或密钥配置：编辑 `aos.yaml` 后重新执行 `aosctl up`
+- 查看分层拓扑：`aosctl layers`
 - 查看运行状态：`aosctl status`
-- 查看日志：`aosctl logs main`
+- 机器读取状态/诊断：`aosctl status --json`、`aosctl verify --json`
+- 查看平台层日志：`aosctl logs --layer L3`
+- 查看指定服务日志：`aosctl logs main`
 
 ## 安全默认值
 

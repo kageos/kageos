@@ -9,6 +9,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/llms"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -81,7 +82,15 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
+	if err := createSQLiteAgentChatMessagesTable(db); err != nil {
+		t.Fatalf("migrate messages: %v", err)
+	}
+	if err := db.AutoMigrate(&model.WorkspaceHandoffPacket{}); err != nil {
+		t.Fatalf("migrate handoff packets: %v", err)
+	}
 	sessionRepo := repository.NewChatSessionRepository(db)
+	messageRepo := repository.NewChatMessageRepository(db)
+	handoffRepo := repository.NewWorkspaceHandoffPacketRepository(db)
 	source := &model.AgentChatSession{
 		TreeID:        7,
 		FullCodePath:  "/liubeiluo/demo",
@@ -97,12 +106,12 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 		t.Fatalf("create source: %v", err)
 	}
 
-	svc := &WorkspaceChatService{sessionRepo: sessionRepo}
+	svc := &WorkspaceChatService{sessionRepo: sessionRepo, messageRepo: messageRepo}
 	ctx := context.WithValue(context.Background(), contextx.RequestUserHeader, "tester")
 	resp, err := svc.CreateWorkspaceHandoff(ctx, &dto.WorkspaceHandoffReq{
 		SourceSessionID: "source-session",
 		FullCodePath:    "/liubeiluo/demo",
-		TargetRole:      "app.create",
+		TargetRole:      WorkspaceRoleAppDeveloper,
 		ArtifactKind:    "agent_app_prd",
 		Artifact:        []byte(`{"kind":"agent_app_prd","project":{"name":"工单管理"}}`),
 		Remark:          "优先做列表",
@@ -116,7 +125,13 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 	if resp.ContextPolicy != ContextPolicyArtifactOnly {
 		t.Fatalf("context policy=%q want %q", resp.ContextPolicy, ContextPolicyArtifactOnly)
 	}
-	if !strings.Contains(resp.Content, "target_role 固定为 app.create") {
+	if resp.MessageID == 0 {
+		t.Fatal("expected handoff response to include initial message id")
+	}
+	if resp.HandoffPacketID == 0 {
+		t.Fatal("expected handoff response to include handoff packet id")
+	}
+	if !strings.Contains(resp.Content, "target_role 固定为 app_developer") {
 		t.Fatalf("content should include target role, got %q", resp.Content)
 	}
 	if !strings.Contains(resp.Content, `"kind": "agent_app_prd"`) {
@@ -134,7 +149,112 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 	if err != nil {
 		t.Fatalf("get target: %v", err)
 	}
-	if target.ParentSessionID != source.SessionID || target.HandoffKind != "agent_app_prd" || target.HandoffTargetRole != "app.create" {
+	if target.ParentSessionID != source.SessionID || target.HandoffKind != "agent_app_prd" || target.HandoffTargetRole != WorkspaceRoleAppDeveloper {
 		t.Fatalf("target handoff metadata wrong: %#v", target)
 	}
+	if target.RoleID != WorkspaceRoleAppDeveloper || target.RoleDisplayName != "应用开发工程师" {
+		t.Fatalf("target role metadata wrong: %#v", target)
+	}
+	messages, err := messageRepo.ListBySessionID(resp.SessionID)
+	if err != nil {
+		t.Fatalf("list target messages: %v", err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("expected one initial handoff message, got %d", len(messages))
+	}
+	if messages[0].ID != resp.MessageID || messages[0].Role != RoleUser || messages[0].ContextUsage != MessageContextArtifact || messages[0].ArtifactKind != "agent_app_prd" {
+		t.Fatalf("initial message metadata wrong: %#v", messages[0])
+	}
+	if !strings.Contains(messages[0].Content, `"kind": "agent_app_prd"`) || !strings.Contains(messages[0].DisplayContent, "优先做列表") {
+		t.Fatalf("initial handoff message content wrong: %#v", messages[0])
+	}
+	packet, err := handoffRepo.GetByTargetSessionID(resp.SessionID)
+	if err != nil {
+		t.Fatalf("get handoff packet: %v", err)
+	}
+	if packet.ID != resp.HandoffPacketID || packet.SourceSessionID != source.SessionID || packet.TargetSessionID != resp.SessionID || packet.InitialMessageID != resp.MessageID {
+		t.Fatalf("handoff packet metadata wrong: %#v", packet)
+	}
+	if packet.TargetRole != WorkspaceRoleAppDeveloper || packet.ArtifactKind != "agent_app_prd" || !strings.Contains(packet.ArtifactJSON, `"project"`) {
+		t.Fatalf("handoff packet payload wrong: %#v", packet)
+	}
+}
+
+func TestExecuteToolCallsPersistsRoleAfterChangeRole(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if err := createSQLiteAgentChatMessagesTable(db); err != nil {
+		t.Fatalf("migrate messages: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	messageRepo := repository.NewChatMessageRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:        7,
+		FullCodePath:  "/liubeiluo/demo",
+		Source:        SourceWorkspace,
+		SessionID:     "role-session",
+		Title:         "角色切换",
+		ModeCode:      "dev",
+		Status:        model.ChatSessionStatusGenerating,
+		ContextPolicy: ContextPolicyFull,
+		User:          "tester",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	svc := &WorkspaceChatService{
+		toolReg:     NewToolRegistry(nil),
+		sessionRepo: sessionRepo,
+		messageRepo: messageRepo,
+	}
+	call := llms.ToolCall{ID: "call-change-role", Type: "function"}
+	call.Function.Name = "change_role"
+	call.Function.Arguments = `{"target_role":"product_manager","user_input":"帮我做个系统"}`
+
+	summaries, err := svc.executeToolCalls(context.Background(), []llms.ToolCall{call}, "", "role-session", "/liubeiluo/demo", nil, "tester", "", nil, func(string, interface{}) {})
+	if err != nil {
+		t.Fatalf("execute tool calls: %v", err)
+	}
+	if len(summaries) != 1 || summaries[0].Status != ToolCallStatusOK {
+		t.Fatalf("unexpected summaries: %#v", summaries)
+	}
+	updated, err := sessionRepo.GetBySessionID("role-session")
+	if err != nil {
+		t.Fatalf("get updated session: %v", err)
+	}
+	if updated.RoleID != WorkspaceRoleProductManager || updated.RoleDisplayName != "产品经理" {
+		t.Fatalf("session role not persisted: %#v", updated)
+	}
+}
+
+func createSQLiteAgentChatMessagesTable(db *gorm.DB) error {
+	return db.Exec(`
+CREATE TABLE agent_chat_messages (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	created_at datetime,
+	updated_at datetime,
+	deleted_at datetime,
+	created_by text,
+	updated_by text,
+	deleted_by text,
+	session_id text NOT NULL,
+	agent_id integer,
+	role text NOT NULL,
+	content text,
+	display_content text,
+	files text,
+	tool_calls text,
+	tool_call_id text,
+	tool_status text,
+	result_data text,
+	result_metadata text,
+	context_usage text DEFAULT 'include',
+	artifact_kind text,
+	user text NOT NULL
+)`).Error
 }

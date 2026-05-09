@@ -188,8 +188,31 @@
     <!-- 表格单元格模式 -->
     <template v-else-if="mode === 'table-cell'">
       <div v-if="currentFiles.length > 0" class="files-table-cell">
+        <div v-if="shouldShowTablePreview" class="files-table-preview-list">
+          <button
+            v-for="file in tablePreviewFiles"
+            :key="file.ref || file.thumbnail_url || file.download_url || file.name"
+            type="button"
+            class="files-table-preview-item"
+            :title="file.name"
+            @click.stop="handlePreviewInNewWindow(file)"
+          >
+            <img
+              :src="getTablePreviewUrl(file)"
+              :alt="file.name"
+              class="files-table-preview-image"
+              loading="lazy"
+            />
+            <span v-if="file.preview_kind === 'video'" class="files-table-preview-video">
+              <el-icon :size="12"><VideoPlay /></el-icon>
+            </span>
+          </button>
+          <span v-if="tablePreviewOverflowCount > 0" class="files-table-preview-more">
+            +{{ tablePreviewOverflowCount }}
+          </span>
+        </div>
         <!-- 🔥 完全照抄用户组件搜索框选中样式 -->
-        <div class="files-select-display">
+        <div v-else class="files-select-display">
           <el-icon :size="20" class="files-icon-small">
             <Document />
           </el-icon>
@@ -234,6 +257,7 @@ import {
 import {
   Upload,
   Document,
+  VideoPlay,
 } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import type { FilesWidgetConfig } from '@/core/types/widget-configs'
@@ -243,6 +267,9 @@ import { useUserInfoStore } from '@/stores/userInfo'
 import { resolveFileRefs, updateFileDescription } from '@/api/storage'
 import { Logger } from '@/core/utils/logger'
 import { formatTimestamp } from '@/utils/date'
+import { isWidgetConfigFlagEnabled } from '@/utils/widgetConfigFlag'
+import { deriveThumbnailPreviewUrl } from '@/utils/storagePreviewUrl'
+import { normalizeStorageFileDisplayUrl } from '@/architecture/presentation/utils/storageFileUrl'
 import { useFilesDescriptionDialog } from './composables/useFilesDescriptionDialog'
 import { useFilesPreviewAndActions } from './composables/useFilesPreviewAndActions'
 import { useFilesUploadManager } from './composables/useFilesUploadManager'
@@ -272,6 +299,9 @@ const filesConfig = computed(() => {
 const accept = computed(() => filesConfig.value.accept || '*')
 const maxSize = computed(() => filesConfig.value.max_size)
 const maxCount = computed(() => filesConfig.value.max_count || 5)
+const shouldGenerateThumbnail = computed(() => isWidgetConfigFlagEnabled(filesConfig.value.thumbnail))
+const shouldUseListPreview = computed(() => isWidgetConfigFlagEnabled(filesConfig.value.list_preview))
+const shouldPreferThumbnailPreview = computed(() => shouldGenerateThumbnail.value || shouldUseListPreview.value)
 const isReadonlyMode = computed(() => props.mode === 'response' || props.mode === 'detail')
 
 const currentRefs = computed(() => parseFileRefs(props.value?.raw))
@@ -321,6 +351,10 @@ watch(currentRefs, async (refs) => {
         is_uploaded: true,
         download_url: item.download_url || '',
         server_download_url: item.server_download_url || '',
+        thumbnail_ref: item.thumbnail_ref || '',
+        thumbnail_url: item.thumbnail_url || '',
+        server_thumbnail_url: item.server_thumbnail_url || '',
+        preview_kind: item.preview_kind || '',
         upload_user: item.upload_user,
         error: item.error,
       }
@@ -440,6 +474,7 @@ const {
   accept,
   maxSize,
   maxCount,
+  thumbnail: () => shouldGenerateThumbnail.value,
   currentFiles,
   updateFiles,
   resolveUploadUser: resolveCurrentUploadUser,
@@ -456,6 +491,39 @@ const {
   currentFiles,
   handleUpdateDescription,
 })
+
+const tablePreviewFiles = computed(() => {
+  return currentFiles.value
+    .filter((file) => getTablePreviewUrl(file) !== '')
+    .slice(0, 3)
+})
+
+const shouldShowTablePreview = computed(() => {
+  return shouldUseListPreview.value && tablePreviewFiles.value.length > 0
+})
+
+const tablePreviewOverflowCount = computed(() => {
+  return Math.max(0, currentFiles.value.length - tablePreviewFiles.value.length)
+})
+
+function getTablePreviewUrl(file: FileItem): string {
+  if (file.thumbnail_url) {
+    return file.thumbnail_url
+  }
+  if (file.thumbnail_ref) {
+    return normalizeStorageFileDisplayUrl(file.thumbnail_ref)
+  }
+  if (shouldPreferThumbnailPreview.value) {
+    const inferredThumbnailUrl = deriveThumbnailPreviewUrl(file.ref || file.download_url || file.server_download_url)
+    if (inferredThumbnailUrl) {
+      return normalizeStorageFileDisplayUrl(inferredThumbnailUrl)
+    }
+  }
+  if (!shouldPreferThumbnailPreview.value && isImageFile(file)) {
+    return getFileDisplayUrl(file)
+  }
+  return ''
+}
 
 </script>
 
@@ -792,6 +860,64 @@ const {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.files-table-preview-list {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.files-table-preview-item {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  flex: 0 0 auto;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--el-fill-color-light);
+  cursor: pointer;
+}
+
+.files-table-preview-item:hover {
+  border-color: var(--el-color-primary);
+}
+
+.files-table-preview-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.files-table-preview-video {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgb(0 0 0 / 60%);
+}
+
+.files-table-preview-more {
+  min-width: 28px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  background: var(--el-fill-color-light);
 }
 
 .file-item {

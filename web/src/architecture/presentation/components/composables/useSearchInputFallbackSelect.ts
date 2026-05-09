@@ -10,6 +10,7 @@ import {
   type StandardColorType
 } from '@/core/constants/select'
 import { Logger } from '@/core/utils/logger'
+import { getFieldWidgetOptionColors } from '@/utils/widgetOptionColors'
 import type { FieldConfig } from '@/architecture/domain/types'
 import type { SearchInputConfig, SearchOption } from '../utils/searchInputTypes'
 
@@ -85,7 +86,7 @@ export function useSearchInputFallbackSelect({
   })
 
   const optionColors = computed(() => {
-    return field.widget?.config?.options_colors || []
+    return getFieldWidgetOptionColors(field)
   })
 
   const staticOptions = computed(() => {

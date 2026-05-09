@@ -1,0 +1,117 @@
+{
+  "kind": "agent_app_prd",
+  "schema_version": "prd.v2",
+  "project": {
+    "name": "Excel CSV 工具",
+    "code": "office_excel_csv",
+    "summary": "上传 Excel 或 CSV 文件后完成格式转换、内容提取和批量填列处理。"
+  },
+  "forms": [
+    {
+      "name": "Excel转JSON",
+      "desc": "上传 Excel 文件后读取工作表并输出 JSON 文本。",
+      "request_fields": [
+        {
+          "name": "上传Excel文件",
+          "widget": "files",
+          "required": true,
+          "desc": "上传一个 .xlsx 或 .xls 文件，最大 50MB。"
+        },
+        {
+          "name": "工作表名称",
+          "widget": "input",
+          "required": false,
+          "desc": "指定要读取的工作表；不填时默认读取第一个工作表。"
+        },
+        {
+          "name": "使用第一行作为键名",
+          "widget": "switch",
+          "required": false,
+          "desc": "默认开启；开启后第一行作为 JSON 字段名。"
+        },
+        {
+          "name": "跳过空行",
+          "widget": "switch",
+          "required": false,
+          "desc": "默认开启；开启后忽略完全为空的数据行。"
+        }
+      ],
+      "response_fields": [
+        {
+          "name": "JSON文本内容",
+          "widget": "text_area",
+          "required": false,
+          "desc": "转换后的 JSON 字符串。"
+        },
+        {
+          "name": "转换统计",
+          "widget": "text_area",
+          "required": false,
+          "desc": "展示工作表、行数、列数和处理结果。"
+        }
+      ],
+      "example": {
+        "request": {
+          "上传Excel文件": "客户名单.xlsx",
+          "工作表名称": "Sheet1",
+          "使用第一行作为键名": true,
+          "跳过空行": true
+        },
+        "response": {
+          "JSON文本内容": "[{\"姓名\":\"张三\",\"手机号\":\"13800000000\"}]",
+          "转换统计": "读取 1 个工作表，转换 120 行。"
+        }
+      }
+    },
+    {
+      "name": "CSV转Excel",
+      "desc": "上传一个或多个 CSV 文件并生成 Excel 文件附件。",
+      "request_fields": [
+        {
+          "name": "上传CSV文件",
+          "widget": "files",
+          "required": true,
+          "desc": "上传 .csv 文件，支持多个文件批量转换。"
+        }
+      ],
+      "response_fields": [
+        {
+          "name": "转换后的Excel文件",
+          "widget": "files",
+          "required": false,
+          "desc": "返回生成的 .xlsx 文件列表。"
+        },
+        {
+          "name": "转换统计",
+          "widget": "text_area",
+          "required": false,
+          "desc": "展示成功数量、失败数量和失败原因。"
+        }
+      ],
+      "example": {
+        "request": {
+          "上传CSV文件": "订单.csv"
+        },
+        "response": {
+          "转换后的Excel文件": "订单.xlsx",
+          "转换统计": "成功转换 1 个文件。"
+        }
+      }
+    }
+  ],
+  "rules": [
+    "文件处理类 Form 不写 target_table。",
+    "上传文件先下载到运行时临时目录，处理完成后返回文本或附件。",
+    "批量转换时需要分别记录成功和失败文件。"
+  ],
+  "workflow": [
+    {
+      "type": "form",
+      "ref": "Excel转JSON"
+    },
+    {
+      "type": "form",
+      "ref": "CSV转Excel"
+    }
+  ]
+}

@@ -18,6 +18,7 @@ func init() {
 // 使用示例：
 //
 //	Attachment string `json:"attachment" widget:"name:附件;type:files;accept:.pdf,image/*;max_size:10MB;max_count:3"`
+//	ProductImages string `json:"product_images" widget:"name:商品图片;type:files;accept:image/*;thumbnail:true;list_preview:true"`
 //
 // 协议约定：
 // - Go 字段必须是 string，保存逗号分隔的文件引用 refs；
@@ -47,6 +48,14 @@ type Files struct {
 	// MaxCount 最大上传文件数量，默认为 5
 	// 示例：max_count:10
 	MaxCount int `json:"max_count,omitempty"`
+
+	// Thumbnail 是否在浏览器上传时由前端生成轻量缩略图/视频封面并关联保存。
+	// 后端只保存缩略图引用，不做媒体解码或转码。
+	Thumbnail bool `json:"thumbnail,omitempty"`
+
+	// ListPreview 是否在表格列表单元格中使用缩略图/封面内联展示。
+	// 通常与 thumbnail:true 配合使用。
+	ListPreview bool `json:"list_preview,omitempty"`
 }
 
 func (i *Files) Config() interface{} {
@@ -68,6 +77,12 @@ func (i *Files) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticFact
 	if i.MaxSize != "" && opts.Mode == SummaryFull {
 		facts = append(facts, SemanticFact{Key: "max_size", Value: i.MaxSize})
 	}
+	if i.Thumbnail && opts.Mode == SummaryFull {
+		facts = append(facts, SemanticFact{Key: "thumbnail", Value: "true"})
+	}
+	if i.ListPreview && opts.Mode == SummaryFull {
+		facts = append(facts, SemanticFact{Key: "list_preview", Value: "true"})
+	}
 	return facts
 }
 
@@ -86,6 +101,12 @@ func newFiles(widgetParsed map[string]string) *Files {
 	} else {
 		// 默认值
 		files.MaxCount = 5
+	}
+	if thumbnail, exists := widgetParsed["thumbnail"]; exists {
+		files.Thumbnail = thumbnail == "true"
+	}
+	if listPreview, exists := widgetParsed["list_preview"]; exists {
+		files.ListPreview = listPreview == "true"
 	}
 
 	return files
@@ -107,6 +128,12 @@ func validateFilesWidget(ctx ValidateContext) error {
 		errs = append(errs, err)
 	}
 	if err := validateFilesMaxSizeTag(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateBoolTag(ctx, "thumbnail"); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateBoolTag(ctx, "list_preview"); err != nil {
 		errs = append(errs, err)
 	}
 	return errors.Join(errs...)

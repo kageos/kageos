@@ -33,8 +33,6 @@ type ForkFunctionGroupFile struct {
 	FileName      string `json:"file_name"`      // 文件名（不含 .go 后缀）
 	SourceCode    string `json:"source_code"`    // 源代码内容
 	SourcePackage string `json:"source_package"` // 源 package 名称（用于替换）
-	// 向后兼容：保留 group_code（如果存在，优先使用 file_name）
-	GroupCode string `json:"group_code,omitempty"` // 函数组代码（已废弃，使用 file_name）
 }
 
 // ForkFunctionGroupRuntimeResp Fork 函数组运行时响应（app-runtime，简化版）

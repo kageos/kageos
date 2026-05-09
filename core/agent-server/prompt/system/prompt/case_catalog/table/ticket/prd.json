@@ -1,281 +1,158 @@
 {
   "kind": "agent_app_prd",
+  "schema_version": "prd.v2",
   "project": {
     "name": "工单管理",
     "code": "ticket_management",
-    "create_new_directory": true,
-    "parent_directory": "",
-    "target_directory": "",
-    "summary": "管理工单的提交、处理、状态流转和列表筛选。",
-    "reason": "工单管理是独立业务域，需要单独目录承载列表和回调逻辑。"
+    "summary": "管理工单提交、处理、状态流转和列表筛选。"
   },
-  "models": [
+  "tables": [
     {
       "name": "工单",
-      "description": "记录工单从提交到关闭的完整处理信息。",
+      "title": "工单列表",
+      "desc": "管理工单记录，支持新增、编辑、删除和按条件筛选。",
       "fields": [
         {
           "name": "工单标题",
-          "widget": "name:工单标题;type:input",
-          "validate": "required,min=2,max=200",
-          "description": "2-200 字，列表支持模糊搜索。"
+          "widget": "input",
+          "required": true,
+          "desc": "2-200 字，描述工单核心问题。"
         },
         {
           "name": "问题描述",
-          "widget": "name:问题描述;type:text_area",
-          "validate": "required,min=10",
-          "description": "至少 10 字。"
+          "widget": "text_area",
+          "required": true,
+          "desc": "详细描述问题，建议不少于 10 字。"
         },
         {
           "name": "优先级",
-          "widget": "name:优先级;type:select;options:低,中,高;options_colors:67C23A,E6A23C,F56C6C;render_default:中",
-          "validate": "required,oneof=低 中 高"
+          "widget": "select",
+          "required": true,
+          "desc": "有低、中、高三个选项，默认中。"
         },
         {
           "name": "工单状态",
-          "widget": "name:工单状态;type:select;options:待处理,处理中,已完成,已关闭;options_colors:909399,E6A23C,67C23A,F56C6C;render_default:待处理",
-          "validate": "required,oneof=待处理 处理中 已完成 已关闭"
+          "widget": "select",
+          "required": true,
+          "desc": "有待处理、处理中、已完成、已关闭四个选项，默认待处理。"
         },
         {
           "name": "问题分类",
-          "widget": "name:问题分类;type:select;options:民生,交通,医疗,就业,建议,其他;options_colors:909399,E6A23C,67C23A,F56C6C,FF9800,9C27B0",
-          "validate": "required,oneof=民生 交通 医疗 就业 建议 其他"
-        },
-        {
-          "name": "是否紧急",
-          "widget": "name:是否紧急;type:switch"
-        },
-        {
-          "name": "完成进度",
-          "widget": "name:完成进度;type:slider;min:0;max:100;unit:%",
-          "validate": "min=0,max=100"
-        },
-        {
-          "name": "满意度评分",
-          "widget": "name:满意度评分;type:slider;min:0;max:10;step:0.1;unit:分",
-          "validate": "min=0,max=10"
-        },
-        {
-          "name": "评价",
-          "widget": "name:评价;type:rate;max:5;allow_half:true;texts:很差,差,一般,好,很好",
-          "validate": "min=0,max=5"
+          "widget": "select",
+          "required": true,
+          "desc": "有民生、交通、医疗、就业、建议、其他六个选项。"
         },
         {
           "name": "联系电话",
-          "widget": "name:联系电话;type:input",
-          "validate": "required,min=11,max=20"
+          "widget": "input",
+          "required": true,
+          "desc": "提交人联系电话，通常为 11-20 位。"
         },
         {
           "name": "工单来源",
-          "widget": "name:工单来源;type:radio;options:电话,邮件,在线,现场,其他;render_default:在线",
-          "validate": "required,oneof=电话 邮件 在线 现场 其他"
-        },
-        {
-          "name": "预期处理时长",
-          "widget": "name:预期处理时长;type:number;step:1;unit:分钟;render_default:60",
-          "validate": "required,min=1,max=10080"
-        },
-        {
-          "name": "处理耗时",
-          "widget": "name:处理耗时;type:float;precision:2;unit:分钟;render_default:0.00",
-          "hide": "create,update",
-          "description": "状态关闭时由后端计算，只在列表展示。"
+          "widget": "radio",
+          "required": true,
+          "desc": "有电话、邮件、在线、现场、其他五个来源，默认在线。"
         },
         {
           "name": "处理人",
-          "widget": "name:处理人;type:user;render_default:Me()",
-          "validate": "required"
-        },
-        {
-          "name": "抄送人",
-          "widget": "name:抄送人;type:users;render_default:Me(),MyLeader()"
-        },
-        {
-          "name": "处理部门",
-          "widget": "name:处理部门;type:department;render_default:MyDepartment()",
-          "validate": "required"
-        },
-        {
-          "name": "关联部门",
-          "widget": "name:关联部门;type:departments;render_default:MyDepartment();max_count:5"
-        },
-        {
-          "name": "备注",
-          "widget": "name:备注;type:text_area"
-        },
-        {
-          "name": "详细内容",
-          "widget": "name:详细内容;type:richtext;height:400"
-        },
-        {
-          "name": "标签",
-          "widget": "name:标签;type:multiselect;options:紧急,重要,普通,低优先级;options_colors:FF5722,FF9800,4CAF50,9E9E9E"
-        },
-        {
-          "name": "主题颜色",
-          "widget": "name:主题颜色;type:color;format:hex;render_default:#409EFF"
-        },
-        {
-          "name": "附件",
-          "widget": "name:附件;type:files"
-        },
-        {
-          "name": "提单部门",
-          "widget": "name:提单部门;type:department",
-          "hide": "create,update",
-          "description": "新增时由后端写入当前用户部门。"
-        },
-        {
-          "name": "创建用户",
-          "widget": "name:创建用户;type:user",
-          "hide": "create,update",
-          "description": "新增时由后端写入当前用户。"
+          "widget": "user",
+          "required": false,
+          "desc": "负责处理该工单的人员。"
         },
         {
           "name": "截止时间",
-          "widget": "name:截止时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"
+          "widget": "datetime",
+          "required": false,
+          "desc": "期望完成处理的截止时间。"
         },
         {
-          "name": "剩余时间",
-          "widget": "name:剩余时间;type:text",
-          "hide": "create,update",
-          "description": "不落库，列表构建后根据截止时间计算。"
+          "name": "备注",
+          "widget": "text_area",
+          "required": false,
+          "desc": "处理过程中的补充说明。"
+        }
+      ],
+      "search_fields": [
+        {
+          "name": "工单标题",
+          "widget": "input",
+          "required": false,
+          "desc": "按工单标题模糊搜索。"
+        },
+        {
+          "name": "工单状态",
+          "widget": "select",
+          "required": false,
+          "desc": "按待处理、处理中、已完成、已关闭筛选。"
+        },
+        {
+          "name": "优先级",
+          "widget": "select",
+          "required": false,
+          "desc": "按低、中、高筛选。"
+        },
+        {
+          "name": "问题分类",
+          "widget": "select",
+          "required": false,
+          "desc": "按民生、交通、医疗、就业、建议、其他筛选。"
+        },
+        {
+          "name": "处理人",
+          "widget": "user",
+          "required": false,
+          "desc": "按工单处理人筛选。"
+        },
+        {
+          "name": "创建人",
+          "widget": "user",
+          "required": false,
+          "desc": "按系统记录的创建人筛选。"
+        },
+        {
+          "name": "创建开始时间",
+          "widget": "datetime",
+          "required": false,
+          "desc": "按记录创建时间范围查询的开始时间。"
+        },
+        {
+          "name": "创建结束时间",
+          "widget": "datetime",
+          "required": false,
+          "desc": "按记录创建时间范围查询的结束时间。"
+        }
+      ],
+      "handlers": [
+        "OnTableAddRow",
+        "OnTableUpdateRow",
+        "OnTableDeleteRow"
+      ],
+      "examples": [
+        {
+          "工单标题": "打印机无法连接",
+          "问题描述": "办公室打印机无法连接网络。",
+          "优先级": "中",
+          "工单状态": "待处理",
+          "问题分类": "其他",
+          "联系电话": "13800000000",
+          "工单来源": "在线",
+          "处理人": "李工",
+          "截止时间": "2026-05-10 18:00",
+          "备注": "请优先检查网络。"
         }
       ]
     }
   ],
-  "functions": [
+  "rules": [
+    "新建工单默认状态为待处理。",
+    "处理中、已完成、已关闭用于描述工单处理进度。",
+    "工单表支持新增、编辑、删除和列表筛选。"
+  ],
+  "workflow": [
     {
-      "title": "工单列表",
       "type": "table",
-      "route": "ticket_list.table",
-      "method": "GET",
-      "model": "工单",
-      "description": "管理工单记录，支持搜索、筛选、新增、编辑、删除。",
-      "table": {
-        "capability": "支持列表查询、模糊搜索、筛选、新增、编辑、删除和回调赋值。",
-        "readonly": false,
-        "operations": [
-          "列表查询",
-          "新增",
-          "编辑",
-          "删除"
-        ],
-        "request_fields": [
-          {
-            "field": "工单标题",
-            "type": "文本输入",
-            "required": false,
-            "default": "—",
-            "description": "按标题模糊搜索。"
-          },
-          {
-            "field": "优先级",
-            "type": "下拉选择",
-            "required": false,
-            "default": "全部",
-            "description": "按低/中/高筛选。"
-          },
-          {
-            "field": "工单状态",
-            "type": "下拉选择",
-            "required": false,
-            "default": "全部",
-            "description": "按处理状态筛选。"
-          },
-          {
-            "field": "问题分类",
-            "type": "下拉选择",
-            "required": false,
-            "default": "全部",
-            "description": "按业务分类筛选。"
-          }
-        ],
-        "columns": [
-          "工单标题",
-          "问题描述",
-          "优先级",
-          "工单状态",
-          "问题分类",
-          "是否紧急",
-          "完成进度",
-          "满意度评分",
-          "评价",
-          "联系电话",
-          "工单来源",
-          "预期处理时长",
-          "处理耗时",
-          "处理人",
-          "处理部门",
-          "截止时间",
-          "剩余时间"
-        ],
-        "sample_rows": [
-          {
-            "工单标题": "道路坑洼需修复",
-            "问题描述": "某某路段有坑洼，影响通行",
-            "优先级": "高",
-            "工单状态": "处理中",
-            "问题分类": "交通",
-            "是否紧急": "是",
-            "完成进度": "30%",
-            "满意度评分": "—",
-            "评价": "—",
-            "联系电话": "13800138000",
-            "工单来源": "在线",
-            "预期处理时长": "120 分钟",
-            "处理耗时": "—",
-            "处理人": "张三",
-            "处理部门": "市政科",
-            "截止时间": "2025-01-25 18:00",
-            "剩余时间": "5 天"
-          },
-          {
-            "工单标题": "医保报销咨询",
-            "问题描述": "咨询异地就医报销流程",
-            "优先级": "中",
-            "工单状态": "已完成",
-            "问题分类": "医疗",
-            "是否紧急": "否",
-            "完成进度": "100%",
-            "满意度评分": "4.5",
-            "评价": "4 星",
-            "联系电话": "13900139000",
-            "工单来源": "电话",
-            "预期处理时长": "60 分钟",
-            "处理耗时": "45 分钟",
-            "处理人": "李四",
-            "处理部门": "社保中心",
-            "截止时间": "2025-01-22 18:00",
-            "剩余时间": "—"
-          }
-        ]
-      }
+      "ref": "工单"
     }
-  ],
-  "acceptance_cases": [
-    {
-      "name": "查看工单列表",
-      "action": "进入工单列表页面，使用状态和优先级筛选。",
-      "expected": "列表按条件刷新，并保留分页能力。"
-    },
-    {
-      "name": "新增工单",
-      "action": "点击新增，填写必填字段后提交。",
-      "expected": "工单创建成功，提单部门和创建用户由后端补齐。"
-    },
-    {
-      "name": "更新工单状态",
-      "action": "编辑工单，将状态改为已关闭。",
-      "expected": "状态更新成功，处理耗时按创建时间自动计算。"
-    },
-    {
-      "name": "删除工单",
-      "action": "勾选工单后点击删除。",
-      "expected": "选中工单被软删除，列表刷新。"
-    }
-  ],
-  "confirmation": {
-    "question": "请确认是否按以上 PRD 创建目录和生成代码：\n- 是否创建新目录：是\n- 目录名称：工单管理\n- 目录 code：ticket_management\n- 将创建/修改的功能：ticket_list.table\n\n确认后我再进入开发阶段，按 PRD 直接创建目录、写 Go 文件并 build。"
-  }
+  ]
 }

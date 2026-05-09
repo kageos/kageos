@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -39,7 +40,13 @@ type ValidateContext struct {
 // - 在 validator_test.go 覆盖错误场景，否则 ValidateWidgetValidatorRegistry 会失败。
 type WidgetValidator func(ctx ValidateContext) error
 
-var widgetValidators = map[string]WidgetValidator{}
+var (
+	widgetValidators          = map[string]WidgetValidator{}
+	registryValidationOnce    sync.Once
+	registryValidationErr     error
+	allowedDataTagKeys        = map[string]struct{}{"format": {}, "example": {}}
+	allowedWidgetTagKeysCache = buildAllowedWidgetTagKeysCache()
+)
 
 func RegisterWidgetValidator(widgetType string, validator WidgetValidator) {
 	if !IsSupportedType(widgetType) {
@@ -55,6 +62,13 @@ func RegisterWidgetValidator(widgetType string, validator WidgetValidator) {
 }
 
 func ValidateWidgetValidatorRegistry() error {
+	registryValidationOnce.Do(func() {
+		registryValidationErr = validateWidgetValidatorRegistry()
+	})
+	return registryValidationErr
+}
+
+func validateWidgetValidatorRegistry() error {
 	var errs []error
 	for _, widgetType := range SupportedTypes() {
 		if widgetValidators[widgetType] == nil {
@@ -262,13 +276,9 @@ func validateDataTagKeys(ctx ValidateContext) error {
 	if strings.TrimSpace(ctx.Field.Data) == "" {
 		return nil
 	}
-	allowed := map[string]struct{}{
-		"format":  {},
-		"example": {},
-	}
 	var errs []error
 	for key := range ctx.Field.DataParsed {
-		if _, ok := allowed[key]; ok {
+		if _, ok := allowedDataTagKeys[key]; ok {
 			continue
 		}
 		errs = append(errs, fieldError(ctx, "unsupported data tag %q", key))
@@ -366,11 +376,15 @@ func validateWidgetTagKeys(ctx ValidateContext) error {
 }
 
 func allowedWidgetTagKeys(widgetType string) map[string]struct{} {
+	return allowedWidgetTagKeysCache[widgetType]
+}
+
+func buildAllowedWidgetTagKeysCache() map[string]map[string]struct{} {
 	common := []string{"name", "type", "desc", "depend_on"}
 	byWidget := map[string][]string{
 		TypeInput:       {"placeholder", "password", "prepend", "append", renderDefaultTagKey},
 		TypeText:        {"format"},
-		TypeTextArea:    {"placeholder", renderDefaultTagKey},
+		TypeTextArea:    {"placeholder", renderDefaultTagKey, "rows"},
 		TypeSelect:      {"options", "options_colors", "placeholder", renderDefaultTagKey, "creatable"},
 		TypeSwitch:      {renderDefaultTagKey},
 		TypeDatetime:    {"format", "disabled", renderDefaultTagKey},
@@ -381,7 +395,7 @@ func allowedWidgetTagKeys(widgetType string) map[string]struct{} {
 		TypeID:          {},
 		TypeNumber:      {"placeholder", "min", "max", "step", renderDefaultTagKey, "unit"},
 		TypeFloat:       {"placeholder", "min", "max", "precision", "step", renderDefaultTagKey, "unit"},
-		TypeFiles:       {"accept", "max_size", "max_count"},
+		TypeFiles:       {"accept", "max_size", "max_count", "thumbnail", "list_preview"},
 		TypeCheckbox:    {"options", renderDefaultTagKey},
 		TypeRadio:       {"options", renderDefaultTagKey},
 		TypeMultiSelect: {"options", "options_colors", "placeholder", renderDefaultTagKey, "max_count", "creatable"},
@@ -395,18 +409,18 @@ func allowedWidgetTagKeys(widgetType string) map[string]struct{} {
 		TypeProgress:    {"min", "max", "unit"},
 		TypeList:        {"item_type", "separator", "placeholder", renderDefaultTagKey, "unique", "max_count"},
 	}
-	specific, ok := byWidget[widgetType]
-	if !ok {
-		return nil
+	result := make(map[string]map[string]struct{}, len(byWidget))
+	for widgetType, specific := range byWidget {
+		allowed := make(map[string]struct{}, len(common)+len(specific))
+		for _, key := range common {
+			allowed[key] = struct{}{}
+		}
+		for _, key := range specific {
+			allowed[key] = struct{}{}
+		}
+		result[widgetType] = allowed
 	}
-	allowed := make(map[string]struct{}, len(common)+len(specific))
-	for _, key := range common {
-		allowed[key] = struct{}{}
-	}
-	for _, key := range specific {
-		allowed[key] = struct{}{}
-	}
-	return allowed
+	return result
 }
 
 // AllowedTagKeys returns the widget tag keys accepted by the SDK validator for a widget type.

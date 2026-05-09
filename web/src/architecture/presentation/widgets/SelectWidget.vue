@@ -128,6 +128,7 @@ import { convertValueToType } from '@/architecture/presentation/widgets/utils/va
 import { convertFormDataToRequestByType } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { widgetInitializerRegistry } from '@/architecture/presentation/widgets/initializers/WidgetInitializerRegistry'
 import { SelectWidgetInitializer } from '@/architecture/presentation/widgets/initializers/SelectWidgetInitializer'
+import { getWidgetOptionColors } from '@/utils/widgetOptionColors'
 import type { SelectOptionConfig, SelectWidgetConfig } from '@/core/types/widget-configs'
 import type { SelectOptionItem } from './selectWidgetTypes'
 
@@ -190,7 +191,7 @@ const staticOptions = computed<SelectOptionItem[]>(() => {
  * options_colors 数组与 staticOptions 数组的索引对齐，通过索引获取对应选项的颜色
  */
 const optionColors = computed(() => {
-  return widgetConfig.value.options_colors || []
+  return getWidgetOptionColors(widgetConfig.value)
 })
 
 /**

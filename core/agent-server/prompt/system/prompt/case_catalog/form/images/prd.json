@@ -1,0 +1,109 @@
+{
+  "kind": "agent_app_prd",
+  "schema_version": "prd.v2",
+  "project": {
+    "name": "图片工具",
+    "code": "image_tool",
+    "summary": "上传图片后完成格式转换、尺寸调整和颜色分析。"
+  },
+  "forms": [
+    {
+      "name": "图片格式转换",
+      "desc": "上传图片并转换为指定格式，返回转换后的图片附件。",
+      "request_fields": [
+        {
+          "name": "上传图片",
+          "widget": "files",
+          "required": true,
+          "desc": "上传图片文件，支持多个文件批量转换。"
+        },
+        {
+          "name": "目标格式",
+          "widget": "select",
+          "required": true,
+          "desc": "可选 jpeg、png、gif、bmp、tiff，默认 png。"
+        }
+      ],
+      "response_fields": [
+        {
+          "name": "转换后的图片",
+          "widget": "files",
+          "required": false,
+          "desc": "返回转换后的图片附件列表。"
+        },
+        {
+          "name": "转换统计",
+          "widget": "text_area",
+          "required": false,
+          "desc": "展示成功数量、失败数量和失败原因。"
+        }
+      ],
+      "example": {
+        "request": {
+          "上传图片": "logo.jpg",
+          "目标格式": "png"
+        },
+        "response": {
+          "转换后的图片": "logo.png",
+          "转换统计": "成功转换 1 张图片。"
+        }
+      }
+    },
+    {
+      "name": "图片颜色提取",
+      "desc": "上传图片后提取主要颜色和占比。",
+      "request_fields": [
+        {
+          "name": "上传图片",
+          "widget": "files",
+          "required": true,
+          "desc": "上传 1 张图片。"
+        },
+        {
+          "name": "提取颜色数量",
+          "widget": "number",
+          "required": false,
+          "desc": "默认提取 5 个颜色，0 表示返回全部颜色。"
+        }
+      ],
+      "response_fields": [
+        {
+          "name": "颜色列表",
+          "widget": "table",
+          "required": false,
+          "desc": "展示颜色值、RGB 值和占比。"
+        },
+        {
+          "name": "处理统计",
+          "widget": "text_area",
+          "required": false,
+          "desc": "展示图片尺寸和颜色提取结果。"
+        }
+      ],
+      "example": {
+        "request": {
+          "上传图片": "banner.png",
+          "提取颜色数量": 5
+        },
+        "response": {
+          "颜色列表": "颜色值 #409EFF，占比 32%",
+          "处理统计": "成功提取 5 个主要颜色。"
+        }
+      }
+    }
+  ],
+  "rules": [
+    "图片处理默认使用运行时镜像内的 ImageMagick 能力。",
+    "批量处理时每个输出文件都写入运行时输出目录。"
+  ],
+  "workflow": [
+    {
+      "type": "form",
+      "ref": "图片格式转换"
+    },
+    {
+      "type": "form",
+      "ref": "图片颜色提取"
+    }
+  ]
+}

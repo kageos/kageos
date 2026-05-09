@@ -15,6 +15,8 @@ type AgentChatSession struct {
 	Title             string `gorm:"type:varchar(255);comment:会话标题" json:"title"`
 	ModeCode          string `gorm:"type:varchar(32);not null;default:'dev';index;comment:工作台模式代码" json:"mode_code"`
 	Status            string `gorm:"type:varchar(32);not null;default:'active';index;comment:会话状态(active/generating/done)" json:"status"`
+	RoleID            string `gorm:"type:varchar(64);index;comment:当前工作台角色ID，如 product_manager/app_developer" json:"role_id"`
+	RoleDisplayName   string `gorm:"type:varchar(64);comment:当前工作台角色展示名称，如 产品经理/应用开发工程师" json:"role_display_name"`
 	ParentSessionID   string `gorm:"type:varchar(64);index;comment:阶段交接来源会话ID" json:"parent_session_id"`
 	HandoffKind       string `gorm:"type:varchar(64);index;comment:阶段交接产物类型" json:"handoff_kind"`
 	HandoffTargetRole string `gorm:"type:varchar(64);comment:阶段交接目标身份" json:"handoff_target_role"`

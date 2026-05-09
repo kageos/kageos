@@ -98,6 +98,29 @@ func TestPromptDocCandidatePaths_DisablesLegacyWorkspaceSOP(t *testing.T) {
 	}
 }
 
+func TestPromptDocCandidatePaths_DisablesRetiredWorkflowSOP(t *testing.T) {
+	retiredPath := func(leaf string) string {
+		return "/system/prompt/" + retiredWorkflowPromptPackageCode + "/" + strings.TrimPrefix(leaf, "/")
+	}
+	for _, path := range []string{
+		retiredPath("app-plan"),
+		retiredPath("app-create"),
+		retiredPath("modify/index"),
+		retiredPath("modify/bugfix"),
+	} {
+		if IsPromptDocPath(path) {
+			t.Fatalf("retired workflow SOP should not be treated as prompt doc path: %s", path)
+		}
+		if got := PromptDocCandidatePaths(path); len(got) != 0 {
+			t.Fatalf("retired workflow SOP should have no candidates: path=%s got=%v", path, got)
+		}
+		name, content := GetPromptDocContent(nil, path)
+		if name != "" || content != "" {
+			t.Fatalf("retired workflow SOP should be unavailable: path=%s name=%q content=%q", path, name, content)
+		}
+	}
+}
+
 func TestLeanPromptDocsMoveRedundantSDKTaskPacksOutOfSeed(t *testing.T) {
 	for _, path := range []string{
 		"/system/prompt/sdk/form-submit-basic",
@@ -112,7 +135,7 @@ func TestLeanPromptDocsMoveRedundantSDKTaskPacksOutOfSeed(t *testing.T) {
 		"/system/prompt/sdk/platform-api-reference",
 		"/system/prompt/platform-function-architecture",
 		"/system/prompt/platform-cross-cutting-capabilities",
-		"/system/prompt/intents/publish-hub",
+		"/system/prompt/" + retiredWorkflowPromptPackageCode + "/publish-hub",
 		"/system/prompt/mode/dev/first_assistant",
 		"/system/prompt/mode/dev/readme",
 	} {
@@ -132,6 +155,7 @@ func TestLeanPromptDocsMoveRedundantSDKTaskPacksOutOfSeed(t *testing.T) {
 		"BuildFunctionUrlWithText",
 		"OnSelectFuzzy",
 		"type:files",
+		"thumbnail:true;list_preview:true",
 		"hide:\"create,update\"",
 	} {
 		if !strings.Contains(sdkContent, needle) {
@@ -140,65 +164,77 @@ func TestLeanPromptDocsMoveRedundantSDKTaskPacksOutOfSeed(t *testing.T) {
 	}
 }
 
-func TestAppPlanSOPRequiresPRDTablesAndConfirmation(t *testing.T) {
-	_, content := GetPromptDocContent(nil, "/system/prompt/intents/app-plan")
+func TestProductManagerRoleRequiresPRDTablesAndConfirmation(t *testing.T) {
+	_, content := GetPromptDocContent(nil, "/system/prompt/roles/product-manager")
 	for _, needle := range []string{
-		"应用设计 SOP",
-		"`write_prd` 必须包含",
+		"产品经理 product_manager",
+		"write_prd",
 		"必须调用 `write_prd`",
-		"不要只发纯文本 PRD",
-		"「确认 PRD」按钮",
-		"目录确认",
-		"models 写法",
-		"只描述“用户看到什么、怎么填、在哪些界面展示”",
-		"每个字段只写 `name`、`widget`、`validate`、`hide`、`description`",
-		"不需要列出 `ID`、`CreatedAt`、`UpdatedAt`、`DeletedAt`",
-		"Table 写法",
-		"Table 是 Table",
-		"Table Request 是搜索/筛选请求",
-		"列表模式",
-		"用户可见预览只展示业务列表",
-		"Form 写法",
-		"必须明确 Request 和 Response",
-		"请求（表单字段五列：字段 | 类型 | 必填 | 默认值 | 说明）",
-		"支付记录表（cashier_payment_record_list.table）",
-		"一个 Chart 行就是一个 `.chart` 路由",
-		"Chart 也必须明确 Request 和 Response",
-		"是否创建新目录",
-		"确认后我再进入开发阶段",
-		"禁止调用 `create_directory`、`write_go_file`、`build_workspace`",
+		"`project/tables/forms/charts/workflow/rules`",
+		"`search_fields` 只描述搜索参数",
+		"`创建开始时间`、`创建结束时间`",
+		"按记录创建时间范围查询",
+		"用户筛选字段",
+		"`handlers` 只表达表格行操作能力",
+		"禁止输出旧结构",
+		"`models/functions/route/method/order/columns/sample_rows/preview_data/acceptance_cases/confirmation`",
+		"禁止调用 `create_directory`",
+		"app_developer",
 	} {
 		if !strings.Contains(content, needle) {
-			t.Fatalf("app.plan SOP should contain %q, got: %q", needle, content)
+			t.Fatalf("product_manager role doc should contain %q, got: %q", needle, content)
 		}
 	}
 }
 
-func TestAppCreateSOPExecutesConfirmedPRD(t *testing.T) {
-	_, content := GetPromptDocContent(nil, "/system/prompt/intents/app-create")
+func TestAppDeveloperRoleExecutesConfirmedPRD(t *testing.T) {
+	_, content := GetPromptDocContent(nil, "/system/prompt/roles/app-developer")
 	for _, needle := range []string{
-		"应用开发 SOP",
-		"已确认的 PRD artifact",
-		"不再重新设计 PRD",
-		"不再二次询问确认",
-		"如果用户只是提出新建系统但还没有确认 PRD，应切换到 `app.plan`",
-		"把 PRD JSON 作为唯一需求源",
-		"不要调用 `write_prd`",
-		"根据 `models.fields` 自动生成 Go struct",
-		"不要要求 PRD 提供字段 code、Go 类型或 `go_source`",
-		"`models[].fields` 只要求 `name/widget/validate/hide/description`",
-		"Table 有 Request",
-		"Form 有 Request 和 Response",
-		"Chart 有 Request 和 Response",
+		"应用开发工程师 app_developer",
+		"只按已确认 PRD",
+		"不重新设计 PRD",
+		"不再次询问确认",
+		"PRD JSON 作为唯一需求源",
+		"tables.fields",
+		"按 `workflow` 数组顺序生成 Table/Form/Chart",
+		"禁止调用 `write_prd`",
 		"写代码前必须先读取 1 到多个与当前需求匹配的案例",
 		"/system/prompt/case_catalog/table/ticket",
 		"/system/prompt/case_catalog/form_table_chart/cashier",
-		"/system/prompt/case_catalog/form/excelorcsv",
-		"/system/prompt/intents/modify/chart-metric",
-		"/system/prompt/sdk/reference/runtime-capabilities",
+		"qa_engineer",
+		"build_engineer",
 	} {
 		if !strings.Contains(content, needle) {
-			t.Fatalf("app.create SOP should contain %q, got: %q", needle, content)
+			t.Fatalf("app_developer role doc should contain %q, got: %q", needle, content)
+		}
+	}
+}
+
+func TestCaseCatalogDocsPreferPRDJSONV2(t *testing.T) {
+	for _, docPath := range []string{
+		"/system/prompt/case_catalog/form/pdf",
+		"/system/prompt/case_catalog/formandtable/vote",
+		"/system/prompt/case_catalog/tables/meeting",
+	} {
+		_, content := GetPromptDocContent(nil, docPath)
+		for _, needle := range []string{
+			"## 结构化 PRD JSON",
+			`"schema_version": "prd.v2"`,
+			`"workflow"`,
+		} {
+			if !strings.Contains(content, needle) {
+				t.Fatalf("%s should include PRD v2 JSON content %q, got: %q", docPath, needle, content)
+			}
+		}
+		for _, forbidden := range []string{
+			"旧版 PRD",
+			"sample_rows",
+			"preview_data",
+			"acceptance_cases",
+		} {
+			if strings.Contains(content, forbidden) {
+				t.Fatalf("%s should not expose legacy PRD text %q, got: %q", docPath, forbidden, content)
+			}
 		}
 	}
 }

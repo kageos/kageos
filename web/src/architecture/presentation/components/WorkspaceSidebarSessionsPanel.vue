@@ -208,6 +208,10 @@
           <span class="right-session-card-title">{{ session.title || '未命名会话' }}</span>
         </div>
 
+        <div v-if="session.role_display_name" class="right-session-role">
+          {{ session.role_display_name }}
+        </div>
+
         <div v-if="session.user" class="right-session-card-user">
           <UserDisplay :username="session.user" mode="simple" size="small" />
         </div>
@@ -600,6 +604,22 @@ function formatTimestamp(value?: string): string {
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
+}
+
+.right-session-role {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px 7px;
+  margin: 0 0 8px;
+  border: 1px solid rgba(var(--el-color-primary-rgb), 0.18);
+  border-radius: 6px;
+  background: rgba(var(--el-color-primary-rgb), 0.08);
+  color: var(--el-color-primary);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 .scheduled-card-expand {

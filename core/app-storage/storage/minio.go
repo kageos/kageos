@@ -45,11 +45,11 @@ func NewMinIOStorage(cfg Config) (*MinIOStorage, error) {
 	// cdn_domain 可以是 Nginx 反向代理的域名，如 "your-domain.com"
 	// PresignedPutObject 是纯签名计算，不发起网络请求
 	var externalClient *minio.Client
-	browserEndpoint := extractHostFromCDN(cfg.GetCDNDomain())
-	if browserEndpoint != "" && browserEndpoint != cfg.GetEndpoint() {
+	browserEndpoint, browserUseSSL, hasBrowserEndpoint := endpointFromCDN(cfg.GetCDNDomain(), cfg.GetUseSSL())
+	if hasBrowserEndpoint && (browserEndpoint != cfg.GetEndpoint() || browserUseSSL != cfg.GetUseSSL()) {
 		ec, err := minio.New(browserEndpoint, &minio.Options{
 			Creds:  credentials.NewStaticV4(cfg.GetAccessKey(), cfg.GetSecretKey(), ""),
-			Secure: cfg.GetUseSSL(),
+			Secure: browserUseSSL,
 			Region: cfg.GetRegion(),
 		})
 		if err != nil {
@@ -92,21 +92,20 @@ func NewMinIOStorage(cfg Config) (*MinIOStorage, error) {
 	}, nil
 }
 
-// extractHostFromCDN 从 cdn_domain 中提取主机名（用于创建 MinIO 客户端）
-// 输入: "http://your-domain.com" 或 "your-domain.com" → 输出: "your-domain.com"
-func extractHostFromCDN(cdnDomain string) string {
-	if cdnDomain == "" {
-		return ""
-	}
+// endpointFromCDN 从 cdn_domain 提取 MinIO endpoint，并在带 scheme 时让 presign URL 跟随该 scheme。
+func endpointFromCDN(cdnDomain string, defaultUseSSL bool) (endpoint string, useSSL bool, ok bool) {
 	cdnDomain = strings.TrimSpace(cdnDomain)
+	if cdnDomain == "" {
+		return "", defaultUseSSL, false
+	}
 	if strings.HasPrefix(cdnDomain, "http://") || strings.HasPrefix(cdnDomain, "https://") {
 		parsed, err := url.Parse(cdnDomain)
-		if err != nil {
-			return ""
+		if err != nil || parsed.Host == "" {
+			return "", defaultUseSSL, false
 		}
-		return parsed.Host
+		return parsed.Host, parsed.Scheme == "https", true
 	}
-	return cdnDomain
+	return cdnDomain, defaultUseSSL, true
 }
 
 // GetCDNDomain 获取 CDN 域名
@@ -177,11 +176,13 @@ func (s *MinIOStorage) GenerateUploadCredentials(ctx context.Context, bucket, ke
 		}
 	}
 
-	// 2. 生成内部访问的URL（服务端/SDK使用，用 client 生成 → 直连 MinIO 容器）
+	// 2. 生成内部访问的URL（服务端/SDK使用，用 server_endpoint 生成 → 容器内可达 MinIO）
 	var serverURL string
 	if s.serverEndpoint != "" && s.serverEndpoint != s.endpoint {
-		internalURL, err := s.client.PresignedPutObject(ctx, bucket, key, expire)
-		if err != nil {
+		if s.serverClient == nil {
+			logger.Errorf(ctx, "[MinIOStorage] Server client unavailable for server endpoint %s", s.serverEndpoint)
+			serverURL = externalURL.String()
+		} else if internalURL, err := s.serverClient.PresignedPutObject(ctx, bucket, key, expire); err != nil {
 			logger.Errorf(ctx, "[MinIOStorage] Failed to generate internal upload URL: %v", err)
 			serverURL = externalURL.String()
 		} else {

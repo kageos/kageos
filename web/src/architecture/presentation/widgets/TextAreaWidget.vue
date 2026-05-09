@@ -68,9 +68,10 @@ const widgetConfig = computed(() => {
   return (props.field.widget?.config || {}) as TextAreaWidgetConfig
 })
 
-// 行数（从配置中获取，注意：TextAreaWidgetConfig 中没有 rows 字段，使用默认值）
+// 行数（从配置中获取）
 const rows = computed(() => {
-  return 4
+  const configuredRows = Number(widgetConfig.value.rows)
+  return Number.isFinite(configuredRows) && configuredRows > 0 ? configuredRows : 4
 })
 
 // 最大长度（从验证规则或配置中获取，注意：TextAreaWidgetConfig 中没有 maxlength 字段）

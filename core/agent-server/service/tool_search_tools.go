@@ -126,7 +126,7 @@ func runSearchToolsTool(ctx context.Context, registry *ToolRegistry, args search
 		if keywordRaw == "" {
 			return "当前 system 用户下暂无已注册函数；可传 keyword 按关键词搜索。", false
 		}
-		return "未匹配到任何可用工具（内置工具或 system 用户下已注册函数）。如果用户要新建长期应用，先 change_role 到 app.plan，输出 PRD 并等用户确认后再进入 app.create 写代码。", false
+		return "未匹配到任何可用工具（内置工具或 system 用户下已注册函数）。如果用户要新建长期应用，先 change_role 到产品经理（product_manager），输出 PRD 并等用户确认后再进入应用开发工程师（app_developer）写代码。", false
 	}
 	return formatSearchToolsOutput(keywordRaw, matchedTools, functions, requestOutput), false
 }

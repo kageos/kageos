@@ -8,31 +8,9 @@
 
 ---
 
-## 二、旧版 PRD 要点（仅实现参考，不作为 app.plan 输出格式）
+## 二、结构化 PRD
 
-以 **Excel 转 JSON**（office_excel_to_json.form）为例，其余 POST 类似：请求为 files + 可选参数，响应为 text_area 或 table。
-
-### Excel 转 JSON（office_excel_to_json.form，POST）
-
-**请求**（表单字段五列：字段 | 类型 | 必填 | 默认值 | 说明）
-
-| 字段           | 类型     | 必填 | 默认值 | 说明 |
-|----------------|----------|------|--------|------|
-| 上传 Excel 文件 | 文件上传 | ✓   | —      | .xlsx/.xls，最大 50MB，1 个 |
-| 工作表名称     | 文本输入 | ✗   | —      | 留空则第一个工作表 |
-| 使用第一行作为键名 | 开关   | ✗   | true   | — |
-| 跳过空行       | 开关     | ✗   | true   | — |
-
-**响应**
-
-| 字段           | 类型     | 说明 |
-|----------------|----------|------|
-| JSON 文本内容  | 多行文本 | 转换后的 JSON |
-| 转换统计       | 多行文本 | 行数、列数等统计 |
-
-**说明**：office_csv_to_excel、office_excel_to_csv、office_excel_fill_column 等均为「请求 files + 可选参数 → 响应 text_area 或 files」，结构类似。
-
----
+本案例的产品经理输出样例统一维护在同目录 `prd.json`，使用 PRD v2：`project/tables/forms/charts/workflow/rules`。本 Markdown 只保留实现参考、SDK 写法和注意事项，不再承载旧 PRD 表格。
 
 ## 三、文件与路由
 

@@ -84,7 +84,14 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 	if bucket == "" {
 		bucket = s.storageService.GetBucketName()
 	}
-	creds, key, expire, err := s.storageService.GenerateUploadToken(ctx, bucket, router, req.FileName, req.ContentType, req.FileSize, uploadSource)
+	var creds *storage.UploadCredentials
+	var key string
+	var expire time.Time
+	if req.PreviewForKey != "" {
+		creds, key, expire, err = s.storageService.GeneratePreviewUploadToken(ctx, bucket, req.PreviewForKey, req.FileName, req.ContentType, req.FileSize, uploadSource)
+	} else {
+		creds, key, expire, err = s.storageService.GenerateUploadToken(ctx, bucket, router, req.FileName, req.ContentType, req.FileSize, uploadSource)
+	}
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -170,7 +177,15 @@ func (s *Storage) BatchGetUploadToken(c *gin.Context) {
 		if bucket == "" {
 			bucket = s.storageService.GetBucketName()
 		}
-		creds, key, expire, err := s.storageService.GenerateUploadToken(ctx, bucket, router, fileReq.FileName, fileReq.ContentType, fileReq.FileSize, uploadSource)
+		var creds *storage.UploadCredentials
+		var key string
+		var expire time.Time
+		var err error
+		if fileReq.PreviewForKey != "" {
+			creds, key, expire, err = s.storageService.GeneratePreviewUploadToken(ctx, bucket, fileReq.PreviewForKey, fileReq.FileName, fileReq.ContentType, fileReq.FileSize, uploadSource)
+		} else {
+			creds, key, expire, err = s.storageService.GenerateUploadToken(ctx, bucket, router, fileReq.FileName, fileReq.ContentType, fileReq.FileSize, uploadSource)
+		}
 		if err != nil {
 			// 单个文件失败，记录错误但继续处理其他文件
 			logger.Errorf(c, "Failed to generate upload token for file %s: %v", fileReq.FileName, err)
@@ -225,6 +240,7 @@ func (s *Storage) UploadComplete(c *gin.Context) {
 	var downloadURL string
 	var serverDownloadURL string
 	var expireStr string
+	var thumbnailURL string
 	bucket := req.Bucket
 	if bucket == "" {
 		bucket = s.storageService.GetBucketName()
@@ -244,6 +260,8 @@ func (s *Storage) UploadComplete(c *gin.Context) {
 			req.FileSize,
 			req.ContentType,
 			req.Hash,
+			req.ThumbnailRef,
+			req.PreviewKind,
 			requestUser,
 		); err != nil {
 			logger.Errorf(c, "Failed to record upload to database: %v (file_key: %s)", err, req.Key)
@@ -259,6 +277,7 @@ func (s *Storage) UploadComplete(c *gin.Context) {
 			downloadURL = ""
 			serverDownloadURL = ""
 		}
+		thumbnailURL = s.browserURLForRef(ctx, req.ThumbnailRef)
 
 		// 获取过期时间
 		if !expire.IsZero() {
@@ -286,6 +305,9 @@ func (s *Storage) UploadComplete(c *gin.Context) {
 		FileSize:          req.FileSize,
 		ContentType:       req.ContentType,
 		Hash:              req.Hash,
+		ThumbnailRef:      req.ThumbnailRef,
+		ThumbnailURL:      thumbnailURL,
+		PreviewKind:       req.PreviewKind,
 		Storage:           s.storageService.GetStorageType(),
 		DownloadURL:       downloadURL,
 		ServerDownloadURL: serverDownloadURL,
@@ -340,6 +362,8 @@ func (s *Storage) BatchUploadComplete(c *gin.Context) {
 				item.FileSize,
 				item.ContentType,
 				item.Hash,
+				item.ThumbnailRef,
+				item.PreviewKind,
 				requestUser,
 			); err != nil {
 				logger.Errorf(c, "Failed to record upload for key %s: %v", item.Key, err)
@@ -358,6 +382,7 @@ func (s *Storage) BatchUploadComplete(c *gin.Context) {
 				downloadURL = ""
 				serverDownloadURL = ""
 			}
+			thumbnailURL := s.browserURLForRef(ctx, item.ThumbnailRef)
 
 			logger.Infof(c, "Upload complete: key=%s, success=true", item.Key)
 
@@ -370,6 +395,9 @@ func (s *Storage) BatchUploadComplete(c *gin.Context) {
 				Description:       item.Description,
 				ServerDownloadURL: serverDownloadURL, // ✨ 内部访问的下载地址（服务端使用）
 				Hash:              item.Hash,         // ✨ 文件hash（用于文件缓存去重）
+				ThumbnailRef:      item.ThumbnailRef,
+				ThumbnailURL:      thumbnailURL,
+				PreviewKind:       item.PreviewKind,
 			})
 		} else {
 			// 上传失败，不记录数据库，只记录日志
@@ -387,6 +415,23 @@ func (s *Storage) BatchUploadComplete(c *gin.Context) {
 	response.OkWithData(c, dto.BatchUploadCompleteResp{
 		Results: results,
 	})
+}
+
+func (s *Storage) browserURLForRef(ctx context.Context, ref string) string {
+	if ref == "" {
+		return ""
+	}
+	bucket, key, err := s.storageService.ParseFileRef(ref)
+	if err != nil {
+		logger.Warnf(ctx, "Failed to parse file preview ref %q: %v", ref, err)
+		return ""
+	}
+	browserURL, _, _, err := s.storageService.GetFileURLsInBucket(ctx, bucket, key)
+	if err != nil {
+		logger.Warnf(ctx, "Failed to generate file preview URL for ref %q: %v", ref, err)
+		return ""
+	}
+	return browserURL
 }
 
 // ResolveFileRefs 批量解析文件引用，返回元数据和直连 URL。

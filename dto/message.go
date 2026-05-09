@@ -62,21 +62,30 @@ type MessageSendResp struct {
 
 // MessageInboxItem 站内信列表/详情项。
 type MessageInboxItem struct {
-	ID                 int64      `json:"id"`
-	RecipientID        int64      `json:"recipient_id"`
-	From               string     `json:"from"`
-	RequestUser        string     `json:"request_user"`
-	DepartmentFullPath string     `json:"department_full_path"`
-	FullCodePath       string     `json:"full_code_path"`
-	TraceID            string     `json:"trace_id"`
-	ClientSource       string     `json:"client_source"`
-	SourceType         string     `json:"source_type"`
-	SourceRef          string     `json:"source_ref"`
-	Title              string     `json:"title"`
-	Content            string     `json:"content"`
-	ContentType        string     `json:"content_type"`
-	ReadAt             *time.Time `json:"read_at"`
-	CreatedAt          time.Time  `json:"created_at"`
+	ID                 int64                 `json:"id"`
+	RecipientID        int64                 `json:"recipient_id"`
+	From               string                `json:"from"`
+	RequestUser        string                `json:"request_user"`
+	DepartmentFullPath string                `json:"department_full_path"`
+	FullCodePath       string                `json:"full_code_path"`
+	TraceID            string                `json:"trace_id"`
+	ClientSource       string                `json:"client_source"`
+	SourceType         string                `json:"source_type"`
+	SourceRef          string                `json:"source_ref"`
+	Title              string                `json:"title"`
+	Content            string                `json:"content"`
+	ContentType        string                `json:"content_type"`
+	ReadAt             *time.Time            `json:"read_at"`
+	CreatedAt          time.Time             `json:"created_at"`
+	SourceDisplay      *MessageSourceDisplay `json:"source_display,omitempty"`
+}
+
+// MessageSourceDisplay 是消息来源在服务树中的展示信息。
+type MessageSourceDisplay struct {
+	Name         string `json:"name"`
+	Type         string `json:"type"`
+	TemplateType string `json:"template_type,omitempty"`
+	FullCodePath string `json:"full_code_path,omitempty"`
 }
 
 // MessageInboxListResp 站内信列表响应。
