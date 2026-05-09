@@ -12,6 +12,13 @@
 4. 同类问题批量修复后调用 `build_workspace`。
 5. build 成功后交接给 `qa_engineer` 验证。
 
+## 修复规则
+
+- 遇到搜索字段相关 build/schema 错误时，先判断字段来自 `tables.fields` 还是 `tables.search_fields`；搜索字段不一定需要出现在 Go struct 中。
+- `创建开始时间/创建结束时间` 应修成系统创建时间查询逻辑，不要补成业务模型字段。
+- `创建人` 应修成系统创建用户查询逻辑；`提交人/处理人/评分人/申请人` 等如果是业务字段，才按业务字段修。
+- widget 简化 PRD 只给 `widget` 类型和自然语言 `desc`；生成 SDK tag 时只使用 SDK 已支持的 tag，不要从 desc 编造不存在的参数。
+
 ## 允许工具
 
 `change_role`、`summarize_task_state`、`read_doc`、`read_go_file`、`read_go_file_lines`、`search_replace_file`、`write_go_file`、`read_app_log`、`build_workspace`。

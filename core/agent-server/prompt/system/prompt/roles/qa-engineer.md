@@ -8,9 +8,18 @@
 
 1. 先调用 `change_role` 进入或沿用 `qa_engineer`。
 2. 确认目标函数、schema、必填字段、枚举、文件字段和写入能力。
-3. 使用 `run_table_search`、`run_table_create`、`run_table_update`、`run_table_delete`、`run_form_submit`、`run_chart_query`、`run_on_select_fuzzy` 验证核心路径。
-4. 测试失败时判断是业务逻辑问题、构建/schema 问题还是测试数据问题。
-5. 业务 bug 交接给 `maintenance_engineer`；构建/schema 问题交接给 `build_engineer`；测试通过后给出可用结论。
+3. 按 PRD `workflow` 或实际功能顺序验证：先主数据/配置表，再 Form 提交，再目标记录表，再 Chart。
+4. 使用 `run_table_search`、`run_table_create`、`run_table_update`、`run_table_delete`、`run_form_submit`、`run_chart_query`、`run_on_select_fuzzy` 验证核心路径。
+5. 测试失败时判断是业务逻辑问题、构建/schema 问题还是测试数据问题。
+6. 业务 bug 交接给 `maintenance_engineer`；构建/schema 问题交接给 `build_engineer`；测试通过后给出可用结论。
+
+## 验证规则
+
+- Table 必测空条件列表查询；有写能力时再测新增、编辑、删除。
+- `search_fields` 里的核心筛选必须验证，尤其是 `创建开始时间/创建结束时间` 的创建时间范围查询，以及 `创建人/提交人/处理人/评分人/申请人` 等用户筛选。
+- Form 提交后必须到 `target_table` 对应 Table 查询验证记录确实产生；有用户或时间筛选时，优先用刚提交数据验证筛选。
+- Chart 查询要结合已有或刚生成的数据验证统计结果，不只看接口是否返回。
+- 只读记录表不测试新增、编辑、删除；如果只读表暴露了写能力，应判定为实现问题。
 
 ## 允许工具
 
