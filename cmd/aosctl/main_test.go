@@ -92,14 +92,19 @@ func TestRenderBundledConfig(t *testing.T) {
 		t.Fatalf("generated app-server config should include scheduled task database, got:\n%s", appServerConfig)
 	}
 
+	appRuntimeConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "app-runtime.yaml"))
+	if !strings.Contains(appRuntimeConfig, `app_startup_notification: 300`) {
+		t.Fatalf("generated app-runtime config should include startup notification timeout, got:\n%s", appRuntimeConfig)
+	}
+
 	globalConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "global.yaml"))
 	if !strings.Contains(globalConfig, `base_url: "http://127.0.0.1:9108/timer/api/v1"`) {
 		t.Fatalf("generated global config should include timer scheduler base url, got:\n%s", globalConfig)
 	}
 	for _, want := range []string{
 		`nats_url: "nats://aos:`,
-		`@host.containers.internal:4222"`,
-		`gateway_url: "http://host.containers.internal:9090"`,
+		`@127.0.0.1:4222"`,
+		`gateway_url: "http://127.0.0.1:9090"`,
 	} {
 		if !strings.Contains(globalConfig, want) {
 			t.Fatalf("generated global SDK config missing %q, got:\n%s", want, globalConfig)
@@ -120,7 +125,7 @@ func TestRenderBundledConfig(t *testing.T) {
 	}
 
 	appStorageConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "app-storage.yaml"))
-	if !strings.Contains(appStorageConfig, `server_endpoint: "host.containers.internal:9000"`) {
+	if !strings.Contains(appStorageConfig, `server_endpoint: "127.0.0.1:9000"`) {
 		t.Fatalf("generated app-storage config should include container MinIO endpoint, got:\n%s", appStorageConfig)
 	}
 

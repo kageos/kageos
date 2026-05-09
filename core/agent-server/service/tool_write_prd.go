@@ -451,7 +451,6 @@ func validateWritePRDTable(prefix string, table writePRDTable) []string {
 	}
 	issues = append(issues, validateWritePRDFields(prefix+".fields", table.Fields)...)
 	issues = append(issues, validateWritePRDFields(prefix+".search_fields", table.SearchFields)...)
-	issues = append(issues, validateWritePRDSearchFieldsAlign(prefix+".search_fields", table.Fields, table.SearchFields)...)
 	issues = append(issues, validateWritePRDHandlers(prefix+".handlers", table.Handlers)...)
 	if len(table.Examples) == 0 {
 		issues = append(issues, prefix+".examples 至少需要 1 条示例数据")
@@ -636,78 +635,12 @@ func validateWritePRDFields(prefix string, fields []writePRDField) []string {
 			issues = append(issues, fieldPrefix+".widget 只能写简单组件类型，不要写 widget tag")
 		} else if !isSupportedWritePRDWidget(field.Widget) {
 			issues = append(issues, fieldPrefix+".widget 不支持："+field.Widget)
-		} else if isWritePRDUserSemanticField(field.Name) && normalizeWritePRDWidget(field.Widget) != "user" {
-			issues = append(issues, fieldPrefix+".widget 用户语义字段必须使用 user 组件："+field.Name)
 		}
 		if field.Desc == "" {
 			issues = append(issues, fieldPrefix+".desc 不能为空；选项、默认值、范围、数据来源、计算规则都写进 desc")
 		}
 	}
 	return issues
-}
-
-func validateWritePRDSearchFieldsAlign(prefix string, fields []writePRDField, searchFields []writePRDField) []string {
-	var issues []string
-	fieldWidgets := make(map[string]string, len(fields))
-	for _, field := range fields {
-		if field.Name == "" {
-			continue
-		}
-		fieldWidgets[field.Name] = normalizeWritePRDWidget(field.Widget)
-	}
-	for idx, field := range searchFields {
-		if field.Name == "" {
-			continue
-		}
-		fieldName, fieldWidget, ok := writePRDSearchFieldBase(field.Name, fieldWidgets)
-		if !ok {
-			issues = append(issues, fmt.Sprintf("%s[%d].name 必须对齐 fields 中的字段；同名筛选直接用字段名，时间范围用 xxx开始时间/xxx结束时间 对齐 fields 中的 xxx时间 字段：%s", prefix, idx, field.Name))
-			continue
-		}
-		searchWidget := normalizeWritePRDWidget(field.Widget)
-		if searchWidget != "" && fieldWidget != "" && searchWidget != fieldWidget {
-			issues = append(issues, fmt.Sprintf("%s[%d].widget 必须与 fields 中「%s」字段的 widget 对齐：got %s, want %s", prefix, idx, fieldName, searchWidget, fieldWidget))
-		}
-	}
-	return issues
-}
-
-func writePRDSearchFieldBase(searchName string, fieldWidgets map[string]string) (string, string, bool) {
-	searchName = strings.TrimSpace(searchName)
-	if widget, ok := fieldWidgets[searchName]; ok {
-		return searchName, widget, true
-	}
-	for _, suffix := range []string{"开始时间", "结束时间"} {
-		if !strings.HasSuffix(searchName, suffix) {
-			continue
-		}
-		base := strings.TrimSuffix(searchName, suffix)
-		if base == "" {
-			continue
-		}
-		fieldName := base + "时间"
-		if widget, ok := fieldWidgets[fieldName]; ok {
-			return fieldName, widget, true
-		}
-	}
-	return "", "", false
-}
-
-func normalizeWritePRDWidget(widget string) string {
-	widget = strings.ToLower(strings.TrimSpace(widget))
-	if widget == "textarea" {
-		return "text_area"
-	}
-	return widget
-}
-
-func isWritePRDUserSemanticField(name string) bool {
-	switch strings.TrimSpace(name) {
-	case "创建人", "提交人", "处理人", "评分人", "申请人", "审核人", "负责人", "预约人", "投票人", "发布人", "操作人", "办理人":
-		return true
-	default:
-		return false
-	}
 }
 
 func validateWritePRDHandlers(prefix string, handlers []string) []string {

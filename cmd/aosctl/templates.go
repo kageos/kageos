@@ -312,6 +312,7 @@ runtime:
 timeouts:
   app_server_request: 30
   container_startup: 2
+  app_startup_notification: 300
   container_cleanup: 10
 
 container:

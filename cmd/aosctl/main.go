@@ -1024,14 +1024,14 @@ func appendSDKEndpointChecks(checks []layerCheck, rt RuntimeConfig) []layerCheck
 		Layer:  layerApps,
 		Name:   "sdk gateway endpoint",
 		Target: rt.SDKGatewayURL,
-		Fn:     func() error { return requireContains(rt.SDKGatewayURL, "host.containers.internal") },
+		Fn:     func() error { return requireContains(rt.SDKGatewayURL, "127.0.0.1") },
 	})
 	if rt.NATS.Mode == "bundled" {
 		checks = append(checks, layerCheck{
 			Layer:  layerApps,
 			Name:   "sdk nats endpoint",
 			Target: redactURLCredentials(rt.SDKNATSURL),
-			Fn:     func() error { return requireContains(rt.SDKNATSURL, "host.containers.internal") },
+			Fn:     func() error { return requireContains(rt.SDKNATSURL, "127.0.0.1") },
 		})
 	}
 	if rt.MinIO.Mode == "bundled" {
@@ -1039,7 +1039,7 @@ func appendSDKEndpointChecks(checks []layerCheck, rt RuntimeConfig) []layerCheck
 			Layer:  layerApps,
 			Name:   "sdk minio endpoint",
 			Target: rt.SDKMinIOEndpoint,
-			Fn:     func() error { return requireContains(rt.SDKMinIOEndpoint, "host.containers.internal") },
+			Fn:     func() error { return requireContains(rt.SDKMinIOEndpoint, "127.0.0.1") },
 		})
 	}
 	return checks
@@ -1435,14 +1435,14 @@ func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 	rt.NATSHostForMain, rt.NATSPortForMain = natsHostPort(cfg)
 	rt.NATSURL = natsURLForMain(cfg)
 	rt.SDKNATSURL = natsURLForSDK(cfg)
-	rt.SDKGatewayURL = "http://host.containers.internal:9090"
+	rt.SDKGatewayURL = "http://127.0.0.1:9090"
 
 	rt.MinIOEndpoint = cfg.MinIO.Endpoint
 	rt.SDKMinIOEndpoint = cfg.MinIO.Endpoint
 	rt.BackupMinIOAddress = cfg.MinIO.Endpoint
 	if cfg.MinIO.Mode == "bundled" {
 		rt.MinIOEndpoint = "127.0.0.1:9000"
-		rt.SDKMinIOEndpoint = "host.containers.internal:9000"
+		rt.SDKMinIOEndpoint = "127.0.0.1:9000"
 		rt.BackupMinIOAddress = "minio:9000"
 	}
 	minioHost, minioPort, err := splitHostPortDefault(rt.MinIOEndpoint, 9000)
@@ -1823,7 +1823,7 @@ func natsURLForSDK(cfg Config) string {
 		return cfg.NATS.URL
 	}
 	if cfg.NATS.Mode == "bundled" {
-		return buildNATSURL(cfg, "host.containers.internal", 4222)
+		return buildNATSURL(cfg, "127.0.0.1", 4222)
 	}
 	return buildNATSURL(cfg, cfg.NATS.Host, cfg.NATS.Port)
 }

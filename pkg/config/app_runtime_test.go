@@ -57,3 +57,15 @@ func TestAppRuntimeValidateRejectsUnsupportedContainerRuntime(t *testing.T) {
 		t.Fatal("Validate() error = nil, want unsupported runtime error")
 	}
 }
+
+func TestAppRuntimeStartupNotificationTimeoutDefault(t *testing.T) {
+	cfg := &AppRuntimeConfig{}
+	if got := cfg.GetAppStartupNotificationTimeout(); got != 300 {
+		t.Fatalf("GetAppStartupNotificationTimeout() = %d, want 300", got)
+	}
+
+	cfg.Timeouts.AppStartupNotification = 600
+	if got := cfg.GetAppStartupNotificationTimeout(); got != 600 {
+		t.Fatalf("GetAppStartupNotificationTimeout() = %d, want 600", got)
+	}
+}

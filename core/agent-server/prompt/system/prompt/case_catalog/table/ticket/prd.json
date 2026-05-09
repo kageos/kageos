@@ -71,20 +71,6 @@
           "widget": "text_area",
           "required": false,
           "desc": "处理过程中的补充说明。"
-        },
-        {
-          "name": "创建人",
-          "widget": "user",
-          "required": false,
-          "hide": "create,update",
-          "desc": "系统记录的工单创建用户。"
-        },
-        {
-          "name": "创建时间",
-          "widget": "datetime",
-          "required": false,
-          "hide": "create,update",
-          "desc": "系统记录的工单创建时间。"
         }
       ],
       "search_fields": [

@@ -1127,8 +1127,8 @@ func (s *AppManageService) StartAppVersion(ctx context.Context, user, app, versi
 		logger.Infof(ctx, "[StartAppVersion] Runtime instance %s started successfully", runtimeName)
 	}
 
-	// 等待启动完成通知（30秒超时）
-	logger.Infof(ctx, "[StartAppVersion] Waiting for startup notification from version %s...", version)
+	startupTimeout := s.appStartupNotificationTimeout()
+	logger.Infof(ctx, "[StartAppVersion] Waiting for startup notification from version %s (timeout: %s)...", version, startupTimeout)
 
 	select {
 	case notification := <-waiterChan:
@@ -1144,10 +1144,17 @@ func (s *AppManageService) StartAppVersion(ctx context.Context, user, app, versi
 		}
 		return fmt.Errorf("app started but status is not running: %s", notification.Status)
 
-	case <-time.After(30 * time.Second):
-		logger.Warnf(ctx, "[StartAppVersion] Timeout waiting for startup notification from version %s", version)
+	case <-time.After(startupTimeout):
+		logger.Warnf(ctx, "[StartAppVersion] Timeout waiting for startup notification from version %s after %s", version, startupTimeout)
 		return fmt.Errorf("timeout waiting for app startup notification")
 	}
+}
+
+func (s *AppManageService) appStartupNotificationTimeout() time.Duration {
+	if s.runtimeConfig == nil {
+		return time.Duration((&appconfig.AppRuntimeConfig{}).GetAppStartupNotificationTimeout()) * time.Second
+	}
+	return time.Duration(s.runtimeConfig.GetAppStartupNotificationTimeout()) * time.Second
 }
 
 type lineRange struct {

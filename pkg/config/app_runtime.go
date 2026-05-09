@@ -80,9 +80,10 @@ const (
 
 // AppRuntimeTimeoutConfig App Runtime 超时配置
 type AppRuntimeTimeoutConfig struct {
-	AppServerRequest int `mapstructure:"app_server_request"` // app-server 请求处理超时时间（秒）
-	ContainerStartup int `mapstructure:"container_startup"`  // 容器启动等待时间（秒）
-	ContainerCleanup int `mapstructure:"container_cleanup"`  // 容器清理等待时间（秒）
+	AppServerRequest       int `mapstructure:"app_server_request"`       // app-server 请求处理超时时间（秒）
+	ContainerStartup       int `mapstructure:"container_startup"`        // 容器启动等待时间（秒）
+	AppStartupNotification int `mapstructure:"app_startup_notification"` // 应用启动通知等待时间（秒）
+	ContainerCleanup       int `mapstructure:"container_cleanup"`        // 容器清理等待时间（秒）
 }
 
 // RuntimeConfig 运行时配置
@@ -252,6 +253,14 @@ func (c *AppRuntimeConfig) GetContainerStartupTimeout() int {
 		return 2 // 默认 2 秒
 	}
 	return c.Timeouts.ContainerStartup
+}
+
+// GetAppStartupNotificationTimeout 获取应用启动通知等待时间
+func (c *AppRuntimeConfig) GetAppStartupNotificationTimeout() int {
+	if c.Timeouts.AppStartupNotification <= 0 {
+		return 300 // 默认 300 秒
+	}
+	return c.Timeouts.AppStartupNotification
 }
 
 // GetContainerCleanupTimeout 获取容器清理等待时间

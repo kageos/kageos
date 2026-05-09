@@ -83,7 +83,7 @@
           "desc": "按投票标题模糊搜索。"
         },
         {
-          "name": "状态",
+          "name": "投票状态",
           "widget": "select",
           "required": false,
           "desc": "按未开始、进行中、已结束筛选。"
