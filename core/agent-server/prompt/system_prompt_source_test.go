@@ -196,6 +196,10 @@ func TestAppDeveloperRoleExecutesConfirmedPRD(t *testing.T) {
 		"不再次询问确认",
 		"PRD JSON 作为唯一需求源",
 		"tables.fields",
+		"tables.search_fields",
+		"不要因为搜索字段自动给 Go struct 增加同名业务列",
+		"`创建开始时间`、`创建结束时间`",
+		"`创建人` 是系统记录创建用户查询",
 		"按 `workflow` 数组顺序生成 Table/Form/Chart",
 		"禁止调用 `write_prd`",
 		"写代码前必须先读取 1 到多个与当前需求匹配的案例",
@@ -206,6 +210,44 @@ func TestAppDeveloperRoleExecutesConfirmedPRD(t *testing.T) {
 	} {
 		if !strings.Contains(content, needle) {
 			t.Fatalf("app_developer role doc should contain %q, got: %q", needle, content)
+		}
+	}
+}
+
+func TestExecutionRolesRetainPRDV2SearchRules(t *testing.T) {
+	for docPath, needles := range map[string][]string{
+		"/system/prompt/roles/qa-engineer": {
+			"测试工程师 qa_engineer",
+			"`search_fields` 里的核心筛选必须验证",
+			"`创建开始时间/创建结束时间`",
+			"`创建人/提交人/处理人/评分人/申请人`",
+			"Form 提交后必须到 `target_table` 对应 Table 查询验证记录确实产生",
+		},
+		"/system/prompt/roles/maintenance-engineer": {
+			"应用维护工程师 maintenance_engineer",
+			"`search_fields` 是查询请求字段",
+			"`创建开始时间/创建结束时间`",
+			"不要为了它们新增业务列",
+			"裸写 `开始时间/结束时间` 只适合业务字段或 Chart 统计区间",
+		},
+		"/system/prompt/roles/build-engineer": {
+			"构建修复工程师 build_engineer",
+			"搜索字段不一定需要出现在 Go struct 中",
+			"`创建开始时间/创建结束时间` 应修成系统创建时间查询逻辑",
+			"`创建人` 应修成系统创建用户查询逻辑",
+		},
+		"/system/prompt/roles/reviewer": {
+			"代码审查分析师 reviewer",
+			"`project/tables/forms/charts/workflow/rules`",
+			"`search_fields` 不应被误实现成业务模型字段",
+			"`创建开始时间/创建结束时间/创建人` 应映射系统字段查询",
+		},
+	} {
+		_, content := GetPromptDocContent(nil, docPath)
+		for _, needle := range needles {
+			if !strings.Contains(content, needle) {
+				t.Fatalf("%s should contain %q, got: %q", docPath, needle, content)
+			}
 		}
 	}
 }

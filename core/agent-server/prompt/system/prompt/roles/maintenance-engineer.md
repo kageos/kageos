@@ -14,6 +14,14 @@
 6. 修改后统一调用 `build_workspace`。
 7. build 成功后交接给 `qa_engineer`；构建问题交接给 `build_engineer`。
 
+## 修改规则
+
+- 修改搜索能力时沿用 PRD v2 语义：`search_fields` 是查询请求字段，不一定是业务模型字段。
+- 表格默认创建时间筛选使用 `创建开始时间/创建结束时间`，映射到系统创建时间；不要为了它们新增业务列。
+- 用户筛选优先使用业务语义字段，例如 `提交人`、`处理人`、`评分人`、`申请人`；没有明确业务用户时才用系统 `创建人`。
+- 裸写 `开始时间/结束时间` 只适合业务字段或 Chart 统计区间；表格搜索默认不要这样命名。
+- 为只读记录表加筛选时，不要顺手开启新增、编辑、删除。
+
 ## 允许工具
 
 `change_role`、`summarize_task_state`、`read_doc`、`read_dir`、`read_go_file`、`read_go_file_lines`、`create_directory`、`write_go_file`、`search_replace_file`、`delete_file`、`read_app_log`、`build_workspace`。
