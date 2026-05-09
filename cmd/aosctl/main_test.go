@@ -329,6 +329,56 @@ func TestParseUpFlags(t *testing.T) {
 	}
 }
 
+func TestParseUninstallFlags(t *testing.T) {
+	t.Parallel()
+
+	opts, err := parseUninstallFlags([]string{"--purge-data", "--force", "--keep-generated"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !opts.PurgeData || !opts.Force || !opts.KeepGenerated {
+		t.Fatalf("unexpected uninstall opts: %#v", opts)
+	}
+
+	if _, err := parseUninstallFlags([]string{"--purge-data"}); err == nil {
+		t.Fatal("expected destructive uninstall to require --force")
+	}
+	if _, err := parseUninstallFlags([]string{"--purge-data", "--dry-run"}); err != nil {
+		t.Fatalf("dry-run should allow destructive preview: %v", err)
+	}
+	if _, err := parseUninstallFlags([]string{"--purge-podman-storage", "--force"}); err == nil {
+		t.Fatal("expected podman storage purge to require --purge-data")
+	}
+}
+
+func TestUninstallDataTargetsKeepPodmanStorageByDefault(t *testing.T) {
+	t.Parallel()
+
+	rt := RuntimeConfig{
+		Config: Config{
+			Storage: StorageConfig{Root: "/data/ai-agent-os"},
+		},
+	}
+	targets := uninstallDataTargets(rt, uninstallOptions{PurgeData: true})
+	got := make([]string, 0, len(targets))
+	for _, target := range targets {
+		got = append(got, target.Path)
+	}
+	joined := strings.Join(got, ",")
+	if strings.Contains(joined, "podman_storage") {
+		t.Fatalf("podman storage should be kept by default, got %v", got)
+	}
+
+	targets = uninstallDataTargets(rt, uninstallOptions{PurgeData: true, PurgePodmanStorage: true})
+	got = got[:0]
+	for _, target := range targets {
+		got = append(got, target.Path)
+	}
+	if !strings.Contains(strings.Join(got, ","), "/data/ai-agent-os/podman_storage") {
+		t.Fatalf("podman storage should be included when explicitly requested, got %v", got)
+	}
+}
+
 func TestParseInitAndBootstrapFlags(t *testing.T) {
 	t.Parallel()
 

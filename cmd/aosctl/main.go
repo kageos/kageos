@@ -213,6 +213,8 @@ func run(args []string) error {
 		return cmdLogs(paths, rest)
 	case "down":
 		return cmdDown(paths)
+	case "uninstall", "reset":
+		return cmdUninstall(paths, rest)
 	default:
 		return fmt.Errorf("unknown command %q", cmd)
 	}
@@ -232,6 +234,16 @@ type upOptions struct {
 	NoBuild       bool
 	SkipVerify    bool
 	VerifyTimeout time.Duration
+}
+
+type uninstallOptions struct {
+	PurgeData          bool
+	PurgePodmanStorage bool
+	PurgeImages        bool
+	KeepGenerated      bool
+	PurgePrivateConfig bool
+	Force              bool
+	DryRun             bool
 }
 
 type initOptions struct {
@@ -320,6 +332,37 @@ func parseUpFlags(args []string) (upOptions, error) {
 	return opts, nil
 }
 
+func parseUninstallFlags(args []string) (uninstallOptions, error) {
+	opts := uninstallOptions{}
+	for _, arg := range args {
+		switch arg {
+		case "--purge-data":
+			opts.PurgeData = true
+		case "--purge-podman-storage":
+			opts.PurgePodmanStorage = true
+		case "--purge-images":
+			opts.PurgeImages = true
+		case "--keep-generated":
+			opts.KeepGenerated = true
+		case "--purge-private-config":
+			opts.PurgePrivateConfig = true
+		case "--force":
+			opts.Force = true
+		case "--dry-run":
+			opts.DryRun = true
+		default:
+			return opts, fmt.Errorf("uninstall does not support argument %q", arg)
+		}
+	}
+	if opts.PurgePodmanStorage && !opts.PurgeData {
+		return opts, fmt.Errorf("--purge-podman-storage requires --purge-data")
+	}
+	if uninstallRequiresForce(opts) && !opts.Force && !opts.DryRun {
+		return opts, fmt.Errorf("destructive uninstall options require --force; preview with --dry-run first")
+	}
+	return opts, nil
+}
+
 func parseInitFlags(command string, args []string) (initOptions, error) {
 	opts := initOptions{MySQLMode: "bundled"}
 	for i := 0; i < len(args); i++ {
@@ -401,6 +444,7 @@ Usage:
   aosctl status [--config deploy/prod/aos.yaml] [--json]
   aosctl logs [--config deploy/prod/aos.yaml] [service|layer] [--layer L0-L5]
   aosctl down [--config deploy/prod/aos.yaml]
+  aosctl uninstall [--config deploy/prod/aos.yaml] [--purge-data] [--purge-podman-storage] [--purge-images] [--keep-generated] [--purge-private-config] [--force] [--dry-run]
 
 Compose remains the container execution engine; aosctl owns layered config rendering, deployment orchestration, and diagnostics.`)
 }
@@ -739,6 +783,57 @@ func cmdDown(paths Paths) error {
 	return runCompose(paths.GeneratedDir, "down")
 }
 
+func cmdUninstall(paths Paths, args []string) error {
+	opts, err := parseUninstallFlags(args)
+	if err != nil {
+		return err
+	}
+
+	rt, rtErr := loadRuntimeConfig(paths)
+	if rtErr != nil && uninstallNeedsRuntimeConfig(opts, paths) {
+		return rtErr
+	}
+
+	printUninstallPlan(paths, rt, rtErr, opts)
+	if opts.DryRun {
+		return nil
+	}
+
+	composeReady, err := ensureGeneratedComposeForUninstall(paths, rt, rtErr)
+	if err != nil {
+		return err
+	}
+	if composeReady {
+		downArgs := []string{"down"}
+		if opts.PurgeImages {
+			downArgs = append(downArgs, "--rmi", "all")
+		}
+		if err := runCompose(paths.GeneratedDir, downArgs...); err != nil {
+			return err
+		}
+	}
+
+	if opts.PurgeData {
+		for _, target := range uninstallDataTargets(rt, opts) {
+			if err := removePath(target.Path, target.Label, false); err != nil {
+				return err
+			}
+		}
+	}
+	if !opts.KeepGenerated {
+		if err := removePath(paths.GeneratedDir, "generated deployment files", false); err != nil {
+			return err
+		}
+	}
+	if opts.PurgePrivateConfig {
+		if err := removePath(paths.ConfigPath, "private deploy config", false); err != nil {
+			return err
+		}
+	}
+	fmt.Println("uninstall completed")
+	return nil
+}
+
 func runLayerLogs(rt RuntimeConfig, value string) error {
 	layer, ok := parseDeploymentLayer(value)
 	if !ok {
@@ -926,6 +1021,107 @@ func requireContains(value, needle string) error {
 		return fmt.Errorf("expected %q to contain %q", value, needle)
 	}
 	return nil
+}
+
+func uninstallRequiresForce(opts uninstallOptions) bool {
+	return opts.PurgeData || opts.PurgePodmanStorage || opts.PurgeImages || opts.PurgePrivateConfig
+}
+
+func uninstallNeedsRuntimeConfig(opts uninstallOptions, paths Paths) bool {
+	if opts.PurgeData || opts.PurgePodmanStorage {
+		return true
+	}
+	return !fileExists(filepath.Join(paths.GeneratedDir, "docker-compose.yaml"))
+}
+
+func ensureGeneratedComposeForUninstall(paths Paths, rt RuntimeConfig, rtErr error) (bool, error) {
+	if fileExists(filepath.Join(paths.GeneratedDir, "docker-compose.yaml")) {
+		return true, nil
+	}
+	if rtErr != nil {
+		fmt.Printf("generated compose not found and config unavailable; skipping compose down: %v\n", rtErr)
+		return false, nil
+	}
+	fmt.Println("generated compose not found; rendering it from config before uninstall")
+	if err := renderAll(rt); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+type uninstallTarget struct {
+	Label string
+	Path  string
+}
+
+func uninstallDataTargets(rt RuntimeConfig, opts uninstallOptions) []uninstallTarget {
+	root := filepath.Clean(rt.Storage.Root)
+	targets := []uninstallTarget{
+		{Label: "mysql data", Path: filepath.Join(root, "mysql")},
+		{Label: "minio data", Path: filepath.Join(root, "minio")},
+		{Label: "user namespace", Path: filepath.Join(root, "namespace")},
+		{Label: "app data", Path: filepath.Join(root, "data")},
+		{Label: "logs", Path: filepath.Join(root, "logs")},
+	}
+	if opts.PurgePodmanStorage {
+		targets = append(targets, uninstallTarget{Label: "podman storage and app-base image", Path: filepath.Join(root, "podman_storage")})
+	}
+	return targets
+}
+
+func printUninstallPlan(paths Paths, rt RuntimeConfig, rtErr error, opts uninstallOptions) {
+	fmt.Println("uninstall plan")
+	if fileExists(filepath.Join(paths.GeneratedDir, "docker-compose.yaml")) {
+		if opts.PurgeImages {
+			fmt.Println("  - compose down --rmi all (stop/remove services and host engine images)")
+		} else {
+			fmt.Println("  - compose down (stop/remove services; keep host engine images)")
+		}
+	} else if rtErr == nil {
+		fmt.Println("  - render generated compose, then compose down")
+	} else {
+		fmt.Printf("  - skip compose down: generated compose missing and config unavailable (%v)\n", rtErr)
+	}
+	if opts.PurgeData {
+		for _, target := range uninstallDataTargets(rt, opts) {
+			fmt.Printf("  - remove %s: %s\n", target.Label, target.Path)
+		}
+		if !opts.PurgePodmanStorage {
+			fmt.Printf("  - keep podman storage/app-base image: %s\n", filepath.Join(filepath.Clean(rt.Storage.Root), "podman_storage"))
+		}
+	} else if rtErr == nil {
+		fmt.Printf("  - keep runtime data: %s\n", rt.Storage.Root)
+	}
+	if opts.KeepGenerated {
+		fmt.Printf("  - keep generated files: %s\n", paths.GeneratedDir)
+	} else {
+		fmt.Printf("  - remove generated files: %s\n", paths.GeneratedDir)
+	}
+	if opts.PurgePrivateConfig {
+		fmt.Printf("  - remove private config: %s\n", paths.ConfigPath)
+	} else {
+		fmt.Printf("  - keep private config: %s\n", paths.ConfigPath)
+	}
+	if opts.DryRun {
+		fmt.Println("dry-run only; no changes made")
+	}
+}
+
+func removePath(path, label string, dryRun bool) error {
+	clean := filepath.Clean(path)
+	if clean == "" || clean == "." || clean == string(filepath.Separator) {
+		return fmt.Errorf("refuse to remove unsafe %s path: %q", label, path)
+	}
+	if dryRun {
+		fmt.Printf("[dry-run] remove %s: %s\n", label, clean)
+		return nil
+	}
+	if !fileExists(clean) && !dirExists(clean) {
+		fmt.Printf("skip missing %s: %s\n", label, clean)
+		return nil
+	}
+	fmt.Printf("remove %s: %s\n", label, clean)
+	return os.RemoveAll(clean)
 }
 
 func loadConfig(paths Paths) (Config, error) {
