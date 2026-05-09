@@ -92,7 +92,7 @@ func (f *Function) GetFunction(c *gin.Context) {
 		if user != "" && app != "" {
 			appModel, err := f.functionService.GetAppByUserAndCode(ctx, user, app)
 			if err == nil && appModel != nil {
-				if !appModel.PermissionEnforced {
+				if !service.IsWorkspacePermissionEnforced(appModel) {
 					resp.Permissions = buildAllPermissions()
 					response.OkWithData(c, resp)
 					return

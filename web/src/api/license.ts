@@ -11,6 +11,7 @@ export interface LicenseStatus {
   expires_at?: string
   features?: {
     operate_log?: boolean
+    permission?: boolean
   }
 }
 

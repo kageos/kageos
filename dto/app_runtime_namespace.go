@@ -22,7 +22,7 @@ type CreateAppReq struct {
 	IsPublic           *bool  `json:"is_public,omitempty" example:"true"`            // 是否公开，默认 true（公开）
 	Admins             string `json:"admins,omitempty" example:"user1,user2,user3"`  // 管理员列表，逗号分隔的用户名
 	ShowOnlyPermitted  *bool  `json:"show_only_permitted,omitempty" example:"false"` // 仅展示有权限的空间：开启后非管理员只看到有权限的目录
-	PermissionEnforced *bool  `json:"permission_enforced,omitempty" example:"false"` // 是否启用权限管控：默认 false，避免升级后阻塞老用户
+	PermissionEnforced *bool  `json:"permission_enforced,omitempty" example:"false"` // 是否启用权限管控：社区版默认 false，企业版权限特性默认 true
 }
 
 type CreateAppResp struct {

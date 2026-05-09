@@ -28,8 +28,8 @@ type App struct {
 	// ⭐ 仅展示有权限的空间：开启后，非管理员用户进入工作空间时，服务树只展示其有权限的目录（用于 SaaS 多租户场景）
 	ShowOnlyPermitted bool `json:"show_only_permitted" gorm:"column:show_only_permitted;type:tinyint(1);default:0;comment:仅展示有权限的空间(0:否,1:是)"`
 
-	// PermissionEnforced controls whether RBAC is enforced for this workspace.
-	// It defaults to false so existing community workspaces keep working after an upgrade.
+	// PermissionEnforced controls whether RBAC is enforced for this workspace in community mode.
+	// Enterprise permission licenses also enforce RBAC by default.
 	PermissionEnforced bool `json:"permission_enforced" gorm:"column:permission_enforced;type:tinyint(1);default:0;comment:是否启用权限管控(0:否,1:是)"`
 }
 

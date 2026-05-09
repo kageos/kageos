@@ -5,6 +5,7 @@
 
 # 临时文件
 *.log
+*.pid
 *.tmp
 logs/
 *.db

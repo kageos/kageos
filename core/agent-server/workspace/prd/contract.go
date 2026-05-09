@@ -27,7 +27,7 @@ var (
 )
 
 func ToolDescription() string {
-	return "在 product_manager 角色下输出轻量结构化 PRD，供前端预览和用户确认。无副作用：不创建目录、不写文件、不 build。只允许 project、tables、forms、charts、workflow、rules 这 6 类业务结构，不输出 models/functions/route/method/order/columns/sample_rows/confirmation/widget tag。字段只写 name/widget/required/desc/hide；widget 只能是简单组件类型，例如 input、text_area、number、select、datetime、date、files、user、table、rate、radio、checkbox、switch；选项、默认值、范围、数据来源、计算规则都写进 desc，使用用户能看懂的自然语言。tables 直接包含 fields、search_fields、handlers、examples；search_fields 只描述搜索参数，不需要 handlers；除纯配置、小字典或无时间/用户概念的表外，大多数业务表默认加 创建开始时间/创建结束时间 两个 datetime 搜索条件，用于按记录创建时间范围查询；还要加一个用户筛选字段，优先用提交人、处理人、评分人、申请人等业务用户，没有明确业务用户时用创建人表示系统记录的创建用户；handlers 只写 OnTableAddRow、OnTableUpdateRow、OnTableDeleteRow，只查询表填空数组。forms 只描述独立提交入口、target_table、request_fields、response_fields、example；纯文件处理、转换、计算类 Form 可不填 target_table。charts 只描述 source_table、chart_type、dimension、metrics、filters、examples；dimension 推荐写字段名如 日期，写成 日期（按天/周/月）时会归一为 日期；chart examples 推荐写 {\"dimension\":\"2026-05-01\",\"metrics\":{\"NPS分数\":45,\"评分人数\":80}}，工具会归一为前端预览行。workflow 是用户展示和操作顺序，不是资源分类顺序：先基础/配置/主数据表，再提交/处理 Form，再查看 Form 产生的记录表，最后看统计 Chart；例如 NPS 应是 NPS问卷 -> 提交NPS评分 -> NPS评分记录 -> NPS图表。tables.examples 和 forms.example 用用户可见业务字段名，tables.examples 最多 3 条；charts.examples 用 dimension/metrics 自然结构，建议 3-6 条、最多 12 条；不写 json/code/db 字段名。write_prd 成功后助手正文最多 1 句话提示用户确认，不复述 PRD 细节；收到确认前不要继续 create_directory、write_go_file 或 build_workspace。"
+	return "在 product_manager 角色下输出轻量结构化 PRD，供前端预览和用户确认。无副作用：不创建目录、不写文件、不 build。只允许 project、tables、forms、charts、workflow、rules 这 6 类业务结构，不输出 models/functions/route/method/order/columns/sample_rows/confirmation/widget tag。字段只写 name/widget/required/desc/hide；widget 只能是简单组件类型，例如 input、text_area、number、select、datetime、date、files、user、table、rate、radio、checkbox、switch；选项、默认值、范围、数据来源、计算规则都写进 desc，使用用户能看懂的自然语言。tables 直接包含 fields、search_fields、handlers、examples；fields 是模型/列表字段底座，search_fields 必须从 fields 派生：同名筛选直接和 fields 同名同 widget，时间范围筛选用 xxx开始时间/xxx结束时间 对齐 fields 里的 xxx时间 字段且 widget 同为 datetime/date。除纯配置、小字典或无时间/用户概念的表外，大多数业务表默认在 fields 加 创建时间(datetime, hide:create,update) 和 创建人(user, hide:create,update)，并在 search_fields 加 创建开始时间/创建结束时间/创建人；用户筛选优先用提交人、处理人、评分人、申请人等业务用户字段，但这些字段也必须先出现在 fields 中且 widget=user。handlers 只写 OnTableAddRow、OnTableUpdateRow、OnTableDeleteRow，只查询表填空数组。forms 只描述独立提交入口、target_table、request_fields、response_fields、example；纯文件处理、转换、计算类 Form 可不填 target_table。charts 只描述 source_table、chart_type、dimension、metrics、filters、examples；dimension 推荐写字段名如 日期，写成 日期（按天/周/月）时会归一为 日期；chart examples 推荐写 {\"dimension\":\"2026-05-01\",\"metrics\":{\"NPS分数\":45,\"评分人数\":80}}，工具会归一为前端预览行。workflow 是用户展示和操作顺序，不是资源分类顺序：先基础/配置/主数据表，再提交/处理 Form，再查看 Form 产生的记录表，最后看统计 Chart；例如 NPS 应是 NPS问卷 -> 提交NPS评分 -> NPS评分记录 -> NPS图表。tables.examples 和 forms.example 用用户可见业务字段名，tables.examples 最多 3 条；charts.examples 用 dimension/metrics 自然结构，建议 3-6 条、最多 12 条；不写 json/code/db 字段名。write_prd 成功后助手正文最多 1 句话提示用户确认，不复述 PRD 细节；收到确认前不要继续 create_directory、write_go_file 或 build_workspace。"
 }
 
 func ContractMarkdown() string {
@@ -127,7 +127,9 @@ const contractMarkdown = `
 - ` + "`tables`" + ` 表示业务数据表和表格页语义；每个 table 直接写 ` + "`name/title/desc/fields/search_fields/handlers/examples`" + `；纯文件处理、转换、计算工具可以没有 table。
 - 字段只写 ` + "`name/widget/required/desc/hide`" + `；` + "`widget`" + ` 只写简单组件类型，例如 ` + "`input`" + `、` + "`text_area`" + `、` + "`number`" + `、` + "`select`" + `、` + "`datetime`" + `。
 - 不输出 widget tag；不要写 ` + "`name:状态;type:select;options:...`" + `。选项、默认值、范围、数据来源、计算规则全部写进 ` + "`desc`" + `，用用户能看懂的自然语言。
-- ` + "`search_fields`" + ` 只描述搜索参数，不需要 ` + "`handlers`" + `。除纯配置、小字典或无时间/用户概念的表外，大多数业务表都要带常用搜索组合：` + "`创建开始时间`" + `、` + "`创建结束时间`" + ` 两个 ` + "`datetime`" + `，用于按记录创建时间范围查询；再加一个用户筛选字段。用户筛选优先用业务语义，例如 ` + "`提交人`" + `、` + "`处理人`" + `、` + "`评分人`" + `、` + "`申请人`" + `；没有明确业务用户时用 ` + "`创建人`" + `，表示系统记录的创建用户。例如 ` + "`{\"name\":\"创建开始时间\",\"widget\":\"datetime\",\"required\":false,\"desc\":\"按记录创建时间范围查询的开始时间。\"}`" + `、` + "`{\"name\":\"创建人\",\"widget\":\"user\",\"required\":false,\"desc\":\"按系统记录的创建人筛选。\"}`" + `。
+- ` + "`fields`" + ` 是模型/列表字段底座，` + "`search_fields`" + ` 是基于字段底座派生出来的筛选入口，不是独立字段池。
+- ` + "`search_fields`" + ` 必须和 ` + "`fields`" + ` 对齐：同名筛选直接使用字段名且 ` + "`widget`" + ` 相同；时间范围筛选使用 ` + "`xxx开始时间`" + `/` + "`xxx结束时间`" + `，必须能对齐到 ` + "`fields`" + ` 中的 ` + "`xxx时间`" + ` 字段，且 widget 同为 ` + "`datetime`" + ` 或 ` + "`date`" + `。例如 ` + "`评分开始时间/评分结束时间`" + ` 对齐 ` + "`评分时间`" + `。
+- 除纯配置、小字典或无时间/用户概念的表外，大多数业务表都要在 ` + "`fields`" + ` 中加入 ` + "`创建时间`" + `（` + "`datetime`" + `，` + "`hide:create,update`" + `）和 ` + "`创建人`" + `（` + "`user`" + `，` + "`hide:create,update`" + `），再在 ` + "`search_fields`" + ` 中加入 ` + "`创建开始时间`" + `、` + "`创建结束时间`" + `、` + "`创建人`" + `。用户筛选优先用业务语义，例如 ` + "`提交人`" + `、` + "`处理人`" + `、` + "`评分人`" + `、` + "`申请人`" + `；这些业务用户字段也必须先出现在 ` + "`fields`" + ` 中且 ` + "`widget:user`" + `。
 - ` + "`handlers`" + ` 只表达表格行操作能力：` + "`OnTableAddRow`" + `、` + "`OnTableUpdateRow`" + `、` + "`OnTableDeleteRow`" + `；只查询表填空数组。
 - ` + "`forms`" + ` 只描述独立提交入口、` + "`target_table`" + `、` + "`request_fields`" + `、` + "`response_fields`" + ` 和 ` + "`example`" + `；如果是纯处理型 Form，不写 ` + "`target_table`" + `。
 - ` + "`charts`" + ` 只描述 ` + "`source_table`" + `、` + "`chart_type`" + `、` + "`dimension`" + `、` + "`metrics`" + `、` + "`filters`" + ` 和 ` + "`examples`" + `；图表类型只用 ` + "`line/bar/pie`" + `。
@@ -141,7 +143,7 @@ const contractMarkdown = `
 
 ## 代表性输出示例
 
-输出时按这个结构替换业务内容，不要新增顶层字段。注意：表格示例字段必须来自 ` + "`fields`" + `；大多数表格搜索条件都包含按记录创建时间查询的 ` + "`创建开始时间`" + `、` + "`创建结束时间`" + `，以及按用户查询的 ` + "`创建人`" + ` 或业务用户字段；` + "`workflow`" + ` 是用户操作顺序。
+输出时按这个结构替换业务内容，不要新增顶层字段。注意：表格示例字段必须来自 ` + "`fields`" + `；搜索字段必须能对齐到 ` + "`fields`" + `，包括 ` + "`创建开始时间/创建结束时间`" + ` 对齐 ` + "`创建时间`" + `，` + "`创建人/处理人/评分人`" + ` 等用户筛选对齐同名 ` + "`user`" + ` 字段；` + "`workflow`" + ` 是用户操作顺序。
 
 ` + "```json" + `
 {
@@ -154,7 +156,9 @@ const contractMarkdown = `
       "fields": [
         {"name": "问卷标题", "widget": "input", "required": true, "desc": "调研问卷标题。"},
         {"name": "截止时间", "widget": "datetime", "required": true, "desc": "问卷停止收集评分的时间。"},
-        {"name": "状态", "widget": "select", "required": false, "hide": "create,update", "desc": "可选：草稿、进行中、已结束。"}
+        {"name": "状态", "widget": "select", "required": false, "hide": "create,update", "desc": "可选：草稿、进行中、已结束。"},
+        {"name": "创建人", "widget": "user", "required": false, "hide": "create,update", "desc": "系统记录的问卷创建用户。"},
+        {"name": "创建时间", "widget": "datetime", "required": false, "hide": "create,update", "desc": "系统记录的问卷创建时间。"}
       ],
       "search_fields": [
         {"name": "问卷标题", "widget": "input", "required": false, "desc": "按标题搜索。"},
@@ -174,6 +178,7 @@ const contractMarkdown = `
       "fields": [
         {"name": "提交时间", "widget": "datetime", "required": false, "hide": "create,update", "desc": "评分提交时间。"},
         {"name": "问卷标题", "widget": "input", "required": false, "hide": "create,update", "desc": "关联的问卷。"},
+        {"name": "评分人", "widget": "user", "required": false, "hide": "create,update", "desc": "提交评分的用户。"},
         {"name": "评分", "widget": "number", "required": false, "hide": "create,update", "desc": "0-10 的评分。"},
         {"name": "评分类型", "widget": "select", "required": false, "hide": "create,update", "desc": "9-10 推荐者，7-8 被动者，0-6 贬低者。"}
       ],
@@ -181,8 +186,8 @@ const contractMarkdown = `
         {"name": "问卷标题", "widget": "input", "required": false, "desc": "按问卷搜索。"},
         {"name": "评分类型", "widget": "select", "required": false, "desc": "按推荐者、被动者、贬低者筛选。"},
         {"name": "评分人", "widget": "user", "required": false, "desc": "按提交评分的用户筛选。"},
-        {"name": "创建开始时间", "widget": "datetime", "required": false, "desc": "按记录创建时间范围查询的开始时间。"},
-        {"name": "创建结束时间", "widget": "datetime", "required": false, "desc": "按记录创建时间范围查询的结束时间。"}
+        {"name": "提交开始时间", "widget": "datetime", "required": false, "desc": "按提交时间范围查询的开始时间。"},
+        {"name": "提交结束时间", "widget": "datetime", "required": false, "desc": "按提交时间范围查询的结束时间。"}
       ],
       "handlers": [],
       "examples": [

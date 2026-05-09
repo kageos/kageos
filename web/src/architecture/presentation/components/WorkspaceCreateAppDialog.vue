@@ -51,7 +51,7 @@
       </el-form-item>
       <el-form-item label="启用权限管控">
         <el-tooltip
-          content="开启后按角色授权控制目录和函数访问；默认关闭，避免新旧工作空间因未配置授权而被阻塞"
+          content="开启后按角色授权控制目录和函数访问；社区版默认关闭，企业版权限特性开启时默认启用"
           placement="top"
         >
           <el-switch v-model="form.permission_enforced" />

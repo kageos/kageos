@@ -13,6 +13,7 @@ import (
 	permissionrepo "github.com/ai-agent-os/ai-agent-os/enterprise_impl/permission/repository"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	permissionpkg "github.com/ai-agent-os/ai-agent-os/pkg/permission"
 	"gorm.io/gorm"
@@ -285,7 +286,7 @@ func (s *PermissionServiceImpl) CheckPermission(ctx context.Context, username st
 	if s.appRepo != nil {
 		appModel, err := s.appRepo.GetAppByUserName(user, app)
 		if err == nil && appModel != nil {
-			if !appModel.PermissionEnforced {
+			if !appModel.PermissionEnforced && !license.GetManager().HasFeature(enterprise.FeaturePermission) {
 				logger.Debugf(ctx, "[PermissionService] 工作空间未启用权限管控，直接返回 true: resource=%s", resourcePath)
 				return true, nil
 			}

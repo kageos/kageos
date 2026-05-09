@@ -18,6 +18,7 @@ import type { App } from '../../domain/services/WorkspaceDomainService'
 import type { App as AppType, CreateAppRequest } from '@/types'
 import { deleteApp, getAppWithServiceTree, updateApp } from '@/api/app'
 import { useAuthStore } from '@/stores/auth'
+import { useLicenseStore } from '@/stores/license'
 import { normalizeGoPackageName, validateGoPackageName } from '@/utils/goPackageName'
 import { buildAppResourcePath } from '@/utils/resourcePath'
 import { Logger } from '@/core/utils/logger'
@@ -28,6 +29,8 @@ export function useWorkspaceApp(
   const route = useRoute()
   const router = useRouter()
   const applicationService = serviceProvider.getWorkspaceApplicationService()
+  const licenseStore = useLicenseStore()
+  const defaultPermissionEnforced = () => Boolean(licenseStore.license?.features?.permission || licenseStore.isEnterprise)
 
   // 工作空间列表状态
   const appList = ref<AppType[]>([])
@@ -57,7 +60,7 @@ export function useWorkspaceApp(
     is_public: true, // 默认公开
     admins: '', // 管理员列表，逗号分隔的用户名
     show_only_permitted: false, // 仅展示有权限的空间（SaaS 多租户场景）
-    permission_enforced: false // 是否启用权限管控，默认关闭以避免升级后阻塞老用户
+    permission_enforced: defaultPermissionEnforced() // 社区默认关闭；企业版权限特性开启时默认启用
   })
 
   // 加载工作空间列表
@@ -155,7 +158,7 @@ export function useWorkspaceApp(
       is_public: true,
       admins: '',
       show_only_permitted: false,
-      permission_enforced: false
+      permission_enforced: defaultPermissionEnforced()
     }
   }
 
