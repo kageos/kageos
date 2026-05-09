@@ -1023,7 +1023,7 @@ func buildWorkspaceHandoffContent(input workspaceHandoffContentInput) string {
 	}
 	if input.ArtifactKind == "agent_app_prd" && normalizeWorkspaceRole(input.TargetRole) == WorkspaceRoleAppDeveloper {
 		lines = append(lines,
-			"生成阶段要求：不要重新输出 PRD，不要再次询问确认；先读取 1 到多个匹配案例，再根据 PRD tables/forms/charts/workflow/rules 创建目录、写 Go 文件、注册路由并 build。tables.fields 是业务模型字段，tables.search_fields 是查询请求字段；创建开始时间/创建结束时间/创建人等系统搜索字段不要生成业务列。route、method、widget tag、列表列和预览数据均从 PRD 派生。非常简单的需求才可跳过额外案例。",
+			"生成阶段要求：不要重新输出 PRD，不要再次询问确认；先读取 1 到多个匹配案例，再根据 PRD tables/forms/charts/workflow/rules 创建目录、写 Go 文件、注册路由并 build。tables.fields 是模型/列表字段底座，tables.search_fields 必须基于 fields 实现：同名搜索同 widget，xxx开始时间/xxx结束时间 映射到 xxx时间 字段，创建人/处理人/评分人等用户筛选映射同名 user 字段。route、method、widget tag、列表列和预览数据均从 PRD 派生。非常简单的需求才可跳过额外案例。",
 		)
 	}
 	if input.ArtifactKind == workspaceBuildArtifactKind && normalizeWorkspaceRole(input.TargetRole) == WorkspaceRoleQAEngineer {

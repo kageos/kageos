@@ -62,7 +62,9 @@ func (q *serviceTreeQueryView) getServiceTreeByAppModel(ctx context.Context, app
 	var isAdmin bool
 	username := contextx.GetRequestUser(ctx)
 
-	if !appModel.PermissionEnforced {
+	permissionEnforced := IsWorkspacePermissionEnforced(appModel)
+
+	if !permissionEnforced {
 		permissionsMap = q.buildAllAdminPermissionsMap(trees)
 		isAdmin = true
 		logger.Debugf(ctx, "[ServiceTreeService] 工作空间未启用权限管控，按全量可访问返回服务树: app_id=%d", appModel.ID)
@@ -84,7 +86,7 @@ func (q *serviceTreeQueryView) getServiceTreeByAppModel(ctx context.Context, app
 
 	rootResp := q.convertToGetServiceTreeResp(rootNode, permissionsMap, isAdmin)
 
-	if appModel.PermissionEnforced && appModel.ShowOnlyPermitted && !isAdmin && permissionsMap != nil {
+	if permissionEnforced && appModel.ShowOnlyPermitted && !isAdmin && permissionsMap != nil {
 		rootResp = q.filterTreeByPermission(rootResp)
 		logger.Debugf(ctx, "[ServiceTreeService] 已按权限过滤服务树: app_id=%d, username=%s", appModel.ID, username)
 	}
@@ -154,7 +156,7 @@ func (q *serviceTreeQueryView) GetAppWithServiceTree(ctx context.Context, req *d
 		Admins:             appModel.Admins,
 		Type:               int(appModel.Type),
 		ShowOnlyPermitted:  appModel.ShowOnlyPermitted,
-		PermissionEnforced: appModel.PermissionEnforced,
+		PermissionEnforced: IsWorkspacePermissionEnforced(appModel),
 		CreatedAt:          time.Time(appModel.CreatedAt).Format("2006-01-02 15:04:05"),
 		UpdatedAt:          time.Time(appModel.UpdatedAt).Format("2006-01-02 15:04:05"),
 	}
@@ -216,7 +218,7 @@ func (q *serviceTreeQueryView) GetServiceTreeDetail(ctx context.Context, req *dt
 		logger.Warnf(ctx, "[ServiceTreeService] 查询工作空间失败: app_id=%d, error=%v，继续按权限记录计算", tree.AppID, appErr)
 	}
 
-	if appModel != nil && !appModel.PermissionEnforced {
+	if appModel != nil && !IsWorkspacePermissionEnforced(appModel) {
 		resp.Permissions = initializeNodePermissions(permissionActionsForNode(tree.Type, tree.TemplateType), nil)
 		grantAppAdminPermission(resp.Permissions)
 	} else if username != "" && tree.FullCodePath != "" && q.permissionService != nil {

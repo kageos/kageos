@@ -22,9 +22,9 @@
 ## PRD v2 落地规则
 
 - 只消费 `project/tables/forms/charts/workflow/rules`；不要回退到旧 `models/functions/features` 思路。
-- `tables.fields` 才是业务模型字段来源；`tables.search_fields` 是查询请求字段来源，不等于业务表字段，不要因为搜索字段自动给 Go struct 增加同名业务列。
-- `创建开始时间`、`创建结束时间` 是系统创建时间范围查询，映射到记录创建时间，不生成业务字段；`创建人` 是系统记录创建用户查询，不生成业务字段。
-- `提交人`、`处理人`、`评分人`、`申请人` 等业务用户搜索字段，如果同名字段存在于 `tables.fields`，按该业务字段过滤；如果不存在，按 PRD `desc` 判断是否应映射到系统用户字段。
+- `tables.fields` 是模型/列表字段底座；`tables.search_fields` 必须基于 `tables.fields` 实现，不要凭搜索字段额外发明模型列。
+- 同名搜索字段按 `tables.fields` 中同名字段过滤，widget 也应一致；`xxx开始时间/xxx结束时间` 映射到 `tables.fields` 中的 `xxx时间` 字段。
+- `创建人`、`提交人`、`处理人`、`评分人`、`申请人` 等用户筛选必须对齐同名 `user` 字段；`创建开始时间/创建结束时间` 必须对齐 `创建时间` 字段。
 - 表格只查询时 `handlers` 为空数组，不要补新增、编辑、删除；有 `OnTableAddRow/OnTableUpdateRow/OnTableDeleteRow` 时再实现对应写能力。
 - Form 写入 `target_table` 时，提交成功后应生成目标表可查询的数据；目标记录表不要再手工补 CRUD，除非 PRD 明确允许。
 - Chart 必须基于 `source_table` 和 `filters/examples` 实现一张图；多张图按多个 chart 分别生成。

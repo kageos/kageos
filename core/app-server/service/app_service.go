@@ -770,7 +770,7 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 			Admins:             app.Admins,
 			Type:               int(app.Type),
 			ShowOnlyPermitted:  app.ShowOnlyPermitted,
-			PermissionEnforced: app.PermissionEnforced,
+			PermissionEnforced: IsWorkspacePermissionEnforced(app),
 			CreatedAt:          time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
 			UpdatedAt:          time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
 		}
@@ -817,7 +817,7 @@ func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq)
 			Admins:             app.Admins,
 			Type:               int(app.Type),
 			ShowOnlyPermitted:  app.ShowOnlyPermitted,
-			PermissionEnforced: app.PermissionEnforced,
+			PermissionEnforced: IsWorkspacePermissionEnforced(app),
 			CreatedAt:          time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
 			UpdatedAt:          time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
 		},
@@ -910,14 +910,14 @@ func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspa
 	}
 
 	logger.Infof(ctx, "[AppService] 更新工作空间成功: user=%s, app=%s, admins=%s, showOnlyPermitted=%v, permissionEnforced=%v",
-		req.User, req.App, req.Admins, app.ShowOnlyPermitted, app.PermissionEnforced)
+		req.User, req.App, req.Admins, app.ShowOnlyPermitted, IsWorkspacePermissionEnforced(app))
 
 	return &dto.UpdateWorkspaceResp{
 		User:               req.User,
 		App:                req.App,
 		Admins:             req.Admins,
 		ShowOnlyPermitted:  app.ShowOnlyPermitted,
-		PermissionEnforced: app.PermissionEnforced,
+		PermissionEnforced: IsWorkspacePermissionEnforced(app),
 	}, nil
 }
 

@@ -67,7 +67,7 @@ func (a *AppService) buildInitialAppAndRoot(requestUser, tenantUser string, req 
 		showOnlyPermitted = *req.ShowOnlyPermitted
 	}
 
-	permissionEnforced := false
+	permissionEnforced := DefaultWorkspacePermissionEnforced()
 	if req.PermissionEnforced != nil {
 		permissionEnforced = *req.PermissionEnforced
 	}
