@@ -65,7 +65,11 @@ go run ./cmd/aosctl status --config deploy/prod/aos.yaml
 go run ./cmd/aosctl logs --config deploy/prod/aos.yaml main
 go run ./cmd/aosctl verify --config deploy/prod/aos.yaml
 go run ./cmd/aosctl down --config deploy/prod/aos.yaml
+go run ./cmd/aosctl uninstall --config deploy/prod/aos.yaml
+go run ./cmd/aosctl uninstall --config deploy/prod/aos.yaml --purge-data --force
 ```
+
+`down` 只停服务；`uninstall` 会移除 Compose 栈和可再生的 `.generated/`。来回测试想清数据库/对象存储/业务数据但不重建用户应用基础镜像，用 `--purge-data --force`，它默认保留 `/data/ai-agent-os/podman_storage`。
 
 ## 生成物
 

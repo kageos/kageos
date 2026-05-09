@@ -190,6 +190,9 @@ go run ./cmd/aosctl status --config deploy/prod/aos.yaml --json
 go run ./cmd/aosctl logs --config deploy/prod/aos.yaml --layer L3
 go run ./cmd/aosctl logs --config deploy/prod/aos.yaml main
 go run ./cmd/aosctl down --config deploy/prod/aos.yaml
+go run ./cmd/aosctl uninstall --config deploy/prod/aos.yaml --dry-run
+go run ./cmd/aosctl uninstall --config deploy/prod/aos.yaml
+go run ./cmd/aosctl uninstall --config deploy/prod/aos.yaml --purge-data --force
 ```
 
 推荐升级路径：
@@ -204,6 +207,10 @@ go run ./cmd/aosctl down --config deploy/prod/aos.yaml
 - 机器读取状态/诊断：`aosctl status --json`、`aosctl verify --json`
 - 查看平台层日志：`aosctl logs --layer L3`
 - 查看指定服务日志：`aosctl logs main`
+- 普通停止：`aosctl down`，只执行 Compose down，不清生成物和数据。
+- 测试卸载：`aosctl uninstall`，移除 Compose 栈和 `.generated/`，保留 `aos.yaml`、`/data/ai-agent-os` 和镜像。
+- 重置业务数据但保留用户应用基础镜像：`aosctl uninstall --purge-data --force`，会删除 MySQL / MinIO / namespace / app data / logs，但保留 `/data/ai-agent-os/podman_storage`，下次 `up` 不会因为这个操作重建 app-base。
+- 彻底慢清理：只有确定要重新构建基础镜像时才加 `--purge-podman-storage`；只有确定要清宿主机 Compose 镜像时才加 `--purge-images`。
 
 ## 安全默认值
 

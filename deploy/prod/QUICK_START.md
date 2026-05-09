@@ -32,7 +32,10 @@ http://your-ip-or-domain
 go run ./cmd/aosctl status --config deploy/prod/aos.yaml
 go run ./cmd/aosctl logs --config deploy/prod/aos.yaml main
 go run ./cmd/aosctl down --config deploy/prod/aos.yaml
+go run ./cmd/aosctl uninstall --config deploy/prod/aos.yaml --purge-data --force
 ```
+
+`uninstall --purge-data --force` 用于测试重置数据，默认保留 `/data/ai-agent-os/podman_storage`，避免每次重新构建用户应用基础镜像。
 
 ## 生成物
 
