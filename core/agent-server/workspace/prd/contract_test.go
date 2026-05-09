@@ -10,7 +10,7 @@ func TestContractMarkdownDocumentsV2Shape(t *testing.T) {
 	for _, want := range []string{
 		"## PRD 规则",
 		"`project/tables/forms/charts/workflow/rules`",
-		"`search_fields` 必须和 `fields` 对齐",
+		"`search_fields` 只描述搜索参数",
 		"`创建开始时间`、`创建结束时间`",
 		"## 代表性输出示例",
 		`"workflow"`,

@@ -196,7 +196,8 @@ func (s *AppManageService) waitForUpdatedVersionStartup(
 	waiterChan <-chan *StartupNotification,
 	logStr *strings.Builder,
 ) error {
-	logger.Infof(ctx, "[UpdateApp] Waiting for startup notification for %s/%s/%s (first handshake)", user, app, newVersion)
+	startupTimeout := s.appStartupNotificationTimeout()
+	logger.Infof(ctx, "[UpdateApp] Waiting for startup notification for %s/%s/%s (first handshake, timeout: %s)", user, app, newVersion, startupTimeout)
 
 	select {
 	case notification := <-waiterChan:
@@ -214,7 +215,7 @@ func (s *AppManageService) waitForUpdatedVersionStartup(
 			logger.Infof(ctx, "[UpdateApp] App status updated to active: %s/%s", user, app)
 		}
 		return nil
-	case <-time.After(60 * time.Second):
+	case <-time.After(startupTimeout):
 		logStr.WriteString("Startup timeout\t")
 		return fmt.Errorf("timeout waiting for app startup notification: %s/%s/%s", user, app, newVersion)
 	}

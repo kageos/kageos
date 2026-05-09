@@ -323,44 +323,6 @@ func TestWritePRDCaseCatalogJSONFilesAreValidV2(t *testing.T) {
 	}
 }
 
-func TestWritePRDToolRejectsSearchFieldsNotAlignedWithModelFields(t *testing.T) {
-	reg := NewToolRegistry(nil)
-	args := validNPSPRDArgs()
-	tables := args["tables"].([]map[string]interface{})
-	scoreTable := tables[1]
-	fields := scoreTable["fields"].([]map[string]interface{})
-	for _, field := range fields {
-		if field["name"] == "评分人" {
-			field["widget"] = "input"
-		}
-	}
-	searchFields := scoreTable["search_fields"].([]map[string]interface{})
-	searchFields = append(searchFields,
-		map[string]interface{}{"name": "不存在字段", "widget": "input", "required": false, "desc": "无法对齐模型字段的搜索条件。"},
-		map[string]interface{}{"name": "评分开始时间", "widget": "date", "required": false, "desc": "组件类型和评分时间不一致。"},
-	)
-	scoreTable["search_fields"] = searchFields
-
-	result := reg.CallTool(context.Background(), "write_prd", args, "/liubeiluo/ccc", "")
-	if !result.IsError {
-		t.Fatal("write_prd should reject search fields not aligned with table fields")
-	}
-	data, ok := result.Data.(writePRDResultData)
-	if !ok {
-		t.Fatalf("write_prd data type = %T, want writePRDResultData", result.Data)
-	}
-	joined := strings.Join(data.Issues, "\n")
-	for _, want := range []string{
-		"用户语义字段必须使用 user 组件：评分人",
-		"必须对齐 fields 中的字段",
-		"widget 必须与 fields 中「评分时间」字段的 widget 对齐",
-	} {
-		if !strings.Contains(joined, want) {
-			t.Fatalf("issues should contain %q, got %q", want, joined)
-		}
-	}
-}
-
 func TestWritePRDToolSchemaExposesV2Shape(t *testing.T) {
 	reg := NewToolRegistry(nil)
 	def := reg.tools["write_prd"].Definition()
@@ -421,8 +383,6 @@ func validNPSPRDArgs() map[string]interface{} {
 					{"name": "问卷描述", "widget": "text_area", "required": false, "desc": "说明本次调研目的和填写说明。"},
 					{"name": "状态", "widget": "select", "required": true, "desc": "问卷状态，有待发送、收集中、已结束三个选项，默认待发送。"},
 					{"name": "评分数量", "widget": "number", "required": false, "hide": "create,update", "desc": "该问卷收到的评分记录数量，由系统统计。"},
-					{"name": "创建人", "widget": "user", "required": false, "hide": "create,update", "desc": "系统记录的问卷创建用户。"},
-					{"name": "创建时间", "widget": "datetime", "required": false, "hide": "create,update", "desc": "系统记录的问卷创建时间。"},
 				},
 				"search_fields": []map[string]interface{}{
 					{"name": "问卷标题", "widget": "input", "required": false, "desc": "按问卷标题模糊搜索。"},
@@ -442,7 +402,7 @@ func validNPSPRDArgs() map[string]interface{} {
 				"desc":  "查看用户提交的 NPS 分数、评分类型和推荐理由。",
 				"fields": []map[string]interface{}{
 					{"name": "问卷", "widget": "select", "required": true, "desc": "关联的 NPS 问卷，从 NPS问卷 中选择。"},
-					{"name": "评分人", "widget": "user", "required": false, "desc": "提交评分的用户。"},
+					{"name": "评分人", "widget": "input", "required": false, "desc": "提交评分的用户。"},
 					{"name": "NPS分数", "widget": "number", "required": true, "desc": "0 到 10 的整数评分，0 表示完全不推荐，10 表示非常愿意推荐。"},
 					{"name": "评分类型", "widget": "select", "required": false, "hide": "create,update", "desc": "根据 NPS分数 自动计算，有推荐者、中立者、贬损者三个类型：0-6 为贬损者，7-8 为中立者，9-10 为推荐者。"},
 					{"name": "推荐理由", "widget": "text_area", "required": false, "desc": "用户推荐或不推荐的具体原因。"},
@@ -468,7 +428,7 @@ func validNPSPRDArgs() map[string]interface{} {
 				"target_table": "NPS评分记录",
 				"request_fields": []map[string]interface{}{
 					{"name": "问卷", "widget": "select", "required": true, "desc": "选择要评价的 NPS 问卷。"},
-					{"name": "评分人", "widget": "user", "required": false, "desc": "提交评分的用户，默认当前用户。"},
+					{"name": "评分人", "widget": "input", "required": false, "desc": "提交评分的用户，默认当前用户。"},
 					{"name": "NPS分数", "widget": "number", "required": true, "desc": "0 到 10 的整数评分，提交后系统按评分计算评分类型。"},
 					{"name": "推荐理由", "widget": "text_area", "required": false, "desc": "填写推荐或不推荐的原因。"},
 				},

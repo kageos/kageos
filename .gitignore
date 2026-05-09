@@ -50,3 +50,4 @@ playwright-login-page.png
 # Playwright / MCP 本地产物
 tests/e2e/.mcp-profile/
 tests/e2e/.mcp-output/
+local

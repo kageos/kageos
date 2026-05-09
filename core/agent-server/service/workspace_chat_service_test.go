@@ -134,7 +134,7 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 	if !strings.Contains(resp.Content, "target_role 固定为 app_developer") {
 		t.Fatalf("content should include target role, got %q", resp.Content)
 	}
-	if !strings.Contains(resp.Content, "tables.search_fields 必须基于 fields") {
+	if !strings.Contains(resp.Content, "tables.search_fields 是查询请求字段") {
 		t.Fatalf("content should include PRD v2 search field handoff rule, got %q", resp.Content)
 	}
 	if !strings.Contains(resp.Content, `"kind": "agent_app_prd"`) {
