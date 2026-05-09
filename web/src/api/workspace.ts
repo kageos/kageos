@@ -1,6 +1,5 @@
-import { useAuthStore } from '@/stores/auth'
 import { getApiBaseURL } from '@/config/runtime'
-import { del, get, post, put } from '@/utils/request'
+import { authFetch, del, get, post, put } from '@/utils/request'
 
 /** 工作台消息中上传文件：稳定引用 bucket/object_key */
 export interface WorkspaceChatMessageFile {
@@ -242,23 +241,12 @@ export async function workspaceChatStream(
   data: WorkspaceChatReq,
   onEvent: WorkspaceChatStreamOnEvent
 ): Promise<void> {
-  let token = localStorage.getItem('token') || ''
-  try {
-    const auth = useAuthStore()
-    const t = auth.token as unknown
-    token = (t && typeof t === 'object' && 'value' in (t as object))
-      ? String((t as { value: string }).value)
-      : String(t || token)
-  } catch {
-    /* use localStorage default */
-  }
   const base = getApiBaseURL()
   const url = `${base}/agent/api/v1/workspace/chat/stream`
-  const res = await fetch(url, {
+  const res = await authFetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Token': token,
     },
     body: JSON.stringify(data),
   })
@@ -274,6 +262,15 @@ export async function workspaceChatStream(
     onEvent('error', { message: msg })
     throw new Error(msg)
   }
+
+  const contentType = res.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    const j = await res.json().catch(() => null)
+    const msg = j?.msg || j?.message || '工作台流式请求失败'
+    onEvent('error', { message: msg })
+    throw new Error(msg)
+  }
+
   const reader = res.body?.getReader()
   if (!reader) {
     onEvent('error', { message: '响应体不可读' })
