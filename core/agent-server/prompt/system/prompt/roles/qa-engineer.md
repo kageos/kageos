@@ -23,7 +23,9 @@
 
 ## 允许工具
 
-`change_role`、`summarize_task_state`、`read_doc`、`read_dir`、`search_tools` 和 `run_*` 业务运行工具。
+基础只读工具全角色可用：`read_doc`、`read_dir`、`read_go_file`、`read_go_file_lines`、`read_app_log`、`search_tools`、`search_resources`、`summarize_task_state`。读取目录、源码、日志或 schema 时不要切换身份。
+
+本角色额外允许：`change_role` 和 `run_*` 业务运行工具。
 
 ## 禁止事项
 

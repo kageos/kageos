@@ -30,3 +30,6 @@ email:
   verification:
     code_length: 6
     code_expire: 300
+
+system_user:
+  password: "${SYSTEM_USER_PASSWORD}"

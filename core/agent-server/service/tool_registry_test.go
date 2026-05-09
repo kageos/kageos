@@ -33,7 +33,7 @@ func TestDirectHubToolsAreNotInMainRegistry(t *testing.T) {
 	reg := NewToolRegistry(nil)
 	for _, name := range []string{"search_hub_directory", "copy_directory", "publish_to_hub", "push_to_hub"} {
 		if _, ok := reg.tools[name]; ok {
-			t.Fatalf("%s should be exposed through /system/openapi/hub, not the main tool registry", name)
+			t.Fatalf("%s should not be exposed as a direct main-registry tool", name)
 		}
 	}
 }

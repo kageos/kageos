@@ -11,6 +11,7 @@
     "web_search",
     "fetch_url_content",
     "search_tools",
+    "search_resources",
     "write_prd",
     "write_doc",
     "write_go_file",

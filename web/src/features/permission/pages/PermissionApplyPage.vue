@@ -385,7 +385,7 @@ import {
 import { applyPermission, getWorkspacePermissions } from '@/api/permission'
 import type { FormInstance, FormRules } from 'element-plus'
 import { getAppWithServiceTree } from '@/api/app'
-import { getRolesForPermissionRequest, type Role, type RolePermission } from '@/api/role'
+import { assignRoleToDepartment, assignRoleToUser, getRolesForPermissionRequest, type Role, type RolePermission } from '@/api/role'
 import { useAuthStore } from '@/stores/auth'
 import type { ServiceTree, App } from '@/types'
 import type { UserInfo } from '@/types'
@@ -1911,8 +1911,12 @@ const handleSubmit = async () => {
     // 准备有效期参数
     const endTime = formData.value.isPermanent ? undefined : (formData.value.endTime || undefined)
 
-    // ⭐ 统一使用申请流程（不再区分申请和赋权）
-    // 所有权限申请都需要经过审批流程
+    if (isGrantMode.value) {
+      await submitDirectGrant(resourcePath, endTime)
+      return
+    }
+
+    // 申请模式仍走审批流程；赋权模式已在上方直接分配角色。
     let subjectType: 'user' | 'department' = 'user'
     let subject: string = ''
     
@@ -2010,6 +2014,68 @@ const navigateBack = () => {
 
 // 取消申请
 const handleCancel = () => {
+  navigateBack()
+}
+
+const submitDirectGrant = async (resourcePath: string, endTime?: string) => {
+  const role = selectedRole.value
+  if (!role?.code) {
+    ElMessage.warning('请选择一个有效角色')
+    return
+  }
+
+  const parsedResourcePath = parseResourcePath(resourcePath)
+  if (!parsedResourcePath) {
+    ElMessage.warning('资源路径格式错误，无法赋权')
+    return
+  }
+
+  if (grantTargetType.value === 'department') {
+    if (selectedDepartmentPaths.value.length === 0) {
+      ElMessage.warning('请至少选择一个要赋权的部门')
+      return
+    }
+
+    for (const departmentPath of selectedDepartmentPaths.value) {
+      await assignRoleToDepartment({
+        user: parsedResourcePath.user,
+        app: parsedResourcePath.app,
+        department_path: departmentPath,
+        role_code: role.code,
+        resource_path: resourcePath,
+        end_time: endTime,
+      })
+    }
+
+    ElMessage.success(`已为 ${selectedDepartmentPaths.value.length} 个部门完成赋权`)
+    navigateBack()
+    return
+  }
+
+  const targetUsers = grantTargetType.value === 'self'
+    ? [currentUser.value?.username || '']
+    : String(grantTargetUsersValue.value?.raw || '')
+      .split(',')
+      .map(username => username.trim())
+      .filter(Boolean)
+
+  if (targetUsers.length === 0) {
+    ElMessage.warning('请至少选择一个要赋权的用户')
+    return
+  }
+
+  for (const username of targetUsers) {
+    await assignRoleToUser({
+      user: parsedResourcePath.user,
+      app: parsedResourcePath.app,
+      username,
+      role_code: role.code,
+      resource_path: resourcePath,
+      end_time: endTime,
+    })
+  }
+
+  ElMessage.success(`已为 ${targetUsers.length} 个用户完成赋权`)
   navigateBack()
 }
 

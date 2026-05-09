@@ -37,11 +37,13 @@ export function canApprovePermissionRequest(
 }
 
 export function isServiceTreeNodeAdmin(
-  node: Pick<ServiceTree, 'admins'> | null | undefined,
+  node: Pick<ServiceTree, 'admins' | 'owner'> | null | undefined,
   currentUsername: string | null | undefined
 ): boolean {
   if (!node) return false
-  return isUsernameInList(node.admins, currentUsername)
+  const normalizedUsername = String(currentUsername || '').trim()
+  if (!normalizedUsername) return false
+  return node.owner === normalizedUsername || isUsernameInList(node.admins, normalizedUsername)
 }
 
 export function hasWorkspaceAdminAccess(options: {
@@ -71,5 +73,5 @@ export function hasWorkspaceAdminAccess(options: {
     }
   }
 
-  return isUsernameInList(currentApp.admins, normalizedUsername)
+  return currentApp.user === normalizedUsername || isUsernameInList(currentApp.admins, normalizedUsername)
 }

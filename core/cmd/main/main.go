@@ -39,6 +39,8 @@ type ServiceInfo struct {
 // 服务列表
 var services []*ServiceInfo
 
+const dependencyStartupTimeout = 100 * time.Second
+
 func init() {
 	// 注册要启动的服务（按依赖顺序）
 	// 1. Control Service（License 服务，其他服务可能依赖）
@@ -206,9 +208,10 @@ func main() {
 					select {
 					case <-depReadyCh:
 						logger.Infof(ctx, "[启动] %s 的依赖 %s 已就绪", info.Name, depName)
-					case <-time.After(30 * time.Second):
-						logger.Errorf(ctx, "[启动] %s 等待依赖 %s 超时", info.Name, depName)
-						errors <- fmt.Errorf("%s 等待依赖 %s 启动超时（30秒）", info.Name, depName)
+					case <-time.After(dependencyStartupTimeout):
+						timeoutSeconds := int(dependencyStartupTimeout / time.Second)
+						logger.Errorf(ctx, "[启动] %s 等待依赖 %s 超时（%d秒）", info.Name, depName, timeoutSeconds)
+						errors <- fmt.Errorf("%s 等待依赖 %s 启动超时（%d秒）", info.Name, depName, timeoutSeconds)
 						return
 					case <-ctx.Done():
 						return

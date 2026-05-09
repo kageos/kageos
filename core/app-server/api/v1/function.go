@@ -7,7 +7,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
-	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
 	permissionpkg "github.com/ai-agent-os/ai-agent-os/pkg/permission"
@@ -68,90 +67,81 @@ func (f *Function) GetFunction(c *gin.Context) {
 		return
 	}
 
-	// ⭐ 查询并返回函数权限信息（企业版功能）
-	licenseMgr := license.GetManager()
-	if licenseMgr.HasFeature(enterprise.FeaturePermission) {
-		permissionService := enterprise.GetPermissionService()
-		username := contextx.GetRequestUser(c)
+	// ⭐ 查询并返回函数权限信息。工作空间未启用权限管控时按全量可访问返回，避免老空间升级后被阻塞。
+	templateType := ""
+	if resp != nil && resp.TemplateType != "" {
+		templateType = resp.TemplateType
+	}
+	buildAllPermissions := func() map[string]bool {
+		actions := permission.GetActionsForNode("function", templateType)
+		permissions := make(map[string]bool)
+		for _, actionCode := range actions {
+			permissions[actionCode] = true
+		}
+		permissions[permission.BuildActionCode(permission.ResourceTypeApp, "admin")] = true
+		return permissions
+	}
 
-		if permissionService != nil && username != "" && fullCodePath != "" {
-			// ⭐ 获取节点需要的权限点（格式：resource_type:action_type，如 table:read, form:write）
-			// 从 resourcePath 解析 user 和 app
-			_, user, app := permissionpkg.ParseFullCodePath(fullCodePath)
-			if user != "" && app != "" {
-				// ⭐ 优先检查：如果当前用户是工作空间管理员，直接返回所有权限
-				// 获取应用信息（检查 admins 字段）
-				appModel, err := f.functionService.GetAppByUserAndCode(ctx, user, app)
-				if err == nil && appModel != nil && appModel.Admins != "" {
-					adminList := strings.Split(appModel.Admins, ",")
-					for _, admin := range adminList {
-						admin = strings.TrimSpace(admin)
-						if admin == username {
-							// 当前用户是管理员，直接返回所有权限
-							logger.Debugf(c, "[Function API] 用户 %s 是工作空间管理员，直接返回所有权限", username)
-							// 获取函数类型（从函数详情中获取 templateType）
-							templateType := ""
-							if resp != nil && resp.TemplateType != "" {
-								templateType = resp.TemplateType
-							}
-							actions := permission.GetActionsForNode("function", templateType)
-							resp.Permissions = make(map[string]bool)
-							for _, actionCode := range actions {
-								resp.Permissions[actionCode] = true
-							}
-							// ⭐ 同时将 app:admin 权限添加到节点权限中，方便前端检查
-							appAdminCode := permission.BuildActionCode(permission.ResourceTypeApp, "admin")
-							resp.Permissions[appAdminCode] = true
-							response.OkWithData(c, resp)
-							return
-						}
-					}
+	permissionService := enterprise.GetPermissionService()
+	username := contextx.GetRequestUser(c)
+
+	if permissionService != nil && username != "" && fullCodePath != "" {
+		// ⭐ 获取节点需要的权限点（格式：resource_type:action_type，如 table:read, form:write）
+		// 从 resourcePath 解析 user 和 app
+		_, user, app := permissionpkg.ParseFullCodePath(fullCodePath)
+		if user != "" && app != "" {
+			appModel, err := f.functionService.GetAppByUserAndCode(ctx, user, app)
+			if err == nil && appModel != nil {
+				if !appModel.PermissionEnforced {
+					resp.Permissions = buildAllPermissions()
+					response.OkWithData(c, resp)
+					return
+				}
+				if appModel.IsOwnerOrAdmin(username) {
+					// 当前用户是 owner/创建者/管理员，直接返回所有权限
+					logger.Debugf(c, "[Function API] 用户 %s 是工作空间 owner/创建者/管理员，直接返回所有权限", username)
+					resp.Permissions = buildAllPermissions()
+					response.OkWithData(c, resp)
+					return
+				}
+			}
+
+			actions := permission.GetActionsForNode("function", templateType)
+
+			if len(actions) > 0 {
+				permReq := &enterprise.GetUserWorkspacePermissionsReq{
+					User:           user,
+					App:            app,
+					Username:       username,
+					DepartmentPath: contextx.GetRequestDepartmentFullPath(ctx),
 				}
 
-				// ⭐ 如果不是管理员，使用原有的权限查询逻辑
-				// 获取函数类型（需要从函数详情中获取 templateType）
-				// 这里暂时使用默认的 table 类型，实际应该从函数详情中获取
-				templateType := "" // 如果无法获取，GetActionsForNode 会使用默认值
-				if resp != nil && resp.TemplateType != "" {
-					templateType = resp.TemplateType
-				}
-				actions := permission.GetActionsForNode("function", templateType)
-
-				if len(actions) > 0 {
-					permReq := &enterprise.GetUserWorkspacePermissionsReq{
-						User:           user,
-						App:            app,
-						Username:       username,
-						DepartmentPath: contextx.GetRequestDepartmentFullPath(ctx),
-					}
-
-					permResp, err := permissionService.GetUserWorkspacePermissions(ctx, permReq)
-					if err != nil {
-						logger.Warnf(c, "[Function API] 查询权限失败: username=%s, resource=%s, error=%v",
-							username, fullCodePath, err)
-						// 权限查询失败，初始化所有权限为 false
-						resp.Permissions = make(map[string]bool)
-						for _, actionCode := range actions {
-							resp.Permissions[actionCode] = false
-						}
-					} else {
-						// 初始化权限 map
-						resp.Permissions = make(map[string]bool)
-
-						// ⭐ 使用响应对象的辅助方法检查每个权限（自动处理权限继承）
-						// 权限点格式：resource_type:action_type
-						for _, actionCode := range actions {
-							resp.Permissions[actionCode] = permResp.CheckPermission(fullCodePath, actionCode)
-						}
+				permResp, err := permissionService.GetUserWorkspacePermissions(ctx, permReq)
+				if err != nil {
+					logger.Warnf(c, "[Function API] 查询权限失败: username=%s, resource=%s, error=%v",
+						username, fullCodePath, err)
+					// 权限查询失败，初始化所有权限为 false
+					resp.Permissions = make(map[string]bool)
+					for _, actionCode := range actions {
+						resp.Permissions[actionCode] = false
 					}
 				} else {
-					// 无法获取权限点，初始化所有权限为 false
+					// 初始化权限 map
 					resp.Permissions = make(map[string]bool)
+
+					// ⭐ 使用响应对象的辅助方法检查每个权限（自动处理权限继承）
+					// 权限点格式：resource_type:action_type
+					for _, actionCode := range actions {
+						resp.Permissions[actionCode] = permResp.CheckPermission(fullCodePath, actionCode)
+					}
 				}
 			} else {
-				// 无法解析 user 和 app，初始化所有权限为 false
+				// 无法获取权限点，初始化所有权限为 false
 				resp.Permissions = make(map[string]bool)
 			}
+		} else {
+			// 无法解析 user 和 app，初始化所有权限为 false
+			resp.Permissions = make(map[string]bool)
 		}
 	}
 

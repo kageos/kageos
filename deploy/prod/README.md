@@ -123,7 +123,7 @@ go run ./cmd/aosctl verify --config deploy/prod/aos.yaml
 
 生成物说明：
 
-- `deploy/prod/aos.yaml` 是本机私有部署配置，包含数据库密码、JWT 密钥、备份口令等敏感信息，默认不入库。
+- `deploy/prod/aos.yaml` 是本机私有部署配置，包含数据库密码、JWT 密钥、system 初始密码、备份口令等敏感信息，默认不入库。
 - `deploy/prod/.generated/` 是渲染后的 Compose、运行时配置和中间件配置，默认不入库。
 - `deploy/prod/aos.example.yaml` 是无密钥示例；真实部署建议用 `aosctl init` 生成随机密钥后再编辑。
 - `mysql.mode` / `nats.mode` / `minio.mode` 支持 `bundled` 和 `external`。`bundled` 会由 Compose 拉起中间件，`external` 则连接你填写的外部服务。

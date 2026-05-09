@@ -40,14 +40,16 @@ const (
 )
 
 type Config struct {
-	Site    SiteConfig    `yaml:"site"`
-	Images  ImageConfig   `yaml:"images"`
-	Storage StorageConfig `yaml:"storage"`
-	MySQL   MySQLConfig   `yaml:"mysql"`
-	NATS    NATSConfig    `yaml:"nats"`
-	MinIO   MinIOConfig   `yaml:"minio"`
-	Secrets SecretsConfig `yaml:"secrets"`
-	SMTP    SMTPConfig    `yaml:"smtp"`
+	Site       SiteConfig       `yaml:"site"`
+	Images     ImageConfig      `yaml:"images"`
+	Storage    StorageConfig    `yaml:"storage"`
+	MySQL      MySQLConfig      `yaml:"mysql"`
+	NATS       NATSConfig       `yaml:"nats"`
+	MinIO      MinIOConfig      `yaml:"minio"`
+	Secrets    SecretsConfig    `yaml:"secrets"`
+	SystemUser SystemUserConfig `yaml:"system_user"`
+	LLMs       LLMSeedsConfig   `yaml:"llms"`
+	SMTP       SMTPConfig       `yaml:"smtp"`
 }
 
 type SiteConfig struct {
@@ -118,6 +120,32 @@ type SecretsConfig struct {
 	GeneratedAtUnixSeconds int64  `yaml:"generated_at_unix_seconds"`
 }
 
+type SystemUserConfig struct {
+	Password string `yaml:"password"`
+}
+
+type LLMSeedsConfig struct {
+	Default string          `yaml:"default"`
+	Configs []LLMSeedConfig `yaml:"configs"`
+}
+
+type LLMSeedConfig struct {
+	Code        string `yaml:"code"`
+	Name        string `yaml:"name"`
+	Provider    string `yaml:"provider"`
+	Model       string `yaml:"model"`
+	APIKey      string `yaml:"api_key"`
+	APIKeyEnv   string `yaml:"api_key_env"`
+	APIBase     string `yaml:"api_base"`
+	Timeout     int    `yaml:"timeout"`
+	MaxTokens   int    `yaml:"max_tokens"`
+	ExtraConfig string `yaml:"extra_config"`
+	UseThinking bool   `yaml:"use_thinking"`
+	IsDefault   bool   `yaml:"is_default"`
+	Visibility  int    `yaml:"visibility"`
+	Admin       string `yaml:"admin"`
+}
+
 type SMTPConfig struct {
 	Host     string `yaml:"host"`
 	Port     int    `yaml:"port"`
@@ -163,6 +191,7 @@ type RuntimeConfig struct {
 	NATSAuthUser       string
 	NATSAuthPassword   string
 	ComposeConfigPath  string
+	LLMSeedEnvVars     []string
 }
 
 func main() {
@@ -1201,6 +1230,10 @@ func defaultConfig() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	systemUserPass, err := randomHex(24)
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg := Config{
 		Site: SiteConfig{
@@ -1259,6 +1292,9 @@ func defaultConfig() (Config, error) {
 			BackupBasicAuthPass:    backupPass,
 			GeneratedByAOSCtl:      true,
 			GeneratedAtUnixSeconds: time.Now().Unix(),
+		},
+		SystemUser: SystemUserConfig{
+			Password: systemUserPass,
 		},
 		SMTP: SMTPConfig{
 			Host:     "smtp.qq.com",
@@ -1427,6 +1463,7 @@ func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 		rt.NATSAuthPassword = cfg.NATS.Password
 	}
 	rt.ComposeConfigPath = filepath.Join(paths.GeneratedDir, "docker-compose.yaml")
+	rt.LLMSeedEnvVars = uniqueLLMSeedEnvVars(cfg.LLMs.Configs)
 	return rt, nil
 }
 
@@ -1501,7 +1538,88 @@ func validateConfig(rt RuntimeConfig) error {
 	if len(rt.Secrets.BackupBasicAuthPass) < 16 {
 		errs = append(errs, fmt.Errorf("secrets.backup_basic_auth_password must be at least 16 chars"))
 	}
+	if rt.SystemUser.Password == "" {
+		errs = append(errs, fmt.Errorf("system_user.password is required"))
+	}
+	if err := validateLLMSeeds(rt.LLMs); err != nil {
+		errs = append(errs, err)
+	}
 	return errors.Join(errs...)
+}
+
+func uniqueLLMSeedEnvVars(configs []LLMSeedConfig) []string {
+	seen := map[string]struct{}{}
+	var names []string
+	for _, cfg := range configs {
+		name := strings.TrimSpace(cfg.APIKeyEnv)
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		names = append(names, name)
+	}
+	return names
+}
+
+func validateLLMSeeds(seeds LLMSeedsConfig) error {
+	var errs []error
+	codes := map[string]struct{}{}
+	defaultCode := strings.TrimSpace(seeds.Default)
+	defaultFound := defaultCode == ""
+	defaultCount := 0
+	for i, cfg := range seeds.Configs {
+		prefix := fmt.Sprintf("llms.configs[%d]", i)
+		code := strings.TrimSpace(cfg.Code)
+		if code == "" {
+			errs = append(errs, fmt.Errorf("%s.code is required", prefix))
+			continue
+		}
+		if _, ok := codes[code]; ok {
+			errs = append(errs, fmt.Errorf("llms.configs code %q is duplicated", code))
+		}
+		codes[code] = struct{}{}
+		if strings.TrimSpace(cfg.Name) == "" {
+			errs = append(errs, fmt.Errorf("%s.name is required", prefix))
+		}
+		if strings.TrimSpace(cfg.Provider) == "" {
+			errs = append(errs, fmt.Errorf("%s.provider is required", prefix))
+		}
+		if strings.TrimSpace(cfg.Model) == "" {
+			errs = append(errs, fmt.Errorf("%s.model is required", prefix))
+		}
+		if envName := strings.TrimSpace(cfg.APIKeyEnv); envName != "" && !isValidEnvName(envName) {
+			errs = append(errs, fmt.Errorf("%s.api_key_env must be a valid environment variable name", prefix))
+		}
+		if cfg.IsDefault {
+			defaultCount++
+		}
+		if defaultCode != "" && code == defaultCode {
+			defaultFound = true
+		}
+	}
+	if defaultCount > 1 && defaultCode == "" {
+		errs = append(errs, fmt.Errorf("llms.configs can contain at most one is_default=true when llms.default is empty"))
+	}
+	if !defaultFound {
+		errs = append(errs, fmt.Errorf("llms.default %q must match one llms.configs[].code", defaultCode))
+	}
+	return errors.Join(errs...)
+}
+
+func isValidEnvName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for i, r := range name {
+		if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || r == '_' || (i > 0 && r >= '0' && r <= '9') {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func validateMode(name, value string) error {

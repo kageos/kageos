@@ -56,7 +56,8 @@ export function useWorkspaceApp(
     name: '',
     is_public: true, // 默认公开
     admins: '', // 管理员列表，逗号分隔的用户名
-    show_only_permitted: false // 仅展示有权限的空间（SaaS 多租户场景）
+    show_only_permitted: false, // 仅展示有权限的空间（SaaS 多租户场景）
+    permission_enforced: false // 是否启用权限管控，默认关闭以避免升级后阻塞老用户
   })
 
   // 加载工作空间列表
@@ -153,7 +154,8 @@ export function useWorkspaceApp(
       name: '',
       is_public: true,
       admins: '',
-      show_only_permitted: false
+      show_only_permitted: false,
+      permission_enforced: false
     }
   }
 

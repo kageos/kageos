@@ -18,13 +18,19 @@ type SearchToolsTool struct{ registry *ToolRegistry }
 type searchToolsArgs struct {
 	Keyword      string `json:"keyword" schema_desc:"搜索关键词，支持竖线分隔多个关键词"`
 	TemplateType string `json:"template_type" schema_desc:"函数类型过滤" schema_enum:"form,table,chart"`
+	Scope        string `json:"scope" schema_desc:"搜索范围：system=官方/system 函数（默认，兼容旧行为），visible=当前用户可见函数，current_user=当前用户下函数，current_app=当前工作区应用内函数" schema_enum:"system,visible,current_user,current_app"`
+	User         string `json:"user" schema_desc:"按用户名过滤；传入后优先于 scope 推导"`
+	App          string `json:"app" schema_desc:"按应用 code 过滤；通常和 user 搭配使用"`
+	Capability   string `json:"capability" schema_desc:"函数能力过滤：form 支持 submit；chart 支持 query；table 支持 read/create/batch-create/update/delete/read-only" schema_enum:"read,read-only,create,batch-create,update,delete,submit,query"`
+	Page         *int   `json:"page" schema_desc:"页码，默认 1"`
+	PageSize     *int   `json:"page_size" schema_desc:"每页条数，默认使用 limit 或 20，最多 100"`
 	Limit        *int   `json:"limit" schema_desc:"最多返回条数"`
 	SchemaOutput string `json:"schema_output" schema_desc:"schema 输出方式：summary=字段摘要（默认），json=原始 JSON，both=同时输出" schema_enum:"summary,json,both"`
 }
 
 var searchToolsToolDef = toolDefinition[searchToolsArgs](
 	"search_tools",
-	"按关键词搜索可用工具：返回「内置工具」与「system 用户下已注册的表单/表格/图表函数」。keyword 可选：不传则按调用次数返回高频已注册函数；传则按关键词匹配。多关键词用竖线 | 分隔（OR 语义），如 折线图|chart|画图。template_type 建议杂活传 form。执行表单/表格/图表前可用 schema_output=summary 或 both 获取字段摘要，确认字段名、必填项、枚举值和文件字段后再调用执行工具。",
+	"按关键词搜索可执行工具：返回「内置工具」与已注册的表单/表格/图表函数。默认 scope=system 搜官方/system 函数；可用 scope=visible 搜当前用户可见函数，scope=current_app 搜当前工作区应用，或传 user/app 精确过滤。keyword 可选：不传则按调用次数返回高频函数；多关键词用竖线 | 分隔（OR 语义）。可用 template_type 和 capability 缩小到 form/table/chart 或 read/create/update/delete/submit/query 等能力。执行表单/表格/图表前用 schema_output=summary 或 both 获取字段摘要，确认字段名、必填项、枚举值和文件字段后再调用执行工具。",
 )
 
 func (t *SearchToolsTool) Definition() dto.ToolDef {
@@ -36,8 +42,7 @@ func (t *SearchToolsTool) Execute(ctx context.Context, call ToolCall) ToolResult
 	if err != nil {
 		return toolResult("search_tools 参数解析失败: "+err.Error(), true)
 	}
-	content, isError := runSearchToolsTool(ctx, t.registry, args)
-	return toolResult(content, isError)
+	return runSearchToolsTool(ctx, t.registry, args, call.FullCodePath)
 }
 
 func splitSearchKeywords(keyword string) []string {
@@ -77,19 +82,58 @@ func normalizeSearchToolsRequestOutput(raw string) searchToolsRequestOutput {
 	}
 }
 
-// runSearchToolsTool 按关键词搜索可用工具（内置工具 + system 用户下已注册 Form/Table/Chart）
-func runSearchToolsTool(ctx context.Context, registry *ToolRegistry, args searchToolsArgs) (string, bool) {
+type searchToolsResultData struct {
+	Keyword      string                      `json:"keyword"`
+	Scope        string                      `json:"scope"`
+	User         string                      `json:"user,omitempty"`
+	App          string                      `json:"app,omitempty"`
+	TemplateType string                      `json:"template_type,omitempty"`
+	Capability   string                      `json:"capability,omitempty"`
+	Page         int                         `json:"page"`
+	PageSize     int                         `json:"page_size"`
+	Total        int64                       `json:"total"`
+	MatchedTools []dto.ToolDef               `json:"matched_tools,omitempty"`
+	Functions    []*dto.FunctionSearchResult `json:"functions,omitempty"`
+}
+
+func normalizeSearchToolsPageSize(args searchToolsArgs) int {
+	pageSize := 20
+	if args.Limit != nil && *args.Limit > 0 {
+		pageSize = *args.Limit
+	}
+	if args.PageSize != nil && *args.PageSize > 0 {
+		pageSize = *args.PageSize
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	return pageSize
+}
+
+func normalizeSearchToolsPage(args searchToolsArgs) int {
+	if args.Page != nil && *args.Page > 0 {
+		return *args.Page
+	}
+	return 1
+}
+
+// runSearchToolsTool 按关键词搜索可用工具（内置工具 + 已注册 Form/Table/Chart）
+func runSearchToolsTool(ctx context.Context, registry *ToolRegistry, args searchToolsArgs, currentFullCodePath string) ToolResult {
 	keywordRaw := strings.TrimSpace(args.Keyword)
 	keywords := splitSearchKeywords(keywordRaw)
 	templateType := strings.TrimSpace(args.TemplateType)
+	capability := normalizeSearchToolsCapability(args.Capability)
 	requestOutput := normalizeSearchToolsRequestOutput(args.SchemaOutput)
-	limit := 20
-	if args.Limit != nil && *args.Limit > 0 {
-		limit = *args.Limit
-		if limit > 50 {
-			limit = 50
-		}
+	page := normalizeSearchToolsPage(args)
+	pageSize := normalizeSearchToolsPageSize(args)
+	fetchPage := page
+	fetchPageSize := pageSize
+	if capability != "" {
+		fetchPage = 1
+		fetchPageSize = 100
 	}
+	user, app, scope := resolveSearchScopeUserApp(args.Scope, args.User, args.App, currentFullCodePath, searchScopeSystem)
+
 	matchedTools := make([]dto.ToolDef, 0)
 	if len(keywords) > 0 && registry != nil {
 		allTools, _ := registry.ListTools(ctx, nil)
@@ -109,26 +153,50 @@ func runSearchToolsTool(ctx context.Context, registry *ToolRegistry, args search
 	}
 
 	resp, err := apicall.SearchFunctions(ctx, &dto.SearchFunctionsReq{
-		User:         "system",
-		App:          "",
+		User:         user,
+		App:          app,
 		Keyword:      keywordRaw,
 		TemplateType: templateType,
-		Page:         1,
-		PageSize:     limit,
+		Page:         fetchPage,
+		PageSize:     fetchPageSize,
 	})
 	functions := make([]*dto.FunctionSearchResult, 0)
+	var total int64
 	if err != nil {
 		logger.Warnf(ctx, "[SearchTools] SearchFunctions err: %v", err)
 	} else if resp != nil {
 		functions = resp.Functions
+		total = resp.Total
 	}
+	if capability != "" {
+		functions = filterSearchToolFunctionsByCapability(functions, capability)
+		total = int64(len(functions))
+		functions = paginateSearchToolFunctions(functions, page, pageSize)
+	}
+
+	data := searchToolsResultData{
+		Keyword:      keywordRaw,
+		Scope:        scope,
+		User:         user,
+		App:          app,
+		TemplateType: templateType,
+		Capability:   capability,
+		Page:         page,
+		PageSize:     pageSize,
+		Total:        total,
+		MatchedTools: matchedTools,
+		Functions:    functions,
+	}
+
 	if len(functions) == 0 && len(matchedTools) == 0 {
 		if keywordRaw == "" {
-			return "当前 system 用户下暂无已注册函数；可传 keyword 按关键词搜索。", false
+			return toolResultWithData(formatSearchToolsNoResultMessage(data, "当前搜索范围下暂无已注册函数；可传 keyword 按关键词搜索。"), false, data)
 		}
-		return "未匹配到任何可用工具（内置工具或 system 用户下已注册函数）。如果用户要新建长期应用，先 change_role 到产品经理（product_manager），输出 PRD 并等用户确认后再进入应用开发工程师（app_developer）写代码。", false
+		return toolResultWithData(formatSearchToolsNoResultMessage(data, "未匹配到任何可用工具（内置工具或已注册函数）。如果用户要新建长期应用，先 change_role 到产品经理（product_manager），输出 PRD 并等用户确认后再进入应用开发工程师（app_developer）写代码。"), false, data)
 	}
-	return formatSearchToolsOutput(keywordRaw, matchedTools, functions, requestOutput), false
+	content := formatSearchToolsOutput(keywordRaw, matchedTools, functions, requestOutput)
+	content = formatSearchToolsSearchMeta(data) + "\n\n" + content
+	return toolResultWithData(content, false, data)
 }
 
 func formatSearchToolsOutput(keywordRaw string, matchedTools []dto.ToolDef, functions []*dto.FunctionSearchResult, requestOutput searchToolsRequestOutput) string {
@@ -175,6 +243,104 @@ func formatSearchToolsOutput(keywordRaw string, matchedTools []dto.ToolDef, func
 	}
 
 	return strings.TrimSpace(buf.String())
+}
+
+func normalizeSearchToolsCapability(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "read", "read-only", "create", "batch-create", "update", "delete", "submit", "query":
+		return strings.ToLower(strings.TrimSpace(raw))
+	default:
+		return ""
+	}
+}
+
+func filterSearchToolFunctionsByCapability(functions []*dto.FunctionSearchResult, capability string) []*dto.FunctionSearchResult {
+	if capability == "" {
+		return functions
+	}
+	out := make([]*dto.FunctionSearchResult, 0, len(functions))
+	for _, fn := range functions {
+		if searchToolFunctionHasCapability(fn, capability) {
+			out = append(out, fn)
+		}
+	}
+	return out
+}
+
+func paginateSearchToolFunctions(functions []*dto.FunctionSearchResult, page int, pageSize int) []*dto.FunctionSearchResult {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 || len(functions) == 0 {
+		return functions
+	}
+	start := (page - 1) * pageSize
+	if start >= len(functions) {
+		return nil
+	}
+	end := start + pageSize
+	if end > len(functions) {
+		end = len(functions)
+	}
+	return functions[start:end]
+}
+
+func searchToolFunctionHasCapability(fn *dto.FunctionSearchResult, capability string) bool {
+	if fn == nil {
+		return false
+	}
+	switch capability {
+	case "submit":
+		return fn.TemplateType == functionschema.TypeForm
+	case "query":
+		return fn.TemplateType == functionschema.TypeChart
+	case "read":
+		return fn.TemplateType == functionschema.TypeTable
+	case "read-only":
+		return fn.TemplateType == functionschema.TypeTable &&
+			!hasSearchToolCallback(fn.Callbacks, "OnTableAddRow") &&
+			!hasSearchToolCallback(fn.Callbacks, "OnTableCreateInBatches") &&
+			!hasSearchToolCallback(fn.Callbacks, "OnTableUpdateRow") &&
+			!hasSearchToolCallback(fn.Callbacks, "OnTableDeleteRows")
+	case "create":
+		return fn.TemplateType == functionschema.TypeTable && hasSearchToolCallback(fn.Callbacks, "OnTableAddRow")
+	case "batch-create":
+		return fn.TemplateType == functionschema.TypeTable && hasSearchToolCallback(fn.Callbacks, "OnTableCreateInBatches")
+	case "update":
+		return fn.TemplateType == functionschema.TypeTable && hasSearchToolCallback(fn.Callbacks, "OnTableUpdateRow")
+	case "delete":
+		return fn.TemplateType == functionschema.TypeTable && hasSearchToolCallback(fn.Callbacks, "OnTableDeleteRows")
+	default:
+		return true
+	}
+}
+
+func formatSearchToolsSearchMeta(data searchToolsResultData) string {
+	parts := []string{
+		"范围=" + data.Scope,
+		fmt.Sprintf("page=%d", data.Page),
+		fmt.Sprintf("page_size=%d", data.PageSize),
+	}
+	if data.User != "" {
+		parts = append(parts, "user="+data.User)
+	}
+	if data.App != "" {
+		parts = append(parts, "app="+data.App)
+	}
+	if data.TemplateType != "" {
+		parts = append(parts, "template_type="+data.TemplateType)
+	}
+	if data.Capability != "" {
+		parts = append(parts, "capability="+data.Capability)
+	}
+	if data.Total > 0 {
+		parts = append(parts, fmt.Sprintf("total=%d", data.Total))
+	}
+	return "搜索参数：" + strings.Join(parts, " | ")
+}
+
+func formatSearchToolsNoResultMessage(data searchToolsResultData, message string) string {
+	return formatSearchToolsSearchMeta(data) + "\n\n" + message
 }
 
 func formatSearchToolsLegacyOutput(keywordRaw string, matchedTools []dto.ToolDef, functions []*dto.FunctionSearchResult) string {

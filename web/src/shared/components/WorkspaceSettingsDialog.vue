@@ -19,10 +19,19 @@
         
         <el-form-item label="仅展示有权限">
           <el-tooltip
-            content="开启后，非管理员进入该工作空间时，左侧目录只展示其有权限的节点（适合 SaaS 多租户场景）"
+            content="启用权限管控后生效；开启后非管理员左侧目录只展示其有权限的节点"
             placement="top"
           >
             <el-switch v-model="showOnlyPermitted" />
+          </el-tooltip>
+        </el-form-item>
+
+        <el-form-item label="启用权限管控">
+          <el-tooltip
+            content="开启后按角色授权控制目录和函数访问；默认关闭，避免未配置授权时阻塞工作"
+            placement="top"
+          >
+            <el-switch v-model="permissionEnforced" />
           </el-tooltip>
         </el-form-item>
 
@@ -89,6 +98,7 @@ const workspaceResourcePath = computed(() => {
 const saving = ref(false)
 const adminsRaw = ref('')
 const showOnlyPermitted = ref(false)
+const permissionEnforced = ref(false)
 
 const adminsField = createWidgetFieldConfig({
   code: 'admins',
@@ -111,10 +121,12 @@ function initForm() {
   if (!props.currentApp) {
     adminsRaw.value = ''
     showOnlyPermitted.value = false
+    permissionEnforced.value = false
     return
   }
 
   showOnlyPermitted.value = !!props.currentApp?.show_only_permitted
+  permissionEnforced.value = !!props.currentApp?.permission_enforced
 
   // 直接使用 currentApp 中的 admins 字段（tree 接口已经返回了）
   if (props.currentApp?.admins) {
@@ -143,7 +155,8 @@ async function handleSave() {
 
     await updateWorkspace(buildAppResourcePath(props.currentApp.user, props.currentApp.code), {
       admins: adminsRaw.value.trim(),
-      show_only_permitted: showOnlyPermitted.value
+      show_only_permitted: showOnlyPermitted.value,
+      permission_enforced: permissionEnforced.value
     })
     
     ElMessage.success('工作空间设置已保存')

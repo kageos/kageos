@@ -183,6 +183,26 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 	}
 }
 
+func TestBuildWorkspaceHandoffContentForQA(t *testing.T) {
+	got := buildWorkspaceHandoffContent(workspaceHandoffContentInput{
+		TargetRole:    WorkspaceRoleQAEngineer,
+		ArtifactKind:  workspaceBuildArtifactKind,
+		ArtifactJSON:  `{"kind":"agent_app_build","workspace_path":"/liubeiluo/nps","new_version":"v4"}`,
+		ContextPolicy: ContextPolicyArtifactOnly,
+	})
+	for _, want := range []string{
+		"target_role 固定为 qa_engineer",
+		"测试阶段要求",
+		"search_tools/read_dir",
+		"创建开始时间/创建结束时间",
+		`"kind":"agent_app_build"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("content should include %q, got %q", want, got)
+		}
+	}
+}
+
 func TestExecuteToolCallsPersistsRoleAfterChangeRole(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {

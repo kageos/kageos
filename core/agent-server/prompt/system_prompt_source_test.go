@@ -166,6 +166,9 @@ func TestLeanPromptDocsMoveRedundantSDKTaskPacksOutOfSeed(t *testing.T) {
 
 func TestProductManagerRoleRequiresPRDTablesAndConfirmation(t *testing.T) {
 	_, content := GetPromptDocContent(nil, "/system/prompt/roles/product-manager")
+	if strings.Contains(content, "{{WORKSPACE_PRD_CONTRACT}}") {
+		t.Fatalf("product_manager role doc should expand PRD contract marker: %q", content)
+	}
 	for _, needle := range []string{
 		"产品经理 product_manager",
 		"write_prd",
@@ -176,6 +179,8 @@ func TestProductManagerRoleRequiresPRDTablesAndConfirmation(t *testing.T) {
 		"按记录创建时间范围查询",
 		"用户筛选字段",
 		"`handlers` 只表达表格行操作能力",
+		"## 代表性输出示例",
+		`"workflow"`,
 		"禁止输出旧结构",
 		"`models/functions/route/method/order/columns/sample_rows/preview_data/acceptance_cases/confirmation`",
 		"禁止调用 `create_directory`",
@@ -222,6 +227,14 @@ func TestExecutionRolesRetainPRDV2SearchRules(t *testing.T) {
 			"`创建开始时间/创建结束时间`",
 			"`创建人/提交人/处理人/评分人/申请人`",
 			"Form 提交后必须到 `target_table` 对应 Table 查询验证记录确实产生",
+		},
+		"/system/prompt/roles/app-operator": {
+			"应用操作员 app_operator",
+			"这是业务操作角色，不是测试角色",
+			"`run_table_search`",
+			"`run_table_create`",
+			"`run_form_submit`",
+			"不重新输出 PRD，不创建目录，不写 Go 文件，不 build",
 		},
 		"/system/prompt/roles/maintenance-engineer": {
 			"应用维护工程师 maintenance_engineer",

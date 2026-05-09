@@ -290,12 +290,16 @@ export function hasPermission(node: ServiceTree | undefined, action: string): bo
  * @returns 是否有任何权限
  */
 export function hasAnyPermissionForNode(node: ServiceTree | undefined): boolean {
+  if (node?.is_admin === true) {
+    return true
+  }
+
   if (!node || !node.permissions) {
     return false
   }
 
-    // 检查节点权限信息中是否有任何权限为 true
-    return Object.values(node.permissions).some(hasPerm => hasPerm === true)
+  // 检查节点权限信息中是否有任何权限为 true
+  return Object.values(node.permissions).some(hasPerm => hasPerm === true)
 }
 
 /**

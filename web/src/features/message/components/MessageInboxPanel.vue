@@ -337,9 +337,9 @@ function getMessageSourceInfo(item: MessageInboxItem): MessageSourceInfo {
   const sourceDetail = getSourceDetail(item)
   const type = getSourceType(item, sourceNode, sourceDetail)
   const templateType = getSourceTemplateType(item, sourceNode, sourceDetail)
-  const name = sourceDisplay?.name
-    || sourceNode?.name
+  const name = sourceNode?.name
     || sourceDetail?.name
+    || sourceDisplay?.name
     || getFallbackSourceName(type, templateType, path)
 
   return {
@@ -372,7 +372,7 @@ function getSourceType(
   sourceDetail?: SourceDetailInfo
 ) {
   const templateType = getSourceTemplateType(item, sourceNode, sourceDetail)
-  const type = String(item.source_display?.type || sourceNode?.type || sourceDetail?.type || item.source_type || '').trim().toLowerCase()
+  const type = String(sourceNode?.type || sourceDetail?.type || item.source_display?.type || item.source_type || '').trim().toLowerCase()
   if (!type && templateType) return 'function'
   return type
 }
@@ -382,7 +382,7 @@ function getSourceTemplateType(
   sourceNode = getSourceNode(item),
   sourceDetail?: SourceDetailInfo
 ) {
-  const explicit = String(item.source_display?.template_type || sourceNode?.template_type || sourceDetail?.template_type || '').trim().toLowerCase()
+  const explicit = String(sourceNode?.template_type || sourceDetail?.template_type || item.source_display?.template_type || '').trim().toLowerCase()
   if (explicit) return explicit
   return inferTemplateTypeFromPath(getSourcePath(item))
 }
@@ -551,9 +551,6 @@ async function loadSourceDetailsForMessages(list: MessageInboxItem[]) {
   const paths: string[] = []
   const seen = new Set<string>()
   for (const item of list) {
-    if (item.source_display?.name && item.source_display?.type) {
-      continue
-    }
     for (const path of getSourceLookupPaths(item)) {
       if (!path || seen.has(path) || sourceDetailMap.value[path] || loadingSourcePaths.has(path) || findNodeByPath(props.serviceTree || [], path)) {
         continue

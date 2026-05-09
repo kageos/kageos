@@ -43,10 +43,18 @@
       </el-form-item>
       <el-form-item label="仅展示有权限">
         <el-tooltip
-          content="开启后，非管理员用户进入该工作空间时，左侧目录只展示其有权限的节点（适合按区/街道/商户划分的 SaaS 场景）"
+          content="启用权限管控后生效；开启后非管理员左侧目录只展示其有权限的节点"
           placement="top"
         >
           <el-switch v-model="form.show_only_permitted" />
+        </el-tooltip>
+      </el-form-item>
+      <el-form-item label="启用权限管控">
+        <el-tooltip
+          content="开启后按角色授权控制目录和函数访问；默认关闭，避免新旧工作空间因未配置授权而被阻塞"
+          placement="top"
+        >
+          <el-switch v-model="form.permission_enforced" />
         </el-tooltip>
       </el-form-item>
       <el-form-item label="管理员">

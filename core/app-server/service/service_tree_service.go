@@ -34,6 +34,7 @@ type ServiceTreeService struct {
 	functionService    *serviceTreeFunctionService
 	packageService     *serviceTreePackageService
 	batchService       *serviceTreeBatchService
+	directoryBundle    *serviceTreeDirectoryBundleService
 }
 
 func NewServiceTreeService(
@@ -60,6 +61,7 @@ func NewServiceTreeService(
 		functionService:    newServiceTreeFunctionService(serviceTreeRepo, appRepo, appService),
 		packageService:     newServiceTreePackageService(serviceTreeRepo, appRepo, runtimeWorkspace),
 		batchService:       newServiceTreeBatchService(serviceTreeRepo, runtimeWorkspace, appService),
+		directoryBundle:    newServiceTreeDirectoryBundleService(serviceTreeRepo, appRepo, runtimeWorkspace, appService),
 	}
 }
 
@@ -116,6 +118,14 @@ func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.
 
 func (s *ServiceTreeService) ImportHubDirectoryBundle(ctx context.Context, req *dto.ImportHubDirectoryBundleReq) (*dto.PullDirectoryFromHubResp, error) {
 	return s.hubService.ImportHubDirectoryBundle(ctx, req)
+}
+
+func (s *ServiceTreeService) ExportDirectoryBundle(ctx context.Context, req *dto.ExportDirectoryBundleReq) (*dto.DirectoryBundle, error) {
+	return s.directoryBundle.ExportDirectoryBundle(ctx, req)
+}
+
+func (s *ServiceTreeService) ImportDirectoryBundle(ctx context.Context, req *dto.ImportDirectoryBundleReq) (*dto.ImportDirectoryBundleResp, error) {
+	return s.directoryBundle.ImportDirectoryBundle(ctx, req)
 }
 
 func (s *ServiceTreeService) BatchWriteFiles(ctx context.Context, req *dto.BatchWriteFilesReq) (*dto.BatchWriteFilesResp, error) {

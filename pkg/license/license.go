@@ -104,8 +104,8 @@ type Features struct {
 	// 组织架构
 	Organization bool `json:"organization"` // 组织架构功能
 
-	// 权限管理
-	Permission bool `json:"permission"` // 权限管理功能
+	// 高级权限治理
+	Permission bool `json:"permission"` // 组织架构授权、权限申请审批、自定义角色等高级能力
 
 	// 工作流
 	Workflow bool `json:"workflow"` // 工作流功能

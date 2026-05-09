@@ -10,7 +10,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
-	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	permissionconstants "github.com/ai-agent-os/ai-agent-os/pkg/permission"
 	"github.com/gin-gonic/gin"
@@ -28,11 +27,6 @@ func checkPermissionWithPath(c *gin.Context, fullCodePath string, action string,
 	}
 	if !strings.HasPrefix(fullCodePath, "/") {
 		fullCodePath = "/" + fullCodePath
-	}
-	licenseMgr := license.GetManager()
-	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
-		logger.Debugf(c, "[PermissionCheck] 社区版，跳过权限检查")
-		return true
 	}
 	username := contextx.GetRequestUser(c)
 	if username == "" {
@@ -171,16 +165,6 @@ func CheckFunctionRead() gin.HandlerFunc {
 			fullCodePath = "/" + fullCodePath
 		}
 
-		// ⭐ 运行时动态检查：根据当前 license 状态决定是否启用权限检查
-		licenseMgr := license.GetManager()
-		if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
-			// 社区版：不做权限控制，直接通过
-			logger.Debugf(c, "[PermissionCheck] 社区版，跳过权限检查")
-			c.Next()
-			return
-		}
-
-		// 企业版：正常进行权限检查
 		// 获取用户信息
 		username := contextx.GetRequestUser(c)
 		if username == "" {
@@ -303,15 +287,6 @@ func CheckWorkspaceUpdate() gin.HandlerFunc {
 
 // checkPermissionForPath 检查指定路径的权限（内部使用）
 func checkPermissionForPath(c *gin.Context, fullCodePath string, action string, errorMessage string) bool {
-	// ⭐ 运行时动态检查：根据当前 license 状态决定是否启用权限检查
-	licenseMgr := license.GetManager()
-	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
-		// 社区版：不做权限控制，直接通过
-		logger.Debugf(c, "[PermissionCheck] 社区版，跳过权限检查")
-		return true
-	}
-
-	// 企业版：正常进行权限检查
 	if fullCodePath == "" {
 		response.PermissionDenied(c, "资源路径不能为空", map[string]interface{}{
 			"resource_path": "",

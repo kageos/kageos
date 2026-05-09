@@ -6,8 +6,9 @@
  * ============================================
  *
  * 1. **URL 同步范围**：
- *    - 仅在新增模式下同步表单数据到 URL（`_tab=OnTableAddRow`）
- *    - 编辑模式和详情模式不同步 URL（`_tab=detail` 或不设置 `_tab`）
+ *    - 独立 Form 函数页面同步表单数据到 URL
+ *    - Table 新增模式同步表单数据到 URL（`_tab=OnTableAddRow`）
+ *    - 编辑模式和详情模式不同步 URL（`_tab=detail` 或合成表单）
  *    - 同步时保留表格参数、搜索参数等其他参数
  *
  * 2. **字段过滤**：
@@ -26,9 +27,9 @@
  * ============================================
  *
  * 1. **模式判断**：
- *    - 通过 `route.query._tab` 判断是否需要同步
- *    - 只有 `_tab=OnTableAddRow` 时才同步
- *    - 其他模式（`_tab=detail` 或不设置 `_tab`）不同步
+ *    - 真实 Form 函数页面默认同步
+ *    - `_tab=OnTableAddRow` 的 Table 新增表单同步
+ *    - `_tab=detail` 或 id=0 的合成编辑表单不同步
  *
  * 2. **事件驱动**：
  *    - 通过 `RouteEvent.updateRequested` 事件更新 URL
@@ -45,7 +46,7 @@
  * ============================================
  *
  * 1. **syncToURL**：
- *    - 检查是否需要同步（`_tab=OnTableAddRow`）
+ *    - 检查当前场景是否需要同步
  *    - 提取表单字段值并构建查询参数
  *    - 发出路由更新请求事件
  *
@@ -64,7 +65,7 @@
  * ============================================
  *
  * 1. **同步时机**：
- *    - 只在新增模式下同步（`_tab=OnTableAddRow`）
+ *    - 独立 Form 函数页面和 Table 新增模式同步
  *    - 编辑模式和详情模式不同步，避免 URL 污染
  *
  * 2. **参数保留**：
@@ -142,6 +143,32 @@ function buildFormQueryParams(
   return query
 }
 
+function getQueryStringValue(value: unknown): string | undefined {
+  if (Array.isArray(value)) {
+    return value[0] === undefined || value[0] === null ? undefined : String(value[0])
+  }
+
+  return value === undefined || value === null ? undefined : String(value)
+}
+
+function isRealFormFunction(detail: FunctionDetail): boolean {
+  return detail.template_type === 'form' && detail.id !== undefined && detail.id !== null && detail.id !== 0
+}
+
+function shouldSyncFormParams(detail: FunctionDetail, query: Record<string, any>): boolean {
+  const currentTab = getQueryStringValue(query._tab)
+
+  if (currentTab === 'OnTableAddRow') {
+    return true
+  }
+
+  if (currentTab) {
+    return false
+  }
+
+  return isRealFormFunction(detail)
+}
+
 /**
  * 同步表单参数到 URL
  */
@@ -172,17 +199,17 @@ export function useFormParamURLSync(options: UseFormParamURLSyncOptions) {
       return
     }
 
-    // 🔥 双重检查：确保只有在 _tab=OnTableAddRow 时才同步
-    // 防止编辑模式（_tab=detail 或不设置 _tab）时误同步
-    if (route.query._tab !== 'OnTableAddRow') {
-      Logger.debug('[useFormParamURLSync]', '检测到非新增模式标识，跳过 URL 同步', {
-        currentTab: route.query._tab
-      })
+    const detail = functionDetail.value
+    if (!detail) {
       return
     }
 
-    const detail = functionDetail.value
-    if (!detail) {
+    if (!shouldSyncFormParams(detail, route.query as Record<string, any>)) {
+      Logger.debug('[useFormParamURLSync]', '当前场景不需要 Form URL 同步，跳过', {
+        currentTab: route.query._tab,
+        functionId: detail.id,
+        templateType: detail.template_type
+      })
       return
     }
 

@@ -10,6 +10,7 @@ type LLMListReq struct {
 // LLMInfo LLM配置信息
 type LLMInfo struct {
 	ID          int64  `json:"id" example:"1"`
+	Code        string `json:"code,omitempty" example:"default"`
 	Name        string `json:"name" example:"OpenAI GPT-4"`
 	Provider    string `json:"provider" example:"openai"` // openai, claude, local, etc.
 	Model       string `json:"model" example:"gpt-4"`

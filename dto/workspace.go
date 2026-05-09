@@ -230,18 +230,21 @@ type CallToolResp struct {
 
 // UpdateWorkspaceReq 更新工作空间请求（只更新 MySQL 如 Admins、ShowOnlyPermitted；canonical 标识为 resource_path）
 type UpdateWorkspaceReq struct {
-	User              string `json:"-"`                             // 兼容字段，优先从 resource_path 解析
-	App               string `json:"-"`                             // 兼容字段，优先从 resource_path 解析
-	ResourcePath      string `json:"resource_path,omitempty"`       // 工作空间资源路径，规范为 /user/app
-	Admins            string `json:"admins"`                        // 管理员列表，逗号分隔
-	ShowOnlyPermitted *bool  `json:"show_only_permitted,omitempty"` // 仅展示有权限的空间（nil 表示不更新）
+	User               string `json:"-"`                             // 兼容字段，优先从 resource_path 解析
+	App                string `json:"-"`                             // 兼容字段，优先从 resource_path 解析
+	ResourcePath       string `json:"resource_path,omitempty"`       // 工作空间资源路径，规范为 /user/app
+	Admins             string `json:"admins"`                        // 管理员列表，逗号分隔
+	ShowOnlyPermitted  *bool  `json:"show_only_permitted,omitempty"` // 仅展示有权限的空间（nil 表示不更新）
+	PermissionEnforced *bool  `json:"permission_enforced,omitempty"` // 是否启用权限管控（nil 表示不更新）
 }
 
 // UpdateWorkspaceResp 更新工作空间响应
 type UpdateWorkspaceResp struct {
-	User   string `json:"user"`
-	App    string `json:"app"`
-	Admins string `json:"admins"`
+	User               string `json:"user"`
+	App                string `json:"app"`
+	Admins             string `json:"admins"`
+	ShowOnlyPermitted  bool   `json:"show_only_permitted"`
+	PermissionEnforced bool   `json:"permission_enforced"`
 }
 
 // ----- 以下为工作台环境信息接口使用 -----

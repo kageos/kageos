@@ -11,7 +11,7 @@ import (
 type SummarizeTaskStateTool struct{}
 
 type summarizeTaskStateArgs struct {
-	RoleID       string   `json:"role_id" schema_desc:"当前角色 ID，例如 product_manager/app_developer/maintenance_engineer/qa_engineer" schema_required:"true"`
+	RoleID       string   `json:"role_id" schema_desc:"当前角色 ID，例如 product_manager/app_developer/app_operator/maintenance_engineer/qa_engineer" schema_required:"true"`
 	Directory    string   `json:"directory" schema_desc:"当前工作目录"`
 	Outcome      string   `json:"outcome" schema_desc:"当前阶段结果，必须简短" schema_required:"true"`
 	ChangedFiles []string `json:"changed_files" schema_desc:"本阶段改动文件路径"`

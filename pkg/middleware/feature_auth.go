@@ -54,7 +54,7 @@ func getFeatureDisplayName(feature string) string {
 	case enterprise.FeatureOrganization:
 		return "组织架构"
 	case enterprise.FeaturePermission:
-		return "权限管理"
+		return "高级权限治理"
 	case enterprise.FeatureWorkflow:
 		return "工作流"
 	case enterprise.FeatureApproval:

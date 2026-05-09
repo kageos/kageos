@@ -79,12 +79,16 @@ services:
       NATS_SEED_PASSWORD: {{ q .NATSAuthPassword }}
       JWT_SECRET: {{ q .Secrets.JWTSecret }}
       CONTROL_ENC_KEY: {{ q .Secrets.ControlEncKey }}
+      SYSTEM_USER_PASSWORD: {{ q .SystemUser.Password }}
       SMTP_HOST: {{ q .SMTP.Host }}
       SMTP_PORT: {{ q .SMTP.Port }}
       SMTP_USERNAME: {{ q .SMTP.Username }}
       SMTP_PASSWORD: {{ q .SMTP.Password }}
       SMTP_FROM: {{ q .SMTP.From }}
       SMTP_FROM_NAME: {{ q .SMTP.FromName }}
+{{- range .LLMSeedEnvVars }}
+      {{ . }}: {{ q (printf "${%s:-}" .) }}
+{{- end }}
       TLS_MODE: {{ q .Site.TLSMode }}
       TLS_CERT_FILE: {{ q .Site.CertFile }}
       TLS_KEY_FILE: {{ q .Site.KeyFile }}
@@ -415,6 +419,38 @@ db:
   max_lifetime: 300
   log_level: "info"
   slow_threshold: 200
+{{- if .LLMs.Configs }}
+
+llms:
+  default: {{ q .LLMs.Default }}
+  configs:
+{{- range .LLMs.Configs }}
+    - code: {{ q .Code }}
+      name: {{ q .Name }}
+      provider: {{ q .Provider }}
+      model: {{ q .Model }}
+{{- if .APIKey }}
+      api_key: {{ q .APIKey }}
+{{- end }}
+{{- if .APIKeyEnv }}
+      api_key_env: {{ q .APIKeyEnv }}
+{{- end }}
+      api_base: {{ q .APIBase }}
+      timeout: {{ .Timeout }}
+      max_tokens: {{ .MaxTokens }}
+{{- if .ExtraConfig }}
+      extra_config: {{ q .ExtraConfig }}
+{{- end }}
+      use_thinking: {{ .UseThinking }}
+{{- if .IsDefault }}
+      is_default: true
+{{- end }}
+      visibility: {{ .Visibility }}
+{{- if .Admin }}
+      admin: {{ q .Admin }}
+{{- end }}
+{{- end }}
+{{- end }}
 `
 
 const timerSchedulerConfigTemplate = `
@@ -477,6 +513,9 @@ email:
   verification:
     code_length: 6
     code_expire: 300
+
+system_user:
+  password: {{ q .SystemUser.Password }}
 `
 
 const messageServerConfigTemplate = `

@@ -1,9 +1,10 @@
 package model
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	"strconv"
 	"strings"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 )
 
 type App struct {
@@ -26,6 +27,10 @@ type App struct {
 
 	// ⭐ 仅展示有权限的空间：开启后，非管理员用户进入工作空间时，服务树只展示其有权限的目录（用于 SaaS 多租户场景）
 	ShowOnlyPermitted bool `json:"show_only_permitted" gorm:"column:show_only_permitted;type:tinyint(1);default:0;comment:仅展示有权限的空间(0:否,1:是)"`
+
+	// PermissionEnforced controls whether RBAC is enforced for this workspace.
+	// It defaults to false so existing community workspaces keep working after an upgrade.
+	PermissionEnforced bool `json:"permission_enforced" gorm:"column:permission_enforced;type:tinyint(1);default:0;comment:是否启用权限管控(0:否,1:是)"`
 }
 
 func (App) TableName() string {
@@ -74,4 +79,28 @@ func (a *App) IsSystemApp() bool {
 // IsUserApp 检查是否为用户空间
 func (a *App) IsUserApp() bool {
 	return a.Type.IsUser()
+}
+
+// IsOwnerOrAdmin reports whether username is an app owner, creator, or listed admin.
+func (a *App) IsOwnerOrAdmin(username string) bool {
+	if a == nil {
+		return false
+	}
+
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return false
+	}
+
+	if strings.TrimSpace(a.User) == username || strings.TrimSpace(a.CreatedBy) == username {
+		return true
+	}
+
+	for _, admin := range strings.Split(a.Admins, ",") {
+		if strings.TrimSpace(admin) == username {
+			return true
+		}
+	}
+
+	return false
 }

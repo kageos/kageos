@@ -12,6 +12,7 @@ export interface UseMiniWorkstationComposerOptions {
   attachedFiles: Ref<WorkspaceChatMessageFile[]>
   sending: Ref<boolean>
   sendMessage: (content: string, streamFn: (onEvent: (event: string, data: Record<string, unknown>) => Promise<void> | void) => Promise<void>, files?: any[]) => Promise<void>
+  beforeSend?: (payload: { text: string; files: WorkspaceChatMessageFile[] | null }) => boolean | Promise<boolean>
   onTaskStarted?: (sessionId: string) => void
   onToolCallOk?: (payload: { name: string }) => void
   onMaximizedSessionStarted?: (sessionId: string) => void
@@ -36,6 +37,7 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     attachedFiles,
     sending,
     sendMessage,
+    beforeSend,
     onTaskStarted,
     onToolCallOk,
     onMaximizedSessionStarted
@@ -127,6 +129,11 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     const text = inputText.value.trim()
     const files = attachedFiles.value.length > 0 ? [...attachedFiles.value] : null
     if (!fullCodePath.value || (!text && !files?.length)) {
+      return
+    }
+    if (beforeSend && await beforeSend({ text, files })) {
+      inputText.value = ''
+      attachedFiles.value = []
       return
     }
 

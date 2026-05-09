@@ -13,7 +13,7 @@ type ChangeRoleTool struct{}
 
 type changeRoleArgs struct {
 	CurrentRole  string `json:"current_role" schema_desc:"当前身份 ID；没有则留空"`
-	TargetRole   string `json:"target_role" schema_desc:"目标身份 ID，例如 product_manager/app_developer/qa_engineer。为空时仅沿用 current_role；没有 current_role 则进入 reviewer"`
+	TargetRole   string `json:"target_role" schema_desc:"目标身份 ID，例如 product_manager/app_developer/app_operator/qa_engineer。为空时仅沿用 current_role；没有 current_role 则进入 reviewer"`
 	UserInput    string `json:"user_input" schema_desc:"用户本轮最新需求；仅作上下文记录，change_role 不按关键词推断身份"`
 	TaskSummary  string `json:"task_summary" schema_desc:"切换前要携带的极简任务摘要"`
 	Directory    string `json:"directory" schema_desc:"当前工作目录"`
@@ -59,7 +59,7 @@ func (t *ChangeRoleTool) Execute(ctx context.Context, call ToolCall) ToolResult 
 		return toolResult("change_role 参数解析失败: "+err.Error(), true)
 	}
 	if strings.TrimSpace(args.TargetRole) != "" && !isKnownWorkspaceRole(args.TargetRole) {
-		return toolResult("target_role 不支持: "+strings.TrimSpace(args.TargetRole)+"。请使用标准角色 ID：product_manager、app_developer、maintenance_engineer、qa_engineer、build_engineer、data_operator、scheduler_engineer、platform_engineer、reviewer。", true)
+		return toolResult("target_role 不支持: "+strings.TrimSpace(args.TargetRole)+"。请使用标准角色 ID：product_manager、app_developer、maintenance_engineer、app_operator、qa_engineer、build_engineer、data_operator、scheduler_engineer、platform_engineer、reviewer。", true)
 	}
 	data := buildChangeRole(ctx, args)
 	return toolResultWithStructuredData(data, false)
@@ -85,6 +85,11 @@ func buildChangeRole(ctx context.Context, args changeRoleArgs) changeRoleData {
 		target = WorkspaceRoleReviewer
 		reason = "未指定 target_role 且没有 current_role，进入只读分析身份"
 	}
+	if previous != "" && target != "" && previous != target {
+		if when, ok := workspaceRoleTransitionWhen(previous, target); ok && when != "" {
+			reason += "；符合推荐流转：" + when
+		}
+	}
 
 	roleSpec, _ := workspaceRoleSpecFor(target)
 	requiredDocs := roleDocumentPackage(target, roleSpec)
@@ -105,7 +110,7 @@ func buildChangeRole(ctx context.Context, args changeRoleArgs) changeRoleData {
 		RequiredDocs:     requiredDocs,
 		LoadedDocs:       loadedDocs,
 		MissingDocs:      missingDocs,
-		AllowedNextTools: roleSpec.AllowedTools,
+		AllowedNextTools: workspaceRoleAllowedTools(target),
 		NextAction:       roleSpec.Action,
 		NextRoles:        roleSpec.NextRoles,
 	}

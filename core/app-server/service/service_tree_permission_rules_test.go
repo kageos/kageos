@@ -17,6 +17,41 @@ func TestIsWorkspaceAdmin_TrimsAdminList(t *testing.T) {
 	}
 }
 
+func TestAppIsOwnerOrAdmin_IncludesOwnerCreatorAndAdmins(t *testing.T) {
+	app := &model.App{
+		User:   "owner",
+		Admins: " alice, bob ",
+	}
+	app.CreatedBy = "creator"
+
+	for _, username := range []string{"owner", "creator", "alice", "bob"} {
+		if !app.IsOwnerOrAdmin(username) {
+			t.Fatalf("expected %s to be recognized as app owner/admin", username)
+		}
+	}
+
+	if app.IsOwnerOrAdmin("visitor") {
+		t.Fatal("did not expect visitor to be recognized as app owner/admin")
+	}
+}
+
+func TestServiceTreeIsOwnerOrAdmin_IncludesCreatorAndAdmins(t *testing.T) {
+	node := &model.ServiceTree{
+		Admins: " alice, bob ",
+	}
+	node.CreatedBy = "creator"
+
+	for _, username := range []string{"creator", "alice", "bob"} {
+		if !node.IsOwnerOrAdmin(username) {
+			t.Fatalf("expected %s to be recognized as node owner/admin", username)
+		}
+	}
+
+	if node.IsOwnerOrAdmin("visitor") {
+		t.Fatal("did not expect visitor to be recognized as node owner/admin")
+	}
+}
+
 func TestBuildRawPermissions_GroupsByResourcePath(t *testing.T) {
 	raw := buildRawPermissions([]dto.PermissionRecord{
 		{Resource: "/u/a", Action: permission.BuildActionCode(permission.ResourceTypeApp, "read")},

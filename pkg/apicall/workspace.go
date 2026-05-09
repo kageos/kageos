@@ -39,6 +39,17 @@ func SearchFunctions(ctx context.Context, req *dto.SearchFunctionsReq) (*dto.Sea
 	))
 }
 
+// SearchResources 搜索服务树资源（agent-server -> app-server）。
+func SearchResources(ctx context.Context, req *dto.SearchResourcesReq) (*dto.SearchResourcesResp, error) {
+	return GetAPI[*dto.SearchResourcesResp](ctx, "/workspace/api/v1/service_tree/search_resources", buildQueryParams(
+		withPaginationQuery(req.Page, req.PageSize),
+		withTrimmedQueryValue("user", req.User),
+		withTrimmedQueryValue("app", req.App),
+		withTrimmedQueryValue("keyword", req.Keyword),
+		withTrimmedQueryValue("resource_type", req.ResourceType),
+	))
+}
+
 // GetFunctionInfo 根据 full_code_path 获取函数详情（agent-server -> app-server）。
 func GetFunctionInfo(ctx context.Context, funcType string, fullCodePath string) (*dto.GetFunctionResp, error) {
 	path := buildWorkspaceFunctionPath("/workspace/api/v1/function/info/"+strings.Trim(strings.TrimSpace(funcType), "/"), fullCodePath)

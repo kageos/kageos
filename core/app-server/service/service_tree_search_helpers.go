@@ -81,6 +81,7 @@ func searchFunctionsRelevanceScore(tree *model.ServiceTree, keywords []string) i
 	score := 0
 	nameLower := strings.ToLower(strings.TrimSpace(tree.Name))
 	codeLower := strings.ToLower(strings.TrimSpace(tree.Code))
+	pathLower := strings.ToLower(strings.TrimSpace(tree.FullCodePath))
 	descLower := strings.ToLower(tree.Description)
 	tagsLower := strings.ToLower(tree.Tags)
 	tagSlice := tree.GetTagsSlice()
@@ -99,6 +100,10 @@ func searchFunctionsRelevanceScore(tree *model.ServiceTree, keywords []string) i
 		if codeLower == k {
 			score += 6
 		} else if strings.Contains(codeLower, k) {
+			score += 2
+		}
+
+		if strings.Contains(pathLower, k) {
 			score += 2
 		}
 

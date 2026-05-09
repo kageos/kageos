@@ -148,6 +148,7 @@
                   <el-dropdown-item v-if="data.type === 'package' && !isRootNode(data) && hasPermission(data, DirectoryPermission.delete)" :data-testid="`service-tree-action-delete-directory-${data.id}`" command="delete-directory"><el-icon><Delete /></el-icon>删除目录</el-dropdown-item>
                   <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.update)" :data-testid="`service-tree-action-rename-${data.id}`" command="rename"><el-icon><Edit /></el-icon>重命名</el-dropdown-item>
                   <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.read)" :data-testid="`service-tree-action-copy-${data.id}`" command="copy"><el-icon><CopyDocument /></el-icon>复制</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.read)" :data-testid="`service-tree-action-export-json-${data.id}`" command="export-json"><el-icon><Download /></el-icon>导出 JSON</el-dropdown-item>
                   <el-dropdown-item v-if="data.type === 'package' && (copiedDirectory || copiedHubLink) && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-paste-${data.id}`" command="paste"><el-icon><DocumentChecked /></el-icon>粘贴</el-dropdown-item>
                   <el-dropdown-item v-if="data.type === 'function' && hasPermission(data, TablePermission.delete)" :data-testid="`service-tree-action-delete-function-${data.id}`" command="delete-function"><el-icon><Delete /></el-icon>删除函数</el-dropdown-item>
                   <el-dropdown-item v-if="data.type === 'docs' && hasPermission(data, DirectoryPermission.delete)" :data-testid="`service-tree-action-delete-doc-${data.id}`" command="delete-doc"><el-icon><Delete /></el-icon>删除文档</el-dropdown-item>
@@ -231,6 +232,14 @@
                     <el-icon><CopyDocument /></el-icon>
                     复制
                   </el-dropdown-item>
+
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.read)" 
+                    command="export-json"
+                  >
+                    <el-icon><Download /></el-icon>
+                    导出 JSON
+                  </el-dropdown-item>
                   
                   <!-- 粘贴选项（需要目标目录有 write 权限，且有已复制的内容） -->
                   <el-dropdown-item 
@@ -313,8 +322,9 @@ import { ElMessageBox, ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import { isRootNode } from '@/utils/tree-utils'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
-import { updatePackage, updateServiceTreeFunction, updateDocs } from '@/api/service-tree'
+import { exportDirectoryBundle, updatePackage, updateServiceTreeFunction, updateDocs } from '@/api/service-tree'
 import { getRuntimeStateSummary, type RuntimeStateSummary } from '@/api/state'
+import { downloadDirectoryBundleFile } from '@/utils/directoryBundleFile'
 import { 
   hasPermission, 
   hasAnyPermissionForNode, 
@@ -592,6 +602,27 @@ const handleApplyPermission = (data: ServiceTree) => {
   router.push(url)
 }
 
+const handleExportJson = async (data: ServiceTree) => {
+  if (data.type !== 'package') {
+    ElMessage.warning('只能导出目录')
+    return
+  }
+
+  if (!data.full_code_path) {
+    ElMessage.warning('无法获取目录路径，请刷新后重试')
+    return
+  }
+
+  try {
+    const bundle = await exportDirectoryBundle(data.full_code_path)
+    downloadDirectoryBundleFile(bundle, data.full_code_path)
+    ElMessage.success('已开始下载 JSON 文件')
+  } catch (error: any) {
+    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '导出失败'
+    ElMessage.error(message)
+  }
+}
+
 // 处理待审批数量点击
 const handlePendingCountClick = (data: ServiceTree) => {
   handleApprovePermission(data)
@@ -643,6 +674,8 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     handleRename(data)
   } else if (command === 'copy') {
     handleCopy(data)
+  } else if (command === 'export-json') {
+    void handleExportJson(data)
   } else if (command === 'paste') {
     // 粘贴时,如果右键的节点是 package，使用该节点；否则使用当前选中的目录
     if (data.type === 'package') {

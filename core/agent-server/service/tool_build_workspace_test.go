@@ -3,7 +3,53 @@ package service
 import (
 	"strings"
 	"testing"
+
+	"github.com/ai-agent-os/ai-agent-os/dto"
 )
+
+func TestBuildWorkspaceSuccessResultExposesTestInteraction(t *testing.T) {
+	got := buildWorkspaceSuccessResult("/liubeiluo/nps", &dto.UpdateAppResp{
+		User:       "liubeiluo",
+		App:        "nps",
+		OldVersion: "v3",
+		NewVersion: "v4",
+		Warnings:   []string{"metadata sync delayed"},
+	})
+	if got.Kind != workspaceBuildArtifactKind || got.WorkspacePath != "/liubeiluo/nps" || got.App != "nps" {
+		t.Fatalf("unexpected build result: %#v", got)
+	}
+	if got.Interaction == nil || got.Interaction.Status != "pending_test" || got.Interaction.TargetRoleOnConfirm != WorkspaceRoleQAEngineer {
+		t.Fatalf("unexpected build interaction: %#v", got.Interaction)
+	}
+	if !containsWorkspaceRoleString(got.Interaction.AllowedActions, "start_test") ||
+		!containsWorkspaceRoleString(got.Interaction.AllowedActions, "continue_development") {
+		t.Fatalf("interaction should expose test handoff actions: %#v", got.Interaction)
+	}
+	if len(got.Warnings) != 1 || got.Warnings[0] != "metadata sync delayed" {
+		t.Fatalf("warnings not copied: %#v", got.Warnings)
+	}
+}
+
+func TestBuildWorkspaceToolSchemaExposesStructuredResult(t *testing.T) {
+	def := (&BuildWorkspaceTool{}).Definition()
+	props, ok := def.OutputSchema["properties"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("output schema properties missing: %#v", def.OutputSchema)
+	}
+	data, ok := props["data"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("output schema should expose data: %#v", props)
+	}
+	dataProps, ok := data["properties"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("data schema properties missing: %#v", data)
+	}
+	for _, name := range []string{"kind", "workspace_path", "app", "interaction"} {
+		if _, ok := dataProps[name]; !ok {
+			t.Fatalf("build_workspace data schema should expose %q", name)
+		}
+	}
+}
 
 func TestWorkspaceBuildErrorHints(t *testing.T) {
 	errText := `app startup failed: SDK schema compile failed:

@@ -59,6 +59,25 @@ secrets:
   generated_by_aosctl: false
   generated_at_unix_seconds: 0
 
+system_user:
+  password: "replace-with-a-strong-system-password"
+
+llms:
+  # 可选。配置后 agent-server 启动时会幂等初始化到 LLM 管理页面。
+  default: "main"
+  configs:
+    - code: "main"
+      name: "默认模型"
+      provider: "qwen"
+      model: "qwen-plus"
+      # 推荐用环境变量注入密钥；api_base 不填时走 SDK/provider 默认地址。
+      api_key_env: "QIANWEN_API_KEY"
+      api_base: ""
+      timeout: 300
+      max_tokens: 8192
+      visibility: 0
+      admin: "system"
+
 smtp:
   host: "smtp.qq.com"
   port: 587

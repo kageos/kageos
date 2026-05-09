@@ -7,7 +7,6 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
-	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
 )
@@ -39,11 +38,6 @@ func (a *AppService) grantCreateAppAdmins(ctx context.Context, user, app, admins
 // assignAppAdminRoleToUser 给用户分配应用管理员角色。
 // 使用角色系统，分配 "admin" 角色（拥有 app:admin 权限）。
 func (a *AppService) assignAppAdminRoleToUser(ctx context.Context, user, app, username, resourcePath string) error {
-	licenseMgr := license.GetManager()
-	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
-		return nil
-	}
-
 	permissionService := enterprise.GetPermissionService()
 	if permissionService == nil {
 		return fmt.Errorf("权限服务未初始化")
@@ -69,11 +63,6 @@ func (a *AppService) assignAppAdminRoleToUser(ctx context.Context, user, app, us
 
 // removeAppAdminRoleFromUser 移除用户的应用管理员角色。
 func (a *AppService) removeAppAdminRoleFromUser(ctx context.Context, user, app, username, resourcePath string) error {
-	licenseMgr := license.GetManager()
-	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
-		return nil
-	}
-
 	permissionService := enterprise.GetPermissionService()
 	if permissionService == nil {
 		return fmt.Errorf("权限服务未初始化")

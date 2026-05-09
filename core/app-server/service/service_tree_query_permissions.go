@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/dto"
@@ -15,6 +16,7 @@ type workspacePermissionContext struct {
 	workspaceApp   string
 	rawPermissions map[string]map[string]bool
 	admins         string
+	appModel       *model.App
 }
 
 func (q *serviceTreeQueryView) loadWorkspacePermissionContext(ctx context.Context, fullCodePath string) (*workspacePermissionContext, error) {
@@ -47,6 +49,7 @@ func (q *serviceTreeQueryView) loadWorkspacePermissionContext(ctx context.Contex
 	appModel, err := q.appRepo.GetAppByUserName(workspaceUser, workspaceApp)
 	if err == nil && appModel != nil {
 		permCtx.admins = appModel.Admins
+		permCtx.appModel = appModel
 	}
 
 	return permCtx, nil
@@ -58,6 +61,8 @@ func (q *serviceTreeQueryView) buildQueryNodePermissions(
 	fullCodePath string,
 	permCtx *workspacePermissionContext,
 	username string,
+	nodeAdmins string,
+	nodeCreatedBy string,
 ) map[string]bool {
 	actions := permissionActionsForNode(nodeType, templateType)
 	nodePerms := initializeNodePermissions(actions, permCtx.rawPermissions[fullCodePath])
@@ -71,8 +76,13 @@ func (q *serviceTreeQueryView) buildQueryNodePermissions(
 		}
 	}
 
-	if isWorkspaceAdmin(username, permCtx.admins) {
+	if isWorkspaceAdmin(username, permCtx.admins) || (permCtx.appModel != nil && permCtx.appModel.IsOwnerOrAdmin(username)) {
 		grantAppAdminPermission(nodePerms)
+		return nodePerms
+	}
+
+	if isUserNodeAdmin(username, nodeAdmins, nodeCreatedBy) || q.hasServiceTreeOwnerOrAdmin(username, fullCodePath) {
+		grantAllNodePermissions(nodePerms)
 		return nodePerms
 	}
 
@@ -84,6 +94,32 @@ func (q *serviceTreeQueryView) buildQueryNodePermissions(
 	}
 
 	return nodePerms
+}
+
+func (q *serviceTreeQueryView) hasServiceTreeOwnerOrAdmin(username string, fullCodePath string) bool {
+	if q == nil || q.serviceTreeRepo == nil {
+		return false
+	}
+
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return false
+	}
+
+	paths := append([]string{fullCodePath}, permission.GetParentPaths(fullCodePath)...)
+	nodes, err := q.serviceTreeRepo.GetServiceTreeByFullPaths(paths)
+	if err != nil {
+		return false
+	}
+
+	for _, path := range paths {
+		node := nodes[path]
+		if node != nil && node.IsOwnerOrAdmin(username) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (q *serviceTreeQueryView) buildAllAdminPermissionsMap(trees []*model.ServiceTree) map[string]map[string]bool {
@@ -167,6 +203,11 @@ func (q *serviceTreeQueryView) calculatePermissions(
 			}
 
 			currentNodePerms := copyPermissionMap(rawPermissions[node.FullCodePath])
+
+			if node.IsOwnerOrAdmin(username) {
+				grantAllNodePermissions(nodePerms)
+				currentNodePerms[permission.BuildActionCode(permission.ResourceTypeDirectory, permission.ActionAdmin)] = true
+			}
 
 			if hasAppAdminPermission(appPerms) {
 				grantAppAdminPermission(nodePerms)

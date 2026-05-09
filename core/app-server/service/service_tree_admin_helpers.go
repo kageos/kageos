@@ -7,7 +7,6 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
-	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
 )
@@ -32,11 +31,6 @@ func parseUserAppFromResourcePath(resourcePath string) (string, string, error) {
 }
 
 func assignDirectoryAdminRoleToUser(ctx context.Context, user, app, username, resourcePath string) error {
-	licenseMgr := license.GetManager()
-	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
-		return nil
-	}
-
 	permissionService := enterprise.GetPermissionService()
 	if permissionService == nil {
 		return fmt.Errorf("权限服务未初始化")
@@ -71,11 +65,6 @@ func removeDirectoryAdminRoleFromUser(ctx context.Context, resourcePath, usernam
 }
 
 func removeDirectoryAdminRoleFromUserWithUserApp(ctx context.Context, user, app, username, resourcePath string) error {
-	licenseMgr := license.GetManager()
-	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
-		return nil
-	}
-
 	permissionService := enterprise.GetPermissionService()
 	if permissionService == nil {
 		return fmt.Errorf("权限服务未初始化")

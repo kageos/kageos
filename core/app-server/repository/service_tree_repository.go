@@ -462,15 +462,29 @@ func splitSearchKeywords(keyword string) []string {
 	return out
 }
 
-// SearchFunctions 搜索函数节点：只查 ServiceTree（type=function），按 code/name/description/tags 匹配，预加载 App、Function
+// SearchFunctions 搜索函数节点：只查 ServiceTree（type=function），按 code/name/description/tags/full_code_path 匹配，预加载 App、Function
 // user 非空时先查 app 表该 user 的 app id 列表，再用 app_id IN 限定，避免 JOIN 导致查不到
-func (r *ServiceTreeRepository) SearchFunctions(user, app, keyword, templateType string, page, pageSize int) ([]*model.ServiceTree, int64, error) {
+func (r *ServiceTreeRepository) SearchFunctions(currentUser, user, app, keyword, templateType string, page, pageSize int) ([]*model.ServiceTree, int64, error) {
 	query := r.db.Model(&model.ServiceTree{}).
 		Where("service_tree.type = ?", model.ServiceTreeTypeFunction)
 
 	// user 非空时：先查 app 表得到该用户下的 app id，用 app_id IN 限定（保证能命中 system 等）
 	if user != "" {
 		subq := r.db.Model(&model.App{}).Select("id").Where("user = ?", user)
+		if app != "" {
+			subq = subq.Where("code = ?", app)
+		}
+		query = query.Where("service_tree.app_id IN (?)", subq)
+	} else if currentUser != "" {
+		subq := r.db.Model(&model.App{}).Select("id").Where(
+			"is_public = ? OR user = ? OR admins = ? OR admins LIKE ? OR admins LIKE ? OR admins LIKE ?",
+			true,
+			currentUser,
+			currentUser,
+			currentUser+",%",
+			"%,"+currentUser+",%",
+			"%,"+currentUser,
+		)
 		if app != "" {
 			subq = subq.Where("code = ?", app)
 		}
@@ -486,8 +500,8 @@ func (r *ServiceTreeRepository) SearchFunctions(user, app, keyword, templateType
 			var args []interface{}
 			for _, k := range keywords {
 				pattern := "%" + k + "%"
-				orConditions = append(orConditions, "(service_tree.code LIKE ? OR service_tree.name LIKE ? OR service_tree.description LIKE ? OR service_tree.tags LIKE ?)")
-				args = append(args, pattern, pattern, pattern, pattern)
+				orConditions = append(orConditions, "(service_tree.code LIKE ? OR service_tree.name LIKE ? OR service_tree.description LIKE ? OR service_tree.tags LIKE ? OR service_tree.full_code_path LIKE ?)")
+				args = append(args, pattern, pattern, pattern, pattern, pattern)
 			}
 			query = query.Where(strings.Join(orConditions, " OR "), args...)
 		}

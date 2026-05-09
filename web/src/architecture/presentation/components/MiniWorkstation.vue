@@ -126,6 +126,36 @@
 
       </div><!-- /.mini-ws-body -->
 
+      <div v-if="pendingPrd" class="mini-prd-confirm-bar" data-testid="mini-prd-confirm-bar">
+        <div class="mini-prd-confirm-copy">
+          <strong>PRD 等待确认</strong>
+          <span>{{ pendingPrdHelpText }}</span>
+        </div>
+        <div class="mini-prd-confirm-actions">
+          <el-button size="small" @click="focusPrdPreview">查看 PRD</el-button>
+          <el-button size="small" @click="prepareRevisePrd">修改 PRD</el-button>
+          <el-button size="small" @click="cancelPendingPrd">取消</el-button>
+          <el-button type="primary" size="small" :loading="sending" @click="confirmPendingPrd">
+            确认 PRD
+          </el-button>
+        </div>
+      </div>
+
+      <div v-else-if="pendingTestHandoff" class="mini-prd-confirm-bar" data-testid="mini-test-confirm-bar">
+        <div class="mini-prd-confirm-copy">
+          <strong>应用等待测试</strong>
+          <span>{{ pendingTestHandoffHelpText }}</span>
+        </div>
+        <div class="mini-prd-confirm-actions">
+          <el-button size="small" @click="focusPrdPreview">查看构建结果</el-button>
+          <el-button size="small" @click="prepareContinueDevelopment">继续修改</el-button>
+          <el-button size="small" @click="cancelPendingTestHandoff">暂不测试</el-button>
+          <el-button type="primary" size="small" :loading="sending" @click="confirmPendingTestHandoff">
+            开始测试
+          </el-button>
+        </div>
+      </div>
+
       <MiniWorkstationComposer
         :full-code-path="fullCodePath"
         :attached-files="attachedFiles"
@@ -316,6 +346,8 @@ const scheduledDraftFiles = ref('')
 const llmSelectOpen = ref(false)
 const settingsPopoverOpen = ref(false)
 const interactionOpen = computed(() => llmSelectOpen.value || settingsPopoverOpen.value)
+const confirmedPrdKeys = ref<Set<string>>(new Set())
+const confirmedTestHandoffKeys = ref<Set<string>>(new Set())
 
 function registerInputRef(element: HTMLTextAreaElement | null) {
   inputRef.value = element || undefined
@@ -874,6 +906,7 @@ const {
   attachedFiles,
   sending,
   sendMessage,
+  beforeSend: handleBeforeSend,
   onTaskStarted: (startedSessionId) => {
     emit('task-started', startedSessionId)
   },
@@ -885,6 +918,194 @@ const {
     emit('maximize-change', { maximized: true, sessionId: startedSessionId })
   }
 })
+
+interface PrdInteractionData {
+  kind?: string
+  interaction?: {
+    artifact_kind?: string
+    status?: string
+    help_text?: string
+    target_role_on_confirm?: string
+    allowed_actions?: string[]
+  }
+  project?: {
+    name?: string
+    code?: string
+  }
+}
+
+interface BuildTestInteractionData {
+  kind?: string
+  workspace_path?: string
+  app?: string
+  old_version?: string
+  new_version?: string
+  interaction?: {
+    artifact_kind?: string
+    status?: string
+    help_text?: string
+    target_role_on_confirm?: string
+    allowed_actions?: string[]
+  }
+}
+
+const pendingPrd = computed<PrdInteractionData | null>(() => {
+  for (let i = messages.value.length - 1; i >= 0; i--) {
+    const message = messages.value[i]
+    if (!message) continue
+    const calls = collectMessageToolCalls(message)
+    for (let j = calls.length - 1; j >= 0; j--) {
+      const call = calls[j]
+      if (!call) continue
+      if (call.name !== 'write_prd' || call.status !== 'ok' || !isPrdInteractionData(call.result_data)) continue
+      const key = getStageArtifactKey(call.result_data)
+      if (confirmedPrdKeys.value.has(key)) continue
+      return call.result_data
+    }
+  }
+  return null
+})
+
+const pendingPrdHelpText = computed(() => {
+  return pendingPrd.value?.interaction?.help_text || 'PRD 已生成，请确认后进入开发；看不到按钮也可以直接回复：确认 PRD。'
+})
+
+const pendingTestHandoff = computed<BuildTestInteractionData | null>(() => {
+  for (let i = messages.value.length - 1; i >= 0; i--) {
+    const message = messages.value[i]
+    if (!message) continue
+    const calls = collectMessageToolCalls(message)
+    for (let j = calls.length - 1; j >= 0; j--) {
+      const call = calls[j]
+      if (!call) continue
+      if (call.name !== 'build_workspace' || call.status !== 'ok' || !isBuildTestInteractionData(call.result_data)) continue
+      const key = getStageArtifactKey(call.result_data)
+      if (confirmedTestHandoffKeys.value.has(key)) continue
+      return call.result_data
+    }
+  }
+  return null
+})
+
+const pendingTestHandoffHelpText = computed(() => {
+  return pendingTestHandoff.value?.interaction?.help_text || '应用已编译部署，请确认是否进入测试工程师验证。'
+})
+
+function isPrdInteractionData(value: unknown): value is PrdInteractionData {
+  if (!value || typeof value !== 'object') return false
+  const data = value as PrdInteractionData
+  return data.kind === 'agent_app_prd' && data.interaction?.status === 'pending_confirmation'
+}
+
+function isBuildTestInteractionData(value: unknown): value is BuildTestInteractionData {
+  if (!value || typeof value !== 'object') return false
+  const data = value as BuildTestInteractionData
+  return data.kind === 'agent_app_build' && data.interaction?.status === 'pending_test'
+}
+
+function getStageArtifactKey(artifact: unknown) {
+  try {
+    return JSON.stringify(artifact)
+  } catch {
+    return String(artifact)
+  }
+}
+
+function markPrdConfirmed(prd: unknown) {
+  const next = new Set(confirmedPrdKeys.value)
+  next.add(getStageArtifactKey(prd))
+  confirmedPrdKeys.value = next
+}
+
+function markTestHandoffHandled(artifact: unknown) {
+  const next = new Set(confirmedTestHandoffKeys.value)
+  next.add(getStageArtifactKey(artifact))
+  confirmedTestHandoffKeys.value = next
+}
+
+async function handleBeforeSend(payload: { text: string; files: unknown[] | null }) {
+  const text = payload.text.trim()
+  if (payload.files?.length) return false
+  if (pendingPrd.value) {
+    if (isConfirmPrdText(text)) {
+      await handleConfirmPrd({ remark: '', prd: pendingPrd.value })
+      return true
+    }
+    if (isCancelPrdText(text)) {
+      markPrdConfirmed(pendingPrd.value)
+      ElMessage.info('已取消本次 PRD 确认')
+      return true
+    }
+  }
+  if (pendingTestHandoff.value) {
+    if (isStartTestText(text)) {
+      await handleConfirmTestHandoff({ artifact: pendingTestHandoff.value })
+      return true
+    }
+    if (isSkipTestText(text)) {
+      markTestHandoffHandled(pendingTestHandoff.value)
+      ElMessage.info('已暂不进入测试')
+      return true
+    }
+  }
+  return false
+}
+
+function isConfirmPrdText(text: string) {
+  const normalized = text.replace(/\s+/g, '').toLowerCase()
+  return ['确认', '确认prd', '可以', '没问题', '按这个做', '开始开发'].includes(normalized)
+}
+
+function isCancelPrdText(text: string) {
+  const normalized = text.replace(/\s+/g, '').toLowerCase()
+  return ['取消', '取消prd', '先不做', '不用了'].includes(normalized)
+}
+
+function isStartTestText(text: string) {
+  const normalized = text.replace(/\s+/g, '').toLowerCase()
+  return ['开始测试', '测试', '进入测试', '切到测试', '切换到测试', '验证', '开始验证'].includes(normalized)
+}
+
+function isSkipTestText(text: string) {
+  const normalized = text.replace(/\s+/g, '').toLowerCase()
+  return ['暂不测试', '先不测试', '不用测试', '跳过测试'].includes(normalized)
+}
+
+function confirmPendingPrd() {
+  if (!pendingPrd.value) return
+  void handleConfirmPrd({ remark: '', prd: pendingPrd.value })
+}
+
+function confirmPendingTestHandoff() {
+  if (!pendingTestHandoff.value) return
+  void handleConfirmTestHandoff({ artifact: pendingTestHandoff.value })
+}
+
+function prepareRevisePrd() {
+  inputText.value = inputText.value.trim() || '修改 PRD：'
+  setTimeout(() => inputRef.value?.focus(), 0)
+}
+
+function prepareContinueDevelopment() {
+  inputText.value = inputText.value.trim() || '继续修改：'
+  setTimeout(() => inputRef.value?.focus(), 0)
+}
+
+function cancelPendingPrd() {
+  if (!pendingPrd.value) return
+  markPrdConfirmed(pendingPrd.value)
+  ElMessage.info('已取消本次 PRD 确认')
+}
+
+function cancelPendingTestHandoff() {
+  if (!pendingTestHandoff.value) return
+  markTestHandoffHandled(pendingTestHandoff.value)
+  ElMessage.info('已暂不进入测试')
+}
+
+function focusPrdPreview() {
+  outputRef.value?.scrollTo({ top: outputRef.value.scrollHeight, behavior: 'smooth' })
+}
 
 function onLLMSelectVisibleChange(visible: boolean) {
   llmSelectOpen.value = visible
@@ -902,7 +1123,7 @@ async function handleConfirmPrd(payload: { remark: string; prd: unknown }) {
     handoff = await createWorkspaceHandoff({
       source_session_id: sessionId.value,
       full_code_path: props.fullCodePath,
-      target_role: 'app_developer',
+      target_role: getPrdTargetRole(payload.prd),
       artifact_kind: 'agent_app_prd',
       artifact: payload.prd,
       remark,
@@ -912,6 +1133,7 @@ async function handleConfirmPrd(payload: { remark: string; prd: unknown }) {
     ElMessage.error(error?.message || '创建交接会话失败')
     return
   }
+  markPrdConfirmed(payload.prd)
   setMessages([])
   sessionId.value = handoff.session_id
   void sendTextToSession(
@@ -920,6 +1142,60 @@ async function handleConfirmPrd(payload: { remark: string; prd: unknown }) {
     handoff.display_content,
     { contextUsage: 'artifact', artifactKind: handoff.artifact_kind, resume: true }
   )
+}
+
+async function handleConfirmTestHandoff(payload: { artifact: unknown }) {
+  if (!sessionId.value || !props.fullCodePath || sending.value) {
+    ElMessage.warning('当前会话还未准备好，暂时不能进入测试')
+    return
+  }
+  let handoff
+  try {
+    handoff = await createWorkspaceHandoff({
+      source_session_id: sessionId.value,
+      full_code_path: props.fullCodePath,
+      target_role: getBuildTestTargetRole(payload.artifact),
+      artifact_kind: getStageArtifactKind(payload.artifact, 'agent_app_build'),
+      artifact: payload.artifact,
+      remark: '',
+      context_policy: 'artifact_only',
+      display_content: '已构建成功，开始测试验证。'
+    })
+  } catch (error: any) {
+    ElMessage.error(error?.message || '创建测试会话失败')
+    return
+  }
+  markTestHandoffHandled(payload.artifact)
+  setMessages([])
+  sessionId.value = handoff.session_id
+  void sendTextToSession(
+    handoff.session_id,
+    handoff.content,
+    handoff.display_content,
+    { contextUsage: 'artifact', artifactKind: handoff.artifact_kind, resume: true }
+  )
+}
+
+function getPrdTargetRole(prd: unknown) {
+  if (isPrdInteractionData(prd) && prd.interaction?.target_role_on_confirm) {
+    return prd.interaction.target_role_on_confirm
+  }
+  return 'app_developer'
+}
+
+function getBuildTestTargetRole(artifact: unknown) {
+  if (isBuildTestInteractionData(artifact) && artifact.interaction?.target_role_on_confirm) {
+    return artifact.interaction.target_role_on_confirm
+  }
+  return 'qa_engineer'
+}
+
+function getStageArtifactKind(artifact: unknown, fallback: string) {
+  if (artifact && typeof artifact === 'object') {
+    const data = artifact as { interaction?: { artifact_kind?: string }, kind?: string }
+    return data.interaction?.artifact_kind || data.kind || fallback
+  }
+  return fallback
 }
 
 watch(
@@ -1490,6 +1766,70 @@ onUnmounted(() => {
 .mini-ws-output::-webkit-scrollbar-thumb {
   background: rgba(34, 211, 238, 0.26);
   border-radius: 999px;
+}
+
+.mini-prd-confirm-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(246, 199, 107, 0.28);
+  border-bottom: 1px solid rgba(96, 231, 255, 0.12);
+  background:
+    linear-gradient(90deg, rgba(246, 199, 107, 0.16), rgba(34, 211, 238, 0.08)),
+    rgba(5, 16, 30, 0.88);
+  box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.18);
+}
+
+.mini-prd-confirm-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mini-prd-confirm-copy strong {
+  color: #ffe4a3;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.mini-prd-confirm-copy span {
+  max-width: 560px;
+  overflow: hidden;
+  color: var(--mini-cyber-muted);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-prd-confirm-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mini-prd-confirm-actions :deep(.el-button) {
+  margin-left: 0;
+}
+
+.mini-ws:not(.mini-ws--maximized) .mini-prd-confirm-bar {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mini-ws:not(.mini-ws--maximized) .mini-prd-confirm-copy span {
+  max-width: 100%;
+}
+
+.mini-ws:not(.mini-ws--maximized) .mini-prd-confirm-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 /* ── 拖拽上传遮罩 ── */

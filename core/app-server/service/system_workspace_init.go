@@ -39,6 +39,9 @@ func InitSystemWorkspace(ctx context.Context, appService *AppService, serviceTre
 	if err := initSystemPromptSeed(systemCtx, serviceTreeService); err != nil {
 		return fmt.Errorf("初始化 prompt 工作空间失败: %w", err)
 	}
+	if err := initOfficialDirectorySeeds(systemCtx, serviceTreeService); err != nil {
+		return fmt.Errorf("初始化官方目录种子失败: %w", err)
+	}
 
 	logger.Infof(ctx, "[SystemWorkspace] 系统工作空间初始化完成")
 	return nil

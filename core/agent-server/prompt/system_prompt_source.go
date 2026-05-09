@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	workspaceprd "github.com/ai-agent-os/ai-agent-os/core/agent-server/workspace/prd"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/servicetree"
 )
@@ -185,9 +186,21 @@ func GetPromptDocContent(ctx context.Context, fullCodePath string) (name, conten
 		if docName == "" {
 			docName = path.Base(logical)
 		}
-		return docName, doc.Content
+		return docName, finalizePromptDocContent(logical, doc.Content)
 	}
-	return getSeedPromptDocContent(logical)
+	name, content = getSeedPromptDocContent(logical)
+	return name, finalizePromptDocContent(logical, content)
+}
+
+func finalizePromptDocContent(logical, content string) string {
+	switch NormalizePromptDocPath(logical) {
+	case SystemPromptRootPath + "/mode/dev/system_prompt":
+		return finalizeModeSystemPrompt(content)
+	case SystemPromptRootPath + "/roles/product-manager":
+		return workspaceprd.ApplyContractMarkdown(content)
+	default:
+		return content
+	}
 }
 
 func ListSystemPromptSeedDocs() ([]PromptSeedDoc, error) {
@@ -324,6 +337,7 @@ func loadModeProviderFromTree(ctx context.Context, code string) *modeProvider {
 
 	systemPrompt := loadModeDocContent(ctx, code, cfg.SystemPromptFile)
 	systemPrompt = appendModeSystemPrompt(systemPrompt, loadTreePromptAppendFiles(ctx, code, modeSystemPromptAppendFiles(code, cfg.SystemPromptAppendFiles)))
+	systemPrompt = finalizeModeSystemPrompt(systemPrompt)
 
 	toolNames := cfg.ToolNames
 	if toolNames == nil {
