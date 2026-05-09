@@ -720,22 +720,15 @@ func (s *PodmanService) RunContainerWithMount(ctx context.Context, image, name, 
 		return fmt.Errorf("container service is not running")
 	}
 
-	// 宿主机在容器内的解析（与 RunContainerWithCommand 一致，便于容器内访问 MinIO/Gateway 等）
-	sdkConfig := appconfig.GetSDKConfig()
-	hostEntry := "host.containers.internal:host-gateway"
-	if sdkConfig.HostIPForContainer != "" {
-		hostEntry = "host.containers.internal:" + sdkConfig.HostIPForContainer
-	}
-
 	// 使用 podman 命令行工具运行容器并挂载目录
 	logger.Infof(ctx, "Creating container with mount: %s", name)
-	cmd := exec.Command("podman", "run", "-d",
-		"--name", name,
-		"--add-host", hostEntry,
-		"-v", fmt.Sprintf("%s:%s", hostPath, containerPath),
-		"-e", "TZ=Asia/Shanghai", // 设置时区
+	args := podmanRunBaseArgs(name, hostPath, containerPath)
+	args = append(args,
 		image,
-		"tail", "-f", "/dev/null") // 保持容器运行
+		"tail", "-f", "/dev/null", // 保持容器运行
+	)
+
+	cmd := exec.Command("podman", args...)
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -752,25 +745,11 @@ func (s *PodmanService) RunContainerWithCommand(ctx context.Context, image, name
 		return fmt.Errorf("container service is not running")
 	}
 
-	// 宿主机在容器内的解析：优先使用配置的 host_ip_for_container，否则用 host-gateway（Podman 4.4+）
-	// 若线上 host-gateway 无效（如 rootless 或旧版），可在 config 的 sdk.host_ip_for_container 填 172.17.0.1 或宿主机 IP
-	sdkConfig := appconfig.GetSDKConfig()
-	hostEntry := "host.containers.internal:host-gateway"
-	if sdkConfig.HostIPForContainer != "" {
-		hostEntry = "host.containers.internal:" + sdkConfig.HostIPForContainer
-		logger.Infof(ctx, "[RunContainerWithCommand] Using configured host IP for container: %s", sdkConfig.HostIPForContainer)
-	}
-
 	// 使用 podman 命令行工具运行容器并挂载目录，使用指定命令作为主进程
-	// 添加 host.containers.internal -> host-gateway 或配置的 IP，使容器内能访问宿主机服务（如 NATS、Gateway）
 	logger.Infof(ctx, "Creating container with mount and command: %s", name)
 
 	// 构建命令参数
-	args := []string{"run", "-d",
-		"--name", name,
-		"--add-host", hostEntry,
-		"-v", fmt.Sprintf("%s:%s", hostPath, containerPath),
-		"-e", "TZ=Asia/Shanghai"} // 设置时区
+	args := podmanRunBaseArgs(name, hostPath, containerPath)
 
 	// 按 LSM 检测结果施加内核级安全策略（禁止容器内删除 code/workplace）
 	switch s.GetDetectedLSM() {
@@ -811,6 +790,15 @@ func (s *PodmanService) RunContainerWithCommand(ctx context.Context, image, name
 
 	logger.Infof(ctx, "Container %s started successfully with mount %s:%s, command %v, and env vars %v", name, hostPath, containerPath, command, envVars)
 	return nil
+}
+
+func podmanRunBaseArgs(name, hostPath, containerPath string) []string {
+	return []string{
+		"run", "-d",
+		"--name", name,
+		"-v", fmt.Sprintf("%s:%s", hostPath, containerPath),
+		"-e", "TZ=Asia/Shanghai",
+	}
 }
 
 // IsContainerRunning 检查容器是否正在运行

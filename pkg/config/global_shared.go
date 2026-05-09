@@ -100,10 +100,9 @@ func GetGatewayURL() string {
 //   - gateway_url -> GATEWAY_URL 环境变量
 //   - env_vars 中的键值对 -> 对应的环境变量
 type SDKConfig struct {
-	NatsURL            string            `mapstructure:"nats_url"`              // NATS 地址（容器内访问，如 nats://host.containers.internal:4222），注入为 NATS_URL 环境变量
-	GatewayURL         string            `mapstructure:"gateway_url"`           // 网关地址（容器内访问，如 http://host.containers.internal:9090），注入为 GATEWAY_URL 环境变量
-	HostIPForContainer string            `mapstructure:"host_ip_for_container"` // 可选，宿主机在容器网络中的 IP，用于 --add-host host.containers.internal:<ip>；不设则用 host-gateway（Podman 4.4+）；若 host-gateway 无效可填 172.17.0.1（Docker 桥）或宿主机实际 IP
-	EnvVars            map[string]string `mapstructure:"env_vars"`              // 额外的环境变量映射（键值对），会直接注入到容器中
+	NatsURL    string            `mapstructure:"nats_url"`    // NATS 地址（容器内访问，如 nats://host.containers.internal:4222），注入为 NATS_URL 环境变量
+	GatewayURL string            `mapstructure:"gateway_url"` // 网关地址（容器内访问，如 http://host.containers.internal:9090），注入为 GATEWAY_URL 环境变量
+	EnvVars    map[string]string `mapstructure:"env_vars"`    // 额外的环境变量映射（键值对），会直接注入到容器中
 }
 
 // GetNatsURL 获取 SDK NATS 地址（容器内访问）
