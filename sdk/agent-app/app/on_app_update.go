@@ -247,16 +247,6 @@ func sortApiInfosByKey(apis []*ApiInfo) {
 	})
 }
 
-// 执行API差异对比（兼容旧接口，内部调用 diffApiWithCurrentApis）
-func (a *App) diffApi() (add []*ApiInfo, update []*ApiInfo, delete []*ApiInfo, err error) {
-	// 获取当前版本的API
-	currentApis, _, err := a.getApis()
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to get current apis: %w", err)
-	}
-	return a.diffApiWithCurrentApis(currentApis)
-}
-
 // 获取当前所有API信息
 func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error) {
 	var errs []error
@@ -290,25 +280,19 @@ func (a *App) buildApiInfo(info *routerInfo) (*ApiInfo, []interface{}, error) {
 		return nil, nil, fmt.Errorf("router %s base config is nil", info.Router)
 	}
 
-	// 构建源代码文件路径
-	sourceCodeFilePath := info.BuildSourceCodeFilePath()
-	sourceCode := readRouterSourceCode(info, sourceCodeFilePath)
-
 	api := &ApiInfo{
-		Code:               info.getCode(),
-		Name:               base.Name,
-		Desc:               base.Desc,
-		Tags:               base.Tags,
-		Router:             info.Router,
-		Method:             info.Method,
-		User:               env.User,
-		App:                env.App,
-		FullCodePath:       fmt.Sprintf("/%s/%s/%s", env.User, env.App, strings.Trim(info.Router, "/")),
-		AddedVersion:       "",         // 不预设版本，让diff逻辑来正确设置
-		UpdateVersions:     []string{}, // 初始化空的更新版本列表
-		routerInfo:         info,
-		SourceCodeFilePath: sourceCodeFilePath,
-		SourceCode:         sourceCode,
+		Code:           info.getCode(),
+		Name:           base.Name,
+		Desc:           base.Desc,
+		Tags:           base.Tags,
+		Router:         info.Router,
+		Method:         info.Method,
+		User:           env.User,
+		App:            env.App,
+		FullCodePath:   fmt.Sprintf("/%s/%s/%s", env.User, env.App, strings.Trim(info.Router, "/")),
+		AddedVersion:   "",         // 不预设版本，让diff逻辑来正确设置
+		UpdateVersions: []string{}, // 初始化空的更新版本列表
+		routerInfo:     info,
 	}
 
 	fieldsCallback := make(map[string][]string)
@@ -366,11 +350,6 @@ func (a *App) buildApiInfo(info *routerInfo) (*ApiInfo, []interface{}, error) {
 		errs = append(errs, fmt.Errorf("router %s has unsupported template type: %s", info.Router, templateType))
 	}
 
-	if api.Schema != nil {
-		if err := functionschema.Validate(api.Schema); err != nil {
-			errs = append(errs, fmt.Errorf("router %s schema validation failed: %w", info.Router, err))
-		}
-	}
 	if err := errors.Join(errs...); err != nil {
 		return nil, nil, err
 	}
@@ -391,37 +370,6 @@ func (a *App) buildApiInfo(info *routerInfo) (*ApiInfo, []interface{}, error) {
 	}
 
 	return api, createTables, nil
-}
-
-func readRouterSourceCode(info *routerInfo, sourceCodeFilePath string) string {
-	// 读取源代码文件内容
-	if sourceCodeFilePath == "" || info.Options == nil {
-		logger.Warnf(context.Background(), "Cannot read source code: sourceCodeFilePath=%s, Options=%v",
-			sourceCodeFilePath, info.Options != nil)
-		return ""
-	}
-
-	// 直接使用 PackagePath 构建文件路径
-	// 不再需要 groupCode，目录本身就是管理单元
-	packagePath := strings.Trim(info.Options.PackagePath, "/")
-
-	// 文件路径：/app/code/api/{package}/init_.go（目录的 init_.go 文件）
-	// 或者可以根据实际需求调整，例如读取目录下的所有 .go 文件
-	var filePath string
-	if packagePath == "" {
-		filePath = "/app/code/api/init_.go"
-	} else {
-		filePath = fmt.Sprintf("/app/code/api/%s/init_.go", packagePath)
-	}
-
-	// 读取文件内容
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		logger.Warnf(context.Background(), "Failed to read source code file %s: %v", filePath, err)
-		return ""
-	}
-	logger.Infof(context.Background(), "Successfully read source code file %s, length: %d", filePath, len(content))
-	return string(content)
 }
 
 // collectPackageInfos 收集当前应用的全量 package 信息

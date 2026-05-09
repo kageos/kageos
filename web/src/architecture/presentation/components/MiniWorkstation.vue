@@ -902,7 +902,7 @@ async function handleConfirmPrd(payload: { remark: string; prd: unknown }) {
     handoff = await createWorkspaceHandoff({
       source_session_id: sessionId.value,
       full_code_path: props.fullCodePath,
-      target_role: 'app.create',
+      target_role: 'app_developer',
       artifact_kind: 'agent_app_prd',
       artifact: payload.prd,
       remark,
@@ -918,7 +918,7 @@ async function handleConfirmPrd(payload: { remark: string; prd: unknown }) {
     handoff.session_id,
     handoff.content,
     handoff.display_content,
-    { contextUsage: 'artifact', artifactKind: handoff.artifact_kind }
+    { contextUsage: 'artifact', artifactKind: handoff.artifact_kind, resume: true }
   )
 }
 

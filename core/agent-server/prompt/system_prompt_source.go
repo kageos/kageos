@@ -18,6 +18,7 @@ const (
 	SystemPromptWorkspaceEnvTemplatePath = SystemPromptRootPath + "/doc/workspace-env-template"
 	systemPromptSeedRoot                 = "system/prompt"
 	systemPromptReadmeFileName           = "readme.md"
+	retiredWorkflowPromptPackageCode     = "inte" + "nts"
 )
 
 type PromptSeedDoc struct {
@@ -76,8 +77,22 @@ func IsLegacyWorkspacePromptPath(fullCodePath string) bool {
 	return fullCodePath == SystemPromptRootPath+"/workspace" || strings.HasPrefix(fullCodePath, SystemPromptRootPath+"/workspace/")
 }
 
+func IsRetiredWorkflowPromptPath(fullCodePath string) bool {
+	fullCodePath = strings.TrimSpace(fullCodePath)
+	if fullCodePath == "" {
+		return false
+	}
+	if !strings.HasPrefix(fullCodePath, "/") {
+		fullCodePath = "/" + fullCodePath
+	}
+	fullCodePath = strings.TrimRight(fullCodePath, "/")
+	prefix := SystemPromptRootPath + "/" + retiredWorkflowPromptPackageCode
+	return fullCodePath == prefix || strings.HasPrefix(fullCodePath, prefix+"/")
+}
+
 func IsPromptDocPath(fullCodePath string) bool {
-	return NormalizePromptDocPath(fullCodePath) != ""
+	logical := NormalizePromptDocPath(fullCodePath)
+	return logical != "" && !IsLegacyWorkspacePromptPath(logical) && !IsRetiredWorkflowPromptPath(logical)
 }
 
 func PromptDocLeafPath(fullCodePath string) string {
@@ -101,7 +116,7 @@ func PromptDocCandidatePaths(fullCodePath string) []string {
 	if logical == "" {
 		return nil
 	}
-	if IsLegacyWorkspacePromptPath(logical) {
+	if IsLegacyWorkspacePromptPath(logical) || IsRetiredWorkflowPromptPath(logical) {
 		return nil
 	}
 	candidates := make([]string, 0, 3)
@@ -158,7 +173,7 @@ func GetPromptDocContent(ctx context.Context, fullCodePath string) (name, conten
 	if logical == "" {
 		return "", ""
 	}
-	if IsLegacyWorkspacePromptPath(logical) {
+	if IsLegacyWorkspacePromptPath(logical) || IsRetiredWorkflowPromptPath(logical) {
 		return "", ""
 	}
 	for _, actualPath := range PromptDocCandidatePaths(logical) {
@@ -426,7 +441,7 @@ func buildSystemPromptSeedDocs() ([]PromptSeedDoc, error) {
 		}
 	}
 
-	if err := appendPromptIntentSeedDocs(&docs); err != nil {
+	if err := appendPromptRoleSeedDocs(&docs); err != nil {
 		return nil, err
 	}
 	if err := appendPromptSDKSeedDocs(&docs); err != nil {
@@ -451,8 +466,11 @@ func buildSystemPromptSeedPackages() ([]PromptSeedPackage, error) {
 		if err != nil || !entry.IsDir() {
 			return err
 		}
-		if isLegacyWorkspaceSeedPath(current) {
+		if isLegacyWorkspaceSeedPath(current) || isRetiredWorkflowSeedPath(current) {
 			if current == systemPromptSeedRoot+"/workspace" {
+				return fs.SkipDir
+			}
+			if current == systemPromptSeedRoot+"/"+retiredWorkflowPromptPackageCode {
 				return fs.SkipDir
 			}
 			return nil
@@ -497,8 +515,11 @@ func appendPromptSeedReadmeDocs(docs *[]PromptSeedDoc) error {
 		if err != nil || !entry.IsDir() {
 			return err
 		}
-		if isLegacyWorkspaceSeedPath(current) {
+		if isLegacyWorkspaceSeedPath(current) || isRetiredWorkflowSeedPath(current) {
 			if current == systemPromptSeedRoot+"/workspace" {
+				return fs.SkipDir
+			}
+			if current == systemPromptSeedRoot+"/"+retiredWorkflowPromptPackageCode {
 				return fs.SkipDir
 			}
 			return nil
@@ -566,8 +587,8 @@ func appendPromptSDKSeedDocs(docs *[]PromptSeedDoc) error {
 	})
 }
 
-func appendPromptIntentSeedDocs(docs *[]PromptSeedDoc) error {
-	root := systemPromptSeedRoot + "/intents"
+func appendPromptRoleSeedDocs(docs *[]PromptSeedDoc) error {
+	root := systemPromptSeedRoot + "/roles"
 	return fs.WalkDir(promptFS, root, func(current string, entry fs.DirEntry, err error) error {
 		if err != nil || entry.IsDir() {
 			return err
@@ -578,9 +599,6 @@ func appendPromptIntentSeedDocs(docs *[]PromptSeedDoc) error {
 		}
 		dir := path.Dir(current)
 		logical := logicalPromptPathFromSeedDir(dir) + "/" + strings.TrimSuffix(name, path.Ext(name))
-		if strings.EqualFold(strings.TrimSuffix(name, path.Ext(name)), "index") {
-			logical = logicalPromptPathFromSeedDir(dir)
-		}
 		return appendPromptSeedFileDoc(docs, current, logical, "markdown", "", "")
 	})
 }
@@ -591,13 +609,12 @@ func appendPromptCaseCatalogSeedDocs(docs *[]PromptSeedDoc) error {
 		if err != nil || !entry.IsDir() {
 			return err
 		}
-		prdPath := current + "/prd.md"
-		content, readErr := readPromptSeedFile(prdPath)
+		content, format, readErr := readPromptCaseCatalogDoc(current)
 		if readErr != nil {
-			if isNotExistErr(readErr) {
-				return nil
-			}
 			return readErr
+		}
+		if strings.TrimSpace(content) == "" {
+			return nil
 		}
 		logical := logicalPromptPathFromSeedDir(current)
 		name, desc := extractMarkdownMeta(content, path.Base(logical))
@@ -607,10 +624,59 @@ func appendPromptCaseCatalogSeedDocs(docs *[]PromptSeedDoc) error {
 			LogicalPath: logical,
 			ActualPath:  PromptDocIndexPath(logical),
 			Content:     content,
-			Format:      "markdown",
+			Format:      format,
 		})
 		return nil
 	})
+}
+
+func readPromptCaseCatalogDoc(dir string) (string, string, error) {
+	prdJSONPath := dir + "/prd.json"
+	prdJSON, jsonErr := readPromptSeedFile(prdJSONPath)
+	if jsonErr != nil && !isNotExistErr(jsonErr) {
+		return "", "", jsonErr
+	}
+
+	prdMDPath := dir + "/prd.md"
+	prdMD, mdErr := readPromptSeedFile(prdMDPath)
+	if mdErr != nil && !isNotExistErr(mdErr) {
+		return "", "", mdErr
+	}
+
+	if strings.TrimSpace(prdJSON) == "" {
+		return prdMD, "markdown", nil
+	}
+
+	name, _ := extractMarkdownMeta(prdMD, path.Base(dir))
+	var out strings.Builder
+	out.WriteString("# ")
+	out.WriteString(name)
+	out.WriteString("\n\n## 结构化 PRD JSON\n\n```json\n")
+	out.WriteString(strings.TrimSpace(prdJSON))
+	out.WriteString("\n```\n")
+	if notes := extractPromptCaseImplementationNotes(prdMD); notes != "" {
+		out.WriteString("\n")
+		out.WriteString(notes)
+	}
+	return out.String(), "markdown", nil
+}
+
+func extractPromptCaseImplementationNotes(content string) string {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return ""
+	}
+	markers := []string{"\n## 三、", "\n## 四、", "\n## 代码实现"}
+	start := -1
+	for _, marker := range markers {
+		if idx := strings.Index(content, marker); idx >= 0 && (start < 0 || idx < start) {
+			start = idx + 1
+		}
+	}
+	if start < 0 {
+		return ""
+	}
+	return strings.TrimSpace(content[start:])
 }
 
 func appendPromptModeSeedDocs(docs *[]PromptSeedDoc) error {
@@ -733,7 +799,7 @@ func logicalPromptPathFromSeedDir(dir string) string {
 }
 
 func shouldSkipPromptReadmeIndexDoc(dir string) bool {
-	if isLegacyWorkspaceSeedPath(dir) {
+	if isLegacyWorkspaceSeedPath(dir) || isRetiredWorkflowSeedPath(dir) {
 		return true
 	}
 	if strings.HasPrefix(dir, systemPromptSeedRoot+"/workspace/") {
@@ -751,6 +817,12 @@ func shouldSkipPromptReadmeIndexDoc(dir string) bool {
 func isLegacyWorkspaceSeedPath(seedPath string) bool {
 	seedPath = strings.TrimRight(seedPath, "/")
 	return seedPath == systemPromptSeedRoot+"/workspace" || strings.HasPrefix(seedPath, systemPromptSeedRoot+"/workspace/")
+}
+
+func isRetiredWorkflowSeedPath(seedPath string) bool {
+	seedPath = strings.TrimRight(seedPath, "/")
+	prefix := systemPromptSeedRoot + "/" + retiredWorkflowPromptPackageCode
+	return seedPath == prefix || strings.HasPrefix(seedPath, prefix+"/")
 }
 
 func listDirectMarkdownFiles(dir string) ([]string, error) {

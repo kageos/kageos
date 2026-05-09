@@ -1,6 +1,6 @@
 # 工作台、工具、文档与 SDK 的关系
 
-这份文档用于给工作台大模型快速建立全局心智模型：工作台不是普通聊天框，tools 不是普通函数列表，SDK 也不是普通 Go 工具库。它们共同组成一条“意图识别 -> 身份文档包注入 -> 读取权威文档 -> 调用受控 tools -> 生成代码 -> 编译启动 -> schema 注册 -> 前端渲染 -> Agent 调用 -> 资产沉淀”的闭环。
+这份文档用于给工作台大模型快速建立全局心智模型：工作台不是普通聊天框，tools 不是普通函数列表，SDK 也不是普通 Go 工具库。它们共同组成一条“目标识别 -> 角色文档包注入 -> 读取权威文档 -> 调用受控 tools -> 生成代码 -> 编译启动 -> schema 注册 -> 前端渲染 -> Agent 调用 -> 资产沉淀”的闭环。
 
 ## 一句话
 
@@ -15,7 +15,7 @@
   ↓
 agent-server：LLM 会话、prompt、tool loop
   ↓
-身份文档包：按意图注入 SOP / SDK / OpenAPI / tools 文档
+角色文档包：按角色注入 SOP / SDK / OpenAPI / tools 文档
   ↓
 文档：platform、SDK、case、当前环境（权威规则）
   ↓
@@ -40,7 +40,7 @@ Agent 或用户通过 run_* / 页面继续使用
 |---|---|---|
 | 工作台前端 | `web/src/architecture/presentation` | 展示目录树、函数页面、Mini 工作台、SSE、工具结果、输出文件 |
 | Agent 服务 | `core/agent-server` | 组织会话、加载 prompt/env、注册 tools、执行 stream loop |
-| 身份文档包 | 系统侧维护的 SOP/文档集合 | 按场景提供 SOP、必读文档、工具建议和验收清单 |
+| 角色文档包 | 系统侧维护的 SOP/文档集合 | 按角色提供 SOP、必读文档、工具建议和验收清单 |
 | Prompt/文档 | `core/agent-server/prompt/system/prompt` | 说明平台边界、SDK 写法、案例、模式规则和当前环境；作为权威参考 |
 | Tools | `core/agent-server/service/tool_*.go` | 给模型提供受控读写、构建、执行、搜索、发布能力 |
 | SDK | `sdk/agent-app` | 定义应用协议，注册 Form/Table/Chart，解析 widget tag，产出 schema，启动校验 |
@@ -71,15 +71,15 @@ Agent 或用户通过 run_* / 页面继续使用
 5. `build_workspace` 编译部署。
 6. 用 run_* 工具执行验证。
 
-## 4. 身份文档包、文档和 prompt 的作用
+## 4. 角色文档包、文档和 prompt 的作用
 
-身份文档包、文档和 prompt 分层工作：
+角色文档包、文档和 prompt 分层工作：
 
-- **Prompt**：只放身份、模式边界、环境信息和极简总规则。
-- **身份文档包**：由系统侧按用户意图注入 SOP，例如创建项目、widget 选择、消息 OpenAPI、系统工具等。
+- **Prompt**：只放角色、模式边界、环境信息和极简总规则。
+- **角色文档包**：由系统侧按当前角色注入 SOP，例如创建项目、widget 选择、消息 OpenAPI、系统工具等。
 - **Docs**：权威参考，承载 SDK 细节、平台边界、案例代码和长规则。
 
-不要把 SDK 长文档复制到模式 prompt；SDK 长规则保留在 Docs，身份文档包只维护任务导航、必读文档、关键坑和验收清单。
+不要把 SDK 长文档复制到模式 prompt；SDK 长规则保留在 Docs，角色文档包只维护任务导航、必读文档、关键坑和验收清单。
 
 关键文档：
 

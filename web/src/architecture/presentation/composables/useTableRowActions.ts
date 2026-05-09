@@ -2,6 +2,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { Router } from 'vue-router'
 import { WidgetType } from '@/core/constants/widget'
 import { convertToFieldValue } from '@/utils/field'
+import { isWidgetConfigFlagEnabled } from '@/utils/widgetConfigFlag'
 import { parseLinkValue, addLinkTypeToUrl } from '@/utils/linkNavigation'
 import { resolveWorkspaceUrl } from '@/utils/route'
 import { RouteSource } from '@/utils/routeSource'
@@ -138,6 +139,7 @@ export function useTableRowActions(options: UseTableRowActionsOptions) {
   const getColumnWidth = (field: FieldConfig): number => {
     if (field.widget?.type === WidgetType.DATETIME) return 180
     if (field.widget?.type === WidgetType.TEXT_AREA) return 300
+    if (field.widget?.type === WidgetType.FILES && isWidgetConfigFlagEnabled(field.widget?.config?.list_preview)) return 180
     if (field.widget?.type === 'department' || field.widget?.type === 'departments') return 300
     if (field.widget?.type === 'user' || field.widget?.type === 'users') return 250
     return 150

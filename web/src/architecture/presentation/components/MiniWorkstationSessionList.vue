@@ -29,6 +29,9 @@
           </el-icon>
           <span class="mini-session-card-title">{{ session.title || '未命名会话' }}</span>
         </div>
+        <div v-if="session.role_display_name" class="mini-session-role">
+          {{ session.role_display_name }}
+        </div>
         <div v-if="session.user" class="mini-session-card-user">
           <UserDisplay :username="session.user" mode="simple" size="small" />
         </div>
@@ -196,6 +199,22 @@ function formatSessionTimestamp(value?: string): string {
 
 .mini-session-card-user :deep(.user-display-wrapper) {
   display: inline-flex;
+}
+
+.mini-session-role {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px 6px;
+  margin-bottom: 4px;
+  border: 1px solid rgba(96, 231, 255, 0.2);
+  border-radius: 6px;
+  color: var(--mini-cyber-accent, #22d3ee);
+  background: rgba(34, 211, 238, 0.1);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 .mini-session-card-time {

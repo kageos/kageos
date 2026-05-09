@@ -6,15 +6,17 @@ import (
 
 // FileUpload 文件上传记录表（审计）
 type FileUpload struct {
-	ID          int64  `gorm:"primaryKey;autoIncrement" json:"id"`
-	Bucket      string `gorm:"type:varchar(100);not null;default:'';uniqueIndex:idx_file_bucket_key;comment:存储桶" json:"bucket"`
-	FileKey     string `gorm:"type:varchar(500);not null;uniqueIndex:idx_file_bucket_key;index;comment:文件Key" json:"file_key"`
-	Router      string `gorm:"type:varchar(500);not null;index;comment:函数路径" json:"router"`
-	FileName    string `gorm:"type:varchar(255);not null;comment:原始文件名" json:"file_name"`
-	Description string `gorm:"type:text;comment:文件描述" json:"description,omitempty"`
-	FileSize    int64  `gorm:"not null;comment:文件大小（字节）" json:"file_size"`
-	ContentType string `gorm:"type:varchar(100);comment:MIME类型" json:"content_type"`
-	Hash        string `gorm:"type:varchar(64);index;comment:文件hash（用于秒传）" json:"hash"`
+	ID           int64  `gorm:"primaryKey;autoIncrement" json:"id"`
+	Bucket       string `gorm:"type:varchar(100);not null;default:'';uniqueIndex:idx_file_bucket_key;comment:存储桶" json:"bucket"`
+	FileKey      string `gorm:"type:varchar(500);not null;uniqueIndex:idx_file_bucket_key;index;comment:文件Key" json:"file_key"`
+	Router       string `gorm:"type:varchar(500);not null;index;comment:函数路径" json:"router"`
+	FileName     string `gorm:"type:varchar(255);not null;comment:原始文件名" json:"file_name"`
+	Description  string `gorm:"type:text;comment:文件描述" json:"description,omitempty"`
+	FileSize     int64  `gorm:"not null;comment:文件大小（字节）" json:"file_size"`
+	ContentType  string `gorm:"type:varchar(100);comment:MIME类型" json:"content_type"`
+	Hash         string `gorm:"type:varchar(64);index;comment:文件hash（用于秒传）" json:"hash"`
+	ThumbnailRef string `gorm:"type:varchar(700);comment:前端生成的缩略图或视频封面文件引用" json:"thumbnail_ref,omitempty"`
+	PreviewKind  string `gorm:"type:varchar(32);comment:预览类型：image/video" json:"preview_kind,omitempty"`
 
 	// 用户信息（username 不可变）
 	Username string `gorm:"type:varchar(100);not null;comment:上传用户名" json:"username"`

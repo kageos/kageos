@@ -148,6 +148,18 @@ export function addFunctionsToDirectory(params: {
   )
 }
 
+export interface ServiceTreeDetailResp extends ServiceTree {
+  version?: string
+  version_num?: number
+  permissions?: Record<string, boolean>
+}
+
+export function getServiceTreeDetail(fullCodePath: string) {
+  return get<ServiceTreeDetailResp>('/workspace/api/v1/service_tree/detail', {
+    full_code_path: fullCodePath
+  })
+}
+
 // 复制服务目录（新接口，支持递归复制）
 export function copyDirectory(data: {
   source_directory_path: string

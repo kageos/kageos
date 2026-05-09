@@ -75,20 +75,12 @@ type SourceFileWrite struct {
 	SourceCode    string `json:"source_code"`    // 源代码内容
 }
 
-// CreateFunctionInfo 已废弃，请使用 SourceFileWrite
-// Deprecated: 使用 SourceFileWrite 替代。
-type CreateFunctionInfo = SourceFileWrite
-
 // WriteSourceFilesResp 源码文件写入响应
 type WriteSourceFilesResp struct {
 	Success      bool     `json:"success" example:"true"`   // 是否成功
 	Message      string   `json:"message" example:"文件创建成功"` // 响应消息
 	WrittenFiles []string `json:"written_files"`            // 已写入的文件路径列表（用于失败时回滚）
 }
-
-// CreateFunctionsResp 已废弃，请使用 WriteSourceFilesResp
-// Deprecated: 使用 WriteSourceFilesResp 替代。
-type CreateFunctionsResp = WriteSourceFilesResp
 
 // UpdateAppReq 更新应用请求（更新应用代码并重新编译部署）
 type UpdateAppReq struct {
@@ -172,13 +164,6 @@ type DiffData struct {
 	Update   []*ApiInfo     `json:"update"`             // 修改的API
 	Delete   []*ApiInfo     `json:"delete"`             // 删除的API
 	Packages []*PackageInfo `json:"packages,omitempty"` // 全量 package 列表，每次 update 都返回，用于 app-server 目录对账
-}
-
-// GetAddFullGroupCodes 已移除，不再需要 group code
-// 如果需要获取新增的 API 路径，可以使用 GetAddFullCodePaths()
-func (d *DiffData) GetAddFullGroupCodes() []string {
-	// 返回空数组，保持向后兼容
-	return []string{}
 }
 
 // GetAddFullCodePaths 获取新增 API 的完整代码路径列表
@@ -300,12 +285,7 @@ type ApiInfo struct {
 	FullCodePath   string                         `json:"full_code_path"`
 	TreeID         int64                          `json:"tree_id"` // ServiceTree节点ID，创建tree后赋值，方便后续写快照时入库
 
-	SourceCodeFilePath string        `json:"source_code_file_path"`
-	SourceCode         string        `json:"source_code"`
-	CreateTableModels  []interface{} `json:"-"`
 }
-
-// BuildFullGroupCode 已移除，不再需要
 
 // DeleteAppReq 删除应用请求
 type DeleteAppReq struct {

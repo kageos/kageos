@@ -3,132 +3,16 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func TestWritePRDToolReturnsStructuredPreview(t *testing.T) {
+func TestWritePRDToolReturnsV2StructuredPreview(t *testing.T) {
 	reg := NewToolRegistry(nil)
-	result := reg.CallTool(context.Background(), "write_prd", map[string]interface{}{
-		"project": map[string]interface{}{
-			"name":                 "会员收银系统",
-			"code":                 "cashier",
-			"create_new_directory": true,
-			"summary":              "管理会员收银和支付记录",
-			"reason":               "收银和支付记录是独立业务域",
-		},
-		"models": []map[string]interface{}{
-			{
-				"name": "支付记录",
-				"fields": []map[string]interface{}{
-					{
-						"name":   "订单号",
-						"widget": "name:订单号;type:input",
-						"hide":   "create,update",
-					},
-					{
-						"name":     "状态",
-						"widget":   "name:状态;type:select;options:支付成功,支付失败;options_colors:67C23A,F56C6C;render_default:支付成功",
-						"validate": "required",
-					},
-				},
-			},
-		},
-		"functions": []map[string]interface{}{
-			{
-				"title":       "支付记录表",
-				"type":        "table",
-				"route":       "cashier_payment_record_list.table",
-				"model":       "支付记录",
-				"description": "仅列表查询，记录由收银台 Form 产生",
-				"table": map[string]interface{}{
-					"capability": "仅列表查询",
-					"readonly":   true,
-					"request_fields": []map[string]interface{}{
-						{
-							"field":       "状态",
-							"type":        "下拉选择",
-							"required":    false,
-							"default":     "全部",
-							"description": "按支付状态筛选",
-						},
-						{
-							"field":       "创建时间",
-							"type":        "日期时间",
-							"required":    false,
-							"default":     "—",
-							"description": "按创建时间范围搜索",
-						},
-					},
-					"columns": []string{"创建时间", "订单号", "实付金额", "状态"},
-					"sample_rows": []map[string]interface{}{
-						{
-							"创建时间": "2025-01-20 11:30",
-							"订单号":  "ORD202501200001",
-							"实付金额": 13.50,
-							"状态":   "支付成功",
-						},
-					},
-				},
-			},
-			{
-				"title": "收银台 Form",
-				"type":  "form",
-				"route": "cashier_desk.form",
-				"model": "支付记录",
-				"form": map[string]interface{}{
-					"request_fields": []map[string]interface{}{
-						{
-							"field":       "商品清单",
-							"type":        "表格",
-							"required":    true,
-							"default":     "—",
-							"description": "type:table，至少 1 行",
-						},
-					},
-					"response_fields": []map[string]interface{}{
-						{
-							"field":       "订单号",
-							"type":        "文本",
-							"example":     "ORD202501200001",
-							"description": "支付成功后返回订单号",
-						},
-					},
-				},
-			},
-			{
-				"title": "支付金额趋势",
-				"type":  "chart",
-				"route": "cashier_payment_trend.chart",
-				"model": "支付记录",
-				"chart": map[string]interface{}{
-					"chart_type": "LineChart",
-					"dimension":  "日期",
-					"metrics":    []string{"实付金额"},
-					"request_fields": []map[string]interface{}{
-						{
-							"field":       "时间范围",
-							"type":        "日期时间",
-							"required":    false,
-							"default":     "近 7 天",
-							"description": "统计时间范围",
-						},
-					},
-					"response_fields": []map[string]interface{}{
-						{
-							"field":       "总实付金额",
-							"type":        "数字",
-							"example":     "1280.50",
-							"description": "放入图表 Metadata",
-						},
-					},
-				},
-			},
-		},
-		"acceptance_cases": []map[string]interface{}{
-			{"name": "查询列表", "action": "打开支付记录表", "expected": "看到支付记录"},
-		},
-	}, "/liubeiluo/ccc", "")
+	result := reg.CallTool(context.Background(), "write_prd", validNPSPRDArgs(), "/liubeiluo/ccc", "")
 	if result.IsError {
 		t.Fatalf("write_prd returned error: %s", result.Content)
 	}
@@ -136,364 +20,78 @@ func TestWritePRDToolReturnsStructuredPreview(t *testing.T) {
 	if !ok {
 		t.Fatalf("write_prd data type = %T, want writePRDResultData", result.Data)
 	}
-	if data.Kind != "agent_app_prd" {
-		t.Fatalf("write_prd kind = %q", data.Kind)
+	if data.Kind != "agent_app_prd" || data.SchemaVersion != "prd.v2" {
+		t.Fatalf("unexpected kind/version: %#v", data)
 	}
-	if data.Project.Code != "cashier" || !data.Project.CreateNewDirectory {
-		t.Fatalf("unexpected project: %#v", data.Project)
+	if data.Project.Code != "nps" {
+		t.Fatalf("project code = %q, want nps", data.Project.Code)
 	}
-	if len(data.Models) != 1 || data.Models[0].Name != "支付记录" {
-		t.Fatalf("unexpected models: %#v", data.Models)
+	if len(data.Tables) != 2 || len(data.Forms) != 1 || len(data.Charts) != 2 || len(data.Workflow) != 5 {
+		t.Fatalf("unexpected resource counts: tables=%d forms=%d charts=%d workflow=%d", len(data.Tables), len(data.Forms), len(data.Charts), len(data.Workflow))
 	}
-	if len(data.Functions) != 3 {
-		t.Fatalf("functions len = %d", len(data.Functions))
+	if got := data.Tables[0].Fields[0].Widget; got != "input" {
+		t.Fatalf("widget = %q, want input", got)
 	}
-	for idx, fn := range data.Functions {
-		if fn.Order != idx+1 {
-			t.Fatalf("function order = %d, want %d for %#v", fn.Order, idx+1, fn)
-		}
+	if got := data.Tables[0].Examples[0]["问卷标题"]; got != "Q2 产品满意度调研" {
+		t.Fatalf("table example title = %#v", got)
 	}
-	if got := len(data.Functions[0].Table.RequestFields); got != 2 {
-		t.Fatalf("table request_fields len = %d, want 2", got)
+	if got := data.Forms[0].Example.Response["评分类型"]; got != "推荐者" {
+		t.Fatalf("form response example = %#v", got)
 	}
-	if got := data.Functions[0].Table.SampleRows[0]["实付金额"]; got != 13.50 {
-		t.Fatalf("sample row amount = %#v, want numeric 13.50", got)
-	}
-	if data.Functions[1].Method != "POST" {
-		t.Fatalf("form method default = %q, want POST", data.Functions[1].Method)
-	}
-	if got := len(data.Functions[1].Form.ResponseFields); got != 1 {
-		t.Fatalf("form response_fields len = %d, want 1", got)
-	}
-	if got := len(data.Functions[2].Chart.RequestFields); got != 1 {
-		t.Fatalf("chart request_fields len = %d, want 1", got)
-	}
-	if got := len(data.Functions[2].Chart.ResponseFields); got != 1 {
-		t.Fatalf("chart response_fields len = %d, want 1", got)
-	}
-	if data.Confirmation.Question == "" {
-		t.Fatal("confirmation question should be defaulted")
+	if got := data.Charts[0].Examples[0]["NPS分数"]; got != float64(35) {
+		t.Fatalf("chart example metric = %#v, want 35", got)
 	}
 	if !strings.Contains(result.Content, "PRD 预览已生成") {
 		t.Fatalf("result content should contain preview notice, got %q", result.Content)
 	}
 }
 
-func TestWritePRDToolAcceptsLightweightChartPreview(t *testing.T) {
+func TestWritePRDToolRejectsLegacyPRDShape(t *testing.T) {
 	reg := NewToolRegistry(nil)
 	result := reg.CallTool(context.Background(), "write_prd", map[string]interface{}{
 		"project": map[string]interface{}{
-			"name":                 "工单管理",
-			"code":                 "ticket",
-			"create_new_directory": true,
-			"reason":               "独立管理工单",
+			"name":    "工单管理",
+			"code":    "ticket",
+			"summary": "管理工单",
 		},
 		"models": []map[string]interface{}{
-			{
-				"name": "工单",
-				"fields": []map[string]interface{}{
-					{"name": "标题", "widget": "name:标题;type:input", "validate": "required"},
-					{"name": "状态", "widget": "name:状态;type:select;options:待处理,处理中,已完成", "validate": "required"},
-				},
-			},
+			{"name": "工单", "fields": []map[string]interface{}{{"name": "标题", "widget": "name:标题;type:input"}}},
 		},
 		"functions": []map[string]interface{}{
-			{
-				"title": "工单趋势",
-				"type":  "chart",
-				"route": "ticket_trend.chart",
-				"model": "工单",
-				"chart": map[string]interface{}{
-					"chart_type": "line",
-					"dimension":  "日期",
-					"metrics":    []string{"新增工单", "完成工单"},
-					"filters": []map[string]interface{}{
-						{"name": "开始时间", "type": "datetime", "required": false, "desc": "统计开始时间"},
-						{"name": "结束时间", "type": "datetime", "required": false, "desc": "统计结束时间"},
-					},
-					"preview_data": []map[string]interface{}{
-						{"日期": "2025-01-18", "新增工单": 8, "完成工单": 5},
-						{"日期": "2025-01-19", "新增工单": 10, "完成工单": 7},
-					},
-					"summary": []map[string]interface{}{
-						{"name": "总工单数", "value": 18, "desc": "当前筛选范围内的新增工单数"},
-					},
-				},
-			},
-			{
-				"title": "工单分类",
-				"type":  "chart",
-				"route": "ticket_category.chart",
-				"model": "工单",
-				"chart": map[string]interface{}{
-					"chart_type":   "bar",
-					"dimension":    "分类",
-					"metrics":      []string{"工单数量"},
-					"preview_data": []map[string]interface{}{{"分类": "设备", "工单数量": 12}},
-				},
-			},
-			{
-				"title": "状态分布",
-				"type":  "chart",
-				"route": "ticket_status.chart",
-				"model": "工单",
-				"chart": map[string]interface{}{
-					"chart_type":   "pie",
-					"dimension":    "状态",
-					"metrics":      []string{"工单数量"},
-					"preview_data": []map[string]interface{}{{"name": "待处理", "value": 6}},
-				},
-			},
-		},
-	}, "/liubeiluo/ccc", "")
-	if result.IsError {
-		t.Fatalf("write_prd should accept lightweight chart preview, got: %s", result.Content)
-	}
-	data, ok := result.Data.(writePRDResultData)
-	if !ok {
-		t.Fatalf("write_prd data type = %T, want writePRDResultData", result.Data)
-	}
-	if got := len(data.Functions); got != 3 {
-		t.Fatalf("functions len = %d, want 3", got)
-	}
-	if got := len(data.Functions[0].Chart.Filters); got != 2 {
-		t.Fatalf("chart filters len = %d, want 2", got)
-	}
-	if got := data.Functions[0].Chart.Filters[0].Type; got != "datetime" {
-		t.Fatalf("chart filter type = %q, want datetime", got)
-	}
-	if got := data.Functions[0].Chart.PreviewData[0]["新增工单"]; got != float64(8) {
-		t.Fatalf("preview data value = %#v, want 8", got)
-	}
-	if got := data.Functions[2].Chart.ChartType; got != "pie" {
-		t.Fatalf("third chart type = %q, want pie", got)
-	}
-}
-
-func TestWritePRDToolAcceptsJSONEncodedFunctions(t *testing.T) {
-	reg := NewToolRegistry(nil)
-	functions := `[
-		{
-			"title": "工单列表",
-			"type": "table",
-			"route": "ticket_list.table",
-			"model": "工单",
-			"table": {
-				"request_fields": [],
-				"columns": ["标题", "状态"],
-				"sample_rows": [{"标题": "打印机无法连接", "状态": "待处理"}]
-			}
-		}
-	]`
-	result := reg.CallTool(context.Background(), "write_prd", map[string]interface{}{
-		"project": map[string]interface{}{
-			"name":                 "工单管理",
-			"code":                 "ticket",
-			"create_new_directory": true,
-			"reason":               "独立管理工单",
-		},
-		"models": []map[string]interface{}{
-			{
-				"name": "工单",
-				"fields": []map[string]interface{}{
-					{"name": "标题", "widget": "name:标题;type:input", "validate": "required"},
-					{"name": "状态", "widget": "name:状态;type:select;options:待处理,处理中,已完成", "validate": "required"},
-				},
-			},
-		},
-		"functions": functions,
-	}, "/liubeiluo/ccc", "")
-	if result.IsError {
-		t.Fatalf("write_prd should accept JSON encoded functions, got: %s", result.Content)
-	}
-}
-
-func TestWritePRDArgsDecodeAcceptsJSONStringFields(t *testing.T) {
-	functions := `[
-		{
-			"title": "工单状态统计",
-			"type": "chart",
-			"route": "ticket_stats.chart",
-			"model": "工单",
-			"chart": {
-				"chart_type": "pie",
-				"dimension": "工单状态",
-				"metrics": ["工单数量"],
-				"filters": [
-					{"name": "开始时间", "type": "datetime", "required": false, "desc": "创建时间开始"},
-					{"name": "结束时间", "type": "datetime", "required": false, "desc": "创建时间结束"}
-				],
-				"preview_data": [
-					{"name": "待处理", "value": 15},
-					{"name": "处理中", "value": 8},
-					{"name": "已完成", "value": 42}
-				]
-			}
-		}
-	]`
-	args, err := decodeToolArgs[writePRDArgs](map[string]interface{}{
-		"project":          `{"name":"工单管理","code":"ticket","create_new_directory":true,"reason":"独立管理工单"}`,
-		"models":           `[{"name":"工单","fields":[{"name":"工单标题","widget":"name:工单标题;type:input","validate":"required"}]}]`,
-		"functions":        functions,
-		"acceptance_cases": `[{"name":"查看统计","action":"进入图表","expected":"看到状态分布"}]`,
-		"confirmation":     `{"question":"确认后开始创建"}`,
-	})
-	if err != nil {
-		t.Fatalf("decodeToolArgs should accept JSON string fields: %v", err)
-	}
-	if args.Project.Code != "ticket" {
-		t.Fatalf("project code = %q, want ticket", args.Project.Code)
-	}
-	if len(args.Models) != 1 || args.Models[0].Name != "工单" {
-		t.Fatalf("unexpected models: %#v", args.Models)
-	}
-	if len(args.Functions) != 1 || args.Functions[0].Chart == nil {
-		t.Fatalf("unexpected functions: %#v", args.Functions)
-	}
-	if got := args.Functions[0].Chart.PreviewData[0]["value"]; got != float64(15) {
-		t.Fatalf("preview value = %#v, want 15", got)
-	}
-	if len(args.AcceptanceCases) != 1 || args.Confirmation.Question == "" {
-		t.Fatalf("unexpected acceptance/confirmation: %#v %#v", args.AcceptanceCases, args.Confirmation)
-	}
-}
-
-func TestWritePRDToolRepairsJSONStringFunctionsWithPrematureObjectClose(t *testing.T) {
-	reg := NewToolRegistry(nil)
-	functions := `[
-		{
-			"model": "NPS记录",
-			"table": {
-				"columns": ["提交时间", "NPS评分", "用户类型"],
-				"readonly": true,
-				"request_fields": [],
-				"sample_rows": [{"提交时间": "2025-01-20", "NPS评分": "9", "用户类型": "推荐者"}]
-			}
-		},
-		"title": "NPS 记录查询",
-		"type": "table",
-		"route": "nps_record_list.table"
-	}]`
-	result := reg.CallTool(context.Background(), "write_prd", map[string]interface{}{
-		"project": map[string]interface{}{
-			"name":                 "NPS 净推荐值系统",
-			"code":                 "nps",
-			"create_new_directory": true,
-			"reason":               "NPS 是独立业务域",
-		},
-		"models": []map[string]interface{}{
-			{
-				"name": "NPS记录",
-				"fields": []map[string]interface{}{
-					{"name": "提交时间", "widget": "name:提交时间;type:datetime", "hide": "create,update"},
-					{"name": "NPS评分", "widget": "name:NPS评分;type:number", "validate": "required"},
-					{"name": "用户类型", "widget": "name:用户类型;type:select;options:推荐者,被动者,贬损者"},
-				},
-			},
-		},
-		"functions": functions,
-	}, "/liubeiluo/ccc", "")
-	if result.IsError {
-		t.Fatalf("write_prd should repair prematurely closed JSON function object, got: %s", result.Content)
-	}
-	data, ok := result.Data.(writePRDResultData)
-	if !ok {
-		t.Fatalf("write_prd data type = %T, want writePRDResultData", result.Data)
-	}
-	if len(data.Functions) != 1 {
-		t.Fatalf("functions len = %d, want 1", len(data.Functions))
-	}
-	if data.Functions[0].Title != "NPS 记录查询" || data.Functions[0].Route != "nps_record_list.table" {
-		t.Fatalf("function not repaired correctly: %#v", data.Functions[0])
-	}
-}
-
-func TestWritePRDToolRejectsRedundantSubmitFormWhenTableAlreadyHasCRUD(t *testing.T) {
-	reg := NewToolRegistry(nil)
-	result := reg.CallTool(context.Background(), "write_prd", map[string]interface{}{
-		"project": map[string]interface{}{
-			"name":                 "工单管理",
-			"code":                 "ticket",
-			"create_new_directory": true,
-			"reason":               "工单是独立业务域",
-		},
-		"models": []map[string]interface{}{
-			{
-				"name": "工单",
-				"fields": []map[string]interface{}{
-					{"name": "工单标题", "widget": "name:工单标题;type:input", "validate": "required"},
-					{"name": "工单状态", "widget": "name:工单状态;type:select;options:待处理,处理中,已完成"},
-				},
-			},
-		},
-		"functions": []map[string]interface{}{
-			{
-				"title": "工单列表",
-				"type":  "table",
-				"route": "ticket_list.table",
-				"model": "工单",
-				"table": map[string]interface{}{
-					"capability":     "支持列表查询、新增、编辑、删除",
-					"readonly":       false,
-					"operations":     []string{"列表查询", "新增", "编辑", "删除"},
-					"request_fields": []map[string]interface{}{},
-					"columns":        []string{"工单标题", "工单状态"},
-					"sample_rows": []map[string]interface{}{
-						{"工单标题": "打印机无法连接", "工单状态": "处理中"},
-					},
-				},
-			},
-			{
-				"title":       "提交工单",
-				"type":        "form",
-				"route":       "ticket_submit.form",
-				"model":       "工单",
-				"description": "提交工单信息",
-				"form": map[string]interface{}{
-					"request_fields": []map[string]interface{}{
-						{"name": "工单标题", "type": "input", "required": true, "desc": "工单标题"},
-					},
-					"response_fields": []map[string]interface{}{},
-				},
-			},
-		},
-		"acceptance_cases": []map[string]interface{}{
-			{"name": "创建工单", "action": "在表格新增工单", "expected": "工单创建成功"},
+			{"title": "工单列表", "type": "table", "route": "ticket_list.table"},
 		},
 	}, "/liubeiluo/ccc", "")
 	if !result.IsError {
-		t.Fatal("write_prd should reject redundant submit form when table already has CRUD")
+		t.Fatal("write_prd should reject legacy models/functions shape")
 	}
 	data, ok := result.Data.(writePRDResultData)
 	if !ok {
 		t.Fatalf("write_prd data type = %T, want writePRDResultData", result.Data)
 	}
-	if !strings.Contains(strings.Join(data.Issues, "\n"), "Table 自带 CRUD") {
-		t.Fatalf("issues should explain table CRUD duplication, got %#v", data.Issues)
+	joined := strings.Join(data.Issues, "\n")
+	for _, want := range []string{"$.models 不是 PRD v2 字段", "$.functions 不是 PRD v2 字段", "tables/forms/charts 至少需要 1 个业务资源", "workflow 至少需要 1 个功能引用"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("issues should contain %q, got %q", want, joined)
+		}
 	}
 }
 
-func TestWritePRDToolRejectsInvalidPRDShape(t *testing.T) {
+func TestWritePRDToolRejectsWidgetTagsAndInvalidExamples(t *testing.T) {
 	reg := NewToolRegistry(nil)
-	result := reg.CallTool(context.Background(), "write_prd", map[string]interface{}{
-		"project": map[string]interface{}{
-			"name":                 "会员收银系统",
-			"code":                 "cashier",
-			"create_new_directory": true,
-		},
-		"functions": []map[string]interface{}{
-			{
-				"title": "支付记录表",
-				"type":  "table",
-				"route": "cashier_payment_record_list",
-				"table": map[string]interface{}{
-					"columns": []string{"订单号"},
-				},
-			},
-		},
-	}, "/liubeiluo/ccc", "")
+	args := validNPSPRDArgs()
+	tables := args["tables"].([]map[string]interface{})
+	tables[0]["columns"] = []string{"问卷标题"}
+	fields := tables[0]["fields"].([]map[string]interface{})
+	fields[0]["widget"] = "name:问卷标题;type:input"
+	examples := tables[0]["examples"].([]map[string]interface{})
+	examples[0]["questionnaire_title"] = "Q2"
+	charts := args["charts"].([]map[string]interface{})
+	chartExamples := charts[0]["examples"].([]map[string]interface{})
+	delete(chartExamples[0], "NPS分数")
+
+	result := reg.CallTool(context.Background(), "write_prd", args, "/liubeiluo/ccc", "")
 	if !result.IsError {
-		t.Fatal("write_prd should reject invalid PRD")
+		t.Fatal("write_prd should reject widget tag and bad example keys")
 	}
 	data, ok := result.Data.(writePRDResultData)
 	if !ok {
@@ -501,9 +99,10 @@ func TestWritePRDToolRejectsInvalidPRDShape(t *testing.T) {
 	}
 	joined := strings.Join(data.Issues, "\n")
 	for _, want := range []string{
-		"project.reason",
-		"route 必须以 .table 结尾",
-		"sample_rows 至少需要 1 行示例数据",
+		"tables[0].columns 不是 PRD v2 字段",
+		"widget 只能写简单组件类型",
+		"包含非业务字段 key：questionnaire_title",
+		"缺少示例字段：NPS分数",
 	} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("issues should contain %q, got %q", want, joined)
@@ -511,39 +110,236 @@ func TestWritePRDToolRejectsInvalidPRDShape(t *testing.T) {
 	}
 }
 
-func TestWritePRDToolSchemaExposesStructuredData(t *testing.T) {
+func TestWritePRDToolRejectsInvalidReferences(t *testing.T) {
+	reg := NewToolRegistry(nil)
+	args := validNPSPRDArgs()
+	forms := args["forms"].([]map[string]interface{})
+	forms[0]["target_table"] = "不存在的表"
+	workflow := args["workflow"].([]map[string]interface{})
+	workflow[0]["ref"] = "不存在的功能"
+
+	result := reg.CallTool(context.Background(), "write_prd", args, "/liubeiluo/ccc", "")
+	if !result.IsError {
+		t.Fatal("write_prd should reject invalid references")
+	}
+	data, ok := result.Data.(writePRDResultData)
+	if !ok {
+		t.Fatalf("write_prd data type = %T, want writePRDResultData", result.Data)
+	}
+	joined := strings.Join(data.Issues, "\n")
+	for _, want := range []string{
+		"target_table 必须引用 tables 中已定义的 name",
+		"ref 必须引用对应 tables/forms/charts 中已定义的 name",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("issues should contain %q, got %q", want, joined)
+		}
+	}
+}
+
+func TestWritePRDToolRejectsUnhelpfulWorkflowOrder(t *testing.T) {
+	reg := NewToolRegistry(nil)
+	args := validNPSPRDArgs()
+	args["workflow"] = []map[string]interface{}{
+		{"type": "table", "ref": "NPS问卷"},
+		{"type": "table", "ref": "NPS评分记录"},
+		{"type": "form", "ref": "NPS评分提交"},
+		{"type": "chart", "ref": "NPS趋势分析"},
+		{"type": "chart", "ref": "NPS评分分布"},
+	}
+
+	result := reg.CallTool(context.Background(), "write_prd", args, "/liubeiluo/ccc", "")
+	if !result.IsError {
+		t.Fatal("write_prd should reject workflow order that shows generated records before the submit form")
+	}
+	data, ok := result.Data.(writePRDResultData)
+	if !ok {
+		t.Fatalf("write_prd data type = %T, want writePRDResultData", result.Data)
+	}
+	joined := strings.Join(data.Issues, "\n")
+	if want := "表单「NPS评分提交」写入目标记录表「NPS评分记录」，应先排表单，再排记录表"; !strings.Contains(joined, want) {
+		t.Fatalf("issues should contain %q, got %q", want, joined)
+	}
+}
+
+func TestWritePRDToolAcceptsNestedChartExamplesAndNormalizes(t *testing.T) {
+	reg := NewToolRegistry(nil)
+	args := validNPSPRDArgs()
+	charts := args["charts"].([]map[string]interface{})
+	charts[0]["dimension"] = "日期（按天/周/月）"
+	charts[0]["examples"] = []map[string]interface{}{
+		{
+			"dimension": "2026-05-01",
+			"metrics": map[string]interface{}{
+				"NPS分数": 45,
+				"评分数量":  80,
+				"推荐者占比": 62,
+				"贬损者占比": 17,
+			},
+		},
+		{
+			"dimension": "2026-05-02",
+			"metrics": map[string]interface{}{
+				"NPS分数": 48,
+				"评分数量":  96,
+				"推荐者占比": 64,
+				"贬损者占比": 16,
+			},
+		},
+		{
+			"dimension": "2026-05-03",
+			"metrics": map[string]interface{}{
+				"NPS分数": 50,
+				"评分数量":  102,
+				"推荐者占比": 65,
+				"贬损者占比": 15,
+			},
+		},
+		{
+			"dimension": "2026-05-04",
+			"metrics": map[string]interface{}{
+				"NPS分数": 52,
+				"评分数量":  108,
+				"推荐者占比": 66,
+				"贬损者占比": 14,
+			},
+		},
+	}
+
+	result := reg.CallTool(context.Background(), "write_prd", args, "/liubeiluo/ccc", "")
+	if result.IsError {
+		t.Fatalf("write_prd should accept nested chart examples and normalize them: %s", result.Content)
+	}
+	data, ok := result.Data.(writePRDResultData)
+	if !ok {
+		t.Fatalf("write_prd data type = %T, want writePRDResultData", result.Data)
+	}
+	if got := data.Charts[0].Dimension; got != "日期" {
+		t.Fatalf("dimension = %q, want 日期", got)
+	}
+	if got := len(data.Charts[0].Examples); got != 4 {
+		t.Fatalf("normalized chart examples length = %d, want 4", got)
+	}
+	example := data.Charts[0].Examples[0]
+	if got := example["日期"]; got != "2026-05-01" {
+		t.Fatalf("normalized dimension value = %#v, want 2026-05-01", got)
+	}
+	if got := example["NPS分数"]; got != float64(45) {
+		t.Fatalf("normalized NPS metric = %#v, want 45", got)
+	}
+	if _, ok := example["dimension"]; ok {
+		t.Fatalf("normalized chart example should not keep dimension key: %#v", example)
+	}
+	if _, ok := example["metrics"]; ok {
+		t.Fatalf("normalized chart example should not keep metrics key: %#v", example)
+	}
+}
+
+func TestWritePRDToolAllowsFormWithoutResponseFields(t *testing.T) {
+	reg := NewToolRegistry(nil)
+	args := validNPSPRDArgs()
+	forms := args["forms"].([]map[string]interface{})
+	forms[0]["response_fields"] = []map[string]interface{}{}
+	example := forms[0]["example"].(map[string]interface{})
+	example["response"] = map[string]interface{}{}
+
+	result := reg.CallTool(context.Background(), "write_prd", args, "/liubeiluo/ccc", "")
+	if result.IsError {
+		t.Fatalf("write_prd should allow empty response when response_fields is empty: %s", result.Content)
+	}
+}
+
+func TestWritePRDToolAllowsFormOnlyProcessingPRD(t *testing.T) {
+	reg := NewToolRegistry(nil)
+	result := reg.CallTool(context.Background(), "write_prd", map[string]interface{}{
+		"project": map[string]interface{}{
+			"name":    "PDF 工具",
+			"code":    "pdf_tool",
+			"summary": "上传 PDF 后提取文本或生成处理结果。",
+		},
+		"forms": []map[string]interface{}{
+			{
+				"name": "PDF文本提取",
+				"desc": "上传 PDF 文件后提取文本内容，不写入业务表。",
+				"request_fields": []map[string]interface{}{
+					{"name": "上传PDF文件", "widget": "files", "required": true, "desc": "上传一个或多个 PDF 文件。"},
+				},
+				"response_fields": []map[string]interface{}{
+					{"name": "提取文本", "widget": "text_area", "required": false, "desc": "展示提取出的文本内容。"},
+				},
+				"example": map[string]interface{}{
+					"request":  map[string]interface{}{"上传PDF文件": "合同.pdf"},
+					"response": map[string]interface{}{"提取文本": "合同正文摘要..."},
+				},
+			},
+		},
+		"workflow": []map[string]interface{}{
+			{"type": "form", "ref": "PDF文本提取"},
+		},
+	}, "/liubeiluo/ccc", "")
+	if result.IsError {
+		t.Fatalf("write_prd should allow form-only processing PRD: %s", result.Content)
+	}
+}
+
+func TestWritePRDCaseCatalogJSONFilesAreValidV2(t *testing.T) {
+	root := filepath.Join("..", "prompt", "system", "prompt", "case_catalog")
+	reg := NewToolRegistry(nil)
+	var checked int
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || entry.Name() != "prd.json" {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		var args map[string]interface{}
+		if err := json.Unmarshal(data, &args); err != nil {
+			t.Fatalf("%s is not valid JSON: %v", path, err)
+		}
+		result := reg.CallTool(context.Background(), "write_prd", args, "/liubeiluo/ccc", "")
+		if result.IsError {
+			t.Fatalf("%s should be valid PRD v2: %s", path, result.Content)
+		}
+		checked++
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk case catalog prd.json: %v", err)
+	}
+	if checked == 0 {
+		t.Fatal("expected at least one case catalog prd.json")
+	}
+}
+
+func TestWritePRDToolSchemaExposesV2Shape(t *testing.T) {
 	reg := NewToolRegistry(nil)
 	def := reg.tools["write_prd"].Definition()
 	if def.Name != "write_prd" {
 		t.Fatalf("tool name = %q", def.Name)
 	}
 	inputProps := def.InputSchema["properties"].(map[string]interface{})
-	if _, ok := inputProps["project"]; !ok {
-		t.Fatal("write_prd input schema should expose project")
+	for _, name := range []string{"project", "tables", "forms", "charts", "workflow", "rules"} {
+		if _, ok := inputProps[name]; !ok {
+			t.Fatalf("write_prd input schema should expose %q", name)
+		}
 	}
-	if _, ok := inputProps["models"]; !ok {
-		t.Fatal("write_prd input schema should expose models")
-	}
-	if _, ok := inputProps["functions"]; !ok {
-		t.Fatal("write_prd input schema should expose functions")
+	for _, legacy := range []string{"models", "functions", "acceptance_cases", "confirmation"} {
+		if _, ok := inputProps[legacy]; ok {
+			t.Fatalf("write_prd input schema should not expose legacy %q", legacy)
+		}
 	}
 	rawInput, err := json.Marshal(def.InputSchema)
 	if err != nil {
 		t.Fatalf("marshal input schema: %v", err)
 	}
-	if strings.Contains(string(rawInput), "go_source") {
-		t.Fatalf("write_prd input schema should not expose go_source: %s", string(rawInput))
-	}
-	modelProps := inputProps["models"].(map[string]interface{})["items"].(map[string]interface{})["properties"].(map[string]interface{})
-	fieldProps := modelProps["fields"].(map[string]interface{})["items"].(map[string]interface{})["properties"].(map[string]interface{})
-	for _, name := range []string{"name", "widget", "validate", "hide", "description"} {
-		if _, ok := fieldProps[name]; !ok {
-			t.Fatalf("write_prd model field schema should expose %q", name)
-		}
-	}
-	for _, name := range []string{"go_name", "json_name", "go_type", "gorm", "example", "options", "option_colors", "render_default"} {
-		if _, ok := fieldProps[name]; ok {
-			t.Fatalf("write_prd model field schema should not expose %q", name)
+	for _, forbidden := range []string{"go_source", "go_name", "json_name", "gorm", "sample_rows", "preview_data", "route", "method", "order"} {
+		if strings.Contains(string(rawInput), forbidden) {
+			t.Fatalf("write_prd input schema should not expose %q: %s", forbidden, string(rawInput))
 		}
 	}
 
@@ -553,16 +349,137 @@ func TestWritePRDToolSchemaExposesStructuredData(t *testing.T) {
 		t.Fatal("write_prd output schema should expose data")
 	}
 	dataProps := data["properties"].(map[string]interface{})
-	for _, name := range []string{"kind", "project", "models", "functions", "acceptance_cases", "confirmation"} {
+	for _, name := range []string{"kind", "schema_version", "project", "tables", "forms", "charts", "workflow", "rules"} {
 		if _, ok := dataProps[name]; !ok {
 			t.Fatalf("write_prd data schema should expose %q", name)
 		}
 	}
-	rawOutput, err := json.Marshal(def.OutputSchema)
-	if err != nil {
-		t.Fatalf("marshal output schema: %v", err)
-	}
-	if strings.Contains(string(rawOutput), "go_source") {
-		t.Fatalf("write_prd output schema should not expose go_source: %s", string(rawOutput))
+}
+
+func validNPSPRDArgs() map[string]interface{} {
+	return map[string]interface{}{
+		"project": map[string]interface{}{
+			"name":    "NPS 净推荐值系统",
+			"code":    "nps",
+			"summary": "收集用户推荐评分，统计 NPS 分数、评分趋势和推荐者、中立者、贬损者分布。",
+		},
+		"tables": []map[string]interface{}{
+			{
+				"name":  "NPS问卷",
+				"title": "NPS问卷管理",
+				"desc":  "管理每次 NPS 调研活动。",
+				"fields": []map[string]interface{}{
+					{"name": "问卷标题", "widget": "input", "required": true, "desc": "调研问卷的标题，建议简短清晰。"},
+					{"name": "问卷描述", "widget": "text_area", "required": false, "desc": "说明本次调研目的和填写说明。"},
+					{"name": "状态", "widget": "select", "required": true, "desc": "问卷状态，有待发送、收集中、已结束三个选项，默认待发送。"},
+					{"name": "评分数量", "widget": "number", "required": false, "hide": "create,update", "desc": "该问卷收到的评分记录数量，由系统统计。"},
+				},
+				"search_fields": []map[string]interface{}{
+					{"name": "问卷标题", "widget": "input", "required": false, "desc": "按问卷标题模糊搜索。"},
+					{"name": "状态", "widget": "select", "required": false, "desc": "按问卷状态筛选，可选待发送、收集中、已结束。"},
+					{"name": "创建人", "widget": "user", "required": false, "desc": "按系统记录的创建人筛选。"},
+					{"name": "创建开始时间", "widget": "datetime", "required": false, "desc": "按记录创建时间范围查询的开始时间。"},
+					{"name": "创建结束时间", "widget": "datetime", "required": false, "desc": "按记录创建时间范围查询的结束时间。"},
+				},
+				"handlers": []string{"OnTableAddRow", "OnTableUpdateRow", "OnTableDeleteRow"},
+				"examples": []map[string]interface{}{
+					{"问卷标题": "Q2 产品满意度调研", "问卷描述": "了解用户对产品功能和服务体验的推荐意愿。", "状态": "收集中", "评分数量": 256},
+				},
+			},
+			{
+				"name":  "NPS评分记录",
+				"title": "NPS评分记录",
+				"desc":  "查看用户提交的 NPS 分数、评分类型和推荐理由。",
+				"fields": []map[string]interface{}{
+					{"name": "问卷", "widget": "select", "required": true, "desc": "关联的 NPS 问卷，从 NPS问卷 中选择。"},
+					{"name": "评分人", "widget": "input", "required": false, "desc": "提交评分的用户姓名或客户标识。"},
+					{"name": "NPS分数", "widget": "number", "required": true, "desc": "0 到 10 的整数评分，0 表示完全不推荐，10 表示非常愿意推荐。"},
+					{"name": "评分类型", "widget": "select", "required": false, "hide": "create,update", "desc": "根据 NPS分数 自动计算，有推荐者、中立者、贬损者三个类型：0-6 为贬损者，7-8 为中立者，9-10 为推荐者。"},
+					{"name": "推荐理由", "widget": "text_area", "required": false, "desc": "用户推荐或不推荐的具体原因。"},
+					{"name": "评分时间", "widget": "datetime", "required": false, "hide": "create,update", "desc": "评分提交时间，由系统记录。"},
+				},
+				"search_fields": []map[string]interface{}{
+					{"name": "问卷", "widget": "select", "required": false, "desc": "按问卷筛选评分记录。"},
+					{"name": "评分类型", "widget": "select", "required": false, "desc": "按推荐者、中立者、贬损者筛选。"},
+					{"name": "评分人", "widget": "user", "required": false, "desc": "按提交评分的用户筛选。"},
+					{"name": "评分开始时间", "widget": "datetime", "required": false, "desc": "评分时间开始。"},
+					{"name": "评分结束时间", "widget": "datetime", "required": false, "desc": "评分时间结束。"},
+				},
+				"handlers": []string{},
+				"examples": []map[string]interface{}{
+					{"问卷": "Q2 产品满意度调研", "评分人": "张三", "NPS分数": 9, "评分类型": "推荐者", "推荐理由": "产品稳定，服务响应快。", "评分时间": "2026-05-09 10:30"},
+				},
+			},
+		},
+		"forms": []map[string]interface{}{
+			{
+				"name":         "NPS评分提交",
+				"desc":         "客户自助提交 NPS 评分，只提交评分和推荐理由，不通过评分记录表手工新增。",
+				"target_table": "NPS评分记录",
+				"request_fields": []map[string]interface{}{
+					{"name": "问卷", "widget": "select", "required": true, "desc": "选择要评价的 NPS 问卷。"},
+					{"name": "评分人", "widget": "input", "required": false, "desc": "填写评分人姓名或客户标识。"},
+					{"name": "NPS分数", "widget": "number", "required": true, "desc": "0 到 10 的整数评分，提交后系统按评分计算评分类型。"},
+					{"name": "推荐理由", "widget": "text_area", "required": false, "desc": "填写推荐或不推荐的原因。"},
+				},
+				"response_fields": []map[string]interface{}{
+					{"name": "评分类型", "widget": "input", "required": false, "desc": "提交后返回自动计算出的评分类型。"},
+					{"name": "提交结果", "widget": "input", "required": false, "desc": "提交成功或失败的提示信息。"},
+				},
+				"example": map[string]interface{}{
+					"request":  map[string]interface{}{"问卷": "Q2 产品满意度调研", "评分人": "张三", "NPS分数": 9, "推荐理由": "产品稳定，服务响应快。"},
+					"response": map[string]interface{}{"评分类型": "推荐者", "提交结果": "提交成功，感谢您的反馈。"},
+				},
+			},
+		},
+		"charts": []map[string]interface{}{
+			{
+				"name":         "NPS趋势分析",
+				"desc":         "按日期统计 NPS 分数、评分数量、推荐者占比和贬损者占比。",
+				"source_table": "NPS评分记录",
+				"chart_type":   "line",
+				"dimension":    "日期",
+				"metrics":      []string{"NPS分数", "评分数量", "推荐者占比", "贬损者占比"},
+				"filters": []map[string]interface{}{
+					{"name": "开始时间", "widget": "datetime", "required": false, "desc": "统计开始时间。"},
+					{"name": "结束时间", "widget": "datetime", "required": false, "desc": "统计结束时间。"},
+				},
+				"examples": []map[string]interface{}{
+					{"日期": "2026-05-01", "NPS分数": 35, "评分数量": 80, "推荐者占比": "52%", "贬损者占比": "17%"},
+					{"日期": "2026-05-02", "NPS分数": 42, "评分数量": 96, "推荐者占比": "56%", "贬损者占比": "14%"},
+				},
+			},
+			{
+				"name":         "NPS评分分布",
+				"desc":         "按评分类型展示推荐者、中立者、贬损者分布。",
+				"source_table": "NPS评分记录",
+				"chart_type":   "pie",
+				"dimension":    "评分类型",
+				"metrics":      []string{"评分人数"},
+				"filters": []map[string]interface{}{
+					{"name": "问卷", "widget": "select", "required": false, "desc": "选择问卷，不选则统计全部问卷。"},
+					{"name": "评分开始时间", "widget": "datetime", "required": false, "desc": "评分时间开始。"},
+					{"name": "评分结束时间", "widget": "datetime", "required": false, "desc": "评分时间结束。"},
+				},
+				"examples": []map[string]interface{}{
+					{"评分类型": "推荐者", "评分人数": 98},
+					{"评分类型": "中立者", "评分人数": 52},
+					{"评分类型": "贬损者", "评分人数": 26},
+				},
+			},
+		},
+		"workflow": []map[string]interface{}{
+			{"type": "table", "ref": "NPS问卷"},
+			{"type": "form", "ref": "NPS评分提交"},
+			{"type": "table", "ref": "NPS评分记录"},
+			{"type": "chart", "ref": "NPS趋势分析"},
+			{"type": "chart", "ref": "NPS评分分布"},
+		},
+		"rules": []string{
+			"0-6 分为贬损者，7-8 分为中立者，9-10 分为推荐者。",
+			"NPS分数 = 推荐者占比 - 贬损者占比。",
+			"评分类型根据 NPS分数 自动计算。",
+			"NPS评分记录由 NPS评分提交产生，评分记录表只负责查询和筛选。",
+		},
 	}
 }

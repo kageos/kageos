@@ -13,6 +13,10 @@ export interface FileItem {
   is_uploaded?: boolean
   download_url?: string
   server_download_url?: string
+  thumbnail_ref?: string
+  thumbnail_url?: string
+  server_thumbnail_url?: string
+  preview_kind?: 'image' | 'video' | string
   downloaded?: boolean
   upload_user?: string
   error?: string

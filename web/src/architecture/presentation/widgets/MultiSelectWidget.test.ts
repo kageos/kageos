@@ -171,8 +171,8 @@ describe('MultiSelectWidget', () => {
     expect(tag.exists()).toBe(true)
     expect(tag.attributes('data-type')).toBe('')
     expect(tag.attributes('data-style')).toContain('backgroundColor')
-    expect(tag.attributes('data-style')).toContain('rgba(245, 108, 108, 0.12)')
-    expect(tag.attributes('data-style')).toContain('#F56C6C')
+    expect(tag.attributes('data-style')).toContain('rgb(254, 237, 237)')
+    expect(tag.attributes('data-style')).toContain('#B04E4E')
   })
 
   it('falls back to neutral tag style when options_colors uses invalid color', async () => {

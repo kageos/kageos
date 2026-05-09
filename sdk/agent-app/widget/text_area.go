@@ -1,6 +1,9 @@
 package widget
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 func init() {
 	RegisterWidgetValidator(TypeTextArea, validateTextAreaWidget)
@@ -15,11 +18,12 @@ func init() {
 // 校验规则：
 // - 注册的是本文件的 validateTextAreaWidget；
 // - Go 字段必须是 string 或 *string；
-// - placeholder/render_default 只影响前端渲染；
+// - placeholder/render_default/rows 只影响前端渲染；
 // - 多行内容的长度、必填、格式等业务规则仍然写 validate tag。
 type TextArea struct {
 	Placeholder   string `json:"placeholder,omitempty"`    // 占位符文本
 	RenderDefault string `json:"render_default,omitempty"` // 前端渲染默认值
+	Rows          int    `json:"rows,omitempty"`           // 文本域行数
 }
 
 func (t *TextArea) Config() interface{} {
@@ -48,7 +52,10 @@ func (t *TextArea) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticF
 //
 // text_area 仍然是字符串字段，多行只是前端输入形态，不改变后端 schema 类型。
 func validateTextAreaWidget(ctx ValidateContext) error {
-	return requireStringLikeGoType(ctx)
+	if err := requireStringLikeGoType(ctx); err != nil {
+		return err
+	}
+	return validatePositiveIntTag(ctx, "rows")
 }
 
 func newTextArea(widgetParsed map[string]string) *TextArea {
@@ -60,6 +67,11 @@ func newTextArea(widgetParsed map[string]string) *TextArea {
 	}
 	if defaultValue, exists := getRenderDefault(widgetParsed); exists {
 		textArea.RenderDefault = defaultValue
+	}
+	if rows, exists := widgetParsed["rows"]; exists {
+		if val, err := strconv.Atoi(rows); err == nil && val > 0 {
+			textArea.Rows = val
+		}
 	}
 
 	return textArea

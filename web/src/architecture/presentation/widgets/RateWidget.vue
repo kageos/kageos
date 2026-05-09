@@ -15,11 +15,17 @@
     <!-- 编辑模式：星级评分 -->
     <el-rate
       v-if="mode === 'edit'"
+      class="rate-widget-control rate-widget-control--edit"
       v-model="internalValue"
       :max="max"
       :allow-half="allowHalf"
       :show-text="showText"
       :texts="texts"
+      :colors="rateColors"
+      :void-color="rateVoidColor"
+      :disabled-void-color="rateDisabledVoidColor"
+      :text-color="rateTextColor"
+      size="large"
       :disabled="field.widget?.config?.disabled"
       @change="handleChange"
     />
@@ -42,6 +48,7 @@
       <!-- 正常样式：使用星星 -->
       <el-rate
         v-else
+        class="rate-widget-control rate-widget-control--response"
         :model-value="rateValue"
         :max="max"
         :allow-half="allowHalf"
@@ -49,6 +56,11 @@
         :show-score="true"
         :score-template="scoreTemplate"
         :texts="texts"
+        :colors="rateColors"
+        :void-color="rateVoidColor"
+        :disabled-void-color="rateDisabledVoidColor"
+        :text-color="rateTextColor"
+        size="large"
       />
     </div>
     
@@ -69,12 +81,17 @@
       <!-- 正常样式：使用星星 -->
       <el-rate
         v-else
+        class="rate-widget-control rate-widget-control--table"
         :model-value="rateValue"
         :max="max"
         :allow-half="allowHalf"
         disabled
         :show-score="true"
         :score-template="scoreTemplate"
+        :colors="rateColors"
+        :void-color="rateVoidColor"
+        :disabled-void-color="rateDisabledVoidColor"
+        :text-color="rateTextColor"
       />
     </div>
     
@@ -96,6 +113,7 @@
       <!-- 正常样式：使用星星 -->
       <el-rate
         v-else
+        class="rate-widget-control rate-widget-control--detail"
         :model-value="rateValue"
         :max="max"
         :allow-half="allowHalf"
@@ -103,6 +121,11 @@
         :show-score="true"
         :score-template="scoreTemplate"
         :texts="texts"
+        :colors="rateColors"
+        :void-color="rateVoidColor"
+        :disabled-void-color="rateDisabledVoidColor"
+        :text-color="rateTextColor"
+        size="large"
       />
     </div>
     
@@ -149,6 +172,10 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
+const rateColors = ['#f7ba2a', '#f7ba2a', '#f7ba2a']
+const rateVoidColor = '#d8dee8'
+const rateDisabledVoidColor = '#e5e7eb'
+const rateTextColor = '#995c00'
 
 // 获取配置（带类型）
 const config = computed(() => {
@@ -396,6 +423,39 @@ watch(
 <style scoped>
 .rate-widget {
   width: 100%;
+  --rate-active-color: #f7ba2a;
+  --rate-void-color: #d8dee8;
+  --rate-text-color: #995c00;
+}
+
+.rate-widget :deep(.rate-widget-control) {
+  --el-rate-fill-color: var(--rate-active-color);
+  --el-rate-void-color: var(--rate-void-color);
+  --el-rate-disabled-void-color: #e5e7eb;
+}
+
+.rate-widget :deep(.rate-widget-control--edit) {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.rate-widget :deep(.rate-widget-control--edit .el-rate__item) {
+  width: 30px;
+  height: 30px;
+  margin-right: 2px;
+}
+
+.rate-widget :deep(.rate-widget-control--edit .el-rate__icon) {
+  font-size: 26px;
+  color: var(--rate-active-color);
+}
+
+.rate-widget :deep(.rate-widget-control--edit .el-rate__text) {
+  margin-left: 10px;
+  font-size: 14px;
+  color: var(--rate-text-color);
+  font-weight: 600;
 }
 
 .response-value {
@@ -426,6 +486,7 @@ watch(
 
 .table-cell-value :deep(.el-rate__icon) {
   font-size: 12px;
+  color: var(--rate-active-color);
 }
 
 .table-cell-value :deep(.el-rate__text) {
@@ -447,27 +508,38 @@ watch(
   align-items: center;
 }
 
-.detail-value :deep(.el-rate) {
-  font-size: 14px;
-}
-
-.detail-value :deep(.el-rate__text) {
-  font-size: 12px;
-  margin-left: 6px;
-}
-
 .response-value {
   display: flex;
   align-items: center;
 }
 
-.response-value :deep(.el-rate) {
-  font-size: 14px;
+.response-value :deep(.el-rate),
+.detail-value :deep(.el-rate) {
+  font-size: 20px;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
 }
 
-.response-value :deep(.el-rate__text) {
-  font-size: 12px;
-  margin-left: 6px;
+.response-value :deep(.el-rate__item),
+.detail-value :deep(.el-rate__item) {
+  width: 24px;
+  height: 24px;
+  margin-right: 2px;
+}
+
+.response-value :deep(.el-rate__icon),
+.detail-value :deep(.el-rate__icon) {
+  font-size: 22px;
+  color: var(--rate-active-color);
+}
+
+.response-value :deep(.el-rate__text),
+.detail-value :deep(.el-rate__text) {
+  font-size: 14px;
+  margin-left: 10px;
+  color: var(--rate-text-color);
+  font-weight: 600;
 }
 
 /* 缩放样式：圆点显示 */
@@ -498,13 +570,13 @@ watch(
 }
 
 .rate-dot-filled {
-  background-color: var(--el-color-warning);
-  border-color: var(--el-color-warning);
+  background-color: var(--rate-active-color);
+  border-color: var(--rate-active-color);
 }
 
 .rate-dot-half {
-  background: linear-gradient(to right, var(--el-color-warning) 50%, var(--el-border-color-lighter) 50%);
-  border-color: var(--el-color-warning);
+  background: linear-gradient(to right, var(--rate-active-color) 50%, var(--el-border-color-lighter) 50%);
+  border-color: var(--rate-active-color);
 }
 
 .rate-score-text {

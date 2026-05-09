@@ -8,27 +8,9 @@
 
 ---
 
-## 二、旧版 PRD 要点（仅实现参考，不作为 app.plan 输出格式）
+## 二、结构化 PRD
 
-### 提取文本（extract_text.form，POST）
-
-**请求**：上传 PDF 文件（必填）+ 可选页码/范围等参数。
-
-**响应**：提取的文本（text_area）+ 统计（页数、字符数等）。
-
-### 合并 PDF（merge.form，POST）
-
-**请求**：上传多个 PDF 文件（必填，至少 2 个）。
-
-**响应**：合并后的 PDF 文件（files）或错误提示。
-
-### 转图片（to_images.form，POST）
-
-**请求**：上传 PDF 文件（必填）+ 可选分辨率、页码等。
-
-**响应**：生成的图片文件列表（files）+ 统计。
-
----
+本案例的产品经理输出样例统一维护在同目录 `prd.json`，使用 PRD v2：`project/tables/forms/charts/workflow/rules`。本 Markdown 只保留实现参考、SDK 写法和注意事项，不再承载旧 PRD 表格。
 
 ## 三、文件与路由
 

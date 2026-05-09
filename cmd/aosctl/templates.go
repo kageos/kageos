@@ -235,7 +235,7 @@ control_service:
 
 sdk:
   nats_url: {{ q .SDKNATSURL }}
-  gateway_url: "http://127.0.0.1:9090"
+  gateway_url: {{ q .SDKGatewayURL }}
   env_vars:
     FFMPEG_PATH: "/usr/bin/ffmpeg"
     GHOSTSCRIPT_PATH: "/usr/bin/gs"
@@ -367,6 +367,7 @@ storage:
   type: "minio"
   minio:
     endpoint: {{ q .MinIOEndpoint }}
+    server_endpoint: {{ q .SDKMinIOEndpoint }}
     access_key: {{ q .MinIO.AccessKey }}
     secret_key: {{ q .MinIO.SecretKey }}
     use_ssl: {{ .MinIO.UseSSL }}

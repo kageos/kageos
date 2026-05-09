@@ -39,90 +39,97 @@ function globalStubs() {
 function baseData(): any {
   return {
     kind: 'agent_app_prd',
+    schema_version: 'prd.v2',
     project: {
-      name: '工单管理',
-      code: 'ticket_management',
-      create_new_directory: true,
+      name: 'NPS 净推荐值系统',
+      code: 'nps',
+      summary: '收集用户推荐评分，统计 NPS 分数、评分趋势和推荐者、中立者、贬损者分布。',
     },
-    models: [
+    tables: [
       {
-        name: 'Ticket',
-        display_name: '工单',
-        table_name: 'ticket',
+        name: 'NPS问卷',
+        title: 'NPS问卷管理',
+        desc: '管理每次 NPS 调研活动。',
         fields: [
-          {
-            display_name: '工单标题',
-            json_name: 'title',
-            widget: 'name:工单标题;type:input',
-          },
-          {
-            display_name: '工单状态',
-            json_name: 'status',
-            widget: 'name:工单状态;type:select;options:待处理,处理中,已完成',
-            validate: 'required',
-          },
+          { name: '问卷标题', widget: 'input', required: true, desc: '调研问卷的标题，建议简短清晰。' },
+          { name: '状态', widget: 'select', required: true, desc: '问卷状态，有待发送、收集中、已结束三个选项，默认待发送。' },
+          { name: '评分数量', widget: 'number', required: false, hide: 'create,update', desc: '该问卷收到的评分记录数量，由系统统计。' },
+        ],
+        search_fields: [
+          { name: '问卷标题', widget: 'input', required: false, desc: '按问卷标题模糊搜索。' },
+          { name: '状态', widget: 'select', required: false, desc: '按问卷状态筛选，可选待发送、收集中、已结束。' },
+        ],
+        handlers: ['OnTableAddRow', 'OnTableUpdateRow', 'OnTableDeleteRow'],
+        examples: [
+          { 问卷标题: 'Q2 产品满意度调研', 状态: '收集中', 评分数量: 256 },
+        ],
+      },
+      {
+        name: 'NPS评分记录',
+        title: 'NPS评分记录',
+        desc: '查看用户提交的 NPS 分数、评分类型和推荐理由。',
+        fields: [
+          { name: '问卷', widget: 'select', required: true, desc: '关联的 NPS 问卷，从 NPS问卷 中选择。' },
+          { name: '评分人', widget: 'input', required: false, desc: '提交评分的用户姓名或客户标识。' },
+          { name: 'NPS分数', widget: 'number', required: true, desc: '0 到 10 的整数评分。' },
+          { name: '评分类型', widget: 'select', required: false, hide: 'create,update', desc: '根据 NPS分数 自动计算。' },
+        ],
+        search_fields: [
+          { name: '问卷', widget: 'select', required: false, desc: '按问卷筛选评分记录。' },
+          { name: '评分类型', widget: 'select', required: false, desc: '按推荐者、中立者、贬损者筛选。' },
+        ],
+        handlers: [],
+        examples: [
+          { 问卷: 'Q2 产品满意度调研', 评分人: '张三', NPS分数: 9, 评分类型: '推荐者' },
         ],
       },
     ],
-    functions: [
+    forms: [
       {
-        title: '工单列表',
-        type: 'table',
-        route: 'ticket_list.table',
-        model: 'Ticket',
-        table: {
-          request_fields: [
-            {
-              field: '状态',
-              type: '下拉选择',
-              required: false,
-              default: '全部',
-              description: 'options:待处理,处理中,已完成',
-            },
-          ],
-          columns: ['工单标题', '工单状态'],
-          sample_rows: [
-            {
-              工单标题: '打印机无法连接',
-              工单状态: '待处理',
-            },
-          ],
-        },
-      },
-      {
-        title: '创建工单',
-        type: 'form',
-        route: 'ticket_create.form',
-        model: 'Ticket',
-        form: {},
-      },
-      {
-        title: '工单统计',
-        type: 'chart',
-        route: 'ticket_stats.chart',
-        model: 'Ticket',
-        chart: {
-          chart_type: 'pie',
-          dimension: '工单状态',
-          metrics: ['工单数量'],
-          filters: [
-            { name: '开始时间', type: 'datetime', required: false, desc: '统计开始时间' },
-            { name: '结束时间', type: 'datetime', required: false, desc: '统计结束时间' },
-          ],
-          preview_data: [
-            { name: '待处理', value: 8 },
-            { name: '处理中', value: 5 },
-            { name: '已完成', value: 21 },
-          ],
-          summary: [
-            { name: '总工单数', value: 34, desc: '当前筛选条件下的工单总数' },
-          ],
+        name: 'NPS评分提交',
+        desc: '客户自助提交 NPS 评分。',
+        target_table: 'NPS评分记录',
+        request_fields: [
+          { name: '问卷', widget: 'select', required: true, desc: '选择要评价的 NPS 问卷。' },
+          { name: 'NPS分数', widget: 'number', required: true, desc: '0 到 10 的整数评分。' },
+        ],
+        response_fields: [
+          { name: '评分类型', widget: 'input', required: false, desc: '提交后返回自动计算出的评分类型。' },
+          { name: '提交结果', widget: 'input', required: false, desc: '提交成功或失败的提示信息。' },
+        ],
+        example: {
+          request: { 问卷: 'Q2 产品满意度调研', NPS分数: 9 },
+          response: { 评分类型: '推荐者', 提交结果: '提交成功，感谢您的反馈。' },
         },
       },
     ],
-    confirmation: {
-      question: '请确认是否按以上 PRD 创建目录和生成代码。',
-    },
+    charts: [
+      {
+        name: 'NPS趋势分析',
+        desc: '按日期统计 NPS 分数、评分数量、推荐者占比和贬损者占比。',
+        source_table: 'NPS评分记录',
+        chart_type: 'line',
+        dimension: '日期',
+        metrics: ['NPS分数', '评分数量'],
+        filters: [
+          { name: '开始时间', widget: 'datetime', required: false, desc: '统计开始时间。' },
+          { name: '结束时间', widget: 'datetime', required: false, desc: '统计结束时间。' },
+        ],
+        examples: [
+          { dimension: '2026-05-01', metrics: { NPS分数: 35, 评分数量: 80 } },
+          { dimension: '2026-05-02', metrics: { NPS分数: 42, 评分数量: 96 } },
+        ],
+      },
+    ],
+    workflow: [
+      { type: 'table', ref: 'NPS问卷' },
+      { type: 'form', ref: 'NPS评分提交' },
+      { type: 'table', ref: 'NPS评分记录' },
+      { type: 'chart', ref: 'NPS趋势分析' },
+    ],
+    rules: [
+      '0-6 分为贬损者，7-8 分为中立者，9-10 分为推荐者。',
+    ],
   }
 }
 
@@ -136,151 +143,58 @@ function mountPreview(data: any = baseData()) {
 }
 
 describe('PrdPreview', () => {
-  it('switches function previews by thumbnail index', async () => {
+  it('switches feature previews by thumbnail index', async () => {
     const wrapper = mountPreview()
 
-    expect(wrapper.find('.prd-stage-name').text()).toBe('工单列表')
+    expect(wrapper.find('.prd-stage-name').text()).toBe('NPS问卷管理')
     expect(wrapper.find('.prd-basic-table').exists()).toBe(true)
 
     const thumbs = wrapper.findAll('.prd-slide-thumb')
-    expect(thumbs).toHaveLength(3)
+    expect(thumbs).toHaveLength(4)
     expect(thumbs[0]!.classes()).toContain('is-active')
 
-    await thumbs[2]!.trigger('pointerup')
+    await thumbs[1]!.trigger('pointerup')
     await nextTick()
-    expect(wrapper.find('.prd-stage-name').text()).toBe('工单统计')
-    expect(wrapper.find('.chart-preview-stub').exists()).toBe(true)
-    expect(wrapper.findAll('.prd-slide-thumb')[2]!.classes()).toContain('is-active')
-
-    await wrapper.findAll('.prd-slide-thumb')[1]!.trigger('pointerup')
-    await nextTick()
-    expect(wrapper.find('.prd-stage-name').text()).toBe('创建工单')
+    expect(wrapper.find('.prd-stage-name').text()).toBe('NPS评分提交')
     expect(wrapper.text()).toContain('请求字段')
-    expect(wrapper.text()).toContain('工单状态')
+    expect(wrapper.text()).toContain('提交成功，感谢您的反馈。')
+
+    await wrapper.findAll('.prd-slide-thumb')[3]!.trigger('pointerup')
+    await nextTick()
+    expect(wrapper.find('.prd-stage-name').text()).toBe('NPS趋势分析')
+    expect(wrapper.find('.chart-preview-stub').exists()).toBe(true)
   })
 
-  it('renders table request fields, columns and sample rows without runtime widgets', () => {
+  it('renders table search fields, handlers and inline examples', () => {
     const wrapper = mountPreview()
 
     expect(wrapper.text()).toContain('搜索条件')
-    expect(wrapper.text()).toContain('全部')
-    expect(wrapper.text()).toContain('待处理')
-    expect(wrapper.find('.prd-basic-table').text()).toContain('打印机无法连接')
-    expect(wrapper.findComponent(ChartPreviewStub).exists()).toBe(false)
+    expect(wrapper.text()).toContain('按问卷标题模糊搜索')
+    expect(wrapper.text()).toContain('新增')
+    expect(wrapper.text()).toContain('编辑')
+    expect(wrapper.text()).toContain('删除')
+    expect(wrapper.find('.prd-basic-table').text()).toContain('Q2 产品满意度调研')
+    expect(wrapper.find('.prd-basic-table').text()).toContain('收集中')
   })
 
-  it('sorts function previews by explicit order', async () => {
-    const data = baseData()
-    data.functions = [
-      { ...data.functions[2], order: 3 },
-      { ...data.functions[1], order: 2 },
-      { ...data.functions[0], order: 1 },
-    ]
-    const wrapper = mountPreview(data)
-
-    expect(wrapper.find('.prd-stage-name').text()).toBe('工单列表')
-    expect(wrapper.find('.prd-step-badge').text()).toBe('01')
-    const thumbs = wrapper.findAll('.prd-slide-thumb')
-    expect(thumbs.map(item => item.find('.prd-slide-step').text())).toEqual(['01', '02', '03'])
-
-    await thumbs[2]!.trigger('pointerup')
-    await nextTick()
-    expect(wrapper.find('.prd-stage-name').text()).toBe('工单统计')
-    expect(wrapper.find('.prd-step-badge').text()).toBe('03')
-  })
-
-  it('renders table columns directly when no model exists', () => {
-    const wrapper = mountPreview({
-      kind: 'agent_app_prd',
-      project: {
-        name: '收银台',
-        code: 'cashier',
-        create_new_directory: true,
-      },
-      functions: [
-        {
-          title: '支付记录表',
-          type: 'table',
-          route: 'cashier_payment_record_list.table',
-          table: {
-            readonly: false,
-            columns: ['订单号', '会员姓名', '实付金额', '状态'],
-            sample_rows: [
-              {
-                订单号: 'ORD202501200001',
-                会员姓名: '张三',
-                实付金额: '13.50',
-                状态: '支付成功',
-              },
-            ],
-          },
-        },
-      ],
-    })
-
-    expect(wrapper.find('.prd-basic-table').text()).toContain('ORD202501200001')
-    expect(wrapper.find('.prd-basic-table').text()).toContain('支付成功')
-  })
-
-  it('renders model options in lightweight form preview', () => {
-    const wrapper = mountPreview({
-      kind: 'agent_app_prd',
-      project: {
-        name: '工单管理',
-        code: 'ticket_management',
-        create_new_directory: true,
-      },
-      models: [
-        {
-          name: 'Ticket',
-          fields: [
-            {
-              name: '工单状态',
-              widget: 'name:工单状态;type:select',
-              validate: 'required',
-              options: ['待处理', '处理中', '已完成'],
-              render_default: '待处理',
-            },
-          ],
-        },
-      ],
-      functions: [
-        {
-          title: '创建工单',
-          type: 'form',
-          route: 'ticket_create.form',
-          model: 'Ticket',
-          form: {},
-        },
-      ],
-    })
-
-    expect(wrapper.text()).toContain('工单状态')
-    expect(wrapper.text()).toContain('必填')
-    expect(wrapper.text()).toContain('待处理')
-    expect(wrapper.text()).toContain('处理中')
-    expect(wrapper.text()).toContain('已完成')
-  })
-
-  it('passes lightweight chart preview data and renders summary', async () => {
+  it('passes chart examples as preview data', async () => {
     const wrapper = mountPreview()
-    await wrapper.findAll('.prd-slide-thumb')[2]!.trigger('pointerup')
+    await wrapper.findAll('.prd-slide-thumb')[3]!.trigger('pointerup')
     await nextTick()
 
     const chartPreview = wrapper.findComponent(ChartPreviewStub)
     expect(chartPreview.props('previewData')).toEqual([
-      { name: '待处理', value: 8 },
-      { name: '处理中', value: 5 },
-      { name: '已完成', value: 21 },
+      { 日期: '2026-05-01', NPS分数: 35, 评分数量: 80 },
+      { 日期: '2026-05-02', NPS分数: 42, 评分数量: 96 },
     ])
     expect(wrapper.text()).toContain('开始时间')
     expect(wrapper.text()).toContain('结束时间')
-    expect(wrapper.text()).toContain('总工单数')
-    expect(wrapper.text()).toContain('34')
   })
 
-  it('emits confirm payload with remark', async () => {
+  it('emits confirm payload with generated confirmation question and remark', async () => {
     const wrapper = mountPreview()
+
+    expect(wrapper.text()).toContain('请确认是否按以上 PRD 创建目录和生成代码')
 
     await wrapper.find('textarea').setValue('按这个做')
     const confirmButton = wrapper.findAll('button').find(button => button.text().includes('确认 PRD'))

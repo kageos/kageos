@@ -141,6 +141,7 @@ import type { MultiSelectWidgetConfig, SelectOptionConfig } from '@/core/types/w
 import { buildMultiSelectRawValue } from '@/architecture/presentation/widgets/utils/multiSelectValue'
 import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/utils/searchType'
 import { buildSelectionSummary } from '@/architecture/presentation/widgets/utils/selectionSummary'
+import { getWidgetOptionColors } from '@/utils/widgetOptionColors'
 import type { MultiSelectOptionItem } from './multiSelectWidgetTypes'
 import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
 import { prdPreviewContextKey } from '@/architecture/presentation/components/prdPreviewContext'
@@ -178,7 +179,7 @@ const config = computed(() => {
  * options_colors 数组与 options 数组的索引对齐，通过索引获取对应选项的颜色
  */
 const optionColors = computed(() => {
-  return config.value.options_colors || []
+  return getWidgetOptionColors(config.value)
 })
 
 function normalizeOption(opt: string | SelectOptionConfig): MultiSelectOptionItem {

@@ -4569,11 +4569,6 @@ const docTemplate = `{
                     "description": "SkipBuild 为 true 时仅写文件不编译不部署（对应 write_go_file 的 build_workspace=false）",
                     "type": "boolean"
                 },
-                "skip_metadata_parse": {
-                    "description": "SkipMetadataParse 已废弃：服务端不再解析代码内元数据，始终按 full_code_path + file_name 写入（保留字段兼容旧客户端）",
-                    "type": "boolean",
-                    "example": false
-                },
                 "source_code": {
                     "description": "处理后的源代码（从 Markdown 中提取）",
                     "type": "string",
@@ -4671,12 +4666,6 @@ const docTemplate = `{
                 },
                 "schema": {
                     "$ref": "#/definitions/functionschema.FunctionSchema"
-                },
-                "source_code": {
-                    "type": "string"
-                },
-                "source_code_file_path": {
-                    "type": "string"
                 },
                 "tags": {
                     "type": "array",

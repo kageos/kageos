@@ -11,24 +11,24 @@ import (
 type SummarizeTaskStateTool struct{}
 
 type summarizeTaskStateArgs struct {
-	Intent       string   `json:"intent" schema_desc:"当前身份 ID，例如 app.plan/app.create/app.modify/app.operate_test" schema_required:"true"`
+	RoleID       string   `json:"role_id" schema_desc:"当前角色 ID，例如 product_manager/app_developer/maintenance_engineer/qa_engineer" schema_required:"true"`
 	Directory    string   `json:"directory" schema_desc:"当前工作目录"`
 	Outcome      string   `json:"outcome" schema_desc:"当前阶段结果，必须简短" schema_required:"true"`
 	ChangedFiles []string `json:"changed_files" schema_desc:"本阶段改动文件路径"`
 	Verified     []string `json:"verified" schema_desc:"已验证事项或命令"`
 	Blockers     []string `json:"blockers" schema_desc:"未解决问题"`
-	NextIntent   string   `json:"next_intent" schema_desc:"建议下一身份 ID"`
+	NextRoleID   string   `json:"next_role_id" schema_desc:"建议下一角色 ID，例如 qa_engineer/build_engineer"`
 	NextGoal     string   `json:"next_goal" schema_desc:"下一阶段目标"`
 }
 
 type taskStateSummaryData struct {
-	Intent       string   `json:"intent" schema_desc:"当前身份 ID" schema_required:"true"`
+	RoleID       string   `json:"role_id" schema_desc:"当前角色 ID" schema_required:"true"`
 	Directory    string   `json:"directory,omitempty" schema_desc:"工作目录"`
 	Summary      string   `json:"summary" schema_desc:"供 change_role 携带的极简摘要" schema_required:"true"`
 	ChangedFiles []string `json:"changed_files,omitempty" schema_desc:"改动文件"`
 	Verified     []string `json:"verified,omitempty" schema_desc:"已验证事项"`
 	Blockers     []string `json:"blockers,omitempty" schema_desc:"未解决问题"`
-	NextIntent   string   `json:"next_intent,omitempty" schema_desc:"建议下一身份"`
+	NextRoleID   string   `json:"next_role_id,omitempty" schema_desc:"建议下一角色"`
 	NextGoal     string   `json:"next_goal,omitempty" schema_desc:"下一阶段目标"`
 }
 
@@ -52,12 +52,10 @@ func (t *SummarizeTaskStateTool) Execute(ctx context.Context, call ToolCall) Too
 }
 
 func buildTaskStateSummary(args summarizeTaskStateArgs) taskStateSummaryData {
-	intent := strings.TrimSpace(args.Intent)
-	if intent == "" {
-		intent = "app.explain_review"
-	}
+	roleID := normalizeTaskStateRole(args.RoleID, WorkspaceRoleReviewer)
+	nextRoleID := normalizeTaskStateRole(args.NextRoleID, "")
 	parts := []string{
-		"身份=" + intent,
+		"角色=" + roleID,
 		"结果=" + compactText(args.Outcome, 160),
 	}
 	if len(args.ChangedFiles) > 0 {
@@ -69,22 +67,34 @@ func buildTaskStateSummary(args summarizeTaskStateArgs) taskStateSummaryData {
 	if len(args.Blockers) > 0 {
 		parts = append(parts, "阻塞="+compactText(strings.Join(args.Blockers, "；"), 160))
 	}
-	if strings.TrimSpace(args.NextIntent) != "" {
-		parts = append(parts, "下一身份="+strings.TrimSpace(args.NextIntent))
+	if nextRoleID != "" {
+		parts = append(parts, "下一角色="+nextRoleID)
 	}
 	if strings.TrimSpace(args.NextGoal) != "" {
 		parts = append(parts, "下一目标="+compactText(args.NextGoal, 160))
 	}
 	return taskStateSummaryData{
-		Intent:       intent,
+		RoleID:       roleID,
 		Directory:    strings.TrimSpace(args.Directory),
 		Summary:      strings.Join(parts, " | "),
 		ChangedFiles: trimStringSlice(args.ChangedFiles),
 		Verified:     trimStringSlice(args.Verified),
 		Blockers:     trimStringSlice(args.Blockers),
-		NextIntent:   strings.TrimSpace(args.NextIntent),
+		NextRoleID:   nextRoleID,
 		NextGoal:     strings.TrimSpace(args.NextGoal),
 	}
+}
+
+func normalizeTaskStateRole(role string, fallback string) string {
+	role = strings.TrimSpace(role)
+	if role == "" {
+		return fallback
+	}
+	normalized := normalizeWorkspaceRole(role)
+	if isKnownWorkspaceRole(normalized) {
+		return normalized
+	}
+	return role
 }
 
 func trimStringSlice(items []string) []string {

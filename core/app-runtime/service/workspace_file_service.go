@@ -151,7 +151,6 @@ func (s *WorkspaceFileService) ReadDirectoryFiles(ctx context.Context, user, app
 			FileName:     fileName,
 			RelativePath: name,
 			Content:      string(content),
-			GroupCode:    fileName,
 		})
 	}
 

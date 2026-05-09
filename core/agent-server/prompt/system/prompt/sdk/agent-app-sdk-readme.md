@@ -1,6 +1,6 @@
 # Agent-App SDK 使用说明
 
-本文档是 **Agent-App SDK 主入口** 和权威主文档，用于 `app.create`（应用开发）与 `app.modify`（应用修改）意图下的代码生成、修改和校验。它说明框架稳定契约、API、组件、schema、校验规则和常见代码模式。
+本文档是 **Agent-App SDK 主入口** 和权威主文档，用于 `app_developer`（应用开发工程师）与 `maintenance_engineer`（应用维护工程师）角色下的代码生成、修改和校验。它说明框架稳定契约、API、组件、schema、校验规则和常见代码模式。
 
 完整业务示例（PRD + 代码）在案例文档中，按需 `read_doc("/system/prompt/case_catalog/xxx")` 对应路径即可。不要只靠零散参考文档写代码；创建或修改业务应用时，以本主文档 + 匹配案例 + 当前身份 SOP 为主链路。
 
@@ -359,7 +359,7 @@ row.ExpenseDate = time.Now()
   - 基本信息：`type BasicInfoStruct struct { Format string \`json:"format" widget:"name:图片格式;type:text"\`; Width string \`...\`; Height string \`...\`; ... }`，字段类型用 `BasicInfoStruct`。
   - 文件信息：`type FileInfoStruct struct { FileName string \`json:"file_name" widget:"name:文件名;type:text"\`; FileSize string \`...\`; ... }`，字段类型用 `FileInfoStruct`。
 
-**files 类型约定**：使用 `type:files` 时字段类型为 `string`。字段值是稳定文件引用：`bucket/object_key`，多文件用英文逗号分隔。完整上传、下载与存储流程见第六节「文件上传、下载与存储」。
+**files 类型约定**：使用 `type:files` 时字段类型为 `string`。字段值是稳定文件引用：`bucket/object_key`，多文件用英文逗号分隔。完整上传、下载与存储流程见第六节「文件上传、下载与存储」。图片、视频这类需要在 Table 列表中直接辨认内容的字段，可加 `thumbnail:true;list_preview:true`：浏览器上传时前端生成图片缩略图或视频封面，后端只保存缩略图引用；列表单元格使用缩略图/封面展示。普通合同、PDF、Excel、压缩包等附件不要默认开启列表预览。
 
 #### link 组件（跳转链接，多函数联动）
 
@@ -910,6 +910,7 @@ return resp.Form(&respStruct).Build()
 #### 文件上传、下载与存储
 
 - **上传**：请求或 Table 新增/编辑里用 `string` 字段，widget `type:files`；可选 `accept:.csv`、`max_size:50MB`、`max_count:10` 等。`string` 的持久化值是字符串：`bucket/object_key`，多文件用英文逗号分隔。Table 字段建议用 `gorm:"column:xxx;type:text"`。
+- **列表缩略图/视频封面**：商品图、头像、照片、截图、凭证图、视频素材等需要在 Table 列表中直接辨认内容的字段，使用 `thumbnail:true;list_preview:true`。`thumbnail:true` 表示浏览器上传时前端生成轻量缩略图或视频封面并上传，后端不做媒体处理；`list_preview:true` 表示列表单元格优先用缩略图/封面展示。只对浏览器上传的图片/视频稳定生效；SDK/服务端生成的输出文件前端拿不到原始 `File`，不要假设一定有缩略图。
 - **读上传的文件（Form 内）**：需要访问文件内容时（如解析 CSV、转 Excel），用 `fs := ctx.GetFS()`，`inputFiles := fs.DownloadFiles(req.xxx)` 得到运行时文件列表；遍历 `inputFiles`，用 `file`（如 `os.Open(file)`）读内容；用完后 **必须** `defer fs.RemoveFiles(inputFiles)` 清理临时文件。
 - **响应里返回文件（供下载）**：业务生成文件到本地路径后，用 `outputFiles := fs.ResponseFiles([]string{outputPath})` 得到 `string` 填到响应结构体；返回值本身是 `bucket/object_key` 字符串，前端会通过 storage resolve 拿直连 URL 展示/下载。**路径建议始终用 `filepath.Abs` 得到绝对路径**再交给 `ResponseFiles` 或与 Python 互传（双方进程 cwd 不同）。若无上传、仅生成文件给用户（如 CSV 文本转 Excel），可先用 `ctx.GetFS().GetTraceOutputDir()` 得到当前 Trace 输出目录，在该目录下生成文件再 `ResponseFiles`。
 - **Python runtime 生成可下载文件**：`read_doc("/system/prompt/case_catalog/form/python_output")`；Go 将 **绝对路径** 放入请求传给 Python（如 `savefig` 目标路径），**不要**再用 base64 绕一圈；须 **`defer executor.Close()`**。
@@ -944,6 +945,14 @@ type HrResume struct {
     ResumeFile string `json:"resume_file" gorm:"column:resume_file;type:text" widget:"name:简历附件;type:files"`
 }
 // OnTableAddRow/OnTableUpdateRow 里直接 db.Create(&row) / db.Updates(updates)，ResumeFile 会按 bucket/object_key 字符串存储
+```
+
+```go
+// Table 模式：图片/视频字段需要列表识别内容时，开启前端缩略图/封面和列表预览
+type Product struct {
+    Images string `json:"images" gorm:"column:images;type:text" widget:"name:商品图片;type:files;accept:image/*;max_count:5;thumbnail:true;list_preview:true"`
+    Video  string `json:"video" gorm:"column:video;type:text" widget:"name:展示视频;type:files;accept:video/*;max_count:1;thumbnail:true;list_preview:true"`
+}
 ```
 
 #### OnSelectFuzzy（下拉联动后端数据）

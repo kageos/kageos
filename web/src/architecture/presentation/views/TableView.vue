@@ -768,6 +768,9 @@ import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
 import { getFunctionCallbacks, getTableCreateFields } from '@/utils/functionSchemaSelectors'
 import { normalizeStorageFileDisplayUrl } from '@/architecture/presentation/utils/storageFileUrl'
+import { getFieldWidgetOptionColors } from '@/utils/widgetOptionColors'
+import { isWidgetConfigFlagEnabled } from '@/utils/widgetConfigFlag'
+import { deriveThumbnailPreviewUrl } from '@/utils/storagePreviewUrl'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -1175,8 +1178,27 @@ const isImageMediaValue = (value: string): boolean => {
   return CARD_IMAGE_EXTENSIONS.has(getCardMediaExtension(value))
 }
 
+const shouldUseCardMediaThumbnail = (): boolean => {
+  const field = cardMediaField.value
+  if (field?.widget?.type !== WidgetType.FILES) {
+    return false
+  }
+  const config = field.widget?.config || {}
+  return isWidgetConfigFlagEnabled(config.thumbnail) || isWidgetConfigFlagEnabled(config.list_preview)
+}
+
 const getCardMediaPreviewUrl = (row: TableRow): string => {
-  const imageEntry = getCardMediaEntries(row).find(isImageMediaValue)
+  const entries = getCardMediaEntries(row)
+  if (shouldUseCardMediaThumbnail()) {
+    const thumbnailEntry = entries
+      .map(deriveThumbnailPreviewUrl)
+      .find(isImageMediaValue)
+    if (thumbnailEntry) {
+      return normalizeStorageFileDisplayUrl(thumbnailEntry)
+    }
+  }
+
+  const imageEntry = entries.find(isImageMediaValue)
   return imageEntry ? normalizeStorageFileDisplayUrl(imageEntry) : ''
 }
 
@@ -1346,8 +1368,8 @@ const getCardFieldOptions = (field: FieldConfig): Array<{ label: string; value: 
 
 const getCardOptionColor = (field: FieldConfig, value: any): string | null => {
   const options = getCardFieldOptions(field)
-  const optionColors = field.widget?.config?.options_colors
-  if (!Array.isArray(optionColors) || optionColors.length === 0) {
+  const optionColors = getFieldWidgetOptionColors(field)
+  if (optionColors.length === 0) {
     return null
   }
 

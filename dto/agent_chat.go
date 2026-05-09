@@ -66,15 +66,9 @@ type AddFunctionsReq struct {
 	FileName   string `json:"file_name" example:"crm_ticket"`   // 从代码中提取的文件名（可带 .go 后缀）
 	SourceCode string `json:"source_code" example:"package..."` // 处理后的源代码（从 Markdown 中提取）
 	Async      bool   `json:"async" example:"false"`            // 是否异步处理（true: 异步，通过回调通知；false: 同步，直接返回结果）
-	// SkipMetadataParse 已废弃：服务端不再解析代码内元数据，始终按 full_code_path + file_name 写入（保留字段兼容旧客户端）
-	SkipMetadataParse bool `json:"skip_metadata_parse" example:"false"`
 	// SkipBuild 为 true 时仅写文件不编译不部署（对应 write_go_file 的 build_workspace=false）
 	SkipBuild bool `json:"skip_build,omitempty"`
 }
-
-// FunctionGenResult 已废弃，请使用 AddFunctionsReq
-// Deprecated: 使用 AddFunctionsReq 替代
-type FunctionGenResult = AddFunctionsReq
 
 // AddFunctionsResp 添加函数响应（同步模式返回）
 type AddFunctionsResp struct {

@@ -99,6 +99,16 @@ var supportedWidgetTypes = []string{
 	TypeList,
 }
 
+var supportedWidgetTypeSet = buildSupportedWidgetTypeSet()
+
+func buildSupportedWidgetTypeSet() map[string]struct{} {
+	result := make(map[string]struct{}, len(supportedWidgetTypes))
+	for _, widgetType := range supportedWidgetTypes {
+		result[widgetType] = struct{}{}
+	}
+	return result
+}
+
 func SupportedTypes() []string {
 	result := make([]string, len(supportedWidgetTypes))
 	copy(result, supportedWidgetTypes)
@@ -106,12 +116,8 @@ func SupportedTypes() []string {
 }
 
 func IsSupportedType(widgetType string) bool {
-	for _, item := range supportedWidgetTypes {
-		if widgetType == item {
-			return true
-		}
-	}
-	return false
+	_, ok := supportedWidgetTypeSet[widgetType]
+	return ok
 }
 
 // NewWidget 根据 widget tag 中的 type 创建具体配置。

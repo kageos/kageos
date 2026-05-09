@@ -10,6 +10,7 @@ import type {
 } from '@/utils/upload'
 import { Logger } from '@/core/utils/logger'
 import type { FileItem } from '../filesWidgetTypes'
+import { generateFilePreview } from '@/utils/upload/filePreview'
 
 export interface UploadingFile {
   uid: string
@@ -34,6 +35,7 @@ interface UseFilesUploadManagerOptions {
   accept: Ref<string>
   maxSize: Ref<string | undefined>
   maxCount: Ref<number>
+  thumbnail: () => boolean
   currentFiles: Ref<FileItem[]>
   updateFiles: (files: FileItem[]) => Promise<void>
   resolveUploadUser: () => string
@@ -153,10 +155,14 @@ export function useFilesUploadManager(options: UseFilesUploadManagerOptions) {
               description: result.description || '',
               hash: result.hash || uploadingFile.fileInfo.hash || '',
               size: uploadingFile.size,
+              content_type: uploadingFile.fileInfo.content_type,
               upload_ts: Date.now(),
               is_uploaded: true,
               download_url: result.download_url || '',
               server_download_url: result.server_download_url || '',
+              thumbnail_ref: result.thumbnail_ref || '',
+              thumbnail_url: result.thumbnail_url || '',
+              preview_kind: result.preview_kind || '',
               downloaded: false,
               upload_user: item.upload_user || '',
             })
@@ -212,6 +218,36 @@ export function useFilesUploadManager(options: UseFilesUploadManagerOptions) {
     batchCompleteTimer.value = setTimeout(() => {
       void flushCompleteQueue()
     }, BATCH_COMPLETE_DELAY)
+  }
+
+  async function uploadGeneratedPreview(router: string, rawFile: File, sourceKey: string): Promise<{ thumbnailRef: string; previewKind: string } | null> {
+    if (!options.thumbnail()) {
+      return null
+    }
+    if (!sourceKey) {
+      return null
+    }
+
+    try {
+      const preview = await generateFilePreview(rawFile)
+      if (!preview) {
+        return null
+      }
+
+      const previewResult = await uploadFile(router, preview.file, () => {}, { previewForKey: sourceKey })
+      const thumbnailRef = previewResult.fileInfo?.ref || previewResult.ref || ''
+      if (!thumbnailRef) {
+        return null
+      }
+
+      return {
+        thumbnailRef,
+        previewKind: preview.kind,
+      }
+    } catch (error) {
+      Logger.warn('[FilesWidget]', '生成或上传文件预览失败，已跳过预览关联', error)
+      return null
+    }
   }
 
   async function handleFileSelect(rawFile: File): Promise<void> {
@@ -290,6 +326,8 @@ export function useFilesUploadManager(options: UseFilesUploadManagerOptions) {
       }
 
       if (uploadResult.fileInfo) {
+        const previewMeta = await uploadGeneratedPreview(router, rawFile, uploadResult.fileInfo.key)
+
         if (!uploadResult.fileInfo.hash) {
           Logger.warn('[FilesWidget]', `File ${uploadResult.fileInfo.file_name} has no hash`, {
             key: uploadResult.fileInfo.key,
@@ -305,6 +343,8 @@ export function useFilesUploadManager(options: UseFilesUploadManagerOptions) {
           file_size: uploadResult.fileInfo.file_size,
           content_type: uploadResult.fileInfo.content_type,
           hash: uploadResult.fileInfo.hash || '',
+          thumbnail_ref: previewMeta?.thumbnailRef || '',
+          preview_kind: previewMeta?.previewKind || '',
           upload_user: options.resolveUploadUser(),
         })
       }

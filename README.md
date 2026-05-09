@@ -27,6 +27,7 @@
 
 - [backup-service 说明](core/backup-service/README.md)
 - [开发环境说明](deploy/dev/README.md)
+- [部署分层模型](docs/deployment-layers.md)
 - [生产部署说明](deploy/prod/README.md)
 - [生产恢复手册](deploy/prod/RECOVERY.md)
 - [值班恢复清单](deploy/prod/RECOVERY_CHECKLIST.md)
@@ -426,10 +427,11 @@ AI-Agent-OS 后续最重要的产品判断之一，是把企业应用里的通�
 3. `app-storage`
 4. `agent-server`
 5. `hr-server`
-6. `app-server`
-7. `api-gateway`
+6. `message-server`
+7. `app-server`
+8. `api-gateway`
 
-`APP_ENV=dev` 的本地开发启动会额外编排 `timer-scheduler`，方便 GoLand 直接启动统一入口后完成定时任务联调；生产部署仍由独立 scheduler 服务启动 `timer-scheduler`。
+`timer-scheduler` 已统一为独立服务：本地开发需要单独启动 `core/timer-scheduler/cmd/app`，生产部署由独立 `scheduler` 服务启动。
 
 可以简单理解为下面的分层。
 
@@ -595,7 +597,7 @@ AI-Agent-OS 后续最重要的产品判断之一，是把企业应用里的通�
 
 真实能力包括：
 
-- 按当前意图自动注入 SOP 和文档包
+- 按当前角色自动注入 SOP 和文档包
 - 读目录
 - 读代码
 - 读文档
@@ -1014,7 +1016,7 @@ AI-Agent-OS 试图把二者拼起来：
 | Docs / Board | 已形成骨架 | 文档与讨论区节点已经进入服务树体系。 |
 | SDK 协议 | 已形成骨架 | Go SDK 负责模板注册、字段 schema、callback、response 协议。 |
 | app-runtime | 已形成骨架 | 支持应用构建、版本、容器运行、NATS 调用。 |
-| AI 工作台 | 已形成骨架/持续优化 | 已支持会话、SSE、意图文档包、工具循环、读写代码、构建、执行函数。 |
+| AI 工作台 | 已形成骨架/持续优化 | 已支持会话、SSE、角色文档包、工具循环、读写代码、构建、执行函数。 |
 | 文件上传下载 | 已形成骨架 | 基于对象存储和 `bucket/object_key` 文件引用，支持表单与工具结果。 |
 | 官方工具库 | 已形成骨架 | `/system/tools` 和兼容的 system 官方函数已覆盖文件、文档、图片、视频、数据处理等方向。 |
 | 操作日志 | 已形成骨架/企业增强 | 平台已具备日志基础能力，企业版可继续增强审计查询、留存和合规报表。 |

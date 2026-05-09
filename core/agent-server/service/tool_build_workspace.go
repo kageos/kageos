@@ -86,7 +86,7 @@ func workspaceBuildErrorHints(errText string) []string {
 		add("options_colors 只支持不带 # 的 6 位十六进制 RRGGBB，不能写 primary/success/default/rgb(...)，数量也必须和 options 一致。")
 	}
 	if strings.Contains(errText, "unsupported widget type") || strings.Contains(errText, "unsupported widget tag") || strings.Contains(errText, "invalid tag format") {
-		add("widget 的 type 和配置 key 必须来自 SDK 主文档组件速查和运行时白名单；不要写 file/readonly/multiple 等未支持类型或参数。文件上传用 type:files + string，多文件用 max_count；只读展示用 hide:\"create,update\" 或 widget:\"-\" 控制场景。")
+		add("widget 的 type 和配置 key 必须来自 SDK 主文档组件速查和运行时白名单；不要写 file/readonly/multiple 等未支持类型或参数。文件上传用 type:files + string，多文件用 max_count；图片/视频列表预览用 thumbnail:true;list_preview:true；只读展示用 hide:\"create,update\" 或 widget:\"-\" 控制场景。")
 	}
 	if strings.Contains(errText, "number widget requires integer Go type") {
 		add("数值组件要和 Go 类型匹配：type:number 只配 int/int64 等整数；float64 金额、评分、均值、比例使用 type:float。")

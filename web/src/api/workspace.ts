@@ -38,6 +38,8 @@ export interface WorkspaceChatReq {
   mode_code?: string
   /** LLM 配置 ID，0 表示使用默认 LLM */
   llm_config_id?: number
+  /** 不保存本次 message，只基于已有会话消息继续执行 */
+  resume?: boolean
 }
 
 /** 工作台会话项 */
@@ -49,6 +51,8 @@ export interface WorkspaceSessionItem {
   agent_name?: string
   mode_code?: string
   status: string // active | generating | done | cancelled
+  role_id?: string
+  role_display_name?: string
   full_code_path?: string
   parent_session_id?: string
   handoff_kind?: string
@@ -78,6 +82,8 @@ export interface WorkspaceHandoffResp {
   target_role: string
   artifact_kind: string
   context_policy: string
+  handoff_packet_id?: number
+  message_id?: number
   content: string
   display_content: string
 }

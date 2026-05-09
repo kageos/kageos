@@ -22,6 +22,20 @@ func (r *ChatSessionRepository) Transaction(fn func(tx *ChatSessionRepository) e
 	})
 }
 
+// TransactionWithMessages 在同一个数据库事务内执行会话与消息仓储操作。
+func (r *ChatSessionRepository) TransactionWithMessages(fn func(sessionTx *ChatSessionRepository, messageTx *ChatMessageRepository) error) error {
+	return r.db.Transaction(func(db *gorm.DB) error {
+		return fn(&ChatSessionRepository{db: db}, &ChatMessageRepository{db: db})
+	})
+}
+
+// TransactionWithMessagesAndHandoffPackets 在同一个数据库事务内执行会话、消息和 handoff packet 仓储操作。
+func (r *ChatSessionRepository) TransactionWithMessagesAndHandoffPackets(fn func(sessionTx *ChatSessionRepository, messageTx *ChatMessageRepository, handoffTx *WorkspaceHandoffPacketRepository) error) error {
+	return r.db.Transaction(func(db *gorm.DB) error {
+		return fn(&ChatSessionRepository{db: db}, &ChatMessageRepository{db: db}, &WorkspaceHandoffPacketRepository{db: db})
+	})
+}
+
 // Create 创建会话
 func (r *ChatSessionRepository) Create(session *model.AgentChatSession) error {
 	return r.db.Create(session).Error

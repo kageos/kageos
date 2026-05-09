@@ -18,6 +18,7 @@ func InitTables(db *gorm.DB) error {
 		// 工作台会话与消息（仅工作台使用，无智能体）
 		&AgentChatSession{},
 		&AgentChatMessage{},
+		&WorkspaceHandoffPacket{},
 		// 工作台模式（独立表，无外键）
 		&WorkspaceMode{},
 		// 工作台埋点事件（便于追溯无法实现的需求等）

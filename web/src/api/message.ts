@@ -16,6 +16,14 @@ export interface MessageInboxItem {
   content_type: 'markdown' | 'html' | 'text' | string
   read_at?: string | null
   created_at: string
+  source_display?: MessageSourceDisplay | null
+}
+
+export interface MessageSourceDisplay {
+  name: string
+  type: string
+  template_type?: string
+  full_code_path?: string
 }
 
 export interface MessageInboxListResp {

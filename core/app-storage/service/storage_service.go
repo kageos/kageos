@@ -40,20 +40,37 @@ func NewStorageService(storage storage.Storage, cfg *config.AppStorageConfig, fi
 // GenerateUploadToken 生成上传凭证
 // uploadSource: 上传来源（browser 或 server），默认为 browser
 func (s *StorageService) GenerateUploadToken(ctx context.Context, bucket string, router string, fileName string, contentType string, fileSize int64, uploadSource string) (creds *storage.UploadCredentials, key string, expire time.Time, err error) {
+	// 生成唯一的文件 Key（包含函数路径）
+	key = s.generateFileKey(router, fileName)
+	return s.generateUploadTokenForKey(ctx, bucket, key, fileName, contentType, fileSize, uploadSource)
+}
+
+// GeneratePreviewUploadToken 为前端生成的缩略图/视频封面创建上传凭证。
+// 缩略图 key 与原文件 key 保持稳定派生关系：foo.png -> foo.png.thumb.webp。
+func (s *StorageService) GeneratePreviewUploadToken(ctx context.Context, bucket string, sourceKey string, previewFileName string, contentType string, fileSize int64, uploadSource string) (creds *storage.UploadCredentials, key string, expire time.Time, err error) {
+	key, err = s.BuildPreviewFileKey(sourceKey, previewFileName)
+	if err != nil {
+		return nil, "", time.Time{}, err
+	}
+	return s.generateUploadTokenForKey(ctx, bucket, key, previewFileName, contentType, fileSize, uploadSource)
+}
+
+func (s *StorageService) generateUploadTokenForKey(ctx context.Context, bucket string, key string, fileName string, contentType string, fileSize int64, uploadSource string) (creds *storage.UploadCredentials, normalizedKey string, expire time.Time, err error) {
 	// 校验文件大小
 	if fileSize > s.cfg.Storage.Upload.MaxSize {
 		return nil, "", time.Time{}, fmt.Errorf("文件大小超过限制（最大 %d MB）", s.cfg.Storage.Upload.MaxSize/BytesPerMB)
 	}
 
-	// 生成唯一的文件 Key（包含函数路径）
-	key = s.generateFileKey(router, fileName)
+	normalizedKey = normalizeObjectKey(key)
+	if isUnsafeObjectKey(normalizedKey) {
+		return nil, "", time.Time{}, fmt.Errorf("文件路径不合法")
+	}
 
-	// 通过存储接口生成上传凭证
 	bucket = s.normalizeBucket(bucket)
 	expiry := time.Duration(s.cfg.Storage.Upload.TokenExpire) * time.Second
 
 	// 通过存储接口生成上传凭证（统一接口，所有存储引擎都必须实现）
-	creds, err = s.storage.GenerateUploadCredentials(ctx, bucket, key, contentType, expiry, uploadSource)
+	creds, err = s.storage.GenerateUploadCredentials(ctx, bucket, normalizedKey, contentType, expiry, uploadSource)
 
 	if err != nil {
 		logger.Errorf(ctx, "Failed to generate upload credentials: %v", err)
@@ -61,9 +78,9 @@ func (s *StorageService) GenerateUploadToken(ctx context.Context, bucket string,
 	}
 
 	expire = time.Now().Add(expiry)
-	logger.Infof(ctx, "Generated upload token for file: %s, key: %s, method: %s, source: %s", fileName, key, creds.Method, uploadSource)
+	logger.Infof(ctx, "Generated upload token for file: %s, key: %s, method: %s, source: %s", fileName, normalizedKey, creds.Method, uploadSource)
 
-	return creds, key, expire, nil
+	return creds, normalizedKey, expire, nil
 }
 
 func (s *StorageService) BuildFileRef(bucket string, key string) string {
@@ -147,6 +164,8 @@ func (s *StorageService) ResolveFileRefs(ctx context.Context, refs []string, aud
 				item.Hash = record.Hash
 				item.UploadUser = record.Username
 				item.UploadTs = record.UploadedAt.UnixMilli()
+				item.ThumbnailRef = record.ThumbnailRef
+				item.PreviewKind = record.PreviewKind
 				item.Storage = s.GetStorageType()
 			}
 		}
@@ -187,9 +206,35 @@ func (s *StorageService) ResolveFileRefs(ctx context.Context, refs []string, aud
 				item.ServerDownloadURL = serverURL
 			}
 		}
+		s.fillThumbnailURLs(ctx, &item, audience)
 		out = append(out, item)
 	}
 	return out, nil
+}
+
+func (s *StorageService) fillThumbnailURLs(ctx context.Context, item *dto.ResolvedFile, audience string) {
+	if item == nil || strings.TrimSpace(item.ThumbnailRef) == "" {
+		return
+	}
+	bucket, key, err := s.ParseFileRef(item.ThumbnailRef)
+	if err != nil {
+		logger.Warnf(ctx, "Failed to parse thumbnail ref %q: %v", item.ThumbnailRef, err)
+		return
+	}
+	browserURL, serverURL, _, err := s.GetFileURLsInBucket(ctx, bucket, key)
+	if err != nil {
+		logger.Warnf(ctx, "Failed to generate thumbnail URL for ref %q: %v", item.ThumbnailRef, err)
+		return
+	}
+	switch strings.ToLower(strings.TrimSpace(audience)) {
+	case "browser":
+		item.ThumbnailURL = browserURL
+	case "server":
+		item.ServerThumbnailURL = serverURL
+	default:
+		item.ThumbnailURL = browserURL
+		item.ServerThumbnailURL = serverURL
+	}
 }
 
 func (s *StorageService) UpdateFileDescription(ctx context.Context, ref string, bucket string, key string, description string) (*dto.UpdateFileDescriptionResp, error) {
@@ -320,6 +365,41 @@ func normalizeObjectKey(key string) string {
 		key = strings.ReplaceAll(key, "//", "/")
 	}
 	return key
+}
+
+// BuildPreviewFileKey 生成可由原文件 key 稳定推导的缩略图/封面 key。
+func (s *StorageService) BuildPreviewFileKey(sourceKey string, previewFileName string) (string, error) {
+	sourceKey = normalizeObjectKey(sourceKey)
+	if isUnsafeObjectKey(sourceKey) {
+		return "", fmt.Errorf("原文件路径不合法")
+	}
+
+	previewExt := strings.ToLower(filepath.Ext(previewFileName))
+	if previewExt == "" {
+		previewExt = ".webp"
+	}
+	if !isAllowedPreviewExtension(previewExt) {
+		return "", fmt.Errorf("不支持的预览文件扩展名: %s", previewExt)
+	}
+
+	if strings.TrimSpace(sourceKey) == "" {
+		return "", fmt.Errorf("原文件路径不合法")
+	}
+	return sourceKey + ".thumb" + previewExt, nil
+}
+
+func isAllowedPreviewExtension(ext string) bool {
+	switch strings.ToLower(ext) {
+	case ".webp", ".jpg", ".jpeg", ".png":
+		return true
+	default:
+		return false
+	}
+}
+
+func isUnsafeObjectKey(key string) bool {
+	key = strings.TrimSpace(key)
+	return key == "" || key == "." || strings.HasPrefix(key, "../") || strings.Contains(key, "/../")
 }
 
 // ListFilesByRouter 列举某个函数路径下的所有文件

@@ -309,6 +309,15 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	}
 
 	sessionID := session.SessionID
+	resumeExistingMessage := req.Resume
+	if resumeExistingMessage {
+		if req.SessionID == "" {
+			return s.handleError(sendEvent, "resume 必须指定 session_id", nil)
+		}
+		if e := s.ensureWorkspaceSessionHasRunnableMessage(sessionID); e != nil {
+			return s.handleError(sendEvent, e.Error(), e)
+		}
+	}
 	s.sseConnections.Store(sessionID, struct{}{})
 
 	// ⭐ 标记会话为 generating（后台执行中）
@@ -344,23 +353,25 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 
 	llmConfigID := req.LLMConfigID
 
-	// 3) 保存 user 消息
-	storageContent, storageFiles := userContentForStorage(req.Message.Files, req.Message.Content)
-	userMsg := &model.AgentChatMessage{
-		SessionID: sessionID, AgentID: nil, Role: RoleUser,
-		Content: storageContent, DisplayContent: strings.TrimSpace(req.Message.DisplayContent), Files: storageFiles,
-		ContextUsage: normalizeMessageContextUsage(req.Message.ContextUsage),
-		ArtifactKind: strings.TrimSpace(req.Message.ArtifactKind),
-		User:         user,
-	}
-	userMsg.CreatedBy = user
-	userMsg.UpdatedBy = user
-	if e := s.messageRepo.Create(userMsg); e != nil {
-		return s.handleError(sendEvent, "保存用户消息失败", e)
+	// 3) 保存 user 消息。handoff 原子化场景下，首条 artifact 消息已在 handoff 事务内落库，此处只续跑。
+	if !resumeExistingMessage {
+		storageContent, storageFiles := userContentForStorage(req.Message.Files, req.Message.Content)
+		userMsg := &model.AgentChatMessage{
+			SessionID: sessionID, AgentID: nil, Role: RoleUser,
+			Content: storageContent, DisplayContent: strings.TrimSpace(req.Message.DisplayContent), Files: storageFiles,
+			ContextUsage: normalizeMessageContextUsage(req.Message.ContextUsage),
+			ArtifactKind: strings.TrimSpace(req.Message.ArtifactKind),
+			User:         user,
+		}
+		userMsg.CreatedBy = user
+		userMsg.UpdatedBy = user
+		if e := s.messageRepo.Create(userMsg); e != nil {
+			return s.handleError(sendEvent, "保存用户消息失败", e)
+		}
 	}
 
 	// 3.1) 新会话自动生成标题
-	if session.Title == "" {
+	if !resumeExistingMessage && session.Title == "" {
 		title := strings.TrimSpace(req.Message.DisplayContent)
 		if title == "" {
 			title = strings.TrimSpace(req.Message.Content)
@@ -466,6 +477,8 @@ func (s *WorkspaceChatService) ListRunningSessions(ctx context.Context) ([]*dto.
 			AgentID:           session.AgentID,
 			ModeCode:          normalizeWorkspaceModeCode(session.ModeCode),
 			Status:            session.Status,
+			RoleID:            workspaceSessionRoleID(session),
+			RoleDisplayName:   workspaceSessionRoleDisplayName(session),
 			FullCodePath:      session.FullCodePath,
 			ParentSessionID:   session.ParentSessionID,
 			HandoffKind:       session.HandoffKind,
@@ -499,6 +512,8 @@ func (s *WorkspaceChatService) ListFinishedSessions(ctx context.Context, limit i
 			AgentID:           session.AgentID,
 			ModeCode:          normalizeWorkspaceModeCode(session.ModeCode),
 			Status:            session.Status,
+			RoleID:            workspaceSessionRoleID(session),
+			RoleDisplayName:   workspaceSessionRoleDisplayName(session),
 			FullCodePath:      session.FullCodePath,
 			ParentSessionID:   session.ParentSessionID,
 			HandoffKind:       session.HandoffKind,
@@ -742,6 +757,8 @@ func (s *WorkspaceChatService) ListSessions(ctx context.Context, fullCodePath st
 			AgentID:           session.AgentID,
 			ModeCode:          normalizeWorkspaceModeCode(session.ModeCode),
 			Status:            session.Status,
+			RoleID:            workspaceSessionRoleID(session),
+			RoleDisplayName:   workspaceSessionRoleDisplayName(session),
 			FullCodePath:      session.FullCodePath,
 			ParentSessionID:   session.ParentSessionID,
 			HandoffKind:       session.HandoffKind,
@@ -759,7 +776,27 @@ func (s *WorkspaceChatService) ListSessions(ctx context.Context, fullCodePath st
 
 // ListMessages 根据 sessionID 获取消息列表
 func (s *WorkspaceChatService) ListMessages(ctx context.Context, sessionID string) ([]*model.AgentChatMessage, error) {
+	_ = ctx
 	return s.messageRepo.ListBySessionID(sessionID)
+}
+
+func (s *WorkspaceChatService) ensureWorkspaceSessionHasRunnableMessage(sessionID string) error {
+	if s == nil || s.messageRepo == nil {
+		return fmt.Errorf("消息仓储未初始化，无法续跑会话")
+	}
+	messages, err := s.messageRepo.ListBySessionID(sessionID)
+	if err != nil {
+		return fmt.Errorf("读取会话消息失败: %w", err)
+	}
+	for _, msg := range messages {
+		if msg == nil || msg.Role != RoleUser {
+			continue
+		}
+		if normalizeMessageContextUsage(msg.ContextUsage) != MessageContextDisplayOnly {
+			return nil
+		}
+	}
+	return fmt.Errorf("会话没有可进入模型上下文的用户消息，无法续跑")
 }
 
 // CreateWorkspaceHandoff freezes the source conversation for model context and
@@ -807,7 +844,7 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 
 	source.ArchivedForModel = true
 	source.ContextPolicy = ContextPolicyDisplayOnly
-	source.ArchiveReason = fmt.Sprintf("已交接到 %s，会话仅保留展示历史", targetRole)
+	source.ArchiveReason = fmt.Sprintf("已交接到%s，会话仅保留展示历史", workspaceRoleDisplayName(targetRole))
 	source.UpdatedBy = user
 
 	targetSessionID := uuid.New().String()
@@ -832,6 +869,8 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 		Title:             title,
 		ModeCode:          modeCode,
 		Status:            model.ChatSessionStatusActive,
+		RoleID:            targetRole,
+		RoleDisplayName:   workspaceRoleDisplayName(targetRole),
 		ParentSessionID:   source.SessionID,
 		HandoffKind:       artifactKind,
 		HandoffTargetRole: targetRole,
@@ -843,18 +882,6 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 	}
 	target.CreatedBy = user
 	target.UpdatedBy = user
-	if err := s.sessionRepo.Transaction(func(tx *repository.ChatSessionRepository) error {
-		if err := tx.Update(source); err != nil {
-			return fmt.Errorf("归档来源会话失败: %w", err)
-		}
-		if err := tx.Create(target); err != nil {
-			return fmt.Errorf("创建交接会话失败: %w", err)
-		}
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-
 	content := buildWorkspaceHandoffContent(workspaceHandoffContentInput{
 		ArtifactKind:  artifactKind,
 		ArtifactJSON:  artifactJSON,
@@ -862,12 +889,58 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 		Remark:        req.Remark,
 		ContextPolicy: contextPolicy,
 	})
+	initialMessage := &model.AgentChatMessage{
+		SessionID:      targetSessionID,
+		AgentID:        nil,
+		Role:           RoleUser,
+		Content:        content,
+		DisplayContent: displayContent,
+		ContextUsage:   MessageContextArtifact,
+		ArtifactKind:   artifactKind,
+		User:           target.User,
+	}
+	initialMessage.CreatedBy = user
+	initialMessage.UpdatedBy = user
+	handoffPacket := &model.WorkspaceHandoffPacket{
+		SourceSessionID: source.SessionID,
+		TargetSessionID: targetSessionID,
+		FullCodePath:    fullCodePath,
+		TargetRole:      targetRole,
+		ArtifactKind:    artifactKind,
+		ArtifactJSON:    artifactJSON,
+		Remark:          strings.TrimSpace(req.Remark),
+		ContextPolicy:   contextPolicy,
+		User:            target.User,
+	}
+	handoffPacket.CreatedBy = user
+	handoffPacket.UpdatedBy = user
+	if err := s.sessionRepo.TransactionWithMessagesAndHandoffPackets(func(sessionTx *repository.ChatSessionRepository, messageTx *repository.ChatMessageRepository, handoffTx *repository.WorkspaceHandoffPacketRepository) error {
+		if err := sessionTx.Update(source); err != nil {
+			return fmt.Errorf("归档来源会话失败: %w", err)
+		}
+		if err := sessionTx.Create(target); err != nil {
+			return fmt.Errorf("创建交接会话失败: %w", err)
+		}
+		if err := messageTx.Create(initialMessage); err != nil {
+			return fmt.Errorf("创建交接消息失败: %w", err)
+		}
+		handoffPacket.InitialMessageID = initialMessage.ID
+		if err := handoffTx.Create(handoffPacket); err != nil {
+			return fmt.Errorf("创建交接包失败: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
 	return &dto.WorkspaceHandoffResp{
 		SessionID:       targetSessionID,
 		SourceSessionID: source.SessionID,
 		TargetRole:      targetRole,
 		ArtifactKind:    artifactKind,
 		ContextPolicy:   contextPolicy,
+		HandoffPacketID: handoffPacket.ID,
+		MessageID:       initialMessage.ID,
 		Content:         content,
 		DisplayContent:  displayContent,
 	}, nil
@@ -927,7 +1000,7 @@ func defaultWorkspaceHandoffDisplayContent(artifactKind, targetRole, remark stri
 		if label == "" {
 			label = "阶段产物"
 		}
-		return fmt.Sprintf("已确认 %s，进入 %s 阶段。", label, targetRole)
+		return fmt.Sprintf("已确认 %s，进入 %s 阶段。", label, workspaceRoleDisplayName(targetRole))
 	}
 }
 
@@ -943,9 +1016,9 @@ func buildWorkspaceHandoffContent(input workspaceHandoffContentInput) string {
 		fmt.Sprintf("上下文策略：%s。只以本消息中的结构化产物 JSON 和补充备注为准，不要依赖来源会话的历史讨论。", input.ContextPolicy),
 		"不要重复产出已确认的设计文档；除非产物本身缺失关键字段，否则直接执行目标阶段任务。",
 	}
-	if input.ArtifactKind == "agent_app_prd" && input.TargetRole == "app.create" {
+	if input.ArtifactKind == "agent_app_prd" && normalizeWorkspaceRole(input.TargetRole) == WorkspaceRoleAppDeveloper {
 		lines = append(lines,
-			"生成阶段要求：不要重新输出 PRD，不要再次询问确认；先读取 1 到多个匹配案例，再根据 PRD models.fields 自动生成 Go struct，创建目录、写 Go 文件、注册路由并 build。非常简单的需求才可跳过额外案例。",
+			"生成阶段要求：不要重新输出 PRD，不要再次询问确认；先读取 1 到多个匹配案例，再根据 PRD tables/forms/charts/workflow/rules 创建目录、写 Go 文件、注册路由并 build。route、method、widget tag、列表列和预览数据均从 PRD 派生。非常简单的需求才可跳过额外案例。",
 		)
 	}
 	lines = append(lines,
@@ -977,6 +1050,7 @@ func (s *WorkspaceChatService) executeToolCalls(
 	toolSummaries := make([]dto.WorkspaceChatToolCallSummary, 0, len(allToolCalls))
 	logger.Infof(ctx, "[WorkspaceChatStream] 开始执行工具调用 - 工具数量: %d, SessionID: %s", len(allToolCalls), sessionID)
 	loadedGuideDocs := s.loadedGuideDocsForSession(ctx, sessionID)
+	activeRoleID := s.currentWorkspaceRoleForSession(ctx, sessionID)
 
 	for i, tc := range allToolCalls {
 		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 执行工具调用 - ToolCallID: %s, ToolName: %s, Arguments: %q",
@@ -987,7 +1061,19 @@ func (s *WorkspaceChatService) executeToolCalls(
 		args := s.parseToolCallArgs(ctx, tc)
 		var toolRes ToolResult
 		var st string
-		toolRes, st = s.callOtherTool(ctx, tc.Function.Name, args, fullCodePath, files, i+1, len(allToolCalls))
+		if blockedRes, blocked := workspaceRoleToolGateResult(activeRoleID, tc.Function.Name); blocked {
+			toolRes = blockedRes
+			st = ToolCallStatusError
+			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 角色工具门禁阻断 - RoleID: %s, ToolName: %s, Error: %s", i+1, len(allToolCalls), activeRoleID, tc.Function.Name, toolRes.Content)
+		} else {
+			toolRes, st = s.callOtherTool(ctx, tc.Function.Name, args, fullCodePath, files, i+1, len(allToolCalls))
+		}
+		if st == ToolCallStatusOK && tc.Function.Name == "change_role" {
+			if nextRoleID := workspaceRoleFromToolResult(toolRes); nextRoleID != "" {
+				activeRoleID = nextRoleID
+				s.updateWorkspaceSessionRole(ctx, sessionID, nextRoleID, user)
+			}
+		}
 
 		resultStr, errStr := "", ""
 		var resultData interface{}

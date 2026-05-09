@@ -74,16 +74,72 @@ export function getOptionLightPalette(color?: string | null): { backgroundColor:
     }
   }
 
+  const backgroundRgb = blendWithWhite(rgb, 0.12)
+  const borderRgb = blendWithWhite(rgb, 0.28)
+
   return {
-    backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.12)`,
-    borderColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.28)`,
-    color: resolveReadableTagTextColor(normalizedColor, rgb)
+    backgroundColor: rgbToCss(backgroundRgb),
+    borderColor: rgbToCss(borderRgb),
+    color: resolveReadableTagTextColor(rgb, backgroundRgb)
   }
 }
 
-function resolveReadableTagTextColor(optionColor: string, rgb: { r: number; g: number; b: number }): string {
-  const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000
-  return brightness >= 170 ? '#1f2329' : optionColor
+function resolveReadableTagTextColor(
+  rgb: { r: number; g: number; b: number },
+  backgroundRgb: { r: number; g: number; b: number }
+): string {
+  for (let factor = 0.72; factor >= 0.18; factor -= 0.06) {
+    const candidate = {
+      r: Math.round(rgb.r * factor),
+      g: Math.round(rgb.g * factor),
+      b: Math.round(rgb.b * factor)
+    }
+
+    if (contrastRatio(candidate, backgroundRgb) >= 4.5) {
+      return rgbToHex(candidate)
+    }
+  }
+
+  return '#1F2329'
+}
+
+function blendWithWhite(rgb: { r: number; g: number; b: number }, alpha: number): { r: number; g: number; b: number } {
+  return {
+    r: Math.round(rgb.r * alpha + 255 * (1 - alpha)),
+    g: Math.round(rgb.g * alpha + 255 * (1 - alpha)),
+    b: Math.round(rgb.b * alpha + 255 * (1 - alpha))
+  }
+}
+
+function contrastRatio(
+  foreground: { r: number; g: number; b: number },
+  background: { r: number; g: number; b: number }
+): number {
+  const lighter = Math.max(relativeLuminance(foreground), relativeLuminance(background))
+  const darker = Math.min(relativeLuminance(foreground), relativeLuminance(background))
+  return (lighter + 0.05) / (darker + 0.05)
+}
+
+function relativeLuminance(rgb: { r: number; g: number; b: number }): number {
+  const [r, g, b] = [rgb.r, rgb.g, rgb.b].map((channel) => {
+    const normalized = channel / 255
+    return normalized <= 0.03928
+      ? normalized / 12.92
+      : ((normalized + 0.055) / 1.055) ** 2.4
+  })
+
+  return 0.2126 * (r || 0) + 0.7152 * (g || 0) + 0.0722 * (b || 0)
+}
+
+function rgbToHex(rgb: { r: number; g: number; b: number }): string {
+  return `#${[rgb.r, rgb.g, rgb.b]
+    .map(channel => Math.max(0, Math.min(255, channel)).toString(16).padStart(2, '0'))
+    .join('')
+    .toUpperCase()}`
+}
+
+function rgbToCss(rgb: { r: number; g: number; b: number }): string {
+  return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`
 }
 
 function parseColorToRgb(color: string): { r: number; g: number; b: number } | null {

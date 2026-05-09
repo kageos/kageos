@@ -10,13 +10,14 @@ const (
 
 // GetUploadTokenReq 获取上传凭证请求
 type GetUploadTokenReq struct {
-	FileName     string       `json:"file_name" binding:"required"`
-	ContentType  string       `json:"content_type"`
-	FileSize     int64        `json:"file_size"`
-	Router       string       `json:"router,omitempty"`        // 函数路径，例如：luobei/test88888/plugins/cashier_desk（可选，未提供时使用默认路由：/{username}/default）
-	Bucket       string       `json:"bucket,omitempty"`        // 存储桶；为空时使用 storage 默认桶
-	Hash         string       `json:"hash,omitempty"`          // 文件 hash（预留，用于秒传）
-	UploadSource UploadSource `json:"upload_source,omitempty"` // ✨ 上传来源：browser（浏览器）或 server（服务端），默认为 browser
+	FileName      string       `json:"file_name" binding:"required"`
+	ContentType   string       `json:"content_type"`
+	FileSize      int64        `json:"file_size"`
+	Router        string       `json:"router,omitempty"`          // 函数路径，例如：luobei/test88888/plugins/cashier_desk（可选，未提供时使用默认路由：/{username}/default）
+	Bucket        string       `json:"bucket,omitempty"`          // 存储桶；为空时使用 storage 默认桶
+	Hash          string       `json:"hash,omitempty"`            // 文件 hash（预留，用于秒传）
+	UploadSource  UploadSource `json:"upload_source,omitempty"`   // ✨ 上传来源：browser（浏览器）或 server（服务端），默认为 browser
+	PreviewForKey string       `json:"preview_for_key,omitempty"` // 原文件 object key；存在时生成与原文件同路径的缩略图/封面 key
 }
 
 // UploadMethod 上传方式
@@ -98,16 +99,18 @@ type BatchUploadCompleteReq struct {
 
 // BatchUploadCompleteItem 批量上传完成项
 type BatchUploadCompleteItem struct {
-	Key         string `json:"key" binding:"required"` // 文件 Key
-	Bucket      string `json:"bucket,omitempty"`       // 存储桶；为空时使用默认桶
-	Success     bool   `json:"success"`                // 是否成功
-	Error       string `json:"error,omitempty"`        // 错误信息（如果失败）
-	Router      string `json:"router,omitempty"`       // ✨ 函数路径（上传成功后需要，用于记录）
-	FileName    string `json:"file_name,omitempty"`    // ✨ 文件名（上传成功后需要，用于记录）
-	Description string `json:"description,omitempty"`  // 文件描述
-	FileSize    int64  `json:"file_size,omitempty"`    // ✨ 文件大小（上传成功后需要，用于记录）
-	ContentType string `json:"content_type,omitempty"` // ✨ 文件类型（上传成功后需要，用于记录）
-	Hash        string `json:"hash,omitempty"`         // ✨ 文件hash（可选，用于秒传）
+	Key          string `json:"key" binding:"required"`  // 文件 Key
+	Bucket       string `json:"bucket,omitempty"`        // 存储桶；为空时使用默认桶
+	Success      bool   `json:"success"`                 // 是否成功
+	Error        string `json:"error,omitempty"`         // 错误信息（如果失败）
+	Router       string `json:"router,omitempty"`        // ✨ 函数路径（上传成功后需要，用于记录）
+	FileName     string `json:"file_name,omitempty"`     // ✨ 文件名（上传成功后需要，用于记录）
+	Description  string `json:"description,omitempty"`   // 文件描述
+	FileSize     int64  `json:"file_size,omitempty"`     // ✨ 文件大小（上传成功后需要，用于记录）
+	ContentType  string `json:"content_type,omitempty"`  // ✨ 文件类型（上传成功后需要，用于记录）
+	Hash         string `json:"hash,omitempty"`          // ✨ 文件hash（可选，用于秒传）
+	ThumbnailRef string `json:"thumbnail_ref,omitempty"` // 前端生成的缩略图或视频封面文件引用
+	PreviewKind  string `json:"preview_kind,omitempty"`  // 预览类型：image/video
 }
 
 // BatchUploadCompleteResp 批量上传完成响应
@@ -125,6 +128,9 @@ type BatchUploadCompleteResult struct {
 	Description       string `json:"description,omitempty"`         // 文件描述
 	ServerDownloadURL string `json:"server_download_url,omitempty"` // ✨ 内部访问的下载地址（服务端使用）
 	Hash              string `json:"hash,omitempty"`                // ✨ 文件hash（用于文件缓存去重）
+	ThumbnailRef      string `json:"thumbnail_ref,omitempty"`       // 前端生成的缩略图或视频封面文件引用
+	ThumbnailURL      string `json:"thumbnail_url,omitempty"`       // 缩略图或视频封面浏览器访问地址
+	PreviewKind       string `json:"preview_kind,omitempty"`        // 预览类型：image/video
 	Error             string `json:"error,omitempty"`               // 错误信息（如果失败）
 }
 
@@ -152,19 +158,23 @@ type UpdateFileDescriptionResp struct {
 }
 
 type ResolvedFile struct {
-	Ref               string `json:"ref"`
-	Bucket            string `json:"bucket"`
-	Key               string `json:"key"`
-	Name              string `json:"name,omitempty"`
-	SourceName        string `json:"source_name,omitempty"`
-	Storage           string `json:"storage,omitempty"`
-	Description       string `json:"description,omitempty"`
-	Size              int64  `json:"size,omitempty"`
-	ContentType       string `json:"content_type,omitempty"`
-	Hash              string `json:"hash,omitempty"`
-	UploadUser        string `json:"upload_user,omitempty"`
-	UploadTs          int64  `json:"upload_ts,omitempty"`
-	DownloadURL       string `json:"download_url,omitempty"`
-	ServerDownloadURL string `json:"server_download_url,omitempty"`
-	Error             string `json:"error,omitempty"`
+	Ref                string `json:"ref"`
+	Bucket             string `json:"bucket"`
+	Key                string `json:"key"`
+	Name               string `json:"name,omitempty"`
+	SourceName         string `json:"source_name,omitempty"`
+	Storage            string `json:"storage,omitempty"`
+	Description        string `json:"description,omitempty"`
+	Size               int64  `json:"size,omitempty"`
+	ContentType        string `json:"content_type,omitempty"`
+	Hash               string `json:"hash,omitempty"`
+	UploadUser         string `json:"upload_user,omitempty"`
+	UploadTs           int64  `json:"upload_ts,omitempty"`
+	DownloadURL        string `json:"download_url,omitempty"`
+	ServerDownloadURL  string `json:"server_download_url,omitempty"`
+	ThumbnailRef       string `json:"thumbnail_ref,omitempty"`
+	ThumbnailURL       string `json:"thumbnail_url,omitempty"`
+	ServerThumbnailURL string `json:"server_thumbnail_url,omitempty"`
+	PreviewKind        string `json:"preview_kind,omitempty"`
+	Error              string `json:"error,omitempty"`
 }

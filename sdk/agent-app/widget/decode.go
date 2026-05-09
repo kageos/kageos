@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 )
 
 // FieldTags 包含字段的所有标签信息
@@ -30,8 +31,6 @@ type FieldTags struct {
 
 	// 子节点（用于嵌套的结构体或切片）
 	Children []*FieldTags
-
-	FieldsCallbackMap map[string][]string
 }
 
 func (t *FieldTags) GetCode() string {
@@ -90,12 +89,18 @@ type ParseModelResult struct {
 	Type reflect.Type // 整个结构体的类型
 }
 
+var parseModelResultCache sync.Map // map[reflect.Type]*ParseModelResult
+
 // ParseModelWithType 解析结构体模型，返回字段的标签信息和类型信息
 // 避免重复反射，一次性获取所有需要的信息
 func ParseModelWithType(model interface{}) (*ParseModelResult, error) {
 	typ, err := parseModelStructType(model)
 	if err != nil {
 		return nil, err
+	}
+
+	if cached, ok := parseModelResultCache.Load(typ); ok {
+		return cloneParseModelResult(cached.(*ParseModelResult)), nil
 	}
 
 	fields, err := parseStructFields(typ)
@@ -106,7 +111,51 @@ func ParseModelWithType(model interface{}) (*ParseModelResult, error) {
 	if err != nil {
 		return result, err
 	}
+	parseModelResultCache.Store(typ, cloneParseModelResult(result))
 	return result, nil
+}
+
+func cloneParseModelResult(result *ParseModelResult) *ParseModelResult {
+	if result == nil {
+		return nil
+	}
+	return &ParseModelResult{
+		Tags: cloneFieldTagsList(result.Tags),
+		Type: result.Type,
+	}
+}
+
+func cloneFieldTagsList(tags []*FieldTags) []*FieldTags {
+	if tags == nil {
+		return nil
+	}
+	cloned := make([]*FieldTags, 0, len(tags))
+	for _, item := range tags {
+		cloned = append(cloned, cloneFieldTags(item))
+	}
+	return cloned
+}
+
+func cloneFieldTags(tags *FieldTags) *FieldTags {
+	if tags == nil {
+		return nil
+	}
+	cloned := *tags
+	cloned.WidgetParsed = cloneStringMap(tags.WidgetParsed)
+	cloned.DataParsed = cloneStringMap(tags.DataParsed)
+	cloned.Children = cloneFieldTagsList(tags.Children)
+	return &cloned
+}
+
+func cloneStringMap(source map[string]string) map[string]string {
+	if source == nil {
+		return nil
+	}
+	cloned := make(map[string]string, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 func parseModelStructType(model interface{}) (reflect.Type, error) {
@@ -435,7 +484,7 @@ func DecodeTable(fieldsCallback map[string][]string, request, tableModel interfa
 			if err := ValidateFieldTags(requestTags, fieldsCallback); err != nil {
 				errs = append(errs, fmt.Errorf("failed to validate request model: %w", err))
 			}
-			requestFields = convertTagsToFields(requestResult.Tags, fieldsCallback, true, false)
+			requestFields = convertTagsToFields(requestResult.Tags, fieldsCallback, true)
 		}
 	}
 
@@ -450,7 +499,7 @@ func DecodeTable(fieldsCallback map[string][]string, request, tableModel interfa
 			if err := ValidateFieldTags(responseTags, fieldsCallback); err != nil {
 				errs = append(errs, fmt.Errorf("failed to validate table model: %w", err))
 			}
-			responseTableFields = convertTagsToFields(responseResult.Tags, fieldsCallback, true, false)
+			responseTableFields = convertTagsToFields(responseResult.Tags, fieldsCallback, true)
 		}
 	}
 
@@ -548,7 +597,7 @@ func DecodeForm(fieldsCallback map[string][]string, request, response interface{
 			if err := ValidateFieldTags(requestTags, fieldsCallback); err != nil {
 				errs = append(errs, fmt.Errorf("failed to validate request model: %w", err))
 			}
-			requestFields = convertTagsToFields(requestResult.Tags, fieldsCallback, false, true)
+			requestFields = convertTagsToFields(requestResult.Tags, fieldsCallback, true)
 		}
 	}
 
@@ -563,7 +612,7 @@ func DecodeForm(fieldsCallback map[string][]string, request, response interface{
 			if err := ValidateFieldTags(responseTags, fieldsCallback); err != nil {
 				errs = append(errs, fmt.Errorf("failed to validate response model: %w", err))
 			}
-			responseFields = convertTagsToFields(responseResult.Tags, fieldsCallback, false, false)
+			responseFields = convertTagsToFields(responseResult.Tags, fieldsCallback, false)
 		}
 	}
 
@@ -577,7 +626,7 @@ func DecodeForm(fieldsCallback map[string][]string, request, response interface{
 	return requestFields, responseFields, nil
 }
 
-func convertTagsToFields(tags []*FieldTags, fieldsCallback map[string][]string, assignCallbackMap bool, attachCallbacks bool) []*Field {
+func convertTagsToFields(tags []*FieldTags, fieldsCallback map[string][]string, attachCallbacks bool) []*Field {
 	fields := make([]*Field, 0, len(tags))
 	for _, fieldTags := range tags {
 		if fieldTags == nil {
@@ -586,16 +635,23 @@ func convertTagsToFields(tags []*FieldTags, fieldsCallback map[string][]string, 
 		if IsSkipField(fieldTags.FieldName, fieldTags.Type, fieldTags) {
 			continue
 		}
-		if assignCallbackMap {
-			fieldTags.FieldsCallbackMap = fieldsCallback
-		}
 		field := ConvertTagsToField(fieldTags)
 		if attachCallbacks {
-			if calls, ok := fieldsCallback[field.Code]; ok {
-				field.Callbacks = normalizeCallbackList(calls)
-			}
+			attachFieldCallbacks(field, fieldsCallback)
 		}
 		fields = append(fields, field)
 	}
 	return fields
+}
+
+func attachFieldCallbacks(field *Field, fieldsCallback map[string][]string) {
+	if field == nil {
+		return
+	}
+	if calls, ok := fieldsCallback[field.Code]; ok && supportsDynamicChoiceCallback(field.Widget.Type) {
+		field.Callbacks = normalizeCallbackList(append(field.Callbacks, calls...))
+	}
+	for _, child := range field.Children {
+		attachFieldCallbacks(child, fieldsCallback)
+	}
 }

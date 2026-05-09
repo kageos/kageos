@@ -15,30 +15,22 @@
         <div class="prd-head-text">
           <div class="prd-title">{{ display(project.name) }}</div>
           <div class="prd-subtitle">
-            <span>{{ project.create_new_directory ? '创建新目录' : '使用现有目录' }}</span>
+            <span>创建新目录</span>
             <span class="prd-dot">·</span>
             <code>{{ display(project.code) }}</code>
           </div>
         </div>
       </div>
-      <div :class="['prd-directory-badge', { 'is-new': project.create_new_directory }]">
-        <el-icon v-if="project.create_new_directory" :size="12"><Plus /></el-icon>
-        <span>{{ project.create_new_directory ? '新增目录' : '现有目录' }}</span>
+      <div class="prd-directory-badge is-new">
+        <el-icon :size="12"><Plus /></el-icon>
+        <span>新增目录</span>
       </div>
     </header>
 
     <div class="prd-directory-strip">
       <div class="prd-directory-item">
         <span>目录说明</span>
-        <strong>{{ display(project.reason || project.summary) }}</strong>
-      </div>
-      <div v-if="project.parent_directory" class="prd-directory-item">
-        <span>父目录</span>
-        <strong>{{ project.parent_directory }}</strong>
-      </div>
-      <div v-if="project.target_directory" class="prd-directory-item">
-        <span>目标目录</span>
-        <strong>{{ project.target_directory }}</strong>
+        <strong>{{ display(project.summary) }}</strong>
       </div>
     </div>
 
@@ -185,7 +177,7 @@
                 class="prd-response-item is-form-response-row"
               >
                 <span>{{ field.name }}</span>
-                <strong>{{ display(field.example || field.default || field.type) }}</strong>
+                <strong>{{ display(field.example || field.type) }}</strong>
                 <em v-if="field.desc">{{ field.desc }}</em>
               </div>
             </div>
@@ -237,7 +229,7 @@
               class="prd-response-item"
             >
               <span>{{ field.name }}</span>
-              <strong>{{ display(field.example || field.default || field.type) }}</strong>
+              <strong>{{ display(field.example || field.type) }}</strong>
               <em v-if="field.desc">{{ field.desc }}</em>
             </div>
           </div>
@@ -323,102 +315,88 @@ import FormIcon from '@/shared/components/icons/FormIcon.vue'
 import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
 
 type PreviewRow = Record<string, unknown>
+type PrdWorkflowStepType = 'table' | 'form' | 'chart'
 
 interface PrdProject {
   name?: string
   code?: string
-  create_new_directory?: boolean
-  parent_directory?: string
-  target_directory?: string
   summary?: string
-  reason?: string
 }
 
-interface PrdLooseField {
+interface PrdField {
   name?: string
-  field?: string
-  type?: string
-  required?: boolean
-  default?: unknown
-  desc?: string
-  description?: string
-  example?: unknown
-  options?: string[] | string
-  option_colors?: string[] | string
   widget?: string
-  validate?: string
+  required?: boolean
+  desc?: string
   hide?: string
-  display_name?: string
-  json_name?: string
-  go_name?: string
-  render_default?: unknown
 }
 
 interface PreviewField {
   name: string
   type: string
   required: boolean
-  default?: unknown
   desc: string
   example?: unknown
   options: string[]
 }
 
 interface PrdTable {
-  capability?: string
-  readonly?: boolean
-  operations?: string[]
-  request_fields?: PrdLooseField[]
-  filters?: Array<string | PrdLooseField>
-  columns?: string[]
-  sample_rows?: PreviewRow[]
+  name?: string
+  title?: string
+  desc?: string
+  fields?: PrdField[]
+  search_fields?: PrdField[]
+  handlers?: string[]
+  examples?: PreviewRow[]
 }
 
 interface PrdForm {
-  request_fields?: PrdLooseField[]
-  response_fields?: PrdLooseField[]
+  name?: string
+  desc?: string
+  target_table?: string
+  request_fields?: PrdField[]
+  response_fields?: PrdField[]
+  example?: {
+    request?: PreviewRow
+    response?: PreviewRow
+  }
 }
 
 interface PrdChart {
+  name?: string
+  desc?: string
+  source_table?: string
   chart_type?: string
   dimension?: string
   metrics?: string[]
-  filters?: Array<string | PrdLooseField>
-  preview_data?: PreviewRow[]
-  summary?: PrdLooseField[]
-  request_fields?: PrdLooseField[]
-  response_fields?: PrdLooseField[]
+  filters?: PrdField[]
+  examples?: PreviewRow[]
 }
 
-interface PrdFunction {
-  title?: string
-  order?: number | string
-  type?: string
-  route?: string
-  method?: string
-  model?: string
-  description?: string
-  table?: PrdTable
-  form?: PrdForm
-  chart?: PrdChart
-}
-
-interface PrdModel {
-  name?: string
-  display_name?: string
-  table_name?: string
-  description?: string
-  fields?: PrdLooseField[]
+interface PrdWorkflowStep {
+  type?: PrdWorkflowStepType | string
+  ref?: string
 }
 
 interface PrdData {
   kind?: string
+  schema_version?: string
   project?: PrdProject
-  models?: PrdModel[] | string
-  functions?: PrdFunction[] | string
-  confirmation?: {
-    question?: string
-  }
+  tables?: PrdTable[]
+  forms?: PrdForm[]
+  charts?: PrdChart[]
+  workflow?: PrdWorkflowStep[]
+  rules?: string[]
+}
+
+interface PreviewFunction {
+  type: PrdWorkflowStepType
+  title: string
+  subtitle: string
+  description: string
+  table?: PrdTable
+  form?: PrdForm
+  chart?: PrdChart
 }
 
 interface PrdFunctionCard {
@@ -428,7 +406,7 @@ interface PrdFunctionCard {
   shortTitle: string
   subtitle: string
   typeLabel: string
-  fn: PrdFunction
+  fn: PreviewFunction
   iconSrc?: string
   iconComponent?: Component
 }
@@ -456,23 +434,31 @@ const prd = computed<PrdData | null>(() => {
 })
 
 const project = computed<PrdProject>(() => prd.value?.project || {})
-const modelsList = computed<PrdModel[]>(() => parseArray<PrdModel>(prd.value?.models))
-const functionsList = computed<PrdFunction[]>(() => parseArray<PrdFunction>(prd.value?.functions))
-const confirmationQuestion = computed(() => prd.value?.confirmation?.question || '')
+const tablesList = computed<PrdTable[]>(() => Array.isArray(prd.value?.tables) ? prd.value?.tables || [] : [])
+const formsList = computed<PrdForm[]>(() => Array.isArray(prd.value?.forms) ? prd.value?.forms || [] : [])
+const chartsList = computed<PrdChart[]>(() => Array.isArray(prd.value?.charts) ? prd.value?.charts || [] : [])
+const workflowList = computed<PrdWorkflowStep[]>(() => Array.isArray(prd.value?.workflow) ? prd.value?.workflow || [] : [])
+const confirmationQuestion = computed(() => {
+  const refs = workflowList.value.map(item => display(item.ref)).filter(item => item !== '—')
+  return `请确认是否按以上 PRD 创建目录和生成代码：目录名称 ${display(project.value.name)}，目录 code 为 ${display(project.value.code)}，将创建 ${refs.join('、') || '上述功能'}。确认后我再进入开发阶段。`
+})
 
 const functionCards = computed<PrdFunctionCard[]>(() => {
-  return functionsList.value
-    .map((fn, index) => ({ fn, index, order: functionOrder(fn, index) }))
-    .sort((a, b) => a.order - b.order || a.index - b.index)
+  return workflowList.value
+    .map((step, index) => {
+      const fn = previewFunctionForWorkflowStep(step)
+      return fn ? { fn, index, order: index + 1 } : null
+    })
+    .filter((item): item is { fn: PreviewFunction; index: number; order: number } => item != null)
     .map(({ fn, index, order }) => {
       const type = fnType(fn)
-      const key = `fn-${index}-${fn.route || fn.title || fn.type || 'function'}`
+      const key = `fn-${index}-${type}-${fn.title}`
       return {
         key,
         order,
-        title: display(fn.title),
-        shortTitle: display(fn.title),
-        subtitle: display(fn.route),
+        title: fn.title,
+        shortTitle: fn.title,
+        subtitle: fn.subtitle,
         typeLabel: typeLabel(type),
         fn,
         iconSrc: type === 'form' ? '/service-tree/编辑.svg' : undefined,
@@ -510,11 +496,6 @@ function parseMaybeJSON(value: unknown): unknown {
   }
 }
 
-function parseArray<T>(value: unknown): T[] {
-  const parsed = parseMaybeJSON(value)
-  return Array.isArray(parsed) ? parsed as T[] : []
-}
-
 function display(value: unknown): string {
   if (value == null || value === '') return '—'
   if (Array.isArray(value)) return value.length ? value.map(display).join('、') : '—'
@@ -523,14 +504,47 @@ function display(value: unknown): string {
   return String(value)
 }
 
-function fnType(fn: PrdFunction): string {
-  const normalized = String(fn.type || '').toLowerCase()
-  if (normalized === 'table' || normalized === 'form' || normalized === 'chart') return normalized
-  const route = String(fn.route || '').toLowerCase()
-  if (route.endsWith('.table') || fn.table) return 'table'
-  if (route.endsWith('.form') || fn.form) return 'form'
-  if (route.endsWith('.chart') || fn.chart) return 'chart'
-  return normalized
+function previewFunctionForWorkflowStep(step: PrdWorkflowStep): PreviewFunction | null {
+  const type = String(step.type || '').toLowerCase() as PrdWorkflowStepType
+  const ref = String(step.ref || '').trim()
+  if (type === 'table') {
+    const table = tablesList.value.find(item => item.name === ref)
+    if (!table) return null
+    return {
+      type,
+      title: display(table.title || table.name),
+      subtitle: display(table.name),
+      description: display(table.desc),
+      table,
+    }
+  }
+  if (type === 'form') {
+    const form = formsList.value.find(item => item.name === ref)
+    if (!form) return null
+    return {
+      type,
+      title: display(form.name),
+      subtitle: form.target_table ? `写入 ${form.target_table}` : '独立提交入口',
+      description: display(form.desc),
+      form,
+    }
+  }
+  if (type === 'chart') {
+    const chart = chartsList.value.find(item => item.name === ref)
+    if (!chart) return null
+    return {
+      type,
+      title: display(chart.name),
+      subtitle: chart.source_table ? `统计 ${chart.source_table}` : '统计图表',
+      description: display(chart.desc),
+      chart,
+    }
+  }
+  return null
+}
+
+function fnType(fn: PreviewFunction): string {
+  return fn.type
 }
 
 function typeLabel(type: unknown): string {
@@ -541,148 +555,106 @@ function typeLabel(type: unknown): string {
   return display(type)
 }
 
-function functionOrder(fn: PrdFunction, index: number): number {
-  const value = Number(fn.order)
-  return Number.isFinite(value) && value > 0 ? value : index + 1
-}
-
 function formatOrder(order: number): string {
   return order < 10 ? `0${order}` : String(order)
 }
 
-function runtimeNote(fn: PrdFunction): string {
-  return [fn.description, fn.table?.capability, fn.table?.readonly ? '仅列表查询，不允许手工新增、编辑、删除。' : '']
+function runtimeNote(fn: PreviewFunction): string {
+  return [fn.description, fn.form?.target_table ? `目标表：${fn.form.target_table}` : '', fn.chart?.source_table ? `来源表：${fn.chart.source_table}` : '']
     .map(item => String(item || '').trim())
     .filter(Boolean)
     .join(' ')
 }
 
-function tableReadonly(fn: PrdFunction): boolean {
-  return Boolean(fn.table?.readonly)
+function tableReadonly(_fn: PreviewFunction): boolean {
+  return false
 }
 
-function tableOperations(fn: PrdFunction): string[] {
-  const operations = Array.isArray(fn.table?.operations) ? fn.table.operations.filter(Boolean) : []
-  if (operations.length > 0) return operations
-  return tableReadonly(fn) ? ['列表查询'] : ['列表查询', '新增', '编辑', '删除']
+function tableOperations(fn: PreviewFunction): string[] {
+  const handlers = Array.isArray(fn.table?.handlers) ? fn.table.handlers : []
+  const operations = ['列表查询']
+  if (handlers.includes('OnTableAddRow')) operations.push('新增')
+  if (handlers.includes('OnTableUpdateRow')) operations.push('编辑')
+  if (handlers.includes('OnTableDeleteRow')) operations.push('删除')
+  return operations
 }
 
-function tableColumns(fn: PrdFunction): string[] {
-  const columns = Array.isArray(fn.table?.columns) ? fn.table.columns.map(display).filter(item => item !== '—') : []
+function tableColumns(fn: PreviewFunction): string[] {
+  const columns = Array.isArray(fn.table?.fields) ? fn.table.fields.map(field => display(field.name)).filter(item => item !== '—') : []
   if (columns.length > 0) return columns
-
-  const modelColumns = modelFieldsForSurface(fn, 'list').map(field => normalizeField(field).name).filter(Boolean)
-  if (modelColumns.length > 0) return modelColumns
-
   const firstRow = tableRows(fn)[0]
   return firstRow ? Object.keys(firstRow) : []
 }
 
-function tableRows(fn: PrdFunction): PreviewRow[] {
-  const explicitRows = Array.isArray(fn.table?.sample_rows) ? fn.table.sample_rows : []
-  const columns = Array.isArray(fn.table?.columns) ? fn.table.columns.map(display).filter(item => item !== '—') : []
-  if (explicitRows.length > 0) {
-    return explicitRows.map(row => normalizeTableRow(fn, row, columns))
-  }
-
-  const modelFields = modelFieldsForSurface(fn, 'list')
-  if (modelFields.length === 0) return []
-  const row: PreviewRow = {}
-  modelFields.forEach(field => {
-    const previewField = normalizeField(field)
-    row[previewField.name] = sampleValueForField(previewField)
-  })
-  return [row]
-}
-
-function normalizeTableRow(fn: PrdFunction, row: PreviewRow, columns: string[]): PreviewRow {
-  if (columns.length === 0) return row
-  const normalized: PreviewRow = { ...row }
-  columns.forEach((column) => {
-    if (hasValue(normalized[column])) return
-    const modelField = modelFieldForColumn(fn, column)
-    const aliases = modelField ? fieldAliases(modelField) : []
-    normalized[column] = readRowValue(row, [column, ...aliases]) ?? (modelField ? sampleValueForField(normalizeField(modelField)) : '—')
-  })
-  return normalized
+function tableRows(fn: PreviewFunction): PreviewRow[] {
+  return Array.isArray(fn.table?.examples) ? fn.table.examples : []
 }
 
 function rowCell(row: PreviewRow, column: string): unknown {
   return row[column]
 }
 
-function tableRequestFields(fn: PrdFunction): PreviewField[] {
-  const requestFields = Array.isArray(fn.table?.request_fields) ? fn.table.request_fields : []
-  if (requestFields.length > 0) return requestFields.map(field => normalizeField(field, '搜索条件'))
-  const filters = Array.isArray(fn.table?.filters) ? fn.table.filters : []
-  return filters.map(field => normalizeField(field, '搜索条件'))
+function tableRequestFields(fn: PreviewFunction): PreviewField[] {
+  const searchFields = Array.isArray(fn.table?.search_fields) ? fn.table.search_fields : []
+  return searchFields.map(field => normalizeField(field, '搜索条件'))
 }
 
-function formRequestFields(fn: PrdFunction): PreviewField[] {
+function formRequestFields(fn: PreviewFunction): PreviewField[] {
   const requestFields = Array.isArray(fn.form?.request_fields) ? fn.form.request_fields : []
-  if (requestFields.length > 0) return requestFields.map(field => normalizeField(field))
-  return modelFieldsForSurface(fn, 'create').map(field => normalizeField(field))
+  return requestFields.map(field => normalizeField(field, '', fn.form?.example?.request?.[display(field.name)]))
 }
 
-function formResponseFields(fn: PrdFunction): PreviewField[] {
+function formResponseFields(fn: PreviewFunction): PreviewField[] {
   const responseFields = Array.isArray(fn.form?.response_fields) ? fn.form.response_fields : []
-  return responseFields.map(field => normalizeField(field))
+  return responseFields.map(field => normalizeField(field, '', fn.form?.example?.response?.[display(field.name)]))
 }
 
-function chartFilterFields(fn: PrdFunction): PreviewField[] {
-  const requestFields = Array.isArray(fn.chart?.request_fields) ? fn.chart.request_fields : []
-  if (requestFields.length > 0) return requestFields.map(field => normalizeField(field, '图表查询条件'))
+function chartFilterFields(fn: PreviewFunction): PreviewField[] {
   const filters = Array.isArray(fn.chart?.filters) ? fn.chart.filters : []
   return filters.map(field => normalizeField(field, '图表查询条件'))
 }
 
-function chartMetrics(fn: PrdFunction): string[] {
+function chartMetrics(fn: PreviewFunction): string[] {
   return Array.isArray(fn.chart?.metrics) && fn.chart.metrics.length > 0 ? fn.chart.metrics : ['数量']
 }
 
-function chartPreviewData(fn: PrdFunction): PreviewRow[] {
-  return Array.isArray(fn.chart?.preview_data) ? fn.chart.preview_data : []
+function chartPreviewData(fn: PreviewFunction): PreviewRow[] {
+  const rows = Array.isArray(fn.chart?.examples) ? fn.chart.examples : []
+  return rows.map(row => normalizeChartExampleRow(fn, row))
 }
 
-function chartSummaryFields(fn: PrdFunction): PreviewField[] {
-  const summary = Array.isArray(fn.chart?.summary) ? fn.chart.summary : []
-  if (summary.length > 0) {
-    return summary.map(item => normalizeField({
-      name: item.name,
-      type: '指标',
-      default: item.default ?? item.example,
-      example: item.example ?? item.default ?? (item as any).value,
-      desc: item.desc || item.description,
-    }))
-  }
-  const responseFields = Array.isArray(fn.chart?.response_fields) ? fn.chart.response_fields : []
-  return responseFields.map(field => normalizeField(field))
+function normalizeChartExampleRow(fn: PreviewFunction, row: PreviewRow): PreviewRow {
+  const metricsValue = row.metrics
+  if (!metricsValue || typeof metricsValue !== 'object' || Array.isArray(metricsValue)) return row
+
+  const normalized: PreviewRow = {}
+  const dimension = display(fn.chart?.dimension)
+  if (dimension !== '—') normalized[dimension] = row.dimension
+
+  Object.entries(metricsValue as PreviewRow).forEach(([key, value]) => {
+    normalized[key] = value
+  })
+  Object.entries(row).forEach(([key, value]) => {
+    if (key !== 'dimension' && key !== 'metrics') normalized[key] = value
+  })
+  return normalized
 }
 
-function normalizeField(input: string | PrdLooseField, fallbackDesc = ''): PreviewField {
-  if (typeof input === 'string') {
-    return {
-      name: input,
-      type: inferFieldType(input),
-      required: false,
-      desc: fallbackDesc,
-      options: [],
-      default: /状态|分类|类型|选择|下拉/.test(input) ? '全部' : undefined,
-    }
-  }
+function chartSummaryFields(_fn: PreviewFunction): PreviewField[] {
+  return []
+}
 
-  const widget = parseWidget(input.widget)
-  const name = display(input.name || input.field || input.display_name || widget.name || input.json_name || input.go_name)
-  const type = normalizeFieldType(input.type || widget.type || inferFieldType(`${name} ${input.description || input.desc || ''}`))
-  const desc = display(input.desc || input.description || widget.placeholder || fallbackDesc)
+function normalizeField(input: PrdField, fallbackDesc = '', example?: unknown): PreviewField {
+  const name = display(input.name)
+  const type = normalizeFieldType(input.widget || inferFieldType(`${name} ${input.desc || ''}`))
+  const desc = display(input.desc || fallbackDesc)
   return {
     name,
     type,
-    required: Boolean(input.required) || isRequired(input.validate),
-    default: input.default ?? input.render_default ?? widget.render_default ?? widget.default,
+    required: Boolean(input.required),
     desc: desc === '—' ? '' : desc,
-    example: input.example,
-    options: fieldOptionsFromSource(input, widget, desc),
+    example,
+    options: [],
   }
 }
 
@@ -690,17 +662,8 @@ function fieldOptions(field: PreviewField): string[] {
   return field.options.slice(0, 8)
 }
 
-function fieldOptionsFromSource(input: PrdLooseField, widget: Record<string, string>, desc: string): string[] {
-  const direct = normalizeConfigList(input.options)
-  if (direct.length > 0) return direct
-  const widgetOptions = normalizeConfigList(widget.options)
-  if (widgetOptions.length > 0) return widgetOptions
-  const matched = `${input.type || ''} ${desc}`.match(/(?:options|选项|可选值|可选)[:：]([^；;。]+)/i)
-  return normalizeConfigList(matched?.[1] || '')
-}
-
 function fieldPreviewText(field: PreviewField): string {
-  if (hasValue(field.default)) return display(field.default)
+  if (hasValue(field.example)) return display(field.example)
   const options = fieldOptions(field)
   if (options.length > 0) return options[0] || `请选择${field.name}`
   if (/日期|时间|datetime|date/i.test(field.type)) return '2025-01-20 11:30'
@@ -725,7 +688,6 @@ function fieldKindClass(field: PreviewField): string {
 
 function sampleValueForField(field: PreviewField): unknown {
   if (hasValue(field.example)) return field.example
-  if (hasValue(field.default)) return field.default
   const options = fieldOptions(field)
   if (options.length > 0) return options[0]
   if (/日期|时间|datetime|date/i.test(field.type)) return '2025-01-20 11:30'
@@ -763,79 +725,6 @@ function inferFieldType(text: string): string {
   if (/文件|附件|上传|files/i.test(text)) return '文件上传'
   if (/是否|启用|开关|switch/i.test(text)) return '开关'
   return '文本输入'
-}
-
-function parseWidget(raw: unknown): Record<string, string> {
-  const out: Record<string, string> = {}
-  String(raw || '').split(';').forEach((part) => {
-    const index = part.indexOf(':')
-    if (index <= 0) return
-    const key = part.slice(0, index).trim()
-    const value = part.slice(index + 1).trim()
-    if (key) out[key] = value
-  })
-  return out
-}
-
-function normalizeConfigList(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.map(item => display(item).trim()).filter(item => item && item !== '—')
-  }
-  if (typeof value === 'string') {
-    return value.split(/[,\uFF0C\u3001/|]/).map(item => item.trim()).filter(Boolean)
-  }
-  return []
-}
-
-function isRequired(validate: unknown): boolean {
-  return /(^|,|;)required($|,|;)/.test(String(validate || ''))
-}
-
-function modelForFunction(fn: PrdFunction): PrdModel | null {
-  const name = display(fn.model)
-  if (name !== '—') {
-    const matched = modelsList.value.find(model => model.name === name || model.display_name === name || model.table_name === name)
-    if (matched) return matched
-  }
-  return modelsList.value[0] || null
-}
-
-function modelFieldsForSurface(fn: PrdFunction, surface: 'list' | 'create' | 'update'): PrdLooseField[] {
-  const fields = Array.isArray(modelForFunction(fn)?.fields) ? modelForFunction(fn)?.fields || [] : []
-  return fields.filter(field => isVisibleModelField(field, surface))
-}
-
-function isVisibleModelField(field: PrdLooseField, surface: 'list' | 'create' | 'update'): boolean {
-  const widget = String(field.widget || '').trim()
-  if (widget === '-') return false
-  const hidden = String(field.hide || '').split(',').map(item => item.trim()).filter(Boolean)
-  if (hidden.includes(surface)) return false
-  if (surface === 'list' && hidden.includes('table')) return false
-  return true
-}
-
-function modelFieldForColumn(fn: PrdFunction, column: string): PrdLooseField | null {
-  const fields = modelFieldsForSurface(fn, 'list')
-  return fields.find(field => fieldAliases(field).some(alias => alias === column || alias.includes(column) || column.includes(alias))) || null
-}
-
-function fieldAliases(field: PrdLooseField): string[] {
-  const widget = parseWidget(field.widget)
-  return [
-    display(field.name),
-    display(field.field),
-    display(field.display_name),
-    display(widget.name),
-    display(field.json_name),
-    display(field.go_name),
-  ].filter(alias => alias && alias !== '—')
-}
-
-function readRowValue(row: PreviewRow, aliases: string[]): unknown {
-  for (const alias of aliases) {
-    if (hasValue(row[alias])) return row[alias]
-  }
-  return undefined
 }
 
 function hasValue(value: unknown): boolean {

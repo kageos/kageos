@@ -14,6 +14,7 @@ type WorkspaceChatReq struct {
 	SessionID    string       `json:"session_id"`                        // 会话 ID，空则新建
 	ModeCode     string       `json:"mode_code"`                         // 工作台模式代码，空则默认 dev
 	LLMConfigID  int64        `json:"llm_config_id"`                     // LLM 配置 ID，0 表示使用默认 LLM
+	Resume       bool         `json:"resume,omitempty"`                  // true 时不保存 message，只基于已有会话消息继续执行
 }
 
 // WorkspaceMsg 工作台单条消息
@@ -72,6 +73,8 @@ type WorkspaceSessionItem struct {
 	AgentName         string      `json:"agent_name"`                    // 智能体名称（如果有）
 	ModeCode          string      `json:"mode_code"`                     // 工作台模式代码
 	Status            string      `json:"status"`                        // 会话状态（active/generating/done/cancelled）
+	RoleID            string      `json:"role_id,omitempty"`             // 当前工作台角色 ID
+	RoleDisplayName   string      `json:"role_display_name,omitempty"`   // 当前工作台角色展示名称
 	FullCodePath      string      `json:"full_code_path,omitempty"`      // 所属目录完整路径
 	ParentSessionID   string      `json:"parent_session_id,omitempty"`   // 阶段交接来源会话ID
 	HandoffKind       string      `json:"handoff_kind,omitempty"`        // 阶段交接产物类型
@@ -103,6 +106,8 @@ type WorkspaceHandoffResp struct {
 	TargetRole      string `json:"target_role"`
 	ArtifactKind    string `json:"artifact_kind"`
 	ContextPolicy   string `json:"context_policy"`
+	HandoffPacketID int64  `json:"handoff_packet_id,omitempty"`
+	MessageID       int64  `json:"message_id,omitempty"`
 	Content         string `json:"content"`
 	DisplayContent  string `json:"display_content"`
 }

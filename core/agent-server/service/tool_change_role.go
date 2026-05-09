@@ -13,7 +13,7 @@ type ChangeRoleTool struct{}
 
 type changeRoleArgs struct {
 	CurrentRole  string `json:"current_role" schema_desc:"当前身份 ID；没有则留空"`
-	TargetRole   string `json:"target_role" schema_desc:"目标身份 ID；必须由模型根据用户最新需求选择。为空时仅沿用 current_role；没有 current_role 则进入 app.explain_review"`
+	TargetRole   string `json:"target_role" schema_desc:"目标身份 ID，例如 product_manager/app_developer/qa_engineer。为空时仅沿用 current_role；没有 current_role 则进入 reviewer"`
 	UserInput    string `json:"user_input" schema_desc:"用户本轮最新需求；仅作上下文记录，change_role 不按关键词推断身份"`
 	TaskSummary  string `json:"task_summary" schema_desc:"切换前要携带的极简任务摘要"`
 	Directory    string `json:"directory" schema_desc:"当前工作目录"`
@@ -21,18 +21,21 @@ type changeRoleArgs struct {
 }
 
 type changeRoleData struct {
-	PreviousRole     string             `json:"previous_role,omitempty" schema_desc:"切换前身份"`
-	CurrentRole      string             `json:"current_role" schema_desc:"当前身份" schema_required:"true"`
-	Switched         bool               `json:"switched" schema_desc:"是否发生身份切换" schema_required:"true"`
-	Reason           string             `json:"reason" schema_desc:"选择或切换原因" schema_required:"true"`
-	Directory        string             `json:"directory,omitempty" schema_desc:"工作目录"`
-	ContextPolicy    string             `json:"context_policy" schema_desc:"上下文携带策略" schema_required:"true"`
-	RequiredDocs     []string           `json:"required_docs" schema_desc:"当前身份文档路径" schema_required:"true"`
-	LoadedDocs       []changeRoleDoc    `json:"loaded_docs" schema_desc:"已返回的文档正文" schema_required:"true"`
-	MissingDocs      []string           `json:"missing_docs,omitempty" schema_desc:"未能读取到正文的文档路径"`
-	AllowedNextTools []string           `json:"allowed_next_tools,omitempty" schema_desc:"当前身份常用下一步工具"`
-	NextAction       string             `json:"next_action" schema_desc:"当前身份下一步动作" schema_required:"true"`
-	NextIntents      []intentNextIntent `json:"next_intents,omitempty" schema_desc:"完成后的推荐后续身份"`
+	PreviousRole     string              `json:"previous_role,omitempty" schema_desc:"切换前身份"`
+	PreviousRoleName string              `json:"previous_role_name,omitempty" schema_desc:"切换前展示名称"`
+	RoleID           string              `json:"role_id" schema_desc:"当前角色 ID" schema_required:"true"`
+	DisplayName      string              `json:"display_name" schema_desc:"当前角色展示名称" schema_required:"true"`
+	CurrentRole      string              `json:"current_role" schema_desc:"当前身份" schema_required:"true"`
+	Switched         bool                `json:"switched" schema_desc:"是否发生身份切换" schema_required:"true"`
+	Reason           string              `json:"reason" schema_desc:"选择或切换原因" schema_required:"true"`
+	Directory        string              `json:"directory,omitempty" schema_desc:"工作目录"`
+	ContextPolicy    string              `json:"context_policy" schema_desc:"上下文携带策略" schema_required:"true"`
+	RequiredDocs     []string            `json:"required_docs" schema_desc:"当前身份文档路径" schema_required:"true"`
+	LoadedDocs       []changeRoleDoc     `json:"loaded_docs" schema_desc:"已返回的文档正文" schema_required:"true"`
+	MissingDocs      []string            `json:"missing_docs,omitempty" schema_desc:"未能读取到正文的文档路径"`
+	AllowedNextTools []string            `json:"allowed_next_tools,omitempty" schema_desc:"当前身份常用下一步工具"`
+	NextAction       string              `json:"next_action" schema_desc:"当前身份下一步动作" schema_required:"true"`
+	NextRoles        []nextWorkspaceRole `json:"next_roles,omitempty" schema_desc:"完成后的推荐后续角色"`
 }
 
 type changeRoleDoc struct {
@@ -55,6 +58,9 @@ func (t *ChangeRoleTool) Execute(ctx context.Context, call ToolCall) ToolResult 
 	if err != nil {
 		return toolResult("change_role 参数解析失败: "+err.Error(), true)
 	}
+	if strings.TrimSpace(args.TargetRole) != "" && !isKnownWorkspaceRole(args.TargetRole) {
+		return toolResult("target_role 不支持: "+strings.TrimSpace(args.TargetRole)+"。请使用标准角色 ID：product_manager、app_developer、maintenance_engineer、qa_engineer、build_engineer、data_operator、scheduler_engineer、platform_engineer、reviewer。", true)
+	}
 	data := buildChangeRole(ctx, args)
 	return toolResultWithStructuredData(data, false)
 }
@@ -70,24 +76,27 @@ func buildChangeRole(ctx context.Context, args changeRoleArgs) changeRoleData {
 	case target != "" && isKnownWorkspaceRole(target):
 		reason = "按 target_role 选择身份"
 	case target != "":
-		target = "app.explain_review"
+		target = WorkspaceRoleReviewer
 		reason = "target_role 不是已知身份，进入只读分析身份"
 	case previous != "":
 		target = previous
 		reason = "未指定 target_role，沿用 current_role"
 	default:
-		target = "app.explain_review"
+		target = WorkspaceRoleReviewer
 		reason = "未指定 target_role 且没有 current_role，进入只读分析身份"
 	}
 
-	spec := workspaceIntentSpec(target)
-	requiredDocs := roleDocumentPackage(target, spec)
+	roleSpec, _ := workspaceRoleSpecFor(target)
+	requiredDocs := roleDocumentPackage(target, roleSpec)
 	loadedDocs, missingDocs := loadRoleDocs(ctx, requiredDocs)
 	switched := previous != "" && previous != target
 	contextPolicy := buildRoleContextPolicy(switched, args.ResetContext, args.TaskSummary)
 
 	return changeRoleData{
 		PreviousRole:     previous,
+		PreviousRoleName: workspaceRoleDisplayName(previous),
+		RoleID:           target,
+		DisplayName:      roleSpec.DisplayName,
 		CurrentRole:      target,
 		Switched:         switched,
 		Reason:           reason,
@@ -96,33 +105,15 @@ func buildChangeRole(ctx context.Context, args changeRoleArgs) changeRoleData {
 		RequiredDocs:     requiredDocs,
 		LoadedDocs:       loadedDocs,
 		MissingDocs:      missingDocs,
-		AllowedNextTools: spec.NextTools,
-		NextAction:       spec.Action,
-		NextIntents:      spec.NextIntents,
+		AllowedNextTools: roleSpec.AllowedTools,
+		NextAction:       roleSpec.Action,
+		NextRoles:        roleSpec.NextRoles,
 	}
 }
 
-func normalizeWorkspaceRole(role string) string {
-	role = strings.TrimSpace(role)
-	switch role {
-	case "", "none":
-		return ""
-	default:
-		return role
-	}
-}
-
-func isKnownWorkspaceRole(role string) bool {
-	switch role {
-	case "app.plan", "app.create", "app.modify", "app.operate_test", "app.build_fix", "temp.task", "schedule.task", "platform.openapi", "app.explain_review":
-		return true
-	default:
-		return false
-	}
-}
-
-func roleDocumentPackage(role string, spec intentSpec) []string {
-	docs := make([]string, 0, len(spec.Docs)+24)
+func roleDocumentPackage(role string, spec workspaceRoleSpec) []string {
+	role = normalizeWorkspaceRole(role)
+	docs := make([]string, 0, len(spec.Docs)+len(spec.Optional)+4)
 	addDoc := func(path string) {
 		path = prompt.NormalizePromptDocPath(path)
 		if path == "" || slices.Contains(docs, path) {
@@ -133,36 +124,19 @@ func roleDocumentPackage(role string, spec intentSpec) []string {
 	for _, doc := range spec.Docs {
 		addDoc(doc)
 	}
+	for _, doc := range spec.Optional {
+		addDoc(doc)
+	}
 	switch role {
-	case "app.plan", "app.create":
-		addDoc("/system/prompt/case_catalog")
-	case "app.modify":
-		for _, doc := range []string{
-			"/system/prompt/sdk/agent-app-sdk-readme",
-			"/system/prompt/intents/modify/index",
-			"/system/prompt/intents/modify/add-field",
-			"/system/prompt/intents/modify/remove-field",
-			"/system/prompt/intents/modify/field-rename",
-			"/system/prompt/intents/modify/widget-change",
-			"/system/prompt/intents/modify/select-options",
-			"/system/prompt/intents/modify/onselect-fuzzy",
-			"/system/prompt/intents/modify/search-filter",
-			"/system/prompt/intents/modify/table-callback",
-			"/system/prompt/intents/modify/send-message",
-			"/system/prompt/intents/modify/function-link",
-			"/system/prompt/intents/modify/add-function",
-			"/system/prompt/intents/modify/chart-metric",
-			"/system/prompt/intents/modify/bugfix",
-		} {
-			addDoc(doc)
-		}
-	case "app.build_fix":
+	case WorkspaceRoleMaintenanceEngineer:
+		addDoc("/system/prompt/sdk/agent-app-sdk-readme")
+	case WorkspaceRoleBuildEngineer:
 		for _, doc := range []string{
 			"/system/prompt/sdk/agent-app-sdk-readme",
 		} {
 			addDoc(doc)
 		}
-	case "platform.openapi":
+	case WorkspaceRolePlatformEngineer:
 		for _, doc := range []string{
 			"/system/prompt/platform-capability-boundaries",
 		} {
