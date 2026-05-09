@@ -191,9 +191,33 @@ const router = createRouter({
   ],
 })
 
+async function restoreAccessTokenIfPossible(authStore: ReturnType<typeof useAuthStore>): Promise<boolean> {
+  if (authStore.token) {
+    return true
+  }
+
+  const refreshToken = authStore.refreshToken || localStorage.getItem('refresh_token') || ''
+  if (!refreshToken) {
+    return false
+  }
+
+  try {
+    await authStore.refreshUserToken()
+    return !!authStore.token
+  } catch {
+    await authStore.logout({
+      callApi: false,
+      notify: false,
+      redirectToLogin: false,
+    })
+    return false
+  }
+}
+
 // 路由守卫
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
+  const hasAuthSession = await restoreAccessTokenIfPossible(authStore)
 
   // 设置页面标题（Workspace页面会通过watch动态更新，这里只设置默认标题）
   if (to.meta?.title && !to.path.startsWith('/workspace')) {
@@ -202,8 +226,8 @@ router.beforeEach(async (to, from, next) => {
 
   // 检查是否需要认证
   if (to.meta?.requireAuth !== false) {
-    // 检查登录状态（不自动调用API）
-    if (!authStore.token) {
+    // 先尝试用 refresh token 无感恢复登录态，失败才进入登录页
+    if (!hasAuthSession) {
       // 没有token，直接跳转到登录页
       next({ name: 'login', query: { redirect: to.fullPath } })
       return
@@ -211,7 +235,7 @@ router.beforeEach(async (to, from, next) => {
   }
 
   // 如果已登录用户访问登录/注册页面，重定向到 /workspace/自己的username（会弹出选择工作空间）
-  if (authStore.isAuthenticated && (to.name === 'login' || to.name === 'register')) {
+  if (hasAuthSession && (to.name === 'login' || to.name === 'register')) {
     const username = authStore.userName || 'me'
     next({ path: `/workspace/${username}`, replace: true })
     return
@@ -219,7 +243,7 @@ router.beforeEach(async (to, from, next) => {
 
   // 根路径 /：不再显示一站式首页，直接重定向到 /workspace/自己的username 并弹窗选择工作空间
   if (to.path === '/') {
-    if (authStore.isAuthenticated) {
+    if (hasAuthSession) {
       const username = authStore.userName || 'me'
       next({ path: `/workspace/${username}`, replace: true })
       return
@@ -230,7 +254,7 @@ router.beforeEach(async (to, from, next) => {
 
   // /workspace 无 user 时也重定向到 /workspace/自己的username
   if (to.path === '/workspace' && to.name === 'workspace') {
-    if (authStore.isAuthenticated) {
+    if (hasAuthSession) {
       const username = authStore.userName || 'me'
       next({ path: `/workspace/${username}`, replace: true })
       return

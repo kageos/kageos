@@ -17,6 +17,10 @@ type AuthRetryAxiosRequestConfig = InternalAxiosRequestConfig & {
   _retryAfterRefresh?: boolean
 }
 
+interface AuthFetchOptions {
+  retryOnAuthExpired?: boolean
+}
+
 // 创建axios实例
 // 注意：使用相对路径，通过 Vite 代理转发到网关，避免跨域问题
 const service = axios.create({
@@ -59,11 +63,17 @@ function getRefreshTokenValue(): string {
   return (typeof storeRefreshToken === 'string' ? storeRefreshToken : '') || localStorage.getItem('refresh_token') || ''
 }
 
+function getAccessTokenValue(): string {
+  const authStore = useAuthStore()
+  const storeToken = authStore.token
+  return (typeof storeToken === 'string' ? storeToken : '') || localStorage.getItem('token') || ''
+}
+
 // 请求拦截器
 service.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const authStore = useAuthStore()
-    const token = authStore.token || localStorage.getItem('token') || ''
+    const token = getAccessTokenValue()
     const isRefreshRequest = isRefreshRequestUrl(config.url)
 
     // 添加token到请求头（后端使用X-Token头部）
@@ -93,6 +103,21 @@ service.interceptors.request.use(
 let refreshPromise: Promise<string> | null = null
 let sessionExpiredPromise: Promise<void> | null = null
 
+async function refreshAccessTokenForRetry(): Promise<string> {
+  if (!getRefreshTokenValue()) {
+    throw new Error('No refresh token')
+  }
+
+  const authStore = useAuthStore()
+  if (!refreshPromise) {
+    refreshPromise = authStore.refreshUserToken().finally(() => {
+      refreshPromise = null
+    })
+  }
+
+  return refreshPromise
+}
+
 async function handleSessionExpired(): Promise<void> {
   if (!sessionExpiredPromise) {
     sessionExpiredPromise = (async () => {
@@ -103,8 +128,12 @@ async function handleSessionExpired(): Promise<void> {
         redirectToLogin: false,
       })
 
-      if (router.currentRoute.value.path !== '/login') {
-        await router.push('/login')
+      const currentRoute = router.currentRoute.value
+      if (currentRoute.path !== '/login') {
+        await router.push({
+          path: '/login',
+          query: currentRoute.fullPath ? { redirect: currentRoute.fullPath } : undefined,
+        })
       }
 
       ElMessage.warning('登录已过期，请重新登录')
@@ -116,6 +145,83 @@ async function handleSessionExpired(): Promise<void> {
   return sessionExpiredPromise
 }
 
+function getFetchUrl(input: RequestInfo | URL): string | undefined {
+  if (typeof input === 'string') {
+    return input
+  }
+  if (input instanceof URL) {
+    return input.toString()
+  }
+  if (input instanceof Request) {
+    return input.url
+  }
+  return undefined
+}
+
+function createAuthFetchInit(input: RequestInfo | URL, init: RequestInit = {}): RequestInit {
+  const headers = new Headers(input instanceof Request ? input.headers : undefined)
+  new Headers(init.headers).forEach((value, key) => {
+    headers.set(key, value)
+  })
+
+  const url = getFetchUrl(input)
+  if (isRefreshRequestUrl(url)) {
+    headers.delete('X-Token')
+  } else {
+    const token = getAccessTokenValue()
+    if (token.trim()) {
+      headers.set('X-Token', token)
+    } else {
+      headers.delete('X-Token')
+    }
+  }
+  headers.set(CLIENT_SOURCE_HEADER, CLIENT_SOURCE_BROWSER)
+
+  return {
+    ...init,
+    headers,
+  }
+}
+
+async function isAuthExpiredFetchResponse(response: Response): Promise<boolean> {
+  if (response.status === 401) {
+    return true
+  }
+
+  const contentType = response.headers.get('content-type') || ''
+  if (!contentType.includes('application/json')) {
+    return false
+  }
+
+  const payload = await response.clone().json().catch(() => null)
+  return isAuthExpiredBusinessResponse(payload)
+}
+
+export async function authFetch(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  options: AuthFetchOptions = {}
+): Promise<Response> {
+  const retryOnAuthExpired = options.retryOnAuthExpired !== false
+  const isRefreshRequest = isRefreshRequestUrl(getFetchUrl(input))
+
+  const request = () => fetch(input, createAuthFetchInit(input, init))
+  let response = await request()
+
+  if (!retryOnAuthExpired || isRefreshRequest || !(await isAuthExpiredFetchResponse(response))) {
+    return response
+  }
+
+  try {
+    await refreshAccessTokenForRetry()
+    response = await request()
+    return response
+  } catch (refreshError) {
+    await handleSessionExpired()
+    throw refreshError
+  }
+}
+
 async function retryWithFreshToken(
   config?: AuthRetryAxiosRequestConfig,
   originalError?: unknown
@@ -125,15 +231,8 @@ async function retryWithFreshToken(
     return Promise.reject(originalError)
   }
 
-  const authStore = useAuthStore()
-  if (!refreshPromise) {
-    refreshPromise = authStore.refreshUserToken().finally(() => {
-      refreshPromise = null
-    })
-  }
-
   try {
-    await refreshPromise
+    await refreshAccessTokenForRetry()
     config._retryAfterRefresh = true
     return await service.request(config)
   } catch (refreshError) {

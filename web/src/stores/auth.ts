@@ -23,6 +23,7 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserInfo | null>(savedUser)
   
   const isLoading = ref(false)
+  let refreshingTokenPromise: Promise<string> | null = null
 
   // 计算属性
   const isAuthenticated = computed(() => !!token.value)
@@ -116,19 +117,34 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // 刷新token（无感刷新用：只负责刷新并保存，失败时 throw，不主动 logout）
+  function getRefreshTokenValue(): string {
+    return refreshToken.value || localStorage.getItem('refresh_token') || ''
+  }
+
   async function refreshUserToken(): Promise<string> {
-    const rt = refreshToken.value || localStorage.getItem('refresh_token') || ''
-    if (!rt) {
-      throw new Error('No refresh token')
+    if (refreshingTokenPromise) {
+      return refreshingTokenPromise
     }
-    const response = await refreshTokenApi(rt)
-    token.value = response.token
-    if (response.refresh_token) {
-      refreshToken.value = response.refresh_token
-      localStorage.setItem('refresh_token', response.refresh_token)
-    }
-    localStorage.setItem('token', response.token)
-    return response.token
+
+    refreshingTokenPromise = (async () => {
+      const rt = getRefreshTokenValue()
+      if (!rt) {
+        throw new Error('No refresh token')
+      }
+
+      const response = await refreshTokenApi(rt)
+      token.value = response.token
+      if (response.refresh_token) {
+        refreshToken.value = response.refresh_token
+        localStorage.setItem('refresh_token', response.refresh_token)
+      }
+      localStorage.setItem('token', response.token)
+      return response.token
+    })().finally(() => {
+      refreshingTokenPromise = null
+    })
+
+    return refreshingTokenPromise
   }
 
   // 检查登录状态

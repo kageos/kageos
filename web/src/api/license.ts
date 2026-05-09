@@ -1,4 +1,4 @@
-import { get, post } from '@/utils/request'
+import { authFetch, get, post } from '@/utils/request'
 import { getApiBaseURL } from '@/config/runtime'
 
 // License 状态接口
@@ -43,16 +43,14 @@ export async function activateLicense(licenseFile: File): Promise<LicenseStatus>
   }
   
   // 后端使用 c.GetRawData() 读取原始数据，需要发送原始 JSON 字符串
-  // 使用 fetch 直接发送，避免被 axios 拦截器处理
-  const token = localStorage.getItem('token') || ''
+  // 使用 fetch 直接发送原始 JSON，同时复用认证自动续期能力
   const baseURL = getApiBaseURL()
   const url = `${baseURL}/control/api/v1/license/activate`
   
-  const response = await fetch(url, {
+  const response = await authFetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Token': token,
     },
     body: licenseText, // 直接发送 JSON 字符串
   })
@@ -62,8 +60,16 @@ export async function activateLicense(licenseFile: File): Promise<LicenseStatus>
     throw new Error(error.error || `激活失败: ${response.statusText}`)
   }
   
-  const result: ActivateLicenseResponse = await response.json()
-  return result.status
+  const result = await response.json()
+  if (typeof result?.code === 'number') {
+    if (result.code !== 0) {
+      throw new Error(result.msg || result.message || '激活失败')
+    }
+    return result.data
+  }
+
+  const legacyResult = result as ActivateLicenseResponse
+  return legacyResult.status
 }
 
 /**

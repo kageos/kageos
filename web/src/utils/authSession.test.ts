@@ -11,6 +11,7 @@ describe('authSession', () => {
   it('识别当前后端返回的 token 过期业务错误', () => {
     expect(isAuthExpiredBusinessResponse({ code: 7, msg: '认证令牌无效或已过期' })).toBe(true)
     expect(isAuthExpiredBusinessResponse({ code: 7, msg: '未提供认证令牌' })).toBe(true)
+    expect(isAuthExpiredBusinessResponse({ code: 7, msg: '刷新Token失败: RefreshToken无效或已过期' })).toBe(true)
   })
 
   it('识别标准化 token 错误码', () => {
@@ -20,6 +21,7 @@ describe('authSession', () => {
 
   it('忽略普通业务错误', () => {
     expect(isAuthExpiredBusinessResponse({ code: 7, msg: '参数错误' })).toBe(false)
+    expect(isAuthExpiredBusinessResponse({ code: 7, msg: '无权限查询该表格' })).toBe(false)
   })
 
   it('优先读取 msg，其次兼容 message', () => {

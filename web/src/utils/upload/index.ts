@@ -7,6 +7,7 @@ import type { UploadCredentials, UploadProgress, UploadResult } from './types'
 import { PresignedURLUploader } from './presigned-url'
 import { FormUploader } from './form-upload'
 import { SDKUploader } from './sdk-upload'
+import { authFetch } from '@/utils/request'
 
 export type { UploadCredentials, UploadProgress, UploadResult } from './types'
 
@@ -204,16 +205,13 @@ export async function uploadFile(
  * }
  */
 async function getUploadCredentials(router: string, file: File, options: UploadFileOptions = {}): Promise<UploadCredentials> {
-  const token = localStorage.getItem('token') || ''
-  
   // ✅ 处理文件类型（某些文件如 .dmg 可能没有 MIME 类型）
   const contentType = file.type || 'application/octet-stream'
   
-  const res = await fetch('/storage/api/v1/upload_token', {
+  const res = await authFetch('/storage/api/v1/upload_token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Token': token,
     },
     body: JSON.stringify({
       router,
@@ -298,14 +296,11 @@ export interface UploadCompleteResult {
 }
 
 export async function notifyUploadComplete(params: UploadCompleteParams): Promise<UploadCompleteResult | null> {
-  const token = localStorage.getItem('token') || ''
-  
   try {
-    const res = await fetch('/storage/api/v1/upload_complete', {
+    const res = await authFetch('/storage/api/v1/upload_complete', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Token': token,
       },
       body: JSON.stringify({
         key: params.key,
@@ -394,7 +389,6 @@ export interface BatchUploadCompleteResult {
 export async function notifyBatchUploadComplete(
   items: BatchUploadCompleteItem[]
 ): Promise<Map<string, BatchUploadCompleteResult>> {
-  const token = localStorage.getItem('token') || ''
   const results = new Map<string, BatchUploadCompleteResult>()
   
   if (items.length === 0) {
@@ -402,11 +396,10 @@ export async function notifyBatchUploadComplete(
   }
   
   try {
-    const res = await fetch('/storage/api/v1/batch_upload_complete', {
+    const res = await authFetch('/storage/api/v1/batch_upload_complete', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Token': token,
       },
       body: JSON.stringify({ items }),
     })
