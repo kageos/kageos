@@ -11,6 +11,7 @@ import type {
 import { Logger } from '@/core/utils/logger'
 import type { FileItem } from '../filesWidgetTypes'
 import { generateFilePreview } from '@/utils/upload/filePreview'
+import { isFileAccepted } from '@/utils/upload/accept'
 
 export interface UploadingFile {
   uid: string
@@ -93,26 +94,9 @@ export function useFilesUploadManager(options: UseFilesUploadManagerOptions) {
       return false
     }
 
-    if (options.accept.value && options.accept.value !== '*') {
-      const acceptList = options.accept.value.split(',').map((pattern: string) => pattern.trim())
-      const fileName = file.name.toLowerCase()
-      const fileType = file.type.toLowerCase()
-
-      const isAccepted = acceptList.some((pattern: string) => {
-        if (pattern.startsWith('.')) {
-          return fileName.endsWith(pattern)
-        }
-        if (pattern.includes('/*')) {
-          const prefix = pattern.split('/')[0]
-          return !!prefix && !!fileType && fileType.startsWith(prefix)
-        }
-        return fileType === pattern
-      })
-
-      if (!isAccepted) {
-        ElMessage.error(`不支持的文件类型，仅支持：${options.accept.value}`)
-        return false
-      }
+    if (!isFileAccepted(file, options.accept.value)) {
+      ElMessage.error(`不支持的文件类型，仅支持：${options.accept.value}`)
+      return false
     }
 
     return true

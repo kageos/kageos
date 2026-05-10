@@ -20,14 +20,27 @@ func (s *AppManageService) finalizeWrittenAppChanges(
 	ctx context.Context,
 	user, app string,
 	appPaths runtimeAppPaths,
+	forceDiff bool,
 ) (*appReleaseResult, error) {
 	oldVersion := s.getReleaseCurrentVersion(ctx, appPaths, app, "BatchWriteFiles")
 	release, err := s.prepareAppRelease(ctx, user, app, appPaths, oldVersion, "BatchWriteFiles", "", "")
 	if err != nil {
 		return nil, err
 	}
+	if forceDiff {
+		s.clearAPILogs(ctx, user, app, "BatchWriteFiles")
+	}
 	release.diff = s.collectVersionDiffFromTemporaryContainer(ctx, user, app, release.newVersion, appPaths.AppDir())
 	return release, nil
+}
+
+func (s *AppManageService) clearAPILogs(ctx context.Context, user, app, logPrefix string) {
+	apiLogsDir := newRuntimeAppPaths(s.config.GetBasePath(), user, app).WorkplaceSubDir("api-logs")
+	if err := os.RemoveAll(apiLogsDir); err != nil {
+		logger.Warnf(ctx, "[%s] 清理 api-logs 失败: path=%s, error=%v", logPrefix, apiLogsDir, err)
+		return
+	}
+	logger.Infof(ctx, "[%s] 已清理 api-logs，下一次 SDK diff 将重新计算新增 API: path=%s", logPrefix, apiLogsDir)
 }
 
 func (s *AppManageService) prepareAppRelease(

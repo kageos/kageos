@@ -314,7 +314,7 @@ func (s *AppManageService) DeleteApp(ctx context.Context, user, app string) erro
 // UpdateApp 更新应用（写入源码文件并重新编译部署）
 // 如果提供了 sourceFiles，先执行源码文件写入。
 // writeOnly 为 true 时仅写文件，不编译不部署。
-func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, sourceFiles []*sharedDto.SourceFileWrite, requirement, changeDescription string, writeOnly bool) (*sharedDto.UpdateAppResp, error) {
+func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, sourceFiles []*sharedDto.SourceFileWrite, requirement, changeDescription string, writeOnly bool, forceDiff bool) (*sharedDto.UpdateAppResp, error) {
 	logStr := strings.Builder{}
 	logStr.WriteString(fmt.Sprintf("[UpdateApp] Starting update: %s/%s\t", user, app))
 
@@ -341,6 +341,7 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, sour
 		sourceWriteState,
 		requirement,
 		changeDescription,
+		forceDiff,
 		&logStr,
 	)
 	if err != nil {
@@ -532,9 +533,10 @@ func (s *AppManageService) buildAppVersionSpec(ctx context.Context, ref AppVersi
 	// 设置环境变量
 	envVars := []string{}
 
-	// 注入 SDK 配置（专门用于容器内访问宿主机服务）
-	// 注意：SDK app 运行在容器中，需要使用 host.containers.internal 访问宿主机服务
-	// 而服务配置（如 app-server）运行在裸机上，使用 localhost 访问
+	// 注入 SDK 配置（专门用于容器内访问平台服务）。
+	// SDK 进程启动后会在自身网络命名空间内自动探测 127.0.0.1 /
+	// host.containers.internal 等本地候选地址，避免 prod host 网络和 dev bridge
+	// 网络使用同一份静态地址。
 	//
 	// SDK 配置会在构建时注入为环境变量：
 	//   - nats_url -> NATS_URL 环境变量

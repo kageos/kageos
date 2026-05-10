@@ -8,6 +8,7 @@ import (
 	_ "net/http/pprof" // 导入 pprof
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,15 +16,19 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/netprobe"
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
 	"github.com/nats-io/nats.go"
 )
 
 var (
-	app      *App
-	initOnce sync.Once
-	initErr  error // 记录初始化错误
+	app                *App
+	initOnce           sync.Once
+	initErr            error // 记录初始化错误
+	natsURLResolveOnce sync.Once
+	natsURLResolved    string
+	natsURLResolveErr  error
 )
 
 func initApp() {
@@ -154,21 +159,75 @@ func initAppLogger() error {
 }
 
 func connectAppNATS() (*nats.Conn, error) {
-	natsURL := resolveNATSURL()
-	logger.Infof(context.Background(), "Connecting to NATS: %s", natsURL)
+	natsURL, err := resolveAppNATSURLOnce()
+	if err != nil {
+		logger.Errorf(context.Background(), "Failed to resolve NATS endpoint: %v", err)
+		return nil, err
+	}
 
-	conn, err := natsx.ConnectNamedWithOptions(
-		natsURL,
-		fmt.Sprintf("agent-app-%s-%s-%s", env.User, env.App, env.Version),
+	name := fmt.Sprintf("agent-app-%s-%s-%s", env.User, env.App, env.Version)
+	options := []nats.Option{
 		nats.ErrorHandler(func(nc *nats.Conn, sub *nats.Subscription, err error) {
 			logger.Errorf(context.Background(), "NATS error: %v", err)
 		}),
-	)
-	if err != nil {
-		logger.Errorf(context.Background(), "Failed to connect to NATS: %v", err)
-		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
+	}
+	return connectAppNATSCandidate(natsURL, name, options...)
+}
+
+func resolveAppNATSURLOnce() (string, error) {
+	natsURLResolveOnce.Do(func() {
+		natsURLResolved, natsURLResolveErr = probeAppNATSURL(resolveNATSURL())
+	})
+	return natsURLResolved, natsURLResolveErr
+}
+
+func probeAppNATSURL(natsURL string) (string, error) {
+	candidates := netprobe.URLCandidates(natsURL)
+	if len(candidates) <= 1 {
+		return natsURL, nil
 	}
 
+	var failures []string
+	for _, candidate := range candidates {
+		err := probeNATSStatus(candidate, time.Second)
+		if err == nil {
+			if candidate != natsURL {
+				logger.Infof(context.Background(), "NATS endpoint auto-resolved: %s -> %s", natsURL, candidate)
+			}
+			return candidate, nil
+		}
+		failures = append(failures, fmt.Sprintf("%s: %v", candidate, err))
+	}
+
+	err := fmt.Errorf("failed to resolve NATS candidates: %s", strings.Join(failures, "; "))
+	logger.Errorf(context.Background(), "%v", err)
+	return natsURL, err
+}
+
+func probeNATSStatus(natsURL string, timeout time.Duration) error {
+	conn, err := nats.Connect(
+		natsURL,
+		nats.Name("agent-app-nats-probe"),
+		nats.Timeout(timeout),
+		nats.NoReconnect(),
+	)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if conn.Status() != nats.CONNECTED {
+		return fmt.Errorf("unexpected NATS status: %v", conn.Status())
+	}
+	return nil
+}
+
+func connectAppNATSCandidate(natsURL, name string, options ...nats.Option) (*nats.Conn, error) {
+	logger.Infof(context.Background(), "Connecting to NATS: %s", natsURL)
+	conn, err := natsx.ConnectNamedWithOptions(natsURL, name, options...)
+	if err != nil {
+		logger.Errorf(context.Background(), "Failed to connect to NATS %s: %v", natsURL, err)
+		return nil, fmt.Errorf("failed to connect to NATS %s: %w", natsURL, err)
+	}
 	logger.Infof(context.Background(), "NATS connected successfully to %s", conn.ConnectedUrl())
 	return conn, nil
 }

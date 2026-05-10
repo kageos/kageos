@@ -11,6 +11,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/netprobe"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
@@ -74,6 +75,14 @@ func (u *MinIOUploader) uploadWithSDK(ctx context.Context, creds *dto.GetUploadT
 
 	if region == "" {
 		region = "us-east-1" // 默认region
+	}
+	if resolvedEndpoint, err := netprobe.ResolveTCPEndpointCached(ctx, "minio-sdk", endpoint, time.Second); err == nil {
+		if resolvedEndpoint != endpoint {
+			logger.Infof(ctx, "[MinIOUploader] endpoint auto-resolved: %s -> %s", endpoint, resolvedEndpoint)
+			endpoint = resolvedEndpoint
+		}
+	} else {
+		logger.Warnf(ctx, "[MinIOUploader] endpoint auto-resolve failed, using configured endpoint %s: %v", endpoint, err)
 	}
 
 	prepareTime := time.Since(prepareStart)

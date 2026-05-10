@@ -89,7 +89,7 @@ func (s *WorkspaceChangeService) BatchWriteFiles(
 	}
 
 	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), req.User, req.App)
-	result, err := s.appManageService.finalizeWrittenAppChanges(ctx, req.User, req.App, appPaths)
+	result, err := s.appManageService.finalizeWrittenAppChanges(ctx, req.User, req.App, appPaths, req.ForceDiff)
 	if err != nil {
 		s.appManageService.rollbackWrittenFilesAfterFailedBuild(ctx, "BatchWriteFiles", state)
 		return nil, err

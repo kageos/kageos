@@ -153,6 +153,7 @@ func (s *AppManageService) buildAndDeployUpdatedRelease(
 	sourceWriteState *batchWriteState,
 	requirement string,
 	changeDescription string,
+	forceDiff bool,
 	logStr *strings.Builder,
 ) (*appReleaseResult, error) {
 	release, err := s.prepareAppRelease(
@@ -168,6 +169,10 @@ func (s *AppManageService) buildAndDeployUpdatedRelease(
 	if err != nil {
 		s.rollbackWrittenFilesAfterFailedBuild(ctx, "UpdateApp", sourceWriteState)
 		return nil, fmt.Errorf("failed to build app: %w", err)
+	}
+
+	if forceDiff {
+		s.clearAPILogs(ctx, user, app, "UpdateApp")
 	}
 
 	if err := s.deployUpdatedVersion(ctx, user, app, state, release.newVersion, logStr); err != nil {

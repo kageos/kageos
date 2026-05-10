@@ -1451,4 +1451,10 @@ const lifecycle = useFormViewLifecycle({
   border-color: var(--app-auth-input-border);
   background: var(--app-auth-input-bg);
 }
+
+.form-view-main :deep(.upload-area:hover),
+.form-view-main :deep(.upload-area.is-dragging) {
+  border-color: color-mix(in srgb, var(--el-color-primary) 40%, var(--app-auth-input-border));
+  background: color-mix(in srgb, var(--el-color-primary) 8%, var(--app-auth-input-bg));
+}
 </style>

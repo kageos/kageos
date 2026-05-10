@@ -21,6 +21,8 @@ func TestRunWriteDocToolUsesDirectoryAsParentPathWhenCreatingDoc(t *testing.T) {
 	var createReq dto.CreateDocsReq
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/health":
+			w.WriteHeader(http.StatusOK)
 		case r.Method == http.MethodGet && r.URL.Path == "/workspace/api/v1/service_tree/detail":
 			fullCodePath := r.URL.Query().Get("full_code_path")
 			switch fullCodePath {

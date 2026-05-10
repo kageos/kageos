@@ -26,7 +26,7 @@
                 {{ maxSize ? `单文件 ≤ ${maxSize}` : '大小不限' }}
               </span>
               <span class="upload-meta-badge">
-                {{ accept === '*' ? '任意格式' : accept }}
+                {{ acceptLabel }}
               </span>
             </div>
           </div>
@@ -268,6 +268,7 @@ import { resolveFileRefs, updateFileDescription } from '@/api/storage'
 import { Logger } from '@/core/utils/logger'
 import { formatTimestamp } from '@/utils/date'
 import { isWidgetConfigFlagEnabled } from '@/utils/widgetConfigFlag'
+import { formatAcceptLabel } from '@/utils/upload/accept'
 import { deriveThumbnailPreviewUrl } from '@/utils/storagePreviewUrl'
 import { normalizeStorageFileDisplayUrl } from '@/architecture/presentation/utils/storageFileUrl'
 import { useFilesDescriptionDialog } from './composables/useFilesDescriptionDialog'
@@ -297,6 +298,7 @@ const filesConfig = computed(() => {
   return (props.field.widget?.config || {}) as FilesWidgetConfig
 })
 const accept = computed(() => filesConfig.value.accept || '*')
+const acceptLabel = computed(() => formatAcceptLabel(accept.value))
 const maxSize = computed(() => filesConfig.value.max_size)
 const maxCount = computed(() => filesConfig.value.max_count || 5)
 const shouldGenerateThumbnail = computed(() => isWidgetConfigFlagEnabled(filesConfig.value.thumbnail))
@@ -376,7 +378,7 @@ const isMaxReached = computed(() => currentFiles.value.length >= maxCount.value)
 
 const uploadTip = computed(() => {
   const parts: string[] = []
-  parts.push(`支持 ${accept.value || '所有类型'}`)
+  parts.push(`支持 ${acceptLabel.value}`)
   if (maxSize.value) {
     parts.push(`单个文件不超过 ${maxSize.value}`)
   }
@@ -544,23 +546,24 @@ function getTablePreviewUrl(file: FileItem): string {
 .upload-area {
   margin-bottom: 0;
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--el-color-primary) 3%, var(--el-bg-color)) 0%, var(--el-bg-color) 100%);
+    linear-gradient(180deg, color-mix(in srgb, var(--el-color-primary) 5%, var(--el-bg-color)) 0%, color-mix(in srgb, var(--el-color-primary) 2%, var(--el-bg-color)) 100%);
   border: none;
   border-bottom: 1px solid var(--el-border-color-lighter);
   border-radius: 0;
-  padding: 12px 14px;
-  transition: all 0.3s ease;
+  padding: 12px;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   cursor: pointer;
 }
 
 .upload-area.is-dragging {
   border-color: var(--el-color-primary);
-  background-color: var(--el-color-primary-light-9);
+  background: color-mix(in srgb, var(--el-color-primary) 10%, var(--el-bg-color));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--el-color-primary) 32%, transparent);
 }
 
 .upload-area:hover {
   border-color: var(--el-color-primary);
-  background-color: var(--el-color-primary-light-9);
+  background: color-mix(in srgb, var(--el-color-primary) 8%, var(--el-bg-color));
 }
 
 .upload-area-summary {
@@ -568,6 +571,7 @@ function getTablePreviewUrl(file: FileItem): string {
   flex-direction: column;
   gap: 6px;
   margin-bottom: 9px;
+  min-width: 0;
 }
 
 .upload-area-title-row {
@@ -578,13 +582,13 @@ function getTablePreviewUrl(file: FileItem): string {
 }
 
 .upload-area-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--el-text-color-primary);
 }
 
 .upload-area-count {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--el-text-color-secondary);
   padding: 1px 8px;
   border-radius: 999px;
@@ -602,11 +606,11 @@ function getTablePreviewUrl(file: FileItem): string {
   align-items: center;
   min-width: 0;
   max-width: 100%;
-  padding: 2px 8px;
+  padding: 1px 6px;
   border-radius: 999px;
   background: var(--el-fill-color-light);
   color: var(--el-text-color-secondary);
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.2;
 }
 
@@ -629,22 +633,42 @@ function getTablePreviewUrl(file: FileItem): string {
 }
 
 .upload-dragger-content {
-  min-height: 68px;
-  padding: 8px 10px;
+  min-height: 82px;
+  padding: 10px 12px;
   box-sizing: border-box;
   text-align: center;
 }
 
+.upload-area :deep(.el-upload),
+.upload-area :deep(.el-upload-dragger) {
+  width: 100%;
+}
+
+.upload-area :deep(.el-upload-dragger) {
+  padding: 0;
+  border: 1px dashed color-mix(in srgb, var(--el-color-primary) 28%, var(--el-border-color-light));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--el-color-primary) 3%, transparent);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.upload-area:hover :deep(.el-upload-dragger),
+.upload-area.is-dragging :deep(.el-upload-dragger) {
+  border-color: color-mix(in srgb, var(--el-color-primary) 52%, var(--el-border-color-light));
+  background: color-mix(in srgb, var(--el-color-primary) 7%, transparent);
+}
+
 .upload-icon {
-  font-size: 32px !important;
+  font-size: 28px !important;
   color: var(--el-text-color-secondary);
 }
 
 .el-upload__text {
   margin-top: 6px;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--el-text-color-primary);
   font-weight: 500;
+  line-height: 1.25;
 }
 
 .el-upload__text em {
@@ -656,8 +680,9 @@ function getTablePreviewUrl(file: FileItem): string {
 
 .el-upload__tip {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--el-text-color-secondary);
+  line-height: 1.3;
 }
 
 /* 上传中的文件 */

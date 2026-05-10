@@ -9,6 +9,36 @@
         :prefix-icon="Search"
         data-testid="service-tree-search"
       />
+      <div class="tree-bulk-toolbar">
+        <template v-if="multiSelectMode">
+          <span class="bulk-selected-count">已选 {{ selectedNodeCount }}</span>
+          <el-button
+            size="small"
+            :icon="Download"
+            :loading="bulkExporting"
+            :disabled="exportableSelectedNodes.length === 0"
+            @click="handleBulkExport"
+          >
+            导出
+          </el-button>
+          <el-button
+            size="small"
+            type="danger"
+            plain
+            :icon="Delete"
+            :disabled="deletableSelectedNodes.length === 0"
+            @click="handleBulkDelete"
+          >
+            删除
+          </el-button>
+          <el-button size="small" text :icon="Close" @click="exitMultiSelectMode">
+            取消
+          </el-button>
+        </template>
+        <el-button v-else size="small" :icon="Select" @click="enterMultiSelectMode">
+          多选
+        </el-button>
+      </div>
     </div>
 
     <div class="tree-content" data-testid="service-tree-content">
@@ -17,19 +47,24 @@
         :key="treeKey"
         ref="treeRef"
         :data="groupedTreeData"
-        :props="{ children: 'children', label: 'name' }"
+        :props="treeProps"
         node-key="id"
+        :show-checkbox="multiSelectMode"
+        :check-strictly="true"
         :default-expand-all="false"
         :default-expanded-keys="defaultExpandedKeysWithWorkspace"
         :expanded-keys="expandedKeysState"
         :expand-on-click-node="false"
         :highlight-current="true"
         :filter-node-method="filterNodeMethod"
+        :class="{ 'service-tree--bulk-selecting': multiSelectMode }"
         @node-click="handleNodeClick"
+        @check="handleBulkCheck"
       >
         <template #default="{ node, data }">
           <el-dropdown
             trigger="contextmenu"
+            :disabled="multiSelectMode"
             :teleported="true"
             popper-class="service-tree-contextmenu-popper"
             @command="(command: string) => handleNodeAction(command, data)"
@@ -40,11 +75,11 @@
               :data-node-id="String(data.id)"
               :data-node-type="data.type"
               :data-root-node="isRootNode(data) ? 'true' : 'false'"
-              :class="{ 'tree-node-draggable': data.type === 'function' || data.type === 'package' }"
-              :draggable="data.type === 'function' || data.type === 'package'"
+              :class="{ 'tree-node-draggable': !multiSelectMode && (data.type === 'function' || data.type === 'package') }"
+              :draggable="!multiSelectMode && (data.type === 'function' || data.type === 'package')"
               @dragstart="onTreeNodeDragStart($event, data)"
               @contextmenu.prevent
-              :title="'右键显示菜单'"
+              :title="multiSelectMode ? '点击选择' : '右键显示菜单'"
             >
             <!-- 根节点：使用工作空间图标（package 类型且为根节点） -->
             <img 
@@ -130,6 +165,7 @@
             
             <!-- 更多操作按钮 - 鼠标悬停时显示（与右键菜单并存，点击也可打开） -->
             <el-dropdown
+              v-if="!multiSelectMode"
               trigger="click"
               :teleported="true"
               popper-class="service-tree-contextmenu-popper"
@@ -149,6 +185,7 @@
                   <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.update)" :data-testid="`service-tree-action-rename-${data.id}`" command="rename"><el-icon><Edit /></el-icon>重命名</el-dropdown-item>
                   <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.read)" :data-testid="`service-tree-action-copy-${data.id}`" command="copy"><el-icon><CopyDocument /></el-icon>复制</el-dropdown-item>
                   <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.read)" :data-testid="`service-tree-action-export-json-${data.id}`" command="export-json"><el-icon><Download /></el-icon>导出 JSON</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-import-json-${data.id}`" command="import-json"><el-icon><Upload /></el-icon>导入 JSON</el-dropdown-item>
                   <el-dropdown-item v-if="data.type === 'package' && (copiedDirectory || copiedHubLink) && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-paste-${data.id}`" command="paste"><el-icon><DocumentChecked /></el-icon>粘贴</el-dropdown-item>
                   <el-dropdown-item v-if="data.type === 'function' && hasPermission(data, TablePermission.delete)" :data-testid="`service-tree-action-delete-function-${data.id}`" command="delete-function"><el-icon><Delete /></el-icon>删除函数</el-dropdown-item>
                   <el-dropdown-item v-if="data.type === 'docs' && hasPermission(data, DirectoryPermission.delete)" :data-testid="`service-tree-action-delete-doc-${data.id}`" command="delete-doc"><el-icon><Delete /></el-icon>删除文档</el-dropdown-item>
@@ -240,6 +277,14 @@
                     <el-icon><Download /></el-icon>
                     导出 JSON
                   </el-dropdown-item>
+
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" 
+                    command="import-json"
+                  >
+                    <el-icon><Upload /></el-icon>
+                    导入 JSON
+                  </el-dropdown-item>
                   
                   <!-- 粘贴选项（需要目标目录有 write 权限，且有已复制的内容） -->
                   <el-dropdown-item 
@@ -308,13 +353,20 @@
         </template>
       </el-tree>
     </div>
+    <input
+      ref="capabilityImportInputRef"
+      type="file"
+      accept=".json,application/json"
+      class="capability-import-input"
+      @change="handleCapabilityImportFileChange"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, MoreFilled, CopyDocument, Document, Upload, Download, Delete, Key, DocumentChecked, Edit, ChatDotRound, ChatDotSquare, Search } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, CopyDocument, Document, Upload, Download, Delete, Key, DocumentChecked, Edit, ChatDotRound, ChatDotSquare, Search, Select, Close } from '@element-plus/icons-vue'
 import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/shared/components/icons/TableIcon.vue'
 import FormIcon from '@/shared/components/icons/FormIcon.vue'
@@ -322,16 +374,19 @@ import { ElMessageBox, ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import { isRootNode } from '@/utils/tree-utils'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
-import { exportDirectoryBundle, updatePackage, updateServiceTreeFunction, updateDocs } from '@/api/service-tree'
+import { exportCapabilityBundle, installCapabilityBundle, updatePackage, updateServiceTreeFunction, updateDocs } from '@/api/service-tree'
 import { getRuntimeStateSummary, type RuntimeStateSummary } from '@/api/state'
-import { downloadDirectoryBundleFile } from '@/utils/directoryBundleFile'
+import { downloadCapabilityBundleFile, parseCapabilityBundleJson } from '@/utils/directoryBundleFile'
 import { 
   hasPermission, 
+  hasAnyPermission,
   hasAnyPermissionForNode, 
   DirectoryPermission,
   DocsPermission,
   BoardPermission,
   FunctionPermission,
+  FormPermission,
+  ChartPermission,
   TablePermission, 
   buildPermissionApplyURL 
 } from '@/utils/permission'
@@ -358,6 +413,7 @@ interface Emits {
   (e: 'delete-board', node: ServiceTree): void
   (e: 'delete-function', node: ServiceTree): void  // 删除函数
   (e: 'delete-directory', node: ServiceTree): void  // 删除目录（非根 package）
+  (e: 'bulk-delete', nodes: ServiceTree[]): void
   (e: 'refresh-tree'): void  // 刷新树（复制粘贴后需要刷新）
   (e: 'update-history', node?: ServiceTree): void  // 显示变更记录（工作空间或目录）
   (e: 'import-go-files', node: ServiceTree): void  // 导入 Go 文件到目录
@@ -390,6 +446,11 @@ const {
   expandedKeys: computed(() => props.expandedKeys)
 })
 
+const treeProps = {
+  children: 'children',
+  label: 'name'
+}
+
 const {
   copiedDirectory,
   copiedHubLink,
@@ -406,6 +467,11 @@ const {
 })
 
 const rootFullCodePath = computed(() => props.treeData[0]?.full_code_path || '')
+const multiSelectMode = ref(false)
+const selectedNodes = ref<ServiceTree[]>([])
+const bulkExporting = ref(false)
+const capabilityImportInputRef = ref<HTMLInputElement | null>(null)
+const capabilityImportTargetNode = ref<ServiceTree | null>(null)
 let unsubscribeRuntimeRefresh: (() => void) | null = null
 
 const stopRuntimeSummaryPolling = () => {
@@ -444,6 +510,7 @@ const startRuntimeSummaryPolling = () => {
 
 watch(rootFullCodePath, () => {
   runtimeSummaries.value = {}
+  exitMultiSelectMode()
   refreshRuntimeSummary()
   startRuntimeSummaryPolling()
 }, { immediate: true })
@@ -565,6 +632,11 @@ function onTreeNodeDragStart(e: DragEvent, data: ServiceTree) {
 }
 
 const handleNodeClick = (data: ServiceTree) => {
+  if (multiSelectMode.value) {
+    toggleNodeSelection(data)
+    return
+  }
+
   // 直接触发 node-click 事件，让父组件处理路由跳转
   // ⭐ 下拉菜单的点击已经通过 @click.stop.prevent 阻止了事件冒泡，所以这里不需要额外检查
   emit('node-click', data)
@@ -594,6 +666,184 @@ const getDefaultPermissionApplyAction = (node: ServiceTree): string => {
   return FunctionPermission.read
 }
 
+const selectedNodeCount = computed(() => selectedNodes.value.length)
+
+const exportableSelectedNodes = computed(() => {
+  return compactSelectedTreeNodes(selectedNodes.value.filter(canExportNode))
+})
+
+const deletableSelectedNodes = computed(() => {
+  return compactSelectedTreeNodes(selectedNodes.value.filter(canDeleteNode))
+    .sort((left, right) => getNodePathDepth(right) - getNodePathDepth(left))
+})
+
+function enterMultiSelectMode() {
+  multiSelectMode.value = true
+  selectedNodes.value = []
+  nextTick(() => {
+    treeRef.value?.setCheckedKeys?.([])
+  })
+}
+
+function exitMultiSelectMode() {
+  multiSelectMode.value = false
+  selectedNodes.value = []
+  treeRef.value?.setCheckedKeys?.([])
+}
+
+function syncBulkSelection() {
+  const checkedNodes = treeRef.value?.getCheckedNodes?.(false, false) as ServiceTree[] | undefined
+  selectedNodes.value = (checkedNodes || []).filter((node) => Boolean(node.full_code_path))
+}
+
+function collectNodeAndDescendantIds(node: ServiceTree): Array<number | string> {
+  const ids: Array<number | string> = []
+  const walk = (current: ServiceTree) => {
+    if (current.id) {
+      ids.push(current.id)
+    }
+    for (const child of current.children || []) {
+      walk(child)
+    }
+  }
+  walk(node)
+  return ids
+}
+
+function isNodeChecked(node: ServiceTree): boolean {
+  if (!node.id) return false
+  const checked = treeRef.value?.getCheckedKeys?.() as Array<number | string> | undefined
+  const checkedKeys = new Set(checked || [])
+  return checkedKeys.has(node.id)
+}
+
+function applyNodeSelectionCascade(node: ServiceTree, checked: boolean) {
+  const currentKeys = treeRef.value?.getCheckedKeys?.() as Array<number | string> | undefined
+  const checkedKeys = new Set(currentKeys || [])
+  for (const id of collectNodeAndDescendantIds(node)) {
+    if (checked) {
+      checkedKeys.add(id)
+    } else {
+      checkedKeys.delete(id)
+    }
+  }
+  treeRef.value?.setCheckedKeys?.([...checkedKeys])
+  syncBulkSelection()
+}
+
+function handleBulkCheck(node: ServiceTree) {
+  applyNodeSelectionCascade(node, isNodeChecked(node))
+}
+
+function toggleNodeSelection(node: ServiceTree) {
+  if (!node.id) return
+  applyNodeSelectionCascade(node, !isNodeChecked(node))
+}
+
+function getNodePathDepth(node: ServiceTree): number {
+  return (node.full_code_path || '').split('/').filter(Boolean).length
+}
+
+function hasSelectedPackageAncestor(node: ServiceTree, packagePaths: string[]): boolean {
+  const nodePath = node.full_code_path || ''
+  if (!nodePath) return false
+  return packagePaths.some((packagePath) => {
+    return packagePath !== nodePath && nodePath.startsWith(`${packagePath}/`)
+  })
+}
+
+function compactSelectedTreeNodes(nodes: ServiceTree[]): ServiceTree[] {
+  const seen = new Set<number | string>()
+  const uniqueNodes = nodes.filter((node) => {
+    if (!node.id || seen.has(node.id)) return false
+    seen.add(node.id)
+    return Boolean(node.full_code_path)
+  })
+  const selectedPackagePaths = uniqueNodes
+    .filter((node) => node.type === 'package' && node.full_code_path)
+    .map((node) => node.full_code_path as string)
+
+  return uniqueNodes.filter((node) => !hasSelectedPackageAncestor(node, selectedPackagePaths))
+}
+
+function canExportNode(node: ServiceTree): boolean {
+  if (!node.full_code_path) return false
+  if (node.type === 'package') {
+    return hasPermission(node, DirectoryPermission.read)
+  }
+  if (node.type === 'function') {
+    return hasAnyPermission(node, [
+      FunctionPermission.read,
+      TablePermission.read,
+      FormPermission.read,
+      ChartPermission.read
+    ])
+  }
+  return false
+}
+
+function canDeleteNode(node: ServiceTree): boolean {
+  if (!node.full_code_path) return false
+  if (node.type === 'package') {
+    return !isRootNode(node) && hasPermission(node, DirectoryPermission.delete)
+  }
+  if (node.type === 'function') {
+    return hasAnyPermission(node, [FunctionPermission.delete, TablePermission.delete])
+  }
+  if (node.type === 'docs') {
+    return hasPermission(node, DirectoryPermission.delete)
+  }
+  if (node.type === 'board') {
+    return hasPermission(node, DirectoryPermission.delete)
+  }
+  return false
+}
+
+function buildBulkExportName(nodes: ServiceTree[]): string {
+  const firstNode = nodes[0]
+  if (nodes.length === 1 && firstNode) {
+    return firstNode.name || firstNode.code || firstNode.full_code_path?.split('/').filter(Boolean).pop() || 'capability'
+  }
+  return props.treeData[0]?.name || 'capability'
+}
+
+async function handleBulkExport() {
+  const nodes = exportableSelectedNodes.value
+  if (nodes.length === 0) {
+    ElMessage.warning('请选择可导出的目录或函数')
+    return
+  }
+
+  const skippedCount = selectedNodes.value.length - nodes.length
+  bulkExporting.value = true
+  try {
+    const bundle = await exportCapabilityBundle({
+      source_root_path: rootFullCodePath.value,
+      source_directory_paths: nodes.map((node) => node.full_code_path as string),
+      name: buildBulkExportName(nodes)
+    })
+    downloadCapabilityBundleFile(bundle, rootFullCodePath.value)
+    ElMessage.success(skippedCount > 0 ? `已开始下载 JSON 文件，跳过 ${skippedCount} 个不可导出节点` : '已开始下载 JSON 文件')
+    exitMultiSelectMode()
+  } catch (error: any) {
+    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '导出失败'
+    ElMessage.error(message)
+  } finally {
+    bulkExporting.value = false
+  }
+}
+
+function handleBulkDelete() {
+  const nodes = deletableSelectedNodes.value
+  if (nodes.length === 0) {
+    ElMessage.warning('请选择可删除的节点')
+    return
+  }
+
+  emit('bulk-delete', nodes)
+  exitMultiSelectMode()
+}
+
 // 处理申请权限
 const handleApplyPermission = (data: ServiceTree) => {
   const resourcePath = data.full_code_path
@@ -614,11 +864,69 @@ const handleExportJson = async (data: ServiceTree) => {
   }
 
   try {
-    const bundle = await exportDirectoryBundle(data.full_code_path)
-    downloadDirectoryBundleFile(bundle, data.full_code_path)
+    const bundle = await exportCapabilityBundle({
+      source_directory_path: data.full_code_path,
+      name: data.name || data.code
+    })
+    downloadCapabilityBundleFile(bundle, data.full_code_path)
     ElMessage.success('已开始下载 JSON 文件')
   } catch (error: any) {
     const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '导出失败'
+    ElMessage.error(message)
+  }
+}
+
+function requestCapabilityJsonImport(data: ServiceTree) {
+  if (data.type !== 'package') {
+    ElMessage.warning('只能导入到目录')
+    return
+  }
+  if (!data.full_code_path) {
+    ElMessage.warning('无法获取目录路径，请刷新后重试')
+    return
+  }
+  capabilityImportTargetNode.value = data
+  if (capabilityImportInputRef.value) {
+    capabilityImportInputRef.value.value = ''
+    capabilityImportInputRef.value.click()
+  }
+}
+
+async function handleCapabilityImportFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  const targetNode = capabilityImportTargetNode.value
+  capabilityImportTargetNode.value = null
+
+  if (!file || !targetNode?.full_code_path) {
+    return
+  }
+
+  try {
+    const bundle = parseCapabilityBundleJson(await file.text())
+    await ElMessageBox.confirm(
+      `将能力包「${bundle.name || file.name}」导入到 ${targetNode.full_code_path}，同名文件会被覆盖。`,
+      '导入 JSON',
+      {
+        confirmButtonText: '覆盖导入',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    const resp = await installCapabilityBundle({
+      target_directory_path: targetNode.full_code_path,
+      overwrite: true,
+      force_diff: true,
+      bundle
+    })
+    ElMessage.success(resp.message || '导入成功')
+    emit('refresh-tree')
+  } catch (error: any) {
+    if (error === 'cancel' || error === 'close') {
+      return
+    }
+    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '导入失败'
     ElMessage.error(message)
   }
 }
@@ -676,6 +984,8 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     handleCopy(data)
   } else if (command === 'export-json') {
     void handleExportJson(data)
+  } else if (command === 'import-json') {
+    requestCapabilityJsonImport(data)
   } else if (command === 'paste') {
     // 粘贴时,如果右键的节点是 package，使用该节点；否则使用当前选中的目录
     if (data.type === 'package') {
@@ -812,6 +1122,19 @@ defineExpose({
   .tree-search-input :deep(.el-input__prefix),
   .tree-search-input :deep(.el-input__suffix) {
     color: var(--el-text-color-secondary);
+  }
+
+  .tree-bulk-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 28px;
+  }
+
+  .bulk-selected-count {
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+    margin-right: auto;
   }
   
   .header-actions {
@@ -1053,6 +1376,14 @@ defineExpose({
   }
 }
 
+:deep(.service-tree--bulk-selecting .el-tree-node__content) {
+  cursor: pointer;
+}
+
+:deep(.service-tree--bulk-selecting .el-checkbox) {
+  margin-right: 6px;
+}
+
 :deep(.el-tree-node.is-current > .el-tree-node__content) {
   background-color: rgba(99, 102, 241, 0.15) !important;
   border-left: 2px solid #6366f1;
@@ -1185,5 +1516,9 @@ defineExpose({
     padding-top: 4px;
     border-top: 1px solid rgba(var(--ctx-glow-rgb), 0.2);
   }
+}
+
+.capability-import-input {
+  display: none;
 }
 </style>

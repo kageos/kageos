@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"net/http"
 	"strconv"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
@@ -673,16 +674,21 @@ func (s *ServiceTree) ImportHubDirectoryBundle(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
-// ExportDirectoryBundle 导出最小目录树 JSON。
-func (s *ServiceTree) ExportDirectoryBundle(c *gin.Context) {
-	var req dto.ExportDirectoryBundleReq
-	if err := c.ShouldBindQuery(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+// ExportCapabilityBundle 导出标准能力包 JSON。
+func (s *ServiceTree) ExportCapabilityBundle(c *gin.Context) {
+	var req dto.ExportCapabilityBundleReq
+	if c.Request.Method == http.MethodGet {
+		if err := c.ShouldBindQuery(&req); err != nil {
+			response.FailWithMessage(c, "参数错误: "+err.Error())
+			return
+		}
+	} else if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	ctx := contextx.ToContext(c)
-	resp, err := s.serviceTreeService.ExportDirectoryBundle(ctx, &req)
+	resp, err := s.serviceTreeService.ExportCapabilityBundle(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -691,16 +697,16 @@ func (s *ServiceTree) ExportDirectoryBundle(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
-// ImportDirectoryBundle 将最小目录树 JSON 粘贴到目标目录下。
-func (s *ServiceTree) ImportDirectoryBundle(c *gin.Context) {
-	var req dto.ImportDirectoryBundleReq
+// InstallCapabilityBundle 将能力包安装到目标目录节点下。
+func (s *ServiceTree) InstallCapabilityBundle(c *gin.Context) {
+	var req dto.InstallCapabilityBundleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	ctx := contextx.ToContext(c)
-	resp, err := s.serviceTreeService.ImportDirectoryBundle(ctx, &req)
+	resp, err := s.serviceTreeService.InstallCapabilityBundle(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return

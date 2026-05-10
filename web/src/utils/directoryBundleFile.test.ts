@@ -1,30 +1,51 @@
 import { describe, expect, it } from 'vitest'
 
-import type { DirectoryBundle } from '@/api/service-tree'
-import { buildDirectoryBundleFileName } from './directoryBundleFile'
+import type { CapabilityBundle } from '@/api/service-tree'
+import { buildCapabilityBundleFileName, parseCapabilityBundleJson } from './directoryBundleFile'
 
 describe('directoryBundleFile', () => {
-  it('uses the root code for stable bundle filenames', () => {
-    const bundle: DirectoryBundle = {
-      schema_version: 1,
-      root: {
-        code: 'excel_tools',
-        name: 'Excel Tools'
-      }
+  it('uses the capability name for stable bundle filenames', () => {
+    const bundle: CapabilityBundle = {
+      schema_version: 'capability.bundle.v1',
+      name: 'excel_tools',
+      packages: [],
+      files: []
     }
 
-    expect(buildDirectoryBundleFileName(bundle, '/system/tools/excel_tools')).toBe('excel_tools.directory-bundle.json')
+    expect(buildCapabilityBundleFileName(bundle, '/system/tools/excel_tools')).toBe('excel_tools.capability-bundle.json')
   })
 
   it('sanitizes path separators and whitespace', () => {
-    const bundle: DirectoryBundle = {
-      schema_version: 1,
-      root: {
-        code: 'sales report/2026',
-        name: 'Sales Report'
-      }
+    const bundle: CapabilityBundle = {
+      schema_version: 'capability.bundle.v1',
+      name: 'sales report/2026',
+      packages: [],
+      files: []
     }
 
-    expect(buildDirectoryBundleFileName(bundle)).toBe('sales-report-2026.directory-bundle.json')
+    expect(buildCapabilityBundleFileName(bundle)).toBe('sales-report-2026.capability-bundle.json')
+  })
+
+  it('parses capability bundle json', () => {
+    const parsed = parseCapabilityBundleJson(JSON.stringify({
+      schema_version: 'capability.bundle.v1',
+      name: '消息能力',
+      packages: [{ path: 'message', name: '消息' }],
+      files: [{ package_path: 'message', path: 'send.go', content: 'package message\n' }]
+    }))
+
+    expect(parsed.files[0]).toEqual({
+      package_path: 'message',
+      path: 'send.go',
+      content: 'package message\n'
+    })
+  })
+
+  it('rejects workspace-bound paths', () => {
+    expect(() => parseCapabilityBundleJson(JSON.stringify({
+      schema_version: 'capability.bundle.v1',
+      packages: [{ path: 'namespace/system/openapi/message' }],
+      files: [{ package_path: 'namespace/system/openapi/message', path: 'send.go', content: '' }]
+    }))).toThrow('工作空间路径')
   })
 })

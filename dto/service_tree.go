@@ -219,9 +219,10 @@ type BatchCreateDirectoryTreeResp struct {
 
 // BatchWriteFilesReq 批量写文件请求
 type BatchWriteFilesReq struct {
-	User  string           `json:"user" binding:"required"`  // 用户名
-	App   string           `json:"app" binding:"required"`   // 应用名
-	Files []*FileWriteItem `json:"files" binding:"required"` // 文件写入项列表
+	User      string           `json:"user" binding:"required"`  // 用户名
+	App       string           `json:"app" binding:"required"`   // 应用名
+	Files     []*FileWriteItem `json:"files" binding:"required"` // 文件写入项列表
+	ForceDiff bool             `json:"force_diff,omitempty"`     // 是否清理 api-logs，让本次更新重新产生 add diff
 }
 
 // BatchWriteFilesResp 批量写文件响应

@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -49,15 +48,11 @@ func initOfficialDirectorySeeds(ctx context.Context, serviceTreeService *Service
 		if err != nil {
 			return err
 		}
-		bundle, err := readOfficialDirectorySeedBundle(filePath)
-		if err != nil {
-			return err
-		}
-		resp, err := serviceTreeService.ImportDirectoryBundle(ctx, &dto.ImportDirectoryBundleReq{
+		resp, err := serviceTreeService.InstallCapabilityBundleFromFile(ctx, &dto.InstallCapabilityOptions{
 			TargetDirectoryPath: targetPath,
-			ConflictPolicy:      directoryBundlePolicySkipIfExists,
-			Bundle:              bundle,
-		})
+			Overwrite:           true,
+			ForceDiff:           true,
+		}, filePath)
 		if err != nil {
 			return fmt.Errorf("导入官方目录种子失败: file=%s target=%s: %w", filePath, targetPath, err)
 		}
@@ -99,14 +94,18 @@ func officialDirectorySeedTargetPath(seedDir, filePath string) (string, error) {
 		return "", err
 	}
 	parts := strings.Split(filepath.ToSlash(rel), "/")
-	if len(parts) < 2 {
-		return "", fmt.Errorf("官方目录种子文件必须放在系统目录子目录下: %s", filePath)
+	if len(parts) < 3 {
+		return "", fmt.Errorf("官方能力种子文件必须放在 system/{app}/... 下: %s", filePath)
 	}
-	systemApp := strings.TrimSpace(parts[0])
+	if strings.TrimSpace(parts[0]) != "system" {
+		return "", fmt.Errorf("官方能力种子文件必须放在 system 工作空间下: %s", filePath)
+	}
+	systemApp := strings.TrimSpace(parts[1])
 	if !knownSystemAppCode(systemApp) {
 		return "", fmt.Errorf("官方目录种子文件使用了未知系统目录 %q: %s", systemApp, filePath)
 	}
-	return "/system/" + systemApp, nil
+	dirParts := parts[:len(parts)-1]
+	return "/" + strings.Join(dirParts, "/"), nil
 }
 
 func knownSystemAppCode(code string) bool {
@@ -116,16 +115,4 @@ func knownSystemAppCode(code string) bool {
 		}
 	}
 	return false
-}
-
-func readOfficialDirectorySeedBundle(filePath string) (*dto.DirectoryBundle, error) {
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("读取官方目录种子失败: %w", err)
-	}
-	var bundle dto.DirectoryBundle
-	if err := json.Unmarshal(data, &bundle); err != nil {
-		return nil, fmt.Errorf("解析官方目录种子 JSON 失败: file=%s: %w", filePath, err)
-	}
-	return &bundle, nil
 }
