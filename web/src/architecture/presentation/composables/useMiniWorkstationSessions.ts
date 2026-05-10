@@ -235,6 +235,7 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
     }
 
     const found = miniSessionList.value.find(session => session.session_id === targetSessionId)
+      || globalSessionList.value.find(session => session.session_id === targetSessionId)
     if (found?.status === 'generating') {
       startMiniStreamListening(targetSessionId)
       if (!maximized.value) {
