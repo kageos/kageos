@@ -30,43 +30,88 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
   const miniWsList = ref<MiniWsInstance[]>([])
   let miniIdCounter = 0
 
-  function openNewMiniWs(initialSessionId?: string, overridePath?: string, overrideName?: string, initialMaximized = false) {
+  function resolveDirName(fullCodePath: string, overrideName?: string) {
     const ctx = workstationContext.value
-    const fullCodePath = overridePath || ctx?.fullCodePath
-    if (!fullCodePath) return
+    return overrideName || ctx?.dirName || fullCodePath.split('/').filter(Boolean).pop() || '工作台'
+  }
 
-    const dirName = overrideName || ctx?.dirName || fullCodePath.split('/').filter(Boolean).pop() || '工作台'
-    const normalizedSessionId = (initialSessionId || '').trim()
-    if (normalizedSessionId) {
-      const existing = miniWsList.value.find(
-        (mini: MiniWsInstance) => mini.fullCodePath === fullCodePath && mini.initialSessionId === normalizedSessionId
-      )
-      if (existing) {
-        existing.visible = true
-        return
-      }
-    } else {
-      const existing = miniWsList.value.find(
-        (mini: MiniWsInstance) => mini.fullCodePath === fullCodePath && !mini.initialSessionId
-      )
-      if (existing) {
-        existing.visible = true
-        existing.dirName = dirName
-        return
-      }
+  function upsertPrimaryMiniWs(
+    fullCodePath: string,
+    dirName: string,
+    initialSessionId = '',
+    initialMaximized = false,
+    preferMatch?: (mini: MiniWsInstance) => boolean
+  ) {
+    const normalizedSessionId = initialSessionId.trim()
+    let existingIndex = preferMatch ? miniWsList.value.findIndex(preferMatch) : -1
+    if (existingIndex === -1) {
+      existingIndex = miniWsList.value.findIndex((mini: MiniWsInstance) => mini.visible)
+    }
+    if (existingIndex === -1 && miniWsList.value.length > 0) {
+      existingIndex = 0
     }
 
-    const offset = miniWsList.value.filter((mini: MiniWsInstance) => mini.visible).length * 40
+    if (existingIndex !== -1) {
+      const existing = miniWsList.value[existingIndex]
+      if (!existing) return
+      const contextChanged = existing.fullCodePath !== fullCodePath
+        || existing.dirName !== dirName
+        || existing.initialSessionId !== normalizedSessionId
+      const nextMini: MiniWsInstance = {
+        ...existing,
+        id: contextChanged ? String(++miniIdCounter) : existing.id,
+        fullCodePath,
+        dirName,
+        initialSessionId: normalizedSessionId,
+        visible: true,
+        offset: 0,
+        initialPosition: initialMaximized ? undefined : 'center',
+        initialMaximized,
+      }
+      miniWsList.value = [nextMini]
+      return
+    }
+
     miniWsList.value.push({
       id: String(++miniIdCounter),
       fullCodePath,
       dirName,
       initialSessionId: normalizedSessionId,
       visible: true,
-      offset: initialMaximized ? 0 : offset,
+      offset: 0,
       initialPosition: initialMaximized ? undefined : 'center',
       initialMaximized,
     })
+  }
+
+  function openAmbientMiniWs(overridePath?: string, overrideName?: string) {
+    const ctx = workstationContext.value
+    const fullCodePath = overridePath || ctx?.fullCodePath
+    if (!fullCodePath) return
+
+    upsertPrimaryMiniWs(fullCodePath, resolveDirName(fullCodePath, overrideName))
+  }
+
+  function openNewMiniWs(initialSessionId?: string, overridePath?: string, overrideName?: string, initialMaximized = false) {
+    const ctx = workstationContext.value
+    const fullCodePath = overridePath || ctx?.fullCodePath
+    if (!fullCodePath) return
+
+    const dirName = resolveDirName(fullCodePath, overrideName)
+    const normalizedSessionId = (initialSessionId || '').trim()
+    if (normalizedSessionId) {
+      upsertPrimaryMiniWs(
+        fullCodePath,
+        dirName,
+        normalizedSessionId,
+        initialMaximized,
+        (mini: MiniWsInstance) => mini.fullCodePath === fullCodePath && mini.initialSessionId === normalizedSessionId
+      )
+      return
+    } else {
+      upsertPrimaryMiniWs(fullCodePath, dirName, '', initialMaximized)
+      return
+    }
   }
 
   function syncMiniWsQueryParam(open: boolean, sid?: string) {
@@ -115,24 +160,13 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
 
   function openMiniWsForTask(fullCodePath: string, sessionId: string) {
     const dirName = fullCodePath.split('/').filter(Boolean).pop() || '工作台'
-    const existing = miniWsList.value.find(
-      (mini: MiniWsInstance) => mini.fullCodePath === fullCodePath && mini.initialSessionId === sessionId
-    )
-    if (existing) {
-      existing.visible = true
-      return
-    }
-
-    miniWsList.value.push({
-      id: String(++miniIdCounter),
+    upsertPrimaryMiniWs(
       fullCodePath,
       dirName,
-      initialSessionId: sessionId,
-      visible: true,
-      offset: 0,
-      initialPosition: 'center',
-      initialMaximized: true,
-    })
+      sessionId,
+      true,
+      (mini: MiniWsInstance) => mini.fullCodePath === fullCodePath && mini.initialSessionId === sessionId
+    )
   }
 
   function restoreMiniWorkstation(options?: {
@@ -205,6 +239,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
 
   return {
     miniWsList,
+    openAmbientMiniWs,
     openNewMiniWs,
     handleMiniMinimize,
     handleMiniRemove,

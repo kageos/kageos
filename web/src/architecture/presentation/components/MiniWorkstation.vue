@@ -69,12 +69,6 @@
               <button type="button" class="mini-icon-action" :title="maximized ? '还原当前输出' : '放大当前输出'" @click="toggleMaximize">
                 <el-icon :size="14"><component :is="maximized ? CopyDocument : FullScreen" /></el-icon>
               </button>
-              <button type="button" class="mini-icon-action" title="折叠到底部" @click="setCollapsed(true)">
-                <el-icon :size="14"><Minus /></el-icon>
-              </button>
-              <button type="button" class="mini-icon-action" data-testid="mini-workstation-close" title="关闭" @click="$emit('close')">
-                <el-icon :size="14"><Close /></el-icon>
-              </button>
             </div>
           </header>
 
@@ -189,6 +183,7 @@
 
         <MiniWorkstationComposer
           :full-code-path="fullCodePath"
+          :dir-name="dirName || displayPath"
           :attached-files="attachedFiles"
           :uploading="uploading"
           :input-text="inputText"
@@ -208,6 +203,7 @@
           @schedule="openNewScheduledAgentTaskDialog"
           @stop="handleStopSession"
           @send="handleSend"
+          @collapse="setCollapsed(true)"
         >
           <template #left-actions>
             <el-popover
@@ -383,7 +379,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { Close, Minus, FullScreen, CopyDocument, UploadFilled, Document as DocumentIcon, Setting, Search } from '@element-plus/icons-vue'
+import { Close, FullScreen, CopyDocument, UploadFilled, Document as DocumentIcon, Setting, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import {
   useWorkspaceChatStream,
@@ -2215,12 +2211,12 @@ useMiniWorkstationEffects({
 
 .mini-shell {
   position: absolute;
-  left: max(90px, 12vw);
+  left: max(162px, 12vw);
   right: 86px;
   bottom: calc(24px + var(--mini-stack-offset, 0px));
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
   color: var(--mini-cyber-text);
   pointer-events: auto;
   transition: left 0.18s ease, right 0.18s ease, bottom 0.18s ease;
@@ -2245,10 +2241,11 @@ useMiniWorkstationEffects({
 
 .mini-current-output {
   min-height: 46px;
-  max-height: 118px;
+  max-height: 86px;
   display: flex;
   flex-direction: column;
-  margin: 0 14px;
+  margin: 0 14px 8px;
+  padding: 8px 12px;
   border-color: rgba(104, 119, 255, 0.28);
   border-radius: 12px;
   overflow: hidden;
@@ -2262,12 +2259,11 @@ useMiniWorkstationEffects({
 }
 
 .mini-current-head {
-  min-height: 39px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 7px 12px 5px;
+  margin-bottom: 5px;
   color: #b9c9e4;
   font-size: 12px;
 }
@@ -2336,7 +2332,8 @@ useMiniWorkstationEffects({
   display: grid;
   grid-template-columns: minmax(0, 1fr) 230px;
   gap: 12px;
-  padding: 0 12px 10px;
+  align-items: stretch;
+  padding: 0;
 }
 
 .mini-ws--maximized .mini-current-body {
@@ -2520,16 +2517,19 @@ useMiniWorkstationEffects({
 
 .mini-session-dock {
   min-height: 54px;
-  display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
-  gap: 12px;
-  margin: 0 14px;
+  position: relative;
+  display: block;
+  margin: 0 14px 8px 158px;
   padding: 6px;
   border-radius: 14px;
   background: rgba(9, 14, 25, 0.68);
 }
 
 .mini-session-center-btn {
+  position: absolute;
+  left: -146px;
+  top: 6px;
+  width: 132px;
   height: 42px;
   display: inline-flex;
   align-items: center;
@@ -2550,7 +2550,7 @@ useMiniWorkstationEffects({
 .mini-session-summary-list {
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(112px, 1fr));
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
   gap: 8px;
 }
 
@@ -2925,6 +2925,8 @@ useMiniWorkstationEffects({
 }
 
 .mini-settings-btn {
+  width: 42px;
+  height: 42px;
   border-color: rgba(128, 151, 198, 0.22);
   border-radius: 8px;
   color: #8ed0ff;
@@ -2945,7 +2947,7 @@ useMiniWorkstationEffects({
 }
 
 .mini-ws-drop-overlay {
-  inset: auto 86px calc(24px + var(--mini-stack-offset, 0px)) max(90px, 12vw);
+  inset: auto 86px calc(24px + var(--mini-stack-offset, 0px)) max(162px, 12vw);
   height: 210px;
   pointer-events: none;
   border-color: rgba(83, 174, 255, 0.74);
@@ -2961,12 +2963,21 @@ useMiniWorkstationEffects({
 
 @media (max-width: 1180px) {
   .mini-shell {
-    left: 34px;
+    left: 90px;
     right: 34px;
   }
 
+  .mini-session-dock {
+    margin-left: 142px;
+  }
+
+  .mini-session-center-btn {
+    left: -130px;
+    width: 118px;
+  }
+
   .mini-session-summary-list {
-    grid-template-columns: repeat(4, minmax(96px, 1fr));
+    grid-template-columns: repeat(4, minmax(112px, 1fr));
   }
 
   .mini-current-body {
@@ -2992,10 +3003,14 @@ useMiniWorkstationEffects({
   }
 
   .mini-session-dock {
+    display: grid;
     grid-template-columns: 1fr;
+    margin: 0 14px 8px;
   }
 
   .mini-session-center-btn {
+    position: static;
+    width: 100%;
     justify-content: flex-start;
   }
 

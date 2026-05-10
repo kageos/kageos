@@ -126,41 +126,52 @@
         />
       </el-select>
       <div class="mini-action-row">
-      <el-tooltip content="定时执行" placement="top" effect="light">
+        <el-tooltip content="定时执行" placement="top" effect="light">
+          <el-button
+            class="mini-schedule-btn"
+            link
+            size="small"
+            title="定时执行"
+            :disabled="sending || !fullCodePath"
+            data-testid="mini-workstation-schedule"
+            @click="$emit('schedule')"
+          >
+            <el-icon><Timer /></el-icon>
+          </el-button>
+        </el-tooltip>
         <el-button
-          class="mini-schedule-btn"
-          link
+          v-if="sending"
+          type="danger"
           size="small"
-          title="定时执行"
-          :disabled="sending || !fullCodePath"
-          data-testid="mini-workstation-schedule"
-          @click="$emit('schedule')"
+          :loading="stopping"
+          data-testid="mini-workstation-stop"
+          @click="$emit('stop')"
+          class="mini-stop-btn"
         >
-          <el-icon><Timer /></el-icon>
+          <el-icon><VideoPause /></el-icon>
+          停止
         </el-button>
-      </el-tooltip>
-      <el-button
-        v-if="sending"
-        type="danger"
-        size="small"
-        :loading="stopping"
-        data-testid="mini-workstation-stop"
-        @click="$emit('stop')"
-        class="mini-stop-btn"
-      >
-        <el-icon><VideoPause /></el-icon>
-        停止
-      </el-button>
-      <el-button
-        type="primary"
-        size="small"
-        :disabled="!fullCodePath || (!inputText.trim() && attachedFiles.length === 0)"
-        data-testid="mini-workstation-send"
-        @click="$emit('send')"
-        class="mini-send-btn"
-      >
-        {{ sending ? (queuedCount > 0 ? `排队 ${queuedCount}` : '排队') : '发送' }}
-      </el-button>
+        <el-button
+          type="primary"
+          size="small"
+          :disabled="!fullCodePath || (!inputText.trim() && attachedFiles.length === 0)"
+          data-testid="mini-workstation-send"
+          @click="$emit('send')"
+          class="mini-send-btn"
+        >
+          {{ sending ? (queuedCount > 0 ? `排队 ${queuedCount}` : '排队') : '发送' }}
+        </el-button>
+        <el-tooltip content="隐藏到底部" placement="top" effect="light">
+          <button
+            type="button"
+            class="mini-hide-btn"
+            title="隐藏到底部"
+            data-testid="mini-workstation-collapse"
+            @click="$emit('collapse')"
+          >
+            <el-icon><ArrowDown /></el-icon>
+          </button>
+        </el-tooltip>
       </div>
     </div>
   </div>
@@ -168,7 +179,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, type Component } from 'vue'
-import { Document, Paperclip, Timer, VideoPause } from '@element-plus/icons-vue'
+import { ArrowDown, Document, Paperclip, Timer, VideoPause } from '@element-plus/icons-vue'
 import type { LLMInfo } from '@/api/agent'
 import type { WorkspaceChatMessageFile } from '@/api/workspace'
 import { searchUsersFuzzy } from '@/api/user'
@@ -189,6 +200,7 @@ import TableIcon from '@/shared/components/icons/TableIcon.vue'
 
 const props = defineProps<{
   fullCodePath: string
+  dirName?: string
   attachedFiles: WorkspaceChatMessageFile[]
   uploading: boolean
   inputText: string
@@ -211,6 +223,7 @@ const emit = defineEmits<{
   (e: 'schedule'): void
   (e: 'send'): void
   (e: 'stop'): void
+  (e: 'collapse'): void
 }>()
 
 const modelSelectPopperOptions = {
@@ -218,6 +231,8 @@ const modelSelectPopperOptions = {
 }
 
 const displayPath = computed(() => {
+  const label = (props.dirName || '').trim()
+  if (label) return label
   if (!props.fullCodePath) return '未选择目录'
   const parts = props.fullCodePath.split('/').filter(Boolean)
   return parts[parts.length - 1] || props.fullCodePath
@@ -556,14 +571,14 @@ function cancelMentionClose() {
 }
 
 .mini-ws-model-select {
-  width: 132px;
+  width: 112px;
   min-width: 0;
 }
 .mini-ws-model-select :deep(.el-select__wrapper) {
-  min-height: 30px;
+  min-height: 42px;
   border: 1px solid rgba(128, 151, 198, 0.22);
   border-radius: 8px;
-  background: rgba(17, 25, 45, 0.72);
+  background: rgba(30, 42, 68, 0.78);
   box-shadow: none;
 }
 .mini-ws-model-select :deep(.el-select__placeholder),
@@ -577,29 +592,36 @@ function cancelMentionClose() {
 .mini-ws-input {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: flex-end;
+  align-items: stretch;
   gap: 12px;
+  min-height: 64px;
   padding: 10px 12px;
   position: relative;
-  border-top: 1px solid rgba(128, 151, 198, 0.18);
+  border: 1px solid rgba(130, 153, 190, 0.26);
+  border-radius: 14px;
   background:
     linear-gradient(180deg, rgba(12, 18, 32, 0.84), rgba(8, 12, 22, 0.68)),
     rgba(8, 12, 22, 0.72);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(24px) saturate(140%);
 }
 .mini-composer-left-actions {
   flex-shrink: 0;
+  min-width: 142px;
   display: flex;
   flex-direction: row;
   align-items: center;
-  align-self: flex-end;
-  gap: 6px;
+  align-self: center;
+  gap: 8px;
 }
 .mini-upload-btn {
   flex-shrink: 0;
 }
 .mini-upload-btn :deep(.el-button) {
-  width: 32px;
-  height: 32px;
+  width: 42px;
+  height: 42px;
   border: 1px solid rgba(128, 151, 198, 0.22);
   border-radius: 8px;
   color: #8ed0ff;
@@ -616,11 +638,10 @@ function cancelMentionClose() {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 10px;
-  min-height: 46px;
   padding: 0 10px;
   border: 1px solid rgba(124, 146, 189, 0.16);
   border-radius: 10px;
-  background: rgba(10, 16, 29, 0.42);
+  background: rgba(10, 16, 29, 0.32);
 }
 .mini-path-pill {
   max-width: 148px;
@@ -640,15 +661,17 @@ function cancelMentionClose() {
 }
 .mini-input {
   flex: 1;
+  width: 100%;
   min-width: 0;
-  min-height: 42px;
+  height: 46px;
+  min-height: 46px;
   max-height: 110px;
-  padding: 9px 0 7px;
+  padding: 12px 0 8px;
   border: 0;
   border-radius: 0;
   outline: none;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 20px;
   font-family: inherit;
   background: transparent;
   color: #e6f0ff;
@@ -661,7 +684,7 @@ function cancelMentionClose() {
   box-shadow: none;
 }
 .mini-input::placeholder {
-  color: var(--mini-cyber-dim, rgba(143, 187, 204, 0.48));
+  color: #8291aa;
 }
 .mini-mention-panel {
   position: absolute;
@@ -835,20 +858,24 @@ function cancelMentionClose() {
 }
 .mini-action-stack {
   flex-shrink: 0;
-  display: grid;
-  align-items: stretch;
+  display: flex;
+  align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 8px;
 }
 .mini-action-row {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 8px;
+}
+.mini-action-row :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 .mini-schedule-btn {
-  width: 32px;
-  min-height: 28px;
+  width: 42px;
+  height: 42px;
+  min-height: 42px;
   border: 1px solid rgba(128, 151, 198, 0.22);
   border-radius: 8px;
   color: #8ed0ff;
@@ -862,9 +889,8 @@ function cancelMentionClose() {
 .mini-send-btn,
 .mini-stop-btn {
   flex-shrink: 0;
-  align-self: flex-end;
-  min-width: 68px;
-  min-height: 32px;
+  min-width: 108px;
+  min-height: 42px;
   border-radius: 8px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -873,6 +899,24 @@ function cancelMentionClose() {
 .mini-send-btn.el-button--primary {
   border: 0;
   background: linear-gradient(135deg, #6d70ff, #8b5cf6);
+  color: #ffffff;
+}
+
+.mini-hide-btn {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(124, 146, 189, 0.22);
+  border-radius: 8px;
+  background: rgba(30, 42, 68, 0.78);
+  color: #c8d8ef;
+}
+
+.mini-hide-btn:hover {
+  border-color: rgba(83, 174, 255, 0.42);
+  background: rgba(55, 163, 255, 0.16);
   color: #ffffff;
 }
 
