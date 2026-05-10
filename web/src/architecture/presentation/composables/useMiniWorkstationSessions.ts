@@ -1,6 +1,14 @@
 import { ElMessage } from 'element-plus'
 import { onUnmounted, ref, watch, type Ref } from 'vue'
-import { cancelWorkspaceChat, getWorkspaceMessages, getWorkspaceSessionSSEStatus, getWorkspaceSessions, type WorkspaceSessionItem } from '@/api/workspace'
+import {
+  cancelWorkspaceChat,
+  getFinishedSessions,
+  getRunningSessions,
+  getWorkspaceMessages,
+  getWorkspaceSessionSSEStatus,
+  getWorkspaceSessions,
+  type WorkspaceSessionItem
+} from '@/api/workspace'
 import { eventBus } from '@/architecture/infrastructure/eventBus'
 import type { ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import { Logger } from '@/core/utils/logger'
@@ -55,7 +63,9 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
   const { fullCodePath, initialSessionId, maximized, sending, sessionId, setMessages, onSelectMaximizedSession } = options
 
   const miniSessionList = ref<WorkspaceSessionItem[]>([])
+  const globalSessionList = ref<WorkspaceSessionItem[]>([])
   const loadingSessions = ref(false)
+  const loadingGlobalSessions = ref(false)
   const stopping = ref(false)
 
   let miniStreamCleanup: (() => void) | null = null
@@ -75,6 +85,31 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
       miniSessionList.value = []
     } finally {
       loadingSessions.value = false
+    }
+  }
+
+  async function loadGlobalSessions() {
+    loadingGlobalSessions.value = true
+    try {
+      const [running, finished] = await Promise.allSettled([
+        getRunningSessions(),
+        getFinishedSessions(60)
+      ])
+      const merged = [
+        ...(running.status === 'fulfilled' ? running.value.sessions || [] : []),
+        ...(finished.status === 'fulfilled' ? finished.value.sessions || [] : [])
+      ]
+      const byId = new Map<string, WorkspaceSessionItem>()
+      for (const session of merged) {
+        if (!session.session_id) continue
+        byId.set(session.session_id, session)
+      }
+      globalSessionList.value = Array.from(byId.values())
+        .sort((left, right) => new Date(right.updated_at || right.created_at).getTime() - new Date(left.updated_at || left.created_at).getTime())
+    } catch {
+      globalSessionList.value = []
+    } finally {
+      loadingGlobalSessions.value = false
     }
   }
 
@@ -267,9 +302,12 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
 
   return {
     miniSessionList,
+    globalSessionList,
     loadingSessions,
+    loadingGlobalSessions,
     stopping,
     loadMiniSessions,
+    loadGlobalSessions,
     handleNewSession,
     handleStopSession,
     handleSelectSession,
