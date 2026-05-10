@@ -646,6 +646,7 @@ const workstationContext = computed(() => {
 
 const {
   miniWsList,
+  openAmbientMiniWs,
   openNewMiniWs,
   handleMiniMinimize,
   handleMiniRemove,
@@ -663,7 +664,7 @@ watch(
   workstationContext,
   (ctx) => {
     if (!ctx?.fullCodePath) return
-    openNewMiniWs(undefined, ctx.fullCodePath, ctx.dirName)
+    openAmbientMiniWs(ctx.fullCodePath, ctx.dirName)
   },
   { immediate: true }
 )
