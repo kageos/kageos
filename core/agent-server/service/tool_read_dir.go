@@ -42,7 +42,7 @@ type readDirResultData struct {
 
 type readDirDirectoryData struct {
 	Name         string `json:"name" schema_desc:"目录名称" schema_required:"true"`
-	Code         string `json:"code" schema_desc:"目录代码" schema_required:"true"`
+	Code         string `json:"code" schema_desc:"目录英文标识" schema_required:"true"`
 	FullCodePath string `json:"full_code_path" schema_desc:"目录完整路径" schema_required:"true"`
 	Description  string `json:"description,omitempty" schema_desc:"目录描述"`
 	Type         string `json:"type" schema_desc:"目录类型" schema_required:"true"`
@@ -179,7 +179,7 @@ func buildListFormat(workspaceCtx *dto.GetWorkspaceContextResp, targetPath strin
 	dirInfo := fmt.Sprintf(`## 目录信息：%s
 
 - 目录名称：%s
-- 目录代码：%s
+- 目录英文标识：%s
 - 完整路径：%s`, targetPath, workspaceCtx.Directory.Name, workspaceCtx.Directory.Code, workspaceCtx.Directory.FullCodePath)
 
 	if workspaceCtx.Directory.Description != "" {
@@ -192,7 +192,7 @@ func buildListFormat(workspaceCtx *dto.GetWorkspaceContextResp, targetPath strin
 		dirsSection = fmt.Sprintf("### 子目录（共 %d 个）\n\n", len(directories))
 		for i, dir := range directories {
 			dirsSection += fmt.Sprintf(`#### 目录 %d: %s
-- 目录代码：%s
+- 目录英文标识：%s
 - 类型：%s
 - 完整路径：%s`, i+1, dir.Name, dir.Code, dir.Type, dir.FullCodePath)
 			if dir.Description != "" {
