@@ -46,10 +46,12 @@ type BatchCreateDirectoryTreeRuntimeResp struct {
 
 // BatchWriteFilesRuntimeReq 批量写文件运行时请求
 type BatchWriteFilesRuntimeReq struct {
-	User      string           `json:"user"`                 // 用户名
-	App       string           `json:"app"`                  // 应用名
-	Files     []*FileWriteItem `json:"files"`                // 文件写入项列表
-	ForceDiff bool             `json:"force_diff,omitempty"` // 是否清理 api-logs，让本次更新重新产生 add diff
+	User           string           `json:"user"`                      // 用户名
+	App            string           `json:"app"`                       // 应用名
+	Files          []*FileWriteItem `json:"files"`                     // 文件写入项列表
+	ForceDiff      bool             `json:"force_diff,omitempty"`      // 是否清理 api-logs，让本次更新重新产生 add diff
+	OperationName  string           `json:"operation_name,omitempty"`  // 内部操作名，用于日志和发布元数据
+	OperationLabel string           `json:"operation_label,omitempty"` // 操作中文名，用于错误信息
 }
 
 // BatchWriteFilesRuntimeResp 批量写文件运行时响应

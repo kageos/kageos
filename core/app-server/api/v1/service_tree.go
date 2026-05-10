@@ -653,7 +653,7 @@ func (s *ServiceTree) PullDirectoryFromHub(c *gin.Context) {
 		return
 	}
 
-	response.OkWithData(c, resp)
+	response.OkWithDetailed(c, resp, resp.Message)
 }
 
 // ImportHubDirectoryBundle 从标准 Hub JSON 安装包安装目录
@@ -712,7 +712,7 @@ func (s *ServiceTree) InstallCapabilityBundle(c *gin.Context) {
 		return
 	}
 
-	response.OkWithData(c, resp)
+	response.OkWithDetailed(c, resp, resp.Message)
 }
 
 // SearchFunctions 搜索函数

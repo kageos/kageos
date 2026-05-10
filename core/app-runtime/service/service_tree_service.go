@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
@@ -70,8 +71,17 @@ func (s *WorkspaceChangeService) BatchWriteFiles(
 	ctx context.Context,
 	req *dto.BatchWriteFilesRuntimeReq,
 ) (*dto.BatchWriteFilesRuntimeResp, error) {
-	logger.Infof(ctx, "[WorkspaceChangeService] 开始批量写文件: user=%s, app=%s, fileCount=%d",
-		req.User, req.App, len(req.Files))
+	operationName := strings.TrimSpace(req.OperationName)
+	if operationName == "" {
+		operationName = "BatchWriteFiles"
+	}
+	operationLabel := strings.TrimSpace(req.OperationLabel)
+	if operationLabel == "" {
+		operationLabel = "批量写文件"
+	}
+
+	logger.Infof(ctx, "[WorkspaceChangeService] 开始%s: user=%s, app=%s, fileCount=%d",
+		operationLabel, req.User, req.App, len(req.Files))
 
 	if len(req.Files) == 0 {
 		return nil, fmt.Errorf("没有需要写入的文件")
@@ -89,13 +99,13 @@ func (s *WorkspaceChangeService) BatchWriteFiles(
 	}
 
 	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), req.User, req.App)
-	result, err := s.appManageService.finalizeWrittenAppChanges(ctx, req.User, req.App, appPaths, req.ForceDiff)
+	result, err := s.appManageService.finalizeWrittenAppChanges(ctx, req.User, req.App, appPaths, req.ForceDiff, operationName)
 	if err != nil {
-		s.appManageService.rollbackWrittenFilesAfterFailedBuild(ctx, "BatchWriteFiles", state)
+		s.appManageService.rollbackWrittenFilesAfterFailedBuild(ctx, operationName, state)
 		return nil, err
 	}
 
-	logger.Infof(ctx, "[WorkspaceChangeService] 批量写文件并编译完成: oldVersion=%s, newVersion=%s", result.oldVersion, result.newVersion)
+	logger.Infof(ctx, "[WorkspaceChangeService] %s并编译完成: oldVersion=%s, newVersion=%s", operationLabel, result.oldVersion, result.newVersion)
 
 	return s.buildBatchWriteFilesRuntimeResp(state, result), nil
 }

@@ -21,14 +21,19 @@ func (s *AppManageService) finalizeWrittenAppChanges(
 	user, app string,
 	appPaths runtimeAppPaths,
 	forceDiff bool,
+	logPrefix string,
 ) (*appReleaseResult, error) {
-	oldVersion := s.getReleaseCurrentVersion(ctx, appPaths, app, "BatchWriteFiles")
-	release, err := s.prepareAppRelease(ctx, user, app, appPaths, oldVersion, "BatchWriteFiles", "", "")
+	if logPrefix == "" {
+		logPrefix = "BatchWriteFiles"
+	}
+
+	oldVersion := s.getReleaseCurrentVersion(ctx, appPaths, app, logPrefix)
+	release, err := s.prepareAppRelease(ctx, user, app, appPaths, oldVersion, logPrefix, "", "")
 	if err != nil {
 		return nil, err
 	}
 	if forceDiff {
-		s.clearAPILogs(ctx, user, app, "BatchWriteFiles")
+		s.clearAPILogs(ctx, user, app, logPrefix)
 	}
 	release.diff = s.collectVersionDiffFromTemporaryContainer(ctx, user, app, release.newVersion, appPaths.AppDir())
 	return release, nil
