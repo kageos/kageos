@@ -712,8 +712,8 @@ func validateCapabilityPackagePath(packagePath string, field string, allowEmpty 
 		return "", err
 	}
 	for _, part := range parts {
-		if err := naming.ValidateGoPackageName(part, "package 路径片段"); err != nil {
-			return "", fmt.Errorf("%s 包含非法 Go package 名称 %q: %w", field, part, err)
+		if err := naming.ValidateGoPackageName(part, "目录英文标识"); err != nil {
+			return "", fmt.Errorf("%s 包含不支持的目录英文标识 %q: %w", field, part, err)
 		}
 	}
 	return packagePath, nil
@@ -772,8 +772,8 @@ func validateCapabilityTargetDirectoryPath(targetPath string) (string, error) {
 			return "", fmt.Errorf("target_directory_path 包含非法路径片段: %s", targetPath)
 		}
 		if i >= 2 {
-			if err := naming.ValidateGoPackageName(part, "目标 package 路径片段"); err != nil {
-				return "", fmt.Errorf("target_directory_path 包含非法 Go package 名称 %q: %w", part, err)
+			if err := naming.ValidateGoPackageName(part, "目标目录英文标识"); err != nil {
+				return "", fmt.Errorf("target_directory_path 包含不支持的目录英文标识 %q: %w", part, err)
 			}
 		}
 	}

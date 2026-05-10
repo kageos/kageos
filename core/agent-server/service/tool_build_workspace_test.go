@@ -72,7 +72,7 @@ namespace/auction/auction_bid_list.go:15:6: AuctionBidRecord redeclared in this 
 	for _, want := range []string{
 		"options_colors 只支持不带 # 的 6 位十六进制 RRGGBB",
 		"widget 的 type 和配置 key 必须来自 SDK 主文档组件速查和运行时白名单",
-		"type:number 只配 int/int64 等整数",
+		"整数用 type:number",
 		"Table 列表使用 query.PageSortReq",
 		"调整 Table Request 字段后",
 		"OnSelectFuzzyMap 的 key 必须对应 schema",
@@ -82,7 +82,7 @@ namespace/auction/auction_bid_list.go:15:6: AuctionBidRecord redeclared in this 
 		"未确认的 SDK API types.EmptyRequest",
 		"未确认的 SDK API app.Time",
 		"Chart Handler 必须把 SDK chart 包里的具体图表对象传给 resp.Chart",
-		"同一个 Go package 里的模型、函数和方法只能定义一次",
+		"同一个目录里的模型、函数和方法只能定义一次",
 	} {
 		if !strings.Contains(enriched, want) {
 			t.Fatalf("expected build error hint %q in:\n%s", want, enriched)

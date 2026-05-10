@@ -88,6 +88,9 @@ func resolveSourceFileWriteTarget(appPaths runtimeAppPaths, spec *dto.SourceFile
 		}
 		fileName = strings.TrimSuffix(fileName, ext)
 	}
+	if strings.HasSuffix(fileName, "_test") {
+		return "", "", fmt.Errorf("source file 不能使用 _test.go 结尾，测试文件不会参与应用 API 注册: %s", spec.FileName)
+	}
 	if err := validateBatchWriteFileName(fileName); err != nil {
 		return "", "", err
 	}

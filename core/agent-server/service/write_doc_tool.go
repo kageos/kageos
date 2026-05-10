@@ -137,7 +137,7 @@ func runWriteDocCommand(ctx context.Context, cmd writeDocCommand, defaultFullCod
 	return fmt.Sprintf("文档已创建: %s", resp.FullCodePath), false
 }
 
-// runCreateDirectoryCommand 在 directory（父目录）下创建 package 类型子目录。
+// runCreateDirectoryCommand 在 directory（父目录）下创建子目录。
 func runCreateDirectoryCommand(ctx context.Context, cmd createDirectoryCommand, defaultFullCodePath string) (content string, isError bool) {
 	fullCodePath := resolveDirectoryArg(cmd.Directory, cmd.FullCodePath, defaultFullCodePath)
 	if fullCodePath == "" {
@@ -148,8 +148,8 @@ func runCreateDirectoryCommand(ctx context.Context, cmd createDirectoryCommand, 
 	if name == "" || code == "" {
 		return "create_directory 缺少必需参数 name 或 code（目录名称与代码，如 name=\"文档\" code=\"docs\"）", true
 	}
-	if err := naming.ValidateGoPackageName(code, "目录代码"); err != nil {
-		return "create_directory 目录代码不合法: " + err.Error(), true
+	if err := naming.ValidateGoPackageName(code, "目录英文标识"); err != nil {
+		return "create_directory 目录英文标识不符合要求: " + err.Error(), true
 	}
 	description := cmd.Description
 	tags := strings.TrimSpace(cmd.Tags)

@@ -135,6 +135,7 @@ export function deleteScheduledAgentTask(id: number): Promise<void> {
   return del<void>(`${BASE_URL}/${id}`)
 }
 
+export const cancelScheduledSessionTask = deleteScheduledAgentTask
 export const cancelScheduledAgentTask = deleteScheduledAgentTask
 
 export function pauseScheduledAgentTask(id: number): Promise<void> {

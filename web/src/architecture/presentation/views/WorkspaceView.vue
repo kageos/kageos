@@ -320,7 +320,7 @@
       :full-code-path="updateHistoryFullCodePath"
     />
 
-    <!-- 导入 Go 文件：隐藏的 file input，选中的 .go 会写入当前目录 -->
+    <!-- 导入代码文件：隐藏的 file input，选中的 .go 会写入当前目录 -->
     <input
       ref="importGoFileInputRef"
       type="file"

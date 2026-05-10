@@ -18,7 +18,7 @@
           data-testid="create-board-name"
         />
       </el-form-item>
-      <el-form-item label="讨论区代码" required>
+      <el-form-item label="讨论区英文标识" required>
         <el-input
           v-model="form.code"
           placeholder="英文，如 issue"
@@ -34,7 +34,7 @@
         </el-input>
         <div class="form-tip">
           <el-icon><InfoFilled /></el-icon>
-          只能包含小写字母、数字和下划线，保存后自动带后缀 .board
+          可使用小写英文字母、数字和下划线，保存后自动带后缀 .board
         </div>
       </el-form-item>
       <el-form-item label="描述">
@@ -122,11 +122,11 @@ async function handleSubmit() {
     return
   }
   if (!form.value.code.trim()) {
-    ElMessage.warning('请输入讨论区代码')
+    ElMessage.warning('请输入讨论区英文标识')
     return
   }
   if (!CODE_PATTERN.test(form.value.code)) {
-    ElMessage.warning('讨论区代码只能包含小写字母、数字和下划线')
+    ElMessage.warning('讨论区英文标识只能包含小写英文字母、数字和下划线')
     return
   }
 

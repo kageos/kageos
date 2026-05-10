@@ -56,10 +56,18 @@ type ListScheduledAgentTaskExecutionsTool struct {
 }
 
 type listScheduledAgentTaskExecutionsArgs struct {
-	TaskID   int64  `json:"task_id" schema_desc:"定时智能体任务 ID" schema_required:"true"`
+	TaskID   int64  `json:"task_id" schema_desc:"定时会话任务/session task ID" schema_required:"true"`
 	Status   string `json:"status" schema_desc:"执行状态" schema_enum:"pending,running,success,failed,timeout,cancelled"`
 	Page     *int   `json:"page" schema_desc:"页码"`
 	PageSize *int   `json:"page_size" schema_desc:"每页条数"`
+}
+
+type CancelScheduledSessionTaskTool struct {
+	registry *ToolRegistry
+}
+
+type cancelScheduledSessionTaskArgs struct {
+	TaskID int64 `json:"task_id" schema_desc:"定时会话任务/session task ID" schema_required:"true"`
 }
 
 type RunScheduledAgentTaskNowTool struct {
@@ -67,27 +75,32 @@ type RunScheduledAgentTaskNowTool struct {
 }
 
 type runScheduledAgentTaskNowArgs struct {
-	TaskID int64 `json:"task_id" schema_desc:"定时智能体任务 ID" schema_required:"true"`
+	TaskID int64 `json:"task_id" schema_desc:"定时会话任务/session task ID" schema_required:"true"`
 }
 
 var createScheduledAgentTaskToolDef = toolDefinition[createScheduledAgentTaskArgs](
 	"create_scheduled_agent_task",
-	"创建定时智能体会话任务：到点后会在指定工作台目录下按 goal 自动发起一轮智能体会话。它用于“定时让工作台/智能体做事”；如果目标是定时执行表格新增/更新/删除、表单提交或图表查询，应使用 create_scheduled_task。full_code_path 可不传（默认当前目录）；files 可不传（默认使用当前消息附件）。",
+	"创建定时会话任务/session task：到点后会在指定工作台目录下按 goal 自动发起一轮智能体会话。它用于“定时让工作台/智能体做事”；如果目标是定时执行表格新增/更新/删除、表单提交或图表查询，应使用 create_scheduled_task。full_code_path 可不传（默认当前目录）；files 可不传（默认使用当前消息附件）。",
 )
 
 var listScheduledAgentTasksToolDef = toolDefinition[listScheduledAgentTasksArgs](
 	"list_scheduled_agent_tasks",
-	"查询定时智能体会话任务列表。full_code_path 可不传（默认当前工作台路径），可按 status 过滤。",
+	"查询定时会话任务/session task 列表。full_code_path 可不传（默认当前工作台路径），可按 status 过滤。",
 )
 
 var listScheduledAgentTaskExecutionsToolDef = toolDefinition[listScheduledAgentTaskExecutionsArgs](
 	"list_scheduled_agent_task_executions",
-	"查询某个定时智能体会话任务的执行记录，可用于找到自动创建的工作台 session_id。",
+	"查询某个定时会话任务/session task 的执行记录，可用于找到自动创建的工作台 session_id。",
+)
+
+var cancelScheduledSessionTaskToolDef = toolDefinition[cancelScheduledSessionTaskArgs](
+	"cancel_scheduled_session_task",
+	"取消定时会话任务/session task（create_scheduled_agent_task 创建的任务）。如果要取消 create_scheduled_task 创建的普通函数/表格/表单 task，应使用 cancel_scheduled_task。",
 )
 
 var runScheduledAgentTaskNowToolDef = toolDefinition[runScheduledAgentTaskNowArgs](
 	"run_scheduled_agent_task_now",
-	"立即触发某个定时智能体会话任务执行一次。该工具会异步启动执行并返回执行记录；session_id 通常会在后台执行开始后写入，可稍后查询执行记录获取。",
+	"立即触发某个定时会话任务/session task 执行一次。该工具会异步启动执行并返回执行记录；session_id 通常会在后台执行开始后写入，可稍后查询执行记录获取。",
 )
 
 func (t *CreateScheduledAgentTaskTool) Definition() dto.ToolDef {
@@ -126,6 +139,19 @@ func (t *ListScheduledAgentTaskExecutionsTool) Execute(ctx context.Context, call
 		return toolResult("list_scheduled_agent_task_executions 参数解析失败: "+err.Error(), true)
 	}
 	content, isError := runListScheduledAgentTaskExecutionsTool(ctx, t.registry, args)
+	return toolResult(content, isError)
+}
+
+func (t *CancelScheduledSessionTaskTool) Definition() dto.ToolDef {
+	return cancelScheduledSessionTaskToolDef
+}
+
+func (t *CancelScheduledSessionTaskTool) Execute(ctx context.Context, call ToolCall) ToolResult {
+	args, err := decodeToolArgs[cancelScheduledSessionTaskArgs](call.Args)
+	if err != nil {
+		return toolResult("cancel_scheduled_session_task 参数解析失败: "+err.Error(), true)
+	}
+	content, isError := runCancelScheduledSessionTaskTool(ctx, t.registry, args)
 	return toolResult(content, isError)
 }
 
@@ -308,6 +334,35 @@ func runListScheduledAgentTaskExecutionsTool(ctx context.Context, registry *Tool
 	return formatJSONResult(out)
 }
 
+func runCancelScheduledSessionTaskTool(ctx context.Context, registry *ToolRegistry, args cancelScheduledSessionTaskArgs) (string, bool) {
+	svc, errMsg := scheduledAgentTaskToolService(registry, "cancel_scheduled_session_task")
+	if errMsg != "" {
+		return errMsg, true
+	}
+	requestUser, _, errMsg := scheduledAgentTaskToolRequestUser(ctx, "cancel_scheduled_session_task")
+	if errMsg != "" {
+		return errMsg, true
+	}
+	if args.TaskID <= 0 {
+		return "cancel_scheduled_session_task 需传 task_id（正整数）。", true
+	}
+	task, errMsg := scheduledAgentTaskToolRequireTaskAccess(ctx, svc, args.TaskID, requestUser, "cancel_scheduled_session_task")
+	if errMsg != "" {
+		return errMsg, true
+	}
+	if err := svc.Cancel(ctx, args.TaskID, requestUser); err != nil {
+		return "cancel_scheduled_session_task 调用失败: " + err.Error(), true
+	}
+	out := map[string]interface{}{
+		"id":             args.TaskID,
+		"name":           task.Name,
+		"full_code_path": task.FullCodePath,
+		"status":         model.ScheduledAgentTaskStatusCancelled,
+		"message":        "已取消定时会话任务/session task。",
+	}
+	return formatJSONResult(out)
+}
+
 func runScheduledAgentTaskNowTool(ctx context.Context, registry *ToolRegistry, args runScheduledAgentTaskNowArgs) (string, bool) {
 	svc, errMsg := scheduledAgentTaskToolService(registry, "run_scheduled_agent_task_now")
 	if errMsg != "" {
@@ -357,7 +412,7 @@ func scheduledAgentTaskToolRequireTaskAccess(ctx context.Context, svc *Scheduled
 	if task.CreatedBy == requestUser || task.RequestUser == requestUser {
 		return task, ""
 	}
-	return nil, toolName + " 无权限操作该定时智能体任务。"
+	return nil, toolName + " 无权限操作该定时会话任务/session task。"
 }
 
 func scheduledAgentTaskToolJSONObject(fieldName string, value interface{}) (json.RawMessage, error) {

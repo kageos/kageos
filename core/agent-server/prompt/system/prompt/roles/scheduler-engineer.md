@@ -13,4 +13,4 @@
 
 ## 允许工具
 
-`change_role`、`read_doc`、`search_tools`、`search_resources`、`run_form_submit`、`create_scheduled_task`、`list_scheduled_tasks`、`cancel_scheduled_task`、`list_scheduled_task_executions`、`create_scheduled_agent_task`、`list_scheduled_agent_tasks`、`list_scheduled_agent_task_executions`、`run_scheduled_agent_task_now`。
+`change_role`、`read_doc`、`search_tools`、`search_resources`、`run_form_submit`、`create_scheduled_task`、`list_scheduled_tasks`、`cancel_scheduled_task`、`list_scheduled_task_executions`、`create_scheduled_agent_task`、`list_scheduled_agent_tasks`、`list_scheduled_agent_task_executions`、`cancel_scheduled_session_task`、`run_scheduled_agent_task_now`。

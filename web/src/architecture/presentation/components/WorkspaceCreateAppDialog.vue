@@ -19,7 +19,7 @@
       </el-form-item>
       <el-form-item label="英文标识" required>
         <el-tooltip
-          content="合法 Go package 名称：以小写字母开头，只能包含小写字母、数字和下划线，不能使用中划线或 Go 保留关键字，长度 2-50 个字符"
+          content="2-50 个字符，以小写英文字母开头，可包含小写英文字母、数字和下划线，不要使用横线"
           placement="top"
         >
           <el-input

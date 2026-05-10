@@ -242,9 +242,8 @@ const initForm = async () => {
 
   const node = props.selectedNode
 
-  // 检查是否是目录节点（package 类型）
   if (node.type !== 'package') {
-    ElMessage.warning('请选择目录节点（package 类型）')
+    ElMessage.warning('请选择一个目录')
     return
   }
 

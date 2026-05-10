@@ -75,7 +75,7 @@ export function useWorkspaceNodeToolActions(options: UseWorkspaceNodeToolActions
         }
       }
       if (ok > 0) {
-        ElMessage.success(`已导入 ${ok} 个 Go 文件到目录，可在工作台执行编译以生效。`)
+        ElMessage.success(`已导入 ${ok} 个代码文件，可在工作台更新后生效。`)
         await handleRefreshTree()
       }
       if (fail > 0 && ok === 0) {

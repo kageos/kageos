@@ -165,7 +165,7 @@ func Specs() map[string]Spec {
 			AllowedTools: []string{
 				"change_role", "read_doc", "search_tools", "run_form_submit",
 				"create_scheduled_task", "list_scheduled_tasks", "cancel_scheduled_task", "list_scheduled_task_executions",
-				"create_scheduled_agent_task", "list_scheduled_agent_tasks", "list_scheduled_agent_task_executions", "run_scheduled_agent_task_now",
+				"create_scheduled_agent_task", "list_scheduled_agent_tasks", "list_scheduled_agent_task_executions", "cancel_scheduled_session_task", "run_scheduled_agent_task_now",
 			},
 			Action:           "定时任务工程师负责定时任务配置和执行记录；没有单次能力时交接给产品经理或应用维护工程师。",
 			RouteDescription: "用户要求每天、每周、每月、固定时间或周期执行时进入。先判断是否已有可重入的单次函数；没有就先切到 `product_manager` 或 `maintenance_engineer` 创建单次能力。业务代码只做单次执行，不写后台循环，不自建 cron。",

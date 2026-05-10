@@ -324,10 +324,10 @@
             <el-form-item label="角色名称" prop="name">
               <el-input v-model="roleForm.name" placeholder="例如：目录开发者、表格编辑员" />
             </el-form-item>
-            <el-form-item label="角色代码" prop="code">
+            <el-form-item label="角色英文标识" prop="code">
               <el-input
                 v-model="roleForm.code"
-                placeholder="请输入稳定的英文代码，例如：directory_editor"
+                placeholder="请输入稳定的英文标识，例如：directory_editor"
                 :disabled="!!roleForm.id"
               />
             </el-form-item>
@@ -851,10 +851,10 @@ const assignUserFieldValue = computed(() => createStringFieldValue(assignUserFie
 const roleFormRules: FormRules = {
   name: [{ required: true, message: '请输入角色名称', trigger: 'blur' }],
   code: [
-    { required: true, message: '请输入角色代码', trigger: 'blur' },
+    { required: true, message: '请输入角色英文标识', trigger: 'blur' },
     {
       pattern: /^[a-z][a-z0-9_]*$/,
-      message: '角色代码只能包含小写字母、数字和下划线，且必须以字母开头',
+      message: '角色英文标识需以小写英文字母开头，只能包含小写英文字母、数字和下划线',
       trigger: 'blur'
     },
   ],

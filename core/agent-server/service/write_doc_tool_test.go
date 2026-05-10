@@ -88,7 +88,7 @@ func TestRunWriteDocToolUsesDirectoryAsParentPathWhenCreatingDoc(t *testing.T) {
 	}
 }
 
-func TestRunCreateDirectoryCommandRejectsInvalidGoPackageCode(t *testing.T) {
+func TestRunCreateDirectoryCommandRejectsInvalidDirectoryCode(t *testing.T) {
 	t.Parallel()
 
 	content, isError := runCreateDirectoryCommand(context.Background(), createDirectoryCommand{
@@ -99,7 +99,7 @@ func TestRunCreateDirectoryCommandRejectsInvalidGoPackageCode(t *testing.T) {
 	if !isError {
 		t.Fatalf("expected invalid directory code to be rejected, got content=%s", content)
 	}
-	if !strings.Contains(content, "Go package") {
+	if !strings.Contains(content, "目录英文标识不符合要求") {
 		t.Fatalf("unexpected error content: %s", content)
 	}
 }

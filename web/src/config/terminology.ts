@@ -20,7 +20,7 @@ export const TERMINOLOGY = {
   createWorkspace: '创建工作空间',
   workspaceList: '工作空间列表',
   workspaceName: '工作空间名称',
-  workspaceCode: '工作空间代码',
+  workspaceCode: '工作空间英文标识',
   selectWorkspace: '选择工作空间',
   switchWorkspace: '切换工作空间',
   workspaceDetail: '工作空间详情',
@@ -32,7 +32,7 @@ export const TERMINOLOGY = {
   createBusinessSystem: '创建业务系统',
   businessSystemList: '业务系统列表',
   businessSystemName: '业务系统名称',
-  businessSystemCode: '业务系统代码',
+  businessSystemCode: '业务系统英文标识',
   selectBusinessSystem: '选择业务系统',
   businessSystemDetail: '业务系统详情',
   functionGroup: '业务系统', // 函数组 = 业务系统
@@ -43,7 +43,7 @@ export const TERMINOLOGY = {
   createServiceDirectory: '创建服务目录',
   serviceDirectoryList: '服务目录列表',
   serviceDirectoryName: '服务目录名称',
-  serviceDirectoryCode: '服务目录代码',
+  serviceDirectoryCode: '服务目录英文标识',
   selectServiceDirectory: '选择服务目录',
   package: '服务目录', // Package = 服务目录
   
@@ -116,4 +116,3 @@ export const TERM_MAP = {
 export function translateTerm(codeTerm: string): string {
   return TERM_MAP[codeTerm as keyof typeof TERM_MAP] || codeTerm
 }
-

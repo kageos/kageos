@@ -55,7 +55,7 @@
 
         <el-tab-pane v-if="canEdit && packageNode?.full_code_path" name="import">
           <template #label>
-            <span>导入 Go 文件</span>
+            <span>导入代码文件</span>
           </template>
           <div class="tab-content import-tab-content">
             <div
@@ -65,9 +65,9 @@
               @dragleave.prevent="$emit('set-import-go-dragging', false)"
               @drop.prevent="$emit('import-go-drop', $event)"
             >
-              <span>将 .go 文件拖到此处导入到「{{ packageNode?.name }}」</span>
+              <span>将代码文件拖到此处导入到「{{ packageNode?.name }}」</span>
             </div>
-            <p class="import-tab-hint">支持多个 .go 文件，导入后可在工作台执行编译。</p>
+            <p class="import-tab-hint">支持同时导入多个文件，导入后可在工作台更新。</p>
           </div>
         </el-tab-pane>
 

@@ -36,6 +36,7 @@
     "create_scheduled_agent_task",
     "list_scheduled_agent_tasks",
     "list_scheduled_agent_task_executions",
+    "cancel_scheduled_session_task",
     "run_scheduled_agent_task_now",
     "run_python"
   ],

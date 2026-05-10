@@ -16,6 +16,7 @@ func runtimeTools(r *ToolRegistry) []Tool {
 		&CreateScheduledAgentTaskTool{registry: r},
 		&ListScheduledAgentTasksTool{registry: r},
 		&ListScheduledAgentTaskExecutionsTool{registry: r},
+		&CancelScheduledSessionTaskTool{registry: r},
 		&RunScheduledAgentTaskNowTool{registry: r},
 		&RunPythonTool{},
 		&RunOnSelectFuzzyTool{},

@@ -128,8 +128,8 @@ func validateDirectoryScaffoldItemsForGoPackages(req *dto.BatchCreateDirectoryTr
 			if code != naming.NormalizeGoPackageName(code) {
 				return fmt.Errorf("目录 code 不能包含首尾空格: %s", item.FullCodePath)
 			}
-			if err := naming.ValidateGoPackageName(code, "目录代码"); err != nil {
-				return fmt.Errorf("目录 full_code_path 包含非法 Go package 名称 %q: %w", code, err)
+			if err := naming.ValidateGoPackageName(code, "目录英文标识"); err != nil {
+				return fmt.Errorf("目录路径中包含不支持的英文标识 %q: %w", code, err)
 			}
 		}
 	}

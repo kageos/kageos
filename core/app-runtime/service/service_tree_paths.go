@@ -36,7 +36,7 @@ func validateGoPackagePathSegment(segment string) error {
 	if err := validateBatchWritePathSegment(segment); err != nil {
 		return err
 	}
-	if err := naming.ValidateGoPackageName(segment, "目录代码"); err != nil {
+	if err := naming.ValidateGoPackageName(segment, "目录英文标识"); err != nil {
 		return err
 	}
 	return nil

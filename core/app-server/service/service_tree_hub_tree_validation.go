@@ -115,8 +115,8 @@ func validateHubDirectoryCode(rawCode, location string) (string, error) {
 	if strings.Contains(code, "/") {
 		return "", fmt.Errorf("%s 目录 code 不能包含 /: %s", location, code)
 	}
-	if err := naming.ValidateGoPackageName(code, "目录 code"); err != nil {
-		return "", fmt.Errorf("%s 目录 code 不是合法 Go package 名称: %w", location, err)
+	if err := naming.ValidateGoPackageName(code, "目录英文标识"); err != nil {
+		return "", fmt.Errorf("%s 目录英文标识不符合要求: %w", location, err)
 	}
 	return code, nil
 }

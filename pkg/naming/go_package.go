@@ -75,10 +75,10 @@ func ValidateGoPackageNameLength(code, label string, minLength, maxLength int) e
 		return fmt.Errorf("%s长度不能超过 %d 个字符", label, maxLength)
 	}
 	if !goPackageNameRegex.MatchString(code) {
-		return fmt.Errorf("%s必须是合法的 Go package 名称：以小写字母开头，只能包含小写字母、数字和下划线，不能包含中划线", label)
+		return fmt.Errorf("%s需以小写英文字母开头，只能包含小写英文字母、数字和下划线，不能使用横线", label)
 	}
 	if IsGoKeyword(code) {
-		return fmt.Errorf("%s不能使用 Go 保留关键字：%s", label, code)
+		return fmt.Errorf("%s「%s」已被系统占用，请换一个", label, code)
 	}
 	return nil
 }

@@ -498,7 +498,7 @@ async function onImportGoDrop(e: DragEvent) {
         if (res?.success !== false) ok++
         else {
           fail++
-          Logger.warn('[PackageDetailView]', '导入 Go 文件失败', {
+          Logger.warn('[PackageDetailView]', '导入代码文件失败', {
             fullCodePath,
             fileName,
             error: res?.error
@@ -510,7 +510,7 @@ async function onImportGoDrop(e: DragEvent) {
       }
     }
     if (ok > 0) {
-      ElMessage.success(`已导入 ${ok} 个 Go 文件，可在工作台执行编译以生效。`)
+      ElMessage.success(`已导入 ${ok} 个代码文件，可在工作台更新后生效。`)
       emit('refresh')
     }
     if (fail > 0 && ok === 0) ElMessage.error('导入失败')
@@ -683,7 +683,7 @@ function handleChildClick(child: ServiceTree): void {
   flex-direction: column;
   background: var(--el-bg-color-page);
 
-  // 导入 Go 文件 tab 内
+  // 导入代码文件 tab 内
   .import-tab-content {
     padding: 24px 0;
   }

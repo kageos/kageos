@@ -121,7 +121,7 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
 
   const handleCopy = (node: ServiceTree) => {
     if (node.type !== 'package') {
-      ElMessage.warning('只能复制目录（package类型）')
+      ElMessage.warning('只能复制目录')
       return
     }
 
@@ -189,7 +189,7 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
     }
 
     if (finalTargetNode.type !== 'package') {
-      ElMessage.warning('只能粘贴到目录（package类型）')
+      ElMessage.warning('只能粘贴到目录')
       return
     }
 

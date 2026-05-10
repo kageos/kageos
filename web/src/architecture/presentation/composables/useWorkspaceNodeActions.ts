@@ -74,13 +74,13 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
     }
 
     if (!createDocsForm.value.code.trim()) {
-      ElMessage.warning('请输入文档代码')
+      ElMessage.warning('请输入文档英文标识')
       return
     }
 
     const codePattern = /^[a-z0-9_]+$/
     if (!codePattern.test(createDocsForm.value.code)) {
-      ElMessage.warning('文档代码只能包含小写字母、数字和下划线')
+      ElMessage.warning('文档英文标识只能包含小写英文字母、数字和下划线')
       return
     }
 
