@@ -16,7 +16,7 @@
 ```bash
 go run ./cmd/aosctl init --base-url http://your-ip-or-domain
 go run ./cmd/aosctl doctor --config deploy/prod/aos.yaml
-go run ./cmd/aosctl up --config deploy/prod/aos.yaml
+./prod-up.sh
 go run ./cmd/aosctl verify --config deploy/prod/aos.yaml
 ```
 
@@ -29,11 +29,14 @@ http://your-ip-or-domain
 ## 常用命令
 
 ```bash
+tail -f deploy/prod/aosctl-up.log
 go run ./cmd/aosctl status --config deploy/prod/aos.yaml
 go run ./cmd/aosctl logs --config deploy/prod/aos.yaml main
-go run ./cmd/aosctl down --config deploy/prod/aos.yaml
+./prod-stop.sh
 go run ./cmd/aosctl uninstall --config deploy/prod/aos.yaml --purge-data --force
 ```
+
+`./prod-up.sh` 会在后台执行 `aosctl up`，并把输出写入 `deploy/prod/aosctl-up.log`，SSH 或终端会话关闭后部署流程不会被当前 shell 带停。需要传递 `aosctl up` 参数时直接追加，例如 `./prod-up.sh --image` 或 `./prod-up.sh --wait-timeout 10m`。
 
 `uninstall --purge-data --force` 用于测试重置数据，默认保留 `/data/ai-agent-os/podman_storage`，避免每次重新构建用户应用基础镜像。
 

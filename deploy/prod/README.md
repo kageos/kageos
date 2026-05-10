@@ -108,6 +108,16 @@ site:
 - 编辑 `deploy/prod/aos.yaml` 后重新执行 `go run ./cmd/aosctl up --config deploy/prod/aos.yaml`
 - 改了 `images.main` 且使用发布镜像：执行 `go run ./cmd/aosctl up --config deploy/prod/aos.yaml --image`
 
+SSH/终端会话里推荐用仓库根目录的后台脚本启动：
+
+```bash
+./prod-up.sh
+tail -f deploy/prod/aosctl-up.log
+./prod-stop.sh
+```
+
+`./prod-up.sh` 会脱离当前 shell 后台执行 `aosctl up`；需要传 `aosctl up` 参数时直接追加，例如 `./prod-up.sh --image` 或 `./prod-up.sh --wait-timeout 10m`。如果使用普通用户运行 rootless Podman，且退出 SSH 后服务被系统停掉，需要在宿主机执行 `sudo loginctl enable-linger $(id -un)`。
+
 ## Go 部署器 aosctl
 
 `aosctl` 是生产部署唯一控制入口，负责把部署参数渲染为 Compose、运行时配置和中间件配置；底层仍然使用 Compose 执行容器操作。

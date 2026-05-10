@@ -21,6 +21,30 @@ PID_ABS="$(resolve_path "$PID_FILE")"
 
 cd "$ROOT_DIR"
 
+warn_rootless_podman_linger() {
+  if [[ "${AOS_SKIP_LINGER_CHECK:-0}" == "1" ]]; then
+    return
+  fi
+  if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+    return
+  fi
+  if ! command -v podman >/dev/null 2>&1 || ! podman compose version >/dev/null 2>&1; then
+    return
+  fi
+  if ! command -v loginctl >/dev/null 2>&1; then
+    return
+  fi
+
+  local user_name linger
+  user_name="$(id -un)"
+  linger="$(loginctl show-user "$user_name" -p Linger --value 2>/dev/null || true)"
+  if [[ "$linger" != "yes" ]]; then
+    echo "WARNING: rootless podman compose is available, but systemd linger is not enabled for $user_name."
+    echo "If services stop after SSH/session logout, run: sudo loginctl enable-linger $user_name"
+    echo "Skip this check with: AOS_SKIP_LINGER_CHECK=1 ./prod-up.sh"
+  fi
+}
+
 if [[ ! -f "$CONFIG_ABS" ]]; then
   echo "ERROR: prod config not found: $CONFIG_PATH"
   echo "Run first: go run ./cmd/aosctl init --base-url http://your-ip-or-domain"
@@ -28,6 +52,7 @@ if [[ ! -f "$CONFIG_ABS" ]]; then
 fi
 
 mkdir -p "$(dirname "$LOG_ABS")" "$(dirname "$PID_ABS")"
+warn_rootless_podman_linger
 
 if [[ -f "$PID_ABS" ]]; then
   old_pid="$(tr -d '[:space:]' < "$PID_ABS" || true)"
@@ -49,14 +74,26 @@ fi
   printf '\n\n'
 } >> "$LOG_ABS"
 
+launcher='
+set -Eeuo pipefail
+trap "" HUP
+root_dir="$1"
+config_path="$2"
+shift 2
+cd "$root_dir"
+exec </dev/null
+exec go run ./cmd/aosctl up --config "$config_path" "$@"
+'
+
 if command -v setsid >/dev/null 2>&1; then
-  nohup setsid bash -c 'cd "$1"; shift; exec go run ./cmd/aosctl up --config "$@"' _ "$ROOT_DIR" "$CONFIG_PATH" "$@" >> "$LOG_ABS" 2>&1 &
+  nohup setsid bash -c "$launcher" _ "$ROOT_DIR" "$CONFIG_PATH" "$@" </dev/null >> "$LOG_ABS" 2>&1 &
 else
-  nohup bash -c 'cd "$1"; shift; exec go run ./cmd/aosctl up --config "$@"' _ "$ROOT_DIR" "$CONFIG_PATH" "$@" >> "$LOG_ABS" 2>&1 &
+  nohup bash -c "$launcher" _ "$ROOT_DIR" "$CONFIG_PATH" "$@" </dev/null >> "$LOG_ABS" 2>&1 &
 fi
 
 pid="$!"
 printf '%s\n' "$pid" > "$PID_ABS"
+disown "$pid" 2>/dev/null || true
 
 echo "prod deploy started in background: PID $pid"
 echo "log: $LOG_ABS"
