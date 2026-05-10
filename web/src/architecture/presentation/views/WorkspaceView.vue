@@ -58,6 +58,7 @@
             @delete-board="handleDeleteBoard"
             @delete-function="handleDeleteFunction"
             @delete-directory="handleDeleteDirectory"
+            @bulk-delete="handleBulkDeleteNodes"
             @import-go-files="handleImportGoFiles"
             @publish-to-hub="handlePublishToHub"
             @push-to-hub="handlePushToHub"
@@ -849,7 +850,8 @@ const {
   handleDeleteDoc,
   handleDocDeleted,
   handleDeleteDirectory,
-  handleDeleteFunction
+  handleDeleteFunction,
+  handleBulkDeleteNodes
 } = useWorkspaceNodeActions({
   route,
   router,

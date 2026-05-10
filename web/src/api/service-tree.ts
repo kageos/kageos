@@ -173,28 +173,52 @@ export function copyDirectory(data: {
   }>('/workspace/api/v1/service_tree/copy', data)
 }
 
-export interface DirectoryBundleFile {
+export interface CapabilityBundleFile {
+  package_path?: string
   path: string
   content: string
 }
 
-export interface DirectoryBundleNode {
-  code: string
-  name: string
+export interface CapabilityBundlePackage {
+  path: string
+  name?: string
   description?: string
-  files?: DirectoryBundleFile[]
-  children?: DirectoryBundleNode[]
+  tags?: string
 }
 
-export interface DirectoryBundle {
-  schema_version: number
-  root: DirectoryBundleNode
+export interface CapabilityBundle {
+  schema_version: 'capability.bundle.v1'
+  name?: string
+  files: CapabilityBundleFile[]
+  packages?: CapabilityBundlePackage[]
 }
 
-export function exportDirectoryBundle(sourceDirectoryPath: string) {
-  return get<DirectoryBundle>('/workspace/api/v1/service_tree/export_bundle', {
-    source_directory_path: sourceDirectoryPath
-  })
+export function exportCapabilityBundle(data: {
+  source_directory_path?: string
+  source_directory_paths?: string[]
+  source_root_path?: string
+  name?: string
+}) {
+  return post<CapabilityBundle>('/workspace/api/v1/service_tree/export_capability_bundle', data)
+}
+
+export function installCapabilityBundle(data: {
+  target_directory_path: string
+  overwrite?: boolean
+  force_diff?: boolean
+  bundle: CapabilityBundle
+}) {
+  return post<{
+    message: string
+    directory_count: number
+    file_count: number
+    target_directory_path: string
+    created_paths?: string[]
+    written_paths?: string[]
+    old_version?: string
+    new_version?: string
+    warnings?: string[]
+  }>('/workspace/api/v1/service_tree/install_capability_bundle', data)
 }
 
 // 搜索函数

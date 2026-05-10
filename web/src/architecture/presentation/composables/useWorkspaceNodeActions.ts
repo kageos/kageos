@@ -296,6 +296,73 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
     }
   }
 
+  const handleBulkDeleteNodes = async (nodes: ServiceTreeType[]) => {
+    const deleteNodes = compactBulkDeleteNodes(nodes).filter((node) => {
+      return node.type === 'package' || node.type === 'function' || node.type === 'docs' || node.type === 'board'
+    })
+    if (deleteNodes.length === 0) {
+      ElMessage.warning('请选择可删除的节点')
+      return
+    }
+
+    const names = deleteNodes.slice(0, 5).map((node) => node.name || node.code || node.full_code_path).join('、')
+    const suffix = deleteNodes.length > 5 ? ` 等 ${deleteNodes.length} 个节点` : ''
+    try {
+      await ElMessageBox.confirm(
+        `确定删除 ${deleteNodes.length} 个节点吗？${names}${suffix} 将被删除，且无法恢复。`,
+        '批量删除',
+        {
+          confirmButtonText: '删除',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }
+      )
+
+      const deletedPaths: string[] = []
+      const deletedIds = new Set<number | string>()
+      for (const node of deleteNodes) {
+        if (node.type === 'package') {
+          if (isRootTreeNode(node)) {
+            continue
+          }
+          await deletePackage(node.id)
+        } else if (node.type === 'function') {
+          await deleteServiceTreeFunction(node.id)
+        } else if (node.type === 'docs') {
+          await deleteDocs(node.id)
+        } else if (node.type === 'board') {
+          await deleteBoard(node.id)
+        }
+        if (node.full_code_path) {
+          deletedPaths.push(node.full_code_path)
+        }
+        deletedIds.add(node.id)
+      }
+
+      if (currentFunction.value) {
+        const currentPath = currentFunction.value.full_code_path || ''
+        const currentDeleted = deletedIds.has(currentFunction.value.id) || deletedPaths.some((path) => currentPath === path || currentPath.startsWith(path + '/'))
+        if (currentDeleted) {
+          domainService.setCurrentFunction(null)
+          const parentPath = findNearestRemainingParentPath(currentPath, deletedPaths)
+          if (parentPath) {
+            router.replace({ path: `/workspace${parentPath}`, query: { ...route.query } })
+          } else {
+            router.replace({ path: route.path, query: { ...route.query, _id: undefined, _tab: undefined } })
+          }
+        }
+      }
+
+      await handleRefreshTree()
+      ElMessage.success(`已删除 ${deletedIds.size} 个节点`)
+    } catch (error: any) {
+      if (error !== 'cancel' && error !== 'close') {
+        const errorMessage = error?.response?.data?.msg || error?.message || '批量删除失败'
+        ElMessage.error(errorMessage)
+      }
+    }
+  }
+
   return {
     createDocsDialogVisible,
     creatingDocs,
@@ -311,6 +378,54 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
     handleDeleteDoc,
     handleDocDeleted,
     handleDeleteDirectory,
-    handleDeleteFunction
+    handleDeleteFunction,
+    handleBulkDeleteNodes
   }
+}
+
+function compactBulkDeleteNodes(nodes: ServiceTreeType[]): ServiceTreeType[] {
+  const seen = new Set<number | string>()
+  const uniqueNodes = nodes
+    .filter((node) => {
+      if (!node.id || seen.has(node.id)) return false
+      seen.add(node.id)
+      return Boolean(node.full_code_path)
+    })
+    .sort((left, right) => {
+      const leftPath = left.full_code_path || ''
+      const rightPath = right.full_code_path || ''
+      return leftPath.length - rightPath.length
+    })
+
+  const selectedPackagePaths: string[] = []
+  const compacted: ServiceTreeType[] = []
+  for (const node of uniqueNodes) {
+    const nodePath = node.full_code_path || ''
+    const coveredByPackage = selectedPackagePaths.some((packagePath) => nodePath.startsWith(packagePath + '/'))
+    if (coveredByPackage) {
+      continue
+    }
+    compacted.push(node)
+    if (node.type === 'package' && !isRootTreeNode(node)) {
+      selectedPackagePaths.push(nodePath)
+    }
+  }
+
+  return compacted.sort((left, right) => getServiceTreePathDepth(right) - getServiceTreePathDepth(left))
+}
+
+function getServiceTreePathDepth(node: ServiceTreeType): number {
+  return (node.full_code_path || '').split('/').filter(Boolean).length
+}
+
+function findNearestRemainingParentPath(currentPath: string, deletedPaths: string[]): string {
+  const parts = currentPath.split('/').filter(Boolean)
+  while (parts.length > 0) {
+    parts.pop()
+    const candidate = `/${parts.join('/')}`
+    if (candidate !== '/' && !deletedPaths.some((path) => candidate === path || candidate.startsWith(path + '/'))) {
+      return candidate
+    }
+  }
+  return ''
 }

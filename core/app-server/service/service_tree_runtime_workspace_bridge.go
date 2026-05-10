@@ -127,9 +127,10 @@ func (b *runtimeWorkspaceBridge) batchWriteFiles(
 	}
 
 	runtimeReq := &dto.BatchWriteFilesRuntimeReq{
-		User:  req.User,
-		App:   req.App,
-		Files: req.Files,
+		User:      req.User,
+		App:       req.App,
+		Files:     req.Files,
+		ForceDiff: req.ForceDiff,
 	}
 	runtimeResp, err := b.appCall.BatchWriteFiles(ctx, appModel.HostID, runtimeReq)
 	if err != nil {

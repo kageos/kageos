@@ -61,11 +61,29 @@
               >
                 导出 JSON
               </el-button>
+              <el-button
+                v-if="canImportCapability"
+                text
+                :icon="Upload"
+                @click="requestCapabilityJsonImport"
+                class="path-import-btn"
+                size="small"
+                title="导入 JSON"
+              >
+                导入 JSON
+              </el-button>
             </p>
           </div>
         </div>
       </div>
     </div>
+    <input
+      ref="capabilityImportInputRef"
+      type="file"
+      accept=".json,application/json"
+      class="capability-import-input"
+      @change="handleCapabilityImportFileChange"
+    />
 
     <!-- 主要内容区域 -->
     <div class="main-content">
@@ -103,8 +121,8 @@
 import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { LocationQueryValue } from 'vue-router'
-import { ArrowLeft, Folder, CopyDocument, Link, Edit, Download } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ArrowLeft, Folder, CopyDocument, Link, Edit, Download, Upload } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import { extractWorkspacePath } from '@/utils/route'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
@@ -114,8 +132,8 @@ import { buildPermissionApplyURL, DirectoryPermission, hasPermission } from '@/u
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
 import { useAuthStore } from '@/stores/auth'
-import { updatePackage, addFunctionsToDirectory, exportDirectoryBundle } from '@/api/service-tree'
-import { downloadDirectoryBundleFile } from '@/utils/directoryBundleFile'
+import { updatePackage, addFunctionsToDirectory, exportCapabilityBundle, installCapabilityBundle } from '@/api/service-tree'
+import { downloadCapabilityBundleFile, parseCapabilityBundleJson } from '@/utils/directoryBundleFile'
 import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
 import { Logger } from '@/core/utils/logger'
 import PackageDetailContent from './PackageDetailContent.vue'
@@ -143,6 +161,7 @@ const authStore = useAuthStore() // ⭐ 必须在 showPermissionRequestTab 之�
 const activeTab = ref<DetailTabName>('info')
 const isImportGoDragging = ref(false)
 const importGoLoading = ref(false)
+const capabilityImportInputRef = ref<HTMLInputElement | null>(null)
 
 // ⭐ 判断是否显示权限申请 tab
 // 条件：1. 节点类型是 package 或 app  2. 用户是管理员
@@ -239,6 +258,12 @@ const canExport = computed(() => {
   return props.packageNode?.type === 'package'
     && !!props.packageNode.full_code_path
     && hasPermission(props.packageNode, DirectoryPermission.read)
+})
+
+const canImportCapability = computed(() => {
+  return props.packageNode?.type === 'package'
+    && !!props.packageNode.full_code_path
+    && hasPermission(props.packageNode, DirectoryPermission.write)
 })
 
 watch(
@@ -378,11 +403,62 @@ async function handleExportJson() {
   }
 
   try {
-    const bundle = await exportDirectoryBundle(fullCodePath)
-    downloadDirectoryBundleFile(bundle, fullCodePath)
+    const bundle = await exportCapabilityBundle({
+      source_directory_path: fullCodePath,
+      name: props.packageNode?.name || props.packageNode?.code
+    })
+    downloadCapabilityBundleFile(bundle, fullCodePath)
     ElMessage.success('已开始下载 JSON 文件')
   } catch (error: any) {
     const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '导出失败'
+    ElMessage.error(message)
+  }
+}
+
+function requestCapabilityJsonImport() {
+  if (!props.packageNode?.full_code_path) {
+    ElMessage.warning('路径信息不可用')
+    return
+  }
+  if (capabilityImportInputRef.value) {
+    capabilityImportInputRef.value.value = ''
+    capabilityImportInputRef.value.click()
+  }
+}
+
+async function handleCapabilityImportFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  const fullCodePath = props.packageNode?.full_code_path
+  if (!file || !fullCodePath) {
+    return
+  }
+
+  try {
+    const bundle = parseCapabilityBundleJson(await readFileAsText(file))
+    await ElMessageBox.confirm(
+      `将能力包「${bundle.name || file.name}」导入到 ${fullCodePath}，同名文件会被覆盖。`,
+      '导入 JSON',
+      {
+        confirmButtonText: '覆盖导入',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    const resp = await installCapabilityBundle({
+      target_directory_path: fullCodePath,
+      overwrite: true,
+      force_diff: true,
+      bundle
+    })
+    ElMessage.success(resp.message || '导入成功')
+    emit('refresh')
+  } catch (error: any) {
+    if (error === 'cancel' || error === 'close') {
+      return
+    }
+    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '导入失败'
     ElMessage.error(message)
   }
 }
@@ -719,7 +795,8 @@ function handleChildClick(child: ServiceTree): void {
 
             .path-copy-btn,
             .path-edit-btn,
-            .path-export-btn {
+            .path-export-btn,
+            .path-import-btn {
               flex-shrink: 0;
               color: var(--el-text-color-secondary);
 
@@ -773,5 +850,9 @@ function handleChildClick(child: ServiceTree): void {
       }
     }
   }
+}
+
+.capability-import-input {
+  display: none;
 }
 </style>

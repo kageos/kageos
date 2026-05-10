@@ -23,7 +23,7 @@
         </el-icon>
         <div class="upload-text">
           <p class="upload-tip">点击或拖拽文件到此区域上传</p>
-          <p v-if="accept" class="upload-hint">支持：{{ accept }}</p>
+          <p v-if="accept" class="upload-hint">支持：{{ acceptLabel }}</p>
           <p v-if="maxSize" class="upload-hint">最大：{{ maxSize }}</p>
         </div>
       </div>
@@ -71,6 +71,7 @@ import { ElMessage } from 'element-plus'
 import { UploadFilled, Delete, Document } from '@element-plus/icons-vue'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 import type { UploadProgress } from '@/utils/upload/types'
+import { formatAcceptLabel, isFileAccepted } from '@/utils/upload/accept'
 
 interface Props {
   /** 
@@ -133,6 +134,7 @@ const isImage = computed(() => {
   const ext = fileUrl.value.split('.').pop()?.toLowerCase() || ''
   return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)
 })
+const acceptLabel = computed(() => formatAcceptLabel(props.accept))
 
 /**
  * 解析文件大小限制
@@ -164,29 +166,9 @@ function validateFile(file: File): boolean {
   }
   
   // 检查文件类型
-  if (props.accept && props.accept !== '*') {
-    const accept = props.accept.split(',').map(a => a.trim())
-    const fileName = file.name.toLowerCase()
-    const fileType = file.type.toLowerCase()
-    
-    const isAccepted = accept.some((pattern: string) => {
-      // 扩展名匹配：.jpg
-      if (pattern.startsWith('.')) {
-        return fileName.endsWith(pattern)
-      }
-      // MIME 通配符：image/*
-      if (pattern.includes('/*')) {
-        const prefix = pattern.split('/')[0]
-        return prefix && fileType && fileType.startsWith(prefix)
-      }
-      // MIME 类型：image/jpeg
-      return fileType === pattern
-    })
-    
-    if (!isAccepted) {
-      ElMessage.error(`不支持的文件类型，仅支持：${props.accept}`)
-      return false
-    }
+  if (!isFileAccepted(file, props.accept)) {
+    ElMessage.error(`不支持的文件类型，仅支持：${props.accept}`)
+    return false
   }
   
   return true
@@ -443,4 +425,3 @@ watch(() => props.modelValue, (newValue) => {
   opacity: 1;
 }
 </style>
-

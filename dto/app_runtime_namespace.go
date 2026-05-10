@@ -95,6 +95,7 @@ type UpdateAppReq struct {
 	Summary           string             `json:"summary,omitempty"`            // 变更摘要（详情），兼容旧字段，如果未提供则使用 Requirement + ChangeDescription 组合
 	WriteOnly         bool               `json:"write_only,omitempty"`         // 为 true 时仅写文件不编译不部署
 	SkipBuild         bool               `json:"skip_build,omitempty"`         // 兼容旧字段：等价于 write_only
+	ForceDiff         bool               `json:"force_diff,omitempty"`         // 为 true 时清理 api-logs，让本次更新重新产生 add diff
 }
 
 // BuildSummary 返回本次更新的摘要信息，优先使用 Summary。
