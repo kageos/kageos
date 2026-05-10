@@ -573,7 +573,7 @@
           />
         </el-form-item>
 
-        <el-form-item label="工作空间代码" prop="app">
+        <el-form-item label="工作空间英文标识" prop="app">
           <el-input
             v-model="assignForm.app"
             placeholder="例如：crm"
@@ -915,7 +915,7 @@ const assignFormRules: FormRules = {
     {
       validator: (_rule, value, callback) => {
         if (!String(value || '').trim()) {
-          callback(new Error('请输入工作空间代码'))
+          callback(new Error('请输入工作空间英文标识'))
         } else {
           callback()
         }

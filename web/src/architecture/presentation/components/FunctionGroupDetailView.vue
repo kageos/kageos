@@ -23,7 +23,7 @@
         </template>
         <el-descriptions :column="2" border>
           <el-descriptions-item label="函数组名称">{{ groupName }}</el-descriptions-item>
-          <el-descriptions-item label="函数组代码">{{ fullGroupCode }}</el-descriptions-item>
+          <el-descriptions-item label="函数组英文标识">{{ fullGroupCode }}</el-descriptions-item>
           <el-descriptions-item label="函数数量" :span="2">
             {{ functions.length }}
           </el-descriptions-item>

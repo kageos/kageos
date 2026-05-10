@@ -1,0 +1,2035 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>工作台底部浮动对话 Mock</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #070b12;
+      --panel: rgba(12, 18, 32, 0.82);
+      --panel-solid: #11192d;
+      --line: rgba(128, 151, 198, 0.22);
+      --line-strong: rgba(104, 119, 255, 0.48);
+      --text: #edf4ff;
+      --muted: #8e9fbb;
+      --soft: #61718c;
+      --blue: #37a3ff;
+      --violet: #776bff;
+      --green: #2bd59f;
+      --amber: #f6bd4d;
+      --red: #ff6d7e;
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #02050b;
+      color: var(--text);
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    }
+
+    button,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .screen {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      min-width: 1120px;
+      min-height: 720px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 48% 40%, rgba(52, 162, 255, 0.13), transparent 34%),
+        radial-gradient(circle at 86% 11%, rgba(119, 107, 255, 0.15), transparent 28%),
+        linear-gradient(180deg, #070c18 0%, #060912 100%);
+    }
+
+    .screen::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(72, 107, 164, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(72, 107, 164, 0.045) 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events: none;
+      mask-image: linear-gradient(180deg, transparent 0%, #000 10%, #000 80%, transparent 100%);
+    }
+
+    .topbar {
+      position: absolute;
+      top: 16px;
+      left: 18px;
+      right: 18px;
+      height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px;
+      border: 1px solid rgba(106, 129, 178, 0.22);
+      border-radius: 22px;
+      background: rgba(10, 15, 27, 0.72);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.24);
+      backdrop-filter: blur(22px);
+      z-index: 2;
+    }
+
+    .workspace-button,
+    .ghost,
+    .primary,
+    .user-menu {
+      height: 42px;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(123, 146, 190, 0.25);
+      background: rgba(18, 27, 48, 0.88);
+      color: #d7e5fa;
+      padding: 0 14px;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .workspace-button {
+      min-width: 184px;
+      height: 46px;
+      color: white;
+    }
+
+    .primary {
+      border: 0;
+      background: linear-gradient(135deg, #6877ff, #7364ee);
+      color: white;
+      padding: 0 20px;
+      box-shadow: 0 10px 28px rgba(96, 113, 255, 0.24);
+    }
+
+    .top-left,
+    .top-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #2d98ff, #6375ff);
+      font-weight: 850;
+    }
+
+    .avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 50% 40%, #4ff7e1 0 10%, transparent 11%),
+        radial-gradient(circle at 36% 60%, #7b7cf6 0 12%, transparent 13%),
+        radial-gradient(circle at 66% 62%, #37a3ff 0 12%, transparent 13%),
+        #101d31;
+      border: 1px solid rgba(78, 211, 219, 0.55);
+    }
+
+    .layout {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      top: 112px;
+      bottom: 18px;
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 18px;
+      z-index: 1;
+    }
+
+    .left,
+    .main {
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid rgba(91, 113, 157, 0.22);
+      border-radius: 22px;
+      background: rgba(12, 18, 33, 0.75);
+      box-shadow: 0 18px 44px rgba(0, 0, 0, 0.18);
+      backdrop-filter: blur(18px);
+    }
+
+    .left {
+      padding: 16px;
+    }
+
+    .search {
+      height: 42px;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      border: 1px solid rgba(120, 143, 184, 0.26);
+      border-radius: 12px;
+      background: rgba(21, 30, 51, 0.9);
+      color: #667895;
+      font-size: 14px;
+    }
+
+    .tree {
+      margin-top: 26px;
+      display: grid;
+      gap: 14px;
+      color: #dce8fb;
+      font-size: 14px;
+    }
+
+    .tree-row {
+      display: grid;
+      grid-template-columns: 16px 26px 1fr;
+      align-items: center;
+      gap: 8px;
+      min-height: 24px;
+    }
+
+    .tree-row.sub {
+      padding-left: 20px;
+    }
+
+    .chev {
+      color: #7786a3;
+      font-size: 10px;
+    }
+
+    .folder {
+      width: 18px;
+      height: 14px;
+      border-radius: 3px;
+      background: #8c67f5;
+      position: relative;
+    }
+
+    .folder::before {
+      content: "";
+      position: absolute;
+      left: 1px;
+      top: -4px;
+      width: 11px;
+      height: 5px;
+      border-radius: 3px 3px 0 0;
+      background: #8c67f5;
+    }
+
+    .main {
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .page-head {
+      height: 124px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 26px 34px;
+      border-bottom: 1px solid rgba(91, 113, 157, 0.22);
+    }
+
+    .title-block {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .big-folder {
+      width: 52px;
+      height: 42px;
+      border-radius: 8px;
+      background: #8c67f5;
+      position: relative;
+      box-shadow: inset 0 -7px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    .big-folder::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: -7px;
+      width: 26px;
+      height: 10px;
+      border-radius: 6px 6px 0 0;
+      background: #8c67f5;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 30px;
+      letter-spacing: 0;
+    }
+
+    .path {
+      margin-top: 8px;
+      color: #c7d4ea;
+      font-size: 14px;
+    }
+
+    .count-badge {
+      min-width: 20px;
+      height: 20px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--red);
+      color: white;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .page-body {
+      padding: 24px 34px 180px;
+      overflow: hidden;
+    }
+
+    .tabs {
+      height: 50px;
+      width: min(100%, 760px);
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(88px, 1fr);
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      border: 1px solid rgba(113, 135, 178, 0.24);
+      border-radius: 24px;
+      background: rgba(31, 42, 68, 0.9);
+      overflow: hidden;
+    }
+
+    .tab {
+      height: 36px;
+      min-width: 0;
+      display: grid;
+      place-items: center;
+      padding: 0 12px;
+      border-radius: 16px;
+      color: #9fb0cb;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tab.active {
+      background: rgba(34, 113, 205, 0.2);
+      color: #53aeff;
+    }
+
+    .info-grid {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .stat {
+      min-height: 118px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 20px;
+      border: 1px solid rgba(97, 120, 168, 0.28);
+      border-radius: 20px;
+      background: rgba(18, 27, 48, 0.74);
+    }
+
+    .stat-icon {
+      width: 54px;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      border: 1px solid rgba(118, 145, 210, 0.34);
+      background: rgba(69, 105, 191, 0.32);
+      font-weight: 800;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .value {
+      margin-top: 8px;
+      font-size: 24px;
+      font-weight: 850;
+    }
+
+    .section-title {
+      margin-top: 32px;
+      font-size: 22px;
+      font-weight: 850;
+    }
+
+    .cards {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .feature-card {
+      min-height: 180px;
+      padding: 22px;
+      border: 1px solid rgba(97, 120, 168, 0.28);
+      border-radius: 20px;
+      background: rgba(14, 22, 39, 0.82);
+    }
+
+    .feature-card h2 {
+      margin: 24px 0 12px;
+      font-size: 22px;
+    }
+
+    .feature-card p {
+      margin: 0;
+      color: #aebbd0;
+      line-height: 1.65;
+      font-size: 13px;
+    }
+
+    .dock {
+      width: auto;
+      min-height: 54px;
+      position: relative;
+      display: block;
+      margin: 0 14px 8px 158px;
+      padding: 6px;
+      border: 1px solid rgba(130, 153, 190, 0.22);
+      border-radius: 14px;
+      background: rgba(9, 14, 25, 0.68);
+      box-shadow: 0 16px 42px rgba(0, 0, 0, 0.24);
+      backdrop-filter: blur(22px);
+      transition: width 180ms ease, transform 180ms ease, opacity 180ms ease;
+    }
+
+    .dock.is-hidden {
+      width: 132px;
+      margin-left: 158px;
+      opacity: 0.88;
+    }
+
+    .dock.is-hidden .dock-list {
+      display: none;
+    }
+
+    .dock.is-hidden .dock-toggle {
+      position: static;
+      width: 100%;
+    }
+
+    .dock-list {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(130px, 1fr));
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .dock-toggle {
+      position: absolute;
+      left: -146px;
+      top: 6px;
+      width: 132px;
+      height: 42px;
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      border: 1px solid rgba(83, 174, 255, 0.44);
+      border-radius: 12px;
+      background:
+        linear-gradient(135deg, rgba(34, 113, 205, 0.34), rgba(119, 107, 255, 0.18)),
+        rgba(12, 22, 38, 0.78);
+      color: #dff1ff;
+      box-shadow: 0 12px 30px rgba(37, 110, 194, 0.2);
+    }
+
+    .dock-total {
+      min-width: 18px;
+      height: 18px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: rgba(255, 109, 126, 0.9);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .dock-toggle-label {
+      color: #dcecff;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .dock-card {
+      position: relative;
+      width: 100%;
+      height: 42px;
+      min-height: 42px;
+      display: grid;
+      grid-template-columns: 10px minmax(0, 1fr) auto;
+      justify-content: stretch;
+      justify-items: start;
+      align-items: center;
+      gap: 7px;
+      padding: 0 10px;
+      border: 1px solid rgba(126, 151, 197, 0.2);
+      border-radius: 10px;
+      background: rgba(30, 42, 68, 0.5);
+      color: #d7e5fa;
+      text-align: left;
+    }
+
+    .dock-card:hover,
+    .dock-card.active {
+      border-color: rgba(87, 182, 255, 0.5);
+      background: rgba(24, 51, 83, 0.62);
+    }
+
+    .dock-card.active::before {
+      content: "▼";
+      position: absolute;
+      left: 50%;
+      top: -20px;
+      transform: translateX(-50%);
+      color: #8ed0ff;
+      font-size: 16px;
+      line-height: 1;
+      text-shadow: 0 0 16px rgba(83, 174, 255, 0.72);
+      pointer-events: none;
+    }
+
+    .dock-card.is-running {
+      border-color: rgba(43, 213, 159, 0.28);
+      background: rgba(21, 54, 50, 0.42);
+    }
+
+    .dock-card.is-waiting {
+      border-color: rgba(246, 189, 77, 0.3);
+      background: rgba(58, 45, 24, 0.46);
+    }
+
+    .dock-card.is-output {
+      border-color: rgba(55, 163, 255, 0.3);
+      background: rgba(24, 48, 77, 0.46);
+    }
+
+    .dock-card.is-done {
+      border-color: rgba(119, 107, 255, 0.28);
+      background: rgba(41, 38, 76, 0.46);
+    }
+
+    .rail-copy {
+      min-width: 0;
+      display: block;
+      line-height: 1.2;
+    }
+
+    .rail-label {
+      display: block;
+      overflow: hidden;
+      color: #d7e5fa;
+      font-size: 12px;
+      font-weight: 780;
+      line-height: 1.15;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .rail-sub {
+      display: block;
+      margin-top: 2px;
+      overflow: hidden;
+      color: #8596b2;
+      font-size: 10px;
+      line-height: 1.1;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .dock-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 16px rgba(43, 213, 159, 0.6);
+    }
+
+    .dock-dot.wait {
+      background: var(--amber);
+      box-shadow: 0 0 16px rgba(246, 189, 77, 0.6);
+    }
+
+    .dock-dot.done {
+      background: var(--violet);
+      box-shadow: 0 0 16px rgba(119, 107, 255, 0.55);
+    }
+
+    .dock-dot.output {
+      background: var(--blue);
+      box-shadow: 0 0 16px rgba(55, 163, 255, 0.58);
+    }
+
+    .dock-card .count-badge {
+      min-width: 18px;
+      height: 18px;
+      font-size: 11px;
+      justify-self: end;
+    }
+
+    .detail-panel {
+      position: absolute;
+      left: 586px;
+      right: 48px;
+      bottom: 104px;
+      height: min(456px, calc(100vh - 250px));
+      display: grid;
+      grid-template-columns: 1fr 236px;
+      border: 1px solid rgba(130, 153, 190, 0.28);
+      border-radius: 18px;
+      background: rgba(8, 13, 24, 0.78);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(28px) saturate(140%);
+      overflow: hidden;
+      z-index: 15;
+      transform: translateY(14px);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 180ms ease, opacity 180ms ease;
+    }
+
+    .detail-panel.is-open {
+      transform: translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .detail-chat {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .detail-head {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      border-bottom: 1px solid rgba(130, 153, 190, 0.17);
+    }
+
+    .detail-title {
+      font-weight: 850;
+    }
+
+    .detail-status {
+      margin-left: 8px;
+      color: #87e1bb;
+      font-size: 12px;
+    }
+
+    .messages {
+      flex: 1;
+      overflow: auto;
+      padding: 18px;
+      display: grid;
+      align-content: start;
+      gap: 12px;
+    }
+
+    .bubble,
+    .tool {
+      max-width: 78%;
+      padding: 12px 14px;
+      border: 1px solid rgba(130, 153, 190, 0.18);
+      border-radius: 14px;
+      background: rgba(23, 34, 57, 0.68);
+      color: #dbe9ff;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .bubble.user {
+      justify-self: end;
+      background: rgba(91, 104, 255, 0.24);
+      border-color: rgba(128, 133, 255, 0.28);
+    }
+
+    .tool {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      background: rgba(20, 37, 49, 0.72);
+      border-color: rgba(43, 213, 159, 0.24);
+      color: #b7ead8;
+      font-size: 12px;
+    }
+
+    .detail-info {
+      padding: 14px;
+      border-left: 1px solid rgba(130, 153, 190, 0.17);
+      background: rgba(13, 20, 35, 0.54);
+    }
+
+    .detail-info h3 {
+      margin: 0 0 14px;
+      font-size: 14px;
+    }
+
+    .info-item {
+      margin-bottom: 10px;
+      padding: 12px;
+      border: 1px solid rgba(118, 143, 191, 0.2);
+      border-radius: 12px;
+      background: rgba(19, 29, 50, 0.62);
+    }
+
+    .info-item b {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 13px;
+    }
+
+    .info-item span {
+      color: #8a9ab6;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .composer-shell {
+      position: absolute;
+      left: max(162px, 12vw);
+      right: 86px;
+      bottom: 24px;
+      z-index: 20;
+      transition: transform 180ms ease, opacity 180ms ease, left 180ms ease, right 180ms ease;
+    }
+
+    .composer-shell.is-collapsed {
+      transform: translateY(212px);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .ticker {
+      min-height: 46px;
+      max-height: 86px;
+      display: flex;
+      flex-direction: column;
+      margin: 0 14px 8px;
+      padding: 8px 12px;
+      border: 1px solid rgba(104, 119, 255, 0.28);
+      border-radius: 12px;
+      background: rgba(9, 14, 25, 0.72);
+      box-shadow: 0 16px 42px rgba(0, 0, 0, 0.24);
+      backdrop-filter: blur(22px);
+      overflow: hidden;
+    }
+
+    .ticker-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 5px;
+      color: #b9c9e4;
+      font-size: 12px;
+    }
+
+    .ticker-head strong {
+      color: #88d6ff;
+    }
+
+    .ticker-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .ticker-max {
+      width: 28px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(124, 146, 189, 0.24);
+      border-radius: 7px;
+      background: rgba(30, 42, 68, 0.68);
+      color: #d7e5fa;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .ticker-body {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 230px;
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .log-window {
+      height: 36px;
+      overflow: hidden;
+      color: #d7e5fa;
+      font-size: 13px;
+      line-height: 18px;
+    }
+
+    .artifact-panel {
+      min-height: 36px;
+      overflow: hidden;
+      padding-left: 12px;
+      border-left: 1px solid rgba(130, 153, 190, 0.18);
+      color: #d7e5fa;
+    }
+
+    .artifact-head {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      color: #8e9fbb;
+      font-size: 12px;
+    }
+
+    .artifact-count {
+      color: #8ed0ff;
+      font-weight: 850;
+    }
+
+    .artifact-item {
+      height: 32px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      padding: 0 8px;
+      border: 1px solid rgba(83, 174, 255, 0.18);
+      border-radius: 8px;
+      background: rgba(14, 27, 45, 0.62);
+    }
+
+    .artifact-item + .artifact-item {
+      display: none;
+    }
+
+    .artifact-name {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #dce9fb;
+      font-size: 12px;
+      font-weight: 760;
+    }
+
+    .artifact-copy {
+      min-width: 0;
+    }
+
+    .artifact-meta {
+      display: block;
+      margin-top: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #8a9ab6;
+      font-size: 11px;
+    }
+
+    .artifact-tag {
+      height: 22px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 7px;
+      border-radius: 7px;
+      background: rgba(43, 213, 159, 0.14);
+      color: #7df5c4;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .artifact-mini-count {
+      margin-left: 6px;
+      padding-left: 6px;
+      border-left: 1px solid rgba(125, 245, 196, 0.24);
+      color: #dff7ef;
+    }
+
+    .composer-shell.is-log-expanded .artifact-mini-count {
+      display: none;
+    }
+
+    .log-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      transform: translateY(var(--log-y, 0));
+      transition: transform 240ms ease;
+    }
+
+    .log-list li {
+      height: 18px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .composer-shell.is-log-expanded {
+      left: 42px;
+      right: 42px;
+    }
+
+    .composer-shell.is-log-expanded .ticker {
+      height: min(540px, calc(100vh - 268px));
+      min-height: 360px;
+      max-height: none;
+    }
+
+    .composer-shell.is-log-expanded .ticker-body {
+      grid-template-columns: minmax(0, 1fr) 288px;
+    }
+
+    .composer-shell.is-log-expanded .log-window {
+      height: 100%;
+      overflow: auto;
+    }
+
+    .composer-shell.is-log-expanded .log-list {
+      transform: none !important;
+    }
+
+    .composer-shell.is-log-expanded .artifact-panel {
+      overflow: auto;
+      padding: 12px;
+      border: 1px solid rgba(130, 153, 190, 0.18);
+      border-radius: 12px;
+      background: rgba(12, 20, 35, 0.48);
+    }
+
+    .composer-shell.is-log-expanded .artifact-head {
+      display: flex;
+    }
+
+    .composer-shell.is-log-expanded .artifact-item {
+      height: auto;
+      min-height: 58px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+
+    .composer-shell.is-log-expanded .artifact-item + .artifact-item {
+      display: grid;
+    }
+
+    .composer {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 12px;
+      align-items: stretch;
+      min-height: 64px;
+      padding: 10px 12px;
+      border: 1px solid rgba(130, 153, 190, 0.26);
+      border-radius: 14px;
+      background:
+        linear-gradient(180deg, rgba(12, 18, 32, 0.84), rgba(8, 12, 22, 0.68)),
+        rgba(8, 12, 22, 0.72);
+      box-shadow:
+        var(--shadow),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(24px) saturate(140%);
+    }
+
+    .composer-tools,
+    .composer-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .icon-btn,
+    .model,
+    .send,
+    .hide-btn {
+      height: 42px;
+      min-width: 42px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(124, 146, 189, 0.22);
+      border-radius: 8px;
+      background: rgba(30, 42, 68, 0.78);
+      color: #c8d8ef;
+      font-weight: 800;
+    }
+
+    .model {
+      width: 112px;
+      padding: 0 10px;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .send {
+      width: 108px;
+      border: 0;
+      background: linear-gradient(135deg, #6d70ff, #8b5cf6);
+      color: white;
+      box-shadow: 0 10px 28px rgba(106, 112, 255, 0.26);
+    }
+
+    .send.is-queue {
+      background: linear-gradient(135deg, #f0a742, #8b5cf6);
+    }
+
+    .input-wrap {
+      min-width: 0;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 10px;
+      padding: 0 10px;
+      border: 1px solid rgba(124, 146, 189, 0.16);
+      border-radius: 10px;
+      background: rgba(10, 16, 29, 0.32);
+    }
+
+    .path-pill {
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 10px;
+      border: 1px solid rgba(51, 163, 255, 0.25);
+      border-radius: 8px;
+      background: rgba(51, 163, 255, 0.13);
+      color: #8ed0ff;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    textarea {
+      width: 100%;
+      height: 46px;
+      resize: none;
+      border: 0;
+      outline: none;
+      background: transparent;
+      color: #e6f0ff;
+      padding: 12px 0 8px;
+      line-height: 20px;
+      font-size: 14px;
+    }
+
+    textarea::placeholder {
+      color: #8291aa;
+    }
+
+    .collapsed-launcher {
+      position: absolute;
+      left: 50%;
+      bottom: 18px;
+      z-index: 21;
+      transform: translateX(-50%) translateY(90px);
+      opacity: 0;
+      pointer-events: none;
+      height: 46px;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 16px;
+      border: 1px solid rgba(130, 153, 190, 0.3);
+      border-radius: 999px;
+      background: rgba(10, 16, 29, 0.78);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(24px);
+      color: #dce9fb;
+      transition: transform 180ms ease, opacity 180ms ease;
+    }
+
+    .collapsed-launcher.is-visible {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .collapsed-launcher.has-update {
+      border-color: rgba(83, 174, 255, 0.5);
+      box-shadow:
+        var(--shadow),
+        0 0 0 1px rgba(83, 174, 255, 0.16),
+        0 0 26px rgba(83, 174, 255, 0.2);
+    }
+
+    .collapsed-launcher .pulse {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 18px rgba(43, 213, 159, 0.8);
+    }
+
+    .session-center {
+      position: absolute;
+      inset: 0;
+      z-index: 42;
+      display: grid;
+      place-items: center;
+      padding: 56px;
+      background: rgba(2, 5, 11, 0.42);
+      backdrop-filter: blur(7px);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 160ms ease, visibility 160ms ease;
+    }
+
+    .session-center.is-open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    .session-dialog {
+      width: min(920px, calc(100vw - 96px));
+      height: min(620px, calc(100vh - 126px));
+      display: grid;
+      grid-template-rows: auto auto auto 1fr;
+      overflow: hidden;
+      border: 1px solid rgba(130, 153, 190, 0.3);
+      border-radius: 18px;
+      background:
+        linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(8, 13, 24, 0.9)),
+        rgba(10, 16, 29, 0.9);
+      box-shadow: 0 34px 100px rgba(0, 0, 0, 0.52);
+    }
+
+    .session-dialog-head {
+      height: 66px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px 0 22px;
+      border-bottom: 1px solid rgba(130, 153, 190, 0.18);
+    }
+
+    .session-dialog-title {
+      display: grid;
+      gap: 4px;
+    }
+
+    .session-dialog-title strong {
+      font-size: 17px;
+    }
+
+    .session-dialog-title span {
+      color: #8e9fbb;
+      font-size: 12px;
+    }
+
+    .session-close {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(124, 146, 189, 0.24);
+      border-radius: 10px;
+      background: rgba(30, 42, 68, 0.72);
+      color: #d7e5fa;
+      font-weight: 850;
+    }
+
+    .session-dialog-tools {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 14px 18px;
+      border-bottom: 1px solid rgba(130, 153, 190, 0.14);
+    }
+
+    .session-tabs,
+    .session-filters {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .session-tab,
+    .session-filter {
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 12px;
+      border: 1px solid rgba(124, 146, 189, 0.22);
+      border-radius: 10px;
+      background: rgba(30, 42, 68, 0.56);
+      color: #b9c9e4;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .session-tab.active,
+    .session-filter.active {
+      border-color: rgba(83, 174, 255, 0.46);
+      background: rgba(34, 113, 205, 0.2);
+      color: #8ed0ff;
+    }
+
+    .session-search {
+      height: 36px;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      border: 1px solid rgba(124, 146, 189, 0.2);
+      border-radius: 10px;
+      background: rgba(10, 16, 29, 0.5);
+    }
+
+    .session-search input {
+      width: 100%;
+      border: 0;
+      outline: none;
+      background: transparent;
+      color: #e6f0ff;
+      font: inherit;
+      font-size: 13px;
+    }
+
+    .session-search input::placeholder {
+      color: #7586a4;
+    }
+
+    .session-list {
+      overflow: auto;
+      padding: 12px 18px 18px;
+    }
+
+    .session-row {
+      display: grid;
+      grid-template-columns: 10px minmax(0, 1fr) auto auto;
+      gap: 12px;
+      align-items: center;
+      min-height: 68px;
+      margin-bottom: 10px;
+      padding: 12px;
+      border: 1px solid rgba(126, 151, 197, 0.18);
+      border-radius: 12px;
+      background: rgba(17, 25, 45, 0.62);
+      color: #d7e5fa;
+      text-align: left;
+    }
+
+    .session-row:hover {
+      border-color: rgba(83, 174, 255, 0.42);
+      background: rgba(24, 51, 83, 0.48);
+    }
+
+    .session-row.is-hidden {
+      display: none;
+    }
+
+    .session-row-title {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 14px;
+      font-weight: 820;
+    }
+
+    .session-row-sub {
+      display: block;
+      margin-top: 5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #8798b5;
+      font-size: 12px;
+    }
+
+    .session-row-meta {
+      color: #9fb0cb;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .session-open {
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 12px;
+      border: 1px solid rgba(83, 174, 255, 0.32);
+      border-radius: 9px;
+      background: rgba(34, 113, 205, 0.18);
+      color: #8ed0ff;
+      font-size: 12px;
+    }
+
+    .session-empty {
+      display: none;
+      padding: 46px 0;
+      color: #8e9fbb;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    .session-empty.is-visible {
+      display: block;
+    }
+
+    .session-debug {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+      padding: 10px 18px;
+      border-bottom: 1px solid rgba(130, 153, 190, 0.12);
+      background: rgba(8, 13, 24, 0.22);
+    }
+
+    .session-debug button,
+    .session-debug label {
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid rgba(124, 146, 189, 0.24);
+      border-radius: 8px;
+      background: rgba(30, 42, 68, 0.74);
+      color: #c8d8ef;
+      padding: 0 9px;
+      font-size: 11px;
+    }
+
+    .session-debug button.active {
+      border-color: rgba(83, 174, 255, 0.5);
+      color: #8ed0ff;
+      background: rgba(34, 113, 205, 0.22);
+    }
+
+    @media (max-width: 1180px) {
+      .dock {
+        margin-left: 142px;
+      }
+
+      .dock-toggle {
+        left: -130px;
+        width: 118px;
+      }
+
+      .dock-list {
+        grid-template-columns: repeat(4, minmax(112px, 1fr));
+      }
+
+      .detail-panel {
+        left: 546px;
+        right: 34px;
+      }
+
+      .composer-shell {
+        left: 90px;
+        right: 34px;
+      }
+
+    }
+  </style>
+</head>
+<body>
+  <main class="screen">
+    <header class="topbar">
+      <div class="top-left">
+        <div class="workspace-button"><span class="logo">工</span><span>工具库</span></div>
+        <button class="ghost">设置</button>
+      </div>
+      <div class="top-right">
+        <button class="ghost">搜索</button>
+        <button class="primary">应用中心</button>
+        <div class="user-menu"><span class="avatar"></span><span>system</span></div>
+      </div>
+    </header>
+
+    <section class="layout">
+      <aside class="left">
+        <div class="search">搜索目录或名称...</div>
+        <div class="tree">
+          <div class="tree-row"><span class="chev">v</span><span class="folder"></span><b>工具库</b></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>压缩包工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>音频工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>图表工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>数据库工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>文档工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>文件处理</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>html工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>图片工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>JSON 工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>PDF 工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>表格工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>OCR 工具</span></div>
+        </div>
+      </aside>
+
+      <section class="main">
+        <div class="page-head">
+          <div class="title-block">
+            <div class="big-folder"></div>
+          <div>
+            <h1>工具库</h1>
+            <div class="path">系统 / 工具库</div>
+          </div>
+        </div>
+      </div>
+        <div class="page-body">
+          <div class="tabs">
+            <span class="tab active">目录信息</span>
+            <span class="tab">导入 Go 文件</span>
+            <span class="tab">定时会话</span>
+            <span class="tab">权限审批</span>
+          </div>
+          <div class="info-grid">
+            <div class="stat"><span class="stat-icon">文</span><div><div class="label">目录名称</div><div class="value">工具库</div></div></div>
+            <div class="stat"><span class="stat-icon" style="background: rgba(43, 213, 159, 0.14); color: #7df5c4;">钥</span><div><div class="label">目录代码</div><div class="value" style="color:#6af370;">tools</div></div></div>
+            <div class="stat"><span class="stat-icon" style="background: rgba(246, 189, 77, 0.14); color: #ffd37a;">箱</span><div><div class="label">子项数量</div><div class="value">17 项</div></div></div>
+            <div class="stat"><span class="stat-icon">图</span><div><div class="label">本目录调用次数</div><div class="value">0 次</div></div></div>
+            <div class="stat"><span class="stat-icon">星</span><div><div class="label">创建者</div><div class="value" style="font-size:16px;">system</div></div></div>
+            <div class="stat"><span class="stat-icon" style="background: rgba(139, 92, 246, 0.2);">员</span><div><div class="label">管理员</div><div class="value" style="font-size:16px;">system</div></div></div>
+          </div>
+          <div class="section-title">子目录和函数</div>
+          <div class="cards">
+            <article class="feature-card"><span class="big-folder" style="display:block; width:44px; height:34px;"></span><h2>压缩包工具</h2><p>通用压缩包处理能力，支持查看和解出 ZIP、TAR、TAR.GZ、TGZ 等常见资料包。</p></article>
+            <article class="feature-card"><span class="big-folder" style="display:block; width:44px; height:34px;"></span><h2>音频工具</h2><p>基于 FFmpeg 的音频提取、转码、裁剪、信息读取和波形图生成能力。</p></article>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section class="detail-panel" id="detailPanel">
+      <div class="detail-chat">
+        <div class="detail-head">
+          <div><span class="detail-title" id="detailTitle">图表工具 · 生成月报图</span><span class="detail-status" id="detailStatus">SSE 连接中</span></div>
+          <button class="ghost" id="closeDetail" style="height:34px;">收起</button>
+        </div>
+        <div class="messages" id="messages">
+          <div class="bubble user">帮我把这个月各渠道线索做成一张对比图，直接生成图片。</div>
+          <div class="bubble">我会先检查当前目录可用的图表函数和输入 schema，然后读取表数据生成图表。</div>
+          <div class="tool"><span>search_tools · ok</span><span>找到 3 个候选工具</span></div>
+          <div class="tool"><span>run_table_search · running</span><span>正在拉取第 2 页</span></div>
+        </div>
+      </div>
+      <aside class="detail-info">
+        <h3>关键信息</h3>
+        <div class="info-item"><b>当前目录</b><span>系统 / 工具库 / 图表工具</span></div>
+        <div class="info-item"><b>工具调用</b><span id="toolCount">2 成功，1 执行中</span></div>
+        <div class="info-item"><b>输出文件</b><span id="outputFile">chart-preview.png 准备中</span></div>
+        <div class="info-item"><b>排队消息</b><span id="queueHint">暂无</span></div>
+      </aside>
+    </section>
+
+    <section class="session-center" id="sessionCenter" aria-hidden="true">
+      <div class="session-dialog" role="dialog" aria-modal="true" aria-label="工作台会话中心">
+        <header class="session-dialog-head">
+          <div class="session-dialog-title">
+            <strong>工作台会话</strong>
+            <span>底部只保留活跃摘要，更多历史会话在这里集中管理。</span>
+          </div>
+          <button class="session-close" id="closeSessionCenter">x</button>
+        </header>
+        <div class="session-dialog-tools">
+          <div class="session-tabs">
+            <button class="session-tab active" data-scope="current">当前目录 <span>8</span></button>
+            <button class="session-tab" data-scope="all">全部会话 <span>27</span></button>
+          </div>
+          <label class="session-search">
+            <input id="sessionSearch" placeholder="搜索目录、函数或需求..." />
+          </label>
+          <div class="session-filters">
+            <button class="session-filter active" data-filter="all">全部</button>
+            <button class="session-filter" data-filter="running">执行中</button>
+            <button class="session-filter" data-filter="waiting">待确认</button>
+            <button class="session-filter" data-filter="output">有产出</button>
+            <button class="session-filter" data-filter="done">已完成</button>
+          </div>
+        </div>
+        <nav class="session-debug">
+          <button id="sceneRunning" class="active">运行中</button>
+          <button id="sceneWait">等待交互</button>
+          <button id="sceneDone">完成</button>
+          <button id="toggleDetail">展开会话</button>
+          <label><input id="newOutputBadge" type="checkbox" checked /> 新输出亮徽章</label>
+          <button id="reset">重置</button>
+        </nav>
+        <div class="session-list" id="sessionList">
+          <button class="session-row" data-session="chart" data-scope="current all" data-status="running" data-title="图表工具 生成月报图 渠道线索对比">
+            <span class="dock-dot"></span>
+            <span><span class="session-row-title">图表工具 · 生成月报图</span><span class="session-row-sub">工具库 / 图表工具 · 帮我把这个月各渠道线索做成对比图</span></span>
+            <span class="session-row-meta">执行中 · 2 条新输出</span>
+            <span class="session-open">打开</span>
+          </button>
+          <button class="session-row" data-session="pdf" data-scope="current all" data-status="waiting" data-title="PDF 工具 提取合同字段 等待确认">
+            <span class="dock-dot wait"></span>
+            <span><span class="session-row-title">PDF 工具 · 提取合同字段</span><span class="session-row-sub">工具库 / PDF 工具 · 从合同里抽取甲乙方、金额和截止日期</span></span>
+            <span class="session-row-meta">等待确认 · 1 条</span>
+            <span class="session-open">打开</span>
+          </button>
+          <button class="session-row" data-session="output" data-scope="current all" data-status="output" data-title="图表工具 月报图已生成 新文件">
+            <span class="dock-dot output"></span>
+            <span><span class="session-row-title">图表工具 · 月报图已生成</span><span class="session-row-sub">工具库 / 图表工具 · chart-preview.png 可预览</span></span>
+            <span class="session-row-meta">有产出 · 刚刚</span>
+            <span class="session-open">打开</span>
+          </button>
+          <button class="session-row" data-session="doc" data-scope="current all" data-status="done" data-title="文档工具 归档说明 已完成">
+            <span class="dock-dot done"></span>
+            <span><span class="session-row-title">文档工具 · 归档说明</span><span class="session-row-sub">工具库 / 文档工具 · 生成归档说明和目录摘要</span></span>
+            <span class="session-row-meta">已完成 · 3 分钟前</span>
+            <span class="session-open">打开</span>
+          </button>
+          <button class="session-row" data-scope="all" data-status="running" data-title="客户工单 新增截止日期字段">
+            <span class="dock-dot"></span>
+            <span><span class="session-row-title">客户工单 · 新增截止日期字段</span><span class="session-row-sub">业务应用 / 工单管理 · 修改表单和列表字段</span></span>
+            <span class="session-row-meta">执行中 · 其他目录</span>
+            <span class="session-open">打开</span>
+          </button>
+          <button class="session-row" data-scope="all" data-status="done" data-title="数据清洗 合并客户名单">
+            <span class="dock-dot done"></span>
+            <span><span class="session-row-title">数据清洗 · 合并客户名单</span><span class="session-row-sub">个人空间 / 表格工具 · 去重并导出 xlsx</span></span>
+            <span class="session-row-meta">已完成 · 昨天</span>
+            <span class="session-open">打开</span>
+          </button>
+          <div class="session-empty" id="sessionEmpty">没有匹配的会话</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="composer-shell" id="composerShell">
+      <div class="ticker">
+        <div class="ticker-head">
+          <span><strong id="activeSessionName">图表工具 · 生成月报图</strong> <span id="activeSessionState">正在执行</span></span>
+          <span class="ticker-actions">
+            <span id="runtime">00:18</span>
+            <button class="ticker-max" id="toggleTickerMax" title="放大当前输出">□</button>
+          </span>
+        </div>
+        <div class="ticker-body">
+          <div class="log-window">
+            <ul class="log-list" id="logList"></ul>
+          </div>
+          <aside class="artifact-panel" id="artifactPanel" aria-label="当前产物"></aside>
+        </div>
+      </div>
+      <section class="dock" id="dock">
+        <button class="dock-toggle" id="dockMini" title="打开工作台会话">
+          <span class="dock-total" id="dockCount">3</span>
+          <span class="dock-toggle-label">会话中心</span>
+        </button>
+        <div class="dock-list">
+          <button class="dock-card active is-running" data-session="chart" title="图表工具 · 生成月报图">
+            <span class="dock-dot"></span>
+            <span class="rail-copy">
+              <span class="rail-label">图表工具 · 生成月报图</span>
+              <span class="rail-sub">执行中</span>
+            </span>
+            <span class="count-badge" id="chartBadge">2</span>
+          </button>
+          <button class="dock-card is-waiting" data-session="pdf" title="PDF 工具 · 提取合同字段">
+            <span class="dock-dot wait"></span>
+            <span class="rail-copy">
+              <span class="rail-label">PDF 工具 · 提取合同字段</span>
+              <span class="rail-sub">等待确认</span>
+            </span>
+            <span class="count-badge">1</span>
+          </button>
+          <button class="dock-card is-output" data-session="output" title="图表工具 · 月报图已生成">
+            <span class="dock-dot output"></span>
+            <span class="rail-copy">
+              <span class="rail-label">图表工具 · 月报图已生成</span>
+              <span class="rail-sub">新文件</span>
+            </span>
+            <span class="count-badge">1</span>
+          </button>
+          <button class="dock-card is-done" data-session="doc" title="文档工具 · 归档说明">
+            <span class="dock-dot done"></span>
+            <span class="rail-copy">
+              <span class="rail-label">文档工具 · 归档说明</span>
+              <span class="rail-sub">已完成</span>
+            </span>
+            <span></span>
+          </button>
+        </div>
+      </section>
+      <div class="composer">
+        <div class="composer-tools">
+          <button class="icon-btn" title="附件">+</button>
+          <button class="icon-btn" title="提及用户">@</button>
+          <button class="icon-btn" title="引用目录或工具">/</button>
+        </div>
+        <div class="input-wrap">
+          <span class="path-pill">工具库</span>
+          <textarea id="draft" placeholder="执行中也可以先写下一句话，任务结束后可直接发送..."></textarea>
+        </div>
+        <div class="composer-actions">
+          <button class="model">默认模型 v</button>
+          <button class="icon-btn" title="定时执行">定</button>
+          <button class="send is-queue" id="sendBtn">排队</button>
+          <button class="hide-btn" id="hideComposer" title="隐藏到底部">v</button>
+        </div>
+      </div>
+    </section>
+
+    <button class="collapsed-launcher" id="launcher">
+      <span class="pulse"></span>
+      <strong>工作台</strong>
+      <span id="launcherText">3 个后台会话</span>
+      <span class="count-badge" id="launcherCount">3</span>
+    </button>
+  </main>
+
+  <script>
+    const composerShell = document.getElementById('composerShell')
+    const launcher = document.getElementById('launcher')
+    const hideComposer = document.getElementById('hideComposer')
+    const draft = document.getElementById('draft')
+    const sendBtn = document.getElementById('sendBtn')
+    const logList = document.getElementById('logList')
+    const artifactPanel = document.getElementById('artifactPanel')
+    const detailPanel = document.getElementById('detailPanel')
+    const messages = document.getElementById('messages')
+    const dock = document.getElementById('dock')
+    const dockMini = document.getElementById('dockMini')
+    const sessionCenter = document.getElementById('sessionCenter')
+    const closeSessionCenter = document.getElementById('closeSessionCenter')
+    const sessionSearch = document.getElementById('sessionSearch')
+    const sessionEmpty = document.getElementById('sessionEmpty')
+    const chartBadge = document.getElementById('chartBadge')
+    const queueHint = document.getElementById('queueHint')
+    const runtime = document.getElementById('runtime')
+    const activeSessionName = document.getElementById('activeSessionName')
+    const activeSessionState = document.getElementById('activeSessionState')
+    const toggleTickerMax = document.getElementById('toggleTickerMax')
+    const newOutputBadge = document.getElementById('newOutputBadge')
+    const sceneButtons = [
+      document.getElementById('sceneRunning'),
+      document.getElementById('sceneWait'),
+      document.getElementById('sceneDone')
+    ]
+
+    const logLines = [
+      'search_tools 已完成，找到 run_chart_query、render_preview、export_image。',
+      'run_table_search 正在执行，已读取 6 个维度。',
+      '正在分析字段：渠道、线索量、转化率、成交金额。',
+      '已生成 ECharts 配置草稿，准备渲染预览图。',
+      '写入 chart-preview.png，等待文件服务返回预览地址。',
+      '准备汇总关键结论：自然搜索转化率最高，投放渠道成交额最高。'
+    ]
+    const sessionStreams = {
+      chart: {
+        title: '图表工具 · 生成月报图',
+        state: '正在执行',
+        runtime: '00:18',
+        lines: [
+          'SSE 已连接，正在等待模型输出。',
+          'run_table_search 正在执行，已读取第 1 页。',
+          ...logLines
+        ],
+        artifacts: [
+          { name: 'chart-preview.png', meta: '渲染中，预计 10 秒', tag: '图片' },
+          { name: '渠道线索统计.csv', meta: '已读取 6 个维度', tag: '数据' },
+          { name: '图表配置草稿', meta: '等待最终样式确认', tag: '配置' }
+        ]
+      },
+      pdf: {
+        title: 'PDF 工具 · 提取合同字段',
+        state: '等待确认',
+        runtime: '03:42',
+        lines: [
+          'read_doc 已完成，识别到 12 页合同文本。',
+          'extract_fields 已暂停，等待确认字段：甲方、乙方、金额、截止日期。',
+          '确认后会继续生成结构化表格和下载文件。'
+        ],
+        artifacts: [
+          { name: '合同字段清单', meta: '等待你确认抽取范围', tag: '待办' },
+          { name: 'contract-pages.txt', meta: '12 页文本已缓存', tag: '文本' }
+        ]
+      },
+      output: {
+        title: '图表工具 · 月报图已生成',
+        state: '有新产出',
+        runtime: '完成',
+        lines: [
+          'render_preview 已完成，生成 chart-preview.png。',
+          '输出文件已就绪：chart-preview.png，可在会话详情里预览或下载。',
+          '结论摘要：自然搜索转化率最高，投放渠道成交额最高。'
+        ],
+        artifacts: [
+          { name: 'chart-preview.png', meta: '可预览，刚刚生成', tag: '图片' },
+          { name: 'monthly-chart.json', meta: '图表配置已保存', tag: '配置' },
+          { name: '结论摘要.md', meta: '3 条关键结论', tag: '文档' }
+        ]
+      },
+      doc: {
+        title: '文档工具 · 归档说明',
+        state: '已完成',
+        runtime: '完成',
+        lines: [
+          'write_doc 已完成，生成归档说明。',
+          '目录摘要、文件清单和后续建议已写入结果。',
+          '该会话已结束，可从会话中心重新打开。'
+        ],
+        artifacts: [
+          { name: '归档说明.md', meta: '已生成', tag: '文档' },
+          { name: '目录摘要.json', meta: '可供后续任务引用', tag: '数据' }
+        ]
+      }
+    }
+    let logIndex = 0
+    let seconds = 18
+    let collapsed = false
+    let running = true
+    let queued = []
+    let sessionScope = 'current'
+    let sessionFilter = 'all'
+    let currentSession = 'chart'
+    let intervalId = null
+
+    function setCollapsed(value) {
+      collapsed = value
+      composerShell.classList.toggle('is-collapsed', collapsed)
+      launcher.classList.toggle('is-visible', collapsed)
+      if (!collapsed) {
+        launcher.classList.remove('has-update')
+        setTimeout(() => draft.focus(), 80)
+      }
+    }
+
+    function syncLogOffset() {
+      const maxVisible = 2
+      const count = logList.children.length
+      const offset = composerShell.classList.contains('is-log-expanded')
+        ? 0
+        : Math.max(0, count - maxVisible) * -18
+      logList.style.setProperty('--log-y', `${offset}px`)
+    }
+
+    function renderTickerLines(lines) {
+      logList.innerHTML = ''
+      for (const line of lines) {
+        const li = document.createElement('li')
+        li.textContent = line
+        logList.appendChild(li)
+      }
+      syncLogOffset()
+    }
+
+    function renderArtifacts(artifacts = []) {
+      artifactPanel.innerHTML = ''
+
+      const head = document.createElement('div')
+      head.className = 'artifact-head'
+      const title = document.createElement('span')
+      title.textContent = '当前产物'
+      const count = document.createElement('span')
+      count.className = 'artifact-count'
+      count.textContent = `${artifacts.length} 项`
+      head.append(title, count)
+      artifactPanel.appendChild(head)
+
+      if (!artifacts.length) {
+        const empty = document.createElement('div')
+        empty.className = 'artifact-item'
+        const copy = document.createElement('span')
+        copy.className = 'artifact-name'
+        copy.textContent = '暂无产物'
+        const tag = document.createElement('span')
+        tag.className = 'artifact-tag'
+        tag.textContent = '等待'
+        empty.append(copy, tag)
+        artifactPanel.appendChild(empty)
+        return
+      }
+
+      artifacts.forEach((artifact, index) => {
+        const item = document.createElement('div')
+        item.className = 'artifact-item'
+        const copy = document.createElement('span')
+        copy.className = 'artifact-copy'
+        const name = document.createElement('span')
+        name.className = 'artifact-name'
+        name.textContent = artifact.name
+        const meta = document.createElement('span')
+        meta.className = 'artifact-meta'
+        meta.textContent = artifact.meta
+        copy.append(name, meta)
+        const tag = document.createElement('span')
+        tag.className = 'artifact-tag'
+        const kind = document.createElement('span')
+        kind.textContent = artifact.tag
+        tag.appendChild(kind)
+        if (index === 0) {
+          const miniCount = document.createElement('span')
+          miniCount.className = 'artifact-mini-count'
+          miniCount.textContent = `${artifacts.length}项`
+          tag.appendChild(miniCount)
+        }
+        item.append(copy, tag)
+        artifactPanel.appendChild(item)
+      })
+    }
+
+    function switchActiveSummary(card) {
+      const nextSession = card.dataset.session || 'chart'
+      const stream = sessionStreams[nextSession] || sessionStreams.chart
+      currentSession = nextSession
+      document.querySelectorAll('.dock-card').forEach((item) => item.classList.remove('active'))
+      card.classList.add('active')
+      activeSessionName.textContent = stream.title
+      activeSessionState.textContent = stream.state
+      runtime.textContent = stream.runtime
+      logIndex = 0
+      renderTickerLines(stream.lines)
+      renderArtifacts(stream.artifacts)
+    }
+
+    function addLog(line, options = {}) {
+      const li = document.createElement('li')
+      li.textContent = line
+      logList.appendChild(li)
+      syncLogOffset()
+      if (options.message) {
+        const bubble = document.createElement(options.tool ? 'div' : 'div')
+        bubble.className = options.tool ? 'tool' : 'bubble'
+        bubble.innerHTML = options.tool
+          ? `<span>${options.message[0]}</span><span>${options.message[1]}</span>`
+          : options.message
+        messages.appendChild(bubble)
+        messages.scrollTop = messages.scrollHeight
+      }
+      if (collapsed && newOutputBadge.checked) {
+        launcher.classList.add('has-update')
+      }
+    }
+
+    function tick() {
+      if (!running || currentSession !== 'chart') return
+      const stream = sessionStreams.chart
+      seconds += 1
+      const m = String(Math.floor(seconds / 60)).padStart(2, '0')
+      const s = String(seconds % 60).padStart(2, '0')
+      if (currentSession === 'chart') {
+        runtime.textContent = `${m}:${s}`
+      }
+      const line = stream.lines[logIndex % stream.lines.length]
+      logIndex += 1
+      addLog(line, {
+        message: logIndex % 2 === 0
+          ? [`${line.split(' ')[0]} · running`, '流式输出中']
+          : undefined,
+        tool: logIndex % 2 === 0
+      })
+    }
+
+    function startStream() {
+      clearInterval(intervalId)
+      intervalId = setInterval(tick, 1800)
+    }
+
+    function stopStream(done = false) {
+      running = false
+      clearInterval(intervalId)
+      sendBtn.textContent = '发送'
+      sendBtn.classList.remove('is-queue')
+      document.getElementById('activeSessionName').textContent = done ? '图表工具 · 已完成' : 'PDF 工具 · 等待交互'
+      document.getElementById('detailStatus').textContent = done ? '已完成' : '等待交互'
+      chartBadge.textContent = done ? '1' : '!'
+      chartBadge.style.background = done ? 'var(--violet)' : 'var(--amber)'
+      if (done) {
+        document.getElementById('outputFile').textContent = 'chart-preview.png 已生成'
+        renderArtifacts(sessionStreams.output.artifacts)
+        addLog('任务完成，chart-preview.png 已生成，可以继续发送下一条消息。', { message: '任务完成，chart-preview.png 已生成，可以继续发送下一条消息。' })
+      } else {
+        renderArtifacts(sessionStreams.pdf.artifacts)
+        addLog('等待你确认输出字段：合同编号、甲方、乙方、金额、截止日期。', { message: '需要确认输出字段后继续。' })
+      }
+    }
+
+    hideComposer.addEventListener('click', () => setCollapsed(true))
+    launcher.addEventListener('click', () => setCollapsed(false))
+
+    function openSessionCenter() {
+      sessionCenter.classList.add('is-open')
+      sessionCenter.setAttribute('aria-hidden', 'false')
+      setTimeout(() => sessionSearch.focus(), 60)
+      applySessionFilters()
+    }
+
+    function closeSessionCenterModal() {
+      sessionCenter.classList.remove('is-open')
+      sessionCenter.setAttribute('aria-hidden', 'true')
+    }
+
+    function applySessionFilters() {
+      const query = sessionSearch.value.trim().toLowerCase()
+      let visibleCount = 0
+      document.querySelectorAll('.session-row').forEach((row) => {
+        const rowScopes = (row.dataset.scope || '').split(/\s+/)
+        const rowStatus = row.dataset.status || ''
+        const rowTitle = (row.dataset.title || row.textContent || '').toLowerCase()
+        const scopeOk = sessionScope === 'all' || rowScopes.includes('current')
+        const filterOk = sessionFilter === 'all' || rowStatus === sessionFilter
+        const queryOk = !query || rowTitle.includes(query)
+        const visible = scopeOk && filterOk && queryOk
+        row.classList.toggle('is-hidden', !visible)
+        if (visible) visibleCount += 1
+      })
+      sessionEmpty.classList.toggle('is-visible', visibleCount === 0)
+    }
+
+    dockMini.addEventListener('click', openSessionCenter)
+    closeSessionCenter.addEventListener('click', closeSessionCenterModal)
+    sessionCenter.addEventListener('click', (event) => {
+      if (event.target === sessionCenter) {
+        closeSessionCenterModal()
+      }
+    })
+    sessionSearch.addEventListener('input', applySessionFilters)
+    document.querySelectorAll('.session-tab').forEach((button) => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('.session-tab').forEach((item) => item.classList.remove('active'))
+        button.classList.add('active')
+        sessionScope = button.dataset.scope || 'current'
+        applySessionFilters()
+      })
+    })
+    document.querySelectorAll('.session-filter').forEach((button) => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('.session-filter').forEach((item) => item.classList.remove('active'))
+        button.classList.add('active')
+        sessionFilter = button.dataset.filter || 'all'
+        applySessionFilters()
+      })
+    })
+    document.querySelectorAll('.session-row').forEach((row) => {
+      row.addEventListener('click', () => {
+        const targetSession = row.dataset.session
+        const targetCard = targetSession ? document.querySelector(`.dock-card[data-session="${targetSession}"]`) : null
+        if (targetCard) {
+          switchActiveSummary(targetCard)
+        } else {
+          activeSessionName.textContent = row.querySelector('.session-row-title').textContent
+          activeSessionState.textContent = row.querySelector('.session-row-meta').textContent.split(' · ')[0]
+          renderTickerLines(['该会话来自其他目录，点击后会切换到对应目录并继续接收输出。'])
+          renderArtifacts([])
+        }
+        closeSessionCenterModal()
+        detailPanel.classList.remove('is-open')
+      })
+    })
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        closeSessionCenterModal()
+      }
+    })
+    document.getElementById('toggleDetail').addEventListener('click', () => {
+      detailPanel.classList.toggle('is-open')
+    })
+    document.getElementById('closeDetail').addEventListener('click', () => {
+      detailPanel.classList.remove('is-open')
+    })
+
+    toggleTickerMax.addEventListener('click', () => {
+      const expanded = composerShell.classList.toggle('is-log-expanded')
+      toggleTickerMax.textContent = expanded ? '▢' : '□'
+      toggleTickerMax.title = expanded ? '还原当前输出' : '放大当前输出'
+      syncLogOffset()
+    })
+
+    document.querySelectorAll('.dock-card').forEach((card) => {
+      card.addEventListener('click', () => {
+        switchActiveSummary(card)
+      })
+    })
+
+    sendBtn.addEventListener('click', () => {
+      const text = draft.value.trim()
+      if (!text) return
+      if (running) {
+        queued.push(text)
+        queueHint.textContent = `${queued.length} 条：${text.slice(0, 20)}${text.length > 20 ? '...' : ''}`
+        addLog(`已暂存下一条消息：${text}`, { message: `已暂存下一条消息：${text}` })
+      } else {
+        const bubble = document.createElement('div')
+        bubble.className = 'bubble user'
+        bubble.textContent = text
+        messages.appendChild(bubble)
+        messages.scrollTop = messages.scrollHeight
+      }
+      draft.value = ''
+      draft.focus()
+    })
+
+    draft.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault()
+        sendBtn.click()
+      }
+    })
+
+    function setScene(button, mode) {
+      sceneButtons.forEach((btn) => btn.classList.remove('active'))
+      button.classList.add('active')
+      if (mode === 'running') {
+        running = true
+        sendBtn.textContent = '排队'
+        sendBtn.classList.add('is-queue')
+        document.getElementById('activeSessionName').textContent = '图表工具 · 生成月报图'
+        document.getElementById('detailStatus').textContent = 'SSE 连接中'
+        chartBadge.textContent = '2'
+        chartBadge.style.background = 'var(--red)'
+        addLog('继续执行：正在保持 SSE 连接并接收输出。')
+        startStream()
+      }
+      if (mode === 'wait') {
+        stopStream(false)
+      }
+      if (mode === 'done') {
+        stopStream(true)
+      }
+    }
+
+    document.getElementById('sceneRunning').addEventListener('click', (event) => setScene(event.currentTarget, 'running'))
+    document.getElementById('sceneWait').addEventListener('click', (event) => setScene(event.currentTarget, 'wait'))
+    document.getElementById('sceneDone').addEventListener('click', (event) => setScene(event.currentTarget, 'done'))
+    document.getElementById('reset').addEventListener('click', () => window.location.reload())
+
+    renderTickerLines(sessionStreams.chart.lines)
+    renderArtifacts(sessionStreams.chart.artifacts)
+    startStream()
+    setTimeout(() => draft.focus(), 300)
+  </script>
+</body>
+</html>

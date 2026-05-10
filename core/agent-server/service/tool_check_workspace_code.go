@@ -30,7 +30,7 @@ type checkWorkspaceCodeArgs struct {
 
 type checkWorkspaceCodeResultData struct {
 	Directory  string                    `json:"directory" schema_desc:"实际检查目录" schema_required:"true"`
-	FileCount  int                       `json:"file_count" schema_desc:"检查的 Go 文件数量" schema_required:"true"`
+	FileCount  int                       `json:"file_count" schema_desc:"检查的代码文件数量" schema_required:"true"`
 	IssueCount int                       `json:"issue_count" schema_desc:"发现的问题数量" schema_required:"true"`
 	Passed     bool                      `json:"passed" schema_desc:"是否未发现问题" schema_required:"true"`
 	Issues     []checkWorkspaceCodeIssue `json:"issues,omitempty" schema_desc:"发现的问题列表"`
@@ -134,7 +134,7 @@ func checkGoFileName(fileName string) []checkWorkspaceCodeIssue {
 				File:     fileName,
 				Severity: "error",
 				Category: "file_name",
-				Message:  "Go 文件名只用普通 .go，路由后缀只能写在 packageContext.GET/POST 的路由字符串里，不能写成 " + bad,
+				Message:  "代码文件名只用普通 .go，路由后缀只能写在 packageContext.GET/POST 的路由字符串里，不能写成 " + bad,
 			}}
 		}
 	}
@@ -291,7 +291,7 @@ func checkGoFileStructurePatterns(fileName string, parsed *ast.File, fset *token
 			Line:     1,
 			Severity: "warning",
 			Category: "go_file_structure",
-			Message:  "Go 文件只有 package/import、没有有效声明，通常是空占位文件；不要创建 nps_types.go 这类文件来修 import 或跨文件问题",
+			Message:  "代码文件只有 package/import、没有有效声明，通常是空占位文件；不要创建 nps_types.go 这类文件来修 import 或跨文件问题",
 		})
 	}
 	return issues

@@ -13,7 +13,7 @@ func TestValidateGoPackageNameAcceptsValidNames(t *testing.T) {
 		name := name
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			if err := ValidateGoPackageName(name, "目录代码"); err != nil {
+			if err := ValidateGoPackageName(name, "目录英文标识"); err != nil {
 				t.Fatalf("expected %q to be valid, got %v", name, err)
 			}
 		})
@@ -39,7 +39,7 @@ func TestValidateGoPackageNameRejectsInvalidNames(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := ValidateGoPackageName(tt.code, "目录代码")
+			err := ValidateGoPackageName(tt.code, "目录英文标识")
 			if err == nil {
 				t.Fatalf("expected %q to be invalid", tt.code)
 			}

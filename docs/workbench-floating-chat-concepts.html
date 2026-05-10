@@ -1,0 +1,1111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>工作台底部浮动对话概念稿</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #070b12;
+      --panel: rgba(12, 18, 32, 0.9);
+      --panel-soft: rgba(16, 24, 43, 0.74);
+      --panel-solid: #10182b;
+      --border: rgba(130, 153, 190, 0.22);
+      --border-strong: rgba(129, 144, 255, 0.42);
+      --text: #edf4ff;
+      --muted: #8fa0bc;
+      --subtle: #5f708e;
+      --blue: #37a3ff;
+      --violet: #7b7cf6;
+      --green: #27d39b;
+      --amber: #f6b84a;
+      --danger: #ff6b7a;
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 1440px;
+      height: 900px;
+      overflow: hidden;
+      background: #02050b;
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      color: var(--text);
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+    }
+
+    .screen {
+      position: relative;
+      width: 1440px;
+      height: 900px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 48% 42%, rgba(51, 166, 255, 0.14), transparent 34%),
+        radial-gradient(circle at 86% 11%, rgba(123, 124, 246, 0.13), transparent 27%),
+        linear-gradient(180deg, #070c18 0%, #060912 100%);
+      border: 1px solid rgba(120, 145, 190, 0.18);
+    }
+
+    .screen::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(72, 107, 164, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(72, 107, 164, 0.045) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 76%, transparent 100%);
+      pointer-events: none;
+    }
+
+    .topbar {
+      position: absolute;
+      top: 16px;
+      left: 18px;
+      right: 18px;
+      height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px;
+      background: rgba(10, 15, 27, 0.72);
+      border: 1px solid rgba(106, 129, 178, 0.22);
+      border-radius: 22px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.24);
+      backdrop-filter: blur(22px);
+    }
+
+    .workspace-select,
+    .user-menu,
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .workspace-button {
+      min-width: 184px;
+      height: 46px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 14px;
+      border-radius: 8px;
+      background: rgba(15, 24, 43, 0.9);
+      border: 1px solid rgba(123, 146, 190, 0.28);
+      color: #f4f7ff;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .square-icon {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #2d98ff, #5d7cff);
+      font-weight: 800;
+    }
+
+    .ghost-button {
+      height: 42px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 16px;
+      border-radius: 8px;
+      background: rgba(18, 27, 48, 0.88);
+      border: 1px solid rgba(115, 136, 180, 0.24);
+      color: #b9c8e2;
+      font-size: 13px;
+    }
+
+    .primary-button {
+      height: 42px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 20px;
+      border-radius: 8px;
+      border: 0;
+      background: linear-gradient(135deg, #6877ff, #7b65ef);
+      color: white;
+      font-weight: 700;
+      font-size: 13px;
+      box-shadow: 0 10px 28px rgba(96, 113, 255, 0.24);
+    }
+
+    .avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 50% 40%, #4ff7e1 0 10%, transparent 11%),
+        radial-gradient(circle at 36% 60%, #7b7cf6 0 12%, transparent 13%),
+        radial-gradient(circle at 66% 62%, #37a3ff 0 12%, transparent 13%),
+        #101d31;
+      border: 1px solid rgba(78, 211, 219, 0.55);
+      box-shadow: 0 0 22px rgba(72, 211, 219, 0.2);
+    }
+
+    .layout {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      top: 112px;
+      bottom: 18px;
+      display: grid;
+      grid-template-columns: 300px 1fr 292px;
+      gap: 18px;
+    }
+
+    .left,
+    .main,
+    .right {
+      min-width: 0;
+      border: 1px solid rgba(91, 113, 157, 0.22);
+      background: rgba(12, 18, 33, 0.75);
+      backdrop-filter: blur(18px);
+      border-radius: 22px;
+      overflow: hidden;
+      box-shadow: 0 18px 44px rgba(0, 0, 0, 0.18);
+    }
+
+    .left {
+      padding: 16px;
+    }
+
+    .search {
+      height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+      color: #667895;
+      background: rgba(21, 30, 51, 0.9);
+      border: 1px solid rgba(120, 143, 184, 0.26);
+      border-radius: 12px;
+      font-size: 14px;
+    }
+
+    .tree {
+      margin-top: 26px;
+      display: grid;
+      gap: 14px;
+      color: #c8d5ed;
+      font-size: 14px;
+    }
+
+    .tree-row {
+      display: grid;
+      grid-template-columns: 16px 26px 1fr;
+      align-items: center;
+      gap: 8px;
+      min-height: 24px;
+    }
+
+    .tree-row.sub {
+      padding-left: 20px;
+      color: #e3ecff;
+    }
+
+    .chev {
+      color: #7b8aa7;
+      font-size: 10px;
+    }
+
+    .folder {
+      width: 18px;
+      height: 14px;
+      border-radius: 3px;
+      background: #8c67f5;
+      position: relative;
+    }
+
+    .folder::before {
+      content: "";
+      position: absolute;
+      left: 1px;
+      top: -4px;
+      width: 11px;
+      height: 5px;
+      border-radius: 3px 3px 0 0;
+      background: #8c67f5;
+    }
+
+    .main {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .page-head {
+      height: 124px;
+      padding: 26px 34px;
+      border-bottom: 1px solid rgba(91, 113, 157, 0.22);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .title-block {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .big-folder {
+      width: 52px;
+      height: 42px;
+      border-radius: 8px;
+      background: #8c67f5;
+      position: relative;
+      box-shadow: inset 0 -7px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    .big-folder::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: -7px;
+      width: 26px;
+      height: 10px;
+      border-radius: 6px 6px 0 0;
+      background: #8c67f5;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 30px;
+      letter-spacing: 0;
+    }
+
+    .path {
+      margin-top: 8px;
+      color: #c7d4ea;
+      font-size: 14px;
+    }
+
+    .hide-session {
+      height: 40px;
+      padding: 0 18px;
+      border: 1px solid rgba(120, 143, 184, 0.26);
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      color: #d5e2f6;
+      background: rgba(12, 18, 33, 0.58);
+      font-size: 13px;
+    }
+
+    .page-body {
+      padding: 24px 34px 160px;
+      overflow: hidden;
+    }
+
+    .tabs {
+      height: 50px;
+      width: 545px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 12px;
+      background: rgba(31, 42, 68, 0.9);
+      border: 1px solid rgba(113, 135, 178, 0.24);
+      border-radius: 24px;
+    }
+
+    .tab {
+      height: 36px;
+      display: grid;
+      place-items: center;
+      padding: 0 17px;
+      border-radius: 16px;
+      color: #9fb0cb;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    .tab.active {
+      background: rgba(34, 113, 205, 0.2);
+      color: #53aeff;
+    }
+
+    .info-grid {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .stat {
+      min-height: 118px;
+      padding: 20px;
+      border: 1px solid rgba(97, 120, 168, 0.28);
+      background: rgba(18, 27, 48, 0.74);
+      border-radius: 20px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .stat-icon {
+      width: 54px;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      color: white;
+      background: rgba(69, 105, 191, 0.32);
+      border: 1px solid rgba(118, 145, 210, 0.34);
+      font-weight: 800;
+    }
+
+    .stat .label {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .stat .value {
+      margin-top: 8px;
+      font-size: 24px;
+      font-weight: 800;
+      color: white;
+    }
+
+    .section-title {
+      margin-top: 32px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    .cards {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .feature-card {
+      min-height: 180px;
+      padding: 22px;
+      background: rgba(14, 22, 39, 0.82);
+      border: 1px solid rgba(97, 120, 168, 0.28);
+      border-radius: 20px;
+    }
+
+    .feature-card h2 {
+      margin: 24px 0 12px;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+
+    .feature-card p {
+      margin: 0;
+      color: #aebbd0;
+      line-height: 1.65;
+      font-size: 13px;
+    }
+
+    .right {
+      display: flex;
+      flex-direction: column;
+      padding: 12px 14px 16px;
+    }
+
+    .right-head {
+      height: 50px;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      border: 1px solid rgba(97, 120, 168, 0.28);
+      border-radius: 17px;
+      color: white;
+      font-weight: 750;
+    }
+
+    .right-tabs {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      color: #7586a4;
+      font-size: 13px;
+    }
+
+    .right-tabs span:first-child {
+      height: 34px;
+      display: grid;
+      place-items: center;
+      padding: 0 13px;
+      border-radius: 16px;
+      color: #5bb8ff;
+      background: rgba(64, 116, 255, 0.2);
+      border: 1px solid rgba(103, 127, 255, 0.3);
+    }
+
+    .empty-session {
+      flex: 1;
+      display: grid;
+      place-items: center;
+      color: #8c9ab3;
+      font-size: 14px;
+    }
+
+    .new-session {
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #6877ff, #7364ee);
+      color: white;
+      font-weight: 750;
+      font-size: 14px;
+    }
+
+    .collapse-rail {
+      position: absolute;
+      top: 130px;
+      right: 18px;
+      width: 48px;
+      height: 230px;
+      display: none;
+      border-radius: 24px;
+      background: rgba(15, 23, 42, 0.55);
+      border: 1px solid rgba(120, 143, 184, 0.28);
+      backdrop-filter: blur(16px);
+      color: #d6e2f8;
+      align-items: center;
+      justify-content: center;
+      writing-mode: vertical-rl;
+      gap: 8px;
+      letter-spacing: 0;
+    }
+
+    .rail-badge {
+      writing-mode: horizontal-tb;
+      width: 20px;
+      height: 20px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--danger);
+      font-size: 12px;
+      font-weight: 800;
+      margin-top: 10px;
+    }
+
+    .glass-composer {
+      position: absolute;
+      left: 162px;
+      right: 86px;
+      bottom: 24px;
+      min-height: 58px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background:
+        linear-gradient(180deg, rgba(12, 18, 32, 0.84), rgba(8, 12, 22, 0.68)),
+        rgba(8, 12, 22, 0.72);
+      border: 1px solid rgba(130, 153, 190, 0.26);
+      box-shadow:
+        0 24px 70px rgba(0, 0, 0, 0.44),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(24px) saturate(140%);
+      z-index: 20;
+    }
+
+    .composer-tools,
+    .composer-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      color: #b7c7e1;
+      background: rgba(30, 42, 68, 0.78);
+      border: 1px solid rgba(124, 146, 189, 0.22);
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .composer-input {
+      min-height: 38px;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      color: #d7e5fa;
+      font-size: 15px;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .composer-input .placeholder {
+      color: #8291aa;
+    }
+
+    .path-pill {
+      display: inline-flex;
+      align-items: center;
+      height: 28px;
+      padding: 0 10px;
+      margin-right: 10px;
+      border-radius: 8px;
+      background: rgba(51, 163, 255, 0.13);
+      border: 1px solid rgba(51, 163, 255, 0.25);
+      color: #8ed0ff;
+      font-size: 12px;
+      flex: 0 0 auto;
+    }
+
+    .model-select {
+      height: 38px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      border-radius: 8px;
+      color: #d7e5fa;
+      background: rgba(30, 42, 68, 0.78);
+      border: 1px solid rgba(124, 146, 189, 0.22);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .send-btn {
+      height: 38px;
+      min-width: 102px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #6d70ff, #8b5cf6);
+      color: white;
+      font-size: 14px;
+      font-weight: 800;
+      box-shadow: 0 10px 28px rgba(106, 112, 255, 0.26);
+    }
+
+    .session-strip {
+      position: absolute;
+      left: 354px;
+      right: 86px;
+      bottom: 94px;
+      display: none;
+      gap: 10px;
+      z-index: 19;
+    }
+
+    .session-chip {
+      min-width: 190px;
+      max-width: 252px;
+      height: 46px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      border-radius: 12px;
+      background: rgba(13, 19, 33, 0.76);
+      border: 1px solid rgba(126, 151, 197, 0.26);
+      color: #d7e5fa;
+      box-shadow: 0 16px 42px rgba(0, 0, 0, 0.28);
+      backdrop-filter: blur(22px);
+    }
+
+    .chip-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 16px rgba(39, 211, 155, 0.6);
+    }
+
+    .chip-dot.warn {
+      background: var(--amber);
+      box-shadow: 0 0 16px rgba(246, 184, 74, 0.6);
+    }
+
+    .chip-dot.done {
+      background: var(--violet);
+      box-shadow: 0 0 16px rgba(123, 124, 246, 0.58);
+    }
+
+    .chip-main {
+      min-width: 0;
+    }
+
+    .chip-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .chip-sub {
+      margin-top: 3px;
+      color: #7f90ad;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .notif-badge {
+      min-width: 21px;
+      height: 21px;
+      display: grid;
+      place-items: center;
+      padding: 0 6px;
+      border-radius: 999px;
+      background: var(--danger);
+      color: white;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .live-preview {
+      position: absolute;
+      left: 374px;
+      right: 106px;
+      bottom: 150px;
+      display: none;
+      grid-template-columns: 250px 1fr auto;
+      gap: 14px;
+      align-items: center;
+      min-height: 70px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(10, 16, 28, 0.78);
+      border: 1px solid rgba(103, 127, 255, 0.34);
+      box-shadow: 0 26px 70px rgba(0, 0, 0, 0.34);
+      backdrop-filter: blur(24px);
+      z-index: 18;
+    }
+
+    .live-title {
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .live-path {
+      margin-top: 4px;
+      color: #8394b1;
+      font-size: 12px;
+    }
+
+    .stream-line {
+      min-width: 0;
+      color: #c8d7ef;
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .stream-line strong {
+      color: #8fd5ff;
+    }
+
+    .progress {
+      width: 146px;
+      height: 6px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(106, 128, 171, 0.22);
+    }
+
+    .progress span {
+      display: block;
+      width: 62%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--green), var(--blue), var(--violet));
+      border-radius: 999px;
+    }
+
+    .expanded-panel {
+      position: absolute;
+      left: 276px;
+      right: 54px;
+      bottom: 94px;
+      height: 456px;
+      display: none;
+      grid-template-columns: 250px 1fr 230px;
+      border-radius: 18px;
+      overflow: hidden;
+      background: rgba(8, 13, 24, 0.78);
+      border: 1px solid rgba(130, 153, 190, 0.28);
+      box-shadow: 0 32px 90px rgba(0, 0, 0, 0.42);
+      backdrop-filter: blur(28px) saturate(140%);
+      z-index: 18;
+    }
+
+    .expanded-side {
+      padding: 14px;
+      border-right: 1px solid rgba(130, 153, 190, 0.17);
+      background: rgba(13, 20, 35, 0.54);
+    }
+
+    .expanded-side h3,
+    .expanded-info h3 {
+      margin: 0 0 14px;
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+
+    .side-card {
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(118, 143, 191, 0.22);
+      background: rgba(19, 29, 50, 0.66);
+      margin-bottom: 10px;
+    }
+
+    .side-card.active {
+      border-color: rgba(93, 190, 255, 0.55);
+      background: rgba(26, 53, 84, 0.62);
+    }
+
+    .side-title {
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .side-meta {
+      margin-top: 5px;
+      color: #8a9ab6;
+      font-size: 12px;
+    }
+
+    .expanded-chat {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .expanded-chat-head {
+      height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      border-bottom: 1px solid rgba(130, 153, 190, 0.17);
+    }
+
+    .chat-name {
+      font-weight: 850;
+    }
+
+    .chat-status {
+      color: #7edfb8;
+      font-size: 12px;
+    }
+
+    .messages {
+      flex: 1;
+      overflow: hidden;
+      padding: 18px;
+      display: grid;
+      align-content: start;
+      gap: 12px;
+    }
+
+    .bubble {
+      max-width: 74%;
+      padding: 12px 14px;
+      border-radius: 14px;
+      color: #dbe9ff;
+      font-size: 13px;
+      line-height: 1.6;
+      border: 1px solid rgba(130, 153, 190, 0.18);
+      background: rgba(23, 34, 57, 0.68);
+    }
+
+    .bubble.user {
+      justify-self: end;
+      background: rgba(91, 104, 255, 0.24);
+      border-color: rgba(128, 133, 255, 0.28);
+    }
+
+    .tool-call {
+      max-width: 80%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(20, 37, 49, 0.72);
+      border: 1px solid rgba(39, 211, 155, 0.24);
+      color: #b7ead8;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .expanded-info {
+      padding: 14px;
+      border-left: 1px solid rgba(130, 153, 190, 0.17);
+      background: rgba(13, 20, 35, 0.54);
+    }
+
+    .info-item {
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(19, 29, 50, 0.62);
+      border: 1px solid rgba(118, 143, 191, 0.2);
+      margin-bottom: 10px;
+    }
+
+    .info-item b {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 5px;
+    }
+
+    .info-item span {
+      display: block;
+      color: #8a9ab6;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    body[data-variant="compact"] .right,
+    body[data-variant="tray"] .right,
+    body[data-variant="expanded"] .right {
+      display: none;
+    }
+
+    body[data-variant="compact"] .layout,
+    body[data-variant="tray"] .layout,
+    body[data-variant="expanded"] .layout {
+      grid-template-columns: 300px 1fr;
+      padding-right: 0;
+    }
+
+    body[data-variant="compact"] .collapse-rail,
+    body[data-variant="tray"] .collapse-rail,
+    body[data-variant="expanded"] .collapse-rail {
+      display: flex;
+    }
+
+    body[data-variant="compact"] .hide-session,
+    body[data-variant="tray"] .hide-session,
+    body[data-variant="expanded"] .hide-session {
+      border-color: rgba(103, 127, 255, 0.35);
+      color: #9dcfff;
+    }
+
+    body[data-variant="tray"] .session-strip,
+    body[data-variant="tray"] .live-preview,
+    body[data-variant="expanded"] .session-strip {
+      display: flex;
+    }
+
+    body[data-variant="tray"] .live-preview {
+      display: grid;
+    }
+
+    body[data-variant="expanded"] .expanded-panel {
+      display: grid;
+    }
+
+    body[data-variant="expanded"] .session-strip {
+      bottom: 566px;
+      left: 354px;
+      right: 70px;
+    }
+
+    body[data-variant="expanded"] .glass-composer {
+      left: 276px;
+      right: 54px;
+    }
+
+    body[data-variant="expanded"] .page-body {
+      filter: blur(0.5px);
+      opacity: 0.68;
+    }
+  </style>
+</head>
+<body data-variant="compact">
+  <main class="screen">
+    <header class="topbar">
+      <div class="workspace-select">
+        <div class="workspace-button"><span class="square-icon">工</span><span>工具库</span></div>
+        <div class="ghost-button">设置</div>
+      </div>
+      <div class="top-actions">
+        <div class="ghost-button">搜索</div>
+        <div class="primary-button">应用中心</div>
+        <div class="user-menu"><span class="avatar"></span><span>system</span></div>
+      </div>
+    </header>
+
+    <section class="layout">
+      <aside class="left">
+        <div class="search">搜索目录或名称...</div>
+        <div class="tree">
+          <div class="tree-row"><span class="chev">v</span><span class="folder"></span><b>工具库</b></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>压缩包工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>音频工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>图表工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>数据库工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>文档工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>文件处理</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>html工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>图片工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>JSON 工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>PDF 工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>表格工具</span></div>
+          <div class="tree-row sub"><span class="chev">></span><span class="folder"></span><span>OCR 工具</span></div>
+        </div>
+      </aside>
+
+      <section class="main">
+        <div class="page-head">
+          <div class="title-block">
+            <div class="big-folder"></div>
+            <div>
+              <h1>工具库</h1>
+              <div class="path">/system/tools</div>
+            </div>
+          </div>
+          <div class="hide-session">会话已收起</div>
+        </div>
+        <div class="page-body">
+          <div class="tabs">
+            <span class="tab active">目录信息</span>
+            <span class="tab">导入 Go 文件</span>
+            <span class="tab">定时会话</span>
+            <span class="tab">权限审批</span>
+          </div>
+          <div class="info-grid">
+            <div class="stat"><span class="stat-icon">文</span><div><div class="label">目录名称</div><div class="value">工具库</div></div></div>
+            <div class="stat"><span class="stat-icon" style="background: rgba(39, 211, 155, 0.14); color: #7df5c4;">钥</span><div><div class="label">目录代码</div><div class="value" style="color:#6af370;">tools</div></div></div>
+            <div class="stat"><span class="stat-icon" style="background: rgba(246, 184, 74, 0.14); color: #ffd37a;">箱</span><div><div class="label">子项数量</div><div class="value">17 项</div></div></div>
+            <div class="stat"><span class="stat-icon">图</span><div><div class="label">本目录调用次数</div><div class="value">0 次</div></div></div>
+            <div class="stat"><span class="stat-icon">星</span><div><div class="label">创建者</div><div class="value" style="font-size:16px;">system</div></div></div>
+            <div class="stat"><span class="stat-icon" style="background: rgba(139, 92, 246, 0.2);">员</span><div><div class="label">管理员</div><div class="value" style="font-size:16px;">system</div></div></div>
+          </div>
+          <div class="section-title">子目录和函数</div>
+          <div class="cards">
+            <article class="feature-card"><span class="big-folder" style="display:block; width:44px; height:34px;"></span><h2>压缩包工具</h2><p>通用压缩包处理能力，支持查看和解出 ZIP、TAR、TAR.GZ、TGZ 等常见资料包。</p></article>
+            <article class="feature-card"><span class="big-folder" style="display:block; width:44px; height:34px;"></span><h2>音频工具</h2><p>基于 FFmpeg 的音频提取、转码、裁剪、信息读取和波形图生成能力。</p></article>
+          </div>
+        </div>
+      </section>
+
+      <aside class="right">
+        <div class="right-head">工具库</div>
+        <div class="right-tabs"><span>全部</span><span>执行中</span><span>已结束</span><span>定时</span></div>
+        <div class="search">搜索会话...</div>
+        <div class="empty-session">暂无会话记录</div>
+        <div class="new-session">新增会话</div>
+      </aside>
+    </section>
+
+    <div class="collapse-rail">
+      工作台会话
+      <span class="rail-badge">3</span>
+    </div>
+
+    <div class="session-strip">
+      <div class="session-chip">
+        <span class="chip-dot"></span>
+        <div class="chip-main"><div class="chip-title">图表工具 · 生成月报图</div><div class="chip-sub">正在读取表数据</div></div>
+        <span class="notif-badge">2</span>
+      </div>
+      <div class="session-chip">
+        <span class="chip-dot warn"></span>
+        <div class="chip-main"><div class="chip-title">PDF 工具 · 提取合同</div><div class="chip-sub">等待确认输出字段</div></div>
+        <span class="notif-badge">1</span>
+      </div>
+      <div class="session-chip">
+        <span class="chip-dot done"></span>
+        <div class="chip-main"><div class="chip-title">文档工具 · 归档说明</div><div class="chip-sub">刚刚完成</div></div>
+      </div>
+    </div>
+
+    <div class="live-preview">
+      <div>
+        <div class="live-title">图表工具 · 生成月报图</div>
+        <div class="live-path">/system/tools/charts</div>
+      </div>
+      <div class="stream-line"><strong>run_chart_query</strong> 正在执行，已读取 6 个维度，准备生成预览图...</div>
+      <div class="progress"><span></span></div>
+    </div>
+
+    <section class="expanded-panel">
+      <aside class="expanded-side">
+        <h3>后台会话</h3>
+        <div class="side-card active"><div class="side-title">图表工具 · 生成月报图</div><div class="side-meta">执行中 · 2 条新输出</div></div>
+        <div class="side-card"><div class="side-title">PDF 工具 · 提取合同</div><div class="side-meta">等待交互 · 1 条</div></div>
+        <div class="side-card"><div class="side-title">文档工具 · 归档说明</div><div class="side-meta">已完成 · 3 分钟前</div></div>
+      </aside>
+      <section class="expanded-chat">
+        <div class="expanded-chat-head">
+          <div><span class="chat-name">图表工具 · 生成月报图</span> <span class="chat-status">SSE 连接中</span></div>
+          <div class="ghost-button" style="height:34px;">收起</div>
+        </div>
+        <div class="messages">
+          <div class="bubble user">帮我把这个月各渠道线索做成一张对比图，直接生成图片。</div>
+          <div class="bubble">我会先检查当前目录可用的图表函数和输入 schema，然后读取表数据生成图表。</div>
+          <div class="tool-call"><span>search_tools · ok</span><span>找到 3 个候选工具</span></div>
+          <div class="tool-call"><span>run_table_search · running</span><span>正在拉取第 2 页</span></div>
+          <div class="bubble">已拿到线索来源、转化率、成交金额字段，正在生成 ECharts 配置和预览文件...</div>
+        </div>
+      </section>
+      <aside class="expanded-info">
+        <h3>关键信息</h3>
+        <div class="info-item"><b>当前目录</b><span>/system/tools/charts</span></div>
+        <div class="info-item"><b>工具调用</b><span>2 成功，1 执行中</span></div>
+        <div class="info-item"><b>输出文件</b><span>chart-preview.png 准备中</span></div>
+      </aside>
+    </section>
+
+    <section class="glass-composer">
+      <div class="composer-tools">
+        <div class="icon-btn">+</div>
+        <div class="icon-btn">@</div>
+        <div class="icon-btn">/</div>
+      </div>
+      <div class="composer-input">
+        <span class="path-pill">/system/tools</span>
+        <span class="placeholder">直接输入需求，Enter 发送。当前目录会作为上下文，后台会话继续流式执行...</span>
+      </div>
+      <div class="composer-actions">
+        <div class="model-select">默认模型 v</div>
+        <div class="icon-btn">定</div>
+        <div class="send-btn">执行 ></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(window.location.search)
+    document.body.dataset.variant = params.get('variant') || 'compact'
+  </script>
+</body>
+</html>

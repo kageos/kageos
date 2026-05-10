@@ -37,7 +37,7 @@ func (t *ReadGoFileLinesTool) Execute(ctx context.Context, call ToolCall) ToolRe
 	return toolResult(content, isError)
 }
 
-// runReadGoFileLinesTool 按行号范围读取工作区 Go 文件，输出带行号（便于对照编译错误）
+// runReadGoFileLinesTool 按行号范围读取工作区代码文件，输出带行号（便于对照编译错误）
 func runReadGoFileLinesTool(ctx context.Context, args readGoFileLinesArgs, currentFullCodePath string) (string, bool) {
 	targetPath := resolveDirectoryArg(args.Directory, args.FullCodePath, currentFullCodePath)
 	fileName := strings.TrimSpace(args.FileName)
@@ -48,7 +48,7 @@ func runReadGoFileLinesTool(ctx context.Context, args readGoFileLinesArgs, curre
 	}
 
 	if prompt.IsPromptDocPath(targetPath) {
-		return "read_go_file_lines 仅用于工作区 Go 文件，不能读文档路径；请用 read_doc 读取文档。", true
+		return "read_go_file_lines 仅用于工作区代码文件，不能读文档路径；请用 read_doc 读取文档。", true
 	}
 
 	workspaceCtx, err := apicall.GetWorkspaceContext(ctx, targetPath, "runtime")
