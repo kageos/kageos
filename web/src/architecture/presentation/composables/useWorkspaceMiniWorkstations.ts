@@ -45,6 +45,15 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
         existing.visible = true
         return
       }
+    } else {
+      const existing = miniWsList.value.find(
+        (mini: MiniWsInstance) => mini.fullCodePath === fullCodePath && !mini.initialSessionId
+      )
+      if (existing) {
+        existing.visible = true
+        existing.dirName = dirName
+        return
+      }
     }
 
     const offset = miniWsList.value.filter((mini: MiniWsInstance) => mini.visible).length * 40

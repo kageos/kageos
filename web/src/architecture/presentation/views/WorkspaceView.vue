@@ -71,33 +71,6 @@
 
       <!-- 中间函数渲染区域 -->
       <div class="function-renderer" data-testid="workspace-function-renderer">
-        <!-- 右侧边栏控制按钮：工作台会话 -->
-        <div class="sidebar-controls" v-if="workstationContext">
-          <div class="right-controls">
-            <el-button
-              v-if="!showRightSidebar"
-              link
-              @click="toggleRightSidebar"
-              class="sidebar-toggle"
-              title="显示工作台会话"
-            >
-              <el-icon><ArrowLeft /></el-icon>
-              <el-badge :value="rightSidebarRunningCount" :hidden="rightSidebarRunningCount === 0" :max="99" :offset="[6, -2]">
-                工作台会话
-              </el-badge>
-            </el-button>
-            <el-button
-              v-if="showRightSidebar"
-              link
-              @click="toggleRightSidebar"
-              class="sidebar-toggle"
-              title="隐藏工作台会话"
-            >
-              <el-icon><ArrowRight /></el-icon>
-              隐藏会话
-            </el-button>
-          </div>
-        </div>
         <!-- 🔥 Create/Edit 模式：根据 queryTab 显示独立页面 -->
         <template v-if="queryTab === 'create' && currentFunction && currentFunctionDetail">
           <WorkspaceFormPage
@@ -188,37 +161,6 @@
         <div v-else class="empty-state" data-testid="workspace-empty-state">
           <p>请在左侧选择功能或目录</p>
         </div>
-      </div>
-
-      <!-- 右侧面板：工作台会话（仅当前节点） -->
-      <div
-        v-if="workstationContext && showRightSidebar"
-        class="right-sidebar"
-      >
-        <WorkspaceSidebarSessionsPanel
-          :dir-name="workstationContext.dirName"
-          :loading="rightSidebarSessionsLoading"
-          :scheduled-loading="rightSidebarScheduledLoading"
-          :active-tab="rightTab"
-          :search-keyword="rightSessionSearchKeyword"
-          :running-count="rightSidebarRunningCount"
-          :scheduled-count="rightSidebarScheduledCount"
-          :sessions="filteredRightSessions"
-          :scheduled-tasks="filteredRightScheduledTasks"
-          :scheduled-executions="filteredRightScheduledExecutions"
-          :cancelling-task-id="cancellingTaskId"
-          :scheduled-task-action-id="scheduledAgentTaskActionId"
-          :format-relative-time="formatRelativeTime"
-          @update:active-tab="rightTab = $event"
-          @update:search-keyword="rightSessionSearchKeyword = $event"
-          @open-session="openWorkspaceSession"
-          @open-scheduled-session="openScheduledAgentTaskSession"
-          @open-scheduled-execution="openScheduledAgentExecutionSession"
-          @run-scheduled-task-now="handleRunScheduledAgentTaskNow"
-          @manage-scheduled-tasks="openScheduledAgentTaskManager"
-          @cancel-task="handleCancelTask"
-          @create-session="openNewMiniWs()"
-        />
       </div>
     </div>
 
@@ -351,7 +293,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref } from 'vue'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { serviceFactory } from '../../infrastructure/factories'
@@ -365,7 +307,6 @@ import WorkspaceCreateDirectoryDialog from '../components/WorkspaceCreateDirecto
 import WorkspaceCreateDocsDialog from '../components/WorkspaceCreateDocsDialog.vue'
 import WorkspaceFunctionRenderer from '../components/WorkspaceFunctionRenderer.vue'
 import WorkspaceFunctionTabsPanel from '../components/WorkspaceFunctionTabsPanel.vue'
-import WorkspaceSidebarSessionsPanel from '../components/WorkspaceSidebarSessionsPanel.vue'
 import type { App } from '../../domain/services/WorkspaceDomainService'
 import type { FieldConfig, FieldValue, FunctionDetail } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
@@ -376,7 +317,6 @@ import { useWorkspaceDetail } from '../composables/useWorkspaceDetail'
 import { useWorkspaceApp } from '../composables/useWorkspaceApp'
 import { useWorkspaceServiceTree } from '../composables/useWorkspaceServiceTree'
 import { useWorkspaceFunctionTabs } from '../composables/useWorkspaceFunctionTabs'
-import { useWorkspaceSidebarSessions } from '../composables/useWorkspaceSidebarSessions'
 import { useWorkspaceMiniWorkstations } from '../composables/useWorkspaceMiniWorkstations'
 import { useWorkspaceNodeActions } from '../composables/useWorkspaceNodeActions'
 import { useWorkspaceNodeNavigation } from '../composables/useWorkspaceNodeNavigation'
@@ -631,9 +571,6 @@ const workspaceHeaderRef = ref<InstanceType<typeof WorkspaceHeader> | null>(null
 // 左侧服务目录树显示状态
 const showLeftSidebar = ref(true)
 
-// 右侧会话面板显示状态
-const showRightSidebar = ref(true)
-
 const {
   functionActiveTab,
   setFunctionFormViewRef,
@@ -697,13 +634,6 @@ const toggleLeftSidebar = () => {
   localStorage.setItem('workspace-left-sidebar', String(showLeftSidebar.value))
 }
 
-// 切换右侧边栏显示
-const toggleRightSidebar = () => {
-  showRightSidebar.value = !showRightSidebar.value
-  // 保存到 localStorage 持久化
-  localStorage.setItem('workspace-right-sidebar', String(showRightSidebar.value))
-}
-
 /** 工作台上下文：点击什么节点就用什么节点的 full_code_path */
 const workstationContext = computed(() => {
   const node = currentFunction.value
@@ -729,6 +659,15 @@ const {
   buildWorkspacePath: (fullCodePath: string) => buildWorkspacePath(fullCodePath),
 })
 
+watch(
+  workstationContext,
+  (ctx) => {
+    if (!ctx?.fullCodePath) return
+    openNewMiniWs(undefined, ctx.fullCodePath, ctx.dirName)
+  },
+  { immediate: true }
+)
+
 function openWorkspaceSession(session: WorkspaceSessionItem) {
   const sessionID = (session.session_id || '').trim()
   if (!sessionID) return
@@ -743,42 +682,6 @@ function openWorkspaceSession(session: WorkspaceSessionItem) {
     full_code_path: fullCodePath,
     session_id: sessionID,
     open_as_mini: true
-  })
-}
-
-const {
-  sessionsLoading: rightSidebarSessionsLoading,
-  scheduledAgentTasksLoading: rightSidebarScheduledLoading,
-  activeTab: rightTab,
-  sessionSearchKeyword: rightSessionSearchKeyword,
-  cancellingTaskId,
-  scheduledAgentTaskActionId,
-  runningCount: rightSidebarRunningCount,
-  scheduledAgentTaskCount: rightSidebarScheduledCount,
-  filteredSessions: filteredRightSessions,
-  filteredScheduledAgentTasks: filteredRightScheduledTasks,
-  filteredScheduledAgentExecutions: filteredRightScheduledExecutions,
-  openScheduledAgentTask: openScheduledAgentTaskSession,
-  openScheduledAgentExecution: openScheduledAgentExecutionSession,
-  formatRelativeTime,
-  handleCancelTask,
-  handleRunScheduledAgentTaskNow
-} = useWorkspaceSidebarSessions({
-  workstationContext,
-  sidebarVisible: showRightSidebar,
-  onOpenSession: openWorkspaceSession
-})
-
-function openScheduledAgentTaskManager() {
-  if (currentFunction.value?.type === 'function' && showScheduledAgentTaskTab.value) {
-    functionActiveTab.value = 'scheduledAgentTask'
-  }
-  router.replace({
-    path: route.path,
-    query: {
-      ...route.query,
-      _panel: 'scheduledAgentTask'
-    }
   })
 }
 
@@ -918,7 +821,6 @@ const handleDeleteApp = async (app: AppType): Promise<void> => {
 useWorkspaceUiEffects({
   currentApp: () => currentApp.value,
   showLeftSidebar,
-  showRightSidebar,
   openPullFromHubDialog,
   openDetailDrawer,
   setupUrlWatch,
@@ -1103,50 +1005,6 @@ useWorkspaceUiEffects({
 
 .board-content-scroll {
   padding-right: 130px; /* 为右上角「板块说明」按钮留出空间，避免挡住发帖等操作 */
-}
-
-// 右侧边栏控制按钮
-.sidebar-controls {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  z-index: 10;
-  
-  .right-controls {
-    display: flex;
-    gap: 8px;
-  }
-  
-  .sidebar-toggle {
-    min-height: 40px;
-    padding: 0 14px;
-    color: var(--el-text-color-secondary);
-    background: var(--app-shell-panel-bg-strong);
-    border: 1px solid var(--app-shell-panel-border);
-    border-radius: 14px;
-    box-shadow: var(--app-shell-panel-shadow-soft);
-    
-    &:hover {
-      background: var(--app-shell-panel-bg);
-      border-color: var(--el-color-primary);
-      box-shadow: var(--app-shell-panel-shadow);
-    }
-  }
-}
-
-// 右侧面板：工作台会话
-.right-sidebar {
-  width: 292px;
-  min-width: 292px;
-  background: var(--app-shell-panel-bg);
-  border: 1px solid var(--app-shell-panel-border);
-  border-radius: 22px;
-  box-shadow: var(--app-shell-panel-shadow);
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
 
 .ai-chat-wrapper {
