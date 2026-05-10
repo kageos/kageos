@@ -11,8 +11,8 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
-// runOfficialPythonPreinstallDoc 与 deploy/base/images/app-base/Dockerfile 中 apt/python3-* 与 pip3 install 预装保持一致；改镜像时请同步更新本文案
-const runOfficialPythonPreinstallDoc = `**生产镜像已预装、可直接 import 的第三方库（对应 deploy/base/images/app-base/Dockerfile）：**
+// runPythonPreinstallDoc 与 deploy/base/images/app-base/Dockerfile 中 apt/python3-* 与 pip3 install 预装保持一致；改镜像时请同步更新本文案
+const runPythonPreinstallDoc = `**生产镜像已预装、可直接 import 的第三方库（对应 deploy/base/images/app-base/Dockerfile）：**
 - 数据与图表：pandas、numpy、scipy、matplotlib、seaborn、plotly、pyecharts
 - 数据展示与日期：tabulate、arrow、dateutil（python-dateutil）
 - 网络与网页解析：requests、aiohttp、bs4（beautifulsoup4）、lxml
@@ -33,14 +33,14 @@ const runOfficialPythonPreinstallDoc = `**生产镜像已预装、可直接 impo
 典型写法：
 drawtext=text='千幻智能':fontfile=/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc:fontsize=40:fontcolor=white:x=w-tw-30:y=h-th-30:borderw=2:bordercolor=black@0.8
 
-**若 import 报错：** 优先改用上面列表或标准库；需要新依赖时请管理员更新 Dockerfile / 官方 requirements.txt 并重打镜像。不可在本工具参数里指定 pip 包。
+**若 import 报错：** 优先改用上面列表或标准库；需要新依赖时请管理员更新 Dockerfile / 基础镜像 requirements.txt 并重打镜像。不可在本工具参数里指定 pip 包。
 **环境差异：** 本地非 Docker 运行时以本机 python 为准，可能与镜像不一致。`
 
-const officialPythonFormPath = "/system/official/python/execute.form"
+const runPythonFormPath = "/system/tools/runtime/python.form"
 
-type RunOfficialPythonTool struct{}
+type RunPythonTool struct{}
 
-type runOfficialPythonArgs struct {
+type runPythonArgs struct {
 	PythonCode     string                 `json:"python_code" schema_desc:"完整 Python 源码" schema_required:"true"`
 	Args           map[string]interface{} `json:"args" schema_desc:"注入脚本的对象参数（推荐）"`
 	ArgsJSON       string                 `json:"args_json" schema_desc:"注入脚本的 JSON 对象字符串（兼容旧调用方）"`
@@ -48,17 +48,17 @@ type runOfficialPythonArgs struct {
 	TimeoutSeconds *int                   `json:"timeout_seconds" schema_desc:"超时秒数"`
 }
 
-var runOfficialPythonToolDef = toolDefinition[runOfficialPythonArgs](
-	"run_official_python",
-	runOfficialPythonPreinstallDoc+`
+var runPythonToolDef = toolDefinition[runPythonArgs](
+	"run_python",
+	runPythonPreinstallDoc+`
 
-**执行环境：** Python 跑在 **应用运行时容器内**（Podman 等业务容器，**不是宿主机**）。本工具调用官方路径 **/system/official/python/execute.form**，由 **官方应用** 对应容器执行；脚本在 **临时目录** 中运行，不把工作区源码树当作工作目录。
+**执行环境：** Python 跑在 **应用运行时容器内**（Podman 等业务容器，**不是宿主机**）。本工具调用工具库路径 **/system/tools/runtime/python.form**，由 **system/tools** 应用对应容器执行；脚本在 **临时目录** 中运行，不把工作区源码树当作工作目录。
 
 **固定入口协议：**
 - python_code **必须定义**：def agentos_entry(args, output_dir): ...
 - 第一个参数 args 为传入的对象参数；第二个参数 output_dir 为受控输出目录
 - 若本轮用户上传了附件，系统会在执行前自动下载到容器本地，并注入 args["input_files"]：本地文件路径列表。单文件取 args["input_files"][0]。Python 代码应直接 open 本地路径，不要 requests.get 文件引用或猜 URL；不要把文件引用数组再塞进 args["input_files"]。
-- input_files 也可以直接传入上一步工具返回的 output_files 文件引用（bucket/object_key，如 ai-agent-os/system/official/python/execute.form/.../result.csv）。平台会像处理用户上传附件一样自动从 COS/对象存储下载到容器本地，并注入 args["input_files"] 本地路径列表；这用于多步骤流水线，避免手动下载再上传。
+- input_files 也可以直接传入上一步工具返回的 output_files 文件引用（bucket/object_key，如 ai-agent-os/system/tools/runtime/python.form/.../result.csv）。平台会像处理用户上传附件一样自动从 COS/对象存储下载到容器本地，并注入 args["input_files"] 本地路径列表；这用于多步骤流水线，避免手动下载再上传。
 - 返回值 **必须是 dict**，仅允许：
   - data: JSON 可序列化结果
   - output_files: 输出文件列表，每项至少含 path
@@ -79,10 +79,10 @@ var runOfficialPythonToolDef = toolDefinition[runOfficialPythonArgs](
 - 输出图片、Excel、PDF 等文件时，统一写到 output_dir，再在 output_files 里声明绝对路径。
 - 如果上一轮出现 SyntaxError 或 IndentationError，不要局部修补旧长脚本；请重新生成一份更短、更扁平、缩进完整的 python_code。
 
-**输出结果：** 官方执行端会解析 agentos_entry 的返回值；若返回里有 **output_files**，Go 侧会负责校验、上传并构造成最终 string，工作台自动展示可下载附件。
+**输出结果：** 工具库执行端会解析 agentos_entry 的返回值；若返回里有 **output_files**，Go 侧会负责校验、上传并构造成最终 string，工作台自动展示可下载附件。
 
 **文件流转能力（重要）：**
-- output_files 返回的文件引用可以直接作为下一次 run_official_python 的 input_files 参数。
+- output_files 返回的文件引用可以直接作为下一次 run_python 的 input_files 参数。
 - 多个文件引用仍用英文逗号分隔。
 - 下一步 Python 代码里不要读取 bucket/object_key 字符串本身；应读取平台注入的本地路径 args["input_files"][0] / args["input_files"][i]。
 - 示例流水线：步骤1 清洗 Excel -> output_files 返回 CSV；步骤2 input_files 填该 CSV 路径并读取 pd.read_csv(args["input_files"][0]) -> 输出 XLSX；步骤3 input_files 填该 XLSX 路径 -> 生成图表图片。
@@ -99,26 +99,26 @@ var runOfficialPythonToolDef = toolDefinition[runOfficialPythonArgs](
 返回中可能含 _model_guidance：面向你的纠错/降级说明，请优先阅读。`,
 )
 
-func (t *RunOfficialPythonTool) Definition() dto.ToolDef {
-	return runOfficialPythonToolDef
+func (t *RunPythonTool) Definition() dto.ToolDef {
+	return runPythonToolDef
 }
 
-func (t *RunOfficialPythonTool) Execute(ctx context.Context, call ToolCall) ToolResult {
-	args, err := decodeToolArgs[runOfficialPythonArgs](call.Args)
+func (t *RunPythonTool) Execute(ctx context.Context, call ToolCall) ToolResult {
+	args, err := decodeToolArgs[runPythonArgs](call.Args)
 	if err != nil {
-		return toolResult("run_official_python 参数解析失败: "+err.Error(), true)
+		return toolResult("run_python 参数解析失败: "+err.Error(), true)
 	}
-	content, isError, data := runOfficialPythonTool(ctx, args, call.Files)
+	content, isError, data := runPythonTool(ctx, args, call.Files)
 	return toolResultWithDataAndMetadata(content, isError, data, metadataForDisplayFileFields("output_files"))
 }
 
-// runOfficialPythonTool 调用系统官方 Python 执行 Form
-func runOfficialPythonTool(ctx context.Context, args runOfficialPythonArgs, attachedFiles string) (string, bool, map[string]interface{}) {
+// runPythonTool 调用 system/tools 的 Python 执行 Form
+func runPythonTool(ctx context.Context, args runPythonArgs, attachedFiles string) (string, bool, map[string]interface{}) {
 	// python_code 必须按原文透传。历史上尝试清理 BOM/控制字符/缩进会让真实错误更难定位，
 	// 也可能改变 Python 源码语义；这里仅判空，不做任何隐式修复。
 	code := args.PythonCode
 	if strings.TrimSpace(code) == "" {
-		return "run_official_python 需传 python_code。", true, nil
+		return "run_python 需传 python_code。", true, nil
 	}
 	body := map[string]interface{}{
 		"python_code":          code,
@@ -133,7 +133,7 @@ func runOfficialPythonTool(ctx context.Context, args runOfficialPythonArgs, atta
 	if argsJSON := strings.TrimSpace(args.ArgsJSON); argsJSON != "" {
 		body["args_json"] = argsJSON
 	}
-	if inputFiles := resolveOfficialPythonInputFiles(args.InputFiles, attachedFiles); inputFiles != "" {
+	if inputFiles := resolvePythonInputFiles(args.InputFiles, attachedFiles); inputFiles != "" {
 		body["input_files"] = inputFiles
 	}
 	timeoutSec := 120
@@ -145,30 +145,30 @@ func runOfficialPythonTool(ctx context.Context, args runOfficialPythonArgs, atta
 	}
 	body["timeout_seconds"] = timeoutSec
 
-	result, err := apicall.FormSubmit(ctx, officialPythonFormPath, body)
+	result, err := apicall.FormSubmit(ctx, runPythonFormPath, body)
 	if err != nil {
-		logger.Errorf(ctx, "[RunOfficialPython] FormSubmit 失败: %v", err)
-		return "run_official_python 调用失败: " + err.Error() + "\n\n【给模型】可检查 python_code 是否过长、args/args_json 是否为合法对象；网络或权限问题可稍后重试。", true, nil
+		logger.Errorf(ctx, "[RunPython] FormSubmit 失败: %v", err)
+		return "run_python 调用失败: " + err.Error() + "\n\n【给模型】可检查 python_code 是否过长、args/args_json 是否为合法对象；网络或权限问题可稍后重试。", true, nil
 	}
 	out := make(map[string]interface{}, len(result)+1)
 	for k, v := range result {
 		out[k] = v
 	}
-	if g := buildOfficialPythonModelGuidance(result); g != "" {
+	if g := buildPythonModelGuidance(result); g != "" {
 		out["_model_guidance"] = g
 	}
 	content, isError := formatJSONResult(out)
 	return content, isError, out
 }
 
-func resolveOfficialPythonInputFiles(explicit string, attached string) string {
+func resolvePythonInputFiles(explicit string, attached string) string {
 	if s := strings.TrimSpace(explicit); s != "" {
 		return s
 	}
 	return strings.TrimSpace(attached)
 }
 
-func officialPythonFormPayload(m map[string]interface{}) map[string]interface{} {
+func pythonFormPayload(m map[string]interface{}) map[string]interface{} {
 	if m == nil {
 		return nil
 	}
@@ -187,7 +187,7 @@ func officialPythonFormPayload(m map[string]interface{}) map[string]interface{} 
 	return m
 }
 
-func officialPythonAnyToString(v interface{}) string {
+func pythonAnyToString(v interface{}) string {
 	if v == nil {
 		return ""
 	}
@@ -197,14 +197,14 @@ func officialPythonAnyToString(v interface{}) string {
 	return fmt.Sprintf("%v", v)
 }
 
-func buildOfficialPythonModelGuidance(raw map[string]interface{}) string {
-	p := officialPythonFormPayload(raw)
+func buildPythonModelGuidance(raw map[string]interface{}) string {
+	p := pythonFormPayload(raw)
 	if p == nil {
 		return ""
 	}
-	status := strings.TrimSpace(officialPythonAnyToString(p["status"]))
-	out := officialPythonAnyToString(p["output"])
-	jr := officialPythonAnyToString(p["json_result"])
+	status := strings.TrimSpace(pythonAnyToString(p["status"]))
+	out := pythonAnyToString(p["output"])
+	jr := pythonAnyToString(p["json_result"])
 	lowOut := strings.ToLower(out)
 
 	var lines []string
@@ -225,7 +225,7 @@ func buildOfficialPythonModelGuidance(raw map[string]interface{}) string {
 	case "失败":
 		appendLine("【状态为失败】请阅读 output 中的 traceback/错误信息，修正 python_code 后重试。")
 		if strings.Contains(out, "ModuleNotFoundError") || strings.Contains(out, "No module named") {
-			appendLine("【依赖】ModuleNotFoundError：请优先使用工具说明里已列出的预装库（pandas、numpy、jieba、snownlp、requests、openpyxl、xlsxwriter、python-pptx、matplotlib、plotly、pyecharts、bs4、tabulate、arrow、wordcloud、pytesseract、yt_dlp、PyYAML…）或仅用标准库；若必须新库，请管理员更新 deploy/base/images/app-base/Dockerfile 或官方 requirements.txt 并重打镜像。")
+			appendLine("【依赖】ModuleNotFoundError：请优先使用工具说明里已列出的预装库（pandas、numpy、jieba、snownlp、requests、openpyxl、xlsxwriter、python-pptx、matplotlib、plotly、pyecharts、bs4、tabulate、arrow、wordcloud、pytesseract、yt_dlp、PyYAML…）或仅用标准库；若必须新库，请管理员更新 deploy/base/images/app-base/Dockerfile 或基础镜像 requirements.txt 并重打镜像。")
 		}
 		if strings.Contains(out, "SyntaxError") || strings.Contains(out, "IndentationError") {
 			appendLine("【语法】请检查引号、缩进、括号是否匹配；字符串内换行需用三引号或 \\n。")

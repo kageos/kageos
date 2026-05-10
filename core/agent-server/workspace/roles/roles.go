@@ -151,7 +151,7 @@ func Specs() map[string]Spec {
 			ID:               DataOperator,
 			DisplayName:      "数据/文件处理工程师",
 			Docs:             []string{"/system/prompt/roles/data-operator"},
-			AllowedTools:     []string{"change_role", "read_doc", "search_tools", "run_form_submit", "run_official_python", "fetch_url_content", "web_search"},
+			AllowedTools:     []string{"change_role", "read_doc", "search_tools", "run_form_submit", "run_python", "fetch_url_content", "web_search"},
 			Action:           "数据/文件处理工程师处理一次性文件、媒体和数据任务，不沉淀长期业务应用。",
 			RouteDescription: "用户要做一次性文件、媒体、数据处理、图表生成、格式转换、OCR、压缩、转码等杂活时进入。优先复用已有官方工具和运行工具，不要误判成长期应用开发。只有用户明确要求沉淀为业务系统、记录管理或统计看板时，才切到 `product_manager`。",
 			NextRoles: []NextRole{

@@ -39,8 +39,8 @@ func InitSystemWorkspace(ctx context.Context, appService *AppService, serviceTre
 	if err := initSystemPromptSeed(systemCtx, serviceTreeService); err != nil {
 		return fmt.Errorf("初始化 prompt 工作空间失败: %w", err)
 	}
-	if err := initOfficialDirectorySeeds(systemCtx, serviceTreeService); err != nil {
-		return fmt.Errorf("初始化官方目录种子失败: %w", err)
+	if err := initSystemDirectorySeeds(systemCtx, serviceTreeService); err != nil {
+		return fmt.Errorf("初始化系统目录种子失败: %w", err)
 	}
 
 	logger.Infof(ctx, "[SystemWorkspace] 系统工作空间初始化完成")
@@ -60,7 +60,6 @@ func initSystemApps(ctx context.Context, appService *AppService) error {
 
 func systemAppDefinitions() []systemAppDefinition {
 	return []systemAppDefinition{
-		{Code: "official", Name: "官方库"},
 		{Code: "tools", Name: "官方工具"},
 		{Code: "openapi", Name: "平台接口"},
 		{Code: "prompt", Name: "提示词"},

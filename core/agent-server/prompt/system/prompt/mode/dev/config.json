@@ -37,7 +37,7 @@
     "list_scheduled_agent_tasks",
     "list_scheduled_agent_task_executions",
     "run_scheduled_agent_task_now",
-    "run_official_python"
+    "run_python"
   ],
   "system_prompt_file": "system_prompt.md",
   "system_prompt_append_files": []

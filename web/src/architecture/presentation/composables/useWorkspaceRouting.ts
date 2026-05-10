@@ -175,8 +175,8 @@ export function useWorkspaceRouting(
       const appSwitched = true
 
       // ⭐ 处理根路径和子路径（统一逻辑）
-      // 根路径：pathSegments.length === 2，如 /system/official
-      // 子路径：pathSegments.length > 2，如 /system/official/agent/plugin
+      // 根路径：pathSegments.length === 2，如 /system/tools
+      // 子路径：pathSegments.length > 2，如 /system/tools/runtime
       if (pathSegments.length >= 2) {
         const functionPath = '/' + pathSegments.join('/') // 构造完整路径，如 /luobei/demo 或 /luobei/demo/crm/list
         

@@ -5822,7 +5822,7 @@ const docTemplate = `{
                 "app_code": {
                     "description": "应用代码",
                     "type": "string",
-                    "example": "official"
+                    "example": "tools"
                 },
                 "app_id": {
                     "description": "应用ID",
@@ -5858,7 +5858,7 @@ const docTemplate = `{
                 "full_code_path": {
                     "description": "完整代码路径",
                     "type": "string",
-                    "example": "/system/official/agent/plugin/excel_or_csv/table_parse"
+                    "example": "/system/tools/table/inspect.form"
                 },
                 "id": {
                     "description": "函数ID",

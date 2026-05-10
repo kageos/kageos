@@ -31,7 +31,7 @@ func ExampleDecodeTable() {
 		Priority      string        `json:"priority" gorm:"column:priority" widget:"name:优先级;type:select;options:低,中,高;render_default:中" validate:"required,oneof=低 中 高"`
 		Status        string        `json:"status" gorm:"column:status" widget:"name:工单状态;type:select;options:待处理,处理中,已完成,已关闭;render_default:待处理" validate:"required,oneof=待处理 处理中 已完成 已关闭"`
 		Phone         string        `json:"phone" gorm:"column:phone" widget:"name:联系电话;type:input" validate:"required,min=11,max=20"`
-		CreateBy      string        `json:"create_by" gorm:"column:create_by" widget:"name:创建用户;type:user" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
+		CreatedBy     string        `json:"created_by" gorm:"column:created_by" widget:"name:创建用户;type:user" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 		Deadline      apptypes.Time `json:"deadline" gorm:"column:deadline;type:datetime" widget:"name:截止时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
 		RemainingTime string        `json:"remaining_time" gorm:"-" widget:"name:剩余时间;type:input" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单；AfterFind 计算
 	}

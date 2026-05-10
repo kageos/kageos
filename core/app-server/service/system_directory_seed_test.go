@@ -7,11 +7,11 @@ import (
 	"testing"
 )
 
-func TestOfficialDirectorySeedTargetPathUsesDirectoryAsTargetNode(t *testing.T) {
-	seedDir := filepath.Join(t.TempDir(), "official-seed")
+func TestSystemDirectorySeedTargetPathUsesDirectoryAsTargetNode(t *testing.T) {
+	seedDir := filepath.Join(t.TempDir(), "system-seed")
 	filePath := filepath.Join(seedDir, "system", "tools", "openapi", "excel.json")
 
-	got, err := officialDirectorySeedTargetPath(seedDir, filePath)
+	got, err := systemDirectorySeedTargetPath(seedDir, filePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,15 +20,15 @@ func TestOfficialDirectorySeedTargetPathUsesDirectoryAsTargetNode(t *testing.T) 
 	}
 }
 
-func TestOfficialDirectorySeedTargetPathRejectsRootJSON(t *testing.T) {
-	seedDir := filepath.Join(t.TempDir(), "official-seed")
-	_, err := officialDirectorySeedTargetPath(seedDir, filepath.Join(seedDir, "excel.json"))
+func TestSystemDirectorySeedTargetPathRejectsRootJSON(t *testing.T) {
+	seedDir := filepath.Join(t.TempDir(), "system-seed")
+	_, err := systemDirectorySeedTargetPath(seedDir, filepath.Join(seedDir, "excel.json"))
 	if err == nil {
 		t.Fatal("expected root json to be rejected")
 	}
 }
 
-func TestListOfficialDirectorySeedFilesSorted(t *testing.T) {
+func TestListSystemDirectorySeedFilesSorted(t *testing.T) {
 	seedDir := t.TempDir()
 	for _, rel := range []string{"system/tools/z.json", "system/tools/a.json", "system/tools/readme.md", "system/openapi/platform.json"} {
 		path := filepath.Join(seedDir, filepath.FromSlash(rel))
@@ -40,7 +40,7 @@ func TestListOfficialDirectorySeedFilesSorted(t *testing.T) {
 		}
 	}
 
-	files, err := listOfficialDirectorySeedFiles(seedDir)
+	files, err := listSystemDirectorySeedFiles(seedDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,18 +58,18 @@ func TestListOfficialDirectorySeedFilesSorted(t *testing.T) {
 	}
 }
 
-func TestOfficialSeedBundlesUseCapabilitySchema(t *testing.T) {
-	seedDir := filepath.Join("..", "official-seed")
-	files, err := listOfficialDirectorySeedFiles(seedDir)
+func TestSystemSeedBundlesUseCapabilitySchema(t *testing.T) {
+	seedDir := filepath.Join("..", "system-seed")
+	files, err := listSystemDirectorySeedFiles(seedDir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(files) == 0 {
-		t.Fatal("expected official seed bundles")
+		t.Fatal("expected system seed bundles")
 	}
 
 	for _, file := range files {
-		if _, err := officialDirectorySeedTargetPath(seedDir, file); err != nil {
+		if _, err := systemDirectorySeedTargetPath(seedDir, file); err != nil {
 			t.Fatalf("invalid seed target for %s: %v", file, err)
 		}
 		bundle, err := readCapabilityBundleFile(file)

@@ -1,4 +1,4 @@
-# Official Capability Seeds
+# System Capability Seeds
 
 Place built-in `capability.bundle.v1` JSON files here.
 

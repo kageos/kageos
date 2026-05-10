@@ -22,8 +22,8 @@ type AgentInfo struct {
 	Author               string         `json:"author" example:"beiluo"`
 	Description          string         `json:"description" example:"基于Excel文件生成管理系统"`
 	Timeout              int            `json:"timeout" example:"30"`
-	PluginFunctionPath   string         `json:"plugin_function_path" example:"/system/official/agent/plugin/excel_or_csv/table_parse"` // 插件函数路径（full-code-path，仅 plugin 类型需要）
-	DocsPaths            string         `json:"docs_paths" example:"/system/official/sdk,/system/official/plugins"`                    // 文档路径（逗号分隔）
+	PluginFunctionPath   string         `json:"plugin_function_path" example:"/system/tools/table/inspect.form"`                       // 插件函数路径（full-code-path，仅 plugin 类型需要）
+	DocsPaths            string         `json:"docs_paths" example:"/system/prompt/sdk,/system/prompt/case_catalog"`                   // 文档路径（逗号分隔）
 	LLMConfigID          int64          `json:"llm_config_id" example:"1"`                                                             // LLM配置ID，如果为0则使用默认LLM
 	LLMConfig            *LLMConfigInfo `json:"llm_config,omitempty"`                                                                  // 预加载的LLM配置信息
 	SystemPromptTemplate string         `json:"system_prompt_template" example:"你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"` // System Prompt模板，支持{knowledge}变量
@@ -72,8 +72,8 @@ type AgentCreateReq struct {
 	Author               string `json:"author" example:"beiluo"`
 	Description          string `json:"description" example:"基于Excel文件生成管理系统"`
 	Timeout              int    `json:"timeout" example:"30"`
-	PluginFunctionPath   string `json:"plugin_function_path" example:"/system/official/agent/plugin/excel_or_csv/table_parse"` // 插件函数路径（full-code-path，仅 plugin 类型需要）
-	DocsPaths            string `json:"docs_paths" example:"/system/official/sdk,/system/official/plugins"`                    // 文档路径（逗号分隔）
+	PluginFunctionPath   string `json:"plugin_function_path" example:"/system/tools/table/inspect.form"`                       // 插件函数路径（full-code-path，仅 plugin 类型需要）
+	DocsPaths            string `json:"docs_paths" example:"/system/prompt/sdk,/system/prompt/case_catalog"`                   // 文档路径（逗号分隔）
 	LLMConfigID          int64  `json:"llm_config_id" example:"1"`                                                             // LLM配置ID，如果为0则使用默认LLM
 	SystemPromptTemplate string `json:"system_prompt_template" example:"你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"` // System Prompt模板，支持{knowledge}变量
 	Metadata             string `json:"metadata" example:"{}"`
@@ -98,8 +98,8 @@ type AgentUpdateReq struct {
 	Author               string `json:"author" example:"beiluo"`
 	Description          string `json:"description" example:"基于Excel文件生成管理系统"`
 	Timeout              int    `json:"timeout" example:"30"`
-	PluginFunctionPath   string `json:"plugin_function_path" example:"/system/official/agent/plugin/excel_or_csv/table_parse"` // 插件函数路径（full-code-path，仅 plugin 类型需要）
-	DocsPaths            string `json:"docs_paths" example:"/system/official/sdk,/system/official/plugins"`                    // 文档路径（逗号分隔）
+	PluginFunctionPath   string `json:"plugin_function_path" example:"/system/tools/table/inspect.form"`                       // 插件函数路径（full-code-path，仅 plugin 类型需要）
+	DocsPaths            string `json:"docs_paths" example:"/system/prompt/sdk,/system/prompt/case_catalog"`                   // 文档路径（逗号分隔）
 	LLMConfigID          int64  `json:"llm_config_id" example:"1"`                                                             // LLM配置ID，如果为0则使用默认LLM
 	SystemPromptTemplate string `json:"system_prompt_template" example:"你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"` // System Prompt模板，支持{knowledge}变量
 	Metadata             string `json:"metadata" example:"{}"`

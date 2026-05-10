@@ -141,7 +141,7 @@ RUN ln -sf /usr/bin/lua5.4 /usr/bin/lua
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
 # 安装编译依赖 + pip 包（不删编译工具，避免连锁删 scipy/matplotlib）
-# 若增删此处或上方 python3-* 包：请同步更新 core/agent-server 中 runOfficialPythonPreinstallDoc（工作台 run_official_python 工具说明）
+# 若增删此处或上方 python3-* 包：请同步更新 core/agent-server 中 runPythonPreinstallDoc（工作台 run_python 工具说明）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ python3-dev libfreetype6-dev libpng-dev libjpeg-dev zlib1g-dev \
     && pip3 install --no-cache-dir --prefer-binary \

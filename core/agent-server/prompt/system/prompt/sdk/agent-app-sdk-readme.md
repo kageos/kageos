@@ -322,7 +322,7 @@ type WidgetLookupExtra struct {
 
 `datetime` 的 `render_default` 可以写静态时间字符串（如 `2026-05-01 10:30:00`），也可以写前端可解析的动态表达式：`CURRENT_TIMESTAMP`、`CURRENT_DATE`、`DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 1 HOUR)`、`DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY)`。不要写 `NOW()` 或缺少 `INTERVAL` 的表达式，启动期会失败。
 
-**系统审计字段启动期约束**：`id` 主键字段必须 `type:ID`、`hide:"create,update"`，且 `gorm` 包含 `primaryKey`、`autoIncrement`、`column:id`；`created_at` / `updated_at` 必须是 `datetime` + `format:YYYY-MM-DD HH:mm:ss` + `hide:"create,update"`，并分别包含 `autoCreateTime` / `autoUpdateTime`；`create_by` / `created_by` / `update_by` / `updated_by` 必须是 `type:user` + `hide:"create,update"`，且 `gorm column` 与 `json` 名一致；`deleted_at` 必须 `widget:"-"` 或 `json:"-"`，不要进入前端 schema。需要按这些字段筛选时，在 Table Request 里显式声明筛选字段。
+**系统审计字段启动期约束**：`id` 主键字段必须 `type:ID`、`hide:"create,update"`，且 `gorm` 包含 `primaryKey`、`autoIncrement`、`column:id`；`created_at` / `updated_at` 必须是 `datetime` + `format:YYYY-MM-DD HH:mm:ss` + `hide:"create,update"`，并分别包含 `autoCreateTime` / `autoUpdateTime`；`created_by` / `updated_by` 必须是 `type:user` + `hide:"create,update"`，且 `gorm column` 与 `json` 名一致；`deleted_at` / `deleted_by` 必须 `widget:"-"` 或 `json:"-"`，不要进入前端 schema。需要按这些字段筛选时，在 Table Request 里显式声明筛选字段。
 
 `types.Time` 是对 `time.Time` 的包装类型，给结构体字段赋值时必须显式转换，不能直接把 `time.Now()` 赋给 `types.Time` 字段。
 不要生成未在当前已读文档、案例或 SDK 源码中确认存在的 SDK 类型、函数、常量或结构体字段；遇到 `undefined: <sdk package>.<symbol>` 先回到对应知识点或源码确认真实 API。
@@ -564,10 +564,10 @@ RemainingTime string `json:"remaining_time" gorm:"-" widget:"name:剩余时间;t
 
 ```go
 Department string `json:"department" gorm:"column:department" widget:"name:提单部门;type:department" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
-CreateBy   string `json:"create_by" gorm:"column:create_by" widget:"name:创建用户;type:user" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
+CreatedBy   string `json:"created_by" gorm:"column:created_by" widget:"name:创建用户;type:user" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 ```
 
-在 OnTableAddRow 中：`row.Department = ctx.GetRequestUserDept()`；`row.CreateBy = ctx.GetRequestUser()`。
+在 OnTableAddRow 中：`row.Department = ctx.GetRequestUserDept()`；`row.CreatedBy = ctx.GetRequestUser()`。
 
 **场景 3：仅新增时展示、编辑/列表不展示（hide:"list,update"）**
 
@@ -627,7 +627,7 @@ OnTableAddRow: func(ctx *app.Context, req *callback.OnTableAddRowReq) (*callback
     if err := ctx.ShouldBindValidate(&row); err != nil {
         return nil, err
     }
-    row.CreateBy = ctx.GetRequestUser()
+    row.CreatedBy = ctx.GetRequestUser()
     row.Department = ctx.GetRequestUserDept()
     if err := db.Create(&row).Error; err != nil {
         return nil, err

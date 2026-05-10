@@ -621,7 +621,7 @@ func generateExampleValueForRow(field *widget.Field, rowIndex int, maxRows int, 
 		// 创建时间/更新时间：使用当前时间，格式为 2006-01-02 15:04:05
 		now := time.Now()
 		return now.Format("2006-01-02 15:04:05")
-	case "create_by", "updated_by":
+	case "created_by", "updated_by":
 		// 创建用户/更新用户：使用当前用户名（必须获取到，否则返回空字符串）
 		if username != "" {
 			return username
@@ -691,7 +691,7 @@ func generateExampleValueForRow(field *widget.Field, rowIndex int, maxRows int, 
 
 	case widget.TypeUser:
 		// 用户类型：如果是创建用户/更新用户字段，使用当前用户名；否则使用默认值
-		if field.Code == "create_by" || field.Code == "updated_by" {
+		if field.Code == "created_by" || field.Code == "updated_by" {
 			if username != "" {
 				return username
 			}

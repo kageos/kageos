@@ -202,9 +202,9 @@ func validateAuditFieldConvention(ctx ValidateContext) error {
 		return validateAuditTimeField(ctx, "created_at", "autoCreateTime")
 	case "updated_at":
 		return validateAuditTimeField(ctx, "updated_at", "autoUpdateTime")
-	case "create_by", "created_by":
+	case "created_by":
 		return validateAuditUserField(ctx, ctx.FieldCode)
-	case "update_by", "updated_by":
+	case "updated_by":
 		return validateAuditUserField(ctx, ctx.FieldCode)
 	case "deleted_at":
 		return fieldError(ctx, `audit field "deleted_at" must be hidden with widget:"-" or json:"-"`)

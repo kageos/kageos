@@ -162,7 +162,7 @@ func voteOnSelectFuzzyTopicForOptionList(ctx *app.Context, req *callback.OnSelec
 			Limit(20)
 	}
 
-	db = db.Where("create_by = ?", currentUser)
+	db = db.Where("created_by = ?", currentUser)
 	db.Find(&topics)
 
 	items := make([]*callback.SelectFuzzyItem, 0)
@@ -229,8 +229,8 @@ var VoteOptionListTemplate = &app.TableTemplate{
 			return nil, fmt.Errorf("投票主题不存在，无法添加选项")
 		}
 
-		if topic.CreateBy != currentUser {
-			return nil, fmt.Errorf("权限不足：只有投票主题 '%s' 的创建人 '%s' 才能添加选项，当前用户为 '%s'", topic.Title, topic.CreateBy, currentUser)
+		if topic.CreatedBy != currentUser {
+			return nil, fmt.Errorf("权限不足：只有投票主题 '%s' 的创建人 '%s' 才能添加选项，当前用户为 '%s'", topic.Title, topic.CreatedBy, currentUser)
 		}
 
 		status := getTopicStatus(topic.StartTime, topic.EndTime)
@@ -265,8 +265,8 @@ var VoteOptionListTemplate = &app.TableTemplate{
 			return &callback.OnTableUpdateRowResp{}, nil
 		}
 
-		if topic.CreateBy != currentUser {
-			return nil, fmt.Errorf("权限不足：只有投票主题 '%s' 的创建人 '%s' 才能修改选项，当前用户为 '%s'", topic.Title, topic.CreateBy, currentUser)
+		if topic.CreatedBy != currentUser {
+			return nil, fmt.Errorf("权限不足：只有投票主题 '%s' 的创建人 '%s' 才能修改选项，当前用户为 '%s'", topic.Title, topic.CreatedBy, currentUser)
 		}
 
 		status := getTopicStatus(topic.StartTime, topic.EndTime)
@@ -302,8 +302,8 @@ var VoteOptionListTemplate = &app.TableTemplate{
 				continue
 			}
 
-			if option.Topic.CreateBy != currentUser {
-				return nil, fmt.Errorf("权限不足：只有投票主题 '%s' 的创建人 '%s' 才能删除选项，当前用户为 '%s'", option.Topic.Title, option.Topic.CreateBy, currentUser)
+			if option.Topic.CreatedBy != currentUser {
+				return nil, fmt.Errorf("权限不足：只有投票主题 '%s' 的创建人 '%s' 才能删除选项，当前用户为 '%s'", option.Topic.Title, option.Topic.CreatedBy, currentUser)
 			}
 
 			status := getTopicStatus(option.Topic.StartTime, option.Topic.EndTime)
@@ -1046,7 +1046,7 @@ type VoteTopic struct {
 	OptionsLink     string           `json:"options_link" gorm:"-" widget:"name:选项列表;type:link;target:_blank" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	Status          string           `json:"status" gorm:"-" widget:"name:状态;type:select;options:未开始,进行中,已结束;options_colors:909399,409EFF,67C23A" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	TotalVotes      int              `json:"total_votes" gorm:"column:total_votes;comment:总选择次数;default:0" widget:"name:总选择次数;type:number;unit:次"`
-	CreateBy        string           `json:"create_by" gorm:"column:create_by;comment:创建人" widget:"name:创建人;type:user" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
+	CreatedBy        string           `json:"created_by" gorm:"column:created_by;comment:创建人" widget:"name:创建人;type:user" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	VoteActionLink  string           `json:"vote_action_link" gorm:"-" widget:"name:投票操作;type:link;target:_blank" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	UserVoteRecords []*VoteRecord    `json:"-" widget:"-" gorm:"foreignKey:TopicID"`
 }
@@ -1122,7 +1122,7 @@ func voteOnSelectFuzzyTopic(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*
 					}
 					return "实名投票"
 				}(),
-				"创建人": topic.CreateBy,
+				"创建人": topic.CreatedBy,
 			},
 		})
 	}
@@ -1233,7 +1233,7 @@ var VoteTopicListTemplate = &app.TableTemplate{
 			return nil, err
 		}
 
-		topic.CreateBy = ctx.GetRequestUser()
+		topic.CreatedBy = ctx.GetRequestUser()
 		topic.TotalVotes = 0
 
 		if topic.VoteType == "单选" {

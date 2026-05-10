@@ -5,7 +5,7 @@ import "encoding/json"
 // CreateScheduledTaskReq 创建定时任务请求
 type CreateScheduledTaskReq struct {
 	Name              string          `json:"name" binding:"required"`           // 任务名称
-	FullCodePath      string          `json:"full_code_path" binding:"required"` // 如 /system/official/message/send_message_to_users.form
+	FullCodePath      string          `json:"full_code_path" binding:"required"` // 如 /system/tools/message/to_user.form
 	Action            string          `json:"action"`                            // 执行动作：execute、table_create、table_update、table_delete
 	Method            string          `json:"method"`                            // execute 可指定 GET/POST；table_* 由后端按动作映射
 	Payload           json.RawMessage `json:"payload"`                           // 请求体 JSON
