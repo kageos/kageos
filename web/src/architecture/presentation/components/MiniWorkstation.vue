@@ -29,67 +29,66 @@
 
       <section v-else class="mini-shell">
         <section class="mini-current-output">
-          <header class="mini-current-head">
-            <div class="mini-current-title">
+          <div class="mini-current-layout">
+            <aside class="mini-current-meta">
               <span class="mini-status-dot" :class="activeStatusClass"></span>
               <span class="mini-current-name" :title="activeSessionTitle">{{ activeSessionTitle }}</span>
               <span class="mini-current-state">{{ activeSessionStateLabel }}</span>
-            </div>
-            <div class="mini-current-actions">
               <span v-if="queuedCount > 0" class="mini-queue-chip">{{ queuedCount }} 条排队</span>
-              <el-dropdown
-                ref="keyInfoDropdownRef"
-                v-if="panelHasContent"
-                trigger="click"
-                placement="top-end"
-                popper-class="mini-files-dropdown-popper"
-                :hide-on-click="false"
-                @visible-change="onKeyInfoDropdownVisibleChange"
-              >
-                <button type="button" class="mini-icon-action" title="查看关键信息">
-                  <el-icon :size="14"><DocumentIcon /></el-icon>
-                  <span class="mini-header-files-count">{{ panelItemCount }}</span>
-                </button>
-                <template #dropdown>
-                  <div class="mini-files-dropdown-panel">
-                    <div class="mini-files-dropdown-title">关键信息</div>
-                    <MiniWorkstationKeyInfoSection
-                      compact
-                      :uploaded-files="uploadedFiles"
-                      :output-files="outputFiles"
-                      :display-fields="allPanelDisplayFields"
-                      @preview-file="previewFile"
-                      @download-file="downloadFile"
-                      @preview-field="openDfPreview"
-                      @copy-field="copyDisplayFieldValue"
-                    />
-                  </div>
-                </template>
-              </el-dropdown>
-              <button type="button" class="mini-icon-action" :title="maximized ? '还原当前输出' : '放大当前输出'" @click="toggleMaximize">
-                <el-icon :size="14"><component :is="maximized ? CopyDocument : FullScreen" /></el-icon>
-              </button>
-            </div>
-          </header>
-
-          <div class="mini-current-body">
-            <div class="mini-ws-output" ref="outputRef">
-              <MiniWorkstationMessages
-                :messages="messages"
-                :maximized="maximized"
-                :sending="sending"
-                :streaming-display-length="streamingDisplayLength"
-                :render-markdown="renderMarkdown"
-                :format-message-time="formatMessageTime"
-                :get-file-groups-from-calls="getFileGroupsFromCalls"
-                :get-display-fields-from-calls="getDisplayFieldsFromCalls"
-                @confirm-prd="handleConfirmPrd"
-              />
+            </aside>
+            <div class="mini-current-stream">
+              <div class="mini-ws-output" ref="outputRef">
+                <MiniWorkstationMessages
+                  :messages="messages"
+                  :maximized="maximized"
+                  :sending="sending"
+                  :streaming-display-length="streamingDisplayLength"
+                  :render-markdown="renderMarkdown"
+                  :format-message-time="formatMessageTime"
+                  :get-file-groups-from-calls="getFileGroupsFromCalls"
+                  :get-display-fields-from-calls="getDisplayFieldsFromCalls"
+                  @confirm-prd="handleConfirmPrd"
+                />
+              </div>
             </div>
             <aside class="mini-artifact-panel" :class="{ 'is-empty': artifactItems.length === 0 }" aria-label="当前产物">
               <div class="mini-artifact-head">
                 <span>{{ maximized ? '当前产物' : '产物' }}</span>
                 <strong>{{ artifactItems.length }} 项</strong>
+                <span class="mini-artifact-actions">
+                  <el-dropdown
+                    ref="keyInfoDropdownRef"
+                    v-if="panelHasContent"
+                    trigger="click"
+                    placement="top-end"
+                    popper-class="mini-files-dropdown-popper"
+                    :hide-on-click="false"
+                    @visible-change="onKeyInfoDropdownVisibleChange"
+                  >
+                    <button type="button" class="mini-icon-action" title="查看关键信息">
+                      <el-icon :size="14"><DocumentIcon /></el-icon>
+                      <span class="mini-header-files-count">{{ panelItemCount }}</span>
+                    </button>
+                    <template #dropdown>
+                      <div class="mini-files-dropdown-panel">
+                        <div class="mini-files-dropdown-title">关键信息</div>
+                        <MiniWorkstationKeyInfoSection
+                          compact
+                          :uploaded-files="uploadedFiles"
+                          :output-files="outputFiles"
+                          :display-fields="allPanelDisplayFields"
+                          @preview-file="previewFile"
+                          @download-file="downloadFile"
+                          @preview-field="openDfPreview"
+                          @copy-field="copyDisplayFieldValue"
+                        />
+                      </div>
+                    </template>
+                  </el-dropdown>
+                  <button type="button" class="mini-icon-action" :title="maximized ? '还原当前输出' : '放大当前输出'" @click="toggleMaximize">
+                    <el-icon :size="14"><component :is="maximized ? CopyDocument : FullScreen" /></el-icon>
+                  </button>
+                </span>
               </div>
               <button
                 v-for="item in artifactItems"
@@ -117,7 +116,7 @@
 
         <section class="mini-session-dock" aria-label="会话摘要">
           <button type="button" class="mini-session-center-btn" @click="openSessionCenter">
-            <span class="mini-count-badge">{{ miniSessionList.length }}</span>
+            <span class="mini-count-badge">{{ recentSessionSourceList.length || miniSessionList.length }}</span>
             <span>会话中心</span>
           </button>
           <div class="mini-session-summary-list">
@@ -139,7 +138,7 @@
               type="button"
               :class="['mini-session-summary-card', getSessionStatusClass(item), { active: item.session_id === sessionId }]"
               :title="getSessionTitle(item)"
-              @click="handleSelectSession(item.session_id)"
+              @click="handleSummarySessionSelect(item)"
             >
               <span class="mini-status-dot" :class="getSessionStatusClass(item)"></span>
               <span class="mini-session-summary-copy">
@@ -443,7 +442,7 @@ const confirmedTestHandoffKeys = ref<Set<string>>(new Set())
 const collapsed = ref(false)
 const sessionCenterOpen = ref(false)
 const sessionSearchKeyword = ref('')
-const sessionScope = ref<'current' | 'all'>('current')
+const sessionScope = ref<'current' | 'all'>('all')
 const sessionFilter = ref<SessionFilterValue>('all')
 
 const windowStyle = computed(() => ({
@@ -580,6 +579,22 @@ const currentSessionItem = computed(() => {
     || null
 })
 
+const currentFallbackSession = computed<WorkspaceSessionItem | null>(() => {
+  if (!sessionId.value || currentSessionItem.value) return null
+  const now = new Date().toISOString()
+  return {
+    session_id: sessionId.value,
+    title: firstUserMessagePreview.value || props.dirName || displayPath.value || '新建会话',
+    status: sending.value ? 'generating' : 'active',
+    full_code_path: props.fullCodePath,
+    role_display_name: props.dirName || displayPath.value,
+    created_at: now,
+    updated_at: now
+  }
+})
+
+const activeSummarySession = computed(() => currentSessionItem.value || currentFallbackSession.value)
+
 const activeSessionTitle = computed(() => {
   return currentSessionItem.value?.title
     || firstUserMessagePreview.value
@@ -601,23 +616,36 @@ const activeStatusClass = computed(() => {
   return currentSessionItem.value ? getSessionStatusClass(currentSessionItem.value) : 'is-draft'
 })
 
+const recentSessionSourceList = computed(() => {
+  const byId = new Map<string, WorkspaceSessionItem>()
+  for (const session of [...globalSessionList.value, ...miniSessionList.value]) {
+    if (!session.session_id) continue
+    byId.set(session.session_id, session)
+  }
+  if (currentFallbackSession.value) {
+    byId.set(currentFallbackSession.value.session_id, currentFallbackSession.value)
+  }
+  return Array.from(byId.values())
+    .sort((left, right) => getSessionTimestamp(right) - getSessionTimestamp(left))
+})
+
 const summarySessions = computed(() => {
-  const active = currentSessionItem.value
+  const active = activeSummarySession.value
   const list = active
-    ? [active, ...miniSessionList.value.filter(item => item.session_id !== active.session_id)]
-    : miniSessionList.value
+    ? [active, ...recentSessionSourceList.value.filter(item => item.session_id !== active.session_id)]
+    : recentSessionSourceList.value
   return list.slice(0, 4)
 })
 
 const summaryBadgeCount = computed(() => {
-  const running = miniSessionList.value.filter(item => item.status === 'generating').length
+  const running = recentSessionSourceList.value.filter(item => item.status === 'generating').length
   return Math.max(running, sending.value ? 1 : 0, queuedCount.value)
 })
 
 const collapsedSummaryText = computed(() => {
   if (sending.value) return '任务执行中'
   if (summaryBadgeCount.value > 0) return `${summaryBadgeCount.value} 个活跃会话`
-  return `${miniSessionList.value.length || 1} 个会话`
+  return `${recentSessionSourceList.value.length || 1} 个会话`
 })
 
 const artifactItems = computed<MiniArtifactItem[]>(() => {
@@ -674,9 +702,7 @@ function setCollapsed(value: boolean) {
 async function openSessionCenter() {
   sessionCenterOpen.value = true
   await loadMiniSessions()
-  if (sessionScope.value === 'all') {
-    await loadGlobalSessions()
-  }
+  await loadGlobalSessions()
 }
 
 function closeSessionCenter() {
@@ -688,6 +714,18 @@ function setSessionScope(scope: 'current' | 'all') {
   if (scope === 'all') {
     void loadGlobalSessions()
   }
+}
+
+function handleSummarySessionSelect(session: WorkspaceSessionItem) {
+  if (session.full_code_path && session.full_code_path !== props.fullCodePath) {
+    eventBus.emit('workspace:open-workstation', {
+      full_code_path: session.full_code_path,
+      session_id: session.session_id,
+      open_as_mini: true
+    })
+    return
+  }
+  void handleSelectSession(session.session_id)
 }
 
 function handleSessionCenterSelect(session: WorkspaceSessionItem) {
@@ -726,8 +764,14 @@ function getSessionCenterSubtitle(session: WorkspaceSessionItem) {
   return [path, session.role_display_name || session.user].filter(Boolean).join(' · ') || '当前目录'
 }
 
+function getSessionTimestamp(session: WorkspaceSessionItem) {
+  const time = new Date(session.updated_at || session.created_at).getTime()
+  return Number.isFinite(time) ? time : 0
+}
+
 function getSessionStatusLabel(session: WorkspaceSessionItem) {
   if (session.status === 'generating') return '执行中'
+  if (session.status === 'active') return '会话'
   if (session.status === 'done') return '已完成'
   if (session.status === 'cancelled') return '已取消'
   if (session.status === 'waiting' || session.status === 'pending') return '待确认'
@@ -1202,6 +1246,8 @@ const {
   sendMessage,
   beforeSend: handleBeforeSend,
   onTaskStarted: (startedSessionId) => {
+    void loadMiniSessions()
+    void loadGlobalSessions()
     emit('task-started', startedSessionId)
   },
   onToolCallOk: (payload) => {
@@ -1497,6 +1543,7 @@ watch(
   ([visible, fullCodePath]) => {
     if (visible && fullCodePath) {
       void loadMiniSessions()
+      void loadGlobalSessions()
     }
   },
   { immediate: true }
@@ -2258,22 +2305,31 @@ useMiniWorkstationEffects({
   max-height: none;
 }
 
-.mini-current-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.mini-current-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr) 260px;
   gap: 12px;
-  margin-bottom: 5px;
-  color: #b9c9e4;
-  font-size: 12px;
+  align-items: stretch;
 }
 
-.mini-current-title,
-.mini-current-actions {
+.mini-ws--maximized .mini-current-layout {
+  grid-template-columns: 220px minmax(0, 1fr) 300px;
+}
+
+.mini-current-meta {
   min-width: 0;
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
+  padding-right: 12px;
+  border-right: 1px solid rgba(130, 153, 190, 0.18);
+  color: #b9c9e4;
+  font-size: 12px;
 }
 
 .mini-current-name {
@@ -2286,12 +2342,17 @@ useMiniWorkstationEffects({
 }
 
 .mini-current-state {
-  flex-shrink: 0;
+  min-width: 0;
+  grid-column: 2;
+  overflow: hidden;
   color: var(--mini-cyber-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.mini-current-actions {
-  flex-shrink: 0;
+.mini-current-stream {
+  min-width: 0;
+  min-height: 0;
 }
 
 .mini-icon-action {
@@ -2314,6 +2375,9 @@ useMiniWorkstationEffects({
 }
 
 .mini-queue-chip {
+  grid-column: 2;
+  width: fit-content;
+  max-width: 100%;
   height: 22px;
   display: inline-flex;
   align-items: center;
@@ -2326,23 +2390,9 @@ useMiniWorkstationEffects({
   font-weight: 800;
 }
 
-.mini-current-body {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 230px;
-  gap: 12px;
-  align-items: stretch;
-  padding: 0;
-}
-
-.mini-ws--maximized .mini-current-body {
-  grid-template-columns: minmax(0, 1fr) 288px;
-}
-
 .mini-ws-output {
   min-height: 0;
-  height: 36px;
+  height: 100%;
   overflow: hidden;
   padding: 0;
   background: transparent;
@@ -2399,20 +2449,26 @@ useMiniWorkstationEffects({
 }
 
 .mini-artifact-head {
-  display: none;
+  min-height: 24px;
+  display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
+  gap: 8px;
+  justify-content: flex-start;
+  margin-bottom: 8px;
   color: var(--mini-cyber-muted);
   font-size: 12px;
 }
 
-.mini-ws--maximized .mini-artifact-head {
-  display: flex;
-}
-
 .mini-artifact-head strong {
   color: #8ed0ff;
+  white-space: nowrap;
+}
+
+.mini-artifact-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .mini-artifact-item {
@@ -2980,8 +3036,8 @@ useMiniWorkstationEffects({
     grid-template-columns: repeat(4, minmax(112px, 1fr));
   }
 
-  .mini-current-body {
-    grid-template-columns: minmax(0, 1fr) 210px;
+  .mini-current-layout {
+    grid-template-columns: 160px minmax(0, 1fr) 236px;
   }
 }
 
@@ -2993,9 +3049,13 @@ useMiniWorkstationEffects({
     bottom: 12px;
   }
 
-  .mini-current-body,
-  .mini-ws--maximized .mini-current-body {
+  .mini-current-layout,
+  .mini-ws--maximized .mini-current-layout {
     grid-template-columns: 1fr;
+  }
+
+  .mini-current-meta {
+    display: none;
   }
 
   .mini-artifact-panel {
