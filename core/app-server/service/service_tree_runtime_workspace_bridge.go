@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
@@ -121,20 +122,27 @@ func (b *runtimeWorkspaceBridge) batchWriteFiles(
 	ctx context.Context,
 	req *dto.BatchWriteFilesReq,
 ) (*model.App, *dto.BatchWriteFilesRuntimeResp, error) {
-	appModel, err := b.getRuntimeBoundAppByUserApp(req.User, req.App, "批量写文件")
+	operationLabel := strings.TrimSpace(req.OperationLabel)
+	if operationLabel == "" {
+		operationLabel = "批量写文件"
+	}
+
+	appModel, err := b.getRuntimeBoundAppByUserApp(req.User, req.App, operationLabel)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	runtimeReq := &dto.BatchWriteFilesRuntimeReq{
-		User:      req.User,
-		App:       req.App,
-		Files:     req.Files,
-		ForceDiff: req.ForceDiff,
+		User:           req.User,
+		App:            req.App,
+		Files:          req.Files,
+		ForceDiff:      req.ForceDiff,
+		OperationName:  req.OperationName,
+		OperationLabel: operationLabel,
 	}
 	runtimeResp, err := b.appCall.BatchWriteFiles(ctx, appModel.HostID, runtimeReq)
 	if err != nil {
-		return nil, nil, fmt.Errorf("批量写文件失败: %w", err)
+		return nil, nil, fmt.Errorf("%s失败: %w", operationLabel, err)
 	}
 
 	return appModel, runtimeResp, nil

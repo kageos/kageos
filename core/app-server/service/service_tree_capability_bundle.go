@@ -347,10 +347,12 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 	var warnings []string
 	if len(plan.fileItems) > 0 {
 		resp, err := executeBatchWriteFiles(ctx, s.runtimeWorkspace, s.appService, &dto.BatchWriteFilesReq{
-			User:      targetApp.User,
-			App:       targetApp.Code,
-			Files:     plan.fileItems,
-			ForceDiff: opts.ForceDiff,
+			User:           targetApp.User,
+			App:            targetApp.Code,
+			Files:          plan.fileItems,
+			ForceDiff:      opts.ForceDiff,
+			OperationName:  "CapabilityBundleInstall",
+			OperationLabel: "安装能力包",
 		})
 		if err != nil {
 			return nil, fmt.Errorf("写入能力包文件失败: %w", err)

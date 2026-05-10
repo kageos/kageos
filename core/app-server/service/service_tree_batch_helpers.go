@@ -157,9 +157,14 @@ func executeBatchWriteFiles(
 		return nil, err
 	}
 
+	operationName := strings.TrimSpace(req.OperationName)
+	if operationName == "" {
+		operationName = "BatchWriteFiles"
+	}
+
 	warnings, err := appService.finalizeReleasedAppMetadata(
 		ctx,
-		"BatchWriteFiles",
+		operationName,
 		app,
 		req.User,
 		req.App,
