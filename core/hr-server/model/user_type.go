@@ -7,7 +7,7 @@ const (
 	// UserTypeNormal 普通用户（默认）
 	UserTypeNormal UserType = 0
 
-	// UserTypeSystem 系统用户（内置官方库）
+	// UserTypeSystem 系统用户（内置系统工具、平台接口和提示词）
 	UserTypeSystem UserType = 1
 
 	// UserTypeAgent 智能体用户（智能助手，未来扩展）

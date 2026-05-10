@@ -778,7 +778,7 @@ const props = defineProps<{
 
 type TableViewMode = 'table' | 'card'
 
-const CARD_CREATOR_FIELD_CODES = ['create_by', 'created_by']
+const CARD_CREATOR_FIELD_CODES = ['created_by']
 const CARD_CREATED_AT_FIELD_CODES = ['created_at']
 const CARD_UPDATED_AT_FIELD_CODES = ['updated_at']
 const CARD_SYSTEM_FIELD_CODES = new Set([

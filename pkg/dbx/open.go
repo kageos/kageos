@@ -20,20 +20,28 @@ type OpenOptions struct {
 	DefaultMaxOpenConns                      int
 	DefaultMaxIdleConns                      int
 	DefaultMaxLifetime                       time.Duration
+	ConnectRetryTimeout                      time.Duration
+	ConnectRetryInterval                     time.Duration
 }
 
 func OpenMySQL(cfg appconfig.DBConfig, opts OpenOptions) (*gorm.DB, error) {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Name)
 
-	db, err := gorm.Open(mysql.Open(dsn), buildGORMConfig(opts))
-	if err != nil {
-		return nil, err
-	}
-	if err := applyPoolConfig(db, cfg, opts); err != nil {
-		return nil, err
-	}
-	return db, nil
+	var db *gorm.DB
+	err := withMySQLConnectRetry(opts, func() error {
+		candidate, err := gorm.Open(mysql.Open(dsn), buildGORMConfig(opts))
+		if err != nil {
+			return err
+		}
+		if err := applyPoolConfig(candidate, cfg, opts); err != nil {
+			closeGORMDB(candidate)
+			return err
+		}
+		db = candidate
+		return nil
+	})
+	return db, err
 }
 
 func EnsureMySQLDatabase(cfg appconfig.DBConfig) error {
@@ -42,17 +50,16 @@ func EnsureMySQLDatabase(cfg appconfig.DBConfig) error {
 	}
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/?charset=utf8mb4&parseTime=True&loc=Local",
 		cfg.User, cfg.Password, cfg.Host, cfg.Port)
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	return withMySQLConnectRetry(OpenOptions{}, func() error {
+		db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+			Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+		})
+		if err != nil {
+			return err
+		}
+		defer closeGORMDB(db)
+		return db.Exec("CREATE DATABASE IF NOT EXISTS " + quoteMySQLIdentifier(cfg.Name) + " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci").Error
 	})
-	if err != nil {
-		return err
-	}
-	sqlDB, err := db.DB()
-	if err == nil {
-		defer sqlDB.Close()
-	}
-	return db.Exec("CREATE DATABASE IF NOT EXISTS " + quoteMySQLIdentifier(cfg.Name) + " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci").Error
 }
 
 func OpenSQLite(path string, opts OpenOptions) (*gorm.DB, error) {
@@ -107,6 +114,73 @@ func applyPoolConfig(db *gorm.DB, cfg appconfig.DBConfig, opts OpenOptions) erro
 	sqlDB.SetMaxIdleConns(maxIdleConns)
 	sqlDB.SetConnMaxLifetime(maxLifetime)
 	return nil
+}
+
+func withMySQLConnectRetry(opts OpenOptions, fn func() error) error {
+	timeout := opts.ConnectRetryTimeout
+	if timeout == 0 {
+		timeout = 60 * time.Second
+	}
+	interval := opts.ConnectRetryInterval
+	if interval <= 0 {
+		interval = time.Second
+	}
+	if timeout < 0 {
+		return fn()
+	}
+
+	deadline := time.Now().Add(timeout)
+	for {
+		err := fn()
+		if err == nil {
+			return nil
+		}
+		if !isRetryableMySQLStartupError(err) || time.Now().After(deadline) {
+			return err
+		}
+		sleep := interval
+		if remaining := time.Until(deadline); remaining < sleep {
+			sleep = remaining
+		}
+		if sleep <= 0 {
+			return err
+		}
+		time.Sleep(sleep)
+	}
+}
+
+func isRetryableMySQLStartupError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	for _, fragment := range []string{
+		"bad connection",
+		"connection refused",
+		"connection reset",
+		"connection timed out",
+		"i/o timeout",
+		"deadline exceeded",
+		"no such host",
+		"eof",
+		"server has gone away",
+		"unknown database",
+	} {
+		if strings.Contains(msg, fragment) {
+			return true
+		}
+	}
+	return false
+}
+
+func closeGORMDB(db *gorm.DB) {
+	if db == nil {
+		return
+	}
+	sqlDB, err := db.DB()
+	if err == nil {
+		_ = sqlDB.Close()
+	}
 }
 
 func quoteMySQLIdentifier(name string) string {

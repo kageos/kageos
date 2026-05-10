@@ -176,13 +176,13 @@ type validatorAuditGoodReq struct {
 	ID        int           `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:ID;type:ID" hide:"create,update"`
 	CreatedAt apptypes.Time `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"`
 	UpdatedAt apptypes.Time `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"`
-	CreateBy  string        `json:"create_by" gorm:"column:create_by" widget:"name:创建人;type:user" hide:"create,update"`
+	CreatedBy string        `json:"created_by" gorm:"column:created_by" widget:"name:创建人;type:user" hide:"create,update"`
 }
 
 type validatorBadAuditReq struct {
 	ID        int           `json:"id" gorm:"primaryKey;column:id" widget:"name:ID;type:number" hide:"list,update"`
 	CreatedAt apptypes.Time `json:"created_at" gorm:"column:created_on;type:datetime" widget:"name:创建时间;type:input;format:YYYY-MM-DD" hide:"list,update"`
-	CreateBy  string        `json:"create_by" gorm:"column:creator" widget:"name:创建人;type:input"`
+	CreatedBy string        `json:"created_by" gorm:"column:creator" widget:"name:创建人;type:input"`
 	DeletedAt string        `json:"deleted_at" gorm:"column:deleted_at" widget:"name:删除时间;type:datetime"`
 }
 
@@ -357,9 +357,9 @@ func TestWidgetValidatorEnforcesAuditFieldConventions(t *testing.T) {
 		`audit field "created_at" datetime format must be "YYYY-MM-DD HH:mm:ss"`,
 		`audit field "created_at" gorm column must be "created_at"`,
 		`audit field "created_at" gorm tag must include autoCreateTime`,
-		`audit field "create_by" must use widget type "user"`,
-		`audit field "create_by" hide tag must be "create,update"`,
-		`audit field "create_by" gorm column must be "create_by"`,
+		`audit field "created_by" must use widget type "user"`,
+		`audit field "created_by" hide tag must be "create,update"`,
+		`audit field "created_by" gorm column must be "created_by"`,
 		`audit field "deleted_at" must be hidden with widget:"-" or json:"-"`,
 	} {
 		if !strings.Contains(err.Error(), want) {

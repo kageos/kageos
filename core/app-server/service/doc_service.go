@@ -330,7 +330,7 @@ func (s *DocService) BatchGetDocs(ctx context.Context, req *dto.BatchGetDocsReq)
 }
 
 // GetDocsByPaths 根据路径列表批量获取文档（保留用于向后兼容）
-// paths: 文档路径列表，如 ["/system/official/sdk", "/user/myapp/docs"]
+// paths: 文档路径列表，如 ["/system/prompt/sdk", "/user/myapp/docs"]
 func (s *DocService) GetDocsByPaths(ctx context.Context, paths []string) (*dto.GetDocsByPathsResp, error) {
 	req := &dto.BatchGetDocsReq{
 		Paths:          paths,

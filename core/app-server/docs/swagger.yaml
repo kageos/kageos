@@ -966,7 +966,7 @@ definitions:
     properties:
       app_code:
         description: 应用代码
-        example: official
+        example: tools
         type: string
       app_id:
         description: 应用ID
@@ -994,7 +994,7 @@ definitions:
         type: string
       full_code_path:
         description: 完整代码路径
-        example: /system/official/agent/plugin/excel_or_csv/table_parse
+        example: /system/tools/table/inspect.form
         type: string
       id:
         description: 函数ID

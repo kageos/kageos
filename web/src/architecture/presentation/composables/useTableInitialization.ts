@@ -192,7 +192,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
       await decideRestoreStrategy(router || '')
       
       // 🔥 时机 1：预加载搜索表单中的用户信息
-      // 此时 searchForm 已经包含了从 URL 解析出来的所有搜索条件（如 in=create_by:luobei）
+      // 此时 searchForm 已经包含了从 URL 解析出来的所有搜索条件（如 in=created_by:luobei）
       if (preloadUserInfoFromSearchForm) {
         const currentState = stateManager.getState()
         await preloadUserInfoFromSearchForm(functionDetailValue, currentState.searchForm)

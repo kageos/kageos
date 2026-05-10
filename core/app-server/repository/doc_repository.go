@@ -96,7 +96,7 @@ func (r *DocRepository) GetByIDs(ids []int64) ([]*model.Docs, error) {
 }
 
 // GetByFullCodePaths 根据路径列表批量获取文档
-// paths: 路径列表，如 ["/system/official/sdk", "/user/myapp/docs"]
+// paths: 路径列表，如 ["/system/prompt/sdk", "/user/myapp/docs"]
 // 直接根据 full_code_path 使用 IN 查询
 func (r *DocRepository) GetByFullCodePaths(paths []string) ([]*model.Docs, error) {
 	if len(paths) == 0 {

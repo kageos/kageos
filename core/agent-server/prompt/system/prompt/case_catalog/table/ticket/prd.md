@@ -242,14 +242,14 @@ type Ticket struct {
 	//请求参数里是文件上传组件，如果要存数据库必须是type:json类型
 	Attachment string `json:"attachment" gorm:"column:attachment;type:text"  widget:"name:附件;type:files"`
 
-	// 这个字段非必要，纯粹展示怎么获取当前用户的组织架构，正常来讲CreateBy是非常必要的字段
+	// 这个字段非必要，纯粹展示怎么获取当前用户的组织架构，正常来讲CreatedBy是非常必要的字段
 	// 所属部门：工单提单的部门，默认是创建用户所在部门
 	// 由后端赋值的字段可在 OnTableAddRow 中通过 ctx.GetRequestUserDept() 设置；前端是否展示由 hide.scenes 决定。
 	// 如需列表筛选，在 Request 中声明部门字段并手写 Where
 	Department string `json:"department" gorm:"column:department" widget:"name:提单部门;type:department" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 
 	// 创建用户：用户组件
-	CreateBy string `json:"create_by" gorm:"column:create_by" widget:"name:创建用户;type:user" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单；由后端通过 ctx.GetRequestUser() 赋值。
+	CreatedBy string `json:"created_by" gorm:"column:created_by" widget:"name:创建用户;type:user" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单；由后端通过 ctx.GetRequestUser() 赋值。
 
 	// 截止时间：工单要求完成的时间
 	Deadline types.Time `json:"deadline" gorm:"column:deadline;type:datetime" widget:"name:截止时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
@@ -280,7 +280,7 @@ var TicketTemplate = &app.TableTemplate{
 		if err := ctx.ShouldBindValidate(&row); err != nil {
 			return nil, err
 		}
-		row.CreateBy = ctx.GetRequestUser()
+		row.CreatedBy = ctx.GetRequestUser()
 		row.Department = ctx.GetRequestUserDept()
 		err := db.Create(&row).Error
 		if err != nil {

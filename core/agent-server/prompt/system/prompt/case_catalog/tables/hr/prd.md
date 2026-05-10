@@ -72,7 +72,7 @@ type HrJob struct {
 	Status       string `json:"status" gorm:"column:status;comment:招聘状态;default:招聘中" widget:"name:招聘状态;type:select;options:招聘中,已暂停,已关闭,已招满;options_colors:67C23A,E6A23C,F56C6C,909399;render_default:招聘中" validate:"required,oneof=招聘中 已暂停 已关闭 已招满"`
 	PublishTime  types.Time  `json:"publish_time" gorm:"column:publish_time;type:datetime;comment:发布时间" widget:"name:发布时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" validate:"required"`
 	Deadline     types.Time  `json:"deadline" gorm:"column:deadline;type:datetime;comment:截止时间" widget:"name:截止时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
-	CreateBy     string `json:"create_by" gorm:"column:create_by" widget:"name:发布人;type:user" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
+	CreatedBy     string `json:"created_by" gorm:"column:created_by" widget:"name:发布人;type:user" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	ApplyLink    string `json:"apply_link" gorm:"-" widget:"name:投递简历;type:link;target:_blank" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 }
 
@@ -163,7 +163,7 @@ var HrJobListTemplate = &app.TableTemplate{
 			return nil, fmt.Errorf("截止时间必须晚于发布时间")
 		}
 
-		row.CreateBy = ctx.GetRequestUser()
+		row.CreatedBy = ctx.GetRequestUser()
 
 		if row.PublishTime.IsZero() {
 			row.PublishTime = types.Time(time.Now())

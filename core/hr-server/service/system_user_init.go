@@ -90,7 +90,7 @@ func initSystemUserWithPassword(ctx context.Context, db *gorm.DB, password strin
 		Type:          hrmodel.UserTypeSystem,
 		CreatedBy:     "system",
 		Nickname:      "系统",
-		Signature:     "系统内置用户，用于管理官方库",
+		Signature:     "系统内置用户，用于管理系统工具、平台接口和提示词",
 	}
 
 	if err := userRepo.CreateUser(systemUser); err != nil {

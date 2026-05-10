@@ -28,7 +28,7 @@ type ServiceTree struct {
 	PendingCount int    `json:"pending_count" gorm:"default:0;comment:待审批的权限申请数量"`                             // ⭐ 待审批的权限申请数量
 
 	// 是否标准库节点（自动对所有用户开放 read、write 权限）
-	// 标准库节点路径示例：/system/official/sdk、/system/official/plugins
+	// 标准库节点路径示例：/system/tools、/system/openapi、/system/prompt
 	IsStandardLib bool `json:"is_standard_lib" gorm:"default:false;index;comment:是否标准库节点"`
 
 	AppID int64 `json:"app_id"`
@@ -403,7 +403,12 @@ func (st *ServiceTree) IsStandardLibNode() bool {
 
 // IsInStandardLib 判断节点是否在标准库路径下
 func (st *ServiceTree) IsInStandardLib() bool {
-	return strings.HasPrefix(st.FullCodePath, "/system/official/")
+	return st.FullCodePath == "/system/tools" ||
+		st.FullCodePath == "/system/openapi" ||
+		st.FullCodePath == "/system/prompt" ||
+		strings.HasPrefix(st.FullCodePath, "/system/tools/") ||
+		strings.HasPrefix(st.FullCodePath, "/system/openapi/") ||
+		strings.HasPrefix(st.FullCodePath, "/system/prompt/")
 }
 
 // GetFunctionPath 获取function的完整路径（仅对function节点有效）

@@ -84,7 +84,7 @@ describe('extractFileGroupsFromResult', () => {
   it('does not extract refs from non-json text results', () => {
     const groups = extractFileGroupsFromResult(`
       搜索结果：未传 keyword
-      full_code_path: /system/official/python/execute.form
+      full_code_path: /system/tools/runtime/python.form
       - input_files: widget=files, accept=image/*,*/*
       - font /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
     `, {

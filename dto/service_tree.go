@@ -334,18 +334,18 @@ type ResourceSearchResult struct {
 
 // FunctionSearchResult 函数搜索结果（含 schema 摘要，便于调用方构造 body）
 type FunctionSearchResult struct {
-	ID           int64                          `json:"id" example:"1"`                                                                  // 函数ID
-	Name         string                         `json:"name" example:"表格解析"`                                                             // 函数名称
-	Code         string                         `json:"code" example:"table_parse"`                                                      // 函数代码
-	FullCodePath string                         `json:"full_code_path" example:"/system/official/agent/plugin/excel_or_csv/table_parse"` // 完整代码路径
-	Description  string                         `json:"description" example:"解析Excel/CSV文件为Markdown表格"`                                  // 函数描述
-	TemplateType string                         `json:"template_type" example:"form"`                                                    // 模板类型（form、table、chart）
-	Callbacks    []string                       `json:"callbacks,omitempty" example:"OnTableAddRow,OnTableUpdateRow"`                    // 函数回调能力摘要
-	AppID        int64                          `json:"app_id" example:"1"`                                                              // 应用ID
-	AppUser      string                         `json:"app_user" example:"system"`                                                       // 应用所属用户
-	AppCode      string                         `json:"app_code" example:"official"`                                                     // 应用代码
-	RunCount     int                            `json:"run_count,omitempty"`                                                             // 运行次数（用于 search_tools 按热度排序）
-	Schema       *functionschema.FunctionSchema `json:"schema,omitempty"`                                                                // 函数 schema 摘要
+	ID           int64                          `json:"id" example:"1"`                                               // 函数ID
+	Name         string                         `json:"name" example:"表格解析"`                                          // 函数名称
+	Code         string                         `json:"code" example:"table_parse"`                                   // 函数代码
+	FullCodePath string                         `json:"full_code_path" example:"/system/tools/table/inspect.form"`    // 完整代码路径
+	Description  string                         `json:"description" example:"解析Excel/CSV文件为Markdown表格"`               // 函数描述
+	TemplateType string                         `json:"template_type" example:"form"`                                 // 模板类型（form、table、chart）
+	Callbacks    []string                       `json:"callbacks,omitempty" example:"OnTableAddRow,OnTableUpdateRow"` // 函数回调能力摘要
+	AppID        int64                          `json:"app_id" example:"1"`                                           // 应用ID
+	AppUser      string                         `json:"app_user" example:"system"`                                    // 应用所属用户
+	AppCode      string                         `json:"app_code" example:"tools"`                                     // 应用代码
+	RunCount     int                            `json:"run_count,omitempty"`                                          // 运行次数（用于 search_tools 按热度排序）
+	Schema       *functionschema.FunctionSchema `json:"schema,omitempty"`                                             // 函数 schema 摘要
 }
 
 // GetServiceTreeByIDReq 根据ID获取服务目录请求

@@ -579,6 +579,7 @@ func TestVerifyLayerChecksIncludeBundledSDKEndpoints(t *testing.T) {
 
 	checks := verifyLayerChecks(rt)
 	for _, want := range []string{
+		"mysql initialized",
 		"main edge probe",
 		"main platform probe",
 		"main runtime probe",
@@ -589,6 +590,42 @@ func TestVerifyLayerChecksIncludeBundledSDKEndpoints(t *testing.T) {
 		if !hasLayerCheckByName(checks, want) {
 			t.Fatalf("verify checks missing %s: %#v", want, checks)
 		}
+	}
+}
+
+func TestRequiredMySQLDatabases(t *testing.T) {
+	t.Parallel()
+
+	rt := RuntimeConfig{
+		Config: Config{
+			MySQL: MySQLConfig{
+				AppDatabase:            "app_db",
+				ScheduledTaskDatabase:  "app-scheduled-task",
+				TimerSchedulerDatabase: "timer-scheduler",
+				StorageDatabase:        "app-storage",
+				AgentDatabase:          "agent-server",
+				HRDatabase:             "hr-server",
+			},
+		},
+	}
+
+	got := requiredMySQLDatabases(rt)
+	for _, want := range []string{"app_db", "app-scheduled-task", "timer-scheduler", "app-storage", "agent-server", "hr-server", "hub"} {
+		if !containsString(got, want) {
+			t.Fatalf("required MySQL databases missing %q: %#v", want, got)
+		}
+	}
+}
+
+func TestParseMySQLCountOutputIgnoresClientWarnings(t *testing.T) {
+	t.Parallel()
+
+	got, err := parseMySQLCountOutput("mysql: [Warning] Using a password on the command line interface can be insecure.\n7\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != 7 {
+		t.Fatalf("count = %d, want 7", got)
 	}
 }
 
@@ -639,6 +676,15 @@ func hasDeploymentComponent(components []deploymentComponent, layer deploymentLa
 func hasLayerCheckByName(checks []layerCheck, name string) bool {
 	for _, check := range checks {
 		if check.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
 			return true
 		}
 	}

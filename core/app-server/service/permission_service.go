@@ -509,7 +509,7 @@ func (s *PermissionService) updateServiceTreePendingCount(ctx context.Context, a
 	tree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(resourcePath)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			// 节点不存在，可能是 app 级别的权限申请（如 /system/official）
+			// 节点不存在，可能是 app 级别的权限申请（如 /system/tools）
 			// app 根节点不在 service_tree 表中，而在 app 表中
 			logger.Infof(ctx, "[PermissionService] service_tree 节点不存在，尝试更新 app 表的 pending_count: resource_path=%s", resourcePath)
 

@@ -114,7 +114,7 @@ DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widge
 创建人、更新人如果由业务维护，使用 `type:user`，并通常只在列表展示：
 
 ```go
-CreateBy string `json:"create_by" gorm:"column:create_by" widget:"name:创建人;type:user" hide:"create,update"`
+CreatedBy string `json:"created_by" gorm:"column:created_by" widget:"name:创建人;type:user" hide:"create,update"`
 ```
 
 ## files 字段

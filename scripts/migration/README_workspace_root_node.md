@@ -65,7 +65,7 @@ mysql -h localhost -u root -p ai_agent_os < workspace_root_node_rollback.sql
 app_id | user   | code       | root_count | status
 -------|--------|------------|------------|--------
 129    | luobei | operations | 1          | ✅ 正常
-130    | system | official   | 1          | ✅ 正常
+130    | system | tools      | 1          | ✅ 正常
 ```
 
 ### 2. 检查是否还有孤立的根级子节点
@@ -77,7 +77,7 @@ app_id | user   | code       | root_count | status
 id    | name     | app_id | parent_id | ref_id | status
 ------|----------|--------|-----------|--------|------------
 10001 | 运营中心 | 129    | 0         | 129    | ✅ 这是根节点
-10002 | 官方空间 | 130    | 0         | 130    | ✅ 这是根节点
+10002 | 官方工具 | 130    | 0         | 130    | ✅ 这是根节点
 ```
 
 ### 3. 检查根节点的子节点数量
@@ -89,7 +89,7 @@ id    | name     | app_id | parent_id | ref_id | status
 app_id | user   | code       | root_node_id | children_count
 -------|--------|------------|--------------|---------------
 129    | luobei | operations | 10001        | 5
-130    | system | official   | 10002        | 10
+130    | system | tools      | 10002        | 10
 ```
 
 ### 4. 统计迁移结果

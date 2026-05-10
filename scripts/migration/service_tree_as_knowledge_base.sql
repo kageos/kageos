@@ -34,22 +34,22 @@ FROM agents;
 
 -- 1.1 新增 docs_paths 字段（逗号分隔格式）
 ALTER TABLE agents
-  ADD COLUMN docs_paths VARCHAR(1000) COMMENT '文档路径（逗号分隔，如：/system/official/sdk,/user/myapp/docs）';
+  ADD COLUMN docs_paths VARCHAR(1000) COMMENT '文档路径（逗号分隔，如：/system/prompt/sdk,/user/myapp/docs）';
 
 -- 1.2 迁移现有数据（将 knowledge_base_id 转换为 docs_paths）
 -- 假设 knowledge_base_id = 1 对应标准库
 UPDATE agents 
-SET docs_paths = '/system/official/sdk'
+SET docs_paths = '/system/prompt/sdk'
 WHERE knowledge_base_id = 1;
 
 -- 其他知识库的智能体，暂时也指向标准库（后续可以手动调整）
 UPDATE agents 
-SET docs_paths = '/system/official/sdk'
+SET docs_paths = '/system/prompt/sdk'
 WHERE knowledge_base_id IS NOT NULL AND knowledge_base_id != 1;
 
 -- 未绑定知识库的智能体，使用默认标准库
 UPDATE agents 
-SET docs_paths = '/system/official/sdk'
+SET docs_paths = '/system/prompt/sdk'
 WHERE knowledge_base_id IS NULL OR knowledge_base_id = 0;
 
 -- 1.3 删除 knowledge_base_id 字段
@@ -106,78 +106,65 @@ SELECT
     NOW()
 WHERE NOT EXISTS (SELECT 1 FROM service_tree WHERE full_code_path = '/system');
 
--- 3.2 创建官方标准库目录
+-- 3.2 创建系统工具库目录
 INSERT INTO service_tree (name, code, parent_id, type, is_standard_lib, full_code_path, app_id, created_by, updated_by, created_at, updated_at)
 SELECT 
-    '官方标准库',
-    'official',
+    '工具库',
+    'tools',
     (SELECT id FROM service_tree WHERE full_code_path = '/system' LIMIT 1),
     'package',
     1,
-    '/system/official',
+    '/system/tools',
     1,
     'system',
     'system',
     NOW(),
     NOW()
-WHERE NOT EXISTS (SELECT 1 FROM service_tree WHERE full_code_path = '/system/official');
+WHERE NOT EXISTS (SELECT 1 FROM service_tree WHERE full_code_path = '/system/tools');
 
--- 3.3 创建 SDK 文档目录
+-- 3.3 创建平台接口目录
 INSERT INTO service_tree (name, code, parent_id, type, is_standard_lib, full_code_path, app_id, created_by, updated_by, created_at, updated_at)
 SELECT 
-    'SDK 文档',
-    'sdk',
-    (SELECT id FROM service_tree WHERE full_code_path = '/system/official' LIMIT 1),
+    '平台接口',
+    'openapi',
+    (SELECT id FROM service_tree WHERE full_code_path = '/system' LIMIT 1),
     'package',
     1,
-    '/system/official/sdk',
+    '/system/openapi',
     1,
     'system',
     'system',
     NOW(),
     NOW()
-WHERE NOT EXISTS (SELECT 1 FROM service_tree WHERE full_code_path = '/system/official/sdk');
+WHERE NOT EXISTS (SELECT 1 FROM service_tree WHERE full_code_path = '/system/openapi');
 
--- 3.4 创建插件库目录
+-- 3.4 创建提示词与文档目录
 INSERT INTO service_tree (name, code, parent_id, type, is_standard_lib, full_code_path, app_id, created_by, updated_by, created_at, updated_at)
 SELECT 
-    '插件库',
-    'plugins',
-    (SELECT id FROM service_tree WHERE full_code_path = '/system/official' LIMIT 1),
+    '提示词与文档',
+    'prompt',
+    (SELECT id FROM service_tree WHERE full_code_path = '/system' LIMIT 1),
     'package',
     1,
-    '/system/official/plugins',
+    '/system/prompt',
     1,
     'system',
     'system',
     NOW(),
     NOW()
-WHERE NOT EXISTS (SELECT 1 FROM service_tree WHERE full_code_path = '/system/official/plugins');
-
--- 3.5 创建模板库目录
-INSERT INTO service_tree (name, code, parent_id, type, is_standard_lib, full_code_path, app_id, created_by, updated_by, created_at, updated_at)
-SELECT 
-    '模板库',
-    'templates',
-    (SELECT id FROM service_tree WHERE full_code_path = '/system/official' LIMIT 1),
-    'package',
-    1,
-    '/system/official/templates',
-    1,
-    'system',
-    'system',
-    NOW(),
-    NOW()
-WHERE NOT EXISTS (SELECT 1 FROM service_tree WHERE full_code_path = '/system/official/templates');
+WHERE NOT EXISTS (SELECT 1 FROM service_tree WHERE full_code_path = '/system/prompt');
 
 -- ========================================
 -- Step 4: 标记现有的标准库节点
 -- ========================================
 
--- 标记所有 /system/official/* 路径下的节点为标准库节点
+-- 标记所有 system 内置路径下的节点为标准库节点
 UPDATE service_tree 
 SET is_standard_lib = 1 
-WHERE full_code_path LIKE '/system/official/%';
+WHERE full_code_path IN ('/system/tools', '/system/openapi', '/system/prompt')
+   OR full_code_path LIKE '/system/tools/%'
+   OR full_code_path LIKE '/system/openapi/%'
+   OR full_code_path LIKE '/system/prompt/%';
 
 -- ========================================
 -- Step 5: 删除知识库相关表
@@ -259,7 +246,7 @@ SELECT '1. agents 表：删除 knowledge_base_id，新增 docs_paths（JSON 数�
 UNION ALL
 SELECT '2. service_tree 表：新增 is_standard_lib（标准库节点标识）' as message
 UNION ALL
-SELECT '3. 创建标准库目录：/system/official/sdk、/system/official/plugins、/system/official/templates' as message
+SELECT '3. 创建标准库目录：/system/tools、/system/openapi、/system/prompt' as message
 UNION ALL
 SELECT '4. 删除表：knowledge_base、knowledge_base_document' as message
 UNION ALL

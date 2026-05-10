@@ -289,7 +289,7 @@ type DemoItem struct {
 
 	// 创建人通常由后端 ctx.GetRequestUser() 自动写入。
 	// hide:"create,update" 表示只展示，不让用户在新增/编辑时填写。
-	CreateBy string `json:"create_by" gorm:"column:create_by;comment:创建人" widget:"name:创建人;type:user" hide:"create,update"`
+	CreatedBy string `json:"created_by" gorm:"column:created_by;comment:创建人" widget:"name:创建人;type:user" hide:"create,update"`
 
 	// gorm:"-" 表示这不是数据库字段，只是列表展示用的计算字段。
 	// type:link 表示前端渲染成可点击链接。
@@ -409,7 +409,7 @@ var DemoItemListTemplate = &app.TableTemplate{
 		}
 
 		// 创建人由后端自动写入，不让用户手填。
-		row.CreateBy = ctx.GetRequestUser()
+		row.CreatedBy = ctx.GetRequestUser()
 
 		if err := db.Create(&row).Error; err != nil {
 			logger.Errorf(ctx, "create demo item err: %v", err)

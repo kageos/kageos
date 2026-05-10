@@ -133,7 +133,7 @@
                         <img 
                           src="/官方认证.svg" 
                           alt="官方认证" 
-                          class="official-badge-icon"
+                          class="certified-badge-icon"
                         />
                       </el-tooltip>
                     </div>
@@ -196,7 +196,7 @@
                         <img 
                           src="/官方认证.svg" 
                           alt="官方认证" 
-                          class="official-badge-icon"
+                          class="certified-badge-icon"
                         />
                       </el-tooltip>
                     </div>
@@ -626,7 +626,7 @@ watch(visible, (newVal: boolean) => {
   gap: 6px;
 }
 
-.official-badge-icon {
+.certified-badge-icon {
   width: 16px;
   height: 16px;
   flex-shrink: 0;

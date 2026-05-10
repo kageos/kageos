@@ -691,7 +691,22 @@ func cmdUp(paths Paths, args []string) error {
 	if err := runCompose(rt.Paths.GeneratedDir, "run", "--rm", "--no-deps", "-e", "APP_BASE_ACTION=ensure", "-e", "APP_BASE_BUILD_NO_CACHE=0", "--entrypoint", "/app/entrypoint-app-base.sh", "main"); err != nil {
 		return err
 	}
-	fmt.Println("[L1-L4] 启动 Compose 服务栈")
+
+	if infraServices := composeServicesForLayer(rt, layerInfra); len(infraServices) > 0 {
+		fmt.Printf("[L1 基础设施层] 启动基础设施服务: %s\n", strings.Join(infraServices, ", "))
+		args := append([]string{"up", "-d", "--no-build"}, infraServices...)
+		if err := runCompose(rt.Paths.GeneratedDir, args...); err != nil {
+			return err
+		}
+	}
+	if checks := startupDependencyChecks(rt); len(checks) > 0 {
+		fmt.Printf("[L1 基础设施层] 等待基础设施可用（timeout %s）\n", opts.VerifyTimeout)
+		if err := waitLayerChecks("startup dependencies", checks, opts.VerifyTimeout, defaultUpVerifyInterval); err != nil {
+			return err
+		}
+	}
+
+	fmt.Println("[L2-L4] 启动应用服务栈")
 	if err := runCompose(rt.Paths.GeneratedDir, "up", "-d", "--no-build"); err != nil {
 		return err
 	}
@@ -982,18 +997,52 @@ func appendExternalDependencyChecks(checks []layerCheck, rt RuntimeConfig) []lay
 	return checks
 }
 
+func startupDependencyChecks(rt RuntimeConfig) []layerCheck {
+	checks := make([]layerCheck, 0, 3)
+	if rt.IncludeMySQL {
+		checks = append(checks, layerCheck{
+			Layer:  layerInfra,
+			Name:   "mysql initialized",
+			Target: "compose exec mysql SELECT required databases",
+			Fn:     func() error { return checkBundledMySQLInitialized(rt) },
+		})
+	} else {
+		checks = append(checks, layerCheck{
+			Layer:  layerInfra,
+			Name:   "mysql tcp",
+			Target: rt.MySQLAddress,
+			Fn:     func() error { return checkTCP("mysql", rt.MySQLHostForMain, rt.MySQLPortForMain) },
+		})
+	}
+	if rt.IncludeNATS {
+		checks = append(checks, layerCheck{
+			Layer:  layerInfra,
+			Name:   "nats tcp",
+			Target: tcpTarget(rt.NATSHostForMain, rt.NATSPortForMain),
+			Fn:     func() error { return checkTCP("nats", rt.NATSHostForMain, rt.NATSPortForMain) },
+		})
+	}
+	if rt.IncludeMinIO {
+		checks = append(checks, layerCheck{
+			Layer:  layerInfra,
+			Name:   "minio tcp",
+			Target: tcpTarget(rt.MinIOHostForMain, rt.MinIOPortForMain),
+			Fn:     func() error { return checkTCP("minio", rt.MinIOHostForMain, rt.MinIOPortForMain) },
+		})
+	}
+	return checks
+}
+
 func verifyLayerChecks(rt RuntimeConfig) []layerCheck {
 	checks := []layerCheck{
 		{Layer: layerControl, Name: "config validation", Target: rt.Paths.ConfigPath, Fn: func() error { return validateConfig(rt) }},
 		{Layer: layerControl, Name: "rendered compose", Target: rt.ComposeConfigPath, Fn: func() error { return requireGeneratedCompose(rt.Paths) }},
-		{Layer: layerInfra, Name: "mysql tcp", Target: rt.MySQLAddress, Fn: func() error { return checkTCP("mysql", rt.MySQLHostForMain, rt.MySQLPortForMain) }},
-		{Layer: layerInfra, Name: "nats tcp", Target: tcpTarget(rt.NATSHostForMain, rt.NATSPortForMain), Fn: func() error { return checkTCP("nats", rt.NATSHostForMain, rt.NATSPortForMain) }},
-		{Layer: layerInfra, Name: "minio tcp", Target: tcpTarget(rt.MinIOHostForMain, rt.MinIOPortForMain), Fn: func() error { return checkTCP("minio", rt.MinIOHostForMain, rt.MinIOPortForMain) }},
 		{Layer: layerEdge, Name: "nginx http listener", Target: "127.0.0.1:80", Fn: func() error { return checkTCP("nginx", "127.0.0.1", 80) }},
 		{Layer: layerEdge, Name: "main edge probe", Target: "compose exec main /app/health/edge.sh", Fn: func() error {
 			return runComposeCapture(rt.Paths.GeneratedDir, "exec", "-T", "main", "/app/health/edge.sh")
 		}},
 	}
+	checks = append(checks[:2], append(startupDependencyChecks(rt), checks[2:]...)...)
 	if rt.Site.TLSMode == "https" || rt.Site.TLSMode == "redirect" {
 		checks = append(checks, layerCheck{Layer: layerEdge, Name: "nginx https listener", Target: "127.0.0.1:443", Fn: func() error { return checkTCP("nginx", "127.0.0.1", 443) }})
 	}
@@ -1793,6 +1842,87 @@ func checkTCP(label, host string, port int) error {
 	}
 	_ = conn.Close()
 	return nil
+}
+
+func checkBundledMySQLInitialized(rt RuntimeConfig) error {
+	databases := requiredMySQLDatabases(rt)
+	if len(databases) == 0 {
+		return runComposeCapture(rt.Paths.GeneratedDir, "exec", "-T", "mysql", "mysqladmin", "ping", "-h", "127.0.0.1", "--connect-timeout=3", "-u"+rt.MySQL.User, "-p"+rt.MySQL.Password)
+	}
+
+	sql := fmt.Sprintf(
+		"SELECT COUNT(*) FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME IN (%s);",
+		mysqlStringList(databases),
+	)
+	output, err := runComposeOutput(rt.Paths.GeneratedDir, "exec", "-T", "mysql", "mysql", "-h", "127.0.0.1", "--connect-timeout=3", "-u"+rt.MySQL.User, "-p"+rt.MySQL.Password, "-N", "-B", "-e", sql)
+	if err != nil {
+		return err
+	}
+	count, err := parseMySQLCountOutput(output)
+	if err != nil {
+		return err
+	}
+	if count != len(databases) {
+		return fmt.Errorf("mysql initialized databases not ready: got %d/%d (%s)", count, len(databases), strings.Join(databases, ", "))
+	}
+	return nil
+}
+
+func requiredMySQLDatabases(rt RuntimeConfig) []string {
+	return uniqueNonEmptyStrings([]string{
+		rt.MySQL.AppDatabase,
+		rt.MySQL.ScheduledTaskDatabase,
+		rt.MySQL.TimerSchedulerDatabase,
+		rt.MySQL.StorageDatabase,
+		rt.MySQL.AgentDatabase,
+		rt.MySQL.HRDatabase,
+		"hub",
+	})
+}
+
+func uniqueNonEmptyStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
+func mysqlStringList(values []string) string {
+	quoted := make([]string, 0, len(values))
+	for _, value := range values {
+		quoted = append(quoted, mysqlStringLiteral(value))
+	}
+	return strings.Join(quoted, ", ")
+}
+
+func mysqlStringLiteral(value string) string {
+	replacer := strings.NewReplacer("\\", "\\\\", "'", "''")
+	return "'" + replacer.Replace(value) + "'"
+}
+
+func parseMySQLCountOutput(output string) (int, error) {
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+		count, err := strconv.Atoi(line)
+		if err == nil {
+			return count, nil
+		}
+	}
+	return 0, fmt.Errorf("parse mysql database count from %q: no numeric line found", output)
 }
 
 func randomHex(bytesLen int) (string, error) {

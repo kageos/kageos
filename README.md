@@ -684,7 +684,6 @@ AI-Agent-OS 后续最重要的产品判断之一，是把企业应用里的通�
 
 例如：
 
-- 官方工具兼容区：`namespace/system/official/code/api/...`
 - 官方外挂工具主入口：`namespace/system/tools/code/api/...`
 - 平台 OpenAPI 主入口：`namespace/system/openapi/code/api/...`
 - 业务案例：`namespace/luobei/example/code/api/...`
@@ -902,7 +901,7 @@ AI-Agent-OS 试图把二者拼起来：
 
 平台一旦积累：
 
-- 官方函数
+- 系统工具函数
 - 用户生成函数
 - 行业模板
 - Hub 目录
@@ -1018,7 +1017,7 @@ AI-Agent-OS 试图把二者拼起来：
 | app-runtime | 已形成骨架 | 支持应用构建、版本、容器运行、NATS 调用。 |
 | AI 工作台 | 已形成骨架/持续优化 | 已支持会话、SSE、角色文档包、工具循环、读写代码、构建、执行函数。 |
 | 文件上传下载 | 已形成骨架 | 基于对象存储和 `bucket/object_key` 文件引用，支持表单与工具结果。 |
-| 官方工具库 | 已形成骨架 | `/system/tools` 和兼容的 system 官方函数已覆盖文件、文档、图片、视频、数据处理等方向。 |
+| 系统工具库 | 已形成骨架 | `/system/tools` 下的系统工具函数已覆盖文件、文档、图片、视频、数据处理等方向。 |
 | 操作日志 | 已形成骨架/企业增强 | 平台已具备日志基础能力，企业版可继续增强审计查询、留存和合规报表。 |
 | 基础权限 | 正在演进 | 已有权限、角色、申请、继承等基础，仍需继续产品化和边界收敛。 |
 | 流程审批 | 规划/演进中 | 后续围绕 Form 提交、Table 增删改、发布推送等操作做统一审批策略。 |
@@ -1466,7 +1465,7 @@ AI-Agent-OS 最合理的进入方式，不应该是上来就说“替换你现�
 
 #### 平台成长指标
 
-- 官方函数数量
+- 系统工具函数数量
 - 用户生成函数数量
 - 可被工作流编排的函数占比
 - Agent 直接复用已有能力而不是新写代码的比例
@@ -2006,7 +2005,7 @@ AI-Agent-OS 是一个 AI 原生的企业应用操作系统。它不是普通聊�
 - 权限继承计算：`enterprise_impl/permission/service/permission_calculator_v2.go`
 - 操作日志：`enterprise_impl/operatelog/service/operate_log.go`
 - Hub 目录发布与版本：`enterprise_impl/hub/backend/service/directory_service.go`
-- 官方工具样例：`namespace/system/official/code/api/video/ffmpeg/video_convert.go`
+- 官方工具样例：`namespace/system/tools/code/api/video/video_convert.go`
 - 行业案例样例：`namespace/luobei/case/code/api/hair_salon/hair_cashier.go`
 
 ---
