@@ -13,7 +13,6 @@ interface TableDetailRowPayload {
 interface UseWorkspaceUiEffectsOptions {
   currentApp: () => AppType | null
   showLeftSidebar: Ref<boolean>
-  showRightSidebar: Ref<boolean>
   openPullFromHubDialog: (initialLink?: string) => void
   openDetailDrawer: (row: Record<string, any>, index?: number, tableData?: any[], initialMode?: 'read' | 'edit') => Promise<void> | void
   setupUrlWatch: () => (() => void) | null | void
@@ -57,11 +56,6 @@ export function useWorkspaceUiEffects(options: UseWorkspaceUiEffectsOptions) {
     const savedLeft = localStorage.getItem('workspace-left-sidebar')
     if (savedLeft !== null) {
       options.showLeftSidebar.value = savedLeft === 'true'
-    }
-
-    const savedRight = localStorage.getItem('workspace-right-sidebar')
-    if (savedRight !== null) {
-      options.showRightSidebar.value = savedRight === 'true'
     }
 
     unsubscribeTableDetailRow = eventBus.on('table:detail-row', async (payload: TableDetailRowPayload) => {
