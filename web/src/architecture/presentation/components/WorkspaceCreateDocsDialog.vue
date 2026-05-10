@@ -17,7 +17,7 @@
           data-testid="create-docs-name"
         />
       </el-form-item>
-      <el-form-item label="文档代码" required>
+      <el-form-item label="文档英文标识" required>
         <el-input
           v-model="form.code"
           placeholder="英文，如 readme"
@@ -33,7 +33,7 @@
         </el-input>
         <div class="form-tip">
           <el-icon><InfoFilled /></el-icon>
-          只能包含小写字母、数字和下划线，保存后自动带后缀 .docs
+          可使用小写英文字母、数字和下划线，保存后自动带后缀 .docs
         </div>
       </el-form-item>
       <el-form-item label="描述">

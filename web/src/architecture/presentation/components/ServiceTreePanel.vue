@@ -190,7 +190,7 @@
                   <el-dropdown-item v-if="data.type === 'function' && hasPermission(data, TablePermission.delete)" :data-testid="`service-tree-action-delete-function-${data.id}`" command="delete-function"><el-icon><Delete /></el-icon>删除函数</el-dropdown-item>
                   <el-dropdown-item v-if="data.type === 'docs' && hasPermission(data, DirectoryPermission.delete)" :data-testid="`service-tree-action-delete-doc-${data.id}`" command="delete-doc"><el-icon><Delete /></el-icon>删除文档</el-dropdown-item>
                   <el-dropdown-item v-if="data.type === 'board' && hasPermission(data, DirectoryPermission.delete)" :data-testid="`service-tree-action-delete-board-${data.id}`" command="delete-board"><el-icon><Delete /></el-icon>删除讨论区</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-import-go-files-${data.id}`" command="import-go-files"><el-icon><Download /></el-icon>导入 Go 文件</el-dropdown-item>
+                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-import-go-files-${data.id}`" command="import-go-files"><el-icon><Download /></el-icon>导入代码文件</el-dropdown-item>
                   <el-dropdown-item v-if="data.type === 'package' && !data.hub_full_code_path && hasPermission(data, DirectoryPermission.read)" :data-testid="`service-tree-action-publish-to-hub-${data.id}`" command="publish-to-hub"><el-icon><Upload /></el-icon>发布到 Hub</el-dropdown-item>
                   <el-dropdown-item v-if="data.type === 'package' && data.hub_full_code_path && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-push-to-hub-${data.id}`" command="push-to-hub"><el-icon><Upload /></el-icon>推送到 Hub</el-dropdown-item>
                 </el-dropdown-menu>
@@ -323,13 +323,13 @@
                   </el-dropdown-item>
                   
                   <!-- Hub 相关操作 -->
-                  <!-- 导入 Go 文件：选择本地 .go 文件写入当前目录（与 write_go_file 一致） -->
+                  <!-- 导入代码文件：选择本地 .go 文件写入当前目录（与 write_go_file 一致） -->
                   <el-dropdown-item 
                     v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" 
                     command="import-go-files"
                   >
                     <el-icon><Download /></el-icon>
-                    导入 Go 文件
+                    导入代码文件
                   </el-dropdown-item>
                   
                   <el-dropdown-item 
@@ -416,7 +416,7 @@ interface Emits {
   (e: 'bulk-delete', nodes: ServiceTree[]): void
   (e: 'refresh-tree'): void  // 刷新树（复制粘贴后需要刷新）
   (e: 'update-history', node?: ServiceTree): void  // 显示变更记录（工作空间或目录）
-  (e: 'import-go-files', node: ServiceTree): void  // 导入 Go 文件到目录
+  (e: 'import-go-files', node: ServiceTree): void  // 导入代码文件到目录
   (e: 'publish-to-hub', node: ServiceTree): void  // 发布到 Hub
   (e: 'push-to-hub', node: ServiceTree): void  // 推送到 Hub
   (e: 'pull-from-hub', initialLink?: string, targetFullCodePath?: string, targetName?: string): void  // 从 Hub 拉取，可选预填链接与目标目录（路径+名称）
@@ -552,7 +552,7 @@ const getRuntimeSummaryTitle = (node: ServiceTree): string => {
 // 重命名目录
 const handleRename = async (node: ServiceTree) => {
   if (node.type !== 'package') {
-    ElMessage.warning('只能重命名目录（package类型）')
+    ElMessage.warning('只能重命名目录')
     return
   }
   

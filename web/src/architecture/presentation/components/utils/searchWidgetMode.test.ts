@@ -102,10 +102,42 @@ describe('searchWidgetMode', () => {
     })).toBe(true)
   })
 
+  it('uses user widget search mode when search type is omitted', () => {
+    expect(shouldUseWidgetSearchRenderer({
+      widgetType: WidgetType.USER,
+      searchType: '',
+      hasRegisteredWidget: true
+    })).toBe(true)
+  })
+
+  it('keeps users widget as multi-user search when search type is omitted', () => {
+    expect(resolveWidgetTypeForSearchRenderer({
+      widgetType: WidgetType.USERS,
+      searchType: ''
+    })).toBe(WidgetType.USERS)
+    expect(shouldUseWidgetSearchRenderer({
+      widgetType: WidgetType.USERS,
+      searchType: '',
+      hasRegisteredWidget: true
+    })).toBe(true)
+  })
+
   it('keeps department search on the widget renderer path', () => {
     expect(shouldUseWidgetSearchRenderer({
       widgetType: WidgetType.DEPARTMENT,
       searchType: 'eq',
+      hasRegisteredWidget: true
+    })).toBe(true)
+  })
+
+  it('keeps departments widget as multi-department search when search type is omitted', () => {
+    expect(resolveWidgetTypeForSearchRenderer({
+      widgetType: WidgetType.DEPARTMENTS,
+      searchType: ''
+    })).toBe(WidgetType.DEPARTMENTS)
+    expect(shouldUseWidgetSearchRenderer({
+      widgetType: WidgetType.DEPARTMENTS,
+      searchType: '',
       hasRegisteredWidget: true
     })).toBe(true)
   })

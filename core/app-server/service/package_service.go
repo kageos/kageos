@@ -35,7 +35,7 @@ func (s *serviceTreePackageService) CreatePackage(ctx context.Context, req *dto.
 		return nil, fmt.Errorf("创建目录请求不能为空")
 	}
 	req.Code = naming.NormalizeGoPackageName(req.Code)
-	if err := naming.ValidateGoPackageName(req.Code, "目录代码"); err != nil {
+	if err := naming.ValidateGoPackageName(req.Code, "目录英文标识"); err != nil {
 		return nil, err
 	}
 

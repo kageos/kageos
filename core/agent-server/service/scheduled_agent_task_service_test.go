@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -39,8 +40,10 @@ type fakeScheduledAgentTimerAdapter struct {
 	createdReq scheduledsdk.CreateTaskRequest
 	pausedID   int64
 	resumedID  int64
+	canceledID int64
 	runNowID   int64
 	pauseErr   error
+	cancelErr  error
 	task       *scheduledsdk.Task
 }
 
@@ -64,7 +67,10 @@ func (f *fakeScheduledAgentTimerAdapter) ResumeTask(_ context.Context, id int64)
 	f.resumedID = id
 	return nil
 }
-func (f *fakeScheduledAgentTimerAdapter) CancelTask(context.Context, int64) error { return nil }
+func (f *fakeScheduledAgentTimerAdapter) CancelTask(_ context.Context, id int64) error {
+	f.canceledID = id
+	return f.cancelErr
+}
 func (f *fakeScheduledAgentTimerAdapter) RunNow(_ context.Context, id int64) (*scheduledsdk.Execution, error) {
 	f.runNowID = id
 	return &scheduledsdk.Execution{
@@ -417,6 +423,37 @@ func TestScheduledAgentPauseDoesNotChangeLocalWhenTimerPauseFails(t *testing.T) 
 	}
 	if stored.Status != model.ScheduledAgentTaskStatusPending {
 		t.Fatalf("local status = %q, want pending", stored.Status)
+	}
+}
+
+func TestCancelScheduledSessionTaskToolCancelsSessionTask(t *testing.T) {
+	svc, taskRepo, _ := newScheduledAgentTaskTestService(t, &fakeScheduledAgentChatRunner{})
+	timerAdapter := &fakeScheduledAgentTimerAdapter{}
+	svc.options.TimerClient = scheduledsdk.NewClient(scheduledsdk.Options{Adapter: timerAdapter})
+	task := createScheduledAgentTestTask(t, taskRepo, &model.ScheduledAgentTask{
+		TimerTaskID:     987,
+		IntervalSeconds: 60,
+	})
+	reg := NewToolRegistry(nil)
+	reg.SetScheduledAgentTaskService(svc)
+	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{RequestUser: "alice"})
+
+	out, isErr := runCancelScheduledSessionTaskTool(ctx, reg, cancelScheduledSessionTaskArgs{TaskID: task.ID})
+	if isErr {
+		t.Fatalf("runCancelScheduledSessionTaskTool returned error: %s", out)
+	}
+	if timerAdapter.canceledID != 987 {
+		t.Fatalf("timer canceled id = %d, want 987", timerAdapter.canceledID)
+	}
+	stored, err := taskRepo.GetByID(task.ID)
+	if err != nil {
+		t.Fatalf("get task: %v", err)
+	}
+	if stored.Status != model.ScheduledAgentTaskStatusCancelled || stored.NextRunAt != nil {
+		t.Fatalf("stored status/next_run_at = %q/%v, want cancelled/nil", stored.Status, stored.NextRunAt)
+	}
+	if !strings.Contains(out, "已取消定时会话任务/session task") {
+		t.Fatalf("output should include cancel message, got:\n%s", out)
 	}
 }
 

@@ -139,7 +139,7 @@ func workspaceBuildErrorHints(errText string) []string {
 		add("widget 的 type 和配置 key 必须来自 SDK 主文档组件速查和运行时白名单；不要写 file/readonly/multiple 等未支持类型或参数。文件上传用 type:files + string，多文件用 max_count；图片/视频列表预览用 thumbnail:true;list_preview:true；只读展示用 hide:\"create,update\" 或 widget:\"-\" 控制场景。")
 	}
 	if strings.Contains(errText, "number widget requires integer Go type") {
-		add("数值组件要和 Go 类型匹配：type:number 只配 int/int64 等整数；float64 金额、评分、均值、比例使用 type:float。")
+		add("数值组件的字段类型要匹配：整数用 type:number，小数、金额、评分、均值、比例用 type:float。")
 	}
 	if strings.Contains(errText, "as *int64 value in argument") && strings.Contains(errText, ".Count") {
 		add("GORM Count 的参数必须是 *int64；声明 var total int64，再 Count(&total)。需要业务 int 时在计算处显式 int(total)。")
@@ -174,7 +174,7 @@ func workspaceBuildErrorHints(errText string) []string {
 		add("SDK 没有 resp.Charts；一个 Chart 路由只返回一张图，用 resp.Chart(chart).Build()。多张图拆成多个 .chart 路由，汇总指标放 Metadata。")
 	}
 	if strings.Contains(errText, "redeclared in this block") {
-		add("同一个 Go package 里的模型、函数和方法只能定义一次；共享模型应放在一个文件中，其他文件直接复用。")
+		add("同一个目录里的模型、函数和方法只能定义一次；共享模型应放在一个文件中，其他文件直接复用。")
 	}
 	return hints
 }

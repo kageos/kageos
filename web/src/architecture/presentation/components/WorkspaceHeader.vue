@@ -37,17 +37,6 @@
 
       <el-button
         size="small"
-        class="header-time-wheel-button"
-        @click="navigateToTaskTimeWheel"
-        title="任务时间轮"
-        data-testid="workspace-header-task-time-wheel"
-      >
-        <el-icon><Timer /></el-icon>
-        任务时间轮
-      </el-button>
-
-      <el-button
-        size="small"
         class="header-message-button"
         @click="openMessageDrawer"
         title="消息中心"
@@ -259,7 +248,6 @@ import {
   Promotion,
   Setting,
   Search,
-  Timer,
   Moon,
   Sunny,
   Check,
@@ -378,10 +366,6 @@ let unreadTimer: ReturnType<typeof setInterval> | null = null
 // 导航到 Hub
 const navigateToHub = () => {
   navigateToHubUtil('/')
-}
-
-const navigateToTaskTimeWheel = () => {
-  router.push('/task-time-wheel')
 }
 
 const openMessageDrawer = () => {
@@ -851,7 +835,6 @@ defineExpose({
 }
 
 .header-search-button,
-.header-time-wheel-button,
 .header-message-button {
   height: 40px;
   padding: 0 14px;
@@ -871,12 +854,6 @@ defineExpose({
     border-color: var(--el-color-primary-light-5);
     background: var(--el-color-primary-light-9);
   }
-}
-
-.header-time-wheel-button:hover {
-  color: #059669;
-  border-color: rgba(16, 185, 129, 0.36);
-  background: rgba(16, 185, 129, 0.1);
 }
 
 .header-message-button {

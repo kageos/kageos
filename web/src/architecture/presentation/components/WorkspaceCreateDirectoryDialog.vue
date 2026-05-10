@@ -17,10 +17,10 @@
           data-testid="create-directory-name"
         />
       </el-form-item>
-      <el-form-item label="目录代码" required>
+      <el-form-item label="目录英文标识" required>
         <el-input
           v-model="form.code"
-          placeholder="请输入目录代码，如：user"
+          placeholder="请输入目录英文标识，如：user"
           maxlength="50"
           show-word-limit
           clearable
@@ -29,7 +29,7 @@
         />
         <div class="form-tip">
           <el-icon><InfoFilled /></el-icon>
-          目录代码必须是合法 Go package 名称：以小写字母开头，只能包含小写字母、数字和下划线，不能使用中划线或 Go 保留关键字
+          以小写英文字母开头，可包含小写英文字母、数字和下划线，不要使用横线
         </div>
       </el-form-item>
       <el-form-item label="描述">

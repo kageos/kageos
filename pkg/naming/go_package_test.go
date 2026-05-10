@@ -28,9 +28,9 @@ func TestValidateGoPackageNameRejectsInvalidNames(t *testing.T) {
 		code    string
 		wantErr string
 	}{
-		{name: "hyphen", code: "user-center", wantErr: "不能包含中划线"},
-		{name: "starts with digit", code: "1user", wantErr: "合法的 Go package 名称"},
-		{name: "keyword", code: "type", wantErr: "Go 保留关键字"},
+		{name: "hyphen", code: "user-center", wantErr: "不能使用横线"},
+		{name: "starts with digit", code: "1user", wantErr: "需以小写英文字母开头"},
+		{name: "keyword", code: "type", wantErr: "已被系统占用"},
 		{name: "empty", code: "", wantErr: "不能为空"},
 		{name: "outer space", code: " user", wantErr: "首尾空格"},
 	}

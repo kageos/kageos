@@ -31,12 +31,15 @@ func addFunctionsImpl(s *serviceTreeFunctionService, ctx context.Context, req *d
 		}, fmt.Errorf("SourceCode 不能为空")
 	}
 
-	fileName := strings.TrimSpace(req.FileName)
-	if fileName != "" {
-		fileName = strings.TrimSuffix(fileName, ".go")
+	fileName, err := normalizeAddFunctionsGoFileName(req.FileName, targetTree.Code)
+	if err != nil {
+		logger.Errorf(ctx, "[ServiceTreeService] 非法 file_name: %v", err)
+		return &dto.AddFunctionsResp{
+			Success: false,
+			Error:   err.Error(),
+		}, err
 	}
-	if fileName == "" {
-		fileName = targetTree.Code
+	if strings.TrimSpace(req.FileName) == "" {
 		logger.Infof(ctx, "[ServiceTreeService] 同步添加函数：未传 file_name，使用目录 Code - FullCodePath: %s, FileName: %s", req.FullCodePath, fileName)
 	} else {
 		logger.Infof(ctx, "[ServiceTreeService] 同步添加函数：直接写入 full_code_path - FullCodePath: %s, FileName: %s", req.FullCodePath, fileName)
@@ -133,12 +136,12 @@ func processFunctionGenResultImpl(s *serviceTreeFunctionService, ctx context.Con
 		return fmt.Errorf("SourceCode 不能为空")
 	}
 
-	fileName := strings.TrimSpace(req.FileName)
-	if fileName != "" {
-		fileName = strings.TrimSuffix(fileName, ".go")
+	fileName, err := normalizeAddFunctionsGoFileName(req.FileName, targetTree.Code)
+	if err != nil {
+		logger.Errorf(ctx, "[ServiceTreeService] 非法 file_name: %v", err)
+		return err
 	}
-	if fileName == "" {
-		fileName = targetTree.Code
+	if strings.TrimSpace(req.FileName) == "" {
 		logger.Infof(ctx, "[ServiceTreeService] 异步处理：未传 file_name，使用目录 Code - FullCodePath: %s, FileName: %s", req.FullCodePath, fileName)
 	} else {
 		logger.Infof(ctx, "[ServiceTreeService] 异步处理：直接写入 full_code_path - FullCodePath: %s, FileName: %s", req.FullCodePath, fileName)
@@ -183,4 +186,18 @@ func processFunctionGenResultImpl(s *serviceTreeFunctionService, ctx context.Con
 	}
 
 	return nil
+}
+
+func normalizeAddFunctionsGoFileName(rawFileName, fallbackFileName string) (string, error) {
+	fileName := strings.TrimSpace(rawFileName)
+	if fileName == "" {
+		fileName = strings.TrimSpace(fallbackFileName)
+	}
+	for strings.HasSuffix(fileName, ".go") {
+		fileName = strings.TrimSuffix(fileName, ".go")
+	}
+	if strings.HasSuffix(fileName, "_test") {
+		return "", fmt.Errorf("file_name 不能使用 _test.go 结尾，测试文件不会参与应用 API 注册")
+	}
+	return fileName, nil
 }

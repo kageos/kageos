@@ -7,7 +7,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 )
 
-func TestValidateDirectoryScaffoldItemsForGoPackagesRejectsInvalidCode(t *testing.T) {
+func TestValidateDirectoryScaffoldItemsRejectsInvalidCode(t *testing.T) {
 	t.Parallel()
 
 	req := &dto.BatchCreateDirectoryTreeReq{
@@ -20,9 +20,9 @@ func TestValidateDirectoryScaffoldItemsForGoPackagesRejectsInvalidCode(t *testin
 
 	err := validateDirectoryScaffoldItemsForGoPackages(req)
 	if err == nil {
-		t.Fatal("expected invalid package code to be rejected")
+		t.Fatal("expected invalid directory code to be rejected")
 	}
-	if !strings.Contains(err.Error(), "非法 Go package 名称") {
+	if !strings.Contains(err.Error(), "不支持的英文标识") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

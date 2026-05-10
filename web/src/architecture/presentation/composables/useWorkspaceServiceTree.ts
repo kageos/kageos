@@ -109,12 +109,12 @@ export function useWorkspaceServiceTree(
     if (!name || !code) {
       ElNotification.warning({
         title: '提示',
-        message: '请输入目录名称和代码'
+        message: '请输入目录名称和英文标识'
       })
       return
     }
     
-    const codeError = validateGoPackageName(code, '目录代码')
+    const codeError = validateGoPackageName(code, '目录英文标识')
     if (codeError) {
       ElNotification.warning({
         title: '提示',
