@@ -71,7 +71,7 @@ func (r *ServiceTreeRepository) GetServiceTreeByID(id int64) (*model.ServiceTree
 // GetServiceTreesByAppID 根据应用ID获取所有服务目录
 func (r *ServiceTreeRepository) GetServiceTreesByAppID(appID int64) ([]*model.ServiceTree, error) {
 	var serviceTrees []*model.ServiceTree
-	err := r.db.Where("app_id = ?", appID).Order("created_at ASC").Find(&serviceTrees).Error
+	err := r.db.Where("app_id = ?", appID).Order("id ASC").Find(&serviceTrees).Error
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ func (r *ServiceTreeRepository) GetServiceTreesByAppIDAndType(appID int64, nodeT
 	if nodeType != "" {
 		query = query.Where("type = ?", nodeType)
 	}
-	err := query.Order("created_at ASC").Find(&serviceTrees).Error
+	err := query.Order("id ASC").Find(&serviceTrees).Error
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (r *ServiceTreeRepository) GetDirectChildrenByPath(appID int64, parentPath 
 	var all []*model.ServiceTree
 	err := r.db.Where("app_id = ? AND full_code_path LIKE ?", appID, prefix+"%").
 		Preload("Function").
-		Order("created_at ASC").
+		Order("id ASC").
 		Find(&all).Error
 	if err != nil {
 		return nil, err
@@ -134,7 +134,7 @@ func (r *ServiceTreeRepository) GetDirectChildrenByPath(appID int64, parentPath 
 			children = append(children, node)
 		}
 	}
-	return children, nil
+	return dedupeServiceTreesByFullPath(children), nil
 }
 
 // BuildServiceTree 构建树形结构
@@ -164,7 +164,7 @@ func (r *ServiceTreeRepository) BuildServiceTreeByVersion(appID int64, versionNu
 	var allTrees []*model.ServiceTree
 	err := r.db.Where("app_id = ? AND add_version_num <= ? AND (update_version_num = 0 OR update_version_num <= ?)",
 		appID, versionNum, versionNum).
-		Order("created_at ASC").
+		Order("id ASC").
 		Find(&allTrees).Error
 	if err != nil {
 		return nil, err
@@ -174,6 +174,8 @@ func (r *ServiceTreeRepository) BuildServiceTreeByVersion(appID int64, versionNu
 
 // buildTreeFromNodes 从节点列表构建树形结构（基于 FullCodePath）
 func (r *ServiceTreeRepository) buildTreeFromNodes(allTrees []*model.ServiceTree) []*model.ServiceTree {
+	allTrees = dedupeServiceTreesByFullPath(allTrees)
+
 	pathMap := make(map[string]*model.ServiceTree, len(allTrees))
 	var rootNodes []*model.ServiceTree
 
@@ -193,6 +195,31 @@ func (r *ServiceTreeRepository) buildTreeFromNodes(allTrees []*model.ServiceTree
 	}
 
 	return rootNodes
+}
+
+func dedupeServiceTreesByFullPath(allTrees []*model.ServiceTree) []*model.ServiceTree {
+	if len(allTrees) == 0 {
+		return allTrees
+	}
+
+	seen := make(map[string]struct{}, len(allTrees))
+	deduped := make([]*model.ServiceTree, 0, len(allTrees))
+	for _, tree := range allTrees {
+		if tree == nil {
+			continue
+		}
+		key := normalizeFullCodePath(tree.FullCodePath)
+		if key == "" {
+			key = tree.FullCodePath
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		tree.Children = nil
+		deduped = append(deduped, tree)
+	}
+	return deduped
 }
 
 // UpdateServiceTree 更新服务目录
@@ -260,7 +287,7 @@ func (r *ServiceTreeRepository) GetServiceTreeByFullPath(fullPath string) (*mode
 		return nil, gorm.ErrRecordNotFound
 	}
 	var serviceTree model.ServiceTree
-	err := r.db.Where("full_code_path = ?", fullPath).First(&serviceTree).Error
+	err := r.db.Where("full_code_path = ?", fullPath).Order("id ASC").First(&serviceTree).Error
 	if err != nil {
 		return nil, err
 	}
@@ -371,13 +398,16 @@ func (r *ServiceTreeRepository) GetServiceTreeByFullPaths(fullPaths []string) (m
 	}
 
 	var serviceTrees []*model.ServiceTree
-	err := r.db.Where("full_code_path IN ?", fullPaths).Find(&serviceTrees).Error
+	err := r.db.Where("full_code_path IN ?", fullPaths).Order("id ASC").Find(&serviceTrees).Error
 	if err != nil {
 		return nil, err
 	}
 
 	result := make(map[string]*model.ServiceTree)
 	for _, tree := range serviceTrees {
+		if _, exists := result[tree.FullCodePath]; exists {
+			continue
+		}
 		result[tree.FullCodePath] = tree
 	}
 	return result, nil

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/naming"
+	"gorm.io/gorm"
 )
 
 func executeBatchCreateDirectoryTree(
@@ -47,6 +49,18 @@ func executeBatchCreateDirectoryTree(
 			continue
 		}
 		dirCode := pathParts[len(pathParts)-1]
+
+		existingTree, err := serviceTreeRepo.GetServiceTreeByFullPath(item.FullCodePath)
+		if err == nil && existingTree != nil {
+			if existingTree.AppID == app.ID && existingTree.Type == model.ServiceTreeTypePackage {
+				pathToTree[item.FullCodePath] = existingTree
+				continue
+			}
+			return nil, fmt.Errorf("目标目录路径已存在但类型或应用不匹配: %s", item.FullCodePath)
+		}
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("查询目标目录是否存在失败: path=%s: %w", item.FullCodePath, err)
+		}
 
 		parentPath := getParentPathForBatch(item.FullCodePath)
 		if parentPath != "" {
