@@ -1,5 +1,5 @@
 import { ElMessage } from 'element-plus'
-import { ref, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 import { getLLMList, type LLMInfo } from '@/api/agent'
 import { workspaceChatStream, type WorkspaceChatMessageFile, type WorkspaceChatReq } from '@/api/workspace'
 
@@ -27,6 +27,11 @@ interface SendWorkspaceMessageOptions {
   resume?: boolean
 }
 
+interface QueuedWorkspaceMessage {
+  text: string
+  files: WorkspaceChatMessageFile[] | null
+}
+
 export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOptions) {
   const {
     fullCodePath,
@@ -46,6 +51,8 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
   const llmList = ref<LLMInfo[]>([])
   const llmLoading = ref(false)
   const selectedLLMConfigId = ref<number>(0)
+  const queuedMessages = ref<QueuedWorkspaceMessage[]>([])
+  const queuedCount = computed(() => queuedMessages.value.length)
 
   async function loadLLMs() {
     llmLoading.value = true
@@ -131,6 +138,13 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     if (!fullCodePath.value || (!text && !files?.length)) {
       return
     }
+    if (sending.value) {
+      queuedMessages.value.push({ text, files })
+      inputText.value = ''
+      attachedFiles.value = []
+      ElMessage.success('已加入发送队列')
+      return
+    }
     if (beforeSend && await beforeSend({ text, files })) {
       inputText.value = ''
       attachedFiles.value = []
@@ -141,6 +155,17 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     attachedFiles.value = []
     await sendWorkspaceMessage(text, files)
   }
+
+  watch(sending, (isSending) => {
+    if (isSending || queuedMessages.value.length === 0) {
+      return
+    }
+    const next = queuedMessages.value.shift()
+    if (!next) {
+      return
+    }
+    void sendWorkspaceMessage(next.text, next.files)
+  })
 
   async function sendText(content: string): Promise<boolean> {
     const text = content.trim()
@@ -178,6 +203,7 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     llmList,
     llmLoading,
     selectedLLMConfigId,
+    queuedCount,
     onLLMSelectVisibleChange,
     onInputEnter,
     handleSend,

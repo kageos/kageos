@@ -11,35 +11,6 @@
     </el-tag>
   </div>
 
-  <div class="mini-ws-model-row">
-    <div class="mini-ws-control">
-      <span class="mini-ws-model-label">模型</span>
-      <el-select
-        :model-value="selectedLLMConfigId"
-        placeholder="默认模型"
-        filterable
-        :loading="llmLoading"
-        teleported
-        fit-input-width
-        :persistent="false"
-        placement="top-start"
-        :popper-options="modelSelectPopperOptions"
-        popper-class="mini-ws-model-select-popper"
-        class="mini-ws-model-select"
-        @update:model-value="emit('update:selectedLLMConfigId', Number($event))"
-        @visible-change="onLLMSelectVisibleChange"
-      >
-        <el-option label="默认" :value="0" />
-        <el-option
-          v-for="llm in llmList"
-          :key="llm.id"
-          :label="`${llm.name} (${llm.provider}/${llm.model})`"
-          :value="llm.id"
-        />
-      </el-select>
-    </div>
-  </div>
-
   <div class="mini-ws-input" data-testid="mini-workstation-composer">
     <div class="mini-composer-left-actions">
       <slot name="left-actions" />
@@ -53,23 +24,26 @@
         <el-button :icon="Paperclip" link :loading="uploading" size="small" title="上传文件" />
       </el-upload>
     </div>
-    <textarea
-      :ref="bindInputRef"
-      :value="inputText"
-      class="mini-input"
-      data-testid="mini-workstation-input"
-      placeholder="输入命令...（@搜用户，/搜目录/工具/文档，Enter 发送）"
-      rows="3"
-      @input="emitInput"
-      @keydown="onTextareaKeydown"
-      @keyup="onTextareaCursorChange"
-      @click="onTextareaCursorChange"
-      @select="onTextareaCursorChange"
-      @focus="onTextareaCursorChange"
-      @blur="scheduleMentionClose"
-      @compositionstart="onCompositionStart"
-      @compositionend="onCompositionEnd"
-    />
+    <div class="mini-input-wrap">
+      <span class="mini-path-pill" :title="fullCodePath">{{ displayPath }}</span>
+      <textarea
+        :ref="bindInputRef"
+        :value="inputText"
+        class="mini-input"
+        data-testid="mini-workstation-input"
+        placeholder="输入命令...（@搜用户，/搜目录/工具/文档，Enter 发送，Shift+Enter 换行）"
+        rows="2"
+        @input="emitInput"
+        @keydown="onTextareaKeydown"
+        @keyup="onTextareaCursorChange"
+        @click="onTextareaCursorChange"
+        @select="onTextareaCursorChange"
+        @focus="onTextareaCursorChange"
+        @blur="scheduleMentionClose"
+        @compositionstart="onCompositionStart"
+        @compositionend="onCompositionEnd"
+      />
+    </div>
     <div
       v-if="mentionPanelOpen"
       class="mini-mention-panel"
@@ -128,6 +102,30 @@
       </div>
     </div>
     <div class="mini-action-stack">
+      <el-select
+        :model-value="selectedLLMConfigId"
+        placeholder="默认模型"
+        filterable
+        :loading="llmLoading"
+        teleported
+        fit-input-width
+        :persistent="false"
+        placement="top-start"
+        :popper-options="modelSelectPopperOptions"
+        popper-class="mini-ws-model-select-popper"
+        class="mini-ws-model-select"
+        @update:model-value="emit('update:selectedLLMConfigId', Number($event))"
+        @visible-change="onLLMSelectVisibleChange"
+      >
+        <el-option label="默认模型" :value="0" />
+        <el-option
+          v-for="llm in llmList"
+          :key="llm.id"
+          :label="`${llm.name} (${llm.provider}/${llm.model})`"
+          :value="llm.id"
+        />
+      </el-select>
+      <div class="mini-action-row">
       <el-tooltip content="定时执行" placement="top" effect="light">
         <el-button
           class="mini-schedule-btn"
@@ -148,13 +146,12 @@
         :loading="stopping"
         data-testid="mini-workstation-stop"
         @click="$emit('stop')"
-        class="mini-send-btn"
+        class="mini-stop-btn"
       >
         <el-icon><VideoPause /></el-icon>
         停止
       </el-button>
       <el-button
-        v-else
         type="primary"
         size="small"
         :disabled="!fullCodePath || (!inputText.trim() && attachedFiles.length === 0)"
@@ -162,8 +159,9 @@
         @click="$emit('send')"
         class="mini-send-btn"
       >
-        发送
+        {{ sending ? (queuedCount > 0 ? `排队 ${queuedCount}` : '排队') : '发送' }}
       </el-button>
+      </div>
     </div>
   </div>
 </template>
@@ -199,6 +197,7 @@ const props = defineProps<{
   selectedLLMConfigId: number
   llmList: LLMInfo[]
   llmLoading: boolean
+  queuedCount: number
   registerInputRef: (el: HTMLTextAreaElement | null) => void
   onLLMSelectVisibleChange: (visible: boolean) => void
   onFileChange: (uploadFileObj: { raw?: File }) => void | Promise<void>
@@ -217,6 +216,12 @@ const emit = defineEmits<{
 const modelSelectPopperOptions = {
   strategy: 'fixed' as const,
 }
+
+const displayPath = computed(() => {
+  if (!props.fullCodePath) return '未选择目录'
+  const parts = props.fullCodePath.split('/').filter(Boolean)
+  return parts[parts.length - 1] || props.fullCodePath
+})
 
 interface MiniMentionOption {
   key: string
@@ -550,41 +555,16 @@ function cancelMentionClose() {
   color: var(--mini-cyber-text, #d8f8ff);
 }
 
-.mini-ws-model-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px 12px;
-  border-top: 1px solid rgba(96, 231, 255, 0.12);
-  background:
-    linear-gradient(90deg, rgba(9, 28, 48, 0.72), rgba(4, 12, 24, 0.56)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
-}
-.mini-ws-control {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 180px;
-}
-.mini-ws-model-label {
-  font-size: 12px;
-  color: var(--mini-cyber-muted, rgba(184, 225, 235, 0.68));
-  flex-shrink: 0;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-}
 .mini-ws-model-select {
-  flex: 1;
+  width: 132px;
   min-width: 0;
 }
 .mini-ws-model-select :deep(.el-select__wrapper) {
   min-height: 30px;
-  border: 1px solid rgba(96, 231, 255, 0.18);
-  border-radius: 10px;
-  background: rgba(3, 10, 22, 0.66);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03), 0 0 18px rgba(34, 211, 238, 0.06);
+  border: 1px solid rgba(128, 151, 198, 0.22);
+  border-radius: 8px;
+  background: rgba(17, 25, 45, 0.72);
+  box-shadow: none;
 }
 .mini-ws-model-select :deep(.el-select__placeholder),
 .mini-ws-model-select :deep(.el-select__selected-item) {
@@ -595,15 +575,16 @@ function cancelMentionClose() {
   color: var(--mini-cyber-text, #d8f8ff);
 }
 .mini-ws-input {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: flex-end;
-  gap: 8px;
+  gap: 12px;
   padding: 10px 12px;
   position: relative;
-  border-top: 1px solid rgba(96, 231, 255, 0.16);
+  border-top: 1px solid rgba(128, 151, 198, 0.18);
   background:
-    radial-gradient(circle at 10% 0%, rgba(34, 211, 238, 0.1), transparent 32%),
-    linear-gradient(180deg, rgba(9, 28, 48, 0.82), rgba(4, 12, 24, 0.9));
+    linear-gradient(180deg, rgba(12, 18, 32, 0.84), rgba(8, 12, 22, 0.68)),
+    rgba(8, 12, 22, 0.72);
 }
 .mini-composer-left-actions {
   flex-shrink: 0;
@@ -619,40 +600,65 @@ function cancelMentionClose() {
 .mini-upload-btn :deep(.el-button) {
   width: 32px;
   height: 32px;
-  border: 1px solid rgba(96, 231, 255, 0.2);
-  border-radius: 10px;
-  color: var(--mini-cyber-accent, #22d3ee);
-  background: rgba(34, 211, 238, 0.08);
+  border: 1px solid rgba(128, 151, 198, 0.22);
+  border-radius: 8px;
+  color: #8ed0ff;
+  background: rgba(30, 42, 68, 0.72);
 }
 .mini-upload-btn :deep(.el-button:hover) {
   color: #ffffff;
-  background: rgba(34, 211, 238, 0.16);
-  box-shadow: 0 0 18px rgba(34, 211, 238, 0.16);
+  background: rgba(55, 163, 255, 0.16);
+  box-shadow: 0 0 18px rgba(55, 163, 255, 0.14);
+}
+.mini-input-wrap {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 0 10px;
+  border: 1px solid rgba(124, 146, 189, 0.16);
+  border-radius: 10px;
+  background: rgba(10, 16, 29, 0.42);
+}
+.mini-path-pill {
+  max-width: 148px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  overflow: hidden;
+  border: 1px solid rgba(55, 163, 255, 0.25);
+  border-radius: 8px;
+  background: rgba(55, 163, 255, 0.13);
+  color: #8ed0ff;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .mini-input {
   flex: 1;
   min-width: 0;
-  min-height: 56px;
-  max-height: 120px;
-  padding: 10px 12px;
-  border: 1px solid rgba(96, 231, 255, 0.16);
-  border-radius: 12px;
+  min-height: 42px;
+  max-height: 110px;
+  padding: 9px 0 7px;
+  border: 0;
+  border-radius: 0;
   outline: none;
   font-size: 13px;
   line-height: 1.5;
   font-family: inherit;
-  background:
-    linear-gradient(180deg, rgba(3, 10, 22, 0.76), rgba(3, 10, 22, 0.46)),
-    repeating-linear-gradient(90deg, rgba(96, 231, 255, 0.035) 0 1px, transparent 1px 18px);
-  color: var(--mini-cyber-text, #d8f8ff);
+  background: transparent;
+  color: #e6f0ff;
   resize: none;
   overflow-y: auto;
-  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.24);
+  box-shadow: none;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 .mini-input:focus {
-  border-color: rgba(34, 211, 238, 0.56);
-  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.24), 0 0 0 3px rgba(34, 211, 238, 0.1);
+  box-shadow: none;
 }
 .mini-input::placeholder {
   color: var(--mini-cyber-dim, rgba(143, 187, 204, 0.48));
@@ -829,43 +835,49 @@ function cancelMentionClose() {
 }
 .mini-action-stack {
   flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
   align-items: stretch;
   justify-content: flex-end;
   gap: 6px;
 }
+.mini-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
 .mini-schedule-btn {
-  width: 100%;
+  width: 32px;
   min-height: 28px;
-  border: 1px solid rgba(96, 231, 255, 0.2);
-  border-radius: 10px;
-  color: var(--mini-cyber-accent, #22d3ee);
-  background: rgba(34, 211, 238, 0.08);
+  border: 1px solid rgba(128, 151, 198, 0.22);
+  border-radius: 8px;
+  color: #8ed0ff;
+  background: rgba(30, 42, 68, 0.72);
 }
 .mini-schedule-btn:hover {
   color: #ffffff;
-  background: rgba(34, 211, 238, 0.16);
-  box-shadow: 0 0 18px rgba(34, 211, 238, 0.16);
+  background: rgba(55, 163, 255, 0.16);
+  box-shadow: 0 0 18px rgba(55, 163, 255, 0.14);
 }
-.mini-send-btn {
+.mini-send-btn,
+.mini-stop-btn {
   flex-shrink: 0;
   align-self: flex-end;
-  width: 100%;
+  min-width: 68px;
   min-height: 32px;
-  border-radius: 10px;
+  border-radius: 8px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  box-shadow: 0 0 20px rgba(34, 211, 238, 0.16);
+  box-shadow: 0 0 20px rgba(104, 119, 255, 0.16);
 }
 .mini-send-btn.el-button--primary {
-  border-color: rgba(34, 211, 238, 0.68);
-  background: linear-gradient(135deg, #0891b2, #22d3ee);
-  color: #03111d;
+  border: 0;
+  background: linear-gradient(135deg, #6d70ff, #8b5cf6);
+  color: #ffffff;
 }
 
 :deep(.mini-ws--maximized) .mini-ws-input {
-  padding: 12px 24px;
+  padding: 10px 12px;
 }
 :deep(.mini-ws--maximized) .mini-ws-files {
   padding: 6px 24px;
