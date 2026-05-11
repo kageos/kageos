@@ -75,6 +75,9 @@ func TestRenderBundledConfig(t *testing.T) {
 	if !strings.Contains(mysqlInit, "CREATE DATABASE IF NOT EXISTS `timer-scheduler`") {
 		t.Fatalf("mysql init should include timer-scheduler database, got:\n%s", mysqlInit)
 	}
+	if !strings.Contains(mysqlInit, "CREATE DATABASE IF NOT EXISTS `workflow-server`") {
+		t.Fatalf("mysql init should include workflow-server database, got:\n%s", mysqlInit)
+	}
 
 	backupConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "backup-service.yaml"))
 	for _, want := range []string{
@@ -144,6 +147,9 @@ func TestRenderBundledConfig(t *testing.T) {
 		`path: "/message"`,
 		`service_name: "message"`,
 		`url: "http://127.0.0.1:9109"`,
+		`path: "/workflow"`,
+		`service_name: "workflow"`,
+		`url: "http://127.0.0.1:9110"`,
 	} {
 		if !strings.Contains(apiGatewayConfig, want) {
 			t.Fatalf("generated api-gateway config missing %q, got:\n%s", want, apiGatewayConfig)
@@ -167,6 +173,16 @@ func TestRenderBundledConfig(t *testing.T) {
 	} {
 		if !strings.Contains(timerSchedulerConfig, want) {
 			t.Fatalf("generated timer-scheduler config missing %q, got:\n%s", want, timerSchedulerConfig)
+		}
+	}
+
+	workflowServerConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "workflow-server.yaml"))
+	for _, want := range []string{
+		`port: 9110`,
+		`name: "workflow-server"`,
+	} {
+		if !strings.Contains(workflowServerConfig, want) {
+			t.Fatalf("generated workflow-server config missing %q, got:\n%s", want, workflowServerConfig)
 		}
 	}
 }
@@ -602,6 +618,7 @@ func TestRequiredMySQLDatabases(t *testing.T) {
 				AppDatabase:            "app_db",
 				ScheduledTaskDatabase:  "app-scheduled-task",
 				TimerSchedulerDatabase: "timer-scheduler",
+				WorkflowDatabase:       "workflow-server",
 				StorageDatabase:        "app-storage",
 				AgentDatabase:          "agent-server",
 				HRDatabase:             "hr-server",
@@ -610,7 +627,7 @@ func TestRequiredMySQLDatabases(t *testing.T) {
 	}
 
 	got := requiredMySQLDatabases(rt)
-	for _, want := range []string{"app_db", "app-scheduled-task", "timer-scheduler", "app-storage", "agent-server", "hr-server", "hub"} {
+	for _, want := range []string{"app_db", "app-scheduled-task", "timer-scheduler", "workflow-server", "app-storage", "agent-server", "hr-server", "hub"} {
 		if !containsString(got, want) {
 			t.Fatalf("required MySQL databases missing %q: %#v", want, got)
 		}

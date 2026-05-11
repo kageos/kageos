@@ -17,6 +17,7 @@ import (
 	controlServiceRunner "github.com/ai-agent-os/ai-agent-os/core/control-service/runner"
 	hrServerRunner "github.com/ai-agent-os/ai-agent-os/core/hr-server/runner"
 	messageServerRunner "github.com/ai-agent-os/ai-agent-os/core/message-server/runner"
+	workflowServerRunner "github.com/ai-agent-os/ai-agent-os/core/workflow-server/runner"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/infra"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -99,6 +100,14 @@ func init() {
 		ReadyChannel: make(chan struct{}, 1),
 	})
 
+	// 8. Workflow Server（标准能力编排，依赖 app-server 提供 Form 标准接口）
+	services = append(services, &ServiceInfo{
+		Name:         "workflow-server",
+		Main:         workflowServerRunner.Main,
+		DependsOn:    []string{"app-server"},
+		ReadyChannel: make(chan struct{}, 1),
+	})
+
 	apiGatewayDependsOn := []string{
 		"control-service",
 		"app-runtime",
@@ -107,9 +116,10 @@ func init() {
 		"message-server",
 		"agent-server",
 		"app-server",
+		"workflow-server",
 	}
 
-	// 8. API Gateway（API 网关，最后启动，因为依赖其他服务）
+	// 9. API Gateway（API 网关，最后启动，因为依赖其他服务）
 	services = append(services, &ServiceInfo{
 		Name:         "api-gateway",
 		Main:         apiGatewayRunner.Main,

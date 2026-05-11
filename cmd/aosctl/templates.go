@@ -210,6 +210,7 @@ const mysqlInitTemplate = `
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.AppDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.ScheduledTaskDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.TimerSchedulerDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.WorkflowDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.StorageDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.AgentDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.HRDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -286,6 +287,11 @@ routes:
     service_name: "message"
     targets:
       - url: "http://127.0.0.1:9109"
+    timeout: 300
+  - path: "/workflow"
+    service_name: "workflow"
+    targets:
+      - url: "http://127.0.0.1:9110"
     timeout: 300
   - path: "/workspace"
     service_name: "workspace"
@@ -552,6 +558,27 @@ email:
   verification:
     code_length: 6
     code_expire: 300
+`
+
+const workflowServerConfigTemplate = `
+server:
+  port: 9110
+  listen_host: "127.0.0.1"
+  log_level: "info"
+  debug: false
+
+db:
+  type: "mysql"
+  host: {{ q .MySQLHostForMain }}
+  port: {{ .MySQLPortForMain }}
+  user: {{ q .MySQL.User }}
+  password: {{ q .MySQL.Password }}
+  name: {{ q .MySQL.WorkflowDatabase }}
+  max_idle_conns: 30
+  max_open_conns: 200
+  max_lifetime: 300
+  log_level: "warn"
+  slow_threshold: 200
 `
 
 const controlServiceConfigTemplate = `

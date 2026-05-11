@@ -1,0 +1,18 @@
+server:
+  port: 9110
+  listen_host: "127.0.0.1"
+  log_level: "info"
+  debug: false
+
+db:
+  type: "mysql"
+  host: "127.0.0.1"
+  port: 3306
+  user: "root"
+  password: "${MYSQL_ROOT_PASSWORD}"
+  name: "workflow-server"
+  max_idle_conns: 30
+  max_open_conns: 200
+  max_lifetime: 300
+  log_level: "warn"
+  slow_threshold: 200

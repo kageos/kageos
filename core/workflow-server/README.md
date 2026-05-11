@@ -36,6 +36,19 @@
 - 定时触发。
 - 外部 HTTP 节点。
 
+## 当前实现状态
+
+当前 `codex/workflow-mvp` 分支已经落地后端 MVP 骨架：
+
+- `pkg/workflowexpr`：支持 `$ref` / `$const` 的表达式解析和校验。
+- `definition`：支持 `workflow.v1`、`nodes + edges`、sequence DAG 校验。
+- `executor`：支持 executor registry，已注册 `form.submit`。
+- `service`：支持 workflow 创建、更新、发布、运行、run 查询、step 查询、取消。
+- `server`：提供 `/workflow/api/v1` HTTP API。
+- `model/repository`：持久化 definition、version、run、step run、run event。
+- `core/cmd/main`：统一启动入口已接入 workflow-server。
+- `api-gateway`：已新增 `/workflow` 路由。
+
 ## 3. 推荐目录结构
 
 ```text

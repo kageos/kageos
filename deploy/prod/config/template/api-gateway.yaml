@@ -32,6 +32,12 @@ routes:
       - url: "http://127.0.0.1:9109"
     timeout: 300
 
+  - path: "/workflow"
+    service_name: "workflow"
+    targets:
+      - url: "http://127.0.0.1:9110"
+    timeout: 300
+
   - path: "/workspace"
     service_name: "workspace"
     targets:

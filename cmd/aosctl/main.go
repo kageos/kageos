@@ -81,6 +81,7 @@ type MySQLConfig struct {
 	AppDatabase            string `yaml:"app_database"`
 	ScheduledTaskDatabase  string `yaml:"scheduled_task_database"`
 	TimerSchedulerDatabase string `yaml:"timer_scheduler_database"`
+	WorkflowDatabase       string `yaml:"workflow_database"`
 	AgentDatabase          string `yaml:"agent_database"`
 	StorageDatabase        string `yaml:"storage_database"`
 	HRDatabase             string `yaml:"hr_database"`
@@ -1054,6 +1055,7 @@ func verifyLayerChecks(rt RuntimeConfig) []layerCheck {
 		layerCheck{Layer: layerPlatform, Name: "control-service", Target: "http://127.0.0.1:9096/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9096/health") }},
 		layerCheck{Layer: layerPlatform, Name: "hr-server", Target: "http://127.0.0.1:9097/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9097/health") }},
 		layerCheck{Layer: layerPlatform, Name: "message-server", Target: "http://127.0.0.1:9109/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9109/health") }},
+		layerCheck{Layer: layerPlatform, Name: "workflow-server", Target: "http://127.0.0.1:9110/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9110/health") }},
 		layerCheck{Layer: layerPlatform, Name: "timer-scheduler", Target: "http://127.0.0.1:9108/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9108/health") }},
 		layerCheck{Layer: layerPlatform, Name: "backup-service", Target: "http://127.0.0.1:19088/health", Fn: func() error { return checkHTTP("http://127.0.0.1:19088/health") }},
 		layerCheck{Layer: layerPlatform, Name: "main platform probe", Target: "compose exec main /app/health/platform.sh", Fn: func() error {
@@ -1308,6 +1310,7 @@ func defaultConfig() (Config, error) {
 			AppDatabase:            "app_db",
 			ScheduledTaskDatabase:  "app-scheduled-task",
 			TimerSchedulerDatabase: "timer-scheduler",
+			WorkflowDatabase:       "workflow-server",
 			AgentDatabase:          "agent-server",
 			StorageDatabase:        "app-storage",
 			HRDatabase:             "hr-server",
@@ -1399,6 +1402,9 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.MySQL.TimerSchedulerDatabase == "" {
 		cfg.MySQL.TimerSchedulerDatabase = "timer-scheduler"
+	}
+	if cfg.MySQL.WorkflowDatabase == "" {
+		cfg.MySQL.WorkflowDatabase = "workflow-server"
 	}
 	if cfg.MySQL.AgentDatabase == "" {
 		cfg.MySQL.AgentDatabase = "agent-server"
@@ -1710,6 +1716,7 @@ func renderAll(rt RuntimeConfig) error {
 		"config/message-server.yaml":  renderTemplate(messageServerConfigTemplate, rt),
 		"config/control-service.yaml": renderTemplate(controlServiceConfigTemplate, rt),
 		"config/timer-scheduler.yaml": renderTemplate(timerSchedulerConfigTemplate, rt),
+		"config/workflow-server.yaml": renderTemplate(workflowServerConfigTemplate, rt),
 		"config/backup-service.yaml":  renderTemplate(backupServiceConfigTemplate, rt),
 	}
 	for rel, content := range files {
@@ -1873,6 +1880,7 @@ func requiredMySQLDatabases(rt RuntimeConfig) []string {
 		rt.MySQL.AppDatabase,
 		rt.MySQL.ScheduledTaskDatabase,
 		rt.MySQL.TimerSchedulerDatabase,
+		rt.MySQL.WorkflowDatabase,
 		rt.MySQL.StorageDatabase,
 		rt.MySQL.AgentDatabase,
 		rt.MySQL.HRDatabase,

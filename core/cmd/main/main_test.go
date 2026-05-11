@@ -35,9 +35,23 @@ func TestUnifiedStartupIncludesMessageServer(t *testing.T) {
 		t.Fatal("app-server should wait for message-server")
 	}
 
+	workflowServer := serviceByName["workflow-server"]
+	if workflowServer == nil {
+		t.Fatal("workflow-server is not registered in unified startup")
+	}
+	if workflowServer.Main == nil {
+		t.Fatal("workflow-server Main is nil")
+	}
+	if !hasDependency(workflowServer, "app-server") {
+		t.Fatal("workflow-server should wait for app-server")
+	}
+
 	apiGateway := serviceByName["api-gateway"]
 	if apiGateway == nil || !hasDependency(apiGateway, "message-server") {
 		t.Fatal("api-gateway should wait for message-server")
+	}
+	if !hasDependency(apiGateway, "workflow-server") {
+		t.Fatal("api-gateway should wait for workflow-server")
 	}
 }
 
