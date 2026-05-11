@@ -27,7 +27,7 @@ export class TableStateManager extends StateManagerImpl<TableState> implements I
       hasManualSort: false, // 🔥 新增：是否手动排序
       pagination: {
         currentPage: 1,
-        pageSize: 20,
+        pageSize: 10,
         total: 0
       }
     }
@@ -62,4 +62,3 @@ export class TableStateManager extends StateManagerImpl<TableState> implements I
     return this.getState().pagination
   }
 }
-

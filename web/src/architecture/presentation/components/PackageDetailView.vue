@@ -50,40 +50,11 @@
               >
                 编辑
               </el-button>
-              <el-button
-                v-if="canExport"
-                text
-                :icon="Download"
-                @click="handleExportJson"
-                class="path-export-btn"
-                size="small"
-                title="导出 JSON"
-              >
-                导出 JSON
-              </el-button>
-              <el-button
-                v-if="canImportCapability"
-                text
-                :icon="Upload"
-                @click="requestCapabilityJsonImport"
-                class="path-import-btn"
-                size="small"
-                title="导入 JSON"
-              >
-                导入 JSON
-              </el-button>
             </p>
           </div>
         </div>
       </div>
     </div>
-    <input
-      ref="capabilityImportInputRef"
-      type="file"
-      accept=".json,application/json"
-      class="capability-import-input"
-      @change="handleCapabilityImportFileChange"
-    />
 
     <!-- 主要内容区域 -->
     <div class="main-content">
@@ -92,15 +63,11 @@
         :total-run-count="totalRunCount"
         :has-no-directory-permissions="hasNoDirectoryPermissions"
         :show-permission-request-tab="showPermissionRequestTab"
-        :can-edit="canEdit"
         :active-tab="activeTab"
-        :is-import-go-dragging="isImportGoDragging"
         :resource-type="resourceType"
         @update:active-tab="activeTab = $event"
         @apply-permission="handleApplyPermission"
         @select-child="handleChildClick"
-        @import-go-drop="onImportGoDrop"
-        @set-import-go-dragging="isImportGoDragging = $event"
         @open-session="$emit('open-session', $event)"
       />
     </div>
@@ -121,26 +88,25 @@
 import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { LocationQueryValue } from 'vue-router'
-import { ArrowLeft, Folder, CopyDocument, Link, Edit, Download, Upload } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowLeft, Folder, CopyDocument, Link, Edit } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import { extractWorkspacePath } from '@/utils/route'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
-import { buildPermissionApplyURL, DirectoryPermission, hasPermission } from '@/utils/permission'
+import { buildPermissionApplyURL, DirectoryPermission } from '@/utils/permission'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
 import { useAuthStore } from '@/stores/auth'
-import { updatePackage, addFunctionsToDirectory, exportCapabilityBundle, installCapabilityBundle } from '@/api/service-tree'
-import { downloadCapabilityBundleFile, parseCapabilityBundleJson } from '@/utils/directoryBundleFile'
+import { updatePackage } from '@/api/service-tree'
 import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
 import { Logger } from '@/core/utils/logger'
 import PackageDetailContent from './PackageDetailContent.vue'
 import PackageDetailEditDialog from './PackageDetailEditDialog.vue'
 import type { WorkspaceSessionItem } from '@/api/workspace'
 
-type DetailTabName = 'info' | 'import' | 'permissionRequest' | 'permissionManage' | 'scheduledAgentTask'
+type DetailTabName = 'info' | 'permissionRequest' | 'permissionManage' | 'scheduledAgentTask'
 
 interface Props {
   packageNode?: ServiceTree | null
@@ -159,9 +125,6 @@ const authStore = useAuthStore() // ⭐ 必须在 showPermissionRequestTab 之�
 
 // Tab 相关
 const activeTab = ref<DetailTabName>('info')
-const isImportGoDragging = ref(false)
-const importGoLoading = ref(false)
-const capabilityImportInputRef = ref<HTMLInputElement | null>(null)
 
 // ⭐ 判断是否显示权限申请 tab
 // 条件：1. 节点类型是 package 或 app  2. 用户是管理员
@@ -254,24 +217,11 @@ const canEdit = computed(() => {
   return false
 })
 
-const canExport = computed(() => {
-  return props.packageNode?.type === 'package'
-    && !!props.packageNode.full_code_path
-    && hasPermission(props.packageNode, DirectoryPermission.read)
-})
-
-const canImportCapability = computed(() => {
-  return props.packageNode?.type === 'package'
-    && !!props.packageNode.full_code_path
-    && hasPermission(props.packageNode, DirectoryPermission.write)
-})
-
 watch(
   () => [
     props.packageNode?.full_code_path,
     showPermissionRequestTab.value,
-    showScheduledAgentTaskTab.value,
-    canEdit.value
+    showScheduledAgentTaskTab.value
   ] as const,
   () => {
     if ((activeTab.value === 'permissionRequest' || activeTab.value === 'permissionManage') && !showPermissionRequestTab.value) {
@@ -281,9 +231,6 @@ watch(
     if (activeTab.value === 'scheduledAgentTask' && !showScheduledAgentTaskTab.value) {
       activeTab.value = 'info'
       return
-    }
-    if (activeTab.value === 'import' && (!canEdit.value || !props.packageNode?.full_code_path)) {
-      activeTab.value = 'info'
     }
   },
   { immediate: true }
@@ -392,130 +339,6 @@ async function handleCopyPath() {
       ElMessage.error('复制失败，请手动复制')
     }
     document.body.removeChild(textArea)
-  }
-}
-
-async function handleExportJson() {
-  const fullCodePath = props.packageNode?.full_code_path
-  if (!fullCodePath) {
-    ElMessage.warning('路径信息不可用')
-    return
-  }
-
-  try {
-    const bundle = await exportCapabilityBundle({
-      source_directory_path: fullCodePath,
-      name: props.packageNode?.name || props.packageNode?.code
-    })
-    downloadCapabilityBundleFile(bundle, fullCodePath)
-    ElMessage.success('已开始下载 JSON 文件')
-  } catch (error: any) {
-    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '导出失败'
-    ElMessage.error(message)
-  }
-}
-
-function requestCapabilityJsonImport() {
-  if (!props.packageNode?.full_code_path) {
-    ElMessage.warning('路径信息不可用')
-    return
-  }
-  if (capabilityImportInputRef.value) {
-    capabilityImportInputRef.value.value = ''
-    capabilityImportInputRef.value.click()
-  }
-}
-
-async function handleCapabilityImportFileChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  const fullCodePath = props.packageNode?.full_code_path
-  if (!file || !fullCodePath) {
-    return
-  }
-
-  try {
-    const bundle = parseCapabilityBundleJson(await readFileAsText(file))
-    await ElMessageBox.confirm(
-      `将能力包「${bundle.name || file.name}」导入到 ${fullCodePath}，同名文件会被覆盖。`,
-      '导入 JSON',
-      {
-        confirmButtonText: '覆盖导入',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    const resp = await installCapabilityBundle({
-      target_directory_path: fullCodePath,
-      overwrite: true,
-      force_diff: true,
-      bundle
-    })
-    ElMessage.success(resp.message || '导入成功')
-    emit('refresh')
-  } catch (error: any) {
-    if (error === 'cancel' || error === 'close') {
-      return
-    }
-    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '导入失败'
-    ElMessage.error(message)
-  }
-}
-
-function readFileAsText(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result ?? ''))
-    reader.onerror = () => reject(reader.error)
-    reader.readAsText(file, 'utf-8')
-  })
-}
-
-async function onImportGoDrop(e: DragEvent) {
-  isImportGoDragging.value = false
-  const fullCodePath = props.packageNode?.full_code_path
-  if (!fullCodePath) return
-  const files = e.dataTransfer?.files
-  if (!files?.length) return
-  importGoLoading.value = true
-  let ok = 0
-  let fail = 0
-  try {
-    const fileArray = Array.from(files)
-    for (let i = 0; i < fileArray.length; i++) {
-      const file = fileArray[i]
-      if (!file || !file.name.toLowerCase().endsWith('.go')) continue
-      const content = await readFileAsText(file)
-      const fileName = file.name.endsWith('.go') ? file.name : file.name + '.go'
-      try {
-        const res = await addFunctionsToDirectory({
-          full_code_path: fullCodePath,
-          file_name: fileName,
-          source_code: content,
-          skip_build: true
-        })
-        if (res?.success !== false) ok++
-        else {
-          fail++
-          Logger.warn('[PackageDetailView]', '导入代码文件失败', {
-            fullCodePath,
-            fileName,
-            error: res?.error
-          })
-        }
-      } catch (err: any) {
-        fail++
-        ElMessage.warning(`${file.name}: ${err?.message || err?.response?.data?.msg || '写入失败'}`)
-      }
-    }
-    if (ok > 0) {
-      ElMessage.success(`已导入 ${ok} 个代码文件，可在工作台更新后生效。`)
-      emit('refresh')
-    }
-    if (fail > 0 && ok === 0) ElMessage.error('导入失败')
-  } finally {
-    importGoLoading.value = false
   }
 }
 
@@ -682,31 +505,6 @@ function handleChildClick(child: ServiceTree): void {
   display: flex;
   flex-direction: column;
   background: var(--el-bg-color-page);
-
-  // 导入代码文件 tab 内
-  .import-tab-content {
-    padding: 24px 0;
-  }
-  .import-go-drop-zone {
-    padding: 24px 16px;
-    border: 1px dashed var(--el-border-color);
-    border-radius: 8px;
-    font-size: 14px;
-    color: var(--el-color-primary);
-    text-align: center;
-    transition: border-color 0.2s, background 0.2s;
-    background: var(--el-fill-color-lighter);
-  }
-  .import-go-drop-zone--dragover {
-    border-color: var(--el-color-primary);
-    background: var(--el-color-primary-light-9);
-  }
-  .import-tab-hint {
-    margin: 12px 0 0;
-    font-size: 12px;
-    color: var(--el-text-color-secondary);
-  }
-
   // 顶部横幅区域
   .hero-section {
     background: var(--el-bg-color);
@@ -793,10 +591,8 @@ function handleChildClick(child: ServiceTree): void {
               word-break: break-all;
             }
 
-            .path-copy-btn,
-            .path-edit-btn,
-            .path-export-btn,
-            .path-import-btn {
+	            .path-copy-btn,
+	            .path-edit-btn {
               flex-shrink: 0;
               color: var(--el-text-color-secondary);
 
@@ -852,7 +648,4 @@ function handleChildClick(child: ServiceTree): void {
   }
 }
 
-.capability-import-input {
-  display: none;
-}
 </style>

@@ -158,7 +158,7 @@ func workspaceBuildErrorHints(errText string) []string {
 	}
 	if strings.Contains(errText, "GetPage undefined") || strings.Contains(errText, "GetPageSize undefined") ||
 		strings.Contains(errText, "unknown field Total") || strings.Contains(errText, "unknown field DataList") {
-		add("分页默认使用 resp.Table(&rows, queryDB, &Model{}, &req.PageSortReq).Build()；不要调用 req.GetPageSize()，也不要用 Total/DataList 手工构造 query.PaginatedTable。")
+		add("Table 列表先用 req.PageSortReq.GetOrder/GetOffset/GetLimit 显式排序分页并查询 total，再用 resp.Table(response.TableResult{Items: rows, TotalCount: total, PageInfo: &req.PageSortReq}).Build() 返回；不要调用 req.GetPageSize()，也不要手工构造 Total/DataList。")
 	}
 	if strings.Contains(errText, "Time.Format undefined") || strings.Contains(errText, "has no field or method Format") ||
 		strings.Contains(errText, "type func() time.Time") || strings.Contains(errText, ".Time.Format") {

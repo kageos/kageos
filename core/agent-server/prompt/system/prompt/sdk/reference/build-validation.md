@@ -54,7 +54,7 @@ build_workspace
 ## 高频错误速查
 
 - `X redeclared in this block`：同一个 package 多个文件重复定义了同名 Model，或 Handler 函数名和 Model 类型名冲突。保留一个 Model 定义，Handler 改名为 `XHandler` / `XSubmit`。
-- `req.GetPage undefined` / `unknown field Total/DataList`：列表分页使用 `query.PageSortReq` + `resp.Table(&rows, queryDB, &Model{}, &req.PageSortReq).Build()`。
+- `req.GetPage undefined` / `unknown field Total/DataList`：列表分页使用 `query.PageSortReq`；Handler 显式调用 `GetOrder/GetOffset/GetLimit` 查询 `rows` 和 `total`，再 `resp.Table(response.TableResult{Items: rows, TotalCount: total, PageInfo: &req.PageSortReq}).Build()`。
 - `types.Time has no field or method Format` 或 `Time.Format undefined`：使用 `t.Time().Format(...)`、`t.Time().After(...)`、`t.Time().Before(...)`。
 - `unsupported widget type` / `unsupported widget tag` / `invalid tag format`：widget 只能使用 SDK 主文档组件速查和运行时白名单中确认过的类型和 key。文件上传是 `type:files`，只读展示用 `hide:"create,update"` 或 `widget:"-"`，不要编造前端习惯参数。图片/视频 files 字段需要列表缩略图时，只使用已支持的 `thumbnail:true;list_preview:true`。
 - `number widget requires integer Go type`：`type:number` 只用于整数；`float64` 的金额、均值、评分、比例用 `type:float`。

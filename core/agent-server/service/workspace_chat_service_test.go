@@ -7,6 +7,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
+	"github.com/ai-agent-os/ai-agent-os/core/agent-server/streamloop"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/llms"
@@ -71,6 +72,39 @@ func TestWithAgentToolExecutionContextMarksSourceAndSession(t *testing.T) {
 	}
 	if got := getWorkspaceSessionID(ctx); got != "session-1" {
 		t.Fatalf("session id = %q, want session-1", got)
+	}
+}
+
+func TestSaveAssistantMessageStoresLLMMetadata(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := createSQLiteAgentChatMessagesTable(db); err != nil {
+		t.Fatalf("migrate messages: %v", err)
+	}
+	messageRepo := repository.NewChatMessageRepository(db)
+	svc := &WorkspaceChatService{messageRepo: messageRepo}
+	meta := messageLLMMetadata{
+		ConfigID:   12,
+		ConfigName: "MiMo Pro",
+		Provider:   "xiaomi",
+		Model:      "mimo-v2.5-pro",
+	}
+
+	if err := svc.saveAssistantMessage(context.Background(), "session-llm", nil, "ok", "tester", meta); err != nil {
+		t.Fatalf("save assistant message: %v", err)
+	}
+	messages, err := messageRepo.ListBySessionID("session-llm")
+	if err != nil {
+		t.Fatalf("list messages: %v", err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("len(messages) = %d, want 1", len(messages))
+	}
+	got := messages[0]
+	if got.LLMConfigID != meta.ConfigID || got.LLMConfigName != meta.ConfigName || got.LLMProvider != meta.Provider || got.LLMModel != meta.Model {
+		t.Fatalf("LLM metadata not stored: %#v", got)
 	}
 }
 
@@ -148,6 +182,9 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 	if !archived.ArchivedForModel || archived.ContextPolicy != ContextPolicyDisplayOnly {
 		t.Fatalf("source not archived for model: %#v", archived)
 	}
+	if archived.Status != model.ChatSessionStatusDone {
+		t.Fatalf("source status = %q, want %q", archived.Status, model.ChatSessionStatusDone)
+	}
 	target, err := sessionRepo.GetBySessionID(resp.SessionID)
 	if err != nil {
 		t.Fatalf("get target: %v", err)
@@ -180,6 +217,127 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 	}
 	if packet.TargetRole != WorkspaceRoleAppDeveloper || packet.ArtifactKind != "agent_app_prd" || !strings.Contains(packet.ArtifactJSON, `"project"`) {
 		t.Fatalf("handoff packet payload wrong: %#v", packet)
+	}
+}
+
+func TestPersistWorkspaceSessionInteractionStatusMarksPending(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:        7,
+		FullCodePath:  "/liubeiluo/demo",
+		Source:        SourceWorkspace,
+		SessionID:     "pending-session",
+		Title:         "PRD 讨论",
+		ModeCode:      "dev",
+		Status:        model.ChatSessionStatusGenerating,
+		ContextPolicy: ContextPolicyFull,
+		User:          "tester",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	svc := &WorkspaceChatService{sessionRepo: sessionRepo}
+	svc.persistWorkspaceSessionInteractionStatus(context.Background(), "pending-session", []streamloop.ToolCallSummary{
+		{
+			Name:   "write_prd",
+			Status: ToolCallStatusOK,
+			ResultData: map[string]interface{}{
+				"kind": "agent_app_prd",
+				"interaction": map[string]interface{}{
+					"status": model.ChatSessionStatusPendingConfirmation,
+				},
+			},
+		},
+	}, "tester")
+
+	updated, err := sessionRepo.GetBySessionID("pending-session")
+	if err != nil {
+		t.Fatalf("get updated session: %v", err)
+	}
+	if updated.Status != model.ChatSessionStatusPendingConfirmation {
+		t.Fatalf("status = %q, want %q", updated.Status, model.ChatSessionStatusPendingConfirmation)
+	}
+}
+
+func TestPersistWorkspaceSessionInteractionStatusMarksOutput(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:        7,
+		FullCodePath:  "/liubeiluo/demo",
+		Source:        SourceWorkspace,
+		SessionID:     "output-session",
+		Title:         "生成代码",
+		ModeCode:      "dev",
+		Status:        model.ChatSessionStatusGenerating,
+		ContextPolicy: ContextPolicyFull,
+		User:          "tester",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	svc := &WorkspaceChatService{sessionRepo: sessionRepo}
+	svc.persistWorkspaceSessionInteractionStatus(context.Background(), "output-session", []streamloop.ToolCallSummary{
+		{Name: "write_go_file", Status: ToolCallStatusOK},
+	}, "tester")
+
+	updated, err := sessionRepo.GetBySessionID("output-session")
+	if err != nil {
+		t.Fatalf("get updated session: %v", err)
+	}
+	if updated.Status != model.ChatSessionStatusOutput {
+		t.Fatalf("status = %q, want %q", updated.Status, model.ChatSessionStatusOutput)
+	}
+}
+
+func TestResolveWorkspacePendingInteractionClearsPending(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:        7,
+		FullCodePath:  "/liubeiluo/demo",
+		Source:        SourceWorkspace,
+		SessionID:     "pending-test-session",
+		Title:         "构建结果",
+		ModeCode:      "dev",
+		Status:        model.ChatSessionStatusPendingTest,
+		ContextPolicy: ContextPolicyFull,
+		User:          "tester",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	svc := &WorkspaceChatService{sessionRepo: sessionRepo}
+	ctx := context.WithValue(context.Background(), contextx.RequestUserHeader, "tester")
+	if err := svc.ResolveWorkspacePendingInteraction(ctx, "pending-test-session"); err != nil {
+		t.Fatalf("resolve pending interaction: %v", err)
+	}
+
+	updated, err := sessionRepo.GetBySessionID("pending-test-session")
+	if err != nil {
+		t.Fatalf("get updated session: %v", err)
+	}
+	if updated.Status != model.ChatSessionStatusActive {
+		t.Fatalf("status = %q, want %q", updated.Status, model.ChatSessionStatusActive)
 	}
 }
 
@@ -276,6 +434,10 @@ CREATE TABLE agent_chat_messages (
 	tool_status text,
 	result_data text,
 	result_metadata text,
+	llm_config_id integer,
+	llm_config_name text,
+	llm_provider text,
+	llm_model text,
 	context_usage text DEFAULT 'include',
 	artifact_kind text,
 	user text NOT NULL

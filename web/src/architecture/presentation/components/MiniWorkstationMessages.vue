@@ -29,6 +29,7 @@
       <template v-else>
         <div class="mini-msg-assistant-header">
           <span class="mini-msg-badge">工作台</span>
+          <span v-if="getAssistantModelLabel(msg)" class="mini-msg-model">{{ getAssistantModelLabel(msg) }}</span>
           <span class="mini-msg-time">{{ msg.created_at ? formatMessageTime(msg.created_at) : '—' }}</span>
         </div>
         <div v-if="msg.blocks?.length" class="mini-msg-assistant">
@@ -171,6 +172,14 @@ function renderContentBlock(text: string, msgIndex: number, blockIndex: number, 
 function getPrdCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall[] {
   return calls.filter((call) => call.name === 'write_prd' && call.status === 'ok' && call.result_data != null)
 }
+
+function getAssistantModelLabel(message: ChatMessage): string {
+  if (message.llm_config_name) return message.llm_config_name
+  const provider = (message.llm_provider || '').trim()
+  const model = (message.llm_model || '').trim()
+  if (provider && model) return `${provider}/${model}`
+  return model || provider
+}
 </script>
 
 <style scoped>
@@ -235,6 +244,21 @@ function getPrdCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall
   align-items: center;
   gap: 6px;
   margin-bottom: 4px;
+}
+.mini-msg-model {
+  min-width: 0;
+  max-width: 220px;
+  overflow: hidden;
+  padding: 2px 6px;
+  border: 1px solid rgba(119, 107, 255, 0.24);
+  border-radius: 999px;
+  background: rgba(119, 107, 255, 0.1);
+  color: #bcb7ff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .mini-msg-assistant-header .mini-msg-badge {
   border-color: rgba(246, 199, 107, 0.3);

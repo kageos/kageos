@@ -184,7 +184,7 @@ export enum WidgetType {
 
 // Table 查询参数
 export interface SearchParams {
-  sorts?: string    // 排序 sorts=-price,category（支持多列排序，减号表示倒序）
+  sorts?: string    // 结构化排序 JSON
   page?: number     // 页码
   page_size?: number // 页大小
   [key: string]: any

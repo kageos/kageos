@@ -71,7 +71,7 @@ export function buildRestoredTableState(
   }
 }
 
-export function buildClearedTableState(currentState: TableState): TableState {
+export function buildClearedTableState(currentState: TableState, pageSize = currentState.pagination.pageSize): TableState {
   return {
     ...currentState,
     searchParams: {},
@@ -81,7 +81,7 @@ export function buildClearedTableState(currentState: TableState): TableState {
     hasManualSort: false,
     pagination: {
       currentPage: 1,
-      pageSize: currentState.pagination.pageSize,
+      pageSize,
       total: 0
     }
   }
@@ -111,8 +111,12 @@ export function decideTableRestoreStrategy(
 export function shouldSyncTableURLAfterRestore(options: {
   query: Record<string, any>
   isLinkNavigation: boolean
+  shouldSyncPageSize?: boolean
 }): boolean {
   const hasPaginationParams = !!(options.query.page && options.query.page_size)
+  if (options.shouldSyncPageSize) {
+    return !options.isLinkNavigation
+  }
   return !options.isLinkNavigation && !hasPaginationParams
 }
 

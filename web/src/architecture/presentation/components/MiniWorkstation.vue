@@ -5,9 +5,9 @@
 <template>
   <transition name="mini-ws-pop">
     <div
-      v-if="visible"
+      v-if="visible && !collapsed"
       ref="rootRef"
-      :class="['mini-ws', { 'mini-ws--maximized': maximized, 'mini-ws--sending': sending, 'mini-ws--collapsed': collapsed, 'mini-ws--interaction-open': interactionOpen }]"
+      :class="['mini-ws', { 'mini-ws--maximized': maximized, 'mini-ws--sending': sending, 'mini-ws--interaction-open': interactionOpen }]"
       data-testid="mini-workstation"
       :data-full-code-path="fullCodePath"
       :style="windowStyle"
@@ -15,29 +15,52 @@
       @dragleave.prevent="onDragLeave"
       @drop.prevent="onDrop"
     >
-      <button
-        v-if="collapsed"
-        type="button"
-        :class="['mini-collapsed-launcher', { 'has-update': sending || panelHasContent }]"
-        @click="setCollapsed(false)"
-      >
-        <span class="mini-collapsed-pulse"></span>
-        <strong>工作台</strong>
-        <span>{{ collapsedSummaryText }}</span>
-        <span v-if="summaryBadgeCount > 0" class="mini-count-badge">{{ summaryBadgeCount }}</span>
-      </button>
-
-      <section v-else class="mini-shell">
-        <section class="mini-current-output">
+      <div class="mini-workspace-backdrop" aria-hidden="true"></div>
+      <section class="mini-shell">
+        <section v-if="showCurrentOutput" class="mini-current-output">
           <div class="mini-current-layout">
             <aside class="mini-current-meta">
-              <span class="mini-status-dot" :class="activeStatusClass"></span>
-              <span class="mini-current-name" :title="activeSessionTitle">{{ activeSessionTitle }}</span>
-              <span class="mini-current-state">{{ activeSessionStateLabel }}</span>
-              <span v-if="queuedCount > 0" class="mini-queue-chip">{{ queuedCount }} 条排队</span>
+              <header class="mini-current-session-head">
+                <div>
+                  <strong>当前目录会话</strong>
+                  <span :title="fullCodePath">{{ dirName || displayPath }}</span>
+                </div>
+                <em>{{ currentOutputSessionList.length }}</em>
+              </header>
+              <div class="mini-current-session-list">
+                <button
+                  v-for="item in currentOutputSessionList"
+                  :key="item.session_id"
+                  type="button"
+                  :class="['mini-current-session-row', getSessionStatusClass(item), { active: item.session_id === sessionId }]"
+                  :title="getSessionTitle(item)"
+                  @click="handleCurrentOutputSessionSelect(item)"
+                >
+                  <span class="mini-status-dot" :class="getSessionStatusClass(item)"></span>
+                  <span class="mini-current-session-copy">
+                    <span class="mini-current-session-title">{{ getSessionTitle(item) }}</span>
+                    <span class="mini-current-session-sub">
+                      {{ getSessionStatusLabel(item) }} · {{ formatRelativeTime(item.updated_at || item.created_at) }}
+                    </span>
+                  </span>
+                </button>
+                <button
+                  v-if="currentOutputSessionList.length === 0"
+                  type="button"
+                  class="mini-current-session-row active is-draft"
+                  @click="startNewSession"
+                >
+                  <span class="mini-status-dot"></span>
+                  <span class="mini-current-session-copy">
+                    <span class="mini-current-session-title">新建会话</span>
+                    <span class="mini-current-session-sub">当前目录 · 待输入</span>
+                  </span>
+                </button>
+              </div>
+              <div v-if="queuedCount > 0" class="mini-queue-chip">{{ queuedCount }} 条排队</div>
             </aside>
             <div class="mini-current-stream">
-              <div class="mini-ws-output" ref="outputRef">
+              <div class="mini-ws-output" ref="outputRef" @scroll.passive="captureOutputScroll">
                 <MiniWorkstationMessages
                   :messages="messages"
                   :maximized="maximized"
@@ -85,21 +108,28 @@
                       </div>
                     </template>
                   </el-dropdown>
-                  <button type="button" class="mini-icon-action" :title="maximized ? '还原当前输出' : '放大当前输出'" @click="toggleMaximize">
-                    <el-icon :size="14"><component :is="maximized ? CopyDocument : FullScreen" /></el-icon>
-                  </button>
                 </span>
               </div>
-              <button
-                v-for="item in artifactItems"
-                :key="item.key"
-                type="button"
-                class="mini-artifact-item"
-                @click="handleArtifactClick(item)"
-              >
-                <span class="mini-artifact-copy">
-                  <span class="mini-artifact-name">{{ item.name }}</span>
-                  <span class="mini-artifact-meta">{{ item.meta }}</span>
+            <button
+              v-for="item in artifactItems"
+              :key="item.key"
+              type="button"
+              class="mini-artifact-item"
+              :class="`is-${item.tone}`"
+              @click="handleArtifactClick(item)"
+            >
+              <span class="mini-artifact-preview" :class="`is-${item.tone}`">
+                <img v-if="item.previewUrl" :src="item.previewUrl" :alt="item.name" loading="lazy" />
+                <template v-else>
+                  <el-icon :size="maximized ? 22 : 16">
+                    <component :is="item.iconComponent" />
+                  </el-icon>
+                  <span v-if="item.ext" class="mini-artifact-ext">{{ item.ext }}</span>
+                </template>
+              </span>
+              <span class="mini-artifact-copy">
+                <span class="mini-artifact-name">{{ item.name }}</span>
+                <span class="mini-artifact-meta">{{ item.meta }}</span>
                 </span>
                 <span class="mini-artifact-tag">
                   {{ item.tag }}
@@ -119,12 +149,15 @@
             <span class="mini-count-badge">{{ recentSessionSourceList.length || miniSessionList.length }}</span>
             <span>会话中心</span>
           </button>
+          <button type="button" class="mini-session-new-btn" title="新建会话" @click="startNewSession">
+            <el-icon :size="17"><Plus /></el-icon>
+          </button>
           <div class="mini-session-summary-list">
             <button
               v-if="summarySessions.length === 0"
               type="button"
               class="mini-session-summary-card active is-draft"
-              @click="handleNewSession"
+              @click="startNewSession"
             >
               <span class="mini-status-dot"></span>
               <span class="mini-session-summary-copy">
@@ -145,7 +178,7 @@
                 <span class="mini-session-summary-title">{{ getSessionTitle(item) }}</span>
                 <span class="mini-session-summary-sub">{{ getSessionSubtitle(item) }}</span>
               </span>
-              <span v-if="item.status === 'generating'" class="mini-count-badge">•</span>
+              <span v-if="getSessionStatusKind(item) === 'running'" class="mini-count-badge">•</span>
             </button>
           </div>
         </section>
@@ -197,12 +230,13 @@
           :on-file-change="onFileChange"
           :remove-file="removeFile"
           :on-input-enter="onInputEnter"
+          :toggle-shortcut-label="toggleShortcutLabel"
           @update:input-text="inputText = $event"
           @update:selected-l-l-m-config-id="selectedLLMConfigId = $event"
           @schedule="openNewScheduledAgentTaskDialog"
           @stop="handleStopSession"
           @send="handleSend"
-          @collapse="setCollapsed(true)"
+          @collapse="hideWorkstation"
         >
           <template #left-actions>
             <el-popover
@@ -290,20 +324,16 @@
           <header class="mini-session-dialog-head">
             <div class="mini-session-dialog-title">
               <strong>工作台会话</strong>
-              <span>底部只保留活跃摘要，更多历史会话在这里集中管理。</span>
+              <span>左侧是当前目录会话，右侧是跨目录最近会话。</span>
             </div>
             <button type="button" class="mini-session-close" @click="closeSessionCenter">
               <el-icon><Close /></el-icon>
             </button>
           </header>
           <div class="mini-session-dialog-tools">
-            <div class="mini-session-tabs">
-              <button type="button" :class="{ active: sessionScope === 'current' }" @click="setSessionScope('current')">
-                当前目录 <span>{{ miniSessionList.length }}</span>
-              </button>
-              <button type="button" :class="{ active: sessionScope === 'all' }" @click="setSessionScope('all')">
-                全部会话 <span>{{ globalSessionList.length || miniSessionList.length }}</span>
-              </button>
+            <div class="mini-session-dialog-stat">
+              <span>当前目录 {{ currentDirectorySessionList.length }}/{{ miniSessionList.length }}</span>
+              <span>最近会话 {{ recentSessionCenterList.length }}/{{ recentSessionCenterSourceList.length }}</span>
             </div>
             <label class="mini-session-search">
               <el-icon :size="14"><Search /></el-icon>
@@ -321,25 +351,66 @@
               </button>
             </div>
           </div>
-          <div class="mini-session-list" v-loading="sessionCenterLoading">
-            <button
-              v-for="item in filteredSessionCenterList"
-              :key="item.session_id"
-              type="button"
-              class="mini-session-row"
-              @click="handleSessionCenterSelect(item)"
-            >
-              <span class="mini-status-dot" :class="getSessionStatusClass(item)"></span>
-              <span class="mini-session-row-copy">
-                <span class="mini-session-row-title">{{ getSessionTitle(item) }}</span>
-                <span class="mini-session-row-sub">{{ getSessionCenterSubtitle(item) }}</span>
-              </span>
-              <span class="mini-session-row-meta">{{ getSessionStatusLabel(item) }} · {{ formatRelativeTime(item.updated_at || item.created_at) }}</span>
-              <span class="mini-session-open">打开</span>
-            </button>
-            <div v-if="filteredSessionCenterList.length === 0 && !sessionCenterLoading" class="mini-session-empty">
-              没有匹配的会话
-            </div>
+          <div class="mini-session-columns">
+            <section class="mini-session-pane mini-session-pane--current" v-loading="loadingSessions">
+              <header class="mini-session-pane-head">
+                <div>
+                  <strong>当前目录</strong>
+                  <span :title="fullCodePath">{{ dirName || displayPath }}</span>
+                </div>
+                <em>{{ currentDirectorySessionList.length }}</em>
+              </header>
+              <div class="mini-session-list">
+                <button
+                  v-for="item in currentDirectorySessionList"
+                  :key="item.session_id"
+                  type="button"
+                  :class="['mini-session-row', getSessionStatusClass(item), { active: item.session_id === sessionId }]"
+                  @click="handleSessionCenterSelect(item)"
+                >
+                  <span class="mini-status-dot" :class="getSessionStatusClass(item)"></span>
+                  <span class="mini-session-row-copy">
+                    <span class="mini-session-row-title">{{ getSessionTitle(item) }}</span>
+                    <span class="mini-session-row-sub">{{ getSessionCenterSubtitle(item) }}</span>
+                  </span>
+                  <span class="mini-session-row-meta">{{ getSessionStatusLabel(item) }} · {{ formatRelativeTime(item.updated_at || item.created_at) }}</span>
+                  <span class="mini-session-open">打开</span>
+                </button>
+                <div v-if="currentDirectorySessionList.length === 0 && !loadingSessions" class="mini-session-empty">
+                  没有匹配的当前目录会话
+                </div>
+              </div>
+            </section>
+
+            <section class="mini-session-pane mini-session-pane--recent" v-loading="loadingGlobalSessions">
+              <header class="mini-session-pane-head">
+                <div>
+                  <strong>最近会话</strong>
+                  <span>可打开其他目录的工作台会话</span>
+                </div>
+                <em>{{ recentSessionCenterList.length }}</em>
+              </header>
+              <div class="mini-session-list">
+                <button
+                  v-for="item in recentSessionCenterList"
+                  :key="item.session_id"
+                  type="button"
+                  :class="['mini-session-row', getSessionStatusClass(item), { active: item.session_id === sessionId }]"
+                  @click="handleSessionCenterSelect(item)"
+                >
+                  <span class="mini-status-dot" :class="getSessionStatusClass(item)"></span>
+                  <span class="mini-session-row-copy">
+                    <span class="mini-session-row-title">{{ getSessionTitle(item) }}</span>
+                    <span class="mini-session-row-sub">{{ getSessionCenterSubtitle(item) }}</span>
+                  </span>
+                  <span class="mini-session-row-meta">{{ getSessionStatusLabel(item) }} · {{ formatRelativeTime(item.updated_at || item.created_at) }}</span>
+                  <span class="mini-session-open">打开</span>
+                </button>
+                <div v-if="recentSessionCenterList.length === 0 && !loadingGlobalSessions" class="mini-session-empty">
+                  没有匹配的最近会话
+                </div>
+              </div>
+            </section>
           </div>
         </div>
       </section>
@@ -377,8 +448,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { Close, FullScreen, CopyDocument, UploadFilled, Document as DocumentIcon, Setting, Search } from '@element-plus/icons-vue'
+import { nextTick, ref, computed, watch, type Component } from 'vue'
+import {
+  Close,
+  Plus,
+  UploadFilled,
+  Document as DocumentIcon,
+  Setting,
+  Search,
+  Picture,
+  DataAnalysis,
+  DocumentCopy,
+  Files,
+  Film,
+  Headset,
+  Tickets
+} from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import {
   useWorkspaceChatStream,
@@ -398,7 +483,7 @@ import { useMiniWorkstationUploads } from '../composables/useMiniWorkstationUplo
 import { useMiniWorkstationComposer } from '../composables/useMiniWorkstationComposer'
 import { useMiniWorkstationEffects } from '../composables/useMiniWorkstationEffects'
 import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
-import { createWorkspaceHandoff, type WorkspaceSessionItem } from '@/api/workspace'
+import { createWorkspaceHandoff, resolveWorkspaceSessionInteraction, type WorkspaceSessionItem } from '@/api/workspace'
 import type { OutputDisplayField } from '@/architecture/presentation/composables/useOutputDisplayFields'
 
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
@@ -411,7 +496,10 @@ const props = defineProps<{
   initialSessionId?: string
   initialOffset?: number
   initialPosition?: 'center'
+  initialExpanded?: boolean
   initialMaximized?: boolean
+  pathNameMap?: Record<string, string>
+  toggleShortcutLabel?: string
 }>()
 
 const fullCodePathRef = computed(() => props.fullCodePath)
@@ -422,6 +510,7 @@ const emit = defineEmits<{
   (e: 'close'): void
   (e: 'task-started', sessionId: string): void
   (e: 'tool-call-ok', payload: { name: string }): void
+  (e: 'expanded-change', payload: { expanded: boolean; sessionId?: string }): void
   (e: 'maximize-change', payload: { maximized: boolean; sessionId?: string }): void
 }>()
 
@@ -439,15 +528,52 @@ const settingsPopoverOpen = ref(false)
 const interactionOpen = computed(() => llmSelectOpen.value || settingsPopoverOpen.value)
 const confirmedPrdKeys = ref<Set<string>>(new Set())
 const confirmedTestHandoffKeys = ref<Set<string>>(new Set())
-const collapsed = ref(false)
+const collapsed = ref(props.initialExpanded === false)
+const suppressAutoSelectLatestSession = ref(false)
 const sessionCenterOpen = ref(false)
 const sessionSearchKeyword = ref('')
-const sessionScope = ref<'current' | 'all'>('all')
 const sessionFilter = ref<SessionFilterValue>('all')
 
 const windowStyle = computed(() => ({
   '--mini-stack-offset': `${props.initialOffset || 0}px`
 }))
+
+const OUTPUT_SCROLL_BOTTOM_THRESHOLD = 96
+const savedOutputScrollTop = ref(0)
+const savedOutputWasNearBottom = ref(true)
+
+function isOutputNearBottom(element: HTMLElement) {
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= OUTPUT_SCROLL_BOTTOM_THRESHOLD
+}
+
+function captureOutputScroll() {
+  const element = outputRef.value
+  if (!element) return
+  savedOutputScrollTop.value = element.scrollTop
+  savedOutputWasNearBottom.value = isOutputNearBottom(element)
+}
+
+function restoreOutputScroll() {
+  nextTick(() => {
+    const restore = () => {
+      const element = outputRef.value
+      if (!element) return
+      if (savedOutputWasNearBottom.value) {
+        element.scrollTop = element.scrollHeight
+        return
+      }
+      const maxScrollTop = Math.max(0, element.scrollHeight - element.clientHeight)
+      element.scrollTop = Math.min(savedOutputScrollTop.value, maxScrollTop)
+    }
+
+    requestAnimationFrame(restore)
+  })
+}
+
+function resetOutputScrollState() {
+  savedOutputScrollTop.value = 0
+  savedOutputWasNearBottom.value = true
+}
 
 function registerInputRef(element: HTMLTextAreaElement | null) {
   inputRef.value = element || undefined
@@ -455,8 +581,7 @@ function registerInputRef(element: HTMLTextAreaElement | null) {
 
 const displayPath = computed(() => {
   if (!props.fullCodePath) return '未选择目录'
-  const parts = props.fullCodePath.split('/').filter(Boolean)
-  return parts[parts.length - 1] || props.fullCodePath
+  return resolvePathDisplayName(props.fullCodePath)
 })
 
 // 首条用户消息摘要，用于同目录多 Mini 时区分（如「分析数据」「帮我把xxx改成」）
@@ -468,8 +593,16 @@ const firstUserMessagePreview = computed(() => {
   return content.length > maxLen ? content.slice(0, maxLen) + '…' : content
 })
 
-// ─── 最大化 / 还原 ───
+// ─── 当前输出显示 ───
 const maximized = ref(!!props.initialMaximized)
+
+watch(() => props.initialMaximized, (value) => {
+  maximized.value = !!value
+})
+
+watch(() => props.initialExpanded, (value) => {
+  collapsed.value = value === false
+})
 
 const {
   miniSessionList,
@@ -498,23 +631,6 @@ const {
     emit('maximize-change', { maximized: true, sessionId: targetSessionId })
   }
 })
-
-function toggleMaximize() {
-  if (maximized.value) {
-    maximized.value = false
-    // 从最大化恢复：若当前会话仍在执行中，重新开轮询兜底（可能连接已断）
-    const cur = miniSessionList.value.find(s => s.session_id === sessionId.value)
-    if (sessionId.value && cur?.status === 'generating') {
-      startMiniStreamListening(sessionId.value)
-      startMiniPoll(sessionId.value)
-    }
-    emit('maximize-change', { maximized: false })
-  } else {
-    maximized.value = true
-    stopMiniPoll()
-    emit('maximize-change', { maximized: true, sessionId: sessionId.value })
-  }
-}
 
 // ─── 文件预览辅助 ───
 const {
@@ -554,12 +670,17 @@ const {
 })
 
 type SessionFilterValue = 'all' | 'running' | 'waiting' | 'output' | 'done'
+type SessionStatusKind = 'running' | 'waiting' | 'done' | 'cancelled' | 'failed' | 'active' | 'output'
 
 interface MiniArtifactItem {
   key: string
   name: string
   meta: string
   tag: string
+  ext: string
+  tone: 'image' | 'data' | 'document' | 'media' | 'archive' | 'field' | 'file'
+  iconComponent: Component
+  previewUrl?: string
   file?: FilePanelItem
   field?: OutputDisplayField
 }
@@ -587,6 +708,7 @@ const currentFallbackSession = computed<WorkspaceSessionItem | null>(() => {
     title: firstUserMessagePreview.value || props.dirName || displayPath.value || '新建会话',
     status: sending.value ? 'generating' : 'active',
     full_code_path: props.fullCodePath,
+    directory_name: props.dirName || displayPath.value,
     role_display_name: props.dirName || displayPath.value,
     created_at: now,
     updated_at: now
@@ -595,25 +717,29 @@ const currentFallbackSession = computed<WorkspaceSessionItem | null>(() => {
 
 const activeSummarySession = computed(() => currentSessionItem.value || currentFallbackSession.value)
 
-const activeSessionTitle = computed(() => {
-  return currentSessionItem.value?.title
-    || firstUserMessagePreview.value
-    || props.dirName
-    || displayPath.value
-    || '新建会话'
-})
+const currentOutputSessionList = computed(() => {
+  const currentPath = normalizeFullCodePath(props.fullCodePath)
+  const active = activeSummarySession.value
+  const seenIds = new Set<string>()
+  const list: WorkspaceSessionItem[] = []
 
-const activeSessionStateLabel = computed(() => {
-  if (pendingPrd.value || pendingTestHandoff.value) return '等待确认'
-  if (sending.value) return '正在执行'
-  if (currentSessionItem.value) return getSessionStatusLabel(currentSessionItem.value)
-  return messages.value.length > 0 ? '当前输出' : '待输入'
-})
+  const addIfCurrentPath = (session: WorkspaceSessionItem | null | undefined) => {
+    if (!session?.session_id || seenIds.has(session.session_id)) return
+    const sessionPath = normalizeFullCodePath(session.full_code_path || props.fullCodePath || '')
+    if (currentPath && sessionPath && sessionPath !== currentPath) return
+    seenIds.add(session.session_id)
+    list.push(session)
+  }
 
-const activeStatusClass = computed(() => {
-  if (pendingPrd.value || pendingTestHandoff.value) return 'is-waiting'
-  if (sending.value) return 'is-running'
-  return currentSessionItem.value ? getSessionStatusClass(currentSessionItem.value) : 'is-draft'
+  for (const session of miniSessionList.value) {
+    addIfCurrentPath(session)
+  }
+
+  if (active?.session_id && !seenIds.has(active.session_id)) {
+    addIfCurrentPath(active)
+  }
+
+  return list
 })
 
 const recentSessionSourceList = computed(() => {
@@ -631,72 +757,93 @@ const recentSessionSourceList = computed(() => {
 
 const summarySessions = computed(() => {
   const active = activeSummarySession.value
-  const list = active
-    ? [active, ...recentSessionSourceList.value.filter(item => item.session_id !== active.session_id)]
-    : recentSessionSourceList.value
-  return list.slice(0, 4)
-})
-
-const summaryBadgeCount = computed(() => {
-  const running = recentSessionSourceList.value.filter(item => item.status === 'generating').length
-  return Math.max(running, sending.value ? 1 : 0, queuedCount.value)
-})
-
-const collapsedSummaryText = computed(() => {
-  if (sending.value) return '任务执行中'
-  if (summaryBadgeCount.value > 0) return `${summaryBadgeCount.value} 个活跃会话`
-  return `${recentSessionSourceList.value.length || 1} 个会话`
+  const list = [...recentSessionSourceList.value]
+  if (active && !list.some(item => item.session_id === active.session_id)) {
+    list.unshift(active)
+  }
+  const visible = list.slice(0, 4)
+  if (!active || visible.some(item => item.session_id === active.session_id)) {
+    return visible
+  }
+  return [...visible.slice(0, 3), active]
 })
 
 const artifactItems = computed<MiniArtifactItem[]>(() => {
-  const files = outputFiles.value.map((file, index) => ({
-    key: `file:${file.href}:${index}`,
-    name: file.name,
-    meta: '输出文件',
-    tag: getFileArtifactTag(file.name),
-    file
-  }))
+  const files = outputFiles.value.map((file, index) => buildFileArtifactItem(file, index))
   const fields = allPanelDisplayFields.value.map((field, index) => ({
     key: `field:${field.label}:${index}`,
     name: field.label,
     meta: truncateOneLine(field.value || '展示字段'),
     tag: '字段',
+    ext: '',
+    tone: 'field' as const,
+    iconComponent: Tickets,
     field
   }))
   return [...files, ...fields]
 })
 
-const sessionCenterSourceList = computed(() => {
-  if (sessionScope.value === 'all') {
-    return globalSessionList.value.length > 0 ? globalSessionList.value : miniSessionList.value
-  }
-  return miniSessionList.value
+const recentSessionCenterSourceList = computed(() => {
+  return globalSessionList.value.length > 0 ? globalSessionList.value : recentSessionSourceList.value
 })
 
-const filteredSessionCenterList = computed(() => {
+const currentDirectorySessionList = computed(() => filterSessionCenterList(miniSessionList.value))
+const recentSessionCenterList = computed(() => filterSessionCenterList(recentSessionCenterSourceList.value))
+
+function filterSessionCenterList(list: WorkspaceSessionItem[]) {
   const keyword = sessionSearchKeyword.value.trim().toLowerCase()
-  return sessionCenterSourceList.value.filter((session) => {
+  return list.filter((session) => {
     if (!matchesSessionFilter(session, sessionFilter.value)) return false
-    if (!keyword) return true
-    return [
-      session.title,
-      session.user,
-      session.agent_name,
-      session.role_display_name,
-      session.full_code_path
-    ].some(value => (value || '').toLowerCase().includes(keyword))
+    return matchesSessionKeyword(session, keyword)
   })
-})
+}
 
-const sessionCenterLoading = computed(() => {
-  return sessionScope.value === 'all' ? loadingGlobalSessions.value : loadingSessions.value
-})
+function matchesSessionKeyword(session: WorkspaceSessionItem, keyword: string) {
+  if (!keyword) return true
+  return [
+    session.title,
+    session.user,
+    session.agent_name,
+    session.role_display_name,
+    session.directory_name,
+    session.full_code_path,
+    getSessionDirectoryPath(session)
+  ].some(value => (value || '').toLowerCase().includes(keyword))
+}
 
-function setCollapsed(value: boolean) {
+function setCollapsed(value: boolean, sessionIdOverride?: string) {
+  if (value) {
+    captureOutputScroll()
+  }
+  if (value && maximized.value) {
+    maximized.value = false
+    emit('maximize-change', { maximized: false, sessionId: sessionId.value })
+  }
   collapsed.value = value
+  emit('expanded-change', {
+    expanded: !value,
+    sessionId: sessionIdOverride !== undefined ? sessionIdOverride : sessionId.value
+  })
   if (!value) {
+    restoreOutputScroll()
     setTimeout(() => inputRef.value?.focus(), 80)
   }
+}
+
+function hideWorkstation() {
+  captureOutputScroll()
+  emit('minimize')
+}
+
+function startNewSession() {
+  suppressAutoSelectLatestSession.value = true
+  handleNewSession()
+  resetOutputScrollState()
+  if (maximized.value) {
+    maximized.value = false
+    emit('maximize-change', { maximized: false, sessionId: '' })
+  }
+  setCollapsed(false, '')
 }
 
 async function openSessionCenter() {
@@ -709,36 +856,46 @@ function closeSessionCenter() {
   sessionCenterOpen.value = false
 }
 
-function setSessionScope(scope: 'current' | 'all') {
-  sessionScope.value = scope
-  if (scope === 'all') {
-    void loadGlobalSessions()
+function requestSessionSwitch(session: WorkspaceSessionItem) {
+  const targetSessionId = (session.session_id || '').trim()
+  const targetFullCodePath = (session.full_code_path || props.fullCodePath || '').trim()
+  if (!targetSessionId || !targetFullCodePath) {
+    return
   }
+
+  eventBus.emit('workspace:open-workstation', {
+    full_code_path: targetFullCodePath,
+    session_id: targetSessionId,
+    directory_name: session.directory_name || getSessionDirectoryPath(session),
+    initial_maximized: maximized.value,
+    open_as_mini: true
+  })
+}
+
+function handleCurrentOutputSessionSelect(session: WorkspaceSessionItem) {
+  if (session.session_id && session.session_id === sessionId.value) {
+    return
+  }
+  requestSessionSwitch(session)
 }
 
 function handleSummarySessionSelect(session: WorkspaceSessionItem) {
-  if (session.full_code_path && session.full_code_path !== props.fullCodePath) {
-    eventBus.emit('workspace:open-workstation', {
-      full_code_path: session.full_code_path,
-      session_id: session.session_id,
-      open_as_mini: true
-    })
+  if (session.session_id && session.session_id === sessionId.value) {
+    if (!maximized.value) {
+      maximized.value = true
+      stopMiniPoll()
+      restoreOutputScroll()
+      emit('maximize-change', { maximized: true, sessionId: sessionId.value })
+    }
     return
   }
-  void handleSelectSession(session.session_id)
+
+  requestSessionSwitch(session)
 }
 
 function handleSessionCenterSelect(session: WorkspaceSessionItem) {
   closeSessionCenter()
-  if (session.full_code_path && session.full_code_path !== props.fullCodePath) {
-    eventBus.emit('workspace:open-workstation', {
-      full_code_path: session.full_code_path,
-      session_id: session.session_id,
-      open_as_mini: true
-    })
-    return
-  }
-  void handleSelectSession(session.session_id)
+  requestSessionSwitch(session)
 }
 
 function handleArtifactClick(item: MiniArtifactItem) {
@@ -755,13 +912,72 @@ function getSessionTitle(session: WorkspaceSessionItem) {
   return session.title || session.role_display_name || '未命名会话'
 }
 
+function decodePathSegment(segment: string) {
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return segment
+  }
+}
+
+function normalizeFullCodePath(fullCodePath: string) {
+  return (fullCodePath || '').trim().replace(/\/+$/g, '')
+}
+
+function getMappedPathName(fullCodePath: string) {
+  const normalizedPath = normalizeFullCodePath(fullCodePath)
+  if (!normalizedPath) return ''
+  return props.pathNameMap?.[normalizedPath]
+    || props.pathNameMap?.[normalizedPath.replace(/^\/+/, '')]
+    || ''
+}
+
+function resolvePathDisplayName(fullCodePath: string) {
+  const normalizedPath = normalizeFullCodePath(fullCodePath)
+  if (!normalizedPath) return ''
+  const mappedName = getMappedPathName(normalizedPath)
+  if (mappedName) return mappedName
+  if (normalizedPath === normalizeFullCodePath(props.fullCodePath) && props.dirName) {
+    return props.dirName
+  }
+  const parts = normalizedPath.split('/').filter(Boolean).map(decodePathSegment)
+  if (parts.length >= 2) {
+    return parts.slice(-2).join(' / ')
+  }
+  return parts[0] || normalizedPath
+}
+
+function getSessionDirectoryPath(session: WorkspaceSessionItem) {
+  const explicitDirectoryName = (session.directory_name || '').trim()
+  if (explicitDirectoryName) {
+    return explicitDirectoryName
+  }
+
+  const path = normalizeFullCodePath(session.full_code_path || props.fullCodePath || '')
+  if (!path) {
+    return props.dirName || displayPath.value || '当前目录'
+  }
+
+  const mappedName = getMappedPathName(path)
+  if (mappedName) {
+    return mappedName
+  }
+
+  if (path === normalizeFullCodePath(props.fullCodePath) && props.dirName) {
+    return props.dirName
+  }
+
+  return resolvePathDisplayName(path) || props.dirName || displayPath.value || '当前目录'
+}
+
 function getSessionSubtitle(session: WorkspaceSessionItem) {
-  return session.role_display_name || getSessionStatusLabel(session)
+  return [getSessionDirectoryPath(session), getSessionStatusLabel(session)].filter(Boolean).join(' · ')
 }
 
 function getSessionCenterSubtitle(session: WorkspaceSessionItem) {
-  const path = session.full_code_path || props.fullCodePath || ''
-  return [path, session.role_display_name || session.user].filter(Boolean).join(' · ') || '当前目录'
+  return [getSessionDirectoryPath(session), session.role_display_name || session.user || getSessionStatusLabel(session)]
+    .filter(Boolean)
+    .join(' · ') || '当前目录'
 }
 
 function getSessionTimestamp(session: WorkspaceSessionItem) {
@@ -770,37 +986,161 @@ function getSessionTimestamp(session: WorkspaceSessionItem) {
 }
 
 function getSessionStatusLabel(session: WorkspaceSessionItem) {
-  if (session.status === 'generating') return '执行中'
-  if (session.status === 'active') return '会话'
-  if (session.status === 'done') return '已完成'
-  if (session.status === 'cancelled') return '已取消'
-  if (session.status === 'waiting' || session.status === 'pending') return '待确认'
-  return session.status || '会话'
+  const status = getSessionRawStatus(session)
+  if (status === 'pending_confirmation') return 'PRD 待确认'
+  if (status === 'pending_test') return '测试待确认'
+  const labels: Record<SessionStatusKind, string> = {
+    running: '执行中',
+    waiting: '待确认',
+    done: '已完成',
+    cancelled: '已取消',
+    failed: '失败',
+    active: '会话',
+    output: '新文件'
+  }
+  return labels[getSessionStatusKind(session)]
+}
+
+function getSessionRawStatus(session: WorkspaceSessionItem) {
+  return String(session.status || '').trim().toLowerCase()
+}
+
+function getSessionStatusKind(session: WorkspaceSessionItem): SessionStatusKind {
+  const status = getSessionRawStatus(session)
+  if ([
+    'generating',
+    'running',
+    'tool_running',
+    'thinking',
+    'streaming',
+    'processing',
+    'executing'
+  ].includes(status)) return 'running'
+
+  if ([
+    'waiting',
+    'pending',
+    'pending_confirmation',
+    'pending_test',
+    'waiting_approval',
+    'paused',
+    'queued'
+  ].includes(status)) return 'waiting'
+
+  if (['cancelled', 'canceled', 'abort', 'aborted'].includes(status)) return 'cancelled'
+  if (['failed', 'failure', 'error', 'timeout'].includes(status)) return 'failed'
+  if (['output', 'new_file', 'new_output', 'has_output', 'artifact', 'artifact_ready'].includes(status)) return 'output'
+  if (sessionHasGeneratedArtifacts(session)) return 'output'
+  if (session.handoff_kind) return 'output'
+  if (['done', 'completed', 'complete', 'success', 'succeeded', 'finished'].includes(status)) return 'done'
+  if (status === 'active' || !status) return 'active'
+  return 'active'
+}
+
+function sessionHasGeneratedArtifacts(session: WorkspaceSessionItem) {
+  return !!session.session_id
+    && session.session_id === sessionId.value
+    && currentMessagesHaveGeneratedArtifacts()
+}
+
+function currentMessagesHaveGeneratedArtifacts() {
+  if (artifactItems.value.length > 0) return true
+  return messages.value.some(messageHasGeneratedArtifacts)
+}
+
+function messageHasGeneratedArtifacts(message: ChatMessage) {
+  if (message.role !== 'assistant') return false
+  return collectMessageToolCalls(message).some(isGeneratedArtifactToolCall)
+}
+
+const GENERATED_ARTIFACT_TOOL_NAMES = new Set([
+  'write_prd',
+  'build_workspace',
+  'write_go_file',
+  'write_doc',
+  'create_directory',
+  'copy_directory',
+  'push_to_hub',
+  'publish_to_hub'
+])
+
+function isGeneratedArtifactToolCall(call: ChatMessageToolCall) {
+  if (call.status !== 'ok' && call.status !== 'success') return false
+  if (GENERATED_ARTIFACT_TOOL_NAMES.has(call.name)) return true
+  if (call.metadata?.display_file_fields?.length) return true
+  return resultDataLooksLikeArtifact(call.result_data)
+}
+
+function resultDataLooksLikeArtifact(resultData: unknown) {
+  if (!resultData || typeof resultData !== 'object') return false
+  const kind = String((resultData as { kind?: unknown }).kind || '').trim()
+  return kind.startsWith('agent_app_') || kind.startsWith('workspace_')
 }
 
 function getSessionStatusClass(session: WorkspaceSessionItem) {
-  if (session.status === 'generating') return 'is-running'
-  if (session.status === 'waiting' || session.status === 'pending') return 'is-waiting'
-  if (session.status === 'done') return 'is-done'
-  if (session.status === 'cancelled') return 'is-cancelled'
-  return 'is-output'
+  return `is-${getSessionStatusKind(session)}`
 }
 
 function matchesSessionFilter(session: WorkspaceSessionItem, filter: SessionFilterValue) {
+  const kind = getSessionStatusKind(session)
   if (filter === 'all') return true
-  if (filter === 'running') return session.status === 'generating'
-  if (filter === 'waiting') return session.status === 'waiting' || session.status === 'pending'
-  if (filter === 'output') return !!session.handoff_kind || session.status === 'done'
-  if (filter === 'done') return session.status === 'done' || session.status === 'cancelled'
+  if (filter === 'running') return kind === 'running'
+  if (filter === 'waiting') return kind === 'waiting'
+  if (filter === 'output') return kind === 'output'
+  if (filter === 'done') return kind === 'done' || kind === 'cancelled' || kind === 'failed'
   return true
 }
 
-function getFileArtifactTag(name: string) {
-  const ext = (name || '').split('.').pop()?.toLowerCase() || ''
-  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext)) return '图片'
-  if (['csv', 'xlsx', 'xls', 'json'].includes(ext)) return '数据'
-  if (['md', 'txt', 'doc', 'docx', 'pdf'].includes(ext)) return '文档'
-  return '文件'
+const ARTIFACT_IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'avif'])
+const ARTIFACT_DATA_EXTENSIONS = new Set(['csv', 'xlsx', 'xls', 'json', 'xml', 'yaml', 'yml'])
+const ARTIFACT_DOCUMENT_EXTENSIONS = new Set(['md', 'txt', 'doc', 'docx', 'pdf', 'ppt', 'pptx'])
+const ARTIFACT_VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'webm', 'avi', 'mkv'])
+const ARTIFACT_AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'aac', 'flac', 'm4a'])
+const ARTIFACT_ARCHIVE_EXTENSIONS = new Set(['zip', 'rar', '7z', 'tar', 'gz'])
+
+function getArtifactExtension(name: string) {
+  return (name || '').split('?')[0]?.split('#')[0]?.split('.').pop()?.toLowerCase() || ''
+}
+
+function getFileArtifactProfile(file: FilePanelItem) {
+  const ext = getArtifactExtension(file.name)
+  if (ARTIFACT_IMAGE_EXTENSIONS.has(ext)) {
+    return { tag: '图片', tone: 'image' as const, iconComponent: Picture, previewUrl: file.href }
+  }
+  if (ARTIFACT_DATA_EXTENSIONS.has(ext)) {
+    return { tag: '数据', tone: 'data' as const, iconComponent: DataAnalysis }
+  }
+  if (ARTIFACT_DOCUMENT_EXTENSIONS.has(ext)) {
+    return { tag: '文档', tone: 'document' as const, iconComponent: DocumentCopy }
+  }
+  if (ARTIFACT_VIDEO_EXTENSIONS.has(ext)) {
+    return { tag: '视频', tone: 'media' as const, iconComponent: Film }
+  }
+  if (ARTIFACT_AUDIO_EXTENSIONS.has(ext)) {
+    return { tag: '音频', tone: 'media' as const, iconComponent: Headset }
+  }
+  if (ARTIFACT_ARCHIVE_EXTENSIONS.has(ext)) {
+    return { tag: '压缩包', tone: 'archive' as const, iconComponent: Files }
+  }
+  return { tag: '文件', tone: 'file' as const, iconComponent: DocumentIcon }
+}
+
+function buildFileArtifactItem(file: FilePanelItem, index: number): MiniArtifactItem {
+  const ext = getArtifactExtension(file.name)
+  const profile = getFileArtifactProfile(file)
+  const extLabel = ext ? ext.toUpperCase() : ''
+
+  return {
+    key: `file:${file.href}:${index}`,
+    name: file.name,
+    meta: [extLabel, '输出文件'].filter(Boolean).join(' · '),
+    tag: profile.tag,
+    ext: extLabel,
+    tone: profile.tone,
+    iconComponent: profile.iconComponent,
+    previewUrl: profile.previewUrl,
+    file
+  }
 }
 
 function truncateOneLine(value: string, max = 36) {
@@ -1248,14 +1588,14 @@ const {
   onTaskStarted: (startedSessionId) => {
     void loadMiniSessions()
     void loadGlobalSessions()
+    setCollapsed(false, startedSessionId)
+    maximized.value = true
+    stopMiniPoll()
     emit('task-started', startedSessionId)
+    emit('maximize-change', { maximized: true, sessionId: startedSessionId })
   },
   onToolCallOk: (payload) => {
     emit('tool-call-ok', payload)
-  },
-  onMaximizedSessionStarted: (startedSessionId) => {
-    void loadMiniSessions()
-    emit('maximize-change', { maximized: true, sessionId: startedSessionId })
   }
 })
 
@@ -1331,6 +1671,77 @@ const pendingTestHandoffHelpText = computed(() => {
   return pendingTestHandoff.value?.interaction?.help_text || '应用已编译部署，请确认是否进入测试工程师验证。'
 })
 
+const hasCurrentOutputContent = computed(() => {
+  return sending.value
+    || messages.value.length > 0
+    || artifactItems.value.length > 0
+    || !!pendingPrd.value
+    || !!pendingTestHandoff.value
+})
+
+const showCurrentOutput = computed(() => {
+  return hasCurrentOutputContent.value
+})
+
+watch(
+  () => props.visible,
+  (visible, previousVisible) => {
+    if (!visible && previousVisible) {
+      captureOutputScroll()
+      return
+    }
+    if (visible) {
+      if (!previousVisible) {
+        suppressAutoSelectLatestSession.value = false
+      }
+      restoreOutputScroll()
+    }
+  },
+  { flush: 'pre' }
+)
+
+watch(
+  () => props.fullCodePath,
+  () => {
+    suppressAutoSelectLatestSession.value = false
+  }
+)
+
+watch(
+  [() => props.visible, collapsed, initialSessionIdRef, sessionId, miniSessionList],
+  () => {
+    if (!props.visible || collapsed.value) return
+    if (initialSessionIdRef.value || sessionId.value || suppressAutoSelectLatestSession.value) return
+    const latestSession = [...miniSessionList.value]
+      .sort((left, right) => getSessionTimestamp(right) - getSessionTimestamp(left))[0]
+    if (!latestSession?.session_id) return
+    void handleSelectSession(latestSession.session_id)
+  },
+  { flush: 'post' }
+)
+
+watch(showCurrentOutput, (visible, previousVisible) => {
+  if (!visible && previousVisible) {
+    captureOutputScroll()
+    return
+  }
+  if (visible) {
+    restoreOutputScroll()
+  }
+}, { flush: 'pre' })
+
+watch(outputRef, (element) => {
+  if (element) {
+    restoreOutputScroll()
+  }
+}, { flush: 'post' })
+
+watch(sessionId, (current, previous) => {
+  if (current !== previous) {
+    resetOutputScrollState()
+  }
+})
+
 function isPrdInteractionData(value: unknown): value is PrdInteractionData {
   if (!value || typeof value !== 'object') return false
   const data = value as PrdInteractionData
@@ -1363,6 +1774,17 @@ function markTestHandoffHandled(artifact: unknown) {
   confirmedTestHandoffKeys.value = next
 }
 
+async function clearCurrentPendingInteractionStatus() {
+  if (!sessionId.value) return
+  try {
+    await resolveWorkspaceSessionInteraction(sessionId.value)
+    void loadMiniSessions()
+    void loadGlobalSessions()
+  } catch (error: any) {
+    ElMessage.warning(error?.message || '待确认状态同步失败')
+  }
+}
+
 async function handleBeforeSend(payload: { text: string; files: unknown[] | null }) {
   const text = payload.text.trim()
   if (payload.files?.length) return false
@@ -1373,6 +1795,7 @@ async function handleBeforeSend(payload: { text: string; files: unknown[] | null
     }
     if (isCancelPrdText(text)) {
       markPrdConfirmed(pendingPrd.value)
+      await clearCurrentPendingInteractionStatus()
       ElMessage.info('已取消本次 PRD 确认')
       return true
     }
@@ -1384,6 +1807,7 @@ async function handleBeforeSend(payload: { text: string; files: unknown[] | null
     }
     if (isSkipTestText(text)) {
       markTestHandoffHandled(pendingTestHandoff.value)
+      await clearCurrentPendingInteractionStatus()
       ElMessage.info('已暂不进入测试')
       return true
     }
@@ -1431,15 +1855,17 @@ function prepareContinueDevelopment() {
   setTimeout(() => inputRef.value?.focus(), 0)
 }
 
-function cancelPendingPrd() {
+async function cancelPendingPrd() {
   if (!pendingPrd.value) return
   markPrdConfirmed(pendingPrd.value)
+  await clearCurrentPendingInteractionStatus()
   ElMessage.info('已取消本次 PRD 确认')
 }
 
-function cancelPendingTestHandoff() {
+async function cancelPendingTestHandoff() {
   if (!pendingTestHandoff.value) return
   markTestHandoffHandled(pendingTestHandoff.value)
+  await clearCurrentPendingInteractionStatus()
   ElMessage.info('已暂不进入测试')
 }
 
@@ -2256,10 +2682,46 @@ useMiniWorkstationEffects({
   box-shadow: none;
 }
 
+.mini-workspace-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 86%, rgba(55, 163, 255, 0.18), transparent 34%),
+    radial-gradient(circle at 16% 14%, rgba(119, 107, 255, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(2, 5, 11, 0.34), rgba(2, 5, 11, 0.58));
+  backdrop-filter: blur(9px) saturate(72%);
+  -webkit-backdrop-filter: blur(9px) saturate(72%);
+}
+
+.mini-workspace-backdrop::after {
+  content: '';
+  position: absolute;
+  left: 32px;
+  right: 32px;
+  bottom: calc(18px + var(--mini-stack-offset, 0px));
+  height: min(220px, 32vh);
+  border-radius: 28px 28px 0 0;
+  background:
+    linear-gradient(180deg, rgba(7, 11, 18, 0), rgba(7, 11, 18, 0.78)),
+    radial-gradient(circle at 50% 100%, rgba(55, 163, 255, 0.2), transparent 58%);
+  box-shadow: 0 -28px 72px rgba(2, 5, 11, 0.34);
+}
+
+.mini-ws--maximized .mini-workspace-backdrop {
+  background:
+    radial-gradient(circle at 50% 88%, rgba(55, 163, 255, 0.14), transparent 38%),
+    linear-gradient(180deg, rgba(2, 5, 11, 0.44), rgba(2, 5, 11, 0.68));
+  backdrop-filter: blur(12px) saturate(68%);
+  -webkit-backdrop-filter: blur(12px) saturate(68%);
+}
+
 .mini-shell {
   position: absolute;
-  left: max(162px, 12vw);
-  right: 86px;
+  left: 42px;
+  right: 42px;
   bottom: calc(24px + var(--mini-stack-offset, 0px));
   display: flex;
   flex-direction: column;
@@ -2267,11 +2729,6 @@ useMiniWorkstationEffects({
   color: var(--mini-cyber-text);
   pointer-events: auto;
   transition: left 0.18s ease, right 0.18s ease, bottom 0.18s ease;
-}
-
-.mini-ws--maximized .mini-shell {
-  left: 42px;
-  right: 42px;
 }
 
 .mini-current-output,
@@ -2287,21 +2744,22 @@ useMiniWorkstationEffects({
 }
 
 .mini-current-output {
-  min-height: 46px;
-  max-height: 86px;
+  height: min(720px, calc(100vh - 180px));
+  min-height: min(520px, calc(100vh - 180px));
+  max-height: none;
   display: flex;
   flex-direction: column;
   margin: 0 14px 8px;
-  padding: 8px 12px;
+  padding: 12px 14px;
   border-color: rgba(104, 119, 255, 0.28);
   border-radius: 12px;
   overflow: hidden;
-  transition: min-height 0.18s ease, max-height 0.18s ease;
+  transition: height 0.18s ease, min-height 0.18s ease;
 }
 
 .mini-ws--maximized .mini-current-output {
-  height: min(540px, calc(100vh - 268px));
-  min-height: 360px;
+  height: min(980px, calc(100vh - 184px));
+  min-height: min(760px, calc(100vh - 184px));
   max-height: none;
 }
 
@@ -2309,45 +2767,164 @@ useMiniWorkstationEffects({
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 190px minmax(0, 1fr) 260px;
+  grid-template-columns: 230px minmax(0, 1fr) 260px;
   gap: 12px;
   align-items: stretch;
 }
 
 .mini-ws--maximized .mini-current-layout {
-  grid-template-columns: 220px minmax(0, 1fr) 300px;
+  grid-template-columns: 280px minmax(0, 1fr) 300px;
 }
 
 .mini-current-meta {
   min-width: 0;
+  min-height: 0;
   display: grid;
-  grid-template-columns: 10px minmax(0, 1fr);
-  grid-template-rows: auto auto;
-  align-content: center;
-  align-items: center;
-  gap: 4px 8px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
   padding-right: 12px;
   border-right: 1px solid rgba(130, 153, 190, 0.18);
   color: #b9c9e4;
   font-size: 12px;
+  overflow: hidden;
 }
 
-.mini-current-name {
+.mini-current-session-head {
   min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 2px 0;
+}
+
+.mini-current-session-head div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.mini-current-session-head strong,
+.mini-current-session-head span {
+  min-width: 0;
+  display: block;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-current-session-head strong {
   color: #88d6ff;
+  font-size: 12px;
   font-weight: 850;
+}
+
+.mini-current-session-head span {
+  color: var(--mini-cyber-muted);
+  font-size: 11px;
+}
+
+.mini-current-session-head em {
+  min-width: 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(83, 174, 255, 0.14);
+  color: #8ed0ff;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.mini-current-session-list {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 1px 2px 3px 0;
+  scrollbar-color: rgba(83, 174, 255, 0.24) transparent;
+}
+
+.mini-current-session-row {
+  --mini-active-glow: rgba(55, 163, 255, 0.26);
+  --mini-active-halo: rgba(55, 163, 255, 0.12);
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 1px solid rgba(126, 151, 197, 0.18);
+  border-radius: 10px;
+  background: rgba(17, 25, 45, 0.54);
+  color: #d7e5fa;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.22s ease;
+}
+
+.mini-current-session-row:hover {
+  border-color: rgba(83, 174, 255, 0.38);
+  background: rgba(24, 51, 83, 0.48);
+}
+
+.mini-current-session-row.is-running {
+  border-color: rgba(43, 213, 159, 0.28);
+  background: rgba(21, 54, 50, 0.42);
+}
+
+.mini-current-session-row.is-waiting {
+  border-color: rgba(246, 189, 77, 0.3);
+  background: rgba(58, 45, 24, 0.46);
+}
+
+.mini-current-session-row.is-output {
+  border-color: rgba(55, 163, 255, 0.3);
+  background: rgba(24, 48, 77, 0.46);
+}
+
+.mini-current-session-row.is-done {
+  border-color: rgba(119, 107, 255, 0.28);
+  background: rgba(41, 38, 76, 0.46);
+}
+
+.mini-current-session-row.is-cancelled {
+  border-color: rgba(142, 159, 187, 0.24);
+  background: rgba(41, 48, 64, 0.46);
+}
+
+.mini-current-session-row.is-failed {
+  border-color: rgba(255, 108, 108, 0.34);
+  background: rgba(74, 30, 38, 0.46);
+}
+
+.mini-current-session-copy,
+.mini-current-session-title,
+.mini-current-session-sub {
+  min-width: 0;
+  display: block;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.mini-current-state {
-  min-width: 0;
-  grid-column: 2;
-  overflow: hidden;
-  color: var(--mini-cyber-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.mini-current-session-title {
+  color: #d7e5fa;
+  font-size: 12px;
+  font-weight: 820;
+  line-height: 1.2;
+}
+
+.mini-current-session-sub {
+  margin-top: 4px;
+  color: #8798b5;
+  font-size: 11px;
+  line-height: 1.15;
 }
 
 .mini-current-stream {
@@ -2375,7 +2952,6 @@ useMiniWorkstationEffects({
 }
 
 .mini-queue-chip {
-  grid-column: 2;
   width: fit-content;
   max-width: 100%;
   height: 22px;
@@ -2393,9 +2969,11 @@ useMiniWorkstationEffects({
 .mini-ws-output {
   min-height: 0;
   height: 100%;
-  overflow: hidden;
-  padding: 0;
-  background: transparent;
+  overflow: auto;
+  padding: 12px 14px;
+  border: 1px solid rgba(130, 153, 190, 0.16);
+  border-radius: 12px;
+  background: rgba(10, 16, 29, 0.32);
   color: #d7e5fa;
   font-size: 13px;
   line-height: 18px;
@@ -2403,7 +2981,7 @@ useMiniWorkstationEffects({
 }
 
 .mini-ws:not(.mini-ws--maximized):not(.mini-ws--interaction-open):not(:hover):not(:focus-within) .mini-ws-output {
-  padding: 0;
+  padding: 12px 14px;
   font-size: 13px;
 }
 
@@ -2426,11 +3004,7 @@ useMiniWorkstationEffects({
 }
 
 .mini-ws:not(.mini-ws--maximized) .mini-ws-output :deep(.mini-msg) {
-  margin-bottom: 6px;
-}
-
-.mini-ws:not(.mini-ws--maximized) .mini-ws-output :deep(.mini-msg:not(:last-child)) {
-  display: none;
+  margin-bottom: 12px;
 }
 
 .mini-artifact-panel {
@@ -2473,12 +3047,12 @@ useMiniWorkstationEffects({
 
 .mini-artifact-item {
   width: 100%;
-  height: 32px;
+  height: 42px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  padding: 0 8px;
+  padding: 5px 8px;
   border: 1px solid rgba(83, 174, 255, 0.18);
   border-radius: 8px;
   background: rgba(14, 27, 45, 0.62);
@@ -2497,13 +3071,93 @@ useMiniWorkstationEffects({
 
 .mini-ws--maximized .mini-artifact-item {
   height: auto;
-  min-height: 58px;
+  min-height: 66px;
   padding: 10px;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
   margin-bottom: 8px;
 }
 
 .mini-ws--maximized .mini-artifact-item + .mini-artifact-item {
   display: grid;
+}
+
+.mini-artifact-preview {
+  width: 30px;
+  height: 30px;
+  min-width: 0;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(130, 153, 190, 0.18);
+  border-radius: 8px;
+  background: rgba(10, 16, 29, 0.62);
+  color: #8ed0ff;
+}
+
+.mini-ws--maximized .mini-artifact-preview {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+}
+
+.mini-artifact-preview img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.mini-artifact-preview.is-image {
+  border-color: rgba(83, 174, 255, 0.28);
+  background: rgba(24, 48, 77, 0.46);
+}
+
+.mini-artifact-preview.is-data {
+  color: #7df5c4;
+  background: rgba(21, 54, 50, 0.42);
+}
+
+.mini-artifact-preview.is-document {
+  color: #bcb7ff;
+  background: rgba(41, 38, 76, 0.46);
+}
+
+.mini-artifact-preview.is-media {
+  color: #ffd78d;
+  background: rgba(58, 45, 24, 0.46);
+}
+
+.mini-artifact-preview.is-archive,
+.mini-artifact-preview.is-file {
+  color: #b9c9e4;
+  background: rgba(41, 48, 64, 0.46);
+}
+
+.mini-artifact-preview.is-field {
+  color: #8ed0ff;
+  background: rgba(24, 51, 83, 0.46);
+}
+
+.mini-artifact-ext {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  max-width: calc(100% - 4px);
+  overflow: hidden;
+  padding: 1px 3px;
+  border-radius: 4px;
+  background: rgba(2, 7, 15, 0.72);
+  color: #ffffff;
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-ws--maximized .mini-artifact-ext {
+  font-size: 9px;
 }
 
 .mini-artifact-copy,
@@ -2534,11 +3188,37 @@ useMiniWorkstationEffects({
   align-items: center;
   padding: 0 7px;
   border-radius: 7px;
-  background: rgba(43, 213, 159, 0.14);
-  color: #7df5c4;
+  background: rgba(83, 174, 255, 0.14);
+  color: #8ed0ff;
   font-size: 11px;
   font-weight: 800;
   white-space: nowrap;
+}
+
+.mini-artifact-item.is-data .mini-artifact-tag {
+  background: rgba(43, 213, 159, 0.14);
+  color: #7df5c4;
+}
+
+.mini-artifact-item.is-document .mini-artifact-tag {
+  background: rgba(119, 107, 255, 0.16);
+  color: #bcb7ff;
+}
+
+.mini-artifact-item.is-media .mini-artifact-tag {
+  background: rgba(246, 189, 77, 0.15);
+  color: #ffd78d;
+}
+
+.mini-artifact-item.is-archive .mini-artifact-tag,
+.mini-artifact-item.is-file .mini-artifact-tag {
+  background: rgba(142, 159, 187, 0.14);
+  color: #b9c9e4;
+}
+
+.mini-artifact-item.is-field .mini-artifact-tag {
+  background: rgba(83, 174, 255, 0.14);
+  color: #8ed0ff;
 }
 
 .mini-artifact-mini-count {
@@ -2575,7 +3255,7 @@ useMiniWorkstationEffects({
   min-height: 54px;
   position: relative;
   display: block;
-  margin: 0 14px 8px 158px;
+  margin: 0 14px 8px 204px;
   padding: 6px;
   border-radius: 14px;
   background: rgba(9, 14, 25, 0.68);
@@ -2603,6 +3283,33 @@ useMiniWorkstationEffects({
   font-weight: 800;
 }
 
+.mini-session-new-btn {
+  position: absolute;
+  left: -194px;
+  top: 6px;
+  width: 40px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(43, 213, 159, 0.42);
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgba(43, 213, 159, 0.22), rgba(55, 163, 255, 0.12)),
+    rgba(12, 22, 38, 0.78);
+  color: #8dffd8;
+  box-shadow: 0 12px 30px rgba(43, 213, 159, 0.14);
+  cursor: pointer;
+}
+
+.mini-session-new-btn:hover {
+  border-color: rgba(43, 213, 159, 0.62);
+  background:
+    linear-gradient(135deg, rgba(43, 213, 159, 0.32), rgba(55, 163, 255, 0.18)),
+    rgba(12, 22, 38, 0.9);
+  color: #ffffff;
+}
+
 .mini-session-summary-list {
   min-width: 0;
   display: grid;
@@ -2611,6 +3318,10 @@ useMiniWorkstationEffects({
 }
 
 .mini-session-summary-card {
+  --mini-active-glow: rgba(55, 163, 255, 0.26);
+  --mini-active-halo: rgba(55, 163, 255, 0.12);
+  --mini-active-arrow-color: #8ed0ff;
+  --mini-active-arrow-shadow: rgba(55, 163, 255, 0.72);
   position: relative;
   width: 100%;
   height: 42px;
@@ -2625,25 +3336,32 @@ useMiniWorkstationEffects({
   background: rgba(30, 42, 68, 0.5);
   color: #d7e5fa;
   text-align: left;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.22s ease;
 }
 
-.mini-session-summary-card:hover,
-.mini-session-summary-card.active {
+.mini-session-summary-card:hover {
   border-color: rgba(87, 182, 255, 0.5);
   background: rgba(24, 51, 83, 0.62);
 }
 
-.mini-session-summary-card.active::before {
+.mini-session-summary-card::before {
   content: "▼";
   position: absolute;
   left: 50%;
   top: -20px;
-  transform: translateX(-50%);
-  color: #8ed0ff;
+  transform: translateX(-50%) translateY(3px);
+  opacity: 0;
+  color: var(--mini-active-arrow-color);
   font-size: 16px;
   line-height: 1;
-  text-shadow: 0 0 16px rgba(83, 174, 255, 0.72);
+  text-shadow: 0 0 16px var(--mini-active-arrow-shadow);
   pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease, color 0.18s ease, text-shadow 0.18s ease;
+}
+
+.mini-session-summary-card.active::before {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 .mini-session-summary-card.is-running {
@@ -2664,6 +3382,46 @@ useMiniWorkstationEffects({
 .mini-session-summary-card.is-output {
   border-color: rgba(55, 163, 255, 0.3);
   background: rgba(24, 48, 77, 0.46);
+}
+
+.mini-session-summary-card.is-active {
+  border-color: rgba(126, 151, 197, 0.24);
+  background: rgba(30, 42, 68, 0.5);
+}
+
+.mini-session-summary-card.is-cancelled {
+  border-color: rgba(142, 159, 187, 0.24);
+  background: rgba(41, 48, 64, 0.46);
+}
+
+.mini-session-summary-card.is-failed {
+  border-color: rgba(255, 108, 108, 0.34);
+  background: rgba(74, 30, 38, 0.46);
+}
+
+.mini-session-summary-card.active.is-running::before {
+  --mini-active-arrow-color: #7df5c4;
+  --mini-active-arrow-shadow: rgba(43, 213, 159, 0.72);
+}
+
+.mini-session-summary-card.active.is-waiting::before {
+  --mini-active-arrow-color: #ffd78d;
+  --mini-active-arrow-shadow: rgba(246, 189, 77, 0.72);
+}
+
+.mini-session-summary-card.active.is-output::before {
+  --mini-active-arrow-color: #8ed0ff;
+  --mini-active-arrow-shadow: rgba(55, 163, 255, 0.72);
+}
+
+.mini-session-summary-card.active.is-done::before {
+  --mini-active-arrow-color: #bcb7ff;
+  --mini-active-arrow-shadow: rgba(119, 107, 255, 0.72);
+}
+
+.mini-session-summary-card.active.is-failed::before {
+  --mini-active-arrow-color: #ff9ba4;
+  --mini-active-arrow-shadow: rgba(255, 107, 107, 0.72);
 }
 
 .mini-session-summary-copy,
@@ -2714,6 +3472,17 @@ useMiniWorkstationEffects({
   box-shadow: 0 0 16px rgba(119, 107, 255, 0.55);
 }
 
+.mini-status-dot.is-failed {
+  background: #ff6b6b;
+  box-shadow: 0 0 16px rgba(255, 107, 107, 0.58);
+}
+
+.mini-status-dot.is-active,
+.mini-status-dot.is-output {
+  background: #37a3ff;
+  box-shadow: 0 0 16px rgba(55, 163, 255, 0.58);
+}
+
 .mini-count-badge {
   min-width: 18px;
   height: 18px;
@@ -2725,42 +3494,6 @@ useMiniWorkstationEffects({
   color: #fff;
   font-size: 11px;
   font-weight: 900;
-}
-
-.mini-collapsed-launcher {
-  position: absolute;
-  left: 50%;
-  bottom: calc(18px + var(--mini-stack-offset, 0px));
-  z-index: 2;
-  transform: translateX(-50%);
-  height: 46px;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 16px;
-  border: 1px solid rgba(130, 153, 190, 0.3);
-  border-radius: 999px;
-  background: rgba(10, 16, 29, 0.78);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
-  backdrop-filter: blur(24px);
-  color: #dce9fb;
-  pointer-events: auto;
-}
-
-.mini-collapsed-launcher.has-update {
-  border-color: rgba(83, 174, 255, 0.5);
-  box-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.42),
-    0 0 0 1px rgba(83, 174, 255, 0.16),
-    0 0 26px rgba(83, 174, 255, 0.2);
-}
-
-.mini-collapsed-pulse {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--mini-cyber-green);
-  box-shadow: 0 0 18px rgba(43, 213, 159, 0.8);
 }
 
 .mini-session-center {
@@ -2785,8 +3518,8 @@ useMiniWorkstationEffects({
 }
 
 .mini-session-dialog {
-  width: min(920px, calc(100vw - 96px));
-  height: min(620px, calc(100vh - 126px));
+  width: min(1120px, calc(100vw - 96px));
+  height: min(720px, calc(100vh - 96px));
   display: grid;
   grid-template-rows: auto auto 1fr;
   overflow: hidden;
@@ -2835,21 +3568,21 @@ useMiniWorkstationEffects({
 
 .mini-session-dialog-tools {
   display: grid;
-  grid-template-columns: auto minmax(180px, 1fr) auto;
+  grid-template-columns: auto minmax(220px, 1fr) auto;
   gap: 12px;
   align-items: center;
   padding: 14px 18px;
   border-bottom: 1px solid rgba(130, 153, 190, 0.14);
 }
 
-.mini-session-tabs,
+.mini-session-dialog-stat,
 .mini-session-filters {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.mini-session-tabs button,
+.mini-session-dialog-stat span,
 .mini-session-filters button {
   height: 34px;
   display: inline-flex;
@@ -2864,7 +3597,12 @@ useMiniWorkstationEffects({
   white-space: nowrap;
 }
 
-.mini-session-tabs button.active,
+.mini-session-dialog-stat span {
+  border-color: rgba(43, 213, 159, 0.2);
+  background: rgba(21, 54, 50, 0.26);
+  color: #9ceccd;
+}
+
 .mini-session-filters button.active {
   border-color: rgba(83, 174, 255, 0.46);
   background: rgba(34, 113, 205, 0.2);
@@ -2899,12 +3637,87 @@ useMiniWorkstationEffects({
   color: #7586a4;
 }
 
+.mini-session-columns {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(320px, 0.92fr) minmax(420px, 1.18fr);
+  gap: 14px;
+  padding: 14px 18px 18px;
+}
+
+.mini-session-pane {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid rgba(126, 151, 197, 0.18);
+  border-radius: 14px;
+  background: rgba(10, 16, 29, 0.34);
+}
+
+.mini-session-pane--current {
+  background: rgba(13, 27, 45, 0.46);
+}
+
+.mini-session-pane-head {
+  min-width: 0;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  border-bottom: 1px solid rgba(126, 151, 197, 0.14);
+}
+
+.mini-session-pane-head div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.mini-session-pane-head strong,
+.mini-session-pane-head span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-session-pane-head strong {
+  color: #e6f0ff;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.mini-session-pane-head span {
+  color: #8b9bb7;
+  font-size: 12px;
+}
+
+.mini-session-pane-head em {
+  min-width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(83, 174, 255, 0.14);
+  color: #8ed0ff;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
 .mini-session-list {
   overflow: auto;
-  padding: 12px 18px 18px;
+  padding: 12px;
 }
 
 .mini-session-row {
+  --mini-active-glow: rgba(55, 163, 255, 0.26);
+  --mini-active-halo: rgba(55, 163, 255, 0.12);
+  position: relative;
   width: 100%;
   min-height: 68px;
   display: grid;
@@ -2918,11 +3731,116 @@ useMiniWorkstationEffects({
   background: rgba(17, 25, 45, 0.62);
   color: #d7e5fa;
   text-align: left;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.22s ease;
+}
+
+.mini-session-row:last-child {
+  margin-bottom: 0;
+}
+
+.mini-session-pane--current .mini-session-row {
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+}
+
+.mini-session-pane--current .mini-session-open {
+  display: none;
 }
 
 .mini-session-row:hover {
   border-color: rgba(83, 174, 255, 0.42);
   background: rgba(24, 51, 83, 0.48);
+}
+
+.mini-session-row.is-running {
+  border-color: rgba(43, 213, 159, 0.28);
+  background: rgba(21, 54, 50, 0.42);
+  box-shadow: inset 3px 0 0 rgba(43, 213, 159, 0.74);
+}
+
+.mini-session-row.is-waiting {
+  border-color: rgba(246, 189, 77, 0.3);
+  background: rgba(58, 45, 24, 0.46);
+  box-shadow: inset 3px 0 0 rgba(246, 189, 77, 0.72);
+}
+
+.mini-session-row.is-output {
+  border-color: rgba(55, 163, 255, 0.3);
+  background: rgba(24, 48, 77, 0.46);
+  box-shadow: inset 3px 0 0 rgba(55, 163, 255, 0.72);
+}
+
+.mini-session-row.is-done {
+  border-color: rgba(119, 107, 255, 0.28);
+  background: rgba(41, 38, 76, 0.46);
+  box-shadow: inset 3px 0 0 rgba(119, 107, 255, 0.7);
+}
+
+.mini-session-row.is-cancelled {
+  border-color: rgba(142, 159, 187, 0.24);
+  background: rgba(41, 48, 64, 0.46);
+  box-shadow: inset 3px 0 0 rgba(142, 159, 187, 0.5);
+}
+
+.mini-session-row.is-failed {
+  border-color: rgba(255, 108, 108, 0.34);
+  background: rgba(74, 30, 38, 0.46);
+  box-shadow: inset 3px 0 0 rgba(255, 107, 107, 0.72);
+}
+
+.mini-current-session-row.is-running,
+.mini-session-summary-card.is-running,
+.mini-session-row.is-running {
+  --mini-active-glow: rgba(43, 213, 159, 0.34);
+  --mini-active-halo: rgba(43, 213, 159, 0.16);
+}
+
+.mini-current-session-row.is-waiting,
+.mini-session-summary-card.is-waiting,
+.mini-session-row.is-waiting {
+  --mini-active-glow: rgba(246, 189, 77, 0.34);
+  --mini-active-halo: rgba(246, 189, 77, 0.16);
+}
+
+.mini-current-session-row.is-output,
+.mini-session-summary-card.is-output,
+.mini-session-row.is-output {
+  --mini-active-glow: rgba(55, 163, 255, 0.34);
+  --mini-active-halo: rgba(55, 163, 255, 0.16);
+}
+
+.mini-current-session-row.is-done,
+.mini-session-summary-card.is-done,
+.mini-session-row.is-done {
+  --mini-active-glow: rgba(119, 107, 255, 0.34);
+  --mini-active-halo: rgba(119, 107, 255, 0.16);
+}
+
+.mini-current-session-row.is-cancelled,
+.mini-session-summary-card.is-cancelled,
+.mini-session-row.is-cancelled {
+  --mini-active-glow: rgba(142, 159, 187, 0.28);
+  --mini-active-halo: rgba(142, 159, 187, 0.12);
+}
+
+.mini-current-session-row.is-failed,
+.mini-session-summary-card.is-failed,
+.mini-session-row.is-failed {
+  --mini-active-glow: rgba(255, 107, 107, 0.34);
+  --mini-active-halo: rgba(255, 107, 107, 0.16);
+}
+
+.mini-current-session-row.active,
+.mini-session-summary-card.active,
+.mini-session-row.active {
+  z-index: 1;
+  box-shadow:
+    0 0 14px 2px var(--mini-active-glow),
+    0 0 38px 8px var(--mini-active-halo),
+    0 12px 32px rgba(2, 5, 11, 0.22);
+}
+
+.mini-session-summary-card.active {
+  z-index: 1;
 }
 
 .mini-session-row-copy,
@@ -3019,12 +3937,12 @@ useMiniWorkstationEffects({
 
 @media (max-width: 1180px) {
   .mini-shell {
-    left: 90px;
+    left: 34px;
     right: 34px;
   }
 
   .mini-session-dock {
-    margin-left: 142px;
+    margin-left: 184px;
   }
 
   .mini-session-center-btn {
@@ -3032,12 +3950,17 @@ useMiniWorkstationEffects({
     width: 118px;
   }
 
+  .mini-session-new-btn {
+    left: -176px;
+    width: 38px;
+  }
+
   .mini-session-summary-list {
     grid-template-columns: repeat(4, minmax(112px, 1fr));
   }
 
   .mini-current-layout {
-    grid-template-columns: 160px minmax(0, 1fr) 236px;
+    grid-template-columns: 210px minmax(0, 1fr) 236px;
   }
 }
 
@@ -3074,13 +3997,29 @@ useMiniWorkstationEffects({
     justify-content: flex-start;
   }
 
+  .mini-session-new-btn {
+    position: static;
+    width: 100%;
+    justify-content: center;
+  }
+
   .mini-session-summary-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .mini-session-dialog-tools,
+  .mini-session-columns,
   .mini-session-row {
     grid-template-columns: 1fr;
+  }
+
+  .mini-session-columns {
+    overflow: auto;
+  }
+
+  .mini-session-dialog-stat,
+  .mini-session-filters {
+    flex-wrap: wrap;
   }
 
   .mini-session-dialog {

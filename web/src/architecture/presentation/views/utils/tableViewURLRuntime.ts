@@ -60,8 +60,11 @@ const getRequestSearchFields = (functionDetail: FunctionDetail) => {
   return getTableRequestSearchFields(functionDetail)
 }
 
-const formatSortItemForURL = (item: SortItem): string => {
-  return item.order === 'desc' ? `-${item.field}` : item.field
+const serializeSortsForURL = (items: SortItem[]): string => {
+  return JSON.stringify(items.map(item => ({
+    field: item.field,
+    order: item.order
+  })))
 }
 
 export const getTableRequestFieldCodes = (functionDetail: FunctionDetail): Set<string> => {
@@ -88,7 +91,7 @@ export const buildTableURLQueryParams = (
     : (state.hasManualSort ? [] : buildDefaultSorts())
 
   if (finalSorts.length > 0) {
-    query.sorts = finalSorts.map(formatSortItemForURL).join(',')
+    query.sorts = serializeSortsForURL(finalSorts)
   }
 
   getRequestSearchFields(functionDetail).forEach(field => {

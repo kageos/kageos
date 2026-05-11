@@ -18,6 +18,18 @@ export function useMiniWorkstationEffects(options: UseMiniWorkstationEffectsOpti
   const { visible, maximized, messages, sending, sessionId, inputRef, outputRef, stopMiniPoll, loadMiniSessions } = options
   let outputResizeObserver: ResizeObserver | null = null
   let resizeScrollTimer: number | undefined
+  const AUTO_SCROLL_BOTTOM_THRESHOLD = 96
+
+  function shouldAutoScroll() {
+    const element = outputRef.value
+    if (!element) {
+      return true
+    }
+    if (!maximized.value) {
+      return true
+    }
+    return element.scrollHeight - element.scrollTop - element.clientHeight <= AUTO_SCROLL_BOTTOM_THRESHOLD
+  }
 
   function scrollToBottom() {
     nextTick(() => {
@@ -35,11 +47,17 @@ export function useMiniWorkstationEffects(options: UseMiniWorkstationEffectsOpti
     resizeScrollTimer = window.setTimeout(scrollToBottom, 240)
   }
 
-  watch(() => messages.value.length, scrollToBottom)
+  function scrollToBottomIfNeeded() {
+    if (shouldAutoScroll()) {
+      scrollToBottom()
+    }
+  }
+
+  watch(() => messages.value.length, scrollToBottomIfNeeded)
   watch(() => {
     const last = messages.value[messages.value.length - 1]
     return (last?.content?.length ?? 0) + (last?.blocks?.length ?? 0) + (last?.tool_calls?.length ?? 0)
-  }, scrollToBottom)
+  }, scrollToBottomIfNeeded)
 
   watch(
     outputRef,

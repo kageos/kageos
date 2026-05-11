@@ -12,7 +12,7 @@
 
 | 类型 | 路由后缀 | Template | 响应 |
 |---|---|---|---|
-| Table | `.table` | `app.TableTemplate` | `resp.Table(...).Build()` |
+| Table | `.table` | `app.TableTemplate` | `resp.Table(response.TableResult{...}).Build()` |
 | Form | `.form` | `app.FormTemplate` | `resp.Form(...).Build()` |
 | Chart | `.chart` | `app.ChartTemplate` | `resp.Chart(...).Build()` |
 
@@ -25,10 +25,10 @@
 1. Model 字段写 `gorm`、`json`、`widget`、`validate`；Table 筛选字段写在 Request 中。
 2. `AutoCrudTable` 指向列表 Model。
 3. Request 字段的 `json` 名不要和 AutoCrudTable / Response 表字段重名。
-4. Table 筛选字段写在 Request 中，Handler Build 前手写查询条件。
+4. Table 筛选字段写在 Request 中，Handler 显式查询 `items + total`。
 5. 不需要某类操作就不要配置对应回调；PRD 或示例列表里承诺的“审核/隐藏/回复/发布/下架”等行操作，必须和 `OnTableUpdateRow` 或 link 字段对应。
 6. 支付记录、操作日志、流水类表默认只读。
-7. List 函数 Build 前做 `Where/Preload`，Build 后填 link、计算字段、展示字段。
+7. List 函数返回前做 `Where/Preload`、分页查询，并填 link、计算字段、展示字段。
 
 ## Form 要点
 

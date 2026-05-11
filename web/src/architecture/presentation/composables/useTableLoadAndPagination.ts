@@ -18,6 +18,7 @@ interface UseTableLoadAndPaginationOptions {
   applicationService: TableApplicationService
   buildDefaultSorts: () => { field: string; order: 'asc' | 'desc' }[]
   syncToURL: () => void
+  onPageSizeChange?: (size: number) => void
 }
 
 export function useTableLoadAndPagination(options: UseTableLoadAndPaginationOptions) {
@@ -70,6 +71,7 @@ export function useTableLoadAndPagination(options: UseTableLoadAndPaginationOpti
   }
 
   const handleSizeChange = (size: number): void => {
+    options.onPageSizeChange?.(size)
     const currentState = options.stateManager.getState()
     options.stateManager.setState({
       ...currentState,

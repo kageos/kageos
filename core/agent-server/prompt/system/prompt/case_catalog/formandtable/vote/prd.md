@@ -127,10 +127,16 @@ func VoteOptionList(ctx *app.Context, resp response.Response) error {
 		queryDB = queryDB.Where("content LIKE ?", "%"+req.Content+"%")
 	}
 
-	var options []VoteOption
-	builder := resp.Table(&options, queryDB, &VoteOption{}, &req.PageSortReq)
+	if order := req.PageSortReq.GetOrder(); order != "" {
+		queryDB = queryDB.Order(order)
+	}
+	var total int64
+	if err := queryDB.Count(&total).Error; err != nil {
+		return err
+	}
 
-	if err := builder.Build(); err != nil {
+	var options []VoteOption
+	if err := queryDB.Offset(req.PageSortReq.GetOffset()).Limit(req.PageSortReq.GetLimit()).Find(&options).Error; err != nil {
 		return err
 	}
 
@@ -140,7 +146,11 @@ func VoteOptionList(ctx *app.Context, resp response.Response) error {
 		}
 	}
 
-	return nil
+	return resp.Table(response.TableResult{
+		Items:      options,
+		TotalCount: total,
+		PageInfo:   &req.PageSortReq,
+	}).Build()
 }
 
 // voteOnSelectFuzzyTopicForOptionList 选项管理里选择主题的回调（只显示当前用户创建的）
@@ -421,10 +431,16 @@ func VoteRecordList(ctx *app.Context, resp response.Response) error {
 
 	queryDB = queryDB.Preload("Topic").Preload("Option")
 
-	var records []*VoteRecord
-	builder := resp.Table(&records, queryDB, &VoteRecord{}, &req.PageSortReq)
+	if order := req.PageSortReq.GetOrder(); order != "" {
+		queryDB = queryDB.Order(order)
+	}
+	var total int64
+	if err := queryDB.Count(&total).Error; err != nil {
+		return err
+	}
 
-	if err := builder.Build(); err != nil {
+	var records []*VoteRecord
+	if err := queryDB.Offset(req.PageSortReq.GetOffset()).Limit(req.PageSortReq.GetLimit()).Find(&records).Error; err != nil {
 		return err
 	}
 
@@ -441,7 +457,11 @@ func VoteRecordList(ctx *app.Context, resp response.Response) error {
 		}
 	}
 
-	return nil
+	return resp.Table(response.TableResult{
+		Items:      records,
+		TotalCount: total,
+		PageInfo:   &req.PageSortReq,
+	}).Build()
 }
 
 // VoteRecordListTemplate 投票记录管理配置
@@ -1181,10 +1201,16 @@ func VoteTopicList(ctx *app.Context, resp response.Response) error {
 		}
 	}
 
-	var topics []VoteTopic
-	builder := resp.Table(&topics, queryDB, &VoteTopic{}, &req.PageSortReq)
+	if order := req.PageSortReq.GetOrder(); order != "" {
+		queryDB = queryDB.Order(order)
+	}
+	var total int64
+	if err := queryDB.Count(&total).Error; err != nil {
+		return err
+	}
 
-	if err := builder.Build(); err != nil {
+	var topics []VoteTopic
+	if err := queryDB.Offset(req.PageSortReq.GetOffset()).Limit(req.PageSortReq.GetLimit()).Find(&topics).Error; err != nil {
 		return err
 	}
 
@@ -1212,7 +1238,11 @@ func VoteTopicList(ctx *app.Context, resp response.Response) error {
 		topics[i].OptionsLink, _ = ctx.BuildFunctionUrlWithText("vote_option_list.table", params, "查看选项列表")
 	}
 
-	return nil
+	return resp.Table(response.TableResult{
+		Items:      topics,
+		TotalCount: total,
+		PageInfo:   &req.PageSortReq,
+	}).Build()
 }
 
 // VoteTopicListTemplate 投票主题管理配置

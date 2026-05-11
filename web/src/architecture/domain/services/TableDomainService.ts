@@ -71,32 +71,49 @@ export interface SortItem {
   order: 'asc' | 'desc'
 }
 
-const formatSortItemForRequest = (item: SortItem | SortParams): string => {
-  return item.order === 'desc' ? `-${item.field}` : item.field
+const normalizeSortItemOrder = (order: string | undefined): 'asc' | 'desc' | null => {
+  if (order === 'asc' || order === 'desc') {
+    return order
+  }
+  return null
 }
 
-const parseSortTokenFromRequest = (token: string): SortItem | null => {
-  const trimmed = token.trim()
+const serializeSortsForRequest = (items: Array<SortItem | SortParams>): string => {
+  return JSON.stringify(items.map(item => ({
+    field: item.field,
+    order: item.order
+  })))
+}
+
+const parseSortsFromRequest = (sortsString: string): SortItem[] => {
+  const trimmed = sortsString.trim()
   if (!trimmed) {
-    return null
+    return []
   }
 
-  if (trimmed.includes(':')) {
-    const parts = trimmed.split(':')
-    if (parts.length !== 2) {
-      return null
+  try {
+    const items = JSON.parse(trimmed)
+    if (!Array.isArray(items)) {
+      return []
     }
-    const field = parts[0]?.trim()
-    const order = parts[1]?.trim() as 'asc' | 'desc'
-    if (!field || (order !== 'asc' && order !== 'desc')) {
-      return null
-    }
-    return { field, order }
+    return items
+      .map(item => {
+        const field = typeof item?.field === 'string' ? item.field.trim() : ''
+        const order = normalizeSortItemOrder(typeof item?.order === 'string' ? item.order.trim() : '')
+        return field && order ? { field, order } : null
+      })
+      .filter((item): item is SortItem => Boolean(item))
+  } catch {
+    return []
   }
+}
 
-  const order = trimmed.startsWith('-') ? 'desc' : 'asc'
-  const field = trimmed.replace(/^[-+]/, '').trim()
-  return field ? { field, order } : null
+const isAllowedSortField = (
+  sort: SortItem,
+  requestFieldCodes: Set<string>,
+  responseFieldCodes: Set<string>
+): boolean => {
+  return requestFieldCodes.has(sort.field) || responseFieldCodes.has(sort.field)
 }
 
 /**
@@ -153,7 +170,7 @@ export interface TableDataHook {
 export class TableDomainService {
   /** 🔥 BeforeRender 钩子列表（按优先级排序） */
   private beforeRenderHooks: TableDataHook[] = []
-  /** 只允许最后一次列表请求更新状态，避免旧请求回写新状态 */
+  /** 只允许最后一次列表请求更新状态，避免过期请求回写新状态 */
   private latestLoadRequestId = 0
 
   constructor(
@@ -182,7 +199,7 @@ export class TableDomainService {
    * ```
    */
   beforeRender(hook: TableDataHook): void {
-    // 移除同名的旧钩子（允许更新）
+    // 移除同名钩子（允许更新）
     this.beforeRenderHooks = this.beforeRenderHooks.filter(h => h.name !== hook.name)
     // 添加新钩子
     this.beforeRenderHooks.push(hook)
@@ -234,12 +251,10 @@ export class TableDomainService {
       // 添加排序参数
       // 🔥 优先使用 state.sorts（支持多列排序），如果没有则使用 sortParams（单个排序）
       if (state.sorts && state.sorts.length > 0) {
-        // 支持多列排序：sorts=-created_at,name
-        params.sorts = state.sorts.map(formatSortItemForRequest).join(',')
+        params.sorts = serializeSortsForRequest(state.sorts)
       } else if (sortParams || state.sortParams) {
-        // 兼容单个排序参数
         const sort = sortParams || state.sortParams!
-        params.sorts = formatSortItemForRequest(sort)
+        params.sorts = serializeSortsForRequest([sort])
       }
 
       // ⭐ 使用标准 API：/table/search/{full-code-path}
@@ -480,7 +495,7 @@ export class TableDomainService {
     
     // 恢复分页
     let page = 1
-    let pageSize = 20
+    let pageSize = 10
     if (query.page) {
       const pageNum = parseInt(String(query.page), 10)
       if (!isNaN(pageNum) && pageNum > 0) {
@@ -497,12 +512,8 @@ export class TableDomainService {
     // 恢复排序
     if (query.sorts) {
       const sortsString = String(query.sorts)
-      sortsString.split(',').forEach((sortStr: string) => {
-        const sort = parseSortTokenFromRequest(sortStr)
-        if (!sort) {
-          return
-        }
-        if (currentRequestFieldCodes.has(sort.field) || currentResponseFieldCodes.has(sort.field)) {
+      parseSortsFromRequest(sortsString).forEach(sort => {
+        if (isAllowedSortField(sort, currentRequestFieldCodes, currentResponseFieldCodes)) {
           sorts.push(sort)
         }
       })

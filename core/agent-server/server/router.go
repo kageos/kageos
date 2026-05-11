@@ -50,15 +50,16 @@ func (s *Server) setupRoutes() {
 	// 智能工作台（只认 LLM，单模式）
 	workspace := apiV1.Group("/workspace")
 	workspaceChatHandler := v1.NewWorkspace(s.toolRegistry, s.workspaceChatService)
-	workspace.GET("/tools", workspaceChatHandler.ListTools)                                     // 列出工具
-	workspace.GET("/tools/names", workspaceChatHandler.ListToolNames)                           // 工具名列表
-	workspace.POST("/call_tool", workspaceChatHandler.CallTool)                                 // 执行工具（临时）
-	workspace.GET("/sessions", workspaceChatHandler.ListSessions)                               // 获取会话列表
-	workspace.POST("/sessions/handoff", workspaceChatHandler.CreateSessionHandoff)              // 创建阶段交接会话
-	workspace.GET("/sessions/running", workspaceChatHandler.ListRunningSessions)                // 查询执行中的任务
-	workspace.GET("/sessions/finished", workspaceChatHandler.ListFinishedSessions)              // 查询已结束的任务
-	workspace.GET("/sessions/:session_id/sse-status", workspaceChatHandler.GetSessionSSEStatus) // SSE 存活检测
-	workspace.GET("/messages", workspaceChatHandler.ListMessages)                               // 获取会话消息列表
+	workspace.GET("/tools", workspaceChatHandler.ListTools)                                         // 列出工具
+	workspace.GET("/tools/names", workspaceChatHandler.ListToolNames)                               // 工具名列表
+	workspace.POST("/call_tool", workspaceChatHandler.CallTool)                                     // 执行工具（临时）
+	workspace.GET("/sessions", workspaceChatHandler.ListSessions)                                   // 获取会话列表
+	workspace.POST("/sessions/handoff", workspaceChatHandler.CreateSessionHandoff)                  // 创建阶段交接会话
+	workspace.POST("/sessions/interaction/resolve", workspaceChatHandler.ResolvePendingInteraction) // 清除待交互状态
+	workspace.GET("/sessions/running", workspaceChatHandler.ListRunningSessions)                    // 查询执行中的任务
+	workspace.GET("/sessions/finished", workspaceChatHandler.ListFinishedSessions)                  // 查询已结束的任务
+	workspace.GET("/sessions/:session_id/sse-status", workspaceChatHandler.GetSessionSSEStatus)     // SSE 存活检测
+	workspace.GET("/messages", workspaceChatHandler.ListMessages)                                   // 获取会话消息列表
 	workspace.POST("/chat/stream", workspaceChatHandler.ChatStream)
 	workspace.POST("/chat/cancel", workspaceChatHandler.CancelChat) // 取消执行中的任务
 

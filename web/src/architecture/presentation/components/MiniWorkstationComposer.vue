@@ -32,7 +32,7 @@
         class="mini-input"
         data-testid="mini-workstation-input"
         placeholder="输入命令...（@搜用户，/搜目录/工具/文档，Enter 发送，Shift+Enter 换行）"
-        rows="2"
+        rows="3"
         @input="emitInput"
         @keydown="onTextareaKeydown"
         @keyup="onTextareaCursorChange"
@@ -161,11 +161,16 @@
         >
           {{ sending ? (queuedCount > 0 ? `排队 ${queuedCount}` : '排队') : '发送' }}
         </el-button>
-        <el-tooltip content="隐藏到底部" placement="top" effect="light">
+        <el-tooltip
+          :content="miniHideShortcutHint"
+          placement="top"
+          effect="light"
+          popper-class="mini-workstation-tooltip-popper"
+        >
           <button
             type="button"
             class="mini-hide-btn"
-            title="隐藏到底部"
+            :title="miniHideShortcutHint"
             data-testid="mini-workstation-collapse"
             @click="$emit('collapse')"
           >
@@ -215,6 +220,7 @@ const props = defineProps<{
   onFileChange: (uploadFileObj: { raw?: File }) => void | Promise<void>
   removeFile: (index: number) => void
   onInputEnter: (event: KeyboardEvent) => void
+  toggleShortcutLabel?: string
 }>()
 
 const emit = defineEmits<{
@@ -229,6 +235,11 @@ const emit = defineEmits<{
 const modelSelectPopperOptions = {
   strategy: 'fixed' as const,
 }
+
+const miniHideShortcutHint = computed(() => {
+  const toggleShortcut = (props.toggleShortcutLabel || '').trim()
+  return toggleShortcut ? `隐藏到底部 (Esc / ${toggleShortcut})` : '隐藏到底部 (Esc)'
+})
 
 const displayPath = computed(() => {
   const label = (props.dirName || '').trim()
@@ -594,8 +605,8 @@ function cancelMentionClose() {
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: stretch;
   gap: 12px;
-  min-height: 64px;
-  padding: 10px 12px;
+  min-height: 82px;
+  padding: 12px;
   position: relative;
   border: 1px solid rgba(130, 153, 190, 0.26);
   border-radius: 14px;
@@ -663,10 +674,10 @@ function cancelMentionClose() {
   flex: 1;
   width: 100%;
   min-width: 0;
-  height: 46px;
-  min-height: 46px;
-  max-height: 110px;
-  padding: 12px 0 8px;
+  height: 62px;
+  min-height: 62px;
+  max-height: 160px;
+  padding: 14px 0 10px;
   border: 0;
   border-radius: 0;
   outline: none;
@@ -921,7 +932,7 @@ function cancelMentionClose() {
 }
 
 :deep(.mini-ws--maximized) .mini-ws-input {
-  padding: 10px 12px;
+  padding: 12px;
 }
 :deep(.mini-ws--maximized) .mini-ws-files {
   padding: 6px 24px;

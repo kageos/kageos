@@ -45,7 +45,23 @@ func GetHandle(ctx *Context, resp response.Response) error {
 
 	var tests []*Test
 	db = db.Model(&Test{}).Where("name = ?", req.Name)
-	err = resp.Table(&tests, db, &Test{}, &query.PageSortReq{PageSize: 20}).Build()
+	pageInfo := &query.PageSortReq{PageSize: 20}
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return err
+	}
+	if order := pageInfo.GetOrder(); order != "" {
+		db = db.Order(order)
+	}
+	err = db.Offset(pageInfo.GetOffset()).Limit(pageInfo.GetLimit()).Find(&tests).Error
+	if err != nil {
+		return err
+	}
+	err = resp.Table(response.TableResult{
+		Items:      tests,
+		TotalCount: total,
+		PageInfo:   pageInfo,
+	}).Build()
 	if err != nil {
 		return err
 	}

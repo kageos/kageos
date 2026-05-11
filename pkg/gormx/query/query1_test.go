@@ -19,8 +19,8 @@ func TestPageSortReqDefaults(t *testing.T) {
 	}
 }
 
-func TestPageSortReqPagingAndSorts(t *testing.T) {
-	req := &PageSortReq{Page: 3, PageSize: 25, Sorts: "-created_at,name"}
+func TestPageSortReqPagingAndOrder(t *testing.T) {
+	req := &PageSortReq{Page: 3, PageSize: 25, Sorts: `[{"field":"created_at","order":"desc"},{"field":"name","order":"asc"}]`}
 
 	if got := req.GetLimit(); got != 25 {
 		t.Fatalf("GetLimit() = %d, want 25", got)
@@ -28,24 +28,16 @@ func TestPageSortReqPagingAndSorts(t *testing.T) {
 	if got := req.GetOffset(); got != 50 {
 		t.Fatalf("GetOffset() = %d, want 50", got)
 	}
-	if got := req.GetSorts(); got != "`created_at` DESC, `name` ASC" {
-		t.Fatalf("GetSorts() = %q", got)
+	if got := req.GetOrder(); got != "`created_at` DESC, `name` ASC" {
+		t.Fatalf("GetOrder() = %q", got)
 	}
 }
 
-func TestPageSortReqRepeatedSortValues(t *testing.T) {
-	req := &PageSortReq{Sort: []string{"-score", "id"}}
+func TestPageSortReqSortsJSON(t *testing.T) {
+	req := &PageSortReq{Sorts: `[{"field":"score","order":"desc"},{"field":"id","order":"asc"}]`}
 
-	if got := req.GetSorts(); got != "`score` DESC, `id` ASC" {
-		t.Fatalf("GetSorts() = %q", got)
-	}
-}
-
-func TestPageSortReqBracketSortValues(t *testing.T) {
-	req := &PageSortReq{SortArray: []string{"-score", "id"}}
-
-	if got := req.GetSorts(); got != "`score` DESC, `id` ASC" {
-		t.Fatalf("GetSorts() = %q", got)
+	if got := req.GetOrder(); got != "`score` DESC, `id` ASC" {
+		t.Fatalf("GetOrder() = %q", got)
 	}
 }
 

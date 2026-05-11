@@ -37,7 +37,7 @@ Table 前端形态：Element Plus `el-table` 风格的数据表格。用户会�
 1. Model：落库字段、前端展示字段和校验。
 2. Request：显式列表筛选条件，嵌入 `query.PageSortReq` 承载分页和排序。
 3. TableTemplate：声明 Request、CreateTables、AutoCrudTable 和写操作回调。
-4. List 函数：Build 前手写 Where/Joins/Preload，并 `resp.Table(..., ...).Build()`。
+4. List 函数：手写 Where/Joins/Preload，显式查询 `items + total`，并 `resp.Table(response.TableResult{...}).Build()`。
 5. `init()`：注册路由。
 
 示例骨架：
@@ -102,7 +102,7 @@ func TicketList(ctx *app.Context, resp response.Response) error {
     if req.Status != "" {
         queryDB = queryDB.Where("status = ?", req.Status)
     }
-    return resp.Table(&lists, queryDB, &Ticket{}, &req.PageSortReq).Build()
+    return resp.Table(response.TableResult{Items: lists, TotalCount: total, PageInfo: &req.PageSortReq}).Build()
 }
 
 func CreateTicket(ctx *app.Context, req *callback.OnTableAddRowReq) (*callback.OnTableAddRowResp, error) {
@@ -177,7 +177,7 @@ var PaymentRecordListTemplate = &app.TableTemplate{
 1. `Request` 显式声明筛选字段，并嵌入 `query.PageSortReq`，用 `widget:"-"` 隐藏分页字段。
 2. `queryDB := ctx.GetGormDB().Model(&Model{})`。
 3. Build 前做手写 `Where`、`Joins`、`Preload` 等。
-4. 调 `resp.Table(&lists, queryDB, &Model{}, &req.PageSortReq).Build()`。
+4. 调 `resp.Table(response.TableResult{Items: lists, TotalCount: total, PageInfo: &req.PageSortReq}).Build()`。
 5. Build 后填充不落库字段，例如 link、计算状态、关联展示名。
 
 外表筛选和计算字段筛选：
@@ -225,7 +225,7 @@ func BookingList(ctx *app.Context, resp response.Response) error {
     }
 
     var lists []*Booking
-    if err := resp.Table(&lists, queryDB, &Booking{}, &req.PageSortReq).Build(); err != nil {
+    if err := resp.Table(response.TableResult{Items: lists, TotalCount: total, PageInfo: &req.PageSortReq}).Build(); err != nil {
         return err
     }
     return nil
@@ -238,7 +238,7 @@ func BookingList(ctx *app.Context, resp response.Response) error {
 - Request 筛选字段要有 `widget`，否则前端不会渲染筛选控件。
 - 主表字段、关联字段、计算字段、特殊权限过滤、跨表筛选，都在 Build 前手写 `Where` / `Joins`。
 - `Table` 只做 Count、排序、Offset、Limit、Find 和分页信息；业务筛选在 Build 前写到 `queryDB`。
-- 默认使用 `resp.Table(&lists, queryDB, &Model{}, &req.PageSortReq).Build()`。
+- 默认使用 `resp.Table(response.TableResult{Items: lists, TotalCount: total, PageInfo: &req.PageSortReq}).Build()`。
 - Table Template 通过 `AutoCrudTable` 指定 schema 来源。
 
 ### GORM Preload 和后置关联填充
@@ -251,7 +251,7 @@ func BookingList(ctx *app.Context, resp response.Response) error {
 ```go
 queryDB := ctx.GetGormDB().Model(&VoteRecord{}).Preload("Topic").Preload("Option")
 var records []VoteRecord
-if err := resp.Table(&records, queryDB, &VoteRecord{}, &req.PageSortReq).Build(); err != nil {
+if err := resp.Table(response.TableResult{Items: records, TotalCount: total, PageInfo: &req.PageSortReq}).Build(); err != nil {
     return err
 }
 

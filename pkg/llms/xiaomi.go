@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
@@ -15,8 +16,10 @@ import (
 
 // 小米 MiMo 使用 OpenAI 兼容接口，base_url: https://api.xiaomimimo.com/v1
 const (
-	xiaomiDefaultBaseURL = "https://api.xiaomimimo.com/v1/chat/completions"
-	xiaomiDefaultModel   = "MiMo-V2-Flash"
+	xiaomiDefaultBaseURL          = "https://api.xiaomimimo.com/v1/chat/completions"
+	xiaomiChatCompletionsPath     = "/chat/completions"
+	xiaomiVersionedBaseURLPathEnd = "/v1"
+	xiaomiDefaultModel            = "mimo-v2-flash"
 )
 
 // XiaomiAPIResponse 小米 MiMo API 响应（OpenAI 兼容格式）
@@ -85,13 +88,10 @@ func NewXiaomiClientWithOptions(apiKey string, options *ClientOptions) *XiaomiCl
 	if options == nil {
 		options = DefaultClientOptions()
 	}
-	baseURL := options.BaseURL
-	if baseURL == "" {
-		baseURL = xiaomiDefaultBaseURL
-	}
+	baseURL := normalizeXiaomiBaseURL(options.BaseURL)
 	model := xiaomiDefaultModel
 	if options.Model != "" {
-		model = options.Model
+		model = normalizeXiaomiModel(options.Model, xiaomiDefaultModel)
 	}
 	return &XiaomiClient{
 		APIKey:  apiKey,
@@ -101,9 +101,93 @@ func NewXiaomiClientWithOptions(apiKey string, options *ClientOptions) *XiaomiCl
 	}
 }
 
+func normalizeXiaomiBaseURL(rawURL string) string {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return xiaomiDefaultBaseURL
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		trimmed := strings.TrimRight(rawURL, "/")
+		if strings.HasSuffix(trimmed, xiaomiChatCompletionsPath) {
+			return trimmed
+		}
+		if strings.HasSuffix(trimmed, xiaomiVersionedBaseURLPathEnd) {
+			return trimmed + xiaomiChatCompletionsPath
+		}
+		return trimmed
+	}
+
+	path := strings.TrimRight(parsed.Path, "/")
+	switch {
+	case strings.HasSuffix(path, xiaomiChatCompletionsPath):
+		parsed.Path = path
+	case path == "":
+		parsed.Path = xiaomiVersionedBaseURLPathEnd + xiaomiChatCompletionsPath
+	case strings.HasSuffix(path, xiaomiVersionedBaseURLPathEnd):
+		parsed.Path = path + xiaomiChatCompletionsPath
+	default:
+		parsed.Path = path
+	}
+	return parsed.String()
+}
+
+func normalizeXiaomiModel(model string, fallback string) string {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return strings.TrimSpace(fallback)
+	}
+	if strings.HasPrefix(strings.ToLower(model), "xiaomi/") {
+		model = strings.TrimSpace(model[len("xiaomi/"):])
+	}
+	lowerModel := strings.ToLower(model)
+	switch lowerModel {
+	case "mimo-v2-5-pro":
+		return "mimo-v2.5-pro"
+	case "mimo-v2-5":
+		return "mimo-v2.5"
+	default:
+		if strings.HasPrefix(lowerModel, "mimo-") {
+			return lowerModel
+		}
+		return model
+	}
+}
+
+func xiaomiSanitizeMessages(msgs []Message) []Message {
+	if len(msgs) == 0 {
+		return msgs
+	}
+	out := make([]Message, 0, len(msgs))
+	for _, m := range msgs {
+		msg := m
+		if strings.EqualFold(strings.TrimSpace(msg.Role), "assistant") &&
+			strings.TrimSpace(msg.Content) == "" &&
+			len(msg.ToolCalls) == 0 {
+			continue
+		}
+		if len(msg.ToolCalls) > 0 {
+			tcCopy := make([]ToolCall, len(msg.ToolCalls))
+			for i, tc := range msg.ToolCalls {
+				tcCopy[i] = tc
+				arg := strings.TrimSpace(tc.Function.Arguments)
+				if arg == "" || !json.Valid([]byte(arg)) {
+					tcCopy[i].Function.Arguments = "{}"
+				} else {
+					tcCopy[i].Function.Arguments = arg
+				}
+			}
+			msg.ToolCalls = tcCopy
+		}
+		out = append(out, msg)
+	}
+	return out
+}
+
 // SetModel 设置模型名称
 func (c *XiaomiClient) SetModel(model string) {
-	c.Model = model
+	c.Model = normalizeXiaomiModel(model, c.Model)
 }
 
 // GetModelName 获取模型名称
@@ -118,9 +202,11 @@ func (c *XiaomiClient) GetProvider() string {
 
 // Chat 实现 LLMClient 接口
 func (c *XiaomiClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
+	model := normalizeXiaomiModel(req.Model, c.Model)
+	msgs := xiaomiSanitizeMessages(req.Messages)
 	apiReq := map[string]interface{}{
-		"model":       req.Model,
-		"messages":    req.Messages,
+		"model":       model,
+		"messages":    msgs,
 		"max_tokens":  req.MaxTokens,
 		"temperature": req.Temperature,
 	}
@@ -129,9 +215,6 @@ func (c *XiaomiClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespons
 		if req.ToolChoice != nil {
 			apiReq["tool_choice"] = req.ToolChoice
 		}
-	}
-	if apiReq["model"] == "" || apiReq["model"] == nil {
-		apiReq["model"] = c.Model
 	}
 	if req.MaxTokens <= 0 {
 		apiReq["max_tokens"] = 4096
@@ -192,9 +275,11 @@ func (c *XiaomiClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan
 	chunkChan := make(chan *StreamChunk, 10)
 	go func() {
 		defer close(chunkChan)
+		model := normalizeXiaomiModel(req.Model, c.Model)
+		msgs := xiaomiSanitizeMessages(req.Messages)
 		apiReq := map[string]interface{}{
-			"model":       req.Model,
-			"messages":    req.Messages,
+			"model":       model,
+			"messages":    msgs,
 			"max_tokens":  req.MaxTokens,
 			"temperature": req.Temperature,
 			"stream":      true,
@@ -204,9 +289,6 @@ func (c *XiaomiClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan
 			if req.ToolChoice != nil {
 				apiReq["tool_choice"] = req.ToolChoice
 			}
-		}
-		if apiReq["model"] == "" || apiReq["model"] == nil {
-			apiReq["model"] = c.Model
 		}
 		if req.MaxTokens <= 0 {
 			apiReq["max_tokens"] = 4096

@@ -27,6 +27,11 @@ import {
   shouldSkipTableReloadOnRouteChange,
   shouldSyncTableURLAfterRestore
 } from './utils/tableInitializationRuntime'
+import {
+  DEFAULT_TABLE_PAGE_SIZE,
+  readTablePageSizePreference,
+  resolveTablePageSizeForRestore
+} from '../views/utils/tablePageSizePreference'
 
 export interface UseTableInitializationOptions {
   functionDetail: FunctionDetail | { value: FunctionDetail }
@@ -68,16 +73,26 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
   /**
    * 从 URL 恢复状态
    */
-  const restoreFromURL = (): void => {
+  const restoreFromURL = (): { shouldSyncPageSizeToURL: boolean } => {
     const queryParams = normalizeTableRouteQuery(route.query as Record<string, any>)
+    const functionDetailValue = 'value' in functionDetail ? functionDetail.value : functionDetail
+    const pageSizeResolution = resolveTablePageSizeForRestore({
+      queryPageSize: queryParams.page_size,
+      preferredPageSize: readTablePageSizePreference(functionDetailValue),
+      isLinkNavigation: isLinkNavigation(route.query)
+    })
 
     // 使用 Domain Service 恢复状态
-    const functionDetailValue = 'value' in functionDetail ? functionDetail.value : functionDetail
     const restored = domainService.restoreFromURL(functionDetailValue, queryParams)
+    restored.pagination.pageSize = pageSizeResolution.pageSize
 
     // 🔥 更新 StateManager 中的状态
     const currentState = stateManager.getState()
     stateManager.setState(buildRestoredTableState(currentState, restored))
+
+    return {
+      shouldSyncPageSizeToURL: pageSizeResolution.shouldSyncToURL
+    }
   }
 
   /**
@@ -93,7 +108,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
    * 从 URL 恢复状态并同步到 URL（如果需要）
    */
   const restoreFromURLAndSync = async (): Promise<void> => {
-    restoreFromURL()
+    const restoreResult = restoreFromURL()
     // 🔥 等待状态更新完成，确保 restoreFromURL 的状态已经应用到 stateManager
     // 注意：stateManager.setState() 是同步的，但 Vue 的响应式更新是异步的，需要一个 tick
     await nextTick()
@@ -104,9 +119,12 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     // 因为 link 跳转时，URL 中的参数是用户明确指定的，不应该被覆盖
     const isLinkNav = isLinkNavigation(route.query)
     
-    // 🔥 只有在非 link 跳转且没有分页参数时，才同步默认分页参数
-    if (shouldSyncTableURLAfterRestore({ query: route.query as Record<string, any>, isLinkNavigation: isLinkNav })) {
-      // URL 中没有分页参数，需要同步默认分页参数
+    // 🔥 非 link 跳转时，URL 缺少分页参数或 page_size 与默认/偏好不一致才同步
+    if (shouldSyncTableURLAfterRestore({
+      query: route.query as Record<string, any>,
+      isLinkNavigation: isLinkNav,
+      shouldSyncPageSize: restoreResult.shouldSyncPageSizeToURL
+    })) {
       if (!isSyncingToURL.value) {
         isSyncingToURL.value = true
         syncToURL() // 只同步分页和排序参数，保留 URL 中的搜索参数
@@ -175,7 +193,10 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     if (!hasQueryParams && !isLinkNav) {
       // 刚切换函数，清空 TableStateManager 的状态，避免旧函数的状态污染新函数
       const currentState = stateManager.getState()
-      stateManager.setState(buildClearedTableState(currentState))
+      stateManager.setState(buildClearedTableState(
+        currentState,
+        readTablePageSizePreference(functionDetailValue) || DEFAULT_TABLE_PAGE_SIZE
+      ))
     }
 
     // 🔥 立即显示加载状态（骨架屏），避免先出现「暂无数据」再出现 loading
@@ -254,7 +275,13 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
 
       isRestoringFromURL.value = true
       try {
-        restoreFromURL()
+        const restoreResult = restoreFromURL()
+        if (restoreResult.shouldSyncPageSizeToURL && !isSyncingToURL.value) {
+          isSyncingToURL.value = true
+          syncToURL()
+          await nextTick()
+          isSyncingToURL.value = false
+        }
 
         if (isMounted && !isMounted.value) {
           return

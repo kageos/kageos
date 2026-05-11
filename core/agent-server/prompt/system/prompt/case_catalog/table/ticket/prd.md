@@ -254,7 +254,7 @@ type Ticket struct {
 	// 截止时间：工单要求完成的时间
 	Deadline types.Time `json:"deadline" gorm:"column:deadline;type:datetime" widget:"name:截止时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
 
-	// 剩余时间：仅展示用，不落库。在列表 Build 之后根据当前时间与截止时间计算
+	// 剩余时间：仅展示用，不落库。在查询到列表后、返回 Table 前根据当前时间与截止时间计算
 	RemainingTime string `json:"remaining_time" gorm:"-" widget:"name:剩余时间;type:text" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 }
 
@@ -363,9 +363,16 @@ func TicketList(ctx *app.Context, resp response.Response) error {
 	if req.Classify != "" {
 		queryDB = queryDB.Where("classify = ?", req.Classify)
 	}
+	if order := req.PageSortReq.GetOrder(); order != "" {
+		queryDB = queryDB.Order(order)
+	}
+	var total int64
+	if err := queryDB.Count(&total).Error; err != nil {
+		logger.Errorf(ctx, "TicketCount err: %v", err)
+		return err
+	}
 	var lists []*Ticket
-	err := resp.Table(&lists, queryDB, &Ticket{}, &req.PageSortReq).Build()
-	if err != nil {
+	if err := queryDB.Offset(req.PageSortReq.GetOffset()).Limit(req.PageSortReq.GetLimit()).Find(&lists).Error; err != nil {
 		logger.Errorf(ctx, "TicketSearch err: %v", err)
 		return err
 	}
@@ -394,7 +401,11 @@ func TicketList(ctx *app.Context, resp response.Response) error {
 			item.RemainingTime = "不足1分钟"
 		}
 	}
-	return nil
+	return resp.Table(response.TableResult{
+		Items:      lists,
+		TotalCount: total,
+		PageInfo:   &req.PageSortReq,
+	}).Build()
 }
 
 func init() {

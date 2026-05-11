@@ -72,10 +72,11 @@ type WorkspaceSessionItem struct {
 	AgentID           *int64      `json:"agent_id"`                      // 关联的智能体ID（可为空）
 	AgentName         string      `json:"agent_name"`                    // 智能体名称（如果有）
 	ModeCode          string      `json:"mode_code"`                     // 工作台模式代码
-	Status            string      `json:"status"`                        // 会话状态（active/generating/done/cancelled）
+	Status            string      `json:"status"`                        // 会话状态（active/generating/output/pending_confirmation/pending_test/done/cancelled）
 	RoleID            string      `json:"role_id,omitempty"`             // 当前工作台角色 ID
 	RoleDisplayName   string      `json:"role_display_name,omitempty"`   // 当前工作台角色展示名称
 	FullCodePath      string      `json:"full_code_path,omitempty"`      // 所属目录完整路径
+	DirectoryName     string      `json:"directory_name,omitempty"`      // 所属目录展示名称
 	ParentSessionID   string      `json:"parent_session_id,omitempty"`   // 阶段交接来源会话ID
 	HandoffKind       string      `json:"handoff_kind,omitempty"`        // 阶段交接产物类型
 	HandoffTargetRole string      `json:"handoff_target_role,omitempty"` // 阶段交接目标身份
@@ -112,6 +113,11 @@ type WorkspaceHandoffResp struct {
 	DisplayContent  string `json:"display_content"`
 }
 
+// ResolveWorkspacePendingInteractionReq 清除工作台会话的待交互状态。
+type ResolveWorkspacePendingInteractionReq struct {
+	SessionID string `json:"session_id" binding:"required"`
+}
+
 // CancelWorkspaceChatReq 取消工作台会话执行请求
 type CancelWorkspaceChatReq struct {
 	SessionID string `json:"session_id" binding:"required"`
@@ -138,6 +144,10 @@ type WorkspaceMessageInfo struct {
 	DisplayContent string                         `json:"display_content,omitempty"` // 前端展示内容，空则展示 content
 	Files          *string                        `json:"files,omitempty"`           // 用户消息附带的文件引用字符串，仅 user 角色可能有
 	ToolCalls      []WorkspaceChatToolCallSummary `json:"tool_calls,omitempty"`      // 工具调用列表（仅assistant角色）
+	LLMConfigID    int64                          `json:"llm_config_id,omitempty"`   // assistant 消息生成时使用的 LLM 配置 ID
+	LLMConfigName  string                         `json:"llm_config_name,omitempty"` // assistant 消息生成时使用的 LLM 配置名称快照
+	LLMProvider    string                         `json:"llm_provider,omitempty"`    // assistant 消息生成时使用的 LLM provider
+	LLMModel       string                         `json:"llm_model,omitempty"`       // assistant 消息生成时使用的模型名称
 	ContextUsage   string                         `json:"context_usage,omitempty"`   // 模型上下文用途
 	ArtifactKind   string                         `json:"artifact_kind,omitempty"`   // 结构化产物类型
 	CreatedAt      models.Time                    `json:"created_at"`                // 创建时间

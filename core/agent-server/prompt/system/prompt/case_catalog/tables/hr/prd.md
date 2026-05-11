@@ -116,10 +116,16 @@ func HrJobList(ctx *app.Context, resp response.Response) error {
 		queryDB = queryDB.Where("status = ?", req.Status)
 	}
 
-	var jobs []HrJob
-	builder := resp.Table(&jobs, queryDB, &HrJob{}, &req.PageSortReq)
+	if order := req.PageSortReq.GetOrder(); order != "" {
+		queryDB = queryDB.Order(order)
+	}
+	var total int64
+	if err := queryDB.Count(&total).Error; err != nil {
+		return err
+	}
 
-	if err := builder.Build(); err != nil {
+	var jobs []HrJob
+	if err := queryDB.Offset(req.PageSortReq.GetOffset()).Limit(req.PageSortReq.GetLimit()).Find(&jobs).Error; err != nil {
 		return err
 	}
 
@@ -135,7 +141,11 @@ func HrJobList(ctx *app.Context, resp response.Response) error {
 		}
 	}
 
-	return nil
+	return resp.Table(response.TableResult{
+		Items:      jobs,
+		TotalCount: total,
+		PageInfo:   &req.PageSortReq,
+	}).Build()
 }
 
 // HrJobListTemplate 职位管理配置
@@ -379,10 +389,16 @@ func HrResumeList(ctx *app.Context, resp response.Response) error {
 
 	queryDB = queryDB.Preload("Job")
 
-	var resumes []HrResume
-	builder := resp.Table(&resumes, queryDB, &HrResume{}, &req.PageSortReq)
+	if order := req.PageSortReq.GetOrder(); order != "" {
+		queryDB = queryDB.Order(order)
+	}
+	var total int64
+	if err := queryDB.Count(&total).Error; err != nil {
+		return err
+	}
 
-	if err := builder.Build(); err != nil {
+	var resumes []HrResume
+	if err := queryDB.Offset(req.PageSortReq.GetOffset()).Limit(req.PageSortReq.GetLimit()).Find(&resumes).Error; err != nil {
 		return err
 	}
 
@@ -398,7 +414,11 @@ func HrResumeList(ctx *app.Context, resp response.Response) error {
 		resumes[i].JobLink, _ = ctx.BuildFunctionUrlWithText("hr_job_list.table", params, "查看职位详情")
 	}
 
-	return nil
+	return resp.Table(response.TableResult{
+		Items:      resumes,
+		TotalCount: total,
+		PageInfo:   &req.PageSortReq,
+	}).Build()
 }
 
 // HrResumeListTemplate 投递管理配置
