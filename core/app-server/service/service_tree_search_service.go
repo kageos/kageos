@@ -87,6 +87,7 @@ func parseSearchResourceTypes(resourceType string) []string {
 			model.ServiceTreeTypeFunction,
 			model.ServiceTreeTypeDocs,
 			model.ServiceTreeTypeBoard,
+			model.ServiceTreeTypeWorkflow,
 		}
 	case permission.ResourceTypeDirectory, model.ServiceTreeTypePackage:
 		return []string{model.ServiceTreeTypePackage}
@@ -96,12 +97,15 @@ func parseSearchResourceTypes(resourceType string) []string {
 		return []string{model.ServiceTreeTypeDocs}
 	case model.ServiceTreeTypeBoard:
 		return []string{model.ServiceTreeTypeBoard}
+	case model.ServiceTreeTypeWorkflow:
+		return []string{model.ServiceTreeTypeWorkflow}
 	default:
 		return []string{
 			model.ServiceTreeTypePackage,
 			model.ServiceTreeTypeFunction,
 			model.ServiceTreeTypeDocs,
 			model.ServiceTreeTypeBoard,
+			model.ServiceTreeTypeWorkflow,
 		}
 	}
 }

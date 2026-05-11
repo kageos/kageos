@@ -93,6 +93,13 @@ func (s *Server) setupRoutes() {
 	boardsCrudAuth.PUT("/:id", serviceTreeHandler.UpdateBoard)    // PUT /api/v1/boards/crud/:id
 	boardsCrudAuth.DELETE("/:id", serviceTreeHandler.DeleteBoard) // DELETE /api/v1/boards/crud/:id
 
+	// ==================== Workflow 类型接口 ====================
+	workflowsCrudAuth := apiV1.Group("/workflows/crud")
+	workflowsCrudAuth.Use(middleware2.JWTAuth())
+	workflowsCrudAuth.POST("", serviceTreeHandler.CreateWorkflowNode)
+	workflowsCrudAuth.PUT("/:id", serviceTreeHandler.UpdateWorkflowNode)
+	workflowsCrudAuth.DELETE("/:id", serviceTreeHandler.DeleteWorkflowNode)
+
 	// ==================== 版块帖子接口（讨论区鉴权：board:read/write/update/delete） ====================
 	postsAuth := apiV1.Group("/posts")
 	postsAuth.Use(middleware2.JWTAuth())

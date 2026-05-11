@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	codeSuffixDocs  = ".docs"
-	codeSuffixBoard = ".board"
+	codeSuffixDocs     = ".docs"
+	codeSuffixBoard    = ".board"
+	codeSuffixWorkflow = ".workflow"
 )
 
 type serviceTreeSpecialNodeService struct {
@@ -133,6 +134,43 @@ func (s *serviceTreeSpecialNodeService) CreateBoard(ctx context.Context, req *dt
 
 func (s *serviceTreeSpecialNodeService) CreateBoardNode(ctx context.Context, req *dto.CreateServiceTreeReq) (*dto.CreateServiceTreeResp, error) {
 	serviceTree, err := s.createSpecialNode(ctx, req, model.ServiceTreeTypeBoard, codeSuffixBoard)
+	if err != nil {
+		return nil, err
+	}
+	return toCreateServiceTreeResp(serviceTree), nil
+}
+
+func (s *serviceTreeSpecialNodeService) CreateWorkflowNode(ctx context.Context, req *dto.CreateWorkflowNodeReq) (*dto.CreateWorkflowNodeResp, error) {
+	resp, err := s.CreateWorkflowServiceTreeNode(ctx, &dto.CreateServiceTreeReq{
+		User:               req.User,
+		App:                req.App,
+		Name:               req.Name,
+		Code:               req.Code,
+		ParentFullCodePath: req.ParentFullCodePath,
+		Type:               model.ServiceTreeTypeWorkflow,
+		Description:        req.Description,
+		Tags:               req.Tags,
+		Admins:             req.Admins,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.CreateWorkflowNodeResp{
+		ID:           resp.ID,
+		Name:         resp.Name,
+		Code:         resp.Code,
+		Type:         resp.Type,
+		Description:  resp.Description,
+		Tags:         resp.Tags,
+		AppID:        resp.AppID,
+		FullCodePath: resp.FullCodePath,
+		Admins:       resp.Admins,
+	}, nil
+}
+
+func (s *serviceTreeSpecialNodeService) CreateWorkflowServiceTreeNode(ctx context.Context, req *dto.CreateServiceTreeReq) (*dto.CreateServiceTreeResp, error) {
+	serviceTree, err := s.createSpecialNode(ctx, req, model.ServiceTreeTypeWorkflow, codeSuffixWorkflow)
 	if err != nil {
 		return nil, err
 	}

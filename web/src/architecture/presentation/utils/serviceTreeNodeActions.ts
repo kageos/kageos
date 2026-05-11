@@ -2,6 +2,7 @@ import type { Component } from 'vue'
 import {
   ChatDotRound,
   ChatDotSquare,
+  Connection,
   CopyDocument,
   Delete,
   Document,
@@ -13,7 +14,7 @@ import {
   Upload
 } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
-import { DirectoryPermission, TablePermission, hasPermission } from '@/utils/permission'
+import { DirectoryPermission, TablePermission, WorkflowPermission, hasPermission } from '@/utils/permission'
 import { isRootNode } from '@/utils/tree-utils'
 
 export type ServiceTreeNodeActionCommand =
@@ -21,6 +22,7 @@ export type ServiceTreeNodeActionCommand =
   | 'create-directory'
   | 'create-docs'
   | 'create-board'
+  | 'create-workflow'
   | 'open-workstation'
   | 'delete-directory'
   | 'rename'
@@ -31,6 +33,7 @@ export type ServiceTreeNodeActionCommand =
   | 'delete-function'
   | 'delete-doc'
   | 'delete-board'
+  | 'delete-workflow'
   | 'publish-to-hub'
   | 'push-to-hub'
   | 'update-history'
@@ -74,6 +77,12 @@ export function getServiceTreeNodeActions(
       visible: data.type === 'package' && hasPermission(data, DirectoryPermission.write)
     },
     {
+      command: 'create-workflow',
+      label: '新增工作流',
+      icon: Connection,
+      visible: data.type === 'package' && hasPermission(data, DirectoryPermission.write)
+    },
+    {
       command: 'open-workstation',
       label: '打开工作台',
       icon: ChatDotRound,
@@ -89,7 +98,8 @@ export function getServiceTreeNodeActions(
       command: 'rename',
       label: '重命名',
       icon: Edit,
-      visible: data.type === 'package' && hasPermission(data, DirectoryPermission.update)
+      visible: (data.type === 'package' && hasPermission(data, DirectoryPermission.update))
+        || (data.type === 'workflow' && hasPermission(data, WorkflowPermission.update))
     },
     {
       command: 'copy',
@@ -134,6 +144,12 @@ export function getServiceTreeNodeActions(
       label: '删除讨论区',
       icon: Delete,
       visible: data.type === 'board' && hasPermission(data, DirectoryPermission.delete)
+    },
+    {
+      command: 'delete-workflow',
+      label: '删除工作流',
+      icon: Delete,
+      visible: data.type === 'workflow' && hasPermission(data, WorkflowPermission.delete)
     },
     {
       command: 'publish-to-hub',

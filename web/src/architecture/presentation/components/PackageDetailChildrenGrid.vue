@@ -18,7 +18,7 @@
         @click="$emit('select-child', child)"
       >
         <div class="child-card-header">
-          <div class="child-icon-wrapper" :class="child.type === 'package' ? 'package-type' : 'function-type'">
+          <div class="child-icon-wrapper" :class="getChildIconWrapperClass(child)">
             <img
               v-if="child.type === 'package'"
               src="/service-tree/custom-folder.svg"
@@ -42,6 +42,9 @@
               alt="讨论区"
               class="child-icon-img"
             />
+            <el-icon v-else-if="child.type === 'workflow'" class="child-icon workflow-child-icon">
+              <Connection />
+            </el-icon>
             <el-icon v-else-if="child.type === 'docs'" class="child-icon">
               <Document />
             </el-icon>
@@ -59,6 +62,7 @@
           </el-tag>
           <el-tag v-else-if="child.type === 'board'" size="small" type="success" class="child-type-tag">讨论区</el-tag>
           <el-tag v-else-if="child.type === 'docs'" size="small" type="info" class="child-type-tag">文档</el-tag>
+          <el-tag v-else-if="child.type === 'workflow'" size="small" type="warning" class="child-type-tag">工作流</el-tag>
         </div>
 
         <div class="child-card-body">
@@ -85,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { DataLine, Document, Grid } from '@element-plus/icons-vue'
+import { Connection, DataLine, Document, Grid } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
@@ -129,6 +133,12 @@ function getChildFunctionIcon(child: ServiceTree) {
     return ChartIcon
   }
   return Document
+}
+
+function getChildIconWrapperClass(child: ServiceTree) {
+  if (child.type === 'package') return 'package-type'
+  if (child.type === 'workflow') return 'workflow-type'
+  return 'function-type'
 }
 </script>
 
@@ -245,6 +255,14 @@ function getChildFunctionIcon(child: ServiceTree) {
   width: 32px;
   height: 32px;
   object-fit: contain;
+}
+
+.child-icon-wrapper.workflow-type {
+  background: rgba(15, 118, 110, 0.12);
+}
+
+.workflow-child-icon {
+  color: #0f766e;
 }
 
 .child-type-tag {

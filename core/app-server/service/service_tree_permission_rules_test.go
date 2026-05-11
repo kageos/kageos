@@ -90,6 +90,16 @@ func TestPermissionActionsForNode_MapsDocsNodeType(t *testing.T) {
 	}
 }
 
+func TestPermissionActionsForNode_MapsWorkflowNodeType(t *testing.T) {
+	actions := permissionActionsForNode(model.ServiceTreeTypeWorkflow, "")
+	if len(actions) == 0 {
+		t.Fatal("expected workflow node to expose permission actions")
+	}
+	if actions[0] != permission.BuildActionCode(permission.ResourceTypeWorkflow, "read") {
+		t.Fatalf("unexpected first workflow action: %s", actions[0])
+	}
+}
+
 func TestApplyPermissionInheritance_DirectoryWriteMapsToChildResourceType(t *testing.T) {
 	nodePerms := initializeNodePermissions(permissionActionsForNode(model.ServiceTreeTypeFunction, "table"), nil)
 	parentPerms := map[string]bool{

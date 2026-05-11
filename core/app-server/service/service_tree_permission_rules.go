@@ -62,6 +62,8 @@ func permissionActionsForNode(nodeType string, templateType string) []string {
 		nodeTypeStr = model.ServiceTreeTypeDocs
 	} else if nodeType == model.ServiceTreeTypeBoard {
 		nodeTypeStr = model.ServiceTreeTypeBoard
+	} else if nodeType == model.ServiceTreeTypeWorkflow {
+		nodeTypeStr = model.ServiceTreeTypeWorkflow
 	} else {
 		return []string{}
 	}

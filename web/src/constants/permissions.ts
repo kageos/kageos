@@ -53,6 +53,8 @@ export const ResourceType = {
   docs: 'docs',
   /** 讨论区/板块 */
   board: 'board',
+  /** 工作流 */
+  workflow: 'workflow',
 } as const
 
 // ========================================
@@ -172,6 +174,22 @@ export const BoardPermission = {
   admin: 'board:admin',
 } as const
 
+/**
+ * 工作流权限
+ */
+export const WorkflowPermission = {
+  /** 查看工作流 */
+  read: 'workflow:read',
+  /** 编辑工作流草稿 */
+  write: 'workflow:write',
+  /** 发布/更新工作流 */
+  update: 'workflow:update',
+  /** 删除工作流 */
+  delete: 'workflow:delete',
+  /** 工作流管理员（拥有所有权限） */
+  admin: 'workflow:admin',
+} as const
+
 // ========================================
 // 统一导出（保持向后兼容）
 // ========================================
@@ -187,6 +205,7 @@ export const Permission = {
   Chart: ChartPermission,
   Docs: DocsPermission,
   Board: BoardPermission,
+  Workflow: WorkflowPermission,
 } as const
 
 // ========================================
@@ -251,6 +270,8 @@ export function getPermissionsByResourceType(resourceType: string) {
       return DocsPermission
     case ResourceType.board:
       return BoardPermission
+    case ResourceType.workflow:
+      return WorkflowPermission
     default:
       return null
   }
@@ -269,6 +290,7 @@ export type PermissionString =
   | (typeof ChartPermission)[keyof typeof ChartPermission]
   | (typeof DocsPermission)[keyof typeof DocsPermission]
   | (typeof BoardPermission)[keyof typeof BoardPermission]
+  | (typeof WorkflowPermission)[keyof typeof WorkflowPermission]
 
 /** 资源类型的联合类型 */
 export type ResourceTypeString = (typeof ResourceType)[keyof typeof ResourceType]

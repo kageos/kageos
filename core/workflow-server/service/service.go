@@ -54,7 +54,17 @@ func (s *Service) CreateWorkflow(ctx context.Context, req workflowdto.CreateWork
 	}
 	definitionJSON := normalizeRawJSON(req.Definition)
 	if len(definitionJSON) > 0 {
-		if err := s.validateDefinition(definitionJSON); err != nil {
+		if err := s.validateDraftDefinition(definitionJSON); err != nil {
+			return nil, err
+		}
+	}
+	fullCodePath := strings.TrimSpace(req.FullCodePath)
+	if fullCodePath != "" {
+		existing, err := s.defRepo.GetByFullCodePath(fullCodePath)
+		if err == nil && existing != nil {
+			return workflowdto.ToWorkflowItem(existing), nil
+		}
+		if err != nil && err != gorm.ErrRecordNotFound {
 			return nil, err
 		}
 	}
@@ -63,7 +73,7 @@ func (s *Service) CreateWorkflow(ctx context.Context, req workflowdto.CreateWork
 		Name:                name,
 		Description:         strings.TrimSpace(req.Description),
 		AppID:               req.AppID,
-		FullCodePath:        strings.TrimSpace(req.FullCodePath),
+		FullCodePath:        fullCodePath,
 		Status:              model.WorkflowStatusDraft,
 		CreatedBy:           user,
 		UpdatedBy:           user,
@@ -94,7 +104,17 @@ func (s *Service) UpdateWorkflow(ctx context.Context, id int64, req workflowdto.
 		item.AppID = *req.AppID
 	}
 	if req.FullCodePath != nil {
-		item.FullCodePath = strings.TrimSpace(*req.FullCodePath)
+		fullCodePath := strings.TrimSpace(*req.FullCodePath)
+		if fullCodePath != "" && fullCodePath != item.FullCodePath {
+			existing, err := s.defRepo.GetByFullCodePath(fullCodePath)
+			if err == nil && existing != nil && existing.ID != id {
+				return nil, fmt.Errorf("workflow already exists for full_code_path: %s", fullCodePath)
+			}
+			if err != nil && err != gorm.ErrRecordNotFound {
+				return nil, err
+			}
+		}
+		item.FullCodePath = fullCodePath
 	}
 	if req.Status != nil {
 		status := strings.TrimSpace(*req.Status)
@@ -106,7 +126,7 @@ func (s *Service) UpdateWorkflow(ctx context.Context, id int64, req workflowdto.
 	if req.Definition != nil {
 		raw := normalizeRawJSON(*req.Definition)
 		if len(raw) > 0 {
-			if err := s.validateDefinition(raw); err != nil {
+			if err := s.validateDraftDefinition(raw); err != nil {
 				return nil, err
 			}
 		}
@@ -139,6 +159,21 @@ func (s *Service) ListWorkflows(ctx context.Context, status string, appID int64,
 
 func (s *Service) GetWorkflow(ctx context.Context, id int64) (*workflowdto.WorkflowItem, error) {
 	item, err := s.defRepo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	return workflowdto.ToWorkflowItem(item), nil
+}
+
+func (s *Service) GetWorkflowByFullCodePath(ctx context.Context, fullCodePath string) (*workflowdto.WorkflowItem, error) {
+	fullCodePath = strings.TrimSpace(fullCodePath)
+	if fullCodePath == "" {
+		return nil, fmt.Errorf("full_code_path is required")
+	}
+	item, err := s.defRepo.GetByFullCodePath(fullCodePath)
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -291,6 +326,24 @@ func (s *Service) validateDefinition(raw json.RawMessage) error {
 	parsed, err := definition.Parse(raw)
 	if err != nil {
 		return err
+	}
+	return parsed.Validate(definition.ValidateOptions{SupportedNodeTypes: definition.SupportedMVPNodeTypes()})
+}
+
+func (s *Service) validateDraftDefinition(raw json.RawMessage) error {
+	parsed, err := definition.Parse(raw)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(parsed.SchemaVersion) != definition.SchemaVersionV1 {
+		return fmt.Errorf("unsupported schema_version: %s", parsed.SchemaVersion)
+	}
+	mode := strings.TrimSpace(parsed.Mode)
+	if mode != "" && mode != definition.ModeSequence {
+		return fmt.Errorf("unsupported workflow mode: %s", mode)
+	}
+	if len(parsed.Nodes) == 0 {
+		return nil
 	}
 	return parsed.Validate(definition.ValidateOptions{SupportedNodeTypes: definition.SupportedMVPNodeTypes()})
 }

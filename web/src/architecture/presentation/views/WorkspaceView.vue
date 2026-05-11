@@ -54,8 +54,10 @@
             @create-directory="handleCreateDirectory"
             @create-docs="handleCreateDocs"
             @create-board="handleCreateBoard"
+            @create-workflow="handleCreateWorkflow"
             @delete-doc="handleDeleteDoc"
             @delete-board="handleDeleteBoard"
+            @delete-workflow="handleDeleteWorkflow"
             @delete-function="handleDeleteFunction"
             @delete-directory="handleDeleteDirectory"
             @bulk-delete="handleBulkDeleteNodes"
@@ -108,6 +110,13 @@
         <!-- 🔥 版块/讨论区页面（可滚动） -->
         <div v-else-if="currentFunction && currentFunction.type === 'board'" class="main-content-scroll board-content-scroll">
           <BoardView
+            :node="currentFunction"
+          />
+        </div>
+
+        <!-- 🔥 工作流页面（可滚动） -->
+        <div v-else-if="currentFunction && currentFunction.type === 'workflow'" class="main-content-scroll workflow-content-scroll">
+          <WorkflowView
             :node="currentFunction"
           />
         </div>
@@ -212,6 +221,14 @@
       :current-app="currentApp"
       :parent-node="currentBoardParentNode"
       @success="afterCreateBoard"
+    />
+
+    <CreateWorkflowDialog
+      v-if="createWorkflowDialogVisible"
+      v-model="createWorkflowDialogVisible"
+      :current-app="currentApp"
+      :parent-node="currentWorkflowParentNode"
+      @success="afterCreateWorkflow"
     />
 
     <WorkspaceCreateDirectoryDialog
@@ -348,9 +365,11 @@ const isAppleShortcutPlatform = typeof navigator !== 'undefined'
 const MINI_WORKSTATION_TOGGLE_SHORTCUT_LABEL = isAppleShortcutPlatform ? '⌘.' : 'Ctrl+.'
 const DocView = defineAsyncComponent(() => import('../components/DocView.vue'))
 const BoardView = defineAsyncComponent(() => import('../components/BoardView.vue'))
+const WorkflowView = defineAsyncComponent(() => import('../components/WorkflowView.vue'))
 const PackageDetailView = defineAsyncComponent(() => import('../components/PackageDetailView.vue'))
 const MiniWorkstation = defineAsyncComponent(() => import('../components/MiniWorkstation.vue'))
 const CreateBoardDialog = defineAsyncComponent(() => import('../components/CreateBoardDialog.vue'))
+const CreateWorkflowDialog = defineAsyncComponent(() => import('../components/CreateWorkflowDialog.vue'))
 const PublishToHubDialog = defineAsyncComponent(() => import('@/shared/components/PublishToHubDialog.vue'))
 const PushToHubDialog = defineAsyncComponent(() => import('@/shared/components/PushToHubDialog.vue'))
 const PullFromHubDialog = defineAsyncComponent(() => import('@/shared/components/PullFromHubDialog.vue'))
@@ -868,6 +887,7 @@ const afterCreateNode = useAfterCreateNode({
   handleNodeClick
 })
 const afterCreateBoard = afterCreateNode
+const afterCreateWorkflow = afterCreateNode
 
 const {
   createDocsDialogVisible,
@@ -876,11 +896,15 @@ const {
   createDocsForm,
   createBoardDialogVisible,
   currentBoardParentNode,
+  createWorkflowDialogVisible,
+  currentWorkflowParentNode,
   handleCreateDocs,
   handleSubmitCreateDocs,
   handleCloseCreateDocsDialog,
   handleCreateBoard,
+  handleCreateWorkflow,
   handleDeleteBoard,
+  handleDeleteWorkflow,
   handleDeleteDoc,
   handleDocDeleted,
   handleDeleteDirectory,

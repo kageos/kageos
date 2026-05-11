@@ -54,6 +54,7 @@ const typeLabel = computed(() => {
   const t = props.node?.type
   if (t === 'board') return '讨论区'
   if (t === 'docs') return '文档'
+  if (t === 'workflow') return '工作流'
   if (t === 'package') return '目录'
   return '节点'
 })

@@ -381,6 +381,31 @@ func (s *ServiceTree) CreateBoard(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
+// CreateWorkflowNode 创建工作流（workflow）类型节点
+// @Summary 创建工作流节点
+// @Description 创建 workflow 类型的服务树节点，实际工作流定义由 workflow-server 按 full_code_path 维护
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body dto.CreateWorkflowNodeReq true "创建工作流节点请求"
+// @Success 200 {object} dto.CreateWorkflowNodeResp
+// @Router /workspace/api/v1/workflows/crud [post]
+func (s *ServiceTree) CreateWorkflowNode(c *gin.Context) {
+	var req dto.CreateWorkflowNodeReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.CreateWorkflowNode(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, "创建工作流节点失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, resp)
+}
+
 // UpdateBoard 更新版块节点
 // @Summary 更新版块
 // @Param id path int true "版块ID"
@@ -407,6 +432,32 @@ func (s *ServiceTree) UpdateBoard(c *gin.Context) {
 	response.OkWithMessage(c, "更新成功")
 }
 
+// UpdateWorkflowNode 更新工作流节点
+// @Summary 更新工作流节点
+// @Param id path int true "工作流节点ID"
+// @Param request body dto.UpdateWorkflowNodeReq true "更新工作流节点请求"
+// @Router /workspace/api/v1/workflows/crud/{id} [put]
+func (s *ServiceTree) UpdateWorkflowNode(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.FailWithMessage(c, "参数错误: 无效的ID")
+		return
+	}
+	var req dto.UpdateWorkflowNodeReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	req.ID = id
+	ctx := contextx.ToContext(c)
+	if err := s.serviceTreeService.UpdateWorkflowNode(ctx, &req); err != nil {
+		response.FailWithMessage(c, "更新工作流节点失败: "+err.Error())
+		return
+	}
+	response.OkWithMessage(c, "更新成功")
+}
+
 // DeleteBoard 删除版块节点（会先删除该版块下全部帖子）
 // @Summary 删除版块
 // @Param id path int true "版块ID"
@@ -421,6 +472,25 @@ func (s *ServiceTree) DeleteBoard(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	if err := s.serviceTreeService.DeleteBoard(ctx, id); err != nil {
 		response.FailWithMessage(c, "删除版块失败: "+err.Error())
+		return
+	}
+	response.OkWithMessage(c, "删除成功")
+}
+
+// DeleteWorkflowNode 删除工作流节点
+// @Summary 删除工作流节点
+// @Param id path int true "工作流节点ID"
+// @Router /workspace/api/v1/workflows/crud/{id} [delete]
+func (s *ServiceTree) DeleteWorkflowNode(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.FailWithMessage(c, "参数错误: 无效的ID")
+		return
+	}
+	ctx := contextx.ToContext(c)
+	if err := s.serviceTreeService.DeleteWorkflowNode(ctx, id); err != nil {
+		response.FailWithMessage(c, "删除工作流节点失败: "+err.Error())
 		return
 	}
 	response.OkWithMessage(c, "删除成功")

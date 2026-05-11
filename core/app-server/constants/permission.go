@@ -31,6 +31,8 @@ const (
 	ResourceTypeDocs = "docs"
 	// ResourceTypeBoard 讨论区/板块类型
 	ResourceTypeBoard = "board"
+	// ResourceTypeWorkflow 工作流类型
+	ResourceTypeWorkflow = "workflow"
 )
 
 // ========================================
@@ -172,6 +174,23 @@ const (
 )
 
 // ========================================
+// 工作流权限常量
+// ========================================
+
+const (
+	// PermissionWorkflowRead 查看工作流
+	PermissionWorkflowRead = "workflow:read"
+	// PermissionWorkflowWrite 编辑工作流草稿
+	PermissionWorkflowWrite = "workflow:write"
+	// PermissionWorkflowUpdate 发布/更新工作流
+	PermissionWorkflowUpdate = "workflow:update"
+	// PermissionWorkflowDelete 删除工作流
+	PermissionWorkflowDelete = "workflow:delete"
+	// PermissionWorkflowAdmin 工作流管理员（拥有所有权限）
+	PermissionWorkflowAdmin = "workflow:admin"
+)
+
+// ========================================
 // 工具函数
 // ========================================
 
@@ -208,6 +227,7 @@ func GetAllResourceTypes() []string {
 		ResourceTypeChart,
 		ResourceTypeDocs,
 		ResourceTypeBoard,
+		ResourceTypeWorkflow,
 	}
 }
 
@@ -281,6 +301,14 @@ func GetPermissionsByResourceType(resourceType string) []string {
 			PermissionBoardUpdate,
 			PermissionBoardDelete,
 			PermissionBoardAdmin,
+		}
+	case ResourceTypeWorkflow:
+		return []string{
+			PermissionWorkflowRead,
+			PermissionWorkflowWrite,
+			PermissionWorkflowUpdate,
+			PermissionWorkflowDelete,
+			PermissionWorkflowAdmin,
 		}
 	default:
 		return []string{}

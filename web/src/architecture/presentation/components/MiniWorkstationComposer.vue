@@ -184,7 +184,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, type Component } from 'vue'
-import { ArrowDown, Document, Paperclip, Timer, VideoPause } from '@element-plus/icons-vue'
+import { ArrowDown, Connection, Document, Paperclip, Timer, VideoPause } from '@element-plus/icons-vue'
 import type { LLMInfo } from '@/api/agent'
 import type { WorkspaceChatMessageFile } from '@/api/workspace'
 import { searchUsersFuzzy } from '@/api/user'
@@ -491,6 +491,7 @@ function getResourceTypeLabel(resource: ResourceSearchResult) {
   if (resource.type === 'package') return '目录'
   if (resource.type === 'docs') return '文档'
   if (resource.type === 'board') return '讨论区'
+  if (resource.type === 'workflow') return '工作流'
   if (resource.template_type === 'table') return '表格工具'
   if (resource.template_type === 'form') return '表单工具'
   if (resource.template_type === 'chart') return '图表工具'
@@ -506,6 +507,9 @@ function getResourceIconMeta(resource: ResourceSearchResult): Pick<MiniMentionOp
   }
   if (resource.type === 'board') {
     return { iconSrc: '/讨论区.svg', iconClass: 'board-icon-img' }
+  }
+  if (resource.type === 'workflow') {
+    return { iconComponent: Connection, iconClass: 'workflow-icon' }
   }
   if (resource.template_type === 'form') {
     return { iconSrc: '/service-tree/编辑.svg', iconClass: 'form-icon-img' }
@@ -799,6 +803,9 @@ function cancelMentionClose() {
 }
 .mini-mention-icon.function-icon {
   color: #6366f1;
+}
+.mini-mention-icon.workflow-icon {
+  color: #0f766e;
 }
 .mini-mention-icon.package-icon-img,
 .mini-mention-icon.docs-icon-img,

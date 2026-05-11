@@ -10,6 +10,7 @@ const (
 	ResourceTypeChart     = "chart"     // 图表函数
 	ResourceTypeDocs      = "docs"      // 文档
 	ResourceTypeBoard     = "board"     // 讨论区/板块
+	ResourceTypeWorkflow  = "workflow"  // 工作流
 	ResourceTypeApp       = "app"       // 工作空间
 )
 
@@ -32,6 +33,8 @@ func GetResourceType(nodeType string, templateType string) string {
 		return ResourceTypeDocs
 	} else if nodeType == servicetree.TypeBoard {
 		return ResourceTypeBoard
+	} else if nodeType == servicetree.TypeWorkflow {
+		return ResourceTypeWorkflow
 	} else if nodeType == ResourceTypeApp {
 		return ResourceTypeApp
 	}
@@ -58,6 +61,9 @@ func GetActionsForResourceType(resourceType string) []string {
 	case ResourceTypeBoard:
 		// Board 讨论区支持 read、write、update、delete、admin
 		return BuildActionCodes(ResourceTypeBoard, ActionRead, ActionWrite, ActionUpdate, ActionDelete, ActionAdmin)
+	case ResourceTypeWorkflow:
+		// Workflow 支持查看、编辑草稿、发布/更新、删除、管理
+		return BuildActionCodes(ResourceTypeWorkflow, ActionRead, ActionWrite, ActionUpdate, ActionDelete, ActionAdmin)
 	case ResourceTypeApp:
 		return BuildActionCodes(ResourceTypeApp, ActionRead, ActionWrite, ActionUpdate, ActionDelete, ActionAdmin)
 	default:
@@ -103,6 +109,7 @@ func GetAllResourceTypes() []string {
 		ResourceTypeChart,
 		ResourceTypeDocs,
 		ResourceTypeBoard,
+		ResourceTypeWorkflow,
 		ResourceTypeApp,
 	}
 }

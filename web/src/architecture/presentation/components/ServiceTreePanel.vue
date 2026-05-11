@@ -137,6 +137,14 @@
               class="node-icon board-icon-img"
               :class="getNodeIconClass(data)"
             />
+            <!-- workflow 类型：工作流图标 -->
+            <el-icon
+              v-else-if="data.type === 'workflow'"
+              class="node-icon"
+              :class="getNodeIconClass(data)"
+            >
+              <Connection />
+            </el-icon>
             <!-- 其他类型：显示 fx 文本 -->
             <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
             <span class="node-label" :class="{ 'no-permission': !hasAnyPermissionForNode(data) }">{{ node.label }}</span>
@@ -162,7 +170,7 @@
             
             <!-- ⭐ 待审批数量 badge - 仅管理员可见（package 和 function 类型都显示） -->
             <el-badge
-              v-if="(data.type === 'package' || data.type === 'function') && isAdmin(data) && data.pending_count && data.pending_count > 0"
+              v-if="(data.type === 'package' || data.type === 'function' || data.type === 'workflow') && isAdmin(data) && data.pending_count && data.pending_count > 0"
               :value="data.pending_count"
               :max="99"
               class="pending-count-badge"
@@ -225,7 +233,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { MoreFilled, Document, Download, Delete, Search, Select, Close } from '@element-plus/icons-vue'
+import { MoreFilled, Document, Download, Delete, Search, Select, Close, Connection } from '@element-plus/icons-vue'
 import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/shared/components/icons/TableIcon.vue'
 import FormIcon from '@/shared/components/icons/FormIcon.vue'
@@ -233,7 +241,7 @@ import { ElMessageBox, ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import { isRootNode } from '@/utils/tree-utils'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
-import { exportCapabilityBundle, installCapabilityBundle, updatePackage, updateServiceTreeFunction, updateDocs } from '@/api/service-tree'
+import { exportCapabilityBundle, installCapabilityBundle, updatePackage, updateWorkflowNode } from '@/api/service-tree'
 import { getRuntimeStateSummary, type RuntimeStateSummary } from '@/api/state'
 import { downloadCapabilityBundleFile, parseCapabilityBundleJson } from '@/utils/directoryBundleFile'
 import { 
@@ -243,6 +251,7 @@ import {
   DirectoryPermission,
   DocsPermission,
   BoardPermission,
+  WorkflowPermission,
   FunctionPermission,
   FormPermission,
   ChartPermission,
@@ -273,8 +282,10 @@ interface Emits {
   (e: 'create-directory', parentNode?: ServiceTree): void
   (e: 'create-docs', parentNode?: ServiceTree): void
   (e: 'create-board', parentNode?: ServiceTree): void
+  (e: 'create-workflow', parentNode?: ServiceTree): void
   (e: 'delete-doc', node: ServiceTree): void
   (e: 'delete-board', node: ServiceTree): void
+  (e: 'delete-workflow', node: ServiceTree): void
   (e: 'delete-function', node: ServiceTree): void  // 删除函数
   (e: 'delete-directory', node: ServiceTree): void  // 删除目录（非根 package）
   (e: 'bulk-delete', nodes: ServiceTree[]): void
@@ -414,8 +425,8 @@ const getRuntimeSummaryTitle = (node: ServiceTree): string => {
 
 // 重命名目录
 const handleRename = async (node: ServiceTree) => {
-  if (node.type !== 'package') {
-    ElMessage.warning('只能重命名目录')
+  if (node.type !== 'package' && node.type !== 'workflow') {
+    ElMessage.warning('只能重命名目录或工作流')
     return
   }
   
@@ -448,10 +459,8 @@ const handleRename = async (node: ServiceTree) => {
       // ⭐ 根据节点类型调用对应的更新接口
       if (node.type === 'package') {
         await updatePackage(node.id, { name: trimmedName })
-      } else if (node.type === 'function') {
-        await updateServiceTreeFunction(node.id, { name: trimmedName })
-      } else if (node.type === 'docs') {
-        await updateDocs(node.id, { name: trimmedName })
+      } else if (node.type === 'workflow') {
+        await updateWorkflowNode(node.id, { name: trimmedName })
       } else {
         ElMessage.warning('不支持的节点类型')
         return
@@ -524,6 +533,10 @@ const getDefaultPermissionApplyAction = (node: ServiceTree): string => {
 
   if (node.type === 'board') {
     return BoardPermission.read
+  }
+
+  if (node.type === 'workflow') {
+    return WorkflowPermission.read
   }
 
   return FunctionPermission.read
@@ -665,6 +678,9 @@ function canDeleteNode(node: ServiceTree): boolean {
   }
   if (node.type === 'board') {
     return hasPermission(node, DirectoryPermission.delete)
+  }
+  if (node.type === 'workflow') {
+    return hasPermission(node, WorkflowPermission.delete)
   }
   return false
 }
@@ -852,6 +868,9 @@ const handleNodeAction = (command: ServiceTreeNodeActionCommand, data: ServiceTr
     case 'create-board':
       emit('create-board', data)
       return
+    case 'create-workflow':
+      emit('create-workflow', data)
+      return
     case 'rename':
       handleRename(data)
       return
@@ -879,6 +898,9 @@ const handleNodeAction = (command: ServiceTreeNodeActionCommand, data: ServiceTr
       return
     case 'delete-board':
       emit('delete-board', data)
+      return
+    case 'delete-workflow':
+      emit('delete-workflow', data)
       return
     case 'delete-directory':
       emit('delete-directory', data)
@@ -947,6 +969,8 @@ const getNodeIconClass = (data: ServiceTree) => {
     return 'docs-icon'
   } else if (data.type === 'board') {
     return 'board-icon'
+  } else if (data.type === 'workflow') {
+    return 'workflow-icon'
   }
   return 'function-icon'
 }
@@ -1147,6 +1171,11 @@ defineExpose({
       width: 16px;
       height: 16px;
       object-fit: contain;
+      opacity: 0.9;
+    }
+
+    &.workflow-icon {
+      color: #0f766e;
       opacity: 0.9;
     }
     

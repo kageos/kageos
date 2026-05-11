@@ -74,6 +74,10 @@ func (s *ServiceTreeService) CreateFunction(ctx context.Context, req *dto.Create
 	return s.functionService.CreateFunction(ctx, req)
 }
 
+func (s *ServiceTreeService) CreateWorkflowNode(ctx context.Context, req *dto.CreateWorkflowNodeReq) (*dto.CreateWorkflowNodeResp, error) {
+	return s.specialNodeService.CreateWorkflowNode(ctx, req)
+}
+
 func (s *ServiceTreeService) GetAppWithServiceTree(ctx context.Context, req *dto.GetAppWithServiceTreeReq) (*dto.GetAppWithServiceTreeResp, error) {
 	return s.queryView.GetAppWithServiceTree(ctx, req)
 }
@@ -151,4 +155,12 @@ func (s *ServiceTreeService) SearchFunctions(ctx context.Context, req *dto.Searc
 
 func (s *ServiceTreeService) SearchResources(ctx context.Context, req *dto.SearchResourcesReq) (*dto.SearchResourcesResp, error) {
 	return s.searchService.SearchResources(ctx, req)
+}
+
+func (s *ServiceTreeService) UpdateWorkflowNode(ctx context.Context, req *dto.UpdateWorkflowNodeReq) error {
+	return s.mutationService.UpdateWorkflowNode(ctx, req)
+}
+
+func (s *ServiceTreeService) DeleteWorkflowNode(ctx context.Context, id int64) error {
+	return s.mutationService.DeleteWorkflowNode(ctx, id)
 }

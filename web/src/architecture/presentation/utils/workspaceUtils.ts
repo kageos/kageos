@@ -13,8 +13,8 @@ export function findNodeByPath(tree: ServiceTreeType[], path: string): ServiceTr
     const nodePath = (node.full_code_path || '').replace(/^\/+/, '')
     const targetPath = path.replace(/^\/+/, '')
     
-    // 🔥 支持函数、目录（包括根节点）和文档节点
-    if (nodePath === targetPath && (node.type === 'function' || node.type === 'package' || node.type === 'docs' || node.type === 'board')) {
+    // 🔥 支持函数、目录（包括根节点）、文档、讨论区和工作流节点
+    if (nodePath === targetPath && (node.type === 'function' || node.type === 'package' || node.type === 'docs' || node.type === 'board' || node.type === 'workflow')) {
       return node
     }
     if (node.children && node.children.length > 0) {
@@ -79,4 +79,3 @@ export function getDirectChildFunctionCodes(node: ServiceTreeType | null): strin
   // 使用 Set 去重，然后转回数组
   return Array.from(new Set(codes))
 }
-

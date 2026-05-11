@@ -13,6 +13,7 @@ const (
 	ServiceTreeTypeFunction = servicetree.TypeFunction
 	ServiceTreeTypeDocs     = servicetree.TypeDocs
 	ServiceTreeTypeBoard    = servicetree.TypeBoard // 版块/讨论区，下挂多条帖子（board_posts）
+	ServiceTreeTypeWorkflow = servicetree.TypeWorkflow
 )
 
 // ServiceTree 表示服务树模型，一个app下可以有无数个package，一个package下面有无数个function，ServiceTree是一个抽象的树干，这个树干上可以挂载各种实体
@@ -21,7 +22,7 @@ type ServiceTree struct {
 	models.Base
 	Name         string `json:"name"`
 	Code         string `json:"code"`
-	Type         string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), docs(文档), api(API接口), servicenpm run(服务), module(模块)
+	Type         string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), docs(文档), board(讨论区), workflow(工作流)
 	Description  string `json:"description,omitempty"`
 	Tags         string `json:"tags"`
 	Admins       string `json:"admins" gorm:"type:varchar(150);comment:节点管理员列表，逗号分隔的用户名（如 user1,user2,user3）"` // 节点管理员列表
@@ -73,6 +74,11 @@ func (st *ServiceTree) IsDocs() bool {
 // IsBoard 判断是否为 board 类型（版块/讨论区）
 func (st *ServiceTree) IsBoard() bool {
 	return st.Type == ServiceTreeTypeBoard
+}
+
+// IsWorkflow 判断是否为 workflow 类型
+func (st *ServiceTree) IsWorkflow() bool {
+	return st.Type == ServiceTreeTypeWorkflow
 }
 
 // HasRefID 判断是否有引用ID
@@ -293,6 +299,8 @@ func (st *ServiceTree) GetHierarchyType() string {
 		return servicetree.HierarchyTypePackage
 	case ServiceTreeTypeFunction:
 		return servicetree.HierarchyTypeFunction
+	case ServiceTreeTypeWorkflow:
+		return servicetree.HierarchyTypeWorkflow
 	default:
 		return servicetree.HierarchyTypeUnknown
 	}

@@ -123,6 +123,15 @@ export function useWorkspaceNodeNavigation(options: UseWorkspaceNodeNavigationOp
       return
     }
 
+    if (serviceTree.type === 'workflow') {
+      const targetPath = buildWorkspacePath(serviceTree.full_code_path || '')
+      options.triggerNodeClick(serviceTree)
+      if (options.route.path !== targetPath) {
+        handlePackageNodeRoute(serviceTree, 'workspace-node-click-workflow')
+      }
+      return
+    }
+
     options.triggerNodeClick(serviceTree)
   }
 
@@ -141,6 +150,10 @@ export function useWorkspaceNodeNavigation(options: UseWorkspaceNodeNavigationOp
     }
     if (node.type === 'board') {
       handlePackageNodeRoute(node, 'breadcrumb-node-click-board')
+      return
+    }
+    if (node.type === 'workflow') {
+      handlePackageNodeRoute(node, 'breadcrumb-node-click-workflow')
       return
     }
     options.triggerNodeClick(node)

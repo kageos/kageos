@@ -90,13 +90,13 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { CircleCheck, CircleClose, EditPen, Key, User, View } from '@element-plus/icons-vue'
+import { CircleCheck, CircleClose, Connection, EditPen, Key, User, View } from '@element-plus/icons-vue'
 import TableIcon from '@/shared/components/icons/TableIcon.vue'
 import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
 import type { Role } from '@/api/role'
 
 type RoleVisualTone = 'view' | 'edit' | 'admin' | 'other'
-type RoleResourceType = 'directory' | 'table' | 'form' | 'chart' | 'docs' | 'board' | 'app'
+type RoleResourceType = 'directory' | 'table' | 'form' | 'chart' | 'docs' | 'board' | 'workflow' | 'app'
 
 type RoleActionConfig = {
   value: string
@@ -117,7 +117,7 @@ const emit = defineEmits<{
   (e: 'select'): void
 }>()
 
-const resourceTypeOrder: RoleResourceType[] = ['app', 'directory', 'table', 'form', 'chart', 'docs', 'board']
+const resourceTypeOrder: RoleResourceType[] = ['app', 'directory', 'table', 'form', 'chart', 'docs', 'board', 'workflow']
 
 const resourceTypeLabels: Record<RoleResourceType, string> = {
   app: '工作空间',
@@ -127,6 +127,7 @@ const resourceTypeLabels: Record<RoleResourceType, string> = {
   chart: '图表函数',
   docs: '文档',
   board: '讨论区',
+  workflow: '工作流',
 }
 
 const permissionConfig: Record<RoleResourceType, RoleActionConfig[]> = {
@@ -165,6 +166,13 @@ const permissionConfig: Record<RoleResourceType, RoleActionConfig[]> = {
     { value: 'board:update', label: '更新帖子' },
     { value: 'board:delete', label: '删除帖子' },
     { value: 'board:admin', label: '所有权', description: '可分配权限、完整管理、支持迭代。' },
+  ],
+  workflow: [
+    { value: 'workflow:read', label: '查看工作流' },
+    { value: 'workflow:write', label: '编辑工作流' },
+    { value: 'workflow:update', label: '发布工作流' },
+    { value: 'workflow:delete', label: '删除工作流' },
+    { value: 'workflow:admin', label: '所有权', description: '可分配权限、完整管理、支持迭代。' },
   ],
   app: [
     { value: 'app:read', label: '查看工作空间' },
@@ -298,6 +306,8 @@ function getResourceTypeIconComponent(resourceType: RoleResourceType) {
   switch (resourceType) {
     case 'chart':
       return ChartIcon
+    case 'workflow':
+      return Connection
     case 'table':
     default:
       return TableIcon
@@ -314,6 +324,8 @@ function getResourceTypeIconClass(resourceType: RoleResourceType): string {
       return 'docs-icon-img'
     case 'board':
       return 'board-icon-img'
+    case 'workflow':
+      return 'workflow-icon'
     case 'app':
       return 'app-icon-img'
     case 'table':
@@ -463,6 +475,10 @@ function getResourceTypeIconClass(resourceType: RoleResourceType): string {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
+}
+
+.resource-icon.workflow-icon {
+  color: #0f766e;
 }
 
 .role-action-grid {

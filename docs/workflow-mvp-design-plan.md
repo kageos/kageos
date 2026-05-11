@@ -407,6 +407,7 @@ MVP 可选，但建议保留模型设计。
 ```text
 POST   /workflow/api/v1/workflows
 GET    /workflow/api/v1/workflows
+GET    /workflow/api/v1/workflows/by_path?full_code_path=/user/app/foo.workflow
 GET    /workflow/api/v1/workflows/:id
 PUT    /workflow/api/v1/workflows/:id
 POST   /workflow/api/v1/workflows/:id/publish
@@ -416,7 +417,7 @@ GET    /workflow/api/v1/runs/:run_id/steps
 POST   /workflow/api/v1/runs/:run_id/cancel
 ```
 
-MVP 可以先不接 ServiceTree 页面，但 API 设计要能被前端、Agent tool、Hub 同时复用。
+前端接入 ServiceTree 后，`by_path` 是关键解析接口：树节点只需要稳定保存 `full_code_path`，真实 workflow 定义由 workflow-server 维护。
 
 ## 10. 前端 MVP
 
@@ -575,6 +576,14 @@ workflow 应该能作为 Hub 资产发布。
 
 - 用户不写 JSON 也能创建一个串联 Form 的 workflow。
 - 用户能手动运行并看到每一步结果。
+
+当前实现进度（2026-05-12）：
+
+- 已把 `workflow` 作为 ServiceTree 一级资源类型接入，支持在目录右键创建工作流节点。
+- 已接入工作区路由，点击 `workflow` 节点会渲染 `WorkflowView`。
+- 已提供 JSON 定义编辑、保存草稿、发布、运行和步骤结果展示。
+- 已接入全站资源搜索、权限资源类型、角色管理的 workflow 权限点。
+- 暂未做 Form 选择器和字段映射 UI；下一步应在当前 JSON 定义之上加结构化节点编辑面板，而不是替换底层 definition。
 
 ### Phase 4：Agent 与 Hub 集成
 

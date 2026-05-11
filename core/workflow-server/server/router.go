@@ -19,6 +19,7 @@ func (s *Server) setupRoutes() {
 	api.Use(middleware2.JWTAuth())
 	api.POST("/workflows", s.createWorkflow)
 	api.GET("/workflows", s.listWorkflows)
+	api.GET("/workflows/by_path", s.getWorkflowByPath)
 	api.GET("/workflows/:id", s.getWorkflow)
 	api.PUT("/workflows/:id", s.updateWorkflow)
 	api.POST("/workflows/:id/publish", s.publishWorkflow)
@@ -68,6 +69,11 @@ func (s *Server) getWorkflow(c *gin.Context) {
 		return
 	}
 	resp, err := s.service.GetWorkflow(contextx.ToContext(c), id)
+	writeResult(c, resp, err)
+}
+
+func (s *Server) getWorkflowByPath(c *gin.Context) {
+	resp, err := s.service.GetWorkflowByFullCodePath(contextx.ToContext(c), c.Query("full_code_path"))
 	writeResult(c, resp, err)
 }
 

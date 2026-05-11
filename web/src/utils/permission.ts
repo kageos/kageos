@@ -90,6 +90,7 @@ import {
   ChartPermission,
   DocsPermission,
   BoardPermission,
+  WorkflowPermission,
   // 资源类型和操作类型
   ResourceType,
   ActionType,
@@ -103,7 +104,7 @@ import {
   type ActionTypeString,
 } from '@/constants/permissions'
 
-export type PermissionResourceType = 'function' | 'directory' | 'app' | 'docs' | 'board'
+export type PermissionResourceType = 'function' | 'directory' | 'app' | 'docs' | 'board' | 'workflow'
 
 /**
  * 获取权限的详细说明
@@ -254,6 +255,11 @@ export function hasPermission(node: ServiceTree | undefined, action: string): bo
       return true
     }
   }
+  if (action.startsWith('workflow:')) {
+    if (permissions['workflow:admin'] === true) {
+      return true
+    }
+  }
   // ⭐ function:admin 包含所有 function 权限
   if (action.startsWith('function:')) {
     if (permissions['function:admin'] === true) {
@@ -362,6 +368,12 @@ export function getPermissionDisplayName(action: string): string {
     'board:update': '更新帖子',
     'board:delete': '删除帖子',
     'board:admin': '所有权',
+    // Workflow 操作
+    'workflow:read': '查看工作流',
+    'workflow:write': '编辑工作流',
+    'workflow:update': '发布工作流',
+    'workflow:delete': '删除工作流',
+    'workflow:admin': '所有权',
     // ⭐ 兼容旧格式（function:read、function:write 等）
     'function:read': '查看函数',
     'function:write': '写入函数',
@@ -414,6 +426,11 @@ export function getPermissionShortName(action: string): string {
     'board:update': 'update权限',
     'board:delete': 'delete权限',
     'board:admin': 'admin权限',
+    'workflow:read': 'read权限',
+    'workflow:write': 'write权限',
+    'workflow:update': 'update权限',
+    'workflow:delete': 'delete权限',
+    'workflow:admin': 'admin权限',
     // ⭐ 兼容旧格式（function:read、function:write 等）
     'function:read': 'read权限',
     'function:write': 'write权限',
@@ -564,6 +581,16 @@ export function getAvailablePermissions(
     permissions.push(
       { action: 'board:admin', displayName: '所有权', isMinimal: false, isManage: true }
     )
+  } else if (resourceType === 'workflow') {
+    permissions.push(
+      { action: 'workflow:read', displayName: '查看工作流', isMinimal: true },
+      { action: 'workflow:write', displayName: '编辑工作流', isMinimal: false },
+      { action: 'workflow:update', displayName: '发布工作流', isMinimal: false },
+      { action: 'workflow:delete', displayName: '删除工作流', isMinimal: false }
+    )
+    permissions.push(
+      { action: 'workflow:admin', displayName: '所有权', isMinimal: false, isManage: true }
+    )
   } else {
     // 未知类型，返回通用权限
     permissions.push(
@@ -606,6 +633,7 @@ export {
   ChartPermission,
   DocsPermission,
   BoardPermission,
+  WorkflowPermission,
   // 资源类型和操作类型
   ResourceType,
   ActionType,
@@ -719,14 +747,16 @@ export function getPermissionScopes(
     resourcePath,
     resourceType: resourceType || (parsed.isFunction ? 'function' : parsed.isDirectory ? 'directory' : 'app'),
     resourceName: parsed.functionName || parsed.directoryPath?.split('/').pop() || parsed.app || '当前资源',
-    displayName: parsed.isFunction 
+    displayName: resourceType === 'workflow'
+      ? `工作流：${parsed.functionName || parsed.directoryPath?.split('/').pop() || resourcePath}`
+      : parsed.isFunction
       ? `函数：${parsed.functionName}` 
       : parsed.isDirectory 
       ? `目录：${parsed.directoryPath}` 
       : `工作空间：${parsed.app}`,
     permissions: currentPermissions,
-    quickSelect: parsed.isFunction ? {
-      label: '申请此函数的全部权限',
+    quickSelect: (parsed.isFunction || resourceType === 'workflow') ? {
+      label: resourceType === 'workflow' ? '申请此工作流的全部权限' : '申请此函数的全部权限',
       actions: currentPermissions.map(p => p.action)
     } : undefined,
   })

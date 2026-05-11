@@ -241,6 +241,7 @@ type FormSubmitClient interface {
 ```text
 POST   /workflow/api/v1/workflows
 GET    /workflow/api/v1/workflows
+GET    /workflow/api/v1/workflows/by_path?full_code_path=/user/app/foo.workflow
 GET    /workflow/api/v1/workflows/:id
 PUT    /workflow/api/v1/workflows/:id
 POST   /workflow/api/v1/workflows/:id/publish

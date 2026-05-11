@@ -91,6 +91,11 @@
                         class="node-icon board-icon-img"
                         :class="getNodeIconClass(data)"
                       />
+                      <Connection
+                        v-else-if="data.type === 'workflow'"
+                        class="node-icon"
+                        :class="getNodeIconClass(data)"
+                      />
                       <!-- 其他类型：显示 fx 文本 -->
                       <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
                       <span class="node-label" :class="{ 'no-permission': !hasAnyPermissionForNode(data) }">{{ node.label }}</span>
@@ -364,7 +369,7 @@
 import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElText, ElIcon, ElTree, ElDivider } from 'element-plus'
-import { Document, Folder, Lock, OfficeBuilding, UserFilled, User } from '@element-plus/icons-vue'
+import { Connection, Document, Folder, Lock, OfficeBuilding, UserFilled, User } from '@element-plus/icons-vue'
 import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/shared/components/icons/TableIcon.vue'
 import FormIcon from '@/shared/components/icons/FormIcon.vue'
@@ -471,7 +476,7 @@ const selectedRoleId = ref<number | null>(null) // 选中的角色ID
 const rolesLoading = ref(false) // 加载角色列表的状态
 const selectedRole = computed(() => availableRoles.value.find(role => role.id === selectedRoleId.value) || null)
 
-type RolePreviewResourceType = 'directory' | 'table' | 'form' | 'chart' | 'docs' | 'board' | 'app'
+type RolePreviewResourceType = 'directory' | 'table' | 'form' | 'chart' | 'docs' | 'board' | 'workflow' | 'app'
 
 // 用户选择的资源路径（用于申请权限的资源）
 // ⭐ 使用数组而不是 Set，确保 Vue 响应式系统能正确追踪变化
@@ -731,6 +736,8 @@ const getNodeIconClass = (data: ServiceTree) => {
     return 'docs-icon'
   } else if (data.type === 'board') {
     return 'board-icon'
+  } else if (data.type === 'workflow') {
+    return 'workflow-icon'
   }
   return 'function-icon'
 }
@@ -971,6 +978,10 @@ const currentRoleFallbackResourceType = computed<RolePreviewResourceType>(() => 
       return 'board'
     }
 
+    if (node.type === 'workflow') {
+      return 'workflow'
+    }
+
     const pathDepth = node.full_code_path.split('/').filter(Boolean).length
     return pathDepth <= 2 ? 'app' : 'directory'
   }
@@ -988,6 +999,7 @@ const getRolePreviewResourceLabel = (resourceType: RolePreviewResourceType): str
     chart: '图表函数',
     docs: '文档',
     board: '讨论区',
+    workflow: '工作流',
   }
   return labels[resourceType]
 }
@@ -1021,6 +1033,8 @@ const getRolePreviewIconComponent = (resourceType: RolePreviewResourceType) => {
   switch (resourceType) {
     case 'chart':
       return ChartIcon
+    case 'workflow':
+      return Connection
     case 'table':
     default:
       return TableIcon
@@ -1037,6 +1051,8 @@ const getRolePreviewIconClass = (resourceType: RolePreviewResourceType): string 
       return 'docs-icon-img'
     case 'board':
       return 'board-icon-img'
+    case 'workflow':
+      return 'workflow-icon'
     case 'app':
       return 'app-icon-img'
     case 'table':
@@ -1058,7 +1074,7 @@ const loadResourcePermissions = async (resourcePath: string, defaultAction?: str
     return
   }
 
-  let resourceType: 'function' | 'directory' | 'app' | 'board' | 'docs' | undefined
+  let resourceType: 'function' | 'directory' | 'app' | 'board' | 'docs' | 'workflow' | undefined
   let templateType: string | undefined = urlTemplateType
 
   // 从服务树中查找节点
@@ -1076,6 +1092,8 @@ const loadResourcePermissions = async (resourcePath: string, defaultAction?: str
       resourceType = 'board'
     } else if (node.type === 'docs') {
       resourceType = 'docs'
+    } else if (node.type === 'workflow') {
+      resourceType = 'workflow'
     }
   } else {
     // 如果找不到节点，根据路径长度判断
@@ -2372,6 +2390,11 @@ const clearRoleSelection = () => {
                     width: 16px;
                     height: 16px;
                     object-fit: contain;
+                    opacity: 0.9;
+                  }
+
+                  &.workflow-icon {
+                    color: #0f766e;
                     opacity: 0.9;
                   }
                   

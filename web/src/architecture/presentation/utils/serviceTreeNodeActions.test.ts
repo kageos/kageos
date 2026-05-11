@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ServiceTree } from '@/types'
-import { DirectoryPermission, TablePermission } from '@/utils/permission'
+import { DirectoryPermission, TablePermission, WorkflowPermission } from '@/utils/permission'
 import {
   buildServiceTreeNodeActionTestId,
   getServiceTreeNodeActions,
@@ -44,6 +44,7 @@ describe('serviceTreeNodeActions', () => {
       'create-directory',
       'create-docs',
       'create-board',
+      'create-workflow',
       'open-workstation',
       'rename',
       'copy',
@@ -95,6 +96,19 @@ describe('serviceTreeNodeActions', () => {
     }))
 
     expect(commands(actions)).toEqual(['apply-permission', 'delete-function'])
+  })
+
+  it('shows workflow metadata actions for workflow nodes', () => {
+    const actions = getServiceTreeNodeActions(node({
+      type: 'workflow',
+      full_code_path: '/user/app/tools/import.workflow',
+      permissions: {
+        [WorkflowPermission.update]: true,
+        [WorkflowPermission.delete]: true
+      }
+    }))
+
+    expect(commands(actions)).toEqual(['apply-permission', 'rename', 'delete-workflow'])
   })
 
   it('builds stable test ids', () => {

@@ -120,14 +120,39 @@ export function createBoard(data: CreateServiceTreeRequest) {
   return post<ServiceTree>('/workspace/api/v1/boards/crud', payload)
 }
 
+// ⭐ 创建 workflow 类型节点
+export function createWorkflowNode(data: CreateServiceTreeRequest) {
+  const payload = {
+    user: data.user,
+    app: data.app,
+    name: data.name,
+    code: data.code,
+    parent_full_code_path: data.parent_full_code_path || '',
+    description: data.description || '',
+    tags: data.tags || '',
+    admins: data.admins || ''
+  }
+  return post<ServiceTree>('/workspace/api/v1/workflows/crud', payload)
+}
+
 // ⭐ 更新 board 类型节点
 export function updateBoard(id: number, data: { name?: string; description?: string; tags?: string; admins?: string }) {
   return put(`/workspace/api/v1/boards/crud/${id}`, data)
 }
 
+// ⭐ 更新 workflow 类型节点
+export function updateWorkflowNode(id: number, data: { name?: string; description?: string; tags?: string; admins?: string }) {
+  return put(`/workspace/api/v1/workflows/crud/${id}`, data)
+}
+
 // ⭐ 删除 board 类型节点（会先删除该版块下全部帖子）
 export function deleteBoard(id: number) {
   return del(`/workspace/api/v1/boards/crud/${id}`)
+}
+
+// ⭐ 删除 workflow 类型节点
+export function deleteWorkflowNode(id: number) {
+  return del(`/workspace/api/v1/workflows/crud/${id}`)
 }
 
 export interface ServiceTreeDetailResp extends ServiceTree {
@@ -248,7 +273,7 @@ export function searchFunctions(req: SearchFunctionsReq) {
 }
 
 // 全站资源搜索
-export type SearchResourceType = 'all' | 'package' | 'function' | 'docs' | 'board'
+export type SearchResourceType = 'all' | 'package' | 'function' | 'docs' | 'board' | 'workflow'
 
 export interface SearchResourcesReq {
   user?: string
@@ -263,7 +288,7 @@ export interface ResourceSearchResult {
   id: number
   name: string
   code: string
-  type: 'package' | 'function' | 'docs' | 'board'
+  type: 'package' | 'function' | 'docs' | 'board' | 'workflow'
   full_code_path: string
   description?: string
   tags?: string

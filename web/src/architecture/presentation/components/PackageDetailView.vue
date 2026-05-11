@@ -480,8 +480,8 @@ function handleChildClick(child: ServiceTree): void {
         source: 'package-detail-child-click-package'
       })
     }
-  } else if ((child.type === 'board' || child.type === 'docs') && child.full_code_path) {
-    // 讨论区/文档节点：跳转到对应页面
+  } else if ((child.type === 'board' || child.type === 'docs' || child.type === 'workflow') && child.full_code_path) {
+    // 讨论区/文档/工作流节点：跳转到对应页面
     applicationService.triggerNodeClick(child)
     const targetPath = `/workspace${child.full_code_path}`
     if (route.path !== targetPath) {
@@ -490,7 +490,7 @@ function handleChildClick(child: ServiceTree): void {
         query: {},
         replace: true,
         preserveParams: { table: false, search: false, state: false, linkNavigation: false },
-        source: 'package-detail-child-click-board-docs'
+        source: 'package-detail-child-click-special'
       })
     } else {
       applicationService.triggerNodeClick(child)

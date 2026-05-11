@@ -33,6 +33,14 @@ func (r *WorkflowDefinitionRepository) GetByID(id int64) (*model.WorkflowDefinit
 	return &item, nil
 }
 
+func (r *WorkflowDefinitionRepository) GetByFullCodePath(fullCodePath string) (*model.WorkflowDefinition, error) {
+	var item model.WorkflowDefinition
+	if err := r.db.Where("full_code_path = ?", fullCodePath).First(&item).Error; err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
 func (r *WorkflowDefinitionRepository) List(req ListWorkflowDefinitionsFilter) ([]*model.WorkflowDefinition, int64, error) {
 	query := r.db.Model(&model.WorkflowDefinition{})
 	if req.Status != "" {

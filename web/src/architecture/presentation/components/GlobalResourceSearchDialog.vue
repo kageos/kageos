@@ -121,7 +121,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Document, Search } from '@element-plus/icons-vue'
+import { Connection, Document, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { resolveWorkspaceUrl } from '@/utils/route'
 import {
@@ -161,7 +161,8 @@ const resourceTabs: Array<{ label: string; value: SearchResourceType }> = [
   { label: '目录', value: 'package' },
   { label: '函数', value: 'function' },
   { label: '文档', value: 'docs' },
-  { label: '讨论区', value: 'board' }
+  { label: '讨论区', value: 'board' },
+  { label: '工作流', value: 'workflow' }
 ]
 
 function handleOpened() {
@@ -226,6 +227,7 @@ function getTypeLabel(item: ResourceSearchResult) {
   }
   if (item.type === 'docs') return '文档'
   if (item.type === 'board') return '讨论区'
+  if (item.type === 'workflow') return '工作流'
   return item.type
 }
 
@@ -250,6 +252,7 @@ function getAssetIcon(item: ResourceSearchResult): string | null {
 function getComponentIcon(item: ResourceSearchResult) {
   if (item.type === 'function' && item.template_type === 'table') return TableIcon
   if (item.type === 'function' && item.template_type === 'chart') return ChartIcon
+  if (item.type === 'workflow') return Connection
   return Document
 }
 
@@ -627,6 +630,11 @@ watch(dialogVisible, (visible) => {
   &.type-board {
     background: rgba(255, 209, 102, 0.13);
     color: var(--radar-amber);
+  }
+
+  &.type-workflow {
+    background: rgba(15, 118, 110, 0.13);
+    color: #2dd4bf;
   }
 
   .el-icon {

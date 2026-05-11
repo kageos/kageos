@@ -656,7 +656,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type TreeInstance } from 'element-plus'
-import { CircleCheck, CircleClose, EditPen, Key, Plus, Refresh, Search, User, View } from '@element-plus/icons-vue'
+import { CircleCheck, CircleClose, Connection, EditPen, Key, Plus, Refresh, Search, User, View } from '@element-plus/icons-vue'
 import {
   getRoles,
   getRole,
@@ -680,7 +680,7 @@ import { WidgetType } from '@/core/constants/widget'
 import { buildAppResourcePath, parseResourcePath } from '@/utils/resourcePath'
 import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/utils/widgetFieldHelpers'
 
-type ResourceType = 'directory' | 'table' | 'form' | 'chart' | 'docs' | 'board' | 'app'
+type ResourceType = 'directory' | 'table' | 'form' | 'chart' | 'docs' | 'board' | 'workflow' | 'app'
 type AssignScopeMode = 'workspace' | 'workspace_children' | 'custom'
 type RoleHierarchyNode = {
   id: string
@@ -713,8 +713,8 @@ type RoleEditorNode = {
 }
 
 const defaultPrimaryResourceType: ResourceType = 'directory'
-const resourceTypes: ResourceType[] = ['directory', 'table', 'form', 'chart', 'docs', 'board', 'app']
-const directoryInheritedResourceTypes: ResourceType[] = ['table', 'form', 'chart', 'docs', 'board']
+const resourceTypes: ResourceType[] = ['directory', 'table', 'form', 'chart', 'docs', 'board', 'workflow', 'app']
+const directoryInheritedResourceTypes: ResourceType[] = ['table', 'form', 'chart', 'docs', 'board', 'workflow']
 const directoryRoleConfigResourceTypes: ResourceType[] = ['directory', ...directoryInheritedResourceTypes]
 
 const resourceTypeLabels: Record<ResourceType, string> = {
@@ -724,16 +724,18 @@ const resourceTypeLabels: Record<ResourceType, string> = {
   chart: '图表函数',
   docs: '文档',
   board: '讨论区',
+  workflow: '工作流',
   app: '工作空间',
 }
 
 const resourceTypeDescriptions: Record<ResourceType, string> = {
-  directory: '适合目录、服务树、包目录等结构化资源，也能向下给表格、表单、图表、文档、讨论区扩展动作。',
+  directory: '适合目录、服务树、包目录等结构化资源，也能向下给表格、表单、图表、文档、讨论区、工作流扩展动作。',
   table: '适合围绕表格记录的查看、编辑和删除动作。',
   form: '适合负责表单填写、提交和管理的人。',
   chart: '适合只读分析或图表维护场景。',
   docs: '适合知识库、文档和说明资料的协作。',
   board: '适合讨论区、帖子和社区互动场景。',
+  workflow: '适合跨表单和跨函数的流程编排、发布与运行。',
   app: '适合工作空间级别的整体访问和管理。',
 }
 
@@ -773,6 +775,13 @@ const permissionConfig: Record<ResourceType, Array<{ value: string; label: strin
     { value: 'board:update', label: '更新帖子' },
     { value: 'board:delete', label: '删除帖子' },
     { value: 'board:admin', label: '所有权', description: '可分配权限、完整管理、支持迭代。' },
+  ],
+  workflow: [
+    { value: 'workflow:read', label: '查看工作流' },
+    { value: 'workflow:write', label: '编辑工作流' },
+    { value: 'workflow:update', label: '发布工作流' },
+    { value: 'workflow:delete', label: '删除工作流' },
+    { value: 'workflow:admin', label: '所有权', description: '可分配权限、完整管理、支持迭代。' },
   ],
   app: [
     { value: 'app:read', label: '查看工作空间' },
@@ -1124,6 +1133,8 @@ function getResourceTypeIconComponent(resourceType: ResourceType) {
       return TableIcon
     case 'chart':
       return ChartIcon
+    case 'workflow':
+      return Connection
     default:
       return TableIcon
   }
@@ -1139,6 +1150,8 @@ function getResourceTypeIconClass(resourceType: ResourceType): string {
       return 'docs-icon-img'
     case 'board':
       return 'board-icon-img'
+    case 'workflow':
+      return 'workflow-icon'
     case 'app':
       return 'app-icon-img'
     case 'table':
@@ -2230,6 +2243,10 @@ onMounted(() => {
 
 .node-icon.table-icon {
   color: #553cce;
+}
+
+.node-icon.workflow-icon {
+  color: #0f766e;
 }
 
 .role-tree-label {

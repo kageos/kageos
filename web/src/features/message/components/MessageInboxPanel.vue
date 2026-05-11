@@ -434,6 +434,7 @@ function getFallbackSourceName(sourceType: string, templateType: string, path: s
   }
   if (type === 'docs') return '文档'
   if (type === 'board') return '讨论区'
+  if (type === 'workflow') return '工作流'
   if (type === 'scheduled_task') return '定时任务'
   if (type === 'scheduled_agent_task') return '定时会话'
   if (type === 'agent_tool') return '智能体工具'

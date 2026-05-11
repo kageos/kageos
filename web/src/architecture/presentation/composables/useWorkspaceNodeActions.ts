@@ -6,7 +6,8 @@ import {
   deleteBoard,
   deleteDocs,
   deletePackage,
-  deleteServiceTreeFunction
+  deleteServiceTreeFunction,
+  deleteWorkflowNode
 } from '@/api/service-tree'
 import { isRootNode as isRootTreeNode } from '@/utils/tree-utils'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
@@ -50,6 +51,8 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
   const createDocsForm = ref<CreateDocsForm>(createEmptyDocsForm())
   const createBoardDialogVisible = ref(false)
   const currentBoardParentNode = ref<ServiceTreeType | null>(null)
+  const createWorkflowDialogVisible = ref(false)
+  const currentWorkflowParentNode = ref<ServiceTreeType | null>(null)
 
   const handleCreateDocs = (parentNode?: ServiceTreeType) => {
     if (!currentApp.value) {
@@ -139,6 +142,16 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
     createBoardDialogVisible.value = true
   }
 
+  const handleCreateWorkflow = (parentNode?: ServiceTreeType) => {
+    if (!currentApp.value) {
+      ElMessage.warning('请先选择应用')
+      return
+    }
+
+    currentWorkflowParentNode.value = parentNode ?? null
+    createWorkflowDialogVisible.value = true
+  }
+
   const handleDeleteBoard = async (node: ServiceTreeType) => {
     if (node.type !== 'board') {
       ElMessage.warning('只能删除讨论区节点')
@@ -163,6 +176,34 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
     } catch (error: any) {
       if (error !== 'cancel') {
         ElMessage.error('删除讨论区失败: ' + (error.message || '未知错误'))
+      }
+    }
+  }
+
+  const handleDeleteWorkflow = async (node: ServiceTreeType) => {
+    if (node.type !== 'workflow') {
+      ElMessage.warning('只能删除工作流节点')
+      return
+    }
+
+    try {
+      await ElMessageBox.confirm(
+        `确定要删除工作流 "${node.name}" 吗？此操作将删除服务树入口，已保存的工作流定义不会出现在目录中。`,
+        '确认删除',
+        { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+      )
+      await deleteWorkflowNode(node.id)
+      ElMessage.success('工作流已删除')
+      await handleRefreshTree()
+      if (currentFunction.value && currentFunction.value.id === node.id) {
+        const parentPath = node.full_code_path?.split('/').slice(0, -1).join('/') || ''
+        if (parentPath) {
+          router.push(`/workspace${parentPath}`)
+        }
+      }
+    } catch (error: any) {
+      if (error !== 'cancel') {
+        ElMessage.error('删除工作流失败: ' + (error.message || '未知错误'))
       }
     }
   }
@@ -298,7 +339,7 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
 
   const handleBulkDeleteNodes = async (nodes: ServiceTreeType[]) => {
     const deleteNodes = compactBulkDeleteNodes(nodes).filter((node) => {
-      return node.type === 'package' || node.type === 'function' || node.type === 'docs' || node.type === 'board'
+      return node.type === 'package' || node.type === 'function' || node.type === 'docs' || node.type === 'board' || node.type === 'workflow'
     })
     if (deleteNodes.length === 0) {
       ElMessage.warning('请选择可删除的节点')
@@ -332,6 +373,8 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
           await deleteDocs(node.id)
         } else if (node.type === 'board') {
           await deleteBoard(node.id)
+        } else if (node.type === 'workflow') {
+          await deleteWorkflowNode(node.id)
         }
         if (node.full_code_path) {
           deletedPaths.push(node.full_code_path)
@@ -370,11 +413,15 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
     createDocsForm,
     createBoardDialogVisible,
     currentBoardParentNode,
+    createWorkflowDialogVisible,
+    currentWorkflowParentNode,
     handleCreateDocs,
     handleSubmitCreateDocs,
     handleCloseCreateDocsDialog,
     handleCreateBoard,
+    handleCreateWorkflow,
     handleDeleteBoard,
+    handleDeleteWorkflow,
     handleDeleteDoc,
     handleDocDeleted,
     handleDeleteDirectory,
