@@ -5,7 +5,7 @@ import { TABLE_PARAM_KEYS } from '@/utils/urlParams'
  * URL 参数键规则：
  * - 传给 sdk-app 用户函数的参数使用 schema 原始 field.code，
  *   必须和 sdk-app 的 json/form tag 对齐，例如 `genre=诗`。
- * - 仅前端/平台使用的状态参数才使用 `_` 开头，例如 `_tab`、`_mws`。
+ * - 仅前端/平台使用的状态参数才使用 `_` 开头，例如 `_tab`、`_mws`、`_mws_expanded`。
  * - 不要再引入 `s_`/`f_` 字段命名空间，也不要加 `_genre__display`
  *   这类显示值伴随参数；这些都会把平台状态泄漏到用户业务参数里。
  */

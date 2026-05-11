@@ -41,8 +41,23 @@ func setupTableQueryTestDB(t *testing.T) *gorm.DB {
 func TestTableQueryDefaultsToFirstPage(t *testing.T) {
 	db := setupTableQueryTestDB(t)
 	var rows []tableQueryTestItem
+	var total int64
+	if err := db.Model(&tableQueryTestItem{}).Count(&total).Error; err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	pageInfo := &query.PageSortReq{}
+	if err := db.Model(&tableQueryTestItem{}).
+		Offset(pageInfo.GetOffset()).
+		Limit(pageInfo.GetLimit()).
+		Find(&rows).Error; err != nil {
+		t.Fatalf("find: %v", err)
+	}
 
-	resp := (&RunFunctionResp{}).Table(&rows, db.Model(&tableQueryTestItem{}), &tableQueryTestItem{}, nil)
+	resp := (&RunFunctionResp{}).Table(TableResult{
+		Items:      rows,
+		TotalCount: total,
+		PageInfo:   pageInfo,
+	})
 	if err := resp.Build(); err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
@@ -64,7 +79,22 @@ func TestTableQuerySortsAndPaginates(t *testing.T) {
 	var rows []tableQueryTestItem
 
 	pageInfo := &query.PageSortReq{Page: 2, PageSize: 2, Sorts: "-score"}
-	resp := (&RunFunctionResp{}).Table(&rows, db.Model(&tableQueryTestItem{}), &tableQueryTestItem{}, pageInfo)
+	queryDB := db.Model(&tableQueryTestItem{})
+	var total int64
+	if err := queryDB.Count(&total).Error; err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if order := pageInfo.GetOrder(); order != "" {
+		queryDB = queryDB.Order(order)
+	}
+	if err := queryDB.Offset(pageInfo.GetOffset()).Limit(pageInfo.GetLimit()).Find(&rows).Error; err != nil {
+		t.Fatalf("find: %v", err)
+	}
+	resp := (&RunFunctionResp{}).Table(TableResult{
+		Items:      rows,
+		TotalCount: total,
+		PageInfo:   pageInfo,
+	})
 	if err := resp.Build(); err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
@@ -86,7 +116,19 @@ func TestTableQueryUsesCallerWhereWithoutSearchProtocol(t *testing.T) {
 	var rows []tableQueryTestItem
 
 	queryDB := db.Model(&tableQueryTestItem{}).Where("category = ?", "missing")
-	resp := (&RunFunctionResp{}).Table(&rows, queryDB, &tableQueryTestItem{}, &query.PageSortReq{PageSize: 2})
+	pageInfo := &query.PageSortReq{PageSize: 2}
+	var total int64
+	if err := queryDB.Count(&total).Error; err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if err := queryDB.Offset(pageInfo.GetOffset()).Limit(pageInfo.GetLimit()).Find(&rows).Error; err != nil {
+		t.Fatalf("find: %v", err)
+	}
+	resp := (&RunFunctionResp{}).Table(TableResult{
+		Items:      rows,
+		TotalCount: total,
+		PageInfo:   pageInfo,
+	})
 	if err := resp.Build(); err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}

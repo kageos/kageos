@@ -1,42 +1,49 @@
 <template>
   <div class="service-tree-panel" data-testid="service-tree-panel" v-loading="loading">
     <div class="tree-header">
-      <el-input
-        v-model="searchKeyword"
-        class="tree-search-input"
-        placeholder="搜索目录或名称…"
-        clearable
-        :prefix-icon="Search"
-        data-testid="service-tree-search"
-      />
-      <div class="tree-bulk-toolbar">
-        <template v-if="multiSelectMode">
-          <span class="bulk-selected-count">已选 {{ selectedNodeCount }}</span>
+      <div class="tree-primary-row">
+        <el-input
+          v-model="searchKeyword"
+          class="tree-search-input"
+          size="small"
+          placeholder="搜索目录或名称…"
+          clearable
+          :prefix-icon="Search"
+          data-testid="service-tree-search"
+        />
+        <el-tooltip v-if="!multiSelectMode" content="多选" placement="bottom">
           <el-button
+            class="tree-select-button"
             size="small"
-            :icon="Download"
-            :loading="bulkExporting"
-            :disabled="exportableSelectedNodes.length === 0"
-            @click="handleBulkExport"
-          >
-            导出
-          </el-button>
-          <el-button
-            size="small"
-            type="danger"
-            plain
-            :icon="Delete"
-            :disabled="deletableSelectedNodes.length === 0"
-            @click="handleBulkDelete"
-          >
-            删除
-          </el-button>
-          <el-button size="small" text :icon="Close" @click="exitMultiSelectMode">
-            取消
-          </el-button>
-        </template>
-        <el-button v-else size="small" :icon="Select" @click="enterMultiSelectMode">
-          多选
+            :icon="Select"
+            aria-label="多选"
+            @click="enterMultiSelectMode"
+          />
+        </el-tooltip>
+      </div>
+      <div v-if="multiSelectMode" class="tree-bulk-toolbar">
+        <span class="bulk-selected-count">已选 {{ selectedNodeCount }}</span>
+        <el-button
+          size="small"
+          :icon="Download"
+          :loading="bulkExporting"
+          :disabled="exportableSelectedNodes.length === 0"
+          @click="handleBulkExport"
+        >
+          导出
+        </el-button>
+        <el-button
+          size="small"
+          type="danger"
+          plain
+          :icon="Delete"
+          :disabled="deletableSelectedNodes.length === 0"
+          @click="handleBulkDelete"
+        >
+          删除
+        </el-button>
+        <el-button size="small" text :icon="Close" @click="exitMultiSelectMode">
+          取消
         </el-button>
       </div>
     </div>
@@ -67,7 +74,7 @@
             :disabled="multiSelectMode"
             :teleported="true"
             popper-class="service-tree-contextmenu-popper"
-            @command="(command: string) => handleNodeAction(command, data)"
+            @command="(command: ServiceTreeNodeActionCommand) => handleNodeAction(command, data)"
           >
             <span
               class="tree-node"
@@ -171,184 +178,36 @@
               popper-class="service-tree-contextmenu-popper"
               @click.stop
               class="node-more-actions"
-              @command="(command: string) => handleNodeAction(command, data)"
+              @command="(command: ServiceTreeNodeActionCommand) => handleNodeAction(command, data)"
             >
               <el-icon class="more-icon" :data-testid="`service-tree-more-${data.id}`" @click.stop><MoreFilled /></el-icon>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item :data-testid="`service-tree-action-apply-permission-${data.id}`" command="apply-permission"><el-icon><Key /></el-icon>申请权限</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-create-directory-${data.id}`" command="create-directory"><el-icon><Plus /></el-icon>添加服务目录</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-create-docs-${data.id}`" command="create-docs"><el-icon><Document /></el-icon>创建文档</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-create-board-${data.id}`" command="create-board"><el-icon><ChatDotSquare /></el-icon>新增讨论区</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package'" :data-testid="`service-tree-action-open-workstation-${data.id}`" command="open-workstation"><el-icon><ChatDotRound /></el-icon>打开工作台</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && !isRootNode(data) && hasPermission(data, DirectoryPermission.delete)" :data-testid="`service-tree-action-delete-directory-${data.id}`" command="delete-directory"><el-icon><Delete /></el-icon>删除目录</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.update)" :data-testid="`service-tree-action-rename-${data.id}`" command="rename"><el-icon><Edit /></el-icon>重命名</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.read)" :data-testid="`service-tree-action-copy-${data.id}`" command="copy"><el-icon><CopyDocument /></el-icon>复制</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.read)" :data-testid="`service-tree-action-export-json-${data.id}`" command="export-json"><el-icon><Download /></el-icon>导出 JSON</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-import-json-${data.id}`" command="import-json"><el-icon><Upload /></el-icon>导入 JSON</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && (copiedDirectory || copiedHubLink) && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-paste-${data.id}`" command="paste"><el-icon><DocumentChecked /></el-icon>粘贴</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'function' && hasPermission(data, TablePermission.delete)" :data-testid="`service-tree-action-delete-function-${data.id}`" command="delete-function"><el-icon><Delete /></el-icon>删除函数</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'docs' && hasPermission(data, DirectoryPermission.delete)" :data-testid="`service-tree-action-delete-doc-${data.id}`" command="delete-doc"><el-icon><Delete /></el-icon>删除文档</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'board' && hasPermission(data, DirectoryPermission.delete)" :data-testid="`service-tree-action-delete-board-${data.id}`" command="delete-board"><el-icon><Delete /></el-icon>删除讨论区</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-import-go-files-${data.id}`" command="import-go-files"><el-icon><Download /></el-icon>导入代码文件</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && !data.hub_full_code_path && hasPermission(data, DirectoryPermission.read)" :data-testid="`service-tree-action-publish-to-hub-${data.id}`" command="publish-to-hub"><el-icon><Upload /></el-icon>发布到 Hub</el-dropdown-item>
-                  <el-dropdown-item v-if="data.type === 'package' && data.hub_full_code_path && hasPermission(data, DirectoryPermission.write)" :data-testid="`service-tree-action-push-to-hub-${data.id}`" command="push-to-hub"><el-icon><Upload /></el-icon>推送到 Hub</el-dropdown-item>
+                  <el-dropdown-item
+                    v-for="action in getNodeActions(data)"
+                    :key="action.command"
+                    :data-testid="buildServiceTreeNodeActionTestId(action.command, data)"
+                    :command="action.command"
+                  >
+                    <el-icon><component :is="action.icon" /></el-icon>
+                    {{ action.label }}
+                  </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
             </span>
             <template #dropdown>
               <el-dropdown-menu>
-                  <!-- 申请权限选项（对所有节点都显示） -->
-                  <el-dropdown-item 
-                    command="apply-permission"
-                  >
-                    <el-icon><Key /></el-icon>
-                    申请权限
-                  </el-dropdown-item>
-                  
-                  <!-- 对 package 类型显示创建子目录选项（包括根目录和普通目录，需要 directory:write 权限） -->
-                  <el-dropdown-item 
-                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" 
-                    command="create-directory"
-                  >
-                    <el-icon><Plus /></el-icon>
-                    添加服务目录
-                  </el-dropdown-item>
-                  
-                  <!-- 创建文档选项（需要 directory:write 权限） -->
-                  <el-dropdown-item 
-                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" 
-                    command="create-docs"
-                  >
-                    <el-icon><Document /></el-icon>
-                    创建文档
-                  </el-dropdown-item>
-                  
-                  <!-- 创建讨论区选项（需要 directory:write 权限） -->
-                  <el-dropdown-item 
-                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" 
-                    command="create-board"
-                  >
-                    <el-icon><ChatDotSquare /></el-icon>
-                    新增讨论区
-                  </el-dropdown-item>
-                  
-                  <!-- 打开工作台（package 类型，含根目录） -->
-                  <el-dropdown-item 
-                    v-if="data.type === 'package'" 
-                    command="open-workstation"
-                  >
-                    <el-icon><ChatDotRound /></el-icon>
-                    打开工作台
-                  </el-dropdown-item>
-                  
-                  <!-- 删除目录选项（仅对非根 package 类型，需要 directory:delete 权限） -->
-                  <el-dropdown-item 
-                    v-if="data.type === 'package' && !isRootNode(data) && hasPermission(data, DirectoryPermission.delete)" 
-                    command="delete-directory"
-                  >
-                    <el-icon><Delete /></el-icon>
-                    删除目录
-                  </el-dropdown-item>
-                  
-                  <!-- 重命名选项（仅对 package 类型） -->
-                  <el-dropdown-item 
-                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.update)" 
-                    command="rename"
-                  >
-                    <el-icon><Edit /></el-icon>
-                    重命名
-                  </el-dropdown-item>
-                  
-                  <!-- 复制选项（仅对 package 类型） -->
-                  <el-dropdown-item 
-                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.read)" 
-                    command="copy"
-                  >
-                    <el-icon><CopyDocument /></el-icon>
-                    复制
-                  </el-dropdown-item>
-
-                  <el-dropdown-item 
-                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.read)" 
-                    command="export-json"
-                  >
-                    <el-icon><Download /></el-icon>
-                    导出 JSON
-                  </el-dropdown-item>
-
-                  <el-dropdown-item 
-                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" 
-                    command="import-json"
-                  >
-                    <el-icon><Upload /></el-icon>
-                    导入 JSON
-                  </el-dropdown-item>
-                  
-                  <!-- 粘贴选项（需要目标目录有 write 权限，且有已复制的内容） -->
-                  <el-dropdown-item 
-                    v-if="data.type === 'package' && (copiedDirectory || copiedHubLink) && hasPermission(data, DirectoryPermission.write)" 
-                    command="paste"
-                  >
-                    <el-icon><DocumentChecked /></el-icon>
-                    粘贴
-                  </el-dropdown-item>
-                  
-                  <!-- 删除函数选项（仅对 function 类型） -->
-                  <el-dropdown-item 
-                    v-if="data.type === 'function' && hasPermission(data, TablePermission.delete)" 
-                    command="delete-function"
-                  >
-                    <el-icon><Delete /></el-icon>
-                    删除函数
-                  </el-dropdown-item>
-                  
-                  <!-- 删除文档选项（仅对 docs 类型） -->
-                  <el-dropdown-item 
-                    v-if="data.type === 'docs' && hasPermission(data, DirectoryPermission.delete)" 
-                    command="delete-doc"
-                  >
-                    <el-icon><Delete /></el-icon>
-                    删除文档
-                  </el-dropdown-item>
-                  
-                  <!-- 删除讨论区选项（仅对 board 类型） -->
-                  <el-dropdown-item 
-                    v-if="data.type === 'board' && hasPermission(data, DirectoryPermission.delete)" 
-                    command="delete-board"
-                  >
-                    <el-icon><Delete /></el-icon>
-                    删除讨论区
-                  </el-dropdown-item>
-                  
-                  <!-- Hub 相关操作 -->
-                  <!-- 导入代码文件：选择本地 .go 文件写入当前目录（与 write_go_file 一致） -->
-                  <el-dropdown-item 
-                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermission.write)" 
-                    command="import-go-files"
-                  >
-                    <el-icon><Download /></el-icon>
-                    导入代码文件
-                  </el-dropdown-item>
-                  
-                  <el-dropdown-item 
-                    v-if="data.type === 'package' && !data.hub_full_code_path && hasPermission(data, DirectoryPermission.read)" 
-                    command="publish-to-hub"
-                  >
-                    <el-icon><Upload /></el-icon>
-                    发布到 Hub
-                  </el-dropdown-item>
-                  
-                  <el-dropdown-item 
-                    v-if="data.type === 'package' && data.hub_full_code_path && hasPermission(data, DirectoryPermission.write)" 
-                    command="push-to-hub"
-                  >
-                    <el-icon><Upload /></el-icon>
-                    推送到 Hub
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
+                <el-dropdown-item
+                  v-for="action in getNodeActions(data)"
+                  :key="`context-${action.command}`"
+                  :command="action.command"
+                >
+                  <el-icon><component :is="action.icon" /></el-icon>
+                  {{ action.label }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
           </el-dropdown>
         </template>
       </el-tree>
@@ -366,7 +225,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, MoreFilled, CopyDocument, Document, Upload, Download, Delete, Key, DocumentChecked, Edit, ChatDotRound, ChatDotSquare, Search, Select, Close } from '@element-plus/icons-vue'
+import { MoreFilled, Document, Download, Delete, Search, Select, Close } from '@element-plus/icons-vue'
 import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/shared/components/icons/TableIcon.vue'
 import FormIcon from '@/shared/components/icons/FormIcon.vue'
@@ -395,6 +254,11 @@ import { eventBus, RouteEvent, WorkspaceEvent } from '@/architecture/infrastruct
 import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
 import { useServiceTreeClipboard } from '../composables/useServiceTreeClipboard'
 import { useServiceTreeSearchExpand } from '../composables/useServiceTreeSearchExpand'
+import {
+  buildServiceTreeNodeActionTestId,
+  getServiceTreeNodeActions,
+  type ServiceTreeNodeActionCommand
+} from '../utils/serviceTreeNodeActions'
 
 interface Props {
   treeData: ServiceTree[]
@@ -416,7 +280,6 @@ interface Emits {
   (e: 'bulk-delete', nodes: ServiceTree[]): void
   (e: 'refresh-tree'): void  // 刷新树（复制粘贴后需要刷新）
   (e: 'update-history', node?: ServiceTree): void  // 显示变更记录（工作空间或目录）
-  (e: 'import-go-files', node: ServiceTree): void  // 导入代码文件到目录
   (e: 'publish-to-hub', node: ServiceTree): void  // 发布到 Hub
   (e: 'push-to-hub', node: ServiceTree): void  // 推送到 Hub
   (e: 'pull-from-hub', initialLink?: string, targetFullCodePath?: string, targetName?: string): void  // 从 Hub 拉取，可选预填链接与目标目录（路径+名称）
@@ -666,6 +529,13 @@ const getDefaultPermissionApplyAction = (node: ServiceTree): string => {
   return FunctionPermission.read
 }
 
+function getNodeActions(data: ServiceTree) {
+  return getServiceTreeNodeActions(data, {
+    hasCopiedDirectory: Boolean(copiedDirectory.value),
+    hasCopiedHubLink: Boolean(copiedHubLink.value)
+  })
+}
+
 const selectedNodeCount = computed(() => selectedNodes.value.length)
 
 const exportableSelectedNodes = computed(() => {
@@ -823,7 +693,7 @@ async function handleBulkExport() {
       name: buildBulkExportName(nodes)
     })
     downloadCapabilityBundleFile(bundle, rootFullCodePath.value)
-    ElMessage.success(skippedCount > 0 ? `已开始下载 JSON 文件，跳过 ${skippedCount} 个不可导出节点` : '已开始下载 JSON 文件')
+	    ElMessage.success(skippedCount > 0 ? `已开始下载能力包 JSON 文件，跳过 ${skippedCount} 个不可导出节点` : '已开始下载能力包 JSON 文件')
     exitMultiSelectMode()
   } catch (error: any) {
     const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '导出失败'
@@ -869,7 +739,7 @@ const handleExportJson = async (data: ServiceTree) => {
       name: data.name || data.code
     })
     downloadCapabilityBundleFile(bundle, data.full_code_path)
-    ElMessage.success('已开始下载 JSON 文件')
+	    ElMessage.success('已开始下载能力包 JSON 文件')
   } catch (error: any) {
     const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '导出失败'
     ElMessage.error(message)
@@ -907,7 +777,7 @@ async function handleCapabilityImportFileChange(event: Event) {
     const bundle = parseCapabilityBundleJson(await file.text())
     await ElMessageBox.confirm(
       `将能力包「${bundle.name || file.name}」导入到 ${targetNode.full_code_path}，同名文件会被覆盖。`,
-      '导入 JSON',
+      '导入能力包',
       {
         confirmButtonText: '覆盖导入',
         cancelButtonText: '取消',
@@ -971,53 +841,73 @@ const handleManagePermission = (data: ServiceTree) => {
   router.push(url)
 }
 
-const handleNodeAction = (command: string, data: ServiceTree) => {
-  if (command === 'create-directory') {
-    emit('create-directory', data)
-  } else if (command === 'create-docs') {
-    emit('create-docs', data)
-  } else if (command === 'create-board') {
-    emit('create-board', data)
-  } else if (command === 'rename') {
-    handleRename(data)
-  } else if (command === 'copy') {
-    handleCopy(data)
-  } else if (command === 'export-json') {
-    void handleExportJson(data)
-  } else if (command === 'import-json') {
-    requestCapabilityJsonImport(data)
-  } else if (command === 'paste') {
-    // 粘贴时,如果右键的节点是 package，使用该节点；否则使用当前选中的目录
-    if (data.type === 'package') {
-      handlePaste(data)
-    } else {
-      handlePaste() // 使用当前选中的目录
+const handleNodeAction = (command: ServiceTreeNodeActionCommand, data: ServiceTree) => {
+  switch (command) {
+    case 'create-directory':
+      emit('create-directory', data)
+      return
+    case 'create-docs':
+      emit('create-docs', data)
+      return
+    case 'create-board':
+      emit('create-board', data)
+      return
+    case 'rename':
+      handleRename(data)
+      return
+    case 'copy':
+      handleCopy(data)
+      return
+    case 'export-json':
+      void handleExportJson(data)
+      return
+    case 'import-json':
+      requestCapabilityJsonImport(data)
+      return
+    case 'paste':
+      if (data.type === 'package') {
+        handlePaste(data)
+      } else {
+        handlePaste()
+      }
+      return
+    case 'delete-function':
+      emit('delete-function', data)
+      return
+    case 'delete-doc':
+      emit('delete-doc', data)
+      return
+    case 'delete-board':
+      emit('delete-board', data)
+      return
+    case 'delete-directory':
+      emit('delete-directory', data)
+      return
+    case 'publish-to-hub':
+      emit('publish-to-hub', data)
+      return
+    case 'push-to-hub':
+      emit('push-to-hub', data)
+      return
+    case 'update-history':
+      emit('update-history', data)
+      return
+    case 'apply-permission':
+      handleApplyPermission(data)
+      return
+    case 'approve-permission':
+      handleApprovePermission(data)
+      return
+    case 'manage-permission':
+      handleManagePermission(data)
+      return
+    case 'open-workstation':
+      eventBus.emit('workspace:open-workstation', { full_code_path: data.full_code_path || '' })
+      return
+    default: {
+      const exhaustive: never = command
+      return exhaustive
     }
-  } else if (command === 'delete-function') {
-    emit('delete-function', data)
-  } else if (command === 'delete-doc') {
-    emit('delete-doc', data)
-  } else if (command === 'delete-board') {
-    emit('delete-board', data)
-  } else if (command === 'delete-directory') {
-    emit('delete-directory', data)
-  } else if (command === 'import-go-files') {
-    emit('import-go-files', data)
-  } else if (command === 'publish-to-hub') {
-    emit('publish-to-hub', data)
-  } else if (command === 'push-to-hub') {
-    emit('push-to-hub', data)
-  } else if (command === 'update-history') {
-    emit('update-history', data)
-  } else if (command === 'apply-permission') {
-    handleApplyPermission(data)
-  } else if (command === 'approve-permission') {
-    handleApprovePermission(data)
-  } else if (command === 'manage-permission') {
-    handleManagePermission(data)
-  } else if (command === 'open-workstation') {
-    // 在本页打开 Mini 工作台，不新开标签；WorkspaceView 监听此事件
-    eventBus.emit('workspace:open-workstation', { full_code_path: data.full_code_path || '' })
   }
 }
 
@@ -1078,14 +968,22 @@ defineExpose({
 }
 
 .tree-header {
-  padding: 12px 16px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--el-border-color-light);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+
+  .tree-primary-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
 
   .tree-search-input {
-    flex-shrink: 0;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .tree-search-input :deep(.el-input__wrapper) {
@@ -1124,11 +1022,21 @@ defineExpose({
     color: var(--el-text-color-secondary);
   }
 
+  .tree-select-button {
+    flex: 0 0 32px;
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 8px;
+  }
+
   .tree-bulk-toolbar {
     display: flex;
     align-items: center;
     gap: 8px;
     min-height: 28px;
+    min-width: 0;
   }
 
   .bulk-selected-count {

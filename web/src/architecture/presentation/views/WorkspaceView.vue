@@ -59,7 +59,6 @@
             @delete-function="handleDeleteFunction"
             @delete-directory="handleDeleteDirectory"
             @bulk-delete="handleBulkDeleteNodes"
-            @import-go-files="handleImportGoFiles"
             @publish-to-hub="handlePublishToHub"
             @push-to-hub="handlePushToHub"
             @pull-from-hub="openPullFromHubDialog"
@@ -262,18 +261,24 @@
       :full-code-path="updateHistoryFullCodePath"
     />
 
-    <!-- 导入代码文件：隐藏的 file input，选中的 .go 会写入当前目录 -->
-    <input
-      ref="importGoFileInputRef"
-      type="file"
-      accept=".go"
-      multiple
-      class="hidden"
-      @change="onImportGoFilesSelected"
-    />
-
-
     <!-- 多个 Mini 浮动工作台 -->
+    <button
+      v-if="showMiniWorkstationLauncher"
+      type="button"
+      class="mini-workstation-launcher"
+      :title="`打开工作台 (${MINI_WORKSTATION_TOGGLE_SHORTCUT_LABEL}) - ${miniWorkstationLauncherName}`"
+      data-testid="mini-workstation-launcher"
+      @click="openCurrentWorkstation"
+    >
+      <span class="mini-workstation-launcher-pulse"></span>
+      <strong>工作台</strong>
+      <span>{{ miniWorkstationLauncherSummary }}</span>
+      <kbd class="mini-workstation-launcher-shortcut">{{ MINI_WORKSTATION_TOGGLE_SHORTCUT_LABEL }}</kbd>
+      <span v-if="miniWorkstationLauncherCount > 1" class="mini-workstation-launcher-badge">
+        {{ miniWorkstationLauncherCount }}
+      </span>
+    </button>
+
     <MiniWorkstation
       v-for="mini in miniWsList"
       :key="mini.id"
@@ -283,17 +288,22 @@
       :initial-session-id="mini.initialSessionId"
       :initial-offset="mini.offset"
       :initial-position="mini.initialPosition"
+      :initial-expanded="mini.initialExpanded"
       :initial-maximized="mini.initialMaximized"
+      :path-name-map="workspacePathNameMap"
+      :toggle-shortcut-label="MINI_WORKSTATION_TOGGLE_SHORTCUT_LABEL"
       @minimize="handleMiniMinimize(mini.id)"
       @close="handleMiniRemove(mini.id)"
-      @maximize-change="handleMiniMaximizeChange"
+      @expanded-change="(payload) => handleMiniExpandedChange(mini.id, payload)"
+      @maximize-change="(payload) => handleMiniMaximizeChange(mini.id, payload)"
+      @task-started="(sessionId) => handleMiniTaskStarted(mini.id, sessionId)"
       @tool-call-ok="handleWorkstationToolCallOk"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { serviceFactory } from '../../infrastructure/factories'
@@ -333,6 +343,9 @@ import type { WorkspaceSessionItem } from '@/api/workspace'
 
 const route = useRoute()
 const router = useRouter()
+const isAppleShortcutPlatform = typeof navigator !== 'undefined'
+  && /Mac|iPhone|iPad|iPod/i.test(navigator.platform)
+const MINI_WORKSTATION_TOGGLE_SHORTCUT_LABEL = isAppleShortcutPlatform ? '⌘.' : 'Ctrl+.'
 const DocView = defineAsyncComponent(() => import('../components/DocView.vue'))
 const BoardView = defineAsyncComponent(() => import('../components/BoardView.vue'))
 const PackageDetailView = defineAsyncComponent(() => import('../components/PackageDetailView.vue'))
@@ -352,6 +365,11 @@ const domainService = serviceProvider.getWorkspaceDomainService()
 const serviceTree = computed(() => domainService.getServiceTree())
 const currentFunction = computed(() => domainService.getCurrentFunction())
 const currentAppFromState = computed(() => domainService.getCurrentApp())
+const workspacePathNameMap = computed<Record<string, string>>(() => {
+  const map: Record<string, string> = {}
+  fillWorkspacePathNameMap(serviceTree.value, map)
+  return map
+})
 
 // ⭐ 需要自动展开的节点ID列表（从后端返回）
 const expandedKeys = ref<number[]>([])
@@ -380,6 +398,37 @@ function normalizeApp(app: Partial<AppType> & Pick<AppType, 'id' | 'user' | 'cod
 
 function getCurrentAppForTreeLoad(): App | null {
   return currentApp.value ? normalizeApp(currentApp.value) : null
+}
+
+function normalizeFullCodePath(fullCodePath: string) {
+  return (fullCodePath || '').trim().replace(/\/+$/g, '')
+}
+
+function setWorkspacePathName(map: Record<string, string>, fullCodePath: string, label: string) {
+  const normalizedPath = normalizeFullCodePath(fullCodePath)
+  if (!normalizedPath || !label) return
+  map[normalizedPath] = label
+  map[normalizedPath.replace(/^\/+/, '')] = label
+}
+
+function fillWorkspacePathNameMap(
+  nodes: ServiceTreeType[],
+  map: Record<string, string>
+) {
+  for (const node of nodes) {
+    const fallbackName = normalizeFullCodePath(node.full_code_path).split('/').filter(Boolean).pop() || node.code || '工作台'
+    const nodeName = node.name || fallbackName
+    setWorkspacePathName(map, node.full_code_path, nodeName)
+    if (node.children?.length) {
+      fillWorkspacePathNameMap(node.children, map)
+    }
+  }
+}
+
+function resolveWorkspacePathName(fullCodePath: string) {
+  const normalizedPath = normalizeFullCodePath(fullCodePath)
+  return workspacePathNameMap.value[normalizedPath]
+    || workspacePathNameMap.value[normalizedPath.replace(/^\/+/, '')]
 }
 
 const currentApp = computed<AppType | null>(() => {
@@ -649,8 +698,11 @@ const {
   openAmbientMiniWs,
   openNewMiniWs,
   handleMiniMinimize,
+  hideVisibleMiniWs,
   handleMiniRemove,
   handleMiniMaximizeChange,
+  handleMiniExpandedChange,
+  handleMiniTaskStarted,
   handleWorkspaceOpenWorkstation,
   initializeFromRoute: initializeMiniWorkstationsFromRoute,
 } = useWorkspaceMiniWorkstations({
@@ -658,6 +710,83 @@ const {
   router,
   workstationContext,
   buildWorkspacePath: (fullCodePath: string) => buildWorkspacePath(fullCodePath),
+  resolvePathName: resolveWorkspacePathName,
+})
+
+const showMiniWorkstationLauncher = computed(() => {
+  return !!workstationContext.value?.fullCodePath && !miniWsList.value.some(mini => mini.visible)
+})
+
+const miniWorkstationLauncherName = computed(() => workstationContext.value?.dirName || '当前目录')
+
+const miniWorkstationLauncherCount = computed(() => Math.max(miniWsList.value.length, 1))
+
+const miniWorkstationLauncherSummary = computed(() => `${miniWorkstationLauncherCount.value} 个会话`)
+
+function openCurrentWorkstation() {
+  const ctx = workstationContext.value
+  if (!ctx?.fullCodePath) return
+
+  handleWorkspaceOpenWorkstation({
+    full_code_path: ctx.fullCodePath,
+    directory_name: ctx.dirName,
+    open_as_mini: true
+  })
+}
+
+function hideVisibleWorkstation() {
+  return hideVisibleMiniWs()
+}
+
+function toggleCurrentWorkstationByShortcut() {
+  if (hideVisibleWorkstation()) return
+  openCurrentWorkstation()
+}
+
+function isMiniWorkstationToggleShortcut(event: KeyboardEvent) {
+  const isPeriodKey = event.key === '.' || event.code === 'Period'
+  const hasPlatformModifier = isAppleShortcutPlatform
+    ? event.metaKey && !event.ctrlKey
+    : event.ctrlKey && !event.metaKey
+  return isPeriodKey
+    && hasPlatformModifier
+    && !event.altKey
+    && !event.shiftKey
+}
+
+function isEventFromMiniWorkstation(event: KeyboardEvent) {
+  const target = event.target instanceof Element
+    ? event.target
+    : document.activeElement instanceof Element ? document.activeElement : null
+  return !!target?.closest('[data-testid="mini-workstation"]')
+}
+
+function handleWorkspaceShortcutKeydown(event: KeyboardEvent) {
+  if (event.defaultPrevented) return
+
+  if (isMiniWorkstationToggleShortcut(event)) {
+    const canToggle = miniWsList.value.some(mini => mini.visible) || !!workstationContext.value?.fullCodePath
+    if (!canToggle) return
+    event.preventDefault()
+    event.stopPropagation()
+    toggleCurrentWorkstationByShortcut()
+    return
+  }
+
+  if (event.key === 'Escape' && isEventFromMiniWorkstation(event)) {
+    const hidden = hideVisibleWorkstation()
+    if (!hidden) return
+    event.preventDefault()
+    event.stopPropagation()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleWorkspaceShortcutKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleWorkspaceShortcutKeydown)
 })
 
 watch(
@@ -682,6 +811,7 @@ function openWorkspaceSession(session: WorkspaceSessionItem) {
   handleWorkspaceOpenWorkstation({
     full_code_path: fullCodePath,
     session_id: sessionID,
+    directory_name: session.directory_name,
     open_as_mini: true
   })
 }
@@ -780,9 +910,6 @@ const {
   updateHistoryAppId,
   updateHistoryAppVersion,
   updateHistoryFullCodePath,
-  importGoFileInputRef,
-  handleImportGoFiles,
-  onImportGoFilesSelected,
   handlePublishToHub,
   handlePushToHub,
   openPullFromHubDialog,
@@ -936,6 +1063,106 @@ useWorkspaceUiEffects({
 
   .el-icon {
     font-size: 16px;
+  }
+}
+
+.mini-workstation-launcher {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  z-index: 2400;
+  height: 46px;
+  max-width: min(360px, calc(100vw - 160px));
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 15px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(130, 153, 190, 0.3);
+  border-radius: 999px;
+  background: rgba(10, 16, 29, 0.8);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.38),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+  color: #dce9fb;
+  backdrop-filter: blur(24px) saturate(1.12);
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, color 0.16s ease;
+}
+
+.mini-workstation-launcher:hover {
+  transform: translateX(-50%) translateY(-2px);
+  border-color: rgba(83, 174, 255, 0.5);
+  background: rgba(10, 16, 29, 0.88);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.42),
+    0 0 0 1px rgba(83, 174, 255, 0.16),
+    0 0 26px rgba(83, 174, 255, 0.2);
+  color: #ffffff;
+}
+
+.mini-workstation-launcher-pulse {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #2bd59f;
+  box-shadow: 0 0 18px rgba(43, 213, 159, 0.8);
+}
+
+.mini-workstation-launcher strong,
+.mini-workstation-launcher span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-workstation-launcher strong {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.mini-workstation-launcher span {
+  color: rgba(220, 235, 255, 0.72);
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.mini-workstation-launcher-shortcut {
+  flex: 0 0 auto;
+  min-width: 34px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 7px;
+  border: 1px solid rgba(130, 153, 190, 0.3);
+  border-radius: 7px;
+  background: rgba(30, 42, 68, 0.72);
+  color: #e8f2ff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.mini-workstation-launcher-badge {
+  min-width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(255, 109, 126, 0.9);
+  color: #fff !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+}
+
+@media (max-width: 720px) {
+  .mini-workstation-launcher {
+    bottom: 18px;
+    max-width: calc(100vw - 32px);
   }
 }
 

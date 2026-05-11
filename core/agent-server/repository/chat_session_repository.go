@@ -123,16 +123,66 @@ func (r *ChatSessionRepository) ListRunningByUser(user string) ([]*model.AgentCh
 	return sessions, nil
 }
 
-// ListFinishedByUser 查询指定用户最近已结束（active/done/cancelled）的工作台会话
+// ListFinishedByUser 查询指定用户最近非执行中的工作台会话（active/output/pending/done/cancelled）
 func (r *ChatSessionRepository) ListFinishedByUser(user string, limit int) ([]*model.AgentChatSession, error) {
 	var sessions []*model.AgentChatSession
 	if err := r.db.
 		Where("user = ? AND source = ? AND status IN ?", user, "workspace",
-			[]string{model.ChatSessionStatusActive, model.ChatSessionStatusDone, model.ChatSessionStatusCancelled}).
+			[]string{
+				model.ChatSessionStatusActive,
+				model.ChatSessionStatusOutput,
+				model.ChatSessionStatusPendingConfirmation,
+				model.ChatSessionStatusPendingTest,
+				model.ChatSessionStatusDone,
+				model.ChatSessionStatusCancelled,
+			}).
 		Order("updated_at DESC").
 		Limit(limit).
 		Find(&sessions).Error; err != nil {
 		return nil, err
 	}
 	return sessions, nil
+}
+
+// GetServiceTreeNamesByFullCodePaths 批量查询工作台会话所属目录的展示名称。
+func (r *ChatSessionRepository) GetServiceTreeNamesByFullCodePaths(fullCodePaths []string) (map[string]string, error) {
+	if len(fullCodePaths) == 0 {
+		return map[string]string{}, nil
+	}
+
+	uniquePaths := make([]string, 0, len(fullCodePaths))
+	seen := make(map[string]struct{}, len(fullCodePaths))
+	for _, path := range fullCodePaths {
+		if path == "" {
+			continue
+		}
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		uniquePaths = append(uniquePaths, path)
+	}
+	if len(uniquePaths) == 0 {
+		return map[string]string{}, nil
+	}
+
+	var rows []struct {
+		FullCodePath string `gorm:"column:full_code_path"`
+		Name         string `gorm:"column:name"`
+	}
+	if err := r.db.Table("service_tree").
+		Select("full_code_path, name").
+		Where("full_code_path IN ?", uniquePaths).
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]string, len(rows))
+	for _, row := range rows {
+		if row.FullCodePath == "" || row.Name == "" {
+			continue
+		}
+		result[row.FullCodePath] = row.Name
+	}
+	return result, nil
 }

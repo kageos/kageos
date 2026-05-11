@@ -14,7 +14,7 @@ type AgentChatSession struct {
 	AgentID           *int64 `gorm:"type:bigint;index;comment:智能体ID（已废弃，工作台恒为空）" json:"agent_id"`
 	Title             string `gorm:"type:varchar(255);comment:会话标题" json:"title"`
 	ModeCode          string `gorm:"type:varchar(32);not null;default:'dev';index;comment:工作台模式代码" json:"mode_code"`
-	Status            string `gorm:"type:varchar(32);not null;default:'active';index;comment:会话状态(active/generating/done)" json:"status"`
+	Status            string `gorm:"type:varchar(32);not null;default:'active';index;comment:会话状态(active/generating/output/pending_confirmation/pending_test/done)" json:"status"`
 	RoleID            string `gorm:"type:varchar(64);index;comment:当前工作台角色ID，如 product_manager/app_developer" json:"role_id"`
 	RoleDisplayName   string `gorm:"type:varchar(64);comment:当前工作台角色展示名称，如 产品经理/应用开发工程师" json:"role_display_name"`
 	ParentSessionID   string `gorm:"type:varchar(64);index;comment:阶段交接来源会话ID" json:"parent_session_id"`
@@ -28,10 +28,13 @@ type AgentChatSession struct {
 
 // 会话状态常量
 const (
-	ChatSessionStatusActive     = "active"     // 活跃状态，可以继续输入
-	ChatSessionStatusGenerating = "generating" // 生成中（后台执行），前端可轮询消息
-	ChatSessionStatusDone       = "done"       // 已完成，会话结束，不能再输入
-	ChatSessionStatusCancelled  = "cancelled"  // 已取消（用户手动停止）
+	ChatSessionStatusActive              = "active"               // 活跃状态，可以继续输入
+	ChatSessionStatusGenerating          = "generating"           // 生成中（后台执行），前端可轮询消息
+	ChatSessionStatusOutput              = "output"               // 已生成产物/新文件，可以继续输入
+	ChatSessionStatusDone                = "done"                 // 已完成，会话结束，不能再输入
+	ChatSessionStatusCancelled           = "cancelled"            // 已取消（用户手动停止）
+	ChatSessionStatusPendingConfirmation = "pending_confirmation" // 阶段产物等待用户确认（如 PRD）
+	ChatSessionStatusPendingTest         = "pending_test"         // 构建产物等待用户确认是否进入测试
 )
 
 // TableName 指定表名

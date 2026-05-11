@@ -16,6 +16,12 @@ import (
 
 const systemDirectorySeedRelDir = "core/app-server/system-seed"
 
+type systemDirectorySeedFile struct {
+	filePath   string
+	targetPath string
+	appCode    string
+}
+
 func initSystemDirectorySeeds(ctx context.Context, serviceTreeService *ServiceTreeService) error {
 	if serviceTreeService == nil {
 		return nil
@@ -43,20 +49,30 @@ func initSystemDirectorySeeds(ctx context.Context, serviceTreeService *ServiceTr
 		return nil
 	}
 
-	for _, filePath := range files {
-		targetPath, err := systemDirectorySeedTargetPath(seedDir, filePath)
-		if err != nil {
-			return err
+	seedFiles, err := resolveSystemDirectorySeedFiles(seedDir, files)
+	if err != nil {
+		return err
+	}
+	initialVersions, err := initialSystemDirectorySeedAppVersions(serviceTreeService, seedFiles)
+	if err != nil {
+		return err
+	}
+
+	for _, seedFile := range seedFiles {
+		if initialVersion := strings.TrimSpace(initialVersions[seedFile.appCode]); !systemDirectorySeedShouldInstall(initialVersion) {
+			logger.Infof(ctx, "[SystemWorkspace] 系统目录种子已在首次部署完成，跳过写文件和编译: app=%s/%s version=%s file=%s target=%s",
+				SystemUsername, seedFile.appCode, initialVersion, seedFile.filePath, seedFile.targetPath)
+			continue
 		}
 		resp, err := serviceTreeService.InstallCapabilityBundleFromFile(ctx, &dto.InstallCapabilityOptions{
-			TargetDirectoryPath: targetPath,
+			TargetDirectoryPath: seedFile.targetPath,
 			Overwrite:           true,
 			ForceDiff:           true,
-		}, filePath)
+		}, seedFile.filePath)
 		if err != nil {
-			return fmt.Errorf("导入系统目录种子失败: file=%s target=%s: %w", filePath, targetPath, err)
+			return fmt.Errorf("导入系统目录种子失败: file=%s target=%s: %w", seedFile.filePath, seedFile.targetPath, err)
 		}
-		logger.Infof(ctx, "[SystemWorkspace] 系统目录种子已处理: file=%s target=%s result=%s", filePath, targetPath, resp.Message)
+		logger.Infof(ctx, "[SystemWorkspace] 系统目录种子已处理: file=%s target=%s result=%s", seedFile.filePath, seedFile.targetPath, resp.Message)
 	}
 	return nil
 }
@@ -86,6 +102,63 @@ func listSystemDirectorySeedFiles(seedDir string) ([]string, error) {
 	}
 	sort.Strings(files)
 	return files, nil
+}
+
+func resolveSystemDirectorySeedFiles(seedDir string, files []string) ([]systemDirectorySeedFile, error) {
+	seedFiles := make([]systemDirectorySeedFile, 0, len(files))
+	for _, filePath := range files {
+		targetPath, err := systemDirectorySeedTargetPath(seedDir, filePath)
+		if err != nil {
+			return nil, err
+		}
+		appCode, err := systemDirectorySeedAppCodeFromTargetPath(targetPath)
+		if err != nil {
+			return nil, err
+		}
+		seedFiles = append(seedFiles, systemDirectorySeedFile{
+			filePath:   filePath,
+			targetPath: targetPath,
+			appCode:    appCode,
+		})
+	}
+	return seedFiles, nil
+}
+
+func initialSystemDirectorySeedAppVersions(serviceTreeService *ServiceTreeService, seedFiles []systemDirectorySeedFile) (map[string]string, error) {
+	versions := make(map[string]string)
+	if len(seedFiles) == 0 {
+		return versions, nil
+	}
+	if serviceTreeService == nil || serviceTreeService.capabilityBundle == nil || serviceTreeService.capabilityBundle.appRepo == nil {
+		return nil, fmt.Errorf("系统目录种子无法读取应用版本，serviceTreeService 未完整初始化")
+	}
+	for _, seedFile := range seedFiles {
+		if _, exists := versions[seedFile.appCode]; exists {
+			continue
+		}
+		appModel, err := serviceTreeService.capabilityBundle.appRepo.GetAppByUserName(SystemUsername, seedFile.appCode)
+		if err != nil {
+			return nil, fmt.Errorf("查询系统应用 %s/%s 版本失败: %w", SystemUsername, seedFile.appCode, err)
+		}
+		versions[seedFile.appCode] = strings.TrimSpace(appModel.Version)
+	}
+	return versions, nil
+}
+
+func systemDirectorySeedAppCodeFromTargetPath(targetPath string) (string, error) {
+	parts := strings.Split(strings.Trim(targetPath, "/"), "/")
+	if len(parts) < 2 || parts[0] != SystemUsername {
+		return "", fmt.Errorf("系统目录种子目标路径必须位于 /%s/{app}: %s", SystemUsername, targetPath)
+	}
+	appCode := strings.TrimSpace(parts[1])
+	if !knownSystemAppCode(appCode) {
+		return "", fmt.Errorf("系统目录种子目标路径使用了未知系统目录 %q: %s", appCode, targetPath)
+	}
+	return appCode, nil
+}
+
+func systemDirectorySeedShouldInstall(initialAppVersion string) bool {
+	return strings.TrimSpace(initialAppVersion) == ""
 }
 
 func systemDirectorySeedTargetPath(seedDir, filePath string) (string, error) {

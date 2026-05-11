@@ -34,7 +34,7 @@
 
 1. **定义结构体**：业务字段加 `gorm`、`widget`、`validate` 等标签；主键、CreatedAt、DeletedAt 等系统字段按约定写。Table 筛选字段写在 Request 中，Model 不承担筛选协议。
 2. **配置 TableTemplate**：`BaseConfig`（Name、Request、CreateTables）+ **`AutoCrudTable`**（必须显式配置，指向列表结构体，前端据此渲染列表字段、分页和表格 schema）+ 可选 `OnTableAddRow` / `OnTableUpdateRow` / `OnTableDeleteRows`。**不需要哪种操作就删掉对应回调**：不想要新增和批量导入 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`。前端会根据是否配置回调来显示或隐藏对应按钮；`OnTableCreateInBatches` 是系统内置批量导入能力，配置 `OnTableAddRow` 时自动暴露。**支付记录、消费流水、操作日志这类审计/流水表默认应只读**，仍必须显式配置 `AutoCrudTable`，但不配置新增、编辑、删除回调。
-3. **写 List 函数**：Request 显式声明筛选字段，并嵌入 `query.PageSortReq`（`widget:"-"`）只承载分页/排序；用 `queryDB := ctx.GetGormDB().Model(&Model{})` 后在 Build 前手写 Where、Joins、Preload 等，再 `resp.Table(&lists, queryDB, &Model{}, &req.PageSortReq).Build()`；Build 后可遍历 `lists` 填计算字段、关联展示字段、link 等。
+3. **写 List 函数**：Request 显式声明筛选字段，并嵌入 `query.PageSortReq`（`widget:"-"`）只承载分页/排序；Handler 手写 Where、Joins、Preload、`GetOrder()`、`Count`、`Offset/Limit/Find` 或调用第三方 API，拿到 `items + total` 后再 `resp.Table(response.TableResult{Items: items, TotalCount: total, PageInfo: &req.PageSortReq}).Build()`；返回前可遍历 `items` 填计算字段、关联展示字段、link 等。
 4. **注册**：`init()` 中 `packageContext.GET("路由名", ListFunc, TableTemplate)`。
 
 最小可用片段示例：
@@ -75,12 +75,23 @@ func CrmTicketList(ctx *app.Context, resp response.Response) error {
     if req.Status != "" {
         queryDB = queryDB.Where("status = ?", req.Status)
     }
-    var lists []*CrmTicket
-    if err := resp.Table(&lists, queryDB, &CrmTicket{}, &req.PageSortReq).Build(); err != nil {
+    if order := req.PageSortReq.GetOrder(); order != "" {
+        queryDB = queryDB.Order(order)
+    }
+    var total int64
+    if err := queryDB.Count(&total).Error; err != nil {
         return err
     }
-    // Build 后可遍历 lists，填计算字段、关联表展示字段（需先在 Build 前 Preload）、link 等
-    return nil
+    var lists []*CrmTicket
+    if err := queryDB.Offset(req.PageSortReq.GetOffset()).Limit(req.PageSortReq.GetLimit()).Find(&lists).Error; err != nil {
+        return err
+    }
+    // 返回前可遍历 lists，填计算字段、关联表展示字段（需先 Preload）、link 等
+    return resp.Table(response.TableResult{
+        Items:      lists,
+        TotalCount: total,
+        PageInfo:   &req.PageSortReq,
+    }).Build()
 }
 
 func init() {
@@ -88,7 +99,7 @@ func init() {
 }
 ```
 
-List 可在 **Build 前**对 `queryDB` 做 Where、Joins、Preload 等，`Table` 只保存 queryDB 和分页参数，**Build** 才执行 Count/Order/Offset/Limit/Find，**Build 后**遍历 `lists` 做后处理；详见「五、Table 回调函数 → 4. List 函数」。
+List 可先对 `queryDB` 做 Where、Joins、Preload 等，再用 `PageSortReq.GetOrder/GetOffset/GetLimit` 显式执行 Count/Order/Offset/Limit/Find；返回前遍历 `lists` 做后处理，最后 `resp.Table(response.TableResult{...}).Build()` 只渲染响应；详见「五、Table 回调函数 → 4. List 函数」。
 
 单表完整示例（含所有常用组件与回调）：`read_doc("/system/prompt/case_catalog/table/ticket")`。
 
@@ -363,7 +374,7 @@ row.ExpenseDate = time.Now()
 
 #### link 组件（跳转链接，多函数联动）
 
-用于在**列表**或**表单**中展示可点击链接，点击后**跳转到另一个函数**（Table 或 Form）或打开**外链**，实现多函数联动与带参跳转。Table 列表链接字段通常**不落库**（`gorm:"-"`），并配 `hide:"create,update"`，前端仅在列表展示，不进入新增/编辑表单；值由后端在 **List 函数 Build 之后**或 **Form 响应**里用 `ctx.BuildFunctionUrlWithText(target, params, linkText)` 赋值。
+用于在**列表**或**表单**中展示可点击链接，点击后**跳转到另一个函数**（Table 或 Form）或打开**外链**，实现多函数联动与带参跳转。Table 列表链接字段通常**不落库**（`gorm:"-"`），并配 `hide:"create,update"`，前端仅在列表展示，不进入新增/编辑表单；值由后端在查询到 `lists` 后、返回 `resp.Table(response.TableResult{...})` 前，或在 **Form 响应**里用 `ctx.BuildFunctionUrlWithText(target, params, linkText)` 赋值。
 
 - **widget 配置**：`type:link`；可选 `target:_blank`（新窗口）或 `_self`（当前窗口）；可选 `text`、`link_type`（样式 primary/success 等）、`icon`。
 - **赋值 API**：
@@ -392,10 +403,10 @@ row.ExpenseDate = time.Now()
   3. **Form 响应**：提交后返回一个「查看结果」链接（如投票提交后返回「查看投票结果」，params 用 **VoteResultReq{TopicID: req.TopicID}**）。
 
 ```go
-// Table 列表：不落库、只读，List Build 之后对每条记录赋值
+// Table 列表：不落库、只读，查询到列表后、返回 Table 前对每条记录赋值
 RoomLink string `json:"room_link" gorm:"-" widget:"name:会议室详情;type:link;target:_blank" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 
-// List 函数内，Build 之后：跳转到 Table 必须用目标表的 Model
+// List 函数内，查询到列表后、返回 Table 前：跳转到 Table 必须用目标表的 Model
 // meeting_room_list.table 的 AutoCrudTable 是 MeetingRoom，故 params 用 MeetingRoom{ID: ...}
 for i := range bookings {
     params := MeetingRoom{ID: bookings[i].RoomID}  // MeetingRoom 是会议室表的 Model
@@ -556,7 +567,7 @@ type CrmTicket struct {
 RemainingTime string `json:"remaining_time" gorm:"-" widget:"name:剩余时间;type:text" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 ```
 
-在 List 函数 Build 之后遍历 `lists`，根据截止时间等计算并赋值给 `RemainingTime`。
+在 List 函数查询到 `lists` 后、返回 `resp.Table(response.TableResult{...})` 前遍历数据，根据截止时间等计算并赋值给 `RemainingTime`。
 
 **场景 2：后端在回调中赋值的字段**
 
@@ -603,7 +614,7 @@ CostPrice    float64 `json:"cost_price" gorm:"column:cost_price" widget:"name:�
 
 - **TableTemplate**：`BaseConfig` 含 Name、Request、CreateTables；**不要写 Table Response**，表格 schema 由 `AutoCrudTable` 推导。**`AutoCrudTable` 必须显式配置**（指向列表结构体，前端据此渲染列表字段、筛选、分页和表格 schema）。**不需要哪种操作就删掉对应回调**：不想要新增和批量导入 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`（如消费记录、支付流水、操作日志通常应直接只读）。前端根据是否配置回调来显示或隐藏「新增」「编辑」「删除」按钮；工作台和服务端也会据此判断表是否允许写入。`OnTableCreateInBatches` 是系统内置批量导入能力，配置 `OnTableAddRow` 时自动暴露，不需要手写；若新增/编辑表单中有 select 需后端动态选项，配 `OnSelectFuzzyMap`（用法见「六、Form 模式要点 → OnSelectFuzzy」）。
 - **AutoCrudTable 的 model 可落库字段类型**：model 里凡是有 **gorm 列**（会被 GORM 写入数据库）的字段，**只能是**以下可落库类型：**基础类型**（int、string、bool、int64、float64 等）、**string**（`gorm:"type:text"`，实际存 `bucket/object_key` 字符串，多文件逗号分隔）、**gorm.DeletedAt**（软删除，GORM 特例）。除此以外，**其他 struct、slice（如 type:table / type:form）不能作为一列写入数据库**；若在 model 里出现这类 struct/slice，须为：**外键关联**（如 `Room *MeetingRoom` 配 `gorm:"foreignKey:RoomID;references:ID"`，实际存的是 RoomID，不占一列）或 **gorm:"-"**（不落库，仅展示/表单用，如 RoomName、Status、Options、link 等）。否则 GORM 无法把该列写进数据库。
-- **List 函数**：Request 显式声明筛选字段，并嵌入 `query.PageSortReq`（`widget:"-"`）隐藏分页字段；使用 `queryDB := db.Model(&Model{})` 后在 Build 前手写 `Where` / `Joins` / `Preload`，再调用 `resp.Table(&lists, queryDB, &Model{}, &req.PageSortReq).Build()`；Build 后可在内存中给计算字段赋值（如剩余时间、**link 跳转 URL**，见「三、结构体与标签 → link 组件」）。`Table` 只处理分页、排序、Count 和 Find；
+- **List 函数**：Request 显式声明筛选字段，并嵌入 `query.PageSortReq`（`widget:"-"`）隐藏分页字段；Handler 显式处理 `Where` / `Joins` / `Preload`、`req.PageSortReq.GetOrder()`、`Count`、`Offset/Limit/Find`，或调用第三方 API 获取当前页数据和总数；最后调用 `resp.Table(response.TableResult{Items: lists, TotalCount: total, PageInfo: &req.PageSortReq}).Build()`。返回前可在内存中给计算字段赋值（如剩余时间、**link 跳转 URL**，见「三、结构体与标签 → link 组件」）。`Table` 只渲染响应，不查询数据库；
 - 主键、CreatedAt、UpdatedAt、DeletedAt、DeletedBy 等系统字段约定见案例；init_.go 由脚手架生成，不要手写。
 
 完整 Table 示例（单表/多表/回调/OnSelectFuzzy/link）：`read_doc("/system/prompt/case_catalog/table/ticket")`、`read_doc("/system/prompt/case_catalog/tables/meeting")`、`read_doc("/system/prompt/case_catalog/tables/hr")`。
@@ -685,24 +696,24 @@ OnTableDeleteRows: func(ctx *app.Context, req *callback.OnTableDeleteRowsReq) (*
 }
 ```
 
-### 4. List 函数：Build 前处理与 Build 后处理
+### 4. List 函数：查询前处理与返回前处理
 
-List 函数可在 **Build 之前** 和 **Build 之后** 两处做自定义处理：
+List 函数可在 **查询之前** 和 **返回之前** 两处做自定义处理：
 
-- **Build 之前**：在调用 `resp.Table(...).Build()` 之前，对 `queryDB` 做 Where（主表筛选、外表筛选、计算字段的筛选条件）、Joins、**Preload（GORM 预加载）** 等，再把 queryDB 作为参数传给 `resp.Table(&lists, queryDB, &Model{}, &req.PageSortReq).Build()`。
-- **Build 之后**：对返回的 `lists` 逐条做计算、填充不落库字段（如剩余时间、状态、**关联表名称**、link URL）等。
+- **查询之前**：对 `queryDB` 做 Where（主表筛选、外表筛选、计算字段的筛选条件）、Joins、**Preload（GORM 预加载）** 等；再按 `req.PageSortReq.GetOrder()`、`Count`、`Offset/Limit/Find` 显式查询。
+- **返回之前**：对查询出的 `lists` 逐条做计算、填充不落库字段（如剩余时间、状态、**关联表名称**、link URL）等；最后 `resp.Table(response.TableResult{Items: lists, TotalCount: total, PageInfo: &req.PageSortReq}).Build()`。
 
 #### GORM 预加载（Preload）
 
 当列表需要展示**关联表字段**（如预约列表要显示「会议室名称」，而表里只存了 `room_id`）时，应使用 GORM 的 **Preload** 在查主表时一并加载关联，避免 N+1 查询。步骤：
 
 1. **Model 上定义关联**：在列表结构体上声明关联字段，并设置 `gorm:"foreignKey:外键列"`（如 `Room *MeetingRoom` 配 `gorm:"foreignKey:RoomID"`），该关联字段可不落库、不展示（`json:"-"`、`widget:"-"`）。
-2. **Build 前 Preload**：在调用 `resp.Table(...).Build()` 之前执行 `queryDB = queryDB.Preload("Room")`（参数为关联字段名），这样 Build 完成后每条记录的 `Room` 会被填充。
-3. **Build 后处理**：遍历 `lists` 时，用预加载的关联填不落库的展示字段（如 `if item.Room != nil { item.RoomName = item.Room.Name }`），再填计算字段、link 等。
+2. **查询前 Preload**：在 `Find(&lists)` 之前执行 `queryDB = queryDB.Preload("Room")`（参数为关联字段名），这样查询完成后每条记录的 `Room` 会被填充。
+3. **返回前处理**：遍历 `lists` 时，用预加载的关联填不落库的展示字段（如 `if item.Room != nil { item.RoomName = item.Room.Name }`），再填计算字段、link 等。
 
 不预加载时，若在后处理里按 `room_id` 逐条查会议室会形成 N+1 查询；使用 Preload 后一次查询主表、一次查询关联表，性能更好。
 
-下面先给一个**仅后处理**的最小示例（剩余时间），再给一个**前处理 + 后处理**的示例（会议室预约：外表/状态筛选 + 填充会议室名称/状态/link）。
+下面先给一个**仅返回前处理**的最小示例（剩余时间），再给一个**查询前处理 + 返回前处理**的示例（会议室预约：外表/状态筛选 + 填充会议室名称/状态/link）。
 
 ```go
 // 结构体：ID、标题、截止时间（落库），剩余时间（不落库，仅展示）
@@ -723,10 +734,17 @@ func TaskList(ctx *app.Context, resp response.Response) error {
     db := ctx.GetGormDB()
     var lists []*Task
     queryDB := db.Model(&Task{})
-    if err := resp.Table(&lists, queryDB, &Task{}, &req.PageSortReq).Build(); err != nil {
+    if order := req.PageSortReq.GetOrder(); order != "" {
+        queryDB = queryDB.Order(order)
+    }
+    var total int64
+    if err := queryDB.Count(&total).Error; err != nil {
         return err
     }
-    // Build 之后：按截止时间计算「剩余时间」展示
+    if err := queryDB.Offset(req.PageSortReq.GetOffset()).Limit(req.PageSortReq.GetLimit()).Find(&lists).Error; err != nil {
+        return err
+    }
+    // 返回前：按截止时间计算「剩余时间」展示
     now := time.Now()
     for _, item := range lists {
         deadline := item.Deadline.Time()
@@ -746,15 +764,19 @@ func TaskList(ctx *app.Context, resp response.Response) error {
             item.RemainingTime = fmt.Sprintf("%d小时", h)
         }
     }
-    return nil
+    return resp.Table(response.TableResult{
+        Items:      lists,
+        TotalCount: total,
+        PageInfo:   &req.PageSortReq,
+    }).Build()
 }
 ```
 
 要点：计算字段用 `gorm:"-"`，不写库；`hide:"create,update"` 表示前端仅在列表展示，不进入新增/编辑表单。
 
-**示例二：Build 前处理 + 后处理（会议室预约）**
+**示例二：查询前处理 + 返回前处理（会议室预约）**
 
-请求里包含**外表筛选**（会议室名称）和**计算字段筛选**（预约状态：待开始/进行中/已结束，由开始/结束时间与当前时间算出）。需在 Build 前对 `queryDB` 做 Where；Build 后填充不落库字段（会议室名称、状态、详情 link）。参考：`read_doc("/system/prompt/case_catalog/tables/meeting")`（见 meeting_room_booking.go）。
+请求里包含**外表筛选**（会议室名称）和**计算字段筛选**（预约状态：待开始/进行中/已结束，由开始/结束时间与当前时间算出）。需在查询前对 `queryDB` 做 Where；返回前填充不落库字段（会议室名称、状态、详情 link）。参考：`read_doc("/system/prompt/case_catalog/tables/meeting")`（见 meeting_room_booking.go）。
 
 ```go
 // 列表结构体：RoomName、Status、RoomLink 为不落库展示字段（gorm:"-"）
@@ -785,7 +807,7 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
 
     queryDB := db.Model(&MeetingRoomBooking{})
 
-    // Build 前处理 1：按会议室名称筛选（外表字段，先查 MeetingRoom 得 roomIDs，再 Where room_id IN ?；无匹配时返回空表）
+    // 查询前处理 1：按会议室名称筛选（外表字段，先查 MeetingRoom 得 roomIDs，再 Where room_id IN ?；无匹配时返回空表）
     if req.RoomName != "" {
         var roomIDs []int
         if err := db.Model(&MeetingRoom{}).Where("name LIKE ?", "%"+req.RoomName+"%").
@@ -796,7 +818,7 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
         }
     }
 
-    // Build 前处理 2：按预约状态筛选（计算字段：用 start_time/end_time 与当前时间比较；多表时建议加表名前缀如 crm_meeting_room_booking.start_time）
+    // 查询前处理 2：按预约状态筛选（计算字段：用 start_time/end_time 与当前时间比较；多表时建议加表名前缀如 crm_meeting_room_booking.start_time）
     if req.Status != "" {
         now := time.Now()
         switch req.Status {
@@ -807,12 +829,21 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
     }
 
     queryDB = queryDB.Preload("Room")
-    var bookings []MeetingRoomBooking
-    if err := resp.Table(&bookings, queryDB, &MeetingRoomBooking{}, &req.PageSortReq).Build(); err != nil {
+    if order := req.PageSortReq.GetOrder(); order != "" {
+        queryDB = queryDB.Order(order)
+    }
+
+    var total int64
+    if err := queryDB.Count(&total).Error; err != nil {
         return err
     }
 
-    // Build 后处理：填充不落库字段（会议室名称、状态、详情 link）
+    var bookings []MeetingRoomBooking
+    if err := queryDB.Offset(req.PageSortReq.GetOffset()).Limit(req.PageSortReq.GetLimit()).Find(&bookings).Error; err != nil {
+        return err
+    }
+
+    // 返回前处理：填充不落库字段（会议室名称、状态、详情 link）
     for i := range bookings {
         if bookings[i].Room != nil {
             bookings[i].RoomName = bookings[i].Room.Name
@@ -820,7 +851,11 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
         bookings[i].Status = calculateBookingStatus(bookings[i].StartTime, bookings[i].EndTime)
         bookings[i].RoomLink, _ = ctx.BuildFunctionUrlWithText("meeting_room_list.table", MeetingRoom{ID: bookings[i].RoomID}, "查看会议室详情")
     }
-    return nil
+    return resp.Table(response.TableResult{
+        Items:      bookings,
+        TotalCount: total,
+        PageInfo:   &req.PageSortReq,
+    }).Build()
 }
 
 func calculateBookingStatus(startTime, endTime types.Time) string {
@@ -831,7 +866,7 @@ func calculateBookingStatus(startTime, endTime types.Time) string {
 }
 ```
 
-要点：**前处理**用自定义 `queryDB`（外表 Where、计算字段 Where、**Preload 预加载关联**）再把 queryDB 作为参数传给 `resp.Table(&lists, queryDB, &Model{}, &req.PageSortReq).Build()`；**Build** 才真正执行 Count/Order/Offset/Limit/Find；**后处理**在 Build 之后遍历 `lists`，用预加载的 `Room` 填 `RoomName`，再填 `Status`、`RoomLink` 等不落库字段。
+要点：**查询前处理**用自定义 `queryDB`（外表 Where、计算字段 Where、**Preload 预加载关联**），再显式执行 `GetOrder`、`Count`、`Offset/Limit/Find`；**返回前处理**遍历 `lists`，用预加载的 `Room` 填 `RoomName`，再填 `Status`、`RoomLink` 等不落库字段；最后用 `resp.Table(response.TableResult{...}).Build()` 渲染表格响应。
 
 ---
 

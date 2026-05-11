@@ -33,6 +33,10 @@ export interface ChatMessage {
   /** 仅 user 消息：附带文件列表（发送时展示、加载会话时由接口解析） */
   files?: ChatMessageFile[]
   tool_calls?: ChatMessageToolCall[]
+  llm_config_id?: number
+  llm_config_name?: string
+  llm_provider?: string
+  llm_model?: string
   /** assistant 专用：按顺序的 content / tool_calls 块，有则按块渲染，否则退化为上面整段 content + 下面整段 tool_calls */
   blocks?: AssistantBlock[]
   created_at?: string
@@ -283,6 +287,7 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
     }
     if (event === 'done') {
       sending.value = false
+      const llmMeta = extractLLMMetadata(data)
       if (Array.isArray(data.tool_calls)) {
         const doneList = data.tool_calls as ChatMessageToolCall[]
         const prev = m.tool_calls || []
@@ -307,7 +312,9 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
         const blocks = m.blocks ?? []
         // 保留现有 block 结构，只更新每个 tool_calls block 的数据
         const nextBlocks = rebuildAllToolCallsBlocks(blocks, merged)
-        messages.value[lastIdx] = { ...m, tool_calls: merged, blocks: nextBlocks }
+        messages.value[lastIdx] = { ...m, ...llmMeta, tool_calls: merged, blocks: nextBlocks }
+      } else {
+        messages.value[lastIdx] = { ...m, ...llmMeta }
       }
     }
     if (event === 'error') {
@@ -328,6 +335,15 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
       }
       sending.value = false
     }
+  }
+
+  function extractLLMMetadata(data: Record<string, unknown>): Partial<ChatMessage> {
+    const meta: Partial<ChatMessage> = {}
+    if (typeof data.llm_config_id === 'number') meta.llm_config_id = data.llm_config_id
+    if (typeof data.llm_config_name === 'string') meta.llm_config_name = data.llm_config_name
+    if (typeof data.llm_provider === 'string') meta.llm_provider = data.llm_provider
+    if (typeof data.llm_model === 'string') meta.llm_model = data.llm_model
+    return meta
   }
 
   async function send(content: string, streamFn: (onEvent: StreamEventHandler) => Promise<void>, files?: ChatMessageFile[]) {

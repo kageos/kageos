@@ -192,13 +192,13 @@
       <div
         v-for="session in sessions"
         :key="session.session_id"
-        :class="['right-session-card', { generating: session.status === 'generating' }]"
+        :class="['right-session-card', workspaceSessionCardClass(session)]"
         :data-testid="`workspace-session-card-${session.session_id}`"
         @click="$emit('open-session', session)"
       >
         <div class="right-session-card-head">
           <el-icon
-            v-if="session.status === 'generating'"
+            v-if="isGeneratingSession(session.status)"
             class="is-loading"
             :size="12"
             color="var(--el-color-primary)"
@@ -217,16 +217,21 @@
         </div>
 
         <div class="right-session-card-meta">
-          <el-tag v-if="session.status === 'generating'" type="primary" size="small" effect="light">执行中</el-tag>
-          <el-tag v-else-if="session.status === 'done'" type="success" size="small" effect="plain">已完成</el-tag>
-          <el-tag v-else-if="session.status === 'cancelled'" type="info" size="small" effect="plain">已取消</el-tag>
+          <el-tag
+            v-if="workspaceSessionStatusLabel(session.status)"
+            :type="workspaceSessionStatusTag(session.status)"
+            size="small"
+            effect="light"
+          >
+            {{ workspaceSessionStatusLabel(session.status) }}
+          </el-tag>
           <span class="right-session-time">{{ formatRelativeTime(session.updated_at) }}</span>
         </div>
         <div class="right-session-card-timestamp">
           {{ formatTimestamp(session.updated_at || session.created_at) }}
         </div>
 
-        <div v-if="session.status === 'generating'" class="right-session-card-actions">
+        <div v-if="isGeneratingSession(session.status)" class="right-session-card-actions">
           <el-button
             size="small"
             link
@@ -371,6 +376,59 @@ function executionStatusTag(status: string): 'success' | 'warning' | 'info' | 'p
     cancelled: 'info'
   }
   return map[status] || 'info'
+}
+
+type WorkspaceSessionTagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
+
+function normalizeWorkspaceSessionStatus(status: string): string {
+  return String(status || '').trim().toLowerCase()
+}
+
+function isGeneratingSession(status: string): boolean {
+  return normalizeWorkspaceSessionStatus(status) === 'generating'
+}
+
+function isWaitingSession(status: string): boolean {
+  return ['pending_confirmation', 'pending_test', 'waiting', 'pending'].includes(normalizeWorkspaceSessionStatus(status))
+}
+
+function workspaceSessionStatusLabel(status: string): string {
+  const normalized = normalizeWorkspaceSessionStatus(status)
+  const map: Record<string, string> = {
+    generating: '执行中',
+    output: '新文件',
+    new_file: '新文件',
+    new_output: '新文件',
+    has_output: '新文件',
+    pending_confirmation: 'PRD 待确认',
+    pending_test: '测试待确认',
+    done: '已完成',
+    cancelled: '已取消',
+    failed: '失败'
+  }
+  return map[normalized] || ''
+}
+
+function workspaceSessionStatusTag(status: string): WorkspaceSessionTagType {
+  const normalized = normalizeWorkspaceSessionStatus(status)
+  if (normalized === 'generating') return 'primary'
+  if (['output', 'new_file', 'new_output', 'has_output'].includes(normalized)) return 'primary'
+  if (isWaitingSession(normalized)) return 'warning'
+  if (normalized === 'done') return 'success'
+  if (normalized === 'failed') return 'danger'
+  return 'info'
+}
+
+function workspaceSessionCardClass(session: WorkspaceSessionItem) {
+  const status = normalizeWorkspaceSessionStatus(session.status)
+  return {
+    generating: status === 'generating',
+    output: ['output', 'new_file', 'new_output', 'has_output'].includes(status),
+    waiting: isWaitingSession(status),
+    done: status === 'done',
+    cancelled: status === 'cancelled',
+    failed: status === 'failed'
+  }
 }
 
 function scheduleTypeLabel(scheduleType: string): string {
@@ -532,6 +590,28 @@ function formatTimestamp(value?: string): string {
 
   &.generating {
     border-left: 3px solid var(--el-color-primary);
+  }
+
+  &.waiting {
+    border-left: 3px solid var(--el-color-warning);
+    background: color-mix(in srgb, var(--el-color-warning) 7%, var(--app-shell-panel-bg-strong));
+  }
+
+  &.output {
+    border-left: 3px solid var(--el-color-primary);
+    background: color-mix(in srgb, var(--el-color-primary) 7%, var(--app-shell-panel-bg-strong));
+  }
+
+  &.done {
+    border-left: 3px solid var(--el-color-success);
+  }
+
+  &.cancelled {
+    border-left: 3px solid var(--el-color-info);
+  }
+
+  &.failed {
+    border-left: 3px solid var(--el-color-danger);
   }
 }
 

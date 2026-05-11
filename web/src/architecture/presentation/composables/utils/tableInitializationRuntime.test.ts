@@ -32,13 +32,13 @@ describe('tableInitializationRuntime', () => {
     expect(
       normalizeTableRouteQuery({
         page: 2,
-        sorts: ['-id', null, 'name'],
+        sorts: [JSON.stringify([{ field: 'id', order: 'desc' }]), null],
         empty: null,
         keyword: 'alice'
       })
     ).toEqual({
       page: '2',
-      sorts: ['-id', 'name'],
+      sorts: [JSON.stringify([{ field: 'id', order: 'desc' }])],
       keyword: 'alice'
     })
   })
@@ -82,6 +82,14 @@ describe('tableInitializationRuntime', () => {
     })
   })
 
+  it('clears table state with a page-specific preferred page size', () => {
+    expect(buildClearedTableState(createTableState(), 10).pagination).toEqual({
+      currentPage: 1,
+      pageSize: 10,
+      total: 0
+    })
+  })
+
   it('applies restored search, sorts and pagination into current state', () => {
     expect(
       buildRestoredTableState(createTableState(), {
@@ -115,10 +123,18 @@ describe('tableInitializationRuntime', () => {
 
     expect(
       shouldSyncTableURLAfterRestore({
-        query: { page: '1', page_size: '20' },
+        query: { page: '1', page_size: '10' },
         isLinkNavigation: false
       })
     ).toBe(false)
+
+    expect(
+      shouldSyncTableURLAfterRestore({
+        query: { page: '1', page_size: '20' },
+        isLinkNavigation: false,
+        shouldSyncPageSize: true
+      })
+    ).toBe(true)
 
     expect(
       shouldSyncTableURLAfterRestore({

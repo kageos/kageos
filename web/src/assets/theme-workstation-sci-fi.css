@@ -127,6 +127,23 @@ html:not(.dark) .workspace-container .right-sidebar::before {
   border-left: 2px solid var(--ws-sci-fi-glow);
   animation: ws-generating-pulse 1.5s ease-in-out infinite;
 }
+.workspace-container .right-session-card.waiting {
+  border-left: 2px solid var(--el-color-warning);
+  box-shadow: 0 0 18px rgba(246, 189, 77, 0.14);
+}
+.workspace-container .right-session-card.output {
+  border-left: 2px solid var(--ws-sci-fi-glow);
+  box-shadow: 0 0 18px rgba(55, 163, 255, 0.14);
+}
+.workspace-container .right-session-card.done {
+  border-left: 2px solid var(--el-color-success);
+}
+.workspace-container .right-session-card.cancelled {
+  border-left: 2px solid var(--el-color-info);
+}
+.workspace-container .right-session-card.failed {
+  border-left: 2px solid var(--el-color-danger);
+}
 .workspace-container .right-session-footer {
   border-top-color: var(--ws-sci-fi-border);
 }

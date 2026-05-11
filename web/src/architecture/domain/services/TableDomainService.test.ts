@@ -16,7 +16,7 @@ function createService() {
         hasManualSort: false,
         pagination: {
           currentPage: 1,
-          pageSize: 20,
+          pageSize: 10,
           total: 0
         }
       }),
@@ -41,7 +41,7 @@ function createStateManager(initialState?: Partial<TableState>) {
     hasManualSort: false,
     pagination: {
       currentPage: 1,
-      pageSize: 20,
+      pageSize: 10,
       total: 0
     },
     ...initialState
@@ -328,5 +328,121 @@ describe('TableDomainService URL restore', () => {
         total_pages: 1
       }
     })
+  })
+
+  it('sends multi-column sorts as structured JSON in table search params', async () => {
+    const stateManager = createStateManager({
+      sorts: [
+        { field: 'created_at', order: 'desc' },
+        { field: 'name', order: 'asc' }
+      ]
+    })
+    const eventBus = {
+      emit: vi.fn(),
+      on: () => () => {},
+      off: () => {},
+      once: () => {}
+    }
+    const apiClient = {
+      get: vi.fn().mockResolvedValue({
+        items: [],
+        paginated: {
+          current_page: 2,
+          page_size: 50,
+          total_count: 0,
+          total_pages: 0
+        }
+      }),
+      post: vi.fn(),
+      put: vi.fn(),
+      delete: vi.fn()
+    }
+
+    const service = new TableDomainService(apiClient as any, stateManager as any, eventBus as any)
+
+    await service.loadData(
+      { router: '/orders' } as any,
+      { status: 'open' },
+      undefined,
+      { page: 2, pageSize: 50 }
+    )
+
+    expect(apiClient.get).toHaveBeenCalledWith('/workspace/api/v1/table/search/orders', {
+      status: 'open',
+      page: 2,
+      page_size: 50,
+      sorts: JSON.stringify([
+        { field: 'created_at', order: 'desc' },
+        { field: 'name', order: 'asc' }
+      ])
+    })
+  })
+
+  it('sends single sort params as structured JSON in table search params', async () => {
+    const stateManager = createStateManager()
+    const eventBus = {
+      emit: vi.fn(),
+      on: () => () => {},
+      off: () => {},
+      once: () => {}
+    }
+    const apiClient = {
+      get: vi.fn().mockResolvedValue({
+        items: [],
+        paginated: {
+          current_page: 1,
+          page_size: 20,
+          total_count: 0,
+          total_pages: 0
+        }
+      }),
+      post: vi.fn(),
+      put: vi.fn(),
+      delete: vi.fn()
+    }
+
+    const service = new TableDomainService(apiClient as any, stateManager as any, eventBus as any)
+
+    await service.loadData(
+      { router: '/orders' } as any,
+      {},
+      { field: 'id', order: 'desc' },
+      { page: 1, pageSize: 20 }
+    )
+
+    expect(apiClient.get).toHaveBeenCalledWith('/workspace/api/v1/table/search/orders', {
+      page: 1,
+      page_size: 20,
+      sorts: JSON.stringify([{ field: 'id', order: 'desc' }])
+    })
+  })
+
+  it('restores structured sorts from URL query JSON', () => {
+    const service = createService()
+    const functionDetail = {
+      schema: {
+        version: 1,
+        type: 'table',
+        table: {
+          request: [],
+          fields: [
+            { code: 'created_at', name: '创建时间' },
+            { code: 'name', name: '姓名' }
+          ]
+        }
+      }
+    } as any
+
+    const restored = service.restoreFromURL(functionDetail, {
+      sorts: JSON.stringify([
+        { field: 'created_at', order: 'desc' },
+        { field: 'name', order: 'asc' }
+      ])
+    })
+
+    expect(restored.sorts).toEqual([
+      { field: 'created_at', order: 'desc' },
+      { field: 'name', order: 'asc' }
+    ])
   })
 })

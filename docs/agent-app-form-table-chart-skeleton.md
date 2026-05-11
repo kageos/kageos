@@ -344,22 +344,23 @@ func DemoItemList(ctx *app.Context, resp response.Response) error {
 
 	var rows []DemoItem
 
-	// Table 只是把 rows、queryDB、Model 和分页参数先保存到 builder 里。
-	// 注意：这里还没有真正查询数据库。
-	builder := resp.Table(&rows, queryDB, &DemoItem{}, &req.PageSortReq)
+	if order := req.PageSortReq.GetOrder(); order != "" {
+		queryDB = queryDB.Order(order)
+	}
 
-	// Build() 才是真正执行查询的地方。
-	// Build() 内部会做：
-	// 1. Count 查询总数
-	// 2. 根据 PageSortReq.Sorts 追加排序
-	// 3. Offset / Limit
-	// 4. Find 查询当前页数据
-	// 5. 写入分页信息
-	if err := builder.Build(); err != nil {
+	// Handler 显式查询总数和当前页数据；数据源可以是 GORM，也可以是第三方 API。
+	var total int64
+	if err := queryDB.Count(&total).Error; err != nil {
+		return err
+	}
+	if err := queryDB.
+		Offset(req.PageSortReq.GetOffset()).
+		Limit(req.PageSortReq.GetLimit()).
+		Find(&rows).Error; err != nil {
 		return err
 	}
 
-	// Build() 之后：rows 已经有当前页数据。
+	// 查询之后：rows 已经有当前页数据。
 	// 这里适合做不参与 SQL 的后处理：
 	// 1. 填充 gorm:"-" 的计算字段
 	// 2. 填充 link 字段
@@ -373,7 +374,11 @@ func DemoItemList(ctx *app.Context, resp response.Response) error {
 		)
 	}
 
-	return nil
+	return resp.Table(response.TableResult{
+		Items:      rows,
+		TotalCount: total,
+		PageInfo:   &req.PageSortReq,
+	}).Build()
 }
 
 // DemoItemListTemplate 是 Table 的 schema 声明。

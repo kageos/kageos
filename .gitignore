@@ -50,3 +50,4 @@ playwright-login-page.png
 tests/e2e/.mcp-profile/
 tests/e2e/.mcp-output/
 local
+temp

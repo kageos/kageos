@@ -8,7 +8,7 @@ Agent-App 的表格列表需要同时服务三类场景：
 - 关联表列表：先 Join 或 Preload，再分页返回。
 - 计算字段列表：筛选条件不能直接依赖返回字段，需要在 Handler 中显式写 Where。
 
-最新版链路只保留一个默认写法：Request 显式声明筛选字段，分页排序使用 `query.PageSortReq`，返回使用 `resp.Table(..., ...).Build()`。
+最新版链路只保留一个默认写法：Request 显式声明筛选字段，分页排序使用 `query.PageSortReq`，Handler 显式拿到当前页数据和总数，返回使用 `resp.Table(response.TableResult{...}).Build()`。
 
 Table 列表代码只保留一条正向路径：筛选字段在 Request 中显式声明，Handler 中显式转成查询条件，分页排序交给 `query.PageSortReq`。
 
@@ -17,16 +17,16 @@ Table 列表代码只保留一条正向路径：筛选字段在 Request 中显�
 - 生成代码默认使用 `query.PageSortReq`。
 - 表格筛选字段只来自 Request 结构体，不从 Response Model 推导。
 - Model 字段只描述落库、展示和编辑能力；Table Template 用 `AutoCrudTable` 声明列表模型。
-- URL 查询参数直接使用 Request 字段名，例如 `status=处理中&title=合同&page=1&page_size=20&sorts=-created_at`；数组形态可用 `sort[]=-created_at&sort[]=score`。
+- URL 查询参数直接使用 Request 字段名，例如 `status=处理中&title=合同&page=1&page_size=20&sorts=[{"field":"created_at","order":"desc"}]`；排序参数统一使用结构化 JSON。
 - Handler 在 `Build()` 前完成所有筛选、Join、Preload、权限约束和默认条件。
 - 文档、prompt、示例、前端运行时统一使用同一套表达。
 
-## 3. 非目标
+## 3. 设计边界
 
-- 不再维护另一套自动推导协议。
-- 不再在 Model 字段上声明表格筛选能力。
-- 不再让前端发操作符分组参数。
-- 不再要求 Request 字段与 Model 字段隔离；字段 code 可以一致，语义由 Handler 控制。
+- 表格筛选能力只由 Request 字段表达。
+- Model 字段只描述数据结构、展示组件、编辑能力和跳转链接。
+- 前端分页排序参数固定为 `page`、`page_size`、`sorts`，业务筛选参数直接使用 Request 字段名。
+- Request 字段与 Model 字段可以同名，语义由 Handler 控制。
 
 ## 4. 推荐代码形态
 
@@ -55,12 +55,25 @@ func TicketList(ctx *app.Context, resp response.Response) error {
 	if req.Handler != "" {
 		db = db.Where("handler = ?", req.Handler)
 	}
+	if order := req.PageSortReq.GetOrder(); order != "" {
+		db = db.Order(order)
+	}
 
-	var rows []Ticket
-	if err := resp.Table(&rows, db, &Ticket{}, &req.PageSortReq).Build(); err != nil {
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
 		return err
 	}
-	return nil
+
+	var rows []Ticket
+	if err := db.Offset(req.PageSortReq.GetOffset()).Limit(req.PageSortReq.GetLimit()).Find(&rows).Error; err != nil {
+		return err
+	}
+
+	return resp.Table(response.TableResult{
+		Items:      rows,
+		TotalCount: total,
+		PageInfo:   &req.PageSortReq,
+	}).Build()
 }
 ```
 
@@ -75,11 +88,12 @@ func TicketList(ctx *app.Context, resp response.Response) error {
 
 ### 5.2 Handler
 
-- `Table` 只负责分页、排序和执行查询。
-- 所有业务筛选都写在 `Table` 之前。
+- `PageSortReq` 只负责分页、排序参数和 `GetOrder/GetOffset/GetLimit` 辅助方法。
+- Handler 负责执行查询并拿到 `rows` 和 `total`。
+- `resp.Table(response.TableResult{...})` 只负责渲染响应，不查询数据库。
 - 关联表筛选用 Join 或先查 ID 再 `Where IN`。
 - 计算字段筛选转成真实字段条件。
-- 返回前需要补充展示字段时，在 `Build()` 之后遍历 rows。
+- 返回前需要补充展示字段时，在 `Build()` 之前遍历 rows。
 
 ### 5.3 Response Model
 
@@ -93,13 +107,7 @@ func TicketList(ctx *app.Context, resp response.Response) error {
 前端 URL 与后端 Request 一一对应：
 
 ```text
-?status=处理中&handler=alice&page=1&page_size=20&sorts=-created_at
-```
-
-数组排序参数同样会进入 `PageSortReq`：
-
-```text
-?status=处理中&page=1&page_size=20&sort[]=-created_at&sort[]=score
+?status=处理中&handler=alice&page=1&page_size=20&sorts=[{"field":"created_at","order":"desc"}]
 ```
 
 - `page`、`page_size`、`sorts` 是表格控制参数。
@@ -122,7 +130,8 @@ func TicketList(ctx *app.Context, resp response.Response) error {
 Request 显式筛选字段
 -> Handler 写 Where / Join / Preload
 -> query.PageSortReq
--> resp.Table(..., ...).Build()
+-> Handler 显式 Count/Find 或调用第三方 API
+-> resp.Table(response.TableResult{...}).Build()
 ```
 
 示例、技能、工具说明和校验提示必须保持同一套表达。
@@ -132,5 +141,5 @@ Request 显式筛选字段
 - SDK 中 `Table` 不再暴露额外分页链式方法。
 - 表格 schema 的筛选字段只来自 Request。
 - 前端 table URL 只发 `field=value`。
-- 生成提示不再出现另一套表格筛选协议。
+- 生成提示只描述本链路中的 Request、Handler、PageSortReq、TableResult 写法。
 - 示例、技能、工具说明和校验提示保持同一套表达。

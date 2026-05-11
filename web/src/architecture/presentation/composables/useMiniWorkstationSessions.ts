@@ -37,6 +37,10 @@ function normalizeSessionMessages(rawMessages: any[]): ChatMessage[] {
           ? parseFileRefs(message.files).map(ref => ({ ref, name: fileNameFromRef(ref), source_name: fileNameFromRef(ref) }))
           : [],
         tool_calls: message.tool_calls || [],
+        llm_config_id: message.llm_config_id,
+        llm_config_name: message.llm_config_name || '',
+        llm_provider: message.llm_provider || '',
+        llm_model: message.llm_model || '',
         created_at: message.created_at,
         blocks: (() => {
           const content = displayContent
@@ -279,6 +283,9 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
 
   watch(initialSessionId, async (newSessionId) => {
     if (!newSessionId || !fullCodePath.value) {
+      return
+    }
+    if (newSessionId === sessionId.value) {
       return
     }
     stopMiniPoll()

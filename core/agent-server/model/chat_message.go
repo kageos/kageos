@@ -18,6 +18,10 @@ type AgentChatMessage struct {
 	ToolStatus     string  `gorm:"type:varchar(32);comment:role=tool时的执行状态" json:"tool_status"`
 	ResultData     *string `gorm:"type:json;comment:role=tool时的结构化结果JSON" json:"result_data"`
 	ResultMetadata *string `gorm:"type:json;comment:role=tool时的结果元数据JSON" json:"result_metadata"`
+	LLMConfigID    int64   `gorm:"type:bigint;index;comment:生成该消息使用的LLM配置ID，0表示未记录" json:"llm_config_id"`
+	LLMConfigName  string  `gorm:"type:varchar(255);comment:生成该消息使用的LLM配置名称快照" json:"llm_config_name"`
+	LLMProvider    string  `gorm:"type:varchar(32);index;comment:生成该消息使用的LLM提供商" json:"llm_provider"`
+	LLMModel       string  `gorm:"type:varchar(128);index;comment:生成该消息使用的模型名称" json:"llm_model"`
 	ContextUsage   string  `gorm:"type:varchar(32);not null;default:'include';index;comment:模型上下文用途(include/display_only/artifact)" json:"context_usage"`
 	ArtifactKind   string  `gorm:"type:varchar(64);index;comment:结构化产物类型" json:"artifact_kind"`
 	User           string  `gorm:"type:varchar(128);not null;index;comment:创建用户" json:"user"`

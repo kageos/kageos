@@ -57,7 +57,7 @@ function createMutableTableStateManager(initialState?: Partial<TableState>) {
     hasManualSort: false,
     pagination: {
       currentPage: 1,
-      pageSize: 20,
+      pageSize: 10,
       total: 0
     },
     ...initialState
@@ -320,7 +320,7 @@ describe('table detail edit flow runtime', () => {
       topic_id: '42',
       page: '2',
       page_size: '20',
-      sorts: '-id',
+      sorts: JSON.stringify([{ field: 'id', order: 'desc' }]),
       status: 'closed',
       name: 'Bob'
     })

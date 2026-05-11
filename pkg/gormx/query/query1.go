@@ -1,6 +1,7 @@
 package query
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -20,11 +21,15 @@ type PaginatedTable[T any] struct {
 // PageSortReq 只负责分页和排序，不承载搜索协议。
 // 业务筛选字段应该显式写在业务 Request struct 中，并在 Handler 里手写 Where。
 type PageSortReq struct {
-	Page      int      `json:"page" form:"page"`
-	PageSize  int      `json:"page_size" form:"page_size"`
-	Sorts     string   `json:"sorts" form:"sorts"`   // -created_at,name
-	Sort      []string `json:"sort" form:"sort"`     // sort=-created_at&sort=name
-	SortArray []string `json:"sort[]" form:"sort[]"` // sort[]=-created_at&sort[]=name
+	Page     int    `json:"page" form:"page"`
+	PageSize int    `json:"page_size" form:"page_size"`
+	Sorts    string `json:"sorts" form:"sorts"` // 结构化排序 JSON 数组
+}
+
+// SortItem 是前端可传入的结构化排序项。
+type SortItem struct {
+	Field string `json:"field" form:"field"`
+	Order string `json:"order" form:"order"` // asc/desc
 }
 
 // QueryConfig 查询配置
@@ -75,16 +80,12 @@ func (i *PageSortReq) GetOffset() int {
 	return (i.GetPage() - 1) * i.GetLimit()
 }
 
-// GetSorts 获取排序SQL
-func (i *PageSortReq) GetSorts() string {
-	sortExpr := i.Sorts
-	if strings.TrimSpace(sortExpr) == "" && len(i.Sort) > 0 {
-		sortExpr = strings.Join(i.Sort, ",")
-	}
-	if strings.TrimSpace(sortExpr) == "" && len(i.SortArray) > 0 {
-		sortExpr = strings.Join(i.SortArray, ",")
-	}
-	return buildSorts(sortExpr)
+// GetOrder 获取可传给 GORM Order 的安全排序 SQL。
+//
+// 前端只传排序意图（如 sorts=[{"field":"created_at","order":"desc"}]），这里统一校验字段名并转换成
+// `created_at` DESC, `name` ASC。业务代码不要从前端接收裸 SQL order by。
+func (i *PageSortReq) GetOrder() string {
+	return buildSortsFromJSON(i.Sorts)
 }
 
 // SafeColumn 检查列名是否安全（防SQL注入）
@@ -105,73 +106,46 @@ func SafeColumnName(column string) string {
 	return "`" + column + "`"
 }
 
-// ParseSortFields 解析排序字段字符串。
-// 推荐格式：`-created_at,name`，减号表示 DESC，裸字段表示 ASC。
-func ParseSortFields(sortStr string) ([]string, error) {
-	if sortStr == "" {
-		return nil, nil
-	}
-
-	parts := strings.Split(sortStr, ",")
-	var sortFields []string
-
-	for _, part := range parts {
-		field, order, err := parseSortPart(part)
-		if err != nil {
-			return nil, err
-		}
-		if field == "" {
-			continue
-		}
-
-		sortFields = append(sortFields, fmt.Sprintf("%s %s", SafeColumnName(field), order))
-	}
-
-	return sortFields, nil
-}
-
-func parseSortPart(part string) (field string, order string, err error) {
-	token := strings.TrimSpace(part)
-	if token == "" {
-		return "", "", nil
-	}
-
-	if strings.Contains(token, ":") {
-		fieldOrder := strings.Split(token, ":")
-		if len(fieldOrder) != 2 {
-			return "", "", fmt.Errorf("排序字段格式错误：%s，应为 -field 或 field 格式", token)
-		}
-		field = strings.TrimSpace(fieldOrder[0])
-		order = strings.ToUpper(strings.TrimSpace(fieldOrder[1]))
-	} else {
-		order = "ASC"
-		field = token
-		if strings.HasPrefix(token, "-") {
-			order = "DESC"
-			field = strings.TrimSpace(token[1:])
-		} else if strings.HasPrefix(token, "+") {
-			field = strings.TrimSpace(token[1:])
-		}
-	}
-
-	if field == "" {
-		return "", "", fmt.Errorf("排序字段不能为空：%s", token)
-	}
-	if !SafeColumn(field) {
-		return "", "", fmt.Errorf("无效的排序字段名：%s", field)
-	}
-	if order != "ASC" && order != "DESC" {
-		return "", "", fmt.Errorf("无效的排序方向：%s", order)
-	}
-	return field, order, nil
-}
-
-func buildSorts(sorts string) string {
-	sortFields, err := ParseSortFields(sorts)
-	if err != nil || len(sortFields) == 0 {
+func buildSortsFromJSON(sorts string) string {
+	if !strings.HasPrefix(strings.TrimSpace(sorts), "[") {
 		return ""
 	}
+	var items []SortItem
+	if err := json.Unmarshal([]byte(sorts), &items); err != nil {
+		return ""
+	}
+	return buildSortsFromItems(items)
+}
+
+func buildSortsFromItems(items []SortItem) string {
+	if len(items) == 0 {
+		return ""
+	}
+
+	sortFields := make([]string, 0, len(items))
+	for _, item := range items {
+		field := strings.TrimSpace(item.Field)
+		if field == "" || !SafeColumn(field) {
+			return ""
+		}
+		order := normalizeSortOrder(item.Order)
+		if order == "" {
+			return ""
+		}
+		sortFields = append(sortFields, fmt.Sprintf("%s %s", SafeColumnName(field), order))
+	}
 	return strings.Join(sortFields, ", ")
+}
+
+func normalizeSortOrder(order string) string {
+	switch strings.TrimSpace(order) {
+	case "asc":
+		return "ASC"
+	case "desc":
+		return "DESC"
+	default:
+		return ""
+	}
 }
 
 // parseFieldValues 解析字段和值
@@ -248,7 +222,7 @@ func parseInValues(input string) (map[string][]string, error) {
 
 	result := make(map[string][]string)
 
-	// 🔥 向后兼容：如果包含分号，说明是多个字段（旧格式）
+	// 分号分隔多个字段。
 	// 格式：field1:value1,value2;field2:value3,value4
 	if strings.Contains(input, ";") {
 		parts := strings.Split(input, ";")
@@ -318,7 +292,7 @@ func parseInValues(input string) (map[string][]string, error) {
 
 		// 检查是否包含冒号（可能是新字段的开始）
 		if strings.Contains(part, ":") {
-			// 如果之前有字段，先保存它
+			// 切换字段前先保存当前字段。
 			if currentField != "" && len(currentValues) > 0 {
 				result[currentField] = append(result[currentField], currentValues...)
 				currentValues = []string{}

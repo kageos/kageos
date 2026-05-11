@@ -23,6 +23,7 @@ type workspaceStreamLoopDeps struct {
 	systemPromptFragment string
 	files                string
 	service              *WorkspaceChatService
+	currentLLMMeta       messageLLMMetadata
 }
 
 var _ streamloop.StreamLoopDeps = (*workspaceStreamLoopDeps)(nil)
@@ -40,10 +41,11 @@ func (d *workspaceStreamLoopDeps) BuildMessages(ctx context.Context) ([]llms.Mes
 }
 
 func (d *workspaceStreamLoopDeps) PrepareLLM(ctx context.Context, msgs []llms.Message, tools []llms.ToolDef) (llms.LLMClient, *llms.ChatRequest, error) {
-	_, client, chatReq, err := d.service.prepareLLMRequest(ctx, d.llmConfigID, msgs, tools)
+	llmConfig, client, chatReq, err := d.service.prepareLLMRequest(ctx, d.llmConfigID, msgs, tools)
 	if err != nil {
 		return nil, nil, err
 	}
+	d.currentLLMMeta = buildMessageLLMMetadata(llmConfig, client)
 	return client, chatReq, nil
 }
 
@@ -52,11 +54,11 @@ func (d *workspaceStreamLoopDeps) SendEvent(event string, data interface{}) {
 }
 
 func (d *workspaceStreamLoopDeps) SaveAssistantMessage(ctx context.Context, content string) error {
-	return d.service.saveAssistantMessage(ctx, d.sessionID, nil, content, d.user)
+	return d.service.saveAssistantMessage(ctx, d.sessionID, nil, content, d.user, d.currentLLMMeta)
 }
 
 func (d *workspaceStreamLoopDeps) SaveAssistantMessageWithToolCalls(ctx context.Context, content string, toolCalls []llms.ToolCall) error {
-	return d.service.saveAssistantMessageWithToolCalls(ctx, d.sessionID, nil, content, toolCalls, d.user)
+	return d.service.saveAssistantMessageWithToolCalls(ctx, d.sessionID, nil, content, toolCalls, d.user, d.currentLLMMeta)
 }
 
 func (d *workspaceStreamLoopDeps) ExecuteToolCalls(ctx context.Context, allToolCalls []llms.ToolCall, currentAssistantContent string, sendEvent func(string, interface{})) ([]streamloop.ToolCallSummary, error) {
@@ -76,6 +78,7 @@ func (d *workspaceStreamLoopDeps) ExecuteToolCalls(ctx context.Context, allToolC
 }
 
 func (d *workspaceStreamLoopDeps) OnDone(summaries []streamloop.ToolCallSummary) {
+	d.service.persistWorkspaceSessionInteractionStatus(d.ctx, d.sessionID, summaries, d.user)
 	toolCalls := make([]dto.WorkspaceChatToolCallSummary, len(summaries))
 	for i := range summaries {
 		toolCalls[i] = dto.WorkspaceChatToolCallSummary{
@@ -83,5 +86,12 @@ func (d *workspaceStreamLoopDeps) OnDone(summaries []streamloop.ToolCallSummary)
 			Arguments: summaries[i].Arguments, Result: summaries[i].Result, ResultData: summaries[i].ResultData, Metadata: summaries[i].Metadata, Error: summaries[i].Error,
 		}
 	}
-	d.sendEvent(EventDone, StreamEventDone{SessionID: d.sessionID, ToolCalls: toolCalls})
+	d.sendEvent(EventDone, StreamEventDone{
+		SessionID:     d.sessionID,
+		ToolCalls:     toolCalls,
+		LLMConfigID:   d.currentLLMMeta.ConfigID,
+		LLMConfigName: d.currentLLMMeta.ConfigName,
+		LLMProvider:   d.currentLLMMeta.Provider,
+		LLMModel:      d.currentLLMMeta.Model,
+	})
 }

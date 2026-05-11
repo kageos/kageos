@@ -3,9 +3,7 @@ package response
 import (
 	"fmt"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/chart"
-	"gorm.io/gorm"
 )
 
 type RunFunctionResp struct {
@@ -19,11 +17,6 @@ type RunFunctionResp struct {
 
 	//是否是业务错误？
 	BizError interface{}
-
-	// Table 查询参数（延迟到 Build 时执行）
-	tableQueryDB       *gorm.DB
-	tableQueryModel    interface{}
-	tableQueryPageInfo *query.PageSortReq
 }
 
 func (r *RunFunctionResp) Data() interface{} {
@@ -64,64 +57,6 @@ func (r *RunFunctionResp) Build() error {
 		return nil
 	}
 
-	// 如果是 table 类型且有查询参数，执行分页查询
-	if r.Type == "table" {
-		if r.tableQueryDB != nil && r.tableQueryModel != nil {
-			return r.executeTableQuery()
-		} else {
-			//todo
-		}
-
-	}
-
-	return nil
-}
-
-// executeTableQuery 执行显式筛选后的分页查询，只处理 Count、排序、Offset、Limit、Find。
-func (t *RunFunctionResp) executeTableQuery() error {
-	if t.tableQueryPageInfo == nil {
-		t.tableQueryPageInfo = new(query.PageSortReq)
-	}
-
-	dbWithConditions := t.tableQueryDB.Session(&gorm.Session{})
-
-	// 获取分页大小
-	pageSize := t.tableQueryPageInfo.GetLimit()
-	offset := t.tableQueryPageInfo.GetOffset()
-
-	// 查询总数
-	var totalCount int64
-	if err := dbWithConditions.Session(&gorm.Session{}).Model(t.tableQueryModel).Count(&totalCount).Error; err != nil {
-		t.err = fmt.Errorf("Table.Count :%+v failed to count records: %v", t.TableData.Items, err)
-		return t.err
-	}
-
-	// 应用排序
-	if t.tableQueryPageInfo.GetSorts() != "" {
-		dbWithConditions = dbWithConditions.Order(t.tableQueryPageInfo.GetSorts())
-	}
-
-	// 查询当前页数据
-	queryDB := dbWithConditions.Offset(offset).Limit(pageSize)
-	if err := queryDB.Find(t.TableData.Items).Error; err != nil {
-		t.err = fmt.Errorf("Table.Find :%+v failed to find records: %v", t.TableData.Items, err)
-		return t.err
-	}
-
-	// 计算总页数
-	totalPages := int(totalCount) / pageSize
-	if int(totalCount)%pageSize != 0 {
-		totalPages++
-	}
-
-	// 构造分页结果
-	t.TableData.Paginated = &Paginated{
-		CurrentPage: t.tableQueryPageInfo.GetPage(),
-		TotalCount:  int(totalCount),
-		TotalPages:  totalPages,
-		PageSize:    pageSize,
-	}
-
 	return nil
 }
 
@@ -144,7 +79,7 @@ type Builder interface {
 type Response interface {
 	Form(data interface{}) Form
 	BizErrorf(format string, a ...any) Form
-	Table(resultList interface{}, queryArgs ...interface{}) Table
+	Table(result TableResult) Table
 	Chart(c chart.Charter) Chart
 }
 

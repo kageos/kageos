@@ -20,8 +20,8 @@
   
   3. **URL 参数同步**：
      - 搜索条件同步到 URL（`field=value`）
-     - 排序条件同步到 URL（`sorts=-created_at,name`）
-     - 分页信息同步到 URL（`page=1&page_size=20`）
+     - 排序条件同步到 URL（`sorts=[{"field":"created_at","order":"desc"}]`）
+     - 分页信息同步到 URL（`page=1&page_size=10`）
      - 新增弹窗状态同步到 URL（`_tab=OnTableAddRow`）
   
   ============================================
@@ -771,6 +771,7 @@ import { normalizeStorageFileDisplayUrl } from '@/architecture/presentation/util
 import { getFieldWidgetOptionColors } from '@/utils/widgetOptionColors'
 import { isWidgetConfigFlagEnabled } from '@/utils/widgetConfigFlag'
 import { deriveThumbnailPreviewUrl } from '@/utils/storagePreviewUrl'
+import { writeTablePageSizePreference } from './utils/tablePageSizePreference'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -1031,7 +1032,8 @@ const {
   domainService,
   applicationService,
   buildDefaultSorts: () => buildDefaultSortsRef(),
-  syncToURL
+  syncToURL,
+  onPageSizeChange: (size) => writeTablePageSizePreference(props.functionDetail, size)
 })
 
 loadTableDataRef = loadTableData

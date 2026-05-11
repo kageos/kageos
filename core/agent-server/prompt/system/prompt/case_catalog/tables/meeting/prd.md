@@ -115,8 +115,24 @@ func MeetingRoomList(ctx *app.Context, resp response.Response) error {
 		queryDB = queryDB.Where("status = ?", req.Status)
 	}
 
+	if order := req.PageSortReq.GetOrder(); order != "" {
+		queryDB = queryDB.Order(order)
+	}
+	var total int64
+	if err := queryDB.Count(&total).Error; err != nil {
+		return err
+	}
+
 	var rooms []MeetingRoom
-	return resp.Table(&rooms, queryDB, &MeetingRoom{}, &req.PageSortReq).Build()
+	if err := queryDB.Offset(req.PageSortReq.GetOffset()).Limit(req.PageSortReq.GetLimit()).Find(&rooms).Error; err != nil {
+		return err
+	}
+
+	return resp.Table(response.TableResult{
+		Items:      rooms,
+		TotalCount: total,
+		PageInfo:   &req.PageSortReq,
+	}).Build()
 }
 
 // MeetingRoomListTemplate 会议室管理配置
@@ -330,10 +346,16 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
 
 	queryDB = queryDB.Preload("Room")
 
-	var bookings []MeetingRoomBooking
-	builder := resp.Table(&bookings, queryDB, &MeetingRoomBooking{}, &req.PageSortReq)
+	if order := req.PageSortReq.GetOrder(); order != "" {
+		queryDB = queryDB.Order(order)
+	}
+	var total int64
+	if err := queryDB.Count(&total).Error; err != nil {
+		return err
+	}
 
-	if err := builder.Build(); err != nil {
+	var bookings []MeetingRoomBooking
+	if err := queryDB.Offset(req.PageSortReq.GetOffset()).Limit(req.PageSortReq.GetLimit()).Find(&bookings).Error; err != nil {
 		return err
 	}
 
@@ -348,7 +370,11 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
 		bookings[i].RoomLink, _ = ctx.BuildFunctionUrlWithText("meeting_room_list.table", params, "查看会议室详情")
 	}
 
-	return nil
+	return resp.Table(response.TableResult{
+		Items:      bookings,
+		TotalCount: total,
+		PageInfo:   &req.PageSortReq,
+	}).Build()
 }
 
 // MeetingRoomBookingListTemplate 预约管理配置

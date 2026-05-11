@@ -32,13 +32,7 @@ type TicketListReq struct {
 ```text
 page=1
 page_size=20
-sorts=-created_at,title
-```
-
-排序也支持数组 query 形态：
-
-```text
-sort[]=-created_at&sort[]=title
+sorts=[{"field":"created_at","order":"desc"},{"field":"title","order":"asc"}]
 ```
 
 业务筛选字段按 Request 字段 code 直接进入 query：
@@ -50,7 +44,7 @@ title=会议&status=处理中&handler=zhangsan
 完整示例：
 
 ```text
-/workspace/api/v1/table/search/demo/ticket/list?page=1&page_size=20&sorts=-id&title=会议&status=处理中
+/workspace/api/v1/table/search/demo/ticket/list?page=1&page_size=20&sorts=[{"field":"id","order":"desc"}]&title=会议&status=处理中
 ```
 
 空值不会进入查询串。这里的空值包括 `null`、`undefined`、空字符串和空数组。浏览器地址栏里中文、空格、冒号等字符会被 URL encode；前端状态和 axios 参数对象里仍然按上面的逻辑组装。
@@ -65,7 +59,6 @@ URL 中 Table 相关参数包括：
 page
 page_size
 sorts
-sort[]
 request field code
 ```
 
@@ -90,9 +83,26 @@ func TicketList(ctx *app.Context, resp response.Response) error {
         queryDB = queryDB.Where("status = ?", req.Status)
     }
 
+    if order := req.PageSortReq.GetOrder(); order != "" {
+        queryDB = queryDB.Order(order)
+    }
+
+    var total int64
+    if err := queryDB.Count(&total).Error; err != nil {
+        return err
+    }
+
     var rows []Ticket
-    return resp.Table(&rows, queryDB, &Ticket{}, &req.PageSortReq).Build()
+    if err := queryDB.Offset(req.PageSortReq.GetOffset()).Limit(req.PageSortReq.GetLimit()).Find(&rows).Error; err != nil {
+        return err
+    }
+
+    return resp.Table(response.TableResult{
+        Items:      rows,
+        TotalCount: total,
+        PageInfo:   &req.PageSortReq,
+    }).Build()
 }
 ```
 
-`Table` 只处理 Count、排序、Offset、Limit、Find 和分页信息写回；所有业务筛选、关联查询、预加载都在 `Build()` 前显式完成。
+Handler 显式处理筛选、关联查询、预加载、排序、分页和总数；`resp.Table(response.TableResult{...})` 只处理 `items + paginated` 响应渲染。

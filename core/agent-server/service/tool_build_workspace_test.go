@@ -76,7 +76,7 @@ namespace/auction/auction_bid_list.go:15:6: AuctionBidRecord redeclared in this 
 		"Table 列表使用 query.PageSortReq",
 		"调整 Table Request 字段后",
 		"OnSelectFuzzyMap 的 key 必须对应 schema",
-		"分页默认使用 resp.Table(&rows, queryDB",
+		"Table 列表先用 req.PageSortReq.GetOrder/GetOffset/GetLimit",
 		"types.Time 做格式化或比较时先调用 Time() 方法",
 		"未确认的 SDK API chart.ComboChart",
 		"未确认的 SDK API types.EmptyRequest",

@@ -52,6 +52,8 @@ function createFunctionDetail() {
   } as any
 }
 
+const idDescSorts = JSON.stringify([{ field: 'id', order: 'desc' }])
+
 describe('tableViewURLRuntime', () => {
   it('collects request field codes for filtering raw request search params', () => {
     expect(Array.from(getTableRequestFieldCodes(createFunctionDetail()))).toEqual(['status', 'keyword'])
@@ -72,7 +74,7 @@ describe('tableViewURLRuntime', () => {
     ).toEqual({
       page: '2',
       page_size: '50',
-      sorts: '-id',
+      sorts: idDescSorts,
       keyword: 'alice',
       status: 'open'
     })
@@ -113,7 +115,7 @@ describe('tableViewURLRuntime', () => {
     ).toEqual({
       page: '2',
       page_size: '50',
-      sorts: '-id',
+      sorts: idDescSorts,
       genre: '诗',
       style: '律诗'
     })
@@ -153,7 +155,7 @@ describe('tableViewURLRuntime', () => {
     ).toEqual({
       page: '2',
       page_size: '50',
-      sorts: '-id',
+      sorts: idDescSorts,
       job_id: '1'
     })
   })
@@ -234,7 +236,7 @@ describe('tableViewURLRuntime', () => {
     ).toEqual({
       page: '2',
       page_size: '50',
-      sorts: '-id',
+      sorts: idDescSorts,
       keyword: 'alice',
       status: 'open'
     })
@@ -260,7 +262,7 @@ describe('tableViewURLRuntime', () => {
       owner: 'bob',
       page: '2',
       page_size: '50',
-      sorts: '-id',
+      sorts: idDescSorts,
       keyword: 'alice',
       status: 'open'
     })

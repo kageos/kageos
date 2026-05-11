@@ -49,10 +49,11 @@ export interface WorkspaceSessionItem {
   agent_id?: number | null
   agent_name?: string
   mode_code?: string
-  status: string // active | generating | done | cancelled
+  status: string // active | generating | output | pending_confirmation | pending_test | done | cancelled
   role_id?: string
   role_display_name?: string
   full_code_path?: string
+  directory_name?: string
   parent_session_id?: string
   handoff_kind?: string
   handoff_target_role?: string
@@ -337,6 +338,10 @@ export interface WorkspaceMessageInfo {
   /** 用户消息附带的文件列表 JSON，解析后为 { files: WorkspaceChatMessageFile[] } */
   files?: string | null
   tool_calls?: WorkspaceChatToolCallSummary[]
+  llm_config_id?: number
+  llm_config_name?: string
+  llm_provider?: string
+  llm_model?: string
   context_usage?: string
   artifact_kind?: string
   created_at: string
@@ -379,6 +384,11 @@ export async function getRunningSessions(): Promise<{ sessions: WorkspaceSession
 /** 查询当前用户最近已结束的工作台任务 */
 export async function getFinishedSessions(limit = 20): Promise<{ sessions: WorkspaceSessionItem[] }> {
   return get<{ sessions: WorkspaceSessionItem[] }>('/agent/api/v1/workspace/sessions/finished', { limit })
+}
+
+/** 清除会话的待确认/待测试状态 */
+export async function resolveWorkspaceSessionInteraction(sessionId: string): Promise<void> {
+  await post('/agent/api/v1/workspace/sessions/interaction/resolve', { session_id: sessionId })
 }
 
 /** 取消执行中的工作台任务 */

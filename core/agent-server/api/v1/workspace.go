@@ -150,6 +150,22 @@ func (h *Workspace) CreateSessionHandoff(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
+// ResolvePendingInteraction 清除工作台会话的待确认/待测试状态。
+// POST /agent/api/v1/workspace/sessions/interaction/resolve
+func (h *Workspace) ResolvePendingInteraction(c *gin.Context) {
+	var req dto.ResolveWorkspacePendingInteractionReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	ctx := contextx.ToContext(c)
+	if err := h.wsChatSvc.ResolveWorkspacePendingInteraction(ctx, req.SessionID); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.Ok(c)
+}
+
 // ListMessages 获取工作台会话消息列表
 // GET /agent/api/v1/workspace/messages
 func (h *Workspace) ListMessages(c *gin.Context) {
@@ -186,6 +202,10 @@ func (h *Workspace) ListMessages(c *gin.Context) {
 			DisplayContent: msg.DisplayContent,
 			Files:          msg.Files,
 			CreatedAt:      msg.CreatedAt,
+			LLMConfigID:    msg.LLMConfigID,
+			LLMConfigName:  msg.LLMConfigName,
+			LLMProvider:    msg.LLMProvider,
+			LLMModel:       msg.LLMModel,
 			ContextUsage:   msg.ContextUsage,
 			ArtifactKind:   msg.ArtifactKind,
 		}

@@ -78,7 +78,7 @@ Table + Form 不是“一个表格加一个表单”这么简单。必须把对�
 ```go
 queryDB := db.Model(&EvaluationRecord{}).Preload("Object")
 var records []EvaluationRecord
-if err := resp.Table(&records, queryDB, &EvaluationRecord{}, &req.PageSortReq).Build(); err != nil {
+if err := resp.Table(response.TableResult{Items: records, TotalCount: total, PageInfo: &req.PageSortReq}).Build(); err != nil {
     return err
 }
 for i := range records {

@@ -38,6 +38,10 @@
   z-index: var(--aos-z-floating-popper) !important;
 }
 
+.mini-workstation-tooltip-popper.el-popper {
+  z-index: var(--aos-z-floating-popper) !important;
+}
+
 a,
 .green {
   text-decoration: none;

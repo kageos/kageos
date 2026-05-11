@@ -208,8 +208,19 @@ type StreamEventContent struct {
 
 // StreamEventDone done 事件数据
 type StreamEventDone struct {
-	SessionID string                             `json:"session_id"`
-	ToolCalls []dto.WorkspaceChatToolCallSummary `json:"tool_calls"`
+	SessionID     string                             `json:"session_id"`
+	ToolCalls     []dto.WorkspaceChatToolCallSummary `json:"tool_calls"`
+	LLMConfigID   int64                              `json:"llm_config_id,omitempty"`
+	LLMConfigName string                             `json:"llm_config_name,omitempty"`
+	LLMProvider   string                             `json:"llm_provider,omitempty"`
+	LLMModel      string                             `json:"llm_model,omitempty"`
+}
+
+type messageLLMMetadata struct {
+	ConfigID   int64
+	ConfigName string
+	Provider   string
+	Model      string
 }
 
 // StreamEventError error 事件数据
@@ -468,29 +479,7 @@ func (s *WorkspaceChatService) ListRunningSessions(ctx context.Context) ([]*dto.
 	if err != nil {
 		return nil, fmt.Errorf("查询执行中会话失败: %w", err)
 	}
-	items := make([]*dto.WorkspaceSessionItem, 0, len(sessions))
-	for _, session := range sessions {
-		items = append(items, &dto.WorkspaceSessionItem{
-			SessionID:         session.SessionID,
-			Title:             session.Title,
-			User:              session.User,
-			AgentID:           session.AgentID,
-			ModeCode:          normalizeWorkspaceModeCode(session.ModeCode),
-			Status:            session.Status,
-			RoleID:            workspaceSessionRoleID(session),
-			RoleDisplayName:   workspaceSessionRoleDisplayName(session),
-			FullCodePath:      session.FullCodePath,
-			ParentSessionID:   session.ParentSessionID,
-			HandoffKind:       session.HandoffKind,
-			HandoffTargetRole: session.HandoffTargetRole,
-			ContextPolicy:     session.ContextPolicy,
-			ArchivedForModel:  session.ArchivedForModel,
-			ArchiveReason:     session.ArchiveReason,
-			CreatedAt:         session.CreatedAt,
-			UpdatedAt:         session.UpdatedAt,
-		})
-	}
-	return items, nil
+	return s.buildWorkspaceSessionItems(ctx, sessions), nil
 }
 
 // ListFinishedSessions 查询当前用户最近已结束的工作台会话
@@ -503,8 +492,14 @@ func (s *WorkspaceChatService) ListFinishedSessions(ctx context.Context, limit i
 	if err != nil {
 		return nil, fmt.Errorf("查询已结束会话失败: %w", err)
 	}
+	return s.buildWorkspaceSessionItems(ctx, sessions), nil
+}
+
+func (s *WorkspaceChatService) buildWorkspaceSessionItems(ctx context.Context, sessions []*model.AgentChatSession) []*dto.WorkspaceSessionItem {
+	directoryNames := s.resolveWorkspaceSessionDirectoryNames(ctx, sessions)
 	items := make([]*dto.WorkspaceSessionItem, 0, len(sessions))
 	for _, session := range sessions {
+		fullCodePath := strings.TrimSpace(session.FullCodePath)
 		items = append(items, &dto.WorkspaceSessionItem{
 			SessionID:         session.SessionID,
 			Title:             session.Title,
@@ -515,6 +510,7 @@ func (s *WorkspaceChatService) ListFinishedSessions(ctx context.Context, limit i
 			RoleID:            workspaceSessionRoleID(session),
 			RoleDisplayName:   workspaceSessionRoleDisplayName(session),
 			FullCodePath:      session.FullCodePath,
+			DirectoryName:     directoryNames[fullCodePath],
 			ParentSessionID:   session.ParentSessionID,
 			HandoffKind:       session.HandoffKind,
 			HandoffTargetRole: session.HandoffTargetRole,
@@ -525,7 +521,174 @@ func (s *WorkspaceChatService) ListFinishedSessions(ctx context.Context, limit i
 			UpdatedAt:         session.UpdatedAt,
 		})
 	}
-	return items, nil
+	return items
+}
+
+func (s *WorkspaceChatService) resolveWorkspaceSessionDirectoryNames(ctx context.Context, sessions []*model.AgentChatSession) map[string]string {
+	if s == nil || s.sessionRepo == nil || len(sessions) == 0 {
+		return map[string]string{}
+	}
+
+	paths := make([]string, 0, len(sessions))
+	for _, session := range sessions {
+		path := strings.TrimSpace(session.FullCodePath)
+		if path != "" {
+			paths = append(paths, path)
+		}
+	}
+
+	directoryNames, err := s.sessionRepo.GetServiceTreeNamesByFullCodePaths(paths)
+	if err != nil {
+		logger.Warnf(ctx, "[WorkspaceChat] 查询会话目录名称失败: %v", err)
+		return map[string]string{}
+	}
+	return directoryNames
+}
+
+func (s *WorkspaceChatService) persistWorkspaceSessionInteractionStatus(ctx context.Context, sessionID string, summaries []streamloop.ToolCallSummary, user string) {
+	nextStatus := workspaceSessionStatusFromToolSummaries(summaries)
+	if nextStatus == "" || s == nil || s.sessionRepo == nil {
+		return
+	}
+
+	session, err := s.sessionRepo.GetBySessionID(sessionID)
+	if err != nil || session == nil {
+		logger.Warnf(ctx, "[WorkspaceChat] 读取待交互会话失败 session_id=%s err=%v", sessionID, err)
+		return
+	}
+	if session.Status == model.ChatSessionStatusCancelled || session.Status == model.ChatSessionStatusDone {
+		return
+	}
+	session.Status = nextStatus
+	session.UpdatedBy = user
+	if err := s.sessionRepo.Update(session); err != nil {
+		logger.Warnf(ctx, "[WorkspaceChat] 持久化待交互状态失败 session_id=%s status=%s err=%v", sessionID, nextStatus, err)
+	}
+}
+
+func workspaceSessionStatusFromToolSummaries(summaries []streamloop.ToolCallSummary) string {
+	if status := workspaceInteractionSessionStatusFromToolSummaries(summaries); status != "" {
+		return status
+	}
+	if workspaceToolSummariesHaveGeneratedOutput(summaries) {
+		return model.ChatSessionStatusOutput
+	}
+	return ""
+}
+
+func workspaceInteractionSessionStatusFromToolSummaries(summaries []streamloop.ToolCallSummary) string {
+	for i := len(summaries) - 1; i >= 0; i-- {
+		if summaries[i].Status != ToolCallStatusOK {
+			continue
+		}
+		if status := workspaceInteractionSessionStatusFromResultData(summaries[i].ResultData); status != "" {
+			return status
+		}
+	}
+	return ""
+}
+
+func workspaceToolSummariesHaveGeneratedOutput(summaries []streamloop.ToolCallSummary) bool {
+	for i := len(summaries) - 1; i >= 0; i-- {
+		summary := summaries[i]
+		if summary.Status != ToolCallStatusOK {
+			continue
+		}
+		if workspaceToolCallHasGeneratedOutput(summary) {
+			return true
+		}
+	}
+	return false
+}
+
+func workspaceToolCallHasGeneratedOutput(summary streamloop.ToolCallSummary) bool {
+	switch strings.TrimSpace(summary.Name) {
+	case "write_prd",
+		"build_workspace",
+		"write_go_file",
+		"write_doc",
+		"create_directory",
+		"copy_directory",
+		"push_to_hub",
+		"publish_to_hub":
+		return true
+	}
+	if summary.Metadata != nil && len(summary.Metadata.DisplayFileFields) > 0 {
+		return true
+	}
+	return workspaceResultDataLooksLikeArtifact(summary.ResultData)
+}
+
+func workspaceResultDataLooksLikeArtifact(resultData interface{}) bool {
+	if resultData == nil {
+		return false
+	}
+	raw, err := json.Marshal(resultData)
+	if err != nil {
+		return false
+	}
+	var payload struct {
+		Kind string `json:"kind"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return false
+	}
+	kind := strings.TrimSpace(payload.Kind)
+	return strings.HasPrefix(kind, "agent_app_") || strings.HasPrefix(kind, "workspace_")
+}
+
+func workspaceInteractionSessionStatusFromResultData(resultData interface{}) string {
+	if resultData == nil {
+		return ""
+	}
+	raw, err := json.Marshal(resultData)
+	if err != nil {
+		return ""
+	}
+	var payload struct {
+		Interaction *struct {
+			Status string `json:"status"`
+		} `json:"interaction"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil || payload.Interaction == nil {
+		return ""
+	}
+	return normalizeWorkspacePendingInteractionStatus(payload.Interaction.Status)
+}
+
+func normalizeWorkspacePendingInteractionStatus(status string) string {
+	switch strings.TrimSpace(status) {
+	case model.ChatSessionStatusPendingConfirmation:
+		return model.ChatSessionStatusPendingConfirmation
+	case model.ChatSessionStatusPendingTest:
+		return model.ChatSessionStatusPendingTest
+	default:
+		return ""
+	}
+}
+
+func (s *WorkspaceChatService) ResolveWorkspacePendingInteraction(ctx context.Context, sessionID string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return fmt.Errorf("session_id 必填")
+	}
+	session, err := s.sessionRepo.GetBySessionID(sessionID)
+	if err != nil || session == nil {
+		return fmt.Errorf("会话不存在: %s", sessionID)
+	}
+	user := contextx.GetRequestUser(ctx)
+	if user != "" && session.User != "" && session.User != user {
+		return fmt.Errorf("不能操作其他用户的会话")
+	}
+	switch session.Status {
+	case model.ChatSessionStatusPendingConfirmation, model.ChatSessionStatusPendingTest:
+		session.Status = model.ChatSessionStatusActive
+		session.UpdatedBy = user
+		if err := s.sessionRepo.Update(session); err != nil {
+			return fmt.Errorf("更新会话状态失败: %w", err)
+		}
+	}
+	return nil
 }
 
 // prepareLLMRequest 工作台只认 LLM：llmConfigID > 0 用该配置，否则用默认
@@ -590,6 +753,25 @@ func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigI
 	}
 
 	return llmConfig, client, chatReq, nil
+}
+
+func buildMessageLLMMetadata(llmConfig *model.LLMConfig, client llms.LLMClient) messageLLMMetadata {
+	meta := messageLLMMetadata{}
+	if llmConfig != nil {
+		meta.ConfigID = llmConfig.ID
+		meta.ConfigName = llmConfig.Name
+		meta.Provider = llmConfig.Provider
+		meta.Model = llmConfig.Model
+	}
+	if client != nil {
+		if provider := strings.TrimSpace(client.GetProvider()); provider != "" {
+			meta.Provider = provider
+		}
+		if modelName := strings.TrimSpace(client.GetModelName()); modelName != "" {
+			meta.Model = modelName
+		}
+	}
+	return meta
 }
 
 // convertToLLMTools 将 dto.ToolDef 转换为 llms.ToolDef（标准格式）
@@ -748,28 +930,7 @@ func (s *WorkspaceChatService) ListSessions(ctx context.Context, fullCodePath st
 		return nil, 0, fmt.Errorf("获取会话列表失败: %w", err)
 	}
 
-	items := make([]*dto.WorkspaceSessionItem, 0, len(sessions))
-	for _, session := range sessions {
-		items = append(items, &dto.WorkspaceSessionItem{
-			SessionID:         session.SessionID,
-			Title:             session.Title,
-			User:              session.User,
-			AgentID:           session.AgentID,
-			ModeCode:          normalizeWorkspaceModeCode(session.ModeCode),
-			Status:            session.Status,
-			RoleID:            workspaceSessionRoleID(session),
-			RoleDisplayName:   workspaceSessionRoleDisplayName(session),
-			FullCodePath:      session.FullCodePath,
-			ParentSessionID:   session.ParentSessionID,
-			HandoffKind:       session.HandoffKind,
-			HandoffTargetRole: session.HandoffTargetRole,
-			ContextPolicy:     session.ContextPolicy,
-			ArchivedForModel:  session.ArchivedForModel,
-			ArchiveReason:     session.ArchiveReason,
-			CreatedAt:         session.CreatedAt,
-			UpdatedAt:         session.UpdatedAt,
-		})
-	}
+	items := s.buildWorkspaceSessionItems(ctx, sessions)
 
 	return items, total, nil
 }
@@ -845,6 +1006,7 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 	source.ArchivedForModel = true
 	source.ContextPolicy = ContextPolicyDisplayOnly
 	source.ArchiveReason = fmt.Sprintf("已交接到%s，会话仅保留展示历史", workspaceRoleDisplayName(targetRole))
+	source.Status = model.ChatSessionStatusDone
 	source.UpdatedBy = user
 
 	targetSessionID := uuid.New().String()
@@ -1333,16 +1495,21 @@ func (s *WorkspaceChatService) saveAssistantMessageWithToolCalls(
 	content string,
 	allToolCalls []llms.ToolCall,
 	user string,
+	llmMeta messageLLMMetadata,
 ) error {
 	toolCallsJSON, _ := json.Marshal(allToolCalls)
 	toolCallsStr := string(toolCallsJSON)
 	asstMsg := &model.AgentChatMessage{
-		SessionID: sessionID,
-		AgentID:   agentIDPtr,
-		Role:      RoleAssistant,
-		Content:   content,
-		ToolCalls: &toolCallsStr,
-		User:      user,
+		SessionID:     sessionID,
+		AgentID:       agentIDPtr,
+		Role:          RoleAssistant,
+		Content:       content,
+		ToolCalls:     &toolCallsStr,
+		LLMConfigID:   llmMeta.ConfigID,
+		LLMConfigName: llmMeta.ConfigName,
+		LLMProvider:   llmMeta.Provider,
+		LLMModel:      llmMeta.Model,
+		User:          user,
 	}
 	asstMsg.CreatedBy = user
 	asstMsg.UpdatedBy = user
@@ -1360,13 +1527,18 @@ func (s *WorkspaceChatService) saveAssistantMessage(
 	agentIDPtr *int64,
 	content string,
 	user string,
+	llmMeta messageLLMMetadata,
 ) error {
 	asstMsg := &model.AgentChatMessage{
-		SessionID: sessionID,
-		AgentID:   agentIDPtr,
-		Role:      RoleAssistant,
-		Content:   content,
-		User:      user,
+		SessionID:     sessionID,
+		AgentID:       agentIDPtr,
+		Role:          RoleAssistant,
+		Content:       content,
+		LLMConfigID:   llmMeta.ConfigID,
+		LLMConfigName: llmMeta.ConfigName,
+		LLMProvider:   llmMeta.Provider,
+		LLMModel:      llmMeta.Model,
+		User:          user,
 	}
 	asstMsg.CreatedBy = user
 	asstMsg.UpdatedBy = user

@@ -15,12 +15,12 @@
       <div
         v-for="session in sessions"
         :key="session.session_id"
-        :class="['mini-session-card', { active: session.session_id === activeSessionId }, { generating: session.status === 'generating' }]"
+        :class="['mini-session-card', getSessionStatusClass(session.status), { active: session.session_id === activeSessionId }]"
         @click="$emit('select', session.session_id)"
       >
         <div class="mini-session-card-head">
           <el-icon
-            v-if="session.status === 'generating'"
+            v-if="isGeneratingSession(session.status)"
             class="is-loading"
             :size="12"
             color="var(--el-color-primary)"
@@ -36,7 +36,12 @@
           <UserDisplay :username="session.user" mode="simple" size="small" />
         </div>
         <div class="mini-session-card-time">
-          <span v-if="session.status === 'generating'" class="mini-session-status">执行中</span>
+          <span
+            v-if="getSessionStatusLabel(session.status)"
+            :class="['mini-session-status', getSessionStatusClass(session.status)]"
+          >
+            {{ getSessionStatusLabel(session.status) }}
+          </span>
           <span>{{ formatRelativeTime(session.updated_at) }}</span>
         </div>
         <div class="mini-session-card-timestamp">
@@ -78,6 +83,42 @@ function formatSessionTimestamp(value?: string): string {
   const m = String(date.getMinutes()).padStart(2, '0')
   const s = String(date.getSeconds()).padStart(2, '0')
   return `${y}-${M}-${d} ${h}:${m}:${s}`
+}
+
+function normalizeSessionStatus(status?: string): string {
+  return String(status || '').trim().toLowerCase()
+}
+
+function isGeneratingSession(status?: string): boolean {
+  return normalizeSessionStatus(status) === 'generating'
+}
+
+function getSessionStatusClass(status?: string): string {
+  const normalized = normalizeSessionStatus(status)
+  if (normalized === 'generating') return 'generating'
+  if (['output', 'new_file', 'new_output', 'has_output'].includes(normalized)) return 'output'
+  if (['pending_confirmation', 'pending_test', 'waiting', 'pending'].includes(normalized)) return 'waiting'
+  if (normalized === 'done') return 'done'
+  if (normalized === 'cancelled') return 'cancelled'
+  if (normalized === 'failed') return 'failed'
+  return 'active'
+}
+
+function getSessionStatusLabel(status?: string): string {
+  const normalized = normalizeSessionStatus(status)
+  const map: Record<string, string> = {
+    generating: '执行中',
+    output: '新文件',
+    new_file: '新文件',
+    new_output: '新文件',
+    has_output: '新文件',
+    pending_confirmation: 'PRD 待确认',
+    pending_test: '测试待确认',
+    done: '已完成',
+    cancelled: '已取消',
+    failed: '失败'
+  }
+  return map[normalized] || ''
 }
 </script>
 
@@ -153,6 +194,28 @@ function formatSessionTimestamp(value?: string): string {
 .mini-session-card.generating {
   border-left: 2px solid var(--mini-cyber-accent, #22d3ee);
   animation: miniSessionRunning 1.8s ease-in-out infinite;
+}
+
+.mini-session-card.waiting {
+  border-left: 2px solid #f6bd4d;
+  box-shadow: inset 3px 0 0 rgba(246, 189, 77, 0.52), 0 0 18px rgba(246, 189, 77, 0.12);
+}
+
+.mini-session-card.output {
+  border-left: 2px solid #37a3ff;
+  box-shadow: inset 3px 0 0 rgba(55, 163, 255, 0.52), 0 0 18px rgba(55, 163, 255, 0.12);
+}
+
+.mini-session-card.done {
+  border-left: 2px solid #7df5c4;
+}
+
+.mini-session-card.cancelled {
+  border-left: 2px solid rgba(184, 225, 235, 0.48);
+}
+
+.mini-session-card.failed {
+  border-left: 2px solid #ff6b6b;
 }
 
 .mini-session-new {
@@ -237,6 +300,26 @@ function formatSessionTimestamp(value?: string): string {
   color: var(--mini-cyber-accent, #22d3ee);
   font-size: 11px;
   font-weight: 700;
+}
+
+.mini-session-status.waiting {
+  color: #f6bd4d;
+}
+
+.mini-session-status.output {
+  color: #37a3ff;
+}
+
+.mini-session-status.done {
+  color: #7df5c4;
+}
+
+.mini-session-status.cancelled {
+  color: var(--mini-cyber-muted, rgba(184, 225, 235, 0.68));
+}
+
+.mini-session-status.failed {
+  color: #ff6b6b;
 }
 
 .mini-session-empty {

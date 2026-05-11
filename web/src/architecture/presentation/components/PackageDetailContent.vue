@@ -53,24 +53,6 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane v-if="canEdit && packageNode?.full_code_path" name="import">
-          <template #label>
-            <span>导入代码文件</span>
-          </template>
-          <div class="tab-content import-tab-content">
-            <div
-              class="import-go-drop-zone"
-              :class="{ 'import-go-drop-zone--dragover': isImportGoDragging }"
-              @dragover.prevent="$emit('set-import-go-dragging', true)"
-              @dragleave.prevent="$emit('set-import-go-dragging', false)"
-              @drop.prevent="$emit('import-go-drop', $event)"
-            >
-              <span>将代码文件拖到此处导入到「{{ packageNode?.name }}」</span>
-            </div>
-            <p class="import-tab-hint">支持同时导入多个文件，导入后可在工作台更新。</p>
-          </div>
-        </el-tab-pane>
-
         <el-tab-pane v-if="showScheduledAgentTaskTab" name="scheduledAgentTask">
           <template #label>
             <span>定时会话</span>
@@ -152,16 +134,14 @@ import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
 import type { WorkspaceSessionItem } from '@/api/workspace'
 import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
 
-type DetailTabName = 'info' | 'import' | 'permissionRequest' | 'permissionManage' | 'scheduledAgentTask'
+type DetailTabName = 'info' | 'permissionRequest' | 'permissionManage' | 'scheduledAgentTask'
 
 const props = defineProps<{
   packageNode: ServiceTree | null
   totalRunCount: number
   hasNoDirectoryPermissions: boolean
   showPermissionRequestTab: boolean
-  canEdit: boolean
   activeTab: DetailTabName
-  isImportGoDragging: boolean
   resourceType: 'directory'
 }>()
 
@@ -169,8 +149,6 @@ const emit = defineEmits<{
   (e: 'update:activeTab', value: DetailTabName): void
   (e: 'apply-permission'): void
   (e: 'select-child', child: ServiceTree): void
-  (e: 'import-go-drop', event: DragEvent): void
-  (e: 'set-import-go-dragging', value: boolean): void
   (e: 'open-session', session: WorkspaceSessionItem): void
 }>()
 
@@ -548,33 +526,6 @@ watch(
 .directory-markdown-body :deep(th) {
   background: var(--app-shell-panel-muted-bg);
   font-weight: 700;
-}
-
-.import-tab-content {
-  padding: 24px 0;
-}
-
-.import-go-drop-zone {
-  padding: 28px 18px;
-  border: 1px dashed rgba(var(--el-color-primary-rgb), 0.28);
-  border-radius: 20px;
-  font-size: 14px;
-  color: var(--el-color-primary);
-  text-align: center;
-  transition: border-color 0.2s, background 0.2s;
-  background: var(--app-shell-panel-muted-bg);
-  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
-}
-
-.import-go-drop-zone--dragover {
-  border-color: var(--el-color-primary);
-  background: rgba(var(--el-color-primary-rgb), 0.08);
-}
-
-.import-tab-hint {
-  margin: 12px 0 0;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
 }
 
 @media (max-width: 768px) {
