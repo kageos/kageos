@@ -11,30 +11,19 @@ import (
 
 const (
 	SchemaVersionV1 = "workflow.v1"
-	ModeSequence    = "sequence"
+	ModeGraph       = "graph"
+	NodeTypeStart   = "workflow.start"
+	NodeTypeOutput  = "workflow.output"
 	NodeTypeForm    = "form.submit"
 )
 
 var nodeIDPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
 
 type Definition struct {
-	SchemaVersion string                     `json:"schema_version"`
-	Mode          string                     `json:"mode"`
-	Inputs        map[string]InputField      `json:"inputs,omitempty"`
-	Triggers      []Trigger                  `json:"triggers,omitempty"`
-	Nodes         []Node                     `json:"nodes"`
-	Edges         []Edge                     `json:"edges"`
-	Outputs       map[string]json.RawMessage `json:"outputs,omitempty"`
-}
-
-type InputField struct {
-	Type     string `json:"type,omitempty"`
-	Required bool   `json:"required,omitempty"`
-	Title    string `json:"title,omitempty"`
-}
-
-type Trigger struct {
-	Type string `json:"type"`
+	SchemaVersion string `json:"schema_version"`
+	Mode          string `json:"mode"`
+	Nodes         []Node `json:"nodes"`
+	Edges         []Edge `json:"edges"`
 }
 
 type RetryPolicy struct {
@@ -46,6 +35,7 @@ type Node struct {
 	Name      string                     `json:"name"`
 	Type      string                     `json:"type"`
 	Ref       string                     `json:"ref,omitempty"`
+	Schema    json.RawMessage            `json:"schema,omitempty"`
 	Input     map[string]json.RawMessage `json:"input,omitempty"`
 	DependsOn []string                   `json:"depends_on,omitempty"`
 	Retry     *RetryPolicy               `json:"retry,omitempty"`
@@ -58,6 +48,26 @@ type Edge struct {
 
 type ValidateOptions struct {
 	SupportedNodeTypes map[string]bool
+}
+
+type FormSchema struct {
+	Version int            `json:"version"`
+	Type    string         `json:"type"`
+	Form    FormSchemaBody `json:"form"`
+}
+
+type FormSchemaBody struct {
+	Request  []FormField `json:"request,omitempty"`
+	Response []FormField `json:"response,omitempty"`
+}
+
+type FormField struct {
+	Code       string                 `json:"code"`
+	Name       string                 `json:"name,omitempty"`
+	FieldName  string                 `json:"field_name,omitempty"`
+	Data       map[string]interface{} `json:"data,omitempty"`
+	Widget     map[string]interface{} `json:"widget,omitempty"`
+	Validation string                 `json:"validation,omitempty"`
 }
 
 func Parse(raw json.RawMessage) (*Definition, error) {
@@ -80,9 +90,9 @@ func (d *Definition) Validate(opts ValidateOptions) error {
 	}
 	mode := strings.TrimSpace(d.Mode)
 	if mode == "" {
-		mode = ModeSequence
+		mode = ModeGraph
 	}
-	if mode != ModeSequence {
+	if mode != ModeGraph {
 		return fmt.Errorf("unsupported workflow mode: %s", mode)
 	}
 	if len(d.Nodes) == 0 {
@@ -104,15 +114,8 @@ func (d *Definition) Validate(opts ValidateOptions) error {
 	if _, err := d.TopologicalOrder(); err != nil {
 		return err
 	}
-	if mode == ModeSequence {
-		if err := d.validateSequence(nodeByID); err != nil {
-			return err
-		}
-	}
-	for name, expr := range d.Outputs {
-		if err := workflowexpr.ValidateRaw(expr, workflowexpr.MVPOptions()); err != nil {
-			return fmt.Errorf("outputs.%s: %w", name, err)
-		}
+	if err := d.validateGraphBoundaries(nodeByID); err != nil {
+		return err
 	}
 	return nil
 }
@@ -129,11 +132,41 @@ func validateNode(node Node, opts ValidateOptions) error {
 	if node.Type == "" {
 		return fmt.Errorf("type is required")
 	}
-	if len(opts.SupportedNodeTypes) > 0 && !opts.SupportedNodeTypes[node.Type] {
+	if len(opts.SupportedNodeTypes) > 0 && !opts.SupportedNodeTypes[node.Type] && !IsBuiltinNodeType(node.Type) {
 		return fmt.Errorf("unsupported node type: %s", node.Type)
 	}
-	if node.Type == NodeTypeForm && strings.TrimSpace(node.Ref) == "" {
-		return fmt.Errorf("ref is required for %s", NodeTypeForm)
+	switch node.Type {
+	case NodeTypeStart:
+		if strings.TrimSpace(node.Ref) != "" {
+			return fmt.Errorf("ref is not allowed for %s", NodeTypeStart)
+		}
+		if len(node.Input) > 0 {
+			return fmt.Errorf("input is not allowed for %s", NodeTypeStart)
+		}
+		if _, err := validateFormSchema(node.Schema, "request"); err != nil {
+			return err
+		}
+	case NodeTypeOutput:
+		if strings.TrimSpace(node.Ref) != "" {
+			return fmt.Errorf("ref is not allowed for %s", NodeTypeOutput)
+		}
+		fields, err := validateFormSchema(node.Schema, "response")
+		if err != nil {
+			return err
+		}
+		for _, field := range fields {
+			if _, ok := node.Input[field.Code]; !ok {
+				return fmt.Errorf("input.%s is required for output field", field.Code)
+			}
+		}
+	case NodeTypeForm:
+		if strings.TrimSpace(node.Ref) == "" {
+			return fmt.Errorf("ref is required for %s", NodeTypeForm)
+		}
+	default:
+		if len(opts.SupportedNodeTypes) == 0 {
+			return fmt.Errorf("unsupported node type: %s", node.Type)
+		}
 	}
 	for field, expr := range node.Input {
 		if strings.TrimSpace(field) == "" {
@@ -146,10 +179,47 @@ func validateNode(node Node, opts ValidateOptions) error {
 	return nil
 }
 
-func validateEdges(edges []Edge, nodeByID map[string]Node) error {
-	if len(nodeByID) == 1 && len(edges) == 0 {
-		return nil
+func validateFormSchema(raw json.RawMessage, section string) ([]FormField, error) {
+	if len(raw) == 0 {
+		return nil, fmt.Errorf("schema is required")
 	}
+	var schema FormSchema
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		return nil, fmt.Errorf("schema: %w", err)
+	}
+	if schema.Type != "form" {
+		return nil, fmt.Errorf("schema.type must be form")
+	}
+	if schema.Version <= 0 {
+		return nil, fmt.Errorf("schema.version is required")
+	}
+	var fields []FormField
+	switch section {
+	case "request":
+		fields = schema.Form.Request
+	case "response":
+		fields = schema.Form.Response
+	default:
+		return nil, fmt.Errorf("unsupported schema section: %s", section)
+	}
+	seen := make(map[string]bool, len(fields))
+	for i := range fields {
+		fields[i].Code = strings.TrimSpace(fields[i].Code)
+		if fields[i].Code == "" {
+			return nil, fmt.Errorf("schema.form.%s[%d].code is required", section, i)
+		}
+		if strings.Contains(fields[i].Code, ".") {
+			return nil, fmt.Errorf("schema.form.%s[%d].code must not contain dot", section, i)
+		}
+		if seen[fields[i].Code] {
+			return nil, fmt.Errorf("duplicate schema.form.%s code: %s", section, fields[i].Code)
+		}
+		seen[fields[i].Code] = true
+	}
+	return fields, nil
+}
+
+func validateEdges(edges []Edge, nodeByID map[string]Node) error {
 	if len(edges) == 0 {
 		return fmt.Errorf("edges is required")
 	}
@@ -213,15 +283,11 @@ func (d *Definition) TopologicalOrder() ([]Node, error) {
 	return order, nil
 }
 
-func (d *Definition) validateSequence(nodeByID map[string]Node) error {
-	if len(d.Nodes) == 1 {
-		return nil
-	}
-	if len(d.Edges) != len(d.Nodes)-1 {
-		return fmt.Errorf("sequence workflow requires edges count = nodes - 1")
-	}
+func (d *Definition) validateGraphBoundaries(nodeByID map[string]Node) error {
 	inDegree := make(map[string]int, len(d.Nodes))
 	outDegree := make(map[string]int, len(d.Nodes))
+	outgoing := make(map[string][]string, len(d.Nodes))
+	incoming := make(map[string][]string, len(d.Nodes))
 	for _, node := range d.Nodes {
 		inDegree[node.ID] = 0
 		outDegree[node.ID] = 0
@@ -229,28 +295,137 @@ func (d *Definition) validateSequence(nodeByID map[string]Node) error {
 	for _, edge := range d.Edges {
 		inDegree[edge.To]++
 		outDegree[edge.From]++
+		outgoing[edge.From] = append(outgoing[edge.From], edge.To)
+		incoming[edge.To] = append(incoming[edge.To], edge.From)
 	}
-	starts := 0
-	ends := 0
+
+	startID := ""
+	outputID := ""
+	for id, node := range nodeByID {
+		switch node.Type {
+		case NodeTypeStart:
+			if startID != "" {
+				return fmt.Errorf("workflow graph requires exactly one %s node", NodeTypeStart)
+			}
+			startID = id
+		case NodeTypeOutput:
+			if outputID != "" {
+				return fmt.Errorf("workflow graph requires exactly one %s node", NodeTypeOutput)
+			}
+			outputID = id
+		}
+	}
+	if startID == "" {
+		return fmt.Errorf("workflow graph requires one %s node", NodeTypeStart)
+	}
+	if outputID == "" {
+		return fmt.Errorf("workflow graph requires one %s node", NodeTypeOutput)
+	}
+	if inDegree[startID] != 0 {
+		return fmt.Errorf("%s node must not have incoming edges", NodeTypeStart)
+	}
+	if outDegree[startID] == 0 {
+		return fmt.Errorf("%s node must have outgoing edges", NodeTypeStart)
+	}
+	if outDegree[outputID] != 0 {
+		return fmt.Errorf("%s node must not have outgoing edges", NodeTypeOutput)
+	}
+	if inDegree[outputID] == 0 {
+		return fmt.Errorf("%s node must have incoming edges", NodeTypeOutput)
+	}
+
+	reachable := traverseGraph(startID, outgoing)
+	canReachOutput := traverseGraph(outputID, incoming)
 	for id := range nodeByID {
-		if inDegree[id] > 1 || outDegree[id] > 1 {
-			return fmt.Errorf("sequence workflow node %s must have at most one input and one output", id)
+		if !reachable[id] {
+			return fmt.Errorf("node %s is not reachable from %s", id, NodeTypeStart)
 		}
-		if inDegree[id] == 0 {
-			starts++
+		if !canReachOutput[id] {
+			return fmt.Errorf("node %s cannot reach %s", id, NodeTypeOutput)
 		}
-		if outDegree[id] == 0 {
-			ends++
-		}
-	}
-	if starts != 1 || ends != 1 {
-		return fmt.Errorf("sequence workflow requires exactly one start node and one end node")
 	}
 	return nil
 }
 
+func traverseGraph(start string, adjacency map[string][]string) map[string]bool {
+	seen := map[string]bool{start: true}
+	queue := []string{start}
+	for len(queue) > 0 {
+		id := queue[0]
+		queue = queue[1:]
+		for _, next := range adjacency[id] {
+			if seen[next] {
+				continue
+			}
+			seen[next] = true
+			queue = append(queue, next)
+		}
+	}
+	return seen
+}
+
+func (d *Definition) StartNode() (*Node, bool) {
+	if d == nil {
+		return nil, false
+	}
+	for i := range d.Nodes {
+		if d.Nodes[i].Type == NodeTypeStart {
+			return &d.Nodes[i], true
+		}
+	}
+	return nil, false
+}
+
+func (d *Definition) OutputNode() (*Node, bool) {
+	if d == nil {
+		return nil, false
+	}
+	for i := range d.Nodes {
+		if d.Nodes[i].Type == NodeTypeOutput {
+			return &d.Nodes[i], true
+		}
+	}
+	return nil, false
+}
+
+func (d *Definition) StartSchemaJSON() json.RawMessage {
+	node, ok := d.StartNode()
+	if !ok || len(node.Schema) == 0 {
+		return nil
+	}
+	return cloneRaw(node.Schema)
+}
+
+func (d *Definition) OutputSchemaJSON() json.RawMessage {
+	node, ok := d.OutputNode()
+	if !ok || len(node.Schema) == 0 {
+		return nil
+	}
+	return cloneRaw(node.Schema)
+}
+
+func cloneRaw(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return nil
+	}
+	out := make([]byte, len(raw))
+	copy(out, raw)
+	return out
+}
+
+func IsBuiltinNodeType(nodeType string) bool {
+	switch strings.TrimSpace(nodeType) {
+	case NodeTypeStart, NodeTypeOutput:
+		return true
+	default:
+		return false
+	}
+}
+
 func SupportedMVPNodeTypes() map[string]bool {
 	return map[string]bool{
-		NodeTypeForm: true,
+		NodeTypeStart:  true,
+		NodeTypeOutput: true,
+		NodeTypeForm:   true,
 	}
 }

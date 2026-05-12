@@ -95,10 +95,10 @@
                   <div class="canvas-node-body">
                     <div
                       v-for="input in workflowInputs"
-                      :key="input.name"
+                      :key="input.code"
                       class="canvas-list-row"
                     >
-                      <span>{{ input.title || input.name }}</span>
+                      <span>{{ input.title || input.code }}</span>
                       <el-tag size="small" :type="input.required ? 'warning' : 'info'" effect="plain">
                         {{ input.required ? '必填' : input.type || '输入' }}
                       </el-tag>
@@ -129,10 +129,10 @@
                   <div class="canvas-node-body">
                     <div
                       v-for="output in workflowOutputs"
-                      :key="output.name"
+                      :key="output.code"
                       class="canvas-output-row"
                     >
-                      <span>{{ output.name }}</span>
+                      <span>{{ output.title || output.code }}</span>
                       <code>{{ output.value }}</code>
                     </div>
                     <div v-if="workflowOutputs.length === 0" class="canvas-muted">未声明最终输出</div>
@@ -165,10 +165,62 @@
         <div class="section-bar">
           <div>
             <h2>运行输入</h2>
-            <span>JSON Object</span>
+            <span>{{ workflowInputs.length ? 'Start Schema' : 'JSON Object' }}</span>
+          </div>
+        </div>
+        <div v-if="workflowInputs.length" class="workflow-input-form">
+          <div
+            v-for="field in workflowInputs"
+            :key="field.code"
+            class="workflow-input-field"
+          >
+            <label>
+              <span>{{ field.title || field.code }}</span>
+              <el-tag size="small" :type="field.required ? 'warning' : 'info'" effect="plain">
+                {{ field.required ? '必填' : field.type || field.widgetType || '可选' }}
+              </el-tag>
+            </label>
+
+            <el-select
+              v-if="isSelectField(field)"
+              v-model="workflowInputValues[field.code]"
+              clearable
+              filterable
+              class="workflow-input-control"
+            >
+              <el-option
+                v-for="option in selectOptions(field)"
+                :key="String(option.value)"
+                :label="option.label"
+                :value="option.value"
+              />
+            </el-select>
+            <el-switch
+              v-else-if="isSwitchField(field)"
+              v-model="workflowInputValues[field.code]"
+            />
+            <el-input-number
+              v-else-if="isNumberField(field)"
+              v-model="workflowInputValues[field.code]"
+              class="workflow-input-control"
+              controls-position="right"
+            />
+            <el-input
+              v-else-if="isTextareaField(field)"
+              v-model="workflowInputValues[field.code]"
+              class="workflow-input-control"
+              type="textarea"
+              :autosize="{ minRows: 3, maxRows: 7 }"
+            />
+            <el-input
+              v-else
+              v-model="workflowInputValues[field.code]"
+              class="workflow-input-control"
+            />
           </div>
         </div>
         <el-input
+          v-else
           v-model="inputText"
           class="input-editor"
           type="textarea"
@@ -183,7 +235,17 @@
               {{ lastRun.run.status }}
             </el-tag>
           </div>
-          <pre v-if="lastRun.run.output_json" class="json-output">{{ formatJson(lastRun.run.output_json) }}</pre>
+          <div v-if="lastRunOutputRows.length" class="workflow-output-form">
+            <div
+              v-for="row in lastRunOutputRows"
+              :key="row.code"
+              class="workflow-output-field"
+            >
+              <span>{{ row.title || row.code }}</span>
+              <code>{{ compactValue(row.value) }}</code>
+            </div>
+          </div>
+          <pre v-else-if="lastRun.run.output_json" class="json-output">{{ formatJson(lastRun.run.output_json) }}</pre>
           <el-alert
             v-if="lastRun.run.error_message"
             type="error"
@@ -241,6 +303,7 @@ type WorkflowNode = {
   name?: string
   type: string
   ref?: string
+  schema?: Record<string, any>
   input?: Record<string, unknown>
 }
 
@@ -256,10 +319,17 @@ type MappingItem = {
 }
 
 type WorkflowInputItem = {
-  name: string
+  code: string
+  name?: string
   title?: string
   type?: string
+  widgetType?: string
+  widgetConfig?: Record<string, any>
   required: boolean
+}
+
+type WorkflowOutputItem = WorkflowInputItem & {
+  value: string
 }
 
 type GraphCanvasItem = {
@@ -277,12 +347,35 @@ type GraphCanvasItem = {
 
 const EMPTY_DEFINITION = {
   schema_version: 'workflow.v1',
-  mode: 'sequence',
-  inputs: {},
-  triggers: [{ type: 'manual' }],
-  nodes: [],
-  edges: [],
-  outputs: {}
+  mode: 'graph',
+  nodes: [
+    {
+      id: 'start',
+      name: '开始',
+      type: 'workflow.start',
+      schema: {
+        version: 1,
+        type: 'form',
+        form: {
+          request: []
+        }
+      }
+    },
+    {
+      id: 'output',
+      name: '输出',
+      type: 'workflow.output',
+      schema: {
+        version: 1,
+        type: 'form',
+        form: {
+          response: []
+        }
+      },
+      input: {}
+    }
+  ],
+  edges: [{ from: 'start', to: 'output' }]
 }
 
 const loading = ref(false)
@@ -293,6 +386,7 @@ const showDefinitionDebug = ref(false)
 const workflow = ref<WorkflowItem | null>(null)
 const definitionText = ref(formatJson(EMPTY_DEFINITION))
 const inputText = ref('{\n  \n}')
+const workflowInputValues = ref<Record<string, any>>({})
 const lastRun = ref<WorkflowRunDetail | null>(null)
 
 const GRAPH_PADDING = 44
@@ -338,27 +432,31 @@ const workflowEdges = computed<WorkflowEdge[]>(() => {
 
 const orderedWorkflowNodes = computed(() => orderWorkflowNodes(workflowNodes.value, workflowEdges.value))
 
-const workflowOutputs = computed(() => {
-  const outputs = parsedDefinition.value?.outputs
-  if (!outputs || typeof outputs !== 'object' || Array.isArray(outputs)) return []
-  return Object.entries(outputs).map(([name, expr]) => ({
-    name,
-    value: expressionLabel(expr)
+const startNode = computed(() => workflowNodes.value.find((node) => node.type === 'workflow.start'))
+
+const outputNode = computed(() => workflowNodes.value.find((node) => node.type === 'workflow.output'))
+
+const workflowOutputs = computed<WorkflowOutputItem[]>(() => {
+  const node = outputNode.value
+  if (!node) return []
+  const responseFields = extractFormFields(node.schema, 'response')
+  const mappings = node.input || {}
+  if (responseFields.length === 0) {
+    return Object.entries(mappings).map(([code, expr]) => ({
+      code,
+      title: code,
+      required: false,
+      value: expressionLabel(expr)
+    }))
+  }
+  return responseFields.map((field) => ({
+    ...field,
+    value: expressionLabel(mappings[field.code])
   }))
 })
 
 const workflowInputs = computed<WorkflowInputItem[]>(() => {
-  const inputs = parsedDefinition.value?.inputs
-  if (!inputs || typeof inputs !== 'object' || Array.isArray(inputs)) return []
-  return Object.entries(inputs).map(([name, value]) => {
-    const field = isRecord(value) ? value : {}
-    return {
-      name,
-      title: typeof field.title === 'string' ? field.title : undefined,
-      type: typeof field.type === 'string' ? field.type : undefined,
-      required: field.required === true
-    }
-  })
+  return extractFormFields(startNode.value?.schema, 'request')
 })
 
 const graphCanvasItems = computed<GraphCanvasItem[]>(() => {
@@ -366,56 +464,34 @@ const graphCanvasItems = computed<GraphCanvasItem[]>(() => {
 
   const items: GraphCanvasItem[] = []
   let x = GRAPH_PADDING
-  items.push({
-    id: '__start',
-    kind: 'start',
-    title: 'Start',
-    subtitle: 'manual trigger',
-    badge: `${workflowInputs.value.length} inputs`,
-    x,
-    y: GRAPH_TOP + 18,
-    width: START_NODE_WIDTH,
-    height: GRAPH_NODE_HEIGHT - 36
-  })
-
-  x += START_NODE_WIDTH + GRAPH_GAP
-  for (const [index, node] of orderedWorkflowNodes.value.entries()) {
+  for (const node of orderedWorkflowNodes.value) {
+    const kind = node.type === 'workflow.start' ? 'start' : node.type === 'workflow.output' ? 'output' : 'step'
+    const width = kind === 'start' ? START_NODE_WIDTH : kind === 'output' ? OUTPUT_NODE_WIDTH : STEP_NODE_WIDTH
+    const height = kind === 'step' ? GRAPH_NODE_HEIGHT : GRAPH_NODE_HEIGHT - 18
     items.push({
       id: node.id,
-      kind: 'step',
-      title: node.name || node.id,
+      kind,
+      title: node.name || (kind === 'start' ? 'Start' : kind === 'output' ? 'Output' : node.id),
       subtitle: node.id,
-      badge: node.type,
+      badge: kind === 'start' ? `${workflowInputs.value.length} inputs` : kind === 'output' ? `${workflowOutputs.value.length} outputs` : node.type,
       x,
-      y: GRAPH_TOP,
-      width: STEP_NODE_WIDTH,
-      height: GRAPH_NODE_HEIGHT,
+      y: kind === 'step' ? GRAPH_TOP : GRAPH_TOP + 9,
+      width,
+      height,
       node
     })
-    x += STEP_NODE_WIDTH + GRAPH_GAP
-    if (index === orderedWorkflowNodes.value.length - 1) {
-      items.push({
-        id: '__output',
-        kind: 'output',
-        title: 'Output',
-        subtitle: `${workflowOutputs.value.length} outputs`,
-        badge: 'result',
-        x,
-        y: GRAPH_TOP + 18,
-        width: OUTPUT_NODE_WIDTH,
-        height: GRAPH_NODE_HEIGHT - 36
-      })
-    }
+    x += width + GRAPH_GAP
   }
 
   return items
 })
 
 const graphCanvasSize = computed(() => {
-  const last = graphCanvasItems.value[graphCanvasItems.value.length - 1]
+  const maxRight = Math.max(...graphCanvasItems.value.map((item) => item.x + item.width), 720)
+  const maxBottom = Math.max(...graphCanvasItems.value.map((item) => item.y + item.height), GRAPH_TOP + GRAPH_NODE_HEIGHT)
   return {
-    width: last ? last.x + last.width + GRAPH_PADDING : 720,
-    height: GRAPH_TOP + GRAPH_NODE_HEIGHT + 70
+    width: maxRight + GRAPH_PADDING,
+    height: maxBottom + 70
   }
 })
 
@@ -425,11 +501,11 @@ const graphCanvasStyle = computed(() => ({
 }))
 
 const graphConnections = computed(() => {
-  const items = graphCanvasItems.value
+  const itemByID = new Map(graphCanvasItems.value.map((item) => [item.id, item]))
   const connections: Array<{ id: string; path: string }> = []
-  for (let index = 0; index < items.length - 1; index += 1) {
-    const from = items[index]
-    const to = items[index + 1]
+  for (const edge of workflowEdges.value) {
+    const from = itemByID.get(edge.from)
+    const to = itemByID.get(edge.to)
     if (!from || !to) continue
     const fromX = from.x + from.width
     const fromY = from.y + from.height / 2
@@ -442,6 +518,16 @@ const graphConnections = computed(() => {
     })
   }
   return connections
+})
+
+const lastRunOutputRows = computed(() => {
+  const output = parseOutputJSON(lastRun.value?.run?.output_json)
+  if (!output || workflowOutputs.value.length === 0) return []
+  return workflowOutputs.value.map((field) => ({
+    code: field.code,
+    title: field.title,
+    value: output[field.code]
+  }))
 })
 
 const statusText = computed(() => {
@@ -462,6 +548,14 @@ watch(
   () => {
     void loadWorkflow()
   }
+)
+
+watch(
+  workflowInputs,
+  () => {
+    syncWorkflowInputDefaults()
+  },
+  { immediate: true }
 )
 
 onMounted(() => {
@@ -554,7 +648,7 @@ async function handleRun() {
     ElMessage.warning('工作流尚未初始化')
     return
   }
-  const input = parseJson(inputText.value, '运行输入')
+  const input = collectWorkflowInput()
   if (!input) return
 
   running.value = true
@@ -577,13 +671,40 @@ async function handleRun() {
 function toWorkflowNode(value: any, index: number): WorkflowNode {
   const fallbackID = `node${index + 1}`
   const input = isRecord(value?.input) ? value.input : {}
+  const schema = isRecord(value?.schema) ? value.schema : undefined
   return {
     id: String(value?.id || fallbackID),
     name: typeof value?.name === 'string' ? value.name : undefined,
     type: String(value?.type || 'unknown'),
     ref: typeof value?.ref === 'string' ? value.ref : undefined,
+    schema,
     input
   }
+}
+
+function extractFormFields(schema: unknown, section: 'request' | 'response'): WorkflowInputItem[] {
+  if (!isRecord(schema) || schema.type !== 'form' || !isRecord(schema.form)) return []
+  const fields = schema.form[section]
+  if (!Array.isArray(fields)) return []
+  return fields
+    .filter(isRecord)
+    .map((field) => {
+      const data = isRecord(field.data) ? field.data : {}
+      const widget = isRecord(field.widget) ? field.widget : {}
+      const widgetConfig = isRecord(widget.config) ? widget.config : {}
+      const code = String(field.code || '').trim()
+      const validation = typeof field.validation === 'string' ? field.validation : ''
+      return {
+        code,
+        name: typeof field.name === 'string' ? field.name : undefined,
+        title: typeof field.name === 'string' ? field.name : code,
+        type: typeof data.type === 'string' ? data.type : undefined,
+        widgetType: typeof widget.type === 'string' ? widget.type : undefined,
+        widgetConfig,
+        required: validation.split(',').some((rule) => rule.trim() === 'required')
+      }
+    })
+    .filter((field) => field.code)
 }
 
 function orderWorkflowNodes(nodes: WorkflowNode[], edges: WorkflowEdge[]): WorkflowNode[] {
@@ -624,6 +745,86 @@ function inputMappingsForNode(node: WorkflowNode): MappingItem[] {
   }))
 }
 
+function collectWorkflowInput(): Record<string, unknown> | null {
+  if (workflowInputs.value.length === 0) {
+    return parseJson(inputText.value, '运行输入')
+  }
+
+  const input: Record<string, unknown> = {}
+  for (const field of workflowInputs.value) {
+    const value = workflowInputValues.value[field.code]
+    if (field.required && isEmptyInputValue(value)) {
+      ElMessage.warning(`请填写 ${field.title || field.code}`)
+      return null
+    }
+    if (!isEmptyInputValue(value) || typeof value === 'boolean') {
+      input[field.code] = value
+    }
+  }
+  return input
+}
+
+function syncWorkflowInputDefaults() {
+  const next: Record<string, any> = {}
+  for (const field of workflowInputs.value) {
+    if (Object.prototype.hasOwnProperty.call(workflowInputValues.value, field.code)) {
+      next[field.code] = workflowInputValues.value[field.code]
+      continue
+    }
+    next[field.code] = defaultInputValue(field)
+  }
+  workflowInputValues.value = next
+}
+
+function defaultInputValue(field: WorkflowInputItem): any {
+  const config = field.widgetConfig || {}
+  if (Object.prototype.hasOwnProperty.call(config, 'render_default')) return config.render_default
+  if (Object.prototype.hasOwnProperty.call(config, 'default')) return config.default
+  if (isSwitchField(field)) return false
+  return ''
+}
+
+function isEmptyInputValue(value: unknown) {
+  return value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)
+}
+
+function isSelectField(field: WorkflowInputItem) {
+  return field.widgetType === 'select'
+}
+
+function isSwitchField(field: WorkflowInputItem) {
+  return field.widgetType === 'switch' || field.type === 'bool' || field.type === 'boolean'
+}
+
+function isNumberField(field: WorkflowInputItem) {
+  return field.widgetType === 'number' || field.widgetType === 'float' || field.type === 'int' || field.type === 'float' || field.type === 'number'
+}
+
+function isTextareaField(field: WorkflowInputItem) {
+  return field.widgetType === 'text_area'
+}
+
+function selectOptions(field: WorkflowInputItem): Array<{ label: string; value: string }> {
+  const options = field.widgetConfig?.options
+  if (!Array.isArray(options)) return []
+  return options.map((option) => ({
+    label: String(option),
+    value: String(option)
+  }))
+}
+
+function parseOutputJSON(raw: unknown): Record<string, any> | null {
+  if (!raw) return null
+  if (isRecord(raw)) return raw
+  if (typeof raw !== 'string') return null
+  try {
+    const parsed = JSON.parse(raw)
+    return isRecord(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
 function graphNodeStyle(item: GraphCanvasItem) {
   return {
     left: `${item.x}px`,
@@ -650,7 +851,8 @@ function expressionLabel(expr: unknown): string {
 function compactValue(value: unknown): string {
   if (typeof value === 'string') return value
   try {
-    return JSON.stringify(value)
+    const text = JSON.stringify(value)
+    return typeof text === 'string' ? text : String(value)
   } catch {
     return String(value)
   }
@@ -744,7 +946,7 @@ function runStatusTagType(status: WorkflowRunStatus | string) {
 
 .workflow-main {
   flex: 1;
-  min-height: 0;
+  min-height: calc(100vh - 98px);
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
   gap: 1px;
@@ -793,6 +995,8 @@ function runStatusTagType(status: WorkflowRunStatus | string) {
 }
 
 .workflow-graph-panel {
+  flex: 1;
+  min-height: 640px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -807,7 +1011,8 @@ function runStatusTagType(status: WorkflowRunStatus | string) {
 }
 
 .workflow-canvas-wrap {
-  min-height: 320px;
+  flex: 1;
+  min-height: 560px;
   overflow: auto;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
@@ -1025,6 +1230,60 @@ function runStatusTagType(status: WorkflowRunStatus | string) {
   border-radius: 8px;
   padding: 12px;
   background: var(--el-fill-color-blank);
+}
+
+.workflow-input-form,
+.workflow-output-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.workflow-input-form {
+  padding: 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-blank);
+}
+
+.workflow-input-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.workflow-input-field label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--el-text-color-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.workflow-input-control {
+  width: 100%;
+}
+
+.workflow-output-field {
+  display: grid;
+  grid-template-columns: minmax(92px, 0.45fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  font-size: 12px;
+}
+
+.workflow-output-field span {
+  color: var(--el-text-color-secondary);
+}
+
+.workflow-output-field code {
+  min-width: 0;
+  color: var(--el-text-color-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 .run-summary-head {

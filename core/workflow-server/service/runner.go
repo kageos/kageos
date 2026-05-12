@@ -60,6 +60,9 @@ func (r *Runner) Execute(ctx context.Context, run *model.WorkflowRun, version *m
 		return err
 	}
 	for _, node := range order {
+		if definition.IsBuiltinNodeType(node.Type) {
+			continue
+		}
 		exec, err := r.registry.Get(node.Type)
 		if err != nil {
 			r.finishRunFailed(run, start, err)
@@ -76,22 +79,38 @@ func (r *Runner) Execute(ctx context.Context, run *model.WorkflowRun, version *m
 		"input": input,
 		"steps": stepsContext,
 	}
+	var workflowOutput map[string]interface{}
 	for _, node := range order {
-		nodeInput, err := resolveNodeInput(node, exprCtx)
-		if err != nil {
-			r.finishRunFailed(run, start, fmt.Errorf("node %s input: %w", node.ID, err))
-			return err
+		var nodeInput map[string]interface{}
+		var output map[string]interface{}
+		var execErr error
+		switch node.Type {
+		case definition.NodeTypeStart:
+			nodeInput = cloneMap(input)
+			output = cloneMap(input)
+		case definition.NodeTypeOutput:
+			nodeInput, execErr = resolveNodeInput(node, exprCtx)
+			output = cloneMap(nodeInput)
+			workflowOutput = output
+		default:
+			nodeInput, execErr = resolveNodeInput(node, exprCtx)
+		}
+		if execErr != nil {
+			r.finishRunFailed(run, start, fmt.Errorf("node %s input: %w", node.ID, execErr))
+			return execErr
 		}
 		step, err := r.createStepRun(run, node, nodeInput)
 		if err != nil {
 			r.finishRunFailed(run, start, err)
 			return err
 		}
-		output, execErr := r.executeNode(ctx, node, nodeInput, run, version)
-		if execErr != nil {
-			_ = r.finishStep(step, model.StepStatusFailed, nil, execErr.Error())
-			r.finishRunFailed(run, start, fmt.Errorf("node %s failed: %w", node.ID, execErr))
-			return execErr
+		if !definition.IsBuiltinNodeType(node.Type) {
+			output, execErr = r.executeNode(ctx, node, nodeInput, run, version)
+			if execErr != nil {
+				_ = r.finishStep(step, model.StepStatusFailed, nil, execErr.Error())
+				r.finishRunFailed(run, start, fmt.Errorf("node %s failed: %w", node.ID, execErr))
+				return execErr
+			}
 		}
 		if err := r.finishStep(step, model.StepStatusSuccess, output, ""); err != nil {
 			r.finishRunFailed(run, start, err)
@@ -103,9 +122,9 @@ func (r *Runner) Execute(ctx context.Context, run *model.WorkflowRun, version *m
 		}
 	}
 
-	workflowOutput, err := resolveWorkflowOutput(def, exprCtx)
-	if err != nil {
-		r.finishRunFailed(run, start, fmt.Errorf("workflow output: %w", err))
+	if workflowOutput == nil {
+		err := fmt.Errorf("workflow output node did not run")
+		r.finishRunFailed(run, start, err)
 		return err
 	}
 	outputJSON, err := json.Marshal(workflowOutput)
@@ -201,18 +220,10 @@ func resolveNodeInput(node definition.Node, exprCtx workflowexpr.Context) (map[s
 	return out, nil
 }
 
-func resolveWorkflowOutput(def *definition.Definition, exprCtx workflowexpr.Context) (map[string]interface{}, error) {
-	if len(def.Outputs) == 0 {
-		steps, _ := exprCtx["steps"].(map[string]interface{})
-		return map[string]interface{}{"steps": steps}, nil
-	}
-	out := make(map[string]interface{}, len(def.Outputs))
-	for key, expr := range def.Outputs {
-		value, err := workflowexpr.ResolveRaw(expr, exprCtx)
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", key, err)
-		}
+func cloneMap(in map[string]interface{}) map[string]interface{} {
+	out := make(map[string]interface{}, len(in))
+	for key, value := range in {
 		out[key] = value
 	}
-	return out, nil
+	return out
 }

@@ -8,12 +8,12 @@ import (
 func TestNormalizeWorkflowDefinitionRawRejectsWrapperObject(t *testing.T) {
 	_, err := normalizeWorkflowDefinitionRaw(`{
 		"workflow_name": "测试工作流",
-		"definition": {
-			"schema_version": "workflow.v1",
-			"mode": "sequence",
-			"nodes": [],
-			"edges": []
-		}
+			"definition": {
+				"schema_version": "workflow.v1",
+				"mode": "graph",
+				"nodes": [],
+				"edges": []
+			}
 	}`)
 	if err == nil {
 		t.Fatal("expected wrapper object to be rejected")
@@ -26,12 +26,12 @@ func TestNormalizeWorkflowDefinitionRawRejectsWrapperObject(t *testing.T) {
 func TestNormalizeWorkflowDefinitionRawAcceptsDefinitionObject(t *testing.T) {
 	raw, err := normalizeWorkflowDefinitionRaw(`{
 		"schema_version": "workflow.v1",
-		"mode": "sequence",
-		"inputs": {},
-		"triggers": [{"type":"manual"}],
-		"nodes": [],
-		"edges": [],
-		"outputs": {}
+		"mode": "graph",
+		"nodes": [
+			{"id":"start","type":"workflow.start","schema":{"version":1,"type":"form","form":{"request":[]}}},
+			{"id":"output","type":"workflow.output","schema":{"version":1,"type":"form","form":{"response":[]}}}
+		],
+		"edges": [{"from":"start","to":"output"}]
 	}`)
 	if err != nil {
 		t.Fatalf("normalizeWorkflowDefinitionRaw returned error: %v", err)

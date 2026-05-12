@@ -321,8 +321,9 @@ func TestWorkflowCaseCatalogLoadsWorkflowDefinitionJSON(t *testing.T) {
 	for _, needle := range []string{
 		"## Workflow Definition JSON",
 		`"schema_version": "workflow.v1"`,
+		`"type": "workflow.start"`,
 		`"type": "form.submit"`,
-		`"$ref": "steps.extractText.output.提取的文本"`,
+		`"$ref": "steps.extractText.output.text"`,
 		"## 映射逻辑",
 		"当前案例不能直接扩展为可运行 JSON",
 	} {

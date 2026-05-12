@@ -23,7 +23,7 @@ type createWorkflowArgs struct {
 	FullCodePath string `json:"full_code_path" schema_desc:"工作流节点完整路径，例如 /user/app/workflows/customer_onboarding.workflow" schema_required:"true"`
 	Name         string `json:"name" schema_desc:"工作流显示名称" schema_required:"true"`
 	Description  string `json:"description" schema_desc:"工作流描述"`
-	Definition   string `json:"definition" schema_desc:"workflow.v1 definition JSON 字符串；必须把 schema_version 放在顶层，不要外包 workflow_name/definition" schema_required:"true"`
+	Definition   string `json:"definition" schema_desc:"workflow.v1 definition JSON 字符串；必须把 schema_version 放在顶层，不要外包 workflow_name/definition；start/output 必须作为节点声明 schema" schema_required:"true"`
 	Publish      bool   `json:"publish" schema_desc:"是否创建后立即发布；默认 false，发布要求 nodes 非空且图定义完整"`
 }
 
@@ -253,9 +253,6 @@ func validateWorkflowDefinitionForTool(raw json.RawMessage, publish bool) error 
 	parsed, err := definition.Parse(raw)
 	if err != nil {
 		return err
-	}
-	if len(parsed.Nodes) == 0 && !publish {
-		return nil
 	}
 	if err := parsed.Validate(definition.ValidateOptions{SupportedNodeTypes: definition.SupportedMVPNodeTypes()}); err != nil {
 		return err

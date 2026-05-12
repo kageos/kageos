@@ -207,14 +207,12 @@ func (s *Service) PublishWorkflow(ctx context.Context, id int64, req workflowdto
 		if err != nil {
 			return err
 		}
-		inputSchema, _ := json.Marshal(parsed.Inputs)
-		outputSchema, _ := json.Marshal(parsed.Outputs)
 		version = &model.WorkflowDefinitionVersion{
 			WorkflowID:       id,
 			Version:          next,
 			DefinitionJSON:   raw,
-			InputSchemaJSON:  inputSchema,
-			OutputSchemaJSON: outputSchema,
+			InputSchemaJSON:  parsed.StartSchemaJSON(),
+			OutputSchemaJSON: parsed.OutputSchemaJSON(),
 			Status:           model.VersionStatusPublished,
 			CreatedBy:        contextx.GetRequestUser(ctx),
 		}
@@ -339,7 +337,7 @@ func (s *Service) validateDraftDefinition(raw json.RawMessage) error {
 		return fmt.Errorf("unsupported schema_version: %s", parsed.SchemaVersion)
 	}
 	mode := strings.TrimSpace(parsed.Mode)
-	if mode != "" && mode != definition.ModeSequence {
+	if mode != "" && mode != definition.ModeGraph {
 		return fmt.Errorf("unsupported workflow mode: %s", mode)
 	}
 	if len(parsed.Nodes) == 0 {

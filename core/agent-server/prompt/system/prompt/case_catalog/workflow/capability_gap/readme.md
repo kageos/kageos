@@ -4,7 +4,7 @@
 
 MVP 判断：
 
-- `form.submit` 串联可以承载“线索打分 Form -> 跟进话术生成 Form”这一段。
+- `workflow.start -> form.submit -> form.submit -> workflow.output` 可以承载“线索打分 Form -> 跟进话术生成 Form”这一段。
 - `table.search`、`table.create`、消息发送和定时触发不是当前 `workflow.v1` MVP 的可运行节点。
 - 正式 JSON 不能伪造未来 executor；应先输出可运行子流程，再把缺口写入 `missing_capabilities`。
 

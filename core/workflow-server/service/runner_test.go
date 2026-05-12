@@ -52,13 +52,14 @@ func TestWorkflowServiceRunSequentialForms(t *testing.T) {
 
 	definitionJSON := json.RawMessage(`{
 		"schema_version":"workflow.v1",
-		"mode":"sequence",
+		"mode":"graph",
 		"nodes":[
+			{"id":"start","name":"开始","type":"workflow.start","schema":{"version":1,"type":"form","form":{"request":[{"code":"file","name":"文件","data":{"type":"string"},"validation":"required"}]}}},
 			{"id":"extract","name":"提取文本","type":"form.submit","ref":"/system/extract.form","input":{"file":{"$ref":"input.file"}}},
-			{"id":"summary","name":"生成摘要","type":"form.submit","ref":"/system/summary.form","input":{"text":{"$ref":"steps.extract.output.text"}}}
+			{"id":"summary","name":"生成摘要","type":"form.submit","ref":"/system/summary.form","input":{"text":{"$ref":"steps.extract.output.text"}}},
+			{"id":"output","name":"输出","type":"workflow.output","schema":{"version":1,"type":"form","form":{"response":[{"code":"summary","name":"摘要","data":{"type":"string"}}]}},"input":{"summary":{"$ref":"steps.summary.output.summary"}}}
 		],
-		"edges":[{"from":"extract","to":"summary"}],
-		"outputs":{"summary":{"$ref":"steps.summary.output.summary"}}
+		"edges":[{"from":"start","to":"extract"},{"from":"extract","to":"summary"},{"from":"summary","to":"output"}]
 	}`)
 
 	workflow, err := svc.CreateWorkflow(ctx, workflowdto.CreateWorkflowRequest{
@@ -85,8 +86,8 @@ func TestWorkflowServiceRunSequentialForms(t *testing.T) {
 	if detail.Run.Status != model.RunStatusSuccess {
 		t.Fatalf("run status = %s, want success", detail.Run.Status)
 	}
-	if len(detail.Steps) != 2 {
-		t.Fatalf("steps len = %d, want 2", len(detail.Steps))
+	if len(detail.Steps) != 4 {
+		t.Fatalf("steps len = %d, want 4", len(detail.Steps))
 	}
 	var output map[string]interface{}
 	if err := json.Unmarshal(detail.Run.OutputJSON, &output); err != nil {

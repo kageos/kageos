@@ -20,15 +20,14 @@
 第一版只支持：
 
 - 手动触发。
-- 顺序执行。
-- 节点类型：`form.submit`。
+- 图定义，当前主要执行线性链路。
+- 节点类型：`workflow.start`、`form.submit`、`workflow.output`。
 - 表达式：`$ref` 和 `$const`。
 - 运行记录：workflow run 与 step run。
 - 失败即停止。
 
 暂不支持：
 
-- 画布。
 - 并行。
 - 条件。
 - 循环。
@@ -41,7 +40,7 @@
 当前 `codex/workflow-mvp` 分支已经落地后端 MVP 骨架：
 
 - `pkg/workflowexpr`：支持 `$ref` / `$const` 的表达式解析和校验。
-- `definition`：支持 `workflow.v1`、`nodes + edges`、sequence DAG 校验。
+- `definition`：支持 `workflow.v1`、`nodes + edges`、Start/Output 边界和 DAG 校验。
 - `executor`：支持 executor registry，已注册 `form.submit`。
 - `service`：支持 workflow 创建、更新、发布、运行、run 查询、step 查询、取消。
 - `server`：提供 `/workflow/api/v1` HTTP API。
@@ -95,7 +94,8 @@ MVP 校验：
 - `schema_version` 必须支持。
 - node ID 唯一。
 - edge 引用的 node 必须存在。
-- 只允许单链路 DAG。
+- 必须包含一个 `workflow.start` 和一个 `workflow.output`。
+- 所有节点必须从 Start 可达且能到 Output。
 - 不允许环。
 - `form.submit` 节点必须有 `ref`。
 - 输入表达式只能使用 `$ref` 和 `$const`。

@@ -1,31 +1,55 @@
 {
   "schema_version": "workflow.v1",
-  "mode": "sequence",
-  "inputs": {
-    "source_file": {
-      "type": "files",
-      "required": true,
-      "title": "源文件"
-    },
-    "summary_style": {
-      "type": "string",
-      "required": false,
-      "title": "摘要风格"
-    }
-  },
-  "triggers": [
-    {
-      "type": "manual"
-    }
-  ],
+  "mode": "graph",
   "nodes": [
+    {
+      "id": "start",
+      "name": "开始",
+      "type": "workflow.start",
+      "schema": {
+        "version": 1,
+        "type": "form",
+        "form": {
+          "request": [
+            {
+              "code": "source_file",
+              "name": "源文件",
+              "data": {
+                "type": "string"
+              },
+              "widget": {
+                "type": "files",
+                "config": {
+                  "max_count": 1
+                }
+              },
+              "validation": "required"
+            },
+            {
+              "code": "summary_style",
+              "name": "摘要风格",
+              "data": {
+                "type": "string"
+              },
+              "widget": {
+                "type": "select",
+                "config": {
+                  "options": ["简洁", "详细"],
+                  "render_default": "简洁"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
     {
       "id": "extractText",
       "name": "提取文本",
       "type": "form.submit",
       "ref": "/system/pdf_tool/plugins/extract_text.form",
       "input": {
-        "上传PDF文件": {
+        "pdf_file": {
           "$ref": "input.source_file"
         }
       }
@@ -36,24 +60,56 @@
       "type": "form.submit",
       "ref": "/system/nlp_tool/plugins/summarize.form",
       "input": {
-        "待总结文本": {
-          "$ref": "steps.extractText.output.提取的文本"
+        "source_text": {
+          "$ref": "steps.extractText.output.text"
         },
-        "摘要风格": {
+        "summary_style": {
           "$ref": "input.summary_style"
+        }
+      }
+    },
+    {
+      "id": "output",
+      "name": "输出",
+      "type": "workflow.output",
+      "schema": {
+        "version": 1,
+        "type": "form",
+        "form": {
+          "response": [
+            {
+              "code": "summary",
+              "name": "摘要",
+              "data": {
+                "type": "string"
+              },
+              "widget": {
+                "type": "text_area",
+                "config": {}
+              }
+            }
+          ]
+        }
+      },
+      "input": {
+        "summary": {
+          "$ref": "steps.generateSummary.output.summary"
         }
       }
     }
   ],
   "edges": [
     {
+      "from": "start",
+      "to": "extractText"
+    },
+    {
       "from": "extractText",
       "to": "generateSummary"
+    },
+    {
+      "from": "generateSummary",
+      "to": "output"
     }
-  ],
-  "outputs": {
-    "summary": {
-      "$ref": "steps.generateSummary.output.摘要"
-    }
-  }
+  ]
 }
