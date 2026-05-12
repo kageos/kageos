@@ -26,6 +26,13 @@
               <h2>流程图</h2>
               <span>{{ workflowNodes.length }} 个节点，{{ workflowEdges.length }} 条边</span>
             </div>
+            <el-button
+              size="small"
+              :icon="showDefinitionDebug ? Hide : View"
+              @click="showDefinitionDebug = !showDefinitionDebug"
+            >
+              {{ showDefinitionDebug ? '隐藏 JSON' : '查看 JSON' }}
+            </el-button>
           </div>
 
           <el-alert
@@ -41,61 +48,102 @@
             <div class="empty-copy">创建 workflow 后，这里会按节点顺序展示输入、输出和连线。</div>
           </div>
 
-          <div v-else class="workflow-graph-scroll">
-            <div class="workflow-graph">
-              <template
-                v-for="(item, index) in orderedWorkflowNodes"
-                :key="item.id"
+          <div v-else class="workflow-canvas-wrap">
+            <div class="workflow-canvas" :style="graphCanvasStyle">
+              <svg
+                class="workflow-canvas-lines"
+                :viewBox="`0 0 ${graphCanvasSize.width} ${graphCanvasSize.height}`"
+                aria-hidden="true"
               >
-                <article class="workflow-graph-node">
-                  <div class="node-card-head">
-                    <span class="node-index">{{ index + 1 }}</span>
-                    <div class="node-title">
-                      <strong>{{ item.name || item.id }}</strong>
-                      <code>{{ item.id }}</code>
-                    </div>
-                    <el-tag size="small" effect="plain">{{ item.type }}</el-tag>
+                <defs>
+                  <marker
+                    id="workflow-arrow"
+                    markerWidth="10"
+                    markerHeight="10"
+                    refX="8"
+                    refY="5"
+                    orient="auto"
+                    markerUnits="strokeWidth"
+                  >
+                    <path d="M 0 0 L 10 5 L 0 10 z" />
+                  </marker>
+                </defs>
+                <path
+                  v-for="connection in graphConnections"
+                  :key="connection.id"
+                  :d="connection.path"
+                />
+              </svg>
+
+              <article
+                v-for="item in graphCanvasItems"
+                :key="item.id"
+                class="canvas-node"
+                :class="`canvas-node--${item.kind}`"
+                :style="graphNodeStyle(item)"
+              >
+                <div class="canvas-node-head">
+                  <span class="canvas-node-dot"></span>
+                  <div class="canvas-node-title">
+                    <strong>{{ item.title }}</strong>
+                    <code>{{ item.subtitle }}</code>
                   </div>
-                  <div v-if="item.ref" class="node-ref">{{ item.ref }}</div>
-                  <div class="mapping-list">
+                  <el-tag size="small" effect="plain">{{ item.badge }}</el-tag>
+                </div>
+
+                <template v-if="item.kind === 'start'">
+                  <div class="canvas-node-body">
                     <div
-                      v-for="mapping in inputMappingsForNode(item)"
-                      :key="mapping.field"
-                      class="mapping-row"
+                      v-for="input in workflowInputs"
+                      :key="input.name"
+                      class="canvas-list-row"
                     >
-                      <span class="mapping-field">{{ mapping.field }}</span>
+                      <span>{{ input.title || input.name }}</span>
+                      <el-tag size="small" :type="input.required ? 'warning' : 'info'" effect="plain">
+                        {{ input.required ? '必填' : input.type || '输入' }}
+                      </el-tag>
+                    </div>
+                    <div v-if="workflowInputs.length === 0" class="canvas-muted">无输入参数</div>
+                  </div>
+                </template>
+
+                <template v-else-if="item.kind === 'step' && item.node">
+                  <div v-if="item.node.ref" class="canvas-node-ref">{{ item.node.ref }}</div>
+                  <div class="canvas-node-body">
+                    <div
+                      v-for="mapping in inputMappingsForNode(item.node)"
+                      :key="mapping.field"
+                      class="canvas-mapping-row"
+                    >
+                      <span>{{ mapping.field }}</span>
                       <el-tag size="small" :type="mapping.kind === 'ref' ? 'primary' : 'info'" effect="plain">
                         {{ mapping.kind === 'ref' ? '引用' : mapping.kind === 'const' ? '固定' : '表达式' }}
                       </el-tag>
                       <code>{{ mapping.value }}</code>
                     </div>
-                    <div v-if="inputMappingsForNode(item).length === 0" class="mapping-empty">无显式输入映射</div>
+                    <div v-if="inputMappingsForNode(item.node).length === 0" class="canvas-muted">无显式输入映射</div>
                   </div>
-                </article>
-                <div
-                  v-if="index < orderedWorkflowNodes.length - 1"
-                  class="graph-arrow"
-                >
-                  →
-                </div>
-              </template>
-            </div>
-          </div>
+                </template>
 
-          <div v-if="workflowOutputs.length > 0" class="workflow-outputs">
-            <div class="outputs-title">最终输出</div>
-            <div
-              v-for="output in workflowOutputs"
-              :key="output.name"
-              class="output-row"
-            >
-              <span>{{ output.name }}</span>
-              <code>{{ output.value }}</code>
+                <template v-else>
+                  <div class="canvas-node-body">
+                    <div
+                      v-for="output in workflowOutputs"
+                      :key="output.name"
+                      class="canvas-output-row"
+                    >
+                      <span>{{ output.name }}</span>
+                      <code>{{ output.value }}</code>
+                    </div>
+                    <div v-if="workflowOutputs.length === 0" class="canvas-muted">未声明最终输出</div>
+                  </div>
+                </template>
+              </article>
             </div>
           </div>
         </div>
 
-        <div class="workflow-json-panel">
+        <div v-if="showDefinitionDebug" class="workflow-json-panel">
           <div class="section-bar">
             <div>
               <h2>定义 JSON（调试）</h2>
@@ -171,7 +219,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Connection, DocumentChecked, Refresh, Upload, VideoPlay } from '@element-plus/icons-vue'
+import { Connection, DocumentChecked, Hide, Refresh, Upload, VideoPlay, View } from '@element-plus/icons-vue'
 import {
   createWorkflow,
   getWorkflowByPath,
@@ -207,6 +255,26 @@ type MappingItem = {
   value: string
 }
 
+type WorkflowInputItem = {
+  name: string
+  title?: string
+  type?: string
+  required: boolean
+}
+
+type GraphCanvasItem = {
+  id: string
+  kind: 'start' | 'step' | 'output'
+  title: string
+  subtitle: string
+  badge: string
+  x: number
+  y: number
+  width: number
+  height: number
+  node?: WorkflowNode
+}
+
 const EMPTY_DEFINITION = {
   schema_version: 'workflow.v1',
   mode: 'sequence',
@@ -221,10 +289,19 @@ const loading = ref(false)
 const saving = ref(false)
 const publishing = ref(false)
 const running = ref(false)
+const showDefinitionDebug = ref(false)
 const workflow = ref<WorkflowItem | null>(null)
 const definitionText = ref(formatJson(EMPTY_DEFINITION))
 const inputText = ref('{\n  \n}')
 const lastRun = ref<WorkflowRunDetail | null>(null)
+
+const GRAPH_PADDING = 44
+const START_NODE_WIDTH = 220
+const STEP_NODE_WIDTH = 320
+const OUTPUT_NODE_WIDTH = 250
+const GRAPH_NODE_HEIGHT = 178
+const GRAPH_GAP = 110
+const GRAPH_TOP = 54
 
 const parsedDefinition = computed<Record<string, any> | null>(() => {
   try {
@@ -268,6 +345,103 @@ const workflowOutputs = computed(() => {
     name,
     value: expressionLabel(expr)
   }))
+})
+
+const workflowInputs = computed<WorkflowInputItem[]>(() => {
+  const inputs = parsedDefinition.value?.inputs
+  if (!inputs || typeof inputs !== 'object' || Array.isArray(inputs)) return []
+  return Object.entries(inputs).map(([name, value]) => {
+    const field = isRecord(value) ? value : {}
+    return {
+      name,
+      title: typeof field.title === 'string' ? field.title : undefined,
+      type: typeof field.type === 'string' ? field.type : undefined,
+      required: field.required === true
+    }
+  })
+})
+
+const graphCanvasItems = computed<GraphCanvasItem[]>(() => {
+  if (orderedWorkflowNodes.value.length === 0) return []
+
+  const items: GraphCanvasItem[] = []
+  let x = GRAPH_PADDING
+  items.push({
+    id: '__start',
+    kind: 'start',
+    title: 'Start',
+    subtitle: 'manual trigger',
+    badge: `${workflowInputs.value.length} inputs`,
+    x,
+    y: GRAPH_TOP + 18,
+    width: START_NODE_WIDTH,
+    height: GRAPH_NODE_HEIGHT - 36
+  })
+
+  x += START_NODE_WIDTH + GRAPH_GAP
+  for (const [index, node] of orderedWorkflowNodes.value.entries()) {
+    items.push({
+      id: node.id,
+      kind: 'step',
+      title: node.name || node.id,
+      subtitle: node.id,
+      badge: node.type,
+      x,
+      y: GRAPH_TOP,
+      width: STEP_NODE_WIDTH,
+      height: GRAPH_NODE_HEIGHT,
+      node
+    })
+    x += STEP_NODE_WIDTH + GRAPH_GAP
+    if (index === orderedWorkflowNodes.value.length - 1) {
+      items.push({
+        id: '__output',
+        kind: 'output',
+        title: 'Output',
+        subtitle: `${workflowOutputs.value.length} outputs`,
+        badge: 'result',
+        x,
+        y: GRAPH_TOP + 18,
+        width: OUTPUT_NODE_WIDTH,
+        height: GRAPH_NODE_HEIGHT - 36
+      })
+    }
+  }
+
+  return items
+})
+
+const graphCanvasSize = computed(() => {
+  const last = graphCanvasItems.value[graphCanvasItems.value.length - 1]
+  return {
+    width: last ? last.x + last.width + GRAPH_PADDING : 720,
+    height: GRAPH_TOP + GRAPH_NODE_HEIGHT + 70
+  }
+})
+
+const graphCanvasStyle = computed(() => ({
+  width: `${graphCanvasSize.value.width}px`,
+  height: `${graphCanvasSize.value.height}px`
+}))
+
+const graphConnections = computed(() => {
+  const items = graphCanvasItems.value
+  const connections: Array<{ id: string; path: string }> = []
+  for (let index = 0; index < items.length - 1; index += 1) {
+    const from = items[index]
+    const to = items[index + 1]
+    if (!from || !to) continue
+    const fromX = from.x + from.width
+    const fromY = from.y + from.height / 2
+    const toX = to.x
+    const toY = to.y + to.height / 2
+    const curve = Math.max(48, Math.min(120, (toX - fromX) / 2))
+    connections.push({
+      id: `${from.id}-${to.id}`,
+      path: `M ${fromX} ${fromY} C ${fromX + curve} ${fromY}, ${toX - curve} ${toY}, ${toX} ${toY}`
+    })
+  }
+  return connections
 })
 
 const statusText = computed(() => {
@@ -450,6 +624,15 @@ function inputMappingsForNode(node: WorkflowNode): MappingItem[] {
   }))
 }
 
+function graphNodeStyle(item: GraphCanvasItem) {
+  return {
+    left: `${item.x}px`,
+    top: `${item.y}px`,
+    width: `${item.width}px`,
+    minHeight: `${item.height}px`
+  }
+}
+
 function expressionKind(expr: unknown): MappingItem['kind'] {
   if (isRecord(expr) && typeof expr.$ref === 'string') return 'ref'
   if (isRecord(expr) && Object.prototype.hasOwnProperty.call(expr, '$const')) return 'const'
@@ -623,59 +806,97 @@ function runStatusTagType(status: WorkflowRunStatus | string) {
   gap: 12px;
 }
 
-.workflow-graph-scroll {
-  overflow-x: auto;
-  padding-bottom: 4px;
+.workflow-canvas-wrap {
+  min-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background:
+    linear-gradient(var(--el-fill-color-light) 1px, transparent 1px),
+    linear-gradient(90deg, var(--el-fill-color-light) 1px, transparent 1px),
+    var(--el-bg-color-page);
+  background-size: 22px 22px;
 }
 
-.workflow-graph {
-  display: flex;
-  align-items: stretch;
-  gap: 12px;
-  min-width: max-content;
+.workflow-canvas {
+  position: relative;
 }
 
-.workflow-graph-node {
-  width: 300px;
-  max-width: 76vw;
+.workflow-canvas-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.workflow-canvas-lines path {
+  fill: none;
+  stroke: #94a3b8;
+  stroke-width: 2;
+  marker-end: url("#workflow-arrow");
+}
+
+.workflow-canvas-lines marker path {
+  fill: #94a3b8;
+}
+
+.canvas-node {
+  position: absolute;
+  z-index: 1;
   border: 1px solid var(--el-border-color);
   border-radius: 8px;
   background: var(--el-bg-color);
   padding: 12px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
   display: flex;
   flex-direction: column;
   gap: 10px;
-  box-shadow: 0 8px 20px rgba(31, 41, 55, 0.06);
 }
 
-.node-card-head {
+.canvas-node--start {
+  border-color: rgba(14, 165, 233, 0.38);
+}
+
+.canvas-node--output {
+  border-color: rgba(34, 197, 94, 0.36);
+}
+
+.canvas-node-head {
+  min-width: 0;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
 }
 
-.node-index {
-  width: 28px;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.canvas-node-dot {
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: #0f766e;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 700;
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
 }
 
-.node-title {
+.canvas-node--start .canvas-node-dot {
+  background: #0284c7;
+  box-shadow: 0 0 0 4px rgba(2, 132, 199, 0.14);
+}
+
+.canvas-node--output .canvas-node-dot {
+  background: #16a34a;
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14);
+}
+
+.canvas-node-title {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.node-title strong {
+.canvas-node-title strong {
   color: var(--el-text-color-primary);
   font-size: 14px;
   line-height: 1.35;
@@ -684,14 +905,14 @@ function runStatusTagType(status: WorkflowRunStatus | string) {
   white-space: nowrap;
 }
 
-.node-title code,
-.node-ref,
-.mapping-row code,
-.output-row code {
+.canvas-node-title code,
+.canvas-node-ref,
+.canvas-mapping-row code,
+.canvas-output-row code {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
-.node-title code {
+.canvas-node-title code {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   overflow: hidden;
@@ -699,7 +920,7 @@ function runStatusTagType(status: WorkflowRunStatus | string) {
   white-space: nowrap;
 }
 
-.node-ref {
+.canvas-node-ref {
   padding: 7px 8px;
   border-radius: 6px;
   background: var(--el-fill-color-light);
@@ -709,22 +930,39 @@ function runStatusTagType(status: WorkflowRunStatus | string) {
   word-break: break-all;
 }
 
-.mapping-list {
+.canvas-node-body {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.mapping-row {
+.canvas-list-row,
+.canvas-output-row,
+.canvas-mapping-row {
   min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(72px, 0.8fr) auto minmax(0, 1.4fr);
   align-items: center;
   gap: 8px;
   font-size: 12px;
 }
 
-.mapping-field {
+.canvas-list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.canvas-mapping-row {
+  display: grid;
+  grid-template-columns: minmax(64px, 0.7fr) auto minmax(0, 1.2fr);
+}
+
+.canvas-output-row {
+  display: grid;
+  grid-template-columns: minmax(76px, 0.7fr) minmax(0, 1fr);
+}
+
+.canvas-list-row span,
+.canvas-output-row span,
+.canvas-mapping-row span {
   min-width: 0;
   color: var(--el-text-color-primary);
   overflow: hidden;
@@ -732,7 +970,8 @@ function runStatusTagType(status: WorkflowRunStatus | string) {
   white-space: nowrap;
 }
 
-.mapping-row code {
+.canvas-output-row code,
+.canvas-mapping-row code {
   min-width: 0;
   color: var(--el-text-color-regular);
   overflow: hidden;
@@ -740,55 +979,9 @@ function runStatusTagType(status: WorkflowRunStatus | string) {
   white-space: nowrap;
 }
 
-.mapping-empty {
+.canvas-muted {
   color: var(--el-text-color-placeholder);
   font-size: 12px;
-}
-
-.graph-arrow {
-  width: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #64748b;
-  font-size: 24px;
-  font-weight: 700;
-}
-
-.workflow-outputs {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  border-top: 1px solid var(--el-border-color-lighter);
-  padding-top: 10px;
-}
-
-.outputs-title {
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.output-row {
-  display: grid;
-  grid-template-columns: minmax(88px, 0.4fr) minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
-  font-size: 12px;
-}
-
-.output-row span {
-  color: var(--el-text-color-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.output-row code {
-  color: var(--el-text-color-regular);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .empty-graph {
