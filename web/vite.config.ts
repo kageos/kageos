@@ -122,6 +122,11 @@ export default defineConfig(({ command, mode }) => {
         target: proxyTarget,
         changeOrigin: true,
       },
+      // Workflow API 通过网关代理（只代理 API 请求，不代理前端页面路由）
+      '/workflow/api': {
+        target: proxyTarget,
+        changeOrigin: true,
+      },
       // HR API 通过网关代理（只代理 API 请求，不代理页面路由）
       '/hr/api': {
         target: proxyTarget,
