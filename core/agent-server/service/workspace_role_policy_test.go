@@ -55,6 +55,9 @@ func TestWorkspaceRoleToolGateBlocksWrongRoleTools(t *testing.T) {
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleWorkflowEngineer, "write_doc"); blocked || res.IsError {
 		t.Fatalf("workflow_engineer should allow write_doc, blocked=%v res=%#v", blocked, res)
 	}
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleWorkflowEngineer, "create_workflow"); blocked || res.IsError {
+		t.Fatalf("workflow_engineer should allow create_workflow, blocked=%v res=%#v", blocked, res)
+	}
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleWorkflowEngineer, "write_go_file"); !blocked || !res.IsError {
 		t.Fatalf("workflow_engineer should block write_go_file, blocked=%v res=%#v", blocked, res)
 	}

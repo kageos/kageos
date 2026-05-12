@@ -14,6 +14,7 @@
     "search_resources",
     "write_prd",
     "write_doc",
+    "create_workflow",
     "write_go_file",
     "search_replace_file",
     "delete_file",

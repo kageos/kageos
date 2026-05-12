@@ -20,30 +20,96 @@
 
     <main class="workflow-main">
       <section class="workflow-editor">
-        <div class="section-bar">
-          <div>
-            <h2>定义 JSON</h2>
-            <span>{{ workflowNodes.length }} 个节点，{{ workflowEdges.length }} 条边</span>
+        <div class="workflow-graph-panel">
+          <div class="section-bar">
+            <div>
+              <h2>流程图</h2>
+              <span>{{ workflowNodes.length }} 个节点，{{ workflowEdges.length }} 条边</span>
+            </div>
+          </div>
+
+          <el-alert
+            v-if="definitionParseError"
+            type="error"
+            :title="`定义 JSON 格式错误：${definitionParseError}`"
+            :closable="false"
+            show-icon
+          />
+
+          <div v-else-if="orderedWorkflowNodes.length === 0" class="empty-graph">
+            <div class="empty-title">暂无节点</div>
+            <div class="empty-copy">创建 workflow 后，这里会按节点顺序展示输入、输出和连线。</div>
+          </div>
+
+          <div v-else class="workflow-graph-scroll">
+            <div class="workflow-graph">
+              <template
+                v-for="(item, index) in orderedWorkflowNodes"
+                :key="item.id"
+              >
+                <article class="workflow-graph-node">
+                  <div class="node-card-head">
+                    <span class="node-index">{{ index + 1 }}</span>
+                    <div class="node-title">
+                      <strong>{{ item.name || item.id }}</strong>
+                      <code>{{ item.id }}</code>
+                    </div>
+                    <el-tag size="small" effect="plain">{{ item.type }}</el-tag>
+                  </div>
+                  <div v-if="item.ref" class="node-ref">{{ item.ref }}</div>
+                  <div class="mapping-list">
+                    <div
+                      v-for="mapping in inputMappingsForNode(item)"
+                      :key="mapping.field"
+                      class="mapping-row"
+                    >
+                      <span class="mapping-field">{{ mapping.field }}</span>
+                      <el-tag size="small" :type="mapping.kind === 'ref' ? 'primary' : 'info'" effect="plain">
+                        {{ mapping.kind === 'ref' ? '引用' : mapping.kind === 'const' ? '固定' : '表达式' }}
+                      </el-tag>
+                      <code>{{ mapping.value }}</code>
+                    </div>
+                    <div v-if="inputMappingsForNode(item).length === 0" class="mapping-empty">无显式输入映射</div>
+                  </div>
+                </article>
+                <div
+                  v-if="index < orderedWorkflowNodes.length - 1"
+                  class="graph-arrow"
+                >
+                  →
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div v-if="workflowOutputs.length > 0" class="workflow-outputs">
+            <div class="outputs-title">最终输出</div>
+            <div
+              v-for="output in workflowOutputs"
+              :key="output.name"
+              class="output-row"
+            >
+              <span>{{ output.name }}</span>
+              <code>{{ output.value }}</code>
+            </div>
           </div>
         </div>
-        <el-input
-          v-model="definitionText"
-          class="definition-editor"
-          type="textarea"
-          resize="none"
-          spellcheck="false"
-          :autosize="false"
-        />
-        <div class="node-chain" v-if="workflowNodes.length > 0">
-          <div
-            v-for="item in workflowNodes"
-            :key="item.id"
-            class="node-pill"
-          >
-            <span class="node-id">{{ item.id }}</span>
-            <span class="node-name">{{ item.name || item.type }}</span>
-            <span class="node-type">{{ item.type }}</span>
+
+        <div class="workflow-json-panel">
+          <div class="section-bar">
+            <div>
+              <h2>定义 JSON（调试）</h2>
+              <span>草稿定义</span>
+            </div>
           </div>
+          <el-input
+            v-model="definitionText"
+            class="definition-editor"
+            type="textarea"
+            resize="none"
+            spellcheck="false"
+            :autosize="false"
+          />
         </div>
       </section>
 
@@ -122,6 +188,25 @@ const props = defineProps<{
   node: ServiceTree
 }>()
 
+type WorkflowNode = {
+  id: string
+  name?: string
+  type: string
+  ref?: string
+  input?: Record<string, unknown>
+}
+
+type WorkflowEdge = {
+  from: string
+  to: string
+}
+
+type MappingItem = {
+  field: string
+  kind: 'ref' | 'const' | 'expr'
+  value: string
+}
+
 const EMPTY_DEFINITION = {
   schema_version: 'workflow.v1',
   mode: 'sequence',
@@ -149,14 +234,40 @@ const parsedDefinition = computed<Record<string, any> | null>(() => {
   }
 })
 
-const workflowNodes = computed<Array<{ id: string; name?: string; type: string }>>(() => {
-  const nodes = parsedDefinition.value?.nodes
-  return Array.isArray(nodes) ? nodes : []
+const definitionParseError = computed(() => {
+  try {
+    JSON.parse(definitionText.value || '{}')
+    return ''
+  } catch (error: any) {
+    return error?.message || '无法解析'
+  }
 })
 
-const workflowEdges = computed<Array<{ from: string; to: string }>>(() => {
+const workflowNodes = computed<WorkflowNode[]>(() => {
+  const nodes = parsedDefinition.value?.nodes
+  return Array.isArray(nodes) ? nodes.map(toWorkflowNode) : []
+})
+
+const workflowEdges = computed<WorkflowEdge[]>(() => {
   const edges = parsedDefinition.value?.edges
-  return Array.isArray(edges) ? edges : []
+  if (!Array.isArray(edges)) return []
+  return edges
+    .map((edge) => ({
+      from: String(edge?.from || ''),
+      to: String(edge?.to || '')
+    }))
+    .filter((edge) => edge.from && edge.to)
+})
+
+const orderedWorkflowNodes = computed(() => orderWorkflowNodes(workflowNodes.value, workflowEdges.value))
+
+const workflowOutputs = computed(() => {
+  const outputs = parsedDefinition.value?.outputs
+  if (!outputs || typeof outputs !== 'object' || Array.isArray(outputs)) return []
+  return Object.entries(outputs).map(([name, expr]) => ({
+    name,
+    value: expressionLabel(expr)
+  }))
 })
 
 const statusText = computed(() => {
@@ -289,6 +400,83 @@ async function handleRun() {
   }
 }
 
+function toWorkflowNode(value: any, index: number): WorkflowNode {
+  const fallbackID = `node${index + 1}`
+  const input = isRecord(value?.input) ? value.input : {}
+  return {
+    id: String(value?.id || fallbackID),
+    name: typeof value?.name === 'string' ? value.name : undefined,
+    type: String(value?.type || 'unknown'),
+    ref: typeof value?.ref === 'string' ? value.ref : undefined,
+    input
+  }
+}
+
+function orderWorkflowNodes(nodes: WorkflowNode[], edges: WorkflowEdge[]): WorkflowNode[] {
+  if (nodes.length <= 1) return nodes
+
+  const nodeByID = new Map(nodes.map((node) => [node.id, node]))
+  const incoming = new Set(edges.map((edge) => edge.to))
+  const outgoing = new Map<string, string[]>()
+  for (const edge of edges) {
+    if (!nodeByID.has(edge.from) || !nodeByID.has(edge.to)) continue
+    const list = outgoing.get(edge.from) || []
+    list.push(edge.to)
+    outgoing.set(edge.from, list)
+  }
+
+  const ordered: WorkflowNode[] = []
+  const seen = new Set<string>()
+  let current: WorkflowNode | undefined = nodes.find((node) => !incoming.has(node.id)) || nodes[0]
+
+  while (current && !seen.has(current.id)) {
+    ordered.push(current)
+    seen.add(current.id)
+    const nextID = (outgoing.get(current.id) || []).find((id) => !seen.has(id))
+    current = nextID ? nodeByID.get(nextID) : undefined
+  }
+
+  for (const node of nodes) {
+    if (!seen.has(node.id)) ordered.push(node)
+  }
+  return ordered
+}
+
+function inputMappingsForNode(node: WorkflowNode): MappingItem[] {
+  return Object.entries(node.input || {}).map(([field, expr]) => ({
+    field,
+    kind: expressionKind(expr),
+    value: expressionLabel(expr)
+  }))
+}
+
+function expressionKind(expr: unknown): MappingItem['kind'] {
+  if (isRecord(expr) && typeof expr.$ref === 'string') return 'ref'
+  if (isRecord(expr) && Object.prototype.hasOwnProperty.call(expr, '$const')) return 'const'
+  return 'expr'
+}
+
+function expressionLabel(expr: unknown): string {
+  if (isRecord(expr) && typeof expr.$ref === 'string') return expr.$ref
+  if (isRecord(expr) && Object.prototype.hasOwnProperty.call(expr, '$const')) {
+    return compactValue(expr.$const)
+  }
+  return compactValue(expr)
+}
+
+function compactValue(value: unknown): string {
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
 function parseJson(text: string, label: string): Record<string, unknown> | null {
   try {
     const parsed = JSON.parse(text || '{}')
@@ -412,6 +600,217 @@ function runStatusTagType(status: WorkflowRunStatus | string) {
   color: var(--el-text-color-secondary);
 }
 
+.workflow-graph-panel,
+.workflow-json-panel {
+  min-width: 0;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-blank);
+  padding: 14px;
+}
+
+.workflow-graph-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.workflow-json-panel {
+  flex: 1;
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.workflow-graph-scroll {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.workflow-graph {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  min-width: max-content;
+}
+
+.workflow-graph-node {
+  width: 300px;
+  max-width: 76vw;
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+  background: var(--el-bg-color);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 8px 20px rgba(31, 41, 55, 0.06);
+}
+
+.node-card-head {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.node-index {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #0f766e;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.node-title {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.node-title strong {
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-title code,
+.node-ref,
+.mapping-row code,
+.output-row code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.node-title code {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-ref {
+  padding: 7px 8px;
+  border-radius: 6px;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-all;
+}
+
+.mapping-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mapping-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(72px, 0.8fr) auto minmax(0, 1.4fr);
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.mapping-field {
+  min-width: 0;
+  color: var(--el-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mapping-row code {
+  min-width: 0;
+  color: var(--el-text-color-regular);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mapping-empty {
+  color: var(--el-text-color-placeholder);
+  font-size: 12px;
+}
+
+.graph-arrow {
+  width: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.workflow-outputs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  padding-top: 10px;
+}
+
+.outputs-title {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.output-row {
+  display: grid;
+  grid-template-columns: minmax(88px, 0.4fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.output-row span {
+  color: var(--el-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.output-row code {
+  color: var(--el-text-color-regular);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-graph {
+  border: 1px dashed var(--el-border-color);
+  border-radius: 8px;
+  padding: 28px 16px;
+  text-align: center;
+  background: var(--el-bg-color);
+}
+
+.empty-title {
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.empty-copy {
+  margin-top: 6px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
 .definition-editor,
 .input-editor {
   flex: 1;
@@ -426,46 +825,6 @@ function runStatusTagType(status: WorkflowRunStatus | string) {
   font-size: 13px;
   line-height: 1.55;
   border-radius: 8px;
-}
-
-.node-chain {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.node-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border: 1px solid rgba(15, 118, 110, 0.24);
-  border-radius: 8px;
-  background: rgba(15, 118, 110, 0.06);
-  max-width: 100%;
-}
-
-.node-id,
-.node-type {
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-size: 12px;
-}
-
-.node-id {
-  color: #0f766e;
-  font-weight: 700;
-}
-
-.node-name {
-  min-width: 0;
-  color: var(--el-text-color-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.node-type {
-  color: var(--el-text-color-secondary);
 }
 
 .run-summary {

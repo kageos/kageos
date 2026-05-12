@@ -607,6 +607,7 @@ func workspaceToolCallHasGeneratedOutput(summary streamloop.ToolCallSummary) boo
 		"build_workspace",
 		"write_go_file",
 		"write_doc",
+		"create_workflow",
 		"create_directory",
 		"copy_directory",
 		"push_to_hub",

@@ -153,7 +153,8 @@ func TestBuildChangeRoleLoadsWorkflowEngineerDocs(t *testing.T) {
 		t.Fatalf("required docs should include workflow case catalog index: %v", got.RequiredDocs)
 	}
 	if !containsWorkspaceRoleString(got.AllowedNextTools, "search_tools") ||
-		!containsWorkspaceRoleString(got.AllowedNextTools, "write_doc") {
+		!containsWorkspaceRoleString(got.AllowedNextTools, "write_doc") ||
+		!containsWorkspaceRoleString(got.AllowedNextTools, "create_workflow") {
 		t.Fatalf("workflow_engineer should expose orchestration tools, tools=%v", got.AllowedNextTools)
 	}
 }

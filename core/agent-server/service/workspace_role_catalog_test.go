@@ -82,7 +82,8 @@ func TestWorkspaceRoleSpecWorkflowEngineer(t *testing.T) {
 		t.Fatalf("workflow_engineer should point to workflow case catalog, optional=%v", got.Optional)
 	}
 	if !containsWorkspaceRoleString(got.AllowedTools, "search_tools") ||
-		!containsWorkspaceRoleString(got.AllowedTools, "write_doc") {
+		!containsWorkspaceRoleString(got.AllowedTools, "write_doc") ||
+		!containsWorkspaceRoleString(got.AllowedTools, "create_workflow") {
 		t.Fatalf("workflow_engineer should allow orchestration tools, tools=%v", got.AllowedTools)
 	}
 	if containsWorkspaceRoleString(got.AllowedTools, "write_go_file") {

@@ -11,6 +11,7 @@ func workspaceTools(r *ToolRegistry) []Tool {
 		&CreateDirectoryTool{},
 		&WritePRDTool{},
 		&WriteDocTool{},
+		&CreateWorkflowTool{},
 		&WriteGoFileTool{},
 		&BuildWorkspaceTool{},
 		&SearchReplaceFileTool{},

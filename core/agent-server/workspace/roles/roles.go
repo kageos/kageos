@@ -166,14 +166,14 @@ func Specs() map[string]Spec {
 			Optional:    []string{"/system/prompt/case_catalog/workflow"},
 			AllowedTools: []string{
 				"change_role", "summarize_task_state", "read_doc", "read_dir", "search_tools", "search_resources",
-				"run_form_submit", "write_doc",
+				"run_form_submit", "write_doc", "create_workflow",
 			},
 			ForbiddenTools: []string{
 				"write_prd", "create_directory", "write_go_file", "search_replace_file", "delete_file", "build_workspace",
 				"run_table_create", "run_table_batch_create", "run_table_update", "run_table_delete",
 			},
-			Action:           "工作流编排工程师负责把已存在的 Form/Table/Chart/Agent 能力梳理成 workflow.v1 定义；先搜索资源和 schema，再输出可发布的图定义、字段映射、假设和缺口，不写业务代码。",
-			RouteDescription: "用户要把多个 Form 或工具串起来、让上一步输出作为下一步输入、创建或修改 workflow、生成 workflow JSON、设计工作流模板、做画布编排或希望 Agent 自动编排已有能力时进入。先用 `search_resources/search_tools` 找真实函数和字段摘要，MVP 只输出 `workflow.v1` 的 `form.submit` 顺序图定义；不要凭函数名猜 `full_code_path` 或字段名。缺少底层能力时交接给 `product_manager`、`app_developer` 或 `maintenance_engineer`。",
+			Action:           "工作流编排工程师负责把已存在的 Form/Table/Chart/Agent 能力梳理成 workflow.v1 定义；先搜索资源和 schema，再调用 create_workflow 落库，不写业务代码。",
+			RouteDescription: "用户要把多个 Form 或工具串起来、让上一步输出作为下一步输入、创建或修改 workflow、生成 workflow JSON、设计工作流模板、做画布编排或希望 Agent 自动编排已有能力时进入。先用 `search_resources/search_tools` 找真实函数和字段摘要，MVP 使用 `workflow.v1` 的 `form.submit` 顺序图定义；需要创建时调用 `create_workflow`，不要让用户手动复制粘贴 JSON；不要凭函数名猜 `full_code_path` 或字段名。缺少底层能力时交接给 `product_manager`、`app_developer` 或 `maintenance_engineer`。",
 			NextRoles: []NextRole{
 				{RoleID: ProductManager, When: "需要新增长期业务应用或能力包"},
 				{RoleID: AppDeveloper, When: "已有 PRD 且需要开发缺失的 Form/Table/Chart 能力"},

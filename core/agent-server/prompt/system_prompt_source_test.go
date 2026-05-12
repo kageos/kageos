@@ -277,6 +277,7 @@ func TestWorkflowEngineerRoleIncludesOrchestrationSOP(t *testing.T) {
 		"Node Executor Registry",
 		"Run State Machine",
 		"`form.submit`",
+		"`create_workflow`",
 		"不要根据函数名、路由名、历史记忆或相似工具猜",
 		"`missing_capabilities`",
 	} {
