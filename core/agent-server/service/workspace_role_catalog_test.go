@@ -70,6 +70,30 @@ func TestWorkspaceRoleSpecBuildEngineer(t *testing.T) {
 	}
 }
 
+func TestWorkspaceRoleSpecWorkflowEngineer(t *testing.T) {
+	got, ok := workspaceRoleSpecFor(WorkspaceRoleWorkflowEngineer)
+	if !ok || got.ID != WorkspaceRoleWorkflowEngineer {
+		t.Fatalf("spec ID=%s ok=%v want %s", got.ID, ok, WorkspaceRoleWorkflowEngineer)
+	}
+	if !containsWorkspaceRoleString(got.Docs, "/system/prompt/roles/workflow-engineer") {
+		t.Fatalf("workflow_engineer should require role SOP, docs=%v", got.Docs)
+	}
+	if !containsWorkspaceRoleString(got.Optional, "/system/prompt/case_catalog/workflow") {
+		t.Fatalf("workflow_engineer should point to workflow case catalog, optional=%v", got.Optional)
+	}
+	if !containsWorkspaceRoleString(got.AllowedTools, "search_tools") ||
+		!containsWorkspaceRoleString(got.AllowedTools, "write_doc") {
+		t.Fatalf("workflow_engineer should allow orchestration tools, tools=%v", got.AllowedTools)
+	}
+	if containsWorkspaceRoleString(got.AllowedTools, "write_go_file") {
+		t.Fatalf("workflow_engineer should not write code directly, tools=%v", got.AllowedTools)
+	}
+	if !strings.Contains(got.RouteDescription, "`workflow.v1`") ||
+		!strings.Contains(got.RouteDescription, "`form.submit`") {
+		t.Fatalf("workflow_engineer route description should document workflow MVP boundary: %q", got.RouteDescription)
+	}
+}
+
 func TestWorkspaceRoleSpecUnknownIsNotKnown(t *testing.T) {
 	if _, ok := workspaceRoleSpecFor("unknown.role"); ok {
 		t.Fatal("unknown role should not resolve to a role spec")

@@ -265,6 +265,27 @@ func TestExecutionRolesRetainPRDV2SearchRules(t *testing.T) {
 	}
 }
 
+func TestWorkflowEngineerRoleIncludesOrchestrationSOP(t *testing.T) {
+	_, content := GetPromptDocContent(nil, "/system/prompt/roles/workflow-engineer")
+	for _, needle := range []string{
+		"工作流编排工程师 workflow_engineer",
+		"`workflow.v1`",
+		"`search_resources`",
+		"`search_tools`",
+		"Graph Definition",
+		"Expression Engine",
+		"Node Executor Registry",
+		"Run State Machine",
+		"`form.submit`",
+		"不要根据函数名、路由名、历史记忆或相似工具猜",
+		"`missing_capabilities`",
+	} {
+		if !strings.Contains(content, needle) {
+			t.Fatalf("workflow_engineer role doc should contain %q, got: %q", needle, content)
+		}
+	}
+}
+
 func TestCaseCatalogDocsPreferPRDJSONV2(t *testing.T) {
 	for _, docPath := range []string{
 		"/system/prompt/case_catalog/form/pdf",
@@ -290,6 +311,22 @@ func TestCaseCatalogDocsPreferPRDJSONV2(t *testing.T) {
 			if strings.Contains(content, forbidden) {
 				t.Fatalf("%s should not expose legacy PRD text %q, got: %q", docPath, forbidden, content)
 			}
+		}
+	}
+}
+
+func TestWorkflowCaseCatalogLoadsWorkflowDefinitionJSON(t *testing.T) {
+	_, content := GetPromptDocContent(nil, "/system/prompt/case_catalog/workflow/form_chain")
+	for _, needle := range []string{
+		"## Workflow Definition JSON",
+		`"schema_version": "workflow.v1"`,
+		`"type": "form.submit"`,
+		`"$ref": "steps.extractText.output.提取的文本"`,
+		"## 映射逻辑",
+		"当前案例不能直接扩展为可运行 JSON",
+	} {
+		if !strings.Contains(content, needle) {
+			t.Fatalf("workflow form_chain case should contain %q, got: %q", needle, content)
 		}
 	}
 }

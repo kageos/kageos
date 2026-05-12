@@ -658,7 +658,7 @@ func readPromptCaseCatalogDoc(dir string) (string, string, error) {
 	}
 
 	if strings.TrimSpace(prdJSON) == "" {
-		return prdMD, "markdown", nil
+		return readPromptWorkflowCaseCatalogDoc(dir, prdMD)
 	}
 
 	name, _ := extractMarkdownMeta(prdMD, path.Base(dir))
@@ -673,6 +673,48 @@ func readPromptCaseCatalogDoc(dir string) (string, string, error) {
 		out.WriteString(notes)
 	}
 	return out.String(), "markdown", nil
+}
+
+func readPromptWorkflowCaseCatalogDoc(dir string, fallbackMarkdown string) (string, string, error) {
+	workflowJSONPath := dir + "/workflow.json"
+	workflowJSON, jsonErr := readPromptSeedFile(workflowJSONPath)
+	if jsonErr != nil && !isNotExistErr(jsonErr) {
+		return "", "", jsonErr
+	}
+
+	workflowMDPath := dir + "/workflow.md"
+	workflowMD, mdErr := readPromptSeedFile(workflowMDPath)
+	if mdErr != nil && !isNotExistErr(mdErr) {
+		return "", "", mdErr
+	}
+
+	if strings.TrimSpace(workflowJSON) == "" {
+		return fallbackMarkdown, "markdown", nil
+	}
+
+	name, _ := extractMarkdownMeta(workflowMD, path.Base(dir))
+	var out strings.Builder
+	out.WriteString("# ")
+	out.WriteString(name)
+	out.WriteString("\n\n## Workflow Definition JSON\n\n```json\n")
+	out.WriteString(strings.TrimSpace(workflowJSON))
+	out.WriteString("\n```\n")
+	if notes := extractPromptWorkflowCaseNotes(workflowMD); notes != "" {
+		out.WriteString("\n")
+		out.WriteString(notes)
+	}
+	return out.String(), "markdown", nil
+}
+
+func extractPromptWorkflowCaseNotes(content string) string {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return ""
+	}
+	if idx := strings.Index(content, "\n## "); idx >= 0 {
+		return strings.TrimSpace(content[idx+1:])
+	}
+	return ""
 }
 
 func extractPromptCaseImplementationNotes(content string) string {
@@ -823,6 +865,9 @@ func shouldSkipPromptReadmeIndexDoc(dir string) bool {
 		return true
 	}
 	if _, err := fs.Stat(promptFS, strings.TrimRight(dir, "/")+"/prd.md"); err == nil {
+		return true
+	}
+	if _, err := fs.Stat(promptFS, strings.TrimRight(dir, "/")+"/workflow.json"); err == nil {
 		return true
 	}
 	return false

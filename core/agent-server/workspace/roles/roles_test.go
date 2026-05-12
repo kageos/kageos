@@ -33,6 +33,7 @@ func TestNormalizeAndAliases(t *testing.T) {
 		"build-engineer":       BuildEngineer,
 		"maintenance-engineer": MaintenanceEngineer,
 		"data-operator":        DataOperator,
+		"workflow-engineer":    WorkflowEngineer,
 		"scheduler-engineer":   SchedulerEngineer,
 		"platform-engineer":    PlatformEngineer,
 	}
@@ -51,6 +52,7 @@ func TestRoutingMarkdownIsGeneratedFromSpecs(t *testing.T) {
 		"### `app_developer` 应用开发工程师",
 		"### `app_operator` 应用操作员",
 		"`tables.fields` 是模型字段，`tables.search_fields` 是查询请求字段",
+		"### `workflow_engineer` 工作流编排工程师",
 		"### `reviewer` 代码审查分析师",
 	} {
 		if !strings.Contains(got, want) {

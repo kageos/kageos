@@ -134,6 +134,30 @@ func TestBuildChangeRoleReportsBaseReadOnlyToolsForEveryRole(t *testing.T) {
 	}
 }
 
+func TestBuildChangeRoleLoadsWorkflowEngineerDocs(t *testing.T) {
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		TargetRole: WorkspaceRoleWorkflowEngineer,
+		UserInput:  "把多个 Form 串成工作流",
+		Directory:  "/u/app/automation",
+	})
+	if got.CurrentRole != WorkspaceRoleWorkflowEngineer {
+		t.Fatalf("current role=%s want %s", got.CurrentRole, WorkspaceRoleWorkflowEngineer)
+	}
+	if got.DisplayName != "工作流编排工程师" {
+		t.Fatalf("display name=%s want 工作流编排工程师", got.DisplayName)
+	}
+	if !containsWorkspaceRoleString(got.RequiredDocs, "/system/prompt/roles/workflow-engineer") {
+		t.Fatalf("required docs should include workflow engineer role doc: %v", got.RequiredDocs)
+	}
+	if !containsWorkspaceRoleString(got.RequiredDocs, "/system/prompt/case_catalog/workflow") {
+		t.Fatalf("required docs should include workflow case catalog index: %v", got.RequiredDocs)
+	}
+	if !containsWorkspaceRoleString(got.AllowedNextTools, "search_tools") ||
+		!containsWorkspaceRoleString(got.AllowedNextTools, "write_doc") {
+		t.Fatalf("workflow_engineer should expose orchestration tools, tools=%v", got.AllowedNextTools)
+	}
+}
+
 func TestChangeRoleRejectsRetiredOrMalformedRoleID(t *testing.T) {
 	res := (&ChangeRoleTool{}).Execute(context.Background(), ToolCall{
 		Args: map[string]interface{}{

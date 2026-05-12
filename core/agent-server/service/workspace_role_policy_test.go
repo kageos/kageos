@@ -11,6 +11,7 @@ func TestWorkspaceRoleAliasesResolveToCanonicalRoles(t *testing.T) {
 		"build-engineer":       WorkspaceRoleBuildEngineer,
 		"maintenance-engineer": WorkspaceRoleMaintenanceEngineer,
 		"data-operator":        WorkspaceRoleDataOperator,
+		"workflow-engineer":    WorkspaceRoleWorkflowEngineer,
 		"scheduler-engineer":   WorkspaceRoleSchedulerEngineer,
 		"platform-engineer":    WorkspaceRolePlatformEngineer,
 	}
@@ -50,6 +51,12 @@ func TestWorkspaceRoleToolGateBlocksWrongRoleTools(t *testing.T) {
 	}
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "write_go_file"); !blocked || !res.IsError {
 		t.Fatalf("app_operator should block write_go_file, blocked=%v res=%#v", blocked, res)
+	}
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleWorkflowEngineer, "write_doc"); blocked || res.IsError {
+		t.Fatalf("workflow_engineer should allow write_doc, blocked=%v res=%#v", blocked, res)
+	}
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleWorkflowEngineer, "write_go_file"); !blocked || !res.IsError {
+		t.Fatalf("workflow_engineer should block write_go_file, blocked=%v res=%#v", blocked, res)
 	}
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleQAEngineer, "write_go_file"); !blocked || !res.IsError {
 		t.Fatalf("qa_engineer should block write_go_file, blocked=%v res=%#v", blocked, res)

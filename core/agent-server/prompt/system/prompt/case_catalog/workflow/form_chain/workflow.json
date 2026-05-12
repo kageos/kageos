@@ -1,0 +1,59 @@
+{
+  "schema_version": "workflow.v1",
+  "mode": "sequence",
+  "inputs": {
+    "source_file": {
+      "type": "files",
+      "required": true,
+      "title": "源文件"
+    },
+    "summary_style": {
+      "type": "string",
+      "required": false,
+      "title": "摘要风格"
+    }
+  },
+  "triggers": [
+    {
+      "type": "manual"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "extractText",
+      "name": "提取文本",
+      "type": "form.submit",
+      "ref": "/system/pdf_tool/plugins/extract_text.form",
+      "input": {
+        "上传PDF文件": {
+          "$ref": "input.source_file"
+        }
+      }
+    },
+    {
+      "id": "generateSummary",
+      "name": "生成摘要",
+      "type": "form.submit",
+      "ref": "/system/nlp_tool/plugins/summarize.form",
+      "input": {
+        "待总结文本": {
+          "$ref": "steps.extractText.output.提取的文本"
+        },
+        "摘要风格": {
+          "$ref": "input.summary_style"
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "extractText",
+      "to": "generateSummary"
+    }
+  ],
+  "outputs": {
+    "summary": {
+      "$ref": "steps.generateSummary.output.摘要"
+    }
+  }
+}

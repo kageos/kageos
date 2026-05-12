@@ -589,12 +589,15 @@ workflow 应该能作为 Hub 资产发布。
 
 交付：
 
+- 工作台角色：`workflow_engineer`，负责搜索已有函数、确认 schema、生成 `workflow.v1` JSON、输出字段映射和缺口清单。
+- Prompt 示例库：`/system/prompt/case_catalog/workflow`，沉淀 Form 串联和能力缺口识别案例。
 - Agent tool：运行 workflow、查询 workflow、查询 run。
 - Hub 发布/复制 workflow 的最小链路。
 
 验收：
 
 - Agent 能把用户描述的流程落成 workflow 草稿。
+- Agent 不凭空编造 `full_code_path`、字段名或未来节点类型。
 - workflow 能被复制到另一个 namespace 后运行。
 
 ## 13. 后续扩展路线

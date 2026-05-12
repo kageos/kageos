@@ -17,6 +17,7 @@ const (
 	WorkspaceRoleSchedulerEngineer   = workspaceroles.SchedulerEngineer
 	WorkspaceRolePlatformEngineer    = workspaceroles.PlatformEngineer
 	WorkspaceRoleDataOperator        = workspaceroles.DataOperator
+	WorkspaceRoleWorkflowEngineer    = workspaceroles.WorkflowEngineer
 	WorkspaceRoleReviewer            = workspaceroles.Reviewer
 )
 
