@@ -450,28 +450,19 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, computed, watch, type Component } from 'vue'
+import { nextTick, ref, computed, watch } from 'vue'
 import {
   Close,
   Plus,
   UploadFilled,
   Document as DocumentIcon,
   Setting,
-  Search,
-  Picture,
-  DataAnalysis,
-  DocumentCopy,
-  Files,
-  Film,
-  Headset,
-  Tickets
+  Search
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import {
   useWorkspaceChatStream,
-  type AssistantBlock,
-  type ChatMessage,
-  type ChatMessageToolCall
+  type ChatMessage
 } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import MiniWorkstationDisplayFieldPreviewDialog from './MiniWorkstationDisplayFieldPreviewDialog.vue'
 import MiniWorkstationComposer from './MiniWorkstationComposer.vue'
@@ -479,14 +470,23 @@ import MiniWorkstationKeyInfoSection from './MiniWorkstationKeyInfoSection.vue'
 import MiniWorkstationMessages from './MiniWorkstationMessages.vue'
 import ScheduledAgentTaskDialog from './ScheduledAgentTaskDialog.vue'
 import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
-import { useMiniWorkstationPanel, type FilePanelItem } from '../composables/useMiniWorkstationPanel'
+import { useMiniWorkstationPanel } from '../composables/useMiniWorkstationPanel'
 import { useMiniWorkstationSessions } from '../composables/useMiniWorkstationSessions'
 import { useMiniWorkstationUploads } from '../composables/useMiniWorkstationUploads'
 import { useMiniWorkstationComposer } from '../composables/useMiniWorkstationComposer'
 import { useMiniWorkstationEffects } from '../composables/useMiniWorkstationEffects'
+import {
+  buildDisplayFieldArtifactItem,
+  buildFileArtifactItem,
+  isGeneratedArtifactToolCall,
+  type MiniArtifactItem
+} from '../composables/useMiniWorkstationArtifacts'
+import {
+  collectMessageToolCalls,
+  useMiniWorkstationDebugCopy
+} from '../composables/useMiniWorkstationDebugCopy'
 import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
 import { createWorkspaceHandoff, resolveWorkspaceSessionInteraction, type WorkspaceSessionItem } from '@/api/workspace'
-import type { OutputDisplayField } from '@/architecture/presentation/composables/useOutputDisplayFields'
 import { featureFlags } from '@/config/features'
 
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
@@ -675,19 +675,6 @@ const {
 type SessionFilterValue = 'all' | 'running' | 'waiting' | 'output' | 'done'
 type SessionStatusKind = 'running' | 'waiting' | 'done' | 'cancelled' | 'failed' | 'active' | 'output'
 
-interface MiniArtifactItem {
-  key: string
-  name: string
-  meta: string
-  tag: string
-  ext: string
-  tone: 'image' | 'data' | 'document' | 'media' | 'archive' | 'field' | 'file'
-  iconComponent: Component
-  previewUrl?: string
-  file?: FilePanelItem
-  field?: OutputDisplayField
-}
-
 const sessionFilters: Array<{ label: string; value: SessionFilterValue }> = [
   { label: '全部', value: 'all' },
   { label: '执行中', value: 'running' },
@@ -773,16 +760,7 @@ const summarySessions = computed(() => {
 
 const artifactItems = computed<MiniArtifactItem[]>(() => {
   const files = outputFiles.value.map((file, index) => buildFileArtifactItem(file, index))
-  const fields = allPanelDisplayFields.value.map((field, index) => ({
-    key: `field:${field.label}:${index}`,
-    name: field.label,
-    meta: truncateOneLine(field.value || '展示字段'),
-    tag: '字段',
-    ext: '',
-    tone: 'field' as const,
-    iconComponent: Tickets,
-    field
-  }))
+  const fields = allPanelDisplayFields.value.map((field, index) => buildDisplayFieldArtifactItem(field, index))
   return [...files, ...fields]
 })
 
@@ -1056,30 +1034,6 @@ function messageHasGeneratedArtifacts(message: ChatMessage) {
   return collectMessageToolCalls(message).some(isGeneratedArtifactToolCall)
 }
 
-const GENERATED_ARTIFACT_TOOL_NAMES = new Set([
-  'write_prd',
-  'build_workspace',
-  'write_go_file',
-  'write_doc',
-  'create_directory',
-  'copy_directory',
-  'push_to_hub',
-  'publish_to_hub'
-])
-
-function isGeneratedArtifactToolCall(call: ChatMessageToolCall) {
-  if (call.status !== 'ok' && call.status !== 'success') return false
-  if (GENERATED_ARTIFACT_TOOL_NAMES.has(call.name)) return true
-  if (call.metadata?.display_file_fields?.length) return true
-  return resultDataLooksLikeArtifact(call.result_data)
-}
-
-function resultDataLooksLikeArtifact(resultData: unknown) {
-  if (!resultData || typeof resultData !== 'object') return false
-  const kind = String((resultData as { kind?: unknown }).kind || '').trim()
-  return kind.startsWith('agent_app_') || kind.startsWith('workspace_')
-}
-
 function getSessionStatusClass(session: WorkspaceSessionItem) {
   return `is-${getSessionStatusKind(session)}`
 }
@@ -1092,63 +1046,6 @@ function matchesSessionFilter(session: WorkspaceSessionItem, filter: SessionFilt
   if (filter === 'output') return kind === 'output'
   if (filter === 'done') return kind === 'done' || kind === 'cancelled' || kind === 'failed'
   return true
-}
-
-const ARTIFACT_IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'avif'])
-const ARTIFACT_DATA_EXTENSIONS = new Set(['csv', 'xlsx', 'xls', 'json', 'xml', 'yaml', 'yml'])
-const ARTIFACT_DOCUMENT_EXTENSIONS = new Set(['md', 'txt', 'doc', 'docx', 'pdf', 'ppt', 'pptx'])
-const ARTIFACT_VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'webm', 'avi', 'mkv'])
-const ARTIFACT_AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'aac', 'flac', 'm4a'])
-const ARTIFACT_ARCHIVE_EXTENSIONS = new Set(['zip', 'rar', '7z', 'tar', 'gz'])
-
-function getArtifactExtension(name: string) {
-  return (name || '').split('?')[0]?.split('#')[0]?.split('.').pop()?.toLowerCase() || ''
-}
-
-function getFileArtifactProfile(file: FilePanelItem) {
-  const ext = getArtifactExtension(file.name)
-  if (ARTIFACT_IMAGE_EXTENSIONS.has(ext)) {
-    return { tag: '图片', tone: 'image' as const, iconComponent: Picture, previewUrl: file.href }
-  }
-  if (ARTIFACT_DATA_EXTENSIONS.has(ext)) {
-    return { tag: '数据', tone: 'data' as const, iconComponent: DataAnalysis }
-  }
-  if (ARTIFACT_DOCUMENT_EXTENSIONS.has(ext)) {
-    return { tag: '文档', tone: 'document' as const, iconComponent: DocumentCopy }
-  }
-  if (ARTIFACT_VIDEO_EXTENSIONS.has(ext)) {
-    return { tag: '视频', tone: 'media' as const, iconComponent: Film }
-  }
-  if (ARTIFACT_AUDIO_EXTENSIONS.has(ext)) {
-    return { tag: '音频', tone: 'media' as const, iconComponent: Headset }
-  }
-  if (ARTIFACT_ARCHIVE_EXTENSIONS.has(ext)) {
-    return { tag: '压缩包', tone: 'archive' as const, iconComponent: Files }
-  }
-  return { tag: '文件', tone: 'file' as const, iconComponent: DocumentIcon }
-}
-
-function buildFileArtifactItem(file: FilePanelItem, index: number): MiniArtifactItem {
-  const ext = getArtifactExtension(file.name)
-  const profile = getFileArtifactProfile(file)
-  const extLabel = ext ? ext.toUpperCase() : ''
-
-  return {
-    key: `file:${file.href}:${index}`,
-    name: file.name,
-    meta: [extLabel, '输出文件'].filter(Boolean).join(' · '),
-    tag: profile.tag,
-    ext: extLabel,
-    tone: profile.tone,
-    iconComponent: profile.iconComponent,
-    previewUrl: profile.previewUrl,
-    file
-  }
-}
-
-function truncateOneLine(value: string, max = 36) {
-  const text = String(value || '').replace(/\s+/g, ' ').trim()
-  return text.length > max ? `${text.slice(0, max)}…` : text
 }
 
 const currentAttachedFileRefs = computed(() => {
@@ -1168,409 +1065,19 @@ function openNewScheduledAgentTaskDialog() {
   showScheduledAgentTaskDialog.value = true
 }
 
-type CopyDebugMode = 'all' | 'last-turn' | 'all-tools' | 'error-tools' | 'success-tools'
-interface DebugToolStep {
-  key: string
-  index: number
-  name: string
-  status: string
-  statusLabel: string
-  statusClass: 'running' | 'ok' | 'error' | 'default'
-  argumentsPreview: string
-  outputPreview: string
-  errorPreview: string
-  copyText: string
-}
-
-const DEBUG_HEAD_LINES = 10
-const DEBUG_TAIL_LINES = 10
-const DEBUG_SINGLE_LINE_LIMIT = 220
-
-const debugToolSteps = computed<DebugToolStep[]>(() => {
-  const steps: DebugToolStep[] = []
-  for (const [messageIndex, message] of messages.value.entries()) {
-    const calls = collectMessageToolCalls(message)
-    calls.forEach((call, callIndex) => {
-      const index = steps.length + 1
-      const status = call.status || '-'
-      const argumentsPreview = buildDebugPreview(call.arguments, true)
-      const outputPreview = call.result
-        ? buildDebugPreview(call.result)
-        : call.result_data != null
-          ? buildDebugPreview(call.result_data, true)
-          : ''
-      const errorPreview = buildDebugPreview(call.error)
-      steps.push({
-        key: `${messageIndex}-${callIndex}-${call.name || 'tool'}-${index}`,
-        index,
-        name: call.name || '(unknown)',
-        status,
-        statusLabel: getToolStatusLabel(status),
-        statusClass: getToolStatusClass(status),
-        argumentsPreview,
-        outputPreview,
-        errorPreview,
-        copyText: formatDebugToolStepForCopy(index, call, argumentsPreview, outputPreview, errorPreview)
-      })
-    })
-  }
-  return steps
+const {
+  debugToolSteps,
+  debugSuccessCount,
+  debugErrorCount,
+  copyDebugConversation,
+  copyDebugToolSummary
+} = useMiniWorkstationDebugCopy({
+  messages,
+  fullCodePath: () => props.fullCodePath,
+  dirName: () => props.dirName,
+  displayPath,
+  sessionId
 })
-
-const debugSuccessCount = computed(() => debugToolSteps.value.filter(step => step.statusClass === 'ok').length)
-const debugErrorCount = computed(() => debugToolSteps.value.filter(step => step.statusClass === 'error').length)
-
-async function copyDebugConversation(mode: CopyDebugMode) {
-  const text = buildDebugCopyText(mode)
-  if (!text.trim()) {
-    ElMessage.warning('当前没有可复制的调试内容')
-    return
-  }
-
-  try {
-    await copyTextToClipboard(text)
-    ElMessage.success(getCopySuccessLabel(mode))
-  } catch {
-    ElMessage.error('复制失败')
-  }
-}
-
-async function copyDebugToolSummary() {
-  const text = buildDebugToolSummaryText()
-  if (!text.trim()) {
-    ElMessage.warning('当前没有工具调用记录')
-    return
-  }
-
-  try {
-    await copyTextToClipboard(text)
-    ElMessage.success('已复制调用摘要')
-  } catch {
-    ElMessage.error('复制失败')
-  }
-}
-
-function buildDebugToolSummaryText() {
-  if (debugToolSteps.value.length === 0) return ''
-  return [
-    '# Mini 工具调用摘要',
-    `目录: ${props.fullCodePath || '-'}`,
-    `目录名: ${props.dirName || displayPath.value || '-'}`,
-    `会话ID: ${sessionId.value || '-'}`,
-    `工具调用: ${debugToolSteps.value.length} 步，成功 ${debugSuccessCount.value}，失败 ${debugErrorCount.value}`,
-    `复制时间: ${new Date().toISOString()}`,
-    '',
-    debugToolSteps.value.map(step => step.copyText).join('\n\n')
-  ].join('\n')
-}
-
-function formatDebugToolStepForCopy(
-  index: number,
-  call: ChatMessageToolCall,
-  argumentsPreview: string,
-  outputPreview: string,
-  errorPreview: string
-) {
-  const parts = [`## 第 ${index} 步 ${call.name || '(unknown)'} [${getToolStatusLabel(call.status || '-')}]`]
-  if (argumentsPreview) parts.push('', '参数:', fenceContent(argumentsPreview, 'json'))
-  if (outputPreview) parts.push('', '输出摘要:', fenceContent(outputPreview))
-  if (errorPreview) parts.push('', '错误摘要:', fenceContent(errorPreview))
-  return parts.join('\n')
-}
-
-function buildDebugPreview(value: unknown, preferJson = false) {
-  if (value == null) return ''
-  const raw = typeof value === 'string'
-    ? (preferJson ? formatMaybeJson(value) : formatLooseText(value))
-    : formatJsonValue(value)
-  return truncateDebugPreview(raw)
-}
-
-function truncateDebugPreview(value: string) {
-  const text = String(value || '').trim()
-  if (!text) return ''
-
-  const lines = text.split(/\r?\n/)
-  if (lines.length > DEBUG_HEAD_LINES + DEBUG_TAIL_LINES) {
-    const omitted = lines.length - DEBUG_HEAD_LINES - DEBUG_TAIL_LINES
-    return [
-      ...lines.slice(0, DEBUG_HEAD_LINES),
-      `... 省略 ${omitted} 行 ...`,
-      ...lines.slice(-DEBUG_TAIL_LINES)
-    ].join('\n')
-  }
-
-  if (lines.length === 1 && text.length > DEBUG_SINGLE_LINE_LIMIT) {
-    const head = text.slice(0, 80)
-    const tail = text.slice(-80)
-    return `${head}\n... 省略 ${text.length - 160} 字符 ...\n${tail}`
-  }
-
-  return text
-}
-
-function getToolStatusLabel(status: string) {
-  if (status === 'streaming') return '解析中'
-  if (status === 'running') return '执行中'
-  if (status === 'ok' || status === 'success') return '成功'
-  if (status === 'error' || status === 'failed') return '失败'
-  return status || '-'
-}
-
-function getToolStatusClass(status: string): DebugToolStep['statusClass'] {
-  if (status === 'streaming' || status === 'running') return 'running'
-  if (status === 'ok' || status === 'success') return 'ok'
-  if (status === 'error' || status === 'failed') return 'error'
-  return 'default'
-}
-
-function buildDebugCopyText(mode: CopyDebugMode) {
-  const list = messages.value || []
-  if (list.length === 0) return ''
-
-  const header = [
-    '# Mini 工作台调试对话',
-    `目录: ${props.fullCodePath || '-'}`,
-    `目录名: ${props.dirName || displayPath.value || '-'}`,
-    `会话ID: ${sessionId.value || '-'}`,
-    `复制范围: ${getCopyModeLabel(mode)}`,
-    `复制时间: ${new Date().toISOString()}`,
-    ''
-  ].join('\n')
-
-  if (mode === 'all') {
-    return header + formatMessagesForCopy(list, { includeContent: true, includeToolCalls: true })
-  }
-
-  if (mode === 'last-turn') {
-    return header + formatMessagesForCopy(getLastTurnMessages(list), { includeContent: true, includeToolCalls: true })
-  }
-
-  const statusFilter = getToolStatusFilter(mode)
-  return header + formatMessagesWithToolFilter(list, statusFilter)
-}
-
-function getLastTurnMessages(list: ChatMessage[]) {
-  const lastUserIndex = [...list].reverse().findIndex(item => item.role === 'user')
-  if (lastUserIndex < 0) return list.slice(-1)
-  const start = list.length - 1 - lastUserIndex
-  return list.slice(start)
-}
-
-function getToolStatusFilter(mode: CopyDebugMode): ((call: ChatMessageToolCall) => boolean) | null {
-  if (mode === 'error-tools') {
-    return (call) => call.status === 'error' || call.status === 'failed'
-  }
-  if (mode === 'success-tools') {
-    return (call) => call.status === 'ok' || call.status === 'success'
-  }
-  if (mode === 'all-tools') {
-    return () => true
-  }
-  return null
-}
-
-function formatMessagesWithToolFilter(
-  list: ChatMessage[],
-  filter: ((call: ChatMessageToolCall) => boolean) | null
-) {
-  if (!filter) return ''
-
-  const chunks: string[] = []
-  let lastUser: ChatMessage | null = null
-  for (const msg of list) {
-    if (msg.role === 'user') {
-      lastUser = msg
-      continue
-    }
-    const calls = collectMessageToolCalls(msg).filter(filter)
-    if (calls.length === 0) continue
-
-    if (lastUser) {
-      chunks.push(formatMessageForCopy(lastUser, { includeContent: true, includeToolCalls: false }))
-    }
-    chunks.push(formatMessageForCopy(msg, {
-      includeContent: true,
-      includeToolCalls: true,
-      toolCallFilter: filter
-    }))
-    lastUser = null
-  }
-
-  return chunks.join('\n').trim()
-}
-
-function formatMessagesForCopy(
-  list: ChatMessage[],
-  options: {
-    includeContent: boolean
-    includeToolCalls: boolean
-    toolCallFilter?: (call: ChatMessageToolCall) => boolean
-  }
-) {
-  return list
-    .map((message) => formatMessageForCopy(message, options))
-    .filter(Boolean)
-    .join('\n')
-    .trim()
-}
-
-function formatMessageForCopy(
-  message: ChatMessage,
-  options: {
-    includeContent: boolean
-    includeToolCalls: boolean
-    toolCallFilter?: (call: ChatMessageToolCall) => boolean
-  }
-) {
-  const title = message.role === 'user' ? '## User' : '## Assistant'
-  const meta = [
-    message.user ? `用户: ${message.user}` : '',
-    message.created_at ? `时间: ${message.created_at}` : ''
-  ].filter(Boolean)
-
-  const parts: string[] = [meta.length ? `${title} (${meta.join('，')})` : title]
-  if (message.role === 'user') {
-    if (options.includeContent && message.content) {
-      parts.push('', message.content.trim())
-    }
-    if (message.files?.length) {
-      parts.push('', '### 上传文件')
-      for (const file of message.files) {
-        parts.push(`- ${file.name}${file.ref ? ` (${file.ref})` : ''}`)
-      }
-    }
-    return parts.join('\n').trim()
-  }
-
-  if (message.blocks?.length) {
-    const blockText = formatAssistantBlocksForCopy(message.blocks, options)
-    if (blockText) parts.push('', blockText)
-  } else {
-    if (options.includeContent && message.content) {
-      parts.push('', message.content.trim())
-    }
-    if (options.includeToolCalls && message.tool_calls?.length) {
-      const toolText = formatToolCallsForCopy(message.tool_calls, options.toolCallFilter)
-      if (toolText) parts.push('', toolText)
-    }
-  }
-
-  return parts.join('\n').trim()
-}
-
-function formatAssistantBlocksForCopy(
-  blocks: AssistantBlock[],
-  options: {
-    includeContent: boolean
-    includeToolCalls: boolean
-    toolCallFilter?: (call: ChatMessageToolCall) => boolean
-  }
-) {
-  const parts: string[] = []
-  for (const block of blocks) {
-    if (block.type === 'content' && options.includeContent && block.text.trim()) {
-      parts.push(block.text.trim())
-    }
-    if (block.type === 'tool_calls' && options.includeToolCalls) {
-      const toolText = formatToolCallsForCopy(block.calls, options.toolCallFilter)
-      if (toolText) parts.push(toolText)
-    }
-  }
-  return parts.join('\n\n').trim()
-}
-
-function collectMessageToolCalls(message: ChatMessage) {
-  if (message.blocks?.length) {
-    return message.blocks.flatMap((block) => block.type === 'tool_calls' ? block.calls : [])
-  }
-  return message.tool_calls || []
-}
-
-function formatToolCallsForCopy(
-  calls: ChatMessageToolCall[],
-  filter?: (call: ChatMessageToolCall) => boolean
-) {
-  const targetCalls = filter ? calls.filter(filter) : calls
-  if (targetCalls.length === 0) return ''
-
-  const parts: string[] = ['### 工具调用']
-  targetCalls.forEach((call, index) => {
-    parts.push('', `#### ${index + 1}. ${call.name || '(unknown)'} [${call.status || '-'}]`)
-    if (call.arguments) {
-      parts.push('', '参数:', fenceContent(formatMaybeJson(call.arguments), 'json'))
-    }
-    if (call.result) {
-      parts.push('', '结果:', fenceContent(formatLooseText(call.result)))
-    }
-    if (call.result_data != null) {
-      parts.push('', '结果数据:', fenceContent(formatJsonValue(call.result_data), 'json'))
-    }
-    if (call.error) {
-      parts.push('', '错误:', fenceContent(formatLooseText(call.error)))
-    }
-  })
-  return parts.join('\n')
-}
-
-function formatMaybeJson(value: string) {
-  const text = formatLooseText(value)
-  try {
-    return JSON.stringify(JSON.parse(text), null, 2)
-  } catch {
-    return text
-  }
-}
-
-function formatJsonValue(value: unknown) {
-  try {
-    return JSON.stringify(value, null, 2)
-  } catch {
-    return String(value)
-  }
-}
-
-function formatLooseText(value: string) {
-  return String(value || '').replace(/\\n/g, '\n').replace(/\\r/g, '\r').trim()
-}
-
-function fenceContent(value: string, lang = '') {
-  const body = value || ''
-  const fence = body.includes('```') ? '````' : '```'
-  return `${fence}${lang}\n${body}\n${fence}`
-}
-
-async function copyTextToClipboard(text: string) {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text)
-    return
-  }
-  const textarea = document.createElement('textarea')
-  textarea.value = text
-  textarea.setAttribute('readonly', 'true')
-  textarea.style.position = 'fixed'
-  textarea.style.left = '-9999px'
-  document.body.appendChild(textarea)
-  textarea.select()
-  const ok = document.execCommand('copy')
-  document.body.removeChild(textarea)
-  if (!ok) throw new Error('copy failed')
-}
-
-function getCopyModeLabel(mode: CopyDebugMode) {
-  const map: Record<CopyDebugMode, string> = {
-    all: '全部对话',
-    'last-turn': '最后一轮',
-    'all-tools': '全部工具调用',
-    'error-tools': '失败工具调用',
-    'success-tools': '成功工具调用'
-  }
-  return map[mode]
-}
-
-function getCopySuccessLabel(mode: CopyDebugMode) {
-  return `已复制${getCopyModeLabel(mode)}`
-}
 
 const {
   llmList,
