@@ -16,7 +16,7 @@
       <div :class="['right-tab', { active: activeTab === 'finished' }]" data-testid="workspace-sidebar-tab-finished" @click="updateActiveTab('finished')">
         已结束
       </div>
-      <div :class="['right-tab', { active: activeTab === 'scheduled' }]" data-testid="workspace-sidebar-tab-scheduled" @click="updateActiveTab('scheduled')">
+      <div v-if="featureFlags.scheduledTasks" :class="['right-tab', { active: activeTab === 'scheduled' }]" data-testid="workspace-sidebar-tab-scheduled" @click="updateActiveTab('scheduled')">
         定时
         <span v-if="scheduledCount > 0" class="right-tab-badge right-tab-badge-primary">{{ scheduledCount }}</span>
       </div>
@@ -265,6 +265,7 @@ import UserDisplay from '@/shared/components/UserDisplay.vue'
 import type { WorkspaceSessionItem } from '@/api/workspace'
 import type { ScheduledAgentTaskItem } from '@/api/scheduledAgentTask'
 import type { ScheduledAgentExecutionRecord } from '@/architecture/presentation/composables/useWorkspaceSidebarSessions'
+import { featureFlags } from '@/config/features'
 
 type SidebarTab = 'all' | 'running' | 'finished' | 'scheduled'
 
@@ -307,6 +308,10 @@ const emptyDescription = computed(() => {
 })
 
 function updateActiveTab(value: SidebarTab) {
+  if (value === 'scheduled' && !featureFlags.scheduledTasks) {
+    emit('update:activeTab', 'all')
+    return
+  }
   emit('update:activeTab', value)
 }
 

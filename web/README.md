@@ -39,7 +39,26 @@
 - 工作空间、工作台等主页面入口已经迁移到 `src/architecture/`
 - `src/core/`、`src/shared/`、`src/utils/` 仍然是当前线上主链路正在使用的公共底座
 - `src/views/` 目前基本只保留错误页等少量遗留页面
+- 默认启用产品聚焦模式，普通用户入口优先保留工作空间、服务树、工作台、Form/Table/Chart、Docs 和 LLM 管理；权限、组织、Hub、消息、操作日志、定时任务等入口由 `src/config/features.ts` 统一控制
 - 因此前端当前真实状态是：**主页面已迁到 `architecture/`，底层能力仍处于混合复用阶段**
+
+### 1.4 产品聚焦模式
+
+前端通过 `src/config/features.ts` 管理可见能力。`VITE_AOS_FOCUSED_MODE` 默认开启；开启后，组织、权限、消息、Hub、定时任务、操作日志、讨论区、企业升级等高级入口默认隐藏，但路由和后端接口仍保留兼容。
+
+常用开关：
+
+| 环境变量 | 默认行为 |
+|---|---|
+| `VITE_AOS_FOCUSED_MODE` | 默认 `true`，测试环境默认 `false` |
+| `VITE_AOS_FEATURE_ORGANIZATION` | 未设置时仅完整模式开启 |
+| `VITE_AOS_FEATURE_PERMISSIONS` | 未设置时仅完整模式开启 |
+| `VITE_AOS_FEATURE_MESSAGES` | 未设置时仅完整模式开启 |
+| `VITE_AOS_FEATURE_HUB` | 未设置时仅完整模式开启 |
+| `VITE_AOS_FEATURE_SCHEDULED_TASKS` | 未设置时仅完整模式开启 |
+| `VITE_AOS_FEATURE_OPERATE_LOGS` | 未设置时仅完整模式开启 |
+| `VITE_AOS_FEATURE_BOARD` | 未设置时仅完整模式开启 |
+| `VITE_AOS_FEATURE_LLM_MANAGEMENT` | 默认开启 |
 
 ---
 

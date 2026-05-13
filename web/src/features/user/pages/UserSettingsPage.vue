@@ -58,7 +58,7 @@
           </el-form-item>
 
           <!-- 组织架构（只读，可点击跳转） -->
-          <el-form-item label="组织架构">
+          <el-form-item v-if="featureFlags.organization" label="组织架构">
             <div 
               v-if="currentUser?.department_full_name_path || currentUser?.department_name || currentUser?.department_full_path" 
               class="org-info clickable"
@@ -72,7 +72,7 @@
           </el-form-item>
 
           <!-- 直接上级（只读，使用用户组件展示） -->
-          <el-form-item label="直接上级">
+          <el-form-item v-if="featureFlags.organization" label="直接上级">
             <UserDisplay
               v-if="currentUser?.leader_username"
               :username="currentUser.leader_username"
@@ -144,6 +144,7 @@ import { useAuthStore } from '@/stores/auth'
 import CommonUpload from '@/shared/components/CommonUpload.vue'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import type { FormRules } from 'element-plus'
+import { featureFlags } from '@/config/features'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -261,6 +262,9 @@ function handleBack() {
 
 // 跳转到组织架构页面
 function handleGoToOrganization() {
+  if (!featureFlags.organization) {
+    return
+  }
   router.push('/organization')
 }
 

@@ -81,6 +81,7 @@
  */
 
 import type { ServiceTree } from '@/types'
+import { featureFlags } from '@/config/features'
 import {
   // 权限常量对象
   DirectoryPermission,
@@ -212,6 +213,10 @@ export interface PermissionInfo {
  * @returns 是否有权限
  */
 export function hasPermission(node: ServiceTree | undefined, action: string): boolean {
+  if (!featureFlags.permissions) {
+    return true
+  }
+
   // 如果没有节点，拒绝访问
   if (!node) {
     return false
@@ -290,6 +295,10 @@ export function hasPermission(node: ServiceTree | undefined, action: string): bo
  * @returns 是否有任何权限
  */
 export function hasAnyPermissionForNode(node: ServiceTree | undefined): boolean {
+  if (!featureFlags.permissions) {
+    return true
+  }
+
   if (node?.is_admin === true) {
     return true
   }
@@ -309,6 +318,10 @@ export function hasAnyPermissionForNode(node: ServiceTree | undefined): boolean 
  * @returns 是否有权限
  */
 export function hasAnyPermission(node: ServiceTree | undefined, actions: string[]): boolean {
+  if (!featureFlags.permissions) {
+    return true
+  }
+
   if (!node || !node.permissions) {
     return false
   }
@@ -323,6 +336,10 @@ export function hasAnyPermission(node: ServiceTree | undefined, actions: string[
  * @returns 是否有权限
  */
 export function hasAllPermissions(node: ServiceTree | undefined, actions: string[]): boolean {
+  if (!featureFlags.permissions) {
+    return true
+  }
+
   if (!node || !node.permissions) {
     return false
   }

@@ -50,7 +50,7 @@
           clearable
         />
       </el-form-item>
-      <el-form-item label="管理员">
+      <el-form-item v-if="featureFlags.permissions" label="管理员">
         <UsersWidget
           :field="adminsField"
           :value="adminsFieldValue"
@@ -82,6 +82,7 @@ import { InfoFilled } from '@element-plus/icons-vue'
 import UsersWidget from '@/shared/components/UsersWidget.vue'
 import type { CreateServiceTreeRequest, ServiceTree as ServiceTreeType } from '@/types'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
+import { featureFlags } from '@/config/features'
 
 const props = defineProps<{
   visible: boolean

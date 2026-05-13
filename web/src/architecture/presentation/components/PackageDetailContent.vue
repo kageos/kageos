@@ -133,6 +133,7 @@ import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
 import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
 import type { WorkspaceSessionItem } from '@/api/workspace'
 import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
+import { featureFlags } from '@/config/features'
 
 type DetailTabName = 'info' | 'permissionRequest' | 'permissionManage' | 'scheduledAgentTask'
 
@@ -163,7 +164,7 @@ const currentActiveTab = computed({
 })
 
 const showScheduledAgentTaskTab = computed(() => {
-  return props.packageNode?.type === 'package' && !!props.packageNode.full_code_path
+  return featureFlags.scheduledTasks && props.packageNode?.type === 'package' && !!props.packageNode.full_code_path
 })
 
 const showDirectoryTabs = computed(() => {

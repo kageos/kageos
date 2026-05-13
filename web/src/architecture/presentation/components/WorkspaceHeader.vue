@@ -2,8 +2,8 @@
   WorkspaceHeader - 工作空间顶部导航栏组件
   
   职责：
-  - 应用中心入口（唯一保留在栏上的按钮）
-  - 其余入口（智能体、组织架构、角色管理、企业版、Debug、主题、退出）放入用户下拉
+  - 工作空间切换、消息、应用中心与用户菜单
+  - 高级入口由产品功能开关统一控制
 -->
 
 <template>
@@ -36,6 +36,7 @@
       </el-button>
 
       <el-button
+        v-if="featureFlags.messages"
         size="small"
         class="header-message-button"
         @click="openMessageDrawer"
@@ -50,6 +51,7 @@
 
       <!-- 仅保留应用中心在栏上 -->
       <el-button
+        v-if="featureFlags.hub"
         type="primary"
         size="small"
         @click="navigateToHub"
@@ -92,7 +94,7 @@
                 <span class="user-menu-desc">资料、发布密钥与账户信息</span>
               </span>
             </el-dropdown-item>
-            <el-dropdown-item command="agent" class="user-dropdown-action">
+            <el-dropdown-item v-if="featureFlags.llmManagement" command="agent" class="user-dropdown-action">
               <span class="user-menu-icon user-menu-icon--llm">
                 <el-icon><Cpu /></el-icon>
               </span>
@@ -102,8 +104,9 @@
               </span>
             </el-dropdown-item>
 
+            <template v-if="featureFlags.organization || featureFlags.permissions">
             <el-dropdown-item disabled class="user-dropdown-section-title user-dropdown-section-title--divided">管理</el-dropdown-item>
-            <el-dropdown-item command="organization" class="user-dropdown-action">
+            <el-dropdown-item v-if="featureFlags.organization" command="organization" class="user-dropdown-action">
               <span class="user-menu-icon user-menu-icon--org">
                 <el-icon><OfficeBuilding /></el-icon>
               </span>
@@ -112,7 +115,7 @@
                 <span class="user-menu-desc">成员、部门与组织关系</span>
               </span>
             </el-dropdown-item>
-            <el-dropdown-item command="roles" class="user-dropdown-action">
+            <el-dropdown-item v-if="featureFlags.permissions" command="roles" class="user-dropdown-action">
               <span class="user-menu-icon user-menu-icon--role">
                 <el-icon><Key /></el-icon>
               </span>
@@ -121,36 +124,39 @@
                 <span class="user-menu-desc">权限角色与访问范围</span>
               </span>
             </el-dropdown-item>
+            </template>
 
-            <!-- 非企业版：升级企业版 -->
-            <el-dropdown-item
-              v-if="!licenseStore.isEnterprise"
-              command="upgrade"
-              class="user-dropdown-action user-dropdown-action--upgrade"
-            >
-              <span class="user-menu-icon user-menu-icon--upgrade">
-                <el-icon><Promotion /></el-icon>
-              </span>
-              <span class="user-menu-copy">
-                <span class="user-menu-title">升级企业版</span>
-                <span class="user-menu-desc">解锁企业能力与 License 管理</span>
-              </span>
-            </el-dropdown-item>
-            <!-- 企业版：标识 + 注销 -->
-            <template v-else>
-              <el-dropdown-item disabled class="user-dropdown-license">
-                <span class="user-license-label">当前版本</span>
-                <el-tag type="success" size="small" effect="light">{{ licenseStore.edition }}</el-tag>
-              </el-dropdown-item>
-              <el-dropdown-item command="deactivate" class="user-dropdown-action">
-                <span class="user-menu-icon user-menu-icon--danger">
-                  <el-icon><Delete /></el-icon>
+            <template v-if="featureFlags.enterpriseUpgrade">
+              <!-- 非企业版：升级企业版 -->
+              <el-dropdown-item
+                v-if="!licenseStore.isEnterprise"
+                command="upgrade"
+                class="user-dropdown-action user-dropdown-action--upgrade"
+              >
+                <span class="user-menu-icon user-menu-icon--upgrade">
+                  <el-icon><Promotion /></el-icon>
                 </span>
                 <span class="user-menu-copy">
-                  <span class="user-menu-title">注销 License</span>
-                  <span class="user-menu-desc">解绑当前企业授权</span>
+                  <span class="user-menu-title">升级企业版</span>
+                  <span class="user-menu-desc">解锁企业能力与 License 管理</span>
                 </span>
               </el-dropdown-item>
+              <!-- 企业版：标识 + 注销 -->
+              <template v-else>
+                <el-dropdown-item disabled class="user-dropdown-license">
+                  <span class="user-license-label">当前版本</span>
+                  <el-tag type="success" size="small" effect="light">{{ licenseStore.edition }}</el-tag>
+                </el-dropdown-item>
+                <el-dropdown-item command="deactivate" class="user-dropdown-action">
+                  <span class="user-menu-icon user-menu-icon--danger">
+                    <el-icon><Delete /></el-icon>
+                  </span>
+                  <span class="user-menu-copy">
+                    <span class="user-menu-title">注销 License</span>
+                    <span class="user-menu-desc">解绑当前企业授权</span>
+                  </span>
+                </el-dropdown-item>
+              </template>
             </template>
 
             <el-dropdown-item
@@ -266,6 +272,7 @@ import { navigateToHub as navigateToHubUtil } from '@/utils/hub-navigation'
 import { Logger } from '@/core/utils/logger'
 import { getMessageUnreadCount } from '@/api/message'
 import MessageInboxPanel from '@/features/message/components/MessageInboxPanel.vue'
+import { featureFlags } from '@/config/features'
 
 defineProps<{
   currentApp: App | null
@@ -365,14 +372,20 @@ let unreadTimer: ReturnType<typeof setInterval> | null = null
 
 // 导航到 Hub
 const navigateToHub = () => {
+  if (!featureFlags.hub) return
   navigateToHubUtil('/')
 }
 
 const openMessageDrawer = () => {
+  if (!featureFlags.messages) return
   showMessageDrawer.value = true
 }
 
 async function loadUnreadCount() {
+  if (!featureFlags.messages) {
+    unreadCount.value = 0
+    return
+  }
   try {
     const resp = await getMessageUnreadCount()
     unreadCount.value = resp.unread_count || 0
@@ -431,10 +444,12 @@ onMounted(async () => {
     licenseStore.startPeriodicCheck()
   }
 
-  void loadUnreadCount()
-  unreadTimer = setInterval(() => {
+  if (featureFlags.messages) {
     void loadUnreadCount()
-  }, 60000)
+    unreadTimer = setInterval(() => {
+      void loadUnreadCount()
+    }, 60000)
+  }
 })
 
 onUnmounted(() => {

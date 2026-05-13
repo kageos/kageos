@@ -2,6 +2,7 @@ import { onMounted, onUnmounted, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { eventBus } from '../../infrastructure/eventBus'
 import type { App as AppType } from '@/types'
+import { featureFlags } from '@/config/features'
 
 interface TableDetailRowPayload {
   row: Record<string, any>
@@ -39,7 +40,7 @@ export function useWorkspaceUiEffects(options: UseWorkspaceUiEffectsOptions) {
     }
 
     const pastedText = event.clipboardData?.getData('text')
-    if (pastedText && pastedText.trim().startsWith('hub://')) {
+    if (featureFlags.hub && pastedText && pastedText.trim().startsWith('hub://')) {
       event.preventDefault()
 
       if (!options.currentApp()) {

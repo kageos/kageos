@@ -8,6 +8,7 @@ import { getScheduledTaskExecution, type ScheduledTaskExecutionItem } from '@/ap
 import type { FunctionDetail } from '@/architecture/domain/types'
 import { Logger } from '@/core/utils/logger'
 import type { ServiceTree } from '../../domain/services/WorkspaceDomainService'
+import { featureFlags } from '@/config/features'
 
 type FunctionTabName = 'content' | 'detail' | 'permissionRequest' | 'permissionManage' | 'operateLog' | 'scheduledTask' | 'scheduledAgentTask'
 type ReplayContext = {
@@ -203,6 +204,9 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   }
 
   const showFunctionPermissionTabs = computed(() => {
+    if (!featureFlags.permissions) {
+      return false
+    }
     if (!currentFunction.value || currentFunction.value.type !== 'function') {
       return false
     }
@@ -211,15 +215,15 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   })
 
   const showFormOperateLogTab = computed(() => {
-    return currentFunction.value?.type === 'function' && currentFunctionDetail.value?.template_type === TEMPLATE_TYPE.FORM
+    return featureFlags.operateLogs && currentFunction.value?.type === 'function' && currentFunctionDetail.value?.template_type === TEMPLATE_TYPE.FORM
   })
 
   const showScheduledTaskTab = computed(() => {
-    return currentFunction.value?.type === 'function' && !!currentFunction.value?.full_code_path
+    return featureFlags.scheduledTasks && currentFunction.value?.type === 'function' && !!currentFunction.value?.full_code_path
   })
 
   const showScheduledAgentTaskTab = computed(() => {
-    return currentFunction.value?.type === 'function' && !!currentFunction.value?.full_code_path
+    return featureFlags.scheduledTasks && currentFunction.value?.type === 'function' && !!currentFunction.value?.full_code_path
   })
 
   const showFunctionTabsWrapper = computed(() => {
@@ -368,6 +372,11 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   }
 
   const activateScheduledTaskTab = () => {
+    if (!showScheduledTaskTab.value) {
+      functionActiveTab.value = 'content'
+      syncFunctionTabQuery()
+      return
+    }
     functionActiveTab.value = 'scheduledTask'
     syncFunctionTabQuery()
   }

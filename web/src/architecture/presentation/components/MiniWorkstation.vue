@@ -225,6 +225,7 @@
           :selected-l-l-m-config-id="selectedLLMConfigId"
           :llm-list="llmList"
           :llm-loading="llmLoading"
+          :show-schedule-action="featureFlags.scheduledTasks"
           :register-input-ref="registerInputRef"
           :on-l-l-m-select-visible-change="onLLMSelectVisibleChange"
           :on-file-change="onFileChange"
@@ -436,6 +437,7 @@
   />
 
   <ScheduledAgentTaskDialog
+    v-if="featureFlags.scheduledTasks"
     :key="scheduledDialogKey"
     v-model="showScheduledAgentTaskDialog"
     :full-code-path="fullCodePath"
@@ -485,6 +487,7 @@ import { useMiniWorkstationEffects } from '../composables/useMiniWorkstationEffe
 import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
 import { createWorkspaceHandoff, resolveWorkspaceSessionInteraction, type WorkspaceSessionItem } from '@/api/workspace'
 import type { OutputDisplayField } from '@/architecture/presentation/composables/useOutputDisplayFields'
+import { featureFlags } from '@/config/features'
 
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
@@ -1156,6 +1159,9 @@ const currentAttachedFileRefs = computed(() => {
 })
 
 function openNewScheduledAgentTaskDialog() {
+  if (!featureFlags.scheduledTasks) {
+    return
+  }
   scheduledDraftGoal.value = inputText.value.trim()
   scheduledDraftFiles.value = currentAttachedFileRefs.value
   scheduledDialogKey.value += 1

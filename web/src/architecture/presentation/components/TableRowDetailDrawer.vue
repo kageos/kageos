@@ -61,7 +61,7 @@
               保存
             </el-button>
             <el-button
-              v-if="mode === 'edit'"
+              v-if="featureFlags.scheduledTasks && mode === 'edit'"
               size="small"
               :disabled="!isFormViewReady"
               @click="openScheduledTaskDialog"
@@ -163,6 +163,7 @@
       </div>
     </template>
     <ScheduledTaskDialog
+      v-if="featureFlags.scheduledTasks"
       v-model="showScheduledTaskDialog"
       :full-code-path="fullCodePath"
       table-mode
@@ -186,6 +187,7 @@ import { buildDetailEditFormState } from '../composables/utils/workspaceDetailRu
 import { useTableRowDetailTabs } from '@/architecture/presentation/composables/useTableRowDetailTabs'
 import { useTableRowDetailLayout } from '@/architecture/presentation/composables/useTableRowDetailLayout'
 import { resolveTableDetailEditAccess } from '../views/utils/tableViewActionRuntime'
+import { featureFlags } from '@/config/features'
 
 interface Props {
   visible: boolean
@@ -329,6 +331,10 @@ const handleToggleMode = (newMode: 'read' | 'edit') => {
 
   // 如果尝试进入编辑模式但没有权限，跳转到权限申请页面
   if (newMode === 'edit' && !props.canEdit) {
+    if (!featureFlags.permissions) {
+      ElMessage.warning('当前用户暂无编辑权限')
+      return
+    }
     const path = fullCodePath.value
     if (path) {
       // 获取 template_type（优先使用当前详情，再回退到编辑详情）
@@ -377,6 +383,9 @@ const handleSubmit = () => {
 }
 
 const openScheduledTaskDialog = () => {
+  if (!featureFlags.scheduledTasks) {
+    return
+  }
   showScheduledTaskDialog.value = true
 }
 

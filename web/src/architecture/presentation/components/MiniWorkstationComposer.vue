@@ -128,6 +128,7 @@
       <div class="mini-action-row">
         <el-tooltip content="定时执行" placement="top" effect="light">
           <el-button
+            v-if="showScheduleAction"
             class="mini-schedule-btn"
             link
             size="small"
@@ -215,6 +216,7 @@ const props = defineProps<{
   llmList: LLMInfo[]
   llmLoading: boolean
   queuedCount: number
+  showScheduleAction?: boolean
   registerInputRef: (el: HTMLTextAreaElement | null) => void
   onLLMSelectVisibleChange: (visible: boolean) => void
   onFileChange: (uploadFileObj: { raw?: File }) => void | Promise<void>

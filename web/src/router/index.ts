@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { featureFlags } from '@/config/features'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -59,7 +60,8 @@ const router = createRouter({
       component: () => import('../features/organization/pages/OrganizationManagementPage.vue'),
       meta: {
         title: '组织架构和用户管理',
-        requireAuth: true
+        requireAuth: true,
+        feature: 'organization'
       }
     },
 
@@ -70,7 +72,8 @@ const router = createRouter({
       component: () => import('../features/permission/pages/PermissionApplyPage.vue'),
       meta: {
         title: '权限申请',
-        requireAuth: true
+        requireAuth: true,
+        feature: 'permissions'
       }
     },
     // 角色管理页面
@@ -80,7 +83,8 @@ const router = createRouter({
       component: () => import('../features/permission/pages/RoleManagementPage.vue'),
       meta: {
         title: '角色管理',
-        requireAuth: true
+        requireAuth: true,
+        feature: 'permissions'
       }
     },
 
@@ -99,7 +103,8 @@ const router = createRouter({
       component: () => import('../features/agent/pages/LLMManagementPage.vue'),
       meta: {
         title: 'LLM 管理',
-        requireAuth: true
+        requireAuth: true,
+        feature: 'llmManagement'
       }
     },
 
@@ -207,6 +212,12 @@ async function restoreAccessTokenIfPossible(authStore: ReturnType<typeof useAuth
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
   const hasAuthSession = await restoreAccessTokenIfPossible(authStore)
+  const routeFeature = to.meta?.feature
+
+  if (typeof routeFeature === 'string' && !featureFlags[routeFeature as keyof typeof featureFlags]) {
+    next({ path: '/workspace', replace: true })
+    return
+  }
 
   // 设置页面标题（Workspace页面会通过watch动态更新，这里只设置默认标题）
   if (to.meta?.title && !to.path.startsWith('/workspace')) {

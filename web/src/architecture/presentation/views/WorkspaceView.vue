@@ -207,7 +207,7 @@
 
     <!-- 创建讨论区（版块）对话框 - 封装组件 -->
     <CreateBoardDialog
-      v-if="createBoardDialogVisible"
+      v-if="featureFlags.board && createBoardDialogVisible"
       v-model="createBoardDialogVisible"
       :current-app="currentApp"
       :parent-node="currentBoardParentNode"
@@ -228,21 +228,21 @@
 
     <!-- 发布到应用中心对话框 -->
     <PublishToHubDialog
-      v-if="publishToHubDialogVisible"
+      v-if="featureFlags.hub && publishToHubDialogVisible"
       v-model="publishToHubDialogVisible"
       :selected-node="publishSelectedNode"
       :current-app="currentApp || undefined"
       @success="handlePublishSuccess"
     />
     <PushToHubDialog
-      v-if="pushToHubDialogVisible"
+      v-if="featureFlags.hub && pushToHubDialogVisible"
       v-model="pushToHubDialogVisible"
       :selected-node="pushSelectedNode"
       :current-app="currentApp || undefined"
       @success="handlePushSuccess"
     />
     <PullFromHubDialog
-      v-if="pullFromHubDialogVisible"
+      v-if="featureFlags.hub && pullFromHubDialogVisible"
       v-model="pullFromHubDialogVisible"
       :current-app="currentApp || undefined"
       :initial-hub-link="pastedHubLink"
@@ -253,7 +253,7 @@
 
     <!-- 变更记录对话框 -->
     <DirectoryUpdateHistoryDialog
-      v-if="updateHistoryDialogVisible"
+      v-if="featureFlags.operateLogs && updateHistoryDialogVisible"
       v-model="updateHistoryDialogVisible"
       :mode="updateHistoryMode"
       :app-id="updateHistoryAppId"
@@ -340,6 +340,7 @@ import { usePermissionErrorStore } from '@/stores/permissionError'
 import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/utils/widgetFieldHelpers'
 import { getFormRequestFields, getFunctionCallbacks } from '@/utils/functionSchemaSelectors'
 import type { WorkspaceSessionItem } from '@/api/workspace'
+import { featureFlags } from '@/config/features'
 
 const route = useRoute()
 const router = useRouter()

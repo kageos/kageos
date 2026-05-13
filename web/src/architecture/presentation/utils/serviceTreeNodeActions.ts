@@ -15,6 +15,7 @@ import {
 import type { ServiceTree } from '@/types'
 import { DirectoryPermission, TablePermission, hasPermission } from '@/utils/permission'
 import { isRootNode } from '@/utils/tree-utils'
+import { featureFlags } from '@/config/features'
 
 export type ServiceTreeNodeActionCommand =
   | 'apply-permission'
@@ -54,7 +55,7 @@ export function getServiceTreeNodeActions(
   options: ServiceTreeNodeActionOptions = {}
 ): ServiceTreeNodeAction[] {
   const actions: ServiceTreeNodeAction[] = [
-    { command: 'apply-permission', label: '申请权限', icon: Key, visible: true },
+    { command: 'apply-permission', label: '申请权限', icon: Key, visible: featureFlags.permissions },
     {
       command: 'create-directory',
       label: '添加服务目录',
@@ -71,7 +72,7 @@ export function getServiceTreeNodeActions(
       command: 'create-board',
       label: '新增讨论区',
       icon: ChatDotSquare,
-      visible: data.type === 'package' && hasPermission(data, DirectoryPermission.write)
+      visible: featureFlags.board && data.type === 'package' && hasPermission(data, DirectoryPermission.write)
     },
     {
       command: 'open-workstation',
@@ -101,20 +102,20 @@ export function getServiceTreeNodeActions(
       command: 'export-json',
       label: '导出能力包',
       icon: Download,
-      visible: data.type === 'package' && hasPermission(data, DirectoryPermission.read)
+      visible: featureFlags.capabilityBundle && data.type === 'package' && hasPermission(data, DirectoryPermission.read)
     },
     {
       command: 'import-json',
       label: '导入能力包',
       icon: Upload,
-      visible: data.type === 'package' && hasPermission(data, DirectoryPermission.write)
+      visible: featureFlags.capabilityBundle && data.type === 'package' && hasPermission(data, DirectoryPermission.write)
     },
     {
       command: 'paste',
       label: '粘贴',
       icon: DocumentChecked,
       visible: data.type === 'package'
-        && (Boolean(options.hasCopiedDirectory) || Boolean(options.hasCopiedHubLink))
+        && (Boolean(options.hasCopiedDirectory) || (featureFlags.hub && Boolean(options.hasCopiedHubLink)))
         && hasPermission(data, DirectoryPermission.write)
     },
     {
@@ -139,13 +140,13 @@ export function getServiceTreeNodeActions(
       command: 'publish-to-hub',
       label: '发布到 Hub',
       icon: Upload,
-      visible: data.type === 'package' && !data.hub_full_code_path && hasPermission(data, DirectoryPermission.read)
+      visible: featureFlags.hub && data.type === 'package' && !data.hub_full_code_path && hasPermission(data, DirectoryPermission.read)
     },
     {
       command: 'push-to-hub',
       label: '推送到 Hub',
       icon: Upload,
-      visible: data.type === 'package' && Boolean(data.hub_full_code_path) && hasPermission(data, DirectoryPermission.write)
+      visible: featureFlags.hub && data.type === 'package' && Boolean(data.hub_full_code_path) && hasPermission(data, DirectoryPermission.write)
     }
   ]
 

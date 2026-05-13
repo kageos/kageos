@@ -198,7 +198,7 @@
       </div>
     </el-tab-pane>
 
-    <el-tab-pane label="操作日志" name="operateLog">
+    <el-tab-pane v-if="featureFlags.operateLogs" label="操作日志" name="operateLog">
       <div class="tab-content">
         <OperateLogSection
           ref="operateLogSectionRef"
@@ -220,6 +220,7 @@ import WidgetComponent from '../widgets/WidgetComponent.vue'
 import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import OperateLogSection from './OperateLogSection.vue'
 import { WidgetType } from '@/core/constants/widget'
+import { featureFlags } from '@/config/features'
 
 interface GroupedFields {
   statusFields: FieldConfig[]
@@ -263,7 +264,7 @@ const activeTabModel = computed({
 })
 
 function loadTab(tabName: string) {
-  if (tabName === 'operateLog') {
+  if (tabName === 'operateLog' && featureFlags.operateLogs) {
     operateLogSectionRef.value?.load()
   }
 }
@@ -271,6 +272,10 @@ function loadTab(tabName: string) {
 watch(
   () => props.modelValue,
   (tabName) => {
+    if (tabName === 'operateLog' && !featureFlags.operateLogs) {
+      emit('update:modelValue', 'detail')
+      return
+    }
     if (tabName === 'operateLog') {
       nextTick(() => loadTab(tabName))
     }
