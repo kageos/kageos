@@ -485,6 +485,11 @@ import {
   collectMessageToolCalls,
   useMiniWorkstationDebugCopy
 } from '../composables/useMiniWorkstationDebugCopy'
+import {
+  miniWorkstationSessionFilters,
+  useMiniWorkstationSessionView,
+  type SessionFilterValue
+} from '../composables/useMiniWorkstationSessionView'
 import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
 import { createWorkspaceHandoff, resolveWorkspaceSessionInteraction, type WorkspaceSessionItem } from '@/api/workspace'
 import { featureFlags } from '@/config/features'
@@ -582,11 +587,6 @@ function registerInputRef(element: HTMLTextAreaElement | null) {
   inputRef.value = element || undefined
 }
 
-const displayPath = computed(() => {
-  if (!props.fullCodePath) return '未选择目录'
-  return resolvePathDisplayName(props.fullCodePath)
-})
-
 // 首条用户消息摘要，用于同目录多 Mini 时区分（如「分析数据」「帮我把xxx改成」）
 const firstUserMessagePreview = computed(() => {
   const first = messages.value?.find(m => m.role === 'user')
@@ -672,125 +672,49 @@ const {
   inputRef
 })
 
-type SessionFilterValue = 'all' | 'running' | 'waiting' | 'output' | 'done'
-type SessionStatusKind = 'running' | 'waiting' | 'done' | 'cancelled' | 'failed' | 'active' | 'output'
-
-const sessionFilters: Array<{ label: string; value: SessionFilterValue }> = [
-  { label: '全部', value: 'all' },
-  { label: '执行中', value: 'running' },
-  { label: '待确认', value: 'waiting' },
-  { label: '有产出', value: 'output' },
-  { label: '已完成', value: 'done' }
-]
-
-const currentSessionItem = computed(() => {
-  if (!sessionId.value) return null
-  return miniSessionList.value.find(item => item.session_id === sessionId.value)
-    || globalSessionList.value.find(item => item.session_id === sessionId.value)
-    || null
-})
-
-const currentFallbackSession = computed<WorkspaceSessionItem | null>(() => {
-  if (!sessionId.value || currentSessionItem.value) return null
-  const now = new Date().toISOString()
-  return {
-    session_id: sessionId.value,
-    title: firstUserMessagePreview.value || props.dirName || displayPath.value || '新建会话',
-    status: sending.value ? 'generating' : 'active',
-    full_code_path: props.fullCodePath,
-    directory_name: props.dirName || displayPath.value,
-    role_display_name: props.dirName || displayPath.value,
-    created_at: now,
-    updated_at: now
-  }
-})
-
-const activeSummarySession = computed(() => currentSessionItem.value || currentFallbackSession.value)
-
-const currentOutputSessionList = computed(() => {
-  const currentPath = normalizeFullCodePath(props.fullCodePath)
-  const active = activeSummarySession.value
-  const seenIds = new Set<string>()
-  const list: WorkspaceSessionItem[] = []
-
-  const addIfCurrentPath = (session: WorkspaceSessionItem | null | undefined) => {
-    if (!session?.session_id || seenIds.has(session.session_id)) return
-    const sessionPath = normalizeFullCodePath(session.full_code_path || props.fullCodePath || '')
-    if (currentPath && sessionPath && sessionPath !== currentPath) return
-    seenIds.add(session.session_id)
-    list.push(session)
-  }
-
-  for (const session of miniSessionList.value) {
-    addIfCurrentPath(session)
-  }
-
-  if (active?.session_id && !seenIds.has(active.session_id)) {
-    addIfCurrentPath(active)
-  }
-
-  return list
-})
-
-const recentSessionSourceList = computed(() => {
-  const byId = new Map<string, WorkspaceSessionItem>()
-  for (const session of [...globalSessionList.value, ...miniSessionList.value]) {
-    if (!session.session_id) continue
-    byId.set(session.session_id, session)
-  }
-  if (currentFallbackSession.value) {
-    byId.set(currentFallbackSession.value.session_id, currentFallbackSession.value)
-  }
-  return Array.from(byId.values())
-    .sort((left, right) => getSessionTimestamp(right) - getSessionTimestamp(left))
-})
-
-const summarySessions = computed(() => {
-  const active = activeSummarySession.value
-  const list = [...recentSessionSourceList.value]
-  if (active && !list.some(item => item.session_id === active.session_id)) {
-    list.unshift(active)
-  }
-  const visible = list.slice(0, 4)
-  if (!active || visible.some(item => item.session_id === active.session_id)) {
-    return visible
-  }
-  return [...visible.slice(0, 3), active]
-})
-
 const artifactItems = computed<MiniArtifactItem[]>(() => {
   const files = outputFiles.value.map((file, index) => buildFileArtifactItem(file, index))
   const fields = allPanelDisplayFields.value.map((field, index) => buildDisplayFieldArtifactItem(field, index))
   return [...files, ...fields]
 })
 
-const recentSessionCenterSourceList = computed(() => {
-  return globalSessionList.value.length > 0 ? globalSessionList.value : recentSessionSourceList.value
+const hasCurrentGeneratedArtifacts = computed(() => {
+  if (artifactItems.value.length > 0) return true
+  return messages.value.some(messageHasGeneratedArtifacts)
 })
 
-const currentDirectorySessionList = computed(() => filterSessionCenterList(miniSessionList.value))
-const recentSessionCenterList = computed(() => filterSessionCenterList(recentSessionCenterSourceList.value))
+const sessionFilters = miniWorkstationSessionFilters
 
-function filterSessionCenterList(list: WorkspaceSessionItem[]) {
-  const keyword = sessionSearchKeyword.value.trim().toLowerCase()
-  return list.filter((session) => {
-    if (!matchesSessionFilter(session, sessionFilter.value)) return false
-    return matchesSessionKeyword(session, keyword)
-  })
-}
-
-function matchesSessionKeyword(session: WorkspaceSessionItem, keyword: string) {
-  if (!keyword) return true
-  return [
-    session.title,
-    session.user,
-    session.agent_name,
-    session.role_display_name,
-    session.directory_name,
-    session.full_code_path,
-    getSessionDirectoryPath(session)
-  ].some(value => (value || '').toLowerCase().includes(keyword))
-}
+const {
+  displayPath,
+  currentOutputSessionList,
+  recentSessionSourceList,
+  summarySessions,
+  recentSessionCenterSourceList,
+  currentDirectorySessionList,
+  recentSessionCenterList,
+  getSessionTitle,
+  getSessionDirectoryPath,
+  getSessionSubtitle,
+  getSessionCenterSubtitle,
+  getSessionTimestamp,
+  getSessionStatusLabel,
+  getSessionStatusKind,
+  getSessionStatusClass,
+  normalizeFullCodePath
+} = useMiniWorkstationSessionView({
+  miniSessionList,
+  globalSessionList,
+  sessionId,
+  sending,
+  fullCodePath: fullCodePathRef,
+  dirName: () => props.dirName,
+  pathNameMap: () => props.pathNameMap,
+  firstUserMessagePreview,
+  hasCurrentGeneratedArtifacts,
+  sessionSearchKeyword,
+  sessionFilter
+})
 
 function setCollapsed(value: boolean, sessionIdOverride?: string) {
   if (value) {
@@ -889,163 +813,9 @@ function handleArtifactClick(item: MiniArtifactItem) {
   }
 }
 
-function getSessionTitle(session: WorkspaceSessionItem) {
-  return session.title || session.role_display_name || '未命名会话'
-}
-
-function decodePathSegment(segment: string) {
-  try {
-    return decodeURIComponent(segment)
-  } catch {
-    return segment
-  }
-}
-
-function normalizeFullCodePath(fullCodePath: string) {
-  return (fullCodePath || '').trim().replace(/\/+$/g, '')
-}
-
-function getMappedPathName(fullCodePath: string) {
-  const normalizedPath = normalizeFullCodePath(fullCodePath)
-  if (!normalizedPath) return ''
-  return props.pathNameMap?.[normalizedPath]
-    || props.pathNameMap?.[normalizedPath.replace(/^\/+/, '')]
-    || ''
-}
-
-function resolvePathDisplayName(fullCodePath: string) {
-  const normalizedPath = normalizeFullCodePath(fullCodePath)
-  if (!normalizedPath) return ''
-  const mappedName = getMappedPathName(normalizedPath)
-  if (mappedName) return mappedName
-  if (normalizedPath === normalizeFullCodePath(props.fullCodePath) && props.dirName) {
-    return props.dirName
-  }
-  const parts = normalizedPath.split('/').filter(Boolean).map(decodePathSegment)
-  if (parts.length >= 2) {
-    return parts.slice(-2).join(' / ')
-  }
-  return parts[0] || normalizedPath
-}
-
-function getSessionDirectoryPath(session: WorkspaceSessionItem) {
-  const explicitDirectoryName = (session.directory_name || '').trim()
-  if (explicitDirectoryName) {
-    return explicitDirectoryName
-  }
-
-  const path = normalizeFullCodePath(session.full_code_path || props.fullCodePath || '')
-  if (!path) {
-    return props.dirName || displayPath.value || '当前目录'
-  }
-
-  const mappedName = getMappedPathName(path)
-  if (mappedName) {
-    return mappedName
-  }
-
-  if (path === normalizeFullCodePath(props.fullCodePath) && props.dirName) {
-    return props.dirName
-  }
-
-  return resolvePathDisplayName(path) || props.dirName || displayPath.value || '当前目录'
-}
-
-function getSessionSubtitle(session: WorkspaceSessionItem) {
-  return [getSessionDirectoryPath(session), getSessionStatusLabel(session)].filter(Boolean).join(' · ')
-}
-
-function getSessionCenterSubtitle(session: WorkspaceSessionItem) {
-  return [getSessionDirectoryPath(session), session.role_display_name || session.user || getSessionStatusLabel(session)]
-    .filter(Boolean)
-    .join(' · ') || '当前目录'
-}
-
-function getSessionTimestamp(session: WorkspaceSessionItem) {
-  const time = new Date(session.updated_at || session.created_at).getTime()
-  return Number.isFinite(time) ? time : 0
-}
-
-function getSessionStatusLabel(session: WorkspaceSessionItem) {
-  const status = getSessionRawStatus(session)
-  if (status === 'pending_confirmation') return 'PRD 待确认'
-  if (status === 'pending_test') return '测试待确认'
-  const labels: Record<SessionStatusKind, string> = {
-    running: '执行中',
-    waiting: '待确认',
-    done: '已完成',
-    cancelled: '已取消',
-    failed: '失败',
-    active: '会话',
-    output: '新文件'
-  }
-  return labels[getSessionStatusKind(session)]
-}
-
-function getSessionRawStatus(session: WorkspaceSessionItem) {
-  return String(session.status || '').trim().toLowerCase()
-}
-
-function getSessionStatusKind(session: WorkspaceSessionItem): SessionStatusKind {
-  const status = getSessionRawStatus(session)
-  if ([
-    'generating',
-    'running',
-    'tool_running',
-    'thinking',
-    'streaming',
-    'processing',
-    'executing'
-  ].includes(status)) return 'running'
-
-  if ([
-    'waiting',
-    'pending',
-    'pending_confirmation',
-    'pending_test',
-    'waiting_approval',
-    'paused',
-    'queued'
-  ].includes(status)) return 'waiting'
-
-  if (['cancelled', 'canceled', 'abort', 'aborted'].includes(status)) return 'cancelled'
-  if (['failed', 'failure', 'error', 'timeout'].includes(status)) return 'failed'
-  if (['output', 'new_file', 'new_output', 'has_output', 'artifact', 'artifact_ready'].includes(status)) return 'output'
-  if (sessionHasGeneratedArtifacts(session)) return 'output'
-  if (session.handoff_kind) return 'output'
-  if (['done', 'completed', 'complete', 'success', 'succeeded', 'finished'].includes(status)) return 'done'
-  if (status === 'active' || !status) return 'active'
-  return 'active'
-}
-
-function sessionHasGeneratedArtifacts(session: WorkspaceSessionItem) {
-  return !!session.session_id
-    && session.session_id === sessionId.value
-    && currentMessagesHaveGeneratedArtifacts()
-}
-
-function currentMessagesHaveGeneratedArtifacts() {
-  if (artifactItems.value.length > 0) return true
-  return messages.value.some(messageHasGeneratedArtifacts)
-}
-
 function messageHasGeneratedArtifacts(message: ChatMessage) {
   if (message.role !== 'assistant') return false
   return collectMessageToolCalls(message).some(isGeneratedArtifactToolCall)
-}
-
-function getSessionStatusClass(session: WorkspaceSessionItem) {
-  return `is-${getSessionStatusKind(session)}`
-}
-
-function matchesSessionFilter(session: WorkspaceSessionItem, filter: SessionFilterValue) {
-  const kind = getSessionStatusKind(session)
-  if (filter === 'all') return true
-  if (filter === 'running') return kind === 'running'
-  if (filter === 'waiting') return kind === 'waiting'
-  if (filter === 'output') return kind === 'output'
-  if (filter === 'done') return kind === 'done' || kind === 'cancelled' || kind === 'failed'
-  return true
 }
 
 const currentAttachedFileRefs = computed(() => {
