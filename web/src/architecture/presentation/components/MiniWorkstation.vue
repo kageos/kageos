@@ -316,105 +316,28 @@
         </MiniWorkstationComposer>
       </section>
 
-      <section
-        :class="['mini-session-center', { 'is-open': sessionCenterOpen }]"
-        :aria-hidden="sessionCenterOpen ? 'false' : 'true'"
-        @click.self="closeSessionCenter"
-      >
-        <div class="mini-session-dialog" role="dialog" aria-modal="true" aria-label="工作台会话中心">
-          <header class="mini-session-dialog-head">
-            <div class="mini-session-dialog-title">
-              <strong>工作台会话</strong>
-              <span>左侧是当前目录会话，右侧是跨目录最近会话。</span>
-            </div>
-            <button type="button" class="mini-session-close" @click="closeSessionCenter">
-              <el-icon><Close /></el-icon>
-            </button>
-          </header>
-          <div class="mini-session-dialog-tools">
-            <div class="mini-session-dialog-stat">
-              <span>当前目录 {{ currentDirectorySessionList.length }}/{{ miniSessionList.length }}</span>
-              <span>最近会话 {{ recentSessionCenterList.length }}/{{ recentSessionCenterSourceList.length }}</span>
-            </div>
-            <label class="mini-session-search">
-              <el-icon :size="14"><Search /></el-icon>
-              <input v-model="sessionSearchKeyword" placeholder="搜索目录、函数或需求..." />
-            </label>
-            <div class="mini-session-filters">
-              <button
-                v-for="filter in sessionFilters"
-                :key="filter.value"
-                type="button"
-                :class="{ active: sessionFilter === filter.value }"
-                @click="sessionFilter = filter.value"
-              >
-                {{ filter.label }}
-              </button>
-            </div>
-          </div>
-          <div class="mini-session-columns">
-            <section class="mini-session-pane mini-session-pane--current" v-loading="loadingSessions">
-              <header class="mini-session-pane-head">
-                <div>
-                  <strong>当前目录</strong>
-                  <span :title="fullCodePath">{{ dirName || displayPath }}</span>
-                </div>
-                <em>{{ currentDirectorySessionList.length }}</em>
-              </header>
-              <div class="mini-session-list">
-                <button
-                  v-for="item in currentDirectorySessionList"
-                  :key="item.session_id"
-                  type="button"
-                  :class="['mini-session-row', getSessionStatusClass(item), { active: item.session_id === sessionId }]"
-                  @click="handleSessionCenterSelect(item)"
-                >
-                  <span class="mini-status-dot" :class="getSessionStatusClass(item)"></span>
-                  <span class="mini-session-row-copy">
-                    <span class="mini-session-row-title">{{ getSessionTitle(item) }}</span>
-                    <span class="mini-session-row-sub">{{ getSessionCenterSubtitle(item) }}</span>
-                  </span>
-                  <span class="mini-session-row-meta">{{ getSessionStatusLabel(item) }} · {{ formatRelativeTime(item.updated_at || item.created_at) }}</span>
-                  <span class="mini-session-open">打开</span>
-                </button>
-                <div v-if="currentDirectorySessionList.length === 0 && !loadingSessions" class="mini-session-empty">
-                  没有匹配的当前目录会话
-                </div>
-              </div>
-            </section>
-
-            <section class="mini-session-pane mini-session-pane--recent" v-loading="loadingGlobalSessions">
-              <header class="mini-session-pane-head">
-                <div>
-                  <strong>最近会话</strong>
-                  <span>可打开其他目录的工作台会话</span>
-                </div>
-                <em>{{ recentSessionCenterList.length }}</em>
-              </header>
-              <div class="mini-session-list">
-                <button
-                  v-for="item in recentSessionCenterList"
-                  :key="item.session_id"
-                  type="button"
-                  :class="['mini-session-row', getSessionStatusClass(item), { active: item.session_id === sessionId }]"
-                  @click="handleSessionCenterSelect(item)"
-                >
-                  <span class="mini-status-dot" :class="getSessionStatusClass(item)"></span>
-                  <span class="mini-session-row-copy">
-                    <span class="mini-session-row-title">{{ getSessionTitle(item) }}</span>
-                    <span class="mini-session-row-sub">{{ getSessionCenterSubtitle(item) }}</span>
-                  </span>
-                  <span class="mini-session-row-meta">{{ getSessionStatusLabel(item) }} · {{ formatRelativeTime(item.updated_at || item.created_at) }}</span>
-                  <span class="mini-session-open">打开</span>
-                </button>
-                <div v-if="recentSessionCenterList.length === 0 && !loadingGlobalSessions" class="mini-session-empty">
-                  没有匹配的最近会话
-                </div>
-              </div>
-            </section>
-          </div>
-        </div>
-      </section>
+      <MiniWorkstationSessionCenter
+        :open="sessionCenterOpen"
+        :current-directory-sessions="currentDirectorySessionList"
+        :recent-sessions="recentSessionCenterList"
+        :current-directory-total="miniSessionList.length"
+        :recent-source-total="recentSessionCenterSourceList.length"
+        :loading-current="loadingSessions"
+        :loading-recent="loadingGlobalSessions"
+        :full-code-path="fullCodePath"
+        :directory-label="dirName || displayPath"
+        :session-id="sessionId"
+        :session-filters="sessionFilters"
+        v-model:session-search-keyword="sessionSearchKeyword"
+        v-model:session-filter="sessionFilter"
+        :format-relative-time="formatRelativeTime"
+        :get-session-status-class="getSessionStatusClass"
+        :get-session-title="getSessionTitle"
+        :get-session-center-subtitle="getSessionCenterSubtitle"
+        :get-session-status-label="getSessionStatusLabel"
+        @close="closeSessionCenter"
+        @select="handleSessionCenterSelect"
+      />
 
       <!-- 拖拽上传遮罩 -->
       <transition name="el-fade-in-linear">
@@ -452,12 +375,10 @@
 <script setup lang="ts">
 import { nextTick, ref, computed, watch } from 'vue'
 import {
-  Close,
   Plus,
   UploadFilled,
   Document as DocumentIcon,
-  Setting,
-  Search
+  Setting
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import {
@@ -468,6 +389,7 @@ import MiniWorkstationDisplayFieldPreviewDialog from './MiniWorkstationDisplayFi
 import MiniWorkstationComposer from './MiniWorkstationComposer.vue'
 import MiniWorkstationKeyInfoSection from './MiniWorkstationKeyInfoSection.vue'
 import MiniWorkstationMessages from './MiniWorkstationMessages.vue'
+import MiniWorkstationSessionCenter from './MiniWorkstationSessionCenter.vue'
 import ScheduledAgentTaskDialog from './ScheduledAgentTaskDialog.vue'
 import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
 import { useMiniWorkstationPanel } from '../composables/useMiniWorkstationPanel'
@@ -2682,6 +2604,51 @@ useMiniWorkstationEffects({
   background: rgba(74, 30, 38, 0.46);
 }
 
+.mini-current-session-row.is-running,
+.mini-session-summary-card.is-running {
+  --mini-active-glow: rgba(43, 213, 159, 0.34);
+  --mini-active-halo: rgba(43, 213, 159, 0.16);
+}
+
+.mini-current-session-row.is-waiting,
+.mini-session-summary-card.is-waiting {
+  --mini-active-glow: rgba(246, 189, 77, 0.34);
+  --mini-active-halo: rgba(246, 189, 77, 0.16);
+}
+
+.mini-current-session-row.is-output,
+.mini-session-summary-card.is-output {
+  --mini-active-glow: rgba(55, 163, 255, 0.34);
+  --mini-active-halo: rgba(55, 163, 255, 0.16);
+}
+
+.mini-current-session-row.is-done,
+.mini-session-summary-card.is-done {
+  --mini-active-glow: rgba(119, 107, 255, 0.34);
+  --mini-active-halo: rgba(119, 107, 255, 0.16);
+}
+
+.mini-current-session-row.is-cancelled,
+.mini-session-summary-card.is-cancelled {
+  --mini-active-glow: rgba(142, 159, 187, 0.28);
+  --mini-active-halo: rgba(142, 159, 187, 0.12);
+}
+
+.mini-current-session-row.is-failed,
+.mini-session-summary-card.is-failed {
+  --mini-active-glow: rgba(255, 107, 107, 0.34);
+  --mini-active-halo: rgba(255, 107, 107, 0.16);
+}
+
+.mini-current-session-row.active,
+.mini-session-summary-card.active {
+  z-index: 1;
+  box-shadow:
+    0 0 14px 2px var(--mini-active-glow),
+    0 0 38px 8px var(--mini-active-halo),
+    0 12px 32px rgba(2, 5, 11, 0.22);
+}
+
 .mini-session-summary-card.active.is-running::before {
   --mini-active-arrow-color: #7df5c4;
   --mini-active-arrow-shadow: rgba(43, 213, 159, 0.72);
@@ -2777,399 +2744,6 @@ useMiniWorkstationEffects({
   color: #fff;
   font-size: 11px;
   font-weight: 900;
-}
-
-.mini-session-center {
-  position: fixed;
-  inset: 0;
-  z-index: 42;
-  display: grid;
-  place-items: center;
-  padding: 56px;
-  background: rgba(2, 5, 11, 0.42);
-  backdrop-filter: blur(7px);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 0.16s ease, visibility 0.16s ease;
-}
-
-.mini-session-center.is-open {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-}
-
-.mini-session-dialog {
-  width: min(1120px, calc(100vw - 96px));
-  height: min(720px, calc(100vh - 96px));
-  display: grid;
-  grid-template-rows: auto auto 1fr;
-  overflow: hidden;
-  border: 1px solid rgba(130, 153, 190, 0.3);
-  border-radius: 18px;
-  background:
-    linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(8, 13, 24, 0.9)),
-    rgba(10, 16, 29, 0.9);
-  box-shadow: 0 34px 100px rgba(0, 0, 0, 0.52);
-  color: var(--mini-cyber-text);
-}
-
-.mini-session-dialog-head {
-  height: 66px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 18px 0 22px;
-  border-bottom: 1px solid rgba(130, 153, 190, 0.18);
-}
-
-.mini-session-dialog-title {
-  display: grid;
-  gap: 4px;
-}
-
-.mini-session-dialog-title strong {
-  font-size: 17px;
-}
-
-.mini-session-dialog-title span {
-  color: var(--mini-cyber-muted);
-  font-size: 12px;
-}
-
-.mini-session-close {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(124, 146, 189, 0.24);
-  border-radius: 10px;
-  background: rgba(30, 42, 68, 0.72);
-  color: #d7e5fa;
-}
-
-.mini-session-dialog-tools {
-  display: grid;
-  grid-template-columns: auto minmax(220px, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  padding: 14px 18px;
-  border-bottom: 1px solid rgba(130, 153, 190, 0.14);
-}
-
-.mini-session-dialog-stat,
-.mini-session-filters {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.mini-session-dialog-stat span,
-.mini-session-filters button {
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 12px;
-  border: 1px solid rgba(124, 146, 189, 0.22);
-  border-radius: 10px;
-  background: rgba(30, 42, 68, 0.56);
-  color: #b9c9e4;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.mini-session-dialog-stat span {
-  border-color: rgba(43, 213, 159, 0.2);
-  background: rgba(21, 54, 50, 0.26);
-  color: #9ceccd;
-}
-
-.mini-session-filters button.active {
-  border-color: rgba(83, 174, 255, 0.46);
-  background: rgba(34, 113, 205, 0.2);
-  color: #8ed0ff;
-}
-
-.mini-session-search {
-  height: 36px;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  border: 1px solid rgba(124, 146, 189, 0.2);
-  border-radius: 10px;
-  background: rgba(10, 16, 29, 0.5);
-  color: #8e9fbb;
-}
-
-.mini-session-search input {
-  width: 100%;
-  min-width: 0;
-  border: 0;
-  outline: none;
-  background: transparent;
-  color: #e6f0ff;
-  font: inherit;
-  font-size: 13px;
-}
-
-.mini-session-search input::placeholder {
-  color: #7586a4;
-}
-
-.mini-session-columns {
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(320px, 0.92fr) minmax(420px, 1.18fr);
-  gap: 14px;
-  padding: 14px 18px 18px;
-}
-
-.mini-session-pane {
-  min-width: 0;
-  min-height: 0;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  overflow: hidden;
-  border: 1px solid rgba(126, 151, 197, 0.18);
-  border-radius: 14px;
-  background: rgba(10, 16, 29, 0.34);
-}
-
-.mini-session-pane--current {
-  background: rgba(13, 27, 45, 0.46);
-}
-
-.mini-session-pane-head {
-  min-width: 0;
-  height: 58px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 14px;
-  border-bottom: 1px solid rgba(126, 151, 197, 0.14);
-}
-
-.mini-session-pane-head div {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-}
-
-.mini-session-pane-head strong,
-.mini-session-pane-head span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mini-session-pane-head strong {
-  color: #e6f0ff;
-  font-size: 14px;
-  font-weight: 850;
-}
-
-.mini-session-pane-head span {
-  color: #8b9bb7;
-  font-size: 12px;
-}
-
-.mini-session-pane-head em {
-  min-width: 28px;
-  height: 28px;
-  display: inline-grid;
-  place-items: center;
-  border-radius: 9px;
-  background: rgba(83, 174, 255, 0.14);
-  color: #8ed0ff;
-  font-size: 12px;
-  font-style: normal;
-  font-weight: 900;
-}
-
-.mini-session-list {
-  overflow: auto;
-  padding: 12px;
-}
-
-.mini-session-row {
-  --mini-active-glow: rgba(55, 163, 255, 0.26);
-  --mini-active-halo: rgba(55, 163, 255, 0.12);
-  position: relative;
-  width: 100%;
-  min-height: 68px;
-  display: grid;
-  grid-template-columns: 10px minmax(0, 1fr) auto auto;
-  gap: 12px;
-  align-items: center;
-  margin-bottom: 10px;
-  padding: 12px;
-  border: 1px solid rgba(126, 151, 197, 0.18);
-  border-radius: 12px;
-  background: rgba(17, 25, 45, 0.62);
-  color: #d7e5fa;
-  text-align: left;
-  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.22s ease;
-}
-
-.mini-session-row:last-child {
-  margin-bottom: 0;
-}
-
-.mini-session-pane--current .mini-session-row {
-  grid-template-columns: 10px minmax(0, 1fr) auto;
-}
-
-.mini-session-pane--current .mini-session-open {
-  display: none;
-}
-
-.mini-session-row:hover {
-  border-color: rgba(83, 174, 255, 0.42);
-  background: rgba(24, 51, 83, 0.48);
-}
-
-.mini-session-row.is-running {
-  border-color: rgba(43, 213, 159, 0.28);
-  background: rgba(21, 54, 50, 0.42);
-  box-shadow: inset 3px 0 0 rgba(43, 213, 159, 0.74);
-}
-
-.mini-session-row.is-waiting {
-  border-color: rgba(246, 189, 77, 0.3);
-  background: rgba(58, 45, 24, 0.46);
-  box-shadow: inset 3px 0 0 rgba(246, 189, 77, 0.72);
-}
-
-.mini-session-row.is-output {
-  border-color: rgba(55, 163, 255, 0.3);
-  background: rgba(24, 48, 77, 0.46);
-  box-shadow: inset 3px 0 0 rgba(55, 163, 255, 0.72);
-}
-
-.mini-session-row.is-done {
-  border-color: rgba(119, 107, 255, 0.28);
-  background: rgba(41, 38, 76, 0.46);
-  box-shadow: inset 3px 0 0 rgba(119, 107, 255, 0.7);
-}
-
-.mini-session-row.is-cancelled {
-  border-color: rgba(142, 159, 187, 0.24);
-  background: rgba(41, 48, 64, 0.46);
-  box-shadow: inset 3px 0 0 rgba(142, 159, 187, 0.5);
-}
-
-.mini-session-row.is-failed {
-  border-color: rgba(255, 108, 108, 0.34);
-  background: rgba(74, 30, 38, 0.46);
-  box-shadow: inset 3px 0 0 rgba(255, 107, 107, 0.72);
-}
-
-.mini-current-session-row.is-running,
-.mini-session-summary-card.is-running,
-.mini-session-row.is-running {
-  --mini-active-glow: rgba(43, 213, 159, 0.34);
-  --mini-active-halo: rgba(43, 213, 159, 0.16);
-}
-
-.mini-current-session-row.is-waiting,
-.mini-session-summary-card.is-waiting,
-.mini-session-row.is-waiting {
-  --mini-active-glow: rgba(246, 189, 77, 0.34);
-  --mini-active-halo: rgba(246, 189, 77, 0.16);
-}
-
-.mini-current-session-row.is-output,
-.mini-session-summary-card.is-output,
-.mini-session-row.is-output {
-  --mini-active-glow: rgba(55, 163, 255, 0.34);
-  --mini-active-halo: rgba(55, 163, 255, 0.16);
-}
-
-.mini-current-session-row.is-done,
-.mini-session-summary-card.is-done,
-.mini-session-row.is-done {
-  --mini-active-glow: rgba(119, 107, 255, 0.34);
-  --mini-active-halo: rgba(119, 107, 255, 0.16);
-}
-
-.mini-current-session-row.is-cancelled,
-.mini-session-summary-card.is-cancelled,
-.mini-session-row.is-cancelled {
-  --mini-active-glow: rgba(142, 159, 187, 0.28);
-  --mini-active-halo: rgba(142, 159, 187, 0.12);
-}
-
-.mini-current-session-row.is-failed,
-.mini-session-summary-card.is-failed,
-.mini-session-row.is-failed {
-  --mini-active-glow: rgba(255, 107, 107, 0.34);
-  --mini-active-halo: rgba(255, 107, 107, 0.16);
-}
-
-.mini-current-session-row.active,
-.mini-session-summary-card.active,
-.mini-session-row.active {
-  z-index: 1;
-  box-shadow:
-    0 0 14px 2px var(--mini-active-glow),
-    0 0 38px 8px var(--mini-active-halo),
-    0 12px 32px rgba(2, 5, 11, 0.22);
-}
-
-.mini-session-summary-card.active {
-  z-index: 1;
-}
-
-.mini-session-row-copy,
-.mini-session-row-title,
-.mini-session-row-sub {
-  min-width: 0;
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mini-session-row-title {
-  font-size: 14px;
-  font-weight: 820;
-}
-
-.mini-session-row-sub {
-  margin-top: 5px;
-  color: #8798b5;
-  font-size: 12px;
-}
-
-.mini-session-row-meta {
-  color: #9fb0cb;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.mini-session-open {
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 12px;
-  border: 1px solid rgba(83, 174, 255, 0.32);
-  border-radius: 9px;
-  background: rgba(34, 113, 205, 0.18);
-  color: #8ed0ff;
-  font-size: 12px;
-}
-
-.mini-session-empty {
-  padding: 46px 0;
-  color: var(--mini-cyber-muted);
-  text-align: center;
-  font-size: 13px;
 }
 
 .mini-prd-confirm-bar {
@@ -3290,25 +2864,6 @@ useMiniWorkstationEffects({
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .mini-session-dialog-tools,
-  .mini-session-columns,
-  .mini-session-row {
-    grid-template-columns: 1fr;
-  }
-
-  .mini-session-columns {
-    overflow: auto;
-  }
-
-  .mini-session-dialog-stat,
-  .mini-session-filters {
-    flex-wrap: wrap;
-  }
-
-  .mini-session-dialog {
-    width: calc(100vw - 24px);
-    height: calc(100vh - 72px);
-  }
 }
 </style>
 
