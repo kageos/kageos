@@ -17,7 +17,7 @@
           </div>
         </el-form-item>
         
-        <el-form-item label="仅展示有权限">
+        <el-form-item v-if="featureFlags.permissions" label="仅展示有权限">
           <el-tooltip
             content="启用权限管控后生效；开启后非管理员左侧目录只展示其有权限的节点"
             placement="top"
@@ -26,7 +26,7 @@
           </el-tooltip>
         </el-form-item>
 
-        <el-form-item label="启用权限管控">
+        <el-form-item v-if="featureFlags.permissions" label="启用权限管控">
           <el-tooltip
             content="开启后按角色授权控制目录和函数访问；社区版默认关闭，企业版权限特性开启时默认启用"
             placement="top"
@@ -35,7 +35,7 @@
           </el-tooltip>
         </el-form-item>
 
-        <el-form-item label="管理员">
+        <el-form-item v-if="featureFlags.permissions" label="管理员">
           <UsersWidget
             :value="adminsFieldValue"
             :field="adminsField"
@@ -71,6 +71,7 @@ import UsersWidget from '@/shared/components/UsersWidget.vue'
 import type { FieldValue } from '@/core/types/field'
 import { WidgetType } from '@/core/constants/widget'
 import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/utils/widgetFieldHelpers'
+import { featureFlags } from '@/config/features'
 
 interface Props {
   modelValue: boolean

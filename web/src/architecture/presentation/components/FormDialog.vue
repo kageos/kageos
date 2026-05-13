@@ -34,7 +34,7 @@
       <span class="dialog-footer">
         <el-button @click="handleClose">取消</el-button>
         <el-button
-          v-if="props.mode === 'create' && !!props.router"
+          v-if="featureFlags.scheduledTasks && props.mode === 'create' && !!props.router"
           @click="openScheduledTaskDialog"
           :disabled="submitting"
         >
@@ -46,6 +46,7 @@
       </span>
     </template>
     <ScheduledTaskDialog
+      v-if="featureFlags.scheduledTasks"
       v-model="showScheduledTaskDialog"
       :full-code-path="props.router"
       table-mode
@@ -61,6 +62,7 @@ import FormView from '@/architecture/presentation/views/FormView.vue'
 import { Logger } from '@/core/utils/logger'
 import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
 import ScheduledTaskDialog from '@/architecture/presentation/components/ScheduledTaskDialog.vue'
+import { featureFlags } from '@/config/features'
 
 interface Props {
   modelValue: boolean  // 对话框显示状态
@@ -184,6 +186,9 @@ const handleClose = () => {
 }
 
 const openScheduledTaskDialog = () => {
+  if (!featureFlags.scheduledTasks) {
+    return
+  }
   showScheduledTaskDialog.value = true
 }
 

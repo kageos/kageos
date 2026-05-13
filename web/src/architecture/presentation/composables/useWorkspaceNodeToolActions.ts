@@ -1,6 +1,7 @@
 import { ref, type ComputedRef } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
+import { featureFlags } from '@/config/features'
 
 type UpdateHistoryMode = 'app' | 'directory'
 
@@ -28,16 +29,25 @@ export function useWorkspaceNodeToolActions(options: UseWorkspaceNodeToolActions
   const updateHistoryFullCodePath = ref('')
 
   const handlePublishToHub = (node: ServiceTreeType) => {
+    if (!featureFlags.hub) {
+      return
+    }
     publishSelectedNode.value = node
     publishToHubDialogVisible.value = true
   }
 
   const handlePushToHub = (node: ServiceTreeType) => {
+    if (!featureFlags.hub) {
+      return
+    }
     pushSelectedNode.value = node
     pushToHubDialogVisible.value = true
   }
 
   const openPullFromHubDialog = (initialLink?: string, targetFullCodePath?: string, targetName?: string) => {
+    if (!featureFlags.hub) {
+      return
+    }
     pastedHubLink.value = initialLink ?? ''
     pullFromHubTargetPath.value = targetFullCodePath ?? ''
     pullFromHubTargetName.value = targetName ?? ''

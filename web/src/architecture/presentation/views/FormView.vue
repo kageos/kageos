@@ -209,7 +209,7 @@
           提交
         </el-button>
         <el-button
-          v-if="showSubmitButton && canSubmit"
+          v-if="featureFlags.scheduledTasks && showSubmitButton && canSubmit"
           size="large"
           @click="showScheduledTaskDialog = true"
           :disabled="!currentFunctionNode?.full_code_path"
@@ -218,7 +218,7 @@
           定时执行
         </el-button>
         <el-button
-          v-else-if="showSubmitButton"
+          v-if="showSubmitButton && !canSubmit"
           type="default"
           size="large"
           :disabled="false"
@@ -380,6 +380,7 @@
 
     <!-- 定时执行弹窗：以当前表单参数为 payload -->
     <ScheduledTaskDialog
+      v-if="featureFlags.scheduledTasks"
       v-model="showScheduledTaskDialog"
       :full-code-path="currentFunctionNode?.full_code_path ?? ''"
       :get-payload="prepareSubmitDataWithTypeConversion"
@@ -418,6 +419,7 @@ import ScheduledTaskDialog from '../components/ScheduledTaskDialog.vue'
 import { createFormViewRuntime } from './utils/formViewRuntime'
 import { FORM_LABEL_WIDTH } from '../utils/formLayout'
 import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
+import { featureFlags } from '@/config/features'
 
 const props = withDefaults(defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取

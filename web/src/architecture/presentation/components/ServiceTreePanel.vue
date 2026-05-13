@@ -24,6 +24,7 @@
       <div v-if="multiSelectMode" class="tree-bulk-toolbar">
         <span class="bulk-selected-count">已选 {{ selectedNodeCount }}</span>
         <el-button
+          v-if="featureFlags.capabilityBundle"
           size="small"
           :icon="Download"
           :loading="bulkExporting"
@@ -152,7 +153,7 @@
             
             <!-- 无权限标识 - 没有权限的节点显示 -->
             <img 
-              v-if="!hasAnyPermissionForNode(data)" 
+              v-if="featureFlags.permissions && !hasAnyPermissionForNode(data)"
               src="/锁定.svg" 
               alt="无权限" 
               class="no-permission-icon" 
@@ -162,7 +163,7 @@
             
             <!-- ⭐ 待审批数量 badge - 仅管理员可见（package 和 function 类型都显示） -->
             <el-badge
-              v-if="(data.type === 'package' || data.type === 'function') && isAdmin(data) && data.pending_count && data.pending_count > 0"
+              v-if="featureFlags.permissions && (data.type === 'package' || data.type === 'function') && isAdmin(data) && data.pending_count && data.pending_count > 0"
               :value="data.pending_count"
               :max="99"
               class="pending-count-badge"
@@ -259,6 +260,7 @@ import {
   getServiceTreeNodeActions,
   type ServiceTreeNodeActionCommand
 } from '../utils/serviceTreeNodeActions'
+import { featureFlags } from '@/config/features'
 
 interface Props {
   treeData: ServiceTree[]
@@ -471,6 +473,9 @@ const handleRename = async (node: ServiceTree) => {
 
 // 处理无权限节点点击
 const handleNoPermissionClick = (data: ServiceTree) => {
+  if (!featureFlags.permissions) {
+    return
+  }
   // 跳转到权限申请页面
   const resourcePath = data.full_code_path
   const templateType = data.template_type
@@ -532,7 +537,7 @@ const getDefaultPermissionApplyAction = (node: ServiceTree): string => {
 function getNodeActions(data: ServiceTree) {
   return getServiceTreeNodeActions(data, {
     hasCopiedDirectory: Boolean(copiedDirectory.value),
-    hasCopiedHubLink: Boolean(copiedHubLink.value)
+    hasCopiedHubLink: featureFlags.hub && Boolean(copiedHubLink.value)
   })
 }
 
@@ -716,6 +721,9 @@ function handleBulkDelete() {
 
 // 处理申请权限
 const handleApplyPermission = (data: ServiceTree) => {
+  if (!featureFlags.permissions) {
+    return
+  }
   const resourcePath = data.full_code_path
   const defaultAction = getDefaultPermissionApplyAction(data)
   const url = buildPermissionApplyURL(resourcePath, defaultAction, data.template_type)
@@ -803,11 +811,17 @@ async function handleCapabilityImportFileChange(event: Event) {
 
 // 处理待审批数量点击
 const handlePendingCountClick = (data: ServiceTree) => {
+  if (!featureFlags.permissions) {
+    return
+  }
   handleApprovePermission(data)
 }
 
 // 处理审批权限申请
 const handleApprovePermission = (data: ServiceTree) => {
+  if (!featureFlags.permissions) {
+    return
+  }
   // 先触发节点点击，确保节点详情已加载
   emit('node-click', data)
   
@@ -834,6 +848,9 @@ const handleApprovePermission = (data: ServiceTree) => {
 
 // 处理权限管理
 const handleManagePermission = (data: ServiceTree) => {
+  if (!featureFlags.permissions) {
+    return
+  }
   const resourcePath = data.full_code_path
   const defaultAction = getDefaultPermissionApplyAction(data)
   // 权限管理页面，默认显示授权模式
@@ -913,6 +930,9 @@ const handleNodeAction = (command: ServiceTreeNodeActionCommand, data: ServiceTr
 
 // 处理从应用中心安装按钮点击
 const handlePullFromHubClick = () => {
+  if (!featureFlags.hub) {
+    return
+  }
   emit('pull-from-hub')
 }
 

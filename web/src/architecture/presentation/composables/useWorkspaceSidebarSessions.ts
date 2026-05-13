@@ -9,6 +9,7 @@ import {
   type ScheduledAgentTaskItem
 } from '@/api/scheduledAgentTask'
 import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
+import { featureFlags } from '@/config/features'
 
 type SidebarTab = 'all' | 'running' | 'finished' | 'scheduled'
 
@@ -52,8 +53,12 @@ export function useWorkspaceSidebarSessions(options: UseWorkspaceSidebarSessions
   )
 
   const scheduledAgentTaskCount = computed(() =>
+    featureFlags.scheduledTasks
+      ? (
     scheduledAgentTasks.value.filter((task) => task.status === 'pending' || task.status === 'paused').length +
     scheduledAgentExecutions.value.length
+      )
+      : 0
   )
 
   async function loadSessions() {
@@ -75,6 +80,11 @@ export function useWorkspaceSidebarSessions(options: UseWorkspaceSidebarSessions
   }
 
   async function loadScheduledAgentTasks() {
+    if (!featureFlags.scheduledTasks) {
+      scheduledAgentTasks.value = []
+      scheduledAgentExecutions.value = []
+      return
+    }
     const ctx = workstationContext.value
     if (!ctx) {
       scheduledAgentTasks.value = []
@@ -161,7 +171,7 @@ export function useWorkspaceSidebarSessions(options: UseWorkspaceSidebarSessions
       if (sessions.value.some((s: WorkspaceSessionItem) => s.status === 'generating')) {
         loadSessions()
       }
-      if (activeTab.value === 'scheduled') {
+      if (featureFlags.scheduledTasks && activeTab.value === 'scheduled') {
         loadScheduledAgentTasks()
       }
     }, 5000)
@@ -340,7 +350,9 @@ export function useWorkspaceSidebarSessions(options: UseWorkspaceSidebarSessions
       stopPoll()
       if (path && visible) {
         loadSessions()
-        loadScheduledAgentTasks()
+        if (featureFlags.scheduledTasks) {
+          loadScheduledAgentTasks()
+        }
         startPoll()
       }
     },
@@ -348,13 +360,15 @@ export function useWorkspaceSidebarSessions(options: UseWorkspaceSidebarSessions
   )
 
   watch(activeTab, (tab) => {
-    if (tab === 'scheduled') {
+    if (tab === 'scheduled' && featureFlags.scheduledTasks) {
       loadScheduledAgentTasks()
+    } else if (tab === 'scheduled' && !featureFlags.scheduledTasks) {
+      activeTab.value = 'all'
     }
   })
 
   const unsubscribeScheduledTaskCreated = eventBus.on(WorkspaceEvent.scheduledAgentTaskCreated, () => {
-    if (sidebarVisible.value) {
+    if (featureFlags.scheduledTasks && sidebarVisible.value) {
       loadScheduledAgentTasks()
     }
   })

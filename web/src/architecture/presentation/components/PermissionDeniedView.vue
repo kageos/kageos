@@ -34,6 +34,7 @@
         </div>
         <div class="permission-error-actions">
           <el-button
+            v-if="featureFlags.permissions"
             type="primary"
             size="default"
             @click="handleApplyPermission"
@@ -41,6 +42,14 @@
           >
             立即申请权限
           </el-button>
+          <el-alert
+            v-else
+            type="warning"
+            :closable="false"
+            show-icon
+            title="当前资源暂不可访问"
+            description="产品聚焦模式下暂不开放权限申请入口，请联系工作空间管理员处理。"
+          />
         </div>
       </div>
     </el-card>
@@ -55,6 +64,7 @@ import { ElCard, ElIcon, ElButton } from 'element-plus'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import { buildPermissionApplyURL } from '@/utils/permission'
 import type { PermissionInfo } from '@/utils/permission'
+import { featureFlags } from '@/config/features'
 
 const router = useRouter()
 const permissionErrorStore = usePermissionErrorStore()
@@ -64,6 +74,9 @@ const permissionError = computed<PermissionInfo | null>(() => permissionErrorSto
 
 // 处理权限申请
 const handleApplyPermission = () => {
+  if (!featureFlags.permissions) {
+    return
+  }
   if (permissionError.value?.apply_url) {
     if (permissionError.value.apply_url.startsWith('/')) {
       router.push(permissionError.value.apply_url)
@@ -183,4 +196,3 @@ const handleApplyPermission = () => {
   border-top: 1px solid var(--el-border-color-lighter);
 }
 </style>
-

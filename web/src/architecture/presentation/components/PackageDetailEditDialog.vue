@@ -20,7 +20,7 @@
         />
       </el-form-item>
 
-      <el-form-item label="管理员" prop="admins">
+      <el-form-item v-if="featureFlags.permissions" label="管理员" prop="admins">
         <UsersWidget
           v-if="visible"
           :key="`admins-${form.admins || 'empty'}`"
@@ -49,6 +49,7 @@
 import { computed, ref } from 'vue'
 import UsersWidget from '@/shared/components/UsersWidget.vue'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
+import { featureFlags } from '@/config/features'
 
 const props = defineProps<{
   visible: boolean

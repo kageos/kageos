@@ -6,7 +6,7 @@
  * 配置方式：
  * 1. 通过环境变量配置（推荐）
  *    - VITE_HUB_BASE_URL: Hub API 基础地址
- *    - VITE_HUB_ENABLED: 是否启用 Hub 功能（默认 true）
+ *    - VITE_HUB_ENABLED: 是否启用 Hub API（还会受产品功能开关控制）
  * 
  * 2. 开发环境默认值：
  *    - baseURL: http://127.0.0.1:9094/hub（本地开发）
@@ -16,6 +16,8 @@
  *    - 默认使用官方 Hub: https://www.ai-agent-os.com/hub
  *    - 可以通过环境变量覆盖
  */
+import { featureFlags } from './features'
+
 export interface HubConfig {
   baseURL: string
   enabled: boolean
@@ -27,7 +29,7 @@ export interface HubConfig {
 export function getHubConfig(): HubConfig {
   // 从环境变量获取配置
   const baseURL = import.meta.env.VITE_HUB_BASE_URL || getDefaultHubURL()
-  const enabled = import.meta.env.VITE_HUB_ENABLED !== 'false'
+  const enabled = featureFlags.hub && import.meta.env.VITE_HUB_ENABLED !== 'false'
 
   return {
     baseURL,
@@ -64,4 +66,3 @@ export function isHubEnabled(): boolean {
  * Hub 配置实例（单例）
  */
 export const HUB_CONFIG = getHubConfig()
-

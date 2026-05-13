@@ -45,9 +45,9 @@
         </div>
       </div>
 
-      <div v-if="packageNode.admins && packageNode.admins.trim()" class="overview-divider"></div>
+      <div v-if="featureFlags.permissions && packageNode.admins && packageNode.admins.trim()" class="overview-divider"></div>
 
-      <div v-if="packageNode.admins && packageNode.admins.trim()" class="overview-item">
+      <div v-if="featureFlags.permissions && packageNode.admins && packageNode.admins.trim()" class="overview-item">
         <div class="overview-icon-wrapper admins-icon">
           <el-icon class="overview-icon"><Avatar /></el-icon>
         </div>
@@ -75,6 +75,7 @@ import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
 import UserWidget from '@/shared/components/UserWidget.vue'
 import UsersWidget from '@/shared/components/UsersWidget.vue'
+import { featureFlags } from '@/config/features'
 
 const props = defineProps<{
   packageNode: ServiceTree | null

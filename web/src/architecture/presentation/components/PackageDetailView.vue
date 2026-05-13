@@ -105,6 +105,7 @@ import { Logger } from '@/core/utils/logger'
 import PackageDetailContent from './PackageDetailContent.vue'
 import PackageDetailEditDialog from './PackageDetailEditDialog.vue'
 import type { WorkspaceSessionItem } from '@/api/workspace'
+import { featureFlags } from '@/config/features'
 
 type DetailTabName = 'info' | 'permissionRequest' | 'permissionManage' | 'scheduledAgentTask'
 
@@ -129,6 +130,9 @@ const activeTab = ref<DetailTabName>('info')
 // ⭐ 判断是否显示权限申请 tab
 // 条件：1. 节点类型是 package 或 app  2. 用户是管理员
 const showPermissionRequestTab = computed(() => {
+  if (!featureFlags.permissions) {
+    return false
+  }
   if (!props.packageNode) {
     return false
   }
@@ -148,7 +152,7 @@ const resourceType = computed<'directory'>(() => {
 })
 
 const showScheduledAgentTaskTab = computed(() => {
-  return props.packageNode?.type === 'package' && !!props.packageNode.full_code_path
+  return featureFlags.scheduledTasks && props.packageNode?.type === 'package' && !!props.packageNode.full_code_path
 })
 
 // ⭐ 本目录下所有函数调用次数之和（仅统计直接子节点中的 function）
@@ -248,6 +252,9 @@ const adminsField = computed<FieldConfig>(() => ({
 
 // ⭐ 检查是否没有任何权限（根据节点类型检查对应的权限）
 const hasNoDirectoryPermissions = computed(() => {
+  if (!featureFlags.permissions) {
+    return false
+  }
   if (!props.packageNode) {
     return false
   }

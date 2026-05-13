@@ -103,6 +103,13 @@ vi.mock('@/stores/permissionError', () => ({
   })
 }))
 
+vi.mock('@/config/features', () => ({
+  featureFlags: {
+    scheduledTasks: false,
+    permissions: true
+  }
+}))
+
 import FormView from './FormView.vue'
 import { apiClient } from '../../infrastructure/apiClient'
 
@@ -171,6 +178,39 @@ describe('FormView', () => {
     expect(wrapper.find('[data-testid="form-request"]').exists()).toBe(true)
     expect(wrapper.find('.slider-widget').exists()).toBe(true)
     expect(wrapper.find('.el-slider').exists()).toBe(true)
+  })
+
+  it('shows only the primary submit button when scheduled tasks are disabled', () => {
+    const wrapper = mount(FormView, {
+      props: {
+        functionDetail: createFormDetail()
+      },
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          PermissionDeniedView: { template: '<div />' },
+          ScheduledTaskDialog: { template: '<div />' },
+          ElAlert: { template: '<div class="el-alert">{{ title }}</div>', props: ['title', 'type'] },
+          ElForm: { template: '<form><slot /></form>' },
+          ElFormItem: { template: '<div class="form-item"><slot /></div>' },
+          ElButton: { template: '<button><slot /></button>' },
+          ElDialog: { template: '<div><slot /></div>' },
+          ElTabs: { template: '<div><slot /></div>' },
+          ElTabPane: { template: '<div><slot /></div>' },
+          ElInput: { template: '<input />' },
+          ElEmpty: { template: '<div />' },
+          ElTag: { template: '<span><slot /></span>' },
+          ElIcon: { template: '<i><slot /></i>' }
+        }
+      }
+    })
+
+    const submitButtons = wrapper
+      .findAll('button')
+      .filter((button) => button.text().includes('提交'))
+
+    expect(submitButtons).toHaveLength(1)
+    expect(submitButtons.at(0)?.text()).toBe('提交')
   })
 
   it('shows inline and viewport error feedback when submit returns a business error', async () => {

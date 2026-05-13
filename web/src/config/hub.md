@@ -17,8 +17,8 @@ Hub 是 AI-Agent-OS 的应用市场，提供应用发布、浏览、克隆等功
 # 自定义：可以设置为自己的 Hub 实例地址
 VITE_HUB_BASE_URL=
 
-# 是否启用 Hub 功能（默认 true）
-# 设置为 false 可禁用 Hub 功能，相关 UI 将自动隐藏
+# 是否启用 Hub API。默认还会受 VITE_AOS_FOCUSED_MODE / VITE_AOS_FEATURE_HUB 控制
+# 设置为 false 可禁用 Hub API
 VITE_HUB_ENABLED=true
 ```
 
@@ -100,5 +100,4 @@ routes:
 1. **开发环境**：使用相对路径 `/hub`，通过 Vite 代理
 2. **生产环境**：使用绝对路径，直接访问 Hub 服务
 3. **网关代理**：确保网关已配置 Hub 路由
-4. **功能开关**：可以通过 `VITE_HUB_ENABLED` 禁用 Hub 功能
-
+4. **功能开关**：可以通过 `VITE_AOS_FEATURE_HUB` 控制产品入口，通过 `VITE_HUB_ENABLED` 禁用 Hub API
