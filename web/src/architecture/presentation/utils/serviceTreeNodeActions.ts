@@ -8,7 +8,6 @@ import {
   DocumentChecked,
   Download,
   Edit,
-  Key,
   Plus,
   Upload
 } from '@element-plus/icons-vue'
@@ -18,7 +17,6 @@ import { isRootNode } from '@/utils/tree-utils'
 import { featureFlags } from '@/config/features'
 
 export type ServiceTreeNodeActionCommand =
-  | 'apply-permission'
   | 'create-directory'
   | 'create-docs'
   | 'create-board'
@@ -33,8 +31,6 @@ export type ServiceTreeNodeActionCommand =
   | 'delete-doc'
   | 'delete-board'
   | 'update-history'
-  | 'approve-permission'
-  | 'manage-permission'
 
 export interface ServiceTreeNodeAction {
   command: ServiceTreeNodeActionCommand
@@ -52,7 +48,6 @@ export function getServiceTreeNodeActions(
   options: ServiceTreeNodeActionOptions = {}
 ): ServiceTreeNodeAction[] {
   const actions: ServiceTreeNodeAction[] = [
-    { command: 'apply-permission', label: '申请权限', icon: Key, visible: featureFlags.permissions },
     {
       command: 'create-directory',
       label: '添加服务目录',

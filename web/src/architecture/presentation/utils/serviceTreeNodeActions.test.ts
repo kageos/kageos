@@ -40,7 +40,6 @@ describe('serviceTreeNodeActions', () => {
     }))
 
     expect(commands(actions)).toEqual([
-      'apply-permission',
       'create-directory',
       'create-docs',
       'create-board',
@@ -80,7 +79,7 @@ describe('serviceTreeNodeActions', () => {
       }
     }))
 
-    expect(commands(actions)).toEqual(['apply-permission', 'delete-function'])
+    expect(commands(actions)).toEqual(['delete-function'])
   })
 
   it('builds stable test ids', () => {

@@ -34,22 +34,14 @@
         </div>
         <div class="permission-error-actions">
           <el-button
-            v-if="featureFlags.permissions"
+            v-if="permissionError?.resource_path"
             type="primary"
             size="default"
-            @click="handleApplyPermission"
-            :icon="Lock"
+            @click="copyResourcePath"
+            :icon="Document"
           >
-            立即申请权限
+            复制资源路径
           </el-button>
-          <el-alert
-            v-else
-            type="warning"
-            :closable="false"
-            show-icon
-            title="当前资源暂不可访问"
-            description="产品聚焦模式下暂不开放权限申请入口，请联系工作空间管理员处理。"
-          />
         </div>
       </div>
     </el-card>
@@ -58,36 +50,20 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { Lock, Document, Key } from '@element-plus/icons-vue'
 import { ElCard, ElIcon, ElButton } from 'element-plus'
 import { usePermissionErrorStore } from '@/stores/permissionError'
-import { buildPermissionApplyURL } from '@/utils/permission'
 import type { PermissionInfo } from '@/utils/permission'
-import { featureFlags } from '@/config/features'
 
-const router = useRouter()
 const permissionErrorStore = usePermissionErrorStore()
 
 // 获取权限错误信息
 const permissionError = computed<PermissionInfo | null>(() => permissionErrorStore.currentError)
 
-// 处理权限申请
-const handleApplyPermission = () => {
-  if (!featureFlags.permissions) {
-    return
-  }
-  if (permissionError.value?.apply_url) {
-    if (permissionError.value.apply_url.startsWith('/')) {
-      router.push(permissionError.value.apply_url)
-    } else {
-      window.open(permissionError.value.apply_url, '_blank')
-    }
-  } else if (permissionError.value?.resource_path && permissionError.value?.action) {
-    // 如果没有 apply_url，使用 resource_path 和 action 构建
-    const applyURL = buildPermissionApplyURL(permissionError.value.resource_path, permissionError.value.action)
-    router.push(applyURL)
-  }
+const copyResourcePath = async () => {
+  const resourcePath = permissionError.value?.resource_path
+  if (!resourcePath) return
+  await navigator.clipboard.writeText(resourcePath)
 }
 </script>
 

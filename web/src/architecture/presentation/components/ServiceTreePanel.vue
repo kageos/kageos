@@ -140,7 +140,7 @@
             />
             <!-- 其他类型：显示 fx 文本 -->
             <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
-            <span class="node-label" :class="{ 'no-permission': !hasAnyPermissionForNode(data) }">{{ node.label }}</span>
+            <span class="node-label">{{ node.label }}</span>
 
             <!-- 运行态 badge：来自 agent-server state 接口，表示当前目录及子目录正在运行的会话数 -->
             <el-badge
@@ -150,27 +150,7 @@
               :class="getRuntimeBadgeClass(data)"
               :title="getRuntimeSummaryTitle(data)"
             />
-            
-            <!-- 无权限标识 - 没有权限的节点显示 -->
-            <img 
-              v-if="featureFlags.permissions && !hasAnyPermissionForNode(data)"
-              src="/锁定.svg" 
-              alt="无权限" 
-              class="no-permission-icon" 
-              :title="'该节点没有权限，点击申请权限'"
-              @click.stop="handleNoPermissionClick(data)"
-            />
-            
-            <!-- ⭐ 待审批数量 badge - 仅管理员可见（package 和 function 类型都显示） -->
-            <el-badge
-              v-if="featureFlags.permissions && (data.type === 'package' || data.type === 'function') && isAdmin(data) && data.pending_count && data.pending_count > 0"
-              :value="data.pending_count"
-              :max="99"
-              class="pending-count-badge"
-              @click.stop="handlePendingCountClick(data)"
-              :title="`有 ${data.pending_count} 个待审批的权限申请`"
-            />
-            
+
             <!-- 更多操作按钮 - 鼠标悬停时显示（与右键菜单并存，点击也可打开） -->
             <el-dropdown
               v-if="!multiSelectMode"
@@ -225,7 +205,6 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { MoreFilled, Document, Download, Delete, Search, Select, Close } from '@element-plus/icons-vue'
 import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/shared/components/icons/TableIcon.vue'
@@ -240,19 +219,13 @@ import { downloadCapabilityBundleFile, parseCapabilityBundleJson } from '@/utils
 import { 
   hasPermission, 
   hasAnyPermission,
-  hasAnyPermissionForNode, 
   DirectoryPermission,
-  DocsPermission,
-  BoardPermission,
   FunctionPermission,
   FormPermission,
   ChartPermission,
-  TablePermission, 
-  buildPermissionApplyURL 
+  TablePermission
 } from '@/utils/permission'
-import { useAuthStore } from '@/stores/auth'
-import { eventBus, RouteEvent, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
-import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
+import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
 import { useServiceTreeClipboard } from '../composables/useServiceTreeClipboard'
 import { useServiceTreeSearchExpand } from '../composables/useServiceTreeSearchExpand'
 import {
@@ -287,12 +260,8 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const router = useRouter()
 const runtimeSummaries = ref<Record<string, RuntimeStateSummary>>({})
 let runtimeSummaryTimer: ReturnType<typeof setInterval> | null = null
-
-// 获取当前用户信息
-const authStore = useAuthStore()
 
 const {
   treeRef,
@@ -464,23 +433,6 @@ const handleRename = async (node: ServiceTree) => {
   }
 }
 
-// 处理无权限节点点击
-const handleNoPermissionClick = (data: ServiceTree) => {
-  if (!featureFlags.permissions) {
-    return
-  }
-  // 跳转到权限申请页面
-  const resourcePath = data.full_code_path
-  const templateType = data.template_type
-  
-  // 构建权限申请 URL
-  const defaultAction = getDefaultPermissionApplyAction(data)
-  const url = `/permissions/apply?resource=${encodeURIComponent(resourcePath)}&action=${encodeURIComponent(defaultAction)}`
-  const finalUrl = templateType ? `${url}&templateType=${encodeURIComponent(templateType)}` : url
-  
-  router.push(finalUrl)
-}
-
 function onTreeNodeDragStart(e: DragEvent, data: ServiceTree) {
   if (!e.dataTransfer || !data.full_code_path) return
   e.dataTransfer.setData('application/x-workspace-node', JSON.stringify({
@@ -501,30 +453,6 @@ const handleNodeClick = (data: ServiceTree) => {
   // 直接触发 node-click 事件，让父组件处理路由跳转
   // ⭐ 下拉菜单的点击已经通过 @click.stop.prevent 阻止了事件冒泡，所以这里不需要额外检查
   emit('node-click', data)
-}
-
-// 缓存当前用户名，避免在模板中重复访问响应式对象
-const currentUsername = computed(() => authStore.user?.username || '')
-
-// 判断是否是管理员（使用缓存的用户名）
-const isAdmin = (node: ServiceTree): boolean => {
-  return isServiceTreeNodeAdmin(node, currentUsername.value)
-}
-
-const getDefaultPermissionApplyAction = (node: ServiceTree): string => {
-  if (node.type === 'package') {
-    return DirectoryPermission.read
-  }
-
-  if (node.type === 'docs') {
-    return DocsPermission.read
-  }
-
-  if (node.type === 'board') {
-    return BoardPermission.read
-  }
-
-  return FunctionPermission.read
 }
 
 function getNodeActions(data: ServiceTree) {
@@ -711,17 +639,6 @@ function handleBulkDelete() {
   exitMultiSelectMode()
 }
 
-// 处理申请权限
-const handleApplyPermission = (data: ServiceTree) => {
-  if (!featureFlags.permissions) {
-    return
-  }
-  const resourcePath = data.full_code_path
-  const defaultAction = getDefaultPermissionApplyAction(data)
-  const url = buildPermissionApplyURL(resourcePath, defaultAction, data.template_type)
-  router.push(url)
-}
-
 const handleExportJson = async (data: ServiceTree) => {
   if (data.type !== 'package') {
     ElMessage.warning('只能导出目录')
@@ -801,55 +718,6 @@ async function handleCapabilityImportFileChange(event: Event) {
   }
 }
 
-// 处理待审批数量点击
-const handlePendingCountClick = (data: ServiceTree) => {
-  if (!featureFlags.permissions) {
-    return
-  }
-  handleApprovePermission(data)
-}
-
-// 处理审批权限申请
-const handleApprovePermission = (data: ServiceTree) => {
-  if (!featureFlags.permissions) {
-    return
-  }
-  // 先触发节点点击，确保节点详情已加载
-  emit('node-click', data)
-  
-  // 然后通过事件总线更新路由，添加 tab 参数
-  // 使用 nextTick 确保节点点击事件已处理
-  nextTick(() => {
-    const targetPath = `/workspace${data.full_code_path}`
-    eventBus.emit(RouteEvent.updateRequested, {
-      path: targetPath,
-      query: {
-        _panel: 'permissionRequest'
-      },
-      replace: true,
-      preserveParams: {
-        table: false,
-        search: false,
-        state: false,
-        linkNavigation: false
-      },
-      source: 'approve-permission-click'
-    })
-  })
-}
-
-// 处理权限管理
-const handleManagePermission = (data: ServiceTree) => {
-  if (!featureFlags.permissions) {
-    return
-  }
-  const resourcePath = data.full_code_path
-  const defaultAction = getDefaultPermissionApplyAction(data)
-  // 权限管理页面，默认显示授权模式
-  const url = buildPermissionApplyURL(resourcePath, defaultAction, data.template_type) + '&mode=grant'
-  router.push(url)
-}
-
 const handleNodeAction = (command: ServiceTreeNodeActionCommand, data: ServiceTree) => {
   switch (command) {
     case 'create-directory':
@@ -894,15 +762,6 @@ const handleNodeAction = (command: ServiceTreeNodeActionCommand, data: ServiceTr
       return
     case 'update-history':
       emit('update-history', data)
-      return
-    case 'apply-permission':
-      handleApplyPermission(data)
-      return
-    case 'approve-permission':
-      handleApprovePermission(data)
-      return
-    case 'manage-permission':
-      handleManagePermission(data)
       return
     case 'open-workstation':
       eventBus.emit('workspace:open-workstation', { full_code_path: data.full_code_path || '' })

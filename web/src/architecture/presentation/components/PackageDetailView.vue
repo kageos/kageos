@@ -61,7 +61,6 @@
       <PackageDetailContent
         :package-node="packageNode || null"
         :total-run-count="totalRunCount"
-        :has-no-directory-permissions="hasNoDirectoryPermissions"
         :active-tab="activeTab"
         @update:active-tab="activeTab = $event"
         @select-child="handleChildClick"
@@ -73,9 +72,6 @@
       v-model:visible="editDialogVisible"
       :form="editForm"
       :submitting="editSubmitting"
-      :admins-field="adminsField"
-      :admins-field-value="editAdminsFieldValue"
-      @update-admins="handleEditAdminsChange"
       @submit="handleSubmitEdit"
     />
   </div>
@@ -92,8 +88,6 @@ import { extractWorkspacePath } from '@/utils/route'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
-import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
-import { WidgetType } from '@/core/constants/widget'
 import { useAuthStore } from '@/stores/auth'
 import { updatePackage } from '@/api/service-tree'
 import { Logger } from '@/core/utils/logger'
@@ -160,8 +154,7 @@ watch(
 const editDialogVisible = ref(false)
 const editSubmitting = ref(false)
 const editForm = ref({
-  name: '',
-  admins: ''
+  name: ''
 })
 
 // ⭐ 检查是否可以编辑（owner 或 admins 可以编辑）
@@ -201,21 +194,6 @@ watch(
   },
   { immediate: true }
 )
-
-// 管理员字段配置（用于 UsersWidget）
-const adminsField = computed<FieldConfig>(() => ({
-  code: 'admins',
-  name: '管理员',
-  widget: {
-    type: WidgetType.USERS,
-    config: {}
-  }
-}))
-
-// ⭐ 检查是否没有任何权限（根据节点类型检查对应的权限）
-const hasNoDirectoryPermissions = computed(() => {
-  return false
-})
 
 // 返回上一级
 function handleBack() {
@@ -265,33 +243,6 @@ async function handleCopyPath() {
   }
 }
 
-// 编辑表单的管理员字段值
-const editAdminsFieldValue = computed<FieldValue>(() => {
-  if (!editForm.value.admins || !editForm.value.admins.trim()) {
-    return {
-      raw: null,
-      display: '',
-      meta: {}
-    }
-  }
-  
-  const admins = editForm.value.admins.split(',').map((s: string) => s.trim()).filter((s: string) => Boolean(s))
-  return {
-    raw: admins.join(','),
-    display: admins.join(', '),
-    meta: {}
-  }
-})
-
-// 处理编辑表单中管理员字段的变化
-function handleEditAdminsChange(value: FieldValue): void {
-  if (value.raw) {
-    editForm.value.admins = typeof value.raw === 'string' ? value.raw : String(value.raw)
-  } else {
-    editForm.value.admins = ''
-  }
-}
-
 // 处理编辑按钮点击
 function handleEdit(): void {
   if (!props.packageNode) {
@@ -300,8 +251,7 @@ function handleEdit(): void {
   
   // 初始化编辑表单
   editForm.value = {
-    name: props.packageNode.name || '',
-    admins: props.packageNode.admins || ''
+    name: props.packageNode.name || ''
   }
   
   editDialogVisible.value = true
@@ -327,8 +277,7 @@ async function handleSubmitEdit(editFormRef: any): Promise<void> {
   editSubmitting.value = true
   try {
     await updatePackage(props.packageNode.id, {
-      name: editForm.value.name.trim(),
-      admins: editForm.value.admins.trim()
+      name: editForm.value.name.trim()
     })
     
     ElMessage.success('更新成功')

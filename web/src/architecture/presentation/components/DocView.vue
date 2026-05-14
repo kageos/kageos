@@ -170,7 +170,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, Check, Plus, Delete, Close, ArrowLeft, ArrowRight, Clock, RefreshRight } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
 import { getDoc, updateDoc, deleteDoc } from '@/api/doc'  // ✅ 使用新的文档 API
-import { hasPermission, DocsPermission, buildPermissionApplyURL } from '@/utils/permission'
+import { hasPermission, DocsPermission } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
@@ -310,7 +310,6 @@ const loadDoc = async () => {
         resource_path: path,
         action: DocsPermission.read,
         action_display: '查看文档',
-        apply_url: buildPermissionApplyURL(path, DocsPermission.read),
         error_message: '没有查看该文档的权限'
       })
     } else {

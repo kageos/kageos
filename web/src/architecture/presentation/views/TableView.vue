@@ -1050,7 +1050,6 @@ const {
   checkSelectable,
   handleBatchDelete
 } = useTableBatchDelete({
-  router,
   functionDetail: () => props.functionDetail,
   currentFunctionNode: () => currentFunctionNode.value,
   idField: () => idField.value || undefined,
@@ -1480,7 +1479,6 @@ const {
   handleCreateSubmit,
   handleCreateDialogClose
 } = useTableCreateAndPermissions({
-  router,
   routeQuery: () => route.query as Record<string, any>,
   functionDetail: () => props.functionDetail,
   workspaceStateManager,

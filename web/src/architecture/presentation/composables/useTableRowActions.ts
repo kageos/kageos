@@ -131,7 +131,7 @@ export function useTableRowActions(options: UseTableRowActionsOptions) {
       return
     }
 
-    if (action.type === 'apply-permission') {
+    if (action.type === 'no-permission') {
       options.handleApplyPermissionForAction(action.action)
     }
   }

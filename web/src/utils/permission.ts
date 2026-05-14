@@ -188,7 +188,7 @@ export interface PermissionInfo {
   resource_path: string  // 资源路径
   action: string  // 权限点（如 table:search）
   action_display: string  // 操作显示名称（如 "表格查询"）
-  apply_url: string  // 申请权限的 URL
+  apply_url?: string  // 申请权限的 URL（历史字段，权限申请入口已下线）
   error_message: string  // 错误消息
 }
 
@@ -781,19 +781,4 @@ export function getPermissionScopes(
   }
   
   return scopes
-}
-
-/**
- * 构建权限申请 URL
- * @param resourcePath 资源路径（full-code-path）
- * @param action 权限点（如 function:update）
- * @param templateType 模板类型（table、form、chart，可选）
- * @returns 权限申请页面的 URL
- */
-export function buildPermissionApplyURL(resourcePath: string, action: string, templateType?: string): string {
-  let url = `/permissions/apply?resource=${encodeURIComponent(resourcePath)}&action=${encodeURIComponent(action)}`
-  if (templateType) {
-    url += `&templateType=${encodeURIComponent(templateType)}`
-  }
-  return url
 }

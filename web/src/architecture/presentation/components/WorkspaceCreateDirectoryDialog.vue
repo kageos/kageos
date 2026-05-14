@@ -50,19 +50,6 @@
           clearable
         />
       </el-form-item>
-      <el-form-item v-if="featureFlags.permissions" label="管理员">
-        <UsersWidget
-          :field="adminsField"
-          :value="adminsFieldValue"
-          :field-path="adminsField.code"
-          mode="edit"
-          @update:modelValue="value => $emit('update-admins', value)"
-        />
-        <div class="form-tip">
-          <el-icon><InfoFilled /></el-icon>
-          默认当前用户为管理员，可以添加其他用户
-        </div>
-      </el-form-item>
     </el-form>
 
     <template #footer>
@@ -79,23 +66,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { InfoFilled } from '@element-plus/icons-vue'
-import UsersWidget from '@/shared/components/UsersWidget.vue'
 import type { CreateServiceTreeRequest, ServiceTree as ServiceTreeType } from '@/types'
-import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
-import { featureFlags } from '@/config/features'
 
 const props = defineProps<{
   visible: boolean
   parentNode: ServiceTreeType | null
   form: CreateServiceTreeRequest
   creating: boolean
-  adminsField: FieldConfig
-  adminsFieldValue: FieldValue
 }>()
 
 const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void
-  (e: 'update-admins', value: FieldValue): void
   (e: 'submit'): void
   (e: 'close'): void
 }>()

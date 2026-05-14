@@ -161,9 +161,6 @@
       v-model:visible="createAppDialogVisible"
       :form="createAppForm"
       :creating="creatingApp"
-      :admins-field="createAppAdminsField"
-      :admins-field-value="createAppAdminsFieldValue"
-      @update-admins="handleCreateAppAdminsChange"
       @submit="submitCreateApp"
       @close="resetCreateAppForm"
     />
@@ -213,9 +210,6 @@
       :parent-node="currentParentNode"
       :form="createDirectoryForm"
       :creating="creatingDirectory"
-      :admins-field="adminsField"
-      :admins-field-value="adminsFieldValue"
-      @update-admins="handleAdminsChange"
       @submit="handleSubmitCreateDirectory"
       @close="handleCloseCreateDirectoryDialog"
     />
@@ -287,8 +281,7 @@ import WorkspaceCreateDocsDialog from '../components/WorkspaceCreateDocsDialog.v
 import WorkspaceFunctionRenderer from '../components/WorkspaceFunctionRenderer.vue'
 import WorkspaceFunctionTabsPanel from '../components/WorkspaceFunctionTabsPanel.vue'
 import type { App } from '../../domain/services/WorkspaceDomainService'
-import type { FieldConfig, FieldValue, FunctionDetail } from '@/architecture/domain/types'
-import { WidgetType } from '@/core/constants/widget'
+import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
 // 🔥 导入 Composable
 import { useWorkspaceRouting } from '../composables/useWorkspaceRouting'
@@ -306,7 +299,6 @@ import { findNodeByPath, findNodeById } from '../utils/workspaceUtils'
 import { useAfterCreateNode } from '../composables/useAfterCreateNode'
 import { hasPermission, TablePermission } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
-import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/utils/widgetFieldHelpers'
 import { getFormRequestFields, getFunctionCallbacks } from '@/utils/functionSchemaSelectors'
 import type { WorkspaceSessionItem } from '@/api/workspace'
 import { featureFlags } from '@/config/features'
@@ -421,22 +413,6 @@ const {
   handleDeleteApp: appHandleDeleteApp
 } = useWorkspaceApp()
 
-const createAppAdminsField = createWidgetFieldConfig({
-  code: 'create_app_admins',
-  name: '管理员',
-  widgetType: WidgetType.USERS
-})
-
-const createAppAdminsFieldValue = computed(() =>
-  createStringFieldValue(createAppAdminsField, createAppForm.value.admins, {
-    display: (createAppForm.value.admins || '').split(',').map(s => s.trim()).filter(Boolean).join(', ')
-  })
-)
-
-function handleCreateAppAdminsChange(value: FieldValue) {
-  createAppForm.value.admins = extractStringFieldRaw(value)
-}
-
 const {
   createDirectoryDialogVisible,
   creatingDirectory,
@@ -447,23 +423,6 @@ const {
   handleSubmitCreateDirectory: serviceTreeHandleSubmitCreateDirectory,
   expandCurrentRoutePath: serviceTreeExpandCurrentRoutePath,
 } = useWorkspaceServiceTree()
-
-const adminsField = createWidgetFieldConfig({
-  code: 'admins',
-  name: '管理员',
-  widgetType: WidgetType.USERS
-})
-
-const adminsFieldValue = computed(() =>
-  createStringFieldValue(adminsField, createDirectoryForm.value.admins, {
-    display: (createDirectoryForm.value.admins || '').split(',').map(s => s.trim()).filter(Boolean).join(', ')
-  })
-)
-
-// 处理管理员字段变化
-function handleAdminsChange(value: FieldValue) {
-  createDirectoryForm.value.admins = extractStringFieldRaw(value)
-}
 
 // 🔥 移除缓存后，通过事件获取函数详情
 const currentFunctionDetail = ref<FunctionDetail | null>(null)

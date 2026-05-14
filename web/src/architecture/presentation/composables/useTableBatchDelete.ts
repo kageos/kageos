@@ -1,8 +1,7 @@
 import { ref, type Ref } from 'vue'
-import type { Router } from 'vue-router'
 import type { ElTable } from 'element-plus'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
-import { buildBatchDeleteIds, buildTablePermissionApplyURL } from '../views/utils/tableViewActionRuntime'
+import { buildBatchDeleteIds } from '../views/utils/tableViewActionRuntime'
 import { hasPermission, TablePermission } from '@/utils/permission'
 import type { FunctionDetail, FieldConfig } from '../../domain/types'
 import type { TableRow } from '../../domain/services/TableDomainService'
@@ -13,7 +12,6 @@ interface PermissionNodeLike {
 }
 
 interface UseTableBatchDeleteOptions {
-  router: Router
   functionDetail: () => FunctionDetail
   currentFunctionNode: () => PermissionNodeLike | null
   idField: () => FieldConfig | undefined
@@ -68,10 +66,6 @@ export function useTableBatchDelete(options: UseTableBatchDeleteOptions) {
         message: '您没有删除该表格记录的权限',
         duration: 3000
       })
-      const applyUrl = buildTablePermissionApplyURL(node, TablePermission.delete)
-      if (applyUrl) {
-        options.router.push(applyUrl)
-      }
       return
     }
 

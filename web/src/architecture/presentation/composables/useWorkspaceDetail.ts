@@ -89,7 +89,7 @@ import FormView from '@/architecture/presentation/views/FormView.vue'
 import type { FieldConfig, FieldValue, FunctionDetail } from '../../domain/types'
 import type { TableResponse } from '../../domain/services/TableDomainService'
 import { useUserInfoStore } from '@/stores/userInfo'
-import { hasPermission, TablePermission, buildPermissionApplyURL } from '@/utils/permission'
+import { hasPermission, TablePermission } from '@/utils/permission'
 import type { ServiceTree } from '@/types'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
 import {
@@ -369,13 +369,6 @@ export function useWorkspaceDetail(
         message: '您没有更新该表格记录的权限',
         duration: 3000
       })
-      // 跳转到权限申请页面
-      const applyUrl = buildPermissionApplyURL(
-        currentFunction.full_code_path || '',
-        TablePermission.update,
-        currentDetail.template_type
-      )
-      router.push(applyUrl)
       return
     }
     
