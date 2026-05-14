@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { IApiClient } from '@/architecture/domain/interfaces/IApiClient'
 import type { IEventBus } from '@/architecture/domain/interfaces/IEventBus'
-import { TEMPLATE_TYPE } from '@/utils/functionTypes'
-import { getChangedFields } from '@/utils/objectDiff'
+import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
+import { getChangedFields } from '@/architecture/runtime/utils/objectDiff'
 import { TableDomainService, type TableState } from '@/architecture/domain/services/TableDomainService'
 import { TableEvent } from '@/architecture/domain/interfaces/IEventBus'
 import { buildEditFunctionDetail, filterDetailInitialData, getEditableFieldCodes, buildDetailBaseQuery } from '@/architecture/presentation/composables/utils/workspaceDetailRuntime'
 import { createFormViewRuntime, buildInitialDataFromFormDataStore } from './formViewRuntime'
 import { buildTableDetailRowPayload } from './tableViewRouteRuntime'
 import { buildNextTableSyncQuery } from './tableViewURLRuntime'
-import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
+import { getFormRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
 
 function createMockEventBus(): IEventBus {
   const listeners = new Map<string, Set<(payload?: any) => void>>()

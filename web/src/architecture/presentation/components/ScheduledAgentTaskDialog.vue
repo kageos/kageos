@@ -323,7 +323,7 @@ import { uploadFile, notifyUploadComplete } from '@/architecture/infrastructure/
 import type { UploadProgress } from '@/architecture/infrastructure/upload/types'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
-import { Z_INDEX } from '@/utils/zIndex'
+import { Z_INDEX } from '@/architecture/runtime/utils/zIndex'
 
 const UPLOAD_ROUTER = 'workspace/chat'
 

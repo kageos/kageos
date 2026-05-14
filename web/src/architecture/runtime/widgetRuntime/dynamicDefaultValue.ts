@@ -8,7 +8,7 @@
  */
 
 import { WidgetType, DynamicFunctionName } from '@/architecture/runtime/constants/widget'
-import { formatDateTimeValue } from '@/utils/date'
+import { formatDateTimeValue } from '@/architecture/runtime/utils/date'
 
 function parseFunctionCall(funcCall: string): { name: string; args: string[] } | null {
   const match = funcCall.match(/^(\w+)\((.*)\)$/)

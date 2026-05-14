@@ -37,7 +37,7 @@
 ### 1.3 当前状态说明
 
 - 工作空间、工作台等主页面入口已经迁移到 `src/architecture/`
-- `src/architecture/runtime/`、`src/shared/`、`src/utils/` 仍然是当前线上主链路正在使用的公共底座
+- `src/architecture/runtime/`、`src/shared/`、`src/architecture/runtime/utils/` 仍然是当前线上主链路正在使用的公共底座
 - `src/architecture/presentation/views/` 目前基本只保留错误页等少量遗留页面
 - 默认启用产品聚焦模式，普通用户入口优先保留工作空间、服务树、工作台、Form/Table/Chart、Docs 和 LLM 管理；组织、消息、操作日志、定时任务等入口由 `src/architecture/infrastructure/config/features.ts` 统一控制
 - 因此前端当前真实状态是：**主页面已迁到 `architecture/`，底层能力已收口为 `architecture/runtime` 运行时底座**
@@ -1018,7 +1018,7 @@ const HeavyComponent = defineAsyncComponent(() =>
 - **流程编排** → Application Layer (`src/architecture/application/services/`)
 - **UI 交互** → Presentation Layer (`src/architecture/presentation/views/`)
 - **技术实现** → Infrastructure Layer (`src/architecture/infrastructure/`)
-- **跨业务共享但不属于主页面流程的通用能力** → `src/architecture/runtime/` / `src/shared/` / `src/utils/`
+- **跨业务共享但不属于主页面流程的通用能力** → `src/architecture/runtime/` / `src/shared/` / `src/architecture/runtime/utils/`
 
 ### Q3: 如何在组件之间通信？
 

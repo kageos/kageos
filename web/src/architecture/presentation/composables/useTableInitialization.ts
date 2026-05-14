@@ -15,10 +15,10 @@ import type { TableDomainService, SortItem } from '../../domain/services/TableDo
 import type { TableApplicationService } from '../../application/services/TableApplicationService'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'
 import type { TableState } from '../../domain/services/TableDomainService'
-import { extractWorkspacePath } from '@/utils/route'
-import { TEMPLATE_TYPE } from '@/utils/functionTypes'
+import { extractWorkspacePath } from '@/architecture/runtime/utils/route'
+import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
-import { isLinkNavigation } from '@/utils/linkNavigation'
+import { isLinkNavigation } from '@/architecture/runtime/utils/linkNavigation'
 import {
   buildClearedTableState,
   buildRestoredTableState,

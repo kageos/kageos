@@ -18,8 +18,8 @@ import type { App } from '../../domain/services/WorkspaceDomainService'
 import type { App as AppType, CreateAppRequest } from '@/architecture/domain/types'
 import { deleteApp, getAppWithServiceTree, updateApp } from '@/architecture/infrastructure/api/app'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
-import { normalizeGoPackageName, validateGoPackageName } from '@/utils/goPackageName'
-import { buildAppResourcePath } from '@/utils/resourcePath'
+import { normalizeGoPackageName, validateGoPackageName } from '@/architecture/runtime/utils/goPackageName'
+import { buildAppResourcePath } from '@/architecture/runtime/utils/resourcePath'
 import { Logger } from '@/architecture/runtime/utils/logger'
 
 export function useWorkspaceApp(

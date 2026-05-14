@@ -1,8 +1,8 @@
 import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
 import { useDepartmentInfoStore } from '@/architecture/infrastructure/stores/departmentInfo'
 import type { FunctionDetail } from '../../domain/types'
-import { getSearchFieldRawValue } from '@/utils/searchFieldValue'
-import { getTableListFields, getTableSearchFields } from '@/utils/functionSchemaSelectors'
+import { getSearchFieldRawValue } from '@/architecture/runtime/utils/searchFieldValue'
+import { getTableListFields, getTableSearchFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
 
 export function useTableReferencePreload() {
   const userInfoStore = useUserInfoStore()

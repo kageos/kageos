@@ -244,7 +244,7 @@ import { listPosts, getPost, createPost, updatePost, deletePost, type PostItem, 
 import { uploadFile, notifyUploadComplete } from '@/architecture/infrastructure/upload'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
-import { sanitizeHtml } from '@/utils/sanitizeHtml'
+import { sanitizeHtml } from '@/architecture/runtime/utils/sanitizeHtml'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 
 const VditorEditor = defineAsyncComponent(() => import('@/shared/components/VditorEditor.vue'))

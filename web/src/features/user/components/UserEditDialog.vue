@@ -101,7 +101,7 @@ import DepartmentSelector from '@/shared/components/DepartmentSelector.vue'
 import UserWidget from '@/shared/components/UserWidget.vue'
 import { WidgetType } from '@/architecture/runtime/constants/widget'
 import type { FieldValue } from '@/architecture/runtime/types/field'
-import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/utils/widgetFieldHelpers'
+import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/architecture/runtime/utils/widgetFieldHelpers'
 
 interface Props {
   modelValue: boolean

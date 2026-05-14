@@ -710,7 +710,7 @@ import ExecutionDurationTag from '@/architecture/presentation/components/Executi
 import FunctionExecutionResultReadonly from '@/architecture/presentation/components/FunctionExecutionResultReadonly.vue'
 import { useScheduledTaskList } from '@/architecture/presentation/composables/useScheduledTaskList'
 import type { FunctionDetail } from '@/architecture/domain/types'
-import { TEMPLATE_TYPE } from '@/utils/functionTypes'
+import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
 
 const props = withDefaults(
   defineProps<{

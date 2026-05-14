@@ -1,4 +1,4 @@
-import { formatTimestamp } from '@/utils/date'
+import { formatTimestamp } from '@/architecture/runtime/utils/date'
 
 export type ExecutionDurationTone = 'fast' | 'medium' | 'slow' | 'unknown'
 

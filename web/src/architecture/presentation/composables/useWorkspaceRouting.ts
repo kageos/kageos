@@ -9,11 +9,11 @@
 
 import { nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { extractWorkspacePath } from '@/utils/route'
+import { extractWorkspacePath } from '@/architecture/runtime/utils/route'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { eventBus, RouteEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
-import { RouteSource } from '@/utils/routeSource'
+import { RouteSource } from '@/architecture/runtime/utils/routeSource'
 import { Logger } from '@/architecture/runtime/utils/logger'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/architecture/domain/types'

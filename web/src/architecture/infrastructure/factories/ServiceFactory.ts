@@ -89,7 +89,7 @@ import { TableApplicationService } from '../../application/services/TableApplica
 import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
 import { useDepartmentInfoStore } from '@/architecture/infrastructure/stores/departmentInfo'
 import { getAppWithServiceTree } from '@/architecture/infrastructure/api/app'
-import { buildAppResourcePath } from '@/utils/resourcePath'
+import { buildAppResourcePath } from '@/architecture/runtime/utils/resourcePath'
 import { serviceTreeLoader } from '../serviceTreeLoader'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import type { IApiClient } from '../../domain/interfaces/IApiClient'

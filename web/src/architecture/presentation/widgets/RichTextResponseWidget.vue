@@ -8,7 +8,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
-import { sanitizeHtml } from '@/utils/sanitizeHtml'
+import { sanitizeHtml } from '@/architecture/runtime/utils/sanitizeHtml'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({

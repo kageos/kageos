@@ -16,7 +16,7 @@ import { TableDomainService } from '../../domain/services/TableDomainService'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { WorkspaceEvent, TableEvent } from '../../domain/interfaces/IEventBus'
 import type { FunctionDetail } from '../../domain/types'
-import { getTableListFields } from '@/utils/functionSchemaSelectors'
+import { getTableListFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
 import type { SearchParams, SortParams, TableRow } from '../../domain/services/TableDomainService'
 import { Logger } from '@/architecture/runtime/utils/logger'
 

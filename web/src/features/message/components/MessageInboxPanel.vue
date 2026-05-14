@@ -195,8 +195,8 @@ import { getServiceTreeDetail, type ServiceTreeDetailResp } from '@/architecture
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
-import { sanitizeHtml } from '@/utils/sanitizeHtml'
-import { findNodeByPath } from '@/utils/serviceTreeUtils'
+import { sanitizeHtml } from '@/architecture/runtime/utils/sanitizeHtml'
+import { findNodeByPath } from '@/architecture/runtime/utils/serviceTreeUtils'
 
 const props = withDefaults(defineProps<{
   closable?: boolean

@@ -1,5 +1,5 @@
 import { onScopeDispose, ref } from 'vue'
-import { escapeHtml, sanitizeHtml } from '@/utils/sanitizeHtml'
+import { escapeHtml, sanitizeHtml } from '@/architecture/runtime/utils/sanitizeHtml'
 
 type MarkdownRenderer = (content: string) => string
 

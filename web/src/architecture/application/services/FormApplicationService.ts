@@ -79,7 +79,7 @@ import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { WorkspaceEvent, FormEvent } from '../../domain/interfaces/IEventBus'
 import type { FieldConfig, FunctionDetail } from '../../domain/types'
 import type { IApiClient } from '../../domain/interfaces/IApiClient'
-import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
+import { getFormRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
 
 /**
  * 表单应用服务

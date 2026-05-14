@@ -295,7 +295,7 @@ import { useWorkspaceUiEffects } from '../composables/useWorkspaceUiEffects'
 import { useWorkspaceViewLifecycle } from '../composables/useWorkspaceViewLifecycle'
 import { findNodeByPath, findNodeById } from '../utils/workspaceUtils'
 import { useAfterCreateNode } from '../composables/useAfterCreateNode'
-import { getFormRequestFields, getFunctionCallbacks } from '@/utils/functionSchemaSelectors'
+import { getFormRequestFields, getFunctionCallbacks } from '@/architecture/runtime/utils/functionSchemaSelectors'
 import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
 import { featureFlags } from '@/architecture/infrastructure/config/features'
 

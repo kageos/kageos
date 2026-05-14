@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
-import { RouteSource } from '@/utils/routeSource'
+import { RouteSource } from '@/architecture/runtime/utils/routeSource'
 import { useFormParamURLSync } from './useFormParamURLSync'
 import type { FieldValue, FunctionDetail } from '../../domain/types'
 
