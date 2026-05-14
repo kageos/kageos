@@ -141,9 +141,9 @@ import type { MultiSelectWidgetConfig, SelectOptionConfig } from '@/architecture
 import { buildMultiSelectRawValue } from '@/architecture/presentation/widgets/utils/multiSelectValue'
 import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/utils/searchType'
 import { buildSelectionSummary } from '@/architecture/presentation/widgets/utils/selectionSummary'
-import { getWidgetOptionColors } from '@/utils/widgetOptionColors'
+import { getWidgetOptionColors } from '@/architecture/runtime/utils/widgetOptionColors'
 import type { MultiSelectOptionItem } from './multiSelectWidgetTypes'
-import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
+import { getFormRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
 import { prdPreviewContextKey } from '@/architecture/presentation/components/prdPreviewContext'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {

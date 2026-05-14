@@ -22,10 +22,10 @@ import {
   getTableRequestFields,
   getTableRequestSearchFields,
   getTableSearchFields
-} from '@/utils/functionSchemaSelectors'
+} from '@/architecture/runtime/utils/functionSchemaSelectors'
 import { getChangedFields } from '@/architecture/runtime/tableRuntime/search'
 import { Logger } from '@/architecture/runtime/utils/logger'
-import { getSearchFieldRawValue } from '@/utils/searchFieldValue'
+import { getSearchFieldRawValue } from '@/architecture/runtime/utils/searchFieldValue'
 
 /**
  * 表格数据项类型

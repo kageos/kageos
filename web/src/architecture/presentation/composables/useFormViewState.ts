@@ -6,7 +6,7 @@ import type { FormStateManager } from '../../infrastructure/stateManager/FormSta
 import { getFieldPresenceState } from '@/architecture/runtime/utils/conditionEvaluator'
 import { createAutoFieldValue, createEmptyFieldValue, createEmptyRawFieldValue } from '@/architecture/runtime/utils/createFieldValue'
 import { FORM_QUESTIONNAIRE_TRIGGER_CHARS } from '../utils/formLayout'
-import { getFormRequestFields, getFormResponseFields } from '@/utils/functionSchemaSelectors'
+import { getFormRequestFields, getFormResponseFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
 
 interface UseFormViewStateOptions {
   functionDetail: Ref<FunctionDetail | null>

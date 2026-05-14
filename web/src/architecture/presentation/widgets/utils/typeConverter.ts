@@ -19,7 +19,7 @@
 import type { FieldConfig, FieldValue, FunctionDetail } from '@/architecture/domain/types'
 import { DataType } from '@/architecture/runtime/constants/widget'
 import { convertValueToType } from './valueConverter'
-import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
+import { getFormRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
 
 /**
  * 转换基础类型值（用于 URL 参数等场景）

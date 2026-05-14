@@ -39,7 +39,7 @@ import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import type { FunctionDetail } from '@/architecture/domain/types'
-import { TEMPLATE_TYPE } from '@/utils/functionTypes'
+import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
 
 const props = withDefaults(defineProps<{
   title: string

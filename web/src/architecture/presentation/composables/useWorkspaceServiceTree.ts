@@ -9,7 +9,7 @@
 
 import { ref, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import { extractWorkspacePath } from '@/utils/route'
+import { extractWorkspacePath } from '@/architecture/runtime/utils/route'
 import { ElNotification } from 'element-plus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
@@ -17,7 +17,7 @@ import { createPackage } from '@/architecture/infrastructure/api/service-tree'
 import type { ServiceTree as ServiceTreeType, CreateServiceTreeRequest } from '@/architecture/domain/types'
 import ServiceTreePanel from '@/architecture/presentation/components/ServiceTreePanel.vue'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
-import { normalizeGoPackageName, validateGoPackageName } from '@/utils/goPackageName'
+import { normalizeGoPackageName, validateGoPackageName } from '@/architecture/runtime/utils/goPackageName'
 
 export function useWorkspaceServiceTree(
   serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性

@@ -1,17 +1,17 @@
 import { computed, h, ref, watch, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { TagProps } from 'element-plus'
-import { formatTimestamp } from '@/utils/date'
+import { formatTimestamp } from '@/architecture/runtime/utils/date'
 import { useLicenseStore } from '@/architecture/infrastructure/stores/license'
 import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
 import { getTableOperateLogs, type TableOperateLog } from '@/architecture/infrastructure/api/operateLog'
 import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
-import { convertToFieldValue } from '@/utils/field'
+import { convertToFieldValue } from '@/architecture/runtime/utils/field'
 import type { FieldConfig } from '@/architecture/domain/types'
 import { getFunctionByPath } from '@/architecture/infrastructure/api/function'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import { Logger } from '@/architecture/runtime/utils/logger'
-import { getTableListFields } from '@/utils/functionSchemaSelectors'
+import { getTableListFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
 
 interface UseOperateLogSectionOptions {
   fullCodePath: Ref<string>

@@ -68,13 +68,13 @@
  */
 
 import { ref, computed } from 'vue'
-import { deepClone } from '@/utils/clone'
+import { deepClone } from '@/architecture/runtime/utils/clone'
 import { useRoute, useRouter } from 'vue-router'
 import { ElNotification, ElMessage } from 'element-plus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { eventBus, RouteEvent, TableEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
-import { TEMPLATE_TYPE } from '@/utils/functionTypes'
+import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import type { FieldConfig, FieldValue, FunctionDetail } from '../../domain/types'
 import type { TableResponse } from '../../domain/services/TableDomainService'
@@ -91,7 +91,7 @@ import {
   shouldWaitForDetailTableData,
   type DetailRestoreTrigger
 } from './utils/workspaceDetailRuntime'
-import { getFunctionCallbacks, getTableDetailFields, getTableRequestFields } from '@/utils/functionSchemaSelectors'
+import { getFunctionCallbacks, getTableDetailFields, getTableRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
 
 export function useWorkspaceDetail(
   options: {

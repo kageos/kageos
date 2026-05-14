@@ -123,7 +123,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Document, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { resolveWorkspaceUrl } from '@/utils/route'
+import { resolveWorkspaceUrl } from '@/architecture/runtime/utils/route'
 import {
   searchResources,
   type ResourceSearchResult,

@@ -1,5 +1,5 @@
 import { computed, nextTick, ref, type ComputedRef, type Ref } from 'vue'
-import { parseCommaSeparatedString } from '@/utils/stringUtils'
+import { parseCommaSeparatedString } from '@/architecture/runtime/utils/stringUtils'
 import { SearchComponent } from '@/architecture/runtime/constants/search'
 import { WidgetType } from '@/architecture/runtime/constants/widget'
 import { buildSelectionSummary } from '@/architecture/presentation/widgets/utils/selectionSummary'
@@ -10,7 +10,7 @@ import {
   type StandardColorType
 } from '@/architecture/runtime/constants/select'
 import { Logger } from '@/architecture/runtime/utils/logger'
-import { getFieldWidgetOptionColors } from '@/utils/widgetOptionColors'
+import { getFieldWidgetOptionColors } from '@/architecture/runtime/utils/widgetOptionColors'
 import type { FieldConfig } from '@/architecture/domain/types'
 import type { SearchInputConfig, SearchOption } from '../utils/searchInputTypes'
 

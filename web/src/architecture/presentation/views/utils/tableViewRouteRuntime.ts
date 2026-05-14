@@ -1,4 +1,4 @@
-import { deleteFieldQueryKey } from '@/utils/queryParamKeys'
+import { deleteFieldQueryKey } from '@/architecture/runtime/utils/queryParamKeys'
 
 export interface TableViewRouteRequest {
   path?: string

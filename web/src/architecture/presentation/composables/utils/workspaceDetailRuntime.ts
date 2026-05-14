@@ -1,12 +1,12 @@
 import type { FieldConfig } from '@/architecture/domain/types'
 import type { FunctionDetail } from '@/architecture/domain/types'
-import { TEMPLATE_TYPE } from '@/utils/functionTypes'
-import { deleteFieldQueryKey } from '@/utils/queryParamKeys'
+import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
+import { deleteFieldQueryKey } from '@/architecture/runtime/utils/queryParamKeys'
 import {
   buildTableUpdateFormDetail,
   getFormRequestFields,
   getTableIdField
-} from '@/utils/functionSchemaSelectors'
+} from '@/architecture/runtime/utils/functionSchemaSelectors'
 
 export type DetailEditFormReadiness =
   | 'missing-edit-detail'

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FunctionDetail } from '@/architecture/domain/interfaces/IFunctionLoader'
-import { TEMPLATE_TYPE } from '@/utils/functionTypes'
+import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
 import {
   buildDetailLookupSearchRequest,
   buildDetailEditFormState,
@@ -13,7 +13,7 @@ import {
   resolveDetailRouteRequest,
   shouldWaitForDetailTableData
 } from './workspaceDetailRuntime'
-import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
+import { getFormRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
 
 const tableFunctionDetail: FunctionDetail = {
   id: 1,

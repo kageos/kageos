@@ -13,7 +13,7 @@ import {
   readExecutionNumber
 } from '@/architecture/presentation/utils/executionLog'
 import { Logger } from '@/architecture/runtime/utils/logger'
-import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
+import { getFormRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
 
 export interface ApplyOperateLogPayload {
   log: FormOperateLog

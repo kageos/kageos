@@ -37,7 +37,7 @@ import { ElInput } from 'element-plus'
 import type { FieldValue, WidgetComponentEmits, WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import RichTextResponseWidget from '@/architecture/presentation/widgets/RichTextResponseWidget.vue'
 import { useFormDataStore } from '@/architecture/runtime/stores/formData'
-import { sanitizeHtml } from '@/utils/sanitizeHtml'
+import { sanitizeHtml } from '@/architecture/runtime/utils/sanitizeHtml'
 
 const RichTextEditorWidget = defineAsyncComponent(
   () => import('@/architecture/presentation/widgets/RichTextEditorWidget.vue'),

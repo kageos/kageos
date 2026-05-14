@@ -349,7 +349,7 @@ import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import UsersWidget from '@/shared/components/UsersWidget.vue'
 import { WidgetType } from '@/architecture/runtime/constants/widget'
 import type { FieldValue } from '@/architecture/runtime/types/field'
-import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/utils/widgetFieldHelpers'
+import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/architecture/runtime/utils/widgetFieldHelpers'
 
 // ==================== 状态管理 ====================
 

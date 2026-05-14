@@ -85,20 +85,20 @@
  * ============================================
  * 
  * - 路由事件类型：`web/src/architecture/domain/interfaces/IEventBus.ts`
- * - URL 参数工具：`web/src/utils/urlParams.ts`
+ * - URL 参数工具：`web/src/architecture/runtime/utils/urlParams.ts`
  */
 
 import { watch, nextTick } from 'vue'
 import type { Router, RouteLocationNormalized } from 'vue-router'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { RouteEvent } from '../../domain/interfaces/IEventBus'
-import { TABLE_PARAM_KEYS } from '@/utils/urlParams'
-import { isLinkNavigation as isLinkNavCheck } from '@/utils/linkNavigation'
+import { TABLE_PARAM_KEYS } from '@/architecture/runtime/utils/urlParams'
+import { isLinkNavigation as isLinkNavCheck } from '@/architecture/runtime/utils/linkNavigation'
 import {
   NODE_TYPE_QUERY_KEY,
   isLinkMarkerQueryKey,
   isPersistentPlatformStateQueryKey
-} from '@/utils/queryParamKeys'
+} from '@/architecture/runtime/utils/queryParamKeys'
 import { Logger } from '@/architecture/runtime/utils/logger'
 
 export interface RouteUpdateRequest {

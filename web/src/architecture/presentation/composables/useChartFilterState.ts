@@ -1,14 +1,14 @@
 import { computed, ref, type ComputedRef } from 'vue'
 import { useRoute } from 'vue-router'
 import type { FieldConfig, FieldValue, FunctionDetail } from '@/architecture/domain/types'
-import { convertToFieldValue } from '@/utils/field'
+import { convertToFieldValue } from '@/architecture/runtime/utils/field'
 import { hasAnyRequiredRule } from '@/architecture/runtime/utils/validationUtils'
 import { useChartParamURLSync } from './useChartParamURLSync'
 import { convertValueByFieldType } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { getWidgetDefaultValue } from '@/architecture/presentation/widgets/composables/useWidgetDefaultValue'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { createEmptyFieldValue, createEmptyRawFieldValue } from '@/architecture/runtime/utils/createFieldValue'
-import { getChartRequestFields } from '@/utils/functionSchemaSelectors'
+import { getChartRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
 
 interface UseChartFilterStateOptions {
   functionDetail: ComputedRef<FunctionDetail>

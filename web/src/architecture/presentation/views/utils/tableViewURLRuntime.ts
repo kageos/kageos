@@ -3,18 +3,18 @@ import type { SortItem, TableState } from '@/architecture/domain/services/TableD
 import {
   getSearchFieldRawValue,
   hasSearchFieldValue
-} from '@/utils/searchFieldValue'
+} from '@/architecture/runtime/utils/searchFieldValue'
 import {
   getTableRequestFields,
   getTableRequestSearchFields
-} from '@/utils/functionSchemaSelectors'
+} from '@/architecture/runtime/utils/functionSchemaSelectors'
 import {
   isPersistentPlatformStateQueryKey,
   isPlatformStateQueryKey,
   isStaleTableFilterQueryKey,
   isTableControlQueryKey,
   isUnsupportedGeneratedFieldQueryKey
-} from '@/utils/queryParamKeys'
+} from '@/architecture/runtime/utils/queryParamKeys'
 
 interface BuildTableURLQueryParamsOptions {
   functionDetail: FunctionDetail

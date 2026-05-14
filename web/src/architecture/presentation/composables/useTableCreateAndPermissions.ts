@@ -5,12 +5,12 @@ import type { FunctionDetail } from '../../domain/types'
 import type { WorkspaceState } from '../../domain/services/WorkspaceDomainService'
 import type { TableApplicationService } from '../../application/services/TableApplicationService'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
-import { RouteSource } from '@/utils/routeSource'
+import { RouteSource } from '@/architecture/runtime/utils/routeSource'
 import {
   buildTableAddDialogOpenRequest,
   buildTableCreateDialogCloseRequest
 } from '../views/utils/tableViewRouteRuntime'
-import { getTableCreateFields } from '@/utils/functionSchemaSelectors'
+import { getTableCreateFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
 
 interface UseTableCreateAndPermissionsOptions {
   routeQuery: () => Record<string, any>

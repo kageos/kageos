@@ -128,7 +128,7 @@ import { convertValueToType } from '@/architecture/presentation/widgets/utils/va
 import { convertFormDataToRequestByType } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { widgetInitializerRegistry } from '@/architecture/presentation/widgets/initializers/WidgetInitializerRegistry'
 import { SelectWidgetInitializer } from '@/architecture/presentation/widgets/initializers/SelectWidgetInitializer'
-import { getWidgetOptionColors } from '@/utils/widgetOptionColors'
+import { getWidgetOptionColors } from '@/architecture/runtime/utils/widgetOptionColors'
 import type { SelectOptionConfig, SelectWidgetConfig } from '@/architecture/runtime/types/widget-configs'
 import type { SelectOptionItem } from './selectWidgetTypes'
 

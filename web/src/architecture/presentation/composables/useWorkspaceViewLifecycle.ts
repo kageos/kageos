@@ -2,7 +2,7 @@ import { nextTick, onMounted, onUnmounted, watch, type Ref } from 'vue'
 import type { RouteLocationNormalizedLoaded, Router } from 'vue-router'
 import { RouteManager } from '../../infrastructure/routeManager'
 import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
-import { extractWorkspacePath } from '@/utils/route'
+import { extractWorkspacePath } from '@/architecture/runtime/utils/route'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import type { ServiceTree as ServiceTreeType, App as AppType } from '@/architecture/domain/types'
 

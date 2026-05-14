@@ -12,7 +12,7 @@ import {
   Upload
 } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/architecture/domain/types'
-import { isRootNode } from '@/utils/tree-utils'
+import { isRootNode } from '@/architecture/runtime/utils/tree-utils'
 import { featureFlags } from '@/architecture/infrastructure/config/features'
 
 export type ServiceTreeNodeActionCommand =

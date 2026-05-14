@@ -85,9 +85,9 @@
 import { computed } from 'vue'
 import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
 import WidgetComponent from '@/architecture/presentation/widgets/WidgetComponent.vue'
-import { convertToFieldValue } from '@/utils/field'
+import { convertToFieldValue } from '@/architecture/runtime/utils/field'
 import { DataAnalysis, Upload } from '@element-plus/icons-vue'
-import { getFormRequestFields, getFormResponseFields } from '@/utils/functionSchemaSelectors'
+import { getFormRequestFields, getFormResponseFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
 
 const props = withDefaults(defineProps<{
   functionDetail?: FunctionDetail | null

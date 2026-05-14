@@ -82,7 +82,7 @@
 import { computed, watch, ref } from 'vue'
 import { ElAvatar, ElPopover } from 'element-plus'
 import type { UserInfo } from '@/architecture/domain/types'
-import { formatUserDisplayName } from '@/utils/userInfo'
+import { formatUserDisplayName } from '@/architecture/runtime/utils/userInfo'
 import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
 import UserDetailCard from './UserDetailCard.vue'
 

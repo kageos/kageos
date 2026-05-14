@@ -161,7 +161,7 @@ const requestData = convertFormDataToRequestByType(submitData, functionDetail ||
 
 ```typescript
 // ✅ 正确：检查 functionDetail 是否已准备好
-import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
+import { getFormRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
 
 const functionDetail = props.formRenderer?.getFunctionDetail?.()
 if (!functionDetail || getFormRequestFields(functionDetail).length === 0) {

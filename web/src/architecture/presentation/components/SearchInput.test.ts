@@ -284,7 +284,7 @@ vi.mock('@/architecture/infrastructure/widgetRegistry', () => ({
   }
 }))
 
-vi.mock('@/utils/searchComponentConfig', () => ({
+vi.mock('@/architecture/runtime/utils/searchComponentConfig', () => ({
   createSearchComponentConfig: (...args: any[]) => createSearchComponentConfigMock(...args)
 }))
 

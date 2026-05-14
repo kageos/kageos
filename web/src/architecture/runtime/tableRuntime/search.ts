@@ -7,4 +7,4 @@
  * - 后续若要迁移实现，只需要调整这里，不必再改 Domain 层
  */
 
-export { getChangedFields } from '@/utils/objectDiff'
+export { getChangedFields } from '@/architecture/runtime/utils/objectDiff'
