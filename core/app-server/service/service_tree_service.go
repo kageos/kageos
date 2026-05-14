@@ -29,7 +29,7 @@ type ServiceTreeService struct {
 	queryView          *serviceTreeQueryView
 	workspaceService   *serviceTreeWorkspaceService
 	searchService      *serviceTreeSearchService
-	hubService         *serviceTreeHubService
+	copyService        *serviceTreeCopyService
 	mutationService    *serviceTreeMutationService
 	specialNodeService *serviceTreeSpecialNodeService
 	functionService    *serviceTreeFunctionService
@@ -40,7 +40,6 @@ type ServiceTreeService struct {
 
 func NewServiceTreeService(
 	serviceTreeRepo *repository.ServiceTreeRepository,
-	functionRepo *repository.FunctionRepository,
 	appRepo *repository.AppRepository,
 	appCall *appcall.Client,
 	fileSnapshotRepo *repository.FileSnapshotRepository,
@@ -56,7 +55,7 @@ func NewServiceTreeService(
 		queryView:          queryView,
 		workspaceService:   newServiceTreeWorkspaceService(serviceTreeRepo, fileSnapshotRepo, runtimeWorkspace, queryView),
 		searchService:      newServiceTreeSearchService(serviceTreeRepo),
-		hubService:         newServiceTreeHubService(serviceTreeRepo, functionRepo, appRepo, runtimeWorkspace, appService),
+		copyService:        newServiceTreeCopyService(serviceTreeRepo, appRepo, runtimeWorkspace, appService),
 		mutationService:    newServiceTreeMutationService(serviceTreeRepo, appRepo, runtimeWorkspace, docService, boardPostRepo),
 		specialNodeService: newServiceTreeSpecialNodeService(serviceTreeRepo, appRepo, docService),
 		functionService:    newServiceTreeFunctionService(serviceTreeRepo, appRepo, appService),
@@ -83,19 +82,7 @@ func (s *ServiceTreeService) GetServiceTreeDetail(ctx context.Context, req *dto.
 }
 
 func (s *ServiceTreeService) CopyServiceTree(ctx context.Context, req *dto.CopyDirectoryReq) (*dto.CopyDirectoryResp, error) {
-	return s.hubService.CopyServiceTree(ctx, req)
-}
-
-func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto.PublishDirectoryToHubReq) (*dto.PublishDirectoryToHubResp, error) {
-	return s.hubService.PublishDirectoryToHub(ctx, req)
-}
-
-func (s *ServiceTreeService) PushDirectoryToHub(ctx context.Context, req *dto.PushDirectoryToHubReq) (*dto.PushDirectoryToHubResp, error) {
-	return s.hubService.PushDirectoryToHub(ctx, req)
-}
-
-func (s *ServiceTreeService) GetHubPushFormInfo(ctx context.Context, req *dto.GetHubPushFormInfoReq) (*dto.GetHubPushFormInfoResp, error) {
-	return s.hubService.GetHubPushFormInfo(ctx, req)
+	return s.copyService.CopyServiceTree(ctx, req)
 }
 
 func (s *ServiceTreeService) BatchCreateDirectoryTree(
@@ -111,14 +98,6 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 
 func (s *ServiceTreeService) ProcessFunctionGenResult(ctx context.Context, req *dto.AddFunctionsReq) error {
 	return s.functionService.ProcessFunctionGenResult(ctx, req)
-}
-
-func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.PullDirectoryFromHubReq) (*dto.PullDirectoryFromHubResp, error) {
-	return s.hubService.PullDirectoryFromHub(ctx, req)
-}
-
-func (s *ServiceTreeService) ImportHubDirectoryBundle(ctx context.Context, req *dto.ImportHubDirectoryBundleReq) (*dto.PullDirectoryFromHubResp, error) {
-	return s.hubService.ImportHubDirectoryBundle(ctx, req)
 }
 
 func (s *ServiceTreeService) ExportCapabilityBundle(ctx context.Context, req *dto.ExportCapabilityBundleReq) (*dto.CapabilityBundle, error) {
@@ -139,10 +118,6 @@ func (s *ServiceTreeService) InstallCapabilityBundleFromFile(ctx context.Context
 
 func (s *ServiceTreeService) BatchWriteFiles(ctx context.Context, req *dto.BatchWriteFilesReq) (*dto.BatchWriteFilesResp, error) {
 	return s.batchService.BatchWriteFiles(ctx, req)
-}
-
-func (s *ServiceTreeService) GetHubInfo(ctx context.Context, req *dto.GetHubInfoReq) (*dto.GetHubInfoResp, error) {
-	return s.hubService.GetHubInfo(ctx, req)
 }
 
 func (s *ServiceTreeService) SearchFunctions(ctx context.Context, req *dto.SearchFunctionsReq) (*dto.SearchFunctionsResp, error) {

@@ -197,7 +197,7 @@ watch(
   min-height: 38px;
   padding: 0 14px 0 12px;
   border: 1px solid var(--el-border-color);
-  border-radius: 10px;
+  border-radius: 18px;
   background: var(--el-fill-color-blank);
   transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s, transform 0.2s;
 }
@@ -214,7 +214,18 @@ watch(
 }
 
 .radio-group :deep(.radio-option .el-radio__inner) {
-  border-color: var(--el-border-color-dark);
+  width: 17px;
+  height: 17px;
+  border: 1.5px solid var(--el-border-color-darker);
+  background: var(--el-bg-color);
+  box-shadow: inset 0 1px 1px rgba(15, 23, 42, 0.05);
+  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.radio-group :deep(.radio-option .el-radio__inner::after) {
+  width: 7px;
+  height: 7px;
+  background: #ffffff;
 }
 
 .radio-group :deep(.radio-option .el-radio__label) {
@@ -225,8 +236,8 @@ watch(
 
 .radio-group :deep(.radio-option.is-selected) {
   border-color: var(--el-color-primary);
-  background: linear-gradient(180deg, var(--el-color-primary-light-9) 0%, var(--el-fill-color-blank) 100%);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--el-color-primary) 16%, transparent);
+  background: linear-gradient(180deg, rgba(var(--el-color-primary-rgb), 0.1) 0%, rgba(var(--el-color-primary-rgb), 0.04) 100%);
+  box-shadow: 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.18), 0 8px 18px rgba(var(--el-color-primary-rgb), 0.08);
 }
 
 .radio-group :deep(.radio-option.is-selected .el-radio__label) {
@@ -235,12 +246,25 @@ watch(
 
 .radio-group :deep(.radio-option.is-selected .el-radio__inner) {
   border-color: var(--el-color-primary);
+  background: var(--el-color-primary);
+  box-shadow: inset 0 0 0 3px #ffffff, 0 3px 8px rgba(var(--el-color-primary-rgb), 0.24);
+}
+
+.radio-group :deep(.radio-option .el-radio__input.is-focus .el-radio__inner) {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 0 0 3px rgba(var(--el-color-primary-rgb), 0.12);
 }
 
 .radio-group :deep(.radio-option.is-disabled) {
   opacity: 0.65;
   cursor: not-allowed;
   transform: none;
+}
+
+.radio-group :deep(.radio-option.is-disabled.is-selected .el-radio__inner) {
+  border-color: rgba(var(--el-color-primary-rgb), 0.5);
+  background: rgba(var(--el-color-primary-rgb), 0.5);
+  box-shadow: inset 0 0 0 3px var(--el-bg-color);
 }
 
 .response-value {

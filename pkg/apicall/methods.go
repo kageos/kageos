@@ -41,7 +41,7 @@ func PostAPI[TReq, TResp any](ctx context.Context, path string, req TReq) (TResp
 
 // PutAPI 发送 PUT 请求（带请求体）
 // TReq: 请求类型（可以是值类型或指针类型）
-// TResp: 响应类型（指针类型，如 *dto.UpdateHubDirectoryResp）
+// TResp: 响应类型（指针类型，如 *dto.UpdateWorkspaceResp）
 // ctx: 上下文（从 ctx 中提取 token、trace_id、request_user）
 // path: API路径（如 "/hub/api/v1/directories/update"）
 // req: 请求体（会被序列化为JSON）

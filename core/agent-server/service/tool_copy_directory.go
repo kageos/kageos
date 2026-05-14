@@ -13,13 +13,13 @@ import (
 type CopyDirectoryTool struct{}
 
 type copyDirectoryArgs struct {
-	SourceDirectory string `json:"source_directory" schema_desc:"源目录路径或 Hub 链接" schema_required:"true"`
+	SourceDirectory string `json:"source_directory" schema_desc:"源目录完整路径" schema_required:"true"`
 	TargetDirectory string `json:"target_directory" schema_desc:"目标父目录" schema_required:"true"`
 }
 
 var copyDirectoryToolDef = toolDefinition[copyDirectoryArgs](
 	"copy_directory",
-	"将目录复制到工作区。源：source_directory 为 Hub 链接（hub://host/path@version，来自 search_hub_directory 的 copy_url）或本地完整路径（如 /user/app/plugins/xxx）。目标：target_directory 填「目标父目录」即当前工作区路径（如 /luobei/myapp/server），不要填「父目录+子目录名」；系统会在该父目录下自动创建与源同名的子目录（如源为 .../video_tools 则得到 .../server/video_tools）。复制成功后会自动编译，无需再调用 build_workspace；返回目录数、文件数。",
+	"将本地目录复制到工作区。source_directory 填本地完整路径（如 /user/app/plugins/xxx）。target_directory 填目标父目录即当前工作区路径（如 /luobei/myapp/server），不要填「父目录+子目录名」；系统会在该父目录下自动创建与源同名的目录（如源为 .../video_tools 则得到 .../server/video_tools）。复制成功后会自动编译，无需再调用 build_workspace；返回目录数、文件数。",
 )
 
 func (t *CopyDirectoryTool) Definition() dto.ToolDef {
@@ -38,9 +38,12 @@ func (t *CopyDirectoryTool) Execute(ctx context.Context, call ToolCall) ToolResu
 func runCopyDirectoryTool(ctx context.Context, args copyDirectoryArgs) (string, bool) {
 	sourcePath := strings.TrimSpace(args.SourceDirectory)
 	if sourcePath == "" {
-		return "copy_directory 必填 source_directory（Hub 链接 hub://host/path@version 或本地完整路径如 /user/app/plugins/xxx）。", true
+		return "copy_directory 必填 source_directory（本地完整路径如 /user/app/plugins/xxx）。", true
 	}
-	if !strings.HasPrefix(sourcePath, "hub://") && !strings.HasPrefix(sourcePath, "/") {
+	if strings.HasPrefix(sourcePath, "hub://") {
+		return "copy_directory 不再支持 hub:// 链接；请使用本地目录路径或能力包导入。", true
+	}
+	if !strings.HasPrefix(sourcePath, "/") {
 		sourcePath = "/" + sourcePath
 	}
 	targetPath := strings.TrimSpace(args.TargetDirectory)

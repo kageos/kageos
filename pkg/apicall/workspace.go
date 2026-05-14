@@ -168,20 +168,8 @@ func CallbackOnSelectFuzzy(ctx context.Context, fullCodePath string, body map[st
 	return PostAPI[map[string]interface{}, map[string]interface{}](ctx, path, body)
 }
 
-// PublishDirectoryToHubViaWorkspace 通过 workspace API 发布目录到 Hub（agent-server -> app-server）
-// 首次将当前工作区目录或指定目录发布到应用市场
-func PublishDirectoryToHubViaWorkspace(ctx context.Context, req *dto.PublishDirectoryToHubReq) (*dto.PublishDirectoryToHubResp, error) {
-	return PostAPI[*dto.PublishDirectoryToHubReq, *dto.PublishDirectoryToHubResp](ctx, "/workspace/api/v1/service_tree/publish_to_hub", req)
-}
-
-// PushDirectoryToHubViaWorkspace 通过 workspace API 推送目录到 Hub（更新已发布的目录，agent-server -> app-server）
-// 类似 git push，会递增版本号
-func PushDirectoryToHubViaWorkspace(ctx context.Context, req *dto.PushDirectoryToHubReq) (*dto.PushDirectoryToHubResp, error) {
-	return PostAPI[*dto.PushDirectoryToHubReq, *dto.PushDirectoryToHubResp](ctx, "/workspace/api/v1/service_tree/push_to_hub", req)
-}
-
-// CopyDirectoryViaWorkspace 通过 workspace API 复制目录（支持从 Hub 链接复制到本地，agent-server -> app-server）
-// source_directory_path 可为 hub://host/path@version；target_directory_path 为目标完整路径；target_app_id 由目标路径所在应用决定
+// CopyDirectoryViaWorkspace 通过 workspace API 复制本地目录（agent-server -> app-server）。
+// source_directory_path 为本地完整目录路径；target_directory_path 为目标完整路径；target_app_id 由目标路径所在应用决定。
 func CopyDirectoryViaWorkspace(ctx context.Context, req *dto.CopyDirectoryReq) (*dto.CopyDirectoryResp, error) {
 	return PostAPI[*dto.CopyDirectoryReq, *dto.CopyDirectoryResp](ctx, "/workspace/api/v1/service_tree/copy", req)
 }
