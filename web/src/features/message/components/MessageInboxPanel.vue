@@ -190,8 +190,8 @@ import {
   markAllInboxMessagesRead,
   markInboxMessageRead,
   type MessageInboxItem
-} from '@/api/message'
-import { getServiceTreeDetail, type ServiceTreeDetailResp } from '@/api/service-tree'
+} from '@/architecture/infrastructure/api/message'
+import { getServiceTreeDetail, type ServiceTreeDetailResp } from '@/architecture/infrastructure/api/service-tree'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import type { ServiceTree } from '@/types'
 import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'

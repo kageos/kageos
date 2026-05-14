@@ -1,7 +1,7 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { TagProps } from 'element-plus'
-import { getFormOperateLogs, type FormOperateLog } from '@/api/operateLog'
+import { getFormOperateLogs, type FormOperateLog } from '@/architecture/infrastructure/api/operateLog'
 import { useLicenseStore } from '@/stores/license'
 import { useUserInfoStore } from '@/stores/userInfo'
 import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'

@@ -17,8 +17,8 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getDepartmentsByPaths } from '@/api/department'
-import type { Department } from '@/api/department'
+import { getDepartmentsByPaths } from '@/architecture/infrastructure/api/department'
+import type { Department } from '@/architecture/infrastructure/api/department'
 import { DEPARTMENT_INFO_CACHE_CONFIG } from './config'
 import { 
   type CacheItem, 

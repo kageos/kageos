@@ -1,6 +1,6 @@
 import { computed, onMounted, onUnmounted, ref, type ComputedRef } from 'vue'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
-import { copyDirectory } from '@/api/service-tree'
+import { copyDirectory } from '@/architecture/infrastructure/api/service-tree'
 import type { ServiceTree } from '@/types'
 import { Logger } from '@/architecture/runtime/utils/logger'
 

@@ -262,8 +262,8 @@
 import { computed, ref } from 'vue'
 import { ChatDotRound, FolderOpened, Loading, Search, Timer } from '@element-plus/icons-vue'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
-import type { WorkspaceSessionItem } from '@/api/workspace'
-import type { ScheduledAgentTaskItem } from '@/api/scheduledAgentTask'
+import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
+import type { ScheduledAgentTaskItem } from '@/architecture/infrastructure/api/scheduledAgentTask'
 import type { ScheduledAgentExecutionRecord } from '@/architecture/presentation/composables/useWorkspaceSidebarSessions'
 import { featureFlags } from '@/config/features'
 

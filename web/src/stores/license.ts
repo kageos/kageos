@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getLicenseStatus, activateLicense, deactivateLicense, type LicenseStatus } from '@/api/license'
+import { getLicenseStatus, activateLicense, deactivateLicense, type LicenseStatus } from '@/architecture/infrastructure/api/license'
 
 const LICENSE_STORAGE_KEY = 'license'
 const ACTIVATED_AT_KEY = 'license_activated_at'

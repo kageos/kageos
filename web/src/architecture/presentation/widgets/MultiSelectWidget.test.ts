@@ -9,7 +9,7 @@ const { selectFuzzyMock } = vi.hoisted(() => ({
   selectFuzzyMock: vi.fn()
 }))
 
-vi.mock('@/api/function', () => ({
+vi.mock('@/architecture/infrastructure/api/function', () => ({
   selectFuzzy: (...args: any[]) => selectFuzzyMock(...args)
 }))
 

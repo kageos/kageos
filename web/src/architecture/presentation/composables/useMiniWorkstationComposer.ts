@@ -1,7 +1,7 @@
 import { ElMessage } from 'element-plus'
 import { computed, ref, watch, type Ref } from 'vue'
-import { getLLMList, type LLMInfo } from '@/api/agent'
-import { workspaceChatStream, type WorkspaceChatMessageFile, type WorkspaceChatReq } from '@/api/workspace'
+import { getLLMList, type LLMInfo } from '@/architecture/infrastructure/api/agent'
+import { workspaceChatStream, type WorkspaceChatMessageFile, type WorkspaceChatReq } from '@/architecture/infrastructure/api/workspace'
 
 export interface UseMiniWorkstationComposerOptions {
   fullCodePath: Ref<string>

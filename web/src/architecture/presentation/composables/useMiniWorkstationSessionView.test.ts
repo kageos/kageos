@@ -5,7 +5,7 @@ import {
   useMiniWorkstationSessionView,
   type SessionFilterValue
 } from './useMiniWorkstationSessionView'
-import type { WorkspaceSessionItem } from '@/api/workspace'
+import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
 
 function createSession(overrides: Partial<WorkspaceSessionItem>): WorkspaceSessionItem {
   return {

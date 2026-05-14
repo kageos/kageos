@@ -7,7 +7,7 @@
  */
 
 import { ref, watch, onUnmounted, type Ref } from 'vue'
-import type { ToolResultMetadata } from '@/api/workspace'
+import type { ToolResultMetadata } from '@/architecture/infrastructure/api/workspace'
 import { useAuthStore } from '@/stores/auth'
 
 export interface ChatMessageFile {

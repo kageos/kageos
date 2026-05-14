@@ -103,7 +103,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Close, Search } from '@element-plus/icons-vue'
-import type { WorkspaceSessionItem } from '@/api/workspace'
+import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
 import type { SessionFilterValue } from '../composables/useMiniWorkstationSessionView'
 
 const props = defineProps<{

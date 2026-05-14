@@ -1,7 +1,7 @@
 /**
  * 部门信息缓存工具函数
  */
-import type { Department } from '@/api/department'
+import type { Department } from '@/architecture/infrastructure/api/department'
 import { DEPARTMENT_INFO_CACHE_CONFIG } from './config'
 
 /**

@@ -270,7 +270,7 @@ import {
   type LLMCreateReq,
   type LLMInfo,
   type LLMUpdateReq
-} from '@/api/agent'
+} from '@/architecture/infrastructure/api/agent'
 
 type Scope = 'mine' | 'market'
 type DialogMode = 'create' | 'edit'

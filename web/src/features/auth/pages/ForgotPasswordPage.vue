@@ -3,7 +3,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Message, Loading, Lock } from '@element-plus/icons-vue'
-import { forgotPassword, sendEmailCode } from '@/api/auth'
+import { forgotPassword, sendEmailCode } from '@/architecture/infrastructure/api/auth'
 
 const router = useRouter()
 

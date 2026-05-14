@@ -8,7 +8,7 @@ import {
   getWorkspaceSessionSSEStatus,
   getWorkspaceSessions,
   type WorkspaceSessionItem
-} from '@/api/workspace'
+} from '@/architecture/infrastructure/api/workspace'
 import { eventBus } from '@/architecture/infrastructure/eventBus'
 import type { ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import { Logger } from '@/architecture/runtime/utils/logger'

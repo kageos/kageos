@@ -340,7 +340,7 @@ import {
   deleteDepartment,
   getUsersByDepartment,
   type Department
-} from '@/api/department'
+} from '@/architecture/infrastructure/api/department'
 import type { UserInfo } from '@/types'
 import { useUserInfoStore } from '@/stores/userInfo'
 import UserDisplay from '@/shared/components/UserDisplay.vue'

@@ -132,7 +132,6 @@ web/
 │   │   ├── infrastructure/              # API、事件总线、状态管理、Widget 注册
 │   │   ├── presentation/                # views / components / widgets / composables
 │   │   └── runtime/                     # 表单状态、Widget 运行时、校验、共享常量
-│   ├── api/                             # 接口请求封装
 │   ├── features/                        # agent / auth / permission / user 等功能模块
 │   ├── shared/                          # 共享组件、富文本与通用展示能力
 │   ├── stores/                          # 全局 Pinia Store
@@ -155,7 +154,7 @@ web/
 | `presentation/` | UI 渲染、用户交互、Widget 展示 | WorkspaceView.vue, FormView.vue |
 | `application/` | 业务流程编排 | FormApplicationService |
 | `domain/` | 核心业务逻辑 | FormDomainService, IStateManager |
-| `infrastructure/` | 技术实现、组件注册、状态适配 | widgetRegistry, EventBusImpl |
+| `infrastructure/` | 技术实现、接口请求、组件注册、状态适配 | api, widgetRegistry, EventBusImpl |
 
 **何时添加代码**：
 - 新增页面 → `presentation/views/`

@@ -11,7 +11,7 @@ import {
   getScheduledTaskExecution,
   type ScheduledTaskItem,
   type ScheduledTaskExecutionItem
-} from '@/api/scheduledTask'
+} from '@/architecture/infrastructure/api/scheduledTask'
 import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
 import {
   formatExecutionDateTime,

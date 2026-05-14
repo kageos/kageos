@@ -11,7 +11,7 @@
 
 import type { IWidgetInitializer, WidgetInitContext } from '@/architecture/presentation/widgets/interfaces/IWidgetInitializer'
 import type { FieldValue } from '@/architecture/domain/types'
-import { selectFuzzy } from '@/api/function'
+import { selectFuzzy } from '@/architecture/infrastructure/api/function'
 import { SelectFuzzyQueryType } from '@/architecture/runtime/constants/select'
 import { DataType } from '@/architecture/runtime/constants/widget'
 import { FieldCallback, FieldValueMeta } from '@/architecture/runtime/constants/field'

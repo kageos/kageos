@@ -26,7 +26,7 @@ vi.mock('vue-router', () => ({
   })
 }))
 
-vi.mock('@/api/function', () => ({
+vi.mock('@/architecture/infrastructure/api/function', () => ({
   selectFuzzy: (...args: any[]) => selectFuzzyMock(...args)
 }))
 

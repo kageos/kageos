@@ -3,7 +3,7 @@ import { nextTick, ref, type Ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 import type { UploadProgress } from '@/utils/upload/types'
-import type { WorkspaceChatMessageFile } from '@/api/workspace'
+import type { WorkspaceChatMessageFile } from '@/architecture/infrastructure/api/workspace'
 
 const UPLOAD_ROUTER = 'workspace/chat'
 
