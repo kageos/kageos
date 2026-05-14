@@ -5,14 +5,12 @@ import type { ServiceTree } from '@/types'
 import { Logger } from '@/core/utils/logger'
 
 const COPIED_DIRECTORY_KEY = 'copied_directory'
-const COPIED_HUB_LINK_KEY = 'copied_hub_link'
 
 export interface UseServiceTreeClipboardOptions {
   treeData: ComputedRef<ServiceTree[]>
   currentFunction: ComputedRef<ServiceTree | null | undefined>
   currentNodeId: ComputedRef<number | string | null | undefined>
   onRefreshTree: () => void
-  onPullFromHub: (initialLink?: string, targetFullCodePath?: string, targetName?: string) => void
 }
 
 function findNodeByIdInTree(nodes: ServiceTree[], id: number | string): ServiceTree | null {
@@ -31,10 +29,9 @@ function findNodeByIdInTree(nodes: ServiceTree[], id: number | string): ServiceT
 }
 
 export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions) {
-  const { treeData, currentFunction, currentNodeId, onRefreshTree, onPullFromHub } = options
+  const { treeData, currentFunction, currentNodeId, onRefreshTree } = options
 
   const copiedDirectory = ref<ServiceTree | null>(null)
-  const copiedHubLink = ref<string | null>(null)
   const isPasting = ref(false)
 
   const resolveTargetNode = (targetNode?: ServiceTree) => {
@@ -60,13 +57,6 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
     return undefined
   }
 
-  const openPullFromHub = (initialLink?: string, targetNode?: ServiceTree) => {
-    const resolvedTargetNode = resolveTargetNode(targetNode)
-    const targetPath = resolvedTargetNode?.type === 'package' ? resolvedTargetNode.full_code_path : undefined
-    const targetName = resolvedTargetNode?.type === 'package' ? resolvedTargetNode.name : undefined
-    onPullFromHub(initialLink, targetPath, targetName)
-  }
-
   const restoreCopiedDirectory = () => {
     try {
       const savedDirectory = localStorage.getItem(COPIED_DIRECTORY_KEY)
@@ -78,17 +68,9 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
           localStorage.removeItem(COPIED_DIRECTORY_KEY)
         }
       }
-
-      const savedHubLink = localStorage.getItem(COPIED_HUB_LINK_KEY)
-      if (savedHubLink && savedHubLink.startsWith('hub://')) {
-        copiedHubLink.value = savedHubLink
-      } else if (savedHubLink) {
-        localStorage.removeItem(COPIED_HUB_LINK_KEY)
-      }
     } catch (error) {
       Logger.error('[ServiceTreeClipboard]', '恢复复制内容失败', { error })
       localStorage.removeItem(COPIED_DIRECTORY_KEY)
-      localStorage.removeItem(COPIED_HUB_LINK_KEY)
     }
   }
 
@@ -102,20 +84,8 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
         type: node.type
       }
       localStorage.setItem(COPIED_DIRECTORY_KEY, JSON.stringify(dataToSave))
-      copiedHubLink.value = null
-      localStorage.removeItem(COPIED_HUB_LINK_KEY)
     } catch (error) {
       Logger.error('[ServiceTreeClipboard]', '保存复制目录失败', { error })
-    }
-  }
-
-  const saveCopiedHubLink = (hubLink: string) => {
-    try {
-      localStorage.setItem(COPIED_HUB_LINK_KEY, hubLink)
-      copiedDirectory.value = null
-      localStorage.removeItem(COPIED_DIRECTORY_KEY)
-    } catch (error) {
-      Logger.error('[ServiceTreeClipboard]', '保存复制的 Hub 链接失败', { error })
     }
   }
 
@@ -141,37 +111,8 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
   }
 
   const handlePaste = async (targetNode?: ServiceTree) => {
-    let hubLinkToPaste: string | null = null
-    let clipboardReadFailed = false
-
-    try {
-      const clipboardText = await navigator.clipboard.readText()
-      if (clipboardText && clipboardText.trim().startsWith('hub://')) {
-        hubLinkToPaste = clipboardText.trim()
-        saveCopiedHubLink(hubLinkToPaste)
-        copiedHubLink.value = hubLinkToPaste
-      }
-    } catch {
-      clipboardReadFailed = true
-    }
-
-    if (!hubLinkToPaste && copiedHubLink.value) {
-      hubLinkToPaste = copiedHubLink.value
-    }
-
-    if (hubLinkToPaste) {
-      openPullFromHub(hubLinkToPaste, targetNode)
-      return
-    }
-
-    if (clipboardReadFailed && !copiedDirectory.value) {
-      openPullFromHub(undefined, targetNode)
-      ElMessage.info('请在输入框中按 Ctrl+V 粘贴 Hub 链接')
-      return
-    }
-
     if (!copiedDirectory.value) {
-      ElMessage.warning('没有可粘贴的目录或 Hub 链接')
+      ElMessage.warning('没有可粘贴的目录')
       return
     }
 
@@ -293,7 +234,6 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
 
   return {
     copiedDirectory: computed(() => copiedDirectory.value),
-    copiedHubLink: computed(() => copiedHubLink.value),
     handleCopy,
     handlePaste
   }

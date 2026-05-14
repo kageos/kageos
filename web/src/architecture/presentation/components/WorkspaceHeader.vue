@@ -49,18 +49,6 @@
         消息
       </el-button>
 
-      <!-- 仅保留应用中心在栏上 -->
-      <el-button
-        v-if="featureFlags.hub"
-        type="primary"
-        size="small"
-        @click="navigateToHub"
-        title="应用中心"
-        data-testid="workspace-header-hub"
-      >
-        应用中心
-      </el-button>
-
       <el-dropdown
         @command="handleUserCommand"
         trigger="click"
@@ -268,7 +256,6 @@ import { useThemeStore } from '@/stores/theme'
 import DebugDialog from './DebugDialog.vue'
 import GlobalResourceSearchDialog from './GlobalResourceSearchDialog.vue'
 import UpgradeEnterpriseDialog from '@/shared/components/UpgradeEnterpriseDialog.vue'
-import { navigateToHub as navigateToHubUtil } from '@/utils/hub-navigation'
 import { Logger } from '@/core/utils/logger'
 import { getMessageUnreadCount } from '@/api/message'
 import MessageInboxPanel from '@/features/message/components/MessageInboxPanel.vue'
@@ -369,12 +356,6 @@ const showGlobalSearchDialog = ref(false)
 const showMessageDrawer = ref(false)
 const unreadCount = ref(0)
 let unreadTimer: ReturnType<typeof setInterval> | null = null
-
-// 导航到 Hub
-const navigateToHub = () => {
-  if (!featureFlags.hub) return
-  navigateToHubUtil('/')
-}
 
 const openMessageDrawer = () => {
   if (!featureFlags.messages) return

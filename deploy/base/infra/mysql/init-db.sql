@@ -14,7 +14,6 @@
 --   app-storage  -> app-storage
 --   agent-server -> agent-server
 --   hr-server    -> hr-server
---   hub          -> hub
 
 CREATE DATABASE IF NOT EXISTS `app_db` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS `app-scheduled-task` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -22,4 +21,3 @@ CREATE DATABASE IF NOT EXISTS `timer-scheduler` CHARACTER SET utf8mb4 COLLATE ut
 CREATE DATABASE IF NOT EXISTS `app-storage` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS `agent-server` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS `hr-server` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE IF NOT EXISTS `hub` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

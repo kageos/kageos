@@ -12,7 +12,6 @@
 
 - `images/app-base/`：用户应用基础镜像的 canonical Dockerfile 与启动脚本（默认 tag：`agentos-app-runtime-base:latest`）
 - `images/web/`：Web 前端镜像 Dockerfile 与 Nginx 配置
-- `images/hub-frontend/`：Hub 前端镜像 Dockerfile 与 Nginx 配置
 - `images/dev-server/`：本地开发用镜像
 - `infra/mysql/`：MySQL 初始化 SQL
 - `infra/nats/`：NATS 配置

@@ -48,8 +48,7 @@ describe('serviceTreeNodeActions', () => {
       'rename',
       'copy',
       'export-json',
-      'import-json',
-      'publish-to-hub'
+      'import-json'
     ])
     expect(actions.find(action => action.command === 'export-json')?.label).toBe('导出能力包')
     expect(actions.find(action => action.command === 'import-json')?.label).toBe('导入能力包')
@@ -70,19 +69,6 @@ describe('serviceTreeNodeActions', () => {
 
     expect(commands(actions)).toContain('delete-directory')
     expect(commands(actions)).toContain('paste')
-  })
-
-  it('switches hub actions between publish and push', () => {
-    const permissions = {
-      [DirectoryPermission.read]: true,
-      [DirectoryPermission.write]: true
-    }
-
-    expect(commands(getServiceTreeNodeActions(node({ permissions })))).toContain('publish-to-hub')
-    expect(commands(getServiceTreeNodeActions(node({
-      hub_full_code_path: '/hub/tools',
-      permissions
-    })))).toContain('push-to-hub')
   })
 
   it('shows delete-function for table deletable function nodes', () => {

@@ -29,7 +29,6 @@ export const featureFlags = {
   organization: enabledInFullMode('VITE_AOS_FEATURE_ORGANIZATION'),
   permissions: enabledInFullMode('VITE_AOS_FEATURE_PERMISSIONS'),
   messages: enabledInFullMode('VITE_AOS_FEATURE_MESSAGES'),
-  hub: enabledInFullMode('VITE_AOS_FEATURE_HUB'),
   scheduledTasks: enabledInFullMode('VITE_AOS_FEATURE_SCHEDULED_TASKS'),
   operateLogs: enabledInFullMode('VITE_AOS_FEATURE_OPERATE_LOGS'),
   board: enabledInFullMode('VITE_AOS_FEATURE_BOARD'),

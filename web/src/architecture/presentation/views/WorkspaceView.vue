@@ -59,9 +59,6 @@
             @delete-function="handleDeleteFunction"
             @delete-directory="handleDeleteDirectory"
             @bulk-delete="handleBulkDeleteNodes"
-            @publish-to-hub="handlePublishToHub"
-            @push-to-hub="handlePushToHub"
-            @pull-from-hub="openPullFromHubDialog"
             @refresh-tree="handleRefreshTree"
             @update-history="handleUpdateHistory"
           />
@@ -226,31 +223,6 @@
       @close="handleCloseCreateDirectoryDialog"
     />
 
-    <!-- 发布到应用中心对话框 -->
-    <PublishToHubDialog
-      v-if="featureFlags.hub && publishToHubDialogVisible"
-      v-model="publishToHubDialogVisible"
-      :selected-node="publishSelectedNode"
-      :current-app="currentApp || undefined"
-      @success="handlePublishSuccess"
-    />
-    <PushToHubDialog
-      v-if="featureFlags.hub && pushToHubDialogVisible"
-      v-model="pushToHubDialogVisible"
-      :selected-node="pushSelectedNode"
-      :current-app="currentApp || undefined"
-      @success="handlePushSuccess"
-    />
-    <PullFromHubDialog
-      v-if="featureFlags.hub && pullFromHubDialogVisible"
-      v-model="pullFromHubDialogVisible"
-      :current-app="currentApp || undefined"
-      :initial-hub-link="pastedHubLink"
-      :initial-target-path="pullFromHubTargetPath"
-      :initial-target-name="pullFromHubTargetName"
-      @success="handlePullSuccess"
-    />
-
     <!-- 变更记录对话框 -->
     <DirectoryUpdateHistoryDialog
       v-if="featureFlags.operateLogs && updateHistoryDialogVisible"
@@ -352,9 +324,6 @@ const BoardView = defineAsyncComponent(() => import('../components/BoardView.vue
 const PackageDetailView = defineAsyncComponent(() => import('../components/PackageDetailView.vue'))
 const MiniWorkstation = defineAsyncComponent(() => import('../components/MiniWorkstation.vue'))
 const CreateBoardDialog = defineAsyncComponent(() => import('../components/CreateBoardDialog.vue'))
-const PublishToHubDialog = defineAsyncComponent(() => import('@/shared/components/PublishToHubDialog.vue'))
-const PushToHubDialog = defineAsyncComponent(() => import('@/shared/components/PushToHubDialog.vue'))
-const PullFromHubDialog = defineAsyncComponent(() => import('@/shared/components/PullFromHubDialog.vue'))
 const DirectoryUpdateHistoryDialog = defineAsyncComponent(() => import('@/shared/components/DirectoryUpdateHistoryDialog.vue'))
 
 // 依赖注入（使用 IServiceProvider 接口，遵循依赖倒置原则）
@@ -898,29 +867,14 @@ const {
 })
 
 const {
-  publishToHubDialogVisible,
-  publishSelectedNode,
-  pushToHubDialogVisible,
-  pushSelectedNode,
-  pullFromHubDialogVisible,
-  pastedHubLink,
-  pullFromHubTargetPath,
-  pullFromHubTargetName,
   updateHistoryDialogVisible,
   updateHistoryMode,
   updateHistoryAppId,
   updateHistoryAppVersion,
   updateHistoryFullCodePath,
-  handlePublishToHub,
-  handlePushToHub,
-  openPullFromHubDialog,
-  handleUpdateHistory,
-  handlePublishSuccess,
-  handlePushSuccess,
-  handlePullSuccess
+  handleUpdateHistory
 } = useWorkspaceNodeToolActions({
-  currentApp,
-  handleRefreshTree
+  currentApp
 })
 
 // 会改变服务目录结构的工具名（创建目录、写文档、写代码、编译工作空间）
@@ -948,9 +902,7 @@ const handleDeleteApp = async (app: AppType): Promise<void> => {
 }
 
 useWorkspaceUiEffects({
-  currentApp: () => currentApp.value,
   showLeftSidebar,
-  openPullFromHubDialog,
   openDetailDrawer,
   setupUrlWatch,
   handleWorkspaceOpenWorkstation,

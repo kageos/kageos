@@ -610,7 +610,7 @@ func TestRequiredMySQLDatabases(t *testing.T) {
 	}
 
 	got := requiredMySQLDatabases(rt)
-	for _, want := range []string{"app_db", "app-scheduled-task", "timer-scheduler", "app-storage", "agent-server", "hr-server", "hub"} {
+	for _, want := range []string{"app_db", "app-scheduled-task", "timer-scheduler", "app-storage", "agent-server", "hr-server"} {
 		if !containsString(got, want) {
 			t.Fatalf("required MySQL databases missing %q: %#v", want, got)
 		}

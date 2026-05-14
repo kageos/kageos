@@ -107,11 +107,6 @@ export default defineConfig(({ command, mode }) => {
           })
         },
       },
-      // Hub API 通过网关代理（只代理 API 请求，不代理页面路由）
-      '/hub/api': {
-        target: proxyTarget,
-        changeOrigin: true,
-      },
       // Control API 通过网关代理（只代理 API 请求，不代理页面路由）
       '/control/api': {
         target: proxyTarget,
