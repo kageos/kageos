@@ -66,39 +66,6 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane v-if="showPermissionRequestTab" name="permissionRequest">
-          <template #label>
-            <el-badge
-              :value="packageNode?.pending_count || 0"
-              :hidden="!packageNode?.pending_count || packageNode.pending_count === 0"
-              :max="99"
-            >
-              <span>权限审批</span>
-            </el-badge>
-          </template>
-          <div class="tab-content">
-            <PermissionRequestList
-              ref="permissionRequestListRef"
-              :resource-path="packageNode?.full_code_path"
-              :resource-type="resourceType"
-              :auto-load="currentActiveTab === 'permissionRequest'"
-            />
-          </div>
-        </el-tab-pane>
-
-        <el-tab-pane v-if="showPermissionRequestTab" name="permissionManage">
-          <template #label>
-            <span>授权记录</span>
-          </template>
-          <div class="tab-content">
-            <PermissionManageList
-              ref="permissionManageListRef"
-              :resource-path="packageNode?.full_code_path"
-              :resource-type="resourceType"
-              :auto-load="currentActiveTab === 'permissionManage'"
-            />
-          </div>
-        </el-tab-pane>
       </el-tabs>
     </div>
 
@@ -123,11 +90,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed } from 'vue'
 import { Document, Lock } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
-import PermissionRequestList from '@/shared/components/permission/PermissionRequestList.vue'
-import PermissionManageList from '@/shared/components/permission/PermissionManageList.vue'
 import PackageDetailOverviewCard from './PackageDetailOverviewCard.vue'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
 import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
@@ -135,15 +100,13 @@ import type { WorkspaceSessionItem } from '@/api/workspace'
 import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
 import { featureFlags } from '@/config/features'
 
-type DetailTabName = 'info' | 'permissionRequest' | 'permissionManage' | 'scheduledAgentTask'
+type DetailTabName = 'info' | 'scheduledAgentTask'
 
 const props = defineProps<{
   packageNode: ServiceTree | null
   totalRunCount: number
   hasNoDirectoryPermissions: boolean
-  showPermissionRequestTab: boolean
   activeTab: DetailTabName
-  resourceType: 'directory'
 }>()
 
 const emit = defineEmits<{
@@ -153,8 +116,6 @@ const emit = defineEmits<{
   (e: 'open-session', session: WorkspaceSessionItem): void
 }>()
 
-const permissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> | null>(null)
-const permissionManageListRef = ref<InstanceType<typeof PermissionManageList> | null>(null)
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
 
@@ -168,31 +129,13 @@ const showScheduledAgentTaskTab = computed(() => {
 })
 
 const showDirectoryTabs = computed(() => {
-  return props.showPermissionRequestTab || showScheduledAgentTaskTab.value
+  return showScheduledAgentTaskTab.value
 })
 
 const directoryMarkdown = computed(() => {
   return props.packageNode?.description?.trim() || ''
 })
 
-watch(
-  () => currentActiveTab.value,
-  (tabName) => {
-    if (tabName === 'permissionRequest') {
-      nextTick(() => {
-        permissionRequestListRef.value?.loadRequests()
-      })
-      return
-    }
-
-    if (tabName === 'permissionManage') {
-      nextTick(() => {
-        permissionManageListRef.value?.loadPermissions()
-      })
-    }
-  },
-  { immediate: true }
-)
 </script>
 
 <style scoped lang="scss">

@@ -30,43 +30,6 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane v-if="showPermissionTabs" name="permissionRequest">
-          <template #label>
-            <el-badge
-              :value="currentFunction?.pending_count || 0"
-              :hidden="!currentFunction?.pending_count || currentFunction.pending_count === 0"
-              :max="99"
-            >
-              <span>权限审批</span>
-            </el-badge>
-          </template>
-          <div class="tab-content">
-            <div class="permission-tab-panel">
-              <PermissionRequestList
-                :ref="functionPermissionRequestListRef || undefined"
-                :resource-path="currentFunction?.full_code_path"
-                resource-type="function"
-                :template-type="currentFunctionDetail?.template_type"
-                :auto-load="activeTab === 'permissionRequest'"
-              />
-            </div>
-          </div>
-        </el-tab-pane>
-
-        <el-tab-pane v-if="showPermissionTabs" name="permissionManage" label="授权记录">
-          <div class="tab-content">
-            <div class="permission-tab-panel">
-              <PermissionManageList
-                :ref="functionPermissionManageListRef || undefined"
-                :resource-path="currentFunction?.full_code_path"
-                resource-type="function"
-                :template-type="currentFunctionDetail?.template_type"
-                :auto-load="activeTab === 'permissionManage'"
-              />
-            </div>
-          </div>
-        </el-tab-pane>
-
         <el-tab-pane v-if="showFormOperateLogTab" name="operateLog" label="执行记录">
           <div class="tab-content">
             <FormOperateLogSection
@@ -108,9 +71,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import PermissionRequestList from '@/shared/components/permission/PermissionRequestList.vue'
-import PermissionManageList from '@/shared/components/permission/PermissionManageList.vue'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import type { ServiceTree as ServiceTreeType } from '@/types'
 import FormOperateLogSection from './FormOperateLogSection.vue'
@@ -120,22 +80,18 @@ import WorkspaceFunctionRenderer from './WorkspaceFunctionRenderer.vue'
 import FunctionInfoPanel from './FunctionInfoPanel.vue'
 import type { WorkspaceSessionItem } from '@/api/workspace'
 
-type FunctionTabName = 'content' | 'detail' | 'permissionRequest' | 'permissionManage' | 'operateLog' | 'scheduledTask' | 'scheduledAgentTask'
+type FunctionTabName = 'content' | 'detail' | 'operateLog' | 'scheduledTask' | 'scheduledAgentTask'
 
 const props = withDefaults(defineProps<{
   activeTab: FunctionTabName
   currentFunction: ServiceTreeType | null
   currentFunctionDetail: FunctionDetail | null
   hasPermissionError: boolean
-  showFunctionPermissionTabs?: boolean
-  showFunctionPermissionRequestTab?: boolean
   showFormOperateLogTab?: boolean
   showScheduledTaskTab?: boolean
   showScheduledAgentTaskTab?: boolean
   permissionTab?: string
   functionFormViewRef?: (instance: any | null) => void
-  functionPermissionRequestListRef?: (instance: any | null) => void
-  functionPermissionManageListRef?: (instance: any | null) => void
   formOperateLogSectionRef?: (instance: any | null) => void
   onFunctionTabChange: (tab: string) => void
   onApplyFormOperateLog: (payload: {
@@ -162,16 +118,10 @@ const props = withDefaults(defineProps<{
     source?: string
   }) => void
 }>(), {
-  showFunctionPermissionTabs: false,
-  showFunctionPermissionRequestTab: false,
   showFormOperateLogTab: false,
   showScheduledTaskTab: false,
   showScheduledAgentTaskTab: false,
   permissionTab: undefined
-})
-
-const showPermissionTabs = computed(() => {
-  return props.showFunctionPermissionTabs || props.showFunctionPermissionRequestTab
 })
 
 defineEmits<{

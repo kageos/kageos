@@ -127,13 +127,10 @@
               :current-function="currentFunction"
               :current-function-detail="currentFunctionDetail"
               :has-permission-error="hasPermissionError"
-              :show-function-permission-tabs="showFunctionPermissionTabs"
               :show-form-operate-log-tab="showFormOperateLogTab"
               :show-scheduled-task-tab="showScheduledTaskTab"
               :show-scheduled-agent-task-tab="showScheduledAgentTaskTab"
               :function-form-view-ref="setFunctionFormViewRef"
-              :function-permission-request-list-ref="setFunctionPermissionRequestListRef"
-              :function-permission-manage-list-ref="setFunctionPermissionManageListRef"
               :form-operate-log-section-ref="setFormOperateLogSectionRef"
               :on-function-tab-change="handleFunctionTabChange"
               :on-apply-form-operate-log="handleApplyFormOperateLog"
@@ -593,12 +590,9 @@ const showLeftSidebar = ref(true)
 const {
   functionActiveTab,
   setFunctionFormViewRef,
-  setFunctionPermissionRequestListRef,
-  setFunctionPermissionManageListRef,
   setFormOperateLogSectionRef,
   showScheduledTaskTab,
   showScheduledAgentTaskTab,
-  showFunctionPermissionTabs,
   showFormOperateLogTab,
   showFunctionTabsWrapper,
   handleFunctionTabChange,

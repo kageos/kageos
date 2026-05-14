@@ -62,11 +62,8 @@
         :package-node="packageNode || null"
         :total-run-count="totalRunCount"
         :has-no-directory-permissions="hasNoDirectoryPermissions"
-        :show-permission-request-tab="showPermissionRequestTab"
         :active-tab="activeTab"
-        :resource-type="resourceType"
         @update:active-tab="activeTab = $event"
-        @apply-permission="handleApplyPermission"
         @select-child="handleChildClick"
         @open-session="$emit('open-session', $event)"
       />
@@ -95,19 +92,17 @@ import { extractWorkspacePath } from '@/utils/route'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
-import { buildPermissionApplyURL, DirectoryPermission } from '@/utils/permission'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
 import { useAuthStore } from '@/stores/auth'
 import { updatePackage } from '@/api/service-tree'
-import { isServiceTreeNodeAdmin } from '@/utils/permissionActors'
 import { Logger } from '@/core/utils/logger'
 import PackageDetailContent from './PackageDetailContent.vue'
 import PackageDetailEditDialog from './PackageDetailEditDialog.vue'
 import type { WorkspaceSessionItem } from '@/api/workspace'
 import { featureFlags } from '@/config/features'
 
-type DetailTabName = 'info' | 'permissionRequest' | 'permissionManage' | 'scheduledAgentTask'
+type DetailTabName = 'info' | 'scheduledAgentTask'
 
 interface Props {
   packageNode?: ServiceTree | null
@@ -122,34 +117,10 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const route = useRoute()
-const authStore = useAuthStore() // ⭐ 必须在 showPermissionRequestTab 之前初始化
+const authStore = useAuthStore()
 
 // Tab 相关
 const activeTab = ref<DetailTabName>('info')
-
-// ⭐ 判断是否显示权限申请 tab
-// 条件：1. 节点类型是 package 或 app  2. 用户是管理员
-const showPermissionRequestTab = computed(() => {
-  if (!featureFlags.permissions) {
-    return false
-  }
-  if (!props.packageNode) {
-    return false
-  }
-  
-  // 必须是 package 类型
-  if (props.packageNode.type !== 'package') {
-    return false
-  }
-  
-  return isServiceTreeNodeAdmin(props.packageNode, authStore.user?.username)
-})
-
-// ⭐ 计算资源类型（用于权限组件）
-// ⭐ 所有 package 类型统一使用 directory 资源类型（包括根目录/工作空间）
-const resourceType = computed<'directory'>(() => {
-  return 'directory'
-})
 
 const showScheduledAgentTaskTab = computed(() => {
   return featureFlags.scheduledTasks && props.packageNode?.type === 'package' && !!props.packageNode.full_code_path
@@ -180,10 +151,6 @@ watch(
 
     if (normalizedTab === 'scheduledAgentTask' && showScheduledAgentTaskTab.value) {
       activeTab.value = 'scheduledAgentTask'
-    } else if (normalizedTab === 'permissionRequest' && showPermissionRequestTab.value) {
-      activeTab.value = 'permissionRequest'
-    } else if (normalizedTab === 'permissionManage' && showPermissionRequestTab.value) {
-      activeTab.value = 'permissionManage'
     }
   },
   { immediate: true }
@@ -224,14 +191,9 @@ const canEdit = computed(() => {
 watch(
   () => [
     props.packageNode?.full_code_path,
-    showPermissionRequestTab.value,
     showScheduledAgentTaskTab.value
   ] as const,
   () => {
-    if ((activeTab.value === 'permissionRequest' || activeTab.value === 'permissionManage') && !showPermissionRequestTab.value) {
-      activeTab.value = showScheduledAgentTaskTab.value ? 'scheduledAgentTask' : 'info'
-      return
-    }
     if (activeTab.value === 'scheduledAgentTask' && !showScheduledAgentTaskTab.value) {
       activeTab.value = 'info'
       return
@@ -252,54 +214,8 @@ const adminsField = computed<FieldConfig>(() => ({
 
 // ⭐ 检查是否没有任何权限（根据节点类型检查对应的权限）
 const hasNoDirectoryPermissions = computed(() => {
-  if (!featureFlags.permissions) {
-    return false
-  }
-  if (!props.packageNode) {
-    return false
-  }
-  
-  // 直接使用节点上的权限信息（后端返回的最新数据，已包含继承）
-  const permissions = props.packageNode.permissions
-  
-  // 🔥 修复：如果没有权限信息或权限为空对象，返回 false（不显示权限不足）
-  // 避免空 map 导致的无限循环问题
-  if (!permissions || Object.keys(permissions).length === 0) {
-    return false
-  }
-  
-  // ⭐ 所有 package 类型统一检查 directory 权限（包括根目录/工作空间）
-  const permissionsToCheck: string[] = [
-    DirectoryPermission.read,
-    DirectoryPermission.write,
-    DirectoryPermission.update,
-    DirectoryPermission.delete,
-    DirectoryPermission.admin
-  ]
-  
-  // 如果所有权限都是 false，则显示权限不足
-  const hasNoPerms = permissionsToCheck.every(perm => {
-    // 如果权限字段不存在，也视为 false
-    return permissions[perm] === false || permissions[perm] === undefined
-  })
-  
-  return hasNoPerms
+  return false
 })
-
-// 处理权限申请
-function handleApplyPermission() {
-  if (!props.packageNode?.full_code_path) {
-    ElMessage.warning('路径信息不可用')
-    return
-  }
-  
-  // ⭐ 所有 package 类型统一申请 directory:read 权限（包括根目录/工作空间）
-  const defaultAction = DirectoryPermission.read
-  
-  // 跳转到权限申请页面
-  const applyURL = buildPermissionApplyURL(props.packageNode.full_code_path, defaultAction, undefined)
-  router.push(applyURL)
-}
 
 // 返回上一级
 function handleBack() {
