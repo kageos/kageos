@@ -20,6 +20,12 @@ type ApiResult[T any] struct {
 	Data T      `json:"data"`
 }
 
+type apiErrorResponse struct {
+	Code int                    `json:"code"`
+	Msg  string                 `json:"msg"`
+	Data map[string]interface{} `json:"data"`
+}
+
 type callConfig struct {
 	headers map[string]string
 }
@@ -162,7 +168,7 @@ func doAPIRequest[T any](req *http.Request) (*ApiResult[T], error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP错误: %d %s, 响应: %s", resp.StatusCode, resp.Status, string(bodyBytes))
+		return nil, formatHTTPError(resp, bodyBytes)
 	}
 
 	var result ApiResult[T]
@@ -175,4 +181,62 @@ func doAPIRequest[T any](req *http.Request) (*ApiResult[T], error) {
 	}
 
 	return &result, nil
+}
+
+func formatHTTPError(resp *http.Response, bodyBytes []byte) error {
+	body := strings.TrimSpace(string(bodyBytes))
+	if resp.StatusCode == http.StatusForbidden {
+		if message := formatPermissionDeniedMessage(bodyBytes); message != "" {
+			return fmt.Errorf("%s", message)
+		}
+	}
+	return fmt.Errorf("HTTP错误: %d %s, 响应: %s", resp.StatusCode, resp.Status, body)
+}
+
+func formatPermissionDeniedMessage(bodyBytes []byte) string {
+	var payload apiErrorResponse
+	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
+		return ""
+	}
+	msg := strings.TrimSpace(payload.Msg)
+	if msg == "" {
+		msg = "权限不足"
+	}
+	parts := []string{msg}
+
+	data := payload.Data
+	if resourcePath := stringFromMap(data, "resource_path"); resourcePath != "" {
+		parts = append(parts, "资源: "+resourcePath)
+	}
+	if actionDisplay := stringFromMap(data, "action_display"); actionDisplay != "" {
+		if action := stringFromMap(data, "action"); action != "" {
+			parts = append(parts, fmt.Sprintf("操作: %s(%s)", actionDisplay, action))
+		} else {
+			parts = append(parts, "操作: "+actionDisplay)
+		}
+	} else if action := stringFromMap(data, "action"); action != "" {
+		parts = append(parts, "操作: "+action)
+	}
+	if applyURL := stringFromMap(data, "apply_url"); applyURL != "" {
+		parts = append(parts, "申请链接: "+applyURL)
+	}
+	if errorMessage := stringFromMap(data, "error_message"); errorMessage != "" && errorMessage != msg {
+		parts = append(parts, "详情: "+errorMessage)
+	}
+	return "权限不足: " + strings.Join(parts, "；")
+}
+
+func stringFromMap(data map[string]interface{}, key string) string {
+	if len(data) == 0 {
+		return ""
+	}
+	value, ok := data[key]
+	if !ok {
+		return ""
+	}
+	text, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(text)
 }
