@@ -1,83 +1,10 @@
 /**
- * 权限工具函数
- * 
- * ============================================
- * 📋 需求说明
- * ============================================
- * 
- * 1. **权限来源**：
- *    - 后端树接口（service_tree）已经返回了每个节点的权限信息
- *    - 权限信息已经包含了继承后的最终权限（后端已处理权限继承）
- *    - 前端只需要直接使用 `node.permissions` 字段即可
- * 
- * 2. **权限继承规则**（后端已处理）：
- *    - `directory:admin` → 子节点自动拥有所有权限
- *    - `directory:write` → 子节点自动拥有 `table:write`、`form:write` 等
- *    - `directory:update` → 子节点自动拥有 `table:update` 等
- *    - `directory:delete` → 子节点自动拥有 `table:delete` 等
- *    - `directory:read` → 子节点自动拥有 `table:read`、`form:read`、`chart:read` 等
- *    - `app:admin` → 应用下所有资源自动拥有所有权限
- * 
- * 3. **权限层级关系**（前端双重保险）：
- *    - `table:admin`、`form:admin`、`chart:admin` 包含对应的所有权限
- *    - `directory:admin` 包含所有目录权限
- *    - `app:admin` 包含所有应用权限
- * 
- * ============================================
- * 🎯 设计思路
- * ============================================
- * 
- * 1. **简化原则**：
- *    - 不缓存权限信息（后端返回的是最新数据）
- *    - 不处理权限继承（后端已处理）
- *    - 直接使用 `node.permissions[action]` 检查权限
- * 
- * 2. **安全原则**：
- *    - 默认拒绝：没有节点、没有权限信息、权限不存在时，一律返回 `false`
- *    - 不向后兼容：避免权限绕过漏洞
- * 
- * 3. **双重保险**：
- *    - 保留权限层级关系检查（`manage` 权限包含其他权限）
- *    - 防止后端遗漏权限继承时的安全漏洞
- * 
- * ============================================
- * 📝 使用场景
- * ============================================
- * 
- * 1. **表格操作权限检查**：
- *    - 新增：`hasPermission(node, TablePermission.write)`
- *    - 编辑：`hasPermission(node, TablePermission.update)`
- *    - 删除：`hasPermission(node, TablePermission.delete)`
- * 
- * 2. **表单提交权限检查**：
- *    - 提交：`hasPermission(node, FormPermission.write)`
- * 
- * 3. **目录操作权限检查**：
- *    - 查看：`hasPermission(node, DirectoryPermission.read)`
- *    - 创建：`hasPermission(node, DirectoryPermission.write)`
- * 
- * ============================================
- * ⚠️ 注意事项
- * ============================================
- * 
- * 1. **权限数据来源**：
- *    - 必须从服务树接口获取的节点中获取权限
- *    - 不要从其他来源获取权限信息
- * 
- * 2. **权限检查时机**：
- *    - UI 层面：控制按钮显示/隐藏
- *    - 提交时：再次检查权限，防止绕过 UI 检查
- * 
- * 3. **权限层级关系**：
- *    - 后端应该已经处理了 `manage` 权限的继承
- *    - 前端的层级关系检查只是双重保险
- * 
- * ============================================
- * 📚 相关文档
- * ============================================
- * 
- * - 权限判断逻辑分析：`web/docs/权限判断逻辑分析.md`
- * - 后端权限继承实现：`core/app-server/service/service_tree_service.go`
+ * Permission naming and display helpers.
+ *
+ * Permission enforcement is currently disabled in the frontend, so the
+ * hasPermission helpers below intentionally allow all actions. Keep the action
+ * constants and labels because other UI surfaces still use them for copy and
+ * compatibility with service-tree payloads.
  */
 
 import type { ServiceTree } from '@/types'
@@ -192,24 +119,7 @@ export interface PermissionInfo {
 }
 
 /**
- * 检查节点是否有指定权限
- * ⭐ 优化：优先从权限缓存中获取，如果没有则从节点本身的 permissions 字段获取
- * ⭐ 支持权限层级关系：admin 权限包含所有其他权限
- * @param node 服务树节点
- * @param action 权限点（如 table:search、function:admin）
- * @returns 是否有权限
- */
-/**
- * 检查节点是否有指定权限
- * 
- * ⭐ 权限判断顺序：
- * 1. 优先判断 is_admin：如果用户是工作空间管理员，直接返回 true（无需检查具体权限）
- * 2. 精确判断权限：检查 permissions 字段中的具体权限点
- * 3. 权限层级关系检查：manage 权限包含所有其他权限（作为双重保险）
- * 
- * @param node 服务树节点
- * @param action 权限点（如 table:read、form:write、chart:read）
- * @returns 是否有权限
+ * Permission enforcement is globally open for the current MVP.
  */
 export function hasPermission(_node: ServiceTree | undefined, _action: string): boolean {
   return true

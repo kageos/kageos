@@ -72,12 +72,6 @@
  *    - `type: "string"` → 返回逗号分隔的字符串
  *    - `type: "[]string"` → 返回数组
  * 
- * ============================================
- * 📚 相关文档
- * ============================================
- * 
- * - 表单值提取逻辑分析：`web/docs/表单值提取逻辑分析报告.md`
- * - 字段提取器接口：`web/src/core/stores-v2/extractors/FieldExtractor.ts`
  */
 
 import type { FieldConfig } from '../../types/field'

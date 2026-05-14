@@ -80,12 +80,6 @@
  *    - 必须实现 `update:modelValue` 事件
  *    - 必须使用 `FieldValue` 格式
  * 
- * ============================================
- * 📚 相关文档
- * ============================================
- * 
- * - 插件系统使用指南：`web/docs/插件系统使用指南.md`
- * - Widget 插件接口：`web/src/architecture/infrastructure/plugins/WidgetPlugin.ts`
  */
 
 import { widgetPluginRegistry, type WidgetPlugin } from './WidgetPlugin'
