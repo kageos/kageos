@@ -16,7 +16,7 @@ import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { createPackage } from '@/architecture/infrastructure/api/service-tree'
 import type { ServiceTree as ServiceTreeType, CreateServiceTreeRequest } from '@/types'
 import ServiceTreePanel from '@/architecture/presentation/components/ServiceTreePanel.vue'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { normalizeGoPackageName, validateGoPackageName } from '@/utils/goPackageName'
 
 export function useWorkspaceServiceTree(

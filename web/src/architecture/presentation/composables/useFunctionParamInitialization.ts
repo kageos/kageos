@@ -91,7 +91,7 @@ import type { WidgetInitContext } from '../../presentation/widgets/interfaces/IW
 import { eventBus, FormEvent } from '../../infrastructure/eventBus'
 import { Logger } from '@/architecture/runtime/utils/logger'
 import { getWidgetDefaultValue } from '../../presentation/widgets/composables/useWidgetDefaultValue'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { FieldValueMeta } from '@/architecture/runtime/constants/field'
 import { convertValueByFieldType } from '../../presentation/widgets/utils/typeConverter'
 import { getFormRequestFields } from '@/utils/functionSchemaSelectors'

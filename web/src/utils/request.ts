@@ -1,7 +1,7 @@
 import axios from 'axios'
 import type { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { Logger } from '@/architecture/runtime/utils/logger'
 import { getApiBaseURL } from '@/config/runtime'
 import router from '@/router'

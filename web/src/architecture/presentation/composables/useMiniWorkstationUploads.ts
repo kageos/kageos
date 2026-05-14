@@ -1,6 +1,6 @@
 import { ElMessage } from 'element-plus'
 import { nextTick, ref, type Ref } from 'vue'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 import type { UploadProgress } from '@/utils/upload/types'
 import type { WorkspaceChatMessageFile } from '@/architecture/infrastructure/api/workspace'

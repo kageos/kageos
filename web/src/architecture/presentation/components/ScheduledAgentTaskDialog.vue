@@ -321,7 +321,7 @@ import type { Department } from '@/architecture/infrastructure/api/department'
 import { getErrorMessage } from '@/utils/apiError'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 import type { UploadProgress } from '@/utils/upload/types'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
 import { Z_INDEX } from '@/utils/zIndex'
 

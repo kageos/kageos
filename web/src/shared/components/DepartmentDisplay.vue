@@ -57,7 +57,7 @@ import { computed, watch, ref, onMounted } from 'vue'
 import { ElPopover } from 'element-plus'
 import type { Department } from '@/architecture/infrastructure/api/department'
 import { getDepartmentTree } from '@/architecture/infrastructure/api/department'
-import { useDepartmentInfoStore } from '@/stores/departmentInfo'
+import { useDepartmentInfoStore } from '@/architecture/infrastructure/stores/departmentInfo'
 import DepartmentDetailCard from './DepartmentDetailCard.vue'
 
 interface Props {

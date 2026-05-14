@@ -57,7 +57,7 @@
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { UploadFile } from 'element-plus'
-import { useLicenseStore } from '@/stores/license'
+import { useLicenseStore } from '@/architecture/infrastructure/stores/license'
 import { Z_INDEX } from '@/utils/zIndex'
 
 const props = defineProps<{

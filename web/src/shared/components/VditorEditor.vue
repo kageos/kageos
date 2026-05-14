@@ -6,7 +6,7 @@
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 import Vditor from 'vditor'
 import 'vditor/dist/index.css'
-import { useThemeStore } from '@/stores/theme'
+import { useThemeStore } from '@/architecture/infrastructure/stores/theme'
 import { ElMessage } from 'element-plus'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 
