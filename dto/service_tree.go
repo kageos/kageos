@@ -4,74 +4,6 @@ import "github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 
 // 注意：DiffData 定义在 dto/app_runtime_namespace.go 中
 
-// PublishDirectoryToHubReq 发布目录到 Hub 请求
-type PublishDirectoryToHubReq struct {
-	SourceUser           string   `json:"source_user" binding:"required"`           // 源用户
-	SourceApp            string   `json:"source_app" binding:"required"`            // 源应用
-	SourceDirectoryPath  string   `json:"source_directory_path" binding:"required"` // 源目录完整路径
-	Name                 string   `json:"name" binding:"required"`                  // 目录名称
-	Description          string   `json:"description"`                              // 目录描述
-	Category             string   `json:"category"`                                 // 分类
-	Tags                 []string `json:"tags"`                                     // 标签
-	ServiceFeePersonal   float64  `json:"service_fee_personal"`                     // 个人用户服务费
-	ServiceFeeEnterprise float64  `json:"service_fee_enterprise"`                   // 企业用户服务费
-	RemoteHubURL         string   `json:"remote_hub_url"`                           // 远程 Hub 地址（跨站发布，如 http://hub.example.com）
-	PubKey               string   `json:"pub_key"`                                  // Pub Key（跨站发布时用于认证）
-}
-
-// PublishDirectoryToHubResp 发布目录到 Hub 响应
-type PublishDirectoryToHubResp struct {
-	HubFullCodePath string `json:"hub_full_code_path"` // Hub 目录完整路径，前端用此拼详情 URL
-	DirectoryCount  int    `json:"directory_count"`    // 包含的子目录数量
-	FileCount       int    `json:"file_count"`         // 包含的文件数量
-}
-
-// PushDirectoryToHubReq 推送目录到 Hub 请求（用于 push，更新已发布的目录）
-type PushDirectoryToHubReq struct {
-	SourceUser           string   `json:"source_user"`            // 源用户
-	SourceApp            string   `json:"source_app"`             // 源应用
-	SourceDirectoryPath  string   `json:"source_directory_path"`  // 源目录完整路径
-	Name                 string   `json:"name"`                   // 目录名称（可选，不传则保持原值）
-	Description          string   `json:"description"`            // 目录描述（可选，不传则保持原值）
-	Category             string   `json:"category"`               // 分类（可选，不传则保持原值）
-	Tags                 []string `json:"tags"`                   // 标签（可选，不传则保持原值）
-	ServiceFeePersonal   float64  `json:"service_fee_personal"`   // 个人用户服务费（可选）
-	ServiceFeeEnterprise float64  `json:"service_fee_enterprise"` // 企业用户服务费（可选）
-	Version              string   `json:"version"`                // 新版本号（可选，不传则自动递增为 v{N+1}）
-	UpdateDescription    string   `json:"update_description"`     // 本版本更新说明（可选，如：新增 xxx 功能）
-	APIKey               string   `json:"api_key"`                // API Key（私有化部署需要，已废弃，用 PubKey 替代）
-	RemoteHubURL         string   `json:"remote_hub_url"`         // 远程 Hub 地址（跨站发布）
-	PubKey               string   `json:"pub_key"`                // Pub Key（跨站发布时用于认证）
-}
-
-// PushDirectoryToHubResp 推送目录到 Hub 响应
-type PushDirectoryToHubResp struct {
-	HubFullCodePath string `json:"hub_full_code_path"` // Hub 目录完整路径，前端用此拼详情 URL
-	DirectoryCount  int    `json:"directory_count"`    // 包含的子目录数量
-	FileCount       int    `json:"file_count"`         // 包含的文件数量
-	OldVersion      string `json:"old_version"`        // 旧版本号
-	NewVersion      string `json:"new_version"`        // 新版本号
-}
-
-// GetHubPushFormInfoReq 获取推送表单信息请求（用于推送对话框预填）
-type GetHubPushFormInfoReq struct {
-	SourceUser          string `json:"source_user" form:"source_user" binding:"required"`
-	SourceApp           string `json:"source_app" form:"source_app" binding:"required"`
-	SourceDirectoryPath string `json:"source_directory_path" form:"source_directory_path" binding:"required"`
-}
-
-// GetHubPushFormInfoResp 获取推送表单信息响应（当前已发布信息 + 下一版本号，便于表单预填与自动版本）
-type GetHubPushFormInfoResp struct {
-	Name                 string   `json:"name"`
-	Description          string   `json:"description"`
-	Category             string   `json:"category"`
-	Tags                 []string `json:"tags"`
-	ServiceFeePersonal   float64  `json:"service_fee_personal"`
-	ServiceFeeEnterprise float64  `json:"service_fee_enterprise"`
-	CurrentVersion       string   `json:"current_version"` // 当前已发布版本（如 v2）
-	NextVersion          string   `json:"next_version"`    // 下一版本号（自动递增，如 v3）
-}
-
 // CreateServiceTreeReq 创建服务目录请求
 type CreateServiceTreeReq struct {
 	User               string `json:"user" binding:"required" example:"beiluo"`      // 用户名
@@ -236,44 +168,6 @@ type BatchWriteFilesResp struct {
 	NewVersion    string    `json:"new_version"`               // 新版本号
 	GitCommitHash string    `json:"git_commit_hash,omitempty"` // Git 提交哈希
 	Warnings      []string  `json:"warnings,omitempty"`        // 非阻断告警（如版本已更新但元数据同步失败）
-}
-
-// PullDirectoryFromHubReq 从 Hub 拉取目录请求
-type PullDirectoryFromHubReq struct {
-	HubLink             string `json:"hub_link" binding:"required"`    // Hub 链接（如 hub://hub.example.com/123）
-	TargetUser          string `json:"target_user" binding:"required"` // 目标用户
-	TargetApp           string `json:"target_app" binding:"required"`  // 目标应用
-	TargetDirectoryPath string `json:"target_directory_path"`          // 目标目录路径（可选，默认为应用根目录）
-}
-
-// PullDirectoryFromHubResp 从 Hub 拉取目录响应
-type PullDirectoryFromHubResp struct {
-	Message             string `json:"message"`               // 成功消息
-	DirectoryCount      int    `json:"directory_count"`       // 安装的目录数量
-	FileCount           int    `json:"file_count"`            // 安装的文件数量
-	TargetDirectoryPath string `json:"target_directory_path"` // 目标目录路径
-	ServiceTreeID       int64  `json:"service_tree_id"`       // 根目录的 ServiceTree ID
-	HubDirectoryName    string `json:"hub_directory_name"`    // Hub 目录名称
-	HubVersionNum       int    `json:"hub_version_num"`       // Hub 目录版本号（数字部分），展示时格式化为 v{N}
-}
-
-// ImportHubDirectoryBundleReq 从标准 Hub JSON 安装包安装目录
-type ImportHubDirectoryBundleReq struct {
-	TargetUser          string                     `json:"target_user" binding:"required"` // 目标用户
-	TargetApp           string                     `json:"target_app" binding:"required"`  // 目标应用
-	TargetDirectoryPath string                     `json:"target_directory_path"`          // 目标目录路径（可选，默认为应用根目录）
-	Bundle              *HubDirectoryInstallBundle `json:"bundle" binding:"required"`      // 标准 Hub 目录安装包
-}
-
-// GetHubInfoReq 获取目录的 Hub 信息请求
-type GetHubInfoReq struct {
-	FullCodePath string `json:"full_code_path" form:"full_code_path" binding:"required"` // 目录完整路径
-}
-
-// GetHubInfoResp 获取目录的 Hub 信息响应
-type GetHubInfoResp struct {
-	HubFullCodePath string `json:"hub_full_code_path"` // Hub 目录完整路径，用于绑定与详情 URL（前端用此拼 /directory/xxx）
-	PublishedAt     string `json:"published_at"`       // 发布时间
 }
 
 // SearchFunctionsReq 搜索函数请求

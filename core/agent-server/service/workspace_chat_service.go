@@ -608,9 +608,7 @@ func workspaceToolCallHasGeneratedOutput(summary streamloop.ToolCallSummary) boo
 		"write_go_file",
 		"write_doc",
 		"create_directory",
-		"copy_directory",
-		"push_to_hub",
-		"publish_to_hub":
+		"copy_directory":
 		return true
 	}
 	if summary.Metadata != nil && len(summary.Metadata.DisplayFileFields) > 0 {

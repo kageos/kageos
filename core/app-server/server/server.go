@@ -459,7 +459,7 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中
-	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, functionRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.permissionService, s.docService, boardPostRepo)
+	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.permissionService, s.docService, boardPostRepo)
 
 	// 初始化函数服务
 	s.functionService = service.NewFunctionService(functionRepo, appRepo)

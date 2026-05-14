@@ -153,6 +153,10 @@ definitions:
         description: NATS ID
         example: 1
         type: integer
+      permission_enforced:
+        description: 是否启用权限管控
+        example: false
+        type: boolean
       show_only_permitted:
         description: 仅展示有权限的空间
         example: false
@@ -379,6 +383,10 @@ definitions:
         description: 应用名
         example: 腾讯oa系统
         type: string
+      permission_enforced:
+        description: 是否启用权限管控：社区版默认 false，企业版权限特性默认 true
+        example: false
+        type: boolean
       show_only_permitted:
         description: 仅展示有权限的空间：开启后非管理员只看到有权限的目录
         example: false
@@ -1050,6 +1058,10 @@ definitions:
         description: NATS ID
         example: 1
         type: integer
+      permission_enforced:
+        description: 是否启用权限管控
+        example: false
+        type: boolean
       show_only_permitted:
         description: 仅展示有权限的空间
         example: false
@@ -1226,29 +1238,6 @@ definitions:
         description: 更新时间
         example: "2024-01-01T00:00:00Z"
         type: string
-    type: object
-  dto.GetHubPushFormInfoResp:
-    properties:
-      category:
-        type: string
-      current_version:
-        description: 当前已发布版本（如 v2）
-        type: string
-      description:
-        type: string
-      name:
-        type: string
-      next_version:
-        description: 下一版本号（自动递增，如 v3）
-        type: string
-      service_fee_enterprise:
-        type: number
-      service_fee_personal:
-        type: number
-      tags:
-        items:
-          type: string
-        type: array
     type: object
   dto.GetPermissionRequestsResp:
     properties:
@@ -1679,169 +1668,6 @@ definitions:
       updated_at:
         type: string
     type: object
-  dto.PublishDirectoryToHubReq:
-    properties:
-      category:
-        description: 分类
-        type: string
-      description:
-        description: 目录描述
-        type: string
-      name:
-        description: 目录名称
-        type: string
-      pub_key:
-        description: Pub Key（跨站发布时用于认证）
-        type: string
-      remote_hub_url:
-        description: 远程 Hub 地址（跨站发布，如 http://hub.example.com）
-        type: string
-      service_fee_enterprise:
-        description: 企业用户服务费
-        type: number
-      service_fee_personal:
-        description: 个人用户服务费
-        type: number
-      source_app:
-        description: 源应用
-        type: string
-      source_directory_path:
-        description: 源目录完整路径
-        type: string
-      source_user:
-        description: 源用户
-        type: string
-      tags:
-        description: 标签
-        items:
-          type: string
-        type: array
-    required:
-    - name
-    - source_app
-    - source_directory_path
-    - source_user
-    type: object
-  dto.PublishDirectoryToHubResp:
-    properties:
-      directory_count:
-        description: 包含的子目录数量
-        type: integer
-      file_count:
-        description: 包含的文件数量
-        type: integer
-      hub_full_code_path:
-        description: Hub 目录完整路径，前端用此拼详情 URL
-        type: string
-    type: object
-  dto.PullDirectoryFromHubReq:
-    properties:
-      hub_link:
-        description: Hub 链接（如 hub://hub.example.com/123）
-        type: string
-      target_app:
-        description: 目标应用
-        type: string
-      target_directory_path:
-        description: 目标目录路径（可选，默认为应用根目录）
-        type: string
-      target_user:
-        description: 目标用户
-        type: string
-    required:
-    - hub_link
-    - target_app
-    - target_user
-    type: object
-  dto.PullDirectoryFromHubResp:
-    properties:
-      directory_count:
-        description: 安装的目录数量
-        type: integer
-      file_count:
-        description: 安装的文件数量
-        type: integer
-      hub_directory_name:
-        description: Hub 目录名称
-        type: string
-      hub_version_num:
-        description: Hub 目录版本号（数字部分），展示时格式化为 v{N}
-        type: integer
-      message:
-        description: 成功消息
-        type: string
-      service_tree_id:
-        description: 根目录的 ServiceTree ID
-        type: integer
-      target_directory_path:
-        description: 目标目录路径
-        type: string
-    type: object
-  dto.PushDirectoryToHubReq:
-    properties:
-      api_key:
-        description: API Key（私有化部署需要，已废弃，用 PubKey 替代）
-        type: string
-      category:
-        description: 分类（可选，不传则保持原值）
-        type: string
-      description:
-        description: 目录描述（可选，不传则保持原值）
-        type: string
-      name:
-        description: 目录名称（可选，不传则保持原值）
-        type: string
-      pub_key:
-        description: Pub Key（跨站发布时用于认证）
-        type: string
-      remote_hub_url:
-        description: 远程 Hub 地址（跨站发布）
-        type: string
-      service_fee_enterprise:
-        description: 企业用户服务费（可选）
-        type: number
-      service_fee_personal:
-        description: 个人用户服务费（可选）
-        type: number
-      source_app:
-        description: 源应用
-        type: string
-      source_directory_path:
-        description: 源目录完整路径
-        type: string
-      source_user:
-        description: 源用户
-        type: string
-      tags:
-        description: 标签（可选，不传则保持原值）
-        items:
-          type: string
-        type: array
-      update_description:
-        description: 本版本更新说明（可选，如：新增 xxx 功能）
-        type: string
-      version:
-        description: 新版本号（可选，不传则自动递增为 v{N+1}）
-        type: string
-    type: object
-  dto.PushDirectoryToHubResp:
-    properties:
-      directory_count:
-        description: 包含的子目录数量
-        type: integer
-      file_count:
-        description: 包含的文件数量
-        type: integer
-      hub_full_code_path:
-        description: Hub 目录完整路径，前端用此拼详情 URL
-        type: string
-      new_version:
-        description: 新版本号
-        type: string
-      old_version:
-        description: 旧版本号
-        type: string
-    type: object
   dto.RejectPermissionRequestReq:
     properties:
       reason:
@@ -2106,6 +1932,9 @@ definitions:
         items:
           $ref: '#/definitions/dto.SourceFileWrite'
         type: array
+      force_diff:
+        description: 为 true 时清理 api-logs，让本次更新重新产生 add diff
+        type: boolean
       requirement:
         description: 变更需求（用户在前端输入的）
         type: string
@@ -2334,6 +2163,9 @@ definitions:
       admins:
         description: 管理员列表，逗号分隔
         type: string
+      permission_enforced:
+        description: 是否启用权限管控（nil 表示不更新）
+        type: boolean
       resource_path:
         description: 工作空间资源路径，规范为 /user/app
         type: string
@@ -2347,6 +2179,10 @@ definitions:
         type: string
       app:
         type: string
+      permission_enforced:
+        type: boolean
+      show_only_permitted:
+        type: boolean
       user:
         type: string
     type: object
@@ -2549,18 +2385,15 @@ definitions:
       desc:
         description: 字段描述，用于 placeholder 等
         type: string
+      field_name:
+        description: Go 字段名，用于验证规则中的字段引用（如 required_if=MemberType vip）
+        type: string
       hide:
         allOf:
         - $ref: '#/definitions/widget.FieldHide'
         description: 前端隐藏场景；不配置表示列表/新增/编辑均展示，如 {"scenes":["create","update"]}
-      field_name:
-        description: Go 字段名，用于验证规则中的字段引用（如 required_if=MemberType vip）
-        type: string
       name:
         description: 必需字段
-        type: string
-      search:
-        description: 搜索类型，如 "like", "eq", "in" 等
         type: string
       validation:
         description: 验证规则，完全照搬 github.com/go-playground/validator/v10
@@ -4958,167 +4791,6 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: 获取服务目录详情
-      tags:
-      - 服务目录
-  /workspace/api/v1/service_tree/hub_push_form_info:
-    get:
-      consumes:
-      - application/json
-      description: 根据目录路径获取当前在 Hub 的已发布信息及下一版本号，用于推送对话框预填与自动版本
-      parameters:
-      - description: JWT Token
-        in: header
-        name: X-Token
-        required: true
-        type: string
-      - description: 源用户
-        in: query
-        name: source_user
-        required: true
-        type: string
-      - description: 源应用
-        in: query
-        name: source_app
-        required: true
-        type: string
-      - description: 源目录完整路径
-        in: query
-        name: source_directory_path
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            $ref: '#/definitions/dto.GetHubPushFormInfoResp'
-      security:
-      - ApiKeyAuth: []
-      summary: 获取推送表单信息
-      tags:
-      - 服务目录
-  /workspace/api/v1/service_tree/publish_to_hub:
-    post:
-      consumes:
-      - application/json
-      description: 将指定目录及其所有子目录发布到 Hub 市场
-      parameters:
-      - description: JWT Token
-        in: header
-        name: X-Token
-        required: true
-        type: string
-      - description: 发布目录请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.PublishDirectoryToHubReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 发布成功
-          schema:
-            $ref: '#/definitions/dto.PublishDirectoryToHubResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "401":
-          description: 未授权
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      security:
-      - ApiKeyAuth: []
-      summary: 发布目录到 Hub
-      tags:
-      - 服务目录
-  /workspace/api/v1/service_tree/pull_from_hub:
-    post:
-      consumes:
-      - application/json
-      description: 使用 Hub 链接从 Hub 拉取目录到工作空间（类似 git pull）
-      parameters:
-      - description: JWT Token
-        in: header
-        name: X-Token
-        required: true
-        type: string
-      - description: 拉取目录请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.PullDirectoryFromHubReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 拉取成功
-          schema:
-            $ref: '#/definitions/dto.PullDirectoryFromHubResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "401":
-          description: 未授权
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      security:
-      - ApiKeyAuth: []
-      summary: 从 Hub 拉取目录
-      tags:
-      - 服务目录
-  /workspace/api/v1/service_tree/push_to_hub:
-    post:
-      consumes:
-      - application/json
-      description: 推送目录更新到 Hub（类似 git push），更新已发布的目录
-      parameters:
-      - description: JWT Token
-        in: header
-        name: X-Token
-        required: true
-        type: string
-      - description: 推送目录请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.PushDirectoryToHubReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 推送成功
-          schema:
-            $ref: '#/definitions/dto.PushDirectoryToHubResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "401":
-          description: 未授权
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      security:
-      - ApiKeyAuth: []
-      summary: 推送目录到 Hub
       tags:
       - 服务目录
   /workspace/api/v1/service_tree/search_functions:
