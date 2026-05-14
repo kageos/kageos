@@ -1876,7 +1876,6 @@ func requiredMySQLDatabases(rt RuntimeConfig) []string {
 		rt.MySQL.StorageDatabase,
 		rt.MySQL.AgentDatabase,
 		rt.MySQL.HRDatabase,
-		"hub",
 	})
 }
 

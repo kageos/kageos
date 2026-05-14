@@ -282,9 +282,6 @@ interface Emits {
   (e: 'bulk-delete', nodes: ServiceTree[]): void
   (e: 'refresh-tree'): void  // 刷新树（复制粘贴后需要刷新）
   (e: 'update-history', node?: ServiceTree): void  // 显示变更记录（工作空间或目录）
-  (e: 'publish-to-hub', node: ServiceTree): void  // 发布到 Hub
-  (e: 'push-to-hub', node: ServiceTree): void  // 推送到 Hub
-  (e: 'pull-from-hub', initialLink?: string, targetFullCodePath?: string, targetName?: string): void  // 从 Hub 拉取，可选预填链接与目标目录（路径+名称）
 }
 
 const props = defineProps<Props>()
@@ -318,17 +315,13 @@ const treeProps = {
 
 const {
   copiedDirectory,
-  copiedHubLink,
   handleCopy,
   handlePaste
 } = useServiceTreeClipboard({
   treeData: groupedTreeData,
   currentFunction: computed(() => props.currentFunction),
   currentNodeId: computed(() => props.currentNodeId),
-  onRefreshTree: () => emit('refresh-tree'),
-  onPullFromHub: (initialLink, targetFullCodePath, targetName) => {
-    emit('pull-from-hub', initialLink, targetFullCodePath, targetName)
-  }
+  onRefreshTree: () => emit('refresh-tree')
 })
 
 const rootFullCodePath = computed(() => props.treeData[0]?.full_code_path || '')
@@ -536,8 +529,7 @@ const getDefaultPermissionApplyAction = (node: ServiceTree): string => {
 
 function getNodeActions(data: ServiceTree) {
   return getServiceTreeNodeActions(data, {
-    hasCopiedDirectory: Boolean(copiedDirectory.value),
-    hasCopiedHubLink: featureFlags.hub && Boolean(copiedHubLink.value)
+    hasCopiedDirectory: Boolean(copiedDirectory.value)
   })
 }
 
@@ -900,12 +892,6 @@ const handleNodeAction = (command: ServiceTreeNodeActionCommand, data: ServiceTr
     case 'delete-directory':
       emit('delete-directory', data)
       return
-    case 'publish-to-hub':
-      emit('publish-to-hub', data)
-      return
-    case 'push-to-hub':
-      emit('push-to-hub', data)
-      return
     case 'update-history':
       emit('update-history', data)
       return
@@ -926,14 +912,6 @@ const handleNodeAction = (command: ServiceTreeNodeActionCommand, data: ServiceTr
       return exhaustive
     }
   }
-}
-
-// 处理从应用中心安装按钮点击
-const handlePullFromHubClick = () => {
-  if (!featureFlags.hub) {
-    return
-  }
-  emit('pull-from-hub')
 }
 
 // 获取函数图标组件（根据 template_type）

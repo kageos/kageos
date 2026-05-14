@@ -16,7 +16,6 @@ logs/
 dist/
 bin/
 /app
-enterprise_impl/hub/backend/app
 # 运行时目录
 run/
 namespace/
@@ -34,9 +33,8 @@ plan/
 .cursor/
 .claude/
 blueprint/
-# enterprise_impl/ 和 hub/ 现在是 Git Submodule，不需要忽略
+# enterprise_impl/ 保留主仓库内的企业扩展实现；独立 Hub 已移除，后续重写时再重新规划目录边界
 # enterprise_impl/
-# hub/
 licenses/
 license.json
 license_enterprise_1year.json

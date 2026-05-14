@@ -54,8 +54,6 @@ export const TERMINOLOGY = {
   apiDetail: 'API 接口详情',
   
   // 其他
-  publishToHub: '发布到应用市场',
-  cloneFromHub: '从应用市场克隆',
 } as const
 
 /**

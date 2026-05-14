@@ -34,9 +34,7 @@ const GENERATED_ARTIFACT_TOOL_NAMES = new Set([
   'write_go_file',
   'write_doc',
   'create_directory',
-  'copy_directory',
-  'push_to_hub',
-  'publish_to_hub'
+  'copy_directory'
 ])
 
 const ARTIFACT_IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'avif'])

@@ -32,8 +32,6 @@ export type ServiceTreeNodeActionCommand =
   | 'delete-function'
   | 'delete-doc'
   | 'delete-board'
-  | 'publish-to-hub'
-  | 'push-to-hub'
   | 'update-history'
   | 'approve-permission'
   | 'manage-permission'
@@ -47,7 +45,6 @@ export interface ServiceTreeNodeAction {
 
 export interface ServiceTreeNodeActionOptions {
   hasCopiedDirectory?: boolean
-  hasCopiedHubLink?: boolean
 }
 
 export function getServiceTreeNodeActions(
@@ -115,7 +112,7 @@ export function getServiceTreeNodeActions(
       label: '粘贴',
       icon: DocumentChecked,
       visible: data.type === 'package'
-        && (Boolean(options.hasCopiedDirectory) || (featureFlags.hub && Boolean(options.hasCopiedHubLink)))
+        && Boolean(options.hasCopiedDirectory)
         && hasPermission(data, DirectoryPermission.write)
     },
     {
@@ -135,18 +132,6 @@ export function getServiceTreeNodeActions(
       label: '删除讨论区',
       icon: Delete,
       visible: data.type === 'board' && hasPermission(data, DirectoryPermission.delete)
-    },
-    {
-      command: 'publish-to-hub',
-      label: '发布到 Hub',
-      icon: Upload,
-      visible: featureFlags.hub && data.type === 'package' && !data.hub_full_code_path && hasPermission(data, DirectoryPermission.read)
-    },
-    {
-      command: 'push-to-hub',
-      label: '推送到 Hub',
-      icon: Upload,
-      visible: featureFlags.hub && data.type === 'package' && Boolean(data.hub_full_code_path) && hasPermission(data, DirectoryPermission.write)
     }
   ]
 

@@ -44,7 +44,7 @@
 
 ### 1.4 产品聚焦模式
 
-前端通过 `src/config/features.ts` 管理可见能力。`VITE_AOS_FOCUSED_MODE` 默认开启；开启后，组织、权限、消息、Hub、定时任务、操作日志、讨论区、企业升级等高级入口默认隐藏，但路由和后端接口仍保留兼容。
+前端通过 `src/config/features.ts` 管理可见能力。`VITE_AOS_FOCUSED_MODE` 默认开启；开启后，组织、权限、消息、定时任务、操作日志、讨论区、企业升级等高级入口默认隐藏，但路由和后端接口仍保留兼容。
 
 常用开关：
 
@@ -54,7 +54,6 @@
 | `VITE_AOS_FEATURE_ORGANIZATION` | 未设置时仅完整模式开启 |
 | `VITE_AOS_FEATURE_PERMISSIONS` | 未设置时仅完整模式开启 |
 | `VITE_AOS_FEATURE_MESSAGES` | 未设置时仅完整模式开启 |
-| `VITE_AOS_FEATURE_HUB` | 未设置时仅完整模式开启 |
 | `VITE_AOS_FEATURE_SCHEDULED_TASKS` | 未设置时仅完整模式开启 |
 | `VITE_AOS_FEATURE_OPERATE_LOGS` | 未设置时仅完整模式开启 |
 | `VITE_AOS_FEATURE_BOARD` | 未设置时仅完整模式开启 |

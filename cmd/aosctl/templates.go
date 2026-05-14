@@ -213,7 +213,6 @@ CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.TimerSchedulerDatabase }} CHA
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.StorageDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.AgentDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.HRDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE IF NOT EXISTS {{ mysqlIdent "hub" }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 `
 
 const globalConfigTemplate = `

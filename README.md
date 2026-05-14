@@ -2017,7 +2017,6 @@ AI-Agent-OS 是一个 AI 原生的企业应用操作系统。它不是普通聊�
 - 权限审批：`enterprise_impl/permission/service/approval_service.go`
 - 权限继承计算：`enterprise_impl/permission/service/permission_calculator_v2.go`
 - 操作日志：`enterprise_impl/operatelog/service/operate_log.go`
-- Hub 目录发布与版本：`enterprise_impl/hub/backend/service/directory_service.go`
 - 官方工具样例：`namespace/system/tools/code/api/video/video_convert.go`
 - 行业案例样例：`namespace/luobei/case/code/api/hair_salon/hair_cashier.go`
 
