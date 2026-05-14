@@ -70,7 +70,7 @@ func (r *FunctionRepository) GetFunctionByID(id int64) (*model.Function, error) 
 	return &function, nil
 }
 
-// GetFunctionsByIDs 根据 ID 列表批量获取函数（用于推送到 Hub 时填充 request/response）
+// GetFunctionsByIDs 根据 ID 列表批量获取函数
 func (r *FunctionRepository) GetFunctionsByIDs(ids []int64) ([]*model.Function, error) {
 	if len(ids) == 0 {
 		return nil, nil

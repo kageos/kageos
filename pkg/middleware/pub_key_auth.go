@@ -13,7 +13,7 @@ type PubKeyValidator func(key string) (username string, err error)
 
 // JWTOrPubKeyAuth 支持 JWT 或 Pub Key 认证的中间件
 // 优先校验 X-Pub-Key（validator），再走 JWT；用户身份只信 Token 或 Pub Key，不信任裸的 X-Request-User
-// validator 由调用方提供（如 Hub Backend 直接查自己的 DB）
+// validator 由调用方提供，通常直接校验调用方自己的 key 存储
 func JWTOrPubKeyAuth(validator PubKeyValidator) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 1. 优先 Pub Key（X-Pub-Key + validator，防伪造）

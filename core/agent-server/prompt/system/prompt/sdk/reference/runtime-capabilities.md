@@ -67,7 +67,7 @@ if err := ctx.APICall(http.MethodGet, "/workspace/api/v1/permission/workspace?"+
 - 直连平台数据库。
 - 绕过 app-server 权限检查。
 
-权限、审批、审计、操作日志、消息等平台领域，优先走 `platform_engineer` 角色和 `/system/openapi` 函数。Hub 相关 OpenAPI 暂不暴露。
+权限、审批、审计、操作日志、消息等平台领域，优先走 `platform_engineer` 角色和 `/system/openapi` 函数。
 
 ## 当前用户和上下文
 
