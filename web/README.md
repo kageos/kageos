@@ -31,16 +31,16 @@
 - ✅ **动态组件渲染系统**：根据后端配置动态渲染表单、表格等组件
 - ✅ **分层架构设计**：Presentation → Application → Domain → Infrastructure
 - ✅ **领域导向的工程组织**：主业务页面、流程编排、领域逻辑、基础设施分层清晰
-- ✅ **渐进式收边界**：主页面已迁入 `architecture/`，公共底座由 `architecture/runtime`、`shared`、`utils` 承担
+- ✅ **统一架构根**：前端源码统一收口在 `src/architecture/`，展示、领域、应用、基础设施与运行时底座各自归层
 - ✅ **事件驱动架构**：组件间通过事件总线解耦
 
 ### 1.3 当前状态说明
 
-- 工作空间、工作台等主页面入口已经迁移到 `src/architecture/`
-- `src/architecture/runtime/`、`src/architecture/presentation/shared/`、`src/architecture/runtime/utils/` 仍然是当前线上主链路正在使用的公共底座
-- `src/architecture/presentation/views/` 目前基本只保留错误页等少量遗留页面
+- 前端源码入口已经统一收口到 `src/architecture/`
+- `src/architecture/presentation/` 承载页面、业务入口、共享展示组件、Widget 和样式资源
+- `src/architecture/runtime/` 承载运行时底座、工具函数、提取器、校验和 Widget 运行时纯逻辑
 - 默认启用产品聚焦模式，普通用户入口优先保留工作空间、服务树、工作台、Form/Table/Chart、Docs 和 LLM 管理；组织、消息、操作日志、定时任务等入口由 `src/architecture/infrastructure/config/features.ts` 统一控制
-- 因此前端当前真实状态是：**主页面已迁到 `architecture/`，底层能力已收口为 `architecture/runtime` 运行时底座**
+- 因此前端当前真实状态是：**源码目录已经统一到 `architecture/`，不再保留顶层新旧混合入口**
 
 ### 1.4 产品聚焦模式
 
@@ -130,12 +130,8 @@ web/
 │   │   ├── application/                 # 应用服务：流程编排
 │   │   ├── domain/                      # 领域服务、接口、类型
 │   │   ├── infrastructure/              # API、事件总线、状态管理、Widget 注册
-│   │   ├── presentation/                # views / components / widgets / composables
+│   │   ├── presentation/                # views / features / shared / widgets / composables / assets / styles
 │   │   └── runtime/                     # 表单状态、Widget 运行时、校验、共享常量
-│   ├── features/                        # agent / auth / permission / user 等功能模块
-│   ├── shared/                          # 共享组件、富文本与通用展示能力
-│   ├── utils/                           # 通用工具函数
-│   ├── views/                           # 遗留页面（当前基本只剩错误页）
 │   ├── App.vue
 │   └── main.ts
 └── README.md
@@ -178,17 +174,13 @@ web/
 - 新增基础常量/校验能力 → `constants/` / `validation/`
 - 新增底层工具函数 → `utils/`
 
-#### 🧩 shared/ / features/ / utils/
+#### 🧩 presentation/features/ / presentation/shared/
 
 **作用**：
 
-- `shared/`：跨业务共享组件、富文本编辑器、通用展示组件
-- `features/`：组织、用户、消息等横向功能模块
-- `utils/`：与具体架构层无关的通用工具函数
-
-#### 📄 views/
-
-**作用**：遗留页面目录。当前主业务路由已切到 `architecture/presentation/views/`，这里只保留少量兼容页面与错误页。
+- `presentation/features/`：组织、用户、认证、消息、Agent 配置等横向业务入口
+- `presentation/shared/`：跨业务共享组件、富文本编辑器、通用展示组件
+- `runtime/utils/`：与具体页面无关的运行时工具函数
 
 ---
 
@@ -993,7 +985,7 @@ const handleSearch = debounce((keyword: string) => {
 
 ```typescript
 const HeavyComponent = defineAsyncComponent(() =>
-  import('@/components/HeavyComponent.vue')
+  import('@/architecture/presentation/components/HeavyComponent.vue')
 )
 ```
 

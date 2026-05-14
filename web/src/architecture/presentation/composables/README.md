@@ -35,7 +35,7 @@ const { currentEnvironment, switchEnvironment } = useAppEnvironment()
 - ✅ 样式定义
 - ✅ 事件处理
 
-## 待实现的 Composables
+## 扩展方向
 
 ### useFunctionRenderer
 负责函数渲染相关逻辑：
@@ -49,37 +49,8 @@ const { currentEnvironment, switchEnvironment } = useAppEnvironment()
 - 表单验证执行
 - 错误信息展示
 
-## 优势
+## 使用方式
 
-### 相比旧版本（所有逻辑堆在组件里）
-
-❌ **旧版本问题**：
-- 单个组件 4800+ 行代码
-- 逻辑混乱，难以维护
-- 无法复用
-- 难以测试
-
-✅ **新版本优势**：
-- 逻辑清晰，职责明确
-- 代码复用率高
-- 易于单元测试
-- 便于扩展和维护
-
-### 代码对比
-
-**旧版本**（所有逻辑堆在组件里）：
-```vue
-<template>
-  <!-- 4800 行模板 -->
-</template>
-
-<script setup>
-// 1000+ 行逻辑
-// 应用管理 + 服务树 + 表单 + 表格 + 验证 + ...
-</script>
-```
-
-**新版本**（新架构）：
 ```vue
 <template>
   <!-- 纯 UI 展示 -->
@@ -89,16 +60,12 @@ const { currentEnvironment, switchEnvironment } = useAppEnvironment()
 import { serviceFactory } from '@/architecture/infrastructure/factories'
 import { eventBus } from '@/architecture/infrastructure/eventBus'
 
-// 使用新架构的服务
 const applicationService = serviceFactory.getWorkspaceApplicationService()
 const stateManager = serviceFactory.getWorkspaceStateManager()
 
-// 从状态管理器获取状态
 const serviceTree = computed(() => stateManager.getServiceTree())
 </script>
 ```
-
-**注意**：旧版本的 `useAppManager`、`useServiceTree`、`useWorkspaceTabs` 已迁移到新架构，不再使用 Composables 模式。
 
 ## 最佳实践
 
@@ -123,4 +90,4 @@ const serviceTree = computed(() => stateManager.getServiceTree())
 - ✅ **易于测试**
 - ✅ **易于维护**
 
-**永远记住**：避免屎山，从组件化开始！🚀
+组合式函数优先表达可复用交互逻辑；跨页面流程编排继续放在 application/domain/infrastructure 对应层。

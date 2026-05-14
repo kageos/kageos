@@ -12,7 +12,7 @@ architecture/
 └── infrastructure/   # Infrastructure Layer (基础设施层)
 ```
 
-跨业务域复用、但不属于 workspace 专属链路的组件，统一放到 `src/architecture/presentation/shared`。
+跨业务域复用、但不属于 workspace 专属链路的展示组件，统一放到 `src/architecture/presentation/shared`。
 
 ## 架构说明
 
@@ -25,12 +25,12 @@ architecture/
 1. **分层组织**：页面渲染、流程编排、领域逻辑、基础设施分开
 2. **依赖倒置**：Application/Domain 优先依赖接口，不直接依赖实现
 3. **事件驱动**：使用事件总线实现页面与运行时解耦
-4. **渐进收边界**：主页面在这里演进，但允许复用 `src/architecture/runtime`、`src/architecture/presentation/shared`、`src/architecture/runtime/utils`
+4. **统一架构根**：源码入口统一在 `src/architecture`，各层只暴露自己的职责边界
 
 ## 当前状态
 
 - ✅ 工作空间、工作台、表单/表格/图表等主页面已在这里运行
 - ✅ `application/domain/infrastructure/presentation` 四层目录已经落地
 - ✅ 架构内类型入口已统一收口到 `architecture/domain/types`
-- ⏳ 当前仍会复用 `src/architecture/runtime`、`src/architecture/presentation/shared`、`src/architecture/runtime/utils` 的稳定公共能力
-- ⏳ 当前目标是持续收边界，而不是再做一轮“大迁移”
+- ✅ `runtime`、`presentation/shared`、`presentation/features` 等公共能力已经收口到架构根内
+- ✅ 顶层源码目录不再保留新旧混合入口

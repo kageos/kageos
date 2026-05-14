@@ -26,7 +26,7 @@ export default defineConfig(({ command, mode }) => {
       resolvers: [elementPlusResolver],
     }),
     Components({
-      dirs: ['src/components', 'src/shared/components'],
+      dirs: ['src/architecture/presentation/components', 'src/architecture/presentation/shared/components'],
       resolvers: [elementPlusResolver],
     }),
   ],
