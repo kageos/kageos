@@ -264,7 +264,7 @@ import {
   type ScheduledAgentTaskItem,
   type ScheduledAgentTaskStatus
 } from '@/architecture/infrastructure/api/scheduledAgentTask'
-import UserDisplay from '@/shared/components/UserDisplay.vue'
+import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import ScheduledAgentTaskDialog from './ScheduledAgentTaskDialog.vue'
 import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
 import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'

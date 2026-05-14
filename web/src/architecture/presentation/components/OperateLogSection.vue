@@ -96,7 +96,7 @@
 import { toRef } from 'vue'
 import { Clock } from '@element-plus/icons-vue'
 import { ElIcon, ElEmpty, ElTag, ElCard, ElDivider, ElButton } from 'element-plus'
-import UserDisplay from '@/shared/components/UserDisplay.vue'
+import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import { useOperateLogSection } from '@/architecture/presentation/composables/useOperateLogSection'
 
 interface Props {

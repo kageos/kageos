@@ -201,8 +201,8 @@ import {
   type MiniComposerMentionKind,
   type MiniComposerMentionQuery
 } from './utils/miniComposerMention'
-import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
-import TableIcon from '@/shared/components/icons/TableIcon.vue'
+import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
+import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
 
 const props = defineProps<{
   fullCodePath: string

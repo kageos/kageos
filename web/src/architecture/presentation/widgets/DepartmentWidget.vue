@@ -124,9 +124,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
-import DepartmentDisplay from '@/shared/components/DepartmentDisplay.vue'
-import DepartmentPickerDialog from '@/shared/components/DepartmentPickerDialog.vue'
-import SearchSingleSelectDisplay from '@/shared/components/SearchSingleSelectDisplay.vue'
+import DepartmentDisplay from '@/architecture/presentation/shared/components/DepartmentDisplay.vue'
+import DepartmentPickerDialog from '@/architecture/presentation/shared/components/DepartmentPickerDialog.vue'
+import SearchSingleSelectDisplay from '@/architecture/presentation/shared/components/SearchSingleSelectDisplay.vue'
 import { ElButton, ElIcon } from 'element-plus'
 import { OfficeBuilding, Edit, Close } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'

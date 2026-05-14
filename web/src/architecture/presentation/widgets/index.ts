@@ -19,7 +19,7 @@ export { default as FilesWidget } from './FilesWidget.vue'
 export { default as DateTimeWidget } from './DateTimeWidget.vue'
 export { default as FormWidget } from './FormWidget.vue'
 export { default as TableWidget } from './TableWidget.vue'
-export { default as UserWidget } from '@/shared/components/UserWidget.vue'
+export { default as UserWidget } from '@/architecture/presentation/shared/components/UserWidget.vue'
 
 // 通用组件
-export { default as UserDisplay } from '@/shared/components/UserDisplay.vue'
+export { default as UserDisplay } from '@/architecture/presentation/shared/components/UserDisplay.vue'

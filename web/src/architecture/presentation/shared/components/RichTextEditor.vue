@@ -210,7 +210,7 @@ import type { Slice } from 'prosemirror-model'
 import StarterKit from '@tiptap/starter-kit'
 import { Link } from '@tiptap/extension-link'
 import { Image } from '@tiptap/extension-image'
-import { Video } from '@/shared/tiptap/VideoExtension'
+import { Video } from '@/architecture/presentation/shared/tiptap/VideoExtension'
 import { Underline } from '@tiptap/extension-underline'
 import { Placeholder } from '@tiptap/extension-placeholder'
 import {

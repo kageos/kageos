@@ -245,7 +245,7 @@ import { Search, Loading, Plus, Check, FolderOpened, RefreshRight, Delete } from
 import { getAppList } from '@/architecture/infrastructure/api/app'
 import type { App } from '@/architecture/domain/types'
 import { ElMessage } from 'element-plus'
-import UserDisplay from '@/shared/components/UserDisplay.vue'
+import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 
 interface Props {
   modelValue: boolean

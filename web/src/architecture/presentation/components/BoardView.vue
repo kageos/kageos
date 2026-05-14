@@ -247,7 +247,7 @@ import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
 import { sanitizeHtml } from '@/architecture/runtime/utils/sanitizeHtml'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 
-const VditorEditor = defineAsyncComponent(() => import('@/shared/components/VditorEditor.vue'))
+const VditorEditor = defineAsyncComponent(() => import('@/architecture/presentation/shared/components/VditorEditor.vue'))
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
 

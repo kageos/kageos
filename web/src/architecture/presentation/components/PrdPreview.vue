@@ -310,9 +310,9 @@ import { computed, nextTick, ref, watch } from 'vue'
 import type { Component } from 'vue'
 import { Plus, Search } from '@element-plus/icons-vue'
 import PrdChartPreview from './PrdChartPreview.vue'
-import TableIcon from '@/shared/components/icons/TableIcon.vue'
-import FormIcon from '@/shared/components/icons/FormIcon.vue'
-import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
+import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
+import FormIcon from '@/architecture/presentation/shared/components/icons/FormIcon.vue'
+import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
 
 type PreviewRow = Record<string, unknown>
 type PrdWorkflowStepType = 'table' | 'form' | 'chart'

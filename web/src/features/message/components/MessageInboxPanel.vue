@@ -192,7 +192,7 @@ import {
   type MessageInboxItem
 } from '@/architecture/infrastructure/api/message'
 import { getServiceTreeDetail, type ServiceTreeDetailResp } from '@/architecture/infrastructure/api/service-tree'
-import UserDisplay from '@/shared/components/UserDisplay.vue'
+import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { sanitizeHtml } from '@/architecture/runtime/utils/sanitizeHtml'

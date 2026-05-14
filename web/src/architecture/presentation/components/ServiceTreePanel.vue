@@ -206,9 +206,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { MoreFilled, Document, Download, Delete, Search, Select, Close } from '@element-plus/icons-vue'
-import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
-import TableIcon from '@/shared/components/icons/TableIcon.vue'
-import FormIcon from '@/shared/components/icons/FormIcon.vue'
+import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
+import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
+import FormIcon from '@/architecture/presentation/shared/components/icons/FormIcon.vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { isRootNode } from '@/architecture/runtime/utils/tree-utils'

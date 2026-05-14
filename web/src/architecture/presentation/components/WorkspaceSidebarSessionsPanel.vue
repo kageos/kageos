@@ -261,7 +261,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { ChatDotRound, FolderOpened, Loading, Search, Timer } from '@element-plus/icons-vue'
-import UserDisplay from '@/shared/components/UserDisplay.vue'
+import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
 import type { ScheduledAgentTaskItem } from '@/architecture/infrastructure/api/scheduledAgentTask'
 import type { ScheduledAgentExecutionRecord } from '@/architecture/presentation/composables/useWorkspaceSidebarSessions'

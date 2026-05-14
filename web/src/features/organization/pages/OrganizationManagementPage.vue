@@ -331,8 +331,8 @@ import {
   Refresh,
   Search
 } from '@element-plus/icons-vue'
-import DepartmentTreePanel from '@/shared/components/DepartmentTreePanel.vue'
-import DepartmentDisplay from '@/shared/components/DepartmentDisplay.vue'
+import DepartmentTreePanel from '@/architecture/presentation/shared/components/DepartmentTreePanel.vue'
+import DepartmentDisplay from '@/architecture/presentation/shared/components/DepartmentDisplay.vue'
 import {
   getDepartmentTree,
   createDepartment,
@@ -343,10 +343,10 @@ import {
 } from '@/architecture/infrastructure/api/department'
 import type { UserInfo } from '@/architecture/domain/types'
 import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
-import UserDisplay from '@/shared/components/UserDisplay.vue'
+import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import UserEditDialog from '@/features/user/components/UserEditDialog.vue'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
-import UsersWidget from '@/shared/components/UsersWidget.vue'
+import UsersWidget from '@/architecture/presentation/shared/components/UsersWidget.vue'
 import { WidgetType } from '@/architecture/runtime/constants/widget'
 import type { FieldValue } from '@/architecture/runtime/types/field'
 import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/architecture/runtime/utils/widgetFieldHelpers'

@@ -4,4 +4,4 @@ export type {
   FieldValue,
   WidgetComponentProps,
   WidgetComponentEmits,
-} from '@/shared/types/widget'
+} from '@/architecture/presentation/shared/types/widget'
