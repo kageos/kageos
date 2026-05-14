@@ -195,7 +195,7 @@ import { getServiceTreeDetail, type ServiceTreeDetailResp } from '@/architecture
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
-import { sanitizeHtml } from '@/architecture/runtime/utils/sanitizeHtml'
+import { sanitizeHtml } from '@/architecture/shared/sanitizeHtml'
 import { findNodeByPath } from '@/architecture/domain/utils/serviceTreeUtils'
 
 const props = withDefaults(defineProps<{

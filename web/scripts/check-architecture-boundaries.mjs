@@ -104,6 +104,26 @@ const forbiddenPatterns = [
     message: 'user and permission helpers must be imported from architecture/domain/utils',
   },
   {
+    pattern: /@\/architecture\/runtime\/utils\/functionTypes|src\/architecture\/runtime\/utils\/functionTypes/,
+    message: 'function template type constants must be imported from architecture/domain/constants/functionTypes',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/utils\/(?:goPackageName|widgetFieldHelpers)|src\/architecture\/runtime\/utils\/(?:goPackageName|widgetFieldHelpers)/,
+    message: 'domain helper utilities must be imported from architecture/domain/utils',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/utils\/(?:sanitizeHtml|clone)|src\/architecture\/runtime\/utils\/(?:sanitizeHtml|clone)/,
+    message: 'shared browser-safe utilities must be imported from architecture/shared',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/utils\/(?:downloadZip|ErrorHandler)|src\/architecture\/runtime\/utils\/(?:downloadZip|ErrorHandler)/,
+    message: 'presentation utilities must be imported from architecture/presentation/utils',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/utils\/zIndex|src\/architecture\/runtime\/utils\/zIndex/,
+    message: 'presentation z-index constants must be imported from architecture/presentation/constants/zIndex',
+  },
+  {
     pattern: /@\/architecture\/runtime\/utils\/logger|src\/architecture\/runtime\/utils\/logger/,
     message: 'logger must be imported from architecture/shared/logger',
   },

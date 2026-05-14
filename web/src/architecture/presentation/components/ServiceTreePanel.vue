@@ -212,7 +212,7 @@ import FormIcon from '@/architecture/presentation/shared/components/icons/FormIc
 import { ElMessageBox, ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { isRootNode } from '@/architecture/domain/utils/tree-utils'
-import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
+import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import { exportCapabilityBundle, installCapabilityBundle, updatePackage, updateServiceTreeFunction, updateDocs } from '@/architecture/infrastructure/api/service-tree'
 import { getRuntimeStateSummary, type RuntimeStateSummary } from '@/architecture/infrastructure/api/state'
 import { downloadCapabilityBundleFile, parseCapabilityBundleJson } from '@/architecture/presentation/utils/directoryBundleFile'

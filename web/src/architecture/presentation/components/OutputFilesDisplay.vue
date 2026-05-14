@@ -73,7 +73,7 @@ import { resolveFileRefs, type ResolvedFile } from '@/architecture/infrastructur
 import type { ToolResultMetadata } from '@/architecture/infrastructure/api/workspace'
 import { extractFileGroupsFromResult, type OutputFileGroup, type OutputFileItem } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { normalizeStorageFileDisplayUrl } from '@/architecture/presentation/utils/storageFileUrl'
-import { createZipBlob, type ZipEntryInput } from '@/architecture/runtime/utils/downloadZip'
+import { createZipBlob, type ZipEntryInput } from '@/architecture/presentation/utils/downloadZip'
 
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.ico', '.avif'])
 

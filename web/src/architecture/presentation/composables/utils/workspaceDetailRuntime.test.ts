@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FunctionDetail } from '@/architecture/domain/interfaces/IFunctionLoader'
-import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
+import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import {
   buildDetailLookupSearchRequest,
   buildDetailEditFormState,

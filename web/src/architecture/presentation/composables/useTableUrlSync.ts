@@ -1,4 +1,4 @@
-import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
+import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import { isLinkNavigation } from '@/architecture/shared/routing/linkNavigation'
 import { RouteSource } from '@/architecture/shared/routing/routeSource'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'

@@ -87,7 +87,7 @@
 <script setup lang="ts">
 import { DataLine, Document, Grid } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/architecture/domain/types'
-import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
+import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
 import FormIcon from '@/architecture/presentation/shared/components/icons/FormIcon.vue'

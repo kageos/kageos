@@ -68,13 +68,13 @@
  */
 
 import { ref, computed } from 'vue'
-import { deepClone } from '@/architecture/runtime/utils/clone'
+import { deepClone } from '@/architecture/shared/clone'
 import { useRoute, useRouter } from 'vue-router'
 import { ElNotification, ElMessage } from 'element-plus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { eventBus, RouteEvent, TableEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
-import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
+import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import type { FieldConfig, FieldValue, FunctionDetail } from '../../domain/types'
 import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
