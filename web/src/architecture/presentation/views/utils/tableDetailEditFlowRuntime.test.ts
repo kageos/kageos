@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { IApiClient } from '@/architecture/domain/interfaces/IApiClient'
 import type { IEventBus } from '@/architecture/domain/interfaces/IEventBus'
+import type { IFormGateway } from '@/architecture/domain/interfaces/IFormGateway'
 import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
 import { getChangedFields } from '@/architecture/runtime/utils/objectDiff'
 import { TableDomainService } from '@/architecture/domain/services/TableDomainService'
@@ -40,12 +40,9 @@ function createMockEventBus(): IEventBus {
   }
 }
 
-const apiClientStub = {
-  get: async () => ({}),
-  post: async () => ({}),
-  put: async () => ({}),
-  delete: async () => ({})
-} as IApiClient
+const formGatewayStub: IFormGateway = {
+  submitForm: async () => ({})
+}
 
 function createMutableTableStateManager(initialState?: Partial<TableState>) {
   let state: TableState = {
@@ -175,7 +172,7 @@ describe('table detail edit flow runtime', () => {
   it('hydrates edit form state from detail row and keeps only changed fields for update submit', () => {
     const runtime = createFormViewRuntime({
       eventBus: createMockEventBus(),
-      apiClient: apiClientStub
+      formGateway: formGatewayStub
     })
 
     const editFunctionDetail = {
@@ -357,7 +354,7 @@ describe('table detail edit flow runtime', () => {
 
     const formRuntime = createFormViewRuntime({
       eventBus: createMockEventBus(),
-      apiClient: apiClientStub
+      formGateway: formGatewayStub
     })
     formRuntime.applicationService.initializeForm(editRequest, filteredInitialData, true)
     formRuntime.applicationService.updateFieldValue('name', {

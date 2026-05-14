@@ -90,8 +90,8 @@
 
 import { watch, nextTick } from 'vue'
 import type { Router, RouteLocationNormalized } from 'vue-router'
-import type { IEventBus } from '../../domain/interfaces/IEventBus'
-import { RouteEvent } from '../../domain/interfaces/IEventBus'
+import type { IEventBus } from '../../../domain/interfaces/IEventBus'
+import { RouteEvent } from '../../../domain/interfaces/IEventBus'
 import { TABLE_PARAM_KEYS } from '@/architecture/runtime/utils/urlParams'
 import { isLinkNavigation as isLinkNavCheck } from '@/architecture/runtime/utils/linkNavigation'
 import {

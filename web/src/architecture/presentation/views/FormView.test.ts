@@ -4,6 +4,8 @@ import { createPinia } from 'pinia'
 import { computed, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 
+const formGatewaySubmitMock = vi.hoisted(() => vi.fn(async () => ({})))
+
 vi.mock('vue-router', () => ({
   createRouter: () => ({
     beforeEach: vi.fn(),
@@ -53,16 +55,10 @@ vi.mock('../../infrastructure/factories', () => ({
     }),
     getWorkspaceDomainService: () => ({
       loadFunction: vi.fn()
+    }),
+    getFormGateway: () => ({
+      submitForm: formGatewaySubmitMock
     })
-  }
-}))
-
-vi.mock('../../infrastructure/apiClient', () => ({
-  apiClient: {
-    get: vi.fn(async () => ({})),
-    post: vi.fn(async () => ({})),
-    put: vi.fn(async () => ({})),
-    delete: vi.fn(async () => ({}))
   }
 }))
 
@@ -103,7 +99,6 @@ vi.mock('@/architecture/infrastructure/config/features', () => ({
 }))
 
 import FormView from './FormView.vue'
-import { apiClient } from '../../infrastructure/apiClient'
 
 const sliderField = {
   code: 'progress',
@@ -206,7 +201,7 @@ describe('FormView', () => {
   it('shows inline and viewport error feedback when submit returns a business error', async () => {
     const notificationErrorSpy = vi.spyOn(ElNotification, 'error').mockImplementation(() => undefined as any)
 
-    vi.mocked(apiClient.post).mockResolvedValueOnce({
+    formGatewaySubmitMock.mockResolvedValueOnce({
       code: -1,
       data: null,
       msg: '余额不足，请充值后重试'

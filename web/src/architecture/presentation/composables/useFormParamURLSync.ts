@@ -82,7 +82,7 @@
  * ============================================
  *
  * - URL 同步工具：`web/src/architecture/presentation/composables/utils/urlSyncUtils.ts`
- * - 路由管理器：`web/src/architecture/infrastructure/routeManager/RouteManager.ts`
+ * - 路由管理器：`web/src/architecture/presentation/router/routeManager/RouteManager.ts`
  */
 
 import { watch, computed, type Ref, type ComputedRef } from 'vue'

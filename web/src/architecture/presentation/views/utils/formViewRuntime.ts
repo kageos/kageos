@@ -1,11 +1,10 @@
 import { createPinia } from 'pinia'
 import { FormApplicationService } from '@/architecture/application/services/FormApplicationService'
-import type { IApiClient } from '@/architecture/domain/interfaces/IApiClient'
 import type { IEventBus } from '@/architecture/domain/interfaces/IEventBus'
+import type { IFormGateway } from '@/architecture/domain/interfaces/IFormGateway'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { FormDomainService } from '@/architecture/domain/services/FormDomainService'
 import { FormStateManager } from '@/architecture/infrastructure/stateManager/FormStateManager'
-import { FormGatewayImpl } from '@/architecture/infrastructure/formGateway'
 import { useFormDataStore, type FormDataStore } from '@/architecture/runtime/stores/formData'
 import { useResponseDataStore } from '@/architecture/runtime/stores/responseData'
 import { createEmptyFieldValue } from '@/architecture/runtime/utils/createFieldValue'
@@ -13,7 +12,7 @@ import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 
 export function createFormViewRuntime(options: {
   eventBus: IEventBus
-  apiClient: IApiClient
+  formGateway: IFormGateway
 }) {
   const scopedFormPinia = createPinia()
   const formDataStore = useFormDataStore(scopedFormPinia)
@@ -22,8 +21,7 @@ export function createFormViewRuntime(options: {
   const domainService = new FormDomainService(stateManager, options.eventBus, [], {
     getAuthStore: () => useAuthStore()
   })
-  const formGateway = new FormGatewayImpl(options.apiClient)
-  const applicationService = new FormApplicationService(domainService, options.eventBus, formGateway)
+  const applicationService = new FormApplicationService(domainService, options.eventBus, options.formGateway)
 
   return {
     scopedFormPinia,

@@ -230,11 +230,9 @@ describe('workspaceDetailRuntime', () => {
 
   it('builds a standalone detail lookup search request without mutating table state', () => {
     expect(buildDetailLookupSearchRequest({
-      detail: tableFunctionDetail,
       idFieldCode: 'id',
       rowId: '42'
     })).toEqual({
-      url: '/workspace/api/v1/table/search/members',
       params: {
         id: '42',
         page: 1,

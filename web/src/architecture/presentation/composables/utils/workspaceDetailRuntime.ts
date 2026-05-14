@@ -1,5 +1,6 @@
 import type { FieldConfig } from '@/architecture/domain/types'
 import type { FunctionDetail } from '@/architecture/domain/types'
+import type { TableSearchParams } from '@/architecture/domain/types'
 import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
 import { deleteFieldQueryKey } from '@/architecture/runtime/utils/queryParamKeys'
 import {
@@ -33,9 +34,8 @@ export interface DetailRowMatch<T extends Record<string, any> = Record<string, a
 
 export type DetailRestoreTrigger = 'setup' | 'route-change' | 'function-loaded' | 'table-data-loaded'
 
-export interface DetailLookupSearchRequest {
-  url: string
-  params: Record<string, any>
+export interface DetailLookupSearchParams {
+  params: TableSearchParams
 }
 
 export function buildEditFunctionDetail(current: FunctionDetail | null): FunctionDetail | null {
@@ -201,16 +201,10 @@ export function findDetailIdField(detail: FunctionDetail | null): FieldConfig | 
 }
 
 export function buildDetailLookupSearchRequest(options: {
-  detail: FunctionDetail
   idFieldCode: string
   rowId: string
-}): DetailLookupSearchRequest {
-  const fullCodePath = options.detail.router?.startsWith('/')
-    ? options.detail.router
-    : `/${options.detail.router || ''}`
-
+}): DetailLookupSearchParams {
   return {
-    url: `/workspace/api/v1/table/search${fullCodePath}`,
     params: {
       [options.idFieldCode]: options.rowId,
       page: 1,
