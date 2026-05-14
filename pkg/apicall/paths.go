@@ -42,15 +42,3 @@ func normalizeWorkspaceFunctionPath(fullCodePath string) string {
 	}
 	return "/" + trimmed
 }
-
-func buildHubAPIURL(host, path string, queryParams url.Values) string {
-	return normalizeHubURL(host) + buildPathWithQuery(path, queryParams)
-}
-
-func normalizeHubURL(host string) string {
-	normalized := strings.TrimSpace(host)
-	if !strings.HasPrefix(normalized, "http://") && !strings.HasPrefix(normalized, "https://") {
-		normalized = "http://" + normalized
-	}
-	return strings.TrimSuffix(normalized, "/")
-}
