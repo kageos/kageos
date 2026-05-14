@@ -5,7 +5,7 @@
 
 import { WidgetType } from '@/architecture/domain/constants/widget'
 import { SearchType } from '@/architecture/domain/constants/search'
-import { parseCommaSeparatedString } from '@/architecture/runtime/utils/stringUtils'
+import { parseCommaSeparatedString } from '@/architecture/domain/utils/stringUtils'
 import type { FieldConfig } from '@/architecture/domain/types/field'
 
 /**

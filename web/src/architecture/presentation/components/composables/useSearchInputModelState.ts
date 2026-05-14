@@ -1,8 +1,8 @@
 import { computed, nextTick, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
-import { normalizeSearchValue } from '@/architecture/runtime/utils/searchValueNormalizer'
+import { normalizeSearchValue } from '@/architecture/domain/utils/searchValueNormalizer'
 import { SearchComponent, SearchConfig, SearchType } from '@/architecture/domain/constants/search'
 import { WidgetType } from '@/architecture/domain/constants/widget'
-import { parseCommaSeparatedString } from '@/architecture/runtime/utils/stringUtils'
+import { parseCommaSeparatedString } from '@/architecture/domain/utils/stringUtils'
 import type { FieldConfig } from '@/architecture/domain/types'
 import type { SearchInputConfig } from '../utils/searchInputTypes'
 

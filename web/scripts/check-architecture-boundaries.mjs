@@ -76,6 +76,10 @@ const forbiddenPatterns = [
     message: 'field helper utilities must be imported from architecture/domain/utils',
   },
   {
+    pattern: /@\/architecture\/runtime\/utils\/(?:searchValueNormalizer|searchParams|stringUtils|widgetConfigFlag)|src\/architecture\/runtime\/utils\/(?:searchValueNormalizer|searchParams|stringUtils|widgetConfigFlag)/,
+    message: 'search and widget config utilities must be imported from architecture/domain/utils',
+  },
+  {
     pattern: /@\/architecture\/runtime\/utils\/logger|src\/architecture\/runtime\/utils\/logger/,
     message: 'logger must be imported from architecture/shared/logger',
   },

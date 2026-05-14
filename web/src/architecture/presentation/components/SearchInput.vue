@@ -244,7 +244,7 @@ import { widgetComponentFactory } from '@/architecture/presentation/widgets/regi
 import WidgetComponent from '@/architecture/presentation/widgets/WidgetComponent.vue'
 import { ErrorHandler } from '@/architecture/runtime/utils/ErrorHandler'
 import { convertToFieldValue } from '@/architecture/domain/utils/field'
-import { normalizeSearchValue, denormalizeSearchValue } from '@/architecture/runtime/utils/searchValueNormalizer'
+import { normalizeSearchValue, denormalizeSearchValue } from '@/architecture/domain/utils/searchValueNormalizer'
 import { getSearchFieldRawValue, isStoredSearchFieldValue } from '@/architecture/domain/utils/searchFieldValue'
 import { createSearchComponentConfig } from '@/architecture/presentation/components/utils/searchComponentConfig'
 import { SearchConfig, SearchComponent, hasSearchType } from '@/architecture/domain/constants/search'
