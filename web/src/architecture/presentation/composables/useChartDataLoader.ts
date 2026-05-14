@@ -2,7 +2,7 @@ import { onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { executeFunction } from '@/architecture/infrastructure/api/function'
 import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
-import type { Chart } from '@/architecture/runtime/types/chart'
+import type { Chart } from '@/architecture/domain/types/chart'
 
 interface UseChartDataLoaderOptions<TChart extends Chart> {
   functionDetail: ComputedRef<FunctionDetail>
