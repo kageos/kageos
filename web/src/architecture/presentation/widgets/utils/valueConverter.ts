@@ -5,7 +5,7 @@
  * 遵循单一职责原则，统一处理类型转换逻辑
  */
 
-import { DataType } from '@/architecture/runtime/constants/widget'
+import { DataType } from '@/architecture/domain/constants/widget'
 import { Logger } from '@/architecture/shared/logger'
 
 /**

@@ -68,6 +68,10 @@ const forbiddenPatterns = [
     message: 'chart types must be imported from architecture/domain/types/chart',
   },
   {
+    pattern: /@\/architecture\/runtime\/constants\/(?:widget|search|field|select)|src\/architecture\/runtime\/constants\/(?:widget|search|field|select)/,
+    message: 'widget/search/field constants must be imported from architecture/domain/constants',
+  },
+  {
     pattern: /@\/architecture\/runtime\/utils\/logger|src\/architecture\/runtime\/utils\/logger/,
     message: 'logger must be imported from architecture/shared/logger',
   },

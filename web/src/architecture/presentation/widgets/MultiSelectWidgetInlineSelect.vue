@@ -68,7 +68,7 @@
 
 <script setup lang="ts">
 import { ElOption, ElSelect, ElTag } from 'element-plus'
-import type { StandardColorType } from '@/architecture/runtime/constants/select'
+import type { StandardColorType } from '@/architecture/domain/constants/select'
 import type { MultiSelectOptionItem } from './multiSelectWidgetTypes'
 
 withDefaults(defineProps<{

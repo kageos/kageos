@@ -347,7 +347,7 @@ import UserDisplay from '@/architecture/presentation/shared/components/UserDispl
 import UserEditDialog from '@/architecture/presentation/features/user/components/UserEditDialog.vue'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import UsersWidget from '@/architecture/presentation/shared/components/UsersWidget.vue'
-import { WidgetType } from '@/architecture/runtime/constants/widget'
+import { WidgetType } from '@/architecture/domain/constants/widget'
 import type { FieldValue } from '@/architecture/domain/types/field'
 import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/architecture/runtime/utils/widgetFieldHelpers'
 

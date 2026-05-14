@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { WidgetType } from '@/architecture/runtime/constants/widget'
+import { WidgetType } from '@/architecture/domain/constants/widget'
 import { denormalizeSearchValue, normalizeSearchValue } from './searchValueNormalizer'
 
 describe('searchValueNormalizer', () => {

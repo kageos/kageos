@@ -32,7 +32,7 @@
  * ```
  */
 
-import { WidgetType } from '@/architecture/runtime/constants/widget'
+import { WidgetType } from '@/architecture/domain/constants/widget'
 import type { FieldConfig } from '@/architecture/domain/types/field'
 
 /**

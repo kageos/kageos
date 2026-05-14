@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent, h } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MultiSelectWidget from './MultiSelectWidget.vue'
-import { WidgetType } from '@/architecture/runtime/constants/widget'
+import { WidgetType } from '@/architecture/domain/constants/widget'
 
 const { selectFuzzyMock } = vi.hoisted(() => ({
   selectFuzzyMock: vi.fn()
