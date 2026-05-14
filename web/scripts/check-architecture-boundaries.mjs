@@ -84,6 +84,10 @@ const forbiddenPatterns = [
     message: 'routing helpers must be imported from architecture/shared/routing',
   },
   {
+    pattern: /@\/architecture\/runtime\/(?:utils\/objectDiff|tableRuntime\/search)|src\/architecture\/runtime\/(?:utils\/objectDiff|tableRuntime\/search)/,
+    message: 'object diff helpers must be imported from architecture/domain/utils/objectDiff',
+  },
+  {
     pattern: /@\/architecture\/runtime\/utils\/logger|src\/architecture\/runtime\/utils\/logger/,
     message: 'logger must be imported from architecture/shared/logger',
   },
