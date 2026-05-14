@@ -4,7 +4,7 @@
  */
 
 import type { IFieldExtractor, FieldExtractorRegistry } from './FieldExtractor'
-import type { FieldConfig } from '../../types/field'
+import type { FieldConfig } from '@/architecture/domain/types/field'
 
 export class BasicFieldExtractor implements IFieldExtractor {
   extract(

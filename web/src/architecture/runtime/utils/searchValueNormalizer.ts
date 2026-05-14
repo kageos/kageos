@@ -6,7 +6,7 @@
 import { WidgetType } from '@/architecture/runtime/constants/widget'
 import { SearchType } from '@/architecture/runtime/constants/search'
 import { parseCommaSeparatedString } from '@/architecture/runtime/utils/stringUtils'
-import type { FieldConfig } from '@/architecture/runtime/types/field'
+import type { FieldConfig } from '@/architecture/domain/types/field'
 
 /**
  * 值规范化选项

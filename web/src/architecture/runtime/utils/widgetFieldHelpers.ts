@@ -1,4 +1,4 @@
-import type { FieldConfig, FieldValue } from '@/architecture/runtime/types/field'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 import { createFieldValue } from '@/architecture/runtime/utils/createFieldValue'
 
 interface CreateWidgetFieldConfigOptions {

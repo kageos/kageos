@@ -48,12 +48,20 @@ const forbiddenPatterns = [
     message: 'old src directory reference',
   },
   {
-    pattern: /stores-v2/,
-    message: 'removed stores-v2 reference',
+    pattern: /stores-v2|formData-v2|responseData-v2|Widgets-v2/,
+    message: 'removed v2 migration reference',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/types\/field|src\/architecture\/runtime\/types\/field/,
+    message: 'field types must be imported from architecture/domain/types/field',
   },
   {
     pattern: /src\/components|src\/shared\/components/,
     message: 'old component auto-scan directory',
+  },
+  {
+    pattern: /@\/architecture\/infrastructure\/config\/features|src\/architecture\/infrastructure\/config\/features/,
+    message: 'feature flags must live in architecture/runtime/config',
   },
   {
     pattern: /import\s+type\s+\{[^}]*\b(?:FormState|ValidationResult|TableState|TableRow|TableResponse|SearchParams|SortParams|SortItem|WorkspaceState)\b[^}]*\}\s+from\s+['"][^'"]*domain\/services\//,

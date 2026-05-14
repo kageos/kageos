@@ -4,7 +4,7 @@
  * 用于统一处理搜索参数的构建和转换，避免重复代码
  */
 
-import type { FieldConfig } from '@/architecture/runtime/types/field'
+import type { FieldConfig } from '@/architecture/domain/types/field'
 import type { SearchParams } from '@/architecture/domain/types'
 import { getSearchFieldRawValue } from '@/architecture/runtime/utils/searchFieldValue'
 

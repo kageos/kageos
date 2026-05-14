@@ -5,7 +5,7 @@
  * 关键：将 validation 中的 Go 字段名转换为 code（JSON标签）
  */
 
-import type { FieldConfig, FieldValue } from '../types/field'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
 import type { ValidationRule, ValidationResult, ValidationContext } from './types'
 import { ValidatorRegistry } from './ValidatorRegistry'

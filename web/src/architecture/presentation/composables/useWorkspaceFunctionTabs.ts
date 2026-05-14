@@ -6,7 +6,7 @@ import { getScheduledTaskExecution, type ScheduledTaskExecutionItem } from '@/ar
 import type { FunctionDetail } from '@/architecture/domain/types'
 import { Logger } from '@/architecture/runtime/utils/logger'
 import type { ServiceTree } from '../../domain/types'
-import { featureFlags } from '@/architecture/infrastructure/config/features'
+import { featureFlags } from '@/architecture/runtime/config/features'
 
 type FunctionTabName = 'content' | 'detail' | 'operateLog' | 'scheduledTask' | 'scheduledAgentTask'
 type ReplayContext = {

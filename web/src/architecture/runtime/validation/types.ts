@@ -2,7 +2,7 @@
  * 验证系统类型定义
  */
 
-import type { FieldConfig, FieldValue } from '../types/field'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
 
 /**

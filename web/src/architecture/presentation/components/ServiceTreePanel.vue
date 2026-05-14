@@ -224,7 +224,7 @@ import {
   getServiceTreeNodeActions,
   type ServiceTreeNodeActionCommand
 } from '../utils/serviceTreeNodeActions'
-import { featureFlags } from '@/architecture/infrastructure/config/features'
+import { featureFlags } from '@/architecture/runtime/config/features'
 
 interface Props {
   treeData: ServiceTree[]

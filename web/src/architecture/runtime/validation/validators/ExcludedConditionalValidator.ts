@@ -1,4 +1,4 @@
-import type { FieldValue } from '../../types/field'
+import type { FieldValue } from '@/architecture/domain/types/field'
 import type { ValidationContext, ValidationResult, ValidationRule, Validator } from '../types'
 import {
   createExcludedErrorMessage,

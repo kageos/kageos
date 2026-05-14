@@ -6,7 +6,7 @@
 import { WidgetType } from '@/architecture/runtime/constants/widget'
 import { SearchType, SearchComponent, SearchConfig, hasSearchType, hasAllSearchTypes } from '@/architecture/runtime/constants/search'
 import { generatePlaceholder } from '@/architecture/runtime/utils/stringUtils'
-import type { FieldConfig } from '@/architecture/runtime/types/field'
+import type { FieldConfig } from '@/architecture/domain/types/field'
 
 /**
  * 组件配置接口

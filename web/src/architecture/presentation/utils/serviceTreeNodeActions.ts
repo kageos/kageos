@@ -13,7 +13,7 @@ import {
 } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { isRootNode } from '@/architecture/runtime/utils/tree-utils'
-import { featureFlags } from '@/architecture/infrastructure/config/features'
+import { featureFlags } from '@/architecture/runtime/config/features'
 
 export type ServiceTreeNodeActionCommand =
   | 'create-directory'

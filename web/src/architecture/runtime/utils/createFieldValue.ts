@@ -1,4 +1,4 @@
-import type { FieldConfig, FieldValue } from '@/architecture/runtime/types/field'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 
 export function createFieldValue(
   field: FieldConfig,

@@ -11,7 +11,7 @@
  */
 
 import { h } from 'vue'
-import type { FieldConfig } from '@/architecture/runtime/types/field'
+import type { FieldConfig } from '@/architecture/domain/types/field'
 import { convertToFieldValue } from '@/architecture/runtime/utils/field'
 import { widgetComponentFactory } from '@/architecture/presentation/widgets/registry'
 
@@ -48,7 +48,7 @@ export function renderTableCell(
     // 🔥 将原始值转换为 FieldValue 格式
     const value = convertToFieldValue(rawValue, field)
     
-    // 🔥 使用 widgetComponentFactory 获取组件（v2 方式）
+    // 🔥 使用 widgetComponentFactory 获取组件
     const WidgetComponent = widgetComponentFactory.getRequestComponent(
       field.widget?.type || 'input'
     )
@@ -79,10 +79,10 @@ export function renderTableCell(
       componentProps['form-manager'] = formManager
     }
     
-    // 🔥 使用 h() 渲染组件为 VNode（v2 方式）
+    // 🔥 使用 h() 渲染组件为 VNode
     const vnode = h(WidgetComponent, componentProps)
     
-    // 🔥 统一返回 VNode（v2 组件统一返回 VNode）
+    // 🔥 统一返回 VNode
     return {
       content: vnode,
       isString: false

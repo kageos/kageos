@@ -2,7 +2,7 @@
  * 验证工具函数
  */
 
-import type { FieldConfig } from '../types/field'
+import type { FieldConfig } from '@/architecture/domain/types/field'
 
 /**
  * 检查字段是否为必填（仅无条件必填）

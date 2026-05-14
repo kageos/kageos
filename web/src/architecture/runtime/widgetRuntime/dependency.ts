@@ -1,4 +1,4 @@
-import type { FieldConfig } from '@/architecture/runtime/types/field'
+import type { FieldConfig } from '@/architecture/domain/types/field'
 import type { FormDataStore } from '@/architecture/runtime/stores/formData'
 import { clearFieldSubtree, createClearedFieldValue } from './fieldReset'
 

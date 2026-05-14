@@ -248,7 +248,7 @@ import UpgradeEnterpriseDialog from '@/architecture/presentation/shared/componen
 import { Logger } from '@/architecture/runtime/utils/logger'
 import { getMessageUnreadCount } from '@/architecture/infrastructure/api/message'
 import MessageInboxPanel from '@/architecture/presentation/features/message/components/MessageInboxPanel.vue'
-import { featureFlags } from '@/architecture/infrastructure/config/features'
+import { featureFlags } from '@/architecture/runtime/config/features'
 
 defineProps<{
   currentApp: App | null

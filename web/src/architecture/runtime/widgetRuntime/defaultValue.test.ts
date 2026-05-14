@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { WidgetType } from '@/architecture/runtime/constants/widget'
-import type { FieldConfig } from '@/architecture/runtime/types/field'
+import type { FieldConfig } from '@/architecture/domain/types/field'
 import { getWidgetDefaultValue } from './defaultValue'
 import { resolveDynamicDefaultValue } from './dynamicDefaultValue'
 
