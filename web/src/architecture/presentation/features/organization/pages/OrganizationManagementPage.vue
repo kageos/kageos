@@ -344,7 +344,7 @@ import {
 import type { UserInfo } from '@/architecture/domain/types'
 import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
-import UserEditDialog from '@/features/user/components/UserEditDialog.vue'
+import UserEditDialog from '@/architecture/presentation/features/user/components/UserEditDialog.vue'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import UsersWidget from '@/architecture/presentation/shared/components/UsersWidget.vue'
 import { WidgetType } from '@/architecture/runtime/constants/widget'

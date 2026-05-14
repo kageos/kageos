@@ -247,7 +247,7 @@ import GlobalResourceSearchDialog from './GlobalResourceSearchDialog.vue'
 import UpgradeEnterpriseDialog from '@/architecture/presentation/shared/components/UpgradeEnterpriseDialog.vue'
 import { Logger } from '@/architecture/runtime/utils/logger'
 import { getMessageUnreadCount } from '@/architecture/infrastructure/api/message'
-import MessageInboxPanel from '@/features/message/components/MessageInboxPanel.vue'
+import MessageInboxPanel from '@/architecture/presentation/features/message/components/MessageInboxPanel.vue'
 import { featureFlags } from '@/architecture/infrastructure/config/features'
 
 defineProps<{

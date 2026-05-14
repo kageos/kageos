@@ -9,7 +9,7 @@ const router = createRouter({
     {
       path: '/login',
       name: 'login',
-      component: () => import('@/features/auth/pages/LoginPage.vue'),
+      component: () => import('@/architecture/presentation/features/auth/pages/LoginPage.vue'),
       meta: {
         title: '登录',
         requireAuth: false
@@ -18,7 +18,7 @@ const router = createRouter({
     {
       path: '/register',
       name: 'register',
-      component: () => import('@/features/auth/pages/RegisterPage.vue'),
+      component: () => import('@/architecture/presentation/features/auth/pages/RegisterPage.vue'),
       meta: {
         title: '注册',
         requireAuth: false
@@ -27,7 +27,7 @@ const router = createRouter({
     {
       path: '/forgot-password',
       name: 'forgot-password',
-      component: () => import('@/features/auth/pages/ForgotPasswordPage.vue'),
+      component: () => import('@/architecture/presentation/features/auth/pages/ForgotPasswordPage.vue'),
       meta: {
         title: '忘记密码',
         requireAuth: false
@@ -36,7 +36,7 @@ const router = createRouter({
     {
       path: '/create-test-user',
       name: 'create-test-user',
-      component: () => import('@/features/auth/pages/CreateTestUserPage.vue'),
+      component: () => import('@/architecture/presentation/features/auth/pages/CreateTestUserPage.vue'),
       meta: {
         title: '创建测试用户',
         requireAuth: true
@@ -47,7 +47,7 @@ const router = createRouter({
     {
       path: '/user/settings',
       name: 'user-settings',
-      component: () => import('@/features/user/pages/UserSettingsPage.vue'),
+      component: () => import('@/architecture/presentation/features/user/pages/UserSettingsPage.vue'),
       meta: {
         title: '个人设置',
         requireAuth: true
@@ -57,7 +57,7 @@ const router = createRouter({
     {
       path: '/organization',
       name: 'organization-management',
-      component: () => import('@/features/organization/pages/OrganizationManagementPage.vue'),
+      component: () => import('@/architecture/presentation/features/organization/pages/OrganizationManagementPage.vue'),
       meta: {
         title: '组织架构和用户管理',
         requireAuth: true,
@@ -77,7 +77,7 @@ const router = createRouter({
     {
       path: '/agent/llm',
       name: 'llm-management',
-      component: () => import('@/features/agent/pages/LLMManagementPage.vue'),
+      component: () => import('@/architecture/presentation/features/agent/pages/LLMManagementPage.vue'),
       meta: {
         title: 'LLM 管理',
         requireAuth: true,
