@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Message, Check, Loading } from '@element-plus/icons-vue'
 import { register as registerApi, sendEmailCode } from '@/architecture/infrastructure/api/auth'
-import type { RegisterRequest } from '@/types'
+import type { RegisterRequest } from '@/architecture/domain/types'
 
 const router = useRouter()
 

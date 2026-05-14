@@ -1,7 +1,7 @@
 /**
  * 用户信息缓存工具函数
  */
-import type { UserInfo } from '@/types'
+import type { UserInfo } from '@/architecture/domain/types'
 import { USER_INFO_CACHE_CONFIG } from './config'
 
 /**

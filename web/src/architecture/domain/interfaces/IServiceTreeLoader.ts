@@ -8,7 +8,7 @@
  * - 支持缓存和去重
  */
 
-import type { App, ServiceTree } from '@/types'
+import type { App, ServiceTree } from '@/architecture/domain/types'
 
 /**
  * 服务目录树加载结果

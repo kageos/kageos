@@ -9,7 +9,7 @@ import {
   deleteServiceTreeFunction
 } from '@/architecture/infrastructure/api/service-tree'
 import { isRootNode as isRootTreeNode } from '@/utils/tree-utils'
-import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
+import type { App as AppType, ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 
 interface CreateDocsForm {
   name: string

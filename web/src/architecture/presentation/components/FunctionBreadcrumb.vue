@@ -34,7 +34,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ServiceTree } from '@/types'
+import type { ServiceTree } from '@/architecture/domain/types'
 
 interface Props {
   currentNode: ServiceTree | null

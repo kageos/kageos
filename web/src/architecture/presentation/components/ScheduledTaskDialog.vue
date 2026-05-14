@@ -209,7 +209,7 @@ import UserPickerDialog from '@/shared/components/UserPickerDialog.vue'
 import DepartmentPickerDialog from '@/shared/components/DepartmentPickerDialog.vue'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import DepartmentDisplay from '@/shared/components/DepartmentDisplay.vue'
-import type { UserInfo } from '@/types'
+import type { UserInfo } from '@/architecture/domain/types'
 import type { Department } from '@/architecture/infrastructure/api/department'
 
 const props = withDefaults(

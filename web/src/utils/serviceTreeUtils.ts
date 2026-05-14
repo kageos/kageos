@@ -4,7 +4,7 @@
  * 用于处理服务树节点的查找、展开等操作
  */
 
-import type { ServiceTree } from '@/types'
+import type { ServiceTree } from '@/architecture/domain/types'
 
 /**
  * 查找从根节点到目标节点的路径

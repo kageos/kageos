@@ -4,7 +4,7 @@
  * 单一来源：
  * - architecture/runtime/types/field.ts 作为运行时门面继续对外暴露
  * - architecture/domain/types 作为架构内门面对外暴露
- * - 真实定义统一收口在 src/types/field.ts
+ * - 真实定义统一收口在 src/architecture/domain/types/field.ts
  */
 
 /**

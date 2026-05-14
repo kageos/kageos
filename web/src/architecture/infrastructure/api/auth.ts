@@ -1,5 +1,5 @@
 import { get, post } from '@/utils/request'
-import type { UserInfo, LoginRequest, RegisterRequest } from '@/types'
+import type { UserInfo, LoginRequest, RegisterRequest } from '@/architecture/domain/types'
 
 // 用户注册
 export function register(data: RegisterRequest) {

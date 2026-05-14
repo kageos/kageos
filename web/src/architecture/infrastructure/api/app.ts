@@ -1,5 +1,5 @@
 import { get, post, put, del } from '@/utils/request'
-import type { App, CreateAppRequest, CreateAppResponse } from '@/types'
+import type { App, CreateAppRequest, CreateAppResponse } from '@/architecture/domain/types'
 import { buildAppResourcePath, normalizeResourcePath } from '@/utils/resourcePath'
 
 export interface UpdateAppResponse {
@@ -102,7 +102,7 @@ export function getAppWithServiceTree(resourcePath: string, nodeType?: string) {
   params.resource_path = normalizeResourcePath(resourcePath)
   return get<{
     app: App
-    service_tree: import('@/types').ServiceTree[]
+    service_tree: import('@/architecture/domain/types').ServiceTree[]
     expanded_keys?: number[] // ⭐ 需要自动展开的节点ID列表（包含所有 pending_count > 0 的节点及其父节点）
   }>('/workspace/api/v1/app/tree', params)
 }

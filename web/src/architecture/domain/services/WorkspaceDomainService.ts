@@ -20,7 +20,7 @@ import type { IServiceTreeLoader } from '../interfaces/IServiceTreeLoader'
 import { WorkspaceEvent } from '../interfaces/IEventBus'
 import type { FunctionDetail } from '../types'
 
-import type { App, ServiceTree } from '@/types'
+import type { App, ServiceTree } from '@/architecture/domain/types'
 import { Logger } from '@/architecture/runtime/utils/logger'
 export type { App, ServiceTree }
 

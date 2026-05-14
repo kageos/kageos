@@ -16,7 +16,7 @@ runtime/
 ├── constants/       # 共享常量
 ├── managers/        # 运行期管理器
 ├── stores/       # 表单/响应数据存储与提取器
-├── types/           # 兼容层类型出口（真实定义已收口到 src/types）
+├── types/           # 兼容层类型出口（真实定义已收口到 src/architecture/domain/types）
 ├── utils/           # 基础工具函数
 ├── validation/      # 通用校验能力
 └── widgetRuntime/   # Widget 默认值 / 校验 / 动态默认值等运行时能力
@@ -27,7 +27,7 @@ runtime/
 ### 1. 类型兼容层
 
 - [field.ts](./types/field.ts)：对外保留历史导入路径
-- 真实字段类型定义已经收口到 `src/types/field.ts`
+- 真实字段类型定义已经收口到 `src/architecture/domain/types/field.ts`
 
 ### 2. 表单数据与提取
 

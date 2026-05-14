@@ -72,7 +72,7 @@ import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { InfoFilled } from '@element-plus/icons-vue'
 import { createBoard } from '@/architecture/infrastructure/api/service-tree'
-import type { ServiceTree } from '@/types'
+import type { ServiceTree } from '@/architecture/domain/types'
 
 const CODE_PATTERN = /^[a-z0-9_]+$/
 

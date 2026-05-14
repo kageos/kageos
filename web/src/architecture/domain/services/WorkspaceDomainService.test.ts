@@ -3,7 +3,7 @@ import { WorkspaceDomainService, type WorkspaceState } from './WorkspaceDomainSe
 import { WorkspaceEvent, type IEventBus } from '../interfaces/IEventBus'
 import type { IFunctionLoader, FunctionDetail } from '../interfaces/IFunctionLoader'
 import type { IStateManager } from '../interfaces/IStateManager'
-import type { ServiceTree } from '@/types'
+import type { ServiceTree } from '@/architecture/domain/types'
 
 function createStateManager(initialState: WorkspaceState): IStateManager<WorkspaceState> {
   let state = initialState

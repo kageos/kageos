@@ -5,7 +5,7 @@ import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { Logger } from '@/architecture/runtime/utils/logger'
 import { getApiBaseURL } from '@/architecture/infrastructure/config/runtime'
 import router from '@/architecture/infrastructure/router'
-import type { ApiResponse } from '@/types'
+import type { ApiResponse } from '@/architecture/domain/types'
 import { extractApiMessage, isAuthExpiredBusinessResponse, isRefreshRequestUrl } from './authSession'
 
 const CLIENT_SOURCE_HEADER = 'X-Client-Source'

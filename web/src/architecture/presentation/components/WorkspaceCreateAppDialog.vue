@@ -56,7 +56,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { CreateAppRequest } from '@/types'
+import type { CreateAppRequest } from '@/architecture/domain/types'
 
 const props = defineProps<{
   visible: boolean

@@ -66,7 +66,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { ArrowUp, ArrowDown, FolderOpened } from '@element-plus/icons-vue'
-import type { App } from '@/types'
+import type { App } from '@/architecture/domain/types'
 import WorkspaceListDialog from './WorkspaceListDialog.vue'
 
 interface Props {

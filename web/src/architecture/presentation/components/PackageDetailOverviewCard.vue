@@ -52,7 +52,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { DataLine, Document, Star } from '@element-plus/icons-vue'
-import type { ServiceTree } from '@/types'
+import type { ServiceTree } from '@/architecture/domain/types'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/architecture/runtime/constants/widget'
 import UserWidget from '@/shared/components/UserWidget.vue'

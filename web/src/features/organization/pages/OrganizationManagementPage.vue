@@ -341,7 +341,7 @@ import {
   getUsersByDepartment,
   type Department
 } from '@/architecture/infrastructure/api/department'
-import type { UserInfo } from '@/types'
+import type { UserInfo } from '@/architecture/domain/types'
 import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import UserEditDialog from '@/features/user/components/UserEditDialog.vue'

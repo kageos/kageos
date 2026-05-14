@@ -1,6 +1,6 @@
 import { ref, type ComputedRef } from 'vue'
 import { ElMessage } from 'element-plus'
-import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
+import type { App as AppType, ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 
 type UpdateHistoryMode = 'app' | 'directory'
 

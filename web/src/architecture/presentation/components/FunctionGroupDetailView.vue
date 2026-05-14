@@ -71,7 +71,7 @@ import { ArrowLeft, ArrowRight, Document } from '@element-plus/icons-vue'
 import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/shared/components/icons/TableIcon.vue'
 import FormIcon from '@/shared/components/icons/FormIcon.vue'
-import type { ServiceTree } from '@/types'
+import type { ServiceTree } from '@/architecture/domain/types'
 import { extractFullGroupCodeFromRoute, getParentPathFromFullGroupCode } from '@/utils/route'
 import { findFunctionGroup } from '@/utils/serviceTreeUtils'
 

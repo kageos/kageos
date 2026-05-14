@@ -93,7 +93,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import type { UserInfo } from '@/types'
+import type { UserInfo } from '@/architecture/domain/types'
 import type { Department } from '@/architecture/infrastructure/api/department'
 import { assignUserOrganization } from '@/architecture/infrastructure/api/user'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
