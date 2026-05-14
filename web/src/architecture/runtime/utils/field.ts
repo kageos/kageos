@@ -3,7 +3,7 @@
  */
 
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
-import { formatDateTimeValue } from './date'
+import { formatDateTimeValue } from '@/architecture/shared/date'
 import { WidgetType } from '@/architecture/runtime/constants/widget'
 
 /**

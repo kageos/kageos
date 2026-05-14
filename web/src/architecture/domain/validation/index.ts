@@ -20,7 +20,7 @@ import { EmailValidator } from './validators/EmailValidator'
 // 导出类型和类
 export { ValidatorRegistry } from './ValidatorRegistry'
 export { ValidationEngine } from './ValidationEngine'
-export type { Validator, ValidationRule, ValidationResult, ValidationContext } from './types'
+export type { FormValueReader, Validator, ValidationRule, ValidationResult, ValidationContext } from './types'
 
 // 导出所有验证器
 export { RequiredValidator } from './validators/RequiredValidator'

@@ -1,7 +1,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch, type Ref } from 'vue'
 import { WidgetType } from '@/architecture/runtime/constants/widget'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
-import { createAutoFieldValue, createEmptyRawFieldValue } from '@/architecture/runtime/utils/createFieldValue'
+import { createAutoFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
 
 interface UseTableRowDetailLayoutOptions {
   fields: Ref<FieldConfig[]>

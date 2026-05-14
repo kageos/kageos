@@ -1,8 +1,8 @@
 import { computed } from 'vue'
 import type { FieldConfig } from '@/architecture/domain/types'
-import { getWidgetDefaultValue } from '@/architecture/runtime/widgetRuntime/defaultValue'
+import { getWidgetDefaultValue } from '@/architecture/domain/utils/defaultValue'
 
-export { getWidgetDefaultValue } from '@/architecture/runtime/widgetRuntime/defaultValue'
+export { getWidgetDefaultValue } from '@/architecture/domain/utils/defaultValue'
 
 /**
  * 在组件中使用默认值的 composable

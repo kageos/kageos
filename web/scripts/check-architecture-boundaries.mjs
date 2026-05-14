@@ -72,6 +72,38 @@ const forbiddenPatterns = [
     message: 'search field value helpers must be imported from architecture/domain/utils/searchFieldValue',
   },
   {
+    pattern: /@\/architecture\/runtime\/utils\/createFieldValue|src\/architecture\/runtime\/utils\/createFieldValue/,
+    message: 'field value factories must be imported from architecture/domain/utils/createFieldValue',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/utils\/date|src\/architecture\/runtime\/utils\/date/,
+    message: 'date helpers must be imported from architecture/shared/date',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/widgetRuntime\/defaultValue|src\/architecture\/runtime\/widgetRuntime\/defaultValue/,
+    message: 'default value helpers must be imported from architecture/domain/utils/defaultValue',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/widgetRuntime\/dynamicDefaultValue|src\/architecture\/runtime\/widgetRuntime\/dynamicDefaultValue/,
+    message: 'dynamic default value helpers must be imported from architecture/domain/utils/dynamicDefaultValue',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/widgetRuntime\/(?:fieldReset|dependency|presenceEffects)|src\/architecture\/runtime\/widgetRuntime\/(?:fieldReset|dependency|presenceEffects)/,
+    message: 'field effect helpers must be imported from architecture/domain/utils',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/widgetRuntime\/validation|src\/architecture\/runtime\/widgetRuntime\/validation/,
+    message: 'widget validation helpers must be imported from architecture/domain/utils/widgetValidation',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/utils\/conditionEvaluator|src\/architecture\/runtime\/utils\/conditionEvaluator/,
+    message: 'condition evaluator must be imported from architecture/domain/utils/conditionEvaluator',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/validation|src\/architecture\/runtime\/validation/,
+    message: 'validation must be imported from architecture/domain/validation',
+  },
+  {
     pattern: /src\/components|src\/shared\/components/,
     message: 'old component auto-scan directory',
   },

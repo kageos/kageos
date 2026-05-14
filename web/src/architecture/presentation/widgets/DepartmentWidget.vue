@@ -138,7 +138,7 @@ import { Logger } from '@/architecture/shared/logger'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import { SearchType, hasSearchType } from '@/architecture/runtime/constants/search'
 import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/utils/searchType'
-import { getRenderDefaultFromConfig } from '@/architecture/runtime/widgetRuntime/defaultValue'
+import { getRenderDefaultFromConfig } from '@/architecture/domain/utils/defaultValue'
 
 const COMPONENT_NAME = 'DepartmentWidget'
 

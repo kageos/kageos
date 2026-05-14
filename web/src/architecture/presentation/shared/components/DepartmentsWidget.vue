@@ -195,8 +195,8 @@ import { useDepartmentInfoStore } from '@/architecture/infrastructure/stores/dep
 import type { Department } from '@/architecture/infrastructure/api/department'
 import { getDepartmentTree } from '@/architecture/infrastructure/api/department'
 import { Logger } from '@/architecture/shared/logger'
-import { createFieldValue } from '@/architecture/runtime/utils/createFieldValue'
-import { getRenderDefaultFromConfig } from '@/architecture/runtime/widgetRuntime/defaultValue'
+import { createFieldValue } from '@/architecture/domain/utils/createFieldValue'
+import { getRenderDefaultFromConfig } from '@/architecture/domain/utils/defaultValue'
 
 const COMPONENT_NAME = 'DepartmentsWidget'
 

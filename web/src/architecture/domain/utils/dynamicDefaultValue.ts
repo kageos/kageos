@@ -7,8 +7,14 @@
  * - 组织架构函数：MyDepartment()
  */
 
-import { WidgetType, DynamicFunctionName } from '@/architecture/runtime/constants/widget'
-import { formatDateTimeValue } from '@/architecture/runtime/utils/date'
+import { WidgetType } from '@/architecture/domain/types/api'
+import { formatDateTimeValue } from '@/architecture/shared/date'
+
+const DynamicFunctionName = {
+  ME: 'me',
+  MY_LEADER: 'myleader',
+  MY_DEPARTMENT: 'mydepartment'
+} as const
 
 function parseFunctionCall(funcCall: string): { name: string; args: string[] } | null {
   const match = funcCall.match(/^(\w+)\((.*)\)$/)

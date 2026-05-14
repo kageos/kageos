@@ -13,7 +13,7 @@ import { reactive, inject, hasInjectionContext, type InjectionKey } from 'vue'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 import { fieldExtractorRegistry } from './extractors/FieldExtractorRegistry'
 import { Logger } from '@/architecture/shared/logger'
-import { createEmptyRawFieldValue } from '@/architecture/runtime/utils/createFieldValue'
+import { createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
 
 const createFormDataStore = defineStore('formData', () => {
   // 存储所有字段的值（field_path -> FieldValue）

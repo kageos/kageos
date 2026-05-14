@@ -78,21 +78,20 @@ import type { IStateManager } from '../interfaces/IStateManager'
 import type { IEventBus } from '../interfaces/IEventBus'
 import { FormEvent } from '../interfaces/IEventBus'
 import type { FieldConfig, FieldValue, FormState, ValidationResult } from '../types'
-import { ValidationEngine, createDefaultValidatorRegistry } from '@/architecture/runtime/validation'
-import type { ReactiveFormDataManager } from '@/architecture/runtime/managers/ReactiveFormDataManager'
+import { ValidationEngine, createDefaultValidatorRegistry } from '@/architecture/domain/validation'
 import { Logger } from '@/architecture/shared/logger'
-import { getWidgetDefaultValue } from '@/architecture/runtime/widgetRuntime/defaultValue'
-import { clearScopedDependentFields } from '@/architecture/runtime/widgetRuntime/dependency'
-import { isSubtreePath } from '@/architecture/runtime/widgetRuntime/fieldReset'
-import { applyScopedPresenceEffects } from '@/architecture/runtime/widgetRuntime/presenceEffects'
-import { sanitizeExcludedSubmitData } from '@/architecture/runtime/validation/utils/presenceRules'
+import { getWidgetDefaultValue } from '@/architecture/domain/utils/defaultValue'
+import { clearScopedDependentFields } from '@/architecture/domain/utils/dependency'
+import { isSubtreePath } from '@/architecture/domain/utils/fieldReset'
+import { applyScopedPresenceEffects } from '@/architecture/domain/utils/presenceEffects'
+import { sanitizeExcludedSubmitData } from '@/architecture/domain/validation/utils/presenceRules'
 import {
   validateFieldValue,
   validateFormWidgetNestedFields,
   validateTableWidgetNestedFields,
   type WidgetValidationContext
-} from '@/architecture/runtime/widgetRuntime/validation'
-import { createEmptyRawFieldValue } from '@/architecture/runtime/utils/createFieldValue'
+} from '@/architecture/domain/utils/widgetValidation'
+import { createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
 export type { FormState, ValidationResult } from '../types'
 
 export interface FormDomainServiceOptions {
@@ -396,10 +395,9 @@ export class FormDomainService {
     if (!this.validationEngine || this.fields !== fields) {
       const registry = createDefaultValidatorRegistry()
       const formManagerAdapter = new FormStateManagerAdapter(this.stateManager)
-      // 类型断言：适配器实现了 ValidationEngine 需要的接口
       this.validationEngine = new ValidationEngine(
         registry,
-        formManagerAdapter as any as ReactiveFormDataManager,
+        formManagerAdapter,
         fields
       )
       this.fields = fields

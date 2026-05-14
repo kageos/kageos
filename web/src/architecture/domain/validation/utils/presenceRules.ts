@@ -1,6 +1,5 @@
-import type { ReactiveFormDataManager } from '../../managers/ReactiveFormDataManager'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
-import type { ValidationContext, ValidationRule } from '../types'
+import type { FormValueReader, ValidationContext, ValidationRule } from '../types'
 import {
   findFieldByCode,
   findFieldByPath,
@@ -31,9 +30,7 @@ export interface ValidationRuleRef {
 }
 
 export interface PresenceEvaluationContext {
-  formManager: Pick<ReactiveFormDataManager, 'getValue'> & {
-    hasValue?: (fieldPath: string) => boolean
-  }
+  formManager: FormValueReader
   fieldPath: string
   allFields: FieldConfig[]
 }
@@ -202,7 +199,7 @@ function createRuleContext(
   ruleField: string
 ): ValidationContext {
   return {
-    formManager: context.formManager as ReactiveFormDataManager,
+    formManager: context.formManager,
     fieldPath: context.fieldPath,
     allFields: context.allFields,
   }

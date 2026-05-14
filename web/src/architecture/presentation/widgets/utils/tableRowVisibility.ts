@@ -1,11 +1,11 @@
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 import type { FormDataStore } from '@/architecture/runtime/stores/formData'
-import { createAutoFieldValue, createEmptyRawFieldValue } from '@/architecture/runtime/utils/createFieldValue'
-import { getFieldPresenceState } from '@/architecture/runtime/utils/conditionEvaluator'
+import { createAutoFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
+import { getFieldPresenceState } from '@/architecture/domain/utils/conditionEvaluator'
 import {
   clearFieldSubtree as clearFieldSubtreeInStore,
   createClearedFieldValue as createClearedStoreFieldValue,
-} from '@/architecture/runtime/widgetRuntime/fieldReset'
+} from '@/architecture/domain/utils/fieldReset'
 
 function isPlainObject(value: unknown): value is Record<string, any> {
   return !!value && typeof value === 'object' && !Array.isArray(value)

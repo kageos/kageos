@@ -108,7 +108,7 @@ import { ElDatePicker, ElTimePicker } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import { formatDateTimeValue } from '@/architecture/runtime/utils/date'
+import { formatDateTimeValue } from '@/architecture/shared/date'
 import type { DateTimeWidgetConfig } from '@/architecture/runtime/types/widget-configs'
 import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/utils/searchType'
 

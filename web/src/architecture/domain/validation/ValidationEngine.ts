@@ -6,8 +6,7 @@
  */
 
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
-import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
-import type { ValidationRule, ValidationResult, ValidationContext } from './types'
+import type { FormValueReader, ValidationRule, ValidationResult, ValidationContext } from './types'
 import { ValidatorRegistry } from './ValidatorRegistry'
 import { Logger } from '@/architecture/shared/logger'
 import { parsePresenceRule } from './utils/presenceRules'
@@ -17,7 +16,7 @@ export class ValidationEngine {
   
   constructor(
     private registry: ValidatorRegistry,
-    private formManager: ReactiveFormDataManager,
+    private formManager: FormValueReader,
     fields: FieldConfig[]
   ) {
     // 初始化时构建字段名映射表

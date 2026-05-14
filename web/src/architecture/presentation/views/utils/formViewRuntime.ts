@@ -7,7 +7,7 @@ import { FormDomainService } from '@/architecture/domain/services/FormDomainServ
 import { FormStateManager } from '@/architecture/infrastructure/stateManager/FormStateManager'
 import { useFormDataStore, type FormDataStore } from '@/architecture/runtime/stores/formData'
 import { useResponseDataStore } from '@/architecture/runtime/stores/responseData'
-import { createEmptyFieldValue } from '@/architecture/runtime/utils/createFieldValue'
+import { createEmptyFieldValue } from '@/architecture/domain/utils/createFieldValue'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 
 export function createFormViewRuntime(options: {

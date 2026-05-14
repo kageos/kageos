@@ -2,7 +2,7 @@ import { computed } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { useFormDataStore } from '@/architecture/runtime/stores/formData'
-import type { ValidationEngine, ValidationResult } from '@/architecture/runtime/validation'
+import type { ValidationEngine, ValidationResult } from '@/architecture/domain/validation'
 import {
   validateFieldValue as validateWidgetFieldValue,
   validateTableWidgetNestedFields,

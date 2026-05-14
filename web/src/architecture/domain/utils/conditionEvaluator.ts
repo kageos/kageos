@@ -4,13 +4,13 @@
  * 基于 validator/v10 的存在性规则，统一判断字段的显示、必填和排除状态。
  */
 
-import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
 import type { FieldConfig } from '@/architecture/domain/types/field'
-import { getFieldPresenceState as resolveFieldPresenceState } from '../validation/utils/presenceRules'
+import type { FormValueReader } from '@/architecture/domain/validation'
+import { getFieldPresenceState as resolveFieldPresenceState } from '@/architecture/domain/validation/utils/presenceRules'
 
 export function getFieldPresenceState(
   field: FieldConfig,
-  formManager: Pick<ReactiveFormDataManager, 'getValue'> & { hasValue?: (fieldPath: string) => boolean },
+  formManager: FormValueReader,
   allFields: FieldConfig[],
   fieldPath: string = field.code
 ) {
@@ -23,7 +23,7 @@ export function getFieldPresenceState(
 
 export function shouldShowField(
   field: FieldConfig,
-  formManager: Pick<ReactiveFormDataManager, 'getValue'> & { hasValue?: (fieldPath: string) => boolean },
+  formManager: FormValueReader,
   allFields: FieldConfig[],
   fieldPath: string = field.code
 ): boolean {
@@ -32,7 +32,7 @@ export function shouldShowField(
 
 export function isFieldCurrentlyRequired(
   field: FieldConfig,
-  formManager: Pick<ReactiveFormDataManager, 'getValue'> & { hasValue?: (fieldPath: string) => boolean },
+  formManager: FormValueReader,
   allFields: FieldConfig[],
   fieldPath: string = field.code
 ): boolean {

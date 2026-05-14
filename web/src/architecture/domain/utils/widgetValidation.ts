@@ -1,13 +1,16 @@
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
-import type { ValidationEngine, ValidationResult } from '@/architecture/runtime/validation'
-import { useFormDataStore, type FormDataStore } from '@/architecture/runtime/stores/formData'
+import type { ValidationEngine, ValidationResult } from '@/architecture/domain/validation'
 import { Logger } from '@/architecture/shared/logger'
+
+export interface WidgetValueReader {
+  getValue(fieldPath: string): FieldValue
+}
 
 export interface WidgetValidationContext {
   validationEngine: ValidationEngine | null
   allFields: FieldConfig[]
   fieldErrors: Map<string, ValidationResult[]>
-  formDataStore?: Pick<FormDataStore, 'getValue'>
+  formDataStore: WidgetValueReader
 }
 
 export interface WidgetValidationResult {
@@ -25,13 +28,12 @@ export function validateFieldValue(
     return []
   }
 
-  const formDataStore = context.formDataStore || useFormDataStore()
-  const value = formDataStore.getValue(fieldPath)
+  const value = context.formDataStore.getValue(fieldPath)
 
   try {
     return context.validationEngine.validateField(field, value, context.allFields, fieldPath)
   } catch (error) {
-    Logger.error('[widgetRuntime.validation]', `验证字段 ${fieldPath} 失败`, error)
+    Logger.error('[widgetValidation]', `验证字段 ${fieldPath} 失败`, error)
     return []
   }
 }
@@ -124,8 +126,7 @@ export function validateTableWidgetNestedFields(
     return nestedErrors
   }
 
-  const formDataStore = context.formDataStore || useFormDataStore()
-  const value = formDataStore.getValue(parentPath)
+  const value = context.formDataStore.getValue(parentPath)
   const tableValue = value.raw
 
   if (!Array.isArray(tableValue)) {

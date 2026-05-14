@@ -134,10 +134,10 @@ import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { formatUserDisplayName } from '@/architecture/runtime/utils/userInfo'
 import type { UserInfo } from '@/architecture/domain/types'
 import { Logger } from '@/architecture/shared/logger'
-import { createFieldValue } from '@/architecture/runtime/utils/createFieldValue'
+import { createFieldValue } from '@/architecture/domain/utils/createFieldValue'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
-import { getRenderDefaultFromConfig } from '@/architecture/runtime/widgetRuntime/defaultValue'
+import { getRenderDefaultFromConfig } from '@/architecture/domain/utils/defaultValue'
 
 const COMPONENT_NAME = 'UserWidget'
 
