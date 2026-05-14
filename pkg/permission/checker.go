@@ -34,6 +34,10 @@ func CheckPermissionWithInheritance(
 	fullCodePath string,
 	action string,
 ) (hasPermission bool, err error) {
+	if !EnforcementEnabled() {
+		return true, nil
+	}
+
 	// ⭐ 使用新的权限系统，自动处理权限继承
 	hasPermission, err = permissionService.CheckPermission(ctx, username, fullCodePath, action)
 	if err != nil {

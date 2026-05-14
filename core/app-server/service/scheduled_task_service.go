@@ -403,6 +403,9 @@ func (s *ScheduledTaskService) validateScheduledTaskTarget(ctx context.Context, 
 }
 
 func ensureScheduledTaskPermission(ctx context.Context, requestUser, fullCodePath, action string) error {
+	if !permissionconstants.EnforcementEnabled() {
+		return nil
+	}
 	requestUser = strings.TrimSpace(requestUser)
 	if requestUser == "" {
 		return fmt.Errorf("缺少 request_user，无法校验定时任务权限")

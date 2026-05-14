@@ -27,7 +27,7 @@ function enabledInFullMode(envName: string): boolean {
 export const featureFlags = {
   focusedMode,
   organization: enabledInFullMode('VITE_AOS_FEATURE_ORGANIZATION'),
-  permissions: enabledInFullMode('VITE_AOS_FEATURE_PERMISSIONS'),
+  permissions: false,
   messages: enabledInFullMode('VITE_AOS_FEATURE_MESSAGES'),
   scheduledTasks: enabledInFullMode('VITE_AOS_FEATURE_SCHEDULED_TASKS'),
   operateLogs: enabledInFullMode('VITE_AOS_FEATURE_OPERATE_LOGS'),
