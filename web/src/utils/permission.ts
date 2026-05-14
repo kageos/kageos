@@ -81,7 +81,6 @@
  */
 
 import type { ServiceTree } from '@/types'
-import { featureFlags } from '@/config/features'
 import {
   // 权限常量对象
   DirectoryPermission,
@@ -212,81 +211,8 @@ export interface PermissionInfo {
  * @param action 权限点（如 table:read、form:write、chart:read）
  * @returns 是否有权限
  */
-export function hasPermission(node: ServiceTree | undefined, action: string): boolean {
-  if (!featureFlags.permissions) {
-    return true
-  }
-
-  // 如果没有节点，拒绝访问
-  if (!node) {
-    return false
-  }
-
-  // ⭐ 优先判断：如果用户是工作空间管理员，直接返回 true（无需检查具体权限）
-  if (node.is_admin === true) {
-    return true
-  }
-
-  // 直接使用节点上的权限信息（后端返回的最新数据，已包含继承）
-  const permissions = node.permissions
-
-  // 🔥 修复：如果没有权限信息或权限为空对象，拒绝访问
-  // 避免空 map 导致的无限循环问题
-  if (!permissions || Object.keys(permissions).length === 0) {
-    return false
-  }
-
-  // 直接检查该权限（后端已经处理了继承）
-  if (permissions[action] === true) {
-    return true
-  }
-
-  // ⭐ 权限层级关系检查（双重保险，防止后端遗漏）
-  // 注意：先检查层级关系，再检查是否为 false
-  // table:admin、form:admin、chart:admin 包含对应的所有权限
-  if (action.startsWith('table:')) {
-    if (permissions['table:admin'] === true) {
-      return true
-    }
-  }
-  if (action.startsWith('form:')) {
-    if (permissions['form:admin'] === true) {
-      return true
-    }
-  }
-  if (action.startsWith('chart:')) {
-    if (permissions['chart:admin'] === true) {
-      return true
-    }
-  }
-  // ⭐ function:admin 包含所有 function 权限
-  if (action.startsWith('function:')) {
-    if (permissions['function:admin'] === true) {
-      return true
-    }
-  }
-
-  // directory:admin 包含 directory:read、directory:write、directory:update、directory:delete
-  if (action.startsWith('directory:')) {
-    if (permissions['directory:admin'] === true) {
-      return true
-    }
-  }
-
-  // app:admin 包含 app:read、app:create、app:update、app:delete
-  if (action.startsWith('app:')) {
-    if (permissions['app:admin'] === true) {
-      return true
-    }
-  }
-
-  // 如果权限明确为 false，直接返回 false
-  if (permissions[action] === false) {
-    return false
-  }
-
-  // 权限信息中没有该权限点，拒绝访问
-  return false
+export function hasPermission(_node: ServiceTree | undefined, _action: string): boolean {
+  return true
 }
 
 /**
@@ -294,21 +220,8 @@ export function hasPermission(node: ServiceTree | undefined, action: string): bo
  * @param node 服务树节点
  * @returns 是否有任何权限
  */
-export function hasAnyPermissionForNode(node: ServiceTree | undefined): boolean {
-  if (!featureFlags.permissions) {
-    return true
-  }
-
-  if (node?.is_admin === true) {
-    return true
-  }
-
-  if (!node || !node.permissions) {
-    return false
-  }
-
-  // 检查节点权限信息中是否有任何权限为 true
-  return Object.values(node.permissions).some(hasPerm => hasPerm === true)
+export function hasAnyPermissionForNode(_node: ServiceTree | undefined): boolean {
+  return true
 }
 
 /**
@@ -317,16 +230,8 @@ export function hasAnyPermissionForNode(node: ServiceTree | undefined): boolean 
  * @param actions 权限点列表
  * @returns 是否有权限
  */
-export function hasAnyPermission(node: ServiceTree | undefined, actions: string[]): boolean {
-  if (!featureFlags.permissions) {
-    return true
-  }
-
-  if (!node || !node.permissions) {
-    return false
-  }
-
-  return actions.some(action => hasPermission(node, action))
+export function hasAnyPermission(_node: ServiceTree | undefined, _actions: string[]): boolean {
+  return true
 }
 
 /**
@@ -335,16 +240,8 @@ export function hasAnyPermission(node: ServiceTree | undefined, actions: string[
  * @param actions 权限点列表
  * @returns 是否有权限
  */
-export function hasAllPermissions(node: ServiceTree | undefined, actions: string[]): boolean {
-  if (!featureFlags.permissions) {
-    return true
-  }
-
-  if (!node || !node.permissions) {
-    return false
-  }
-
-  return actions.every(action => hasPermission(node, action))
+export function hasAllPermissions(_node: ServiceTree | undefined, _actions: string[]): boolean {
+  return true
 }
 
 /**
