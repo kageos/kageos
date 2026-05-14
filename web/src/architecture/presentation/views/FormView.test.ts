@@ -105,8 +105,7 @@ vi.mock('@/stores/permissionError', () => ({
 
 vi.mock('@/config/features', () => ({
   featureFlags: {
-    scheduledTasks: false,
-    permissions: true
+    scheduledTasks: false
   }
 }))
 
