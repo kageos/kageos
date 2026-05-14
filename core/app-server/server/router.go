@@ -173,40 +173,6 @@ func (s *Server) setupRoutes() {
 	callbackStandard.Use(middleware2.JWTAuth())
 	callbackStandard.POST("/on_select_fuzzy/*full-code-path", standardAPI.CallbackOnSelectFuzzy) // 模糊搜索回调
 
-	advancedPermission := middleware2.RequireFeature(enterprise.FeaturePermission)
-
-	// ⭐ 权限管理路由：基础用户授权社区版可用，高级申请/审批能力需要企业版
-	permission := apiV1.Group("/permission")
-	permission.Use(middleware2.JWTAuth()) // JWT 认证
-	permissionHandler := v1.NewPermission(s.permissionService)
-	permission.POST("/apply", advancedPermission, permissionHandler.ApplyPermission) // 权限申请（角色申请，企业版）
-	permission.GET("/workspace", permissionHandler.GetWorkspacePermissions)          // 获取工作空间所有权限
-	permission.GET("/resource", permissionHandler.GetResourcePermissions)            // 查询资源的所有权限分配
-
-	// ⭐ 权限申请和审批路由（新权限系统）
-	permission.POST("/request/create", advancedPermission, permissionHandler.CreatePermissionRequest)   // 创建权限申请（企业版）
-	permission.POST("/request/approve", advancedPermission, permissionHandler.ApprovePermissionRequest) // 审批通过（企业版）
-	permission.POST("/request/reject", advancedPermission, permissionHandler.RejectPermissionRequest)   // 审批拒绝（企业版）
-	permission.GET("/requests", advancedPermission, permissionHandler.GetPermissionRequests)            // 获取权限申请列表（企业版）
-
-	// ⭐ 角色管理路由：预设角色查询/用户授权社区版可用，自定义角色/组织架构/申请辅助需要企业版
-	role := apiV1.Group("/role")
-	role.Use(middleware2.JWTAuth()) // JWT 认证
-	// 角色管理使用与 Permission 一致的 permissionService（从 Server 注入）
-	roleHandler := v1.NewRoleHandlerFromPermissionService(s.permissionService)
-	role.GET("", roleHandler.GetRoles)                                                        // 获取所有角色
-	role.GET("/for_request", roleHandler.GetRolesForPermissionRequest)                        // 获取可用于权限申请/赋权的角色列表
-	role.GET("/:id", roleHandler.GetRole)                                                     // 获取角色详情
-	role.POST("", advancedPermission, roleHandler.CreateRole)                                 // 创建自定义角色（企业版）
-	role.PUT("/:id", advancedPermission, roleHandler.UpdateRole)                              // 更新角色（企业版）
-	role.DELETE("/:id", advancedPermission, roleHandler.DeleteRole)                           // 删除角色（企业版）
-	role.POST("/assign/user", roleHandler.AssignRoleToUser)                                   // 给用户分配角色
-	role.POST("/assign/department", advancedPermission, roleHandler.AssignRoleToDepartment)   // 给组织架构分配角色（企业版）
-	role.POST("/remove/user", roleHandler.RemoveRoleFromUser)                                 // 移除用户角色
-	role.POST("/remove/department", advancedPermission, roleHandler.RemoveRoleFromDepartment) // 移除组织架构角色（企业版）
-	role.POST("/user", roleHandler.GetUserRoles)                                              // 获取用户角色
-	role.POST("/department", advancedPermission, roleHandler.GetDepartmentRoles)              // 获取组织架构角色（企业版）
-
 	// 定时任务（atime/cron/every + 执行记录）
 	scheduledTask := apiV1.Group("/scheduled_tasks")
 	scheduledTask.Use(middleware2.JWTAuth())

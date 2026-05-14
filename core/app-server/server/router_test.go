@@ -20,9 +20,6 @@ func TestSetupRoutesRegistersCanonicalRoutes(t *testing.T) {
 	expectedRoutes := []string{
 		"GET /workspace/api/v1/app/detail",
 		"GET /workspace/api/v1/app/tree",
-		"POST /workspace/api/v1/permission/request/create",
-		"POST /workspace/api/v1/role/user",
-		"POST /workspace/api/v1/role/department",
 		"GET /workspace/api/v1/service_tree/detail",
 		"GET /workspace/api/v1/function/info/:func-type/*full-code-path",
 	}
@@ -44,6 +41,9 @@ func TestSetupRoutesRegistersCanonicalRoutes(t *testing.T) {
 		"GET /workspace/api/v1/service_tree",
 		"PUT /workspace/api/v1/service_tree",
 		"DELETE /workspace/api/v1/service_tree",
+		"POST /workspace/api/v1/permission/request/create",
+		"POST /workspace/api/v1/role/user",
+		"POST /workspace/api/v1/role/department",
 	}
 	for _, route := range removedRoutes {
 		if _, ok := routes[route]; ok {
