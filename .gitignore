@@ -12,6 +12,7 @@ logs/
 
 # 构建文件
 *.exe
+*.test
 dist/
 bin/
 /app
