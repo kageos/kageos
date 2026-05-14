@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { TablePermission } from '@/utils/permission'
 import {
   buildBatchDeleteIds,
   hasFunctionCallback,
@@ -13,18 +12,15 @@ describe('tableViewActionRuntime', () => {
     expect(hasFunctionCallback(undefined, 'OnTableUpdateRow')).toBe(false)
   })
 
-  it('distinguishes unsupported edit from missing update permission', () => {
-    expect(resolveTableDetailEditAccess({ supportsUpdate: false, canUpdate: true })).toBe('unsupported')
-    expect(resolveTableDetailEditAccess({ supportsUpdate: true, canUpdate: false })).toBe('no-permission')
-    expect(resolveTableDetailEditAccess({ supportsUpdate: true, canUpdate: true })).toBe('allowed')
+  it('distinguishes unsupported edit from allowed edit', () => {
+    expect(resolveTableDetailEditAccess({ supportsUpdate: false })).toBe('unsupported')
+    expect(resolveTableDetailEditAccess({ supportsUpdate: true })).toBe('allowed')
   })
 
-  it('routes action commands to link, edit, delete or no-permission', () => {
+  it('routes action commands to link, edit or delete', () => {
     expect(
       resolveTableActionCommand({
-        command: 'link:profile',
-        canUpdate: false,
-        canDelete: false
+        command: 'link:profile'
       })
     ).toEqual({
       type: 'link',
@@ -33,9 +29,7 @@ describe('tableViewActionRuntime', () => {
 
     expect(
       resolveTableActionCommand({
-        command: 'update',
-        canUpdate: true,
-        canDelete: false
+        command: 'update'
       })
     ).toEqual({
       type: 'detail',
@@ -44,13 +38,10 @@ describe('tableViewActionRuntime', () => {
 
     expect(
       resolveTableActionCommand({
-        command: 'delete',
-        canUpdate: false,
-        canDelete: false
+        command: 'delete'
       })
     ).toEqual({
-      type: 'no-permission',
-      action: TablePermission.delete
+      type: 'delete'
     })
   })
 

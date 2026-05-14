@@ -20,12 +20,6 @@
       <el-skeleton :rows="8" animated />
     </div>
   </template>
-
-  <PermissionDeniedView
-    v-else-if="hasPermissionError"
-    :key="`permission-denied-${keyBase}`"
-  />
-
   <div v-else :key="`loading-${keyBase}`" class="function-loading">
     <el-skeleton :rows="8" animated />
   </div>
@@ -40,12 +34,10 @@ import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 const FormView = defineAsyncComponent(() => import('@/architecture/presentation/views/FormView.vue'))
 const TableView = defineAsyncComponent(() => import('@/architecture/presentation/views/TableView.vue'))
 const ChartView = defineAsyncComponent(() => import('@/architecture/presentation/views/ChartView.vue'))
-const PermissionDeniedView = defineAsyncComponent(() => import('./PermissionDeniedView.vue'))
 
 const props = defineProps<{
   currentFunction: ServiceTreeType | null
   functionDetail: FunctionDetail | null
-  hasPermissionError: boolean
   formViewRefTarget?: any
 }>()
 

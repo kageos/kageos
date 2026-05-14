@@ -1,14 +1,12 @@
-import { TablePermission } from '@/utils/permission'
 import type { TableRow } from '@/architecture/domain/services/TableDomainService'
 
 export type TableActionCommandResult =
   | { type: 'link'; fieldCode: string }
   | { type: 'detail'; initialMode: 'edit' }
   | { type: 'delete' }
-  | { type: 'no-permission'; action: string }
   | { type: 'noop' }
 
-export type TableDetailEditAccess = 'unsupported' | 'no-permission' | 'allowed'
+export type TableDetailEditAccess = 'unsupported' | 'allowed'
 
 export function hasFunctionCallback(
   callbacks: string[] | null | undefined,
@@ -19,21 +17,18 @@ export function hasFunctionCallback(
 
 export function resolveTableDetailEditAccess(options: {
   supportsUpdate: boolean
-  canUpdate: boolean
 }): TableDetailEditAccess {
   if (!options.supportsUpdate) {
     return 'unsupported'
   }
 
-  return options.canUpdate ? 'allowed' : 'no-permission'
+  return 'allowed'
 }
 
 export function resolveTableActionCommand(options: {
   command: string
-  canUpdate: boolean
-  canDelete: boolean
 }): TableActionCommandResult {
-  const { command, canUpdate, canDelete } = options
+  const { command } = options
 
   if (command.startsWith('link:')) {
     return {
@@ -43,15 +38,11 @@ export function resolveTableActionCommand(options: {
   }
 
   if (command === 'update') {
-    return canUpdate
-      ? { type: 'detail', initialMode: 'edit' }
-      : { type: 'no-permission', action: TablePermission.update }
+    return { type: 'detail', initialMode: 'edit' }
   }
 
   if (command === 'delete') {
-    return canDelete
-      ? { type: 'delete' }
-      : { type: 'no-permission', action: TablePermission.delete }
+    return { type: 'delete' }
   }
 
   return { type: 'noop' }

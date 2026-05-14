@@ -105,9 +105,6 @@
       </div>
     </div>
 
-    <!-- 文档 403：与函数无权限一致，展示申请权限组件 -->
-    <PermissionDeniedView v-else-if="docPermissionDenied" />
-
     <!-- 空状态 -->
     <div v-else-if="!loading" class="doc-empty">
       <el-empty description="文档不存在或尚未创建">
@@ -170,11 +167,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, Check, Plus, Delete, Close, ArrowLeft, ArrowRight, Clock, RefreshRight } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
 import { getDoc, updateDoc, deleteDoc } from '@/api/doc'  // ✅ 使用新的文档 API
-import { hasPermission, DocsPermission } from '@/utils/permission'
-import { usePermissionErrorStore } from '@/stores/permissionError'
 import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
-import PermissionDeniedView from './PermissionDeniedView.vue'
 
 const VditorEditor = defineAsyncComponent(() => import('@/shared/components/VditorEditor.vue'))
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
@@ -200,10 +194,6 @@ const saving = ref(false)
 const isEditing = ref(false)
 const editSummary = ref('')
 const editContent = ref('')
-
-// 文档加载 403：展示申请权限组件（与函数无权限一致）
-const docPermissionDenied = ref(false)
-const permissionErrorStore = usePermissionErrorStore()
 
 // 图片预览
 const markdownContentRef = ref<HTMLElement | null>(null)
@@ -256,10 +246,7 @@ onUnmounted(() => {
   document.removeEventListener('keydown', onPreviewKeydown)
 })
 
-// 权限检查
-const hasEditPermission = computed(() => {
-  return props.node && hasPermission(props.node, DocsPermission.write)
-})
+const hasEditPermission = computed(() => true)
 
 // 渲染后的 Markdown 内容
 const renderedContent = computed(() => {
@@ -293,7 +280,6 @@ const loadDoc = async () => {
   }
 
   loading.value = true
-  docPermissionDenied.value = false
   try {
     // ✅ 使用 full_code_path 调用新接口
     const data = await getDoc(props.node.full_code_path)
@@ -302,16 +288,6 @@ const loadDoc = async () => {
     if (error.response?.status === 404) {
       // 文档不存在，这是正常情况（节点已创建但文档内容未创建）
       doc.value = null
-    } else if (error.response?.status === 403) {
-      // 与函数无权限一致：写入 store 并展示申请权限组件，不弹窗
-      docPermissionDenied.value = true
-      const path = props.node.full_code_path
-      permissionErrorStore.setError({
-        resource_path: path,
-        action: DocsPermission.read,
-        action_display: '查看文档',
-        error_message: '没有查看该文档的权限'
-      })
     } else {
       ElMessage.error('加载文档失败: ' + (error.message || '未知错误'))
     }

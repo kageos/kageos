@@ -27,15 +27,13 @@
           <div class="drawer-mode-actions">
             <el-button
               v-if="mode === 'read' && detailEditAccess !== 'unsupported'"
-              :type="canEdit ? 'primary' : 'default'"
-              :plain="!canEdit"
+              type="primary"
               size="small"
               class="edit-btn"
-              :class="{ 'action-btn-no-permission': !canEdit }"
               @click="handleToggleMode('edit')"
             >
-              <el-icon><component :is="canEdit ? Edit : Lock" /></el-icon>
-              {{ canEdit ? '编辑' : `编辑（需${getPermissionShortName(FunctionPermission.update)}）` }}
+              <el-icon><Edit /></el-icon>
+              编辑
             </el-button>
             <span
               v-else-if="mode === 'read'"
@@ -175,9 +173,8 @@
 
 <script setup lang="ts">
 import { ref, computed, toRef } from 'vue'
-import { Edit, ArrowLeft, ArrowRight, Grid, List, Lock } from '@element-plus/icons-vue'
+import { Edit, ArrowLeft, ArrowRight, Grid, List } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getPermissionShortName, FunctionPermission } from '@/utils/permission'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import ScheduledTaskDialog from '@/architecture/presentation/components/ScheduledTaskDialog.vue'
 import TableRowDetailReadTabs from './TableRowDetailReadTabs.vue'
@@ -230,8 +227,7 @@ const formViewRef = ref<InstanceType<typeof FormView> | null>(null)
 const showScheduledTaskDialog = ref(false)
 const detailEditAccess = computed(() => {
   return resolveTableDetailEditAccess({
-    supportsUpdate: props.supportsEdit,
-    canUpdate: props.canEdit
+    supportsUpdate: props.supportsEdit
   })
 })
 const {
@@ -327,11 +323,6 @@ const handleToggleMode = (newMode: 'read' | 'edit') => {
     return
   }
 
-  if (newMode === 'edit' && !props.canEdit) {
-    ElMessage.warning('当前用户暂无编辑权限')
-    return
-  }
-  
   if (newMode === 'edit') {
     switch (editFormState.value.readiness) {
       case 'missing-edit-detail':
@@ -412,22 +403,6 @@ defineExpose({
 .detail-drawer :deep(.el-drawer__body) {
   padding: 20px;
   overflow: auto;
-}
-
-// ⭐ 无权限按钮样式优化
-.action-btn-no-permission {
-  color: var(--el-text-color-secondary) !important;
-  border-color: var(--el-border-color-light) !important;
-  
-  &:hover {
-    color: var(--el-color-primary) !important;
-    border-color: var(--el-color-primary-light-7) !important;
-    background-color: var(--el-color-primary-light-9) !important;
-  }
-  
-  .el-icon {
-    margin-right: 4px;
-  }
 }
 
 .detail-content {

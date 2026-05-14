@@ -12,7 +12,6 @@ interface UseWorkspaceViewLifecycleOptions {
   currentFunction: () => ServiceTreeType | null
   currentFunctionDetail: () => FunctionDetail | null
   setCurrentFunctionDetail: (detail: FunctionDetail | null) => void
-  clearPermissionError: () => void
   expandedKeys: Ref<number[]>
   currentApp: () => AppType | null
   serviceTree: () => ServiceTreeType[]
@@ -57,7 +56,6 @@ export function useWorkspaceViewLifecycle(options: UseWorkspaceViewLifecycleOpti
         currentFunction.full_code_path === payload.node.full_code_path
       )) {
         options.setCurrentFunctionDetail(payload.detail)
-        options.clearPermissionError()
       }
     })
 
@@ -107,7 +105,6 @@ export function useWorkspaceViewLifecycle(options: UseWorkspaceViewLifecycleOpti
   watch(() => options.currentFunction()?.id, (newId: number | undefined, oldId: number | undefined) => {
     if (newId !== oldId && oldId !== undefined) {
       options.setCurrentFunctionDetail(null)
-      options.clearPermissionError()
     }
   })
 

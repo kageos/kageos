@@ -78,16 +78,13 @@ export class WorkspaceApplicationService {
         // 然后设置函数（这会触发函数详情显示）
         this.domainService.setCurrentFunction(node)
       } catch (error: any) {
-        // ⭐ 捕获错误（包括 403 权限不足）
-        // currentFunction 已经在 loadFunction 中设置了
-        // 权限错误信息已经通过 request.ts 拦截器存储到 permissionErrorStore 中
-        // 这里只需要设置函数，让详情页面显示权限错误组件
+        // currentFunction 已经在 loadFunction 中设置了，这里保留函数上下文。
         const functionDirectory = this.getFunctionDirectory(node)
         if (functionDirectory) {
           this.domainService.setCurrentDirectory(functionDirectory, false)
         }
         this.domainService.setCurrentFunction(node)
-        // 不重新抛出错误，让 UI 显示权限错误组件
+        // 不重新抛出错误，让当前函数状态保留在工作区内
       }
     } else {
       // ⭐ 目录节点：直接切换到该目录

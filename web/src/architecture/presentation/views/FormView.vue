@@ -90,8 +90,6 @@
     :class="{ 'form-view-flat': flatSurface }"
     data-testid="form-view"
   >
-    <!-- ⭐ 权限不足提示：使用 PermissionDeniedView 组件 -->
-    <PermissionDeniedView v-if="permissionError" />
     <el-alert
       v-if="submitFeedback"
       :title="submitFeedback.message"
@@ -194,10 +192,8 @@
     <!-- 提交按钮 -->
     <div v-if="showSubmitButton || showResetButton" class="form-actions-section">
       <div class="form-actions-row">
-        <!-- ⭐ 提交按钮：需要 form:write 权限 -->
-        <!-- 如果没有权限，显示禁用状态的按钮，点击后跳转到权限申请页面 -->
         <el-button
-          v-if="showSubmitButton && canSubmit"
+          v-if="showSubmitButton"
           type="primary"
           size="large"
           @click="handleSubmit"
@@ -209,24 +205,13 @@
           提交
         </el-button>
         <el-button
-          v-if="featureFlags.scheduledTasks && showSubmitButton && canSubmit"
+          v-if="featureFlags.scheduledTasks && showSubmitButton"
           size="large"
           @click="showScheduledTaskDialog = true"
           :disabled="!currentFunctionNode?.full_code_path"
         >
           <el-icon><Clock /></el-icon>
           定时执行
-        </el-button>
-        <el-button
-          v-if="showSubmitButton && !canSubmit"
-          type="default"
-          size="large"
-          :disabled="false"
-          class="submit-button-full-width action-btn-no-permission"
-          @click="handleApplyPermissionForSubmit"
-        >
-          <el-icon><Lock /></el-icon>
-          提交（需{{ getPermissionShortName('function:write') }}）
         </el-button>
         <el-button v-if="showResetButton" size="large" @click="handleReset">
           <el-icon><RefreshLeft /></el-icon>
@@ -394,7 +379,7 @@
 <script setup lang="ts">
 import { computed, ref, withDefaults, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Lock, Document, List, User, Clock, Close } from '@element-plus/icons-vue'
+import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Document, List, User, Clock, Close } from '@element-plus/icons-vue'
 import { ElIcon, ElTag, ElNotification, ElMessage, ElEmpty, ElMessageBox } from 'element-plus'
 import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
@@ -410,10 +395,6 @@ import { useFormDebug } from '../composables/useFormDebug'
 import { useFormParamURLSync } from '../composables/useFormParamURLSync'
 import { useFormViewState } from '../composables/useFormViewState'
 import { useFormViewLifecycle } from '../composables/useFormViewLifecycle'
-import { hasPermission, FormPermission, FunctionPermission, getPermissionShortName } from '@/utils/permission'
-import { usePermissionErrorStore } from '@/stores/permissionError'
-import type { PermissionInfo } from '@/utils/permission'
-import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import ScheduledTaskDialog from '../components/ScheduledTaskDialog.vue'
 import { createFormViewRuntime } from './utils/formViewRuntime'
 import { FORM_LABEL_WIDTH } from '../utils/formLayout'
@@ -492,26 +473,9 @@ const {
   applicationService
 })
 
-// ⭐ 权限检查：获取当前函数节点的权限信息
 const currentFunctionNode = computed(() => {
   return workspaceStateManager.getCurrentFunction()
 })
-
-// ⭐ 是否有提交权限
-const canSubmit = computed(() => {
-  const node = currentFunctionNode.value
-  if (!node) return true  // 如果没有节点信息，默认允许（向后兼容）
-  return hasPermission(node, FormPermission.write)
-})
-
-// ⭐ 权限错误状态
-const permissionErrorStore = usePermissionErrorStore()
-const permissionError = computed<PermissionInfo | null>(() => permissionErrorStore.currentError)
-
-// ⭐ 处理提交按钮的权限申请（PermissionDeniedView 组件已处理权限错误显示）
-const handleApplyPermissionForSubmit = () => {
-  ElMessage.warning('当前用户暂无提交权限')
-}
 
 // 🔥 移除 formInitialData computed，改为使用统一的数据初始化框架
 // URL 参数会在 useFunctionParamInitialization 中统一处理
@@ -792,7 +756,6 @@ const lifecycle = useFormViewLifecycle({
   applicationService,
   workspaceStateManager,
   workspaceDomainService,
-  permissionErrorStore,
   initializeParams,
   hydrateCurrentWidgetDisplays,
   watchFormData
@@ -1071,25 +1034,6 @@ const lifecycle = useFormViewLifecycle({
   padding-right: 14px;
 }
 
-
-/* 🔥 权限错误显示样式已移至 PermissionDeniedView 组件 */
-
-/* 无权限按钮样式优化 */
-.action-btn-no-permission {
-  color: var(--el-text-color-secondary) !important;
-  border-color: var(--el-border-color-light) !important;
-  background-color: var(--el-fill-color-lighter) !important;
-  
-  &:hover {
-    color: var(--el-text-color-secondary) !important;
-    border-color: var(--el-border-color-light) !important;
-    background-color: var(--el-fill-color-light) !important;
-  }
-  
-  .el-icon {
-    margin-right: 4px;
-  }
-}
 
 /* Debug 弹窗样式 */
 .debug-section {

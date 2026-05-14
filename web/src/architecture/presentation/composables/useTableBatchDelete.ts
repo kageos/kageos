@@ -2,18 +2,11 @@ import { ref, type Ref } from 'vue'
 import type { ElTable } from 'element-plus'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { buildBatchDeleteIds } from '../views/utils/tableViewActionRuntime'
-import { hasPermission, TablePermission } from '@/utils/permission'
 import type { FunctionDetail, FieldConfig } from '../../domain/types'
 import type { TableRow } from '../../domain/services/TableDomainService'
 
-interface PermissionNodeLike {
-  full_code_path?: string
-  template_type?: string
-}
-
 interface UseTableBatchDeleteOptions {
   functionDetail: () => FunctionDetail
-  currentFunctionNode: () => PermissionNodeLike | null
   idField: () => FieldConfig | undefined
   loadTableData: () => Promise<void>
 }
@@ -51,21 +44,6 @@ export function useTableBatchDelete(options: UseTableBatchDeleteOptions) {
   const handleBatchDelete = async (): Promise<void> => {
     if (selectedRows.value.length === 0) {
       ElMessage.warning('请先选择要删除的记录')
-      return
-    }
-
-    const node = options.currentFunctionNode()
-    if (!node) {
-      ElMessage.error('无法获取函数节点信息，无法验证权限')
-      return
-    }
-
-    if (!hasPermission(node as any, TablePermission.delete)) {
-      ElNotification.warning({
-        title: '权限不足',
-        message: '您没有删除该表格记录的权限',
-        duration: 3000
-      })
       return
     }
 

@@ -12,7 +12,6 @@
  * 
  * 2. **编辑功能**：
  *    - 编辑模式下显示可编辑字段（根据 `hide.scenes` 过滤）
- *    - 提交编辑时检查权限（`function:update`）
  *    - 提交成功后刷新表格数据
  * 
  * 3. **URL 同步**：
@@ -30,11 +29,7 @@
  *    - `edit` 模式：可编辑，不设置 `_tab` 参数（只使用 `_id`）
  *    - 切换模式时更新 URL，清除表单字段参数
  * 
- * 2. **权限检查**：
- *    - 提交编辑时检查 `function:update` 权限
- *    - 权限不足时显示提示并跳转到申请页面
- * 
- * 3. **数据流**：
+ * 2. **数据流**：
  *    - 从表格行数据构建编辑表单的初始数据
  *    - 编辑模式下只显示 update 场景可编辑字段
  *    - 提交时提取表单数据并调用 TableApplicationService.updateRow
@@ -55,7 +50,6 @@
  *    - 清除表单字段参数（编辑模式下）
  * 
  * 3. **submitDrawerEdit**：
- *    - 检查权限（`function:update`）
  *    - 提取表单数据并提交
  *    - 成功后刷新表格数据，清除 URL 参数
  * 
@@ -63,11 +57,7 @@
  * ⚠️ 注意事项
  * ============================================
  * 
- * 1. **权限检查**：
- *    - 必须在提交前检查权限，防止绕过 UI 检查
- *    - 权限不足时，显示提示并跳转到申请页面
- * 
- * 2. **URL 参数管理**：
+ * 1. **URL 参数管理**：
  *    - 详情抽屉相关参数：`_tab`、`_id`
  *    - 编辑模式下必须清除表单字段参数
  *    - 关闭抽屉时清除所有相关参数
@@ -89,8 +79,6 @@ import FormView from '@/architecture/presentation/views/FormView.vue'
 import type { FieldConfig, FieldValue, FunctionDetail } from '../../domain/types'
 import type { TableResponse } from '../../domain/services/TableDomainService'
 import { useUserInfoStore } from '@/stores/userInfo'
-import { hasPermission, TablePermission } from '@/utils/permission'
-import type { ServiceTree } from '@/types'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
 import {
   buildDetailLookupSearchRequest,
@@ -353,22 +341,6 @@ export function useWorkspaceDetail(
 
     if (!supportsDetailEdit.value) {
       ElMessage.warning('当前表格不支持更新')
-      return
-    }
-    
-    // 🔥 安全修复：检查更新权限
-    const currentFunction = options.currentFunction() as ServiceTree | null
-    if (!currentFunction) {
-      ElMessage.error('无法获取函数节点信息，无法验证权限')
-      return
-    }
-    
-    if (!hasPermission(currentFunction, TablePermission.update)) {
-      ElNotification.warning({
-        title: '权限不足',
-        message: '您没有更新该表格记录的权限',
-        duration: 3000
-      })
       return
     }
     

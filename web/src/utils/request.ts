@@ -2,12 +2,10 @@ import axios from 'axios'
 import type { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
-import { usePermissionErrorStore } from '@/stores/permissionError'
 import { Logger } from '@/core/utils/logger'
 import { getApiBaseURL } from '@/config/runtime'
 import router from '@/router'
 import type { ApiResponse } from '@/types'
-import type { PermissionInfo } from './permission'
 import { extractApiMessage, isAuthExpiredBusinessResponse, isRefreshRequestUrl } from './authSession'
 
 const CLIENT_SOURCE_HEADER = 'X-Client-Source'
@@ -298,8 +296,7 @@ service.interceptors.response.use(
 
       switch (status) {
         case 403:
-          // ⭐ 权限不足：显示详细的权限信息和申请链接
-          handlePermissionDenied(data)
+          ElMessage.error(extractApiMessage(data) || '请求被拒绝')
           break
 
         case 404:
@@ -449,36 +446,6 @@ function getFilenameFromResponse(response: any): string | null {
   }
   
   return null
-}
-
-/**
- * 处理权限不足错误（403）
- * @param data 响应数据（包含权限信息）
- * ⭐ 不弹窗，而是将权限信息存储到 store 中，供详情页面显示
- */
-function handlePermissionDenied(data: any) {
-  // 尝试从响应数据中提取权限信息
-  const permissionInfo: PermissionInfo | undefined = data?.data
-
-  // ⭐ 直接使用导入的 store，避免异步问题
-  // 注意：usePermissionErrorStore 必须在函数内部调用，不能在模块级别调用
-  const permissionErrorStore = usePermissionErrorStore()
-
-  if (permissionInfo) {
-    // ⭐ 将权限信息存储到 store 中，供详情页面显示
-    permissionErrorStore.setError(permissionInfo)
-  } else {
-    // 没有详细的权限信息，显示通用错误提示（但不弹窗）
-    const errorMessage = data?.msg || '没有权限访问该资源'
-    // ⭐ 也存储到 store 中，使用默认的权限信息结构
-    permissionErrorStore.setError({
-      resource_path: '',
-      action: '',
-      action_display: '',
-      apply_url: '',
-      error_message: errorMessage
-    })
-  }
 }
 
 export default service

@@ -24,9 +24,6 @@ interface UseTableRowActionsOptions {
   applicationService: TableApplicationService
   linkFields: () => FieldConfig[]
   skipNextTableLoad: { value: boolean }
-  canUpdate: () => boolean
-  canDelete: () => boolean
-  handleApplyPermissionForAction: (action: string) => void
 }
 
 export function useTableRowActions(options: UseTableRowActionsOptions) {
@@ -111,9 +108,7 @@ export function useTableRowActions(options: UseTableRowActionsOptions) {
 
   const handleActionCommand = (command: string, row: TableRow): void => {
     const action = resolveTableActionCommand({
-      command,
-      canUpdate: options.canUpdate(),
-      canDelete: options.canDelete()
+      command
     })
 
     if (action.type === 'link') {
@@ -129,10 +124,6 @@ export function useTableRowActions(options: UseTableRowActionsOptions) {
     if (action.type === 'delete') {
       void handleDelete(row)
       return
-    }
-
-    if (action.type === 'no-permission') {
-      options.handleApplyPermissionForAction(action.action)
     }
   }
 
