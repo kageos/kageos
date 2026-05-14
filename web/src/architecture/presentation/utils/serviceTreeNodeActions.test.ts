@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import type { ServiceTree } from '@/types'
-import { DirectoryPermission, TablePermission } from '@/utils/permission'
 import {
   buildServiceTreeNodeActionTestId,
   getServiceTreeNodeActions,
@@ -30,14 +29,8 @@ function commands(actions: ReturnType<typeof getServiceTreeNodeActions>): Servic
 }
 
 describe('serviceTreeNodeActions', () => {
-  it('shows read/write package actions with capability bundle wording', () => {
-    const actions = getServiceTreeNodeActions(node({
-      permissions: {
-        [DirectoryPermission.read]: true,
-        [DirectoryPermission.write]: true,
-        [DirectoryPermission.update]: true
-      }
-    }))
+  it('shows package actions with capability bundle wording', () => {
+    const actions = getServiceTreeNodeActions(node({}))
 
     expect(commands(actions)).toEqual([
       'create-directory',
@@ -56,12 +49,7 @@ describe('serviceTreeNodeActions', () => {
   it('only shows delete and paste for eligible non-root packages', () => {
     const actions = getServiceTreeNodeActions(
       node({
-        full_code_path: '/user/app/tools',
-        permissions: {
-          [DirectoryPermission.read]: true,
-          [DirectoryPermission.write]: true,
-          [DirectoryPermission.delete]: true
-        }
+        full_code_path: '/user/app/tools'
       }),
       { hasCopiedDirectory: true }
     )
@@ -73,10 +61,7 @@ describe('serviceTreeNodeActions', () => {
   it('shows delete-function for table deletable function nodes', () => {
     const actions = getServiceTreeNodeActions(node({
       type: 'function',
-      full_code_path: '/user/app/tools/search.table',
-      permissions: {
-        [TablePermission.delete]: true
-      }
+      full_code_path: '/user/app/tools/search.table'
     }))
 
     expect(commands(actions)).toEqual(['delete-function'])

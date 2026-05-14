@@ -57,14 +57,12 @@ export class WorkspaceApplicationService {
 
   /**
    * 处理节点点击
-   * 🔥 简化：不再使用 Tab，直接加载函数详情
-   * - 点击目录节点：切换到该目录，并获取目录权限
-   * - 点击函数节点：直接加载函数详情，不先切换目录（避免闪烁），并获取函数权限
+   * - 点击目录节点：切换到该目录
+   * - 点击函数节点：直接加载函数详情，不先切换目录（避免闪烁）
    */
   async handleNodeClick(node: ServiceTree): Promise<void> {
     if (node.type === 'function') {
-      // ⭐ 函数节点：直接加载函数详情
-      // 权限信息已从树接口返回，不需要单独加载
+      // 函数节点：直接加载函数详情
       try {
         const detail = await this.domainService.loadFunction(node)
         
@@ -87,20 +85,10 @@ export class WorkspaceApplicationService {
         // 不重新抛出错误，让当前函数状态保留在工作区内
       }
     } else {
-      // ⭐ 目录节点：直接切换到该目录
-      // 权限信息已从树接口返回，不需要单独加载
+      // 目录节点：直接切换到该目录
       this.domainService.setCurrentDirectory(node, true)
     }
   }
-
-  /**
-   * ⭐ 已移除：loadNodePermissions 方法
-   * 
-   * 原因：
-   * - 后端树接口已经返回了所有节点的权限（包含继承）
-   * - 不需要从详情接口获取权限
-   * - 不需要权限缓存，直接使用 node.permissions 即可
-   */
 
   /**
    * 获取函数所在的目录节点

@@ -1,6 +1,6 @@
 <template>
   <div class="detail-content">
-    <div v-if="showDirectoryTabs" class="permission-request-section">
+    <div v-if="showDirectoryTabs" class="directory-tabs-section">
       <el-tabs v-model="currentActiveTab" class="detail-tabs">
         <el-tab-pane name="info">
           <template #label>

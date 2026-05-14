@@ -55,7 +55,7 @@ export class WorkspaceDomainService {
    * @param node 函数节点
    */
   async loadFunction(node: ServiceTree): Promise<FunctionDetail> {
-    // ⭐ 先设置 currentFunction，即使加载失败也能显示权限错误
+    // 先设置 currentFunction，即使详情加载失败也保留当前上下文。
     const state = this.stateManager.getState()
     this.stateManager.setState({
       ...state,

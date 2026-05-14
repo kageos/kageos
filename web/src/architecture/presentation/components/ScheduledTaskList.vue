@@ -702,7 +702,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, withDefaults } from 'vue'
+import { computed } from 'vue'
 import { Close, Delete, Refresh, RefreshLeft, Tickets, View } from '@element-plus/icons-vue'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import DepartmentDisplay from '@/shared/components/DepartmentDisplay.vue'

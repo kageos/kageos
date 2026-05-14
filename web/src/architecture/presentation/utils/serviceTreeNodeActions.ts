@@ -12,7 +12,6 @@ import {
   Upload
 } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
-import { DirectoryPermission, TablePermission, hasPermission } from '@/utils/permission'
 import { isRootNode } from '@/utils/tree-utils'
 import { featureFlags } from '@/config/features'
 
@@ -52,19 +51,19 @@ export function getServiceTreeNodeActions(
       command: 'create-directory',
       label: '添加服务目录',
       icon: Plus,
-      visible: data.type === 'package' && hasPermission(data, DirectoryPermission.write)
+      visible: data.type === 'package'
     },
     {
       command: 'create-docs',
       label: '创建文档',
       icon: Document,
-      visible: data.type === 'package' && hasPermission(data, DirectoryPermission.write)
+      visible: data.type === 'package'
     },
     {
       command: 'create-board',
       label: '新增讨论区',
       icon: ChatDotSquare,
-      visible: featureFlags.board && data.type === 'package' && hasPermission(data, DirectoryPermission.write)
+      visible: featureFlags.board && data.type === 'package'
     },
     {
       command: 'open-workstation',
@@ -76,31 +75,31 @@ export function getServiceTreeNodeActions(
       command: 'delete-directory',
       label: '删除目录',
       icon: Delete,
-      visible: data.type === 'package' && !isRootNode(data) && hasPermission(data, DirectoryPermission.delete)
+      visible: data.type === 'package' && !isRootNode(data)
     },
     {
       command: 'rename',
       label: '重命名',
       icon: Edit,
-      visible: data.type === 'package' && hasPermission(data, DirectoryPermission.update)
+      visible: data.type === 'package'
     },
     {
       command: 'copy',
       label: '复制',
       icon: CopyDocument,
-      visible: data.type === 'package' && hasPermission(data, DirectoryPermission.read)
+      visible: data.type === 'package'
     },
     {
       command: 'export-json',
       label: '导出能力包',
       icon: Download,
-      visible: featureFlags.capabilityBundle && data.type === 'package' && hasPermission(data, DirectoryPermission.read)
+      visible: featureFlags.capabilityBundle && data.type === 'package'
     },
     {
       command: 'import-json',
       label: '导入能力包',
       icon: Upload,
-      visible: featureFlags.capabilityBundle && data.type === 'package' && hasPermission(data, DirectoryPermission.write)
+      visible: featureFlags.capabilityBundle && data.type === 'package'
     },
     {
       command: 'paste',
@@ -108,25 +107,24 @@ export function getServiceTreeNodeActions(
       icon: DocumentChecked,
       visible: data.type === 'package'
         && Boolean(options.hasCopiedDirectory)
-        && hasPermission(data, DirectoryPermission.write)
     },
     {
       command: 'delete-function',
       label: '删除函数',
       icon: Delete,
-      visible: data.type === 'function' && hasPermission(data, TablePermission.delete)
+      visible: data.type === 'function'
     },
     {
       command: 'delete-doc',
       label: '删除文档',
       icon: Delete,
-      visible: data.type === 'docs' && hasPermission(data, DirectoryPermission.delete)
+      visible: data.type === 'docs'
     },
     {
       command: 'delete-board',
       label: '删除讨论区',
       icon: Delete,
-      visible: data.type === 'board' && hasPermission(data, DirectoryPermission.delete)
+      visible: data.type === 'board'
     }
   ]
 
