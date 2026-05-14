@@ -152,6 +152,8 @@ const registerTypeText = computed(() => {
   padding: 16px;
   min-width: 320px;
   max-width: 400px;
+  background: var(--el-bg-color-overlay);
+  color: var(--el-text-color-primary);
 }
 
 /* 非紧凑模式（用于直接展示，rich 模式） */
@@ -240,7 +242,7 @@ const registerTypeText = computed(() => {
   gap: 8px;
   margin-bottom: 16px;
   padding: 12px;
-  background: var(--el-fill-color-lighter);
+  background: rgba(var(--el-color-primary-rgb), 0.07);
   border-radius: 6px;
   border-left: 3px solid var(--el-color-primary);
 }
@@ -313,6 +315,9 @@ const registerTypeText = computed(() => {
 .user-info-popover {
   padding: 0 !important;
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.24) !important;
+  background: var(--el-bg-color-overlay) !important;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
 }
 </style>

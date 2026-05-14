@@ -61,20 +61,31 @@ const emit = defineEmits<{
   padding: 0 11px;
   border: 1px solid var(--el-border-color);
   border-radius: var(--el-border-radius-base);
-  background-color: var(--el-fill-color-blank);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--el-bg-color) 96%, var(--el-color-primary) 4%), var(--el-bg-color)),
+    var(--el-fill-color-blank);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
   box-sizing: border-box;
   display: flex;
   align-items: center;
 }
 
 .search-single-select-display:hover:not(.is-disabled) {
-  border-color: var(--el-color-primary);
+  border-color: rgba(var(--el-color-primary-rgb), 0.46);
+  background:
+    linear-gradient(180deg, rgba(var(--el-color-primary-rgb), 0.1), rgba(var(--el-color-primary-rgb), 0.045)),
+    var(--el-bg-color);
+  box-shadow: 0 0 0 3px rgba(var(--el-color-primary-rgb), 0.08);
 }
 
 .search-single-select-display.has-value {
-  border-color: var(--el-border-color);
+  border-color: rgba(var(--el-color-primary-rgb), 0.2);
+}
+
+.search-single-select-display:focus-within {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 0 0 3px rgba(var(--el-color-primary-rgb), 0.12);
 }
 
 .search-single-select-display.is-disabled {
@@ -119,8 +130,12 @@ const emit = defineEmits<{
 
 .search-selected-label {
   color: var(--el-text-color-primary);
-  font-weight: 400;
+  font-weight: 600;
   flex: 1;
+}
+
+.search-single-select-display:hover:not(.is-disabled) .search-selected-label {
+  color: var(--el-color-primary);
 }
 
 .search-placeholder {
