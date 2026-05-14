@@ -38,7 +38,7 @@
 
 - 工作空间、工作台等主页面入口已经迁移到 `src/architecture/`
 - `src/architecture/runtime/`、`src/shared/`、`src/utils/` 仍然是当前线上主链路正在使用的公共底座
-- `src/views/` 目前基本只保留错误页等少量遗留页面
+- `src/architecture/presentation/views/` 目前基本只保留错误页等少量遗留页面
 - 默认启用产品聚焦模式，普通用户入口优先保留工作空间、服务树、工作台、Form/Table/Chart、Docs 和 LLM 管理；组织、消息、操作日志、定时任务等入口由 `src/architecture/infrastructure/config/features.ts` 统一控制
 - 因此前端当前真实状态是：**主页面已迁到 `architecture/`，底层能力已收口为 `architecture/runtime` 运行时底座**
 

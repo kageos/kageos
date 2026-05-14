@@ -167,7 +167,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, Check, Plus, Delete, Close, ArrowLeft, ArrowRight, Clock, RefreshRight } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
 import { getDoc, updateDoc, deleteDoc } from '@/architecture/infrastructure/api/doc'  // ✅ 使用新的文档 API
-import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
+import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 
 const VditorEditor = defineAsyncComponent(() => import('@/shared/components/VditorEditor.vue'))

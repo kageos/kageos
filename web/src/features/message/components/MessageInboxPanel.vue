@@ -194,7 +194,7 @@ import {
 import { getServiceTreeDetail, type ServiceTreeDetailResp } from '@/architecture/infrastructure/api/service-tree'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import type { ServiceTree } from '@/types'
-import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
+import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { sanitizeHtml } from '@/utils/sanitizeHtml'
 import { findNodeByPath } from '@/utils/serviceTreeUtils'
 

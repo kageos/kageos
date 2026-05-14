@@ -174,7 +174,7 @@ import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/
 import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import type { TextWidgetConfig } from '@/architecture/runtime/types/widget-configs'
 import { sanitizeHtml } from '@/utils/sanitizeHtml'
-import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
+import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { Logger } from '@/architecture/runtime/utils/logger'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {

@@ -153,7 +153,7 @@ const router = createRouter({
     {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
-      component: () => import('@/views/Error/404.vue'),
+      component: () => import('@/architecture/presentation/views/Error/404.vue'),
       meta: {
         title: '页面不存在',
         requireAuth: false

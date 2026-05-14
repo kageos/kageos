@@ -56,7 +56,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Link, Right, TopRight } from '@element-plus/icons-vue'
-import { useAppEnvironment } from '@/composables/useAppEnvironment'
+import { useAppEnvironment } from '@/architecture/presentation/composables/useAppEnvironment'
 import { resolveWorkspaceUrl } from '@/utils/route'
 import { parseLinkValue, addLinkTypeToUrl } from '@/utils/linkNavigation'
 import { eventBus, RouteEvent } from '@/architecture/infrastructure/eventBus'

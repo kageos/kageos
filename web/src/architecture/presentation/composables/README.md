@@ -16,7 +16,7 @@
 
 **使用示例**：
 ```typescript
-import { useAppEnvironment } from '@/composables/useAppEnvironment'
+import { useAppEnvironment } from '@/architecture/presentation/composables/useAppEnvironment'
 
 const { currentEnvironment, switchEnvironment } = useAppEnvironment()
 ```
