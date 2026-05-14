@@ -411,7 +411,7 @@ import { useFormDebug } from '../composables/useFormDebug'
 import { useFormParamURLSync } from '../composables/useFormParamURLSync'
 import { useFormViewState } from '../composables/useFormViewState'
 import { useFormViewLifecycle } from '../composables/useFormViewLifecycle'
-import { hasPermission, FormPermission, FunctionPermission, buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
+import { hasPermission, FormPermission, FunctionPermission, getPermissionShortName } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
@@ -511,12 +511,7 @@ const permissionError = computed<PermissionInfo | null>(() => permissionErrorSto
 
 // ⭐ 处理提交按钮的权限申请（PermissionDeniedView 组件已处理权限错误显示）
 const handleApplyPermissionForSubmit = () => {
-  const node = currentFunctionNode.value
-  if (!node || !node.full_code_path) return
-  
-  // 构建权限申请 URL（传递 template_type 以便正确显示权限选项）
-  const applyUrl = buildPermissionApplyURL(node.full_code_path, FunctionPermission.write, node.template_type)
-  router.push(applyUrl)
+  ElMessage.warning('当前用户暂无提交权限')
 }
 
 // 🔥 移除 formInitialData computed，改为使用统一的数据初始化框架

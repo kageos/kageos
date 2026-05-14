@@ -254,7 +254,7 @@ import { useUserInfoStore } from '@/stores/userInfo'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import { sanitizeHtml } from '@/utils/sanitizeHtml'
 import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
-import { BoardPermission, buildPermissionApplyURL, getPermissionShortName, hasPermission } from '@/utils/permission'
+import { BoardPermission, getPermissionShortName, hasPermission } from '@/utils/permission'
 import PermissionDeniedView from './PermissionDeniedView.vue'
 
 const VditorEditor = defineAsyncComponent(() => import('@/shared/components/VditorEditor.vue'))
@@ -386,12 +386,7 @@ const onPageChange = (p: number) => {
 }
 
 const handleApplyPermission = (action: string) => {
-  if (!fullCodePath.value) {
-    ElMessage.warning('讨论区路径不存在，无法申请权限')
-    return
-  }
-
-  void router.push(buildPermissionApplyURL(fullCodePath.value, action))
+  ElMessage.warning(`当前用户暂无 ${getPermissionShortName(action)} 权限`)
 }
 
 const ensureBoardPermission = (allowed: boolean, action: string, message: string): boolean => {

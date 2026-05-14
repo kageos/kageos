@@ -1,5 +1,4 @@
 import { computed, type Ref } from 'vue'
-import type { Router } from 'vue-router'
 import { ElMessage, ElNotification } from 'element-plus'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'
 import type { FunctionDetail } from '../../domain/types'
@@ -7,7 +6,6 @@ import type { WorkspaceState } from '../../domain/services/WorkspaceDomainServic
 import type { TableApplicationService } from '../../application/services/TableApplicationService'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import { RouteSource } from '@/utils/routeSource'
-import { buildTablePermissionApplyURL } from '../views/utils/tableViewActionRuntime'
 import {
   buildTableAddDialogOpenRequest,
   buildTableCreateDialogCloseRequest
@@ -17,7 +15,6 @@ import { usePermissionErrorStore } from '@/stores/permissionError'
 import { getTableCreateFields } from '@/utils/functionSchemaSelectors'
 
 interface UseTableCreateAndPermissionsOptions {
-  router: Router
   routeQuery: () => Record<string, any>
   functionDetail: () => FunctionDetail
   workspaceStateManager: IStateManager<WorkspaceState>
@@ -57,14 +54,7 @@ export function useTableCreateAndPermissions(options: UseTableCreateAndPermissio
   }
 
   const handleApplyPermissionForAction = (action: string): void => {
-    const node = currentFunctionNode.value
-    const applyUrl = buildTablePermissionApplyURL(node, action)
-    if (!applyUrl) {
-      ElMessage.warning('无法获取资源路径，无法申请权限')
-      return
-    }
-
-    void options.router.push(applyUrl)
+    ElMessage.warning(`当前用户暂无 ${action} 权限`)
   }
 
   const handleAdd = (): void => {
@@ -106,10 +96,6 @@ export function useTableCreateAndPermissions(options: UseTableCreateAndPermissio
         message: '您没有新增该表格记录的权限',
         duration: 3000
       })
-      const applyUrl = buildTablePermissionApplyURL(node, TablePermission.write)
-      if (applyUrl) {
-        await options.router.push(applyUrl)
-      }
       return
     }
 

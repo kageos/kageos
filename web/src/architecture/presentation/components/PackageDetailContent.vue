@@ -1,34 +1,6 @@
 <template>
   <div class="detail-content">
-    <div v-if="hasNoDirectoryPermissions" class="permission-error-wrapper">
-      <el-card class="permission-error-card" shadow="hover">
-        <template #header>
-          <div class="permission-error-header">
-            <el-icon class="permission-error-icon"><Lock /></el-icon>
-            <span class="permission-error-title">权限不足</span>
-          </div>
-        </template>
-        <div class="permission-error-content">
-          <div class="permission-error-message">
-            <p class="error-message-text">
-              您没有 <strong>访问该目录</strong> 的权限
-            </p>
-          </div>
-          <div v-if="packageNode?.full_code_path" class="permission-error-info">
-            <el-icon><Document /></el-icon>
-            <span class="info-label">资源路径：</span>
-            <span class="info-value">{{ packageNode.full_code_path }}</span>
-          </div>
-          <div class="permission-error-actions">
-            <el-button type="primary" size="default" :icon="Lock" @click="$emit('apply-permission')">
-              立即申请权限
-            </el-button>
-          </div>
-        </div>
-      </el-card>
-    </div>
-
-    <div v-else-if="showDirectoryTabs" class="permission-request-section">
+    <div v-if="showDirectoryTabs" class="permission-request-section">
       <el-tabs v-model="currentActiveTab" class="detail-tabs">
         <el-tab-pane name="info">
           <template #label>
@@ -91,7 +63,6 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Document, Lock } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
 import PackageDetailOverviewCard from './PackageDetailOverviewCard.vue'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
@@ -105,13 +76,11 @@ type DetailTabName = 'info' | 'scheduledAgentTask'
 const props = defineProps<{
   packageNode: ServiceTree | null
   totalRunCount: number
-  hasNoDirectoryPermissions: boolean
   activeTab: DetailTabName
 }>()
 
 const emit = defineEmits<{
   (e: 'update:activeTab', value: DetailTabName): void
-  (e: 'apply-permission'): void
   (e: 'select-child', child: ServiceTree): void
   (e: 'open-session', session: WorkspaceSessionItem): void
 }>()
@@ -145,110 +114,6 @@ const directoryMarkdown = computed(() => {
   padding: 32px 40px;
   min-width: 0;
   width: 100%;
-}
-
-.permission-error-wrapper {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 400px;
-  padding: 40px 20px;
-}
-
-.permission-error-card {
-  max-width: 600px;
-  width: 100%;
-  border-radius: 16px;
-  border: none;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
-
-  &:hover {
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
-    transform: translateY(-2px);
-  }
-}
-
-.permission-error-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--el-color-warning);
-}
-
-.permission-error-icon {
-  font-size: 24px;
-}
-
-.permission-error-title {
-  font-size: 18px;
-}
-
-.permission-error-content {
-  padding: 8px 0;
-}
-
-.permission-error-message {
-  margin-bottom: 24px;
-  padding: 16px;
-  background: rgba(245, 158, 11, 0.08);
-  border-radius: 12px;
-  border-left: 4px solid var(--el-color-warning);
-}
-
-.error-message-text {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.6;
-  color: var(--el-text-color-primary);
-
-  strong {
-    color: var(--el-color-warning);
-    font-weight: 600;
-  }
-}
-
-.permission-error-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
-  padding: 12px 16px;
-  background: var(--el-bg-color-page);
-  border-radius: 10px;
-  font-size: 14px;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background: var(--el-fill-color-light);
-  }
-
-  .el-icon {
-    color: var(--el-color-info);
-    font-size: 18px;
-  }
-
-  .info-label {
-    color: var(--el-text-color-regular);
-    font-weight: 500;
-  }
-
-  .info-value {
-    color: var(--el-text-color-primary);
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    font-size: 13px;
-    word-break: break-all;
-  }
-}
-
-.permission-error-actions {
-  margin-top: 24px;
-  display: flex;
-  justify-content: center;
-  padding-top: 16px;
-  border-top: 1px solid var(--el-border-color-lighter);
 }
 
 .detail-tabs {

@@ -177,8 +177,7 @@
 import { ref, computed, toRef } from 'vue'
 import { Edit, ArrowLeft, ArrowRight, Grid, List, Lock } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { useRouter } from 'vue-router'
-import { buildPermissionApplyURL, getPermissionShortName, FunctionPermission } from '@/utils/permission'
+import { getPermissionShortName, FunctionPermission } from '@/utils/permission'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import ScheduledTaskDialog from '@/architecture/presentation/components/ScheduledTaskDialog.vue'
 import TableRowDetailReadTabs from './TableRowDetailReadTabs.vue'
@@ -226,7 +225,6 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
-const router = useRouter()
 
 const formViewRef = ref<InstanceType<typeof FormView> | null>(null)
 const showScheduledTaskDialog = ref(false)
@@ -329,21 +327,8 @@ const handleToggleMode = (newMode: 'read' | 'edit') => {
     return
   }
 
-  // 如果尝试进入编辑模式但没有权限，跳转到权限申请页面
   if (newMode === 'edit' && !props.canEdit) {
-    if (!featureFlags.permissions) {
-      ElMessage.warning('当前用户暂无编辑权限')
-      return
-    }
-    const path = fullCodePath.value
-    if (path) {
-      // 获取 template_type（优先使用当前详情，再回退到编辑详情）
-      const templateType = props.currentFunctionDetail?.template_type || props.editFunctionDetail?.template_type
-      const applyURL = buildPermissionApplyURL(path, FunctionPermission.update, templateType)
-      router.push(applyURL)
-    } else {
-      ElMessage.warning('无法获取资源路径，无法申请权限')
-    }
+    ElMessage.warning('当前用户暂无编辑权限')
     return
   }
   

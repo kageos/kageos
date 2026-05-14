@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { TablePermission } from '@/utils/permission'
 import {
   buildBatchDeleteIds,
-  buildTablePermissionApplyURL,
   hasFunctionCallback,
   resolveTableDetailEditAccess,
   resolveTableActionCommand
@@ -20,7 +19,7 @@ describe('tableViewActionRuntime', () => {
     expect(resolveTableDetailEditAccess({ supportsUpdate: true, canUpdate: true })).toBe('allowed')
   })
 
-  it('routes action commands to link, edit, delete or permission request', () => {
+  it('routes action commands to link, edit, delete or no-permission', () => {
     expect(
       resolveTableActionCommand({
         command: 'link:profile',
@@ -50,23 +49,9 @@ describe('tableViewActionRuntime', () => {
         canDelete: false
       })
     ).toEqual({
-      type: 'apply-permission',
+      type: 'no-permission',
       action: TablePermission.delete
     })
-  })
-
-  it('builds permission apply url for table actions only when node path exists', () => {
-    expect(
-      buildTablePermissionApplyURL(
-        {
-          full_code_path: '/workspace/demo/users',
-          template_type: 'table'
-        },
-        TablePermission.update
-      )
-    ).toBe('/permissions/apply?resource=%2Fworkspace%2Fdemo%2Fusers&action=table%3Aupdate&templateType=table')
-
-    expect(buildTablePermissionApplyURL(undefined, TablePermission.update)).toBeNull()
   })
 
   it('extracts numeric ids for batch delete from row.id or explicit id field', () => {

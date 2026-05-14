@@ -19,21 +19,6 @@
           show-word-limit
         />
       </el-form-item>
-
-      <el-form-item v-if="featureFlags.permissions" label="管理员" prop="admins">
-        <UsersWidget
-          v-if="visible"
-          :key="`admins-${form.admins || 'empty'}`"
-          :field="adminsField"
-          :value="adminsFieldValue"
-          :field-path="adminsField.code"
-          mode="edit"
-          @update:model-value="$emit('update-admins', $event)"
-        />
-        <div class="form-item-tip">
-          可以添加多个管理员，管理员可以编辑目录信息
-        </div>
-      </el-form-item>
     </el-form>
 
     <template #footer>
@@ -47,24 +32,17 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import UsersWidget from '@/shared/components/UsersWidget.vue'
-import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
-import { featureFlags } from '@/config/features'
 
 const props = defineProps<{
   visible: boolean
   form: {
     name: string
-    admins: string
   }
   submitting: boolean
-  adminsField: FieldConfig
-  adminsFieldValue: FieldValue
 }>()
 
 const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void
-  (e: 'update-admins', value: FieldValue): void
   (e: 'submit', formRef: any): void
 }>()
 
@@ -79,11 +57,3 @@ function handleSubmit() {
   emit('submit', editFormRef.value)
 }
 </script>
-
-<style scoped lang="scss">
-.form-item-tip {
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-</style>
