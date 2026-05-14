@@ -4,7 +4,7 @@
  */
 
 import { reactive, type UnwrapNestedRefs } from 'vue'
-import type { FieldValue } from '../types/field'
+import type { FieldValue } from '@/architecture/domain/types/field'
 import { Logger } from '../utils/logger'
 
 /**

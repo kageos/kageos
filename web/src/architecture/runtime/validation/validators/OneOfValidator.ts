@@ -12,7 +12,7 @@
  */
 
 import type { Validator, ValidationRule, ValidationResult, ValidationContext } from '../types'
-import type { FieldValue } from '../../types/field'
+import type { FieldValue } from '@/architecture/domain/types/field'
 
 export class OneOfValidator implements Validator {
   readonly name = 'oneof'

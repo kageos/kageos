@@ -33,7 +33,7 @@
  */
 
 import { WidgetType } from '@/architecture/runtime/constants/widget'
-import type { FieldConfig } from '@/architecture/runtime/types/field'
+import type { FieldConfig } from '@/architecture/domain/types/field'
 
 /**
  * 排序能力类型

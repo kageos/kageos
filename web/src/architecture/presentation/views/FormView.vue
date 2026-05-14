@@ -398,7 +398,7 @@ import ScheduledTaskDialog from '../components/ScheduledTaskDialog.vue'
 import { createFormViewRuntime } from './utils/formViewRuntime'
 import { FORM_LABEL_WIDTH } from '../utils/formLayout'
 import { getFormRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
-import { featureFlags } from '@/architecture/infrastructure/config/features'
+import { featureFlags } from '@/architecture/runtime/config/features'
 
 const props = withDefaults(defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取

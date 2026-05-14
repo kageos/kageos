@@ -1,4 +1,4 @@
-import type { FieldConfig, FieldValue } from '@/architecture/runtime/types/field'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 import { DataType } from '@/architecture/runtime/constants/widget'
 import { resolveDynamicDefaultValue } from './dynamicDefaultValue'
 

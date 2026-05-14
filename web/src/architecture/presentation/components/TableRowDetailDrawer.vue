@@ -183,7 +183,7 @@ import { buildDetailEditFormState } from '../composables/utils/workspaceDetailRu
 import { useTableRowDetailTabs } from '@/architecture/presentation/composables/useTableRowDetailTabs'
 import { useTableRowDetailLayout } from '@/architecture/presentation/composables/useTableRowDetailLayout'
 import { resolveTableDetailEditAccess } from '../views/utils/tableViewActionRuntime'
-import { featureFlags } from '@/architecture/infrastructure/config/features'
+import { featureFlags } from '@/architecture/runtime/config/features'
 
 interface Props {
   visible: boolean

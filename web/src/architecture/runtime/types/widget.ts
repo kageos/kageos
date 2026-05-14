@@ -3,12 +3,12 @@
  * 
  * 🔥 重构说明：
  * - 不依赖 BaseWidget 的依赖
- * - FormRendererContext 接口保持兼容，但 registerWidget/unregisterWidget 已不再实际使用（v2 系统）
+ * - FormRendererContext 接口保持兼容，但 registerWidget/unregisterWidget 已不再实际使用
  * 
  * 🔥 统一类型系统：使用 WidgetTypes 命名空间
  */
 
-import type { WidgetTypes, FunctionDetail } from './field'
+import type { WidgetTypes, FunctionDetail } from '@/architecture/domain/types/field'
 
 // 🔥 向后兼容：导出类型别名
 export type FieldConfig = WidgetTypes.FieldConfig
@@ -19,14 +19,14 @@ import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManage
  * FormRenderer 上下文接口
  * 提供给 Widget 的 FormRenderer 能力
  * 
- * 注意：v2 系统中 registerWidget/unregisterWidget 已不再实际使用
+ * 注意：当前 Widget 运行时中 registerWidget/unregisterWidget 已不再实际使用
  * 保留这些方法是为了类型兼容性
  */
 export interface FormRendererContext {
-  /** 注册 Widget 实例（v2 系统中已不再使用，保留仅为兼容性） */
+  /** 注册 Widget 实例（当前运行时中已不再使用，保留仅为兼容性） */
   registerWidget: (fieldPath: string, widget: any) => void
   
-  /** 注销 Widget 实例（v2 系统中已不再使用，保留仅为兼容性） */
+  /** 注销 Widget 实例（当前运行时中已不再使用，保留仅为兼容性） */
   unregisterWidget: (fieldPath: string) => void
   
   /** 获取函数的 HTTP 方法 */
@@ -41,7 +41,7 @@ export interface FormRendererContext {
   /** 获取完整的提交数据（递归收集） */
   getSubmitData: () => Record<string, any>
   
-  /** 获取字段错误（v2 系统新增） */
+  /** 获取字段错误 */
   getFieldError?: (fieldPath: string) => string | null
 
   /** 清理字段错误（嵌套容器更新时使用） */

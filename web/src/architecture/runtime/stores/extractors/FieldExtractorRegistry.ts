@@ -74,7 +74,7 @@
  * 
  */
 
-import type { FieldConfig } from '../../types/field'
+import type { FieldConfig } from '@/architecture/domain/types/field'
 import type { IFieldExtractor, FieldExtractorRegistry as IFieldExtractorRegistry } from './FieldExtractor'
 import { BasicFieldExtractor } from './BasicFieldExtractor'
 import { MultiSelectFieldExtractor } from './MultiSelectFieldExtractor'

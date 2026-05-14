@@ -1,4 +1,4 @@
-import type { WidgetTypes } from '@/architecture/runtime/types/field'
+import type { WidgetTypes } from '@/architecture/domain/types/field'
 import type { ReactiveFormDataManager } from '@/architecture/runtime/managers/ReactiveFormDataManager'
 import type { FormRendererContext } from '@/architecture/runtime/types/widget'
 

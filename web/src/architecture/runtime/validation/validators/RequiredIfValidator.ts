@@ -6,7 +6,7 @@
  */
 
 import type { Validator, ValidationRule, ValidationResult, ValidationContext } from '../types'
-import type { FieldValue } from '../../types/field'
+import type { FieldValue } from '@/architecture/domain/types/field'
 import { isEmpty, getFieldName, createRequiredErrorMessage, findFieldInContext } from '../utils/fieldUtils'
 import { evaluatePresenceRule } from '../utils/presenceRules'
 

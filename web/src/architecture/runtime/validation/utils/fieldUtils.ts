@@ -3,7 +3,7 @@
  * 用于提取重复逻辑，提高代码复用性
  */
 
-import type { FieldConfig, FieldValue } from '../../types/field'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 import type { ValidationContext } from '../types'
 import { Logger } from '@/architecture/runtime/utils/logger'
 

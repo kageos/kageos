@@ -1,4 +1,4 @@
-import type { FieldConfig } from '@/architecture/runtime/types/field'
+import type { FieldConfig } from '@/architecture/domain/types/field'
 
 function normalizeOptionColorList(value: unknown): string[] {
   if (Array.isArray(value)) {

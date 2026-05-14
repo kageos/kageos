@@ -348,7 +348,7 @@ import UserEditDialog from '@/architecture/presentation/features/user/components
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import UsersWidget from '@/architecture/presentation/shared/components/UsersWidget.vue'
 import { WidgetType } from '@/architecture/runtime/constants/widget'
-import type { FieldValue } from '@/architecture/runtime/types/field'
+import type { FieldValue } from '@/architecture/domain/types/field'
 import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/architecture/runtime/utils/widgetFieldHelpers'
 
 // ==================== 状态管理 ====================

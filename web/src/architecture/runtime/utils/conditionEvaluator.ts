@@ -5,7 +5,7 @@
  */
 
 import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
-import type { FieldConfig } from '../types/field'
+import type { FieldConfig } from '@/architecture/domain/types/field'
 import { getFieldPresenceState as resolveFieldPresenceState } from '../validation/utils/presenceRules'
 
 export function getFieldPresenceState(

@@ -39,12 +39,12 @@
 - 前端源码入口已经统一收口到 `src/architecture/`
 - `src/architecture/presentation/` 承载页面、业务入口、共享展示组件、Widget 和样式资源
 - `src/architecture/runtime/` 承载运行时底座、工具函数、提取器、校验和 Widget 运行时纯逻辑
-- 默认启用产品聚焦模式，普通用户入口优先保留工作空间、服务树、工作台、Form/Table/Chart、Docs 和 LLM 管理；组织、消息、操作日志、定时任务等入口由 `src/architecture/infrastructure/config/features.ts` 统一控制
+- 默认启用产品聚焦模式，普通用户入口优先保留工作空间、服务树、工作台、Form/Table/Chart、Docs 和 LLM 管理；组织、消息、操作日志、定时任务等入口由 `src/architecture/runtime/config/features.ts` 统一控制
 - 因此前端当前真实状态是：**源码目录已经统一到 `architecture/`，不再保留顶层新旧混合入口**
 
 ### 1.4 产品聚焦模式
 
-前端通过 `src/architecture/infrastructure/config/features.ts` 管理可见能力。`VITE_AOS_FOCUSED_MODE` 默认开启；开启后，组织、消息、定时任务、操作日志、讨论区、企业升级等高级入口默认隐藏，但路由和后端接口仍保留兼容。
+前端通过 `src/architecture/runtime/config/features.ts` 管理可见能力。`VITE_AOS_FOCUSED_MODE` 默认开启；开启后，组织、消息、定时任务、操作日志、讨论区、企业升级等高级入口默认隐藏，但路由和后端接口仍保留兼容。
 
 常用开关：
 

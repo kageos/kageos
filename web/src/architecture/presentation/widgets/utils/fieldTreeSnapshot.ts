@@ -1,4 +1,4 @@
-import type { FieldValue } from '@/architecture/runtime/types/field'
+import type { FieldValue } from '@/architecture/domain/types/field'
 import type { FormDataStore } from '@/architecture/runtime/stores/formData'
 
 export interface FieldTreeSnapshot {

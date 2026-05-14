@@ -297,7 +297,7 @@ import { findNodeByPath, findNodeById } from '../utils/workspaceUtils'
 import { useAfterCreateNode } from '../composables/useAfterCreateNode'
 import { getFormRequestFields, getFunctionCallbacks } from '@/architecture/runtime/utils/functionSchemaSelectors'
 import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
-import { featureFlags } from '@/architecture/infrastructure/config/features'
+import { featureFlags } from '@/architecture/runtime/config/features'
 
 const route = useRoute()
 const router = useRouter()

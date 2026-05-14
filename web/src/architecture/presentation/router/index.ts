@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
-import { featureFlags } from '@/architecture/infrastructure/config/features'
+import { featureFlags } from '@/architecture/runtime/config/features'
 import { setAppRouter } from '@/architecture/runtime/utils/navigation'
 
 const router = createRouter({

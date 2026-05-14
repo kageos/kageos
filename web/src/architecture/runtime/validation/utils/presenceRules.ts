@@ -1,5 +1,5 @@
 import type { ReactiveFormDataManager } from '../../managers/ReactiveFormDataManager'
-import type { FieldConfig, FieldValue } from '../../types/field'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 import type { ValidationContext, ValidationRule } from '../types'
 import {
   findFieldByCode,

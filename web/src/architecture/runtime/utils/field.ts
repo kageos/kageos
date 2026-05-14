@@ -2,7 +2,7 @@
  * 字段工具函数
  */
 
-import type { FieldConfig, FieldValue } from '@/architecture/runtime/types/field'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 import { formatDateTimeValue } from './date'
 import { WidgetType } from '@/architecture/runtime/constants/widget'
 
