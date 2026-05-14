@@ -400,7 +400,6 @@ import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import { apiClient } from '../../infrastructure/apiClient'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
-import { Logger } from '@/core/utils/logger'
 import { getErrorMessage } from '@/utils/apiError'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { getChangedFields } from '@/utils/objectDiff'
@@ -588,15 +587,6 @@ const submitForm = async (): Promise<boolean> => {
     return true
   } catch (error: any) {
     const errorMessage = getErrorMessage(error, '提交失败，请稍后重试')
-    Logger.error('FormView', '表单提交失败', {
-      router: functionDetail.value?.router,
-      message: errorMessage,
-      errorMessageRaw: error?.message,
-      responseMsg: error?.response?.data?.msg,
-      responseCode: error?.response?.data?.code,
-      traceId: error?.response?.data?.metadata?.trace_id
-    })
-
     submitFeedback.value = {
       type: 'error',
       message: errorMessage
@@ -608,10 +598,6 @@ const submitForm = async (): Promise<boolean> => {
       duration: 8000,
       position: 'top-right',
       showClose: true
-    })
-
-    Logger.debug('FormView', '已展示表单提交失败提示', {
-      message: errorMessage,
     })
 
     return false
@@ -670,26 +656,7 @@ function prepareSubmitDataWithTypeConversion(): Record<string, any> {
   
   // 使用 domainService 的 getSubmitData 方法递归收集所有字段的数据
   const submitData = domainService.getSubmitData(request)
-  
-  // 🔥 调试日志：检查提交数据中是否包含所有必填字段
-  const requiredFields = request.filter(f => f.validation && f.validation.includes('required'))
-  const missingFields = requiredFields.filter(f => submitData[f.code] === undefined || submitData[f.code] === null || submitData[f.code] === '')
-  
-  if (missingFields.length > 0) {
-    Logger.warn('[FormView]', '提交数据中缺少必填字段', {
-      missingFields: missingFields.map(f => f.code),
-      submitDataKeys: Object.keys(submitData),
-      allFieldCodes: request.map(f => f.code)
-    })
-  }
-  
-  Logger.info('[FormView]', '准备提交数据（表单提交）', {
-    submitData,
-    fieldCount: request.length,
-    submitDataKeys: Object.keys(submitData),
-    allFieldCodes: request.map(f => f.code)
-  })
-  
+
   return submitData
 }
 
@@ -711,15 +678,7 @@ async function prepareUpdateData(oldValues: Record<string, any>): Promise<Record
   
   // 使用 getChangedFields 过滤出只变更的字段
   const { updates } = getChangedFields(oldValues, allSubmitData)
-  
-  Logger.info('[FormView]', '准备更新数据（表格更新）', {
-    allFieldsCount: Object.keys(allSubmitData).length,
-    changedFieldsCount: Object.keys(updates).length,
-    changedFields: Object.keys(updates),
-    allSubmitData,
-    updates
-  })
-  
+
   return updates
 }
 
@@ -729,28 +688,14 @@ async function prepareUpdateData(oldValues: Record<string, any>): Promise<Record
  */
 function validateForm(): boolean {
   if (!functionDetail.value) {
-    Logger.warn('[FormView]', 'functionDetail 不存在，无法验证')
     return false
   }
   
   const fields = getFormRequestFields(functionDetail.value) as FieldConfig[]
-  const isValid = domainService.validateForm(fields)
-  
-  Logger.debug('[FormView]', '表单验证结果', {
-    isValid,
-    fieldsCount: fields.length,
-    fieldCodes: fields.map(f => f.code)
-  })
-  
-  return isValid
+  return domainService.validateForm(fields)
 }
 
 async function applyOperateLog(payload: ApplyOperateLogPayload): Promise<void> {
-  Logger.debug('FormView', '收到执行记录回填请求', {
-    requestKeys: Object.keys(payload.requestBody || {}),
-    hasResponseBody: !!payload.responseBody,
-    hasResponseMetadata: !!payload.responseMetadata
-  })
   await lifecycle.applyOperateLog(payload)
   replayContext.value = payload.replayContext || {
     source: 'operate_log',

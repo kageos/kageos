@@ -70,11 +70,9 @@
  * 
  * 3. **错误处理**：
  *    - API 错误通过 request.ts 拦截器处理
- *    - 权限错误存储到 permissionErrorStore
  *    - 其他错误通过事件或异常抛出
  */
 
-import { Logger } from '@/core/utils/logger'
 import { unwrapApiResponseData } from '@/utils/apiError'
 import { FormDomainService } from '../../domain/services/FormDomainService'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
@@ -120,7 +118,6 @@ export class FormApplicationService {
    */
   async handleFunctionLoaded(detail: FunctionDetail): Promise<void> {
     // 初始化表单
-    // 🔥 确保 fields 是数组，防止类型错误
     const fields = getFormRequestFields(detail) as FieldConfig[]
     const initialData = {} // 从 URL 或其他地方获取初始数据
     
@@ -136,10 +133,6 @@ export class FormApplicationService {
     // 主提交链路也要先跑前端校验，保证顶层 form 与弹窗/抽屉场景行为一致。
     const isValid = this.domainService.validateForm(fields)
     if (!isValid) {
-      Logger.warn('[FormApplicationService]', '提交前表单验证失败', {
-        fieldsCount: fields.length,
-        fieldCodes: fields.map(f => f.code)
-      })
       throw new Error('请先修正表单校验错误')
     }
 
@@ -147,35 +140,9 @@ export class FormApplicationService {
     this.domainService.setSubmitting(true)
 
     try {
-      // 获取提交数据（从 StateManager）
-      // 注意：这里需要访问 FormStateManager 的 getSubmitData 方法
-      // 为了保持依赖倒置，我们通过 Domain Service 获取
-      // 🔥 确保 fields 是数组，防止类型错误
-      // 🔥 调试日志：检查提交前的数据状态
-      const stateManagerForDebug = (this.domainService as any).stateManager
-      if (stateManagerForDebug && stateManagerForDebug.formStore && stateManagerForDebug.formStore.data) {
-        Logger.info('[FormApplicationService]', '提交前 formStore.data 状态', {
-          dataSize: stateManagerForDebug.formStore.data.size,
-          dataKeys: Array.from(stateManagerForDebug.formStore.data.keys()),
-          dataSample: Array.from(stateManagerForDebug.formStore.data.entries() as Iterable<[string, any]>).slice(0, 5).map(([k, v]) => ({
-            key: k,
-            raw: (v as any)?.raw,
-            display: (v as any)?.display
-          }))
-        })
-      }
-      
       const submitData = this.getSubmitData(fields)
-      
-      // 🔥 调试日志：检查提交数据
-      Logger.info('[FormApplicationService]', '提交数据', {
-        submitDataKeys: Object.keys(submitData),
-        submitData,
-        fieldsCount: fields.length,
-        fieldCodes: fields.map(f => f.code)
-      })
 
-      // ⭐ 使用标准 API：/form/submit/{full-code-path}
+      // 使用标准 API：/form/submit/{full-code-path}
       const fullCodePath = functionDetail.router?.startsWith('/') 
         ? functionDetail.router 
         : `/${functionDetail.router || ''}`
@@ -191,7 +158,7 @@ export class FormApplicationService {
 
       response = unwrapApiResponseData(response, '提交失败，请稍后重试')
 
-      // 🔥 保存响应数据到状态管理器
+      // 保存响应数据到状态管理器
       const stateManager = this.domainService.getStateManager()
       if (stateManager && typeof (stateManager as any).setResponse === 'function') {
         // 处理响应数据：如果 response 不是对象，包装成对象
@@ -199,7 +166,7 @@ export class FormApplicationService {
           ? response 
           : { result: response }
         
-        // 🔥 提取 metadata（从 response._metadata，由 request.ts 响应拦截器附加）
+        // 提取 metadata（从 response._metadata，由 request.ts 响应拦截器附加）
         const metadata = (response as any)?._metadata
         if (metadata && typeof (stateManager as any).setMetadata === 'function') {
           ;(stateManager as any).setMetadata(metadata)

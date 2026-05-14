@@ -162,12 +162,6 @@ export class FormDomainService {
    * @param isUpdateMode 是否为更新模式（true=更新模式，false=新增模式）
    */
   initializeForm(fields: FieldConfig[], initialData?: Record<string, any>, isUpdateMode: boolean = false): void {
-    Logger.debug('FormDomainService', 'initializeForm 被调用', {
-      fieldsCount: fields.length,
-      fieldCodes: fields.map(f => f.code),
-      initialDataKeys: initialData ? Object.keys(initialData) : []
-    })
-    
     // 更新字段配置
     this.fields = fields
 
@@ -238,13 +232,6 @@ export class FormDomainService {
             }
           })
         } else {
-          if (hasEnrichedExistingValue) {
-            Logger.debug('FormDomainService', 'initialData 覆盖已有展示态值', {
-              fieldCode,
-              existingRaw: existingValue?.raw,
-              initialRawValue
-            })
-          }
           // 🔥 对于有 OnSelectFuzzy 回调的字段，display 暂时设置为空字符串
           // 让 SelectWidgetInitializer 通过 by_value 来获取 label
           const hasOnSelectFuzzy = field.callbacks?.includes('OnSelectFuzzy') || false
@@ -311,12 +298,6 @@ export class FormDomainService {
       })
     }
 
-    Logger.debug('FormDomainService', 'initializeForm 完成', {
-      fieldsCount: fields.length,
-      newDataSize: newData.size,
-      newDataKeys: Array.from(newData.keys())
-    })
-
     // 触发事件
     this.eventBus.emit(FormEvent.initialized, { fields, data: newData })
   }
@@ -342,14 +323,6 @@ export class FormDomainService {
       currentData = new Map(state.data || new Map())
     }
     
-    // 🔥 调试日志：检查更新前的数据
-    Logger.debug('FormDomainService', 'updateFieldValue 开始', {
-      fieldCode,
-      valueRaw: value?.raw,
-      currentDataSize: currentData.size,
-      currentDataKeys: Array.from(currentData.keys())
-    })
-    
     // 更新字段值
     currentData.set(fieldCode, value)
 
@@ -365,14 +338,6 @@ export class FormDomainService {
       data: currentData,
       errors: newErrors
     } as any)
-
-    // 🔥 调试日志：检查更新后的数据
-    Logger.debug('FormDomainService', 'updateFieldValue 完成', {
-      fieldCode,
-      valueRaw: value?.raw,
-      formStoreDataSize: stateManager?.formStore?.data?.size || 0,
-      formStoreDataKeys: stateManager?.formStore?.data ? Array.from(stateManager.formStore.data.keys()) : []
-    })
 
     // 处理字段依赖
     this.handleDependency(fieldCode)
