@@ -109,7 +109,7 @@ import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/
 import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import { formatDateTimeValue } from '@/architecture/shared/date'
-import type { DateTimeWidgetConfig } from '@/architecture/runtime/types/widget-configs'
+import type { DateTimeWidgetConfig } from '@/architecture/domain/types/widget-configs'
 import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/utils/searchType'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {

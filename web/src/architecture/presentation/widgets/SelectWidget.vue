@@ -129,7 +129,7 @@ import { convertFormDataToRequestByType } from '@/architecture/presentation/widg
 import { widgetInitializerRegistry } from '@/architecture/presentation/widgets/initializers/WidgetInitializerRegistry'
 import { SelectWidgetInitializer } from '@/architecture/presentation/widgets/initializers/SelectWidgetInitializer'
 import { getWidgetOptionColors } from '@/architecture/runtime/utils/widgetOptionColors'
-import type { SelectOptionConfig, SelectWidgetConfig } from '@/architecture/runtime/types/widget-configs'
+import type { SelectOptionConfig, SelectWidgetConfig } from '@/architecture/domain/types/widget-configs'
 import type { SelectOptionItem } from './selectWidgetTypes'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {

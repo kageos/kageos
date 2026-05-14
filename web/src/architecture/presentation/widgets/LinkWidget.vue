@@ -61,7 +61,7 @@ import { resolveWorkspaceUrl } from '@/architecture/runtime/utils/route'
 import { parseLinkValue, addLinkTypeToUrl } from '@/architecture/runtime/utils/linkNavigation'
 import { eventBus, RouteEvent } from '@/architecture/infrastructure/eventBus'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
-import type { LinkWidgetConfig } from '@/architecture/runtime/types/widget-configs'
+import type { LinkWidgetConfig } from '@/architecture/domain/types/widget-configs'
 
 const props = defineProps<WidgetComponentProps>()
 const router = useRouter()

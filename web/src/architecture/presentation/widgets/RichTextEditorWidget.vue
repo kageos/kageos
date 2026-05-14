@@ -106,7 +106,7 @@ import { uploadFile, notifyUploadComplete } from '@/architecture/infrastructure/
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import type { RichTextWidgetConfig } from '@/architecture/runtime/types/widget-configs'
+import type { RichTextWidgetConfig } from '@/architecture/domain/types/widget-configs'
 import { sanitizeHtml } from '@/architecture/runtime/utils/sanitizeHtml'
 import RichTextEditorToolbar from './RichTextEditorToolbar.vue'
 
