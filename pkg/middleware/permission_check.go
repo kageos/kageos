@@ -15,8 +15,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func skipPermissionChecks(c *gin.Context) bool {
+	if permissionconstants.EnforcementEnabled() {
+		return false
+	}
+	c.Next()
+	return true
+}
+
 // checkPermissionWithPath 通用权限检查（显式传入资源路径，供帖子等从 query/body 取 path 的场景使用）
 func checkPermissionWithPath(c *gin.Context, fullCodePath string, action string, errorMessage string) bool {
+	if !permissionconstants.EnforcementEnabled() {
+		return true
+	}
 	fullCodePath = strings.TrimSpace(fullCodePath)
 	if fullCodePath == "" {
 		response.PermissionDenied(c, "无法获取资源路径", map[string]interface{}{
@@ -70,6 +81,9 @@ func checkPermission(c *gin.Context, action string, errorMessage string) bool {
 // CheckTableSearch 检查表格查询权限（使用 table:read）
 func CheckTableSearch() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if skipPermissionChecks(c) {
+			return
+		}
 		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, "read")
 		if !checkPermission(c, action, "无权限查看该表格") {
 			return
@@ -81,6 +95,9 @@ func CheckTableSearch() gin.HandlerFunc {
 // CheckTableRead 检查表格读取权限（使用 table:read）
 func CheckTableRead() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if skipPermissionChecks(c) {
+			return
+		}
 		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, "read")
 		if !checkPermission(c, action, "无权限查看该表格") {
 			return
@@ -92,6 +109,9 @@ func CheckTableRead() gin.HandlerFunc {
 // CheckTableWrite 检查表格写入权限（使用 table:write）
 func CheckTableWrite() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if skipPermissionChecks(c) {
+			return
+		}
 		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, "write")
 		if !checkPermission(c, action, "无权限新增该表格记录") {
 			return
@@ -103,6 +123,9 @@ func CheckTableWrite() gin.HandlerFunc {
 // CheckTableUpdate 检查表格更新权限（使用 table:update）
 func CheckTableUpdate() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if skipPermissionChecks(c) {
+			return
+		}
 		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, "update")
 		if !checkPermission(c, action, "无权限更新该表格") {
 			return
@@ -114,6 +137,9 @@ func CheckTableUpdate() gin.HandlerFunc {
 // CheckTableDelete 检查表格删除权限（使用 table:delete）
 func CheckTableDelete() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if skipPermissionChecks(c) {
+			return
+		}
 		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, "delete")
 		if !checkPermission(c, action, "无权限删除该表格") {
 			return
@@ -125,6 +151,9 @@ func CheckTableDelete() gin.HandlerFunc {
 // CheckFormWrite 检查表单写入权限（使用 form:write）
 func CheckFormWrite() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if skipPermissionChecks(c) {
+			return
+		}
 		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeForm, "write")
 		if !checkPermission(c, action, "无权限提交该表单") {
 			return
@@ -136,6 +165,9 @@ func CheckFormWrite() gin.HandlerFunc {
 // CheckChartQuery 检查图表查询权限（使用 chart:read）
 func CheckChartQuery() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if skipPermissionChecks(c) {
+			return
+		}
 		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeChart, "read")
 		if !checkPermission(c, action, "无权限查看该图表") {
 			return
@@ -148,6 +180,9 @@ func CheckChartQuery() gin.HandlerFunc {
 // ⭐ 函数类型直接从 URL 路径参数获取（/info/:func-type/*full-code-path），无需查询数据库
 func CheckFunctionRead() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if skipPermissionChecks(c) {
+			return
+		}
 		// 从 URL 路径参数提取函数类型和 full-code-path
 		funcType := c.Param("func-type")
 		fullCodePath := c.Param("full-code-path")
@@ -213,6 +248,9 @@ func CheckFunctionRead() gin.HandlerFunc {
 // CheckAppUpdate 检查应用更新权限
 func CheckAppUpdate() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if skipPermissionChecks(c) {
+			return
+		}
 		// 从路径参数获取应用信息，构建 full-code-path
 		app := c.Param("app")
 		user := contextx.GetRequestUser(c)
@@ -235,6 +273,9 @@ func CheckAppUpdate() gin.HandlerFunc {
 // CheckAppDelete 检查应用删除权限
 func CheckAppDelete() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if skipPermissionChecks(c) {
+			return
+		}
 		fullCodePath := strings.TrimSpace(c.Query("resource_path"))
 		if fullCodePath == "" {
 			// 兼容旧路由：从路径参数获取应用信息，构建 full-code-path
@@ -262,6 +303,9 @@ func CheckAppDelete() gin.HandlerFunc {
 // CheckWorkspaceUpdate 检查工作空间更新权限（需要 app:admin 权限）
 func CheckWorkspaceUpdate() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if skipPermissionChecks(c) {
+			return
+		}
 		// 从路径参数获取租户和应用信息
 		user := c.Param("user")
 		app := c.Param("app")
@@ -287,6 +331,9 @@ func CheckWorkspaceUpdate() gin.HandlerFunc {
 
 // checkPermissionForPath 检查指定路径的权限（内部使用）
 func checkPermissionForPath(c *gin.Context, fullCodePath string, action string, errorMessage string) bool {
+	if !permissionconstants.EnforcementEnabled() {
+		return true
+	}
 	if fullCodePath == "" {
 		response.PermissionDenied(c, "资源路径不能为空", map[string]interface{}{
 			"resource_path": "",
@@ -404,6 +451,9 @@ func buildPermissionApplyURL(resourcePath string, action string) string {
 // 权限点：docs:read
 func CheckDocRead() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if skipPermissionChecks(c) {
+			return
+		}
 		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionRead)
 		if !checkPermission(c, action, "无权限查看该文档") {
 			return
@@ -416,6 +466,9 @@ func CheckDocRead() gin.HandlerFunc {
 // 权限点：docs:write
 func CheckDocWrite() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if skipPermissionChecks(c) {
+			return
+		}
 		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionWrite)
 		if !checkPermission(c, action, "无权限编辑该文档") {
 			return
@@ -428,6 +481,9 @@ func CheckDocWrite() gin.HandlerFunc {
 // 权限点：docs:delete
 func CheckDocDelete() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if skipPermissionChecks(c) {
+			return
+		}
 		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionDelete)
 		if !checkPermission(c, action, "无权限删除该文档") {
 			return
@@ -442,6 +498,9 @@ func CheckDocDelete() gin.HandlerFunc {
 // 权限点：board:read
 func CheckBoardRead() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if skipPermissionChecks(c) {
+			return
+		}
 		fullCodePath := c.Query("full_code_path")
 		if fullCodePath == "" {
 			response.PermissionDenied(c, "缺少版块路径参数 full_code_path", map[string]interface{}{
@@ -462,6 +521,9 @@ func CheckBoardRead() gin.HandlerFunc {
 // 权限点：board:write
 func CheckBoardWrite() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if skipPermissionChecks(c) {
+			return
+		}
 		if c.Request.Body == nil {
 			response.PermissionDenied(c, "请求体为空", map[string]interface{}{"action": "board:write"})
 			return
@@ -511,6 +573,9 @@ func CheckBoardDeleteFromPostID(getPath GetPathByPostID) gin.HandlerFunc {
 
 func checkBoardPermissionFromPostID(getPath GetPathByPostID, actionType string, errorMsg string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if skipPermissionChecks(c) {
+			return
+		}
 		idStr := c.Param("id")
 		id, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil || id <= 0 {
