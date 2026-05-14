@@ -100,6 +100,10 @@ const forbiddenPatterns = [
     message: 'directory bundle file helpers must be imported from architecture/presentation/utils/directoryBundleFile',
   },
   {
+    pattern: /@\/architecture\/runtime\/utils\/(?:userInfo|tableUserInfo|permissionActors)|src\/architecture\/runtime\/utils\/(?:userInfo|tableUserInfo|permissionActors)/,
+    message: 'user and permission helpers must be imported from architecture/domain/utils',
+  },
+  {
     pattern: /@\/architecture\/runtime\/utils\/logger|src\/architecture\/runtime\/utils\/logger/,
     message: 'logger must be imported from architecture/shared/logger',
   },

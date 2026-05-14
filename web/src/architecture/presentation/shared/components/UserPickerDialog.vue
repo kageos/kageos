@@ -134,7 +134,7 @@ import { searchUsersFuzzy } from '@/architecture/infrastructure/api/user'
 import { Logger } from '@/architecture/shared/logger'
 import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
 import type { UserInfo } from '@/architecture/domain/types'
-import { formatUserDisplayName } from '@/architecture/runtime/utils/userInfo'
+import { formatUserDisplayName } from '@/architecture/domain/utils/userInfo'
 
 interface Props {
   modelValue: boolean
