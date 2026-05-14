@@ -169,7 +169,7 @@ web/
 
 | 子目录 | 职责 | 示例 |
 |--------|------|------|
-| `stores-v2/` | 状态管理 | formData.ts, extractors/ |
+| `stores/` | 状态管理 | formData.ts, extractors/ |
 | `constants/` | 共享常量 | widget.ts |
 | `managers/` | 运行期管理器 | 运行期加载/缓存管理 |
 | `widgetRuntime/` | Widget 默认值、校验等中性运行时能力 | defaultValue.ts, validation.ts |
@@ -177,7 +177,7 @@ web/
 | `validation/` | 验证引擎 | ValidationEngine.ts |
 
 **何时添加代码**：
-- 新增提取器 → `stores-v2/extractors/`
+- 新增提取器 → `stores/extractors/`
 - 新增基础常量/校验能力 → `constants/` / `validation/`
 - 新增底层工具函数 → `utils/`
 
@@ -436,7 +436,7 @@ widgetComponentFactory.registerResponseComponent('rich_text_editor', RichTextRes
 
 **如果需要特殊提交提取逻辑**（通常简单组件不需要）：
 
-文件位置：`src/architecture/runtime/stores-v2/extractors/RichTextEditorFieldExtractor.ts`
+文件位置：`src/architecture/runtime/stores/extractors/RichTextEditorFieldExtractor.ts`
 
 ```typescript
 import type { IFieldExtractor, FieldExtractorRegistry } from './FieldExtractor'
@@ -458,7 +458,7 @@ export class RichTextEditorFieldExtractor implements IFieldExtractor {
 
 #### 步骤 4：（可选）注册提取器
 
-文件位置：`src/architecture/runtime/stores-v2/extractors/FieldExtractorRegistry.ts`
+文件位置：`src/architecture/runtime/stores/extractors/FieldExtractorRegistry.ts`
 
 ```typescript
 import { RichTextEditorFieldExtractor } from './RichTextEditorFieldExtractor'
@@ -1042,7 +1042,7 @@ eventBus.on(FormEvent.fieldUpdated, (data) => {
 **A**: 使用 Pinia Store：
 
 ```typescript
-import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 
 const formDataStore = useFormDataStore()
 const value = formDataStore.getValue('business_info.industry')

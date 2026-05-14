@@ -68,7 +68,7 @@
 import { computed } from 'vue'
 import { ElProgress, ElInputNumber } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import type { ProgressWidgetConfig } from '@/architecture/runtime/types/widget-configs'
 

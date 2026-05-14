@@ -15,7 +15,7 @@
 runtime/
 ├── constants/       # 共享常量
 ├── managers/        # 运行期管理器
-├── stores-v2/       # 表单/响应数据存储与提取器
+├── stores/       # 表单/响应数据存储与提取器
 ├── types/           # 兼容层类型出口（真实定义已收口到 src/types）
 ├── utils/           # 基础工具函数
 ├── validation/      # 通用校验能力
@@ -31,9 +31,9 @@ runtime/
 
 ### 2. 表单数据与提取
 
-- `stores-v2/formData.ts`：表单数据存储
-- `stores-v2/extractors/*`：字段提取器
-- `stores-v2/extractors/FieldExtractorRegistry.ts`：提取策略注册表
+- `stores/formData.ts`：表单数据存储
+- `stores/extractors/*`：字段提取器
+- `stores/extractors/FieldExtractorRegistry.ts`：提取策略注册表
 
 ### 3. Widget 运行时
 

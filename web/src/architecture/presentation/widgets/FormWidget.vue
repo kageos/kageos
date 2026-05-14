@@ -315,7 +315,7 @@ import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegi
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import type { ValidationEngine, ValidationResult } from '@/architecture/runtime/validation'
 import { validateFieldValue, validateFormWidgetNestedFields, type WidgetValidationContext } from '@/architecture/presentation/widgets/composables/useWidgetValidation'
-import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { FORM_LABEL_WIDTH, FORM_QUESTIONNAIRE_TRIGGER_CHARS } from '@/architecture/presentation/utils/formLayout'
 import { prdPreviewContextKey } from '@/architecture/presentation/components/prdPreviewContext'
 

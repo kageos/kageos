@@ -8,7 +8,7 @@ import type { FormStateManager } from '../../infrastructure/stateManager/FormSta
 import type { WorkspaceStateManager } from '../../infrastructure/stateManager/WorkspaceStateManager'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { Logger } from '@/architecture/runtime/utils/logger'
-import type { FormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import type { FormDataStore } from '@/architecture/runtime/stores/formData'
 import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
 import {
   buildInitialDataFromFormDataStore as buildInitialDataFromFormDataStoreHelper,

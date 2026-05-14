@@ -1,5 +1,5 @@
 import type { FieldConfig } from '@/architecture/runtime/types/field'
-import type { FormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import type { FormDataStore } from '@/architecture/runtime/stores/formData'
 import { getFieldPresenceState } from '@/architecture/runtime/utils/conditionEvaluator'
 import { clearFieldSubtree, createClearedFieldValue } from './fieldReset'
 
