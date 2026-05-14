@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { CapabilityBundle } from '@/architecture/infrastructure/api/service-tree'
+import type { CapabilityBundle } from '@/architecture/domain/types'
 import { buildCapabilityBundleFileName, parseCapabilityBundleJson } from './directoryBundleFile'
 
 describe('directoryBundleFile', () => {

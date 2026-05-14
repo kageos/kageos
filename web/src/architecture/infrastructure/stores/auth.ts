@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 import { login as loginApi, logout as logoutApi, getUserInfo, refreshToken as refreshTokenApi } from '@/architecture/infrastructure/api/auth'
 import { updateUser as updateUserApi, type UpdateUserReq } from '@/architecture/infrastructure/api/user'
 import type { UserInfo, LoginRequest } from '@/architecture/domain/types'
-import router from '@/architecture/infrastructure/router'
+import { getCurrentRoutePath, navigateTo } from '@/architecture/runtime/utils/navigation'
 
 export const useAuthStore = defineStore('auth', () => {
   interface LogoutOptions {
@@ -60,7 +60,7 @@ export const useAuthStore = defineStore('auth', () => {
 
       // 跳转到工作空间（会弹出选择工作空间）
       const username = response.user?.username || 'me'
-      await router.push(`/workspace/${username}`)
+      await navigateTo(`/workspace/${username}`)
 
       return response
     } catch (error) {
@@ -92,8 +92,8 @@ export const useAuthStore = defineStore('auth', () => {
         ElMessage.success('已退出登录')
       }
 
-      if (redirectToLogin && router.currentRoute.value.path !== '/login') {
-        await router.push('/login')
+      if (redirectToLogin && getCurrentRoutePath() !== '/login') {
+        await navigateTo('/login')
       }
     }
   }

@@ -7,7 +7,7 @@ const { getRequestComponent, getResponseComponent } = vi.hoisted(() => ({
   getResponseComponent: vi.fn()
 }))
 
-vi.mock('@/architecture/infrastructure/widgetRegistry', () => ({
+vi.mock('@/architecture/presentation/widgets/registry', () => ({
   widgetComponentFactory: {
     getRequestComponent,
     getResponseComponent

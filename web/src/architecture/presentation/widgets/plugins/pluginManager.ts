@@ -83,7 +83,7 @@
  */
 
 import { widgetPluginRegistry, type WidgetPlugin } from './WidgetPlugin'
-import { widgetComponentFactory } from '../widgetRegistry'
+import { widgetComponentFactory } from '@/architecture/presentation/widgets/registry'
 import { fieldExtractorRegistry } from '@/architecture/runtime/stores/extractors/FieldExtractorRegistry'
 import { widgetInitializerRegistry } from '@/architecture/presentation/widgets/initializers/WidgetInitializerRegistry'
 import { Logger } from '@/architecture/runtime/utils/logger'

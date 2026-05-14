@@ -11,9 +11,9 @@
  */
 
 import { h } from 'vue'
-import type { FieldConfig, FieldValue } from '../types/field'
+import type { FieldConfig } from '@/architecture/runtime/types/field'
 import { convertToFieldValue } from '@/architecture/runtime/utils/field'
-import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
+import { widgetComponentFactory } from '@/architecture/presentation/widgets/registry'
 
 /**
  * 渲染表格单元格
@@ -96,4 +96,3 @@ export function renderTableCell(
     }
   }
 }
-

@@ -25,14 +25,10 @@
   - 预签名 URL、表单上传、SDK 上传适配器及上传类型
 - `config/`：前端运行时配置
   - `features.ts`、`runtime.ts`、`terminology.ts` 等环境与产品开关配置
-- `router/`：Vue Router 配置与全局守卫
-  - `index.ts`：页面路由、功能开关守卫、认证跳转
 - `functionLoader/`：函数加载器实现
   - `FunctionLoaderImpl.ts`：函数加载器实现（带防抖和去重）
 - `cacheManager/`：缓存管理实现
   - `CacheManagerImpl.ts`：内存缓存实现
-- `widgetRegistry/`：Widget 注册表
-  - `WidgetComponentFactory.ts`：Widget 组件工厂与注册入口
 
 ## 特点
 
@@ -40,6 +36,7 @@
 - 可以轻松替换实现（例如：从内存缓存切换到 Redis 缓存）
 - 提供技术能力，不包含业务逻辑
 - 允许复用 `src/architecture/runtime` 的稳定底座能力，例如提取器、常量、运行时工具
+- 不直接依赖 `presentation` 页面或组件；需要跳转时通过运行时导航端口完成
 
 ## 使用示例
 
