@@ -1,10 +1,18 @@
-import type { WidgetTypes } from '@/architecture/domain/types/field'
+import type { FunctionDetail, WidgetTypes } from '@/architecture/domain/types/field'
 import type { ReactiveFormDataManager } from '@/architecture/runtime/managers/ReactiveFormDataManager'
-import type { FormRendererContext } from '@/architecture/runtime/types/widget'
 
 export type WidgetMode = WidgetTypes.WidgetMode
 export type FieldConfig = WidgetTypes.FieldConfig
 export type FieldValue = WidgetTypes.FieldValue
+
+export interface FormRendererContext {
+  getFunctionMethod: () => string
+  getFunctionRouter: () => string
+  getFunctionDetail?: () => FunctionDetail
+  getSubmitData: () => Record<string, any>
+  getFieldError?: (fieldPath: string) => string | null
+  clearFieldErrors?: (fieldPath: string, options?: { includeSubtree?: boolean }) => void
+}
 
 export interface WidgetComponentProps {
   field: WidgetTypes.FieldConfig
