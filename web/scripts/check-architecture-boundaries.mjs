@@ -92,6 +92,14 @@ const forbiddenPatterns = [
     message: 'service tree helpers must be imported from architecture/domain/utils',
   },
   {
+    pattern: /@\/architecture\/runtime\/utils\/(?:resourcePath|storagePreviewUrl)|src\/architecture\/runtime\/utils\/(?:resourcePath|storagePreviewUrl)/,
+    message: 'resource path helpers must be imported from architecture/shared',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/utils\/directoryBundleFile|src\/architecture\/runtime\/utils\/directoryBundleFile/,
+    message: 'directory bundle file helpers must be imported from architecture/presentation/utils/directoryBundleFile',
+  },
+  {
     pattern: /@\/architecture\/runtime\/utils\/logger|src\/architecture\/runtime\/utils\/logger/,
     message: 'logger must be imported from architecture/shared/logger',
   },

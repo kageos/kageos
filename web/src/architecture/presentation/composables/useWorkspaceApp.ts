@@ -18,7 +18,7 @@ import type { App as AppType, CreateAppRequest } from '@/architecture/domain/typ
 import { createApp, deleteApp, getAppList, getAppWithServiceTree, updateApp } from '@/architecture/infrastructure/api/app'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { normalizeGoPackageName, validateGoPackageName } from '@/architecture/runtime/utils/goPackageName'
-import { buildAppResourcePath } from '@/architecture/runtime/utils/resourcePath'
+import { buildAppResourcePath } from '@/architecture/shared/resourcePath'
 import { Logger } from '@/architecture/shared/logger'
 
 export function useWorkspaceApp(

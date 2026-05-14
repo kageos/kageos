@@ -1,6 +1,6 @@
 import { get, post, put, del } from '@/architecture/infrastructure/apiClient/request'
 import type { App, CreateAppRequest, CreateAppResponse } from '@/architecture/domain/types'
-import { buildAppResourcePath, normalizeResourcePath } from '@/architecture/runtime/utils/resourcePath'
+import { buildAppResourcePath, normalizeResourcePath } from '@/architecture/shared/resourcePath'
 
 export interface UpdateAppResponse {
   user: string
