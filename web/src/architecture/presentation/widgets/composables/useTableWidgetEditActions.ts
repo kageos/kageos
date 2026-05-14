@@ -9,7 +9,7 @@ import {
   type WidgetValidationContext
 } from '@/architecture/presentation/widgets/composables/useWidgetValidation'
 import { Logger } from '@/architecture/shared/logger'
-import { createPersistedFieldValue } from '@/architecture/runtime/widgetRuntime/persistedFieldValue'
+import { createPersistedFieldValue } from '@/architecture/domain/utils/persistedFieldValue'
 import {
   clearFieldSubtree,
   createClearedFieldValue,

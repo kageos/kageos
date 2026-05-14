@@ -13,7 +13,7 @@ import type { WidgetComponentProps } from '@/architecture/presentation/widgets/t
 import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
 import { getFieldPresenceState } from '@/architecture/domain/utils/conditionEvaluator'
-import { syncFormContainerValue } from '@/architecture/runtime/widgetRuntime/containerValue'
+import { syncFormContainerValue } from '@/architecture/domain/utils/containerValue'
 import { clearScopedDependentFields } from '@/architecture/domain/utils/dependency'
 import { applyScopedPresenceEffects } from '@/architecture/domain/utils/presenceEffects'
 

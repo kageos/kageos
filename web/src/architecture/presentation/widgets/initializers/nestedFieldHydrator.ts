@@ -3,7 +3,7 @@ import type { WidgetInitContext } from '@/architecture/presentation/widgets/inte
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import { convertBasicType } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { useFormDataStore } from '@/architecture/runtime/stores/formData'
-import { buildContainerDisplayValue } from '@/architecture/runtime/widgetRuntime/containerValue'
+import { buildContainerDisplayValue } from '@/architecture/domain/utils/containerValue'
 import { widgetInitializerRegistry } from './WidgetInitializerRegistry'
 
 function isPlainObject(value: unknown): value is Record<string, any> {
