@@ -1,6 +1,6 @@
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { Router } from 'vue-router'
-import { WidgetType } from '@/core/constants/widget'
+import { WidgetType } from '@/architecture/runtime/constants/widget'
 import { convertToFieldValue } from '@/utils/field'
 import { isWidgetConfigFlagEnabled } from '@/utils/widgetConfigFlag'
 import { parseLinkValue, addLinkTypeToUrl } from '@/utils/linkNavigation'

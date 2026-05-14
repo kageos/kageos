@@ -21,7 +21,7 @@ import { WorkspaceEvent } from '../interfaces/IEventBus'
 import type { FunctionDetail } from '../types'
 
 import type { App, ServiceTree } from '@/types'
-import { Logger } from '@/core/utils/logger'
+import { Logger } from '@/architecture/runtime/utils/logger'
 export type { App, ServiceTree }
 
 /**

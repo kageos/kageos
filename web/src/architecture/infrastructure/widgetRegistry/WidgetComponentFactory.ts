@@ -79,8 +79,8 @@
  */
 
 import type { Component } from 'vue'
-import { WidgetType } from '@/core/constants/widget'
-import { Logger } from '@/core/utils/logger'
+import { WidgetType } from '@/architecture/runtime/constants/widget'
+import { Logger } from '@/architecture/runtime/utils/logger'
 
 export class WidgetComponentFactory {
   // 请求参数组件映射（widget.type -> Component）

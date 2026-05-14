@@ -75,7 +75,7 @@
  */
 
 import { reactive, watch } from 'vue'
-import { useFormDataStore, type FormDataStore } from '@/core/stores-v2/formData'
+import { useFormDataStore, type FormDataStore } from '@/architecture/runtime/stores-v2/formData'
 import { StateManagerImpl } from './StateManagerImpl'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'
 import type { FieldValue } from '@/architecture/domain/types'

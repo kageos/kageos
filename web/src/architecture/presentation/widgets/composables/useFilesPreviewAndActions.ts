@@ -1,7 +1,7 @@
 import { computed, ref, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Document, Files, Folder, Picture, VideoPlay } from '@element-plus/icons-vue'
-import { Logger } from '@/core/utils/logger'
+import { Logger } from '@/architecture/runtime/utils/logger'
 import type { FileItem } from '../filesWidgetTypes'
 import { getFileDisplayUrl } from '../utils/fileDisplayUrl'
 

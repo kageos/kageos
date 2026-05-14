@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createSearchComponentConfig } from './searchComponentConfig'
-import { SearchComponent, SearchType } from '@/core/constants/search'
-import { WidgetType } from '@/core/constants/widget'
+import { SearchComponent, SearchType } from '@/architecture/runtime/constants/search'
+import { WidgetType } from '@/architecture/runtime/constants/widget'
 
 function createRadioField() {
   return {

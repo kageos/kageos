@@ -32,8 +32,8 @@
  * ```
  */
 
-import { WidgetType } from '@/core/constants/widget'
-import type { FieldConfig } from '@/core/types/field'
+import { WidgetType } from '@/architecture/runtime/constants/widget'
+import type { FieldConfig } from '@/architecture/runtime/types/field'
 
 /**
  * 排序能力类型

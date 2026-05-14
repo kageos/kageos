@@ -130,14 +130,14 @@ import SearchSingleSelectDisplay from './SearchSingleSelectDisplay.vue'
 import { ElAvatar, ElButton, ElIcon } from 'element-plus'
 import { User, Edit } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/shared/types/widget'
-import { useFormDataStore } from '@/core/stores-v2/formData'
+import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
 import { formatUserDisplayName } from '@/utils/userInfo'
 import type { UserInfo } from '@/types'
-import { Logger } from '@/core/utils/logger'
-import { createFieldValue } from '@/core/utils/createFieldValue'
+import { Logger } from '@/architecture/runtime/utils/logger'
+import { createFieldValue } from '@/architecture/runtime/utils/createFieldValue'
 import { useAuthStore } from '@/stores/auth'
 import { useUserInfoStore } from '@/stores/userInfo'
-import { getRenderDefaultFromConfig } from '@/core/widgetRuntime/defaultValue'
+import { getRenderDefaultFromConfig } from '@/architecture/runtime/widgetRuntime/defaultValue'
 
 const COMPONENT_NAME = 'UserWidget'
 
@@ -155,7 +155,7 @@ const authStore = useAuthStore()
 
 // 获取配置（带类型）
 const widgetConfig = computed(() => {
-  return (props.field.widget?.config || {}) as import('@/core/types/widget-configs').UserWidgetConfig
+  return (props.field.widget?.config || {}) as import('@/architecture/runtime/types/widget-configs').UserWidgetConfig
 })
 
 // 弹窗显示状态

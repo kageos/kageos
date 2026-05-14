@@ -5,9 +5,9 @@ import type { IEventBus } from '@/architecture/domain/interfaces/IEventBus'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { FormDomainService } from '@/architecture/domain/services/FormDomainService'
 import { FormStateManager } from '@/architecture/infrastructure/stateManager/FormStateManager'
-import { useFormDataStore, type FormDataStore } from '@/core/stores-v2/formData'
-import { useResponseDataStore } from '@/core/stores-v2/responseData'
-import { createEmptyFieldValue } from '@/core/utils/createFieldValue'
+import { useFormDataStore, type FormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import { useResponseDataStore } from '@/architecture/runtime/stores-v2/responseData'
+import { createEmptyFieldValue } from '@/architecture/runtime/utils/createFieldValue'
 import { useAuthStore } from '@/stores/auth'
 
 export function createFormViewRuntime(options: {

@@ -2,7 +2,7 @@
  * 字段配置类型定义
  *
  * 单一来源：
- * - core/types/field.ts 作为兼容门面继续对外暴露
+ * - architecture/runtime/types/field.ts 作为运行时门面继续对外暴露
  * - architecture/domain/types 作为架构内门面对外暴露
  * - 真实定义统一收口在 src/types/field.ts
  */

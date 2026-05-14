@@ -2,8 +2,8 @@ import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import type { WidgetInitContext } from '@/architecture/presentation/widgets/interfaces/IWidgetInitializer'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import { convertBasicType } from '@/architecture/presentation/widgets/utils/typeConverter'
-import { useFormDataStore } from '@/core/stores-v2/formData'
-import { buildContainerDisplayValue } from '@/core/widgetRuntime/containerValue'
+import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import { buildContainerDisplayValue } from '@/architecture/runtime/widgetRuntime/containerValue'
 import { widgetInitializerRegistry } from './WidgetInitializerRegistry'
 
 function isPlainObject(value: unknown): value is Record<string, any> {

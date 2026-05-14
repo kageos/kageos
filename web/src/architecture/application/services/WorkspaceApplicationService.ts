@@ -16,7 +16,7 @@ import { WorkspaceDomainService } from '../../domain/services/WorkspaceDomainSer
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { WorkspaceEvent } from '../../domain/interfaces/IEventBus'
 import type { App, ServiceTree } from '../../domain/services/WorkspaceDomainService'
-import { Logger } from '@/core/utils/logger'
+import { Logger } from '@/architecture/runtime/utils/logger'
 
 export interface WorkspaceTreeLoadResult {
   app?: App

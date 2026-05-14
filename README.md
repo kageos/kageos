@@ -462,8 +462,8 @@ AI-Agent-OS 后续最重要的产品判断之一，是把企业应用里的通�
 现状：
 
 - 新架构目录 `web/src/architecture/` 已经存在，采用 domain/application/infrastructure/presentation 分层
-- 但仓库仍存在较多历史 `web/src/core` 和旧实现
-- 说明前端正在从旧架构向新架构迁移，处于混合态
+- 原 `web/src/core` 已收口为 `web/src/architecture/runtime`，作为表单状态、Widget 运行时、校验、共享常量等稳定底座
+- 主页面、流程编排、领域逻辑和基础设施继续在 `architecture` 四层目录内演进
 
 这是一个真实现状，不该被文档粉饰掉。
 
@@ -2012,7 +2012,7 @@ AI-Agent-OS 是一个 AI 原生的企业应用操作系统。它不是普通聊�
 - 容器运行时：`core/app-runtime/service/container_service.go`
 - 文件存储：`core/app-storage/README.md`
 - 前端工作空间主视图：`web/src/architecture/presentation/views/WorkspaceView.vue`
-- 前端字段值协议：`web/src/core/types/field.ts`
+- 前端字段值协议：`web/src/architecture/runtime/types/field.ts`
 - 字段 schema 解析：`sdk/agent-app/widget/decode.go`
 - 权限审批：`enterprise_impl/permission/service/approval_service.go`
 - 权限继承计算：`enterprise_impl/permission/service/permission_calculator_v2.go`

@@ -1,4 +1,4 @@
-import { WidgetType } from '@/core/constants/widget'
+import { WidgetType } from '@/architecture/runtime/constants/widget'
 import type { FieldConfig, FieldScene, FunctionDetail, FunctionSchema } from '@/types/field'
 
 export function getFunctionSchema(functionDetail?: FunctionDetail | null): FunctionSchema | null {

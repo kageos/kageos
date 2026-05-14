@@ -3,8 +3,8 @@ import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent, h, nextTick } from 'vue'
 import { beforeEach, describe, expect, it } from 'vitest'
 import DateTimeWidget from './DateTimeWidget.vue'
-import { WidgetType } from '@/core/constants/widget'
-import { useFormDataStore } from '@/core/stores-v2/formData'
+import { WidgetType } from '@/architecture/runtime/constants/widget'
+import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
 
 const ElDatePickerStub = defineComponent({
   name: 'ElDatePicker',

@@ -10,7 +10,7 @@
  */
 
 import { WorkspaceEvent, FormEvent, TableEvent, RouteEvent } from '../../domain/interfaces/IEventBus'
-import { Logger } from '@/core/utils/logger'
+import { Logger } from '@/architecture/runtime/utils/logger'
 
 /**
  * 事件类型元数据

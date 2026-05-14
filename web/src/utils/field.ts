@@ -2,9 +2,9 @@
  * 字段工具函数
  */
 
-import type { FieldConfig, FieldValue } from '@/core/types/field'
+import type { FieldConfig, FieldValue } from '@/architecture/runtime/types/field'
 import { formatDateTimeValue } from './date'
-import { WidgetType } from '@/core/constants/widget'
+import { WidgetType } from '@/architecture/runtime/constants/widget'
 
 /**
  * 将原始值转换为 FieldValue 格式

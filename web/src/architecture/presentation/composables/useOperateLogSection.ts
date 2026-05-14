@@ -10,7 +10,7 @@ import { convertToFieldValue } from '@/utils/field'
 import type { FieldConfig } from '@/types'
 import { getFunctionByPath } from '@/api/function'
 import type { FunctionDetail } from '@/architecture/domain/types'
-import { Logger } from '@/core/utils/logger'
+import { Logger } from '@/architecture/runtime/utils/logger'
 import { getTableListFields } from '@/utils/functionSchemaSelectors'
 
 interface UseOperateLogSectionOptions {

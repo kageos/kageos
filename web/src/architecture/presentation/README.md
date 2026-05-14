@@ -9,7 +9,7 @@
 ## 目录结构
 
 - `views/`：页面级视图组件（WorkspaceView、FormView、TableView）
-- `widgets/`：Widget 组件（从 `core/widgets-v2/components/` 迁移）
+- `widgets/`：Widget 组件；纯运行时逻辑放在 `architecture/runtime/widgetRuntime/`
 - `components/`：通用 UI 组件（可选）
 
 ## 特点
@@ -29,4 +29,3 @@
 import WorkspaceView from '@/architecture/presentation/views/WorkspaceView.vue'
 </script>
 ```
-

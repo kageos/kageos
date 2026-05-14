@@ -79,7 +79,7 @@ import FormView from '@/architecture/presentation/views/FormView.vue'
 import type { FieldConfig, FieldValue, FunctionDetail } from '../../domain/types'
 import type { TableResponse } from '../../domain/services/TableDomainService'
 import { useUserInfoStore } from '@/stores/userInfo'
-import { createAutoFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
+import { createAutoFieldValue, createEmptyRawFieldValue } from '@/architecture/runtime/utils/createFieldValue'
 import {
   buildDetailLookupSearchRequest,
   buildDetailBaseQuery as buildDetailBaseQueryHelper,

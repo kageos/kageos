@@ -77,7 +77,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { Logger } from '@/core/utils/logger'
+import { Logger } from '@/architecture/runtime/utils/logger'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import type { EditorView } from 'prosemirror-view'
 import type { Slice } from 'prosemirror-model'
@@ -104,9 +104,9 @@ import { Gapcursor } from '@tiptap/extension-gapcursor'
 import { ElMessage } from 'element-plus'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/core/stores-v2/formData'
+import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import type { RichTextWidgetConfig } from '@/core/types/widget-configs'
+import type { RichTextWidgetConfig } from '@/architecture/runtime/types/widget-configs'
 import { sanitizeHtml } from '@/utils/sanitizeHtml'
 import RichTextEditorToolbar from './RichTextEditorToolbar.vue'
 

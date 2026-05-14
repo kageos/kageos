@@ -1,7 +1,7 @@
 import { computed, nextTick, ref, watch, type ComputedRef } from 'vue'
 import { findNodeByPath, findPathToNode, expandPathAndSelect, expandPathOnly } from '@/utils/serviceTreeUtils'
 import type { ServiceTree } from '@/types'
-import { Logger } from '@/core/utils/logger'
+import { Logger } from '@/architecture/runtime/utils/logger'
 
 export interface UseServiceTreeSearchExpandOptions {
   treeData: ComputedRef<ServiceTree[]>

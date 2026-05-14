@@ -119,7 +119,7 @@ import { ElButton, ElDialog, ElEmpty, ElIcon, ElInput } from 'element-plus'
 import { Close, Search } from '@element-plus/icons-vue'
 import { getDepartmentTree } from '@/api/department'
 import type { Department } from '@/api/department'
-import { Logger } from '@/core/utils/logger'
+import { Logger } from '@/architecture/runtime/utils/logger'
 
 interface Props {
   modelValue: boolean

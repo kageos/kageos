@@ -1,7 +1,7 @@
-import type { FieldConfig, FieldValue } from '@/core/types/field'
-import type { ValidationEngine, ValidationResult } from '@/core/validation'
-import { useFormDataStore, type FormDataStore } from '@/core/stores-v2/formData'
-import { Logger } from '@/core/utils/logger'
+import type { FieldConfig, FieldValue } from '@/architecture/runtime/types/field'
+import type { ValidationEngine, ValidationResult } from '@/architecture/runtime/validation'
+import { useFormDataStore, type FormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import { Logger } from '@/architecture/runtime/utils/logger'
 
 export interface WidgetValidationContext {
   validationEngine: ValidationEngine | null

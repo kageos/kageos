@@ -7,8 +7,8 @@ import { FormEvent, WorkspaceEvent, type IEventBus } from '../../infrastructure/
 import type { FormStateManager } from '../../infrastructure/stateManager/FormStateManager'
 import type { WorkspaceStateManager } from '../../infrastructure/stateManager/WorkspaceStateManager'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
-import { Logger } from '@/core/utils/logger'
-import type { FormDataStore } from '@/core/stores-v2/formData'
+import { Logger } from '@/architecture/runtime/utils/logger'
+import type { FormDataStore } from '@/architecture/runtime/stores-v2/formData'
 import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
 import {
   buildInitialDataFromFormDataStore as buildInitialDataFromFormDataStoreHelper,

@@ -4,8 +4,8 @@
  */
 
 import type { FieldConfig, FieldValue } from '../../../domain/types'
-import { Logger } from '@/core/utils/logger'
-import { WidgetType } from '@/core/constants/widget'
+import { Logger } from '@/architecture/runtime/utils/logger'
+import { WidgetType } from '@/architecture/runtime/constants/widget'
 import { LINK_TYPE_QUERY_KEY, isLinkNavigation } from '@/utils/linkNavigation'
 import {
   isLinkMarkerQueryKey,
@@ -39,7 +39,7 @@ export function isEmptyValue(fieldValue: FieldValue | undefined | null): boolean
   return false
 }
 
-import type { InputWidgetConfig } from '@/core/types/widget-configs'
+import type { InputWidgetConfig } from '@/architecture/runtime/types/widget-configs'
 
 /**
  * 检查字段是否应该跳过 URL 同步（黑名单检查）

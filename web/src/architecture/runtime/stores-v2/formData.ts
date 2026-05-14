@@ -12,8 +12,8 @@ import { defineStore, type Pinia } from 'pinia'
 import { reactive, inject, hasInjectionContext, type InjectionKey } from 'vue'
 import type { FieldConfig, FieldValue } from '../types/field'
 import { fieldExtractorRegistry } from './extractors/FieldExtractorRegistry'
-import { Logger } from '@/core/utils/logger'
-import { createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
+import { Logger } from '@/architecture/runtime/utils/logger'
+import { createEmptyRawFieldValue } from '@/architecture/runtime/utils/createFieldValue'
 
 const createFormDataStore = defineStore('formData-v2', () => {
   // 存储所有字段的值（field_path -> FieldValue）

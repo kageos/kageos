@@ -31,16 +31,16 @@
 - ✅ **动态组件渲染系统**：根据后端配置动态渲染表单、表格等组件
 - ✅ **分层架构设计**：Presentation → Application → Domain → Infrastructure
 - ✅ **领域导向的工程组织**：主业务页面、流程编排、领域逻辑、基础设施分层清晰
-- ✅ **渐进式收边界**：主页面已迁入 `architecture/`，公共底座仍由 `core/shared/utils` 承担
+- ✅ **渐进式收边界**：主页面已迁入 `architecture/`，公共底座由 `architecture/runtime`、`shared`、`utils` 承担
 - ✅ **事件驱动架构**：组件间通过事件总线解耦
 
 ### 1.3 当前状态说明
 
 - 工作空间、工作台等主页面入口已经迁移到 `src/architecture/`
-- `src/core/`、`src/shared/`、`src/utils/` 仍然是当前线上主链路正在使用的公共底座
+- `src/architecture/runtime/`、`src/shared/`、`src/utils/` 仍然是当前线上主链路正在使用的公共底座
 - `src/views/` 目前基本只保留错误页等少量遗留页面
 - 默认启用产品聚焦模式，普通用户入口优先保留工作空间、服务树、工作台、Form/Table/Chart、Docs 和 LLM 管理；组织、消息、操作日志、定时任务等入口由 `src/config/features.ts` 统一控制
-- 因此前端当前真实状态是：**主页面已迁到 `architecture/`，底层能力仍处于混合复用阶段**
+- 因此前端当前真实状态是：**主页面已迁到 `architecture/`，底层能力已收口为 `architecture/runtime` 运行时底座**
 
 ### 1.4 产品聚焦模式
 
@@ -130,15 +130,9 @@ web/
 │   │   ├── application/                 # 应用服务：流程编排
 │   │   ├── domain/                      # 领域服务、接口、类型
 │   │   ├── infrastructure/              # API、事件总线、状态管理、Widget 注册
-│   │   └── presentation/                # views / components / widgets / composables
+│   │   ├── presentation/                # views / components / widgets / composables
+│   │   └── runtime/                     # 表单状态、Widget 运行时、校验、共享常量
 │   ├── api/                             # 接口请求封装
-│   ├── core/                            # 当前仍在主链路中使用的基础能力层
-│   │   ├── constants/                   # Widget/Event 等常量
-│   │   ├── managers/                    # 运行期管理器
-│   │   ├── stores-v2/                   # 表单/表格数据存储与值提取
-│   │   ├── types/                       # 核心类型
-│   │   ├── utils/                       # 基础工具函数
-│   │   └── validation/                  # 校验引擎
 │   ├── features/                        # agent / auth / permission / user 等功能模块
 │   ├── shared/                          # 共享组件、富文本与通用展示能力
 │   ├── stores/                          # 全局 Pinia Store
@@ -169,9 +163,9 @@ web/
 - 新增业务逻辑 → `domain/services/`
 - 新增基础设施 → `infrastructure/`
 
-#### 🎯 core/ - 基础能力层
+#### 🎯 architecture/runtime/ - 运行时基础能力层
 
-**作用**：提供当前仍在主链路中使用的稳定基础能力，不应简单视为“旧架构遗留”。
+**作用**：提供当前仍在主链路中使用的稳定基础能力，是架构内的运行时底座。
 
 | 子目录 | 职责 | 示例 |
 |--------|------|------|
@@ -442,7 +436,7 @@ widgetComponentFactory.registerResponseComponent('rich_text_editor', RichTextRes
 
 **如果需要特殊提交提取逻辑**（通常简单组件不需要）：
 
-文件位置：`src/core/stores-v2/extractors/RichTextEditorFieldExtractor.ts`
+文件位置：`src/architecture/runtime/stores-v2/extractors/RichTextEditorFieldExtractor.ts`
 
 ```typescript
 import type { IFieldExtractor, FieldExtractorRegistry } from './FieldExtractor'
@@ -464,7 +458,7 @@ export class RichTextEditorFieldExtractor implements IFieldExtractor {
 
 #### 步骤 4：（可选）注册提取器
 
-文件位置：`src/core/stores-v2/extractors/FieldExtractorRegistry.ts`
+文件位置：`src/architecture/runtime/stores-v2/extractors/FieldExtractorRegistry.ts`
 
 ```typescript
 import { RichTextEditorFieldExtractor } from './RichTextEditorFieldExtractor'
@@ -803,7 +797,7 @@ export class TableApplicationService {
 1. 创建导出工具：
 
 ```typescript
-// src/core/utils/export.ts
+// src/architecture/runtime/utils/export.ts
 import * as XLSX from 'xlsx'
 
 export class ExportUtil {
@@ -875,7 +869,7 @@ function handleExport(format: 'excel' | 'csv') {
 ```
 
 **代码位置**：
-- 工具类: `src/core/utils/export.ts`
+- 工具类: `src/architecture/runtime/utils/export.ts`
 - Domain Service: `src/architecture/domain/services/TableDomainService.ts`
 
 ---
@@ -1017,7 +1011,7 @@ const HeavyComponent = defineAsyncComponent(() =>
 - **表单组件（Widget）** → `src/architecture/presentation/widgets/`
 - **跨业务共享组件** → `src/shared/components/`
 - **页面组件（View）** → `src/architecture/presentation/views/`
-- **Widget 默认值/校验等运行时能力** → `src/core/widgetRuntime/`
+- **Widget 默认值/校验等运行时能力** → `src/architecture/runtime/widgetRuntime/`
 
 ### Q2: 新增业务逻辑时，应该放在哪一层？
 
@@ -1027,7 +1021,7 @@ const HeavyComponent = defineAsyncComponent(() =>
 - **流程编排** → Application Layer (`src/architecture/application/services/`)
 - **UI 交互** → Presentation Layer (`src/architecture/presentation/views/`)
 - **技术实现** → Infrastructure Layer (`src/architecture/infrastructure/`)
-- **跨业务共享但不属于主页面流程的通用能力** → `src/core/` / `src/shared/` / `src/utils/`
+- **跨业务共享但不属于主页面流程的通用能力** → `src/architecture/runtime/` / `src/shared/` / `src/utils/`
 
 ### Q3: 如何在组件之间通信？
 
@@ -1048,7 +1042,7 @@ eventBus.on(FormEvent.fieldUpdated, (data) => {
 **A**: 使用 Pinia Store：
 
 ```typescript
-import { useFormDataStore } from '@/core/stores-v2/formData'
+import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
 
 const formDataStore = useFormDataStore()
 const value = formDataStore.getValue('business_info.industry')
@@ -1073,7 +1067,7 @@ const value = formDataStore.getValue('business_info.industry')
 **A**: 使用 Logger：
 
 ```typescript
-import { Logger } from '@/core/utils/logger'
+import { Logger } from '@/architecture/runtime/utils/logger'
 
 Logger.debug('ComponentName', '调试信息', data)
 Logger.info('ComponentName', '信息', data)

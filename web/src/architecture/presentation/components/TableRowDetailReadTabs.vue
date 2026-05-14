@@ -219,7 +219,7 @@ import type { FieldConfig, FunctionDetail } from '../../domain/types'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import OperateLogSection from './OperateLogSection.vue'
-import { WidgetType } from '@/core/constants/widget'
+import { WidgetType } from '@/architecture/runtime/constants/widget'
 import { featureFlags } from '@/config/features'
 
 interface GroupedFields {
