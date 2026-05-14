@@ -16,6 +16,7 @@ logs/
 dist/
 bin/
 /app
+enterprise_impl/hub/backend/app
 # 运行时目录
 run/
 namespace/
