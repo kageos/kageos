@@ -80,7 +80,7 @@
 
 <script setup lang="ts">
 import { computed, watch, ref } from 'vue'
-import { ElAvatar, ElMessage, ElPopover } from 'element-plus'
+import { ElAvatar, ElPopover } from 'element-plus'
 import type { UserInfo } from '@/types'
 import { formatUserDisplayName } from '@/utils/userInfo'
 import { useUserInfoStore } from '@/stores/userInfo'
@@ -185,28 +185,6 @@ const displayName = computed(() => {
   return '-'
 })
 
-// 复制用户信息（手动复制，由用户点击按钮触发）
-// 注意：弹窗功能已移除，此函数暂时保留供后续使用
-const handleCopyUserInfo = (): void => {
-  const user = actualUserInfo.value
-  if (user) {
-    const copyText = user.nickname 
-      ? `${user.username}(${user.nickname})`
-      : user.username
-    
-    navigator.clipboard.writeText(copyText).then(() => {
-      ElMessage.success('已复制用户信息')
-    }).catch(() => {
-      ElMessage.error('复制失败')
-    })
-  } else if (props.username) {
-    navigator.clipboard.writeText(props.username).then(() => {
-      ElMessage.success('已复制')
-    }).catch(() => {
-      ElMessage.error('复制失败')
-    })
-  }
-}
 </script>
 
 <style scoped>
