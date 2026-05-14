@@ -204,7 +204,7 @@ import {
   type ScheduledTaskAction,
   type ScheduledTaskNotifyOn
 } from '@/architecture/infrastructure/api/scheduledTask'
-import { getErrorMessage } from '@/architecture/infrastructure/apiClient/apiError'
+import { getErrorMessage } from '@/architecture/runtime/utils/apiError'
 import UserPickerDialog from '@/architecture/presentation/shared/components/UserPickerDialog.vue'
 import DepartmentPickerDialog from '@/architecture/presentation/shared/components/DepartmentPickerDialog.vue'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'

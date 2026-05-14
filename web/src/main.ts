@@ -16,12 +16,12 @@ import 'dayjs/locale/zh-cn'
 dayjs.locale('zh-cn')
 
 import App from './App.vue'
-import router from './architecture/infrastructure/router'
+import router from './architecture/presentation/router'
 import { useAuthStore } from './architecture/infrastructure/stores/auth'
 import { useThemeStore } from './architecture/infrastructure/stores/theme'
 import { useUserInfoStore } from './architecture/infrastructure/stores/userInfo'
 import { registerWidgetInitializers } from './architecture/presentation/widgets/initializers/registerInitializers'
-import { ensureInitialized } from './architecture/infrastructure/widgetRegistry'
+import { ensureInitialized } from './architecture/presentation/widgets/registry'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -49,15 +49,15 @@ registerWidgetInitializers()
 // 注意：基础组件已经在模块加载时同步注册，这里只需要等待容器组件（FormWidget、TableWidget）注册完成
 ensureInitialized()
   .then(() => {
-// 🔥 开发环境：将 stores 挂载到 window 对象，方便在控制台调试
-if (import.meta.env.DEV) {
-  const userInfoStore = useUserInfoStore()
-  ;(window as any).__stores__ = {
-    authStore,
-    themeStore,
-    userInfoStore
-  }
-}
+    // 🔥 开发环境：将 stores 挂载到 window 对象，方便在控制台调试
+    if (import.meta.env.DEV) {
+      const userInfoStore = useUserInfoStore()
+      ;(window as any).__stores__ = {
+        authStore,
+        themeStore,
+        userInfoStore
+      }
+    }
 
     // 所有组件注册完成，挂载应用
     app.mount('#app')
@@ -65,5 +65,5 @@ if (import.meta.env.DEV) {
   .catch((err) => {
     console.error('[main.ts] Widget 组件工厂初始化失败，应用仍将启动', err)
     // 即使初始化失败，也挂载应用（基础组件已经同步注册，大部分功能仍可用）
-app.mount('#app')
+    app.mount('#app')
   })

@@ -278,13 +278,13 @@ const ElDatePickerStub = defineComponent({
   }
 })
 
-vi.mock('@/architecture/infrastructure/widgetRegistry', () => ({
+vi.mock('@/architecture/presentation/widgets/registry', () => ({
   widgetComponentFactory: {
     hasRequestComponent
   }
 }))
 
-vi.mock('@/architecture/runtime/utils/searchComponentConfig', () => ({
+vi.mock('@/architecture/presentation/components/utils/searchComponentConfig', () => ({
   createSearchComponentConfig: (...args: any[]) => createSearchComponentConfigMock(...args)
 }))
 

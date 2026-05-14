@@ -74,8 +74,8 @@
  * 📚 相关文档
  * ============================================
  * 
- * - 组件初始化：`web/src/architecture/infrastructure/widgetRegistry/index.ts`
- * - 插件系统：`web/src/architecture/infrastructure/plugins/pluginManager.ts`
+ * - 组件初始化：`web/src/architecture/presentation/widgets/registry/index.ts`
+ * - 插件系统：`web/src/architecture/presentation/widgets/plugins/pluginManager.ts`
  */
 
 import type { Component } from 'vue'

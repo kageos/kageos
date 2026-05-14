@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { Logger } from '@/architecture/runtime/utils/logger'
 import { getApiBaseURL } from '@/architecture/infrastructure/config/runtime'
-import router from '@/architecture/infrastructure/router'
+import { getCurrentRouteFullPath, getCurrentRoutePath, navigateTo } from '@/architecture/runtime/utils/navigation'
 import type { ApiResponse } from '@/architecture/domain/types'
 import { extractApiMessage, isAuthExpiredBusinessResponse, isRefreshRequestUrl } from './authSession'
 
@@ -126,11 +126,12 @@ async function handleSessionExpired(): Promise<void> {
         redirectToLogin: false,
       })
 
-      const currentRoute = router.currentRoute.value
-      if (currentRoute.path !== '/login') {
-        await router.push({
+      const currentPath = getCurrentRoutePath()
+      const currentFullPath = getCurrentRouteFullPath()
+      if (currentPath !== '/login') {
+        await navigateTo({
           path: '/login',
-          query: currentRoute.fullPath ? { redirect: currentRoute.fullPath } : undefined,
+          query: currentFullPath ? { redirect: currentFullPath } : undefined,
         })
       }
 

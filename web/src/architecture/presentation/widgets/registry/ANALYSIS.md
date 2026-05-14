@@ -4,7 +4,7 @@
 
 ### 文件结构
 ```
-widgetRegistry/
+widgets/registry/
 ├── WidgetComponentFactory.ts  (类定义)
 ├── factory.ts                 (创建实例，不导入组件)
 └── index.ts                   (注册组件，动态导入 FormWidget/TableWidget)
@@ -56,7 +56,7 @@ widgetComponentFactory.registerRequestComponent(WidgetType.TABLE, TableWidget)
    - 此时需要加载 `FormWidget.vue`
    
 4. **加载 FormWidget.vue**
-   - 执行到：`import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'`
+   - 执行到：`import { widgetComponentFactory } from '@/architecture/presentation/widgets/registry'`
    - 这个路径指向 `index.ts`（通过 package.json 的 exports 或默认导出）
    - **问题：此时 index.ts 还在执行中，还没有执行到导出语句！**
    - 结果：`ReferenceError: Cannot access 'FormWidget' before initialization`
@@ -98,7 +98,7 @@ export async function initializeWidgetComponentFactory(): Promise<void> {
 
 ```typescript
 // FormWidget.vue
-import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry/factory'
+import { widgetComponentFactory } from '@/architecture/presentation/widgets/registry/factory'
 ```
 
 **问题**：
@@ -201,5 +201,4 @@ const props = defineProps<{
 - 性能影响可忽略（组件注册在应用启动时完成）
 
 如果未来需要优化，可以考虑方案 3（分离注册逻辑），但需要评估重构成本。
-
 

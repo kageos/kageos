@@ -36,6 +36,7 @@ const scannedFiles = [
 ]
 
 const scannedExtensions = new Set(['.ts', '.tsx', '.vue', '.md', '.scss', '.css', '.d.ts'])
+const codeExtensions = new Set(['.ts', '.tsx', '.vue', '.d.ts'])
 
 const forbiddenPatterns = [
   {
@@ -56,6 +57,29 @@ const forbiddenPatterns = [
   },
 ]
 
+const layerRules = [
+  {
+    root: 'src/architecture/domain/',
+    forbidden: ['infrastructure', 'presentation'],
+    message: 'domain layer must not depend on infrastructure or presentation',
+  },
+  {
+    root: 'src/architecture/runtime/',
+    forbidden: ['infrastructure', 'presentation'],
+    message: 'runtime layer must not depend on infrastructure or presentation',
+  },
+  {
+    root: 'src/architecture/application/',
+    forbidden: ['presentation'],
+    message: 'application layer must not depend on presentation',
+  },
+  {
+    root: 'src/architecture/infrastructure/',
+    forbidden: ['presentation'],
+    message: 'infrastructure layer must not depend on presentation',
+  },
+]
+
 const failures = []
 
 for (const dir of forbiddenTopLevelDirs) {
@@ -69,6 +93,19 @@ function extensionOf(file) {
   if (file.endsWith('.d.ts')) return '.d.ts'
   const match = file.match(/\.[^.]+$/)
   return match?.[0] ?? ''
+}
+
+function normalizePath(file) {
+  return file.split('\\').join('/')
+}
+
+function isTestFile(file) {
+  return /\.test\.[tj]sx?$/.test(file) || file.includes('/__tests__/')
+}
+
+function layerRuleForFile(file) {
+  const normalized = normalizePath(relative(root, file))
+  return layerRules.find((rule) => normalized.startsWith(rule.root))
 }
 
 async function collectFiles(dir) {
@@ -104,6 +141,20 @@ for (const file of files) {
     for (const { pattern, message } of forbiddenPatterns) {
       if (pattern.test(line)) {
         failures.push(`${relative(root, file)}:${index + 1} ${message}: ${line.trim()}`)
+      }
+    }
+
+    const layerRule = layerRuleForFile(file)
+    if (
+      layerRule
+      && codeExtensions.has(extensionOf(file))
+      && !isTestFile(normalizePath(file))
+    ) {
+      for (const layer of layerRule.forbidden) {
+        const pattern = new RegExp(`@/architecture/${layer}(?=/|['"])`)
+        if (pattern.test(line)) {
+          failures.push(`${relative(root, file)}:${index + 1} ${layerRule.message}: ${line.trim()}`)
+        }
       }
     }
   })

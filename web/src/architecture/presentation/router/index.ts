@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { featureFlags } from '@/architecture/infrastructure/config/features'
+import { setAppRouter } from '@/architecture/runtime/utils/navigation'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -161,6 +162,8 @@ const router = createRouter({
     }
   ],
 })
+
+setAppRouter(router)
 
 async function restoreAccessTokenIfPossible(authStore: ReturnType<typeof useAuthStore>): Promise<boolean> {
   if (authStore.token) {

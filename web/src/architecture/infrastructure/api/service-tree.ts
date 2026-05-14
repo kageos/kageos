@@ -1,5 +1,5 @@
 import { get, post, put, del } from '@/architecture/infrastructure/apiClient/request'
-import type { ServiceTree, CreateServiceTreeRequest, FunctionSchema } from '@/architecture/domain/types'
+import type { CapabilityBundle, ServiceTree, CreateServiceTreeRequest, FunctionSchema } from '@/architecture/domain/types'
 
 // ⭐ 创建 package 类型节点（推荐使用）
 export function createPackage(data: CreateServiceTreeRequest) {
@@ -153,26 +153,6 @@ export function copyDirectory(data: {
     directory_count: number
     file_count: number
   }>('/workspace/api/v1/service_tree/copy', data)
-}
-
-export interface CapabilityBundleFile {
-  package_path?: string
-  path: string
-  content: string
-}
-
-export interface CapabilityBundlePackage {
-  path: string
-  name?: string
-  description?: string
-  tags?: string
-}
-
-export interface CapabilityBundle {
-  schema_version: 'capability.bundle.v1'
-  name?: string
-  files: CapabilityBundleFile[]
-  packages?: CapabilityBundlePackage[]
 }
 
 export function exportCapabilityBundle(data: {

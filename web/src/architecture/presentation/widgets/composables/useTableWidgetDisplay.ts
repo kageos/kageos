@@ -3,8 +3,8 @@ import type { WidgetComponentProps } from '@/architecture/presentation/widgets/t
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { createEmptyFieldValue, createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import { renderTableCell } from '@/architecture/runtime/utils/tableCellRenderer'
-import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
+import { renderTableCell } from '@/architecture/presentation/widgets/utils/tableCellRenderer'
+import { widgetComponentFactory } from '@/architecture/presentation/widgets/registry'
 import {
   getTableRowFieldPresenceState,
   shouldShowTableRowField,
