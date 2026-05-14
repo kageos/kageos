@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent } from 'vue'
 import { beforeEach, describe, expect, it } from 'vitest'
 import DepartmentWidget from './DepartmentWidget.vue'
-import { WidgetType } from '@/core/constants/widget'
+import { WidgetType } from '@/architecture/runtime/constants/widget'
 
 const DepartmentPickerDialogStub = defineComponent({
   name: 'DepartmentPickerDialog',

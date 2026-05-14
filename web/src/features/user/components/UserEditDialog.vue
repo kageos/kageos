@@ -99,8 +99,8 @@ import { assignUserOrganization } from '@/api/user'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import DepartmentSelector from '@/shared/components/DepartmentSelector.vue'
 import UserWidget from '@/shared/components/UserWidget.vue'
-import { WidgetType } from '@/core/constants/widget'
-import type { FieldValue } from '@/core/types/field'
+import { WidgetType } from '@/architecture/runtime/constants/widget'
+import type { FieldValue } from '@/architecture/runtime/types/field'
 import { createStringFieldValue, createWidgetFieldConfig, extractStringFieldRaw } from '@/utils/widgetFieldHelpers'
 
 interface Props {

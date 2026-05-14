@@ -18,7 +18,7 @@ import { WorkspaceEvent, TableEvent } from '../../domain/interfaces/IEventBus'
 import type { FunctionDetail } from '../../domain/types'
 import { getTableListFields } from '@/utils/functionSchemaSelectors'
 import type { SearchParams, SortParams, TableRow } from '../../domain/services/TableDomainService'
-import { Logger } from '@/core/utils/logger'
+import { Logger } from '@/architecture/runtime/utils/logger'
 
 export interface TableApplicationServiceOptions {
   preloadUserInfo?: (usernames: string[]) => Promise<void>

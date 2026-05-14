@@ -202,27 +202,27 @@ const initializedValue = createFieldValue(
 - **问题**：`MultiSelectWidget.vue` 中有硬编码的 `parseInt`/`parseFloat` 逻辑
 - **解决**：统一使用 `convertArrayType` 工具函数
 - **影响文件**：
-  - `web/src/core/widgets-v2/components/MultiSelectWidget.vue`
+  - `web/src/architecture/presentation/widgets/MultiSelectWidget.vue`
 
 #### 2. 提取选项映射工具函数
 - **问题**：`MultiSelectWidgetInitializer.ts` 中有重复的选项映射构建和查找逻辑
 - **解决**：新增 `buildOptionMaps` 和 `getOptionLabelFromMap` 工具函数
 - **影响文件**：
-  - `web/src/core/widgets-v2/utils/typeConverter.ts`（新增函数）
-  - `web/src/core/widgets-v2/initializers/MultiSelectWidgetInitializer.ts`（使用新函数）
+  - `web/src/architecture/presentation/widgets/utils/typeConverter.ts`（新增函数）
+  - `web/src/architecture/presentation/widgets/initializers/MultiSelectWidgetInitializer.ts`（使用新函数）
 
 #### 3. 修复 ChartRenderer 类型转换
 - **问题**：`ChartRenderer.vue` 中使用硬编码的类型转换逻辑
 - **解决**：使用 `convertValueByFieldType` 统一工具函数
 - **影响文件**：
-  - `web/src/components/ChartRenderer.vue`
+  - `web/src/architecture/presentation/components/ChartRenderer.vue`
 
 ## 相关文件
 
-- `web/src/core/widgets-v2/utils/typeConverter.ts` - 类型转换工具函数
-- `web/src/core/widgets-v2/utils/valueConverter.ts` - 值类型转换工具
-- `web/src/core/widgets-v2/initializers/SelectWidgetInitializer.ts` - SelectWidget 初始化器示例
-- `web/src/core/widgets-v2/initializers/MultiSelectWidgetInitializer.ts` - MultiSelectWidget 初始化器示例
+- `web/src/architecture/presentation/widgets/utils/typeConverter.ts` - 类型转换工具函数
+- `web/src/architecture/presentation/widgets/utils/valueConverter.ts` - 值类型转换工具
+- `web/src/architecture/presentation/widgets/initializers/SelectWidgetInitializer.ts` - SelectWidget 初始化器示例
+- `web/src/architecture/presentation/widgets/initializers/MultiSelectWidgetInitializer.ts` - MultiSelectWidget 初始化器示例
 
 ## 总结
 

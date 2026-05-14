@@ -14,7 +14,7 @@ import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { eventBus, RouteEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { RouteSource } from '@/utils/routeSource'
-import { Logger } from '@/core/utils/logger'
+import { Logger } from '@/architecture/runtime/utils/logger'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
 

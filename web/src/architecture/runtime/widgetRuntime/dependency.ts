@@ -1,5 +1,5 @@
-import type { FieldConfig } from '@/core/types/field'
-import type { FormDataStore } from '@/core/stores-v2/formData'
+import type { FieldConfig } from '@/architecture/runtime/types/field'
+import type { FormDataStore } from '@/architecture/runtime/stores-v2/formData'
 import { clearFieldSubtree, createClearedFieldValue } from './fieldReset'
 
 type DependencyStore = Pick<FormDataStore, 'getValue' | 'setValue' | 'deleteValue' | 'getAllFieldPaths'>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { resolveSearchFieldLayoutClass } from './searchFieldLayout'
-import { WidgetType } from '@/core/constants/widget'
+import { WidgetType } from '@/architecture/runtime/constants/widget'
 
 describe('searchFieldLayout', () => {
   it('keeps datetime fields on default layout', () => {

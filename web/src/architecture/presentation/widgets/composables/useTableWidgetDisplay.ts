@@ -1,9 +1,9 @@
 import { computed, defineComponent } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
-import { useFormDataStore } from '@/core/stores-v2/formData'
+import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
 import { createEmptyFieldValue, createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import { renderTableCell } from '@/core/utils/tableCellRenderer'
+import { renderTableCell } from '@/architecture/runtime/utils/tableCellRenderer'
 import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
 import {
   getTableRowFieldPresenceState,

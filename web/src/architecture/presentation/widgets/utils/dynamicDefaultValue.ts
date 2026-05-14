@@ -1,4 +1,4 @@
 export {
   resolveDynamicDefaultValue,
   isFunctionCall,
-} from '@/core/widgetRuntime/dynamicDefaultValue'
+} from '@/architecture/runtime/widgetRuntime/dynamicDefaultValue'

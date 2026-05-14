@@ -86,10 +86,10 @@ import { computed, ref, watch } from 'vue'
 import { ElSlider, ElProgress, ElInputNumber } from 'element-plus'
 import 'element-plus/es/components/slider/style/css'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/core/stores-v2/formData'
-import { Logger } from '@/core/utils/logger'
+import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import { Logger } from '@/architecture/runtime/utils/logger'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import type { SliderWidgetConfig } from '@/core/types/widget-configs'
+import type { SliderWidgetConfig } from '@/architecture/runtime/types/widget-configs'
 import { buildSliderMarks } from '@/architecture/presentation/widgets/utils/sliderMarks'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {

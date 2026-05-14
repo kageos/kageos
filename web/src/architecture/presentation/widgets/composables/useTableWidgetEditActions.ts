@@ -1,15 +1,15 @@
 import { computed } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
-import { useFormDataStore } from '@/core/stores-v2/formData'
-import type { ValidationEngine, ValidationResult } from '@/core/validation'
+import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import type { ValidationEngine, ValidationResult } from '@/architecture/runtime/validation'
 import {
   validateFieldValue as validateWidgetFieldValue,
   validateTableWidgetNestedFields,
   type WidgetValidationContext
 } from '@/architecture/presentation/widgets/composables/useWidgetValidation'
-import { Logger } from '@/core/utils/logger'
-import { createPersistedFieldValue } from '@/core/widgetRuntime/persistedFieldValue'
+import { Logger } from '@/architecture/runtime/utils/logger'
+import { createPersistedFieldValue } from '@/architecture/runtime/widgetRuntime/persistedFieldValue'
 import {
   clearFieldSubtree,
   createClearedFieldValue,

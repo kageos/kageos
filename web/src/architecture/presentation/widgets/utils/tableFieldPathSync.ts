@@ -1,4 +1,4 @@
-import { useFormDataStore } from '@/core/stores-v2/formData'
+import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
 
 function getRowFieldMatch(tablePath: string, fieldPath: string): RegExpMatchArray | null {
   if (!fieldPath.startsWith(`${tablePath}[`)) {

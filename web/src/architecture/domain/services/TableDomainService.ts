@@ -23,8 +23,8 @@ import {
   getTableRequestSearchFields,
   getTableSearchFields
 } from '@/utils/functionSchemaSelectors'
-import { getChangedFields } from '@/core/tableRuntime/search'
-import { Logger } from '@/core/utils/logger'
+import { getChangedFields } from '@/architecture/runtime/tableRuntime/search'
+import { Logger } from '@/architecture/runtime/utils/logger'
 import { getSearchFieldRawValue } from '@/utils/searchFieldValue'
 
 /**

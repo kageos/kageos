@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { WidgetType } from '@/core/constants/widget'
+import { WidgetType } from '@/architecture/runtime/constants/widget'
 import {
   buildSearchWidgetField,
   adaptSearchModelValueForWidget,

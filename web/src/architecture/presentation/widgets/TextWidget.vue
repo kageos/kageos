@@ -171,11 +171,11 @@ import { computed, ref, watch } from 'vue'
 import { ElInput, ElButton, ElDialog } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/core/stores-v2/formData'
-import type { TextWidgetConfig } from '@/core/types/widget-configs'
+import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import type { TextWidgetConfig } from '@/architecture/runtime/types/widget-configs'
 import { sanitizeHtml } from '@/utils/sanitizeHtml'
 import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
-import { Logger } from '@/core/utils/logger'
+import { Logger } from '@/architecture/runtime/utils/logger'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({

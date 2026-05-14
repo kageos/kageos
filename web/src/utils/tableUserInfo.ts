@@ -1,7 +1,7 @@
 /**
  * 表格用户信息收集工具函数
  */
-import type { FieldConfig } from '@/core/types/field'
+import type { FieldConfig } from '@/architecture/runtime/types/field'
 import { getSearchFieldRawValue } from '@/utils/searchFieldValue'
 
 /**

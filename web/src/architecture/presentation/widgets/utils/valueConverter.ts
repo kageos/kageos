@@ -5,8 +5,8 @@
  * 遵循单一职责原则，统一处理类型转换逻辑
  */
 
-import { DataType } from '@/core/constants/widget'
-import { Logger } from '@/core/utils/logger'
+import { DataType } from '@/architecture/runtime/constants/widget'
+import { Logger } from '@/architecture/runtime/utils/logger'
 
 /**
  * 将字符串值转换为指定类型

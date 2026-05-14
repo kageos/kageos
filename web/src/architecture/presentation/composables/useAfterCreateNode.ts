@@ -4,7 +4,7 @@
  */
 
 import type { ServiceTree } from '@/types'
-import { Logger } from '@/core/utils/logger'
+import { Logger } from '@/architecture/runtime/utils/logger'
 
 export function useAfterCreateNode(deps: {
   handleRefreshTree: () => Promise<void>

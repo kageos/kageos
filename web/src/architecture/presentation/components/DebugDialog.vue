@@ -265,7 +265,7 @@ import { functionLoader } from '../../infrastructure/functionLoader'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { useDepartmentInfoStore } from '@/stores/departmentInfo'
 import { cacheManager } from '../../infrastructure/cacheManager'
-import { Logger } from '@/core/utils/logger'
+import { Logger } from '@/architecture/runtime/utils/logger'
 
 interface Props {
   modelValue: boolean

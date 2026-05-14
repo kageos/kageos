@@ -1,6 +1,6 @@
-import type { FieldConfig, FieldValue } from '@/core/types/field'
-import type { FormDataStore } from '@/core/stores-v2/formData'
-import { createFieldValue } from '@/core/utils/createFieldValue'
+import type { FieldConfig, FieldValue } from '@/architecture/runtime/types/field'
+import type { FormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import { createFieldValue } from '@/architecture/runtime/utils/createFieldValue'
 
 type FieldTreeStore = Pick<FormDataStore, 'getAllFieldPaths' | 'deleteValue'>
 

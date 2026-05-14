@@ -346,7 +346,7 @@ statistics.Sum("CASE WHEN 状态='已完成' THEN 金额 ELSE 0 END")
 
 ## 📖 参考文档
 
-- **前端实现**：`web/src/core/utils/ExpressionParserV2.ts`（主）、`ExpressionParser.ts`（兼容旧格式）
+- **前端实现**：`web/src/architecture/runtime/utils/ExpressionParserV2.ts`（主）、`ExpressionParser.ts`（兼容旧格式）
 - **使用示例**：`namespace/luobei/demo/code/api/tools/tools_cashier.go`
 - **代码生成指南**：`blueprint/05-代码生成快速指南.md`
 

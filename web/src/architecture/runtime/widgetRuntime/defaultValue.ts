@@ -1,5 +1,5 @@
-import type { FieldConfig, FieldValue } from '@/core/types/field'
-import { DataType } from '@/core/constants/widget'
+import type { FieldConfig, FieldValue } from '@/architecture/runtime/types/field'
+import { DataType } from '@/architecture/runtime/constants/widget'
 import { resolveDynamicDefaultValue } from './dynamicDefaultValue'
 
 export function getRenderDefaultFromConfig(config: unknown): any {

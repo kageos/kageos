@@ -20,7 +20,7 @@ import { deleteApp, getAppWithServiceTree, updateApp } from '@/api/app'
 import { useAuthStore } from '@/stores/auth'
 import { normalizeGoPackageName, validateGoPackageName } from '@/utils/goPackageName'
 import { buildAppResourcePath } from '@/utils/resourcePath'
-import { Logger } from '@/core/utils/logger'
+import { Logger } from '@/architecture/runtime/utils/logger'
 
 export function useWorkspaceApp(
   serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性

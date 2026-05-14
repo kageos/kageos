@@ -11,7 +11,7 @@ import {
 } from '@/api/workspace'
 import { eventBus } from '@/architecture/infrastructure/eventBus'
 import type { ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
-import { Logger } from '@/core/utils/logger'
+import { Logger } from '@/architecture/runtime/utils/logger'
 import { fileNameFromRef, parseFileRefs } from '@/architecture/presentation/widgets/filesWidgetTypes'
 
 export interface UseMiniWorkstationSessionsOptions {

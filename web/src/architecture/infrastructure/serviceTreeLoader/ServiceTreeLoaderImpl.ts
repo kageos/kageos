@@ -8,7 +8,7 @@
  * - 可以缓存服务树数据
  */
 
-import { Logger } from '@/core/utils/logger'
+import { Logger } from '@/architecture/runtime/utils/logger'
 import type { IApiClient } from '../../domain/interfaces/IApiClient'
 import type { IServiceTreeLoader, ServiceTreeLoadResult } from '../../domain/interfaces/IServiceTreeLoader'
 import type { App, ServiceTree } from '@/types'

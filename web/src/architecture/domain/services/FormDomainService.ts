@@ -78,22 +78,22 @@ import type { IStateManager } from '../interfaces/IStateManager'
 import type { IEventBus } from '../interfaces/IEventBus'
 import { FormEvent } from '../interfaces/IEventBus'
 import type { FieldConfig, FieldValue } from '../types'
-import { ValidationEngine, createDefaultValidatorRegistry } from '@/core/validation'
-import type { ValidationResult as CoreValidationResult } from '@/core/validation'
-import type { ReactiveFormDataManager } from '@/core/managers/ReactiveFormDataManager'
-import { Logger } from '@/core/utils/logger'
-import { getWidgetDefaultValue } from '@/core/widgetRuntime/defaultValue'
-import { clearScopedDependentFields } from '@/core/widgetRuntime/dependency'
-import { isSubtreePath } from '@/core/widgetRuntime/fieldReset'
-import { applyScopedPresenceEffects } from '@/core/widgetRuntime/presenceEffects'
-import { sanitizeExcludedSubmitData } from '@/core/validation/utils/presenceRules'
+import { ValidationEngine, createDefaultValidatorRegistry } from '@/architecture/runtime/validation'
+import type { ValidationResult as CoreValidationResult } from '@/architecture/runtime/validation'
+import type { ReactiveFormDataManager } from '@/architecture/runtime/managers/ReactiveFormDataManager'
+import { Logger } from '@/architecture/runtime/utils/logger'
+import { getWidgetDefaultValue } from '@/architecture/runtime/widgetRuntime/defaultValue'
+import { clearScopedDependentFields } from '@/architecture/runtime/widgetRuntime/dependency'
+import { isSubtreePath } from '@/architecture/runtime/widgetRuntime/fieldReset'
+import { applyScopedPresenceEffects } from '@/architecture/runtime/widgetRuntime/presenceEffects'
+import { sanitizeExcludedSubmitData } from '@/architecture/runtime/validation/utils/presenceRules'
 import {
   validateFieldValue,
   validateFormWidgetNestedFields,
   validateTableWidgetNestedFields,
   type WidgetValidationContext
-} from '@/core/widgetRuntime/validation'
-import { createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
+} from '@/architecture/runtime/widgetRuntime/validation'
+import { createEmptyRawFieldValue } from '@/architecture/runtime/utils/createFieldValue'
 
 export type ValidationResult = CoreValidationResult
 

@@ -12,13 +12,13 @@
 import type { IWidgetInitializer, WidgetInitContext } from '@/architecture/presentation/widgets/interfaces/IWidgetInitializer'
 import type { FieldValue } from '@/architecture/domain/types'
 import { selectFuzzy } from '@/api/function'
-import { SelectFuzzyQueryType } from '@/core/constants/select'
-import { DataType } from '@/core/constants/widget'
+import { SelectFuzzyQueryType } from '@/architecture/runtime/constants/select'
+import { DataType } from '@/architecture/runtime/constants/widget'
 import { convertArrayType, convertFormDataToRequestByType, buildOptionMaps, getOptionLabelFromMap } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import { Logger } from '@/core/utils/logger'
-import { FieldCallback } from '@/core/constants/field'
-import { FieldValueMeta } from '@/core/constants/field'
+import { Logger } from '@/architecture/runtime/utils/logger'
+import { FieldCallback } from '@/architecture/runtime/constants/field'
+import { FieldValueMeta } from '@/architecture/runtime/constants/field'
 
 /**
  * MultiSelectWidget 初始化器

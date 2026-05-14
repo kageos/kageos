@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { FormDomainService } from './FormDomainService'
 import { FormStateManager } from '@/architecture/infrastructure/stateManager/FormStateManager'
-import { useFormDataStore } from '@/core/stores-v2/formData'
+import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
 
 function createEventBus() {
   return {

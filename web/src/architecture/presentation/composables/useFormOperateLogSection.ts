@@ -12,7 +12,7 @@ import {
   formatExecutionRelativeTime,
   readExecutionNumber
 } from '@/architecture/presentation/utils/executionLog'
-import { Logger } from '@/core/utils/logger'
+import { Logger } from '@/architecture/runtime/utils/logger'
 import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
 
 export interface ApplyOperateLogPayload {

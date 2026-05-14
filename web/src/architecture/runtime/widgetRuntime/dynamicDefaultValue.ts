@@ -7,7 +7,7 @@
  * - 组织架构函数：MyDepartment()
  */
 
-import { WidgetType, DynamicFunctionName } from '@/core/constants/widget'
+import { WidgetType, DynamicFunctionName } from '@/architecture/runtime/constants/widget'
 import { formatDateTimeValue } from '@/utils/date'
 
 function parseFunctionCall(funcCall: string): { name: string; args: string[] } | null {

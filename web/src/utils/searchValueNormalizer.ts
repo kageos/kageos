@@ -3,10 +3,10 @@
  * 🔥 统一处理不同组件类型的值转换逻辑，遵循单一职责原则
  */
 
-import { WidgetType } from '@/core/constants/widget'
-import { SearchType } from '@/core/constants/search'
+import { WidgetType } from '@/architecture/runtime/constants/widget'
+import { SearchType } from '@/architecture/runtime/constants/search'
 import { parseCommaSeparatedString } from '@/utils/stringUtils'
-import type { FieldConfig } from '@/core/types/field'
+import type { FieldConfig } from '@/architecture/runtime/types/field'
 
 /**
  * 值规范化选项

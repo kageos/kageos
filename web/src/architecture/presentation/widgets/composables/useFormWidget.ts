@@ -10,12 +10,12 @@
 
 import { computed } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/core/stores-v2/formData'
-import { createAutoFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
-import { getFieldPresenceState } from '@/core/utils/conditionEvaluator'
-import { syncFormContainerValue } from '@/core/widgetRuntime/containerValue'
-import { clearScopedDependentFields } from '@/core/widgetRuntime/dependency'
-import { applyScopedPresenceEffects } from '@/core/widgetRuntime/presenceEffects'
+import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import { createAutoFieldValue, createEmptyRawFieldValue } from '@/architecture/runtime/utils/createFieldValue'
+import { getFieldPresenceState } from '@/architecture/runtime/utils/conditionEvaluator'
+import { syncFormContainerValue } from '@/architecture/runtime/widgetRuntime/containerValue'
+import { clearScopedDependentFields } from '@/architecture/runtime/widgetRuntime/dependency'
+import { applyScopedPresenceEffects } from '@/architecture/runtime/widgetRuntime/presenceEffects'
 
 function isPlainObject(value: unknown): value is Record<string, any> {
   return !!value && typeof value === 'object' && !Array.isArray(value)

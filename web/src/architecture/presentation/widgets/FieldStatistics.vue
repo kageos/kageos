@@ -26,8 +26,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { FieldConfig } from '@/architecture/presentation/widgets/types'
-import { ExpressionParserAdapter } from '@/core/utils/ExpressionParserAdapter'
-import { Logger } from '@/core/utils/logger'
+import { ExpressionParserAdapter } from '@/architecture/runtime/utils/ExpressionParserAdapter'
+import { Logger } from '@/architecture/runtime/utils/logger'
 
 interface Props {
   field: FieldConfig

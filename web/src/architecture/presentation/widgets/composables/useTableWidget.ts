@@ -5,10 +5,10 @@
 
 import { computed } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/core/stores-v2/formData'
-import { syncTableContainerValue } from '@/core/widgetRuntime/containerValue'
-import { clearScopedDependentFields } from '@/core/widgetRuntime/dependency'
-import { applyScopedPresenceEffects } from '@/core/widgetRuntime/presenceEffects'
+import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import { syncTableContainerValue } from '@/architecture/runtime/widgetRuntime/containerValue'
+import { clearScopedDependentFields } from '@/architecture/runtime/widgetRuntime/dependency'
+import { applyScopedPresenceEffects } from '@/architecture/runtime/widgetRuntime/presenceEffects'
 
 function toFieldValue(rawValue: any) {
   return {

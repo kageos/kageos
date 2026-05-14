@@ -1,6 +1,6 @@
-import type { WidgetTypes } from '@/core/types/field'
-import type { ReactiveFormDataManager } from '@/core/managers/ReactiveFormDataManager'
-import type { FormRendererContext } from '@/core/types/widget'
+import type { WidgetTypes } from '@/architecture/runtime/types/field'
+import type { ReactiveFormDataManager } from '@/architecture/runtime/managers/ReactiveFormDataManager'
+import type { FormRendererContext } from '@/architecture/runtime/types/widget'
 
 export type WidgetMode = WidgetTypes.WidgetMode
 export type FieldConfig = WidgetTypes.FieldConfig

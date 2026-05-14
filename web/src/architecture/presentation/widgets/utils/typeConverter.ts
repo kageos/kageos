@@ -17,7 +17,7 @@
  */
 
 import type { FieldConfig, FieldValue, FunctionDetail } from '@/architecture/domain/types'
-import { DataType } from '@/core/constants/widget'
+import { DataType } from '@/architecture/runtime/constants/widget'
 import { convertValueToType } from './valueConverter'
 import { getFormRequestFields } from '@/utils/functionSchemaSelectors'
 

@@ -1,5 +1,5 @@
 import type { EChartsCoreOption } from 'echarts/core'
-import type { Chart, ChartSeries } from '@/core/types/chart'
+import type { Chart, ChartSeries } from '@/architecture/runtime/types/chart'
 
 export type RenderableChart = Chart & {
   __placeholder?: boolean
