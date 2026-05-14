@@ -94,7 +94,7 @@ import { Logger } from '@/architecture/runtime/utils/logger'
 import PackageDetailContent from './PackageDetailContent.vue'
 import PackageDetailEditDialog from './PackageDetailEditDialog.vue'
 import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
-import { featureFlags } from '@/config/features'
+import { featureFlags } from '@/architecture/infrastructure/config/features'
 
 type DetailTabName = 'info' | 'scheduledAgentTask'
 

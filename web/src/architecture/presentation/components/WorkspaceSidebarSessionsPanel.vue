@@ -265,7 +265,7 @@ import UserDisplay from '@/shared/components/UserDisplay.vue'
 import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
 import type { ScheduledAgentTaskItem } from '@/architecture/infrastructure/api/scheduledAgentTask'
 import type { ScheduledAgentExecutionRecord } from '@/architecture/presentation/composables/useWorkspaceSidebarSessions'
-import { featureFlags } from '@/config/features'
+import { featureFlags } from '@/architecture/infrastructure/config/features'
 
 type SidebarTab = 'all' | 'running' | 'finished' | 'scheduled'
 

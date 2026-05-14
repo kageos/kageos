@@ -6,7 +6,7 @@
  * 
  * 使用方式：
  * ```typescript
- * import { TERMINOLOGY } from '@/config/terminology'
+ * import { TERMINOLOGY } from '@/architecture/infrastructure/config/terminology'
  * 
  * // 在 UI 中使用
  * <el-button>创建{{ TERMINOLOGY.workspace }}</el-button>

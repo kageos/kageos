@@ -9,7 +9,7 @@ import {
   type ScheduledAgentTaskItem
 } from '@/architecture/infrastructure/api/scheduledAgentTask'
 import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
-import { featureFlags } from '@/config/features'
+import { featureFlags } from '@/architecture/infrastructure/config/features'
 
 type SidebarTab = 'all' | 'running' | 'finished' | 'scheduled'
 

@@ -1,4 +1,4 @@
-import { getApiBaseURL } from '@/config/runtime'
+import { getApiBaseURL } from '@/architecture/infrastructure/config/runtime'
 import { authFetch, del, get, post, put } from '@/utils/request'
 
 /** 工作台消息中上传文件：稳定引用 bucket/object_key */
