@@ -12,7 +12,7 @@
 
 import { h } from 'vue'
 import type { FieldConfig } from '@/architecture/domain/types/field'
-import { convertToFieldValue } from '@/architecture/runtime/utils/field'
+import { convertToFieldValue } from '@/architecture/domain/utils/field'
 import { widgetComponentFactory } from '@/architecture/presentation/widgets/registry'
 
 /**

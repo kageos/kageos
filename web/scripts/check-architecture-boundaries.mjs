@@ -72,6 +72,10 @@ const forbiddenPatterns = [
     message: 'widget/search/field constants must be imported from architecture/domain/constants',
   },
   {
+    pattern: /@\/architecture\/runtime\/utils\/(?:field|fieldSort|validationUtils|widgetOptionColors)|src\/architecture\/runtime\/utils\/(?:field|fieldSort|validationUtils|widgetOptionColors)/,
+    message: 'field helper utilities must be imported from architecture/domain/utils',
+  },
+  {
     pattern: /@\/architecture\/runtime\/utils\/logger|src\/architecture\/runtime\/utils\/logger/,
     message: 'logger must be imported from architecture/shared/logger',
   },
