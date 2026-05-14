@@ -8,7 +8,7 @@ import {
   deletePackage,
   deleteServiceTreeFunction
 } from '@/architecture/infrastructure/api/service-tree'
-import { isRootNode as isRootTreeNode } from '@/architecture/runtime/utils/tree-utils'
+import { isRootNode as isRootTreeNode } from '@/architecture/domain/utils/tree-utils'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 
 interface CreateDocsForm {
