@@ -8,7 +8,7 @@ import Vditor from 'vditor'
 import 'vditor/dist/index.css'
 import { useThemeStore } from '@/architecture/infrastructure/stores/theme'
 import { ElMessage } from 'element-plus'
-import { uploadFile, notifyUploadComplete } from '@/utils/upload'
+import { uploadFile, notifyUploadComplete } from '@/architecture/infrastructure/upload'
 
 interface Props {
   modelValue: string

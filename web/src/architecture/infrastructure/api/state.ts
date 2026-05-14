@@ -1,4 +1,4 @@
-import { get } from '@/utils/request'
+import { get } from '@/architecture/infrastructure/apiClient/request'
 
 export type RuntimeStateKind = 'workspace_session' | 'scheduled_agent_session'
 export type RuntimeStateStatus = 'thinking' | 'running' | 'tool_running' | 'waiting_approval' | 'failed' | 'cancelled'

@@ -18,8 +18,11 @@
   - `auth.ts`、`license.ts`、`userInfo/` 等全局状态
 - `apiClient/`：API 客户端实现
   - `ApiClientImpl.ts`：基于 axios 的 API 客户端实现
+  - `request.ts`、`authSession.ts`、`apiError.ts`：HTTP 请求、鉴权刷新与响应解包
 - `api/`：平台业务接口封装
   - `app.ts`、`service-tree.ts`、`workspace.ts` 等按后端资源域组织
+- `upload/`：文件上传基础设施
+  - 预签名 URL、表单上传、SDK 上传适配器及上传类型
 - `config/`：前端运行时配置
   - `features.ts`、`runtime.ts`、`terminology.ts` 等环境与产品开关配置
 - `router/`：Vue Router 配置与全局守卫

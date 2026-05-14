@@ -226,7 +226,7 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import CommonUpload from './CommonUpload.vue'
-import { uploadFile, notifyUploadComplete } from '@/utils/upload'
+import { uploadFile, notifyUploadComplete } from '@/architecture/infrastructure/upload'
 
 const props = defineProps<{
   modelValue: string

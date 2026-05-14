@@ -1,4 +1,4 @@
-import { post } from '@/utils/request'
+import { post } from '@/architecture/infrastructure/apiClient/request'
 
 export interface ResolvedFile {
   ref: string

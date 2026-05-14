@@ -1,4 +1,4 @@
-import { get, post, put, del } from '@/utils/request'
+import { get, post, put, del } from '@/architecture/infrastructure/apiClient/request'
 import type { App, CreateAppRequest, CreateAppResponse } from '@/architecture/domain/types'
 import { buildAppResourcePath, normalizeResourcePath } from '@/utils/resourcePath'
 

@@ -268,7 +268,7 @@ import { resolveFileRefs, updateFileDescription } from '@/architecture/infrastru
 import { Logger } from '@/architecture/runtime/utils/logger'
 import { formatTimestamp } from '@/utils/date'
 import { isWidgetConfigFlagEnabled } from '@/utils/widgetConfigFlag'
-import { formatAcceptLabel } from '@/utils/upload/accept'
+import { formatAcceptLabel } from '@/architecture/infrastructure/upload/accept'
 import { deriveThumbnailPreviewUrl } from '@/utils/storagePreviewUrl'
 import { normalizeStorageFileDisplayUrl } from '@/architecture/presentation/utils/storageFileUrl'
 import { useFilesDescriptionDialog } from './composables/useFilesDescriptionDialog'

@@ -1,4 +1,4 @@
-import { get, patch } from '@/utils/request'
+import { get, patch } from '@/architecture/infrastructure/apiClient/request'
 
 export interface MessageInboxItem {
   id: number

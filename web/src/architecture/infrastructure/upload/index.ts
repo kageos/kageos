@@ -7,7 +7,7 @@ import type { UploadCredentials, UploadProgress, UploadResult } from './types'
 import { PresignedURLUploader } from './presigned-url'
 import { FormUploader } from './form-upload'
 import { SDKUploader } from './sdk-upload'
-import { authFetch } from '@/utils/request'
+import { authFetch } from '@/architecture/infrastructure/apiClient/request'
 
 export type { UploadCredentials, UploadProgress, UploadResult } from './types'
 

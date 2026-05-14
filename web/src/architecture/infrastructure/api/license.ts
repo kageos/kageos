@@ -1,4 +1,4 @@
-import { authFetch, get, post } from '@/utils/request'
+import { authFetch, get, post } from '@/architecture/infrastructure/apiClient/request'
 import { getApiBaseURL } from '@/architecture/infrastructure/config/runtime'
 
 // License 状态接口
