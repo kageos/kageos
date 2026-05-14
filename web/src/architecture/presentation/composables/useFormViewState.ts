@@ -3,8 +3,8 @@ import type { FormApplicationService } from '../../application/services/FormAppl
 import type { FormDomainService } from '../../domain/services/FormDomainService'
 import type { FieldConfig, FieldValue, FunctionDetail } from '../../domain/types'
 import type { FormStateManager } from '../../infrastructure/stateManager/FormStateManager'
-import { getFieldPresenceState } from '@/architecture/runtime/utils/conditionEvaluator'
-import { createAutoFieldValue, createEmptyFieldValue, createEmptyRawFieldValue } from '@/architecture/runtime/utils/createFieldValue'
+import { getFieldPresenceState } from '@/architecture/domain/utils/conditionEvaluator'
+import { createAutoFieldValue, createEmptyFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
 import { FORM_QUESTIONNAIRE_TRIGGER_CHARS } from '../utils/formLayout'
 import { getFormRequestFields, getFormResponseFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 

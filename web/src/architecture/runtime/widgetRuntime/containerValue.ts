@@ -1,6 +1,6 @@
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 import type { FormDataStore } from '@/architecture/runtime/stores/formData'
-import { createFieldValue } from '@/architecture/runtime/utils/createFieldValue'
+import { createFieldValue } from '@/architecture/domain/utils/createFieldValue'
 
 type ContainerStore = Pick<FormDataStore, 'data' | 'getValue' | 'setValue'>
 

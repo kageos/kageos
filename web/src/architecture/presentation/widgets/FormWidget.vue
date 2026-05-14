@@ -313,7 +313,7 @@ import { useFormWidget } from '@/architecture/presentation/widgets/composables/u
 import { useTableCellMode } from '@/architecture/presentation/widgets/composables/useTableCellMode'
 import { widgetComponentFactory } from '@/architecture/presentation/widgets/registry'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
-import type { ValidationEngine, ValidationResult } from '@/architecture/runtime/validation'
+import type { ValidationEngine, ValidationResult } from '@/architecture/domain/validation'
 import { validateFieldValue, validateFormWidgetNestedFields, type WidgetValidationContext } from '@/architecture/presentation/widgets/composables/useWidgetValidation'
 import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { FORM_LABEL_WIDTH, FORM_QUESTIONNAIRE_TRIGGER_CHARS } from '@/architecture/presentation/utils/formLayout'

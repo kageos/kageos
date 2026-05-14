@@ -1,8 +1,12 @@
-import type { FieldConfig } from '@/architecture/domain/types/field'
-import type { FormDataStore } from '@/architecture/runtime/stores/formData'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 import { clearFieldSubtree, createClearedFieldValue } from './fieldReset'
 
-type DependencyStore = Pick<FormDataStore, 'getValue' | 'setValue' | 'deleteValue' | 'getAllFieldPaths'>
+interface DependencyStore {
+  getValue(fieldPath: string): FieldValue
+  setValue(fieldPath: string, value: FieldValue): void
+  deleteValue(fieldPath: string): void
+  getAllFieldPaths(): string[]
+}
 
 interface ClearScopedDependentFieldsOptions {
   formDataStore: DependencyStore

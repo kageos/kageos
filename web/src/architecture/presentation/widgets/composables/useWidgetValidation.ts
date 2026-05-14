@@ -1,11 +1,11 @@
 export type {
   WidgetValidationContext,
   WidgetValidationResult,
-} from '@/architecture/runtime/widgetRuntime/validation'
+} from '@/architecture/domain/utils/widgetValidation'
 
 export {
   validateFieldValue,
   validateWidget,
   validateFormWidgetNestedFields,
   validateTableWidgetNestedFields,
-} from '@/architecture/runtime/widgetRuntime/validation'
+} from '@/architecture/domain/utils/widgetValidation'

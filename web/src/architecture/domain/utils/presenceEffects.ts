@@ -1,9 +1,16 @@
-import type { FieldConfig } from '@/architecture/domain/types/field'
-import type { FormDataStore } from '@/architecture/runtime/stores/formData'
-import { getFieldPresenceState } from '@/architecture/runtime/utils/conditionEvaluator'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
+import { getFieldPresenceState } from '@/architecture/domain/utils/conditionEvaluator'
 import { clearFieldSubtree, createClearedFieldValue } from './fieldReset'
 
-interface PresenceEffectStore extends Pick<FormDataStore, 'getValue' | 'setValue' | 'deleteValue' | 'getAllFieldPaths' | 'data'> {}
+interface PresenceEffectStore {
+  getValue(fieldPath: string): FieldValue
+  setValue(fieldPath: string, value: FieldValue): void
+  deleteValue(fieldPath: string): void
+  getAllFieldPaths(): string[]
+  data: {
+    has(fieldPath: string): boolean
+  }
+}
 
 export function applyScopedPresenceEffects(options: {
   fields: FieldConfig[]

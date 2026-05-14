@@ -7,7 +7,7 @@ import { useChartParamURLSync } from './useChartParamURLSync'
 import { convertValueByFieldType } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { getWidgetDefaultValue } from '@/architecture/presentation/widgets/composables/useWidgetDefaultValue'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
-import { createEmptyFieldValue, createEmptyRawFieldValue } from '@/architecture/runtime/utils/createFieldValue'
+import { createEmptyFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
 import { getChartRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
 interface UseChartFilterStateOptions {

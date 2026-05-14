@@ -1,6 +1,17 @@
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
-import { DataType } from '@/architecture/runtime/constants/widget'
 import { resolveDynamicDefaultValue } from './dynamicDefaultValue'
+
+const DataType = {
+  STRING: 'string',
+  INT: 'int',
+  BOOL: 'bool',
+  STRINGS: '[]string',
+  INTS: '[]int',
+  FLOATS: '[]float',
+  FLOAT: 'float',
+  STRUCT: 'struct',
+  STRUCTS: '[]struct'
+} as const
 
 export function getRenderDefaultFromConfig(config: unknown): any {
   if (!config || typeof config !== 'object') {

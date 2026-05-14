@@ -1,8 +1,10 @@
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
-import type { FormDataStore } from '@/architecture/runtime/stores/formData'
-import { createFieldValue } from '@/architecture/runtime/utils/createFieldValue'
+import { createFieldValue } from '@/architecture/domain/utils/createFieldValue'
 
-type FieldTreeStore = Pick<FormDataStore, 'getAllFieldPaths' | 'deleteValue'>
+interface FieldTreeStore {
+  getAllFieldPaths(): string[]
+  deleteValue(fieldPath: string): void
+}
 
 export function isSubtreePath(rootPath: string, fieldPath: string): boolean {
   return fieldPath === rootPath

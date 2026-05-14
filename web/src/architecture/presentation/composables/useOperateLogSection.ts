@@ -1,7 +1,7 @@
 import { computed, h, ref, watch, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { TagProps } from 'element-plus'
-import { formatTimestamp } from '@/architecture/runtime/utils/date'
+import { formatTimestamp } from '@/architecture/shared/date'
 import { useLicenseStore } from '@/architecture/infrastructure/stores/license'
 import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
 import { getTableOperateLogs, type TableOperateLog } from '@/architecture/infrastructure/api/operateLog'

@@ -3,7 +3,11 @@
  */
 
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
-import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
+
+export interface FormValueReader {
+  getValue(fieldPath: string): FieldValue
+  hasValue?: (fieldPath: string) => boolean
+}
 
 /**
  * 验证规则（解析后的结构）
@@ -41,7 +45,7 @@ export interface ValidationResult {
  */
 export interface ValidationContext {
   /** 表单数据管理器（用于访问其他字段值） */
-  formManager: ReactiveFormDataManager
+  formManager: FormValueReader
   /** 当前字段的路径 */
   fieldPath: string
   /** 所有字段配置（用于查找字段信息） */

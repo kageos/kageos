@@ -34,7 +34,7 @@ import { computed } from 'vue'
 import { widgetComponentFactory } from '@/architecture/presentation/widgets/registry'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import type { WidgetMode } from '@/architecture/presentation/widgets/types'
-import { createEmptyRawFieldValue } from '@/architecture/runtime/utils/createFieldValue'
+import { createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
 
 const props = withDefaults(defineProps<{
   field: FieldConfig

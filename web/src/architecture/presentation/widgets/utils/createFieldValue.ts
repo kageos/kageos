@@ -4,4 +4,4 @@ export {
   createEmptyFieldValue,
   createEmptyRawFieldValue,
   createAutoFieldValue
-} from '@/architecture/runtime/utils/createFieldValue'
+} from '@/architecture/domain/utils/createFieldValue'
