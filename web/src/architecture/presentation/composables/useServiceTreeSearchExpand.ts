@@ -1,5 +1,5 @@
 import { computed, nextTick, ref, watch, type ComputedRef } from 'vue'
-import { findNodeByPath, findPathToNode, expandPathAndSelect, expandPathOnly } from '@/architecture/runtime/utils/serviceTreeUtils'
+import { findNodeByPath, findPathToNode, expandPathAndSelect, expandPathOnly } from '@/architecture/domain/utils/serviceTreeUtils'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { Logger } from '@/architecture/shared/logger'
 

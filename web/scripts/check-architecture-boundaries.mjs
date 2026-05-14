@@ -88,6 +88,10 @@ const forbiddenPatterns = [
     message: 'object diff helpers must be imported from architecture/domain/utils/objectDiff',
   },
   {
+    pattern: /@\/architecture\/runtime\/utils\/(?:serviceTreeUtils|tree-utils)|src\/architecture\/runtime\/utils\/(?:serviceTreeUtils|tree-utils)/,
+    message: 'service tree helpers must be imported from architecture/domain/utils',
+  },
+  {
     pattern: /@\/architecture\/runtime\/utils\/logger|src\/architecture\/runtime\/utils\/logger/,
     message: 'logger must be imported from architecture/shared/logger',
   },

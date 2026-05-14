@@ -196,7 +196,7 @@ import UserDisplay from '@/architecture/presentation/shared/components/UserDispl
 import type { ServiceTree } from '@/architecture/domain/types'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { sanitizeHtml } from '@/architecture/runtime/utils/sanitizeHtml'
-import { findNodeByPath } from '@/architecture/runtime/utils/serviceTreeUtils'
+import { findNodeByPath } from '@/architecture/domain/utils/serviceTreeUtils'
 
 const props = withDefaults(defineProps<{
   closable?: boolean
