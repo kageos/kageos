@@ -9,7 +9,7 @@
 
 import { ref, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import { extractWorkspacePath } from '@/architecture/runtime/utils/route'
+import { extractWorkspacePath } from '@/architecture/shared/routing/route'
 import { ElNotification } from 'element-plus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'

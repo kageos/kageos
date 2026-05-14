@@ -72,7 +72,7 @@ import ChartIcon from '@/architecture/presentation/shared/components/icons/Chart
 import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
 import FormIcon from '@/architecture/presentation/shared/components/icons/FormIcon.vue'
 import type { ServiceTree } from '@/architecture/domain/types'
-import { extractFullGroupCodeFromRoute, getParentPathFromFullGroupCode } from '@/architecture/runtime/utils/route'
+import { extractFullGroupCodeFromRoute, getParentPathFromFullGroupCode } from '@/architecture/shared/routing/route'
 import { findFunctionGroup } from '@/architecture/runtime/utils/serviceTreeUtils'
 
 interface Props {

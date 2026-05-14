@@ -5,7 +5,7 @@ import type { FunctionDetail } from '../../domain/types'
 import type { WorkspaceState } from '../../domain/types'
 import type { TableApplicationService } from '../../application/services/TableApplicationService'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
-import { RouteSource } from '@/architecture/runtime/utils/routeSource'
+import { RouteSource } from '@/architecture/shared/routing/routeSource'
 import {
   buildTableAddDialogOpenRequest,
   buildTableCreateDialogCloseRequest
