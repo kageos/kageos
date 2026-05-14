@@ -216,15 +216,6 @@ import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { exportCapabilityBundle, installCapabilityBundle, updatePackage, updateServiceTreeFunction, updateDocs } from '@/api/service-tree'
 import { getRuntimeStateSummary, type RuntimeStateSummary } from '@/api/state'
 import { downloadCapabilityBundleFile, parseCapabilityBundleJson } from '@/utils/directoryBundleFile'
-import { 
-  hasPermission, 
-  hasAnyPermission,
-  DirectoryPermission,
-  FunctionPermission,
-  FormPermission,
-  ChartPermission,
-  TablePermission
-} from '@/utils/permission'
 import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
 import { useServiceTreeClipboard } from '../composables/useServiceTreeClipboard'
 import { useServiceTreeSearchExpand } from '../composables/useServiceTreeSearchExpand'
@@ -563,35 +554,15 @@ function compactSelectedTreeNodes(nodes: ServiceTree[]): ServiceTree[] {
 
 function canExportNode(node: ServiceTree): boolean {
   if (!node.full_code_path) return false
-  if (node.type === 'package') {
-    return hasPermission(node, DirectoryPermission.read)
-  }
-  if (node.type === 'function') {
-    return hasAnyPermission(node, [
-      FunctionPermission.read,
-      TablePermission.read,
-      FormPermission.read,
-      ChartPermission.read
-    ])
-  }
-  return false
+  return node.type === 'package' || node.type === 'function'
 }
 
 function canDeleteNode(node: ServiceTree): boolean {
   if (!node.full_code_path) return false
   if (node.type === 'package') {
-    return !isRootNode(node) && hasPermission(node, DirectoryPermission.delete)
+    return !isRootNode(node)
   }
-  if (node.type === 'function') {
-    return hasAnyPermission(node, [FunctionPermission.delete, TablePermission.delete])
-  }
-  if (node.type === 'docs') {
-    return hasPermission(node, DirectoryPermission.delete)
-  }
-  if (node.type === 'board') {
-    return hasPermission(node, DirectoryPermission.delete)
-  }
-  return false
+  return node.type === 'function' || node.type === 'docs' || node.type === 'board'
 }
 
 function buildBulkExportName(nodes: ServiceTree[]): string {

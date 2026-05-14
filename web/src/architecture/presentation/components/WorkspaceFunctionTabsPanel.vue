@@ -88,7 +88,6 @@ const props = withDefaults(defineProps<{
   showFormOperateLogTab?: boolean
   showScheduledTaskTab?: boolean
   showScheduledAgentTaskTab?: boolean
-  permissionTab?: string
   functionFormViewRef?: (instance: any | null) => void
   formOperateLogSectionRef?: (instance: any | null) => void
   onFunctionTabChange: (tab: string) => void
@@ -118,8 +117,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   showFormOperateLogTab: false,
   showScheduledTaskTab: false,
-  showScheduledAgentTaskTab: false,
-  permissionTab: undefined
+  showScheduledAgentTaskTab: false
 })
 
 defineEmits<{
@@ -217,12 +215,6 @@ defineEmits<{
   min-width: 16px;
   padding: 0 5px;
   border-radius: 8px;
-}
-
-.permission-tab-panel {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
 }
 
 .tab-content {

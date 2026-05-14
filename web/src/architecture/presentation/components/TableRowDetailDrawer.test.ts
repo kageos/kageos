@@ -129,23 +129,23 @@ function mountDrawer(props: Record<string, unknown> = {}) {
 }
 
 describe('TableRowDetailDrawer', () => {
-  it('shows unsupported update hint instead of edit permission button', () => {
+  it('shows unsupported update hint instead of edit button', () => {
     const wrapper = mountDrawer({
       supportsEdit: false,
       canEdit: false
     })
 
     expect(wrapper.text()).toContain('当前表格不支持更新')
-    expect(wrapper.text()).not.toContain('编辑（需update权限）')
+    expect(wrapper.text()).not.toContain('编辑')
   })
 
-  it('shows edit permission button only when update is supported', () => {
+  it('shows edit button when update is supported', () => {
     const wrapper = mountDrawer({
       supportsEdit: true,
       canEdit: false
     })
 
-    expect(wrapper.text()).toContain('编辑（需update权限）')
+    expect(wrapper.text()).toContain('编辑')
     expect(wrapper.text()).not.toContain('当前表格不支持更新')
   })
 })
