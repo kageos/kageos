@@ -75,15 +75,15 @@
  */
 
 import { reactive, watch } from 'vue'
-import { useFormDataStore, type FormDataStore } from '@/architecture/runtime/stores/formData'
+import { useFormDataStore, type FormDataStore } from '@/architecture/infrastructure/stores/formData'
 import { StateManagerImpl } from './StateManagerImpl'
-import type { IStateManager } from '../../domain/interfaces/IStateManager'
+import type { IFormStateManager } from '../../domain/interfaces/IFormStateManager'
 import type { FieldValue, FormState, ValidationResult } from '@/architecture/domain/types'
 
 /**
  * 表单状态管理实现
  */
-export class FormStateManager extends StateManagerImpl<FormState> implements IStateManager<FormState> {
+export class FormStateManager extends StateManagerImpl<FormState> implements IFormStateManager {
   private formStore: FormDataStore
   private errors = reactive<Map<string, ValidationResult[]>>(new Map())
   private submitting = reactive({ value: false })
@@ -128,7 +128,7 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
    * 重写 setState，确保同步到 formStore.data
    * 🔥 关键修复：合并更新而不是替换，避免丢失数据
    */
-  setState(newState: FormState): void {
+  setState(newState: Partial<FormState>): void {
     // ⭐ 同步 data 到 formStore.data
     if (newState.data !== undefined) {
       if (newState.data.size === 0) {
@@ -174,6 +174,7 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
     // 这样可以确保父类中的 state.data 始终与 formStore.data 保持一致
     // ⚠️ 重要：使用 formStore.data（已经合并更新后的数据），而不是 newState.data（可能只包含部分字段）
     const stateToSet: FormState = {
+      ...this.getState(),
       ...newState,
       data: this.formStore.data  // 🔥 使用 formStore.data，确保包含所有字段（包括 WidgetComponent 直接设置的）
     }
@@ -206,6 +207,22 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
    */
   getValue(fieldPath: string): FieldValue {
     return this.formStore.getValue(fieldPath)
+  }
+
+  hasValue(fieldPath: string): boolean {
+    return this.formStore.data.has(fieldPath)
+  }
+
+  deleteValue(fieldPath: string): void {
+    this.formStore.deleteValue(fieldPath)
+  }
+
+  getAllFieldPaths(): string[] {
+    return this.formStore.getAllFieldPaths()
+  }
+
+  getDataSnapshot(): Map<string, FieldValue> {
+    return new Map(this.formStore.data)
   }
 
   /**

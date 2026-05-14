@@ -286,7 +286,7 @@ import {
 } from '../composables/useMiniWorkstationSessionView'
 import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
 import { createWorkspaceHandoff, resolveWorkspaceSessionInteraction, type WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
-import { featureFlags } from '@/architecture/runtime/config/features'
+import { featureFlags } from '@/architecture/shared/config/features'
 
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()

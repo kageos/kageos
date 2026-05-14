@@ -265,7 +265,7 @@ import UserDisplay from '@/architecture/presentation/shared/components/UserDispl
 import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
 import type { ScheduledAgentTaskItem } from '@/architecture/infrastructure/api/scheduledAgentTask'
 import type { ScheduledAgentExecutionRecord } from '@/architecture/presentation/composables/useWorkspaceSidebarSessions'
-import { featureFlags } from '@/architecture/runtime/config/features'
+import { featureFlags } from '@/architecture/shared/config/features'
 
 type SidebarTab = 'all' | 'running' | 'finished' | 'scheduled'
 

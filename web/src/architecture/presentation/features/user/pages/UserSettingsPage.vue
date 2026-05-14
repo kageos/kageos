@@ -144,7 +144,7 @@ import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import CommonUpload from '@/architecture/presentation/shared/components/CommonUpload.vue'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import type { FormRules } from 'element-plus'
-import { featureFlags } from '@/architecture/runtime/config/features'
+import { featureFlags } from '@/architecture/shared/config/features'
 
 const router = useRouter()
 const authStore = useAuthStore()

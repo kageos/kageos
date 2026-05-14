@@ -5,8 +5,8 @@ import type { IFormGateway } from '@/architecture/domain/interfaces/IFormGateway
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { FormDomainService } from '@/architecture/domain/services/FormDomainService'
 import { FormStateManager } from '@/architecture/infrastructure/stateManager/FormStateManager'
-import { useFormDataStore, type FormDataStore } from '@/architecture/runtime/stores/formData'
-import { useResponseDataStore } from '@/architecture/runtime/stores/responseData'
+import { useFormDataStore, type FormDataStore } from '@/architecture/infrastructure/stores/formData'
+import { useResponseDataStore } from '@/architecture/infrastructure/stores/responseData'
 import { createEmptyFieldValue } from '@/architecture/domain/utils/createFieldValue'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 

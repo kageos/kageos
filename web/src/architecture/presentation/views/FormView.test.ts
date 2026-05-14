@@ -92,7 +92,7 @@ vi.mock('../composables/useFormViewLifecycle', () => ({
   })
 }))
 
-vi.mock('@/architecture/runtime/config/features', () => ({
+vi.mock('@/architecture/shared/config/features', () => ({
   featureFlags: {
     scheduledTasks: false
   }

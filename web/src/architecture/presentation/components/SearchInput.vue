@@ -251,7 +251,7 @@ import { SearchConfig, SearchComponent, hasSearchType } from '@/architecture/dom
 import { WidgetType } from '@/architecture/domain/constants/widget'
 import { Logger } from '@/architecture/shared/logger'
 import type { FieldConfig } from '@/architecture/domain/types'
-import { formDataStoreKey, useFormDataStore } from '@/architecture/runtime/stores/formData'
+import { formDataStoreKey, useFormDataStore } from '@/architecture/infrastructure/stores/formData'
 import {
   buildSearchWidgetField,
   adaptSearchModelValueForWidget,

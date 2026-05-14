@@ -388,7 +388,7 @@ import { getErrorMessage } from '@/architecture/shared/apiError'
 import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import { getChangedFields } from '@/architecture/domain/utils/objectDiff'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
-import { formDataStoreKey } from '@/architecture/runtime/stores/formData'
+import { formDataStoreKey } from '@/architecture/infrastructure/stores/formData'
 import { useFunctionParamInitialization } from '../composables/useFunctionParamInitialization'
 import { useFormDebug } from '../composables/useFormDebug'
 import { useFormParamURLSync } from '../composables/useFormParamURLSync'
@@ -398,7 +398,7 @@ import ScheduledTaskDialog from '../components/ScheduledTaskDialog.vue'
 import { createFormViewRuntime } from './utils/formViewRuntime'
 import { FORM_LABEL_WIDTH } from '../utils/formLayout'
 import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
-import { featureFlags } from '@/architecture/runtime/config/features'
+import { featureFlags } from '@/architecture/shared/config/features'
 
 const props = withDefaults(defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取

@@ -131,8 +131,8 @@ import { selectFuzzy } from '@/architecture/infrastructure/api/function'
 import { widgetInitializerRegistry } from '@/architecture/presentation/widgets/initializers/WidgetInitializerRegistry'
 import { MultiSelectWidgetInitializer } from '@/architecture/presentation/widgets/initializers/MultiSelectWidgetInitializer'
 import { Logger } from '@/architecture/shared/logger'
-import { useFormDataStore } from '@/architecture/runtime/stores/formData'
-import { ExpressionParserAdapter } from '@/architecture/runtime/utils/ExpressionParserAdapter'
+import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
+import { ExpressionEvaluator } from '@/architecture/domain/expression/ExpressionEvaluator'
 import { getMultiSelectDefaultDataType } from '@/architecture/domain/constants/widget'
 import { SelectFuzzyQueryType, getOptionLightPalette, getOptionSolidColor, normalizeOptionColor, type StandardColorType } from '@/architecture/domain/constants/select'
 import { convertFormDataToRequestByType, convertArrayType } from '@/architecture/presentation/widgets/utils/typeConverter'
@@ -589,9 +589,9 @@ function calculateRowStatistics(
   try {
     for (const [label, expression] of Object.entries(statisticsConfig)) {
       try {
-        // 🔥 使用适配器计算表达式，自动支持新旧两种语法
+        // 🔥 使用领域表达式入口计算表达式，兼容旧语法
         // 传递 selectedItem 参数，用于 value() 函数
-        const value = ExpressionParserAdapter.evaluate(expression, validDisplayInfos, firstSelectedItem)
+        const value = ExpressionEvaluator.evaluate(expression, validDisplayInfos, firstSelectedItem)
         result[label] = value
       } catch (error: any) {
         Logger.error(`[MultiSelectWidget] 行内聚合计算失败: ${label} = ${expression}`, error)

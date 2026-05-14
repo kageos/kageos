@@ -1,5 +1,5 @@
 import type { FunctionDetail, WidgetTypes } from '@/architecture/domain/types/field'
-import type { ReactiveFormDataManager } from '@/architecture/runtime/managers/ReactiveFormDataManager'
+import type { FormValueStorePort } from '@/architecture/domain/interfaces/IFormStateManager'
 
 export type WidgetMode = WidgetTypes.WidgetMode
 export type FieldConfig = WidgetTypes.FieldConfig
@@ -19,7 +19,7 @@ export interface WidgetComponentProps {
   value: WidgetTypes.FieldValue
   mode: WidgetTypes.WidgetMode
   fieldPath: string
-  formManager?: ReactiveFormDataManager | null
+  formManager?: FormValueStorePort | null
   formRenderer?: FormRendererContext | null
   depth?: number
   searchType?: string

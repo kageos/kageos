@@ -5,7 +5,7 @@
 
 import { computed } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/architecture/runtime/stores/formData'
+import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
 import { syncTableContainerValue } from '@/architecture/domain/utils/containerValue'
 import { clearScopedDependentFields } from '@/architecture/domain/utils/dependency'
 import { applyScopedPresenceEffects } from '@/architecture/domain/utils/presenceEffects'

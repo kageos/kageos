@@ -180,8 +180,24 @@ const forbiddenPatterns = [
     message: 'old component auto-scan directory',
   },
   {
-    pattern: /@\/architecture\/infrastructure\/config\/features|src\/architecture\/infrastructure\/config\/features/,
-    message: 'feature flags must live in architecture/runtime/config',
+    pattern: /@\/architecture\/(?:runtime|infrastructure)\/config\/features|src\/architecture\/(?:runtime|infrastructure)\/config\/features/,
+    message: 'feature flags must be imported from architecture/shared/config/features',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/utils\/ExpressionParser(?:Adapter|V2)?|src\/architecture\/runtime\/utils\/ExpressionParser(?:Adapter|V2)?/,
+    message: 'expression evaluators must be imported from architecture/domain/expression',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/stores\/extractors|src\/architecture\/runtime\/stores\/extractors/,
+    message: 'field extractors must be imported from architecture/domain/form/extractors',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/stores\/(?:formData|responseData)|src\/architecture\/runtime\/stores\/(?:formData|responseData)/,
+    message: 'Pinia form stores must be imported from architecture/infrastructure/stores',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/utils\/navigation|src\/architecture\/runtime\/utils\/navigation/,
+    message: 'navigation port must be imported from architecture/shared/routing/navigation',
   },
   {
     pattern: /import\s+type\s+\{[^}]*\b(?:FormState|ValidationResult|TableState|TableRow|TableResponse|SearchParams|SortParams|SortItem|WorkspaceState)\b[^}]*\}\s+from\s+['"][^'"]*domain\/services\//,
@@ -200,11 +216,6 @@ const layerRules = [
         message: 'domain layer must not hard-code backend API routes',
       },
     ],
-  },
-  {
-    root: 'src/architecture/runtime/',
-    forbidden: ['infrastructure', 'presentation'],
-    message: 'runtime layer must not depend on infrastructure or presentation',
   },
   {
     root: 'src/architecture/application/',
@@ -240,6 +251,11 @@ for (const dir of forbiddenTopLevelDirs) {
   if (existsSync(path)) {
     failures.push(`${relative(root, path)} should live under src/architecture`)
   }
+}
+
+const removedRuntimePath = join(srcRoot, 'architecture', 'runtime')
+if (existsSync(removedRuntimePath)) {
+  failures.push(`${relative(root, removedRuntimePath)} has been removed; use domain, shared, infrastructure, or presentation`)
 }
 
 function extensionOf(file) {

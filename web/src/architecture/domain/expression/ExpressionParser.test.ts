@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { ExpressionParserV2 } from './ExpressionParserV2'
+import { ExpressionParser } from './ExpressionParser'
 
 const rows = [
   { price: 10, quantity: 2, amount: 0, discount_rate: 0.9, '价格': 10 },
@@ -9,10 +9,10 @@ const rows = [
 ]
 
 function expectExpression(expression: string, expected: number) {
-  expect(ExpressionParserV2.evaluate(expression, rows)).toBeCloseTo(expected, 2)
+  expect(ExpressionParser.evaluate(expression, rows)).toBeCloseTo(expected, 2)
 }
 
-describe('ExpressionParserV2', () => {
+describe('ExpressionParser', () => {
   it('evaluates arithmetic expressions with english and chinese field names', () => {
     expectExpression('sum(price * quantity)', 10 * 2 + 20 * 3 + 15 * 1)
     expectExpression('sum(价格 * quantity)', 10 * 2 + 20 * 3 + 15 * 1)

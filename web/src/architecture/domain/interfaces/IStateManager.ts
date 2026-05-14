@@ -24,7 +24,7 @@ export interface IStateManager<T> {
    * 设置状态
    * @param state 新状态
    */
-  setState(state: T): void
+  setState(state: Partial<T>): void
 
   /**
    * 订阅状态变化
@@ -38,4 +38,3 @@ export interface IStateManager<T> {
    */
   clear(): void
 }
-

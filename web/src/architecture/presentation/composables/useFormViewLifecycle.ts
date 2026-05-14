@@ -8,7 +8,8 @@ import type { FormStateManager } from '../../infrastructure/stateManager/FormSta
 import type { WorkspaceStateManager } from '../../infrastructure/stateManager/WorkspaceStateManager'
 import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import { Logger } from '@/architecture/shared/logger'
-import type { FormDataStore } from '@/architecture/runtime/stores/formData'
+import type { FormDataStore } from '@/architecture/infrastructure/stores/formData'
+import { isFormStateManager } from '@/architecture/domain/interfaces/IFormStateManager'
 import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 import {
   buildInitialDataFromFormDataStore as buildInitialDataFromFormDataStoreHelper,
@@ -78,11 +79,11 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
 
   function restoreResponseParams(metadata?: Record<string, any> | null): void {
     const responseParams = metadata?.responseParams
-    if (!responseParams || typeof (options.stateManager as any).setResponse !== 'function') {
+    if (!responseParams || !isFormStateManager(options.stateManager)) {
       return
     }
 
-    ;(options.stateManager as any).setResponse(responseParams)
+    options.stateManager.setResponse(responseParams)
     Logger.debug('FormView', '已恢复响应数据', {
       responseParamsKeys: Object.keys(responseParams),
       stateResponse: options.stateManager.getState().response
@@ -175,11 +176,9 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
       force: true
     })
 
-    if (typeof (options.stateManager as any).setResponse === 'function') {
-      ;(options.stateManager as any).setResponse(payload.responseBody || null)
-    }
-    if (typeof (options.stateManager as any).setMetadata === 'function') {
-      ;(options.stateManager as any).setMetadata(payload.responseMetadata || null)
+    if (isFormStateManager(options.stateManager)) {
+      options.stateManager.setResponse(payload.responseBody || null)
+      options.stateManager.setMetadata(payload.responseMetadata || null)
     }
 
     Logger.info('[FormView]', '已回填执行记录到表单', {

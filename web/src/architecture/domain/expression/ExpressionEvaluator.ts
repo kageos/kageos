@@ -1,21 +1,21 @@
 /**
- * ExpressionParserAdapter - 表达式解析器适配器
+ * ExpressionEvaluator - 表达式计算入口
  * 
  * 功能：
  * 1. 自动检测表达式语法（新语法 vs 旧语法）
- * 2. 选择合适的解析器（ExpressionParserV2 vs ExpressionParser）
+ * 2. 选择合适的解析器（ExpressionParser vs LegacyExpressionParser）
  * 3. 统一接口，对上层透明
  * 
  * 使用方式：
- * - 将现有的 ExpressionParser.evaluate 替换为 ExpressionParserAdapter.evaluate
- * - 自动支持新旧两种语法，无需修改业务代码
+ * - 将现有的 ExpressionParser.evaluate 替换为 ExpressionEvaluator.evaluate
+ * - 旧语法兼容集中在领域表达式模块，调用方不再依赖 runtime
  */
 
 import { ExpressionParser } from './ExpressionParser'
-import { ExpressionParserV2 } from './ExpressionParserV2'
+import { LegacyExpressionParser } from './LegacyExpressionParser'
 import { Logger } from '@/architecture/shared/logger'
 
-export class ExpressionParserAdapter {
+export class ExpressionEvaluator {
   /**
    * 检测表达式是否使用新语法
    * 
@@ -86,21 +86,21 @@ export class ExpressionParserAdapter {
       // 自动检测语法，选择合适的解析器
       if (this.isNewSyntax(expression)) {
         // 使用新解析器
-        return ExpressionParserV2.evaluate(expression, data, selectedItem)
+        return ExpressionParser.evaluate(expression, data, selectedItem)
       } else {
         // 使用旧解析器（向后兼容）
-        return ExpressionParser.evaluate(expression, data, selectedItem)
+        return LegacyExpressionParser.evaluate(expression, data, selectedItem)
       }
     } catch (error) {
-      Logger.error('ExpressionParserAdapter', `计算表达式失败: ${expression}`, error)
+      Logger.error('ExpressionEvaluator', `计算表达式失败: ${expression}`, error)
       
       // 如果新解析器失败，尝试使用旧解析器（降级策略）
       if (this.isNewSyntax(expression)) {
         try {
-          Logger.warn('ExpressionParserAdapter', `新解析器失败，尝试使用旧解析器: ${expression}`)
-          return ExpressionParser.evaluate(expression, data, selectedItem)
+          Logger.warn('ExpressionEvaluator', `新解析器失败，尝试使用旧解析器: ${expression}`)
+          return LegacyExpressionParser.evaluate(expression, data, selectedItem)
         } catch (fallbackError) {
-          Logger.error('ExpressionParserAdapter', `旧解析器也失败: ${expression}`, fallbackError)
+          Logger.error('ExpressionEvaluator', `旧解析器也失败: ${expression}`, fallbackError)
           return 0
         }
       }

@@ -11,7 +11,7 @@
 import { defineStore, type Pinia } from 'pinia'
 import { reactive, inject, hasInjectionContext, type InjectionKey } from 'vue'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
-import { fieldExtractorRegistry } from './extractors/FieldExtractorRegistry'
+import { fieldExtractorRegistry } from '@/architecture/domain/form/extractors/FieldExtractorRegistry'
 import { Logger } from '@/architecture/shared/logger'
 import { createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
 
@@ -49,6 +49,10 @@ const createFormDataStore = defineStore('formData', () => {
       }
     })
     return value || createEmptyRawFieldValue()
+  }
+
+  function hasValue(fieldPath: string): boolean {
+    return data.has(fieldPath)
   }
   
   /**
@@ -144,6 +148,7 @@ const createFormDataStore = defineStore('formData', () => {
     setValue,
     deleteValue,
     getValue,
+    hasValue,
     initializeField,
     getSubmitData,
     clear,

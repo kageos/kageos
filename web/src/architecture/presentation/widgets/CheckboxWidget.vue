@@ -87,7 +87,7 @@
 import { computed, ref, watch } from 'vue'
 import { ElCheckbox, ElCheckboxGroup, ElTag } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/architecture/runtime/stores/formData'
+import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import type { CheckboxWidgetConfig } from '@/architecture/domain/types/widget-configs'
 
