@@ -245,7 +245,7 @@ import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
 import { sanitizeHtml } from '@/utils/sanitizeHtml'
-import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
+import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 
 const VditorEditor = defineAsyncComponent(() => import('@/shared/components/VditorEditor.vue'))
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()

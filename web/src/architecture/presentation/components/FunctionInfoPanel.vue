@@ -129,7 +129,7 @@
 import { computed } from 'vue'
 import { DataLine, Document, Link, Operation, Tickets } from '@element-plus/icons-vue'
 import type { FieldConfig, FunctionDetail, ServiceTree } from '@/types'
-import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
+import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 
 interface Props {
   functionData?: FunctionDetail | null

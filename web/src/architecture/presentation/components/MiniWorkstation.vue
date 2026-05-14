@@ -263,7 +263,7 @@ import MiniWorkstationPendingActionBar from './MiniWorkstationPendingActionBar.v
 import MiniWorkstationSessionCenter from './MiniWorkstationSessionCenter.vue'
 import MiniWorkstationSessionDock from './MiniWorkstationSessionDock.vue'
 import ScheduledAgentTaskDialog from './ScheduledAgentTaskDialog.vue'
-import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
+import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { useMiniWorkstationPanel } from '../composables/useMiniWorkstationPanel'
 import { useMiniWorkstationSessions } from '../composables/useMiniWorkstationSessions'
 import { useMiniWorkstationUploads } from '../composables/useMiniWorkstationUploads'
