@@ -5,7 +5,7 @@ import type {
   TableUpdateRequest
 } from '@/architecture/domain/interfaces/ITableGateway'
 import type { FunctionDetail, TableListResponse, TableRow } from '@/architecture/domain/types'
-import { getChangedFields } from '@/architecture/runtime/tableRuntime/search'
+import { getChangedFields } from '@/architecture/domain/utils/objectDiff'
 
 function requireFunctionRouter(functionDetail: FunctionDetail): string {
   const router = functionDetail.router
