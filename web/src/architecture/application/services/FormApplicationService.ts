@@ -32,7 +32,7 @@
  * 
  * 2. **依赖关系**：
  *    - 依赖 FormDomainService（业务逻辑）
- *    - 依赖 IApiClient（API 调用）
+ *    - 依赖 IFormGateway（表单提交）
  *    - 依赖 IEventBus（事件通信）
  * 
  * 3. **数据流**：
@@ -78,7 +78,7 @@ import { FormDomainService } from '../../domain/services/FormDomainService'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { WorkspaceEvent, FormEvent } from '../../domain/interfaces/IEventBus'
 import type { FieldConfig, FunctionDetail } from '../../domain/types'
-import type { IApiClient } from '../../domain/interfaces/IApiClient'
+import type { IFormGateway } from '../../domain/interfaces/IFormGateway'
 import { getFormRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
 
 /**
@@ -90,7 +90,7 @@ export class FormApplicationService {
   constructor(
     private domainService: FormDomainService,
     private eventBus: IEventBus,
-    private apiClient: IApiClient
+    private formGateway: IFormGateway
   ) {
     this.setupEventHandlers()
   }
@@ -141,20 +141,7 @@ export class FormApplicationService {
 
     try {
       const submitData = this.getSubmitData(fields)
-
-      // 使用标准 API：/form/submit/{full-code-path}
-      const fullCodePath = functionDetail.router?.startsWith('/') 
-        ? functionDetail.router 
-        : `/${functionDetail.router || ''}`
-      const url = `/workspace/api/v1/form/submit${fullCodePath}`
-      const method = functionDetail.method?.toUpperCase() || 'POST'
-      
-      let response: any
-      if (method === 'GET') {
-        response = await this.apiClient.get(url, submitData)
-      } else {
-        response = await this.apiClient.post(url, submitData)
-      }
+      let response = await this.formGateway.submitForm({ functionDetail, data: submitData })
 
       response = unwrapApiResponseData(response, '提交失败，请稍后重试')
 
