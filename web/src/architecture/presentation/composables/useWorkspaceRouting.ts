@@ -15,7 +15,7 @@ import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { eventBus, RouteEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { RouteSource } from '@/architecture/runtime/utils/routeSource'
 import { Logger } from '@/architecture/runtime/utils/logger'
-import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
+import type { ServiceTree, App } from '../../domain/types'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 
 export function useWorkspaceRouting(

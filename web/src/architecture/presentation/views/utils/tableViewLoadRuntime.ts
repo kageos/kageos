@@ -1,9 +1,9 @@
 import type {
-  SearchParams,
+  TableSearchParams,
   SortItem,
   SortParams,
   TableState
-} from '@/architecture/domain/services/TableDomainService'
+} from '@/architecture/domain/types'
 import type { FunctionDetail } from '@/architecture/domain/types'
 
 export type TableLoadGuardResult = 'skip-unmounted' | 'skip-next-load' | 'proceed'
@@ -12,7 +12,7 @@ export interface BuildTableLoadRequestOptions {
   functionDetail: FunctionDetail
   state: TableState
   buildDefaultSorts: () => SortItem[]
-  buildSearchParams: (functionDetail: FunctionDetail, searchForm: Record<string, any>) => SearchParams
+  buildSearchParams: (functionDetail: FunctionDetail, searchForm: Record<string, any>) => TableSearchParams
 }
 
 export function decideTableLoadGuard(options: {
@@ -43,7 +43,7 @@ export function buildTableLoadingState(
 export function buildTableLoadRequest(
   options: BuildTableLoadRequestOptions
 ): {
-  searchParams: SearchParams
+  searchParams: TableSearchParams
   sortParams: SortParams | undefined
   pagination: { page: number; pageSize: number }
 } {

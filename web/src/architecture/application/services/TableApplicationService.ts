@@ -17,7 +17,7 @@ import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { WorkspaceEvent, TableEvent } from '../../domain/interfaces/IEventBus'
 import type { FunctionDetail } from '../../domain/types'
 import { getTableListFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
-import type { SearchParams, SortParams, TableRow } from '../../domain/services/TableDomainService'
+import type { TableSearchParams, SortParams, TableRow } from '../../domain/types'
 import { Logger } from '@/architecture/runtime/utils/logger'
 
 export interface TableApplicationServiceOptions {
@@ -68,7 +68,7 @@ export class TableApplicationService {
    */
   private setupEventHandlers(): void {
     // 监听搜索变化事件
-    this.eventBus.on(TableEvent.searchChanged, async (payload: { searchParams: SearchParams }) => {
+    this.eventBus.on(TableEvent.searchChanged, async (payload: { searchParams: TableSearchParams }) => {
       // 可以在这里添加额外的业务逻辑
       // 例如：自动重新加载数据
     })
@@ -99,7 +99,7 @@ export class TableApplicationService {
    */
   async loadData(
     functionDetail: FunctionDetail,
-    searchParams?: SearchParams,
+    searchParams?: TableSearchParams,
     sortParams?: SortParams,
     pagination?: { page: number, pageSize: number }
   ): Promise<void> {
@@ -197,7 +197,7 @@ export class TableApplicationService {
   /**
    * 更新搜索参数（供外部调用）
    */
-  updateSearchParams(searchParams: SearchParams): void {
+  updateSearchParams(searchParams: TableSearchParams): void {
     this.domainService.updateSearchParams(searchParams)
   }
 

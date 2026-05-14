@@ -1,4 +1,4 @@
-import type { TableState } from '@/architecture/domain/services/TableDomainService'
+import type { TableState } from '@/architecture/domain/types'
 
 export interface RestoredTableURLState {
   searchForm: Record<string, any>

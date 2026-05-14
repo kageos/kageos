@@ -5,7 +5,7 @@ import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
 import { getScheduledTaskExecution, type ScheduledTaskExecutionItem } from '@/architecture/infrastructure/api/scheduledTask'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import { Logger } from '@/architecture/runtime/utils/logger'
-import type { ServiceTree } from '../../domain/services/WorkspaceDomainService'
+import type { ServiceTree } from '../../domain/types'
 import { featureFlags } from '@/architecture/infrastructure/config/features'
 
 type FunctionTabName = 'content' | 'detail' | 'operateLog' | 'scheduledTask' | 'scheduledAgentTask'

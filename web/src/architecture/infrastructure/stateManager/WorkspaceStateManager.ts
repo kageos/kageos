@@ -10,7 +10,7 @@
 
 import { StateManagerImpl } from './StateManagerImpl'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'
-import type { WorkspaceState, App, ServiceTree } from '../../domain/services/WorkspaceDomainService'
+import type { WorkspaceState, App, ServiceTree } from '../../domain/types'
 
 /**
  * 工作空间状态管理实现

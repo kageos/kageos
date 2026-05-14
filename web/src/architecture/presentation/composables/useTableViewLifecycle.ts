@@ -1,7 +1,7 @@
 import { onMounted, onUnmounted, type Ref } from 'vue'
 import { eventBus, TableEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'
-import type { TableState, TableRow } from '../../domain/services/TableDomainService'
+import type { TableState, TableRow } from '../../domain/types'
 import type { FunctionDetail } from '../../domain/types'
 
 interface UseTableViewLifecycleOptions {

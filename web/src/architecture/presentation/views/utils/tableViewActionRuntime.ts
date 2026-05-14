@@ -1,4 +1,4 @@
-import type { TableRow } from '@/architecture/domain/services/TableDomainService'
+import type { TableRow } from '@/architecture/domain/types'
 
 export type TableActionCommandResult =
   | { type: 'link'; fieldCode: string }

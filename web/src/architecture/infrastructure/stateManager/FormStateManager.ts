@@ -78,25 +78,14 @@ import { reactive, watch } from 'vue'
 import { useFormDataStore, type FormDataStore } from '@/architecture/runtime/stores/formData'
 import { StateManagerImpl } from './StateManagerImpl'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'
-import type { FieldValue } from '@/architecture/domain/types'
-
-/**
- * 表单状态类型
- */
-export interface FormState {
-  data: Map<string, FieldValue>
-  errors: Map<string, any[]>
-  submitting: boolean
-  response: Record<string, any> | null // 🔥 新增：响应数据
-  metadata: Record<string, any> | null // 🔥 新增：元数据（如 total_cost_mill、trace_id 等）
-}
+import type { FieldValue, FormState, ValidationResult } from '@/architecture/domain/types'
 
 /**
  * 表单状态管理实现
  */
 export class FormStateManager extends StateManagerImpl<FormState> implements IStateManager<FormState> {
   private formStore: FormDataStore
-  private errors = reactive<Map<string, any[]>>(new Map())
+  private errors = reactive<Map<string, ValidationResult[]>>(new Map())
   private submitting = reactive({ value: false })
 
   private response = reactive<{ value: Record<string, any> | null }>({ value: null })

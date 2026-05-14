@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { WorkspaceDomainService, type WorkspaceState } from './WorkspaceDomainService'
+import { WorkspaceDomainService } from './WorkspaceDomainService'
+import type { WorkspaceState } from '../types'
 import { WorkspaceEvent, type IEventBus } from '../interfaces/IEventBus'
 import type { IFunctionLoader, FunctionDetail } from '../interfaces/IFunctionLoader'
 import type { IStateManager } from '../interfaces/IStateManager'

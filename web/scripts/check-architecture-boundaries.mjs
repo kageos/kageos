@@ -55,6 +55,10 @@ const forbiddenPatterns = [
     pattern: /src\/components|src\/shared\/components/,
     message: 'old component auto-scan directory',
   },
+  {
+    pattern: /import\s+type\s+\{[^}]*\b(?:FormState|ValidationResult|TableState|TableRow|TableResponse|SearchParams|SortParams|SortItem|WorkspaceState)\b[^}]*\}\s+from\s+['"][^'"]*domain\/services\//,
+    message: 'domain state/data types must be imported from architecture/domain/types',
+  },
 ]
 
 const layerRules = [

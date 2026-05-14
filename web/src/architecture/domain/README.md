@@ -22,12 +22,14 @@
   - `FieldConfig.ts`：字段配置类型
   - `FieldValue.ts`：字段值类型
   - `FunctionDetail.ts`：函数详情类型
+  - `form.ts`、`table.ts`、`workspace.ts`：表单、表格、工作空间运行态模型
 
 ## 特点
 
 - 不依赖 Infrastructure Layer 的具体实现
 - 只依赖接口，实现依赖倒置
 - 包含核心业务逻辑
+- 公共状态和数据模型统一从 `architecture/domain/types` 引用，不从 service 实现文件导出
 
 ## 使用示例
 
@@ -38,4 +40,3 @@ import type { IEventBus } from '@/architecture/domain/interfaces/IEventBus'
 
 const domainService = new FormDomainService(stateManager, eventBus)
 ```
-

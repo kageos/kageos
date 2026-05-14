@@ -8,7 +8,7 @@ import { resolveWorkspaceUrl } from '@/architecture/runtime/utils/route'
 import { RouteSource } from '@/architecture/runtime/utils/routeSource'
 import type { TableApplicationService } from '../../application/services/TableApplicationService'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'
-import type { TableState, TableRow } from '../../domain/services/TableDomainService'
+import type { TableState, TableRow } from '../../domain/types'
 import type { FieldConfig, FunctionDetail } from '../../domain/types'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import {

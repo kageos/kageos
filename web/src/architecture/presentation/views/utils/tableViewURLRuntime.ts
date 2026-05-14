@@ -1,5 +1,5 @@
 import type { FunctionDetail } from '@/architecture/domain/types'
-import type { SortItem, TableState } from '@/architecture/domain/services/TableDomainService'
+import type { SortItem, TableState } from '@/architecture/domain/types'
 import {
   getSearchFieldRawValue,
   hasSearchFieldValue

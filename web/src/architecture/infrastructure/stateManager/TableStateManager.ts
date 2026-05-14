@@ -10,7 +10,7 @@
 
 import { StateManagerImpl } from './StateManagerImpl'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'
-import type { TableState } from '../../domain/services/TableDomainService'
+import type { TableState } from '../../domain/types'
 
 /**
  * 表格状态管理实现
