@@ -104,6 +104,4 @@ npm run test:e2e:workstation-compose
 - 浏览器自动化链路是否正常
 - `data-testid` 和基本页面壳层是否可见
 
-仓库内的 MCP 接入样板和多客户端配置示例见：
-
-- [`web/docs/Playwright-MCP接入指南.md`](../docs/Playwright-MCP接入指南.md)
+MCP 接入样板和多客户端配置示例已移除，当前以本目录脚本为准。

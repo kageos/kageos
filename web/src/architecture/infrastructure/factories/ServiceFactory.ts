@@ -74,12 +74,6 @@
  *    - 可以通过构造函数注入 Mock 对象
  *    - 支持单元测试和集成测试
  * 
- * ============================================
- * 📚 相关文档
- * ============================================
- * 
- * - 服务提供者接口：`web/src/architecture/domain/interfaces/IServiceProvider.ts`
- * - 新架构扩展性分析：`web/docs/新架构扩展性分析报告.md`
  */
 
 import { eventBus } from '../eventBus'

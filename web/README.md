@@ -39,12 +39,12 @@
 - 工作空间、工作台等主页面入口已经迁移到 `src/architecture/`
 - `src/core/`、`src/shared/`、`src/utils/` 仍然是当前线上主链路正在使用的公共底座
 - `src/views/` 目前基本只保留错误页等少量遗留页面
-- 默认启用产品聚焦模式，普通用户入口优先保留工作空间、服务树、工作台、Form/Table/Chart、Docs 和 LLM 管理；权限、组织、Hub、消息、操作日志、定时任务等入口由 `src/config/features.ts` 统一控制
+- 默认启用产品聚焦模式，普通用户入口优先保留工作空间、服务树、工作台、Form/Table/Chart、Docs 和 LLM 管理；组织、消息、操作日志、定时任务等入口由 `src/config/features.ts` 统一控制
 - 因此前端当前真实状态是：**主页面已迁到 `architecture/`，底层能力仍处于混合复用阶段**
 
 ### 1.4 产品聚焦模式
 
-前端通过 `src/config/features.ts` 管理可见能力。`VITE_AOS_FOCUSED_MODE` 默认开启；开启后，组织、权限、消息、定时任务、操作日志、讨论区、企业升级等高级入口默认隐藏，但路由和后端接口仍保留兼容。
+前端通过 `src/config/features.ts` 管理可见能力。`VITE_AOS_FOCUSED_MODE` 默认开启；开启后，组织、消息、定时任务、操作日志、讨论区、企业升级等高级入口默认隐藏，但路由和后端接口仍保留兼容。
 
 常用开关：
 
@@ -52,7 +52,6 @@
 |---|---|
 | `VITE_AOS_FOCUSED_MODE` | 默认 `true`，测试环境默认 `false` |
 | `VITE_AOS_FEATURE_ORGANIZATION` | 未设置时仅完整模式开启 |
-| `VITE_AOS_FEATURE_PERMISSIONS` | 未设置时仅完整模式开启 |
 | `VITE_AOS_FEATURE_MESSAGES` | 未设置时仅完整模式开启 |
 | `VITE_AOS_FEATURE_SCHEDULED_TASKS` | 未设置时仅完整模式开启 |
 | `VITE_AOS_FEATURE_OPERATE_LOGS` | 未设置时仅完整模式开启 |
@@ -193,7 +192,7 @@ web/
 **作用**：
 
 - `shared/`：跨业务共享组件、富文本编辑器、通用展示组件
-- `features/`：权限、组织、用户等横向功能模块
+- `features/`：组织、用户、消息等横向功能模块
 - `utils/`：与具体架构层无关的通用工具函数
 
 #### 📄 views/
@@ -495,7 +494,7 @@ constructor() {
 
 ### 5.2 新增业务逻辑（Domain Logic）
 
-**场景**：新增一个应用权限校验功能。
+**场景**：新增一个跨页面复用的业务能力，例如日志记录、草稿保存、批量导入状态管理。
 
 #### 步骤 1：确定逻辑归属
 
@@ -505,287 +504,51 @@ constructor() {
 - 如果是工作空间相关 → `WorkspaceDomainService`
 - 如果是新的领域 → 创建新的 Domain Service
 
-**权限校验是跨领域的功能**，应该创建独立的 `PermissionDomainService`。
+#### 步骤 2：定义领域接口
 
-#### 步骤 2：定义接口（Domain Layer）
-
-文件位置：`src/architecture/domain/interfaces/IPermission.ts`
+把外部依赖抽象成接口，放在 `src/architecture/domain/interfaces/`。Domain 层只依赖接口，不直接依赖 Vue、Pinia 或具体 HTTP 客户端。
 
 ```typescript
-/**
- * 权限接口
- */
-export interface IPermission {
-  /**
-   * 检查应用权限
-   * @param appId 应用 ID
-   * @param action 动作（如 'read', 'write', 'delete'）
-   * @returns 是否有权限
-   */
-  checkAppPermission(appId: number, action: string): Promise<boolean>
-  
-  /**
-   * 检查功能权限
-   * @param functionId 功能 ID
-   * @param action 动作
-   * @returns 是否有权限
-   */
-  checkFunctionPermission(functionId: number, action: string): Promise<boolean>
+export interface IActionLogService {
+  logAction(action: string, payload: Record<string, unknown>): Promise<void>
 }
-```
-
-导出接口：
-```typescript
-// src/architecture/domain/interfaces/index.ts
-export * from './IPermission'
 ```
 
 #### 步骤 3：创建 Domain Service
 
-文件位置：`src/architecture/domain/services/PermissionDomainService.ts`
+把核心业务规则放在 `src/architecture/domain/services/`，只处理领域状态和规则。
 
 ```typescript
-import type { IStateManager } from '../interfaces/IStateManager'
-import type { IEventBus } from '../interfaces/IEventBus'
-import type { IApiClient } from '../interfaces/IApiClient'
-import { Logger } from '@/core/utils/logger'
+export class ActionLogDomainService {
+  constructor(private actionLogService: IActionLogService) {}
 
-/**
- * 权限状态
- */
-interface PermissionState {
-  permissions: Map<string, boolean>  // 权限缓存
-}
-
-/**
- * 权限领域服务
- * 
- * 职责：
- * - 权限检查逻辑
- * - 权限缓存管理
- * - 权限相关的业务规则
- */
-export class PermissionDomainService {
-  constructor(
-    private stateManager: IStateManager<PermissionState>,
-    private eventBus: IEventBus,
-    private apiClient: IApiClient
-  ) {}
-
-  /**
-   * 检查应用权限
-   */
-  async checkAppPermission(appId: number, action: string): Promise<boolean> {
-    const cacheKey = `app:${appId}:${action}`
-    const state = this.stateManager.getState()
-    
-    // 从缓存中读取
-    if (state.permissions.has(cacheKey)) {
-      return state.permissions.get(cacheKey)!
-    }
-    
-    // 调用 API 检查权限
-    try {
-      const response = await this.apiClient.get(`/api/v1/permissions/check`, {
-        resource_type: 'app',
-        resource_id: appId,
-        action
-      })
-      
-      const hasPermission = response?.has_permission || false
-      
-      // 缓存结果
-      const newPermissions = new Map(state.permissions)
-      newPermissions.set(cacheKey, hasPermission)
-      this.stateManager.setState({ permissions: newPermissions })
-      
-      return hasPermission
-    } catch (error) {
-      Logger.error('PermissionDomainService', '权限检查失败', error)
-      return false
-    }
-  }
-
-  /**
-   * 检查功能权限
-   */
-  async checkFunctionPermission(functionId: number, action: string): Promise<boolean> {
-    const cacheKey = `function:${functionId}:${action}`
-    const state = this.stateManager.getState()
-    
-    // 从缓存中读取
-    if (state.permissions.has(cacheKey)) {
-      return state.permissions.get(cacheKey)!
-    }
-    
-    // 调用 API 检查权限
-    try {
-      const response = await this.apiClient.get(`/api/v1/permissions/check`, {
-        resource_type: 'function',
-        resource_id: functionId,
-        action
-      })
-      
-      const hasPermission = response?.has_permission || false
-      
-      // 缓存结果
-      const newPermissions = new Map(state.permissions)
-      newPermissions.set(cacheKey, hasPermission)
-      this.stateManager.setState({ permissions: newPermissions })
-      
-      return hasPermission
-    } catch (error) {
-      Logger.error('PermissionDomainService', '权限检查失败', error)
-      return false
-    }
-  }
-
-  /**
-   * 清空权限缓存
-   */
-  clearCache(): void {
-    this.stateManager.setState({ permissions: new Map() })
-  }
-}
-```
-
-#### 步骤 4：创建 State Manager（Infrastructure Layer）
-
-文件位置：`src/architecture/infrastructure/stateManager/PermissionStateManager.ts`
-
-```typescript
-import { ref } from 'vue'
-import { StateManagerImpl } from './StateManagerImpl'
-import type { IStateManager } from '../../domain/interfaces/IStateManager'
-
-interface PermissionState {
-  permissions: Map<string, boolean>
-}
-
-export class PermissionStateManager extends StateManagerImpl<PermissionState> implements IStateManager<PermissionState> {
-  constructor() {
-    const initialState = ref<PermissionState>({
-      permissions: new Map()
+  async recordSubmit(functionCode: string, payload: Record<string, unknown>): Promise<void> {
+    await this.actionLogService.logAction('form_submit', {
+      functionCode,
+      payload,
+      timestamp: Date.now()
     })
-    super(initialState)
   }
 }
 ```
 
-#### 步骤 5：创建 Application Service（Application Layer）
+#### 步骤 4：创建 Application Service
 
-文件位置：`src/architecture/application/services/PermissionApplicationService.ts`
+Application 层负责流程编排，把页面事件、领域服务和基础设施串起来。
 
 ```typescript
-import { PermissionDomainService } from '../../domain/services/PermissionDomainService'
-import type { IEventBus } from '../../domain/interfaces/IEventBus'
+export class ActionLogApplicationService {
+  constructor(private domainService: ActionLogDomainService) {}
 
-/**
- * 权限应用服务
- * 
- * 职责：
- * - 协调权限检查流程
- * - 处理权限相关的业务场景
- */
-export class PermissionApplicationService {
-  constructor(
-    private domainService: PermissionDomainService,
-    private eventBus: IEventBus
-  ) {}
-
-  /**
-   * 检查应用权限（供外部调用）
-   */
-  async checkAppPermission(appId: number, action: string): Promise<boolean> {
-    return await this.domainService.checkAppPermission(appId, action)
-  }
-
-  /**
-   * 检查功能权限（供外部调用）
-   */
-  async checkFunctionPermission(functionId: number, action: string): Promise<boolean> {
-    return await this.domainService.checkFunctionPermission(functionId, action)
-  }
-
-  /**
-   * 清空权限缓存（供外部调用）
-   */
-  clearPermissionCache(): void {
-    this.domainService.clearCache()
+  async recordFormSubmit(functionCode: string, payload: Record<string, unknown>): Promise<void> {
+    await this.domainService.recordSubmit(functionCode, payload)
   }
 }
 ```
 
-#### 步骤 6：注册到 ServiceFactory
+#### 步骤 5：注册到 ServiceFactory
 
-文件位置：`src/architecture/infrastructure/factories/ServiceFactory.ts`
-
-```typescript
-import { PermissionStateManager } from '../stateManager/PermissionStateManager'
-import { PermissionDomainService } from '../../domain/services/PermissionDomainService'
-import { PermissionApplicationService } from '../../application/services/PermissionApplicationService'
-
-class ServiceFactory {
-  // ... 其他服务
-  
-  private permissionStateManager?: PermissionStateManager
-  private permissionDomainService?: PermissionDomainService
-  private permissionApplicationService?: PermissionApplicationService
-  
-  // 获取权限应用服务
-  getPermissionApplicationService(): PermissionApplicationService {
-    if (!this.permissionApplicationService) {
-      const stateManager = this.getPermissionStateManager()
-      const domainService = this.getPermissionDomainService()
-      this.permissionApplicationService = new PermissionApplicationService(
-        domainService,
-        this.eventBus
-      )
-    }
-    return this.permissionApplicationService
-  }
-  
-  private getPermissionDomainService(): PermissionDomainService {
-    if (!this.permissionDomainService) {
-      const stateManager = this.getPermissionStateManager()
-      this.permissionDomainService = new PermissionDomainService(
-        stateManager,
-        this.eventBus,
-        this.apiClient
-      )
-    }
-    return this.permissionDomainService
-  }
-  
-  private getPermissionStateManager(): PermissionStateManager {
-    if (!this.permissionStateManager) {
-      this.permissionStateManager = new PermissionStateManager()
-    }
-    return this.permissionStateManager
-  }
-}
-```
-
-#### 步骤 7：使用
-
-在 Vue 组件中使用：
-
-```vue
-<script setup lang="ts">
-import { serviceFactory } from '@/architecture/infrastructure/factories/ServiceFactory'
-
-const permissionService = serviceFactory.getPermissionApplicationService()
-
-async function checkPermission() {
-  const hasPermission = await permissionService.checkAppPermission(120, 'write')
-  if (!hasPermission) {
-    ElMessage.error('没有权限')
-    return
-  }
-  // 继续操作
-}
-</script>
-```
+在 `src/architecture/infrastructure/factories/ServiceFactory.ts` 里统一创建实例，避免组件自行 new 服务。
 
 ---
 
@@ -873,41 +636,7 @@ onMounted(() => {
 
 ## 六、典型场景示例
 
-### 6.1 场景 1：新增权限校验功能
-
-**问题**：用户打开某个功能时，需要检查是否有权限。
-
-**解决方案**：
-
-1. 创建 `PermissionDomainService`（如 5.2 所示）
-2. 在 `FormApplicationService.submitForm()` 中添加权限检查：
-
-```typescript
-async submitForm(functionDetail: FunctionDetail): Promise<any> {
-  // 🔥 权限检查
-  const permissionService = serviceFactory.getPermissionApplicationService()
-  const hasPermission = await permissionService.checkFunctionPermission(
-    functionDetail.id,
-    'execute'
-  )
-  
-  if (!hasPermission) {
-    throw new Error('没有执行权限')
-  }
-  
-  // 继续提交流程
-  // ...
-}
-```
-
-**代码位置**：
-- Domain Service: `src/architecture/domain/services/PermissionDomainService.ts`
-- Application Service: `src/architecture/application/services/PermissionApplicationService.ts`
-- State Manager: `src/architecture/infrastructure/stateManager/PermissionStateManager.ts`
-
----
-
-### 6.2 场景 2：新增日志记录功能
+### 6.1 场景 1：新增日志记录功能
 
 **问题**：需要记录用户的所有操作日志。
 
@@ -1178,7 +907,7 @@ function handleExport(format: 'excel' | 'csv') {
 | 类型 | 命名规则 | 示例 |
 |------|----------|------|
 | Vue 组件 | PascalCase + Widget/View 后缀 | `InputWidget.vue`, `FormView.vue` |
-| 服务类 | PascalCase + Service 后缀 | `FormDomainService`, `PermissionApplicationService` |
+| 服务类 | PascalCase + Service 后缀 | `FormDomainService`, `ActionLogApplicationService` |
 | 接口 | PascalCase + I 前缀 | `IStateManager`, `IEventBus` |
 | 类型 | PascalCase | `FieldConfig`, `FieldValue` |
 | 函数 | camelCase | `getSubmitData()`, `handleUpdate()` |
