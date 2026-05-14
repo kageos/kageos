@@ -70,10 +70,19 @@ const fields: FieldConfig[] = [
   }
 ]
 
-const submitFunctionDetail: FunctionDetail = {
-  method: 'POST',
-  router: '/test/form-submit',
-  request: fields
+function buildFormFunctionDetail(router: string, requestFields: FieldConfig[]): FunctionDetail {
+  return {
+    method: 'POST',
+    router,
+    schema: {
+      version: 1,
+      type: 'form',
+      form: {
+        request: requestFields,
+        response: []
+      }
+    }
+  }
 }
 
 describe('formViewRuntime', () => {
@@ -229,7 +238,7 @@ describe('formViewRuntime', () => {
 
     runtime.applicationService.initializeForm(fields, { name: 'Alice' }, true)
 
-    await expect(runtime.applicationService.submitForm(submitFunctionDetail)).rejects.toMatchObject({
+    await expect(runtime.applicationService.submitForm(buildFormFunctionDetail('/test/form-submit', fields))).rejects.toMatchObject({
       message: '您不在本次活动参与名单中，无法参与抽奖',
       response: {
         data: {
@@ -273,11 +282,9 @@ describe('formViewRuntime', () => {
       card_no: ''
     }, true)
 
-    await expect(runtime.applicationService.submitForm({
-      method: 'POST',
-      router: '/test/conditional-submit',
-      request: conditionalFields
-    })).rejects.toThrow('请先修正表单校验错误')
+    await expect(runtime.applicationService.submitForm(
+      buildFormFunctionDetail('/test/conditional-submit', conditionalFields)
+    )).rejects.toThrow('请先修正表单校验错误')
 
     expect(post).not.toHaveBeenCalled()
     expect(runtime.domainService.getFieldError('card_no')[0]?.message).toBe('卡号必填')
@@ -317,11 +324,9 @@ describe('formViewRuntime', () => {
       tax_no: 'T-001'
     }, true)
 
-    const response = await runtime.applicationService.submitForm({
-      method: 'POST',
-      router: '/test/excluded-submit',
-      request: exclusionFields
-    })
+    const response = await runtime.applicationService.submitForm(
+      buildFormFunctionDetail('/test/excluded-submit', exclusionFields)
+    )
 
     expect(post).toHaveBeenCalledWith(
       '/workspace/api/v1/form/submit/test/excluded-submit',
