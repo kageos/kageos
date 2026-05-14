@@ -5,6 +5,7 @@ import type { IEventBus } from '@/architecture/domain/interfaces/IEventBus'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { FormDomainService } from '@/architecture/domain/services/FormDomainService'
 import { FormStateManager } from '@/architecture/infrastructure/stateManager/FormStateManager'
+import { FormGatewayImpl } from '@/architecture/infrastructure/formGateway'
 import { useFormDataStore, type FormDataStore } from '@/architecture/runtime/stores/formData'
 import { useResponseDataStore } from '@/architecture/runtime/stores/responseData'
 import { createEmptyFieldValue } from '@/architecture/runtime/utils/createFieldValue'
@@ -21,7 +22,8 @@ export function createFormViewRuntime(options: {
   const domainService = new FormDomainService(stateManager, options.eventBus, [], {
     getAuthStore: () => useAuthStore()
   })
-  const applicationService = new FormApplicationService(domainService, options.eventBus, options.apiClient)
+  const formGateway = new FormGatewayImpl(options.apiClient)
+  const applicationService = new FormApplicationService(domainService, options.eventBus, formGateway)
 
   return {
     scopedFormPinia,

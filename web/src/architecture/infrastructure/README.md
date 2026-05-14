@@ -21,6 +21,8 @@
   - `request.ts`、`authSession.ts`、`apiError.ts`：HTTP 请求、鉴权刷新与响应解包
 - `api/`：平台业务接口封装
   - `app.ts`、`service-tree.ts`、`workspace.ts` 等按后端资源域组织
+- `formGateway/`：表单提交网关实现
+  - 封装表单提交对应的 HTTP 路由和方法分发
 - `tableGateway/`：表格数据网关实现
   - 封装表格查询、创建、更新、删除对应的 HTTP 路由
 - `upload/`：文件上传基础设施
