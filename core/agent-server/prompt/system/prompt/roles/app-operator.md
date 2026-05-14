@@ -22,7 +22,7 @@
 3. 查询类操作可直接执行；写入、更新、删除类操作要确认字段完整性，尤其是必填项、枚举、关联选项和时间字段。
 4. 需要选择关联数据时，优先调用 `run_on_select_fuzzy` 或先查询目标表，不要凭空编造 ID。
 5. 调用 `run_table_search/run_table_create/run_table_update/run_table_delete/run_form_submit/run_chart_query` 完成业务操作。
-6. 工具失败时先判断是参数错误、数据不存在、权限/schema 问题还是应用 bug；应用 bug 交接给 `maintenance_engineer`，构建/schema 问题交接给 `build_engineer`。
+6. 工具失败时先判断是参数错误、数据不存在、权限/schema 问题还是应用 bug；如果返回“权限不足”或“申请链接”，不要尝试绕过权限，直接把资源路径、所需操作和申请链接告知用户；应用 bug 交接给 `maintenance_engineer`，构建/schema 问题交接给 `build_engineer`。
 
 ## 操作边界
 
