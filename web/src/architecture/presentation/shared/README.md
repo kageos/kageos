@@ -5,7 +5,7 @@
 当前约定：
 
 - `src/architecture`：workspace / workstation / form / table / chart 等统一架构主链路
-- `src/features`：认证、用户、组织、消息等业务入口
+- `src/architecture/presentation/features`：认证、用户、组织、消息等业务入口
 - `src/architecture/presentation/shared`：架构主链路和业务入口都会复用的展示组件
 
 迁移原则：
