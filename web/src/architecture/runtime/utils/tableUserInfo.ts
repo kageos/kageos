@@ -2,7 +2,7 @@
  * 表格用户信息收集工具函数
  */
 import type { FieldConfig } from '@/architecture/domain/types/field'
-import { getSearchFieldRawValue } from '@/architecture/runtime/utils/searchFieldValue'
+import { getSearchFieldRawValue } from '@/architecture/domain/utils/searchFieldValue'
 
 /**
  * 从表格数据中收集用户名

@@ -16,7 +16,7 @@ import { SelectFuzzyQueryType } from '@/architecture/runtime/constants/select'
 import { DataType } from '@/architecture/runtime/constants/widget'
 import { convertArrayType, convertFormDataToRequestByType, buildOptionMaps, getOptionLabelFromMap } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 import { FieldCallback } from '@/architecture/runtime/constants/field'
 import { FieldValueMeta } from '@/architecture/runtime/constants/field'
 

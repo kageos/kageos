@@ -8,7 +8,7 @@ import {
   validateTableWidgetNestedFields,
   type WidgetValidationContext
 } from '@/architecture/presentation/widgets/composables/useWidgetValidation'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 import { createPersistedFieldValue } from '@/architecture/runtime/widgetRuntime/persistedFieldValue'
 import {
   clearFieldSubtree,

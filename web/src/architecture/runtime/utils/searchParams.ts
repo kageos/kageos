@@ -6,7 +6,7 @@
 
 import type { FieldConfig } from '@/architecture/domain/types/field'
 import type { SearchParams } from '@/architecture/domain/types'
-import { getSearchFieldRawValue } from '@/architecture/runtime/utils/searchFieldValue'
+import { getSearchFieldRawValue } from '@/architecture/domain/utils/searchFieldValue'
 
 const hasValue = (value: unknown): boolean => {
   return !(

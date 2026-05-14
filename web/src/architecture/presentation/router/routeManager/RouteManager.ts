@@ -99,7 +99,7 @@ import {
   isLinkMarkerQueryKey,
   isPersistentPlatformStateQueryKey
 } from '@/architecture/runtime/utils/queryParamKeys'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 
 export interface RouteUpdateRequest {
   path?: string                    // 路径（可选，不提供则使用当前路径）

@@ -8,7 +8,7 @@ import type {
   UploadProgress,
   Uploader
 } from '@/architecture/infrastructure/upload'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 import type { FileItem } from '../filesWidgetTypes'
 import { generateFilePreview } from '@/architecture/infrastructure/upload/filePreview'
 import { isFileAccepted } from '@/architecture/infrastructure/upload/accept'

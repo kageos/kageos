@@ -1,5 +1,5 @@
 import { computed, onMounted, watch, type Ref } from 'vue'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 import type { FileItem } from '../filesWidgetTypes'
 
 interface UserInfoStoreLike {

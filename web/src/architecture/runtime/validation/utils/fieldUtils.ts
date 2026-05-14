@@ -5,7 +5,7 @@
 
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 import type { ValidationContext } from '../types'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 
 function findFieldRecursive(
   fields: FieldConfig[],

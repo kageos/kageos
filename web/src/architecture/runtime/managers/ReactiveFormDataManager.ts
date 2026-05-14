@@ -5,7 +5,7 @@
 
 import { reactive, type UnwrapNestedRefs } from 'vue'
 import type { FieldValue } from '@/architecture/domain/types/field'
-import { Logger } from '../utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 
 /**
  * 简单的事件发射器

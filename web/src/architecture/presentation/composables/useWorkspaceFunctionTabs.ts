@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
 import { getScheduledTaskExecution, type ScheduledTaskExecutionItem } from '@/architecture/infrastructure/api/scheduledTask'
 import type { FunctionDetail } from '@/architecture/domain/types'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 import type { ServiceTree } from '../../domain/types'
 import { featureFlags } from '@/architecture/runtime/config/features'
 

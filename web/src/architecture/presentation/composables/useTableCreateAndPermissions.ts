@@ -10,7 +10,7 @@ import {
   buildTableAddDialogOpenRequest,
   buildTableCreateDialogCloseRequest
 } from '../views/utils/tableViewRouteRuntime'
-import { getTableCreateFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
+import { getTableCreateFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
 interface UseTableCreateAndPermissionsOptions {
   routeQuery: () => Record<string, any>

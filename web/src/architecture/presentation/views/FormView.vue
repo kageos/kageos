@@ -384,7 +384,7 @@ import { ElIcon, ElTag, ElNotification, ElMessage, ElEmpty, ElMessageBox } from 
 import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
-import { getErrorMessage } from '@/architecture/runtime/utils/apiError'
+import { getErrorMessage } from '@/architecture/shared/apiError'
 import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
 import { getChangedFields } from '@/architecture/runtime/utils/objectDiff'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
@@ -397,7 +397,7 @@ import { useFormViewLifecycle } from '../composables/useFormViewLifecycle'
 import ScheduledTaskDialog from '../components/ScheduledTaskDialog.vue'
 import { createFormViewRuntime } from './utils/formViewRuntime'
 import { FORM_LABEL_WIDTH } from '../utils/formLayout'
-import { getFormRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
+import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 import { featureFlags } from '@/architecture/runtime/config/features'
 
 const props = withDefaults(defineProps<{

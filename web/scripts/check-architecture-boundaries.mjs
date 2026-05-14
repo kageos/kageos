@@ -56,6 +56,22 @@ const forbiddenPatterns = [
     message: 'field types must be imported from architecture/domain/types/field',
   },
   {
+    pattern: /@\/architecture\/runtime\/utils\/logger|src\/architecture\/runtime\/utils\/logger/,
+    message: 'logger must be imported from architecture/shared/logger',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/utils\/functionSchemaSelectors|src\/architecture\/runtime\/utils\/functionSchemaSelectors/,
+    message: 'schema selectors must be imported from architecture/domain/utils/functionSchemaSelectors',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/utils\/apiError|src\/architecture\/runtime\/utils\/apiError/,
+    message: 'API error helpers must be imported from architecture/shared/apiError',
+  },
+  {
+    pattern: /@\/architecture\/runtime\/utils\/searchFieldValue|src\/architecture\/runtime\/utils\/searchFieldValue/,
+    message: 'search field value helpers must be imported from architecture/domain/utils/searchFieldValue',
+  },
+  {
     pattern: /src\/components|src\/shared\/components/,
     message: 'old component auto-scan directory',
   },

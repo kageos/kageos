@@ -18,7 +18,7 @@ import {
   parseExecutionObject,
   readExecutionNumber
 } from '@/architecture/presentation/utils/executionLog'
-import { getErrorMessage } from '@/architecture/runtime/utils/apiError'
+import { getErrorMessage } from '@/architecture/shared/apiError'
 
 export interface ScheduledTaskListProps {
   resourcePath?: string

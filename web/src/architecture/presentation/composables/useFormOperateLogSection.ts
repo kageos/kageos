@@ -12,8 +12,8 @@ import {
   formatExecutionRelativeTime,
   readExecutionNumber
 } from '@/architecture/presentation/utils/executionLog'
-import { Logger } from '@/architecture/runtime/utils/logger'
-import { getFormRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
+import { Logger } from '@/architecture/shared/logger'
+import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
 export interface ApplyOperateLogPayload {
   log: FormOperateLog

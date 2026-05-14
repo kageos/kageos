@@ -13,7 +13,7 @@
 
 import { ExpressionParser } from './ExpressionParser'
 import { ExpressionParserV2 } from './ExpressionParserV2'
-import { Logger } from './logger'
+import { Logger } from '@/architecture/shared/logger'
 
 export class ExpressionParserAdapter {
   /**

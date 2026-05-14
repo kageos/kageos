@@ -18,7 +18,7 @@ import { FieldCallback, FieldValueMeta } from '@/architecture/runtime/constants/
 import { convertValueToType } from '@/architecture/presentation/widgets/utils/valueConverter'
 import { convertBasicType, convertFormDataToRequestByType } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 
 /**
  * SelectWidget 初始化器

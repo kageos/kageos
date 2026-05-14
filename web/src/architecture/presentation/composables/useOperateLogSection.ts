@@ -10,8 +10,8 @@ import { convertToFieldValue } from '@/architecture/runtime/utils/field'
 import type { FieldConfig } from '@/architecture/domain/types'
 import { getFunctionByPath } from '@/architecture/infrastructure/api/function'
 import type { FunctionDetail } from '@/architecture/domain/types'
-import { Logger } from '@/architecture/runtime/utils/logger'
-import { getTableListFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
+import { Logger } from '@/architecture/shared/logger'
+import { getTableListFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
 interface UseOperateLogSectionOptions {
   fullCodePath: Ref<string>

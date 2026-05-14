@@ -86,7 +86,7 @@ import { widgetPluginRegistry, type WidgetPlugin } from './WidgetPlugin'
 import { widgetComponentFactory } from '@/architecture/presentation/widgets/registry'
 import { fieldExtractorRegistry } from '@/architecture/runtime/stores/extractors/FieldExtractorRegistry'
 import { widgetInitializerRegistry } from '@/architecture/presentation/widgets/initializers/WidgetInitializerRegistry'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 
 /**
  * 注册 Widget 插件

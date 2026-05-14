@@ -27,7 +27,7 @@
 import { computed } from 'vue'
 import type { FieldConfig } from '@/architecture/presentation/widgets/types'
 import { ExpressionParserAdapter } from '@/architecture/runtime/utils/ExpressionParserAdapter'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 
 interface Props {
   field: FieldConfig

@@ -194,7 +194,7 @@ import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { useDepartmentInfoStore } from '@/architecture/infrastructure/stores/departmentInfo'
 import type { Department } from '@/architecture/infrastructure/api/department'
 import { getDepartmentTree } from '@/architecture/infrastructure/api/department'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 import { createFieldValue } from '@/architecture/runtime/utils/createFieldValue'
 import { getRenderDefaultFromConfig } from '@/architecture/runtime/widgetRuntime/defaultValue'
 

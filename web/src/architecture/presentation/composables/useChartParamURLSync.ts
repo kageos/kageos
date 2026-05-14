@@ -18,10 +18,10 @@ import { useRoute } from 'vue-router'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import { RouteSource } from '@/architecture/runtime/utils/routeSource'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 import { isEmptyValue, shouldSkipURLSync, convertFieldValueToURLParam, mergeURLQueryParams } from './utils/urlSyncUtils'
 import { isLinkNavigation } from '@/architecture/runtime/utils/linkNavigation'
-import { getChartRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
+import { getChartRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 import { deleteFieldQueryKey } from '@/architecture/runtime/utils/queryParamKeys'
 
 export interface UseChartParamURLSyncOptions {

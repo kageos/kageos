@@ -6,7 +6,7 @@
  */
 
 import { DataType } from '@/architecture/runtime/constants/widget'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 
 /**
  * 将字符串值转换为指定类型

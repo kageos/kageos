@@ -5,7 +5,7 @@ import type { IFormGateway } from '@/architecture/domain/interfaces/IFormGateway
 import type { FunctionDetail } from '@/architecture/domain/types'
 import { useFormViewState } from './useFormViewState'
 import { createFormViewRuntime } from '@/architecture/presentation/views/utils/formViewRuntime'
-import { getFormRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
+import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
 function createMockEventBus(): IEventBus {
   const listeners = new Map<string, Set<(payload?: any) => void>>()

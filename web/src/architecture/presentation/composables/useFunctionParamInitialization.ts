@@ -89,12 +89,12 @@ import type { FieldValue } from '../../domain/types'
 import { widgetInitializerRegistry } from '../../presentation/widgets/initializers/WidgetInitializerRegistry'
 import type { WidgetInitContext } from '../../presentation/widgets/interfaces/IWidgetInitializer'
 import { eventBus, FormEvent } from '../../infrastructure/eventBus'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 import { getWidgetDefaultValue } from '../../presentation/widgets/composables/useWidgetDefaultValue'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { FieldValueMeta } from '@/architecture/runtime/constants/field'
 import { convertValueByFieldType } from '../../presentation/widgets/utils/typeConverter'
-import { getFormRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
+import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
 /**
  * 初始化源接口

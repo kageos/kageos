@@ -18,7 +18,7 @@
  * 兼容旧写法（不推荐）：IF cond THEN a ELSE b 仍可解析。
  */
 
-import { Logger } from './logger'
+import { Logger } from '@/architecture/shared/logger'
 
 // ================ 类型定义 ================
 

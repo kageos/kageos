@@ -11,7 +11,7 @@
 
 import type { IWidgetInitializer, WidgetInitContext } from '@/architecture/presentation/widgets/interfaces/IWidgetInitializer'
 import type { FieldValue } from '@/architecture/domain/types'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 
 /**
  * Widget 初始化器注册表
