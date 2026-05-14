@@ -113,7 +113,7 @@
 - **策略模式**：FieldExtractorRegistry（根据字段类型选择不同的提取器）
 - **工厂/注册表模式**：WidgetComponentFactory + widgetRegistry（根据组件类型选择组件）
 - **策略模式**：FieldExtractorRegistry（根据字段结构提取提交值）
-- **门面模式**：`src/types`、`architecture/domain/types` 对共享类型做统一出口
+- **门面模式**：`src/architecture/domain/types`、`architecture/domain/types` 对共享类型做统一出口
 - **观察者模式**：EventBus（事件发布订阅）
 - **单例模式**：Pinia Store（全局状态管理）
 

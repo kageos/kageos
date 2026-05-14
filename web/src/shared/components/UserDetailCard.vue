@@ -74,7 +74,7 @@
 import { computed } from 'vue'
 import { ElAvatar, ElIcon, ElTag } from 'element-plus'
 import { OfficeBuilding, UserFilled, Message, User, EditPen, Male, Female } from '@element-plus/icons-vue'
-import type { UserInfo } from '@/types'
+import type { UserInfo } from '@/architecture/domain/types'
 import { formatUserDisplayName } from '@/utils/userInfo'
 
 interface Props {

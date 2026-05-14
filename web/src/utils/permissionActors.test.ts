@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ServiceTree } from '@/types'
+import type { ServiceTree } from '@/architecture/domain/types'
 import {
   canApprovePermissionRequest,
   isServiceTreeNodeAdmin,

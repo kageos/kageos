@@ -5,7 +5,7 @@ import { getFormOperateLogs, type FormOperateLog } from '@/architecture/infrastr
 import { useLicenseStore } from '@/architecture/infrastructure/stores/license'
 import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
 import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
-import type { UserInfo } from '@/types'
+import type { UserInfo } from '@/architecture/domain/types'
 import {
   formatExecutionDateTime,
   formatExecutionDuration,

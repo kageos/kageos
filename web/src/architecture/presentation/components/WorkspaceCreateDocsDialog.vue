@@ -95,7 +95,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { InfoFilled } from '@element-plus/icons-vue'
-import type { ServiceTree as ServiceTreeType } from '@/types'
+import type { ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 
 interface CreateDocsForm {
   name: string

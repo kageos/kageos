@@ -243,7 +243,7 @@
 import { ref, computed, watch } from 'vue'
 import { Search, Loading, Plus, Check, FolderOpened, RefreshRight, Delete } from '@element-plus/icons-vue'
 import { getAppList } from '@/architecture/infrastructure/api/app'
-import type { App } from '@/types'
+import type { App } from '@/architecture/domain/types'
 import { ElMessage } from 'element-plus'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 

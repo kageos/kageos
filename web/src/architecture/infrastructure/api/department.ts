@@ -15,7 +15,7 @@
  */
 
 import { get, post, put, del } from '@/utils/request'
-import type { UserInfo } from '@/types'
+import type { UserInfo } from '@/architecture/domain/types'
 
 // ==================== 类型定义 ====================
 

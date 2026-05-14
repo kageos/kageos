@@ -280,7 +280,7 @@ import WorkspaceFunctionRenderer from '../components/WorkspaceFunctionRenderer.v
 import WorkspaceFunctionTabsPanel from '../components/WorkspaceFunctionTabsPanel.vue'
 import type { App } from '../../domain/services/WorkspaceDomainService'
 import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
-import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
+import type { App as AppType, ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 // 🔥 导入 Composable
 import { useWorkspaceRouting } from '../composables/useWorkspaceRouting'
 import { useWorkspaceDetail } from '../composables/useWorkspaceDetail'

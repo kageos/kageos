@@ -1,5 +1,5 @@
 import { get, post, put, del } from '@/utils/request'
-import type { FunctionDetail, SearchParams } from '@/types'
+import type { FunctionDetail, SearchParams } from '@/architecture/domain/types'
 
 // 获取函数详情（根据路径和函数类型）
 // ⭐ 使用新的路由：/function/info/:func-type/*full-code-path

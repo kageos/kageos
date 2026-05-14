@@ -2,7 +2,7 @@
  * workspaceUtils - 工作空间工具函数
  */
 
-import type { ServiceTree as ServiceTreeType } from '@/types'
+import type { ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 
 /**
  * 递归查找节点（支持工作空间、函数、目录和文档节点）

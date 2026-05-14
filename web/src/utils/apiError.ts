@@ -1,4 +1,4 @@
-import type { ApiResponse } from '@/types'
+import type { ApiResponse } from '@/architecture/domain/types'
 
 type ApiResponseEnvelope<T = unknown> = ApiResponse<T>
 

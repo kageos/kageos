@@ -28,7 +28,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent } from 'vue'
 import type { FunctionDetail } from '@/architecture/domain/types'
-import type { ServiceTree as ServiceTreeType } from '@/types'
+import type { ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 
 const FormView = defineAsyncComponent(() => import('@/architecture/presentation/views/FormView.vue'))

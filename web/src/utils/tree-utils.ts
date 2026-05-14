@@ -3,7 +3,7 @@
  * 用于处理服务树的通用逻辑，避免代码重复
  */
 
-import type { ServiceTree } from '@/types'
+import type { ServiceTree } from '@/architecture/domain/types'
 
 /**
  * 判断是否为根节点：full_code_path 只有 2 段（/user/app）

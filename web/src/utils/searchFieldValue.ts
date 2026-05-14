@@ -1,4 +1,4 @@
-import type { FieldValue } from '@/types/field'
+import type { FieldValue } from '@/architecture/domain/types/field'
 
 export function isStoredSearchFieldValue(value: any): value is FieldValue {
   return !!value && typeof value === 'object' && 'raw' in value && 'display' in value

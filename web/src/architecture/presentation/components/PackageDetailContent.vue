@@ -63,7 +63,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ServiceTree } from '@/types'
+import type { ServiceTree } from '@/architecture/domain/types'
 import PackageDetailOverviewCard from './PackageDetailOverviewCard.vue'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
 import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'

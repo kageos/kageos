@@ -237,7 +237,7 @@ import {
   SwitchButton
 } from '@element-plus/icons-vue'
 import AppSwitcher from '@/shared/components/AppSwitcher.vue'
-import type { App, ServiceTree } from '@/types'
+import type { App, ServiceTree } from '@/architecture/domain/types'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { useLicenseStore } from '@/architecture/infrastructure/stores/license'

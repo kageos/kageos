@@ -1,5 +1,5 @@
 import { get, post, put, del } from '@/utils/request'
-import type { ServiceTree, CreateServiceTreeRequest, FunctionSchema } from '@/types'
+import type { ServiceTree, CreateServiceTreeRequest, FunctionSchema } from '@/architecture/domain/types'
 
 // ⭐ 创建 package 类型节点（推荐使用）
 export function createPackage(data: CreateServiceTreeRequest) {

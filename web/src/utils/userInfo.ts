@@ -1,7 +1,7 @@
 /**
  * 用户信息相关工具函数
  */
-import type { UserInfo } from '@/types'
+import type { UserInfo } from '@/architecture/domain/types'
 
 /**
  * 创建占位符用户对象

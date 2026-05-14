@@ -1,5 +1,5 @@
 import { get, put, post } from '@/utils/request'
-import type { UserInfo } from '@/types'
+import type { UserInfo } from '@/architecture/domain/types'
 
 // 更新用户信息
 export interface UpdateUserReq {

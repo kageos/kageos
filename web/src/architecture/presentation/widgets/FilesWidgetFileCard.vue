@@ -169,7 +169,7 @@
 import { computed } from 'vue'
 import { ElButton, ElIcon, ElImage, ElInput, ElPopconfirm, ElTag } from 'element-plus'
 import { Delete, Download, Edit, View } from '@element-plus/icons-vue'
-import type { UserInfo } from '@/types'
+import type { UserInfo } from '@/architecture/domain/types'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import type { FileItem } from './filesWidgetTypes'
 

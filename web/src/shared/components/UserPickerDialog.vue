@@ -133,7 +133,7 @@ import { Check, Close, Loading, Search } from '@element-plus/icons-vue'
 import { searchUsersFuzzy } from '@/architecture/infrastructure/api/user'
 import { Logger } from '@/architecture/runtime/utils/logger'
 import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
-import type { UserInfo } from '@/types'
+import type { UserInfo } from '@/architecture/domain/types'
 import { formatUserDisplayName } from '@/utils/userInfo'
 
 interface Props {

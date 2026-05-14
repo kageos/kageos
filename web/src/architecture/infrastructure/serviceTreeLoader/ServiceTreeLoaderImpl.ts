@@ -11,7 +11,7 @@
 import { Logger } from '@/architecture/runtime/utils/logger'
 import type { IApiClient } from '../../domain/interfaces/IApiClient'
 import type { IServiceTreeLoader, ServiceTreeLoadResult } from '../../domain/interfaces/IServiceTreeLoader'
-import type { App, ServiceTree } from '@/types'
+import type { App, ServiceTree } from '@/architecture/domain/types'
 
 /**
  * 服务目录树加载器实现

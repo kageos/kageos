@@ -3,8 +3,8 @@
  */
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import type { ThemeMode, ThemeConfig } from '@/types/theme'
-import { THEME_PRESETS, DEFAULT_THEME } from '@/types/theme'
+import type { ThemeMode, ThemeConfig } from '@/architecture/domain/types/theme'
+import { THEME_PRESETS, DEFAULT_THEME } from '@/architecture/domain/types/theme'
 
 const THEME_STORAGE_KEY = 'ai-agent-os-theme'
 

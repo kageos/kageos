@@ -1,4 +1,4 @@
-import type { ServiceTree } from '@/types'
+import type { ServiceTree } from '@/architecture/domain/types'
 
 type UsernameListSource = string | string[] | null | undefined
 

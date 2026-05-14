@@ -71,7 +71,7 @@
 
 <script setup lang="ts">
 import type { FunctionDetail } from '@/architecture/domain/types'
-import type { ServiceTree as ServiceTreeType } from '@/types'
+import type { ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 import FormOperateLogSection from './FormOperateLogSection.vue'
 import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
 import ScheduledTaskList from './ScheduledTaskList.vue'

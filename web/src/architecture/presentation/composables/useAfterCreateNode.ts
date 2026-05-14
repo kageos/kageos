@@ -3,7 +3,7 @@
  * 用于文档、讨论区等创建成功后的导航，避免在视图里重复写相同逻辑
  */
 
-import type { ServiceTree } from '@/types'
+import type { ServiceTree } from '@/architecture/domain/types'
 import { Logger } from '@/architecture/runtime/utils/logger'
 
 export function useAfterCreateNode(deps: {

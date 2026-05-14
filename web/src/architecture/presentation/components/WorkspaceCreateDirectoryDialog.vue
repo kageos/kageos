@@ -66,7 +66,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { InfoFilled } from '@element-plus/icons-vue'
-import type { CreateServiceTreeRequest, ServiceTree as ServiceTreeType } from '@/types'
+import type { CreateServiceTreeRequest, ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 
 const props = defineProps<{
   visible: boolean
