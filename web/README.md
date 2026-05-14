@@ -134,7 +134,6 @@ web/
 │   │   └── runtime/                     # 表单状态、Widget 运行时、校验、共享常量
 │   ├── features/                        # agent / auth / permission / user 等功能模块
 │   ├── shared/                          # 共享组件、富文本与通用展示能力
-│   ├── stores/                          # 全局 Pinia Store
 │   ├── utils/                           # 通用工具函数
 │   ├── router/                          # 路由
 │   ├── views/                           # 遗留页面（当前基本只剩错误页）

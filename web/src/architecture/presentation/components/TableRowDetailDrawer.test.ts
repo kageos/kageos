@@ -13,7 +13,7 @@ vi.mock('vue-router', async (importOriginal) => {
   }
 })
 
-vi.mock('@/stores/auth', () => ({
+vi.mock('@/architecture/infrastructure/stores/auth', () => ({
   useAuthStore: () => ({
     user: {
       username: 'tester'

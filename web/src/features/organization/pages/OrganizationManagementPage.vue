@@ -342,10 +342,10 @@ import {
   type Department
 } from '@/architecture/infrastructure/api/department'
 import type { UserInfo } from '@/types'
-import { useUserInfoStore } from '@/stores/userInfo'
+import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
 import UserDisplay from '@/shared/components/UserDisplay.vue'
 import UserEditDialog from '@/features/user/components/UserEditDialog.vue'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import UsersWidget from '@/shared/components/UsersWidget.vue'
 import { WidgetType } from '@/architecture/runtime/constants/widget'
 import type { FieldValue } from '@/architecture/runtime/types/field'

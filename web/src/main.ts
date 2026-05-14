@@ -17,9 +17,9 @@ dayjs.locale('zh-cn')
 
 import App from './App.vue'
 import router from './router'
-import { useAuthStore } from './stores/auth'
-import { useThemeStore } from './stores/theme'
-import { useUserInfoStore } from './stores/userInfo'
+import { useAuthStore } from './architecture/infrastructure/stores/auth'
+import { useThemeStore } from './architecture/infrastructure/stores/theme'
+import { useUserInfoStore } from './architecture/infrastructure/stores/userInfo'
 import { registerWidgetInitializers } from './architecture/presentation/widgets/initializers/registerInitializers'
 import { ensureInitialized } from './architecture/infrastructure/widgetRegistry'
 
