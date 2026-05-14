@@ -194,7 +194,7 @@ import {
   type ResourceSearchResult
 } from '@/architecture/infrastructure/api/service-tree'
 import type { UserInfo } from '@/architecture/domain/types'
-import { formatUserDisplayName } from '@/architecture/runtime/utils/userInfo'
+import { formatUserDisplayName } from '@/architecture/domain/utils/userInfo'
 import {
   findMiniComposerMentionQuery,
   replaceMiniComposerMention,
