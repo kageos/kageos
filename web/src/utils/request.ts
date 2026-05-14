@@ -3,7 +3,7 @@ import type { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } fr
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { Logger } from '@/architecture/runtime/utils/logger'
-import { getApiBaseURL } from '@/config/runtime'
+import { getApiBaseURL } from '@/architecture/infrastructure/config/runtime'
 import router from '@/architecture/infrastructure/router'
 import type { ApiResponse } from '@/types'
 import { extractApiMessage, isAuthExpiredBusinessResponse, isRefreshRequestUrl } from './authSession'

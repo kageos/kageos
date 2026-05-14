@@ -69,7 +69,7 @@ import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
 import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
 import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
 import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
-import { featureFlags } from '@/config/features'
+import { featureFlags } from '@/architecture/infrastructure/config/features'
 
 type DetailTabName = 'info' | 'scheduledAgentTask'
 

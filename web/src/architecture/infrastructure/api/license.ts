@@ -1,5 +1,5 @@
 import { authFetch, get, post } from '@/utils/request'
-import { getApiBaseURL } from '@/config/runtime'
+import { getApiBaseURL } from '@/architecture/infrastructure/config/runtime'
 
 // License 状态接口
 export interface LicenseStatus {

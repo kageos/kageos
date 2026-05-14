@@ -220,7 +220,7 @@ import WidgetComponent from '../widgets/WidgetComponent.vue'
 import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import OperateLogSection from './OperateLogSection.vue'
 import { WidgetType } from '@/architecture/runtime/constants/widget'
-import { featureFlags } from '@/config/features'
+import { featureFlags } from '@/architecture/infrastructure/config/features'
 
 interface GroupedFields {
   statusFields: FieldConfig[]
