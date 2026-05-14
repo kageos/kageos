@@ -56,6 +56,10 @@ const forbiddenPatterns = [
     message: 'field types must be imported from architecture/domain/types/field',
   },
   {
+    pattern: /@\/architecture\/runtime\/types\/widget(?=\/|['"])|src\/architecture\/runtime\/types\/widget(?=\/|['"])/,
+    message: 'widget component types must be imported from architecture/presentation/shared/types/widget',
+  },
+  {
     pattern: /@\/architecture\/runtime\/utils\/logger|src\/architecture\/runtime\/utils\/logger/,
     message: 'logger must be imported from architecture/shared/logger',
   },
