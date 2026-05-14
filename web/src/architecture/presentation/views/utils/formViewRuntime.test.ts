@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { IApiClient } from '@/architecture/domain/interfaces/IApiClient'
 import type { IEventBus } from '@/architecture/domain/interfaces/IEventBus'
+import type { IFormGateway } from '@/architecture/domain/interfaces/IFormGateway'
 import type { FieldConfig, FieldValue, FunctionDetail } from '@/architecture/domain/types'
 import {
   buildInitialDataFromFormDataStore,
@@ -36,12 +36,9 @@ function createMockEventBus(): IEventBus {
   }
 }
 
-const apiClientStub = {
-  get: async () => ({}),
-  post: async () => ({}),
-  put: async () => ({}),
-  delete: async () => ({})
-} as IApiClient
+const formGatewayStub: IFormGateway = {
+  submitForm: async () => ({})
+}
 
 const fields: FieldConfig[] = [
   {
@@ -93,11 +90,11 @@ describe('formViewRuntime', () => {
   it('keeps isolated submit data across multiple runtimes', () => {
     const runtimeA = createFormViewRuntime({
       eventBus: createMockEventBus(),
-      apiClient: apiClientStub
+      formGateway: formGatewayStub
     })
     const runtimeB = createFormViewRuntime({
       eventBus: createMockEventBus(),
-      apiClient: apiClientStub
+      formGateway: formGatewayStub
     })
 
     runtimeA.applicationService.initializeForm(fields, { name: 'Alice' }, true)
@@ -123,7 +120,7 @@ describe('formViewRuntime', () => {
   it('preserves empty initialData in update mode instead of falling back to defaults', () => {
     const runtime = createFormViewRuntime({
       eventBus: createMockEventBus(),
-      apiClient: apiClientStub
+      formGateway: formGatewayStub
     })
 
     runtime.applicationService.initializeForm(fields, { name: '' }, true)
@@ -137,7 +134,7 @@ describe('formViewRuntime', () => {
   it('omits excluded fields from submit data when the exclusion condition is active', () => {
     const runtime = createFormViewRuntime({
       eventBus: createMockEventBus(),
-      apiClient: apiClientStub
+      formGateway: formGatewayStub
     })
 
     const exclusionFields: FieldConfig[] = [
@@ -170,7 +167,7 @@ describe('formViewRuntime', () => {
   it('builds raw initialData from the scoped form store', () => {
     const runtime = createFormViewRuntime({
       eventBus: createMockEventBus(),
-      apiClient: apiClientStub
+      formGateway: formGatewayStub
     })
 
     runtime.formDataStore.setValue('name', {
@@ -196,7 +193,7 @@ describe('formViewRuntime', () => {
   it('syncs scoped form store values into the state manager without losing display metadata', () => {
     const runtime = createFormViewRuntime({
       eventBus: createMockEventBus(),
-      apiClient: apiClientStub
+      formGateway: formGatewayStub
     })
 
     const fieldValue: FieldValue = {
@@ -224,16 +221,13 @@ describe('formViewRuntime', () => {
   it('rejects with backend msg when api client returns a raw business error envelope', async () => {
     const runtime = createFormViewRuntime({
       eventBus: createMockEventBus(),
-      apiClient: {
-        get: async () => ({}),
-        post: async () => ({
+      formGateway: {
+        submitForm: async () => ({
           code: -1,
           data: null,
           msg: '您不在本次活动参与名单中，无法参与抽奖'
-        }),
-        put: async () => ({}),
-        delete: async () => ({})
-      } as IApiClient
+        })
+      }
     })
 
     runtime.applicationService.initializeForm(fields, { name: 'Alice' }, true)
@@ -249,15 +243,12 @@ describe('formViewRuntime', () => {
   })
 
   it('blocks submit when conditional required fields fail validation', async () => {
-    const post = vi.fn(async () => ({}))
+    const submitForm = vi.fn(async () => ({}))
     const runtime = createFormViewRuntime({
       eventBus: createMockEventBus(),
-      apiClient: {
-        get: async () => ({}),
-        post,
-        put: async () => ({}),
-        delete: async () => ({})
-      } as IApiClient
+      formGateway: {
+        submitForm
+      }
     })
 
     const conditionalFields: FieldConfig[] = [
@@ -286,20 +277,17 @@ describe('formViewRuntime', () => {
       buildFormFunctionDetail('/test/conditional-submit', conditionalFields)
     )).rejects.toThrow('请先修正表单校验错误')
 
-    expect(post).not.toHaveBeenCalled()
+    expect(submitForm).not.toHaveBeenCalled()
     expect(runtime.domainService.getFieldError('card_no')[0]?.message).toBe('卡号必填')
   })
 
   it('submits sanitized payload with excluded fields removed', async () => {
-    const post = vi.fn(async (_url: string, payload: Record<string, any>) => payload)
+    const submitForm = vi.fn(async (request: { data: Record<string, any> }) => request.data)
     const runtime = createFormViewRuntime({
       eventBus: createMockEventBus(),
-      apiClient: {
-        get: async () => ({}),
-        post,
-        put: async () => ({}),
-        delete: async () => ({})
-      } as IApiClient
+      formGateway: {
+        submitForm
+      }
     })
 
     const exclusionFields: FieldConfig[] = [
@@ -328,10 +316,10 @@ describe('formViewRuntime', () => {
       buildFormFunctionDetail('/test/excluded-submit', exclusionFields)
     )
 
-    expect(post).toHaveBeenCalledWith(
-      '/workspace/api/v1/form/submit/test/excluded-submit',
-      { invoice_type: 'personal' }
-    )
+    expect(submitForm).toHaveBeenCalledWith({
+      functionDetail: expect.objectContaining({ router: '/test/excluded-submit' }),
+      data: { invoice_type: 'personal' }
+    })
     expect(response).toEqual({ invoice_type: 'personal' })
   })
 })

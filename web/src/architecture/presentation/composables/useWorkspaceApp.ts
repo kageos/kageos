@@ -10,13 +10,12 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElNotification, ElMessage, ElMessageBox } from 'element-plus'
-import { apiClient } from '../../infrastructure/apiClient'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import type { App } from '../../domain/types'
 import type { App as AppType, CreateAppRequest } from '@/architecture/domain/types'
-import { deleteApp, getAppWithServiceTree, updateApp } from '@/architecture/infrastructure/api/app'
+import { createApp, deleteApp, getAppList, getAppWithServiceTree, updateApp } from '@/architecture/infrastructure/api/app'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { normalizeGoPackageName, validateGoPackageName } from '@/architecture/runtime/utils/goPackageName'
 import { buildAppResourcePath } from '@/architecture/runtime/utils/resourcePath'
@@ -65,24 +64,7 @@ export function useWorkspaceApp(
   const loadAppList = async (): Promise<void> => {
     try {
       loadingApps.value = true
-      const response = await apiClient.get<any>('/workspace/api/v1/app/list', {
-        page_size: 200,
-        page: 1
-      })
-      
-      // API 返回的是分页对象 { page, page_size, total_count, items: App[] }
-      // 需要提取 items 数组
-      if (response && typeof response === 'object') {
-        if (Array.isArray(response)) {
-          appList.value = response
-        } else if ('items' in response && Array.isArray(response.items)) {
-          appList.value = response.items
-        } else {
-          appList.value = []
-        }
-      } else {
-        appList.value = []
-      }
+      appList.value = await getAppList(200)
     } catch (error) {
       ElNotification.error({
         title: '错误',
@@ -182,7 +164,7 @@ export function useWorkspaceApp(
 
     try {
       creatingApp.value = true
-      const createResponse = await apiClient.post<{ user: string; app: string; app_dir: string }>('/workspace/api/v1/app/create', {
+      const createResponse = await createApp({
         ...createAppForm.value,
         code
       })

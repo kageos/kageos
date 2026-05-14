@@ -88,6 +88,21 @@ const layerRules = [
     forbidden: ['presentation'],
     message: 'infrastructure layer must not depend on presentation',
   },
+  {
+    root: 'src/architecture/presentation/',
+    forbidden: [],
+    message: 'presentation layer must not depend on transport details',
+    patterns: [
+      {
+        pattern: /@\/architecture\/infrastructure\/apiClient|(?:\.\.\/)+infrastructure\/apiClient|\bgetApiClient\s*\(/,
+        message: 'presentation layer must use gateways or API modules instead of raw apiClient',
+      },
+      {
+        pattern: /['"]\/(?:workspace|agent|hr|storage|control|message)\/api\/v\d+\//,
+        message: 'presentation layer must not hard-code backend API routes',
+      },
+    ],
+  },
 ]
 
 const failures = []

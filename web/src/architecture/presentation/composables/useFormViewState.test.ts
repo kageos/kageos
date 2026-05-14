@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { nextTick, ref } from 'vue'
-import type { IApiClient } from '@/architecture/domain/interfaces/IApiClient'
 import type { IEventBus } from '@/architecture/domain/interfaces/IEventBus'
+import type { IFormGateway } from '@/architecture/domain/interfaces/IFormGateway'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import { useFormViewState } from './useFormViewState'
 import { createFormViewRuntime } from '@/architecture/presentation/views/utils/formViewRuntime'
@@ -35,18 +35,15 @@ function createMockEventBus(): IEventBus {
   }
 }
 
-const apiClientStub = {
-  get: async () => ({}),
-  post: async () => ({}),
-  put: async () => ({}),
-  delete: async () => ({})
-} as IApiClient
+const formGatewayStub: IFormGateway = {
+  submitForm: async () => ({})
+}
 
 describe('useFormViewState', () => {
   it('filters top-level fields by presence rules and updates required state dynamically', async () => {
     const runtime = createFormViewRuntime({
       eventBus: createMockEventBus(),
-      apiClient: apiClientStub
+      formGateway: formGatewayStub
     })
 
     const fields = [

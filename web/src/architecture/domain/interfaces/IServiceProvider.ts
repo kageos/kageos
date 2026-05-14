@@ -15,6 +15,8 @@ import type { IApiClient } from './IApiClient'
 import type { ICacheManager } from './ICacheManager'
 import type { IFunctionLoader } from './IFunctionLoader'
 import type { IServiceTreeLoader } from './IServiceTreeLoader'
+import type { IFormGateway } from './IFormGateway'
+import type { ITableGateway } from './ITableGateway'
 
 // 导入状态类型
 import type { TableState, WorkspaceState } from '../types'
@@ -74,6 +76,16 @@ export interface IServiceProvider {
    * 获取 API 客户端
    */
   getApiClient(): IApiClient
+
+  /**
+   * 获取表格网关
+   */
+  getTableGateway(): ITableGateway
+
+  /**
+   * 获取表单网关
+   */
+  getFormGateway(): IFormGateway
 
   /**
    * 获取缓存管理器

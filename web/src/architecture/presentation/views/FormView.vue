@@ -383,7 +383,6 @@ import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Document, List,
 import { ElIcon, ElTag, ElNotification, ElMessage, ElEmpty, ElMessageBox } from 'element-plus'
 import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
-import { apiClient } from '../../infrastructure/apiClient'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import { getErrorMessage } from '@/architecture/runtime/utils/apiError'
 import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
@@ -442,7 +441,7 @@ const {
   applicationService
 } = createFormViewRuntime({
   eventBus,
-  apiClient
+  formGateway: serviceFactory.getFormGateway()
 })
 provide(formDataStoreKey, formDataStore)
 const workspaceStateManager = serviceFactory.getWorkspaceStateManager()
