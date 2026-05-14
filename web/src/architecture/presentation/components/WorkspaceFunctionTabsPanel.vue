@@ -15,7 +15,6 @@
             <WorkspaceFunctionRenderer
               :current-function="currentFunction"
               :function-detail="currentFunctionDetail"
-              :has-permission-error="hasPermissionError"
               :form-view-ref-target="functionFormViewRef"
             />
           </div>
@@ -86,7 +85,6 @@ const props = withDefaults(defineProps<{
   activeTab: FunctionTabName
   currentFunction: ServiceTreeType | null
   currentFunctionDetail: FunctionDetail | null
-  hasPermissionError: boolean
   showFormOperateLogTab?: boolean
   showScheduledTaskTab?: boolean
   showScheduledAgentTaskTab?: boolean

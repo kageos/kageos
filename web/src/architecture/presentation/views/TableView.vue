@@ -33,12 +33,7 @@
   - 通过事件与 Application Layer 通信
   - 从 StateManager 获取状态并渲染
   
-  2. **权限检查**：
-     - UI 层面：使用 `canCreate`、`canUpdate`、`canDelete` 控制按钮显示
-     - 提交时：在 `handleCreateSubmit`、`handleBatchDelete` 中再次检查权限
-     - 权限来源：从 `currentFunctionNode` 获取节点权限信息
-  
-  3. **URL 同步**：
+  2. **URL 同步**：
      - 使用 `useTableInitialization` 从 URL 初始化表格状态
      - 使用 `useTableParamURLSync` 同步表格状态到 URL
      - 使用事件驱动，避免直接操作路由
@@ -57,19 +52,11 @@
      - 支持搜索、排序、分页参数
      - 支持从 URL 恢复表格状态
   
-  3. **权限提示**：
-     - 无权限时显示锁定图标和"需权限"提示
-     - 点击无权限按钮时跳转到权限申请页面
-  
   ============================================
   ⚠️ 注意事项
   ============================================
   
-  1. **权限检查**：
-     - 必须在 UI 层面和提交时都检查权限
-     - 权限检查失败时，显示提示并跳转到申请页面
-  
-  2. **URL 同步**：
+  1. **URL 同步**：
      - 新增弹窗状态使用 `_tab=OnTableAddRow` 标识
      - 详情抽屉状态使用 `_tab=detail` 标识（编辑模式不设置 `_tab`）
      - 表单字段参数只在新增模式下同步到 URL
@@ -81,49 +68,32 @@
 
 <template>
   <div class="table-view" data-testid="table-view">
-    <!-- ⭐ 权限不足提示：使用 PermissionDeniedView 组件 -->
-    <PermissionDeniedView v-if="permissionError" />
-
     <!-- 工具栏 -->
     <div class="toolbar">
       <div class="toolbar-left">
-        <!-- 新增按钮：支持时按权限控制；不支持时也展示禁用态，避免误以为缺按钮 -->
+        <!-- 新增按钮：不支持时展示禁用态，避免误以为缺按钮 -->
         <el-button 
-          :type="hasAddCallback && canCreate ? 'primary' : 'default'"
-          :plain="!hasAddCallback || !canCreate"
-          :disabled="!hasAddCallback || !canCreate"
+          :type="hasAddCallback ? 'primary' : 'default'"
+          :plain="!hasAddCallback"
+          :disabled="!hasAddCallback"
           @click="handleAdd"
-          :icon="hasAddCallback ? (canCreate ? Plus : Lock) : InfoFilled"
+          :icon="hasAddCallback ? Plus : InfoFilled"
           class="action-btn"
-          :class="{ 'action-btn-no-permission': !hasAddCallback || !canCreate }"
           data-testid="table-add"
         >
-          {{
-            !hasAddCallback
-              ? '新增（当前表格不支持）'
-              : canCreate
-                ? '新增'
-                : `新增（需${getPermissionShortName(TablePermission.write)}）`
-          }}
+          {{ hasAddCallback ? '新增' : '新增（当前表格不支持）' }}
         </el-button>
-        <!-- 批量删除按钮：支持时按权限控制；不支持时保留禁用提示 -->
+        <!-- 批量删除按钮：不支持时保留禁用提示 -->
         <el-button 
           v-if="!isBatchDeleteMode" 
-          :type="hasDeleteCallback && canDelete ? 'danger' : 'default'"
-          :plain="!hasDeleteCallback || !canDelete"
+          :type="hasDeleteCallback ? 'danger' : 'default'"
+          :plain="!hasDeleteCallback"
           :disabled="!hasDeleteCallback"
-          @click="hasDeleteCallback ? (canDelete ? enterBatchDeleteMode() : handleApplyPermissionForAction(TablePermission.delete)) : undefined"
-          :icon="hasDeleteCallback ? (canDelete ? Delete : Lock) : InfoFilled"
+          @click="hasDeleteCallback ? enterBatchDeleteMode() : undefined"
+          :icon="hasDeleteCallback ? Delete : InfoFilled"
           class="action-btn"
-          :class="{ 'action-btn-no-permission': !hasDeleteCallback || !canDelete }"
         >
-          {{
-            !hasDeleteCallback
-              ? '批量删除（当前表格不支持）'
-              : canDelete
-                ? '批量删除'
-                : `批量删除（需${getPermissionShortName(TablePermission.delete)}）`
-          }}
+          {{ hasDeleteCallback ? '批量删除' : '批量删除（当前表格不支持）' }}
         </el-button>
         <template v-if="hasDeleteCallback && isBatchDeleteMode">
           <el-button 
@@ -399,34 +369,24 @@
                     <span>{{ getLinkText(linkField, row[linkField.code]) }}</span>
                   </div>
                 </el-dropdown-item>
-                <!-- 更新：需要 table:update 权限 -->
                 <el-dropdown-item
                   :command="hasUpdateCallback ? 'update' : undefined"
                   :disabled="!hasUpdateCallback"
                   :divided="linkFields.length > 0"
                 >
                   <span class="dropdown-action-item">
-                    <el-icon><component :is="hasUpdateCallback ? (canUpdate ? Edit : Lock) : InfoFilled" /></el-icon>
-                    {{
-                      hasUpdateCallback
-                        ? (canUpdate ? '更新' : `更新（需${getPermissionShortName(TablePermission.update)}）`)
-                        : '更新（当前表格不支持）'
-                    }}
+                    <el-icon><component :is="hasUpdateCallback ? Edit : InfoFilled" /></el-icon>
+                    {{ hasUpdateCallback ? '更新' : '更新（当前表格不支持）' }}
                   </span>
                 </el-dropdown-item>
-                <!-- 删除：需要 table:delete 权限 -->
                 <el-dropdown-item
                   :command="hasDeleteCallback ? 'delete' : undefined"
                   :disabled="!hasDeleteCallback"
                   :divided="true"
                 >
                   <span class="dropdown-action-item" :class="{ 'delete-action-text': hasDeleteCallback }">
-                    <el-icon><component :is="hasDeleteCallback ? (canDelete ? Delete : Lock) : InfoFilled" /></el-icon>
-                    {{
-                      hasDeleteCallback
-                        ? (canDelete ? '删除' : `删除（需${getPermissionShortName(TablePermission.delete)}）`)
-                        : '删除（当前表格不支持）'
-                    }}
+                    <el-icon><component :is="hasDeleteCallback ? Delete : InfoFilled" /></el-icon>
+                    {{ hasDeleteCallback ? '删除' : '删除（当前表格不支持）' }}
                   </span>
                 </el-dropdown-item>
               </el-dropdown-menu>
@@ -679,12 +639,8 @@
                       :divided="linkFields.length > 0"
                     >
                       <span class="dropdown-action-item">
-                        <el-icon><component :is="hasUpdateCallback ? (canUpdate ? Edit : Lock) : InfoFilled" /></el-icon>
-                        {{
-                          hasUpdateCallback
-                            ? (canUpdate ? '更新' : `更新（需${getPermissionShortName(TablePermission.update)}）`)
-                            : '更新（当前表格不支持）'
-                        }}
+                        <el-icon><component :is="hasUpdateCallback ? Edit : InfoFilled" /></el-icon>
+                        {{ hasUpdateCallback ? '更新' : '更新（当前表格不支持）' }}
                       </span>
                     </el-dropdown-item>
                     <el-dropdown-item
@@ -693,12 +649,8 @@
                       :divided="true"
                     >
                       <span class="dropdown-action-item" :class="{ 'delete-action-text': hasDeleteCallback }">
-                        <el-icon><component :is="hasDeleteCallback ? (canDelete ? Delete : Lock) : InfoFilled" /></el-icon>
-                        {{
-                          hasDeleteCallback
-                            ? (canDelete ? '删除' : `删除（需${getPermissionShortName(TablePermission.delete)}）`)
-                            : '删除（当前表格不支持）'
-                        }}
+                        <el-icon><component :is="hasDeleteCallback ? Delete : InfoFilled" /></el-icon>
+                        {{ hasDeleteCallback ? '删除' : '删除（当前表格不支持）' }}
                       </span>
                     </el-dropdown-item>
                   </el-dropdown-menu>
@@ -742,7 +694,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElIcon, ElTable, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElText, ElCard, ElSkeleton } from 'element-plus'
-import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right, Lock, Edit, View, InfoFilled, Grid, List, Clock, Picture, Document } from '@element-plus/icons-vue'
+import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right, Edit, View, InfoFilled, Grid, List, Clock, Picture, Document } from '@element-plus/icons-vue'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../../presentation/widgets/WidgetComponent.vue'
 import SearchInput from '@/architecture/presentation/components/SearchInput.vue'
@@ -763,8 +715,6 @@ import { getOptionLightPalette } from '@/core/constants/select'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import type { TableRow } from '../../domain/services/TableDomainService'
-import { TablePermission, getPermissionShortName } from '@/utils/permission'
-import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/core/utils/createFieldValue'
 import { getFunctionCallbacks, getTableCreateFields } from '@/utils/functionSchemaSelectors'
 import { normalizeStorageFileDisplayUrl } from '@/architecture/presentation/utils/storageFileUrl'
@@ -1051,7 +1001,6 @@ const {
   handleBatchDelete
 } = useTableBatchDelete({
   functionDetail: () => props.functionDetail,
-  currentFunctionNode: () => currentFunctionNode.value,
   idField: () => idField.value || undefined,
   loadTableData
 })
@@ -1469,12 +1418,6 @@ const hasUpdateCallback = computed(() => {
 
 const {
   currentFunctionNode,
-  canCreate,
-  canUpdate,
-  canDelete,
-  permissionError,
-  clearPermissionError,
-  handleApplyPermissionForAction,
   handleAdd,
   handleCreateSubmit,
   handleCreateDialogClose
@@ -1498,10 +1441,7 @@ const {
   stateManager,
   applicationService,
   linkFields: () => linkFields.value,
-  skipNextTableLoad,
-  canUpdate: () => canUpdate.value,
-  canDelete: () => canDelete.value,
-  handleApplyPermissionForAction
+  skipNextTableLoad
 })
 
 // 🔥 使用 composable 统一管理初始化逻辑
@@ -1530,7 +1470,6 @@ useTableAddDialogUrlSync({
 useTableViewLifecycle({
   functionDetailId: props.functionDetail.id,
   isMounted,
-  clearPermissionError,
   initializeTable,
   setupQueryWatch,
   stateManager
@@ -1625,10 +1564,6 @@ useTableViewLifecycle({
 .toolbar .action-btn:not(.el-button--primary) {
   border: 1px solid var(--table-control-border);
   background: var(--table-control-bg);
-}
-
-.toolbar .action-btn-no-permission {
-  box-shadow: none;
 }
 
 .toolbar-search-btn:not(.el-button--primary),
@@ -2702,24 +2637,6 @@ useTableViewLifecycle({
 
 .delete-action-text {
   color: var(--el-color-danger);
-}
-
-/* 🔥 权限错误显示样式已移至 PermissionDeniedView 组件 */
-
-/* 无权限按钮样式优化 */
-.action-btn-no-permission {
-  color: var(--el-text-color-secondary) !important;
-  border-color: var(--el-border-color-light) !important;
-  
-  &:hover {
-    color: var(--el-color-primary) !important;
-    border-color: var(--el-color-primary-light-7) !important;
-    background-color: var(--el-color-primary-light-9) !important;
-  }
-  
-  .el-icon {
-    margin-right: 4px;
-  }
 }
 
 </style>

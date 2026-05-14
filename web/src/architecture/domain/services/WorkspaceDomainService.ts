@@ -73,19 +73,12 @@ export class WorkspaceDomainService {
       const funcType = node.template_type || 'table'
       detail = await this.functionLoader.loadByPath(node.full_code_path, funcType)
 
-      // ⭐ 权限信息已从树接口返回，不需要缓存
-      // 直接使用 node.permissions（后端返回的最新数据，已包含继承）
-
       // 触发事件
       this.eventBus.emit(WorkspaceEvent.functionLoaded, { node, detail })
 
       return detail
     } catch (error: any) {
-      // ⭐ 捕获错误（包括 403 权限不足）
-      // 即使加载失败，也已经设置了 currentFunction，详情页面可以显示权限错误
-      
-      // 重新抛出错误，让调用方知道加载失败
-      // 但 currentFunction 已经设置，详情页面可以显示权限错误
+      // 重新抛出错误，让调用方知道加载失败；currentFunction 已经设置，可保留当前上下文。
       throw error
     }
   }

@@ -126,7 +126,6 @@
               :active-tab="functionActiveTab"
               :current-function="currentFunction"
               :current-function-detail="currentFunctionDetail"
-              :has-permission-error="hasPermissionError"
               :show-form-operate-log-tab="showFormOperateLogTab"
               :show-scheduled-task-tab="showScheduledTaskTab"
               :show-scheduled-agent-task-tab="showScheduledAgentTaskTab"
@@ -146,7 +145,6 @@
               <WorkspaceFunctionRenderer
                 :current-function="currentFunction"
                 :function-detail="currentFunctionDetail"
-                :has-permission-error="hasPermissionError"
               />
             </div>
           </div>
@@ -297,8 +295,6 @@ import { useWorkspaceUiEffects } from '../composables/useWorkspaceUiEffects'
 import { useWorkspaceViewLifecycle } from '../composables/useWorkspaceViewLifecycle'
 import { findNodeByPath, findNodeById } from '../utils/workspaceUtils'
 import { useAfterCreateNode } from '../composables/useAfterCreateNode'
-import { hasPermission, TablePermission } from '@/utils/permission'
-import { usePermissionErrorStore } from '@/stores/permissionError'
 import { getFormRequestFields, getFunctionCallbacks } from '@/utils/functionSchemaSelectors'
 import type { WorkspaceSessionItem } from '@/api/workspace'
 import { featureFlags } from '@/config/features'
@@ -575,7 +571,6 @@ useWorkspaceViewLifecycle({
   setCurrentFunctionDetail: (detail) => {
     currentFunctionDetail.value = detail
   },
-  clearPermissionError: () => permissionErrorStore.clearError(),
   expandedKeys,
   currentApp: () => currentApp.value,
   serviceTree: () => serviceTree.value,
@@ -739,24 +734,13 @@ function openWorkspaceSession(session: WorkspaceSessionItem) {
   })
 }
 
-// ⭐ 权限检查：是否有表格更新权限
 const canUpdateTable = computed(() => {
-  const node = currentFunction.value
-  if (!node) return true  // 如果没有节点信息，默认允许（向后兼容）
-  return hasPermission(node, TablePermission.update)
+  return true
 })
 
 const supportsUpdateTable = computed(() => {
   return getFunctionCallbacks(currentFunctionDetail.value).includes('OnTableUpdateRow')
 })
-
-// ⭐ 权限错误状态
-const permissionErrorStore = usePermissionErrorStore()
-const hasPermissionError = computed(() => {
-  return permissionErrorStore.currentError !== null
-})
-
-
 
 // 转换 loadingTree 为 boolean (避免 computed 类型问题)
 const loading = computed(() => domainService.isLoading())

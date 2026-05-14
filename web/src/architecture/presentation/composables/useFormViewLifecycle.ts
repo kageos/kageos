@@ -33,7 +33,6 @@ interface UseFormViewLifecycleOptions {
   applicationService: FormApplicationService
   workspaceStateManager: WorkspaceStateManager
   workspaceDomainService: WorkspaceDomainService
-  permissionErrorStore: { clearError: () => void }
   initializeParams: () => Promise<Record<string, any> | undefined>
   hydrateCurrentWidgetDisplays?: (initSource?: 'url' | 'default' | 'initialData') => Promise<void>
   watchFormData: () => void
@@ -202,7 +201,6 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
 
   onMounted(async () => {
     resetFormRuntimeState()
-    options.permissionErrorStore.clearError()
 
     const propFunctionDetail = options.propsFunctionDetail()
     if (propFunctionDetail && propFunctionDetail.id !== undefined && propFunctionDetail.id !== null) {
@@ -297,8 +295,6 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
   watch(
     () => [options.propsFunctionDetail()?.id, options.propsFunctionDetail()?.router, options.propsFunctionDetail()?.schema],
     async ([newId, newRouter, newSchema], [oldId, oldRouter, oldSchema]) => {
-      options.permissionErrorStore.clearError()
-
       const propFunctionDetail = options.propsFunctionDetail()
       if (propFunctionDetail && propFunctionDetail.id !== undefined && propFunctionDetail.id !== null) {
         options.functionDetail.value = propFunctionDetail

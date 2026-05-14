@@ -7,7 +7,6 @@ import type { FunctionDetail } from '../../domain/types'
 interface UseTableViewLifecycleOptions {
   functionDetailId?: number
   isMounted: Ref<boolean>
-  clearPermissionError: () => void
   initializeTable: () => Promise<void>
   setupQueryWatch: () => (() => void) | null
   stateManager: IStateManager<TableState>
@@ -19,7 +18,6 @@ export function useTableViewLifecycle(options: UseTableViewLifecycleOptions) {
   let unsubscribeTableQueryChanged: (() => void) | null = null
 
   onMounted(async () => {
-    options.clearPermissionError()
     options.isMounted.value = true
 
     unsubscribeTableQueryChanged = options.setupQueryWatch() || null

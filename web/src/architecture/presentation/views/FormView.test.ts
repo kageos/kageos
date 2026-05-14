@@ -96,13 +96,6 @@ vi.mock('../composables/useFormViewLifecycle', () => ({
   })
 }))
 
-vi.mock('@/stores/permissionError', () => ({
-  usePermissionErrorStore: () => ({
-    currentError: computed(() => null),
-    clearError: vi.fn()
-  })
-}))
-
 vi.mock('@/config/features', () => ({
   featureFlags: {
     scheduledTasks: false
@@ -157,7 +150,6 @@ describe('FormView', () => {
       global: {
         plugins: [createPinia()],
         stubs: {
-          PermissionDeniedView: { template: '<div />' },
           ScheduledTaskDialog: { template: '<div />' },
           ElAlert: { template: '<div class="el-alert">{{ title }}</div>', props: ['title', 'type'] },
           ElForm: { template: '<form><slot /></form>' },
@@ -187,7 +179,6 @@ describe('FormView', () => {
       global: {
         plugins: [createPinia()],
         stubs: {
-          PermissionDeniedView: { template: '<div />' },
           ScheduledTaskDialog: { template: '<div />' },
           ElAlert: { template: '<div class="el-alert">{{ title }}</div>', props: ['title', 'type'] },
           ElForm: { template: '<form><slot /></form>' },
@@ -228,7 +219,6 @@ describe('FormView', () => {
       global: {
         plugins: [createPinia()],
         stubs: {
-          PermissionDeniedView: { template: '<div />' },
           ScheduledTaskDialog: { template: '<div />' },
           ElAlert: { template: '<div class="el-alert">{{ title }}</div>', props: ['title', 'type'] },
           ElForm: { template: '<form><slot /></form>' },

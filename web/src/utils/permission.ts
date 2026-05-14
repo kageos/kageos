@@ -108,17 +108,6 @@ export function getPermissionDescription(
 }
 
 /**
- * 权限信息接口（从 403 响应中获取）
- */
-export interface PermissionInfo {
-  resource_path: string  // 资源路径
-  action: string  // 权限点（如 table:search）
-  action_display: string  // 操作显示名称（如 "表格查询"）
-  apply_url?: string  // 申请权限的 URL（历史字段，权限申请入口已下线）
-  error_message: string  // 错误消息
-}
-
-/**
  * Permission enforcement is globally open for the current MVP.
  */
 export function hasPermission(_node: ServiceTree | undefined, _action: string): boolean {
@@ -206,56 +195,6 @@ export function getPermissionDisplayName(action: string): string {
     'app:admin': '所有权',
   }
   return displayNames[action] || action
-}
-
-/**
- * 获取权限点的简短显示名称（用于按钮提示）
- * @param action 权限点
- * @returns 简短显示名称（如 "read权限"、"write权限"）
- */
-export function getPermissionShortName(action: string): string {
-  const shortNames: Record<string, string> = {
-    // Table 操作（新的权限点格式）
-    'table:read': 'read权限',
-    'table:write': 'write权限',
-    'table:update': 'update权限',
-    'table:delete': 'delete权限',
-    'table:admin': 'admin权限',
-    // Form 操作（新的权限点格式）
-    'form:read': 'read权限',
-    'form:write': 'write权限',
-    'form:admin': 'admin权限',
-    // Chart 操作（新的权限点格式）
-    'chart:read': 'read权限',
-    'chart:admin': 'admin权限',
-    'docs:read': 'read权限',
-    'docs:write': 'write权限',
-    'docs:update': 'update权限',
-    'docs:delete': 'delete权限',
-    'docs:admin': 'admin权限',
-    'board:read': 'read权限',
-    'board:write': 'write权限',
-    'board:update': 'update权限',
-    'board:delete': 'delete权限',
-    'board:admin': 'admin权限',
-    // ⭐ 兼容旧格式（function:read、function:write 等）
-    'function:read': 'read权限',
-    'function:write': 'write权限',
-    'function:update': 'update权限',
-    'function:delete': 'delete权限',
-    'function:admin': 'admin权限',
-    'directory:read': 'read权限',
-    'directory:write': 'write权限',
-    'directory:update': 'update权限',
-    'directory:delete': 'delete权限',
-    'directory:admin': 'admin权限',
-    'app:read': 'read权限',
-    'app:create': 'create权限',
-    'app:update': 'update权限',
-    'app:delete': 'delete权限',
-    'app:admin': 'admin权限',
-  }
-  return shortNames[action] || `${action.split(':')[1] || action}权限`
 }
 
 /**

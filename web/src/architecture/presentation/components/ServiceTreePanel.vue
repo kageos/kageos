@@ -1053,24 +1053,6 @@ defineExpose({
     text-overflow: ellipsis;
     white-space: nowrap;
     
-    &.no-permission {
-      color: var(--el-text-color-disabled);
-      opacity: 0.6;
-    }
-  }
-  
-  .no-permission-icon {
-    width: 16px;
-    height: 16px;
-    margin-left: 4px;
-    cursor: pointer;
-    opacity: 0.7;
-    flex-shrink: 0;
-    transition: opacity 0.2s ease;
-    
-    &:hover {
-      opacity: 1;
-    }
   }
   
   /* ⭐ 待审批数量 badge - 防止被挤压 */
