@@ -1,5 +1,5 @@
-import { LINK_TYPE_QUERY_KEY } from '@/architecture/runtime/utils/linkNavigation'
-import { TABLE_PARAM_KEYS } from '@/architecture/runtime/utils/urlParams'
+import { LINK_TYPE_QUERY_KEY } from '@/architecture/shared/routing/linkNavigation'
+import { TABLE_PARAM_KEYS } from '@/architecture/shared/routing/urlParams'
 
 /**
  * URL 参数键规则：

@@ -1,6 +1,6 @@
 import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
-import { isLinkNavigation } from '@/architecture/runtime/utils/linkNavigation'
-import { RouteSource } from '@/architecture/runtime/utils/routeSource'
+import { isLinkNavigation } from '@/architecture/shared/routing/linkNavigation'
+import { RouteSource } from '@/architecture/shared/routing/routeSource'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'
 import type { TableState } from '../../domain/types'
 import type { FunctionDetail } from '../../domain/types'

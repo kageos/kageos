@@ -80,6 +80,10 @@ const forbiddenPatterns = [
     message: 'search and widget config utilities must be imported from architecture/domain/utils',
   },
   {
+    pattern: /@\/architecture\/runtime\/utils\/(?:linkNavigation|routeSource|urlParams|queryParamKeys|queryParams|route)|src\/architecture\/runtime\/utils\/(?:linkNavigation|routeSource|urlParams|queryParamKeys|queryParams|route)/,
+    message: 'routing helpers must be imported from architecture/shared/routing',
+  },
+  {
     pattern: /@\/architecture\/runtime\/utils\/logger|src\/architecture\/runtime\/utils\/logger/,
     message: 'logger must be imported from architecture/shared/logger',
   },

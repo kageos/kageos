@@ -2,7 +2,7 @@ import type { FieldConfig } from '@/architecture/domain/types'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import type { TableSearchParams } from '@/architecture/domain/types'
 import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
-import { deleteFieldQueryKey } from '@/architecture/runtime/utils/queryParamKeys'
+import { deleteFieldQueryKey } from '@/architecture/shared/routing/queryParamKeys'
 import {
   buildTableUpdateFormDetail,
   getFormRequestFields,

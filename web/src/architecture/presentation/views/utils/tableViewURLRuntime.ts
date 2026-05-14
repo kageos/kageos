@@ -14,7 +14,7 @@ import {
   isStaleTableFilterQueryKey,
   isTableControlQueryKey,
   isUnsupportedGeneratedFieldQueryKey
-} from '@/architecture/runtime/utils/queryParamKeys'
+} from '@/architecture/shared/routing/queryParamKeys'
 
 interface BuildTableURLQueryParamsOptions {
   functionDetail: FunctionDetail

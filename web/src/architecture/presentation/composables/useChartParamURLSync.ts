@@ -16,13 +16,13 @@
 import { watch, computed, type Ref, type ComputedRef } from 'vue'
 import { useRoute } from 'vue-router'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
-import { RouteSource } from '@/architecture/runtime/utils/routeSource'
+import { RouteSource } from '@/architecture/shared/routing/routeSource'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import { Logger } from '@/architecture/shared/logger'
 import { isEmptyValue, shouldSkipURLSync, convertFieldValueToURLParam, mergeURLQueryParams } from './utils/urlSyncUtils'
-import { isLinkNavigation } from '@/architecture/runtime/utils/linkNavigation'
+import { isLinkNavigation } from '@/architecture/shared/routing/linkNavigation'
 import { getChartRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
-import { deleteFieldQueryKey } from '@/architecture/runtime/utils/queryParamKeys'
+import { deleteFieldQueryKey } from '@/architecture/shared/routing/queryParamKeys'
 
 export interface UseChartParamURLSyncOptions {
   functionDetail: Ref<FunctionDetail | null> | ComputedRef<FunctionDetail | null>

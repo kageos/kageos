@@ -6,12 +6,12 @@
 import type { FieldConfig, FieldValue } from '../../../domain/types'
 import { Logger } from '@/architecture/shared/logger'
 import { WidgetType } from '@/architecture/domain/constants/widget'
-import { LINK_TYPE_QUERY_KEY, isLinkNavigation } from '@/architecture/runtime/utils/linkNavigation'
+import { LINK_TYPE_QUERY_KEY, isLinkNavigation } from '@/architecture/shared/routing/linkNavigation'
 import {
   isLinkMarkerQueryKey,
   isPersistentPlatformStateQueryKey,
   isPlatformStateQueryKey
-} from '@/architecture/runtime/utils/queryParamKeys'
+} from '@/architecture/shared/routing/queryParamKeys'
 
 /**
  * 检查字段值是否为空
