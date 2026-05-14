@@ -244,14 +244,6 @@ const selectedUserForDisplay = computed(() => {
   return null
 })
 
-// ⭐ 注意：UserWidget 现在使用统一的 UserPickerDialog 弹窗，不再使用 el-select 下拉框
-// 以下代码已移除，因为不再需要：
-// - handleRemoteSearch（搜索逻辑在 UserPickerDialog 中）
-// - handleChange（选择逻辑在 UserPickerDialog 中）
-// - handleFocus（聚焦逻辑在 UserPickerDialog 中）
-// - handleVisibleChange（下拉框显示逻辑已移除）
-// - handleClear（清空逻辑在 UserPickerDialog 中）
-
 // 加载用户信息（用于显示）
 async function loadUserInfo(username: string | null): Promise<UserInfo | null> {
   if (!username) {
@@ -313,10 +305,6 @@ watch(() => props.mode, (newMode: string) => {
     loadUserInfo(String(props.value.raw))
   }
 })
-
-// 处理用户信息复制
-// 以下函数已移除，现在使用 UserDisplay 组件处理用户信息展示和复制
-// handleCopyUserInfo, handleCopyName, handleAvatarClick 已由 UserDisplay 组件处理
 
 // 组件挂载时，如果有初始值，加载用户信息
 // 🔥 同时检查是否有动态默认值（如 Me()）
