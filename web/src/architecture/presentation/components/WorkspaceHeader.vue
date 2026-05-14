@@ -15,7 +15,6 @@
         :current-app="currentApp"
         :app-list="appList"
         :loading-apps="loadingApps"
-        :service-tree="serviceTree"
         @switch-app="$emit('switch-app', $event)"
         @create-app="$emit('create-app')"
         @update-app="$emit('update-app', $event)"
@@ -92,7 +91,7 @@
               </span>
             </el-dropdown-item>
 
-            <template v-if="featureFlags.organization || featureFlags.permissions">
+            <template v-if="featureFlags.organization">
             <el-dropdown-item disabled class="user-dropdown-section-title user-dropdown-section-title--divided">管理</el-dropdown-item>
             <el-dropdown-item v-if="featureFlags.organization" command="organization" class="user-dropdown-action">
               <span class="user-menu-icon user-menu-icon--org">
@@ -101,15 +100,6 @@
               <span class="user-menu-copy">
                 <span class="user-menu-title">组织架构和用户管理</span>
                 <span class="user-menu-desc">成员、部门与组织关系</span>
-              </span>
-            </el-dropdown-item>
-            <el-dropdown-item v-if="featureFlags.permissions" command="roles" class="user-dropdown-action">
-              <span class="user-menu-icon user-menu-icon--role">
-                <el-icon><Key /></el-icon>
-              </span>
-              <span class="user-menu-copy">
-                <span class="user-menu-title">角色管理</span>
-                <span class="user-menu-desc">权限角色与访问范围</span>
               </span>
             </el-dropdown-item>
             </template>
@@ -238,7 +228,6 @@ import {
   OfficeBuilding,
   UserFilled,
   Cpu,
-  Key,
   Promotion,
   Setting,
   Search,

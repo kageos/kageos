@@ -45,37 +45,17 @@
         </div>
       </div>
 
-      <div v-if="featureFlags.permissions && packageNode.admins && packageNode.admins.trim()" class="overview-divider"></div>
-
-      <div v-if="featureFlags.permissions && packageNode.admins && packageNode.admins.trim()" class="overview-item">
-        <div class="overview-icon-wrapper admins-icon">
-          <el-icon class="overview-icon"><Avatar /></el-icon>
-        </div>
-        <div class="overview-content">
-          <div class="overview-label">管理员</div>
-          <div class="overview-value">
-            <UsersWidget
-              :field="adminsField"
-              :value="adminsFieldValue"
-              :field-path="adminsField.code"
-              mode="detail"
-            />
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Avatar, DataLine, Document, Star } from '@element-plus/icons-vue'
+import { DataLine, Document, Star } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
 import UserWidget from '@/shared/components/UserWidget.vue'
-import UsersWidget from '@/shared/components/UsersWidget.vue'
-import { featureFlags } from '@/config/features'
 
 const props = defineProps<{
   packageNode: ServiceTree | null
@@ -107,35 +87,6 @@ const ownerFieldValue = computed<FieldValue>(() => {
   }
 })
 
-const adminsField = computed<FieldConfig>(() => ({
-  code: 'admins',
-  name: '管理员',
-  widget: {
-    type: WidgetType.USERS,
-    config: {}
-  }
-}))
-
-const adminsFieldValue = computed<FieldValue>(() => {
-  if (!props.packageNode?.admins || !props.packageNode.admins.trim()) {
-    return {
-      raw: null,
-      display: '',
-      meta: {}
-    }
-  }
-
-  const admins = props.packageNode.admins
-    .split(',')
-    .map((s: string) => s.trim())
-    .filter((s: string) => Boolean(s))
-
-  return {
-    raw: admins.join(','),
-    display: admins.join(', '),
-    meta: {}
-  }
-})
 </script>
 
 <style scoped lang="scss">
