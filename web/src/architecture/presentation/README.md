@@ -11,7 +11,7 @@
 - `views/`：页面级视图组件（WorkspaceView、FormView、TableView）
 - `features/`：认证、用户、组织、消息、Agent 配置等业务入口页面
 - `shared/`：跨业务复用展示组件、富文本编辑器和展示类型
-- `widgets/`：Widget 组件；纯运行时逻辑放在 `architecture/runtime/widgetRuntime/`
+- `widgets/`：Widget 组件；通用字段值与校验规则放在 `architecture/domain/utils/`
   - `registry/`：Widget 组件工厂与注册入口
   - `plugins/`：Widget 插件注册与扩展编排
 - `components/`：主链路 UI 组件

@@ -96,6 +96,10 @@ const forbiddenPatterns = [
     message: 'widget validation helpers must be imported from architecture/domain/utils/widgetValidation',
   },
   {
+    pattern: /@\/architecture\/runtime\/widgetRuntime\/(?:containerValue|persistedFieldValue)|src\/architecture\/runtime\/widgetRuntime\/(?:containerValue|persistedFieldValue)/,
+    message: 'widget value helpers must be imported from architecture/domain/utils',
+  },
+  {
     pattern: /@\/architecture\/runtime\/utils\/conditionEvaluator|src\/architecture\/runtime\/utils\/conditionEvaluator/,
     message: 'condition evaluator must be imported from architecture/domain/utils/conditionEvaluator',
   },

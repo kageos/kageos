@@ -1,8 +1,13 @@
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
-import type { FormDataStore } from '@/architecture/runtime/stores/formData'
 import { createFieldValue } from '@/architecture/domain/utils/createFieldValue'
 
-type ContainerStore = Pick<FormDataStore, 'data' | 'getValue' | 'setValue'>
+interface ContainerStore {
+  data: {
+    has(fieldPath: string): boolean
+  }
+  getValue(fieldPath: string): FieldValue
+  setValue(fieldPath: string, value: FieldValue): void
+}
 
 function isPlainObject(value: unknown): value is Record<string, any> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
