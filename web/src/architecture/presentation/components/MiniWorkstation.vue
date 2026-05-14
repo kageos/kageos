@@ -106,35 +106,27 @@
           @select="handleSummarySessionSelect"
         />
 
-        <div v-if="pendingPrd" class="mini-prd-confirm-bar" data-testid="mini-prd-confirm-bar">
-          <div class="mini-prd-confirm-copy">
-            <strong>PRD 等待确认</strong>
-            <span>{{ pendingPrdHelpText }}</span>
-          </div>
-          <div class="mini-prd-confirm-actions">
-            <el-button size="small" @click="focusPrdPreview">查看 PRD</el-button>
-            <el-button size="small" @click="prepareRevisePrd">修改 PRD</el-button>
-            <el-button size="small" @click="cancelPendingPrd">取消</el-button>
-            <el-button type="primary" size="small" :loading="sending" @click="confirmPendingPrd">
-              确认 PRD
-            </el-button>
-          </div>
-        </div>
+        <MiniWorkstationPendingActionBar
+          v-if="pendingPrd"
+          variant="prd"
+          :help-text="pendingPrdHelpText"
+          :sending="sending"
+          @view="focusPrdPreview"
+          @revise="prepareRevisePrd"
+          @cancel="cancelPendingPrd"
+          @confirm="confirmPendingPrd"
+        />
 
-        <div v-else-if="pendingTestHandoff" class="mini-prd-confirm-bar" data-testid="mini-test-confirm-bar">
-          <div class="mini-prd-confirm-copy">
-            <strong>应用等待测试</strong>
-            <span>{{ pendingTestHandoffHelpText }}</span>
-          </div>
-          <div class="mini-prd-confirm-actions">
-            <el-button size="small" @click="focusPrdPreview">查看构建结果</el-button>
-            <el-button size="small" @click="prepareContinueDevelopment">继续修改</el-button>
-            <el-button size="small" @click="cancelPendingTestHandoff">暂不测试</el-button>
-            <el-button type="primary" size="small" :loading="sending" @click="confirmPendingTestHandoff">
-              开始测试
-            </el-button>
-          </div>
-        </div>
+        <MiniWorkstationPendingActionBar
+          v-else-if="pendingTestHandoff"
+          variant="test"
+          :help-text="pendingTestHandoffHelpText"
+          :sending="sending"
+          @view="focusPrdPreview"
+          @revise="prepareContinueDevelopment"
+          @cancel="cancelPendingTestHandoff"
+          @confirm="confirmPendingTestHandoff"
+        />
 
         <MiniWorkstationComposer
           :full-code-path="fullCodePath"
@@ -267,6 +259,7 @@ import MiniWorkstationDisplayFieldPreviewDialog from './MiniWorkstationDisplayFi
 import MiniWorkstationComposer from './MiniWorkstationComposer.vue'
 import MiniWorkstationDebugSettings from './MiniWorkstationDebugSettings.vue'
 import MiniWorkstationMessages from './MiniWorkstationMessages.vue'
+import MiniWorkstationPendingActionBar from './MiniWorkstationPendingActionBar.vue'
 import MiniWorkstationSessionCenter from './MiniWorkstationSessionCenter.vue'
 import MiniWorkstationSessionDock from './MiniWorkstationSessionDock.vue'
 import ScheduledAgentTaskDialog from './ScheduledAgentTaskDialog.vue'
@@ -1363,70 +1356,6 @@ useMiniWorkstationEffects({
   border-radius: 999px;
 }
 
-.mini-prd-confirm-bar {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border-top: 1px solid rgba(246, 199, 107, 0.28);
-  border-bottom: 1px solid rgba(96, 231, 255, 0.12);
-  background:
-    linear-gradient(90deg, rgba(246, 199, 107, 0.16), rgba(34, 211, 238, 0.08)),
-    rgba(5, 16, 30, 0.88);
-  box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.18);
-}
-
-.mini-prd-confirm-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.mini-prd-confirm-copy strong {
-  color: #ffe4a3;
-  font-size: 13px;
-  line-height: 1.2;
-}
-
-.mini-prd-confirm-copy span {
-  max-width: 560px;
-  overflow: hidden;
-  color: var(--mini-cyber-muted);
-  font-size: 12px;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mini-prd-confirm-actions {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.mini-prd-confirm-actions :deep(.el-button) {
-  margin-left: 0;
-}
-
-.mini-ws:not(.mini-ws--maximized) .mini-prd-confirm-bar {
-  align-items: stretch;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.mini-ws:not(.mini-ws--maximized) .mini-prd-confirm-copy span {
-  max-width: 100%;
-}
-
-.mini-ws:not(.mini-ws--maximized) .mini-prd-confirm-actions {
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
 /* ── 拖拽上传遮罩 ── */
 .mini-ws-drop-overlay {
   position: absolute;
@@ -1569,8 +1498,7 @@ useMiniWorkstationEffects({
 }
 
 .mini-current-output,
-.mini-shell :deep(.mini-ws-input),
-.mini-prd-confirm-bar {
+.mini-shell :deep(.mini-ws-input) {
   border: 1px solid var(--mini-cyber-line);
   background:
     linear-gradient(180deg, rgba(12, 18, 32, 0.84), rgba(8, 12, 22, 0.68)),
@@ -1914,15 +1842,6 @@ useMiniWorkstationEffects({
 .mini-status-dot.is-output {
   background: #37a3ff;
   box-shadow: 0 0 16px rgba(55, 163, 255, 0.58);
-}
-
-.mini-prd-confirm-bar {
-  margin: 0 14px;
-  border-radius: 12px;
-  border-color: rgba(246, 189, 77, 0.28);
-  background:
-    linear-gradient(90deg, rgba(246, 189, 77, 0.16), rgba(55, 163, 255, 0.08)),
-    rgba(8, 13, 24, 0.88);
 }
 
 .mini-settings-btn {
