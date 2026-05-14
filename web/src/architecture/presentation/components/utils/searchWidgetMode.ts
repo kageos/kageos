@@ -1,5 +1,5 @@
-import { SearchType, hasSearchType } from '@/architecture/runtime/constants/search'
-import { WidgetType } from '@/architecture/runtime/constants/widget'
+import { SearchType, hasSearchType } from '@/architecture/domain/constants/search'
+import { WidgetType } from '@/architecture/domain/constants/widget'
 import type { FieldConfig } from '@/architecture/domain/types'
 import { parseCommaSeparatedString } from '@/architecture/runtime/utils/stringUtils'
 

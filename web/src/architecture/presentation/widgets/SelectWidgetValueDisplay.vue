@@ -40,7 +40,7 @@
 
 <script setup lang="ts">
 import { ElTag } from 'element-plus'
-import { getOptionLightPalette } from '@/architecture/runtime/constants/select'
+import { getOptionLightPalette } from '@/architecture/domain/constants/select'
 
 defineProps<{
   mode: 'response' | 'table-cell' | 'detail'

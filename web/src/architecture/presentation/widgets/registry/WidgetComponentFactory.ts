@@ -79,7 +79,7 @@
  */
 
 import type { Component } from 'vue'
-import { WidgetType } from '@/architecture/runtime/constants/widget'
+import { WidgetType } from '@/architecture/domain/constants/widget'
 import { Logger } from '@/architecture/shared/logger'
 
 export class WidgetComponentFactory {

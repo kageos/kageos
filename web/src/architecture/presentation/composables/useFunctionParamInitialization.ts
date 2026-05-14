@@ -92,7 +92,7 @@ import { eventBus, FormEvent } from '../../infrastructure/eventBus'
 import { Logger } from '@/architecture/shared/logger'
 import { getWidgetDefaultValue } from '../../presentation/widgets/composables/useWidgetDefaultValue'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
-import { FieldValueMeta } from '@/architecture/runtime/constants/field'
+import { FieldValueMeta } from '@/architecture/domain/constants/field'
 import { convertValueByFieldType } from '../../presentation/widgets/utils/typeConverter'
 import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 

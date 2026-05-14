@@ -5,7 +5,7 @@
 
 import type { FieldConfig, FieldValue } from '../../../domain/types'
 import { Logger } from '@/architecture/shared/logger'
-import { WidgetType } from '@/architecture/runtime/constants/widget'
+import { WidgetType } from '@/architecture/domain/constants/widget'
 import { LINK_TYPE_QUERY_KEY, isLinkNavigation } from '@/architecture/runtime/utils/linkNavigation'
 import {
   isLinkMarkerQueryKey,

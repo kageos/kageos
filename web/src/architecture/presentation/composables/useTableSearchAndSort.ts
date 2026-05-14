@@ -1,5 +1,5 @@
 import { computed, ref, watch } from 'vue'
-import { WidgetType } from '@/architecture/runtime/constants/widget'
+import { WidgetType } from '@/architecture/domain/constants/widget'
 import { hasSearchFieldValue } from '@/architecture/domain/utils/searchFieldValue'
 import { resolveSearchFieldLayoutClass } from '../views/utils/searchFieldLayout'
 import type { FunctionDetail, FieldConfig } from '../../domain/types'

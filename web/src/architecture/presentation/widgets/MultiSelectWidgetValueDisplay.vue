@@ -18,7 +18,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ElTag } from 'element-plus'
-import type { StandardColorType } from '@/architecture/runtime/constants/select'
+import type { StandardColorType } from '@/architecture/domain/constants/select'
 
 const props = defineProps<{
   mode: 'response' | 'table-cell' | 'detail'

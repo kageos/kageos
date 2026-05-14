@@ -3,8 +3,8 @@
  * 🔥 统一生成不同组件类型的搜索配置，遵循单一职责原则和依赖倒置原则
  */
 
-import { WidgetType } from '@/architecture/runtime/constants/widget'
-import { SearchType, SearchComponent, SearchConfig, hasSearchType, hasAllSearchTypes } from '@/architecture/runtime/constants/search'
+import { WidgetType } from '@/architecture/domain/constants/widget'
+import { SearchType, SearchComponent, SearchConfig, hasSearchType, hasAllSearchTypes } from '@/architecture/domain/constants/search'
 import { generatePlaceholder } from '@/architecture/runtime/utils/stringUtils'
 import type { FieldConfig } from '@/architecture/domain/types/field'
 
@@ -777,7 +777,7 @@ function createSelectFuzzyRemoteMethod(
 
     try {
       const { selectFuzzy } = await import('@/architecture/infrastructure/api/function')
-      const { SelectFuzzyQueryType } = await import('@/architecture/runtime/constants/select')
+      const { SelectFuzzyQueryType } = await import('@/architecture/domain/constants/select')
       
       const valueType = field.data?.type || 'string'
       const response = await selectFuzzy(functionMethod, functionRouter, {
@@ -821,7 +821,7 @@ function createSelectFuzzyInitOptions(
 
     try {
       const { selectFuzzy } = await import('@/architecture/infrastructure/api/function')
-      const { SelectFuzzyQueryType } = await import('@/architecture/runtime/constants/select')
+      const { SelectFuzzyQueryType } = await import('@/architecture/domain/constants/select')
       
       const valueType = field.data?.type || 'string'
       

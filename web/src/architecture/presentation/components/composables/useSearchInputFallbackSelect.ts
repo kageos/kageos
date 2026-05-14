@@ -1,14 +1,14 @@
 import { computed, nextTick, ref, type ComputedRef, type Ref } from 'vue'
 import { parseCommaSeparatedString } from '@/architecture/runtime/utils/stringUtils'
-import { SearchComponent } from '@/architecture/runtime/constants/search'
-import { WidgetType } from '@/architecture/runtime/constants/widget'
+import { SearchComponent } from '@/architecture/domain/constants/search'
+import { WidgetType } from '@/architecture/domain/constants/widget'
 import { buildSelectionSummary } from '@/architecture/presentation/widgets/utils/selectionSummary'
 import {
   getOptionLightPalette,
   getOptionSolidColor,
   normalizeOptionColor,
   type StandardColorType
-} from '@/architecture/runtime/constants/select'
+} from '@/architecture/domain/constants/select'
 import { Logger } from '@/architecture/shared/logger'
 import { getFieldWidgetOptionColors } from '@/architecture/runtime/utils/widgetOptionColors'
 import type { FieldConfig } from '@/architecture/domain/types'

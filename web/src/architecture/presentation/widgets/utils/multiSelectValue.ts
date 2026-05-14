@@ -1,5 +1,5 @@
-import { SearchType, hasSearchType } from '@/architecture/runtime/constants/search'
-import { isStringDataType } from '@/architecture/runtime/constants/widget'
+import { SearchType, hasSearchType } from '@/architecture/domain/constants/search'
+import { isStringDataType } from '@/architecture/domain/constants/widget'
 import { convertArrayType } from './typeConverter'
 
 export function buildMultiSelectRawValue(options: {

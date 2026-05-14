@@ -123,7 +123,7 @@ import { createFieldValue } from '@/architecture/presentation/widgets/utils/crea
 import { selectFuzzy } from '@/architecture/infrastructure/api/function'
 import { isFieldRequired } from '@/architecture/runtime/utils/validationUtils'
 import { Logger } from '@/architecture/shared/logger'
-import { SelectFuzzyQueryType, getOptionSolidColor, normalizeOptionColor } from '@/architecture/runtime/constants/select'
+import { SelectFuzzyQueryType, getOptionSolidColor, normalizeOptionColor } from '@/architecture/domain/constants/select'
 import { convertValueToType } from '@/architecture/presentation/widgets/utils/valueConverter'
 import { convertFormDataToRequestByType } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { widgetInitializerRegistry } from '@/architecture/presentation/widgets/initializers/WidgetInitializerRegistry'

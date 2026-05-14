@@ -4,7 +4,7 @@
 
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 import { formatDateTimeValue } from '@/architecture/shared/date'
-import { WidgetType } from '@/architecture/runtime/constants/widget'
+import { WidgetType } from '@/architecture/domain/constants/widget'
 
 /**
  * 将原始值转换为 FieldValue 格式

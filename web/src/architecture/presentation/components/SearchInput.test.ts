@@ -1,8 +1,8 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h, nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SearchComponent, SearchConfig, SearchType } from '@/architecture/runtime/constants/search'
-import { WidgetType } from '@/architecture/runtime/constants/widget'
+import { SearchComponent, SearchConfig, SearchType } from '@/architecture/domain/constants/search'
+import { WidgetType } from '@/architecture/domain/constants/widget'
 
 const { hasRequestComponent, createSearchComponentConfigMock } = vi.hoisted(() => ({
   hasRequestComponent: vi.fn(() => false),

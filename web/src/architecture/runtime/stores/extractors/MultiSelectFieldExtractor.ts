@@ -11,7 +11,7 @@
 
 import type { IFieldExtractor, FieldExtractorRegistry } from './FieldExtractor'
 import type { FieldConfig } from '@/architecture/domain/types/field'
-import { isStringDataType, getMultiSelectDefaultDataType } from '../../constants/widget'
+import { isStringDataType, getMultiSelectDefaultDataType } from '@/architecture/domain/constants/widget'
 
 export class MultiSelectFieldExtractor implements IFieldExtractor {
   extract(
