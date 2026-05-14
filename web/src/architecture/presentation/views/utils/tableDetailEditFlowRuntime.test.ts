@@ -372,7 +372,7 @@ describe('table detail edit flow runtime', () => {
       status: 'closed'
     })
 
-    const putCalls: Array<{ url: string; payload: Record<string, any> }> = []
+    const updateCalls: Array<Record<string, any>> = []
     const updateEventBus = createMockEventBus()
     let updatedEventPayload: any = null
     updateEventBus.on(TableEvent.rowUpdated, payload => {
@@ -381,17 +381,17 @@ describe('table detail edit flow runtime', () => {
 
     const updateService = new TableDomainService(
       {
-        get: async () => ({}),
-        post: async () => ({}),
-        put: async (url: string, payload: Record<string, any>) => {
-          putCalls.push({ url, payload })
+        loadRows: async () => ({ items: [] }),
+        addRow: async () => ({}),
+        updateRow: async (request: Record<string, any>) => {
+          updateCalls.push(request)
           return {
             id: 2,
             name: 'Bobby',
             status: 'closed'
           }
         },
-        delete: async () => ({})
+        deleteRow: async () => {}
       } as any,
       createMutableTableStateManager() as any,
       updateEventBus as any
@@ -404,18 +404,15 @@ describe('table detail edit flow runtime', () => {
       detailPayload.row
     )
 
-    expect(putCalls).toEqual([
+    expect(updateCalls).toEqual([
       {
-        url: '/workspace/api/v1/table/update/workspace/demo/users',
-        payload: {
-          id: 2,
-          updates: {
-            name: 'Bobby'
-          },
-          old_values: {
-            name: 'Bob'
-          }
-        }
+        functionDetail: currentFunctionDetail,
+        id: 2,
+        data: {
+          name: 'Bobby',
+          status: 'closed'
+        },
+        oldData: detailPayload.row
       }
     ])
 

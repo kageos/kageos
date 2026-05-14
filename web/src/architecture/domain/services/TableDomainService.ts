@@ -12,10 +12,10 @@
  * - 通过状态管理器管理状态
  */
 
-import type { IApiClient } from '../interfaces/IApiClient'
 import type { IStateManager } from '../interfaces/IStateManager'
 import type { IEventBus } from '../interfaces/IEventBus'
 import { TableEvent } from '../interfaces/IEventBus'
+import type { ITableGateway } from '../interfaces/ITableGateway'
 import type {
   FieldConfig,
   FunctionDetail,
@@ -42,7 +42,6 @@ import {
   getTableRequestSearchFields,
   getTableSearchFields
 } from '@/architecture/runtime/utils/functionSchemaSelectors'
-import { getChangedFields } from '@/architecture/runtime/tableRuntime/search'
 import { Logger } from '@/architecture/runtime/utils/logger'
 import { getSearchFieldRawValue } from '@/architecture/runtime/utils/searchFieldValue'
 
@@ -101,7 +100,7 @@ export class TableDomainService {
   private latestLoadRequestId = 0
 
   constructor(
-    private apiClient: IApiClient,
+    private tableGateway: ITableGateway,
     private stateManager: IStateManager<TableState>,
     private eventBus: IEventBus
   ) {}
@@ -184,14 +183,7 @@ export class TableDomainService {
         params.sorts = serializeSortsForRequest([sort])
       }
 
-      // ⭐ 使用标准 API：/table/search/{full-code-path}
-      const fullCodePath = functionDetail.router?.startsWith('/') 
-        ? functionDetail.router 
-        : `/${functionDetail.router || ''}`
-      const url = `/workspace/api/v1/table/search${fullCodePath}`
-      
-      // Table 查询统一使用 GET 方法
-      const response = await this.apiClient.get<TableResponse>(url, params)
+      const response = await this.tableGateway.loadRows({ functionDetail, params })
 
       if (requestId !== this.latestLoadRequestId) {
         return response
@@ -299,13 +291,7 @@ export class TableDomainService {
    * 新增行
    */
   async addRow(functionDetail: FunctionDetail, data: Record<string, any>): Promise<TableRow> {
-    const router = this.requireFunctionRouter(functionDetail)
-    // ⭐ 使用标准 API：POST /workspace/api/v1/table/create/{full-code-path}
-    const fullCodePath = router.startsWith('/')
-      ? router
-      : `/${router}`
-    const url = `/workspace/api/v1/table/create${fullCodePath}`
-    const response = await this.apiClient.post<TableRow>(url, data)
+    const response = await this.tableGateway.addRow(functionDetail, data)
 
     // 触发事件
     this.eventBus.emit(TableEvent.rowAdded, { row: response })
@@ -322,18 +308,12 @@ export class TableDomainService {
     data: Record<string, any>,
     oldData?: Record<string, any>
   ): Promise<TableRow> {
-    const router = this.requireFunctionRouter(functionDetail)
-    // ⭐ 使用标准 API：PUT /workspace/api/v1/table/update/{full-code-path}
-    const fullCodePath = router.startsWith('/') 
-      ? router
-      : `/${router}`
-    const url = `/workspace/api/v1/table/update${fullCodePath}`
-    
-    // 构建更新负载
-    const payload = this.buildUpdatePayload(id, data, oldData)
-    
-    // 使用 PUT 方法调用新接口
-    const response = await this.apiClient.put<TableRow>(url, payload)
+    const response = await this.tableGateway.updateRow({
+      functionDetail,
+      id,
+      data,
+      oldData
+    })
 
     // 触发事件
     this.eventBus.emit(TableEvent.rowUpdated, { id, row: response })
@@ -345,14 +325,7 @@ export class TableDomainService {
    * 删除行
    */
   async deleteRow(functionDetail: FunctionDetail, id: number | string): Promise<void> {
-    const router = this.requireFunctionRouter(functionDetail)
-    // ⭐ 使用标准 API：DELETE /workspace/api/v1/table/delete/{full-code-path}
-    const fullCodePath = router.startsWith('/')
-      ? router
-      : `/${router}`
-    const url = `/workspace/api/v1/table/delete${fullCodePath}`
-    const ids = [typeof id === 'string' ? parseInt(id, 10) : id]
-    await this.apiClient.delete<void>(url, { ids })
+    await this.tableGateway.deleteRow(functionDetail, id)
 
     // 触发事件
     this.eventBus.emit(TableEvent.rowDeleted, { ids: [id] })
@@ -485,31 +458,4 @@ export class TableDomainService {
     return searchParams
   }
 
-  private buildUpdatePayload(
-    id: number | string,
-    newData: Record<string, any>,
-    oldData?: Record<string, any>
-  ): Record<string, any> {
-    if (oldData) {
-      const { updates, oldValues } = getChangedFields(oldData, newData)
-      return {
-        id,
-        updates,
-        old_values: oldValues
-      }
-    }
-
-    return {
-      id,
-      ...newData
-    }
-  }
-
-  private requireFunctionRouter(functionDetail: FunctionDetail): string {
-    const router = functionDetail.router
-    if (!router) {
-      throw new Error('函数路由不存在')
-    }
-    return router
-  }
 }

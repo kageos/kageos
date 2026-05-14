@@ -91,11 +91,13 @@ import { useDepartmentInfoStore } from '@/architecture/infrastructure/stores/dep
 import { getAppWithServiceTree } from '@/architecture/infrastructure/api/app'
 import { buildAppResourcePath } from '@/architecture/runtime/utils/resourcePath'
 import { serviceTreeLoader } from '../serviceTreeLoader'
+import { tableGateway } from '../tableGateway'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import type { IApiClient } from '../../domain/interfaces/IApiClient'
 import type { ICacheManager } from '../../domain/interfaces/ICacheManager'
 import type { IFunctionLoader } from '../../domain/interfaces/IFunctionLoader'
 import type { IServiceTreeLoader } from '../../domain/interfaces/IServiceTreeLoader'
+import type { ITableGateway } from '../../domain/interfaces/ITableGateway'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 
 /**
@@ -106,6 +108,7 @@ export interface ServiceFactoryConfig {
   apiClient?: IApiClient
   cacheManager?: ICacheManager
   functionLoader?: IFunctionLoader
+  tableGateway?: ITableGateway
 }
 
 /**
@@ -119,6 +122,7 @@ export class ServiceFactory implements IServiceProvider {
   private cacheManager: ICacheManager
   private functionLoader: IFunctionLoader
   private serviceTreeLoader: IServiceTreeLoader
+  private tableGateway: ITableGateway
 
   // Domain Services
   private workspaceDomainService?: WorkspaceDomainService
@@ -138,6 +142,7 @@ export class ServiceFactory implements IServiceProvider {
     this.cacheManager = config?.cacheManager || cacheManager
     this.functionLoader = config?.functionLoader || functionLoader
     this.serviceTreeLoader = serviceTreeLoader
+    this.tableGateway = config?.tableGateway || tableGateway
   }
 
   /**
@@ -177,7 +182,7 @@ export class ServiceFactory implements IServiceProvider {
     if (!this.tableDomainService) {
       const stateManager = this.getTableStateManager()
       this.tableDomainService = new TableDomainService(
-        this.apiClient,
+        this.tableGateway,
         stateManager,
         this.eventBus
       )

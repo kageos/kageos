@@ -258,16 +258,16 @@ describe('TableDomainService URL restore', () => {
       off: () => {},
       once: () => {}
     }
-    const apiClient = {
-      get: vi.fn()
+    const tableGateway = {
+      loadRows: vi.fn()
         .mockReturnValueOnce(firstResponse.promise)
         .mockReturnValueOnce(secondResponse.promise),
-      post: vi.fn(),
-      put: vi.fn(),
-      delete: vi.fn()
+      addRow: vi.fn(),
+      updateRow: vi.fn(),
+      deleteRow: vi.fn()
     }
 
-    const service = new TableDomainService(apiClient as any, stateManager as any, eventBus as any)
+    const service = new TableDomainService(tableGateway as any, stateManager as any, eventBus as any)
     const functionDetail = {
       router: '/orders',
       schema: {
@@ -344,8 +344,8 @@ describe('TableDomainService URL restore', () => {
       off: () => {},
       once: () => {}
     }
-    const apiClient = {
-      get: vi.fn().mockResolvedValue({
+    const tableGateway = {
+      loadRows: vi.fn().mockResolvedValue({
         items: [],
         paginated: {
           current_page: 2,
@@ -354,12 +354,12 @@ describe('TableDomainService URL restore', () => {
           total_pages: 0
         }
       }),
-      post: vi.fn(),
-      put: vi.fn(),
-      delete: vi.fn()
+      addRow: vi.fn(),
+      updateRow: vi.fn(),
+      deleteRow: vi.fn()
     }
 
-    const service = new TableDomainService(apiClient as any, stateManager as any, eventBus as any)
+    const service = new TableDomainService(tableGateway as any, stateManager as any, eventBus as any)
 
     await service.loadData(
       { router: '/orders' } as any,
@@ -368,14 +368,17 @@ describe('TableDomainService URL restore', () => {
       { page: 2, pageSize: 50 }
     )
 
-    expect(apiClient.get).toHaveBeenCalledWith('/workspace/api/v1/table/search/orders', {
-      status: 'open',
-      page: 2,
-      page_size: 50,
-      sorts: JSON.stringify([
-        { field: 'created_at', order: 'desc' },
-        { field: 'name', order: 'asc' }
-      ])
+    expect(tableGateway.loadRows).toHaveBeenCalledWith({
+      functionDetail: { router: '/orders' },
+      params: {
+        status: 'open',
+        page: 2,
+        page_size: 50,
+        sorts: JSON.stringify([
+          { field: 'created_at', order: 'desc' },
+          { field: 'name', order: 'asc' }
+        ])
+      }
     })
   })
 
@@ -387,8 +390,8 @@ describe('TableDomainService URL restore', () => {
       off: () => {},
       once: () => {}
     }
-    const apiClient = {
-      get: vi.fn().mockResolvedValue({
+    const tableGateway = {
+      loadRows: vi.fn().mockResolvedValue({
         items: [],
         paginated: {
           current_page: 1,
@@ -397,12 +400,12 @@ describe('TableDomainService URL restore', () => {
           total_pages: 0
         }
       }),
-      post: vi.fn(),
-      put: vi.fn(),
-      delete: vi.fn()
+      addRow: vi.fn(),
+      updateRow: vi.fn(),
+      deleteRow: vi.fn()
     }
 
-    const service = new TableDomainService(apiClient as any, stateManager as any, eventBus as any)
+    const service = new TableDomainService(tableGateway as any, stateManager as any, eventBus as any)
 
     await service.loadData(
       { router: '/orders' } as any,
@@ -411,10 +414,13 @@ describe('TableDomainService URL restore', () => {
       { page: 1, pageSize: 20 }
     )
 
-    expect(apiClient.get).toHaveBeenCalledWith('/workspace/api/v1/table/search/orders', {
-      page: 1,
-      page_size: 20,
-      sorts: JSON.stringify([{ field: 'id', order: 'desc' }])
+    expect(tableGateway.loadRows).toHaveBeenCalledWith({
+      functionDetail: { router: '/orders' },
+      params: {
+        page: 1,
+        page_size: 20,
+        sorts: JSON.stringify([{ field: 'id', order: 'desc' }])
+      }
     })
   })
 

@@ -66,6 +66,12 @@ const layerRules = [
     root: 'src/architecture/domain/',
     forbidden: ['infrastructure', 'presentation'],
     message: 'domain layer must not depend on infrastructure or presentation',
+    patterns: [
+      {
+        pattern: /\/(?:workspace|agent|hr|storage|control|message)\/api\/v\d+\//,
+        message: 'domain layer must not hard-code backend API routes',
+      },
+    ],
   },
   {
     root: 'src/architecture/runtime/',
@@ -158,6 +164,12 @@ for (const file of files) {
         const pattern = new RegExp(`@/architecture/${layer}(?=/|['"])`)
         if (pattern.test(line)) {
           failures.push(`${relative(root, file)}:${index + 1} ${layerRule.message}: ${line.trim()}`)
+        }
+      }
+
+      for (const { pattern, message } of layerRule.patterns ?? []) {
+        if (pattern.test(line)) {
+          failures.push(`${relative(root, file)}:${index + 1} ${message}: ${line.trim()}`)
         }
       }
     }
