@@ -1,6 +1,6 @@
 /**
  * useTableResponseMode - TableWidget 响应模式组合式函数
- * 🔥 完全新增，不依赖旧代码
+ * 🔥 统一架构组件
  */
 
 import { ref } from 'vue'

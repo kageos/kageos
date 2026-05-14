@@ -1,6 +1,6 @@
 /**
  * useFormWidget - FormWidget 组合式函数
- * 🔥 完全新增，不依赖旧代码
+ * 🔥 统一架构组件
  * 
  * 功能：
  * - 提取 FormWidget 的共享逻辑

@@ -12,7 +12,7 @@ import { WidgetType } from '@/architecture/runtime/constants/widget'
  * 用于 TableRenderer 等场景，需要将后端返回的原始数据转换为统一的 FieldValue 格式
  * 
  * 🔥 重构说明：
- * - 移除了对旧版本 widgetFactory 的依赖
+ * - 不依赖 widgetFactory 的依赖
  * - 直接根据 widget.type 进行转换，不依赖 Widget 类
  * - 保持与 v2 组件兼容的数据格式
  * 

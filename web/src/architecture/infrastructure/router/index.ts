@@ -96,7 +96,7 @@ const router = createRouter({
       }
     },
 
-    // 工作空间页面（新架构）
+    // 工作空间页面（统一架构）
     // 注意：/workspace/api/* 路径会被 Vite 代理到后端，不会被 Vue Router 匹配
     {
       path: '/workspace',

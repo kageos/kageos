@@ -1,5 +1,5 @@
 /**
- * 主题系统 - 完全复制自旧版本 yunhanshu-web-ai
+ * 主题系统 - 统一主题系统
  * 支持浅色和深色模式
  */
 
@@ -324,7 +324,7 @@ html[data-theme="warm-light"] {
   }
 }
 
-// 暗色主题 - 完全照抄旧版本的现代深色主题
+// 暗色主题 - 现代深色主题
 html.dark {
   --theme-mode: 'dark';
   // 主题色 - 鲜艳的紫蓝色系
@@ -410,7 +410,7 @@ html.dark {
   --el-mask-color: rgba(0, 0, 0, 0.8);
   --el-mask-color-extra-light: rgba(0, 0, 0, 0.3);
 
-  // 表单组件 - 完全照抄旧版本
+  // 表单组件 - 统一主题
   .el-input__wrapper {
     background-color: var(--bg-primary) !important;
     border: 1px solid var(--border-base) !important;
@@ -457,7 +457,7 @@ html.dark {
       box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.2) !important;
     }
   }
-  // select组件 - 完全照抄旧版本
+  // select组件 - 统一主题
   .el-select__wrapper {
     background-color: var(--bg-primary) !important;
     border: 1px solid var(--border-base) !important;
@@ -507,7 +507,7 @@ html.dark {
   }
   
   
-  // 按钮组件 - 完全照抄旧版本的hover效果
+  // 按钮组件 - 统一主题的hover效果
   .el-button {
     transition: all 0.3s ease !important;
     
@@ -738,7 +738,7 @@ html.dark {
     }
   }
 
-  // 对话框组件 - 完全照抄旧版本
+  // 对话框组件 - 统一主题
   .el-dialog {
     background-color: var(--bg-primary) !important;
     border: 1px solid var(--border-base);
@@ -862,7 +862,7 @@ body {
   background-color: var(--el-bg-color) !important;
 }
 
-// 全局按钮样式增强 - 照抄旧版本
+// 全局按钮样式增强 - 统一主题
 .el-button {
   transition: all 0.3s ease;
   border-radius: var(--border-radius-base);
@@ -919,7 +919,7 @@ body {
   box-shadow: var(--box-shadow-sm);
 }
 
-// 全局输入框样式 - 确保在所有情况下都正确（照抄旧版本的圆角设计）
+// 全局输入框样式 - 确保在所有情况下都正确（统一主题的圆角设计）
 .el-input__wrapper {
   background-color: var(--el-bg-color) !important;
   border-radius: var(--border-radius-input) !important;

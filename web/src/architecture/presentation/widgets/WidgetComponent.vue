@@ -1,6 +1,6 @@
 <!--
   WidgetComponent - Widget 组件包装器
-  新架构的展示层组件
+  统一架构的展示层组件
   
   职责：
   - 根据字段类型动态加载 Widget 组件

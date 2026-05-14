@@ -8,6 +8,23 @@ import pluginVitest from '@vitest/eslint-plugin'
 // configureVueProject({ scriptLangs: ['ts', 'tsx'] })
 // More info at https://github.com/vuejs/eslint-config-typescript/#advanced-setup
 
+const removedTopLevelAliases = [
+  'api',
+  'assets',
+  'components',
+  'composables',
+  'config',
+  'core',
+  'features',
+  'router',
+  'shared',
+  'stores',
+  'styles',
+  'types',
+  'utils',
+  'views',
+]
+
 export default defineConfigWithVueTs(
   {
     name: 'app/files-to-lint',
@@ -22,5 +39,22 @@ export default defineConfigWithVueTs(
   {
     ...pluginVitest.configs.recommended,
     files: ['src/**/__tests__/*'],
+  },
+
+  {
+    name: 'app/architecture-boundaries',
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: removedTopLevelAliases.map((alias) => `@/${alias}/*`),
+              message: 'Use the unified src/architecture/* path instead of old top-level frontend aliases.',
+            },
+          ],
+        },
+      ],
+    },
   },
 )

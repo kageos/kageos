@@ -937,7 +937,7 @@ defineExpose({
     width: 16px;
     height: 16px;
     margin-right: 8px;
-    color: #6366f1;  /* ✅ 旧版本紫色主题色（indigo-500） */
+    color: #6366f1;  /* ✅ 统一主题色（indigo-500） */
     opacity: 0.8;
     flex-shrink: 0;
     transition: color 0.2s ease;
