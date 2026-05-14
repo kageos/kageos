@@ -42,12 +42,9 @@ type ForkFunctionGroupRuntimeResp struct {
 	WrittenFiles []string `json:"written_files"`            // 已写入的文件路径列表（用于失败时回滚）
 }
 
-// CopyDirectoryReq 复制目录请求（支持递归复制目录及其所有子目录）
-// 支持两种模式：
-// 1. 本地复制：source_directory_path 为本地目录路径，如 /luobei/app_a/hr
-// 2. Hub 复制：source_directory_path 为 Hub 链接，如 hub://hub.example.com/luobei/app_a/hr@v1.0.0
+// CopyDirectoryReq 复制目录请求（支持递归复制本地目录及其所有子目录）
 type CopyDirectoryReq struct {
-	SourceDirectoryPath string `json:"source_directory_path" binding:"required" example:"/luobei/app_a/hr"` // 源目录完整路径或 Hub 链接（hub://host/path@version）
+	SourceDirectoryPath string `json:"source_directory_path" binding:"required" example:"/luobei/app_a/hr"` // 源目录完整路径
 	TargetDirectoryPath string `json:"target_directory_path" binding:"required" example:"/luobei/app_b/hr"` // 目标目录完整路径
 	TargetAppID         int64  `json:"target_app_id" binding:"required" example:"123"`                      // 目标应用ID
 }

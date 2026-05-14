@@ -39,7 +39,6 @@ func TestSetupRoutesRegistersCanonicalRoutes(t *testing.T) {
 		"PUT /workspace/api/v1/app/workspace/:user/:app",
 		"DELETE /workspace/api/v1/app/delete/:app",
 		"GET /workspace/api/v1/service_tree/package_info",
-		"GET /workspace/api/v1/service_tree/hub_info",
 		"GET /workspace/api/v1/function/list",
 		"POST /workspace/api/v1/service_tree",
 		"GET /workspace/api/v1/service_tree",

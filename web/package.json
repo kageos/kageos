@@ -18,8 +18,6 @@
     "test:e2e:service-tree": "playwright test tests/e2e/service-tree-actions.spec.ts --project chromium",
     "test:e2e:workstation": "playwright test tests/e2e/workstation-open.spec.ts --project chromium",
     "test:e2e:workstation-compose": "playwright test tests/e2e/workstation-composer.spec.ts --project chromium",
-    "test:e2e:hub": "playwright test tests/e2e/hub-dialogs.spec.ts --project chromium",
-    "test:e2e:pull-hub": "playwright test tests/e2e/pull-from-hub.spec.ts --project chromium",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
     "build-only": "vite build",

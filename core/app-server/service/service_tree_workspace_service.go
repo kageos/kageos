@@ -111,20 +111,17 @@ func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, r
 		}
 	}
 
-	publishedToHub := detail.HubFullCodePath != ""
 	return &dto.GetWorkspaceContextResp{
 		User:                   username,
 		DepartmentFullPath:     departmentFullPath,
 		DepartmentFullNamePath: departmentFullNamePath,
 		Directory: dto.WorkspaceContextDirectory{
-			ID:              detail.ID,
-			Name:            detail.Name,
-			Code:            detail.Code,
-			FullCodePath:    detail.FullCodePath,
-			Description:     detail.Description,
-			Type:            detail.Type,
-			PublishedToHub:  publishedToHub,
-			HubFullCodePath: detail.HubFullCodePath,
+			ID:           detail.ID,
+			Name:         detail.Name,
+			Code:         detail.Code,
+			FullCodePath: detail.FullCodePath,
+			Description:  detail.Description,
+			Type:         detail.Type,
 		},
 		Children: childrenNodes,
 		Files:    files,
