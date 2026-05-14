@@ -10,7 +10,7 @@ import {
   type StandardColorType
 } from '@/architecture/domain/constants/select'
 import { Logger } from '@/architecture/shared/logger'
-import { getFieldWidgetOptionColors } from '@/architecture/runtime/utils/widgetOptionColors'
+import { getFieldWidgetOptionColors } from '@/architecture/domain/utils/widgetOptionColors'
 import type { FieldConfig } from '@/architecture/domain/types'
 import type { SearchInputConfig, SearchOption } from '../utils/searchInputTypes'
 

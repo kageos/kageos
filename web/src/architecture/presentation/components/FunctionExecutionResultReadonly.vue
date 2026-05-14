@@ -85,7 +85,7 @@
 import { computed } from 'vue'
 import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
 import WidgetComponent from '@/architecture/presentation/widgets/WidgetComponent.vue'
-import { convertToFieldValue } from '@/architecture/runtime/utils/field'
+import { convertToFieldValue } from '@/architecture/domain/utils/field'
 import { DataAnalysis, Upload } from '@element-plus/icons-vue'
 import { getFormRequestFields, getFormResponseFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
