@@ -441,13 +441,8 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 初始化 JWT 服务
 	s.jwtService = auth.NewJWTService()
 
-	// ⭐ 初始化权限申请仓储
-	permissionRequestRepo := repository.NewPermissionRequestRepository(s.db)
-
-	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
-	// ⭐ 完全移除 Casbin，使用新的权限系统
-	// ⭐ 添加 appRepo 用于更新 app 表的 pending_count（支持 app 级别的权限申请）
-	s.permissionService = service.NewPermissionService(serviceTreeRepo, permissionRequestRepo, appRepo)
+	// 初始化权限查询适配器（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
+	s.permissionService = service.NewPermissionService()
 
 	// 初始化文档服务（需要在 ServiceTreeService 之前初始化，因为 ServiceTreeService 依赖它）
 	docRepo := repository.NewDocRepository(s.db)
