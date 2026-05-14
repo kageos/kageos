@@ -2,7 +2,8 @@ import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { TableApplicationService } from '../../application/services/TableApplicationService'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'
-import type { TableDomainService, TableState } from '../../domain/services/TableDomainService'
+import type { TableDomainService } from '../../domain/services/TableDomainService'
+import type { TableState } from '../../domain/types'
 import type { FunctionDetail } from '../../domain/types'
 import {
   buildTableLoadRequest,

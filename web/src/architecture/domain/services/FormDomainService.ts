@@ -77,9 +77,8 @@
 import type { IStateManager } from '../interfaces/IStateManager'
 import type { IEventBus } from '../interfaces/IEventBus'
 import { FormEvent } from '../interfaces/IEventBus'
-import type { FieldConfig, FieldValue } from '../types'
+import type { FieldConfig, FieldValue, FormState, ValidationResult } from '../types'
 import { ValidationEngine, createDefaultValidatorRegistry } from '@/architecture/runtime/validation'
-import type { ValidationResult as CoreValidationResult } from '@/architecture/runtime/validation'
 import type { ReactiveFormDataManager } from '@/architecture/runtime/managers/ReactiveFormDataManager'
 import { Logger } from '@/architecture/runtime/utils/logger'
 import { getWidgetDefaultValue } from '@/architecture/runtime/widgetRuntime/defaultValue'
@@ -94,19 +93,7 @@ import {
   type WidgetValidationContext
 } from '@/architecture/runtime/widgetRuntime/validation'
 import { createEmptyRawFieldValue } from '@/architecture/runtime/utils/createFieldValue'
-
-export type ValidationResult = CoreValidationResult
-
-/**
- * 表单状态
- */
-export interface FormState {
-  data: Map<string, FieldValue>
-  errors: Map<string, ValidationResult[]>
-  submitting: boolean
-  response?: Record<string, any> | null
-  metadata?: Record<string, any> | null
-}
+export type { FormState, ValidationResult } from '../types'
 
 export interface FormDomainServiceOptions {
   getAuthStore?: () => any

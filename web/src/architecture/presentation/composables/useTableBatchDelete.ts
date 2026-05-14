@@ -3,7 +3,7 @@ import type { ElTable } from 'element-plus'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { buildBatchDeleteIds } from '../views/utils/tableViewActionRuntime'
 import type { FunctionDetail, FieldConfig } from '../../domain/types'
-import type { TableRow } from '../../domain/services/TableDomainService'
+import type { TableRow } from '../../domain/types'
 
 interface UseTableBatchDeleteOptions {
   functionDetail: () => FunctionDetail

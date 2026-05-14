@@ -17,8 +17,7 @@ import type { IFunctionLoader } from './IFunctionLoader'
 import type { IServiceTreeLoader } from './IServiceTreeLoader'
 
 // 导入状态类型
-import type { TableState } from '../services/TableDomainService'
-import type { WorkspaceState } from '../services/WorkspaceDomainService'
+import type { TableState, WorkspaceState } from '../types'
 
 // 导入服务类型（使用具体类型，因为 Domain Services 是业务逻辑层）
 import type { TableDomainService } from '../services/TableDomainService'

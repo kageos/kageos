@@ -77,7 +77,7 @@ import { eventBus, RouteEvent, TableEvent, WorkspaceEvent } from '../../infrastr
 import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import type { FieldConfig, FieldValue, FunctionDetail } from '../../domain/types'
-import type { TableResponse } from '../../domain/services/TableDomainService'
+import type { TableListResponse } from '../../domain/types'
 import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/architecture/runtime/utils/createFieldValue'
 import {
@@ -542,7 +542,7 @@ export function useWorkspaceDetail(
         idFieldCode: idField.code,
         rowId: request.rowId
       })
-      const lookupResponse = await apiClient.get<TableResponse>(lookupRequest.url, lookupRequest.params)
+      const lookupResponse = await apiClient.get<TableListResponse>(lookupRequest.url, lookupRequest.params)
 
       if (token !== latestDetailRestoreToken || pendingDetailRestoreKey !== request.key) {
         return

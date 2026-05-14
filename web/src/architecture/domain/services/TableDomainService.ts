@@ -16,7 +16,26 @@ import type { IApiClient } from '../interfaces/IApiClient'
 import type { IStateManager } from '../interfaces/IStateManager'
 import type { IEventBus } from '../interfaces/IEventBus'
 import { TableEvent } from '../interfaces/IEventBus'
-import type { FunctionDetail, FieldConfig } from '../types'
+import type {
+  FieldConfig,
+  FunctionDetail,
+  TableSearchParams as SearchParams,
+  SortItem,
+  SortParams,
+  TableDataHook,
+  TableListResponse as TableResponse,
+  TableRow,
+  TableState
+} from '../types'
+export type {
+  TableSearchParams as SearchParams,
+  TableListResponse as TableResponse,
+  SortItem,
+  SortParams,
+  TableDataHook,
+  TableRow,
+  TableState
+} from '../types'
 import {
   getTableListFields,
   getTableRequestFields,
@@ -26,50 +45,6 @@ import {
 import { getChangedFields } from '@/architecture/runtime/tableRuntime/search'
 import { Logger } from '@/architecture/runtime/utils/logger'
 import { getSearchFieldRawValue } from '@/architecture/runtime/utils/searchFieldValue'
-
-/**
- * 表格数据项类型
- */
-export interface TableRow {
-  id: number | string
-  [key: string]: any
-}
-
-/**
- * 表格响应类型
- */
-export interface TableResponse {
-  items: TableRow[]
-  paginated?: {
-    current_page: number
-    page_size: number
-    total_count: number
-    total_pages: number
-  }
-}
-
-/**
- * 搜索参数类型
- */
-export interface SearchParams {
-  [key: string]: any
-}
-
-/**
- * 排序参数类型
- */
-export interface SortParams {
-  field: string
-  order: 'asc' | 'desc'
-}
-
-/**
- * 排序项类型
- */
-export interface SortItem {
-  field: string
-  order: 'asc' | 'desc'
-}
 
 const normalizeSortItemOrder = (order: string | undefined): 'asc' | 'desc' | null => {
   if (order === 'asc' || order === 'desc') {
@@ -114,54 +89,6 @@ const isAllowedSortField = (
   responseFieldCodes: Set<string>
 ): boolean => {
   return requestFieldCodes.has(sort.field) || responseFieldCodes.has(sort.field)
-}
-
-/**
- * 表格状态
- */
-export interface TableState {
-  data: TableRow[]
-  loading: boolean
-  searchParams: SearchParams
-  searchForm: Record<string, any> // 🔥 新增：搜索表单数据（用于 UI 绑定）
-  sortParams: SortParams | null
-  sorts: SortItem[] // 🔥 新增：排序列表（支持多列排序）
-  hasManualSort: boolean // 🔥 新增：是否手动排序
-  pagination: {
-    currentPage: number
-    pageSize: number
-    total: number
-  }
-}
-
-/**
- * 表格数据加载生命周期钩子接口
- * 🔥 类似 GORM 的 Before/After 钩子，提供清晰的生命周期回调
- * 
- * 生命周期阶段：BeforeRender（渲染前）
- * - 执行时机：数据加载完成后、状态更新前、界面渲染前
- * - 目的：在渲染前预加载关联数据（用户信息、部门信息等），避免渲染时再发起请求
- * 
- * 执行流程：
- * 1. 调用 API 加载表格数据
- * 2. 🔥 BeforeRender 钩子执行（预加载关联数据）
- * 3. 更新状态（触发 Vue 响应式更新）
- * 4. 界面渲染（此时关联数据已在缓存中）
- * 
- * 使用场景：
- * - 用户信息预加载
- * - 部门信息预加载
- * - 其他关联数据预加载
- * 
- * 执行顺序：按照 priority 从小到大执行（priority 越小越早执行）
- */
-export interface TableDataHook {
-  /** 钩子名称（用于调试和日志） */
-  name: string
-  /** 优先级（越小越早执行，建议范围：0-1000） */
-  priority: number
-  /** 执行钩子的函数 */
-  execute: (functionDetail: FunctionDetail, tableData: TableRow[]) => Promise<void>
 }
 
 /**

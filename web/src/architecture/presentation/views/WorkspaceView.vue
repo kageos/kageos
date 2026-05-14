@@ -278,7 +278,7 @@ import WorkspaceCreateDirectoryDialog from '../components/WorkspaceCreateDirecto
 import WorkspaceCreateDocsDialog from '../components/WorkspaceCreateDocsDialog.vue'
 import WorkspaceFunctionRenderer from '../components/WorkspaceFunctionRenderer.vue'
 import WorkspaceFunctionTabsPanel from '../components/WorkspaceFunctionTabsPanel.vue'
-import type { App } from '../../domain/services/WorkspaceDomainService'
+import type { App } from '../../domain/types'
 import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 // 🔥 导入 Composable

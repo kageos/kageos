@@ -3,7 +3,7 @@ import { RouteSource } from '@/architecture/runtime/utils/routeSource'
 import { resolveWorkspaceUrl } from '@/architecture/runtime/utils/route'
 import { isLinkNavigation as checkLinkNavigation, LINK_TYPE_QUERY_KEY } from '@/architecture/runtime/utils/linkNavigation'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
-import type { ServiceTree } from '../../domain/services/WorkspaceDomainService'
+import type { ServiceTree } from '../../domain/types'
 import type { ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 
 interface UseWorkspaceNodeNavigationOptions {

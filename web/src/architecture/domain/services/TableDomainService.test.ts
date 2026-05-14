@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { TableDomainService, type TableResponse, type TableState } from './TableDomainService'
+import { TableDomainService } from './TableDomainService'
+import type { TableListResponse, TableState } from '../types'
 import { TableEvent } from '../interfaces/IEventBus'
 
 function createService() {
@@ -248,8 +249,8 @@ describe('TableDomainService URL restore', () => {
   })
 
   it('keeps only the latest load result when earlier requests finish later', async () => {
-    const firstResponse = createDeferred<TableResponse>()
-    const secondResponse = createDeferred<TableResponse>()
+    const firstResponse = createDeferred<TableListResponse>()
+    const secondResponse = createDeferred<TableListResponse>()
     const stateManager = createStateManager()
     const eventBus = {
       emit: vi.fn(),

@@ -18,22 +18,9 @@ import type { IStateManager } from '../interfaces/IStateManager'
 import type { IEventBus } from '../interfaces/IEventBus'
 import type { IServiceTreeLoader } from '../interfaces/IServiceTreeLoader'
 import { WorkspaceEvent } from '../interfaces/IEventBus'
-import type { FunctionDetail } from '../types'
-
-import type { App, ServiceTree } from '@/architecture/domain/types'
+import type { App, FunctionDetail, ServiceTree, WorkspaceState } from '../types'
 import { Logger } from '@/architecture/runtime/utils/logger'
-export type { App, ServiceTree }
-
-/**
- * 工作空间状态
- */
-export interface WorkspaceState {
-  currentApp: App | null
-  currentFunction: ServiceTree | null
-  currentDirectory: ServiceTree | null // 当前目录
-  serviceTree: ServiceTree[]
-  loading: boolean // 加载状态
-}
+export type { App, ServiceTree, WorkspaceState } from '../types'
 
 // 🔥 空服务树常量：避免每次创建新数组导致引用变化
 const EMPTY_SERVICE_TREE: ServiceTree[] = []
