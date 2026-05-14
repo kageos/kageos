@@ -206,7 +206,7 @@ func (d *Department) GetDepartmentByID(c *gin.Context) {
 // @Produce json
 // @Param X-Token header string true "JWT Token"
 // @Param id path int true "部门ID"
-// @Success 200 {object} dto.Response
+// @Success 200 {object} object
 // @Router /hr/api/v1/department/{id} [delete]
 func (d *Department) DeleteDepartment(c *gin.Context) {
 	var err error
