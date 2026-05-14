@@ -67,7 +67,7 @@ import type { ServiceTree } from '@/types'
 import PackageDetailOverviewCard from './PackageDetailOverviewCard.vue'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
 import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
-import type { WorkspaceSessionItem } from '@/api/workspace'
+import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
 import { useLazyMarkdownRenderer } from '@/composables/useLazyMarkdownRenderer'
 import { featureFlags } from '@/config/features'
 

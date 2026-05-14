@@ -74,7 +74,7 @@ import { Loading, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import OutputDisplayFields from './OutputDisplayFields.vue'
 import PrdPreview from './PrdPreview.vue'
-import type { WorkspaceChatToolCallSummary } from '@/api/workspace'
+import type { WorkspaceChatToolCallSummary } from '@/architecture/infrastructure/api/workspace'
 import type { OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { extractAllDisplayFields } from '@/architecture/presentation/composables/useOutputDisplayFields'
 

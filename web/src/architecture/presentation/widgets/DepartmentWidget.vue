@@ -133,7 +133,7 @@ import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/
 import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { useAuthStore } from '@/stores/auth'
 import { useDepartmentInfoStore } from '@/stores/departmentInfo'
-import type { Department } from '@/api/department'
+import type { Department } from '@/architecture/infrastructure/api/department'
 import { Logger } from '@/architecture/runtime/utils/logger'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import { SearchType, hasSearchType } from '@/architecture/runtime/constants/search'

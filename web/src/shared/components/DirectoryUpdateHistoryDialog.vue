@@ -496,7 +496,7 @@ import {
   type GetDirectoryUpdateHistoryResp,
   type DirectoryChangeInfo,
   type ApiSummary
-} from '@/api/directory-update-history'
+} from '@/architecture/infrastructure/api/directory-update-history'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import TableIcon from '@/shared/components/icons/TableIcon.vue'
 import FormIcon from '@/shared/components/icons/FormIcon.vue'

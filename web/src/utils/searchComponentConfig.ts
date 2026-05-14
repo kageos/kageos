@@ -506,7 +506,7 @@ function createUserRemoteMethod(): (query: string) => Promise<Array<{ label: str
     }
 
     try {
-      const { searchUsersFuzzy } = await import('@/api/user')
+      const { searchUsersFuzzy } = await import('@/architecture/infrastructure/api/user')
       const response = await searchUsersFuzzy(query.trim(), SearchConfig.DEFAULT_PAGE_SIZE)
       const users = response.users || []
 
@@ -619,7 +619,7 @@ function createDepartmentRemoteMethod(): (query: string) => Promise<Array<{ labe
     try {
       // 加载部门树（如果还没有缓存）
       if (!cachedDepartmentTree) {
-        const { getDepartmentTree } = await import('@/api/department')
+        const { getDepartmentTree } = await import('@/architecture/infrastructure/api/department')
         const response = await getDepartmentTree()
         cachedDepartmentTree = response.departments || []
       }
@@ -689,7 +689,7 @@ function createDepartmentsInitOptions(): (value: any) => Promise<Array<{ label: 
     }
     
     try {
-      const { getDepartmentTree } = await import('@/api/department')
+      const { getDepartmentTree } = await import('@/architecture/infrastructure/api/department')
       const response = await getDepartmentTree()
       const departmentTree = response.departments || []
       
@@ -737,7 +737,7 @@ function createUsersInitOptions(): (values: string | string[]) => Promise<Array<
     }
 
     try {
-      const { getUsersByUsernames } = await import('@/api/user')
+      const { getUsersByUsernames } = await import('@/architecture/infrastructure/api/user')
       // 处理值：如果是字符串，可能是逗号分隔的字符串
       const usernames = Array.isArray(values) 
         ? values 
@@ -776,7 +776,7 @@ function createSelectFuzzyRemoteMethod(
     }
 
     try {
-      const { selectFuzzy } = await import('@/api/function')
+      const { selectFuzzy } = await import('@/architecture/infrastructure/api/function')
       const { SelectFuzzyQueryType } = await import('@/architecture/runtime/constants/select')
       
       const valueType = field.data?.type || 'string'
@@ -820,7 +820,7 @@ function createSelectFuzzyInitOptions(
     }
 
     try {
-      const { selectFuzzy } = await import('@/api/function')
+      const { selectFuzzy } = await import('@/architecture/infrastructure/api/function')
       const { SelectFuzzyQueryType } = await import('@/architecture/runtime/constants/select')
       
       const valueType = field.data?.type || 'string'

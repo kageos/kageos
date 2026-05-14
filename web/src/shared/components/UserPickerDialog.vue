@@ -130,7 +130,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { ElAvatar, ElButton, ElCheckbox, ElDialog, ElEmpty, ElIcon, ElInput } from 'element-plus'
 import { Check, Close, Loading, Search } from '@element-plus/icons-vue'
-import { searchUsersFuzzy } from '@/api/user'
+import { searchUsersFuzzy } from '@/architecture/infrastructure/api/user'
 import { Logger } from '@/architecture/runtime/utils/logger'
 import { useUserInfoStore } from '@/stores/userInfo'
 import type { UserInfo } from '@/types'

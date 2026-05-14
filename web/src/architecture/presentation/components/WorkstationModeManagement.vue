@@ -217,7 +217,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import type { WorkspaceModeItem, CreateWorkspaceModeReq, UpdateWorkspaceModeReq, WorkspaceToolDef } from '@/api/workspace'
+import type { WorkspaceModeItem, CreateWorkspaceModeReq, UpdateWorkspaceModeReq, WorkspaceToolDef } from '@/architecture/infrastructure/api/workspace'
 import {
   getWorkspaceModes,
   createWorkspaceMode,
@@ -225,7 +225,7 @@ import {
   deleteWorkspaceMode,
   listWorkspaceToolNames,
   getWorkspaceTools
-} from '@/api/workspace'
+} from '@/architecture/infrastructure/api/workspace'
 
 /** 从 input_schema 解析出的参数项 */
 interface ToolParamRow {

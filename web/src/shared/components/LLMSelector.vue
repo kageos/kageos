@@ -162,7 +162,7 @@
 import { ref, computed, watch } from 'vue'
 import { ElButton, ElDialog, ElTag, ElInput, ElIcon, ElMessage, ElPagination } from 'element-plus'
 import { CircleCheck, Search, Close, Check } from '@element-plus/icons-vue'
-import { getLLMList, type LLMInfo } from '@/api/agent'
+import { getLLMList, type LLMInfo } from '@/architecture/infrastructure/api/agent'
 
 interface Props {
   modelValue: number // LLM 配置 ID（0 表示使用默认 LLM）

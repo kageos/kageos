@@ -1,4 +1,4 @@
-import type { CapabilityBundle } from '@/api/service-tree'
+import type { CapabilityBundle } from '@/architecture/infrastructure/api/service-tree'
 
 const FALLBACK_CAPABILITY_BUNDLE_FILENAME = 'capability-bundle.json'
 

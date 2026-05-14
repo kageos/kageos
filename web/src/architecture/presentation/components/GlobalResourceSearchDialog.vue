@@ -128,7 +128,7 @@ import {
   searchResources,
   type ResourceSearchResult,
   type SearchResourceType
-} from '@/api/service-tree'
+} from '@/architecture/infrastructure/api/service-tree'
 import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/shared/components/icons/TableIcon.vue'
 

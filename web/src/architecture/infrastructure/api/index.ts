@@ -1,4 +1,4 @@
-// 统一导出所有API
+// 统一导出平台业务接口封装。
 export * from './auth'
 export * from './app'
 export * from './service-tree'

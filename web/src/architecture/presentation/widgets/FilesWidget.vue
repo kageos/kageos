@@ -264,7 +264,7 @@ import type { FilesWidgetConfig } from '@/architecture/runtime/types/widget-conf
 import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { useAuthStore } from '@/stores/auth'
 import { useUserInfoStore } from '@/stores/userInfo'
-import { resolveFileRefs, updateFileDescription } from '@/api/storage'
+import { resolveFileRefs, updateFileDescription } from '@/architecture/infrastructure/api/storage'
 import { Logger } from '@/architecture/runtime/utils/logger'
 import { formatTimestamp } from '@/utils/date'
 import { isWidgetConfigFlagEnabled } from '@/utils/widgetConfigFlag'

@@ -88,7 +88,7 @@ import { WorkspaceApplicationService } from '../../application/services/Workspac
 import { TableApplicationService } from '../../application/services/TableApplicationService'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { useDepartmentInfoStore } from '@/stores/departmentInfo'
-import { getAppWithServiceTree } from '@/api/app'
+import { getAppWithServiceTree } from '@/architecture/infrastructure/api/app'
 import { buildAppResourcePath } from '@/utils/resourcePath'
 import { serviceTreeLoader } from '../serviceTreeLoader'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'

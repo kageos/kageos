@@ -17,7 +17,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getUsersByUsernames } from '@/api/user'
+import { getUsersByUsernames } from '@/architecture/infrastructure/api/user'
 import type { UserInfo } from '@/types'
 import { USER_INFO_CACHE_CONFIG } from './config'
 import { 

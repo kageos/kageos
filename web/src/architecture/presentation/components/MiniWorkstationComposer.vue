@@ -186,13 +186,13 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, type Component } from 'vue'
 import { ArrowDown, Document, Paperclip, Timer, VideoPause } from '@element-plus/icons-vue'
-import type { LLMInfo } from '@/api/agent'
-import type { WorkspaceChatMessageFile } from '@/api/workspace'
-import { searchUsersFuzzy } from '@/api/user'
+import type { LLMInfo } from '@/architecture/infrastructure/api/agent'
+import type { WorkspaceChatMessageFile } from '@/architecture/infrastructure/api/workspace'
+import { searchUsersFuzzy } from '@/architecture/infrastructure/api/user'
 import {
   searchResources,
   type ResourceSearchResult
-} from '@/api/service-tree'
+} from '@/architecture/infrastructure/api/service-tree'
 import type { UserInfo } from '@/types'
 import { formatUserDisplayName } from '@/utils/userInfo'
 import {

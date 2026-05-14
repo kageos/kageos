@@ -16,6 +16,8 @@
   - `FormStateManager.ts`：表单状态管理
 - `apiClient/`：API 客户端实现
   - `ApiClientImpl.ts`：基于 axios 的 API 客户端实现
+- `api/`：平台业务接口封装
+  - `app.ts`、`service-tree.ts`、`workspace.ts` 等按后端资源域组织
 - `functionLoader/`：函数加载器实现
   - `FunctionLoaderImpl.ts`：函数加载器实现（带防抖和去重）
 - `cacheManager/`：缓存管理实现
