@@ -44,6 +44,29 @@ bash scripts/git-sync-to-github.sh
 - 推送到 GitHub 后可以删除临时分支
 - 不会影响 Gitee 的代码
 
+### 3. check-repo-size-guard.sh
+**功能**：检查当前被 Git 跟踪的文件，防止编译产物、日志、运行数据、依赖目录和超大文件误入库。
+
+**使用方式**：
+```bash
+scripts/check-repo-size-guard.sh
+```
+
+默认单文件上限是 5 MiB。如确实需要检查更高阈值：
+```bash
+MAX_TRACKED_FILE_BYTES=10485760 scripts/check-repo-size-guard.sh
+```
+
+### 4. git-largest-objects.sh
+**功能**：排查 Git 历史里的最大对象，用于定位仓库体积来源。
+
+**使用方式**：
+```bash
+scripts/git-largest-objects.sh 30
+```
+
+注意：它只负责定位历史大对象，不会修改历史。真正压缩远端仓库体积需要单独执行历史重写并强制推送。
+
 ## Git 配置
 
 ### 项目级别配置（已设置）
