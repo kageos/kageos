@@ -1,4 +1,4 @@
-import { WidgetType } from '@/architecture/runtime/constants/widget'
+import { WidgetType } from '@/architecture/domain/types/api'
 import type { FieldConfig, FieldScene, FunctionDetail, FunctionSchema } from '@/architecture/domain/types/field'
 
 export function getFunctionSchema(functionDetail?: FunctionDetail | null): FunctionSchema | null {

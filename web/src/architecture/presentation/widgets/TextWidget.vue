@@ -175,7 +175,7 @@ import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import type { TextWidgetConfig } from '@/architecture/runtime/types/widget-configs'
 import { sanitizeHtml } from '@/architecture/runtime/utils/sanitizeHtml'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({

@@ -90,7 +90,7 @@ import {
   shouldWaitForDetailTableData,
   type DetailRestoreTrigger
 } from './utils/workspaceDetailRuntime'
-import { getFunctionCallbacks, getTableDetailFields, getTableRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
+import { getFunctionCallbacks, getTableDetailFields, getTableRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
 export function useWorkspaceDetail(
   options: {

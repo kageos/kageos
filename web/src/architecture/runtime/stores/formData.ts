@@ -12,7 +12,7 @@ import { defineStore, type Pinia } from 'pinia'
 import { reactive, inject, hasInjectionContext, type InjectionKey } from 'vue'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 import { fieldExtractorRegistry } from './extractors/FieldExtractorRegistry'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 import { createEmptyRawFieldValue } from '@/architecture/runtime/utils/createFieldValue'
 
 const createFormDataStore = defineStore('formData', () => {

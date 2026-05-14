@@ -84,7 +84,7 @@
  * - 事件类型注册表：`web/src/architecture/infrastructure/eventBus/EventTypeRegistry.ts`
  */
 
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 
 /**

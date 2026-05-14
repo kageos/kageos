@@ -3,11 +3,11 @@ import type { SortItem, TableState } from '@/architecture/domain/types'
 import {
   getSearchFieldRawValue,
   hasSearchFieldValue
-} from '@/architecture/runtime/utils/searchFieldValue'
+} from '@/architecture/domain/utils/searchFieldValue'
 import {
   getTableRequestFields,
   getTableRequestSearchFields
-} from '@/architecture/runtime/utils/functionSchemaSelectors'
+} from '@/architecture/domain/utils/functionSchemaSelectors'
 import {
   isPersistentPlatformStateQueryKey,
   isPlatformStateQueryKey,

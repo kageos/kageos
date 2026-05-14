@@ -79,7 +79,7 @@
 import { defineAsyncComponent } from 'vue'
 import { widgetComponentFactory } from './factory'
 import { WidgetType } from '@/architecture/runtime/constants/widget'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 
 // 导入组件（按需导入，避免循环依赖）
 import InputWidget from '@/architecture/presentation/widgets/InputWidget.vue'

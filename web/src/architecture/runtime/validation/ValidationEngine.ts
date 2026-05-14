@@ -9,7 +9,7 @@ import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
 import type { ValidationRule, ValidationResult, ValidationContext } from './types'
 import { ValidatorRegistry } from './ValidatorRegistry'
-import { Logger } from '../utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 import { parsePresenceRule } from './utils/presenceRules'
 
 export class ValidationEngine {

@@ -41,9 +41,9 @@ import {
   getTableRequestFields,
   getTableRequestSearchFields,
   getTableSearchFields
-} from '@/architecture/runtime/utils/functionSchemaSelectors'
-import { Logger } from '@/architecture/runtime/utils/logger'
-import { getSearchFieldRawValue } from '@/architecture/runtime/utils/searchFieldValue'
+} from '@/architecture/domain/utils/functionSchemaSelectors'
+import { Logger } from '@/architecture/shared/logger'
+import { getSearchFieldRawValue } from '@/architecture/domain/utils/searchFieldValue'
 
 const normalizeSortItemOrder = (order: string | undefined): 'asc' | 'desc' | null => {
   if (order === 'asc' || order === 'desc') {

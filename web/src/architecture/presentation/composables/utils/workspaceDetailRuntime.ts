@@ -7,7 +7,7 @@ import {
   buildTableUpdateFormDetail,
   getFormRequestFields,
   getTableIdField
-} from '@/architecture/runtime/utils/functionSchemaSelectors'
+} from '@/architecture/domain/utils/functionSchemaSelectors'
 
 export type DetailEditFormReadiness =
   | 'missing-edit-detail'

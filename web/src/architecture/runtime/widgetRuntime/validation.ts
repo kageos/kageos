@@ -1,7 +1,7 @@
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 import type { ValidationEngine, ValidationResult } from '@/architecture/runtime/validation'
 import { useFormDataStore, type FormDataStore } from '@/architecture/runtime/stores/formData'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 
 export interface WidgetValidationContext {
   validationEngine: ValidationEngine | null

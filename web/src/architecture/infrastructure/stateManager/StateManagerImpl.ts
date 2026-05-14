@@ -10,7 +10,7 @@
  */
 
 import { watch, type WatchStopHandle, shallowRef, triggerRef, unref } from 'vue'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'
 
 /**

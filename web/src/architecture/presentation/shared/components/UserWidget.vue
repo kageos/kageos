@@ -133,7 +133,7 @@ import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/
 import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { formatUserDisplayName } from '@/architecture/runtime/utils/userInfo'
 import type { UserInfo } from '@/architecture/domain/types'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 import { createFieldValue } from '@/architecture/runtime/utils/createFieldValue'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'

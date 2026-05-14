@@ -318,7 +318,7 @@ import UserDisplay from '@/architecture/presentation/shared/components/UserDispl
 import DepartmentDisplay from '@/architecture/presentation/shared/components/DepartmentDisplay.vue'
 import type { UserInfo } from '@/architecture/domain/types'
 import type { Department } from '@/architecture/infrastructure/api/department'
-import { getErrorMessage } from '@/architecture/runtime/utils/apiError'
+import { getErrorMessage } from '@/architecture/shared/apiError'
 import { uploadFile, notifyUploadComplete } from '@/architecture/infrastructure/upload'
 import type { UploadProgress } from '@/architecture/infrastructure/upload/types'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'

@@ -19,7 +19,7 @@ import type { IEventBus } from '../interfaces/IEventBus'
 import type { IServiceTreeLoader } from '../interfaces/IServiceTreeLoader'
 import { WorkspaceEvent } from '../interfaces/IEventBus'
 import type { App, FunctionDetail, ServiceTree, WorkspaceState } from '../types'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 export type { App, ServiceTree, WorkspaceState } from '../types'
 
 // 🔥 空服务树常量：避免每次创建新数组导致引用变化

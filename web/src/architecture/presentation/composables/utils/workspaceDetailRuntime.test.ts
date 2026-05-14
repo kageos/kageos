@@ -13,7 +13,7 @@ import {
   resolveDetailRouteRequest,
   shouldWaitForDetailTableData
 } from './workspaceDetailRuntime'
-import { getFormRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
+import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
 const tableFunctionDetail: FunctionDetail = {
   id: 1,

@@ -10,7 +10,7 @@ import { buildEditFunctionDetail, filterDetailInitialData, getEditableFieldCodes
 import { createFormViewRuntime, buildInitialDataFromFormDataStore } from './formViewRuntime'
 import { buildTableDetailRowPayload } from './tableViewRouteRuntime'
 import { buildNextTableSyncQuery } from './tableViewURLRuntime'
-import { getFormRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
+import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
 function createMockEventBus(): IEventBus {
   const listeners = new Map<string, Set<(payload?: any) => void>>()

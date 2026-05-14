@@ -1056,7 +1056,7 @@ const value = formDataStore.getValue('business_info.industry')
 **A**: 使用 Logger：
 
 ```typescript
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 
 Logger.debug('ComponentName', '调试信息', data)
 Logger.info('ComponentName', '信息', data)

@@ -8,7 +8,7 @@ import { convertValueByFieldType } from '@/architecture/presentation/widgets/uti
 import { getWidgetDefaultValue } from '@/architecture/presentation/widgets/composables/useWidgetDefaultValue'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { createEmptyFieldValue, createEmptyRawFieldValue } from '@/architecture/runtime/utils/createFieldValue'
-import { getChartRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
+import { getChartRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
 interface UseChartFilterStateOptions {
   functionDetail: ComputedRef<FunctionDetail>

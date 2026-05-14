@@ -77,7 +77,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import type { EditorView } from 'prosemirror-view'
 import type { Slice } from 'prosemirror-model'

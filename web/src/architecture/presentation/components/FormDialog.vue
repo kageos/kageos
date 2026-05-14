@@ -59,7 +59,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import FormView from '@/architecture/presentation/views/FormView.vue'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
 import ScheduledTaskDialog from '@/architecture/presentation/components/ScheduledTaskDialog.vue'
 import { featureFlags } from '@/architecture/runtime/config/features'

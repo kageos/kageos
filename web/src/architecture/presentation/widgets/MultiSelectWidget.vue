@@ -130,7 +130,7 @@ import type { WidgetComponentProps } from '@/architecture/presentation/widgets/t
 import { selectFuzzy } from '@/architecture/infrastructure/api/function'
 import { widgetInitializerRegistry } from '@/architecture/presentation/widgets/initializers/WidgetInitializerRegistry'
 import { MultiSelectWidgetInitializer } from '@/architecture/presentation/widgets/initializers/MultiSelectWidgetInitializer'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { ExpressionParserAdapter } from '@/architecture/runtime/utils/ExpressionParserAdapter'
 import { getMultiSelectDefaultDataType } from '@/architecture/runtime/constants/widget'
@@ -143,7 +143,7 @@ import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/uti
 import { buildSelectionSummary } from '@/architecture/presentation/widgets/utils/selectionSummary'
 import { getWidgetOptionColors } from '@/architecture/runtime/utils/widgetOptionColors'
 import type { MultiSelectOptionItem } from './multiSelectWidgetTypes'
-import { getFormRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
+import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 import { prdPreviewContextKey } from '@/architecture/presentation/components/prdPreviewContext'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {

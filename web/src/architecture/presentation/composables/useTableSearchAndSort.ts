@@ -1,12 +1,12 @@
 import { computed, ref, watch } from 'vue'
 import { WidgetType } from '@/architecture/runtime/constants/widget'
-import { hasSearchFieldValue } from '@/architecture/runtime/utils/searchFieldValue'
+import { hasSearchFieldValue } from '@/architecture/domain/utils/searchFieldValue'
 import { resolveSearchFieldLayoutClass } from '../views/utils/searchFieldLayout'
 import type { FunctionDetail, FieldConfig } from '../../domain/types'
 import type { TableDomainService } from '../../domain/services/TableDomainService'
 import type { SortItem, TableState } from '../../domain/types'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'
-import { getTableIdField, getTableListFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
+import { getTableIdField, getTableListFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
 interface UseTableSearchAndSortOptions {
   functionDetail: () => FunctionDetail

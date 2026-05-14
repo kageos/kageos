@@ -245,11 +245,11 @@ import WidgetComponent from '@/architecture/presentation/widgets/WidgetComponent
 import { ErrorHandler } from '@/architecture/runtime/utils/ErrorHandler'
 import { convertToFieldValue } from '@/architecture/runtime/utils/field'
 import { normalizeSearchValue, denormalizeSearchValue } from '@/architecture/runtime/utils/searchValueNormalizer'
-import { getSearchFieldRawValue, isStoredSearchFieldValue } from '@/architecture/runtime/utils/searchFieldValue'
+import { getSearchFieldRawValue, isStoredSearchFieldValue } from '@/architecture/domain/utils/searchFieldValue'
 import { createSearchComponentConfig } from '@/architecture/presentation/components/utils/searchComponentConfig'
 import { SearchConfig, SearchComponent, hasSearchType } from '@/architecture/runtime/constants/search'
 import { WidgetType } from '@/architecture/runtime/constants/widget'
-import { Logger } from '@/architecture/runtime/utils/logger'
+import { Logger } from '@/architecture/shared/logger'
 import type { FieldConfig } from '@/architecture/domain/types'
 import { formDataStoreKey, useFormDataStore } from '@/architecture/runtime/stores/formData'
 import {

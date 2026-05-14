@@ -17,7 +17,7 @@
  * - value(余额) → 显示当前选中项的"余额"字段值（从 DisplayInfo 中获取）
  */
 
-import { Logger } from './logger'
+import { Logger } from '@/architecture/shared/logger'
 
 export class ExpressionParser {
   /**

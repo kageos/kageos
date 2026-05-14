@@ -73,13 +73,13 @@
  *    - 其他错误通过事件或异常抛出
  */
 
-import { unwrapApiResponseData } from '@/architecture/runtime/utils/apiError'
+import { unwrapApiResponseData } from '@/architecture/shared/apiError'
 import { FormDomainService } from '../../domain/services/FormDomainService'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { WorkspaceEvent, FormEvent } from '../../domain/interfaces/IEventBus'
 import type { FieldConfig, FunctionDetail } from '../../domain/types'
 import type { IFormGateway } from '../../domain/interfaces/IFormGateway'
-import { getFormRequestFields } from '@/architecture/runtime/utils/functionSchemaSelectors'
+import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
 /**
  * 表单应用服务
