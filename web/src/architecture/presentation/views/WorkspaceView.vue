@@ -10,7 +10,7 @@
 
 <template>
   <div class="workspace-container" data-testid="workspace-view">
-    <!-- 顶部导航栏：工作空间切换 + 应用中心 同一行 -->
+    <!-- 顶部导航栏：工作空间切换、搜索与用户入口 -->
     <WorkspaceHeader
       ref="workspaceHeaderRef"
       :current-app="currentApp"

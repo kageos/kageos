@@ -8,11 +8,6 @@
       "description": "AgentOS 目录和应用版本变更记录查询接口封装。"
     },
     {
-      "path": "hub",
-      "name": "Hub 平台接口",
-      "description": "AgentOS Hub 平台接口封装，提供资源搜索和详情读取等只读能力。"
-    },
-    {
       "path": "message",
       "name": "消息通知平台接口",
       "description": "AgentOS 消息通知平台接口封装，统一调用 message-server 发送用户和部门通知。"

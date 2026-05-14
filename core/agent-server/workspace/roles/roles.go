@@ -180,7 +180,7 @@ func Specs() map[string]Spec {
 			Docs:             []string{"/system/prompt/roles/platform-engineer"},
 			AllowedTools:     []string{"change_role", "read_doc", "search_tools", "run_form_submit", "fetch_url_content", "web_search"},
 			Action:           "平台集成工程师负责平台 OpenAPI、消息、权限、审计、组织、文件和定时任务等平台能力；不绕过权限。",
-			RouteDescription: "用户要调用平台消息、权限、审计、组织、文件或定时任务等平台能力时进入。优先使用平台提供的 API 和工具，不绕过权限，不硬编码 token，不直连内部服务。Hub 相关 OpenAPI 暂不暴露。",
+			RouteDescription: "用户要调用平台消息、权限、审计、组织、文件或定时任务等平台能力时进入。优先使用平台提供的 API 和工具，不绕过权限，不硬编码 token，不直连内部服务。",
 		},
 		Reviewer: {
 			ID:             Reviewer,

@@ -53,7 +53,7 @@ type FunctionInfo struct {
 	Description  string   `json:"description" example:"用于管理工单的创建、更新、删除等功能"`                     // 函数描述（从 ServiceTree 获取）
 }
 
-// GetFunctionGroupInfoResp 获取函数组信息响应（用于 Hub 发布）
+// GetFunctionGroupInfoResp 获取函数组信息响应（用于函数组复制）
 type GetFunctionGroupInfoResp struct {
 	// 核心数据（用于 clone）
 	SourceCode  string `json:"source_code" example:"package main..."` // 源代码（无状态，用于 clone）
@@ -66,5 +66,5 @@ type GetFunctionGroupInfoResp struct {
 	AppID         int64          `json:"app_id" example:"123"`                          // 应用ID
 	AppName       string         `json:"app_name" example:"testgroup"`                  // 应用名称
 	FunctionCount int            `json:"function_count" example:"3"`                    // 函数数量（快照）
-	Functions     []FunctionInfo `json:"functions"`                                     // 函数列表（用于 Hub 展示功能列表）
+	Functions     []FunctionInfo `json:"functions"`                                     // 函数列表（用于展示功能列表）
 }

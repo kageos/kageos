@@ -173,3 +173,52 @@ func TestBuildBatchWriteFilesResp(t *testing.T) {
 		t.Fatalf("unexpected warnings: %#v", resp.Warnings)
 	}
 }
+
+func TestPlanCopyDirectoryTargets_MapsRootAndDescendants(t *testing.T) {
+	sourceTrees := map[string]*model.ServiceTree{
+		"/alice/source/tools":       {FullCodePath: "/alice/source/tools", Name: "Tools", Code: "tools"},
+		"/alice/source/tools/image": {FullCodePath: "/alice/source/tools/image", Name: "Image", Code: "image"},
+	}
+
+	targets, err := planCopyDirectoryTargets("/alice/source/tools", "/bob/target", sourceTrees)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(targets) != 2 {
+		t.Fatalf("expected 2 targets, got %d", len(targets))
+	}
+	if targets[0].targetPath != "/bob/target/tools" {
+		t.Fatalf("expected root target first, got %s", targets[0].targetPath)
+	}
+	if targets[1].targetPath != "/bob/target/tools/image" {
+		t.Fatalf("unexpected child target path: %s", targets[1].targetPath)
+	}
+}
+
+func TestBuildCopyFileItems_SkipsInitAndPreservesRelativeTargets(t *testing.T) {
+	files := map[string][]*model.FileSnapshot{
+		"/alice/source/tools": {
+			{FileName: "main", RelativePath: "main.go", FileType: "go", Content: "package tools"},
+			{FileName: "init_", RelativePath: "init_.go", FileType: "go", Content: "package tools"},
+		},
+		"/alice/source/tools/image": {
+			{RelativePath: "resize.go", FileType: "go", Content: "package image"},
+		},
+	}
+
+	items := buildCopyFileItems("/alice/source/tools", "/bob/target/tools", files)
+	if len(items) != 2 {
+		t.Fatalf("expected 2 copied file items, got %d", len(items))
+	}
+
+	byName := map[string]*dto.FileWriteItem{}
+	for _, item := range items {
+		byName[item.FullCodePath+"/"+item.FileName] = item
+	}
+	if byName["/bob/target/tools/main"] == nil {
+		t.Fatalf("expected root main file item, got %#v", byName)
+	}
+	if byName["/bob/target/tools/image/resize"] == nil {
+		t.Fatalf("expected child resize file item, got %#v", byName)
+	}
+}
