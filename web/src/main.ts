@@ -16,7 +16,7 @@ import 'dayjs/locale/zh-cn'
 dayjs.locale('zh-cn')
 
 import App from './App.vue'
-import router from './router'
+import router from './architecture/infrastructure/router'
 import { useAuthStore } from './architecture/infrastructure/stores/auth'
 import { useThemeStore } from './architecture/infrastructure/stores/theme'
 import { useUserInfoStore } from './architecture/infrastructure/stores/userInfo'

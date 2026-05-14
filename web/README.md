@@ -135,7 +135,6 @@ web/
 │   ├── features/                        # agent / auth / permission / user 等功能模块
 │   ├── shared/                          # 共享组件、富文本与通用展示能力
 │   ├── utils/                           # 通用工具函数
-│   ├── router/                          # 路由
 │   ├── views/                           # 遗留页面（当前基本只剩错误页）
 │   ├── App.vue
 │   └── main.ts
@@ -575,7 +574,7 @@ onMounted(() => {
 
 #### 步骤 2：注册路由
 
-文件位置：`src/router/index.ts`
+文件位置：`src/architecture/infrastructure/router/index.ts`
 
 ```typescript
 {
@@ -619,7 +618,7 @@ onMounted(() => {
    - 创建 `src/architecture/presentation/composables/useWorkflowInitialization.ts`（组合式函数）
 
 5. **注册路由**
-   - 在 `src/router/index.ts` 中添加路由
+   - 在 `src/architecture/infrastructure/router/index.ts` 中添加路由
 
 6. **（可选）新增组件**
    - 在 `src/architecture/presentation/widgets/` 中创建工作流相关的组件

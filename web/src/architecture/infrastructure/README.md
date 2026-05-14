@@ -20,6 +20,8 @@
   - `ApiClientImpl.ts`：基于 axios 的 API 客户端实现
 - `api/`：平台业务接口封装
   - `app.ts`、`service-tree.ts`、`workspace.ts` 等按后端资源域组织
+- `router/`：Vue Router 配置与全局守卫
+  - `index.ts`：页面路由、功能开关守卫、认证跳转
 - `functionLoader/`：函数加载器实现
   - `FunctionLoaderImpl.ts`：函数加载器实现（带防抖和去重）
 - `cacheManager/`：缓存管理实现
