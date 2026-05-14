@@ -73,7 +73,7 @@
  *    - 其他错误通过事件或异常抛出
  */
 
-import { unwrapApiResponseData } from '@/utils/apiError'
+import { unwrapApiResponseData } from '@/architecture/infrastructure/apiClient/apiError'
 import { FormDomainService } from '../../domain/services/FormDomainService'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { WorkspaceEvent, FormEvent } from '../../domain/interfaces/IEventBus'

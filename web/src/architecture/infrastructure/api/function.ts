@@ -1,4 +1,4 @@
-import { get, post, put, del } from '@/utils/request'
+import { get, post, put, del } from '@/architecture/infrastructure/apiClient/request'
 import type { FunctionDetail, SearchParams } from '@/architecture/domain/types'
 
 // 获取函数详情（根据路径和函数类型）

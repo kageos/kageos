@@ -9,7 +9,7 @@
  * - 可以轻松替换为其他实现（如 WebSocket API 客户端）
  */
 
-import { get, post, put, del } from '@/utils/request'
+import { get, post, put, del } from '@/architecture/infrastructure/apiClient/request'
 import type { IApiClient } from '../../domain/interfaces/IApiClient'
 
 /**

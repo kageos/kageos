@@ -1,4 +1,4 @@
-import { get } from '@/utils/request'
+import { get } from '@/architecture/infrastructure/apiClient/request'
 
 // Table 操作日志
 export interface TableOperateLog {

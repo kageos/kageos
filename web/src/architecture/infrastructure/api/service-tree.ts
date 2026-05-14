@@ -1,4 +1,4 @@
-import { get, post, put, del } from '@/utils/request'
+import { get, post, put, del } from '@/architecture/infrastructure/apiClient/request'
 import type { ServiceTree, CreateServiceTreeRequest, FunctionSchema } from '@/architecture/domain/types'
 
 // ⭐ 创建 package 类型节点（推荐使用）

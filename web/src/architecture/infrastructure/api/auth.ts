@@ -1,4 +1,4 @@
-import { get, post } from '@/utils/request'
+import { get, post } from '@/architecture/infrastructure/apiClient/request'
 import type { UserInfo, LoginRequest, RegisterRequest } from '@/architecture/domain/types'
 
 // 用户注册

@@ -2,7 +2,7 @@
  * 定时任务 API
  */
 
-import { get, post, del } from '@/utils/request'
+import { get, post, del } from '@/architecture/infrastructure/apiClient/request'
 
 /** 与后端一致：execute=普通函数；table_*=表格增改删（走 /_callback） */
 export type ScheduledTaskAction =

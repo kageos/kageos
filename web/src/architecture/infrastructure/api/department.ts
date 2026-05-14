@@ -14,7 +14,7 @@
  * - 支持为用户分配 Leader
  */
 
-import { get, post, put, del } from '@/utils/request'
+import { get, post, put, del } from '@/architecture/infrastructure/apiClient/request'
 import type { UserInfo } from '@/architecture/domain/types'
 
 // ==================== 类型定义 ====================

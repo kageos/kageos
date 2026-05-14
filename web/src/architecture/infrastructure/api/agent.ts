@@ -1,4 +1,4 @@
-import { get, post } from '@/utils/request'
+import { get, post } from '@/architecture/infrastructure/apiClient/request'
 
 // ==================== LLM 相关 ====================
 

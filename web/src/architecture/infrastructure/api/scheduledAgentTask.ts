@@ -1,4 +1,4 @@
-import { del, get, post, put } from '@/utils/request'
+import { del, get, post, put } from '@/architecture/infrastructure/apiClient/request'
 
 export type ScheduledAgentScheduleType = 'atime' | 'cron' | 'every'
 export type ScheduledAgentTaskStatus = 'pending' | 'paused' | 'done' | 'failed' | 'cancelled'

@@ -1,4 +1,4 @@
-import { get } from '@/utils/request'
+import { get } from '@/architecture/infrastructure/apiClient/request'
 
 // API 摘要信息
 export interface ApiSummary {

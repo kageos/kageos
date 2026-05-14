@@ -1,4 +1,4 @@
-import { get, put, post } from '@/utils/request'
+import { get, put, post } from '@/architecture/infrastructure/apiClient/request'
 import type { UserInfo } from '@/architecture/domain/types'
 
 // 更新用户信息
