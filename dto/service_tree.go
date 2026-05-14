@@ -40,28 +40,26 @@ type CreateServiceTreeResp struct {
 
 // GetServiceTreeResp 获取服务目录响应
 type GetServiceTreeResp struct {
-	ID              int64                 `json:"id,omitempty" example:"1"`                              // 服务目录ID
-	Name            string                `json:"name,omitempty" example:"用户管理"`                         // 服务目录名称
-	Code            string                `json:"code,omitempty" example:"user"`                         // 服务目录代码
-	Type            string                `json:"type,omitempty" example:"package"`                      // 节点类型
-	Description     string                `json:"description,omitempty" example:"用户相关的API接口"`            // 描述
-	Tags            string                `json:"tags,omitempty" example:"user,management"`              // 标签
-	Admins          string                `json:"admins,omitempty" example:"user1,user2"`                // 节点管理员列表，逗号分隔的用户名
-	PendingCount    int                   `json:"pending_count,omitempty" example:"5"`                   // ⭐ 待审批的权限申请数量
-	Owner           string                `json:"owner,omitempty" example:"user1"`                       // 节点创建者（owner）
-	AppID           int64                 `json:"app_id,omitempty" example:"1"`                          // 应用ID
-	RefID           int64                 `json:"ref_id,omitempty" example:"0"`                          // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
-	FullCodePath    string                `json:"full_code_path,omitempty" example:"/beiluo/myapp/user"` // 完整代码路径
-	TemplateType    string                `json:"template_type,omitempty" example:"form"`                // 模板类型（函数的类型，如 form、table）
-	Version         string                `json:"version,omitempty" example:"v1"`                        // 节点当前版本号（如 v1, v2），package类型表示目录版本，function类型表示函数版本等
-	VersionNum      int                   `json:"version_num,omitempty" example:"1"`                     // 节点当前版本号（数字部分）
-	HubFullCodePath string                `json:"hub_full_code_path,omitempty" example:""`               // Hub 目录完整路径，用于绑定与详情 URL（前端用此拼详情 URL）
-	HubVersionNum   int                   `json:"hub_version_num,omitempty" example:"0"`                 // Hub目录版本号（数字部分），用于版本比较与展示（展示时格式化为 v{N}）
-	HasFunction     bool                  `json:"has_function,omitempty" example:"true"`                 // ⭐ 是否有函数（仅对package类型有效）：如果该package下直接或间接包含function类型的子节点，则为true
-	RunCount        int                   `json:"run_count,omitempty"`                                   // ⭐ 运行次数（仅 function 类型有意义），用于排序与展示「已使用 N 次」
-	IsAdmin         bool                  `json:"is_admin,omitempty" example:"true"`                     // ⭐ 是否是管理员（企业版功能）：如果用户是工作空间管理员，则为 true，前端优先判断此字段，无需构造每个节点的权限
-	Permissions     map[string]bool       `json:"permissions"`                                           // ⭐ 权限信息（企业版功能）：权限点 -> 是否有权限（即使为空也返回 {}，避免前端 undefined）
-	Children        []*GetServiceTreeResp `json:"children,omitempty"`                                    // 子目录列表
+	ID           int64                 `json:"id,omitempty" example:"1"`                              // 服务目录ID
+	Name         string                `json:"name,omitempty" example:"用户管理"`                         // 服务目录名称
+	Code         string                `json:"code,omitempty" example:"user"`                         // 服务目录代码
+	Type         string                `json:"type,omitempty" example:"package"`                      // 节点类型
+	Description  string                `json:"description,omitempty" example:"用户相关的API接口"`            // 描述
+	Tags         string                `json:"tags,omitempty" example:"user,management"`              // 标签
+	Admins       string                `json:"admins,omitempty" example:"user1,user2"`                // 节点管理员列表，逗号分隔的用户名
+	PendingCount int                   `json:"pending_count,omitempty" example:"5"`                   // ⭐ 待审批的权限申请数量
+	Owner        string                `json:"owner,omitempty" example:"user1"`                       // 节点创建者（owner）
+	AppID        int64                 `json:"app_id,omitempty" example:"1"`                          // 应用ID
+	RefID        int64                 `json:"ref_id,omitempty" example:"0"`                          // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
+	FullCodePath string                `json:"full_code_path,omitempty" example:"/beiluo/myapp/user"` // 完整代码路径
+	TemplateType string                `json:"template_type,omitempty" example:"form"`                // 模板类型（函数的类型，如 form、table）
+	Version      string                `json:"version,omitempty" example:"v1"`                        // 节点当前版本号（如 v1, v2），package类型表示目录版本，function类型表示函数版本等
+	VersionNum   int                   `json:"version_num,omitempty" example:"1"`                     // 节点当前版本号（数字部分）
+	HasFunction  bool                  `json:"has_function,omitempty" example:"true"`                 // ⭐ 是否有函数（仅对package类型有效）：如果该package下直接或间接包含function类型的子节点，则为true
+	RunCount     int                   `json:"run_count,omitempty"`                                   // ⭐ 运行次数（仅 function 类型有意义），用于排序与展示「已使用 N 次」
+	IsAdmin      bool                  `json:"is_admin,omitempty" example:"true"`                     // ⭐ 是否是管理员（企业版功能）：如果用户是工作空间管理员，则为 true，前端优先判断此字段，无需构造每个节点的权限
+	Permissions  map[string]bool       `json:"permissions"`                                           // ⭐ 权限信息（企业版功能）：权限点 -> 是否有权限（即使为空也返回 {}，避免前端 undefined）
+	Children     []*GetServiceTreeResp `json:"children,omitempty"`                                    // 子目录列表
 }
 
 // GetServiceTreeDetailReq 获取服务目录详情请求
@@ -72,22 +70,20 @@ type GetServiceTreeDetailReq struct {
 
 // GetServiceTreeDetailResp 获取服务目录详情响应
 type GetServiceTreeDetailResp struct {
-	ID              int64           `json:"id" example:"1"`                              // 服务目录ID
-	Name            string          `json:"name" example:"用户管理"`                         // 服务目录名称
-	Code            string          `json:"code" example:"user"`                         // 服务目录代码
-	Type            string          `json:"type" example:"package"`                      // 节点类型
-	Description     string          `json:"description" example:"用户相关的API接口"`            // 描述
-	Tags            string          `json:"tags" example:"user,management"`              // 标签
-	AppID           int64           `json:"app_id" example:"1"`                          // 应用ID
-	RefID           int64           `json:"ref_id" example:"0"`                          // 引用ID
-	FullCodePath    string          `json:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径
-	TemplateType    string          `json:"template_type,omitempty" example:"form"`      // 模板类型（函数的类型，如 form、table）
-	Version         string          `json:"version" example:"v1"`                        // 节点当前版本号
-	VersionNum      int             `json:"version_num" example:"1"`                     // 节点当前版本号（数字部分）
-	HubFullCodePath string          `json:"hub_full_code_path,omitempty" example:""`     // Hub 目录完整路径，用于绑定与详情 URL（前端用此拼详情 URL）
-	HubVersionNum   int             `json:"hub_version_num,omitempty" example:"0"`       // Hub目录版本号（数字部分），展示时格式化为 v{N}
-	RunCount        int             `json:"run_count,omitempty"`                         // ⭐ 运行次数（仅 function 类型有意义），用于展示「已使用 N 次」
-	Permissions     map[string]bool `json:"permissions"`                                 // ⭐ 权限标识（企业版功能）：权限点 -> 是否有权限（即使为空也返回 {}）
+	ID           int64           `json:"id" example:"1"`                              // 服务目录ID
+	Name         string          `json:"name" example:"用户管理"`                         // 服务目录名称
+	Code         string          `json:"code" example:"user"`                         // 服务目录代码
+	Type         string          `json:"type" example:"package"`                      // 节点类型
+	Description  string          `json:"description" example:"用户相关的API接口"`            // 描述
+	Tags         string          `json:"tags" example:"user,management"`              // 标签
+	AppID        int64           `json:"app_id" example:"1"`                          // 应用ID
+	RefID        int64           `json:"ref_id" example:"0"`                          // 引用ID
+	FullCodePath string          `json:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径
+	TemplateType string          `json:"template_type,omitempty" example:"form"`      // 模板类型（函数的类型，如 form、table）
+	Version      string          `json:"version" example:"v1"`                        // 节点当前版本号
+	VersionNum   int             `json:"version_num" example:"1"`                     // 节点当前版本号（数字部分）
+	RunCount     int             `json:"run_count,omitempty"`                         // ⭐ 运行次数（仅 function 类型有意义），用于展示「已使用 N 次」
+	Permissions  map[string]bool `json:"permissions"`                                 // ⭐ 权限标识（企业版功能）：权限点 -> 是否有权限（即使为空也返回 {}）
 }
 
 // UpdateServiceTreeMetadataReq 更新服务目录元数据请求

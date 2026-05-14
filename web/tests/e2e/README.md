@@ -79,8 +79,6 @@ E2E_USER_JSON='{"username":"system"}'
 - `service-tree-actions.spec.ts`: 服务树根目录动作与创建目录弹窗 smoke
 - `workstation-open.spec.ts`: 服务树打开迷你工作台 smoke
 - `workstation-composer.spec.ts`: 迷你工作台输入后发送按钮激活 smoke
-- `hub-dialogs.spec.ts`: 服务树打开发布/推送 Hub 弹窗 smoke
-- `pull-from-hub.spec.ts`: 全局粘贴 `hub://` 链接打开安装弹窗 smoke
 
 ## 常用命令
 
@@ -91,8 +89,6 @@ npm run test:e2e:workspace-nav
 npm run test:e2e:service-tree
 npm run test:e2e:workstation
 npm run test:e2e:workstation-compose
-npm run test:e2e:hub
-npm run test:e2e:pull-hub
 ```
 
 ## 和 MCP 的关系

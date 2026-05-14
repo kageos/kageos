@@ -4723,7 +4723,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "source_directory_path": {
-                    "description": "源目录完整路径或 Hub 链接（hub://host/path@version）",
+                    "description": "源目录完整路径",
                     "type": "string",
                     "example": "/luobei/app_a/hr"
                 },
@@ -6087,16 +6087,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "/beiluo/myapp/user"
                 },
-                "hub_full_code_path": {
-                    "description": "Hub 目录完整路径，用于绑定与详情 URL（前端用此拼详情 URL）",
-                    "type": "string",
-                    "example": ""
-                },
-                "hub_version_num": {
-                    "description": "Hub目录版本号（数字部分），展示时格式化为 v{N}",
-                    "type": "integer",
-                    "example": 0
-                },
                 "id": {
                     "description": "服务目录ID",
                     "type": "integer",
@@ -6189,16 +6179,6 @@ const docTemplate = `{
                     "description": "⭐ 是否有函数（仅对package类型有效）：如果该package下直接或间接包含function类型的子节点，则为true",
                     "type": "boolean",
                     "example": true
-                },
-                "hub_full_code_path": {
-                    "description": "Hub 目录完整路径，用于绑定与详情 URL（前端用此拼详情 URL）",
-                    "type": "string",
-                    "example": ""
-                },
-                "hub_version_num": {
-                    "description": "Hub目录版本号（数字部分），用于版本比较与展示（展示时格式化为 v{N}）",
-                    "type": "integer",
-                    "example": 0
                 },
                 "id": {
                     "description": "服务目录ID",

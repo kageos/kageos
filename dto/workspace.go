@@ -281,14 +281,12 @@ type WorkspaceContextNode struct {
 
 // WorkspaceContextDirectory 工作台环境目录信息
 type WorkspaceContextDirectory struct {
-	ID              int64  `json:"id"`
-	Name            string `json:"name"`               // 目录名称
-	Code            string `json:"code"`               // 目录代码
-	FullCodePath    string `json:"full_code_path"`     // 完整路径
-	Description     string `json:"description"`        // 目录描述
-	Type            string `json:"type"`               // 节点类型
-	PublishedToHub  bool   `json:"published_to_hub"`   // 当前目录是否已上架到应用中心（Hub）
-	HubFullCodePath string `json:"hub_full_code_path"` // 已上架时在 Hub 的目录路径，未上架时为空
+	ID           int64  `json:"id"`
+	Name         string `json:"name"`           // 目录名称
+	Code         string `json:"code"`           // 目录代码
+	FullCodePath string `json:"full_code_path"` // 完整路径
+	Description  string `json:"description"`    // 目录描述
+	Type         string `json:"type"`           // 节点类型
 }
 
 // WorkspaceContextFile 工作台环境文件信息
