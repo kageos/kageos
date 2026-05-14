@@ -82,7 +82,6 @@ declare module 'vue' {
     UserWidget: typeof import('./src/shared/components/UserWidget.vue')['default']
     VditorEditor: typeof import('./src/shared/components/VditorEditor.vue')['default']
     WorkspaceListDialog: typeof import('./src/shared/components/WorkspaceListDialog.vue')['default']
-    WorkspaceSettingsDialog: typeof import('./src/shared/components/WorkspaceSettingsDialog.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']
@@ -161,5 +160,4 @@ declare global {
   const UserWidget: typeof import('./src/shared/components/UserWidget.vue')['default']
   const VditorEditor: typeof import('./src/shared/components/VditorEditor.vue')['default']
   const WorkspaceListDialog: typeof import('./src/shared/components/WorkspaceListDialog.vue')['default']
-  const WorkspaceSettingsDialog: typeof import('./src/shared/components/WorkspaceSettingsDialog.vue')['default']
 }

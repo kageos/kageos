@@ -48,18 +48,6 @@
             <el-icon class="expand-icon"><ArrowUp /></el-icon>
           </div>
         </div>
-      
-      <!-- 设置按钮（仅管理员可见） -->
-      <el-button
-        v-if="currentApp && hasAdminPermission"
-        class="settings-button"
-        :class="{ 'settings-button-compact': compact }"
-        :icon="Setting"
-        circle
-        @click.stop="handleOpenSettings"
-        title="工作空间设置"
-        data-testid="app-switcher-settings"
-      />
     </div>
 
     <!-- 工作空间列表弹窗 -->
@@ -72,30 +60,19 @@
       @update-app="handleUpdateApp"
       @delete-app="handleDeleteApp"
     />
-
-    <!-- 工作空间设置弹窗 -->
-    <WorkspaceSettingsDialog
-      v-model="settingsDialogVisible"
-      :current-app="currentApp"
-      @saved="handleSettingsSaved"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { ArrowUp, ArrowDown, FolderOpened, Setting } from '@element-plus/icons-vue'
-import type { App, ServiceTree } from '@/types'
-import { useAuthStore } from '@/stores/auth'
-import { hasWorkspaceAdminAccess } from '@/utils/permissionActors'
+import { ref, watch } from 'vue'
+import { ArrowUp, ArrowDown, FolderOpened } from '@element-plus/icons-vue'
+import type { App } from '@/types'
 import WorkspaceListDialog from './WorkspaceListDialog.vue'
-import WorkspaceSettingsDialog from './WorkspaceSettingsDialog.vue'
 
 interface Props {
   currentApp: App | null
   appList: App[]
   loadingApps: boolean
-  serviceTree?: ServiceTree[]  // ⭐ 服务树（用于应用节点权限）
   compact?: boolean  // 紧凑模式：用于左侧边栏控制区
 }
 
@@ -109,20 +86,10 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
-const authStore = useAuthStore()
 
 const dialogVisible = ref(false)
-const settingsDialogVisible = ref(false)
 /** 本次打开工作空间列表是否强制必须选择/创建（从 /workspace/:user 进入时为 true） */
 const workspaceListForceSelect = ref(false)
-
-const hasAdminPermission = computed(() => {
-  return hasWorkspaceAdminAccess({
-    currentApp: props.currentApp,
-    currentUsername: authStore.user?.username,
-    serviceTree: props.serviceTree
-  })
-})
 
 // 应用颜色映射
 const appColors = [
@@ -169,17 +136,6 @@ const handleDeleteApp = (app: App) => {
   emit('delete-app', app)
 }
 
-// 打开设置对话框
-const handleOpenSettings = () => {
-  settingsDialogVisible.value = true
-}
-
-// 设置保存后的回调
-const handleSettingsSaved = () => {
-  // 触发重新加载应用列表，以获取最新的管理员信息
-  emit('load-apps')
-}
-
 // 供父组件（如 WorkspaceView）在进入 /workspace/:user 时打开选择工作空间弹窗
 // forceSelect: 为 true 时弹窗不可关闭，必须选择或创建一个工作空间
 function openWorkspaceListDialog(forceSelect = false) {
@@ -219,33 +175,6 @@ defineExpose({
   width: 220px;
   min-width: 220px;
   gap: 8px;
-}
-
-.settings-button {
-  flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  background: var(--el-fill-color-blank);
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 8px;
-  box-shadow: var(--box-shadow-sm);
-  transition: all 0.2s ease;
-  color: var(--el-text-color-secondary);
-
-  &:hover {
-    border-color: var(--el-color-primary);
-    color: var(--el-color-primary);
-    background: var(--el-fill-color-light);
-    box-shadow: 0 8px 18px rgba(var(--el-color-primary-rgb, 69, 88, 200), 0.12);
-  }
-
-  &.settings-button-compact {
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
-    font-size: 12px;
-    border-radius: 6px;
-  }
 }
 
 .app-current {
