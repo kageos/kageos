@@ -794,7 +794,7 @@ function getTablePreviewUrl(file: FileItem): string {
   margin-bottom: 8px;
 }
 
-/* 🔥 详情模式：参考旧版本的卡片式布局 */
+/* 🔥 详情模式：沿用卡片式详情布局 */
 .detail-files-header {
   display: flex;
   justify-content: space-between;

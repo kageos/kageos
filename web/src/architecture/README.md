@@ -17,8 +17,8 @@ architecture/
 ## 架构说明
 
 详细说明请参考：
-- `blueprint/新架构设计方案.md` - 完整架构设计文档
-- `blueprint/重构方案.md` - 重构方案和迁移计划
+- `web/README.md`：前端整体架构、目录职责与开发约定
+- 本目录下各层 README：application / domain / infrastructure / presentation / runtime 的边界说明
 
 ## 设计原则
 

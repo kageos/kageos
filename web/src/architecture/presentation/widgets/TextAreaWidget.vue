@@ -1,6 +1,6 @@
 <!--
   TextAreaWidget - 文本域组件
-  🔥 完全新增，不依赖旧代码
+  🔥 统一架构组件
 -->
 
 <template>

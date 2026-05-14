@@ -1,6 +1,6 @@
 /**
  * FormData Store - 表单数据管理
- * 🔥 完全新增，不依赖旧代码
+ * 🔥 统一架构组件
  * 
  * 功能：
  * - 存储所有字段的值（field_path -> FieldValue）

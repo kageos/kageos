@@ -1,6 +1,6 @@
 /**
  * useTableStatistics - TableWidget 聚合计算组合式函数
- * 🔥 完全新增，不依赖旧代码
+ * 🔥 统一架构组件
  * 
  * 功能：
  * - 自动从所有行的 meta.statistics 中收集聚合配置

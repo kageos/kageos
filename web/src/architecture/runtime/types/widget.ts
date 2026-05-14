@@ -2,7 +2,7 @@
  * Widget 相关类型定义
  * 
  * 🔥 重构说明：
- * - 移除了对旧版本 BaseWidget 的依赖
+ * - 不依赖 BaseWidget 的依赖
  * - FormRendererContext 接口保持兼容，但 registerWidget/unregisterWidget 已不再实际使用（v2 系统）
  * 
  * 🔥 统一类型系统：使用 WidgetTypes 命名空间
@@ -98,7 +98,7 @@ export interface WidgetStaticMethods {
  * Vue 的 markRaw 会移除响应式，但类型系统无法正确推断
  * 使用此类型可以安全地访问 Widget 的方法
  * 
- * 注意：此类型主要用于旧版本 Widget 系统，v2 系统不再使用
+ * 注意：此类型仅作为运行时兼容门面保留
  */
 export type MarkRawWidget = {
   render: () => any

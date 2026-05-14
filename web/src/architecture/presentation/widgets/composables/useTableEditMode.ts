@@ -1,6 +1,6 @@
 /**
  * useTableEditMode - TableWidget 编辑模式组合式函数
- * 🔥 完全新增，不依赖旧代码
+ * 🔥 统一架构组件
  */
 
 import { ref, computed } from 'vue'
