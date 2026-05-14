@@ -39,7 +39,7 @@
 - 实现 Domain Layer 定义的接口
 - 可以轻松替换实现（例如：从内存缓存切换到 Redis 缓存）
 - 提供技术能力，不包含业务逻辑
-- 允许复用 `src/architecture/runtime` 的稳定底座能力，例如提取器、常量、运行时工具
+- 运行期 Pinia store、HTTP、上传、缓存等技术实现收口在 infrastructure；导航端口从 `shared/routing/navigation` 引用
 - 不直接依赖 `presentation` 页面或组件；需要跳转时通过运行时导航端口完成
 
 ## 使用示例

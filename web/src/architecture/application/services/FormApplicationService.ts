@@ -79,6 +79,7 @@ import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { WorkspaceEvent, FormEvent } from '../../domain/interfaces/IEventBus'
 import type { FieldConfig, FunctionDetail } from '../../domain/types'
 import type { IFormGateway } from '../../domain/interfaces/IFormGateway'
+import { isFormStateManager } from '@/architecture/domain/interfaces/IFormStateManager'
 import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
 /**
@@ -147,7 +148,7 @@ export class FormApplicationService {
 
       // 保存响应数据到状态管理器
       const stateManager = this.domainService.getStateManager()
-      if (stateManager && typeof (stateManager as any).setResponse === 'function') {
+      if (isFormStateManager(stateManager)) {
         // 处理响应数据：如果 response 不是对象，包装成对象
         const responseData = response && typeof response === 'object' 
           ? response 
@@ -155,11 +156,11 @@ export class FormApplicationService {
         
         // 提取 metadata（从 response._metadata，由 request.ts 响应拦截器附加）
         const metadata = (response as any)?._metadata
-        if (metadata && typeof (stateManager as any).setMetadata === 'function') {
-          ;(stateManager as any).setMetadata(metadata)
+        if (metadata) {
+          stateManager.setMetadata(metadata)
         }
         
-        ;(stateManager as any).setResponse(responseData)
+        stateManager.setResponse(responseData)
       }
 
       // 触发事件

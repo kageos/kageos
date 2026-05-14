@@ -38,13 +38,13 @@
 
 - 前端源码入口已经统一收口到 `src/architecture/`
 - `src/architecture/presentation/` 承载页面、业务入口、共享展示组件、Widget 和样式资源
-- `src/architecture/runtime/` 承载运行时底座、工具函数、提取器、校验和 Widget 运行时纯逻辑
-- 默认启用产品聚焦模式，普通用户入口优先保留工作空间、服务树、工作台、Form/Table/Chart、Docs 和 LLM 管理；组织、消息、操作日志、定时任务等入口由 `src/architecture/runtime/config/features.ts` 统一控制
+- 领域规则、提取器、表达式、配置和无状态工具已经分别收口到 `domain`、`shared`、`infrastructure`、`presentation`
+- 默认启用产品聚焦模式，普通用户入口优先保留工作空间、服务树、工作台、Form/Table/Chart、Docs 和 LLM 管理；组织、消息、操作日志、定时任务等入口由 `src/architecture/shared/config/features.ts` 统一控制
 - 因此前端当前真实状态是：**源码目录已经统一到 `architecture/`，不再保留顶层新旧混合入口**
 
 ### 1.4 产品聚焦模式
 
-前端通过 `src/architecture/runtime/config/features.ts` 管理可见能力。`VITE_AOS_FOCUSED_MODE` 默认开启；开启后，组织、消息、定时任务、操作日志、讨论区、企业升级等高级入口默认隐藏，但路由和后端接口仍保留兼容。
+前端通过 `src/architecture/shared/config/features.ts` 管理可见能力。`VITE_AOS_FOCUSED_MODE` 默认开启；开启后，组织、消息、定时任务、操作日志、讨论区、企业升级等高级入口默认隐藏，但路由和后端接口仍保留兼容。
 
 常用开关：
 
@@ -156,31 +156,13 @@ web/
 - 新增业务逻辑 → `domain/services/`
 - 新增基础设施 → `infrastructure/`
 
-#### 🎯 architecture/runtime/ - 运行时基础能力层
-
-**作用**：提供当前仍在主链路中使用的稳定基础能力，是架构内的运行时底座。
-
-| 子目录 | 职责 | 示例 |
-|--------|------|------|
-| `stores/` | 状态管理 | formData.ts, extractors/ |
-| `constants/` | 共享常量 | widget.ts |
-| `managers/` | 运行期管理器 | 运行期加载/缓存管理 |
-| `widgetRuntime/` | Widget 默认值、校验等中性运行时能力 | defaultValue.ts, validation.ts |
-| `utils/` | 工具函数 | logger.ts |
-| `validation/` | 验证引擎 | ValidationEngine.ts |
-
-**何时添加代码**：
-- 新增提取器 → `stores/extractors/`
-- 新增基础常量/校验能力 → `constants/` / `validation/`
-- 新增底层工具函数 → `utils/`
-
 #### 🧩 presentation/features/ / presentation/shared/
 
 **作用**：
 
 - `presentation/features/`：组织、用户、认证、消息、Agent 配置等横向业务入口
 - `presentation/shared/`：跨业务共享组件、富文本编辑器、通用展示组件
-- `runtime/utils/`：与具体页面无关的运行时工具函数
+- `shared/`：跨层无状态工具、路由端口和产品配置
 
 ---
 
@@ -425,7 +407,7 @@ widgetComponentFactory.registerResponseComponent('rich_text_editor', RichTextRes
 
 **如果需要特殊提交提取逻辑**（通常简单组件不需要）：
 
-文件位置：`src/architecture/runtime/stores/extractors/RichTextEditorFieldExtractor.ts`
+文件位置：`src/architecture/domain/form/extractors/RichTextEditorFieldExtractor.ts`
 
 ```typescript
 import type { IFieldExtractor, FieldExtractorRegistry } from './FieldExtractor'
@@ -447,7 +429,7 @@ export class RichTextEditorFieldExtractor implements IFieldExtractor {
 
 #### 步骤 4：（可选）注册提取器
 
-文件位置：`src/architecture/runtime/stores/extractors/FieldExtractorRegistry.ts`
+文件位置：`src/architecture/domain/form/extractors/FieldExtractorRegistry.ts`
 
 ```typescript
 import { RichTextEditorFieldExtractor } from './RichTextEditorFieldExtractor'
@@ -786,7 +768,7 @@ export class TableApplicationService {
 1. 创建导出工具：
 
 ```typescript
-// src/architecture/runtime/utils/export.ts
+// src/architecture/presentation/utils/export.ts
 import * as XLSX from 'xlsx'
 
 export class ExportUtil {
@@ -858,7 +840,7 @@ function handleExport(format: 'excel' | 'csv') {
 ```
 
 **代码位置**：
-- 工具类: `src/architecture/runtime/utils/export.ts`
+- 工具类: `src/architecture/presentation/utils/export.ts`
 - Domain Service: `src/architecture/domain/services/TableDomainService.ts`
 
 ---
@@ -1000,7 +982,7 @@ const HeavyComponent = defineAsyncComponent(() =>
 - **表单组件（Widget）** → `src/architecture/presentation/widgets/`
 - **跨业务共享组件** → `src/architecture/presentation/shared/components/`
 - **页面组件（View）** → `src/architecture/presentation/views/`
-- **Widget 默认值/校验等运行时能力** → `src/architecture/runtime/widgetRuntime/`
+- **Widget 默认值/校验等领域规则** → `src/architecture/domain/utils/`
 
 ### Q2: 新增业务逻辑时，应该放在哪一层？
 
@@ -1010,7 +992,7 @@ const HeavyComponent = defineAsyncComponent(() =>
 - **流程编排** → Application Layer (`src/architecture/application/services/`)
 - **UI 交互** → Presentation Layer (`src/architecture/presentation/views/`)
 - **技术实现** → Infrastructure Layer (`src/architecture/infrastructure/`)
-- **跨业务共享但不属于主页面流程的通用能力** → `src/architecture/runtime/` / `src/architecture/presentation/shared/` / `src/architecture/runtime/utils/`
+- **跨业务共享但不属于主页面流程的通用能力** → `src/architecture/shared/` / `src/architecture/presentation/shared/`
 
 ### Q3: 如何在组件之间通信？
 
@@ -1031,7 +1013,7 @@ eventBus.on(FormEvent.fieldUpdated, (data) => {
 **A**: 使用 Pinia Store：
 
 ```typescript
-import { useFormDataStore } from '@/architecture/runtime/stores/formData'
+import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
 
 const formDataStore = useFormDataStore()
 const value = formDataStore.getValue('business_info.industry')

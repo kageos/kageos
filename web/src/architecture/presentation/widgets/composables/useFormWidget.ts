@@ -10,7 +10,7 @@
 
 import { computed } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/architecture/runtime/stores/formData'
+import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
 import { getFieldPresenceState } from '@/architecture/domain/utils/conditionEvaluator'
 import { syncFormContainerValue } from '@/architecture/domain/utils/containerValue'

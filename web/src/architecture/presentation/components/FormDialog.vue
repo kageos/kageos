@@ -62,7 +62,7 @@ import FormView from '@/architecture/presentation/views/FormView.vue'
 import { Logger } from '@/architecture/shared/logger'
 import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
 import ScheduledTaskDialog from '@/architecture/presentation/components/ScheduledTaskDialog.vue'
-import { featureFlags } from '@/architecture/runtime/config/features'
+import { featureFlags } from '@/architecture/shared/config/features'
 
 interface Props {
   modelValue: boolean  // 对话框显示状态

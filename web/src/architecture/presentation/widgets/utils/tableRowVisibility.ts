@@ -1,5 +1,5 @@
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
-import type { FormDataStore } from '@/architecture/runtime/stores/formData'
+import type { FormDataStore } from '@/architecture/infrastructure/stores/formData'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
 import { getFieldPresenceState } from '@/architecture/domain/utils/conditionEvaluator'
 import {

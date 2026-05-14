@@ -10,7 +10,7 @@
  */
 
 import type { Component } from 'vue'
-import type { IFieldExtractor } from '@/architecture/runtime/stores/extractors/FieldExtractor'
+import type { IFieldExtractor } from '@/architecture/domain/form/extractors/FieldExtractor'
 import type { IWidgetInitializer } from '@/architecture/presentation/widgets/interfaces/IWidgetInitializer'
 
 /**

@@ -1,7 +1,7 @@
 import { computed, defineComponent } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
-import { useFormDataStore } from '@/architecture/runtime/stores/formData'
+import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
 import { createEmptyFieldValue, createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import { renderTableCell } from '@/architecture/presentation/widgets/utils/tableCellRenderer'
 import { widgetComponentFactory } from '@/architecture/presentation/widgets/registry'

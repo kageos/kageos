@@ -77,7 +77,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/architecture/runtime/stores/formData'
+import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import type { ColorWidgetConfig } from '@/architecture/domain/types/widget-configs'
 

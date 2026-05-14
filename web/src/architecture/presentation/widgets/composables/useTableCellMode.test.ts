@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useTableCellMode } from './useTableCellMode'
-import { useFormDataStore } from '@/architecture/runtime/stores/formData'
+import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
 
 function createFieldValue(raw: any) {
   return {

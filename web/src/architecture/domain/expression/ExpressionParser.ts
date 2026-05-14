@@ -1,5 +1,5 @@
 /**
- * ExpressionParserV2 - 新一代聚合计算表达式解析引擎
+ * ExpressionParser - 新一代聚合计算表达式解析引擎
  * 
  * 表达式语法与 MySQL/SQL 保持一致，避免大模型混淆。
  * 
@@ -887,9 +887,9 @@ class Evaluator {
 // ================ 聚合函数 ================
 
 /**
- * ExpressionParserV2 - 新一代表达式解析器
+ * ExpressionParser - 新一代表达式解析器
  */
-export class ExpressionParserV2 {
+export class ExpressionParser {
   /**
    * 计算表达式
    * @param expression 表达式字符串
@@ -930,7 +930,7 @@ export class ExpressionParserV2 {
         return this.evaluateRowAggregation(funcName, argsStr, data)
       }
     } catch (error) {
-      Logger.error('ExpressionParserV2', `计算表达式失败: ${expression}`, error)
+      Logger.error('ExpressionParser', `计算表达式失败: ${expression}`, error)
       return 0
     }
   }
@@ -960,7 +960,7 @@ export class ExpressionParserV2 {
         return this.calculateMax(ast, data)
       
       default:
-        Logger.warn('ExpressionParserV2', `未知函数: ${funcName}`)
+        Logger.warn('ExpressionParser', `未知函数: ${funcName}`)
         return 0
     }
   }
@@ -988,7 +988,7 @@ export class ExpressionParserV2 {
         return this.calculateListMax(field, data)
       
       default:
-        Logger.warn('ExpressionParserV2', `未知 List 函数: list_${funcName}`)
+        Logger.warn('ExpressionParser', `未知 List 函数: list_${funcName}`)
         return 0
     }
   }
@@ -1012,7 +1012,7 @@ export class ExpressionParserV2 {
         const value = Evaluator.evaluate(ast, row)
         return sum + Number(value || 0)
       } catch (error) {
-        Logger.warn('ExpressionParserV2', `计算行数据失败`, error)
+        Logger.warn('ExpressionParser', `计算行数据失败`, error)
         return sum
       }
     }, 0)
@@ -1032,7 +1032,7 @@ export class ExpressionParserV2 {
           values.add(String(value))
         }
       } catch (error) {
-        Logger.warn('ExpressionParserV2', `计算行数据失败`, error)
+        Logger.warn('ExpressionParser', `计算行数据失败`, error)
       }
     })
     

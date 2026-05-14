@@ -12,7 +12,10 @@ function createStateManager(initialState: WorkspaceState): IStateManager<Workspa
   return {
     getState: () => state,
     setState: (nextState) => {
-      state = nextState
+      state = {
+        ...state,
+        ...nextState
+      }
     },
     subscribe: () => () => {},
     clear: () => {

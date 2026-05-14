@@ -14,7 +14,7 @@
 
 import { computed, ref } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/architecture/runtime/stores/formData'
+import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
 import {
   captureFieldTreeSnapshot,
   restoreFieldTreeSnapshot,

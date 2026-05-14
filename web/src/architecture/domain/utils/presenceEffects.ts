@@ -4,12 +4,10 @@ import { clearFieldSubtree, createClearedFieldValue } from './fieldReset'
 
 interface PresenceEffectStore {
   getValue(fieldPath: string): FieldValue
+  hasValue(fieldPath: string): boolean
   setValue(fieldPath: string, value: FieldValue): void
   deleteValue(fieldPath: string): void
   getAllFieldPaths(): string[]
-  data: {
-    has(fieldPath: string): boolean
-  }
 }
 
 export function applyScopedPresenceEffects(options: {
@@ -21,7 +19,7 @@ export function applyScopedPresenceEffects(options: {
   const scopePath = options.scopePath || ''
   const formManager = {
     getValue: (fieldPath: string) => options.formDataStore.getValue(fieldPath),
-    hasValue: (fieldPath: string) => options.formDataStore.data.has(fieldPath),
+    hasValue: (fieldPath: string) => options.formDataStore.hasValue(fieldPath),
   }
 
   options.fields.forEach((field) => {

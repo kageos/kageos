@@ -9,9 +9,9 @@
  */
 
 import { computed, ref, watch } from 'vue'
-import { ExpressionParserAdapter } from '@/architecture/runtime/utils/ExpressionParserAdapter'
+import { ExpressionEvaluator } from '@/architecture/domain/expression/ExpressionEvaluator'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/architecture/runtime/stores/formData'
+import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
 import { Logger } from '@/architecture/shared/logger'
 
 export function useTableStatistics(
@@ -129,8 +129,8 @@ export function useTableStatistics(
       
       for (const [label, expression] of Object.entries(statisticsConfig.value)) {
         try {
-          // 🔥 使用适配器，自动支持新旧两种语法
-          const value = ExpressionParserAdapter.evaluate(expression, allRows)
+          // 🔥 使用领域表达式入口，兼容旧语法
+          const value = ExpressionEvaluator.evaluate(expression, allRows)
           result[label] = value
         } catch (error) {
           Logger.error('useTableStatistics', `计算失败: ${label} = ${expression}`, error)

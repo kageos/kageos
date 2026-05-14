@@ -75,6 +75,12 @@
  */
 
 import type { IStateManager } from '../interfaces/IStateManager'
+import {
+  isFormStateManager,
+  isFormValueStorePort,
+  type FormValueStorePort,
+  type IFormStateManager
+} from '../interfaces/IFormStateManager'
 import type { IEventBus } from '../interfaces/IEventBus'
 import { FormEvent } from '../interfaces/IEventBus'
 import type { FieldConfig, FieldValue, FormState, ValidationResult } from '../types'
@@ -134,6 +140,28 @@ export class FormDomainService {
     private options: FormDomainServiceOptions = {}
   ) {}
 
+  private get formStateManager(): IFormStateManager | null {
+    return isFormStateManager(this.stateManager) ? this.stateManager : null
+  }
+
+  private get formValueStore(): FormValueStorePort | null {
+    return isFormValueStorePort(this.stateManager) ? this.stateManager : null
+  }
+
+  private getDataSnapshot(): Map<string, FieldValue> {
+    const formStateManager = this.formStateManager
+    if (formStateManager) {
+      return formStateManager.getDataSnapshot()
+    }
+
+    const state = this.stateManager.getState()
+    return new Map(state.data || new Map())
+  }
+
+  private getValidationValueReader(): FormValueStorePort | FormStateManagerAdapter {
+    return this.formValueStore || new FormStateManagerAdapter(this.stateManager)
+  }
+
   /**
    * 设置字段配置（用于处理依赖）
    */
@@ -151,26 +179,14 @@ export class FormDomainService {
     // 更新字段配置
     this.fields = fields
 
-    // 🔥 关键修复：从 formStore.data 获取当前数据，而不是从 state.data
-    // 因为刷新后 state.data 可能是空的，但 formStore.data 可能有数据（从 URL 参数恢复或用户输入）
-    const stateManager = this.stateManager as any
-    let currentData: Map<string, FieldValue>
-    
-    if (stateManager && stateManager.formStore && stateManager.formStore.data) {
-      // 从 formStore.data 获取当前数据（这是真实的数据源）
-      currentData = new Map(stateManager.formStore.data)
-    } else {
-      // 如果 formStore 不可用，从 state 获取（向后兼容）
-      const state = this.stateManager.getState()
-      currentData = new Map(state.data || new Map())
-    }
+    const currentData = this.getDataSnapshot()
 
     const state = this.stateManager.getState()
     const newData = new Map<string, FieldValue>()
 
     fields.forEach(field => {
       const fieldCode = field.code
-      // 🔥 优先从 currentData（formStore.data）获取，如果没有则从 state.data 获取
+      // 优先从表单状态端口快照获取，保留运行期已补齐的 display/meta。
       const existingValue = currentData.get(fieldCode) || state.data?.get(fieldCode)
       const hasInitialData = initialData && initialData.hasOwnProperty(fieldCode)
       const initialRawValue = hasInitialData ? initialData[fieldCode] : undefined
@@ -277,10 +293,11 @@ export class FormDomainService {
       submitting: false
     })
 
-    if (stateManager?.formStore) {
+    const formValueStore = this.formValueStore
+    if (formValueStore) {
       applyScopedPresenceEffects({
         fields,
-        formDataStore: stateManager.formStore,
+        formDataStore: formValueStore,
       })
     }
 
@@ -294,20 +311,7 @@ export class FormDomainService {
    * 🔥 更新字段值时，立即清除该字段的所有错误，避免显示过时的错误消息
    */
   updateFieldValue(fieldCode: string, value: FieldValue): void {
-    // 🔥 关键修复：直接从 formStore 获取当前数据，而不是从 state.data
-    // 因为刷新后 state.data 可能是空的，但 formStore.data 可能有数据（从 URL 参数恢复）
-    const stateManager = this.stateManager as any
-    let currentData: Map<string, FieldValue>
-    
-    if (stateManager && stateManager.formStore && stateManager.formStore.data) {
-      // 从 formStore.data 获取当前数据（这是真实的数据源）
-      // 🔥 创建新的 Map，确保不会修改原始 Map
-      currentData = new Map(stateManager.formStore.data)
-    } else {
-      // 如果 formStore 不可用，从 state 获取（向后兼容）
-      const state = this.stateManager.getState()
-      currentData = new Map(state.data || new Map())
-    }
+    const currentData = this.getDataSnapshot()
     
     // 更新字段值
     currentData.set(fieldCode, value)
@@ -319,19 +323,20 @@ export class FormDomainService {
     newErrors.delete(fieldCode)  // 清除该字段的所有错误
 
     // 🔥 更新状态：只传递 data 和 errors，不传递其他字段，避免覆盖
-    // setState 会合并更新，不会清空 formStore.data
+    // setState 只更新 data 和 errors，避免覆盖提交状态和响应状态。
     this.stateManager.setState({ 
       data: currentData,
       errors: newErrors
-    } as any)
+    })
 
     // 处理字段依赖
     this.handleDependency(fieldCode)
 
-    if (stateManager?.formStore) {
+    const formValueStore = this.formValueStore
+    if (formValueStore) {
       applyScopedPresenceEffects({
         fields: this.fields,
-        formDataStore: stateManager.formStore,
+        formDataStore: formValueStore,
         clearFieldErrors: (fieldPath, clearOptions) => this.clearFieldErrors(fieldPath, clearOptions?.includeSubtree || false),
       })
     }
@@ -344,8 +349,7 @@ export class FormDomainService {
    * 处理字段依赖（depend_on）
    */
   private handleDependency(fieldCode: string): void {
-    const stateManager = this.stateManager as any
-    const formDataStore = stateManager?.formStore
+    const formDataStore = this.formValueStore
 
     if (!formDataStore) {
       return
@@ -373,7 +377,7 @@ export class FormDomainService {
 
     this.stateManager.setState({
       errors: newErrors
-    } as any)
+    })
   }
 
   /**
@@ -394,7 +398,7 @@ export class FormDomainService {
     // 初始化验证引擎（如果还没有初始化或字段配置变化）
     if (!this.validationEngine || this.fields !== fields) {
       const registry = createDefaultValidatorRegistry()
-      const formManagerAdapter = new FormStateManagerAdapter(this.stateManager)
+      const formManagerAdapter = this.getValidationValueReader()
       this.validationEngine = new ValidationEngine(
         registry,
         formManagerAdapter,
@@ -407,7 +411,7 @@ export class FormDomainService {
       validationEngine: this.validationEngine,
       allFields: fields,
       fieldErrors: errors,
-      formDataStore: this.stateManager as any
+      formDataStore: this.getValidationValueReader()
     }
 
     fields.forEach(field => {
@@ -492,7 +496,7 @@ export class FormDomainService {
 
     this.stateManager.setState({
       errors: newErrors
-    } as any)
+    })
   }
 
   /**
@@ -500,23 +504,17 @@ export class FormDomainService {
    * 🔥 委托给 StateManager，使用 FieldExtractorRegistry 进行递归提取
    */
   getSubmitData(fields: FieldConfig[]): Record<string, any> {
-    // 🔥 委托给 FormStateManager.getSubmitData()，它会使用 FieldExtractorRegistry
-    const stateManager = this.stateManager as any
-    if (stateManager && typeof stateManager.getSubmitData === 'function') {
-      const submitData = stateManager.getSubmitData(fields)
-      const formDataStore = stateManager.formStore
+    const formStateManager = this.formStateManager
+    if (formStateManager) {
+      const submitData = formStateManager.getSubmitData(fields)
 
-      if (formDataStore) {
-        // getSubmitData 先按字段结构提取 raw 值，再按 presence rule 递归剔除 excluded 字段。
-        return sanitizeExcludedSubmitData(fields, submitData, {
-          formManager: {
-            getValue: (fieldPath: string) => formDataStore.getValue(fieldPath),
-            hasValue: (fieldPath: string) => formDataStore.data.has(fieldPath),
-          }
-        })
-      }
-
-      return submitData
+      // getSubmitData 先按字段结构提取 raw 值，再按 presence rule 递归剔除 excluded 字段。
+      return sanitizeExcludedSubmitData(fields, submitData, {
+        formManager: {
+          getValue: (fieldPath: string) => formStateManager.getValue(fieldPath),
+          hasValue: (fieldPath: string) => formStateManager.hasValue(fieldPath),
+        }
+      })
     }
     
     Logger.warn('FormDomainService', 'stateManager.getSubmitData 方法不存在，返回空对象')
@@ -530,19 +528,13 @@ export class FormDomainService {
   setSubmitting(submitting: boolean): void {
     // 🔥 直接调用 StateManager 的 setSubmitting 方法，而不是 setState
     // 这样可以避免传递整个 state 对象，防止意外清空数据
-    const stateManager = this.stateManager as any
-    if (stateManager && typeof stateManager.setSubmitting === 'function') {
-      stateManager.setSubmitting(submitting)
+    const formStateManager = this.formStateManager
+    if (formStateManager) {
+      formStateManager.setSubmitting(submitting)
     } else {
-      // 如果 StateManager 没有 setSubmitting 方法，使用 setState 但只传递 submitting
-      // ⚠️ 注意：不传递 data 字段，这样 setState 不会清空数据
-      const state = this.stateManager.getState()
       this.stateManager.setState({
-        ...state,
         submitting,
-        // 🔥 不传递 data 字段，保持原有数据不变
-        data: undefined as any
-      } as any)
+      })
     }
   }
 
@@ -550,13 +542,11 @@ export class FormDomainService {
    * 清空表单
    */
   clearForm(): void {
-    const stateManager = this.stateManager as any
     // 清空响应数据
-    if (stateManager && typeof stateManager.setResponse === 'function') {
-      stateManager.setResponse(null)
-    }
-    if (stateManager && typeof stateManager.setMetadata === 'function') {
-      stateManager.setMetadata(null)
+    const formStateManager = this.formStateManager
+    if (formStateManager) {
+      formStateManager.setResponse(null)
+      formStateManager.setMetadata(null)
     }
     
     this.stateManager.setState({

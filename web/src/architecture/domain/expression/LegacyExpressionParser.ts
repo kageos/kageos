@@ -19,7 +19,7 @@
 
 import { Logger } from '@/architecture/shared/logger'
 
-export class ExpressionParser {
+export class LegacyExpressionParser {
   /**
    * 计算表达式
    * @param expression 表达式字符串，如 "sum(价格)", "sum(价格,*数量)", "selected(价格)"

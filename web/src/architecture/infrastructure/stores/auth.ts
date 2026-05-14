@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 import { login as loginApi, logout as logoutApi, getUserInfo, refreshToken as refreshTokenApi } from '@/architecture/infrastructure/api/auth'
 import { updateUser as updateUserApi, type UpdateUserReq } from '@/architecture/infrastructure/api/user'
 import type { UserInfo, LoginRequest } from '@/architecture/domain/types'
-import { getCurrentRoutePath, navigateTo } from '@/architecture/runtime/utils/navigation'
+import { getCurrentRoutePath, navigateTo } from '@/architecture/shared/routing/navigation'
 
 export const useAuthStore = defineStore('auth', () => {
   interface LogoutOptions {

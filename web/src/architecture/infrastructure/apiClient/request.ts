@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { Logger } from '@/architecture/shared/logger'
 import { getApiBaseURL } from '@/architecture/infrastructure/config/runtime'
-import { getCurrentRouteFullPath, getCurrentRoutePath, navigateTo } from '@/architecture/runtime/utils/navigation'
+import { getCurrentRouteFullPath, getCurrentRoutePath, navigateTo } from '@/architecture/shared/routing/navigation'
 import type { ApiResponse } from '@/architecture/domain/types'
 import { extractApiMessage, isAuthExpiredBusinessResponse, isRefreshRequestUrl } from './authSession'
 

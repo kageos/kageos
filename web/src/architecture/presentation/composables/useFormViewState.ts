@@ -32,18 +32,15 @@ export function useFormViewState(options: UseFormViewStateOptions) {
   const requestFields = computed(() => getFormRequestFields(options.functionDetail.value) as FieldConfig[])
   const responseFields = computed(() => getFormResponseFields(options.functionDetail.value) as FieldConfig[])
   const formManager = computed(() => {
-    const stateManager = options.stateManager as any
-    const formStore = stateManager?.formStore
-
     return {
       getValue: (fieldPath: string) => options.stateManager.getValue(fieldPath),
-      hasValue: (fieldPath: string) => Boolean(formStore?.data?.has(fieldPath) || options.stateManager.getState().data?.has(fieldPath))
+      hasValue: (fieldPath: string) => options.stateManager.hasValue(fieldPath)
     }
   })
 
   const visibleRequestFields = computed(() =>
     requestFields.value.filter((field) =>
-      getFieldPresenceState(field, formManager.value as any, requestFields.value, field.code).visible
+      getFieldPresenceState(field, formManager.value, requestFields.value, field.code).visible
     )
   )
 
@@ -124,7 +121,7 @@ export function useFormViewState(options: UseFormViewStateOptions) {
   }
 
   const isFieldRequired = (field: FieldConfig): boolean => {
-    return getFieldPresenceState(field, formManager.value as any, requestFields.value, field.code).required
+    return getFieldPresenceState(field, formManager.value, requestFields.value, field.code).required
   }
 
   const handleFieldUpdate = (fieldCode: string, value: FieldValue): void => {

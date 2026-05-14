@@ -42,7 +42,7 @@ export class StateManagerImpl<T> implements IStateManager<T> {
   /**
    * 设置状态
    */
-  setState(newState: T): void {
+  setState(newState: Partial<T>): void {
     // 🔥 防重入：如果正在设置状态，跳过（防止无限循环）
     if (this.isSettingState) {
       Logger.warn('StateManager', '检测到重入的 setState 调用，已跳过以防止无限循环', {
@@ -55,7 +55,10 @@ export class StateManagerImpl<T> implements IStateManager<T> {
       this.isSettingState = true
       
       // 更新 ref 的值，触发 Vue 的响应式更新
-      this.stateRef.value = newState
+      this.stateRef.value = {
+        ...this.stateRef.value,
+        ...newState
+      }
       
       // 通知手动订阅者（非 Vue 组件）
       this.notifySubscribers()
@@ -125,4 +128,3 @@ export class StateManagerImpl<T> implements IStateManager<T> {
     )
   }
 }
-
