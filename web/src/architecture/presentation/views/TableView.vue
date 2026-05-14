@@ -720,7 +720,7 @@ import { getFunctionCallbacks, getTableCreateFields } from '@/architecture/domai
 import { normalizeStorageFileDisplayUrl } from '@/architecture/presentation/utils/storageFileUrl'
 import { getFieldWidgetOptionColors } from '@/architecture/domain/utils/widgetOptionColors'
 import { isWidgetConfigFlagEnabled } from '@/architecture/domain/utils/widgetConfigFlag'
-import { deriveThumbnailPreviewUrl } from '@/architecture/runtime/utils/storagePreviewUrl'
+import { deriveThumbnailPreviewUrl } from '@/architecture/shared/storagePreviewUrl'
 import { writeTablePageSizePreference } from './utils/tablePageSizePreference'
 
 const props = defineProps<{
