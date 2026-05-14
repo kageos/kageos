@@ -5,7 +5,7 @@
 
 import { WidgetType } from '@/architecture/domain/constants/widget'
 import { SearchType, SearchComponent, SearchConfig, hasSearchType, hasAllSearchTypes } from '@/architecture/domain/constants/search'
-import { generatePlaceholder } from '@/architecture/runtime/utils/stringUtils'
+import { generatePlaceholder } from '@/architecture/domain/utils/stringUtils'
 import type { FieldConfig } from '@/architecture/domain/types/field'
 
 /**

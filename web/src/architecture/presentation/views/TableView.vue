@@ -719,7 +719,7 @@ import { createAutoFieldValue, createEmptyRawFieldValue } from '@/architecture/d
 import { getFunctionCallbacks, getTableCreateFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 import { normalizeStorageFileDisplayUrl } from '@/architecture/presentation/utils/storageFileUrl'
 import { getFieldWidgetOptionColors } from '@/architecture/domain/utils/widgetOptionColors'
-import { isWidgetConfigFlagEnabled } from '@/architecture/runtime/utils/widgetConfigFlag'
+import { isWidgetConfigFlagEnabled } from '@/architecture/domain/utils/widgetConfigFlag'
 import { deriveThumbnailPreviewUrl } from '@/architecture/runtime/utils/storagePreviewUrl'
 import { writeTablePageSizePreference } from './utils/tablePageSizePreference'
 

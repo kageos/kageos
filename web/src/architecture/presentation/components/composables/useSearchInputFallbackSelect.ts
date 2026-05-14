@@ -1,5 +1,5 @@
 import { computed, nextTick, ref, type ComputedRef, type Ref } from 'vue'
-import { parseCommaSeparatedString } from '@/architecture/runtime/utils/stringUtils'
+import { parseCommaSeparatedString } from '@/architecture/domain/utils/stringUtils'
 import { SearchComponent } from '@/architecture/domain/constants/search'
 import { WidgetType } from '@/architecture/domain/constants/widget'
 import { buildSelectionSummary } from '@/architecture/presentation/widgets/utils/selectionSummary'
