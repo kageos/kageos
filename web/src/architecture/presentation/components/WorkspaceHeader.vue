@@ -315,9 +315,6 @@ const handleUserCommand = (command: string) => {
     case 'organization':
       router.push('/organization')
       break
-    case 'roles':
-      router.push('/permissions/roles')
-      break
     case 'upgrade':
       showUpgradeDialog.value = true
       break

@@ -65,29 +65,6 @@ const router = createRouter({
       }
     },
 
-    // 权限申请页面
-    {
-      path: '/permissions/apply',
-      name: 'permission-apply',
-      component: () => import('../features/permission/pages/PermissionApplyPage.vue'),
-      meta: {
-        title: '权限申请',
-        requireAuth: true,
-        feature: 'permissions'
-      }
-    },
-    // 角色管理页面
-    {
-      path: '/permissions/roles',
-      name: 'role-management',
-      component: () => import('../features/permission/pages/RoleManagementPage.vue'),
-      meta: {
-        title: '角色管理',
-        requireAuth: true,
-        feature: 'permissions'
-      }
-    },
-
     // LLM 配置
     {
       path: '/agent',

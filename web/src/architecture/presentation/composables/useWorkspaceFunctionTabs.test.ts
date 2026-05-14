@@ -2,11 +2,10 @@ import { computed, effectScope, nextTick, ref } from 'vue'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { useWorkspaceFunctionTabs } from './useWorkspaceFunctionTabs'
 
-const { successMock, warningMock, errorMock, isAdminMock } = vi.hoisted(() => ({
+const { successMock, warningMock, errorMock } = vi.hoisted(() => ({
   successMock: vi.fn(),
   warningMock: vi.fn(),
-  errorMock: vi.fn(),
-  isAdminMock: vi.fn(() => false)
+  errorMock: vi.fn()
 }))
 
 vi.mock('element-plus', () => ({
@@ -17,25 +16,11 @@ vi.mock('element-plus', () => ({
   }
 }))
 
-vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => ({
-    user: {
-      username: 'liubeiluo'
-    }
-  })
-}))
-
-vi.mock('@/utils/permissionActors', () => ({
-  isServiceTreeNodeAdmin: isAdminMock
-}))
-
 describe('useWorkspaceFunctionTabs', () => {
   beforeEach(() => {
     successMock.mockReset()
     warningMock.mockReset()
     errorMock.mockReset()
-    isAdminMock.mockReset()
-    isAdminMock.mockReturnValue(false)
   })
 
   it('waits for the form view ref before applying an operate log', async () => {
@@ -149,12 +134,10 @@ describe('useWorkspaceFunctionTabs', () => {
     }
   })
 
-  it('keeps permission panel deep links compatible after flattening tabs', async () => {
+  it('ignores retired permission panel deep links', async () => {
     const scope = effectScope()
 
     try {
-      isAdminMock.mockReturnValue(true)
-
       const route = {
         path: '/workspace/demo/app/function',
         query: {
@@ -179,19 +162,16 @@ describe('useWorkspaceFunctionTabs', () => {
         currentFunctionDetail
       }))!
 
-      expect(tabs.showFunctionPermissionTabs.value).toBe(true)
-      expect(tabs.functionActiveTab.value).toBe('permissionRequest')
+      expect(tabs.functionActiveTab.value).toBe('content')
     } finally {
       scope.stop()
     }
   })
 
-  it('syncs flattened permission tabs back to route query values', async () => {
+  it('normalizes retired permission tab changes back to content', async () => {
     const scope = effectScope()
 
     try {
-      isAdminMock.mockReturnValue(true)
-
       const route = {
         path: '/workspace/demo/app/function',
         query: {}
@@ -216,13 +196,8 @@ describe('useWorkspaceFunctionTabs', () => {
 
       tabs.handleFunctionTabChange('permissionManage')
 
-      expect(tabs.functionActiveTab.value).toBe('permissionManage')
-      expect(router.replace).toHaveBeenCalledWith({
-        path: '/workspace/demo/app/function',
-        query: {
-          _panel: 'permissionManage'
-        }
-      })
+      expect(tabs.functionActiveTab.value).toBe('content')
+      expect(router.replace).not.toHaveBeenCalled()
     } finally {
       scope.stop()
     }
