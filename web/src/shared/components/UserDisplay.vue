@@ -46,7 +46,7 @@
         popper-class="user-info-popover"
       >
         <template #reference>
-          <div class="user-display-simple" style="cursor: pointer;">
+          <div class="user-display-simple user-display-card-trigger">
             <el-avatar 
               :src="actualUserInfo.avatar" 
               :size="avatarSize"
@@ -220,6 +220,20 @@ const handleCopyUserInfo = (): void => {
   display: flex;
 }
 
+.user-display-card-trigger {
+  min-width: 0;
+  padding: 3px 7px 3px 3px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.user-display-card-trigger:hover {
+  background: rgba(var(--el-color-primary-rgb), 0.1);
+  box-shadow: 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.16);
+  transform: translateY(-1px);
+}
+
 /* 水平布局：头像在左，名称在右 */
 .user-layout-horizontal {
   flex-direction: row;
@@ -242,7 +256,12 @@ const handleCopyUserInfo = (): void => {
 .user-display-simple .user-name {
   font-size: 14px;
   color: var(--el-text-color-primary);
+  font-weight: 600;
   white-space: nowrap;
+}
+
+.user-display-card-trigger:hover .user-name {
+  color: var(--el-color-primary);
 }
 
 /* 垂直布局下的名称样式 */

@@ -618,17 +618,23 @@ onMounted(async () => {
   align-items: flex-start;
   gap: 8px;
   padding: 8px 12px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
-  background-color: var(--el-bg-color);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--el-bg-color) 96%, var(--el-color-primary) 4%), var(--el-bg-color)),
+    var(--el-bg-color);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
   min-height: 40px;
 }
 
 .users-select-display:hover {
-  border-color: var(--el-color-primary);
-  background-color: var(--el-fill-color-light);
+  border-color: rgba(var(--el-color-primary-rgb), 0.46);
+  background:
+    linear-gradient(180deg, rgba(var(--el-color-primary-rgb), 0.1), rgba(var(--el-color-primary-rgb), 0.045)),
+    var(--el-bg-color);
+  box-shadow: 0 0 0 3px rgba(var(--el-color-primary-rgb), 0.08), 0 10px 22px rgba(15, 23, 42, 0.07);
+  transform: translateY(-1px);
 }
 
 .selected-users-list {
@@ -644,9 +650,9 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  background-color: var(--el-fill-color-light);
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
+  background-color: rgba(var(--el-color-primary-rgb), 0.075);
+  border: 1px solid rgba(var(--el-color-primary-rgb), 0.18);
+  border-radius: 999px;
 }
 
 .selected-user-tag .user-avatar-small {
@@ -656,6 +662,7 @@ onMounted(async () => {
 .selected-user-tag .user-display-text {
   font-size: 12px;
   color: var(--el-text-color-primary);
+  font-weight: 600;
   white-space: nowrap;
 }
 

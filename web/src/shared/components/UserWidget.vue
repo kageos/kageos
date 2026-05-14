@@ -441,17 +441,23 @@ onMounted(async () => {
   gap: 8px;
   min-height: 40px;
   padding: 0 12px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
-  background-color: var(--el-bg-color);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--el-bg-color) 96%, var(--el-color-primary) 4%), var(--el-bg-color)),
+    var(--el-bg-color);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
   box-sizing: border-box;
 }
 
 .user-select-display:hover:not(.is-disabled) {
-  border-color: var(--el-color-primary);
-  background-color: var(--el-fill-color-light);
+  border-color: rgba(var(--el-color-primary-rgb), 0.46);
+  background:
+    linear-gradient(180deg, rgba(var(--el-color-primary-rgb), 0.1), rgba(var(--el-color-primary-rgb), 0.045)),
+    var(--el-bg-color);
+  box-shadow: 0 0 0 3px rgba(var(--el-color-primary-rgb), 0.08), 0 10px 22px rgba(15, 23, 42, 0.07);
+  transform: translateY(-1px);
 }
 
 .user-select-display.is-disabled {
@@ -469,9 +475,14 @@ onMounted(async () => {
   flex: 1;
   font-size: 14px;
   color: var(--el-text-color-primary);
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.user-select-display:hover:not(.is-disabled) .user-display-text {
+  color: var(--el-color-primary);
 }
 
 .user-select-display .edit-icon {
@@ -489,6 +500,7 @@ onMounted(async () => {
   width: 100%;
   justify-content: flex-start;
   height: 40px;
+  border-radius: 8px;
 }
 
 .user-select-trigger.is-search-mode {
@@ -626,8 +638,9 @@ onMounted(async () => {
 }
 
 .user-clickable:hover {
-  opacity: 0.8;
+  opacity: 1;
   transform: translateY(-1px);
+  color: var(--el-color-primary);
 }
 
 /* 头像可点击样式 */
@@ -650,7 +663,8 @@ onMounted(async () => {
 }
 
 .user-name-clickable:hover {
-  opacity: 0.8;
+  opacity: 1;
+  color: var(--el-color-primary);
   text-decoration: underline;
 }
 
@@ -661,7 +675,8 @@ onMounted(async () => {
 }
 
 .user-select-dropdown-popper .el-select-dropdown__item.hover {
-  background-color: var(--el-fill-color-light);
+  background-color: rgba(var(--el-color-primary-rgb), 0.1);
+  color: var(--el-color-primary);
 }
 
 /* 全局样式：用户信息弹出框 */

@@ -1994,13 +1994,14 @@ useTableViewLifecycle({
 .table-card-item {
   min-width: 0;
   min-height: 292px;
-  padding: 16px;
-  border: 1px solid var(--app-shell-panel-border);
+  padding: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(var(--el-color-primary-rgb), 0.035), transparent 34%),
+    linear-gradient(180deg, rgba(var(--el-color-primary-rgb), 0.055), transparent 38%),
+    radial-gradient(circle at 92% 0%, rgba(14, 165, 233, 0.1), transparent 32%),
     var(--app-shell-panel-bg-strong);
-  box-shadow: var(--app-shell-panel-shadow-soft);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.075);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -2010,20 +2011,30 @@ useTableViewLifecycle({
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
+.table-card-item::before {
+  content: '';
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--el-color-primary), rgba(14, 165, 233, 0.45), transparent);
+  opacity: 0.72;
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 14px;
+}
+
 .table-card-item:hover {
-  border-color: rgba(var(--el-color-primary-rgb), 0.28);
-  box-shadow: var(--app-auth-card-shadow-soft);
-  transform: translateY(-1px);
+  border-color: rgba(var(--el-color-primary-rgb), 0.34);
+  box-shadow: 0 20px 42px rgba(15, 23, 42, 0.11), 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.08);
+  transform: translateY(-2px);
 }
 
 .table-card-item.is-selected {
   border-color: rgba(var(--el-color-primary-rgb), 0.46);
-  background: linear-gradient(
-    180deg,
-    rgba(var(--el-color-primary-rgb), 0.1) 0%,
-    rgba(var(--el-color-primary-rgb), 0.045) 100%
-  );
-  box-shadow: 0 14px 34px rgba(var(--el-color-primary-rgb), 0.14);
+  background:
+    linear-gradient(180deg, rgba(var(--el-color-primary-rgb), 0.12) 0%, rgba(var(--el-color-primary-rgb), 0.05) 100%),
+    var(--app-shell-panel-bg-strong);
+  box-shadow: 0 18px 38px rgba(var(--el-color-primary-rgb), 0.16);
 }
 
 .table-card-item.is-selectable {
@@ -2048,15 +2059,15 @@ useTableViewLifecycle({
 }
 
 .table-card-media {
-  width: 52px;
-  height: 52px;
+  width: 56px;
+  height: 56px;
   flex: 0 0 auto;
   border: 1px solid var(--app-shell-panel-border);
   border-radius: 8px;
   background:
     linear-gradient(135deg, rgba(var(--el-color-primary-rgb), 0.14), rgba(14, 165, 233, 0.08)),
     var(--app-shell-panel-muted-bg);
-  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight), 0 8px 18px rgba(15, 23, 42, 0.08);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2161,11 +2172,11 @@ useTableViewLifecycle({
 
 .table-card-view-btn {
   flex: 0 0 auto;
-  height: 30px;
-  padding: 0 9px;
-  border: 1px solid var(--table-control-border);
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(var(--el-color-primary-rgb), 0.18);
   border-radius: 8px;
-  background: var(--table-control-bg);
+  background: rgba(var(--el-color-primary-rgb), 0.07);
   color: var(--el-color-primary);
   display: inline-flex;
   align-items: center;
@@ -2179,10 +2190,10 @@ useTableViewLifecycle({
 }
 
 .table-card-view-btn:hover {
-  border-color: var(--table-control-border-hover);
-  background: var(--table-control-bg-hover);
+  border-color: rgba(var(--el-color-primary-rgb), 0.34);
+  background: rgba(var(--el-color-primary-rgb), 0.12);
   color: var(--el-color-primary);
-  box-shadow: var(--table-control-shadow-hover);
+  box-shadow: 0 8px 18px rgba(var(--el-color-primary-rgb), 0.12);
 }
 
 .table-card-fields {
@@ -2199,10 +2210,18 @@ useTableViewLifecycle({
   flex-direction: column;
   gap: 5px;
   align-items: start;
-  padding: 9px 10px;
-  border: 1px solid rgba(148, 163, 184, 0.14);
+  padding: 10px 11px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
   border-radius: 8px;
-  background: rgba(var(--el-color-primary-rgb), 0.025);
+  background: color-mix(in srgb, var(--app-shell-panel-bg-strong) 86%, var(--el-color-primary) 4%);
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
+  transition: border-color 0.18s ease, background-color 0.18s ease, transform 0.18s ease;
+}
+
+.table-card-field:hover {
+  border-color: rgba(var(--el-color-primary-rgb), 0.22);
+  background: rgba(var(--el-color-primary-rgb), 0.045);
+  transform: translateY(-1px);
 }
 
 .table-card-field-label {
@@ -2285,20 +2304,20 @@ useTableViewLifecycle({
 
 .table-card-more-section {
   min-width: 0;
-  border-top: 1px solid var(--app-shell-panel-border);
-  padding-top: 6px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  padding-top: 8px;
 }
 
 .table-card-more-summary {
   width: 100%;
   min-height: 30px;
-  padding: 0 8px;
+  padding: 0 10px;
   color: var(--el-color-primary);
   display: inline-flex;
   align-items: center;
   gap: 6px;
   border-radius: 8px;
-  background: rgba(var(--el-color-primary-rgb), 0.045);
+  background: rgba(var(--el-color-primary-rgb), 0.065);
   cursor: pointer;
   user-select: none;
   font-size: 12px;
@@ -2354,7 +2373,8 @@ useTableViewLifecycle({
   align-items: start;
   padding: 8px 10px;
   border-radius: 8px;
-  background: var(--app-shell-panel-muted-bg);
+  border: 1px solid rgba(148, 163, 184, 0.13);
+  background: color-mix(in srgb, var(--app-shell-panel-muted-bg) 88%, var(--app-shell-panel-bg-strong) 12%);
 }
 
 .table-card-more-field .table-card-field-value {
@@ -2363,8 +2383,10 @@ useTableViewLifecycle({
 
 .table-card-time-meta {
   min-width: 0;
-  padding: 10px 0 0;
-  border-top: 1px dashed var(--app-shell-panel-border);
+  padding: 10px 11px;
+  border: 1px dashed rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-shell-panel-muted-bg) 72%, transparent);
   display: grid;
   grid-template-columns: 1fr;
   gap: 6px;
@@ -2400,8 +2422,9 @@ useTableViewLifecycle({
 
 .table-card-footer {
   margin-top: auto;
-  padding-top: 12px;
-  border-top: 1px solid var(--app-shell-panel-border);
+  padding: 12px 12px 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--app-shell-panel-muted-bg) 58%, transparent));
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -2460,6 +2483,51 @@ useTableViewLifecycle({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .table-card-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .table-card-item {
+    min-height: 0;
+    padding: 15px;
+  }
+
+  .table-card-header {
+    gap: 9px;
+  }
+
+  .table-card-media {
+    width: 44px;
+    height: 44px;
+  }
+
+  .table-card-view-btn {
+    width: 32px;
+    padding: 0;
+  }
+
+  .table-card-view-btn span {
+    display: none;
+  }
+
+  .table-card-footer {
+    padding: 10px 0 0;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .table-card-footer-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .table-card-more-fields {
+    white-space: normal;
+  }
 }
 
 .pagination-wrapper {
