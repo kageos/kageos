@@ -106,7 +106,7 @@
 import { computed, watch } from 'vue'
 import { ElDatePicker, ElTimePicker } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import { formatDateTimeValue } from '@/utils/date'
 import type { DateTimeWidgetConfig } from '@/architecture/runtime/types/widget-configs'

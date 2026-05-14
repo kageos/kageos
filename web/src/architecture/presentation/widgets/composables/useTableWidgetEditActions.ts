@@ -1,7 +1,7 @@
 import { computed } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
-import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import type { ValidationEngine, ValidationResult } from '@/architecture/runtime/validation'
 import {
   validateFieldValue as validateWidgetFieldValue,

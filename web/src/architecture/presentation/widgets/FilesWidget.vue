@@ -261,7 +261,7 @@ import {
 } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import type { FilesWidgetConfig } from '@/architecture/runtime/types/widget-configs'
-import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { useAuthStore } from '@/stores/auth'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { resolveFileRefs, updateFileDescription } from '@/api/storage'

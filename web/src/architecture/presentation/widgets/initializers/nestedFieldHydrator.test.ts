@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { FormWidgetInitializer } from './FormWidgetInitializer'
 import { TableWidgetInitializer } from './TableWidgetInitializer'
 import { reindexTableRowFieldPaths } from '../utils/tableFieldPathSync'

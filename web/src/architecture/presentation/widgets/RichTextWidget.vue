@@ -36,7 +36,7 @@ import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { ElInput } from 'element-plus'
 import type { FieldValue, WidgetComponentEmits, WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import RichTextResponseWidget from '@/architecture/presentation/widgets/RichTextResponseWidget.vue'
-import { useFormDataStore } from '@/architecture/runtime/stores-v2/formData'
+import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { sanitizeHtml } from '@/utils/sanitizeHtml'
 
 const RichTextEditorWidget = defineAsyncComponent(
