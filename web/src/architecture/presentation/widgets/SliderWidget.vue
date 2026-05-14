@@ -89,7 +89,7 @@ import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/
 import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { Logger } from '@/architecture/shared/logger'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import type { SliderWidgetConfig } from '@/architecture/runtime/types/widget-configs'
+import type { SliderWidgetConfig } from '@/architecture/domain/types/widget-configs'
 import { buildSliderMarks } from '@/architecture/presentation/widgets/utils/sliderMarks'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {

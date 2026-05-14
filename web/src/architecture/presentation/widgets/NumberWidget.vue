@@ -58,7 +58,7 @@ import { ElInputNumber } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import type { NumberWidgetConfig } from '@/architecture/runtime/types/widget-configs'
+import type { NumberWidgetConfig } from '@/architecture/domain/types/widget-configs'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({

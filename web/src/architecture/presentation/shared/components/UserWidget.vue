@@ -155,7 +155,7 @@ const authStore = useAuthStore()
 
 // 获取配置（带类型）
 const widgetConfig = computed(() => {
-  return (props.field.widget?.config || {}) as import('@/architecture/runtime/types/widget-configs').UserWidgetConfig
+  return (props.field.widget?.config || {}) as import('@/architecture/domain/types/widget-configs').UserWidgetConfig
 })
 
 // 弹窗显示状态

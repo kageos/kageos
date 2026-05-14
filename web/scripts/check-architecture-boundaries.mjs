@@ -60,6 +60,10 @@ const forbiddenPatterns = [
     message: 'widget component types must be imported from architecture/presentation/shared/types/widget',
   },
   {
+    pattern: /@\/architecture\/runtime\/types\/widget-configs|src\/architecture\/runtime\/types\/widget-configs/,
+    message: 'widget config types must be imported from architecture/domain/types/widget-configs',
+  },
+  {
     pattern: /@\/architecture\/runtime\/utils\/logger|src\/architecture\/runtime\/utils\/logger/,
     message: 'logger must be imported from architecture/shared/logger',
   },

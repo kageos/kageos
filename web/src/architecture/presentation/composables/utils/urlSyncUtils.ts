@@ -39,7 +39,7 @@ export function isEmptyValue(fieldValue: FieldValue | undefined | null): boolean
   return false
 }
 
-import type { InputWidgetConfig } from '@/architecture/runtime/types/widget-configs'
+import type { InputWidgetConfig } from '@/architecture/domain/types/widget-configs'
 
 /**
  * 检查字段是否应该跳过 URL 同步（黑名单检查）

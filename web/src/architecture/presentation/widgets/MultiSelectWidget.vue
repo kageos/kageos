@@ -137,7 +137,7 @@ import { getMultiSelectDefaultDataType } from '@/architecture/runtime/constants/
 import { SelectFuzzyQueryType, getOptionLightPalette, getOptionSolidColor, normalizeOptionColor, type StandardColorType } from '@/architecture/runtime/constants/select'
 import { convertFormDataToRequestByType, convertArrayType } from '@/architecture/presentation/widgets/utils/typeConverter'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import type { MultiSelectWidgetConfig, SelectOptionConfig } from '@/architecture/runtime/types/widget-configs'
+import type { MultiSelectWidgetConfig, SelectOptionConfig } from '@/architecture/domain/types/widget-configs'
 import { buildMultiSelectRawValue } from '@/architecture/presentation/widgets/utils/multiSelectValue'
 import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/utils/searchType'
 import { buildSelectionSummary } from '@/architecture/presentation/widgets/utils/selectionSummary'
