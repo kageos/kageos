@@ -107,7 +107,7 @@ import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/
 import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import type { RichTextWidgetConfig } from '@/architecture/domain/types/widget-configs'
-import { sanitizeHtml } from '@/architecture/runtime/utils/sanitizeHtml'
+import { sanitizeHtml } from '@/architecture/shared/sanitizeHtml'
 import RichTextEditorToolbar from './RichTextEditorToolbar.vue'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {

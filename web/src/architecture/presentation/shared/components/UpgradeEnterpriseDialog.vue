@@ -58,7 +58,7 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { UploadFile } from 'element-plus'
 import { useLicenseStore } from '@/architecture/infrastructure/stores/license'
-import { Z_INDEX } from '@/architecture/runtime/utils/zIndex'
+import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
 
 const props = defineProps<{
   modelValue: boolean

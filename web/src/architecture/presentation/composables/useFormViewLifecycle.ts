@@ -6,7 +6,7 @@ import type { WorkspaceDomainService } from '../../domain/services/WorkspaceDoma
 import { FormEvent, WorkspaceEvent, type IEventBus } from '../../infrastructure/eventBus'
 import type { FormStateManager } from '../../infrastructure/stateManager/FormStateManager'
 import type { WorkspaceStateManager } from '../../infrastructure/stateManager/WorkspaceStateManager'
-import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
+import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import { Logger } from '@/architecture/shared/logger'
 import type { FormDataStore } from '@/architecture/runtime/stores/formData'
 import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'

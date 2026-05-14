@@ -173,7 +173,7 @@ import { ElMessage } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/architecture/runtime/stores/formData'
 import type { TextWidgetConfig } from '@/architecture/domain/types/widget-configs'
-import { sanitizeHtml } from '@/architecture/runtime/utils/sanitizeHtml'
+import { sanitizeHtml } from '@/architecture/shared/sanitizeHtml'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { Logger } from '@/architecture/shared/logger'
 

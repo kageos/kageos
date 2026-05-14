@@ -17,7 +17,7 @@ import type { App } from '../../domain/types'
 import type { App as AppType, CreateAppRequest } from '@/architecture/domain/types'
 import { createApp, deleteApp, getAppList, getAppWithServiceTree, updateApp } from '@/architecture/infrastructure/api/app'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
-import { normalizeGoPackageName, validateGoPackageName } from '@/architecture/runtime/utils/goPackageName'
+import { normalizeGoPackageName, validateGoPackageName } from '@/architecture/domain/utils/goPackageName'
 import { buildAppResourcePath } from '@/architecture/shared/resourcePath'
 import { Logger } from '@/architecture/shared/logger'
 

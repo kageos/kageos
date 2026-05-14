@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { IEventBus } from '@/architecture/domain/interfaces/IEventBus'
 import type { IFormGateway } from '@/architecture/domain/interfaces/IFormGateway'
-import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
+import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import { getChangedFields } from '@/architecture/domain/utils/objectDiff'
 import { TableDomainService } from '@/architecture/domain/services/TableDomainService'
 import type { TableState } from '@/architecture/domain/types'

@@ -29,7 +29,7 @@
 import { computed, defineAsyncComponent } from 'vue'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import type { ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
-import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
+import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 
 const FormView = defineAsyncComponent(() => import('@/architecture/presentation/views/FormView.vue'))
 const TableView = defineAsyncComponent(() => import('@/architecture/presentation/views/TableView.vue'))
