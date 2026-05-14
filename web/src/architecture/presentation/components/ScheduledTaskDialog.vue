@@ -205,10 +205,10 @@ import {
   type ScheduledTaskNotifyOn
 } from '@/architecture/infrastructure/api/scheduledTask'
 import { getErrorMessage } from '@/architecture/infrastructure/apiClient/apiError'
-import UserPickerDialog from '@/shared/components/UserPickerDialog.vue'
-import DepartmentPickerDialog from '@/shared/components/DepartmentPickerDialog.vue'
-import UserDisplay from '@/shared/components/UserDisplay.vue'
-import DepartmentDisplay from '@/shared/components/DepartmentDisplay.vue'
+import UserPickerDialog from '@/architecture/presentation/shared/components/UserPickerDialog.vue'
+import DepartmentPickerDialog from '@/architecture/presentation/shared/components/DepartmentPickerDialog.vue'
+import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
+import DepartmentDisplay from '@/architecture/presentation/shared/components/DepartmentDisplay.vue'
 import type { UserInfo } from '@/architecture/domain/types'
 import type { Department } from '@/architecture/infrastructure/api/department'
 

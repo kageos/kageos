@@ -309,7 +309,7 @@ const BoardView = defineAsyncComponent(() => import('../components/BoardView.vue
 const PackageDetailView = defineAsyncComponent(() => import('../components/PackageDetailView.vue'))
 const MiniWorkstation = defineAsyncComponent(() => import('../components/MiniWorkstation.vue'))
 const CreateBoardDialog = defineAsyncComponent(() => import('../components/CreateBoardDialog.vue'))
-const DirectoryUpdateHistoryDialog = defineAsyncComponent(() => import('@/shared/components/DirectoryUpdateHistoryDialog.vue'))
+const DirectoryUpdateHistoryDialog = defineAsyncComponent(() => import('@/architecture/presentation/shared/components/DirectoryUpdateHistoryDialog.vue'))
 
 // 依赖注入（使用 IServiceProvider 接口，遵循依赖倒置原则）
 const serviceProvider: IServiceProvider = serviceFactory

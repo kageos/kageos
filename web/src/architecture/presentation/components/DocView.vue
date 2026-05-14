@@ -168,9 +168,9 @@ import { Edit, Check, Plus, Delete, Close, ArrowLeft, ArrowRight, Clock, Refresh
 import type { ServiceTree } from '@/architecture/domain/types'
 import { getDoc, updateDoc, deleteDoc } from '@/architecture/infrastructure/api/doc'  // ✅ 使用新的文档 API
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
-import UserDisplay from '@/shared/components/UserDisplay.vue'
+import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 
-const VditorEditor = defineAsyncComponent(() => import('@/shared/components/VditorEditor.vue'))
+const VditorEditor = defineAsyncComponent(() => import('@/architecture/presentation/shared/components/VditorEditor.vue'))
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
 

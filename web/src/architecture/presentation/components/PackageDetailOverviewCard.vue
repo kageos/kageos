@@ -55,7 +55,7 @@ import { DataLine, Document, Star } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/architecture/domain/types'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/architecture/runtime/constants/widget'
-import UserWidget from '@/shared/components/UserWidget.vue'
+import UserWidget from '@/architecture/presentation/shared/components/UserWidget.vue'
 
 const props = defineProps<{
   packageNode: ServiceTree | null

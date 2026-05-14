@@ -704,8 +704,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Close, Delete, Refresh, RefreshLeft, Tickets, View } from '@element-plus/icons-vue'
-import UserDisplay from '@/shared/components/UserDisplay.vue'
-import DepartmentDisplay from '@/shared/components/DepartmentDisplay.vue'
+import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
+import DepartmentDisplay from '@/architecture/presentation/shared/components/DepartmentDisplay.vue'
 import ExecutionDurationTag from '@/architecture/presentation/components/ExecutionDurationTag.vue'
 import FunctionExecutionResultReadonly from '@/architecture/presentation/components/FunctionExecutionResultReadonly.vue'
 import { useScheduledTaskList } from '@/architecture/presentation/composables/useScheduledTaskList'

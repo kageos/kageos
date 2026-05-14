@@ -236,7 +236,7 @@ import {
   Check,
   SwitchButton
 } from '@element-plus/icons-vue'
-import AppSwitcher from '@/shared/components/AppSwitcher.vue'
+import AppSwitcher from '@/architecture/presentation/shared/components/AppSwitcher.vue'
 import type { App, ServiceTree } from '@/architecture/domain/types'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
@@ -244,7 +244,7 @@ import { useLicenseStore } from '@/architecture/infrastructure/stores/license'
 import { useThemeStore } from '@/architecture/infrastructure/stores/theme'
 import DebugDialog from './DebugDialog.vue'
 import GlobalResourceSearchDialog from './GlobalResourceSearchDialog.vue'
-import UpgradeEnterpriseDialog from '@/shared/components/UpgradeEnterpriseDialog.vue'
+import UpgradeEnterpriseDialog from '@/architecture/presentation/shared/components/UpgradeEnterpriseDialog.vue'
 import { Logger } from '@/architecture/runtime/utils/logger'
 import { getMessageUnreadCount } from '@/architecture/infrastructure/api/message'
 import MessageInboxPanel from '@/features/message/components/MessageInboxPanel.vue'

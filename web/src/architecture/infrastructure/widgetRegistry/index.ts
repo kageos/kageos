@@ -100,10 +100,10 @@ import RichTextResponseWidget from '@/architecture/presentation/widgets/RichText
 // 🔥 延迟导入容器组件，避免循环依赖
 // FormWidget 和 TableWidget 都导入了 widgetComponentFactory，会导致循环依赖
 // 解决方案：在函数内部动态导入，而不是在模块顶层导入
-import UserWidget from '@/shared/components/UserWidget.vue'
-import UsersWidget from '@/shared/components/UsersWidget.vue'
+import UserWidget from '@/architecture/presentation/shared/components/UserWidget.vue'
+import UsersWidget from '@/architecture/presentation/shared/components/UsersWidget.vue'
 import DepartmentWidget from '@/architecture/presentation/widgets/DepartmentWidget.vue'
-import DepartmentsWidget from '@/shared/components/DepartmentsWidget.vue'
+import DepartmentsWidget from '@/architecture/presentation/shared/components/DepartmentsWidget.vue'
 import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import ProgressWidget from '@/architecture/presentation/widgets/ProgressWidget.vue'
 import ListWidget from '@/architecture/presentation/widgets/ListWidget.vue'

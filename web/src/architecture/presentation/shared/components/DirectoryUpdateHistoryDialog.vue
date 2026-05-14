@@ -498,9 +498,9 @@ import {
   type ApiSummary
 } from '@/architecture/infrastructure/api/directory-update-history'
 import { TEMPLATE_TYPE } from '@/architecture/runtime/utils/functionTypes'
-import TableIcon from '@/shared/components/icons/TableIcon.vue'
-import FormIcon from '@/shared/components/icons/FormIcon.vue'
-import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
+import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
+import FormIcon from '@/architecture/presentation/shared/components/icons/FormIcon.vue'
+import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
 
 interface Props {
   modelValue: boolean

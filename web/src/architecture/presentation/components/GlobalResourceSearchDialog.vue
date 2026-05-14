@@ -129,8 +129,8 @@ import {
   type ResourceSearchResult,
   type SearchResourceType
 } from '@/architecture/infrastructure/api/service-tree'
-import ChartIcon from '@/shared/components/icons/ChartIcon.vue'
-import TableIcon from '@/shared/components/icons/TableIcon.vue'
+import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
+import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
 
 const props = defineProps<{
   visible: boolean

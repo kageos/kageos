@@ -332,8 +332,8 @@ import {
   ElTooltip
 } from 'element-plus'
 import type { FunctionDetail } from '@/architecture/domain/types'
-import UserDisplay from '@/shared/components/UserDisplay.vue'
-import UserPickerDialog from '@/shared/components/UserPickerDialog.vue'
+import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
+import UserPickerDialog from '@/architecture/presentation/shared/components/UserPickerDialog.vue'
 import ExecutionDurationTag from '@/architecture/presentation/components/ExecutionDurationTag.vue'
 import {
   useFormOperateLogSection,

@@ -139,7 +139,7 @@ import MessageToolCalls from './MessageToolCalls.vue'
 import OutputDisplayFields from './OutputDisplayFields.vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import PrdPreview from './PrdPreview.vue'
-import UserDisplay from '@/shared/components/UserDisplay.vue'
+import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 
 const authStore = useAuthStore()
