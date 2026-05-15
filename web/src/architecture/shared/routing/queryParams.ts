@@ -12,7 +12,7 @@ import { isPersistentPlatformStateQueryKey } from './queryParamKeys'
  * @returns 保留后的查询参数
  */
 export function preserveQueryParams(
-  currentQuery: Record<string, any>,
+  currentQuery: Record<string, unknown>,
   options: {
     preserveTableParams?: boolean  // 是否保留 table 参数（page, page_size, sorts）
     preserveSearchParams?: boolean // 是否保留显式声明的筛选参数
@@ -69,7 +69,7 @@ export function preserveQueryParams(
  * 不保留：搜索参数（避免状态污染）
  */
 export function preserveQueryParamsForTable(
-  currentQuery: Record<string, any>
+  currentQuery: Record<string, unknown>
 ): Record<string, string | string[]> {
   return preserveQueryParams(currentQuery, {
     preserveTableParams: true,
@@ -84,7 +84,7 @@ export function preserveQueryParamsForTable(
  * 不保留：table 参数和搜索参数
  */
 export function preserveQueryParamsForForm(
-  currentQuery: Record<string, any>
+  currentQuery: Record<string, unknown>
 ): Record<string, string | string[]> {
   return preserveQueryParams(currentQuery, {
     preserveTableParams: false,

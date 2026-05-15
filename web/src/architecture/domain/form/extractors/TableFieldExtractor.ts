@@ -4,15 +4,21 @@
  */
 
 import type { IFieldExtractor, FieldExtractorRegistry } from './FieldExtractor'
-import type { FieldConfig } from '@/architecture/domain/types/field'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
+
+type ExtractedObject = Record<string, unknown>
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
 
 export class TableFieldExtractor implements IFieldExtractor {
   extract(
     field: FieldConfig,
     fieldPath: string,
-    getValue: (path: string) => any,
+    getValue: (path: string) => FieldValue | undefined,
     extractorRegistry: FieldExtractorRegistry
-  ): any {
+  ): ExtractedObject[] {
     const value = getValue(fieldPath)
     if (!value || !Array.isArray(value.raw)) {
       return []
@@ -23,7 +29,7 @@ export class TableFieldExtractor implements IFieldExtractor {
     
     // 提取所有行数据
     const extractedRows = tableData.map((row, index) => {
-      const rowData: Record<string, any> = {}
+      const rowData: ExtractedObject = {}
       
       itemFields.forEach(itemField => {
         const itemFieldPath = `${fieldPath}[${index}].${itemField.code}`
@@ -32,10 +38,9 @@ export class TableFieldExtractor implements IFieldExtractor {
         if (itemValue) {
           // 从 store 中提取
           rowData[itemField.code] = extractorRegistry.extractField(itemField, itemFieldPath, getValue)
-        } else if (row && typeof row === 'object' && !Array.isArray(row)) {
+        } else if (isRecord(row)) {
           // 🔥 如果 store 中没有值，从原始 row 数据中读取
-          const rawRow = row as Record<string, any>
-          const rawValue = rawRow[itemField.code]
+          const rawValue = row[itemField.code]
           if (rawValue !== undefined) {
             rowData[itemField.code] = this.extractFromRaw(itemField, rawValue, extractorRegistry)
           } else {
@@ -62,13 +67,13 @@ export class TableFieldExtractor implements IFieldExtractor {
    */
   private extractFromRaw(
     field: FieldConfig,
-    rawValue: any,
+    rawValue: unknown,
     extractorRegistry: FieldExtractorRegistry
-  ): any {
+  ): unknown {
     // 递归处理嵌套结构
-    if (field.widget?.type === 'form' && rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
+    if (field.widget?.type === 'form' && isRecord(rawValue)) {
       const subFields = field.children || []
-      const formData: Record<string, any> = {}
+      const formData: ExtractedObject = {}
       subFields.forEach(subField => {
         if (rawValue[subField.code] !== undefined) {
           formData[subField.code] = this.extractFromRaw(subField, rawValue[subField.code], extractorRegistry)
@@ -76,11 +81,12 @@ export class TableFieldExtractor implements IFieldExtractor {
       })
       return formData
     } else if (field.widget?.type === 'table' && Array.isArray(rawValue)) {
-      return rawValue.map((nestedRow: any) => {
+      return rawValue.map((nestedRow: unknown) => {
         const nestedItemFields = field.children || []
-        const nestedRowData: Record<string, any> = {}
+        const nestedRowData: ExtractedObject = {}
+        const nestedRecord = isRecord(nestedRow) ? nestedRow : {}
         nestedItemFields.forEach(nestedItemField => {
-          nestedRowData[nestedItemField.code] = nestedRow[nestedItemField.code]
+          nestedRowData[nestedItemField.code] = nestedRecord[nestedItemField.code]
         })
         return nestedRowData
       })

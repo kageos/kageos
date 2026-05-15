@@ -7,7 +7,7 @@
  * 深度对比两个值是否相等
  * 支持基本类型、对象、数组的深度对比
  */
-function isEqual(a: any, b: any): boolean {
+function isEqual(a: unknown, b: unknown): boolean {
   // 处理 null 和 undefined
   // 🔥 修复：null 和 undefined 视为相等，空字符串和 null 也视为相等（用于表单字段对比）
   if (a === null || a === undefined || a === '') {
@@ -51,7 +51,9 @@ function isEqual(a: any, b: any): boolean {
     if (!keysB.includes(key)) {
       return false
     }
-    if (!isEqual(a[key], b[key])) {
+    const recordA = a as Record<string, unknown>
+    const recordB = b as Record<string, unknown>
+    if (!isEqual(recordA[key], recordB[key])) {
       return false
     }
   }
@@ -94,14 +96,14 @@ function isEqual(a: any, b: any): boolean {
  * // oldValues = { name: "801" }
  */
 export function getChangedFields(
-  oldValues: Record<string, any>,
-  newValues: Record<string, any>
+  oldValues: Record<string, unknown>,
+  newValues: Record<string, unknown>
 ): {
-  updates: Record<string, any>    // 只包含变更的字段（新值）
-  oldValues: Record<string, any>    // 变更字段的旧值
+  updates: Record<string, unknown>    // 只包含变更的字段（新值）
+  oldValues: Record<string, unknown>    // 变更字段的旧值
 } {
-  const updates: Record<string, any> = {}
-  const oldValuesChanged: Record<string, any> = {}
+  const updates: Record<string, unknown> = {}
+  const oldValuesChanged: Record<string, unknown> = {}
 
   // ⚠️ 关键：只遍历新值中存在的字段
   // 如果新值中没有某个字段，说明用户没有修改它，不应该出现在 updates 中
@@ -144,4 +146,3 @@ export function getChangedFields(
     oldValues: oldValuesChanged
   }
 }
-

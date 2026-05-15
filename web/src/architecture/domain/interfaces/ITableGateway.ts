@@ -13,14 +13,13 @@ export interface TableLoadRequest {
 export interface TableUpdateRequest {
   functionDetail: FunctionDetail
   id: number | string
-  data: Record<string, any>
-  oldData?: Record<string, any>
+  data: Record<string, unknown>
+  oldData?: Record<string, unknown>
 }
 
 export interface ITableGateway {
   loadRows(request: TableLoadRequest): Promise<TableListResponse>
-  addRow(functionDetail: FunctionDetail, data: Record<string, any>): Promise<TableRow>
+  addRow(functionDetail: FunctionDetail, data: Record<string, unknown>): Promise<TableRow>
   updateRow(request: TableUpdateRequest): Promise<TableRow>
   deleteRow(functionDetail: FunctionDetail, id: number | string): Promise<void>
 }
-

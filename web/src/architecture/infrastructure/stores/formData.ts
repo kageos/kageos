@@ -74,8 +74,8 @@ const createFormDataStore = defineStore('formData', () => {
    * @param basePath 基础路径（用于嵌套场景）
    * @returns 提交数据对象
    */
-  function getSubmitData(fields: FieldConfig[], basePath: string = ''): Record<string, any> {
-    const result: Record<string, any> = {}
+  function getSubmitData(fields: FieldConfig[], basePath: string = ''): Record<string, unknown> {
+    const result: Record<string, unknown> = {}
     
     fields.forEach(field => {
       const fieldPath = basePath ? `${basePath}.${field.code}` : field.code

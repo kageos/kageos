@@ -25,7 +25,9 @@ export interface NormalizeOptions {
  * @param options 规范化选项
  * @returns 规范化后的值
  */
-export function normalizeSearchValue(value: any, options: NormalizeOptions): any {
+export type NormalizedSearchValue = string | boolean | string[] | null | unknown
+
+export function normalizeSearchValue(value: unknown, options: NormalizeOptions): NormalizedSearchValue {
   // 清空值统一转换为 null
   if (value === '' || value === null || value === undefined) {
     return null
@@ -51,7 +53,7 @@ export function normalizeSearchValue(value: any, options: NormalizeOptions): any
  * @param value 原始值
  * @returns 规范化后的字符串值（"true" 或 "false"）
  */
-function normalizeSwitchValue(value: any): string | null {
+function normalizeSwitchValue(value: unknown): string | null {
   if (value === null || value === undefined) {
     return null
   }
@@ -79,7 +81,7 @@ function normalizeSwitchValue(value: any): string | null {
  * @param value 原始值
  * @returns 规范化后的字符串值（逗号分隔）
  */
-function normalizeMultiselectContainsValue(value: any): string | null {
+function normalizeMultiselectContainsValue(value: unknown): string | null {
   if (Array.isArray(value)) {
     return value.length > 0 ? value.join(',') : null
   }
@@ -101,7 +103,7 @@ function normalizeMultiselectContainsValue(value: any): string | null {
  * @param options 规范化选项
  * @returns 恢复后的值
  */
-export function denormalizeSearchValue(value: any, options: NormalizeOptions): any {
+export function denormalizeSearchValue(value: unknown, options: NormalizeOptions): NormalizedSearchValue {
   if (value === null || value === undefined || value === '') {
     return null
   }
@@ -126,7 +128,7 @@ export function denormalizeSearchValue(value: any, options: NormalizeOptions): a
  * @param value URL 中的字符串值
  * @returns 布尔值
  */
-function denormalizeSwitchValue(value: any): boolean | null {
+function denormalizeSwitchValue(value: unknown): boolean | null {
   if (value === null || value === undefined || value === '') {
     return null
   }
@@ -139,7 +141,7 @@ function denormalizeSwitchValue(value: any): boolean | null {
  * @param value URL 中的字符串值
  * @returns 数组值
  */
-function denormalizeMultiselectContainsValue(value: any): string[] {
+function denormalizeMultiselectContainsValue(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value
   }
@@ -158,4 +160,3 @@ function hasSearchType(searchType: string | undefined | null, type: string): boo
   if (!searchType) return false
   return searchType.includes(type)
 }
-

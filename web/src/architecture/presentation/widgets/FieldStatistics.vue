@@ -116,7 +116,7 @@ const statisticsData = computed(() => {
         } else {
           results.push({
             label,
-            value: value || '暂无信息',
+            value: value !== null && value !== undefined && value !== '' ? String(value) : '暂无信息',
             precision: undefined
           })
         }

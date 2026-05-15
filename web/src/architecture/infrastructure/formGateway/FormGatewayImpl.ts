@@ -8,7 +8,7 @@ function toFullCodePath(router: string | undefined): string {
 export class FormGatewayImpl implements IFormGateway {
   constructor(private apiClient: IApiClient) {}
 
-  submitForm(request: FormSubmitRequest): Promise<any> {
+  submitForm(request: FormSubmitRequest): Promise<unknown> {
     const fullCodePath = toFullCodePath(request.functionDetail.router)
     const url = `/workspace/api/v1/form/submit${fullCodePath}`
     const method = request.functionDetail.method?.toUpperCase() || 'POST'
@@ -20,4 +20,3 @@ export class FormGatewayImpl implements IFormGateway {
     return this.apiClient.post(url, request.data)
   }
 }
-

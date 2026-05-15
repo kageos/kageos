@@ -15,6 +15,9 @@ import { ExpressionParser } from './ExpressionParser'
 import { LegacyExpressionParser } from './LegacyExpressionParser'
 import { Logger } from '@/architecture/shared/logger'
 
+type ExpressionRow = Record<string, unknown>
+type ExpressionValue = unknown
+
 export class ExpressionEvaluator {
   /**
    * 检测表达式是否使用新语法
@@ -81,7 +84,7 @@ export class ExpressionEvaluator {
    * @param selectedItem 当前选中项（用于 value() 函数），可选
    * @returns 计算结果
    */
-  static evaluate(expression: string, data: any[], selectedItem?: any): any {
+  static evaluate(expression: string, data: ExpressionRow[], selectedItem?: unknown): ExpressionValue {
     try {
       // 自动检测语法，选择合适的解析器
       if (this.isNewSyntax(expression)) {
@@ -93,18 +96,6 @@ export class ExpressionEvaluator {
       }
     } catch (error) {
       Logger.error('ExpressionEvaluator', `计算表达式失败: ${expression}`, error)
-      
-      // 如果新解析器失败，尝试使用旧解析器（降级策略）
-      if (this.isNewSyntax(expression)) {
-        try {
-          Logger.warn('ExpressionEvaluator', `新解析器失败，尝试使用旧解析器: ${expression}`)
-          return LegacyExpressionParser.evaluate(expression, data, selectedItem)
-        } catch (fallbackError) {
-          Logger.error('ExpressionEvaluator', `旧解析器也失败: ${expression}`, fallbackError)
-          return 0
-        }
-      }
-      
       return 0
     }
   }

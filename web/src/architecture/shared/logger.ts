@@ -29,7 +29,7 @@ class Logger {
   /**
    * Debug 日志（开发环境）
    */
-  static debug(module: string, message: string, ...data: any[]) {
+  static debug(module: string, message: string, ...data: unknown[]) {
     if (this.level <= LogLevel.DEBUG) {
       console.log(`[${module}] ${message}`, ...data)
     }
@@ -38,7 +38,7 @@ class Logger {
   /**
    * Info 日志
    */
-  static info(module: string, message: string, ...data: any[]) {
+  static info(module: string, message: string, ...data: unknown[]) {
     if (this.level <= LogLevel.INFO) {
       console.log(`[${module}] ${message}`, ...data)
     }
@@ -47,7 +47,7 @@ class Logger {
   /**
    * Warning 日志
    */
-  static warn(module: string, message: string, ...data: any[]) {
+  static warn(module: string, message: string, ...data: unknown[]) {
     if (this.level <= LogLevel.WARN) {
       console.warn(`[${module}] ${message}`, ...data)
     }
@@ -56,7 +56,7 @@ class Logger {
   /**
    * Error 日志（总是显示）
    */
-  static error(module: string, message: string, ...data: any[]) {
+  static error(module: string, message: string, ...data: unknown[]) {
     if (this.level <= LogLevel.ERROR) {
       console.error(`[${module}] ${message}`, ...data)
     }
@@ -83,4 +83,3 @@ class Logger {
 
 // 导出
 export { Logger, LogLevel }
-

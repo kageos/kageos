@@ -45,8 +45,7 @@
 │                   策略层                                  │
 │              UploaderFactory                             │
 │   ├─ PresignedURLUploader (MinIO/COS/OSS/S3)            │
-│   ├─ FormUploader (七牛云/又拍云)                        │
-│   └─ SDKUploader (特殊云存储)                            │
+│   └─ FormUploader (七牛云/又拍云)                        │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -69,9 +68,6 @@ type GetUploadTokenResp struct {
     FormData map[string]string `json:"form_data,omitempty"`
     PostURL  string            `json:"post_url,omitempty"`
     
-    // SDK 上传（特殊云存储）
-    SDKConfig map[string]interface{} `json:"sdk_config,omitempty"`
-    
     // 其他字段...
 }
 
@@ -79,7 +75,6 @@ type GetUploadTokenResp struct {
 const (
     UploadMethodPresignedURL UploadMethod = "presigned_url"  // 标准 S3 协议
     UploadMethodFormUpload   UploadMethod = "form_upload"    // 表单上传
-    UploadMethodSDKUpload    UploadMethod = "sdk_upload"     // SDK 上传
 )
 ```
 
@@ -128,10 +123,6 @@ export class UploaderFactory {
       case 'form_upload':
         // 表单上传（七牛云、又拍云等）
         return new FormUploader()
-      
-      case 'sdk_upload':
-        // SDK 上传（特殊云存储）
-        return new SDKUploader()
       
       default:
         throw new Error(`不支持的上传方式: ${method}`)
@@ -289,68 +280,6 @@ func NewFactory(...) Storage {
 
 ---
 
-### 添加特殊的云存储（例如：华为云 OBS）
-
-#### 后端（Go）
-
-```go
-// 如果华为云 OBS 使用特殊的 SDK
-type HuaweiOBSStorage struct {
-    client *obs.Client
-}
-
-func (s *HuaweiOBSStorage) GenerateUploadCredentials(...) (*UploadCredentials, error) {
-    // 返回 SDK 配置
-    return &UploadCredentials{
-        Method: UploadMethodSDKUpload,
-        SDKConfig: map[string]interface{}{
-            "ak":        s.accessKey,
-            "sk":        s.secretKey,
-            "endpoint":  s.endpoint,
-            "bucket":    bucket,
-            "objectKey": key,
-        },
-    }, nil
-}
-```
-
-#### 前端（TypeScript）
-
-```typescript
-// utils/upload/huawei-obs.ts
-export class HuaweiOBSUploader implements Uploader {
-  async upload(credentials, file, onProgress) {
-    // 使用华为云 OBS SDK
-    const obsClient = new ObsClient(credentials.sdk_config)
-    
-    // 上传并监听进度
-    await obsClient.putObject({
-      Bucket: credentials.sdk_config.bucket,
-      Key: credentials.sdk_config.objectKey,
-      Body: file,
-      ProgressCallback: (transferred, total) => {
-        onProgress({
-          percent: (transferred / total) * 100,
-          loaded: transferred,
-          total,
-        })
-      }
-    })
-  }
-}
-
-// 注册到工厂
-// utils/upload/index.ts
-case 'sdk_upload':
-  // 根据 sdk_config 判断具体的云存储
-  if (credentials.sdk_config.provider === 'huawei') {
-    return new HuaweiOBSUploader()
-  }
-  return new SDKUploader()
-```
-
----
-
 ## 🎯 关键优势
 
 ### 1. **前端无需关心存储类型**
@@ -369,7 +298,7 @@ await uploadFile(router, file, onProgress)
 后端配置：
   storage.type = "minio"  →  返回 method: "presigned_url"
   storage.type = "qiniu"  →  返回 method: "form_upload"
-  storage.type = "huawei" →  返回 method: "sdk_upload"
+  storage.type = "qiniu"  →  返回 method: "form_upload"
 ```
 
 ### 3. **标准接口，易于扩展**
@@ -426,10 +355,9 @@ notifyUploadComplete(key, true)
 **关键设计原则**：
 
 1. ✅ **依赖倒置**：FilesWidget 依赖抽象的 `uploadFile`，不依赖具体的 MinIO
-2. ✅ **策略模式**：不同的上传方式（预签名 URL、表单上传、SDK）作为不同的策略
+2. ✅ **策略模式**：不同的上传方式（预签名 URL、表单上传）作为不同的策略
 3. ✅ **工厂模式**：`UploaderFactory` 根据 `method` 创建对应的上传器
 4. ✅ **后端驱动**：前端不关心存储类型，由后端告诉前端用哪种方式
 5. ✅ **易于扩展**：新增云存储，只需添加新的 `Uploader` 实现
 
-**这个架构可以支持任何云存储，前端无需修改！** 🎉
-
+**这个架构覆盖标准预签名 URL 和表单上传；新增非标准 SDK 上传时需要先落地真实的前端适配器。** 🎉

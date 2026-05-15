@@ -21,9 +21,9 @@ function toFullCodePath(router: string): string {
 
 function buildUpdatePayload(
   id: number | string,
-  newData: Record<string, any>,
-  oldData?: Record<string, any>
-): Record<string, any> {
+  newData: Record<string, unknown>,
+  oldData?: Record<string, unknown>
+): Record<string, unknown> {
   if (oldData) {
     const { updates, oldValues } = getChangedFields(oldData, newData)
     return {
@@ -50,7 +50,7 @@ export class TableGatewayImpl implements ITableGateway {
     )
   }
 
-  addRow(functionDetail: FunctionDetail, data: Record<string, any>): Promise<TableRow> {
+  addRow(functionDetail: FunctionDetail, data: Record<string, unknown>): Promise<TableRow> {
     const fullCodePath = toFullCodePath(requireFunctionRouter(functionDetail))
     return this.apiClient.post<TableRow>(
       `/workspace/api/v1/table/create${fullCodePath}`,
@@ -75,4 +75,3 @@ export class TableGatewayImpl implements ITableGateway {
     )
   }
 }
-

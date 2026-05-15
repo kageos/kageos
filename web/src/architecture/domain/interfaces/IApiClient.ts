@@ -19,7 +19,7 @@ export interface IApiClient {
    * @param params 查询参数（可选）
    * @returns Promise<T>
    */
-  get<T>(url: string, params?: any): Promise<T>
+  get<T>(url: string, params?: unknown): Promise<T>
 
   /**
    * POST 请求
@@ -27,7 +27,7 @@ export interface IApiClient {
    * @param data 请求体数据（可选）
    * @returns Promise<T>
    */
-  post<T>(url: string, data?: any): Promise<T>
+  post<T>(url: string, data?: unknown): Promise<T>
 
   /**
    * PUT 请求
@@ -35,7 +35,7 @@ export interface IApiClient {
    * @param data 请求体数据（可选）
    * @returns Promise<T>
    */
-  put<T>(url: string, data?: any): Promise<T>
+  put<T>(url: string, data?: unknown): Promise<T>
 
   /**
    * DELETE 请求
@@ -43,5 +43,5 @@ export interface IApiClient {
    * @param data 请求体数据（可选）
    * @returns Promise<T>
    */
-  delete<T>(url: string, data?: any): Promise<T>
+  delete<T>(url: string, data?: unknown): Promise<T>
 }

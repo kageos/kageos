@@ -19,28 +19,28 @@ export class ApiClientImpl implements IApiClient {
   /**
    * GET 请求
    */
-  async get<T>(url: string, params?: any): Promise<T> {
+  async get<T>(url: string, params?: unknown): Promise<T> {
     return get<T>(url, params)
   }
 
   /**
    * POST 请求
    */
-  async post<T>(url: string, data?: any): Promise<T> {
+  async post<T>(url: string, data?: unknown): Promise<T> {
     return post<T>(url, data)
   }
 
   /**
    * PUT 请求
    */
-  async put<T>(url: string, data?: any): Promise<T> {
+  async put<T>(url: string, data?: unknown): Promise<T> {
     return put<T>(url, data)
   }
 
   /**
    * DELETE 请求
    */
-  async delete<T>(url: string, data?: any): Promise<T> {
+  async delete<T>(url: string, data?: unknown): Promise<T> {
     return del<T>(url, data)
   }
 }

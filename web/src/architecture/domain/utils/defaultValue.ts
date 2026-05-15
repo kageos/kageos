@@ -13,12 +13,19 @@ const DataType = {
   STRUCTS: '[]struct'
 } as const
 
-export function getRenderDefaultFromConfig(config: unknown): any {
+type WidgetOption = string | {
+  label?: string
+  value?: unknown
+}
+
+type AuthStoreGetter = () => unknown
+
+export function getRenderDefaultFromConfig(config: unknown): unknown {
   if (!config || typeof config !== 'object') {
     return undefined
   }
 
-  const record = config as Record<string, any>
+  const record = config as Record<string, unknown>
   if ('render_default' in record) {
     return record.render_default
   }
@@ -27,14 +34,14 @@ export function getRenderDefaultFromConfig(config: unknown): any {
 
 export function getWidgetDefaultValue(
   field: FieldConfig,
-  customConverter?: (defaultValue: any, field: FieldConfig) => any,
-  getAuthStore?: () => any
+  customConverter?: (defaultValue: unknown, field: FieldConfig) => unknown,
+  getAuthStore?: AuthStoreGetter
 ): FieldValue {
   const config = field.widget?.config
-  const configRecord = config && typeof config === 'object' ? config as Record<string, any> : {}
+  const configRecord = config && typeof config === 'object' ? config as Record<string, unknown> : {}
   const configuredRenderDefault = getRenderDefaultFromConfig(config)
   if (configuredRenderDefault !== undefined) {
-    let defaultValue = configuredRenderDefault
+    let defaultValue: unknown = configuredRenderDefault
 
     if (defaultValue !== undefined && defaultValue !== null && defaultValue !== '') {
       const widgetType = field.widget?.type || ''
@@ -45,7 +52,7 @@ export function getWidgetDefaultValue(
         : convertDefaultValueByType(defaultValue, field.data?.type || DataType.STRING)
 
       if (field.widget?.type === 'select' && Array.isArray(configRecord.options)) {
-        const option = configRecord.options.find((opt: any) => {
+        const option = (configRecord.options as WidgetOption[]).find((opt) => {
           if (typeof opt === 'string') {
             return opt === convertedValue
           }
@@ -91,7 +98,7 @@ export function getWidgetDefaultValue(
   return getDefaultValueByType(fieldType)
 }
 
-function convertDefaultValueByType(defaultValue: any, fieldType: string): any {
+function convertDefaultValueByType(defaultValue: unknown, fieldType: string): unknown {
   switch (fieldType.toLowerCase()) {
     case DataType.INT.toLowerCase():
     case 'number': {

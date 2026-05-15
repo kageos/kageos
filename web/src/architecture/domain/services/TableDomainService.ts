@@ -90,6 +90,12 @@ const isAllowedSortField = (
   return requestFieldCodes.has(sort.field) || responseFieldCodes.has(sort.field)
 }
 
+type TableRequestParams = SearchParams & {
+  page: number
+  page_size: number
+  sorts?: string
+}
+
 /**
  * 表格领域服务
  */
@@ -163,7 +169,7 @@ export class TableDomainService {
 
     try {
       // 构建请求参数
-      const params: any = {
+      const params: TableRequestParams = {
         ...(searchParams || state.searchParams),
         ...(pagination ? {
           page: pagination.page,
@@ -290,7 +296,7 @@ export class TableDomainService {
   /**
    * 新增行
    */
-  async addRow(functionDetail: FunctionDetail, data: Record<string, any>): Promise<TableRow> {
+  async addRow(functionDetail: FunctionDetail, data: Record<string, unknown>): Promise<TableRow> {
     const response = await this.tableGateway.addRow(functionDetail, data)
 
     // 触发事件
@@ -305,8 +311,8 @@ export class TableDomainService {
   async updateRow(
     functionDetail: FunctionDetail,
     id: number | string,
-    data: Record<string, any>,
-    oldData?: Record<string, any>
+    data: Record<string, unknown>,
+    oldData?: Record<string, unknown>
   ): Promise<TableRow> {
     const response = await this.tableGateway.updateRow({
       functionDetail,
@@ -370,12 +376,12 @@ export class TableDomainService {
     functionDetail: FunctionDetail,
     query: Record<string, string | string[]>
   ): {
-    searchForm: Record<string, any>
+    searchForm: Record<string, unknown>
     sorts: Array<{ field: string; order: 'asc' | 'desc' }>
     pagination: { page: number; pageSize: number }
   } {
     
-    const searchForm: Record<string, any> = {}
+    const searchForm: Record<string, unknown> = {}
     const sorts: Array<{ field: string; order: 'asc' | 'desc' }> = []
     
     // 获取当前函数的所有字段 code
@@ -440,7 +446,7 @@ export class TableDomainService {
   /**
    * 构建搜索参数（遵循依赖倒置原则，业务逻辑在 Domain Layer）
    */
-  buildSearchParams(functionDetail: FunctionDetail, searchForm: Record<string, any>): SearchParams {
+  buildSearchParams(functionDetail: FunctionDetail, searchForm: Record<string, unknown>): SearchParams {
     const searchParams: SearchParams = {}
     
     // request 字段直传给 sdk-app。

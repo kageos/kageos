@@ -4,15 +4,15 @@
  */
 
 import type { IFieldExtractor, FieldExtractorRegistry } from './FieldExtractor'
-import type { FieldConfig } from '@/architecture/domain/types/field'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 
 export class BasicFieldExtractor implements IFieldExtractor {
   extract(
     field: FieldConfig,
     fieldPath: string,
-    getValue: (path: string) => any,
+    getValue: (path: string) => FieldValue | undefined,
     extractorRegistry: FieldExtractorRegistry
-  ): any {
+  ): unknown {
     const value = getValue(fieldPath)
     return value?.raw ?? null
   }

@@ -1,6 +1,21 @@
 import { get, post, put, del } from '@/architecture/infrastructure/apiClient/request'
 import type { FunctionDetail, SearchParams } from '@/architecture/domain/types'
 
+export interface SelectFuzzyItem {
+  value: unknown
+  label?: string
+  icon?: string
+  display_info?: Record<string, unknown>
+  displayInfo?: Record<string, unknown>
+}
+
+export interface SelectFuzzyResponse {
+  error_msg?: string
+  items?: SelectFuzzyItem[]
+  statistics?: Record<string, unknown>
+  max_selections?: number
+}
+
 // 获取函数详情（根据路径和函数类型）
 // ⭐ 使用新的路由：/function/info/:func-type/*full-code-path
 // @param fullCodePath 函数完整路径
@@ -21,31 +36,31 @@ export function getFunctionByPath(fullCodePath: string, funcType: string = 'tabl
  * @param params 请求参数
  * @param templateType 模板类型（table/form/chart），必须传入
  */
-export function executeFunction(method: string, router: string, params?: SearchParams | any, templateType?: string) {
+export function executeFunction(method: string, router: string, params?: SearchParams | Record<string, unknown>, templateType?: string): Promise<unknown> {
   const fullCodePath = router.startsWith('/') ? router : `/${router}`
   
   // ⭐ 根据 template_type 选择标准 API
   if (templateType === 'table') {
     // Table 查询：使用 /table/search/{full-code-path}
-    return get<any>(`/workspace/api/v1/table/search${fullCodePath}`, params || {})
+    return get<unknown>(`/workspace/api/v1/table/search${fullCodePath}`, params || {})
   } else if (templateType === 'form') {
     // Form 提交：使用 /form/submit/{full-code-path}
     const submitMethod = method.toUpperCase() || 'POST'
     if (submitMethod === 'GET') {
-      return get<any>(`/workspace/api/v1/form/submit${fullCodePath}`, params || {})
+      return get<unknown>(`/workspace/api/v1/form/submit${fullCodePath}`, params || {})
     } else {
-      return post<any>(`/workspace/api/v1/form/submit${fullCodePath}`, params || {})
+      return post<unknown>(`/workspace/api/v1/form/submit${fullCodePath}`, params || {})
     }
   } else if (templateType === 'chart') {
     // Chart 查询：使用 /chart/query/{full-code-path}
-    return get<any>(`/workspace/api/v1/chart/query${fullCodePath}`, params || {})
+    return get<unknown>(`/workspace/api/v1/chart/query${fullCodePath}`, params || {})
   }
 
   throw new Error('executeFunction 缺少合法的 templateType，/run 兼容接口已下线')
 }
 
 // ⭐ Table 回调操作 - 新增记录（使用标准 API）
-export function tableAddRow(method: string, router: string, data: any) {
+export function tableAddRow(method: string, router: string, data: Record<string, unknown>): Promise<unknown> {
   // ⭐ 使用标准 API：/table/create/{full-code-path}
   const fullCodePath = router.startsWith('/') ? router : `/${router}`
   const url = `/workspace/api/v1/table/create${fullCodePath}`
@@ -53,7 +68,7 @@ export function tableAddRow(method: string, router: string, data: any) {
 }
 
 // ⭐ Table 回调操作 - 更新记录（使用标准 API）
-export function tableUpdateRow(method: string, router: string, data: any) {
+export function tableUpdateRow(method: string, router: string, data: Record<string, unknown>): Promise<unknown> {
   // ⭐ 使用标准 API：/table/update/{full-code-path}
   const fullCodePath = router.startsWith('/') ? router : `/${router}`
   const url = `/workspace/api/v1/table/update${fullCodePath}`
@@ -88,10 +103,10 @@ export function tableDeleteRows(method: string, router: string, ids: number[]) {
  *   data: {
  *     error_msg: string,              // 错误信息（空表示成功）
  *     items: Array<{                  // 选项列表
- *       value: any,                   // 选项值
+ *       value: unknown,               // 选项值
  *       label: string,                // 显示标签
  *       icon: string,                 // 图标（可选）
- *       display_info: Record<string, any>  // 额外展示信息
+ *       display_info: Record<string, unknown>  // 额外展示信息
  *     }>,
  *     statistics: Record<string, string>  // 聚合统计表达式
  *   }
@@ -129,15 +144,15 @@ export function tableDeleteRows(method: string, router: string, ids: number[]) {
 export function selectFuzzy(method: string, router: string, data: {
   code: string
   type: 'by_keyword' | 'by_value' | 'by_values'
-  value: any
-  request: Record<string, any>
+  value: unknown
+  request: Record<string, unknown>
   value_type: string
-}) {
+}): Promise<SelectFuzzyResponse> {
   // ⭐ 使用标准 API：/callback/on_select_fuzzy/{full-code-path}
   // router 格式：/luobei/app/dir/func，需要确保以 / 开头
   const fullCodePath = router.startsWith('/') ? router : `/${router}`
   const url = `/workspace/api/v1/callback/on_select_fuzzy${fullCodePath}`
 
   // 统一使用 POST 方法
-  return post(url, data)
+  return post<SelectFuzzyResponse>(url, data)
 }

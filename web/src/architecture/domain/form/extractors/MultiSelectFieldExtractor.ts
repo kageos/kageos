@@ -10,16 +10,16 @@
  */
 
 import type { IFieldExtractor, FieldExtractorRegistry } from './FieldExtractor'
-import type { FieldConfig } from '@/architecture/domain/types/field'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 import { isStringDataType, getMultiSelectDefaultDataType } from '@/architecture/domain/constants/widget'
 
 export class MultiSelectFieldExtractor implements IFieldExtractor {
   extract(
     field: FieldConfig,
     fieldPath: string,
-    getValue: (path: string) => any,
+    getValue: (path: string) => FieldValue | undefined,
     extractorRegistry: FieldExtractorRegistry
-  ): any {
+  ): string | unknown[] {
     const value = getValue(fieldPath)
     const raw = value?.raw
     // 🔥 优先使用 value.dataType（通用字段），如果没有则从 field.data.type 获取

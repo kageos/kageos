@@ -78,7 +78,7 @@ import { reactive, watch } from 'vue'
 import { useFormDataStore, type FormDataStore } from '@/architecture/infrastructure/stores/formData'
 import { StateManagerImpl } from './StateManagerImpl'
 import type { IFormStateManager } from '../../domain/interfaces/IFormStateManager'
-import type { FieldValue, FormState, ValidationResult } from '@/architecture/domain/types'
+import type { FieldConfig, FieldValue, FormState, ValidationResult } from '@/architecture/domain/types'
 
 /**
  * 表单状态管理实现
@@ -88,8 +88,8 @@ export class FormStateManager extends StateManagerImpl<FormState> implements IFo
   private errors = reactive<Map<string, ValidationResult[]>>(new Map())
   private submitting = reactive({ value: false })
 
-  private response = reactive<{ value: Record<string, any> | null }>({ value: null })
-  private metadata = reactive<{ value: Record<string, any> | null }>({ value: null })
+  private response = reactive<{ value: Record<string, unknown> | null }>({ value: null })
+  private metadata = reactive<{ value: Record<string, unknown> | null }>({ value: null })
 
   constructor(formStore?: FormDataStore) {
     // 1. 先调用 super 传递初始空状态
@@ -228,7 +228,7 @@ export class FormStateManager extends StateManagerImpl<FormState> implements IFo
   /**
    * 设置错误
    */
-  setError(fieldCode: string, errors: any[]): void {
+  setError(fieldCode: string, errors: ValidationResult[]): void {
     this.errors.set(fieldCode, errors)
     this.updateState()
   }
@@ -252,14 +252,14 @@ export class FormStateManager extends StateManagerImpl<FormState> implements IFo
   /**
    * 获取提交数据（使用 FieldExtractorRegistry）
    */
-  getSubmitData(fields: any[]): Record<string, any> {
+  getSubmitData(fields: FieldConfig[]): Record<string, unknown> {
     return this.formStore.getSubmitData(fields)
   }
 
   /**
    * 设置响应数据
    */
-  setResponse(response: Record<string, any> | null): void {
+  setResponse(response: Record<string, unknown> | null): void {
     this.response.value = response
     this.updateState()
   }
@@ -267,14 +267,14 @@ export class FormStateManager extends StateManagerImpl<FormState> implements IFo
   /**
    * 获取响应数据
    */
-  getResponse(): Record<string, any> | null {
+  getResponse(): Record<string, unknown> | null {
     return this.response.value
   }
 
   /**
    * 设置元数据
    */
-  setMetadata(metadata: Record<string, any> | null): void {
+  setMetadata(metadata: Record<string, unknown> | null): void {
     this.metadata.value = metadata
     this.updateState()
   }
@@ -282,7 +282,7 @@ export class FormStateManager extends StateManagerImpl<FormState> implements IFo
   /**
    * 获取元数据
    */
-  getMetadata(): Record<string, any> | null {
+  getMetadata(): Record<string, unknown> | null {
     return this.metadata.value
   }
 

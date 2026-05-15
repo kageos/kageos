@@ -4,18 +4,39 @@
 import type { FieldConfig } from '@/architecture/domain/types/field'
 import { getSearchFieldRawValue } from '@/architecture/domain/utils/searchFieldValue'
 
+type TableDataRow = Record<string, unknown>
+
+interface FilesValuePayload {
+  files?: Array<{ upload_user?: unknown }>
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function asFilesPayload(value: unknown): FilesValuePayload | null {
+  if (!isRecord(value)) {
+    return null
+  }
+  const raw = value.raw
+  if (isRecord(raw)) {
+    return raw as FilesValuePayload
+  }
+  return value as FilesValuePayload
+}
+
 /**
  * 从表格数据中收集用户名
  * 注意：不收集 files widget 的 upload_user，因为表格列表不需要显示用户信息
  * files widget 的用户信息只在详情模式（detail）下才需要收集和查询
  */
 export function collectUsernamesFromTableData(
-  tableData: any[],
+  tableData: TableDataRow[],
   userFields: FieldConfig[]
 ): Set<string> {
   const usernames = new Set<string>()
   
-  tableData.forEach((row: any) => {
+  tableData.forEach(row => {
     // 只收集 user 类型字段的用户名
     userFields.forEach((field: FieldConfig) => {
       const value = row[field.code]
@@ -32,7 +53,7 @@ export function collectUsernamesFromTableData(
  * 从搜索表单中收集用户名
  */
 export function collectUsernamesFromSearchForm(
-  searchForm: Record<string, any>,
+  searchForm: Record<string, unknown>,
   searchableFields: FieldConfig[]
 ): Set<string> {
   const usernames = new Set<string>()
@@ -59,8 +80,8 @@ export function collectUsernamesFromSearchForm(
  * files widget 的用户信息只在详情模式（detail）下才需要收集和查询
  */
 export function collectAllUsernames(
-  tableData: any[],
-  searchForm: Record<string, any>,
+  tableData: TableDataRow[],
+  searchForm: Record<string, unknown>,
   visibleFields: FieldConfig[],
   searchableFields: FieldConfig[]
 ): string[] {
@@ -88,7 +109,7 @@ export function collectAllUsernames(
  * @returns 用户名数组
  */
 export function collectFilesUploadUsersFromRow(
-  rowData: any,
+  rowData: TableDataRow,
   visibleFields: FieldConfig[]
 ): string[] {
   const usernames = new Set<string>()
@@ -98,16 +119,13 @@ export function collectFilesUploadUsersFromRow(
   
   filesFields.forEach((field: FieldConfig) => {
     const value = rowData[field.code]
-    if (value && typeof value === 'object') {
-      // 处理 files widget 的数据结构
-      const filesData = value.raw || value
-      if (filesData && filesData.files && Array.isArray(filesData.files)) {
-        filesData.files.forEach((file: any) => {
-          if (file.upload_user) {
-            usernames.add(String(file.upload_user))
-          }
-        })
-      }
+    const filesData = asFilesPayload(value)
+    if (Array.isArray(filesData?.files)) {
+      filesData.files.forEach(file => {
+        if (file.upload_user) {
+          usernames.add(String(file.upload_user))
+        }
+      })
     }
   })
   

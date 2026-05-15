@@ -18,7 +18,7 @@ export interface IEventBus {
    * @param event 事件名称
    * @param payload 事件数据（可选）
    */
-  emit(event: string, payload?: any): void
+  emit(event: string, payload?: unknown): void
 
   /**
    * 监听事件
@@ -26,21 +26,21 @@ export interface IEventBus {
    * @param handler 事件处理函数
    * @returns 取消监听的函数
    */
-  on(event: string, handler: (payload?: any) => void): () => void
+  on<TPayload = unknown>(event: string, handler: (payload: TPayload) => void): () => void
 
   /**
    * 取消监听事件
    * @param event 事件名称
    * @param handler 事件处理函数
    */
-  off(event: string, handler: (payload?: any) => void): void
+  off<TPayload = unknown>(event: string, handler: (payload: TPayload) => void): void
 
   /**
    * 监听事件（仅触发一次）
    * @param event 事件名称
    * @param handler 事件处理函数
    */
-  once(event: string, handler: (payload?: any) => void): void
+  once<TPayload = unknown>(event: string, handler: (payload: TPayload) => void): void
 }
 
 /**

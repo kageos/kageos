@@ -10,6 +10,8 @@
 
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 
+export type ExtractedFieldValue = unknown
+
 /**
  * 字段提取器接口
  */
@@ -27,7 +29,7 @@ export interface IFieldExtractor {
     fieldPath: string,
     getValue: (path: string) => FieldValue | undefined,
     extractorRegistry: FieldExtractorRegistry
-  ): any
+  ): ExtractedFieldValue
 }
 
 /**
@@ -42,5 +44,5 @@ export interface FieldExtractorRegistry {
   /**
    * 提取字段值（委托给对应的提取器）
    */
-  extractField(field: FieldConfig, fieldPath: string, getValue: (path: string) => FieldValue | undefined): any
+  extractField(field: FieldConfig, fieldPath: string, getValue: (path: string) => FieldValue | undefined): ExtractedFieldValue
 }

@@ -218,7 +218,7 @@ export class TableApplicationService {
   /**
    * 新增行（供外部调用）
    */
-  async addRow(functionDetail: FunctionDetail, data: Record<string, any>): Promise<any> {
+  async addRow(functionDetail: FunctionDetail, data: Record<string, unknown>): Promise<TableRow> {
     const result = await this.domainService.addRow(functionDetail, data)
     // 重新加载数据
     await this.loadData(functionDetail)
@@ -231,9 +231,9 @@ export class TableApplicationService {
   async updateRow(
     functionDetail: FunctionDetail,
     id: number | string,
-    data: Record<string, any>,
-    oldData?: Record<string, any>
-  ): Promise<any> {
+    data: Record<string, unknown>,
+    oldData?: Record<string, unknown>
+  ): Promise<TableRow> {
     const result = await this.domainService.updateRow(functionDetail, id, data, oldData)
     // 重新加载数据
     await this.loadData(functionDetail)

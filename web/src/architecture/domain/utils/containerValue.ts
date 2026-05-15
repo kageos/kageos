@@ -9,18 +9,18 @@ interface ContainerStore {
   setValue(fieldPath: string, value: FieldValue): void
 }
 
-function isPlainObject(value: unknown): value is Record<string, any> {
+function isPlainObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
-function cloneMeta(meta?: Record<string, any>): Record<string, any> {
+function cloneMeta(meta?: Record<string, unknown>): Record<string, unknown> {
   return { ...(meta || {}) }
 }
 
 function getContainerMeta(
   currentValue: FieldValue | null | undefined,
   fallbackValue?: FieldValue | null
-): Record<string, any> {
+): Record<string, unknown> {
   if (currentValue?.meta && Object.keys(currentValue.meta).length > 0) {
     return cloneMeta(currentValue.meta)
   }
@@ -28,7 +28,7 @@ function getContainerMeta(
   return cloneMeta(fallbackValue?.meta)
 }
 
-export function buildContainerDisplayValue(field: FieldConfig, rawValue: any): string {
+export function buildContainerDisplayValue(field: FieldConfig, rawValue: unknown): string {
   if (rawValue === null || rawValue === undefined) {
     return ''
   }
@@ -56,7 +56,7 @@ export function syncFormContainerValue(
 ): FieldValue {
   const fallbackRaw = isPlainObject(fallbackValue?.raw) ? fallbackValue.raw : null
   const currentValue = formDataStore.getValue(fieldPath)
-  const rawData: Record<string, any> = {}
+  const rawData: Record<string, unknown> = {}
 
   ;(field.children || []).forEach((subField) => {
     const subFieldPath = `${fieldPath}.${subField.code}`
@@ -96,7 +96,7 @@ export function syncTableContainerValue(
   formDataStore: ContainerStore,
   field: FieldConfig,
   fieldPath: string,
-  rows: any[],
+  rows: unknown[],
   fallbackValue?: FieldValue | null
 ): FieldValue {
   const currentValue = formDataStore.getValue(fieldPath)
