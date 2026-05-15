@@ -244,7 +244,7 @@ import DebugDialog from './DebugDialog.vue'
 import GlobalResourceSearchDialog from './GlobalResourceSearchDialog.vue'
 import UpgradeEnterpriseDialog from '@/architecture/presentation/shared/components/UpgradeEnterpriseDialog.vue'
 import { Logger } from '@/architecture/shared/logger'
-import { getMessageUnreadCount } from '@/architecture/infrastructure/api/message'
+import { getMessageUnreadCount } from '@/architecture/presentation/context/api/message'
 import MessageInboxPanel from '@/architecture/presentation/features/message/components/MessageInboxPanel.vue'
 import { featureFlags } from '@/architecture/shared/config/features'
 

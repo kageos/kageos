@@ -263,7 +263,7 @@ import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/
 import type { FilesWidgetConfig } from '@/architecture/domain/types/widget-configs'
 import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { useAuthStore, useUserInfoStore } from '@/architecture/presentation/context/appStoresContext'
-import { resolveFileRefs, updateFileDescription } from '@/architecture/infrastructure/api/storage'
+import { resolveFileRefs, updateFileDescription } from '@/architecture/presentation/context/api/storage'
 import { Logger } from '@/architecture/shared/logger'
 import { formatTimestamp } from '@/architecture/shared/date'
 import { isWidgetConfigFlagEnabled } from '@/architecture/domain/utils/widgetConfigFlag'

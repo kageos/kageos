@@ -57,7 +57,7 @@
 
 <script setup lang="ts">
 import { Loading, Plus } from '@element-plus/icons-vue'
-import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
+import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 
 defineProps<{

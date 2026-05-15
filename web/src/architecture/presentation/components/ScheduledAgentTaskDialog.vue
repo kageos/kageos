@@ -303,7 +303,7 @@
 import { computed, ref, watch } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Close, Document as DocumentIcon, UploadFilled } from '@element-plus/icons-vue'
-import { getLLMList, type LLMInfo } from '@/architecture/infrastructure/api/agent'
+import { getLLMList, type LLMInfo } from '@/architecture/presentation/context/api/agent'
 import {
   createScheduledAgentTask,
   updateScheduledAgentTask,
@@ -311,13 +311,13 @@ import {
   type ScheduledAgentNotifyOn,
   type ScheduledAgentScheduleType,
   type ScheduledAgentTaskItem
-} from '@/architecture/infrastructure/api/scheduledAgentTask'
+} from '@/architecture/presentation/context/api/scheduledAgentTask'
 import UserPickerDialog from '@/architecture/presentation/shared/components/UserPickerDialog.vue'
 import DepartmentPickerDialog from '@/architecture/presentation/shared/components/DepartmentPickerDialog.vue'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import DepartmentDisplay from '@/architecture/presentation/shared/components/DepartmentDisplay.vue'
 import type { UserInfo } from '@/architecture/domain/types'
-import type { Department } from '@/architecture/infrastructure/api/department'
+import type { Department } from '@/architecture/presentation/context/api/department'
 import { getErrorMessage } from '@/architecture/shared/apiError'
 import { uploadFile, notifyUploadComplete, type UploadProgress } from '@/architecture/presentation/context/uploadContext'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'

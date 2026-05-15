@@ -114,7 +114,7 @@
 import { nextTick, ref, watch } from 'vue'
 import type { TreeInstance } from 'element-plus'
 import { Delete, Edit, MoreFilled, Plus, Refresh, Search, User } from '@element-plus/icons-vue'
-import type { Department } from '@/architecture/infrastructure/api/department'
+import type { Department } from '@/architecture/presentation/context/api/department'
 
 interface Props {
   treeData: Department[]

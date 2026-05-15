@@ -64,7 +64,7 @@ export function useTableBatchDelete(options: UseTableBatchDeleteOptions) {
         return
       }
 
-      const { tableDeleteRows } = await import('@/architecture/infrastructure/api/function')
+      const { tableDeleteRows } = await import('@/architecture/presentation/context/api/function')
       const functionDetail = options.functionDetail()
       const functionRouter = functionDetail.router ?? ''
       if (!functionRouter) {

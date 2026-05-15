@@ -296,7 +296,7 @@ import { useWorkspaceViewLifecycle } from '../composables/useWorkspaceViewLifecy
 import { findNodeByPath, findNodeById } from '../utils/workspaceUtils'
 import { useAfterCreateNode } from '../composables/useAfterCreateNode'
 import { getFormRequestFields, getFunctionCallbacks } from '@/architecture/domain/utils/functionSchemaSelectors'
-import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
+import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
 import { featureFlags } from '@/architecture/shared/config/features'
 
 const route = useRoute()

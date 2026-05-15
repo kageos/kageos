@@ -41,7 +41,7 @@
 
 <script setup lang="ts">
 import { Plus } from '@element-plus/icons-vue'
-import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
+import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
 
 defineProps<{
   summarySessions: WorkspaceSessionItem[]

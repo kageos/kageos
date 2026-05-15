@@ -1,6 +1,6 @@
 import { computed, ref, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import type { ToolResultMetadata } from '@/architecture/infrastructure/api/workspace'
+import type { ToolResultMetadata } from '@/architecture/presentation/context/api/workspace'
 import { extractFileGroupsFromResult, type OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { extractAllDisplayFields, type OutputDisplayField } from '@/architecture/presentation/composables/useOutputDisplayFields'
 import type { ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'

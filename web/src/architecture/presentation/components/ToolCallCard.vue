@@ -71,7 +71,7 @@
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Check, Close, Loading, ArrowDown, Document, CircleCheck, Warning, CopyDocument } from '@element-plus/icons-vue'
-import type { WorkspaceChatToolCallSummary } from '@/architecture/infrastructure/api/workspace'
+import type { WorkspaceChatToolCallSummary } from '@/architecture/presentation/context/api/workspace'
 
 const props = defineProps<{
   toolCall: WorkspaceChatToolCallSummary

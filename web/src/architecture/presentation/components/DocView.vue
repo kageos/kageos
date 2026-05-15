@@ -166,7 +166,7 @@ import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } fr
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, Check, Plus, Delete, Close, ArrowLeft, ArrowRight, Clock, RefreshRight } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/architecture/domain/types'
-import { getDoc, updateDoc, deleteDoc } from '@/architecture/infrastructure/api/doc'  // ✅ 使用新的文档 API
+import { getDoc, updateDoc, deleteDoc } from '@/architecture/presentation/context/api/doc'  // ✅ 使用新的文档 API
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 

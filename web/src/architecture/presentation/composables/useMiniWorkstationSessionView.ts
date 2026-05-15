@@ -1,5 +1,5 @@
 import { computed, type Ref } from 'vue'
-import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
+import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
 
 export type SessionFilterValue = 'all' | 'running' | 'waiting' | 'output' | 'done'
 export type SessionStatusKind = 'running' | 'waiting' | 'done' | 'cancelled' | 'failed' | 'active' | 'output'

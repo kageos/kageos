@@ -346,6 +346,14 @@ for (const file of files) {
       failures.push(`${relative(root, file)}:${index + 1} presentation upload APIs must use presentation/context/uploadContext: ${line.trim()}`)
     }
 
+    if (
+      normalizedFile.startsWith('src/architecture/presentation/')
+      && !normalizedFile.startsWith('src/architecture/presentation/context/api/')
+      && /@\/architecture\/infrastructure\/api\//.test(line)
+    ) {
+      failures.push(`${relative(root, file)}:${index + 1} presentation API calls must use presentation/context/api/*: ${line.trim()}`)
+    }
+
     const layerRule = layerRuleForFile(file)
     if (
       layerRule

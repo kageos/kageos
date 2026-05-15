@@ -47,7 +47,7 @@
 import { ref, computed } from 'vue'
 import { ElButton } from 'element-plus'
 import { OfficeBuilding } from '@element-plus/icons-vue'
-import type { Department } from '@/architecture/infrastructure/api/department'
+import type { Department } from '@/architecture/presentation/context/api/department'
 import DepartmentPickerDialog from '@/architecture/presentation/shared/components/DepartmentPickerDialog.vue'
 
 interface Props {
