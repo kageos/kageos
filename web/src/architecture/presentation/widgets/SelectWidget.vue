@@ -110,7 +110,7 @@
 <script setup lang="ts">
 import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import FuzzySearchDialog from './FuzzySearchDialog.vue'
+import FuzzySearchDialog, { type InputFuzzyItem } from './FuzzySearchDialog.vue'
 import FieldStatistics from './FieldStatistics.vue'
 import SelectWidgetDialogTrigger from './SelectWidgetDialogTrigger.vue'
 import SelectWidgetInlineSelect from './SelectWidgetInlineSelect.vue'
@@ -130,7 +130,32 @@ import { widgetInitializerRegistry } from '@/architecture/presentation/widgets/i
 import { SelectWidgetInitializer } from '@/architecture/presentation/widgets/initializers/SelectWidgetInitializer'
 import { getWidgetOptionColors } from '@/architecture/domain/utils/widgetOptionColors'
 import type { SelectOptionConfig, SelectWidgetConfig } from '@/architecture/domain/types/widget-configs'
-import type { SelectOptionItem } from './selectWidgetTypes'
+import type { SelectOptionItem, SelectOptionValue } from './selectWidgetTypes'
+
+type SelectValue = unknown
+type FormRendererLike = NonNullable<WidgetComponentProps['formRenderer']>
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function hasValue(value: unknown): boolean {
+  return value !== null && value !== undefined && value !== ''
+}
+
+function toOptionValue(value: unknown): SelectOptionValue {
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return value
+  }
+  if (isRecord(value)) {
+    return value
+  }
+  return String(value ?? '')
+}
+
+function toDisplayInfoRecord(value: unknown): Record<string, unknown> | undefined {
+  return isRecord(value) ? value : undefined
+}
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -162,7 +187,7 @@ function normalizeOption(option: string | SelectOptionConfig): SelectOptionItem 
 
   return {
     label: option.label,
-    value: option.value,
+    value: toOptionValue(option.value),
     disabled: option.disabled,
     displayInfo: option.displayInfo ?? option.display_info,
     icon: option.icon,
@@ -213,10 +238,10 @@ const currentOptionColor = computed(() => {
  * 注意：options_colors 数组与 staticOptions 数组的索引对齐
  * 即使 options 可能包含动态选项，颜色配置仍然基于 staticOptions 的索引
  */
-function getOptionColor(value: any): string | null {
+function getOptionColor(value: SelectValue): string | null {
   const valueStr = String(value)
   // 🔥 在 staticOptions 中查找索引（因为 options_colors 与 staticOptions 对齐）
-  const optionIndex = staticOptions.value.findIndex((opt: any) => String(opt.value) === valueStr)
+  const optionIndex = staticOptions.value.findIndex((opt) => String(opt.value) === valueStr)
   if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
     return normalizeOptionColor(optionColors.value[optionIndex]) ?? null
   }
@@ -226,7 +251,7 @@ function getOptionColor(value: any): string | null {
 /**
  * 🔥 获取选项的颜色样式对象（用于 span 的 style 绑定）
  */
-function getOptionColorStyle(value: any): Record<string, string> {
+function getOptionColorStyle(value: SelectValue): Record<string, string> {
   const color = getOptionColor(value)
   if (!color) return {}
   const backgroundColor = getOptionSolidColor(color)
@@ -255,7 +280,7 @@ function getOptionColorStyle(value: any): Record<string, string> {
   return style
 }
 
-function formatDisplayInfo(info: any): string {
+function formatDisplayInfo(info: unknown): string {
   if (!info) {
     return ''
   }
@@ -265,7 +290,7 @@ function formatDisplayInfo(info: any): string {
     return ''
   }
 
-  if (typeof normalizedInfo !== 'object') {
+  if (!isRecord(normalizedInfo)) {
     return String(normalizedInfo)
   }
 
@@ -322,7 +347,7 @@ const dialogPlaceholder = computed(() => {
 
 // 对话框相关状态
 const dialogVisible = ref(false)
-const dialogSuggestions = ref<Array<{ label: string; value: any; displayInfo?: any; icon?: string }>>([])
+const dialogSuggestions = ref<InputFuzzyItem[]>([])
 
 // 🔥 SelectWidget 是纯单选组件，不需要多选相关逻辑
 // 注意：SelectWidget 始终支持搜索（通过 FuzzySearchDialog），不需要 filterable 配置
@@ -335,7 +360,7 @@ const internalValue = computed({
     }
     return null
   },
-  set: (newValue: any) => {
+  set: (newValue: SelectValue) => {
     if (props.mode === 'edit' || props.mode === 'search') {
       if (newValue === null || newValue === undefined || newValue === '') {
         handleClear()
@@ -364,16 +389,16 @@ const internalValue = computed({
 // 🔥 详情模式下通过回调获取的显示值（用于存储）
 const detailDisplayValue = ref<string | null>(null)
 
-function hasSelectedValue(raw: any): boolean {
-  return raw !== null && raw !== undefined && raw !== ''
+function hasSelectedValue(raw: unknown): boolean {
+  return hasValue(raw)
 }
 
-function findSelectedOption(raw: any): SelectOptionItem | undefined {
+function findSelectedOption(raw: unknown): SelectOptionItem | undefined {
   if (!hasSelectedValue(raw)) {
     return undefined
   }
 
-  return options.value.find((opt: any) => {
+  return options.value.find((opt) => {
     return opt.value === raw || String(opt.value) === String(raw)
   })
 }
@@ -402,7 +427,7 @@ const displayInfoText = computed(() => {
   }
   
   // 🔥 如果 meta 中没有，从 options 中查找
-  const selectedOption = options.value.find((opt: any) => {
+  const selectedOption = options.value.find((opt) => {
     return opt.value === value.raw || String(opt.value) === String(value.raw)
   })
   
@@ -503,11 +528,11 @@ async function openDialog(): Promise<void> {
     }
   } else {
     // 静态选项，直接使用
-    dialogSuggestions.value = options.value.map((opt: any) => ({
+    dialogSuggestions.value = options.value.map((opt) => ({
       label: opt.label,
       value: opt.value,
-      displayInfo: opt.displayInfo,
-      display_info: opt.displayInfo, // 同时提供两种格式，确保兼容
+      displayInfo: toDisplayInfoRecord(opt.displayInfo),
+      display_info: toDisplayInfoRecord(opt.displayInfo), // 同时提供两种格式，确保兼容
       icon: opt.icon
     }))
   }
@@ -527,28 +552,24 @@ async function handleDialogSearch(keyword: string): Promise<void> {
     await handleSearch(keyword, false)
     
     // 更新对话框建议列表
-    dialogSuggestions.value = options.value.map((opt: any) => ({
+    dialogSuggestions.value = options.value.map((opt) => ({
       label: opt.label,
       value: opt.value,
-      displayInfo: opt.displayInfo,
-      display_info: opt.displayInfo, // 同时提供两种格式，确保兼容
+      displayInfo: toDisplayInfoRecord(opt.displayInfo),
+      display_info: toDisplayInfoRecord(opt.displayInfo), // 同时提供两种格式，确保兼容
       icon: opt.icon
     }))
   } else {
     // 静态选项，本地过滤
-    const filtered = staticOptions.value.filter((opt: any) => {
-      const label = typeof opt === 'string' ? opt : opt.label
-      return label.toLowerCase().includes(keyword.toLowerCase())
+    const filtered = staticOptions.value.filter((opt) => {
+      return opt.label.toLowerCase().includes(keyword.toLowerCase())
     })
-    dialogSuggestions.value = filtered.map((opt: any) => {
-      if (typeof opt === 'string') {
-        return { label: opt, value: opt }
-      }
+    dialogSuggestions.value = filtered.map((opt) => {
       return {
         label: opt.label,
         value: opt.value,
-        displayInfo: opt.displayInfo,
-        display_info: opt.displayInfo, // 同时提供两种格式，确保兼容
+        displayInfo: toDisplayInfoRecord(opt.displayInfo),
+        display_info: toDisplayInfoRecord(opt.displayInfo), // 同时提供两种格式，确保兼容
         icon: opt.icon
       }
     })
@@ -556,14 +577,14 @@ async function handleDialogSearch(keyword: string): Promise<void> {
 }
 
 // 处理对话框选择（单选模式）
-function handleDialogSelect(item: { value: any; label?: string; displayInfo?: any }): void {
+function handleDialogSelect(item: InputFuzzyItem): void {
   // 🔥 更新 options，确保选择的项的 displayInfo 被保存
-  const existingOption = options.value.find((opt: any) => String(opt.value) === String(item.value))
+  const existingOption = options.value.find((opt) => String(opt.value) === String(item.value))
   if (!existingOption) {
     // 如果 options 中没有，添加进去
     options.value.push({
       label: item.label || String(item.value),
-      value: item.value,
+      value: toOptionValue(item.value),
       displayInfo: item.displayInfo
     })
   } else if (item.displayInfo && !existingOption.displayInfo) {
@@ -571,14 +592,14 @@ function handleDialogSelect(item: { value: any; label?: string; displayInfo?: an
     existingOption.displayInfo = item.displayInfo
   }
   
-  const selectedOption = options.value.find((opt: any) => String(opt.value) === String(item.value))
+  const selectedOption = options.value.find((opt) => String(opt.value) === String(item.value))
   // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
   const newFieldValue = createFieldValue(
     props.field,
     item.value,
     item.label || selectedOption?.label || String(item.value),
     {
-      displayInfo: item.displayInfo || selectedOption?.displayInfo,
+    displayInfo: item.displayInfo || item.display_info || selectedOption?.displayInfo,
       statistics: currentStatistics.value  // 🔥 保存 statistics 配置
     }
   )
@@ -620,7 +641,7 @@ function handleClear(): void {
 
 
 // 处理搜索
-async function handleSearch(query: string | number, isByValue: boolean): Promise<void> {
+async function handleSearch(query: string | number | SelectValue, isByValue: boolean): Promise<void> {
   if (!hasCallback.value || !callbackRouter.value) {
     return
   }
@@ -642,7 +663,7 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
   try {
     // 🔥 类型转换：根据 value_type 将字符串转换为正确的类型
     const valueType = props.field.data?.type || 'string'
-    let convertedValue: any = query
+    let convertedValue: unknown = query
     
     // 🔥 如果 query 已经是数字类型，不需要转换
     if (isByValue && typeof query === 'string' && valueType !== 'string') {
@@ -701,16 +722,16 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
       // - label: 候选项主文案，搜索态和选中态优先展示它
       // - value: 实际提交值
       // - display_info/displayInfo: 次级结构化信息，用于弹窗候选项补充说明和选中后的 displayInfo 展示
-      options.value = response.items.map((item: any) => ({
+      options.value = response.items.map((item) => ({
         label: item.label || String(item.value),
-        value: item.value,
+        value: toOptionValue(item.value),
         disabled: false,
         displayInfo: item.display_info || item.displayInfo
       }))
       
       // 🔥 如果是通过 by_value 查询，找到匹配的选项并更新显示值
       if (isByValue && hasSelectedValue(props.value?.raw)) {
-        const matchedOption = options.value.find((opt: any) => {
+        const matchedOption = options.value.find((opt) => {
           // 支持多种类型比较
           return opt.value === props.value.raw || String(opt.value) === String(props.value.raw)
         })
@@ -739,9 +760,9 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
     } else {
       options.value = []
     }
-  } catch (error: any) {
+  } catch (error) {
     Logger.error('SelectWidget', '回调失败', error)
-    ElMessage.error(error?.message || '查询失败')
+    ElMessage.error(error instanceof Error ? error.message : '查询失败')
     options.value = []
   } finally {
     loading.value = false
@@ -786,7 +807,7 @@ onUnmounted(() => {
 // 🔥 监听 value 和 formRenderer 变化，如果值变化了，重新触发回调获取标签
 // 使用一个标志来防止重复调用
 const isSearching = ref(false)
-const lastSearchedValue = ref<any>(null)
+const lastSearchedValue = ref<SelectValue>(null)
 const lastSearchedRouter = ref<string | null>(null) // 🔥 记录上次搜索使用的 router
 const lastSearchedFunctionId = ref<number | null>(null) // 🔥 记录上次搜索使用的函数 ID
 
@@ -794,7 +815,7 @@ const lastSearchedFunctionId = ref<number | null>(null) // 🔥 记录上次搜�
 const ENABLE_DETAILED_LOGS = false
 
 // 🔥 触发搜索的辅助函数（避免重复代码）
-const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) => {
+const triggerSearchIfNeeded = (rawValue: SelectValue, formRenderer: FormRendererLike | undefined, mode: string) => {
   // 🔥 优化：减少日志输出，只在关键节点输出
   const shouldLog = ENABLE_DETAILED_LOGS
   
@@ -994,7 +1015,7 @@ watch(
         newRaw !== null && 
         newRaw !== undefined && 
         newRaw !== oldRaw) {
-      triggerSearchIfNeeded(newRaw, props.formRenderer, props.mode)
+      triggerSearchIfNeeded(newRaw, props.formRenderer || undefined, props.mode)
     }
   }
 )

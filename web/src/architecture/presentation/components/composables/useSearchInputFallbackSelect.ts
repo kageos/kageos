@@ -12,14 +12,43 @@ import {
 import { Logger } from '@/architecture/shared/logger'
 import { getFieldWidgetOptionColors } from '@/architecture/domain/utils/widgetOptionColors'
 import type { FieldConfig } from '@/architecture/domain/types'
-import type { SearchInputConfig, SearchOption } from '../utils/searchInputTypes'
+import type { SearchInputConfig, SearchOption, SearchValue } from '../utils/searchInputTypes'
 
 interface UseSearchInputFallbackSelectOptions {
   field: FieldConfig
   inputConfig: ComputedRef<SearchInputConfig>
-  localValue: Ref<any>
+  localValue: Ref<SearchValue | SearchValue[]>
   shouldShowValue: Ref<boolean>
-  handleInput: (value: any) => void
+  handleInput: (value: SearchValue | SearchValue[]) => void
+}
+
+type StaticOptionInput = string | SearchOption
+
+function isSearchOption(value: unknown): value is SearchOption {
+  return typeof value === 'object' && value !== null && 'value' in value
+}
+
+function normalizeSearchOption(option: unknown): SearchOption {
+  if (typeof option === 'string') {
+    return { label: option, value: option }
+  }
+  if (isSearchOption(option)) {
+    return {
+      label: String(option.label ?? option.value ?? ''),
+      value: option.value,
+      userInfo: option.userInfo,
+      departmentInfo: option.departmentInfo
+    }
+  }
+  return { label: String(option ?? ''), value: option }
+}
+
+function getOptionValue(option: SearchOption | string): SearchValue {
+  return typeof option === 'string' ? option : option.value
+}
+
+function valuesEqual(left: SearchValue, right: SearchValue): boolean {
+  return left === right || String(left) === String(right)
 }
 
 export function useSearchInputFallbackSelect({
@@ -92,31 +121,20 @@ export function useSearchInputFallbackSelect({
   const staticOptions = computed(() => {
     const inputConfigOptions = inputConfig.value.props?.options
     if (inputConfigOptions && Array.isArray(inputConfigOptions) && inputConfigOptions.length > 0) {
-      return inputConfigOptions.map((opt: any) => {
-        if (typeof opt === 'string') {
-          return { label: opt, value: opt }
-        }
-        return opt
-      })
+      return (inputConfigOptions as StaticOptionInput[]).map(normalizeSearchOption)
     }
 
     const options = field.widget?.config?.options || []
-    return options.map((opt: any) => {
-      if (typeof opt === 'string') {
-        return { label: opt, value: opt }
-      }
-      return opt
-    })
+    return (options as StaticOptionInput[]).map(normalizeSearchOption)
   })
 
-  function getOptionColor(value: any): string | null {
+  function getOptionColor(value: SearchValue): string | null {
     if (!value) return null
     if (!optionColors.value || optionColors.value.length === 0) return null
 
     const valueStr = String(value)
-    const optionIndex = staticOptions.value.findIndex((opt: any) => {
-      const optValue = typeof opt === 'object' ? opt.value : opt
-      return String(optValue) === valueStr
+    const optionIndex = staticOptions.value.findIndex((opt) => {
+      return String(opt.value) === valueStr
     })
 
     if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
@@ -126,16 +144,16 @@ export function useSearchInputFallbackSelect({
     return null
   }
 
-  function getOptionColorType(value: any): StandardColorType | undefined {
+  function getOptionColorType(value: SearchValue): StandardColorType | undefined {
     void value
     return undefined
   }
 
-  function getOptionColorValue(value: any): string | undefined {
+  function getOptionColorValue(value: SearchValue): string | undefined {
     return undefined
   }
 
-  function getSelectTagStyle(value: any): Record<string, string> {
+  function getSelectTagStyle(value: SearchValue): Record<string, string> {
     const color = getOptionColor(value)
     if (!color) return {}
 
@@ -151,7 +169,7 @@ export function useSearchInputFallbackSelect({
     }
   }
 
-  function getOptionColorStyle(value: any): Record<string, string> {
+  function getOptionColorStyle(value: SearchValue): Record<string, string> {
     const color = getOptionColor(value)
     if (!color) return {}
 
@@ -185,50 +203,47 @@ export function useSearchInputFallbackSelect({
     }
 
     const inputConfigOptions = inputConfig.value.props?.options
-    if (inputConfigOptions && inputConfigOptions.length > 0) {
-      return inputConfigOptions
+    if (Array.isArray(inputConfigOptions) && inputConfigOptions.length > 0) {
+      return (inputConfigOptions as StaticOptionInput[]).map(normalizeSearchOption)
     }
 
     return selectOptions.value
   })
 
-  function getOptionLabel(value: any): string {
+  function getOptionLabel(value: SearchValue): string {
     if (value === null || value === undefined) return ''
     const valueStr = String(value)
-    const option = selectOptionsComputed.value.find((opt: any) => {
-      const optValue = typeof opt === 'object' ? opt.value : opt
-      return String(optValue) === valueStr
+    const option = selectOptionsComputed.value.find((opt) => {
+      return String(opt.value) === valueStr
     })
     if (option) {
-      return typeof option === 'object' ? option.label : option
+      return option.label
     }
     return valueStr
   }
 
-  function getRenderedOptionValue(option: any): any {
-    return typeof option === 'object' ? option.value : option
+  function getRenderedOptionValue(option: SearchOption | string): SearchValue {
+    return getOptionValue(option)
   }
 
-  function getRenderedOptionLabel(option: any): string {
+  function getRenderedOptionLabel(option: SearchOption | string): string {
     return typeof option === 'object' ? option.label : String(option)
   }
 
-  function getRenderedOptionUserInfo(option: any): SearchOption['userInfo'] | null {
-    return typeof option === 'object' && option?.userInfo ? option.userInfo : null
+  function getRenderedOptionUserInfo(option: SearchOption | string): SearchOption['userInfo'] | null {
+    return typeof option === 'object' && option.userInfo ? option.userInfo : null
   }
 
-  function getUserInfoByValue(value: any): any {
+  function getUserInfoByValue(value: SearchValue): SearchOption['userInfo'] | null {
     if (!value) return null
     if (!Array.isArray(selectOptions.value)) return null
-    const option = selectOptions.value.find((opt: any) => {
-      if (!opt) return false
-      const optValue = typeof opt === 'object' ? opt.value : opt
-      return String(optValue) === String(value)
+    const option = selectOptions.value.find((opt) => {
+      return String(opt.value) === String(value)
     })
     return option?.userInfo || null
   }
 
-  function getUserTagInitial(value: any): string {
+  function getUserTagInitial(value: SearchValue): string {
     const userInfo = getUserInfoByValue(value)
     if (userInfo?.username) {
       return userInfo.username[0]?.toUpperCase() || 'U'
@@ -238,11 +253,11 @@ export function useSearchInputFallbackSelect({
     return label?.[0]?.toUpperCase() || 'U'
   }
 
-  function handleRemoveTag(valueToRemove: any): void {
+  function handleRemoveTag(valueToRemove: SearchValue): void {
     if (!Array.isArray(localValue.value)) {
       return
     }
-    const newValues = localValue.value.filter((value: any) => String(value) !== String(valueToRemove))
+    const newValues = localValue.value.filter((value) => String(value) !== String(valueToRemove))
     localValue.value = newValues
     handleInput(newValues)
   }
@@ -261,17 +276,15 @@ export function useSearchInputFallbackSelect({
 
       if (currentValue) {
         const valuesToCheck = Array.isArray(currentValue) ? currentValue : [currentValue]
-        valuesToCheck.forEach((val: any) => {
+        valuesToCheck.forEach((val) => {
           if (
             val &&
-            !mergedOptions.find((opt: any) => {
-              const optValue = typeof opt === 'object' ? opt.value : opt
-              return String(optValue) === String(val)
+            !mergedOptions.find((opt) => {
+              return String(opt.value) === String(val)
             })
           ) {
-            const existingOption = existingOptions.find((opt: any) => {
-              const optValue = typeof opt === 'object' ? opt.value : opt
-              return String(optValue) === String(val)
+            const existingOption = existingOptions.find((opt) => {
+              return String(opt.value) === String(val)
             })
             if (existingOption) {
               mergedOptions.push(existingOption)
@@ -305,7 +318,7 @@ export function useSearchInputFallbackSelect({
       await nextTick()
 
       try {
-        let queryValues: any[] = []
+        let queryValues: SearchValue[] = []
         if (Array.isArray(currentValue) && currentValue.length > 0) {
           queryValues = currentValue
         } else if (typeof currentValue === 'string' && currentValue.includes(',')) {
@@ -328,14 +341,13 @@ export function useSearchInputFallbackSelect({
           const isMultiple = inputConfig.value.props?.multiple || false
 
           if (isMultiple) {
-            const matchedValues: any[] = []
+            const matchedValues: SearchValue[] = []
             queryValues.forEach((queryVal) => {
-              const matchedOption = options.find((opt: any) => {
-                const optValue = typeof opt === 'object' ? opt.value : opt
-                return optValue === queryVal || String(optValue) === String(queryVal)
+              const matchedOption = options.find((opt) => {
+                return valuesEqual(opt.value, queryVal)
               })
               if (matchedOption) {
-                matchedValues.push(typeof matchedOption === 'object' ? matchedOption.value : matchedOption)
+                matchedValues.push(matchedOption.value)
               }
             })
             if (matchedValues.length > 0) {
@@ -343,12 +355,11 @@ export function useSearchInputFallbackSelect({
             }
           } else {
             const queryValue = queryValues[0]
-            const matchedOption = options.find((opt: any) => {
-              const optValue = typeof opt === 'object' ? opt.value : opt
-              return optValue === queryValue || String(optValue) === String(queryValue)
+            const matchedOption = options.find((opt) => {
+              return valuesEqual(opt.value, queryValue)
             })
             if (matchedOption) {
-              localValue.value = typeof matchedOption === 'object' ? matchedOption.value : matchedOption
+              localValue.value = matchedOption.value
             }
           }
         }
@@ -371,12 +382,11 @@ export function useSearchInputFallbackSelect({
     if (Array.isArray(currentValue) && currentValue.length > 0) {
       selectLoading.value = true
       try {
-        const optionPromises = currentValue.map(async (value: any) => {
+        const optionPromises = currentValue.map(async (value) => {
           if (!value) return null
           const options = await inputConfig.value.onRemoteMethod!(String(value))
-          return options?.find((opt: any) => {
-            const optValue = typeof opt === 'object' ? opt.value : opt
-            return String(optValue) === String(value)
+          return options?.find((opt) => {
+            return String(opt.value) === String(value)
           })
         })
 
@@ -390,9 +400,8 @@ export function useSearchInputFallbackSelect({
       selectLoading.value = true
       try {
         const options = await inputConfig.value.onRemoteMethod(String(currentValue))
-        const currentOption = options?.find((opt: any) => {
-          const optValue = typeof opt === 'object' ? opt.value : opt
-          return String(optValue) === String(currentValue)
+        const currentOption = options?.find((opt) => {
+          return String(opt.value) === String(currentValue)
         })
         if (currentOption) {
           selectOptions.value = [currentOption]

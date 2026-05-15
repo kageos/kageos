@@ -20,7 +20,7 @@ export function convertValueToType(
   value: string | number | boolean,
   targetType: string,
   componentName: string = 'ValueConverter'
-): any {
+): string | number | boolean {
   // 如果已经是目标类型，直接返回
   if (typeof value !== 'string') {
     return value
