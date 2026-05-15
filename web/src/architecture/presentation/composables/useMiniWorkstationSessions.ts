@@ -9,7 +9,7 @@ import {
   getWorkspaceSessions,
   type WorkspaceSessionItem
 } from '@/architecture/infrastructure/api/workspace'
-import { eventBus } from '@/architecture/infrastructure/eventBus'
+import { eventBus } from '@/architecture/presentation/context/eventBusContext'
 import type { ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import { Logger } from '@/architecture/shared/logger'
 import { fileNameFromRef, parseFileRefs } from '@/architecture/presentation/widgets/filesWidgetTypes'

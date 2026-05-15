@@ -69,9 +69,13 @@
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UploadFilled, Delete, Document } from '@element-plus/icons-vue'
-import { uploadFile, notifyUploadComplete } from '@/architecture/infrastructure/upload'
-import type { UploadProgress } from '@/architecture/infrastructure/upload/types'
-import { formatAcceptLabel, isFileAccepted } from '@/architecture/infrastructure/upload/accept'
+import {
+  formatAcceptLabel,
+  isFileAccepted,
+  notifyUploadComplete,
+  uploadFile,
+  type UploadProgress,
+} from '@/architecture/presentation/context/uploadContext'
 
 interface Props {
   /** 

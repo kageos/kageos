@@ -216,7 +216,7 @@ import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import { exportCapabilityBundle, installCapabilityBundle, updatePackage, updateServiceTreeFunction, updateDocs } from '@/architecture/infrastructure/api/service-tree'
 import { getRuntimeStateSummary, type RuntimeStateSummary } from '@/architecture/infrastructure/api/state'
 import { downloadCapabilityBundleFile, parseCapabilityBundleJson } from '@/architecture/presentation/utils/directoryBundleFile'
-import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
+import { eventBus, WorkspaceEvent } from '@/architecture/presentation/context/eventBusContext'
 import { useServiceTreeClipboard } from '../composables/useServiceTreeClipboard'
 import { useServiceTreeSearchExpand } from '../composables/useServiceTreeSearchExpand'
 import {

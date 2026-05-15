@@ -8,7 +8,7 @@ import { FormStateManager } from '@/architecture/infrastructure/stateManager/For
 import { useFormDataStore, type FormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { useResponseDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { createEmptyFieldValue } from '@/architecture/domain/utils/createFieldValue'
-import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
+import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 
 export function createFormViewRuntime(options: {
   eventBus: IEventBus

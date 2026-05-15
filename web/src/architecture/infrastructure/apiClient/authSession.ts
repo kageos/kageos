@@ -1,4 +1,4 @@
-import type { ApiResponse } from '@/architecture/domain/types'
+import type { ApiResponse } from '@/architecture/shared/apiTypes'
 
 const AUTH_ERROR_CODES = new Set(['TOKEN_EXPIRED', 'TOKEN_INVALID', 'TOKEN_BLACKLISTED'])
 const AUTH_ERROR_MESSAGE_KEYWORDS = [

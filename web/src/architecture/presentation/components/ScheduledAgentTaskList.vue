@@ -266,7 +266,7 @@ import {
 } from '@/architecture/infrastructure/api/scheduledAgentTask'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import ScheduledAgentTaskDialog from './ScheduledAgentTaskDialog.vue'
-import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
+import { eventBus, WorkspaceEvent } from '@/architecture/presentation/context/eventBusContext'
 import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
 
 const props = withDefaults(defineProps<{

@@ -140,7 +140,7 @@ import OutputDisplayFields from './OutputDisplayFields.vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import PrdPreview from './PrdPreview.vue'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
-import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
+import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 
 const authStore = useAuthStore()
 const currentUsername = authStore.user?.username || authStore.userName || ''

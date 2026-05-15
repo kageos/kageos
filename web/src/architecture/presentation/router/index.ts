@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
+import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import { featureFlags } from '@/architecture/shared/config/features'
 import { setAppRouter } from '@/architecture/shared/routing/navigation'
 

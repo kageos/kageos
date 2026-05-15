@@ -1,17 +1,18 @@
 import { ref, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { uploadFile, notifyBatchUploadComplete } from '@/architecture/infrastructure/upload'
-import type {
-  BatchUploadCompleteItem,
-  FileInfo,
-  UploadFileResult,
-  UploadProgress,
-  Uploader
-} from '@/architecture/infrastructure/upload'
+import {
+  generateFilePreview,
+  isFileAccepted,
+  notifyBatchUploadComplete,
+  uploadFile,
+  type BatchUploadCompleteItem,
+  type FileInfo,
+  type UploadFileResult,
+  type UploadProgress,
+  type Uploader,
+} from '@/architecture/presentation/context/uploadContext'
 import { Logger } from '@/architecture/shared/logger'
 import type { FileItem } from '../filesWidgetTypes'
-import { generateFilePreview } from '@/architecture/infrastructure/upload/filePreview'
-import { isFileAccepted } from '@/architecture/infrastructure/upload/accept'
 
 export interface UploadingFile {
   uid: string

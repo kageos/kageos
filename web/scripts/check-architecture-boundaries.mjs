@@ -322,6 +322,30 @@ for (const file of files) {
       failures.push(`${relative(root, file)}:${index + 1} presentation form runtime must use presentation/context/formRuntimeContext: ${line.trim()}`)
     }
 
+    if (
+      normalizedFile.startsWith('src/architecture/presentation/')
+      && normalizedFile !== 'src/architecture/presentation/context/appStoresContext.ts'
+      && /@\/architecture\/infrastructure\/stores\/(?:auth|departmentInfo|license|theme|userInfo)/.test(line)
+    ) {
+      failures.push(`${relative(root, file)}:${index + 1} presentation app stores must use presentation/context/appStoresContext: ${line.trim()}`)
+    }
+
+    if (
+      normalizedFile.startsWith('src/architecture/presentation/')
+      && normalizedFile !== 'src/architecture/presentation/context/eventBusContext.ts'
+      && /@\/architecture\/infrastructure\/eventBus/.test(line)
+    ) {
+      failures.push(`${relative(root, file)}:${index + 1} presentation event bus must use presentation/context/eventBusContext: ${line.trim()}`)
+    }
+
+    if (
+      normalizedFile.startsWith('src/architecture/presentation/')
+      && normalizedFile !== 'src/architecture/presentation/context/uploadContext.ts'
+      && /@\/architecture\/infrastructure\/upload/.test(line)
+    ) {
+      failures.push(`${relative(root, file)}:${index + 1} presentation upload APIs must use presentation/context/uploadContext: ${line.trim()}`)
+    }
+
     const layerRule = layerRuleForFile(file)
     if (
       layerRule

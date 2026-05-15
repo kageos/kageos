@@ -1,8 +1,7 @@
 import { ElMessage } from 'element-plus'
 import { nextTick, ref, type Ref } from 'vue'
-import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
-import { uploadFile, notifyUploadComplete } from '@/architecture/infrastructure/upload'
-import type { UploadProgress } from '@/architecture/infrastructure/upload/types'
+import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
+import { uploadFile, notifyUploadComplete, type UploadProgress } from '@/architecture/presentation/context/uploadContext'
 import type { WorkspaceChatMessageFile } from '@/architecture/infrastructure/api/workspace'
 
 const UPLOAD_ROUTER = 'workspace/chat'
