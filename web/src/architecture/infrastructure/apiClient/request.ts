@@ -218,7 +218,7 @@ export async function authFetch(
 async function retryWithFreshToken(
   config?: AuthRetryAxiosRequestConfig,
   originalError?: unknown
-): Promise<any> {
+): Promise<AxiosResponse<ApiResponse | Blob>> {
   if (!config || config._retryAfterRefresh || isRefreshRequestUrl(config.url) || !getRefreshTokenValue()) {
     await handleSessionExpired()
     return Promise.reject(originalError)
@@ -318,7 +318,7 @@ service.interceptors.response.use(
 // 支持两种模式：
 // 1. params 参数 - 作为查询参数（默认）
 // 2. data 参数 - 作为 body（用于特殊场景，如回调接口）
-export function get<T = any>(url: string, params?: any, useBody: boolean = false): Promise<T> {
+export function get<T = unknown>(url: string, params?: unknown, useBody: boolean = false): Promise<T> {
   if (useBody) {
     // 特殊场景：GET 请求带 body（用于回调接口）
     return service.request({
@@ -332,10 +332,11 @@ export function get<T = any>(url: string, params?: any, useBody: boolean = false
   } else {
     // 标准场景：GET 请求使用查询参数
     // 确保 params 是对象，并且只包含有值的字段
-    const cleanParams: Record<string, any> = {}
+    const cleanParams: Record<string, unknown> = {}
     if (params && typeof params === 'object') {
-      Object.keys(params).forEach(key => {
-        const value = params[key]
+      const paramRecord = params as Record<string, unknown>
+      Object.keys(paramRecord).forEach(key => {
+        const value = paramRecord[key]
         // 只包含非空值（排除 null、undefined、空字符串）
         if (value !== null && value !== undefined && value !== '') {
           cleanParams[key] = value
@@ -347,17 +348,17 @@ export function get<T = any>(url: string, params?: any, useBody: boolean = false
 }
 
 // 封装POST请求
-export function post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+export function post<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
   return service.post(url, data, config)
 }
 
 // 封装PUT请求
-export function put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+export function put<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
   return service.put(url, data, config)
 }
 
 // 封装PATCH请求
-export function patch<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+export function patch<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
   return service.patch(url, data, config)
 }
 
@@ -365,7 +366,7 @@ export function patch<T = any>(url: string, data?: any, config?: AxiosRequestCon
 // 支持两种模式：
 // 1. 无参数 - 标准 DELETE（默认）
 // 2. data 参数 - 带 body 的 DELETE（用于特殊场景，如回调接口）
-export function del<T = any>(url: string, data?: any): Promise<T> {
+export function del<T = unknown>(url: string, data?: unknown): Promise<T> {
   if (data) {
     // 特殊场景：DELETE 请求带 body
     return service.request({
@@ -380,7 +381,7 @@ export function del<T = any>(url: string, data?: any): Promise<T> {
 }
 
 // 封装文件上传
-export function upload<T = any>(url: string, formData: FormData): Promise<T> {
+export function upload<T = unknown>(url: string, formData: FormData): Promise<T> {
   return service.post(url, formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
@@ -389,11 +390,11 @@ export function upload<T = any>(url: string, formData: FormData): Promise<T> {
 }
 
 // 封装文件下载
-export function download(url: string, params?: any): Promise<void> {
+export function download(url: string, params?: unknown): Promise<void> {
   return service.get(url, {
     params,
     responseType: 'blob'
-  }).then((response: any) => {
+  }).then((response: Blob | AxiosResponse<Blob>) => {
     // response 已经是 Blob 对象（因为响应拦截器检测到 Blob 后直接返回了 response）
     // 如果 response 是完整的 AxiosResponse，取 response.data；否则直接使用 response
     const blob = response instanceof Blob ? response : (response.data instanceof Blob ? response.data : new Blob([response.data || response]))
@@ -409,7 +410,10 @@ export function download(url: string, params?: any): Promise<void> {
 }
 
 // 从响应头获取文件名（支持 RFC 5987 格式）
-function getFilenameFromResponse(response: any): string | null {
+function getFilenameFromResponse(response: Blob | AxiosResponse<Blob>): string | null {
+  if (response instanceof Blob) {
+    return null
+  }
   const contentDisposition = response.headers['content-disposition']
   if (!contentDisposition) {
     return null

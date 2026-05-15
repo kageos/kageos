@@ -80,7 +80,7 @@ export function addLinkTypeToUrl(url: string, linkType?: LinkTypeValue): string 
  * @param query URL 查询参数对象
  * @returns 是否是 link 跳转
  */
-export function isLinkNavigation(query: Record<string, any>): boolean {
+export function isLinkNavigation(query: Record<string, unknown>): boolean {
   const linkType = query[LINK_TYPE_QUERY_KEY]
   return linkType === LinkType.TABLE || linkType === LinkType.FORM
 }

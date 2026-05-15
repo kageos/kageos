@@ -74,8 +74,8 @@
  * 
  */
 
-import type { FieldConfig } from '@/architecture/domain/types/field'
-import type { IFieldExtractor, FieldExtractorRegistry as IFieldExtractorRegistry } from './FieldExtractor'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
+import type { ExtractedFieldValue, IFieldExtractor, FieldExtractorRegistry as IFieldExtractorRegistry } from './FieldExtractor'
 import { BasicFieldExtractor } from './BasicFieldExtractor'
 import { MultiSelectFieldExtractor } from './MultiSelectFieldExtractor'
 import { FormFieldExtractor } from './FormFieldExtractor'
@@ -127,8 +127,8 @@ export class FieldExtractorRegistry implements IFieldExtractorRegistry {
   extractField(
     field: FieldConfig,
     fieldPath: string,
-    getValue: (path: string) => any
-  ): any {
+    getValue: (path: string) => FieldValue | undefined
+  ): ExtractedFieldValue {
     const extractor = this.getExtractor(field)
     return extractor.extract(field, fieldPath, getValue, this)
   }

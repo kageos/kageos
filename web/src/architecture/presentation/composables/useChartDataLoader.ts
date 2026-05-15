@@ -10,7 +10,7 @@ interface UseChartDataLoaderOptions<TChart extends Chart> {
   chartData: Ref<TChart | null>
   initializeFieldValues: () => void
   watchChartData: () => void
-  buildRequestParams: () => Record<string, any>
+  buildRequestParams: () => Record<string, unknown>
   resetFilterValues: () => void
   normalizeChartData: (chart: Chart, hasFilters: boolean) => TChart
   createPendingChart: (title: string) => TChart
@@ -34,15 +34,18 @@ export function useChartDataLoader<TChart extends Chart>(options: UseChartDataLo
         'chart'
       )
 
-      if (response && response.chart) {
-        options.chartData.value = options.normalizeChartData(response.chart, options.requestFields.value.length > 0)
+      const responseRecord = response && typeof response === 'object'
+        ? response as { chart?: Chart }
+        : null
+      if (responseRecord?.chart) {
+        options.chartData.value = options.normalizeChartData(responseRecord.chart, options.requestFields.value.length > 0)
       } else {
         options.chartData.value = options.requestFields.value.length > 0
           ? options.createPendingChart(options.functionDetail.value.name || '图表')
           : null
       }
-    } catch (error: any) {
-      ElMessage.error(error?.message || '加载图表数据失败')
+    } catch (error: unknown) {
+      ElMessage.error(error instanceof Error ? error.message : '加载图表数据失败')
       options.chartData.value = null
     } finally {
       loading.value = false

@@ -1,14 +1,14 @@
 import type { FieldValue } from '@/architecture/domain/types/field'
 
-export function isStoredSearchFieldValue(value: any): value is FieldValue {
+export function isStoredSearchFieldValue(value: unknown): value is FieldValue {
   return !!value && typeof value === 'object' && 'raw' in value && 'display' in value
 }
 
-export function getSearchFieldRawValue<T = any>(value: any): T {
+export function getSearchFieldRawValue<T = unknown>(value: unknown): T {
   return isStoredSearchFieldValue(value) ? (value.raw as T) : (value as T)
 }
 
-export function getSearchFieldHideValue(value: any): string {
+export function getSearchFieldHideValue(value: unknown): string {
   if (!isStoredSearchFieldValue(value)) {
     return ''
   }
@@ -16,7 +16,7 @@ export function getSearchFieldHideValue(value: any): string {
   return typeof value.display === 'string' ? value.display : String(value.display ?? '')
 }
 
-export function hasSearchFieldValue(value: any): boolean {
+export function hasSearchFieldValue(value: unknown): boolean {
   const rawValue = getSearchFieldRawValue(value)
 
   if (rawValue === null || rawValue === undefined) {
@@ -34,7 +34,7 @@ export function hasSearchFieldValue(value: any): boolean {
   return true
 }
 
-export function createStoredSearchFieldValue(raw: any, display?: string | null, meta?: Record<string, any>): any {
+export function createStoredSearchFieldValue(raw: unknown, display?: string | null, meta?: Record<string, unknown>): unknown {
   if (display === undefined || display === null || display === '') {
     return raw
   }

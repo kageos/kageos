@@ -22,6 +22,38 @@ import { Logger } from '@/architecture/shared/logger'
 
 // ================ 类型定义 ================
 
+type ExpressionRow = Record<string, unknown>
+type ExpressionValue = unknown
+
+function isRecord(value: unknown): value is ExpressionRow {
+  return typeof value === 'object' && value !== null
+}
+
+function readFieldValue(row: unknown, fieldName: string): ExpressionValue | null {
+  if (!isRecord(row) || !fieldName) {
+    return null
+  }
+
+  if (Object.prototype.hasOwnProperty.call(row, fieldName)) {
+    return row[fieldName]
+  }
+
+  if (fieldName.includes('.')) {
+    const parts = fieldName.split('.')
+    let value: unknown = row
+    for (const part of parts) {
+      if (isRecord(value) && Object.prototype.hasOwnProperty.call(value, part)) {
+        value = value[part]
+      } else {
+        return null
+      }
+    }
+    return value
+  }
+
+  return null
+}
+
 /**
  * Token 类型
  */
@@ -698,7 +730,7 @@ class Evaluator {
   /**
    * 计算表达式（单行数据）
    */
-  static evaluate(node: ASTNode, row: any): any {
+  static evaluate(node: ASTNode, row: ExpressionRow): ExpressionValue {
     switch (node.type) {
       case 'Number':
         return node.value
@@ -733,7 +765,7 @@ class Evaluator {
   /**
    * 计算二元操作
    */
-  private static evaluateBinaryOp(node: BinaryOpNode, row: any): any {
+  private static evaluateBinaryOp(node: BinaryOpNode, row: ExpressionRow): ExpressionValue {
     const left = this.evaluate(node.left, row)
     const right = this.evaluate(node.right, row)
     
@@ -772,7 +804,7 @@ class Evaluator {
   /**
    * 计算一元操作
    */
-  private static evaluateUnaryOp(node: UnaryOpNode, row: any): any {
+  private static evaluateUnaryOp(node: UnaryOpNode, row: ExpressionRow): ExpressionValue {
     const operand = this.evaluate(node.operand, row)
     
     switch (node.operator) {
@@ -788,7 +820,7 @@ class Evaluator {
   /**
    * 计算函数调用
    */
-  private static evaluateFunctionCall(node: FunctionCallNode, row: any): any {
+  private static evaluateFunctionCall(node: FunctionCallNode, row: ExpressionRow): ExpressionValue {
     switch (node.name.toUpperCase()) {
       case 'IF':
         // MySQL IF(cond, thenExpr, elseExpr)：条件为真取第二参数，否则取第三参数
@@ -829,7 +861,7 @@ class Evaluator {
   /**
    * 计算 IF 表达式
    */
-  private static evaluateIf(node: IfNode, row: any): any {
+  private static evaluateIf(node: IfNode, row: ExpressionRow): ExpressionValue {
     const condition = this.evaluate(node.condition, row)
     if (condition) {
       return this.evaluate(node.thenBranch, row)
@@ -842,7 +874,7 @@ class Evaluator {
   /**
    * 计算 CASE 表达式
    */
-  private static evaluateCase(node: CaseNode, row: any): any {
+  private static evaluateCase(node: CaseNode, row: ExpressionRow): ExpressionValue {
     for (const caseItem of node.cases) {
       const condition = this.evaluate(caseItem.condition, row)
       if (condition) {
@@ -860,31 +892,8 @@ class Evaluator {
   /**
    * 获取字段值（支持中文字段名、英文字段名）
    */
-  private static getFieldValue(row: any, fieldName: string): any {
-    if (!row || !fieldName) {
-      return null
-    }
-    
-    // 直接访问字段
-    if (row.hasOwnProperty(fieldName)) {
-      return row[fieldName]
-    }
-    
-    // 尝试处理嵌套字段
-    if (fieldName.includes('.')) {
-      const parts = fieldName.split('.')
-      let value = row
-      for (const part of parts) {
-        if (value && value.hasOwnProperty(part)) {
-          value = value[part]
-        } else {
-          return null
-        }
-      }
-      return value
-    }
-    
-    return null
+  private static getFieldValue(row: ExpressionRow, fieldName: string): ExpressionValue | null {
+    return readFieldValue(row, fieldName)
   }
 }
 
@@ -901,7 +910,7 @@ export class ExpressionParser {
    * @param selectedItem 当前选中项（用于 value() 函数），可选
    * @returns 计算结果
    */
-  static evaluate(expression: string, data: any[], selectedItem?: any): any {
+  static evaluate(expression: string, data: ExpressionRow[], selectedItem?: unknown): ExpressionValue {
     if (!expression) {
       return ''
     }
@@ -942,7 +951,7 @@ export class ExpressionParser {
   /**
    * 计算行内聚合
    */
-  private static evaluateRowAggregation(funcName: string, argsStr: string, data: any[]): number {
+  private static evaluateRowAggregation(funcName: string, argsStr: string, data: ExpressionRow[]): number {
     // 解析表达式参数（可能是复杂表达式）
     const ast = this.parseExpression(argsStr)
     
@@ -972,7 +981,7 @@ export class ExpressionParser {
   /**
    * 计算 List 层聚合
    */
-  private static evaluateListAggregation(funcName: string, argsStr: string, data: any[]): number {
+  private static evaluateListAggregation(funcName: string, argsStr: string, data: ExpressionRow[]): number {
     const field = argsStr.trim()
     
     switch (funcName.toLowerCase()) {
@@ -1010,7 +1019,7 @@ export class ExpressionParser {
   /**
    * 计算求和
    */
-  private static calculateSum(ast: ASTNode, data: any[]): number {
+  private static calculateSum(ast: ASTNode, data: ExpressionRow[]): number {
     return data.reduce((sum, row) => {
       try {
         const value = Evaluator.evaluate(ast, row)
@@ -1025,7 +1034,7 @@ export class ExpressionParser {
   /**
    * 计算计数
    */
-  private static calculateCount(ast: ASTNode, data: any[]): number {
+  private static calculateCount(ast: ASTNode, data: ExpressionRow[]): number {
     // Count 需要特殊处理：统计有多少个不同的值
     const values = new Set<string>()
     
@@ -1046,7 +1055,7 @@ export class ExpressionParser {
   /**
    * 计算平均值
    */
-  private static calculateAvg(ast: ASTNode, data: any[]): number {
+  private static calculateAvg(ast: ASTNode, data: ExpressionRow[]): number {
     const sum = this.calculateSum(ast, data)
     const count = this.calculateCount(ast, data)
     return count > 0 ? sum / count : 0
@@ -1055,7 +1064,7 @@ export class ExpressionParser {
   /**
    * 计算最小值
    */
-  private static calculateMin(ast: ASTNode, data: any[]): number {
+  private static calculateMin(ast: ASTNode, data: ExpressionRow[]): number {
     const values = data
       .map(row => {
         try {
@@ -1073,7 +1082,7 @@ export class ExpressionParser {
   /**
    * 计算最大值
    */
-  private static calculateMax(ast: ASTNode, data: any[]): number {
+  private static calculateMax(ast: ASTNode, data: ExpressionRow[]): number {
     const values = data
       .map(row => {
         try {
@@ -1091,7 +1100,7 @@ export class ExpressionParser {
   /**
    * List 层求和
    */
-  private static calculateListSum(field: string, data: any[]): number {
+  private static calculateListSum(field: string, data: ExpressionRow[]): number {
     return data.reduce((sum, row) => {
       const value = this.getFieldValue(row, field)
       return sum + Number(value || 0)
@@ -1101,7 +1110,7 @@ export class ExpressionParser {
   /**
    * List 层平均值
    */
-  private static calculateListAvg(field: string, data: any[]): number {
+  private static calculateListAvg(field: string, data: ExpressionRow[]): number {
     const sum = this.calculateListSum(field, data)
     return data.length > 0 ? sum / data.length : 0
   }
@@ -1109,7 +1118,7 @@ export class ExpressionParser {
   /**
    * List 层最小值
    */
-  private static calculateListMin(field: string, data: any[]): number {
+  private static calculateListMin(field: string, data: ExpressionRow[]): number {
     const values = data
       .map(row => this.getFieldValue(row, field))
       .filter(v => v !== null && v !== undefined && v !== '')
@@ -1121,7 +1130,7 @@ export class ExpressionParser {
   /**
    * List 层最大值
    */
-  private static calculateListMax(field: string, data: any[]): number {
+  private static calculateListMax(field: string, data: ExpressionRow[]): number {
     const values = data
       .map(row => this.getFieldValue(row, field))
       .filter(v => v !== null && v !== undefined && v !== '')
@@ -1133,46 +1142,25 @@ export class ExpressionParser {
   /**
    * 获取字段值
    */
-  private static getFieldValue(row: any, fieldName: string): any {
-    if (!row || !fieldName) {
-      return null
-    }
-    
-    if (row.hasOwnProperty(fieldName)) {
-      return row[fieldName]
-    }
-    
-    if (fieldName.includes('.')) {
-      const parts = fieldName.split('.')
-      let value = row
-      for (const part of parts) {
-        if (value && value.hasOwnProperty(part)) {
-          value = value[part]
-        } else {
-          return null
-        }
-      }
-      return value
-    }
-    
-    return null
+  private static getFieldValue(row: ExpressionRow, fieldName: string): ExpressionValue | null {
+    return readFieldValue(row, fieldName)
   }
 
   /**
    * 计算选中项的字段值（value() 函数）
    */
-  private static evaluateValue(fieldName: string, selectedItem?: any): any {
-    if (!selectedItem || !fieldName) {
+  private static evaluateValue(fieldName: string, selectedItem?: unknown): ExpressionValue {
+    if (!isRecord(selectedItem) || !fieldName) {
       return ''
     }
     
-    let displayInfo: any = null
+    let displayInfo: ExpressionRow | null = null
     
-    if (selectedItem.displayInfo) {
+    if (isRecord(selectedItem.displayInfo)) {
       displayInfo = selectedItem.displayInfo
-    } else if (selectedItem.display_info) {
+    } else if (isRecord(selectedItem.display_info)) {
       displayInfo = selectedItem.display_info
-    } else if (typeof selectedItem === 'object' && !Array.isArray(selectedItem)) {
+    } else if (!Array.isArray(selectedItem)) {
       displayInfo = selectedItem
     }
     

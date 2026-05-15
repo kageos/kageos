@@ -16,6 +16,26 @@ const DynamicFunctionName = {
   MY_DEPARTMENT: 'mydepartment'
 } as const
 
+interface AuthUserDefaults {
+  username?: string
+  leader_username?: string
+  department_full_path?: string
+}
+
+interface AuthStoreDefaults {
+  user?: AuthUserDefaults | null
+}
+
+type DynamicDefaultValue = unknown
+
+function readAuthUser(store: unknown): AuthUserDefaults | null {
+  if (!store || typeof store !== 'object') {
+    return null
+  }
+  const user = (store as AuthStoreDefaults).user
+  return user && typeof user === 'object' ? user : null
+}
+
 function parseFunctionCall(funcCall: string): { name: string; args: string[] } | null {
   const match = funcCall.match(/^(\w+)\((.*)\)$/)
   if (!match) return null
@@ -124,11 +144,11 @@ function addSqlInterval(base: Date, interval: { amount: number; unit: string }, 
   return result
 }
 
-function formatTemporalDefault(date: Date): any {
+function formatTemporalDefault(date: Date): string {
   return formatDateTimeValue(date)
 }
 
-function resolveSqlStyleTemporalDefault(defaultValue: string, widgetType: string): { resolved: boolean; value: any } {
+function resolveSqlStyleTemporalDefault(defaultValue: string, widgetType: string): { resolved: boolean; value: DynamicDefaultValue } {
   if (!isTemporalWidget(widgetType)) {
     return { resolved: false, value: defaultValue }
   }
@@ -166,10 +186,10 @@ function resolveSqlStyleTemporalDefault(defaultValue: string, widgetType: string
 }
 
 export function resolveDynamicDefaultValue(
-  defaultValue: any,
+  defaultValue: DynamicDefaultValue,
   widgetType: string,
-  getAuthStore?: () => any
-): any {
+  getAuthStore?: () => unknown
+): DynamicDefaultValue {
   if (typeof defaultValue !== 'string') {
     return defaultValue
   }
@@ -187,16 +207,16 @@ export function resolveDynamicDefaultValue(
 
           if (funcName === DynamicFunctionName.ME) {
             if (getAuthStore) {
-              const authStore = getAuthStore()
-              const username = authStore?.user?.username
+              const user = readAuthUser(getAuthStore())
+              const username = user?.username
               if (username) {
                 resolvedParts.push(username)
               }
             }
           } else if (funcName === DynamicFunctionName.MY_LEADER) {
             if (getAuthStore) {
-              const authStore = getAuthStore()
-              const leaderUsername = authStore?.user?.leader_username
+              const user = readAuthUser(getAuthStore())
+              const leaderUsername = user?.leader_username
               if (leaderUsername) {
                 resolvedParts.push(leaderUsername)
               }
@@ -235,16 +255,14 @@ export function resolveDynamicDefaultValue(
   if (widgetType === WidgetType.USER || widgetType === WidgetType.USERS) {
     if (funcName === DynamicFunctionName.ME) {
       if (getAuthStore) {
-        const authStore = getAuthStore()
-        return authStore?.user?.username || null
+        return readAuthUser(getAuthStore())?.username || null
       }
       return defaultValue
     }
 
     if (funcName === DynamicFunctionName.MY_LEADER) {
       if (getAuthStore) {
-        const authStore = getAuthStore()
-        return authStore?.user?.leader_username || null
+        return readAuthUser(getAuthStore())?.leader_username || null
       }
       return defaultValue
     }
@@ -253,8 +271,7 @@ export function resolveDynamicDefaultValue(
   if (widgetType === WidgetType.DEPARTMENT || widgetType === WidgetType.DEPARTMENTS) {
     if (funcName === DynamicFunctionName.MY_DEPARTMENT) {
       if (getAuthStore) {
-        const authStore = getAuthStore()
-        return authStore?.user?.department_full_path || null
+        return readAuthUser(getAuthStore())?.department_full_path || null
       }
       return defaultValue
     }
@@ -263,7 +280,7 @@ export function resolveDynamicDefaultValue(
   return defaultValue
 }
 
-export function isFunctionCall(value: any): boolean {
+export function isFunctionCall(value: unknown): boolean {
   if (typeof value !== 'string') return false
   return /^\w+\(.*\)$/.test(value.trim())
 }

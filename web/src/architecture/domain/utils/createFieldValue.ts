@@ -2,9 +2,9 @@ import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 
 export function createFieldValue(
   field: FieldConfig,
-  raw: any,
+  raw: unknown,
   display: string,
-  meta?: Record<string, any>
+  meta?: Record<string, unknown>
 ): FieldValue {
   return {
     raw,
@@ -16,9 +16,9 @@ export function createFieldValue(
 }
 
 export function createRawFieldValue(
-  raw: any,
+  raw: unknown,
   display: string,
-  meta?: Record<string, any>
+  meta?: Record<string, unknown>
 ): FieldValue {
   return {
     raw,
@@ -31,14 +31,14 @@ export function createEmptyFieldValue(field: FieldConfig): FieldValue {
   return createFieldValue(field, null, '', {})
 }
 
-export function createEmptyRawFieldValue(meta?: Record<string, any>): FieldValue {
+export function createEmptyRawFieldValue(meta?: Record<string, unknown>): FieldValue {
   return createRawFieldValue(null, '', meta)
 }
 
 export function createAutoFieldValue(
-  raw: any,
+  raw: unknown,
   field?: FieldConfig,
-  meta?: Record<string, any>
+  meta?: Record<string, unknown>
 ): FieldValue {
   const normalizedRaw = raw ?? null
   const display = normalizedRaw === null

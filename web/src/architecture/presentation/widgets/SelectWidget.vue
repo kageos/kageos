@@ -674,7 +674,9 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
     
     // 🔥 保存 statistics 配置（用于聚合计算）
     if (response.statistics && typeof response.statistics === 'object') {
-      currentStatistics.value = response.statistics
+      currentStatistics.value = Object.fromEntries(
+        Object.entries(response.statistics).map(([key, value]) => [key, String(value)])
+      )
       // 如果当前已有选中值，立即更新 meta.statistics
       if (hasSelectedValue(props.value?.raw)) {
         // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType

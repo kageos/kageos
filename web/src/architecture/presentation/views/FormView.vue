@@ -273,7 +273,7 @@
       <div class="metadata-content">
         <span class="metadata-label">执行耗时：</span>
         <span class="metadata-value">
-          {{ formatCostTime(responseMetadata.total_cost_mill) }}
+          {{ formatCostTime(Number(responseMetadata.total_cost_mill || 0)) }}
         </span>
       </div>
     </div>

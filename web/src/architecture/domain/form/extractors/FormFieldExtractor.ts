@@ -4,15 +4,21 @@
  */
 
 import type { IFieldExtractor, FieldExtractorRegistry } from './FieldExtractor'
-import type { FieldConfig } from '@/architecture/domain/types/field'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
+
+type ExtractedObject = Record<string, unknown>
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
 
 export class FormFieldExtractor implements IFieldExtractor {
   extract(
     field: FieldConfig,
     fieldPath: string,
-    getValue: (path: string) => any,
+    getValue: (path: string) => FieldValue | undefined,
     extractorRegistry: FieldExtractorRegistry
-  ): any {
+  ): ExtractedObject | null {
     const value = getValue(fieldPath)
     const subFields = field.children || []
     
@@ -20,11 +26,11 @@ export class FormFieldExtractor implements IFieldExtractor {
       return null
     }
     
-    const formData: Record<string, any> = {}
+    const formData: ExtractedObject = {}
     
     // 🔥 获取原始数据，用于回退
-    const rawData = value?.raw && typeof value.raw === 'object' && !Array.isArray(value.raw)
-      ? value.raw as Record<string, any>
+    const rawData = isRecord(value?.raw)
+      ? value.raw
       : null
     
     subFields.forEach(subField => {
@@ -50,7 +56,7 @@ export class FormFieldExtractor implements IFieldExtractor {
         // 🔥 如果 store 和原始数据都没有值，根据字段类型返回默认值
         // 对于嵌套的 form，需要递归提取所有子字段，即使值为空也要保持结构完整
         if (subField.widget?.type === 'form') {
-          const nestedFormData: Record<string, any> = {}
+          const nestedFormData: ExtractedObject = {}
           const nestedSubFields = subField.children || []
           nestedSubFields.forEach(nestedSubField => {
             // 🔥 递归提取嵌套字段，确保结构完整
@@ -79,13 +85,13 @@ export class FormFieldExtractor implements IFieldExtractor {
    */
   private extractFromRaw(
     field: FieldConfig,
-    rawValue: any,
+    rawValue: unknown,
     extractorRegistry: FieldExtractorRegistry
-  ): any {
+  ): unknown {
     // 递归处理嵌套结构
-    if (field.widget?.type === 'form' && rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
+    if (field.widget?.type === 'form' && isRecord(rawValue)) {
       const subFields = field.children || []
-      const formData: Record<string, any> = {}
+      const formData: ExtractedObject = {}
       subFields.forEach(subField => {
         if (rawValue[subField.code] !== undefined) {
           formData[subField.code] = this.extractFromRaw(subField, rawValue[subField.code], extractorRegistry)
@@ -93,11 +99,12 @@ export class FormFieldExtractor implements IFieldExtractor {
       })
       return formData
     } else if (field.widget?.type === 'table' && Array.isArray(rawValue)) {
-      return rawValue.map((nestedRow: any) => {
+      return rawValue.map((nestedRow: unknown) => {
         const nestedItemFields = field.children || []
-        const nestedRowData: Record<string, any> = {}
+        const nestedRowData: ExtractedObject = {}
+        const nestedRecord = isRecord(nestedRow) ? nestedRow : {}
         nestedItemFields.forEach(nestedItemField => {
-          nestedRowData[nestedItemField.code] = nestedRow[nestedItemField.code]
+          nestedRowData[nestedItemField.code] = nestedRecord[nestedItemField.code]
         })
         return nestedRowData
       })

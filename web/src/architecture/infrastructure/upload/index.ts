@@ -6,7 +6,6 @@
 import type { UploadCredentials, UploadProgress, UploadResult } from './types'
 import { PresignedURLUploader } from './presigned-url'
 import { FormUploader } from './form-upload'
-import { SDKUploader } from './sdk-upload'
 import { authFetch } from '@/architecture/infrastructure/apiClient/request'
 
 export type { UploadCredentials, UploadProgress, UploadResult } from './types'
@@ -51,17 +50,13 @@ export class UploaderFactory {
         // 表单上传（七牛云、又拍云等）
         return new FormUploader()
       
-      case 'sdk_upload':
-        // SDK 上传（特殊云存储）
-        return new SDKUploader()
-      
       default:
         console.error('[UploaderFactory] 未知的上传方式:', {
           original: method,
           normalized: methodLower,
           type: typeof method,
         })
-        throw new Error(`不支持的上传方式: ${method}（支持的方式: presigned_url, form_upload, sdk_upload）`)
+        throw new Error(`不支持的上传方式: ${method}（支持的方式: presigned_url, form_upload）`)
     }
   }
 }
@@ -134,7 +129,7 @@ export async function uploadFile(
   const credentials = await getUploadCredentials(router, file, options)
   
   // ✨ Step 2: 根据上传方式创建对应的上传器
-  // 此时已知道上传方式（presigned_url / form_upload / sdk_upload）
+  // 此时已知道上传方式（presigned_url / form_upload）
   if (!credentials.method) {
     throw new Error(`上传凭证缺少 method 字段，无法创建上传器`)
   }
@@ -176,10 +171,11 @@ export async function uploadFile(
       },
     }
     
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
     // 上传失败，返回错误信息（不立即调用complete，由调用方统一处理）
     throw {
-      ...error,
+      ...(isRecord(error) ? error : {}),
       fileInfo: {
         key: credentials.key,
         bucket: credentials.bucket,
@@ -189,10 +185,14 @@ export async function uploadFile(
         file_size: file.size,
         content_type: file.type || '',
         hash, // ✨ 添加文件hash（即使上传失败也记录）
-        error: error.message,
+        error: message,
       },
     }
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }
 
 /**

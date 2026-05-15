@@ -19,6 +19,13 @@
 
 import { Logger } from '@/architecture/shared/logger'
 
+type ExpressionRow = Record<string, unknown>
+type ExpressionValue = unknown
+
+function isRecord(value: unknown): value is ExpressionRow {
+  return typeof value === 'object' && value !== null
+}
+
 export class LegacyExpressionParser {
   /**
    * 计算表达式
@@ -27,7 +34,7 @@ export class LegacyExpressionParser {
    * @param selectedItem 当前选中项（用于 selected() 函数），可选
    * @returns 计算结果
    */
-  static evaluate(expression: string, data: any[], selectedItem?: any): any {
+  static evaluate(expression: string, data: ExpressionRow[], selectedItem?: unknown): ExpressionValue {
     if (!expression) {
       return ''
     }
@@ -66,7 +73,7 @@ export class LegacyExpressionParser {
    * @param argsStr 参数字符串：字段名 或 字段1,*字段2,*系数
    * @param data 数据数组
    */
-  private static evaluateRowAggregation(funcName: string, argsStr: string, data: any[]): number {
+  private static evaluateRowAggregation(funcName: string, argsStr: string, data: ExpressionRow[]): number {
     // 解析参数：字段1,*字段2,*0.9
     const args = argsStr.split(',').map(arg => arg.trim())
     
@@ -117,7 +124,7 @@ export class LegacyExpressionParser {
    * @param argsStr 参数字符串：字段名
    * @param data 数据数组
    */
-  private static evaluateListAggregation(funcName: string, argsStr: string, data: any[]): number {
+  private static evaluateListAggregation(funcName: string, argsStr: string, data: ExpressionRow[]): number {
     const field = argsStr.trim()
     
     switch (funcName.toLowerCase()) {
@@ -151,7 +158,7 @@ export class LegacyExpressionParser {
   private static calculateSum(
     field: string,
     multipliers: Array<{ isField: boolean, value: string }>,
-    data: any[]
+    data: ExpressionRow[]
   ): number {
     return data.reduce((sum, row) => {
       const mainValue = this.getFieldValue(row, field)
@@ -177,7 +184,7 @@ export class LegacyExpressionParser {
   /**
    * 计算计数
    */
-  private static calculateCount(field: string, data: any[]): number {
+  private static calculateCount(field: string, data: ExpressionRow[]): number {
     return data.filter(row => {
       const value = this.getFieldValue(row, field)
       return value !== null && value !== undefined && value !== ''
@@ -190,7 +197,7 @@ export class LegacyExpressionParser {
   private static calculateAvg(
     field: string,
     multipliers: Array<{ isField: boolean, value: string }>,
-    data: any[]
+    data: ExpressionRow[]
   ): number {
     const sum = this.calculateSum(field, multipliers, data)
     const count = this.calculateCount(field, data)
@@ -200,7 +207,7 @@ export class LegacyExpressionParser {
   /**
    * 计算最小值
    */
-  private static calculateMin(field: string, data: any[]): number {
+  private static calculateMin(field: string, data: ExpressionRow[]): number {
     const values = data
       .map(row => this.getFieldValue(row, field))
       .filter(v => v !== null && v !== undefined && v !== '')
@@ -212,7 +219,7 @@ export class LegacyExpressionParser {
   /**
    * 计算最大值
    */
-  private static calculateMax(field: string, data: any[]): number {
+  private static calculateMax(field: string, data: ExpressionRow[]): number {
     const values = data
       .map(row => this.getFieldValue(row, field))
       .filter(v => v !== null && v !== undefined && v !== '')
@@ -224,7 +231,7 @@ export class LegacyExpressionParser {
   /**
    * List 层求和
    */
-  private static calculateListSum(field: string, data: any[]): number {
+  private static calculateListSum(field: string, data: ExpressionRow[]): number {
     return data.reduce((sum, row) => {
       const value = this.getFieldValue(row, field)
       return sum + Number(value || 0)
@@ -234,7 +241,7 @@ export class LegacyExpressionParser {
   /**
    * List 层平均值
    */
-  private static calculateListAvg(field: string, data: any[]): number {
+  private static calculateListAvg(field: string, data: ExpressionRow[]): number {
     const sum = this.calculateListSum(field, data)
     return data.length > 0 ? sum / data.length : 0
   }
@@ -242,24 +249,23 @@ export class LegacyExpressionParser {
   /**
    * 获取字段值（支持中文字段名、英文字段名）
    */
-  private static getFieldValue(row: any, fieldName: string): any {
-    if (!row || !fieldName) {
+  private static getFieldValue(row: unknown, fieldName: string): ExpressionValue | null {
+    if (!isRecord(row) || !fieldName) {
       return null
     }
     
     // 直接访问字段
-    if (row.hasOwnProperty(fieldName)) {
-      const value = row[fieldName]
-      return value
+    if (Object.prototype.hasOwnProperty.call(row, fieldName)) {
+      return row[fieldName]
     }
     
     // 尝试处理嵌套字段（如果未来需要支持）
     // 例如：product.price
     if (fieldName.includes('.')) {
       const parts = fieldName.split('.')
-      let value = row
+      let value: unknown = row
       for (const part of parts) {
-        if (value && value.hasOwnProperty(part)) {
+        if (isRecord(value) && Object.prototype.hasOwnProperty.call(value, part)) {
           value = value[part]
         } else {
           return null
@@ -277,8 +283,8 @@ export class LegacyExpressionParser {
    * @param selectedItem 当前选中项（包含 DisplayInfo）
    * @returns 字段值，如果不存在则返回空字符串
    */
-  private static evaluateValue(fieldName: string, selectedItem?: any): any {
-    if (!selectedItem || !fieldName) {
+  private static evaluateValue(fieldName: string, selectedItem?: unknown): ExpressionValue {
+    if (!isRecord(selectedItem) || !fieldName) {
       return ''
     }
     
@@ -288,13 +294,13 @@ export class LegacyExpressionParser {
     // 2. 包含 displayInfo 属性的对象：{ displayInfo: { "价格": 100, "库存": 50 } }
     // 3. 包含 display_info 属性的对象：{ display_info: { "价格": 100, "库存": 50 } }
     
-    let displayInfo: any = null
+    let displayInfo: ExpressionRow | null = null
     
-    if (selectedItem.displayInfo) {
+    if (isRecord(selectedItem.displayInfo)) {
       displayInfo = selectedItem.displayInfo
-    } else if (selectedItem.display_info) {
+    } else if (isRecord(selectedItem.display_info)) {
       displayInfo = selectedItem.display_info
-    } else if (typeof selectedItem === 'object' && !Array.isArray(selectedItem)) {
+    } else if (!Array.isArray(selectedItem)) {
       // 如果 selectedItem 本身就是 DisplayInfo 对象
       displayInfo = selectedItem
     }

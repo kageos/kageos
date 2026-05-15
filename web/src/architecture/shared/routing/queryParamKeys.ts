@@ -88,7 +88,7 @@ export const isUnsupportedGeneratedFieldQueryKey = (
 }
 
 export const deleteFieldQueryKey = (
-  query: Record<string, any>,
+  query: Record<string, unknown>,
   fieldCode: string,
   options?: {
     deleteRaw?: boolean

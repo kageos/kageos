@@ -75,7 +75,7 @@ export class WorkspaceApplicationService {
         
         // 然后设置函数（这会触发函数详情显示）
         this.domainService.setCurrentFunction(node)
-      } catch (error: any) {
+      } catch {
         // currentFunction 已经在 loadFunction 中设置了，这里保留函数上下文。
         const functionDirectory = this.getFunctionDirectory(node)
         if (functionDirectory) {

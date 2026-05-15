@@ -11,10 +11,10 @@ export interface FormValueStorePort {
 
 export interface IFormStateManager extends IStateManager<FormState>, FormValueStorePort {
   getDataSnapshot(): Map<string, FieldValue>
-  getSubmitData(fields: FieldConfig[]): Record<string, any>
+  getSubmitData(fields: FieldConfig[]): Record<string, unknown>
   setSubmitting(submitting: boolean): void
-  setResponse(response: Record<string, any> | null): void
-  setMetadata(metadata: Record<string, any> | null): void
+  setResponse(response: Record<string, unknown> | null): void
+  setMetadata(metadata: Record<string, unknown> | null): void
 }
 
 export function isFormValueStorePort(value: unknown): value is FormValueStorePort {

@@ -10,6 +10,6 @@ export interface FormState {
   data: Map<string, FieldValue>
   errors: Map<string, ValidationResult[]>
   submitting: boolean
-  response?: Record<string, any> | null
-  metadata?: Record<string, any> | null
+  response?: Record<string, unknown> | null
+  metadata?: Record<string, unknown> | null
 }

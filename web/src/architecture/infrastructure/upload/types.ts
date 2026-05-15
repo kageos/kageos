@@ -5,7 +5,7 @@
 /**
  * 上传方式
  */
-export type UploadMethod = 'presigned_url' | 'form_upload' | 'sdk_upload'
+export type UploadMethod = 'presigned_url' | 'form_upload'
 
 /**
  * 上传凭证
@@ -31,9 +31,6 @@ export interface UploadCredentials {
   // 表单上传（七牛云、又拍云等）
   form_data?: Record<string, string>  // 表单字段
   post_url?: string                   // POST 地址
-  
-  // SDK 上传（特殊云存储）
-  sdk_config?: Record<string, any>  // SDK 配置
   
   // CDN 域名（用于下载访问）
   cdn_domain?: string

@@ -373,9 +373,9 @@ export function getFieldPresenceState(
 
 export function sanitizeExcludedSubmitData(
   fields: FieldConfig[],
-  submitData: Record<string, any>,
+  submitData: Record<string, unknown>,
   context: Pick<PresenceEvaluationContext, 'formManager'>
-): Record<string, any> {
+): Record<string, unknown> {
   // 提交前再做一次递归剔除，避免“UI 已隐藏但 payload 还残留旧值”。
   return sanitizeScopedSubmitData(fields, submitData, {
     formManager: context.formManager,
@@ -386,10 +386,10 @@ export function sanitizeExcludedSubmitData(
 
 function sanitizeScopedSubmitData(
   fields: FieldConfig[],
-  submitData: Record<string, any>,
+  submitData: Record<string, unknown>,
   context: PresenceEvaluationContext
-): Record<string, any> {
-  const sanitizedData: Record<string, any> = { ...submitData }
+): Record<string, unknown> {
+  const sanitizedData: Record<string, unknown> = { ...submitData }
 
   fields.forEach((field) => {
     const nextFieldPath = context.fieldPath ? `${context.fieldPath}.${field.code}` : field.code
@@ -409,8 +409,8 @@ function sanitizeScopedSubmitData(
       return
     }
 
-    if (field.widget?.type === 'form' && typeof currentValue === 'object' && !Array.isArray(currentValue)) {
-      sanitizedData[field.code] = sanitizeScopedSubmitData(field.children, currentValue, {
+    if (field.widget?.type === 'form' && typeof currentValue === 'object' && currentValue !== null && !Array.isArray(currentValue)) {
+      sanitizedData[field.code] = sanitizeScopedSubmitData(field.children, currentValue as Record<string, unknown>, {
         formManager: context.formManager,
         fieldPath: nextFieldPath,
         allFields: field.children,
@@ -424,7 +424,7 @@ function sanitizeScopedSubmitData(
           return row
         }
 
-        return sanitizeScopedSubmitData(field.children || [], row, {
+        return sanitizeScopedSubmitData(field.children || [], row as Record<string, unknown>, {
           formManager: context.formManager,
           fieldPath: `${nextFieldPath}[${rowIndex}]`,
           allFields: field.children || [],

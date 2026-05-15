@@ -91,12 +91,12 @@ import type { IEventBus } from '../../domain/interfaces/IEventBus'
  * 事件总线实现（内存版本）
  */
 export class EventBusImpl implements IEventBus {
-  private handlers = new Map<string, Set<Function>>()
+  private handlers = new Map<string, Set<(payload?: unknown) => void>>()
 
   /**
    * 触发事件
    */
-  emit(event: string, payload?: any): void {
+  emit(event: string, payload?: unknown): void {
     const handlers = this.handlers.get(event)
     if (handlers) {
       handlers.forEach(handler => {
@@ -113,25 +113,26 @@ export class EventBusImpl implements IEventBus {
    * 监听事件
    * @returns 取消监听的函数
    */
-  on(event: string, handler: (payload?: any) => void): () => void {
+  on<TPayload = unknown>(event: string, handler: (payload: TPayload) => void): () => void {
     if (!this.handlers.has(event)) {
       this.handlers.set(event, new Set())
     }
-    this.handlers.get(event)!.add(handler)
+    const unknownHandler = handler as (payload?: unknown) => void
+    this.handlers.get(event)!.add(unknownHandler)
 
     // 返回取消监听的函数
     return () => {
-      this.off(event, handler)
+      this.off(event, unknownHandler)
     }
   }
 
   /**
    * 取消监听事件
    */
-  off(event: string, handler: (payload?: any) => void): void {
+  off<TPayload = unknown>(event: string, handler: (payload: TPayload) => void): void {
     const handlers = this.handlers.get(event)
     if (handlers) {
-      handlers.delete(handler)
+      handlers.delete(handler as (payload?: unknown) => void)
       // 如果没有监听器了，删除该事件的 Map 条目
       if (handlers.size === 0) {
         this.handlers.delete(event)
@@ -142,8 +143,8 @@ export class EventBusImpl implements IEventBus {
   /**
    * 监听事件（仅触发一次）
    */
-  once(event: string, handler: (payload?: any) => void): void {
-    const onceHandler = (payload?: any) => {
+  once<TPayload = unknown>(event: string, handler: (payload: TPayload) => void): void {
+    const onceHandler = (payload: TPayload) => {
       handler(payload)
       this.off(event, onceHandler)
     }
@@ -171,4 +172,3 @@ export class EventBusImpl implements IEventBus {
     return this.handlers.get(event)?.size || 0
   }
 }
-

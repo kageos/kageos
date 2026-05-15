@@ -77,13 +77,13 @@ import { unwrapApiResponseData } from '@/architecture/shared/apiError'
 import { FormDomainService } from '../../domain/services/FormDomainService'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { WorkspaceEvent, FormEvent } from '../../domain/interfaces/IEventBus'
-import type { FieldConfig, FunctionDetail } from '../../domain/types'
+import type { FieldConfig, FieldValue, FunctionDetail } from '../../domain/types'
 import type { IFormGateway } from '../../domain/interfaces/IFormGateway'
 import { isFormStateManager } from '@/architecture/domain/interfaces/IFormStateManager'
 import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
 type ResponseWithMetadata = {
-  _metadata?: Record<string, any>
+  _metadata?: Record<string, unknown>
 }
 
 /**
@@ -105,7 +105,7 @@ export class FormApplicationService {
    */
   private setupEventHandlers(): void {
     // 监听字段值更新事件（可以在这里添加额外的业务逻辑）
-    this.unsubscribeFieldValueUpdated = this.eventBus.on(FormEvent.fieldValueUpdated, (payload: { fieldCode: string, value: any }) => {
+    this.unsubscribeFieldValueUpdated = this.eventBus.on<{ fieldCode: string, value: unknown }>(FormEvent.fieldValueUpdated, () => {
       // 可以在这里添加额外的业务逻辑
       // 例如：自动保存、自动验证等
     })
@@ -133,7 +133,7 @@ export class FormApplicationService {
   /**
    * 提交表单
    */
-  async submitForm(functionDetail: FunctionDetail): Promise<any> {
+  async submitForm(functionDetail: FunctionDetail): Promise<unknown> {
     const fields = getFormRequestFields(functionDetail) as FieldConfig[]
     // 主提交链路也要先跑前端校验，保证顶层 form 与弹窗/抽屉场景行为一致。
     const isValid = this.domainService.validateForm(fields)
@@ -154,8 +154,8 @@ export class FormApplicationService {
       const stateManager = this.domainService.getStateManager()
       if (isFormStateManager(stateManager)) {
         // 处理响应数据：如果 response 不是对象，包装成对象
-        const responseData = response && typeof response === 'object' 
-          ? response 
+        const responseData: Record<string, unknown> = response && typeof response === 'object'
+          ? response as Record<string, unknown>
           : { result: response }
         
         // 提取 metadata（从 response._metadata，由 request.ts 响应拦截器附加）
@@ -184,7 +184,7 @@ export class FormApplicationService {
    * 获取提交数据（内部方法）
    * 遵循依赖倒置原则：通过 Domain Service 获取提交数据，而不是直接访问 StateManager
    */
-  private getSubmitData(fields: FieldConfig[]): Record<string, any> {
+  private getSubmitData(fields: FieldConfig[]): Record<string, unknown> {
     // 使用 Domain Service 的方法获取提交数据（遵循依赖倒置原则）
     return this.domainService.getSubmitData(fields)
   }
@@ -195,7 +195,7 @@ export class FormApplicationService {
    * @param initialData 初始数据（编辑模式）
    * @param isUpdateMode 是否为更新模式（true=更新模式，false=新增模式）
    */
-  initializeForm(fields: FieldConfig[], initialData?: Record<string, any>, isUpdateMode: boolean = false): void {
+  initializeForm(fields: FieldConfig[], initialData?: Record<string, unknown>, isUpdateMode: boolean = false): void {
     this.domainService.setFields(fields)
     this.domainService.initializeForm(fields, initialData, isUpdateMode)
   }
@@ -203,7 +203,7 @@ export class FormApplicationService {
   /**
    * 更新字段值（供外部调用）
    */
-  updateFieldValue(fieldCode: string, value: any): void {
+  updateFieldValue(fieldCode: string, value: FieldValue): void {
     this.domainService.updateFieldValue(fieldCode, value)
   }
 
