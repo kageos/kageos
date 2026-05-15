@@ -189,12 +189,12 @@ import { Search, Loading, InfoFilled, ArrowRight, Check } from '@element-plus/ic
  *   例如职位的部门/地点/薪资，供应商的联系人/电话
  *   适合展示成 key-value chip，不适合直接把整个对象或 statistics 原样抛给用户
  */
-interface InputFuzzyItem {
-  value: any
+export interface InputFuzzyItem {
+  value: unknown
   label?: string
   icon?: string
-  display_info?: Record<string, any>
-  displayInfo?: Record<string, any>
+  display_info?: Record<string, unknown>
+  displayInfo?: Record<string, unknown>
 }
 
 interface Props {
@@ -205,8 +205,8 @@ interface Props {
   loading?: boolean
   isMultiselect?: boolean
   maxSelections?: number // 最大选择数量，0 表示不限制
-  selectedValues?: any[] // 已选中的值（多选模式）
-  getItemColor?: (value: any) => string | null // 获取选项颜色的函数
+  selectedValues?: unknown[] // 已选中的值（多选模式）
+  getItemColor?: (value: unknown) => string | null // 获取选项颜色的函数
   appendToBody?: boolean
 }
 
@@ -323,7 +323,7 @@ function isItemSelected(item: InputFuzzyItem): boolean {
 }
 
 // 获取选项颜色
-function getItemColor(value: any): string | null {
+function getItemColor(value: unknown): string | null {
   if (props.getItemColor) {
     return props.getItemColor(value)
   }
@@ -331,7 +331,7 @@ function getItemColor(value: any): string | null {
 }
 
 // 获取选项颜色样式
-function getItemColorStyle(value: any): Record<string, string> {
+function getItemColorStyle(value: unknown): Record<string, string> {
   const color = getItemColor(value)
   if (!color) return {}
   
@@ -352,7 +352,7 @@ function getItemColorStyle(value: any): Record<string, string> {
   }
 }
 
-function getDisplayInfoEntries(item: InputFuzzyItem): Array<[string, any]> {
+function getDisplayInfoEntries(item: InputFuzzyItem): Array<[string, unknown]> {
   const displayInfo = item.display_info || item.displayInfo || {}
 
   return Object.entries(displayInfo)

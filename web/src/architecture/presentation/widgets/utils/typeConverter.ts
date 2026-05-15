@@ -21,6 +21,19 @@ import { DataType } from '@/architecture/domain/constants/widget'
 import { convertValueToType } from './valueConverter'
 import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
+export type ConvertedValue = string | number | boolean | null | undefined | ConvertedValue[] | Record<string, unknown>
+
+interface FuzzyOptionItem {
+  value: unknown
+  label?: string
+  display_info?: unknown
+  displayInfo?: unknown
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
 /**
  * 转换基础类型值（用于 URL 参数等场景）
  * 
@@ -28,7 +41,7 @@ import { getFormRequestFields } from '@/architecture/domain/utils/functionSchema
  * @param fieldType 字段类型（如 'int', 'float', 'bool' 等）
  * @returns 转换后的值
  */
-export function convertBasicType(value: any, fieldType: string | undefined | null): any {
+export function convertBasicType(value: unknown, fieldType: string | undefined | null): ConvertedValue {
   const type = fieldType || DataType.STRING
   
   // 使用统一的 convertValueToType 工具
@@ -43,9 +56,9 @@ export function convertBasicType(value: any, fieldType: string | undefined | nul
  * @returns 转换后的数组
  */
 export function convertArrayType(
-  value: any,
+  value: unknown,
   fieldType: string | undefined | null
-): any[] {
+): ConvertedValue[] {
   const type = fieldType || DataType.STRINGS
   
   // 检查是否是数组类型
@@ -119,7 +132,7 @@ export function needsBasicTypeConversion(fieldType: string | undefined | null): 
  * convertValueByFieldType('1,2,3', { data: { type: '[]int' } })  // [1, 2, 3]
  * convertValueByFieldType(['1', '2'], { data: { type: '[]int' } })  // [1, 2]
  */
-export function convertValueByFieldType(value: any, field: FieldConfig): any {
+export function convertValueByFieldType(value: unknown, field: FieldConfig): unknown {
   const fieldType = field.data?.type
   
   if (!fieldType) {
@@ -157,22 +170,22 @@ export function convertValueByFieldType(value: any, field: FieldConfig): any {
  * // { topic_id: 1, option_ids: [1, 2] }
  */
 export function convertFormDataToRequestByType(
-  formData: Record<string, FieldValue | any>,
+  formData: Record<string, FieldValue | unknown>,
   functionDetail?: FunctionDetail | null
-): Record<string, any> {
+): Record<string, unknown> {
   const requestFields = getFormRequestFields(functionDetail)
   if (requestFields.length === 0) {
     // 没有字段配置，尝试直接提取 raw 值
-    const result: Record<string, any> = {}
+    const result: Record<string, unknown> = {}
     Object.keys(formData).forEach(key => {
       const value = formData[key]
       // 如果是 FieldValue 格式，提取 raw；否则直接使用
-      result[key] = value && typeof value === 'object' && 'raw' in value ? value.raw : value
+      result[key] = isRecord(value) && 'raw' in value ? value.raw : value
     })
     return result
   }
   
-  const request: Record<string, any> = {}
+  const request: Record<string, unknown> = {}
   
   // 构建字段配置映射（code -> field）
   const fieldMap = new Map<string, FieldConfig>()
@@ -186,7 +199,7 @@ export function convertFormDataToRequestByType(
     const field = fieldMap.get(key)
     
     // 提取 raw 值（如果是 FieldValue 格式）
-    const rawValue = fieldValue && typeof fieldValue === 'object' && 'raw' in fieldValue
+    const rawValue = isRecord(fieldValue) && 'raw' in fieldValue
       ? fieldValue.raw
       : fieldValue
     
@@ -223,15 +236,15 @@ export function convertFormDataToRequestByType(
  * // optionMap 支持数字和字符串作为 key
  * optionMap.get(1) === optionMap.get('1')  // true
  */
-export function buildOptionMaps(items: Array<{ value: any; label?: string; display_info?: any; displayInfo?: any }>): {
-  optionMap: Map<any, string>
-  displayInfoMap: Map<any, any>
+export function buildOptionMaps(items: FuzzyOptionItem[]): {
+  optionMap: Map<unknown, string>
+  displayInfoMap: Map<unknown, unknown>
 } {
-  const optionMap = new Map<any, string>()
-  const displayInfoMap = new Map<any, any>()
+  const optionMap = new Map<unknown, string>()
+  const displayInfoMap = new Map<unknown, unknown>()
   
   if (items && Array.isArray(items)) {
-    items.forEach((item: any) => {
+    items.forEach((item) => {
       const itemValue = item.value
       const label = item.label || String(itemValue)
       const displayInfo = item.display_info || item.displayInfo
@@ -275,7 +288,7 @@ export function buildOptionMaps(items: Array<{ value: any; label?: string; displ
  * @param value 要查找的值
  * @returns 标签，如果找不到则返回值的字符串形式
  */
-export function getOptionLabelFromMap(optionMap: Map<any, string>, value: any): string {
+export function getOptionLabelFromMap(optionMap: Map<unknown, string>, value: unknown): string {
   // 🔥 尝试多种方式匹配：直接匹配、字符串匹配、数字匹配
   let label = optionMap.get(value)
   if (label) {

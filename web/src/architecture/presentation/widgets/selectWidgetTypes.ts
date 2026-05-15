@@ -1,7 +1,9 @@
+export type SelectOptionValue = string | number | boolean | Record<string, unknown>
+
 export type SelectOptionItem = {
   label: string
-  value: any
+  value: SelectOptionValue
   disabled?: boolean
-  displayInfo?: any
+  displayInfo?: unknown
   icon?: string
 }

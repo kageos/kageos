@@ -1,7 +1,9 @@
+import type { SelectOptionValue } from './selectWidgetTypes'
+
 export type MultiSelectOptionItem = {
   label: string
-  value: any
+  value: SelectOptionValue
   disabled?: boolean
-  displayInfo?: any
+  displayInfo?: unknown
   icon?: string
 }

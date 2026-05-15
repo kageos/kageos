@@ -17,16 +17,16 @@ import {
 } from '../views/utils/formViewRuntime'
 
 interface ApplyOperateLogPayload {
-  requestBody?: Record<string, any> | null
-  responseBody?: Record<string, any> | null
-  responseMetadata?: Record<string, any> | null
+  requestBody?: Record<string, unknown> | null
+  responseBody?: Record<string, unknown> | null
+  responseMetadata?: Record<string, unknown> | null
 }
 
 interface UseFormViewLifecycleOptions {
   eventBus: IEventBus
   functionDetail: Ref<FunctionDetail | null>
   propsFunctionDetail: () => FunctionDetail | undefined
-  propsInitialData: () => Record<string, any>
+  propsInitialData: () => Record<string, unknown>
   formDataStore: Pick<FormDataStore, 'getValue' | 'clear'>
   responseDataStore: { clear: () => void }
   stateManager: FormStateManager
@@ -34,7 +34,7 @@ interface UseFormViewLifecycleOptions {
   applicationService: FormApplicationService
   workspaceStateManager: WorkspaceStateManager
   workspaceDomainService: WorkspaceDomainService
-  initializeParams: () => Promise<Record<string, any> | undefined>
+  initializeParams: () => Promise<Record<string, unknown> | undefined>
   hydrateCurrentWidgetDisplays?: (initSource?: 'url' | 'default' | 'initialData') => Promise<void>
   watchFormData: () => void
 }
@@ -54,20 +54,20 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
     })
   }
 
-  function buildInitialDataFromFormDataStore(fields: FieldConfig[]): Record<string, any> {
+  function buildInitialDataFromFormDataStore(fields: FieldConfig[]): Record<string, unknown> {
     return buildInitialDataFromFormDataStoreHelper({
       fields,
       formDataStore: options.formDataStore
     })
   }
 
-  function hasNonEmptyInitialData(data?: Record<string, any> | null): boolean {
+  function hasNonEmptyInitialData(data?: Record<string, unknown> | null): boolean {
     return !!data && Object.keys(data).length > 0
   }
 
   function buildFormInitializationKey(
     detail: FunctionDetail,
-    initialData?: Record<string, any> | null
+    initialData?: Record<string, unknown> | null
   ): string {
     return JSON.stringify({
       id: detail.id ?? null,
@@ -77,13 +77,13 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
     })
   }
 
-  function restoreResponseParams(metadata?: Record<string, any> | null): void {
+  function restoreResponseParams(metadata?: Record<string, unknown> | null): void {
     const responseParams = metadata?.responseParams
-    if (!responseParams || !isFormStateManager(options.stateManager)) {
+    if (!responseParams || typeof responseParams !== 'object' || Array.isArray(responseParams) || !isFormStateManager(options.stateManager)) {
       return
     }
 
-    options.stateManager.setResponse(responseParams)
+    options.stateManager.setResponse(responseParams as Record<string, unknown>)
     Logger.debug('FormView', '已恢复响应数据', {
       responseParamsKeys: Object.keys(responseParams),
       stateResponse: options.stateManager.getState().response
@@ -98,7 +98,7 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
   async function initializeFormForDetail(
     detail: FunctionDetail,
     config: {
-      initialData?: Record<string, any>
+      initialData?: Record<string, unknown>
       resetRuntime?: boolean
       force?: boolean
     } = {}
@@ -190,8 +190,8 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
   }
 
   const hasInitialDataChanged = (
-    newData: Record<string, any>,
-    oldData?: Record<string, any>
+    newData: Record<string, unknown>,
+    oldData?: Record<string, unknown>
   ): boolean => {
     const newKeys = Object.keys(newData || {})
     const oldKeys = Object.keys(oldData || {})
@@ -272,7 +272,7 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
 
   watch(
     () => options.propsInitialData(),
-    async (newInitialData: Record<string, any>, oldInitialData?: Record<string, any>) => {
+    async (newInitialData: Record<string, unknown>, oldInitialData?: Record<string, unknown>) => {
       if (!options.functionDetail.value || getFormRequestFields(options.functionDetail.value).length === 0) {
         return
       }

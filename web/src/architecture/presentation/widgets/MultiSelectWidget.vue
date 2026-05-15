@@ -123,7 +123,7 @@
 import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElIcon } from 'element-plus'
 import { ArrowDown, Close } from '@element-plus/icons-vue'
-import FuzzySearchDialog from './FuzzySearchDialog.vue'
+import FuzzySearchDialog, { type InputFuzzyItem } from './FuzzySearchDialog.vue'
 import MultiSelectWidgetInlineSelect from './MultiSelectWidgetInlineSelect.vue'
 import MultiSelectWidgetValueDisplay from './MultiSelectWidgetValueDisplay.vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
@@ -143,6 +143,7 @@ import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/uti
 import { buildSelectionSummary } from '@/architecture/presentation/widgets/utils/selectionSummary'
 import { getWidgetOptionColors } from '@/architecture/domain/utils/widgetOptionColors'
 import type { MultiSelectOptionItem } from './multiSelectWidgetTypes'
+import type { SelectOptionValue } from './selectWidgetTypes'
 import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 import { prdPreviewContextKey } from '@/architecture/presentation/components/prdPreviewContext'
 
@@ -155,12 +156,30 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 })
 
 const emit = defineEmits<{
-  'update:modelValue': [value: any]
+  'update:modelValue': [value: unknown]
 }>()
 const prdPreviewContext = inject(prdPreviewContextKey, null)
 const shouldTeleportPopper = computed(() => !prdPreviewContext?.interactive)
 
 const formDataStore = useFormDataStore()
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function toOptionValue(value: unknown): SelectOptionValue {
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return value
+  }
+  if (isRecord(value)) {
+    return value
+  }
+  return String(value ?? '')
+}
+
+function toDisplayInfoRecord(value: unknown): Record<string, unknown> | undefined {
+  return isRecord(value) ? value : undefined
+}
 
 const callbackMethod = computed(() => props.formRenderer?.getFunctionMethod?.() || props.functionMethod || 'POST')
 const callbackRouter = computed(() => props.formRenderer?.getFunctionRouter?.() || props.functionRouter || '')
@@ -189,7 +208,7 @@ function normalizeOption(opt: string | SelectOptionConfig): MultiSelectOptionIte
 
   return {
     label: opt.label,
-    value: opt.value,
+    value: toOptionValue(opt.value),
     disabled: opt.disabled,
     displayInfo: opt.displayInfo ?? opt.display_info,
     icon: opt.icon
@@ -250,7 +269,7 @@ const loading = ref(false)
 
 // 对话框相关状态
 const dialogVisible = ref(false)
-const dialogSuggestions = ref<Array<{ label: string; value: any; displayInfo?: any; icon?: string }>>([])
+const dialogSuggestions = ref<InputFuzzyItem[]>([])
 
 /**
  * 🔥 多选组件支持两种数据类型：
@@ -268,7 +287,7 @@ const fieldDataType = computed(() => {
 /**
  * 解析原始值为数组
  */
-function parseRawValue(raw: any): string[] {
+function parseRawValue(raw: unknown): string[] {
   if (Array.isArray(raw)) {
     return raw.map(v => String(v))
   }
@@ -286,7 +305,7 @@ const selectedValues = computed({
   get: () => {
     return parseRawValue(props.value?.raw)
   },
-  set: (newValues: any[]) => {
+  set: (newValues: unknown[]) => {
     // 先转换为字符串数组用于内部处理（查找 options、显示等）
     let stringValues = newValues.map(v => String(v))
     
@@ -298,18 +317,19 @@ const selectedValues = computed({
       stringValues = stringValues.slice(0, maxCount.value)
     }
     
-    const displayInfos = stringValues.map((val: any) => {
-      const option = options.value.find((opt: any) => String(opt.value) === val)
+    const displayInfos = stringValues.map((val) => {
+      const option = options.value.find((opt) => String(opt.value) === val)
       return option?.displayInfo || null
     })
+    const statisticsDisplayInfos = displayInfos.filter(isRecord)
     
-    const displayText = stringValues.map((val: any) => {
-      const option = options.value.find((opt: any) => String(opt.value) === val)
+    const displayText = stringValues.map((val) => {
+      const option = options.value.find((opt) => String(opt.value) === val)
       return option?.label || String(val)
     }).join(', ')
     
     // 🔥 计算行内聚合统计（如果有 statistics 配置）
-    const rowStatistics = calculateRowStatistics(displayInfos, currentStatistics.value)
+    const rowStatistics = calculateRowStatistics(statisticsDisplayInfos, currentStatistics.value)
     
     /**
      * 🔥 根据 field.data.type 决定 raw 的格式和类型
@@ -342,8 +362,8 @@ const selectedValues = computed({
   }
 })
 
-function getTypedOptionValue(rawValue: string): any {
-  const matchedOption = options.value.find((opt: any) => String(opt.value) === String(rawValue))
+function getTypedOptionValue(rawValue: string): SelectOptionValue | string {
+  const matchedOption = options.value.find((opt) => String(opt.value) === String(rawValue))
   return matchedOption ? matchedOption.value : rawValue
 }
 
@@ -351,7 +371,7 @@ const inlineSelectedValues = computed({
   get: () => {
     return selectedValues.value.map(value => getTypedOptionValue(String(value)))
   },
-  set: (newValues: any[]) => {
+  set: (newValues: unknown[]) => {
     selectedValues.value = newValues
   }
 })
@@ -365,14 +385,14 @@ const inlineTagSummary = computed(() => {
 })
 
 // 当前统计信息（从回调接口获取）
-const currentStatistics = ref<Record<string, any>>({})
+const currentStatistics = ref<Record<string, string>>({})
 
 // 显示值（用于只读模式）
 const displayValues = computed(() => {
   return parseRawValue(props.value?.raw)
 })
 
-function formatDisplayInfo(info: any, limit = 5): string {
+function formatDisplayInfo(info: unknown, limit = 5): string {
   if (!info) {
     return ''
   }
@@ -380,8 +400,8 @@ function formatDisplayInfo(info: any, limit = 5): string {
   const normalizedList = Array.isArray(info) ? info : [info]
   const infoItems: string[] = []
 
-  normalizedList.forEach((item: any) => {
-    if (item && typeof item === 'object') {
+  normalizedList.forEach((item) => {
+    if (isRecord(item)) {
       Object.entries(item).forEach(([key, value]) => {
         if (value !== null && value !== undefined && value !== '') {
           const text = `${key}: ${value}`
@@ -428,8 +448,8 @@ const displayInfoText = computed(() => {
   }
   
   // 🔥 如果 meta 中没有，尝试从 options 中查找
-  const displayInfos = selectedValues.value.map((val: any) => {
-    const option = options.value.find((opt: any) => String(opt.value) === String(val))
+  const displayInfos = selectedValues.value.map((val) => {
+    const option = options.value.find((opt) => String(opt.value) === String(val))
     return option?.displayInfo || null
   })
 
@@ -437,10 +457,10 @@ const displayInfoText = computed(() => {
 })
 
 // 获取单个条目的 display_info 文本
-function getItemDisplayInfo(value: any): string {
+function getItemDisplayInfo(value: unknown): string {
   const valueStr = String(value)
   // 从 options 中查找
-  const option = options.value.find((opt: any) => String(opt.value) === valueStr)
+  const option = options.value.find((opt) => String(opt.value) === valueStr)
   return formatDisplayInfo(option?.displayInfo, 3)
 }
 
@@ -449,13 +469,13 @@ function getOptionDisplayInfo(option: MultiSelectOptionItem): string {
 }
 
 // 获取选项标签
-function getOptionLabel(value: any): string {
+function getOptionLabel(value: unknown): string {
   if (value === null || value === undefined) return ''
   
   const valueStr = String(value)
   
   // 1. 优先从 options 中查找
-  const option = options.value.find((opt: any) => String(opt.value) === valueStr)
+  const option = options.value.find((opt) => String(opt.value) === valueStr)
   if (option) {
     return option.label
   }
@@ -473,7 +493,7 @@ function getOptionLabel(value: any): string {
     
     // 🔥 如果有多个值，需要按索引匹配
     // selectedValues 和 displayLabels 的顺序应该是对应的
-    const valueIndex = selectedValues.value.findIndex((v: any) => String(v) === valueStr)
+    const valueIndex = selectedValues.value.findIndex((v) => String(v) === valueStr)
     if (valueIndex >= 0 && valueIndex < displayLabels.length) {
       const label = displayLabels[valueIndex]
       if (label) {
@@ -491,10 +511,10 @@ function getOptionLabel(value: any): string {
  * 🔥 注意：options_colors 数组与 staticOptions 数组的索引对齐
  * 即使 options 可能包含 dynamicOptions，颜色配置仍然基于 staticOptions 的索引
  */
-function getOptionColor(value: any): string | null {
+function getOptionColor(value: unknown): string | null {
   const valueStr = String(value)
   // 🔥 在 staticOptions 中查找索引（因为 options_colors 与 staticOptions 对齐）
-  const optionIndex = staticOptions.value.findIndex((opt: any) => String(opt.value) === valueStr)
+  const optionIndex = staticOptions.value.findIndex((opt) => String(opt.value) === valueStr)
   if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
     return normalizeOptionColor(optionColors.value[optionIndex]) ?? null
   }
@@ -504,7 +524,7 @@ function getOptionColor(value: any): string | null {
 /**
  * 获取选项的颜色类型（用于 el-tag 的 type 属性）
  */
-function getOptionColorType(value: any): StandardColorType | undefined {
+function getOptionColorType(value: unknown): StandardColorType | undefined {
   void value
   return undefined
 }
@@ -513,11 +533,11 @@ function getOptionColorType(value: any): StandardColorType | undefined {
  * 获取选项的颜色值（用于 el-tag 的 color 属性）
  * 🔥 注意：el-tag 的 color 属性只接受自定义颜色（hex），标准颜色使用 type 属性
  */
-function getOptionColorValue(value: any): string | undefined {
+function getOptionColorValue(value: unknown): string | undefined {
   return undefined
 }
 
-function getOptionTagStyle(value: any): Record<string, string> {
+function getOptionTagStyle(value: unknown): Record<string, string> {
   const color = getOptionColor(value)
   if (!color) {
     return {}
@@ -538,7 +558,7 @@ function getOptionTagStyle(value: any): Record<string, string> {
 /**
  * 🔥 获取选项的颜色样式对象（用于 span 的 style 绑定）
  */
-function getOptionColorStyle(value: any): Record<string, string> {
+function getOptionColorStyle(value: unknown): Record<string, string> {
   const backgroundColor = getOptionBackgroundColor(value)
   
   // 🔥 确保 backgroundColor 有值，并且使用 !important 确保样式生效
@@ -563,7 +583,7 @@ function getOptionColorStyle(value: any): Record<string, string> {
   return style
 }
 
-function getOptionBackgroundColor(value: any): string {
+function getOptionBackgroundColor(value: unknown): string {
   const color = getOptionColor(value)
   return color ? getOptionSolidColor(color) : ''
 }
@@ -572,19 +592,19 @@ function getOptionBackgroundColor(value: any): string {
  * 🔥 计算行内聚合统计
  */
 function calculateRowStatistics(
-  displayInfos: any[],
+  displayInfos: Record<string, unknown>[],
   statisticsConfig: Record<string, string> | null
-): Record<string, any> {
+): Record<string, unknown> {
   if (!statisticsConfig || Object.keys(statisticsConfig).length === 0) {
     return {}
   }
   
-  const validDisplayInfos = displayInfos.filter(info => info && typeof info === 'object')
+  const validDisplayInfos = displayInfos.filter(isRecord)
   
   // 🔥 对于 selected() 函数，使用第一个选中项的 DisplayInfo
   const firstSelectedItem = validDisplayInfos.length > 0 ? validDisplayInfos[0] : null
   
-  const result: Record<string, any> = {}
+  const result: Record<string, unknown> = {}
   
   try {
     for (const [label, expression] of Object.entries(statisticsConfig)) {
@@ -593,13 +613,13 @@ function calculateRowStatistics(
         // 传递 selectedItem 参数，用于 value() 函数
         const value = ExpressionEvaluator.evaluate(expression, validDisplayInfos, firstSelectedItem)
         result[label] = value
-      } catch (error: any) {
-        Logger.error(`[MultiSelectWidget] 行内聚合计算失败: ${label} = ${expression}`, error)
+      } catch (error) {
+        Logger.error('MultiSelectWidget', `行内聚合计算失败: ${label} = ${expression}`, error)
         result[label] = 0
       }
     }
-  } catch (error: any) {
-    Logger.error('[MultiSelectWidget] 行内聚合计算失败', error)
+  } catch (error) {
+    Logger.error('MultiSelectWidget', '行内聚合计算失败', error)
   }
   
   return result
@@ -609,7 +629,7 @@ function calculateRowStatistics(
 /**
  * 处理搜索（OnSelectFuzzy 回调）
  */
-async function handleSearch(query: string | any[], isByValue = false): Promise<void> {
+async function handleSearch(query: string | unknown[], isByValue = false): Promise<void> {
   if (!hasRemoteSearch.value) {
     return
   }
@@ -634,7 +654,7 @@ async function handleSearch(query: string | any[], isByValue = false): Promise<v
     
     // 🔥 对于 by_values 查询，需要确保传递的值类型正确
     // 使用统一的类型转换工具，根据 field.data.type 转换
-    let queryValue: any = query
+    let queryValue: unknown = query
     if (isByValue && Array.isArray(query)) {
       const dataType = props.field.data?.type || getMultiSelectDefaultDataType()
       // 🔥 使用统一的类型转换工具
@@ -668,21 +688,23 @@ async function handleSearch(query: string | any[], isByValue = false): Promise<v
     }
 
     if (response.statistics) {
-      currentStatistics.value = response.statistics
+      currentStatistics.value = Object.fromEntries(
+        Object.entries(response.statistics).map(([key, value]) => [key, String(value)])
+      )
     }
 
     // OnSelectFuzzy 回调约定：
     // - label: 候选项主文案，优先直接给用户看
     // - value: 实际提交值
     // - display_info/displayInfo: 候选项的次级结构化信息，用于弹窗补充说明和后续 displayInfo/统计计算
-    dynamicOptions.value = (response.items || []).map((item: any) => ({
-      label: item.label || item.value,
-      value: item.value,
+    dynamicOptions.value = (response.items || []).map((item) => ({
+      label: item.label || String(item.value),
+      value: toOptionValue(item.value),
       displayInfo: item.display_info || item.displayInfo,
       icon: item.icon
     }))
 
-  } catch (error: any) {
+  } catch (error) {
     Logger.error('MultiSelectWidget', `${props.field.code} 回调失败:`, error)
     dynamicOptions.value = []
   } finally {
@@ -698,11 +720,11 @@ async function openDialog(): Promise<void> {
     await handleDialogSearch('')
   } else {
     // 静态选项，直接使用
-    dialogSuggestions.value = options.value.map((opt: any) => ({
+    dialogSuggestions.value = options.value.map((opt) => ({
       label: opt.label,
       value: opt.value,
-      displayInfo: opt.displayInfo,
-      display_info: opt.displayInfo, // 同时提供两种格式，确保兼容
+      displayInfo: toDisplayInfoRecord(opt.displayInfo),
+      display_info: toDisplayInfoRecord(opt.displayInfo), // 同时提供两种格式，确保兼容
       icon: opt.icon
     }))
   }
@@ -713,43 +735,43 @@ async function handleDialogSearch(keyword: string): Promise<void> {
   if (hasRemoteSearch.value) {
     await handleSearch(keyword, false)
     // 更新对话框建议列表
-    dialogSuggestions.value = options.value.map((opt: any) => ({
+    dialogSuggestions.value = options.value.map((opt) => ({
       label: opt.label,
       value: opt.value,
-      displayInfo: opt.displayInfo,
-      display_info: opt.displayInfo, // 同时提供两种格式，确保兼容
+      displayInfo: toDisplayInfoRecord(opt.displayInfo),
+      display_info: toDisplayInfoRecord(opt.displayInfo), // 同时提供两种格式，确保兼容
       icon: opt.icon
     }))
   } else {
     // 静态选项，本地过滤
-    const filtered = staticOptions.value.filter((opt: any) => {
+    const filtered = staticOptions.value.filter((opt) => {
       return opt.label.toLowerCase().includes(keyword.toLowerCase())
     })
-    dialogSuggestions.value = filtered.map((opt: any) => ({
+    dialogSuggestions.value = filtered.map((opt) => ({
         label: opt.label,
         value: opt.value,
-        displayInfo: opt.displayInfo,
-        display_info: opt.displayInfo, // 同时提供两种格式，确保兼容
+        displayInfo: toDisplayInfoRecord(opt.displayInfo),
+        display_info: toDisplayInfoRecord(opt.displayInfo), // 同时提供两种格式，确保兼容
         icon: opt.icon
       }))
   }
 }
 
 // 处理对话框多选确认
-function handleDialogSelectMultiple(items: Array<{ value: any; label?: string; displayInfo?: any }>): void {
+function handleDialogSelectMultiple(items: InputFuzzyItem[]): void {
   const newValues = items.map(item => item.value)
   // 合并已选值和新增值，去重
   const allValues = Array.from(new Set([...selectedValues.value, ...newValues]))
   
   // 🔥 更新 options，确保新选择的项的 displayInfo 被保存
   items.forEach(item => {
-    const existingOption = options.value.find((opt: any) => String(opt.value) === String(item.value))
+    const existingOption = options.value.find((opt) => String(opt.value) === String(item.value))
     if (!existingOption) {
       // 如果 options 中没有，添加进去
       options.value.push({
         label: item.label || String(item.value),
-        value: item.value,
-        displayInfo: item.displayInfo
+        value: toOptionValue(item.value),
+        displayInfo: item.displayInfo || item.display_info
       })
     } else if (item.displayInfo && !existingOption.displayInfo) {
       // 如果 options 中有但没有 displayInfo，更新它
@@ -770,20 +792,20 @@ function handleDialogSelectMultiple(items: Array<{ value: any; label?: string; d
 }
 
 // 处理对话框全选
-function handleDialogSelectAll(items: Array<{ value: any; label?: string; displayInfo?: any }>): void {
+function handleDialogSelectAll(items: InputFuzzyItem[]): void {
   const newValues = items.map(item => item.value)
   // 合并已选值和全选值，去重
   const allValues = Array.from(new Set([...selectedValues.value, ...newValues]))
   
   // 🔥 更新 options，确保全选的项的 displayInfo 被保存
   items.forEach(item => {
-    const existingOption = options.value.find((opt: any) => String(opt.value) === String(item.value))
+    const existingOption = options.value.find((opt) => String(opt.value) === String(item.value))
     if (!existingOption) {
       // 如果 options 中没有，添加进去
       options.value.push({
         label: item.label || String(item.value),
-        value: item.value,
-        displayInfo: item.displayInfo
+        value: toOptionValue(item.value),
+        displayInfo: item.displayInfo || item.display_info
       })
     } else if (item.displayInfo && !existingOption.displayInfo) {
       // 如果 options 中有但没有 displayInfo，更新它
@@ -804,10 +826,10 @@ function handleDialogSelectAll(items: Array<{ value: any; label?: string; displa
 }
 
 // 移除标签时触发
-function handleRemoveTag(valueToRemove?: any): void {
+function handleRemoveTag(valueToRemove?: unknown): void {
   if (valueToRemove !== undefined) {
     // 🔥 从 selectedValues 中移除指定值
-    const newValues = selectedValues.value.filter((v: any) => String(v) !== String(valueToRemove))
+    const newValues = selectedValues.value.filter((v) => String(v) !== String(valueToRemove))
     selectedValues.value = newValues
   }
 }
@@ -819,7 +841,7 @@ function handleClearSelection(): void {
 // 初始化：如果字段没有值，使用默认值
 watch(
   () => props.value,
-  (newValue: any) => {
+  (newValue) => {
     if (props.mode !== 'edit') {
       return
     }

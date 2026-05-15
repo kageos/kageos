@@ -7,15 +7,28 @@ import { WidgetType } from '@/architecture/domain/constants/widget'
 import { SearchType, SearchComponent, SearchConfig, hasSearchType, hasAllSearchTypes } from '@/architecture/domain/constants/search'
 import { generatePlaceholder } from '@/architecture/domain/utils/stringUtils'
 import type { FieldConfig } from '@/architecture/domain/types/field'
+import type { UserInfo } from '@/architecture/domain/types'
+import type { Department } from '@/architecture/presentation/context/api/department'
+import type { SearchOption, SearchValue } from './searchInputTypes'
 
 /**
  * 组件配置接口
  */
 export interface ComponentConfig {
   component: string
-  props?: Record<string, any>
-  onRemoteMethod?: (query: string) => Promise<Array<{ label: string; value: any; userInfo?: any; departmentInfo?: any }>>
-  onInitOptions?: (value: any) => Promise<Array<{ label: string; value: any; userInfo?: any; departmentInfo?: any }>>
+  props?: Record<string, unknown>
+  onRemoteMethod?: (query: string) => Promise<SearchOption[]>
+  onInitOptions?: (value: SearchValue | SearchValue[]) => Promise<SearchOption[]>
+}
+
+type WidgetConfigRecord = Record<string, unknown>
+type WidgetOptionInput = string | {
+  label?: unknown
+  value?: unknown
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }
 
 /**
@@ -254,7 +267,7 @@ function createDateTimeComponentConfig(field: FieldConfig, searchType: string | 
 function createSelectComponentConfig(
   field: FieldConfig,
   searchType: string | undefined,
-  widgetConfig: Record<string, any>,
+  widgetConfig: WidgetConfigRecord,
   functionMethod?: string,
   functionRouter?: string
 ): ComponentConfig {
@@ -312,7 +325,7 @@ function createSelectComponentConfig(
 /**
  * 创建多选组件配置
  */
-function createMultiselectComponentConfig(field: FieldConfig, widgetConfig: Record<string, any>): ComponentConfig {
+function createMultiselectComponentConfig(field: FieldConfig, widgetConfig: WidgetConfigRecord): ComponentConfig {
   const options = getWidgetOptions(widgetConfig)
 
   return {
@@ -333,9 +346,9 @@ function createMultiselectComponentConfig(field: FieldConfig, widgetConfig: Reco
 /**
  * 创建开关组件配置
  */
-function createSwitchComponentConfig(field: FieldConfig, widgetConfig: Record<string, any>): ComponentConfig {
-  const activeText = widgetConfig.activeText || '是'
-  const inactiveText = widgetConfig.inactiveText || '否'
+function createSwitchComponentConfig(field: FieldConfig, widgetConfig: WidgetConfigRecord): ComponentConfig {
+  const activeText = typeof widgetConfig.activeText === 'string' ? widgetConfig.activeText : '是'
+  const inactiveText = typeof widgetConfig.inactiveText === 'string' ? widgetConfig.inactiveText : '否'
 
   return {
     component: SearchComponent.EL_SELECT,
@@ -357,7 +370,7 @@ function createSwitchComponentConfig(field: FieldConfig, widgetConfig: Record<st
 function createSliderComponentConfig(
   field: FieldConfig,
   searchType: string | undefined,
-  widgetConfig: Record<string, any>
+  widgetConfig: WidgetConfigRecord
 ): ComponentConfig {
   // Slider 组件默认支持范围搜索（gte/lte）
   const min = Number(widgetConfig.min) || 0
@@ -377,7 +390,7 @@ function createSliderComponentConfig(
       max: max,
       step: step,
       precision: precision,
-      unit: widgetConfig.unit || ''
+      unit: typeof widgetConfig.unit === 'string' ? widgetConfig.unit : ''
     }
   }
 }
@@ -388,7 +401,7 @@ function createSliderComponentConfig(
 function createRateComponentConfig(
   field: FieldConfig,
   searchType: string | undefined,
-  widgetConfig: Record<string, any>
+  widgetConfig: WidgetConfigRecord
 ): ComponentConfig {
   // Rate 组件默认支持范围搜索（gte/lte）
   const max = Number(widgetConfig.max) || 5
@@ -476,8 +489,8 @@ function createDefaultInputConfig(field: FieldConfig): ComponentConfig {
  * 从 widget 配置获取选项
  * 兼容字符串数组和对象数组
  */
-function getWidgetOptions(widgetConfig: Record<string, any>): Array<{ label: string; value: any }> {
-  const opts = widgetConfig.options || []
+function getWidgetOptions(widgetConfig: WidgetConfigRecord): SearchOption[] {
+  const opts = Array.isArray(widgetConfig.options) ? widgetConfig.options as WidgetOptionInput[] : []
   
   if (opts.length === 0) {
     return []
@@ -485,12 +498,13 @@ function getWidgetOptions(widgetConfig: Record<string, any>): Array<{ label: str
 
   // 兼容字符串数组和对象数组
   if (typeof opts[0] === 'string') {
-    return opts.map((opt: string) => ({ label: opt, value: opt }))
+    return (opts as string[]).map((opt) => ({ label: opt, value: opt }))
   }
 
-  return opts.map((opt: any) => {
-    if (typeof opt === 'object' && opt !== null) {
-      return { label: opt.label || opt.value || String(opt), value: opt.value || opt }
+  return opts.map((opt) => {
+    if (isRecord(opt)) {
+      const value = opt.value ?? opt
+      return { label: String(opt.label ?? opt.value ?? value), value }
     }
     return { label: String(opt), value: opt }
   })
@@ -499,7 +513,7 @@ function getWidgetOptions(widgetConfig: Record<string, any>): Array<{ label: str
 /**
  * 创建用户远程搜索方法
  */
-function createUserRemoteMethod(): (query: string) => Promise<Array<{ label: string; value: any; userInfo?: any }>> {
+function createUserRemoteMethod(): (query: string) => Promise<SearchOption[]> {
   return async (query: string) => {
     if (!query || query.trim() === '') {
       return []
@@ -510,7 +524,7 @@ function createUserRemoteMethod(): (query: string) => Promise<Array<{ label: str
       const response = await searchUsersFuzzy(query.trim(), SearchConfig.DEFAULT_PAGE_SIZE)
       const users = response.users || []
 
-      return users.map((user: any) => ({
+      return users.map((user: UserInfo) => ({
         label: user.nickname ? `${user.username}(${user.nickname})` : user.username,
         value: user.username,
         userInfo: user // 🔥 保存用户信息，用于显示头像等
@@ -611,9 +625,9 @@ function createDepartmentsComponentConfig(field: FieldConfig, searchType: string
 /**
  * 创建组织架构远程搜索方法
  */
-function createDepartmentRemoteMethod(): (query: string) => Promise<Array<{ label: string; value: any; departmentInfo?: any }>> {
+function createDepartmentRemoteMethod(): (query: string) => Promise<SearchOption[]> {
   // 缓存部门树，避免重复加载
-  let cachedDepartmentTree: any[] | null = null
+  let cachedDepartmentTree: Department[] | null = null
   
   return async (query: string) => {
     try {
@@ -625,9 +639,9 @@ function createDepartmentRemoteMethod(): (query: string) => Promise<Array<{ labe
       }
       
       // 扁平化部门列表
-      const flattenDepartments = (depts: any[]): any[] => {
-        const result: any[] = []
-        const traverse = (list: any[]) => {
+      const flattenDepartments = (depts: Department[]): Department[] => {
+        const result: Department[] = []
+        const traverse = (list: Department[]) => {
           for (const dept of list) {
             result.push(dept)
             if (dept.children && dept.children.length > 0) {
@@ -643,7 +657,7 @@ function createDepartmentRemoteMethod(): (query: string) => Promise<Array<{ labe
       
       // 如果没有搜索关键词，返回所有部门（限制数量）
       if (!query || query.trim() === '') {
-        return allDepartments.slice(0, SearchConfig.DEFAULT_PAGE_SIZE).map((dept: any) => ({
+        return allDepartments.slice(0, SearchConfig.DEFAULT_PAGE_SIZE).map((dept: Department) => ({
           label: dept.full_name_path || dept.name,
           value: dept.full_code_path,
           departmentInfo: dept
@@ -652,7 +666,7 @@ function createDepartmentRemoteMethod(): (query: string) => Promise<Array<{ labe
       
       // 过滤部门
       const keyword = query.trim().toLowerCase()
-      const filtered = allDepartments.filter((dept: any) => {
+      const filtered = allDepartments.filter((dept: Department) => {
         return (
           dept.name.toLowerCase().includes(keyword) ||
           dept.full_code_path.toLowerCase().includes(keyword) ||
@@ -661,7 +675,7 @@ function createDepartmentRemoteMethod(): (query: string) => Promise<Array<{ labe
         )
       })
       
-      return filtered.slice(0, SearchConfig.DEFAULT_PAGE_SIZE).map((dept: any) => ({
+      return filtered.slice(0, SearchConfig.DEFAULT_PAGE_SIZE).map((dept: Department) => ({
         label: dept.full_name_path || dept.name,
         value: dept.full_code_path,
         departmentInfo: dept
@@ -676,8 +690,8 @@ function createDepartmentRemoteMethod(): (query: string) => Promise<Array<{ labe
 /**
  * 创建多组织架构初始化选项方法（用于初始化已选中的组织架构）
  */
-function createDepartmentsInitOptions(): (value: any) => Promise<Array<{ label: string; value: any; departmentInfo?: any }>> {
-  return async (value: any) => {
+function createDepartmentsInitOptions(): (value: SearchValue | SearchValue[]) => Promise<SearchOption[]> {
+  return async (value: SearchValue | SearchValue[]) => {
     if (!value) {
       return []
     }
@@ -694,9 +708,9 @@ function createDepartmentsInitOptions(): (value: any) => Promise<Array<{ label: 
       const departmentTree = response.departments || []
       
       // 扁平化部门列表
-      const flattenDepartments = (depts: any[]): any[] => {
-        const result: any[] = []
-        const traverse = (list: any[]) => {
+      const flattenDepartments = (depts: Department[]): Department[] => {
+        const result: Department[] = []
+        const traverse = (list: Department[]) => {
           for (const dept of list) {
             result.push(dept)
             if (dept.children && dept.children.length > 0) {
@@ -712,10 +726,10 @@ function createDepartmentsInitOptions(): (value: any) => Promise<Array<{ label: 
       
       // 根据路径查找部门
       const departments = paths
-        .map(path => allDepartments.find((dept: any) => dept.full_code_path === path))
-        .filter(Boolean)
+        .map(path => allDepartments.find((dept: Department) => dept.full_code_path === path))
+        .filter((dept): dept is Department => Boolean(dept))
       
-      return departments.map((dept: any) => ({
+      return departments.map((dept: Department) => ({
         label: dept.full_name_path || dept.name,
         value: dept.full_code_path,
         departmentInfo: dept
@@ -730,8 +744,8 @@ function createDepartmentsInitOptions(): (value: any) => Promise<Array<{ label: 
 /**
  * 创建多用户初始化选项方法（用于初始化已选中的用户）
  */
-function createUsersInitOptions(): (values: string | string[]) => Promise<Array<{ label: string; value: any; userInfo?: any }>> {
-  return async (values: string | string[]) => {
+function createUsersInitOptions(): (values: SearchValue | SearchValue[]) => Promise<SearchOption[]> {
+  return async (values: SearchValue | SearchValue[]) => {
     if (!values) {
       return []
     }
@@ -750,7 +764,7 @@ function createUsersInitOptions(): (values: string | string[]) => Promise<Array<
       const response = await getUsersByUsernames(usernames)
       const users = response.users || []
 
-      return users.map((user: any) => ({
+      return users.map((user: UserInfo) => ({
         label: user.nickname ? `${user.username}(${user.nickname})` : user.username,
         value: user.username,
         userInfo: user // 🔥 保存用户信息，用于显示头像等
@@ -769,7 +783,7 @@ function createSelectFuzzyRemoteMethod(
   field: FieldConfig,
   functionMethod: string,
   functionRouter: string
-): (query: string) => Promise<Array<{ label: string; value: any }>> {
+): (query: string) => Promise<SearchOption[]> {
   return async (query: string) => {
     if (!query || query.trim() === '') {
       return []
@@ -795,7 +809,7 @@ function createSelectFuzzyRemoteMethod(
 
       // 转换响应格式
       const items = response.items || []
-      return items.map((item: any) => ({
+      return items.map((item) => ({
         label: item.label || String(item.value),
         value: item.value
       }))
@@ -813,8 +827,8 @@ function createSelectFuzzyInitOptions(
   field: FieldConfig,
   functionMethod: string,
   functionRouter: string
-): (value: any) => Promise<Array<{ label: string; value: any }>> {
-  return async (value: any) => {
+): (value: SearchValue | SearchValue[]) => Promise<SearchOption[]> {
+  return async (value: SearchValue | SearchValue[]) => {
     if (!value || (Array.isArray(value) && value.length === 0)) {
       return []
     }
@@ -830,21 +844,23 @@ function createSelectFuzzyInitOptions(
       const values = isArray ? value : [value]
       
       // 🔥 类型转换：根据 value_type 将字符串转换为正确的类型
-      const convertedValues: any[] = []
+      const convertedValues: SearchValue[] = []
       for (const val of values) {
-        let convertedValue: any = val
+        let convertedValue: SearchValue = val
         // 🔥 处理字符串类型的值（可能来自 URL 参数）
         if (typeof val === 'string' && valueType !== 'string') {
           if (valueType === 'int' || valueType === 'integer') {
-            convertedValue = parseInt(val, 10)
-            if (isNaN(convertedValue)) {
+            const parsedValue = parseInt(val, 10)
+            if (isNaN(parsedValue)) {
               continue
             }
+            convertedValue = parsedValue
           } else if (valueType === 'float' || valueType === 'number') {
-            convertedValue = parseFloat(val)
-            if (isNaN(convertedValue)) {
+            const parsedValue = parseFloat(val)
+            if (isNaN(parsedValue)) {
               continue
             }
+            convertedValue = parsedValue
           }
         }
         convertedValues.push(convertedValue)
@@ -877,7 +893,7 @@ function createSelectFuzzyInitOptions(
 
       // 转换响应格式
       const items = response.items || []
-      return items.map((item: any) => ({
+      return items.map((item) => ({
         label: item.label || String(item.value),
         value: item.value
       }))
