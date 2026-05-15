@@ -6,6 +6,15 @@
 
 import type { ServiceTree } from '@/architecture/domain/types'
 
+interface ServiceTreeGroupNode extends ServiceTree {
+  isGroup: true
+  full_group_code: string
+}
+
+export function isServiceTreeGroupNode(node: ServiceTree): node is ServiceTreeGroupNode {
+  return 'isGroup' in node && node.isGroup === true
+}
+
 /**
  * 查找从根节点到目标节点的路径
  * @param nodes 树节点数组
@@ -19,7 +28,7 @@ export function findPathToNode(nodes: ServiceTree[], targetId: number | string):
   const findNode = (nodes: ServiceTree[], targetId: number): boolean => {
     for (const node of nodes) {
       // 处理分组节点（虚拟节点）
-      if ((node as any).isGroup) {
+      if (isServiceTreeGroupNode(node)) {
         // 在分组节点的子节点中查找
         if (node.children && node.children.length > 0) {
           if (findNode(node.children, targetId)) {
@@ -108,7 +117,7 @@ export function findNodeByPath(nodes: ServiceTree[], targetPath: string): Servic
   const findNode = (nodes: ServiceTree[], path: string): ServiceTree | null => {
     for (const node of nodes) {
       // 规范化节点的 full_code_path
-      const isGroup = (node as any).isGroup
+      const isGroup = isServiceTreeGroupNode(node)
       const nodePath = normalizeServiceTreePath(node.full_code_path, isGroup)
       
       // 检查当前节点是否匹配（精确匹配或目录匹配）
@@ -148,7 +157,7 @@ export function findGroupByFullGroupCode(
   const findNode = (nodes: ServiceTree[]): ServiceTree | null => {
     for (const node of nodes) {
       // 检查是否是函数组节点且 full_group_code 匹配
-      if ((node as any).isGroup && (node as any).full_group_code === fullGroupCode) {
+      if (isServiceTreeGroupNode(node) && node.full_group_code === fullGroupCode) {
         return node
       }
       // 递归查找子节点
@@ -206,7 +215,7 @@ export function findFunctionGroup(
   // 先尝试查找函数组节点
   const groupNode = findGroupByFullGroupCode(nodes, fullGroupCode)
   
-  if (groupNode && (groupNode as any).isGroup) {
+  if (groupNode && isServiceTreeGroupNode(groupNode)) {
     // 如果找到函数组节点，获取其子函数
     const functions = (groupNode.children || []).filter(child => child.type === 'function')
     return { groupNode, functions }

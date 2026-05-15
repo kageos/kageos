@@ -19,7 +19,7 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 })
 
 const htmlContent = computed(() => {
-  const fieldValue = props.value ?? (props as any).modelValue
+  const fieldValue = props.value ?? props.modelValue
   const raw = fieldValue?.raw
 
   if (raw === null || raw === undefined || raw === '') {

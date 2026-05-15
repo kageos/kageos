@@ -17,6 +17,7 @@ export interface FormRendererContext {
 export interface WidgetComponentProps {
   field: WidgetTypes.FieldConfig
   value: WidgetTypes.FieldValue
+  modelValue?: WidgetTypes.FieldValue
   mode: WidgetTypes.WidgetMode
   fieldPath: string
   formManager?: FormValueStorePort | null

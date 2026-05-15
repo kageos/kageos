@@ -10,12 +10,13 @@
 
 import { computed } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
+import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
 import { getFieldPresenceState } from '@/architecture/domain/utils/conditionEvaluator'
 import { syncFormContainerValue } from '@/architecture/domain/utils/containerValue'
 import { clearScopedDependentFields } from '@/architecture/domain/utils/dependency'
 import { applyScopedPresenceEffects } from '@/architecture/domain/utils/presenceEffects'
+import type { FormValueReader } from '@/architecture/domain/validation'
 
 function isPlainObject(value: unknown): value is Record<string, any> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -129,7 +130,7 @@ export function useFormWidget(props: WidgetComponentProps) {
   
   // 可见子字段（根据条件渲染规则过滤）
   const visibleSubFields = computed(() => {
-    const scopedFormManager = {
+    const scopedFormManager: FormValueReader = {
       getValue: (fieldCodeOrPath: string) => getScopedFieldValue(fieldCodeOrPath),
       hasValue: (fieldCodeOrPath: string) => formDataStore.data.has(resolveScopedPath(fieldCodeOrPath)),
     }
@@ -137,7 +138,7 @@ export function useFormWidget(props: WidgetComponentProps) {
     return subFields.value.filter((subField) =>
       getFieldPresenceState(
         subField,
-        scopedFormManager as any,
+        scopedFormManager,
         subFields.value,
         `${props.fieldPath}.${subField.code}`
       ).visible
@@ -145,14 +146,14 @@ export function useFormWidget(props: WidgetComponentProps) {
   })
 
   function isSubFieldRequired(subField: any): boolean {
-    const scopedFormManager = {
+    const scopedFormManager: FormValueReader = {
       getValue: (fieldCodeOrPath: string) => getScopedFieldValue(fieldCodeOrPath),
       hasValue: (fieldCodeOrPath: string) => formDataStore.data.has(resolveScopedPath(fieldCodeOrPath)),
     }
 
     return getFieldPresenceState(
       subField,
-      scopedFormManager as any,
+      scopedFormManager,
       subFields.value,
       `${props.fieldPath}.${subField.code}`
     ).required

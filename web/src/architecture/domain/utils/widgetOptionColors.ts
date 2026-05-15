@@ -1,5 +1,12 @@
 import type { FieldConfig } from '@/architecture/domain/types/field'
 
+interface WidgetOptionColorConfig {
+  config?: Record<string, any>
+  options_colors?: unknown
+  option_colors?: unknown
+  options_color?: unknown
+}
+
 function normalizeOptionColorList(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value
@@ -39,7 +46,7 @@ export function getWidgetOptionColors(config?: Record<string, any> | null): stri
 }
 
 export function getFieldWidgetOptionColors(field?: FieldConfig | null): string[] {
-  const widget = field?.widget as any
+  const widget = field?.widget as WidgetOptionColorConfig | undefined
   const configColors = getWidgetOptionColors(widget?.config)
   if (configColors.length > 0) {
     return configColors

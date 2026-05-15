@@ -195,7 +195,8 @@ const handleDialogOpened = async () => {
   await nextTick()
   await nextTick()
 
-  const inputEl = (inputRef.value as any)?.$el?.querySelector('input') as HTMLInputElement | undefined
+  const rootEl = inputRef.value?.$el as HTMLElement | undefined
+  const inputEl = rootEl?.querySelector('input') ?? undefined
   if (inputEl) {
     inputEl.focus()
     setTimeout(() => inputEl.focus(), 100)

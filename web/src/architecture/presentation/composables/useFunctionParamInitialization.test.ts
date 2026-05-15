@@ -1,7 +1,7 @@
 import { computed, effectScope } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
+import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { registerWidgetInitializers } from '@/architecture/presentation/widgets/initializers/registerInitializers'
 import { useFunctionParamInitialization } from './useFunctionParamInitialization'
 

@@ -1,7 +1,8 @@
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
-import type { FormDataStore } from '@/architecture/infrastructure/stores/formData'
+import type { FormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
 import { getFieldPresenceState } from '@/architecture/domain/utils/conditionEvaluator'
+import type { FormValueReader } from '@/architecture/domain/validation'
 import {
   clearFieldSubtree as clearFieldSubtreeInStore,
   createClearedFieldValue as createClearedStoreFieldValue,
@@ -82,7 +83,7 @@ function resolveRowRelativePath(tablePath: string, rowIndex: number, fieldCodeOr
 }
 
 export function getTableRowScopedFieldValue(
-  formDataStore: Pick<FormDataStore, 'getValue' | 'data'>,
+  formDataStore: Pick<FormDataStore, 'getValue' | 'hasValue'>,
   tablePath: string,
   rowIndex: number,
   rowData: Record<string, any> | null | undefined,
@@ -90,7 +91,7 @@ export function getTableRowScopedFieldValue(
 ): FieldValue {
   const scopedPath = resolveRowScopedPath(tablePath, rowIndex, fieldCodeOrPath)
   const storeValue = formDataStore.getValue(scopedPath)
-  const hasStoredValue = formDataStore.data.has(scopedPath)
+  const hasStoredValue = formDataStore.hasValue(scopedPath)
 
   if (hasStoredValue || hasMeaningfulFieldValue(storeValue)) {
     return storeValue
@@ -107,46 +108,46 @@ export function getTableRowScopedFieldValue(
 }
 
 export function shouldShowTableRowField(
-  formDataStore: Pick<FormDataStore, 'getValue' | 'data'>,
+  formDataStore: Pick<FormDataStore, 'getValue' | 'hasValue'>,
   tablePath: string,
   rowIndex: number,
   rowData: Record<string, any> | null | undefined,
   field: FieldConfig,
   allFields: FieldConfig[]
 ): boolean {
-  const scopedFormManager = {
+  const scopedFormManager: FormValueReader = {
     getValue: (fieldCodeOrPath: string) =>
       getTableRowScopedFieldValue(formDataStore, tablePath, rowIndex, rowData, fieldCodeOrPath),
     hasValue: (fieldCodeOrPath: string) =>
-      formDataStore.data.has(resolveRowScopedPath(tablePath, rowIndex, fieldCodeOrPath)),
+      formDataStore.hasValue(resolveRowScopedPath(tablePath, rowIndex, fieldCodeOrPath)),
   }
 
   return getFieldPresenceState(
     field,
-    scopedFormManager as any,
+    scopedFormManager,
     allFields,
     `${tablePath}[${rowIndex}].${field.code}`
   ).visible
 }
 
 export function getTableRowFieldPresenceState(
-  formDataStore: Pick<FormDataStore, 'getValue' | 'data'>,
+  formDataStore: Pick<FormDataStore, 'getValue' | 'hasValue'>,
   tablePath: string,
   rowIndex: number,
   rowData: Record<string, any> | null | undefined,
   field: FieldConfig,
   allFields: FieldConfig[]
 ) {
-  const scopedFormManager = {
+  const scopedFormManager: FormValueReader = {
     getValue: (fieldCodeOrPath: string) =>
       getTableRowScopedFieldValue(formDataStore, tablePath, rowIndex, rowData, fieldCodeOrPath),
     hasValue: (fieldCodeOrPath: string) =>
-      formDataStore.data.has(resolveRowScopedPath(tablePath, rowIndex, fieldCodeOrPath)),
+      formDataStore.hasValue(resolveRowScopedPath(tablePath, rowIndex, fieldCodeOrPath)),
   }
 
   return getFieldPresenceState(
     field,
-    scopedFormManager as any,
+    scopedFormManager,
     allFields,
     `${tablePath}[${rowIndex}].${field.code}`
   )

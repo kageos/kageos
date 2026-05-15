@@ -313,6 +313,15 @@ for (const file of files) {
       }
     }
 
+    const normalizedFile = normalizePath(relative(root, file))
+    if (
+      normalizedFile.startsWith('src/architecture/presentation/')
+      && normalizedFile !== 'src/architecture/presentation/context/formRuntimeContext.ts'
+      && /@\/architecture\/infrastructure\/stores\/(?:formData|responseData)/.test(line)
+    ) {
+      failures.push(`${relative(root, file)}:${index + 1} presentation form runtime must use presentation/context/formRuntimeContext: ${line.trim()}`)
+    }
+
     const layerRule = layerRuleForFile(file)
     if (
       layerRule

@@ -81,7 +81,7 @@ export function useWorkspaceRouting(
       const node = options.findNodeByPath(tree, functionPath)
       
       if (node) {
-        const serviceNode: ServiceTree = node as any
+        const serviceNode: ServiceTree = node
         
         // 检查当前函数是否已经是目标节点
         const currentFunction = stateManager.getState().currentFunction
@@ -186,7 +186,7 @@ export function useWorkspaceRouting(
           if (tree && tree.length > 0) {
             const node = options.findNodeByPath(tree, functionPath)
             if (node) {
-              const serviceNode: ServiceTree = node as any
+              const serviceNode: ServiceTree = node
               Logger.debug('[useWorkspaceRouting]', '选中节点', { 
                 nodeId: serviceNode.id, 
                 nodeName: serviceNode.name,
@@ -259,7 +259,7 @@ export function useWorkspaceRouting(
             return
           }
           
-          const serviceNode: ServiceTree = node as any
+          const serviceNode: ServiceTree = node
           
           // 🔥 如果是目录节点，只设置当前函数，不打开 Tab
           if (serviceNode.type === 'package') {
@@ -379,7 +379,7 @@ export function useWorkspaceRouting(
               if (tree && tree.length > 0) {
                 const node = options.findNodeByPath(tree, functionPath)
                 if (node && node.type === 'function') {
-                  const serviceNode: ServiceTree = node as any
+                  const serviceNode: ServiceTree = node
                   // 🔥 触发节点点击，确保函数详情已加载
                   applicationService.triggerNodeClick(serviceNode)
                   // 清除记录，允许下次处理

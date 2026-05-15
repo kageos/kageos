@@ -36,7 +36,7 @@ import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { ElInput } from 'element-plus'
 import type { FieldValue, WidgetComponentEmits, WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import RichTextResponseWidget from '@/architecture/presentation/widgets/RichTextResponseWidget.vue'
-import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
+import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { sanitizeHtml } from '@/architecture/shared/sanitizeHtml'
 
 const RichTextEditorWidget = defineAsyncComponent(
@@ -56,7 +56,7 @@ const formDataStore = useFormDataStore()
 const searchValue = ref('')
 
 const previewText = computed(() => {
-  const fieldValue = props.value ?? (props as any).modelValue
+  const fieldValue = props.value ?? props.modelValue
   const raw = fieldValue?.raw
 
   if (raw === null || raw === undefined || raw === '') {

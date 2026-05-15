@@ -3,7 +3,7 @@ import { Logger } from '@/architecture/shared/logger'
 import type { FileItem } from '../filesWidgetTypes'
 
 interface UserInfoStoreLike {
-  userInfoCache: unknown
+  userInfoCache: unknown | { value?: unknown }
   getUserInfo: (username: string) => any
   batchGetUserInfo: (usernames: string[]) => Promise<any>
 }
@@ -31,8 +31,10 @@ export function useFilesUploadUsers(options: UseFilesUploadUsersOptions) {
     }
 
     try {
-      const cache = options.userInfoStore.userInfoCache as any
-      const cacheMap = cache?.value || cache
+      const cache = options.userInfoStore.userInfoCache
+      const cacheMap = cache && typeof cache === 'object' && 'value' in cache
+        ? cache.value
+        : cache
       if (cacheMap instanceof Map) {
         const cachedUser = cacheMap.get(file.upload_user)
         if (cachedUser) {

@@ -48,7 +48,7 @@
 import { computed } from 'vue'
 import { ElInput } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
+import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import type { TextAreaWidgetConfig } from '@/architecture/domain/types/widget-configs'
 
@@ -115,7 +115,7 @@ const internalValue = computed({
   get: () => {
     if (props.mode === 'edit' || props.mode === 'search') {
       // 优先使用 props.value，如果没有则使用 props.modelValue（兼容）
-      const fieldValue = props.value || (props as any).modelValue
+      const fieldValue = props.value || props.modelValue
       const value = fieldValue?.raw
       return value !== null && value !== undefined ? String(value) : ''
     }
@@ -139,7 +139,7 @@ const internalValue = computed({
 // 显示值
 const displayValue = computed(() => {
   // 优先使用 props.value，如果没有则使用 props.modelValue（兼容）
-  const fieldValue = props.value || (props as any).modelValue
+  const fieldValue = props.value || props.modelValue
   if (!fieldValue) {
     return '-'
   }

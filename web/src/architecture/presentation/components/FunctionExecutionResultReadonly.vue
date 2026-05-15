@@ -130,7 +130,9 @@ function readByPath(data: Record<string, any>, path: string): unknown {
     if (!isRecord(current) && !Array.isArray(current)) {
       return undefined
     }
-    current = (current as any)[part]
+    current = Array.isArray(current)
+      ? current[Number(part)]
+      : current[part]
   }
   return current
 }

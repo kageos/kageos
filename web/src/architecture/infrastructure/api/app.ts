@@ -38,7 +38,7 @@ export function getAppList(pageSize: number = 200, search?: string, includeAll: 
     // ⚠️ 响应拦截器返回的是 data 对象，所以 res 就是分页对象
     // 需要检查 res 是否有 items 字段
     if (res && typeof res === 'object' && 'items' in res) {
-      return (res as any).items || []
+      return Array.isArray(res.items) ? res.items : []
     }
     // 如果 res 本身就是数组，直接返回
     if (Array.isArray(res)) {

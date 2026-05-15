@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
+import { AxiosHeaders, type AxiosRequestConfig, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { Logger } from '@/architecture/shared/logger'
@@ -13,6 +13,10 @@ const CLIENT_SOURCE_BROWSER = 'browser'
 
 type AuthRetryAxiosRequestConfig = InternalAxiosRequestConfig & {
   _retryAfterRefresh?: boolean
+}
+
+type BusinessResponseError = Error & {
+  response: AxiosResponse<ApiResponse | Blob>
 }
 
 interface AuthFetchOptions {
@@ -31,15 +35,10 @@ const service = axios.create({
 
 function setHeader(config: InternalAxiosRequestConfig, key: string, value: string) {
   if (!config.headers) {
-    config.headers = {} as any
+    config.headers = new AxiosHeaders()
   }
 
-  if (typeof config.headers.set === 'function') {
-    config.headers.set(key, value)
-    return
-  }
-
-  ;(config.headers as any)[key] = value
+  config.headers.set(key, value)
 }
 
 function removeHeader(config: InternalAxiosRequestConfig, key: string) {
@@ -47,12 +46,7 @@ function removeHeader(config: InternalAxiosRequestConfig, key: string) {
     return
   }
 
-  if (typeof (config.headers as any).delete === 'function') {
-    ;(config.headers as any).delete(key)
-    return
-  }
-
-  delete (config.headers as any)[key]
+  config.headers.delete(key)
 }
 
 function getRefreshTokenValue(): string {
@@ -249,18 +243,17 @@ service.interceptors.response.use(
     }
     
     // 普通 JSON 响应处理
-    const { code, data } = response.data as ApiResponse
+    const responsePayload = response.data as ApiResponse
+    const { code, data, metadata } = responsePayload
     // 🔥 统一使用 msg 字段
-    const msg = extractApiMessage(response.data as any) || '请求失败'
-    // 🔥 获取 metadata（如 total_cost_mill、trace_id 等）
-    const metadata = (response.data as any).metadata
+    const msg = extractApiMessage(responsePayload) || '请求失败'
 
     // 请求成功
     if (code === 0) {
       // 🔥 如果存在 metadata 且 data 是对象，将 metadata 附加到 data 上
       // 这样调用方可以通过 data._metadata 访问元数据
       if (metadata && typeof data === 'object' && data !== null && !Array.isArray(data)) {
-        (data as any)._metadata = metadata
+        ;(data as Record<string, unknown>)._metadata = metadata
       }
       return data
     }
@@ -276,10 +269,10 @@ service.interceptors.response.use(
     // 🔥 不在这里显示错误消息，让调用方自己处理（避免重复提示）
     // ElMessage.error(msg || '请求失败')
     // 🔥 保留完整的错误信息，包括 response 对象
-    const error = new Error(msg) as any
+    const error = new Error(msg) as BusinessResponseError
     error.response = response
 
-    if (isAuthExpiredBusinessResponse(response.data as any)) {
+    if (isAuthExpiredBusinessResponse(responsePayload)) {
       return retryWithFreshToken(response.config as AuthRetryAxiosRequestConfig, error)
     }
 

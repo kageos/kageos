@@ -172,7 +172,7 @@ export class WorkspaceApplicationService {
             
             // 🔥 修复：发出应用信息更新事件，让 Presentation Layer 更新 appList
             // 这样 currentApp 的 computed 就能找到对应的应用了
-            this.eventBus.emit('workspace:app-info-updated', { app: appToSwitch })
+            this.eventBus.emit(WorkspaceEvent.appInfoUpdated, { app: appToSwitch })
           }
         } catch (error) {
           Logger.error('WorkspaceApplicationService', '获取应用信息失败', error)

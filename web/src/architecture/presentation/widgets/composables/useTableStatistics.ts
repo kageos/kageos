@@ -11,7 +11,7 @@
 import { computed, ref, watch } from 'vue'
 import { ExpressionEvaluator } from '@/architecture/domain/expression/ExpressionEvaluator'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
+import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { Logger } from '@/architecture/shared/logger'
 
 export function useTableStatistics(

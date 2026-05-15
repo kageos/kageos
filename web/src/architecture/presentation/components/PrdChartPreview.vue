@@ -74,7 +74,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { EChartsType, EChartsCoreOption } from 'echarts/core'
+import type { EChartsType, EChartsCoreOption, ResizeOpts, SetOptionOpts } from 'echarts/core'
 import { loadEChartsRuntime } from './utils/chartEChartsRuntime'
 
 type RuntimeChartType = 'bar' | 'line' | 'pie' | 'gauge'
@@ -369,7 +369,8 @@ function resizeChart() {
   if (!chart || !chartRef.value) return
   const size = chartSize()
   if (size.width > 0 && size.height > 0) {
-    chart.resize({ width: size.width, height: size.height } as any)
+    const resizeOptions: ResizeOpts = { width: size.width, height: size.height }
+    chart.resize(resizeOptions)
   } else {
     chart.resize()
   }
@@ -443,11 +444,12 @@ async function renderChart(attempt = 0, version = ++renderVersion) {
       })
     }
 
-    chart.setOption(buildOption(), {
+    const setOptionOptions: SetOptionOpts = {
       notMerge: false,
       replaceMerge: ['grid', 'xAxis', 'yAxis', 'series'],
       lazyUpdate: false,
-    } as any)
+    }
+    chart.setOption(buildOption(), setOptionOptions)
     resizeChart()
     rendered.value = true
     renderError.value = ''

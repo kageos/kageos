@@ -126,7 +126,7 @@ const hasRenderableSeriesData = (series: ChartSeries, chartType: string): boolea
           return item !== 0
         }
         if (typeof item === 'object' && item !== null && 'value' in item) {
-          return Number((item as any).value) !== 0
+          return Number((item as { value: unknown }).value) !== 0
         }
         return Boolean(item)
       })

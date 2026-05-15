@@ -2,7 +2,7 @@ import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import type { WidgetInitContext } from '@/architecture/presentation/widgets/interfaces/IWidgetInitializer'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import { convertBasicType } from '@/architecture/presentation/widgets/utils/typeConverter'
-import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
+import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { buildContainerDisplayValue } from '@/architecture/domain/utils/containerValue'
 import { widgetInitializerRegistry } from './WidgetInitializerRegistry'
 

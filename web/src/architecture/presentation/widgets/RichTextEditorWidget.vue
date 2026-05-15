@@ -79,7 +79,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Logger } from '@/architecture/shared/logger'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
-import type { EditorView } from 'prosemirror-view'
+import type { EditorProps, EditorView } from 'prosemirror-view'
 import type { Slice } from 'prosemirror-model'
 import StarterKit from '@tiptap/starter-kit'
 import { Link } from '@tiptap/extension-link'
@@ -104,7 +104,7 @@ import { Gapcursor } from '@tiptap/extension-gapcursor'
 import { ElMessage } from 'element-plus'
 import { uploadFile, notifyUploadComplete } from '@/architecture/infrastructure/upload'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
+import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import type { RichTextWidgetConfig } from '@/architecture/domain/types/widget-configs'
 import { sanitizeHtml } from '@/architecture/shared/sanitizeHtml'
@@ -159,7 +159,7 @@ const editorHeight = computed(() => {
 
 // HTML 内容（用于显示）
 const htmlContent = computed(() => {
-  const fieldValue = props.value || (props as any).modelValue
+  const fieldValue = props.value || props.modelValue
   if (!fieldValue) {
     return ''
   }
@@ -260,7 +260,7 @@ const editor = useEditor({
     },
     // 优化粘贴处理：支持从 Word、网页、Markdown 等粘贴，自动清理格式
     // 特别处理：检测粘贴的文件（任意类型），自动上传而不是使用 base64
-    handlePaste: (async (view: EditorView, event: ClipboardEvent, slice: Slice) => {
+    handlePaste: ((view: EditorView, event: ClipboardEvent, slice: Slice) => {
       const clipboardData = event.clipboardData
       
       // 如果没有 clipboardData，让 TipTap 使用默认处理
@@ -278,65 +278,10 @@ const editor = useEditor({
           // 阻止默认粘贴行为
           event.preventDefault()
           
-          // 处理每个文件
-          for (const item of fileItems) {
-            const file = item.getAsFile()
-            if (!file) continue
-            
-            try {
-              // 显示上传提示
-              ElMessage.info(`正在上传 ${file.name}...`)
-              
-              // 上传文件
-              const uploadResult = await uploadFile(
-                fileUploadRouter.value,
-                file,
-                () => {} // 粘贴上传不显示进度
-              )
-              
-              // 通知后端上传完成
-              if (uploadResult.fileInfo) {
-                const completeResult = await notifyUploadComplete({
-                  key: uploadResult.fileInfo.key,
-                  success: true,
-                  router: uploadResult.fileInfo.router,
-                  file_name: uploadResult.fileInfo.file_name,
-                  file_size: uploadResult.fileInfo.file_size,
-                  content_type: uploadResult.fileInfo.content_type,
-                  hash: uploadResult.fileInfo.hash,
-                })
-                
-                const downloadUrl = completeResult?.download_url
-                if (downloadUrl && editor.value) {
-                  // 判断文件类型并插入
-                  const isImage = file.type.startsWith('image/')
-                  const isVideo = file.type.startsWith('video/')
-                  
-                  if (isImage) {
-                    // 图片：插入为图片
-                    editor.value.chain().focus().setImage({ src: downloadUrl, alt: file.name }).run()
-                  } else if (isVideo) {
-                    // 视频：插入为视频
-                    editor.value.chain().focus().setVideo({ 
-                      src: downloadUrl,
-                      alt: file.name,
-                      controls: true
-                    }).run()
-                  } else {
-                    // 其他文件：插入为链接
-                    editor.value.chain().focus().setLink({ href: downloadUrl }).insertContent(file.name).run()
-                  }
-                  
-                  ElMessage.success(`${file.name} 上传成功`)
-                } else {
-                  throw new Error('获取下载地址失败')
-                }
-              }
-            } catch (error: any) {
-              Logger.error('RichTextWidget', '粘贴文件上传失败', error)
-              ElMessage.error(`上传 ${file.name} 失败: ${error?.message || '未知错误'}`)
-            }
-          }
+          const files = fileItems
+            .map(item => item.getAsFile())
+            .filter((file): file is File => file !== null)
+          void uploadEditorFiles(files, 'paste')
           
           return true // 已处理，阻止默认行为
         }
@@ -358,9 +303,9 @@ const editor = useEditor({
         Logger.error('RichTextWidget', '粘贴处理失败', error)
         return false
       }
-    }) as any,
+    }) satisfies NonNullable<EditorProps['handlePaste']>,
     // 支持拖拽粘贴文件（任意类型），自动上传
-    handleDrop: (async (view: EditorView, event: DragEvent, slice: Slice, moved: boolean) => {
+    handleDrop: ((view: EditorView, event: DragEvent, slice: Slice, moved: boolean) => {
       if (moved) {
         // 如果是编辑器内部的拖拽移动，使用默认处理
         return false
@@ -374,66 +319,11 @@ const editor = useEditor({
       // 阻止默认拖拽行为
       event.preventDefault()
       
-      // 处理每个文件（任意类型）
       const files = Array.from(dataTransfer.files || []) as File[]
-      for (const file of files) {
-        try {
-          // 显示上传提示
-          ElMessage.info(`正在上传 ${file.name}...`)
-          
-          // 上传文件
-          const uploadResult = await uploadFile(
-            fileUploadRouter.value,
-            file,
-            () => {} // 拖拽上传不显示进度
-          )
-          
-          // 通知后端上传完成
-          if (uploadResult.fileInfo) {
-            const completeResult = await notifyUploadComplete({
-              key: uploadResult.fileInfo.key,
-              success: true,
-              router: uploadResult.fileInfo.router,
-              file_name: uploadResult.fileInfo.file_name,
-              file_size: uploadResult.fileInfo.file_size,
-              content_type: uploadResult.fileInfo.content_type,
-              hash: uploadResult.fileInfo.hash,
-            })
-            
-            const downloadUrl = completeResult?.download_url
-            if (downloadUrl && editor.value) {
-              // 判断文件类型并插入
-              const isImage = file.type.startsWith('image/')
-              const isVideo = file.type.startsWith('video/')
-              
-              if (isImage) {
-                // 图片：插入为图片
-                editor.value.chain().focus().setImage({ src: downloadUrl, alt: file.name }).run()
-              } else if (isVideo) {
-                // 视频：插入为视频
-                editor.value.chain().focus().setVideo({ 
-                  src: downloadUrl,
-                  alt: file.name,
-                  controls: true
-                }).run()
-              } else {
-                // 其他文件：插入为链接
-                editor.value.chain().focus().setLink({ href: downloadUrl }).insertContent(file.name).run()
-              }
-              
-              ElMessage.success(`${file.name} 上传成功`)
-            } else {
-              throw new Error('获取下载地址失败')
-            }
-          }
-        } catch (error: any) {
-          Logger.error('RichTextWidget', '拖拽文件上传失败', error)
-          ElMessage.error(`上传 ${file.name} 失败: ${error?.message || '未知错误'}`)
-        }
-      }
+      void uploadEditorFiles(files, 'drop')
       
       return true // 已处理，阻止默认行为
-    }) as any
+    }) satisfies NonNullable<EditorProps['handleDrop']>
   },
   onUpdate: ({ editor }) => {
     const html = editor.getHTML()
@@ -448,6 +338,56 @@ const editor = useEditor({
     emit('update:modelValue', newFieldValue)
   }
 })
+
+async function uploadEditorFiles(files: File[], source: 'paste' | 'drop'): Promise<void> {
+  for (const file of files) {
+    try {
+      ElMessage.info(`正在上传 ${file.name}...`)
+      const uploadResult = await uploadFile(
+        fileUploadRouter.value,
+        file,
+        () => {}
+      )
+
+      if (uploadResult.fileInfo) {
+        const completeResult = await notifyUploadComplete({
+          key: uploadResult.fileInfo.key,
+          success: true,
+          router: uploadResult.fileInfo.router,
+          file_name: uploadResult.fileInfo.file_name,
+          file_size: uploadResult.fileInfo.file_size,
+          content_type: uploadResult.fileInfo.content_type,
+          hash: uploadResult.fileInfo.hash,
+        })
+
+        const downloadUrl = completeResult?.download_url
+        if (downloadUrl && editor.value) {
+          const isImage = file.type.startsWith('image/')
+          const isVideo = file.type.startsWith('video/')
+
+          if (isImage) {
+            editor.value.chain().focus().setImage({ src: downloadUrl, alt: file.name }).run()
+          } else if (isVideo) {
+            editor.value.chain().focus().setVideo({
+              src: downloadUrl,
+              alt: file.name,
+              controls: true
+            }).run()
+          } else {
+            editor.value.chain().focus().setLink({ href: downloadUrl }).insertContent(file.name).run()
+          }
+
+          ElMessage.success(`${file.name} 上传成功`)
+        } else {
+          throw new Error('获取下载地址失败')
+        }
+      }
+    } catch (error: any) {
+      Logger.error('RichTextWidget', `${source === 'paste' ? '粘贴' : '拖拽'}文件上传失败`, error)
+      ElMessage.error(`上传 ${file.name} 失败: ${error?.message || '未知错误'}`)
+    }
+  }
+}
 
 // 处理链接
 function handleSetLink(): void {

@@ -8,7 +8,7 @@ import type { FormStateManager } from '../../infrastructure/stateManager/FormSta
 import type { WorkspaceStateManager } from '../../infrastructure/stateManager/WorkspaceStateManager'
 import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import { Logger } from '@/architecture/shared/logger'
-import type { FormDataStore } from '@/architecture/infrastructure/stores/formData'
+import type { FormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { isFormStateManager } from '@/architecture/domain/interfaces/IFormStateManager'
 import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 import {

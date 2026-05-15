@@ -158,7 +158,7 @@
 import { computed, ref, watch } from 'vue'
 import { ElRate, ElInputNumber } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
+import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import type { RateWidgetConfig } from '@/architecture/domain/types/widget-configs'
 

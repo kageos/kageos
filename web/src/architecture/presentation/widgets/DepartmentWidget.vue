@@ -130,7 +130,7 @@ import SearchSingleSelectDisplay from '@/architecture/presentation/shared/compon
 import { ElButton, ElIcon } from 'element-plus'
 import { OfficeBuilding, Edit, Close } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
+import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { useDepartmentInfoStore } from '@/architecture/infrastructure/stores/departmentInfo'
 import type { Department } from '@/architecture/infrastructure/api/department'

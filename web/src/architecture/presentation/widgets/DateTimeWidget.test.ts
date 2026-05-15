@@ -4,7 +4,7 @@ import { defineComponent, h, nextTick } from 'vue'
 import { beforeEach, describe, expect, it } from 'vitest'
 import DateTimeWidget from './DateTimeWidget.vue'
 import { WidgetType } from '@/architecture/domain/constants/widget'
-import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
+import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 
 const ElDatePickerStub = defineComponent({
   name: 'ElDatePicker',

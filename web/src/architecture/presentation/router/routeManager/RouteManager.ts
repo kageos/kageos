@@ -92,7 +92,7 @@ import { watch, nextTick } from 'vue'
 import type { Router, RouteLocationNormalized } from 'vue-router'
 import type { IEventBus } from '../../../domain/interfaces/IEventBus'
 import { RouteEvent } from '../../../domain/interfaces/IEventBus'
-import { TABLE_PARAM_KEYS } from '@/architecture/shared/routing/urlParams'
+import { isTableParamKey } from '@/architecture/shared/routing/urlParams'
 import { isLinkNavigation as isLinkNavCheck } from '@/architecture/shared/routing/linkNavigation'
 import {
   NODE_TYPE_QUERY_KEY,
@@ -327,7 +327,7 @@ export class RouteManager {
           const result: Record<string, string | string[]> = {}
           const normalizedQuery = this.normalizeQuery(request.query)
           Object.keys(normalizedQuery).forEach(key => {
-            if (!TABLE_PARAM_KEYS.includes(key as any)) {
+            if (!isTableParamKey(key)) {
               const value = normalizedQuery[key]
               if (value !== undefined && value !== null && value !== '') {
                 result[key] = value
@@ -346,7 +346,7 @@ export class RouteManager {
         const normalizedQuery = this.normalizeQuery(request.query)
         Object.keys(normalizedQuery).forEach(key => {
           // 🔥 只过滤 table 参数（page, page_size, sorts），保留所有其他参数（包括 eq、in 等搜索参数）
-          if (!TABLE_PARAM_KEYS.includes(key as any)) {
+          if (!isTableParamKey(key)) {
             const value = normalizedQuery[key]
             if (value !== undefined && value !== null && value !== '') {
               result[key] = value
@@ -367,7 +367,7 @@ export class RouteManager {
           if (normalizedQuery.hasOwnProperty(key)) {
             return
           }
-          if (!isLinkMarkerQueryKey(key) && key !== NODE_TYPE_QUERY_KEY && !TABLE_PARAM_KEYS.includes(key as any)) {
+          if (!isLinkMarkerQueryKey(key) && key !== NODE_TYPE_QUERY_KEY && !isTableParamKey(key)) {
             const value = currentQuery[key]
             if (value !== null && value !== undefined) {
               result[key] = Array.isArray(value) 
@@ -462,7 +462,7 @@ export class RouteManager {
     if (preserve.linkNavigation) {
       this.log('link 跳转：保留参数（除了临时平台参数和 table 参数）')
       Object.keys(currentQuery).forEach(key => {
-        if (!isLinkMarkerQueryKey(key) && key !== NODE_TYPE_QUERY_KEY && !TABLE_PARAM_KEYS.includes(key as any)) {
+        if (!isLinkMarkerQueryKey(key) && key !== NODE_TYPE_QUERY_KEY && !isTableParamKey(key)) {
           const value = currentQuery[key]
           if (value !== null && value !== undefined) {
             newQuery[key] = Array.isArray(value) 
@@ -492,7 +492,7 @@ export class RouteManager {
         shouldPreserve = true
       }
       // 保留 table 参数
-      else if (preserve.table === true && TABLE_PARAM_KEYS.includes(key as any)) {
+      else if (preserve.table === true && isTableParamKey(key)) {
         shouldPreserve = true
       }
       // 保留自定义参数

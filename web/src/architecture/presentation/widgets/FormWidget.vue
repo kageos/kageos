@@ -315,7 +315,7 @@ import { widgetComponentFactory } from '@/architecture/presentation/widgets/regi
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import type { ValidationEngine, ValidationResult } from '@/architecture/domain/validation'
 import { validateFieldValue, validateFormWidgetNestedFields, type WidgetValidationContext } from '@/architecture/presentation/widgets/composables/useWidgetValidation'
-import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
+import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { FORM_LABEL_WIDTH, FORM_QUESTIONNAIRE_TRIGGER_CHARS } from '@/architecture/presentation/utils/formLayout'
 import { prdPreviewContextKey } from '@/architecture/presentation/components/prdPreviewContext'
 
@@ -389,12 +389,7 @@ const labelsOnTop = computed(() =>
 function getSubFieldError(subFieldCode: string): string {
   const subFieldPath = `${props.fieldPath}.${subFieldCode}`
   
-  // 从 formRenderer 获取错误（如果可用）
-  if (props.formRenderer && typeof (props.formRenderer as any).getFieldError === 'function') {
-    return (props.formRenderer as any).getFieldError(subFieldPath)
-  }
-  
-  return ''
+  return props.formRenderer?.getFieldError?.(subFieldPath) || ''
 }
 
 /**

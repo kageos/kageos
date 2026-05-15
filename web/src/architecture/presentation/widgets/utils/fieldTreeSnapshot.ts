@@ -1,5 +1,5 @@
 import type { FieldValue } from '@/architecture/domain/types/field'
-import type { FormDataStore } from '@/architecture/infrastructure/stores/formData'
+import type { FormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 
 export interface FieldTreeSnapshot {
   rootPath: string

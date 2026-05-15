@@ -82,6 +82,10 @@ import type { IFormGateway } from '../../domain/interfaces/IFormGateway'
 import { isFormStateManager } from '@/architecture/domain/interfaces/IFormStateManager'
 import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
+type ResponseWithMetadata = {
+  _metadata?: Record<string, any>
+}
+
 /**
  * 表单应用服务
  */
@@ -155,7 +159,9 @@ export class FormApplicationService {
           : { result: response }
         
         // 提取 metadata（从 response._metadata，由 request.ts 响应拦截器附加）
-        const metadata = (response as any)?._metadata
+        const metadata = response && typeof response === 'object'
+          ? (response as ResponseWithMetadata)._metadata
+          : undefined
         if (metadata) {
           stateManager.setMetadata(metadata)
         }

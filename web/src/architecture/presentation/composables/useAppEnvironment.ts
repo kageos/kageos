@@ -9,6 +9,16 @@
 
 import { ref, onMounted } from 'vue'
 
+interface NavigatorWithStandalone extends Navigator {
+  standalone?: boolean
+}
+
+interface WindowWithDesktopRuntime extends Window {
+  electron?: unknown
+  __TAURI__?: unknown
+  opera?: string
+}
+
 /**
  * 应用环境检测组合式函数
  */
@@ -31,18 +41,19 @@ export function useAppEnvironment() {
     }
     
     // 检测是否在 iOS 上已添加到主屏幕
-    if ((window.navigator as any).standalone === true) {
+    if ((window.navigator as NavigatorWithStandalone).standalone === true) {
       isStandalone.value = true
       isPWA.value = true
     }
     
     // 检测是否在移动设备上
-    const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera
+    const userAgent = navigator.userAgent || navigator.vendor || (window as WindowWithDesktopRuntime).opera || ''
     const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase())
     isMobile.value = isMobileDevice
     
     // 检测是否在 Electron 或其他桌面环境中运行
-    if ((window as any).electron || (window as any).__TAURI__) {
+    const desktopWindow = window as WindowWithDesktopRuntime
+    if (desktopWindow.electron || desktopWindow.__TAURI__) {
       isStandalone.value = true
     }
   }
@@ -81,4 +92,3 @@ export function useAppEnvironment() {
     detectEnvironment
   }
 }
-
