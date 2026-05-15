@@ -54,7 +54,7 @@
 import { computed } from 'vue'
 import { ElSwitch, ElTag } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
+import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 import type { SwitchWidgetConfig } from '@/architecture/domain/types/widget-configs'
 

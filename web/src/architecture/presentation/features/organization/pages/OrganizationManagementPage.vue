@@ -131,13 +131,13 @@
                   <template #default="{ row }">
                     <div class="member-stack">
                       <UserDisplay
-                        :username="(row as any).username"
+                        :username="row.username"
                         mode="card"
                         layout="horizontal"
                         size="small"
                       />
                       <span class="member-meta">
-                        {{ (row as any).nickname || `@${(row as any).username}` }}
+                        {{ row.nickname || `@${row.username}` }}
                       </span>
                     </div>
                   </template>
@@ -145,9 +145,9 @@
                 <el-table-column label="邮箱" min-width="220">
                   <template #default="{ row }">
                     <div class="member-stack">
-                      <span class="member-value">{{ (row as any).email || '未设置邮箱' }}</span>
+                      <span class="member-value">{{ row.email || '未设置邮箱' }}</span>
                       <span class="member-meta">
-                        {{ (row as any).email_verified ? '邮箱已验证' : '邮箱未验证' }}
+                        {{ row.email_verified ? '邮箱已验证' : '邮箱未验证' }}
                       </span>
                     </div>
                   </template>
@@ -156,9 +156,9 @@
                   <template #default="{ row }">
                     <div class="member-stack">
                       <DepartmentDisplay
-                        v-if="(row as any).department_full_path"
-                        :full-code-path="(row as any).department_full_path"
-                        :display-name="(row as any).department_full_name_path || (row as any).department_name"
+                        v-if="row.department_full_path"
+                        :full-code-path="row.department_full_path"
+                        :display-name="row.department_full_name_path || row.department_name"
                         :department-tree="departmentTree"
                         mode="card"
                         layout="horizontal"
@@ -172,8 +172,8 @@
                   <template #default="{ row }">
                     <div class="member-stack">
                       <UserDisplay
-                        v-if="(row as any).leader_username"
-                        :username="(row as any).leader_username"
+                        v-if="row.leader_username"
+                        :username="row.leader_username"
                         mode="card"
                         layout="horizontal"
                         size="small"

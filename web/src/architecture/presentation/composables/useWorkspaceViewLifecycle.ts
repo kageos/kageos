@@ -84,7 +84,7 @@ export function useWorkspaceViewLifecycle(options: UseWorkspaceViewLifecycleOpti
       options.activateScheduledTaskTab()
     })
 
-    unsubscribeAppInfoUpdated = eventBus.on('workspace:app-info-updated' as any, (payload: { app: AppType }) => {
+    unsubscribeAppInfoUpdated = eventBus.on(WorkspaceEvent.appInfoUpdated, (payload: { app: AppType }) => {
       options.updateAppInfo(payload.app)
     })
 

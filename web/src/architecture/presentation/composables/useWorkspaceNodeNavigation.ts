@@ -1,5 +1,5 @@
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
-import { RouteSource } from '@/architecture/shared/routing/routeSource'
+import { RouteSource, type RouteSourceType } from '@/architecture/shared/routing/routeSource'
 import { resolveWorkspaceUrl } from '@/architecture/shared/routing/route'
 import { isLinkNavigation as checkLinkNavigation, LINK_TYPE_QUERY_KEY } from '@/architecture/shared/routing/linkNavigation'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
@@ -36,7 +36,7 @@ export function useWorkspaceNodeNavigation(options: UseWorkspaceNodeNavigationOp
     return preservedQuery
   }
 
-  const handleFunctionNodeRoute = (node: ServiceTree, source: string): void => {
+  const handleFunctionNodeRoute = (node: ServiceTree, source: RouteSourceType): void => {
     if (!node.full_code_path) {
       return
     }
@@ -62,11 +62,11 @@ export function useWorkspaceNodeNavigation(options: UseWorkspaceNodeNavigationOp
         state: false,
         linkNavigation: isLink
       },
-      source: source as any
+      source
     })
   }
 
-  const handlePackageNodeRoute = (node: ServiceTree, source: string, customQuery?: Record<string, any>): void => {
+  const handlePackageNodeRoute = (node: ServiceTree, source: RouteSourceType, customQuery?: Record<string, any>): void => {
     if (!node.full_code_path) return
 
     const targetPath = buildWorkspacePath(node.full_code_path)
@@ -84,7 +84,7 @@ export function useWorkspaceNodeNavigation(options: UseWorkspaceNodeNavigationOp
         state: false,
         linkNavigation: false
       },
-      source: source as any
+      source
     })
   }
 
@@ -109,7 +109,7 @@ export function useWorkspaceNodeNavigation(options: UseWorkspaceNodeNavigationOp
       const targetPath = buildWorkspacePath(serviceTree.full_code_path || '')
       options.triggerNodeClick(serviceTree)
       if (options.route.path !== targetPath) {
-        handlePackageNodeRoute(serviceTree, 'workspace-node-click-docs')
+        handlePackageNodeRoute(serviceTree, RouteSource.WORKSPACE_NODE_CLICK_DOCS)
       }
       return
     }
@@ -118,7 +118,7 @@ export function useWorkspaceNodeNavigation(options: UseWorkspaceNodeNavigationOp
       const targetPath = buildWorkspacePath(serviceTree.full_code_path || '')
       options.triggerNodeClick(serviceTree)
       if (options.route.path !== targetPath) {
-        handlePackageNodeRoute(serviceTree, 'workspace-node-click-board')
+        handlePackageNodeRoute(serviceTree, RouteSource.WORKSPACE_NODE_CLICK_BOARD)
       }
       return
     }
@@ -136,11 +136,11 @@ export function useWorkspaceNodeNavigation(options: UseWorkspaceNodeNavigationOp
       return
     }
     if (node.type === 'docs') {
-      handlePackageNodeRoute(node, 'breadcrumb-node-click-docs')
+      handlePackageNodeRoute(node, RouteSource.BREADCRUMB_NODE_CLICK_DOCS)
       return
     }
     if (node.type === 'board') {
-      handlePackageNodeRoute(node, 'breadcrumb-node-click-board')
+      handlePackageNodeRoute(node, RouteSource.BREADCRUMB_NODE_CLICK_BOARD)
       return
     }
     options.triggerNodeClick(node)

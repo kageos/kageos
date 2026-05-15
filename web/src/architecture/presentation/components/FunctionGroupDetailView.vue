@@ -73,7 +73,7 @@ import TableIcon from '@/architecture/presentation/shared/components/icons/Table
 import FormIcon from '@/architecture/presentation/shared/components/icons/FormIcon.vue'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { extractFullGroupCodeFromRoute, getParentPathFromFullGroupCode } from '@/architecture/shared/routing/route'
-import { findFunctionGroup } from '@/architecture/domain/utils/serviceTreeUtils'
+import { findFunctionGroup, isServiceTreeGroupNode } from '@/architecture/domain/utils/serviceTreeUtils'
 
 interface Props {
   serviceTree?: ServiceTree[]
@@ -108,16 +108,16 @@ function loadFunctionGroup() {
     fullGroupCode.value
   )
   
-  if (groupNode && (groupNode as any).isGroup) {
+  if (groupNode && isServiceTreeGroupNode(groupNode)) {
     // 如果找到函数组节点，获取其子函数
     functions.value = (groupNode.children || []).filter(child => child.type === 'function')
-    groupName.value = groupNode.name || (groupNode as any).group_name || '函数组'
+    groupName.value = groupNode.name || groupNode.group_name || '函数组'
   } else {
     // 如果没有找到函数组节点，使用匹配的函数列表
     functions.value = matchedFunctions
     // 使用第一个函数的 group_name 作为组名
-    if (matchedFunctions.length > 0 && (matchedFunctions[0] as any).group_name) {
-      groupName.value = (matchedFunctions[0] as any).group_name
+    if (matchedFunctions.length > 0 && matchedFunctions[0]?.group_name) {
+      groupName.value = matchedFunctions[0].group_name
     } else {
       // 从 full_group_code 提取组名
       const segments = fullGroupCode.value.split('/').filter(Boolean)

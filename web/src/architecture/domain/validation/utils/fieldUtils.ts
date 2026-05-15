@@ -74,9 +74,7 @@ export function resolveReferencedFieldPath(context: ValidationContext, fieldCode
 
   const parentPath = context.fieldPath.replace(/\.[^.]+$/, '')
   const scopedFieldPath = `${parentPath}.${fieldCode}`
-  const formManager = context.formManager as any
-
-  if (typeof formManager?.hasValue === 'function' && formManager.hasValue(scopedFieldPath)) {
+  if (context.formManager.hasValue?.(scopedFieldPath)) {
     return scopedFieldPath
   }
 

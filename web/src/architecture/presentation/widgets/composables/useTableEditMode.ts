@@ -5,7 +5,7 @@
 
 import { ref, computed } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
-import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
+import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { reindexTableRowFieldPaths } from '@/architecture/presentation/widgets/utils/tableFieldPathSync'
 import {
   captureFieldTreeSnapshot,

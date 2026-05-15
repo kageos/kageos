@@ -19,7 +19,7 @@ export class TableFieldExtractor implements IFieldExtractor {
     }
     
     const itemFields = field.children || []
-    const tableData = value.raw as any[]
+    const tableData: unknown[] = value.raw
     
     // 提取所有行数据
     const extractedRows = tableData.map((row, index) => {
@@ -32,9 +32,10 @@ export class TableFieldExtractor implements IFieldExtractor {
         if (itemValue) {
           // 从 store 中提取
           rowData[itemField.code] = extractorRegistry.extractField(itemField, itemFieldPath, getValue)
-        } else if (row && typeof row === 'object') {
+        } else if (row && typeof row === 'object' && !Array.isArray(row)) {
           // 🔥 如果 store 中没有值，从原始 row 数据中读取
-          const rawValue = row[itemField.code]
+          const rawRow = row as Record<string, any>
+          const rawValue = rawRow[itemField.code]
           if (rawValue !== undefined) {
             rowData[itemField.code] = this.extractFromRaw(itemField, rawValue, extractorRegistry)
           } else {

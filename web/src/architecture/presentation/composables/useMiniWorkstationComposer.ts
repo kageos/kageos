@@ -2,6 +2,7 @@ import { ElMessage } from 'element-plus'
 import { computed, ref, watch, type Ref } from 'vue'
 import { getLLMList, type LLMInfo } from '@/architecture/infrastructure/api/agent'
 import { workspaceChatStream, type WorkspaceChatMessageFile, type WorkspaceChatReq } from '@/architecture/infrastructure/api/workspace'
+import type { ChatMessageFile } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 
 export interface UseMiniWorkstationComposerOptions {
   fullCodePath: Ref<string>
@@ -11,7 +12,7 @@ export interface UseMiniWorkstationComposerOptions {
   inputRef: Ref<HTMLTextAreaElement | undefined>
   attachedFiles: Ref<WorkspaceChatMessageFile[]>
   sending: Ref<boolean>
-  sendMessage: (content: string, streamFn: (onEvent: (event: string, data: Record<string, unknown>) => Promise<void> | void) => Promise<void>, files?: any[]) => Promise<void>
+  sendMessage: (content: string, streamFn: (onEvent: (event: string, data: Record<string, unknown>) => Promise<void> | void) => Promise<void>, files?: ChatMessageFile[]) => Promise<void>
   beforeSend?: (payload: { text: string; files: WorkspaceChatMessageFile[] | null }) => boolean | Promise<boolean>
   onTaskStarted?: (sessionId: string) => void
   onToolCallOk?: (payload: { name: string }) => void
@@ -124,7 +125,10 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     }
 
     try {
-      await sendMessage(options.displayText || text || (files?.length ? '已上传文件' : ''), streamFn, files?.length ? (files as any) : undefined)
+      const messageFiles: ChatMessageFile[] | undefined = files?.length
+        ? files.map(file => ({ ...file }))
+        : undefined
+      await sendMessage(options.displayText || text || (files?.length ? '已上传文件' : ''), streamFn, messageFiles)
       return true
     } catch {
       ElMessage.error('发送失败')

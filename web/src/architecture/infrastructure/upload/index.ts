@@ -11,6 +11,10 @@ import { authFetch } from '@/architecture/infrastructure/apiClient/request'
 
 export type { UploadCredentials, UploadProgress, UploadResult } from './types'
 
+type UploadCredentialsResponseData = UploadCredentials & {
+  Method?: UploadCredentials['method']
+}
+
 /**
  * 文件上传器接口（策略模式）
  */
@@ -241,10 +245,10 @@ async function getUploadCredentials(router: string, file: File, options: UploadF
     throw new Error('后端返回数据格式错误: 缺少 data 字段')
   }
   
-  const data = response.data
+  const data = response.data as UploadCredentialsResponseData
   
   // ✅ 验证必需字段（检查多种可能的字段名）
-  const method = data.method || data.Method || (data as any).method
+  const method = data.method || data.Method
   
   if (!method) {
     throw new Error(`后端未返回上传方式 (method 字段)，当前值: ${data.method}`)

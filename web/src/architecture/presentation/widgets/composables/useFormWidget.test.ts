@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useFormWidget } from './useFormWidget'
-import { useFormDataStore } from '@/architecture/infrastructure/stores/formData'
+import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 
 function createFieldValue(raw: any) {
   return {

@@ -17,3 +17,7 @@ export const SEARCH_PARAM_KEYS = [] as const
  */
 export type TableParamKey = typeof TABLE_PARAM_KEYS[number]
 export type SearchParamKey = typeof SEARCH_PARAM_KEYS[number]
+
+export function isTableParamKey(key: string): key is TableParamKey {
+  return TABLE_PARAM_KEYS.some((tableKey) => tableKey === key)
+}

@@ -1,6 +1,16 @@
 import type { ApiResponse } from '@/architecture/domain/types'
 
 type ApiResponseEnvelope<T = unknown> = ApiResponse<T>
+type ErrorLike = {
+  msg?: unknown
+  message?: unknown
+  response?: {
+    data?: {
+      msg?: unknown
+      message?: unknown
+    }
+  }
+}
 
 function isApiResponseEnvelope<T = unknown>(value: unknown): value is ApiResponseEnvelope<T> {
   return Boolean(
@@ -21,18 +31,19 @@ export function getErrorMessage(error: unknown, fallback: string = '操作失败
   }
 
   if (error && typeof error === 'object') {
-    const responseData = (error as any).response?.data
-    if (responseData?.msg) {
+    const errorLike = error as ErrorLike
+    const responseData = errorLike.response?.data
+    if (typeof responseData?.msg === 'string' && responseData.msg) {
       return responseData.msg
     }
-    if (responseData?.message) {
+    if (typeof responseData?.message === 'string' && responseData.message) {
       return responseData.message
     }
-    if ((error as any).msg) {
-      return (error as any).msg
+    if (typeof errorLike.msg === 'string' && errorLike.msg) {
+      return errorLike.msg
     }
-    if ((error as any).message) {
-      return (error as any).message
+    if (typeof errorLike.message === 'string' && errorLike.message) {
+      return errorLike.message
     }
   }
 

@@ -722,8 +722,12 @@ class Evaluator {
         return this.evaluateCase(node, row)
       
       default:
-        throw new Error(`Unknown node type: ${(node as any).type}`)
+        return this.assertNever(node)
     }
+  }
+
+  private static assertNever(node: never): never {
+    throw new Error(`Unknown node type: ${JSON.stringify(node)}`)
   }
 
   /**

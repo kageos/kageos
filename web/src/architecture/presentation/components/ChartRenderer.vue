@@ -174,7 +174,7 @@ const isPlaceholderChart = computed(() => {
   return Boolean(data?.__placeholder)
 })
 useChartInstanceLifecycle({
-  chartData: chartData as any,
+  chartData,
   chartContainerRef,
   loadChartRuntime: loadEChartsRuntime,
   buildOption: (chart) => buildChartEChartsOption(chart as RenderableChart),
