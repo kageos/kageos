@@ -120,7 +120,7 @@ import { prdPreviewContextKey } from '@/architecture/presentation/components/prd
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import { selectFuzzy } from '@/architecture/infrastructure/api/function'
+import { selectFuzzy } from '@/architecture/presentation/context/api/function'
 import { isFieldRequired } from '@/architecture/domain/utils/validationUtils'
 import { Logger } from '@/architecture/shared/logger'
 import { SelectFuzzyQueryType, getOptionSolidColor, normalizeOptionColor } from '@/architecture/domain/constants/select'

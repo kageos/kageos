@@ -263,11 +263,11 @@ import {
   type ScheduledAgentExecutionItem,
   type ScheduledAgentTaskItem,
   type ScheduledAgentTaskStatus
-} from '@/architecture/infrastructure/api/scheduledAgentTask'
+} from '@/architecture/presentation/context/api/scheduledAgentTask'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import ScheduledAgentTaskDialog from './ScheduledAgentTaskDialog.vue'
 import { eventBus, WorkspaceEvent } from '@/architecture/presentation/context/eventBusContext'
-import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
+import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
 
 const props = withDefaults(defineProps<{
   resourcePath?: string

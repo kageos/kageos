@@ -77,7 +77,7 @@ import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
 import ScheduledTaskList from './ScheduledTaskList.vue'
 import WorkspaceFunctionRenderer from './WorkspaceFunctionRenderer.vue'
 import FunctionInfoPanel from './FunctionInfoPanel.vue'
-import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
+import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
 
 type FunctionTabName = 'content' | 'detail' | 'operateLog' | 'scheduledTask' | 'scheduledAgentTask'
 

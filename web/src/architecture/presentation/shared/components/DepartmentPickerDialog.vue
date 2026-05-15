@@ -117,8 +117,8 @@ import { computed, nextTick, ref, watch } from 'vue'
 import type { TreeInstance } from 'element-plus'
 import { ElButton, ElDialog, ElEmpty, ElIcon, ElInput } from 'element-plus'
 import { Close, Search } from '@element-plus/icons-vue'
-import { getDepartmentTree } from '@/architecture/infrastructure/api/department'
-import type { Department } from '@/architecture/infrastructure/api/department'
+import { getDepartmentTree } from '@/architecture/presentation/context/api/department'
+import type { Department } from '@/architecture/presentation/context/api/department'
 import { Logger } from '@/architecture/shared/logger'
 
 interface Props {

@@ -7,7 +7,7 @@ import {
   deleteDocs,
   deletePackage,
   deleteServiceTreeFunction
-} from '@/architecture/infrastructure/api/service-tree'
+} from '@/architecture/presentation/context/api/service-tree'
 import { isRootNode as isRootTreeNode } from '@/architecture/domain/utils/tree-utils'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 

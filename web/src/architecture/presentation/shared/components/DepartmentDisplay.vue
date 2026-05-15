@@ -55,8 +55,8 @@
 <script setup lang="ts">
 import { computed, watch, ref, onMounted } from 'vue'
 import { ElPopover } from 'element-plus'
-import type { Department } from '@/architecture/infrastructure/api/department'
-import { getDepartmentTree } from '@/architecture/infrastructure/api/department'
+import type { Department } from '@/architecture/presentation/context/api/department'
+import { getDepartmentTree } from '@/architecture/presentation/context/api/department'
 import { useDepartmentInfoStore } from '@/architecture/presentation/context/appStoresContext'
 import DepartmentDetailCard from './DepartmentDetailCard.vue'
 

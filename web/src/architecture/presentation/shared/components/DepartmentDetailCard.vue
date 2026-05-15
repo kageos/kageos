@@ -105,7 +105,7 @@ import { computed, ref, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElIcon, ElTag, ElButton, ElTree } from 'element-plus'
 import { OfficeBuilding, UserFilled, Document, CircleCheck } from '@element-plus/icons-vue'
-import type { Department } from '@/architecture/infrastructure/api/department'
+import type { Department } from '@/architecture/presentation/context/api/department'
 
 interface Props {
   departmentInfo: Department | null

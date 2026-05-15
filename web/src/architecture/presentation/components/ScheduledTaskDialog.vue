@@ -203,14 +203,14 @@ import {
   type CreateScheduledTaskReq,
   type ScheduledTaskAction,
   type ScheduledTaskNotifyOn
-} from '@/architecture/infrastructure/api/scheduledTask'
+} from '@/architecture/presentation/context/api/scheduledTask'
 import { getErrorMessage } from '@/architecture/shared/apiError'
 import UserPickerDialog from '@/architecture/presentation/shared/components/UserPickerDialog.vue'
 import DepartmentPickerDialog from '@/architecture/presentation/shared/components/DepartmentPickerDialog.vue'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import DepartmentDisplay from '@/architecture/presentation/shared/components/DepartmentDisplay.vue'
 import type { UserInfo } from '@/architecture/domain/types'
-import type { Department } from '@/architecture/infrastructure/api/department'
+import type { Department } from '@/architecture/presentation/context/api/department'
 
 const props = withDefaults(
   defineProps<{

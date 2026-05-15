@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { describe, expect, it } from 'vitest'
-import type { WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
+import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
 import MiniWorkstationSessionCenter from './MiniWorkstationSessionCenter.vue'
 
 const SlotStub = defineComponent({

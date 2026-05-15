@@ -3,7 +3,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Loading } from '@element-plus/icons-vue'
-import { createUserBySecret } from '@/architecture/infrastructure/api/auth'
+import { createUserBySecret } from '@/architecture/presentation/context/api/auth'
 
 const router = useRouter()
 

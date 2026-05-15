@@ -1,13 +1,13 @@
 import { computed, onUnmounted, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { cancelWorkspaceChat, getWorkspaceSessions, type WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
+import { cancelWorkspaceChat, getWorkspaceSessions, type WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
 import {
   listScheduledAgentExecutions,
   listScheduledAgentTasks,
   runScheduledAgentTaskNow,
   type ScheduledAgentExecutionItem,
   type ScheduledAgentTaskItem
-} from '@/architecture/infrastructure/api/scheduledAgentTask'
+} from '@/architecture/presentation/context/api/scheduledAgentTask'
 import { eventBus, WorkspaceEvent } from '@/architecture/presentation/context/eventBusContext'
 import { featureFlags } from '@/architecture/shared/config/features'
 

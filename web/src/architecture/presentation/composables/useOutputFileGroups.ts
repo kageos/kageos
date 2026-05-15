@@ -4,7 +4,7 @@
  * 文件字段必须由 metadata.display_file_fields 显式声明，不从普通结果里猜。
  */
 
-import type { ToolResultMetadata } from '@/architecture/infrastructure/api/workspace'
+import type { ToolResultMetadata } from '@/architecture/presentation/context/api/workspace'
 
 export interface OutputFileItem {
   ref?: string
