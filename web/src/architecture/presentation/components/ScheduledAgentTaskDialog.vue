@@ -319,10 +319,9 @@ import DepartmentDisplay from '@/architecture/presentation/shared/components/Dep
 import type { UserInfo } from '@/architecture/domain/types'
 import type { Department } from '@/architecture/infrastructure/api/department'
 import { getErrorMessage } from '@/architecture/shared/apiError'
-import { uploadFile, notifyUploadComplete } from '@/architecture/infrastructure/upload'
-import type { UploadProgress } from '@/architecture/infrastructure/upload/types'
-import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
-import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
+import { uploadFile, notifyUploadComplete, type UploadProgress } from '@/architecture/presentation/context/uploadContext'
+import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
+import { eventBus, WorkspaceEvent } from '@/architecture/presentation/context/eventBusContext'
 import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
 
 const UPLOAD_ROUTER = 'workspace/chat'

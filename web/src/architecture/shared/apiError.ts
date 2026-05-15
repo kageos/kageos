@@ -1,4 +1,4 @@
-import type { ApiResponse } from '@/architecture/domain/types'
+import type { ApiResponse } from './apiTypes'
 
 type ApiResponseEnvelope<T = unknown> = ApiResponse<T>
 type ErrorLike = {

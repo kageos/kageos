@@ -1,11 +1,5 @@
-// API响应基础类型
-export interface ApiResponse<T = any> {
-  code: number
-  data: T
-  message?: string
-  msg?: string  // 统一使用 msg 字段（兼容 message）
-  metadata?: Record<string, any>  // 元数据（如 total_cost_mill、trace_id 等）
-}
+// API 响应基础类型是传输层协议壳，定义在 shared；这里保留重导出兼容旧调用方。
+export type { ApiResponse } from '@/architecture/shared/apiTypes'
 
 // 用户相关类型
 export interface UserInfo {

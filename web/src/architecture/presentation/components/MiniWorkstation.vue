@@ -284,7 +284,7 @@ import {
   useMiniWorkstationSessionView,
   type SessionFilterValue
 } from '../composables/useMiniWorkstationSessionView'
-import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
+import { eventBus, WorkspaceEvent } from '@/architecture/presentation/context/eventBusContext'
 import { createWorkspaceHandoff, resolveWorkspaceSessionInteraction, type WorkspaceSessionItem } from '@/architecture/infrastructure/api/workspace'
 import { featureFlags } from '@/architecture/shared/config/features'
 

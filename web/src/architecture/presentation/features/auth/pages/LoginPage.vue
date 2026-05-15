@@ -3,7 +3,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Check, Loading } from '@element-plus/icons-vue'
-import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
+import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import type { LoginRequest } from '@/architecture/domain/types'
 
 const router = useRouter()

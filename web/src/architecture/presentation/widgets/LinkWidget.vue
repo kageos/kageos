@@ -59,7 +59,7 @@ import { Link, Right, TopRight } from '@element-plus/icons-vue'
 import { useAppEnvironment } from '@/architecture/presentation/composables/useAppEnvironment'
 import { resolveWorkspaceUrl } from '@/architecture/shared/routing/route'
 import { parseLinkValue, addLinkTypeToUrl } from '@/architecture/shared/routing/linkNavigation'
-import { eventBus, RouteEvent } from '@/architecture/infrastructure/eventBus'
+import { eventBus, RouteEvent } from '@/architecture/presentation/context/eventBusContext'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import type { LinkWidgetConfig } from '@/architecture/domain/types/widget-configs'
 

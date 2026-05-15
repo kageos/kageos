@@ -342,10 +342,9 @@ import {
   type Department
 } from '@/architecture/infrastructure/api/department'
 import type { UserInfo } from '@/architecture/domain/types'
-import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
+import { useAuthStore, useUserInfoStore } from '@/architecture/presentation/context/appStoresContext'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import UserEditDialog from '@/architecture/presentation/features/user/components/UserEditDialog.vue'
-import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import UsersWidget from '@/architecture/presentation/shared/components/UsersWidget.vue'
 import { WidgetType } from '@/architecture/domain/constants/widget'
 import type { FieldValue } from '@/architecture/domain/types/field'

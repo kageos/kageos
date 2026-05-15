@@ -262,8 +262,7 @@
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { functionLoader } from '../../infrastructure/functionLoader'
-import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
-import { useDepartmentInfoStore } from '@/architecture/infrastructure/stores/departmentInfo'
+import { useDepartmentInfoStore, useUserInfoStore } from '@/architecture/presentation/context/appStoresContext'
 import { cacheManager } from '../../infrastructure/cacheManager'
 import { Logger } from '@/architecture/shared/logger'
 

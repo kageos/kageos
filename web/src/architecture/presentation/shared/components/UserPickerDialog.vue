@@ -132,7 +132,7 @@ import { ElAvatar, ElButton, ElCheckbox, ElDialog, ElEmpty, ElIcon, ElInput } fr
 import { Check, Close, Loading, Search } from '@element-plus/icons-vue'
 import { searchUsersFuzzy } from '@/architecture/infrastructure/api/user'
 import { Logger } from '@/architecture/shared/logger'
-import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
+import { useUserInfoStore } from '@/architecture/presentation/context/appStoresContext'
 import type { UserInfo } from '@/architecture/domain/types'
 import { formatUserDisplayName } from '@/architecture/domain/utils/userInfo'
 

@@ -58,7 +58,7 @@ const { currentEnvironment, switchEnvironment } = useAppEnvironment()
 
 <script setup>
 import { serviceFactory } from '@/architecture/infrastructure/factories'
-import { eventBus } from '@/architecture/infrastructure/eventBus'
+import { eventBus } from '@/architecture/presentation/context/eventBusContext'
 
 const applicationService = serviceFactory.getWorkspaceApplicationService()
 const stateManager = serviceFactory.getWorkspaceStateManager()

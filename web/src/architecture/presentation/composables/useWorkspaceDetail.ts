@@ -77,7 +77,7 @@ import { eventBus, RouteEvent, TableEvent, WorkspaceEvent } from '../../infrastr
 import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import type { FieldConfig, FieldValue, FunctionDetail } from '../../domain/types'
-import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
+import { useUserInfoStore } from '@/architecture/presentation/context/appStoresContext'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
 import {
   buildDetailLookupSearchRequest,

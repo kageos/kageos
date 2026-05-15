@@ -1,7 +1,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
+import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import {
   listScheduledTasks,
   getScheduledTask,
@@ -12,7 +12,7 @@ import {
   type ScheduledTaskItem,
   type ScheduledTaskExecutionItem
 } from '@/architecture/infrastructure/api/scheduledTask'
-import { eventBus, WorkspaceEvent } from '@/architecture/infrastructure/eventBus'
+import { eventBus, WorkspaceEvent } from '@/architecture/presentation/context/eventBusContext'
 import {
   formatExecutionDateTime,
   parseExecutionObject,

@@ -18,7 +18,7 @@ architecture/
 
 详细说明请参考：
 - `web/README.md`：前端整体架构、目录职责与开发约定
-- 本目录下各层 README：application / domain / infrastructure / presentation / runtime 的边界说明
+- 本目录下各层 README：application / domain / infrastructure / presentation 的边界说明
 
 ## 设计原则
 
@@ -32,5 +32,5 @@ architecture/
 - ✅ 工作空间、工作台、表单/表格/图表等主页面已在这里运行
 - ✅ `application/domain/infrastructure/presentation` 四层目录已经落地
 - ✅ 架构内类型入口已统一收口到 `architecture/domain/types`
-- ✅ `runtime`、`presentation/shared`、`presentation/features` 等公共能力已经收口到架构根内
+- ✅ 历史 `runtime` 层已移除，公共能力按职责收口到 `domain/shared/infrastructure/presentation`
 - ✅ 顶层源码目录不再保留新旧混合入口

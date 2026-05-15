@@ -5,7 +5,7 @@ import { useAuthStore } from '@/architecture/infrastructure/stores/auth'
 import { Logger } from '@/architecture/shared/logger'
 import { getApiBaseURL } from '@/architecture/infrastructure/config/runtime'
 import { getCurrentRouteFullPath, getCurrentRoutePath, navigateTo } from '@/architecture/shared/routing/navigation'
-import type { ApiResponse } from '@/architecture/domain/types'
+import type { ApiResponse } from '@/architecture/shared/apiTypes'
 import { extractApiMessage, isAuthExpiredBusinessResponse, isRefreshRequestUrl } from './authSession'
 
 const CLIENT_SOURCE_HEADER = 'X-Client-Source'
@@ -243,7 +243,7 @@ service.interceptors.response.use(
     }
     
     // 普通 JSON 响应处理
-    const responsePayload = response.data as ApiResponse
+    const responsePayload = response.data as ApiResponse<AxiosResponse<ApiResponse | Blob>>
     const { code, data, metadata } = responsePayload
     // 🔥 统一使用 msg 字段
     const msg = extractApiMessage(responsePayload) || '请求失败'
@@ -253,7 +253,7 @@ service.interceptors.response.use(
       // 🔥 如果存在 metadata 且 data 是对象，将 metadata 附加到 data 上
       // 这样调用方可以通过 data._metadata 访问元数据
       if (metadata && typeof data === 'object' && data !== null && !Array.isArray(data)) {
-        ;(data as Record<string, unknown>)._metadata = metadata
+        ;(data as unknown as Record<string, unknown>)._metadata = metadata
       }
       return data
     }

@@ -6,9 +6,9 @@
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 import Vditor from 'vditor'
 import 'vditor/dist/index.css'
-import { useThemeStore } from '@/architecture/infrastructure/stores/theme'
+import { useThemeStore } from '@/architecture/presentation/context/appStoresContext'
 import { ElMessage } from 'element-plus'
-import { uploadFile, notifyUploadComplete } from '@/architecture/infrastructure/upload'
+import { uploadFile, notifyUploadComplete } from '@/architecture/presentation/context/uploadContext'
 
 interface Props {
   modelValue: string

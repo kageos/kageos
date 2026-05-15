@@ -1,4 +1,4 @@
-import { eventBus } from '@/architecture/infrastructure/eventBus'
+import { eventBus } from '@/architecture/presentation/context/eventBusContext'
 import { nextTick, onMounted, onUnmounted, toRaw, watch, type Ref } from 'vue'
 import type { ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 

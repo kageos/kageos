@@ -1,5 +1,4 @@
-import { useUserInfoStore } from '@/architecture/infrastructure/stores/userInfo'
-import { useDepartmentInfoStore } from '@/architecture/infrastructure/stores/departmentInfo'
+import { useDepartmentInfoStore, useUserInfoStore } from '@/architecture/presentation/context/appStoresContext'
 import type { FunctionDetail } from '../../domain/types'
 import { getSearchFieldRawValue } from '@/architecture/domain/utils/searchFieldValue'
 import { getTableListFields, getTableSearchFields } from '@/architecture/domain/utils/functionSchemaSelectors'
