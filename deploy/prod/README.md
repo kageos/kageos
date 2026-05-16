@@ -14,7 +14,7 @@
 
 - [DEPLOYMENT_FLOW.md](DEPLOYMENT_FLOW.md)
 
-**范围**：主站 + 独立定时任务调度器 + 中间件（MySQL / NATS / MinIO）+ 内置 Nginx（默认 80，可选 443）+ **容器内 Podman**（跑用户应用）。**不包含 Hub**。
+**范围**：主站 + 备份控制面 + 中间件（MySQL / NATS / MinIO）+ 内置 Nginx（默认 80，可选 443）+ **容器内 Podman**（跑用户应用）。**不包含 Hub**。
 
 ## 部署分层
 
@@ -25,7 +25,7 @@ flowchart TD
   L0["L0 部署控制层<br/>aosctl / Compose / 配置生成"]
   L1["L1 基础设施层<br/>MySQL / NATS / MinIO / 数据目录"]
   L2["L2 入口接入层<br/>Nginx / TLS / 静态前端 / API 反代"]
-  L3["L3 平台服务层<br/>core-server / scheduler / backup"]
+  L3["L3 平台服务层<br/>core-server / backup"]
   L4["L4 运行时管理层<br/>app-runtime / Podman API / app-base / namespace"]
   L5["L5 用户应用层<br/>用户 App 容器 / SDK / 业务代码"]
 
@@ -48,13 +48,11 @@ Compose
   │    ├─ Nginx :80 / :443
   │    ├─ core-server
   │    └─ Podman API
-  ├─ scheduler 容器
-  │    └─ timer-scheduler
   └─ backup 容器
        └─ backup-service
 ```
 
-`main` 使用 `network_mode: host`，容器内 Nginx 默认直接监听宿主机 80 端口；开启 HTTPS 后会额外监听 443。`scheduler` 也使用 `network_mode: host`，独立运行 `timer-scheduler`，自身在 `http://127.0.0.1:9108/health` 暴露健康检查。业务服务通过 SDK 连接 `http://127.0.0.1:9108/timer/api/v1` 创建任务，并通过 NATS 消费触发事件。中间件容器通过 `127.0.0.1` 暴露端口供 `main` / `scheduler` 访问，无需额外宿主机 Nginx。中心调度默认使用独立的 `timer-scheduler` database。
+`main` 使用 `network_mode: host`，容器内 Nginx 默认直接监听宿主机 80 端口；开启 HTTPS 后会额外监听 443。中间件容器通过 `127.0.0.1` 暴露端口供 `main` 访问，无需额外宿主机 Nginx。
 
 `main` 容器的 Compose healthcheck 仍使用 `/app/health/main.sh` 聚合检查；实际子探针已经按层拆分为 `/app/health/edge.sh`、`/app/health/platform.sh`、`/app/health/runtime.sh`，`aosctl verify` 会按 L2/L3/L4 分层调用。
 
@@ -180,7 +178,6 @@ site:
 
 - 版本库中的官方模板源在 `deploy/prod/config/template/`
 - 容器启动后会渲染到 `deploy/prod/config/runtime/`
-- 定时任务固定由独立 `scheduler` 容器内的 `timer-scheduler` 服务触发；`main` 只运行业务执行器 worker
 
 > 构建 Go 依赖默认使用 `GOPROXY=https://goproxy.cn,direct` 与 `GOSUMDB=sum.golang.google.cn`；如需覆盖，可在构建时传 `--build-arg GOPROXY=... --build-arg GOSUMDB=...`。
 
@@ -353,7 +350,7 @@ podman compose build --build-arg APT_USE_MIRROR=0 --build-arg NPM_REGISTRY=https
 | `.generated/` | `aosctl` 渲染出的 Compose、配置和中间件文件，默认不入库 |
 | `RECOVERY_CHECKLIST.md` | 值班恢复速查清单 |
 | `RECOVERY.md` | 误删数据后的恢复操作手册 |
-| `Dockerfile` / `entrypoint-common.sh` / `entrypoint-main.sh` / `entrypoint-scheduler.sh` / `entrypoint-backup.sh` / `nginx/` / `config/template/` | 镜像与内置模板 |
+| `Dockerfile` / `entrypoint-common.sh` / `entrypoint-main.sh` / `entrypoint-backup.sh` / `nginx/` / `config/template/` | 镜像与内置模板 |
 
 补充：
 

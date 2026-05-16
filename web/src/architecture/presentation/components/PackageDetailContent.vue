@@ -1,47 +1,6 @@
 <template>
   <div class="detail-content">
-    <div v-if="showDirectoryTabs" class="directory-tabs-section">
-      <el-tabs v-model="currentActiveTab" class="detail-tabs">
-        <el-tab-pane name="info">
-          <template #label>
-            <span>目录信息</span>
-          </template>
-          <div class="tab-content">
-            <PackageDetailOverviewCard
-              :package-node="packageNode || null"
-              :total-run-count="totalRunCount"
-            />
-            <details v-if="directoryMarkdown" class="directory-markdown-detail">
-              <summary class="directory-markdown-summary">
-                <span>目录详情</span>
-                <span class="directory-markdown-summary-hint">展开</span>
-              </summary>
-              <div class="directory-markdown-body" v-html="renderMarkdown(directoryMarkdown)" />
-            </details>
-            <PackageDetailChildrenGrid
-              :children="packageNode?.children || []"
-              @select-child="$emit('select-child', $event)"
-            />
-          </div>
-        </el-tab-pane>
-
-        <el-tab-pane v-if="showScheduledAgentTaskTab" name="scheduledAgentTask">
-          <template #label>
-            <span>定时会话</span>
-          </template>
-          <div class="tab-content scheduled-agent-tab-content">
-            <ScheduledAgentTaskList
-              :resource-path="packageNode?.full_code_path"
-              :auto-load="currentActiveTab === 'scheduledAgentTask'"
-              @open-session="$emit('open-session', $event)"
-            />
-          </div>
-        </el-tab-pane>
-
-      </el-tabs>
-    </div>
-
-    <div v-else-if="packageNode">
+    <div v-if="packageNode">
       <PackageDetailOverviewCard
         :package-node="packageNode"
         :total-run-count="totalRunCount"
@@ -66,40 +25,19 @@ import { computed } from 'vue'
 import type { ServiceTree } from '@/architecture/domain/types'
 import PackageDetailOverviewCard from './PackageDetailOverviewCard.vue'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
-import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
-import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
-import { featureFlags } from '@/architecture/shared/config/features'
-
-type DetailTabName = 'info' | 'scheduledAgentTask'
 
 const props = defineProps<{
   packageNode: ServiceTree | null
   totalRunCount: number
-  activeTab: DetailTabName
 }>()
 
-const emit = defineEmits<{
-  (e: 'update:activeTab', value: DetailTabName): void
+defineEmits<{
   (e: 'select-child', child: ServiceTree): void
-  (e: 'open-session', session: WorkspaceSessionItem): void
 }>()
 
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
-
-const currentActiveTab = computed({
-  get: () => props.activeTab,
-  set: (value: DetailTabName) => emit('update:activeTab', value)
-})
-
-const showScheduledAgentTaskTab = computed(() => {
-  return featureFlags.scheduledTasks && props.packageNode?.type === 'package' && !!props.packageNode.full_code_path
-})
-
-const showDirectoryTabs = computed(() => {
-  return showScheduledAgentTaskTab.value
-})
 
 const directoryMarkdown = computed(() => {
   return props.packageNode?.description?.trim() || ''

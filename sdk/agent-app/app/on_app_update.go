@@ -322,8 +322,6 @@ func (a *App) buildApiInfo(info *routerInfo) (*ApiInfo, []interface{}, error) {
 		var callback []string
 		if template.OnTableAddRow != nil {
 			callback = append(callback, CallbackTypeOnTableAddRow)
-			// 只有可新增的表才暴露批量导入能力，避免只读查询表被误判为可写。
-			callback = append(callback, CallbackTypeOnTableCreateInBatches)
 		}
 		if template.OnTableUpdateRow != nil {
 			callback = append(callback, CallbackTypeOnTableUpdateRow)

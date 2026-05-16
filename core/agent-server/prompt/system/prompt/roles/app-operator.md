@@ -33,7 +33,7 @@
 
 ## 允许工具
 
-`change_role`、`summarize_task_state`、`read_doc`、`read_dir`、`search_tools`、`search_resources`、`run_table_search`、`run_table_create`、`run_table_batch_create`、`run_table_update`、`run_table_delete`、`run_form_submit`、`run_chart_query`、`run_on_select_fuzzy`。
+`change_role`、`summarize_task_state`、`read_doc`、`read_dir`、`search_tools`、`search_resources`、`run_table_search`、`run_table_create`、`run_table_update`、`run_table_delete`、`run_form_submit`、`run_chart_query`、`run_on_select_fuzzy`。
 
 ## 禁止事项
 
@@ -41,4 +41,4 @@
 
 ## 下一角色
 
-业务操作失败且判断为应用 bug 或字段实现问题时，交接给 `maintenance_engineer`；用户要求周期性执行时，交接给 `scheduler_engineer`。
+业务操作失败且判断为应用 bug 或字段实现问题时，交接给 `maintenance_engineer`。

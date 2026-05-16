@@ -113,7 +113,6 @@ GET /workspace/api/v1/table/search{full_code_path}
 **重要说明**：
 - 前端只调用标准 Table 接口；后端内部转成 `_callback` 请求。
 - 写操作是否可用只看 `schema.callbacks`，不再使用旧的 table_permission 标签。
-- `OnTableCreateInBatches` 是批量导入能力，触发系统内置批量创建回调。
 
 ```typescript
 // 新增记录
@@ -127,10 +126,6 @@ Body: { id: 记录ID, updates: { field1: value1, ... } }
 // 删除记录
 DELETE /workspace/api/v1/table/delete{full_code_path}
 Body: { ids: [id1, id2, ...] }
-
-// 批量导入
-POST /workspace/api/v1/table/batch-create{full_code_path}
-Body: { data: [{ field1: value1, ... }] }
 ```
 
 **示例**：

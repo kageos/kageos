@@ -107,44 +107,6 @@ services:
       retries: 12
       start_period: 90s
 
-  scheduler:
-    image: {{ q .Images.Main }}
-    entrypoint: ["/app/entrypoint-scheduler.sh"]
-    network_mode: host
-    restart: unless-stopped
-    environment:
-      MYSQL_HOST: {{ q .MySQLHostForMain }}
-      MYSQL_PORT: {{ q .MySQLPortForMain }}
-      MYSQL_ROOT_PASSWORD: {{ q .MySQL.BackupAdminPass }}
-      MINIO_ROOT_PASSWORD: {{ q .MinIO.SecretKey }}
-      NATS_HOST: {{ q .NATSHostForMain }}
-      NATS_PORT: {{ q .NATSPortForMain }}
-      NATS_URL: {{ q .NATSURL }}
-      NATS_SEED_HOST: {{ q .NATSHostForMain }}
-      NATS_SEED_PORT: {{ q .NATSPortForMain }}
-      NATS_SEED_USER: {{ q .NATSAuthUser }}
-      NATS_SEED_PASSWORD: {{ q .NATSAuthPassword }}
-      JWT_SECRET: {{ q .Secrets.JWTSecret }}
-      CONTROL_ENC_KEY: {{ q .Secrets.ControlEncKey }}
-      SMTP_HOST: {{ q .SMTP.Host }}
-      SMTP_PORT: {{ q .SMTP.Port }}
-      SMTP_USERNAME: {{ q .SMTP.Username }}
-      SMTP_PASSWORD: {{ q .SMTP.Password }}
-      SMTP_FROM: {{ q .SMTP.From }}
-      SMTP_FROM_NAME: {{ q .SMTP.FromName }}
-      APP_BASE_IMAGE: {{ q .Images.AppBase }}
-    volumes:
-      - {{ .Storage.Root }}/logs:/app/logs
-      - {{ .Storage.Root }}/namespace:/app/namespace
-      - {{ .Storage.Root }}/data:/app/data
-      - ./config:/app/config.prod.template:ro
-    healthcheck:
-      test: ["CMD", "/app/health/scheduler.sh"]
-      interval: 20s
-      timeout: 5s
-      retries: 6
-      start_period: 30s
-
   backup:
     image: {{ q .Images.Main }}
     entrypoint: ["/app/entrypoint-backup.sh"]
@@ -208,8 +170,6 @@ authorization {
 
 const mysqlInitTemplate = `
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.AppDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.ScheduledTaskDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.TimerSchedulerDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.StorageDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.AgentDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.HRDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -250,9 +210,6 @@ sdk:
     LUA_PATH: "/usr/bin/lua"
     PYTHON_PATH: "/usr/bin/python3"
     PIP_PATH: "/usr/bin/pip3"
-
-timer_scheduler:
-  base_url: "http://127.0.0.1:9108/timer/api/v1"
 
 `
 
@@ -328,9 +285,6 @@ server:
   debug: false
   enable_pprof: false
 
-timer_worker:
-  max_concurrency: 4
-
 db:
   type: "mysql"
   host: {{ q .MySQLHostForMain }}
@@ -343,9 +297,6 @@ db:
   max_lifetime: 300
   log_level: "warn"
   slow_threshold: 200
-
-scheduled_task_db:
-  name: {{ q .MySQL.ScheduledTaskDatabase }}
 
 timeouts:
   app_request: 300
@@ -403,10 +354,6 @@ server:
   debug: false
   enable_pprof: false
 
-timer_worker:
-  max_concurrency: 3
-  default_timeout_seconds: 1800
-
 db:
   type: "mysql"
   host: {{ q .MySQLHostForMain }}
@@ -451,33 +398,6 @@ llms:
 {{- end }}
 {{- end }}
 {{- end }}
-`
-
-const timerSchedulerConfigTemplate = `
-server:
-  port: 9108
-  listen_host: "127.0.0.1"
-  log_level: "info"
-  debug: false
-
-scheduler:
-  poll_interval_seconds: 1
-  batch_size: 50
-  dispatch_lease_seconds: 30
-  execution_lease_seconds: 3600
-
-db:
-  type: "mysql"
-  host: {{ q .MySQLHostForMain }}
-  port: {{ .MySQLPortForMain }}
-  user: {{ q .MySQL.User }}
-  password: {{ q .MySQL.Password }}
-  name: {{ q .MySQL.TimerSchedulerDatabase }}
-  max_idle_conns: 30
-  max_open_conns: 200
-  max_lifetime: 300
-  log_level: "warn"
-  slow_threshold: 200
 `
 
 const hrServerConfigTemplate = `

@@ -70,7 +70,7 @@ func (ft FlexibleTime) MarshalJSON() ([]byte, error) {
 type License struct {
 	// License 基本信息
 	ID        string       `json:"id"`         // License ID
-	Edition   string       `json:"edition"`    // 版本：community, professional, enterprise, flagship
+	Edition   string       `json:"edition"`    // 版本：community, enterprise
 	IssuedAt  FlexibleTime `json:"issued_at"`  // 签发时间
 	ExpiresAt FlexibleTime `json:"expires_at"` // 过期时间（零值表示永久）
 
@@ -101,35 +101,8 @@ type Features struct {
 	// 操作日志
 	OperateLog bool `json:"operate_log"` // 操作日志功能
 
-	// 组织架构
-	Organization bool `json:"organization"` // 组织架构功能
-
 	// 高级权限治理
 	Permission bool `json:"permission"` // 组织架构授权、权限申请审批、自定义角色等高级能力
-
-	// 工作流
-	Workflow bool `json:"workflow"` // 工作流功能
-
-	// 审批流程
-	Approval bool `json:"approval"` // 审批流程功能
-
-	// 定时任务
-	ScheduledTask bool `json:"scheduled_task"` // 定时任务功能
-
-	// 回收站
-	RecycleBin bool `json:"recycle_bin"` // 回收站功能
-
-	// 变更日志
-	ChangeLog bool `json:"change_log"` // 变更日志功能
-
-	// 通知中心
-	Notification bool `json:"notification"` // 通知中心功能
-
-	// 配置管理
-	ConfigManagement bool `json:"config_management"` // 配置管理功能
-
-	// 快链
-	QuickLink bool `json:"quick_link"` // 快链功能
 }
 
 // LicenseFile License 文件结构（包含签名）
@@ -138,14 +111,13 @@ type LicenseFile struct {
 	Signature string  `json:"signature"` // RSA 签名（Base64 编码）
 }
 
-// Edition 版本类型
+// Edition 版本类型。
+// MVP 阶段只保留社区版和企业版两层，避免暴露未落地的套餐层级。
 type Edition string
 
 const (
-	EditionCommunity    Edition = "community"    // 社区版（开源，不需要 License）
-	EditionProfessional Edition = "professional" // 专业版
-	EditionEnterprise   Edition = "enterprise"   // 企业版
-	EditionFlagship     Edition = "flagship"     // 旗舰版
+	EditionCommunity  Edition = "community"  // 社区版（开源，不需要 License）
+	EditionEnterprise Edition = "enterprise" // 企业版
 )
 
 // IsValid 检查 License 是否有效
@@ -155,6 +127,11 @@ func (l *License) IsValid() bool {
 		return false
 	}
 	return true
+}
+
+// IsEnterpriseEdition 检查 License 是否为当前支持的企业版。
+func (l *License) IsEnterpriseEdition() bool {
+	return l != nil && l.GetEdition() == EditionEnterprise
 }
 
 // HasFeature 检查是否有某个功能
@@ -176,30 +153,15 @@ func (l *License) HasFeature(featureName string) bool {
 	if !l.IsValid() {
 		return false // License 过期，没有企业功能
 	}
+	if !l.IsEnterpriseEdition() {
+		return false // MVP 阶段只有 enterprise 版本能启用企业功能
+	}
 
 	switch featureName {
 	case "operate_log":
 		return l.Features.OperateLog
-	case "organization":
-		return l.Features.Organization
 	case "permission":
 		return l.Features.Permission
-	case "workflow":
-		return l.Features.Workflow
-	case "approval":
-		return l.Features.Approval
-	case "scheduled_task":
-		return l.Features.ScheduledTask
-	case "recycle_bin":
-		return l.Features.RecycleBin
-	case "change_log":
-		return l.Features.ChangeLog
-	case "notification":
-		return l.Features.Notification
-	case "config_management":
-		return l.Features.ConfigManagement
-	case "quick_link":
-		return l.Features.QuickLink
 	default:
 		return false
 	}

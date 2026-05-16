@@ -89,7 +89,7 @@ func deploymentLayers() []deploymentLayer {
 		{ID: layerControl, Name: "部署控制层", Responsibility: "aosctl、配置渲染、目录和镜像编排"},
 		{ID: layerInfra, Name: "基础设施层", Responsibility: "MySQL、NATS、MinIO、持久化数据目录"},
 		{ID: layerEdge, Name: "入口接入层", Responsibility: "Nginx、HTTP/HTTPS、静态前端、API 反代、维护页"},
-		{ID: layerPlatform, Name: "平台服务层", Responsibility: "平台业务服务、调度器、备份控制面"},
+		{ID: layerPlatform, Name: "平台服务层", Responsibility: "平台业务服务、备份控制面"},
 		{ID: layerRuntime, Name: "运行时管理层", Responsibility: "app-runtime、Podman API、app-base 镜像、namespace"},
 		{ID: layerApps, Name: "用户应用层", Responsibility: "用户 App 容器、SDK、用户业务代码"},
 	}
@@ -105,7 +105,6 @@ func deploymentComponents(rt RuntimeConfig) []deploymentComponent {
 		{Layer: layerInfra, Name: rt.Storage.Root, Role: "宿主机持久化根目录"},
 		{Layer: layerEdge, Name: "nginx", Role: "容器内入口，host 网络监听 80/443"},
 		{Layer: layerPlatform, Name: "core-server", Role: "统一承载 gateway/app/agent/hr/storage/message/control"},
-		{Layer: layerPlatform, Name: "scheduler", Role: "独立 timer-scheduler 服务"},
 		{Layer: layerPlatform, Name: "backup", Role: "独立 backup-service 控制面"},
 		{Layer: layerRuntime, Name: "app-runtime", Role: "用户 App 生命周期控制"},
 		{Layer: layerRuntime, Name: "podman-api", Role: "main 容器内 Podman socket"},
@@ -215,7 +214,7 @@ func composeServicesByLayer(rt RuntimeConfig) []layerComposeServices {
 		{Layer: layerControl, Note: "aosctl runs on the host"},
 		{Layer: layerInfra, Services: infraServices, Note: strings.Join(infraNotes, ", ")},
 		{Layer: layerEdge, Services: []string{"main"}, Note: "nginx runs inside main"},
-		{Layer: layerPlatform, Services: []string{"main", "scheduler", "backup"}, Note: "core-server runs inside main"},
+		{Layer: layerPlatform, Services: []string{"main", "backup"}, Note: "core-server runs inside main"},
 		{Layer: layerRuntime, Services: []string{"main"}, Note: "app-runtime and Podman API run inside main"},
 		{Layer: layerApps, Note: "user App containers are managed by app-runtime, not Compose"},
 	}

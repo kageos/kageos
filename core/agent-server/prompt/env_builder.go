@@ -177,7 +177,7 @@ func buildFunctionsSection(children []WorkspaceEnvNode) string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("\n**当前目录下的可执行函数（Table 默认先用 run_table_search；只有能力摘要明确支持写入时，才使用 run_table_create / run_table_batch_create / run_table_update / run_table_delete）：**\n")
+	b.WriteString("\n**当前目录下的可执行函数（Table 默认先用 run_table_search；只有能力摘要明确支持写入时，才使用 run_table_create / run_table_update / run_table_delete）：**\n")
 	for _, f := range functions {
 		tpl := f.TemplateType
 		if tpl == "" {
@@ -259,9 +259,6 @@ func formatWorkspaceFunctionCapabilities(templateType string, callbacks []string
 		caps := []string{"查询"}
 		if hasWorkspaceCallback(callbacks, "OnTableAddRow") {
 			caps = append(caps, "新增")
-		}
-		if hasWorkspaceCallback(callbacks, "OnTableCreateInBatches") {
-			caps = append(caps, "批量导入")
 		}
 		if hasWorkspaceCallback(callbacks, "OnTableUpdateRow") {
 			caps = append(caps, "编辑")

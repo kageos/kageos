@@ -140,13 +140,6 @@ func TableCreate(ctx context.Context, fullCodePath string, body interface{}) (ma
 	return PostAPI[interface{}, map[string]interface{}](ctx, path, body)
 }
 
-// TableBatchCreate 调用工作区 Table 批量导入接口（POST table/batch-create/{full-code-path}）
-// fullCodePath 为表格函数完整路径；body 为 { "data": [{ "field": "value" }] }，会触发 OnTableCreateInBatches 回调。
-func TableBatchCreate(ctx context.Context, fullCodePath string, body interface{}) (map[string]interface{}, error) {
-	path := buildWorkspaceFunctionPath("/workspace/api/v1/table/batch-create", fullCodePath)
-	return PostAPI[interface{}, map[string]interface{}](ctx, path, body)
-}
-
 // TableUpdate 调用工作区 Table 更新接口（PUT table/update/{full-code-path}）
 // fullCodePath 为表格函数完整路径；body 为 { "id": 行ID, "updates": { "field": "value", ... } }，不传 old_values 时由 app-server 自动查表填充
 func TableUpdate(ctx context.Context, fullCodePath string, body interface{}) (map[string]interface{}, error) {
@@ -172,34 +165,4 @@ func CallbackOnSelectFuzzy(ctx context.Context, fullCodePath string, body map[st
 // source_directory_path 为本地完整目录路径；target_directory_path 为目标完整路径；target_app_id 由目标路径所在应用决定。
 func CopyDirectoryViaWorkspace(ctx context.Context, req *dto.CopyDirectoryReq) (*dto.CopyDirectoryResp, error) {
 	return PostAPI[*dto.CopyDirectoryReq, *dto.CopyDirectoryResp](ctx, "/workspace/api/v1/service_tree/copy", req)
-}
-
-// CreateScheduledTask 创建定时任务（agent-server -> app-server）
-func CreateScheduledTask(ctx context.Context, req *dto.CreateScheduledTaskReq) (*dto.ScheduledTaskItem, error) {
-	return PostAPI[*dto.CreateScheduledTaskReq, *dto.ScheduledTaskItem](ctx, "/workspace/api/v1/scheduled_tasks", req)
-}
-
-// ListScheduledTasks 查询定时任务列表（agent-server -> app-server）
-func ListScheduledTasks(ctx context.Context, fullCodePath, status string, page, pageSize int) (*dto.ListScheduledTasksResp, error) {
-	return GetAPI[*dto.ListScheduledTasksResp](ctx, "/workspace/api/v1/scheduled_tasks", buildQueryParams(
-		withFullCodePathQuery(fullCodePath),
-		withStatusQuery(status),
-		withOptionalPaginationQuery(page, pageSize),
-	))
-}
-
-// CancelScheduledTask 取消定时任务（agent-server -> app-server）
-func CancelScheduledTask(ctx context.Context, taskID int64) error {
-	path := fmt.Sprintf("/workspace/api/v1/scheduled_tasks/%d/cancel", taskID)
-	_, err := PostAPI[map[string]interface{}, map[string]interface{}](ctx, path, map[string]interface{}{})
-	return err
-}
-
-// ListScheduledTaskExecutions 查询某任务执行记录（agent-server -> app-server）
-func ListScheduledTaskExecutions(ctx context.Context, taskID int64, status string, page, pageSize int) (*dto.ListScheduledTaskExecutionsResp, error) {
-	path := fmt.Sprintf("/workspace/api/v1/scheduled_tasks/%d/executions", taskID)
-	return GetAPI[*dto.ListScheduledTaskExecutionsResp](ctx, path, buildQueryParams(
-		withStatusQuery(status),
-		withOptionalPaginationQuery(page, pageSize),
-	))
 }

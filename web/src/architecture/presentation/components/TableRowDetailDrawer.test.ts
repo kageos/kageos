@@ -121,7 +121,6 @@ function mountDrawer(props: Record<string, unknown> = {}) {
         ElSkeleton: true,
         ElEmpty: true,
         TableRowDetailReadTabs: true,
-        ScheduledTaskDialog: true,
         FormView: true
       }
     }

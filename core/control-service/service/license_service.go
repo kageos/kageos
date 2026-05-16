@@ -24,7 +24,7 @@ import (
 type LicenseStatus struct {
 	IsValid     bool              `json:"is_valid"`              // License 是否有效
 	IsCommunity bool              `json:"is_community"`          // 是否为社区版
-	Edition     string            `json:"edition"`               // 版本类型：community, professional, enterprise, flagship
+	Edition     string            `json:"edition"`               // 版本类型：community, enterprise
 	Customer    string            `json:"customer,omitempty"`    // 客户名称（可选）
 	Description string            `json:"description,omitempty"` // License 描述（可选）
 	ExpiresAt   *time.Time        `json:"expires_at,omitempty"`  // 过期时间（可选）

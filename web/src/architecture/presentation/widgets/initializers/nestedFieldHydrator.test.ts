@@ -27,7 +27,7 @@ describe('nestedFieldHydrator', () => {
     useFormDataStore().clear()
   })
 
-  it('hydrates nested form field values without quick-link metadata', async () => {
+  it('hydrates nested form field values without link metadata', async () => {
     const initializer = new FormWidgetInitializer()
     const formDataStore = useFormDataStore()
 

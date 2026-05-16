@@ -7,10 +7,8 @@ export const RouteSource = {
   WORKSPACE_NODE_CLICK: 'workspace-node-click',
   WORKSPACE_NODE_CLICK_PACKAGE: 'workspace-node-click-package',
   WORKSPACE_NODE_CLICK_DOCS: 'workspace-node-click-docs',
-  WORKSPACE_NODE_CLICK_BOARD: 'workspace-node-click-board',
   WORKSPACE_ROUTING_CLEAR_LINK_TYPE: 'workspace-routing-clear-link-type',
   BREADCRUMB_NODE_CLICK_DOCS: 'breadcrumb-node-click-docs',
-  BREADCRUMB_NODE_CLICK_BOARD: 'breadcrumb-node-click-board',
   
   // 表格相关
   TABLE_DETAIL_OPEN: 'table-detail-open',

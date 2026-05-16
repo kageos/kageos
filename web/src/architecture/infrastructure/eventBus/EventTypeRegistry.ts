@@ -76,13 +76,6 @@ export class EventTypeRegistry {
       payloadType: 'FunctionLoadedPayload'
     })
 
-    this.register(WorkspaceEvent.scheduledAgentTaskCreated, {
-      name: '定时 Agent 会话创建完成',
-      description: '定时 Agent 会话任务创建完成',
-      category: 'workspace',
-      payloadType: 'ScheduledAgentTaskCreatedPayload'
-    })
-    
     // Form 事件
     this.register(FormEvent.initialized, {
       name: '表单初始化完成',

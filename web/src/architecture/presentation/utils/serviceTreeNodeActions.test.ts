@@ -35,7 +35,6 @@ describe('serviceTreeNodeActions', () => {
     expect(commands(actions)).toEqual([
       'create-directory',
       'create-docs',
-      'create-board',
       'open-workstation',
       'rename',
       'copy',

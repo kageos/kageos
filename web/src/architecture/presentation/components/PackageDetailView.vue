@@ -61,10 +61,7 @@
       <PackageDetailContent
         :package-node="packageNode || null"
         :total-run-count="totalRunCount"
-        :active-tab="activeTab"
-        @update:active-tab="activeTab = $event"
         @select-child="handleChildClick"
-        @open-session="$emit('open-session', $event)"
       />
     </div>
 
@@ -78,9 +75,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import type { LocationQueryValue } from 'vue-router'
 import { ArrowLeft, Folder, CopyDocument, Link, Edit } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/architecture/domain/types'
@@ -93,10 +89,6 @@ import { updatePackage } from '@/architecture/presentation/context/api/service-t
 import { Logger } from '@/architecture/shared/logger'
 import PackageDetailContent from './PackageDetailContent.vue'
 import PackageDetailEditDialog from './PackageDetailEditDialog.vue'
-import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
-import { featureFlags } from '@/architecture/shared/config/features'
-
-type DetailTabName = 'info' | 'scheduledAgentTask'
 
 interface Props {
   packageNode?: ServiceTree | null
@@ -106,19 +98,11 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   'refresh': []
-  'open-session': [session: WorkspaceSessionItem]
 }>()
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
-
-// Tab 相关
-const activeTab = ref<DetailTabName>('info')
-
-const showScheduledAgentTaskTab = computed(() => {
-  return featureFlags.scheduledTasks && props.packageNode?.type === 'package' && !!props.packageNode.full_code_path
-})
 
 // ⭐ 本目录下所有函数调用次数之和（仅统计直接子节点中的 function）
 const totalRunCount = computed(() => {
@@ -128,27 +112,6 @@ const totalRunCount = computed(() => {
     .filter((c: ServiceTree) => c.type === 'function')
     .reduce((sum: number, c: ServiceTree) => sum + (c.run_count ?? 0), 0)
 })
-
-function normalizeTabQuery(tab: LocationQueryValue | LocationQueryValue[] | undefined): string | null {
-  if (Array.isArray(tab)) {
-    return tab[0] ?? null
-  }
-
-  return typeof tab === 'string' ? tab : null
-}
-
-// ⭐ 监听路由 query 参数，支持通过 _panel 参数指定要打开的 tab
-watch(
-  () => route.query._panel,
-  (tab) => {
-    const normalizedTab = normalizeTabQuery(tab)
-
-    if (normalizedTab === 'scheduledAgentTask' && showScheduledAgentTaskTab.value) {
-      activeTab.value = 'scheduledAgentTask'
-    }
-  },
-  { immediate: true }
-)
 
 // 编辑对话框
 const editDialogVisible = ref(false)
@@ -180,20 +143,6 @@ const canEdit = computed(() => {
   
   return false
 })
-
-watch(
-  () => [
-    props.packageNode?.full_code_path,
-    showScheduledAgentTaskTab.value
-  ] as const,
-  () => {
-    if (activeTab.value === 'scheduledAgentTask' && !showScheduledAgentTaskTab.value) {
-      activeTab.value = 'info'
-      return
-    }
-  },
-  { immediate: true }
-)
 
 // 返回上一级
 function handleBack() {
@@ -352,8 +301,8 @@ function handleChildClick(child: ServiceTree): void {
         source: 'package-detail-child-click-package'
       })
     }
-  } else if ((child.type === 'board' || child.type === 'docs') && child.full_code_path) {
-    // 讨论区/文档节点：跳转到对应页面
+  } else if (child.type === 'docs' && child.full_code_path) {
+    // 文档节点：跳转到对应页面
     applicationService.triggerNodeClick(child)
     const targetPath = `/workspace${child.full_code_path}`
     if (route.path !== targetPath) {
@@ -362,7 +311,7 @@ function handleChildClick(child: ServiceTree): void {
         query: {},
         replace: true,
         preserveParams: { table: false, search: false, state: false, linkNavigation: false },
-        source: 'package-detail-child-click-board-docs'
+        source: 'package-detail-child-click-docs'
       })
     } else {
       applicationService.triggerNodeClick(child)

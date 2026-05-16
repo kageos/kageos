@@ -364,7 +364,7 @@ type RequestInfo struct {
 	SourceRef          string
 }
 
-// WithRequestInfo 一次性注入与 ToContext 一致的 context（用于定时任务等无 HTTP 请求场景）
+// WithRequestInfo 一次性注入与 ToContext 一致的 context（用于后台任务等无 HTTP 请求场景）
 func WithRequestInfo(ctx context.Context, info RequestInfo) context.Context {
 	if info.TraceId != "" {
 		ctx = context.WithValue(ctx, TraceIdHeader, info.TraceId)
@@ -390,7 +390,7 @@ func WithRequestInfo(ctx context.Context, info RequestInfo) context.Context {
 	return ctx
 }
 
-// WithRequestUser 注入请求用户到 context（用于定时任务等无 HTTP 请求场景）
+// WithRequestUser 注入请求用户到 context（用于后台任务等无 HTTP 请求场景）
 func WithRequestUser(ctx context.Context, username string) context.Context {
 	if username == "" {
 		return ctx

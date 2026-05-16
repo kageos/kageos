@@ -36,12 +36,6 @@
                 <component :is="getChildFunctionIcon(child)" />
               </el-icon>
             </template>
-            <img
-              v-else-if="child.type === 'board'"
-              src="/讨论区.svg"
-              alt="讨论区"
-              class="child-icon-img"
-            />
             <el-icon v-else-if="child.type === 'docs'" class="child-icon">
               <Document />
             </el-icon>
@@ -57,7 +51,6 @@
           >
             {{ getTemplateTypeText(child.template_type) }}
           </el-tag>
-          <el-tag v-else-if="child.type === 'board'" size="small" type="success" class="child-type-tag">讨论区</el-tag>
           <el-tag v-else-if="child.type === 'docs'" size="small" type="info" class="child-type-tag">文档</el-tag>
         </div>
 

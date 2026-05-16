@@ -11,10 +11,9 @@ import (
 
 // ToolRegistry 工作台工具注册与调用（仅内置工具，已移除插件）
 type ToolRegistry struct {
-	eventRepo           *repository.WorkspaceEventRepository
-	scheduledAgentTasks *ScheduledAgentTaskService
-	tools               map[string]Tool
-	toolOrder           []string
+	eventRepo *repository.WorkspaceEventRepository
+	tools     map[string]Tool
+	toolOrder []string
 }
 
 // NewToolRegistry 创建 ToolRegistry（eventRepo 可为 nil，则 record_workspace_event 仅打日志不落库）
@@ -25,14 +24,6 @@ func NewToolRegistry(eventRepo *repository.WorkspaceEventRepository) *ToolRegist
 	}
 	r.registerBuiltinTools()
 	return r
-}
-
-// SetScheduledAgentTaskService wires the scheduled-agent runtime after service construction.
-func (r *ToolRegistry) SetScheduledAgentTaskService(svc *ScheduledAgentTaskService) {
-	if r == nil {
-		return
-	}
-	r.scheduledAgentTasks = svc
 }
 
 func (r *ToolRegistry) registerBuiltinTools() {

@@ -2,15 +2,14 @@ import { computed, nextTick, ref, watch, type ComputedRef } from 'vue'
 import type { RouteLocationNormalizedLoaded, Router, LocationQueryValue } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
-import { getScheduledTaskExecution, type ScheduledTaskExecutionItem } from '@/architecture/presentation/context/api/scheduledTask'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import { Logger } from '@/architecture/shared/logger'
 import type { ServiceTree } from '../../domain/types'
 import { featureFlags } from '@/architecture/shared/config/features'
 
-type FunctionTabName = 'content' | 'detail' | 'operateLog' | 'scheduledTask' | 'scheduledAgentTask'
+type FunctionTabName = 'content' | 'detail' | 'operateLog'
 type ReplayContext = {
-  source: 'scheduled_task' | 'operate_log'
+  source: 'operate_log'
   title?: string
   taskId?: number
   executionId?: number
@@ -80,85 +79,12 @@ function normalizeQueryString(value: LocationQueryValue | LocationQueryValue[] |
   return normalized ? normalized.trim() : ''
 }
 
-function readPositiveQueryID(value: LocationQueryValue | LocationQueryValue[] | undefined): number {
-  const raw = normalizeQueryString(value)
-  if (!raw) {
-    return 0
-  }
-  const parsed = Number(raw)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
-}
-
-function parseScheduledExecutionObject(raw?: string | null): Record<string, any> | null {
-  if (!raw) {
-    return null
-  }
-  try {
-    const parsed = JSON.parse(raw)
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as Record<string, any>
-    }
-  } catch {
-    return null
-  }
-  return null
-}
-
-function buildScheduledExecutionReplayPayload(
-  execution: ScheduledTaskExecutionItem,
-  taskID: number
-): FormOperateLogApplyPayload {
-  const requestBody = parseScheduledExecutionObject(execution.request_payload)
-  const responseEnvelope = parseScheduledExecutionObject(execution.response_payload)
-  const result = responseEnvelope?.result
-  const responseBody = result !== undefined && result !== null
-    ? (typeof result === 'object' && !Array.isArray(result) ? result as Record<string, any> : { result })
-    : responseEnvelope
-
-  const responseMetadata: Record<string, any> = {
-    scheduled_task_id: taskID,
-    scheduled_task_execution_id: execution.id,
-    replay_source: 'scheduled_task'
-  }
-  if (responseEnvelope?.version) {
-    responseMetadata.version = responseEnvelope.version
-  }
-  if (responseEnvelope?.total_cost_mill !== undefined || execution.duration_millis !== undefined) {
-    responseMetadata.total_cost_mill = responseEnvelope?.total_cost_mill ?? execution.duration_millis
-  }
-  if (responseEnvelope?.err_code !== undefined) {
-    responseMetadata.err_code = responseEnvelope.err_code
-  }
-  if (responseEnvelope?.error || execution.error_message) {
-    responseMetadata.error = responseEnvelope?.error || execution.error_message
-  }
-  if (responseEnvelope?.trace_id || execution.trace_id) {
-    responseMetadata.trace_id = responseEnvelope?.trace_id || execution.trace_id
-  }
-
-  return {
-    requestBody,
-    responseBody,
-    responseMetadata,
-    replayContext: {
-      source: 'scheduled_task',
-      title: '定时任务记录回填',
-      taskId: taskID,
-      executionId: execution.id,
-      traceId: execution.trace_id || responseMetadata.trace_id,
-      executedAt: execution.executed_at
-    }
-  }
-}
-
 export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOptions) {
   const { route, router, currentFunction, currentFunctionDetail } = options
 
   const functionActiveTab = ref<FunctionTabName>('content')
   const functionFormViewRef = ref<FunctionFormViewRef | null>(null)
   const formOperateLogSectionRef = ref<FormOperateLogSectionRef | null>(null)
-  const applyingScheduledReplay = ref(false)
-  const appliedScheduledReplayKey = ref('')
 
   const setFunctionFormViewRef = (instance: FunctionFormViewRef | null) => {
     functionFormViewRef.value = instance
@@ -186,14 +112,6 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     return featureFlags.operateLogs && currentFunction.value?.type === 'function' && currentFunctionDetail.value?.template_type === TEMPLATE_TYPE.FORM
   })
 
-  const showScheduledTaskTab = computed(() => {
-    return featureFlags.scheduledTasks && currentFunction.value?.type === 'function' && !!currentFunction.value?.full_code_path
-  })
-
-  const showScheduledAgentTaskTab = computed(() => {
-    return featureFlags.scheduledTasks && currentFunction.value?.type === 'function' && !!currentFunction.value?.full_code_path
-  })
-
   const showFunctionTabsWrapper = computed(() => {
     return currentFunction.value?.type === 'function'
   })
@@ -204,10 +122,6 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
         return 'detail'
       case 'operateLog':
         return 'operateLog'
-      case 'scheduledTask':
-        return 'scheduledTask'
-      case 'scheduledAgentTask':
-        return 'scheduledAgentTask'
       default:
         return undefined
     }
@@ -318,53 +232,6 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     formOperateLogSectionRef.value?.loadLogs({ page: 1 })
   }
 
-  function onScheduledTaskTotalChange(_total: number) {
-  }
-
-  function onScheduledAgentTaskTotalChange(_total: number) {
-  }
-
-  const activateScheduledTaskTab = () => {
-    if (!showScheduledTaskTab.value) {
-      functionActiveTab.value = 'content'
-      syncFunctionTabQuery()
-      return
-    }
-    functionActiveTab.value = 'scheduledTask'
-    syncFunctionTabQuery()
-  }
-
-  const applyScheduledExecutionReplayFromQuery = async () => {
-    if (normalizeQueryString(route.query._replay) !== 'scheduled_execution') {
-      return
-    }
-    if (!showFormOperateLogTab.value || currentFunctionDetail.value?.template_type !== TEMPLATE_TYPE.FORM) {
-      return
-    }
-
-    const taskID = readPositiveQueryID(route.query._scheduled_task_id || route.query._task_id)
-    const executionID = readPositiveQueryID(route.query._scheduled_execution_id || route.query._execution_id)
-    if (!taskID || !executionID || applyingScheduledReplay.value) {
-      return
-    }
-
-    const replayKey = `${currentFunction.value?.full_code_path || route.path}:${taskID}:${executionID}`
-    if (appliedScheduledReplayKey.value === replayKey) {
-      return
-    }
-
-    applyingScheduledReplay.value = true
-    try {
-      const execution = await getScheduledTaskExecution(taskID, executionID)
-      await handleApplyFormOperateLog(buildScheduledExecutionReplayPayload(execution, taskID))
-      appliedScheduledReplayKey.value = replayKey
-    } catch (error: any) {
-      ElMessage.error(error?.message || '回填定时任务执行记录失败')
-    } finally {
-      applyingScheduledReplay.value = false
-    }
-  }
-
   const applyFunctionPanelQuery = (tab: LocationQueryValue | LocationQueryValue[] | undefined) => {
     const normalizedTab = normalizePanelQuery(tab)
 
@@ -386,72 +253,33 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
       return
     }
 
-    if (normalizedTab === 'scheduledTask' && showScheduledTaskTab.value) {
-      functionActiveTab.value = 'scheduledTask'
-      return
-    }
-
-    if (normalizedTab === 'scheduledAgentTask' && showScheduledAgentTaskTab.value) {
-      functionActiveTab.value = 'scheduledAgentTask'
-      return
-    }
-
     if (normalizedTab) {
-      if (functionActiveTab.value !== 'scheduledTask' && functionActiveTab.value !== 'scheduledAgentTask') {
-        functionActiveTab.value = 'content'
-      }
+      functionActiveTab.value = 'content'
       return
     }
 
     if (
-      (functionActiveTab.value === 'operateLog' && !showFormOperateLogTab.value) ||
-      (functionActiveTab.value === 'scheduledTask' && !showScheduledTaskTab.value) ||
-      (functionActiveTab.value === 'scheduledAgentTask' && !showScheduledAgentTaskTab.value)
+      functionActiveTab.value === 'operateLog' && !showFormOperateLogTab.value
     ) {
       functionActiveTab.value = 'content'
     }
   }
 
   watch(
-    () => [currentFunction.value?.full_code_path, showFormOperateLogTab.value, showScheduledTaskTab.value, showScheduledAgentTaskTab.value] as const,
+    () => [currentFunction.value?.full_code_path, showFormOperateLogTab.value] as const,
     () => {
       if (!showFormOperateLogTab.value && functionActiveTab.value === 'operateLog') {
         functionActiveTab.value = 'content'
         syncFunctionTabQuery()
       }
-      if (!showScheduledTaskTab.value && functionActiveTab.value === 'scheduledTask') {
-        functionActiveTab.value = 'content'
-        syncFunctionTabQuery()
-      }
-      if (!showScheduledAgentTaskTab.value && functionActiveTab.value === 'scheduledAgentTask') {
-        functionActiveTab.value = 'content'
-        syncFunctionTabQuery()
-      }
     },
     { immediate: true }
   )
 
   watch(
-    () => [route.query._panel, route.query._trace_id, showFormOperateLogTab.value, showScheduledTaskTab.value, showScheduledAgentTaskTab.value] as const,
+    () => [route.query._panel, route.query._trace_id, showFormOperateLogTab.value] as const,
     ([tab]) => {
       applyFunctionPanelQuery(tab)
-    },
-    { immediate: true }
-  )
-
-  watch(
-    () => [
-      route.query._replay,
-      route.query._scheduled_task_id,
-      route.query._scheduled_execution_id,
-      route.query._task_id,
-      route.query._execution_id,
-      currentFunction.value?.full_code_path,
-      currentFunctionDetail.value?.id,
-      showFormOperateLogTab.value
-    ] as const,
-    () => {
-      applyScheduledExecutionReplayFromQuery()
     },
     { immediate: true }
   )
@@ -462,16 +290,11 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     formOperateLogSectionRef,
     setFunctionFormViewRef,
     setFormOperateLogSectionRef,
-    showScheduledTaskTab,
-    showScheduledAgentTaskTab,
     showFormOperateLogTab,
     showFunctionTabsWrapper,
     handleFunctionTabChange,
     handleApplyFormOperateLog,
     openFunctionOperateLog,
-    onScheduledTaskTotalChange,
-    onScheduledAgentTaskTotalChange,
-    syncFunctionTabQuery,
-    activateScheduledTaskTab
+    syncFunctionTabQuery
   }
 }

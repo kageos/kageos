@@ -41,29 +41,6 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane v-if="showScheduledTaskTab" name="scheduledTask" label="定时任务">
-          <div class="tab-content">
-            <ScheduledTaskList
-              :resource-path="currentFunction?.full_code_path"
-              :function-detail="currentFunctionDetail"
-              :auto-load="activeTab === 'scheduledTask'"
-              @total-change="onScheduledTaskTotalChange"
-              @open-function-operate-log="onOpenFunctionOperateLog"
-              @apply-execution="onApplyFormOperateLog"
-            />
-          </div>
-        </el-tab-pane>
-
-        <el-tab-pane v-if="showScheduledAgentTaskTab" name="scheduledAgentTask" label="定时会话">
-          <div class="tab-content">
-            <ScheduledAgentTaskList
-              :resource-path="currentFunction?.full_code_path"
-              :auto-load="activeTab === 'scheduledAgentTask'"
-              @total-change="onScheduledAgentTaskTotalChange"
-              @open-session="onOpenWorkspaceSession"
-            />
-          </div>
-        </el-tab-pane>
       </el-tabs>
     </div>
   </div>
@@ -73,21 +50,16 @@
 import type { FunctionDetail } from '@/architecture/domain/types'
 import type { ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 import FormOperateLogSection from './FormOperateLogSection.vue'
-import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
-import ScheduledTaskList from './ScheduledTaskList.vue'
 import WorkspaceFunctionRenderer from './WorkspaceFunctionRenderer.vue'
 import FunctionInfoPanel from './FunctionInfoPanel.vue'
-import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
 
-type FunctionTabName = 'content' | 'detail' | 'operateLog' | 'scheduledTask' | 'scheduledAgentTask'
+type FunctionTabName = 'content' | 'detail' | 'operateLog'
 
 const props = withDefaults(defineProps<{
   activeTab: FunctionTabName
   currentFunction: ServiceTreeType | null
   currentFunctionDetail: FunctionDetail | null
   showFormOperateLogTab?: boolean
-  showScheduledTaskTab?: boolean
-  showScheduledAgentTaskTab?: boolean
   functionFormViewRef?: (instance: any | null) => void
   formOperateLogSectionRef?: (instance: any | null) => void
   onFunctionTabChange: (tab: string) => void
@@ -96,7 +68,7 @@ const props = withDefaults(defineProps<{
     responseBody?: Record<string, any> | null
     responseMetadata?: Record<string, any> | null
     replayContext?: {
-      source: 'scheduled_task' | 'operate_log'
+      source: 'operate_log'
       title?: string
       taskId?: number
       executionId?: number
@@ -104,9 +76,6 @@ const props = withDefaults(defineProps<{
       executedAt?: string
     } | null
   }) => void
-  onScheduledTaskTotalChange: (total: number) => void
-  onScheduledAgentTaskTotalChange: (total: number) => void
-  onOpenWorkspaceSession: (session: WorkspaceSessionItem) => void
   onOpenFunctionOperateLog: (filters?: {
     requestUser?: string
     traceId?: string
@@ -115,9 +84,7 @@ const props = withDefaults(defineProps<{
     source?: string
   }) => void
 }>(), {
-  showFormOperateLogTab: false,
-  showScheduledTaskTab: false,
-  showScheduledAgentTaskTab: false
+  showFormOperateLogTab: false
 })
 
 defineEmits<{

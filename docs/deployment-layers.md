@@ -17,7 +17,7 @@ flowchart TD
   L0["L0 部署控制层<br/>aosctl / Compose / 配置生成"]
   L1["L1 基础设施层<br/>MySQL / NATS / MinIO / 数据目录"]
   L2["L2 入口接入层<br/>Nginx / TLS / 静态前端 / API 反代"]
-  L3["L3 平台服务层<br/>core-server / scheduler / backup"]
+  L3["L3 平台服务层<br/>core-server / backup"]
   L4["L4 运行时管理层<br/>app-runtime / Podman API / app-base / namespace"]
   L5["L5 用户应用层<br/>用户 App 容器 / SDK / 业务代码"]
 
@@ -94,17 +94,12 @@ MySQL / NATS / MinIO 支持 `bundled` 和 `external`。`bundled` 由 Compose 启
   - `hr-server`
   - `message-server`
   - `control-service`
-- `scheduler`
-  - `timer-scheduler`
 - `backup`
   - `backup-service`
-
-`timer-scheduler` 是独立服务，不再被 `core-server` 内嵌启动。
 
 健康探针：
 
 - `deploy/prod/health/platform.sh`
-- `deploy/prod/health/scheduler.sh`
 - `deploy/prod/health/backup.sh`
 - `aosctl verify` 的 L3 检查
 

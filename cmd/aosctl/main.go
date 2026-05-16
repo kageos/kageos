@@ -73,20 +73,18 @@ type StorageConfig struct {
 }
 
 type MySQLConfig struct {
-	Mode                   string `yaml:"mode"`
-	Host                   string `yaml:"host"`
-	Port                   int    `yaml:"port"`
-	User                   string `yaml:"user"`
-	Password               string `yaml:"password"`
-	AppDatabase            string `yaml:"app_database"`
-	ScheduledTaskDatabase  string `yaml:"scheduled_task_database"`
-	TimerSchedulerDatabase string `yaml:"timer_scheduler_database"`
-	AgentDatabase          string `yaml:"agent_database"`
-	StorageDatabase        string `yaml:"storage_database"`
-	HRDatabase             string `yaml:"hr_database"`
-	BackupAdminUser        string `yaml:"backup_admin_user"`
-	BackupAdminPass        string `yaml:"backup_admin_password"`
-	CreateBundledSQL       bool   `yaml:"create_bundled_sql"`
+	Mode             string `yaml:"mode"`
+	Host             string `yaml:"host"`
+	Port             int    `yaml:"port"`
+	User             string `yaml:"user"`
+	Password         string `yaml:"password"`
+	AppDatabase      string `yaml:"app_database"`
+	AgentDatabase    string `yaml:"agent_database"`
+	StorageDatabase  string `yaml:"storage_database"`
+	HRDatabase       string `yaml:"hr_database"`
+	BackupAdminUser  string `yaml:"backup_admin_user"`
+	BackupAdminPass  string `yaml:"backup_admin_password"`
+	CreateBundledSQL bool   `yaml:"create_bundled_sql"`
 }
 
 type NATSConfig struct {
@@ -1054,7 +1052,6 @@ func verifyLayerChecks(rt RuntimeConfig) []layerCheck {
 		layerCheck{Layer: layerPlatform, Name: "control-service", Target: "http://127.0.0.1:9096/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9096/health") }},
 		layerCheck{Layer: layerPlatform, Name: "hr-server", Target: "http://127.0.0.1:9097/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9097/health") }},
 		layerCheck{Layer: layerPlatform, Name: "message-server", Target: "http://127.0.0.1:9109/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9109/health") }},
-		layerCheck{Layer: layerPlatform, Name: "timer-scheduler", Target: "http://127.0.0.1:9108/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9108/health") }},
 		layerCheck{Layer: layerPlatform, Name: "backup-service", Target: "http://127.0.0.1:19088/health", Fn: func() error { return checkHTTP("http://127.0.0.1:19088/health") }},
 		layerCheck{Layer: layerPlatform, Name: "main platform probe", Target: "compose exec main /app/health/platform.sh", Fn: func() error {
 			return runComposeCapture(rt.Paths.GeneratedDir, "exec", "-T", "main", "/app/health/platform.sh")
@@ -1300,20 +1297,18 @@ func defaultConfig() (Config, error) {
 		},
 		Storage: StorageConfig{Root: defaultStorageRoot},
 		MySQL: MySQLConfig{
-			Mode:                   "bundled",
-			Host:                   "127.0.0.1",
-			Port:                   3306,
-			User:                   "root",
-			Password:               mysqlPass,
-			AppDatabase:            "app_db",
-			ScheduledTaskDatabase:  "app-scheduled-task",
-			TimerSchedulerDatabase: "timer-scheduler",
-			AgentDatabase:          "agent-server",
-			StorageDatabase:        "app-storage",
-			HRDatabase:             "hr-server",
-			BackupAdminUser:        "root",
-			BackupAdminPass:        mysqlPass,
-			CreateBundledSQL:       true,
+			Mode:             "bundled",
+			Host:             "127.0.0.1",
+			Port:             3306,
+			User:             "root",
+			Password:         mysqlPass,
+			AppDatabase:      "app_db",
+			AgentDatabase:    "agent-server",
+			StorageDatabase:  "app-storage",
+			HRDatabase:       "hr-server",
+			BackupAdminUser:  "root",
+			BackupAdminPass:  mysqlPass,
+			CreateBundledSQL: true,
 		},
 		NATS: NATSConfig{
 			Mode:        "bundled",
@@ -1393,12 +1388,6 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.MySQL.AppDatabase == "" {
 		cfg.MySQL.AppDatabase = "app_db"
-	}
-	if cfg.MySQL.ScheduledTaskDatabase == "" {
-		cfg.MySQL.ScheduledTaskDatabase = "app-scheduled-task"
-	}
-	if cfg.MySQL.TimerSchedulerDatabase == "" {
-		cfg.MySQL.TimerSchedulerDatabase = "timer-scheduler"
 	}
 	if cfg.MySQL.AgentDatabase == "" {
 		cfg.MySQL.AgentDatabase = "agent-server"
@@ -1709,7 +1698,6 @@ func renderAll(rt RuntimeConfig) error {
 		"config/hr-server.yaml":       renderTemplate(hrServerConfigTemplate, rt),
 		"config/message-server.yaml":  renderTemplate(messageServerConfigTemplate, rt),
 		"config/control-service.yaml": renderTemplate(controlServiceConfigTemplate, rt),
-		"config/timer-scheduler.yaml": renderTemplate(timerSchedulerConfigTemplate, rt),
 		"config/backup-service.yaml":  renderTemplate(backupServiceConfigTemplate, rt),
 	}
 	for rel, content := range files {
@@ -1871,8 +1859,6 @@ func checkBundledMySQLInitialized(rt RuntimeConfig) error {
 func requiredMySQLDatabases(rt RuntimeConfig) []string {
 	return uniqueNonEmptyStrings([]string{
 		rt.MySQL.AppDatabase,
-		rt.MySQL.ScheduledTaskDatabase,
-		rt.MySQL.TimerSchedulerDatabase,
 		rt.MySQL.StorageDatabase,
 		rt.MySQL.AgentDatabase,
 		rt.MySQL.HRDatabase,

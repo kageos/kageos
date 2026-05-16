@@ -345,7 +345,7 @@ function requestFrame(callback: FrameRequestCallback): number {
   return window.setTimeout(() => callback(Date.now()), 16)
 }
 
-function clearScheduledResize() {
+function clearPendingResize() {
   if (resizeFrame !== null) {
     cancelFrame(resizeFrame)
     resizeFrame = null
@@ -377,7 +377,7 @@ function resizeChart() {
 }
 
 function scheduleResizePasses() {
-  clearScheduledResize()
+  clearPendingResize()
   resizeFrame = requestFrame(() => {
     resizeFrame = null
     resizeChart()
@@ -478,7 +478,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearRetryTimer()
-  clearScheduledResize()
+  clearPendingResize()
   resizeObserver?.disconnect()
   resizeObserver = null
   chart?.dispose()

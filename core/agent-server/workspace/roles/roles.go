@@ -12,7 +12,6 @@ const (
 	QAEngineer          = "qa_engineer"
 	AppOperator         = "app_operator"
 	MaintenanceEngineer = "maintenance_engineer"
-	SchedulerEngineer   = "scheduler_engineer"
 	PlatformEngineer    = "platform_engineer"
 	DataOperator        = "data_operator"
 	Reviewer            = "reviewer"
@@ -54,7 +53,7 @@ func Specs() map[string]Spec {
 			AllowedTools: []string{"change_role", "read_doc", "read_dir", "write_prd"},
 			ForbiddenTools: []string{
 				"create_directory", "write_go_file", "search_replace_file", "delete_file", "build_workspace",
-				"run_table_search", "run_table_create", "run_table_batch_create", "run_table_update", "run_table_delete",
+				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy",
 			},
 			Action:           "产品经理只负责需求分析、PRD v2 结构化输出和确认；调用 write_prd 后等待用户确认，不创建目录、不写代码、不 build。",
@@ -102,7 +101,7 @@ func Specs() map[string]Spec {
 			Docs:        []string{"/system/prompt/roles/qa-engineer"},
 			AllowedTools: []string{
 				"change_role", "summarize_task_state", "read_doc", "read_dir", "search_tools",
-				"run_table_search", "run_table_create", "run_table_batch_create", "run_table_update", "run_table_delete",
+				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy",
 			},
 			ForbiddenTools:   []string{"write_prd", "create_directory", "write_go_file", "search_replace_file", "delete_file", "build_workspace"},
@@ -111,7 +110,6 @@ func Specs() map[string]Spec {
 			NextRoles: []NextRole{
 				{RoleID: MaintenanceEngineer, When: "测试发现业务 bug"},
 				{RoleID: BuildEngineer, When: "测试失败指向构建、schema 或路由问题"},
-				{RoleID: SchedulerEngineer, When: "功能稳定后需要定时执行"},
 			},
 		},
 		AppOperator: {
@@ -120,7 +118,7 @@ func Specs() map[string]Spec {
 			Docs:        []string{"/system/prompt/roles/app-operator"},
 			AllowedTools: []string{
 				"change_role", "summarize_task_state", "read_doc", "read_dir", "search_tools",
-				"run_table_search", "run_table_create", "run_table_batch_create", "run_table_update", "run_table_delete",
+				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy",
 			},
 			ForbiddenTools:   []string{"write_prd", "create_directory", "write_go_file", "search_replace_file", "delete_file", "build_workspace"},
@@ -128,7 +126,6 @@ func Specs() map[string]Spec {
 			RouteDescription: "用户要在已有应用中创建业务数据、修改记录、删除记录、提交表单、查询列表或查看图表，但目的不是测试验证时进入。例如创建投票、录入工单、提交评分、更新状态、查询统计。先确认目标应用和函数 schema；写入类操作要复述关键字段并避免误写；工具失败时判断是参数/数据问题还是应用 bug，必要时交接给 `maintenance_engineer`。",
 			NextRoles: []NextRole{
 				{RoleID: MaintenanceEngineer, When: "业务操作失败且判断为应用 bug 或字段实现问题"},
-				{RoleID: SchedulerEngineer, When: "用户要求把操作改成周期性执行"},
 			},
 		},
 		BuildEngineer: {
@@ -139,7 +136,7 @@ func Specs() map[string]Spec {
 				"change_role", "summarize_task_state", "read_doc", "read_go_file", "read_go_file_lines",
 				"search_replace_file", "write_go_file", "read_app_log", "build_workspace",
 			},
-			ForbiddenTools:   []string{"write_prd", "run_table_search", "run_table_create", "run_table_batch_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query"},
+			ForbiddenTools:   []string{"write_prd", "run_table_search", "run_table_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query"},
 			Action:           "构建修复工程师负责构建、启动、schema、widget、搜索字段和 SDK API 排错；按错误类型批量修复并重新 build。",
 			RouteDescription: "构建失败、启动失败、schema 编译失败、widget 校验失败、路由后缀错误、SDK API 不确定时进入。读取完整错误，按错误类型归类，同类问题批量修复。遇到搜索字段错误时先判断是系统查询字段还是业务模型字段；不要猜不存在的 SDK API；不确定时回到完整 SDK 文档或源码确认。",
 			NextRoles: []NextRole{
@@ -158,29 +155,13 @@ func Specs() map[string]Spec {
 				{RoleID: ProductManager, When: "用户明确要求沉淀为长期业务系统"},
 			},
 		},
-		SchedulerEngineer: {
-			ID:          SchedulerEngineer,
-			DisplayName: "定时任务工程师",
-			Docs:        []string{"/system/prompt/roles/scheduler-engineer"},
-			AllowedTools: []string{
-				"change_role", "read_doc", "search_tools", "run_form_submit",
-				"create_scheduled_task", "list_scheduled_tasks", "cancel_scheduled_task", "list_scheduled_task_executions",
-				"create_scheduled_agent_task", "list_scheduled_agent_tasks", "list_scheduled_agent_task_executions", "cancel_scheduled_session_task", "run_scheduled_agent_task_now",
-			},
-			Action:           "定时任务工程师负责定时任务配置和执行记录；没有单次能力时交接给产品经理或应用维护工程师。",
-			RouteDescription: "用户要求每天、每周、每月、固定时间或周期执行时进入。先判断是否已有可重入的单次函数；没有就先切到 `product_manager` 或 `maintenance_engineer` 创建单次能力。业务代码只做单次执行，不写后台循环，不自建 cron。",
-			NextRoles: []NextRole{
-				{RoleID: ProductManager, When: "没有单次执行能力，需要先设计新应用"},
-				{RoleID: MaintenanceEngineer, When: "需要改造已有单次执行能力"},
-			},
-		},
 		PlatformEngineer: {
 			ID:               PlatformEngineer,
 			DisplayName:      "平台集成工程师",
 			Docs:             []string{"/system/prompt/roles/platform-engineer"},
 			AllowedTools:     []string{"change_role", "read_doc", "search_tools", "run_form_submit", "fetch_url_content", "web_search"},
-			Action:           "平台集成工程师负责平台 OpenAPI、消息、权限、审计、组织、文件和定时任务等平台能力；不绕过权限。",
-			RouteDescription: "用户要调用平台消息、权限、审计、组织、文件或定时任务等平台能力时进入。优先使用平台提供的 API 和工具，不绕过权限，不硬编码 token，不直连内部服务。",
+			Action:           "平台集成工程师负责平台 OpenAPI、权限、审计、组织和文件等平台能力；不绕过权限。",
+			RouteDescription: "用户要调用平台权限、审计、组织或文件等平台能力时进入。优先使用平台提供的 API 和工具，不绕过权限，不硬编码 token，不直连内部服务。",
 		},
 		Reviewer: {
 			ID:             Reviewer,
@@ -209,7 +190,6 @@ func Aliases() map[string]string {
 		"app-operator":         AppOperator,
 		"build-engineer":       BuildEngineer,
 		"data-operator":        DataOperator,
-		"scheduler-engineer":   SchedulerEngineer,
 		"platform-engineer":    PlatformEngineer,
 	}
 }
@@ -223,7 +203,6 @@ func RouteOrder() []string {
 		QAEngineer,
 		BuildEngineer,
 		DataOperator,
-		SchedulerEngineer,
 		PlatformEngineer,
 		Reviewer,
 	}

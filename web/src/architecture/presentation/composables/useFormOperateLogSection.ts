@@ -58,7 +58,6 @@ export function useFormOperateLogSection({
 
   const sourceOptions = [
     { label: '浏览器', value: 'browser' },
-    { label: '定时任务', value: 'scheduled_task' },
     { label: '智能体', value: 'agent' },
     { label: 'API', value: 'api' }
   ]
@@ -233,7 +232,7 @@ export function useFormOperateLogSection({
 
   const getSourceCode = (log: FormOperateLog): string => {
     const direct = (log.source || '').trim().toLowerCase()
-    if (direct === 'browser' || direct === 'scheduled_task' || direct === 'agent' || direct === 'api') {
+    if (direct === 'browser' || direct === 'agent' || direct === 'api') {
       return direct
     }
     return inferSourceFromUserAgent(log.user_agent)
@@ -241,8 +240,6 @@ export function useFormOperateLogSection({
 
   const getSourceLabel = (log: FormOperateLog): string => {
     switch (getSourceCode(log)) {
-      case 'scheduled_task':
-        return '定时任务'
       case 'agent':
         return '智能体'
       case 'api':

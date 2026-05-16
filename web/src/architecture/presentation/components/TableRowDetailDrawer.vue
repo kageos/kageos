@@ -58,14 +58,6 @@
             >
               保存
             </el-button>
-            <el-button
-              v-if="featureFlags.scheduledTasks && mode === 'edit'"
-              size="small"
-              :disabled="!isFormViewReady"
-              @click="openScheduledTaskDialog"
-            >
-              定时执行
-            </el-button>
           </div>
           <!-- 布局切换按钮 -->
           <el-button
@@ -160,14 +152,6 @@
         <el-button @click="handleClose">关闭</el-button>
       </div>
     </template>
-    <ScheduledTaskDialog
-      v-if="featureFlags.scheduledTasks"
-      v-model="showScheduledTaskDialog"
-      :full-code-path="fullCodePath"
-      table-mode
-      fixed-action="table_update"
-      :get-payload="buildScheduledUpdatePayload"
-    />
   </el-drawer>
 </template>
 
@@ -176,14 +160,12 @@ import { ref, computed, toRef } from 'vue'
 import { Edit, ArrowLeft, ArrowRight, Grid, List } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import FormView from '@/architecture/presentation/views/FormView.vue'
-import ScheduledTaskDialog from '@/architecture/presentation/components/ScheduledTaskDialog.vue'
 import TableRowDetailReadTabs from './TableRowDetailReadTabs.vue'
 import type { FieldConfig, FunctionDetail } from '../../domain/types'
 import { buildDetailEditFormState } from '../composables/utils/workspaceDetailRuntime'
 import { useTableRowDetailTabs } from '@/architecture/presentation/composables/useTableRowDetailTabs'
 import { useTableRowDetailLayout } from '@/architecture/presentation/composables/useTableRowDetailLayout'
 import { resolveTableDetailEditAccess } from '../views/utils/tableViewActionRuntime'
-import { featureFlags } from '@/architecture/shared/config/features'
 
 interface Props {
   visible: boolean
@@ -224,7 +206,6 @@ const emit = defineEmits<Emits>()
 
 
 const formViewRef = ref<InstanceType<typeof FormView> | null>(null)
-const showScheduledTaskDialog = ref(false)
 const detailEditAccess = computed(() => {
   return resolveTableDetailEditAccess({
     supportsUpdate: props.supportsEdit
@@ -356,31 +337,6 @@ const handleSubmit = () => {
   
   // 直接传递 formViewRef 给父组件
   emit('submit', formViewRef.value)
-}
-
-const openScheduledTaskDialog = () => {
-  if (!featureFlags.scheduledTasks) {
-    return
-  }
-  showScheduledTaskDialog.value = true
-}
-
-const buildScheduledUpdatePayload = async (): Promise<Record<string, any>> => {
-  if (!isFormViewReady.value || !formViewRef.value) {
-    throw new Error('编辑表单尚未就绪，无法创建定时任务')
-  }
-  if (!rowId.value || rowId.value <= 0) {
-    throw new Error('缺少有效行 ID，无法创建定时更新任务')
-  }
-  const isValid = formViewRef.value.validateForm()
-  if (!isValid) {
-    throw new Error('请先修正表单校验错误')
-  }
-  const updates = await formViewRef.value.prepareSubmitDataWithTypeConversion()
-  return {
-    id: rowId.value,
-    updates
-  }
 }
 
 const handleClose = () => {

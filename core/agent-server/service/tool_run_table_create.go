@@ -19,7 +19,7 @@ type runTableCreateArgs struct {
 
 var runTableCreateToolDef = toolDefinition[runTableCreateArgs](
 	"run_table_create",
-	"执行工作区内 Table 新增接口，批量新增表格记录（每条都会触发 OnTableAddRow）。执行前必须已通过 search_tools 字段摘要或 read_go_file 确认表格具备新增能力，并确认 model 的 json 字段名、必填项、枚举值和文件字段；不要猜 body。full_code_path 必须为带 `.table` 后缀的具体表格函数完整路径（如 /luobei/myapp/nps/nps_questionnaire_list.table）。body 必须为 JSON 数组字符串，每项为一条记录的字段对象，如 [{\"title\":\"问卷A\"},{\"title\":\"问卷B\"}]；字段名与表格 model 的 json 标签一致，必填项需包含。返回 data_list 为成功插入的每条记录（后端返回的数据列表），以及 created_count、failed_count、errors。",
+	"执行工作区内 Table 新增接口，新增一条或多条表格记录（每条都会触发 OnTableAddRow）。执行前必须已通过 search_tools 字段摘要或 read_go_file 确认表格具备新增能力，并确认 model 的 json 字段名、必填项、枚举值和文件字段；不要猜 body。full_code_path 必须为带 `.table` 后缀的具体表格函数完整路径（如 /luobei/myapp/nps/nps_questionnaire_list.table）。body 必须为 JSON 数组字符串，每项为一条记录的字段对象，如 [{\"title\":\"问卷A\"},{\"title\":\"问卷B\"}]；字段名与表格 model 的 json 标签一致，必填项需包含。返回 data_list 为成功插入的每条记录（后端返回的数据列表），以及 created_count、failed_count、errors。",
 )
 
 func (t *RunTableCreateTool) Definition() dto.ToolDef {

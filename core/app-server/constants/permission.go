@@ -29,8 +29,6 @@ const (
 	ResourceTypeChart = "chart"
 	// ResourceTypeDocs 文档类型
 	ResourceTypeDocs = "docs"
-	// ResourceTypeBoard 讨论区/板块类型
-	ResourceTypeBoard = "board"
 )
 
 // ========================================
@@ -155,23 +153,6 @@ const (
 )
 
 // ========================================
-// 讨论区/板块权限常量
-// ========================================
-
-const (
-	// PermissionBoardRead 查看帖子
-	PermissionBoardRead = "board:read"
-	// PermissionBoardWrite 发帖
-	PermissionBoardWrite = "board:write"
-	// PermissionBoardUpdate 更新帖子
-	PermissionBoardUpdate = "board:update"
-	// PermissionBoardDelete 删除帖子
-	PermissionBoardDelete = "board:delete"
-	// PermissionBoardAdmin 板块管理员（拥有所有权限）
-	PermissionBoardAdmin = "board:admin"
-)
-
-// ========================================
 // 工具函数
 // ========================================
 
@@ -207,7 +188,6 @@ func GetAllResourceTypes() []string {
 		ResourceTypeForm,
 		ResourceTypeChart,
 		ResourceTypeDocs,
-		ResourceTypeBoard,
 	}
 }
 
@@ -273,14 +253,6 @@ func GetPermissionsByResourceType(resourceType string) []string {
 			PermissionDocsUpdate,
 			PermissionDocsDelete,
 			PermissionDocsAdmin,
-		}
-	case ResourceTypeBoard:
-		return []string{
-			PermissionBoardRead,
-			PermissionBoardWrite,
-			PermissionBoardUpdate,
-			PermissionBoardDelete,
-			PermissionBoardAdmin,
 		}
 	default:
 		return []string{}

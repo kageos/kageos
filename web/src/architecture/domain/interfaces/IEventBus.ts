@@ -52,9 +52,7 @@ export enum WorkspaceEvent {
   appSwitched = 'workspace:app-switched',           // 应用切换
   serviceTreeLoaded = 'workspace:service-tree-loaded', // 服务树加载完成
   functionLoaded = 'workspace:function-loaded',    // 函数加载完成
-  appInfoUpdated = 'workspace:app-info-updated',   // 应用信息更新
-  scheduledTaskCreated = 'workspace:scheduled-task-created',  // 定时任务创建成功（可用来刷新列表或切 Tab）
-  scheduledAgentTaskCreated = 'workspace:scheduled-agent-task-created'  // 定时 Agent 会话任务创建成功
+  appInfoUpdated = 'workspace:app-info-updated'    // 应用信息更新
 }
 
 export enum FormEvent {

@@ -558,17 +558,17 @@ func (s *RoleService) GetResourcePermissions(ctx context.Context, req *dto.GetRe
 // InitDefaultRoles 初始化预设角色（智能对比 + 增量添加）
 //
 // ⭐ 角色和权限点的关系：
-//   - 角色（Role）：按资源类型分组（directory、table、form、chart、docs、board、app）
+//   - 角色（Role）：按资源类型分组（directory、table、form、chart、docs、app）
 //   - 权限点（Action）：格式为 resource_type:action_type（如 table:read、form:write）
 //   - 角色权限（RolePermission）：角色和权限点的关联关系（通过 ActionID 外键关联到 action 表）
 //   - 一个角色可以配置多个权限点（支持跨资源类型，如目录开发者可以配置目录权限 + 函数权限）
 //
 // ⭐ 预设角色配置说明：
-//   - 目录角色（directory）：可以配置目录权限 + 子资源权限（table、form、chart、docs、board）
-//   - 目录查看者：配置了 directory:read + table/form/chart/docs/board:read
+//   - 目录角色（directory）：可以配置目录权限 + 子资源权限（table、form、chart、docs）
+//   - 目录查看者：配置了 directory:read + table/form/chart/docs:read
 //   - 目录开发者：配置了目录读写更新 + 常用子资源编辑权限
-//   - 目录管理员：配置了 directory:admin + table/form/chart/docs/board:admin
-//   - 函数角色（table、form、chart、docs、board）：只配置对应资源类型的权限点
+//   - 目录管理员：配置了 directory:admin + table/form/chart/docs:admin
+//   - 函数角色（table、form、chart、docs）：只配置对应资源类型的权限点
 //   - 表格查看者：只配置 table:read
 //   - 表格开发者：配置 table:read/write/update/delete
 //   - 表格管理员：配置 table:admin
@@ -606,7 +606,7 @@ func (s *RoleService) InitDefaultRoles(ctx context.Context) error {
 			resourceType: permissionpkg.ResourceTypeDirectory,
 			name:         "查看者",
 			code:         permissionpkg.RoleCodeViewer,
-			description:  "目录查看者，拥有查看目录及目录下表格、表单、图表、文档、讨论区的权限",
+			description:  "目录查看者，拥有查看目录及目录下表格、表单、图表、文档的权限",
 			isDefault:    true, // ⭐ 默认角色
 			actions: []string{
 				// 目录权限
@@ -616,7 +616,6 @@ func (s *RoleService) InitDefaultRoles(ctx context.Context) error {
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeForm, permissionpkg.ActionRead),
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeChart, permissionpkg.ActionRead),
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDocs, permissionpkg.ActionRead),
-				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, permissionpkg.ActionRead),
 			},
 		},
 		{
@@ -641,10 +640,6 @@ func (s *RoleService) InitDefaultRoles(ctx context.Context) error {
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeChart, permissionpkg.ActionRead),
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDocs, permissionpkg.ActionRead),
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDocs, permissionpkg.ActionWrite),
-				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, permissionpkg.ActionRead),
-				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, permissionpkg.ActionWrite),
-				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, permissionpkg.ActionUpdate),
-				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, permissionpkg.ActionDelete),
 			},
 		},
 		{
@@ -661,7 +656,6 @@ func (s *RoleService) InitDefaultRoles(ctx context.Context) error {
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeForm, permissionpkg.ActionAdmin),
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeChart, permissionpkg.ActionAdmin),
 				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDocs, permissionpkg.ActionAdmin),
-				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, permissionpkg.ActionAdmin),
 			},
 		},
 		// Table 资源类型的角色
@@ -775,36 +769,6 @@ func (s *RoleService) InitDefaultRoles(ctx context.Context) error {
 			description:  "文档管理员，拥有完整的管理权限",
 			isDefault:    false,
 			actions:      []string{permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDocs, permissionpkg.ActionAdmin)},
-		},
-		// Board 资源类型的角色（讨论区/板块）
-		{
-			resourceType: permissionpkg.ResourceTypeBoard,
-			name:         "查看者",
-			code:         permissionpkg.RoleCodeViewer,
-			description:  "讨论区查看者，拥有查看帖子的权限",
-			isDefault:    true, // ⭐ 默认角色
-			actions:      []string{permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, permissionpkg.ActionRead)},
-		},
-		{
-			resourceType: permissionpkg.ResourceTypeBoard,
-			name:         "开发者",
-			code:         permissionpkg.RoleCodeDeveloper,
-			description:  "讨论区开发者，拥有查看、发帖、更新、删除帖子的权限",
-			isDefault:    false,
-			actions: []string{
-				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, permissionpkg.ActionRead),
-				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, permissionpkg.ActionWrite),
-				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, permissionpkg.ActionUpdate),
-				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, permissionpkg.ActionDelete),
-			},
-		},
-		{
-			resourceType: permissionpkg.ResourceTypeBoard,
-			name:         "管理员",
-			code:         permissionpkg.RoleCodeAdmin,
-			description:  "板块管理员，拥有完整的管理权限",
-			isDefault:    false,
-			actions:      []string{permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, permissionpkg.ActionAdmin)},
 		},
 	}
 

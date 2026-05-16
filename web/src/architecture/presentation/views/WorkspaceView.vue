@@ -53,9 +53,7 @@
             @node-click="handleNodeClick"
             @create-directory="handleCreateDirectory"
             @create-docs="handleCreateDocs"
-            @create-board="handleCreateBoard"
             @delete-doc="handleDeleteDoc"
-            @delete-board="handleDeleteBoard"
             @delete-function="handleDeleteFunction"
             @delete-directory="handleDeleteDirectory"
             @bulk-delete="handleBulkDeleteNodes"
@@ -102,19 +100,11 @@
           />
         </div>
 
-        <!-- 🔥 版块/讨论区页面（可滚动） -->
-        <div v-else-if="currentFunction && currentFunction.type === 'board'" class="main-content-scroll board-content-scroll">
-          <BoardView
-            :node="currentFunction"
-          />
-        </div>
-
         <!-- 🔥 服务目录详情页面（可滚动） -->
         <div v-else-if="currentFunction && currentFunction.type === 'package'" class="main-content-scroll package-content-scroll">
           <PackageDetailView
             :package-node="currentFunction"
             @refresh="handleRefreshTree"
-            @open-session="openWorkspaceSession"
           />
         </div>
         
@@ -127,15 +117,10 @@
               :current-function="currentFunction"
               :current-function-detail="currentFunctionDetail"
               :show-form-operate-log-tab="showFormOperateLogTab"
-              :show-scheduled-task-tab="showScheduledTaskTab"
-              :show-scheduled-agent-task-tab="showScheduledAgentTaskTab"
               :function-form-view-ref="setFunctionFormViewRef"
               :form-operate-log-section-ref="setFormOperateLogSectionRef"
               :on-function-tab-change="handleFunctionTabChange"
               :on-apply-form-operate-log="handleApplyFormOperateLog"
-              :on-scheduled-task-total-change="onScheduledTaskTotalChange"
-              :on-scheduled-agent-task-total-change="onScheduledAgentTaskTotalChange"
-              :on-open-workspace-session="openWorkspaceSession"
               :on-open-function-operate-log="openFunctionOperateLog"
               @update:active-tab="functionActiveTab = $event"
             />
@@ -192,15 +177,6 @@
       :creating="creatingDocs"
       @submit="handleSubmitCreateDocs"
       @close="handleCloseCreateDocsDialog"
-    />
-
-    <!-- 创建讨论区（版块）对话框 - 封装组件 -->
-    <CreateBoardDialog
-      v-if="featureFlags.board && createBoardDialogVisible"
-      v-model="createBoardDialogVisible"
-      :current-app="currentApp"
-      :parent-node="currentBoardParentNode"
-      @success="afterCreateBoard"
     />
 
     <WorkspaceCreateDirectoryDialog
@@ -305,10 +281,8 @@ const isAppleShortcutPlatform = typeof navigator !== 'undefined'
   && /Mac|iPhone|iPad|iPod/i.test(navigator.platform)
 const MINI_WORKSTATION_TOGGLE_SHORTCUT_LABEL = isAppleShortcutPlatform ? '⌘.' : 'Ctrl+.'
 const DocView = defineAsyncComponent(() => import('../components/DocView.vue'))
-const BoardView = defineAsyncComponent(() => import('../components/BoardView.vue'))
 const PackageDetailView = defineAsyncComponent(() => import('../components/PackageDetailView.vue'))
 const MiniWorkstation = defineAsyncComponent(() => import('../components/MiniWorkstation.vue'))
-const CreateBoardDialog = defineAsyncComponent(() => import('../components/CreateBoardDialog.vue'))
 const DirectoryUpdateHistoryDialog = defineAsyncComponent(() => import('@/architecture/presentation/shared/components/DirectoryUpdateHistoryDialog.vue'))
 
 // 依赖注入（使用 IServiceProvider 接口，遵循依赖倒置原则）
@@ -546,16 +520,11 @@ const {
   functionActiveTab,
   setFunctionFormViewRef,
   setFormOperateLogSectionRef,
-  showScheduledTaskTab,
-  showScheduledAgentTaskTab,
   showFormOperateLogTab,
   showFunctionTabsWrapper,
   handleFunctionTabChange,
   handleApplyFormOperateLog,
-  openFunctionOperateLog,
-  onScheduledTaskTotalChange,
-  onScheduledAgentTaskTotalChange,
-  activateScheduledTaskTab
+  openFunctionOperateLog
 } = useWorkspaceFunctionTabs({
   route,
   router,
@@ -576,7 +545,6 @@ useWorkspaceViewLifecycle({
   serviceTree: () => serviceTree.value,
   loadAppFromRoute: routingLoadAppFromRoute,
   setupRouteWatch,
-  activateScheduledTaskTab,
   expandCurrentRoutePath: () => serviceTreeExpandCurrentRoutePath(
     () => serviceTree.value,
     () => serviceTreePanelRef.value,
@@ -767,27 +735,22 @@ const handleRefreshTree = async () => {
   }
 }
 
-// 创建节点后的统一处理：刷新树 + 选中新节点（文档/讨论区复用，需在 handleRefreshTree 之后定义）
+// 创建节点后的统一处理：刷新树 + 选中新节点（需在 handleRefreshTree 之后定义）
 const afterCreateNode = useAfterCreateNode({
   handleRefreshTree,
   serviceTree: () => serviceTree.value,
   findNodeById,
   handleNodeClick
 })
-const afterCreateBoard = afterCreateNode
 
 const {
   createDocsDialogVisible,
   creatingDocs,
   currentDocsParentNode,
   createDocsForm,
-  createBoardDialogVisible,
-  currentBoardParentNode,
   handleCreateDocs,
   handleSubmitCreateDocs,
   handleCloseCreateDocsDialog,
-  handleCreateBoard,
-  handleDeleteBoard,
   handleDeleteDoc,
   handleDocDeleted,
   handleDeleteDirectory,
@@ -1112,17 +1075,13 @@ useWorkspaceUiEffects({
   z-index: 1;
 }
 
-/* 讨论区/文档/目录主内容区：可滚动；右侧留白避免被「板块说明」按钮挡住 */
+/* 文档/目录主内容区：可滚动 */
 .main-content-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-}
-
-.board-content-scroll {
-  padding-right: 130px; /* 为右上角「板块说明」按钮留出空间，避免挡住发帖等操作 */
 }
 
 .ai-chat-wrapper {

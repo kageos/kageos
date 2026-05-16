@@ -158,10 +158,10 @@ func TestFormatSearchToolFunctionSummaryIncludesTableCapabilities(t *testing.T) 
 		t.Fatalf("expected read-only capabilities, got:\n%s", out)
 	}
 
-	fn.Callbacks = []string{"OnTableAddRow", "OnTableCreateInBatches", "OnTableUpdateRow", "OnTableDeleteRows"}
+	fn.Callbacks = []string{"OnTableAddRow", "OnTableUpdateRow", "OnTableDeleteRows"}
 	out = formatSearchToolFunctionSummary(0, fn)
-	if !strings.Contains(out, "capabilities: read, create, batch-create, update, delete") {
-		t.Fatalf("expected executable table capabilities with batch-create, got:\n%s", out)
+	if !strings.Contains(out, "capabilities: read, create, update, delete") {
+		t.Fatalf("expected executable table capabilities, got:\n%s", out)
 	}
 }
 

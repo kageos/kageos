@@ -26,11 +26,7 @@ function enabledInFullMode(envName: string): boolean {
 
 export const featureFlags = {
   focusedMode,
-  organization: enabledInFullMode('VITE_AOS_FEATURE_ORGANIZATION'),
-  messages: enabledInFullMode('VITE_AOS_FEATURE_MESSAGES'),
-  scheduledTasks: enabledInFullMode('VITE_AOS_FEATURE_SCHEDULED_TASKS'),
   operateLogs: enabledInFullMode('VITE_AOS_FEATURE_OPERATE_LOGS'),
-  board: enabledInFullMode('VITE_AOS_FEATURE_BOARD'),
   enterpriseUpgrade: enabledInFullMode('VITE_AOS_FEATURE_ENTERPRISE_UPGRADE'),
   capabilityBundle: readBooleanEnv('VITE_AOS_FEATURE_CAPABILITY_BUNDLE', true),
   docs: readBooleanEnv('VITE_AOS_FEATURE_DOCS', true),

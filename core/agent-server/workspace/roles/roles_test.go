@@ -33,7 +33,6 @@ func TestNormalizeAndAliases(t *testing.T) {
 		"build-engineer":       BuildEngineer,
 		"maintenance-engineer": MaintenanceEngineer,
 		"data-operator":        DataOperator,
-		"scheduler-engineer":   SchedulerEngineer,
 		"platform-engineer":    PlatformEngineer,
 	}
 	for input, want := range cases {

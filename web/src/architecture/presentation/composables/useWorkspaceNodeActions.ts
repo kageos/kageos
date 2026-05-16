@@ -3,7 +3,6 @@ import type { RouteLocationNormalizedLoaded, Router } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   createDocs,
-  deleteBoard,
   deleteDocs,
   deletePackage,
   deleteServiceTreeFunction
@@ -48,8 +47,6 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
   const creatingDocs = ref(false)
   const currentDocsParentNode = ref<ServiceTreeType | null>(null)
   const createDocsForm = ref<CreateDocsForm>(createEmptyDocsForm())
-  const createBoardDialogVisible = ref(false)
-  const currentBoardParentNode = ref<ServiceTreeType | null>(null)
 
   const handleCreateDocs = (parentNode?: ServiceTreeType) => {
     if (!currentApp.value) {
@@ -127,44 +124,6 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
   const handleCloseCreateDocsDialog = () => {
     createDocsForm.value = createEmptyDocsForm()
     currentDocsParentNode.value = null
-  }
-
-  const handleCreateBoard = (parentNode?: ServiceTreeType) => {
-    if (!currentApp.value) {
-      ElMessage.warning('请先选择应用')
-      return
-    }
-
-    currentBoardParentNode.value = parentNode ?? null
-    createBoardDialogVisible.value = true
-  }
-
-  const handleDeleteBoard = async (node: ServiceTreeType) => {
-    if (node.type !== 'board') {
-      ElMessage.warning('只能删除讨论区节点')
-      return
-    }
-
-    try {
-      await ElMessageBox.confirm(
-        `确定要删除讨论区 "${node.name}" 吗？将同时删除该版块下全部帖子，且无法恢复。`,
-        '确认删除',
-        { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
-      )
-      await deleteBoard(node.id)
-      ElMessage.success('讨论区已删除')
-      await handleRefreshTree()
-      if (currentFunction.value && currentFunction.value.id === node.id) {
-        const parentPath = node.full_code_path?.split('/').slice(0, -1).join('/') || ''
-        if (parentPath) {
-          router.push(`/workspace${parentPath}`)
-        }
-      }
-    } catch (error: any) {
-      if (error !== 'cancel') {
-        ElMessage.error('删除讨论区失败: ' + (error.message || '未知错误'))
-      }
-    }
   }
 
   const handleDeleteDoc = async (node: ServiceTreeType) => {
@@ -298,7 +257,7 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
 
   const handleBulkDeleteNodes = async (nodes: ServiceTreeType[]) => {
     const deleteNodes = compactBulkDeleteNodes(nodes).filter((node) => {
-      return node.type === 'package' || node.type === 'function' || node.type === 'docs' || node.type === 'board'
+      return node.type === 'package' || node.type === 'function' || node.type === 'docs'
     })
     if (deleteNodes.length === 0) {
       ElMessage.warning('请选择可删除的节点')
@@ -330,8 +289,6 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
           await deleteServiceTreeFunction(node.id)
         } else if (node.type === 'docs') {
           await deleteDocs(node.id)
-        } else if (node.type === 'board') {
-          await deleteBoard(node.id)
         }
         if (node.full_code_path) {
           deletedPaths.push(node.full_code_path)
@@ -368,13 +325,9 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
     creatingDocs,
     currentDocsParentNode,
     createDocsForm,
-    createBoardDialogVisible,
-    currentBoardParentNode,
     handleCreateDocs,
     handleSubmitCreateDocs,
     handleCloseCreateDocsDialog,
-    handleCreateBoard,
-    handleDeleteBoard,
     handleDeleteDoc,
     handleDocDeleted,
     handleDeleteDirectory,

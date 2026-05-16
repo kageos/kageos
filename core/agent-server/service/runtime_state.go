@@ -13,8 +13,7 @@ import (
 )
 
 const (
-	RuntimeStateKindWorkspaceSession      = "workspace_session"
-	RuntimeStateKindScheduledAgentSession = "scheduled_agent_session"
+	RuntimeStateKindWorkspaceSession = "workspace_session"
 
 	RuntimeStateStatusThinking        = "thinking"
 	RuntimeStateStatusRunning         = "running"
@@ -171,11 +170,7 @@ func applyRuntimeStateToSummary(summary *dto.RuntimeStateSummary, item dto.Runti
 		// cancelled 不计入运行中，仅作为短暂状态保留给明细查询。
 	default:
 		summary.RunningCount++
-		if item.Kind == RuntimeStateKindScheduledAgentSession {
-			summary.ScheduledRunningCount++
-		} else {
-			summary.ManualRunningCount++
-		}
+		summary.ManualRunningCount++
 	}
 
 	switch item.Status {
@@ -232,9 +227,6 @@ func refreshRuntimeSummaryDisplay(summary *dto.RuntimeStateSummary) {
 	}
 	if summary.ToolRunningCount > 0 {
 		parts = append(parts, fmt.Sprintf("工具执行 %d", summary.ToolRunningCount))
-	}
-	if summary.ScheduledRunningCount > 0 {
-		parts = append(parts, fmt.Sprintf("定时会话 %d", summary.ScheduledRunningCount))
 	}
 	if summary.FailedRecentCount > 0 {
 		parts = append(parts, fmt.Sprintf("最近失败 %d", summary.FailedRecentCount))

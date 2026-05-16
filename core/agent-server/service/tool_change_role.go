@@ -59,7 +59,7 @@ func (t *ChangeRoleTool) Execute(ctx context.Context, call ToolCall) ToolResult 
 		return toolResult("change_role 参数解析失败: "+err.Error(), true)
 	}
 	if strings.TrimSpace(args.TargetRole) != "" && !isKnownWorkspaceRole(args.TargetRole) {
-		return toolResult("target_role 不支持: "+strings.TrimSpace(args.TargetRole)+"。请使用标准角色 ID：product_manager、app_developer、maintenance_engineer、app_operator、qa_engineer、build_engineer、data_operator、scheduler_engineer、platform_engineer、reviewer。", true)
+		return toolResult("target_role 不支持: "+strings.TrimSpace(args.TargetRole)+"。请使用标准角色 ID：product_manager、app_developer、maintenance_engineer、app_operator、qa_engineer、build_engineer、data_operator、platform_engineer、reviewer。", true)
 	}
 	data := buildChangeRole(ctx, args)
 	return toolResultWithStructuredData(data, false)

@@ -13,11 +13,3 @@ func (s *ServiceTreeService) CreateDocs(ctx context.Context, req *dto.CreateDocs
 func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.CreateServiceTreeReq) (*dto.CreateServiceTreeResp, error) {
 	return s.specialNodeService.CreateDocsNode(ctx, req)
 }
-
-func (s *ServiceTreeService) CreateBoard(ctx context.Context, req *dto.CreateBoardReq) (*dto.CreateBoardResp, error) {
-	return s.specialNodeService.CreateBoard(ctx, req)
-}
-
-func (s *ServiceTreeService) CreateBoardNode(ctx context.Context, req *dto.CreateServiceTreeReq) (*dto.CreateServiceTreeResp, error) {
-	return s.specialNodeService.CreateBoardNode(ctx, req)
-}

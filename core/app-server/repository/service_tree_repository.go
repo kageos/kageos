@@ -559,7 +559,7 @@ func (r *ServiceTreeRepository) SearchFunctions(currentUser, user, app, keyword,
 	return list, total, nil
 }
 
-// SearchResources 搜索服务树资源节点：目录、函数、文档、讨论区。
+// SearchResources 搜索服务树资源节点：目录、函数、文档。
 // 文档节点额外 JOIN docs 表，支持按文档摘要/正文命中。
 func (r *ServiceTreeRepository) SearchResources(currentUser, user, app, keyword string, nodeTypes []string, page, pageSize int) ([]*model.ServiceTree, int64, error) {
 	query := r.db.Model(&model.ServiceTree{}).

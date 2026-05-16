@@ -17,7 +17,6 @@ interface UseWorkspaceViewLifecycleOptions {
   serviceTree: () => ServiceTreeType[]
   loadAppFromRoute: () => Promise<void>
   setupRouteWatch: () => void
-  activateScheduledTaskTab: () => void
   expandCurrentRoutePath: () => void
   queryTab: () => string
   loadNodeDetail: (node: ServiceTreeType) => Promise<void> | void
@@ -29,7 +28,6 @@ interface UseWorkspaceViewLifecycleOptions {
 export function useWorkspaceViewLifecycle(options: UseWorkspaceViewLifecycleOptions) {
   let unsubscribeFunctionLoaded: (() => void) | null = null
   let unsubscribeServiceTreeLoaded: (() => void) | null = null
-  let unsubscribeScheduledTaskCreated: (() => void) | null = null
   let unsubscribeAppInfoUpdated: (() => void) | null = null
   let routeManager: RouteManager | null = null
 
@@ -78,10 +76,6 @@ export function useWorkspaceViewLifecycle(options: UseWorkspaceViewLifecycleOpti
       if (rootNode && rootNode.type === 'package') {
         await options.loadNodeDetail(rootNode)
       }
-    })
-
-    unsubscribeScheduledTaskCreated = eventBus.on(WorkspaceEvent.scheduledTaskCreated, () => {
-      options.activateScheduledTaskTab()
     })
 
     unsubscribeAppInfoUpdated = eventBus.on(WorkspaceEvent.appInfoUpdated, (payload: { app: AppType }) => {
@@ -135,9 +129,6 @@ export function useWorkspaceViewLifecycle(options: UseWorkspaceViewLifecycleOpti
     }
     if (unsubscribeServiceTreeLoaded) {
       unsubscribeServiceTreeLoaded()
-    }
-    if (unsubscribeScheduledTaskCreated) {
-      unsubscribeScheduledTaskCreated()
     }
     if (unsubscribeAppInfoUpdated) {
       unsubscribeAppInfoUpdated()

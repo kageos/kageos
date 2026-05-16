@@ -57,33 +57,6 @@
             <p class="form-tip">邮箱不可修改</p>
           </el-form-item>
 
-          <!-- 组织架构（只读，可点击跳转） -->
-          <el-form-item v-if="featureFlags.organization" label="组织架构">
-            <div 
-              v-if="currentUser?.department_full_name_path || currentUser?.department_name || currentUser?.department_full_path" 
-              class="org-info clickable"
-              @click="handleGoToOrganization"
-            >
-              <img src="/组织架构.svg" alt="组织架构" class="info-icon" />
-              <span>{{ currentUser.department_full_name_path || currentUser.department_name || currentUser.department_full_path }}</span>
-            </div>
-            <span v-else class="text-muted">未分配</span>
-            <p class="form-tip">组织架构由管理员分配，不可修改</p>
-          </el-form-item>
-
-          <!-- 直接上级（只读，使用用户组件展示） -->
-          <el-form-item v-if="featureFlags.organization" label="直接上级">
-            <UserDisplay
-              v-if="currentUser?.leader_username"
-              :username="currentUser.leader_username"
-              mode="card"
-              layout="horizontal"
-              size="medium"
-            />
-            <span v-else class="text-muted">未分配</span>
-            <p class="form-tip">直接上级由管理员分配，不可修改</p>
-          </el-form-item>
-
           <!-- 昵称 -->
           <el-form-item label="昵称" prop="nickname">
             <el-input
@@ -142,9 +115,7 @@ import { ElMessage, ElForm } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import CommonUpload from '@/architecture/presentation/shared/components/CommonUpload.vue'
-import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import type { FormRules } from 'element-plus'
-import { featureFlags } from '@/architecture/shared/config/features'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -260,14 +231,6 @@ function handleBack() {
   router.go(-1)
 }
 
-// 跳转到组织架构页面
-function handleGoToOrganization() {
-  if (!featureFlags.organization) {
-    return
-  }
-  router.push('/organization')
-}
-
 // 组件挂载时初始化
 onMounted(async () => {
   if (!authStore.isAuthenticated) {
@@ -338,39 +301,6 @@ onMounted(async () => {
 
 .disabled-input {
   opacity: 0.6;
-}
-
-.org-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  
-  .info-icon {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-    opacity: 0.8;
-  }
-  
-  span {
-    color: var(--el-text-color-primary);
-  }
-  
-  &.clickable {
-    cursor: pointer;
-    transition: color 0.2s;
-    
-    &:hover {
-      span {
-        color: var(--el-color-primary);
-      }
-    }
-  }
-}
-
-.text-muted {
-  color: var(--el-text-color-placeholder);
-  font-size: 14px;
 }
 
 </style>

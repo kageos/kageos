@@ -69,11 +69,8 @@ func TestRenderBundledConfig(t *testing.T) {
 	}
 
 	mysqlInit := mustReadFile(t, filepath.Join(paths.GeneratedDir, "infra", "mysql-init.sql"))
-	if !strings.Contains(mysqlInit, "CREATE DATABASE IF NOT EXISTS `app-scheduled-task`") {
+	if !strings.Contains(mysqlInit, "CREATE DATABASE IF NOT EXISTS `app_db`") {
 		t.Fatalf("mysql init should quote database identifiers, got:\n%s", mysqlInit)
-	}
-	if !strings.Contains(mysqlInit, "CREATE DATABASE IF NOT EXISTS `timer-scheduler`") {
-		t.Fatalf("mysql init should include timer-scheduler database, got:\n%s", mysqlInit)
 	}
 
 	backupConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "backup-service.yaml"))
@@ -88,8 +85,8 @@ func TestRenderBundledConfig(t *testing.T) {
 	}
 
 	appServerConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "app-server.yaml"))
-	if !strings.Contains(appServerConfig, `name: "app-scheduled-task"`) {
-		t.Fatalf("generated app-server config should include scheduled task database, got:\n%s", appServerConfig)
+	if strings.Contains(appServerConfig, `scheduled_task_db`) {
+		t.Fatalf("generated app-server config should not include scheduled task database, got:\n%s", appServerConfig)
 	}
 
 	appRuntimeConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "app-runtime.yaml"))
@@ -98,8 +95,8 @@ func TestRenderBundledConfig(t *testing.T) {
 	}
 
 	globalConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "global.yaml"))
-	if !strings.Contains(globalConfig, `base_url: "http://127.0.0.1:9108/timer/api/v1"`) {
-		t.Fatalf("generated global config should include timer scheduler base url, got:\n%s", globalConfig)
+	if strings.Contains(globalConfig, `timer_scheduler`) {
+		t.Fatalf("generated global config should not include timer scheduler config, got:\n%s", globalConfig)
 	}
 	for _, want := range []string{
 		`nats_url: "nats://aos:`,
@@ -157,16 +154,6 @@ func TestRenderBundledConfig(t *testing.T) {
 	} {
 		if !strings.Contains(messageServerConfig, want) {
 			t.Fatalf("generated message-server config missing %q, got:\n%s", want, messageServerConfig)
-		}
-	}
-
-	timerSchedulerConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "timer-scheduler.yaml"))
-	for _, want := range []string{
-		`port: 9108`,
-		`name: "timer-scheduler"`,
-	} {
-		if !strings.Contains(timerSchedulerConfig, want) {
-			t.Fatalf("generated timer-scheduler config missing %q, got:\n%s", want, timerSchedulerConfig)
 		}
 	}
 }
@@ -271,7 +258,7 @@ func TestComposeServicesByLayer(t *testing.T) {
 	}{
 		{layer: layerInfra, want: []string{"mysql", "nats", "minio"}},
 		{layer: layerEdge, want: []string{"main"}},
-		{layer: layerPlatform, want: []string{"main", "scheduler", "backup"}},
+		{layer: layerPlatform, want: []string{"main", "backup"}},
 		{layer: layerRuntime, want: []string{"main"}},
 		{layer: layerApps, want: nil},
 	} {
@@ -309,7 +296,7 @@ func TestDeploymentReportIncludesComposeOwnership(t *testing.T) {
 	}
 	for _, layer := range report.Layers {
 		if layer.ID == layerPlatform {
-			if strings.Join(layer.ComposeServices, ",") != "main,scheduler,backup" {
+			if strings.Join(layer.ComposeServices, ",") != "main,backup" {
 				t.Fatalf("unexpected platform compose services: %#v", layer.ComposeServices)
 			}
 			return
@@ -599,18 +586,16 @@ func TestRequiredMySQLDatabases(t *testing.T) {
 	rt := RuntimeConfig{
 		Config: Config{
 			MySQL: MySQLConfig{
-				AppDatabase:            "app_db",
-				ScheduledTaskDatabase:  "app-scheduled-task",
-				TimerSchedulerDatabase: "timer-scheduler",
-				StorageDatabase:        "app-storage",
-				AgentDatabase:          "agent-server",
-				HRDatabase:             "hr-server",
+				AppDatabase:     "app_db",
+				StorageDatabase: "app-storage",
+				AgentDatabase:   "agent-server",
+				HRDatabase:      "hr-server",
 			},
 		},
 	}
 
 	got := requiredMySQLDatabases(rt)
-	for _, want := range []string{"app_db", "app-scheduled-task", "timer-scheduler", "app-storage", "agent-server", "hr-server"} {
+	for _, want := range []string{"app_db", "app-storage", "agent-server", "hr-server"} {
 		if !containsString(got, want) {
 			t.Fatalf("required MySQL databases missing %q: %#v", want, got)
 		}

@@ -33,11 +33,9 @@ func GetAppServerConfig() *AppServerConfig {
 
 // AppServerConfig app-server 配置
 type AppServerConfig struct {
-	Server          AppServerServerConfig      `mapstructure:"server"`
-	TimerWorker     AppServerTimerWorkerConfig `mapstructure:"timer_worker"`
-	Timeouts        AppServerTimeoutCfg        `mapstructure:"timeouts"`
-	DB              DBConfig                   `mapstructure:"db"`
-	ScheduledTaskDB DBConfig                   `mapstructure:"scheduled_task_db"`
+	Server   AppServerServerConfig `mapstructure:"server"`
+	Timeouts AppServerTimeoutCfg   `mapstructure:"timeouts"`
+	DB       DBConfig              `mapstructure:"db"`
 	// 注意：NATS、JWT、Control Service 配置已移至全局配置，不再在此处配置
 	// 数据库配置保留在服务配置中，因为微服务后续每个服务一个库
 }
@@ -49,11 +47,6 @@ type AppServerServerConfig struct {
 	LogLevel    string `mapstructure:"log_level"`
 	Debug       bool   `mapstructure:"debug"`
 	EnablePprof *bool  `mapstructure:"enable_pprof"`
-}
-
-// AppServerTimerWorkerConfig app-server 定时任务执行器配置。
-type AppServerTimerWorkerConfig struct {
-	MaxConcurrency int `mapstructure:"max_concurrency"`
 }
 
 // AppServerTimeoutCfg 超时配置
@@ -116,13 +109,6 @@ func (c *AppServerConfig) GetNatsRequestTimeout() int {
 	return c.Timeouts.NatsRequest
 }
 
-func (c *AppServerConfig) GetTimerWorkerMaxConcurrency() int {
-	if c.TimerWorker.MaxConcurrency <= 0 {
-		return 4
-	}
-	return c.TimerWorker.MaxConcurrency
-}
-
 // 数据库配置便捷访问方法
 func (c *AppServerConfig) GetDBLogLevel() string {
 	if c.DB.LogLevel == "" {
@@ -145,47 +131,6 @@ func (c *AppServerConfig) IsDBLogEnabled() bool {
 // GetDB 获取数据库配置
 func (c *AppServerConfig) GetDB() DBConfig {
 	return c.DB
-}
-
-// GetScheduledTaskDB 获取 app-server 业务定时任务数据库配置。
-func (c *AppServerConfig) GetScheduledTaskDB() DBConfig {
-	db := c.DB
-	if c.ScheduledTaskDB.Type != "" {
-		db.Type = c.ScheduledTaskDB.Type
-	}
-	if c.ScheduledTaskDB.Host != "" {
-		db.Host = c.ScheduledTaskDB.Host
-	}
-	if c.ScheduledTaskDB.Port > 0 {
-		db.Port = c.ScheduledTaskDB.Port
-	}
-	if c.ScheduledTaskDB.User != "" {
-		db.User = c.ScheduledTaskDB.User
-	}
-	if c.ScheduledTaskDB.Password != "" {
-		db.Password = c.ScheduledTaskDB.Password
-	}
-	if c.ScheduledTaskDB.Name != "" {
-		db.Name = c.ScheduledTaskDB.Name
-	} else {
-		db.Name = "app-scheduled-task"
-	}
-	if c.ScheduledTaskDB.MaxIdleConns > 0 {
-		db.MaxIdleConns = c.ScheduledTaskDB.MaxIdleConns
-	}
-	if c.ScheduledTaskDB.MaxOpenConns > 0 {
-		db.MaxOpenConns = c.ScheduledTaskDB.MaxOpenConns
-	}
-	if c.ScheduledTaskDB.MaxLifetime > 0 {
-		db.MaxLifetime = c.ScheduledTaskDB.MaxLifetime
-	}
-	if c.ScheduledTaskDB.LogLevel != "" {
-		db.LogLevel = c.ScheduledTaskDB.LogLevel
-	}
-	if c.ScheduledTaskDB.SlowThreshold > 0 {
-		db.SlowThreshold = c.ScheduledTaskDB.SlowThreshold
-	}
-	return db
 }
 
 // GetNats 获取 NATS 配置（从全局配置获取）

@@ -54,18 +54,6 @@ const router = createRouter({
         requireAuth: true
       }
     },
-    // 组织架构和用户管理页面
-    {
-      path: '/organization',
-      name: 'organization-management',
-      component: () => import('@/architecture/presentation/features/organization/pages/OrganizationManagementPage.vue'),
-      meta: {
-        title: '组织架构和用户管理',
-        requireAuth: true,
-        feature: 'organization'
-      }
-    },
-
     // LLM 配置
     {
       path: '/agent',

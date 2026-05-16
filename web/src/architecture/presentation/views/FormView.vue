@@ -204,15 +204,6 @@
           <el-icon><Promotion /></el-icon>
           提交
         </el-button>
-        <el-button
-          v-if="featureFlags.scheduledTasks && showSubmitButton"
-          size="large"
-          @click="showScheduledTaskDialog = true"
-          :disabled="!currentFunctionNode?.full_code_path"
-        >
-          <el-icon><Clock /></el-icon>
-          定时执行
-        </el-button>
         <el-button v-if="showResetButton" size="large" @click="handleReset">
           <el-icon><RefreshLeft /></el-icon>
           重置
@@ -363,14 +354,6 @@
       </el-tabs>
     </el-dialog>
 
-    <!-- 定时执行弹窗：以当前表单参数为 payload -->
-    <ScheduledTaskDialog
-      v-if="featureFlags.scheduledTasks"
-      v-model="showScheduledTaskDialog"
-      :full-code-path="currentFunctionNode?.full_code_path ?? ''"
-      :get-payload="prepareSubmitDataWithTypeConversion"
-      @success="onScheduledTaskCreated"
-    />
       </div>
     </div>
   </div>
@@ -379,9 +362,9 @@
 <script setup lang="ts">
 import { computed, ref, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Document, List, User, Clock, Close } from '@element-plus/icons-vue'
+import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Document, List, User, Close } from '@element-plus/icons-vue'
 import { ElIcon, ElTag, ElNotification, ElMessage, ElEmpty, ElMessageBox } from 'element-plus'
-import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
+import { eventBus } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import { getErrorMessage } from '@/architecture/shared/apiError'
@@ -394,11 +377,9 @@ import { useFormDebug } from '../composables/useFormDebug'
 import { useFormParamURLSync } from '../composables/useFormParamURLSync'
 import { useFormViewState } from '../composables/useFormViewState'
 import { useFormViewLifecycle } from '../composables/useFormViewLifecycle'
-import ScheduledTaskDialog from '../components/ScheduledTaskDialog.vue'
 import { createFormViewRuntime } from './utils/formViewRuntime'
 import { FORM_LABEL_WIDTH } from '../utils/formLayout'
 import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
-import { featureFlags } from '@/architecture/shared/config/features'
 
 const props = withDefaults(defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取
@@ -421,7 +402,7 @@ interface ApplyOperateLogPayload {
 }
 
 interface ReplayContext {
-  source: 'scheduled_task' | 'operate_log'
+  source: 'operate_log'
   title?: string
   taskId?: number
   executionId?: number
@@ -505,7 +486,6 @@ const {
   requestFields,
 })
 
-const showScheduledTaskDialog = ref(false)
 const submitFeedback = ref<{ type: 'success' | 'error'; message: string } | null>(null)
 const replayContext = ref<ReplayContext | null>(null)
 
@@ -522,10 +502,6 @@ function formatReplayDateTime(value?: string): string {
     return value
   }
   return date.toLocaleString()
-}
-
-function onScheduledTaskCreated() {
-  eventBus.emit(WorkspaceEvent.scheduledTaskCreated)
 }
 
 const submitForm = async (): Promise<boolean> => {

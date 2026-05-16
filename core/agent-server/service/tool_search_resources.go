@@ -14,7 +14,7 @@ type SearchResourcesTool struct{}
 
 type searchResourcesArgs struct {
 	Keyword      string `json:"keyword" schema_desc:"搜索关键词，支持竖线分隔多个关键词"`
-	ResourceType string `json:"resource_type" schema_desc:"资源类型过滤：all/package/function/docs/board" schema_enum:"all,package,function,docs,board"`
+	ResourceType string `json:"resource_type" schema_desc:"资源类型过滤：all/package/function/docs" schema_enum:"all,package,function,docs"`
 	Scope        string `json:"scope" schema_desc:"搜索范围：visible=当前用户可见资源（默认），system=官方/system 资源，current_user=当前用户下资源，current_app=当前工作区应用内资源" schema_enum:"visible,system,current_user,current_app"`
 	User         string `json:"user" schema_desc:"按用户名过滤；传入后优先于 scope 推导"`
 	App          string `json:"app" schema_desc:"按应用 code 过滤；通常和 user 搭配使用"`
@@ -36,7 +36,7 @@ type searchResourcesResultData struct {
 
 var searchResourcesToolDef = toolDefinition[searchResourcesArgs](
 	"search_resources",
-	"搜索服务树资源：目录、函数、文档和讨论区。默认 scope=visible 搜当前用户可见资源；可用 scope=system 搜官方/system 资源，scope=current_app 搜当前工作区应用，或传 user/app 精确过滤。适合先找应用目录、文档、函数位置；若要执行函数，再用 search_tools 获取 schema 摘要后调用 run_form_submit/run_table_search/run_chart_query。",
+	"搜索服务树资源：目录、函数和文档。默认 scope=visible 搜当前用户可见资源；可用 scope=system 搜官方/system 资源，scope=current_app 搜当前工作区应用，或传 user/app 精确过滤。适合先找应用目录、文档、函数位置；若要执行函数，再用 search_tools 获取 schema 摘要后调用 run_form_submit/run_table_search/run_chart_query。",
 )
 
 func (t *SearchResourcesTool) Definition() dto.ToolDef {
@@ -104,7 +104,7 @@ func normalizeSearchResourcesType(raw string) string {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "", "all":
 		return "all"
-	case "package", "function", "docs", "board":
+	case "package", "function", "docs":
 		return strings.ToLower(strings.TrimSpace(raw))
 	case "doc", "document":
 		return "docs"

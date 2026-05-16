@@ -63,17 +63,4 @@ func (s *Server) setupRoutes() {
 	workspace.POST("/chat/stream", workspaceChatHandler.ChatStream)
 	workspace.POST("/chat/cancel", workspaceChatHandler.CancelChat) // 取消执行中的任务
 
-	// 定时 Agent 会话任务。MVP 不做工具白名单，执行链路会透传 source_ref，后续在工具入口统一治理。
-	scheduledAgentTask := apiV1.Group("/scheduled_agent_tasks")
-	scheduledAgentTaskHandler := v1.NewScheduledAgentTask(s.scheduledAgentTaskService)
-	scheduledAgentTask.POST("", scheduledAgentTaskHandler.Create)
-	scheduledAgentTask.GET("", scheduledAgentTaskHandler.List)
-	scheduledAgentTask.GET("/:id", scheduledAgentTaskHandler.Get)
-	scheduledAgentTask.PUT("/:id", scheduledAgentTaskHandler.Update)
-	scheduledAgentTask.DELETE("/:id", scheduledAgentTaskHandler.Delete)
-	scheduledAgentTask.POST("/:id/run", scheduledAgentTaskHandler.RunNow)
-	scheduledAgentTask.POST("/:id/pause", scheduledAgentTaskHandler.Pause)
-	scheduledAgentTask.POST("/:id/resume", scheduledAgentTaskHandler.Resume)
-	scheduledAgentTask.GET("/:id/executions", scheduledAgentTaskHandler.ListExecutions)
-	scheduledAgentTask.GET("/:id/executions/:execution_id", scheduledAgentTaskHandler.GetExecution)
 }

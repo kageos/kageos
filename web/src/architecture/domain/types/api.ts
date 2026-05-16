@@ -75,7 +75,7 @@ export interface ServiceTree {
   id: number
   name: string
   code: string
-  type: 'package' | 'function' | 'docs' | 'board'
+  type: 'package' | 'function' | 'docs'
   description: string
   tags: string
   admins?: string  // 节点管理员列表，逗号分隔的用户名
@@ -102,7 +102,7 @@ export interface CreateServiceTreeRequest {
   name: string
   code: string
   parent_full_code_path?: string
-  type?: string  // 节点类型: 'package' | 'docs' | 'function' | 'board'
+  type?: string  // 节点类型: 'package' | 'docs' | 'function'
   description?: string
   tags?: string
   admins?: string  // 管理员列表，逗号分隔的用户名

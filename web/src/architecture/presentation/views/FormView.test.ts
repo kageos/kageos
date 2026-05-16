@@ -92,12 +92,6 @@ vi.mock('../composables/useFormViewLifecycle', () => ({
   })
 }))
 
-vi.mock('@/architecture/shared/config/features', () => ({
-  featureFlags: {
-    scheduledTasks: false
-  }
-}))
-
 import FormView from './FormView.vue'
 
 const sliderField = {
@@ -145,7 +139,6 @@ describe('FormView', () => {
       global: {
         plugins: [createPinia()],
         stubs: {
-          ScheduledTaskDialog: { template: '<div />' },
           ElAlert: { template: '<div class="el-alert">{{ title }}</div>', props: ['title', 'type'] },
           ElForm: { template: '<form><slot /></form>' },
           ElFormItem: { template: '<div class="form-item"><slot /></div>' },
@@ -166,7 +159,7 @@ describe('FormView', () => {
     expect(wrapper.find('.el-slider').exists()).toBe(true)
   })
 
-  it('shows only the primary submit button when scheduled tasks are disabled', () => {
+  it('shows only the primary submit button', () => {
     const wrapper = mount(FormView, {
       props: {
         functionDetail: createFormDetail()
@@ -174,7 +167,6 @@ describe('FormView', () => {
       global: {
         plugins: [createPinia()],
         stubs: {
-          ScheduledTaskDialog: { template: '<div />' },
           ElAlert: { template: '<div class="el-alert">{{ title }}</div>', props: ['title', 'type'] },
           ElForm: { template: '<form><slot /></form>' },
           ElFormItem: { template: '<div class="form-item"><slot /></div>' },
@@ -214,7 +206,6 @@ describe('FormView', () => {
       global: {
         plugins: [createPinia()],
         stubs: {
-          ScheduledTaskDialog: { template: '<div />' },
           ElAlert: { template: '<div class="el-alert">{{ title }}</div>', props: ['title', 'type'] },
           ElForm: { template: '<form><slot /></form>' },
           ElFormItem: { template: '<div class="form-item"><slot /></div>' },
