@@ -140,7 +140,6 @@
           :selected-l-l-m-config-id="selectedLLMConfigId"
           :llm-list="llmList"
           :llm-loading="llmLoading"
-          :show-schedule-action="featureFlags.scheduledTasks"
           :register-input-ref="registerInputRef"
           :on-l-l-m-select-visible-change="onLLMSelectVisibleChange"
           :on-file-change="onFileChange"
@@ -149,7 +148,6 @@
           :toggle-shortcut-label="toggleShortcutLabel"
           @update:input-text="inputText = $event"
           @update:selected-l-l-m-config-id="selectedLLMConfigId = $event"
-          @schedule="openNewScheduledAgentTaskDialog"
           @stop="handleStopSession"
           @send="handleSend"
           @collapse="hideWorkstation"
@@ -230,17 +228,6 @@
     @update:content="dfPreviewContent = $event"
   />
 
-  <ScheduledAgentTaskDialog
-    v-if="featureFlags.scheduledTasks"
-    :key="scheduledDialogKey"
-    v-model="showScheduledAgentTaskDialog"
-    :full-code-path="fullCodePath"
-    :initial-goal="scheduledDraftGoal"
-    :initial-files="scheduledDraftFiles"
-    :initial-l-l-m-config-id="selectedLLMConfigId"
-    :task="null"
-    @success="handleScheduledAgentTaskCreated"
-  />
 </template>
 
 <script setup lang="ts">
@@ -262,7 +249,6 @@ import MiniWorkstationMessages from './MiniWorkstationMessages.vue'
 import MiniWorkstationPendingActionBar from './MiniWorkstationPendingActionBar.vue'
 import MiniWorkstationSessionCenter from './MiniWorkstationSessionCenter.vue'
 import MiniWorkstationSessionDock from './MiniWorkstationSessionDock.vue'
-import ScheduledAgentTaskDialog from './ScheduledAgentTaskDialog.vue'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { useMiniWorkstationPanel } from '../composables/useMiniWorkstationPanel'
 import { useMiniWorkstationSessions } from '../composables/useMiniWorkstationSessions'
@@ -284,9 +270,8 @@ import {
   useMiniWorkstationSessionView,
   type SessionFilterValue
 } from '../composables/useMiniWorkstationSessionView'
-import { eventBus, WorkspaceEvent } from '@/architecture/presentation/context/eventBusContext'
+import { eventBus } from '@/architecture/presentation/context/eventBusContext'
 import { createWorkspaceHandoff, resolveWorkspaceSessionInteraction, type WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
-import { featureFlags } from '@/architecture/shared/config/features'
 
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
@@ -321,10 +306,6 @@ const rootRef = ref<HTMLElement>()
 const outputRef = ref<HTMLElement>()
 const inputText = ref('')
 const inputRef = ref<HTMLTextAreaElement>()
-const showScheduledAgentTaskDialog = ref(false)
-const scheduledDialogKey = ref(0)
-const scheduledDraftGoal = ref('')
-const scheduledDraftFiles = ref('')
 const llmSelectOpen = ref(false)
 const settingsPopoverOpen = ref(false)
 const interactionOpen = computed(() => llmSelectOpen.value || settingsPopoverOpen.value)
@@ -608,23 +589,6 @@ function handleArtifactClick(item: MiniArtifactItem) {
 function messageHasGeneratedArtifacts(message: ChatMessage) {
   if (message.role !== 'assistant') return false
   return collectMessageToolCalls(message).some(isGeneratedArtifactToolCall)
-}
-
-const currentAttachedFileRefs = computed(() => {
-  return attachedFiles.value
-    .map((file) => file.ref)
-    .filter(Boolean)
-    .join(',')
-})
-
-function openNewScheduledAgentTaskDialog() {
-  if (!featureFlags.scheduledTasks) {
-    return
-  }
-  scheduledDraftGoal.value = inputText.value.trim()
-  scheduledDraftFiles.value = currentAttachedFileRefs.value
-  scheduledDialogKey.value += 1
-  showScheduledAgentTaskDialog.value = true
 }
 
 const {
@@ -1049,10 +1013,6 @@ watch(
   },
   { immediate: true }
 )
-
-function handleScheduledAgentTaskCreated() {
-  eventBus.emit(WorkspaceEvent.scheduledAgentTaskCreated, { full_code_path: props.fullCodePath })
-}
 
 useMiniWorkstationEffects({
   visible: computed(() => props.visible),

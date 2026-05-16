@@ -91,6 +91,9 @@ func (m *Manager) LoadLicense(path string) error {
 	if !licenseFile.License.IsValid() {
 		return fmt.Errorf("license has expired")
 	}
+	if !licenseFile.License.IsEnterpriseEdition() {
+		return fmt.Errorf("unsupported license edition: %s", licenseFile.License.Edition)
+	}
 
 	// 验证硬件绑定（如果启用）
 	if licenseFile.License.HardwareID != "" {
@@ -120,7 +123,7 @@ func (m *Manager) GetLicense() *License {
 
 // HasFeature 检查是否有某个功能
 // 参数：
-//   - featureName: 功能名称（如 "operate_log", "workflow" 等）
+//   - featureName: 功能名称（如 "operate_log", "permission"）
 //
 // 返回：
 //   - bool: 是否有该功能
@@ -147,7 +150,7 @@ func (m *Manager) HasOperateLogFeature() bool {
 
 // GetEdition 获取当前版本
 // 返回：
-//   - Edition: 当前版本（社区版、专业版、企业版、旗舰版）
+//   - Edition: 当前版本（社区版、企业版）
 func (m *Manager) GetEdition() Edition {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -164,7 +167,7 @@ func (m *Manager) GetEdition() Edition {
 //   - bool: 是否是企业版
 func (m *Manager) IsEnterprise() bool {
 	edition := m.GetEdition()
-	return edition == EditionEnterprise || edition == EditionFlagship
+	return edition == EditionEnterprise
 }
 
 // IsActivated 检查是否已激活（激活 + 企业版 + 未过期）
@@ -184,9 +187,9 @@ func (m *Manager) IsActivated() bool {
 		return false
 	}
 
-	// 检查是否是企业版（enterprise 或 flagship）
+	// 检查是否是企业版
 	edition := m.license.GetEdition()
-	return edition == EditionEnterprise || edition == EditionFlagship
+	return edition == EditionEnterprise
 }
 
 // GetMaxApps 获取最大应用数量

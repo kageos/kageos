@@ -13,7 +13,6 @@ router
   -> qa_engineer
   -> maintenance_engineer
   -> build_engineer
-  -> scheduler_engineer
   -> platform_engineer
   -> data_operator
   -> reviewer
@@ -28,7 +27,6 @@ router
 - `qa_engineer`
 - `build_engineer`
 - `data_operator`
-- `scheduler_engineer`
 - `platform_engineer`
 - `reviewer`
 

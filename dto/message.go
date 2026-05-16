@@ -10,7 +10,7 @@ type MessageSendMeta struct {
 	DepartmentFullPath string `json:"department_full_path"` // 请求用户所属部门路径
 	FullCodePath       string `json:"full_code_path"`       // 来源目录/函数路径，如 /luobei/example/inventory/stock_in
 	TraceID            string `json:"trace_id"`             // 链路追踪 ID
-	ClientSource       string `json:"client_source"`        // 入口来源，如 browser、agent、scheduled_task
+	ClientSource       string `json:"client_source"`        // 入口来源，如 browser、agent、api
 	SourceType         string `json:"source_type,omitempty"`
 	SourceRef          string `json:"source_ref,omitempty"`
 }

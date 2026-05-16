@@ -190,7 +190,7 @@ type SearchResourcesReq struct {
 	User         string `json:"user" form:"user"`                        // 用户名（可选，用于过滤应用）
 	App          string `json:"app" form:"app"`                          // 应用名（可选，用于过滤应用）
 	Keyword      string `json:"keyword" form:"keyword"`                  // 搜索关键词
-	ResourceType string `json:"resource_type" form:"resource_type"`      // 资源类型：all/package/function/docs/board
+	ResourceType string `json:"resource_type" form:"resource_type"`      // 资源类型：all/package/function/docs
 	Page         int    `json:"page" form:"page" example:"1"`            // 页码
 	PageSize     int    `json:"page_size" form:"page_size" example:"20"` // 每页数量
 	CurrentUser  string `json:"-" form:"-"`                              // 当前登录用户（后端注入，用于默认可见范围）

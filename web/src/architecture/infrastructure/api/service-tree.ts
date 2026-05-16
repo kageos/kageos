@@ -105,31 +105,6 @@ export function deleteDocs(id: number) {
   return del(`/workspace/api/v1/docs/crud/${id}`)
 }
 
-// ⭐ 创建 board 类型节点（版块/讨论区）
-export function createBoard(data: CreateServiceTreeRequest) {
-  const payload = {
-    user: data.user,
-    app: data.app,
-    name: data.name,
-    code: data.code,
-    parent_full_code_path: data.parent_full_code_path || '',
-    description: data.description || '',
-    tags: data.tags || '',
-    admins: data.admins || ''
-  }
-  return post<ServiceTree>('/workspace/api/v1/boards/crud', payload)
-}
-
-// ⭐ 更新 board 类型节点
-export function updateBoard(id: number, data: { name?: string; description?: string; tags?: string; admins?: string }) {
-  return put(`/workspace/api/v1/boards/crud/${id}`, data)
-}
-
-// ⭐ 删除 board 类型节点（会先删除该版块下全部帖子）
-export function deleteBoard(id: number) {
-  return del(`/workspace/api/v1/boards/crud/${id}`)
-}
-
 export interface ServiceTreeDetailResp extends ServiceTree {
   version?: string
   version_num?: number
@@ -228,7 +203,7 @@ export function searchFunctions(req: SearchFunctionsReq) {
 }
 
 // 全站资源搜索
-export type SearchResourceType = 'all' | 'package' | 'function' | 'docs' | 'board'
+export type SearchResourceType = 'all' | 'package' | 'function' | 'docs'
 
 export interface SearchResourcesReq {
   user?: string
@@ -243,7 +218,7 @@ export interface ResourceSearchResult {
   id: number
   name: string
   code: string
-  type: 'package' | 'function' | 'docs' | 'board'
+  type: 'package' | 'function' | 'docs'
   full_code_path: string
   description?: string
   tags?: string

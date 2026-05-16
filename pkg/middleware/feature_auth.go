@@ -22,9 +22,9 @@ import (
 //	operateLog.Use(middleware.RequireFeature(enterprise.FeatureOperateLog))
 //
 // 说明：
-//   - 替代原有的 OperateLogAuth()、OrganizationAuth() 等中间件
+//   - 替代原有的单功能鉴权中间件
 //   - 统一错误处理和日志记录
-//   - 支持所有企业版功能
+//   - 只保留已有实现的企业功能位，避免 MVP 阶段暴露空能力
 func RequireFeature(feature string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 获取 License 管理器
@@ -51,26 +51,8 @@ func getFeatureDisplayName(feature string) string {
 	switch feature {
 	case enterprise.FeatureOperateLog:
 		return "操作日志"
-	case enterprise.FeatureOrganization:
-		return "组织架构"
 	case enterprise.FeaturePermission:
 		return "高级权限治理"
-	case enterprise.FeatureWorkflow:
-		return "工作流"
-	case enterprise.FeatureApproval:
-		return "审批流程"
-	case enterprise.FeatureScheduledTask:
-		return "定时任务"
-	case enterprise.FeatureRecycleBin:
-		return "回收站"
-	case enterprise.FeatureChangeLog:
-		return "变更日志"
-	case enterprise.FeatureNotification:
-		return "通知中心"
-	case enterprise.FeatureConfigManagement:
-		return "配置管理"
-	case enterprise.FeatureQuickLink:
-		return "快链"
 	default:
 		return feature
 	}

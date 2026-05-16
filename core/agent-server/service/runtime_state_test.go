@@ -23,8 +23,8 @@ func TestInMemoryRuntimeStateStoreSummaryAggregatesToAncestors(t *testing.T) {
 		t.Fatalf("Upsert returned error: %v", err)
 	}
 	err = store.Upsert(context.Background(), dto.RuntimeStateItem{
-		Key:          "scheduled_agent_session:s2",
-		Kind:         RuntimeStateKindScheduledAgentSession,
+		Key:          "workspace_session:s2",
+		Kind:         RuntimeStateKindWorkspaceSession,
 		Status:       RuntimeStateStatusToolRunning,
 		FullCodePath: "/u/app/ticket/report",
 		StartedAt:    now,
@@ -40,8 +40,8 @@ func TestInMemoryRuntimeStateStoreSummaryAggregatesToAncestors(t *testing.T) {
 	}
 
 	root := summaries["/u/app"]
-	if root.RunningCount != 2 || root.ManualRunningCount != 1 || root.ScheduledRunningCount != 1 {
-		t.Fatalf("root summary = %+v, want running=2 manual=1 scheduled=1", root)
+	if root.RunningCount != 2 || root.ManualRunningCount != 2 {
+		t.Fatalf("root summary = %+v, want running=2 manual=2", root)
 	}
 	if root.BadgeText != "2" || root.BadgeTone != "tool" || root.DominantStatus != RuntimeStateStatusToolRunning {
 		t.Fatalf("root display summary = %+v, want badge_text=2 badge_tone=tool dominant=tool_running", root)
@@ -51,8 +51,8 @@ func TestInMemoryRuntimeStateStoreSummaryAggregatesToAncestors(t *testing.T) {
 		t.Fatalf("ticket summary = %+v, want thinking=1 tool_running=1", ticket)
 	}
 	report := summaries["/u/app/ticket/report"]
-	if report.RunningCount != 1 || report.ScheduledRunningCount != 1 {
-		t.Fatalf("report summary = %+v, want running=1 scheduled=1", report)
+	if report.RunningCount != 1 || report.ManualRunningCount != 1 {
+		t.Fatalf("report summary = %+v, want running=1 manual=1", report)
 	}
 }
 

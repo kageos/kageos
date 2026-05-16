@@ -1429,7 +1429,7 @@ func normalizeGuideDocPath(path string) string {
 
 func shouldSuggestExecuteGuide(toolName string) bool {
 	switch strings.TrimSpace(toolName) {
-	case "run_table_search", "run_table_create", "run_table_batch_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query", "run_on_select_fuzzy":
+	case "run_table_search", "run_table_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query", "run_on_select_fuzzy":
 		return true
 	default:
 		return false

@@ -34,20 +34,6 @@
         搜索
       </el-button>
 
-      <el-button
-        v-if="featureFlags.messages"
-        size="small"
-        class="header-message-button"
-        @click="openMessageDrawer"
-        title="消息中心"
-        data-testid="workspace-header-messages"
-      >
-        <el-badge :value="unreadCount" :hidden="unreadCount === 0" :max="99">
-          <el-icon><Bell /></el-icon>
-        </el-badge>
-        消息
-      </el-button>
-
       <el-dropdown
         @command="handleUserCommand"
         trigger="click"
@@ -90,19 +76,6 @@
                 <span class="user-menu-desc">模型、密钥与默认配置</span>
               </span>
             </el-dropdown-item>
-
-            <template v-if="featureFlags.organization">
-            <el-dropdown-item disabled class="user-dropdown-section-title user-dropdown-section-title--divided">管理</el-dropdown-item>
-            <el-dropdown-item v-if="featureFlags.organization" command="organization" class="user-dropdown-action">
-              <span class="user-menu-icon user-menu-icon--org">
-                <el-icon><OfficeBuilding /></el-icon>
-              </span>
-              <span class="user-menu-copy">
-                <span class="user-menu-title">组织架构和用户管理</span>
-                <span class="user-menu-desc">成员、部门与组织关系</span>
-              </span>
-            </el-dropdown-item>
-            </template>
 
             <template v-if="featureFlags.enterpriseUpgrade">
               <!-- 非企业版：升级企业版 -->
@@ -193,23 +166,6 @@
 
     <GlobalResourceSearchDialog v-model:visible="showGlobalSearchDialog" />
 
-    <el-drawer
-      v-model="showMessageDrawer"
-      direction="rtl"
-      size="min(1200px, 98vw)"
-      :with-header="false"
-      class="message-center-drawer"
-      append-to-body
-      destroy-on-close
-    >
-      <MessageInboxPanel
-        closable
-        :service-tree="serviceTree || []"
-        @close="showMessageDrawer = false"
-        @unread-count-change="unreadCount = $event"
-      />
-    </el-drawer>
-
     <!-- 升级企业版对话框 -->
     <UpgradeEnterpriseDialog
       v-model="showUpgradeDialog"
@@ -219,13 +175,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowDown,
-  Bell,
   Delete,
-  OfficeBuilding,
   UserFilled,
   Cpu,
   Promotion,
@@ -237,22 +191,20 @@ import {
   SwitchButton
 } from '@element-plus/icons-vue'
 import AppSwitcher from '@/architecture/presentation/shared/components/AppSwitcher.vue'
-import type { App, ServiceTree } from '@/architecture/domain/types'
+import type { App } from '@/architecture/domain/types'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore, useLicenseStore, useThemeStore } from '@/architecture/presentation/context/appStoresContext'
 import DebugDialog from './DebugDialog.vue'
 import GlobalResourceSearchDialog from './GlobalResourceSearchDialog.vue'
 import UpgradeEnterpriseDialog from '@/architecture/presentation/shared/components/UpgradeEnterpriseDialog.vue'
 import { Logger } from '@/architecture/shared/logger'
-import { getMessageUnreadCount } from '@/architecture/presentation/context/api/message'
-import MessageInboxPanel from '@/architecture/presentation/features/message/components/MessageInboxPanel.vue'
 import { featureFlags } from '@/architecture/shared/config/features'
 
 defineProps<{
   currentApp: App | null
   appList: App[]
   loadingApps: boolean
-  serviceTree?: ServiceTree[]
+  serviceTree?: unknown[]
 }>()
 
 defineEmits<{
@@ -299,9 +251,6 @@ const handleUserCommand = (command: string) => {
     case 'agent':
       router.push('/agent/llm')
       break
-    case 'organization':
-      router.push('/organization')
-      break
     case 'upgrade':
       showUpgradeDialog.value = true
       break
@@ -337,27 +286,6 @@ const isDevelopment = computed(() => {
 
 const showDebugDialog = ref(false)
 const showGlobalSearchDialog = ref(false)
-const showMessageDrawer = ref(false)
-const unreadCount = ref(0)
-let unreadTimer: ReturnType<typeof setInterval> | null = null
-
-const openMessageDrawer = () => {
-  if (!featureFlags.messages) return
-  showMessageDrawer.value = true
-}
-
-async function loadUnreadCount() {
-  if (!featureFlags.messages) {
-    unreadCount.value = 0
-    return
-  }
-  try {
-    const resp = await getMessageUnreadCount()
-    unreadCount.value = resp.unread_count || 0
-  } catch (error) {
-    Logger.warn('[WorkspaceHeader]', '获取未读消息数失败', { error })
-  }
-}
 
 // 升级企业版对话框
 const showUpgradeDialog = ref(false)
@@ -409,19 +337,6 @@ onMounted(async () => {
     licenseStore.startPeriodicCheck()
   }
 
-  if (featureFlags.messages) {
-    void loadUnreadCount()
-    unreadTimer = setInterval(() => {
-      void loadUnreadCount()
-    }, 60000)
-  }
-})
-
-onUnmounted(() => {
-  if (unreadTimer) {
-    clearInterval(unreadTimer)
-    unreadTimer = null
-  }
 })
 
 const appSwitcherRef = ref<InstanceType<typeof AppSwitcher> | null>(null)
@@ -724,11 +639,6 @@ defineExpose({
   color: #0284c7;
 }
 
-.user-menu-icon--org {
-  background: rgba(16, 185, 129, 0.12);
-  color: #059669;
-}
-
 .user-menu-icon--role {
   background: rgba(99, 102, 241, 0.12);
   color: #4f46e5;
@@ -814,8 +724,7 @@ defineExpose({
   box-shadow: 0 14px 32px rgba(var(--el-color-primary-rgb), 0.22);
 }
 
-.header-search-button,
-.header-message-button {
+.header-search-button {
   height: 40px;
   padding: 0 14px;
   border-radius: 12px;
@@ -834,47 +743,6 @@ defineExpose({
     border-color: var(--el-color-primary-light-5);
     background: var(--el-color-primary-light-9);
   }
-}
-
-.header-message-button {
-  :deep(.el-badge) {
-    display: inline-flex;
-    margin-right: 4px;
-  }
-
-  :deep(.el-badge__content) {
-    transform: translate(50%, -35%);
-  }
-
-  &:hover {
-    color: #0284c7;
-    border-color: rgba(14, 165, 233, 0.32);
-    background: rgba(14, 165, 233, 0.1);
-  }
-}
-
-:global(.message-center-drawer.el-drawer) {
-  border-radius: 18px 0 0 18px;
-  border-left: 1px solid rgba(54, 244, 255, 0.22);
-  background:
-    radial-gradient(circle at 12% 0%, rgba(54, 244, 255, 0.16), transparent 34%),
-    linear-gradient(145deg, rgba(3, 10, 18, 0.98), rgba(6, 19, 31, 0.96));
-  box-shadow: -24px 0 76px rgba(0, 0, 0, 0.44), 0 0 42px rgba(54, 244, 255, 0.1);
-  backdrop-filter: blur(24px) saturate(1.15);
-  overflow: hidden;
-}
-
-:global(html.dark .message-center-drawer.el-drawer) {
-  border-left-color: rgba(54, 244, 255, 0.22);
-  background:
-    radial-gradient(circle at 12% 0%, rgba(54, 244, 255, 0.16), transparent 34%),
-    linear-gradient(145deg, rgba(3, 10, 18, 0.98), rgba(6, 19, 31, 0.96));
-  box-shadow: -24px 0 76px rgba(0, 0, 0, 0.44), 0 0 42px rgba(54, 244, 255, 0.1);
-}
-
-:global(.message-center-drawer .el-drawer__body) {
-  height: 100%;
-  padding: 0;
 }
 
 @media (max-width: 760px) {

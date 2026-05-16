@@ -15,7 +15,7 @@ import (
 
 // FileCache 文件缓存管理器
 // 通过 hash 实现文件去重，避免重复下载相同文件。
-// 磁盘文件不在此处删除，由 app-runtime 定时任务在宿主机清空 file-cache/output。
+// 磁盘文件不在此处删除，由 app-runtime 周期清理在宿主机清空 file-cache/output。
 type FileCache struct {
 	mu         sync.RWMutex
 	cacheDir   string            // 缓存目录：/app/workplace/file-cache

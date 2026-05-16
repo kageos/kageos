@@ -26,9 +26,6 @@ func (s *WorkspaceChatService) startWorkspaceRuntimeState(
 	sourceType := strings.TrimSpace(contextx.GetSourceType(ctx))
 	sourceRef := strings.TrimSpace(contextx.GetSourceRef(ctx))
 	kind := RuntimeStateKindWorkspaceSession
-	if sourceType == ScheduledAgentSourceType {
-		kind = RuntimeStateKindScheduledAgentSession
-	}
 	key := kind + ":" + session.SessionID
 	now := time.Now()
 	item := dto.RuntimeStateItem{
@@ -124,9 +121,7 @@ func (s *WorkspaceChatService) deleteWorkspaceRuntimeState(ctx context.Context, 
 	if s.runtimeState == nil || strings.TrimSpace(sessionID) == "" {
 		return
 	}
-	for _, kind := range []string{RuntimeStateKindWorkspaceSession, RuntimeStateKindScheduledAgentSession} {
-		if err := s.runtimeState.Delete(ctx, kind+":"+sessionID); err != nil {
-			logger.Warnf(ctx, "[RuntimeState] delete cancelled workspace state failed: %v", err)
-		}
+	if err := s.runtimeState.Delete(ctx, RuntimeStateKindWorkspaceSession+":"+sessionID); err != nil {
+		logger.Warnf(ctx, "[RuntimeState] delete cancelled workspace state failed: %v", err)
 	}
 }

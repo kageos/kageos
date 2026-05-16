@@ -13,14 +13,12 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/pkg/appcall"
-	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/dbx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
 	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/scheduledsdk"
 	"github.com/ai-agent-os/ai-agent-os/pkg/serverx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/waiter"
 	"github.com/gin-gonic/gin"
@@ -34,23 +32,19 @@ type Server struct {
 	cfg *config.AppServerConfig
 
 	// 核心组件
-	db              *gorm.DB
-	scheduledTaskDB *gorm.DB
-	natsConn        *nats.Conn
-	httpServer      *gin.Engine
+	db         *gorm.DB
+	natsConn   *nats.Conn
+	httpServer *gin.Engine
 
 	// 服务
 	appService                    *service.AppService
-	jwtService                    *auth.JWTService
 	appCall                       *appcall.Client // 调用 app-runtime 的 SDK 客户端（替代原 AppRuntime）
 	serviceTreeService            *service.ServiceTreeService
 	functionService               *service.FunctionService
 	docService                    *service.DocService
-	boardService                  *service.BoardService // 版块/帖子服务
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
-	permissionService             *service.PermissionService    // ⭐ 权限管理服务
-	scheduledTaskService          *service.ScheduledTaskService // 定时任务服务
-	appRepo                       *repository.AppRepository     // ⭐ 应用仓储（用于其他服务）
+	permissionService             *service.PermissionService // ⭐ 权限管理服务
+	appRepo                       *repository.AppRepository  // ⭐ 应用仓储（用于其他服务）
 
 	// 上游服务
 	natsConnPool *service.NATSConnPool
@@ -62,10 +56,7 @@ type Server struct {
 	operateLogger enterprise.OperateLogger
 
 	// License Client
-	licenseClient   *license.Client
-	schedulerCancel context.CancelFunc
-	schedulerDone   chan struct{}
-	timerWorker     *scheduledsdk.Worker
+	licenseClient *license.Client
 }
 
 func newBaseServer(cfg *config.AppServerConfig) *Server {
@@ -141,11 +132,6 @@ func (s *Server) Start(ctx context.Context) error {
 	if err := s.StartHTTP(ctx); err != nil {
 		return err
 	}
-	if s.scheduledTaskService != nil {
-		if err := s.StartTimerWorker(ctx); err != nil {
-			return err
-		}
-	}
 
 	logger.Infof(ctx, "[Server] App-server started successfully")
 	logger.Infof(ctx, "[Server] NATS subscriptions are active")
@@ -167,61 +153,9 @@ func (s *Server) StartHTTP(ctx context.Context) error {
 	return nil
 }
 
-func (s *Server) StartTimerWorker(ctx context.Context) error {
-	if s.scheduledTaskService == nil {
-		return fmt.Errorf("scheduled task service is not initialized")
-	}
-	if s.schedulerDone != nil {
-		return fmt.Errorf("scheduled task scheduler is already running")
-	}
-	runCtx, cancel := context.WithCancel(ctx)
-	worker, err := scheduledsdk.NewWorker(scheduledsdk.WorkerOptions{
-		Client:      scheduledsdk.NewClient(scheduledsdk.Options{BaseURL: config.GetGlobalSharedConfig().TimerScheduler.GetBaseURL()}),
-		NATSConn:    s.natsConn,
-		ExecutorKey: "app.function",
-		WorkerID:    "app-server",
-		Handler:     s.scheduledTaskService.HandleTimerExecution,
-		OnError: func(ctx context.Context, err error) {
-			logger.Errorf(ctx, "[Server] Scheduled task timer worker error: %v", err)
-		},
-	})
-	if err != nil {
-		cancel()
-		return fmt.Errorf("create scheduled task timer worker: %w", err)
-	}
-	if err := worker.Start(runCtx); err != nil {
-		cancel()
-		return fmt.Errorf("start scheduled task timer worker: %w", err)
-	}
-	s.timerWorker = worker
-	s.schedulerCancel = cancel
-	s.schedulerDone = make(chan struct{})
-	go func() {
-		defer close(s.schedulerDone)
-		logger.Infof(runCtx, "[Server] Scheduled task timer worker started")
-		<-runCtx.Done()
-		if s.timerWorker != nil {
-			_ = s.timerWorker.Stop()
-		}
-	}()
-	logger.Infof(ctx, "[Server] Scheduled task scheduler started")
-	return nil
-}
-
 // Stop 停止服务器（优雅关闭）
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping server...")
-
-	if s.schedulerCancel != nil {
-		s.schedulerCancel()
-		s.schedulerCancel = nil
-	}
-	if s.schedulerDone != nil {
-		logger.Infof(ctx, "[Server] Waiting scheduled task scheduler to stop...")
-		<-s.schedulerDone
-		s.schedulerDone = nil
-		logger.Infof(ctx, "[Server] Scheduled task scheduler stopped")
-	}
 
 	// 关闭 appcall 客户端（取消 NATS 订阅）
 	if s.appCall != nil {
@@ -251,13 +185,6 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 
 	// 关闭数据库连接
-	if s.scheduledTaskDB != nil {
-		sqlDB, err := s.scheduledTaskDB.DB()
-		if err == nil {
-			sqlDB.Close()
-			logger.Infof(ctx, "[Server] Scheduled task database connection closed")
-		}
-	}
 	if s.db != nil {
 		sqlDB, err := s.db.DB()
 		if err == nil {
@@ -364,27 +291,6 @@ func (s *Server) initDatabase(ctx context.Context) error {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
 
-	scheduledTaskDBCfg := s.cfg.GetScheduledTaskDB()
-	if scheduledTaskDBCfg.Type != "mysql" {
-		return fmt.Errorf("unsupported scheduled task database type: %s", scheduledTaskDBCfg.Type)
-	}
-	if scheduledTaskDBCfg.Name != dbCfg.Name {
-		if err := dbx.EnsureMySQLDatabase(scheduledTaskDBCfg); err != nil {
-			logger.Warnf(ctx, "[Server] Ensure scheduled task database failed: name=%s err=%v", scheduledTaskDBCfg.Name, err)
-		}
-	}
-	scheduledTaskDB, err := dbx.OpenMySQL(scheduledTaskDBCfg, dbx.OpenOptions{
-		DisableForeignKeyConstraintWhenMigrating: true,
-		DefaultMaxLifetime:                       5 * time.Minute,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to connect to scheduled task MySQL: %w", err)
-	}
-	s.scheduledTaskDB = scheduledTaskDB
-	if err := model.InitScheduledTaskTables(s.scheduledTaskDB); err != nil {
-		return fmt.Errorf("failed to migrate scheduled task database: %w", err)
-	}
-
 	logger.Infof(ctx, "[Server] Database initialized successfully")
 	return nil
 }
@@ -438,9 +344,6 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// ⭐ 邮件服务已迁移到 hr-server，不再需要初始化
 
-	// 初始化 JWT 服务
-	s.jwtService = auth.NewJWTService()
-
 	// 初始化权限查询适配器（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
 	s.permissionService = service.NewPermissionService()
 
@@ -448,13 +351,9 @@ func (s *Server) initServices(ctx context.Context) error {
 	docRepo := repository.NewDocRepository(s.db)
 	s.docService = service.NewDocService(docRepo, serviceTreeRepo, appRepo)
 
-	// 初始化版块帖子仓储与服务（删版块时需先删帖子，故 ServiceTreeService 依赖 boardPostRepo）
-	boardPostRepo := repository.NewBoardPostRepository(s.db)
-	s.boardService = service.NewBoardService(boardPostRepo, serviceTreeRepo)
-
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中
-	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.permissionService, s.docService, boardPostRepo)
+	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.permissionService, s.docService)
 
 	// 初始化函数服务
 	s.functionService = service.NewFunctionService(functionRepo, appRepo)
@@ -463,16 +362,6 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化目录更新历史服务
 	s.directoryUpdateHistoryService = service.NewDirectoryUpdateHistoryService(directoryUpdateHistoryRepo, serviceTreeRepo)
-
-	// 定时任务服务（注入 JWT 以便执行时按“请求用户”生成 Token 注入 context）
-	scheduledTaskRepo := repository.NewScheduledTaskRepository(s.scheduledTaskDB)
-	scheduledTaskExecutionRepo := repository.NewScheduledTaskExecutionRepository(s.scheduledTaskDB)
-	s.scheduledTaskService = service.NewScheduledTaskService(s.appService, s.jwtService, scheduledTaskRepo, scheduledTaskExecutionRepo, service.ScheduledTaskServiceOptions{
-		MaxConcurrency:      s.cfg.GetTimerWorkerMaxConcurrency(),
-		MessagePublisher:    service.NewNATSMessagePublisher(s.natsConn),
-		NotificationBaseURL: config.GetGlobalSharedConfig().Gateway.GetBaseURL(),
-		TimerClient:         scheduledsdk.NewClient(scheduledsdk.Options{BaseURL: config.GetGlobalSharedConfig().TimerScheduler.GetBaseURL()}),
-	})
 
 	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
 	// 注意：这里先不初始化，等 initEnterprise 之后再初始化

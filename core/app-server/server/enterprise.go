@@ -65,30 +65,5 @@ func (s *Server) initEnterprise() error {
 		logger.Infof(ctx, "[Enterprise] Permission implementation initialized, feature currently disabled by license")
 	}
 
-	// 后续可以添加更多功能的初始化，例如：
-	// if licenseMgr.HasFeature(enterprise.FeatureWorkflow) {
-	//     // 初始化工作流功能
-	// }
-
-	return nil
-}
-
-// initSchedulerEnterprise 初始化调度器需要的企业功能。
-// scheduler 仅负责执行与投递，不需要权限服务与 HTTP 查询能力。
-func (s *Server) initSchedulerEnterprise() error {
-	ctx := s.ctx
-	licenseMgr := s.logEnterpriseLicenseStatus()
-
-	logger.Infof(ctx, "[Enterprise] Initializing scheduler operate log implementation...")
-	if err := enterprise.InitOperateLogger(&enterprise.InitOptions{DB: s.db}); err != nil {
-		return err
-	}
-	s.operateLogger = enterprise.GetOperateLogger()
-	if licenseMgr.HasFeature(enterprise.FeatureOperateLog) {
-		logger.Infof(ctx, "[Enterprise] Scheduler operate log feature initialized and enabled")
-	} else {
-		logger.Infof(ctx, "[Enterprise] Scheduler operate log implementation initialized, feature currently disabled by license")
-	}
-
 	return nil
 }

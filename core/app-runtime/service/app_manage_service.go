@@ -80,7 +80,7 @@ type AppManageService struct {
 	closeWaiters   map[string]chan *CloseNotification // key: user/app/version
 	closeWaitersMu sync.RWMutex
 
-	// 定时任务控制（进程级+容器级合并为一次完整清理，由 cron + 有变动时触发）
+	// 周期清理控制（进程级+容器级合并为一次完整清理，由 cron + 有变动时触发）
 	cleanupDone chan struct{}
 
 	// 容器级对账巡检控制（cron 低峰期执行 + 有变动时由 ticker 触发）

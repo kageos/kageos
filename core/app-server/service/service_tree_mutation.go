@@ -34,14 +34,6 @@ func (s *ServiceTreeService) DeleteDocs(ctx context.Context, id int64) error {
 	return s.mutationService.DeleteDocs(ctx, id)
 }
 
-func (s *ServiceTreeService) UpdateBoard(ctx context.Context, req *dto.UpdateBoardReq) error {
-	return s.mutationService.UpdateBoard(ctx, req)
-}
-
-func (s *ServiceTreeService) DeleteBoard(ctx context.Context, id int64) error {
-	return s.mutationService.DeleteBoard(ctx, id)
-}
-
 func (s *ServiceTreeService) DeleteServiceTree(ctx context.Context, id int64) error {
 	return s.mutationService.DeleteServiceTree(ctx, id)
 }

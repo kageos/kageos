@@ -1,6 +1,6 @@
 <!--
-  NodeDescPanel - 板块/节点说明面板
-  用于讨论区、文档、目录等节点，展示「这个板块是干嘛的」：名称、描述、路径等
+  NodeDescPanel - 节点说明面板
+  用于文档、目录等节点，展示名称、描述、路径等
 -->
 <template>
   <div class="node-desc-container">
@@ -10,7 +10,7 @@
     </div>
 
     <div v-if="node?.description" class="node-desc-section">
-      <h3>板块说明</h3>
+      <h3>节点说明</h3>
       <p class="node-description">{{ node.description }}</p>
     </div>
 
@@ -35,7 +35,7 @@
     </div>
 
     <div v-if="!node?.description && !node?.full_code_path && !(node?.tags && node.tags.trim())" class="node-desc-empty">
-      <el-text type="info">暂无板块说明，可在服务树中编辑该节点补充描述。</el-text>
+      <el-text type="info">暂无节点说明，可在服务树中编辑该节点补充描述。</el-text>
     </div>
   </div>
 </template>
@@ -52,7 +52,6 @@ const props = defineProps<Props>()
 
 const typeLabel = computed(() => {
   const t = props.node?.type
-  if (t === 'board') return '讨论区'
   if (t === 'docs') return '文档'
   if (t === 'package') return '目录'
   return '节点'

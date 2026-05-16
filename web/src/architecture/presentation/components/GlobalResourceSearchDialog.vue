@@ -19,7 +19,7 @@
         <div class="global-search-copy">
           <div class="global-search-kicker">RESOURCE RADAR</div>
           <div class="global-search-title">全站资源搜索</div>
-          <div class="global-search-subtitle">搜索目录、函数、文档和讨论区，图标与目录树保持一致</div>
+          <div class="global-search-subtitle">搜索目录、函数和文档，图标与目录树保持一致</div>
         </div>
       </div>
     </template>
@@ -160,8 +160,7 @@ const resourceTabs: Array<{ label: string; value: SearchResourceType }> = [
   { label: '全部', value: 'all' },
   { label: '目录', value: 'package' },
   { label: '函数', value: 'function' },
-  { label: '文档', value: 'docs' },
-  { label: '讨论区', value: 'board' }
+  { label: '文档', value: 'docs' }
 ]
 
 function handleOpened() {
@@ -225,7 +224,6 @@ function getTypeLabel(item: ResourceSearchResult) {
     return '函数'
   }
   if (item.type === 'docs') return '文档'
-  if (item.type === 'board') return '讨论区'
   return item.type
 }
 
@@ -242,7 +240,6 @@ function formatHeatCount(count: number) {
 function getAssetIcon(item: ResourceSearchResult): string | null {
   if (item.type === 'package') return '/service-tree/custom-folder.svg'
   if (item.type === 'docs') return '/文档.svg'
-  if (item.type === 'board') return '/讨论区.svg'
   if (item.type === 'function' && item.template_type === 'form') return '/service-tree/编辑.svg'
   return null
 }
@@ -622,11 +619,6 @@ watch(dialogVisible, (visible) => {
   &.type-docs {
     background: rgba(59, 130, 246, 0.13);
     color: #72a8ff;
-  }
-
-  &.type-board {
-    background: rgba(255, 209, 102, 0.13);
-    color: var(--radar-amber);
   }
 
   .el-icon {

@@ -179,7 +179,7 @@ CREATE TABLE storage_usage (
 );
 ```
 
-定时任务：
+后台统计任务：
 
 ```go
 func RecordStorageUsage() {
@@ -262,4 +262,3 @@ func ListFilesWithPagination(ctx context.Context, router string, marker string, 
 ✅ **扩展性强**：便于后续实现权限控制和成本分摊  
 
 这种设计是企业级 SaaS 系统的标准做法，既满足了多租户隔离的安全需求，又便于运营和管理。
-

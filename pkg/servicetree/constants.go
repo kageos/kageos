@@ -4,7 +4,6 @@ const (
 	TypePackage  = "package"
 	TypeFunction = "function"
 	TypeDocs     = "docs"
-	TypeBoard    = "board"
 )
 
 const (

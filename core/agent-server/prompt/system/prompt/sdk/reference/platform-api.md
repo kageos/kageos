@@ -52,7 +52,7 @@ err := ctx.SendMessage(&app.SendMessageOpts{
 
 `/system/openapi` 是官方平台接口工作空间。新增平台接口包装函数时：
 
-1. 按平台领域建目录，如 `message`、`permission`、`scheduled_task`。
+1. 按平台领域建目录，如 `permission`。
 2. 每个目录自己隔离 helper，不建公共 utils 目录。
 3. 只通过 `ctx.APICall` 调平台 Web API。
 4. 副作用接口要在当前身份文档包中明确确认和审计要求。

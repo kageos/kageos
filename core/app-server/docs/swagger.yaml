@@ -101,7 +101,7 @@ definitions:
       router:
         type: string
       schema:
-        $ref: '#/definitions/functionschema.FunctionSchema'
+        $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_pkg_functionschema.FunctionSchema'
       tags:
         items:
           type: string
@@ -440,59 +440,6 @@ definitions:
         example: beiluo
         type: string
     type: object
-  dto.CreateBoardReq:
-    properties:
-      admins:
-        type: string
-      app:
-        example: myapp
-        type: string
-      code:
-        example: board1
-        type: string
-      description:
-        type: string
-      name:
-        example: 讨论区
-        type: string
-      parent_full_code_path:
-        description: 父目录完整路径
-        example: /beiluo/myapp
-        type: string
-      tags:
-        type: string
-      user:
-        example: beiluo
-        type: string
-    required:
-    - app
-    - code
-    - name
-    - user
-    type: object
-  dto.CreateBoardResp:
-    properties:
-      admins:
-        type: string
-      app_id:
-        type: integer
-      code:
-        type: string
-      description:
-        type: string
-      full_code_path:
-        description: 完整代码路径（父路径可由此推导）
-        type: string
-      id:
-        type: integer
-      name:
-        type: string
-      tags:
-        type: string
-      type:
-        description: '"board"'
-        type: string
-    type: object
   dto.CreateDepartmentReq:
     properties:
       code:
@@ -523,7 +470,7 @@ definitions:
     properties:
       department:
         allOf:
-        - $ref: '#/definitions/model.Department'
+        - $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_core_hr-server_model.Department'
         description: 部门信息
     type: object
   dto.CreateDocsReq:
@@ -807,34 +754,6 @@ definitions:
         example: 1
         type: integer
     type: object
-  dto.CreatePostReq:
-    properties:
-      content:
-        description: 正文（富文本）
-        type: string
-      content_format:
-        description: markdown / html，默认 markdown
-        type: string
-      cover:
-        description: 封面图 URL 数组（可多图）
-        items:
-          type: string
-        type: array
-      full_code_path:
-        description: 版块完整路径
-        type: string
-      status:
-        description: draft / published，默认 published
-        type: string
-      summary:
-        description: 摘要，列表展示；可选，为空时从正文截取
-        type: string
-      title:
-        type: string
-    required:
-    - full_code_path
-    - title
-    type: object
   dto.CreateUserBySecretReq:
     properties:
       password:
@@ -1060,7 +979,7 @@ definitions:
         type: integer
       schema:
         allOf:
-        - $ref: '#/definitions/functionschema.FunctionSchema'
+        - $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_pkg_functionschema.FunctionSchema'
         description: 函数 schema 摘要
       template_type:
         description: 模板类型（form、table、chart）
@@ -1175,7 +1094,7 @@ definitions:
     properties:
       department:
         allOf:
-        - $ref: '#/definitions/model.Department'
+        - $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_core_hr-server_model.Department'
         description: 部门信息
     type: object
   dto.GetDepartmentTreeResp:
@@ -1183,7 +1102,7 @@ definitions:
       departments:
         description: 部门树
         items:
-          $ref: '#/definitions/model.Department'
+          $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_core_hr-server_model.Department'
         type: array
     type: object
   dto.GetDepartmentsByPathsResp:
@@ -1191,7 +1110,7 @@ definitions:
       departments:
         description: 部门列表
         items:
-          $ref: '#/definitions/model.Department'
+          $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_core_hr-server_model.Department'
         type: array
     type: object
   dto.GetDirectoryUpdateHistoryResp:
@@ -1283,7 +1202,7 @@ definitions:
         type: string
       schema:
         allOf:
-        - $ref: '#/definitions/functionschema.FunctionSchema'
+        - $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_pkg_functionschema.FunctionSchema'
         description: 函数配置 schema
       template_type:
         description: 模板类型（form、table、chart）
@@ -1296,35 +1215,6 @@ definitions:
       updated_at:
         description: 更新时间
         example: "2024-01-01T00:00:00Z"
-        type: string
-    type: object
-  dto.GetPostResp:
-    properties:
-      author:
-        type: string
-      content:
-        type: string
-      content_format:
-        type: string
-      cover:
-        items:
-          type: string
-        type: array
-      created_at:
-        type: string
-      full_code_path:
-        type: string
-      id:
-        type: integer
-      status:
-        type: string
-      summary:
-        type: string
-      title:
-        type: string
-      tree_id:
-        type: integer
-      updated_at:
         type: string
     type: object
   dto.GetServiceTreeDetailResp:
@@ -1932,15 +1822,6 @@ definitions:
       router:
         type: string
     type: object
-  dto.ListPostsResp:
-    properties:
-      list:
-        items:
-          $ref: '#/definitions/dto.PostItem'
-        type: array
-      total:
-        type: integer
-    type: object
   dto.LoginReq:
     properties:
       password:
@@ -2017,31 +1898,6 @@ definitions:
       total_pages:
         description: 总页数
         type: integer
-    type: object
-  dto.PostItem:
-    properties:
-      author:
-        type: string
-      cover:
-        description: 封面图 URL 数组，列表展示
-        items:
-          type: string
-        type: array
-      created_at:
-        type: string
-      id:
-        type: integer
-      status:
-        type: string
-      summary:
-        description: 摘要，列表展示
-        type: string
-      title:
-        type: string
-      tree_id:
-        type: integer
-      updated_at:
-        type: string
     type: object
   dto.QueryUserResp:
     properties:
@@ -2330,20 +2186,6 @@ definitions:
           type: string
         type: array
     type: object
-  dto.UpdateBoardReq:
-    properties:
-      admins:
-        type: string
-      description:
-        type: string
-      id:
-        description: 由 path 提供，body 可不传
-        type: integer
-      name:
-        type: string
-      tags:
-        type: string
-    type: object
   dto.UpdateDepartmentReq:
     properties:
       description:
@@ -2371,7 +2213,7 @@ definitions:
     properties:
       department:
         allOf:
-        - $ref: '#/definitions/model.Department'
+        - $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_core_hr-server_model.Department'
         description: 部门信息
     type: object
   dto.UpdateDocReq:
@@ -2500,26 +2342,6 @@ definitions:
       tags:
         description: 标签（指针类型，nil=不更新，""=清空）
         example: user,management
-        type: string
-    type: object
-  dto.UpdatePostReq:
-    properties:
-      content:
-        type: string
-      content_format:
-        type: string
-      cover:
-        items:
-          type: string
-        type: array
-      id:
-        description: 由 path 提供，body 可不传
-        type: integer
-      status:
-        type: string
-      summary:
-        type: string
-      title:
         type: string
     type: object
   dto.UpdateUserReq:
@@ -2767,97 +2589,36 @@ definitions:
         example: beiluo
         type: string
     type: object
-  functionschema.ChartSchema:
+  github_com_ai-agent-os_ai-agent-os_core_control-service_service.LicenseStatus:
     properties:
-      request:
-        items:
-          $ref: '#/definitions/widget.Field'
-        type: array
-      response:
-        items:
-          $ref: '#/definitions/widget.Field'
-        type: array
-    type: object
-  functionschema.FormSchema:
-    properties:
-      request:
-        items:
-          $ref: '#/definitions/widget.Field'
-        type: array
-      response:
-        items:
-          $ref: '#/definitions/widget.Field'
-        type: array
-    type: object
-  functionschema.FunctionSchema:
-    properties:
-      callbacks:
-        items:
-          type: string
-        type: array
-      chart:
-        $ref: '#/definitions/functionschema.ChartSchema'
-      form:
-        $ref: '#/definitions/functionschema.FormSchema'
-      table:
-        $ref: '#/definitions/functionschema.TableSchema'
-      type:
+      customer:
+        description: 客户名称（可选）
         type: string
-      version:
-        type: integer
-    type: object
-  functionschema.TableSchema:
-    properties:
-      fields:
-        items:
-          $ref: '#/definitions/widget.Field'
-        type: array
-      request:
-        items:
-          $ref: '#/definitions/widget.Field'
-        type: array
-    type: object
-  license.Features:
-    properties:
-      approval:
-        description: 审批流程
+      description:
+        description: License 描述（可选）
+        type: string
+      edition:
+        description: 版本类型：community, enterprise
+        type: string
+      expires_at:
+        description: 过期时间（可选）
+        type: string
+      features:
+        allOf:
+        - $ref: '#/definitions/license.Features'
+        description: 功能开关（可选）
+      is_community:
+        description: 是否为社区版
         type: boolean
-      change_log:
-        description: 变更日志
-        type: boolean
-      config_management:
-        description: 配置管理
-        type: boolean
-      notification:
-        description: 通知中心
-        type: boolean
-      operate_log:
-        description: 操作日志
-        type: boolean
-      organization:
-        description: 组织架构
-        type: boolean
-      permission:
-        description: 高级权限治理
-        type: boolean
-      quick_link:
-        description: 快链
-        type: boolean
-      recycle_bin:
-        description: 回收站
-        type: boolean
-      scheduled_task:
-        description: 定时任务
-        type: boolean
-      workflow:
-        description: 工作流
+      is_valid:
+        description: License 是否有效
         type: boolean
     type: object
-  model.Department:
+  github_com_ai-agent-os_ai-agent-os_core_hr-server_model.Department:
     properties:
       children:
         items:
-          $ref: '#/definitions/model.Department'
+          $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_core_hr-server_model.Department'
         type: array
       code:
         type: string
@@ -2883,7 +2644,7 @@ definitions:
         type: string
       parent:
         allOf:
-        - $ref: '#/definitions/model.Department'
+        - $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_core_hr-server_model.Department'
         description: 关联字段
       parent_id:
         type: integer
@@ -2896,29 +2657,130 @@ definitions:
       updated_by:
         type: string
     type: object
-  service.LicenseStatus:
+  github_com_ai-agent-os_ai-agent-os_pkg_functionschema.ChartSchema:
     properties:
-      customer:
-        description: 客户名称（可选）
+      request:
+        items:
+          $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.Field'
+        type: array
+      response:
+        items:
+          $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.Field'
+        type: array
+    type: object
+  github_com_ai-agent-os_ai-agent-os_pkg_functionschema.FormSchema:
+    properties:
+      request:
+        items:
+          $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.Field'
+        type: array
+      response:
+        items:
+          $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.Field'
+        type: array
+    type: object
+  github_com_ai-agent-os_ai-agent-os_pkg_functionschema.FunctionSchema:
+    properties:
+      callbacks:
+        items:
+          type: string
+        type: array
+      chart:
+        $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_pkg_functionschema.ChartSchema'
+      form:
+        $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_pkg_functionschema.FormSchema'
+      table:
+        $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_pkg_functionschema.TableSchema'
+      type:
         type: string
-      description:
-        description: License 描述（可选）
+      version:
+        type: integer
+    type: object
+  github_com_ai-agent-os_ai-agent-os_pkg_functionschema.TableSchema:
+    properties:
+      fields:
+        items:
+          $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.Field'
+        type: array
+      request:
+        items:
+          $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.Field'
+        type: array
+    type: object
+  github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.Field:
+    properties:
+      callbacks:
+        description: 字段级别的回调，如 ['OnSelectFuzzy']
+        items:
+          type: string
+        type: array
+      children:
+        description: 嵌套字段（用于 list/struct 类型）
+        items:
+          $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.Field'
+        type: array
+      code:
+        description: 从json标签里解析，必需字段
         type: string
-      edition:
-        description: 版本类型：community, professional, enterprise, flagship
-        type: string
-      expires_at:
-        description: 过期时间（可选）
-        type: string
-      features:
+      data:
         allOf:
-        - $ref: '#/definitions/license.Features'
-        description: 功能开关（可选）
-      is_community:
-        description: 是否为社区版
+        - $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.FieldData'
+        description: 字段数据类型信息
+      depend_on:
+        description: 依赖的字段 code，当依赖字段值变化时，该字段会被清空
+        type: string
+      desc:
+        description: 字段描述，用于 placeholder 等
+        type: string
+      field_name:
+        description: Go 字段名，用于验证规则中的字段引用（如 required_if=MemberType vip）
+        type: string
+      hide:
+        allOf:
+        - $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.FieldHide'
+        description: 前端隐藏场景；不配置表示列表/新增/编辑均展示，如 {"scenes":["create","update"]}
+      name:
+        description: 必需字段
+        type: string
+      validation:
+        description: 验证规则，完全照搬 github.com/go-playground/validator/v10
+        type: string
+      widget:
+        properties:
+          config:
+            description: 组件配置，可以为空
+          type:
+            description: 组件类型，必需
+            type: string
+        type: object
+    type: object
+  github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.FieldData:
+    properties:
+      example:
+        description: 示例数据，如 "10", "紧急" 等，方便前端展示示例
+        type: string
+      format:
+        description: 格式化类型，默认不格式化，特殊场景可格式化成 csv/markdown/json/yaml/html 等
+        type: string
+      type:
+        description: 数据类型（string/int/float/bool等），建议保留用于类型判断
+        type: string
+    type: object
+  github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.FieldHide:
+    properties:
+      scenes:
+        description: Scenes 控制前端在哪些界面隐藏字段：list=列表，create=新增表单，update=编辑表单。
+        items:
+          type: string
+        type: array
+    type: object
+  license.Features:
+    properties:
+      operate_log:
+        description: 操作日志
         type: boolean
-      is_valid:
-        description: License 是否有效
+      permission:
+        description: 高级权限治理
         type: boolean
     type: object
   v1.Service:
@@ -2946,73 +2808,6 @@ definitions:
       version:
         description: 版本
         type: string
-    type: object
-  widget.Field:
-    properties:
-      callbacks:
-        description: 字段级别的回调，如 ['OnSelectFuzzy']
-        items:
-          type: string
-        type: array
-      children:
-        description: 嵌套字段（用于 list/struct 类型）
-        items:
-          $ref: '#/definitions/widget.Field'
-        type: array
-      code:
-        description: 从json标签里解析，必需字段
-        type: string
-      data:
-        allOf:
-        - $ref: '#/definitions/widget.FieldData'
-        description: 字段数据类型信息
-      depend_on:
-        description: 依赖的字段 code，当依赖字段值变化时，该字段会被清空
-        type: string
-      desc:
-        description: 字段描述，用于 placeholder 等
-        type: string
-      field_name:
-        description: Go 字段名，用于验证规则中的字段引用（如 required_if=MemberType vip）
-        type: string
-      hide:
-        allOf:
-        - $ref: '#/definitions/widget.FieldHide'
-        description: 前端隐藏场景；不配置表示列表/新增/编辑均展示，如 {"scenes":["create","update"]}
-      name:
-        description: 必需字段
-        type: string
-      validation:
-        description: 验证规则，完全照搬 github.com/go-playground/validator/v10
-        type: string
-      widget:
-        properties:
-          config:
-            description: 组件配置，可以为空
-          type:
-            description: 组件类型，必需
-            type: string
-        type: object
-    type: object
-  widget.FieldData:
-    properties:
-      example:
-        description: 示例数据，如 "10", "紧急" 等，方便前端展示示例
-        type: string
-      format:
-        description: 格式化类型，默认不格式化，特殊场景可格式化成 csv/markdown/json/yaml/html 等
-        type: string
-      type:
-        description: 数据类型（string/int/float/bool等），建议保留用于类型判断
-        type: string
-    type: object
-  widget.FieldHide:
-    properties:
-      scenes:
-        description: Scenes 控制前端在哪些界面隐藏字段：list=列表，create=新增表单，update=编辑表单。
-        items:
-          type: string
-        type: array
     type: object
 externalDocs:
   description: OpenAPI
@@ -3280,7 +3075,7 @@ paths:
         "200":
           description: License状态
           schema:
-            $ref: '#/definitions/service.LicenseStatus'
+            $ref: '#/definitions/github_com_ai-agent-os_ai-agent-os_core_control-service_service.LicenseStatus'
         "500":
           description: 服务器内部错误
           schema:
@@ -4517,55 +4312,6 @@ paths:
       summary: 更新工作空间
       tags:
       - 应用管理
-  /workspace/api/v1/boards/crud:
-    post:
-      consumes:
-      - application/json
-      description: 创建 board 类型的讨论区节点
-      parameters:
-      - description: 创建版块请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.CreateBoardReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.CreateBoardResp'
-      security:
-      - ApiKeyAuth: []
-      summary: 创建版块
-      tags:
-      - 服务目录
-  /workspace/api/v1/boards/crud/{id}:
-    delete:
-      parameters:
-      - description: 版块ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      responses: {}
-      summary: 删除版块
-    put:
-      parameters:
-      - description: 版块ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: 更新版块请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdateBoardReq'
-      responses: {}
-      summary: 更新版块
   /workspace/api/v1/callback/on_select_fuzzy/{full-code-path}:
     post:
       consumes:
@@ -5310,7 +5056,7 @@ paths:
         in: query
         name: action
         type: string
-      - description: 来源：browser, scheduled_task, agent, api
+      - description: 来源：browser, agent, api
         in: query
         name: source
         type: string
@@ -5397,8 +5143,7 @@ paths:
         in: query
         name: row_id
         type: integer
-      - description: 操作类型：OnTableAddRow, OnTableCreateInBatches, OnTableUpdateRow,
-          OnTableDeleteRows
+      - description: 操作类型：OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows
         in: query
         name: action
         type: string
@@ -5544,87 +5289,6 @@ paths:
       summary: 更新目录
       tags:
       - 服务目录
-  /workspace/api/v1/posts:
-    get:
-      description: 按版块 full_code_path 分页获取帖子列表
-      parameters:
-      - description: 版块完整路径
-        in: query
-        name: full_code_path
-        required: true
-        type: string
-      - description: 页码
-        in: query
-        name: page
-        type: integer
-      - description: 每页条数
-        in: query
-        name: page_size
-        type: integer
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.ListPostsResp'
-      summary: 帖子列表
-      tags:
-      - 版块帖子
-    post:
-      parameters:
-      - description: 发帖请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.CreatePostReq'
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.GetPostResp'
-      summary: 发帖
-  /workspace/api/v1/posts/{id}:
-    delete:
-      parameters:
-      - description: 帖子ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      responses: {}
-      summary: 删除帖子
-    get:
-      parameters:
-      - description: 帖子ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.GetPostResp'
-      summary: 帖子详情
-    put:
-      parameters:
-      - description: 帖子ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: 更新请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdatePostReq'
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.GetPostResp'
-      summary: 更新帖子
   /workspace/api/v1/service_tree/add_functions:
     post:
       consumes:
@@ -5836,7 +5500,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: 根据关键词搜索目录、函数、文档和讨论区，支持分页
+      description: 根据关键词搜索目录、函数和文档，支持分页
       parameters:
       - description: JWT Token
         in: header
@@ -5855,7 +5519,7 @@ paths:
         in: query
         name: keyword
         type: string
-      - description: 资源类型（all/package/function/docs/board）
+      - description: 资源类型（all/package/function/docs）
         in: query
         name: resource_type
         type: string
@@ -5895,56 +5559,6 @@ paths:
       summary: 全站资源搜索
       tags:
       - 服务目录
-  /workspace/api/v1/table/batch-create/{full-code-path}:
-    post:
-      consumes:
-      - application/json
-      description: 批量导入表格记录（触发 OnTableCreateInBatches 回调）
-      parameters:
-      - description: JWT Token
-        in: header
-        name: X-Token
-        required: true
-        type: string
-      - description: 函数完整路径，如：/luobei/operations/tools/pdftools/to_images
-        in: path
-        name: full-code-path
-        required: true
-        type: string
-      - description: 批量导入数据，格式：{\
-        in: body
-        name: body
-        required: true
-        schema:
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 导入成功
-          schema:
-            $ref: '#/definitions/dto.RequestAppResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "401":
-          description: 未授权
-          schema:
-            type: string
-        "403":
-          description: 权限不足
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      security:
-      - ApiKeyAuth: []
-      summary: Table 批量导入
-      tags:
-      - 标准接口
   /workspace/api/v1/table/create/{full-code-path}:
     post:
       consumes:

@@ -34,6 +34,3 @@ sdk:
     LUA_PATH: "/usr/bin/lua"
     PYTHON_PATH: "/usr/bin/python3"
     PIP_PATH: "/usr/bin/pip3"
-
-timer_scheduler:
-  base_url: "http://127.0.0.1:9108/timer/api/v1"

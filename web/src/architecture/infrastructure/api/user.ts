@@ -63,25 +63,6 @@ export function getUsersByUsernames(usernames: string[]) {
   return post<GetUsersByUsernamesResp>('/hr/api/v1/users', { usernames })
 }
 
-// 分配用户组织架构
-export interface AssignUserReq {
-  username: string
-  department_full_path?: string | null // 部门完整路径，null 表示清空
-  leader_username?: string | null // Leader 用户名，null 表示清空
-}
-
-export interface AssignUserResp {
-  user: UserInfo
-}
-
-/**
- * 分配用户组织架构（更新用户的部门和 Leader）
- */
-export function assignUserOrganization(data: AssignUserReq) {
-  return post<AssignUserResp>('/hr/api/v1/user/assign', data)
-}
-
-
 // 根据部门获取用户列表
 export interface GetUsersByDepartmentReq {
   department_full_path: string
@@ -97,5 +78,4 @@ export interface GetUsersByDepartmentResp {
 export function getUsersByDepartment(departmentFullPath: string) {
   return get<GetUsersByDepartmentResp>('/hr/api/v1/user/department', { department_full_path: departmentFullPath })
 }
-
 

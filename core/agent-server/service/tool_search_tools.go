@@ -21,7 +21,7 @@ type searchToolsArgs struct {
 	Scope        string `json:"scope" schema_desc:"搜索范围：system=官方/system 函数（默认，兼容旧行为），visible=当前用户可见函数，current_user=当前用户下函数，current_app=当前工作区应用内函数" schema_enum:"system,visible,current_user,current_app"`
 	User         string `json:"user" schema_desc:"按用户名过滤；传入后优先于 scope 推导"`
 	App          string `json:"app" schema_desc:"按应用 code 过滤；通常和 user 搭配使用"`
-	Capability   string `json:"capability" schema_desc:"函数能力过滤：form 支持 submit；chart 支持 query；table 支持 read/create/batch-create/update/delete/read-only" schema_enum:"read,read-only,create,batch-create,update,delete,submit,query"`
+	Capability   string `json:"capability" schema_desc:"函数能力过滤：form 支持 submit；chart 支持 query；table 支持 read/create/update/delete/read-only" schema_enum:"read,read-only,create,update,delete,submit,query"`
 	Page         *int   `json:"page" schema_desc:"页码，默认 1"`
 	PageSize     *int   `json:"page_size" schema_desc:"每页条数，默认使用 limit 或 20，最多 100"`
 	Limit        *int   `json:"limit" schema_desc:"最多返回条数"`
@@ -230,7 +230,7 @@ func formatSearchToolsOutput(keywordRaw string, matchedTools []dto.ToolDef, func
 		if keywordRaw == "" {
 			buf.WriteString("按调用次数从高到低，仅 system 用户下。\n")
 		} else {
-			buf.WriteString("调用方式：form → run_form_submit，table → 默认先 run_table_search，仅在函数能力摘要明确支持写入时再用 run_table_create/run_table_batch_create/run_table_update/run_table_delete，chart → run_chart_query。\n")
+			buf.WriteString("调用方式：form → run_form_submit，table → 默认先 run_table_search，仅在函数能力摘要明确支持写入时再用 run_table_create/run_table_update/run_table_delete，chart → run_chart_query。\n")
 		}
 		for i, fn := range functions {
 			buf.WriteString(formatSearchToolFunctionSummary(i, fn))
@@ -247,7 +247,7 @@ func formatSearchToolsOutput(keywordRaw string, matchedTools []dto.ToolDef, func
 
 func normalizeSearchToolsCapability(raw string) string {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "read", "read-only", "create", "batch-create", "update", "delete", "submit", "query":
+	case "read", "read-only", "create", "update", "delete", "submit", "query":
 		return strings.ToLower(strings.TrimSpace(raw))
 	default:
 		return ""
@@ -299,13 +299,10 @@ func searchToolFunctionHasCapability(fn *dto.FunctionSearchResult, capability st
 	case "read-only":
 		return fn.TemplateType == functionschema.TypeTable &&
 			!hasSearchToolCallback(fn.Callbacks, "OnTableAddRow") &&
-			!hasSearchToolCallback(fn.Callbacks, "OnTableCreateInBatches") &&
 			!hasSearchToolCallback(fn.Callbacks, "OnTableUpdateRow") &&
 			!hasSearchToolCallback(fn.Callbacks, "OnTableDeleteRows")
 	case "create":
 		return fn.TemplateType == functionschema.TypeTable && hasSearchToolCallback(fn.Callbacks, "OnTableAddRow")
-	case "batch-create":
-		return fn.TemplateType == functionschema.TypeTable && hasSearchToolCallback(fn.Callbacks, "OnTableCreateInBatches")
 	case "update":
 		return fn.TemplateType == functionschema.TypeTable && hasSearchToolCallback(fn.Callbacks, "OnTableUpdateRow")
 	case "delete":
@@ -360,7 +357,7 @@ func formatSearchToolsLegacyOutput(keywordRaw string, matchedTools []dto.ToolDef
 		if keywordRaw == "" {
 			buf.WriteString("【已注册函数】（按调用次数从高到低，仅 system 用户下）\n")
 		} else {
-			buf.WriteString("【已注册函数】（仅 system 用户下）调用方式：form → run_form_submit，table → 默认先 run_table_search，仅在函数能力摘要明确支持写入时再用 run_table_create/run_table_batch_create/run_table_update/run_table_delete，chart → run_chart_query。\n")
+			buf.WriteString("【已注册函数】（仅 system 用户下）调用方式：form → run_form_submit，table → 默认先 run_table_search，仅在函数能力摘要明确支持写入时再用 run_table_create/run_table_update/run_table_delete，chart → run_chart_query。\n")
 		}
 		buf.WriteString(formatSearchToolsLegacyFunctionRequests(functions))
 	}
@@ -446,9 +443,6 @@ func formatSearchToolFunctionCapabilities(templateType string, callbacks []strin
 		caps := []string{"read"}
 		if hasSearchToolCallback(callbacks, "OnTableAddRow") {
 			caps = append(caps, "create")
-		}
-		if hasSearchToolCallback(callbacks, "OnTableCreateInBatches") {
-			caps = append(caps, "batch-create")
 		}
 		if hasSearchToolCallback(callbacks, "OnTableUpdateRow") {
 			caps = append(caps, "update")

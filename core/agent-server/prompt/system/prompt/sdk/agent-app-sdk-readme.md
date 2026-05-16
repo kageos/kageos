@@ -14,7 +14,7 @@
 
 - **本 SDK 文档**：框架怎么用——结构体与标签、Table/Form/Chart 模式、注册方式、目录约定。
 - **案例文档**（`/system/prompt/case_catalog/xxx`）：具体业务长什么样——PRD + 完整 Go 代码。系统消息中「可读的目录」会列出各案例路径与说明；需要单表 CRUD、多表、Form、图表等时，read_doc 对应案例获取 PRD 与代码。
-- **平台横切能力（禁止自己实现）**：权限管理、流程审批、评论/点赞/收藏、定时任务、操作记录、消息通知——这些由平台统一提供，**禁止**在 PRD 中添加「审批状态/审批人/审批时间」等字段，**禁止**在代码中自己实现审批表/审批流程/权限判断/评论功能。业务代码只管业务数据本身。
+- **平台横切能力（禁止自己实现）**：权限管理、操作记录、消息通知——这些由平台统一提供，**禁止**在代码中自己实现通用权限判断或审计表。业务代码只管业务数据本身。
 
 ## 按需参考文档
 
@@ -33,7 +33,7 @@
 ### Table 模式（单表 CRUD，GET）
 
 1. **定义结构体**：业务字段加 `gorm`、`widget`、`validate` 等标签；主键、CreatedAt、DeletedAt 等系统字段按约定写。Table 筛选字段写在 Request 中，Model 不承担筛选协议。
-2. **配置 TableTemplate**：`BaseConfig`（Name、Request、CreateTables）+ **`AutoCrudTable`**（必须显式配置，指向列表结构体，前端据此渲染列表字段、分页和表格 schema）+ 可选 `OnTableAddRow` / `OnTableUpdateRow` / `OnTableDeleteRows`。**不需要哪种操作就删掉对应回调**：不想要新增和批量导入 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`。前端会根据是否配置回调来显示或隐藏对应按钮；`OnTableCreateInBatches` 是系统内置批量导入能力，配置 `OnTableAddRow` 时自动暴露。**支付记录、消费流水、操作日志这类审计/流水表默认应只读**，仍必须显式配置 `AutoCrudTable`，但不配置新增、编辑、删除回调。
+2. **配置 TableTemplate**：`BaseConfig`（Name、Request、CreateTables）+ **`AutoCrudTable`**（必须显式配置，指向列表结构体，前端据此渲染列表字段、分页和表格 schema）+ 可选 `OnTableAddRow` / `OnTableUpdateRow` / `OnTableDeleteRows`。**不需要哪种操作就删掉对应回调**：不想要新增 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`。前端会根据是否配置回调来显示或隐藏对应按钮。**支付记录、消费流水、操作日志这类审计/流水表默认应只读**，仍必须显式配置 `AutoCrudTable`，但不配置新增、编辑、删除回调。
 3. **写 List 函数**：Request 显式声明筛选字段，并嵌入 `query.PageSortReq`（`widget:"-"`）只承载分页/排序；Handler 手写 Where、Joins、Preload、`GetOrder()`、`Count`、`Offset/Limit/Find` 或调用第三方 API，拿到 `items + total` 后再 `resp.Table(response.TableResult{Items: items, TotalCount: total, PageInfo: &req.PageSortReq}).Build()`；返回前可遍历 `items` 填计算字段、关联展示字段、link 等。
 4. **注册**：`init()` 中 `packageContext.GET("路由名", ListFunc, TableTemplate)`。
 
@@ -612,7 +612,7 @@ CostPrice    float64 `json:"cost_price" gorm:"column:cost_price" widget:"name:�
 
 ## 四、Table 模式要点
 
-- **TableTemplate**：`BaseConfig` 含 Name、Request、CreateTables；**不要写 Table Response**，表格 schema 由 `AutoCrudTable` 推导。**`AutoCrudTable` 必须显式配置**（指向列表结构体，前端据此渲染列表字段、筛选、分页和表格 schema）。**不需要哪种操作就删掉对应回调**：不想要新增和批量导入 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`（如消费记录、支付流水、操作日志通常应直接只读）。前端根据是否配置回调来显示或隐藏「新增」「编辑」「删除」按钮；工作台和服务端也会据此判断表是否允许写入。`OnTableCreateInBatches` 是系统内置批量导入能力，配置 `OnTableAddRow` 时自动暴露，不需要手写；若新增/编辑表单中有 select 需后端动态选项，配 `OnSelectFuzzyMap`（用法见「六、Form 模式要点 → OnSelectFuzzy」）。
+- **TableTemplate**：`BaseConfig` 含 Name、Request、CreateTables；**不要写 Table Response**，表格 schema 由 `AutoCrudTable` 推导。**`AutoCrudTable` 必须显式配置**（指向列表结构体，前端据此渲染列表字段、筛选、分页和表格 schema）。**不需要哪种操作就删掉对应回调**：不想要新增 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`（如消费记录、支付流水、操作日志通常应直接只读）。前端根据是否配置回调来显示或隐藏「新增」「编辑」「删除」按钮；工作台和服务端也会据此判断表是否允许写入。若新增/编辑表单中有 select 需后端动态选项，配 `OnSelectFuzzyMap`（用法见「六、Form 模式要点 → OnSelectFuzzy」）。
 - **AutoCrudTable 的 model 可落库字段类型**：model 里凡是有 **gorm 列**（会被 GORM 写入数据库）的字段，**只能是**以下可落库类型：**基础类型**（int、string、bool、int64、float64 等）、**string**（`gorm:"type:text"`，实际存 `bucket/object_key` 字符串，多文件逗号分隔）、**gorm.DeletedAt**（软删除，GORM 特例）。除此以外，**其他 struct、slice（如 type:table / type:form）不能作为一列写入数据库**；若在 model 里出现这类 struct/slice，须为：**外键关联**（如 `Room *MeetingRoom` 配 `gorm:"foreignKey:RoomID;references:ID"`，实际存的是 RoomID，不占一列）或 **gorm:"-"**（不落库，仅展示/表单用，如 RoomName、Status、Options、link 等）。否则 GORM 无法把该列写进数据库。
 - **List 函数**：Request 显式声明筛选字段，并嵌入 `query.PageSortReq`（`widget:"-"`）隐藏分页字段；Handler 显式处理 `Where` / `Joins` / `Preload`、`req.PageSortReq.GetOrder()`、`Count`、`Offset/Limit/Find`，或调用第三方 API 获取当前页数据和总数；最后调用 `resp.Table(response.TableResult{Items: lists, TotalCount: total, PageInfo: &req.PageSortReq}).Build()`。返回前可在内存中给计算字段赋值（如剩余时间、**link 跳转 URL**，见「三、结构体与标签 → link 组件」）。`Table` 只渲染响应，不查询数据库；
 - 主键、CreatedAt、UpdatedAt、DeletedAt、DeletedBy 等系统字段约定见案例；init_.go 由脚手架生成，不要手写。
@@ -623,7 +623,7 @@ CostPrice    float64 `json:"cost_price" gorm:"column:cost_price" widget:"name:�
 
 ## 五、Table 回调函数
 
-Table 的增删改由三个**可选**业务回调实现；**不配某个回调则对应操作不可用**（不配 `OnTableAddRow` 则无新增，也不暴露系统内置批量导入 `OnTableCreateInBatches`；不配 `OnTableUpdateRow` 则无编辑；不配 `OnTableDeleteRows` 则无删除）。配置了的回调用于新增、更新、删除时的业务逻辑。**流水/日志/审计类表默认不要配这些回调**；需要退款、冲正、撤销时，应做独立业务动作，不要直接修改流水记录本身。
+Table 的增删改由三个**可选**业务回调实现；**不配某个回调则对应操作不可用**（不配 `OnTableAddRow` 则无新增；不配 `OnTableUpdateRow` 则无编辑；不配 `OnTableDeleteRows` 则无删除）。配置了的回调用于新增、更新、删除时的业务逻辑。**流水/日志/审计类表默认不要配这些回调**；需要退款、冲正、撤销时，应做独立业务动作，不要直接修改流水记录本身。
 
 ### 1. OnTableAddRow（新增行）
 

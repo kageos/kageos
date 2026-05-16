@@ -39,23 +39,22 @@
 - 前端源码入口已经统一收口到 `src/architecture/`
 - `src/architecture/presentation/` 承载页面、业务入口、共享展示组件、Widget 和样式资源
 - 领域规则、提取器、表达式、配置和无状态工具已经分别收口到 `domain`、`shared`、`infrastructure`、`presentation`
-- 默认启用产品聚焦模式，普通用户入口优先保留工作空间、服务树、工作台、Form/Table/Chart、Docs 和 LLM 管理；组织、消息、操作日志、定时任务等入口由 `src/architecture/shared/config/features.ts` 统一控制
+- 默认启用产品聚焦模式，普通用户入口优先保留工作空间、服务树、工作台、Form/Table/Chart、Docs 和 LLM 管理；操作日志、企业升级、能力包等少量入口由 `src/architecture/shared/config/features.ts` 统一控制
 - 因此前端当前真实状态是：**源码目录已经统一到 `architecture/`，不再保留顶层新旧混合入口**
 
 ### 1.4 产品聚焦模式
 
-前端通过 `src/architecture/shared/config/features.ts` 管理可见能力。`VITE_AOS_FOCUSED_MODE` 默认开启；开启后，组织、消息、定时任务、操作日志、讨论区、企业升级等高级入口默认隐藏，但路由和后端接口仍保留兼容。
+前端通过 `src/architecture/shared/config/features.ts` 管理可见能力。`VITE_AOS_FOCUSED_MODE` 默认开启；组织、消息中心、平台调度和讨论区入口已从当前 MVP 中删除。
 
 常用开关：
 
 | 环境变量 | 默认行为 |
 |---|---|
 | `VITE_AOS_FOCUSED_MODE` | 默认 `true`，测试环境默认 `false` |
-| `VITE_AOS_FEATURE_ORGANIZATION` | 未设置时仅完整模式开启 |
-| `VITE_AOS_FEATURE_MESSAGES` | 未设置时仅完整模式开启 |
-| `VITE_AOS_FEATURE_SCHEDULED_TASKS` | 未设置时仅完整模式开启 |
 | `VITE_AOS_FEATURE_OPERATE_LOGS` | 未设置时仅完整模式开启 |
-| `VITE_AOS_FEATURE_BOARD` | 未设置时仅完整模式开启 |
+| `VITE_AOS_FEATURE_ENTERPRISE_UPGRADE` | 未设置时仅完整模式开启 |
+| `VITE_AOS_FEATURE_CAPABILITY_BUNDLE` | 默认开启 |
+| `VITE_AOS_FEATURE_DOCS` | 默认开启 |
 | `VITE_AOS_FEATURE_LLM_MANAGEMENT` | 默认开启 |
 
 ---
@@ -459,7 +458,7 @@ constructor() {
 
 ### 5.2 新增业务逻辑（Domain Logic）
 
-**场景**：新增一个跨页面复用的业务能力，例如日志记录、草稿保存、批量导入状态管理。
+**场景**：新增一个跨页面复用的业务能力，例如日志记录、草稿保存、提交状态管理。
 
 #### 步骤 1：确定逻辑归属
 
@@ -571,31 +570,31 @@ onMounted(() => {
 
 ### 5.4 新增功能模块（完整示例）
 
-**场景**：新增一个"工作流系统"模块。
+**场景**：新增一个"客户标签"模块。
 
 #### 完整步骤：
 
 1. **Domain Layer**
-   - 创建 `src/architecture/domain/interfaces/IWorkflow.ts`（接口定义）
-   - 创建 `src/architecture/domain/services/WorkflowDomainService.ts`（核心业务逻辑）
+   - 创建 `src/architecture/domain/interfaces/ICustomerTag.ts`（接口定义）
+   - 创建 `src/architecture/domain/services/CustomerTagDomainService.ts`（核心业务逻辑）
    - 在 `src/architecture/domain/types/index.ts` 中定义类型
 
 2. **Infrastructure Layer**
-   - 创建 `src/architecture/infrastructure/stateManager/WorkflowStateManager.ts`（状态管理）
-   - 在 `ServiceFactory` 中注册 Workflow 相关服务
+   - 创建 `src/architecture/infrastructure/stateManager/CustomerTagStateManager.ts`（状态管理）
+   - 在 `ServiceFactory` 中注册 CustomerTag 相关服务
 
 3. **Application Layer**
-   - 创建 `src/architecture/application/services/WorkflowApplicationService.ts`（业务流程编排）
+   - 创建 `src/architecture/application/services/CustomerTagApplicationService.ts`（业务流程编排）
 
 4. **Presentation Layer**
-   - 创建 `src/architecture/presentation/views/WorkflowView.vue`（页面）
-   - 创建 `src/architecture/presentation/composables/useWorkflowInitialization.ts`（组合式函数）
+   - 创建 `src/architecture/presentation/views/CustomerTagView.vue`（页面）
+   - 创建 `src/architecture/presentation/composables/useCustomerTagInitialization.ts`（组合式函数）
 
 5. **注册路由**
    - 在 `src/architecture/infrastructure/router/index.ts` 中添加路由
 
 6. **（可选）新增组件**
-   - 在 `src/architecture/presentation/widgets/` 中创建工作流相关的组件
+   - 在 `src/architecture/presentation/widgets/` 中创建客户标签相关的组件
 
 ---
 
@@ -674,21 +673,21 @@ class ServiceFactory {
 
 ---
 
-### 6.3 场景 3：新增定时任务功能
+### 6.3 场景 3：新增本地自动刷新
 
-**问题**：需要定时执行某些任务（如定时刷新数据）。
+**问题**：需要在当前页面本地周期刷新数据。
 
 **解决方案**：
 
-1. 创建 `SchedulerDomainService`：
+1. 创建 `AutoRefreshDomainService`：
 
 ```typescript
-// src/architecture/domain/services/SchedulerDomainService.ts
-export class SchedulerDomainService {
+// src/architecture/domain/services/AutoRefreshDomainService.ts
+export class AutoRefreshDomainService {
   private timers: Map<string, number> = new Map()
 
   /**
-   * 添加定时任务
+   * 添加本地自动刷新任务
    */
   addTask(taskId: string, interval: number, callback: () => void): void {
     // 清除已存在的任务
@@ -698,23 +697,23 @@ export class SchedulerDomainService {
     const timerId = window.setInterval(callback, interval)
     this.timers.set(taskId, timerId)
     
-    Logger.debug('SchedulerDomainService', `定时任务 ${taskId} 已启动，间隔 ${interval}ms`)
+    Logger.debug('AutoRefreshDomainService', `自动刷新 ${taskId} 已启动，间隔 ${interval}ms`)
   }
 
   /**
-   * 移除定时任务
+   * 移除本地自动刷新任务
    */
   removeTask(taskId: string): void {
     const timerId = this.timers.get(taskId)
     if (timerId) {
       window.clearInterval(timerId)
       this.timers.delete(taskId)
-      Logger.debug('SchedulerDomainService', `定时任务 ${taskId} 已停止`)
+      Logger.debug('AutoRefreshDomainService', `自动刷新 ${taskId} 已停止`)
     }
   }
 
   /**
-   * 清除所有定时任务
+   * 清除所有本地自动刷新任务
    */
   clearAll(): void {
     this.timers.forEach((timerId) => {
@@ -732,7 +731,7 @@ export class SchedulerDomainService {
 export class TableApplicationService {
   constructor(
     private domainService: TableDomainService,
-    private schedulerService: SchedulerDomainService,
+    private autoRefreshService: AutoRefreshDomainService,
     private eventBus: IEventBus
   ) {}
 
@@ -740,7 +739,7 @@ export class TableApplicationService {
    * 启用自动刷新
    */
   enableAutoRefresh(functionDetail: FunctionDetail, interval: number): void {
-    this.schedulerService.addTask(`table-refresh-${functionDetail.id}`, interval, () => {
+    this.autoRefreshService.addTask(`table-refresh-${functionDetail.id}`, interval, () => {
       this.loadData(functionDetail)
     })
   }
@@ -749,13 +748,13 @@ export class TableApplicationService {
    * 禁用自动刷新
    */
   disableAutoRefresh(functionDetail: FunctionDetail): void {
-    this.schedulerService.removeTask(`table-refresh-${functionDetail.id}`)
+    this.autoRefreshService.removeTask(`table-refresh-${functionDetail.id}`)
   }
 }
 ```
 
 **代码位置**：
-- Domain Service: `src/architecture/domain/services/SchedulerDomainService.ts`
+- Domain Service: `src/architecture/domain/services/AutoRefreshDomainService.ts`
 
 ---
 

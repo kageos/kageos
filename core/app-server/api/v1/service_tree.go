@@ -356,76 +356,6 @@ func (s *ServiceTree) DeleteDocs(c *gin.Context) {
 	response.OkWithMessage(c, "删除成功")
 }
 
-// CreateBoard 创建版块（board）类型节点
-// @Summary 创建版块
-// @Description 创建 board 类型的讨论区节点
-// @Tags 服务目录
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param request body dto.CreateBoardReq true "创建版块请求"
-// @Success 200 {object} dto.CreateBoardResp
-// @Router /workspace/api/v1/boards/crud [post]
-func (s *ServiceTree) CreateBoard(c *gin.Context) {
-	var req dto.CreateBoardReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
-		return
-	}
-	ctx := contextx.ToContext(c)
-	resp, err := s.serviceTreeService.CreateBoard(ctx, &req)
-	if err != nil {
-		response.FailWithMessage(c, "创建版块失败: "+err.Error())
-		return
-	}
-	response.OkWithData(c, resp)
-}
-
-// UpdateBoard 更新版块节点
-// @Summary 更新版块
-// @Param id path int true "版块ID"
-// @Param request body dto.UpdateBoardReq true "更新版块请求"
-// @Router /workspace/api/v1/boards/crud/{id} [put]
-func (s *ServiceTree) UpdateBoard(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		response.FailWithMessage(c, "参数错误: 无效的ID")
-		return
-	}
-	var req dto.UpdateBoardReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
-		return
-	}
-	req.ID = id
-	ctx := contextx.ToContext(c)
-	if err := s.serviceTreeService.UpdateBoard(ctx, &req); err != nil {
-		response.FailWithMessage(c, "更新版块失败: "+err.Error())
-		return
-	}
-	response.OkWithMessage(c, "更新成功")
-}
-
-// DeleteBoard 删除版块节点（会先删除该版块下全部帖子）
-// @Summary 删除版块
-// @Param id path int true "版块ID"
-// @Router /workspace/api/v1/boards/crud/{id} [delete]
-func (s *ServiceTree) DeleteBoard(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		response.FailWithMessage(c, "参数错误: 无效的ID")
-		return
-	}
-	ctx := contextx.ToContext(c)
-	if err := s.serviceTreeService.DeleteBoard(ctx, id); err != nil {
-		response.FailWithMessage(c, "删除版块失败: "+err.Error())
-		return
-	}
-	response.OkWithMessage(c, "删除成功")
-}
-
 // CopyServiceTree 复制服务目录（递归复制目录及其所有子目录）
 // @Summary 复制服务目录
 // @Description 递归复制服务目录及其所有子目录到目标目录，保持目录结构
@@ -613,7 +543,7 @@ func (s *ServiceTree) SearchFunctions(c *gin.Context) {
 
 // SearchResources 全站资源搜索
 // @Summary 全站资源搜索
-// @Description 根据关键词搜索目录、函数、文档和讨论区，支持分页
+// @Description 根据关键词搜索目录、函数和文档，支持分页
 // @Tags 服务目录
 // @Accept json
 // @Produce json
@@ -622,7 +552,7 @@ func (s *ServiceTree) SearchFunctions(c *gin.Context) {
 // @Param user query string false "用户名（可选，用于过滤应用）"
 // @Param app query string false "应用名（可选，用于过滤应用）"
 // @Param keyword query string false "搜索关键词"
-// @Param resource_type query string false "资源类型（all/package/function/docs/board）"
+// @Param resource_type query string false "资源类型（all/package/function/docs）"
 // @Param page query int true "页码" default(1)
 // @Param page_size query int true "每页数量" default(20)
 // @Success 200 {object} dto.SearchResourcesResp "搜索成功"

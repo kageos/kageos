@@ -130,14 +130,6 @@
               class="node-icon docs-icon-img"
               :class="getNodeIconClass(data)"
             />
-            <!-- board 类型：讨论区图标 -->
-            <img 
-              v-else-if="data.type === 'board'" 
-              src="/讨论区.svg" 
-              alt="讨论区" 
-              class="node-icon board-icon-img"
-              :class="getNodeIconClass(data)"
-            />
             <!-- 其他类型：显示 fx 文本 -->
             <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
             <span class="node-label">{{ node.label }}</span>
@@ -216,7 +208,7 @@ import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import { exportCapabilityBundle, installCapabilityBundle, updatePackage, updateServiceTreeFunction, updateDocs } from '@/architecture/presentation/context/api/service-tree'
 import { getRuntimeStateSummary, type RuntimeStateSummary } from '@/architecture/presentation/context/api/state'
 import { downloadCapabilityBundleFile, parseCapabilityBundleJson } from '@/architecture/presentation/utils/directoryBundleFile'
-import { eventBus, WorkspaceEvent } from '@/architecture/presentation/context/eventBusContext'
+import { eventBus } from '@/architecture/presentation/context/eventBusContext'
 import { useServiceTreeClipboard } from '../composables/useServiceTreeClipboard'
 import { useServiceTreeSearchExpand } from '../composables/useServiceTreeSearchExpand'
 import {
@@ -238,9 +230,7 @@ interface Emits {
   (e: 'node-click', node: ServiceTree): void
   (e: 'create-directory', parentNode?: ServiceTree): void
   (e: 'create-docs', parentNode?: ServiceTree): void
-  (e: 'create-board', parentNode?: ServiceTree): void
   (e: 'delete-doc', node: ServiceTree): void
-  (e: 'delete-board', node: ServiceTree): void
   (e: 'delete-function', node: ServiceTree): void  // 删除函数
   (e: 'delete-directory', node: ServiceTree): void  // 删除目录（非根 package）
   (e: 'bulk-delete', nodes: ServiceTree[]): void
@@ -322,7 +312,6 @@ const startRuntimeSummaryPolling = () => {
   stopRuntimeSummaryPolling()
   if (!rootFullCodePath.value) return
   runtimeSummaryTimer = setInterval(refreshRuntimeSummary, 3000)
-  unsubscribeRuntimeRefresh = eventBus.on(WorkspaceEvent.scheduledAgentTaskCreated, refreshRuntimeSummary)
   window.addEventListener('focus', refreshRuntimeSummary)
 }
 
@@ -362,7 +351,6 @@ const getRuntimeSummaryTitle = (node: ServiceTree): string => {
   const parts = [`运行中 ${summary.running_count}`]
   if (summary.thinking_count > 0) parts.push(`思考中 ${summary.thinking_count}`)
   if (summary.tool_running_count > 0) parts.push(`工具执行 ${summary.tool_running_count}`)
-  if (summary.scheduled_running_count > 0) parts.push(`定时会话 ${summary.scheduled_running_count}`)
   if (summary.failed_recent_count > 0) parts.push(`最近失败 ${summary.failed_recent_count}`)
   return parts.join('，')
 }
@@ -562,7 +550,7 @@ function canDeleteNode(node: ServiceTree): boolean {
   if (node.type === 'package') {
     return !isRootNode(node)
   }
-  return node.type === 'function' || node.type === 'docs' || node.type === 'board'
+  return node.type === 'function' || node.type === 'docs'
 }
 
 function buildBulkExportName(nodes: ServiceTree[]): string {
@@ -697,9 +685,6 @@ const handleNodeAction = (command: ServiceTreeNodeActionCommand, data: ServiceTr
     case 'create-docs':
       emit('create-docs', data)
       return
-    case 'create-board':
-      emit('create-board', data)
-      return
     case 'rename':
       handleRename(data)
       return
@@ -724,9 +709,6 @@ const handleNodeAction = (command: ServiceTreeNodeActionCommand, data: ServiceTr
       return
     case 'delete-doc':
       emit('delete-doc', data)
-      return
-    case 'delete-board':
-      emit('delete-board', data)
       return
     case 'delete-directory':
       emit('delete-directory', data)
@@ -773,8 +755,6 @@ const getNodeIconClass = (data: ServiceTree) => {
     return 'function-icon'
   } else if (data.type === 'docs') {
     return 'docs-icon'
-  } else if (data.type === 'board') {
-    return 'board-icon'
   }
   return 'function-icon'
 }
@@ -965,13 +945,6 @@ defineExpose({
     }
     
     &.form-icon-img {
-      width: 16px;
-      height: 16px;
-      object-fit: contain;
-      opacity: 0.9;
-    }
-    
-    &.board-icon-img {
       width: 16px;
       height: 16px;
       object-fit: contain;

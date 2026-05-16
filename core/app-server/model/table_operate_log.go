@@ -7,7 +7,7 @@ import (
 )
 
 // TableOperateLog Table 操作日志表
-// 用于记录 Table 的操作（OnTableAddRow、OnTableCreateInBatches、OnTableUpdateRow、OnTableDeleteRows）
+// 用于记录 Table 的操作（OnTableAddRow、OnTableUpdateRow、OnTableDeleteRows）
 // 策略：社区版和企业版都记录完整日志，但只有企业版可以查看
 type TableOperateLog struct {
 	models.Base
@@ -16,7 +16,7 @@ type TableOperateLog struct {
 	// CreatedAt 已由 models.Base 提供，无需重复定义
 	TenantUser  string `json:"tenant_user" gorm:"type:varchar(255);not null;index:idx_tenant_user;comment:租户用户（app的所有者）"` // 租户用户（app 的所有者）
 	RequestUser string `json:"request_user" gorm:"type:varchar(255);not null;index:idx_user;comment:请求用户（实际执行操作的用户）"`     // ✅ Who（谁）：实际执行操作的用户
-	Action      string `json:"action" gorm:"type:varchar(50);not null;index:idx_action;comment:操作类型"`                     // ✅ What（做了什么）：OnTableAddRow、OnTableCreateInBatches、OnTableUpdateRow、OnTableDeleteRows
+	Action      string `json:"action" gorm:"type:varchar(50);not null;index:idx_action;comment:操作类型"`                     // ✅ What（做了什么）：OnTableAddRow、OnTableUpdateRow、OnTableDeleteRows
 	IPAddress   string `json:"ip_address" gorm:"type:varchar(50);comment:IP地址"`                                           // ✅ Where（从哪里：IP）
 	UserAgent   string `json:"user_agent" gorm:"type:varchar(500);comment:User Agent"`                                    // ✅ Where（从哪里：User Agent）
 

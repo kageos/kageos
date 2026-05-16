@@ -1,10 +1,6 @@
 package middleware
 
 import (
-	"bytes"
-	"encoding/json"
-	"io"
-	"strconv"
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
@@ -422,12 +418,6 @@ func getActionDisplayName(action string) string {
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionWrite):  "文档编辑",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionDelete): "文档删除",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionAdmin):  "文档管理",
-		// Board 讨论区操作
-		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, permissionconstants.ActionRead):   "帖子查看",
-		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, permissionconstants.ActionWrite):  "发帖",
-		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, permissionconstants.ActionUpdate): "帖子更新",
-		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, permissionconstants.ActionDelete): "帖子删除",
-		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, permissionconstants.ActionAdmin):  "板块管理",
 	}
 
 	if displayName, ok := displayNames[action]; ok {
@@ -486,113 +476,6 @@ func CheckDocDelete() gin.HandlerFunc {
 		}
 		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionDelete)
 		if !checkPermission(c, action, "无权限删除该文档") {
-			return
-		}
-		c.Next()
-	}
-}
-
-// ==================== 讨论区/板块权限中间件 ====================
-
-// CheckBoardRead 检查讨论区查看权限（从 query full_code_path 取路径）
-// 权限点：board:read
-func CheckBoardRead() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if skipPermissionChecks(c) {
-			return
-		}
-		fullCodePath := c.Query("full_code_path")
-		if fullCodePath == "" {
-			response.PermissionDenied(c, "缺少版块路径参数 full_code_path", map[string]interface{}{
-				"resource_path": "",
-				"action":        "board:read",
-			})
-			return
-		}
-		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, "read")
-		if !checkPermissionWithPath(c, fullCodePath, action, "无权限查看该讨论区") {
-			return
-		}
-		c.Next()
-	}
-}
-
-// CheckBoardWrite 检查讨论区发帖权限（从 body full_code_path 取路径，不消费 body）
-// 权限点：board:write
-func CheckBoardWrite() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if skipPermissionChecks(c) {
-			return
-		}
-		if c.Request.Body == nil {
-			response.PermissionDenied(c, "请求体为空", map[string]interface{}{"action": "board:write"})
-			return
-		}
-		// 读取并恢复 body，只解析 full_code_path
-		body, err := io.ReadAll(c.Request.Body)
-		if err != nil {
-			response.PermissionDenied(c, "读取请求体失败", map[string]interface{}{"action": "board:write"})
-			return
-		}
-		c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
-		var req struct {
-			FullCodePath string `json:"full_code_path"`
-		}
-		if err := json.Unmarshal(body, &req); err != nil || req.FullCodePath == "" {
-			response.PermissionDenied(c, "缺少版块路径 full_code_path", map[string]interface{}{"action": "board:write"})
-			return
-		}
-		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, "write")
-		if !checkPermissionWithPath(c, req.FullCodePath, action, "无权限在该讨论区发帖") {
-			return
-		}
-		c.Next()
-	}
-}
-
-// GetPathByPostID 根据帖子 ID 解析版块路径（由 router 注入，依赖 BoardService）
-type GetPathByPostID func(c *gin.Context, id int64) (string, error)
-
-// CheckBoardReadFromPostID 检查讨论区查看权限（根据帖子 id 解析版块路径）
-// 权限点：board:read
-func CheckBoardReadFromPostID(getPath GetPathByPostID) gin.HandlerFunc {
-	return checkBoardPermissionFromPostID(getPath, "read", "无权限查看该帖子")
-}
-
-// CheckBoardUpdateFromPostID 检查讨论区更新权限（根据帖子 id 解析版块路径）
-// 权限点：board:update
-func CheckBoardUpdateFromPostID(getPath GetPathByPostID) gin.HandlerFunc {
-	return checkBoardPermissionFromPostID(getPath, "update", "无权限更新该帖子")
-}
-
-// CheckBoardDeleteFromPostID 检查讨论区删除权限（根据帖子 id 解析版块路径）
-// 权限点：board:delete
-func CheckBoardDeleteFromPostID(getPath GetPathByPostID) gin.HandlerFunc {
-	return checkBoardPermissionFromPostID(getPath, "delete", "无权限删除该帖子")
-}
-
-func checkBoardPermissionFromPostID(getPath GetPathByPostID, actionType string, errorMsg string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if skipPermissionChecks(c) {
-			return
-		}
-		idStr := c.Param("id")
-		id, err := strconv.ParseInt(idStr, 10, 64)
-		if err != nil || id <= 0 {
-			response.PermissionDenied(c, "无效的帖子ID", map[string]interface{}{"action": "board:" + actionType})
-			return
-		}
-		fullCodePath, err := getPath(c, id)
-		if err != nil {
-			response.FailWithMessage(c, err.Error())
-			return
-		}
-		if fullCodePath == "" {
-			response.PermissionDenied(c, "无法解析版块路径", map[string]interface{}{"action": "board:" + actionType})
-			return
-		}
-		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, actionType)
-		if !checkPermissionWithPath(c, fullCodePath, action, errorMsg) {
 			return
 		}
 		c.Next()

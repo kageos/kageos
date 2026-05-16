@@ -16,7 +16,6 @@ type serviceTreeMutationService struct {
 	appRepo          *repository.AppRepository
 	runtimeWorkspace *runtimeWorkspaceBridge
 	docService       *DocService
-	boardPostRepo    *repository.BoardPostRepository
 }
 
 func newServiceTreeMutationService(
@@ -24,14 +23,12 @@ func newServiceTreeMutationService(
 	appRepo *repository.AppRepository,
 	runtimeWorkspace *runtimeWorkspaceBridge,
 	docService *DocService,
-	boardPostRepo *repository.BoardPostRepository,
 ) *serviceTreeMutationService {
 	return &serviceTreeMutationService{
 		serviceTreeRepo:  serviceTreeRepo,
 		appRepo:          appRepo,
 		runtimeWorkspace: runtimeWorkspace,
 		docService:       docService,
-		boardPostRepo:    boardPostRepo,
 	}
 }
 
@@ -126,35 +123,6 @@ func (m *serviceTreeMutationService) UpdateDocs(ctx context.Context, req *dto.Up
 	return m.upsertDocContent(ctx, serviceTree, req)
 }
 
-func (m *serviceTreeMutationService) UpdateBoard(ctx context.Context, req *dto.UpdateBoardReq) error {
-	if req == nil || req.ID <= 0 {
-		return fmt.Errorf("版块ID不能为空")
-	}
-
-	serviceTree, err := m.serviceTreeRepo.GetServiceTreeByID(req.ID)
-	if err != nil {
-		return fmt.Errorf("获取节点失败: %w", err)
-	}
-	if serviceTree.Type != model.ServiceTreeTypeBoard {
-		return fmt.Errorf("节点类型不是 board，当前类型: %s", serviceTree.Type)
-	}
-
-	updateReq := &dto.UpdateServiceTreeMetadataReq{ID: req.ID}
-	if req.Name != "" {
-		updateReq.Name = &req.Name
-	}
-	if req.Description != "" {
-		updateReq.Description = &req.Description
-	}
-	if req.Tags != "" {
-		updateReq.Tags = &req.Tags
-	}
-	if req.Admins != "" {
-		updateReq.Admins = &req.Admins
-	}
-	return m.UpdateServiceTreeMetadata(ctx, updateReq)
-}
-
 func (m *serviceTreeMutationService) DeletePackage(ctx context.Context, id int64) error {
 	return m.deleteTypedServiceTree(ctx, id, model.ServiceTreeTypePackage)
 }
@@ -165,20 +133,6 @@ func (m *serviceTreeMutationService) DeleteFunction(ctx context.Context, id int6
 
 func (m *serviceTreeMutationService) DeleteDocs(ctx context.Context, id int64) error {
 	return m.deleteTypedServiceTree(ctx, id, model.ServiceTreeTypeDocs)
-}
-
-func (m *serviceTreeMutationService) DeleteBoard(ctx context.Context, id int64) error {
-	serviceTree, err := m.serviceTreeRepo.GetServiceTreeByID(id)
-	if err != nil {
-		return fmt.Errorf("获取节点失败: %w", err)
-	}
-	if serviceTree.Type != model.ServiceTreeTypeBoard {
-		return fmt.Errorf("节点类型不是 board，当前类型: %s", serviceTree.Type)
-	}
-	if err := m.boardPostRepo.DeleteByTreeID(id); err != nil {
-		return fmt.Errorf("删除版块帖子失败: %w", err)
-	}
-	return m.DeleteServiceTree(ctx, id)
 }
 
 func (m *serviceTreeMutationService) DeleteServiceTree(ctx context.Context, id int64) error {

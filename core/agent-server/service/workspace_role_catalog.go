@@ -14,7 +14,6 @@ const (
 	WorkspaceRoleQAEngineer          = workspaceroles.QAEngineer
 	WorkspaceRoleAppOperator         = workspaceroles.AppOperator
 	WorkspaceRoleMaintenanceEngineer = workspaceroles.MaintenanceEngineer
-	WorkspaceRoleSchedulerEngineer   = workspaceroles.SchedulerEngineer
 	WorkspaceRolePlatformEngineer    = workspaceroles.PlatformEngineer
 	WorkspaceRoleDataOperator        = workspaceroles.DataOperator
 	WorkspaceRoleReviewer            = workspaceroles.Reviewer

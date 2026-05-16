@@ -1,4 +1,4 @@
-# 生产单机镜像：core-server + timer-scheduler + backup-server + 内置 Nginx + Podman
+# 生产单机镜像：core-server + backup-server + 内置 Nginx + Podman
 # 构建（仓库根）：docker build -f deploy/prod/Dockerfile -t localhost/agentos-main:latest .
 
 # ========== Go 编译 ==========
@@ -24,11 +24,6 @@ RUN CGO_ENABLED=1 GOOS=linux go build \
     -ldflags="-s -w" \
     -o /out/core-server \
     ./core/cmd/main/main.go
-RUN CGO_ENABLED=1 GOOS=linux go build \
-    -tags "exclude_graphdriver_btrfs" \
-    -ldflags="-s -w" \
-    -o /out/timer-scheduler \
-    ./core/timer-scheduler/cmd/app/main.go
 RUN CGO_ENABLED=1 GOOS=linux go build \
     -tags "exclude_graphdriver_btrfs" \
     -ldflags="-s -w" \
@@ -95,7 +90,6 @@ WORKDIR /app
 
 # Go 二进制与运行时源码
 COPY --from=gobuilder /out/core-server /app/core-server
-COPY --from=gobuilder /out/timer-scheduler /app/timer-scheduler
 COPY --from=gobuilder /out/backup-server /app/backup-server
 COPY --from=gobuilder /src/go.mod /src/go.sum /app/
 COPY --from=gobuilder /src/sdk/ /app/sdk/
@@ -116,10 +110,9 @@ COPY deploy/prod/health/ /app/health/
 COPY deploy/prod/nginx/ /app/deploy/prod/nginx/
 COPY deploy/prod/entrypoint-common.sh /app/entrypoint-common.sh
 COPY deploy/prod/entrypoint-main.sh /app/entrypoint-main.sh
-COPY deploy/prod/entrypoint-scheduler.sh /app/entrypoint-scheduler.sh
 COPY deploy/prod/entrypoint-backup.sh /app/entrypoint-backup.sh
 COPY deploy/prod/entrypoint-app-base.sh /app/entrypoint-app-base.sh
-RUN chmod +x /app/entrypoint-common.sh /app/entrypoint-main.sh /app/entrypoint-scheduler.sh /app/entrypoint-backup.sh /app/entrypoint-app-base.sh /app/health/*.sh
+RUN chmod +x /app/entrypoint-common.sh /app/entrypoint-main.sh /app/entrypoint-backup.sh /app/entrypoint-app-base.sh /app/health/*.sh
 
 # 运行期目录骨架与静态站点
 RUN mkdir -p /app/deploy /app/logs /app/namespace \

@@ -7,7 +7,7 @@ type GetTableOperateLogsReq struct {
 	App          string `json:"app" form:"app"`                       // 应用名
 	FullCodePath string `json:"full_code_path" form:"full_code_path"` // 完整代码路径
 	RowID        int64  `json:"row_id" form:"row_id"`                 // 记录ID
-	Action       string `json:"action" form:"action"`                 // 操作类型：OnTableAddRow, OnTableCreateInBatches, OnTableUpdateRow, OnTableDeleteRows
+	Action       string `json:"action" form:"action"`                 // 操作类型：OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows
 	Page         int    `json:"page" form:"page"`                     // 页码（从1开始）
 	PageSize     int    `json:"page_size" form:"page_size"`           // 每页数量
 	OrderBy      string `json:"order_by" form:"order_by"`             // 排序字段（默认：created_at DESC）
@@ -28,7 +28,7 @@ type GetFormOperateLogsReq struct {
 	App          string `json:"app" form:"app"`                       // 应用名
 	FullCodePath string `json:"full_code_path" form:"full_code_path"` // 完整代码路径
 	Action       string `json:"action" form:"action"`                 // 操作类型：request_app, form_submit
-	Source       string `json:"source" form:"source"`                 // 来源：browser, scheduled_task, agent, api
+	Source       string `json:"source" form:"source"`                 // 来源：browser, agent, api
 	Status       string `json:"status" form:"status"`                 // 结果状态：success, failed
 	TraceID      string `json:"trace_id" form:"trace_id"`             // 追踪ID（精确匹配）
 	Keyword      string `json:"keyword" form:"keyword"`               // 关键字搜索（请求用户、版本、错误、请求/响应内容）

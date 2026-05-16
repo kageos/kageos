@@ -126,20 +126,6 @@
         />
       </el-select>
       <div class="mini-action-row">
-        <el-tooltip content="定时执行" placement="top" effect="light">
-          <el-button
-            v-if="showScheduleAction"
-            class="mini-schedule-btn"
-            link
-            size="small"
-            title="定时执行"
-            :disabled="sending || !fullCodePath"
-            data-testid="mini-workstation-schedule"
-            @click="$emit('schedule')"
-          >
-            <el-icon><Timer /></el-icon>
-          </el-button>
-        </el-tooltip>
         <el-button
           v-if="sending"
           type="danger"
@@ -185,7 +171,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, type Component } from 'vue'
-import { ArrowDown, Document, Paperclip, Timer, VideoPause } from '@element-plus/icons-vue'
+import { ArrowDown, Document, Paperclip, VideoPause } from '@element-plus/icons-vue'
 import type { LLMInfo } from '@/architecture/presentation/context/api/agent'
 import type { WorkspaceChatMessageFile } from '@/architecture/presentation/context/api/workspace'
 import { searchUsersFuzzy } from '@/architecture/presentation/context/api/user'
@@ -216,7 +202,6 @@ const props = defineProps<{
   llmList: LLMInfo[]
   llmLoading: boolean
   queuedCount: number
-  showScheduleAction?: boolean
   registerInputRef: (el: HTMLTextAreaElement | null) => void
   onLLMSelectVisibleChange: (visible: boolean) => void
   onFileChange: (uploadFileObj: { raw?: File }) => void | Promise<void>
@@ -228,7 +213,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:inputText', value: string): void
   (e: 'update:selectedLLMConfigId', value: number): void
-  (e: 'schedule'): void
   (e: 'send'): void
   (e: 'stop'): void
   (e: 'collapse'): void
@@ -492,7 +476,6 @@ function getPathTail(path: string) {
 function getResourceTypeLabel(resource: ResourceSearchResult) {
   if (resource.type === 'package') return '目录'
   if (resource.type === 'docs') return '文档'
-  if (resource.type === 'board') return '讨论区'
   if (resource.template_type === 'table') return '表格工具'
   if (resource.template_type === 'form') return '表单工具'
   if (resource.template_type === 'chart') return '图表工具'
@@ -505,9 +488,6 @@ function getResourceIconMeta(resource: ResourceSearchResult): Pick<MiniMentionOp
   }
   if (resource.type === 'docs') {
     return { iconSrc: '/文档.svg', iconClass: 'docs-icon-img' }
-  }
-  if (resource.type === 'board') {
-    return { iconSrc: '/讨论区.svg', iconClass: 'board-icon-img' }
   }
   if (resource.template_type === 'form') {
     return { iconSrc: '/service-tree/编辑.svg', iconClass: 'form-icon-img' }
@@ -804,7 +784,6 @@ function cancelMentionClose() {
 }
 .mini-mention-icon.package-icon-img,
 .mini-mention-icon.docs-icon-img,
-.mini-mention-icon.board-icon-img,
 .mini-mention-icon.form-icon-img {
   background: rgba(255, 255, 255, 0.04);
 }
@@ -884,20 +863,6 @@ function cancelMentionClose() {
 }
 .mini-action-row :deep(.el-button + .el-button) {
   margin-left: 0;
-}
-.mini-schedule-btn {
-  width: 42px;
-  height: 42px;
-  min-height: 42px;
-  border: 1px solid rgba(128, 151, 198, 0.22);
-  border-radius: 8px;
-  color: #8ed0ff;
-  background: rgba(30, 42, 68, 0.72);
-}
-.mini-schedule-btn:hover {
-  color: #ffffff;
-  background: rgba(55, 163, 255, 0.16);
-  box-shadow: 0 0 18px rgba(55, 163, 255, 0.14);
 }
 .mini-send-btn,
 .mini-stop-btn {

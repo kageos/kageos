@@ -11,7 +11,6 @@ func TestWorkspaceRoleAliasesResolveToCanonicalRoles(t *testing.T) {
 		"build-engineer":       WorkspaceRoleBuildEngineer,
 		"maintenance-engineer": WorkspaceRoleMaintenanceEngineer,
 		"data-operator":        WorkspaceRoleDataOperator,
-		"scheduler-engineer":   WorkspaceRoleSchedulerEngineer,
 		"platform-engineer":    WorkspaceRolePlatformEngineer,
 	}
 	for input, want := range cases {

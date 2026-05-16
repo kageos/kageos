@@ -38,12 +38,12 @@ func TestNatsTraceContextPreservesClientSource(t *testing.T) {
 }
 
 func TestCtxToTraceNatsPreservesClientSource(t *testing.T) {
-	ctx := WithClientSource(context.Background(), "scheduled_task")
+	ctx := WithClientSource(context.Background(), "agent")
 
 	msg := CtxToTraceNats(ctx, "demo")
 
-	if got := msg.Header.Get(ClientSourceHeader); got != "scheduled_task" {
-		t.Fatalf("nats header = %q, want scheduled_task", got)
+	if got := msg.Header.Get(ClientSourceHeader); got != "agent" {
+		t.Fatalf("nats header = %q, want agent", got)
 	}
 }
 

@@ -3,7 +3,6 @@
   功能：
   - 显示组织架构完整信息（名称、路径、负责人、描述等）
   - 显示组织架构树，并定位到当前组织
-  - 提供跳转到组织架构管理页面的按钮
 -->
 <template>
   <div v-if="departmentInfo" class="department-detail-card">
@@ -86,24 +85,12 @@
       </div>
     </div>
 
-    <!-- 操作按钮 -->
-    <div class="action-footer">
-      <el-button
-        type="primary"
-        size="small"
-        :icon="OfficeBuilding"
-        @click="handleGoToOrganizationPage"
-      >
-        查看完整组织架构
-      </el-button>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElIcon, ElTag, ElButton, ElTree } from 'element-plus'
+import { ElIcon, ElTag, ElTree } from 'element-plus'
 import { OfficeBuilding, UserFilled, Document, CircleCheck } from '@element-plus/icons-vue'
 import type { Department } from '@/architecture/presentation/context/api/department'
 
@@ -118,7 +105,6 @@ const props = withDefaults(defineProps<Props>(), {
   currentPath: null,
 })
 
-const router = useRouter()
 const treeRef = ref<InstanceType<typeof ElTree>>()
 
 const treeProps = {
@@ -201,10 +187,6 @@ watch([() => props.currentPath, () => props.departmentInfo, () => treeData.value
   }
 }, { immediate: true })
 
-// 跳转到组织架构管理页面
-function handleGoToOrganizationPage() {
-  router.push('/organization')
-}
 </script>
 
 <style scoped>
@@ -377,12 +359,6 @@ function handleGoToOrganizationPage() {
   word-break: break-word;
 }
 
-.action-footer {
-  display: flex;
-  justify-content: center;
-  padding-top: 12px;
-  border-top: 1px solid var(--el-border-color-lighter);
-}
 </style>
 
 <style>

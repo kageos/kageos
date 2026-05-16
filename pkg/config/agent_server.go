@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"sync"
-	"time"
 )
 
 var (
@@ -34,10 +33,9 @@ func GetAgentServerConfig() *AgentServerConfig {
 
 // AgentServerConfig agent-server 配置
 type AgentServerConfig struct {
-	Server      AgentServerServerConfig      `mapstructure:"server"`
-	TimerWorker AgentServerTimerWorkerConfig `mapstructure:"timer_worker"`
-	DB          DBConfig                     `mapstructure:"db"`
-	LLMs        AgentServerLLMSeedsConfig    `mapstructure:"llms"`
+	Server AgentServerServerConfig   `mapstructure:"server"`
+	DB     DBConfig                  `mapstructure:"db"`
+	LLMs   AgentServerLLMSeedsConfig `mapstructure:"llms"`
 	// 注意：Control Service 配置已移至全局配置，不再在此处配置
 	// 数据库配置保留在服务配置中，因为微服务后续每个服务一个库
 }
@@ -49,12 +47,6 @@ type AgentServerServerConfig struct {
 	LogLevel    string `mapstructure:"log_level"`
 	Debug       bool   `mapstructure:"debug"`
 	EnablePprof *bool  `mapstructure:"enable_pprof"`
-}
-
-// AgentServerTimerWorkerConfig 定时 Agent 会话执行器配置。
-type AgentServerTimerWorkerConfig struct {
-	MaxConcurrency        int `mapstructure:"max_concurrency"`
-	DefaultTimeoutSeconds int `mapstructure:"default_timeout_seconds"`
 }
 
 type AgentServerLLMSeedsConfig struct {
@@ -94,20 +86,6 @@ func (c *AgentServerConfig) IsPprofEnabled() bool {
 		return true
 	}
 	return boolConfigValue(c.Server.EnablePprof, true)
-}
-
-func (c *AgentServerConfig) GetTimerWorkerMaxConcurrency() int {
-	if c == nil || c.TimerWorker.MaxConcurrency <= 0 {
-		return 3
-	}
-	return c.TimerWorker.MaxConcurrency
-}
-
-func (c *AgentServerConfig) GetTimerWorkerDefaultTimeout() time.Duration {
-	if c == nil || c.TimerWorker.DefaultTimeoutSeconds <= 0 {
-		return 30 * time.Minute
-	}
-	return time.Duration(c.TimerWorker.DefaultTimeoutSeconds) * time.Second
 }
 
 // 数据库配置便捷访问方法

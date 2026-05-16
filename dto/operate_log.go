@@ -8,8 +8,8 @@ type RecordTableOperateLogReq struct {
 	RequestUser string          `json:"request_user"`                                 // 请求用户（实际执行操作的用户）
 	App         string          `json:"app"`                                          // 应用名
 	Router      string          `json:"router"`                                       // 路由路径（如：crm/crm_ticket）
-	Action      string          `json:"action"`                                       // 操作类型：OnTableAddRow, OnTableCreateInBatches, OnTableUpdateRow, OnTableDeleteRows
-	Source      string          `json:"source"`                                       // 来源（如 browser、scheduled_task、agent、api）
+	Action      string          `json:"action"`                                       // 操作类型：OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows
+	Source      string          `json:"source"`                                       // 来源（如 browser、agent、api）
 	RowID       int64           `json:"row_id"`                                       // 记录ID（OnTableUpdateRow 和 OnTableDeleteRows 需要）
 	RowIDs      []int64         `json:"row_ids"`                                      // 记录ID列表（OnTableDeleteRows 需要，批量删除）
 	Body        json.RawMessage `json:"body" swaggertype:"string" example:"{}"`       // 请求体（OnTableAddRow 需要）
@@ -26,7 +26,7 @@ type RecordFormOperateLogReq struct {
 	RequestUser    string          `json:"request_user"`                                    // 请求用户（实际执行操作的用户）
 	App            string          `json:"app"`                                             // 应用名
 	Router         string          `json:"router"`                                          // 路由路径（如：plugins/cashier_desk）
-	Source         string          `json:"source"`                                          // 来源（如：browser、scheduled_task、agent、api）
+	Source         string          `json:"source"`                                          // 来源（如：browser、agent、api）
 	Action         string          `json:"action"`                                          // 操作类型：form_submit 或 request_app
 	FunctionMethod string          `json:"function_method"`                                 // HTTP 方法
 	RequestBody    json.RawMessage `json:"request_body" swaggertype:"string" example:"{}"`  // 请求体

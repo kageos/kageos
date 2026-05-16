@@ -5,9 +5,6 @@
   --aos-z-mini-workstation: 2500;
   --aos-z-image-preview: 3000;
   --aos-z-floating-popper: 10010;
-  --aos-z-scheduled-agent-dialog-mask: 10019;
-  --aos-z-scheduled-agent-dialog: 10020;
-  --aos-z-scheduled-agent-dialog-popper: 10040;
   --aos-z-critical-preview: 10060;
   --aos-z-enterprise-dialog: 12000;
 }

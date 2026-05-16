@@ -35,7 +35,6 @@ func TestGetPromptDocContent_ForSDKDirectoryAndLeafDoc(t *testing.T) {
 		"ctx.APICall",
 		"ctx.GetRequestUser",
 		"OnTableUpdateRowReq",
-		"定时任务",
 		"事务和副作用顺序",
 		"Python 和外部处理",
 	} {

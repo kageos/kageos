@@ -132,8 +132,8 @@ func main() {
 
     // 使用 License Manager 检查功能
     mgr := license.GetManager()
-    if mgr.IsEnterprise() {
-        // 企业版功能
+    if mgr.HasFeature("operate_log") {
+        // 操作日志功能
     }
 
     // 停止 Client

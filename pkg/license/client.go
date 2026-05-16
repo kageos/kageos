@@ -344,6 +344,9 @@ func (c *Client) setLicenseFromEncrypted(ctx context.Context, encrypted []byte) 
 	if !lic.IsValid() {
 		return fmt.Errorf("license is invalid or expired")
 	}
+	if !lic.IsEnterpriseEdition() {
+		return fmt.Errorf("unsupported license edition: %s", lic.Edition)
+	}
 
 	// 设置 License 到 Manager（注意：这里不验证签名，因为签名验证需要在加载 License 文件时完成）
 	// 从加密密钥获取的 License 已经由 Control Service 验证过签名
@@ -367,6 +370,9 @@ func (c *Client) setLicenseFromEncrypted(ctx context.Context, encrypted []byte) 
 	logger.Infof(ctx, "[License Client] 功能列表:")
 	if lic.Features.OperateLog {
 		logger.Infof(ctx, "[License Client]   - operate_log: ✓")
+	}
+	if lic.Features.Permission {
+		logger.Infof(ctx, "[License Client]   - permission: ✓")
 	}
 	logger.Infof(ctx, "[License Client] ========================================")
 

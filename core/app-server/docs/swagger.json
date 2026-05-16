@@ -395,7 +395,7 @@
                     "200": {
                         "description": "License状态",
                         "schema": {
-                            "$ref": "#/definitions/service.LicenseStatus"
+                            "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_core_control-service_service.LicenseStatus"
                         }
                     },
                     "500": {
@@ -2281,82 +2281,6 @@
                 }
             }
         },
-        "/workspace/api/v1/boards/crud": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "创建 board 类型的讨论区节点",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "创建版块",
-                "parameters": [
-                    {
-                        "description": "创建版块请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.CreateBoardReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.CreateBoardResp"
-                        }
-                    }
-                }
-            }
-        },
-        "/workspace/api/v1/boards/crud/{id}": {
-            "put": {
-                "summary": "更新版块",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "版块ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "更新版块请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.UpdateBoardReq"
-                        }
-                    }
-                ],
-                "responses": {}
-            },
-            "delete": {
-                "summary": "删除版块",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "版块ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {}
-            }
-        },
         "/workspace/api/v1/callback/on_select_fuzzy/{full-code-path}": {
             "post": {
                 "security": [
@@ -3509,7 +3433,7 @@
                     },
                     {
                         "type": "string",
-                        "description": "来源：browser, scheduled_task, agent, api",
+                        "description": "来源：browser, agent, api",
                         "name": "source",
                         "in": "query"
                     },
@@ -3639,7 +3563,7 @@
                     },
                     {
                         "type": "string",
-                        "description": "操作类型：OnTableAddRow, OnTableCreateInBatches, OnTableUpdateRow, OnTableDeleteRows",
+                        "description": "操作类型：OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows",
                         "name": "action",
                         "in": "query"
                     },
@@ -3855,130 +3779,6 @@
                         }
                     }
                 }
-            }
-        },
-        "/workspace/api/v1/posts": {
-            "get": {
-                "description": "按版块 full_code_path 分页获取帖子列表",
-                "tags": [
-                    "版块帖子"
-                ],
-                "summary": "帖子列表",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "版块完整路径",
-                        "name": "full_code_path",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "每页条数",
-                        "name": "page_size",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ListPostsResp"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "summary": "发帖",
-                "parameters": [
-                    {
-                        "description": "发帖请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.CreatePostReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.GetPostResp"
-                        }
-                    }
-                }
-            }
-        },
-        "/workspace/api/v1/posts/{id}": {
-            "get": {
-                "summary": "帖子详情",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "帖子ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.GetPostResp"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "summary": "更新帖子",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "帖子ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "更新请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.UpdatePostReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.GetPostResp"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "summary": "删除帖子",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "帖子ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {}
             }
         },
         "/workspace/api/v1/service_tree/add_functions": {
@@ -4291,7 +4091,7 @@
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "根据关键词搜索目录、函数、文档和讨论区，支持分页",
+                "description": "根据关键词搜索目录、函数和文档，支持分页",
                 "consumes": [
                     "application/json"
                 ],
@@ -4330,7 +4130,7 @@
                     },
                     {
                         "type": "string",
-                        "description": "资源类型（all/package/function/docs/board）",
+                        "description": "资源类型（all/package/function/docs）",
                         "name": "resource_type",
                         "in": "query"
                     },
@@ -4366,83 +4166,6 @@
                     },
                     "401": {
                         "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/workspace/api/v1/table/batch-create/{full-code-path}": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "批量导入表格记录（触发 OnTableCreateInBatches 回调）",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "标准接口"
-                ],
-                "summary": "Table 批量导入",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "函数完整路径，如：/luobei/operations/tools/pdftools/to_images",
-                        "name": "full-code-path",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "批量导入数据，格式：{\\",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "导入成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.RequestAppResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "403": {
-                        "description": "权限不足",
                         "schema": {
                             "type": "string"
                         }
@@ -4979,7 +4702,7 @@
                     "type": "string"
                 },
                 "schema": {
-                    "$ref": "#/definitions/functionschema.FunctionSchema"
+                    "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_pkg_functionschema.FunctionSchema"
                 },
                 "tags": {
                     "type": "array",
@@ -5444,81 +5167,6 @@
                 }
             }
         },
-        "dto.CreateBoardReq": {
-            "type": "object",
-            "required": [
-                "app",
-                "code",
-                "name",
-                "user"
-            ],
-            "properties": {
-                "admins": {
-                    "type": "string"
-                },
-                "app": {
-                    "type": "string",
-                    "example": "myapp"
-                },
-                "code": {
-                    "type": "string",
-                    "example": "board1"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string",
-                    "example": "讨论区"
-                },
-                "parent_full_code_path": {
-                    "description": "父目录完整路径",
-                    "type": "string",
-                    "example": "/beiluo/myapp"
-                },
-                "tags": {
-                    "type": "string"
-                },
-                "user": {
-                    "type": "string",
-                    "example": "beiluo"
-                }
-            }
-        },
-        "dto.CreateBoardResp": {
-            "type": "object",
-            "properties": {
-                "admins": {
-                    "type": "string"
-                },
-                "app_id": {
-                    "type": "integer"
-                },
-                "code": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "full_code_path": {
-                    "description": "完整代码路径（父路径可由此推导）",
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "tags": {
-                    "type": "string"
-                },
-                "type": {
-                    "description": "\"board\"",
-                    "type": "string"
-                }
-            }
-        },
         "dto.CreateDepartmentReq": {
             "type": "object",
             "required": [
@@ -5560,7 +5208,7 @@
                     "description": "部门信息",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/model.Department"
+                            "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_core_hr-server_model.Department"
                         }
                     ]
                 }
@@ -5920,45 +5568,6 @@
                 }
             }
         },
-        "dto.CreatePostReq": {
-            "type": "object",
-            "required": [
-                "full_code_path",
-                "title"
-            ],
-            "properties": {
-                "content": {
-                    "description": "正文（富文本）",
-                    "type": "string"
-                },
-                "content_format": {
-                    "description": "markdown / html，默认 markdown",
-                    "type": "string"
-                },
-                "cover": {
-                    "description": "封面图 URL 数组（可多图）",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "full_code_path": {
-                    "description": "版块完整路径",
-                    "type": "string"
-                },
-                "status": {
-                    "description": "draft / published，默认 published",
-                    "type": "string"
-                },
-                "summary": {
-                    "description": "摘要，列表展示；可选，为空时从正文截取",
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
         "dto.CreateUserBySecretReq": {
             "type": "object",
             "required": [
@@ -6267,7 +5876,7 @@
                     "description": "函数 schema 摘要",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/functionschema.FunctionSchema"
+                            "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_pkg_functionschema.FunctionSchema"
                         }
                     ]
                 },
@@ -6427,7 +6036,7 @@
                     "description": "部门信息",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/model.Department"
+                            "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_core_hr-server_model.Department"
                         }
                     ]
                 }
@@ -6440,7 +6049,7 @@
                     "description": "部门树",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/model.Department"
+                        "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_core_hr-server_model.Department"
                     }
                 }
             }
@@ -6452,7 +6061,7 @@
                     "description": "部门列表",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/model.Department"
+                        "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_core_hr-server_model.Department"
                     }
                 }
             }
@@ -6583,7 +6192,7 @@
                     "description": "函数配置 schema",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/functionschema.FunctionSchema"
+                            "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_pkg_functionschema.FunctionSchema"
                         }
                     ]
                 },
@@ -6601,50 +6210,6 @@
                     "description": "更新时间",
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
-                }
-            }
-        },
-        "dto.GetPostResp": {
-            "type": "object",
-            "properties": {
-                "author": {
-                    "type": "string"
-                },
-                "content": {
-                    "type": "string"
-                },
-                "content_format": {
-                    "type": "string"
-                },
-                "cover": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "full_code_path": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "summary": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "tree_id": {
-                    "type": "integer"
-                },
-                "updated_at": {
-                    "type": "string"
                 }
             }
         },
@@ -7467,20 +7032,6 @@
                 }
             }
         },
-        "dto.ListPostsResp": {
-            "type": "object",
-            "properties": {
-                "list": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.PostItem"
-                    }
-                },
-                "total": {
-                    "type": "integer"
-                }
-            }
-        },
         "dto.LoginReq": {
             "type": "object",
             "required": [
@@ -7587,43 +7138,6 @@
                 "total_pages": {
                     "description": "总页数",
                     "type": "integer"
-                }
-            }
-        },
-        "dto.PostItem": {
-            "type": "object",
-            "properties": {
-                "author": {
-                    "type": "string"
-                },
-                "cover": {
-                    "description": "封面图 URL 数组，列表展示",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "summary": {
-                    "description": "摘要，列表展示",
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "tree_id": {
-                    "type": "integer"
-                },
-                "updated_at": {
-                    "type": "string"
                 }
             }
         },
@@ -8025,27 +7539,6 @@
                 }
             }
         },
-        "dto.UpdateBoardReq": {
-            "type": "object",
-            "properties": {
-                "admins": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "description": "由 path 提供，body 可不传",
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "tags": {
-                    "type": "string"
-                }
-            }
-        },
         "dto.UpdateDepartmentReq": {
             "type": "object",
             "properties": {
@@ -8083,7 +7576,7 @@
                     "description": "部门信息",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/model.Department"
+                            "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_core_hr-server_model.Department"
                         }
                     ]
                 }
@@ -8259,36 +7752,6 @@
                     "description": "标签（指针类型，nil=不更新，\"\"=清空）",
                     "type": "string",
                     "example": "user,management"
-                }
-            }
-        },
-        "dto.UpdatePostReq": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "content_format": {
-                    "type": "string"
-                },
-                "cover": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "id": {
-                    "description": "由 path 提供，body 可不传",
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "summary": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
                 }
             }
         },
@@ -8623,139 +8086,50 @@
                 }
             }
         },
-        "functionschema.ChartSchema": {
+        "github_com_ai-agent-os_ai-agent-os_core_control-service_service.LicenseStatus": {
             "type": "object",
             "properties": {
-                "request": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/widget.Field"
-                    }
-                },
-                "response": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/widget.Field"
-                    }
-                }
-            }
-        },
-        "functionschema.FormSchema": {
-            "type": "object",
-            "properties": {
-                "request": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/widget.Field"
-                    }
-                },
-                "response": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/widget.Field"
-                    }
-                }
-            }
-        },
-        "functionschema.FunctionSchema": {
-            "type": "object",
-            "properties": {
-                "callbacks": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "chart": {
-                    "$ref": "#/definitions/functionschema.ChartSchema"
-                },
-                "form": {
-                    "$ref": "#/definitions/functionschema.FormSchema"
-                },
-                "table": {
-                    "$ref": "#/definitions/functionschema.TableSchema"
-                },
-                "type": {
+                "customer": {
+                    "description": "客户名称（可选）",
                     "type": "string"
                 },
-                "version": {
-                    "type": "integer"
-                }
-            }
-        },
-        "functionschema.TableSchema": {
-            "type": "object",
-            "properties": {
-                "fields": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/widget.Field"
-                    }
+                "description": {
+                    "description": "License 描述（可选）",
+                    "type": "string"
                 },
-                "request": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/widget.Field"
-                    }
-                }
-            }
-        },
-        "license.Features": {
-            "type": "object",
-            "properties": {
-                "approval": {
-                    "description": "审批流程",
+                "edition": {
+                    "description": "版本类型：community, enterprise",
+                    "type": "string"
+                },
+                "expires_at": {
+                    "description": "过期时间（可选）",
+                    "type": "string"
+                },
+                "features": {
+                    "description": "功能开关（可选）",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/license.Features"
+                        }
+                    ]
+                },
+                "is_community": {
+                    "description": "是否为社区版",
                     "type": "boolean"
                 },
-                "change_log": {
-                    "description": "变更日志",
-                    "type": "boolean"
-                },
-                "config_management": {
-                    "description": "配置管理",
-                    "type": "boolean"
-                },
-                "notification": {
-                    "description": "通知中心",
-                    "type": "boolean"
-                },
-                "operate_log": {
-                    "description": "操作日志",
-                    "type": "boolean"
-                },
-                "organization": {
-                    "description": "组织架构",
-                    "type": "boolean"
-                },
-                "permission": {
-                    "description": "高级权限治理",
-                    "type": "boolean"
-                },
-                "quick_link": {
-                    "description": "快链",
-                    "type": "boolean"
-                },
-                "recycle_bin": {
-                    "description": "回收站",
-                    "type": "boolean"
-                },
-                "scheduled_task": {
-                    "description": "定时任务",
-                    "type": "boolean"
-                },
-                "workflow": {
-                    "description": "工作流",
+                "is_valid": {
+                    "description": "License 是否有效",
                     "type": "boolean"
                 }
             }
         },
-        "model.Department": {
+        "github_com_ai-agent-os_ai-agent-os_core_hr-server_model.Department": {
             "type": "object",
             "properties": {
                 "children": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/model.Department"
+                        "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_core_hr-server_model.Department"
                     }
                 },
                 "code": {
@@ -8795,7 +8169,7 @@
                     "description": "关联字段",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/model.Department"
+                            "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_core_hr-server_model.Department"
                         }
                     ]
                 },
@@ -8816,39 +8190,192 @@
                 }
             }
         },
-        "service.LicenseStatus": {
+        "github_com_ai-agent-os_ai-agent-os_pkg_functionschema.ChartSchema": {
             "type": "object",
             "properties": {
-                "customer": {
-                    "description": "客户名称（可选）",
+                "request": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.Field"
+                    }
+                },
+                "response": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.Field"
+                    }
+                }
+            }
+        },
+        "github_com_ai-agent-os_ai-agent-os_pkg_functionschema.FormSchema": {
+            "type": "object",
+            "properties": {
+                "request": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.Field"
+                    }
+                },
+                "response": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.Field"
+                    }
+                }
+            }
+        },
+        "github_com_ai-agent-os_ai-agent-os_pkg_functionschema.FunctionSchema": {
+            "type": "object",
+            "properties": {
+                "callbacks": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "chart": {
+                    "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_pkg_functionschema.ChartSchema"
+                },
+                "form": {
+                    "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_pkg_functionschema.FormSchema"
+                },
+                "table": {
+                    "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_pkg_functionschema.TableSchema"
+                },
+                "type": {
                     "type": "string"
                 },
-                "description": {
-                    "description": "License 描述（可选）",
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_ai-agent-os_ai-agent-os_pkg_functionschema.TableSchema": {
+            "type": "object",
+            "properties": {
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.Field"
+                    }
+                },
+                "request": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.Field"
+                    }
+                }
+            }
+        },
+        "github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.Field": {
+            "type": "object",
+            "properties": {
+                "callbacks": {
+                    "description": "字段级别的回调，如 ['OnSelectFuzzy']",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "children": {
+                    "description": "嵌套字段（用于 list/struct 类型）",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.Field"
+                    }
+                },
+                "code": {
+                    "description": "从json标签里解析，必需字段",
                     "type": "string"
                 },
-                "edition": {
-                    "description": "版本类型：community, professional, enterprise, flagship",
-                    "type": "string"
-                },
-                "expires_at": {
-                    "description": "过期时间（可选）",
-                    "type": "string"
-                },
-                "features": {
-                    "description": "功能开关（可选）",
+                "data": {
+                    "description": "字段数据类型信息",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/license.Features"
+                            "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.FieldData"
                         }
                     ]
                 },
-                "is_community": {
-                    "description": "是否为社区版",
+                "depend_on": {
+                    "description": "依赖的字段 code，当依赖字段值变化时，该字段会被清空",
+                    "type": "string"
+                },
+                "desc": {
+                    "description": "字段描述，用于 placeholder 等",
+                    "type": "string"
+                },
+                "field_name": {
+                    "description": "Go 字段名，用于验证规则中的字段引用（如 required_if=MemberType vip）",
+                    "type": "string"
+                },
+                "hide": {
+                    "description": "前端隐藏场景；不配置表示列表/新增/编辑均展示，如 {\"scenes\":[\"create\",\"update\"]}",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.FieldHide"
+                        }
+                    ]
+                },
+                "name": {
+                    "description": "必需字段",
+                    "type": "string"
+                },
+                "validation": {
+                    "description": "验证规则，完全照搬 github.com/go-playground/validator/v10",
+                    "type": "string"
+                },
+                "widget": {
+                    "type": "object",
+                    "properties": {
+                        "config": {
+                            "description": "组件配置，可以为空"
+                        },
+                        "type": {
+                            "description": "组件类型，必需",
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.FieldData": {
+            "type": "object",
+            "properties": {
+                "example": {
+                    "description": "示例数据，如 \"10\", \"紧急\" 等，方便前端展示示例",
+                    "type": "string"
+                },
+                "format": {
+                    "description": "格式化类型，默认不格式化，特殊场景可格式化成 csv/markdown/json/yaml/html 等",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "数据类型（string/int/float/bool等），建议保留用于类型判断",
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_ai-agent-os_ai-agent-os_sdk_agent-app_widget.FieldHide": {
+            "type": "object",
+            "properties": {
+                "scenes": {
+                    "description": "Scenes 控制前端在哪些界面隐藏字段：list=列表，create=新增表单，update=编辑表单。",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "license.Features": {
+            "type": "object",
+            "properties": {
+                "operate_log": {
+                    "description": "操作日志",
                     "type": "boolean"
                 },
-                "is_valid": {
-                    "description": "License 是否有效",
+                "permission": {
+                    "description": "高级权限治理",
                     "type": "boolean"
                 }
             }
@@ -8887,106 +8414,6 @@
                 "version": {
                     "description": "版本",
                     "type": "string"
-                }
-            }
-        },
-        "widget.Field": {
-            "type": "object",
-            "properties": {
-                "callbacks": {
-                    "description": "字段级别的回调，如 ['OnSelectFuzzy']",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "children": {
-                    "description": "嵌套字段（用于 list/struct 类型）",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/widget.Field"
-                    }
-                },
-                "code": {
-                    "description": "从json标签里解析，必需字段",
-                    "type": "string"
-                },
-                "data": {
-                    "description": "字段数据类型信息",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/widget.FieldData"
-                        }
-                    ]
-                },
-                "depend_on": {
-                    "description": "依赖的字段 code，当依赖字段值变化时，该字段会被清空",
-                    "type": "string"
-                },
-                "desc": {
-                    "description": "字段描述，用于 placeholder 等",
-                    "type": "string"
-                },
-                "field_name": {
-                    "description": "Go 字段名，用于验证规则中的字段引用（如 required_if=MemberType vip）",
-                    "type": "string"
-                },
-                "hide": {
-                    "description": "前端隐藏场景；不配置表示列表/新增/编辑均展示，如 {\"scenes\":[\"create\",\"update\"]}",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/widget.FieldHide"
-                        }
-                    ]
-                },
-                "name": {
-                    "description": "必需字段",
-                    "type": "string"
-                },
-                "validation": {
-                    "description": "验证规则，完全照搬 github.com/go-playground/validator/v10",
-                    "type": "string"
-                },
-                "widget": {
-                    "type": "object",
-                    "properties": {
-                        "config": {
-                            "description": "组件配置，可以为空"
-                        },
-                        "type": {
-                            "description": "组件类型，必需",
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "widget.FieldData": {
-            "type": "object",
-            "properties": {
-                "example": {
-                    "description": "示例数据，如 \"10\", \"紧急\" 等，方便前端展示示例",
-                    "type": "string"
-                },
-                "format": {
-                    "description": "格式化类型，默认不格式化，特殊场景可格式化成 csv/markdown/json/yaml/html 等",
-                    "type": "string"
-                },
-                "type": {
-                    "description": "数据类型（string/int/float/bool等），建议保留用于类型判断",
-                    "type": "string"
-                }
-            }
-        },
-        "widget.FieldHide": {
-            "type": "object",
-            "properties": {
-                "scenes": {
-                    "description": "Scenes 控制前端在哪些界面隐藏字段：list=列表，create=新增表单，update=编辑表单。",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
                 }
             }
         }

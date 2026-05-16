@@ -1,6 +1,6 @@
 /**
  * useAfterCreateNode - 创建节点后的统一处理：刷新树 + 定位并选中新节点
- * 用于文档、讨论区等创建成功后的导航，避免在视图里重复写相同逻辑
+ * 用于文档等创建成功后的导航，避免在视图里重复写相同逻辑
  */
 
 import type { ServiceTree } from '@/architecture/domain/types'

@@ -1,6 +1,6 @@
 # SDK 公共运行能力
 
-本文档是按需参考，只在 SDK 主文档和匹配案例不足以确认横切运行能力时读取。它覆盖消息通知、平台 API、当前用户上下文、权限和审批边界、定时任务、Table 回调高级能力、事务和副作用、日志错误处理、Python 运行时。具体 Form/Table/Chart 写法以 `/system/prompt/sdk/agent-app-sdk-readme` 和匹配案例为准。
+本文档是按需参考，只在 SDK 主文档和匹配案例不足以确认横切运行能力时读取。它覆盖消息通知、平台 API、当前用户上下文、权限和审批边界、Table 回调高级能力、事务和副作用、日志错误处理、Python 运行时。具体 Form/Table/Chart 写法以 `/system/prompt/sdk/agent-app-sdk-readme` 和匹配案例为准。
 
 ## 使用原则
 
@@ -9,7 +9,6 @@
 - 消息通知：用 `ctx.SendMessage(...)`，不要自建消息表、SMTP、Webhook。
 - 平台接口：用 `ctx.APICall(...)` 或 `/system/openapi`，不要裸写 HTTP client、硬编码 token、直连平台库。
 - 权限、审批、操作日志、评论、收藏：优先平台统一治理，不在每个业务系统自造。
-- 定时任务：业务函数只实现单次执行，周期调度交给平台定时任务。
 - 审计上下文：从 `ctx` 取当前用户、部门、trace、full_code_path，不让用户表单伪造。
 
 ## 消息通知
@@ -120,25 +119,6 @@ clientSource := ctx.GetClientSource()
 
 评论、点赞、收藏属于平台统一交互能力，不要在业务系统里默认自造通用评论表或点赞表。
 
-## 定时任务
-
-“每天执行、每小时提醒、定期同步”这类需求不要在 SDK 业务代码里写 goroutine、无限循环、自建 cron。
-
-正确拆法：
-
-```text
-单次业务动作 Form/Table/Chart + 平台定时任务
-```
-
-业务函数要求：
-
-- 单次可重入执行。
-- 能从 Request 接收时间范围、对象范围或批次参数。
-- 能安全处理重复执行，例如按业务唯一键去重。
-- 能记录执行结果，必要时写只读执行记录 Table。
-
-创建、查询、取消平台定时任务时读 `system.openapi.scheduled-task` 或执行模式里的定时任务工具。
-
 ## Table 回调高级能力
 
 Table 写操作由回调控制：
@@ -146,7 +126,6 @@ Table 写操作由回调控制：
 - `OnTableAddRow`：新增。
 - `OnTableUpdateRow`：编辑和简单状态变更。
 - `OnTableDeleteRows`：删除。
-- `OnTableCreateInBatches`：平台内置批量创建能力，只有配置 `OnTableAddRow` 的表才暴露批量导入入口。
 - 不配置某个回调，前端就没有对应写操作入口；三个回调都不配置，前端就不会出现新增、编辑、删除入口。
 
 事实记录表默认只读：
@@ -256,7 +235,7 @@ if object.Status != "开放" {
 2. 启动期 `CompileAndValidate()` 会检查路由后缀、Template 类型、schema、widget、validate 和筛选字段。
 3. 根据函数类型继续验证：
    - Form：`run_form_submit`
-   - Table：`run_table_search`，有写能力时验证 create/update/delete/batch create
+   - Table：`run_table_search`，有写能力时验证 create/update/delete/
    - Chart：`run_chart_query`
    - OnSelectFuzzy：`run_on_select_fuzzy`
 

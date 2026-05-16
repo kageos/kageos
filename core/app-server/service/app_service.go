@@ -161,7 +161,7 @@ func (a *AppService) IncrementFunctionRunCount(ctx context.Context, fullCodePath
 	}
 }
 
-// RecordTableOperateLog 记录 Table 操作日志（OnTableAddRow, OnTableCreateInBatches, OnTableUpdateRow, OnTableDeleteRows）
+// RecordTableOperateLog 记录 Table 操作日志（OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows）
 // 策略：社区版和企业版都记录完整日志，但只有企业版可以查看
 func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordTableOperateLogReq) error {
 	// 获取应用信息（用于获取版本号）
@@ -175,7 +175,7 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 
 	// 根据操作类型处理不同的记录逻辑
 	switch req.Action {
-	case "OnTableAddRow", "OnTableCreateInBatches":
+	case "OnTableAddRow":
 		operateLogReq := &dto.CreateOperateLoggerReq{
 			User:       req.RequestUser,
 			Action:     req.Action,

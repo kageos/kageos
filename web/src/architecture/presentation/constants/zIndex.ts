@@ -10,9 +10,6 @@ export const Z_INDEX = {
   miniWorkstation: 2500,
   imagePreview: 3000,
   floatingPopper: 10010,
-  scheduledAgentDialogMask: 10019,
-  scheduledAgentDialog: 10020,
-  scheduledAgentDialogPopper: 10040,
   criticalPreview: 10060,
   enterpriseDialog: 12000
 } as const

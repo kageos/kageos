@@ -24,18 +24,17 @@ type RuntimeStateItem struct {
 
 // RuntimeStateSummary 是按服务目录聚合后的运行态摘要，用于服务树 badge 展示。
 type RuntimeStateSummary struct {
-	RunningCount          int       `json:"running_count"`
-	ManualRunningCount    int       `json:"manual_running_count"`
-	ScheduledRunningCount int       `json:"scheduled_running_count"`
-	ThinkingCount         int       `json:"thinking_count"`
-	ToolRunningCount      int       `json:"tool_running_count"`
-	WaitingApprovalCount  int       `json:"waiting_approval_count"`
-	FailedRecentCount     int       `json:"failed_recent_count"`
-	LastActivityAt        time.Time `json:"last_activity_at"`
-	DominantStatus        string    `json:"dominant_status,omitempty"`
-	BadgeText             string    `json:"badge_text,omitempty"`
-	BadgeTone             string    `json:"badge_tone,omitempty"`
-	Tooltip               string    `json:"tooltip,omitempty"`
+	RunningCount         int       `json:"running_count"`
+	ManualRunningCount   int       `json:"manual_running_count"`
+	ThinkingCount        int       `json:"thinking_count"`
+	ToolRunningCount     int       `json:"tool_running_count"`
+	WaitingApprovalCount int       `json:"waiting_approval_count"`
+	FailedRecentCount    int       `json:"failed_recent_count"`
+	LastActivityAt       time.Time `json:"last_activity_at"`
+	DominantStatus       string    `json:"dominant_status,omitempty"`
+	BadgeText            string    `json:"badge_text,omitempty"`
+	BadgeTone            string    `json:"badge_tone,omitempty"`
+	Tooltip              string    `json:"tooltip,omitempty"`
 }
 
 type RuntimeStateSummaryResp struct {

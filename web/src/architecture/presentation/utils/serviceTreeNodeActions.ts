@@ -1,7 +1,6 @@
 import type { Component } from 'vue'
 import {
   ChatDotRound,
-  ChatDotSquare,
   CopyDocument,
   Delete,
   Document,
@@ -18,7 +17,6 @@ import { featureFlags } from '@/architecture/shared/config/features'
 export type ServiceTreeNodeActionCommand =
   | 'create-directory'
   | 'create-docs'
-  | 'create-board'
   | 'open-workstation'
   | 'delete-directory'
   | 'rename'
@@ -28,7 +26,6 @@ export type ServiceTreeNodeActionCommand =
   | 'paste'
   | 'delete-function'
   | 'delete-doc'
-  | 'delete-board'
   | 'update-history'
 
 export interface ServiceTreeNodeAction {
@@ -58,12 +55,6 @@ export function getServiceTreeNodeActions(
       label: '创建文档',
       icon: Document,
       visible: data.type === 'package'
-    },
-    {
-      command: 'create-board',
-      label: '新增讨论区',
-      icon: ChatDotSquare,
-      visible: featureFlags.board && data.type === 'package'
     },
     {
       command: 'open-workstation',
@@ -120,12 +111,6 @@ export function getServiceTreeNodeActions(
       icon: Delete,
       visible: data.type === 'docs'
     },
-    {
-      command: 'delete-board',
-      label: '删除讨论区',
-      icon: Delete,
-      visible: data.type === 'board'
-    }
   ]
 
   return actions.filter((action) => action.visible)

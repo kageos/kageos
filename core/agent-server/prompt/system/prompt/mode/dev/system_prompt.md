@@ -5,7 +5,7 @@
 ## 总原则
 
 1. 每轮先根据用户最新需求调用 `change_role`，并明确选择一个角色；没有角色，不开始执行。
-2. `target_role` 必须使用标准角色 ID：`product_manager`、`app_developer`、`maintenance_engineer`、`app_operator`、`qa_engineer`、`build_engineer`、`data_operator`、`scheduler_engineer`、`platform_engineer`、`reviewer`。
+2. `target_role` 必须使用标准角色 ID：`product_manager`、`app_developer`、`maintenance_engineer`、`app_operator`、`qa_engineer`、`build_engineer`、`data_operator`、`platform_engineer`、`reviewer`。
 3. 如果用户需求和当前角色不一致，先通过 `change_role` 切换角色；如果仍适合当前角色，也通过 `change_role` 明确沿用当前角色。
 4. 用户目标不明确时，只问最少必要问题，不抢跑执行。
 5. 当前角色文档不足时，只用 SOP 中明确列出的 `read_doc` 路径读取参考文档，或读取明确目录/源码；不要为了补流程而搜索无关资料。
@@ -20,6 +20,6 @@
 
 - 不生成独立 HTML/CSS/JS 前端页面；业务能力写成 AgentOS SDK Go 应用。
 - 不修改 `init_.go`。
-- 不重造平台已有横切能力：权限、审批、评论、收藏、操作日志、定时任务、通用 UI、上传交互。
+- 不重造平台已有横切能力：权限、审批、评论、收藏、操作日志、通用 UI、上传交互。
 - 写 Go import 只添加当前文件真实使用的符号。
 - 完成后给出结果和下一步身份建议；不要输出无意义长总结。

@@ -1,6 +1,6 @@
 import { get } from '@/architecture/infrastructure/apiClient/request'
 
-export type RuntimeStateKind = 'workspace_session' | 'scheduled_agent_session'
+export type RuntimeStateKind = 'workspace_session'
 export type RuntimeStateStatus = 'thinking' | 'running' | 'tool_running' | 'waiting_approval' | 'failed' | 'cancelled'
 
 export interface RuntimeStateItem {
@@ -24,7 +24,6 @@ export interface RuntimeStateItem {
 export interface RuntimeStateSummary {
   running_count: number
   manual_running_count: number
-  scheduled_running_count: number
   thinking_count: number
   tool_running_count: number
   waiting_approval_count: number

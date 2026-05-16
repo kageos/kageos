@@ -8,7 +8,6 @@ const (
 	CallbackTypeOnTableAddRow          = "OnTableAddRow"
 	CallbackTypeOnTableUpdateRow       = "OnTableUpdateRow"
 	CallbackTypeOnTableDeleteRows      = "OnTableDeleteRows"
-	CallbackTypeOnTableCreateInBatches = "OnTableCreateInBatches" // 系统内置批量创建回调
 	CallbackTypeOnPageLoad             = "OnPageLoad"
 	CallbackTypeOnSelectFuzzy          = "OnSelectFuzzy"
 )

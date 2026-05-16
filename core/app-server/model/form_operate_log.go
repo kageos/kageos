@@ -22,7 +22,7 @@ type FormOperateLog struct {
 	// Form 特有字段
 	App            string `json:"app" gorm:"type:varchar(100);not null;comment:应用名"`                                                                                                               // 应用名（如：demo）
 	FullCodePath   string `json:"full_code_path" gorm:"type:varchar(500);not null;index:idx_full_code_path;index:idx_user_full_code_path;index:idx_full_code_path_created;comment:完整代码路径（与服务树对齐）"` // ⭐ 必须：完整代码路径（与服务树对齐，如：/luobei/demo/biz/biz_vote_system_submit）
-	Source         string `json:"source" gorm:"type:varchar(50);comment:请求来源（如 browser、scheduled_task、agent、api）"`                                                                                 // 请求来源
+	Source         string `json:"source" gorm:"type:varchar(50);comment:请求来源（如 browser、agent、api）"`                                                                                                // 请求来源
 	FunctionMethod string `json:"function_method" gorm:"type:varchar(10);comment:HTTP方法"`                                                                                                          // HTTP 方法（如：GET、POST）
 
 	// ✅ 合规要求：请求和响应（相当于变更前后值）

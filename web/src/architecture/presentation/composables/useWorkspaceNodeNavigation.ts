@@ -114,15 +114,6 @@ export function useWorkspaceNodeNavigation(options: UseWorkspaceNodeNavigationOp
       return
     }
 
-    if (serviceTree.type === 'board') {
-      const targetPath = buildWorkspacePath(serviceTree.full_code_path || '')
-      options.triggerNodeClick(serviceTree)
-      if (options.route.path !== targetPath) {
-        handlePackageNodeRoute(serviceTree, RouteSource.WORKSPACE_NODE_CLICK_BOARD)
-      }
-      return
-    }
-
     options.triggerNodeClick(serviceTree)
   }
 
@@ -137,10 +128,6 @@ export function useWorkspaceNodeNavigation(options: UseWorkspaceNodeNavigationOp
     }
     if (node.type === 'docs') {
       handlePackageNodeRoute(node, RouteSource.BREADCRUMB_NODE_CLICK_DOCS)
-      return
-    }
-    if (node.type === 'board') {
-      handlePackageNodeRoute(node, RouteSource.BREADCRUMB_NODE_CLICK_BOARD)
       return
     }
     options.triggerNodeClick(node)

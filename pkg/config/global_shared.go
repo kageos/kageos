@@ -37,19 +37,7 @@ type GlobalSharedConfig struct {
 	JWT            JWTConfig                  `mapstructure:"jwt"`
 	ControlService ControlServiceClientConfig `mapstructure:"control_service"`
 	SDK            SDKConfig                  `mapstructure:"sdk"`
-	TimerScheduler TimerSchedulerClientConfig `mapstructure:"timer_scheduler"`
 	// 注意：数据库配置不在全局配置中，每个服务可以单独配置自己的数据库
-}
-
-type TimerSchedulerClientConfig struct {
-	BaseURL string `mapstructure:"base_url"`
-}
-
-func (c TimerSchedulerClientConfig) GetBaseURL() string {
-	if c.BaseURL != "" {
-		return c.BaseURL
-	}
-	return "http://127.0.0.1:9108/timer/api/v1"
 }
 
 // GatewayConfig 网关配置
