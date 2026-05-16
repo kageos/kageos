@@ -15,11 +15,6 @@ jwt:
   refresh_token_expire: 7776000
   issuer: "ai-agent-os"
 
-control_service:
-  enabled: true
-  encryption_key: "${CONTROL_ENC_KEY}"
-  key_path: "/app/data/license/license.key"
-
 sdk:
   nats_url: "${NATS_URL}"
   gateway_url: "http://127.0.0.1:9090"

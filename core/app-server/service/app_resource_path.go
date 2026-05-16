@@ -2,14 +2,18 @@ package service
 
 import (
 	"fmt"
-
-	permissionpkg "github.com/ai-agent-os/ai-agent-os/pkg/permission"
+	"strings"
 )
 
 func resolveUserAppFromResourcePath(resourcePath, requestedUser, requestedApp string) (string, string, error) {
 	user, app := requestedUser, requestedApp
 	if resourcePath != "" {
-		_, parsedUser, parsedApp := permissionpkg.ParseFullCodePath(resourcePath)
+		parts := strings.Split(strings.Trim(resourcePath, "/"), "/")
+		parsedUser, parsedApp := "", ""
+		if len(parts) >= 2 {
+			parsedUser = parts[0]
+			parsedApp = parts[1]
+		}
 		if parsedUser == "" || parsedApp == "" {
 			return "", "", fmt.Errorf("resource_path 格式错误，无法解析 user 和 app: %s", resourcePath)
 		}

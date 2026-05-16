@@ -54,7 +54,7 @@
                 <span class="user-account-name">{{ userName }}</span>
                 <span class="user-account-meta">{{ userEmail || '已登录账户' }}</span>
               </span>
-              <span class="user-account-badge">{{ licenseStore.isEnterprise ? '企业版' : '社区版' }}</span>
+              <span class="user-account-badge">MVP</span>
             </el-dropdown-item>
 
             <el-dropdown-item disabled class="user-dropdown-section-title">账户</el-dropdown-item>
@@ -76,39 +76,6 @@
                 <span class="user-menu-desc">模型、密钥与默认配置</span>
               </span>
             </el-dropdown-item>
-
-            <template v-if="featureFlags.enterpriseUpgrade">
-              <!-- 非企业版：升级企业版 -->
-              <el-dropdown-item
-                v-if="!licenseStore.isEnterprise"
-                command="upgrade"
-                class="user-dropdown-action user-dropdown-action--upgrade"
-              >
-                <span class="user-menu-icon user-menu-icon--upgrade">
-                  <el-icon><Promotion /></el-icon>
-                </span>
-                <span class="user-menu-copy">
-                  <span class="user-menu-title">升级企业版</span>
-                  <span class="user-menu-desc">解锁企业能力与 License 管理</span>
-                </span>
-              </el-dropdown-item>
-              <!-- 企业版：标识 + 注销 -->
-              <template v-else>
-                <el-dropdown-item disabled class="user-dropdown-license">
-                  <span class="user-license-label">当前版本</span>
-                  <el-tag type="success" size="small" effect="light">{{ licenseStore.edition }}</el-tag>
-                </el-dropdown-item>
-                <el-dropdown-item command="deactivate" class="user-dropdown-action">
-                  <span class="user-menu-icon user-menu-icon--danger">
-                    <el-icon><Delete /></el-icon>
-                  </span>
-                  <span class="user-menu-copy">
-                    <span class="user-menu-title">注销 License</span>
-                    <span class="user-menu-desc">解绑当前企业授权</span>
-                  </span>
-                </el-dropdown-item>
-              </template>
-            </template>
 
             <el-dropdown-item
               v-if="isDevelopment"
@@ -166,23 +133,16 @@
 
     <GlobalResourceSearchDialog v-model:visible="showGlobalSearchDialog" />
 
-    <!-- 升级企业版对话框 -->
-    <UpgradeEnterpriseDialog
-      v-model="showUpgradeDialog"
-      @activated="handleLicenseActivated"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowDown,
-  Delete,
   UserFilled,
   Cpu,
-  Promotion,
   Setting,
   Search,
   Moon,
@@ -192,12 +152,10 @@ import {
 } from '@element-plus/icons-vue'
 import AppSwitcher from '@/architecture/presentation/shared/components/AppSwitcher.vue'
 import type { App } from '@/architecture/domain/types'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { useAuthStore, useLicenseStore, useThemeStore } from '@/architecture/presentation/context/appStoresContext'
+import { ElMessageBox } from 'element-plus'
+import { useAuthStore, useThemeStore } from '@/architecture/presentation/context/appStoresContext'
 import DebugDialog from './DebugDialog.vue'
 import GlobalResourceSearchDialog from './GlobalResourceSearchDialog.vue'
-import UpgradeEnterpriseDialog from '@/architecture/presentation/shared/components/UpgradeEnterpriseDialog.vue'
-import { Logger } from '@/architecture/shared/logger'
 import { featureFlags } from '@/architecture/shared/config/features'
 
 defineProps<{
@@ -217,7 +175,6 @@ defineEmits<{
 
 const router = useRouter()
 const authStore = useAuthStore()
-const licenseStore = useLicenseStore()
 const themeStore = useThemeStore()
 
 // 用户相关
@@ -251,12 +208,6 @@ const handleUserCommand = (command: string) => {
     case 'agent':
       router.push('/agent/llm')
       break
-    case 'upgrade':
-      showUpgradeDialog.value = true
-      break
-    case 'deactivate':
-      handleDeactivate()
-      break
     case 'debug':
       showDebugDialog.value = true
       break
@@ -286,58 +237,6 @@ const isDevelopment = computed(() => {
 
 const showDebugDialog = ref(false)
 const showGlobalSearchDialog = ref(false)
-
-// 升级企业版对话框
-const showUpgradeDialog = ref(false)
-
-// License 激活成功回调
-const handleLicenseActivated = async () => {
-  // 刷新 License 状态
-  await licenseStore.fetchStatus()
-}
-
-// License 注销处理
-const handleDeactivate = async () => {
-  try {
-    // 检查方法是否存在
-    if (typeof licenseStore.deactivate !== 'function') {
-      Logger.error('[WorkspaceHeader]', 'licenseStore.deactivate 不是函数', {
-        licenseStore
-      })
-      ElMessage.error('License Store 未正确初始化，请刷新页面')
-      return
-    }
-    await licenseStore.deactivate()
-    // 注销成功后，状态会自动更新（store 中已处理）
-  } catch (error) {
-    // 错误已在 store 中处理
-    Logger.error('[WorkspaceHeader]', '注销 License 失败', { error })
-  }
-}
-
-// 组件挂载时加载 License 状态
-onMounted(async () => {
-  // ⭐ 先从本地加载（快速显示，避免闪烁）
-  licenseStore.loadFromLocal()
-  
-  // ⭐ 如果 localStorage 不存在，从后端获取
-  // 如果 localStorage 存在，直接使用（快速显示），定时检查会每小时更新
-  const hasLocalLicense = licenseStore.license !== null
-  if (!hasLocalLicense) {
-    // localStorage 不存在，从后端获取
-    try {
-      await licenseStore.fetchStatus()
-    } catch (error) {
-      Logger.warn('[WorkspaceHeader]', '获取 License 状态失败', { error })
-    }
-  }
-  
-  // ⭐ 启动定时检查（每小时重新获取一次，确保状态同步）
-  if (licenseStore.isEnterprise && !licenseStore.isExpired) {
-    licenseStore.startPeriodicCheck()
-  }
-
-})
 
 const appSwitcherRef = ref<InstanceType<typeof AppSwitcher> | null>(null)
 
@@ -561,22 +460,6 @@ defineExpose({
   border-top: 1px solid var(--app-shell-panel-border);
 }
 
-.user-dropdown-license {
-  min-height: 36px;
-  justify-content: space-between;
-  padding: 7px 9px !important;
-  margin: 6px 0 2px;
-  border-radius: 12px;
-  background: var(--app-shell-panel-muted-bg);
-  border: 1px solid var(--app-shell-panel-border);
-}
-
-.user-license-label {
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  font-weight: 600;
-}
-
 .user-dropdown-action {
   min-height: 48px;
   gap: 10px;
@@ -592,12 +475,6 @@ defineExpose({
     color: var(--el-text-color-primary) !important;
     box-shadow: inset 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.12);
   }
-}
-
-.user-dropdown-action--upgrade {
-  margin-top: 8px;
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(var(--el-color-primary-rgb), 0.06));
-  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.18);
 }
 
 .user-dropdown-action--debug {
@@ -644,12 +521,6 @@ defineExpose({
   color: #4f46e5;
 }
 
-.user-menu-icon--upgrade {
-  background: rgba(245, 158, 11, 0.14);
-  color: #d97706;
-}
-
-.user-menu-icon--danger,
 .user-menu-icon--logout {
   background: rgba(239, 68, 68, 0.1);
   color: var(--el-color-danger);

@@ -5,8 +5,7 @@ const (
 	// StatusUnauthorized 401 - 未授权（需要重新登录）
 	// 前端处理：自动跳转到登录页面
 	StatusUnauthorized = 401
-	// StatusForbidden 403 - 权限不足（需要申请权限）
-	// 前端处理：显示权限申请页面
+	// StatusForbidden 403 - 访问被拒绝
 	StatusForbidden = 403
 )
 
@@ -28,11 +27,6 @@ const (
 	// HTTP 状态码：401
 	// 前端处理：自动跳转到登录页面
 	CodeTokenBlacklisted = "TOKEN_BLACKLISTED"
-
-	// CodePermissionDenied 权限不足（需要申请权限）
-	// HTTP 状态码：403
-	// 前端处理：显示权限申请页面
-	CodePermissionDenied = "PERMISSION_DENIED"
 )
 
 // GetTokenExpiredResponse 获取 Token 过期响应（用于前端跳转登录页）

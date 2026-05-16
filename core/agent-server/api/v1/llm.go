@@ -5,7 +5,6 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/service"
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/utils"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
@@ -87,7 +86,6 @@ func (h *LLM) List(c *gin.Context) {
 	}()
 
 	ctx := contextx.ToContext(c)
-	currentUser := contextx.GetRequestUser(ctx)
 	configs, total, err := h.service.ListLLMConfigs(ctx, req.Scope, req.Page, req.PageSize)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
@@ -101,13 +99,11 @@ func (h *LLM) List(c *gin.Context) {
 		if cfg.ExtraConfig != nil {
 			extraConfig = *cfg.ExtraConfig
 		}
-		isAdmin := utils.IsAdmin(cfg.Admin, currentUser)
 		apiKey, hasAPIKey := llmAPIKeyForResponse(cfg, false)
 		llmInfos = append(llmInfos, dto.LLMInfo{
 			ID:          cfg.ID,
 			Code:        cfg.Code,
 			Name:        cfg.Name,
-			Provider:    cfg.Provider,
 			Model:       cfg.Model,
 			APIKey:      apiKey,
 			HasAPIKey:   hasAPIKey,
@@ -115,11 +111,9 @@ func (h *LLM) List(c *gin.Context) {
 			Timeout:     cfg.Timeout,
 			MaxTokens:   cfg.MaxTokens,
 			ExtraConfig: extraConfig,
-			UseThinking: cfg.UseThinking,
 			IsDefault:   cfg.IsDefault,
 			Visibility:  cfg.Visibility,
 			Admin:       cfg.Admin,
-			IsAdmin:     isAdmin,
 			CreatedAt:   time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:   time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
 		})
@@ -163,15 +157,9 @@ func (h *LLM) Get(c *gin.Context) {
 	}()
 
 	ctx := contextx.ToContext(c)
-	currentUser := contextx.GetRequestUser(ctx)
 	cfg, err := h.service.GetLLMConfig(ctx, req.ID)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
-		return
-	}
-	isAdmin := utils.IsAdmin(cfg.Admin, currentUser)
-	if cfg.Visibility == 1 && !isAdmin {
-		response.FailWithMessage(c, "无权限查看该 LLM 配置")
 		return
 	}
 
@@ -179,13 +167,12 @@ func (h *LLM) Get(c *gin.Context) {
 	if cfg.ExtraConfig != nil {
 		extraConfig = *cfg.ExtraConfig
 	}
-	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg, isAdmin)
+	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg, true)
 	resp = &dto.LLMGetResp{
 		LLMInfo: dto.LLMInfo{
 			ID:          cfg.ID,
 			Code:        cfg.Code,
 			Name:        cfg.Name,
-			Provider:    cfg.Provider,
 			Model:       cfg.Model,
 			APIKey:      apiKey,
 			HasAPIKey:   hasAPIKey,
@@ -193,11 +180,9 @@ func (h *LLM) Get(c *gin.Context) {
 			Timeout:     cfg.Timeout,
 			MaxTokens:   cfg.MaxTokens,
 			ExtraConfig: extraConfig,
-			UseThinking: cfg.UseThinking,
 			IsDefault:   cfg.IsDefault,
 			Visibility:  cfg.Visibility,
 			Admin:       cfg.Admin,
-			IsAdmin:     isAdmin,
 			CreatedAt:   time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:   time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
 		},
@@ -229,15 +214,9 @@ func (h *LLM) GetDefault(c *gin.Context) {
 	}()
 
 	ctx := contextx.ToContext(c)
-	currentUser := contextx.GetRequestUser(ctx)
 	cfg, err := h.service.GetDefaultLLMConfig(ctx)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
-		return
-	}
-	isAdmin := utils.IsAdmin(cfg.Admin, currentUser)
-	if cfg.Visibility == 1 && !isAdmin {
-		response.FailWithMessage(c, "无权限查看默认 LLM 配置")
 		return
 	}
 
@@ -245,13 +224,12 @@ func (h *LLM) GetDefault(c *gin.Context) {
 	if cfg.ExtraConfig != nil {
 		extraConfig = *cfg.ExtraConfig
 	}
-	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg, isAdmin)
+	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg, true)
 	resp = &dto.LLMGetDefaultResp{
 		LLMInfo: dto.LLMInfo{
 			ID:          cfg.ID,
 			Code:        cfg.Code,
 			Name:        cfg.Name,
-			Provider:    cfg.Provider,
 			Model:       cfg.Model,
 			APIKey:      apiKey,
 			HasAPIKey:   hasAPIKey,
@@ -259,11 +237,9 @@ func (h *LLM) GetDefault(c *gin.Context) {
 			Timeout:     cfg.Timeout,
 			MaxTokens:   cfg.MaxTokens,
 			ExtraConfig: extraConfig,
-			UseThinking: cfg.UseThinking,
 			IsDefault:   cfg.IsDefault,
 			Visibility:  cfg.Visibility,
 			Admin:       cfg.Admin,
-			IsAdmin:     isAdmin,
 			CreatedAt:   time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:   time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
 		},
@@ -298,14 +274,13 @@ func (h *LLM) Create(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	cfg := &model.LLMConfig{
 		Name:        req.Name,
-		Provider:    req.Provider,
+		Provider:    "openai",
 		Model:       req.Model,
 		APIKey:      req.APIKey,
 		APIBase:     req.APIBase,
 		Timeout:     req.Timeout,
 		MaxTokens:   req.MaxTokens,
 		ExtraConfig: req.ExtraConfig,
-		UseThinking: req.UseThinking,
 		IsDefault:   req.IsDefault,
 		Visibility:  req.Visibility,
 		Admin:       req.Admin,
@@ -355,7 +330,7 @@ func (h *LLM) Update(c *gin.Context) {
 
 	// 更新字段
 	cfg.Name = req.Name
-	cfg.Provider = req.Provider
+	cfg.Provider = "openai"
 	cfg.Model = req.Model
 	cfg.APIKey = req.APIKey
 	cfg.APIBase = req.APIBase
@@ -367,7 +342,6 @@ func (h *LLM) Update(c *gin.Context) {
 	} else {
 		cfg.ExtraConfig = nil
 	}
-	cfg.UseThinking = req.UseThinking
 	cfg.IsDefault = req.IsDefault
 	cfg.Visibility = req.Visibility
 	cfg.Admin = req.Admin

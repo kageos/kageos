@@ -49,19 +49,6 @@ ensure_main_runtime_dirs() {
     /app/logs \
     /app/namespace \
     /app/data/runtime/app-runtime \
-    /app/data/license \
-    /app/data/backup/repo \
-    /app/data/backup/state \
-    /app/data/backup/staging \
-    /app/data/tmp
-}
-
-ensure_backup_runtime_dirs() {
-  mkdir -p \
-    /app/logs \
-    /app/data/backup/repo \
-    /app/data/backup/state \
-    /app/data/backup/staging \
     /app/data/tmp
 }
 

@@ -34,10 +34,6 @@ func copyServiceTreeImpl(s *serviceTreeCopyService, ctx context.Context, req *dt
 		return nil, fmt.Errorf("获取目标应用失败: %w", err)
 	}
 
-	if strings.HasPrefix(req.SourceDirectoryPath, "hub://") {
-		return nil, fmt.Errorf("copy service tree 不再支持 hub:// 链接，请使用本地目录路径或能力包导入")
-	}
-
 	return s.copyFromLocal(ctx, req, targetApp)
 }
 

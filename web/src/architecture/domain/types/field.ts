@@ -105,14 +105,6 @@ export namespace WidgetTypes {
     [key: string]: any
   }
 
-  /**
-   * 权限配置
-   */
-  export interface PermissionConfig {
-    read?: boolean
-    write?: boolean
-    delete?: boolean
-  }
 }
 
 /**
@@ -126,7 +118,6 @@ export type FieldHideConfig = WidgetTypes.FieldHideConfig
 export type FieldValue = WidgetTypes.FieldValue
 export type FieldMeta = WidgetTypes.FieldMeta
 export type ValidationRule = WidgetTypes.ValidationRule
-export type PermissionConfig = WidgetTypes.PermissionConfig
 
 export interface FormFunctionSchema {
   request: FieldConfig[]
@@ -168,7 +159,6 @@ export interface FunctionDetail {
   create_tables?: string
   template_type?: string  // 'form', 'table', 'chart'
   schema?: FunctionSchema  // 函数配置唯一来源
-  permissions?: Record<string, boolean>  // 权限信息（企业版功能）：权限点 -> 是否有权限
   created_by?: string  // 创建者用户名
   created_at?: string
   updated_at?: string

@@ -86,7 +86,7 @@ func TestBuildResourceSearchResultsDoesNotReturnFullDocContent(t *testing.T) {
 			Name:             "长文档",
 			Type:             model.ServiceTreeTypeDocs,
 			Description:      fullContentLikeDescription,
-			FullCodePath:     "/system/prompt/docs/index.docs",
+			FullCodePath:     "/demo/app/docs/guide",
 			SearchDocSummary: "这是文档摘要",
 		},
 	}
@@ -108,7 +108,7 @@ func TestBuildResourceSearchResultsTruncatesDocDescriptionFallback(t *testing.T)
 			Name:         "无摘要文档",
 			Type:         model.ServiceTreeTypeDocs,
 			Description:  fullContentLikeDescription,
-			FullCodePath: "/system/prompt/docs/index.docs",
+			FullCodePath: "/demo/app/docs/guide",
 		},
 	}
 

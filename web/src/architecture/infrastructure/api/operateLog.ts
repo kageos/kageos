@@ -1,6 +1,5 @@
 import { get } from '@/architecture/infrastructure/apiClient/request'
 
-// Table 操作日志
 export interface TableOperateLog {
   id: number
   tenant_user: string
@@ -18,28 +17,6 @@ export interface TableOperateLog {
   created_at: string
 }
 
-// Form 操作日志
-export interface FormOperateLog {
-  id: number
-  tenant_user: string
-  request_user: string
-  action: string
-  app: string
-  full_code_path: string
-  source?: string
-  function_method?: string
-  request_body?: any
-  response_body?: any
-  code: number
-  msg?: string
-  ip_address?: string
-  user_agent?: string
-  trace_id?: string
-  version?: string
-  created_at: string
-}
-
-// 查询 Table 操作日志请求参数
 export interface GetTableOperateLogsParams {
   tenant_user?: string
   request_user?: string
@@ -52,23 +29,6 @@ export interface GetTableOperateLogsParams {
   order_by?: string
 }
 
-// 查询 Form 操作日志请求参数
-export interface GetFormOperateLogsParams {
-  tenant_user?: string
-  request_user?: string
-  app?: string
-  full_code_path?: string
-  action?: string
-  source?: string
-  status?: 'success' | 'failed'
-  trace_id?: string
-  keyword?: string
-  page?: number
-  page_size?: number
-  order_by?: string
-}
-
-// 查询 Table 操作日志响应
 export interface GetTableOperateLogsResponse {
   logs: TableOperateLog[]
   total: number
@@ -76,24 +36,6 @@ export interface GetTableOperateLogsResponse {
   page_size: number
 }
 
-// 查询 Form 操作日志响应
-export interface GetFormOperateLogsResponse {
-  logs: FormOperateLog[]
-  total: number
-  page: number
-  page_size: number
-}
-
-/**
- * 查询 Table 操作日志
- */
 export function getTableOperateLogs(params: GetTableOperateLogsParams): Promise<GetTableOperateLogsResponse> {
   return get<GetTableOperateLogsResponse>('/workspace/api/v1/operate_log/table', params)
-}
-
-/**
- * 查询 Form 操作日志
- */
-export function getFormOperateLogs(params: GetFormOperateLogsParams): Promise<GetFormOperateLogsResponse> {
-  return get<GetFormOperateLogsResponse>('/workspace/api/v1/operate_log/form', params)
 }

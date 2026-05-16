@@ -4,12 +4,8 @@ import (
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
-	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
-	permissionpkg "github.com/ai-agent-os/ai-agent-os/pkg/permission"
 	"github.com/gin-gonic/gin"
 )
 
@@ -58,91 +54,11 @@ func (f *Function) GetFunction(c *gin.Context) {
 
 	ctx := contextx.ToContext(c)
 
-	// ⭐ 权限检查已由中间件自动处理（CheckFunctionRead），无需在此处再次检查
-
 	// 获取函数详情
 	resp, err := f.functionService.GetFunctionByFullCodePath(ctx, fullCodePath)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
-	}
-
-	// ⭐ 查询并返回函数权限信息。工作空间未启用权限管控时按全量可访问返回，避免老空间升级后被阻塞。
-	templateType := ""
-	if resp != nil && resp.TemplateType != "" {
-		templateType = resp.TemplateType
-	}
-	buildAllPermissions := func() map[string]bool {
-		actions := permission.GetActionsForNode("function", templateType)
-		permissions := make(map[string]bool)
-		for _, actionCode := range actions {
-			permissions[actionCode] = true
-		}
-		permissions[permission.BuildActionCode(permission.ResourceTypeApp, "admin")] = true
-		return permissions
-	}
-
-	permissionService := enterprise.GetPermissionService()
-	username := contextx.GetRequestUser(c)
-
-	if permissionService != nil && username != "" && fullCodePath != "" {
-		// ⭐ 获取节点需要的权限点（格式：resource_type:action_type，如 table:read, form:write）
-		// 从 resourcePath 解析 user 和 app
-		_, user, app := permissionpkg.ParseFullCodePath(fullCodePath)
-		if user != "" && app != "" {
-			appModel, err := f.functionService.GetAppByUserAndCode(ctx, user, app)
-			if err == nil && appModel != nil {
-				if !service.IsWorkspacePermissionEnforced(appModel) {
-					resp.Permissions = buildAllPermissions()
-					response.OkWithData(c, resp)
-					return
-				}
-				if appModel.IsOwnerOrAdmin(username) {
-					// 当前用户是 owner/创建者/管理员，直接返回所有权限
-					logger.Debugf(c, "[Function API] 用户 %s 是工作空间 owner/创建者/管理员，直接返回所有权限", username)
-					resp.Permissions = buildAllPermissions()
-					response.OkWithData(c, resp)
-					return
-				}
-			}
-
-			actions := permission.GetActionsForNode("function", templateType)
-
-			if len(actions) > 0 {
-				permReq := &enterprise.GetUserWorkspacePermissionsReq{
-					User:           user,
-					App:            app,
-					Username:       username,
-					DepartmentPath: contextx.GetRequestDepartmentFullPath(ctx),
-				}
-
-				permResp, err := permissionService.GetUserWorkspacePermissions(ctx, permReq)
-				if err != nil {
-					logger.Warnf(c, "[Function API] 查询权限失败: username=%s, resource=%s, error=%v",
-						username, fullCodePath, err)
-					// 权限查询失败，初始化所有权限为 false
-					resp.Permissions = make(map[string]bool)
-					for _, actionCode := range actions {
-						resp.Permissions[actionCode] = false
-					}
-				} else {
-					// 初始化权限 map
-					resp.Permissions = make(map[string]bool)
-
-					// ⭐ 使用响应对象的辅助方法检查每个权限（自动处理权限继承）
-					// 权限点格式：resource_type:action_type
-					for _, actionCode := range actions {
-						resp.Permissions[actionCode] = permResp.CheckPermission(fullCodePath, actionCode)
-					}
-				}
-			} else {
-				// 无法获取权限点，初始化所有权限为 false
-				resp.Permissions = make(map[string]bool)
-			}
-		} else {
-			// 无法解析 user 和 app，初始化所有权限为 false
-			resp.Permissions = make(map[string]bool)
-		}
 	}
 
 	response.OkWithData(c, resp)

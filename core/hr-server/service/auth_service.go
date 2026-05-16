@@ -9,7 +9,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
 	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
-	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -38,17 +37,6 @@ func NewAuthService(userRepo *repository.UserRepository, userSessionRepo *reposi
 
 // RegisterUser 注册用户
 func (s *AuthService) RegisterUser(username, email, password string) (int64, error) {
-	// ⭐ 检查用户数量限制
-	userCount, err := s.userRepo.CountUsers()
-	if err != nil {
-		logger.Warnf(nil, "[AuthService] Failed to count users: %v", err)
-	} else {
-		licenseMgr := license.GetManager()
-		if err := licenseMgr.CheckUserLimit(int(userCount)); err != nil {
-			return 0, err
-		}
-	}
-
 	// 检查用户名是否已存在
 	existingUser, err := s.userRepo.GetUserByUsername(username)
 	if err == nil && existingUser != nil {
@@ -94,17 +82,6 @@ func (s *AuthService) RegisterUser(username, email, password string) (int64, err
 
 // CreateUserBySecretKey 超管一键创建用户（免邮箱验证，仅 system 用户可调用，用于创建测试用户）
 func (s *AuthService) CreateUserBySecretKey(username, password string) (int64, error) {
-	// 与 RegisterUser 类似的校验与创建，但邮箱用占位、直接激活
-	userCount, err := s.userRepo.CountUsers()
-	if err != nil {
-		logger.Warnf(nil, "[AuthService] Failed to count users: %v", err)
-	} else {
-		licenseMgr := license.GetManager()
-		if err := licenseMgr.CheckUserLimit(int(userCount)); err != nil {
-			return 0, err
-		}
-	}
-
 	existingUser, err := s.userRepo.GetUserByUsername(username)
 	if err == nil && existingUser != nil {
 		return 0, fmt.Errorf("用户名已存在")

@@ -386,7 +386,7 @@ import { getSortableConfig } from '@/architecture/domain/utils/fieldSort'
 import { useTableInitialization } from '../composables/useTableInitialization'
 import { useTableBatchDelete } from '../composables/useTableBatchDelete'
 import { useTableAddDialogUrlSync } from '../composables/useTableAddDialogUrlSync'
-import { useTableCreateAndPermissions } from '../composables/useTableCreateAndPermissions'
+import { useTableCreateActions } from '../composables/useTableCreateActions'
 import { useTableLoadAndPagination } from '../composables/useTableLoadAndPagination'
 import { useTableReferencePreload } from '../composables/useTableReferencePreload'
 import { useTableRowActions } from '../composables/useTableRowActions'
@@ -592,7 +592,7 @@ const {
   handleAdd,
   handleCreateSubmit,
   handleCreateDialogClose
-} = useTableCreateAndPermissions({
+} = useTableCreateActions({
   routeQuery: () => route.query as Record<string, any>,
   functionDetail: () => props.functionDetail,
   workspaceStateManager,

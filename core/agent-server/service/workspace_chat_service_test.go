@@ -84,9 +84,9 @@ func TestSaveAssistantMessageStoresLLMMetadata(t *testing.T) {
 	svc := &WorkspaceChatService{messageRepo: messageRepo}
 	meta := messageLLMMetadata{
 		ConfigID:   12,
-		ConfigName: "MiMo Pro",
-		Provider:   "xiaomi",
-		Model:      "mimo-v2.5-pro",
+		ConfigName: "OpenAI Mini",
+		Provider:   "openai",
+		Model:      "gpt-4o-mini",
 	}
 
 	if err := svc.saveAssistantMessage(context.Background(), "session-llm", nil, "ok", "tester", meta); err != nil {

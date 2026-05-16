@@ -31,9 +31,8 @@ func TestRenderBundledConfig(t *testing.T) {
 			{
 				Code:      "main",
 				Name:      "默认模型",
-				Provider:  "qwen",
-				Model:     "qwen-plus",
-				APIKeyEnv: "QIANWEN_API_KEY",
+				Model:     "gpt-4o-mini",
+				APIKeyEnv: "OPENAI_API_KEY",
 				Timeout:   300,
 				MaxTokens: 8192,
 				Admin:     "system",
@@ -55,13 +54,13 @@ func TestRenderBundledConfig(t *testing.T) {
 	compose := mustReadFile(t, filepath.Join(paths.GeneratedDir, "docker-compose.yaml"))
 	for _, want := range []string{
 		`image: "docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"`,
-		`MYSQL_HOST: "mysql"`,
-		`MINIO_HOST: "minio"`,
+		`MYSQL_HOST: "127.0.0.1"`,
+		`MINIO_HOST: "127.0.0.1"`,
 		`NATS_URL: "nats://aos:`,
 		`NATS_SEED_USER: "aos"`,
 		`NATS_SEED_PASSWORD: "`,
 		`SYSTEM_USER_PASSWORD: "` + cfg.SystemUser.Password + `"`,
-		`QIANWEN_API_KEY: "${QIANWEN_API_KEY:-}"`,
+		`OPENAI_API_KEY: "${OPENAI_API_KEY:-}"`,
 	} {
 		if !strings.Contains(compose, want) {
 			t.Fatalf("generated compose missing %q", want)
@@ -71,17 +70,6 @@ func TestRenderBundledConfig(t *testing.T) {
 	mysqlInit := mustReadFile(t, filepath.Join(paths.GeneratedDir, "infra", "mysql-init.sql"))
 	if !strings.Contains(mysqlInit, "CREATE DATABASE IF NOT EXISTS `app_db`") {
 		t.Fatalf("mysql init should quote database identifiers, got:\n%s", mysqlInit)
-	}
-
-	backupConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "backup-service.yaml"))
-	for _, want := range []string{
-		`listen_host: "0.0.0.0"`,
-		`mysql_address: "mysql:3306"`,
-		`minio_address: "minio:9000"`,
-	} {
-		if !strings.Contains(backupConfig, want) {
-			t.Fatalf("generated backup config missing %q", want)
-		}
 	}
 
 	appServerConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "app-server.yaml"))
@@ -113,7 +101,7 @@ func TestRenderBundledConfig(t *testing.T) {
 		`llms:`,
 		`default: "main"`,
 		`code: "main"`,
-		`api_key_env: "QIANWEN_API_KEY"`,
+		`api_key_env: "OPENAI_API_KEY"`,
 		`api_base: ""`,
 	} {
 		if !strings.Contains(agentServerConfig, want) {
@@ -137,23 +125,9 @@ func TestRenderBundledConfig(t *testing.T) {
 	}
 
 	apiGatewayConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "api-gateway.yaml"))
-	for _, want := range []string{
-		`path: "/message"`,
-		`service_name: "message"`,
-		`url: "http://127.0.0.1:9109"`,
-	} {
-		if !strings.Contains(apiGatewayConfig, want) {
-			t.Fatalf("generated api-gateway config missing %q, got:\n%s", want, apiGatewayConfig)
-		}
-	}
-
-	messageServerConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "message-server.yaml"))
-	for _, want := range []string{
-		`port: 9109`,
-		`name: "hr-server"`,
-	} {
-		if !strings.Contains(messageServerConfig, want) {
-			t.Fatalf("generated message-server config missing %q, got:\n%s", want, messageServerConfig)
+	for _, retired := range []string{`path: "/message"`, `path: "/control"`} {
+		if strings.Contains(apiGatewayConfig, retired) {
+			t.Fatalf("generated api-gateway config should not include retired route %q, got:\n%s", retired, apiGatewayConfig)
 		}
 	}
 }
@@ -258,7 +232,7 @@ func TestComposeServicesByLayer(t *testing.T) {
 	}{
 		{layer: layerInfra, want: []string{"mysql", "nats", "minio"}},
 		{layer: layerEdge, want: []string{"main"}},
-		{layer: layerPlatform, want: []string{"main", "backup"}},
+		{layer: layerPlatform, want: []string{"main"}},
 		{layer: layerRuntime, want: []string{"main"}},
 		{layer: layerApps, want: nil},
 	} {
@@ -296,7 +270,7 @@ func TestDeploymentReportIncludesComposeOwnership(t *testing.T) {
 	}
 	for _, layer := range report.Layers {
 		if layer.ID == layerPlatform {
-			if strings.Join(layer.ComposeServices, ",") != "main,backup" {
+			if strings.Join(layer.ComposeServices, ",") != "main" {
 				t.Fatalf("unexpected platform compose services: %#v", layer.ComposeServices)
 			}
 			return

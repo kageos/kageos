@@ -2,7 +2,6 @@ package server
 
 import (
 	v1 "github.com/ai-agent-os/ai-agent-os/core/app-server/api/v1"
-	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
 	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
 	swaggerFiles "github.com/swaggo/files"
@@ -36,7 +35,7 @@ func (s *Server) setupRoutes() {
 	app.GET("/list", appHandler.GetApps)
 	app.GET("/detail", appHandler.GetAppDetail)
 	app.GET("/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
-	app.DELETE("/delete", middleware2.CheckAppDelete(), appHandler.DeleteApp)
+	app.DELETE("/delete", appHandler.DeleteApp)
 	app.POST("/create", appHandler.CreateApp)
 	app.POST("/update", appHandler.UpdateApp)
 	app.PUT("/workspace", appHandler.UpdateWorkspace)
@@ -48,7 +47,7 @@ func (s *Server) setupRoutes() {
 	// 需要JWT验证的路由
 	serviceTreeAuth := serviceTree.Group("")
 	serviceTreeAuth.Use(middleware2.JWTAuth())                                   // 服务目录管理需要JWT认证
-	serviceTreeAuth.GET("/detail", serviceTreeHandler.GetServiceTreeDetail)      // ⭐ 获取服务目录详情（包含权限，兼容旧接口）
+	serviceTreeAuth.GET("/detail", serviceTreeHandler.GetServiceTreeDetail)      // 获取服务目录详情
 	serviceTreeAuth.GET("/search_functions", serviceTreeHandler.SearchFunctions) // ⭐ 搜索函数
 	serviceTreeAuth.GET("/search_resources", serviceTreeHandler.SearchResources) // 全站资源搜索（目录/函数/文档）
 	serviceTreeAuth.POST("/copy", serviceTreeHandler.CopyServiceTree)            // 复制服务目录
@@ -83,11 +82,11 @@ func (s *Server) setupRoutes() {
 	docs := apiV1.Group("/docs")
 	docs.Use(middleware2.JWTAuth())
 	docHandler := v1.NewDoc(s.docService)
-	docs.GET("/search", docHandler.SearchDocs)                                               // 搜索文档（模糊搜索）
-	docs.GET("/batch", docHandler.BatchGetDocs)                                              // 批量获取文档（精确查询）
-	docs.GET("/info/*full-code-path", middleware2.CheckDocRead(), docHandler.GetDoc)         // 获取文档
-	docs.PUT("/info/*full-code-path", middleware2.CheckDocWrite(), docHandler.UpdateDoc)     // 更新文档
-	docs.DELETE("/info/*full-code-path", middleware2.CheckDocDelete(), docHandler.DeleteDoc) // 删除文档
+	docs.GET("/search", docHandler.SearchDocs)                 // 搜索文档（模糊搜索）
+	docs.GET("/batch", docHandler.BatchGetDocs)                // 批量获取文档（精确查询）
+	docs.GET("/info/*full-code-path", docHandler.GetDoc)       // 获取文档
+	docs.PUT("/info/*full-code-path", docHandler.UpdateDoc)    // 更新文档
+	docs.DELETE("/info/*full-code-path", docHandler.DeleteDoc) // 删除文档
 
 	// ==================== 服务间调用路由 ====================
 	// 服务间调用路由（不需要JWT验证，但用户信息中间件已在 apiV1 级别统一添加）
@@ -104,17 +103,13 @@ func (s *Server) setupRoutes() {
 	function := apiV1.Group("/function")
 	function.Use(middleware2.JWTAuth()) // 函数管理需要JWT认证
 	functionHandler := v1.NewFunction(s.functionService)
-	// ⭐ 使用 /info/:func-type/*full-code-path 作为路径参数，函数类型直接从 URL 路径获取
-	// ⭐ 这样后端无需查询数据库即可构造权限点（table:read、form:read、chart:read）
-	function.GET("/info/:func-type/*full-code-path", middleware2.CheckFunctionRead(), functionHandler.GetFunction)
+	function.GET("/info/:func-type/*full-code-path", functionHandler.GetFunction)
 
-	// 操作日志路由（需要JWT验证 + 操作日志功能鉴权）
+	// 操作日志路由（需要JWT验证）
 	operateLog := apiV1.Group("/operate_log")
-	operateLog.Use(middleware2.JWTAuth())                                    // JWT 认证
-	operateLog.Use(middleware2.RequireFeature(enterprise.FeatureOperateLog)) // 操作日志功能鉴权（企业版）
-	operateLogHandler := v1.NewOperateLog()                                  // 使用企业版接口，无需传入服务
-	operateLog.GET("/table", operateLogHandler.GetTableOperateLogs)          // 查询 Table 操作日志
-	operateLog.GET("/form", operateLogHandler.GetFormOperateLogs)            // 查询 Form 操作日志
+	operateLog.Use(middleware2.JWTAuth())                           // JWT 认证
+	operateLogHandler := v1.NewOperateLog(s.operateLogService)      // 查询 Table 操作日志
+	operateLog.GET("/table", operateLogHandler.GetTableOperateLogs) // 查询 Table 操作日志
 
 	// 目录更新历史路由（需要JWT验证）
 	directoryUpdateHistory := apiV1.Group("/directory_update_history")
@@ -123,27 +118,27 @@ func (s *Server) setupRoutes() {
 	directoryUpdateHistory.GET("/app_version", directoryUpdateHistoryHandler.GetAppVersionUpdateHistory) // 获取应用版本更新历史（App视角）
 	directoryUpdateHistory.GET("/directory", directoryUpdateHistoryHandler.GetDirectoryUpdateHistory)    // 获取目录更新历史（目录视角）
 
-	// ⭐ 标准接口路由（使用 full-code-path，便于权限控制）
+	// ⭐ 标准接口路由（使用 full-code-path）
 	standardAPI := v1.NewStandardAPI(s.appService)
 
 	// Table 函数接口
 	table := apiV1.Group("/table")
 	table.Use(middleware2.JWTAuth())
-	table.GET("/search/*full-code-path", middleware2.CheckTableSearch(), standardAPI.TableSearch)    // Table 查询
-	table.GET("/template/*full-code-path", middleware2.CheckTableRead(), standardAPI.TableTemplate)  // Table 下载导入模板
-	table.POST("/create/*full-code-path", middleware2.CheckTableWrite(), standardAPI.TableCreate)    // Table 新增
-	table.PUT("/update/*full-code-path", middleware2.CheckTableUpdate(), standardAPI.TableUpdate)    // Table 更新
-	table.DELETE("/delete/*full-code-path", middleware2.CheckTableDelete(), standardAPI.TableDelete) // Table 删除
+	table.GET("/search/*full-code-path", standardAPI.TableSearch)     // Table 查询
+	table.GET("/template/*full-code-path", standardAPI.TableTemplate) // Table 下载导入模板
+	table.POST("/create/*full-code-path", standardAPI.TableCreate)    // Table 新增
+	table.PUT("/update/*full-code-path", standardAPI.TableUpdate)     // Table 更新
+	table.DELETE("/delete/*full-code-path", standardAPI.TableDelete)  // Table 删除
 
 	// Form 函数接口
 	form := apiV1.Group("/form")
 	form.Use(middleware2.JWTAuth())
-	form.POST("/submit/*full-code-path", middleware2.CheckFormWrite(), standardAPI.FormSubmit) // Form 提交
+	form.POST("/submit/*full-code-path", standardAPI.FormSubmit) // Form 提交
 
 	// Chart 函数接口
 	chart := apiV1.Group("/chart")
 	chart.Use(middleware2.JWTAuth())
-	chart.GET("/query/*full-code-path", middleware2.CheckChartQuery(), standardAPI.ChartQuery) // Chart 查询
+	chart.GET("/query/*full-code-path", standardAPI.ChartQuery) // Chart 查询
 
 	// Callback 接口（不需要权限检查，因为这是内部回调）
 	callbackStandard := apiV1.Group("/callback")

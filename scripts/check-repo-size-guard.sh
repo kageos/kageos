@@ -33,8 +33,8 @@ is_forbidden_path() {
     playwright-report/*|*/playwright-report/*) return 0 ;;
     test-results/*|*/test-results/*) return 0 ;;
     *.log|*.log.*|*.gz|*.db|*.sqlite|*.sqlite3|*.exe|*.test) return 0 ;;
-    app|main|sign_license|embed_case_code) return 0 ;;
-    core/app-runtime/app|enterprise_impl/hub/backend/app) return 0 ;;
+    app|main|embed_case_code) return 0 ;;
+    core/app-runtime/app) return 0 ;;
   esac
   return 1
 }

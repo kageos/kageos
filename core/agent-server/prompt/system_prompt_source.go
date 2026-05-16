@@ -10,8 +10,6 @@ import (
 	"sync"
 
 	workspaceprd "github.com/ai-agent-os/ai-agent-os/core/agent-server/workspace/prd"
-	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
-	"github.com/ai-agent-os/ai-agent-os/pkg/servicetree"
 )
 
 const (
@@ -26,7 +24,6 @@ type PromptSeedDoc struct {
 	Name        string
 	Description string
 	LogicalPath string
-	ActualPath  string
 	Content     string
 	Format      string
 }
@@ -96,46 +93,7 @@ func IsPromptDocPath(fullCodePath string) bool {
 	return logical != "" && !IsLegacyWorkspacePromptPath(logical) && !IsRetiredWorkflowPromptPath(logical)
 }
 
-func PromptDocLeafPath(fullCodePath string) string {
-	logical := NormalizePromptDocPath(fullCodePath)
-	if logical == "" {
-		return ""
-	}
-	return logical + ".docs"
-}
-
-func PromptDocIndexPath(fullCodePath string) string {
-	logical := NormalizePromptDocPath(fullCodePath)
-	if logical == "" {
-		return ""
-	}
-	return logical + "/index.docs"
-}
-
-func PromptDocCandidatePaths(fullCodePath string) []string {
-	logical := NormalizePromptDocPath(fullCodePath)
-	if logical == "" {
-		return nil
-	}
-	if IsLegacyWorkspacePromptPath(logical) || IsRetiredWorkflowPromptPath(logical) {
-		return nil
-	}
-	candidates := make([]string, 0, 3)
-	if actualPath := getSeedPromptDocActualPath(logical); actualPath != "" {
-		candidates = append(candidates, actualPath)
-	}
-	for _, candidate := range []string{logical + "/index.docs", logical + ".docs"} {
-		if !containsString(candidates, candidate) {
-			candidates = append(candidates, candidate)
-		}
-	}
-	return candidates
-}
-
 func LoadPromptDocCatalog(ctx context.Context) []DocCatalogEntry {
-	if entries := loadPromptDocCatalogFromTree(ctx); len(entries) > 0 {
-		return entries
-	}
 	return GetDocCatalog()
 }
 
@@ -152,9 +110,6 @@ func ResolveModeProvider(ctx context.Context, code string) WorkspaceModePromptPr
 	if code == "" {
 		return nil
 	}
-	if provider := loadModeProviderFromTree(ctx, code); provider != nil {
-		return provider
-	}
 	return GetModeProvider(code)
 }
 
@@ -162,9 +117,6 @@ func LoadModeConfig(ctx context.Context, code string) *ModeConfig {
 	code = strings.TrimSpace(code)
 	if code == "" {
 		return nil
-	}
-	if cfg := loadModeConfigFromTree(ctx, code); cfg != nil {
-		return cfg
 	}
 	return loadSeedModeConfig(code)
 }
@@ -176,17 +128,6 @@ func GetPromptDocContent(ctx context.Context, fullCodePath string) (name, conten
 	}
 	if IsLegacyWorkspacePromptPath(logical) || IsRetiredWorkflowPromptPath(logical) {
 		return "", ""
-	}
-	for _, actualPath := range PromptDocCandidatePaths(logical) {
-		doc, err := apicall.GetDoc(ctx, actualPath)
-		if err != nil || doc == nil || strings.TrimSpace(doc.Content) == "" {
-			continue
-		}
-		docName := strings.TrimSpace(doc.Name)
-		if docName == "" {
-			docName = path.Base(logical)
-		}
-		return docName, finalizePromptDocContent(logical, doc.Content)
 	}
 	name, content = getSeedPromptDocContent(logical)
 	return name, finalizePromptDocContent(logical, content)
@@ -227,20 +168,6 @@ func ListSystemPromptSeedPackages() ([]PromptSeedPackage, error) {
 	return out, nil
 }
 
-func loadPromptDocCatalogFromTree(ctx context.Context) []DocCatalogEntry {
-	if ctx == nil {
-		return nil
-	}
-	var entries []DocCatalogEntry
-	entries = append(entries, collectSDKCatalogEntriesFromTree(ctx, SystemPromptRootPath+"/sdk")...)
-	entries = append(entries, collectCaseCatalogEntriesFromTree(ctx, SystemPromptRootPath+"/case_catalog", true)...)
-	if len(entries) == 0 {
-		return nil
-	}
-	sortPromptDocCatalogEntries(entries)
-	return entries
-}
-
 func buildPromptDocCatalogFromSeed() []DocCatalogEntry {
 	docs, err := ListSystemPromptSeedDocs()
 	if err != nil {
@@ -278,127 +205,6 @@ func buildPromptDocCatalogFromSeed() []DocCatalogEntry {
 	return entries
 }
 
-func collectSDKCatalogEntriesFromTree(ctx context.Context, fullCodePath string) []DocCatalogEntry {
-	workspaceCtx, err := apicall.GetWorkspaceContext(ctx, fullCodePath, "")
-	if err != nil || workspaceCtx == nil {
-		return nil
-	}
-	var entries []DocCatalogEntry
-	for _, child := range workspaceCtx.Children {
-		switch child.Type {
-		case servicetree.TypePackage:
-			entries = append(entries, collectSDKCatalogEntriesFromTree(ctx, child.FullCodePath)...)
-		case servicetree.TypeDocs:
-			if strings.EqualFold(child.Code, "index.docs") {
-				continue
-			}
-			entries = append(entries, DocCatalogEntry{
-				Name:         child.Name,
-				FullCodePath: promptDocLogicalPathFromActualPath(child.FullCodePath),
-				WhenToUse:    deriveSDKWhenToUse(child.Description),
-			})
-		}
-	}
-	return entries
-}
-
-func collectCaseCatalogEntriesFromTree(ctx context.Context, fullCodePath string, isRoot bool) []DocCatalogEntry {
-	workspaceCtx, err := apicall.GetWorkspaceContext(ctx, fullCodePath, "")
-	if err != nil || workspaceCtx == nil {
-		return nil
-	}
-
-	var (
-		entries          []DocCatalogEntry
-		hasPackageChilds bool
-	)
-	for _, child := range workspaceCtx.Children {
-		if child.Type != servicetree.TypePackage {
-			continue
-		}
-		hasPackageChilds = true
-		entries = append(entries, collectCaseCatalogEntriesFromTree(ctx, child.FullCodePath, false)...)
-	}
-	if !isRoot && !hasPackageChilds {
-		entries = append(entries, DocCatalogEntry{
-			Name:         workspaceCtx.Directory.Name,
-			FullCodePath: workspaceCtx.Directory.FullCodePath,
-			WhenToUse:    deriveCaseCatalogWhenToUse(workspaceCtx.Directory.Description),
-		})
-	}
-	return entries
-}
-
-func loadModeProviderFromTree(ctx context.Context, code string) *modeProvider {
-	cfg := loadModeConfigFromTree(ctx, code)
-	if cfg == nil {
-		return nil
-	}
-
-	systemPrompt := loadModeDocContent(ctx, code, cfg.SystemPromptFile)
-	systemPrompt = appendModeSystemPrompt(systemPrompt, loadTreePromptAppendFiles(ctx, code, modeSystemPromptAppendFiles(code, cfg.SystemPromptAppendFiles)))
-	systemPrompt = finalizeModeSystemPrompt(systemPrompt)
-
-	toolNames := cfg.ToolNames
-	if toolNames == nil {
-		toolNames = []string{}
-	}
-	return &modeProvider{
-		code:         code,
-		systemPrompt: systemPrompt,
-		toolNames:    toolNames,
-	}
-}
-
-func loadModeConfigFromTree(ctx context.Context, code string) *ModeConfig {
-	_, cfgContent := GetPromptDocContent(ctx, SystemPromptRootPath+"/mode/"+code+"/config")
-	if strings.TrimSpace(cfgContent) == "" {
-		return nil
-	}
-	var cfg ModeConfig
-	if err := json.Unmarshal([]byte(cfgContent), &cfg); err != nil {
-		return nil
-	}
-	return &cfg
-}
-
-func loadModeDocContent(ctx context.Context, code, fileName string) string {
-	fileName = strings.TrimSpace(fileName)
-	if fileName == "" {
-		return ""
-	}
-	base := strings.TrimSuffix(path.Base(fileName), path.Ext(fileName))
-	if base == "" {
-		return ""
-	}
-	_, content := GetPromptDocContent(ctx, SystemPromptRootPath+"/mode/"+code+"/"+base)
-	return content
-}
-
-func loadTreePromptAppendFiles(ctx context.Context, code string, fileNames []string) []string {
-	contents := make([]string, 0, len(fileNames))
-	for _, fileName := range fileNames {
-		content := loadTreePromptAppendFile(ctx, code, fileName)
-		if strings.TrimSpace(content) == "" {
-			continue
-		}
-		contents = append(contents, content)
-	}
-	return contents
-}
-
-func loadTreePromptAppendFile(ctx context.Context, code, fileName string) string {
-	fileName = strings.TrimSpace(fileName)
-	if fileName == "" {
-		return ""
-	}
-	if strings.HasPrefix(fileName, SystemPromptRootPath+"/") || fileName == SystemPromptRootPath {
-		_, content := GetPromptDocContent(ctx, fileName)
-		return content
-	}
-	return loadModeDocContent(ctx, code, fileName)
-}
-
 func getSeedPromptDocContent(logicalPath string) (name, content string) {
 	docs, err := ListSystemPromptSeedDocs()
 	if err != nil {
@@ -411,20 +217,6 @@ func getSeedPromptDocContent(logicalPath string) (name, content string) {
 		}
 	}
 	return "", ""
-}
-
-func getSeedPromptDocActualPath(logicalPath string) string {
-	docs, err := ListSystemPromptSeedDocs()
-	if err != nil {
-		return ""
-	}
-	logicalPath = NormalizePromptDocPath(logicalPath)
-	for _, doc := range docs {
-		if doc.LogicalPath == logicalPath {
-			return doc.ActualPath
-		}
-	}
-	return ""
 }
 
 func buildSystemPromptSeedDocs() ([]PromptSeedDoc, error) {
@@ -469,7 +261,7 @@ func buildSystemPromptSeedDocs() ([]PromptSeedDoc, error) {
 	}
 
 	sort.Slice(docs, func(i, j int) bool {
-		return docs[i].ActualPath < docs[j].ActualPath
+		return docs[i].LogicalPath < docs[j].LogicalPath
 	})
 	return docs, nil
 }
@@ -550,7 +342,6 @@ func appendPromptSeedReadmeDocs(docs *[]PromptSeedDoc) error {
 			Name:        firstNonEmpty(title, path.Base(logical)),
 			Description: body,
 			LogicalPath: logical,
-			ActualPath:  PromptDocIndexPath(logical),
 			Content:     content,
 			Format:      "markdown",
 		})
@@ -578,7 +369,6 @@ func appendPromptSDKSeedDocs(docs *[]PromptSeedDoc) error {
 			Name:        firstNonEmpty(title, path.Base(logical)),
 			Description: body,
 			LogicalPath: logical,
-			ActualPath:  PromptDocIndexPath(logical),
 			Content:     content,
 			Format:      "markdown",
 		})
@@ -636,7 +426,6 @@ func appendPromptCaseCatalogSeedDocs(docs *[]PromptSeedDoc) error {
 			Name:        name,
 			Description: desc,
 			LogicalPath: logical,
-			ActualPath:  PromptDocIndexPath(logical),
 			Content:     content,
 			Format:      format,
 		})
@@ -741,7 +530,6 @@ func appendPromptModeSeedDocs(docs *[]PromptSeedDoc) error {
 				Name:        name,
 				Description: desc,
 				LogicalPath: logical,
-				ActualPath:  PromptDocLeafPath(logical),
 				Content:     content,
 				Format:      format,
 			})
@@ -766,7 +554,6 @@ func appendPromptSeedFileDoc(docs *[]PromptSeedDoc, fsPath, logicalPath, format,
 		Name:        name,
 		Description: desc,
 		LogicalPath: logicalPath,
-		ActualPath:  PromptDocLeafPath(logicalPath),
 		Content:     content,
 		Format:      format,
 	})
@@ -914,15 +701,6 @@ func extractMarkdownMeta(content, fallbackName string) (name, desc string) {
 	return name, desc
 }
 
-func containsString(items []string, target string) bool {
-	for _, item := range items {
-		if item == target {
-			return true
-		}
-	}
-	return false
-}
-
 func shouldIncludeSDKDocCatalogEntry(doc PromptSeedDoc) bool {
 	return strings.HasPrefix(doc.LogicalPath, SystemPromptRootPath+"/sdk/") && doc.Format == "markdown"
 }
@@ -959,17 +737,6 @@ func sortPromptDocCatalogEntries(entries []DocCatalogEntry) {
 		}
 		return li < lj
 	})
-}
-
-func promptDocLogicalPathFromActualPath(fullCodePath string) string {
-	switch {
-	case strings.HasSuffix(fullCodePath, "/index.docs"):
-		return strings.TrimSuffix(fullCodePath, "/index.docs")
-	case strings.HasSuffix(fullCodePath, ".docs"):
-		return strings.TrimSuffix(fullCodePath, ".docs")
-	default:
-		return fullCodePath
-	}
 }
 
 func deriveSDKWhenToUse(description string) string {

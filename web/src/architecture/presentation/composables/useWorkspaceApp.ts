@@ -27,7 +27,6 @@ export function useWorkspaceApp(
   const route = useRoute()
   const router = useRouter()
   const applicationService = serviceProvider.getWorkspaceApplicationService()
-  const defaultPermissionEnforced = () => false
 
   // 工作空间列表状态
   const appList = ref<AppType[]>([])
@@ -55,9 +54,7 @@ export function useWorkspaceApp(
     code: '',
     name: '',
     is_public: true, // 默认公开
-    admins: '', // 管理员列表，逗号分隔的用户名
-    show_only_permitted: false, // 仅展示有权限的空间（SaaS 多租户场景）
-    permission_enforced: defaultPermissionEnforced()
+    admins: '' // 管理员列表，逗号分隔的用户名
   })
 
   // 加载工作空间列表
@@ -136,9 +133,7 @@ export function useWorkspaceApp(
       code: '',
       name: '',
       is_public: true,
-      admins: '',
-      show_only_permitted: false,
-      permission_enforced: defaultPermissionEnforced()
+      admins: ''
     }
   }
 

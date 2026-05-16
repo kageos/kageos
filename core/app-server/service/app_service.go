@@ -13,7 +13,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"gorm.io/gorm"
@@ -161,90 +160,78 @@ func (a *AppService) IncrementFunctionRunCount(ctx context.Context, fullCodePath
 	}
 }
 
-// RecordTableOperateLog 记录 Table 操作日志（OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows）
-// 策略：社区版和企业版都记录完整日志，但只有企业版可以查看
+// RecordTableOperateLog 记录 Table 操作日志（OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows）。
 func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordTableOperateLogReq) error {
+	if req == nil {
+		return nil
+	}
+	if req.TenantUser == "" || req.App == "" {
+		return fmt.Errorf("记录 Table 操作日志失败: tenant_user 和 app 不能为空")
+	}
+
 	// 获取应用信息（用于获取版本号）
 	app, err := a.appRepo.GetAppByUserName(req.TenantUser, req.App)
 	if err != nil {
 		return fmt.Errorf("获取应用信息失败: %w", err)
 	}
 
-	// 直接使用企业版的操作日志记录器
-	operateLogger := enterprise.GetOperateLogger()
+	resourceID := fmt.Sprintf("%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/"))
 
 	// 根据操作类型处理不同的记录逻辑
 	switch req.Action {
 	case "OnTableAddRow":
-		operateLogReq := &dto.CreateOperateLoggerReq{
-			User:       req.RequestUser,
-			Action:     req.Action,
-			Resource:   functionschema.TypeTable,
-			ResourceID: fmt.Sprintf("%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/")),
-			Source:     req.Source,
-			RowID:      req.RowID,
-			Updates:    req.Body,
-			Version:    app.Version,
-			TraceID:    req.TraceID,
-			IPAddress:  req.IPAddress,
-			UserAgent:  req.UserAgent,
-		}
-		go func() {
-			if _, err := operateLogger.CreateOperateLogger(operateLogReq); err != nil {
+		log := buildTableOperateLog(req, resourceID, req.RowID, req.Body, nil, app.Version)
+		go func(log *model.TableOperateLog) {
+			if err := a.operateLogRepo.CreateTableOperateLog(log); err != nil {
 				logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 新增操作日志失败: %v", err)
 			}
-		}()
+		}(log)
 
 	case "OnTableUpdateRow":
 		// 更新操作：记录 updates 和 old_values
-		operateLogReq := &dto.CreateOperateLoggerReq{
-			User:       req.RequestUser,
-			Action:     req.Action,
-			Resource:   functionschema.TypeTable,
-			ResourceID: fmt.Sprintf("%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/")),
-			Source:     req.Source,
-			RowID:      req.RowID,
-			Updates:    req.Updates,
-			OldValues:  req.OldValues,
-			Version:    app.Version,
-			TraceID:    req.TraceID,
-			IPAddress:  req.IPAddress,
-			UserAgent:  req.UserAgent,
-		}
-
-		// 异步记录操作日志（不阻塞主流程）
-		go func() {
-			if _, err := operateLogger.CreateOperateLogger(operateLogReq); err != nil {
+		log := buildTableOperateLog(req, resourceID, req.RowID, req.Updates, req.OldValues, app.Version)
+		go func(log *model.TableOperateLog) {
+			if err := a.operateLogRepo.CreateTableOperateLog(log); err != nil {
 				logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 更新操作日志失败: %v", err)
 			}
-		}()
+		}(log)
 
 	case "OnTableDeleteRows":
 		// 删除操作：为每个删除的记录创建一条日志
 		for _, rowID := range req.RowIDs {
-			operateLogReq := &dto.CreateOperateLoggerReq{
-				User:       req.RequestUser,
-				Action:     req.Action,
-				Resource:   functionschema.TypeTable,
-				ResourceID: fmt.Sprintf("%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/")),
-				Source:     req.Source,
-				RowID:      rowID,
-				Version:    app.Version,
-				TraceID:    req.TraceID,
-				IPAddress:  req.IPAddress,
-				UserAgent:  req.UserAgent,
-			}
-
-			// 异步记录操作日志（不阻塞主流程）
-			go func(id int64) {
-				if _, err := operateLogger.CreateOperateLogger(operateLogReq); err != nil {
+			log := buildTableOperateLog(req, resourceID, rowID, nil, nil, app.Version)
+			go func(log *model.TableOperateLog) {
+				if err := a.operateLogRepo.CreateTableOperateLog(log); err != nil {
 					logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 删除操作日志失败: %v", err)
 				}
-			}(rowID)
+			}(log)
 		}
 	}
 
 	return nil
+}
+
+func buildTableOperateLog(req *dto.RecordTableOperateLogReq, resourceID string, rowID int64, updates, oldValues []byte, version string) *model.TableOperateLog {
+	parts := strings.Split(resourceID, "/")
+	fullCodePath := fmt.Sprintf("/%s/%s", req.TenantUser, req.App)
+	if len(parts) > 2 {
+		fullCodePath = fmt.Sprintf("/%s/%s/%s", req.TenantUser, req.App, strings.Join(parts[2:], "/"))
+	}
+
+	return &model.TableOperateLog{
+		TenantUser:   req.TenantUser,
+		RequestUser:  req.RequestUser,
+		Action:       req.Action,
+		IPAddress:    req.IPAddress,
+		UserAgent:    req.UserAgent,
+		App:          req.App,
+		FullCodePath: fullCodePath,
+		RowID:        rowID,
+		Updates:      updates,
+		OldValues:    oldValues,
+		TraceID:      req.TraceID,
+		Version:      version,
+	}
 }
 
 // processAPIDiff 处理API差异，包括新增、更新、删除
@@ -758,21 +745,19 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 	appInfos := make([]*dto.AppInfo, len(apps))
 	for i, app := range apps {
 		appInfos[i] = &dto.AppInfo{
-			ID:                 app.ID,
-			User:               app.User,
-			Code:               app.Code,
-			Name:               app.Name,
-			Status:             app.Status,
-			Version:            app.Version,
-			NatsID:             app.NatsID,
-			HostID:             app.HostID,
-			IsPublic:           app.IsPublic,
-			Admins:             app.Admins,
-			Type:               int(app.Type),
-			ShowOnlyPermitted:  app.ShowOnlyPermitted,
-			PermissionEnforced: IsWorkspacePermissionEnforced(app),
-			CreatedAt:          time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
-			UpdatedAt:          time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
+			ID:        app.ID,
+			User:      app.User,
+			Code:      app.Code,
+			Name:      app.Name,
+			Status:    app.Status,
+			Version:   app.Version,
+			NatsID:    app.NatsID,
+			HostID:    app.HostID,
+			IsPublic:  app.IsPublic,
+			Admins:    app.Admins,
+			Type:      int(app.Type),
+			CreatedAt: time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
+			UpdatedAt: time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
 		}
 	}
 
@@ -805,21 +790,19 @@ func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq)
 
 	return &dto.GetAppDetailResp{
 		AppInfo: dto.AppInfo{
-			ID:                 app.ID,
-			User:               app.User,
-			Code:               app.Code,
-			Name:               app.Name,
-			Status:             app.Status,
-			Version:            app.Version,
-			NatsID:             app.NatsID,
-			HostID:             app.HostID,
-			IsPublic:           app.IsPublic,
-			Admins:             app.Admins,
-			Type:               int(app.Type),
-			ShowOnlyPermitted:  app.ShowOnlyPermitted,
-			PermissionEnforced: IsWorkspacePermissionEnforced(app),
-			CreatedAt:          time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
-			UpdatedAt:          time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
+			ID:        app.ID,
+			User:      app.User,
+			Code:      app.Code,
+			Name:      app.Name,
+			Status:    app.Status,
+			Version:   app.Version,
+			NatsID:    app.NatsID,
+			HostID:    app.HostID,
+			IsPublic:  app.IsPublic,
+			Admins:    app.Admins,
+			Type:      int(app.Type),
+			CreatedAt: time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
+			UpdatedAt: time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
 		},
 	}, nil
 }
@@ -844,80 +827,19 @@ func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspa
 		return nil, fmt.Errorf("获取应用信息失败: %w", err)
 	}
 
-	// ⭐ 更新管理员列表并同步更新角色分配
-	oldAdminsStr := app.Admins
-	newAdminsStr := req.Admins
-
-	// 解析旧管理员列表
-	oldAdmins := make(map[string]bool)
-	if oldAdminsStr != "" {
-		for _, admin := range strings.Split(oldAdminsStr, ",") {
-			admin = strings.TrimSpace(admin)
-			if admin != "" {
-				oldAdmins[admin] = true
-			}
-		}
-	}
-
-	// 解析新管理员列表
-	newAdmins := make(map[string]bool)
-	if newAdminsStr != "" {
-		for _, admin := range strings.Split(newAdminsStr, ",") {
-			admin = strings.TrimSpace(admin)
-			if admin != "" {
-				newAdmins[admin] = true
-			}
-		}
-	}
-
-	// 更新数据库中的管理员列表和仅展示有权限开关
+	// 更新数据库中的管理员列表
 	app.Admins = req.Admins
-	if req.ShowOnlyPermitted != nil {
-		app.ShowOnlyPermitted = *req.ShowOnlyPermitted
-	}
-	if req.PermissionEnforced != nil {
-		app.PermissionEnforced = *req.PermissionEnforced
-	}
 	if err := a.appRepo.UpdateApp(app); err != nil {
 		return nil, fmt.Errorf("更新工作空间失败: %w", err)
 	}
 
-	// ⭐ 同步更新角色分配
-	resourcePath := fmt.Sprintf("/%s/%s", req.User, req.App)
-
-	// 1. 移除不再担任管理员的用户角色
-	for oldAdmin := range oldAdmins {
-		if !newAdmins[oldAdmin] {
-			// 该用户不再是管理员，移除其应用管理员角色
-			if err := a.removeAppAdminRoleFromUser(ctx, req.User, req.App, oldAdmin, resourcePath); err != nil {
-				// 角色移除失败不应该影响更新，只记录警告日志
-				logger.Warnf(ctx, "[AppService] 移除应用管理员角色失败: resource=%s, username=%s, error=%v",
-					resourcePath, oldAdmin, err)
-			}
-		}
-	}
-
-	// 2. 给新管理员分配角色
-	for newAdmin := range newAdmins {
-		if !oldAdmins[newAdmin] {
-			// 该用户是新管理员，分配应用管理员角色
-			if err := a.assignAppAdminRoleToUser(ctx, req.User, req.App, newAdmin, resourcePath); err != nil {
-				// 角色分配失败不应该影响更新，只记录警告日志
-				logger.Warnf(ctx, "[AppService] 分配应用管理员角色失败: resource=%s, username=%s, error=%v",
-					resourcePath, newAdmin, err)
-			}
-		}
-	}
-
-	logger.Infof(ctx, "[AppService] 更新工作空间成功: user=%s, app=%s, admins=%s, showOnlyPermitted=%v, permissionEnforced=%v",
-		req.User, req.App, req.Admins, app.ShowOnlyPermitted, IsWorkspacePermissionEnforced(app))
+	logger.Infof(ctx, "[AppService] 更新工作空间成功: user=%s, app=%s, admins=%s",
+		req.User, req.App, req.Admins)
 
 	return &dto.UpdateWorkspaceResp{
-		User:               req.User,
-		App:                req.App,
-		Admins:             req.Admins,
-		ShowOnlyPermitted:  app.ShowOnlyPermitted,
-		PermissionEnforced: IsWorkspacePermissionEnforced(app),
+		User:   req.User,
+		App:    req.App,
+		Admins: req.Admins,
 	}, nil
 }
 

@@ -26,7 +26,7 @@ func newLLMSeedTestService(t *testing.T) (*LLMService, *repository.LLMRepository
 }
 
 func TestInitLLMSeedsCreatesDefaultAndAllowsEmptyAPIBase(t *testing.T) {
-	t.Setenv("QIANWEN_API_KEY", "seed-secret")
+	t.Setenv("OPENAI_API_KEY", "seed-secret")
 	svc, repo := newLLMSeedTestService(t)
 
 	err := svc.InitLLMSeeds(context.Background(), aosconfig.AgentServerLLMSeedsConfig{
@@ -35,9 +35,8 @@ func TestInitLLMSeedsCreatesDefaultAndAllowsEmptyAPIBase(t *testing.T) {
 			{
 				Code:      "main",
 				Name:      "默认模型",
-				Provider:  "qwen",
-				Model:     "qwen-plus",
-				APIKeyEnv: "QIANWEN_API_KEY",
+				Model:     "gpt-4o-mini",
+				APIKeyEnv: "OPENAI_API_KEY",
 			},
 		},
 	})
@@ -75,8 +74,8 @@ func TestInitLLMSeedsDoesNotWipeExistingKeyWhenEnvMissing(t *testing.T) {
 	if err := repo.Create(&model.LLMConfig{
 		Code:      "main",
 		Name:      "旧模型",
-		Provider:  "qwen",
-		Model:     "qwen-turbo",
+		Provider:  "openai",
+		Model:     "gpt-4o-mini",
 		APIKey:    "existing-secret",
 		APIBase:   "https://old.example/v1",
 		Timeout:   60,
@@ -91,8 +90,7 @@ func TestInitLLMSeedsDoesNotWipeExistingKeyWhenEnvMissing(t *testing.T) {
 			{
 				Code:      "main",
 				Name:      "新模型",
-				Provider:  "qwen",
-				Model:     "qwen-plus",
+				Model:     "gpt-4.1",
 				APIKeyEnv: "MISSING_LLM_API_KEY",
 			},
 		},
@@ -108,7 +106,7 @@ func TestInitLLMSeedsDoesNotWipeExistingKeyWhenEnvMissing(t *testing.T) {
 	if cfg.APIKey != "existing-secret" {
 		t.Fatalf("api key should not be wiped, got %q", cfg.APIKey)
 	}
-	if cfg.Name != "新模型" || cfg.Model != "qwen-plus" {
+	if cfg.Name != "新模型" || cfg.Model != "gpt-4.1" {
 		t.Fatalf("seed fields not updated: name=%q model=%q", cfg.Name, cfg.Model)
 	}
 	if cfg.APIBase != "" {
@@ -123,10 +121,9 @@ func TestInitLLMSeedsRejectsMissingDefaultCode(t *testing.T) {
 		Default: "missing",
 		Configs: []aosconfig.AgentServerLLMSeedConfig{
 			{
-				Code:     "main",
-				Name:     "默认模型",
-				Provider: "qwen",
-				Model:    "qwen-plus",
+				Code:  "main",
+				Name:  "默认模型",
+				Model: "gpt-4o-mini",
 			},
 		},
 	})

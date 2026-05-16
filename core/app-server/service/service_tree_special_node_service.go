@@ -161,35 +161,7 @@ func (s *serviceTreeSpecialNodeService) createSpecialNode(
 	}
 
 	logger.Infof(ctx, "[ServiceTreeService] Created %s node: %s/%s/%s", nodeType, req.User, req.App, req.Code)
-	s.assignNodeAdmins(ctx, req.User, req.App, requestUser, req.Admins, serviceTree.FullCodePath)
-
 	return serviceTree, nil
-}
-
-func (s *serviceTreeSpecialNodeService) assignNodeAdmins(
-	ctx context.Context,
-	user string,
-	app string,
-	requestUser string,
-	admins string,
-	resourcePath string,
-) {
-	if requestUser != "" {
-		if err := assignDirectoryAdminRoleToUser(ctx, user, app, requestUser, resourcePath); err != nil {
-			logger.Warnf(ctx, "[ServiceTreeService] 自动添加创建者管理员角色失败: user=%s, app=%s, username=%s, resource=%s, error=%v",
-				user, app, requestUser, resourcePath, err)
-		}
-	}
-
-	for admin := range parseAdminUserSet(admins) {
-		if admin == requestUser {
-			continue
-		}
-		if err := assignDirectoryAdminRoleToUser(ctx, user, app, admin, resourcePath); err != nil {
-			logger.Warnf(ctx, "[ServiceTreeService] 自动添加管理员角色失败: user=%s, app=%s, username=%s, resource=%s, error=%v",
-				user, app, admin, resourcePath, err)
-		}
-	}
 }
 
 func toCreateServiceTreeResp(serviceTree *model.ServiceTree) *dto.CreateServiceTreeResp {

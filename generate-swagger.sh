@@ -71,7 +71,7 @@ for service_config in "${services[@]}"; do
     
     # 构建排除目录列表（排除其他服务）
     exclude_dirs=""
-    for other_service in "app-server" "app-storage" "api-gateway" "app-runtime" "agent-server" "hr-server" "backup-service" "control-service"; do
+    for other_service in "app-server" "app-storage" "api-gateway" "app-runtime" "agent-server" "hr-server"; do
         service_base_name=$(basename "$service_dir")
         if [ "$other_service" != "$service_base_name" ]; then
             if [ -n "$exclude_dirs" ]; then

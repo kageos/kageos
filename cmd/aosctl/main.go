@@ -82,8 +82,6 @@ type MySQLConfig struct {
 	AgentDatabase    string `yaml:"agent_database"`
 	StorageDatabase  string `yaml:"storage_database"`
 	HRDatabase       string `yaml:"hr_database"`
-	BackupAdminUser  string `yaml:"backup_admin_user"`
-	BackupAdminPass  string `yaml:"backup_admin_password"`
 	CreateBundledSQL bool   `yaml:"create_bundled_sql"`
 }
 
@@ -111,9 +109,6 @@ type MinIOConfig struct {
 
 type SecretsConfig struct {
 	JWTSecret              string `yaml:"jwt_secret"`
-	ControlEncKey          string `yaml:"control_enc_key"`
-	BackupBasicAuthPass    string `yaml:"backup_basic_auth_password"`
-	BackupBasicAuthUser    string `yaml:"backup_basic_auth_username"`
 	GeneratedByAOSCtl      bool   `yaml:"generated_by_aosctl"`
 	GeneratedAtUnixSeconds int64  `yaml:"generated_at_unix_seconds"`
 }
@@ -130,7 +125,6 @@ type LLMSeedsConfig struct {
 type LLMSeedConfig struct {
 	Code        string `yaml:"code"`
 	Name        string `yaml:"name"`
-	Provider    string `yaml:"provider"`
 	Model       string `yaml:"model"`
 	APIKey      string `yaml:"api_key"`
 	APIKeyEnv   string `yaml:"api_key_env"`
@@ -138,7 +132,6 @@ type LLMSeedConfig struct {
 	Timeout     int    `yaml:"timeout"`
 	MaxTokens   int    `yaml:"max_tokens"`
 	ExtraConfig string `yaml:"extra_config"`
-	UseThinking bool   `yaml:"use_thinking"`
 	IsDefault   bool   `yaml:"is_default"`
 	Visibility  int    `yaml:"visibility"`
 	Admin       string `yaml:"admin"`
@@ -162,34 +155,27 @@ type Paths struct {
 
 type RuntimeConfig struct {
 	Config
-	Paths              Paths
-	MySQLHostForMain   string
-	MySQLPortForMain   int
-	NATSHostForMain    string
-	NATSPortForMain    int
-	MinIOHostForMain   string
-	MinIOPortForMain   int
-	MySQLAddress       string
-	BackupMySQLAddress string
-	BackupMySQLHost    string
-	BackupMySQLPort    int
-	NATSURL            string
-	SDKNATSURL         string
-	SDKGatewayURL      string
-	MinIOEndpoint      string
-	SDKMinIOEndpoint   string
-	BackupMinIOAddress string
-	BackupMinIOHost    string
-	BackupMinIOPort    int
-	TLSCertsHostDir    string
-	BackupListenHost   string
-	IncludeMySQL       bool
-	IncludeNATS        bool
-	IncludeMinIO       bool
-	NATSAuthUser       string
-	NATSAuthPassword   string
-	ComposeConfigPath  string
-	LLMSeedEnvVars     []string
+	Paths             Paths
+	MySQLHostForMain  string
+	MySQLPortForMain  int
+	NATSHostForMain   string
+	NATSPortForMain   int
+	MinIOHostForMain  string
+	MinIOPortForMain  int
+	MySQLAddress      string
+	NATSURL           string
+	SDKNATSURL        string
+	SDKGatewayURL     string
+	MinIOEndpoint     string
+	SDKMinIOEndpoint  string
+	TLSCertsHostDir   string
+	IncludeMySQL      bool
+	IncludeNATS       bool
+	IncludeMinIO      bool
+	NATSAuthUser      string
+	NATSAuthPassword  string
+	ComposeConfigPath string
+	LLMSeedEnvVars    []string
 }
 
 func main() {
@@ -1049,10 +1035,7 @@ func verifyLayerChecks(rt RuntimeConfig) []layerCheck {
 		layerCheck{Layer: layerPlatform, Name: "app-server", Target: "http://127.0.0.1:9091/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9091/health") }},
 		layerCheck{Layer: layerPlatform, Name: "app-storage", Target: "http://127.0.0.1:9092/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9092/health") }},
 		layerCheck{Layer: layerPlatform, Name: "agent-server", Target: "http://127.0.0.1:9095/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9095/health") }},
-		layerCheck{Layer: layerPlatform, Name: "control-service", Target: "http://127.0.0.1:9096/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9096/health") }},
 		layerCheck{Layer: layerPlatform, Name: "hr-server", Target: "http://127.0.0.1:9097/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9097/health") }},
-		layerCheck{Layer: layerPlatform, Name: "message-server", Target: "http://127.0.0.1:9109/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9109/health") }},
-		layerCheck{Layer: layerPlatform, Name: "backup-service", Target: "http://127.0.0.1:19088/health", Fn: func() error { return checkHTTP("http://127.0.0.1:19088/health") }},
 		layerCheck{Layer: layerPlatform, Name: "main platform probe", Target: "compose exec main /app/health/platform.sh", Fn: func() error {
 			return runComposeCapture(rt.Paths.GeneratedDir, "exec", "-T", "main", "/app/health/platform.sh")
 		}},
@@ -1228,10 +1211,6 @@ func ensureRuntimeLayout(rt RuntimeConfig) error {
 		filepath.Join(rt.Storage.Root, "logs"),
 		filepath.Join(rt.Storage.Root, "namespace"),
 		filepath.Join(rt.Storage.Root, "data", "runtime", "app-runtime"),
-		filepath.Join(rt.Storage.Root, "data", "license"),
-		filepath.Join(rt.Storage.Root, "data", "backup", "repo"),
-		filepath.Join(rt.Storage.Root, "data", "backup", "state"),
-		filepath.Join(rt.Storage.Root, "data", "backup", "staging"),
 		filepath.Join(rt.Storage.Root, "data", "tmp"),
 		rt.TLSCertsHostDir,
 	}
@@ -1256,10 +1235,6 @@ func defaultConfig() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	control, err := randomHex(16)
-	if err != nil {
-		return Config{}, err
-	}
 	mysqlPass, err := randomHex(32)
 	if err != nil {
 		return Config{}, err
@@ -1269,10 +1244,6 @@ func defaultConfig() (Config, error) {
 		return Config{}, err
 	}
 	minioPass, err := randomHex(32)
-	if err != nil {
-		return Config{}, err
-	}
-	backupPass, err := randomHex(48)
 	if err != nil {
 		return Config{}, err
 	}
@@ -1306,8 +1277,6 @@ func defaultConfig() (Config, error) {
 			AgentDatabase:    "agent-server",
 			StorageDatabase:  "app-storage",
 			HRDatabase:       "hr-server",
-			BackupAdminUser:  "root",
-			BackupAdminPass:  mysqlPass,
 			CreateBundledSQL: true,
 		},
 		NATS: NATSConfig{
@@ -1331,9 +1300,6 @@ func defaultConfig() (Config, error) {
 		},
 		Secrets: SecretsConfig{
 			JWTSecret:              jwt,
-			ControlEncKey:          control,
-			BackupBasicAuthUser:    "admin",
-			BackupBasicAuthPass:    backupPass,
 			GeneratedByAOSCtl:      true,
 			GeneratedAtUnixSeconds: time.Now().Unix(),
 		},
@@ -1398,12 +1364,6 @@ func applyDefaults(cfg *Config) {
 	if cfg.MySQL.HRDatabase == "" {
 		cfg.MySQL.HRDatabase = "hr-server"
 	}
-	if cfg.MySQL.BackupAdminUser == "" {
-		cfg.MySQL.BackupAdminUser = cfg.MySQL.User
-	}
-	if cfg.MySQL.BackupAdminPass == "" {
-		cfg.MySQL.BackupAdminPass = cfg.MySQL.Password
-	}
 	if cfg.NATS.Mode == "" {
 		cfg.NATS.Mode = "bundled"
 	}
@@ -1444,12 +1404,11 @@ func applyDefaults(cfg *Config) {
 
 func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 	rt := RuntimeConfig{
-		Config:           cfg,
-		Paths:            paths,
-		IncludeMySQL:     cfg.MySQL.Mode == "bundled",
-		IncludeNATS:      cfg.NATS.Mode == "bundled",
-		IncludeMinIO:     cfg.MinIO.Mode == "bundled",
-		BackupListenHost: "0.0.0.0",
+		Config:       cfg,
+		Paths:        paths,
+		IncludeMySQL: cfg.MySQL.Mode == "bundled",
+		IncludeNATS:  cfg.NATS.Mode == "bundled",
+		IncludeMinIO: cfg.MinIO.Mode == "bundled",
 	}
 
 	rt.TLSCertsHostDir = resolveRelativePath(paths.ProdDir, cfg.Site.CertsHostDir)
@@ -1461,14 +1420,6 @@ func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 		rt.MySQLPortForMain = 3306
 	}
 	rt.MySQLAddress = net.JoinHostPort(rt.MySQLHostForMain, strconv.Itoa(rt.MySQLPortForMain))
-	rt.BackupMySQLAddress = rt.MySQLAddress
-	rt.BackupMySQLHost = rt.MySQLHostForMain
-	rt.BackupMySQLPort = rt.MySQLPortForMain
-	if cfg.MySQL.Mode == "bundled" {
-		rt.BackupMySQLAddress = "mysql:3306"
-		rt.BackupMySQLHost = "mysql"
-		rt.BackupMySQLPort = 3306
-	}
 
 	rt.NATSHostForMain, rt.NATSPortForMain = natsHostPort(cfg)
 	rt.NATSURL = natsURLForMain(cfg)
@@ -1477,11 +1428,9 @@ func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 
 	rt.MinIOEndpoint = cfg.MinIO.Endpoint
 	rt.SDKMinIOEndpoint = cfg.MinIO.Endpoint
-	rt.BackupMinIOAddress = cfg.MinIO.Endpoint
 	if cfg.MinIO.Mode == "bundled" {
 		rt.MinIOEndpoint = "127.0.0.1:9000"
 		rt.SDKMinIOEndpoint = "127.0.0.1:9000"
-		rt.BackupMinIOAddress = "minio:9000"
 	}
 	minioHost, minioPort, err := splitHostPortDefault(rt.MinIOEndpoint, 9000)
 	if err != nil {
@@ -1489,12 +1438,6 @@ func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 	}
 	rt.MinIOHostForMain = minioHost
 	rt.MinIOPortForMain = minioPort
-	backupMinIOHost, backupMinIOPort, err := splitHostPortDefault(rt.BackupMinIOAddress, 9000)
-	if err != nil {
-		return RuntimeConfig{}, err
-	}
-	rt.BackupMinIOHost = backupMinIOHost
-	rt.BackupMinIOPort = backupMinIOPort
 
 	if cfg.NATS.AuthEnabled {
 		rt.NATSAuthUser = cfg.NATS.User
@@ -1543,9 +1486,6 @@ func validateConfig(rt RuntimeConfig) error {
 		if rt.MySQL.User != "root" {
 			errs = append(errs, fmt.Errorf("mysql.mode=bundled currently requires mysql.user=root"))
 		}
-		if rt.MySQL.BackupAdminUser != rt.MySQL.User || rt.MySQL.BackupAdminPass != rt.MySQL.Password {
-			errs = append(errs, fmt.Errorf("mysql.mode=bundled requires backup_admin_user/password to match mysql.user/password"))
-		}
 	}
 	if rt.NATS.AuthEnabled && (rt.NATS.User == "" || rt.NATS.Password == "") {
 		errs = append(errs, fmt.Errorf("nats auth requires nats.user and nats.password"))
@@ -1569,12 +1509,6 @@ func validateConfig(rt RuntimeConfig) error {
 	}
 	if len(rt.Secrets.JWTSecret) < 32 {
 		errs = append(errs, fmt.Errorf("secrets.jwt_secret must be at least 32 chars"))
-	}
-	if len(rt.Secrets.ControlEncKey) != 32 {
-		errs = append(errs, fmt.Errorf("secrets.control_enc_key must be exactly 32 chars"))
-	}
-	if len(rt.Secrets.BackupBasicAuthPass) < 16 {
-		errs = append(errs, fmt.Errorf("secrets.backup_basic_auth_password must be at least 16 chars"))
 	}
 	if rt.SystemUser.Password == "" {
 		errs = append(errs, fmt.Errorf("system_user.password is required"))
@@ -1621,9 +1555,6 @@ func validateLLMSeeds(seeds LLMSeedsConfig) error {
 		codes[code] = struct{}{}
 		if strings.TrimSpace(cfg.Name) == "" {
 			errs = append(errs, fmt.Errorf("%s.name is required", prefix))
-		}
-		if strings.TrimSpace(cfg.Provider) == "" {
-			errs = append(errs, fmt.Errorf("%s.provider is required", prefix))
 		}
 		if strings.TrimSpace(cfg.Model) == "" {
 			errs = append(errs, fmt.Errorf("%s.model is required", prefix))
@@ -1685,20 +1616,17 @@ func renderAll(rt RuntimeConfig) error {
 	}
 
 	files := map[string]string{
-		"docker-compose.yaml":         renderTemplate(composeTemplate, rt),
-		".env":                        renderTemplate(envTemplate, rt),
-		"infra/nats-server.conf":      renderTemplate(natsConfigTemplate, rt),
-		"infra/mysql-init.sql":        renderTemplate(mysqlInitTemplate, rt),
-		"config/global.yaml":          renderTemplate(globalConfigTemplate, rt),
-		"config/api-gateway.yaml":     renderTemplate(apiGatewayConfigTemplate, rt),
-		"config/app-runtime.yaml":     renderTemplate(appRuntimeConfigTemplate, rt),
-		"config/app-server.yaml":      renderTemplate(appServerConfigTemplate, rt),
-		"config/app-storage.yaml":     renderTemplate(appStorageConfigTemplate, rt),
-		"config/agent-server.yaml":    renderTemplate(agentServerConfigTemplate, rt),
-		"config/hr-server.yaml":       renderTemplate(hrServerConfigTemplate, rt),
-		"config/message-server.yaml":  renderTemplate(messageServerConfigTemplate, rt),
-		"config/control-service.yaml": renderTemplate(controlServiceConfigTemplate, rt),
-		"config/backup-service.yaml":  renderTemplate(backupServiceConfigTemplate, rt),
+		"docker-compose.yaml":      renderTemplate(composeTemplate, rt),
+		".env":                     renderTemplate(envTemplate, rt),
+		"infra/nats-server.conf":   renderTemplate(natsConfigTemplate, rt),
+		"infra/mysql-init.sql":     renderTemplate(mysqlInitTemplate, rt),
+		"config/global.yaml":       renderTemplate(globalConfigTemplate, rt),
+		"config/api-gateway.yaml":  renderTemplate(apiGatewayConfigTemplate, rt),
+		"config/app-runtime.yaml":  renderTemplate(appRuntimeConfigTemplate, rt),
+		"config/app-server.yaml":   renderTemplate(appServerConfigTemplate, rt),
+		"config/app-storage.yaml":  renderTemplate(appStorageConfigTemplate, rt),
+		"config/agent-server.yaml": renderTemplate(agentServerConfigTemplate, rt),
+		"config/hr-server.yaml":    renderTemplate(hrServerConfigTemplate, rt),
 	}
 	for rel, content := range files {
 		mode := os.FileMode(0644)

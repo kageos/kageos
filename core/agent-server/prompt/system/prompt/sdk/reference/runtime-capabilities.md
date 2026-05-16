@@ -1,42 +1,16 @@
 # SDK 公共运行能力
 
-本文档是按需参考，只在 SDK 主文档和匹配案例不足以确认横切运行能力时读取。它覆盖消息通知、平台 API、当前用户上下文、权限和审批边界、Table 回调高级能力、事务和副作用、日志错误处理、Python 运行时。具体 Form/Table/Chart 写法以 `/system/prompt/sdk/agent-app-sdk-readme` 和匹配案例为准。
+本文档是按需参考，只在 SDK 主文档和匹配案例不足以确认横切运行能力时读取。它覆盖平台 API、当前用户上下文、Table 回调高级能力、事务和副作用、日志错误处理、Python 运行时。具体 Form/Table/Chart 写法以 `/system/prompt/sdk/agent-app-sdk-readme` 和匹配案例为准。
 
 ## 使用原则
 
 业务代码只写业务规则，不重造平台能力：
 
-- 消息通知：用 `ctx.SendMessage(...)`，不要自建消息表、SMTP、Webhook。
 - 平台接口：用 `ctx.APICall(...)` 或 `/system/openapi`，不要裸写 HTTP client、硬编码 token、直连平台库。
-- 权限、审批、操作日志、评论、收藏：优先平台统一治理，不在每个业务系统自造。
-- 审计上下文：从 `ctx` 取当前用户、部门、trace、full_code_path，不让用户表单伪造。
-
-## 消息通知
-
-业务函数内部发送消息使用：
-
-```go
-if err := ctx.SendMessage(&app.SendMessageOpts{
-    ToUsers:     owner,
-    Title:       "评价已提交",
-    Content:     fmt.Sprintf("用户 %s 提交了评价，请及时查看。", ctx.GetRequestUser()),
-    ContentType: "markdown",
-}); err != nil {
-    logger.Errorf(ctx, "[EvaluationSubmit] 发送消息失败, owner=%s, err=%v", owner, err)
-}
-```
-
-规则：
-
-- `ContentType` 默认 `markdown`；只有明确需要模板邮件时用 `html`，纯文本用 `text`。
-- `ToUsers` 与 `user/users` 组件存储格式一致，多个用户用英文逗号分隔。
-- `ToDepartments` 与 `department/departments` 组件存储格式一致。
-- 发送人、来源函数、trace、client_source 由 `ctx` 自动生成，不要让用户表单传发送人。
-- 只在关键业务节点发送：提交成功、状态变更、异常告警、到期提醒、导入失败、库存不足。
-- 不要在每次普通新增、编辑、删除都发消息。
-- 涉及事务时，先让数据库事务成功，再发送消息；消息失败通常记录日志并按业务重要性决定是否返回错误。
-
-工作台直接操作平台发消息时，读 `system.openapi.message`，不要在业务 SDK 里绕过平台。
+- 通用权限、审批、评论、收藏、通知中心不属于 MVP 应用侧能力，不在每个业务系统自造。
+- Table 更新日志由平台记录；业务上确实需要流水、操作记录、支付记录、投票记录时，可以建只读业务 Table。
+- 运行上下文：从 `ctx` 取当前用户、部门、trace、full_code_path，不让用户表单伪造。
+- 定时任务、后台调度、全局消息和备份控制面已从 MVP 删除，不要引用 `/scheduled_tasks`、`/scheduled_agent_tasks` 等旧平台 API。
 
 ## 平台 API
 
@@ -44,16 +18,16 @@ if err := ctx.SendMessage(&app.SendMessageOpts{
 
 ```go
 var out SomeResp
-if err := ctx.APICall(http.MethodGet, "/workspace/api/v1/permission/workspace?"+query.Encode(), nil, &out); err != nil {
-    logger.Errorf(ctx, "[WorkspacePermission] APICall failed, err=%v", err)
-    return nil, fmt.Errorf("[系统错误]-[WorkspacePermission] 调用平台接口失败: %w", err)
+if err := ctx.APICall(http.MethodGet, "/workspace/api/v1/operate_log/table?"+query.Encode(), nil, &out); err != nil {
+    logger.Errorf(ctx, "[TableOperateLog] APICall failed, err=%v", err)
+    return nil, fmt.Errorf("[系统错误]-[TableOperateLog] 调用平台接口失败: %w", err)
 }
 ```
 
 规则：
 
 - `method` 使用 `http.MethodGet`、`http.MethodPost` 等。
-- `path` 使用平台网关路径，例如 `/workspace/api/v1/permission/workspace`。
+- `path` 使用平台网关路径，例如 `/workspace/api/v1/operate_log/table`。
 - `reqBody` 是请求体；GET 可传 `nil`。
 - `respData` 是响应 data 对应结构体指针。
 - SDK 会带上 token、trace、request_user、department、client_source、source_type、source_ref。
@@ -64,13 +38,13 @@ if err := ctx.APICall(http.MethodGet, "/workspace/api/v1/permission/workspace?"+
 - 硬编码 token。
 - 伪造 request_user。
 - 直连平台数据库。
-- 绕过 app-server 权限检查。
+- 伪造平台运行上下文。
 
-权限、审批、审计、操作日志、消息等平台领域，优先走 `platform_engineer` 角色和 `/system/openapi` 函数。
+Table 更新日志等平台领域，优先走 `platform_engineer` 角色和 `/system/openapi` 函数。
 
 ## 当前用户和上下文
 
-用户、部门、审计来源必须从 `ctx` 取：
+用户、部门、调用来源必须从 `ctx` 取：
 
 ```go
 user := ctx.GetRequestUser()
@@ -85,7 +59,7 @@ clientSource := ctx.GetClientSource()
 - 创建人、提交人、评价人、收银员：后端用 `ctx.GetRequestUser()` 赋值。
 - 当前部门默认值、部门过滤：用 `ctx.GetRequestUserDept()`。
 - 日志串联：错误日志带 `ctx.GetTraceId()` 或直接用 `logger.Errorf(ctx, ...)`。
-- 消息和平台 API 来源：SDK 会从 `ctx` 生成 full_code_path 和 source_ref。
+- 平台 API 来源：SDK 会从 `ctx` 生成 full_code_path 和 source_ref。
 
 不要把创建人、提交人、操作人作为普通 Request 字段让用户填写；需要展示时放在 Table Model 中，通常 `hide:"create,update"`。
 
@@ -100,21 +74,20 @@ clientSource := ctx.GetClientSource()
 - 时间字段、空请求、图表类型、分页结构、文件处理、用户上下文等都属于独立知识点；当前已读文档没有覆盖时，不要自行推断。
 - 示例代码只能复用已经验证过的 SDK 调用形态；不要把自然语言里的概念直接拼成 Go 选择器。
 
-## 权限、审批和操作记录边界
+## 平台治理边界
 
-权限由平台按 `full_code_path` 管理。业务代码不要自己判断当前用户是否能访问某个目录或函数。
-
-通用审批属于平台控制面能力：
+通用权限、审批、通知中心、定时任务和后台调度已退出 MVP 主链路。业务代码不要为了补齐平台治理而自造通用模块。
 
 - 不要默认给每个业务表加审批状态、审批人、审批意见、审批记录表。
 - 不要在业务代码里自己造审批按钮、审批流、审批权限。
 - 如果用户只是要管理“审批单据”这种业务对象，可以按普通 Table/Form 建模；这不等于平台通用审批。
-- 如果用户要求“新增/修改/删除必须审批后执行”，应说明这是平台侧流程控制能力，需要平台统一配置或实现。
+- 如果用户要求“新增/修改/删除必须审批后执行”，应说明这是平台侧流程控制能力，MVP 暂不内置。
+- 如果用户要求“每天/每周自动执行”，应说明 MVP 暂不内置平台定时任务；可以先做手动运行的 Form/Table，或把调度需求记录为后续平台能力。
 
 操作日志：
 
-- Table/Form 执行链路已有平台记录。
-- 业务上确实需要流水、审计记录、支付记录、投票记录时，可以建只读业务 Table。
+- Table 更新链路已有平台记录。
+- 业务上确实需要流水、操作记录、支付记录、投票记录时，可以建只读业务 Table。
 - 不要把平台通用操作日志功能重复塞进每个业务系统。
 
 评论、点赞、收藏属于平台统一交互能力，不要在业务系统里默认自造通用评论表或点赞表。
@@ -130,7 +103,7 @@ Table 写操作由回调控制：
 
 事实记录表默认只读：
 
-- 收银记录、支付流水、消费记录、投票记录、评价记录、导入历史、审计记录等通常由 Form 或系统流程写入。
+- 收银记录、支付流水、消费记录、投票记录、评价记录、导入历史、操作记录等通常由 Form 或系统流程写入。
 - 只读 Table 仍然建议显式配置 `AutoCrudTable`；它负责告诉前端用哪个 Model 渲染列表、搜索、分页和字段 schema。
 - 这类表默认不配置 `OnTableAddRow`、`OnTableUpdateRow`、`OnTableDeleteRows`。
 - 不要为了“看起来完整”给流水表补 CRUD；除非用户明确要求人工补录、修正或删除，并且 PRD 说明风险和约束。
@@ -159,7 +132,7 @@ func UpdateRecord(ctx *app.Context, req *callback.OnTableUpdateRowReq) (*callbac
 - `ChangedFields()` 只包含变化字段，适合直接传给 GORM `Updates`。
 - `IsFieldUpdated(field)` 用于判断某字段是否真的变更。
 - `BindChangedFields(&target)` 可把原始更新值绑定到结构体；未更新字段为零值，需要旧数据就查库或读 `GetOldValues()`。
-- 删除和批量写入前要确认业务是否允许；流水、审计、记录类表通常只读。
+- 删除和批量写入前要确认业务是否允许；流水、操作记录、事实记录类表通常只读。
 
 ## 事务和副作用顺序
 
@@ -185,7 +158,7 @@ if err != nil {
 副作用顺序：
 
 - 数据库事务内：只做必须一致的数据库写入和计数更新。
-- 事务后：构建 link、发送消息、调用非强一致外部 API。
+- 事务后：构建 link、调用非强一致外部 API。
 - 文件上传/下载失败要返回错误；输出文件 refs 生成后再写入记录或 Response。
 - 如果外部 API 必须和数据库强一致，业务上要设计补偿或状态表，不要假装一次事务能覆盖外部系统。
 

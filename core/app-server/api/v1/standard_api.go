@@ -952,27 +952,6 @@ func (s *StandardAPI) FormSubmit(c *gin.Context) {
 	resp, err := s.appService.RequestApp(ctx, req)
 	mill := time.Since(now).Milliseconds()
 
-	logReq := &dto.RecordFormOperateLogReq{
-		TenantUser:     req.User,
-		RequestUser:    req.RequestUser,
-		App:            req.App,
-		Router:         req.Router,
-		Source:         c.GetHeader(contextx.ClientSourceHeader),
-		Action:         "form_submit",
-		FunctionMethod: req.Method,
-		RequestBody:    req.Body,
-		ResponseBody:   buildFormOperateLogResponseBody(resp, err, mill),
-		IPAddress:      c.ClientIP(),
-		UserAgent:      c.GetHeader("User-Agent"),
-		TraceID:        req.TraceId,
-	}
-	if resp != nil {
-		logReq.Version = resp.Version
-	}
-	if logErr := s.appService.RecordFormOperateLog(ctx, logReq); logErr != nil {
-		logger.Warnf(ctx, "[FormSubmit] 记录 Form 操作日志失败: %v", logErr)
-	}
-
 	// 构建响应元数据
 	metadata := make(map[string]interface{})
 	metadata["trace_id"] = req.TraceId

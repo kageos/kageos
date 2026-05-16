@@ -29,7 +29,7 @@
               <div>
                 <div class="default-name">{{ defaultConfig.name }}</div>
                 <div class="default-meta">
-                  {{ defaultConfig.provider }}/{{ defaultConfig.model }}
+                  {{ defaultConfig.model }}
                 </div>
               </div>
               <div class="default-tags">
@@ -54,7 +54,7 @@
           <el-input
             v-model="keyword"
             clearable
-            placeholder="按名称、提供商、模型或管理员过滤当前列表"
+            placeholder="按名称、模型、API Base 或管理员过滤当前列表"
             class="toolbar-search"
           >
             <template #prefix>
@@ -82,7 +82,7 @@
                   <el-tag v-if="row.is_default" type="warning" size="small">默认</el-tag>
                   <el-tag v-if="row.is_admin" type="primary" size="small">可管理</el-tag>
                 </div>
-                <div class="meta-line">{{ row.provider }}/{{ row.model }}</div>
+                <div class="meta-line">{{ row.model }}</div>
               </div>
             </template>
           </el-table-column>
@@ -173,19 +173,8 @@
             <el-input v-model="form.name" placeholder="例如：OpenAI GPT-4.1" />
           </el-form-item>
 
-          <el-form-item label="提供商" prop="provider">
-            <el-select v-model="form.provider" filterable allow-create default-first-option style="width: 100%">
-              <el-option
-                v-for="item in providerOptions"
-                :key="item.value"
-                :label="item.label"
-                :value="item.value"
-              />
-            </el-select>
-          </el-form-item>
-
           <el-form-item label="模型" prop="model">
-            <el-input v-model="form.model" placeholder="例如：gpt-4.1、claude-sonnet-4-20250514" />
+            <el-input v-model="form.model" placeholder="例如：gpt-4.1、gpt-4o-mini" />
           </el-form-item>
 
           <el-form-item label="API Key">
@@ -222,11 +211,6 @@
               v-model="form.admin"
               placeholder="多个用户名用英文逗号分隔；留空默认当前用户"
             />
-          </el-form-item>
-
-          <el-form-item label="思考模式">
-            <el-switch v-model="form.use_thinking" />
-            <span class="form-suffix">适用于支持 reasoning/thinking 的模型</span>
           </el-form-item>
 
           <el-form-item label="设为默认">
@@ -278,14 +262,12 @@ type DialogMode = 'create' | 'edit'
 interface LLMFormState {
   id: number | null
   name: string
-  provider: string
   model: string
   api_key: string
   api_base: string
   timeout: number
   max_tokens: number
   extra_config: string
-  use_thinking: boolean
   is_default: boolean
   visibility: number
   admin: string
@@ -293,23 +275,6 @@ interface LLMFormState {
 
 const DEFAULT_TIMEOUT = 300
 const DEFAULT_MAX_TOKENS = 8196
-
-const providerOptions = [
-  { label: 'OpenAI', value: 'openai' },
-  { label: 'Claude (Anthropic)', value: 'claude' },
-  { label: 'DeepSeek', value: 'deepseek' },
-  { label: '千问 (Qwen)', value: 'qwen' },
-  { label: '千问3-Coder', value: 'qwen3-coder' },
-  { label: '豆包 (DouBao)', value: 'doubao' },
-  { label: 'Kimi', value: 'kimi' },
-  { label: 'Gemini', value: 'gemini' },
-  { label: 'GLM (智谱)', value: 'glm' },
-  { label: 'MiniMax', value: 'minimax' },
-  { label: '小米 (MiMo)', value: 'xiaomi' },
-  { label: 'Ollama', value: 'ollama' },
-  { label: 'OpenRouter', value: 'openrouter' },
-  { label: 'Azure OpenAI', value: 'azure_openai' },
-]
 
 const activeScope = ref<Scope>('mine')
 const keyword = ref('')
@@ -332,7 +297,6 @@ const filteredConfigs = computed(() => {
   return configs.value.filter((item) => {
     return [
       item.name,
-      item.provider,
       item.model,
       item.api_base,
       item.admin
@@ -343,9 +307,6 @@ const filteredConfigs = computed(() => {
 const rules: FormRules<LLMFormState> = {
   name: [
     { required: true, message: '请输入配置名称', trigger: 'blur' }
-  ],
-  provider: [
-    { required: true, message: '请输入提供商', trigger: 'change' }
   ],
   model: [
     { required: true, message: '请输入模型名称', trigger: 'blur' }
@@ -374,14 +335,12 @@ function createDefaultForm(): LLMFormState {
   return {
     id: null,
     name: '',
-    provider: 'openai',
     model: '',
     api_key: '',
     api_base: '',
     timeout: DEFAULT_TIMEOUT,
     max_tokens: DEFAULT_MAX_TOKENS,
     extra_config: '',
-    use_thinking: false,
     is_default: false,
     visibility: 0,
     admin: ''
@@ -396,14 +355,12 @@ function resetForm() {
 function applyForm(info: Partial<LLMInfo>) {
   form.id = info.id ?? null
   form.name = info.name || ''
-  form.provider = info.provider || 'openai'
   form.model = info.model || ''
   form.api_key = info.api_key || ''
   form.api_base = info.api_base || ''
   form.timeout = info.timeout || DEFAULT_TIMEOUT
   form.max_tokens = info.max_tokens || DEFAULT_MAX_TOKENS
   form.extra_config = info.extra_config || ''
-  form.use_thinking = Boolean(info.use_thinking)
   form.is_default = Boolean(info.is_default)
   form.visibility = typeof info.visibility === 'number' ? info.visibility : 0
   form.admin = info.admin || ''
@@ -482,14 +439,12 @@ async function handleEdit(row: LLMInfo) {
 function buildCreatePayload(): LLMCreateReq {
   return {
     name: form.name.trim(),
-    provider: form.provider.trim(),
     model: form.model.trim(),
     api_key: form.api_key.trim(),
     api_base: form.api_base.trim(),
     timeout: form.timeout,
     max_tokens: form.max_tokens,
     extra_config: form.extra_config.trim(),
-    use_thinking: form.use_thinking,
     is_default: form.is_default,
     visibility: form.visibility,
     admin: form.admin.trim()

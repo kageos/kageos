@@ -80,13 +80,14 @@ type ToolFunctionDef struct {
 	Name        string                 `json:"name"`             // 函数名
 	Description string                 `json:"description"`      // 函数描述
 	Parameters  map[string]interface{} `json:"parameters"`       // JSON Schema 参数定义
-	Strict      *bool                  `json:"strict,omitempty"` // strict 模式（DeepSeek 特有）
+	Strict      *bool                  `json:"strict,omitempty"` // OpenAI strict 工具参数模式
 }
 
 // ToolCall 工具调用（标准 OpenAI 格式）
 type ToolCall struct {
 	ID       string `json:"id"`   // 工具调用 ID（用于关联 tool 消息）
 	Type     string `json:"type"` // 固定为 "function"
+	Index    *int   `json:"index,omitempty"`
 	Function struct {
 		Name      string `json:"name"`      // 函数名
 		Arguments string `json:"arguments"` // JSON 字符串格式的参数
@@ -103,14 +104,13 @@ type Message struct {
 
 // ChatRequest 聊天请求
 type ChatRequest struct {
-	Messages    []Message      `json:"messages"`               // 对话历史
-	Model       string         `json:"model"`                  // 模型名称（可选）
-	MaxTokens   int            `json:"max_tokens"`             // 最大token数（可选）
-	Temperature float64        `json:"temperature"`            // 温度参数（可选）
-	Timeout     *time.Duration `json:"timeout,omitempty"`      // 请求超时时间（可选，覆盖客户端默认超时）
-	UseThinking *bool          `json:"use_thinking,omitempty"` // 是否使用思考模式（可选，GLM特有功能）
-	Tools       []ToolDef      `json:"tools,omitempty"`        // 工具定义列表（标准 Tool Calls）
-	ToolChoice  interface{}    `json:"tool_choice,omitempty"`  // 工具选择策略（auto/required/none 或具体工具名）
+	Messages    []Message      `json:"messages"`              // 对话历史
+	Model       string         `json:"model"`                 // 模型名称（可选）
+	MaxTokens   int            `json:"max_tokens"`            // 最大token数（可选）
+	Temperature float64        `json:"temperature"`           // 温度参数（可选）
+	Timeout     *time.Duration `json:"timeout,omitempty"`     // 请求超时时间（可选，覆盖客户端默认超时）
+	Tools       []ToolDef      `json:"tools,omitempty"`       // 工具定义列表（标准 Tool Calls）
+	ToolChoice  interface{}    `json:"tool_choice,omitempty"` // 工具选择策略（auto/required/none 或具体工具名）
 }
 
 // ChatResponse 聊天响应
@@ -147,7 +147,4 @@ type LLMClient interface {
 
 	// GetModelName 获取模型名称
 	GetModelName() string
-
-	// GetProvider 获取提供商名称
-	GetProvider() string
 }

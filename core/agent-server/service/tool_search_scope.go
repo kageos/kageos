@@ -2,8 +2,6 @@ package service
 
 import (
 	"strings"
-
-	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
 )
 
 const (
@@ -39,7 +37,12 @@ func resolveSearchScopeUserApp(scope string, user string, app string, currentFul
 		return user, app, scope
 	}
 
-	_, currentUser, currentApp := permission.ParseFullCodePath(currentFullCodePath)
+	pathParts := strings.Split(strings.Trim(currentFullCodePath, "/"), "/")
+	currentUser, currentApp := "", ""
+	if len(pathParts) >= 2 {
+		currentUser = pathParts[0]
+		currentApp = pathParts[1]
+	}
 	switch scope {
 	case searchScopeSystem:
 		return "system", "", scope

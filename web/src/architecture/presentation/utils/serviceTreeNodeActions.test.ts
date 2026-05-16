@@ -19,7 +19,6 @@ function node(overrides: Partial<ServiceTree>): ServiceTree {
     full_code_path: '/user/app',
     created_at: '',
     updated_at: '',
-    permissions: {},
     ...overrides
   }
 }

@@ -1,10 +1,10 @@
 package llms
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -40,30 +40,11 @@ func resolveRequestTimeout(options *ClientOptions, req *ChatRequest) time.Durati
 	return timeout
 }
 
-func newJSONRequest(ctx context.Context, rawURL string, jsonData []byte, options *ClientOptions) (*http.Request, error) {
-	options = normalizeClientOptions(options)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rawURL, bytes.NewReader(jsonData))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if options.UserAgent != "" {
-		req.Header.Set("User-Agent", options.UserAgent)
-	}
-	return req, nil
-}
-
-func newBearerJSONRequest(ctx context.Context, rawURL, apiKey string, jsonData []byte, options *ClientOptions) (*http.Request, error) {
-	req, err := newJSONRequest(ctx, rawURL, jsonData, options)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	return req, nil
-}
-
 // validateRequest 验证请求参数（公共函数）
 func validateRequest(ctx context.Context, apiKey string, req *ChatRequest) error {
+	if req == nil {
+		return fmt.Errorf("request 不能为空")
+	}
 	if apiKey == "" {
 		return fmt.Errorf("API Key 不能为空")
 	}
@@ -75,8 +56,19 @@ func validateRequest(ctx context.Context, apiKey string, req *ChatRequest) error
 		if msg.Role == "" {
 			return fmt.Errorf("消息 %d 的 role 不能为空", i)
 		}
-		if msg.Content == "" {
-			return fmt.Errorf("消息 %d 的 content 不能为空", i)
+		switch strings.ToLower(strings.TrimSpace(msg.Role)) {
+		case "assistant":
+			if msg.Content == "" && len(msg.ToolCalls) == 0 {
+				return fmt.Errorf("消息 %d 的 content 或 tool_calls 不能同时为空", i)
+			}
+		case "tool":
+			if msg.ToolCallID == "" {
+				return fmt.Errorf("消息 %d 的 tool_call_id 不能为空", i)
+			}
+		default:
+			if msg.Content == "" {
+				return fmt.Errorf("消息 %d 的 content 不能为空", i)
+			}
 		}
 	}
 	return nil

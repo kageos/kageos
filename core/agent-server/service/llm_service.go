@@ -7,7 +7,6 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/utils"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"gorm.io/gorm"
 )
@@ -95,9 +94,7 @@ func (s *LLMService) CreateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 	if cfg.Name == "" {
 		return fmt.Errorf("配置名称不能为空")
 	}
-	if cfg.Provider == "" {
-		return fmt.Errorf("提供商不能为空")
-	}
+	cfg.Provider = "openai"
 	if cfg.Model == "" {
 		return fmt.Errorf("模型名称不能为空")
 	}
@@ -155,17 +152,11 @@ func (s *LLMService) UpdateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 		return fmt.Errorf("获取LLM配置失败: %w", err)
 	}
 
-	if !utils.IsAdmin(existing.Admin, user) {
-		return fmt.Errorf("无权限：只有管理员可以修改此资源")
-	}
-
 	// 验证必填字段
 	if cfg.Name == "" {
 		return fmt.Errorf("配置名称不能为空")
 	}
-	if cfg.Provider == "" {
-		return fmt.Errorf("提供商不能为空")
-	}
+	cfg.Provider = "openai"
 	if cfg.Model == "" {
 		return fmt.Errorf("模型名称不能为空")
 	}
@@ -208,20 +199,6 @@ func (s *LLMService) UpdateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 
 // DeleteLLMConfig 删除 LLM 配置
 func (s *LLMService) DeleteLLMConfig(ctx context.Context, id int64) error {
-	// 检查权限：只有管理员可以删除资源
-	user := contextx.GetRequestUser(ctx)
-	existing, err := s.repo.GetByID(id)
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("LLM配置不存在")
-		}
-		return fmt.Errorf("获取LLM配置失败: %w", err)
-	}
-
-	if !utils.IsAdmin(existing.Admin, user) {
-		return fmt.Errorf("无权限：只有管理员可以删除此资源")
-	}
-
 	return s.repo.Delete(id)
 }
 

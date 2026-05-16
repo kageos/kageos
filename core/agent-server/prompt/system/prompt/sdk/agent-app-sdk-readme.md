@@ -14,13 +14,13 @@
 
 - **本 SDK 文档**：框架怎么用——结构体与标签、Table/Form/Chart 模式、注册方式、目录约定。
 - **案例文档**（`/system/prompt/case_catalog/xxx`）：具体业务长什么样——PRD + 完整 Go 代码。系统消息中「可读的目录」会列出各案例路径与说明；需要单表 CRUD、多表、Form、图表等时，read_doc 对应案例获取 PRD 与代码。
-- **平台横切能力（禁止自己实现）**：权限管理、操作记录、消息通知——这些由平台统一提供，**禁止**在代码中自己实现通用权限判断或审计表。业务代码只管业务数据本身。
+- **平台横切能力边界**：Table 更新日志由平台记录，业务代码不要重复造通用操作日志；通用权限、审批、评论、收藏、通知中心、定时任务和后台调度不属于 MVP 应用侧能力。业务代码只管业务数据本身。
 
 ## 按需参考文档
 
 主链路只读本 SDK 主文档和匹配案例。遇到专项问题时再读：
 
-- 程序里发送消息、取当前用户/部门、事务、副作用顺序、Python 运行时、Table 回调高级能力：`read_doc("/system/prompt/sdk/reference/runtime-capabilities")`
+- 取当前用户/部门、事务、副作用顺序、Python 运行时、Table 回调高级能力：`read_doc("/system/prompt/sdk/reference/runtime-capabilities")`
 - 构建失败、启动期 schema/widget/路由校验、未定义 SDK API 排查：`read_doc("/system/prompt/sdk/reference/build-validation")`
 - SDK 代码里调用平台 Web API 或包装 `/system/openapi` 函数：`read_doc("/system/prompt/sdk/reference/platform-api")`
 
@@ -33,7 +33,7 @@
 ### Table 模式（单表 CRUD，GET）
 
 1. **定义结构体**：业务字段加 `gorm`、`widget`、`validate` 等标签；主键、CreatedAt、DeletedAt 等系统字段按约定写。Table 筛选字段写在 Request 中，Model 不承担筛选协议。
-2. **配置 TableTemplate**：`BaseConfig`（Name、Request、CreateTables）+ **`AutoCrudTable`**（必须显式配置，指向列表结构体，前端据此渲染列表字段、分页和表格 schema）+ 可选 `OnTableAddRow` / `OnTableUpdateRow` / `OnTableDeleteRows`。**不需要哪种操作就删掉对应回调**：不想要新增 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`。前端会根据是否配置回调来显示或隐藏对应按钮。**支付记录、消费流水、操作日志这类审计/流水表默认应只读**，仍必须显式配置 `AutoCrudTable`，但不配置新增、编辑、删除回调。
+2. **配置 TableTemplate**：`BaseConfig`（Name、Request、CreateTables）+ **`AutoCrudTable`**（必须显式配置，指向列表结构体，前端据此渲染列表字段、分页和表格 schema）+ 可选 `OnTableAddRow` / `OnTableUpdateRow` / `OnTableDeleteRows`。**不需要哪种操作就删掉对应回调**：不想要新增 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`。前端会根据是否配置回调来显示或隐藏对应按钮。**支付记录、消费流水、操作记录这类事实记录表默认应只读**，仍必须显式配置 `AutoCrudTable`，但不配置新增、编辑、删除回调。
 3. **写 List 函数**：Request 显式声明筛选字段，并嵌入 `query.PageSortReq`（`widget:"-"`）只承载分页/排序；Handler 手写 Where、Joins、Preload、`GetOrder()`、`Count`、`Offset/Limit/Find` 或调用第三方 API，拿到 `items + total` 后再 `resp.Table(response.TableResult{Items: items, TotalCount: total, PageInfo: &req.PageSortReq}).Build()`；返回前可遍历 `items` 填计算字段、关联展示字段、link 等。
 4. **注册**：`init()` 中 `packageContext.GET("路由名", ListFunc, TableTemplate)`。
 
@@ -262,7 +262,7 @@ type WidgetLookupExample struct {
     ReadonlyText   string     `json:"readonly_text" gorm:"-" widget:"name:只读文本;type:text;format:markdown" hide:"create,update"`
     Content        string     `json:"content" gorm:"type:text;column:content" widget:"name:详细内容;type:richtext;height:360"`
     Source         string     `json:"source" gorm:"column:source" widget:"name:来源;type:radio;options:电话,邮件,在线;render_default:在线" validate:"oneof=电话 邮件 在线"`
-    NotifyChannels []string   `json:"notify_channels" gorm:"-" widget:"name:通知渠道;type:checkbox;options:站内信,短信,邮件;render_default:站内信,邮件"`
+    SourceChannels []string   `json:"source_channels" gorm:"-" widget:"name:来源渠道;type:checkbox;options:电话,邮件,在线;render_default:在线,邮件"`
     Status         string     `json:"status" gorm:"column:status" widget:"name:状态;type:select;options:待处理,进行中,已完成;options_colors:E6A23C,409EFF,67C23A;placeholder:请选择状态;render_default:待处理;creatable:true"`
     Tags           []string   `json:"tags" gorm:"-" widget:"name:标签;type:multiselect;options:紧急,重要,客户;options_colors:F56C6C,E6A23C,409EFF;placeholder:请选择标签;render_default:紧急,客户;max_count:3;creatable:true"`
     Quantity       int        `json:"quantity" gorm:"column:quantity" widget:"name:数量;type:number;placeholder:请输入数量;min:0;max:999;step:1;render_default:1;unit:件"`
@@ -306,7 +306,7 @@ type WidgetLookupExtra struct {
 | `richtext` | `height` | 富文本编辑 | 详细内容、公告正文 |
 | `select` | `options`、`options_colors`、`render_default`、`placeholder`、`creatable` | 下拉单选 | 状态、优先级 |
 | `radio` | `options`、`render_default` | 单选按钮 | 来源、性别（2-5 个选项） |
-| `checkbox` | `options`、`render_default` | 固定选项复选 | 通知渠道、权限项 |
+| `checkbox` | `options`、`render_default` | 固定选项复选 | 来源渠道、标签 |
 | `multiselect` | `options`、`options_colors`、`render_default`、`max_count`、`placeholder`、`creatable` | 下拉多选 | 标签、选项集合 |
 | `list` | `item_type`、`separator`、`placeholder`、`render_default`、`unique`、`max_count` | 自由输入列表 | `[]int` 数字数组、`[]string` 文本数组 |
 | `number` | `placeholder`、`min`、`max`、`step`、`render_default`、`unit` | 整数输入 | 数量、工时 |
@@ -333,7 +333,7 @@ type WidgetLookupExtra struct {
 
 `datetime` 的 `render_default` 可以写静态时间字符串（如 `2026-05-01 10:30:00`），也可以写前端可解析的动态表达式：`CURRENT_TIMESTAMP`、`CURRENT_DATE`、`DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 1 HOUR)`、`DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY)`。不要写 `NOW()` 或缺少 `INTERVAL` 的表达式，启动期会失败。
 
-**系统审计字段启动期约束**：`id` 主键字段必须 `type:ID`、`hide:"create,update"`，且 `gorm` 包含 `primaryKey`、`autoIncrement`、`column:id`；`created_at` / `updated_at` 必须是 `datetime` + `format:YYYY-MM-DD HH:mm:ss` + `hide:"create,update"`，并分别包含 `autoCreateTime` / `autoUpdateTime`；`created_by` / `updated_by` 必须是 `type:user` + `hide:"create,update"`，且 `gorm column` 与 `json` 名一致；`deleted_at` / `deleted_by` 必须 `widget:"-"` 或 `json:"-"`，不要进入前端 schema。需要按这些字段筛选时，在 Table Request 里显式声明筛选字段。
+**系统记录字段启动期约束**：`id` 主键字段必须 `type:ID`、`hide:"create,update"`，且 `gorm` 包含 `primaryKey`、`autoIncrement`、`column:id`；`created_at` / `updated_at` 必须是 `datetime` + `format:YYYY-MM-DD HH:mm:ss` + `hide:"create,update"`，并分别包含 `autoCreateTime` / `autoUpdateTime`；`created_by` / `updated_by` 必须是 `type:user` + `hide:"create,update"`，且 `gorm column` 与 `json` 名一致；`deleted_at` / `deleted_by` 必须 `widget:"-"` 或 `json:"-"`，不要进入前端 schema。需要按这些字段筛选时，在 Table Request 里显式声明筛选字段。
 
 `types.Time` 是对 `time.Time` 的包装类型，给结构体字段赋值时必须显式转换，不能直接把 `time.Now()` 赋给 `types.Time` 字段。
 不要生成未在当前已读文档、案例或 SDK 源码中确认存在的 SDK 类型、函数、常量或结构体字段；遇到 `undefined: <sdk package>.<symbol>` 先回到对应知识点或源码确认真实 API。
@@ -571,7 +571,7 @@ RemainingTime string `json:"remaining_time" gorm:"-" widget:"name:剩余时间;t
 
 **场景 2：后端在回调中赋值的字段**
 
-创建人、提单部门等如果不希望用户在前端填写，通常不放到新增/编辑表单里，由 OnTableAddRow 用 `ctx.GetRequestUser()`、`ctx.GetRequestUserDept()` 等赋值。若业务字段本身就是 `user/users/department/departments` 组件，提交值也可直接用于入库或发消息等业务逻辑。
+创建人、提单部门等如果不希望用户在前端填写，通常不放到新增/编辑表单里，由 OnTableAddRow 用 `ctx.GetRequestUser()`、`ctx.GetRequestUserDept()` 等赋值。若业务字段本身就是 `user/users/department/departments` 组件，提交值也可直接用于入库或业务计算。
 
 ```go
 Department string `json:"department" gorm:"column:department" widget:"name:提单部门;type:department" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
@@ -612,7 +612,7 @@ CostPrice    float64 `json:"cost_price" gorm:"column:cost_price" widget:"name:�
 
 ## 四、Table 模式要点
 
-- **TableTemplate**：`BaseConfig` 含 Name、Request、CreateTables；**不要写 Table Response**，表格 schema 由 `AutoCrudTable` 推导。**`AutoCrudTable` 必须显式配置**（指向列表结构体，前端据此渲染列表字段、筛选、分页和表格 schema）。**不需要哪种操作就删掉对应回调**：不想要新增 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`（如消费记录、支付流水、操作日志通常应直接只读）。前端根据是否配置回调来显示或隐藏「新增」「编辑」「删除」按钮；工作台和服务端也会据此判断表是否允许写入。若新增/编辑表单中有 select 需后端动态选项，配 `OnSelectFuzzyMap`（用法见「六、Form 模式要点 → OnSelectFuzzy」）。
+- **TableTemplate**：`BaseConfig` 含 Name、Request、CreateTables；**不要写 Table Response**，表格 schema 由 `AutoCrudTable` 推导。**`AutoCrudTable` 必须显式配置**（指向列表结构体，前端据此渲染列表字段、筛选、分页和表格 schema）。**不需要哪种操作就删掉对应回调**：不想要新增 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`（如消费记录、支付流水、操作记录通常应直接只读）。前端根据是否配置回调来显示或隐藏「新增」「编辑」「删除」按钮；工作台和服务端也会据此判断表是否允许写入。若新增/编辑表单中有 select 需后端动态选项，配 `OnSelectFuzzyMap`（用法见「六、Form 模式要点 → OnSelectFuzzy」）。
 - **AutoCrudTable 的 model 可落库字段类型**：model 里凡是有 **gorm 列**（会被 GORM 写入数据库）的字段，**只能是**以下可落库类型：**基础类型**（int、string、bool、int64、float64 等）、**string**（`gorm:"type:text"`，实际存 `bucket/object_key` 字符串，多文件逗号分隔）、**gorm.DeletedAt**（软删除，GORM 特例）。除此以外，**其他 struct、slice（如 type:table / type:form）不能作为一列写入数据库**；若在 model 里出现这类 struct/slice，须为：**外键关联**（如 `Room *MeetingRoom` 配 `gorm:"foreignKey:RoomID;references:ID"`，实际存的是 RoomID，不占一列）或 **gorm:"-"**（不落库，仅展示/表单用，如 RoomName、Status、Options、link 等）。否则 GORM 无法把该列写进数据库。
 - **List 函数**：Request 显式声明筛选字段，并嵌入 `query.PageSortReq`（`widget:"-"`）隐藏分页字段；Handler 显式处理 `Where` / `Joins` / `Preload`、`req.PageSortReq.GetOrder()`、`Count`、`Offset/Limit/Find`，或调用第三方 API 获取当前页数据和总数；最后调用 `resp.Table(response.TableResult{Items: lists, TotalCount: total, PageInfo: &req.PageSortReq}).Build()`。返回前可在内存中给计算字段赋值（如剩余时间、**link 跳转 URL**，见「三、结构体与标签 → link 组件」）。`Table` 只渲染响应，不查询数据库；
 - 主键、CreatedAt、UpdatedAt、DeletedAt、DeletedBy 等系统字段约定见案例；init_.go 由脚手架生成，不要手写。
@@ -623,7 +623,7 @@ CostPrice    float64 `json:"cost_price" gorm:"column:cost_price" widget:"name:�
 
 ## 五、Table 回调函数
 
-Table 的增删改由三个**可选**业务回调实现；**不配某个回调则对应操作不可用**（不配 `OnTableAddRow` 则无新增；不配 `OnTableUpdateRow` 则无编辑；不配 `OnTableDeleteRows` 则无删除）。配置了的回调用于新增、更新、删除时的业务逻辑。**流水/日志/审计类表默认不要配这些回调**；需要退款、冲正、撤销时，应做独立业务动作，不要直接修改流水记录本身。
+Table 的增删改由三个**可选**业务回调实现；**不配某个回调则对应操作不可用**（不配 `OnTableAddRow` 则无新增；不配 `OnTableUpdateRow` 则无编辑；不配 `OnTableDeleteRows` 则无删除）。配置了的回调用于新增、更新、删除时的业务逻辑。**流水/日志/操作记录类表默认不要配这些回调**；需要退款、冲正、撤销时，应做独立业务动作，不要直接修改流水记录本身。
 
 ### 1. OnTableAddRow（新增行）
 
@@ -679,7 +679,7 @@ OnTableUpdateRow: func(ctx *app.Context, req *callback.OnTableUpdateRowReq) (*ca
 
 ### 3. OnTableDeleteRows（删除行）
 
-- **作用**：批量删除；推荐软删除并记录 `deleted_by`、`deleted_at`，便于恢复与审计。
+- **作用**：批量删除；推荐软删除并记录 `deleted_by`、`deleted_at`，便于恢复和追溯。
 - **关键 API**：`req.GetIds()`、`ctx.GetRequestUser()`。
 
 ```go

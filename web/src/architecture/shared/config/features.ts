@@ -26,8 +26,7 @@ function enabledInFullMode(envName: string): boolean {
 
 export const featureFlags = {
   focusedMode,
-  operateLogs: enabledInFullMode('VITE_AOS_FEATURE_OPERATE_LOGS'),
-  enterpriseUpgrade: enabledInFullMode('VITE_AOS_FEATURE_ENTERPRISE_UPGRADE'),
+  operateLogs: readBooleanEnv('VITE_AOS_FEATURE_OPERATE_LOGS', true),
   capabilityBundle: readBooleanEnv('VITE_AOS_FEATURE_CAPABILITY_BUNDLE', true),
   docs: readBooleanEnv('VITE_AOS_FEATURE_DOCS', true),
   llmManagement: readBooleanEnv('VITE_AOS_FEATURE_LLM_MANAGEMENT', true)

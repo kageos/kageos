@@ -45,23 +45,12 @@ func InitTables(db *gorm.DB) error {
 		&Package{},
 		// 目录快照表（用于递归 Fork）
 		&FileSnapshot{},
-		// 操作日志表（企业版功能，但社区版也记录）
+		// Table 更新日志表
 		&TableOperateLog{},
-		&FormOperateLog{},
 		// 目录更新历史表（用于记录API变更历史）
 		&DirectoryUpdateHistory{},
 		// 文档表（用于存储文档内容）
 		&Docs{},
-		// 权限系统相关表
-		&PermissionRequest{},
-		&PermissionGrantLog{},
-		&ApprovalPolicy{},
-		// 角色系统相关表（企业版功能）
-		&Role{},
-		&RolePermission{},
-		&RoleAssignment{},
-		// 权限点表（企业版功能）
-		&Action{},
 	)
 	if err != nil {
 		return err

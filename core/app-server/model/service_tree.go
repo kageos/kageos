@@ -18,16 +18,15 @@ const (
 // 例如我有个tools的app，然后，我有个excel的package（目录对应go的package），然后下面有多个function（go文件）
 type ServiceTree struct {
 	models.Base
-	Name         string `json:"name"`
-	Code         string `json:"code"`
-	Type         string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), docs(文档), api(API接口), servicenpm run(服务), module(模块)
-	Description  string `json:"description,omitempty"`
-	Tags         string `json:"tags"`
-	Admins       string `json:"admins" gorm:"type:varchar(150);comment:节点管理员列表，逗号分隔的用户名（如 user1,user2,user3）"` // 节点管理员列表
-	PendingCount int    `json:"pending_count" gorm:"default:0;comment:待审批的权限申请数量"`                             // ⭐ 待审批的权限申请数量
+	Name        string `json:"name"`
+	Code        string `json:"code"`
+	Type        string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), docs(文档), api(API接口), servicenpm run(服务), module(模块)
+	Description string `json:"description,omitempty"`
+	Tags        string `json:"tags"`
+	Admins      string `json:"admins" gorm:"type:varchar(150);comment:节点管理员列表，逗号分隔的用户名（如 user1,user2,user3）"` // 节点管理员列表
 
 	// 是否标准库节点（自动对所有用户开放 read、write 权限）
-	// 标准库节点路径示例：/system/tools、/system/openapi、/system/prompt
+	// 标准库节点路径示例：/system/tools、/system/openapi
 	IsStandardLib bool `json:"is_standard_lib" gorm:"default:false;index;comment:是否标准库节点"`
 
 	AppID int64 `json:"app_id"`
@@ -397,10 +396,8 @@ func (st *ServiceTree) IsStandardLibNode() bool {
 func (st *ServiceTree) IsInStandardLib() bool {
 	return st.FullCodePath == "/system/tools" ||
 		st.FullCodePath == "/system/openapi" ||
-		st.FullCodePath == "/system/prompt" ||
 		strings.HasPrefix(st.FullCodePath, "/system/tools/") ||
-		strings.HasPrefix(st.FullCodePath, "/system/openapi/") ||
-		strings.HasPrefix(st.FullCodePath, "/system/prompt/")
+		strings.HasPrefix(st.FullCodePath, "/system/openapi/")
 }
 
 // GetFunctionPath 获取function的完整路径（仅对function节点有效）

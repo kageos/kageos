@@ -1,8 +1,8 @@
-import { computed, h, ref, watch, type Ref } from 'vue'
+import { h, ref, watch, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { TagProps } from 'element-plus'
 import { formatTimestamp } from '@/architecture/shared/date'
-import { useLicenseStore, useUserInfoStore } from '@/architecture/presentation/context/appStoresContext'
+import { useUserInfoStore } from '@/architecture/presentation/context/appStoresContext'
 import { getTableOperateLogs, type TableOperateLog } from '@/architecture/presentation/context/api/operateLog'
 import { widgetComponentFactory } from '@/architecture/presentation/widgets/registry'
 import { convertToFieldValue } from '@/architecture/domain/utils/field'
@@ -25,7 +25,6 @@ export function useOperateLogSection({
   functionDetail,
   autoLoad,
 }: UseOperateLogSectionOptions) {
-  const licenseStore = useLicenseStore()
   const userInfoStore = useUserInfoStore()
 
   const logs = ref<TableOperateLog[]>([])
@@ -34,8 +33,6 @@ export function useOperateLogSection({
   const userInfoMap = ref<Map<string, any>>(new Map())
   const hasLoaded = ref(false)
   const lastLoadParams = ref<{ fullCodePath: string; rowId: number } | null>(null)
-
-  const hasOperateLog = computed(() => licenseStore.hasOperateLog)
 
   const formatDateTime = (dateTime: string | number | null | undefined): string => {
     if (!dateTime) return '-'
@@ -132,9 +129,6 @@ export function useOperateLogSection({
   }
 
   const loadOperateLogs = async () => {
-    if (!hasOperateLog.value) {
-      return
-    }
     if (!fullCodePath.value || !rowId.value) {
       return
     }
@@ -285,10 +279,6 @@ export function useOperateLogSection({
     }
   }
 
-  const handleUpgrade = () => {
-    ElMessage.info('请联系管理员升级到企业版')
-  }
-
   watch(
     [fullCodePath, rowId, functionDetail],
     ([newFullCodePath, newRowId, newFunctionDetail], [oldFullCodePath = '', oldRowId = 0, oldFunctionDetail]) => {
@@ -333,7 +323,6 @@ export function useOperateLogSection({
   }
 
   return {
-    hasOperateLog,
     logs,
     loading,
     formatDateTime,
@@ -344,7 +333,6 @@ export function useOperateLogSection({
     parseJSON,
     getFieldName,
     renderFieldValue,
-    handleUpgrade,
     load,
   }
 }

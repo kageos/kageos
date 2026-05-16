@@ -198,32 +198,6 @@ func (r *AppRepository) UpdateApp(app *model.App) error {
 	return nil
 }
 
-// UpdatePendingCount 原子更新 app 的 pending_count
-// ⭐ 使用 SQL 表达式进行原子更新，防止并发问题
-func (r *AppRepository) UpdatePendingCount(appID int64, delta int) error {
-	// 使用 GORM 的 Update 方法进行原子更新，直接使用 SQL 表达式
-	// GREATEST(0, pending_count + delta) 确保结果不为负数
-	err := r.db.Model(&model.App{}).
-		Where("id = ?", appID).
-		Update("pending_count", gorm.Expr("GREATEST(0, pending_count + ?)", delta)).Error
-
-	if err != nil {
-		return err
-	}
-
-	// 清理缓存，确保下次读取时获取最新值
-	// 先通过 appID 获取 app 信息，再清理 user:app 缓存
-	var app model.App
-	if err := r.db.Select("user, code").Where("id = ?", appID).First(&app).Error; err == nil {
-		r.InvalidateAppCacheBoth(app.User, app.Code, appID)
-	} else {
-		// 如果查询失败，至少清理 appID 缓存
-		r.InvalidateAppCacheByID(appID)
-	}
-
-	return nil
-}
-
 // UpdateAppVersion 更新应用版本（仅更新版本字段，更高效）
 func (r *AppRepository) UpdateAppVersion(user, app, newVersion string) error {
 	// ⚠️ 需要先查询 appID，以便清除 appID 缓存

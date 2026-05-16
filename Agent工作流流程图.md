@@ -49,11 +49,7 @@ flowchart TD
     SearchTools --> ToolFound{找到已注册工具?}
     ToolFound -->|是| Schema[读取 request schema<br/>构造参数]
     Schema --> RunTool
-    ToolFound -->|否| SearchHub[search_hub_directory<br/>搜索 Hub 模板或工具]
-    SearchHub --> HubFound{Hub 有可用目录?}
-    HubFound -->|是| CopyHub[copy_directory<br/>复制到当前工作区]
-    CopyHub --> RunTool
-    HubFound -->|否| NeedCreate[询问是否创建新工具]
+    ToolFound -->|否| NeedCreate[询问是否创建新工具]
     NeedCreate --> Create
 
     Explain --> ReadProject[read_dir / read_doc<br/>读取目录、函数、文档]
@@ -61,9 +57,7 @@ flowchart TD
 
     AppReady --> Asset{是否发布或复用?}
     RenderResult --> Asset
-    Asset -->|发布| Publish[publish_to_hub / push_to_hub]
-    Asset -->|继续使用| Done[交付结果给用户]
-    Publish --> Done
+    Asset --> Done[交付结果给用户]
     Fallback --> Done
     ExplainResult --> Done
 ```
@@ -86,12 +80,12 @@ flowchart LR
     I --> J[写代码并编译]
     J --> K[执行验证]
     K --> L[进入 ServiceTree]
-    L --> M[发布到 Hub / 复用]
+    L --> M[沉淀为可复用能力]
 ```
 
 ## 核心原则
 
-- **先复用，再生成**：当前目录有能力就直接执行；没有再 `search_tools`；还没有再搜 Hub；最后才创建。
+- **先复用，再生成**：当前目录有能力就直接执行；没有再 `search_tools`；最后才创建。
 - **先方案，再落盘**：创建和修改应用必须先出 PRD 或修改方案，用户确认后再写代码。
 - **先验证，再交付**：生成或修改后必须 `build_workspace`，有可执行函数时要调用 `run_*` 验证。
-- **标准能力沉淀**：每个生成的 Form/Table/Chart 都会进入 ServiceTree，后续可搜索、可执行、可复制、可发布。
+- **标准能力沉淀**：每个生成的 Form/Table/Chart 都会进入 ServiceTree，后续可搜索、可执行、可复制。

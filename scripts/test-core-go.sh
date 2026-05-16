@@ -11,8 +11,6 @@ go test \
   ./cmd/... \
   ./core/... \
   ./dto/... \
-  ./enterprise/... \
-  ./enterprise_impl/... \
   ./pkg/... \
   ./sdk/... \
   ./scripts/sync-case-catalog/...

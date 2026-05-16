@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -57,6 +58,60 @@ func TestPromptMarkdownDoesNotContainGenerationArtifacts(t *testing.T) {
 		}
 		if match := promptJSONHexFieldPattern.FindString(content); match != "" {
 			t.Fatalf("%s contains color value in json tag %q", path, match)
+		}
+	})
+}
+
+func TestPromptAndSeedDoNotExposeRetiredPlatformCapabilities(t *testing.T) {
+	retiredSeedPatterns := []string{
+		"scheduled_task",
+		"scheduled_agent_task",
+		"scheduled_tasks",
+		"scheduled_agent_tasks",
+		"message-server",
+		"control-service",
+		"backup-service",
+		"FormOperateLog",
+		"UpgradeEnterprise",
+		"OnTableCreateInBatches",
+		"quick_link",
+		"config_management",
+	}
+	for _, seedPath := range []string{
+		"../../app-server/system-seed/system/openapi/平台接口.capability-bundle.json",
+		"../../app-server/system-seed/system/tools/工具库.capability-bundle.json",
+	} {
+		data, err := os.ReadFile(seedPath)
+		if err != nil {
+			t.Fatalf("read seed bundle %s: %v", seedPath, err)
+		}
+		if !json.Valid(data) {
+			t.Fatalf("seed bundle must be valid JSON: %s", seedPath)
+		}
+		content := string(data)
+		for _, pattern := range retiredSeedPatterns {
+			if strings.Contains(content, pattern) {
+				t.Fatalf("%s exposes retired platform capability %q", seedPath, pattern)
+			}
+		}
+	}
+
+	forbiddenPromptPatterns := []string{
+		"SendMessage",
+		"FormOperateLog",
+		"UpgradeEnterprise",
+		"OnTableCreateInBatches",
+		"quick_link",
+		"config_management",
+		"申请链接",
+		"权限不足",
+		"智能体定时任务",
+	}
+	walkPromptMarkdown(t, func(path, content string) {
+		for _, pattern := range forbiddenPromptPatterns {
+			if strings.Contains(content, pattern) {
+				t.Fatalf("%s exposes retired prompt capability %q", path, pattern)
+			}
 		}
 	})
 }

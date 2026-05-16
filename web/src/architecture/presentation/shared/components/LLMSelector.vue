@@ -27,7 +27,7 @@
       </el-input>
       <div v-if="selectedLLM" class="llm-tag" style="margin-top: 8px;">
         <el-tag closable @close="handleClear" :type="selectedLLM.is_default ? 'success' : 'info'">
-          {{ selectedLLM.name }} ({{ selectedLLM.provider }}/{{ selectedLLM.model }}){{ selectedLLM.is_default ? ' (默认)' : '' }}
+          {{ selectedLLM.name }} ({{ selectedLLM.model }}){{ selectedLLM.is_default ? ' (默认)' : '' }}
         </el-tag>
       </div>
     </div>
@@ -66,7 +66,7 @@
         <div class="llm-search-section">
           <el-input
             v-model="searchKeyword"
-            placeholder="搜索 LLM 配置名称、提供商或模型..."
+            placeholder="搜索 LLM 配置名称、模型或 API Base..."
             size="large"
             class="llm-search-input"
             @input="handleSearchInput"
@@ -102,8 +102,6 @@
                   </el-tag>
                 </div>
                 <div class="llm-meta">
-                  <span class="llm-provider">{{ llm.provider }}</span>
-                  <span class="llm-separator">/</span>
                   <span class="llm-model">{{ llm.model }}</span>
                 </div>
                 <div v-if="llm.api_base" class="llm-description">
@@ -218,7 +216,7 @@ watch(() => props.modelValue, async (newVal) => {
     }
     
     if (llm) {
-      llmInput.value = `${llm.name} (${llm.provider}/${llm.model})`
+      llmInput.value = `${llm.name} (${llm.model})`
     } else {
       llmInput.value = `ID: ${newVal}`
     }
@@ -260,8 +258,8 @@ const handleSearch = async () => {
       const keyword = searchKeyword.value.trim().toLowerCase()
       llms = llms.filter(llm => 
         llm.name.toLowerCase().includes(keyword) ||
-        llm.provider.toLowerCase().includes(keyword) ||
-        llm.model.toLowerCase().includes(keyword)
+        llm.model.toLowerCase().includes(keyword) ||
+        (llm.api_base || '').toLowerCase().includes(keyword)
       )
     }
     
@@ -518,15 +516,6 @@ const handleClear = () => {
           font-size: 12px;
           color: var(--el-text-color-secondary);
           margin-bottom: 4px;
-          
-          .llm-provider {
-            color: var(--el-color-primary);
-            font-weight: 500;
-          }
-          
-          .llm-separator {
-            color: var(--el-text-color-placeholder);
-          }
           
           .llm-model {
             color: var(--el-text-color-secondary);

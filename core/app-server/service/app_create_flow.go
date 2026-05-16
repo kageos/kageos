@@ -27,6 +27,6 @@ func (a *AppService) createAppFlow(ctx context.Context, req *dto.CreateAppReq) (
 		return nil, err
 	}
 
-	a.grantCreateAppAdmins(ctx, tenantUser, req.Code, req.Admins)
+	//a.grantCreateAppAdmins(ctx, tenantUser, req.Code, req.Admins)
 	return resp, nil
 }

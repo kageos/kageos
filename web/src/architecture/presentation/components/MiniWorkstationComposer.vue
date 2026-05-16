@@ -121,7 +121,7 @@
         <el-option
           v-for="llm in llmList"
           :key="llm.id"
-          :label="`${llm.name} (${llm.provider}/${llm.model})`"
+          :label="`${llm.name} (${llm.model})`"
           :value="llm.id"
         />
       </el-select>

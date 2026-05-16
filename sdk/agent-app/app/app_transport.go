@@ -61,29 +61,6 @@ func (t *AppTransport) PublishInvokeResponse(resp *dto.RequestAppResp, success b
 	return nil
 }
 
-func (t *AppTransport) PublishMessageCommand(envelope *dto.MessageSendEnvelope) error {
-	if t.conn == nil {
-		return fmt.Errorf("NATS connection is nil")
-	}
-	if envelope == nil {
-		return fmt.Errorf("message envelope is nil")
-	}
-
-	data, err := json.Marshal(envelope)
-	if err != nil {
-		return fmt.Errorf("marshal message envelope: %w", err)
-	}
-
-	subject := subjects.MessageSendCommandSubject
-	if err := t.conn.Publish(subject, data); err != nil {
-		return fmt.Errorf("publish message to %s: %w", subject, err)
-	}
-
-	logger.Infof(context.Background(), "[PublishMessage] published to %s, from=%s full_code_path=%s to_users=%s title=%s",
-		subject, envelope.Meta.From, envelope.Meta.FullCodePath, envelope.Message.ToUsers, envelope.Message.Title)
-	return nil
-}
-
 func (t *AppTransport) PublishDiscoveryResponse(runtimeID string, startTime time.Time) error {
 	responseData := map[string]interface{}{
 		"type":       "response",

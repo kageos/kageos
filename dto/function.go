@@ -22,8 +22,6 @@ type GetFunctionResp struct {
 	UpdatedAt    string                         `json:"updated_at" example:"2024-01-01T00:00:00Z"`                 // 更新时间
 	CreatedBy    string                         `json:"created_by" example:"beiluo"`                               // 创建者用户名
 	FullCodePath string                         `json:"full_code_path" example:"/beiluo/testapi18/crm/crm_ticket"` //
-	Permissions  map[string]bool                `json:"permissions,omitempty"`                                     // ⭐ 权限标识（企业版功能）：权限点 -> 是否有权限（按需查询，不在服务树中查询）
-
 }
 
 // GetFunctionsByAppReq 获取应用下所有函数请求

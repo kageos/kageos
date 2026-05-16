@@ -76,14 +76,14 @@ func (s *LLMService) InitLLMSeeds(ctx context.Context, seeds config.AgentServerL
 				return fmt.Errorf("创建 LLM seed %q 失败: %w", normalized.Code, err)
 			}
 			id = cfg.ID
-			logger.Infof(ctx, "[LLMSeed] 已创建 LLM 配置: code=%s provider=%s model=%s", normalized.Code, normalized.Provider, normalized.Model)
+			logger.Infof(ctx, "[LLMSeed] 已创建 LLM 配置: code=%s model=%s", normalized.Code, normalized.Model)
 		} else {
 			applyLLMSeedToModel(existing, normalized, item.apiKeySpecified)
 			if err := s.repo.Update(existing); err != nil {
 				return fmt.Errorf("更新 LLM seed %q 失败: %w", normalized.Code, err)
 			}
 			id = existing.ID
-			logger.Infof(ctx, "[LLMSeed] 已更新 LLM 配置: code=%s provider=%s model=%s", normalized.Code, normalized.Provider, normalized.Model)
+			logger.Infof(ctx, "[LLMSeed] 已更新 LLM 配置: code=%s model=%s", normalized.Code, normalized.Model)
 		}
 
 		if normalized.Code == defaultCode {
@@ -112,14 +112,12 @@ type normalizedLLMSeedItem struct {
 type normalizedLLMSeed struct {
 	Code        string
 	Name        string
-	Provider    string
 	Model       string
 	APIKey      string
 	APIBase     string
 	Timeout     int
 	MaxTokens   int
 	ExtraConfig *string
-	UseThinking bool
 	IsDefault   bool
 	Visibility  int
 	Admin       string
@@ -128,16 +126,12 @@ type normalizedLLMSeed struct {
 func normalizeLLMSeed(seed config.AgentServerLLMSeedConfig) (normalizedLLMSeed, bool, error) {
 	code := strings.TrimSpace(seed.Code)
 	name := strings.TrimSpace(seed.Name)
-	provider := strings.TrimSpace(seed.Provider)
 	modelName := strings.TrimSpace(seed.Model)
 	if code == "" {
 		return normalizedLLMSeed{}, false, fmt.Errorf("llms.configs[].code 不能为空")
 	}
 	if name == "" {
 		return normalizedLLMSeed{}, false, fmt.Errorf("llms.configs[%s].name 不能为空", code)
-	}
-	if provider == "" {
-		return normalizedLLMSeed{}, false, fmt.Errorf("llms.configs[%s].provider 不能为空", code)
 	}
 	if modelName == "" {
 		return normalizedLLMSeed{}, false, fmt.Errorf("llms.configs[%s].model 不能为空", code)
@@ -165,14 +159,12 @@ func normalizeLLMSeed(seed config.AgentServerLLMSeedConfig) (normalizedLLMSeed, 
 	return normalizedLLMSeed{
 		Code:        code,
 		Name:        name,
-		Provider:    provider,
 		Model:       modelName,
 		APIKey:      apiKey,
 		APIBase:     strings.TrimSpace(seed.APIBase),
 		Timeout:     timeout,
 		MaxTokens:   maxTokens,
 		ExtraConfig: extraConfig,
-		UseThinking: seed.UseThinking,
 		IsDefault:   seed.IsDefault,
 		Visibility:  seed.Visibility,
 		Admin:       admin,
@@ -195,14 +187,13 @@ func (seed normalizedLLMSeed) toModel() *model.LLMConfig {
 	cfg := &model.LLMConfig{
 		Code:        seed.Code,
 		Name:        seed.Name,
-		Provider:    seed.Provider,
+		Provider:    "openai",
 		Model:       seed.Model,
 		APIKey:      seed.APIKey,
 		APIBase:     seed.APIBase,
 		Timeout:     seed.Timeout,
 		MaxTokens:   seed.MaxTokens,
 		ExtraConfig: seed.ExtraConfig,
-		UseThinking: seed.UseThinking,
 		Visibility:  seed.Visibility,
 		Admin:       seed.Admin,
 	}
@@ -214,7 +205,7 @@ func (seed normalizedLLMSeed) toModel() *model.LLMConfig {
 func applyLLMSeedToModel(cfg *model.LLMConfig, seed normalizedLLMSeed, apiKeySpecified bool) {
 	cfg.Code = seed.Code
 	cfg.Name = seed.Name
-	cfg.Provider = seed.Provider
+	cfg.Provider = "openai"
 	cfg.Model = seed.Model
 	if apiKeySpecified && seed.APIKey != "" {
 		cfg.APIKey = seed.APIKey
@@ -223,7 +214,6 @@ func applyLLMSeedToModel(cfg *model.LLMConfig, seed normalizedLLMSeed, apiKeySpe
 	cfg.Timeout = seed.Timeout
 	cfg.MaxTokens = seed.MaxTokens
 	cfg.ExtraConfig = seed.ExtraConfig
-	cfg.UseThinking = seed.UseThinking
 	cfg.Visibility = seed.Visibility
 	cfg.Admin = seed.Admin
 	cfg.UpdatedBy = defaultLLMSeedAdmin

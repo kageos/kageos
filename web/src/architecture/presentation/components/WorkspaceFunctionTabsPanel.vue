@@ -29,18 +29,6 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane v-if="showFormOperateLogTab" name="operateLog" label="执行记录">
-          <div class="tab-content">
-            <FormOperateLogSection
-              :ref="formOperateLogSectionRef || undefined"
-              :full-code-path="currentFunction?.full_code_path || ''"
-              :function-detail="currentFunctionDetail"
-              :auto-load="activeTab === 'operateLog'"
-              @apply-log="onApplyFormOperateLog"
-            />
-          </div>
-        </el-tab-pane>
-
       </el-tabs>
     </div>
   </div>
@@ -49,43 +37,18 @@
 <script setup lang="ts">
 import type { FunctionDetail } from '@/architecture/domain/types'
 import type { ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
-import FormOperateLogSection from './FormOperateLogSection.vue'
 import WorkspaceFunctionRenderer from './WorkspaceFunctionRenderer.vue'
 import FunctionInfoPanel from './FunctionInfoPanel.vue'
 
-type FunctionTabName = 'content' | 'detail' | 'operateLog'
+type FunctionTabName = 'content' | 'detail'
 
 const props = withDefaults(defineProps<{
   activeTab: FunctionTabName
   currentFunction: ServiceTreeType | null
   currentFunctionDetail: FunctionDetail | null
-  showFormOperateLogTab?: boolean
   functionFormViewRef?: (instance: any | null) => void
-  formOperateLogSectionRef?: (instance: any | null) => void
   onFunctionTabChange: (tab: string) => void
-  onApplyFormOperateLog: (payload: {
-    requestBody?: Record<string, any> | null
-    responseBody?: Record<string, any> | null
-    responseMetadata?: Record<string, any> | null
-    replayContext?: {
-      source: 'operate_log'
-      title?: string
-      taskId?: number
-      executionId?: number
-      traceId?: string
-      executedAt?: string
-    } | null
-  }) => void
-  onOpenFunctionOperateLog: (filters?: {
-    requestUser?: string
-    traceId?: string
-    keyword?: string
-    status?: string
-    source?: string
-  }) => void
-}>(), {
-  showFormOperateLogTab: false
-})
+}>(), {})
 
 defineEmits<{
   (e: 'update:activeTab', value: FunctionTabName): void

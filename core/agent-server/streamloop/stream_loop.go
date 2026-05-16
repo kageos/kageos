@@ -229,7 +229,7 @@ func processStreamChunks(
 	return content, allToolCalls, nil
 }
 
-// appendToolCallArgs 仅当当前 arguments 还不是合法 JSON 时才追加 delta，避免 MiniMax 等先发完整 JSON 再发后缀导致重复拼接成无效 JSON（2013）
+// appendToolCallArgs 仅当当前 arguments 还不是合法 JSON 时才追加 delta，避免兼容端先发完整 JSON 再发后缀导致重复拼接成无效 JSON。
 func appendToolCallArgs(cur, delta string) string {
 	if delta == "" {
 		return cur
@@ -243,6 +243,29 @@ func appendToolCallArgs(cur, delta string) string {
 
 func mergeToolCalls(chunkToolCalls []llms.ToolCall, allToolCalls []llms.ToolCall, toolCallsIndex map[string]int) ([]llms.ToolCall, map[string]int) {
 	for _, tc := range chunkToolCalls {
+		if tc.Index != nil {
+			idx := *tc.Index
+			if idx < 0 {
+				idx = len(allToolCalls)
+			}
+			for len(allToolCalls) <= idx {
+				allToolCalls = append(allToolCalls, llms.ToolCall{Type: "function"})
+			}
+			if tc.ID != "" {
+				allToolCalls[idx].ID = tc.ID
+				toolCallsIndex[tc.ID] = idx
+			}
+			if tc.Type != "" {
+				allToolCalls[idx].Type = tc.Type
+			}
+			if tc.Function.Name != "" {
+				allToolCalls[idx].Function.Name = tc.Function.Name
+			}
+			if tc.Function.Arguments != "" {
+				allToolCalls[idx].Function.Arguments = appendToolCallArgs(allToolCalls[idx].Function.Arguments, tc.Function.Arguments)
+			}
+			continue
+		}
 		if tc.ID != "" {
 			if idx, ok := toolCallsIndex[tc.ID]; ok {
 				if tc.Function.Name != "" {

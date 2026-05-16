@@ -44,7 +44,7 @@ export interface ChatMessage {
 
 export type StreamEventHandler = (event: string, data: Record<string, unknown>) => void
 
-/** 流式时「已显示字符数」，用于打字机平滑（MiniMax 等大块吐出时不再一卡一卡）；调小更丝滑、调大更快追上 */
+/** 流式时「已显示字符数」，用于打字机平滑（兼容端大块吐出时不再一卡一卡）；调小更丝滑、调大更快追上 */
 export const SMOOTH_CHARS_PER_TICK = 5
 export const SMOOTH_TICK_MS = 22
 

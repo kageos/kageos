@@ -11,7 +11,6 @@
 
 - `${MYSQL_ROOT_PASSWORD}`
 - `${JWT_SECRET}`
-- `${CONTROL_ENC_KEY}`
 - `${SYSTEM_USER_PASSWORD}`
 - `${MINIO_ROOT_PASSWORD}`
 - `${NATS_URL}`
@@ -25,9 +24,8 @@
 
 说明：
 
-- MinIO 管理员用户名固定为 `minioadmin`，backup Basic Auth 用户名固定为 `admin`，不再作为标准部署配置项暴露。
 - `hr-server.yaml` 会消费 `${SYSTEM_USER_PASSWORD}` 初始化 `system` / `test_user` 的密码；标准入口由 `aos.yaml` 的 `system_user.password` 渲染。
-- `app-server.yaml` 已不再消费 SMTP 变量；这组变量现在主要供 `hr-server.yaml` 的邮件验证码链路和 `message-server.yaml` 的系统通知/业务消息链路使用。
+- `app-server.yaml` 已不再消费 SMTP 变量；这组变量现在主要供 `hr-server.yaml` 的邮件验证码链路使用。
 - `${APP_BASE_IMAGE}` 用于渲染 `app-runtime.yaml` 里的 `container.image.base_image`。
 
 常见服务端口模板字段：

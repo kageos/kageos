@@ -144,9 +144,9 @@ commit_submodules() {
     done
     
     # 更新主仓库的 Submodule 引用
-    if [ -n "$(git status --porcelain .gitmodules enterprise_impl 2>/dev/null)" ]; then
+    if [ -n "$(git status --porcelain .gitmodules 2>/dev/null)" ]; then
         print_info "更新主仓库的 Submodule 引用..."
-        git add .gitmodules enterprise_impl
+        git add .gitmodules
     fi
 }
 

@@ -116,12 +116,8 @@
               :active-tab="functionActiveTab"
               :current-function="currentFunction"
               :current-function-detail="currentFunctionDetail"
-              :show-form-operate-log-tab="showFormOperateLogTab"
               :function-form-view-ref="setFunctionFormViewRef"
-              :form-operate-log-section-ref="setFormOperateLogSectionRef"
               :on-function-tab-change="handleFunctionTabChange"
-              :on-apply-form-operate-log="handleApplyFormOperateLog"
-              :on-open-function-operate-log="openFunctionOperateLog"
               @update:active-tab="functionActiveTab = $event"
             />
 
@@ -318,8 +314,6 @@ function normalizeApp(app: Partial<AppType> & Pick<AppType, 'id' | 'user' | 'cod
     version: app.version ?? '',
     is_public: app.is_public ?? false,
     admins: app.admins ?? '',
-    show_only_permitted: app.show_only_permitted,
-    permission_enforced: app.permission_enforced,
     created_at: app.created_at ?? '',
     updated_at: app.updated_at ?? ''
   }
@@ -519,12 +513,8 @@ const showLeftSidebar = ref(true)
 const {
   functionActiveTab,
   setFunctionFormViewRef,
-  setFormOperateLogSectionRef,
-  showFormOperateLogTab,
   showFunctionTabsWrapper,
   handleFunctionTabChange,
-  handleApplyFormOperateLog,
-  openFunctionOperateLog
 } = useWorkspaceFunctionTabs({
   route,
   router,

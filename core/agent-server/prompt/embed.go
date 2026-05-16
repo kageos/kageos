@@ -4,7 +4,7 @@ import (
 	"embed"
 )
 
-// promptFS 只嵌入本地 prompt seed；运行时优先读树上的 /system/prompt，缺失时再回落到本地 seed。
+// promptFS 嵌入本地 prompt seed；/system/prompt 运行时只从这里读取。
 
 //go:embed system/prompt
 var promptFS embed.FS

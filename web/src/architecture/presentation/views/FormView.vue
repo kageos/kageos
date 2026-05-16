@@ -99,45 +99,6 @@
       class="submit-feedback-alert"
       @close="submitFeedback = null"
     />
-    <div
-      v-if="replayContext"
-      class="replay-state-panel"
-      role="status"
-    >
-      <div class="replay-state-icon">
-        <el-icon><RefreshLeft /></el-icon>
-      </div>
-      <div class="replay-state-content">
-        <div class="replay-state-header">
-          <span class="replay-state-title">{{ replayContext.title || '执行记录回填' }}</span>
-          <el-tag size="small" effect="plain" round class="replay-state-tag">回填模式</el-tag>
-        </div>
-        <div class="replay-state-desc">表单内容来自历史执行记录，提交前会再次确认。</div>
-        <div class="replay-state-meta">
-          <span v-if="replayContext.executedAt" class="replay-state-meta-item">
-            <span class="replay-state-meta-label">执行时间</span>
-            <span class="replay-state-meta-value">{{ formatReplayDateTime(replayContext.executedAt) }}</span>
-          </span>
-          <span v-if="replayContext.traceId" class="replay-state-meta-item">
-            <span class="replay-state-meta-label">Trace</span>
-            <span class="replay-state-meta-value">{{ replayContext.traceId }}</span>
-          </span>
-          <span v-if="replayContext.executionId" class="replay-state-meta-item">
-            <span class="replay-state-meta-label">执行记录</span>
-            <span class="replay-state-meta-value">#{{ replayContext.executionId }}</span>
-          </span>
-        </div>
-      </div>
-      <el-button
-        class="replay-state-close"
-        text
-        circle
-        :icon="Close"
-        aria-label="退出回填模式"
-        @click="clearReplayContext"
-      />
-    </div>
-
     <!-- 主内容区域：使用 flex 布局，左侧表单，右侧详情 -->
     <div class="form-view-container">
       <!-- 左侧：表单内容 -->
@@ -362,8 +323,8 @@
 <script setup lang="ts">
 import { computed, ref, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Document, List, User, Close } from '@element-plus/icons-vue'
-import { ElIcon, ElTag, ElNotification, ElMessage, ElEmpty, ElMessageBox } from 'element-plus'
+import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Document, List, User } from '@element-plus/icons-vue'
+import { ElIcon, ElTag, ElNotification, ElMessage, ElEmpty } from 'element-plus'
 import { eventBus } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
@@ -393,22 +354,6 @@ const props = withDefaults(defineProps<{
   flatSurface: false,
   initialData: () => ({}),
 })
-
-interface ApplyOperateLogPayload {
-  requestBody?: Record<string, any> | null
-  responseBody?: Record<string, any> | null
-  responseMetadata?: Record<string, any> | null
-  replayContext?: ReplayContext | null
-}
-
-interface ReplayContext {
-  source: 'operate_log'
-  title?: string
-  taskId?: number
-  executionId?: number
-  traceId?: string
-  executedAt?: string
-}
 
 // 路由
 const route = useRoute()
@@ -487,22 +432,6 @@ const {
 })
 
 const submitFeedback = ref<{ type: 'success' | 'error'; message: string } | null>(null)
-const replayContext = ref<ReplayContext | null>(null)
-
-function clearReplayContext() {
-  replayContext.value = null
-}
-
-function formatReplayDateTime(value?: string): string {
-  if (!value) {
-    return '-'
-  }
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-  return date.toLocaleString()
-}
 
 const submitForm = async (): Promise<boolean> => {
   try {
@@ -544,31 +473,14 @@ const submitForm = async (): Promise<boolean> => {
 }
 
 const handleSubmit = async (): Promise<void> => {
-  if (replayContext.value) {
-    try {
-      await ElMessageBox.confirm(
-        '当前表单参数来自历史执行记录回填，提交后会发起一次新的执行。',
-        '提交回填参数',
-        {
-          type: 'warning',
-          confirmButtonText: '确认提交',
-          cancelButtonText: '取消'
-        }
-      )
-    } catch {
-      return
-    }
-  }
-
   const success = await submitForm()
   if (success) {
-    clearReplayContext()
+    submitFeedback.value = null
   }
 }
 
 const handleReset = (): void => {
   submitFeedback.value = null
-  clearReplayContext()
   lifecycle.resetFormRuntimeState()
   // 重新初始化表单
   const fields = requestFields.value
@@ -634,22 +546,12 @@ function validateForm(): boolean {
   return domainService.validateForm(fields)
 }
 
-async function applyOperateLog(payload: ApplyOperateLogPayload): Promise<void> {
-  await lifecycle.applyOperateLog(payload)
-  replayContext.value = payload.replayContext || {
-    source: 'operate_log',
-    title: '执行记录回填',
-    traceId: payload.responseMetadata?.trace_id
-  }
-}
-
 // 🔥 暴露方法给外部组件调用（兼容 FormRenderer 的接口）
 defineExpose({
   submitForm,
   prepareSubmitDataWithTypeConversion,  // 表单提交（新增场景）
   prepareUpdateData,                     // 表格更新（更新场景，只返回变更的字段）
-  validateForm,
-  applyOperateLog
+  validateForm
 })
 
 
@@ -751,119 +653,6 @@ const lifecycle = useFormViewLifecycle({
 
 .submit-feedback-alert {
   margin-bottom: 16px;
-}
-
-.replay-state-panel {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 28px;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 14px;
-  padding: 12px 14px;
-  border: 1px solid var(--app-auth-card-border, var(--el-border-color-lighter));
-  border-left: 3px solid var(--el-color-primary);
-  border-radius: 8px;
-  background: var(--app-auth-card-bg, var(--el-bg-color));
-  box-shadow: var(--app-auth-card-shadow-soft, 0 8px 24px rgba(15, 23, 42, 0.06));
-}
-
-.replay-state-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
-}
-
-.replay-state-icon :deep(.el-icon) {
-  font-size: 17px;
-}
-
-.replay-state-content {
-  min-width: 0;
-}
-
-.replay-state-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.replay-state-title {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--el-text-color-primary);
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.45;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.replay-state-tag {
-  flex-shrink: 0;
-  border-color: var(--el-color-primary-light-5);
-  color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
-}
-
-.replay-state-desc {
-  margin-top: 3px;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.replay-state-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.replay-state-meta-item {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-  max-width: 100%;
-  min-height: 24px;
-  padding: 2px 8px;
-  border: 1px solid var(--app-auth-card-border, var(--el-border-color-lighter));
-  border-radius: 6px;
-  background: var(--el-fill-color-lighter);
-  color: var(--el-text-color-regular);
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.replay-state-meta-label {
-  flex-shrink: 0;
-  margin-right: 6px;
-  color: var(--el-text-color-secondary);
-  font-weight: 600;
-}
-
-.replay-state-meta-value {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.replay-state-close {
-  width: 28px;
-  height: 28px;
-  margin-top: 1px;
-  color: var(--el-text-color-secondary);
-}
-
-.replay-state-close:hover {
-  color: var(--el-color-primary);
-  background: var(--el-fill-color-light);
 }
 
 /* 长 label：label 在上方 */

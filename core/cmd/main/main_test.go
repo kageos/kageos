@@ -2,7 +2,7 @@ package main
 
 import "testing"
 
-func TestUnifiedStartupIncludesMessageServer(t *testing.T) {
+func TestUnifiedStartupUsesCoreMVPServices(t *testing.T) {
 	serviceByName := make(map[string]*ServiceInfo, len(services))
 	for _, svc := range services {
 		if svc == nil {
@@ -14,30 +14,31 @@ func TestUnifiedStartupIncludesMessageServer(t *testing.T) {
 		serviceByName[svc.Name] = svc
 	}
 
-	messageServer := serviceByName["message-server"]
-	if messageServer == nil {
-		t.Fatal("message-server is not registered in unified startup")
-	}
-	if messageServer.Main == nil {
-		t.Fatal("message-server Main is nil")
-	}
-	if !hasDependency(messageServer, "hr-server") {
-		t.Fatal("message-server should wait for hr-server")
+	for _, name := range []string{"app-runtime", "app-storage", "hr-server", "agent-server", "app-server", "api-gateway"} {
+		if serviceByName[name] == nil {
+			t.Fatalf("%s is not registered in unified startup", name)
+		}
 	}
 
-	agentServer := serviceByName["agent-server"]
-	if agentServer == nil || !hasDependency(agentServer, "message-server") {
-		t.Fatal("agent-server should wait for message-server")
+	if len(serviceByName) != 6 {
+		t.Fatalf("unexpected service count in MVP unified startup: %d", len(serviceByName))
 	}
 
 	appServer := serviceByName["app-server"]
-	if appServer == nil || !hasDependency(appServer, "message-server") {
-		t.Fatal("app-server should wait for message-server")
+	if appServer == nil || !hasDependency(appServer, "app-runtime") {
+		t.Fatal("app-server should wait for app-runtime")
+	}
+
+	agentServer := serviceByName["agent-server"]
+	if agentServer == nil || len(agentServer.DependsOn) != 0 {
+		t.Fatal("agent-server should start without service dependencies")
 	}
 
 	apiGateway := serviceByName["api-gateway"]
-	if apiGateway == nil || !hasDependency(apiGateway, "message-server") {
-		t.Fatal("api-gateway should wait for message-server")
+	for _, dep := range []string{"app-runtime", "app-storage", "hr-server", "agent-server", "app-server"} {
+		if apiGateway == nil || !hasDependency(apiGateway, dep) {
+			t.Fatalf("api-gateway should wait for %s", dep)
+		}
 	}
 }
 

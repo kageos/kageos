@@ -54,19 +54,7 @@ podman compose -f deploy/dev/compose/docker-compose.infra.yml up -d
 deploy/dev/config/
 ```
 
-当前服务配置加载会读取 `deploy/dev/config/*.yaml`。
-
-如需单独本地调试 `backup-service`，也请使用同样的约定：
-
-```bash
-export APP_ENV=dev
-```
-
-建议同时把工作目录设为仓库根目录；如果用 GoLand 直接运行，配置解析也会自动回落到仓库根目录查找 `deploy/dev/config/backup-service.yaml`。
-
-服务本身的集中说明见：
-
-- `core/backup-service/README.md`
+当前服务配置加载会读取 `deploy/dev/config/*.yaml`。备份、消息和控制面服务已从 MVP 删除，本地开发不再需要它们的独立配置。
 
 ### 2. 起后端
 

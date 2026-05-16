@@ -22,29 +22,21 @@ AI-Agent-OS 是一个面向个人用户和小团队的 AI 轻应用工作台。
 
 ## 产品聚焦模式
 
-前端默认开启聚焦模式，只展示主链路入口。操作日志、企业升级、能力包、Docs、LLM 管理由 `web/src/architecture/shared/config/features.ts` 统一控制；组织管理、消息中心、定时任务和 Board 入口已从 MVP 中删除。
+前端默认开启聚焦模式，只展示主链路入口。Table 更新日志、能力包、Docs、LLM 管理由 `web/src/architecture/shared/config/features.ts` 统一控制；组织管理、消息中心、定时任务、权限治理、License 和 Board 入口已从 MVP 中删除。
 
 常用开关：
 
 | 环境变量 | 默认行为 |
 |---|---|
 | `VITE_AOS_FOCUSED_MODE` | 默认 `true`，测试环境默认 `false` |
-| `VITE_AOS_FEATURE_OPERATE_LOGS` | 未设置时仅完整模式开启 |
-| `VITE_AOS_FEATURE_ENTERPRISE_UPGRADE` | 未设置时仅完整模式开启 |
+| `VITE_AOS_FEATURE_OPERATE_LOGS` | 默认开启，只保留 Table 更新日志 |
 | `VITE_AOS_FEATURE_CAPABILITY_BUNDLE` | 默认开启 |
 | `VITE_AOS_FEATURE_DOCS` | 默认开启 |
 | `VITE_AOS_FEATURE_LLM_MANAGEMENT` | 默认开启 |
 
-## 企业能力边界
+## MVP 边界
 
-当前 License 只保留已经有真实实现的企业功能位：
-
-| 功能位 | 实现位置 | 说明 |
-|---|---|---|
-| `operate_log` | `enterprise_impl/operatelog` | Form / Table 操作日志查询 |
-| `permission` | `enterprise_impl/permission` | 高级权限治理能力 |
-
-未实现或默认隐藏的能力不再作为 License feature 暴露。旧规划里的工作流引擎、配置管理、快链、回收站、变更日志等不属于当前 MVP 交付面。
+本仓库面向开源 MVP，不再保留企业版 License、权限治理、消息中心、控制面和备份控制面实现。Table 更新日志作为个人用户和小团队也能直接用到的审计能力保留，Form 操作日志和企业升级入口已移除。
 
 ## 代码结构
 
@@ -53,12 +45,11 @@ AI-Agent-OS 是一个面向个人用户和小团队的 AI 轻应用工作台。
 | `core/agent-server` | Agent 工作台、工具调用、PRD 与代码生成链路 |
 | `core/app-server` | 工作空间 API、元数据、运行时调度入口 |
 | `core/app-runtime` | 用户轻应用运行时 |
-| `core/control-service` | License 分发与控制服务 |
+| `core/app-storage` | 上传文件和对象存储访问 |
+| `core/api-gateway` | API 网关、静态资源入口和鉴权透传 |
+| `core/hr-server` | 用户、登录、组织基础能力 |
 | `web` | Vue 3 前端 |
-| `pkg/license` | 当前 License 模型与客户端 |
-| `enterprise` | 企业能力接口和社区默认实现 |
-| `enterprise_impl` | 已落地的企业实现 |
-| `docs` | 产品聚焦、部署、恢复等项目文档 |
+| `docs` | 产品聚焦、部署等项目文档 |
 | `deploy` | 开发和生产部署配置 |
 
 ## 开发入口
@@ -67,17 +58,16 @@ AI-Agent-OS 是一个面向个人用户和小团队的 AI 轻应用工作台。
 - 生产部署：[deploy/prod/README.md](deploy/prod/README.md)
 - 产品减法计划：[docs/产品减法与主链路打深计划.md](docs/产品减法与主链路打深计划.md)
 - 前端架构：[web/README.md](web/README.md)
-- License 说明：[pkg/license/README.md](pkg/license/README.md)
 
 ## 当前非目标
 
 为了让开源 MVP 更清爽，以下方向暂不作为默认产品承诺：
 
 - 跨函数工作流编排引擎
-- Hub / 模板市场
 - 完整组织治理中心
 - 配置管理中心
 - 快链、回收站、变更日志等历史占位功能
+- 企业 License / 权限审批 / 消息通知 / 备份控制面
 - 复杂企业审批平台
 
 这些能力可以在主链路稳定后逐个恢复，但不应该阻塞当前个人用户和小企业的轻应用创建体验。
