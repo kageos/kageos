@@ -3,14 +3,13 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
-	"github.com/ai-agent-os/ai-agent-os/pkg/license"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/naming"
 )
 
@@ -23,16 +22,6 @@ func (a *AppService) validateCreateAppRequest(ctx context.Context, req *dto.Crea
 	requestUser := contextx.GetRequestUser(ctx)
 	if requestUser == "" {
 		return "", "", fmt.Errorf("请求用户信息不能为空")
-	}
-
-	appCount, err := a.appRepo.CountApps()
-	if err != nil {
-		logger.Warnf(ctx, "[AppService] Failed to count apps: %v", err)
-	} else {
-		licenseMgr := license.GetManager()
-		if err := licenseMgr.CheckAppLimit(int(appCount)); err != nil {
-			return "", "", err
-		}
 	}
 
 	// system 是内置用户，跳过远程验证，避免系统初始化时的循环依赖。
@@ -62,31 +51,19 @@ func (a *AppService) buildInitialAppAndRoot(requestUser, tenantUser string, req 
 		isPublic = *req.IsPublic
 	}
 
-	showOnlyPermitted := false
-	if req.ShowOnlyPermitted != nil {
-		showOnlyPermitted = *req.ShowOnlyPermitted
-	}
-
-	permissionEnforced := DefaultWorkspacePermissionEnforced()
-	if req.PermissionEnforced != nil {
-		permissionEnforced = *req.PermissionEnforced
-	}
-
 	app := &model.App{
 		Base: models.Base{
 			CreatedBy: requestUser,
 		},
-		Version:            "v1",
-		Code:               req.Code,
-		Name:               req.Name,
-		User:               tenantUser,
-		NatsID:             selectedHost.NatsID,
-		HostID:             selectedHost.ID,
-		Status:             "enabled",
-		IsPublic:           isPublic,
-		Admins:             req.Admins,
-		ShowOnlyPermitted:  showOnlyPermitted,
-		PermissionEnforced: permissionEnforced,
+		Version:  "v1",
+		Code:     req.Code,
+		Name:     req.Name,
+		User:     tenantUser,
+		NatsID:   selectedHost.NatsID,
+		HostID:   selectedHost.ID,
+		Status:   "enabled",
+		IsPublic: isPublic,
+		Admins:   req.Admins,
 	}
 
 	rootNode := &model.ServiceTree{
@@ -94,7 +71,6 @@ func (a *AppService) buildInitialAppAndRoot(requestUser, tenantUser string, req 
 		Code:         req.Code,
 		Type:         model.ServiceTreeTypePackage,
 		Admins:       req.Admins,
-		PendingCount: 0,
 		FullCodePath: fmt.Sprintf("/%s/%s", tenantUser, req.Code),
 		Version:      "v1",
 		VersionNum:   1,

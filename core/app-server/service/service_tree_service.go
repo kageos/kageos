@@ -44,11 +44,10 @@ func NewServiceTreeService(
 	appCall *appcall.Client,
 	fileSnapshotRepo *repository.FileSnapshotRepository,
 	appService *AppService,
-	permissionService *PermissionService,
 	docService *DocService,
 ) *ServiceTreeService {
 	runtimeWorkspace := newRuntimeWorkspaceBridge(appRepo, appCall)
-	queryView := newServiceTreeQueryView(serviceTreeRepo, appRepo, permissionService)
+	queryView := newServiceTreeQueryView(serviceTreeRepo, appRepo)
 
 	return &ServiceTreeService{
 		queryView:          queryView,

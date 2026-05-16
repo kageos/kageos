@@ -36,9 +36,6 @@ func InitSystemWorkspace(ctx context.Context, appService *AppService, serviceTre
 	if err := initSystemApps(systemCtx, appService); err != nil {
 		return fmt.Errorf("初始化内置应用失败: %w", err)
 	}
-	if err := initSystemPromptSeed(systemCtx, serviceTreeService); err != nil {
-		return fmt.Errorf("初始化 prompt 工作空间失败: %w", err)
-	}
 	if err := initSystemDirectorySeeds(systemCtx, serviceTreeService); err != nil {
 		return fmt.Errorf("初始化系统目录种子失败: %w", err)
 	}
@@ -62,7 +59,6 @@ func systemAppDefinitions() []systemAppDefinition {
 	return []systemAppDefinition{
 		{Code: "tools", Name: "官方工具"},
 		{Code: "openapi", Name: "平台接口"},
-		{Code: "prompt", Name: "提示词"},
 	}
 }
 

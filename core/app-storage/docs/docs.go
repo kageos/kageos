@@ -588,6 +588,10 @@ const docTemplate = `{
                     "description": "文件 Key",
                     "type": "string"
                 },
+                "preview_kind": {
+                    "description": "预览类型：image/video",
+                    "type": "string"
+                },
                 "router": {
                     "description": "✨ 函数路径（上传成功后需要，用于记录）",
                     "type": "string"
@@ -595,6 +599,10 @@ const docTemplate = `{
                 "success": {
                     "description": "是否成功",
                     "type": "boolean"
+                },
+                "thumbnail_ref": {
+                    "description": "前端生成的缩略图或视频封面文件引用",
+                    "type": "string"
                 }
             }
         },
@@ -654,6 +662,10 @@ const docTemplate = `{
                     "description": "文件 Key",
                     "type": "string"
                 },
+                "preview_kind": {
+                    "description": "预览类型：image/video",
+                    "type": "string"
+                },
                 "ref": {
                     "description": "稳定文件引用：bucket/object_key",
                     "type": "string"
@@ -664,6 +676,14 @@ const docTemplate = `{
                 },
                 "status": {
                     "description": "状态：completed/failed",
+                    "type": "string"
+                },
+                "thumbnail_ref": {
+                    "description": "前端生成的缩略图或视频封面文件引用",
+                    "type": "string"
+                },
+                "thumbnail_url": {
+                    "description": "缩略图或视频封面浏览器访问地址",
                     "type": "string"
                 }
             }
@@ -750,6 +770,10 @@ const docTemplate = `{
                 },
                 "hash": {
                     "description": "文件 hash（预留，用于秒传）",
+                    "type": "string"
+                },
+                "preview_for_key": {
+                    "description": "原文件 object key；存在时生成与原文件同路径的缩略图/封面 key",
                     "type": "string"
                 },
                 "router": {
@@ -943,6 +967,10 @@ const docTemplate = `{
                     "description": "文件 Key",
                     "type": "string"
                 },
+                "preview_kind": {
+                    "description": "预览类型：image/video",
+                    "type": "string"
+                },
                 "router": {
                     "description": "✨ 函数路径（上传成功后需要，用于记录）",
                     "type": "string"
@@ -950,6 +978,10 @@ const docTemplate = `{
                 "success": {
                     "description": "是否成功",
                     "type": "boolean"
+                },
+                "thumbnail_ref": {
+                    "description": "前端生成的缩略图或视频封面文件引用",
+                    "type": "string"
                 }
             }
         },
@@ -996,6 +1028,10 @@ const docTemplate = `{
                     "description": "消息",
                     "type": "string"
                 },
+                "preview_kind": {
+                    "description": "预览类型：image/video",
+                    "type": "string"
+                },
                 "ref": {
                     "description": "稳定文件引用：bucket/object_key",
                     "type": "string"
@@ -1006,6 +1042,14 @@ const docTemplate = `{
                 },
                 "storage": {
                     "description": "存储引擎",
+                    "type": "string"
+                },
+                "thumbnail_ref": {
+                    "description": "前端生成的缩略图或视频封面文件引用",
+                    "type": "string"
+                },
+                "thumbnail_url": {
+                    "description": "缩略图或视频封面浏览器访问地址",
                     "type": "string"
                 }
             }

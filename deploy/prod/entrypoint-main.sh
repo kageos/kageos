@@ -9,7 +9,6 @@ require_env CANONICAL_BASE_URL "环境变量 CANONICAL_BASE_URL 未设置或为�
 require_env MYSQL_ROOT_PASSWORD "环境变量 MYSQL_ROOT_PASSWORD 未设置或为空（须由 Compose 从宿主机 .env 注入）"
 require_env MINIO_ROOT_PASSWORD "环境变量 MINIO_ROOT_PASSWORD 未设置或为空（须由 Compose 从宿主机 .env 注入）"
 require_env JWT_SECRET "环境变量 JWT_SECRET 未设置或为空（须由 Compose 从宿主机 .env 注入）"
-require_env CONTROL_ENC_KEY "环境变量 CONTROL_ENC_KEY 未设置或为空（须由 Compose 从宿主机 .env 注入）"
 
 mkdir -p /app/deploy/prod/config
 set_smtp_defaults
@@ -42,7 +41,7 @@ wait_tcp "$MYSQL_HOST" "$MYSQL_PORT" "MySQL"
 wait_tcp "$NATS_HOST" "$NATS_PORT" "NATS"
 wait_tcp "$MINIO_HOST" "$MINIO_PORT" "MinIO"
 
-PROD_TEMPLATE_VARS='${MYSQL_ROOT_PASSWORD} ${JWT_SECRET} ${CONTROL_ENC_KEY} ${SYSTEM_USER_PASSWORD} ${MINIO_ROOT_PASSWORD} ${NATS_URL} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${SMTP_FROM} ${SMTP_FROM_NAME} ${APP_BASE_IMAGE}'
+PROD_TEMPLATE_VARS='${MYSQL_ROOT_PASSWORD} ${JWT_SECRET} ${SYSTEM_USER_PASSWORD} ${MINIO_ROOT_PASSWORD} ${NATS_URL} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${SMTP_FROM} ${SMTP_FROM_NAME} ${APP_BASE_IMAGE}'
 render_runtime_templates "$PROD_TEMPLATE_VARS"
 
 CANONICAL_BASE_URL="${CANONICAL_BASE_URL}"

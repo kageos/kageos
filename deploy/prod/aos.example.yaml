@@ -25,8 +25,6 @@ mysql:
   agent_database: "agent-server"
   storage_database: "app-storage"
   hr_database: "hr-server"
-  backup_admin_user: "root"
-  backup_admin_password: "replace-with-a-strong-mysql-password"
   create_bundled_sql: true
 
 nats:
@@ -51,9 +49,6 @@ minio:
 
 secrets:
   jwt_secret: "0123456789abcdef0123456789abcdef"
-  control_enc_key: "0123456789abcdef0123456789abcdef"
-  backup_basic_auth_username: "admin"
-  backup_basic_auth_password: "0123456789abcdef0123456789abcdef"
   generated_by_aosctl: false
   generated_at_unix_seconds: 0
 
@@ -66,10 +61,10 @@ llms:
   configs:
     - code: "main"
       name: "默认模型"
-      provider: "qwen"
-      model: "qwen-plus"
-      # 推荐用环境变量注入密钥；api_base 不填时走 SDK/provider 默认地址。
-      api_key_env: "QIANWEN_API_KEY"
+      model: "gpt-4o-mini"
+      # 推荐用环境变量注入密钥；api_base 不填时走 OpenAI 默认地址。
+      # OpenAI-compatible 网关可把 api_base 改成对应的 /v1 地址。
+      api_key_env: "OPENAI_API_KEY"
       api_base: ""
       timeout: 300
       max_tokens: 8192

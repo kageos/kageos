@@ -27,7 +27,7 @@ const (
 	MaxToolRounds   = 100 // 与 streamloop.MaxToolRounds 保持一致，仅作注释/文档用，实际以 streamloop 为准
 )
 
-// 工作台系统提示词与文档统一来自 /system/prompt；运行时优先读树，缺失时回落到本地 seed。
+// 工作台系统提示词与内置文档统一来自本地内嵌的 /system/prompt。
 
 // 消息角色常量
 const (
@@ -710,7 +710,6 @@ func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigI
 		}
 	}
 
-	provider := llms.Provider(llmConfig.Provider)
 	opts := llms.DefaultClientOptions()
 	if llmConfig.Model != "" {
 		opts = opts.WithModel(llmConfig.Model)
@@ -721,10 +720,7 @@ func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigI
 	if llmConfig.APIBase != "" {
 		opts = opts.WithBaseURL(llmConfig.APIBase)
 	}
-	client, err := llms.NewLLMClientWithOptions(provider, llmConfig.APIKey, opts)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("创建 LLM 客户端失败: %w", err)
-	}
+	client := llms.NewOpenAIClientWithOptions(llmConfig.APIKey, opts)
 
 	var extraConfig map[string]interface{}
 	if llmConfig.ExtraConfig != nil && *llmConfig.ExtraConfig != "" {
@@ -745,11 +741,6 @@ func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigI
 	if temperature, ok := extraConfig["temperature"].(float64); ok {
 		chatReq.Temperature = temperature
 	}
-	if llmConfig.UseThinking {
-		useThinking := true
-		chatReq.UseThinking = &useThinking
-	}
-
 	return llmConfig, client, chatReq, nil
 }
 
@@ -762,9 +753,6 @@ func buildMessageLLMMetadata(llmConfig *model.LLMConfig, client llms.LLMClient) 
 		meta.Model = llmConfig.Model
 	}
 	if client != nil {
-		if provider := strings.TrimSpace(client.GetProvider()); provider != "" {
-			meta.Provider = provider
-		}
 		if modelName := strings.TrimSpace(client.GetModelName()); modelName != "" {
 			meta.Model = modelName
 		}

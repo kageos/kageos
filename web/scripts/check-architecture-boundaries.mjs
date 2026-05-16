@@ -325,7 +325,7 @@ for (const file of files) {
     if (
       normalizedFile.startsWith('src/architecture/presentation/')
       && normalizedFile !== 'src/architecture/presentation/context/appStoresContext.ts'
-      && /@\/architecture\/infrastructure\/stores\/(?:auth|departmentInfo|license|theme|userInfo)/.test(line)
+      && /@\/architecture\/infrastructure\/stores\/(?:auth|departmentInfo|theme|userInfo)/.test(line)
     ) {
       failures.push(`${relative(root, file)}:${index + 1} presentation app stores must use presentation/context/appStoresContext: ${line.trim()}`)
     }

@@ -66,7 +66,7 @@ services:
       CANONICAL_BASE_URL: {{ q .Site.BaseURL }}
       MYSQL_HOST: {{ q .MySQLHostForMain }}
       MYSQL_PORT: {{ q .MySQLPortForMain }}
-      MYSQL_ROOT_PASSWORD: {{ q .MySQL.BackupAdminPass }}
+      MYSQL_ROOT_PASSWORD: {{ q .MySQL.Password }}
       MINIO_HOST: {{ q .MinIOHostForMain }}
       MINIO_PORT: {{ q .MinIOPortForMain }}
       MINIO_ROOT_PASSWORD: {{ q .MinIO.SecretKey }}
@@ -78,7 +78,6 @@ services:
       NATS_SEED_USER: {{ q .NATSAuthUser }}
       NATS_SEED_PASSWORD: {{ q .NATSAuthPassword }}
       JWT_SECRET: {{ q .Secrets.JWTSecret }}
-      CONTROL_ENC_KEY: {{ q .Secrets.ControlEncKey }}
       SYSTEM_USER_PASSWORD: {{ q .SystemUser.Password }}
       SMTP_HOST: {{ q .SMTP.Host }}
       SMTP_PORT: {{ q .SMTP.Port }}
@@ -106,36 +105,6 @@ services:
       timeout: 10s
       retries: 12
       start_period: 90s
-
-  backup:
-    image: {{ q .Images.Main }}
-    entrypoint: ["/app/entrypoint-backup.sh"]
-    restart: unless-stopped
-    environment:
-      MYSQL_HOST: {{ q .BackupMySQLHost }}
-      MYSQL_PORT: {{ q .BackupMySQLPort }}
-      MYSQL_ROOT_PASSWORD: {{ q .MySQL.BackupAdminPass }}
-      MINIO_HOST: {{ q .BackupMinIOHost }}
-      MINIO_PORT: {{ q .BackupMinIOPort }}
-      MINIO_ROOT_PASSWORD: {{ q .MinIO.SecretKey }}
-      BACKUP_BASIC_AUTH_PASSWORD: {{ q .Secrets.BackupBasicAuthPass }}
-    ports:
-      - "127.0.0.1:19088:19088"
-    volumes:
-      - {{ .Storage.Root }}/logs:/app/logs
-      - {{ .Storage.Root }}/namespace:/app/namespace:ro
-      - {{ .Storage.Root }}/data:/app/data
-      - {{ .Storage.Root }}/mysql:/storage/mysql:ro
-      - {{ .Storage.Root }}/minio:/storage/minio:ro
-      - {{ .Storage.Root }}/podman_storage:/storage/podman_storage:ro
-      - ./config:/app/config.prod.template:ro
-    healthcheck:
-      test: ["CMD", "/app/health/backup.sh"]
-      interval: 20s
-      timeout: 10s
-      retries: 6
-      start_period: 30s
-    networks: [aos]
 
 networks:
   aos:
@@ -191,11 +160,6 @@ jwt:
   refresh_token_expire: 7776000
   issuer: "ai-agent-os"
 
-control_service:
-  enabled: true
-  encryption_key: {{ q .Secrets.ControlEncKey }}
-  key_path: "/app/data/license/license.key"
-
 sdk:
   nats_url: {{ q .SDKNATSURL }}
   gateway_url: {{ q .SDKGatewayURL }}
@@ -232,16 +196,6 @@ routes:
     service_name: "agent"
     targets:
       - url: "http://127.0.0.1:9095"
-    timeout: 300
-  - path: "/control"
-    service_name: "control"
-    targets:
-      - url: "http://127.0.0.1:9096"
-    timeout: 300
-  - path: "/message"
-    service_name: "message"
-    targets:
-      - url: "http://127.0.0.1:9109"
     timeout: 300
   - path: "/workspace"
     service_name: "workspace"
@@ -374,7 +328,6 @@ llms:
 {{- range .LLMs.Configs }}
     - code: {{ q .Code }}
       name: {{ q .Name }}
-      provider: {{ q .Provider }}
       model: {{ q .Model }}
 {{- if .APIKey }}
       api_key: {{ q .APIKey }}
@@ -388,7 +341,6 @@ llms:
 {{- if .ExtraConfig }}
       extra_config: {{ q .ExtraConfig }}
 {{- end }}
-      use_thinking: {{ .UseThinking }}
 {{- if .IsDefault }}
       is_default: true
 {{- end }}
@@ -436,106 +388,4 @@ email:
 
 system_user:
   password: {{ q .SystemUser.Password }}
-`
-
-const messageServerConfigTemplate = `
-server:
-  port: 9109
-  listen_host: "127.0.0.1"
-  log_level: "info"
-  debug: false
-  allow_nats_degraded_startup: false
-
-# 当前用于解析收件人用户/部门，指向 hr-server 数据库。
-db:
-  type: "mysql"
-  host: {{ q .MySQLHostForMain }}
-  port: {{ .MySQLPortForMain }}
-  user: {{ q .MySQL.User }}
-  password: {{ q .MySQL.Password }}
-  name: {{ q .MySQL.HRDatabase }}
-  max_idle_conns: 10
-  max_open_conns: 100
-  max_lifetime: 300
-  log_level: "warn"
-  slow_threshold: 200
-
-email:
-  smtp:
-    host: {{ q .SMTP.Host }}
-    port: {{ .SMTP.Port }}
-    username: {{ q .SMTP.Username }}
-    password: {{ q .SMTP.Password }}
-    from: {{ q .SMTP.From }}
-    from_name: {{ q .SMTP.FromName }}
-  verification:
-    code_length: 6
-    code_expire: 300
-`
-
-const controlServiceConfigTemplate = `
-server:
-  port: 9096
-  listen_host: "127.0.0.1"
-  log_level: "info"
-  debug: false
-  enable_pprof: false
-
-license:
-  path: "/app/data/license/license.json"
-  encryption_key: {{ q .Secrets.ControlEncKey }}
-  publish_interval: 300
-`
-
-const backupServiceConfigTemplate = `
-server:
-  port: 19088
-  listen_host: {{ q .BackupListenHost }}
-  log_level: "info"
-  debug: false
-
-storage:
-  root: {{ q .Storage.Root }}
-  namespace_path: "/app/namespace"
-  data_path: "/app/data"
-  logs_path: "/app/logs"
-  mysql_path: "/storage/mysql"
-  minio_path: "/storage/minio"
-  podman_storage_path: "/storage/podman_storage"
-
-repository:
-  root_path: "/app/data/backup/repo"
-  state_path: "/app/data/backup/state"
-  staging_path: "/app/data/backup/staging"
-
-database:
-  path: "/app/data/backup/state/backup-service.db"
-
-maintenance:
-  marker_path: "/app/data/backup/state/maintenance.flag"
-  page_path: "/app/data/backup/state/maintenance.html"
-  metadata_path: "/app/data/backup/state/maintenance.json"
-
-dependencies:
-  mysql_address: {{ q .BackupMySQLAddress }}
-  minio_address: {{ q .BackupMinIOAddress }}
-
-mysql:
-  user: {{ q .MySQL.BackupAdminUser }}
-  password: {{ q .MySQL.BackupAdminPass }}
-
-minio:
-  access_key: {{ q .MinIO.AccessKey }}
-  secret_key: {{ q .MinIO.SecretKey }}
-
-auth:
-  username: {{ q .Secrets.BackupBasicAuthUser }}
-  password: {{ q .Secrets.BackupBasicAuthPass }}
-  realm: "Backup Control Plane"
-
-tooling:
-  mysql_binary: "mysql"
-  mysqldump_binary: "mysqldump"
-  restic_binary: "restic"
-  minio_client_binary: "mc"
 `

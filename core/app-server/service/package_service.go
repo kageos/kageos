@@ -97,24 +97,6 @@ func (s *serviceTreePackageService) CreatePackage(ctx context.Context, req *dto.
 
 	logger.Infof(ctx, "[PackageService] Created package node: %s/%s/%s", req.User, req.App, req.Code)
 
-	if requestUser != "" {
-		if err := assignDirectoryAdminRoleToUser(ctx, req.User, req.App, requestUser, serviceTree.FullCodePath); err != nil {
-			logger.Warnf(ctx, "[PackageService] 自动添加创建者管理员角色失败: user=%s, app=%s, username=%s, resource=%s, error=%v",
-				req.User, req.App, requestUser, serviceTree.FullCodePath, err)
-		}
-	}
-
-	if req.Admins != "" {
-		for admin := range parseAdminUserSet(req.Admins) {
-			if admin != requestUser {
-				if err := assignDirectoryAdminRoleToUser(ctx, req.User, req.App, admin, serviceTree.FullCodePath); err != nil {
-					logger.Warnf(ctx, "[PackageService] 自动添加管理员角色失败: user=%s, app=%s, username=%s, resource=%s, error=%v",
-						req.User, req.App, admin, serviceTree.FullCodePath, err)
-				}
-			}
-		}
-	}
-
 	if err := s.sendCreatePackageMessage(ctx, req.User, req.App, serviceTree); err != nil {
 		logger.Warnf(ctx, "[PackageService] Failed to send NATS message: %v", err)
 	}

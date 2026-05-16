@@ -7,7 +7,7 @@ const (
 	// AppTypeUser 用户空间（默认）
 	AppTypeUser AppType = 0
 
-	// AppTypeSystem 系统空间（内置系统工具、平台接口和提示词）
+	// AppTypeSystem 系统空间（内置系统工具和平台接口）
 	AppTypeSystem AppType = 1
 )
 

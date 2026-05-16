@@ -294,8 +294,7 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "model",
-                "name",
-                "provider"
+                "name"
             ],
             "properties": {
                 "admin": {
@@ -331,18 +330,9 @@ const docTemplate = `{
                     "type": "string",
                     "example": "OpenAI GPT-4"
                 },
-                "provider": {
-                    "type": "string",
-                    "example": "openai"
-                },
                 "timeout": {
                     "type": "integer",
                     "example": 300
-                },
-                "use_thinking": {
-                    "description": "是否使用思考模式（GLM特有功能）",
-                    "type": "boolean",
-                    "example": false
                 },
                 "visibility": {
                     "description": "0: 公开, 1: 私有（默认0）",
@@ -376,6 +366,10 @@ const docTemplate = `{
                     "type": "string",
                     "example": "sk-xxx"
                 },
+                "code": {
+                    "type": "string",
+                    "example": "default"
+                },
                 "created_at": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
@@ -413,11 +407,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "OpenAI GPT-4"
                 },
-                "provider": {
-                    "description": "openai, claude, local, etc.",
-                    "type": "string",
-                    "example": "openai"
-                },
                 "timeout": {
                     "type": "integer",
                     "example": 300
@@ -425,11 +414,6 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
-                },
-                "use_thinking": {
-                    "description": "是否使用思考模式（GLM特有功能）",
-                    "type": "boolean",
-                    "example": false
                 },
                 "visibility": {
                     "description": "0: 公开, 1: 私有",
@@ -454,6 +438,10 @@ const docTemplate = `{
                     "type": "string",
                     "example": "sk-xxx"
                 },
+                "code": {
+                    "type": "string",
+                    "example": "default"
+                },
                 "created_at": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
@@ -491,11 +479,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "OpenAI GPT-4"
                 },
-                "provider": {
-                    "description": "openai, claude, local, etc.",
-                    "type": "string",
-                    "example": "openai"
-                },
                 "timeout": {
                     "type": "integer",
                     "example": 300
@@ -503,11 +486,6 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
-                },
-                "use_thinking": {
-                    "description": "是否使用思考模式（GLM特有功能）",
-                    "type": "boolean",
-                    "example": false
                 },
                 "visibility": {
                     "description": "0: 公开, 1: 私有",
@@ -532,6 +510,10 @@ const docTemplate = `{
                     "type": "string",
                     "example": "sk-xxx"
                 },
+                "code": {
+                    "type": "string",
+                    "example": "default"
+                },
                 "created_at": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
@@ -569,11 +551,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "OpenAI GPT-4"
                 },
-                "provider": {
-                    "description": "openai, claude, local, etc.",
-                    "type": "string",
-                    "example": "openai"
-                },
                 "timeout": {
                     "type": "integer",
                     "example": 300
@@ -581,11 +558,6 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
-                },
-                "use_thinking": {
-                    "description": "是否使用思考模式（GLM特有功能）",
-                    "type": "boolean",
-                    "example": false
                 },
                 "visibility": {
                     "description": "0: 公开, 1: 私有",
@@ -614,8 +586,7 @@ const docTemplate = `{
             "required": [
                 "id",
                 "model",
-                "name",
-                "provider"
+                "name"
             ],
             "properties": {
                 "admin": {
@@ -655,18 +626,9 @@ const docTemplate = `{
                     "type": "string",
                     "example": "OpenAI GPT-4"
                 },
-                "provider": {
-                    "type": "string",
-                    "example": "openai"
-                },
                 "timeout": {
                     "type": "integer",
                     "example": 300
-                },
-                "use_thinking": {
-                    "description": "是否使用思考模式（GLM特有功能）",
-                    "type": "boolean",
-                    "example": false
                 },
                 "visibility": {
                     "description": "0: 公开, 1: 私有",

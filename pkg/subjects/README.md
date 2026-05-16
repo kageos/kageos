@@ -10,7 +10,7 @@
 
 约束如下：
 
-- `target`：主题主要由谁消费或归谁负责，例如 `runtime`、`app`、`gateway`、`control`
+- `target`：主题主要由谁消费或归谁负责，例如 `runtime`、`app`、`gateway`
 - `version`：当前固定为 `v1`
 - `kind`：固定使用 `cmd`、`query`、`event`、`reply`
 - 静态 token：统一使用小写 kebab-case
@@ -39,17 +39,10 @@
 - `app.v1.cmd.discovery.request`
 - `runtime.v1.event.lifecycle.{user}.{app}.{version}`
 
-### license / control
-
-- `control.v1.query.license-key.get`
-- `license.v1.event.key.updated`
-- `license.v1.event.key.refresh`
-
-### gateway / message
+### gateway
 
 - `gateway.v1.cmd.token.invalidate`
 - `gateway.v1.cmd.token.remove-blacklist`
-- `message.v1.cmd.send`
 
 ## 文档同步要求
 

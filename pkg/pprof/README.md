@@ -32,7 +32,6 @@ go run core/app-server/cmd/app/main.go
 | **app-server** | 9090 | `http://localhost:9090/debug/pprof/` |
 | **agent-server** | 9092 | `http://localhost:9092/debug/pprof/` |
 | **app-storage** | 9093 | `http://localhost:9093/debug/pprof/` |
-| **control-service** | 9094 | `http://localhost:9094/debug/pprof/` |
 | **app-runtime** | 无 HTTP 服务器 | 通过 app-server 的 pprof 查看 |
 
 **注意**：

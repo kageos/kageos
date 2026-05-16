@@ -7,15 +7,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/enterprise"
-
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/pkg/appcall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/dbx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
 	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
@@ -43,20 +40,14 @@ type Server struct {
 	functionService               *service.FunctionService
 	docService                    *service.DocService
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
-	permissionService             *service.PermissionService // ⭐ 权限管理服务
-	appRepo                       *repository.AppRepository  // ⭐ 应用仓储（用于其他服务）
+	operateLogService             *service.OperateLogService
+	appRepo                       *repository.AppRepository // ⭐ 应用仓储（用于其他服务）
 
 	// 上游服务
 	natsConnPool *service.NATSConnPool
 
 	// 上下文
 	ctx context.Context
-
-	//企业功能
-	operateLogger enterprise.OperateLogger
-
-	// License Client
-	licenseClient *license.Client
 }
 
 func newBaseServer(cfg *config.AppServerConfig) *Server {
@@ -68,24 +59,12 @@ func newBaseServer(cfg *config.AppServerConfig) *Server {
 }
 
 func (s *Server) initSharedComponents(ctx context.Context) error {
-	// ⭐ 1. 首先加载 License（必须在其他初始化之前）
-	if err := s.initLicense(ctx); err != nil {
-		// License 加载失败，记录警告但不中断启动（社区版可以继续运行）
-		logger.Warnf(ctx, "[Server] Failed to load license: %v, continuing with community edition", err)
-	}
-
 	if err := s.initDatabase(ctx); err != nil {
 		return fmt.Errorf("failed to init database: %w", err)
 	}
 
 	if err := s.initNATS(ctx); err != nil {
 		return fmt.Errorf("failed to init NATS: %w", err)
-	}
-
-	// ⭐ 初始化 License Client（在 NATS 初始化之后）
-	if err := s.initLicenseClient(ctx); err != nil {
-		// License Client 初始化失败，记录警告但不中断启动（社区版可以继续运行）
-		logger.Warnf(ctx, "[Server] Failed to init license client: %v, continuing with community edition", err)
 	}
 
 	return nil
@@ -98,12 +77,6 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 
 	if err := s.initSharedComponents(ctx); err != nil {
 		return nil, err
-	}
-
-	// ⭐ 2. 初始化企业功能（在数据库和 NATS 初始化之后，在服务初始化之前）
-	// ⭐ 这样 enterprise.GetPermissionService() 就可以在 initServices 中使用了
-	if err := s.initEnterprise(); err != nil {
-		return nil, fmt.Errorf("failed to init enterprise features: %w", err)
 	}
 
 	if err := s.initServices(ctx); err != nil {
@@ -169,15 +142,6 @@ func (s *Server) Stop(ctx context.Context) error {
 		logger.Infof(ctx, "[Server] NATS conn pool closed")
 	}
 
-	// 关闭 License Client
-	if s.licenseClient != nil {
-		if err := s.licenseClient.Stop(ctx); err != nil {
-			logger.Warnf(ctx, "[Server] Failed to stop license client: %v", err)
-		} else {
-			logger.Infof(ctx, "[Server] License client stopped")
-		}
-	}
-
 	// 关闭 NATS 连接
 	if s.natsConn != nil {
 		s.natsConn.Close()
@@ -194,78 +158,6 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 
 	logger.Infof(ctx, "[Server] Server stopped")
-	return nil
-}
-
-// initLicense 初始化 License（从文件加载，向后兼容）
-// 在服务器启动时加载和验证 License 文件
-func (s *Server) initLicense(ctx context.Context) error {
-	logger.Infof(ctx, "[Server] Initializing license from file...")
-
-	// 获取 License 管理器
-	licenseMgr := license.GetManager()
-
-	// 加载 License（如果文件不存在，返回 nil，表示社区版）
-	if err := licenseMgr.LoadLicense(""); err != nil {
-		// License 加载失败，可能是文件不存在（社区版）或验证失败
-		// 如果是验证失败，记录错误但不中断启动（允许降级到社区版）
-		logger.Warnf(ctx, "[Server] License loading from file failed: %v", err)
-		return err
-	}
-
-	// 检查 License 状态
-	currentLicense := licenseMgr.GetLicense()
-	if currentLicense == nil {
-		logger.Infof(ctx, "[Server] Community edition (no license file)")
-	} else {
-		logger.Infof(ctx, "[Server] License loaded from file: Edition=%s, Customer=%s, ExpiresAt=%v",
-			currentLicense.Edition, currentLicense.Customer, currentLicense.ExpiresAt)
-	}
-
-	return nil
-}
-
-// initLicenseClient 初始化 License Client（通过 NATS 获取和刷新 License）
-func (s *Server) initLicenseClient(ctx context.Context) error {
-	// 检查是否启用 Control Service 客户端
-	controlCfg := s.cfg.GetControlService()
-	if !controlCfg.IsEnabled() {
-		logger.Infof(ctx, "[Server] Control Service client is disabled, skipping license client initialization")
-		return nil
-	}
-
-	// 检查加密密钥
-	encryptionKey := controlCfg.GetEncryptionKey()
-	if len(encryptionKey) != 32 {
-		return fmt.Errorf("encryption key must be 32 bytes, got %d bytes", len(encryptionKey))
-	}
-
-	// 确定使用的 NATS 连接
-	// 如果配置了独立的 NATS URL，需要创建新连接；否则使用现有的连接
-	natsConn := s.natsConn
-	if controlCfg.GetNatsURL() != "" {
-		// 使用独立的 NATS 连接
-		var err error
-		natsConn, err = natsx.Connect(controlCfg.GetNatsURL())
-		if err != nil {
-			return fmt.Errorf("failed to connect to Control Service NATS: %w", err)
-		}
-		logger.Infof(ctx, "[Server] Connected to Control Service NATS: %s", controlCfg.GetNatsURL())
-	}
-
-	// 创建 License Client
-	client, err := license.NewClient(natsConn, encryptionKey, controlCfg.GetKeyPath())
-	if err != nil {
-		return fmt.Errorf("failed to create license client: %w", err)
-	}
-
-	// 启动 License Client
-	if err := client.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start license client: %w", err)
-	}
-
-	s.licenseClient = client
-	logger.Infof(ctx, "[Server] License client initialized successfully")
 	return nil
 }
 
@@ -329,7 +221,6 @@ func (s *Server) initServices(ctx context.Context) error {
 		Waiter:             waiter.GetDefaultWaiter(),
 	})
 
-	// 初始化应用服务（若企业版已创建 appRepo 则复用）
 	if s.appRepo == nil {
 		s.appRepo = repository.NewAppRepository(s.db)
 	}
@@ -341,11 +232,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
 	directoryUpdateHistoryRepo := repository.NewDirectoryUpdateHistoryRepository(s.db)
 	s.appService = service.NewAppService(s.appCall, appRepo, functionRepo, serviceTreeRepo, operateLogRepo)
-
-	// ⭐ 邮件服务已迁移到 hr-server，不再需要初始化
-
-	// 初始化权限查询适配器（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
-	s.permissionService = service.NewPermissionService()
+	s.operateLogService = service.NewOperateLogService(operateLogRepo)
 
 	// 初始化文档服务（需要在 ServiceTreeService 之前初始化，因为 ServiceTreeService 依赖它）
 	docRepo := repository.NewDocRepository(s.db)
@@ -353,19 +240,13 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中
-	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.permissionService, s.docService)
+	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.docService)
 
 	// 初始化函数服务
 	s.functionService = service.NewFunctionService(functionRepo, appRepo)
 
-	// 操作日志服务已迁移到企业版，通过 enterprise.GetOperateLogger() 获取
-
 	// 初始化目录更新历史服务
 	s.directoryUpdateHistoryService = service.NewDirectoryUpdateHistoryService(directoryUpdateHistoryRepo, serviceTreeRepo)
-
-	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
-	// 注意：这里先不初始化，等 initEnterprise 之后再初始化
-	// 在 initEnterprise 中会初始化 enterprise.GetPermissionService()，然后在这里创建 PermissionService
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil

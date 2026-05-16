@@ -742,13 +742,8 @@ dept := ctx.GetRequestUserDept()
 // 构建跳转到另一个函数的 link 字段。
 link, _ := ctx.BuildFunctionUrlWithText("demo_item_list.table", DemoItem{ID: 1}, "查看详情")
 
-// 发送消息。业务需要通知时优先用 SDK 能力，不要自建消息表。
-err := ctx.SendMessage(&app.SendMessageOpts{
-	ToUsers:     "zhangsan,lisi",
-	Title:       "处理提醒",
-	Content:     "你有一条记录需要处理",
-	ContentType: "markdown",
-})
+// 调用平台 API。
+// 跨函数跳转、Table/Form/Chart 的展示和提交应优先使用 SDK 已有能力。
 ```
 
 ## 八、常见错误清单

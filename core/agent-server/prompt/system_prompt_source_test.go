@@ -31,7 +31,6 @@ func TestGetPromptDocContent_ForSDKDirectoryAndLeafDoc(t *testing.T) {
 	}
 	for _, want := range []string{
 		"SDK 公共运行能力",
-		"ctx.SendMessage",
 		"ctx.APICall",
 		"ctx.GetRequestUser",
 		"OnTableUpdateRowReq",
@@ -65,39 +64,11 @@ func TestGetPromptDocContent_ForSDKDirectoryAndLeafDoc(t *testing.T) {
 	}
 }
 
-func TestPromptDocCandidatePaths_PreferSeedActualPath(t *testing.T) {
-	tests := []struct {
-		path string
-		want string
-	}{
-		{path: "/system/prompt/doc/workspace-env-template", want: "/system/prompt/doc/workspace-env-template.docs"},
-		{path: "/system/prompt/mode/dev/config", want: "/system/prompt/mode/dev/config.docs"},
-		{path: "/system/prompt/platform-capability-boundaries", want: "/system/prompt/platform-capability-boundaries.docs"},
-		{path: "/system/prompt/sdk/agent-app-sdk-readme", want: "/system/prompt/sdk/agent-app-sdk-readme.docs"},
-		{path: "/system/prompt/sdk/reference", want: "/system/prompt/sdk/reference/index.docs"},
-		{path: "/system/prompt/sdk/reference/runtime-capabilities", want: "/system/prompt/sdk/reference/runtime-capabilities.docs"},
-		{path: "/system/prompt/sdk/reference/build-validation", want: "/system/prompt/sdk/reference/build-validation.docs"},
-		{path: "/system/prompt/sdk/reference/platform-api", want: "/system/prompt/sdk/reference/platform-api.docs"},
+func TestPromptDocPathGuardsDisableRetiredSOPs(t *testing.T) {
+	if IsPromptDocPath("/system/prompt/workspace/create-project") {
+		t.Fatal("legacy workspace SOP should not be treated as prompt doc path")
 	}
 
-	for _, tt := range tests {
-		got := PromptDocCandidatePaths(tt.path)
-		if len(got) == 0 {
-			t.Fatalf("expected candidate paths for %s", tt.path)
-		}
-		if got[0] != tt.want {
-			t.Fatalf("expected first candidate for %s to be %s, got %v", tt.path, tt.want, got)
-		}
-	}
-}
-
-func TestPromptDocCandidatePaths_DisablesLegacyWorkspaceSOP(t *testing.T) {
-	if got := PromptDocCandidatePaths("/system/prompt/workspace/create-project"); len(got) != 0 {
-		t.Fatalf("legacy workspace SOP should have no candidates, got %v", got)
-	}
-}
-
-func TestPromptDocCandidatePaths_DisablesRetiredWorkflowSOP(t *testing.T) {
 	retiredPath := func(leaf string) string {
 		return "/system/prompt/" + retiredWorkflowPromptPackageCode + "/" + strings.TrimPrefix(leaf, "/")
 	}
@@ -109,9 +80,6 @@ func TestPromptDocCandidatePaths_DisablesRetiredWorkflowSOP(t *testing.T) {
 	} {
 		if IsPromptDocPath(path) {
 			t.Fatalf("retired workflow SOP should not be treated as prompt doc path: %s", path)
-		}
-		if got := PromptDocCandidatePaths(path); len(got) != 0 {
-			t.Fatalf("retired workflow SOP should have no candidates: path=%s got=%v", path, got)
 		}
 		name, content := GetPromptDocContent(nil, path)
 		if name != "" || content != "" {

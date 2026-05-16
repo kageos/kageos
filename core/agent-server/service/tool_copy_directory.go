@@ -40,9 +40,6 @@ func runCopyDirectoryTool(ctx context.Context, args copyDirectoryArgs) (string, 
 	if sourcePath == "" {
 		return "copy_directory 必填 source_directory（本地完整路径如 /user/app/plugins/xxx）。", true
 	}
-	if strings.HasPrefix(sourcePath, "hub://") {
-		return "copy_directory 不再支持 hub:// 链接；请使用本地目录路径或能力包导入。", true
-	}
 	if !strings.HasPrefix(sourcePath, "/") {
 		sourcePath = "/" + sourcePath
 	}

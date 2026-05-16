@@ -4,11 +4,6 @@
 # 功能：自动提交所有代码并推送到 Gitee
 # 使用方式：./scripts/git-push-all-auto.sh "提交信息"
 # 
-# 策略说明：
-# - 开发阶段：全量代码（包括企业代码）都提交到 Gitee
-# - 开源同步：使用 scripts/git-sync-to-github.sh 单独同步到 GitHub（过滤企业代码）
-# - enterprise_impl 已作为普通目录包含在主仓库中，不再使用 Submodule
-# 
 # 特点：
 # - 完全自动化，无需交互
 # - 适合大模型/AI助手调用
@@ -63,11 +58,10 @@ check_remotes() {
     
     GITEE_URL=$(git remote get-url gitee)
     print_info "Gitee: $GITEE_URL"
-    print_info "策略：开发阶段全量代码提交到 Gitee，开源时使用 git-sync-to-github.sh 同步到 GitHub"
+    print_info "策略：提交当前开源 MVP 代码到 Gitee"
 }
 
-# 提交 Submodule 更改（自动模式）
-# 注意：现在 enterprise_impl 已作为普通目录，不再需要 Submodule 处理
+# 提交 Submodule 更改（自动模式，向后兼容）
 commit_submodules_auto() {
     # 检查是否还有 Submodule（向后兼容）
     if [ ! -f .gitmodules ]; then

@@ -108,7 +108,6 @@ export function deleteDocs(id: number) {
 export interface ServiceTreeDetailResp extends ServiceTree {
   version?: string
   version_num?: number
-  permissions?: Record<string, boolean>
 }
 
 export function getServiceTreeDetail(fullCodePath: string) {

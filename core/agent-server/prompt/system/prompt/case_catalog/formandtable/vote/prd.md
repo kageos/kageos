@@ -240,7 +240,7 @@ var VoteOptionListTemplate = &app.TableTemplate{
 		}
 
 		if topic.CreatedBy != currentUser {
-			return nil, fmt.Errorf("权限不足：只有投票主题 '%s' 的创建人 '%s' 才能添加选项，当前用户为 '%s'", topic.Title, topic.CreatedBy, currentUser)
+			return nil, fmt.Errorf("操作不允许：只有投票主题 '%s' 的创建人 '%s' 才能添加选项，当前用户为 '%s'", topic.Title, topic.CreatedBy, currentUser)
 		}
 
 		status := getTopicStatus(topic.StartTime, topic.EndTime)
@@ -276,7 +276,7 @@ var VoteOptionListTemplate = &app.TableTemplate{
 		}
 
 		if topic.CreatedBy != currentUser {
-			return nil, fmt.Errorf("权限不足：只有投票主题 '%s' 的创建人 '%s' 才能修改选项，当前用户为 '%s'", topic.Title, topic.CreatedBy, currentUser)
+			return nil, fmt.Errorf("操作不允许：只有投票主题 '%s' 的创建人 '%s' 才能修改选项，当前用户为 '%s'", topic.Title, topic.CreatedBy, currentUser)
 		}
 
 		status := getTopicStatus(topic.StartTime, topic.EndTime)
@@ -313,7 +313,7 @@ var VoteOptionListTemplate = &app.TableTemplate{
 			}
 
 			if option.Topic.CreatedBy != currentUser {
-				return nil, fmt.Errorf("权限不足：只有投票主题 '%s' 的创建人 '%s' 才能删除选项，当前用户为 '%s'", option.Topic.Title, option.Topic.CreatedBy, currentUser)
+				return nil, fmt.Errorf("操作不允许：只有投票主题 '%s' 的创建人 '%s' 才能删除选项，当前用户为 '%s'", option.Topic.Title, option.Topic.CreatedBy, currentUser)
 			}
 
 			status := getTopicStatus(option.Topic.StartTime, option.Topic.EndTime)

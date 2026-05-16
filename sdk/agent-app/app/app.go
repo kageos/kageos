@@ -334,11 +334,6 @@ func (a *App) sendResponse(resp *dto.RequestAppResp) {
 	}
 }
 
-// PublishMessage 将消息发送到 NATS 主题，由消息服务消费（渠道由消费方决定）。
-func (a *App) PublishMessage(envelope *dto.MessageSendEnvelope) error {
-	return a.transport.PublishMessageCommand(envelope)
-}
-
 func (a *App) sendErrResponse(resp *dto.RequestAppResp) {
 	if err := a.transport.PublishInvokeResponse(resp, false); err != nil {
 		logger.Errorf(context.Background(), "Failed to publish invoke error response: %v", err)

@@ -36,7 +36,7 @@ type AppServerConfig struct {
 	Server   AppServerServerConfig `mapstructure:"server"`
 	Timeouts AppServerTimeoutCfg   `mapstructure:"timeouts"`
 	DB       DBConfig              `mapstructure:"db"`
-	// 注意：NATS、JWT、Control Service 配置已移至全局配置，不再在此处配置
+	// 注意：NATS、JWT 配置已移至全局配置，不再在此处配置
 	// 数据库配置保留在服务配置中，因为微服务后续每个服务一个库
 }
 
@@ -141,9 +141,4 @@ func (c *AppServerConfig) GetNats() NatsConfig {
 // GetJWT 获取 JWT 配置（从全局配置获取）
 func (c *AppServerConfig) GetJWT() JWTConfig {
 	return GetGlobalSharedConfig().JWT
-}
-
-// GetControlService 获取 Control Service 配置（从全局配置获取）
-func (c *AppServerConfig) GetControlService() ControlServiceClientConfig {
-	return GetGlobalSharedConfig().ControlService
 }

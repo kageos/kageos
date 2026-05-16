@@ -20,7 +20,7 @@ func TestAPICallPropagatesRequestContext(t *testing.T) {
 		if r.Method != http.MethodPost {
 			t.Fatalf("method = %s, want POST", r.Method)
 		}
-		if r.URL.Path != "/hub/api/v1/directories/search" {
+		if r.URL.Path != "/api/v1/service-tree/search" {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
 		if got := r.Header.Get(contextx.TokenHeader); got != "token-1" {
@@ -61,7 +61,7 @@ func TestAPICallPropagatesRequestContext(t *testing.T) {
 		Token:           "token-1",
 		ClientSource:    "agent",
 		Method:          "POST",
-		Router:          "/hub/search.form",
+		Router:          "/workspace/search.form",
 	})
 	if err != nil {
 		t.Fatalf("NewContext returned error: %v", err)
@@ -71,7 +71,7 @@ func TestAPICallPropagatesRequestContext(t *testing.T) {
 		Matched bool   `json:"matched"`
 		Name    string `json:"name"`
 	}
-	err = ctx.APICall(http.MethodPost, "/hub/api/v1/directories/search", map[string]interface{}{
+	err = ctx.APICall(http.MethodPost, "/api/v1/service-tree/search", map[string]interface{}{
 		"keyword": "ticket",
 	}, &resp)
 	if err != nil {

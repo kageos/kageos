@@ -5,7 +5,6 @@ import { get, post } from '@/architecture/infrastructure/apiClient/request'
 export interface LLMInfo {
   id: number
   name: string
-  provider: string
   model: string
   api_key?: string
   has_api_key: boolean
@@ -13,7 +12,6 @@ export interface LLMInfo {
   timeout: number
   max_tokens: number
   extra_config: string
-  use_thinking: boolean // 是否使用思考模式（GLM特有功能）
   is_default: boolean
   visibility: number // 0: 公开, 1: 私有
   admin: string // 管理员列表（逗号分隔）
@@ -41,7 +39,6 @@ export interface LLMGetReq {
 export interface LLMGetResp {
   id: number
   name: string
-  provider: string
   model: string
   api_key?: string
   has_api_key: boolean
@@ -49,7 +46,6 @@ export interface LLMGetResp {
   timeout: number
   max_tokens: number
   extra_config: string
-  use_thinking: boolean
   is_default: boolean
   visibility: number
   admin: string
@@ -61,7 +57,6 @@ export interface LLMGetResp {
 export interface LLMGetDefaultResp {
   id: number
   name: string
-  provider: string
   model: string
   api_key?: string
   has_api_key: boolean
@@ -69,7 +64,6 @@ export interface LLMGetDefaultResp {
   timeout: number
   max_tokens: number
   extra_config: string
-  use_thinking: boolean
   is_default: boolean
   visibility: number
   admin: string
@@ -80,14 +74,12 @@ export interface LLMGetDefaultResp {
 
 export interface LLMCreateReq {
   name: string
-  provider: string
   model: string
   api_key?: string
   api_base?: string
   timeout?: number
   max_tokens?: number
   extra_config?: string
-  use_thinking?: boolean // 是否使用思考模式（GLM特有功能）
   is_default?: boolean
   visibility?: number // 0: 公开, 1: 私有（默认0）
   admin?: string // 管理员列表（逗号分隔，默认创建用户）
@@ -100,14 +92,12 @@ export interface LLMCreateResp {
 export interface LLMUpdateReq {
   id: number
   name: string
-  provider: string
   model: string
   api_key?: string
   api_base?: string
   timeout?: number
   max_tokens?: number
   extra_config?: string
-  use_thinking?: boolean // 是否使用思考模式（GLM特有功能）
   is_default?: boolean
   visibility?: number // 0: 公开, 1: 私有
   admin?: string // 管理员列表（逗号分隔）

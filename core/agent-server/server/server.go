@@ -12,7 +12,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/service"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/dbx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
 	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
@@ -30,7 +29,7 @@ type Server struct {
 	// 核心组件
 	db         *gorm.DB
 	httpServer *gin.Engine
-	natsConn   *nats.Conn // NATS 连接，当前主要供 license client 使用
+	natsConn   *nats.Conn
 
 	// Repository
 	llmRepo     *repository.LLMRepository
@@ -45,9 +44,6 @@ type Server struct {
 
 	// 上下文
 	ctx context.Context
-
-	// License Client
-	licenseClient *license.Client
 }
 
 // NewServer 创建新的服务器实例
@@ -66,15 +62,6 @@ func NewServer(cfg *config.AgentServerConfig) (*Server, error) {
 
 	if err := s.initNATS(ctx); err != nil {
 		return nil, fmt.Errorf("failed to init NATS: %w", err)
-	}
-
-	controlCfg := s.cfg.GetControlService()
-	if controlCfg.IsEnabled() {
-		// ⭐ 初始化 License Client（在 NATS 初始化之后）
-		if err := s.initLicenseClient(ctx); err != nil {
-			// License Client 初始化失败，记录警告但不中断启动（社区版可以继续运行）
-			logger.Warnf(ctx, "[Server] Failed to init license client: %v, continuing with community edition", err)
-		}
 	}
 
 	if err := s.initServices(ctx); err != nil {
@@ -122,15 +109,6 @@ func (s *Server) Stop(ctx context.Context) error {
 		if err == nil {
 			sqlDB.Close()
 			logger.Infof(ctx, "[Server] Database connection closed")
-		}
-	}
-
-	// 关闭 License Client
-	if s.licenseClient != nil {
-		if err := s.licenseClient.Stop(ctx); err != nil {
-			logger.Warnf(ctx, "[Server] Failed to stop license client: %v", err)
-		} else {
-			logger.Infof(ctx, "[Server] License client stopped")
 		}
 	}
 
@@ -189,50 +167,6 @@ func (s *Server) initNATS(ctx context.Context) error {
 
 	s.natsConn = conn
 	logger.Infof(ctx, "[Server] NATS connected successfully to %s", conn.ConnectedUrl())
-	return nil
-}
-
-// initLicenseClient 初始化 License Client（通过 NATS 获取和刷新 License）
-func (s *Server) initLicenseClient(ctx context.Context) error {
-	// 检查是否启用 Control Service 客户端
-	controlCfg := s.cfg.GetControlService()
-	if !controlCfg.IsEnabled() {
-		logger.Infof(ctx, "[Server] Control Service client is disabled, skipping license client initialization")
-		return nil
-	}
-
-	// 检查加密密钥
-	encryptionKey := controlCfg.GetEncryptionKey()
-	if len(encryptionKey) != 32 {
-		return fmt.Errorf("encryption key must be 32 bytes, got %d bytes", len(encryptionKey))
-	}
-
-	// 确定使用的 NATS 连接
-	// 如果配置了独立的 NATS URL，需要创建新连接；否则使用现有的连接
-	natsConn := s.natsConn
-	if controlCfg.GetNatsURL() != "" {
-		// 使用独立的 NATS 连接
-		var err error
-		natsConn, err = natsx.ConnectNamed(controlCfg.GetNatsURL(), "agent-server-control-client")
-		if err != nil {
-			return fmt.Errorf("failed to connect to Control Service NATS: %w", err)
-		}
-		logger.Infof(ctx, "[Server] Connected to Control Service NATS: %s", controlCfg.GetNatsURL())
-	}
-
-	// 创建 License Client
-	client, err := license.NewClient(natsConn, encryptionKey, controlCfg.GetKeyPath())
-	if err != nil {
-		return fmt.Errorf("failed to create license client: %w", err)
-	}
-
-	// 启动 License Client
-	if err := client.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start license client: %w", err)
-	}
-
-	s.licenseClient = client
-	logger.Infof(ctx, "[Server] License client initialized successfully")
 	return nil
 }
 

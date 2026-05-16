@@ -19,7 +19,7 @@
 例如：
 
 - `pkg/appinvoke` 定义 app invoke 链的 subject 和 header
-- `pkg/license` 定义 license 同步链的消息结构和 NATS transport
+- 其他跨服务链路可以在自己的领域 transport 包里封装专属语义
 
 ## 当前推荐 API
 

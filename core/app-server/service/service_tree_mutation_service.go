@@ -42,8 +42,6 @@ func (m *serviceTreeMutationService) UpdateServiceTreeMetadata(ctx context.Conte
 		return fmt.Errorf("failed to get service tree: %w", err)
 	}
 
-	oldAdmins := serviceTree.Admins
-
 	if req.Name != nil {
 		serviceTree.Name = *req.Name
 	}
@@ -65,10 +63,6 @@ func (m *serviceTreeMutationService) UpdateServiceTreeMetadata(ctx context.Conte
 
 	if err := m.serviceTreeRepo.UpdateServiceTree(serviceTree); err != nil {
 		return fmt.Errorf("failed to update service tree: %w", err)
-	}
-
-	if req.Admins != nil {
-		m.syncDirectoryAdminRoles(ctx, serviceTree.FullCodePath, oldAdmins, serviceTree.Admins)
 	}
 
 	logger.Infof(ctx, "[ServiceTreeService] Updated service tree: ID=%d", req.ID)
@@ -160,37 +154,6 @@ func (m *serviceTreeMutationService) deleteTypedServiceTree(ctx context.Context,
 		return fmt.Errorf("节点类型不是 %s，当前类型: %s", expectedType, serviceTree.Type)
 	}
 	return m.DeleteServiceTree(ctx, id)
-}
-
-func (m *serviceTreeMutationService) syncDirectoryAdminRoles(ctx context.Context, resourcePath, oldAdmins, newAdmins string) {
-	user, app, err := parseUserAppFromResourcePath(resourcePath)
-	if err != nil {
-		logger.Warnf(ctx, "[ServiceTreeService] 解析管理员资源路径失败: resource=%s, error=%v", resourcePath, err)
-		return
-	}
-
-	oldAdminSet := parseAdminUserSet(oldAdmins)
-	newAdminSet := parseAdminUserSet(newAdmins)
-
-	for username := range oldAdminSet {
-		if newAdminSet[username] {
-			continue
-		}
-		if err := removeDirectoryAdminRoleFromUserWithUserApp(ctx, user, app, username, resourcePath); err != nil {
-			logger.Warnf(ctx, "[ServiceTreeService] 移除管理员角色失败: resource=%s, username=%s, error=%v",
-				resourcePath, username, err)
-		}
-	}
-
-	for username := range newAdminSet {
-		if oldAdminSet[username] {
-			continue
-		}
-		if err := assignDirectoryAdminRoleToUser(ctx, user, app, username, resourcePath); err != nil {
-			logger.Warnf(ctx, "[ServiceTreeService] 分配管理员角色失败: resource=%s, username=%s, error=%v",
-				resourcePath, username, err)
-		}
-	}
 }
 
 func (m *serviceTreeMutationService) upsertDocContent(ctx context.Context, serviceTree *model.ServiceTree, req *dto.UpdateDocsReq) error {

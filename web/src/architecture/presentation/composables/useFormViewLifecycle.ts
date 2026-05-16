@@ -9,18 +9,11 @@ import type { WorkspaceStateManager } from '../../infrastructure/stateManager/Wo
 import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import { Logger } from '@/architecture/shared/logger'
 import type { FormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
-import { isFormStateManager } from '@/architecture/domain/interfaces/IFormStateManager'
 import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 import {
   buildInitialDataFromFormDataStore as buildInitialDataFromFormDataStoreHelper,
   syncFormDataStoreToStateManager as syncFormDataStoreToStateManagerHelper
 } from '../views/utils/formViewRuntime'
-
-interface ApplyOperateLogPayload {
-  requestBody?: Record<string, unknown> | null
-  responseBody?: Record<string, unknown> | null
-  responseMetadata?: Record<string, unknown> | null
-}
 
 interface UseFormViewLifecycleOptions {
   eventBus: IEventBus
@@ -79,7 +72,7 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
 
   function restoreResponseParams(metadata?: Record<string, unknown> | null): void {
     const responseParams = metadata?.responseParams
-    if (!responseParams || typeof responseParams !== 'object' || Array.isArray(responseParams) || !isFormStateManager(options.stateManager)) {
+    if (!responseParams || typeof responseParams !== 'object' || Array.isArray(responseParams)) {
       return
     }
 
@@ -159,34 +152,6 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
         inFlightFormInitializationKey = null
       }
     }
-  }
-
-  async function applyOperateLog(payload: ApplyOperateLogPayload): Promise<void> {
-    if (!options.functionDetail.value) {
-      throw new Error('函数详情未加载完成')
-    }
-
-    const requestBody =
-      payload.requestBody && typeof payload.requestBody === 'object' && !Array.isArray(payload.requestBody)
-        ? payload.requestBody
-        : {}
-
-    await initializeFormForDetail(options.functionDetail.value, {
-      initialData: requestBody,
-      force: true
-    })
-
-    if (isFormStateManager(options.stateManager)) {
-      options.stateManager.setResponse(payload.responseBody || null)
-      options.stateManager.setMetadata(payload.responseMetadata || null)
-    }
-
-    Logger.info('[FormView]', '已回填执行记录到表单', {
-      router: options.functionDetail.value.router,
-      requestKeys: Object.keys(requestBody),
-      hasResponseBody: !!payload.responseBody,
-      metadataKeys: payload.responseMetadata ? Object.keys(payload.responseMetadata) : []
-    })
   }
 
   const hasInitialDataChanged = (
@@ -337,6 +302,5 @@ export function useFormViewLifecycle(options: UseFormViewLifecycleOptions) {
 
   return {
     resetFormRuntimeState,
-    applyOperateLog,
   }
 }

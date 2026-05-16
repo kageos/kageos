@@ -81,39 +81,7 @@ func TestGetParentPathForBatch(t *testing.T) {
 	}
 }
 
-func TestFilterTreeByPermission_PromotesPermittedDescendant(t *testing.T) {
-	queryView := &serviceTreeQueryView{}
-	root := &dto.GetServiceTreeResp{
-		ID:       1,
-		Type:     model.ServiceTreeTypePackage,
-		Children: []*dto.GetServiceTreeResp{},
-	}
-	hiddenParent := &dto.GetServiceTreeResp{
-		ID:          2,
-		Name:        "hidden",
-		Type:        model.ServiceTreeTypePackage,
-		Permissions: map[string]bool{"read": false, "write": false},
-		Children: []*dto.GetServiceTreeResp{
-			{
-				ID:          3,
-				Name:        "visible-func",
-				Type:        model.ServiceTreeTypeFunction,
-				Permissions: map[string]bool{"read": true},
-			},
-		},
-	}
-	root.Children = append(root.Children, hiddenParent)
-
-	filtered := queryView.filterTreeByPermission(root)
-	if len(filtered.Children) != 1 {
-		t.Fatalf("expected promoted visible child, got %d children", len(filtered.Children))
-	}
-	if filtered.Children[0].Name != "visible-func" {
-		t.Fatalf("expected visible descendant to be promoted, got %s", filtered.Children[0].Name)
-	}
-}
-
-func TestServiceTreeQueryViewCalculateExpandedKeys_ExpandsRootAndPendingAncestors(t *testing.T) {
+func TestServiceTreeQueryViewCalculateExpandedKeys_ExpandsRoot(t *testing.T) {
 	trees := []*dto.GetServiceTreeResp{
 		{
 			ID:           1,
@@ -129,7 +97,6 @@ func TestServiceTreeQueryViewCalculateExpandedKeys_ExpandsRootAndPendingAncestor
 							ID:           3,
 							Type:         model.ServiceTreeTypeFunction,
 							FullCodePath: "/user/app/pkg/run",
-							PendingCount: 2,
 						},
 					},
 				},
@@ -143,9 +110,12 @@ func TestServiceTreeQueryViewCalculateExpandedKeys_ExpandsRootAndPendingAncestor
 		got[id] = true
 	}
 
-	for _, wantID := range []int64{1, 2, 3} {
-		if !got[wantID] {
-			t.Fatalf("expected expanded key %d to exist, got %#v", wantID, expandedKeys)
+	if !got[1] {
+		t.Fatalf("expected root expanded key, got %#v", expandedKeys)
+	}
+	for _, unwantedID := range []int64{2, 3} {
+		if got[unwantedID] {
+			t.Fatalf("did not expect non-root expanded key %d, got %#v", unwantedID, expandedKeys)
 		}
 	}
 }

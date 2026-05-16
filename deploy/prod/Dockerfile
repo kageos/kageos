@@ -1,4 +1,4 @@
-# 生产单机镜像：core-server + backup-server + 内置 Nginx + Podman
+# 生产单机镜像：core-server + 内置 Nginx + Podman
 # 构建（仓库根）：docker build -f deploy/prod/Dockerfile -t localhost/agentos-main:latest .
 
 # ========== Go 编译 ==========
@@ -24,11 +24,6 @@ RUN CGO_ENABLED=1 GOOS=linux go build \
     -ldflags="-s -w" \
     -o /out/core-server \
     ./core/cmd/main/main.go
-RUN CGO_ENABLED=1 GOOS=linux go build \
-    -tags "exclude_graphdriver_btrfs" \
-    -ldflags="-s -w" \
-    -o /out/backup-server \
-    ./core/backup-service/cmd/app/main.go
 
 # ========== Web 静态 ==========
 FROM docker.io/library/node:20-bookworm AS webbuilder
@@ -54,17 +49,9 @@ COPY deploy/base/scripts/configure-debian-apt-mirror.sh /usr/local/bin/configure
 RUN chmod +x /usr/local/bin/configure-debian-apt-mirror && /usr/local/bin/configure-debian-apt-mirror
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates tzdata curl netcat-openbsd \
-    nginx gettext-base default-mysql-client restic \
+    nginx gettext-base \
     libgpgme11 libdevmapper1.02.1 git \
     podman buildah fuse-overlayfs slirp4netns crun \
-    && case "$(dpkg --print-architecture)" in \
-         amd64) mc_arch="linux-amd64" ;; \
-         arm64) mc_arch="linux-arm64" ;; \
-         *) echo "ERROR: unsupported architecture for MinIO mc: $(dpkg --print-architecture)" >&2; exit 1 ;; \
-       esac \
-    && curl --fail --location --output /usr/local/bin/mc "https://dl.min.io/client/mc/release/${mc_arch}/mc" \
-    && chmod +x /usr/local/bin/mc \
-    && /usr/local/bin/mc --help >/dev/null \
     && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
     && echo "Asia/Shanghai" > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
@@ -90,14 +77,11 @@ WORKDIR /app
 
 # Go 二进制与运行时源码
 COPY --from=gobuilder /out/core-server /app/core-server
-COPY --from=gobuilder /out/backup-server /app/backup-server
 COPY --from=gobuilder /src/go.mod /src/go.sum /app/
 COPY --from=gobuilder /src/sdk/ /app/sdk/
 COPY --from=gobuilder /src/pkg/ /app/pkg/
 COPY --from=gobuilder /src/dto/ /app/dto/
 COPY --from=gobuilder /src/core/ /app/core/
-COPY --from=gobuilder /src/enterprise_impl/ /app/enterprise_impl/
-COPY --from=gobuilder /src/enterprise/ /app/enterprise/
 COPY --from=gobuilder /go/pkg/mod /go/pkg/mod
 
 # 共享 canonical 资源：用户应用运行时基础镜像
@@ -110,19 +94,17 @@ COPY deploy/prod/health/ /app/health/
 COPY deploy/prod/nginx/ /app/deploy/prod/nginx/
 COPY deploy/prod/entrypoint-common.sh /app/entrypoint-common.sh
 COPY deploy/prod/entrypoint-main.sh /app/entrypoint-main.sh
-COPY deploy/prod/entrypoint-backup.sh /app/entrypoint-backup.sh
 COPY deploy/prod/entrypoint-app-base.sh /app/entrypoint-app-base.sh
-RUN chmod +x /app/entrypoint-common.sh /app/entrypoint-main.sh /app/entrypoint-backup.sh /app/entrypoint-app-base.sh /app/health/*.sh
+RUN chmod +x /app/entrypoint-common.sh /app/entrypoint-main.sh /app/entrypoint-app-base.sh /app/health/*.sh
 
 # 运行期目录骨架与静态站点
 RUN mkdir -p /app/deploy /app/logs /app/namespace \
-    /app/data/runtime/app-runtime /app/data/license /app/data/backup/repo \
-    /app/data/backup/state /app/data/backup/staging /app/data/tmp \
+    /app/data/runtime/app-runtime /app/data/tmp \
     && mkdir -p /var/www/web \
     && rm -f /etc/nginx/sites-enabled/default
 
 COPY --from=webbuilder /src/web/dist /var/www/web/dist
 
-EXPOSE 80 443 9090 19088
+EXPOSE 80 443 9090
 
 ENTRYPOINT ["/app/entrypoint-main.sh"]

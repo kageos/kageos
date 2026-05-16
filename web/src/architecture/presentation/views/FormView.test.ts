@@ -87,8 +87,7 @@ vi.mock('../composables/useFormParamURLSync', () => ({
 
 vi.mock('../composables/useFormViewLifecycle', () => ({
   useFormViewLifecycle: () => ({
-    resetFormRuntimeState: vi.fn(),
-    applyOperateLog: vi.fn(async () => undefined)
+    resetFormRuntimeState: vi.fn()
   })
 }))
 

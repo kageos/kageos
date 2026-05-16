@@ -15,7 +15,7 @@
   - `WorkspaceStateManager.ts`：工作空间状态管理
   - `FormStateManager.ts`：表单状态管理
 - `stores/`：应用级 Pinia Store
-  - `auth.ts`、`license.ts`、`userInfo/` 等全局状态
+  - `auth.ts`、`userInfo/`、`theme.ts` 等全局状态
 - `apiClient/`：API 客户端实现
   - `ApiClientImpl.ts`：基于 axios 的 API 客户端实现
   - `request.ts`、`authSession.ts`、`apiError.ts`：HTTP 请求、鉴权刷新与响应解包

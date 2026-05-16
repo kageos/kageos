@@ -71,7 +71,7 @@ service
 
 - 主题真值统一放在 `pkg/subjects`
 - 基础 request-reply 原语统一放在 `pkg/msgx`
-- 某条业务链自己的 subject / header / request 语义放在领域 transport 包里，例如 `pkg/appinvoke`、`pkg/license`
+- 某条业务链自己的 subject / header / request 语义放在领域 transport 包里，例如 `pkg/appinvoke`
 - 固定主题用 `const`
 - 动态主题用 `BuildXxxSubject()`
 - 新服务连接 NATS 时优先使用 `natsx.ConnectNamed(url, serviceName)`
@@ -81,4 +81,3 @@ service
 - `app-runtime`：路由注册基准实现
 - `api-gateway`：Server 持有连接/订阅 + token command handler
 - `hr-server`：publisher / router / handler / consumer service 分层
-- `control-service`：request-reply 查询路由 + handler 分层

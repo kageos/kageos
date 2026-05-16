@@ -64,12 +64,6 @@ export function createApp(data: CreateAppRequest) {
   if (data.admins !== undefined && data.admins !== '') {
     payload.admins = data.admins
   }
-  if (data.show_only_permitted !== undefined) {
-    payload.show_only_permitted = data.show_only_permitted
-  }
-  if (data.permission_enforced !== undefined) {
-    payload.permission_enforced = data.permission_enforced
-  }
   return post<CreateAppResponse>('/workspace/api/v1/app/create', payload)
 }
 
@@ -103,21 +97,19 @@ export function getAppWithServiceTree(resourcePath: string, nodeType?: string) {
   return get<{
     app: App
     service_tree: import('@/architecture/domain/types').ServiceTree[]
-    expanded_keys?: number[] // ⭐ 需要自动展开的节点ID列表（包含所有 pending_count > 0 的节点及其父节点）
+    expanded_keys?: number[] // 需要自动展开的节点ID列表
   }>('/workspace/api/v1/app/tree', params)
 }
 
 // 更新工作空间配置（只更新 MySQL 记录，不涉及容器更新，canonical 标识为 resource_path）
 export function updateWorkspace(
   resourcePath: string,
-  data: { admins?: string; show_only_permitted?: boolean; permission_enforced?: boolean }
+  data: { admins?: string }
 ) {
   return put<{
     user: string
     app: string
     admins: string
-    show_only_permitted: boolean
-    permission_enforced: boolean
   }>('/workspace/api/v1/app/workspace', {
     resource_path: normalizeResourcePath(resourcePath),
     ...data

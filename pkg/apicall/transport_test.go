@@ -6,22 +6,12 @@ import (
 	"testing"
 )
 
-func TestFormatHTTPErrorFormatsPermissionDenied(t *testing.T) {
+func TestFormatHTTPErrorIncludesForbiddenBody(t *testing.T) {
 	resp := &http.Response{
 		StatusCode: http.StatusForbidden,
 		Status:     "403 Forbidden",
 	}
-	body := []byte(`{
-		"code": 7,
-		"data": {
-			"action": "form:write",
-			"action_display": "表单提交",
-			"apply_url": "/permissions/apply?resource=/system/openapi/message/send.form&action=form:write",
-			"error_message": "无权限提交该表单",
-			"resource_path": "/system/openapi/message/send.form"
-		},
-		"msg": "无权限提交该表单"
-	}`)
+	body := []byte(`{"msg":"访问被拒绝"}`)
 
 	err := formatHTTPError(resp, body)
 	if err == nil {
@@ -29,11 +19,8 @@ func TestFormatHTTPErrorFormatsPermissionDenied(t *testing.T) {
 	}
 	message := err.Error()
 	for _, want := range []string{
-		"权限不足",
-		"无权限提交该表单",
-		"资源: /system/openapi/message/send.form",
-		"操作: 表单提交(form:write)",
-		"申请链接: /permissions/apply?resource=/system/openapi/message/send.form&action=form:write",
+		"HTTP错误: 403 403 Forbidden",
+		`{"msg":"访问被拒绝"}`,
 	} {
 		if !strings.Contains(message, want) {
 			t.Fatalf("expected %q in %q", want, message)

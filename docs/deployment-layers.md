@@ -17,7 +17,7 @@ flowchart TD
   L0["L0 部署控制层<br/>aosctl / Compose / 配置生成"]
   L1["L1 基础设施层<br/>MySQL / NATS / MinIO / 数据目录"]
   L2["L2 入口接入层<br/>Nginx / TLS / 静态前端 / API 反代"]
-  L3["L3 平台服务层<br/>core-server / backup"]
+  L3["L3 平台服务层<br/>core-server"]
   L4["L4 运行时管理层<br/>app-runtime / Podman API / app-base / namespace"]
   L5["L5 用户应用层<br/>用户 App 容器 / SDK / 业务代码"]
 
@@ -92,15 +92,10 @@ MySQL / NATS / MinIO 支持 `bundled` 和 `external`。`bundled` 由 Compose 启
   - `agent-server`
   - `app-storage`
   - `hr-server`
-  - `message-server`
-  - `control-service`
-- `backup`
-  - `backup-service`
 
 健康探针：
 
 - `deploy/prod/health/platform.sh`
-- `deploy/prod/health/backup.sh`
 - `aosctl verify` 的 L3 检查
 
 ## L4 运行时管理层
@@ -148,6 +143,6 @@ MySQL / NATS / MinIO 支持 `bundled` 和 `external`。`bundled` 由 Compose 启
 | `aosctl` 配置、渲染、Compose 调用失败 | L0 部署控制层 |
 | MySQL / NATS / MinIO 连不上 | L1 基础设施层 |
 | 域名、80/443、HTTPS、静态页面、维护页异常 | L2 入口接入层 |
-| API、登录、消息、文件元数据、调度、备份接口异常 | L3 平台服务层 |
+| API、登录、文件元数据、应用构建或 Table 更新日志异常 | L3 平台服务层 |
 | 用户 App 创建、构建、容器启动失败 | L4 运行时管理层 |
 | 用户业务代码报错、SDK 调用失败 | L5 用户应用层 |

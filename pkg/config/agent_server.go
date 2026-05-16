@@ -36,7 +36,6 @@ type AgentServerConfig struct {
 	Server AgentServerServerConfig   `mapstructure:"server"`
 	DB     DBConfig                  `mapstructure:"db"`
 	LLMs   AgentServerLLMSeedsConfig `mapstructure:"llms"`
-	// 注意：Control Service 配置已移至全局配置，不再在此处配置
 	// 数据库配置保留在服务配置中，因为微服务后续每个服务一个库
 }
 
@@ -57,7 +56,6 @@ type AgentServerLLMSeedsConfig struct {
 type AgentServerLLMSeedConfig struct {
 	Code        string `mapstructure:"code"`
 	Name        string `mapstructure:"name"`
-	Provider    string `mapstructure:"provider"`
 	Model       string `mapstructure:"model"`
 	APIKey      string `mapstructure:"api_key"`
 	APIKeyEnv   string `mapstructure:"api_key_env"`
@@ -65,7 +63,6 @@ type AgentServerLLMSeedConfig struct {
 	Timeout     int    `mapstructure:"timeout"`
 	MaxTokens   int    `mapstructure:"max_tokens"`
 	ExtraConfig string `mapstructure:"extra_config"`
-	UseThinking bool   `mapstructure:"use_thinking"`
 	IsDefault   bool   `mapstructure:"is_default"`
 	Visibility  int    `mapstructure:"visibility"`
 	Admin       string `mapstructure:"admin"`
@@ -110,9 +107,4 @@ func (c *AgentServerConfig) IsDBLogEnabled() bool {
 // GetDB 获取数据库配置
 func (c *AgentServerConfig) GetDB() DBConfig {
 	return c.DB
-}
-
-// GetControlService 获取 Control Service 配置（从全局配置获取）
-func (c *AgentServerConfig) GetControlService() ControlServiceClientConfig {
-	return GetGlobalSharedConfig().ControlService
 }
