@@ -1,0 +1,223 @@
+# 开源前治理 TODO
+
+> 状态：执行看板  
+> 更新时间：2026-05-17  
+> 负责人窗口：总控文档窗口  
+> 用法：每个并行会话领取一个事项，完成后更新状态、风险和验证结果。
+
+## 总目标
+
+把项目从“内部能跑、核心链路正在收敛”治理到：
+
+- 外部开发者能理解项目定位。
+- 外部开发者能按文档跑起来。
+- 维护者能用 CI 判断改动是否可合并。
+- 仓库里没有明显敏感信息和内部工作区污染。
+- 许可证、商业边界、贡献方式说清楚。
+
+## 状态说明
+
+| 状态 | 含义 |
+| --- | --- |
+| TODO | 未开始 |
+| Doing | 有窗口正在处理 |
+| Review | 已提交，等待人工确认 |
+| Done | 已合并或确认完成 |
+| Blocked | 需要产品/商业/法务/架构决策 |
+
+## P0：开源前必须完成
+
+### 事项 1：文档入口和开源门面
+
+- 状态：TODO
+- 建议窗口：`codex/open-source-governance`
+- 目标：让第一次打开仓库的人知道这是什么、怎么跑、怎么贡献。
+- 交付物：
+  - 重写根 `README.md` 为开源首页。
+  - 新增 `CONTRIBUTING.md`。
+  - 新增 `SECURITY.md`。
+  - 新增 `CODE_OF_CONDUCT.md`。
+  - 根 README 链接到 `docs/README.md`。
+- 验收：
+  - README 不再只是总蓝图。
+  - 5 分钟内能找到本地启动、测试、部署、贡献入口。
+  - BSL/source-available 表述准确，不误称 OSI 开源。
+
+### 事项 2：许可证和商业边界
+
+- 状态：Blocked
+- 建议窗口：`codex/license-boundary-cleanup`
+- 阻塞决策：项目到底用 BSL、Apache-2.0、AGPL，还是双许可证。
+- 目标：避免“说开源但 LICENSE 是 BSL”带来的信任风险。
+- 交付物：
+  - 明确 `LICENSE` 口径。
+  - 明确 README 中使用“开源 / 源码可见 / source-available”的措辞。
+  - 明确 `enterprise_impl/`、`pkg/license/` 是否公开。
+  - 检查 `THIRD_PARTY_LICENSES.md` 是否覆盖当前依赖。
+- 验收：
+  - 许可证和宣传口径一致。
+  - 商业版/企业版边界清楚。
+
+### 事项 3：敏感信息和发布包边界
+
+- 状态：TODO
+- 建议窗口：`codex/public-secret-scan`
+- 目标：开源仓库不带真实配置、客户信息、测试工作区、token、私钥。
+- 交付物：
+  - 清理 git 跟踪的真实 `.env.*`，只保留 `.env.example`。
+  - 审查 `license.json`、`pkg/license/example_license.json`。
+  - 审查 `namespace/**` 是否应该进入公开仓库。
+  - 审查 `local/hermes-agent/**` 是否独立项目或第三方代码。
+  - 补充 `.gitignore` 和敏感信息扫描命令。
+- 验收：
+  - `git ls-files | rg '(^|/)\\.env|secret|private|credential|token'` 没有误跟踪配置。
+  - 公开包边界清楚。
+
+### 事项 4：CI 和质量门禁
+
+- 状态：TODO
+- 建议窗口：`codex/ci-quality-gates`
+- 目标：PR 合并前有自动质量检查。
+- 交付物：
+  - 前端 CI：`npm run check:architecture`、`npm run type-check`、`npm run test:unit -- --run`、`npm run build`。
+  - 后端 CI：明确官方回归脚本，不直接污染 `namespace/**`。
+  - Markdown/链接检查可选，但先不阻塞。
+  - README 写清本地验证命令。
+- 验收：
+  - fork 后能跑 CI。
+  - 失败信息可读。
+
+### 事项 5：本地启动和部署体验
+
+- 状态：TODO
+- 建议窗口：`codex/local-dev-onboarding`
+- 目标：新人按文档能跑起最小系统。
+- 交付物：
+  - 依赖清单：Go、Node、数据库、NATS、MinIO、容器运行时。
+  - 开发启动顺序。
+  - `.env.example`。
+  - smoke test。
+  - 常见错误排查。
+- 验收：
+  - 新人不需要读 10 个历史文档也能启动。
+
+## P1：开源质量增强
+
+### 事项 6：前端架构债继续清
+
+- 状态：Doing
+- 建议窗口：`codex/frontend-type-debt-next`
+- 目标：继续降低表现层 `any` 和旧 runtime 命名。
+- 已完成基础：
+  - 移除历史 frontend runtime 层。
+  - presentation API 统一走 context。
+  - search/select/multiselect 主链路已类型化。
+- 下一批优先：
+  - `web/src/architecture/presentation/composables/useWorkspaceDetail.ts`
+  - `web/src/architecture/presentation/composables/useFormOperateLogSection.ts`
+  - `web/src/architecture/presentation/components/utils/chartRendererOption.ts`
+  - `web/src/architecture/presentation/views/TableView.vue`
+  - `web/src/architecture/presentation/composables/utils/tableInitializationRuntime.ts`
+- 验收：
+  - 每批提交后必须跑前端四件套。
+
+### 事项 7：后端开源质量盘点
+
+- 状态：TODO
+- 建议窗口：`codex/backend-open-source-readiness`
+- 目标：后端服务、配置、测试入口对外可理解。
+- 交付物：
+  - `core/*` 服务清单。
+  - 官方后端测试命令。
+  - 数据库 migration/seed 初始化说明。
+  - NATS、MinIO、MySQL 等依赖说明。
+  - 哪些目录不能直接 `go test ./...` 的原因说明。
+- 验收：
+  - 后端 README 不依赖口口相传。
+
+### 事项 8：文档归档和删除
+
+- 状态：TODO
+- 建议窗口：`codex/document-archive-cleanup`
+- 目标：把历史文档从根目录和散乱位置收干净。
+- 交付物：
+  - 建立 `docs/archive/`。
+  - 合并或归档根目录历史文档。
+  - 清理 `web/` 下阶段性报告。
+  - 删除确认无引用的重复 TODO。
+- 候选：
+  - `Agent工作流流程图.md`
+  - `项目介绍.md`
+  - `项目架构.md`
+  - `web/ARCHITECTURE_ANALYSIS.md`
+  - `web/COLOR_ANALYSIS.md`
+  - `web/THEME_COMPARISON_REPORT.md`
+  - `web/THEME_FIX_SUMMARY.md`
+  - `web/todos.md`
+- 验收：
+  - 删除前有引用检查。
+  - 仍有价值的内容已迁移。
+
+### 事项 9：产品示例和 SDK 入门
+
+- 状态：TODO
+- 建议窗口：`codex/examples-and-sdk-docs`
+- 目标：让外部用户看到项目能做什么。
+- 交付物：
+  - Form 最小示例。
+  - Table 最小示例。
+  - Chart 最小示例。
+  - 一个完整轻应用 walkthrough。
+  - SDK 入口文档整理。
+- 验收：
+  - 用户能从 0 创建一个可运行轻应用。
+
+## P2：持续治理
+
+### 事项 10：文档链接和过期检查
+
+- 状态：TODO
+- 建议窗口：`codex/docs-link-check`
+- 目标：减少失效链接、冲突文档和过期说明。
+- 交付物：
+  - 文档索引生成脚本或检查脚本。
+  - 过期文档顶部标记规范。
+  - CI 可选检查。
+
+### 事项 11：发布说明和版本策略
+
+- 状态：TODO
+- 建议窗口：`codex/release-process`
+- 目标：外部用户知道版本稳定性和升级路径。
+- 交付物：
+  - `CHANGELOG.md`
+  - release checklist
+  - 版本号策略
+  - breaking change 说明模板
+
+## 并行领取规则
+
+1. 一个窗口只领取一个事项。
+2. 每个事项独立分支，分支名使用本文件建议名。
+3. 每个窗口交付时必须更新本 TODO 状态。
+4. 如果事项需要改根 `README.md`，先在本文件登记，避免多个窗口互相覆盖。
+5. 涉及删除、许可证、公开边界的事项必须人工确认后再合并。
+
+## 当前推荐开工顺序
+
+第一批并行：
+
+1. 事项 1：文档入口和开源门面。
+2. 事项 3：敏感信息和发布包边界。
+3. 事项 4：CI 和质量门禁。
+4. 事项 6：前端架构债继续清。
+
+第二批并行：
+
+1. 事项 5：本地启动和部署体验。
+2. 事项 7：后端开源质量盘点。
+3. 事项 8：文档归档和删除。
+4. 事项 9：产品示例和 SDK 入门。
+
+许可证事项需要先拍板，不建议让窗口自行决定。
+
