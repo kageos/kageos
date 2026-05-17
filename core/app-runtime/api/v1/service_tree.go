@@ -12,17 +12,9 @@ type WorkspaceChangeHandler struct {
 	workspaceChangeService *service.WorkspaceChangeService
 }
 
-// ServiceTreeHandler 兼容旧命名，请优先使用 WorkspaceChangeHandler。
-type ServiceTreeHandler = WorkspaceChangeHandler
-
 // NewWorkspaceChangeHandler 创建工作区变更处理器（依赖注入）。
 func NewWorkspaceChangeHandler(workspaceChangeService *service.WorkspaceChangeService) *WorkspaceChangeHandler {
 	return &WorkspaceChangeHandler{workspaceChangeService: workspaceChangeService}
-}
-
-// NewServiceTreeHandler 兼容旧命名，请优先使用 NewWorkspaceChangeHandler。
-func NewServiceTreeHandler(workspaceChangeService *service.WorkspaceChangeService) *WorkspaceChangeHandler {
-	return NewWorkspaceChangeHandler(workspaceChangeService)
 }
 
 // HandleBatchCreateDirectoryTree 处理批量创建目录树请求

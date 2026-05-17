@@ -15,7 +15,6 @@ const (
 	ResponseMessageHeader = "msg"
 	ResponseCodeSuccess   = "0"
 	ResponseCodeFailure   = "-1"
-	DefaultRequestTimeout = 100 * time.Second
 )
 
 // NatsMsgInfo NATS 消息解析结果。
@@ -111,34 +110,4 @@ func DecodeJSON[T any](msg *nats.Msg) (*NatsMsgInfo[T], error) {
 	}
 
 	return info, nil
-}
-
-// Deprecated: use RequestJSON.
-// RequestMsg 保留兼容包装，内部走新的 RequestJSON。
-func RequestMsg(conn *nats.Conn, subject string, data interface{}, resp interface{}) (*nats.Msg, error) {
-	return RequestJSON(context.Background(), conn, subject, data, resp, DefaultRequestTimeout)
-}
-
-// Deprecated: use RequestJSON.
-// RequestMsgWithTimeout 保留兼容包装，内部走新的 RequestJSON。
-func RequestMsgWithTimeout(ctx context.Context, conn *nats.Conn, subject string, data interface{}, resp interface{}, timeout time.Duration) (*nats.Msg, error) {
-	return RequestJSON(ctx, conn, subject, data, resp, timeout)
-}
-
-// Deprecated: use RespondJSONSuccess.
-// RespSuccessMsg 保留兼容包装，内部走新的 RespondJSONSuccess。
-func RespSuccessMsg(rsp *nats.Msg, data interface{}) error {
-	return RespondJSONSuccess(rsp, data)
-}
-
-// Deprecated: use RespondJSONFailure.
-// RespFailMsg 保留兼容包装，内部走新的 RespondJSONFailure。
-func RespFailMsg(rsp *nats.Msg, err error) error {
-	return RespondJSONFailure(rsp, err)
-}
-
-// Deprecated: use DecodeJSON.
-// DecodeNatsMsg 保留兼容包装，内部走新的 DecodeJSON。
-func DecodeNatsMsg[T any](msg *nats.Msg) (*NatsMsgInfo[T], error) {
-	return DecodeJSON[T](msg)
 }

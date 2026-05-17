@@ -36,8 +36,6 @@
 3. handler 层负责 `DecodeJSON / RespondJSONSuccess / RespondJSONFailure`
 4. publisher / query client 层负责 `BuildJSONRequest / RequestJSON`
 
-## 兼容策略
+## 命名约定
 
-`RequestMsg`、`RequestMsgWithTimeout`、`RespSuccessMsg`、`RespFailMsg`、`DecodeNatsMsg` 仍然保留，但它们只是兼容包装。
-
-新增代码优先使用新的 `JSON` 命名函数，避免语义继续发散。
+对外 API 使用 `JSON` 命名，避免同时维护多套等价包装。

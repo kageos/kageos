@@ -133,7 +133,7 @@ func main() {
 	assertValidGoFile(t, mainFilePath)
 }
 
-func newServiceTreeTestService(basePath string) *ServiceTreeService {
+func newServiceTreeTestService(basePath string) *WorkspaceChangeService {
 	cfg := &appconfig.AppManageServiceConfig{
 		AppDir: appconfig.AppDirConfig{
 			BasePath: basePath,
@@ -142,7 +142,7 @@ func newServiceTreeTestService(basePath string) *ServiceTreeService {
 	return NewWorkspaceChangeService(cfg, nil, NewWorkspaceFileService(cfg))
 }
 
-func newServiceTreeTestServiceWithAppManage(basePath string) *ServiceTreeService {
+func newServiceTreeTestServiceWithAppManage(basePath string) *WorkspaceChangeService {
 	cfg := &appconfig.AppManageServiceConfig{
 		AppDir: appconfig.AppDirConfig{
 			BasePath: basePath,

@@ -11,15 +11,9 @@ import { TABLE_PARAM_KEYS } from '@/architecture/shared/routing/urlParams'
  */
 
 export const NODE_TYPE_QUERY_KEY = '_node_type'
-export const LEGACY_FORM_DRAFT_QUERY_PREFIX = 'f_'
-export const LEGACY_SEARCH_FIELD_QUERY_PREFIX = 's_'
-export const FIELD_DISPLAY_QUERY_SUFFIX = '__display'
-
-const LEGACY_FIELD_QUERY_PREFIXES = [
-  LEGACY_FORM_DRAFT_QUERY_PREFIX,
-  LEGACY_SEARCH_FIELD_QUERY_PREFIX
-] as const
 const STALE_TABLE_FILTER_QUERY_KEYS = 'eq,like,in,contains,gte,lte'.split(',')
+const DISPLAY_COMPANION_QUERY_SUFFIX = '__display'
+const GENERATED_FIELD_QUERY_PREFIXES = ['f_', 's_'] as const
 
 export const isPlatformStateQueryKey = (key: string): boolean => {
   return key.startsWith('_')
@@ -37,54 +31,16 @@ export const isStaleTableFilterQueryKey = (key: string): boolean => {
   return STALE_TABLE_FILTER_QUERY_KEYS.includes(key)
 }
 
-export const isDisplayCompanionQueryKey = (key: string): boolean => {
-  return key.endsWith(FIELD_DISPLAY_QUERY_SUFFIX)
-}
-
 export const isPersistentPlatformStateQueryKey = (key: string): boolean => {
   return isPlatformStateQueryKey(key) && !isLinkMarkerQueryKey(key) && !isDisplayCompanionQueryKey(key)
 }
 
-export const getLegacyFieldQueryKeys = (fieldCode: string): string[] => {
-  return [
-    `${LEGACY_FORM_DRAFT_QUERY_PREFIX}${fieldCode}`,
-    `${LEGACY_SEARCH_FIELD_QUERY_PREFIX}${fieldCode}`,
-    `${LEGACY_FORM_DRAFT_QUERY_PREFIX}${fieldCode}${FIELD_DISPLAY_QUERY_SUFFIX}`,
-    `${LEGACY_SEARCH_FIELD_QUERY_PREFIX}${fieldCode}${FIELD_DISPLAY_QUERY_SUFFIX}`,
-    `_${fieldCode}${FIELD_DISPLAY_QUERY_SUFFIX}`
-  ]
+export const isDisplayCompanionQueryKey = (key: string): boolean => {
+  return key.endsWith(DISPLAY_COMPANION_QUERY_SUFFIX)
 }
 
-export const isLegacyFieldNamespaceQueryKey = (
-  key: string,
-  fieldCodes: Set<string>
-): boolean => {
-  return LEGACY_FIELD_QUERY_PREFIXES.some(prefix => {
-    if (!key.startsWith(prefix)) {
-      return false
-    }
-
-    const fieldCode = key
-      .slice(prefix.length)
-      .replace(new RegExp(`${FIELD_DISPLAY_QUERY_SUFFIX}$`), '')
-
-    return fieldCodes.has(fieldCode)
-  })
-}
-
-export const isUnsupportedGeneratedFieldQueryKey = (
-  key: string,
-  fieldCodes?: Set<string>
-): boolean => {
-  if (isDisplayCompanionQueryKey(key)) {
-    return true
-  }
-
-  if (!fieldCodes) {
-    return false
-  }
-
-  return isLegacyFieldNamespaceQueryKey(key, fieldCodes)
+export const isGeneratedFieldQueryKey = (key: string): boolean => {
+  return isDisplayCompanionQueryKey(key) || GENERATED_FIELD_QUERY_PREFIXES.some(prefix => key.startsWith(prefix))
 }
 
 export const deleteFieldQueryKey = (
@@ -94,13 +50,13 @@ export const deleteFieldQueryKey = (
     deleteRaw?: boolean
   }
 ): void => {
-  // request 字段只拥有原始 field.code 这个 key。下面的 legacy key 只用于
-  // 清理旧 URL，不允许在新逻辑中生成或读取。
   if (options?.deleteRaw !== false) {
     delete query[fieldCode]
   }
 
-  getLegacyFieldQueryKeys(fieldCode).forEach(key => {
-    delete query[key]
+  GENERATED_FIELD_QUERY_PREFIXES.forEach(prefix => {
+    delete query[`${prefix}${fieldCode}`]
+    delete query[`${prefix}${fieldCode}${DISPLAY_COMPANION_QUERY_SUFFIX}`]
   })
+  delete query[`_${fieldCode}${DISPLAY_COMPANION_QUERY_SUFFIX}`]
 }

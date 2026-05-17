@@ -9,11 +9,11 @@ import {
   getTableRequestSearchFields
 } from '@/architecture/domain/utils/functionSchemaSelectors'
 import {
+  isGeneratedFieldQueryKey,
   isPersistentPlatformStateQueryKey,
   isPlatformStateQueryKey,
   isStaleTableFilterQueryKey,
-  isTableControlQueryKey,
-  isUnsupportedGeneratedFieldQueryKey
+  isTableControlQueryKey
 } from '@/architecture/shared/routing/queryParamKeys'
 
 interface BuildTableURLQueryParamsOptions {
@@ -25,8 +25,6 @@ interface BuildTableURLQueryParamsOptions {
 interface PreserveExistingTableQueryParamsOptions {
   routeQuery: Record<string, any>
   requestFieldCodes: Set<string>
-  generatedFieldCodes?: Set<string>
-  isLinkNavigation: boolean
 }
 
 interface BuildNextTableSyncQueryOptions extends BuildTableURLQueryParamsOptions {
@@ -121,8 +119,7 @@ export const preserveExistingTableQueryParams = (
   options: PreserveExistingTableQueryParamsOptions
 ): Record<string, string | string[]> => {
   const result: Record<string, string | string[]> = {}
-  const { routeQuery, requestFieldCodes, isLinkNavigation } = options
-  const generatedFieldCodes = options.generatedFieldCodes || requestFieldCodes
+  const { routeQuery, requestFieldCodes } = options
 
   Object.keys(routeQuery).forEach(key => {
     const normalizedValue = normalizeRouteQueryValue(routeQuery[key])
@@ -130,13 +127,13 @@ export const preserveExistingTableQueryParams = (
       return
     }
 
-    if (isUnsupportedGeneratedFieldQueryKey(key, generatedFieldCodes)) {
+    if (isGeneratedFieldQueryKey(key)) {
       return
     }
 
     if (isPersistentPlatformStateQueryKey(key)) {
       // `_` key 是前端/平台状态，例如 `_tab`、`_id`、`_mws`。
-      // 这类 key 不会和 sdk-app 业务参数冲突；临时态 key 由 helper 过滤。
+      // 这类 key 不会和 sdk-app 业务参数冲突；一次性导航标记由 helper 过滤。
       result[key] = normalizedValue
       return
     }
@@ -171,11 +168,7 @@ export const buildNextTableSyncQuery = (
   return {
     ...preserveExistingTableQueryParams({
       routeQuery,
-      requestFieldCodes: getTableRequestFieldCodes(functionDetail),
-      generatedFieldCodes: new Set([
-        ...getTableRequestSearchFields(functionDetail).map(field => field.code)
-      ]),
-      isLinkNavigation
+      requestFieldCodes: getTableRequestFieldCodes(functionDetail)
     }),
     ...nextTableQuery
   }
