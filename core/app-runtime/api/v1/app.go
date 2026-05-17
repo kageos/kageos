@@ -48,7 +48,7 @@ func (h *AppHandler) HandleAppUpdate(msg *nats.Msg) {
 		return
 	}
 	tenantUser := req.User
-	result, err := h.appManageService.UpdateApp(ctx, tenantUser, req.App, req.RequestedSourceFiles(), req.Requirement, req.ChangeDescription, req.ShouldWriteOnly(), req.ForceDiff)
+	result, err := h.appManageService.UpdateApp(ctx, tenantUser, req.App, req.SourceFiles, req.Requirement, req.ChangeDescription, req.WriteOnly, req.ForceDiff)
 	if err != nil {
 		logger.Errorf(ctx, "[HandleAppUpdate] Failed to update app: %v", err)
 		respondFailure(ctx, msg, "HandleAppUpdate", err)

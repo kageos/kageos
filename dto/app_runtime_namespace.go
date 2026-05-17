@@ -83,59 +83,14 @@ type WriteSourceFilesResp struct {
 
 // UpdateAppReq 更新应用请求（更新应用代码并重新编译部署）
 type UpdateAppReq struct {
-	User              string             `json:"user,omitempty"`               // 租户用户名（兼容字段，优先从 resource_path 解析）
-	App               string             `json:"app,omitempty"`                // 应用名（兼容字段，优先从 resource_path 解析）
+	User              string             `json:"user,omitempty"`               // 租户用户名，优先从 resource_path 解析
+	App               string             `json:"app,omitempty"`                // 应用名，优先从 resource_path 解析
 	ResourcePath      string             `json:"resource_path,omitempty"`      // 资源路径，规范为 /user/app
-	SourceFiles       []*SourceFileWrite `json:"source_files,omitempty"`       // 推荐字段：本次需要写入的源码文件列表
-	CreateFunctions   []*SourceFileWrite `json:"create_functions,omitempty"`   // 兼容旧字段：历史命名为创建函数，实际语义为写入源码文件
+	SourceFiles       []*SourceFileWrite `json:"source_files,omitempty"`       // 本次需要写入的源码文件列表
 	Requirement       string             `json:"requirement,omitempty"`        // 变更需求（用户在前端输入的）
 	ChangeDescription string             `json:"change_description,omitempty"` // 变更描述（大模型输出的）
-	Summary           string             `json:"summary,omitempty"`            // 变更摘要（详情），兼容旧字段，如果未提供则使用 Requirement + ChangeDescription 组合
 	WriteOnly         bool               `json:"write_only,omitempty"`         // 为 true 时仅写文件不编译不部署
-	SkipBuild         bool               `json:"skip_build,omitempty"`         // 兼容旧字段：等价于 write_only
 	ForceDiff         bool               `json:"force_diff,omitempty"`         // 为 true 时清理 api-logs，让本次更新重新产生 add diff
-}
-
-// BuildSummary 返回本次更新的摘要信息，优先使用 Summary。
-func (r *UpdateAppReq) BuildSummary() string {
-	if r == nil {
-		return ""
-	}
-
-	if r.Summary != "" {
-		return r.Summary
-	}
-
-	if r.Requirement != "" && r.ChangeDescription != "" {
-		return "需求：" + r.Requirement + "\n\n变更描述：" + r.ChangeDescription
-	}
-	if r.Requirement != "" {
-		return r.Requirement
-	}
-	if r.ChangeDescription != "" {
-		return r.ChangeDescription
-	}
-
-	return ""
-}
-
-// RequestedSourceFiles 返回本次请求携带的源码文件列表，优先使用新字段 source_files。
-func (r *UpdateAppReq) RequestedSourceFiles() []*SourceFileWrite {
-	if r == nil {
-		return nil
-	}
-	if len(r.SourceFiles) > 0 {
-		return r.SourceFiles
-	}
-	return r.CreateFunctions
-}
-
-// ShouldWriteOnly 返回本次更新是否仅写文件不发布，优先使用新字段 write_only。
-func (r *UpdateAppReq) ShouldWriteOnly() bool {
-	if r == nil {
-		return false
-	}
-	return r.WriteOnly || r.SkipBuild
 }
 
 // UpdateAppResp 更新应用响应
@@ -289,8 +244,8 @@ type ApiInfo struct {
 
 // DeleteAppReq 删除应用请求
 type DeleteAppReq struct {
-	User         string `json:"user,omitempty" example:"beiluo"`                 // 租户名（兼容字段，优先从 resource_path 解析）
-	App          string `json:"app,omitempty" example:"myapp"`                   // 应用名（兼容字段，优先从 resource_path 解析）
+	User         string `json:"user,omitempty" example:"beiluo"`                 // 租户名，优先从 resource_path 解析
+	App          string `json:"app,omitempty" example:"myapp"`                   // 应用名，优先从 resource_path 解析
 	ResourcePath string `json:"resource_path,omitempty" example:"/beiluo/myapp"` // 工作空间资源路径，规范为 /user/app
 }
 
@@ -345,8 +300,8 @@ type GetAppDetailResp struct {
 
 // GetAppWithServiceTreeReq 获取应用详情和服务目录树请求
 type GetAppWithServiceTreeReq struct {
-	User         string `json:"user,omitempty" swaggerignore:"true"`                    // 租户名（兼容字段，优先从 resource_path 解析）
-	App          string `json:"app,omitempty" form:"app,omitempty" example:"myapp"`     // 应用代码（兼容字段，优先从 resource_path 解析）
+	User         string `json:"user,omitempty" swaggerignore:"true"`                    // 租户名，优先从 resource_path 解析
+	App          string `json:"app,omitempty" form:"app,omitempty" example:"myapp"`     // 应用代码，优先从 resource_path 解析
 	ResourcePath string `json:"resource_path,omitempty" form:"resource_path,omitempty"` // 工作空间资源路径，规范为 /user/app
 	Type         string `json:"type" form:"type" example:"package"`                     // 节点类型过滤（可选），如：package（只显示服务目录/包）、function（只显示函数/文件）
 }

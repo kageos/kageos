@@ -144,39 +144,7 @@ func resolveRuntimeDBPath() (string, error) {
 		dataRoot = filepath.Join(root, "data")
 	}
 
-	currentPath := filepath.Join(dataRoot, "runtime", "app-runtime", "app_runtime.db")
-	legacyPath := filepath.Join(dataRoot, "app-runtime", "app_runtime.db")
-
-	if err := migrateLegacyRuntimeDB(currentPath, legacyPath); err != nil {
-		return "", err
-	}
-
-	return currentPath, nil
-}
-
-func migrateLegacyRuntimeDB(currentPath, legacyPath string) error {
-	if _, err := os.Stat(currentPath); err == nil {
-		return nil
-	} else if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-
-	if _, err := os.Stat(legacyPath); err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-
-	if err := os.MkdirAll(filepath.Dir(currentPath), 0o755); err != nil {
-		return fmt.Errorf("failed to create runtime db directory: %w", err)
-	}
-	if err := os.Rename(legacyPath, currentPath); err != nil {
-		return fmt.Errorf("failed to migrate runtime db from %s to %s: %w", legacyPath, currentPath, err)
-	}
-
-	_ = os.Remove(filepath.Dir(legacyPath))
-	return nil
+	return filepath.Join(dataRoot, "runtime", "app-runtime", "app_runtime.db"), nil
 }
 
 // closeDatabase 关闭数据库连接
@@ -428,11 +396,6 @@ func (s *Server) GetDB() *gorm.DB {
 
 // GetWorkspaceChangeService 获取工作区变更编排服务。
 func (s *Server) GetWorkspaceChangeService() *service.WorkspaceChangeService {
-	return s.workspaceChangeService
-}
-
-// GetServiceTreeService 兼容旧命名，请优先使用 GetWorkspaceChangeService。
-func (s *Server) GetServiceTreeService() *service.WorkspaceChangeService {
 	return s.workspaceChangeService
 }
 

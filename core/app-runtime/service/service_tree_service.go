@@ -18,9 +18,6 @@ type WorkspaceChangeService struct {
 	packageScaffold      *PackageScaffoldService // 用于目录脚手架维护
 }
 
-// ServiceTreeService 兼容旧命名，请优先使用 WorkspaceChangeService。
-type ServiceTreeService = WorkspaceChangeService
-
 // NewWorkspaceChangeService 创建工作区变更编排服务。
 func NewWorkspaceChangeService(
 	config *config.AppManageServiceConfig,
@@ -33,15 +30,6 @@ func NewWorkspaceChangeService(
 		workspaceFileService: workspaceFileService,
 		packageScaffold:      NewPackageScaffoldService(config),
 	}
-}
-
-// NewServiceTreeService 兼容旧命名，请优先使用 NewWorkspaceChangeService。
-func NewServiceTreeService(
-	config *config.AppManageServiceConfig,
-	appManageService *AppManageService,
-	workspaceFileService *WorkspaceFileService,
-) *WorkspaceChangeService {
-	return NewWorkspaceChangeService(config, appManageService, workspaceFileService)
 }
 
 // DeleteServiceTree 删除服务目录（删磁盘目录，并从 main.go 移除该包的 import）

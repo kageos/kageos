@@ -29,7 +29,7 @@
 - `package_scaffold_service.go`
   package 目录脚手架服务，负责目录创建删除、`init_.go` 维护和 `main.go` import 同步。
 - `service_tree_service.go`
-  工作区变更编排入口，组合目录脚手架、文件写入和发布能力；对外仍保留 `ServiceTreeService` 兼容别名。
+  工作区变更编排入口，组合目录脚手架、文件写入和发布能力。
 
 ## 版本元数据
 

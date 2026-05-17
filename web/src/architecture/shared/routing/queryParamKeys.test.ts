@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   deleteFieldQueryKey,
-  getLegacyFieldQueryKeys,
   isDisplayCompanionQueryKey,
+  isGeneratedFieldQueryKey,
   isPersistentPlatformStateQueryKey,
   isPlatformStateQueryKey,
   isStaleTableFilterQueryKey,
-  isTableControlQueryKey,
-  isUnsupportedGeneratedFieldQueryKey
+  isTableControlQueryKey
 } from './queryParamKeys'
 
 describe('queryParamKeys', () => {
@@ -23,14 +22,12 @@ describe('queryParamKeys', () => {
     expect(isStaleTableFilterQueryKey('genre')).toBe(false)
   })
 
-  it('recognizes old generated field params without treating all s_/f_ keys as aliases', () => {
-    const fieldCodes = new Set(['genre', 'style'])
-
-    expect(isUnsupportedGeneratedFieldQueryKey('s_genre', fieldCodes)).toBe(true)
-    expect(isUnsupportedGeneratedFieldQueryKey('f_genre', fieldCodes)).toBe(true)
-    expect(isUnsupportedGeneratedFieldQueryKey('s_style__display', fieldCodes)).toBe(true)
-    expect(isUnsupportedGeneratedFieldQueryKey('_style__display', fieldCodes)).toBe(true)
-    expect(isUnsupportedGeneratedFieldQueryKey('s_external', fieldCodes)).toBe(false)
+  it('recognizes generated field params as unsupported URL keys', () => {
+    expect(isGeneratedFieldQueryKey('s_genre')).toBe(true)
+    expect(isGeneratedFieldQueryKey('f_genre')).toBe(true)
+    expect(isGeneratedFieldQueryKey('s_style__display')).toBe(true)
+    expect(isGeneratedFieldQueryKey('_style__display')).toBe(true)
+    expect(isGeneratedFieldQueryKey('genre')).toBe(false)
     expect(isDisplayCompanionQueryKey('any__display')).toBe(true)
   })
 
@@ -49,7 +46,6 @@ describe('queryParamKeys', () => {
     expect(query).toEqual({
       topic_id: '42'
     })
-    expect(getLegacyFieldQueryKeys('genre')).toContain('s_genre')
   })
 
   it('can preserve a raw field while still removing stale generated aliases', () => {

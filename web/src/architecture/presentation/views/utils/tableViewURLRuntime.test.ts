@@ -167,12 +167,11 @@ describe('tableViewURLRuntime', () => {
           _tab: 'detail',
           _link_type: 'table',
           page: '9',
-          like: 'keyword:legacy',
-          status: 'legacy-open',
+          like: 'keyword:stale',
+          status: 'stale-open',
           topic_id: '42'
         },
-        requestFieldCodes: new Set(['status']),
-        isLinkNavigation: false
+        requestFieldCodes: new Set(['status'])
       })
     ).toEqual({
       _tab: 'detail',
@@ -190,12 +189,11 @@ describe('tableViewURLRuntime', () => {
           s_style: '律诗',
           s_style__display: '律诗',
           _genre__display: '诗',
-          genre: 'legacy-raw',
+          s_external: 'old-generated',
+          genre: 'stale-raw',
           topic_id: '42'
         },
-        requestFieldCodes: new Set(['genre']),
-        generatedFieldCodes: new Set(['genre', 'style']),
-        isLinkNavigation: false
+        requestFieldCodes: new Set(['genre'])
       })
     ).toEqual({
       _tab: 'detail',
@@ -213,8 +211,7 @@ describe('tableViewURLRuntime', () => {
           priority: 'high',
           topic_id: '42'
         },
-        requestFieldCodes: new Set(['status']),
-        isLinkNavigation: true
+        requestFieldCodes: new Set(['status'])
       })
     ).toEqual({
       _tab: 'detail',

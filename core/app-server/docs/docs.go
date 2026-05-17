@@ -4210,19 +4210,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "app": {
-                    "description": "应用名（兼容字段，优先从 resource_path 解析）",
+                    "description": "应用名，优先从 resource_path 解析",
                     "type": "string"
                 },
                 "change_description": {
                     "description": "变更描述（大模型输出的）",
                     "type": "string"
-                },
-                "create_functions": {
-                    "description": "兼容旧字段：历史命名为创建函数，实际语义为写入源码文件",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.SourceFileWrite"
-                    }
                 },
                 "force_diff": {
                     "description": "为 true 时清理 api-logs，让本次更新重新产生 add diff",
@@ -4236,23 +4229,15 @@ const docTemplate = `{
                     "description": "资源路径，规范为 /user/app",
                     "type": "string"
                 },
-                "skip_build": {
-                    "description": "兼容旧字段：等价于 write_only",
-                    "type": "boolean"
-                },
                 "source_files": {
-                    "description": "推荐字段：本次需要写入的源码文件列表",
+                    "description": "本次需要写入的源码文件列表",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/dto.SourceFileWrite"
                     }
                 },
-                "summary": {
-                    "description": "变更摘要（详情），兼容旧字段，如果未提供则使用 Requirement + ChangeDescription 组合",
-                    "type": "string"
-                },
                 "user": {
-                    "description": "租户用户名（兼容字段，优先从 resource_path 解析）",
+                    "description": "租户用户名，优先从 resource_path 解析",
                     "type": "string"
                 },
                 "write_only": {
