@@ -29,7 +29,16 @@ namespace/
 #configs/*.yaml
 #configs/*.yml
 #configs/*.json
+*.env
+.env
+.env.*
+web/.env
+web/.env.*
+!*.env.example
+!web/.env.example
+!web/.env.development.local.example
 deploy/prod/.generated/
+deploy/prod/aos.yaml
 temp/
 plan/
 /note

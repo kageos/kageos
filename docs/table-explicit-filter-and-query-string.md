@@ -1,5 +1,9 @@
 # Table 显式筛选与前端查询串逻辑
 
+> 状态：执行口径
+> 更新时间：2026-05-17
+> 负责人窗口：事项 9 / codex/examples-and-sdk-docs
+
 本文记录 Table 列表筛选、分页、排序在前端 URL query 和后端 Request 之间的约定。Table 列表统一使用 `query.PageSortReq`；业务筛选字段显式写在 Request 结构体中，并在 Handler 里手写查询条件。
 
 对应代码主要在：

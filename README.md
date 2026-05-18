@@ -1,73 +1,103 @@
 # AI-Agent-OS
 
-AI-Agent-OS 是一个面向个人用户和小团队的 AI 轻应用工作台。
+AI-Agent-OS is a source-available AI light-application workspace for individuals and small teams. Users describe an internal tool in natural language, confirm a lightweight PRD, and let the system generate runnable `Form`, `Table`, and `Chart` applications.
 
-当前 MVP 聚焦一条主链路：
+The project is currently licensed under the Business Source License 1.1. It is not OSI open source today; see [LICENSE](LICENSE) for the exact grant, Hosted Service restriction, Change Date, and future Apache-2.0 change license.
 
-1. 用户在工作台用自然语言描述需求。
-2. Agent 生成可确认的轻量 PRD。
-3. Agent 按 PRD 创建或修改 `Form` / `Table` / `Chart`。
-4. 系统构建、运行，并让用户直接使用生成出的轻应用。
+## What It Does
 
-项目暂时不追求“大而全”的企业平台形态。默认产品形态是 **Focused Mode / 产品聚焦模式**，优先保证一个人或一个小企业可以把常见管理系统、工具表单、数据表和统计看板跑起来。
+- AI workstation for requirement clarification, PRD generation, code generation, build repair, and runtime verification.
+- Dynamic UI rendering for generated forms, tables, details, and charts.
+- Service Tree for organizing application capabilities inside a workspace.
+- Go SDK for generated light applications.
+- Single-machine development and production deployment paths based on Go, Vue, MySQL, NATS, MinIO, and containers.
 
-## 当前核心能力
+## Repository Map
 
-- AI 工作台：围绕需求澄清、PRD、代码生成、构建修复和运行验证展开。
-- Service Tree：用目录组织工作空间里的应用能力。
-- 标准函数形态：业务能力收敛为 `Form`、`Table`、`Chart`。
-- 动态 UI：前端根据后端元数据渲染表单、表格、详情和图表。
-- 运行时：生成后的应用通过 app-runtime 运行。
-- Docs / LLM 管理：作为当前主链路的辅助能力保留。
+| Path | Purpose |
+| --- | --- |
+| `core/agent-server` | Agent workstation, tool calling, PRD, and code generation flow |
+| `core/app-server` | Workspace APIs, metadata, and runtime orchestration |
+| `core/app-runtime` | Runtime manager for generated user applications |
+| `core/app-storage` | Upload and object-storage service |
+| `core/api-gateway` | API gateway, static frontend entry, and auth forwarding |
+| `core/hr-server` | Login, user, and basic organization data |
+| `sdk/agent-app` | Go SDK used by generated applications |
+| `web` | Vue 3 frontend |
+| `deploy` | Development, production, image, and security deployment material |
+| `docs` | Project documentation index and governance documents |
 
-## 产品聚焦模式
+## Quick Start
 
-前端默认开启聚焦模式，只展示主链路入口。Table 更新日志、能力包、Docs、LLM 管理由 `web/src/architecture/shared/config/features.ts` 统一控制；组织管理、消息中心、定时任务、权限治理、License 和 Board 入口已从 MVP 中删除。
+Prerequisites:
 
-常用开关：
+- Go 1.25 or newer.
+- Node.js 20.19 or newer, or 22.12 or newer.
+- Docker Compose or Podman Compose.
+- MySQL, NATS, and MinIO from the bundled development compose stack.
 
-| 环境变量 | 默认行为 |
-|---|---|
-| `VITE_AOS_FOCUSED_MODE` | 默认 `true`，测试环境默认 `false` |
-| `VITE_AOS_FEATURE_OPERATE_LOGS` | 默认开启，只保留 Table 更新日志 |
-| `VITE_AOS_FEATURE_CAPABILITY_BUNDLE` | 默认开启 |
-| `VITE_AOS_FEATURE_DOCS` | 默认开启 |
-| `VITE_AOS_FEATURE_LLM_MANAGEMENT` | 默认开启 |
+Start the local infrastructure:
 
-## MVP 边界
+```bash
+bash deploy/dev/scripts/infra.sh up
+```
 
-本仓库面向开源 MVP，不再保留企业版 License、权限治理、消息中心、控制面和备份控制面实现。Table 更新日志作为个人用户和小团队也能直接用到的审计能力保留，Form 操作日志和企业升级入口已移除。
+Start the backend:
 
-## 代码结构
+```bash
+APP_ENV=dev go run ./core/cmd/main
+```
 
-| 路径 | 说明 |
-|---|---|
-| `core/agent-server` | Agent 工作台、工具调用、PRD 与代码生成链路 |
-| `core/app-server` | 工作空间 API、元数据、运行时调度入口 |
-| `core/app-runtime` | 用户轻应用运行时 |
-| `core/app-storage` | 上传文件和对象存储访问 |
-| `core/api-gateway` | API 网关、静态资源入口和鉴权透传 |
-| `core/hr-server` | 用户、登录、组织基础能力 |
-| `web` | Vue 3 前端 |
-| `docs` | 产品聚焦、部署等项目文档 |
-| `deploy` | 开发和生产部署配置 |
+Start the frontend:
 
-## 开发入口
+```bash
+cd web
+npm install
+npm run dev
+```
 
-- 开发环境：[deploy/dev/README.md](deploy/dev/README.md)
-- 生产部署：[deploy/prod/README.md](deploy/prod/README.md)
-- 产品减法计划：[docs/产品减法与主链路打深计划.md](docs/产品减法与主链路打深计划.md)
-- 前端架构：[web/README.md](web/README.md)
+The frontend uses relative API paths by default. To point only the frontend at a remote backend, create `web/.env.development.local` from `web/.env.development.local.example` and set `VITE_PROXY_TARGET`.
 
-## 当前非目标
+Detailed onboarding, dependency notes, smoke tests, and troubleshooting live in [docs/local-development.md](docs/local-development.md).
 
-为了让开源 MVP 更清爽，以下方向暂不作为默认产品承诺：
+## Verification
 
-- 跨函数工作流编排引擎
-- 完整组织治理中心
-- 配置管理中心
-- 快链、回收站、变更日志等历史占位功能
-- 企业 License / 权限审批 / 消息通知 / 备份控制面
-- 复杂企业审批平台
+Backend:
 
-这些能力可以在主链路稳定后逐个恢复，但不应该阻塞当前个人用户和小企业的轻应用创建体验。
+```bash
+bash scripts/test-core-go.sh
+```
+
+Frontend:
+
+```bash
+cd web
+npm run check:architecture
+npm run type-check
+npm run test:unit -- --run
+npm run build
+```
+
+Repository governance checks:
+
+```bash
+bash scripts/check-sensitive-files.sh
+bash scripts/check-doc-links.sh
+```
+
+The same checks are wired into GitHub Actions in `.github/workflows/ci.yml`.
+
+## Documentation
+
+- [Documentation index](docs/README.md)
+- [Local development](docs/local-development.md)
+- [Backend readiness](docs/backend-open-source-readiness.md)
+- [Examples and SDK guide](docs/examples/README.md)
+- [Production deployment](deploy/prod/README.md)
+- [Release process](docs/governance/RELEASE_PROCESS.md)
+
+## Contributing And Security
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before opening issues or pull requests.
+
+Do not commit real `.env` files, production `aos.yaml`, customer licenses, generated deployment output, `namespace/`, `local/`, or other private workspaces. Use the example files and local overrides instead.

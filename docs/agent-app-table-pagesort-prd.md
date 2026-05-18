@@ -1,5 +1,9 @@
 # Agent-App Table 分页查询链路 PRD：PageSortReq
 
+> 状态：执行口径
+> 更新时间：2026-05-17
+> 负责人窗口：事项 9 / codex/examples-and-sdk-docs
+
 ## 1. 背景
 
 Agent-App 的表格列表需要同时服务三类场景：
@@ -18,7 +22,7 @@ Table 列表代码只保留一条正向路径：筛选字段在 Request 中显�
 - 表格筛选字段只来自 Request 结构体，不从 Response Model 推导。
 - Model 字段只描述落库、展示和编辑能力；Table Template 用 `AutoCrudTable` 声明列表模型。
 - URL 查询参数直接使用 Request 字段名，例如 `status=处理中&title=合同&page=1&page_size=20&sorts=[{"field":"created_at","order":"desc"}]`；排序参数统一使用结构化 JSON。
-- Handler 在 `Build()` 前完成所有筛选、Join、Preload、权限约束和默认条件。
+- Handler 在 `Build()` 前完成所有筛选、Join、Preload、业务约束和默认条件。
 - 文档、prompt、示例、前端运行时统一使用同一套表达。
 
 ## 3. 设计边界

@@ -99,12 +99,12 @@ func TestBuildCapabilityBundleInstallPlanMountsRelativePackages(t *testing.T) {
 		SchemaVersion: dto.CapabilityBundleSchemaVersion,
 		Name:          "开放能力",
 		Packages: []*dto.CapabilityBundlePackage{
-			{Path: "message", Name: "消息能力"},
-			{Path: "permission", Name: "权限能力"},
+			{Path: "invoice", Name: "发票能力"},
+			{Path: "report", Name: "报表能力"},
 		},
 		Files: []*dto.CapabilityBundleFile{
-			{PackagePath: "message", Path: "send.go", Content: "package message"},
-			{PackagePath: "permission", Path: "apply.go", Content: "package permission"},
+			{PackagePath: "invoice", Path: "create.go", Content: "package invoice"},
+			{PackagePath: "report", Path: "query.go", Content: "package report"},
 		},
 	}
 	if err := validateCapabilityBundle(bundle); err != nil {
@@ -121,8 +121,8 @@ func TestBuildCapabilityBundleInstallPlanMountsRelativePackages(t *testing.T) {
 		gotDirs = append(gotDirs, item.FullCodePath+"::"+item.Name)
 	}
 	wantDirs := []string{
-		"/system/tools/openapi/message::消息能力",
-		"/system/tools/openapi/permission::权限能力",
+		"/system/tools/openapi/invoice::发票能力",
+		"/system/tools/openapi/report::报表能力",
 	}
 	if !reflect.DeepEqual(gotDirs, wantDirs) {
 		t.Fatalf("unexpected directories:\nwant=%#v\ngot=%#v", wantDirs, gotDirs)
@@ -133,8 +133,8 @@ func TestBuildCapabilityBundleInstallPlanMountsRelativePackages(t *testing.T) {
 		gotFiles = append(gotFiles, item.FullCodePath+"::"+item.FileName+"."+item.FileType)
 	}
 	wantFiles := []string{
-		"/system/tools/openapi/message::send.go",
-		"/system/tools/openapi/permission::apply.go",
+		"/system/tools/openapi/invoice::create.go",
+		"/system/tools/openapi/report::query.go",
 	}
 	if !reflect.DeepEqual(gotFiles, wantFiles) {
 		t.Fatalf("unexpected files:\nwant=%#v\ngot=%#v", wantFiles, gotFiles)

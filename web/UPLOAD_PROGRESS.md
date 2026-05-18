@@ -1,5 +1,9 @@
 # 上传进度监听机制详解
 
+> 状态：草案
+> 更新时间：2026-05-17
+> 负责人窗口：事项 8 / codex/document-archive-cleanup
+
 ## ❓ 常见误解
 
 ### 误解：需要后端提供进度监听接口
@@ -78,13 +82,13 @@
 export class PresignedURLUploader implements Uploader {
   async upload(credentials, file, onProgress) {
     const xhr = new XMLHttpRequest()
-    
+
     // ✅ 浏览器原生支持进度监听（无需后端参与）
     xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable) {
         const percent = Math.round((e.loaded / e.total) * 100)
         const speed = this.calculateSpeed(e.loaded)
-        
+
         onProgress({
           percent,      // 上传百分比
           loaded: e.loaded,  // 已上传字节
@@ -93,7 +97,7 @@ export class PresignedURLUploader implements Uploader {
         })
       }
     })
-    
+
     // ✅ 直接上传到 MinIO（使用预签名 URL）
     xhr.open('PUT', credentials.url)  // http://localhost:9000/...
     xhr.setRequestHeader('Content-Type', file.type)
@@ -119,7 +123,7 @@ export class PresignedURLUploader implements Uploader {
 export class FormUploader implements Uploader {
   async upload(credentials, file, onProgress) {
     const xhr = new XMLHttpRequest()
-    
+
     // ✅ 浏览器原生支持进度监听（无需后端参与）
     xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable) {
@@ -130,14 +134,14 @@ export class FormUploader implements Uploader {
         })
       }
     })
-    
+
     // 构建表单数据
     const formData = new FormData()
     Object.entries(credentials.form_data).forEach(([key, value]) => {
       formData.append(key, value)  // token、key 等
     })
     formData.append('file', file)
-    
+
     // ✅ 直接上传到七牛云（不经过后端）
     xhr.open('POST', credentials.post_url)  // https://upload.qiniup.com/...
     xhr.send(formData)
@@ -156,7 +160,7 @@ export class FormUploader implements Uploader {
 export class SDKUploader implements Uploader {
   async upload(credentials, file, onProgress) {
     const sdk = createSDK(credentials.sdk_config)
-    
+
     // ✅ SDK 提供进度回调（无需后端参与）
     await sdk.upload(file, {
       onProgress: (percent, loaded, total) => {
@@ -254,7 +258,7 @@ const uploadDomain = ref('')
 
 async function handleUpload(file) {
   const startTime = Date.now()
-  
+
   try {
     // ✅ 调用统一上传函数
     const key = await uploadFile(
@@ -266,14 +270,14 @@ async function handleUpload(file) {
         uploadedSize.value = progress.loaded
         totalSize.value = progress.total
         uploadDomain.value = progress.uploadDomain
-        
+
         // 计算速度
         const elapsed = (Date.now() - startTime) / 1000
         const speed = progress.loaded / elapsed
         uploadSpeed.value = formatSpeed(speed)
       }
     )
-    
+
     console.log('上传成功，文件 Key:', key)
   } catch (error) {
     console.error('上传失败:', error)
@@ -323,4 +327,3 @@ async function handleUpload(file) {
 ---
 
 **结论：前端直接上传到存储服务，使用浏览器原生 API 监听进度，后端只负责生成上传凭证，不需要提供进度监听接口！** 🎉
-

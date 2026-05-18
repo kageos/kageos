@@ -25,7 +25,7 @@
               </span>
             </div>
           </div>
-          <div class="doc-actions" v-if="hasEditPermission">
+          <div class="doc-actions" v-if="canEditDoc">
             <el-button 
               type="primary" 
               :icon="Edit" 
@@ -109,7 +109,7 @@
     <div v-else-if="!loading" class="doc-empty">
       <el-empty description="文档不存在或尚未创建">
         <el-button 
-          v-if="hasEditPermission"
+          v-if="canEditDoc"
           type="primary" 
           :icon="Plus"
           @click="handleCreate"
@@ -246,7 +246,7 @@ onUnmounted(() => {
   document.removeEventListener('keydown', onPreviewKeydown)
 })
 
-const hasEditPermission = computed(() => true)
+const canEditDoc = computed(() => true)
 
 // 渲染后的 Markdown 内容
 const renderedContent = computed(() => {

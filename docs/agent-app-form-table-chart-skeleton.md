@@ -1,5 +1,9 @@
 # Agent-App SDK Form / Table / Chart 骨架说明
 
+> 状态：执行口径
+> 更新时间：2026-05-17
+> 负责人窗口：事项 9 / codex/examples-and-sdk-docs
+
 本文档给大模型使用，目标是让模型在工作台里写 AgentOS 应用时，先理解 `agent-app` SDK 的组织方式，再按稳定骨架生成代码。
 
 ## 一、Agent-App SDK 是什么

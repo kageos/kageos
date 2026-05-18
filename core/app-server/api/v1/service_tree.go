@@ -110,9 +110,9 @@ func (s *ServiceTree) CreateDocs(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
-// GetServiceTreeDetail 获取服务目录详情（包含权限信息）
+// GetServiceTreeDetail 获取服务目录详情
 // @Summary 获取服务目录详情
-// @Description 根据ID或full-code-path获取服务目录详情，包含权限信息
+// @Description 根据ID或full-code-path获取服务目录详情
 // @Tags 服务目录
 // @Accept json
 // @Produce json
@@ -396,14 +396,6 @@ func (s *ServiceTree) CopyServiceTree(c *gin.Context) {
 // AddFunctions 向服务目录添加函数（服务间调用，不需要JWT验证）
 // @Summary 向服务目录添加函数
 // @Description 接收来自 agent-server 的代码，写入到工作空间对应的目录下，并更新工作空间
-// @Description
-// @Description **处理模式**：
-// @Description - async=true: 异步处理，立即返回 202 Accepted，后台处理完成后通过回调通知 agent-server
-// @Description - async=false: 同步处理，等待处理完成后直接返回结果
-// @Description
-// @Description **回调机制**：
-// @Description - 异步模式下，处理完成后会调用 agent-server 的回调接口：POST /agent/api/v1/workspace/update/callback
-// @Description - 回调会携带处理结果（成功/失败、生成的函数组代码列表等）
 // @Tags 服务目录
 // @Accept json
 // @Produce json
@@ -411,8 +403,7 @@ func (s *ServiceTree) CopyServiceTree(c *gin.Context) {
 // @Param X-Request-User header string false "请求用户（用于审计）"
 // @Param X-Token header string false "Token（服务间调用时透传）"
 // @Param request body dto.AddFunctionsReq true "添加函数请求"
-// @Success 200 {object} dto.AddFunctionsResp "处理成功（同步模式）"
-// @Success 202 {object} map[string]interface{} "已接收，处理中（异步模式）"
+// @Success 200 {object} dto.AddFunctionsResp "处理成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
 // @Router /workspace/api/v1/service_tree/add_functions [post]
@@ -426,30 +417,14 @@ func (s *ServiceTree) AddFunctions(c *gin.Context) {
 
 	ctx := contextx.ToContext(c)
 
-	// 根据 async 参数决定处理方式
-	if req.Async {
-		// 异步模式：返回已接收，后台处理，通过回调通知
-		go func() {
-			// 异步处理，不等待结果
-			_ = s.serviceTreeService.ProcessFunctionGenResult(ctx, &req)
-		}()
-
-		// 立即返回已接收（使用 200 OK 状态码，因为 callAPI 只接受 200）
-		response.OkWithData(c, &dto.AddFunctionsAsyncResp{
-			RecordID: req.RecordID,
-			Message:  "函数添加请求已接收，正在异步处理",
-		})
-	} else {
-		// 同步模式：等待处理完成，直接返回结果
-		resp, err := s.serviceTreeService.AddFunctions(ctx, &req)
-		if err != nil {
-			logger.Errorf(c, "[ServiceTree API] 处理失败: %v", err)
-			response.FailWithMessage(c, "处理失败: "+err.Error())
-			return
-		}
-
-		response.OkWithData(c, resp)
+	resp, err := s.serviceTreeService.AddFunctions(ctx, &req)
+	if err != nil {
+		logger.Errorf(c, "[ServiceTree API] 处理失败: %v", err)
+		response.FailWithMessage(c, "处理失败: "+err.Error())
+		return
 	}
+
+	response.OkWithData(c, resp)
 }
 
 // ExportCapabilityBundle 导出标准能力包 JSON。

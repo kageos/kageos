@@ -1,5 +1,9 @@
 # git-push-all-auto.sh 使用说明（大模型专用）
 
+> 状态：执行口径
+> 更新时间：2026-05-17
+> 负责人窗口：事项 10 / codex/docs-link-check
+
 ## 📋 概述
 
 `git-push-all-auto.sh` 是专为**大模型/AI助手**设计的 Git 自动提交脚本，完全自动化，无需任何交互。
@@ -48,11 +52,11 @@
 
 ```bash
 # 大模型可以这样调用：
-COMMIT_MSG="feat: 实现权限系统重构
+COMMIT_MSG="feat: 完善 Table 更新日志
 
-- 移除 Casbin 依赖
-- 实现基于角色的权限系统
-- 添加权限申请和审批流程"
+- 补充更新日志筛选
+- 优化批量写入记录
+- 修正文档示例"
 
 ./scripts/git-push-all-auto.sh "$COMMIT_MSG"
 ```
@@ -213,7 +217,7 @@ fi
 
 ```bash
 # ✅ 好的提交信息
-./scripts/git-push-all-auto.sh "feat: 添加权限系统"
+./scripts/git-push-all-auto.sh "feat: 完善 Table 更新日志"
 
 # ❌ 不好的提交信息
 ./scripts/git-push-all-auto.sh "update"
@@ -252,4 +256,4 @@ fi
 ## 🔗 相关文档
 
 - [Git 提交脚本使用说明](./README-git-push.md)
-- [项目总蓝图](../../README.md)
+- [项目总蓝图](../README.md)

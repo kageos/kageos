@@ -555,11 +555,6 @@ func (a *AppService) createFunctionNode(
 		return 0, err
 	}
 
-	// ⭐ 自动给创建者添加函数所有权权限
-	// 资源路径：函数的 FullCodePath，权限：function:manage（所有权）
-	// 注意：createFunctionNode 方法没有 ctx 参数，需要从调用方传入
-	// 权限授予在 createServiceTreesForAPIs 中进行
-
 	// 返回创建的节点ID
 	return serviceTree.ID, nil
 }

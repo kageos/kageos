@@ -299,7 +299,7 @@ func (r *ServiceTreeRepository) IncrementRunCountByFullCodePath(ctx context.Cont
 	return nil
 }
 
-// GetNodeByPath 根据路径查询节点（带 context，企业版使用）
+// GetNodeByPath 根据路径查询节点（带 context）。
 func (r *ServiceTreeRepository) GetNodeByPath(ctx context.Context, resourcePath string) (*model.ServiceTree, error) {
 	return r.GetServiceTreeByFullPath(resourcePath)
 }

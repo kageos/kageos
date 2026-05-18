@@ -11,10 +11,3 @@ func workspaceToolNamesForMode(modeProvider prompt.WorkspaceModePromptProvider, 
 	}
 	return append([]string(nil), toolNames...)
 }
-
-func workspaceModeToolGateResult(_ string, _ []string) (ToolResult, bool) {
-	// Mode config controls which tools are exposed to the model. Once a tool
-	// call reaches the executor, the mode layer does not add another hard
-	// runtime block.
-	return ToolResult{}, false
-}

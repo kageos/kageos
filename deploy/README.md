@@ -1,6 +1,10 @@
 # 部署总览（官方入口）
 
-本目录只保留当前 **官方部署入口**、**共享交付资源** 和 **可选安全模块**。  
+> 状态：执行口径
+> 更新时间：2026-05-17
+> 负责人窗口：事项 5 / codex/local-dev-onboarding
+
+本目录只保留当前 **官方部署入口**、**共享交付资源** 和 **可选安全模块**。
 如果你是第一次看这个仓库，先不要在根目录乱找脚本，直接按下面选入口。
 
 ## 先看哪一个
@@ -11,7 +15,7 @@
 | 单机生产部署 | [prod/README.md](prod/README.md) | 当前官方生产入口，基于 Compose |
 | 只想一眼看懂怎么部署 | [prod/QUICK_START.md](prod/QUICK_START.md) | 最短路径，直接照抄 |
 | 只想快速部署 | [prod/DEPLOY_TUTORIAL.md](prod/DEPLOY_TUTORIAL.md) | 一分钟部署版 |
-| 看启动顺序与依赖图 | [prod/DEPLOYMENT_FLOW.md](prod/DEPLOYMENT_FLOW.md) | 单机生产部署的依赖、启动顺序、流程图 |
+| 看部署分层与依赖图 | [../docs/deployment-layers.md](../docs/deployment-layers.md) | 单机生产部署的分层、依赖和排障心智模型 |
 | 找共享资源 | [base/README.md](base/README.md) | canonical Dockerfile、init SQL、共享脚本都在这里 |
 | 做容器防删限制 | [security/README.md](security/README.md) | 可选的 AppArmor / SELinux 安装资源 |
 

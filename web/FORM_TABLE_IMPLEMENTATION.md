@@ -1,5 +1,9 @@
 # Form 和 Table 模版渲染实现文档
 
+> 状态：草案
+> 更新时间：2026-05-17
+> 负责人窗口：事项 8 / codex/document-archive-cleanup
+
 ## 📋 已实现功能
 
 ### ✅ Form 函数渲染 (FormRenderer)
@@ -112,7 +116,7 @@ GET /workspace/api/v1/table/search{full_code_path}
 ### Table 写操作
 **重要说明**：
 - 前端只调用标准 Table 接口；后端内部转成 `_callback` 请求。
-- 写操作是否可用只看 `schema.callbacks`，不再使用旧的 table_permission 标签。
+- 写操作是否可用只看 `schema.callbacks`。
 
 ```typescript
 // 新增记录
@@ -205,10 +209,9 @@ Workspace (工作区)
 2. **导出功能**：支持导出 Excel
 3. **高级搜索**：支持更复杂的查询条件组合
 4. **字段校验**：支持更多的 validation 规则（如邮箱、手机号等）
-5. **权限控制**：支持行级权限控制
-6. **自定义渲染**：支持自定义列渲染（如标签、徽章等）
-7. **图片上传**：支持 `file_upload` widget 类型
-8. **富文本编辑器**：支持富文本内容编辑
+5. **自定义渲染**：支持自定义列渲染（如标签、徽章等）
+6. **图片上传**：支持 `file_upload` widget 类型
+7. **富文本编辑器**：支持富文本内容编辑
 
 ## 💡 注意事项
 
@@ -220,5 +223,5 @@ Workspace (工作区)
 
 ---
 
-**实现完成时间**：2025-10-30  
+**实现完成时间**：2025-10-30
 **实现功能**：Form 函数渲染 + Table 完整 CRUD 功能

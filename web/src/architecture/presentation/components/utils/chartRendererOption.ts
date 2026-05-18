@@ -1,12 +1,35 @@
 import type { EChartsCoreOption } from 'echarts/core'
 import type { Chart, ChartSeries } from '@/architecture/domain/types/chart'
 
+type ChartMetadataValue = string | number | boolean | null | undefined | Record<string, unknown> | unknown[]
+type ChartDataObject = Record<string, unknown> & {
+  name?: string
+  value?: unknown
+}
+type ChartDataItem = string | number | boolean | null | ChartDataObject
+type SeriesConfig = Record<string, unknown>
+type TooltipParam = {
+  axisValue?: string | number
+  name?: string
+  value?: unknown
+  seriesName?: string
+  color?: string
+  percent?: string | number
+}
+type GaugeSeriesOption = SeriesConfig & {
+  name: string
+  type: 'gauge'
+  data: ChartDataObject[]
+  detail: SeriesConfig
+  axisLabel: SeriesConfig
+}
+
 export type RenderableChart = Chart & {
   __placeholder?: boolean
   __placeholderMessage?: string
 }
 
-export function formatChartMetadataValue(value: any): string {
+export function formatChartMetadataValue(value: ChartMetadataValue): string {
   if (value === null || value === undefined) return '-'
   if (typeof value === 'object') {
     return JSON.stringify(value)
@@ -28,7 +51,23 @@ const formatAxisValueLabel = (value: number): string => {
   return value.toString()
 }
 
-const formatSeriesTooltip = (params: any): string => {
+const isChartDataObject = (value: unknown): value is ChartDataObject => {
+  return typeof value === 'object' && value !== null
+}
+
+const formatTooltipValue = (value: unknown): unknown => {
+  if (typeof value === 'number') {
+    return value % 1 === 0 ? value : value.toFixed(2)
+  }
+
+  if (isChartDataObject(value) && value.value !== undefined) {
+    return formatTooltipValue(value.value)
+  }
+
+  return value
+}
+
+const formatSeriesTooltip = (params: TooltipParam | TooltipParam[] | null | undefined): string => {
   if (!params) {
     return '无数据'
   }
@@ -39,10 +78,8 @@ const formatSeriesTooltip = (params: any): string => {
     }
 
     const title = params[0]?.axisValue || params[0]?.name || ''
-    const lines = params.map((param: any) => {
-      const value = typeof param.value === 'number'
-        ? (param.value % 1 === 0 ? param.value : param.value.toFixed(2))
-        : param.value
+    const lines = params.map((param) => {
+      const value = formatTooltipValue(param.value)
       const name = param.seriesName || param.name || ''
       const color = param.color || '#5470c6'
 
@@ -56,9 +93,7 @@ const formatSeriesTooltip = (params: any): string => {
     return `<div style="font-weight: bold; margin-bottom: 8px;">${title}</div>${lines}`
   }
 
-  const value = typeof params.value === 'number'
-    ? (params.value % 1 === 0 ? params.value : params.value.toFixed(2))
-    : params.value
+  const value = formatTooltipValue(params.value)
   const title = params.name || params.axisValue || params.seriesName || ''
   const color = params.color || '#5470c6'
   const name = params.seriesName || '数值'
@@ -103,7 +138,7 @@ const createSeriesId = (chartType: string, series: ChartSeries, index: number): 
   return `${chartType}-${index}-${series.name || 'series'}`
 }
 
-const getSafeSeriesConfig = (config?: Record<string, any>): Record<string, any> => {
+const getSafeSeriesConfig = (config?: SeriesConfig): SeriesConfig => {
   if (!config) {
     return {}
   }
@@ -121,17 +156,17 @@ const hasRenderableSeriesData = (series: ChartSeries, chartType: string): boolea
   switch (chartType) {
     case 'pie':
     case 'gauge':
-      return series.data.some((item: any) => {
+      return series.data.some((item: ChartDataItem) => {
         if (typeof item === 'number') {
           return item !== 0
         }
-        if (typeof item === 'object' && item !== null && 'value' in item) {
-          return Number((item as { value: unknown }).value) !== 0
+        if (isChartDataObject(item) && 'value' in item) {
+          return Number(item.value) !== 0
         }
         return Boolean(item)
       })
     default:
-      return series.data.some((item: any) => Number(item) !== 0 || String(item).trim() !== '')
+      return series.data.some((item: ChartDataItem) => Number(item) !== 0 || String(item).trim() !== '')
   }
 }
 
@@ -151,7 +186,7 @@ const createZeroValueChart = (base?: Partial<RenderableChart> | null): Renderabl
     const pieSeries = Array.isArray(base?.series) && base.series.length > 0
       ? base.series.map((series, index) => {
           const candidateNames = series.data
-            ?.map((item: any) => (typeof item === 'object' && item !== null ? item.name : null))
+            ?.map((item: ChartDataItem) => (isChartDataObject(item) ? item.name : null))
             .filter(Boolean) as string[] | undefined
 
           const pieData = (candidateNames && candidateNames.length > 0 ? candidateNames : ['暂无数据'])
@@ -434,14 +469,8 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
     case 'pie':
       option.tooltip = {
         trigger: 'item',
-        formatter: (params: any) => {
-          const value = typeof params.value === 'number'
-            ? (params.value % 1 === 0 ? params.value : params.value.toFixed(2))
-            : (typeof params.value === 'object' && params.value?.value !== undefined)
-              ? (typeof params.value.value === 'number'
-                ? (params.value.value % 1 === 0 ? params.value.value : params.value.value.toFixed(2))
-                : params.value.value)
-              : params.value
+        formatter: (params: TooltipParam) => {
+          const value = formatTooltipValue(params.value)
           const name = params.name || ''
           const percent = params.percent ? ` (${params.percent}%)` : ''
           return `<div style="font-weight: bold; margin-bottom: 8px;">${name}</div>
@@ -457,8 +486,8 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
         type: 'pie',
         radius: '50%',
         stillShowZeroSum: true,
-        data: series.data.map((item: any) => {
-          if (typeof item === 'object' && item !== null) {
+        data: series.data.map((item: ChartDataItem) => {
+          if (isChartDataObject(item)) {
             return item
           }
           return { value: item }
@@ -501,14 +530,8 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
           fontSize: 13,
           lineHeight: 20
         },
-        formatter: (params: any) => {
-          const value = typeof params.value === 'number'
-            ? (params.value % 1 === 0 ? params.value : params.value.toFixed(2))
-            : (typeof params.value === 'object' && params.value?.value !== undefined)
-              ? (typeof params.value.value === 'number'
-                ? (params.value.value % 1 === 0 ? params.value.value : params.value.value.toFixed(2))
-                : params.value.value)
-              : params.value
+        formatter: (params: TooltipParam) => {
+          const value = formatTooltipValue(params.value)
           const name = params.seriesName || params.name || ''
           return `<div style="font-weight: bold; margin-bottom: 8px;">${name}</div>
             <div style="display: flex; align-items: center;">
@@ -519,19 +542,19 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
       }
       option.series = chart.series.map((series) => {
         const safeConfig = getSafeSeriesConfig(series.config)
-        let gaugeData: any[] = []
+        let gaugeData: ChartDataObject[] = []
         if (series.data.length > 0) {
           const firstItem = series.data[0]
           if (typeof firstItem === 'number') {
             gaugeData = [{ value: firstItem }]
-          } else if (typeof firstItem === 'object' && firstItem !== null) {
+          } else if (isChartDataObject(firstItem)) {
             gaugeData = [firstItem]
           } else {
             gaugeData = [{ value: parseFloat(String(firstItem)) || 0 }]
           }
         }
 
-        const defaultConfig: any = {
+        const defaultConfig: GaugeSeriesOption = {
           name: series.name,
           type: 'gauge',
           data: gaugeData,

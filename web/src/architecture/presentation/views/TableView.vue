@@ -166,7 +166,7 @@
                   :model-value="getSearchValue(field)"
                   :function-method="props.functionDetail.method || 'GET'"
                   :function-router="props.functionDetail.router"
-                  @update:model-value="(value: any) => {
+                  @update:model-value="(value: unknown) => {
                     updateSearchValue(field, value, true)
                   }"
                 />
@@ -411,7 +411,7 @@ const serviceProvider: IServiceProvider = serviceFactory
 const stateManager = serviceProvider.getTableStateManager()
 const domainService = serviceProvider.getTableDomainService()
 const applicationService = serviceProvider.getTableApplicationService()
-const workspaceStateManager = serviceProvider.getWorkspaceStateManager()  // ⭐ 用于获取当前函数节点的权限信息
+const workspaceStateManager = serviceProvider.getWorkspaceStateManager()  // 用于获取当前函数节点上下文
 
 // 🔥 从状态管理器获取状态（统一状态管理）
 const tableData = computed(() => stateManager.getState().data)
@@ -483,7 +483,7 @@ let buildDefaultSortsRef: () => { field: string; order: 'asc' | 'desc' }[] = () 
 
 const { syncToURL } = useTableUrlSync({
   functionDetail: () => props.functionDetail,
-  routeQuery: () => route.query as Record<string, any>,
+  routeQuery: () => route.query,
   stateManager,
   buildDefaultSorts: () => buildDefaultSortsRef()
 })
@@ -593,7 +593,7 @@ const {
   handleCreateSubmit,
   handleCreateDialogClose
 } = useTableCreateActions({
-  routeQuery: () => route.query as Record<string, any>,
+  routeQuery: () => route.query,
   functionDetail: () => props.functionDetail,
   workspaceStateManager,
   applicationService,

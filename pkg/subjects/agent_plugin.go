@@ -4,8 +4,7 @@ import "fmt"
 
 const (
 	// agent / plugin
-	AgentFunctionGenCommandSubject       = "agent.v1.cmd.function-gen"
-	AgentFunctionGenCallbackReplySubject = "agent.v1.reply.function-gen.callback"
+	AgentFunctionGenCommandSubject = "agent.v1.cmd.function-gen"
 )
 
 // BuildAgentMsgSubject 构建 agent 消息主题（用于 MsgSubject 字段）。

@@ -160,9 +160,3 @@ func CallbackOnSelectFuzzy(ctx context.Context, fullCodePath string, body map[st
 	path := buildWorkspaceFunctionPath("/workspace/api/v1/callback/on_select_fuzzy", fullCodePath)
 	return PostAPI[map[string]interface{}, map[string]interface{}](ctx, path, body)
 }
-
-// CopyDirectoryViaWorkspace 通过 workspace API 复制本地目录（agent-server -> app-server）。
-// source_directory_path 为本地完整目录路径；target_directory_path 为目标完整路径；target_app_id 由目标路径所在应用决定。
-func CopyDirectoryViaWorkspace(ctx context.Context, req *dto.CopyDirectoryReq) (*dto.CopyDirectoryResp, error) {
-	return PostAPI[*dto.CopyDirectoryReq, *dto.CopyDirectoryResp](ctx, "/workspace/api/v1/service_tree/copy", req)
-}

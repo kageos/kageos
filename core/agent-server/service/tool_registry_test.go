@@ -8,7 +8,7 @@ import (
 )
 
 func TestAllListedToolsHaveHandlers(t *testing.T) {
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 	defs, err := reg.ListTools(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("ListTools returned error: %v", err)
@@ -30,7 +30,7 @@ func TestAllListedToolsHaveHandlers(t *testing.T) {
 }
 
 func TestRetiredRouterToolsAreNotInMainRegistry(t *testing.T) {
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 	retiredSuffix := "inte" + "nt"
 	for _, name := range []string{"classify_" + retiredSuffix, "handoff_" + retiredSuffix} {
 		if _, ok := reg.tools[name]; ok {
@@ -43,7 +43,7 @@ func TestRetiredRouterToolsAreNotInMainRegistry(t *testing.T) {
 }
 
 func TestModeToolNamesResolveInRegistry(t *testing.T) {
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 
 	defs, err := reg.ListTools(context.Background(), nil)
 	if err != nil {
@@ -70,7 +70,7 @@ func TestModeToolNamesResolveInRegistry(t *testing.T) {
 }
 
 func TestToolSchemasAreWellFormed(t *testing.T) {
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 	defs, err := reg.ListTools(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("ListTools returned error: %v", err)
@@ -102,7 +102,7 @@ func TestToolSchemasAreWellFormed(t *testing.T) {
 }
 
 func TestDerivedSchemasHideCompatFields(t *testing.T) {
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 
 	readDoc := reg.tools["read_doc"].Definition().InputSchema
 	readDocProps := readDoc["properties"].(map[string]interface{})
@@ -124,7 +124,7 @@ func TestDerivedSchemasHideCompatFields(t *testing.T) {
 }
 
 func TestDerivedSchemaNestedArrayItems(t *testing.T) {
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 	schema := reg.tools["search_replace_file"].Definition().InputSchema
 	properties := schema["properties"].(map[string]interface{})
 	replacements := properties["replacements"].(map[string]interface{})
@@ -152,7 +152,7 @@ func TestDerivedSchemaNestedArrayItems(t *testing.T) {
 }
 
 func TestBuiltinToolOutputSchemasAreWellFormed(t *testing.T) {
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 	defs, err := reg.ListTools(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("ListTools returned error: %v", err)
@@ -187,7 +187,7 @@ func TestBuiltinToolOutputSchemasAreWellFormed(t *testing.T) {
 }
 
 func TestReadGoFileOutputSchemaExposesStructuredData(t *testing.T) {
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 	schema := reg.tools["read_go_file"].Definition().OutputSchema
 	properties := schema["properties"].(map[string]interface{})
 	data, ok := properties["data"].(map[string]interface{})
@@ -226,7 +226,7 @@ func TestReadGoFileOutputSchemaExposesStructuredData(t *testing.T) {
 }
 
 func TestReadDirOutputSchemaExposesStructuredData(t *testing.T) {
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 	schema := reg.tools["read_dir"].Definition().OutputSchema
 	properties := schema["properties"].(map[string]interface{})
 	data, ok := properties["data"].(map[string]interface{})

@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - "codex/**"
+
+jobs:
+  governance:
+    name: Governance Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check sensitive file boundaries
+        run: bash scripts/check-sensitive-files.sh
+      - name: Check markdown links
+        run: bash scripts/check-doc-links.sh
+
+  backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test core packages
+        run: bash scripts/test-core-go.sh
+
+  frontend:
+    name: Frontend Checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Check architecture boundaries
+        run: npm run check:architecture
+      - name: Type check
+        run: npm run type-check
+      - name: Unit tests
+        run: npm run test:unit -- --run
+      - name: Build
+        run: npm run build

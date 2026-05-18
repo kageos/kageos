@@ -19,8 +19,7 @@ type StreamLoopDeps interface {
 	// SaveAssistantMessageWithToolCalls 保存带 tool_calls 的 assistant 消息
 	SaveAssistantMessageWithToolCalls(ctx context.Context, content string, toolCalls []llms.ToolCall) error
 	// ExecuteToolCalls 按顺序执行工具、发 tool_call 事件、把每条 tool 结果写入 impl 的 store，返回摘要列表。
-	// currentAssistantContent 为本条 assistant 消息正文，用于解析 <var> 变量并替换工具参数中的 $ 前缀变量引用。
-	ExecuteToolCalls(ctx context.Context, allToolCalls []llms.ToolCall, currentAssistantContent string, sendEvent func(string, interface{})) ([]ToolCallSummary, error)
+	ExecuteToolCalls(ctx context.Context, allToolCalls []llms.ToolCall, sendEvent func(string, interface{})) ([]ToolCallSummary, error)
 	// OnDone 发送 EventDone（payload 含 session_id、agent_id、tool_calls 等，由实现方决定）
 	OnDone(summaries []ToolCallSummary)
 }

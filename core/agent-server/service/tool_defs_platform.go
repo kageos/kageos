@@ -6,6 +6,5 @@ func platformTools(r *ToolRegistry) []Tool {
 		&FetchURLContentTool{},
 		&SearchToolsTool{registry: r},
 		&SearchResourcesTool{},
-		&RecordWorkspaceEventTool{eventRepo: r.eventRepo},
 	}
 }

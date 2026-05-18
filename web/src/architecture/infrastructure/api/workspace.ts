@@ -101,135 +101,13 @@ export interface ListWorkspaceSessionsResp {
   page_size: number
 }
 
-/** 工作台模式项（列表/详情） */
-export interface WorkspaceModeItem {
-  id: number
-  code: string
-  name: string
-  description?: string
-  system_prompt_fragment?: string
-  tool_names?: string[]
-  agent_id?: number | null
-  sort_order: number
-  is_builtin: boolean
-}
-
-/** 工作台模式列表响应 */
-export interface ListWorkspaceModesResp {
-  list: WorkspaceModeItem[]
-  total: number
-  page: number
-  page_size: number
-}
-
-/**
- * 获取工作台模式列表（供下拉选择或管理页）
- */
-export async function getWorkspaceModes(params?: { page?: number; page_size?: number }): Promise<ListWorkspaceModesResp> {
-  return get<ListWorkspaceModesResp>('/agent/api/v1/workspace/modes', params || {})
-}
-
-/** 创建工作台模式请求 */
-export interface CreateWorkspaceModeReq {
-  code: string
-  name: string
-  description?: string
-  system_prompt_fragment?: string
-  tool_names?: string[]
-  agent_id?: number | null
-  sort_order?: number
-}
-
-/** 更新工作台模式请求 */
-export interface UpdateWorkspaceModeReq {
-  name?: string
-  description?: string
-  system_prompt_fragment?: string
-  tool_names?: string[]
-  agent_id?: number | null
-  sort_order?: number
-}
-
-/** 获取工作台工具名列表响应（供模式配置多选） */
-export interface ListWorkspaceToolNamesResp {
-  names: string[]
-}
-
-/** 工作台工具定义（list_tools 返回） */
-export interface WorkspaceToolDef {
-  name: string
-  description?: string
-  input_schema?: Record<string, unknown>
-  output_schema?: Record<string, unknown>
-}
-
-/** 工作台工具列表响应 */
-export interface ListWorkspaceToolsResp {
-  tools: WorkspaceToolDef[]
-}
-
-/** 获取工作台工具列表（完整定义，供管理页右侧展示） */
-export async function getWorkspaceTools(): Promise<WorkspaceToolDef[]> {
-  const o = await get<ListWorkspaceToolsResp>('/agent/api/v1/workspace/tools')
-  return o?.tools ?? []
-}
-
-export interface WorkspaceCallToolReq {
-  full_code_path: string
-  tool_name: string
-  arguments?: Record<string, unknown>
-}
-
 export interface ToolResultMetadata {
   display_file_fields?: string[]
-}
-
-export interface WorkspaceCallToolResp {
-  content: string
-  is_error: boolean
-  data?: unknown
-  metadata?: ToolResultMetadata
-}
-
-/** 直接执行单个工作台工具（用于推荐动作、推荐阅读等快捷操作） */
-export async function callWorkspaceTool(req: WorkspaceCallToolReq): Promise<WorkspaceCallToolResp> {
-  return post<WorkspaceCallToolResp>('/agent/api/v1/workspace/call_tool', req)
 }
 
 /** 创建阶段交接会话：旧会话保留展示，新会话只携带结构化产物进入目标阶段 */
 export async function createWorkspaceHandoff(req: WorkspaceHandoffReq): Promise<WorkspaceHandoffResp> {
   return post<WorkspaceHandoffResp>('/agent/api/v1/workspace/sessions/handoff', req)
-}
-
-/** 获取工作台模式详情（按 id） */
-export async function getWorkspaceMode(id: number): Promise<WorkspaceModeItem> {
-  return get<WorkspaceModeItem>(`/agent/api/v1/workspace/modes/${id}`)
-}
-
-/** 按 code 获取工作台模式 */
-export async function getWorkspaceModeByCode(code: string): Promise<WorkspaceModeItem> {
-  return get<WorkspaceModeItem>('/agent/api/v1/workspace/modes/by-code', { code })
-}
-
-/** 创建工作台模式 */
-export async function createWorkspaceMode(req: CreateWorkspaceModeReq): Promise<WorkspaceModeItem> {
-  return post<WorkspaceModeItem>('/agent/api/v1/workspace/modes', req)
-}
-
-/** 更新工作台模式 */
-export async function updateWorkspaceMode(id: number, req: UpdateWorkspaceModeReq): Promise<WorkspaceModeItem> {
-  return put<WorkspaceModeItem>(`/agent/api/v1/workspace/modes/${id}`, req)
-}
-
-/** 删除工作台模式（内置不可删） */
-export async function deleteWorkspaceMode(id: number): Promise<void> {
-  await del(`/agent/api/v1/workspace/modes/${id}`)
-}
-
-/** 获取工作台工具名列表（供模式配置时多选） */
-export async function listWorkspaceToolNames(): Promise<string[]> {
-  const o = await get<ListWorkspaceToolNamesResp>('/agent/api/v1/workspace/tools/names')
-  return o?.names ?? []
 }
 
 /** 流式事件回调：event 为 session|agent_id|tool_call|content|done|error，data 为对应负载 */
