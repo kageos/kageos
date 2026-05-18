@@ -11,7 +11,7 @@ import (
 )
 
 func TestWritePRDToolReturnsV2StructuredPreview(t *testing.T) {
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 	result := reg.CallTool(context.Background(), "write_prd", validNPSPRDArgs(), "/liubeiluo/ccc", "")
 	if result.IsError {
 		t.Fatalf("write_prd returned error: %s", result.Content)
@@ -54,7 +54,7 @@ func TestWritePRDToolReturnsV2StructuredPreview(t *testing.T) {
 }
 
 func TestWritePRDToolRejectsLegacyPRDShape(t *testing.T) {
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 	result := reg.CallTool(context.Background(), "write_prd", map[string]interface{}{
 		"project": map[string]interface{}{
 			"name":    "工单管理",
@@ -84,7 +84,7 @@ func TestWritePRDToolRejectsLegacyPRDShape(t *testing.T) {
 }
 
 func TestWritePRDToolRejectsWidgetTagsAndInvalidExamples(t *testing.T) {
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 	args := validNPSPRDArgs()
 	tables := args["tables"].([]map[string]interface{})
 	tables[0]["columns"] = []string{"问卷标题"}
@@ -118,7 +118,7 @@ func TestWritePRDToolRejectsWidgetTagsAndInvalidExamples(t *testing.T) {
 }
 
 func TestWritePRDToolRejectsInvalidReferences(t *testing.T) {
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 	args := validNPSPRDArgs()
 	forms := args["forms"].([]map[string]interface{})
 	forms[0]["target_table"] = "不存在的表"
@@ -145,7 +145,7 @@ func TestWritePRDToolRejectsInvalidReferences(t *testing.T) {
 }
 
 func TestWritePRDToolRejectsUnhelpfulWorkflowOrder(t *testing.T) {
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 	args := validNPSPRDArgs()
 	args["workflow"] = []map[string]interface{}{
 		{"type": "table", "ref": "NPS问卷"},
@@ -170,7 +170,7 @@ func TestWritePRDToolRejectsUnhelpfulWorkflowOrder(t *testing.T) {
 }
 
 func TestWritePRDToolAcceptsNestedChartExamplesAndNormalizes(t *testing.T) {
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 	args := validNPSPRDArgs()
 	charts := args["charts"].([]map[string]interface{})
 	charts[0]["dimension"] = "日期（按天/周/月）"
@@ -243,7 +243,7 @@ func TestWritePRDToolAcceptsNestedChartExamplesAndNormalizes(t *testing.T) {
 }
 
 func TestWritePRDToolAllowsFormWithoutResponseFields(t *testing.T) {
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 	args := validNPSPRDArgs()
 	forms := args["forms"].([]map[string]interface{})
 	forms[0]["response_fields"] = []map[string]interface{}{}
@@ -257,7 +257,7 @@ func TestWritePRDToolAllowsFormWithoutResponseFields(t *testing.T) {
 }
 
 func TestWritePRDToolAllowsFormOnlyProcessingPRD(t *testing.T) {
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 	result := reg.CallTool(context.Background(), "write_prd", map[string]interface{}{
 		"project": map[string]interface{}{
 			"name":    "PDF 工具",
@@ -291,7 +291,7 @@ func TestWritePRDToolAllowsFormOnlyProcessingPRD(t *testing.T) {
 
 func TestWritePRDCaseCatalogJSONFilesAreValidV2(t *testing.T) {
 	root := filepath.Join("..", "prompt", "system", "prompt", "case_catalog")
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 	var checked int
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -324,7 +324,7 @@ func TestWritePRDCaseCatalogJSONFilesAreValidV2(t *testing.T) {
 }
 
 func TestWritePRDToolSchemaExposesV2Shape(t *testing.T) {
-	reg := NewToolRegistry(nil)
+	reg := NewToolRegistry()
 	def := reg.tools["write_prd"].Definition()
 	if def.Name != "write_prd" {
 		t.Fatalf("tool name = %q", def.Name)

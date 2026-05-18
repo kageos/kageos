@@ -1,5 +1,9 @@
 # AI Agent OS 部署分层模型
 
+> 状态：执行口径
+> 更新时间：2026-05-17
+> 负责人窗口：事项 5 / codex/local-dev-onboarding
+
 这份文档定义生产部署的官方心智模型。后续排障、文档、`aosctl status`、`aosctl verify` 都按这套分层表达，不再只按容器名平铺描述。
 
 常用入口：

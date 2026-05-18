@@ -33,8 +33,7 @@ const GENERATED_ARTIFACT_TOOL_NAMES = new Set([
   'build_workspace',
   'write_go_file',
   'write_doc',
-  'create_directory',
-  'copy_directory'
+  'create_directory'
 ])
 
 const ARTIFACT_IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'avif'])

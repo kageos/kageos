@@ -106,16 +106,16 @@
 
 | 文件 | 建议 | 理由 |
 | --- | --- | --- |
-| `Agent工作流流程图.md` | Move/Archive | 根目录历史材料，需判断是否仍匹配当前工作台状态机 |
-| `项目介绍.md` | Merge/Archive | 与根 `README.md` 内容重叠，适合作为 README 重写素材 |
-| `项目架构.md` | Merge/Archive | 与 `README.md`、`docs/deployment-layers.md`、架构 README 重叠 |
-| `docs/工作台角色状态机重构方案.md` | Archive | 方案型历史文档，若已落地应归档 |
-| `docs/工作台单Dev模式与角色切换架构设计.md` | Merge/Archive | 与“工作台最新设计”重叠 |
-| `docs/工作台最新设计.md` | Keep/Rewrite | 若当前实现仍一致，改成唯一工作台设计入口 |
-| `web/ARCHITECTURE_ANALYSIS.md` | Archive | 分析型历史文档，当前入口应是 `web/src/architecture/README.md` |
-| `web/THEME_COMPARISON_REPORT.md`、`web/THEME_FIX_SUMMARY.md`、`web/COLOR_ANALYSIS.md` | Archive/Delete | 主题阶段性材料，不适合开源入口 |
-| `web/FORM_TABLE_IMPLEMENTATION.md`、`web/UPLOAD_PROGRESS.md` | Merge/Archive | 如果内容仍有效，应迁到模块文档或合并到架构说明 |
-| `web/todos.md` | Merge/Delete | 后续统一迁入 `docs/governance/OPEN_SOURCE_TODO.md` |
+| `Agent工作流流程图.md` | 已归档 | 移至 `docs/archive/Agent工作流流程图.md`，当前入口以 `docs/工作台最新设计.md` 为准 |
+| `项目介绍.md` | 已归档 | 移至 `docs/archive/项目介绍.md`，作为 README 重写素材 |
+| `项目架构.md` | 已归档 | 移至 `docs/archive/项目架构.md`，作为架构入口重写素材 |
+| `docs/工作台角色状态机重构方案.md` | Keep/Review | 已恢复原位，避免当前工作台设计入口断链；后续可单独判断是否并入 `docs/工作台最新设计.md` |
+| `docs/工作台单Dev模式与角色切换架构设计.md` | Keep/Review | 已恢复原位，避免当前工作台设计入口断链；后续可单独判断是否并入 `docs/工作台最新设计.md` |
+| `docs/工作台最新设计.md` | 已保留 | 作为唯一工作台设计入口，并已纳入 `docs/README.md` |
+| `web/ARCHITECTURE_ANALYSIS.md` | 已归档 | 移至 `docs/archive/web-ARCHITECTURE_ANALYSIS.md`，当前入口以 `web/src/architecture/README.md` 为准 |
+| `web/THEME_COMPARISON_REPORT.md`、`web/THEME_FIX_SUMMARY.md`、`web/COLOR_ANALYSIS.md` | 已归档 | 移至 `docs/archive/`，不再作为开源入口 |
+| `web/FORM_TABLE_IMPLEMENTATION.md`、`web/UPLOAD_PROGRESS.md` | Keep/Review | 已恢复原位；后续如仍有效再合并到模块文档 |
+| `web/todos.md` | 已归档 | 移至 `docs/archive/web-todos.md`，后续治理统一以 `docs/governance/OPEN_SOURCE_TODO.md` 为准 |
 
 ### 4.3 暂不处理，先确认边界
 
@@ -150,4 +150,3 @@
 3. 删除历史文档必须在 PR/提交说明中列出理由。
 4. 如果两个窗口都要动根 `README.md`，先由文档治理窗口合并，避免互相覆盖。
 5. 模块文档由模块窗口改，治理窗口只改入口和规则。
-

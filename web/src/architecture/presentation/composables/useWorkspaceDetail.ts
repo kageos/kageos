@@ -69,14 +69,14 @@
 
 import { ref, computed } from 'vue'
 import { deepClone } from '@/architecture/shared/clone'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, type LocationQuery } from 'vue-router'
 import { ElNotification, ElMessage } from 'element-plus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { eventBus, RouteEvent, TableEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import FormView from '@/architecture/presentation/views/FormView.vue'
-import type { FieldConfig, FieldValue, FunctionDetail } from '../../domain/types'
+import type { FieldConfig, FieldValue, FunctionDetail, UserInfo } from '../../domain/types'
 import { useUserInfoStore } from '@/architecture/presentation/context/appStoresContext'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
 import {
@@ -92,10 +92,19 @@ import {
 } from './utils/workspaceDetailRuntime'
 import { getFunctionCallbacks, getTableDetailFields, getTableRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
+type DetailRow = Record<string, unknown> & {
+  id?: unknown
+  _id?: unknown
+}
+
+const isDetailRowId = (value: unknown): value is string | number => {
+  return typeof value === 'string' || typeof value === 'number'
+}
+
 export function useWorkspaceDetail(
   options: {
     currentFunctionDetail: () => FunctionDetail | null
-    currentFunction: () => any
+    currentFunction: () => unknown
   },
   serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性
 ) {
@@ -109,14 +118,14 @@ export function useWorkspaceDetail(
   // 详情抽屉状态
   const detailDrawerVisible = ref(false)
   const detailDrawerTitle = ref('详情')
-  const detailRowData = ref<Record<string, any> | null>(null)
+  const detailRowData = ref<DetailRow | null>(null)
   const detailFields = ref<FieldConfig[]>([])
-  const detailOriginalRow = ref<Record<string, any> | null>(null)
+  const detailOriginalRow = ref<DetailRow | null>(null)
   const detailDrawerMode = ref<'read' | 'edit'>('read')
   const drawerSubmitting = ref(false)
   const detailFormViewRef = ref<InstanceType<typeof FormView> | null>(null)
-  const detailUserInfoMap = ref<Map<string, any>>(new Map())
-  const detailTableData = ref<any[]>([])
+  const detailUserInfoMap = ref<Map<string, UserInfo>>(new Map())
+  const detailTableData = ref<DetailRow[]>([])
   const currentDetailIndex = ref<number>(-1)
 
   // 编辑模式的函数详情（从 response 字段中筛选可编辑的字段）
@@ -137,18 +146,18 @@ export function useWorkspaceDetail(
       .map(field => field.code)
 
     return buildDetailBaseQueryHelper({
-      query: route.query as Record<string, any>,
+      query: route.query,
       editableFieldCodes: getEditableFieldCodes(),
       preserveRawFieldCodes: requestFieldCodes
     })
   }
 
   let pendingDetailRestoreKey: string | null = null
-  let pendingDetailRestoreQuery: Record<string, any> | null = null
+  let pendingDetailRestoreQuery: LocationQuery | null = null
   let latestDetailRestoreToken = 0
   let inFlightDetailLookupKey: string | null = null
 
-  const setPendingDetailRestore = (query: Record<string, any>) => {
+  const setPendingDetailRestore = (query: LocationQuery) => {
     const request = resolveDetailRouteRequest(query)
     const nextKey = request?.key ?? null
 
@@ -167,7 +176,7 @@ export function useWorkspaceDetail(
     pendingDetailRestoreQuery = null
   }
 
-  const closeDetailDrawerForRoute = (query: Record<string, any>): void => {
+  const closeDetailDrawerForRoute = (query: LocationQuery): void => {
     const hasDetailRouteState = query._tab === 'detail' || query._id !== undefined
     if (!hasDetailRouteState) {
       detailDrawerVisible.value = false
@@ -176,9 +185,9 @@ export function useWorkspaceDetail(
   }
 
   const resolveDetailIndex = (
-    row: Record<string, any>,
+    row: DetailRow,
     fields: FieldConfig[],
-    tableData: Record<string, any>[],
+    tableData: DetailRow[],
     explicitIndex?: number
   ): number => {
     if (typeof explicitIndex === 'number' && explicitIndex >= 0) {
@@ -192,13 +201,13 @@ export function useWorkspaceDetail(
 
     const idField = fields.find(field => field.code === 'id' || field.widget?.type === 'number')
     if (idField && row[idField.code] !== undefined && row[idField.code] !== null) {
-      return tableData.findIndex((candidate: Record<string, any>) => candidate[idField.code] === row[idField.code])
+      return tableData.findIndex((candidate) => candidate[idField.code] === row[idField.code])
     }
 
-    return tableData.findIndex((candidate: Record<string, any>) => JSON.stringify(candidate) === JSON.stringify(row))
+    return tableData.findIndex((candidate) => JSON.stringify(candidate) === JSON.stringify(row))
   }
 
-  const preloadDetailUserInfo = async (fields: FieldConfig[], row: Record<string, any>): Promise<void> => {
+  const preloadDetailUserInfo = async (fields: FieldConfig[], row: DetailRow): Promise<void> => {
     const userFields = fields.filter(field => field.widget?.type === 'user')
     if (userFields.length === 0) {
       detailUserInfoMap.value = new Map()
@@ -227,7 +236,7 @@ export function useWorkspaceDetail(
 
     try {
       const users = await userInfoStore.batchGetUserInfo([...new Set(usernames)])
-      const map = new Map<string, any>()
+      const map = new Map<string, UserInfo>()
       users.forEach(user => {
         map.set(user.username, user)
       })
@@ -239,8 +248,8 @@ export function useWorkspaceDetail(
 
   const applyDetailDrawerState = (options: {
     detail: FunctionDetail
-    row: Record<string, any>
-    tableData: Record<string, any>[]
+    row: DetailRow
+    tableData: DetailRow[]
     mode?: 'read' | 'edit'
     index?: number
   }): void => {
@@ -320,6 +329,7 @@ export function useWorkspaceDetail(
 
     currentDetailIndex.value = newIndex
     const row = detailTableData.value[newIndex]
+    if (!row) return
     detailRowData.value = row
     detailOriginalRow.value = deepClone(row)
     detailDrawerMode.value = 'read'  // 切换记录时，重置为查看模式
@@ -342,6 +352,12 @@ export function useWorkspaceDetail(
       ElMessage.warning('当前表格不支持更新')
       return
     }
+
+    const detailId = detailRowData.value.id
+    if (!isDetailRowId(detailId)) {
+      ElMessage.error('详情记录缺少有效 ID')
+      return
+    }
     
     try {
       drawerSubmitting.value = true
@@ -354,7 +370,7 @@ export function useWorkspaceDetail(
       
       const updatedRow = await tableApplicationService.updateRow(
         currentDetail,
-        detailRowData.value.id,
+        detailId,
         submitData,
         oldValues
       )
@@ -385,11 +401,15 @@ export function useWorkspaceDetail(
         detailDrawerMode.value = 'read'
         detailDrawerVisible.value = false
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const responseMessage = typeof error === 'object' && error !== null && 'response' in error
+        ? (error as { response?: { data?: { msg?: string } } }).response?.data?.msg
+        : undefined
+      const errorMessage = error instanceof Error ? error.message : undefined
       ElNotification.error({
         title: '错误',
         // 🔥 统一使用 msg 字段
-        message: error?.response?.data?.msg || error?.message || '更新失败'
+        message: responseMessage || errorMessage || '更新失败'
       })
     } finally {
       drawerSubmitting.value = false
@@ -406,7 +426,7 @@ export function useWorkspaceDetail(
     if (!Array.isArray(tableData)) {
       return
     }
-    const updatedRow = tableData.find((row: any) => String(row.id) === String(currentId))
+    const updatedRow = tableData.find((row) => String(row.id) === String(currentId))
     if (updatedRow) {
       detailRowData.value = { ...updatedRow }
       detailOriginalRow.value = deepClone(updatedRow)
@@ -444,9 +464,9 @@ export function useWorkspaceDetail(
   // 打开详情抽屉（从表格行点击）；initialMode 为 'edit' 时直接进入编辑模式（用于「更新」）
   // 列表的 row + tableData 直接当 props 用，同步设 refs 并打开抽屉；URL 同步更新（仅 _tab/_id 变化不会触发表格重载）
   const openDetailDrawer = (
-    row: Record<string, any>,
+    row: DetailRow,
     index?: number,
-    tableData?: any[],
+    tableData?: DetailRow[],
     initialMode: 'read' | 'edit' = 'read'
   ) => {
     const currentDetail = options.currentFunctionDetail()
@@ -481,7 +501,7 @@ export function useWorkspaceDetail(
   }
 
   const restoreDetailFromQuery = async (
-    rawQuery: Record<string, any>,
+    rawQuery: LocationQuery,
     trigger: DetailRestoreTrigger,
     detailOverride?: FunctionDetail | null
   ): Promise<void> => {
@@ -584,7 +604,7 @@ export function useWorkspaceDetail(
   // 🔥 阶段4：改为监听 RouteEvent.queryChanged 事件，而不是直接 watch route.query
   // 这样可以避免程序触发的路由更新导致循环
   const setupUrlWatch = (): (() => void) => {
-    const unsubscribeQueryChanged = eventBus.on(RouteEvent.queryChanged, async (payload: { query: any, oldQuery: any, source: string }) => {
+    const unsubscribeQueryChanged = eventBus.on(RouteEvent.queryChanged, async (payload: { query: LocationQuery, oldQuery: LocationQuery, source: string }) => {
       // 🔥 只处理用户操作（浏览器前进/后退）或外部变化，不处理程序触发的更新
       if (payload.source === 'router-change') {
         await restoreDetailFromQuery(payload.query || {}, 'route-change')
@@ -607,7 +627,7 @@ export function useWorkspaceDetail(
       await restoreDetailFromQuery(pendingDetailRestoreQuery, 'table-data-loaded')
     })
 
-    void restoreDetailFromQuery(route.query as Record<string, any>, 'setup')
+    void restoreDetailFromQuery(route.query, 'setup')
 
     return () => {
       unsubscribeQueryChanged()

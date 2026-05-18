@@ -5,22 +5,19 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 )
 
 // ToolRegistry 工作台工具注册与调用（仅内置工具，已移除插件）
 type ToolRegistry struct {
-	eventRepo *repository.WorkspaceEventRepository
 	tools     map[string]Tool
 	toolOrder []string
 }
 
-// NewToolRegistry 创建 ToolRegistry（eventRepo 可为 nil，则 record_workspace_event 仅打日志不落库）
-func NewToolRegistry(eventRepo *repository.WorkspaceEventRepository) *ToolRegistry {
+// NewToolRegistry 创建 ToolRegistry。
+func NewToolRegistry() *ToolRegistry {
 	r := &ToolRegistry{
-		eventRepo: eventRepo,
-		tools:     make(map[string]Tool, 32),
+		tools: make(map[string]Tool, 32),
 	}
 	r.registerBuiltinTools()
 	return r

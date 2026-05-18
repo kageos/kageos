@@ -20,7 +20,6 @@
     "read_app_log",
     "build_workspace",
     "create_directory",
-    "record_workspace_event",
     "run_table_search",
     "run_table_create",
     "run_table_update",

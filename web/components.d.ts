@@ -129,7 +129,6 @@ declare module 'vue' {
     WorkspaceFunctionTabsPanel: typeof import('./src/architecture/presentation/components/WorkspaceFunctionTabsPanel.vue')['default']
     WorkspaceHeader: typeof import('./src/architecture/presentation/components/WorkspaceHeader.vue')['default']
     WorkspaceListDialog: typeof import('./src/architecture/presentation/shared/components/WorkspaceListDialog.vue')['default']
-    WorkstationModeManagement: typeof import('./src/architecture/presentation/components/WorkstationModeManagement.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']
@@ -255,5 +254,4 @@ declare global {
   const WorkspaceFunctionTabsPanel: typeof import('./src/architecture/presentation/components/WorkspaceFunctionTabsPanel.vue')['default']
   const WorkspaceHeader: typeof import('./src/architecture/presentation/components/WorkspaceHeader.vue')['default']
   const WorkspaceListDialog: typeof import('./src/architecture/presentation/shared/components/WorkspaceListDialog.vue')['default']
-  const WorkstationModeManagement: typeof import('./src/architecture/presentation/components/WorkstationModeManagement.vue')['default']
 }

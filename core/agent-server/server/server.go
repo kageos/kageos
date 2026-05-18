@@ -178,7 +178,6 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.llmRepo = repository.NewLLMRepository(s.db)
 	sessionRepo := repository.NewChatSessionRepository(s.db)
 	messageRepo := repository.NewChatMessageRepository(s.db)
-	workspaceEventRepo := repository.NewWorkspaceEventRepository(s.db)
 	s.sessionRepo = sessionRepo
 	s.messageRepo = messageRepo
 
@@ -190,7 +189,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.runtimeStateStore = service.NewInMemoryRuntimeStateStore()
 
 	// 智能工作台 ToolRegistry、WorkspaceChatService（只认 LLM，单模式；已移除插件）
-	s.toolRegistry = service.NewToolRegistry(workspaceEventRepo)
+	s.toolRegistry = service.NewToolRegistry()
 	s.workspaceChatService = service.NewWorkspaceChatService(s.toolRegistry, sessionRepo, messageRepo, s.llmRepo, s.runtimeStateStore)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")

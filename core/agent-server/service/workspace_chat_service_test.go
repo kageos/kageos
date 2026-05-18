@@ -59,16 +59,13 @@ func TestGuideDocPathsFromReadDocArgsSupportsCommaSeparatedPaths(t *testing.T) {
 	}
 }
 
-func TestWithAgentToolExecutionContextMarksSourceAndSession(t *testing.T) {
+func TestWithAgentToolExecutionContextMarksSource(t *testing.T) {
 	base := contextx.WithClientSource(context.Background(), "browser")
 
 	ctx := withAgentToolExecutionContext(base, "session-1")
 
 	if got := contextx.GetClientSource(ctx); got != "agent" {
 		t.Fatalf("client source = %q, want agent", got)
-	}
-	if got := getWorkspaceSessionID(ctx); got != "session-1" {
-		t.Fatalf("session id = %q, want session-1", got)
 	}
 }
 
@@ -386,7 +383,7 @@ func TestExecuteToolCallsPersistsRoleAfterChangeRole(t *testing.T) {
 		t.Fatalf("create session: %v", err)
 	}
 	svc := &WorkspaceChatService{
-		toolReg:     NewToolRegistry(nil),
+		toolReg:     NewToolRegistry(),
 		sessionRepo: sessionRepo,
 		messageRepo: messageRepo,
 	}
@@ -394,7 +391,7 @@ func TestExecuteToolCallsPersistsRoleAfterChangeRole(t *testing.T) {
 	call.Function.Name = "change_role"
 	call.Function.Arguments = `{"target_role":"product_manager","user_input":"帮我做个系统"}`
 
-	summaries, err := svc.executeToolCalls(context.Background(), []llms.ToolCall{call}, "", "role-session", "/liubeiluo/demo", nil, "tester", "", nil, func(string, interface{}) {})
+	summaries, err := svc.executeToolCalls(context.Background(), []llms.ToolCall{call}, "role-session", "/liubeiluo/demo", nil, "tester", "", func(string, interface{}) {})
 	if err != nil {
 		t.Fatalf("execute tool calls: %v", err)
 	}

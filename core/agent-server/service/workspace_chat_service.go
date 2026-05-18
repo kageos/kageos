@@ -607,8 +607,7 @@ func workspaceToolCallHasGeneratedOutput(summary streamloop.ToolCallSummary) boo
 		"build_workspace",
 		"write_go_file",
 		"write_doc",
-		"create_directory",
-		"copy_directory":
+		"create_directory":
 		return true
 	}
 	if summary.Metadata != nil && len(summary.Metadata.DisplayFileFields) > 0 {
@@ -1196,12 +1195,10 @@ func buildWorkspaceHandoffContent(input workspaceHandoffContentInput) string {
 func (s *WorkspaceChatService) executeToolCalls(
 	ctx context.Context,
 	allToolCalls []llms.ToolCall,
-	_ string, // currentAssistantContent 保留参数以兼容调用方，已不再用于 <var> 解析
 	sessionID, fullCodePath string,
 	agentIDPtr *int64,
 	user string,
 	files string,
-	_ []string,
 	sendEvent func(string, interface{}),
 ) ([]dto.WorkspaceChatToolCallSummary, error) {
 	ctx = withAgentToolExecutionContext(ctx, sessionID)
@@ -1271,8 +1268,7 @@ func withAgentToolExecutionContext(ctx context.Context, sessionID string) contex
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	// 注入 session_id 供 record_workspace_event 等工具追溯，同时统一标记 agent 工具入口来源。
-	ctx = context.WithValue(ctx, WorkspaceSessionIDKey, sessionID)
+	_ = sessionID
 	return withAgentToolClientSource(ctx)
 }
 

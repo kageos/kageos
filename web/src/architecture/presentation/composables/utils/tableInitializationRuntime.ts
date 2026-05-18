@@ -1,7 +1,11 @@
 import type { TableState } from '@/architecture/domain/types'
 
+type TableRouteQueryValue = string | number | boolean | null | undefined
+export type TableRouteQuery = Record<string, TableRouteQueryValue | TableRouteQueryValue[]>
+export type TableSearchForm = Record<string, unknown>
+
 export interface RestoredTableURLState {
-  searchForm: Record<string, any>
+  searchForm: TableSearchForm
   sorts: Array<{ field: string; order: 'asc' | 'desc' }>
   pagination: { page: number; pageSize: number }
 }
@@ -10,8 +14,8 @@ export type TableRestoreStrategy = 'restore-from-url' | 'sync-tab-state'
 
 export interface DecideTableRestoreStrategyOptions {
   pathMatches: boolean
-  query: Record<string, any>
-  searchForm: Record<string, any>
+  query: TableRouteQuery
+  searchForm: TableSearchForm
   isLinkNavigation: boolean
 }
 
@@ -22,12 +26,12 @@ export interface TableRouteReloadGuardOptions {
   isSyncingToURL: boolean
   isRestoringFromURL: boolean
   isInitializing: boolean
-  newQuery: Record<string, any>
-  oldQuery: Record<string, any>
+  newQuery: TableRouteQuery
+  oldQuery: TableRouteQuery
 }
 
 export function normalizeTableRouteQuery(
-  query: Record<string, any>
+  query: TableRouteQuery
 ): Record<string, string | string[]> {
   const normalized: Record<string, string | string[]> = {}
 
@@ -109,7 +113,7 @@ export function decideTableRestoreStrategy(
 }
 
 export function shouldSyncTableURLAfterRestore(options: {
-  query: Record<string, any>
+  query: TableRouteQuery
   isLinkNavigation: boolean
   shouldSyncPageSize?: boolean
 }): boolean {
@@ -120,15 +124,15 @@ export function shouldSyncTableURLAfterRestore(options: {
   return !options.isLinkNavigation && !hasPaginationParams
 }
 
-export function isDetailViewQuery(query: Record<string, any>): boolean {
+export function isDetailViewQuery(query: TableRouteQuery): boolean {
   return !!(query && query._tab === 'detail' && query._id)
 }
 
 export function isOnlyDetailParamsChanged(
-  oldQuery: Record<string, any>,
-  newQuery: Record<string, any>
+  oldQuery: TableRouteQuery,
+  newQuery: TableRouteQuery
 ): boolean {
-  const omitDetailParams = (value: Record<string, any>) => {
+  const omitDetailParams = (value: TableRouteQuery) => {
     const nextValue = { ...(value || {}) }
     delete nextValue._tab
     delete nextValue._id

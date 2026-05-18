@@ -65,7 +65,6 @@ type AddFunctionsReq struct {
 	// 处理后的结构化数据（agent-server 处理后的结果）
 	FileName   string `json:"file_name" example:"crm_ticket"`   // 从代码中提取的文件名（可带 .go 后缀）
 	SourceCode string `json:"source_code" example:"package..."` // 处理后的源代码（从 Markdown 中提取）
-	Async      bool   `json:"async" example:"false"`            // 是否异步处理（true: 异步，通过回调通知；false: 同步，直接返回结果）
 	// SkipBuild 为 true 时仅写文件不编译不部署（对应 write_go_file 的 build_workspace=false）
 	SkipBuild bool `json:"skip_build,omitempty"`
 }
@@ -82,12 +81,6 @@ type AddFunctionsResp struct {
 	BuildDiffAdd    []string `json:"build_diff_add,omitempty"`    // 新增的接口/路由（如 task）
 	BuildDiffUpdate []string `json:"build_diff_update,omitempty"` // 变更的接口/路由
 	BuildDiffDelete []string `json:"build_diff_delete,omitempty"` // 删除的接口/路由
-}
-
-// AddFunctionsAsyncResp 添加函数响应（异步模式返回）
-type AddFunctionsAsyncResp struct {
-	RecordID int64  `json:"record_id" example:"7"`              // 生成记录ID
-	Message  string `json:"message" example:"函数添加请求已接收，正在异步处理"` // 提示消息
 }
 
 // PluginRunReq 插件执行请求
@@ -162,17 +155,6 @@ type ChatMessageInfo struct {
 // ChatMessageListResp 获取消息列表响应
 type ChatMessageListResp struct {
 	Messages []ChatMessageInfo `json:"messages"` // 消息列表（按创建时间升序）
-}
-
-// FunctionGenCallback 函数生成回调（app-server -> agent-server）
-type FunctionGenCallback struct {
-	RecordID      int64    `json:"record_id"`                                                    // 生成记录ID
-	MessageID     int64    `json:"message_id"`                                                   // 消息ID
-	Success       bool     `json:"success"`                                                      // 是否成功
-	FullCodePaths []string `json:"full_code_paths,omitempty" example:"[\"/user/app/function\"]"` // 生成的函数完整代码路径列表
-	AppID         int64    `json:"app_id"`                                                       // 应用ID
-	AppCode       string   `json:"app_code"`                                                     // 应用代码（冗余存储，提高查询效率）
-	Error         string   `json:"error,omitempty"`                                              // 错误信息（如果失败）
 }
 
 // FunctionGenStatusReq 查询代码生成状态请求

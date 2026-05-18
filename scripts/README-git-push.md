@@ -1,5 +1,9 @@
 # Git 一键提交脚本使用说明
 
+> 状态：执行口径
+> 更新时间：2026-05-17
+> 负责人窗口：事项 10 / codex/docs-link-check
+
 ## 📋 概述
 
 提供了两个 Git 提交脚本，用于一键提交代码到 GitHub 和 Gitee：
@@ -233,4 +237,4 @@ git remote add gitee https://gitee.com/your-org/your-repo.git
 
 ## 🔗 相关文档
 
-- [项目总蓝图](../../README.md)
+- [项目总蓝图](../README.md)

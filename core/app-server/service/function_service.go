@@ -29,7 +29,7 @@ func NewFunctionService(
 	}
 }
 
-// GetFunctionByID 根据函数ID获取函数模型（用于权限检查等）
+// GetFunctionByID 根据函数 ID 获取函数模型。
 func (f *FunctionService) GetFunctionByID(ctx context.Context, functionID int64) (*model.Function, error) {
 	function, err := f.functionRepo.GetFunctionByID(functionID)
 	if err != nil {
@@ -41,8 +41,8 @@ func (f *FunctionService) GetFunctionByID(ctx context.Context, functionID int64)
 	return function, nil
 }
 
-// GetFunctionByFullCodePath 根据 full-code-path 获取函数详情
-// ⭐ 注意：权限信息在 API Handler 中查询并添加到响应中，这里只返回基础信息
+// GetFunctionByFullCodePath 根据 full-code-path 获取函数详情。
+// 这里只返回函数基础信息，调用方负责组合页面所需的上下文。
 func (f *FunctionService) GetFunctionByFullCodePath(ctx context.Context, fullCodePath string) (*dto.GetFunctionResp, error) {
 	// 从数据库获取函数信息
 	function, err := f.functionRepo.GetFunctionByFullCodePath(fullCodePath)
@@ -56,8 +56,8 @@ func (f *FunctionService) GetFunctionByFullCodePath(ctx context.Context, fullCod
 	return f.convertFunctionToResp(function), nil
 }
 
-// GetFunction 获取函数详情（根据ID，保留用于向后兼容）
-// ⭐ 注意：权限信息在 API Handler 中查询并添加到响应中，这里只返回基础信息
+// GetFunction 获取函数详情（根据 ID，保留给内部旧调用方）。
+// 这里只返回函数基础信息，调用方负责组合页面所需的上下文。
 func (f *FunctionService) GetFunction(ctx context.Context, functionID int64) (*dto.GetFunctionResp, error) {
 	// 从数据库获取函数信息
 	function, err := f.functionRepo.GetFunctionByID(functionID)
@@ -97,7 +97,7 @@ func (f *FunctionService) convertFunctionToResp(function *model.Function) *dto.G
 	return resp
 }
 
-// GetAppByUserAndCode 根据用户和应用代码获取应用信息（用于权限检查）
+// GetAppByUserAndCode 根据用户和应用代码获取应用信息。
 func (f *FunctionService) GetAppByUserAndCode(ctx context.Context, user, app string) (*model.App, error) {
 	return f.appRepo.GetAppByUserName(user, app)
 }

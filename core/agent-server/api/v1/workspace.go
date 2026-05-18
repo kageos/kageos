@@ -83,32 +83,6 @@ func (h *Workspace) ChatStream(c *gin.Context) {
 	}
 }
 
-// ListTools 列出工作台可用工具（临时接口，验证 list_tools）
-// GET /agent/api/v1/workspace/tools
-func (h *Workspace) ListTools(c *gin.Context) {
-	ctx := contextx.ToContext(c)
-	list, err := h.toolReg.ListTools(ctx, nil)
-	if err != nil {
-		response.FailWithMessage(c, "list_tools 失败: "+err.Error())
-		return
-	}
-	response.OkWithData(c, &dto.ListToolsResp{Tools: list})
-}
-
-// CallTool 执行工具（临时接口，验证 call_tool；body: full_code_path, tool_name, arguments）
-// POST /agent/api/v1/workspace/call_tool
-func (h *Workspace) CallTool(c *gin.Context) {
-	var req dto.CallToolReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
-		return
-	}
-	ctx := contextx.ToContext(c)
-	args := service.ToToolArgs(req.Arguments)
-	result := h.toolReg.CallTool(ctx, req.ToolName, args, req.FullCodePath, "")
-	response.OkWithData(c, &dto.CallToolResp{Content: result.Content, IsError: result.IsError, Data: result.Data, Metadata: result.Metadata})
-}
-
 // ListSessions 获取工作台会话列表（根据 full_code_path）
 // GET /agent/api/v1/workspace/sessions
 func (h *Workspace) ListSessions(c *gin.Context) {
@@ -316,21 +290,4 @@ func (h *Workspace) ListFinishedSessions(c *gin.Context) {
 		return
 	}
 	response.OkWithData(c, gin.H{"sessions": items})
-}
-
-// ListToolNames 返回所有工具名列表
-// GET /agent/api/v1/workspace/tools/names
-func (h *Workspace) ListToolNames(c *gin.Context) {
-	ctx := contextx.ToContext(c)
-	_ = ctx
-	list, err := h.toolReg.ListTools(ctx, nil)
-	if err != nil {
-		response.FailWithMessage(c, err.Error())
-		return
-	}
-	names := make([]string, 0, len(list))
-	for _, t := range list {
-		names = append(names, t.Name)
-	}
-	response.OkWithData(c, gin.H{"names": names})
 }

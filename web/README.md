@@ -1,5 +1,9 @@
 # AI Agent OS - 前端架构文档
 
+> 状态：执行口径
+> 更新时间：2026-05-17
+> 负责人窗口：事项 6 / codex/frontend-type-debt-next
+
 > **本文档是前端项目的核心指南，所有开发工作必须遵循本文档的架构设计和开发规范。**
 
 ## 📚 目录
@@ -338,22 +342,22 @@ TableEvent.rowDeleted              // 行删除
       :rows="10"
     />
   </div>
-  
+
   <!-- response 模式：只读展示 -->
   <div v-else-if="mode === 'response'">
     <div v-html="modelValue?.display"></div>
   </div>
-  
+
   <!-- table-cell 模式：简化展示 -->
   <span v-else-if="mode === 'table-cell'">
     {{ truncate(modelValue?.display, 50) }}
   </span>
-  
+
   <!-- detail 模式：详细展示 -->
   <div v-else-if="mode === 'detail'">
     <div v-html="modelValue?.display"></div>
   </div>
-  
+
   <!-- search 模式：搜索输入 -->
   <el-input v-else-if="mode === 'search'" :model-value="modelValue?.raw" @input="handleUpdate" />
 </template>
@@ -623,11 +627,11 @@ export class LogDomainService {
     this.eventBus.on(FormEvent.submitted, (data) => {
       this.logAction('form_submit', data)
     })
-    
+
     this.eventBus.on(TableEvent.rowAdded, (data) => {
       this.logAction('table_row_add', data)
     })
-    
+
     // ... 其他事件
   }
 
@@ -650,12 +654,12 @@ export class LogDomainService {
 ```typescript
 class ServiceFactory {
   private logDomainService?: LogDomainService
-  
+
   constructor() {
     // 自动启动日志服务
     this.getLogDomainService()
   }
-  
+
   private getLogDomainService(): LogDomainService {
     if (!this.logDomainService) {
       this.logDomainService = new LogDomainService(
@@ -692,11 +696,11 @@ export class AutoRefreshDomainService {
   addTask(taskId: string, interval: number, callback: () => void): void {
     // 清除已存在的任务
     this.removeTask(taskId)
-    
+
     // 创建新任务
     const timerId = window.setInterval(callback, interval)
     this.timers.set(taskId, timerId)
-    
+
     Logger.debug('AutoRefreshDomainService', `自动刷新 ${taskId} 已启动，间隔 ${interval}ms`)
   }
 
@@ -780,7 +784,7 @@ export class ExportUtil {
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1')
     XLSX.writeFile(workbook, `${filename}.xlsx`)
   }
-  
+
   /**
    * 导出为 CSV
    */
@@ -806,7 +810,7 @@ export class TableDomainService {
   exportData(format: 'excel' | 'csv'): void {
     const state = this.stateManager.getState()
     const data = state.data
-    
+
     // 提取所有行的数据（只保留可见字段）
     const exportData = data.map(row => {
       const rowData: Record<string, any> = {}
@@ -815,7 +819,7 @@ export class TableDomainService {
       })
       return rowData
     })
-    
+
     // 导出
     if (format === 'excel') {
       ExportUtil.exportToExcel(exportData, 'table-data')
@@ -884,17 +888,17 @@ function handleExport(format: 'excel' | 'csv') {
 ```typescript
 /**
  * FormDomainService - 表单领域服务
- * 
+ *
  * 职责：
  * - 表单初始化
  * - 表单验证
  * - 表单提交数据提取
- * 
+ *
  * 依赖：
  * - IStateManager<FormState>: 状态管理
  * - IEventBus: 事件总线
  * - ValidationEngine: 验证引擎
- * 
+ *
  * 使用示例：
  * ```typescript
  * const formService = new FormDomainService(stateManager, eventBus, validationEngine)
@@ -922,13 +926,13 @@ try {
 } catch (error) {
   // 记录错误
   Logger.error('ServiceName', '操作失败', error)
-  
+
   // 用户友好的错误提示
   ElMessage.error('操作失败，请稍后重试')
-  
+
   // 可选：上报错误
   // ErrorReporter.report(error)
-  
+
   // 可选：重新抛出错误（如果需要上层处理）
   // throw error
 }
@@ -1104,8 +1108,8 @@ const submitData = formDataStore.getSubmitData(fields)
 
 ## 📖 相关文档
 
-- [表单值提取逻辑分析报告](./docs/表单值提取逻辑分析报告.md)
-- [值提取和渲染机制完整性分析](./docs/值提取和渲染机制完整性分析.md)
+- [前端架构入口](./src/architecture/README.md)
+- [表现层说明](./src/architecture/presentation/README.md)
 
 ---
 

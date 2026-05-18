@@ -66,7 +66,7 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 			deps.SendEvent(EventError, &errorData{Message: "保存 assistant 消息失败: " + err.Error()})
 			return err
 		}
-		summaries, err := deps.ExecuteToolCalls(ctx, allToolCalls, content, deps.SendEvent)
+		summaries, err := deps.ExecuteToolCalls(ctx, allToolCalls, deps.SendEvent)
 		if err != nil {
 			deps.SendEvent(EventError, &errorData{Message: err.Error()})
 			return err
