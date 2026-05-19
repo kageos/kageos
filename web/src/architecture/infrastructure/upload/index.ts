@@ -1,11 +1,10 @@
 /**
  * 统一文件上传工具
- * 支持多种存储后端（MinIO、腾讯云 COS、阿里云 OSS、AWS S3、七牛云等）
+ * 当前官方路径：MinIO presigned_url
  */
 
 import type { UploadCredentials, UploadProgress, UploadResult } from './types'
 import { PresignedURLUploader } from './presigned-url'
-import { FormUploader } from './form-upload'
 import { authFetch } from '@/architecture/infrastructure/apiClient/request'
 
 export type { UploadCredentials, UploadProgress, UploadResult } from './types'
@@ -15,7 +14,7 @@ type UploadCredentialsResponseData = UploadCredentials & {
 }
 
 /**
- * 文件上传器接口（策略模式）
+ * 文件上传器接口
  */
 export interface Uploader {
   upload(
@@ -27,38 +26,22 @@ export interface Uploader {
   cancel(): void
 }
 
-/**
- * 上传器工厂
- */
-export class UploaderFactory {
-  static create(method: string | undefined): Uploader {
-    // ✅ 验证 method 参数
-    if (!method) {
-      console.error('[UploaderFactory] method 为 undefined 或空字符串')
-      throw new Error(`不支持的上传方式: ${method}（method 字段为空）`)
-    }
-    
-    // ✅ 转换为字符串并转为小写（防止大小写不一致）
-    const methodLower = String(method).toLowerCase().trim()
-    
-    switch (methodLower) {
-      case 'presigned_url':
-        // 预签名 URL 上传（MinIO、COS、OSS、S3）
-        return new PresignedURLUploader()
-      
-      case 'form_upload':
-        // 表单上传（七牛云、又拍云等）
-        return new FormUploader()
-      
-      default:
-        console.error('[UploaderFactory] 未知的上传方式:', {
-          original: method,
-          normalized: methodLower,
-          type: typeof method,
-        })
-        throw new Error(`不支持的上传方式: ${method}（支持的方式: presigned_url, form_upload）`)
-    }
+function createUploader(method: string | undefined): Uploader {
+  if (!method) {
+    throw new Error(`上传凭证缺少 method 字段，无法创建上传器`)
   }
+
+  const normalized = String(method).toLowerCase().trim()
+  if (normalized !== 'presigned_url') {
+    console.error('[uploadFile] 未知的上传方式:', {
+      original: method,
+      normalized,
+      type: typeof method,
+    })
+    throw new Error(`不支持的上传方式: ${method}（当前仅支持 presigned_url）`)
+  }
+
+  return new PresignedURLUploader()
 }
 
 /**
@@ -100,7 +83,7 @@ export interface UploadFileOptions {
  * 1. 用户拖文件/选择文件
  * 2. 调用此函数 → 先请求后端获取上传凭证（包含域名）
  * 3. 后端返回：{ method, upload_url, upload_host, upload_domain, storage, ... }
- * 4. 根据 method 创建对应的上传器
+ * 4. 校验 method 并创建预签名 URL 上传器
  * 5. 使用上传器执行上传（此时已知道上传域名）
  * 
  * ✨ 返回上传器实例，支持取消上传
@@ -128,13 +111,8 @@ export async function uploadFile(
   // 这一步会请求后端 API，后端会根据配置的存储类型返回对应的上传凭证
   const credentials = await getUploadCredentials(router, file, options)
   
-  // ✨ Step 2: 根据上传方式创建对应的上传器
-  // 此时已知道上传方式（presigned_url / form_upload）
-  if (!credentials.method) {
-    throw new Error(`上传凭证缺少 method 字段，无法创建上传器`)
-  }
-  
-  const uploader = UploaderFactory.create(credentials.method)
+  // ✨ Step 2: 校验上传方式并创建上传器
+  const uploader = createUploader(credentials.method)
   
   // ✨ Step 3: 执行上传
   // 此时已知道上传域名（credentials.upload_domain）

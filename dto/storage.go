@@ -25,8 +25,6 @@ type UploadMethod string
 
 const (
 	UploadMethodPresignedURL UploadMethod = "presigned_url" // 预签名 URL（当前官方实际使用）
-	UploadMethodFormUpload   UploadMethod = "form_upload"   // 预留：当前未使用
-	UploadMethodSDKUpload    UploadMethod = "sdk_upload"    // 预留：当前未使用
 )
 
 // GetUploadTokenResp 获取上传凭证响应
@@ -49,11 +47,7 @@ type GetUploadTokenResp struct {
 	UploadHost   string `json:"upload_host,omitempty"`   // 上传目标 host（例如：localhost:9000，用于 CORS、进度监听）
 	UploadDomain string `json:"upload_domain,omitempty"` // 上传完整域名（例如：http://localhost:9000，用于日志、调试）
 
-	// 表单上传（预留）
-	FormData map[string]string `json:"form_data,omitempty"` // 表单字段
-	PostURL  string            `json:"post_url,omitempty"`  // POST 地址
-
-	// SDK 上传（预留）
+	// SDK 上传配置（服务端上传时使用；method 仍为 presigned_url）
 	SDKConfig map[string]interface{} `json:"sdk_config,omitempty"` // SDK 配置
 
 	// CDN 域名（可选，用于下载访问）

@@ -47,8 +47,6 @@ func buildUploadTokenResponse(
 		Headers:           creds.Headers,
 		UploadHost:        creds.UploadHost,
 		UploadDomain:      creds.UploadDomain,
-		FormData:          creds.FormData,
-		PostURL:           creds.PostURL,
 		SDKConfig:         creds.SDKConfig,
 		CDNDomain:         cdnDomain,
 		DownloadURL:       downloadURL,

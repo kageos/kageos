@@ -109,7 +109,7 @@ const docTemplate = `{
         },
         "/storage/api/v1/batch_upload_token": {
             "post": {
-                "description": "批量获取多个文件的上传凭证，支持多种存储方式（presigned_url/form_upload/sdk_upload）。如果某个文件未提供 router，将使用默认路由：/{username}/default",
+                "description": "批量获取多个文件的 presigned_url 上传凭证。如果某个文件未提供 router，将使用默认路由：/{username}/default",
                 "consumes": [
                     "application/json"
                 ],
@@ -809,13 +809,6 @@ const docTemplate = `{
                     "description": "过期时间",
                     "type": "string"
                 },
-                "form_data": {
-                    "description": "表单上传（预留）",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
                 "headers": {
                     "description": "请求头",
                     "type": "object",
@@ -835,16 +828,12 @@ const docTemplate = `{
                         }
                     ]
                 },
-                "post_url": {
-                    "description": "POST 地址",
-                    "type": "string"
-                },
                 "ref": {
                     "description": "稳定文件引用：bucket/object_key",
                     "type": "string"
                 },
                 "sdk_config": {
-                    "description": "SDK 上传（预留）",
+                    "description": "SDK 上传配置（服务端上传时使用；method 仍为 presigned_url）",
                     "type": "object",
                     "additionalProperties": true
                 },
@@ -1057,24 +1046,16 @@ const docTemplate = `{
         "dto.UploadMethod": {
             "type": "string",
             "enum": [
-                "presigned_url",
-                "form_upload",
-                "sdk_upload"
+                "presigned_url"
             ],
             "x-enum-comments": {
-                "UploadMethodFormUpload": "预留：当前未使用",
-                "UploadMethodPresignedURL": "预签名 URL（当前官方实际使用）",
-                "UploadMethodSDKUpload": "预留：当前未使用"
+                "UploadMethodPresignedURL": "预签名 URL（当前官方实际使用）"
             },
             "x-enum-descriptions": [
-                "预签名 URL（当前官方实际使用）",
-                "预留：当前未使用",
-                "预留：当前未使用"
+                "预签名 URL（当前官方实际使用）"
             ],
             "x-enum-varnames": [
-                "UploadMethodPresignedURL",
-                "UploadMethodFormUpload",
-                "UploadMethodSDKUpload"
+                "UploadMethodPresignedURL"
             ]
         },
         "dto.UploadSource": {

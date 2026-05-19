@@ -113,11 +113,6 @@ func (s *MinIOStorage) GetCDNDomain() string {
 	return s.cdnDomain
 }
 
-// GetUploadMethod 获取上传方式
-func (s *MinIOStorage) GetUploadMethod() UploadMethod {
-	return UploadMethodPresignedURL
-}
-
 // GetUploadEndpoint 获取上传用的 endpoint
 // uploadSource: 上传来源（browser 或 server）
 // 统一逻辑：如果配置了 server_endpoint 且 upload_source 是 server，返回 server_endpoint；否则返回默认 endpoint

@@ -100,7 +100,6 @@ func (c *Context) buildBatchUploadTokenReq(fileInfos []*FileInfo) *dto.BatchGetU
 }
 
 func (c *Context) uploadFilesWithCredentials(fileInfos []*FileInfo, tokens []dto.GetUploadTokenResp) []fileUploadResult {
-	factory := storage.GetDefaultFactory()
 	uploadResults := make([]fileUploadResult, len(fileInfos))
 	var wg sync.WaitGroup
 
@@ -117,7 +116,7 @@ func (c *Context) uploadFilesWithCredentials(fileInfos []*FileInfo, tokens []dto
 		wg.Add(1)
 		go func(idx int, fileInfo *FileInfo, cred *dto.GetUploadTokenResp) {
 			defer wg.Done()
-			uploadResults[idx] = c.uploadSingleFileWithCredential(factory, fileInfo, cred)
+			uploadResults[idx] = c.uploadSingleFileWithCredential(fileInfo, cred)
 		}(i, info, cred)
 	}
 
@@ -125,8 +124,8 @@ func (c *Context) uploadFilesWithCredentials(fileInfos []*FileInfo, tokens []dto
 	return uploadResults
 }
 
-func (c *Context) uploadSingleFileWithCredential(factory *storage.UploaderFactory, fileInfo *FileInfo, cred *dto.GetUploadTokenResp) fileUploadResult {
-	uploader, err := factory.NewUploader(cred.Storage)
+func (c *Context) uploadSingleFileWithCredential(fileInfo *FileInfo, cred *dto.GetUploadTokenResp) fileUploadResult {
+	uploader, err := storage.NewUploader(cred.Storage)
 	if err != nil {
 		return fileUploadResult{
 			fileInfo: fileInfo,

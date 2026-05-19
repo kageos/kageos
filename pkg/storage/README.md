@@ -4,8 +4,8 @@
 
 ## 设计理念
 
-1. **统一接口**：所有存储引擎实现相同的 `Uploader` 接口
-2. **工厂模式**：根据 `storage` 字段创建对应的上传器
+1. **统一接口**：SDK 上传链路通过 `Uploader` 接口上传文件
+2. **MinIO-only**：当前只创建 MinIO 上传器，其他存储类型直接返回不支持
 3. **收口原则**：未真正实现的存储后端不再对外宣称支持
 
 ## 关于 Hash 的处理
@@ -63,9 +63,8 @@ creds := &dto.GetUploadTokenResp{
     // ...
 }
 
-// 2. 创建对应的上传器
-factory := storage.GetDefaultFactory()
-uploader, err := factory.NewUploader(creds.Storage)
+// 2. 创建 MinIO 上传器
+uploader, err := storage.NewUploader(creds.Storage)
 if err != nil {
     return err
 }
@@ -94,7 +93,7 @@ fmt.Printf("DownloadURL: %s\n", result.DownloadURL)
 
 ## 扩展新的存储引擎
 
-1. 实现 `Uploader` 接口：
+新存储后端只有在后端凭证、SDK 上传、下载地址和部署配置都完成后再开放。届时需要先实现 `Uploader` 接口：
 
 ```go
 type MyStorageUploader struct{}
@@ -105,10 +104,10 @@ func (u *MyStorageUploader) Upload(ctx context.Context, creds *dto.GetUploadToke
 }
 ```
 
-2. 在工厂中注册：
+并在 `NewUploader` 中注册：
 
 ```go
-func (f *UploaderFactory) NewUploader(storage string) (Uploader, error) {
+func NewUploader(storage string) (Uploader, error) {
     switch storage {
     case "mystorage":
         return NewMyStorageUploader(), nil

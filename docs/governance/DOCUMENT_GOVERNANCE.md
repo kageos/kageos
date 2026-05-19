@@ -114,7 +114,8 @@
 | `docs/工作台最新设计.md` | 已保留 | 作为唯一工作台设计入口，并已纳入 `docs/README.md` |
 | `web/ARCHITECTURE_ANALYSIS.md` | 已删除 | 当前入口以 `web/src/architecture/README.md` 为准，历史分析稿已无独立维护价值 |
 | `web/THEME_COMPARISON_REPORT.md`、`web/THEME_FIX_SUMMARY.md`、`web/COLOR_ANALYSIS.md` | 已删除 | 阶段性视觉分析报告已过期，不再作为开源入口 |
-| `web/FORM_TABLE_IMPLEMENTATION.md`、`web/UPLOAD_PROGRESS.md` | Keep/Review | 已恢复原位；后续如仍有效再合并到模块文档 |
+| `web/FORM_TABLE_IMPLEMENTATION.md` | Keep/Review | 已恢复原位；后续如仍有效再合并到模块文档 |
+| `web/UPLOAD_PROGRESS.md` | 已删除 | 与当前 MinIO-only 上传链路重复且包含未落地的多云/表单上传内容 |
 | `web/todos.md` | 已删除 | 粗粒度旧 TODO 已由 `docs/governance/OPEN_SOURCE_TODO.md` 统一承接 |
 
 ### 4.3 暂不处理，先确认边界
