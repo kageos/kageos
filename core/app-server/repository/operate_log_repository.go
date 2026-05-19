@@ -72,3 +72,11 @@ func (r *OperateLogRepository) GetTableOperateLogs(ctx context.Context, req *dto
 func (r *OperateLogRepository) CreateTableOperateLog(log *model.TableOperateLog) error {
 	return r.db.Create(log).Error
 }
+
+// CreateOperateLog 创建平台级操作日志。
+func (r *OperateLogRepository) CreateOperateLog(ctx context.Context, log *model.OperateLog) error {
+	if log == nil {
+		return nil
+	}
+	return r.db.WithContext(ctx).Create(log).Error
+}

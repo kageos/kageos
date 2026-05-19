@@ -6,6 +6,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/access"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -14,12 +15,14 @@ import (
 
 type ServiceTree struct {
 	serviceTreeService *service.ServiceTreeService
+	teamAccessService  *service.TeamAccessService
 }
 
 // NewServiceTree 创建 ServiceTree 处理器（依赖注入）
-func NewServiceTree(serviceTreeService *service.ServiceTreeService) *ServiceTree {
+func NewServiceTree(serviceTreeService *service.ServiceTreeService, teamAccessService *service.TeamAccessService) *ServiceTree {
 	return &ServiceTree{
 		serviceTreeService: serviceTreeService,
+		teamAccessService:  teamAccessService,
 	}
 }
 
@@ -39,6 +42,14 @@ func (s *ServiceTree) CreatePackage(c *gin.Context) {
 	var req dto.CreatePackageReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	resourcePath := req.ParentFullCodePath
+	if resourcePath == "" {
+		resourcePath = access.AppRootPath(req.User, req.App)
+	}
+	if err := requireAccess(c, s.teamAccessService, resourcePath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
@@ -70,6 +81,10 @@ func (s *ServiceTree) CreateFunction(c *gin.Context) {
 		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
+	if err := requireAccess(c, s.teamAccessService, req.DirectoryPath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 
 	ctx := contextx.ToContext(c)
 	resp, err := s.serviceTreeService.CreateFunction(ctx, &req)
@@ -97,6 +112,14 @@ func (s *ServiceTree) CreateDocs(c *gin.Context) {
 	var req dto.CreateDocsReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	resourcePath := req.ParentFullCodePath
+	if resourcePath == "" {
+		resourcePath = access.AppRootPath(req.User, req.App)
+	}
+	if err := requireAccess(c, s.teamAccessService, resourcePath, access.ActionWrite); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
@@ -147,11 +170,14 @@ func (s *ServiceTree) GetServiceTreeDetail(c *gin.Context) {
 		response.FailWithMessage(c, "必须提供 ID 或 full_code_path 参数")
 		return
 	}
-
 	ctx := contextx.ToContext(c)
 	resp, err := s.serviceTreeService.GetServiceTreeDetail(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, "获取服务目录详情失败: "+err.Error())
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, resp.FullCodePath, access.ActionRead); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
@@ -187,6 +213,15 @@ func (s *ServiceTree) UpdatePackage(c *gin.Context) {
 	req.ID = id
 
 	ctx := contextx.ToContext(c)
+	serviceTree, err := s.serviceTreeService.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{ID: id})
+	if err != nil {
+		response.FailWithMessage(c, "获取目录失败: "+err.Error())
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, serviceTree.FullCodePath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 	if err := s.serviceTreeService.UpdatePackage(ctx, &req); err != nil {
 		response.FailWithMessage(c, "更新目录失败: "+err.Error())
 		return
@@ -216,6 +251,15 @@ func (s *ServiceTree) DeletePackage(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
+	serviceTree, err := s.serviceTreeService.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{ID: id})
+	if err != nil {
+		response.FailWithMessage(c, "获取目录失败: "+err.Error())
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, serviceTree.FullCodePath, access.ActionDelete); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 	if err := s.serviceTreeService.DeletePackage(ctx, id); err != nil {
 		response.FailWithMessage(c, "删除目录失败: "+err.Error())
 		return
@@ -253,6 +297,15 @@ func (s *ServiceTree) UpdateFunction(c *gin.Context) {
 	req.ID = id
 
 	ctx := contextx.ToContext(c)
+	serviceTree, err := s.serviceTreeService.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{ID: id})
+	if err != nil {
+		response.FailWithMessage(c, "获取函数失败: "+err.Error())
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, serviceTree.FullCodePath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 	if err := s.serviceTreeService.UpdateFunction(ctx, &req); err != nil {
 		response.FailWithMessage(c, "更新函数失败: "+err.Error())
 		return
@@ -282,6 +335,15 @@ func (s *ServiceTree) DeleteFunction(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
+	serviceTree, err := s.serviceTreeService.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{ID: id})
+	if err != nil {
+		response.FailWithMessage(c, "获取函数失败: "+err.Error())
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, serviceTree.FullCodePath, access.ActionDelete); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 	if err := s.serviceTreeService.DeleteFunction(ctx, id); err != nil {
 		response.FailWithMessage(c, "删除函数失败: "+err.Error())
 		return
@@ -319,6 +381,15 @@ func (s *ServiceTree) UpdateDocs(c *gin.Context) {
 	req.ID = id
 
 	ctx := contextx.ToContext(c)
+	serviceTree, err := s.serviceTreeService.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{ID: id})
+	if err != nil {
+		response.FailWithMessage(c, "获取文档失败: "+err.Error())
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, serviceTree.FullCodePath, access.ActionUpdate); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 	if err := s.serviceTreeService.UpdateDocs(ctx, &req); err != nil {
 		response.FailWithMessage(c, "更新文档失败: "+err.Error())
 		return
@@ -348,6 +419,15 @@ func (s *ServiceTree) DeleteDocs(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
+	serviceTree, err := s.serviceTreeService.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{ID: id})
+	if err != nil {
+		response.FailWithMessage(c, "获取文档失败: "+err.Error())
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, serviceTree.FullCodePath, access.ActionDelete); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 	if err := s.serviceTreeService.DeleteDocs(ctx, id); err != nil {
 		response.FailWithMessage(c, "删除文档失败: "+err.Error())
 		return
@@ -383,6 +463,14 @@ func (s *ServiceTree) CopyServiceTree(c *gin.Context) {
 	defer func() {
 		logger.Infof(c, "CopyServiceTree req:%+v resp:%+v err:%v", req, resp, err)
 	}()
+	if err := requireAccess(c, s.teamAccessService, req.SourceDirectoryPath, access.ActionRead); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, req.TargetDirectoryPath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 
 	ctx := contextx.ToContext(c)
 	resp, err = s.serviceTreeService.CopyServiceTree(ctx, &req)
@@ -416,6 +504,10 @@ func (s *ServiceTree) AddFunctions(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
+	if err := requireAccess(c, s.teamAccessService, req.FullCodePath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 
 	resp, err := s.serviceTreeService.AddFunctions(ctx, &req)
 	if err != nil {
@@ -441,6 +533,19 @@ func (s *ServiceTree) ExportCapabilityBundle(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
+	sourcePaths := req.SourceDirectoryPaths
+	if req.SourceDirectoryPath != "" {
+		sourcePaths = append(sourcePaths, req.SourceDirectoryPath)
+	}
+	if req.SourceRootPath != "" {
+		sourcePaths = append(sourcePaths, req.SourceRootPath)
+	}
+	for _, sourcePath := range sourcePaths {
+		if err := requireAccess(c, s.teamAccessService, sourcePath, access.ActionRead); err != nil {
+			response.FailWithMessage(c, err.Error())
+			return
+		}
+	}
 	resp, err := s.serviceTreeService.ExportCapabilityBundle(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
@@ -459,6 +564,10 @@ func (s *ServiceTree) InstallCapabilityBundle(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
+	if err := requireAccess(c, s.teamAccessService, req.TargetDirectoryPath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 	resp, err := s.serviceTreeService.InstallCapabilityBundle(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
@@ -575,6 +684,10 @@ func (s *ServiceTree) GetWorkspaceContext(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
+	if err := requireAccess(c, s.teamAccessService, req.FullCodePath, access.ActionRead); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 	resp, err := s.serviceTreeService.GetWorkspaceContext(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, "获取工作台环境信息失败: "+err.Error())
@@ -594,6 +707,10 @@ func (s *ServiceTree) ReplaceFileContent(c *gin.Context) {
 	}
 	if req.FullCodePath == "" || req.FileName == "" || len(req.Replacements) == 0 {
 		response.FailWithMessage(c, "full_code_path、file_name、replacements 必填")
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, req.FullCodePath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	ctx := contextx.ToContext(c)
@@ -621,6 +738,10 @@ func (s *ServiceTree) DeleteFile(c *gin.Context) {
 		response.FailWithMessage(c, "full_code_path、file_name 必填")
 		return
 	}
+	if err := requireAccess(c, s.teamAccessService, req.FullCodePath, access.ActionDelete); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 	ctx := contextx.ToContext(c)
 	resp, err := s.serviceTreeService.DeleteFile(ctx, &req)
 	if err != nil {
@@ -640,6 +761,10 @@ func (s *ServiceTree) ReadAppLog(c *gin.Context) {
 	}
 	if req.FullCodePath == "" {
 		response.FailWithMessage(c, "full_code_path 必填")
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, req.FullCodePath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	ctx := contextx.ToContext(c)

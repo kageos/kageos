@@ -13,6 +13,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/access"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
@@ -25,13 +26,15 @@ import (
 // StandardAPI 标准接口处理器
 // 提供标准化的 RESTful 接口，使用 full-code-path 作为路径参数
 type StandardAPI struct {
-	appService *service.AppService
+	appService        *service.AppService
+	teamAccessService *service.TeamAccessService
 }
 
 // NewStandardAPI 创建标准接口处理器
-func NewStandardAPI(appService *service.AppService) *StandardAPI {
+func NewStandardAPI(appService *service.AppService, teamAccessService *service.TeamAccessService) *StandardAPI {
 	return &StandardAPI{
-		appService: appService,
+		appService:        appService,
+		teamAccessService: teamAccessService,
 	}
 }
 
@@ -229,9 +232,13 @@ func (s *StandardAPI) ensureTableCallbackEnabled(c *gin.Context, fullCodePath, c
 // @Failure 500 {string} string "服务器内部错误"
 // @Router /workspace/api/v1/table/search/{full-code-path} [get]
 func (s *StandardAPI) TableSearch(c *gin.Context) {
-	fullCodePath := c.Param("full-code-path")
+	fullCodePath := normalizeFullCodePathParam(c)
 	if fullCodePath == "" {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
@@ -288,9 +295,13 @@ func (s *StandardAPI) TableSearch(c *gin.Context) {
 // @Failure 500 {string} string "服务器内部错误"
 // @Router /workspace/api/v1/table/create/{full-code-path} [post]
 func (s *StandardAPI) TableCreate(c *gin.Context) {
-	fullCodePath := c.Param("full-code-path")
+	fullCodePath := normalizeFullCodePathParam(c)
 	if fullCodePath == "" {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionWrite); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	if err := s.ensureTableCallbackEnabled(c, fullCodePath, "OnTableAddRow", "该表未开启新增能力，通常是只读查询表，不支持新增"); err != nil {
@@ -376,9 +387,13 @@ func (s *StandardAPI) TableCreate(c *gin.Context) {
 // @Failure 500 {string} string "服务器内部错误"
 // @Router /workspace/api/v1/table/template/{full-code-path} [get]
 func (s *StandardAPI) TableTemplate(c *gin.Context) {
-	fullCodePath := c.Param("full-code-path")
+	fullCodePath := normalizeFullCodePathParam(c)
 	if fullCodePath == "" {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
@@ -652,9 +667,13 @@ func generateExampleValueForRow(field *widget.Field, rowIndex int, maxRows int, 
 // @Failure 500 {string} string "服务器内部错误"
 // @Router /workspace/api/v1/table/update/{full-code-path} [put]
 func (s *StandardAPI) TableUpdate(c *gin.Context) {
-	fullCodePath := c.Param("full-code-path")
+	fullCodePath := normalizeFullCodePathParam(c)
 	if fullCodePath == "" {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionUpdate); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	if err := s.ensureTableCallbackEnabled(c, fullCodePath, "OnTableUpdateRow", "该表未开启编辑能力，通常是只读查询表，不支持更新"); err != nil {
@@ -819,9 +838,13 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 // @Failure 500 {string} string "服务器内部错误"
 // @Router /workspace/api/v1/table/delete/{full-code-path} [delete]
 func (s *StandardAPI) TableDelete(c *gin.Context) {
-	fullCodePath := c.Param("full-code-path")
+	fullCodePath := normalizeFullCodePathParam(c)
 	if fullCodePath == "" {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionDelete); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	if err := s.ensureTableCallbackEnabled(c, fullCodePath, "OnTableDeleteRows", "该表未开启删除能力，不支持删除"); err != nil {
@@ -933,9 +956,13 @@ func (s *StandardAPI) TableDelete(c *gin.Context) {
 // @Failure 500 {string} string "服务器内部错误"
 // @Router /workspace/api/v1/form/submit/{full-code-path} [post]
 func (s *StandardAPI) FormSubmit(c *gin.Context) {
-	fullCodePath := c.Param("full-code-path")
+	fullCodePath := normalizeFullCodePathParam(c)
 	if fullCodePath == "" {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionWrite); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
@@ -996,9 +1023,13 @@ func (s *StandardAPI) FormSubmit(c *gin.Context) {
 // @Failure 500 {string} string "服务器内部错误"
 // @Router /workspace/api/v1/chart/query/{full-code-path} [get]
 func (s *StandardAPI) ChartQuery(c *gin.Context) {
-	fullCodePath := c.Param("full-code-path")
+	fullCodePath := normalizeFullCodePathParam(c)
 	if fullCodePath == "" {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionWrite); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
@@ -1059,9 +1090,13 @@ func (s *StandardAPI) ChartQuery(c *gin.Context) {
 // @Failure 500 {string} string "服务器内部错误"
 // @Router /workspace/api/v1/callback/on_select_fuzzy/{full-code-path} [post]
 func (s *StandardAPI) CallbackOnSelectFuzzy(c *gin.Context) {
-	fullCodePath := c.Param("full-code-path")
+	fullCodePath := normalizeFullCodePathParam(c)
 	if fullCodePath == "" {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 

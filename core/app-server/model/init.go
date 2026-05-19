@@ -47,6 +47,10 @@ func InitTables(db *gorm.DB) error {
 		&FileSnapshot{},
 		// Table 更新日志表
 		&TableOperateLog{},
+		// 平台级操作审计日志
+		&OperateLog{},
+		// 轻量团队授权表
+		&WorkspaceRoleAssignment{},
 		// 目录更新历史表（用于记录API变更历史）
 		&DirectoryUpdateHistory{},
 		// 文档表（用于存储文档内容）

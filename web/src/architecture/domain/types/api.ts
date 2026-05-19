@@ -82,10 +82,18 @@ export interface ServiceTree {
   template_type?: string  // 模板类型（函数的类型，如 form、table）
   has_function?: boolean  // ⭐ 是否有函数（仅对package类型有效）：如果该package下直接或间接包含function类型的子节点，则为true
   run_count?: number  // ⭐ 运行次数（仅 function 类型有意义），用于展示「已使用 N 次」
+  permissions?: AccessPermissions
+  role_codes?: AccessRoleCode[]
+  inherited_from?: string
+  expires_at?: string
   created_at: string
   updated_at: string
   children?: ServiceTree[]
 }
+
+export type AccessAction = 'read' | 'write' | 'update' | 'delete' | 'admin' | 'owner'
+export type AccessRoleCode = 'owner' | 'admin' | 'member' | 'viewer'
+export type AccessPermissions = Partial<Record<AccessAction, boolean>>
 
 export interface CreateServiceTreeRequest {
   user: string

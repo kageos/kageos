@@ -321,6 +321,26 @@ func (r *AppRepository) GetAppsByUserWithPage(user string, page, pageSize int, s
 	return r.GetAppsWithPage(user, page, pageSize, search, false, nil)
 }
 
+func (r *AppRepository) GetAppsByUserAppPairs(pairs [][2]string) ([]*model.App, error) {
+	if len(pairs) == 0 {
+		return []*model.App{}, nil
+	}
+	query := r.db.Model(&model.App{})
+	for i, pair := range pairs {
+		condition := r.db.Where("user = ? AND code = ?", pair[0], pair[1])
+		if i == 0 {
+			query = query.Where(condition)
+		} else {
+			query = query.Or(condition)
+		}
+	}
+	var apps []*model.App
+	if err := query.Find(&apps).Error; err != nil {
+		return nil, err
+	}
+	return apps, nil
+}
+
 // GetAppsWithPage 获取分页应用列表（支持搜索和过滤）
 // user: 当前用户（用于过滤自己的应用）
 // includeAll: 如果为 true，返回自己的应用 + 所有公开的应用；如果为 false，只返回自己的应用

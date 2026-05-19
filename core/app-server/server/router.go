@@ -31,7 +31,7 @@ func (s *Server) setupRoutes() {
 	// 应用管理路由（需要JWT验证）
 	app := apiV1.Group("/app")
 	app.Use(middleware2.JWTAuth()) // 应用管理需要JWT认证
-	appHandler := v1.NewApp(s.appService, s.serviceTreeService)
+	appHandler := v1.NewApp(s.appService, s.serviceTreeService, s.teamAccessService)
 	app.GET("/list", appHandler.GetApps)
 	app.GET("/detail", appHandler.GetAppDetail)
 	app.GET("/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
@@ -40,9 +40,18 @@ func (s *Server) setupRoutes() {
 	app.POST("/update", appHandler.UpdateApp)
 	app.PUT("/workspace", appHandler.UpdateWorkspace)
 
+	teamAccess := apiV1.Group("/team_access")
+	teamAccess.Use(middleware2.JWTAuth())
+	teamAccessHandler := v1.NewTeamAccess(s.teamAccessService)
+	teamAccess.GET("/members", teamAccessHandler.ListMembers)
+	teamAccess.POST("/assign", teamAccessHandler.Assign)
+	teamAccess.POST("/batch_assign", teamAccessHandler.BatchAssign)
+	teamAccess.POST("/remove", teamAccessHandler.Remove)
+	teamAccess.GET("/my_permissions", teamAccessHandler.MyPermissions)
+
 	// 服务目录管理路由（需要JWT验证）
 	serviceTree := apiV1.Group("/service_tree")
-	serviceTreeHandler := v1.NewServiceTree(s.serviceTreeService)
+	serviceTreeHandler := v1.NewServiceTree(s.serviceTreeService, s.teamAccessService)
 
 	// 需要JWT验证的路由
 	serviceTreeAuth := serviceTree.Group("")
@@ -81,7 +90,7 @@ func (s *Server) setupRoutes() {
 	// ⭐ 文档管理路由（基于完整路径，与 table/form/chart 风格一致）
 	docs := apiV1.Group("/docs")
 	docs.Use(middleware2.JWTAuth())
-	docHandler := v1.NewDoc(s.docService)
+	docHandler := v1.NewDoc(s.docService, s.teamAccessService)
 	docs.GET("/search", docHandler.SearchDocs)                 // 搜索文档（模糊搜索）
 	docs.GET("/batch", docHandler.BatchGetDocs)                // 批量获取文档（精确查询）
 	docs.GET("/info/*full-code-path", docHandler.GetDoc)       // 获取文档
@@ -119,7 +128,7 @@ func (s *Server) setupRoutes() {
 	directoryUpdateHistory.GET("/directory", directoryUpdateHistoryHandler.GetDirectoryUpdateHistory)    // 获取目录更新历史（目录视角）
 
 	// ⭐ 标准接口路由（使用 full-code-path）
-	standardAPI := v1.NewStandardAPI(s.appService)
+	standardAPI := v1.NewStandardAPI(s.appService, s.teamAccessService)
 
 	// Table 函数接口
 	table := apiV1.Group("/table")
