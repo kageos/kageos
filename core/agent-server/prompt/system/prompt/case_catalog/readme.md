@@ -6,7 +6,7 @@
 
 案例目录的文件分工：
 
-- `prd.json`：结构化 PRD 标准样例，优先参考；调用 `write_prd` 时按其中 `project/tables/forms/charts/workflow/rules` 组织参数。
+- `prd.json`：结构化 PRD 标准样例，优先参考；调用 `write_prd` 时按其中 `project/tables/forms/charts/rules` 组织参数。
 - `prd.md`：实现参考和 SDK 写法说明，只用于理解业务链路、代码结构和坑点。
 - Go 文件：最终实现参考，确认 PRD 之后的 `app_developer` 阶段再重点参考。
 

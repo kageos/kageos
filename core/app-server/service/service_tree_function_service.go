@@ -72,10 +72,6 @@ func (s *serviceTreeFunctionService) AddFunctions(ctx context.Context, req *dto.
 	return addFunctionsImpl(s, ctx, req)
 }
 
-func (s *serviceTreeFunctionService) ProcessFunctionGenResult(ctx context.Context, req *dto.AddFunctionsReq) error {
-	return processFunctionGenResultImpl(s, ctx, req)
-}
-
 func (s *serviceTreeFunctionService) loadTargetTree(ctx context.Context, fullCodePath string) (*model.ServiceTree, error) {
 	targetTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(fullCodePath)
 	if err != nil {

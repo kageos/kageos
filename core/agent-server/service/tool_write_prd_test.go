@@ -33,8 +33,8 @@ func TestWritePRDToolReturnsV2StructuredPreview(t *testing.T) {
 		!containsWorkspaceRoleString(data.Interaction.AllowedActions, "revise_prd") {
 		t.Fatalf("interaction should expose confirm/revise actions: %#v", data.Interaction)
 	}
-	if len(data.Tables) != 2 || len(data.Forms) != 1 || len(data.Charts) != 2 || len(data.Workflow) != 5 {
-		t.Fatalf("unexpected resource counts: tables=%d forms=%d charts=%d workflow=%d", len(data.Tables), len(data.Forms), len(data.Charts), len(data.Workflow))
+	if len(data.Tables) != 2 || len(data.Forms) != 1 || len(data.Charts) != 2 {
+		t.Fatalf("unexpected resource counts: tables=%d forms=%d charts=%d", len(data.Tables), len(data.Forms), len(data.Charts))
 	}
 	if got := data.Tables[0].Fields[0].Widget; got != "input" {
 		t.Fatalf("widget = %q, want input", got)
@@ -76,7 +76,7 @@ func TestWritePRDToolRejectsLegacyPRDShape(t *testing.T) {
 		t.Fatalf("write_prd data type = %T, want writePRDResultData", result.Data)
 	}
 	joined := strings.Join(data.Issues, "\n")
-	for _, want := range []string{"$.models 不是 PRD v2 字段", "$.functions 不是 PRD v2 字段", "tables/forms/charts 至少需要 1 个业务资源", "workflow 至少需要 1 个功能引用"} {
+	for _, want := range []string{"$.models 不是 PRD v2 字段", "$.functions 不是 PRD v2 字段", "tables/forms/charts 至少需要 1 个业务资源"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("issues should contain %q, got %q", want, joined)
 		}
@@ -122,8 +122,6 @@ func TestWritePRDToolRejectsInvalidReferences(t *testing.T) {
 	args := validNPSPRDArgs()
 	forms := args["forms"].([]map[string]interface{})
 	forms[0]["target_table"] = "不存在的表"
-	workflow := args["workflow"].([]map[string]interface{})
-	workflow[0]["ref"] = "不存在的功能"
 
 	result := reg.CallTool(context.Background(), "write_prd", args, "/liubeiluo/ccc", "")
 	if !result.IsError {
@@ -136,36 +134,10 @@ func TestWritePRDToolRejectsInvalidReferences(t *testing.T) {
 	joined := strings.Join(data.Issues, "\n")
 	for _, want := range []string{
 		"target_table 必须引用 tables 中已定义的 name",
-		"ref 必须引用对应 tables/forms/charts 中已定义的 name",
 	} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("issues should contain %q, got %q", want, joined)
 		}
-	}
-}
-
-func TestWritePRDToolRejectsUnhelpfulWorkflowOrder(t *testing.T) {
-	reg := NewToolRegistry()
-	args := validNPSPRDArgs()
-	args["workflow"] = []map[string]interface{}{
-		{"type": "table", "ref": "NPS问卷"},
-		{"type": "table", "ref": "NPS评分记录"},
-		{"type": "form", "ref": "NPS评分提交"},
-		{"type": "chart", "ref": "NPS趋势分析"},
-		{"type": "chart", "ref": "NPS评分分布"},
-	}
-
-	result := reg.CallTool(context.Background(), "write_prd", args, "/liubeiluo/ccc", "")
-	if !result.IsError {
-		t.Fatal("write_prd should reject workflow order that shows generated records before the submit form")
-	}
-	data, ok := result.Data.(writePRDResultData)
-	if !ok {
-		t.Fatalf("write_prd data type = %T, want writePRDResultData", result.Data)
-	}
-	joined := strings.Join(data.Issues, "\n")
-	if want := "表单「NPS评分提交」写入目标记录表「NPS评分记录」，应先排表单，再排记录表"; !strings.Contains(joined, want) {
-		t.Fatalf("issues should contain %q, got %q", want, joined)
 	}
 }
 
@@ -280,9 +252,6 @@ func TestWritePRDToolAllowsFormOnlyProcessingPRD(t *testing.T) {
 				},
 			},
 		},
-		"workflow": []map[string]interface{}{
-			{"type": "form", "ref": "PDF文本提取"},
-		},
 	}, "/liubeiluo/ccc", "")
 	if result.IsError {
 		t.Fatalf("write_prd should allow form-only processing PRD: %s", result.Content)
@@ -330,12 +299,12 @@ func TestWritePRDToolSchemaExposesV2Shape(t *testing.T) {
 		t.Fatalf("tool name = %q", def.Name)
 	}
 	inputProps := def.InputSchema["properties"].(map[string]interface{})
-	for _, name := range []string{"project", "tables", "forms", "charts", "workflow", "rules"} {
+	for _, name := range []string{"project", "tables", "forms", "charts", "rules"} {
 		if _, ok := inputProps[name]; !ok {
 			t.Fatalf("write_prd input schema should expose %q", name)
 		}
 	}
-	for _, legacy := range []string{"models", "functions", "acceptance_cases", "confirmation"} {
+	for _, legacy := range []string{"models", "functions", "workflow", "acceptance_cases", "confirmation"} {
 		if _, ok := inputProps[legacy]; ok {
 			t.Fatalf("write_prd input schema should not expose legacy %q", legacy)
 		}
@@ -356,7 +325,7 @@ func TestWritePRDToolSchemaExposesV2Shape(t *testing.T) {
 		t.Fatal("write_prd output schema should expose data")
 	}
 	dataProps := data["properties"].(map[string]interface{})
-	for _, name := range []string{"kind", "schema_version", "project", "tables", "forms", "charts", "workflow", "rules"} {
+	for _, name := range []string{"kind", "schema_version", "project", "tables", "forms", "charts", "rules"} {
 		if _, ok := dataProps[name]; !ok {
 			t.Fatalf("write_prd data schema should expose %q", name)
 		}
@@ -477,13 +446,6 @@ func validNPSPRDArgs() map[string]interface{} {
 					{"评分类型": "贬损者", "评分人数": 26},
 				},
 			},
-		},
-		"workflow": []map[string]interface{}{
-			{"type": "table", "ref": "NPS问卷"},
-			{"type": "form", "ref": "NPS评分提交"},
-			{"type": "table", "ref": "NPS评分记录"},
-			{"type": "chart", "ref": "NPS趋势分析"},
-			{"type": "chart", "ref": "NPS评分分布"},
 		},
 		"rules": []string{
 			"0-6 分为贬损者，7-8 分为中立者，9-10 分为推荐者。",

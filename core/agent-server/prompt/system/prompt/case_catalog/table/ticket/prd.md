@@ -10,7 +10,7 @@
 
 ## 二、结构化 PRD JSON
 
-`product_manager` 只输出轻量 PRD v2：`project/tables/forms/charts/workflow/rules`。
+`product_manager` 只输出轻量 PRD v2：`project/tables/forms/charts/rules`。
 字段只写 `name/widget/required/desc/hide`，`widget` 只保留组件类型；选项、默认值、范围、数据来源和计算规则写进自然语言 `desc`。
 完整标准样例见同目录 `prd.json`。
 
@@ -55,9 +55,6 @@
         {"工单标题": "打印机无法连接", "问题描述": "办公室打印机无法连接网络。", "优先级": "中", "工单状态": "待处理", "问题分类": "其他", "联系电话": "13800000000", "工单来源": "在线", "处理人": "李工", "截止时间": "2026-05-10 18:00", "备注": "请优先检查网络。"}
       ]
     }
-  ],
-  "workflow": [
-    {"type": "table", "ref": "工单"}
   ],
   "rules": [
     "新建工单默认状态为待处理。",

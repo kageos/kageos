@@ -602,7 +602,7 @@ defineExpose({
 }
 
 :deep(.form-detail-content .form-card),
-:deep(.form-detail-content .table-card) {
+:deep(.form-detail-content .table-panel) {
   margin-bottom: 0;
 }
 

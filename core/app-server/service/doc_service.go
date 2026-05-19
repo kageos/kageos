@@ -329,24 +329,4 @@ func (s *DocService) BatchGetDocs(ctx context.Context, req *dto.BatchGetDocsReq)
 	return &dto.BatchGetDocsResp{Docs: docItems}, nil
 }
 
-// GetDocsByPaths 根据路径列表批量获取文档（保留用于向后兼容）
-// paths: 文档路径列表，如 ["/user/myapp/docs"]
-func (s *DocService) GetDocsByPaths(ctx context.Context, paths []string) (*dto.GetDocsByPathsResp, error) {
-	req := &dto.BatchGetDocsReq{
-		Paths:          paths,
-		IncludeContent: true, // 默认包含内容
-	}
-
-	resp, err := s.BatchGetDocs(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	// 转换为旧格式
-	docItems := make([]*dto.DocItem, len(resp.Docs))
-	copy(docItems, resp.Docs)
-
-	return &dto.GetDocsByPathsResp{Docs: docItems}, nil
-}
-
 // ==================== 基于路径的文档操作（新接口，用于 /docs/*full-code-path） ====================

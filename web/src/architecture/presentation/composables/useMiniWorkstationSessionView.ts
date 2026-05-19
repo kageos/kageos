@@ -127,7 +127,6 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
     return [
       session.title,
       session.user,
-      session.agent_name,
       session.role_display_name,
       session.directory_name,
       session.full_code_path,

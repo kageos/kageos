@@ -8,7 +8,7 @@
 
 1. 先调用 `change_role` 进入或沿用 `qa_engineer`。
 2. 确认目标函数、schema、必填字段、枚举、文件字段和写入能力。
-3. 按 PRD `workflow` 或实际功能顺序验证：先主数据/配置表，再 Form 提交，再目标记录表，再 Chart。
+3. 按实际功能顺序验证：先主数据/配置表，再 Form 提交，再目标记录表，再 Chart。
 4. 使用 `run_table_search`、`run_table_create`、`run_table_update`、`run_table_delete`、`run_form_submit`、`run_chart_query`、`run_on_select_fuzzy` 验证核心路径。
 5. 测试失败时判断是业务逻辑问题、构建/schema 问题还是测试数据问题。
 6. 业务 bug 交接给 `maintenance_engineer`；构建/schema 问题交接给 `build_engineer`；测试通过后给出可用结论。

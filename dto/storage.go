@@ -13,7 +13,7 @@ type GetUploadTokenReq struct {
 	FileName      string       `json:"file_name" binding:"required"`
 	ContentType   string       `json:"content_type"`
 	FileSize      int64        `json:"file_size"`
-	Router        string       `json:"router,omitempty"`          // 函数路径，例如：luobei/test88888/plugins/cashier_desk（可选，未提供时使用默认路由：/{username}/default）
+	Router        string       `json:"router,omitempty"`          // 函数路径，例如：luobei/test88888/cashier/cashier_desk.form（可选，未提供时使用默认路由：/{username}/default）
 	Bucket        string       `json:"bucket,omitempty"`          // 存储桶；为空时使用 storage 默认桶
 	Hash          string       `json:"hash,omitempty"`            // 文件 hash（预留，用于秒传）
 	UploadSource  UploadSource `json:"upload_source,omitempty"`   // ✨ 上传来源：browser（浏览器）或 server（服务端），默认为 browser

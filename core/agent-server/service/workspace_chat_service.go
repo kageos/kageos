@@ -159,7 +159,7 @@ func NewWorkspaceChatService(
 
 // StreamEvent 流式事件：用于 SSE 传输
 type StreamEvent struct {
-	Event string      `json:"event"` // session|agent_id|tool_call|content|done|error
+	Event string      `json:"event"` // session|tool_call|content|done|error
 	Data  interface{} `json:"data"`  // 对应负载（具体类型见下方各事件结构体）
 }
 
@@ -228,7 +228,7 @@ type StreamEventError struct {
 	Message string `json:"message"`
 }
 
-// WorkspaceChatStream 工作台对话流式入口：通过 eventChan 发送 SSE 事件（session、agent_id、tool_call、content、done、error）
+// WorkspaceChatStream 工作台对话流式入口：通过 eventChan 发送 SSE 事件（session、tool_call、content、done、error）
 // eventChan 为只写 channel，由调用方在 goroutine 中读取并写 SSE，避免 Flush 阻塞 LLM stream 消费
 func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto.WorkspaceChatReq, eventChan chan<- StreamEvent) (err error) {
 	defer func() {
@@ -286,7 +286,6 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 			FullCodePath:  fullCodePath,
 			Source:        SourceWorkspace,
 			SessionID:     uuid.New().String(),
-			AgentID:       nil,
 			Title:         "",
 			ModeCode:      requestedModeCode,
 			Status:        model.ChatSessionStatusActive,
@@ -368,7 +367,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	if !resumeExistingMessage {
 		storageContent, storageFiles := userContentForStorage(req.Message.Files, req.Message.Content)
 		userMsg := &model.AgentChatMessage{
-			SessionID: sessionID, AgentID: nil, Role: RoleUser,
+			SessionID: sessionID, Role: RoleUser,
 			Content: storageContent, DisplayContent: strings.TrimSpace(req.Message.DisplayContent), Files: storageFiles,
 			ContextUsage: normalizeMessageContextUsage(req.Message.ContextUsage),
 			ArtifactKind: strings.TrimSpace(req.Message.ArtifactKind),
@@ -504,7 +503,6 @@ func (s *WorkspaceChatService) buildWorkspaceSessionItems(ctx context.Context, s
 			SessionID:         session.SessionID,
 			Title:             session.Title,
 			User:              session.User,
-			AgentID:           session.AgentID,
 			ModeCode:          normalizeWorkspaceModeCode(session.ModeCode),
 			Status:            session.Status,
 			RoleID:            workspaceSessionRoleID(session),
@@ -1012,7 +1010,6 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 		FullCodePath:      fullCodePath,
 		Source:            SourceWorkspace,
 		SessionID:         targetSessionID,
-		AgentID:           nil,
 		Title:             title,
 		ModeCode:          modeCode,
 		Status:            model.ChatSessionStatusActive,
@@ -1038,7 +1035,6 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 	})
 	initialMessage := &model.AgentChatMessage{
 		SessionID:      targetSessionID,
-		AgentID:        nil,
 		Role:           RoleUser,
 		Content:        content,
 		DisplayContent: displayContent,
@@ -1170,7 +1166,7 @@ func buildWorkspaceHandoffContent(input workspaceHandoffContentInput) string {
 	}
 	if input.ArtifactKind == "agent_app_prd" && normalizeWorkspaceRole(input.TargetRole) == WorkspaceRoleAppDeveloper {
 		lines = append(lines,
-			"生成阶段要求：不要重新输出 PRD，不要再次询问确认；先读取 1 到多个匹配案例，再根据 PRD tables/forms/charts/workflow/rules 创建目录、写代码文件、注册路由并 build。tables.fields 是业务模型字段，tables.search_fields 是查询请求字段；创建开始时间/创建结束时间/创建人等系统搜索字段不要生成业务列。route、method、widget tag、列表列和预览数据均从 PRD 派生。非常简单的需求才可跳过额外案例。",
+			"生成阶段要求：不要重新输出 PRD，不要再次询问确认；先读取 1 到多个匹配案例，再根据 PRD tables/forms/charts/rules 创建目录、写代码文件、注册路由并 build。tables.fields 是业务模型字段，tables.search_fields 是查询请求字段；创建开始时间/创建结束时间/创建人等系统搜索字段不要生成业务列。route、method、widget tag、列表列和预览数据均从 PRD 派生。非常简单的需求才可跳过额外案例。",
 		)
 	}
 	if input.ArtifactKind == workspaceBuildArtifactKind && normalizeWorkspaceRole(input.TargetRole) == WorkspaceRoleQAEngineer {
@@ -1196,7 +1192,6 @@ func (s *WorkspaceChatService) executeToolCalls(
 	ctx context.Context,
 	allToolCalls []llms.ToolCall,
 	sessionID, fullCodePath string,
-	agentIDPtr *int64,
 	user string,
 	files string,
 	sendEvent func(string, interface{}),
@@ -1244,7 +1239,7 @@ func (s *WorkspaceChatService) executeToolCalls(
 		sendEvent(EventToolCall, StreamEventToolCall{
 			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, ResultData: resultData, Metadata: toolRes.Metadata, Error: errStr,
 		})
-		if err := s.saveToolMessage(ctx, sessionID, agentIDPtr, tc.ID, tc.Function.Name, st, toolRes, user); err != nil {
+		if err := s.saveToolMessage(ctx, sessionID, tc.ID, tc.Function.Name, st, toolRes, user); err != nil {
 			logger.Warnf(ctx, "[WorkspaceChatStream] 保存 tool 消息失败 ToolCallID=%s: %v（若为 Error 1366 请将表转为 utf8mb4）", tc.ID, err)
 			return toolSummaries, fmt.Errorf("保存 tool 消息失败: %w", err)
 		}
@@ -1287,7 +1282,7 @@ func (s *WorkspaceChatService) parseToolCallArgs(ctx context.Context, tc llms.To
 	return args
 }
 
-// callOtherTool 调用 ToolRegistry（read_go_file、read_doc、read_dir、write_doc、write_go_file、build_workspace、create_directory、插件等）
+// callOtherTool 调用 ToolRegistry 中的内置工作台工具。
 func (s *WorkspaceChatService) callOtherTool(ctx context.Context, name string, args map[string]interface{}, fullCodePath string, files string, idx, total int) (res ToolResult, st string) {
 	logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 调用工具 - ToolName: %s, FullCodePath: %s", idx, total, name, fullCodePath)
 	result := s.toolReg.CallTool(ctx, name, args, fullCodePath, files)
@@ -1449,10 +1444,9 @@ func marshalToolResultField(ctx context.Context, toolCallID, fieldName string, v
 }
 
 // saveToolMessage 保存一条 role=tool 的消息。失败时返回 error，调用方应中止下一轮以免 400 insufficient tool messages。
-func (s *WorkspaceChatService) saveToolMessage(ctx context.Context, sessionID string, agentIDPtr *int64, toolCallID, toolName, status string, result ToolResult, user string) error {
+func (s *WorkspaceChatService) saveToolMessage(ctx context.Context, sessionID string, toolCallID, toolName, status string, result ToolResult, user string) error {
 	toolMsg := &model.AgentChatMessage{
 		SessionID:      sessionID,
-		AgentID:        agentIDPtr,
 		Role:           RoleTool,
 		Content:        sanitizeContentForMySQLUtf8(result.Content),
 		ToolCallID:     toolCallID,
@@ -1473,7 +1467,6 @@ func (s *WorkspaceChatService) saveToolMessage(ctx context.Context, sessionID st
 func (s *WorkspaceChatService) saveAssistantMessageWithToolCalls(
 	ctx context.Context,
 	sessionID string,
-	agentIDPtr *int64,
 	content string,
 	allToolCalls []llms.ToolCall,
 	user string,
@@ -1483,7 +1476,6 @@ func (s *WorkspaceChatService) saveAssistantMessageWithToolCalls(
 	toolCallsStr := string(toolCallsJSON)
 	asstMsg := &model.AgentChatMessage{
 		SessionID:     sessionID,
-		AgentID:       agentIDPtr,
 		Role:          RoleAssistant,
 		Content:       content,
 		ToolCalls:     &toolCallsStr,
@@ -1506,14 +1498,12 @@ func (s *WorkspaceChatService) saveAssistantMessageWithToolCalls(
 func (s *WorkspaceChatService) saveAssistantMessage(
 	ctx context.Context,
 	sessionID string,
-	agentIDPtr *int64,
 	content string,
 	user string,
 	llmMeta messageLLMMetadata,
 ) error {
 	asstMsg := &model.AgentChatMessage{
 		SessionID:     sessionID,
-		AgentID:       agentIDPtr,
 		Role:          RoleAssistant,
 		Content:       content,
 		LLMConfigID:   llmMeta.ConfigID,

@@ -70,7 +70,7 @@ func TestPromptDocPathGuardsDisableRetiredSOPs(t *testing.T) {
 	}
 
 	retiredPath := func(leaf string) string {
-		return "/system/prompt/" + retiredWorkflowPromptPackageCode + "/" + strings.TrimPrefix(leaf, "/")
+		return "/system/prompt/" + retiredIntentPromptPackageCode + "/" + strings.TrimPrefix(leaf, "/")
 	}
 	for _, path := range []string{
 		retiredPath("app-plan"),
@@ -79,11 +79,11 @@ func TestPromptDocPathGuardsDisableRetiredSOPs(t *testing.T) {
 		retiredPath("modify/bugfix"),
 	} {
 		if IsPromptDocPath(path) {
-			t.Fatalf("retired workflow SOP should not be treated as prompt doc path: %s", path)
+			t.Fatalf("retired intent SOP should not be treated as prompt doc path: %s", path)
 		}
 		name, content := GetPromptDocContent(nil, path)
 		if name != "" || content != "" {
-			t.Fatalf("retired workflow SOP should be unavailable: path=%s name=%q content=%q", path, name, content)
+			t.Fatalf("retired intent SOP should be unavailable: path=%s name=%q content=%q", path, name, content)
 		}
 	}
 }
@@ -102,7 +102,7 @@ func TestLeanPromptDocsMoveRedundantSDKTaskPacksOutOfSeed(t *testing.T) {
 		"/system/prompt/sdk/platform-api-reference",
 		"/system/prompt/platform-function-architecture",
 		"/system/prompt/platform-cross-cutting-capabilities",
-		"/system/prompt/" + retiredWorkflowPromptPackageCode + "/publish-hub",
+		"/system/prompt/" + retiredIntentPromptPackageCode + "/publish-hub",
 		"/system/prompt/mode/dev/first_assistant",
 		"/system/prompt/mode/dev/readme",
 	} {
@@ -140,16 +140,15 @@ func TestProductManagerRoleRequiresPRDTablesAndConfirmation(t *testing.T) {
 		"产品经理 product_manager",
 		"write_prd",
 		"必须调用 `write_prd`",
-		"`project/tables/forms/charts/workflow/rules`",
+		"`project/tables/forms/charts/rules`",
 		"`search_fields` 只描述搜索参数",
 		"`创建开始时间`、`创建结束时间`",
 		"按记录创建时间范围查询",
 		"用户筛选字段",
 		"`handlers` 只表达表格行操作能力",
 		"## 代表性输出示例",
-		`"workflow"`,
 		"禁止输出旧结构",
-		"`models/functions/route/method/order/columns/sample_rows/preview_data/acceptance_cases/confirmation`",
+		"`models/functions/workflow/route/method/order/columns/sample_rows/preview_data/acceptance_cases/confirmation`",
 		"禁止调用 `create_directory`",
 		"app_developer",
 	} {
@@ -172,7 +171,7 @@ func TestAppDeveloperRoleExecutesConfirmedPRD(t *testing.T) {
 		"不要因为搜索字段自动给 Go struct 增加同名业务列",
 		"`创建开始时间`、`创建结束时间`",
 		"`创建人` 是系统记录创建用户查询",
-		"按 `workflow` 数组顺序生成 Table/Form/Chart",
+		"按可维护 Table、Form、只读记录 Table、Chart 的派生顺序生成",
 		"禁止调用 `write_prd`",
 		"写代码前必须先读取 1 到多个与当前需求匹配的案例",
 		"/system/prompt/case_catalog/table/ticket",
@@ -218,7 +217,7 @@ func TestExecutionRolesRetainPRDV2SearchRules(t *testing.T) {
 		},
 		"/system/prompt/roles/reviewer": {
 			"代码审查分析师 reviewer",
-			"`project/tables/forms/charts/workflow/rules`",
+			"`project/tables/forms/charts/rules`",
 			"`search_fields` 不应被误实现成业务模型字段",
 			"`创建开始时间/创建结束时间/创建人` 应映射系统字段查询",
 		},
@@ -242,7 +241,7 @@ func TestCaseCatalogDocsPreferPRDJSONV2(t *testing.T) {
 		for _, needle := range []string{
 			"## 结构化 PRD JSON",
 			`"schema_version": "prd.v2"`,
-			`"workflow"`,
+			`"rules"`,
 		} {
 			if !strings.Contains(content, needle) {
 				t.Fatalf("%s should include PRD v2 JSON content %q, got: %q", docPath, needle, content)

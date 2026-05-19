@@ -13,7 +13,6 @@ function createSession(overrides: Partial<WorkspaceSessionItem> = {}): Workspace
     session_id: 'session-1',
     title: '减法链路',
     status: 'active',
-    agent_name: '产品经理',
     full_code_path: '/Users/demo/subtract',
     directory_name: 'subtract',
     created_at: '2026-05-13T08:00:00Z',
@@ -39,7 +38,7 @@ function mountDock(props: Record<string, unknown> = {}) {
         session.status === 'generating' ? 'running' : 'active'
       ),
       getSessionTitle: (session: WorkspaceSessionItem) => session.title,
-      getSessionSubtitle: (session: WorkspaceSessionItem) => `${session.directory_name} · ${session.agent_name}`,
+      getSessionSubtitle: (session: WorkspaceSessionItem) => `${session.directory_name} · ${session.role_display_name || session.status}`,
       ...props,
     },
     global: {

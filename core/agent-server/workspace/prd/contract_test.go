@@ -9,11 +9,10 @@ func TestContractMarkdownDocumentsV2Shape(t *testing.T) {
 	got := ContractMarkdown()
 	for _, want := range []string{
 		"## PRD 规则",
-		"`project/tables/forms/charts/workflow/rules`",
+		"`project/tables/forms/charts/rules`",
 		"`search_fields` 只描述搜索参数",
 		"`创建开始时间`、`创建结束时间`",
 		"## 代表性输出示例",
-		`"workflow"`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("contract markdown should contain %q, got:\n%s", want, got)
@@ -26,7 +25,7 @@ func TestApplyContractMarkdown(t *testing.T) {
 	if strings.Contains(got, ContractMarker) {
 		t.Fatalf("contract marker should be replaced: %s", got)
 	}
-	if !strings.Contains(got, "`workflow` 是用户展示和操作顺序") {
+	if !strings.Contains(got, "禁止输出旧结构") {
 		t.Fatalf("contract markdown not injected: %s", got)
 	}
 }
@@ -51,12 +50,12 @@ func TestSupportedPRDContractValues(t *testing.T) {
 
 func TestAllowedKeySetsExposeV2Only(t *testing.T) {
 	top := AllowedTopLevelKeys()
-	for _, want := range []string{"project", "tables", "forms", "charts", "workflow", "rules"} {
+	for _, want := range []string{"project", "tables", "forms", "charts", "rules"} {
 		if _, ok := top[want]; !ok {
 			t.Fatalf("top-level keys should contain %q", want)
 		}
 	}
-	for _, legacy := range []string{"models", "functions", "features", "acceptance_cases", "confirmation"} {
+	for _, legacy := range []string{"models", "functions", "workflow", "features", "acceptance_cases", "confirmation"} {
 		if _, ok := top[legacy]; ok {
 			t.Fatalf("top-level keys should not contain legacy key %q", legacy)
 		}

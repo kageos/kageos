@@ -173,23 +173,24 @@
   - 已归档根目录历史文档。
   - 已清理 `web/` 下阶段性报告。
   - 已归档确认无有效引用的重复 TODO。
-- 候选：
-  - `Agent工作流流程图.md` -> `docs/archive/Agent工作流流程图.md`
-  - `项目介绍.md` -> `docs/archive/项目介绍.md`
-  - `项目架构.md` -> `docs/archive/项目架构.md`
-  - `web/ARCHITECTURE_ANALYSIS.md` -> `docs/archive/web-ARCHITECTURE_ANALYSIS.md`
-  - `web/COLOR_ANALYSIS.md` -> `docs/archive/web-COLOR_ANALYSIS.md`
-  - `web/THEME_COMPARISON_REPORT.md` -> `docs/archive/web-THEME_COMPARISON_REPORT.md`
-  - `web/THEME_FIX_SUMMARY.md` -> `docs/archive/web-THEME_FIX_SUMMARY.md`
-  - `web/todos.md` -> `docs/archive/web-todos.md`：内容为粗粒度旧 TODO，后续治理统一以本看板为准。
+- 已删除：
+  - `docs/archive/Agent工作流流程图.md`
+  - `docs/archive/项目介绍.md`
+  - `docs/archive/项目架构.md`
+  - `docs/archive/web-ARCHITECTURE_ANALYSIS.md`
+  - `docs/archive/web-COLOR_ANALYSIS.md`
+  - `docs/archive/web-THEME_COMPARISON_REPORT.md`
+  - `docs/archive/web-THEME_FIX_SUMMARY.md`
+  - `docs/archive/web-todos.md`
 - 验收：
-  - 已执行引用检查，仅治理清单引用候选文件。
-  - 仍有价值的内容已迁移并标注“历史归档”。
-  - 需人工复核归档内容是否仍有敏感信息或未迁移决策。
+  - 已执行引用检查，删除文件不再被有效入口引用。
+  - 当前仍有价值的内容由 README、`docs/README.md`、`docs/工作台最新设计.md`、`web/src/architecture/README.md` 和本看板承接。
+  - 已删除的归档稿不再作为开源文档包的一部分。
 - 本轮结果：
-  - 新增 `docs/archive/README.md`，`docs/README.md` 已标出历史归档层。
+  - 保留 `docs/archive/README.md` 作为未来确需追溯材料的占位说明，`docs/README.md` 已标出历史归档层。
   - 未归档当前仍作为入口引用的 `docs/工作台最新设计.md` 及其配套文档。
   - 已按 `DOCUMENT_GOVERNANCE.md` 为当前主项目文档、模块入口文档和归档文档补齐状态、更新时间和负责人窗口。
+  - 已删除无独立维护价值的归档稿和重复 TODO，并同步更新文档治理清单。
 
 ### 事项 9：产品示例和 SDK 入门
 

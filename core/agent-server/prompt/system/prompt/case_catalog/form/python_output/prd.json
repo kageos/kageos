@@ -54,11 +54,5 @@
     "Go 先用 GetTraceOutputDir 获取输出目录，并把绝对路径传给 Python。",
     "Python 直接写入 Go 传入的绝对路径，不使用相对路径互传。",
     "Go 使用 OutputFilePaths 校验产物，再通过 ResponseFiles 返回附件。"
-  ],
-  "workflow": [
-    {
-      "type": "form",
-      "ref": "Python生成PNG"
-    }
   ]
 }

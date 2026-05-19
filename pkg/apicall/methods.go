@@ -55,20 +55,6 @@ func PutAPI[TReq, TResp any](ctx context.Context, path string, req TReq) (TResp,
 	return result.Data, nil
 }
 
-// DeleteAPI 发送 DELETE 请求（无请求体）
-// T: 响应类型（指针类型，如 *dto.DeleteResp）
-// ctx: 上下文（从 ctx 中提取 token、trace_id、request_user）
-// path: API路径（如 "/workspace/api/v1/service_tree/123"）
-// 返回: T（指针类型）
-func DeleteAPI[T any](ctx context.Context, path string) (T, error) {
-	result, err := callAPI[T](ctx, http.MethodDelete, path, nil)
-	if err != nil {
-		var zero T
-		return zero, err
-	}
-	return result.Data, nil
-}
-
 // DeleteBodyAPI 发送 DELETE 请求（带请求体）
 // 用于需要 body 的接口，例如 Table 批量删除：{"ids":[1,2,3]}。
 func DeleteBodyAPI[TReq, TResp any](ctx context.Context, path string, req TReq) (TResp, error) {

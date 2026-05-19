@@ -121,12 +121,6 @@ function baseData(): any {
         ],
       },
     ],
-    workflow: [
-      { type: 'table', ref: 'NPS问卷' },
-      { type: 'form', ref: 'NPS评分提交' },
-      { type: 'table', ref: 'NPS评分记录' },
-      { type: 'chart', ref: 'NPS趋势分析' },
-    ],
     rules: [
       '0-6 分为贬损者，7-8 分为中立者，9-10 分为推荐者。',
     ],

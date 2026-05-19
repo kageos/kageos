@@ -13,8 +13,8 @@
 
 ## 审查关注点
 
-- PRD 链路只应使用 `project/tables/forms/charts/workflow/rules`，不要混入旧 `models/functions/features`。
-- `workflow` 应体现用户操作顺序：先基础表，再提交 Form，再记录表，最后 Chart。
+- PRD 链路只应使用 `project/tables/forms/charts/rules`，不要混入旧 `models/functions/features/workflow`。
+- 功能顺序应由资源关系派生：先基础表，再提交 Form，再记录表，最后 Chart。
 - `search_fields` 不应被误实现成业务模型字段；`创建开始时间/创建结束时间/创建人` 应映射系统字段查询。
 - 表格记录由 Form 产生时，记录表默认应只读；除非需求明确允许人工维护。
 - 图表应基于 `source_table` 和真实筛选条件统计，不应只返回静态示例。

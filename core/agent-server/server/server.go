@@ -140,10 +140,6 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	if err := model.InitTables(s.db); err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
-	// 初始化工作台内置 3 个模式（若不存在则插入）
-	if err := model.InitWorkspaceModes(s.db); err != nil {
-		return fmt.Errorf("failed to init workspace modes: %w", err)
-	}
 
 	logger.Infof(ctx, "[Server] Database initialized successfully")
 	return nil

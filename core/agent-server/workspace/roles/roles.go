@@ -57,7 +57,7 @@ func Specs() map[string]Spec {
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy",
 			},
 			Action:           "产品经理只负责需求分析、PRD v2 结构化输出和确认；调用 write_prd 后等待用户确认，不创建目录、不写代码、不 build。",
-			RouteDescription: "用户要新建系统、目录、Form、Table、Chart 或管理后台，但还没有确认 PRD 时进入。只负责把需求拆成可确认的 PRD artifact：`project/tables/forms/charts/workflow/rules`；调用 `write_prd` 后等待用户确认，不创建目录、不写代码、不 build。",
+			RouteDescription: "用户要新建系统、目录、Form、Table、Chart 或管理后台，但还没有确认 PRD 时进入。只负责把需求拆成可确认的 PRD artifact：`project/tables/forms/charts/rules`；调用 `write_prd` 后等待用户确认，不创建目录、不写代码、不 build。",
 			NextRoles: []NextRole{
 				{RoleID: AppDeveloper, When: "用户确认 PRD 后进入应用开发"},
 			},
@@ -105,7 +105,7 @@ func Specs() map[string]Spec {
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy",
 			},
 			ForbiddenTools:   []string{"write_prd", "create_directory", "write_go_file", "search_replace_file", "delete_file", "build_workspace"},
-			Action:           "测试工程师确认 schema 后按 workflow 验证 Table/Form/Chart，覆盖时间范围和用户筛选，并调用 run_* 工具；不直接改代码。",
+			Action:           "测试工程师确认 schema 后按实际功能顺序验证 Table/Form/Chart，覆盖时间范围和用户筛选，并调用 run_* 工具；不直接改代码。",
 			RouteDescription: "用户要查数据、提交表单、查图表、测试刚生成的应用或验证已有函数时进入。先确认目标函数、schema、必填字段、枚举、文件字段、搜索字段和写入能力，再调用运行工具。重点验证 Table 查询、时间范围筛选、用户筛选、Form 写入目标表和 Chart 统计。测试失败时判断是业务数据问题、代码问题还是构建/schema 问题，并建议切换到 `maintenance_engineer` 或 `build_engineer`。",
 			NextRoles: []NextRole{
 				{RoleID: MaintenanceEngineer, When: "测试发现业务 bug"},
@@ -148,7 +148,7 @@ func Specs() map[string]Spec {
 			ID:               DataOperator,
 			DisplayName:      "数据/文件处理工程师",
 			Docs:             []string{"/system/prompt/roles/data-operator"},
-			AllowedTools:     []string{"change_role", "read_doc", "search_tools", "run_form_submit", "run_python", "fetch_url_content", "web_search"},
+			AllowedTools:     []string{"change_role", "read_doc", "search_tools", "run_form_submit", "run_python"},
 			Action:           "数据/文件处理工程师处理一次性文件、媒体和数据任务，不沉淀长期业务应用。",
 			RouteDescription: "用户要做一次性文件、媒体、数据处理、图表生成、格式转换、OCR、压缩、转码等杂活时进入。优先复用已有官方工具和运行工具，不要误判成长期应用开发。只有用户明确要求沉淀为业务系统、记录管理或统计看板时，才切到 `product_manager`。",
 			NextRoles: []NextRole{
@@ -159,7 +159,7 @@ func Specs() map[string]Spec {
 			ID:               PlatformEngineer,
 			DisplayName:      "平台集成工程师",
 			Docs:             []string{"/system/prompt/roles/platform-engineer"},
-			AllowedTools:     []string{"change_role", "read_doc", "search_tools", "run_form_submit", "fetch_url_content", "web_search"},
+			AllowedTools:     []string{"change_role", "read_doc", "search_tools", "run_form_submit"},
 			Action:           "平台集成工程师负责平台 OpenAPI、权限、审计、组织和文件等平台能力；不绕过权限。",
 			RouteDescription: "用户要调用平台权限、审计、组织或文件等平台能力时进入。优先使用平台提供的 API 和工具，不绕过权限，不硬编码 token，不直连内部服务。",
 		},
@@ -171,7 +171,7 @@ func Specs() map[string]Spec {
 			ForbiddenTools: []string{"write_prd", "create_directory", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "run_form_submit"},
 			Action:         "代码审查分析师以只读方式分析项目、解释代码、review 风险和改进建议。",
 			RouteDescription: "用户要解释项目、review、查问题、读代码或做方案评估时进入。只读目录、源码和文档，不落盘、不构建、不调用会产生业务副作用的运行工具，除非用户明确要求继续修改或验证。" +
-				"审查 PRD 链路时关注 PRD v2、workflow 顺序、search_fields 是否被误当业务字段。",
+				"审查 PRD 链路时关注 PRD v2、派生功能顺序、search_fields 是否被误当业务字段。",
 			NextRoles: []NextRole{
 				{RoleID: MaintenanceEngineer, When: "用户确认要修改"},
 				{RoleID: ProductManager, When: "用户要求新建长期业务系统"},

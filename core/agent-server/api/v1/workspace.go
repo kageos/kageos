@@ -183,9 +183,6 @@ func (h *Workspace) ListMessages(c *gin.Context) {
 			ContextUsage:   msg.ContextUsage,
 			ArtifactKind:   msg.ArtifactKind,
 		}
-		if msg.AgentID != nil {
-			info.AgentID = *msg.AgentID
-		}
 		if msg.ToolCalls != nil && *msg.ToolCalls != "" {
 			// 解析 tool_calls JSON
 			var toolCalls []llms.ToolCall

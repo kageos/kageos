@@ -13,7 +13,6 @@ function createSession(overrides: Partial<WorkspaceSessionItem> = {}): Workspace
     session_id: 'session-1',
     title: '客户减法链路',
     status: 'active',
-    agent_name: '产品经理',
     full_code_path: '/Users/demo/customer',
     directory_name: 'customer',
     created_at: '2026-05-13T08:00:00Z',
@@ -55,7 +54,7 @@ function mountCenter(props: Record<string, unknown> = {}) {
         session.status === 'done' ? 'is-done' : 'is-running'
       ),
       getSessionTitle: (session: WorkspaceSessionItem) => session.title,
-      getSessionCenterSubtitle: (session: WorkspaceSessionItem) => `${session.directory_name} · ${session.agent_name}`,
+      getSessionCenterSubtitle: (session: WorkspaceSessionItem) => `${session.directory_name} · ${session.role_display_name || session.status}`,
       getSessionStatusLabel: (session: WorkspaceSessionItem) => (session.status === 'done' ? '完成' : '执行中'),
       ...props,
     },

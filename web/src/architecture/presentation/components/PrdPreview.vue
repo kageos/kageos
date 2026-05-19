@@ -315,7 +315,7 @@ import FormIcon from '@/architecture/presentation/shared/components/icons/FormIc
 import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
 
 type PreviewRow = Record<string, unknown>
-type PrdWorkflowStepType = 'table' | 'form' | 'chart'
+type PrdResourceType = 'table' | 'form' | 'chart'
 
 interface PrdProject {
   name?: string
@@ -373,11 +373,6 @@ interface PrdChart {
   examples?: PreviewRow[]
 }
 
-interface PrdWorkflowStep {
-  type?: PrdWorkflowStepType | string
-  ref?: string
-}
-
 interface PrdData {
   kind?: string
   schema_version?: string
@@ -385,12 +380,11 @@ interface PrdData {
   tables?: PrdTable[]
   forms?: PrdForm[]
   charts?: PrdChart[]
-  workflow?: PrdWorkflowStep[]
   rules?: string[]
 }
 
 interface PreviewFunction {
-  type: PrdWorkflowStepType
+  type: PrdResourceType
   title: string
   subtitle: string
   description: string
@@ -437,25 +431,19 @@ const project = computed<PrdProject>(() => prd.value?.project || {})
 const tablesList = computed<PrdTable[]>(() => Array.isArray(prd.value?.tables) ? prd.value?.tables || [] : [])
 const formsList = computed<PrdForm[]>(() => Array.isArray(prd.value?.forms) ? prd.value?.forms || [] : [])
 const chartsList = computed<PrdChart[]>(() => Array.isArray(prd.value?.charts) ? prd.value?.charts || [] : [])
-const workflowList = computed<PrdWorkflowStep[]>(() => Array.isArray(prd.value?.workflow) ? prd.value?.workflow || [] : [])
 const confirmationQuestion = computed(() => {
-  const refs = workflowList.value.map(item => display(item.ref)).filter(item => item !== '—')
+  const refs = functionCards.value.map(item => item.title).filter(item => item !== '—')
   return `请确认是否按以上 PRD 创建目录和生成代码：目录名称 ${display(project.value.name)}，目录 code 为 ${display(project.value.code)}，将创建 ${refs.join('、') || '上述功能'}。确认后我再进入开发阶段。`
 })
 
 const functionCards = computed<PrdFunctionCard[]>(() => {
-  return workflowList.value
-    .map((step, index) => {
-      const fn = previewFunctionForWorkflowStep(step)
-      return fn ? { fn, index, order: index + 1 } : null
-    })
-    .filter((item): item is { fn: PreviewFunction; index: number; order: number } => item != null)
-    .map(({ fn, index, order }) => {
+  return derivedPreviewFunctions.value
+    .map((fn, index) => {
       const type = fnType(fn)
       const key = `fn-${index}-${type}-${fn.title}`
       return {
         key,
-        order,
+        order: index + 1,
         title: fn.title,
         shortTitle: fn.title,
         subtitle: fn.subtitle,
@@ -465,6 +453,25 @@ const functionCards = computed<PrdFunctionCard[]>(() => {
         iconComponent: type === 'table' ? TableIcon : type === 'chart' ? ChartIcon : undefined,
       }
     })
+})
+
+const derivedPreviewFunctions = computed<PreviewFunction[]>(() => {
+  const targetTables = new Set(
+    formsList.value
+      .map(form => String(form.target_table || '').trim())
+      .filter(Boolean),
+  )
+  const isFormTargetReadonlyTable = (table: PrdTable) => {
+    const name = String(table.name || '').trim()
+    const handlers = Array.isArray(table.handlers) ? table.handlers : []
+    return targetTables.has(name) && handlers.length === 0
+  }
+  return [
+    ...tablesList.value.filter(table => !isFormTargetReadonlyTable(table)).map(previewFunctionForTable),
+    ...formsList.value.map(previewFunctionForForm),
+    ...tablesList.value.filter(isFormTargetReadonlyTable).map(previewFunctionForTable),
+    ...chartsList.value.map(previewFunctionForChart),
+  ]
 })
 
 const activeView = computed<PrdFunctionCard | null>(() => {
@@ -504,43 +511,34 @@ function display(value: unknown): string {
   return String(value)
 }
 
-function previewFunctionForWorkflowStep(step: PrdWorkflowStep): PreviewFunction | null {
-  const type = String(step.type || '').toLowerCase() as PrdWorkflowStepType
-  const ref = String(step.ref || '').trim()
-  if (type === 'table') {
-    const table = tablesList.value.find(item => item.name === ref)
-    if (!table) return null
-    return {
-      type,
-      title: display(table.title || table.name),
-      subtitle: display(table.name),
-      description: display(table.desc),
-      table,
-    }
+function previewFunctionForTable(table: PrdTable): PreviewFunction {
+  return {
+    type: 'table',
+    title: display(table.title || table.name),
+    subtitle: display(table.name),
+    description: display(table.desc),
+    table,
   }
-  if (type === 'form') {
-    const form = formsList.value.find(item => item.name === ref)
-    if (!form) return null
-    return {
-      type,
-      title: display(form.name),
-      subtitle: form.target_table ? `写入 ${form.target_table}` : '独立提交入口',
-      description: display(form.desc),
-      form,
-    }
+}
+
+function previewFunctionForForm(form: PrdForm): PreviewFunction {
+  return {
+    type: 'form',
+    title: display(form.name),
+    subtitle: form.target_table ? `写入 ${form.target_table}` : '独立提交入口',
+    description: display(form.desc),
+    form,
   }
-  if (type === 'chart') {
-    const chart = chartsList.value.find(item => item.name === ref)
-    if (!chart) return null
-    return {
-      type,
-      title: display(chart.name),
-      subtitle: chart.source_table ? `统计 ${chart.source_table}` : '统计图表',
-      description: display(chart.desc),
-      chart,
-    }
+}
+
+function previewFunctionForChart(chart: PrdChart): PreviewFunction {
+  return {
+    type: 'chart',
+    title: display(chart.name),
+    subtitle: chart.source_table ? `统计 ${chart.source_table}` : '统计图表',
+    description: display(chart.desc),
+    chart,
   }
-  return null
 }
 
 function fnType(fn: PreviewFunction): string {

@@ -19,8 +19,6 @@ func InitTables(db *gorm.DB) error {
 		&AgentChatSession{},
 		&AgentChatMessage{},
 		&WorkspaceHandoffPacket{},
-		// 工作台模式（独立表，无外键）
-		&WorkspaceMode{},
 	); err != nil {
 		return err
 	}

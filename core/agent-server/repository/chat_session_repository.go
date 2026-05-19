@@ -5,7 +5,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// ChatSessionRepository 智能体聊天会话数据访问层
+// ChatSessionRepository 工作台聊天会话数据访问层
 type ChatSessionRepository struct {
 	db *gorm.DB
 }
@@ -50,7 +50,7 @@ func (r *ChatSessionRepository) GetBySessionID(sessionID string) (*model.AgentCh
 	return &session, nil
 }
 
-// ListByTreeID 根据 TreeID 获取会话列表（包含智能体信息）
+// ListByTreeID 根据 TreeID 获取会话列表
 func (r *ChatSessionRepository) ListByTreeID(treeID int64, offset, limit int) ([]*model.AgentChatSession, int64, error) {
 	var sessions []*model.AgentChatSession
 	var total int64

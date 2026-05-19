@@ -59,7 +59,7 @@ type GetFunctionGroupInfoResp struct {
 
 	// 快照信息（方便排查问题）
 	// FullGroupCode、GroupCode 和 GroupName 已移除，不再需要
-	FullPath      string         `json:"full_path" example:"/luobei/testgroup/plugins"` // 完整路径
+	FullPath      string         `json:"full_path" example:"/luobei/testgroup/cashier"` // 完整路径
 	Version       string         `json:"version" example:"v1"`                          // 版本号
 	AppID         int64          `json:"app_id" example:"123"`                          // 应用ID
 	AppName       string         `json:"app_name" example:"testgroup"`                  // 应用名称

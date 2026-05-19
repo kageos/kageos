@@ -2,7 +2,7 @@ package dto
 
 // GetStorageStatsReq 获取存储统计请求
 type GetStorageStatsReq struct {
-	Router string `form:"router" binding:"required"` // 函数路径，例如：luobei/test88888/plugins/cashier_desk
+	Router string `form:"router" binding:"required"` // 函数路径，例如：luobei/test88888/cashier/cashier_desk.form
 }
 
 // GetStorageStatsResp 获取存储统计响应

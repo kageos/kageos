@@ -14,14 +14,14 @@
 2. 把 handoff 中的 PRD JSON 作为唯一需求源；不要依赖来源会话的历史讨论。
 3. 写代码前必须先读取 1 到多个与当前需求匹配的案例；常见路径包括 `/system/prompt/case_catalog/table/ticket`、`/system/prompt/case_catalog/form_table_chart/cashier`。
 4. 创建目标目录，按 PRD 的 `tables.fields` 自动生成 Go struct；字段的 widget tag 由 `name/widget/required/desc/hide` 派生。
-5. 按 `workflow` 数组顺序生成 Table/Form/Chart；route 由 `ref + type` 派生，后缀分别为 `.table`、`.form`、`.chart`。
+5. 按可维护 Table、Form、只读记录 Table、Chart 的派生顺序生成；route 由资源名和类型派生，后缀分别为 `.table`、`.form`、`.chart`。
 6. Table 根据 `tables.search_fields/handlers/examples` 实现搜索、行操作和预览数据；Form 根据 `forms.target_table/request_fields/response_fields/example` 实现提交；Chart 根据 `charts.source_table/chart_type/dimension/metrics/filters/examples` 实现统计。
 7. 完整落盘后统一调用 `build_workspace`。
 8. build 成功后建议交接给 `qa_engineer`；build 或 schema 失败时交接给 `build_engineer`。
 
 ## PRD v2 落地规则
 
-- 只消费 `project/tables/forms/charts/workflow/rules`；不要回退到旧 `models/functions/features` 思路。
+- 只消费 `project/tables/forms/charts/rules`；不要回退到旧 `models/functions/features/workflow` 思路。
 - `tables.fields` 才是业务模型字段来源；`tables.search_fields` 是查询请求字段来源，不等于业务表字段，不要因为搜索字段自动给 Go struct 增加同名业务列。
 - `创建开始时间`、`创建结束时间` 是系统创建时间范围查询，映射到记录创建时间，不生成业务字段；`创建人` 是系统记录创建用户查询，不生成业务字段。
 - `提交人`、`处理人`、`评分人`、`申请人` 等业务用户搜索字段，如果同名字段存在于 `tables.fields`，按该业务字段过滤；如果不存在，按 PRD `desc` 判断是否应映射到系统用户字段。
