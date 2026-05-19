@@ -89,8 +89,8 @@ progress              转发并计算进度
 ```go
 // storage/interface.go
 type Storage interface {
-    // 生成上传预签名 URL（所有存储都支持）
-    GenerateUploadURL(ctx context.Context, bucket, key, contentType string, expire time.Duration) (url string, err error)
+    // 生成上传凭证（当前官方实现为 presigned_url）
+    GenerateUploadCredentials(ctx context.Context, bucket, key, contentType string, expire time.Duration, uploadSource string) (*UploadCredentials, error)
 }
 ```
 
@@ -418,24 +418,24 @@ xhr.upload.addEventListener('progress', (e) => {
 ### 3. **后端抽象接口**
 
 ```go
-// 所有存储实现都返回标准的预签名 URL
+// 所有存储实现都返回统一上传凭证
 type Storage interface {
-    GenerateUploadURL(...) (url string, err error)
+    GenerateUploadCredentials(...) (*UploadCredentials, error)
 }
 
 // MinIO 实现
-func (s *MinIOStorage) GenerateUploadURL(...) (string, error) {
-    return s.client.PresignedPutObject(...)  // 返回 HTTP PUT URL
+func (s *MinIOStorage) GenerateUploadCredentials(...) (*UploadCredentials, error) {
+    // 返回 method=presigned_url 的 UploadCredentials
 }
 
 // 腾讯云 COS 实现
-func (s *TencentCOSStorage) GenerateUploadURL(...) (string, error) {
-    return s.client.GetPresignedURL(http.MethodPut, ...)  // 返回 HTTP PUT URL
+func (s *TencentCOSStorage) GenerateUploadCredentials(...) (*UploadCredentials, error) {
+    // 返回 method=presigned_url 的 UploadCredentials
 }
 
 // 阿里云 OSS 实现
-func (s *AliyunOSSStorage) GenerateUploadURL(...) (string, error) {
-    return s.bucket.SignURL(key, http.MethodPut, ...)  // 返回 HTTP PUT URL
+func (s *AliyunOSSStorage) GenerateUploadCredentials(...) (*UploadCredentials, error) {
+    // 返回 method=presigned_url 的 UploadCredentials
 }
 ```
 

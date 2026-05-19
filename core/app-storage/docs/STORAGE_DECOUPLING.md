@@ -30,8 +30,8 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │              Storage Interface (storage.Storage)                 │
 │  ┌───────────────────────────────────────────────────────┐      │
-│  │  GenerateUploadURL()                                   │      │
-│  │  GenerateDownloadURL()                                 │      │
+│  │  GenerateUploadCredentials()                           │      │
+│  │  GenerateDownloadURLs()                                │      │
 │  │  DeleteObject()                                        │      │
 │  │  GetObjectInfo()                                       │      │
 │  │  ListObjects()                                         │      │
@@ -62,11 +62,11 @@
 
 ```go
 type Storage interface {
-    // 生成上传预签名 URL
-    GenerateUploadURL(ctx context.Context, bucket, key, contentType string, expire time.Duration) (url string, err error)
+    // 生成上传凭证
+    GenerateUploadCredentials(ctx context.Context, bucket, key, contentType string, expire time.Duration, uploadSource string) (*UploadCredentials, error)
     
-    // 生成下载预签名 URL
-    GenerateDownloadURL(ctx context.Context, bucket, key string, expire time.Duration, cacheControl map[string]string) (url string, err error)
+    // 生成下载 URL（同时返回外部和内部访问 URL）
+    GenerateDownloadURLs(ctx context.Context, bucket, key string, expire time.Duration, cacheControl map[string]string) (externalURL string, serverURL string, err error)
     
     // 删除对象
     DeleteObject(ctx context.Context, bucket, key string) error
@@ -115,8 +115,8 @@ func NewMinIOStorage(cfg Config) (*MinIOStorage, error) {
 }
 
 // 实现所有 Storage 接口方法
-func (s *MinIOStorage) GenerateUploadURL(...) { ... }
-func (s *MinIOStorage) GenerateDownloadURL(...) { ... }
+func (s *MinIOStorage) GenerateUploadCredentials(...) { ... }
+func (s *MinIOStorage) GenerateDownloadURLs(...) { ... }
 func (s *MinIOStorage) DeleteObject(...) { ... }
 // ...
 ```
@@ -198,9 +198,9 @@ func (s *StorageService) GenerateUploadToken(...) {
     key = s.generateFileKey(router, fileName)
     
     // 调用存储接口（不关心具体实现）
-    url, err := s.storage.GenerateUploadURL(ctx, bucket, key, contentType, expiry)
+    creds, err := s.storage.GenerateUploadCredentials(ctx, bucket, key, contentType, expiry, uploadSource)
     
-    return url, key, expire, err
+    return creds, key, expire, err
 }
 ```
 
@@ -305,7 +305,7 @@ func NewTencentCOSStorage(cfg Config) (*TencentCOSStorage, error) {
 }
 
 // 实现 Storage 接口
-func (s *TencentCOSStorage) GenerateUploadURL(ctx context.Context, bucket, key, contentType string, expire time.Duration) (string, error) {
+func (s *TencentCOSStorage) GenerateUploadCredentials(ctx context.Context, bucket, key, contentType string, expire time.Duration, uploadSource string) (*UploadCredentials, error) {
     presignedURL, err := s.client.Object.GetPresignedURL(
         ctx,
         http.MethodPut,

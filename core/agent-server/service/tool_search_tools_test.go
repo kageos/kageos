@@ -84,8 +84,8 @@ func TestSummarizeSearchToolSchemaDoesNotTruncate(t *testing.T) {
 func TestNormalizeSearchToolsRequestOutput(t *testing.T) {
 	cases := map[string]searchToolsRequestOutput{
 		"summary": searchToolsRequestOutputSummary,
-		"json":    searchToolsRequestOutputJSON,
 		"both":    searchToolsRequestOutputBoth,
+		"json":    searchToolsRequestOutputSummary,
 		"":        searchToolsRequestOutputSummary,
 		"weird":   searchToolsRequestOutputSummary,
 	}
