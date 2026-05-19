@@ -23,42 +23,67 @@
             <el-tag size="small" effect="plain">已选 {{ selectedResourcePaths.length }}</el-tag>
           </div>
 
-          <el-tree
-            ref="treeRef"
-            class="resource-tree"
-            :data="treeDataForGrant"
-            :props="treeProps"
-            node-key="full_code_path"
-            show-checkbox
-            :check-strictly="true"
-            :default-expand-all="true"
-            :expand-on-click-node="false"
-            :check-on-click-node="true"
-            :current-node-key="activeResourcePath"
-            @node-click="handleResourceClick"
-            @check="handleResourceCheck"
-          >
-            <template #default="{ node: treeNode, data }">
-              <span class="tree-node" :class="{ 'is-active': activeResourcePath === data.full_code_path }">
-                <img
-                  v-if="data.type === 'package'"
-                  src="/service-tree/custom-folder.svg"
-                  alt="目录"
-                  class="node-icon package-icon-img"
-                />
-                <img
-                  v-else-if="data.type === 'docs'"
-                  src="/文档.svg"
-                  alt="文档"
-                  class="node-icon docs-icon-img"
-                />
-                <el-icon v-else class="node-icon function-icon">
-                  <Document />
-                </el-icon>
-                <span class="node-label">{{ treeNode.label }}</span>
-              </span>
-            </template>
-          </el-tree>
+          <div class="tree-container">
+            <el-tree
+              ref="treeRef"
+              class="resource-tree"
+              :data="treeDataForGrant"
+              :props="treeProps"
+              node-key="full_code_path"
+              show-checkbox
+              :check-strictly="true"
+              :default-expand-all="true"
+              :expand-on-click-node="false"
+              :check-on-click-node="true"
+              :highlight-current="true"
+              :current-node-key="activeResourcePath"
+              @node-click="handleResourceClick"
+              @check="handleResourceCheck"
+            >
+              <template #default="{ node: treeNode, data }">
+                <span class="tree-node" :class="{ 'is-selected': activeResourcePath === data.full_code_path }">
+                  <img
+                    v-if="data.type === 'package'"
+                    src="/service-tree/custom-folder.svg"
+                    alt="目录"
+                    class="node-icon package-icon-img"
+                    :class="getNodeIconClass(data)"
+                  />
+                  <template v-else-if="data.type === 'function'">
+                    <img
+                      v-if="data.template_type === TEMPLATE_TYPE.FORM"
+                      src="/service-tree/编辑.svg"
+                      alt="表单"
+                      class="node-icon form-icon-img"
+                      :class="getNodeIconClass(data)"
+                    />
+                    <component
+                      v-else
+                      :is="getFunctionIcon(data)"
+                      class="node-icon"
+                      :class="getNodeIconClass(data)"
+                    />
+                  </template>
+                  <img
+                    v-else-if="data.type === 'docs'"
+                    src="/文档.svg"
+                    alt="文档"
+                    class="node-icon docs-icon-img"
+                    :class="getNodeIconClass(data)"
+                  />
+                  <img
+                    v-else-if="isBoardNode(data)"
+                    src="/讨论区.svg"
+                    alt="讨论区"
+                    class="node-icon board-icon-img"
+                    :class="getNodeIconClass(data)"
+                  />
+                  <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
+                  <span class="node-label">{{ treeNode.label }}</span>
+                </span>
+              </template>
+            </el-tree>
+          </div>
         </section>
 
         <section class="role-panel">
@@ -266,6 +291,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { Component } from 'vue'
 import type { AccessPermissions, AccessRoleCode, ServiceTree } from '@/architecture/domain/types'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
+import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import { WidgetType } from '@/architecture/domain/constants/widget'
 import {
   batchAssignTeamRoles,
@@ -273,6 +299,9 @@ import {
   removeTeamRole,
   type TeamMemberAccess
 } from '@/architecture/presentation/context/api/team-access'
+import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
+import FormIcon from '@/architecture/presentation/shared/components/icons/FormIcon.vue'
+import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
 import UsersWidget from '@/architecture/presentation/shared/components/UsersWidget.vue'
 import { createStringFieldValue, extractStringFieldRaw } from '@/architecture/domain/utils/widgetFieldHelpers'
 
@@ -473,6 +502,30 @@ function handleGrantUsersChange(value: FieldValue) {
   grantUsersValue.value = value
 }
 
+function getFunctionIcon(data: ServiceTree): Component {
+  if (data.template_type === TEMPLATE_TYPE.TABLE) return TableIcon
+  if (data.template_type === TEMPLATE_TYPE.FORM) return FormIcon
+  if (data.template_type === TEMPLATE_TYPE.CHART) return ChartIcon
+  return Document
+}
+
+function getNodeIconClass(data: ServiceTree): string {
+  if (data.type === 'package') return 'package-icon'
+  if (data.type === 'function') {
+    if (data.template_type === TEMPLATE_TYPE.TABLE) return 'table-icon'
+    if (data.template_type === TEMPLATE_TYPE.FORM) return 'form-icon'
+    if (data.template_type === TEMPLATE_TYPE.CHART) return 'chart-icon'
+    return 'function-icon'
+  }
+  if (data.type === 'docs') return 'docs-icon'
+  if (isBoardNode(data)) return 'board-icon'
+  return 'function-icon'
+}
+
+function isBoardNode(data: ServiceTree): boolean {
+  return (data as unknown as { type?: string }).type === 'board'
+}
+
 async function submitGrant() {
   if (!canSubmitGrant.value) {
     ElMessage.warning('请选择资源、用户和角色')
@@ -586,17 +639,30 @@ function formatExpiresAt(value?: string): string {
   font-weight: 600;
 }
 
+:global(.team-access-dialog) {
+  margin-top: 32px !important;
+  max-width: calc(100vw - 32px);
+}
+
+:global(.team-access-dialog .el-dialog__body) {
+  max-height: calc(100vh - 112px);
+  overflow-y: auto;
+  padding-bottom: 20px;
+}
+
 .access-dialog-body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: 0;
 }
 
 .grant-flow {
   display: grid;
   grid-template-columns: minmax(260px, 0.9fr) minmax(360px, 1.15fr) minmax(280px, 0.95fr);
   gap: 14px;
-  min-height: 420px;
+  min-height: 0;
+  align-items: start;
 }
 
 .resource-panel,
@@ -611,8 +677,20 @@ function formatExpiresAt(value?: string): string {
 .resource-panel,
 .role-panel,
 .grant-panel {
+  max-height: min(560px, calc(100vh - 180px));
   min-height: 0;
   padding: 14px;
+}
+
+.resource-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.role-panel,
+.grant-panel {
+  overflow-y: auto;
 }
 
 .panel-header,
@@ -637,37 +715,170 @@ function formatExpiresAt(value?: string): string {
   }
 }
 
+.tree-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: min(460px, calc(100vh - 260px));
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
 .resource-tree {
-  max-height: 356px;
-  overflow: auto;
-}
-
-.tree-node {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-
-  &.is-active .node-label {
-    color: var(--el-color-primary);
-    font-weight: 700;
+  :deep(.el-tree-node__content) {
+    height: auto;
+    padding: 0;
+    margin-bottom: 2px;
   }
-}
 
-.node-icon {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 16px;
-}
+  :deep(.el-tree-node__content:hover) {
+    background-color: transparent;
+  }
 
-.function-icon {
-  color: var(--el-color-primary);
-}
+  :deep(.el-tree-node__expand-icon) {
+    padding: 6px;
+    transition: all 0.2s ease;
+    color: var(--el-text-color-secondary);
+    border-radius: 2px;
+    cursor: pointer;
+  }
 
-.node-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  :deep(.el-tree-node__expand-icon:hover) {
+    background-color: var(--el-fill-color);
+  }
+
+  :deep(.el-tree-node.is-expanded > .el-tree-node__content .el-tree-node__expand-icon) {
+    transform: rotate(90deg);
+  }
+
+  :deep(.el-tree-node__expand-icon.is-leaf) {
+    color: transparent;
+  }
+
+  :deep(.el-tree-node.is-current > .el-tree-node__content) {
+    background-color: transparent;
+    font-weight: normal;
+  }
+
+  .tree-node {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+
+    .node-icon {
+      width: 16px;
+      height: 16px;
+      margin-right: 8px;
+      color: #6366f1;
+      opacity: 0.8;
+      flex-shrink: 0;
+      transition: color 0.2s ease;
+
+      &.app-icon {
+        color: #f59e0b;
+        opacity: 0.9;
+      }
+
+      &.app-icon-img,
+      &.package-icon-img,
+      &.form-icon-img,
+      &.docs-icon-img,
+      &.board-icon-img {
+        width: 16px;
+        height: 16px;
+        object-fit: contain;
+        opacity: 0.9;
+      }
+
+      &.package-icon {
+        color: #6366f1;
+        opacity: 0.8;
+      }
+
+      &.table-icon {
+        color: #10b981;
+        opacity: 0.9;
+      }
+
+      &.form-icon {
+        color: #3b82f6;
+        opacity: 0.9;
+      }
+
+      &.chart-icon {
+        color: #f59e0b;
+        opacity: 0.9;
+      }
+
+      &.docs-icon {
+        color: #9b42f8;
+        opacity: 0.9;
+      }
+
+      &.board-icon {
+        color: #10b981;
+        opacity: 0.9;
+      }
+
+      &.function-icon {
+        color: #6366f1;
+        opacity: 0.8;
+      }
+
+      &.fx-icon {
+        font-size: 12px;
+        font-weight: 600;
+        font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+        font-style: italic;
+        color: #6366f1;
+        opacity: 0.8;
+      }
+    }
+
+    .node-label {
+      font-size: 14px;
+      color: var(--el-text-color-primary);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  :deep(.el-tree-node__content) {
+    height: 32px;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+
+    &:hover {
+      background-color: var(--el-fill-color-light);
+    }
+  }
+
+  :deep(.el-tree-node.is-current > .el-tree-node__content) {
+    background-color: rgba(99, 102, 241, 0.15) !important;
+    border-left: 2px solid #6366f1;
+
+    .tree-node {
+      .node-label {
+        color: var(--el-text-color-primary);
+        font-weight: 500;
+      }
+
+      .node-icon {
+        color: #6366f1;
+        opacity: 0.8;
+      }
+    }
+  }
+
+  :deep(.el-tree-node.is-current .el-tree-node__children .el-tree-node__content) {
+    background-color: transparent;
+    border-left: none;
+  }
 }
 
 .resource-summary {
@@ -854,8 +1065,18 @@ function formatExpiresAt(value?: string): string {
     grid-template-columns: 1fr;
   }
 
+  .resource-panel,
+  .role-panel,
+  .grant-panel {
+    max-height: none;
+  }
+
   .resource-tree {
-    max-height: 260px;
+    max-height: none;
+  }
+
+  .tree-container {
+    max-height: 280px;
   }
 }
 </style>
