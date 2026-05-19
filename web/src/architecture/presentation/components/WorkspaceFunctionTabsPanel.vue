@@ -29,6 +29,17 @@
           </div>
         </el-tab-pane>
 
+        <el-tab-pane name="permission" label="权限">
+          <div class="tab-content">
+            <TeamAccessPanel
+              ref="accessPanelRef"
+              :node="currentFunction"
+              embedded
+              @changed="$emit('accessChanged')"
+            />
+          </div>
+        </el-tab-pane>
+
         <el-tab-pane
           v-if="featureFlags.operateLogs"
           name="operateLog"
@@ -61,12 +72,17 @@ import type { ServiceTree as ServiceTreeType } from '@/architecture/domain/types
 import WorkspaceFunctionRenderer from './WorkspaceFunctionRenderer.vue'
 import FunctionInfoPanel from './FunctionInfoPanel.vue'
 import OperateLogSection from './OperateLogSection.vue'
+import TeamAccessPanel from './TeamAccessPanel.vue'
 import { featureFlags } from '@/architecture/shared/config/features'
 
-type FunctionTabName = 'content' | 'detail' | 'operateLog'
+type FunctionTabName = 'content' | 'detail' | 'permission' | 'operateLog'
 
 interface LoadableOperateLogSection {
   load: () => void
+}
+
+interface LoadableAccessPanel {
+  loadMembers: () => void
 }
 
 const props = withDefaults(defineProps<{
@@ -79,13 +95,18 @@ const props = withDefaults(defineProps<{
 
 defineEmits<{
   (e: 'update:activeTab', value: FunctionTabName): void
+  (e: 'accessChanged'): void
 }>()
 
 const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
+const accessPanelRef = ref<LoadableAccessPanel | null>(null)
 
 function loadOperateLogTab(tabName: FunctionTabName) {
   if (tabName === 'operateLog' && featureFlags.operateLogs) {
     nextTick(() => operateLogSectionRef.value?.load())
+  }
+  if (tabName === 'permission') {
+    nextTick(() => accessPanelRef.value?.loadMembers())
   }
 }
 

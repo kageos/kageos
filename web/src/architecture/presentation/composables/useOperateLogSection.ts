@@ -8,7 +8,7 @@ import type { FieldConfig } from '@/architecture/domain/types'
 import { getFunctionByPath } from '@/architecture/presentation/context/api/function'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import { Logger } from '@/architecture/shared/logger'
-import { getTableListFields } from '@/architecture/domain/utils/functionSchemaSelectors'
+import { getTableAllFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
 type OperateLogScope = 'row' | 'function' | 'directory'
 
@@ -25,6 +25,8 @@ interface OperateLogValueEntry {
   fieldName: string
   value: any
 }
+
+const OPERATE_LOG_PAGE_SIZE = 12
 
 interface UseOperateLogSectionOptions {
   fullCodePath: Ref<string>
@@ -45,6 +47,12 @@ export function useOperateLogSection({
 
   const logs = ref<TableOperateLog[]>([])
   const loading = ref(false)
+  const keyword = ref('')
+  const actionFilter = ref('')
+  const currentPage = ref(1)
+  const pageSize = ref(OPERATE_LOG_PAGE_SIZE)
+  const total = ref(0)
+  const expandedLogIds = ref<number[]>([])
   const functionDetailCache = ref<FunctionDetail | null>(null)
   const functionDetailMap = ref<Map<string, FunctionDetail>>(new Map())
   const userInfoMap = ref<Map<string, any>>(new Map())
@@ -53,6 +61,12 @@ export function useOperateLogSection({
   const lastLoadParams = ref<{ fullCodePath: string; rowId: number; scope: OperateLogScope } | null>(null)
   const showRowIdColumn = computed(() => currentScope() !== 'row')
   const showResourceColumn = computed(() => currentScope() === 'directory')
+  const actionOptions = computed(() => [
+    { label: '全部操作', value: '' },
+    { label: '新增', value: 'OnTableAddRow' },
+    { label: '更新', value: 'OnTableUpdateRow' },
+    { label: '删除', value: 'OnTableDeleteRows' },
+  ])
 
   const formatDateTime = (dateTime: string | number | null | undefined): string => {
     if (!dateTime) return '-'
@@ -106,7 +120,7 @@ export function useOperateLogSection({
     }
 
     if (functionDetail.value) {
-      const hasResponse = getTableListFields(functionDetail.value as FunctionDetail).length > 0
+      const hasResponse = getTableAllFields(functionDetail.value as FunctionDetail).length > 0
       if (hasResponse) {
         functionDetailCache.value = functionDetail.value as FunctionDetail
         return
@@ -116,7 +130,7 @@ export function useOperateLogSection({
     if (fullCodePath.value && !functionDetailCache.value) {
       try {
         const detail = await getFunctionByPath(fullCodePath.value)
-        if (detail && getTableListFields(detail as unknown as FunctionDetail).length > 0) {
+        if (detail && getTableAllFields(detail as unknown as FunctionDetail).length > 0) {
           functionDetailCache.value = detail as unknown as FunctionDetail
         }
       } catch (error) {
@@ -171,7 +185,7 @@ export function useOperateLogSection({
     await Promise.all(missingPaths.map(async (path) => {
       try {
         const detail = await getFunctionByPath(path)
-        if (detail && getTableListFields(detail as unknown as FunctionDetail).length > 0) {
+        if (detail && getTableAllFields(detail as unknown as FunctionDetail).length > 0) {
           nextMap.set(path, detail as unknown as FunctionDetail)
         }
       } catch (error) {
@@ -195,11 +209,15 @@ export function useOperateLogSection({
           ? { full_code_path_prefix: fullCodePath.value }
           : { full_code_path: fullCodePath.value }),
         ...(scopeValue === 'row' ? { row_id: rowId.value } : {}),
-        page: 1,
-        page_size: 50,
+        ...(actionFilter.value ? { action: actionFilter.value } : {}),
+        ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
+        page: currentPage.value,
+        page_size: pageSize.value,
         order_by: 'created_at DESC',
       })
       logs.value = response.logs || []
+      total.value = response.total || 0
+      expandedLogIds.value = []
       await loadDirectoryFunctionDetails()
       await loadUserInfos()
       hasLoaded.value = true
@@ -268,7 +286,7 @@ export function useOperateLogSection({
       return null
     }
 
-    let fields: FieldConfig[] | null = getTableListFields(detail as FunctionDetail)
+    let fields: FieldConfig[] | null = getTableAllFields(detail as FunctionDetail)
     if (fields.length === 0 && Array.isArray(detail)) {
       fields = detail
     }
@@ -358,6 +376,19 @@ export function useOperateLogSection({
     }))
   }
 
+  const getPrimaryEntries = (log: TableOperateLog): OperateLogValueEntry[] => {
+    if (log.action === 'OnTableUpdateRow') {
+      return getChangeEntries(log)
+        .slice(0, 3)
+        .map((item) => ({
+          fieldCode: item.fieldCode,
+          fieldName: item.fieldName,
+          value: item.newValue,
+        }))
+    }
+    return getValueEntries(log).slice(0, 3)
+  }
+
   const getLogTitle = (log: TableOperateLog): string => {
     const recordName = log.row_id ? `记录 #${log.row_id}` : '一条记录'
     switch (log.action) {
@@ -385,6 +416,50 @@ export function useOperateLogSection({
     }
   }
 
+  const getLogSummary = (log: TableOperateLog): string => {
+    const entries = getPrimaryEntries(log)
+    if (entries.length === 0) {
+      return getLogEmptyText(log)
+    }
+    return entries
+      .map((entry) => `${entry.fieldName}: ${formatLogValue(entry.value)}`)
+      .join(' · ')
+  }
+
+  const isLogExpanded = (logId: number): boolean => {
+    return expandedLogIds.value.includes(logId)
+  }
+
+  const toggleLogExpanded = (logId: number) => {
+    if (isLogExpanded(logId)) {
+      expandedLogIds.value = expandedLogIds.value.filter((id) => id !== logId)
+      return
+    }
+    expandedLogIds.value = [...expandedLogIds.value, logId]
+  }
+
+  const resetAndLoad = () => {
+    currentPage.value = 1
+    hasLoaded.value = false
+    logs.value = []
+    void loadOperateLogs()
+  }
+
+  const handleSearch = () => {
+    resetAndLoad()
+  }
+
+  const handleActionChange = () => {
+    resetAndLoad()
+  }
+
+  const handlePageChange = (page: number) => {
+    currentPage.value = page
+    hasLoaded.value = false
+    logs.value = []
+    void loadOperateLogs()
+  }
+
   watch(
     [fullCodePath, rowId, functionDetail, scope || ref<OperateLogScope>('row')],
     ([newFullCodePath, newRowId, newFunctionDetail, newScope], [oldFullCodePath = '', oldRowId = 0, oldFunctionDetail, oldScope = 'row']) => {
@@ -395,6 +470,8 @@ export function useOperateLogSection({
         hasLoaded.value = false
         lastLoadParams.value = null
         logs.value = []
+        total.value = 0
+        currentPage.value = 1
         functionDetailMap.value = new Map()
       }
 
@@ -425,13 +502,14 @@ export function useOperateLogSection({
     if (paramsChanged) {
       hasLoaded.value = false
       logs.value = []
+      total.value = 0
+      currentPage.value = 1
       functionDetailCache.value = null
       functionDetailMap.value = new Map()
     }
 
-    if (!hasLoaded.value) {
-      void loadOperateLogs()
-    }
+    hasLoaded.value = false
+    void loadOperateLogs()
   }
 
   return {
@@ -439,14 +517,27 @@ export function useOperateLogSection({
     loading,
     formatDateTime,
     formatRelativeTime,
+    keyword,
+    actionFilter,
+    actionOptions,
+    currentPage,
+    pageSize,
+    total,
     getUserInfo,
     getActionTagType,
     getActionLabel,
     formatLogValue,
     getChangeEntries,
     getValueEntries,
+    getPrimaryEntries,
     getLogTitle,
     getLogEmptyText,
+    getLogSummary,
+    isLogExpanded,
+    toggleLogExpanded,
+    handleSearch,
+    handleActionChange,
+    handlePageChange,
     load,
     showRowIdColumn,
     showResourceColumn,

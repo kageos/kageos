@@ -1603,6 +1603,12 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "string",
+                        "description": "完整代码路径前缀，用于查询目录下日志",
+                        "name": "full_code_path_prefix",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "记录ID",
                         "name": "row_id",
@@ -1612,6 +1618,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "操作类型：OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows",
                         "name": "action",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "关键词：匹配操作人、资源路径、Trace、版本或记录ID",
+                        "name": "keyword",
                         "in": "query"
                     },
                     {
@@ -2600,6 +2612,27 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "access.PermissionSet": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "boolean"
+            }
+        },
+        "access.RoleCode": {
+            "type": "string",
+            "enum": [
+                "owner",
+                "admin",
+                "member",
+                "viewer"
+            ],
+            "x-enum-varnames": [
+                "RoleOwner",
+                "RoleAdmin",
+                "RoleMember",
+                "RoleViewer"
+            ]
+        },
         "dto.AddFunctionsReq": {
             "type": "object",
             "required": [
@@ -3870,6 +3903,10 @@ const docTemplate = `{
                     "type": "string",
                     "example": "用户相关的API接口"
                 },
+                "expires_at": {
+                    "description": "命中权限的最晚到期时间",
+                    "type": "string"
+                },
                 "full_code_path": {
                     "description": "完整代码路径",
                     "type": "string",
@@ -3885,6 +3922,10 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 1
                 },
+                "inherited_from": {
+                    "description": "权限继承来源",
+                    "type": "string"
+                },
                 "name": {
                     "description": "服务目录名称",
                     "type": "string",
@@ -3895,10 +3936,25 @@ const docTemplate = `{
                     "type": "string",
                     "example": "user1"
                 },
+                "permissions": {
+                    "description": "当前用户对节点的权限",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/access.PermissionSet"
+                        }
+                    ]
+                },
                 "ref_id": {
                     "description": "引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID",
                     "type": "integer",
                     "example": 0
+                },
+                "role_codes": {
+                    "description": "当前用户在该节点命中的角色",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/access.RoleCode"
+                    }
                 },
                 "run_count": {
                     "description": "⭐ 运行次数（仅 function 类型有意义），用于排序与展示「已使用 N 次」",
