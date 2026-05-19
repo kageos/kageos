@@ -1,31 +1,65 @@
 <template>
   <div class="detail-content">
     <div v-if="packageNode">
-      <PackageDetailOverviewCard
-        :package-node="packageNode"
-        :total-run-count="totalRunCount"
-      />
-      <details v-if="directoryMarkdown" class="directory-markdown-detail">
-        <summary class="directory-markdown-summary">
-          <span>目录详情</span>
-          <span class="directory-markdown-summary-hint">展开</span>
-        </summary>
-        <div class="directory-markdown-body" v-html="renderMarkdown(directoryMarkdown)" />
-      </details>
-      <PackageDetailChildrenGrid
-        :children="packageNode.children || []"
-        @select-child="$emit('select-child', $event)"
-      />
+      <el-tabs v-model="activeTab" class="detail-tabs">
+        <el-tab-pane label="目录详情" name="detail">
+          <div class="tab-content">
+            <PackageDetailOverviewCard
+              :package-node="packageNode"
+              :total-run-count="totalRunCount"
+            />
+            <details v-if="directoryMarkdown" class="directory-markdown-detail">
+              <summary class="directory-markdown-summary">
+                <span>目录详情</span>
+                <span class="directory-markdown-summary-hint">展开</span>
+              </summary>
+              <div class="directory-markdown-body" v-html="renderMarkdown(directoryMarkdown)" />
+            </details>
+            <PackageDetailChildrenGrid
+              :children="packageNode.children || []"
+              @select-child="$emit('select-child', $event)"
+            />
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane
+          v-if="featureFlags.operateLogs"
+          label="操作日志"
+          name="operateLog"
+        >
+          <div class="tab-content operate-log-tab-content">
+            <OperateLogSection
+              ref="operateLogSectionRef"
+              :full-code-path="packageNode.full_code_path || ''"
+              :row-id="0"
+              :function-detail="null"
+              scope="directory"
+              embedded
+              show-refresh
+              title="目录操作日志"
+              :auto-load="false"
+            />
+          </div>
+        </el-tab-pane>
+      </el-tabs>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import type { ServiceTree } from '@/architecture/domain/types'
 import PackageDetailOverviewCard from './PackageDetailOverviewCard.vue'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
+import OperateLogSection from './OperateLogSection.vue'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
+import { featureFlags } from '@/architecture/shared/config/features'
+
+type PackageTabName = 'detail' | 'operateLog'
+
+interface LoadableOperateLogSection {
+  load: () => void
+}
 
 const props = defineProps<{
   packageNode: ServiceTree | null
@@ -39,9 +73,33 @@ defineEmits<{
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
 
+const activeTab = ref<PackageTabName>('detail')
+const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
+
 const directoryMarkdown = computed(() => {
   return props.packageNode?.description?.trim() || ''
 })
+
+function loadOperateLogTab(tabName: PackageTabName) {
+  if (tabName === 'operateLog' && featureFlags.operateLogs) {
+    nextTick(() => operateLogSectionRef.value?.load())
+  }
+}
+
+watch(
+  activeTab,
+  (tabName) => loadOperateLogTab(tabName),
+  { immediate: true }
+)
+
+watch(
+  () => props.packageNode?.full_code_path,
+  () => {
+    if (activeTab.value === 'operateLog') {
+      loadOperateLogTab('operateLog')
+    }
+  }
+)
 
 </script>
 
@@ -55,6 +113,8 @@ const directoryMarkdown = computed(() => {
 }
 
 .detail-tabs {
+  min-height: 0;
+
   :deep(.el-tabs__header) {
     margin: 10px 0 18px;
     overflow: visible;
@@ -141,6 +201,10 @@ const directoryMarkdown = computed(() => {
 
 .tab-content {
   padding: 0;
+}
+
+.operate-log-tab-content {
+  min-height: 360px;
 }
 
 .directory-markdown-detail {

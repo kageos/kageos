@@ -42,6 +42,9 @@ func (r *OperateLogRepository) GetTableOperateLogs(ctx context.Context, req *dto
 	if req.FullCodePath != "" {
 		query = query.Where("full_code_path = ?", req.FullCodePath)
 	}
+	if req.FullCodePathPrefix != "" {
+		query = query.Where("(full_code_path = ? OR full_code_path LIKE ?)", req.FullCodePathPrefix, req.FullCodePathPrefix+"/%")
+	}
 	if req.RowID > 0 {
 		query = query.Where("row_id = ?", req.RowID)
 	}
