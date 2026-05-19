@@ -1,9 +1,20 @@
 <template>
-  <div class="operate-log-section">
-    <el-divider />
+  <div class="operate-log-section" :class="{ 'is-embedded': embedded }">
+    <el-divider v-if="!embedded" />
     <div class="operate-log-header">
-      <el-icon class="operate-log-icon"><Clock /></el-icon>
-      <span class="operate-log-title">操作日志</span>
+      <div class="operate-log-title-group">
+        <el-icon class="operate-log-icon"><Clock /></el-icon>
+        <span class="operate-log-title">{{ title }}</span>
+      </div>
+      <el-button
+        v-if="showRefresh"
+        size="small"
+        :icon="Refresh"
+        :loading="loading"
+        @click="load"
+      >
+        刷新
+      </el-button>
     </div>
     <div v-loading="loading" class="operate-log-content">
       <el-table
@@ -71,7 +82,12 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="行 ID" prop="row_id" width="100" />
+        <el-table-column
+          v-if="showRowIdColumn"
+          label="行 ID"
+          prop="row_id"
+          width="100"
+        />
       </el-table>
       <el-empty v-else description="暂无操作日志" :image-size="80" />
     </div>
@@ -80,8 +96,8 @@
 
 <script setup lang="ts">
 import { toRef } from 'vue'
-import { Clock } from '@element-plus/icons-vue'
-import { ElDivider, ElEmpty, ElIcon, ElTable, ElTableColumn, ElTag } from 'element-plus'
+import { Clock, Refresh } from '@element-plus/icons-vue'
+import { ElButton, ElDivider, ElEmpty, ElIcon, ElTable, ElTableColumn, ElTag } from 'element-plus'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import { useOperateLogSection } from '@/architecture/presentation/composables/useOperateLogSection'
 
@@ -90,13 +106,21 @@ interface Props {
   rowId: number
   functionDetail?: any
   autoLoad?: boolean
+  scope?: 'row' | 'function'
+  embedded?: boolean
+  showRefresh?: boolean
+  title?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   fullCodePath: '',
   rowId: 0,
   functionDetail: undefined,
-  autoLoad: false
+  autoLoad: false,
+  scope: 'row',
+  embedded: false,
+  showRefresh: false,
+  title: '操作日志'
 })
 
 const {
@@ -111,11 +135,13 @@ const {
   getFieldName,
   renderFieldValue,
   load,
+  showRowIdColumn,
 } = useOperateLogSection({
   fullCodePath: toRef(props, 'fullCodePath'),
   rowId: toRef(props, 'rowId'),
   functionDetail: toRef(props, 'functionDetail'),
   autoLoad: toRef(props, 'autoLoad'),
+  scope: toRef(props, 'scope'),
 })
 
 defineExpose({
@@ -128,14 +154,30 @@ defineExpose({
   margin-top: 24px;
 }
 
+.operate-log-section.is-embedded {
+  height: 100%;
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .operate-log-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   margin-bottom: 16px;
   font-size: 16px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+}
+
+.operate-log-title-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .operate-log-icon {
@@ -149,6 +191,13 @@ defineExpose({
 
 .operate-log-content {
   margin-top: 12px;
+  min-height: 0;
+}
+
+.operate-log-section.is-embedded .operate-log-content {
+  flex: 1;
+  overflow: auto;
+  margin-top: 0;
 }
 
 .operate-log-table {
