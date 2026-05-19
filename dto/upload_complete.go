@@ -11,7 +11,7 @@ type UploadCompleteReq struct {
 	Description  string `json:"description,omitempty"`   // 文件描述
 	FileSize     int64  `json:"file_size,omitempty"`     // ✨ 文件大小（上传成功后需要，用于记录）
 	ContentType  string `json:"content_type,omitempty"`  // ✨ 文件类型（上传成功后需要，用于记录）
-	Hash         string `json:"hash,omitempty"`          // ✨ 文件hash（可选，用于秒传）
+	Hash         string `json:"hash,omitempty"`          // ✨ 文件hash（可选，用于文件标识和 SDK 下载缓存）
 	ThumbnailRef string `json:"thumbnail_ref,omitempty"` // 前端生成的缩略图或视频封面文件引用
 	PreviewKind  string `json:"preview_kind,omitempty"`  // 预览类型：image/video
 }

@@ -2,6 +2,9 @@
 // @version 1.0
 // @description AI Agent OS 存储服务 API 文档
 
+// @license.name Business Source License 1.1
+// @license.url https://github.com/ai-agent-os/ai-agent-os/blob/main/LICENSE
+
 // @host localhost:9092
 // @BasePath
 

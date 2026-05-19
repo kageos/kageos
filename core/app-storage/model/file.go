@@ -14,7 +14,7 @@ type FileUpload struct {
 	Description  string `gorm:"type:text;comment:文件描述" json:"description,omitempty"`
 	FileSize     int64  `gorm:"not null;comment:文件大小（字节）" json:"file_size"`
 	ContentType  string `gorm:"type:varchar(100);comment:MIME类型" json:"content_type"`
-	Hash         string `gorm:"type:varchar(64);index;comment:文件hash（用于秒传）" json:"hash"`
+	Hash         string `gorm:"type:varchar(64);index;comment:文件hash（用于文件标识和SDK缓存）" json:"hash"`
 	ThumbnailRef string `gorm:"type:varchar(700);comment:前端生成的缩略图或视频封面文件引用" json:"thumbnail_ref,omitempty"`
 	PreviewKind  string `gorm:"type:varchar(32);comment:预览类型：image/video" json:"preview_kind,omitempty"`
 
