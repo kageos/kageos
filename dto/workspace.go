@@ -165,8 +165,6 @@ type ToolDef struct {
 
 // UpdateWorkspaceReq 更新工作空间请求（只更新 MySQL 如 Admins；canonical 标识为 resource_path）
 type UpdateWorkspaceReq struct {
-	User         string `json:"-"`                       // 兼容字段，优先从 resource_path 解析
-	App          string `json:"-"`                       // 兼容字段，优先从 resource_path 解析
 	ResourcePath string `json:"resource_path,omitempty"` // 工作空间资源路径，规范为 /user/app
 	Admins       string `json:"admins"`                  // 管理员列表，逗号分隔
 }
