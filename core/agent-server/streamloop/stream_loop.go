@@ -14,7 +14,6 @@ import (
 
 const (
 	EventContent              = "content"
-	EventToolCallsStream      = "tool_calls_stream"       // 保留兼容，新协议用 delta
 	EventToolCallsStreamDelta = "tool_calls_stream_delta" // 增量+节流，节省带宽
 	EventError                = "error"
 	MaxToolRounds             = 100 // 最大工具调用轮数，防止无限循环；过小易中断，过大增加耗时与成本
@@ -84,15 +83,6 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 
 type contentData struct {
 	Content string `json:"content"`
-}
-
-type toolCallsStreamItem struct {
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"`
-}
-
-type toolCallsStreamData struct {
-	ToolCalls []toolCallsStreamItem `json:"tool_calls"`
 }
 
 // toolCallsStreamDeltaUpdate 增量更新项（index + 可选 name + delta）

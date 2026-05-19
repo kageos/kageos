@@ -365,8 +365,7 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 		}
 	} else if s.appService != nil {
 		resp, err := s.appService.UpdateApp(ctx, &dto.UpdateAppReq{
-			User:              targetApp.User,
-			App:               targetApp.Code,
+			ResourcePath:      fmt.Sprintf("/%s/%s", targetApp.User, targetApp.Code),
 			ForceDiff:         opts.ForceDiff,
 			ChangeDescription: "安装能力包目录",
 		})

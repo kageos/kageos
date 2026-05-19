@@ -43,7 +43,7 @@ func (h *AppHandler) HandleAppCreate(msg *nats.Msg) {
 // HandleAppUpdate 处理应用更新请求
 func (h *AppHandler) HandleAppUpdate(msg *nats.Msg) {
 	ctx := handlerContext(msg)
-	req, ok := decodeRequest[dto.UpdateAppReq](ctx, msg, "HandleAppUpdate")
+	req, ok := decodeRequest[dto.UpdateAppRuntimeReq](ctx, msg, "HandleAppUpdate")
 	if !ok {
 		return
 	}
@@ -63,7 +63,7 @@ func (h *AppHandler) HandleAppUpdate(msg *nats.Msg) {
 // HandleAppDelete 处理应用删除请求
 func (h *AppHandler) HandleAppDelete(msg *nats.Msg) {
 	ctx := handlerContext(msg)
-	req, ok := decodeRequest[dto.DeleteAppReq](ctx, msg, "HandleAppDelete")
+	req, ok := decodeRequest[dto.DeleteAppRuntimeReq](ctx, msg, "HandleAppDelete")
 	if !ok {
 		return
 	}

@@ -51,12 +51,11 @@ const (
 
 // 流式事件类型常量
 const (
-	EventSession         = "session"
-	EventToolCall        = "tool_call"
-	EventToolCallsStream = "tool_calls_stream" // LLM 流式输出的 tool_calls 当前列表（name+arguments），前端实时展示
-	EventContent         = "content"
-	EventDone            = "done"
-	EventError           = "error"
+	EventSession  = "session"
+	EventToolCall = "tool_call"
+	EventContent  = "content"
+	EventDone     = "done"
+	EventError    = "error"
 )
 
 // WorkspaceChatService 工作台对话编排：会话、历史、LLM、Tool 循环；只认 LLM + 单模式（dev）
@@ -125,17 +124,6 @@ type StreamEventToolCall struct {
 	ResultData interface{}             `json:"result_data,omitempty"` // 结构化工具结果（供前端直接消费）
 	Metadata   *dto.ToolResultMetadata `json:"metadata,omitempty"`    // 工具结果元数据（供前端按字段渲染）
 	Error      string                  `json:"error"`                 // 错误信息（status=error 时可选）
-}
-
-// StreamEventToolCallsStream 流式 tool_calls 列表（当前已合并的全部 tool_call，供前端实时展示）
-type StreamEventToolCallsStream struct {
-	ToolCalls []StreamEventToolCallItem `json:"tool_calls"`
-}
-
-// StreamEventToolCallItem 流式单项（仅 name + arguments）
-type StreamEventToolCallItem struct {
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"`
 }
 
 // StreamEventContent content 事件数据

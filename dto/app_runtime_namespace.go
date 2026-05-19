@@ -83,9 +83,18 @@ type WriteSourceFilesResp struct {
 
 // UpdateAppReq 更新应用请求（更新应用代码并重新编译部署）
 type UpdateAppReq struct {
-	User              string             `json:"user,omitempty"`               // 租户用户名，优先从 resource_path 解析
-	App               string             `json:"app,omitempty"`                // 应用名，优先从 resource_path 解析
 	ResourcePath      string             `json:"resource_path,omitempty"`      // 资源路径，规范为 /user/app
+	SourceFiles       []*SourceFileWrite `json:"source_files,omitempty"`       // 本次需要写入的源码文件列表
+	Requirement       string             `json:"requirement,omitempty"`        // 变更需求（用户在前端输入的）
+	ChangeDescription string             `json:"change_description,omitempty"` // 变更描述（大模型输出的）
+	WriteOnly         bool               `json:"write_only,omitempty"`         // 为 true 时仅写文件不编译不部署
+	ForceDiff         bool               `json:"force_diff,omitempty"`         // 为 true 时清理 api-logs，让本次更新重新产生 add diff
+}
+
+// UpdateAppRuntimeReq app-server 发给 app-runtime 的内部更新请求。
+type UpdateAppRuntimeReq struct {
+	User              string             `json:"user"`                         // 租户用户名
+	App               string             `json:"app"`                          // 应用名
 	SourceFiles       []*SourceFileWrite `json:"source_files,omitempty"`       // 本次需要写入的源码文件列表
 	Requirement       string             `json:"requirement,omitempty"`        // 变更需求（用户在前端输入的）
 	ChangeDescription string             `json:"change_description,omitempty"` // 变更描述（大模型输出的）
@@ -244,9 +253,13 @@ type ApiInfo struct {
 
 // DeleteAppReq 删除应用请求
 type DeleteAppReq struct {
-	User         string `json:"user,omitempty" example:"beiluo"`                 // 租户名，优先从 resource_path 解析
-	App          string `json:"app,omitempty" example:"myapp"`                   // 应用名，优先从 resource_path 解析
 	ResourcePath string `json:"resource_path,omitempty" example:"/beiluo/myapp"` // 工作空间资源路径，规范为 /user/app
+}
+
+// DeleteAppRuntimeReq app-server 发给 app-runtime 的内部删除请求。
+type DeleteAppRuntimeReq struct {
+	User string `json:"user"` // 租户名
+	App  string `json:"app"`  // 应用名
 }
 
 // DeleteAppResp 删除应用响应
@@ -288,8 +301,6 @@ type AppInfo struct {
 
 // GetAppDetailReq 获取应用详情请求
 type GetAppDetailReq struct {
-	User         string `json:"user,omitempty" swaggerignore:"true"`
-	App          string `json:"app,omitempty" form:"app,omitempty" example:"myapp"`
 	ResourcePath string `json:"resource_path,omitempty" form:"resource_path,omitempty"`
 }
 
@@ -300,8 +311,6 @@ type GetAppDetailResp struct {
 
 // GetAppWithServiceTreeReq 获取应用详情和服务目录树请求
 type GetAppWithServiceTreeReq struct {
-	User         string `json:"user,omitempty" swaggerignore:"true"`                    // 租户名，优先从 resource_path 解析
-	App          string `json:"app,omitempty" form:"app,omitempty" example:"myapp"`     // 应用代码，优先从 resource_path 解析
 	ResourcePath string `json:"resource_path,omitempty" form:"resource_path,omitempty"` // 工作空间资源路径，规范为 /user/app
 	Type         string `json:"type" form:"type" example:"package"`                     // 节点类型过滤（可选），如：package（只显示服务目录/包）、function（只显示函数/文件）
 }

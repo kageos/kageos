@@ -114,7 +114,7 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
   }
 
   /**
-   * tool_calls_stream 用：更新 blocks 中的 tool_calls 块
+   * tool_calls_stream_delta 用：更新 blocks 中的 tool_calls 块
    * - last block 有未完成的 → 更新它
    * - last block 全部完成且有新的流式 → 创建新 block（每个工具一块）
    * - last block 不是 tool_calls → 创建新 block
@@ -211,40 +211,6 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
       }
 
       const list = [...completedCalls, ...currentRoundPrev]
-      const nextBlocks = updateToolCallsBlocks(blocks, list)
-      messages.value[lastIdx] = { ...m, tool_calls: list, blocks: nextBlocks }
-    }
-    // 兼容旧协议：tool_calls_stream（全量，后端已改为发 delta，此处保留以防回滚）
-    if (event === 'tool_calls_stream' && Array.isArray(data.tool_calls)) {
-      const streamList = (data.tool_calls as Array<{ name?: string; arguments?: string }>).map((t) => ({
-        name: typeof t.name === 'string' ? t.name : '',
-        status: 'streaming' as const,
-        arguments: typeof t.arguments === 'string' ? t.arguments : undefined,
-      }))
-      const blocks = m.blocks ?? []
-      const prev = m.tool_calls || []
-
-      let completedCount = 0
-      for (const t of prev) {
-        if (t.status === 'ok' || t.status === 'error') completedCount++
-        else break
-      }
-      const completedCalls = prev.slice(0, completedCount)
-      const currentRoundPrev = prev.slice(completedCount)
-
-      const fromStream: ChatMessageToolCall[] = streamList.map((item, i) => {
-        const existing = currentRoundPrev[i]
-        const args = (item.arguments && item.arguments.trim()) ? item.arguments : (existing?.arguments ?? item.arguments)
-        if (existing && ['running', 'ok', 'error'].includes(existing.status)) {
-          return { ...item, status: existing.status, arguments: args, result: existing.result, result_data: existing.result_data, error: existing.error }
-        }
-        return { ...item, arguments: args }
-      })
-      const currentRound: ChatMessageToolCall[] = currentRoundPrev.length > streamList.length
-        ? [...fromStream, ...currentRoundPrev.slice(streamList.length)]
-        : fromStream
-
-      const list = [...completedCalls, ...currentRound]
       const nextBlocks = updateToolCallsBlocks(blocks, list)
       messages.value[lastIdx] = { ...m, tool_calls: list, blocks: nextBlocks }
     }

@@ -777,7 +777,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "router": {
-                    "description": "函数路径，例如：luobei/test88888/plugins/cashier_desk（可选，未提供时使用默认路由：/{username}/default）",
+                    "description": "函数路径，例如：luobei/test88888/cashier/cashier_desk.form（可选，未提供时使用默认路由：/{username}/default）",
                     "type": "string"
                 },
                 "upload_source": {
