@@ -29,18 +29,45 @@
           </div>
         </el-tab-pane>
 
+        <el-tab-pane
+          v-if="featureFlags.operateLogs"
+          name="operateLog"
+          label="操作日志"
+        >
+          <div class="tab-content">
+            <OperateLogSection
+              ref="operateLogSectionRef"
+              :full-code-path="currentFunction?.full_code_path || currentFunctionDetail?.full_code_path || ''"
+              :row-id="0"
+              :function-detail="currentFunctionDetail"
+              scope="function"
+              embedded
+              show-refresh
+              title="函数操作日志"
+              :auto-load="false"
+            />
+          </div>
+        </el-tab-pane>
+
       </el-tabs>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { nextTick, ref, watch } from 'vue'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import type { ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 import WorkspaceFunctionRenderer from './WorkspaceFunctionRenderer.vue'
 import FunctionInfoPanel from './FunctionInfoPanel.vue'
+import OperateLogSection from './OperateLogSection.vue'
+import { featureFlags } from '@/architecture/shared/config/features'
 
-type FunctionTabName = 'content' | 'detail'
+type FunctionTabName = 'content' | 'detail' | 'operateLog'
+
+interface LoadableOperateLogSection {
+  load: () => void
+}
 
 const props = withDefaults(defineProps<{
   activeTab: FunctionTabName
@@ -53,6 +80,20 @@ const props = withDefaults(defineProps<{
 defineEmits<{
   (e: 'update:activeTab', value: FunctionTabName): void
 }>()
+
+const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
+
+function loadOperateLogTab(tabName: FunctionTabName) {
+  if (tabName === 'operateLog' && featureFlags.operateLogs) {
+    nextTick(() => operateLogSectionRef.value?.load())
+  }
+}
+
+watch(
+  () => props.activeTab,
+  (tabName) => loadOperateLogTab(tabName),
+  { immediate: true }
+)
 </script>
 
 <style scoped lang="scss">

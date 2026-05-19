@@ -3,8 +3,9 @@ import type { LocationQueryValue, RouteLocationNormalizedLoaded, Router } from '
 import type { FunctionDetail } from '@/architecture/domain/types'
 import { Logger } from '@/architecture/shared/logger'
 import type { ServiceTree } from '../../domain/types'
+import { featureFlags } from '@/architecture/shared/config/features'
 
-type FunctionTabName = 'content' | 'detail'
+type FunctionTabName = 'content' | 'detail' | 'operateLog'
 
 type FunctionFormViewRef = Record<string, unknown>
 
@@ -41,7 +42,9 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   })
 
   const getFunctionTabQueryValue = () => {
-    return functionActiveTab.value === 'detail' ? 'detail' : undefined
+    if (functionActiveTab.value === 'detail') return 'detail'
+    if (functionActiveTab.value === 'operateLog') return 'operateLog'
+    return undefined
   }
 
   const syncFunctionTabQuery = () => {
@@ -66,11 +69,9 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   }
 
   const handleFunctionTabChange = (tabName: string) => {
-    if (tabName === 'detail') {
-      functionActiveTab.value = 'detail'
-    } else {
-      functionActiveTab.value = 'content'
-    }
+    if (tabName === 'detail') functionActiveTab.value = 'detail'
+    else if (tabName === 'operateLog' && featureFlags.operateLogs) functionActiveTab.value = 'operateLog'
+    else functionActiveTab.value = 'content'
     syncFunctionTabQuery()
   }
 
@@ -79,6 +80,11 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
 
     if (normalizedTab === 'detail' && currentFunction.value?.type === 'function') {
       functionActiveTab.value = 'detail'
+      return
+    }
+
+    if (normalizedTab === 'operateLog' && featureFlags.operateLogs && currentFunction.value?.type === 'function') {
+      functionActiveTab.value = 'operateLog'
       return
     }
 

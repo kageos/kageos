@@ -1,4 +1,4 @@
-import { h, ref, watch, type Ref } from 'vue'
+import { computed, h, ref, watch, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { TagProps } from 'element-plus'
 import { formatTimestamp } from '@/architecture/shared/date'
@@ -17,6 +17,7 @@ interface UseOperateLogSectionOptions {
   rowId: Ref<number>
   functionDetail: Ref<any>
   autoLoad: Ref<boolean>
+  scope?: Ref<'row' | 'function'>
 }
 
 export function useOperateLogSection({
@@ -24,6 +25,7 @@ export function useOperateLogSection({
   rowId,
   functionDetail,
   autoLoad,
+  scope,
 }: UseOperateLogSectionOptions) {
   const userInfoStore = useUserInfoStore()
 
@@ -32,7 +34,9 @@ export function useOperateLogSection({
   const functionDetailCache = ref<FunctionDetail | null>(null)
   const userInfoMap = ref<Map<string, any>>(new Map())
   const hasLoaded = ref(false)
-  const lastLoadParams = ref<{ fullCodePath: string; rowId: number } | null>(null)
+  const currentScope = () => scope?.value || 'row'
+  const lastLoadParams = ref<{ fullCodePath: string; rowId: number; scope: 'row' | 'function' } | null>(null)
+  const showRowIdColumn = computed(() => currentScope() === 'function')
 
   const formatDateTime = (dateTime: string | number | null | undefined): string => {
     if (!dateTime) return '-'
@@ -129,7 +133,7 @@ export function useOperateLogSection({
   }
 
   const loadOperateLogs = async () => {
-    if (!fullCodePath.value || !rowId.value) {
+    if (!fullCodePath.value || (currentScope() === 'row' && !rowId.value)) {
       return
     }
 
@@ -138,7 +142,7 @@ export function useOperateLogSection({
       await loadFunctionDetail()
       const response = await getTableOperateLogs({
         full_code_path: fullCodePath.value,
-        row_id: rowId.value,
+        ...(currentScope() === 'row' ? { row_id: rowId.value } : {}),
         page: 1,
         page_size: 50,
         order_by: 'created_at DESC',
@@ -149,6 +153,7 @@ export function useOperateLogSection({
       lastLoadParams.value = {
         fullCodePath: fullCodePath.value,
         rowId: rowId.value,
+        scope: currentScope(),
       }
     } catch (error: any) {
       Logger.error('[OperateLogSection]', '加载操作日志失败', { error })
@@ -280,9 +285,12 @@ export function useOperateLogSection({
   }
 
   watch(
-    [fullCodePath, rowId, functionDetail],
-    ([newFullCodePath, newRowId, newFunctionDetail], [oldFullCodePath = '', oldRowId = 0, oldFunctionDetail]) => {
-      if (newFullCodePath && newRowId && (newFullCodePath !== oldFullCodePath || newRowId !== oldRowId)) {
+    [fullCodePath, rowId, functionDetail, scope || ref<'row' | 'function'>('row')],
+    ([newFullCodePath, newRowId, newFunctionDetail, newScope], [oldFullCodePath = '', oldRowId = 0, oldFunctionDetail, oldScope = 'row']) => {
+      const canLoad = Boolean(newFullCodePath) && (newScope === 'function' || Boolean(newRowId))
+      const paramsChanged = newFullCodePath !== oldFullCodePath || newRowId !== oldRowId || newScope !== oldScope
+
+      if (canLoad && paramsChanged) {
         hasLoaded.value = false
         lastLoadParams.value = null
         logs.value = []
@@ -296,9 +304,9 @@ export function useOperateLogSection({
         return
       }
 
-      if (newFullCodePath && newRowId && (newFullCodePath !== oldFullCodePath || newRowId !== oldRowId)) {
+      if (canLoad && paramsChanged) {
         void loadOperateLogs()
-      } else if (newFullCodePath && newRowId && !oldFullCodePath && !oldRowId) {
+      } else if (canLoad && !oldFullCodePath && !oldRowId) {
         void loadOperateLogs()
       }
     },
@@ -309,7 +317,8 @@ export function useOperateLogSection({
     const paramsChanged =
       !lastLoadParams.value ||
       lastLoadParams.value.fullCodePath !== fullCodePath.value ||
-      lastLoadParams.value.rowId !== rowId.value
+      lastLoadParams.value.rowId !== rowId.value ||
+      lastLoadParams.value.scope !== currentScope()
 
     if (paramsChanged) {
       hasLoaded.value = false
@@ -334,5 +343,6 @@ export function useOperateLogSection({
     getFieldName,
     renderFieldValue,
     load,
+    showRowIdColumn,
   }
 }
