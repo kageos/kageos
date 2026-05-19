@@ -65,17 +65,15 @@ func (q *serviceTreeQueryView) getServiceTreeByAppModel(ctx context.Context, app
 }
 
 func (q *serviceTreeQueryView) GetAppWithServiceTree(ctx context.Context, req *dto.GetAppWithServiceTreeReq) (*dto.GetAppWithServiceTreeResp, error) {
-	user, appCode, err := resolveUserAppFromResourcePath(req.ResourcePath, req.User, req.App)
+	user, appCode, err := resolveUserAppFromRequiredResourcePath(req.ResourcePath)
 	if err != nil {
 		return nil, err
 	}
-	req.User = user
-	req.App = appCode
 
-	appModel, err := q.appRepo.GetAppByUserName(req.User, req.App)
+	appModel, err := q.appRepo.GetAppByUserName(user, appCode)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("应用不存在: %s/%s", req.User, req.App)
+			return nil, fmt.Errorf("应用不存在: %s/%s", user, appCode)
 		}
 		return nil, fmt.Errorf("获取应用信息失败: %w", err)
 	}

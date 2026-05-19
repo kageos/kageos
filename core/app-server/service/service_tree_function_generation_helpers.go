@@ -55,10 +55,9 @@ func addFunctionsImpl(s *serviceTreeFunctionService, ctx context.Context, req *d
 	}
 
 	updateReq := &dto.UpdateAppReq{
-		User:        targetTree.App.User,
-		App:         targetTree.App.Code,
-		SourceFiles: []*dto.SourceFileWrite{sourceFile},
-		WriteOnly:   req.SkipBuild,
+		ResourcePath: fmt.Sprintf("/%s/%s", targetTree.App.User, targetTree.App.Code),
+		SourceFiles:  []*dto.SourceFileWrite{sourceFile},
+		WriteOnly:    req.SkipBuild,
 	}
 
 	updateResp, err := s.appService.UpdateApp(ctx, updateReq)

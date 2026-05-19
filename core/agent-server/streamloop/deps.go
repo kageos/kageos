@@ -12,7 +12,7 @@ type StreamLoopDeps interface {
 	BuildMessages(ctx context.Context) ([]llms.Message, []llms.ToolDef, error)
 	// PrepareLLM 根据当前上下文构造 LLM 客户端和本次请求
 	PrepareLLM(ctx context.Context, msgs []llms.Message, tools []llms.ToolDef) (llms.LLMClient, *llms.ChatRequest, error)
-	// SendEvent 向 SSE 发送事件（content / tool_calls_stream / tool_call / error）
+	// SendEvent 向 SSE 发送事件（content / tool_calls_stream_delta / tool_call / error）
 	SendEvent(event string, data interface{})
 	// SaveAssistantMessage 保存纯文本 assistant 消息
 	SaveAssistantMessage(ctx context.Context, content string) error

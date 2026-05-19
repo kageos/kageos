@@ -17,7 +17,7 @@ func (c *Client) CreateApp(ctx context.Context, hostID int64, req *dto.CreateApp
 }
 
 // UpdateApp 更新应用（subject: runtime.v1.cmd.app.update）
-func (c *Client) UpdateApp(ctx context.Context, hostID int64, req *dto.UpdateAppReq) (*dto.UpdateAppResp, error) {
+func (c *Client) UpdateApp(ctx context.Context, hostID int64, req *dto.UpdateAppRuntimeReq) (*dto.UpdateAppResp, error) {
 	var resp dto.UpdateAppResp
 	if err := c.runtime.requestByHost(ctx, hostID, subjects.RuntimeAppUpdateCommandSubject, req, &resp); err != nil {
 		return nil, err
@@ -26,7 +26,7 @@ func (c *Client) UpdateApp(ctx context.Context, hostID int64, req *dto.UpdateApp
 }
 
 // DeleteApp 删除应用（subject: runtime.v1.cmd.app.delete）
-func (c *Client) DeleteApp(ctx context.Context, hostID int64, req *dto.DeleteAppReq) (*dto.DeleteAppResp, error) {
+func (c *Client) DeleteApp(ctx context.Context, hostID int64, req *dto.DeleteAppRuntimeReq) (*dto.DeleteAppResp, error) {
 	var resp dto.DeleteAppResp
 	if err := c.runtime.requestByHost(ctx, hostID, subjects.RuntimeAppDeleteCommandSubject, req, &resp); err != nil {
 		return nil, err

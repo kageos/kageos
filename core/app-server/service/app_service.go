@@ -44,18 +44,26 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 
 // UpdateApp 更新应用（更新应用代码并重新编译部署）
 func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto.UpdateAppResp, error) {
-	app, err := a.resolveUpdateTargetApp(req)
+	user, appCode, app, err := a.resolveUpdateTargetApp(req)
 	if err != nil {
 		return nil, err
 	}
 
 	// 调用 app-runtime 更新应用，使用应用所属的 HostID
-	resp, err := a.appCall.UpdateApp(ctx, app.HostID, req)
+	resp, err := a.appCall.UpdateApp(ctx, app.HostID, &dto.UpdateAppRuntimeReq{
+		User:              user,
+		App:               appCode,
+		SourceFiles:       req.SourceFiles,
+		Requirement:       req.Requirement,
+		ChangeDescription: req.ChangeDescription,
+		WriteOnly:         req.WriteOnly,
+		ForceDiff:         req.ForceDiff,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	warnings, err := a.finalizeReleasedAppMetadata(ctx, "AppService:UpdateApp", app, req.User, req.App, resp.NewVersion, resp.Diff)
+	warnings, err := a.finalizeReleasedAppMetadata(ctx, "AppService:UpdateApp", app, user, appCode, resp.NewVersion, resp.Diff)
 	if err != nil {
 		return nil, err
 	}
@@ -64,15 +72,14 @@ func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto
 	return resp, nil
 }
 
-func (a *AppService) resolveUpdateTargetApp(req *dto.UpdateAppReq) (*model.App, error) {
-	user, appCode, err := resolveUserAppFromResourcePath(req.ResourcePath, req.User, req.App)
+func (a *AppService) resolveUpdateTargetApp(req *dto.UpdateAppReq) (string, string, *model.App, error) {
+	user, appCode, err := resolveUserAppFromRequiredResourcePath(req.ResourcePath)
 	if err != nil {
-		return nil, err
+		return "", "", nil, err
 	}
-	req.User = user
-	req.App = appCode
 
-	return a.appRepo.GetAppByUserName(req.User, req.App)
+	app, err := a.appRepo.GetAppByUserName(user, appCode)
+	return user, appCode, app, err
 }
 
 func (a *AppService) persistReleasedAppVersion(user, appCode, newVersion string) error {
@@ -690,27 +697,28 @@ func (a *AppService) deleteFunctionsForAPIs(appID int64, apis []*dto.ApiInfo) er
 
 // DeleteApp 删除应用
 func (a *AppService) DeleteApp(ctx context.Context, req *dto.DeleteAppReq) (*dto.DeleteAppResp, error) {
-	user, appCode, err := resolveUserAppFromResourcePath(req.ResourcePath, req.User, req.App)
+	user, appCode, err := resolveUserAppFromRequiredResourcePath(req.ResourcePath)
 	if err != nil {
 		return nil, err
 	}
-	req.User = user
-	req.App = appCode
 
 	// 根据应用信息获取 NATS 连接
-	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
+	app, err := a.appRepo.GetAppByUserName(user, appCode)
 	if err != nil {
 		return nil, err
 	}
 
 	// 调用 app-runtime 删除应用
-	resp, err := a.appCall.DeleteApp(ctx, app.HostID, req)
+	resp, err := a.appCall.DeleteApp(ctx, app.HostID, &dto.DeleteAppRuntimeReq{
+		User: user,
+		App:  appCode,
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	// 删除数据库记录
-	err = a.appRepo.DeleteAppAndVersions(req.User, req.App)
+	err = a.appRepo.DeleteAppAndVersions(user, appCode)
 	if err != nil {
 		return nil, err
 	}
@@ -768,17 +776,15 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 
 // GetAppDetail 获取应用详情
 func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq) (*dto.GetAppDetailResp, error) {
-	user, appCode, err := resolveUserAppFromResourcePath(req.ResourcePath, req.User, req.App)
+	user, appCode, err := resolveUserAppFromRequiredResourcePath(req.ResourcePath)
 	if err != nil {
 		return nil, err
 	}
-	req.User = user
-	req.App = appCode
 
-	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
+	app, err := a.appRepo.GetAppByUserName(user, appCode)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("应用不存在: %s/%s", req.User, req.App)
+			return nil, fmt.Errorf("应用不存在: %s/%s", user, appCode)
 		}
 		return nil, fmt.Errorf("获取应用详情失败: %w", err)
 	}

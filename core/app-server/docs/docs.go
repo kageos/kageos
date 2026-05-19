@@ -4182,10 +4182,6 @@ const docTemplate = `{
         "dto.UpdateAppReq": {
             "type": "object",
             "properties": {
-                "app": {
-                    "description": "应用名，优先从 resource_path 解析",
-                    "type": "string"
-                },
                 "change_description": {
                     "description": "变更描述（大模型输出的）",
                     "type": "string"
@@ -4208,10 +4204,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/dto.SourceFileWrite"
                     }
-                },
-                "user": {
-                    "description": "租户用户名，优先从 resource_path 解析",
-                    "type": "string"
                 },
                 "write_only": {
                     "description": "为 true 时仅写文件不编译不部署",
