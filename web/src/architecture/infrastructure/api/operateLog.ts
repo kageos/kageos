@@ -22,6 +22,7 @@ export interface GetTableOperateLogsParams {
   request_user?: string
   app?: string
   full_code_path?: string
+  full_code_path_prefix?: string
   row_id?: number
   action?: string
   page?: number

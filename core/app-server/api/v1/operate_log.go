@@ -29,6 +29,7 @@ func NewOperateLog(operateLogService *service.OperateLogService) *OperateLog {
 // @Param request_user query string false "请求用户（实际执行操作的用户）"
 // @Param app query string false "应用名"
 // @Param full_code_path query string false "完整代码路径"
+// @Param full_code_path_prefix query string false "完整代码路径前缀，用于查询目录下日志"
 // @Param row_id query int false "记录ID"
 // @Param action query string false "操作类型：OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows"
 // @Param page query int false "页码（从1开始）" default(1)

@@ -1,23 +1,37 @@
-import { computed, h, ref, watch, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { TagProps } from 'element-plus'
 import { formatTimestamp } from '@/architecture/shared/date'
 import { useUserInfoStore } from '@/architecture/presentation/context/appStoresContext'
 import { getTableOperateLogs, type TableOperateLog } from '@/architecture/presentation/context/api/operateLog'
-import { widgetComponentFactory } from '@/architecture/presentation/widgets/registry'
-import { convertToFieldValue } from '@/architecture/domain/utils/field'
 import type { FieldConfig } from '@/architecture/domain/types'
 import { getFunctionByPath } from '@/architecture/presentation/context/api/function'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import { Logger } from '@/architecture/shared/logger'
 import { getTableListFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
+type OperateLogScope = 'row' | 'function' | 'directory'
+
+interface OperateLogChangeEntry {
+  fieldCode: string
+  fieldName: string
+  oldValue: any
+  newValue: any
+  hasOldValue: boolean
+}
+
+interface OperateLogValueEntry {
+  fieldCode: string
+  fieldName: string
+  value: any
+}
+
 interface UseOperateLogSectionOptions {
   fullCodePath: Ref<string>
   rowId: Ref<number>
   functionDetail: Ref<any>
   autoLoad: Ref<boolean>
-  scope?: Ref<'row' | 'function'>
+  scope?: Ref<OperateLogScope>
 }
 
 export function useOperateLogSection({
@@ -32,11 +46,13 @@ export function useOperateLogSection({
   const logs = ref<TableOperateLog[]>([])
   const loading = ref(false)
   const functionDetailCache = ref<FunctionDetail | null>(null)
+  const functionDetailMap = ref<Map<string, FunctionDetail>>(new Map())
   const userInfoMap = ref<Map<string, any>>(new Map())
   const hasLoaded = ref(false)
   const currentScope = () => scope?.value || 'row'
-  const lastLoadParams = ref<{ fullCodePath: string; rowId: number; scope: 'row' | 'function' } | null>(null)
-  const showRowIdColumn = computed(() => currentScope() === 'function')
+  const lastLoadParams = ref<{ fullCodePath: string; rowId: number; scope: OperateLogScope } | null>(null)
+  const showRowIdColumn = computed(() => currentScope() !== 'row')
+  const showResourceColumn = computed(() => currentScope() === 'directory')
 
   const formatDateTime = (dateTime: string | number | null | undefined): string => {
     if (!dateTime) return '-'
@@ -85,6 +101,10 @@ export function useOperateLogSection({
   }
 
   const loadFunctionDetail = async () => {
+    if (currentScope() === 'directory') {
+      return
+    }
+
     if (functionDetail.value) {
       const hasResponse = getTableListFields(functionDetail.value as FunctionDetail).length > 0
       if (hasResponse) {
@@ -132,8 +152,38 @@ export function useOperateLogSection({
     }
   }
 
+  const loadDirectoryFunctionDetails = async () => {
+    if (currentScope() !== 'directory' || logs.value.length === 0) {
+      return
+    }
+
+    const paths = Array.from(new Set(
+      logs.value
+        .map((log) => log.full_code_path)
+        .filter((path): path is string => Boolean(path))
+    ))
+    const missingPaths = paths.filter((path) => !functionDetailMap.value.has(path))
+    if (missingPaths.length === 0) {
+      return
+    }
+
+    const nextMap = new Map(functionDetailMap.value)
+    await Promise.all(missingPaths.map(async (path) => {
+      try {
+        const detail = await getFunctionByPath(path)
+        if (detail && getTableListFields(detail as unknown as FunctionDetail).length > 0) {
+          nextMap.set(path, detail as unknown as FunctionDetail)
+        }
+      } catch (error) {
+        Logger.warn('[OperateLogSection]', '加载目录日志函数详情失败', { path, error })
+      }
+    }))
+    functionDetailMap.value = nextMap
+  }
+
   const loadOperateLogs = async () => {
-    if (!fullCodePath.value || (currentScope() === 'row' && !rowId.value)) {
+    const scopeValue = currentScope()
+    if (!fullCodePath.value || (scopeValue === 'row' && !rowId.value)) {
       return
     }
 
@@ -141,19 +191,22 @@ export function useOperateLogSection({
     try {
       await loadFunctionDetail()
       const response = await getTableOperateLogs({
-        full_code_path: fullCodePath.value,
-        ...(currentScope() === 'row' ? { row_id: rowId.value } : {}),
+        ...(scopeValue === 'directory'
+          ? { full_code_path_prefix: fullCodePath.value }
+          : { full_code_path: fullCodePath.value }),
+        ...(scopeValue === 'row' ? { row_id: rowId.value } : {}),
         page: 1,
         page_size: 50,
         order_by: 'created_at DESC',
       })
       logs.value = response.logs || []
+      await loadDirectoryFunctionDetails()
       await loadUserInfos()
       hasLoaded.value = true
       lastLoadParams.value = {
         fullCodePath: fullCodePath.value,
         rowId: rowId.value,
-        scope: currentScope(),
+        scope: scopeValue,
       }
     } catch (error: any) {
       Logger.error('[OperateLogSection]', '加载操作日志失败', { error })
@@ -207,8 +260,10 @@ export function useOperateLogSection({
     return jsonStr || {}
   }
 
-  const getFieldConfig = (fieldCode: string): FieldConfig | null => {
-    const detail = functionDetailCache.value || functionDetail.value
+  const getFieldConfig = (fieldCode: string, fullCodePathForLog?: string): FieldConfig | null => {
+    const detail = fullCodePathForLog
+      ? functionDetailMap.value.get(fullCodePathForLog)
+      : functionDetailCache.value || functionDetail.value
     if (!detail) {
       return null
     }
@@ -225,75 +280,122 @@ export function useOperateLogSection({
     return fields.find((field: any) => field.code === fieldCode) || null
   }
 
-  const getFieldName = (fieldCode: string | number): string => {
+  const getFieldName = (fieldCode: string | number, fullCodePathForLog?: string): string => {
     const normalizedFieldCode = String(fieldCode)
-    const field = getFieldConfig(normalizedFieldCode)
+    const field = getFieldConfig(normalizedFieldCode, fullCodePathForLog)
     return field?.name || normalizedFieldCode
   }
 
-  const renderFieldValue = (fieldCode: string | number, rawValue: any) => {
-    const normalizedFieldCode = String(fieldCode)
-    const field = getFieldConfig(normalizedFieldCode)
-
-    if (!field) {
-      Logger.warn('[OperateLogSection]', '未找到字段配置', {
-        fieldCode,
-        functionDetail: functionDetail.value
-      })
-      return h('span', { class: 'text-fallback' }, rawValue !== null && rawValue !== undefined ? String(rawValue) : '-')
+  const formatLogValue = (rawValue: any): string => {
+    if (rawValue === null || rawValue === undefined || rawValue === '') {
+      return '-'
     }
-
-    try {
-      let processedValue = rawValue
-      if (field.widget?.type === 'files' && rawValue && typeof rawValue === 'object') {
-        if (rawValue.files && Array.isArray(rawValue.files)) {
-          processedValue = rawValue
-        } else {
-          processedValue = {
-            files: Array.isArray(rawValue) ? rawValue : [rawValue],
-            remark: rawValue.remark || '',
-            metadata: rawValue.metadata || null,
-          }
+    if (typeof rawValue === 'boolean') {
+      return rawValue ? '是' : '否'
+    }
+    if (typeof rawValue === 'number') {
+      return String(rawValue)
+    }
+    if (typeof rawValue === 'string') {
+      return rawValue.length > 120 ? `${rawValue.slice(0, 120)}...` : rawValue
+    }
+    if (Array.isArray(rawValue)) {
+      if (rawValue.length === 0) {
+        return '-'
+      }
+      const simpleValues = rawValue.every((item) => ['string', 'number', 'boolean'].includes(typeof item))
+      if (simpleValues) {
+        const text = rawValue.map((item) => formatLogValue(item)).join('、')
+        return text.length > 120 ? `${text.slice(0, 120)}...` : text
+      }
+      return `${rawValue.length} 项`
+    }
+    if (typeof rawValue === 'object') {
+      if (Array.isArray(rawValue.files)) {
+        return `${rawValue.files.length} 个文件`
+      }
+      for (const key of ['name', 'title', 'label', 'text', 'value']) {
+        if (typeof rawValue[key] === 'string' && rawValue[key]) {
+          return rawValue[key]
         }
       }
-
-      const value = convertToFieldValue(processedValue, field)
-      const WidgetComponent = widgetComponentFactory.getRequestComponent(field.widget?.type || 'input')
-
-      if (!WidgetComponent) {
-        Logger.warn('[OperateLogSection]', '未找到组件', {
-          widgetType: field.widget?.type || 'input'
-        })
-        return h('span', { class: 'text-fallback' }, rawValue !== null && rawValue !== undefined ? String(rawValue) : '-')
+      try {
+        const text = JSON.stringify(rawValue)
+        return text.length > 120 ? `${text.slice(0, 120)}...` : text
+      } catch {
+        return String(rawValue)
       }
+    }
+    return String(rawValue)
+  }
 
-      return h(WidgetComponent, {
-        field,
-        value,
-        'model-value': value,
-        'field-path': normalizedFieldCode,
-        mode: 'detail',
-      })
-    } catch (error) {
-      Logger.error('[OperateLogSection]', '渲染字段值失败', {
-        fieldCode,
-        rawValue,
-        error
-      })
-      return h('span', { class: 'text-fallback' }, rawValue !== null && rawValue !== undefined ? String(rawValue) : '-')
+  const getChangeEntries = (log: TableOperateLog): OperateLogChangeEntry[] => {
+    const updates = parseJSON(log.updates)
+    if (!updates || typeof updates !== 'object' || Array.isArray(updates)) {
+      return []
+    }
+
+    const oldValues = parseJSON(log.old_values)
+    return Object.entries(updates).map(([fieldCode, newValue]) => ({
+      fieldCode,
+      fieldName: getFieldName(fieldCode, log.full_code_path),
+      oldValue: oldValues?.[fieldCode],
+      newValue,
+      hasOldValue: oldValues && Object.prototype.hasOwnProperty.call(oldValues, fieldCode),
+    }))
+  }
+
+  const getValueEntries = (log: TableOperateLog): OperateLogValueEntry[] => {
+    const values = parseJSON(log.action === 'OnTableDeleteRows' ? log.old_values : log.updates)
+    if (!values || typeof values !== 'object' || Array.isArray(values)) {
+      return []
+    }
+
+    return Object.entries(values).map(([fieldCode, value]) => ({
+      fieldCode,
+      fieldName: getFieldName(fieldCode, log.full_code_path),
+      value,
+    }))
+  }
+
+  const getLogTitle = (log: TableOperateLog): string => {
+    const recordName = log.row_id ? `记录 #${log.row_id}` : '一条记录'
+    switch (log.action) {
+      case 'OnTableAddRow':
+        return `新增了${recordName}`
+      case 'OnTableUpdateRow':
+        return `更新了${recordName}`
+      case 'OnTableDeleteRows':
+        return `删除了${recordName}`
+      default:
+        return `执行了 ${log.action}`
+    }
+  }
+
+  const getLogEmptyText = (log: TableOperateLog): string => {
+    switch (log.action) {
+      case 'OnTableAddRow':
+        return '记录已新增，暂无字段详情'
+      case 'OnTableUpdateRow':
+        return '记录已更新，暂无字段变更详情'
+      case 'OnTableDeleteRows':
+        return '记录已删除'
+      default:
+        return '暂无更多操作详情'
     }
   }
 
   watch(
-    [fullCodePath, rowId, functionDetail, scope || ref<'row' | 'function'>('row')],
+    [fullCodePath, rowId, functionDetail, scope || ref<OperateLogScope>('row')],
     ([newFullCodePath, newRowId, newFunctionDetail, newScope], [oldFullCodePath = '', oldRowId = 0, oldFunctionDetail, oldScope = 'row']) => {
-      const canLoad = Boolean(newFullCodePath) && (newScope === 'function' || Boolean(newRowId))
+      const canLoad = Boolean(newFullCodePath) && (newScope !== 'row' || Boolean(newRowId))
       const paramsChanged = newFullCodePath !== oldFullCodePath || newRowId !== oldRowId || newScope !== oldScope
 
       if (canLoad && paramsChanged) {
         hasLoaded.value = false
         lastLoadParams.value = null
         logs.value = []
+        functionDetailMap.value = new Map()
       }
 
       if (newFunctionDetail !== oldFunctionDetail) {
@@ -324,6 +426,7 @@ export function useOperateLogSection({
       hasLoaded.value = false
       logs.value = []
       functionDetailCache.value = null
+      functionDetailMap.value = new Map()
     }
 
     if (!hasLoaded.value) {
@@ -339,10 +442,13 @@ export function useOperateLogSection({
     getUserInfo,
     getActionTagType,
     getActionLabel,
-    parseJSON,
-    getFieldName,
-    renderFieldValue,
+    formatLogValue,
+    getChangeEntries,
+    getValueEntries,
+    getLogTitle,
+    getLogEmptyText,
     load,
     showRowIdColumn,
+    showResourceColumn,
   }
 }
