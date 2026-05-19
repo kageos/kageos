@@ -13,6 +13,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/access"
 	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"gorm.io/gorm"
@@ -24,6 +25,7 @@ type AppService struct {
 	functionRepo    *repository.FunctionRepository
 	serviceTreeRepo *repository.ServiceTreeRepository
 	operateLogRepo  *repository.OperateLogRepository
+	teamAccess      *TeamAccessService
 }
 
 // NewAppService 创建 AppService（依赖注入）
@@ -35,6 +37,10 @@ func NewAppService(appCall *appcall.Client, appRepo *repository.AppRepository, f
 		serviceTreeRepo: serviceTreeRepo,
 		operateLogRepo:  operateLogRepo,
 	}
+}
+
+func (a *AppService) SetTeamAccessService(teamAccess *TeamAccessService) {
+	a.teamAccess = teamAccess
 }
 
 // CreateApp 创建应用
@@ -739,15 +745,22 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 	}
 
 	// 从数据库获取应用列表（支持搜索和过滤）
-	apps, totalCount, err := a.appRepo.GetAppsWithPage(req.User, page, pageSize, req.Search, req.IncludeAll, req.Type)
+	apps, _, err := a.appRepo.GetAppsWithPage(req.User, page, pageSize, req.Search, req.IncludeAll, req.Type)
 	if err != nil {
 		return nil, fmt.Errorf("获取应用列表失败: %w", err)
 	}
+	apps, err = a.mergeAccessibleApps(ctx, apps, req)
+	if err != nil {
+		return nil, fmt.Errorf("获取已授权应用失败: %w", err)
+	}
 
 	// 转换为 AppInfo 列表
-	appInfos := make([]*dto.AppInfo, len(apps))
-	for i, app := range apps {
-		appInfos[i] = &dto.AppInfo{
+	appInfos := make([]*dto.AppInfo, 0, len(apps))
+	for _, app := range apps {
+		if !a.canReadApp(ctx, app, req.User) {
+			continue
+		}
+		appInfos = append(appInfos, &dto.AppInfo{
 			ID:        app.ID,
 			User:      app.User,
 			Code:      app.Code,
@@ -761,17 +774,81 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 			Type:      int(app.Type),
 			CreatedAt: time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
 			UpdatedAt: time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
-		}
+		})
 	}
 
 	return &dto.GetAppsResp{
 		PageInfoResp: dto.PageInfoResp{
 			Page:       page,
 			PageSize:   pageSize,
-			TotalCount: int(totalCount),
+			TotalCount: len(appInfos),
 			Items:      appInfos,
 		},
 	}, nil
+}
+
+func (a *AppService) mergeAccessibleApps(ctx context.Context, apps []*model.App, req *dto.GetAppsReq) ([]*model.App, error) {
+	if a.teamAccess == nil || req == nil || req.User == "" || req.Type != nil {
+		return apps, nil
+	}
+	grantedApps, err := a.teamAccess.ListAccessibleApps(ctx, req.User)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]bool, len(apps)+len(grantedApps))
+	merged := make([]*model.App, 0, len(apps)+len(grantedApps))
+	matchesSearch := func(app *model.App) bool {
+		if app == nil {
+			return false
+		}
+		search := strings.ToLower(strings.TrimSpace(req.Search))
+		if search == "" {
+			return true
+		}
+		return strings.Contains(strings.ToLower(app.Name), search) || strings.Contains(strings.ToLower(app.Code), search)
+	}
+	for _, app := range apps {
+		if app == nil {
+			continue
+		}
+		key := app.User + "/" + app.Code
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		merged = append(merged, app)
+	}
+	for _, app := range grantedApps {
+		if !matchesSearch(app) {
+			continue
+		}
+		key := app.User + "/" + app.Code
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		merged = append(merged, app)
+	}
+	return merged, nil
+}
+
+func (a *AppService) canReadApp(ctx context.Context, app *model.App, currentUser string) bool {
+	if app == nil {
+		return false
+	}
+	if a.teamAccess == nil {
+		return true
+	}
+	resourcePath := app.GetPrefix()
+	ok, err := a.teamAccess.Can(ctx, app.User, app.Code, currentUser, resourcePath, access.ActionRead)
+	if err != nil {
+		return false
+	}
+	if ok {
+		return true
+	}
+	hasAnyAccess, err := a.teamAccess.HasAnyWorkspaceAccess(ctx, app.User, app.Code, currentUser)
+	return err == nil && hasAnyAccess
 }
 
 // GetAppDetail 获取应用详情

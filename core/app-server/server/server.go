@@ -41,6 +41,7 @@ type Server struct {
 	docService                    *service.DocService
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
 	operateLogService             *service.OperateLogService
+	teamAccessService             *service.TeamAccessService
 	appRepo                       *repository.AppRepository // ⭐ 应用仓储（用于其他服务）
 
 	// 上游服务
@@ -229,18 +230,21 @@ func (s *Server) initServices(ctx context.Context) error {
 	functionRepo := repository.NewFunctionRepository(s.db)
 	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
 	operateLogRepo := repository.NewOperateLogRepository(s.db)
+	teamAccessRepo := repository.NewTeamAccessRepository(s.db)
 	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
 	directoryUpdateHistoryRepo := repository.NewDirectoryUpdateHistoryRepository(s.db)
 	s.appService = service.NewAppService(s.appCall, appRepo, functionRepo, serviceTreeRepo, operateLogRepo)
 	s.operateLogService = service.NewOperateLogService(operateLogRepo)
+	s.teamAccessService = service.NewTeamAccessService(teamAccessRepo, operateLogRepo, appRepo)
+	s.appService.SetTeamAccessService(s.teamAccessService)
 
 	// 初始化文档服务（需要在 ServiceTreeService 之前初始化，因为 ServiceTreeService 依赖它）
 	docRepo := repository.NewDocRepository(s.db)
-	s.docService = service.NewDocService(docRepo, serviceTreeRepo, appRepo)
+	s.docService = service.NewDocService(docRepo, serviceTreeRepo, appRepo, s.teamAccessService)
 
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中
-	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.docService)
+	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.docService, s.teamAccessService)
 
 	// 初始化函数服务
 	s.functionService = service.NewFunctionService(functionRepo, appRepo)

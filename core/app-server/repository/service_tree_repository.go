@@ -495,19 +495,8 @@ func (r *ServiceTreeRepository) SearchFunctions(currentUser, user, app, keyword,
 			subq = subq.Where("code = ?", app)
 		}
 		query = query.Where("service_tree.app_id IN (?)", subq)
-	} else if currentUser != "" {
-		subq := r.db.Model(&model.App{}).Select("id").Where(
-			"is_public = ? OR user = ? OR admins = ? OR admins LIKE ? OR admins LIKE ? OR admins LIKE ?",
-			true,
-			currentUser,
-			currentUser,
-			currentUser+",%",
-			"%,"+currentUser+",%",
-			"%,"+currentUser,
-		)
-		if app != "" {
-			subq = subq.Where("code = ?", app)
-		}
+	} else if currentUser != "" && app != "" {
+		subq := r.db.Model(&model.App{}).Select("id").Where("code = ?", app)
 		query = query.Where("service_tree.app_id IN (?)", subq)
 	}
 	if templateType != "" {
@@ -565,19 +554,8 @@ func (r *ServiceTreeRepository) SearchResources(currentUser, user, app, keyword 
 			subq = subq.Where("code = ?", app)
 		}
 		query = query.Where("service_tree.app_id IN (?)", subq)
-	} else if currentUser != "" {
-		subq := r.db.Model(&model.App{}).Select("id").Where(
-			"is_public = ? OR user = ? OR admins = ? OR admins LIKE ? OR admins LIKE ? OR admins LIKE ?",
-			true,
-			currentUser,
-			currentUser,
-			currentUser+",%",
-			"%,"+currentUser+",%",
-			"%,"+currentUser,
-		)
-		if app != "" {
-			subq = subq.Where("code = ?", app)
-		}
+	} else if currentUser != "" && app != "" {
+		subq := r.db.Model(&model.App{}).Select("id").Where("code = ?", app)
 		query = query.Where("service_tree.app_id IN (?)", subq)
 	}
 
