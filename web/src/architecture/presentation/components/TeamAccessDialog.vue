@@ -105,6 +105,7 @@
               :key="role.value"
               class="role-card"
               :class="[`tone-${role.tone}`, { 'is-selected': grantRole === role.value }]"
+              :aria-pressed="grantRole === role.value"
               type="button"
               @click="grantRole = role.value"
             >
@@ -114,9 +115,16 @@
                 </span>
                 <span class="role-card-copy">
                   <strong>{{ role.title }}</strong>
-                  <em>{{ role.subtitle }}</em>
+                  <em>{{ role.codeLabel }} · {{ role.subtitle }}</em>
                 </span>
-                <el-icon class="role-state"><CircleCheck v-if="grantRole === role.value" /><CircleClose v-else /></el-icon>
+                <span class="role-state" :class="{ 'is-selected': grantRole === role.value }">
+                  <el-icon v-if="grantRole === role.value"><CircleCheck /></el-icon>
+                  <span v-else class="role-empty-dot" />
+                </span>
+              </span>
+              <span v-if="grantRole === role.value" class="selected-role-badge">
+                <el-icon><CircleCheck /></el-icon>
+                已选择
               </span>
               <span class="role-description">{{ role.description }}</span>
               <span class="role-action-grid">
@@ -217,8 +225,19 @@
           size="small"
           empty-text="暂无权限记录"
         >
-          <el-table-column prop="username" label="成员" min-width="140" />
-          <el-table-column label="角色" width="110">
+          <el-table-column label="成员" min-width="220">
+            <template #default="{ row }">
+              <div class="member-users-cell">
+                <UsersWidget
+                  :value="memberUsersValue(row.username)"
+                  :field="memberUsersField"
+                  mode="response"
+                  :field-path="`teamAccessMember:${memberRowKey(row)}`"
+                />
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="角色" width="116">
             <template #default="{ row }">
               <el-tag size="small" :type="roleTagType(row.role_code)">
                 {{ roleLabel(row.role_code) }}
@@ -278,7 +297,6 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import {
   CircleCheck,
-  CircleClose,
   Delete,
   Document,
   EditPen,
@@ -311,6 +329,7 @@ type RoleTone = 'view' | 'edit' | 'admin' | 'owner'
 interface RoleOption {
   value: AccessRoleCode
   title: string
+  codeLabel: string
   subtitle: string
   description: string
   permissions: string[]
@@ -332,7 +351,8 @@ const emit = defineEmits<{
 const roleOptions: RoleOption[] = [
   {
     value: 'viewer',
-    title: 'Viewer',
+    title: '查看者',
+    codeLabel: 'Viewer',
     subtitle: '只读角色',
     description: '只能查看目录下的文档、表格、表单和图表。',
     permissions: ['read'],
@@ -341,7 +361,8 @@ const roleOptions: RoleOption[] = [
   },
   {
     value: 'member',
-    title: 'Member',
+    title: '成员',
+    codeLabel: 'Member',
     subtitle: '编辑角色',
     description: '可以查看、新增和更新内容，但不能删除记录或调整目录结构。',
     permissions: ['read', 'write', 'update'],
@@ -350,7 +371,8 @@ const roleOptions: RoleOption[] = [
   },
   {
     value: 'admin',
-    title: 'Admin',
+    title: '管理员',
+    codeLabel: 'Admin',
     subtitle: '管理角色',
     description: '可以管理目录内容、删除记录，并给其他成员赋权。',
     permissions: ['read', 'write', 'update', 'delete', 'admin'],
@@ -359,7 +381,8 @@ const roleOptions: RoleOption[] = [
   },
   {
     value: 'owner',
-    title: 'Owner',
+    title: '拥有者',
+    codeLabel: 'Owner',
     subtitle: '拥有者角色',
     description: '拥有完整权限，包括 Owner 权限转授。只有 Owner 能授予 Owner。',
     permissions: ['read', 'write', 'update', 'delete', 'admin', 'owner'],
@@ -385,6 +408,21 @@ const grantUsersField: FieldConfig = {
     type: WidgetType.USERS,
     config: {
       max_count: 50
+    }
+  },
+  data: {
+    type: 'string'
+  }
+}
+
+const memberUsersField: FieldConfig = {
+  code: 'teamAccessMemberUsers',
+  name: '成员',
+  desc: '成员',
+  widget: {
+    type: WidgetType.USERS,
+    config: {
+      max_display_count: 1
     }
   },
   data: {
@@ -606,6 +644,10 @@ function memberRowKey(member: TeamMemberAccess): string {
 function roleLabel(role: AccessRoleCode): string {
   const option = roleOptions.find(item => item.value === role)
   return option?.title || role
+}
+
+function memberUsersValue(username: string): FieldValue {
+  return createStringFieldValue(memberUsersField, username || '', { emptyRaw: '' })
 }
 
 function roleTagType(role: AccessRoleCode): 'danger' | 'warning' | 'success' | 'info' {
@@ -907,6 +949,7 @@ function formatExpiresAt(value?: string): string {
 }
 
 .role-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -919,12 +962,54 @@ function formatExpiresAt(value?: string): string {
   text-align: left;
   cursor: pointer;
   transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+  overflow: hidden;
 
-  &:hover,
-  &.is-selected {
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: transparent;
+    transition: background-color 0.16s ease;
+  }
+
+  &:hover {
     border-color: rgba(var(--el-color-primary-rgb), 0.5);
     box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
     transform: translateY(-1px);
+  }
+
+  &.is-selected {
+    border-color: var(--el-color-primary);
+    background:
+      linear-gradient(180deg, rgba(var(--el-color-primary-rgb), 0.14), rgba(var(--el-color-primary-rgb), 0.055)),
+      var(--el-bg-color);
+    box-shadow:
+      0 0 0 2px rgba(var(--el-color-primary-rgb), 0.18),
+      0 12px 26px rgba(15, 23, 42, 0.12);
+    transform: translateY(-1px);
+
+    &::before {
+      background: var(--el-color-primary);
+    }
+
+    .role-icon-badge {
+      background: var(--el-color-primary);
+      color: #fff;
+      box-shadow: 0 8px 18px rgba(var(--el-color-primary-rgb), 0.28);
+    }
+
+    .role-card-copy strong {
+      color: var(--el-color-primary);
+      font-weight: 800;
+    }
+
+    .role-action-item {
+      border-color: rgba(var(--el-color-primary-rgb), 0.22);
+      background: rgba(var(--el-color-primary-rgb), 0.12);
+      color: var(--el-color-primary);
+      font-weight: 700;
+    }
   }
 }
 
@@ -943,6 +1028,7 @@ function formatExpiresAt(value?: string): string {
   border-radius: 8px;
   background: rgba(var(--el-color-primary-rgb), 0.1);
   color: var(--el-color-primary);
+  transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .role-card-copy {
@@ -964,7 +1050,44 @@ function formatExpiresAt(value?: string): string {
 }
 
 .role-state {
-  color: var(--el-color-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid var(--el-border-color);
+  background: var(--el-fill-color-lighter);
+  color: var(--el-text-color-placeholder);
+  flex: 0 0 26px;
+  transition: all 0.16s ease;
+}
+
+.role-state.is-selected {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary);
+  color: #fff;
+}
+
+.role-empty-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--el-border-color);
+}
+
+.selected-role-badge {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--el-color-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .role-description {
@@ -982,9 +1105,11 @@ function formatExpiresAt(value?: string): string {
 .role-action-item {
   padding: 3px 7px;
   border-radius: 999px;
+  border: 1px solid transparent;
   background: var(--el-fill-color-light);
   color: var(--el-text-color-regular);
   font-size: 12px;
+  transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
 }
 
 .grant-form {
@@ -1035,6 +1160,31 @@ function formatExpiresAt(value?: string): string {
 
 .access-table {
   width: 100%;
+}
+
+.member-users-cell {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+
+  :deep(.users-response) {
+    width: auto;
+  }
+
+  :deep(.users-list-horizontal) {
+    gap: 6px;
+  }
+
+  :deep(.user-display-card-trigger) {
+    max-width: 180px;
+  }
+
+  :deep(.user-name) {
+    max-width: 128px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .permission-tags {
