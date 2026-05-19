@@ -55,12 +55,6 @@ type Storage interface {
 	// uploadSource: 上传来源（browser 或 server），用于决定是否返回SDK配置
 	GenerateUploadCredentials(ctx context.Context, bucket, key, contentType string, expire time.Duration, uploadSource string) (*UploadCredentials, error)
 
-	// GenerateUploadURL 生成上传预签名 URL（兼容旧接口，内部调用 GenerateUploadCredentials）
-	GenerateUploadURL(ctx context.Context, bucket, key, contentType string, expire time.Duration) (url string, err error)
-
-	// GenerateDownloadURL 生成下载预签名 URL（返回外部访问URL，用于兼容旧接口）
-	GenerateDownloadURL(ctx context.Context, bucket, key string, expire time.Duration, cacheControl map[string]string) (url string, err error)
-
 	// GenerateDownloadURLs 生成下载 URL（同时返回外部和内部访问的URL）
 	GenerateDownloadURLs(ctx context.Context, bucket, key string, expire time.Duration, cacheControl map[string]string) (externalURL string, serverURL string, err error)
 

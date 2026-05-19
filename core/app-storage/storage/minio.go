@@ -245,21 +245,6 @@ func (s *MinIOStorage) extractDomainInfo(uploadURL string) (host string, domain 
 	return host, domain
 }
 
-// GenerateUploadURL 生成上传预签名 URL（兼容旧接口，默认browser上传）
-func (s *MinIOStorage) GenerateUploadURL(ctx context.Context, bucket, key, contentType string, expire time.Duration) (string, error) {
-	creds, err := s.GenerateUploadCredentials(ctx, bucket, key, contentType, expire, UploadSourceBrowser)
-	if err != nil {
-		return "", err
-	}
-	return creds.UploadURL, nil
-}
-
-// GenerateDownloadURL 生成下载 URL（返回外部访问URL，用于兼容旧接口）
-func (s *MinIOStorage) GenerateDownloadURL(ctx context.Context, bucket, key string, expire time.Duration, cacheControl map[string]string) (string, error) {
-	externalURL, _, err := s.GenerateDownloadURLs(ctx, bucket, key, expire, cacheControl)
-	return externalURL, err
-}
-
 // GenerateDownloadURLs 生成下载 URL（同时生成外部和内部访问的URL）
 func (s *MinIOStorage) GenerateDownloadURLs(ctx context.Context, bucket, key string, expire time.Duration, cacheControl map[string]string) (externalURL string, serverURL string, err error) {
 	scheme := "http"

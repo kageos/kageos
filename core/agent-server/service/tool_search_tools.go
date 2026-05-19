@@ -25,7 +25,7 @@ type searchToolsArgs struct {
 	Page         *int   `json:"page" schema_desc:"页码，默认 1"`
 	PageSize     *int   `json:"page_size" schema_desc:"每页条数，默认使用 limit 或 20，最多 100"`
 	Limit        *int   `json:"limit" schema_desc:"最多返回条数"`
-	SchemaOutput string `json:"schema_output" schema_desc:"schema 输出方式：summary=字段摘要（默认），json=原始 JSON，both=同时输出" schema_enum:"summary,json,both"`
+	SchemaOutput string `json:"schema_output" schema_desc:"schema 输出方式：summary=字段摘要（默认），both=字段摘要和原始 JSON" schema_enum:"summary,both"`
 }
 
 var searchToolsToolDef = toolDefinition[searchToolsArgs](
@@ -65,7 +65,6 @@ type searchToolsRequestOutput string
 
 const (
 	searchToolsRequestOutputSummary searchToolsRequestOutput = "summary"
-	searchToolsRequestOutputJSON    searchToolsRequestOutput = "json"
 	searchToolsRequestOutputBoth    searchToolsRequestOutput = "both"
 )
 
@@ -73,8 +72,6 @@ func normalizeSearchToolsRequestOutput(raw string) searchToolsRequestOutput {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case string(searchToolsRequestOutputSummary):
 		return searchToolsRequestOutputSummary
-	case string(searchToolsRequestOutputJSON):
-		return searchToolsRequestOutputJSON
 	case string(searchToolsRequestOutputBoth):
 		return searchToolsRequestOutputBoth
 	default:
@@ -200,10 +197,6 @@ func runSearchToolsTool(ctx context.Context, registry *ToolRegistry, args search
 }
 
 func formatSearchToolsOutput(keywordRaw string, matchedTools []dto.ToolDef, functions []*dto.FunctionSearchResult, requestOutput searchToolsRequestOutput) string {
-	if requestOutput == searchToolsRequestOutputJSON {
-		return formatSearchToolsLegacyOutput(keywordRaw, matchedTools, functions)
-	}
-
 	var buf strings.Builder
 	if keywordRaw == "" {
 		buf.WriteString("搜索结果：未传 keyword，返回 system 用户下的高频已注册函数。\n")
@@ -239,7 +232,7 @@ func formatSearchToolsOutput(keywordRaw string, matchedTools []dto.ToolDef, func
 
 	if requestOutput == searchToolsRequestOutputBoth {
 		buf.WriteString("\n【已注册函数 Schema JSON】\n")
-		buf.WriteString(formatSearchToolsLegacyFunctionRequests(functions))
+		buf.WriteString(formatSearchToolsFunctionSchemaJSON(functions))
 	}
 
 	return strings.TrimSpace(buf.String())
@@ -340,31 +333,7 @@ func formatSearchToolsNoResultMessage(data searchToolsResultData, message string
 	return formatSearchToolsSearchMeta(data) + "\n\n" + message
 }
 
-func formatSearchToolsLegacyOutput(keywordRaw string, matchedTools []dto.ToolDef, functions []*dto.FunctionSearchResult) string {
-	var buf strings.Builder
-	if len(matchedTools) > 0 {
-		buf.WriteString("【内置工具】\n")
-		for _, t := range matchedTools {
-			buf.WriteString("- ")
-			buf.WriteString(t.Name)
-			buf.WriteString("：")
-			buf.WriteString(t.Description)
-			buf.WriteString("\n")
-		}
-		buf.WriteString("\n")
-	}
-	if len(functions) > 0 {
-		if keywordRaw == "" {
-			buf.WriteString("【已注册函数】（按调用次数从高到低，仅 system 用户下）\n")
-		} else {
-			buf.WriteString("【已注册函数】（仅 system 用户下）调用方式：form → run_form_submit，table → 默认先 run_table_search，仅在函数能力摘要明确支持写入时再用 run_table_create/run_table_update/run_table_delete，chart → run_chart_query。\n")
-		}
-		buf.WriteString(formatSearchToolsLegacyFunctionRequests(functions))
-	}
-	return strings.TrimSpace(buf.String())
-}
-
-func formatSearchToolsLegacyFunctionRequests(functions []*dto.FunctionSearchResult) string {
+func formatSearchToolsFunctionSchemaJSON(functions []*dto.FunctionSearchResult) string {
 	var buf strings.Builder
 	for i, fn := range functions {
 		buf.WriteString(fmt.Sprintf("%d. %s\n", i+1, fn.Name))
