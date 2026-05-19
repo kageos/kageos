@@ -91,16 +91,20 @@ type RemoveRoleRequest struct {
 }
 
 type MemberAccess struct {
-	TenantUser   string        `json:"tenant_user"`
-	App          string        `json:"app"`
-	Username     string        `json:"username"`
-	ResourcePath string        `json:"resource_path"`
-	RoleCode     RoleCode      `json:"role_code"`
-	Permissions  PermissionSet `json:"permissions"`
-	ExpiresAt    *time.Time    `json:"expires_at,omitempty"`
-	CreatedBy    string        `json:"created_by,omitempty"`
-	CreatedAt    *time.Time    `json:"created_at,omitempty"`
-	UpdatedAt    *time.Time    `json:"updated_at,omitempty"`
+	TenantUser     string        `json:"tenant_user"`
+	App            string        `json:"app"`
+	Username       string        `json:"username"`
+	ResourcePath   string        `json:"resource_path"`
+	RoleCode       RoleCode      `json:"role_code"`
+	Permissions    PermissionSet `json:"permissions"`
+	Source         string        `json:"source"`
+	Direct         bool          `json:"direct"`
+	InheritedFrom  string        `json:"inherited_from,omitempty"`
+	TargetResource string        `json:"target_resource,omitempty"`
+	ExpiresAt      *time.Time    `json:"expires_at,omitempty"`
+	CreatedBy      string        `json:"created_by,omitempty"`
+	CreatedAt      *time.Time    `json:"created_at,omitempty"`
+	UpdatedAt      *time.Time    `json:"updated_at,omitempty"`
 }
 
 func NormalizeAction(action Action) Action {

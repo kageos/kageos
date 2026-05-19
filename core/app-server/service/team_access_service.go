@@ -189,30 +189,45 @@ func (s *TeamAccessService) Remove(ctx context.Context, req access.RemoveRoleReq
 
 func (s *TeamAccessService) ListMembers(ctx context.Context, tenantUser, app, resourcePath string) ([]access.MemberAccess, error) {
 	resourcePath = access.NormalizeResourcePath(resourcePath)
-	assignments, err := s.teamAccessRepo.ListAssignmentsForResource(ctx, tenantUser, app, resourcePath)
+	assignments, err := s.teamAccessRepo.ListAssignmentsForWorkspace(ctx, tenantUser, app)
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now()
 	members := make([]access.MemberAccess, 0, len(assignments))
 	for _, assignment := range assignments {
+		assignmentPath := access.NormalizeResourcePath(assignment.ResourcePath)
+		if !access.PathApplies(assignmentPath, resourcePath) {
+			continue
+		}
 		if assignment.ExpiresAt != nil && !assignment.ExpiresAt.After(now) {
 			continue
 		}
 		createdAt := time.Time(assignment.CreatedAt)
 		updatedAt := time.Time(assignment.UpdatedAt)
 		roleCode := access.NormalizeRoleCode(access.RoleCode(assignment.RoleCode))
+		direct := assignmentPath == resourcePath
+		source := "current"
+		inheritedFrom := ""
+		if !direct {
+			source = "inherited"
+			inheritedFrom = assignmentPath
+		}
 		members = append(members, access.MemberAccess{
-			TenantUser:   assignment.TenantUser,
-			App:          assignment.App,
-			Username:     assignment.Username,
-			ResourcePath: assignment.ResourcePath,
-			RoleCode:     roleCode,
-			Permissions:  access.RolePermissions(roleCode),
-			ExpiresAt:    assignment.ExpiresAt,
-			CreatedBy:    assignment.CreatedBy,
-			CreatedAt:    &createdAt,
-			UpdatedAt:    &updatedAt,
+			TenantUser:     assignment.TenantUser,
+			App:            assignment.App,
+			Username:       assignment.Username,
+			ResourcePath:   assignmentPath,
+			RoleCode:       roleCode,
+			Permissions:    access.RolePermissions(roleCode),
+			Source:         source,
+			Direct:         direct,
+			InheritedFrom:  inheritedFrom,
+			TargetResource: resourcePath,
+			ExpiresAt:      assignment.ExpiresAt,
+			CreatedBy:      assignment.CreatedBy,
+			CreatedAt:      &createdAt,
+			UpdatedAt:      &updatedAt,
 		})
 	}
 	return members, nil
