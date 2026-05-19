@@ -56,13 +56,14 @@
 - 交付物：
   - 明确 `LICENSE` 口径。
   - 明确 README 中使用“开源 / 源码可见 / source-available”的措辞。
-  - 明确 `enterprise_impl/`、`pkg/license/` 是否公开。
+  - 确认仓库不再跟踪旧企业实现或本地授权文件。
   - 检查 `THIRD_PARTY_LICENSES.md` 是否覆盖当前依赖。
 - 验收：
   - 许可证和宣传口径一致。
-  - 商业版/企业版边界清楚。
+  - 商业边界清楚。
 - 本轮结果：
   - 未擅自变更许可证；README 已按当前 `LICENSE` 明确为 BSL 1.1/source-available，并说明当前不是 OSI 开源。
+  - 已确认旧企业实现目录和本地授权文件无 tracked 文件，旧本地授权文件由 `.gitignore` 排除。
   - `THIRD_PARTY_LICENSES.md` 未在本轮重算，仍需最终许可证策略确认后复核。
 
 ### 事项 3：敏感信息和发布包边界
@@ -72,7 +73,7 @@
 - 目标：开源仓库不带真实配置、客户信息、测试工作区、token、私钥。
 - 交付物：
   - 清理 git 跟踪的真实 `.env.*`，只保留 `.env.example`。
-  - 审查 `license.json`、`pkg/license/example_license.json`。
+  - 确认 `license.json` 等本地 license 文件不进入公开仓库。
   - 审查 `namespace/**` 是否应该进入公开仓库。
   - 审查 `local/hermes-agent/**` 是否独立项目或第三方代码。
   - 补充 `.gitignore` 和敏感信息扫描命令。

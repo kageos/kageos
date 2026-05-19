@@ -95,7 +95,7 @@ export async function uploadFile(
   options: UploadFileOptions = {}
 ): Promise<UploadFileResult> {
   
-  // ✨ Step 0: 计算文件 SHA256 hash（用于秒传和去重）
+  // ✨ Step 0: 计算文件 SHA256 hash（用于文件标识和 SDK 下载缓存）
   let hash = ''
   try {
     hash = await calculateSHA256(file)
@@ -361,7 +361,7 @@ export interface BatchUploadCompleteResult {
   download_url?: string      // ✨ 外部访问的下载地址（前端使用）
   description?: string       // 文件描述
   server_download_url?: string // ✨ 内部访问的下载地址（服务端使用）
-  hash?: string              // ✨ 文件hash（用于文件缓存去重）
+  hash?: string              // ✨ 文件hash（用于 SDK 下载缓存）
   thumbnail_ref?: string
   thumbnail_url?: string
   preview_kind?: string
@@ -422,7 +422,7 @@ export async function notifyBatchUploadComplete(
 }
 
 /**
- * 计算文件的 SHA256 hash（用于秒传与下载缓存去重）
+ * 计算文件的 SHA256 hash（用于文件标识与下载缓存）
  * 优先使用 Web Crypto API；非 HTTPS 等无 crypto.subtle 时用 js-sha256 兜底，尽量保证有 hash
  * @param file 文件对象
  * @returns SHA256 hash 字符串（十六进制）

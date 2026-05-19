@@ -16,8 +16,8 @@ const docTemplate = `{
             "email": "support@swagger.io"
         },
         "license": {
-            "name": "Apache 2.0",
-            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+            "name": "Business Source License 1.1",
+            "url": "https://github.com/ai-agent-os/ai-agent-os/blob/main/LICENSE"
         },
         "version": "{{.Version}}"
     },

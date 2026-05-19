@@ -101,15 +101,15 @@ func (s *Server) Stop(ctx context.Context) error {
 	return nil
 }
 
-// initDatabase 初始化数据库（可选，用于秒传功能）
+// initDatabase 初始化可选数据库，用于记录文件上传/下载元数据。
 func (s *Server) initDatabase(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing database...")
 
 	dbCfg := s.cfg.DB
 
-	// 如果数据库配置为空，跳过（秒传功能未启用）
+	// 如果数据库配置为空，跳过元数据记录。
 	if dbCfg.Host == "" {
-		logger.Infof(ctx, "[Server] Database config not found, skipping (deduplication disabled)")
+		logger.Infof(ctx, "[Server] Database config not found, skipping file metadata records")
 		return nil
 	}
 

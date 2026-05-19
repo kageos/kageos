@@ -15,7 +15,7 @@ type GetUploadTokenReq struct {
 	FileSize      int64        `json:"file_size"`
 	Router        string       `json:"router,omitempty"`          // 函数路径，例如：luobei/test88888/cashier/cashier_desk.form（可选，未提供时使用默认路由：/{username}/default）
 	Bucket        string       `json:"bucket,omitempty"`          // 存储桶；为空时使用 storage 默认桶
-	Hash          string       `json:"hash,omitempty"`            // 文件 hash（预留，用于秒传）
+	Hash          string       `json:"hash,omitempty"`            // 文件 hash（可选，用于文件标识和 SDK 下载缓存）
 	UploadSource  UploadSource `json:"upload_source,omitempty"`   // ✨ 上传来源：browser（浏览器）或 server（服务端），默认为 browser
 	PreviewForKey string       `json:"preview_for_key,omitempty"` // 原文件 object key；存在时生成与原文件同路径的缩略图/封面 key
 }
@@ -102,7 +102,7 @@ type BatchUploadCompleteItem struct {
 	Description  string `json:"description,omitempty"`   // 文件描述
 	FileSize     int64  `json:"file_size,omitempty"`     // ✨ 文件大小（上传成功后需要，用于记录）
 	ContentType  string `json:"content_type,omitempty"`  // ✨ 文件类型（上传成功后需要，用于记录）
-	Hash         string `json:"hash,omitempty"`          // ✨ 文件hash（可选，用于秒传）
+	Hash         string `json:"hash,omitempty"`          // ✨ 文件hash（可选，用于文件标识和 SDK 下载缓存）
 	ThumbnailRef string `json:"thumbnail_ref,omitempty"` // 前端生成的缩略图或视频封面文件引用
 	PreviewKind  string `json:"preview_kind,omitempty"`  // 预览类型：image/video
 }
@@ -121,7 +121,7 @@ type BatchUploadCompleteResult struct {
 	DownloadURL       string `json:"download_url,omitempty"`        // ✨ 外部访问的下载地址（前端使用）
 	Description       string `json:"description,omitempty"`         // 文件描述
 	ServerDownloadURL string `json:"server_download_url,omitempty"` // ✨ 内部访问的下载地址（服务端使用）
-	Hash              string `json:"hash,omitempty"`                // ✨ 文件hash（用于文件缓存去重）
+	Hash              string `json:"hash,omitempty"`                // ✨ 文件hash（用于 SDK 下载缓存）
 	ThumbnailRef      string `json:"thumbnail_ref,omitempty"`       // 前端生成的缩略图或视频封面文件引用
 	ThumbnailURL      string `json:"thumbnail_url,omitempty"`       // 缩略图或视频封面浏览器访问地址
 	PreviewKind       string `json:"preview_kind,omitempty"`        // 预览类型：image/video

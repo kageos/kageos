@@ -7,8 +7,8 @@
 // @contact.url http://www.swagger.io/support
 // @contact.email support@swagger.io
 
-// @license.name Apache 2.0
-// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+// @license.name Business Source License 1.1
+// @license.url https://github.com/ai-agent-os/ai-agent-os/blob/main/LICENSE
 
 // @host localhost:9091
 // @BasePath

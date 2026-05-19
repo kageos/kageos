@@ -394,7 +394,7 @@ func (s *Storage) BatchUploadComplete(c *gin.Context) {
 				DownloadURL:       downloadURL, // ✨ 外部访问的下载地址（前端使用）
 				Description:       item.Description,
 				ServerDownloadURL: serverDownloadURL, // ✨ 内部访问的下载地址（服务端使用）
-				Hash:              item.Hash,         // ✨ 文件hash（用于文件缓存去重）
+				Hash:              item.Hash,         // ✨ 文件hash（用于 SDK 下载缓存）
 				ThumbnailRef:      item.ThumbnailRef,
 				ThumbnailURL:      thumbnailURL,
 				PreviewKind:       item.PreviewKind,

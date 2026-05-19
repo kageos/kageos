@@ -185,7 +185,7 @@ push_to_remotes_auto() {
     fi
     
     # 主仓库推送到 Gitee
-    print_info "推送到 Gitee - 主代码（全量，包括企业代码）..."
+    print_info "推送到 Gitee - 主代码..."
     if git push gitee "$CURRENT_BRANCH" 2>&1; then
         print_success "Gitee 推送成功"
     else

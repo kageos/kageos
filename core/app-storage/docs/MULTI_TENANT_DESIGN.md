@@ -135,71 +135,13 @@ func DeleteFilesByRouter(ctx context.Context, router string) (int, error) {
 }
 ```
 
-## 🔐 权限控制（未来扩展）
+## 🔐 权限控制边界
 
-基于 router 路径，可以实现细粒度的权限控制：
+当前实现使用 router 前缀组织对象 Key，并通过登录用户、桶和对象引用生成访问 URL。细粒度权限控制不属于 app-storage 的当前 MVP 能力，后续如需加入，应先在产品边界和权限模型中明确。
 
-```go
-// 检查用户是否有权限访问某个文件
-func CheckPermission(user *User, fileKey string) bool {
-    // 从 fileKey 中提取 tenant/app/function
-    parts := strings.Split(fileKey, "/")
-    tenant := parts[0]
-    app := parts[1]
-    function := strings.Join(parts[2:len(parts)-4], "/")
-    
-    // 检查用户是否属于该租户
-    if user.Tenant != tenant {
-        return false
-    }
-    
-    // 检查用户是否有该应用的权限
-    if !user.HasAppPermission(app) {
-        return false
-    }
-    
-    return true
-}
-```
+## 💰 统计边界
 
-## 💰 成本分摊
-
-可以定期统计每个租户/应用/函数的存储占用，用于计费：
-
-```sql
--- 存储占用记录表（示例）
-CREATE TABLE storage_usage (
-    id BIGINT PRIMARY KEY,
-    tenant VARCHAR(255),
-    app VARCHAR(255),
-    function_path VARCHAR(500),
-    file_count INT,
-    total_size BIGINT,
-    recorded_at TIMESTAMP
-);
-```
-
-后台统计任务：
-
-```go
-func RecordStorageUsage() {
-    // 遍历所有函数
-    for _, function := range getAllFunctions() {
-        router := fmt.Sprintf("%s/%s/%s", function.Tenant, function.App, function.Path)
-        fileCount, totalSize, _ := storageService.GetStorageStats(ctx, router)
-        
-        // 记录到数据库
-        db.Insert(&StorageUsage{
-            Tenant:       function.Tenant,
-            App:          function.App,
-            FunctionPath: function.Path,
-            FileCount:    fileCount,
-            TotalSize:    totalSize,
-            RecordedAt:   time.Now(),
-        })
-    }
-}
-```
+当前统计能力面向文件数量和总大小查询，不包含计费、配额或成本分摊实现。
 
 ## 📊 监控指标
 
@@ -211,30 +153,11 @@ func RecordStorageUsage() {
 4. **增长趋势**：存储占用的增长速率
 5. **热点函数**：哪些函数上传文件最多
 
-## 🚀 性能优化
+## 🚀 性能优化边界
 
-### 1. 缓存统计结果
+当前实现直接基于 MinIO 对象列举和数据库元数据记录完成核心操作。缓存统计、异步统计和历史趋势不属于当前 MVP。
 
-频繁调用 `ListObjects` 会影响性能，可以：
-
-- 将统计结果缓存到 Redis
-- 定时更新缓存（例如每小时）
-- 提供实时查询和历史查询两种模式
-
-### 2. 异步统计
-
-```go
-// 上传文件后，异步更新统计
-func OnFileUploaded(router string, fileSize int64) {
-    go func() {
-        // 更新 Redis 缓存
-        redis.IncrBy("storage:count:"+router, 1)
-        redis.IncrBy("storage:size:"+router, fileSize)
-    }()
-}
-```
-
-### 3. 分页列举
+### 分页列举
 
 对于文件数量特别多的函数，使用分页：
 
@@ -259,6 +182,6 @@ func ListFilesWithPagination(ctx context.Context, router string, marker string, 
 ✅ **精确统计**：可以统计任意粒度的存储占用  
 ✅ **便于管理**：支持批量删除和查询  
 ✅ **审计追踪**：每个文件都有明确的归属  
-✅ **扩展性强**：便于后续实现权限控制和成本分摊  
+✅ **边界清楚**：不混入未落地的权限、计费和成本分摊能力
 
-这种设计是企业级 SaaS 系统的标准做法，既满足了多租户隔离的安全需求，又便于运营和管理。
+这种设计满足当前个人和小团队 MVP 的文件隔离、查询和清理需求。

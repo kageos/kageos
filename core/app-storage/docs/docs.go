@@ -10,6 +10,10 @@ const docTemplate = `{
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
         "contact": {},
+        "license": {
+            "name": "Business Source License 1.1",
+            "url": "https://github.com/ai-agent-os/ai-agent-os/blob/main/LICENSE"
+        },
         "version": "{{.Version}}"
     },
     "host": "{{.Host}}",
@@ -581,7 +585,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "hash": {
-                    "description": "✨ 文件hash（可选，用于秒传）",
+                    "description": "✨ 文件hash（可选，用于文件标识和 SDK 下载缓存）",
                     "type": "string"
                 },
                 "key": {
@@ -655,7 +659,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "hash": {
-                    "description": "✨ 文件hash（用于文件缓存去重）",
+                    "description": "✨ 文件hash（用于 SDK 下载缓存）",
                     "type": "string"
                 },
                 "key": {
@@ -769,7 +773,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "hash": {
-                    "description": "文件 hash（预留，用于秒传）",
+                    "description": "文件 hash（可选，用于文件标识和 SDK 下载缓存）",
                     "type": "string"
                 },
                 "preview_for_key": {
@@ -949,7 +953,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "hash": {
-                    "description": "✨ 文件hash（可选，用于秒传）",
+                    "description": "✨ 文件hash（可选，用于文件标识和 SDK 下载缓存）",
                     "type": "string"
                 },
                 "key": {

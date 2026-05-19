@@ -54,8 +54,6 @@
 │                    Database (MySQL)                      │
 │  - file_uploads                                          │
 │  - file_downloads                                        │
-│  - file_metadata                                         │
-│  - file_references                                       │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -371,5 +369,4 @@ func TestFileRepository_CreateUploadRecord(t *testing.T) {
 4. ✅ **易于维护**：修改数据访问不影响业务逻辑
 5. ✅ **易于扩展**：可以轻松添加新的数据源
 
-这是**企业级应用的标准架构**，感谢指正！🎉
-
+这是当前 MVP 的存储服务边界：职责清晰、实现可验证，并且不对外承诺未落地的存储后端或治理能力。
