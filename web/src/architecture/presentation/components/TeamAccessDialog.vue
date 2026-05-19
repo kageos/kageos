@@ -122,10 +122,6 @@
                   <span v-else class="role-empty-dot" />
                 </span>
               </span>
-              <span v-if="grantRole === role.value" class="selected-role-badge">
-                <el-icon><CircleCheck /></el-icon>
-                已选择
-              </span>
               <span class="role-description">{{ role.description }}</span>
               <span class="role-action-grid">
                 <span
@@ -682,12 +678,12 @@ function formatExpiresAt(value?: string): string {
 }
 
 :global(.team-access-dialog) {
-  margin-top: 32px !important;
+  margin-top: 18px !important;
   max-width: calc(100vw - 32px);
 }
 
 :global(.team-access-dialog .el-dialog__body) {
-  max-height: calc(100vh - 112px);
+  max-height: calc(100vh - 82px);
   overflow-y: auto;
   padding-bottom: 20px;
 }
@@ -719,7 +715,7 @@ function formatExpiresAt(value?: string): string {
 .resource-panel,
 .role-panel,
 .grant-panel {
-  max-height: min(560px, calc(100vh - 180px));
+  max-height: min(640px, calc(100vh - 138px));
   min-height: 0;
   padding: 14px;
 }
@@ -760,7 +756,7 @@ function formatExpiresAt(value?: string): string {
 .tree-container {
   flex: 1 1 auto;
   min-height: 0;
-  height: min(460px, calc(100vh - 260px));
+  height: min(540px, calc(100vh - 218px));
   overflow-y: auto;
   padding-bottom: 8px;
 }
@@ -953,7 +949,7 @@ function formatExpiresAt(value?: string): string {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 10px;
+  gap: 8px;
   padding: 12px;
   border: 1px solid var(--el-border-color-light);
   border-radius: 8px;
@@ -961,7 +957,7 @@ function formatExpiresAt(value?: string): string {
   color: inherit;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+  transition: border-color 0.14s ease, background-color 0.14s ease, box-shadow 0.14s ease;
   overflow: hidden;
 
   &::before {
@@ -975,40 +971,32 @@ function formatExpiresAt(value?: string): string {
 
   &:hover {
     border-color: rgba(var(--el-color-primary-rgb), 0.5);
-    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
-    transform: translateY(-1px);
+    background: color-mix(in srgb, var(--el-bg-color) 94%, var(--el-color-primary) 6%);
   }
 
   &.is-selected {
     border-color: var(--el-color-primary);
-    background:
-      linear-gradient(180deg, rgba(var(--el-color-primary-rgb), 0.14), rgba(var(--el-color-primary-rgb), 0.055)),
-      var(--el-bg-color);
-    box-shadow:
-      0 0 0 2px rgba(var(--el-color-primary-rgb), 0.18),
-      0 12px 26px rgba(15, 23, 42, 0.12);
-    transform: translateY(-1px);
+    background: color-mix(in srgb, var(--el-bg-color) 90%, var(--el-color-primary) 10%);
+    box-shadow: inset 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.12);
 
     &::before {
       background: var(--el-color-primary);
     }
 
     .role-icon-badge {
-      background: var(--el-color-primary);
-      color: #fff;
-      box-shadow: 0 8px 18px rgba(var(--el-color-primary-rgb), 0.28);
+      background: rgba(var(--el-color-primary-rgb), 0.16);
+      color: var(--el-color-primary);
     }
 
     .role-card-copy strong {
       color: var(--el-color-primary);
-      font-weight: 800;
+      font-weight: 700;
     }
 
     .role-action-item {
-      border-color: rgba(var(--el-color-primary-rgb), 0.22);
-      background: rgba(var(--el-color-primary-rgb), 0.12);
+      border-color: rgba(var(--el-color-primary-rgb), 0.18);
+      background: rgba(var(--el-color-primary-rgb), 0.08);
       color: var(--el-color-primary);
-      font-weight: 700;
     }
   }
 }
@@ -1053,20 +1041,20 @@ function formatExpiresAt(value?: string): string {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   border-radius: 999px;
   border: 1px solid var(--el-border-color);
-  background: var(--el-fill-color-lighter);
+  background: transparent;
   color: var(--el-text-color-placeholder);
-  flex: 0 0 26px;
+  flex: 0 0 22px;
   transition: all 0.16s ease;
 }
 
 .role-state.is-selected {
   border-color: var(--el-color-primary);
-  background: var(--el-color-primary);
-  color: #fff;
+  background: rgba(var(--el-color-primary-rgb), 0.1);
+  color: var(--el-color-primary);
 }
 
 .role-empty-dot {
@@ -1074,20 +1062,6 @@ function formatExpiresAt(value?: string): string {
   height: 8px;
   border-radius: 999px;
   background: var(--el-border-color);
-}
-
-.selected-role-badge {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: var(--el-color-primary);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1;
 }
 
 .role-description {
