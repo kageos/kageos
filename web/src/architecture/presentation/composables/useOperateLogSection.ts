@@ -280,7 +280,7 @@ export function useOperateLogSection({
 
   const getFieldConfig = (fieldCode: string, fullCodePathForLog?: string): FieldConfig | null => {
     const detail = fullCodePathForLog
-      ? functionDetailMap.value.get(fullCodePathForLog)
+      ? functionDetailMap.value.get(fullCodePathForLog) || functionDetailCache.value || functionDetail.value
       : functionDetailCache.value || functionDetail.value
     if (!detail) {
       return null
