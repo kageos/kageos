@@ -195,6 +195,7 @@
     <TeamAccessDialog
       v-model="accessDialogVisible"
       :node="accessDialogNode"
+      :tree-data="props.treeData"
       @changed="emit('refresh-tree')"
     />
   </div>
