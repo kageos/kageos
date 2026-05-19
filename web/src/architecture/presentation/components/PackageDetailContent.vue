@@ -22,6 +22,17 @@
           </div>
         </el-tab-pane>
 
+        <el-tab-pane label="权限" name="permission">
+          <div class="tab-content access-tab-content">
+            <TeamAccessPanel
+              ref="accessPanelRef"
+              :node="packageNode"
+              embedded
+              @changed="$emit('access-changed')"
+            />
+          </div>
+        </el-tab-pane>
+
         <el-tab-pane
           v-if="featureFlags.operateLogs"
           label="操作日志"
@@ -52,13 +63,18 @@ import type { ServiceTree } from '@/architecture/domain/types'
 import PackageDetailOverviewCard from './PackageDetailOverviewCard.vue'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
 import OperateLogSection from './OperateLogSection.vue'
+import TeamAccessPanel from './TeamAccessPanel.vue'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { featureFlags } from '@/architecture/shared/config/features'
 
-type PackageTabName = 'detail' | 'operateLog'
+type PackageTabName = 'detail' | 'permission' | 'operateLog'
 
 interface LoadableOperateLogSection {
   load: () => void
+}
+
+interface LoadableAccessPanel {
+  loadMembers: () => void
 }
 
 const props = defineProps<{
@@ -68,6 +84,7 @@ const props = defineProps<{
 
 defineEmits<{
   (e: 'select-child', child: ServiceTree): void
+  (e: 'access-changed'): void
 }>()
 
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
@@ -75,6 +92,7 @@ void preloadMarkdown()
 
 const activeTab = ref<PackageTabName>('detail')
 const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
+const accessPanelRef = ref<LoadableAccessPanel | null>(null)
 
 const directoryMarkdown = computed(() => {
   return props.packageNode?.description?.trim() || ''
@@ -83,6 +101,9 @@ const directoryMarkdown = computed(() => {
 function loadOperateLogTab(tabName: PackageTabName) {
   if (tabName === 'operateLog' && featureFlags.operateLogs) {
     nextTick(() => operateLogSectionRef.value?.load())
+  }
+  if (tabName === 'permission') {
+    nextTick(() => accessPanelRef.value?.loadMembers())
   }
 }
 
@@ -203,7 +224,8 @@ watch(
   padding: 0;
 }
 
-.operate-log-tab-content {
+.operate-log-tab-content,
+.access-tab-content {
   min-height: 360px;
 }
 

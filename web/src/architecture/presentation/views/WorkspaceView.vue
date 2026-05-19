@@ -119,6 +119,7 @@
               :function-form-view-ref="setFunctionFormViewRef"
               :on-function-tab-change="handleFunctionTabChange"
               @update:active-tab="functionActiveTab = $event"
+              @access-changed="handleRefreshTree"
             />
 
             <!-- 没有函数 tabs 时，直接显示内容 -->

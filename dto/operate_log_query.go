@@ -9,6 +9,7 @@ type GetTableOperateLogsReq struct {
 	FullCodePathPrefix string `json:"full_code_path_prefix" form:"full_code_path_prefix"` // 完整代码路径前缀，用于查询目录下日志
 	RowID              int64  `json:"row_id" form:"row_id"`                               // 记录ID
 	Action             string `json:"action" form:"action"`                               // 操作类型：OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows
+	Keyword            string `json:"keyword" form:"keyword"`                             // 关键词：匹配操作人、资源路径、Trace、版本或记录ID
 	Page               int    `json:"page" form:"page"`                                   // 页码（从1开始）
 	PageSize           int    `json:"page_size" form:"page_size"`                         // 每页数量
 	OrderBy            string `json:"order_by" form:"order_by"`                           // 排序字段（默认：created_at DESC）

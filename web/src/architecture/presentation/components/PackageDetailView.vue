@@ -62,6 +62,7 @@
         :package-node="packageNode || null"
         :total-run-count="totalRunCount"
         @select-child="handleChildClick"
+        @access-changed="emit('refresh')"
       />
     </div>
 

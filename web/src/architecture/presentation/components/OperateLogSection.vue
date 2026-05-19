@@ -17,6 +17,43 @@
       </el-button>
     </div>
     <div v-loading="loading" class="operate-log-content">
+      <div class="operate-log-toolbar">
+        <el-input
+          v-model="keyword"
+          class="operate-log-search"
+          size="small"
+          clearable
+          placeholder="搜索操作人、资源、Trace 或记录 ID"
+          :prefix-icon="Search"
+          @keyup.enter="handleSearch"
+          @clear="handleSearch"
+        />
+        <el-select
+          v-model="actionFilter"
+          class="operate-log-action-select"
+          size="small"
+          placeholder="全部操作"
+          clearable
+          @change="handleActionChange"
+        >
+          <el-option
+            v-for="option in actionOptions"
+            :key="option.value"
+            :label="option.label"
+            :value="option.value"
+          />
+        </el-select>
+        <el-button
+          size="small"
+          type="primary"
+          plain
+          :icon="Search"
+          @click="handleSearch"
+        >
+          搜索
+        </el-button>
+      </div>
+
       <div v-if="logs.length > 0" class="operate-log-timeline">
         <div
           v-for="log in logs"
@@ -57,57 +94,89 @@
                 {{ log.full_code_path || '-' }}
               </div>
 
+              <div class="log-summary">
+                {{ getLogSummary(log) }}
+              </div>
+
               <div
-                v-if="log.action === 'OnTableUpdateRow' && getChangeEntries(log).length > 0"
-                class="change-list"
+                v-if="isLogExpanded(log.id)"
+                class="log-detail-block"
               >
                 <div
-                  v-for="item in getChangeEntries(log)"
-                  :key="item.fieldCode"
-                  class="change-row"
+                  v-if="log.action === 'OnTableUpdateRow' && getChangeEntries(log).length > 0"
+                  class="change-list"
                 >
-                  <span class="change-field">{{ item.fieldName }}</span>
-                  <div class="change-values">
-                    <span v-if="item.hasOldValue" class="change-old">{{ formatLogValue(item.oldValue) }}</span>
-                    <span v-else class="change-old is-empty">未记录旧值</span>
-                    <span class="change-arrow">→</span>
-                    <span class="change-new">{{ formatLogValue(item.newValue) }}</span>
+                  <div
+                    v-for="item in getChangeEntries(log)"
+                    :key="item.fieldCode"
+                    class="change-row"
+                  >
+                    <span class="change-field">{{ item.fieldName }}</span>
+                    <div class="change-values">
+                      <span v-if="item.hasOldValue" class="change-old">{{ formatLogValue(item.oldValue) }}</span>
+                      <span v-else class="change-old is-empty">未记录旧值</span>
+                      <span class="change-arrow">→</span>
+                      <span class="change-new">{{ formatLogValue(item.newValue) }}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div
-                v-else-if="getValueEntries(log).length > 0"
-                class="value-list"
-              >
                 <div
-                  v-for="item in getValueEntries(log)"
-                  :key="item.fieldCode"
-                  class="value-row"
+                  v-else-if="getValueEntries(log).length > 0"
+                  class="value-list"
                 >
-                  <span class="value-field">{{ item.fieldName }}</span>
-                  <span class="value-text">{{ formatLogValue(item.value) }}</span>
+                  <div
+                    v-for="item in getValueEntries(log)"
+                    :key="item.fieldCode"
+                    class="value-row"
+                  >
+                    <span class="value-field">{{ item.fieldName }}</span>
+                    <span class="value-text">{{ formatLogValue(item.value) }}</span>
+                  </div>
+                </div>
+
+                <div v-else class="text-muted">{{ getLogEmptyText(log) }}</div>
+
+                <div class="log-meta-grid">
+                  <span v-if="log.trace_id">Trace: {{ log.trace_id }}</span>
+                  <span v-if="log.ip_address">IP: {{ log.ip_address }}</span>
+                  <span v-if="log.user_agent">UA: {{ log.user_agent }}</span>
                 </div>
               </div>
 
-              <div v-else class="text-muted">{{ getLogEmptyText(log) }}</div>
-
-              <div v-if="log.trace_id" class="log-meta">
-                Trace: {{ log.trace_id }}
+              <div class="log-card-foot">
+                <el-button
+                  link
+                  size="small"
+                  @click="toggleLogExpanded(log.id)"
+                >
+                  {{ isLogExpanded(log.id) ? '收起详情' : '查看详情' }}
+                </el-button>
               </div>
             </div>
           </div>
         </div>
       </div>
       <el-empty v-else description="暂无操作日志" :image-size="80" />
+
+      <div v-if="total > pageSize" class="operate-log-pagination">
+        <el-pagination
+          background
+          layout="prev, pager, next, total"
+          :current-page="currentPage"
+          :page-size="pageSize"
+          :total="total"
+          @current-change="handlePageChange"
+        />
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { toRef } from 'vue'
-import { Clock, Refresh } from '@element-plus/icons-vue'
-import { ElButton, ElDivider, ElEmpty, ElIcon, ElTag } from 'element-plus'
+import { Clock, Refresh, Search } from '@element-plus/icons-vue'
+import { ElButton, ElDivider, ElEmpty, ElIcon, ElInput, ElOption, ElPagination, ElSelect, ElTag } from 'element-plus'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import { useOperateLogSection } from '@/architecture/presentation/composables/useOperateLogSection'
 
@@ -138,6 +207,12 @@ const {
   loading,
   formatDateTime,
   formatRelativeTime,
+  keyword,
+  actionFilter,
+  actionOptions,
+  currentPage,
+  pageSize,
+  total,
   getUserInfo,
   getActionTagType,
   getActionLabel,
@@ -146,6 +221,12 @@ const {
   getValueEntries,
   getLogTitle,
   getLogEmptyText,
+  getLogSummary,
+  isLogExpanded,
+  toggleLogExpanded,
+  handleSearch,
+  handleActionChange,
+  handlePageChange,
   load,
   showRowIdColumn,
   showResourceColumn,
@@ -211,6 +292,23 @@ defineExpose({
   flex: 1;
   overflow: auto;
   margin-top: 0;
+}
+
+.operate-log-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.operate-log-search {
+  flex: 1 1 280px;
+  min-width: 220px;
+}
+
+.operate-log-action-select {
+  width: 132px;
 }
 
 .operate-log-timeline {
@@ -339,6 +437,19 @@ defineExpose({
   word-break: break-all;
 }
 
+.log-summary {
+  margin-top: 10px;
+  color: var(--el-text-color-regular);
+  font-size: 13px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.log-detail-block {
+  margin-top: 12px;
+  padding-top: 2px;
+}
+
 .change-list,
 .value-list {
   display: flex;
@@ -416,13 +527,26 @@ defineExpose({
   line-height: 24px;
 }
 
-.log-meta {
+.log-meta-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 12px;
+  margin-top: 10px;
   color: var(--el-text-color-placeholder);
   font-size: 12px;
+  word-break: break-all;
+}
+
+.log-card-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.operate-log-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
 }
 
 .text-muted {

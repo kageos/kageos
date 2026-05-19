@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/dto"
@@ -50,6 +51,18 @@ func (r *OperateLogRepository) GetTableOperateLogs(ctx context.Context, req *dto
 	}
 	if req.Action != "" {
 		query = query.Where("action = ?", req.Action)
+	}
+	if req.Keyword != "" {
+		keyword := strings.TrimSpace(req.Keyword)
+		likeKeyword := "%" + keyword + "%"
+		query = query.Where(
+			"request_user LIKE ? OR full_code_path LIKE ? OR trace_id LIKE ? OR version LIKE ? OR CAST(row_id AS CHAR) = ?",
+			likeKeyword,
+			likeKeyword,
+			likeKeyword,
+			likeKeyword,
+			keyword,
+		)
 	}
 
 	if err := query.Count(&total).Error; err != nil {

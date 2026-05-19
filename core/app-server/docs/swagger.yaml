@@ -1,4 +1,20 @@
 definitions:
+  access.PermissionSet:
+    additionalProperties:
+      type: boolean
+    type: object
+  access.RoleCode:
+    enum:
+    - owner
+    - admin
+    - member
+    - viewer
+    type: string
+    x-enum-varnames:
+    - RoleOwner
+    - RoleAdmin
+    - RoleMember
+    - RoleViewer
   dto.AddFunctionsReq:
     properties:
       file_name:
@@ -957,6 +973,9 @@ definitions:
         description: 描述
         example: 用户相关的API接口
         type: string
+      expires_at:
+        description: 命中权限的最晚到期时间
+        type: string
       full_code_path:
         description: 完整代码路径
         example: /beiluo/myapp/user
@@ -969,6 +988,9 @@ definitions:
         description: 服务目录ID
         example: 1
         type: integer
+      inherited_from:
+        description: 权限继承来源
+        type: string
       name:
         description: 服务目录名称
         example: 用户管理
@@ -977,10 +999,19 @@ definitions:
         description: 节点创建者（owner）
         example: user1
         type: string
+      permissions:
+        allOf:
+        - $ref: '#/definitions/access.PermissionSet'
+        description: 当前用户对节点的权限
       ref_id:
         description: 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
         example: 0
         type: integer
+      role_codes:
+        description: 当前用户在该节点命中的角色
+        items:
+          $ref: '#/definitions/access.RoleCode'
+        type: array
       run_count:
         description: ⭐ 运行次数（仅 function 类型有意义），用于排序与展示「已使用 N 次」
         type: integer
@@ -2521,6 +2552,10 @@ paths:
         in: query
         name: full_code_path
         type: string
+      - description: 完整代码路径前缀，用于查询目录下日志
+        in: query
+        name: full_code_path_prefix
+        type: string
       - description: 记录ID
         in: query
         name: row_id
@@ -2528,6 +2563,10 @@ paths:
       - description: 操作类型：OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows
         in: query
         name: action
+        type: string
+      - description: 关键词：匹配操作人、资源路径、Trace、版本或记录ID
+        in: query
+        name: keyword
         type: string
       - default: 1
         description: 页码（从1开始）
