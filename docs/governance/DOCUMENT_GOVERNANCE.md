@@ -33,7 +33,7 @@
 - `SECURITY.md`
 - `CODE_OF_CONDUCT.md`
 
-根目录历史设计文档原则上迁入 `docs/archive/` 或删除。
+根目录历史设计文档原则上删除；仍有明确追溯价值时才迁入 `docs/archive/`。
 
 ### 2.2 docs
 
@@ -106,16 +106,16 @@
 
 | 文件 | 建议 | 理由 |
 | --- | --- | --- |
-| `Agent工作流流程图.md` | 已归档 | 移至 `docs/archive/Agent工作流流程图.md`，当前入口以 `docs/工作台最新设计.md` 为准 |
-| `项目介绍.md` | 已归档 | 移至 `docs/archive/项目介绍.md`，作为 README 重写素材 |
-| `项目架构.md` | 已归档 | 移至 `docs/archive/项目架构.md`，作为架构入口重写素材 |
+| `Agent工作流流程图.md` | 已删除 | 当前入口以 `docs/工作台最新设计.md` 为准，归档稿已无独立维护价值 |
+| `项目介绍.md` | 已删除 | 当前 README 和 `docs/README.md` 已承接入口信息，归档稿不再保留 |
+| `项目架构.md` | 已删除 | 当前架构入口已分散到 README、`docs/deployment-layers.md` 和模块 README，归档稿不再保留 |
 | `docs/工作台角色状态机重构方案.md` | Keep/Review | 已恢复原位，避免当前工作台设计入口断链；后续可单独判断是否并入 `docs/工作台最新设计.md` |
 | `docs/工作台单Dev模式与角色切换架构设计.md` | Keep/Review | 已恢复原位，避免当前工作台设计入口断链；后续可单独判断是否并入 `docs/工作台最新设计.md` |
 | `docs/工作台最新设计.md` | 已保留 | 作为唯一工作台设计入口，并已纳入 `docs/README.md` |
-| `web/ARCHITECTURE_ANALYSIS.md` | 已归档 | 移至 `docs/archive/web-ARCHITECTURE_ANALYSIS.md`，当前入口以 `web/src/architecture/README.md` 为准 |
-| `web/THEME_COMPARISON_REPORT.md`、`web/THEME_FIX_SUMMARY.md`、`web/COLOR_ANALYSIS.md` | 已归档 | 移至 `docs/archive/`，不再作为开源入口 |
+| `web/ARCHITECTURE_ANALYSIS.md` | 已删除 | 当前入口以 `web/src/architecture/README.md` 为准，历史分析稿已无独立维护价值 |
+| `web/THEME_COMPARISON_REPORT.md`、`web/THEME_FIX_SUMMARY.md`、`web/COLOR_ANALYSIS.md` | 已删除 | 阶段性视觉分析报告已过期，不再作为开源入口 |
 | `web/FORM_TABLE_IMPLEMENTATION.md`、`web/UPLOAD_PROGRESS.md` | Keep/Review | 已恢复原位；后续如仍有效再合并到模块文档 |
-| `web/todos.md` | 已归档 | 移至 `docs/archive/web-todos.md`，后续治理统一以 `docs/governance/OPEN_SOURCE_TODO.md` 为准 |
+| `web/todos.md` | 已删除 | 粗粒度旧 TODO 已由 `docs/governance/OPEN_SOURCE_TODO.md` 统一承接 |
 
 ### 4.3 暂不处理，先确认边界
 

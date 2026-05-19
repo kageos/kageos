@@ -22,7 +22,6 @@ func GetServiceTreeDetailByFullCodePath(ctx context.Context, fullCodePath string
 
 // ServiceTreeAddFunctions 向服务目录添加函数（agent-server -> workspace）
 // 将生成的代码写入到工作空间对应的目录下，并更新工作空间
-// async: true 表示异步处理（通过回调通知），false 表示同步处理（直接返回结果）
 func ServiceTreeAddFunctions(ctx context.Context, req *dto.AddFunctionsReq) (*dto.AddFunctionsResp, error) {
 	return PostAPI[*dto.AddFunctionsReq, *dto.AddFunctionsResp](ctx, "/workspace/api/v1/service_tree/add_functions", req)
 }
@@ -110,7 +109,7 @@ func UpdateAppBuild(ctx context.Context, user, app string) (*dto.UpdateAppResp, 
 	return PostAPI[*dto.UpdateAppReq, *dto.UpdateAppResp](ctx, "/workspace/api/v1/app/update", req)
 }
 
-// ========== 执行模式：查表 / 提交表单 / 查图表（agent 调用工作区标准接口） ==========
+// ========== 执行模式：查表 / 提交表单 / 查图表（工作台调用工作区标准接口） ==========
 
 // TableSearch 调用工作区 Table 查询接口（GET table/search/{full-code-path}）
 // fullCodePath 如 /luobei/myapp/tables/hr；queryParams 可含 page、page_size、sorts 等
@@ -120,7 +119,7 @@ func TableSearch(ctx context.Context, fullCodePath string, queryParams url.Value
 }
 
 // FormSubmit 调用工作区 Form 提交接口（POST form/submit/{full-code-path}）
-// fullCodePath 如 /luobei/myapp/plugins/cashier_desk；body 为表单字段 JSON
+// fullCodePath 如 /luobei/myapp/cashier/cashier_desk.form；body 为表单字段 JSON
 func FormSubmit(ctx context.Context, fullCodePath string, body interface{}) (map[string]interface{}, error) {
 	path := buildWorkspaceFunctionPath("/workspace/api/v1/form/submit", fullCodePath)
 	return PostAPI[interface{}, map[string]interface{}](ctx, path, body)
@@ -134,7 +133,7 @@ func ChartQuery(ctx context.Context, fullCodePath string, queryParams url.Values
 }
 
 // TableCreate 调用工作区 Table 新增接口（POST table/create/{full-code-path}）
-// fullCodePath 为表格函数完整路径（如 /luobei/myapp/nps/nps_questionnaire_list）；body 为单条记录的字段 JSON，会触发 OnTableAddRow 回调
+// fullCodePath 为表格函数完整路径（如 /luobei/myapp/nps/nps_questionnaire_list.table）；body 为单条记录的字段 JSON，会触发 OnTableAddRow 回调
 func TableCreate(ctx context.Context, fullCodePath string, body interface{}) (map[string]interface{}, error) {
 	path := buildWorkspaceFunctionPath("/workspace/api/v1/table/create", fullCodePath)
 	return PostAPI[interface{}, map[string]interface{}](ctx, path, body)

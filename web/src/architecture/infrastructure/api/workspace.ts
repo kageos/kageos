@@ -46,8 +46,6 @@ export interface WorkspaceSessionItem {
   session_id: string
   title: string
   user?: string
-  agent_id?: number | null
-  agent_name?: string
   mode_code?: string
   status: string // active | generating | output | pending_confirmation | pending_test | done | cancelled
   role_id?: string
@@ -110,11 +108,11 @@ export async function createWorkspaceHandoff(req: WorkspaceHandoffReq): Promise<
   return post<WorkspaceHandoffResp>('/agent/api/v1/workspace/sessions/handoff', req)
 }
 
-/** 流式事件回调：event 为 session|agent_id|tool_call|content|done|error，data 为对应负载 */
+/** 流式事件回调：event 为 session|tool_call|content|done|error，data 为对应负载 */
 export type WorkspaceChatStreamOnEvent = (event: string, data: Record<string, unknown>) => void
 
 /**
- * 工作台对话流式接口（SSE）：通过 onEvent 逐步接收 session、agent_id、tool_call、content、done、error
+ * 工作台对话流式接口（SSE）：通过 onEvent 逐步接收 session、tool_call、content、done、error
  */
 export async function workspaceChatStream(
   data: WorkspaceChatReq,
@@ -208,7 +206,6 @@ export async function getWorkspaceSessions(params: ListWorkspaceSessionsReq): Pr
 export interface WorkspaceMessageInfo {
   id: number
   session_id: string
-  agent_id: number
   role: 'user' | 'assistant' | 'tool'
   user?: string
   content: string

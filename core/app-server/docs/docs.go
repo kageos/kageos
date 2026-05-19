@@ -1824,7 +1824,7 @@ const docTemplate = `{
         },
         "/workspace/api/v1/service_tree/add_functions": {
             "post": {
-                "description": "接收来自 agent-server 的代码，写入到工作空间对应的目录下，并更新工作空间\n\n**处理模式**：\n- async=true: 异步处理，立即返回 202 Accepted，后台处理完成后通过回调通知 agent-server\n- async=false: 同步处理，等待处理完成后直接返回结果\n\n**回调机制**：\n- 异步模式下，处理完成后会调用 agent-server 的回调接口：POST /agent/api/v1/workspace/update/callback\n- 回调会携带处理结果（成功/失败、生成的函数组代码列表等）",
+                "description": "接收来自 agent-server 的 Go 源码，写入到工作空间对应目录；默认同步构建，skip_build=true 时仅写文件。",
                 "consumes": [
                     "application/json"
                 ],
@@ -1866,16 +1866,9 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "处理成功（同步模式）",
+                        "description": "处理成功",
                         "schema": {
                             "$ref": "#/definitions/dto.AddFunctionsResp"
-                        }
-                    },
-                    "202": {
-                        "description": "已接收，处理中（异步模式）",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -1964,7 +1957,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "根据ID或full-code-path获取服务目录详情，包含权限信息",
+                "description": "根据ID或full-code-path获取服务目录详情",
                 "consumes": [
                     "application/json"
                 ],
@@ -2613,38 +2606,18 @@ const docTemplate = `{
                 "full_code_path"
             ],
             "properties": {
-                "agent_id": {
-                    "description": "智能体ID",
-                    "type": "integer",
-                    "example": 1
-                },
-                "async": {
-                    "description": "是否异步处理（true: 异步，通过回调通知；false: 同步，直接返回结果）",
-                    "type": "boolean",
-                    "example": false
-                },
                 "file_name": {
-                    "description": "处理后的结构化数据（agent-server 处理后的结果）",
+                    "description": "目标文件名与源码内容。",
                     "type": "string",
                     "example": "crm_ticket"
                 },
                 "full_code_path": {
-                    "description": "目录标识：使用 full_code_path（有语意、像函数名）；服务端据此查 ServiceTree，并从 targetTree.App 取租户",
+                    "description": "目录标识：使用 full_code_path（有语意、像函数名）；服务端据此查 ServiceTree，并从 targetTree.App 取租户。",
                     "type": "string",
                     "example": "/luobei/demo/crm"
                 },
-                "message_id": {
-                    "description": "消息ID（关联到 AgentChatMessage.ID）",
-                    "type": "integer",
-                    "example": 1
-                },
-                "record_id": {
-                    "description": "function_gen 记录ID",
-                    "type": "integer",
-                    "example": 1
-                },
                 "skip_build": {
-                    "description": "SkipBuild 为 true 时仅写文件不编译不部署（对应 write_go_file 的 build_workspace=false）",
+                    "description": "SkipBuild 为 true 时仅写文件不编译不部署（对应 write_go_file 的 build_workspace=false）。",
                     "type": "boolean"
                 },
                 "source_code": {
@@ -2693,7 +2666,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "build_old_version": {
-                    "description": "当 SkipBuild=false 且编译成功时，由 app-server 填充以下编译/变更信息，供 write_go_file 返回友好提示",
+                    "description": "当 SkipBuild=false 且编译成功时，由 app-server 填充以下编译/变更信息，供 write_go_file 返回友好提示。",
                     "type": "string"
                 },
                 "error": {

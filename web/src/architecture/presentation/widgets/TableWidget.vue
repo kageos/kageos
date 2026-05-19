@@ -14,10 +14,7 @@
   <div class="table-widget">
     <!-- 编辑模式 -->
     <template v-if="mode === 'edit'">
-      <el-card
-        shadow="hover"
-        class="table-card"
-      >
+      <div class="table-panel">
         <div class="table-widget-content">
           <el-table
             :data="editMode.tableData.value"
@@ -116,15 +113,12 @@
       />
 
         </div>
-      </el-card>
+      </div>
     </template>
     
     <!-- 响应模式（只读） -->
     <template v-else-if="mode === 'response'">
-      <el-card
-        shadow="never"
-        class="table-card response-table-card"
-      >
+      <div class="table-panel is-response">
         <div class="table-widget-content">
           <el-table :data="responseTableData" :stripe="false" class="table-widget-table">
             <el-table-column
@@ -185,7 +179,7 @@
             </el-table-column>
           </el-table>
         </div>
-      </el-card>
+      </div>
       
       <!-- 详情抽屉 -->
       <el-drawer
@@ -304,7 +298,7 @@
 
 <script setup lang="ts">
 import { computed, inject } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDrawer, ElCard, ElIcon } from 'element-plus'
+import { ElTable, ElTableColumn, ElButton, ElDrawer, ElIcon } from 'element-plus'
 import { View } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useTableWidget } from '@/architecture/presentation/widgets/composables/useTableWidget'
@@ -384,16 +378,13 @@ defineExpose({
   width: 100%;
 }
 
-/* 🔥 表格卡片样式（参考 FormWidget，保持样式一致） */
-.table-card {
+.table-panel {
   width: 100%;
   margin-bottom: 24px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 6px;
   overflow: hidden;
 }
 
-.table-card:last-child {
+.table-panel:last-child {
   margin-bottom: 0;
 }
 
@@ -405,13 +396,8 @@ defineExpose({
   gap: 16px;
 }
 
-/* 响应模式表格卡片样式 */
-.response-table-card {
+.table-panel.is-response {
   background-color: var(--el-bg-color-page);
-}
-
-:deep(.table-card .el-card__body) {
-  padding: 18px 20px 16px;
 }
 
 .table-actions {
@@ -487,7 +473,7 @@ defineExpose({
 }
 
 :deep(.table-detail-content .form-card),
-:deep(.table-detail-content .table-card) {
+:deep(.table-detail-content .table-panel) {
   margin-bottom: 0;
 }
 
@@ -504,7 +490,7 @@ defineExpose({
   padding-right: 0;
 }
 
-:deep(.table-detail-panel > .table-widget > .table-card),
+:deep(.table-detail-panel > .table-widget > .table-panel),
 :deep(.table-detail-panel > .form-widget > .form-card) {
   margin-bottom: 0;
 }

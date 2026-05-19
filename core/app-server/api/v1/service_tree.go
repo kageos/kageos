@@ -395,7 +395,7 @@ func (s *ServiceTree) CopyServiceTree(c *gin.Context) {
 
 // AddFunctions 向服务目录添加函数（服务间调用，不需要JWT验证）
 // @Summary 向服务目录添加函数
-// @Description 接收来自 agent-server 的代码，写入到工作空间对应的目录下，并更新工作空间
+// @Description 接收来自 agent-server 的 Go 源码，写入到工作空间对应目录；默认同步构建，skip_build=true 时仅写文件。
 // @Tags 服务目录
 // @Accept json
 // @Produce json

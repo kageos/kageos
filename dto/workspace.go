@@ -69,8 +69,6 @@ type WorkspaceSessionItem struct {
 	SessionID         string      `json:"session_id"`                    // 会话ID
 	Title             string      `json:"title"`                         // 会话标题
 	User              string      `json:"user"`                          // 创建该会话的用户
-	AgentID           *int64      `json:"agent_id"`                      // 关联的智能体ID（可为空）
-	AgentName         string      `json:"agent_name"`                    // 智能体名称（如果有）
 	ModeCode          string      `json:"mode_code"`                     // 工作台模式代码
 	Status            string      `json:"status"`                        // 会话状态（active/generating/output/pending_confirmation/pending_test/done/cancelled）
 	RoleID            string      `json:"role_id,omitempty"`             // 当前工作台角色 ID
@@ -137,7 +135,6 @@ type ListWorkspaceMessagesResp struct {
 type WorkspaceMessageInfo struct {
 	ID             int64                          `json:"id"`                        // 消息ID
 	SessionID      string                         `json:"session_id"`                // 会话ID
-	AgentID        int64                          `json:"agent_id"`                  // 智能体ID（0表示未关联）
 	Role           string                         `json:"role"`                      // 角色：user/assistant/tool
 	User           string                         `json:"user"`                      // 创建该消息的用户
 	Content        string                         `json:"content"`                   // 消息内容（user 仅存用户文字，不含 <files> 块）

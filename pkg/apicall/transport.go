@@ -20,12 +20,6 @@ type ApiResult[T any] struct {
 	Data T      `json:"data"`
 }
 
-type callConfig struct {
-	headers map[string]string
-}
-
-type callOption func(*callConfig)
-
 // httpClient 通用 HTTP 客户端（复用连接，提高性能）。
 var httpClient = &http.Client{
 	Timeout: 300 * time.Second,
@@ -57,18 +51,11 @@ func CallAPI(ctx context.Context, method, path string, reqBody interface{}, resp
 	return nil
 }
 
-// CallAPIWithURL 使用完整 URL 调用 API。
-// 注意：这里直接使用完整 URL，不通过网关地址拼接。
-func CallAPIWithURL[T any](ctx context.Context, method, fullURL string, reqBody interface{}) (*ApiResult[T], error) {
-	return callAPIWithOptions[T](ctx, method, fullURL, reqBody)
-}
-
-func callAPIWithOptions[T any](ctx context.Context, method, fullURL string, reqBody interface{}, options ...callOption) (*ApiResult[T], error) {
+func callAPIWithOptions[T any](ctx context.Context, method, fullURL string, reqBody interface{}) (*ApiResult[T], error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	config := buildCallConfig(options...)
 	bodyReader, err := buildRequestBody(reqBody)
 	if err != nil {
 		return nil, err
@@ -80,30 +67,8 @@ func callAPIWithOptions[T any](ctx context.Context, method, fullURL string, reqB
 	}
 
 	applyCommonHeaders(req, ctx)
-	for k, v := range config.headers {
-		req.Header.Set(k, v)
-	}
 
 	return doAPIRequest[T](req)
-}
-
-func buildCallConfig(options ...callOption) callConfig {
-	config := callConfig{}
-	for _, option := range options {
-		if option != nil {
-			option(&config)
-		}
-	}
-	return config
-}
-
-func withHeader(key, value string) callOption {
-	return func(config *callConfig) {
-		if config.headers == nil {
-			config.headers = make(map[string]string)
-		}
-		config.headers[key] = value
-	}
 }
 
 func buildRequestBody(reqBody interface{}) (io.Reader, error) {

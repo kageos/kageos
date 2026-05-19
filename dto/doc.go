@@ -53,13 +53,3 @@ type BatchGetDocsReq struct {
 type BatchGetDocsResp struct {
 	Docs []*DocItem `json:"docs"` // 文档列表
 }
-
-// GetDocsByPathsReq 根据路径批量获取文档请求（保留用于向后兼容）
-type GetDocsByPathsReq struct {
-	Paths []string `json:"paths"` // 文档路径列表
-}
-
-// GetDocsByPathsResp 根据路径批量获取文档响应（保留用于向后兼容）
-type GetDocsByPathsResp struct {
-	Docs []*DocItem `json:"docs"` // 文档列表
-}

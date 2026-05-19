@@ -15,7 +15,7 @@
 
 ## 二、结构化 PRD JSON
 
-`product_manager` 只输出轻量 PRD v2：`project/tables/forms/charts/workflow/rules`。
+`product_manager` 只输出轻量 PRD v2：`project/tables/forms/charts/rules`。
 字段只写 `name/widget/required/desc/hide`，`widget` 只保留组件类型；选项、默认值、范围、数据来源和计算规则写进自然语言 `desc`。
 完整标准样例见同目录 `prd.json`。
 
@@ -109,12 +109,6 @@
       ]
     }
   ],
-  "workflow": [
-    {"type": "table", "ref": "商品"},
-    {"type": "form", "ref": "收银台"},
-    {"type": "table", "ref": "支付记录"},
-    {"type": "chart", "ref": "销售趋势统计"}
-  ],
   "rules": [
     "收银台提交成功后生成支付记录并扣减商品库存。",
     "支付记录只允许查询和筛选，不允许手工新增、编辑、删除。"
@@ -127,5 +121,4 @@
 - `tables[].handlers` 决定是否生成新增、编辑、删除回调；只读查询表使用空数组。
 - `forms[].target_table` 表示表单提交后写入或影响的主表。
 - `charts[].examples` 推荐使用模型自然结构，例如 `{"dimension":"2026-05-07","metrics":{"销售额":860.5,"订单数":28}}`；工具会归一成前端预览行。
-- `workflow` 是用户展示和操作顺序，也是后续代码生成顺序，例如先商品/会员，再收银台，再支付记录，最后统计图。
 - 具体 Go 实现以 SDK 主文档和当前目录源码为准。

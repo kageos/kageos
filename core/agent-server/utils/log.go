@@ -66,10 +66,3 @@ func MaskSensitiveField(fieldName string, value string) string {
 	}
 	return fmt.Sprintf("%s:<len:%d>", fieldName, len(value))
 }
-
-// LogAgentInfo 安全地记录 Agent 信息，不打印 SystemPromptTemplate 的完整内容
-func LogAgentInfo(agents interface{}) string {
-	// 这里返回一个简化的字符串表示，实际使用时需要根据具体的结构体类型来处理
-	// 由于是 interface{}，我们只能返回一个提示
-	return fmt.Sprintf("<AgentInfo: use SafeLogValue for details>")
-}

@@ -81,15 +81,5 @@
   "rules": [
     "PDF 工具属于纯文件处理，不写 target_table。",
     "返回附件必须来自运行时输出目录。"
-  ],
-  "workflow": [
-    {
-      "type": "form",
-      "ref": "PDF文本提取"
-    },
-    {
-      "type": "form",
-      "ref": "PDF合并"
-    }
   ]
 }

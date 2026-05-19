@@ -54,15 +54,15 @@ func (d *workspaceStreamLoopDeps) SendEvent(event string, data interface{}) {
 }
 
 func (d *workspaceStreamLoopDeps) SaveAssistantMessage(ctx context.Context, content string) error {
-	return d.service.saveAssistantMessage(ctx, d.sessionID, nil, content, d.user, d.currentLLMMeta)
+	return d.service.saveAssistantMessage(ctx, d.sessionID, content, d.user, d.currentLLMMeta)
 }
 
 func (d *workspaceStreamLoopDeps) SaveAssistantMessageWithToolCalls(ctx context.Context, content string, toolCalls []llms.ToolCall) error {
-	return d.service.saveAssistantMessageWithToolCalls(ctx, d.sessionID, nil, content, toolCalls, d.user, d.currentLLMMeta)
+	return d.service.saveAssistantMessageWithToolCalls(ctx, d.sessionID, content, toolCalls, d.user, d.currentLLMMeta)
 }
 
 func (d *workspaceStreamLoopDeps) ExecuteToolCalls(ctx context.Context, allToolCalls []llms.ToolCall, sendEvent func(string, interface{})) ([]streamloop.ToolCallSummary, error) {
-	summaries, err := d.service.executeToolCalls(ctx, allToolCalls, d.sessionID, d.fullCodePath, nil, d.user, d.files, sendEvent)
+	summaries, err := d.service.executeToolCalls(ctx, allToolCalls, d.sessionID, d.fullCodePath, d.user, d.files, sendEvent)
 	if err != nil {
 		return nil, err
 	}

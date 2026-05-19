@@ -103,15 +103,5 @@
     "文件处理类 Form 不写 target_table。",
     "上传文件先下载到运行时临时目录，处理完成后返回文本或附件。",
     "批量转换时需要分别记录成功和失败文件。"
-  ],
-  "workflow": [
-    {
-      "type": "form",
-      "ref": "Excel转JSON"
-    },
-    {
-      "type": "form",
-      "ref": "CSV转Excel"
-    }
   ]
 }

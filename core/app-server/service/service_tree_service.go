@@ -94,10 +94,6 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 	return s.functionService.AddFunctions(ctx, req)
 }
 
-func (s *ServiceTreeService) ProcessFunctionGenResult(ctx context.Context, req *dto.AddFunctionsReq) error {
-	return s.functionService.ProcessFunctionGenResult(ctx, req)
-}
-
 func (s *ServiceTreeService) ExportCapabilityBundle(ctx context.Context, req *dto.ExportCapabilityBundleReq) (*dto.CapabilityBundle, error) {
 	return s.capabilityBundle.ExportCapabilityBundle(ctx, req)
 }

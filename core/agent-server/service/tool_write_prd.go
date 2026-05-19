@@ -14,7 +14,7 @@ import (
 type WritePRDTool struct{}
 
 // PRD v2 只保留大模型稳定可输出、前端稳定可预览的轻结构。
-// 业务资源直接拆成 tables/forms/charts，再由 workflow 表达用户展示和操作顺序；字段只写简单 widget 类型，
+// 业务资源直接拆成 tables/forms/charts，并按资源类型派生展示顺序；字段只写简单 widget 类型，
 // 选项、默认值、范围、数据来源、计算规则都放进自然语言 desc，不再兼容旧 models/functions/widget tag。
 const (
 	maxWritePRDTableExamples = workspaceprd.MaxTableExamples
@@ -22,12 +22,11 @@ const (
 )
 
 type writePRDArgs struct {
-	Project  writePRDProject        `json:"project" schema_desc:"项目和目录信息" schema_required:"true"`
-	Tables   []writePRDTable        `json:"tables,omitempty" schema_desc:"业务数据表和表格页语义；每个 table 直接包含 fields、search_fields、handlers、examples；纯处理型工具可不填"`
-	Forms    []writePRDForm         `json:"forms,omitempty" schema_desc:"独立提交入口；只描述 target_table、request_fields、response_fields 和 example"`
-	Charts   []writePRDChart        `json:"charts,omitempty" schema_desc:"统计图表；只描述 source_table、chart_type、dimension、metrics、filters、examples"`
-	Workflow []writePRDWorkflowStep `json:"workflow" schema_desc:"用户展示和操作顺序；只写 type/ref，不承载业务细节" schema_required:"true"`
-	Rules    []string               `json:"rules,omitempty" schema_desc:"业务规则、计算口径、状态流转等自然语言规则"`
+	Project writePRDProject `json:"project" schema_desc:"项目和目录信息" schema_required:"true"`
+	Tables  []writePRDTable `json:"tables,omitempty" schema_desc:"业务数据表和表格页语义；每个 table 直接包含 fields、search_fields、handlers、examples；纯处理型工具可不填"`
+	Forms   []writePRDForm  `json:"forms,omitempty" schema_desc:"独立提交入口；只描述 target_table、request_fields、response_fields 和 example"`
+	Charts  []writePRDChart `json:"charts,omitempty" schema_desc:"统计图表；只描述 source_table、chart_type、dimension、metrics、filters、examples"`
+	Rules   []string        `json:"rules,omitempty" schema_desc:"业务规则、计算口径、状态流转等自然语言规则"`
 }
 
 type writePRDProject struct {
@@ -79,22 +78,16 @@ type writePRDChart struct {
 	Examples    []map[string]interface{} `json:"examples" schema_desc:"1-12 条图表示例数据；推荐写 {dimension: 维度值, metrics: {指标名: 指标值}}，工具会归一为前端预览行" schema_required:"true"`
 }
 
-type writePRDWorkflowStep struct {
-	Type string `json:"type" schema_desc:"功能类型，只允许 table、form、chart" schema_enum:"table,form,chart" schema_required:"true"`
-	Ref  string `json:"ref" schema_desc:"引用 tables/forms/charts 中的 name" schema_required:"true"`
-}
-
 type writePRDResultData struct {
-	Kind          string                 `json:"kind" schema_desc:"固定为 agent_app_prd" schema_required:"true"`
-	SchemaVersion string                 `json:"schema_version" schema_desc:"固定为 prd.v2" schema_required:"true"`
-	Project       writePRDProject        `json:"project" schema_desc:"项目和目录信息" schema_required:"true"`
-	Tables        []writePRDTable        `json:"tables,omitempty" schema_desc:"业务数据表和表格页语义"`
-	Forms         []writePRDForm         `json:"forms,omitempty" schema_desc:"独立提交入口"`
-	Charts        []writePRDChart        `json:"charts,omitempty" schema_desc:"统计图表"`
-	Workflow      []writePRDWorkflowStep `json:"workflow" schema_desc:"用户展示和操作顺序" schema_required:"true"`
-	Rules         []string               `json:"rules,omitempty" schema_desc:"业务规则"`
-	Interaction   *writePRDInteraction   `json:"interaction,omitempty" schema_desc:"PRD 交互状态和允许动作；用于前端固定展示确认入口"`
-	Issues        []string               `json:"issues,omitempty" schema_desc:"PRD 结构问题；非空时本次工具返回错误"`
+	Kind          string               `json:"kind" schema_desc:"固定为 agent_app_prd" schema_required:"true"`
+	SchemaVersion string               `json:"schema_version" schema_desc:"固定为 prd.v2" schema_required:"true"`
+	Project       writePRDProject      `json:"project" schema_desc:"项目和目录信息" schema_required:"true"`
+	Tables        []writePRDTable      `json:"tables,omitempty" schema_desc:"业务数据表和表格页语义"`
+	Forms         []writePRDForm       `json:"forms,omitempty" schema_desc:"独立提交入口"`
+	Charts        []writePRDChart      `json:"charts,omitempty" schema_desc:"统计图表"`
+	Rules         []string             `json:"rules,omitempty" schema_desc:"业务规则"`
+	Interaction   *writePRDInteraction `json:"interaction,omitempty" schema_desc:"PRD 交互状态和允许动作；用于前端固定展示确认入口"`
+	Issues        []string             `json:"issues,omitempty" schema_desc:"PRD 结构问题；非空时本次工具返回错误"`
 }
 
 var writePRDToolDef = toolDefinitionWithOutput[writePRDArgs, structuredToolResultSchema[writePRDResultData]](
@@ -133,7 +126,6 @@ func validateWritePRDRawShape(args map[string]interface{}) []string {
 	issues = append(issues, validateWritePRDRawObjectArrayKeys("tables", raw["tables"], writePRDAllowedTableKeys())...)
 	issues = append(issues, validateWritePRDRawObjectArrayKeys("forms", raw["forms"], writePRDAllowedFormKeys())...)
 	issues = append(issues, validateWritePRDRawObjectArrayKeys("charts", raw["charts"], writePRDAllowedChartKeys())...)
-	issues = append(issues, validateWritePRDRawObjectArrayKeys("workflow", raw["workflow"], writePRDAllowedWorkflowKeys())...)
 	issues = append(issues, validateWritePRDRawFieldArrays("tables", raw["tables"], []string{"fields", "search_fields"})...)
 	issues = append(issues, validateWritePRDRawFieldArrays("forms", raw["forms"], []string{"request_fields", "response_fields"})...)
 	issues = append(issues, validateWritePRDRawFieldArrays("charts", raw["charts"], []string{"filters"})...)
@@ -148,7 +140,6 @@ func buildWritePRDResult(args writePRDArgs) writePRDResultData {
 		Tables:        normalizeWritePRDTables(args.Tables),
 		Forms:         normalizeWritePRDForms(args.Forms),
 		Charts:        normalizeWritePRDCharts(args.Charts),
-		Workflow:      normalizeWritePRDWorkflow(args.Workflow),
 		Rules:         trimStringSlice(args.Rules),
 	}
 	result.Issues = validateWritePRDResult(result)
@@ -227,16 +218,6 @@ func normalizeWritePRDCharts(charts []writePRDChart) []writePRDChart {
 		normalizeWritePRDFields(chart.Filters)
 		chart.Examples = normalizeWritePRDChartExamples(chart.Dimension, chart.Examples)
 		out = append(out, chart)
-	}
-	return out
-}
-
-func normalizeWritePRDWorkflow(workflow []writePRDWorkflowStep) []writePRDWorkflowStep {
-	out := make([]writePRDWorkflowStep, 0, len(workflow))
-	for _, step := range workflow {
-		step.Type = strings.ToLower(strings.TrimSpace(step.Type))
-		step.Ref = strings.TrimSpace(step.Ref)
-		out = append(out, step)
 	}
 	return out
 }
@@ -390,9 +371,6 @@ func validateWritePRDResult(result writePRDResultData) []string {
 	if len(result.Tables)+len(result.Forms)+len(result.Charts) == 0 {
 		issues = append(issues, "tables/forms/charts 至少需要 1 个业务资源")
 	}
-	if len(result.Workflow) == 0 {
-		issues = append(issues, "workflow 至少需要 1 个功能引用")
-	}
 
 	tableNames := map[string]struct{}{}
 	formNames := map[string]struct{}{}
@@ -428,10 +406,6 @@ func validateWritePRDResult(result writePRDResultData) []string {
 			chartNames[chart.Name] = struct{}{}
 		}
 	}
-	for idx, step := range result.Workflow {
-		issues = append(issues, validateWritePRDWorkflowStep(fmt.Sprintf("workflow[%d]", idx), step, tableNames, formNames, chartNames)...)
-	}
-	issues = append(issues, validateWritePRDWorkflowOrder(result.Workflow, result.Tables, result.Forms, result.Charts)...)
 	return issues
 }
 
@@ -526,93 +500,6 @@ func validateWritePRDChart(prefix string, chart writePRDChart, tableNames map[st
 	expected := append([]string{chart.Dimension}, chart.Metrics...)
 	for idx, example := range chart.Examples {
 		issues = append(issues, validateWritePRDExampleExactKeys(fmt.Sprintf("%s.examples[%d]", prefix, idx), example, expected)...)
-	}
-	return issues
-}
-
-func validateWritePRDWorkflowStep(prefix string, step writePRDWorkflowStep, tableNames, formNames, chartNames map[string]struct{}) []string {
-	var issues []string
-	if step.Type == "" {
-		issues = append(issues, prefix+".type 不能为空")
-	}
-	if step.Ref == "" {
-		issues = append(issues, prefix+".ref 不能为空")
-	}
-	var refs map[string]struct{}
-	switch step.Type {
-	case "table":
-		refs = tableNames
-	case "form":
-		refs = formNames
-	case "chart":
-		refs = chartNames
-	default:
-		issues = append(issues, prefix+".type 只允许 table、form、chart")
-		return issues
-	}
-	if step.Ref != "" {
-		if _, ok := refs[step.Ref]; !ok {
-			issues = append(issues, prefix+".ref 必须引用对应 tables/forms/charts 中已定义的 name")
-		}
-	}
-	return issues
-}
-
-func validateWritePRDWorkflowOrder(workflow []writePRDWorkflowStep, tables []writePRDTable, forms []writePRDForm, charts []writePRDChart) []string {
-	var issues []string
-	workflowIndexes := map[string]int{}
-	for idx, step := range workflow {
-		if step.Type == "" || step.Ref == "" {
-			continue
-		}
-		key := workspaceprd.WorkflowStepKey(step.Type, step.Ref)
-		if first, ok := workflowIndexes[key]; ok {
-			issues = append(issues, fmt.Sprintf("workflow[%d] 与 workflow[%d] 重复：%s/%s", idx, first, step.Type, step.Ref))
-			continue
-		}
-		workflowIndexes[key] = idx
-	}
-
-	tableByName := map[string]writePRDTable{}
-	for _, table := range tables {
-		if table.Name != "" {
-			tableByName[table.Name] = table
-		}
-	}
-	for _, table := range tables {
-		tableIndex, hasTableStep := workflowIndexes[workspaceprd.WorkflowStepKey("table", table.Name)]
-		if !hasTableStep || len(table.Handlers) == 0 {
-			continue
-		}
-		for _, form := range forms {
-			formIndex, hasFormStep := workflowIndexes[workspaceprd.WorkflowStepKey("form", form.Name)]
-			if hasFormStep && formIndex < tableIndex {
-				issues = append(issues, fmt.Sprintf("workflow 顺序不合理：基础/配置表「%s」包含行操作，应排在表单「%s」前面", table.Name, form.Name))
-			}
-		}
-	}
-
-	for _, form := range forms {
-		if form.TargetTable == "" {
-			continue
-		}
-		targetTable, ok := tableByName[form.TargetTable]
-		if !ok || len(targetTable.Handlers) > 0 {
-			continue
-		}
-		formIndex, hasFormStep := workflowIndexes[workspaceprd.WorkflowStepKey("form", form.Name)]
-		tableIndex, hasTableStep := workflowIndexes[workspaceprd.WorkflowStepKey("table", form.TargetTable)]
-		if hasFormStep && hasTableStep && tableIndex < formIndex {
-			issues = append(issues, fmt.Sprintf("workflow 顺序不合理：表单「%s」写入目标记录表「%s」，应先排表单，再排记录表", form.Name, form.TargetTable))
-		}
-	}
-
-	for _, chart := range charts {
-		chartIndex, hasChartStep := workflowIndexes[workspaceprd.WorkflowStepKey("chart", chart.Name)]
-		tableIndex, hasTableStep := workflowIndexes[workspaceprd.WorkflowStepKey("table", chart.SourceTable)]
-		if hasChartStep && hasTableStep && chartIndex < tableIndex {
-			issues = append(issues, fmt.Sprintf("workflow 顺序不合理：图表「%s」统计来源表「%s」，应排在来源表后面", chart.Name, chart.SourceTable))
-		}
 	}
 	return issues
 }
@@ -738,10 +625,6 @@ func writePRDAllowedFormKeys() map[string]struct{} {
 
 func writePRDAllowedChartKeys() map[string]struct{} {
 	return workspaceprd.AllowedChartKeys()
-}
-
-func writePRDAllowedWorkflowKeys() map[string]struct{} {
-	return workspaceprd.AllowedWorkflowKeys()
 }
 
 func isSupportedWritePRDWidget(widget string) bool {

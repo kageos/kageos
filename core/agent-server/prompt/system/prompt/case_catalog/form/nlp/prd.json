@@ -74,11 +74,5 @@
   "rules": [
     "NLP 工具属于纯文本处理，不写 target_table。",
     "Python 子进程必须 defer Close，避免临时目录泄漏。"
-  ],
-  "workflow": [
-    {
-      "type": "form",
-      "ref": "中文分词分析"
-    }
   ]
 }

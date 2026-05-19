@@ -8,8 +8,6 @@
     "read_go_file_lines",
     "read_doc",
     "read_dir",
-    "web_search",
-    "fetch_url_content",
     "search_tools",
     "search_resources",
     "write_prd",

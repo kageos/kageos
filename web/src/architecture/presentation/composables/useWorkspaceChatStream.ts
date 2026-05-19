@@ -1,7 +1,7 @@
 /**
  * useWorkspaceChatStream - 流式工作台对话核心
  *
- * 维护 messages、sending、sessionId、agentId，暴露 handleEvent 与 send。
+ * 维护 messages、sending、sessionId，暴露 handleEvent 与 send。
  * 调用方负责构造 payload 并调用 API（如 workspaceChatStream），在 SSE 回调里调用 handleEvent 即可。
  * 便于 Mini 工作台与后续其他流式工具对话复用同一套消息状态与事件处理。
  */
@@ -52,10 +52,9 @@ export interface UseWorkspaceChatStreamReturn {
   messages: Ref<ChatMessage[]>
   sending: Ref<boolean>
   sessionId: Ref<string | undefined>
-  agentId: Ref<number | null>
   /** 当前流式消息的「已显示长度」，仅对最后一条 assistant 的最后一个 content 块生效，用于平滑展示 */
   streamingDisplayLength: Ref<number>
-  /** 由调用方在 SSE 回调里调用，用于更新最后一条 assistant 消息及 sessionId/agentId */
+  /** 由调用方在 SSE 回调里调用，用于更新最后一条 assistant 消息及 sessionId */
   handleEvent: StreamEventHandler
   /** 发送一条用户消息并跑流：追加 user + assistant，调用 streamFn(handleEvent)。可选传 files 以便发送后立即展示附件 */
   send: (content: string, streamFn: (onEvent: StreamEventHandler) => Promise<void>, files?: ChatMessageFile[]) => Promise<void>
@@ -68,7 +67,6 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
   const messages = ref<ChatMessage[]>([])
   const sending = ref(false)
   const sessionId = ref<string | undefined>(undefined)
-  const agentId = ref<number | null>(null)
   /** 流式时最后一条 assistant 的最后一个 content 块「已显示字符数」，定时器追赶真实长度，实现打字机平滑 */
   const streamingDisplayLength = ref(0)
   let smoothTimer: ReturnType<typeof setInterval> | null = null
@@ -174,9 +172,6 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
   function handleEvent(event: string, data: Record<string, unknown>) {
     if (event === 'session' && typeof data.session_id === 'string') {
       sessionId.value = data.session_id
-    }
-    if (event === 'agent_id' && data.agent_id != null && Number(data.agent_id) > 0) {
-      agentId.value = Number(data.agent_id)
     }
 
     const lastIdx = messages.value.length - 1
@@ -380,7 +375,6 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
     messages,
     sending,
     sessionId,
-    agentId,
     streamingDisplayLength,
     handleEvent,
     send,

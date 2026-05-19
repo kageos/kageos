@@ -17,7 +17,7 @@ const (
 	SystemPromptWorkspaceEnvTemplatePath = SystemPromptRootPath + "/doc/workspace-env-template"
 	systemPromptSeedRoot                 = "system/prompt"
 	systemPromptReadmeFileName           = "readme.md"
-	retiredWorkflowPromptPackageCode     = "inte" + "nts"
+	retiredIntentPromptPackageCode       = "inte" + "nts"
 )
 
 type PromptSeedDoc struct {
@@ -75,7 +75,7 @@ func IsLegacyWorkspacePromptPath(fullCodePath string) bool {
 	return fullCodePath == SystemPromptRootPath+"/workspace" || strings.HasPrefix(fullCodePath, SystemPromptRootPath+"/workspace/")
 }
 
-func IsRetiredWorkflowPromptPath(fullCodePath string) bool {
+func IsRetiredIntentPromptPath(fullCodePath string) bool {
 	fullCodePath = strings.TrimSpace(fullCodePath)
 	if fullCodePath == "" {
 		return false
@@ -84,13 +84,13 @@ func IsRetiredWorkflowPromptPath(fullCodePath string) bool {
 		fullCodePath = "/" + fullCodePath
 	}
 	fullCodePath = strings.TrimRight(fullCodePath, "/")
-	prefix := SystemPromptRootPath + "/" + retiredWorkflowPromptPackageCode
+	prefix := SystemPromptRootPath + "/" + retiredIntentPromptPackageCode
 	return fullCodePath == prefix || strings.HasPrefix(fullCodePath, prefix+"/")
 }
 
 func IsPromptDocPath(fullCodePath string) bool {
 	logical := NormalizePromptDocPath(fullCodePath)
-	return logical != "" && !IsLegacyWorkspacePromptPath(logical) && !IsRetiredWorkflowPromptPath(logical)
+	return logical != "" && !IsLegacyWorkspacePromptPath(logical) && !IsRetiredIntentPromptPath(logical)
 }
 
 func LoadPromptDocCatalog(ctx context.Context) []DocCatalogEntry {
@@ -126,7 +126,7 @@ func GetPromptDocContent(ctx context.Context, fullCodePath string) (name, conten
 	if logical == "" {
 		return "", ""
 	}
-	if IsLegacyWorkspacePromptPath(logical) || IsRetiredWorkflowPromptPath(logical) {
+	if IsLegacyWorkspacePromptPath(logical) || IsRetiredIntentPromptPath(logical) {
 		return "", ""
 	}
 	name, content = getSeedPromptDocContent(logical)
@@ -272,11 +272,11 @@ func buildSystemPromptSeedPackages() ([]PromptSeedPackage, error) {
 		if err != nil || !entry.IsDir() {
 			return err
 		}
-		if isLegacyWorkspaceSeedPath(current) || isRetiredWorkflowSeedPath(current) {
+		if isLegacyWorkspaceSeedPath(current) || isRetiredIntentSeedPath(current) {
 			if current == systemPromptSeedRoot+"/workspace" {
 				return fs.SkipDir
 			}
-			if current == systemPromptSeedRoot+"/"+retiredWorkflowPromptPackageCode {
+			if current == systemPromptSeedRoot+"/"+retiredIntentPromptPackageCode {
 				return fs.SkipDir
 			}
 			return nil
@@ -321,11 +321,11 @@ func appendPromptSeedReadmeDocs(docs *[]PromptSeedDoc) error {
 		if err != nil || !entry.IsDir() {
 			return err
 		}
-		if isLegacyWorkspaceSeedPath(current) || isRetiredWorkflowSeedPath(current) {
+		if isLegacyWorkspaceSeedPath(current) || isRetiredIntentSeedPath(current) {
 			if current == systemPromptSeedRoot+"/workspace" {
 				return fs.SkipDir
 			}
-			if current == systemPromptSeedRoot+"/"+retiredWorkflowPromptPackageCode {
+			if current == systemPromptSeedRoot+"/"+retiredIntentPromptPackageCode {
 				return fs.SkipDir
 			}
 			return nil
@@ -600,7 +600,7 @@ func logicalPromptPathFromSeedDir(dir string) string {
 }
 
 func shouldSkipPromptReadmeIndexDoc(dir string) bool {
-	if isLegacyWorkspaceSeedPath(dir) || isRetiredWorkflowSeedPath(dir) {
+	if isLegacyWorkspaceSeedPath(dir) || isRetiredIntentSeedPath(dir) {
 		return true
 	}
 	if strings.HasPrefix(dir, systemPromptSeedRoot+"/workspace/") {
@@ -620,9 +620,9 @@ func isLegacyWorkspaceSeedPath(seedPath string) bool {
 	return seedPath == systemPromptSeedRoot+"/workspace" || strings.HasPrefix(seedPath, systemPromptSeedRoot+"/workspace/")
 }
 
-func isRetiredWorkflowSeedPath(seedPath string) bool {
+func isRetiredIntentSeedPath(seedPath string) bool {
 	seedPath = strings.TrimRight(seedPath, "/")
-	prefix := systemPromptSeedRoot + "/" + retiredWorkflowPromptPackageCode
+	prefix := systemPromptSeedRoot + "/" + retiredIntentPromptPackageCode
 	return seedPath == prefix || strings.HasPrefix(seedPath, prefix+"/")
 }
 

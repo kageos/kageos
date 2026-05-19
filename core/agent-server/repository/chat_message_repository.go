@@ -5,7 +5,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// ChatMessageRepository 智能体聊天消息数据访问层
+// ChatMessageRepository 工作台聊天消息数据访问层
 type ChatMessageRepository struct {
 	db *gorm.DB
 }

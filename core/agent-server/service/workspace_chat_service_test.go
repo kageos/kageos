@@ -86,7 +86,7 @@ func TestSaveAssistantMessageStoresLLMMetadata(t *testing.T) {
 		Model:      "gpt-4o-mini",
 	}
 
-	if err := svc.saveAssistantMessage(context.Background(), "session-llm", nil, "ok", "tester", meta); err != nil {
+	if err := svc.saveAssistantMessage(context.Background(), "session-llm", "ok", "tester", meta); err != nil {
 		t.Fatalf("save assistant message: %v", err)
 	}
 	messages, err := messageRepo.ListBySessionID("session-llm")
@@ -391,7 +391,7 @@ func TestExecuteToolCallsPersistsRoleAfterChangeRole(t *testing.T) {
 	call.Function.Name = "change_role"
 	call.Function.Arguments = `{"target_role":"product_manager","user_input":"帮我做个系统"}`
 
-	summaries, err := svc.executeToolCalls(context.Background(), []llms.ToolCall{call}, "role-session", "/liubeiluo/demo", nil, "tester", "", func(string, interface{}) {})
+	summaries, err := svc.executeToolCalls(context.Background(), []llms.ToolCall{call}, "role-session", "/liubeiluo/demo", "tester", "", func(string, interface{}) {})
 	if err != nil {
 		t.Fatalf("execute tool calls: %v", err)
 	}
@@ -418,7 +418,6 @@ CREATE TABLE agent_chat_messages (
 	updated_by text,
 	deleted_by text,
 	session_id text NOT NULL,
-	agent_id integer,
 	role text NOT NULL,
 	content text,
 	display_content text,

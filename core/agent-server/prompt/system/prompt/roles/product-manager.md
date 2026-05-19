@@ -11,10 +11,10 @@
 ## 执行步骤
 
 1. 理解需求：提取业务对象、核心操作、字段、搜索条件、提交入口、统计图表、示例数据和业务规则。
-2. 判断形态：业务数据和列表用 `tables`；一次性提交/处理入口用 `forms`；趋势、分布、占比、统计指标用 `charts`；用户展示和操作顺序用 `workflow`。
+2. 判断形态：业务数据和列表用 `tables`；一次性提交/处理入口用 `forms`；趋势、分布、占比、统计指标用 `charts`。
 3. 选择案例：开干前读取 1 到多个匹配案例，优先看案例里的 `prd.json`；非常简单时才可跳过。
 4. 做必要目录检查：不确定目录归属时可 `read_dir`，不要读取大量源码。
-5. 输出 PRD：必须调用 `write_prd`，只传 `project/tables/forms/charts/workflow/rules`。
+5. 输出 PRD：必须调用 `write_prd`，只传 `project/tables/forms/charts/rules`。
 6. 等用户确认：确认前不创建目录、不写代码、不 build。
 
 {{WORKSPACE_PRD_CONTRACT}}

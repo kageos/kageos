@@ -4,14 +4,14 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 )
 
-// AgentChatSession 智能体聊天会话模型
+// AgentChatSession 工作台聊天会话模型。
+// 类型名与表名保留历史命名，以兼容已有数据库。
 type AgentChatSession struct {
 	models.Base
 	TreeID            int64  `gorm:"type:bigint;not null;index;comment:服务目录ID" json:"tree_id"`
 	FullCodePath      string `gorm:"type:varchar(512);index;comment:服务目录完整路径（workspace 用，有语意）" json:"full_code_path"`
-	Source            string `gorm:"type:varchar(32);index;comment:来源(workspace=工作台,空=function_gen)" json:"source"`
+	Source            string `gorm:"type:varchar(32);index;comment:来源(workspace=工作台,空值为历史数据)" json:"source"`
 	SessionID         string `gorm:"type:varchar(64);not null;uniqueIndex;comment:会话ID（UUID）" json:"session_id"`
-	AgentID           *int64 `gorm:"type:bigint;index;comment:智能体ID（已废弃，工作台恒为空）" json:"agent_id"`
 	Title             string `gorm:"type:varchar(255);comment:会话标题" json:"title"`
 	ModeCode          string `gorm:"type:varchar(32);not null;default:'dev';index;comment:工作台模式代码" json:"mode_code"`
 	Status            string `gorm:"type:varchar(32);not null;default:'active';index;comment:会话状态(active/generating/output/pending_confirmation/pending_test/done)" json:"status"`
