@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -43,7 +42,6 @@ type RunPythonTool struct{}
 type runPythonArgs struct {
 	PythonCode     string                 `json:"python_code" schema_desc:"完整 Python 源码" schema_required:"true"`
 	Args           map[string]interface{} `json:"args" schema_desc:"注入脚本的对象参数（推荐）"`
-	ArgsJSON       string                 `json:"args_json" schema_desc:"注入脚本的 JSON 对象字符串（兼容旧调用方）"`
 	InputFiles     string                 `json:"input_files" schema_desc:"可选文件引用字符串，格式 bucket/object_key，多文件用英文逗号分隔；不传时自动使用当前用户消息上传的附件；支持直接填入上一步 output_files 返回的路径，实现 output -> input 文件流转"`
 	TimeoutSeconds *int                   `json:"timeout_seconds" schema_desc:"超时秒数"`
 }
@@ -94,7 +92,7 @@ var runPythonToolDef = toolDefinition[runPythonArgs](
 
 **若你需要把字段、权限、命名规则固化为应用接口：** 请用 **read_doc** 读取内置示例文档 **/system/prompt/case_catalog/form/python_output**（含 PRD 与完整 Go 示例），再按文档配合 **agent-app SDK** 在用户应用内新增 Form：**pythonRuntime.NewExecutor** → **defer executor.Close()**（默认临时目录）→ Go 用 **filepath.Abs** 得到 **绝对路径**（如 GetTraceOutputDir 下文件）经请求传给 Python → Python **直接写入该路径**（如 savefig，勿用相对路径互传，Go/Python **cwd 不同**）→ 用 **OutputFilePaths + ResponseFiles** 下发附件。Go 与 Python 为**同机子进程**，非网络隔离。
 
-**参数：** 推荐用 args 直接传对象参数；args_json 仅兼容旧调用方。timeout_seconds 默认 120、上限 300。
+**参数：** 使用 args 传对象参数；timeout_seconds 默认 120、上限 300。
 
 返回中可能含 _model_guidance：面向你的纠错/降级说明，请优先阅读。`,
 )
@@ -126,12 +124,6 @@ func runPythonTool(ctx context.Context, args runPythonArgs, attachedFiles string
 	}
 	if len(args.Args) > 0 {
 		body["args"] = args.Args
-		if b, err := json.Marshal(args.Args); err == nil {
-			body["args_json"] = string(b)
-		}
-	}
-	if argsJSON := strings.TrimSpace(args.ArgsJSON); argsJSON != "" {
-		body["args_json"] = argsJSON
 	}
 	if inputFiles := resolvePythonInputFiles(args.InputFiles, attachedFiles); inputFiles != "" {
 		body["input_files"] = inputFiles
@@ -148,7 +140,7 @@ func runPythonTool(ctx context.Context, args runPythonArgs, attachedFiles string
 	result, err := apicall.FormSubmit(ctx, runPythonFormPath, body)
 	if err != nil {
 		logger.Errorf(ctx, "[RunPython] FormSubmit 失败: %v", err)
-		return "run_python 调用失败: " + err.Error() + "\n\n【给模型】可检查 python_code 是否过长、args/args_json 是否为合法对象；网络或权限问题可稍后重试。", true, nil
+		return "run_python 调用失败: " + err.Error() + "\n\n【给模型】可检查 python_code 是否过长、args 是否为合法对象；网络或权限问题可稍后重试。", true, nil
 	}
 	out := make(map[string]interface{}, len(result)+1)
 	for k, v := range result {

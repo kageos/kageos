@@ -32,3 +32,11 @@ func resolveUserAppFromResourcePath(resourcePath, requestedUser, requestedApp st
 	}
 	return user, app, nil
 }
+
+func resolveUserAppFromRequiredResourcePath(resourcePath string) (string, string, error) {
+	user, app, err := resolveUserAppFromResourcePath(resourcePath, "", "")
+	if err != nil && strings.TrimSpace(resourcePath) == "" {
+		return "", "", fmt.Errorf("必须提供 resource_path 参数")
+	}
+	return user, app, err
+}

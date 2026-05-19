@@ -14,9 +14,9 @@ func TestConvertFunctionToRespNormalizesStoredFieldCodes(t *testing.T) {
 	schemaJSON, err := functionschema.Marshal(functionschema.NewForm(
 		[]*widget.Field{
 			{
-				Code:      "args_json,omitempty",
-				FieldName: "ArgsJSON",
-				Name:      "参数(JSON格式)",
+				Code:      "input_files,omitempty",
+				FieldName: "InputFiles",
+				Name:      "输入文件",
 				Widget: struct {
 					Type   string      `json:"type"`
 					Config interface{} `json:"config,omitempty"`
@@ -66,14 +66,14 @@ func TestConvertFunctionToRespNormalizesStoredFieldCodes(t *testing.T) {
 		t.Fatalf("unmarshal normalized response failed: %v", err)
 	}
 
-	if got := requestFieldsData[0]["code"]; got != "args_json" {
-		t.Fatalf("request code = %#v, want %q", got, "args_json")
+	if got := requestFieldsData[0]["code"]; got != "input_files" {
+		t.Fatalf("request code = %#v, want %q", got, "input_files")
 	}
 	if got := responseFieldsData[0]["code"]; got != "output_files" {
 		t.Fatalf("response code = %#v, want %q", got, "output_files")
 	}
-	if requestFields[0].Code != "args_json" {
-		t.Fatalf("requestFields[0].Code = %q, want %q", requestFields[0].Code, "args_json")
+	if requestFields[0].Code != "input_files" {
+		t.Fatalf("requestFields[0].Code = %q, want %q", requestFields[0].Code, "input_files")
 	}
 	if responseFields[0].Code != "output_files" {
 		t.Fatalf("responseFields[0].Code = %q, want %q", responseFields[0].Code, "output_files")

@@ -809,15 +809,13 @@ func (a *AppService) GetAppByUserName(ctx context.Context, user, app string) (*m
 
 // UpdateWorkspace 更新工作空间（只更新 MySQL 记录，不涉及容器更新）
 func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspaceReq) (*dto.UpdateWorkspaceResp, error) {
-	user, appCode, err := resolveUserAppFromResourcePath(req.ResourcePath, req.User, req.App)
+	user, appCode, err := resolveUserAppFromRequiredResourcePath(req.ResourcePath)
 	if err != nil {
 		return nil, err
 	}
-	req.User = user
-	req.App = appCode
 
 	// 获取应用信息
-	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
+	app, err := a.appRepo.GetAppByUserName(user, appCode)
 	if err != nil {
 		return nil, fmt.Errorf("获取应用信息失败: %w", err)
 	}
@@ -829,11 +827,11 @@ func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspa
 	}
 
 	logger.Infof(ctx, "[AppService] 更新工作空间成功: user=%s, app=%s, admins=%s",
-		req.User, req.App, req.Admins)
+		user, appCode, req.Admins)
 
 	return &dto.UpdateWorkspaceResp{
-		User:   req.User,
-		App:    req.App,
+		User:   user,
+		App:    appCode,
 		Admins: req.Admins,
 	}, nil
 }
