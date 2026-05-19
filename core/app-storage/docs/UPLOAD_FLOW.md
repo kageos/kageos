@@ -45,8 +45,8 @@
 │                    后端处理                                        │
 │              StorageService.GenerateUploadToken()                │
 │                                                                   │
-│              1. 根据配置的存储类型（minio/cos/oss）                │
-│              2. 调用对应存储的 GenerateUploadCredentials()       │
+│              1. 根据 MinIO 配置生成预签名 URL                     │
+│              2. 调用 MinIOStorage.GenerateUploadCredentials()     │
 │              3. 从预签名 URL 中提取域名信息                        │
 │              4. 返回上传凭证                                      │
 └────────────────────┬────────────────────────────────────────────┘
@@ -66,12 +66,10 @@
 └────────────────────┬────────────────────────────────────────────┘
                      ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│        ✨ Step 2: 根据上传方式创建上传器                           │
-│        UploaderFactory.create(credentials.method)               │
+│        ✨ Step 2: 创建预签名 URL 上传器                            │
+│        createUploader(credentials.method)                       │
 │                                                                   │
 │        method = "presigned_url" → PresignedURLUploader           │
-│        method = "form_upload"   → FormUploader                   │
-│        method = "sdk_upload"    → SDKUploader                    │
 └────────────────────┬────────────────────────────────────────────┘
                      ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -149,8 +147,8 @@ export async function uploadFile(router, file, onProgress) {
   //   ...
   // }
   
-  // ✨ Step 2: 根据 method 创建上传器
-  const uploader = UploaderFactory.create(credentials.method)
+  // ✨ Step 2: 校验 method，并创建预签名 URL 上传器
+  const uploader = createUploader(credentials.method)
   
   // ✨ Step 3: 执行上传（传递域名信息）
   await uploader.upload(credentials, file, (progress) => {
@@ -239,8 +237,8 @@ export class PresignedURLUploader implements Uploader {
 
 ```
 后端流程：
-  1. 根据配置的存储类型（minio/cos/oss）
-  2. 调用对应存储的 GenerateUploadCredentials()
+  1. 读取 MinIO 配置
+  2. 调用 MinIOStorage.GenerateUploadCredentials()
   3. 生成预签名 URL（例如：http://localhost:9000/...）
   4. 从预签名 URL 中提取域名信息
   5. 返回：{ upload_host, upload_domain, url, ... }
@@ -299,7 +297,7 @@ function handleUploadError(error) {
 1. **用户拖文件** → `FileUpload.vue` 的 `handleFileSelect()` 被调用
 2. **调用上传函数** → `uploadFile(router, file, onProgress)`
 3. **请求后端** → `getUploadCredentials()` → 后端返回上传凭证（包含域名）
-4. **创建上传器** → `UploaderFactory.create(method)`
+4. **创建上传器** → `createUploader(method)`
 5. **执行上传** → `uploader.upload()` → 此时已知道上传域名
 6. **进度回调** → `onProgress({ uploadDomain, ... })` → 前端组件显示域名
 
@@ -324,4 +322,3 @@ function handleUploadError(error) {
 ```
 
 **这是标准的"先获取凭证，再上传"的流程！** 🎉
-

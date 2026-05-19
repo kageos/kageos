@@ -104,12 +104,6 @@ func (s *StorageService) ParseFileRef(ref string) (bucket string, key string, er
 	return s.normalizeBucket(parts[0]), normalizeObjectKey(parts[1]), nil
 }
 
-// GetFileURL 获取文件访问 URL（返回外部访问URL，用于兼容旧接口）
-func (s *StorageService) GetFileURL(ctx context.Context, key string) (downloadURL string, expire time.Time, err error) {
-	externalURL, _, expire, err := s.GetFileURLs(ctx, key)
-	return externalURL, expire, err
-}
-
 // GetFileURLs 获取文件访问 URL（同时返回外部和内部访问的URL）
 func (s *StorageService) GetFileURLs(ctx context.Context, key string) (externalURL string, serverURL string, expire time.Time, err error) {
 	return s.GetFileURLsInBucket(ctx, "", key)

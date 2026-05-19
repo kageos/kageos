@@ -252,17 +252,13 @@ xhr.upload.addEventListener('progress', (e) => {
 })
 ```
 
-### Q3: 不同云存储的进度监听有区别吗？
+### Q3: 当前上传进度监听支持哪些存储？
 
-**A**: 没有区别，都使用 `XMLHttpRequest.upload.onprogress`。
+**A**: 当前官方路径只支持 MinIO 预签名 URL 上传，进度监听使用 `XMLHttpRequest.upload.onprogress`。
 
 | 云存储 | 上传方式 | 进度监听 |
 |-------|---------|---------|
 | MinIO | 预签名 URL PUT | `xhr.upload.onprogress` ✅ |
-| 腾讯云 COS | 预签名 URL PUT | `xhr.upload.onprogress` ✅ |
-| 阿里云 OSS | 预签名 URL PUT | `xhr.upload.onprogress` ✅ |
-| AWS S3 | 预签名 URL PUT | `xhr.upload.onprogress` ✅ |
-| 七牛云 | 表单 POST | `xhr.upload.onprogress` ✅ |
 
 ### Q4: 为什么使用统一网关？
 

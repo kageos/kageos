@@ -204,11 +204,6 @@ definitions:
       expire:
         description: 过期时间
         type: string
-      form_data:
-        additionalProperties:
-          type: string
-        description: 表单上传（预留）
-        type: object
       headers:
         additionalProperties:
           type: string
@@ -221,15 +216,12 @@ definitions:
         allOf:
         - $ref: '#/definitions/dto.UploadMethod'
         description: 上传方式 ✨ 新增
-      post_url:
-        description: POST 地址
-        type: string
       ref:
         description: 稳定文件引用：bucket/object_key
         type: string
       sdk_config:
         additionalProperties: true
-        description: SDK 上传（预留）
+        description: SDK 上传配置（服务端上传时使用；method 仍为 presigned_url）
         type: object
       server_download_url:
         description: ✨ 内部访问的下载地址（服务端/SDK使用）
@@ -381,21 +373,13 @@ definitions:
   dto.UploadMethod:
     enum:
     - presigned_url
-    - form_upload
-    - sdk_upload
     type: string
     x-enum-comments:
-      UploadMethodFormUpload: 预留：当前未使用
       UploadMethodPresignedURL: 预签名 URL（当前官方实际使用）
-      UploadMethodSDKUpload: 预留：当前未使用
     x-enum-descriptions:
     - 预签名 URL（当前官方实际使用）
-    - 预留：当前未使用
-    - 预留：当前未使用
     x-enum-varnames:
     - UploadMethodPresignedURL
-    - UploadMethodFormUpload
-    - UploadMethodSDKUpload
   dto.UploadSource:
     enum:
     - browser
@@ -481,8 +465,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: 批量获取多个文件的上传凭证，支持多种存储方式（presigned_url/form_upload/sdk_upload）。如果某个文件未提供
-        router，将使用默认路由：/{username}/default
+      description: 批量获取多个文件的 presigned_url 上传凭证。如果某个文件未提供 router，将使用默认路由：/{username}/default
       parameters:
       - description: 批量获取上传凭证请求
         in: body

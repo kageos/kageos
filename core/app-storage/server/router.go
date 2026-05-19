@@ -41,7 +41,7 @@ func (s *Server) setupRoutes() {
 	storageGroup.POST("/files/description", storageHandler.UpdateFileDescription)   // 更新文件描述元数据
 
 	// 文件操作（key 包含斜杠，使用 *key 匹配）
-	storageGroup.GET("/download/*key", storageHandler.GetFileURL)
+	storageGroup.GET("/download/*key", storageHandler.DownloadFile)
 	storageGroup.GET("/info/*key", storageHandler.GetFileInfo) // ✅ info 在前，避免 catch-all 冲突
 	storageGroup.DELETE("/files/*key", storageHandler.DeleteFile)
 

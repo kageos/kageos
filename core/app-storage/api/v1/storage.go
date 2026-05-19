@@ -127,7 +127,7 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 
 // BatchGetUploadToken 批量获取上传凭证
 // @Summary 批量获取上传凭证
-// @Description 批量获取多个文件的上传凭证，支持多种存储方式（presigned_url/form_upload/sdk_upload）。如果某个文件未提供 router，将使用默认路由：/{username}/default
+// @Description 批量获取多个文件的 presigned_url 上传凭证。如果某个文件未提供 router，将使用默认路由：/{username}/default
 // @Tags 存储管理
 // @Accept json
 // @Produce json
@@ -479,7 +479,7 @@ func (s *Storage) UpdateFileDescription(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
-// GetFileURL 获取文件（重定向到对象存储直连地址）
+// DownloadFile 获取文件（重定向到对象存储直连地址）
 // @Summary 下载文件
 // @Description 重定向到对象存储直连地址，避免服务端转发文件流
 // @Tags 存储管理
@@ -490,7 +490,7 @@ func (s *Storage) UpdateFileDescription(c *gin.Context) {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
 // @Router /storage/api/v1/download/{key} [get]
-func (s *Storage) GetFileURL(c *gin.Context) {
+func (s *Storage) DownloadFile(c *gin.Context) {
 	// 使用 *key 匹配时，需要去掉前导斜杠
 	key := c.Param("key")
 	key = trimLeadingSlash(key)

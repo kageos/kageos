@@ -231,24 +231,6 @@ func (s *AppManageService) BuildApp(ctx context.Context, user, app string, opts 
 	return result, nil
 }
 
-// ListApps 列出所有应用
-func (s *AppManageService) ListApps(ctx context.Context, user string) ([]string, error) {
-	// TODO: 实现列出应用逻辑
-	userDir := fmt.Sprintf("namespace/%s", user)
-	entries, err := os.ReadDir(userDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read user directory: %w", err)
-	}
-
-	var apps []string
-	for _, entry := range entries {
-		if entry.IsDir() {
-			apps = append(apps, entry.Name())
-		}
-	}
-	return apps, nil
-}
-
 // DeleteApp 删除应用
 // 新架构：每个版本有独立容器，需要删除所有版本的容器
 func (s *AppManageService) DeleteApp(ctx context.Context, user, app string) error {

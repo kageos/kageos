@@ -11,8 +11,6 @@ type UploadMethod string
 
 const (
 	UploadMethodPresignedURL UploadMethod = "presigned_url" // 预签名 URL（当前官方实际使用）
-	UploadMethodFormUpload   UploadMethod = "form_upload"   // 预留：当前未使用
-	UploadMethodSDKUpload    UploadMethod = "sdk_upload"    // 预留：当前未使用
 )
 
 // UploadCredentials 上传凭证（统一结构）
@@ -28,20 +26,13 @@ type UploadCredentials struct {
 	UploadHost   string // 上传目标域名（例如：localhost:9000 或 cdn.example.com）
 	UploadDomain string // 上传完整域名（例如：http://localhost:9000 或 https://cdn.example.com）
 
-	// 表单上传（预留）
-	FormData map[string]string // 表单字段
-	PostURL  string            // POST 地址
-
-	// SDK 上传（预留）
+	// SDK 上传配置（服务端上传时使用；method 仍为 presigned_url）
 	SDKConfig map[string]interface{} // SDK 配置
 }
 
 // Storage 存储接口（抽象层）
 // 当前官方只落地了 MinIO；接口保留是为了后续扩展时不重写业务层。
 type Storage interface {
-	// GetUploadMethod 获取上传方式
-	GetUploadMethod() UploadMethod
-
 	// GetCDNDomain 获取 CDN 域名
 	GetCDNDomain() string
 

@@ -18,8 +18,7 @@ type UploadResult struct {
 	ServerDownloadURL string // ✨ 内部访问的下载地址（服务端使用）
 }
 
-// Uploader 上传接口（根据不同的存储引擎实现）
-// 所有存储引擎的上传器都必须实现此接口
+// Uploader 服务端文件上传接口。
 type Uploader interface {
 	// Upload 上传文件
 	// ctx: 上下文
@@ -31,21 +30,13 @@ type Uploader interface {
 	Upload(ctx context.Context, creds *dto.GetUploadTokenResp, fileReader io.Reader, fileSize int64, hash string) (*UploadResult, error)
 }
 
-// UploaderFactory 上传器工厂（根据 storage 字段创建对应的上传器）
-type UploaderFactory struct{}
-
 // NewUploader 根据 storage 类型创建对应的上传器。
 // 当前仅支持 MinIO。
-func (f *UploaderFactory) NewUploader(storage string) (Uploader, error) {
+func NewUploader(storage string) (Uploader, error) {
 	switch storage {
 	case "", "minio":
 		return NewMinIOUploader(), nil
 	default:
 		return nil, ErrUnsupportedStorage
 	}
-}
-
-// GetDefaultFactory 获取默认的上传器工厂
-func GetDefaultFactory() *UploaderFactory {
-	return &UploaderFactory{}
 }
