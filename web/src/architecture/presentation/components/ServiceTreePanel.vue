@@ -192,6 +192,11 @@
       class="capability-import-input"
       @change="handleCapabilityImportFileChange"
     />
+    <TeamAccessDialog
+      v-model="accessDialogVisible"
+      :node="accessDialogNode"
+      @changed="emit('refresh-tree')"
+    />
   </div>
 </template>
 
@@ -201,6 +206,7 @@ import { MoreFilled, Document, Download, Delete, Search, Select, Close } from '@
 import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
 import FormIcon from '@/architecture/presentation/shared/components/icons/FormIcon.vue'
+import TeamAccessDialog from './TeamAccessDialog.vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { isRootNode } from '@/architecture/domain/utils/tree-utils'
@@ -280,6 +286,8 @@ const selectedNodes = ref<ServiceTree[]>([])
 const bulkExporting = ref(false)
 const capabilityImportInputRef = ref<HTMLInputElement | null>(null)
 const capabilityImportTargetNode = ref<ServiceTree | null>(null)
+const accessDialogVisible = ref(false)
+const accessDialogNode = ref<ServiceTree | null>(null)
 let unsubscribeRuntimeRefresh: (() => void) | null = null
 
 const stopRuntimeSummaryPolling = () => {
@@ -438,6 +446,15 @@ function getNodeActions(data: ServiceTree) {
   return getServiceTreeNodeActions(data, {
     hasCopiedDirectory: Boolean(copiedDirectory.value)
   })
+}
+
+function openAccessDialog(data: ServiceTree) {
+  if (!data.full_code_path) {
+    ElMessage.warning('无法获取目录路径，请刷新后重试')
+    return
+  }
+  accessDialogNode.value = data
+  accessDialogVisible.value = true
 }
 
 const selectedNodeCount = computed(() => selectedNodes.value.length)
@@ -712,6 +729,9 @@ const handleNodeAction = (command: ServiceTreeNodeActionCommand, data: ServiceTr
       return
     case 'delete-directory':
       emit('delete-directory', data)
+      return
+    case 'manage-access':
+      openAccessDialog(data)
       return
     case 'update-history':
       emit('update-history', data)

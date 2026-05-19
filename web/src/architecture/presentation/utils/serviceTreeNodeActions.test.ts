@@ -44,6 +44,17 @@ describe('serviceTreeNodeActions', () => {
     expect(actions.find(action => action.command === 'import-json')?.label).toBe('导入能力包')
   })
 
+  it('shows permission management only for nodes with admin access', () => {
+    expect(commands(getServiceTreeNodeActions(node({})))).not.toContain('manage-access')
+
+    const actions = getServiceTreeNodeActions(node({
+      permissions: { read: true, admin: true }
+    }))
+
+    expect(commands(actions)).toContain('manage-access')
+    expect(actions.find(action => action.command === 'manage-access')?.label).toBe('权限管理')
+  })
+
   it('only shows delete and paste for eligible non-root packages', () => {
     const actions = getServiceTreeNodeActions(
       node({

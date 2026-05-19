@@ -9,6 +9,10 @@ export interface TeamMemberAccess {
   resource_path: string
   role_code: AccessRoleCode
   permissions: AccessPermissions
+  source?: 'current' | 'inherited'
+  direct?: boolean
+  inherited_from?: string
+  target_resource?: string
   expires_at?: string
   created_by?: string
   created_at?: string

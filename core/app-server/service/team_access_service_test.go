@@ -205,3 +205,63 @@ func TestTeamAccessListAccessibleApps(t *testing.T) {
 		t.Fatalf("unexpected accessible apps: %+v", apps)
 	}
 }
+
+func TestTeamAccessListMembersSeparatesCurrentAndInherited(t *testing.T) {
+	service, _ := newTeamAccessTestService(t)
+	ctx := actorContext("alice")
+	if err := service.Assign(ctx, access.AssignRoleRequest{
+		TenantUser:   "alice",
+		App:          "ops",
+		Username:     "parent-user",
+		ResourcePath: "/alice/ops/ticket",
+		RoleCode:     access.RoleViewer,
+		CreatedBy:    "alice",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Assign(ctx, access.AssignRoleRequest{
+		TenantUser:   "alice",
+		App:          "ops",
+		Username:     "current-user",
+		ResourcePath: "/alice/ops/ticket/sub",
+		RoleCode:     access.RoleMember,
+		CreatedBy:    "alice",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Assign(ctx, access.AssignRoleRequest{
+		TenantUser:   "alice",
+		App:          "ops",
+		Username:     "sibling-user",
+		ResourcePath: "/alice/ops/other",
+		RoleCode:     access.RoleAdmin,
+		CreatedBy:    "alice",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	members, err := service.ListMembers(ctx, "alice", "ops", "/alice/ops/ticket/sub")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(members) != 2 {
+		t.Fatalf("expected 2 effective members, got %+v", members)
+	}
+
+	var inherited, current *access.MemberAccess
+	for i := range members {
+		member := &members[i]
+		switch member.Username {
+		case "parent-user":
+			inherited = member
+		case "current-user":
+			current = member
+		}
+	}
+	if inherited == nil || inherited.Source != "inherited" || inherited.Direct || inherited.InheritedFrom != "/alice/ops/ticket" {
+		t.Fatalf("unexpected inherited member: %+v", inherited)
+	}
+	if current == nil || current.Source != "current" || !current.Direct || current.InheritedFrom != "" {
+		t.Fatalf("unexpected current member: %+v", current)
+	}
+}

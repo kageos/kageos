@@ -7,12 +7,14 @@ import {
   DocumentChecked,
   Download,
   Edit,
+  Key,
   Plus,
   Upload
 } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { isRootNode } from '@/architecture/domain/utils/tree-utils'
 import { featureFlags } from '@/architecture/shared/config/features'
+import { canAdmin } from '../composables/useAccessControl'
 
 export type ServiceTreeNodeActionCommand =
   | 'create-directory'
@@ -26,6 +28,7 @@ export type ServiceTreeNodeActionCommand =
   | 'paste'
   | 'delete-function'
   | 'delete-doc'
+  | 'manage-access'
   | 'update-history'
 
 export interface ServiceTreeNodeAction {
@@ -61,6 +64,12 @@ export function getServiceTreeNodeActions(
       label: '打开工作台',
       icon: ChatDotRound,
       visible: data.type === 'package'
+    },
+    {
+      command: 'manage-access',
+      label: '权限管理',
+      icon: Key,
+      visible: Boolean(data.full_code_path) && canAdmin(data)
     },
     {
       command: 'delete-directory',
