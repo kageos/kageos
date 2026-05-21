@@ -2,9 +2,9 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_PATH="${AOS_CONFIG:-deploy/prod/aos.yaml}"
-PID_FILE="${AOS_UP_PID_FILE:-deploy/prod/aosctl-up.pid}"
-LOG_FILE="${AOS_STOP_LOG:-deploy/prod/aosctl-stop.log}"
+CONFIG_PATH="${KAGEOS_CONFIG:-${AOS_CONFIG:-deploy/prod/kage.yaml}}"
+PID_FILE="${KAGEOS_UP_PID_FILE:-${AOS_UP_PID_FILE:-deploy/prod/kagectl-up.pid}}"
+LOG_FILE="${KAGEOS_STOP_LOG:-${AOS_STOP_LOG:-deploy/prod/kagectl-stop.log}}"
 
 resolve_path() {
   local path="$1"
@@ -70,6 +70,6 @@ if [[ ! -f "$CONFIG_ABS" ]]; then
   exit 1
 fi
 
-echo "running: go run ./cmd/aosctl down --config $CONFIG_PATH"
-go run ./cmd/aosctl down --config "$CONFIG_PATH"
+echo "running: go run ./cmd/kagectl down --config $CONFIG_PATH"
+go run ./cmd/kagectl down --config "$CONFIG_PATH"
 echo "prod services stopped"

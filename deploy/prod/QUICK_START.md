@@ -1,6 +1,6 @@
 # Prod Quick Start
 
-生产部署入口是 Go 部署器 `aosctl`。Compose 仍是底层容器执行器，但用户不需要直接维护 Compose 文件。
+生产部署入口是 Go 部署器 `kagectl`。Compose 仍是底层容器执行器，但用户不需要直接维护 Compose 文件。
 
 ## 前提
 
@@ -14,10 +14,10 @@
 在仓库根目录执行：
 
 ```bash
-go run ./cmd/aosctl init --base-url http://your-ip-or-domain
-go run ./cmd/aosctl doctor --config deploy/prod/aos.yaml
+go run ./cmd/kagectl init --base-url http://your-ip-or-domain
+go run ./cmd/kagectl doctor --config deploy/prod/kage.yaml
 ./prod-up.sh
-go run ./cmd/aosctl verify --config deploy/prod/aos.yaml
+go run ./cmd/kagectl verify --config deploy/prod/kage.yaml
 ```
 
 访问：
@@ -29,17 +29,17 @@ http://your-ip-or-domain
 ## 常用命令
 
 ```bash
-tail -f deploy/prod/aosctl-up.log
-go run ./cmd/aosctl status --config deploy/prod/aos.yaml
-go run ./cmd/aosctl logs --config deploy/prod/aos.yaml main
+tail -f deploy/prod/kagectl-up.log
+go run ./cmd/kagectl status --config deploy/prod/kage.yaml
+go run ./cmd/kagectl logs --config deploy/prod/kage.yaml main
 ./prod-stop.sh
-go run ./cmd/aosctl uninstall --config deploy/prod/aos.yaml --purge-data --force
+go run ./cmd/kagectl uninstall --config deploy/prod/kage.yaml --purge-data --force
 ```
 
-`./prod-up.sh` 会在后台执行 `aosctl up`，并把输出写入 `deploy/prod/aosctl-up.log`，SSH 或终端会话关闭后部署流程不会被当前 shell 带停。需要传递 `aosctl up` 参数时直接追加，例如 `./prod-up.sh --image` 或 `./prod-up.sh --wait-timeout 10m`。
+`./prod-up.sh` 会在后台执行 `kagectl up`，并把输出写入 `deploy/prod/kagectl-up.log`，SSH 或终端会话关闭后部署流程不会被当前 shell 带停。需要传递 `kagectl up` 参数时直接追加，例如 `./prod-up.sh --image` 或 `./prod-up.sh --wait-timeout 10m`。
 
 `uninstall --purge-data --force` 用于测试重置数据，默认保留 `/data/kageos/podman_storage`，避免每次重新构建用户应用基础镜像。
 
 ## 生成物
 
-生成物位于 `deploy/prod/.generated/`，不要手工编辑；需要变更时修改 `deploy/prod/aos.yaml` 后重新执行 `aosctl up`。
+生成物位于 `deploy/prod/.generated/`，不要手工编辑；需要变更时修改 `deploy/prod/kage.yaml` 后重新执行 `kagectl up`。

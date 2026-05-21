@@ -2,9 +2,9 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_PATH="${AOS_CONFIG:-deploy/prod/aos.yaml}"
-LOG_FILE="${AOS_UP_LOG:-deploy/prod/aosctl-up.log}"
-PID_FILE="${AOS_UP_PID_FILE:-deploy/prod/aosctl-up.pid}"
+CONFIG_PATH="${KAGEOS_CONFIG:-${AOS_CONFIG:-deploy/prod/kage.yaml}}"
+LOG_FILE="${KAGEOS_UP_LOG:-${AOS_UP_LOG:-deploy/prod/kagectl-up.log}}"
+PID_FILE="${KAGEOS_UP_PID_FILE:-${AOS_UP_PID_FILE:-deploy/prod/kagectl-up.pid}}"
 
 resolve_path() {
   local path="$1"
@@ -22,7 +22,7 @@ PID_ABS="$(resolve_path "$PID_FILE")"
 cd "$ROOT_DIR"
 
 warn_rootless_podman_linger() {
-  if [[ "${AOS_SKIP_LINGER_CHECK:-0}" == "1" ]]; then
+  if [[ "${KAGEOS_SKIP_LINGER_CHECK:-${AOS_SKIP_LINGER_CHECK:-0}}" == "1" ]]; then
     return
   fi
   if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
@@ -41,13 +41,13 @@ warn_rootless_podman_linger() {
   if [[ "$linger" != "yes" ]]; then
     echo "WARNING: rootless podman compose is available, but systemd linger is not enabled for $user_name."
     echo "If services stop after SSH/session logout, run: sudo loginctl enable-linger $user_name"
-    echo "Skip this check with: AOS_SKIP_LINGER_CHECK=1 ./prod-up.sh"
+    echo "Skip this check with: KAGEOS_SKIP_LINGER_CHECK=1 ./prod-up.sh"
   fi
 }
 
 if [[ ! -f "$CONFIG_ABS" ]]; then
   echo "ERROR: prod config not found: $CONFIG_PATH"
-  echo "Run first: go run ./cmd/aosctl init --base-url http://your-ip-or-domain"
+  echo "Run first: go run ./cmd/kagectl init --base-url http://your-ip-or-domain"
   exit 1
 fi
 
@@ -82,7 +82,7 @@ config_path="$2"
 shift 2
 cd "$root_dir"
 exec </dev/null
-exec go run ./cmd/aosctl up --config "$config_path" "$@"
+exec go run ./cmd/kagectl up --config "$config_path" "$@"
 '
 
 if command -v setsid >/dev/null 2>&1; then

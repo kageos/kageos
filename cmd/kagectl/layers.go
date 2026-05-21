@@ -86,7 +86,7 @@ type statusReport struct {
 
 func deploymentLayers() []deploymentLayer {
 	return []deploymentLayer{
-		{ID: layerControl, Name: "部署控制层", Responsibility: "aosctl、配置渲染、目录和镜像编排"},
+		{ID: layerControl, Name: "部署控制层", Responsibility: "kagectl、配置渲染、目录和镜像编排"},
 		{ID: layerInfra, Name: "基础设施层", Responsibility: "MySQL、NATS、MinIO、持久化数据目录"},
 		{ID: layerEdge, Name: "入口接入层", Responsibility: "Nginx、HTTP/HTTPS、静态前端、API 反代、维护页"},
 		{ID: layerPlatform, Name: "平台服务层", Responsibility: "平台业务服务"},
@@ -97,7 +97,7 @@ func deploymentLayers() []deploymentLayer {
 
 func deploymentComponents(rt RuntimeConfig) []deploymentComponent {
 	components := []deploymentComponent{
-		{Layer: layerControl, Name: "aosctl", Role: "生成 .generated、调用 Compose、执行 up/status/verify"},
+		{Layer: layerControl, Name: "kagectl", Role: "生成 .generated、调用 Compose、执行 up/status/verify"},
 		{Layer: layerControl, Name: "compose", Role: "外层容器执行引擎"},
 		{Layer: layerInfra, Name: infraComponentName("mysql", rt.MySQL.Mode), Role: "平台关系型数据"},
 		{Layer: layerInfra, Name: infraComponentName("nats", rt.NATS.Mode), Role: "平台和用户 App 消息总线"},
@@ -210,7 +210,7 @@ func composeServicesByLayer(rt RuntimeConfig) []layerComposeServices {
 	}
 
 	return []layerComposeServices{
-		{Layer: layerControl, Note: "aosctl runs on the host"},
+		{Layer: layerControl, Note: "kagectl runs on the host"},
 		{Layer: layerInfra, Services: infraServices, Note: strings.Join(infraNotes, ", ")},
 		{Layer: layerEdge, Services: []string{"main"}, Note: "nginx runs inside main"},
 		{Layer: layerPlatform, Services: []string{"main"}, Note: "core-server runs inside main"},
