@@ -15,6 +15,7 @@
 - `${MINIO_ROOT_PASSWORD}`
 - `${NATS_URL}`
 - `${KAGEOS_APP_BASE_IMAGE}`
+- `${SMTP_MODE}`
 - `${SMTP_HOST}`
 - `${SMTP_PORT}`
 - `${SMTP_USERNAME}`

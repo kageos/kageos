@@ -73,6 +73,7 @@ llms:
       admin: "system"
 
 smtp:
+  mode: "smtp"
   host: "smtp.qq.com"
   port: 587
   username: ""

@@ -151,6 +151,7 @@ type LLMSeedConfig struct {
 }
 
 type SMTPConfig struct {
+	Mode     string `yaml:"mode"`
 	Host     string `yaml:"host"`
 	Port     int    `yaml:"port"`
 	Username string `yaml:"username"`
@@ -1499,6 +1500,7 @@ func defaultConfig() (Config, error) {
 			Password: systemUserPass,
 		},
 		SMTP: SMTPConfig{
+			Mode:     "smtp",
 			Host:     "smtp.qq.com",
 			Port:     587,
 			FromName: "Kageos",
@@ -1566,6 +1568,7 @@ func defaultDevDeploymentConfig(secrets devSecrets) Config {
 		},
 		SystemUser: SystemUserConfig{Password: secrets.SystemUserPassword},
 		SMTP: SMTPConfig{
+			Mode:     "log",
 			Host:     "smtp.qq.com",
 			Port:     587,
 			FromName: "Kageos",
@@ -1654,6 +1657,9 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.SMTP.Host == "" {
 		cfg.SMTP.Host = "smtp.qq.com"
+	}
+	if cfg.SMTP.Mode == "" {
+		cfg.SMTP.Mode = "smtp"
 	}
 	if cfg.SMTP.Port == 0 {
 		cfg.SMTP.Port = 587
@@ -2038,7 +2044,9 @@ func printDevInitSummary(paths Paths, opts initDevOptions) {
 		baseImage = values["KAGEOS_APP_BASE_IMAGE"]
 	}
 	smtpStatus := "not configured"
-	if strings.TrimSpace(values["SMTP_HOST"]) != "" &&
+	if strings.TrimSpace(values["SMTP_MODE"]) == "log" {
+		smtpStatus = "log mode"
+	} else if strings.TrimSpace(values["SMTP_HOST"]) != "" &&
 		strings.TrimSpace(values["SMTP_USERNAME"]) != "" &&
 		strings.TrimSpace(values["SMTP_PASSWORD"]) != "" &&
 		strings.TrimSpace(values["SMTP_FROM"]) != "" {
@@ -2066,6 +2074,7 @@ func printDevInitSummary(paths Paths, opts initDevOptions) {
 		{"JWT secret", values["JWT_SECRET"]},
 		{"Company code", values["KAGEOS_COMPANY_CODE"]},
 		{"Company name", strings.Trim(values["KAGEOS_COMPANY_NAME"], `"'`)},
+		{"SMTP mode", values["SMTP_MODE"]},
 		{"SMTP status", smtpStatus},
 		{"SMTP host", values["SMTP_HOST"]},
 		{"SMTP username", values["SMTP_USERNAME"]},
@@ -2074,7 +2083,7 @@ func printDevInitSummary(paths Paths, opts initDevOptions) {
 	fmt.Println("Kageos dev initialization summary")
 	printPlainTable("Item", "Value", rows)
 	fmt.Println()
-	fmt.Println("Tip: SMTP is optional for local startup. Configure SMTP_* in the env file only when email verification must send real messages.")
+	fmt.Println("Tip: local dev uses SMTP_MODE=log, so verification codes are printed in logs and returned as debug_code. Set SMTP_MODE=smtp and configure SMTP_* when real email delivery is required.")
 }
 
 func printPlainTable(leftHeader, rightHeader string, rows [][2]string) {

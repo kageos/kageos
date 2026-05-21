@@ -2,6 +2,7 @@ package config
 
 // EmailConfig 邮箱配置
 type EmailConfig struct {
+	Mode         string                  `mapstructure:"mode"`
 	SMTP         EmailSMTPConfig         `mapstructure:"smtp"`
 	Verification EmailVerificationConfig `mapstructure:"verification"`
 }

@@ -66,13 +66,15 @@ func (a *Auth) SendEmailCode(c *gin.Context) {
 		codeType = "register"
 	}
 
-	err = a.emailService.SendVerificationCode(req.Email, codeType, ipAddress, userAgent)
+	debugCode, sendErr := a.emailService.SendVerificationCode(req.Email, codeType, ipAddress, userAgent)
+	err = sendErr
 	if err != nil {
 		response.FailWithMessage(c, "发送验证码失败: "+err.Error())
 		return
 	}
 
-	response.OkWithMessage(c, "验证码已发送")
+	resp = &dto.SendEmailCodeResp{DebugCode: debugCode}
+	response.OkWithDetailed(c, resp, "验证码已发送")
 }
 
 // Register 用户注册

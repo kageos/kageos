@@ -32,8 +32,8 @@ func NewEmailService(emailCodeRepo *repository.EmailCodeRepository) *EmailServic
 	}
 }
 
-// SendVerificationCode 发送验证码邮件
-func (s *EmailService) SendVerificationCode(email, codeType, ipAddress, userAgent string) error {
+// SendVerificationCode 发送验证码。log 模式用于本地开发：验证码写入日志并返回给调用方，不依赖真实 SMTP。
+func (s *EmailService) SendVerificationCode(email, codeType, ipAddress, userAgent string) (string, error) {
 	// 生成验证码
 	code := s.generateCode()
 
@@ -44,17 +44,22 @@ func (s *EmailService) SendVerificationCode(email, codeType, ipAddress, userAgen
 	count, err := s.emailCodeRepo.GetEmailCodeCount(email, 5) // 5分钟内
 	if err != nil {
 		logger.Errorf(nil, "[EmailService] Failed to get email code count: %v", err)
-		return err
+		return "", err
 	}
 	if count >= 3 { // 5分钟内最多发送3次
-		return fmt.Errorf("验证码发送过于频繁，请稍后再试")
+		return "", fmt.Errorf("验证码发送过于频繁，请稍后再试")
 	}
 
 	// 保存验证码到数据库
 	err = s.emailCodeRepo.CreateEmailCode(email, code, expiresAt, codeType, ipAddress, userAgent)
 	if err != nil {
 		logger.Errorf(nil, "[EmailService] Failed to create email code: %v", err)
-		return err
+		return "", err
+	}
+
+	if s.emailMode() == "log" {
+		logger.Infof(nil, "[EmailService] Verification code for %s (%s): %s", email, codeType, code)
+		return code, nil
 	}
 
 	// 发送邮件
@@ -64,11 +69,28 @@ func (s *EmailService) SendVerificationCode(email, codeType, ipAddress, userAgen
 	err = s.sender.SendHTML(email, subject, body)
 	if err != nil {
 		logger.Errorf(nil, "[EmailService] Failed to send email: %v", err)
-		return err
+		return "", err
 	}
 
 	logger.Infof(nil, "[EmailService] Verification code sent to %s", email)
-	return nil
+	return "", nil
+}
+
+func (s *EmailService) emailMode() string {
+	mode := strings.ToLower(strings.TrimSpace(s.config.Mode))
+	switch mode {
+	case "log", "smtp":
+		return mode
+	case "":
+		if strings.TrimSpace(s.config.SMTP.Username) == "" ||
+			strings.TrimSpace(s.config.SMTP.Password) == "" ||
+			strings.TrimSpace(s.config.SMTP.From) == "" {
+			return "log"
+		}
+		return "smtp"
+	default:
+		return "smtp"
+	}
 }
 
 // VerifyCode 验证验证码

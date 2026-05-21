@@ -53,6 +53,7 @@ ensure_main_runtime_dirs() {
 }
 
 set_smtp_defaults() {
+  SMTP_MODE="${SMTP_MODE:-smtp}"
   SMTP_HOST="${SMTP_HOST:-smtp.qq.com}"
   SMTP_PORT="${SMTP_PORT:-587}"
   SMTP_USERNAME="${SMTP_USERNAME-}"

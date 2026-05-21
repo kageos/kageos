@@ -20,6 +20,7 @@ db:
   slow_threshold: 200
 
 email:
+  mode: "${SMTP_MODE}"
   smtp:
     host: "${SMTP_HOST}"
     port: ${SMTP_PORT}
