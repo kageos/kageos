@@ -61,6 +61,7 @@ func TestRenderBundledConfig(t *testing.T) {
 		`NATS_SEED_USER: "aos"`,
 		`NATS_SEED_PASSWORD: "`,
 		`SYSTEM_USER_PASSWORD: "` + cfg.SystemUser.Password + `"`,
+		`SMTP_MODE: "smtp"`,
 		`OPENAI_API_KEY: "${OPENAI_API_KEY:-}"`,
 	} {
 		if !strings.Contains(compose, want) {
@@ -110,12 +111,21 @@ func TestRenderBundledConfig(t *testing.T) {
 		}
 	}
 
+	hrServerConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "hr-server.yaml"))
+	for _, want := range []string{
+		`registration_mode: "admin_only"`,
+		`mode: "smtp"`,
+	} {
+		if !strings.Contains(hrServerConfig, want) {
+			t.Fatalf("generated hr-server config missing %q, got:\n%s", want, hrServerConfig)
+		}
+	}
+
 	appStorageConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "app-storage.yaml"))
 	if !strings.Contains(appStorageConfig, `server_endpoint: "host.containers.internal:9000"`) {
 		t.Fatalf("generated app-storage config should include container MinIO endpoint, got:\n%s", appStorageConfig)
 	}
 
-	hrServerConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "hr-server.yaml"))
 	for _, want := range []string{
 		`system_user:`,
 		`password: "` + cfg.SystemUser.Password + `"`,
@@ -184,6 +194,8 @@ func TestRenderTLSFromBase64Config(t *testing.T) {
 	for _, want := range []string{
 		"CANONICAL_BASE_URL=https://example.com",
 		"TLS_MODE=redirect",
+		"KAGEOS_REGISTRATION_MODE=admin_only",
+		"SMTP_MODE=smtp",
 		"KAGEOS_TLS_CERT_PEM_B64=" + cfg.Site.TLSCertPEMB64,
 		"KAGEOS_TLS_KEY_PEM_B64=" + cfg.Site.TLSKeyPEMB64,
 	} {
@@ -226,6 +238,8 @@ func TestWriteDeploymentSummary(t *testing.T) {
 		"| Access URL | `http://127.0.0.1` |",
 		"| Admin username | `system` |",
 		"| Initial password | `" + cfg.SystemUser.Password + "` |",
+		"| Registration mode | `admin_only` |",
+		"| SMTP status | `not configured` |",
 		"| Environment file | `" + rt.EnvFilePath + "` |",
 	} {
 		if !strings.Contains(summary, want) {
@@ -767,7 +781,7 @@ func TestWriteInitialConfig(t *testing.T) {
 		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
 		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
 	}
-	created, err := writeInitialConfig(paths, initOptions{BaseURL: "http://example.com", MySQLMode: "bundled", CompanyCode: "acme", CompanyName: "Acme Inc"})
+	created, err := writeInitialConfig(paths, initOptions{BaseURL: "http://example.com", MySQLMode: "bundled", CompanyCode: "acme", CompanyName: "Acme Inc", RegistrationMode: "email_code", SMTPMode: "smtp"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -783,6 +797,9 @@ func TestWriteInitialConfig(t *testing.T) {
 	}
 	if cfg.Company.Code != "acme" || cfg.Company.Name != "Acme Inc" {
 		t.Fatalf("unexpected company config: %#v", cfg.Company)
+	}
+	if cfg.Auth.RegistrationMode != "email_code" || cfg.SMTP.Mode != "smtp" {
+		t.Fatalf("unexpected auth/smtp config: auth=%#v smtp=%#v", cfg.Auth, cfg.SMTP)
 	}
 	if cfg.SystemUser.Password == "" {
 		t.Fatal("expected generated config to include system_user.password")
@@ -819,6 +836,35 @@ func TestValidateConfigRequiresSystemUserPassword(t *testing.T) {
 	}
 	if err := validateConfig(rt); err == nil || !strings.Contains(err.Error(), "system_user.password is required") {
 		t.Fatalf("expected system_user.password validation error, got: %v", err)
+	}
+}
+
+func TestValidateConfigRequiresSMTPForEmailRegistration(t *testing.T) {
+	t.Parallel()
+
+	prodDir := t.TempDir()
+	paths := Paths{
+		RepoRoot:     filepath.Dir(filepath.Dir(prodDir)),
+		ProdDir:      prodDir,
+		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
+		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
+	}
+	cfg, err := defaultConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Site.BaseURL = "http://127.0.0.1"
+	cfg.Auth.RegistrationMode = "email_code"
+	cfg.SMTP.Username = ""
+	cfg.SMTP.Password = ""
+	cfg.SMTP.From = ""
+
+	rt, err := buildRuntimeConfig(paths, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateConfig(rt); err == nil || !strings.Contains(err.Error(), "requires complete smtp") {
+		t.Fatalf("expected smtp validation error, got: %v", err)
 	}
 }
 

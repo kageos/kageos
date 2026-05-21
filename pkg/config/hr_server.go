@@ -36,11 +36,16 @@ func GetHRServerConfig() *HRServerConfig {
 type HRServerConfig struct {
 	Server     HRServerServerConfig `mapstructure:"server"`
 	Email      EmailConfig          `mapstructure:"email"`
+	Auth       AuthConfig           `mapstructure:"auth"`
 	DB         DBConfig             `mapstructure:"db"`
 	Company    CompanyConfig        `mapstructure:"company"`     // 默认企业配置
 	SystemUser SystemUserConfig     `mapstructure:"system_user"` // ⭐ 系统账号配置
 	// 注意：JWT 配置已移至全局配置，不再在此处配置
 	// 数据库配置保留在服务配置中，因为微服务后续每个服务一个库
+}
+
+type AuthConfig struct {
+	RegistrationMode string `mapstructure:"registration_mode"`
 }
 
 // SystemUserConfig 系统账号配置

@@ -168,6 +168,9 @@ func (s *SystemSettingsService) registrationModeFrom(values map[string]string, e
 	if mode := normalizeRegistrationMode(values[settingRegistrationMode]); mode != "" {
 		return mode
 	}
+	if mode := normalizeRegistrationMode(s.cfg.Auth.RegistrationMode); mode != "" {
+		return mode
+	}
 	if normalizeEmailMode(emailMode) == EmailModeLog {
 		return RegistrationModeDebugCode
 	}

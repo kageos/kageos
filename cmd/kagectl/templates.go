@@ -145,6 +145,7 @@ SYSTEM_USER_PASSWORD={{ .SystemUser.Password }}
 KAGEOS_COMPANY_CODE={{ .Company.Code }}
 KAGEOS_COMPANY_NAME={{ q .Company.Name }}
 KAGEOS_COMPANY_LOGO_URL={{ q .Company.LogoURL }}
+KAGEOS_REGISTRATION_MODE={{ .Auth.RegistrationMode }}
 SMTP_MODE={{ .SMTP.Mode }}
 SMTP_HOST={{ .SMTP.Host }}
 SMTP_PORT={{ .SMTP.Port }}
@@ -420,6 +421,9 @@ email:
   verification:
     code_length: 6
     code_expire: 300
+
+auth:
+  registration_mode: {{ q .Auth.RegistrationMode }}
 
 company:
   code: {{ q .Company.Code }}

@@ -20,6 +20,8 @@ go run ./cmd/kagectl doctor --config .kageos/prod/kage.yaml
 go run ./cmd/kagectl verify --config .kageos/prod/kage.yaml
 ```
 
+`init` 会在终端打印需要保存的账号、密码、JWT、MinIO、NATS 等英文表格。默认只有 `system` 能登录；需要开放注册时，先进入 `System settings` 配置 SMTP 并发送测试邮件，再开启邮箱验证码注册。
+
 访问：
 
 ```text
