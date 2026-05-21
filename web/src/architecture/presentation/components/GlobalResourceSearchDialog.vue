@@ -17,22 +17,22 @@
           <span class="mark-ring mark-ring-b"></span>
         </div>
         <div class="global-search-copy">
-          <div class="global-search-kicker">RESOURCE RADAR</div>
-          <div class="global-search-title">全站资源搜索</div>
-          <div class="global-search-subtitle">搜索目录、函数和文档，图标与目录树保持一致</div>
+          <div class="global-search-kicker">{{ t('globalSearch.kicker') }}</div>
+          <div class="global-search-title">{{ t('globalSearch.title') }}</div>
+          <div class="global-search-subtitle">{{ t('globalSearch.subtitle') }}</div>
         </div>
       </div>
     </template>
 
     <div class="global-search-body">
       <div class="global-search-console">
-        <div class="console-prefix">QUERY</div>
+        <div class="console-prefix">{{ t('globalSearch.query') }}</div>
         <el-input
           ref="searchInputRef"
           v-model="searchKeyword"
           size="large"
           class="global-search-input"
-          placeholder="输入关键字，例如：客户、报表、审批、SDK..."
+          :placeholder="t('globalSearch.placeholder')"
           clearable
           :prefix-icon="Search"
           @keyup.enter="runSearchNow"
@@ -54,9 +54,9 @@
 
       <div class="global-search-result-meta">
         <span class="meta-dot"></span>
-        <span v-if="hasSearched && !loading">命中 {{ total }} 个资源节点</span>
-        <span v-else-if="loading">扫描资源索引中...</span>
-        <span v-else>等待输入关键字，自动扫描可见资源</span>
+        <span v-if="hasSearched && !loading">{{ t('globalSearch.hitCount', { count: total }) }}</span>
+        <span v-else-if="loading">{{ t('globalSearch.scanning') }}</span>
+        <span v-else>{{ t('globalSearch.waiting') }}</span>
       </div>
 
       <div v-loading="loading" class="global-search-results">
@@ -85,12 +85,12 @@
               <span
                 v-if="shouldShowHeat(item)"
                 class="result-heat"
-                :title="`调用量：${item.run_count || 0}`"
+                :title="t('globalSearch.heatTitle', { count: item.run_count || 0 })"
               >
-                热度 {{ formatHeatCount(item.run_count || 0) }}
+                {{ t('globalSearch.heat', { count: formatHeatCount(item.run_count || 0) }) }}
               </span>
             </span>
-            <span class="result-path" :title="item.full_code_path || '路径缺失'">
+            <span class="result-path" :title="item.full_code_path || t('globalSearch.missingPath')">
               {{ getDisplayPath(item) }}
             </span>
           </span>
@@ -103,7 +103,7 @@
 
         <el-empty
           v-if="!loading && hasSearched && results.length === 0"
-          description="没有匹配的资源"
+          :description="t('globalSearch.noResults')"
           :image-size="96"
         />
 
@@ -111,7 +111,7 @@
           <span class="placeholder-orbit">
             <el-icon><Search /></el-icon>
           </span>
-          <span>输入关键字，快速跳转到全站资源</span>
+          <span>{{ t('globalSearch.placeholderText') }}</span>
         </div>
       </div>
     </div>
@@ -121,6 +121,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Document, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { resolveWorkspaceUrl } from '@/architecture/shared/routing/route'
@@ -141,6 +142,7 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
+const { t } = useI18n()
 const searchInputRef = ref()
 const searchKeyword = ref('')
 const activeType = ref<SearchResourceType>('all')
@@ -156,12 +158,12 @@ const dialogVisible = computed({
   set: (value: boolean) => emit('update:visible', value)
 })
 
-const resourceTabs: Array<{ label: string; value: SearchResourceType }> = [
-  { label: '全部', value: 'all' },
-  { label: '目录', value: 'package' },
-  { label: '函数', value: 'function' },
-  { label: '文档', value: 'docs' }
-]
+const resourceTabs = computed<Array<{ label: string; value: SearchResourceType }>>(() => [
+  { label: t('globalSearch.all'), value: 'all' },
+  { label: t('globalSearch.directory'), value: 'package' },
+  { label: t('globalSearch.function'), value: 'function' },
+  { label: t('globalSearch.docs'), value: 'docs' }
+])
 
 function handleOpened() {
   nextTick(() => {
@@ -207,7 +209,7 @@ async function runSearchNow() {
     total.value = resp.total || 0
   } catch (error: any) {
     if (currentSeq !== searchSeq) return
-    ElMessage.error(error?.message || '搜索失败')
+    ElMessage.error(error?.message || t('globalSearch.searchFailed'))
   } finally {
     if (currentSeq === searchSeq) {
       loading.value = false
@@ -216,14 +218,14 @@ async function runSearchNow() {
 }
 
 function getTypeLabel(item: ResourceSearchResult) {
-  if (item.type === 'package') return '目录'
+  if (item.type === 'package') return t('globalSearch.directory')
   if (item.type === 'function') {
-    if (item.template_type === 'table') return '表格函数'
-    if (item.template_type === 'form') return '表单函数'
-    if (item.template_type === 'chart') return '图表函数'
-    return '函数'
+    if (item.template_type === 'table') return t('globalSearch.tableFunction')
+    if (item.template_type === 'form') return t('globalSearch.formFunction')
+    if (item.template_type === 'chart') return t('globalSearch.chartFunction')
+    return t('globalSearch.function')
   }
-  if (item.type === 'docs') return '文档'
+  if (item.type === 'docs') return t('globalSearch.docs')
   return item.type
 }
 
@@ -259,14 +261,14 @@ function getResourceTitle(item: ResourceSearchResult) {
   return item.name?.trim()
     || item.code?.trim()
     || getPathTail(item.full_code_path)
-    || '未命名资源'
+    || t('globalSearch.unnamedResource')
 }
 
 function getResultSnippet(item: ResourceSearchResult) {
   return item.snippet?.trim()
     || item.description?.trim()
     || item.tags?.trim()
-    || '暂无描述，点击打开查看资源详情'
+    || t('globalSearch.noDescription')
 }
 
 function normalizeDisplayText(text?: string) {
@@ -284,7 +286,7 @@ function getDisplayTitle(item: ResourceSearchResult) {
 }
 
 function getDisplayPath(item: ResourceSearchResult) {
-  return truncateDisplayText(item.full_code_path || '路径缺失', 112)
+  return truncateDisplayText(item.full_code_path || t('globalSearch.missingPath'), 112)
 }
 
 function getDisplaySnippet(item: ResourceSearchResult) {

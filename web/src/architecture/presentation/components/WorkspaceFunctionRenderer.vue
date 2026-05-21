@@ -1,9 +1,15 @@
 <template>
   <div class="workspace-function-renderer">
-    <details v-if="functionUsageGuide" class="function-guide">
+    <details
+      v-if="functionUsageGuide"
+      class="function-guide"
+      @toggle="handleGuideToggle"
+    >
       <summary class="function-guide-summary">
-        <span>使用说明</span>
-        <span class="function-guide-hint">展开</span>
+        <span>{{ t('functionGuide.title') }}</span>
+        <span class="function-guide-hint">
+          {{ functionGuideOpen ? t('functionGuide.collapse') : t('functionGuide.expand') }}
+        </span>
       </summary>
       <div class="function-guide-body" v-html="renderMarkdown(functionUsageGuide)" />
     </details>
@@ -38,7 +44,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent } from 'vue'
+import { computed, defineAsyncComponent, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import type { ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
@@ -56,6 +63,8 @@ const props = defineProps<{
 
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
+const { t } = useI18n()
+const functionGuideOpen = ref(false)
 
 const keyBase = computed(() => props.currentFunction?.full_code_path || props.currentFunction?.id || 'unknown')
 
@@ -73,6 +82,10 @@ const matchedFunctionDetail = computed(() => {
     props.functionDetail.router === props.currentFunction.full_code_path
   )
 })
+
+function handleGuideToggle(event: Event) {
+  functionGuideOpen.value = (event.currentTarget as HTMLDetailsElement).open
+}
 </script>
 
 <style scoped lang="scss">
@@ -130,15 +143,6 @@ const matchedFunctionDetail = computed(() => {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   font-weight: 600;
-}
-
-.function-guide[open] .function-guide-hint {
-  font-size: 0;
-}
-
-.function-guide[open] .function-guide-hint::after {
-  content: '收起';
-  font-size: 12px;
 }
 
 .function-guide-body {

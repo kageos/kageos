@@ -127,6 +127,11 @@ func NormalizeResourcePath(path string) string {
 	return "/" + path
 }
 
+func IsSystemBuiltinPath(path string) bool {
+	path = NormalizeResourcePath(path)
+	return path == "/system" || strings.HasPrefix(path, "/system/")
+}
+
 func ParseUserApp(resourcePath string) (tenantUser, app string, err error) {
 	parts := strings.Split(strings.Trim(NormalizeResourcePath(resourcePath), "/"), "/")
 	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {

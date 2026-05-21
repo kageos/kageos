@@ -77,4 +77,4 @@ smtp:
   username: ""
   password: ""
   from: ""
-  from_name: "AI Agent OS"
+  from_name: "Kageos"

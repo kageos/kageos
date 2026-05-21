@@ -42,11 +42,10 @@ func InitTables(db *gorm.DB) error {
 		&App{},
 		&ServiceTree{},
 		&Function{},
+		&FunctionSensitiveField{},
 		&Package{},
 		// 目录快照表（用于递归 Fork）
 		&FileSnapshot{},
-		// Table 更新日志表
-		&TableOperateLog{},
 		// 平台级操作审计日志
 		&OperateLog{},
 		// 轻量团队授权表
@@ -55,6 +54,9 @@ func InitTables(db *gorm.DB) error {
 		&DirectoryUpdateHistory{},
 		// 文档表（用于存储文档内容）
 		&Docs{},
+		// 公开分享链接（MVP: Form 匿名提交）
+		&PublicShare{},
+		&PublicShareEvent{},
 	)
 	if err != nil {
 		return err

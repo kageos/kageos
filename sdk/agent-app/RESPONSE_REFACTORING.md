@@ -295,4 +295,4 @@ func WithLogging(handler func() *UpdateResponse) *UpdateResponse {
 5. **文档清晰**: 结构体本身就是文档
 6. **版本控制友好**: 变更更容易追踪
 
-这次重构让AI Agent OS的API diff功能更加健壮和易于维护！🎉
+这次重构让Kageos的API diff功能更加健壮和易于维护！🎉

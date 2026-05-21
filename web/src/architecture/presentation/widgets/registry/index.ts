@@ -118,35 +118,54 @@ const RichTextWidget = defineAsyncComponent(() => import('@/architecture/present
 function registerBasicComponents(): void {
   // 注册请求参数组件
   widgetComponentFactory.registerRequestComponent(WidgetType.INPUT, InputWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.INPUT, InputWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.TEXT, InputWidget)  // text 别名
   widgetComponentFactory.registerRequestComponent(WidgetType.ID, InputWidget)  // ID 字段
+  widgetComponentFactory.registerResponseComponent(WidgetType.ID, InputWidget)
   
   widgetComponentFactory.registerRequestComponent(WidgetType.NUMBER, NumberWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.NUMBER, NumberWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.FLOAT, FloatWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.FLOAT, FloatWidget)
   
   widgetComponentFactory.registerRequestComponent(WidgetType.TEXT_AREA, TextAreaWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.TEXT_AREA, TextAreaWidget)
   
   widgetComponentFactory.registerRequestComponent(WidgetType.SWITCH, SwitchWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.SWITCH, SwitchWidget)
   
   widgetComponentFactory.registerRequestComponent(WidgetType.SELECT, SelectWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.SELECT, SelectWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.MULTI_SELECT, MultiSelectWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.MULTI_SELECT, MultiSelectWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.CHECKBOX, CheckboxWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.CHECKBOX, CheckboxWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.RADIO, RadioWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.RADIO, RadioWidget)
   
   widgetComponentFactory.registerRequestComponent(WidgetType.DATETIME, DateTimeWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.DATETIME, DateTimeWidget)
   
   widgetComponentFactory.registerRequestComponent(WidgetType.SLIDER, SliderWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.SLIDER, SliderWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.RATE, RateWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.RATE, RateWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.COLOR, ColorWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.COLOR, ColorWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.RICH_TEXT, RichTextWidget)
   widgetComponentFactory.registerResponseComponent(WidgetType.RICH_TEXT, RichTextResponseWidget)
   
   widgetComponentFactory.registerRequestComponent(WidgetType.FILES, FilesWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.FILES, FilesWidget)
   
   widgetComponentFactory.registerRequestComponent(WidgetType.USER, UserWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.USER, UserWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.USERS, UsersWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.USERS, UsersWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.DEPARTMENT, DepartmentWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.DEPARTMENT, DepartmentWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.DEPARTMENTS, DepartmentsWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.DEPARTMENTS, DepartmentsWidget)
   
   // 链接组件
   widgetComponentFactory.registerRequestComponent(WidgetType.LINK, LinkWidget)
@@ -178,7 +197,9 @@ async function registerContainerComponents(): Promise<void> {
   
   // 容器组件
   widgetComponentFactory.registerRequestComponent(WidgetType.FORM, FormWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.FORM, FormWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.TABLE, TableWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.TABLE, TableWidget)
 }
 
 /**

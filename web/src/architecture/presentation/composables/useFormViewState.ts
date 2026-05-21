@@ -4,7 +4,7 @@ import type { FormDomainService } from '../../domain/services/FormDomainService'
 import type { FieldConfig, FieldValue, FunctionDetail } from '../../domain/types'
 import type { FormStateManager } from '../../infrastructure/stateManager/FormStateManager'
 import { getFieldPresenceState } from '@/architecture/domain/utils/conditionEvaluator'
-import { createAutoFieldValue, createEmptyFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
+import { createAutoFieldValue, createDisplayAwareFieldValue, createEmptyFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
 import { FORM_QUESTIONNAIRE_TRIGGER_CHARS } from '../utils/formLayout'
 import { getFormRequestFields, getFormResponseFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
@@ -72,7 +72,7 @@ export function useFormViewState(options: UseFormViewStateOptions) {
     const values: Record<string, FieldValue> = {}
     responseFields.value.forEach((field: FieldConfig) => {
       const rawValue = state.response?.[field.code]
-      values[field.code] = createAutoFieldValue(rawValue, field)
+      values[field.code] = createDisplayAwareFieldValue(rawValue, field)
     })
     return values
   })
@@ -94,6 +94,7 @@ export function useFormViewState(options: UseFormViewStateOptions) {
     return {
       getFunctionMethod: () => options.functionDetail.value?.method || 'GET',
       getFunctionRouter: () => options.functionDetail.value?.router || '',
+      getFunctionDetail: () => options.functionDetail.value,
       getSubmitData: () => options.domainService.getSubmitData(requestFields.value),
       registerWidget: () => {},
       unregisterWidget: () => {},

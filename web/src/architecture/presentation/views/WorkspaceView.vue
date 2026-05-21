@@ -31,7 +31,7 @@
           link
           @click="toggleLeftSidebar"
           class="sidebar-toggle-btn"
-          :title="showLeftSidebar ? '隐藏目录' : '显示目录'"
+          :title="showLeftSidebar ? t('workspace.hideDirectory') : t('workspace.showDirectory')"
         >
           <el-icon>
             <ArrowLeft v-if="showLeftSidebar" />
@@ -68,23 +68,23 @@
         <!-- 🔥 Create/Edit 模式：根据 queryTab 显示独立页面 -->
         <template v-if="queryTab === 'create' && currentFunction && currentFunctionDetail">
           <WorkspaceFormPage
-            title="新增数据"
+            :title="t('workspace.createData')"
             :function-detail="currentFunctionDetail"
             :page-key="`form-create-${currentFunction.id}`"
-            submit-text="提交"
-            unsupported-message="该函数不支持新增操作"
+            :submit-text="t('workspace.submit')"
+            :unsupported-message="t('workspace.createUnsupported')"
             @back="backToList"
           />
         </template>
         
         <template v-else-if="queryTab === 'edit' && currentFunction && currentFunctionDetail">
           <WorkspaceFormPage
-            title="编辑数据"
+            :title="t('workspace.editData')"
             :function-detail="editFunctionDetail || currentFunctionDetail"
             :initial-data="editInitialData"
             :page-key="`form-edit-${currentFunction.id}-${editRowId}`"
-            submit-text="保存"
-            unsupported-message="该函数不支持编辑操作"
+            :submit-text="t('workspace.save')"
+            :unsupported-message="t('workspace.editUnsupported')"
             @back="backToList"
           />
         </template>
@@ -117,6 +117,7 @@
               :current-function="currentFunction"
               :current-function-detail="currentFunctionDetail"
               :function-form-view-ref="setFunctionFormViewRef"
+              :current-form-view="functionFormViewRef"
               :on-function-tab-change="handleFunctionTabChange"
               @update:active-tab="functionActiveTab = $event"
               @access-changed="handleRefreshTree"
@@ -132,7 +133,7 @@
           </div>
         </div>
         <div v-else class="empty-state" data-testid="workspace-empty-state">
-          <p>请在左侧选择功能或目录</p>
+          <p>{{ t('workspace.emptySelect') }}</p>
         </div>
       </div>
     </div>
@@ -200,12 +201,12 @@
       v-if="showMiniWorkstationLauncher"
       type="button"
       class="mini-workstation-launcher"
-      :title="`打开工作台 (${MINI_WORKSTATION_TOGGLE_SHORTCUT_LABEL}) - ${miniWorkstationLauncherName}`"
+      :title="t('workspace.openWorkbenchTitle', { shortcut: MINI_WORKSTATION_TOGGLE_SHORTCUT_LABEL, name: miniWorkstationLauncherName })"
       data-testid="mini-workstation-launcher"
       @click="openCurrentWorkstation"
     >
       <span class="mini-workstation-launcher-pulse"></span>
-      <strong>工作台</strong>
+      <strong>{{ t('workspace.workbench') }}</strong>
       <span>{{ miniWorkstationLauncherSummary }}</span>
       <kbd class="mini-workstation-launcher-shortcut">{{ MINI_WORKSTATION_TOGGLE_SHORTCUT_LABEL }}</kbd>
       <span v-if="miniWorkstationLauncherCount > 1" class="mini-workstation-launcher-badge">
@@ -239,6 +240,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
@@ -274,6 +276,7 @@ import { featureFlags } from '@/architecture/shared/config/features'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const isAppleShortcutPlatform = typeof navigator !== 'undefined'
   && /Mac|iPhone|iPad|iPod/i.test(navigator.platform)
 const MINI_WORKSTATION_TOGGLE_SHORTCUT_LABEL = isAppleShortcutPlatform ? '⌘.' : 'Ctrl+.'
@@ -340,7 +343,7 @@ function fillWorkspacePathNameMap(
   map: Record<string, string>
 ) {
   for (const node of nodes) {
-    const fallbackName = normalizeFullCodePath(node.full_code_path).split('/').filter(Boolean).pop() || node.code || '工作台'
+    const fallbackName = normalizeFullCodePath(node.full_code_path).split('/').filter(Boolean).pop() || node.code || t('workspace.workbench')
     const nodeName = node.name || fallbackName
     setWorkspacePathName(map, node.full_code_path, nodeName)
     if (node.children?.length) {
@@ -513,6 +516,7 @@ const showLeftSidebar = ref(true)
 
 const {
   functionActiveTab,
+  functionFormViewRef,
   setFunctionFormViewRef,
   showFunctionTabsWrapper,
   handleFunctionTabChange,
@@ -566,7 +570,7 @@ const workstationContext = computed(() => {
   if (!node?.full_code_path) return null
   const path = (node.full_code_path || '').replace(/\/+$/g, '')
   if (!path) return null
-  const name = node.name || path.split('/').pop() || '工作台'
+  const name = node.name || path.split('/').pop() || t('workspace.workbench')
   return { fullCodePath: path, dirName: name }
 })
 

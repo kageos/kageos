@@ -15,6 +15,7 @@ type Field struct {
 	Hide       *FieldHide `json:"hide,omitempty"`       // 前端隐藏场景；不配置表示列表/新增/编辑均展示，如 {"scenes":["create","update"]}
 	Validation string     `json:"validation,omitempty"` // 验证规则，完全照搬 github.com/go-playground/validator/v10
 	DependOn   string     `json:"depend_on,omitempty"`  // 依赖的字段 code，当依赖字段值变化时，该字段会被清空
+	Sensitive  bool       `json:"sensitive,omitempty"`  // 敏感字段，操作日志记录时会脱敏
 }
 
 type FieldHide struct {

@@ -196,9 +196,19 @@ type validatorBadFieldTagReq struct {
 	MissingType   string                  `json:"missing_type" widget:"name:缺少类型"`
 	BadHide       string                  `json:"bad_hide" widget:"name:展示;type:input" hide:"detail"`
 	EmptyHide     string                  `json:"empty_hide" widget:"name:展示;type:input" hide:""`
+	BadSensitive  string                  `json:"bad_sensitive" widget:"name:敏感;type:input" sensitive:"yes"`
 	DuplicateHide string                  `json:"duplicate_hide" widget:"name:展示;type:input" hide:"create,create"`
 	BadData       string                  `json:"bad_data" widget:"name:数据;type:input" data:"fmt:json"`
 	Items         []validatorFieldTagItem `json:"items" widget:"name:明细;type:table" hide:"create,update"`
+}
+
+type validatorSensitiveReq struct {
+	Token string `json:"token" widget:"name:令牌;type:input" sensitive:"true"`
+	Name  string `json:"name" widget:"name:名称;type:input" sensitive:"false"`
+}
+
+type validatorUnsupportedPasswordInputReq struct {
+	Password string `json:"password" widget:"name:密码;type:input;password:true"`
 }
 
 type validatorBadDatetimeDefaultReq struct {
@@ -378,12 +388,39 @@ func TestWidgetValidatorRejectsInvalidFieldLevelTags(t *testing.T) {
 		`widget tag must include type`,
 		`hide scene must be one of list,create,update`,
 		`hide tag must not be empty`,
+		`sensitive tag must be true or false`,
 		`hide scene "create" is duplicated`,
 		`unsupported data tag "fmt"`,
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("DecodeForm() error = %v, want substring %q", err, want)
 		}
+	}
+}
+
+func TestDecodeFormMarksSensitiveFields(t *testing.T) {
+	fields, _, err := DecodeForm(nil, &validatorSensitiveReq{}, nil)
+	if err != nil {
+		t.Fatalf("DecodeForm() error = %v, want nil", err)
+	}
+	if len(fields) != 2 {
+		t.Fatalf("len(fields) = %d, want 2", len(fields))
+	}
+	if !fields[0].Sensitive {
+		t.Fatalf("sensitive tag should mark field sensitive")
+	}
+	if fields[1].Sensitive {
+		t.Fatalf("sensitive:false should not mark field sensitive")
+	}
+}
+
+func TestDecodeFormRejectsPasswordInput(t *testing.T) {
+	_, _, err := DecodeForm(nil, &validatorUnsupportedPasswordInputReq{}, nil)
+	if err == nil {
+		t.Fatal("DecodeForm() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "input widget does not support password") {
+		t.Fatalf("DecodeForm() error = %v, want password unsupported error", err)
 	}
 }
 
@@ -539,7 +576,7 @@ func TestWidgetValidatorRejectsInvalidTagSyntax(t *testing.T) {
 		t.Fatal("DecodeForm() error = nil, want error")
 	}
 	for _, want := range []string{
-		`widget tag "password" must be true or false`,
+		`input widget does not support password`,
 		`widget tag "render_default" must be true or false`,
 		`widget tag "min" must be a number`,
 		`widget tag "step" must be > 0`,

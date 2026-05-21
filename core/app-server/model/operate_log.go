@@ -9,6 +9,7 @@ import (
 type OperateLog struct {
 	models.Base
 	TenantUser    string          `json:"tenant_user" gorm:"type:varchar(100);not null;index:idx_operate_log_scope;comment:workspace 所属用户"`
+	CompanyCode   string          `json:"company_code" gorm:"type:varchar(64);index:idx_operate_log_company;comment:企业代码"`
 	App           string          `json:"app" gorm:"type:varchar(100);not null;index:idx_operate_log_scope;comment:应用代码"`
 	ActorUser     string          `json:"actor_user" gorm:"type:varchar(100);not null;index:idx_operate_log_actor;comment:实际操作者"`
 	Action        string          `json:"action" gorm:"type:varchar(100);not null;index:idx_operate_log_action;comment:稳定事件枚举"`

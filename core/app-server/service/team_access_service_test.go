@@ -2,19 +2,22 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	appmodel "github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
+	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/access"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
-func newTeamAccessTestService(t *testing.T) (*TeamAccessService, *repository.AppRepository) {
+func newTeamAccessTestService(t *testing.T) (*TeamAccessService, *repository.AppRepository, *gorm.DB) {
 	t.Helper()
 	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
 	db, err := gorm.Open(sqlite.Open("file:"+dbName+"?mode=memory&cache=shared"), &gorm.Config{})
@@ -37,7 +40,7 @@ func newTeamAccessTestService(t *testing.T) (*TeamAccessService, *repository.App
 		repository.NewTeamAccessRepository(db),
 		repository.NewOperateLogRepository(db),
 		appRepo,
-	), appRepo
+	), appRepo, db
 }
 
 func actorContext(username string) context.Context {
@@ -45,7 +48,7 @@ func actorContext(username string) context.Context {
 }
 
 func TestTeamAccessAssignAndResolveInheritedPermissions(t *testing.T) {
-	service, _ := newTeamAccessTestService(t)
+	service, _, _ := newTeamAccessTestService(t)
 	ctx := actorContext("alice")
 
 	if err := service.Assign(ctx, access.AssignRoleRequest{
@@ -75,7 +78,7 @@ func TestTeamAccessAssignAndResolveInheritedPermissions(t *testing.T) {
 }
 
 func TestTeamAccessExpiredAssignmentDoesNotGrantPermission(t *testing.T) {
-	service, _ := newTeamAccessTestService(t)
+	service, _, _ := newTeamAccessTestService(t)
 	expired := time.Now().Add(-time.Minute)
 	if err := service.Assign(actorContext("alice"), access.AssignRoleRequest{
 		TenantUser:   "alice",
@@ -99,7 +102,7 @@ func TestTeamAccessExpiredAssignmentDoesNotGrantPermission(t *testing.T) {
 }
 
 func TestTeamAccessOwnerFallback(t *testing.T) {
-	service, _ := newTeamAccessTestService(t)
+	service, _, _ := newTeamAccessTestService(t)
 	ok, err := service.Can(context.Background(), "alice", "ops", "alice", "/alice/ops/anything", access.ActionDelete)
 	if err != nil {
 		t.Fatal(err)
@@ -109,8 +112,28 @@ func TestTeamAccessOwnerFallback(t *testing.T) {
 	}
 }
 
+func TestTeamAccessSystemBuiltinAllowsReadOnly(t *testing.T) {
+	service, _, _ := newTeamAccessTestService(t)
+
+	canRead, err := service.Can(context.Background(), "system", "prompt", "alice", "/system/prompt/case_catalog/table/ticket", access.ActionRead)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !canRead {
+		t.Fatal("system builtin resources should be readable")
+	}
+
+	canWrite, err := service.Can(context.Background(), "system", "prompt", "alice", "/system/prompt/case_catalog/table/ticket", access.ActionWrite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if canWrite {
+		t.Fatal("system builtin resources should not grant write")
+	}
+}
+
 func TestTeamAccessAdminCanGrantMember(t *testing.T) {
-	service, _ := newTeamAccessTestService(t)
+	service, _, _ := newTeamAccessTestService(t)
 	ctx := actorContext("alice")
 	if err := service.Assign(ctx, access.AssignRoleRequest{
 		TenantUser:   "alice",
@@ -135,8 +158,61 @@ func TestTeamAccessAdminCanGrantMember(t *testing.T) {
 	}
 }
 
+func TestTeamAccessAssignValidatesTargetUserWhenCompanyContextExists(t *testing.T) {
+	service, _, _ := newTeamAccessTestService(t)
+	ctx := contextx.WithRequestInfo(actorContext("alice"), contextx.RequestInfo{
+		RequestUser: "alice",
+		CompanyCode: "acme",
+	})
+	lookups := 0
+	service.userLookup = func(ctx context.Context, username string) (*dto.UserInfo, error) {
+		lookups++
+		if username != "member-user" {
+			t.Fatalf("unexpected lookup username: %s", username)
+		}
+		return &dto.UserInfo{Username: username, CompanyCode: "acme"}, nil
+	}
+
+	if err := service.Assign(ctx, access.AssignRoleRequest{
+		TenantUser:   "alice",
+		App:          "ops",
+		Username:     "member-user",
+		ResourcePath: "/alice/ops/ticket",
+		RoleCode:     access.RoleMember,
+		CreatedBy:    "alice",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if lookups != 1 {
+		t.Fatalf("expected one target user lookup, got %d", lookups)
+	}
+}
+
+func TestTeamAccessAssignRejectsUnknownTargetUserWhenCompanyContextExists(t *testing.T) {
+	service, _, _ := newTeamAccessTestService(t)
+	ctx := contextx.WithRequestInfo(actorContext("alice"), contextx.RequestInfo{
+		RequestUser: "alice",
+		CompanyCode: "acme",
+	})
+	service.userLookup = func(ctx context.Context, username string) (*dto.UserInfo, error) {
+		return nil, errors.New("user not found")
+	}
+
+	err := service.Assign(ctx, access.AssignRoleRequest{
+		TenantUser:   "alice",
+		App:          "ops",
+		Username:     "external-user",
+		ResourcePath: "/alice/ops/ticket",
+		RoleCode:     access.RoleMember,
+		CreatedBy:    "alice",
+	})
+	if err == nil || !strings.Contains(err.Error(), "被授权用户不存在或不属于当前企业") {
+		t.Fatalf("expected company target validation error, got %v", err)
+	}
+}
+
 func TestTeamAccessMemberCannotGrant(t *testing.T) {
-	service, _ := newTeamAccessTestService(t)
+	service, _, _ := newTeamAccessTestService(t)
 	ctx := actorContext("alice")
 	if err := service.Assign(ctx, access.AssignRoleRequest{
 		TenantUser:   "alice",
@@ -163,7 +239,7 @@ func TestTeamAccessMemberCannotGrant(t *testing.T) {
 }
 
 func TestTeamAccessHasAnyWorkspaceAccessForChildGrant(t *testing.T) {
-	service, _ := newTeamAccessTestService(t)
+	service, _, _ := newTeamAccessTestService(t)
 	if err := service.Assign(actorContext("alice"), access.AssignRoleRequest{
 		TenantUser:   "alice",
 		App:          "ops",
@@ -185,7 +261,7 @@ func TestTeamAccessHasAnyWorkspaceAccessForChildGrant(t *testing.T) {
 }
 
 func TestTeamAccessListAccessibleApps(t *testing.T) {
-	service, _ := newTeamAccessTestService(t)
+	service, _, _ := newTeamAccessTestService(t)
 	if err := service.Assign(actorContext("alice"), access.AssignRoleRequest{
 		TenantUser:   "alice",
 		App:          "ops",
@@ -207,7 +283,7 @@ func TestTeamAccessListAccessibleApps(t *testing.T) {
 }
 
 func TestTeamAccessListMembersSeparatesCurrentAndInherited(t *testing.T) {
-	service, _ := newTeamAccessTestService(t)
+	service, _, _ := newTeamAccessTestService(t)
 	ctx := actorContext("alice")
 	if err := service.Assign(ctx, access.AssignRoleRequest{
 		TenantUser:   "alice",
@@ -263,5 +339,100 @@ func TestTeamAccessListMembersSeparatesCurrentAndInherited(t *testing.T) {
 	}
 	if current == nil || current.Source != "current" || !current.Direct || current.InheritedFrom != "" {
 		t.Fatalf("unexpected current member: %+v", current)
+	}
+}
+
+func TestTeamAccessAssignWritesOperateLog(t *testing.T) {
+	service, _, db := newTeamAccessTestService(t)
+	ctx := contextx.WithRequestInfo(actorContext("alice"), contextx.RequestInfo{CompanyCode: "acme"})
+	service.userLookup = func(ctx context.Context, username string) (*dto.UserInfo, error) {
+		return &dto.UserInfo{Username: username, CompanyCode: "acme"}, nil
+	}
+
+	if err := service.Assign(ctx, access.AssignRoleRequest{
+		TenantUser:   "alice",
+		App:          "ops",
+		Username:     "bob",
+		ResourcePath: "/alice/ops/ticket",
+		RoleCode:     access.RoleMember,
+		CreatedBy:    "alice",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	log := waitOperateLog(t, db, "team.role.assigned")
+	if log.ActorUser != "alice" || log.TargetUser != "bob" || log.ResourcePath != "/alice/ops/ticket" {
+		t.Fatalf("unexpected assign log: %+v", log)
+	}
+	if log.ResourceType != "team_access" || log.Status != "success" {
+		t.Fatalf("unexpected assign log type/status: %+v", log)
+	}
+	if log.CompanyCode != "acme" {
+		t.Fatalf("company_code = %q", log.CompanyCode)
+	}
+
+	var newValues dto.TeamRoleAssignedValues
+	if err := json.Unmarshal(log.NewValuesJSON, &newValues); err != nil {
+		t.Fatalf("unmarshal assign new values: %v", err)
+	}
+	if newValues.RoleCode != string(access.RoleMember) {
+		t.Fatalf("role_code = %q", newValues.RoleCode)
+	}
+}
+
+func TestTeamAccessRemoveWritesOperateLog(t *testing.T) {
+	service, _, db := newTeamAccessTestService(t)
+	ctx := actorContext("alice")
+
+	if err := service.Assign(ctx, access.AssignRoleRequest{
+		TenantUser:   "alice",
+		App:          "ops",
+		Username:     "bob",
+		ResourcePath: "/alice/ops/ticket",
+		RoleCode:     access.RoleViewer,
+		CreatedBy:    "alice",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	waitOperateLog(t, db, "team.role.assigned")
+
+	if err := service.Remove(ctx, access.RemoveRoleRequest{
+		TenantUser:   "alice",
+		App:          "ops",
+		Username:     "bob",
+		ResourcePath: "/alice/ops/ticket",
+		RoleCode:     access.RoleViewer,
+		Actor:        "alice",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	log := waitOperateLog(t, db, "team.role.removed")
+	if log.ActorUser != "alice" || log.TargetUser != "bob" || log.ResourcePath != "/alice/ops/ticket" {
+		t.Fatalf("unexpected remove log: %+v", log)
+	}
+
+	var details dto.TeamRoleRemovedDetails
+	if err := json.Unmarshal(log.DetailsJSON, &details); err != nil {
+		t.Fatalf("unmarshal remove details: %v", err)
+	}
+	if details.RoleCode != string(access.RoleViewer) || details.RowsAffected != 1 {
+		t.Fatalf("unexpected remove details: %+v", details)
+	}
+}
+
+func waitOperateLog(t *testing.T, db *gorm.DB, action string) appmodel.OperateLog {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	var log appmodel.OperateLog
+	for {
+		err := db.Where("action = ?", action).Order("id DESC").First(&log).Error
+		if err == nil {
+			return log
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("operate log %s not found: %v", action, err)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

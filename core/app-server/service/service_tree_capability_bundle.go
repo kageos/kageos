@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -11,14 +12,30 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/naming"
+	"gorm.io/gorm"
 )
 
 type capabilityBundleInstallPlan struct {
 	targetRootPath string
 	directoryItems []*dto.DirectoryScaffoldItem
 	fileItems      []*dto.FileWriteItem
+	docItems       []*capabilityBundleDocInstallItem
+}
+
+type capabilityBundleDocInstallItem struct {
+	FullCodePath       string
+	ParentFullCodePath string
+	Code               string
+	Name               string
+	Description        string
+	Tags               string
+	Content            string
+	Format             string
+	Summary            string
+	Category           string
 }
 
 func (s *serviceTreeCapabilityBundleService) ExportCapabilityBundle(ctx context.Context, req *dto.ExportCapabilityBundleReq) (*dto.CapabilityBundle, error) {
@@ -32,10 +49,13 @@ func (s *serviceTreeCapabilityBundleService) ExportCapabilityBundle(ctx context.
 		Name:          strings.TrimSpace(req.Name),
 		Files:         make([]*dto.CapabilityBundleFile, 0),
 		Packages:      make([]*dto.CapabilityBundlePackage, 0),
+		Docs:          make([]*dto.CapabilityBundleDoc, 0),
 	}
 
 	seenFiles := make(map[string]struct{})
 	seenPackages := make(map[string]struct{})
+	seenTreeNodes := make(map[string]struct{})
+	seenDocs := make(map[string]struct{})
 	var sourceAppID int64
 	var sourceRoot *model.ServiceTree
 	if strings.TrimSpace(req.SourceRootPath) != "" {
@@ -81,11 +101,11 @@ func (s *serviceTreeCapabilityBundleService) ExportCapabilityBundle(ctx context.
 				baseTree = sourceRoot
 				includeBaseCode = false
 			}
-			if err := s.appendCapabilityBundleRoot(ctx, bundle, baseTree, rootTree, includeBaseCode, seenPackages, seenFiles); err != nil {
+			if err := s.appendCapabilityBundleRoot(ctx, bundle, baseTree, rootTree, includeBaseCode, seenPackages, seenFiles, seenTreeNodes, seenDocs); err != nil {
 				return nil, err
 			}
 		case model.ServiceTreeTypeFunction:
-			if err := s.appendCapabilityBundleFunction(ctx, bundle, sourceRoot, rootTree, sourceRoot == nil, seenPackages, seenFiles); err != nil {
+			if err := s.appendCapabilityBundleFunction(ctx, bundle, sourceRoot, rootTree, sourceRoot == nil, seenPackages, seenFiles, seenTreeNodes); err != nil {
 				return nil, err
 			}
 		default:
@@ -100,6 +120,12 @@ func (s *serviceTreeCapabilityBundleService) ExportCapabilityBundle(ctx context.
 		left := capabilityFileKey(bundle.Files[i].PackagePath, bundle.Files[i].Path)
 		right := capabilityFileKey(bundle.Files[j].PackagePath, bundle.Files[j].Path)
 		return left < right
+	})
+	sort.Slice(bundle.TreeNodes, func(i, j int) bool {
+		return bundle.TreeNodes[i].RelativePath < bundle.TreeNodes[j].RelativePath
+	})
+	sort.Slice(bundle.Docs, func(i, j int) bool {
+		return bundle.Docs[i].RelativePath < bundle.Docs[j].RelativePath
 	})
 
 	if err := validateCapabilityBundle(bundle); err != nil {
@@ -116,6 +142,8 @@ func (s *serviceTreeCapabilityBundleService) appendCapabilityBundleRoot(
 	includeBaseCode bool,
 	seenPackages map[string]struct{},
 	seenFiles map[string]struct{},
+	seenTreeNodes map[string]struct{},
+	seenDocs map[string]struct{},
 ) error {
 	directoryFiles, err := readDirectoryFilesFromRuntimeRecursively(ctx, s.serviceTreeRepo, s.runtimeWorkspace, rootTree.AppID, rootTree.FullCodePath)
 	if err != nil {
@@ -165,6 +193,20 @@ func (s *serviceTreeCapabilityBundleService) appendCapabilityBundleRoot(
 		}
 	}
 
+	treeNodes := make([]*model.ServiceTree, 0)
+	treeNodes = append(treeNodes, rootTree)
+	descendantNodes, err := s.serviceTreeRepo.GetDescendantNodes(rootTree.AppID, rootTree.FullCodePath)
+	if err != nil {
+		return fmt.Errorf("获取子节点失败: %w", err)
+	}
+	treeNodes = append(treeNodes, descendantNodes...)
+	if err := s.appendCapabilityBundleTreeNodes(ctx, bundle, baseTree, treeNodes, includeBaseCode, seenTreeNodes); err != nil {
+		return err
+	}
+	if err := s.appendCapabilityBundleDocs(ctx, bundle, baseTree, treeNodes, includeBaseCode, seenDocs); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -176,6 +218,7 @@ func (s *serviceTreeCapabilityBundleService) appendCapabilityBundleFunction(
 	includeBaseCode bool,
 	seenPackages map[string]struct{},
 	seenFiles map[string]struct{},
+	seenTreeNodes map[string]struct{},
 ) error {
 	parentPath := functionTree.GetParentFullPath()
 	parentTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(parentPath)
@@ -207,6 +250,7 @@ func (s *serviceTreeCapabilityBundleService) appendCapabilityBundleFunction(
 		return fmt.Errorf("读取函数源码文件失败: runtime 响应为空")
 	}
 
+	foundSourceFile := false
 	for _, file := range runtimeResp.Files {
 		filePath := strings.TrimSpace(file.RelativePath)
 		if filePath == "" && strings.TrimSpace(file.FileName) != "" {
@@ -226,10 +270,181 @@ func (s *serviceTreeCapabilityBundleService) appendCapabilityBundleFunction(
 			Path:        filePath,
 			Content:     file.Content,
 		})
+		foundSourceFile = true
+		break
+	}
+	if !foundSourceFile {
+		return fmt.Errorf("未找到函数源码文件: %s/%s.go", parentPath, functionTree.Code)
+	}
+	if err := s.appendCapabilityBundleTreeNodes(ctx, bundle, baseTree, []*model.ServiceTree{functionTree}, includeBaseCode, seenTreeNodes); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *serviceTreeCapabilityBundleService) appendCapabilityBundleTreeNodes(
+	ctx context.Context,
+	bundle *dto.CapabilityBundle,
+	baseTree *model.ServiceTree,
+	nodes []*model.ServiceTree,
+	includeBaseCode bool,
+	seenTreeNodes map[string]struct{},
+) error {
+	for _, node := range nodes {
+		if node == nil || strings.TrimSpace(node.FullCodePath) == "" {
+			continue
+		}
+		relativePath, err := capabilityRelativeTreeNodePath(baseTree, node, includeBaseCode)
+		if err != nil {
+			return err
+		}
+		if relativePath == "" {
+			continue
+		}
+		if _, exists := seenTreeNodes[relativePath]; exists {
+			continue
+		}
+		treeNode := &dto.CapabilityBundleTreeNode{
+			RelativePath: relativePath,
+			ParentPath:   capabilityParentPath(relativePath),
+			Type:         node.Type,
+			Code:         node.Code,
+			Name:         node.Name,
+			Description:  node.Description,
+			Tags:         splitCapabilityTags(node.Tags),
+		}
+		if node.Type == model.ServiceTreeTypeFunction {
+			treeNode.TemplateType = node.TemplateType
+			if function := s.getFunctionForBundleTreeNode(ctx, node); function != nil {
+				treeNode.Method = function.Method
+				treeNode.Router = function.Router
+				if treeNode.TemplateType == "" {
+					treeNode.TemplateType = function.TemplateType
+				}
+			}
+		}
+		seenTreeNodes[relativePath] = struct{}{}
+		bundle.TreeNodes = append(bundle.TreeNodes, treeNode)
+	}
+	return nil
+}
+
+func (s *serviceTreeCapabilityBundleService) appendCapabilityBundleDocs(
+	ctx context.Context,
+	bundle *dto.CapabilityBundle,
+	baseTree *model.ServiceTree,
+	nodes []*model.ServiceTree,
+	includeBaseCode bool,
+	seenDocs map[string]struct{},
+) error {
+	if s.docService == nil || s.docService.docRepo == nil {
 		return nil
 	}
 
-	return fmt.Errorf("未找到函数源码文件: %s/%s.go", parentPath, functionTree.Code)
+	docNodeIDs := make([]int64, 0)
+	docNodesByID := make(map[int64]*model.ServiceTree)
+	for _, node := range nodes {
+		if node == nil || node.Type != model.ServiceTreeTypeDocs {
+			continue
+		}
+		docNodeIDs = append(docNodeIDs, node.ID)
+		docNodesByID[node.ID] = node
+	}
+	if len(docNodeIDs) == 0 {
+		return nil
+	}
+
+	docs, err := s.docService.docRepo.ListByTreeIDs(docNodeIDs)
+	if err != nil {
+		return fmt.Errorf("获取文档内容失败: %w", err)
+	}
+	for _, doc := range docs {
+		if doc == nil {
+			continue
+		}
+		node := docNodesByID[doc.TreeID]
+		if node == nil {
+			continue
+		}
+		relativePath, err := capabilityRelativeTreeNodePath(baseTree, node, includeBaseCode)
+		if err != nil {
+			return err
+		}
+		if relativePath == "" {
+			continue
+		}
+		if _, exists := seenDocs[relativePath]; exists {
+			continue
+		}
+		seenDocs[relativePath] = struct{}{}
+		bundle.Docs = append(bundle.Docs, &dto.CapabilityBundleDoc{
+			RelativePath: relativePath,
+			Name:         doc.Name,
+			Content:      doc.Content,
+			Format:       doc.Format,
+			Summary:      doc.Summary,
+			Category:     doc.Category,
+		})
+	}
+	return nil
+}
+
+func (s *serviceTreeCapabilityBundleService) getFunctionForBundleTreeNode(ctx context.Context, node *model.ServiceTree) *model.Function {
+	if node == nil {
+		return nil
+	}
+	if node.Function != nil {
+		return node.Function
+	}
+	if s == nil || s.appService == nil || s.appService.functionRepo == nil || node.RefID <= 0 {
+		return nil
+	}
+	function, err := s.appService.functionRepo.GetFunctionByID(node.RefID)
+	if err != nil {
+		logger.Warnf(ctx, "[CapabilityBundle] 获取函数元数据失败: full_code_path=%s ref_id=%d error=%v", node.FullCodePath, node.RefID, err)
+		return nil
+	}
+	return function
+}
+
+func capabilityRelativeTreeNodePath(baseTree *model.ServiceTree, node *model.ServiceTree, includeBaseCode bool) (string, error) {
+	if baseTree == nil || node == nil {
+		return "", nil
+	}
+	if node.Type == model.ServiceTreeTypePackage {
+		return capabilityRelativePackagePath(baseTree, node, includeBaseCode)
+	}
+	parentPath := strings.TrimRight(node.GetParentFullPath(), "/")
+	parentTree := &model.ServiceTree{
+		Code:         path.Base(parentPath),
+		FullCodePath: parentPath,
+	}
+	parentRelativePath, err := capabilityRelativePackagePath(baseTree, parentTree, includeBaseCode)
+	if err != nil {
+		return "", err
+	}
+	return path.Join(parentRelativePath, strings.TrimSpace(node.Code)), nil
+}
+
+func capabilityParentPath(relativePath string) string {
+	relativePath = strings.Trim(relativePath, "/")
+	if relativePath == "" || !strings.Contains(relativePath, "/") {
+		return ""
+	}
+	return path.Dir(relativePath)
+}
+
+func splitCapabilityTags(tags string) []string {
+	parts := strings.FieldsFunc(tags, func(r rune) bool {
+		return r == ',' || r == '，' || r == ';' || r == '；'
+	})
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }
 
 func (s *serviceTreeCapabilityBundleService) addCapabilityBundlePackageWithAncestors(
@@ -363,11 +578,22 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 			newVersion = resp.NewVersion
 			warnings = resp.Warnings
 		}
-	} else if s.appService != nil {
+	}
+
+	createdDocPaths := make([]string, 0)
+	if len(plan.docItems) > 0 {
+		createdDocPaths, err = s.installCapabilityBundleDocs(ctx, targetApp, plan.docItems, opts.Overwrite)
+		if err != nil {
+			return nil, fmt.Errorf("安装能力包文档失败: %w", err)
+		}
+		createdPaths = append(createdPaths, createdDocPaths...)
+	}
+
+	if len(plan.fileItems) == 0 && s.appService != nil {
 		resp, err := s.appService.UpdateApp(ctx, &dto.UpdateAppReq{
 			ResourcePath:      fmt.Sprintf("/%s/%s", targetApp.User, targetApp.Code),
 			ForceDiff:         opts.ForceDiff,
-			ChangeDescription: "安装能力包目录",
+			ChangeDescription: "安装能力包目录和文档",
 		})
 		if err != nil {
 			return nil, fmt.Errorf("触发目标应用更新失败: %w", err)
@@ -379,11 +605,12 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 		}
 	}
 
-	logger.Infof(ctx, "[CapabilityBundle] 安装完成: target=%s, directories=%d, files=%d", plan.targetRootPath, len(plan.directoryItems), len(plan.fileItems))
+	logger.Infof(ctx, "[CapabilityBundle] 安装完成: target=%s, directories=%d, files=%d, docs=%d", plan.targetRootPath, len(plan.directoryItems), len(plan.fileItems), len(plan.docItems))
 	return &dto.InstallCapabilityBundleResp{
-		Message:             fmt.Sprintf("能力包安装成功，共创建 %d 个目录，写入 %d 个文件", len(plan.directoryItems), len(plan.fileItems)),
+		Message:             fmt.Sprintf("能力包安装成功，共创建 %d 个目录，写入 %d 个文件，导入 %d 份文档", len(plan.directoryItems), len(plan.fileItems), len(plan.docItems)),
 		DirectoryCount:      len(plan.directoryItems),
 		FileCount:           len(plan.fileItems),
+		DocCount:            len(plan.docItems),
 		TargetDirectoryPath: plan.targetRootPath,
 		CreatedPaths:        createdPaths,
 		WrittenPaths:        writtenPaths,
@@ -509,7 +736,15 @@ func validateCapabilityBundle(bundle *dto.CapabilityBundle) error {
 		return fmt.Errorf("不支持的 capability bundle schema_version: %s", bundle.SchemaVersion)
 	}
 	if len(bundle.Files) == 0 && len(bundle.Packages) == 0 {
-		return fmt.Errorf("capability bundle 必须包含 files 或 packages")
+		if len(bundle.Docs) == 0 {
+			return fmt.Errorf("capability bundle 必须包含 files、packages 或 docs")
+		}
+	}
+	if err := validateCapabilityBundleTreeNodes(bundle.TreeNodes); err != nil {
+		return err
+	}
+	if err := validateCapabilityBundleDocs(bundle.Docs, bundle.TreeNodes); err != nil {
+		return err
 	}
 
 	seenPackages := make(map[string]struct{}, len(bundle.Packages))
@@ -560,8 +795,123 @@ func validateCapabilityBundle(bundle *dto.CapabilityBundle) error {
 		}
 		seenFiles[key] = struct{}{}
 	}
-
 	return nil
+}
+
+func validateCapabilityBundleDocs(docs []*dto.CapabilityBundleDoc, treeNodes []*dto.CapabilityBundleTreeNode) error {
+	nodesByPath := make(map[string]*dto.CapabilityBundleTreeNode, len(treeNodes))
+	for _, node := range treeNodes {
+		if node != nil {
+			nodesByPath[node.RelativePath] = node
+		}
+	}
+
+	seen := make(map[string]struct{}, len(docs))
+	for index, doc := range docs {
+		if doc == nil {
+			return fmt.Errorf("docs[%d] 不能为空", index)
+		}
+		relativePath, err := validateCapabilityTreeNodePath(doc.RelativePath, fmt.Sprintf("docs[%d].relative_path", index), false)
+		if err != nil {
+			return err
+		}
+		if relativePath != doc.RelativePath {
+			return fmt.Errorf("docs[%d].relative_path 必须使用规范相对路径: %s", index, doc.RelativePath)
+		}
+		if _, exists := seen[relativePath]; exists {
+			return fmt.Errorf("capability bundle 存在重复 docs 路径: %s", relativePath)
+		}
+		seen[relativePath] = struct{}{}
+		if len(nodesByPath) > 0 {
+			node, exists := nodesByPath[relativePath]
+			if !exists {
+				return fmt.Errorf("docs[%d].relative_path 未在 tree_nodes 中声明: %s", index, relativePath)
+			}
+			if node.Type != model.ServiceTreeTypeDocs {
+				return fmt.Errorf("docs[%d].relative_path 对应的 tree node 不是 docs: %s", index, relativePath)
+			}
+		}
+	}
+	return nil
+}
+
+func validateCapabilityBundleTreeNodes(nodes []*dto.CapabilityBundleTreeNode) error {
+	seen := make(map[string]struct{}, len(nodes))
+	for index, node := range nodes {
+		if node == nil {
+			return fmt.Errorf("tree_nodes[%d] 不能为空", index)
+		}
+		relativePath, err := validateCapabilityTreeNodePath(node.RelativePath, fmt.Sprintf("tree_nodes[%d].relative_path", index), false)
+		if err != nil {
+			return err
+		}
+		if relativePath != node.RelativePath {
+			return fmt.Errorf("tree_nodes[%d].relative_path 必须使用规范相对路径: %s", index, node.RelativePath)
+		}
+		if _, exists := seen[relativePath]; exists {
+			return fmt.Errorf("capability bundle 存在重复 tree node 路径: %s", relativePath)
+		}
+		seen[relativePath] = struct{}{}
+		if node.Type != model.ServiceTreeTypePackage && node.Type != model.ServiceTreeTypeFunction && node.Type != model.ServiceTreeTypeDocs {
+			return fmt.Errorf("tree_nodes[%d].type 不支持: %s", index, node.Type)
+		}
+		if strings.TrimSpace(node.Code) == "" {
+			return fmt.Errorf("tree_nodes[%d].code 不能为空", index)
+		}
+		if path.Base(relativePath) != node.Code {
+			return fmt.Errorf("tree_nodes[%d].code 必须等于 relative_path 的最后一段: want=%s got=%s", index, path.Base(relativePath), node.Code)
+		}
+		parentPath, err := validateCapabilityTreeNodePath(node.ParentPath, fmt.Sprintf("tree_nodes[%d].parent_path", index), true)
+		if err != nil {
+			return err
+		}
+		expectedParent := capabilityParentPath(relativePath)
+		if parentPath != expectedParent {
+			return fmt.Errorf("tree_nodes[%d].parent_path 必须等于 relative_path 的父路径: want=%s got=%s", index, expectedParent, parentPath)
+		}
+	}
+	for index, node := range nodes {
+		parentPath := strings.TrimSpace(node.ParentPath)
+		if parentPath == "" {
+			continue
+		}
+		if _, exists := seen[parentPath]; !exists {
+			return fmt.Errorf("tree_nodes[%d].parent_path 未在 tree_nodes 中声明: %s", index, parentPath)
+		}
+	}
+	return nil
+}
+
+func validateCapabilityTreeNodePath(nodePath string, field string, allowEmpty bool) (string, error) {
+	if nodePath != strings.TrimSpace(nodePath) {
+		return "", fmt.Errorf("%s 不能包含首尾空格: %s", field, nodePath)
+	}
+	if strings.HasPrefix(nodePath, "/") || strings.HasSuffix(nodePath, "/") {
+		return "", fmt.Errorf("%s 必须是相对节点路径: %s", field, nodePath)
+	}
+	nodePath = strings.Trim(nodePath, "/")
+	if nodePath == "" {
+		if allowEmpty {
+			return "", nil
+		}
+		return "", fmt.Errorf("%s 不能为空", field)
+	}
+	if strings.Contains(nodePath, "\\") || path.IsAbs(nodePath) {
+		return "", fmt.Errorf("%s 必须是相对节点路径: %s", field, nodePath)
+	}
+	if cleaned := path.Clean(nodePath); cleaned != nodePath || cleaned == "." {
+		return "", fmt.Errorf("%s 必须使用规范相对路径: %s", field, nodePath)
+	}
+	parts := strings.Split(nodePath, "/")
+	if err := rejectWorkspaceBoundCapabilityPath(parts, field, nodePath); err != nil {
+		return "", err
+	}
+	for _, part := range parts {
+		if part == "" || strings.HasPrefix(part, ".") {
+			return "", fmt.Errorf("%s 包含非法路径片段: %s", field, nodePath)
+		}
+	}
+	return nodePath, nil
 }
 
 func buildCapabilityBundleInstallPlan(targetRootPath string, bundle *dto.CapabilityBundle) (*capabilityBundleInstallPlan, error) {
@@ -573,11 +923,17 @@ func buildCapabilityBundleInstallPlan(targetRootPath string, bundle *dto.Capabil
 		return nil, err
 	}
 	packageMeta := make(map[string]*dto.CapabilityBundlePackage, len(bundle.Packages))
+	treeNodeMeta := make(map[string]*dto.CapabilityBundleTreeNode, len(bundle.TreeNodes))
 	targetPackagePaths := make(map[string]struct{}, len(bundle.Packages))
 
 	for _, pkg := range bundle.Packages {
 		packageMeta[pkg.Path] = pkg
 		addCapabilityPackageAncestors(targetPackagePaths, pkg.Path)
+	}
+	for _, node := range bundle.TreeNodes {
+		if node != nil {
+			treeNodeMeta[node.RelativePath] = node
+		}
 	}
 
 	fileItems := make([]*dto.FileWriteItem, 0, len(bundle.Files))
@@ -604,6 +960,45 @@ func buildCapabilityBundleInstallPlan(targetRootPath string, bundle *dto.Capabil
 			FileType:     fileType,
 			Content:      file.Content,
 			RelativePath: filePath,
+		})
+	}
+
+	docItems := make([]*capabilityBundleDocInstallItem, 0, len(bundle.Docs))
+	for _, doc := range bundle.Docs {
+		relativePath, err := validateCapabilityTreeNodePath(doc.RelativePath, "doc.relative_path", false)
+		if err != nil {
+			return nil, err
+		}
+		parentRelativePath := capabilityParentPath(relativePath)
+		if parentRelativePath != "" {
+			addCapabilityPackageAncestors(targetPackagePaths, parentRelativePath)
+		}
+		meta := treeNodeMeta[relativePath]
+		code := path.Base(relativePath)
+		name := strings.TrimSpace(doc.Name)
+		description := ""
+		tags := ""
+		if meta != nil {
+			if name == "" {
+				name = strings.TrimSpace(meta.Name)
+			}
+			description = meta.Description
+			tags = strings.Join(meta.Tags, ",")
+		}
+		if name == "" {
+			name = strings.TrimSuffix(code, codeSuffixDocs)
+		}
+		docItems = append(docItems, &capabilityBundleDocInstallItem{
+			FullCodePath:       joinCapabilityFullCodePath(targetRootPath, relativePath),
+			ParentFullCodePath: joinCapabilityFullCodePath(targetRootPath, parentRelativePath),
+			Code:               code,
+			Name:               name,
+			Description:        description,
+			Tags:               tags,
+			Content:            doc.Content,
+			Format:             doc.Format,
+			Summary:            doc.Summary,
+			Category:           doc.Category,
 		})
 	}
 
@@ -645,7 +1040,165 @@ func buildCapabilityBundleInstallPlan(targetRootPath string, bundle *dto.Capabil
 		targetRootPath: targetRootPath,
 		directoryItems: directoryItems,
 		fileItems:      fileItems,
+		docItems:       docItems,
 	}, nil
+}
+
+func (s *serviceTreeCapabilityBundleService) installCapabilityBundleDocs(
+	ctx context.Context,
+	targetApp *model.App,
+	items []*capabilityBundleDocInstallItem,
+	overwrite bool,
+) ([]string, error) {
+	if s.docService == nil || s.docService.docRepo == nil {
+		return nil, fmt.Errorf("文档服务未初始化")
+	}
+
+	createdPaths := make([]string, 0, len(items))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		tree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(item.FullCodePath)
+		switch {
+		case err == nil:
+			if tree.Type != model.ServiceTreeTypeDocs {
+				return nil, fmt.Errorf("目标路径已存在且不是 docs: %s", item.FullCodePath)
+			}
+			if !overwrite {
+				return nil, fmt.Errorf("目标文档已存在: %s", item.FullCodePath)
+			}
+			if err := s.updateCapabilityBundleDocTree(ctx, tree, item); err != nil {
+				return nil, err
+			}
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			tree, err = s.createCapabilityBundleDocTree(ctx, targetApp, item)
+			if err != nil {
+				return nil, err
+			}
+			createdPaths = append(createdPaths, tree.FullCodePath)
+		default:
+			return nil, fmt.Errorf("检查目标文档失败: %w", err)
+		}
+
+		if err := s.upsertCapabilityBundleDocContent(ctx, tree, item); err != nil {
+			return nil, err
+		}
+	}
+	return createdPaths, nil
+}
+
+func (s *serviceTreeCapabilityBundleService) createCapabilityBundleDocTree(
+	ctx context.Context,
+	targetApp *model.App,
+	item *capabilityBundleDocInstallItem,
+) (*model.ServiceTree, error) {
+	if targetApp == nil {
+		return nil, fmt.Errorf("目标应用不能为空")
+	}
+	if _, err := s.serviceTreeRepo.GetServiceTreeByFullPath(item.ParentFullCodePath); err != nil {
+		return nil, fmt.Errorf("目标文档父目录不存在: %s: %w", item.ParentFullCodePath, err)
+	}
+	requestUser := contextx.GetRequestUser(ctx)
+	tree := &model.ServiceTree{
+		Name:             item.Name,
+		Code:             item.Code,
+		Type:             model.ServiceTreeTypeDocs,
+		Description:      item.Description,
+		Tags:             item.Tags,
+		AppID:            targetApp.ID,
+		FullCodePath:     item.FullCodePath,
+		AddVersionNum:    extractVersionNumForServiceTree(targetApp.Version),
+		UpdateVersionNum: 0,
+	}
+	if requestUser != "" {
+		tree.CreatedBy = requestUser
+		tree.UpdatedBy = requestUser
+	}
+	if err := s.serviceTreeRepo.CreateServiceTreeWithParentPath(tree, ""); err != nil {
+		return nil, fmt.Errorf("创建文档节点失败: %w", err)
+	}
+	return tree, nil
+}
+
+func (s *serviceTreeCapabilityBundleService) updateCapabilityBundleDocTree(
+	ctx context.Context,
+	tree *model.ServiceTree,
+	item *capabilityBundleDocInstallItem,
+) error {
+	if tree == nil || item == nil {
+		return nil
+	}
+	tree.Name = item.Name
+	tree.Description = item.Description
+	tree.Tags = item.Tags
+	if requestUser := contextx.GetRequestUser(ctx); requestUser != "" {
+		tree.UpdatedBy = requestUser
+	}
+	if err := s.serviceTreeRepo.UpdateServiceTree(tree); err != nil {
+		return fmt.Errorf("更新文档节点失败: %w", err)
+	}
+	return nil
+}
+
+func (s *serviceTreeCapabilityBundleService) upsertCapabilityBundleDocContent(
+	ctx context.Context,
+	tree *model.ServiceTree,
+	item *capabilityBundleDocInstallItem,
+) error {
+	if tree == nil || item == nil {
+		return nil
+	}
+	doc, err := s.docService.docRepo.GetByTreeID(tree.ID)
+	switch {
+	case err == nil:
+		doc.Name = tree.Name
+		doc.Content = item.Content
+		doc.Format = defaultCapabilityBundleDocFormat(item.Format)
+		doc.Summary = item.Summary
+		doc.Category = item.Category
+		doc.AppID = tree.AppID
+		doc.FullCodePath = tree.FullCodePath
+		if requestUser := contextx.GetRequestUser(ctx); requestUser != "" {
+			doc.UpdatedBy = requestUser
+		}
+		if err := s.docService.docRepo.Update(doc); err != nil {
+			return fmt.Errorf("更新文档内容失败: %w", err)
+		}
+		tree.RefID = doc.ID
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		doc = &model.Docs{
+			Name:         tree.Name,
+			Content:      item.Content,
+			Format:       defaultCapabilityBundleDocFormat(item.Format),
+			Summary:      item.Summary,
+			Category:     item.Category,
+			AppID:        tree.AppID,
+			TreeID:       tree.ID,
+			FullCodePath: tree.FullCodePath,
+		}
+		if requestUser := contextx.GetRequestUser(ctx); requestUser != "" {
+			doc.CreatedBy = requestUser
+			doc.UpdatedBy = requestUser
+		}
+		if err := s.docService.docRepo.Create(doc); err != nil {
+			return fmt.Errorf("创建文档内容失败: %w", err)
+		}
+		tree.RefID = doc.ID
+	default:
+		return fmt.Errorf("获取文档内容失败: %w", err)
+	}
+	if err := s.serviceTreeRepo.UpdateServiceTree(tree); err != nil {
+		logger.Warnf(ctx, "[CapabilityBundle] 更新文档节点 RefID 失败: %v", err)
+	}
+	return nil
+}
+
+func defaultCapabilityBundleDocFormat(format string) string {
+	if strings.TrimSpace(format) == "" {
+		return "markdown"
+	}
+	return strings.TrimSpace(format)
 }
 
 func (s *serviceTreeCapabilityBundleService) ensureNoCapabilityFileConflicts(ctx context.Context, targetApp *model.App, plan *capabilityBundleInstallPlan) error {

@@ -1,7 +1,6 @@
 import { effectScope, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useOperateLogSection } from './useOperateLogSection'
-import type { TableOperateLog } from '@/architecture/presentation/context/api/operateLog'
 
 vi.mock('@/architecture/presentation/context/appStoresContext', () => ({
   useUserInfoStore: () => ({
@@ -53,7 +52,7 @@ describe('useOperateLogSection', () => {
         },
         old_values: {},
         created_at: '2026-05-19T00:00:00Z'
-      } satisfies TableOperateLog
+      }
 
       expect(section.getLogSummary(log)).toContain('工单标题: 函数渲染界面')
       expect(section.getLogSummary(log)).toContain('工单状态: 待办')
@@ -61,6 +60,57 @@ describe('useOperateLogSection', () => {
       expect(section.getLogSummary(log)).not.toContain('title:')
       expect(section.getLogSummary(log)).not.toContain('status:')
       expect(section.getLogSummary(log)).not.toContain('handler:')
+    } finally {
+      scope.stop()
+    }
+  })
+
+  it('reads structured table audit details for status, duration, and error summary', () => {
+    const scope = effectScope()
+
+    try {
+      const section = scope.run(() => useOperateLogSection({
+        fullCodePath: ref('/alice/ops/tickets.table'),
+        rowId: ref(42),
+        functionDetail: ref({
+          template_type: 'table',
+          schema: { type: 'table', table: { fields: [] } }
+        }),
+        autoLoad: ref(false),
+        scope: ref('row')
+      }))!
+
+      const log = {
+        id: 2,
+        tenant_user: 'alice',
+        request_user: 'bob',
+        action: 'OnTableUpdateRow',
+        app: 'ops',
+        full_code_path: '/alice/ops/tickets.table',
+        row_id: 42,
+        updates: {},
+        old_values: {},
+        created_at: '2026-05-19T00:00:00Z',
+        status: 'failed',
+        version: 'v10',
+        details_json: {
+          duration_millis: 35,
+          response_body: {
+            code: 500,
+            error: 'boom',
+            total_cost_mill: 35
+          }
+        }
+      }
+
+      expect(section.getLogDuration(log)).toBe(35)
+      expect(section.getLogStatusLabel(log)).toBe('Failed')
+      expect(section.getLogSummary(log)).toBe('boom')
+      expect(section.getLogMetaEntries(log)).toEqual(expect.arrayContaining([
+        { label: 'Duration', value: '35ms' },
+        { label: 'Version', value: 'v10' },
+        { label: 'Error', value: 'boom' },
+      ]))
     } finally {
       scope.stop()
     }

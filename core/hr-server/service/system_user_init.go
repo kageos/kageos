@@ -83,6 +83,7 @@ func initSystemUserWithPassword(ctx context.Context, db *gorm.DB, password strin
 	systemUser := &hrmodel.User{
 		Username:      SystemUsername,
 		Email:         SystemUserEmail,
+		CompanyCode:   hrmodel.DefaultCompanyCode,
 		PasswordHash:  string(hashedPassword),
 		Status:        "active",
 		EmailVerified: true,
@@ -145,6 +146,7 @@ func initTestUserWithPassword(ctx context.Context, db *gorm.DB, password string,
 	testUser := &hrmodel.User{
 		Username:           TestUsername,
 		Email:              TestUserEmail,
+		CompanyCode:        hrmodel.DefaultCompanyCode,
 		PasswordHash:       string(hashedPassword),
 		Status:             "active",
 		EmailVerified:      true,

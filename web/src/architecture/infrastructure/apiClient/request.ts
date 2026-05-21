@@ -318,14 +318,16 @@ service.interceptors.response.use(
 // 支持两种模式：
 // 1. params 参数 - 作为查询参数（默认）
 // 2. data 参数 - 作为 body（用于特殊场景，如回调接口）
-export function get<T = unknown>(url: string, params?: unknown, useBody: boolean = false): Promise<T> {
+export function get<T = unknown>(url: string, params?: unknown, useBody: boolean = false, config?: AxiosRequestConfig): Promise<T> {
   if (useBody) {
     // 特殊场景：GET 请求带 body（用于回调接口）
     return service.request({
+      ...config,
       url,
       method: 'GET',
       data: params,
       headers: {
+        ...(config?.headers || {}),
         'Content-Type': 'application/json'
       }
     })
@@ -343,7 +345,7 @@ export function get<T = unknown>(url: string, params?: unknown, useBody: boolean
         }
       })
     }
-    return service.get(url, { params: cleanParams })
+    return service.get(url, { ...config, params: cleanParams })
   }
 }
 

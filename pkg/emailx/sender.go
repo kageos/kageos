@@ -38,7 +38,7 @@ func (s *Sender) SendHTML(to, subject, body string) error {
 		"Subject":      encodedSubject,
 		"MIME-Version": "1.0",
 		"Content-Type": fmt.Sprintf("multipart/mixed; boundary=%s", boundary),
-		"X-Mailer":     "AI Agent OS Email System v1.0",
+		"X-Mailer":     "Kageos Email System v1.0",
 		"X-Priority":   "3",
 		"Message-ID":   fmt.Sprintf("<%d@%s>", time.Now().UnixNano(), s.cfg.Host),
 	}

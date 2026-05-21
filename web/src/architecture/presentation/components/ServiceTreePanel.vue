@@ -6,23 +6,23 @@
           v-model="searchKeyword"
           class="tree-search-input"
           size="small"
-          placeholder="搜索目录或名称…"
+          :placeholder="t('serviceTree.searchPlaceholder')"
           clearable
           :prefix-icon="Search"
           data-testid="service-tree-search"
         />
-        <el-tooltip v-if="!multiSelectMode" content="多选" placement="bottom">
+        <el-tooltip v-if="!multiSelectMode" :content="t('serviceTree.multiSelect')" placement="bottom">
           <el-button
             class="tree-select-button"
             size="small"
             :icon="Select"
-            aria-label="多选"
+            :aria-label="t('serviceTree.multiSelect')"
             @click="enterMultiSelectMode"
           />
         </el-tooltip>
       </div>
       <div v-if="multiSelectMode" class="tree-bulk-toolbar">
-        <span class="bulk-selected-count">已选 {{ selectedNodeCount }}</span>
+        <span class="bulk-selected-count">{{ t('common.selectedCount', { count: selectedNodeCount }) }}</span>
         <el-button
           v-if="featureFlags.capabilityBundle"
           size="small"
@@ -31,7 +31,7 @@
           :disabled="exportableSelectedNodes.length === 0"
           @click="handleBulkExport"
         >
-          导出
+          {{ t('common.export') }}
         </el-button>
         <el-button
           size="small"
@@ -41,10 +41,10 @@
           :disabled="deletableSelectedNodes.length === 0"
           @click="handleBulkDelete"
         >
-          删除
+          {{ t('common.delete') }}
         </el-button>
         <el-button size="small" text :icon="Close" @click="exitMultiSelectMode">
-          取消
+          {{ t('common.cancel') }}
         </el-button>
       </div>
     </div>
@@ -87,13 +87,13 @@
               :draggable="!multiSelectMode && (data.type === 'function' || data.type === 'package')"
               @dragstart="onTreeNodeDragStart($event, data)"
               @contextmenu.prevent
-              :title="multiSelectMode ? '点击选择' : '右键显示菜单'"
+              :title="multiSelectMode ? t('serviceTree.clickSelect') : t('serviceTree.rightClickMenu')"
             >
             <!-- 根节点：使用工作空间图标（package 类型且为根节点） -->
             <img 
               v-if="data.type === 'package' && isRootNode(data)" 
               src="/service-tree/custom-folder.svg" 
-              alt="工作空间" 
+              :alt="t('serviceTree.workspaceAlt')"
               class="node-icon app-icon-img"
               :class="getNodeIconClass(data)"
             />
@@ -101,7 +101,7 @@
             <img 
               v-else-if="data.type === 'package'" 
               src="/service-tree/custom-folder.svg" 
-              alt="目录" 
+              :alt="t('serviceTree.directoryAlt')"
               class="node-icon package-icon-img"
               :class="getNodeIconClass(data)"
             />
@@ -111,7 +111,7 @@
               <img 
                 v-if="data.template_type === TEMPLATE_TYPE.FORM"
                 src="/service-tree/编辑.svg" 
-                alt="表单" 
+                :alt="t('serviceTree.formAlt')"
                 class="node-icon form-icon-img"
                 :class="getNodeIconClass(data)"
               />
@@ -126,7 +126,7 @@
             <img 
               v-else-if="data.type === 'docs'" 
               src="/文档.svg" 
-              alt="文档" 
+              :alt="t('serviceTree.docsAlt')"
               class="node-icon docs-icon-img"
               :class="getNodeIconClass(data)"
             />
@@ -203,6 +203,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { MoreFilled, Document, Download, Delete, Search, Select, Close } from '@element-plus/icons-vue'
 import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
@@ -247,6 +248,7 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+const { t } = useI18n()
 
 const runtimeSummaries = ref<Record<string, RuntimeStateSummary>>({})
 let runtimeSummaryTimer: ReturnType<typeof setInterval> | null = null
@@ -357,35 +359,35 @@ const getRuntimeSummaryTitle = (node: ServiceTree): string => {
   const summary = getRuntimeSummary(node)
   if (!summary) return ''
   if (summary.tooltip) return summary.tooltip
-  const parts = [`运行中 ${summary.running_count}`]
-  if (summary.thinking_count > 0) parts.push(`思考中 ${summary.thinking_count}`)
-  if (summary.tool_running_count > 0) parts.push(`工具执行 ${summary.tool_running_count}`)
-  if (summary.failed_recent_count > 0) parts.push(`最近失败 ${summary.failed_recent_count}`)
+  const parts = [t('serviceTree.running', { count: summary.running_count })]
+  if (summary.thinking_count > 0) parts.push(t('serviceTree.thinking', { count: summary.thinking_count }))
+  if (summary.tool_running_count > 0) parts.push(t('serviceTree.toolRunning', { count: summary.tool_running_count }))
+  if (summary.failed_recent_count > 0) parts.push(t('serviceTree.recentFailed', { count: summary.failed_recent_count }))
   return parts.join('，')
 }
 
 // 重命名目录
 const handleRename = async (node: ServiceTree) => {
   if (node.type !== 'package') {
-    ElMessage.warning('只能重命名目录')
+    ElMessage.warning(t('serviceTree.renameOnlyDirectory'))
     return
   }
   
   try {
     const { value: newName } = await ElMessageBox.prompt(
-      `请输入新的名称（当前：${node.name}）`,
-      '重命名目录',
+      t('serviceTree.renamePrompt', { name: node.name }),
+      t('serviceTree.renameTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         inputPattern: /^.+$/,
-        inputErrorMessage: '名称不能为空',
+        inputErrorMessage: t('serviceTree.nameRequired'),
         inputValue: node.name
       }
     )
     
     if (!newName || newName.trim() === '') {
-      ElMessage.warning('名称不能为空')
+      ElMessage.warning(t('serviceTree.nameRequired'))
       return
     }
     
@@ -405,15 +407,15 @@ const handleRename = async (node: ServiceTree) => {
       } else if (node.type === 'docs') {
         await updateDocs(node.id, { name: trimmedName })
       } else {
-        ElMessage.warning('不支持的节点类型')
+        ElMessage.warning(t('serviceTree.unsupportedNodeType'))
         return
       }
-      ElMessage.success('重命名成功')
+      ElMessage.success(t('serviceTree.renameSuccess'))
       
       // 刷新树
       emit('refresh-tree')
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || error?.message || '重命名失败'
+      const errorMessage = error?.response?.data?.message || error?.message || t('serviceTree.renameFailed')
       ElMessage.error(errorMessage)
     }
   } catch (error) {
@@ -451,7 +453,7 @@ function getNodeActions(data: ServiceTree) {
 
 function openAccessDialog(data: ServiceTree) {
   if (!data.full_code_path) {
-    ElMessage.warning('无法获取目录路径，请刷新后重试')
+    ElMessage.warning(t('serviceTree.pathMissingRefresh'))
     return
   }
   accessDialogNode.value = data
@@ -582,7 +584,7 @@ function buildBulkExportName(nodes: ServiceTree[]): string {
 async function handleBulkExport() {
   const nodes = exportableSelectedNodes.value
   if (nodes.length === 0) {
-    ElMessage.warning('请选择可导出的目录或函数')
+    ElMessage.warning(t('serviceTree.exportSelectableWarning'))
     return
   }
 
@@ -595,10 +597,10 @@ async function handleBulkExport() {
       name: buildBulkExportName(nodes)
     })
     downloadCapabilityBundleFile(bundle, rootFullCodePath.value)
-	    ElMessage.success(skippedCount > 0 ? `已开始下载能力包 JSON 文件，跳过 ${skippedCount} 个不可导出节点` : '已开始下载能力包 JSON 文件')
+    ElMessage.success(skippedCount > 0 ? t('serviceTree.exportStartedSkipped', { count: skippedCount }) : t('serviceTree.exportStarted'))
     exitMultiSelectMode()
   } catch (error: any) {
-    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '导出失败'
+    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('serviceTree.exportFailed')
     ElMessage.error(message)
   } finally {
     bulkExporting.value = false
@@ -608,7 +610,7 @@ async function handleBulkExport() {
 function handleBulkDelete() {
   const nodes = deletableSelectedNodes.value
   if (nodes.length === 0) {
-    ElMessage.warning('请选择可删除的节点')
+    ElMessage.warning(t('serviceTree.deleteSelectableWarning'))
     return
   }
 
@@ -618,12 +620,12 @@ function handleBulkDelete() {
 
 const handleExportJson = async (data: ServiceTree) => {
   if (data.type !== 'package') {
-    ElMessage.warning('只能导出目录')
+    ElMessage.warning(t('serviceTree.exportOnlyDirectory'))
     return
   }
 
   if (!data.full_code_path) {
-    ElMessage.warning('无法获取目录路径，请刷新后重试')
+    ElMessage.warning(t('serviceTree.pathMissingRefresh'))
     return
   }
 
@@ -633,20 +635,20 @@ const handleExportJson = async (data: ServiceTree) => {
       name: data.name || data.code
     })
     downloadCapabilityBundleFile(bundle, data.full_code_path)
-	    ElMessage.success('已开始下载能力包 JSON 文件')
+    ElMessage.success(t('serviceTree.exportStarted'))
   } catch (error: any) {
-    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '导出失败'
+    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('serviceTree.exportFailed')
     ElMessage.error(message)
   }
 }
 
 function requestCapabilityJsonImport(data: ServiceTree) {
   if (data.type !== 'package') {
-    ElMessage.warning('只能导入到目录')
+    ElMessage.warning(t('serviceTree.importOnlyDirectory'))
     return
   }
   if (!data.full_code_path) {
-    ElMessage.warning('无法获取目录路径，请刷新后重试')
+    ElMessage.warning(t('serviceTree.pathMissingRefresh'))
     return
   }
   capabilityImportTargetNode.value = data
@@ -670,11 +672,11 @@ async function handleCapabilityImportFileChange(event: Event) {
   try {
     const bundle = parseCapabilityBundleJson(await file.text())
     await ElMessageBox.confirm(
-      `将能力包「${bundle.name || file.name}」导入到 ${targetNode.full_code_path}，同名文件会被覆盖。`,
-      '导入能力包',
+      t('serviceTree.importConfirm', { name: bundle.name || file.name, path: targetNode.full_code_path }),
+      t('serviceTree.importTitle'),
       {
-        confirmButtonText: '覆盖导入',
-        cancelButtonText: '取消',
+        confirmButtonText: t('serviceTree.importOverwrite'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     )
@@ -684,13 +686,13 @@ async function handleCapabilityImportFileChange(event: Event) {
       force_diff: true,
       bundle
     })
-    ElMessage.success(resp.message || '导入成功')
+    ElMessage.success(resp.message || t('serviceTree.importSuccess'))
     emit('refresh-tree')
   } catch (error: any) {
     if (error === 'cancel' || error === 'close') {
       return
     }
-    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '导入失败'
+    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('serviceTree.importFailed')
     ElMessage.error(message)
   }
 }

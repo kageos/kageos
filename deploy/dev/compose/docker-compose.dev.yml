@@ -1,4 +1,4 @@
-# AI Agent OS - 开发环境基础设施（Docker 版本）
+# Kageos - 开发环境基础设施（Docker 版本）
 # 与 docker-compose.infra.yml 的服务内容基本一致。
 # 这里保留 Docker 专用的容器名 / volume 名，优先保证本地项目隔离与可读性。
 # 用法: docker compose -f deploy/dev/compose/docker-compose.dev.yml up -d

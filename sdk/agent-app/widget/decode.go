@@ -11,13 +11,15 @@ import (
 // FieldTags 包含字段的所有标签信息
 type FieldTags struct {
 	// 基础标签
-	Json     string // json tag value
-	Gorm     string // gorm tag value
-	Widget   string // widget tag value
-	Validate string // validate tag value
-	Data     string // data tag value
-	Hide     string // hide tag value
-	HideSet  bool   // hide tag is present, even when empty
+	Json         string // json tag value
+	Gorm         string // gorm tag value
+	Widget       string // widget tag value
+	Validate     string // validate tag value
+	Data         string // data tag value
+	Hide         string // hide tag value
+	HideSet      bool   // hide tag is present, even when empty
+	Sensitive    string // sensitive tag value
+	SensitiveSet bool   // sensitive tag is present, even when empty
 
 	// 解析后的widget标签
 	WidgetParsed map[string]string
@@ -330,6 +332,7 @@ func parseStructField(field reflect.StructField) (*FieldTags, bool, error) {
 
 func newFieldTags(field reflect.StructField) *FieldTags {
 	hideValue, hideSet := field.Tag.Lookup("hide")
+	sensitiveValue, sensitiveSet := field.Tag.Lookup("sensitive")
 	return &FieldTags{
 		Json:         field.Tag.Get("json"),
 		Gorm:         field.Tag.Get("gorm"),
@@ -339,6 +342,8 @@ func newFieldTags(field reflect.StructField) *FieldTags {
 		Callback:     field.Tag.Get("callback"),
 		Hide:         hideValue,
 		HideSet:      hideSet,
+		Sensitive:    sensitiveValue,
+		SensitiveSet: sensitiveSet,
 		WidgetParsed: make(map[string]string),
 		DataParsed:   make(map[string]string),
 		Type:         field.Type,
@@ -374,6 +379,7 @@ func ConvertTagsToField(tags *FieldTags) *Field {
 		Hide:       buildFieldHide(tags),
 		Data:       &FieldData{},
 		DependOn:   tags.WidgetParsed["depend_on"], // 从widget标签中获取依赖字段
+		Sensitive:  buildFieldSensitive(tags),
 	}
 	if tags.Callback != "" {
 		field.Callbacks = parseCallbackTag(tags.Callback)
@@ -417,6 +423,17 @@ func ConvertTagsToField(tags *FieldTags) *Field {
 	}
 
 	return field
+}
+
+func buildFieldSensitive(tags *FieldTags) bool {
+	if tags == nil {
+		return false
+	}
+	return explicitSensitiveTagEnabled(tags)
+}
+
+func explicitSensitiveTagEnabled(tags *FieldTags) bool {
+	return tags.SensitiveSet && strings.EqualFold(strings.TrimSpace(tags.Sensitive), "true")
 }
 
 // inferDataType 根据Go类型推断数据类型（完全基于Go类型，与widget type无关）

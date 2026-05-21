@@ -164,16 +164,24 @@
                   />
                   <span v-else class="table-cell-hidden-placeholder">-</span>
                 </template>
-                <!-- 🔥 其他类型字段：使用共享的渲染函数（与 TableRenderer 一致） -->
+                <!-- 🔥 其他类型字段：响应表格中直接走组件渲染，确保 progress/files 等输出态完整显示 -->
                 <template v-else>
                   <template v-if="!isResponseRowFieldVisible($index, itemField)">
                     <span class="table-cell-hidden-placeholder">-</span>
                   </template>
-                  <template v-else-if="getCellContent(itemField, row[itemField.code]).isString">
-                    {{ getCellContent(itemField, row[itemField.code]).content }}
-                  </template>
-                  <!-- 🔥 VNode 直接渲染：使用 render 函数 -->
-                  <CellRenderer v-else :vnode="getCellContent(itemField, row[itemField.code]).content" />
+                  <component
+                    v-else
+                    :is="getWidgetComponent(itemField.widget?.type || 'input', 'table-cell')"
+                    :field="itemField"
+                    :value="getResponseRowFieldValue($index, itemField.code)"
+                    :model-value="getResponseRowFieldValue($index, itemField.code)"
+                    :field-path="`${fieldPath}[${$index}].${itemField.code}`"
+                    :form-manager="formManager"
+                    :form-renderer="formRenderer"
+                    mode="table-cell"
+                    :parent-mode="mode"
+                    :depth="(depth || 0) + 1"
+                  />
                 </template>
               </template>
             </el-table-column>
@@ -338,8 +346,6 @@ const {
   isEditRowFieldVisible,
   isResponseRowFieldVisible,
   getVisibleResponseDetailFields,
-  getCellContent,
-  CellRenderer,
   displayValue,
   handleTableCellConfirm,
   getColumnWidth,

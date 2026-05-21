@@ -1,6 +1,6 @@
-// @title AI Agent OS API
+// @title Kageos API
 // @version 1.0
-// @description AI Agent OS 应用管理平台 API 文档
+// @description Kageos 应用管理平台 API 文档
 // @termsOfService http://swagger.io/terms/
 
 // @contact.name API Support

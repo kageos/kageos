@@ -1,5 +1,5 @@
 # Web 主前端 Dockerfile
-# 构建: docker build -t ai-agent-os-web:latest -f deploy/base/images/web/Dockerfile .
+# 构建: docker build -t kageos-web:latest -f deploy/base/images/web/Dockerfile .
 
 # ========== Stage 1: 构建 ==========
 FROM node:20-slim AS builder
@@ -15,7 +15,7 @@ COPY web/ ./
 
 # 覆盖生产环境变量：Docker 部署通过 Nginx 反代，API 使用相对路径
 RUN echo 'VITE_API_BASE_URL=' > .env.production && \
-    echo 'VITE_APP_TITLE=AI Agent OS' >> .env.production && \
+    echo 'VITE_APP_TITLE=Kageos' >> .env.production && \
     echo 'VITE_APP_ENV=production' >> .env.production
 
 RUN npm run build-only

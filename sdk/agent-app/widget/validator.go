@@ -176,6 +176,9 @@ func validateFieldTag(ctx ValidateContext) error {
 	if err := validateHideTag(ctx); err != nil {
 		errs = append(errs, err)
 	}
+	if err := validateSensitiveTag(ctx); err != nil {
+		errs = append(errs, err)
+	}
 	if err := validateDependOn(ctx); err != nil {
 		errs = append(errs, err)
 	}
@@ -311,6 +314,20 @@ func validateHideTag(ctx ValidateContext) error {
 		seen[scene] = struct{}{}
 	}
 	return errors.Join(errs...)
+}
+
+func validateSensitiveTag(ctx ValidateContext) error {
+	if !ctx.Field.SensitiveSet {
+		return nil
+	}
+	raw := strings.TrimSpace(ctx.Field.Sensitive)
+	if raw == "" {
+		return fieldError(ctx, "sensitive tag must not be empty")
+	}
+	if raw != "true" && raw != "false" {
+		return fieldError(ctx, "sensitive tag must be true or false, got %q", raw)
+	}
+	return nil
 }
 
 func isGormPrimaryID(raw string) bool {

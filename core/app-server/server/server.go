@@ -42,6 +42,8 @@ type Server struct {
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
 	operateLogService             *service.OperateLogService
 	teamAccessService             *service.TeamAccessService
+	functionSensitiveFieldService *service.FunctionSensitiveFieldService
+	publicShareService            *service.PublicShareService
 	appRepo                       *repository.AppRepository // ⭐ 应用仓储（用于其他服务）
 
 	// 上游服务
@@ -231,12 +233,19 @@ func (s *Server) initServices(ctx context.Context) error {
 	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
 	operateLogRepo := repository.NewOperateLogRepository(s.db)
 	teamAccessRepo := repository.NewTeamAccessRepository(s.db)
+	functionSensitiveFieldRepo := repository.NewFunctionSensitiveFieldRepository(s.db)
+	publicShareRepo := repository.NewPublicShareRepository(s.db)
 	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
 	directoryUpdateHistoryRepo := repository.NewDirectoryUpdateHistoryRepository(s.db)
 	s.appService = service.NewAppService(s.appCall, appRepo, functionRepo, serviceTreeRepo, operateLogRepo)
 	s.operateLogService = service.NewOperateLogService(operateLogRepo)
 	s.teamAccessService = service.NewTeamAccessService(teamAccessRepo, operateLogRepo, appRepo)
+	s.functionSensitiveFieldService = service.NewFunctionSensitiveFieldService(functionSensitiveFieldRepo)
+	if err := s.functionSensitiveFieldService.LoadAll(ctx); err != nil {
+		return fmt.Errorf("加载敏感字段缓存失败: %w", err)
+	}
 	s.appService.SetTeamAccessService(s.teamAccessService)
+	s.appService.SetFunctionSensitiveFieldService(s.functionSensitiveFieldService)
 
 	// 初始化文档服务（需要在 ServiceTreeService 之前初始化，因为 ServiceTreeService 依赖它）
 	docRepo := repository.NewDocRepository(s.db)
@@ -248,6 +257,9 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化函数服务
 	s.functionService = service.NewFunctionService(functionRepo, appRepo)
+
+	// 初始化公开分享服务（MVP: Form 匿名提交）
+	s.publicShareService = service.NewPublicShareService(publicShareRepo, functionRepo, serviceTreeRepo)
 
 	// 初始化目录更新历史服务
 	s.directoryUpdateHistoryService = service.NewDirectoryUpdateHistoryService(directoryUpdateHistoryRepo, serviceTreeRepo)

@@ -1,5 +1,6 @@
 import { get, post, put, del } from '@/architecture/infrastructure/apiClient/request'
 import type { FunctionDetail, SearchParams } from '@/architecture/domain/types'
+import { getCurrentPublicShareId, publicShareAnonymousHeaders } from './publicShare'
 
 export interface SelectFuzzyItem {
   value: unknown
@@ -148,6 +149,15 @@ export function selectFuzzy(method: string, router: string, data: {
   request: Record<string, unknown>
   value_type: string
 }): Promise<SelectFuzzyResponse> {
+  const publicShareId = getCurrentPublicShareId()
+  if (publicShareId) {
+    return post<SelectFuzzyResponse>(
+      `/public/api/s/${publicShareId}/callback/on_select_fuzzy`,
+      data,
+      { headers: publicShareAnonymousHeaders() }
+    )
+  }
+
   // ⭐ 使用标准 API：/callback/on_select_fuzzy/{full-code-path}
   // router 格式：/luobei/app/dir/func，需要确保以 / 开头
   const fullCodePath = router.startsWith('/') ? router : `/${router}`

@@ -28,6 +28,10 @@ type JWTClaims struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
 
+	CompanyCode    string `json:"company_code,omitempty"`
+	CompanyName    string `json:"company_name,omitempty"`
+	CompanyLogoURL string `json:"company_logo_url,omitempty"`
+
 	DepartmentFullPath *string `json:"department_full_path,omitempty"`
 	LeaderUsername     *string `json:"leader_username,omitempty"`
 
@@ -36,30 +40,59 @@ type JWTClaims struct {
 
 // GenerateAccessToken 生成访问令牌（不含组织架构信息）
 func (s *JWTService) GenerateAccessToken(userID int64, username, email string) (string, error) {
-	return s.GenerateAccessTokenWithHR(userID, username, email, "", "")
+	return s.GenerateAccessTokenWithContext(UserTokenContext{
+		UserID:   userID,
+		Username: username,
+		Email:    email,
+	})
 }
 
 // GenerateAccessTokenWithHR 生成访问令牌（含组织架构信息）
 func (s *JWTService) GenerateAccessTokenWithHR(userID int64, username, email string, departmentFullPath string, leaderUsername string) (string, error) {
+	return s.GenerateAccessTokenWithContext(UserTokenContext{
+		UserID:             userID,
+		Username:           username,
+		Email:              email,
+		DepartmentFullPath: departmentFullPath,
+		LeaderUsername:     leaderUsername,
+	})
+}
+
+type UserTokenContext struct {
+	UserID             int64
+	Username           string
+	Email              string
+	CompanyCode        string
+	CompanyName        string
+	CompanyLogoURL     string
+	DepartmentFullPath string
+	LeaderUsername     string
+}
+
+// GenerateAccessTokenWithContext 生成访问令牌，携带用户、企业和组织架构上下文。
+func (s *JWTService) GenerateAccessTokenWithContext(userContext UserTokenContext) (string, error) {
 	now := time.Now()
 	claims := JWTClaims{
-		UserID:   userID,
-		Username: username,
-		Email:    email,
+		UserID:         userContext.UserID,
+		Username:       userContext.Username,
+		Email:          userContext.Email,
+		CompanyCode:    userContext.CompanyCode,
+		CompanyName:    userContext.CompanyName,
+		CompanyLogoURL: userContext.CompanyLogoURL,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    s.config.Issuer,
-			Subject:   fmt.Sprintf("%d", userID),
+			Subject:   fmt.Sprintf("%d", userContext.UserID),
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(s.config.AccessTokenExpire) * time.Second)),
 			NotBefore: jwt.NewNumericDate(now),
 		},
 	}
 
-	if departmentFullPath != "" {
-		claims.DepartmentFullPath = &departmentFullPath
+	if userContext.DepartmentFullPath != "" {
+		claims.DepartmentFullPath = &userContext.DepartmentFullPath
 	}
-	if leaderUsername != "" {
-		claims.LeaderUsername = &leaderUsername
+	if userContext.LeaderUsername != "" {
+		claims.LeaderUsername = &userContext.LeaderUsername
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -69,20 +102,32 @@ func (s *JWTService) GenerateAccessTokenWithHR(userID int64, username, email str
 		return "", fmt.Errorf("生成访问令牌失败: %w", err)
 	}
 
-	logger.Infof(nil, "[JWTService] Access token generated for user: %s", username)
+	logger.Infof(nil, "[JWTService] Access token generated for user: %s", userContext.Username)
 	return tokenString, nil
 }
 
 // GenerateRefreshToken 生成刷新令牌
 func (s *JWTService) GenerateRefreshToken(userID int64, username, email string) (string, error) {
-	now := time.Now()
-	claims := JWTClaims{
+	return s.GenerateRefreshTokenWithContext(UserTokenContext{
 		UserID:   userID,
 		Username: username,
 		Email:    email,
+	})
+}
+
+// GenerateRefreshTokenWithContext 生成刷新令牌，携带企业上下文，便于刷新时保持租户信息。
+func (s *JWTService) GenerateRefreshTokenWithContext(userContext UserTokenContext) (string, error) {
+	now := time.Now()
+	claims := JWTClaims{
+		UserID:         userContext.UserID,
+		Username:       userContext.Username,
+		Email:          userContext.Email,
+		CompanyCode:    userContext.CompanyCode,
+		CompanyName:    userContext.CompanyName,
+		CompanyLogoURL: userContext.CompanyLogoURL,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    s.config.Issuer,
-			Subject:   fmt.Sprintf("refresh_%d", userID),
+			Subject:   fmt.Sprintf("refresh_%d", userContext.UserID),
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(s.config.RefreshTokenExpire) * time.Second)),
 			NotBefore: jwt.NewNumericDate(now),
@@ -96,7 +141,7 @@ func (s *JWTService) GenerateRefreshToken(userID int64, username, email string) 
 		return "", fmt.Errorf("生成刷新令牌失败: %w", err)
 	}
 
-	logger.Infof(nil, "[JWTService] Refresh token generated for user: %s", username)
+	logger.Infof(nil, "[JWTService] Refresh token generated for user: %s", userContext.Username)
 	return tokenString, nil
 }
 
@@ -132,12 +177,27 @@ func (s *JWTService) RefreshAccessToken(refreshTokenString string) (string, stri
 		return "", "", fmt.Errorf("无效的刷新令牌")
 	}
 
-	newAccessToken, err := s.GenerateAccessToken(claims.UserID, claims.Username, claims.Email)
+	tokenContext := UserTokenContext{
+		UserID:         claims.UserID,
+		Username:       claims.Username,
+		Email:          claims.Email,
+		CompanyCode:    claims.CompanyCode,
+		CompanyName:    claims.CompanyName,
+		CompanyLogoURL: claims.CompanyLogoURL,
+	}
+	if claims.DepartmentFullPath != nil {
+		tokenContext.DepartmentFullPath = *claims.DepartmentFullPath
+	}
+	if claims.LeaderUsername != nil {
+		tokenContext.LeaderUsername = *claims.LeaderUsername
+	}
+
+	newAccessToken, err := s.GenerateAccessTokenWithContext(tokenContext)
 	if err != nil {
 		return "", "", fmt.Errorf("生成新访问令牌失败: %w", err)
 	}
 
-	newRefreshToken, err := s.GenerateRefreshToken(claims.UserID, claims.Username, claims.Email)
+	newRefreshToken, err := s.GenerateRefreshTokenWithContext(tokenContext)
 	if err != nil {
 		return "", "", fmt.Errorf("生成新刷新令牌失败: %w", err)
 	}
