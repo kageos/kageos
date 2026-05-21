@@ -179,6 +179,7 @@ type RuntimeConfig struct {
 	ComposeConfigPath string
 	LLMSeedEnvVars    []string
 	EnvFilePath       string
+	SummaryPath       string
 }
 
 func main() {
@@ -700,6 +701,9 @@ func cmdUp(paths Paths, args []string) error {
 	}
 	if opts.SkipVerify {
 		fmt.Println("deployment started; layered verify skipped (--skip-verify)")
+		if err := finishDeploymentSummary(rt, "started (verification skipped)"); err != nil {
+			return err
+		}
 		return nil
 	}
 	fmt.Printf("[L0-L5] 等待分层健康检查通过（timeout %s）\n", opts.VerifyTimeout)
@@ -707,6 +711,9 @@ func cmdUp(paths Paths, args []string) error {
 		return err
 	}
 	fmt.Println("deployment ready")
+	if err := finishDeploymentSummary(rt, "ready"); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1461,6 +1468,7 @@ func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 	}
 	rt.ComposeConfigPath = filepath.Join(paths.GeneratedDir, "docker-compose.yaml")
 	rt.EnvFilePath = filepath.Join(paths.GeneratedDir, "env", "kageos.env")
+	rt.SummaryPath = filepath.Join(paths.GeneratedDir, "kageos-deployment-summary.md")
 	rt.LLMSeedEnvVars = uniqueLLMSeedEnvVars(cfg.LLMs.Configs)
 	return rt, nil
 }
@@ -1708,6 +1716,71 @@ func decodeBase64PEM(label, value string) ([]byte, error) {
 		return nil, fmt.Errorf("%s does not look like PEM data after base64 decode", label)
 	}
 	return []byte(text + "\n"), nil
+}
+
+func finishDeploymentSummary(rt RuntimeConfig, status string) error {
+	if err := writeDeploymentSummary(rt, status); err != nil {
+		return err
+	}
+	printDeploymentSummary(rt, status)
+	return nil
+}
+
+func writeDeploymentSummary(rt RuntimeConfig, status string) error {
+	content := deploymentSummaryMarkdown(rt, status)
+	return os.WriteFile(rt.SummaryPath, []byte(content), 0600)
+}
+
+func deploymentSummaryMarkdown(rt RuntimeConfig, status string) string {
+	rows := deploymentSummaryRows(rt, status)
+	var b strings.Builder
+	b.WriteString("# KageOS Deployment Summary\n\n")
+	b.WriteString("| Item | Value |\n")
+	b.WriteString("|---|---|\n")
+	for _, row := range rows {
+		b.WriteString("| ")
+		b.WriteString(row[0])
+		b.WriteString(" | `")
+		b.WriteString(strings.ReplaceAll(row[1], "`", "\\`"))
+		b.WriteString("` |\n")
+	}
+	return b.String()
+}
+
+func printDeploymentSummary(rt RuntimeConfig, status string) {
+	rows := deploymentSummaryRows(rt, status)
+	width := 0
+	for _, row := range rows {
+		if len(row[0]) > width {
+			width = len(row[0])
+		}
+	}
+
+	fmt.Println()
+	fmt.Println("KageOS deployment summary")
+	fmt.Printf("%-*s  %s\n", width, "Item", "Value")
+	fmt.Printf("%s  %s\n", strings.Repeat("-", width), strings.Repeat("-", 48))
+	for _, row := range rows {
+		fmt.Printf("%-*s  %s\n", width, row[0], row[1])
+	}
+}
+
+func deploymentSummaryRows(rt RuntimeConfig, status string) [][2]string {
+	return [][2]string{
+		{"Status", status},
+		{"Access URL", rt.Site.BaseURL},
+		{"Admin username", "system"},
+		{"Initial password", rt.SystemUser.Password},
+		{"Main config", rt.Paths.ConfigPath},
+		{"Compose file", rt.ComposeConfigPath},
+		{"Generated config dir", filepath.Join(rt.Paths.GeneratedDir, "config")},
+		{"Environment file", rt.EnvFilePath},
+		{"TLS directory", rt.TLSCertsHostDir},
+		{"Summary file", rt.SummaryPath},
+		{"Status command", fmt.Sprintf("go run ./cmd/aosctl status --config %s", rt.Paths.ConfigPath)},
+		{"Logs command", fmt.Sprintf("go run ./cmd/aosctl logs --config %s main", rt.Paths.ConfigPath)},
+		{"Stop command", fmt.Sprintf("go run ./cmd/aosctl down --config %s", rt.Paths.ConfigPath)},
+	}
 }
 
 func renderTemplate(text string, data any) string {
