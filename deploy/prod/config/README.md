@@ -5,7 +5,7 @@
 - `template/`：镜像内置模板源。`deploy/prod/Dockerfile` 会把它复制到镜像内，作为无外部挂载时的兜底模板。
 - `runtime/`：生产运行时生效目录。容器启动时由 `/app/config.prod.template` 渲染生成。
 
-标准生产入口是 `aosctl`。它会把配置渲染到 `deploy/prod/.generated/config/`，再由 Compose 挂载到容器内 `/app/config.prod.template`。
+标准生产入口是 `kagectl`。它会把配置渲染到 `deploy/prod/.generated/config/`，再由 Compose 挂载到容器内 `/app/config.prod.template`。
 
 常见模板变量：
 
@@ -24,7 +24,7 @@
 
 说明：
 
-- `hr-server.yaml` 会消费 `${SYSTEM_USER_PASSWORD}` 初始化 `system` / `test_user` 的密码；标准入口由 `aos.yaml` 的 `system_user.password` 渲染。
+- `hr-server.yaml` 会消费 `${SYSTEM_USER_PASSWORD}` 初始化 `system` / `test_user` 的密码；标准入口由 `kage.yaml` 的 `system_user.password` 渲染。
 - `app-server.yaml` 已不再消费 SMTP 变量；这组变量现在主要供 `hr-server.yaml` 的邮件验证码链路使用。
 - `${APP_BASE_IMAGE}` 用于渲染 `app-runtime.yaml` 里的 `container.image.base_image`。
 

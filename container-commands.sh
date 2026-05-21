@@ -4,7 +4,7 @@
 # - 这是容器/部署常用命令清单，不建议整文件执行。
 # - 推荐在编辑器里按需选择某一行执行，或复制单行到终端执行。
 # - dev 默认 app-base 镜像 tag：kageos-app-runtime-base:latest。
-# - prod 命令需要在部署机器上执行，并确保 deploy/prod/aos.yaml 已初始化。
+# - prod 命令需要在部署机器上执行，并确保 deploy/prod/kage.yaml 已初始化。
 
 echo "container-commands.sh 是命令清单，请在编辑器中选择单行执行，不要整文件运行。"
 exit 0
@@ -60,26 +60,26 @@ podman run --rm --entrypoint /bin/sh kageos-app-runtime-base:latest -lc 'tessera
 podman run --rm --entrypoint /bin/sh kageos-app-runtime-base:latest -lc 'fc-match "Noto Sans CJK SC"; python3 -c "import matplotlib; print(matplotlib.matplotlib_fname())"'
 
 # Prod local deploy
-# 生产配置初始化：生成 deploy/prod/aos.yaml。
-go run ./cmd/aosctl init --base-url http://your-ip-or-domain
+# 生产配置初始化：生成 deploy/prod/kage.yaml。
+go run ./cmd/kagectl init --base-url http://your-ip-or-domain
 
 # 执行生产预检。
-go run ./cmd/aosctl doctor --config deploy/prod/aos.yaml
+go run ./cmd/kagectl doctor --config deploy/prod/kage.yaml
 
 # 本地构建主镜像并启动/更新生产服务。
-go run ./cmd/aosctl up --config deploy/prod/aos.yaml
+go run ./cmd/kagectl up --config deploy/prod/kage.yaml
 
 # 使用已发布主镜像启动/更新生产服务。
-go run ./cmd/aosctl up --config deploy/prod/aos.yaml --image
+go run ./cmd/kagectl up --config deploy/prod/kage.yaml --image
 
 # 执行生产健康检查。
-go run ./cmd/aosctl verify --config deploy/prod/aos.yaml
+go run ./cmd/kagectl verify --config deploy/prod/kage.yaml
 
 # 查看生产 main 日志。
-go run ./cmd/aosctl logs --config deploy/prod/aos.yaml main
+go run ./cmd/kagectl logs --config deploy/prod/kage.yaml main
 
 # 查看生产服务状态。
-go run ./cmd/aosctl status --config deploy/prod/aos.yaml
+go run ./cmd/kagectl status --config deploy/prod/kage.yaml
 
 # 停止生产服务。
-go run ./cmd/aosctl down --config deploy/prod/aos.yaml
+go run ./cmd/kagectl down --config deploy/prod/kage.yaml

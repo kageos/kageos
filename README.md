@@ -100,4 +100,4 @@ The same checks are wired into GitHub Actions in `.github/workflows/ci.yml`.
 
 Please read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before opening issues or pull requests.
 
-Do not commit real `.env` files, production `aos.yaml`, customer licenses, generated deployment output, `namespace/`, `local/`, or other private workspaces. Use the example files and local overrides instead.
+Do not commit real `.env` files, production `kage.yaml`, customer licenses, generated deployment output, `namespace/`, `local/`, or other private workspaces. Use the example files and local overrides instead.

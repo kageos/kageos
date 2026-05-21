@@ -50,7 +50,7 @@ minio:
 
 secrets:
   jwt_secret: "0123456789abcdef0123456789abcdef"
-  generated_by_aosctl: false
+  generated_by_kagectl: false
   generated_at_unix_seconds: 0
 
 system_user:

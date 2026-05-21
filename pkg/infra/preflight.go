@@ -11,7 +11,7 @@ import (
 // Preflight performs a lightweight infrastructure readiness check.
 //
 // Dev infrastructure is started by deploy/dev/scripts/infra.sh.
-// Prod infrastructure is rendered and started by aosctl.
+// Prod infrastructure is rendered and started by kagectl.
 // The application process should not create or mutate middleware containers.
 func Preflight(ctx context.Context) error {
 	start := time.Now()

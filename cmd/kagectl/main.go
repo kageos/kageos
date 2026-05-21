@@ -26,7 +26,8 @@ import (
 
 const (
 	defaultProdDir     = "deploy/prod"
-	defaultConfigName  = "aos.yaml"
+	defaultConfigName  = "kage.yaml"
+	legacyConfigName   = "aos.yaml"
 	defaultGenerated   = ".generated"
 	defaultStorageRoot = "/data/kageos"
 
@@ -111,7 +112,7 @@ type MinIOConfig struct {
 
 type SecretsConfig struct {
 	JWTSecret              string `yaml:"jwt_secret"`
-	GeneratedByAOSCtl      bool   `yaml:"generated_by_aosctl"`
+	GeneratedByKageCtl     bool   `yaml:"generated_by_kagectl"`
 	GeneratedAtUnixSeconds int64  `yaml:"generated_at_unix_seconds"`
 }
 
@@ -448,22 +449,22 @@ func parseBootstrapFlags(args []string) (bootstrapOptions, error) {
 }
 
 func printUsage() {
-	fmt.Println(`aosctl manages KageOS production deployment files.
+	fmt.Println(`kagectl manages KageOS production deployment files.
 
 Usage:
-  aosctl init [--force] [--base-url URL] [--mysql-mode bundled|external]
-  aosctl bootstrap --base-url URL [--mysql-mode bundled|external] [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
-  aosctl render [--config deploy/prod/aos.yaml]
-  aosctl layers [--config deploy/prod/aos.yaml] [--json]
-  aosctl doctor [--config deploy/prod/aos.yaml] [--json]
-  aosctl up [--config deploy/prod/aos.yaml] [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
-  aosctl verify [--config deploy/prod/aos.yaml] [--json]
-  aosctl status [--config deploy/prod/aos.yaml] [--json]
-  aosctl logs [--config deploy/prod/aos.yaml] [service|layer] [--layer L0-L5]
-  aosctl down [--config deploy/prod/aos.yaml]
-  aosctl uninstall [--config deploy/prod/aos.yaml] [--purge-data] [--purge-podman-storage] [--purge-images] [--keep-generated] [--purge-private-config] [--force] [--dry-run]
+  kagectl init [--force] [--base-url URL] [--mysql-mode bundled|external]
+  kagectl bootstrap --base-url URL [--mysql-mode bundled|external] [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
+  kagectl render [--config deploy/prod/kage.yaml]
+  kagectl layers [--config deploy/prod/kage.yaml] [--json]
+  kagectl doctor [--config deploy/prod/kage.yaml] [--json]
+  kagectl up [--config deploy/prod/kage.yaml] [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
+  kagectl verify [--config deploy/prod/kage.yaml] [--json]
+  kagectl status [--config deploy/prod/kage.yaml] [--json]
+  kagectl logs [--config deploy/prod/kage.yaml] [service|layer] [--layer L0-L5]
+  kagectl down [--config deploy/prod/kage.yaml]
+  kagectl uninstall [--config deploy/prod/kage.yaml] [--purge-data] [--purge-podman-storage] [--purge-images] [--keep-generated] [--purge-private-config] [--force] [--dry-run]
 
-Compose remains the container execution engine; aosctl owns layered config rendering, deployment orchestration, and diagnostics.`)
+Compose remains the container execution engine; kagectl owns layered config rendering, deployment orchestration, and diagnostics.`)
 }
 
 func resolvePaths(opts commonOptions) (Paths, error) {
@@ -482,6 +483,10 @@ func resolvePaths(opts commonOptions) (Paths, error) {
 	configPath := opts.ConfigPath
 	if configPath == "" {
 		configPath = filepath.Join(prodDir, defaultConfigName)
+		legacyConfigPath := filepath.Join(prodDir, legacyConfigName)
+		if !fileExists(configPath) && fileExists(legacyConfigPath) {
+			configPath = legacyConfigPath
+		}
 	} else if !filepath.IsAbs(configPath) {
 		configPath = filepath.Join(repoRoot, configPath)
 	}
@@ -522,7 +527,7 @@ func cmdInit(paths Paths, args []string) error {
 		return err
 	}
 	if created {
-		fmt.Println("next: edit site.base_url if needed and run `aosctl up`")
+		fmt.Println("next: edit site.base_url if needed and run `kagectl up`")
 	}
 	return nil
 }
@@ -890,11 +895,11 @@ func runLayerLogs(rt RuntimeConfig, value string) error {
 func layerLogHint(layer deploymentLayerID) string {
 	switch layer {
 	case layerControl:
-		return "aosctl runs on the host and logs to the current terminal"
+		return "kagectl runs on the host and logs to the current terminal"
 	case layerApps:
 		return "user App containers are managed by app-runtime; use platform app log APIs"
 	default:
-		return "check `aosctl status` for layer to service ownership"
+		return "check `kagectl status` for layer to service ownership"
 	}
 }
 
@@ -1237,7 +1242,7 @@ func ensureRuntimeLayout(rt RuntimeConfig) error {
 func requireGeneratedCompose(paths Paths) error {
 	composePath := filepath.Join(paths.GeneratedDir, "docker-compose.yaml")
 	if !fileExists(composePath) {
-		return fmt.Errorf("generated compose not found: %s; run `aosctl render` or `aosctl up` first", composePath)
+		return fmt.Errorf("generated compose not found: %s; run `kagectl render` or `kagectl up` first", composePath)
 	}
 	return nil
 }
@@ -1311,7 +1316,7 @@ func defaultConfig() (Config, error) {
 		},
 		Secrets: SecretsConfig{
 			JWTSecret:              jwt,
-			GeneratedByAOSCtl:      true,
+			GeneratedByKageCtl:     true,
 			GeneratedAtUnixSeconds: time.Now().Unix(),
 		},
 		SystemUser: SystemUserConfig{
@@ -1777,9 +1782,9 @@ func deploymentSummaryRows(rt RuntimeConfig, status string) [][2]string {
 		{"Environment file", rt.EnvFilePath},
 		{"TLS directory", rt.TLSCertsHostDir},
 		{"Summary file", rt.SummaryPath},
-		{"Status command", fmt.Sprintf("go run ./cmd/aosctl status --config %s", rt.Paths.ConfigPath)},
-		{"Logs command", fmt.Sprintf("go run ./cmd/aosctl logs --config %s main", rt.Paths.ConfigPath)},
-		{"Stop command", fmt.Sprintf("go run ./cmd/aosctl down --config %s", rt.Paths.ConfigPath)},
+		{"Status command", fmt.Sprintf("go run ./cmd/kagectl status --config %s", rt.Paths.ConfigPath)},
+		{"Logs command", fmt.Sprintf("go run ./cmd/kagectl logs --config %s main", rt.Paths.ConfigPath)},
+		{"Stop command", fmt.Sprintf("go run ./cmd/kagectl down --config %s", rt.Paths.ConfigPath)},
 	}
 }
 

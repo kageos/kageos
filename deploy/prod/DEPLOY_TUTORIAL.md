@@ -15,17 +15,17 @@
 git clone <your-repo-url>
 cd kageos
 
-go run ./cmd/aosctl init --base-url http://your-ip-or-domain
-go run ./cmd/aosctl doctor --config deploy/prod/aos.yaml
-go run ./cmd/aosctl up --config deploy/prod/aos.yaml
-go run ./cmd/aosctl verify --config deploy/prod/aos.yaml
+go run ./cmd/kagectl init --base-url http://your-ip-or-domain
+go run ./cmd/kagectl doctor --config deploy/prod/kage.yaml
+go run ./cmd/kagectl up --config deploy/prod/kage.yaml
+go run ./cmd/kagectl verify --config deploy/prod/kage.yaml
 ```
 
-`aosctl init` 会生成 `deploy/prod/aos.yaml`，里面包含数据库密码、NATS 密码、JWT 密钥、system 初始密码等敏感配置，默认不入库。
+`kagectl init` 会生成 `deploy/prod/kage.yaml`，里面包含数据库密码、NATS 密码、JWT 密钥、system 初始密码等敏感配置，默认不入库。
 
 ## 改公网地址或 TLS
 
-编辑 `deploy/prod/aos.yaml`：
+编辑 `deploy/prod/kage.yaml`：
 
 ```yaml
 site:
@@ -58,7 +58,7 @@ site:
 ```bash
 KAGEOS_TLS_CERT_PEM_B64="$(base64 < fullchain.pem | tr -d '\n')" \
 KAGEOS_TLS_KEY_PEM_B64="$(base64 < privkey.pem | tr -d '\n')" \
-go run ./cmd/aosctl up --config deploy/prod/aos.yaml
+go run ./cmd/kagectl up --config deploy/prod/kage.yaml
 ```
 
 渲染后证书会落到 `.generated/tls/`，最终注入容器的环境变量会落到 `.generated/env/kageos.env`，便于后续运维查看和备份。
@@ -66,22 +66,22 @@ go run ./cmd/aosctl up --config deploy/prod/aos.yaml
 改完执行：
 
 ```bash
-go run ./cmd/aosctl up --config deploy/prod/aos.yaml
+go run ./cmd/kagectl up --config deploy/prod/kage.yaml
 ```
 
 ## 常用命令
 
 ```bash
-go run ./cmd/aosctl status --config deploy/prod/aos.yaml
-go run ./cmd/aosctl logs --config deploy/prod/aos.yaml main
-go run ./cmd/aosctl verify --config deploy/prod/aos.yaml
-go run ./cmd/aosctl down --config deploy/prod/aos.yaml
-go run ./cmd/aosctl uninstall --config deploy/prod/aos.yaml
-go run ./cmd/aosctl uninstall --config deploy/prod/aos.yaml --purge-data --force
+go run ./cmd/kagectl status --config deploy/prod/kage.yaml
+go run ./cmd/kagectl logs --config deploy/prod/kage.yaml main
+go run ./cmd/kagectl verify --config deploy/prod/kage.yaml
+go run ./cmd/kagectl down --config deploy/prod/kage.yaml
+go run ./cmd/kagectl uninstall --config deploy/prod/kage.yaml
+go run ./cmd/kagectl uninstall --config deploy/prod/kage.yaml --purge-data --force
 ```
 
 `down` 只停服务；`uninstall` 会移除 Compose 栈和可再生的 `.generated/`。来回测试想清数据库/对象存储/业务数据但不重建用户应用基础镜像，用 `--purge-data --force`，它默认保留 `/data/kageos/podman_storage`。
 
 ## 生成物
 
-生产部署只维护 `aosctl` 入口；如需变更配置，修改 `deploy/prod/aos.yaml` 后重新执行 `aosctl up`。
+生产部署只维护 `kagectl` 入口；如需变更配置，修改 `deploy/prod/kage.yaml` 后重新执行 `kagectl up`。
