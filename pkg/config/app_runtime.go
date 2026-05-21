@@ -363,6 +363,9 @@ func (c *ContainerServiceConfig) GetAppArmorProfile() string {
 }
 
 func (c *ContainerServiceConfig) GetBaseImage() string {
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_BASE_IMAGE")); v != "" {
+		return v
+	}
 	if c == nil {
 		return defaultContainerBaseImage
 	}
@@ -385,8 +388,8 @@ func (c *ContainerServiceConfig) GetContainerPath() string {
 // loadYAMLConfig 加载 YAML 配置文件。
 // 当前优先级：
 //
-//	dev  -> deploy/dev/config/<file>
-//	prod -> deploy/prod/config/runtime/<file>   -> fallback: deploy/prod/config/template/<file>
+//	dev  -> .kageos/dev/config/<file>           -> fallback: deploy/dev/config/<file>
+//	prod -> .kageos/prod/generated/config/<file> -> fallback: deploy/prod/config/runtime/<file> -> deploy/prod/config/template/<file>
 //
 // 加载成功时打印实际使用的配置路径，避免糊涂账。
 func loadYAMLConfig(filename string, config interface{}) error {
@@ -439,10 +442,12 @@ func configPathsForEnv(root, env, baseName string) []string {
 	root = filepath.Clean(root)
 	if env == "dev" {
 		return []string{
+			filepath.Join(root, ".kageos", "dev", "config", baseName),
 			filepath.Join(root, "deploy", "dev", "config", baseName),
 		}
 	}
 	return []string{
+		filepath.Join(root, ".kageos", "prod", "generated", "config", baseName),
 		filepath.Join(root, "deploy", "prod", "config", "runtime", baseName),
 		filepath.Join(root, "deploy", "prod", "config", "template", baseName),
 	}

@@ -3,6 +3,9 @@ package infra
 import (
 	"context"
 	"net"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/kageos/kageos/pkg/logger"
@@ -16,9 +19,27 @@ import (
 func Preflight(ctx context.Context) error {
 	start := time.Now()
 	logger.Infof(ctx, "[Preflight] ========== 基础设施预检开始 ==========")
-	waitForMySQLTCP(ctx, "127.0.0.1:3306", 30*time.Second)
+	waitForMySQLTCP(ctx, mysqlPreflightAddress(), 30*time.Second)
 	logger.Infof(ctx, "[Preflight] ========== 基础设施预检完成 | 总耗时=%s ==========", time.Since(start).Round(time.Millisecond))
 	return nil
+}
+
+func mysqlPreflightAddress() string {
+	host := strings.TrimSpace(os.Getenv("MYSQL_HOST"))
+	if host == "" {
+		host = "127.0.0.1"
+	}
+
+	port := 3306
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "dev") {
+		port = 3318
+	}
+	if rawPort := strings.TrimSpace(os.Getenv("MYSQL_PORT")); rawPort != "" {
+		if parsed, err := strconv.Atoi(rawPort); err == nil && parsed > 0 {
+			port = parsed
+		}
+	}
+	return net.JoinHostPort(host, strconv.Itoa(port))
 }
 
 func waitForMySQLTCP(ctx context.Context, addr string, maxWait time.Duration) {

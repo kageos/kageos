@@ -49,6 +49,9 @@ func (a *App) handleMessage(msg *nats.Msg) {
 	if req.Token == "" {
 		req.Token = msg.Header.Get(contextx.TokenHeader)
 	}
+	if req.AnonymousToken == "" {
+		req.AnonymousToken = msg.Header.Get("X-Public-Anonymous-Token")
+	}
 	if req.RequestUser == "" {
 		req.RequestUser = msg.Header.Get(contextx.RequestUserHeader)
 	}
@@ -57,6 +60,12 @@ func (a *App) handleMessage(msg *nats.Msg) {
 	}
 	if req.ClientSource == "" {
 		req.ClientSource = msg.Header.Get(contextx.ClientSourceHeader)
+	}
+	if req.SourceType == "" {
+		req.SourceType = msg.Header.Get(contextx.SourceTypeHeader)
+	}
+	if req.SourceRef == "" {
+		req.SourceRef = msg.Header.Get(contextx.SourceRefHeader)
 	}
 
 	logger.Infof(ctx, "[SDK:handleMessage] received: traceId=%s, method=%s, router=%s, user=%s, source=%s, bodyLen=%d",

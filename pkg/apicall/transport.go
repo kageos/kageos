@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/publicshare"
 	"github.com/kageos/kageos/pkg/serviceconfig"
 )
 
@@ -106,6 +107,9 @@ func applyCommonHeaders(req *http.Request, ctx context.Context) {
 	}
 	if sourceRef := contextx.GetSourceRef(ctx); sourceRef != "" {
 		req.Header.Set(contextx.SourceRefHeader, sourceRef)
+	}
+	if anonymousToken, ok := ctx.Value(publicshare.AnonymousTokenHeader).(string); ok && strings.TrimSpace(anonymousToken) != "" {
+		req.Header.Set(publicshare.AnonymousTokenHeader, strings.TrimSpace(anonymousToken))
 	}
 }
 

@@ -480,8 +480,8 @@ func (s *AppManageService) createVersionContainer(ctx context.Context, user, app
 	}
 
 	if exists {
-		logger.Warnf(ctx, "[createVersionContainer] App runtime instance %s already exists and is running", runtimeName)
-		return fmt.Errorf("app runtime instance %s already exists and is running", runtimeName)
+		logger.Infof(ctx, "[createVersionContainer] App runtime instance %s already exists and is running; reusing it", runtimeName)
+		return nil
 	}
 
 	spec, err := s.buildAppVersionSpec(ctx, ref, appDir)

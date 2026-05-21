@@ -33,17 +33,20 @@ type CreateAppResp struct {
 type RequestAppReq struct {
 	TraceId         string `json:"trace_id" example:"req-123456"` // 追踪ID（由中间件自动填充）
 	IsCallback      bool   `json:"is_callback" example:"true"`
-	RequestUser     string `json:"request_user" swaggerignore:"true"`            // 请求用户（由中间件自动填充）
-	RequestUserDept string `json:"request_user_dept" swaggerignore:"true"`       // 请求用户部门（由中间件自动填充）
-	Token           string `json:"token" swaggerignore:"true"`                   // 认证 Token（由中间件自动填充，透传到 SDK）
-	ClientSource    string `json:"client_source,omitempty" swaggerignore:"true"` // 客户端来源（browser、agent、api）
-	User            string `json:"user" binding:"required" example:"beiluo"`     // 租户用户名（应用所有者）
-	App             string `json:"app" binding:"required" example:"myapp"`       // 应用名
-	Version         string `json:"version" binding:"required" example:"v1"`      // 版本号
-	Router          string `json:"router" binding:"required" example:"/users"`   // 路由路径
-	Method          string `json:"method" example:"GET"`                         // 应用内部方法名（可选）
-	Body            []byte `json:"body" example:"eyJpZCI6MX0="`                  // 请求体（Base64编码）
-	UrlQuery        string `json:"url_query" example:"page=1&size=10"`           // URL 查询参数
+	RequestUser     string `json:"request_user" swaggerignore:"true"`              // 请求用户（由中间件自动填充）
+	RequestUserDept string `json:"request_user_dept" swaggerignore:"true"`         // 请求用户部门（由中间件自动填充）
+	Token           string `json:"token" swaggerignore:"true"`                     // 认证 Token（由中间件自动填充，透传到 SDK）
+	AnonymousToken  string `json:"anonymous_token,omitempty" swaggerignore:"true"` // 公开分享匿名 Token（只用于 public_share 场景）
+	ClientSource    string `json:"client_source,omitempty" swaggerignore:"true"`   // 客户端来源（browser、agent、api）
+	SourceType      string `json:"source_type,omitempty" swaggerignore:"true"`     // 调用来源类型
+	SourceRef       string `json:"source_ref,omitempty" swaggerignore:"true"`      // 调用来源引用
+	User            string `json:"user" binding:"required" example:"beiluo"`       // 租户用户名（应用所有者）
+	App             string `json:"app" binding:"required" example:"myapp"`         // 应用名
+	Version         string `json:"version" binding:"required" example:"v1"`        // 版本号
+	Router          string `json:"router" binding:"required" example:"/users"`     // 路由路径
+	Method          string `json:"method" example:"GET"`                           // 应用内部方法名（可选）
+	Body            []byte `json:"body" example:"eyJpZCI6MX0="`                    // 请求体（Base64编码）
+	UrlQuery        string `json:"url_query" example:"page=1&size=10"`             // URL 查询参数
 }
 
 // CallbackAppReq 回调请求

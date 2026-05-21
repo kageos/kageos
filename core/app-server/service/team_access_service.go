@@ -60,6 +60,9 @@ func (s *TeamAccessService) Resolve(ctx context.Context, tenantUser, app, userna
 	app = strings.TrimSpace(app)
 	username = strings.TrimSpace(username)
 	resourcePath = access.NormalizeResourcePath(resourcePath)
+	if isSystemRootUser(username) {
+		return ownerAccessResult(resourcePath), nil
+	}
 	if access.IsSystemBuiltinPath(resourcePath) {
 		return &access.Result{
 			ResourcePath: resourcePath,
@@ -300,14 +303,17 @@ func (s *TeamAccessService) PermissionsForTree(ctx context.Context, tenantUser, 
 		}
 		return results, nil
 	}
+	if isSystemRootUser(username) {
+		for _, path := range resourcePaths {
+			normalized := access.NormalizeResourcePath(path)
+			results[normalized] = ownerAccessResult(normalized)
+		}
+		return results, nil
+	}
 	if s.isWorkspaceOwnerOrLegacyAdmin(ctx, tenantUser, app, username) {
 		for _, path := range resourcePaths {
 			normalized := access.NormalizeResourcePath(path)
-			results[normalized] = &access.Result{
-				ResourcePath: normalized,
-				RoleCodes:    []access.RoleCode{access.RoleOwner},
-				Permissions:  access.RolePermissions(access.RoleOwner),
-			}
+			results[normalized] = ownerAccessResult(normalized)
 		}
 		return results, nil
 	}
@@ -328,6 +334,19 @@ func (s *TeamAccessService) isWorkspaceOwner(ctx context.Context, tenantUser, ap
 	tenantUser = strings.TrimSpace(tenantUser)
 	username = strings.TrimSpace(username)
 	return tenantUser != "" && tenantUser == username
+}
+
+func isSystemRootUser(username string) bool {
+	return strings.TrimSpace(username) == "system"
+}
+
+func ownerAccessResult(resourcePath string) *access.Result {
+	resourcePath = access.NormalizeResourcePath(resourcePath)
+	return &access.Result{
+		ResourcePath: resourcePath,
+		RoleCodes:    []access.RoleCode{access.RoleOwner},
+		Permissions:  access.RolePermissions(access.RoleOwner),
+	}
 }
 
 func (s *TeamAccessService) isWorkspaceOwnerOrLegacyAdmin(ctx context.Context, tenantUser, app, username string) bool {

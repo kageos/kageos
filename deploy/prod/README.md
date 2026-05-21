@@ -87,35 +87,35 @@ site:
   tls_key_pem_b64: "base64-privkey-pem"
 ```
 
-也可以不写入 YAML，直接用环境变量传入，`kagectl` 会渲染到 `.generated/tls/`：
+也可以不写入 YAML，直接用环境变量传入，`kagectl` 会渲染到 `.kageos/prod/generated/tls/`：
 
 ```bash
 KAGEOS_TLS_CERT_PEM_B64="$(base64 < fullchain.pem | tr -d '\n')" \
 KAGEOS_TLS_KEY_PEM_B64="$(base64 < privkey.pem | tr -d '\n')" \
-go run ./cmd/kagectl up --config deploy/prod/kage.yaml
+go run ./cmd/kagectl up --config .kageos/prod/kage.yaml
 ```
 
-渲染后证书会落到 `.generated/tls/`，最终注入容器的环境变量会落到 `.generated/env/kageos.env`，便于后续运维查看和备份。
+渲染后证书会落到 `.kageos/prod/generated/tls/`，最终注入容器的环境变量会落到 `.kageos/prod/generated/env/kageos.env`，便于后续运维查看和备份。
 
 ## 常用命令
 
 ```bash
 go run ./cmd/kagectl init --base-url http://your-ip-or-domain
-go run ./cmd/kagectl doctor --config deploy/prod/kage.yaml
-go run ./cmd/kagectl up --config deploy/prod/kage.yaml
-go run ./cmd/kagectl verify --config deploy/prod/kage.yaml
-go run ./cmd/kagectl status --config deploy/prod/kage.yaml
-go run ./cmd/kagectl logs --config deploy/prod/kage.yaml --layer L3
-go run ./cmd/kagectl down --config deploy/prod/kage.yaml
-go run ./cmd/kagectl uninstall --config deploy/prod/kage.yaml --dry-run
-go run ./cmd/kagectl uninstall --config deploy/prod/kage.yaml --purge-data --force
+go run ./cmd/kagectl doctor --config .kageos/prod/kage.yaml
+go run ./cmd/kagectl up --config .kageos/prod/kage.yaml
+go run ./cmd/kagectl verify --config .kageos/prod/kage.yaml
+go run ./cmd/kagectl status --config .kageos/prod/kage.yaml
+go run ./cmd/kagectl logs --config .kageos/prod/kage.yaml --layer L3
+go run ./cmd/kagectl down --config .kageos/prod/kage.yaml
+go run ./cmd/kagectl uninstall --config .kageos/prod/kage.yaml --dry-run
+go run ./cmd/kagectl uninstall --config .kageos/prod/kage.yaml --purge-data --force
 ```
 
 后台启动脚本：
 
 ```bash
 ./prod-up.sh
-tail -f deploy/prod/kagectl-up.log
+tail -f .kageos/prod/kagectl-up.log
 ./prod-stop.sh
 ```
 
@@ -124,7 +124,7 @@ tail -f deploy/prod/kagectl-up.log
 - 内部 Go 服务默认监听 `127.0.0.1`。
 - 生产 `pprof` 默认关闭。
 - 公网入口只通过容器内 Nginx 暴露；生产 Nginx 不转发 `/swagger/`。
-- `deploy/prod/kage.yaml` 和 `deploy/prod/.generated/` 是本机敏感配置/生成物，默认不应入库。
+- `.kageos/prod/kage.yaml` 和 `.kageos/prod/generated/` 是本机敏感配置/生成物，默认不应入库。
 - NATS 生产默认开启账号密码认证；`kagectl init` 会自动生成 `nats.password`。
 - 如果 `site.tls_mode=redirect`，`site.base_url` 必须是 `https://`。
 
@@ -149,14 +149,14 @@ tail -f deploy/prod/kagectl-up.log
 |------|------|
 | `cmd/kagectl` | Go 部署控制入口，负责生成配置、调用 Compose、启停和验证 |
 | `kage.example.yaml` | 无密钥示例配置 |
-| `kage.yaml` | 本机私有配置，包含密钥，默认不入库 |
-| `.generated/` | `kagectl` 渲染出的 Compose、配置和中间件文件，默认不入库 |
+| `.kageos/prod/kage.yaml` | 本机私有配置，包含密钥，默认不入库 |
+| `.kageos/prod/generated/` | `kagectl` 渲染出的 Compose、配置和中间件文件，默认不入库 |
 | `Dockerfile` / `entrypoint-common.sh` / `entrypoint-main.sh` / `nginx/` / `config/template/` | 镜像与内置模板 |
 
 ## 升级
 
 ```bash
 git pull --ff-only
-go run ./cmd/kagectl up --config deploy/prod/kage.yaml
-go run ./cmd/kagectl verify --config deploy/prod/kage.yaml
+go run ./cmd/kagectl up --config .kageos/prod/kage.yaml
+go run ./cmd/kagectl verify --config .kageos/prod/kage.yaml
 ```

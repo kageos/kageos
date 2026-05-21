@@ -45,6 +45,12 @@ func (t *appInvokeTransport) requestApp(ctx context.Context, natsID int64, req *
 	if invokeReq.ClientSource == "" {
 		invokeReq.ClientSource = contextx.GetClientSource(ctx)
 	}
+	if invokeReq.SourceType == "" {
+		invokeReq.SourceType = contextx.GetSourceType(ctx)
+	}
+	if invokeReq.SourceRef == "" {
+		invokeReq.SourceRef = contextx.GetSourceRef(ctx)
+	}
 	msg, err := appinvoke.BuildRuntimeRequestMsg(&invokeReq)
 	if err != nil {
 		return nil, err

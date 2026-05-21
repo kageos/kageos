@@ -6,6 +6,11 @@
 import type { UploadCredentials, UploadProgress, UploadResult } from './types'
 import { PresignedURLUploader } from './presigned-url'
 import { authFetch } from '@/architecture/infrastructure/apiClient/request'
+import {
+  ensurePublicAnonymousToken,
+  getCurrentPublicShareId,
+  publicShareAnonymousHeaders,
+} from '@/architecture/infrastructure/api/publicShare'
 
 export type { UploadCredentials, UploadProgress, UploadResult } from './types'
 
@@ -189,11 +194,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 async function getUploadCredentials(router: string, file: File, options: UploadFileOptions = {}): Promise<UploadCredentials> {
   // ✅ 处理文件类型（某些文件如 .dmg 可能没有 MIME 类型）
   const contentType = file.type || 'application/octet-stream'
+  const publicShareId = getCurrentPublicShareId()
+  if (publicShareId) {
+    await ensurePublicAnonymousToken()
+  }
+  const endpoint = publicShareId
+    ? `/storage/api/v1/public/share/${encodeURIComponent(publicShareId)}/upload_token`
+    : '/storage/api/v1/upload_token'
   
-  const res = await authFetch('/storage/api/v1/upload_token', {
+  const res = await authFetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(publicShareId ? publicShareAnonymousHeaders() : {}),
     },
     body: JSON.stringify({
       router,
@@ -279,10 +292,18 @@ export interface UploadCompleteResult {
 
 export async function notifyUploadComplete(params: UploadCompleteParams): Promise<UploadCompleteResult | null> {
   try {
-    const res = await authFetch('/storage/api/v1/upload_complete', {
+    const publicShareId = getCurrentPublicShareId()
+    if (publicShareId) {
+      await ensurePublicAnonymousToken()
+    }
+    const endpoint = publicShareId
+      ? `/storage/api/v1/public/share/${encodeURIComponent(publicShareId)}/upload_complete`
+      : '/storage/api/v1/upload_complete'
+    const res = await authFetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(publicShareId ? publicShareAnonymousHeaders() : {}),
       },
       body: JSON.stringify({
         key: params.key,
@@ -378,10 +399,18 @@ export async function notifyBatchUploadComplete(
   }
   
   try {
-    const res = await authFetch('/storage/api/v1/batch_upload_complete', {
+    const publicShareId = getCurrentPublicShareId()
+    if (publicShareId) {
+      await ensurePublicAnonymousToken()
+    }
+    const endpoint = publicShareId
+      ? `/storage/api/v1/public/share/${encodeURIComponent(publicShareId)}/batch_upload_complete`
+      : '/storage/api/v1/batch_upload_complete'
+    const res = await authFetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(publicShareId ? publicShareAnonymousHeaders() : {}),
       },
       body: JSON.stringify({ items }),
     })

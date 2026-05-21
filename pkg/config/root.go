@@ -20,11 +20,11 @@ var (
 	kageOSRootOnce sync.Once
 )
 
-// GetKageOSRoot 返回 Kageos 项目根目录绝对路径，用于解析 deploy/dev、deploy/prod 等。
+// GetKageOSRoot 返回 Kageos 项目根目录绝对路径，用于解析 .kageos、deploy/dev、deploy/prod 等。
 // 查找顺序：
 //  1. 从代码所在目录、当前工作目录开始，优先向上查找 `.kageos-root`
 //  2. 若仍未找到，则从这些起点的祖先目录向下搜索 `.kageos-root`
-//  3. 最后再退化为 deploy/dev/config、deploy/prod/config、go.mod 等弱特征目录
+//  3. 最后再退化为 .kageos、deploy/prod/config、go.mod 等弱特征目录
 //
 // 若均未找到则返回空字符串，配置解析将退化为仅相对 cwd 查找。
 func GetKageOSRoot() string {
@@ -135,7 +135,7 @@ func hasKageOSRootMarker(dir string) bool {
 }
 
 func isWeakKageOSRootDir(dir string) bool {
-	if st, err := os.Stat(filepath.Join(dir, "deploy", "dev", "config")); err == nil && st.IsDir() {
+	if st, err := os.Stat(filepath.Join(dir, ".kageos")); err == nil && st.IsDir() {
 		return true
 	}
 	if st, err := os.Stat(filepath.Join(dir, "deploy", "prod", "config")); err == nil && st.IsDir() {

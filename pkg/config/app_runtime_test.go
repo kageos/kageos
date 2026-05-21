@@ -3,6 +3,8 @@ package config
 import "testing"
 
 func TestAppRuntimeValidateAppliesContainerDefaults(t *testing.T) {
+	t.Setenv("KAGEOS_APP_BASE_IMAGE", "")
+
 	cfg := &AppRuntimeConfig{
 		Runtime: RuntimeConfig{
 			Port:     9093,
@@ -38,6 +40,22 @@ func TestAppRuntimeValidateAppliesContainerDefaults(t *testing.T) {
 	}
 	if got := cfg.Container.Image.BaseImage; got != "custom-runtime:latest" {
 		t.Fatalf("Container.Image.BaseImage = %q, want custom-runtime:latest", got)
+	}
+}
+
+func TestAppRuntimeBaseImageEnvOverride(t *testing.T) {
+	t.Setenv("KAGEOS_APP_BASE_IMAGE", "registry.example.com/kagebase:stable")
+
+	cfg := &AppRuntimeConfig{
+		Container: ContainerServiceConfig{
+			Image: ImageConfig{
+				BaseImage: "custom-runtime:latest",
+			},
+		},
+	}
+
+	if got := cfg.GetContainerBaseImage(); got != "registry.example.com/kagebase:stable" {
+		t.Fatalf("GetContainerBaseImage() = %q, want env override", got)
 	}
 }
 

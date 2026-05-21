@@ -166,7 +166,7 @@ func (s *AuthService) CreateUserBySecretKey(username, password string) (int64, e
 	user := &model.User{
 		Username:           username,
 		Email:              placeholderEmail,
-		CompanyCode:        model.DefaultCompanyCode,
+		CompanyCode:        defaultCompanyCode(),
 		PasswordHash:       string(hashedPassword),
 		RegisterType:       "system",
 		Status:             "active",

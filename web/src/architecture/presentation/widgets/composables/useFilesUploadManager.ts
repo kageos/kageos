@@ -46,6 +46,45 @@ interface UseFilesUploadManagerOptions {
 const BATCH_COMPLETE_DELAY = 500
 const BATCH_COMPLETE_MAX_SIZE = 10
 
+function fileIdentity(file: Pick<FileItem, 'ref' | 'bucket' | 'key' | 'name'>): string {
+  if (file.ref) {
+    return `ref:${file.ref}`
+  }
+  if (file.bucket || file.key) {
+    return `object:${file.bucket || ''}/${file.key || ''}`
+  }
+  return `name:${file.name || ''}`
+}
+
+function mergeFiles(existingFiles: FileItem[], incomingFiles: FileItem[]): FileItem[] {
+  const merged = [...existingFiles]
+  const indexByIdentity = new Map<string, number>()
+
+  merged.forEach((file, index) => {
+    const identity = fileIdentity(file)
+    if (identity !== 'name:') {
+      indexByIdentity.set(identity, index)
+    }
+  })
+
+  incomingFiles.forEach((file) => {
+    const identity = fileIdentity(file)
+    const existingIndex = indexByIdentity.get(identity)
+    if (existingIndex === undefined) {
+      indexByIdentity.set(identity, merged.length)
+      merged.push(file)
+      return
+    }
+
+    merged[existingIndex] = {
+      ...merged[existingIndex],
+      ...file,
+    }
+  })
+
+  return merged
+}
+
 export function useFilesUploadManager(options: UseFilesUploadManagerOptions) {
   const isDragging = ref(false)
   const isHandlingDrop = ref(false)
@@ -162,7 +201,7 @@ export function useFilesUploadManager(options: UseFilesUploadManagerOptions) {
       }
 
       if (newFiles.length > 0) {
-        await options.updateFiles([...options.currentFiles.value, ...newFiles])
+        await options.updateFiles(mergeFiles(options.currentFiles.value, newFiles))
         completedUploadingFiles.forEach((uploadingFile) => {
           const index = uploadingFiles.value.findIndex((file: UploadingFile) => file.uid === uploadingFile.uid)
           if (index !== -1) {
@@ -311,6 +350,25 @@ export function useFilesUploadManager(options: UseFilesUploadManagerOptions) {
       }
 
       if (uploadResult.fileInfo) {
+        const optimisticRef = uploadResult.fileInfo.ref || uploadResult.ref || `${uploadResult.fileInfo.bucket}/${uploadResult.fileInfo.key}`
+        if (optimisticRef) {
+          await options.updateFiles(mergeFiles(options.currentFiles.value, [{
+            ref: optimisticRef,
+            bucket: uploadResult.fileInfo.bucket,
+            key: uploadResult.fileInfo.key,
+            name: uploadResult.fileInfo.file_name,
+            source_name: uploadResult.fileInfo.file_name,
+            storage: uploadResult.storage || '',
+            description: '',
+            hash: uploadResult.fileInfo.hash || '',
+            size: uploadResult.fileInfo.file_size,
+            content_type: uploadResult.fileInfo.content_type,
+            is_uploaded: true,
+            downloaded: false,
+            upload_user: options.resolveUploadUser(),
+          }]))
+        }
+
         const previewMeta = await uploadGeneratedPreview(router, rawFile, uploadResult.fileInfo.key)
 
         if (!uploadResult.fileInfo.hash) {

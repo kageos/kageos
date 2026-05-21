@@ -22,7 +22,7 @@ const registerForm = reactive<RegisterRequest>({
   company_action: 'create',
   company_code: '',
   company_name: '',
-  company_logo_url: defaultCompanyLogo
+  company_logo_url: ''
 })
 
 // 表单引用
@@ -41,8 +41,8 @@ let companySearchSeq = 0
 
 const normalizedCompanyLogoURL = computed(() => registerForm.company_logo_url?.trim() || '')
 const companyLogoPreview = computed(() => (
-  registerForm.company_action === 'create' && normalizedCompanyLogoURL.value && !logoLoadFailed.value
-    ? normalizedCompanyLogoURL.value
+  registerForm.company_action === 'create' && !logoLoadFailed.value
+    ? normalizedCompanyLogoURL.value || defaultCompanyLogo
     : ''
 ))
 
@@ -53,8 +53,6 @@ watch(() => registerForm.company_action, (action) => {
     registerForm.company_logo_url = ''
     logoLoadFailed.value = false
     searchJoinCompanies('')
-  } else if (!registerForm.company_logo_url) {
-    registerForm.company_logo_url = defaultCompanyLogo
   }
 })
 
@@ -109,7 +107,7 @@ const triggerLogoUpload = () => {
 }
 
 const resetCompanyLogo = () => {
-  registerForm.company_logo_url = defaultCompanyLogo
+  registerForm.company_logo_url = ''
   logoLoadFailed.value = false
   if (logoInputRef.value) {
     logoInputRef.value.value = ''
@@ -191,7 +189,9 @@ const handleRegister = async () => {
     }
     if (registerForm.company_action === 'create') {
       payload.company_name = registerForm.company_name?.trim()
-      payload.company_logo_url = normalizedCompanyLogoURL.value
+      if (normalizedCompanyLogoURL.value) {
+        payload.company_logo_url = normalizedCompanyLogoURL.value
+      }
     }
 
     await registerApi(payload)
@@ -469,8 +469,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
               >
                 <div class="company-select-option">
                   <div class="company-select-logo">
-                    <img v-if="company.logo_url" :src="company.logo_url" :alt="company.name" />
-                    <el-icon v-else><OfficeBuilding /></el-icon>
+                    <img :src="company.logo_url || defaultCompanyLogo" :alt="company.name" />
                   </div>
                   <div class="company-select-copy">
                     <div class="company-select-name">{{ company.name }}</div>

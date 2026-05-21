@@ -23,6 +23,7 @@ func (s *Server) setupRoutes() {
 
 	publicShareHandler := v1.NewPublicShareAPI(s.publicShareService, s.appService, s.teamAccessService)
 	public := s.httpServer.Group("/public/api")
+	public.POST("/anonymous-token", publicShareHandler.AnonymousToken)
 	public.GET("/s/:share_id", publicShareHandler.View)
 	public.POST("/s/:share_id/submit", publicShareHandler.Submit)
 	public.POST("/s/:share_id/callback/on_select_fuzzy", publicShareHandler.CallbackOnSelectFuzzy)

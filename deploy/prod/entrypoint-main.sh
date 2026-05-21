@@ -15,7 +15,7 @@ set_smtp_defaults
 TLS_MODE="${TLS_MODE:-http}"
 TLS_CERT_FILE="${TLS_CERT_FILE:-/app/tls/fullchain.pem}"
 TLS_KEY_FILE="${TLS_KEY_FILE:-/app/tls/privkey.pem}"
-APP_BASE_IMAGE="${APP_BASE_IMAGE:-localhost/kagebase:latest}"
+KAGEOS_APP_BASE_IMAGE="${KAGEOS_APP_BASE_IMAGE:-kagebase:latest}"
 MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}"
 MYSQL_PORT="${MYSQL_PORT:-3306}"
 NATS_HOST="${NATS_HOST:-127.0.0.1}"
@@ -25,7 +25,7 @@ MINIO_PORT="${MINIO_PORT:-9000}"
 NATS_USER="${NATS_USER:-${NATS_SEED_USER:-aos}}"
 NATS_PASSWORD="${NATS_PASSWORD:-${NATS_SEED_PASSWORD:-}}"
 NATS_URL="${NATS_URL:-nats://${NATS_USER}:${NATS_PASSWORD}@${NATS_HOST}:${NATS_PORT}}"
-export APP_BASE_IMAGE
+export KAGEOS_APP_BASE_IMAGE
 export MYSQL_HOST
 export MYSQL_PORT
 export NATS_HOST
@@ -41,7 +41,7 @@ wait_tcp "$MYSQL_HOST" "$MYSQL_PORT" "MySQL"
 wait_tcp "$NATS_HOST" "$NATS_PORT" "NATS"
 wait_tcp "$MINIO_HOST" "$MINIO_PORT" "MinIO"
 
-PROD_TEMPLATE_VARS='${MYSQL_ROOT_PASSWORD} ${JWT_SECRET} ${SYSTEM_USER_PASSWORD} ${MINIO_ROOT_PASSWORD} ${NATS_URL} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${SMTP_FROM} ${SMTP_FROM_NAME} ${APP_BASE_IMAGE}'
+PROD_TEMPLATE_VARS='${MYSQL_ROOT_PASSWORD} ${JWT_SECRET} ${SYSTEM_USER_PASSWORD} ${MINIO_ROOT_PASSWORD} ${NATS_URL} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${SMTP_FROM} ${SMTP_FROM_NAME} ${KAGEOS_APP_BASE_IMAGE}'
 render_runtime_templates "$PROD_TEMPLATE_VARS"
 
 CANONICAL_BASE_URL="${CANONICAL_BASE_URL}"
@@ -127,12 +127,12 @@ if [ ! -S /run/podman/podman.sock ]; then
   echo "WARN: /run/podman/podman.sock 未出现，app-runtime 可能仍失败"
 fi
 
-if ! podman image exists "${APP_BASE_IMAGE}" 2>/dev/null; then
-  echo "ERROR: 未找到用户应用基础镜像 ${APP_BASE_IMAGE}" >&2
-  echo "ERROR: 请先在宿主机执行 go run ./cmd/kagectl up --config deploy/prod/kage.yaml" >&2
+if ! podman image exists "${KAGEOS_APP_BASE_IMAGE}" 2>/dev/null; then
+  echo "ERROR: 未找到用户应用基础镜像 ${KAGEOS_APP_BASE_IMAGE}" >&2
+  echo "ERROR: 请先在宿主机执行 go run ./cmd/kagectl up --config .kageos/prod/kage.yaml" >&2
   exit 1
 fi
-echo "==> 用户应用基础镜像已就绪: ${APP_BASE_IMAGE}"
+echo "==> 用户应用基础镜像已就绪: ${KAGEOS_APP_BASE_IMAGE}"
 
 shutdown() {
   echo "==> 停止..."

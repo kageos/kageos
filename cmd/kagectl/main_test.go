@@ -111,7 +111,7 @@ func TestRenderBundledConfig(t *testing.T) {
 	}
 
 	appStorageConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "app-storage.yaml"))
-	if !strings.Contains(appStorageConfig, `server_endpoint: "127.0.0.1:9000"`) {
+	if !strings.Contains(appStorageConfig, `server_endpoint: "host.containers.internal:9000"`) {
 		t.Fatalf("generated app-storage config should include container MinIO endpoint, got:\n%s", appStorageConfig)
 	}
 
@@ -126,6 +126,9 @@ func TestRenderBundledConfig(t *testing.T) {
 	}
 
 	apiGatewayConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "api-gateway.yaml"))
+	if !strings.Contains(apiGatewayConfig, `path: "/public/api"`) {
+		t.Fatalf("generated api-gateway config should proxy public share APIs, got:\n%s", apiGatewayConfig)
+	}
 	for _, retired := range []string{`path: "/message"`, `path: "/control"`} {
 		if strings.Contains(apiGatewayConfig, retired) {
 			t.Fatalf("generated api-gateway config should not include retired route %q, got:\n%s", retired, apiGatewayConfig)
@@ -301,6 +304,242 @@ func TestDeploymentLayersExposeRuntimeBoundary(t *testing.T) {
 		if !hasDeploymentComponent(components, want.layer, want.name) {
 			t.Fatalf("deployment components missing %s/%s: %#v", want.layer, want.name, components)
 		}
+	}
+}
+
+func TestAppBaseImageEnvOverride(t *testing.T) {
+	t.Setenv("KAGEOS_APP_BASE_IMAGE", "registry.example.com/kagebase:stable")
+
+	cfg, err := defaultConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyEnvOverrides(&cfg)
+
+	if got := cfg.Images.AppBase; got != "registry.example.com/kagebase:stable" {
+		t.Fatalf("Images.AppBase = %q, want env override", got)
+	}
+}
+
+func TestParseBuildAppBaseFlags(t *testing.T) {
+	opts, err := parseBuildAppBaseFlags([]string{"--image", "registry.example.com/kagebase:stable", "--force", "--no-cache"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.Image != "registry.example.com/kagebase:stable" {
+		t.Fatalf("Image = %q", opts.Image)
+	}
+	if !opts.Force {
+		t.Fatal("Force = false, want true")
+	}
+	if !opts.NoCache {
+		t.Fatal("NoCache = false, want true")
+	}
+}
+
+func TestParseBuildAppBaseFlagsRejectsEmptyImage(t *testing.T) {
+	if _, err := parseBuildAppBaseFlags([]string{"--image", " "}); err == nil {
+		t.Fatal("parseBuildAppBaseFlags() error = nil, want error")
+	}
+}
+
+func TestParseInitDevFlags(t *testing.T) {
+	opts, err := parseInitDevFlags([]string{"--engine", "podman", "--base-image", "registry.example.com/kagebase:stable", "--base-force", "--base-no-cache", "--company-code", "acme", "--company-name", "Acme Inc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.Engine != "podman" {
+		t.Fatalf("Engine = %q, want podman", opts.Engine)
+	}
+	if opts.BaseImage != "registry.example.com/kagebase:stable" {
+		t.Fatalf("BaseImage = %q", opts.BaseImage)
+	}
+	if !opts.BaseForce {
+		t.Fatal("BaseForce = false, want true")
+	}
+	if !opts.BaseNoCache {
+		t.Fatal("BaseNoCache = false, want true")
+	}
+	if opts.CompanyCode != "acme" || opts.CompanyName != "Acme Inc" {
+		t.Fatalf("unexpected company opts: %#v", opts)
+	}
+}
+
+func TestParseInitDevFlagsAcceptsPositionalEngine(t *testing.T) {
+	opts, err := parseInitDevFlags([]string{"docker"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.Engine != "docker" {
+		t.Fatalf("Engine = %q, want docker", opts.Engine)
+	}
+}
+
+func TestParseInitDevFlagsRejectsUnknownEngine(t *testing.T) {
+	if _, err := parseInitDevFlags([]string{"--engine", "containerd"}); err == nil {
+		t.Fatal("parseInitDevFlags() error = nil, want error")
+	}
+}
+
+func TestParseInitDevFlagsAcceptsSkipBase(t *testing.T) {
+	opts, err := parseInitDevFlags([]string{"--skip-base"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !opts.SkipBase {
+		t.Fatal("SkipBase = false, want true")
+	}
+}
+
+func TestSDKMinIOEndpointUsesContainerHostForLocalEndpoints(t *testing.T) {
+	t.Parallel()
+
+	for _, endpoint := range []string{"127.0.0.1:9000", "localhost:9000"} {
+		if got := sdkMinIOEndpoint(endpoint); got != "host.containers.internal:9000" {
+			t.Fatalf("sdkMinIOEndpoint(%q) = %q", endpoint, got)
+		}
+	}
+	if got := sdkMinIOEndpoint("minio.example.com:9000"); got != "minio.example.com:9000" {
+		t.Fatalf("sdkMinIOEndpoint(remote) = %q", got)
+	}
+}
+
+func TestRenderDevConfigUsesKageOSDir(t *testing.T) {
+	repoRoot := t.TempDir()
+	paths := Paths{
+		RepoRoot:     repoRoot,
+		ProdDir:      filepath.Join(repoRoot, defaultProdDir),
+		ConfigPath:   filepath.Join(repoRoot, defaultProdDir, defaultConfigName),
+		GeneratedDir: filepath.Join(repoRoot, defaultProdDir, defaultGenerated),
+	}
+
+	if err := renderDevConfig(paths, false, "", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	appServerConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "app-server.yaml"))
+	if strings.Contains(appServerConfig, `password: "root"`) {
+		t.Fatalf("dev app-server config should not use fixed root password, got:\n%s", appServerConfig)
+	}
+	if !strings.Contains(appServerConfig, `port: 3318`) {
+		t.Fatalf("dev app-server config should use isolated mysql port 3318, got:\n%s", appServerConfig)
+	}
+	appRuntimeConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "app-runtime.yaml"))
+	if !strings.Contains(appRuntimeConfig, `base_image: "kagebase:latest"`) {
+		t.Fatalf("dev app-runtime config should use default base image, got:\n%s", appRuntimeConfig)
+	}
+	envFile := filepath.Join(repoRoot, ".kageos", "dev", "env", "kageos.env")
+	if !fileExists(envFile) {
+		t.Fatal("dev env file was not rendered")
+	}
+	envContent := mustReadFile(t, envFile)
+	if strings.Contains(envContent, "MYSQL_ROOT_PASSWORD=root") || strings.Contains(envContent, "MINIO_ROOT_PASSWORD=minioadmin123") {
+		t.Fatalf("dev env should not use fixed passwords, got:\n%s", envContent)
+	}
+	if !strings.Contains(envContent, "MYSQL_PORT=3318") {
+		t.Fatalf("dev env should use isolated mysql port 3318, got:\n%s", envContent)
+	}
+}
+
+func TestRenderDevConfigAcceptsCompanyOverrides(t *testing.T) {
+	repoRoot := t.TempDir()
+	paths := Paths{
+		RepoRoot:     repoRoot,
+		ProdDir:      filepath.Join(repoRoot, defaultProdDir),
+		ConfigPath:   filepath.Join(repoRoot, defaultProdDir, defaultConfigName),
+		GeneratedDir: filepath.Join(repoRoot, defaultProdDir, defaultGenerated),
+	}
+
+	if err := renderDevConfig(paths, false, "acme", "Acme Inc"); err != nil {
+		t.Fatal(err)
+	}
+
+	hrConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "hr-server.yaml"))
+	for _, want := range []string{`code: "acme"`, `name: "Acme Inc"`} {
+		if !strings.Contains(hrConfig, want) {
+			t.Fatalf("dev hr config missing %q, got:\n%s", want, hrConfig)
+		}
+	}
+	envContent := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "env", "kageos.env"))
+	if !strings.Contains(envContent, "KAGEOS_COMPANY_CODE=acme") || !strings.Contains(envContent, `KAGEOS_COMPANY_NAME="Acme Inc"`) {
+		t.Fatalf("dev env missing company values, got:\n%s", envContent)
+	}
+}
+
+func TestRenderDevConfigPreservesExistingSecrets(t *testing.T) {
+	repoRoot := t.TempDir()
+	paths := Paths{
+		RepoRoot:     repoRoot,
+		ProdDir:      filepath.Join(repoRoot, defaultProdDir),
+		ConfigPath:   filepath.Join(repoRoot, defaultProdDir, defaultConfigName),
+		GeneratedDir: filepath.Join(repoRoot, defaultProdDir, defaultGenerated),
+	}
+
+	if err := os.MkdirAll(filepath.Join(repoRoot, ".kageos", "dev", "env"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	envPath := filepath.Join(repoRoot, ".kageos", "dev", "env", "kageos.env")
+	initialEnv := strings.Join([]string{
+		"MYSQL_ROOT_PASSWORD=existing-mysql",
+		"NATS_SEED_USER=existing-nats",
+		"NATS_SEED_PASSWORD=existing-nats-pass",
+		"MINIO_ROOT_USER=existing-minio",
+		"MINIO_ROOT_PASSWORD=existing-minio-pass",
+		"JWT_SECRET=existing-jwt-secret-existing-jwt-secret",
+		"SYSTEM_USER_PASSWORD=existing-system-pass",
+		"",
+	}, "\n")
+	if err := os.WriteFile(envPath, []byte(initialEnv), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := renderDevConfig(paths, false, "", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	appServerConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "app-server.yaml"))
+	if !strings.Contains(appServerConfig, `password: "existing-mysql"`) {
+		t.Fatalf("dev config should preserve existing mysql password, got:\n%s", appServerConfig)
+	}
+}
+
+func TestRenderDevConfigRefusesImplicitSecretsWhenStateExistsWithoutEnv(t *testing.T) {
+	repoRoot := t.TempDir()
+	paths := Paths{
+		RepoRoot:     repoRoot,
+		ProdDir:      filepath.Join(repoRoot, defaultProdDir),
+		ConfigPath:   filepath.Join(repoRoot, defaultProdDir, defaultConfigName),
+		GeneratedDir: filepath.Join(repoRoot, defaultProdDir, defaultGenerated),
+	}
+	if err := os.MkdirAll(filepath.Join(repoRoot, ".kageos"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	err := renderDevConfig(paths, false, "", "")
+	if err == nil || !strings.Contains(err.Error(), "refusing to generate new secrets implicitly") {
+		t.Fatalf("expected implicit secret generation refusal, got: %v", err)
+	}
+}
+
+func TestRenderDevConfigRefusesIncompleteExistingEnv(t *testing.T) {
+	repoRoot := t.TempDir()
+	paths := Paths{
+		RepoRoot:     repoRoot,
+		ProdDir:      filepath.Join(repoRoot, defaultProdDir),
+		ConfigPath:   filepath.Join(repoRoot, defaultProdDir, defaultConfigName),
+		GeneratedDir: filepath.Join(repoRoot, defaultProdDir, defaultGenerated),
+	}
+	envDir := filepath.Join(repoRoot, ".kageos", "dev", "env")
+	if err := os.MkdirAll(envDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(envDir, "kageos.env"), []byte("MYSQL_ROOT_PASSWORD=existing-mysql\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	err := renderDevConfig(paths, false, "", "")
+	if err == nil || !strings.Contains(err.Error(), "dev env is incomplete") {
+		t.Fatalf("expected incomplete env refusal, got: %v", err)
 	}
 }
 
@@ -487,11 +726,11 @@ func TestUninstallDataTargetsKeepPodmanStorageByDefault(t *testing.T) {
 func TestParseInitAndBootstrapFlags(t *testing.T) {
 	t.Parallel()
 
-	initOpts, err := parseInitFlags("init", []string{"--force", "--base-url", "http://example.com", "--mysql-mode", "bundled"})
+	initOpts, err := parseInitFlags("init", []string{"--force", "--base-url", "http://example.com", "--mysql-mode", "bundled", "--company-code", "acme", "--company-name", "Acme Inc"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !initOpts.Force || initOpts.BaseURL != "http://example.com" || initOpts.MySQLMode != "bundled" {
+	if !initOpts.Force || initOpts.BaseURL != "http://example.com" || initOpts.MySQLMode != "bundled" || initOpts.CompanyCode != "acme" || initOpts.CompanyName != "Acme Inc" {
 		t.Fatalf("unexpected init opts: %#v", initOpts)
 	}
 
@@ -518,7 +757,7 @@ func TestWriteInitialConfig(t *testing.T) {
 		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
 		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
 	}
-	created, err := writeInitialConfig(paths, initOptions{BaseURL: "http://example.com", MySQLMode: "bundled"})
+	created, err := writeInitialConfig(paths, initOptions{BaseURL: "http://example.com", MySQLMode: "bundled", CompanyCode: "acme", CompanyName: "Acme Inc"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -531,6 +770,9 @@ func TestWriteInitialConfig(t *testing.T) {
 	}
 	if cfg.Site.BaseURL != "http://example.com" {
 		t.Fatalf("unexpected base url: %s", cfg.Site.BaseURL)
+	}
+	if cfg.Company.Code != "acme" || cfg.Company.Name != "Acme Inc" {
+		t.Fatalf("unexpected company config: %#v", cfg.Company)
 	}
 	if cfg.SystemUser.Password == "" {
 		t.Fatal("expected generated config to include system_user.password")

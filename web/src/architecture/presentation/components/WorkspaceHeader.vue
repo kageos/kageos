@@ -34,12 +34,12 @@
         {{ t('workspace.search') }}
       </el-button>
       <div
-        v-if="companyName || companyLogo"
+        v-if="companyName || companyCode"
         class="company-badge"
         :title="companyTitle"
         data-testid="workspace-header-company"
       >
-        <el-avatar :size="28" :src="companyLogo || undefined" class="company-logo">
+        <el-avatar :size="28" :src="companyLogo" class="company-logo">
           {{ companyInitials }}
         </el-avatar>
         <span class="company-name">{{ companyName }}</span>
@@ -171,6 +171,7 @@ import DebugDialog from './DebugDialog.vue'
 import GlobalResourceSearchDialog from './GlobalResourceSearchDialog.vue'
 import { featureFlags } from '@/architecture/shared/config/features'
 import LanguageSwitcher from './LanguageSwitcher.vue'
+import defaultCompanyLogo from '@/architecture/presentation/assets/logo.svg'
 
 defineProps<{
   currentApp: App | null
@@ -202,7 +203,7 @@ const userInitials = computed(() => {
 })
 const companyName = computed(() => authStore.user?.company_name || authStore.user?.company_code || '')
 const companyCode = computed(() => authStore.user?.company_code || '')
-const companyLogo = computed(() => authStore.user?.company_logo_url || '')
+const companyLogo = computed(() => authStore.user?.company_logo_url || defaultCompanyLogo)
 const companyInitials = computed(() => {
   const source = companyName.value || companyCode.value || 'CO'
   return source.substring(0, 2).toUpperCase()

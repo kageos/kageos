@@ -1,13 +1,17 @@
 package app
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/apicall"
+	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/publicshare"
 )
 
 type resolvedDownloadFile struct {
@@ -39,16 +43,41 @@ func (c *FS) prepareDownloadDir() (string, string, bool) {
 }
 
 func (c *FS) resolveDownloadFiles(refs []string) ([]resolvedDownloadFile, bool) {
-	ctx := apicall.NewContext(c.ctx.token, c.ctx.msg.TraceId)
-	resolveResp, err := apicall.ResolveFileRefs(ctx, &dto.ResolveFileRefsReq{
+	req := &dto.ResolveFileRefsReq{
 		Refs:     refs,
 		Audience: "server",
-	})
+	}
+	ctx := c.resolveFileRefsContext()
+	var resolveResp *dto.ResolveFileRefsResp
+	var err error
+	if shareID := c.publicShareID(); shareID != "" {
+		resolveResp, err = apicall.ResolvePublicShareFileRefs(ctx, shareID, req)
+	} else {
+		resolveResp, err = apicall.ResolveFileRefs(ctx, req)
+	}
 	if err != nil {
 		logger.Errorf(c.ctx, "[DownloadFiles] 解析文件引用失败: %v", err)
 		return nil, false
 	}
 	return toResolvedDownloadFiles(resolveResp.Files), true
+}
+
+func (c *FS) resolveFileRefsContext() context.Context {
+	ctx := c.ctx.apiCallContext()
+	if c.ctx.anonymousToken != "" {
+		ctx = context.WithValue(ctx, publicshare.AnonymousTokenHeader, c.ctx.anonymousToken)
+	}
+	return ctx
+}
+
+func (c *FS) publicShareID() string {
+	if strings.TrimSpace(c.ctx.GetClientSource()) != "public_share" {
+		return ""
+	}
+	if sourceType := strings.TrimSpace(contextx.GetSourceType(c.ctx.Context)); sourceType != "" && sourceType != "public_share" {
+		return ""
+	}
+	return strings.TrimSpace(contextx.GetSourceRef(c.ctx.Context))
 }
 
 func toResolvedDownloadFiles(files []dto.ResolvedFile) []resolvedDownloadFile {

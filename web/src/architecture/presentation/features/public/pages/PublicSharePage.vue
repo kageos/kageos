@@ -1,5 +1,5 @@
 <template>
-  <main class="public-share-page">
+  <main class="public-share-page workspace-container">
     <section class="public-share-shell">
       <div v-if="loading" class="public-share-state">
         <el-skeleton :rows="8" animated />
@@ -23,14 +23,17 @@
           <div v-if="metaText" class="public-share-meta">{{ metaText }}</div>
         </header>
 
-        <div class="public-share-form">
-          <FormView
-            :function-detail="functionDetail"
-            :form-gateway="gateway"
-            :show-submit-button="true"
-            :show-reset-button="true"
-            :show-debug-button="false"
-          />
+        <div class="public-share-function-panel workspace-function-renderer public-share-renderer">
+          <div class="function-runtime">
+            <FormView
+              :key="`public-form-${functionDetail.router}`"
+              :function-detail="functionDetail"
+              :form-gateway="gateway"
+              :show-submit-button="true"
+              :show-reset-button="true"
+              :show-debug-button="false"
+            />
+          </div>
         </div>
       </template>
     </section>
@@ -92,25 +95,26 @@ onMounted(loadShare)
 
 <style scoped lang="scss">
 .public-share-page {
+  height: 100vh;
   min-height: 100vh;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--el-color-primary) 10%, var(--app-shell-bg, var(--el-bg-color-page))) 0%,
-      var(--app-shell-bg, var(--el-bg-color-page)) 320px
-    );
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px 18px;
+  overflow: hidden;
+  background: var(--app-shell-bg, var(--el-bg-color-page));
+  background-attachment: fixed;
   color: var(--el-text-color-primary);
-  padding: 34px 16px 48px;
 }
 
 .public-share-shell {
-  width: min(1120px, 100%);
+  flex: 1;
+  min-height: 0;
+  width: min(1180px, 100%);
   margin: 0 auto;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow: hidden;
 }
 
 .public-share-state,
@@ -119,14 +123,30 @@ onMounted(loadShare)
 }
 
 .public-share-header {
+  flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
   gap: 24px;
   padding: 28px 32px;
   border: 1px solid var(--app-shell-panel-border, var(--el-border-color-lighter));
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--el-color-primary) 7%, var(--app-shell-panel-muted-bg, var(--el-fill-color-light)));
+  border-radius: 24px;
+  background: var(--app-shell-panel-bg, var(--el-bg-color));
   box-shadow: var(--app-shell-panel-shadow-soft, var(--box-shadow-base));
+  position: relative;
+  overflow: hidden;
+}
+
+.public-share-header::before,
+.public-share-function-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 28px;
+  right: 28px;
+  height: 1px;
+  background: var(--app-shell-panel-highlight, rgba(255, 255, 255, 0.7));
+  opacity: 0.7;
+  pointer-events: none;
 }
 
 .public-share-eyebrow {
@@ -160,21 +180,41 @@ onMounted(loadShare)
   text-align: right;
 }
 
-.public-share-form {
-  padding: 22px 0 0;
-  background: transparent;
+.public-share-renderer {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.public-share-function-panel {
+  position: relative;
+  border: 1px solid var(--app-shell-panel-border, var(--el-border-color-lighter));
+  border-radius: 24px;
+  background: var(--app-shell-panel-bg, var(--el-bg-color));
+  box-shadow: var(--app-shell-panel-shadow, var(--box-shadow-base));
+  overflow: hidden;
+}
+
+.public-share-renderer .function-runtime {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 28px;
+  -webkit-overflow-scrolling: touch;
 }
 
 @media (max-width: 700px) {
   .public-share-page {
+    height: auto;
+    min-height: 100vh;
     padding: 12px;
-    background: var(--app-shell-bg, var(--el-bg-color-page));
+    overflow: visible;
   }
 
   .public-share-shell {
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
+    overflow: visible;
   }
 
   .public-share-header {
@@ -193,8 +233,18 @@ onMounted(loadShare)
     text-align: left;
   }
 
-  .public-share-form {
-    padding: 14px 0 0;
+  .public-share-renderer {
+    min-height: 0;
+  }
+
+  .public-share-function-panel {
+    border-radius: 18px;
+    overflow: visible;
+  }
+
+  .public-share-renderer .function-runtime {
+    overflow: visible;
+    padding: 14px;
   }
 
 }
