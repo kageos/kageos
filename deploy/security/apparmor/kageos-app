@@ -1,0 +1,31 @@
+# AppArmor profile：禁止容器内进程删除 /app/code 和 /app/workplace
+# 背景：容器内跑的是 AI 生成的代码和第三方包，无法保证不执行删除操作，
+#       必须在内核层面做硬限制，只允许 runtime 在宿主机侧通过接口删除。
+#
+# 安装：sudo bash install.sh（同目录）
+# 使用：podman run --security-opt apparmor=kageos-app ...
+
+#include <tunables/global>
+
+profile kageos-app flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  # === 受保护路径：禁止删除（unlink），允许读写 ===
+  deny /app/code/** u,
+  deny /app/workplace/** u,
+  /app/code/** rwk,
+  /app/workplace/** rwk,
+
+  # === 容器运行所需的基本权限 ===
+  / r,
+  /** rwkix,
+
+  # 网络（SDK 访问 NATS、Gateway、外部服务等）
+  network inet stream,
+  network inet6 stream,
+
+  # 进程能力
+  capability setuid,
+  capability setgid,
+  capability net_bind_service,
+}
