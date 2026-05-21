@@ -114,15 +114,35 @@ networks:
 const envTemplate = `
 CANONICAL_BASE_URL={{ .Site.BaseURL }}
 TLS_MODE={{ .Site.TLSMode }}
+TLS_CERT_FILE={{ .Site.CertFile }}
+TLS_KEY_FILE={{ .Site.KeyFile }}
+KAGEOS_TLS_CERT_PEM_B64={{ .Site.TLSCertPEMB64 }}
+KAGEOS_TLS_KEY_PEM_B64={{ .Site.TLSKeyPEMB64 }}
 MAIN_IMAGE={{ .Images.Main }}
 APP_BASE_IMAGE={{ .Images.AppBase }}
 MYSQL_MODE={{ .MySQL.Mode }}
 MYSQL_HOST={{ .MySQLHostForMain }}
 MYSQL_PORT={{ .MySQLPortForMain }}
+MYSQL_ROOT_PASSWORD={{ .MySQL.Password }}
 NATS_MODE={{ .NATS.Mode }}
+NATS_HOST={{ .NATSHostForMain }}
+NATS_PORT={{ .NATSPortForMain }}
 NATS_URL={{ .NATSURL }}
+NATS_SEED_USER={{ .NATSAuthUser }}
+NATS_SEED_PASSWORD={{ .NATSAuthPassword }}
 MINIO_MODE={{ .MinIO.Mode }}
 MINIO_ENDPOINT={{ .MinIOEndpoint }}
+MINIO_HOST={{ .MinIOHostForMain }}
+MINIO_PORT={{ .MinIOPortForMain }}
+MINIO_ROOT_PASSWORD={{ .MinIO.SecretKey }}
+JWT_SECRET={{ .Secrets.JWTSecret }}
+SYSTEM_USER_PASSWORD={{ .SystemUser.Password }}
+SMTP_HOST={{ .SMTP.Host }}
+SMTP_PORT={{ .SMTP.Port }}
+SMTP_USERNAME={{ .SMTP.Username }}
+SMTP_PASSWORD={{ .SMTP.Password }}
+SMTP_FROM={{ .SMTP.From }}
+SMTP_FROM_NAME={{ .SMTP.FromName }}
 `
 
 const natsConfigTemplate = `

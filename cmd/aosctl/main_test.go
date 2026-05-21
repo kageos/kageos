@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"errors"
 	"os"
 	"path/filepath"
@@ -128,6 +129,63 @@ func TestRenderBundledConfig(t *testing.T) {
 	for _, retired := range []string{`path: "/message"`, `path: "/control"`} {
 		if strings.Contains(apiGatewayConfig, retired) {
 			t.Fatalf("generated api-gateway config should not include retired route %q, got:\n%s", retired, apiGatewayConfig)
+		}
+	}
+}
+
+func TestRenderTLSFromBase64Config(t *testing.T) {
+	t.Parallel()
+
+	prodDir := t.TempDir()
+	paths := Paths{
+		RepoRoot:     filepath.Dir(filepath.Dir(prodDir)),
+		ProdDir:      prodDir,
+		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
+		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
+	}
+	cfg, err := defaultConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	certPEM := "-----BEGIN CERTIFICATE-----\ntest-cert\n-----END CERTIFICATE-----\n"
+	keyPEM := "-----BEGIN PRIVATE KEY-----\ntest-key\n-----END PRIVATE KEY-----\n"
+	cfg.Site.BaseURL = "https://example.com"
+	cfg.Site.TLSMode = "redirect"
+	cfg.Site.TLSCertPEMB64 = base64.StdEncoding.EncodeToString([]byte(certPEM))
+	cfg.Site.TLSKeyPEMB64 = base64.StdEncoding.EncodeToString([]byte(keyPEM))
+
+	rt, err := buildRuntimeConfig(paths, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateConfig(rt); err != nil {
+		t.Fatal(err)
+	}
+	if err := renderAll(rt); err != nil {
+		t.Fatal(err)
+	}
+
+	compose := mustReadFile(t, filepath.Join(paths.GeneratedDir, "docker-compose.yaml"))
+	if !strings.Contains(compose, filepath.Join(paths.GeneratedDir, "tls")+":/app/tls:ro") {
+		t.Fatalf("generated compose should mount generated tls dir, got:\n%s", compose)
+	}
+
+	if got := mustReadFile(t, filepath.Join(paths.GeneratedDir, "tls", "fullchain.pem")); got != certPEM {
+		t.Fatalf("generated cert = %q, want %q", got, certPEM)
+	}
+	if got := mustReadFile(t, filepath.Join(paths.GeneratedDir, "tls", "privkey.pem")); got != keyPEM {
+		t.Fatalf("generated key = %q, want %q", got, keyPEM)
+	}
+
+	envFile := mustReadFile(t, filepath.Join(paths.GeneratedDir, "env", "kageos.env"))
+	for _, want := range []string{
+		"CANONICAL_BASE_URL=https://example.com",
+		"TLS_MODE=redirect",
+		"KAGEOS_TLS_CERT_PEM_B64=" + cfg.Site.TLSCertPEMB64,
+		"KAGEOS_TLS_KEY_PEM_B64=" + cfg.Site.TLSKeyPEMB64,
+	} {
+		if !strings.Contains(envFile, want) {
+			t.Fatalf("generated env file missing %q, got:\n%s", want, envFile)
 		}
 	}
 }
