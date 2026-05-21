@@ -8,7 +8,7 @@ site:
 
 images:
   main: "localhost/kageos-main:latest"
-  app_base: "localhost/kageos-app-runtime-base:latest"
+  app_base: "localhost/kagebase:latest"
   mysql: "docker.io/library/mysql:8.0"
   nats: "docker.io/library/nats:2.10-alpine"
   minio: "docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"

@@ -74,7 +74,7 @@ const (
 	defaultContainerRuntime        = "podman"
 	defaultContainerLSMMode        = "auto"
 	defaultAppArmorProfile         = "kageos-app"
-	defaultContainerBaseImage      = "kageos-app-runtime-base:latest"
+	defaultContainerBaseImage      = "kagebase:latest"
 	defaultContainerPath           = "/app"
 )
 
