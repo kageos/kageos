@@ -1,5 +1,5 @@
 # 生产单机镜像：core-server + 内置 Nginx + Podman
-# 构建（仓库根）：docker build -f deploy/prod/Dockerfile -t localhost/agentos-main:latest .
+# 构建（仓库根）：docker build -f deploy/prod/Dockerfile -t localhost/kageos-main:latest .
 
 # ========== Go 编译 ==========
 FROM docker.io/library/golang:1.25-bookworm AS gobuilder

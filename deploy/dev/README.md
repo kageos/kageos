@@ -87,7 +87,7 @@ bash deploy/base/scripts/build-app-base-image.sh --force
 如需自定义 tag，可临时指定：
 
 ```bash
-APP_BASE_IMAGE="agentos-app-runtime-base:latest" bash deploy/base/scripts/build-app-base-image.sh
+APP_BASE_IMAGE="kageos-app-runtime-base:latest" bash deploy/base/scripts/build-app-base-image.sh
 ```
 
 如需强制重建且不复用缓存：
@@ -96,7 +96,7 @@ APP_BASE_IMAGE="agentos-app-runtime-base:latest" bash deploy/base/scripts/build-
 bash deploy/base/scripts/build-app-base-image.sh --force --no-cache
 ```
 
-但注意：dev 默认配置 [app-runtime.yaml](config/app-runtime.yaml) 里的 `container.image.base_image` 默认也是 `agentos-app-runtime-base:latest`。如果你真要用自定义 tag，记得同时改这里。
+但注意：dev 默认配置 [app-runtime.yaml](config/app-runtime.yaml) 里的 `container.image.base_image` 默认也是 `kageos-app-runtime-base:latest`。如果你真要用自定义 tag，记得同时改这里。
 
 ### 3. 起前端
 
