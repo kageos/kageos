@@ -90,6 +90,15 @@ const router = createRouter({
         feature: 'llmManagement'
       }
     },
+    {
+      path: '/system/settings',
+      name: 'system-settings',
+      component: () => import('@/architecture/presentation/features/system/pages/SystemSettingsPage.vue'),
+      meta: {
+        titleKey: 'route.systemSettings',
+        requireAuth: true
+      }
+    },
 
     // 根路径：直接走工作空间链路，后续由全局守卫补齐登录态和 username
     {

@@ -128,6 +128,7 @@ export default {
     userSettings: 'Profile settings',
     llmConfig: 'LLM settings',
     llmManagement: 'LLM management',
+    systemSettings: 'System settings',
     home: 'Home',
     workspace: 'Workspace',
     notFound: 'Page not found',

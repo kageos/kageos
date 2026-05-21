@@ -128,6 +128,7 @@ export default {
     userSettings: '个人设置',
     llmConfig: 'LLM 配置',
     llmManagement: 'LLM 管理',
+    systemSettings: '系统设置',
     home: '首页',
     workspace: '工作空间',
     notFound: '页面不存在',

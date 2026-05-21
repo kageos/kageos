@@ -33,6 +33,7 @@ type Server struct {
 	// 服务
 	authService       *service.AuthService
 	emailService      *service.EmailService
+	settingsService   *service.SystemSettingsService
 	userService       *service.UserService
 	departmentService *service.DepartmentService
 	tokenPublisher    service.TokenPublisher
@@ -187,6 +188,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	userSessionRepo := repository.NewUserSessionRepository(s.db)
 	emailCodeRepo := repository.NewEmailCodeRepository(s.db)
 	deptRepo := repository.NewDepartmentRepository(s.db)
+	settingRepo := repository.NewSystemSettingRepository(s.db)
 
 	if s.natsConn != nil {
 		s.tokenPublisher = service.NewGatewayTokenPublisher(s.natsConn)
@@ -194,9 +196,10 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化认证服务
 	s.authService = service.NewAuthService(userRepo, companyRepo, userSessionRepo, s.tokenPublisher)
+	s.settingsService = service.NewSystemSettingsService(settingRepo)
 
 	// 初始化邮件服务
-	s.emailService = service.NewEmailService(emailCodeRepo)
+	s.emailService = service.NewEmailService(emailCodeRepo, s.settingsService)
 
 	// 初始化用户服务
 	s.userService = service.NewUserService(userRepo, companyRepo, s.tokenPublisher, userSessionRepo)

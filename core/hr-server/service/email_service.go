@@ -17,18 +17,18 @@ import (
 
 // EmailService 邮箱服务
 type EmailService struct {
-	config        *appconfig.EmailConfig
-	emailCodeRepo *repository.EmailCodeRepository
-	sender        *emailx.Sender
+	config          *appconfig.EmailConfig
+	settingsService *SystemSettingsService
+	emailCodeRepo   *repository.EmailCodeRepository
 }
 
 // NewEmailService 创建邮箱服务（依赖注入）
-func NewEmailService(emailCodeRepo *repository.EmailCodeRepository) *EmailService {
+func NewEmailService(emailCodeRepo *repository.EmailCodeRepository, settingsService *SystemSettingsService) *EmailService {
 	hrConfig := appconfig.GetHRServerConfig()
 	return &EmailService{
-		config:        &hrConfig.Email,
-		emailCodeRepo: emailCodeRepo,
-		sender:        emailx.NewSender(hrConfig.Email.SMTP),
+		config:          &hrConfig.Email,
+		settingsService: settingsService,
+		emailCodeRepo:   emailCodeRepo,
 	}
 }
 
@@ -36,6 +36,7 @@ func NewEmailService(emailCodeRepo *repository.EmailCodeRepository) *EmailServic
 func (s *EmailService) SendVerificationCode(email, codeType, ipAddress, userAgent string) (string, error) {
 	// 生成验证码
 	code := s.generateCode()
+	emailCfg := s.runtimeEmailConfig()
 
 	// 计算过期时间
 	expiresAt := models.Time(time.Now().Add(time.Duration(s.config.Verification.CodeExpire) * time.Second))
@@ -57,7 +58,7 @@ func (s *EmailService) SendVerificationCode(email, codeType, ipAddress, userAgen
 		return "", err
 	}
 
-	if s.emailMode() == "log" {
+	if s.emailMode(emailCfg) == "log" {
 		logger.Infof(nil, "[EmailService] Verification code for %s (%s): %s", email, codeType, code)
 		return code, nil
 	}
@@ -66,7 +67,7 @@ func (s *EmailService) SendVerificationCode(email, codeType, ipAddress, userAgen
 	subject := s.getSubject(codeType)
 	body := s.getBody(code, codeType)
 
-	err = s.sender.SendHTML(email, subject, body)
+	err = emailx.NewSender(emailCfg.SMTP).SendHTML(email, subject, body)
 	if err != nil {
 		logger.Errorf(nil, "[EmailService] Failed to send email: %v", err)
 		return "", err
@@ -76,15 +77,26 @@ func (s *EmailService) SendVerificationCode(email, codeType, ipAddress, userAgen
 	return "", nil
 }
 
-func (s *EmailService) emailMode() string {
-	mode := strings.ToLower(strings.TrimSpace(s.config.Mode))
+func (s *EmailService) runtimeEmailConfig() appconfig.EmailConfig {
+	if s.settingsService != nil {
+		cfg, err := s.settingsService.GetRuntimeEmailConfig()
+		if err == nil {
+			return cfg
+		}
+		logger.Errorf(nil, "[EmailService] Failed to load runtime email settings: %v", err)
+	}
+	return *s.config
+}
+
+func (s *EmailService) emailMode(cfg appconfig.EmailConfig) string {
+	mode := strings.ToLower(strings.TrimSpace(cfg.Mode))
 	switch mode {
 	case "log", "smtp":
 		return mode
 	case "":
-		if strings.TrimSpace(s.config.SMTP.Username) == "" ||
-			strings.TrimSpace(s.config.SMTP.Password) == "" ||
-			strings.TrimSpace(s.config.SMTP.From) == "" {
+		if strings.TrimSpace(cfg.SMTP.Username) == "" ||
+			strings.TrimSpace(cfg.SMTP.Password) == "" ||
+			strings.TrimSpace(cfg.SMTP.From) == "" {
 			return "log"
 		}
 		return "smtp"
@@ -177,7 +189,8 @@ func (s *EmailService) getBody(code, codeType string) string {
 
 // SendNotificationEmail 发送通知类邮件（通用，供消息服务等调用）
 func (s *EmailService) SendNotificationEmail(to, subject, body string) error {
-	return s.sender.SendHTML(to, subject, body)
+	cfg := s.runtimeEmailConfig()
+	return emailx.NewSender(cfg.SMTP).SendHTML(to, subject, body)
 }
 
 // SendPasswordResetEmail 发送密码重置邮件
@@ -197,7 +210,8 @@ func (s *EmailService) SendPasswordResetEmail(email, resetToken string) error {
 	subject := s.getSubject("forgot_password")
 	body := s.getBody(resetLink, "forgot_password")
 
-	err := s.sender.SendHTML(email, subject, body)
+	cfg := s.runtimeEmailConfig()
+	err := emailx.NewSender(cfg.SMTP).SendHTML(email, subject, body)
 	if err != nil {
 		logger.Errorf(nil, "[EmailService] Failed to send password reset email: %v", err)
 		return err

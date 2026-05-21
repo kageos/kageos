@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
@@ -13,19 +14,23 @@ import (
 	"github.com/kageos/kageos/pkg/logger"
 )
 
+var errSelfRegistrationDisabled = errors.New("self registration disabled")
+
 // Auth 认证相关API
 type Auth struct {
 	authService       *service.AuthService
 	emailService      *service.EmailService
+	settingsService   *service.SystemSettingsService
 	userService       *service.UserService
 	departmentService *service.DepartmentService
 }
 
 // NewAuth 创建认证API（依赖注入）
-func NewAuth(authService *service.AuthService, emailService *service.EmailService, userService *service.UserService, departmentService *service.DepartmentService) *Auth {
+func NewAuth(authService *service.AuthService, emailService *service.EmailService, settingsService *service.SystemSettingsService, userService *service.UserService, departmentService *service.DepartmentService) *Auth {
 	return &Auth{
 		authService:       authService,
 		emailService:      emailService,
+		settingsService:   settingsService,
 		userService:       userService,
 		departmentService: departmentService,
 	}
@@ -65,6 +70,19 @@ func (a *Auth) SendEmailCode(c *gin.Context) {
 	if codeType == "" {
 		codeType = "register"
 	}
+	if codeType == "register" {
+		mode, modeErr := a.settingsService.GetRegistrationMode()
+		if modeErr != nil {
+			err = modeErr
+			response.FailWithMessage(c, "读取注册配置失败: "+modeErr.Error())
+			return
+		}
+		if mode == service.RegistrationModeAdminOnly {
+			err = errSelfRegistrationDisabled
+			response.FailWithMessage(c, "自助注册未开启，请联系系统管理员创建账号")
+			return
+		}
+	}
 
 	debugCode, sendErr := a.emailService.SendVerificationCode(req.Email, codeType, ipAddress, userAgent)
 	err = sendErr
@@ -100,6 +118,17 @@ func (a *Auth) Register(c *gin.Context) {
 	// 绑定请求参数
 	if err = c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	mode, modeErr := a.settingsService.GetRegistrationMode()
+	if modeErr != nil {
+		err = modeErr
+		response.FailWithMessage(c, "读取注册配置失败: "+modeErr.Error())
+		return
+	}
+	if mode == service.RegistrationModeAdminOnly {
+		err = errSelfRegistrationDisabled
+		response.FailWithMessage(c, "自助注册未开启，请联系系统管理员创建账号")
 		return
 	}
 

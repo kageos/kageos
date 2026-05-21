@@ -197,7 +197,7 @@ import {
   disablePublicShare,
   listPublicShares,
   type PublicShareItem,
-} from '@/architecture/infrastructure/api/publicShare'
+} from '@/architecture/presentation/context/api/publicShare'
 import type { FunctionDetail, ServiceTree } from '@/architecture/domain/types'
 
 const props = defineProps<{

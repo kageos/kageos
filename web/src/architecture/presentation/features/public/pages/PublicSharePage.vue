@@ -49,7 +49,7 @@ import {
   createPublicShareFunctionDetail,
   getPublicShareView,
   type PublicShareView,
-} from '@/architecture/infrastructure/api/publicShare'
+} from '@/architecture/presentation/context/api/publicShare'
 import { getErrorMessage } from '@/architecture/shared/apiError'
 import type { FunctionDetail } from '@/architecture/domain/types'
 
