@@ -14,7 +14,7 @@
 
 ## 平台 API
 
-业务函数调用 KageOS 平台能力使用：
+业务函数调用 Kageos 平台能力使用：
 
 ```go
 var out SomeResp

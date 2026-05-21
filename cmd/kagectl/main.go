@@ -581,7 +581,7 @@ func parseInitDevFlags(args []string) (initDevOptions, error) {
 }
 
 func printUsage() {
-	fmt.Println(`kagectl manages KageOS production deployment files.
+	fmt.Println(`kagectl manages Kageos production deployment files.
 
 Usage:
   kagectl init [--force] [--base-url URL] [--mysql-mode bundled|external] [--company-code CODE] [--company-name NAME]
@@ -2181,7 +2181,7 @@ func writeDeploymentSummary(rt RuntimeConfig, status string) error {
 func deploymentSummaryMarkdown(rt RuntimeConfig, status string) string {
 	rows := deploymentSummaryRows(rt, status)
 	var b strings.Builder
-	b.WriteString("# KageOS Deployment Summary\n\n")
+	b.WriteString("# Kageos Deployment Summary\n\n")
 	b.WriteString("| Item | Value |\n")
 	b.WriteString("|---|---|\n")
 	for _, row := range rows {
@@ -2204,7 +2204,7 @@ func printDeploymentSummary(rt RuntimeConfig, status string) {
 	}
 
 	fmt.Println()
-	fmt.Println("KageOS deployment summary")
+	fmt.Println("Kageos deployment summary")
 	fmt.Printf("%-*s  %s\n", width, "Item", "Value")
 	fmt.Printf("%s  %s\n", strings.Repeat("-", width), strings.Repeat("-", 48))
 	for _, row := range rows {

@@ -138,7 +138,7 @@ func (s *Server) initDatabase(ctx context.Context) error {
 }
 
 func resolveRuntimeDBPath() (string, error) {
-	root := config.GetKageOSRoot()
+	root := config.GetKageosRoot()
 	dataRoot := "data"
 	if root != "" {
 		dataRoot = filepath.Join(root, "data")

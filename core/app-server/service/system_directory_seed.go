@@ -78,7 +78,7 @@ func initSystemDirectorySeeds(ctx context.Context, serviceTreeService *ServiceTr
 }
 
 func systemDirectorySeedDir() string {
-	if root := config.GetKageOSRoot(); root != "" {
+	if root := config.GetKageosRoot(); root != "" {
 		return filepath.Join(root, systemDirectorySeedRelDir)
 	}
 	return systemDirectorySeedRelDir

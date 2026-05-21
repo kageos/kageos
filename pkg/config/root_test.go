@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestDiscoverKageOSRootFromUpwardMarker(t *testing.T) {
+func TestDiscoverKageosRootFromUpwardMarker(t *testing.T) {
 	t.Parallel()
 
 	base := t.TempDir()
@@ -16,17 +16,17 @@ func TestDiscoverKageOSRootFromUpwardMarker(t *testing.T) {
 	if err := os.MkdirAll(start, 0o755); err != nil {
 		t.Fatalf("mkdir start: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, MarkerKageOSRoot), []byte("marker"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, MarkerKageosRoot), []byte("marker"), 0o644); err != nil {
 		t.Fatalf("write marker: %v", err)
 	}
 
-	got := discoverKageOSRootFrom(start)
+	got := discoverKageosRootFrom(start)
 	if got != root {
-		t.Fatalf("discoverKageOSRootFrom(%q) = %q, want %q", start, got, root)
+		t.Fatalf("discoverKageosRootFrom(%q) = %q, want %q", start, got, root)
 	}
 }
 
-func TestDiscoverKageOSRootFromDownwardMarker(t *testing.T) {
+func TestDiscoverKageosRootFromDownwardMarker(t *testing.T) {
 	t.Parallel()
 
 	base := t.TempDir()
@@ -39,12 +39,12 @@ func TestDiscoverKageOSRootFromDownwardMarker(t *testing.T) {
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		t.Fatalf("mkdir root: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, MarkerKageOSRoot), []byte("marker"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, MarkerKageosRoot), []byte("marker"), 0o644); err != nil {
 		t.Fatalf("write marker: %v", err)
 	}
 
-	got := discoverKageOSRootFrom(searchStart)
+	got := discoverKageosRootFrom(searchStart)
 	if got != root {
-		t.Fatalf("discoverKageOSRootFrom(%q) = %q, want %q", searchStart, got, root)
+		t.Fatalf("discoverKageosRootFrom(%q) = %q, want %q", searchStart, got, root)
 	}
 }

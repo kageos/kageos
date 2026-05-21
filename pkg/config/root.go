@@ -9,29 +9,29 @@ import (
 )
 
 const (
-	// MarkerKageOSRoot 仓库根目录标记文件（可选，便于无 go.mod 场景定位根）
-	MarkerKageOSRoot     = ".kageos-root"
+	// MarkerKageosRoot 仓库根目录标记文件（可选，便于无 go.mod 场景定位根）
+	MarkerKageosRoot     = ".kageos-root"
 	maxMarkerSearchDepth = 8
 	maxMarkerSearchDirs  = 4096
 )
 
 var (
-	kageOSRoot     string
-	kageOSRootOnce sync.Once
+	kageosRoot     string
+	kageosRootOnce sync.Once
 )
 
-// GetKageOSRoot 返回 Kageos 项目根目录绝对路径，用于解析 .kageos、deploy/dev、deploy/prod 等。
+// GetKageosRoot 返回 Kageos 项目根目录绝对路径，用于解析 .kageos、deploy/dev、deploy/prod 等。
 // 查找顺序：
 //  1. 从代码所在目录、当前工作目录开始，优先向上查找 `.kageos-root`
 //  2. 若仍未找到，则从这些起点的祖先目录向下搜索 `.kageos-root`
 //  3. 最后再退化为 .kageos、deploy/prod/config、go.mod 等弱特征目录
 //
 // 若均未找到则返回空字符串，配置解析将退化为仅相对 cwd 查找。
-func GetKageOSRoot() string {
-	kageOSRootOnce.Do(func() {
+func GetKageosRoot() string {
+	kageosRootOnce.Do(func() {
 		if _, file, _, ok := runtime.Caller(0); ok {
-			if root := discoverKageOSRootFrom(filepath.Dir(file)); root != "" {
-				kageOSRoot = root
+			if root := discoverKageosRootFrom(filepath.Dir(file)); root != "" {
+				kageosRoot = root
 				return
 			}
 		}
@@ -39,12 +39,12 @@ func GetKageOSRoot() string {
 		if err != nil {
 			return
 		}
-		kageOSRoot = discoverKageOSRootFrom(cwd)
+		kageosRoot = discoverKageosRootFrom(cwd)
 	})
-	return kageOSRoot
+	return kageosRoot
 }
 
-func discoverKageOSRootFrom(start string) string {
+func discoverKageosRootFrom(start string) string {
 	dir, err := filepath.Abs(start)
 	if err != nil {
 		return ""
@@ -59,7 +59,7 @@ func discoverKageOSRootFrom(start string) string {
 		}
 	}
 	for _, ancestor := range ancestorDirs(dir) {
-		if isWeakKageOSRootDir(ancestor) {
+		if isWeakKageosRootDir(ancestor) {
 			return ancestor
 		}
 	}
@@ -68,7 +68,7 @@ func discoverKageOSRootFrom(start string) string {
 
 func discoverMarkerRootUpward(start string) string {
 	for _, dir := range ancestorDirs(start) {
-		if hasKageOSRootMarker(dir) {
+		if hasKageosRootMarker(dir) {
 			return dir
 		}
 	}
@@ -89,7 +89,7 @@ func discoverMarkerRootDownward(start string, maxDepth int, maxDirs int) string 
 		queue = queue[1:]
 		visited++
 
-		if hasKageOSRootMarker(current.path) {
+		if hasKageosRootMarker(current.path) {
 			return current.path
 		}
 		if current.depth >= maxDepth {
@@ -127,14 +127,14 @@ func ancestorDirs(start string) []string {
 	return dirs
 }
 
-func hasKageOSRootMarker(dir string) bool {
-	if _, err := os.Stat(filepath.Join(dir, MarkerKageOSRoot)); err == nil {
+func hasKageosRootMarker(dir string) bool {
+	if _, err := os.Stat(filepath.Join(dir, MarkerKageosRoot)); err == nil {
 		return true
 	}
 	return false
 }
 
-func isWeakKageOSRootDir(dir string) bool {
+func isWeakKageosRootDir(dir string) bool {
 	if st, err := os.Stat(filepath.Join(dir, ".kageos")); err == nil && st.IsDir() {
 		return true
 	}
