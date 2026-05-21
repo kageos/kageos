@@ -18,7 +18,10 @@ type RequestMeta struct {
 	RequestUser     string
 	RequestUserDept string
 	Token           string
+	AnonymousToken  string
 	ClientSource    string
+	SourceType      string
+	SourceRef       string
 	User            string
 	App             string
 	Version         string
@@ -42,7 +45,10 @@ func BuildRuntimeRequestMsg(req *dto.RequestAppReq) (*nats.Msg, error) {
 		RequestUser:     req.RequestUser,
 		RequestUserDept: req.RequestUserDept,
 		Token:           req.Token,
+		AnonymousToken:  req.AnonymousToken,
 		ClientSource:    req.ClientSource,
+		SourceType:      req.SourceType,
+		SourceRef:       req.SourceRef,
 		User:            req.User,
 		App:             req.App,
 		Version:         req.Version,
@@ -70,7 +76,10 @@ func ParseRuntimeRequest(msg *nats.Msg) (*RequestMeta, error) {
 		RequestUser:     msg.Header.Get(contextx.RequestUserHeader),
 		RequestUserDept: msg.Header.Get(contextx.DepartmentFullPathHeader),
 		Token:           msg.Header.Get(contextx.TokenHeader),
+		AnonymousToken:  msg.Header.Get("X-Public-Anonymous-Token"),
 		ClientSource:    msg.Header.Get(contextx.ClientSourceHeader),
+		SourceType:      msg.Header.Get(contextx.SourceTypeHeader),
+		SourceRef:       msg.Header.Get(contextx.SourceRefHeader),
 		User:            msg.Header.Get("user"),
 		App:             msg.Header.Get("app"),
 		Version:         msg.Header.Get("version"),
@@ -134,7 +143,16 @@ func (m *RequestMeta) ApplyHeaders(header nats.Header) {
 	if m.Token != "" {
 		header.Set(contextx.TokenHeader, m.Token)
 	}
+	if m.AnonymousToken != "" {
+		header.Set("X-Public-Anonymous-Token", m.AnonymousToken)
+	}
 	if m.ClientSource != "" {
 		header.Set(contextx.ClientSourceHeader, m.ClientSource)
+	}
+	if m.SourceType != "" {
+		header.Set(contextx.SourceTypeHeader, m.SourceType)
+	}
+	if m.SourceRef != "" {
+		header.Set(contextx.SourceRefHeader, m.SourceRef)
 	}
 }

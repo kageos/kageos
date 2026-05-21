@@ -128,7 +128,7 @@ func (s *PublicShareService) GetActiveShare(ctx context.Context, shareID string)
 	return share, nil
 }
 
-func (s *PublicShareService) BuildView(ctx context.Context, share *model.PublicShare, anonymousToken string) (*dto.PublicShareViewResp, error) {
+func (s *PublicShareService) BuildView(ctx context.Context, share *model.PublicShare) (*dto.PublicShareViewResp, error) {
 	function, err := s.functionRepo.GetFunctionByFullCodePath(share.FullCodePath)
 	if err != nil {
 		return nil, fmt.Errorf("获取表单信息失败: %w", err)
@@ -138,13 +138,12 @@ func (s *PublicShareService) BuildView(ctx context.Context, share *model.PublicS
 		return nil, fmt.Errorf("表单 schema 无效: %w", err)
 	}
 	resp := &dto.PublicShareViewResp{
-		ShareID:        share.ShareID,
-		Title:          fallbackPublicShareTitle(share.Title, function),
-		Description:    share.Description,
-		FullCodePath:   share.FullCodePath,
-		Schema:         schema,
-		AnonymousToken: anonymousToken,
-		ExpiresAt:      share.ExpiresAt,
+		ShareID:      share.ShareID,
+		Title:        fallbackPublicShareTitle(share.Title, function),
+		Description:  share.Description,
+		FullCodePath: share.FullCodePath,
+		Schema:       schema,
+		ExpiresAt:    share.ExpiresAt,
 	}
 	if share.MaxUses > 0 {
 		remaining := share.MaxUses - share.UseCount

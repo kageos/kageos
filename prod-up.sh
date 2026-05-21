@@ -2,9 +2,9 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_PATH="${KAGEOS_CONFIG:-deploy/prod/kage.yaml}"
-LOG_FILE="${KAGEOS_UP_LOG:-deploy/prod/kagectl-up.log}"
-PID_FILE="${KAGEOS_UP_PID_FILE:-deploy/prod/kagectl-up.pid}"
+CONFIG_PATH="${KAGEOS_CONFIG:-.kageos/prod/kage.yaml}"
+LOG_FILE="${KAGEOS_UP_LOG:-.kageos/prod/kagectl-up.log}"
+PID_FILE="${KAGEOS_UP_PID_FILE:-.kageos/prod/kagectl-up.pid}"
 
 resolve_path() {
   local path="$1"

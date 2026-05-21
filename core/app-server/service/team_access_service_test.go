@@ -132,6 +132,24 @@ func TestTeamAccessSystemBuiltinAllowsReadOnly(t *testing.T) {
 	}
 }
 
+func TestTeamAccessSystemUserHasOwnerPermissionOnSystemBuiltin(t *testing.T) {
+	service, _, _ := newTeamAccessTestService(t)
+
+	result, err := service.Resolve(context.Background(), "system", "tools", "system", "/system/tools")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !access.HasPermission(result.Permissions, access.ActionAdmin) {
+		t.Fatal("system user should have admin permission on /system/tools")
+	}
+	if !access.HasPermission(result.Permissions, access.ActionOwner) {
+		t.Fatal("system user should have owner permission on /system/tools")
+	}
+	if err := service.Check(context.Background(), "system", "tools", "system", "/system/tools", access.ActionAdmin); err != nil {
+		t.Fatalf("system user should pass admin check: %v", err)
+	}
+}
+
 func TestTeamAccessAdminCanGrantMember(t *testing.T) {
 	service, _, _ := newTeamAccessTestService(t)
 	ctx := actorContext("alice")

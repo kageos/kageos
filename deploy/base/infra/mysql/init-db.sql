@@ -1,11 +1,8 @@
 -- Kageos 数据库初始化脚本
 -- 由 MySQL 容器首次启动时自动执行（挂载到 /docker-entrypoint-initdb.d/）。
 --
--- 账号密码（与 compose 和 configs 一致）:
---   user: root
---   password: root
--- compose 中: MYSQL_ROOT_PASSWORD: root
--- 各服务 configs 里 db.user / db.password 均为 root/root。
+-- 账号密码由 .kageos/dev/env/kageos.env 或生产部署 env 注入。
+-- 本脚本只负责幂等创建服务数据库，不写入固定密码。
 --
 -- 各库与服务对应:
 --   app-server   -> app-server

@@ -38,17 +38,16 @@ type PublicShareListResp struct {
 }
 
 type PublicShareViewResp struct {
-	ShareID        string                         `json:"share_id"`
-	Title          string                         `json:"title"`
-	Description    string                         `json:"description"`
-	FullCodePath   string                         `json:"full_code_path"`
-	Schema         *functionschema.FunctionSchema `json:"schema"`
-	AnonymousToken string                         `json:"anonymous_token"`
-	ExpiresAt      *time.Time                     `json:"expires_at,omitempty"`
-	RemainingUses  *int                           `json:"remaining_uses,omitempty"`
+	ShareID       string                         `json:"share_id"`
+	Title         string                         `json:"title"`
+	Description   string                         `json:"description"`
+	FullCodePath  string                         `json:"full_code_path"`
+	Schema        *functionschema.FunctionSchema `json:"schema"`
+	ExpiresAt     *time.Time                     `json:"expires_at,omitempty"`
+	RemainingUses *int                           `json:"remaining_uses,omitempty"`
 }
 
-type PublicShareSubmitResp struct {
-	Result         interface{} `json:"result"`
-	AnonymousToken string      `json:"anonymous_token"`
+type PublicAnonymousTokenResp struct {
+	AnonymousToken string    `json:"anonymous_token"`
+	ExpiresAt      time.Time `json:"expires_at"`
 }

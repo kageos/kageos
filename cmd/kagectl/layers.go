@@ -97,7 +97,7 @@ func deploymentLayers() []deploymentLayer {
 
 func deploymentComponents(rt RuntimeConfig) []deploymentComponent {
 	components := []deploymentComponent{
-		{Layer: layerControl, Name: "kagectl", Role: "生成 .generated、调用 Compose、执行 up/status/verify"},
+		{Layer: layerControl, Name: "kagectl", Role: "生成 .kageos/prod/generated、调用 Compose、执行 up/status/verify"},
 		{Layer: layerControl, Name: "compose", Role: "外层容器执行引擎"},
 		{Layer: layerInfra, Name: infraComponentName("mysql", rt.MySQL.Mode), Role: "平台关系型数据"},
 		{Layer: layerInfra, Name: infraComponentName("nats", rt.NATS.Mode), Role: "平台和用户 App 消息总线"},

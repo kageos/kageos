@@ -1,4 +1,5 @@
 import './architecture/presentation/assets/main.css'
+import 'element-plus/dist/index.css'
 import './architecture/presentation/styles/theme.scss'
 import './architecture/presentation/styles/widgets.css'
 import './architecture/presentation/assets/theme-workstation-sci-fi.css'

@@ -39,6 +39,7 @@ web/.env.*
 !web/.env.development.local.example
 deploy/prod/.generated/
 deploy/prod/kage.yaml
+.kageos/
 temp/
 plan/
 /note

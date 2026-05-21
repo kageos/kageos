@@ -13,4 +13,4 @@ timeouts:
 container:
   timeout: 30
   image:
-    base_image: "${APP_BASE_IMAGE}"
+    base_image: "${KAGEOS_APP_BASE_IMAGE}"

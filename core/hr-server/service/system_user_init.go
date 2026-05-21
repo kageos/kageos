@@ -69,8 +69,12 @@ func initSystemUserWithPassword(ctx context.Context, db *gorm.DB, password strin
 			if err := setSystemUserPassword(ctx, userRepo, existingUser, password, generated); err != nil {
 				logger.Warnf(ctx, "[SystemUser] 设置系统账号密码失败: %v", err)
 			}
+		} else if !generated && bcrypt.CompareHashAndPassword([]byte(existingUser.PasswordHash), []byte(password)) != nil {
+			if err := setSystemUserPassword(ctx, userRepo, existingUser, password, generated); err != nil {
+				logger.Warnf(ctx, "[SystemUser] 同步系统账号密码失败: %v", err)
+			}
 		} else {
-			logger.Infof(ctx, "[SystemUser] system 用户已存在，类型正确，已有密码")
+			logger.Infof(ctx, "[SystemUser] system 用户已存在，类型正确，密码已对齐")
 		}
 		return nil
 	}
@@ -83,7 +87,7 @@ func initSystemUserWithPassword(ctx context.Context, db *gorm.DB, password strin
 	systemUser := &hrmodel.User{
 		Username:      SystemUsername,
 		Email:         SystemUserEmail,
-		CompanyCode:   hrmodel.DefaultCompanyCode,
+		CompanyCode:   defaultCompanyCode(),
 		PasswordHash:  string(hashedPassword),
 		Status:        "active",
 		EmailVerified: true,
@@ -124,17 +128,15 @@ func initTestUserWithPassword(ctx context.Context, db *gorm.DB, password string,
 			}
 		}
 		if existingUser.PasswordHash == "" {
-			hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-			if err != nil {
+			if err := setTestUserPassword(userRepo, existingUser, password); err != nil {
 				logger.Warnf(ctx, "[TestUser] 设置 test_user 密码失败: %v", err)
-				return nil
 			}
-			existingUser.PasswordHash = string(hashed)
-			if err := userRepo.UpdateUser(existingUser); err != nil {
-				logger.Warnf(ctx, "[TestUser] 更新 test_user 密码失败: %v", err)
+		} else if !generated && bcrypt.CompareHashAndPassword([]byte(existingUser.PasswordHash), []byte(password)) != nil {
+			if err := setTestUserPassword(userRepo, existingUser, password); err != nil {
+				logger.Warnf(ctx, "[TestUser] 同步 test_user 密码失败: %v", err)
 			}
 		}
-		logger.Infof(ctx, "[TestUser] test_user 已存在，已确保归属 %s", TestUserDepartmentPath)
+		logger.Infof(ctx, "[TestUser] test_user 已存在，已确保归属 %s，密码已对齐", TestUserDepartmentPath)
 		return nil
 	}
 
@@ -146,7 +148,7 @@ func initTestUserWithPassword(ctx context.Context, db *gorm.DB, password string,
 	testUser := &hrmodel.User{
 		Username:           TestUsername,
 		Email:              TestUserEmail,
-		CompanyCode:        hrmodel.DefaultCompanyCode,
+		CompanyCode:        defaultCompanyCode(),
 		PasswordHash:       string(hashedPassword),
 		Status:             "active",
 		EmailVerified:      true,
@@ -164,6 +166,15 @@ func initTestUserWithPassword(ctx context.Context, db *gorm.DB, password string,
 
 	logger.Infof(ctx, "[TestUser] 已创建 test_user，归属 %s，密码与 system 共用", TestUserDepartmentPath)
 	return nil
+}
+
+func setTestUserPassword(userRepo *hrrepository.UserRepository, user *hrmodel.User, password string) error {
+	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	user.PasswordHash = string(hashed)
+	return userRepo.UpdateUser(user)
 }
 
 // getSystemUserPassword 获取系统账号密码（优先从配置/环境变量，否则生成随机密码）

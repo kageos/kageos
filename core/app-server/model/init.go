@@ -1,6 +1,9 @@
 package model
 
 import (
+	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -32,6 +35,10 @@ func defaultNatsSeedEndpoint() (host string, port int) {
 
 func defaultNatsSeedCredentials() (user string, password string) {
 	return strings.TrimSpace(os.Getenv("NATS_SEED_USER")), strings.TrimSpace(os.Getenv("NATS_SEED_PASSWORD"))
+}
+
+func localNatsHosts() []string {
+	return []string{"localhost", "127.0.0.1", "nats"}
 }
 
 func InitTables(db *gorm.DB) error {
@@ -154,5 +161,46 @@ func ReconcileNatsHostFromEnv(db *gorm.DB) error {
 		return nil
 	}
 
-	return db.Model(&Nats{}).Where("host IN ?", []string{"localhost", "127.0.0.1", "nats"}).Updates(updates).Error
+	return db.Model(&Nats{}).Where("host IN ?", localNatsHosts()).Updates(updates).Error
+}
+
+// ReconcileNatsHostFromURL keeps the DB-backed NATS connection pool aligned with global.yaml.
+func ReconcileNatsHostFromURL(db *gorm.DB, rawURL string) error {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return nil
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return err
+	}
+	host := strings.TrimSpace(parsed.Hostname())
+	if host == "" {
+		return nil
+	}
+
+	port := 4222
+	if p := strings.TrimSpace(parsed.Port()); p != "" {
+		v, err := strconv.Atoi(p)
+		if err != nil {
+			return err
+		}
+		if v <= 0 {
+			return fmt.Errorf("invalid nats port %q", p)
+		}
+		port = v
+	}
+
+	user := parsed.User.Username()
+	password, _ := parsed.User.Password()
+	updates := map[string]interface{}{
+		"host":     host,
+		"port":     port,
+		"user":     user,
+		"password": password,
+	}
+
+	hosts := append(localNatsHosts(), net.JoinHostPort(host, strconv.Itoa(port)), host)
+	return db.Model(&Nats{}).Where("host IN ?", hosts).Updates(updates).Error
 }

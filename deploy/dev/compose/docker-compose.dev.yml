@@ -12,10 +12,11 @@ services:
     container_name: kageos-dev-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      MYSQL_ROOT_HOST: "%"
       TZ: Asia/Shanghai
     ports:
-      - "3306:3306"
+      - "127.0.0.1:${MYSQL_PORT:-3318}:3306"
     volumes:
       - dev-mysql-data:/var/lib/mysql
       - ../../base/infra/mysql/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -25,7 +26,7 @@ services:
       --max-connections=500
       --innodb-buffer-pool-size=256M
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$${MYSQL_ROOT_PASSWORD}\""]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -39,15 +40,15 @@ services:
       - "4222:4222"
     volumes:
       - ../../base/infra/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
-    command: ["-c", "/etc/nats/nats-server.conf"]
+    command: ["--user", "${NATS_SEED_USER:-kageos}", "--pass", "${NATS_SEED_PASSWORD:-local-dev-nats}", "-c", "/etc/nats/nats-server.conf"]
 
   minio:
     image: minio/minio:latest
     container_name: kageos-dev-minio
     restart: unless-stopped
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
       TZ: Asia/Shanghai
     ports:
       - "9000:9000"
@@ -58,6 +59,6 @@ services:
 
 volumes:
   dev-mysql-data:
-    name: kageos-dev-mysql-data
+    name: kageos-dev-mysql3318-data
   dev-minio-data:
     name: kageos-dev-minio-data

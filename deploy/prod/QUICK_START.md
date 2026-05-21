@@ -15,9 +15,9 @@
 
 ```bash
 go run ./cmd/kagectl init --base-url http://your-ip-or-domain
-go run ./cmd/kagectl doctor --config deploy/prod/kage.yaml
+go run ./cmd/kagectl doctor --config .kageos/prod/kage.yaml
 ./prod-up.sh
-go run ./cmd/kagectl verify --config deploy/prod/kage.yaml
+go run ./cmd/kagectl verify --config .kageos/prod/kage.yaml
 ```
 
 访问：
@@ -29,17 +29,17 @@ http://your-ip-or-domain
 ## 常用命令
 
 ```bash
-tail -f deploy/prod/kagectl-up.log
-go run ./cmd/kagectl status --config deploy/prod/kage.yaml
-go run ./cmd/kagectl logs --config deploy/prod/kage.yaml main
+tail -f .kageos/prod/kagectl-up.log
+go run ./cmd/kagectl status --config .kageos/prod/kage.yaml
+go run ./cmd/kagectl logs --config .kageos/prod/kage.yaml main
 ./prod-stop.sh
-go run ./cmd/kagectl uninstall --config deploy/prod/kage.yaml --purge-data --force
+go run ./cmd/kagectl uninstall --config .kageos/prod/kage.yaml --purge-data --force
 ```
 
-`./prod-up.sh` 会在后台执行 `kagectl up`，并把输出写入 `deploy/prod/kagectl-up.log`，SSH 或终端会话关闭后部署流程不会被当前 shell 带停。需要传递 `kagectl up` 参数时直接追加，例如 `./prod-up.sh --image` 或 `./prod-up.sh --wait-timeout 10m`。
+`./prod-up.sh` 会在后台执行 `kagectl up`，并把输出写入 `.kageos/prod/kagectl-up.log`，SSH 或终端会话关闭后部署流程不会被当前 shell 带停。需要传递 `kagectl up` 参数时直接追加，例如 `./prod-up.sh --image` 或 `./prod-up.sh --wait-timeout 10m`。
 
 `uninstall --purge-data --force` 用于测试重置数据，默认保留 `/data/kageos/podman_storage`，避免每次重新构建用户应用基础镜像。
 
 ## 生成物
 
-生成物位于 `deploy/prod/.generated/`，不要手工编辑；需要变更时修改 `deploy/prod/kage.yaml` 后重新执行 `kagectl up`。
+生成物位于 `.kageos/prod/generated/`，不要手工编辑；需要变更时修改 `.kageos/prod/kage.yaml` 后重新执行 `kagectl up`。

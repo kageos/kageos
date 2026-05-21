@@ -4,6 +4,7 @@ import type { FormSubmitRequest, IFormGateway } from '@/architecture/domain/inte
 
 const PUBLIC_ANONYMOUS_TOKEN_HEADER = 'X-Public-Anonymous-Token'
 const PUBLIC_ANONYMOUS_TOKEN_STORAGE_KEY = 'public_anonymous_token'
+let anonymousTokenPromise: Promise<string> | null = null
 
 export interface PublicShareView {
   share_id: string
@@ -11,16 +12,16 @@ export interface PublicShareView {
   description?: string
   full_code_path: string
   schema: FunctionSchema
-  anonymous_token: string
   expires_at?: string
   remaining_uses?: number
 }
 
-export interface PublicShareSubmitResult {
-  result: unknown
+export interface PublicAnonymousToken {
   anonymous_token: string
-  _metadata?: Record<string, unknown>
+  expires_at: string
 }
+
+export type PublicShareSubmitResult = unknown
 
 export interface CreatePublicShareRequest {
   full_code_path: string
@@ -75,25 +76,45 @@ export function publicShareAnonymousHeaders(): Record<string, string> {
   return token ? { [PUBLIC_ANONYMOUS_TOKEN_HEADER]: token } : {}
 }
 
+async function requestPublicAnonymousToken(): Promise<string> {
+  const resp = await post<PublicAnonymousToken>('/public/api/anonymous-token', undefined, {
+    headers: publicShareAnonymousHeaders(),
+  })
+  saveAnonymousToken(resp.anonymous_token)
+  return resp.anonymous_token
+}
+
+export async function ensurePublicAnonymousToken(options: { refresh?: boolean } = {}): Promise<string> {
+  const currentToken = getAnonymousToken()
+  if (currentToken && !options.refresh) {
+    return currentToken
+  }
+
+  if (!anonymousTokenPromise) {
+    anonymousTokenPromise = requestPublicAnonymousToken().finally(() => {
+      anonymousTokenPromise = null
+    })
+  }
+  return anonymousTokenPromise
+}
+
 export function getCurrentPublicShareId(): string {
   const match = window.location.pathname.match(/^\/public\/s\/([^/]+)/)
   return match?.[1] ? decodeURIComponent(match[1]) : ''
 }
 
 export async function getPublicShareView(shareId: string): Promise<PublicShareView> {
-  const view = await get<PublicShareView>(`/public/api/s/${shareId}`, undefined, false, {
+  await ensurePublicAnonymousToken({ refresh: true })
+  return get<PublicShareView>(`/public/api/s/${shareId}`, undefined, false, {
     headers: publicShareAnonymousHeaders(),
   })
-  saveAnonymousToken(view.anonymous_token)
-  return view
 }
 
 export async function submitPublicShare(shareId: string, data: Record<string, unknown>): Promise<PublicShareSubmitResult> {
-  const result = await post<PublicShareSubmitResult>(`/public/api/s/${shareId}/submit`, data, {
+  await ensurePublicAnonymousToken()
+  return post<PublicShareSubmitResult>(`/public/api/s/${shareId}/submit`, data, {
     headers: publicShareAnonymousHeaders(),
   })
-  saveAnonymousToken(result.anonymous_token)
-  return result
 }
 
 export function createPublicShare(req: CreatePublicShareRequest): Promise<PublicShareItem> {
@@ -125,8 +146,8 @@ export class PublicShareFormGateway implements IFormGateway {
 
   async submitForm(request: FormSubmitRequest): Promise<unknown> {
     const response = await submitPublicShare(this.shareId, request.data)
-    return response.result && typeof response.result === 'object'
-      ? { ...(response.result as Record<string, unknown>), _metadata: response._metadata }
-      : { result: response.result, _metadata: response._metadata }
+    return response && typeof response === 'object'
+      ? response
+      : { result: response }
   }
 }

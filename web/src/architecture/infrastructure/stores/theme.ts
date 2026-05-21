@@ -29,7 +29,7 @@ export const useThemeStore = defineStore('theme', () => {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
       const defaultTheme = prefersDark 
         ? THEME_PRESETS.find(t => t.mode === 'dark') || DEFAULT_THEME
-        : DEFAULT_THEME
+        : THEME_PRESETS.find(t => t.mode === 'light') || DEFAULT_THEME
       currentTheme.value = defaultTheme
     }
     
@@ -104,4 +104,3 @@ export const useThemeStore = defineStore('theme', () => {
     getAvailableThemes
   }
 })
-

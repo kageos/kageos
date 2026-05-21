@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -24,14 +25,17 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var defaultCompanyCodePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
 const (
-	defaultProdDir     = "deploy/prod"
+	defaultProdDir     = ".kageos/prod"
 	defaultConfigName  = "kage.yaml"
-	defaultGenerated   = ".generated"
+	defaultGenerated   = "generated"
+	defaultDevConfig   = ".kageos/dev/config"
 	defaultStorageRoot = "/data/kageos"
 
 	defaultMainImage    = "localhost/kageos-main:latest"
-	defaultAppBaseImage = "localhost/kagebase:latest"
+	defaultAppBaseImage = "kagebase:latest"
 	defaultMySQLImage   = "docker.io/library/mysql:8.0"
 	defaultNATSImage    = "docker.io/library/nats:2.10-alpine"
 	defaultMinIOImage   = "docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"
@@ -47,6 +51,7 @@ type Config struct {
 	MySQL      MySQLConfig      `yaml:"mysql"`
 	NATS       NATSConfig       `yaml:"nats"`
 	MinIO      MinIOConfig      `yaml:"minio"`
+	Company    CompanyConfig    `yaml:"company"`
 	Secrets    SecretsConfig    `yaml:"secrets"`
 	SystemUser SystemUserConfig `yaml:"system_user"`
 	LLMs       LLMSeedsConfig   `yaml:"llms"`
@@ -107,6 +112,12 @@ type MinIOConfig struct {
 	UseSSL       bool   `yaml:"use_ssl"`
 	Region       string `yaml:"region"`
 	Bucket       string `yaml:"bucket"`
+}
+
+type CompanyConfig struct {
+	Code    string `yaml:"code"`
+	Name    string `yaml:"name"`
+	LogoURL string `yaml:"logo_url"`
 }
 
 type SecretsConfig struct {
@@ -212,8 +223,12 @@ func run(args []string) error {
 		return nil
 	case "init":
 		return cmdInit(paths, rest)
+	case "init-dev", "dev-init", "init-local":
+		return cmdInitDev(paths, rest)
 	case "bootstrap":
 		return cmdBootstrap(paths, rest)
+	case "build-app-base":
+		return cmdBuildAppBase(paths, rest)
 	case "render":
 		return cmdRender(paths)
 	case "layers", "topology":
@@ -264,14 +279,43 @@ type uninstallOptions struct {
 }
 
 type initOptions struct {
-	Force     bool
-	BaseURL   string
-	MySQLMode string
+	Force       bool
+	BaseURL     string
+	MySQLMode   string
+	CompanyCode string
+	CompanyName string
 }
 
 type bootstrapOptions struct {
 	Init   initOptions
 	UpArgs []string
+}
+
+type buildAppBaseOptions struct {
+	Image   string
+	Force   bool
+	NoCache bool
+}
+
+type initDevOptions struct {
+	Engine       string
+	SkipBase     bool
+	BaseImage    string
+	BaseForce    bool
+	BaseNoCache  bool
+	RegenSecrets bool
+	CompanyCode  string
+	CompanyName  string
+}
+
+type devSecrets struct {
+	MySQLRootPassword  string
+	NATSUser           string
+	NATSPassword       string
+	MinIORootUser      string
+	MinIORootPassword  string
+	JWTSecret          string
+	SystemUserPassword string
 }
 
 func parseCommonFlags(args []string) (commonOptions, []string, error) {
@@ -398,6 +442,18 @@ func parseInitFlags(command string, args []string) (initOptions, error) {
 				return opts, fmt.Errorf("--mysql-mode requires a value")
 			}
 			opts.MySQLMode = args[i]
+		case "--company-code":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--company-code requires a value")
+			}
+			opts.CompanyCode = strings.TrimSpace(args[i])
+		case "--company-name":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--company-name requires a value")
+			}
+			opts.CompanyName = strings.TrimSpace(args[i])
 		default:
 			return opts, fmt.Errorf("%s does not support argument %q", command, args[i])
 		}
@@ -447,21 +503,100 @@ func parseBootstrapFlags(args []string) (bootstrapOptions, error) {
 	return opts, nil
 }
 
+func parseBuildAppBaseFlags(args []string) (buildAppBaseOptions, error) {
+	opts := buildAppBaseOptions{}
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--image":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--image requires a value")
+			}
+			opts.Image = strings.TrimSpace(args[i])
+			if opts.Image == "" {
+				return opts, fmt.Errorf("--image cannot be empty")
+			}
+		case "--force":
+			opts.Force = true
+		case "--no-cache":
+			opts.NoCache = true
+		default:
+			return opts, fmt.Errorf("build-app-base does not support argument %q", args[i])
+		}
+	}
+	return opts, nil
+}
+
+func parseInitDevFlags(args []string) (initDevOptions, error) {
+	opts := initDevOptions{Engine: "auto"}
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--engine":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--engine requires auto, docker, or podman")
+			}
+			opts.Engine = strings.TrimSpace(args[i])
+		case "--skip-base":
+			opts.SkipBase = true
+		case "--base-image":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--base-image requires a value")
+			}
+			opts.BaseImage = strings.TrimSpace(args[i])
+			if opts.BaseImage == "" {
+				return opts, fmt.Errorf("--base-image cannot be empty")
+			}
+		case "--base-force":
+			opts.BaseForce = true
+		case "--base-no-cache":
+			opts.BaseNoCache = true
+		case "--regen-secrets":
+			opts.RegenSecrets = true
+		case "--company-code":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--company-code requires a value")
+			}
+			opts.CompanyCode = strings.TrimSpace(args[i])
+		case "--company-name":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--company-name requires a value")
+			}
+			opts.CompanyName = strings.TrimSpace(args[i])
+		default:
+			if opts.Engine == "auto" && (args[i] == "auto" || args[i] == "docker" || args[i] == "podman") {
+				opts.Engine = args[i]
+				continue
+			}
+			return opts, fmt.Errorf("init-dev does not support argument %q", args[i])
+		}
+	}
+	if opts.Engine != "auto" && opts.Engine != "docker" && opts.Engine != "podman" {
+		return opts, fmt.Errorf("--engine requires auto, docker, or podman")
+	}
+	return opts, nil
+}
+
 func printUsage() {
 	fmt.Println(`kagectl manages KageOS production deployment files.
 
 Usage:
-  kagectl init [--force] [--base-url URL] [--mysql-mode bundled|external]
+  kagectl init [--force] [--base-url URL] [--mysql-mode bundled|external] [--company-code CODE] [--company-name NAME]
+  kagectl init-dev [--engine auto|docker|podman] [--skip-base] [--regen-secrets] [--base-image IMAGE] [--base-force] [--base-no-cache] [--company-code CODE] [--company-name NAME]
   kagectl bootstrap --base-url URL [--mysql-mode bundled|external] [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
-  kagectl render [--config deploy/prod/kage.yaml]
-  kagectl layers [--config deploy/prod/kage.yaml] [--json]
-  kagectl doctor [--config deploy/prod/kage.yaml] [--json]
-  kagectl up [--config deploy/prod/kage.yaml] [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
-  kagectl verify [--config deploy/prod/kage.yaml] [--json]
-  kagectl status [--config deploy/prod/kage.yaml] [--json]
-  kagectl logs [--config deploy/prod/kage.yaml] [service|layer] [--layer L0-L5]
-  kagectl down [--config deploy/prod/kage.yaml]
-  kagectl uninstall [--config deploy/prod/kage.yaml] [--purge-data] [--purge-podman-storage] [--purge-images] [--keep-generated] [--purge-private-config] [--force] [--dry-run]
+  kagectl build-app-base [--image IMAGE] [--force] [--no-cache]
+  kagectl render [--config .kageos/prod/kage.yaml]
+  kagectl layers [--config .kageos/prod/kage.yaml] [--json]
+  kagectl doctor [--config .kageos/prod/kage.yaml] [--json]
+  kagectl up [--config .kageos/prod/kage.yaml] [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
+  kagectl verify [--config .kageos/prod/kage.yaml] [--json]
+  kagectl status [--config .kageos/prod/kage.yaml] [--json]
+  kagectl logs [--config .kageos/prod/kage.yaml] [service|layer] [--layer L0-L5]
+  kagectl down [--config .kageos/prod/kage.yaml]
+  kagectl uninstall [--config .kageos/prod/kage.yaml] [--purge-data] [--purge-podman-storage] [--purge-images] [--keep-generated] [--purge-private-config] [--force] [--dry-run]
 
 Compose remains the container execution engine; kagectl owns layered config rendering, deployment orchestration, and diagnostics.`)
 }
@@ -501,7 +636,7 @@ func findRepoRoot() (string, error) {
 	}
 	dir := wd
 	for {
-		if fileExists(filepath.Join(dir, "go.mod")) && dirExists(filepath.Join(dir, defaultProdDir)) {
+		if fileExists(filepath.Join(dir, "go.mod")) && dirExists(filepath.Join(dir, "deploy", "prod")) {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
@@ -527,6 +662,29 @@ func cmdInit(paths Paths, args []string) error {
 	return nil
 }
 
+func cmdInitDev(paths Paths, args []string) error {
+	opts, err := parseInitDevFlags(args)
+	if err != nil {
+		return err
+	}
+	if err := renderDevConfig(paths, opts.RegenSecrets, opts.CompanyCode, opts.CompanyName); err != nil {
+		return err
+	}
+	if err := runDevInfraScript(paths, opts); err != nil {
+		return err
+	}
+	if opts.SkipBase {
+		fmt.Println("==> skip app base image (--skip-base)")
+		return nil
+	}
+	fmt.Println("==> ensure app base image")
+	return runBuildAppBaseScript(paths, buildAppBaseOptions{
+		Image:   opts.BaseImage,
+		Force:   opts.BaseForce,
+		NoCache: opts.BaseNoCache,
+	})
+}
+
 func cmdBootstrap(paths Paths, args []string) error {
 	opts, err := parseBootstrapFlags(args)
 	if err != nil {
@@ -545,6 +703,14 @@ func cmdBootstrap(paths Paths, args []string) error {
 	return cmdUp(paths, opts.UpArgs)
 }
 
+func cmdBuildAppBase(paths Paths, args []string) error {
+	opts, err := parseBuildAppBaseFlags(args)
+	if err != nil {
+		return err
+	}
+	return runBuildAppBaseScript(paths, opts)
+}
+
 func writeInitialConfig(paths Paths, opts initOptions) (bool, error) {
 	if fileExists(paths.ConfigPath) && !opts.Force {
 		fmt.Printf("config already exists: %s\n", paths.ConfigPath)
@@ -558,6 +724,12 @@ func writeInitialConfig(paths Paths, opts initOptions) (bool, error) {
 	}
 	cfg.Site.BaseURL = opts.BaseURL
 	cfg.MySQL.Mode = opts.MySQLMode
+	if opts.CompanyCode != "" {
+		cfg.Company.Code = opts.CompanyCode
+	}
+	if opts.CompanyName != "" {
+		cfg.Company.Name = opts.CompanyName
+	}
 	applyEnvOverrides(&cfg)
 	if opts.MySQLMode == "external" {
 		cfg.MySQL.Host = ""
@@ -677,7 +849,7 @@ func cmdUp(paths Paths, args []string) error {
 	}
 
 	fmt.Println("[L4 运行时管理层] 准备用户应用基础镜像")
-	if err := runCompose(rt.Paths.GeneratedDir, "run", "--rm", "--no-deps", "-e", "APP_BASE_ACTION=ensure", "-e", "APP_BASE_BUILD_NO_CACHE=0", "--entrypoint", "/app/entrypoint-app-base.sh", "main"); err != nil {
+	if err := runCompose(rt.Paths.GeneratedDir, "run", "--rm", "--no-deps", "-e", "KAGEOS_APP_BASE_ACTION=ensure", "-e", "KAGEOS_APP_BASE_BUILD_NO_CACHE=0", "--entrypoint", "/app/entrypoint-app-base.sh", "main"); err != nil {
 		return err
 	}
 
@@ -1079,7 +1251,7 @@ func appendSDKEndpointChecks(checks []layerCheck, rt RuntimeConfig) []layerCheck
 			Layer:  layerApps,
 			Name:   "sdk minio endpoint",
 			Target: rt.SDKMinIOEndpoint,
-			Fn:     func() error { return requireContains(rt.SDKMinIOEndpoint, "127.0.0.1") },
+			Fn:     func() error { return requireContains(rt.SDKMinIOEndpoint, "host.containers.internal") },
 		})
 	}
 	return checks
@@ -1309,6 +1481,10 @@ func defaultConfig() (Config, error) {
 			Region:       "us-east-1",
 			Bucket:       "kageos",
 		},
+		Company: CompanyConfig{
+			Code: "default",
+			Name: "Default",
+		},
 		Secrets: SecretsConfig{
 			JWTSecret:              jwt,
 			GeneratedByKageCtl:     true,
@@ -1324,6 +1500,72 @@ func defaultConfig() (Config, error) {
 		},
 	}
 	return cfg, nil
+}
+
+func defaultDevDeploymentConfig(secrets devSecrets) Config {
+	return Config{
+		Site: SiteConfig{
+			BaseURL:  "http://127.0.0.1:9090",
+			TLSMode:  "http",
+			CertFile: "/app/tls/fullchain.pem",
+			KeyFile:  "/app/tls/privkey.pem",
+		},
+		Images: ImageConfig{
+			Main:    defaultMainImage,
+			AppBase: defaultAppBaseImage,
+			MySQL:   defaultMySQLImage,
+			NATS:    defaultNATSImage,
+			MinIO:   defaultMinIOImage,
+		},
+		Storage: StorageConfig{Root: defaultStorageRoot},
+		MySQL: MySQLConfig{
+			Mode:             "external",
+			Host:             "127.0.0.1",
+			Port:             3318,
+			User:             "root",
+			Password:         secrets.MySQLRootPassword,
+			AppDatabase:      "app-server",
+			AgentDatabase:    "agent-server",
+			StorageDatabase:  "app-storage",
+			HRDatabase:       "hr-server",
+			CreateBundledSQL: true,
+		},
+		NATS: NATSConfig{
+			Mode:        "external",
+			Host:        "127.0.0.1",
+			Port:        4222,
+			AuthEnabled: true,
+			User:        secrets.NATSUser,
+			Password:    secrets.NATSPassword,
+			URL:         fmt.Sprintf("nats://%s:%s@127.0.0.1:4222", url.QueryEscape(secrets.NATSUser), url.QueryEscape(secrets.NATSPassword)),
+		},
+		MinIO: MinIOConfig{
+			Mode:         "external",
+			Endpoint:     "127.0.0.1:9000",
+			RootUser:     secrets.MinIORootUser,
+			RootPassword: secrets.MinIORootPassword,
+			AccessKey:    secrets.MinIORootUser,
+			SecretKey:    secrets.MinIORootPassword,
+			UseSSL:       false,
+			Region:       "us-east-1",
+			Bucket:       "kageos",
+		},
+		Company: CompanyConfig{
+			Code: "default",
+			Name: "Default",
+		},
+		Secrets: SecretsConfig{
+			JWTSecret:              secrets.JWTSecret,
+			GeneratedByKageCtl:     true,
+			GeneratedAtUnixSeconds: time.Now().Unix(),
+		},
+		SystemUser: SystemUserConfig{Password: secrets.SystemUserPassword},
+		SMTP: SMTPConfig{
+			Host:     "smtp.qq.com",
+			Port:     587,
+			FromName: "Kageos",
+		},
+	}
 }
 
 func applyDefaults(cfg *Config) {
@@ -1353,6 +1595,12 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Storage.Root == "" {
 		cfg.Storage.Root = defaultStorageRoot
+	}
+	if cfg.Company.Code == "" {
+		cfg.Company.Code = "default"
+	}
+	if cfg.Company.Name == "" {
+		cfg.Company.Name = "Default"
 	}
 	if cfg.MySQL.Mode == "" {
 		cfg.MySQL.Mode = "bundled"
@@ -1414,6 +1662,18 @@ func applyEnvOverrides(cfg *Config) {
 	if v := strings.TrimSpace(os.Getenv("KAGEOS_BASE_URL")); v != "" {
 		cfg.Site.BaseURL = v
 	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_BASE_IMAGE")); v != "" {
+		cfg.Images.AppBase = v
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_COMPANY_CODE")); v != "" {
+		cfg.Company.Code = v
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_COMPANY_NAME")); v != "" {
+		cfg.Company.Name = v
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_COMPANY_LOGO_URL")); v != "" {
+		cfg.Company.LogoURL = v
+	}
 	if v := strings.TrimSpace(os.Getenv("KAGEOS_TLS_MODE")); v != "" {
 		cfg.Site.TLSMode = v
 	}
@@ -1450,10 +1710,10 @@ func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 	rt.SDKGatewayURL = "http://127.0.0.1:9090"
 
 	rt.MinIOEndpoint = cfg.MinIO.Endpoint
-	rt.SDKMinIOEndpoint = cfg.MinIO.Endpoint
+	rt.SDKMinIOEndpoint = sdkMinIOEndpoint(cfg.MinIO.Endpoint)
 	if cfg.MinIO.Mode == "bundled" {
 		rt.MinIOEndpoint = "127.0.0.1:9000"
-		rt.SDKMinIOEndpoint = "127.0.0.1:9000"
+		rt.SDKMinIOEndpoint = "host.containers.internal:9000"
 	}
 	minioHost, minioPort, err := splitHostPortDefault(rt.MinIOEndpoint, 9000)
 	if err != nil {
@@ -1471,6 +1731,26 @@ func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 	rt.SummaryPath = filepath.Join(paths.GeneratedDir, "kageos-deployment-summary.md")
 	rt.LLMSeedEnvVars = uniqueLLMSeedEnvVars(cfg.LLMs.Configs)
 	return rt, nil
+}
+
+func sdkMinIOEndpoint(endpoint string) string {
+	host, port, err := splitHostPortDefault(endpoint, 9000)
+	if err != nil {
+		return endpoint
+	}
+	if isLocalHostForContainer(host) {
+		return net.JoinHostPort("host.containers.internal", strconv.Itoa(port))
+	}
+	return endpoint
+}
+
+func isLocalHostForContainer(host string) bool {
+	host = strings.ToLower(strings.Trim(strings.TrimSpace(host), "[]"))
+	if host == "localhost" || host == "host.containers.internal" || host == "host.docker.internal" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func validateConfig(rt RuntimeConfig) error {
@@ -1536,6 +1816,14 @@ func validateConfig(rt RuntimeConfig) error {
 		if rt.MinIO.RootUser != rt.MinIO.AccessKey || rt.MinIO.RootPassword != rt.MinIO.SecretKey {
 			errs = append(errs, fmt.Errorf("minio.mode=bundled requires root credentials to match access_key/secret_key"))
 		}
+	}
+	if strings.TrimSpace(rt.Company.Code) == "" {
+		errs = append(errs, fmt.Errorf("company.code is required"))
+	} else if !defaultCompanyCodePattern.MatchString(rt.Company.Code) {
+		errs = append(errs, fmt.Errorf("company.code can only contain letters, numbers, underscores, and hyphens"))
+	}
+	if strings.TrimSpace(rt.Company.Name) == "" {
+		errs = append(errs, fmt.Errorf("company.name is required"))
 	}
 	if len(rt.Secrets.JWTSecret) < 32 {
 		errs = append(errs, fmt.Errorf("secrets.jwt_secret must be at least 32 chars"))
@@ -1674,6 +1962,165 @@ func renderAll(rt RuntimeConfig) error {
 		return err
 	}
 	return nil
+}
+
+func renderDevConfig(paths Paths, regenSecrets bool, companyCode string, companyName string) error {
+	stateDir := filepath.Join(paths.RepoRoot, ".kageos")
+	envDir := filepath.Join(paths.RepoRoot, ".kageos", "dev", "env")
+	envPath := filepath.Join(envDir, "kageos.env")
+	secrets, err := loadOrCreateDevSecrets(stateDir, envPath, regenSecrets)
+	if err != nil {
+		return err
+	}
+	if regenSecrets {
+		fmt.Println("==> dev secrets regenerated")
+	} else if fileExists(envPath) && hasWeakDevSecrets(secrets) {
+		fmt.Println("WARN: existing dev secrets contain old fixed defaults; keep them to avoid breaking existing local volumes")
+		fmt.Println("WARN: rotate with `kagectl init-dev --regen-secrets` after clearing old dev infra volumes")
+	}
+
+	cfg := defaultDevDeploymentConfig(secrets)
+	if companyCode != "" {
+		cfg.Company.Code = companyCode
+	}
+	if companyName != "" {
+		cfg.Company.Name = companyName
+	}
+	applyEnvOverrides(&cfg)
+	rt, err := buildRuntimeConfig(paths, cfg)
+	if err != nil {
+		return err
+	}
+
+	configDir := filepath.Join(paths.RepoRoot, defaultDevConfig)
+	for _, dir := range []string{configDir, envDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	}
+
+	files := map[string]string{
+		"global.yaml":       renderTemplate(globalConfigTemplate, rt),
+		"api-gateway.yaml":  renderTemplate(apiGatewayConfigTemplate, rt),
+		"app-runtime.yaml":  renderTemplate(appRuntimeConfigTemplate, rt),
+		"app-server.yaml":   renderTemplate(appServerConfigTemplate, rt),
+		"app-storage.yaml":  renderTemplate(appStorageConfigTemplate, rt),
+		"agent-server.yaml": renderTemplate(agentServerConfigTemplate, rt),
+		"hr-server.yaml":    renderTemplate(hrServerConfigTemplate, rt),
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(configDir, name), []byte(content), 0644); err != nil {
+			return err
+		}
+	}
+	if err := os.WriteFile(envPath, []byte(renderTemplate(envTemplate, rt)), 0600); err != nil {
+		return err
+	}
+	fmt.Printf("==> dev config rendered: %s\n", configDir)
+	return nil
+}
+
+func loadOrCreateDevSecrets(stateDir, envPath string, regen bool) (devSecrets, error) {
+	if !regen {
+		if values, err := readEnvFile(envPath); err == nil {
+			return mergeDevSecrets(values)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return devSecrets{}, err
+		}
+		if dirExists(stateDir) {
+			return devSecrets{}, fmt.Errorf("dev state exists at %s but %s is missing; refusing to generate new secrets implicitly (use --regen-secrets only after clearing old dev infra volumes)", stateDir, envPath)
+		}
+	}
+	return generateDevSecrets()
+}
+
+func generateDevSecrets() (devSecrets, error) {
+	mysqlPass, err := randomHex(32)
+	if err != nil {
+		return devSecrets{}, err
+	}
+	natsPass, err := randomHex(24)
+	if err != nil {
+		return devSecrets{}, err
+	}
+	minioPass, err := randomHex(32)
+	if err != nil {
+		return devSecrets{}, err
+	}
+	jwt, err := randomHex(32)
+	if err != nil {
+		return devSecrets{}, err
+	}
+	systemPass, err := randomHex(24)
+	if err != nil {
+		return devSecrets{}, err
+	}
+	return devSecrets{
+		MySQLRootPassword:  mysqlPass,
+		NATSUser:           "kageos",
+		NATSPassword:       natsPass,
+		MinIORootUser:      "minioadmin",
+		MinIORootPassword:  minioPass,
+		JWTSecret:          jwt,
+		SystemUserPassword: systemPass,
+	}, nil
+}
+
+func mergeDevSecrets(values map[string]string) (devSecrets, error) {
+	required := []string{
+		"MYSQL_ROOT_PASSWORD",
+		"NATS_SEED_USER",
+		"NATS_SEED_PASSWORD",
+		"MINIO_ROOT_USER",
+		"MINIO_ROOT_PASSWORD",
+		"JWT_SECRET",
+		"SYSTEM_USER_PASSWORD",
+	}
+	missing := make([]string, 0)
+	for _, key := range required {
+		if strings.TrimSpace(values[key]) == "" {
+			missing = append(missing, key)
+		}
+	}
+	if len(missing) > 0 {
+		return devSecrets{}, fmt.Errorf("dev env is incomplete, missing %s; refusing to generate replacement secrets implicitly", strings.Join(missing, ", "))
+	}
+	return devSecrets{
+		MySQLRootPassword:  strings.TrimSpace(values["MYSQL_ROOT_PASSWORD"]),
+		NATSUser:           strings.TrimSpace(values["NATS_SEED_USER"]),
+		NATSPassword:       strings.TrimSpace(values["NATS_SEED_PASSWORD"]),
+		MinIORootUser:      strings.TrimSpace(values["MINIO_ROOT_USER"]),
+		MinIORootPassword:  strings.TrimSpace(values["MINIO_ROOT_PASSWORD"]),
+		JWTSecret:          strings.TrimSpace(values["JWT_SECRET"]),
+		SystemUserPassword: strings.TrimSpace(values["SYSTEM_USER_PASSWORD"]),
+	}, nil
+}
+
+func readEnvFile(path string) (map[string]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	values := make(map[string]string)
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		values[strings.TrimSpace(key)] = strings.Trim(strings.TrimSpace(value), `"'`)
+	}
+	return values, nil
+}
+
+func hasWeakDevSecrets(secrets devSecrets) bool {
+	return secrets.MySQLRootPassword == "root" ||
+		secrets.MinIORootPassword == "minioadmin123" ||
+		strings.HasPrefix(secrets.JWTSecret, "dev-jwt-secret") ||
+		secrets.SystemUserPassword == "kageos-dev-password"
 }
 
 func renderTLSFiles(rt RuntimeConfig) error {
@@ -1856,6 +2303,52 @@ func runComposeOutput(workDir string, args ...string) (string, error) {
 		return "", fmt.Errorf("%w: %s", err, message)
 	}
 	return strings.TrimSpace(output.String()), nil
+}
+
+func runBuildAppBaseScript(paths Paths, opts buildAppBaseOptions) error {
+	scriptPath := filepath.Join(paths.RepoRoot, "deploy", "base", "scripts", "build-app-base-image.sh")
+	if !fileExists(scriptPath) {
+		return fmt.Errorf("app-base build script not found: %s", scriptPath)
+	}
+
+	args := []string{scriptPath}
+	if opts.Force {
+		args = append(args, "--force")
+	}
+	if opts.NoCache {
+		args = append(args, "--no-cache")
+	}
+	cmd := exec.Command("bash", args...)
+	cmd.Dir = paths.RepoRoot
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	cmd.Env = os.Environ()
+	if opts.Image != "" {
+		cmd.Env = append(cmd.Env, "KAGEOS_APP_BASE_IMAGE="+opts.Image)
+	}
+	return cmd.Run()
+}
+
+func runDevInfraScript(paths Paths, opts initDevOptions) error {
+	scriptPath := filepath.Join(paths.RepoRoot, "deploy", "dev", "scripts", "infra.sh")
+	if !fileExists(scriptPath) {
+		return fmt.Errorf("dev infra script not found: %s", scriptPath)
+	}
+
+	args := []string{scriptPath}
+	if opts.Engine != "" && opts.Engine != "auto" {
+		args = append(args, opts.Engine)
+	}
+	args = append(args, "up", "-d")
+
+	cmd := exec.Command("bash", args...)
+	cmd.Dir = paths.RepoRoot
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	cmd.Env = os.Environ()
+	return cmd.Run()
 }
 
 func checkHTTP(rawURL string) error {

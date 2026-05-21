@@ -108,10 +108,22 @@ func (a *PublicShareAPI) Disable(c *gin.Context) {
 	response.Ok(c)
 }
 
+func (a *PublicShareAPI) AnonymousToken(c *gin.Context) {
+	token, claims, err := publicshare.ValidateOrIssueAnonymousToken(c.GetHeader(publicshare.AnonymousTokenHeader))
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	c.Header(publicshare.AnonymousTokenHeader, token)
+	response.OkWithData(c, &dto.PublicAnonymousTokenResp{
+		AnonymousToken: token,
+		ExpiresAt:      time.Unix(claims.ExpiresAt, 0),
+	})
+}
+
 func (a *PublicShareAPI) View(c *gin.Context) {
 	shareID := strings.TrimSpace(c.Param("share_id"))
-	token, _, err := publicshare.ValidateOrIssueAnonymousToken(c.GetHeader(publicshare.AnonymousTokenHeader))
-	if err != nil {
+	if _, err := publicshare.ValidateAnonymousToken(c.GetHeader(publicshare.AnonymousTokenHeader)); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -120,7 +132,7 @@ func (a *PublicShareAPI) View(c *gin.Context) {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
-	resp, err := a.publicShareService.BuildView(contextx.ToContext(c), share, token)
+	resp, err := a.publicShareService.BuildView(contextx.ToContext(c), share)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -130,7 +142,8 @@ func (a *PublicShareAPI) View(c *gin.Context) {
 
 func (a *PublicShareAPI) Submit(c *gin.Context) {
 	shareID := strings.TrimSpace(c.Param("share_id"))
-	token, claims, err := publicshare.ValidateOrIssueAnonymousToken(c.GetHeader(publicshare.AnonymousTokenHeader))
+	token := c.GetHeader(publicshare.AnonymousTokenHeader)
+	claims, err := publicshare.ValidateAnonymousToken(token)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -203,15 +216,14 @@ func (a *PublicShareAPI) Submit(c *gin.Context) {
 		return
 	}
 	a.appService.IncrementFunctionRunCount(ctx, "/"+strings.TrimPrefix(share.FullCodePath, "/"))
-	response.OkWithData(c, &dto.PublicShareSubmitResp{
-		Result:         resp.Result,
-		AnonymousToken: token,
-	}, metadata)
+	c.Header(publicshare.AnonymousTokenHeader, token)
+	response.OkWithData(c, resp.Result, metadata)
 }
 
 func (a *PublicShareAPI) CallbackOnSelectFuzzy(c *gin.Context) {
 	shareID := strings.TrimSpace(c.Param("share_id"))
-	token, claims, err := publicshare.ValidateOrIssueAnonymousToken(c.GetHeader(publicshare.AnonymousTokenHeader))
+	token := c.GetHeader(publicshare.AnonymousTokenHeader)
+	claims, err := publicshare.ValidateAnonymousToken(token)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -280,16 +292,18 @@ func (a *PublicShareAPI) buildPublicRequestAppReq(c *gin.Context, share *model.P
 	c.Request.Header.Set(publicshare.AnonymousTokenHeader, token)
 
 	return &dto.RequestAppReq{
-		User:         tenantUser,
-		App:          app,
-		Router:       router,
-		Method:       http.MethodPost,
-		TraceId:      traceID,
-		RequestUser:  actorID,
-		Token:        token,
-		ClientSource: "public_share",
-		Body:         body,
-		UrlQuery:     c.Request.URL.RawQuery,
+		User:           tenantUser,
+		App:            app,
+		Router:         router,
+		Method:         http.MethodPost,
+		TraceId:        traceID,
+		RequestUser:    actorID,
+		AnonymousToken: token,
+		ClientSource:   "public_share",
+		SourceType:     "public_share",
+		SourceRef:      share.ShareID,
+		Body:           body,
+		UrlQuery:       c.Request.URL.RawQuery,
 	}, nil
 }
 
@@ -327,16 +341,18 @@ func (a *PublicShareAPI) buildPublicCallbackAppReq(c *gin.Context, share *model.
 	}
 
 	return &dto.RequestAppReq{
-		User:         tenantUser,
-		App:          app,
-		Router:       "/_callback",
-		Method:       http.MethodPost,
-		TraceId:      traceID,
-		RequestUser:  actorID,
-		Token:        token,
-		ClientSource: "public_share",
-		Body:         body,
-		UrlQuery:     c.Request.URL.RawQuery,
+		User:           tenantUser,
+		App:            app,
+		Router:         "/_callback",
+		Method:         http.MethodPost,
+		TraceId:        traceID,
+		RequestUser:    actorID,
+		AnonymousToken: token,
+		ClientSource:   "public_share",
+		SourceType:     "public_share",
+		SourceRef:      share.ShareID,
+		Body:           body,
+		UrlQuery:       c.Request.URL.RawQuery,
 	}, nil
 }
 

@@ -79,6 +79,9 @@ services:
       NATS_SEED_PASSWORD: {{ q .NATSAuthPassword }}
       JWT_SECRET: {{ q .Secrets.JWTSecret }}
       SYSTEM_USER_PASSWORD: {{ q .SystemUser.Password }}
+      KAGEOS_COMPANY_CODE: {{ q .Company.Code }}
+      KAGEOS_COMPANY_NAME: {{ q .Company.Name }}
+      KAGEOS_COMPANY_LOGO_URL: {{ q .Company.LogoURL }}
       SMTP_HOST: {{ q .SMTP.Host }}
       SMTP_PORT: {{ q .SMTP.Port }}
       SMTP_USERNAME: {{ q .SMTP.Username }}
@@ -91,7 +94,7 @@ services:
       TLS_MODE: {{ q .Site.TLSMode }}
       TLS_CERT_FILE: {{ q .Site.CertFile }}
       TLS_KEY_FILE: {{ q .Site.KeyFile }}
-      APP_BASE_IMAGE: {{ q .Images.AppBase }}
+      KAGEOS_APP_BASE_IMAGE: {{ q .Images.AppBase }}
     volumes:
       - {{ .Storage.Root }}/podman_storage:/var/lib/containers
       - {{ .Storage.Root }}/logs:/app/logs
@@ -119,7 +122,7 @@ TLS_KEY_FILE={{ .Site.KeyFile }}
 KAGEOS_TLS_CERT_PEM_B64={{ .Site.TLSCertPEMB64 }}
 KAGEOS_TLS_KEY_PEM_B64={{ .Site.TLSKeyPEMB64 }}
 MAIN_IMAGE={{ .Images.Main }}
-APP_BASE_IMAGE={{ .Images.AppBase }}
+KAGEOS_APP_BASE_IMAGE={{ .Images.AppBase }}
 MYSQL_MODE={{ .MySQL.Mode }}
 MYSQL_HOST={{ .MySQLHostForMain }}
 MYSQL_PORT={{ .MySQLPortForMain }}
@@ -134,9 +137,13 @@ MINIO_MODE={{ .MinIO.Mode }}
 MINIO_ENDPOINT={{ .MinIOEndpoint }}
 MINIO_HOST={{ .MinIOHostForMain }}
 MINIO_PORT={{ .MinIOPortForMain }}
+MINIO_ROOT_USER={{ .MinIO.RootUser }}
 MINIO_ROOT_PASSWORD={{ .MinIO.SecretKey }}
 JWT_SECRET={{ .Secrets.JWTSecret }}
 SYSTEM_USER_PASSWORD={{ .SystemUser.Password }}
+KAGEOS_COMPANY_CODE={{ .Company.Code }}
+KAGEOS_COMPANY_NAME={{ q .Company.Name }}
+KAGEOS_COMPANY_LOGO_URL={{ q .Company.LogoURL }}
 SMTP_HOST={{ .SMTP.Host }}
 SMTP_PORT={{ .SMTP.Port }}
 SMTP_USERNAME={{ .SMTP.Username }}
@@ -219,6 +226,11 @@ routes:
     timeout: 300
   - path: "/workspace"
     service_name: "workspace"
+    targets:
+      - url: "http://127.0.0.1:9091"
+    timeout: 300
+  - path: "/public/api"
+    service_name: "workspace-public"
     targets:
       - url: "http://127.0.0.1:9091"
     timeout: 300
@@ -405,6 +417,11 @@ email:
   verification:
     code_length: 6
     code_expire: 300
+
+company:
+  code: {{ q .Company.Code }}
+  name: {{ q .Company.Name }}
+  logo_url: {{ q .Company.LogoURL }}
 
 system_user:
   password: {{ q .SystemUser.Password }}

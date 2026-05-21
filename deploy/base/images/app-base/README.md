@@ -40,13 +40,13 @@ canonical 构建脚本默认会传 `APT_CHECK_DATE=0` 关闭这类日期校验�
 如需严格校验，可手工改成：
 
 ```bash
-APP_BASE_APT_CHECK_DATE=1 bash deploy/base/scripts/build-app-base-image.sh
+KAGEOS_APP_BASE_APT_CHECK_DATE=1 bash deploy/base/scripts/build-app-base-image.sh
 ```
 
 如果后面需要统一改名，也可以直接：
 
 ```bash
-APP_BASE_IMAGE="kagebase:latest" bash deploy/base/scripts/build-app-base-image.sh
+KAGEOS_APP_BASE_IMAGE="kagebase:latest" bash deploy/base/scripts/build-app-base-image.sh
 ```
 
 如果本地已存在同 tag 镜像，想强制重建：

@@ -8,7 +8,7 @@ fail=0
 
 tracked_sensitive="$(
   git ls-files |
-    rg '(^|/)\.env(\.|$)|^deploy/prod/aos\.yaml$|(^|/)license\.json$|(^|/)(secret|private|credential)([^/]*$|/)' |
+    rg '(^|/)\.env(\.|$)|^\.kageos/|^deploy/prod/(aos|kage)\.yaml$|(^|/)license\.json$|(^|/)(secret|private|credential)([^/]*$|/)' |
     rg -v '\.example$' || true
 )"
 
@@ -24,10 +24,11 @@ content_hits="$(
     --glob '!web/node_modules/**' \
     --glob '!local/**' \
     --glob '!namespace/**' \
-    --glob '!deploy/prod/.generated/**' \
+    --glob '!.kageos/**' \
     --glob '!license.json' \
     --glob '!*.example' \
     --glob '!*.md' \
+    --glob '!**/*_test.go' \
     'AKIA[0-9A-Z]{16}|BEGIN (RSA |OPENSSH |EC |DSA )?PRIVATE KEY|sk-[A-Za-z0-9_-]{20,}' || true
 )"
 

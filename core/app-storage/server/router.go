@@ -32,6 +32,10 @@ func (s *Server) setupRoutes() {
 	storageHandler := v1.NewStorage(s.storageService)
 	public.POST("/company_logo/upload_token", storageHandler.GetPublicCompanyLogoUploadToken)
 	public.POST("/company_logo/upload_complete", storageHandler.PublicCompanyLogoUploadComplete)
+	public.POST("/share/:share_id/upload_token", storageHandler.PublicShareGetUploadToken)
+	public.POST("/share/:share_id/upload_complete", storageHandler.PublicShareUploadComplete)
+	public.POST("/share/:share_id/batch_upload_complete", storageHandler.PublicShareBatchUploadComplete)
+	public.POST("/share/:share_id/files/resolve", storageHandler.PublicShareResolveFileRefs)
 
 	// 存储相关路由（需要JWT验证）
 	storageGroup := apiV1
